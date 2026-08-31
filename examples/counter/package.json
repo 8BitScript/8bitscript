@@ -1,0 +1,17 @@
+{
+  "name": "counter",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The first-milestone program: one variable, one function, both targets.",
+  "license": "MIT",
+  "scripts": {
+    "web": "8bs run web",
+    "vic20": "8bs run vic20",
+    "build:web": "8bs build --target web",
+    "build:vic20": "8bs build --target vic20"
+  },
+  "devDependencies": {
+    "@8bitscript/cli": "workspace:*"
+  },
+  "type": "module"
+}

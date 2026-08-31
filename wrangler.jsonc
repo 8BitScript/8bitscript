@@ -1,0 +1,42 @@
+{
+  // Cloudflare Workers configuration for the documentation site at
+  // https://8bitscript.org/. See docs/project/deployment.md for the runbook.
+  //
+  // There is no `main` key on purpose. A Worker with `assets` and no script is
+  // served entirely by Cloudflare's static asset layer: no Worker code runs per
+  // request, and there is nothing to bundle beyond the HTML that
+  // `pnpm run docs:build` writes.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "8bitscript-docs",
+  "compatibility_date": "2026-08-31",
+
+  "assets": {
+    // Built by site/build.mjs from the Markdown in docs/. The directory is
+    // generated, is covered by `dist/` in .gitignore, and is never committed.
+    "directory": "./dist/site",
+
+    // "auto-trailing-slash" is what makes the published URLs match the ones in
+    // site/nav.mjs: /setup/ serves setup/index.html and /setup/vice.html serves
+    // that file directly. Changing it changes every directory URL on the site.
+    "html_handling": "auto-trailing-slash",
+
+    // Unknown paths get a plain 404 rather than being rewritten to a page. This
+    // is a documentation site, not a single-page app; a bad link should look
+    // broken instead of silently rendering the home page.
+    "not_found_handling": "none"
+  },
+
+  // Binds the apex domain to this Worker. Cloudflare provisions the DNS record
+  // and the certificate on the first deploy, which requires 8bitscript.org to
+  // already be a zone in the same Cloudflare account.
+  "routes": [
+    {
+      "pattern": "8bitscript.org",
+      "custom_domain": true
+    }
+  ],
+
+  "observability": {
+    "enabled": true
+  }
+}

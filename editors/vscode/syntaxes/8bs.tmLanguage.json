@@ -1,0 +1,229 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "8BitScript",
+  "scopeName": "source.8bs",
+  "_comment": [
+    "Tracks the syntax the project has specified so far: the TypeScript-derived",
+    "surface, the machine integer types, and the hardware escape hatches",
+    "(@address decorators, volatile/ptr/array, and asm6502 blocks). Constructs",
+    "that are still undecided are simply absent \u2014 an unmatched keyword costs a",
+    "word that does not colour, not a broken file. The language server layers",
+    "semantic tokens over this once it reports them."
+  ],
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#decorators"
+    },
+    {
+      "include": "#imports"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#types"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#declarations"
+    },
+    {
+      "include": "#calls"
+    },
+    {
+      "include": "#operators"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.8bs",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.8bs",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "imports": {
+      "patterns": [
+        {
+          "name": "meta.import.8bs",
+          "begin": "\\b(import)\\b",
+          "beginCaptures": {
+            "1": {
+              "name": "keyword.control.import.8bs"
+            }
+          },
+          "end": ";|$",
+          "patterns": [
+            {
+              "match": "\\b(from)\\b",
+              "name": "keyword.control.from.8bs"
+            },
+            {
+              "include": "#strings"
+            },
+            {
+              "match": "\\b([A-Za-z_][A-Za-z0-9_]*)\\b",
+              "name": "variable.other.readwrite.8bs"
+            }
+          ]
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.8bs",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.8bs",
+              "match": "\\\\."
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.single.8bs",
+          "begin": "'",
+          "end": "'",
+          "patterns": [
+            {
+              "name": "constant.character.escape.8bs",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "comment": "Hexadecimal, in both the C spelling and the 6502-assembly spelling.",
+          "name": "constant.numeric.hex.8bs",
+          "match": "\\b0[xX][0-9a-fA-F_]+\\b|\\$[0-9a-fA-F_]+\\b"
+        },
+        {
+          "comment": "Binary, likewise: bit patterns are written constantly on this hardware.",
+          "name": "constant.numeric.binary.8bs",
+          "match": "\\b0[bB][01_]+\\b|%[01_]+\\b"
+        },
+        {
+          "name": "constant.numeric.decimal.8bs",
+          "match": "\\b[0-9][0-9_]*\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "comment": "Type constructors: ptr<u8>, array<u8, 16>, volatile<u8>.",
+          "name": "support.type.constructor.8bs",
+          "match": "\\b(ptr|array|volatile)\\b(?=\\s*<)"
+        },
+        {
+          "comment": "Sized integers matched by shape, so widths not yet settled still colour.",
+          "name": "support.type.primitive.8bs",
+          "match": "\\b([ui](?:8|16|24|32)|bool|void)\\b"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.8bs",
+          "match": "\\b(if|else|while|for|do|return|break|continue|switch|case|default)\\b"
+        },
+        {
+          "name": "storage.type.8bs",
+          "match": "\\b(function|let|const)\\b"
+        },
+        {
+          "name": "storage.modifier.8bs",
+          "match": "\\b(export|import|from|as|asm6502)\\b"
+        },
+        {
+          "name": "constant.language.boolean.8bs",
+          "match": "\\b(true|false)\\b"
+        }
+      ]
+    },
+    "declarations": {
+      "patterns": [
+        {
+          "comment": "The name in `function name(` is the definition, not a call.",
+          "match": "\\b(function)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": {
+              "name": "storage.type.function.8bs"
+            },
+            "2": {
+              "name": "entity.name.function.8bs"
+            }
+          }
+        },
+        {
+          "comment": "The name bound by `let x` / `const x`.",
+          "match": "\\b(let|const)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": {
+              "name": "storage.type.8bs"
+            },
+            "2": {
+              "name": "variable.other.readwrite.8bs"
+            }
+          }
+        }
+      ]
+    },
+    "calls": {
+      "patterns": [
+        {
+          "comment": "An identifier immediately followed by `(` reads as a call.",
+          "name": "entity.name.function.call.8bs",
+          "match": "\\b([A-Za-z_][A-Za-z0-9_]*)(?=\\s*\\()"
+        },
+        {
+          "comment": "The object side of `screen.putChar(...)`.",
+          "match": "\\b([A-Za-z_][A-Za-z0-9_]*)(?=\\s*\\.)",
+          "name": "variable.other.object.8bs"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.8bs",
+          "match": "\\+\\+|--|<<|>>|&&|\\|\\||[-+*/%&|^~!<>=]=?"
+        },
+        {
+          "comment": "The colon introducing a type annotation.",
+          "name": "punctuation.separator.type.8bs",
+          "match": ":"
+        }
+      ]
+    },
+    "decorators": {
+      "patterns": [
+        {
+          "comment": "Hardware placement and similar attributes, e.g. @address(0x900F).",
+          "name": "entity.name.function.decorator.8bs",
+          "match": "@[A-Za-z_][A-Za-z0-9_]*"
+        }
+      ]
+    }
+  }
+}

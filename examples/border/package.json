@@ -1,0 +1,15 @@
+{
+  "name": "border",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Cycles the VIC-20 border and background colours forever: the classic first sign of life on real hardware.",
+  "license": "MIT",
+  "scripts": {
+    "start": "8bs run vic20",
+    "build": "8bs build --target vic20"
+  },
+  "devDependencies": {
+    "@8bitscript/cli": "workspace:*"
+  },
+  "type": "module"
+}

@@ -1,0 +1,30 @@
+import { screen, input } from "@8bitscript/core";
+
+@address(0x900F)
+let vicColor: volatile<u8>;
+
+let buffer: array<u8, 16>;
+let cursor: ptr<u8>;
+
+export function update(): void {
+    if (input.left()) {
+        cursor--;
+    } else {
+        cursor++;
+    }
+
+    for (let i: u8 = 0; i < 16; i++) {
+        screen.putChar(i, 10, buffer[0]);
+    }
+
+    while (true) {
+        break;
+    }
+
+    asm6502 {
+        lda #$06
+        sta $900f
+    }
+
+    return;
+}

@@ -1,0 +1,24 @@
+# The monorepo. Every publishable package lives in packages/, and every
+# consumer application that exists to exercise them lives in examples/.
+#
+# Editor integrations live in editors/. They are workspace members because the
+# editor client has npm dependencies of its own; nothing there is published to
+# npm.
+#
+# Examples depend on the packages with `workspace:*`, so `pnpm install` links
+# them straight out of packages/ instead of fetching anything from the
+# registry. That is what lets an example be a genuine consumer of the toolchain
+# — resolving through node_modules exactly as an outside project will — with
+# nothing published yet.
+packages:
+  - packages/*
+  - examples/*
+  - editors/*
+
+# pnpm blocks dependency install scripts unless they are approved here. Both
+# entries belong to wrangler: workerd is the Workers runtime used by
+# `wrangler dev`, and esbuild is its bundler. Their postinstall scripts unpack
+# the platform binaries, so without this the docs preview server cannot start.
+allowBuilds:
+  esbuild: true
+  workerd: true

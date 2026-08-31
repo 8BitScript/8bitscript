@@ -1,0 +1,20 @@
+{
+  "name": "hello-vic",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The first consumer of the 8BitScript toolchain: a VIC-20 program built the way an outside project would build one.",
+  "license": "MIT",
+  "scripts": {
+    "build": "8bs build",
+    "dev": "8bs dev",
+    "run:vic20": "8bs run vic20"
+  },
+  "dependencies": {
+    "@8bitscript/core": "workspace:*",
+    "@8bitscript/vic20": "workspace:*"
+  },
+  "devDependencies": {
+    "@8bitscript/cli": "workspace:*"
+  },
+  "type": "module"
+}

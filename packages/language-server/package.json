@@ -1,0 +1,24 @@
+{
+  "name": "@8bitscript/language-server",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Internal: the 8BitScript language server, served to editors over LSP.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=26"
+  },
+  "main": "./src/server.mjs",
+  "exports": {
+    ".": "./src/server.mjs",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src"
+  ],
+  "dependencies": {
+    "@8bitscript/compiler": "workspace:*",
+    "vscode-languageserver": "10.1.1",
+    "vscode-languageserver-textdocument": "1.0.14"
+  }
+}

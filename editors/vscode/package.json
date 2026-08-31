@@ -1,0 +1,57 @@
+{
+  "name": "8bitscript-lang",
+  "displayName": "8BitScript",
+  "description": "Syntax highlighting for 8BitScript (.8bs) source files.",
+  "version": "0.0.0",
+  "publisher": "8bitscript",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.91.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "8bitscript",
+        "aliases": [
+          "8BitScript",
+          "8bs"
+        ],
+        "extensions": [
+          ".8bs"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "8bitscript",
+        "scopeName": "source.8bs",
+        "path": "./syntaxes/8bs.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "8bitscript.restartServer",
+        "title": "8BitScript: Restart Language Server"
+      }
+    ]
+  },
+  "main": "./src/extension.cjs",
+  "activationEvents": [
+    "onLanguage:8bitscript",
+    "workspaceContains:**/*.8bs"
+  ],
+  "dependencies": {
+    "vscode-languageclient": "10.1.1"
+  },
+  "files": [
+    "src",
+    "syntaxes",
+    "language-configuration.json",
+    "README.md"
+  ]
+}
