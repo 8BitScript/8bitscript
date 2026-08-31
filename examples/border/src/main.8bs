@@ -1,0 +1,32 @@
+// The classic VIC-20 sign of life: a steady screen and a border that cycles
+// through all eight colours, one step roughly every half second.
+//
+// $900F is the VIC chip's colour register:
+//
+//   bits 4-7  background colour (1 = white)
+//   bit  3    normal/inverted video (1 = normal)
+//   bits 0-2  border colour
+//
+// So writing 24 + border (0x18 | border) keeps the screen white and normal
+// while only the border changes. Incrementing the whole register instead is
+// an impressive strobe, but not a demo you can look at.
+@address(0x900F)
+let vicColor: volatile<u8>;
+
+let border: u8 = 0;
+
+// volatile, or the optimiser notices the delay loop computes nothing and
+// deletes it — and the border cycles faster than the eye can see again.
+let delay: volatile<u16> = 0;
+
+export function main(): void {
+    while (true) {
+        vicColor = 24 + border;
+        border = (border + 1) & 7;
+
+        delay = 0;
+        while (delay < 12000) {
+            delay = delay + 1;
+        }
+    }
+}

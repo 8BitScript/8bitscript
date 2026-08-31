@@ -1,0 +1,46 @@
+// @8bitscript/compiler — the public surface other packages consume.
+//
+// The dependency direction is one-way and load-bearing: the CLI and the
+// language server both depend on this package, and this package knows nothing
+// about either of them, or about any editor. Analysis lives here so that
+// `8bs check`, the editor, and CI all report the same errors from the same
+// implementation.
+import { tokenize } from './src/lexer/index.mjs';
+import { parse } from './src/parser/index.mjs';
+import { check } from './src/checker/index.mjs';
+import { resolveImports } from './src/resolver/index.mjs';
+
+export { tokenize, TokenKind, KEYWORDS, TYPE_NAMES } from './src/lexer/index.mjs';
+export { parse } from './src/parser/index.mjs';
+export { NodeType, walk } from './src/ast/index.mjs';
+export { check, INTEGER_RANGES } from './src/checker/index.mjs';
+export { lower } from './src/ir/index.mjs';
+export { findImports, resolveImports } from './src/resolver/index.mjs';
+export { Codes, diagnostic, positionAt } from './src/diagnostics/index.mjs';
+
+/**
+ * Analyse one source file and return every diagnostic it produces.
+ *
+ * This is the single entry point for "what is wrong with this file". It never
+ * throws: source is assumed to be mid-edit, and a dependency on disk is assumed
+ * to be possibly broken.
+ *
+ * Import resolution is opt-in because it is the only part that touches the
+ * filesystem, and it needs a real absolute path to resolve against. Callers
+ * working with an unsaved buffer leave it off.
+ *
+ * @param {string} text
+ * @param {string} file
+ * @param {{ resolveImports?: boolean }} [options]
+ * @returns {object[]} diagnostics, in source order
+ */
+export function analyze(text, file = '<unknown>', options = {}) {
+  const { tokens, diagnostics: lexical } = tokenize(text, file);
+  const { ast, diagnostics: syntax } = parse(tokens, text, file);
+
+  const all = [...lexical, ...syntax, ...check(ast, file)];
+  // Import resolution stays on tokens rather than the AST, deliberately: a
+  // syntax error on line 30 should not stop line 1's import from being checked.
+  if (options.resolveImports) all.push(...resolveImports(tokens, file));
+  return all.sort((a, b) => a.start - b.start);
+}

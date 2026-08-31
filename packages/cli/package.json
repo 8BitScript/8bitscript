@@ -1,0 +1,30 @@
+{
+  "name": "@8bitscript/cli",
+  "private": true,
+  "version": "0.0.0",
+  "description": "The 8bs command line interface: builds, runs, and diagnoses 8BitScript projects.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=26"
+  },
+  "bin": {
+    "8bs": "./bin/8bs.mjs"
+  },
+  "files": [
+    "bin",
+    "src"
+  ],
+  "dependencies": {
+    "@8bitscript/compiler": "workspace:*",
+    "@8bitscript/language-server": "workspace:*",
+    "@8bitscript/backend-web": "workspace:*",
+    "@8bitscript/backend-6502": "workspace:*"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}

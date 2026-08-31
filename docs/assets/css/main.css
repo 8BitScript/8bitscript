@@ -1,0 +1,221 @@
+/*
+ * Documentation styling for 8bitscript.org.
+ *
+ * Deliberately plain: readable text, a sidebar, and light/dark support. This is
+ * a library's documentation, not a design showcase — if a rule here is not
+ * earning its place in legibility or navigation, delete it.
+ */
+
+:root {
+  --bg: #ffffff;
+  --fg: #1c1c1c;
+  --muted: #5c5c5c;
+  --link: #0b5cad;
+  --border: #d9d9d9;
+  --code-bg: #f4f4f4;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14161a;
+    --fg: #e4e4e4;
+    --muted: #9aa0a6;
+    --link: #7fb2f0;
+    --border: #33373d;
+    --code-bg: #1e2126;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+code,
+pre {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+/* Keyboard users get a visible way past the sidebar. */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+}
+
+.skip-link:focus {
+  left: 0.5rem;
+  top: 0.5rem;
+  z-index: 1;
+  padding: 0.5rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+
+.site-header {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.wordmark {
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: inherit;
+  text-decoration: none;
+}
+
+.tagline {
+  margin: 0.15rem 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 2rem;
+  max-width: 60rem;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.site-nav {
+  flex: 0 0 13rem;
+  position: sticky;
+  top: 1.5rem;
+  font-size: 0.9rem;
+}
+
+.nav-list,
+.nav-sublist {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nav-sublist {
+  margin-left: 0.85rem;
+}
+
+.nav-item {
+  margin: 0.3rem 0;
+}
+
+.nav-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.nav-link:hover {
+  text-decoration: underline;
+}
+
+.nav-link.is-current {
+  font-weight: 700;
+}
+
+.content {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.content > :first-child {
+  margin-top: 0;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.25;
+  margin: 2rem 0 0.75rem;
+}
+
+h1 {
+  font-size: 1.7rem;
+}
+
+h2 {
+  font-size: 1.3rem;
+}
+
+h3 {
+  font-size: 1.05rem;
+}
+
+a {
+  color: var(--link);
+}
+
+pre {
+  background: var(--code-bg);
+  padding: 0.75rem 1rem;
+  overflow-x: auto;
+  border-radius: 4px;
+}
+
+code {
+  background: var(--code-bg);
+  padding: 0.1em 0.3em;
+  border-radius: 3px;
+}
+
+pre code {
+  background: none;
+  padding: 0;
+}
+
+/* Wide tables scroll rather than forcing the page sideways. */
+table {
+  display: block;
+  overflow-x: auto;
+  border-collapse: collapse;
+  margin: 1rem 0;
+}
+
+th,
+td {
+  border: 1px solid var(--border);
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+}
+
+blockquote {
+  margin: 1rem 0;
+  padding-left: 1rem;
+  border-left: 3px solid var(--border);
+  color: var(--muted);
+}
+
+.site-footer {
+  border-top: 1px solid var(--border);
+  padding: 1rem 1.5rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.site-footer a {
+  color: inherit;
+}
+
+@media (max-width: 45rem) {
+  .layout {
+    display: block;
+    padding: 1rem;
+  }
+
+  .site-nav {
+    position: static;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+}

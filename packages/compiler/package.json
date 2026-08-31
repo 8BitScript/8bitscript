@@ -1,0 +1,23 @@
+{
+  "name": "@8bitscript/compiler",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Internal: the 8BitScript front end \u2014 lexer, checker, and diagnostics.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=26"
+  },
+  "main": "./index.mjs",
+  "exports": {
+    ".": "./index.mjs",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.mjs",
+    "src"
+  ],
+  "scripts": {
+    "test": "node --test"
+  }
+}

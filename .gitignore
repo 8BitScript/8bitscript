@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Compiler and bundler output
+dist/
+build/
+
+# Compiled Commodore program images
+*.prg
+
+# Wrangler local state and cache
+.wrangler/
+
+# Logs
+*.log
+
+# OS cruft
+.DS_Store

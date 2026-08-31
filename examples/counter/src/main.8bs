@@ -1,0 +1,8 @@
+// The first program 8BitScript ever compiled: the milestone from the design
+// notes, verbatim. One u8, one function, u8 arithmetic that wraps at 256 on
+// every target.
+let x: u8 = 10;
+
+export function main(): void {
+    x = x + 1;
+}

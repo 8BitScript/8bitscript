@@ -1,0 +1,17 @@
+// @8bitscript/vic20 — VIC-20 target support.
+//
+// The module entry point named by the "8bitscript".entry field in this
+// package's package.json, loaded by the compiler's resolver for:
+//
+//     import { vic } from "@8bitscript/vic20";
+//
+// INTENDED SURFACE, NOT AN IMPLEMENTATION, for the same reason as
+// @8bitscript/core: the declaration syntax is not designed yet.
+//
+//   vic
+//       Direct access to the VIC chip's registers and the VIC-20's memory map.
+//
+// This package is where "portable APIs, without losing the target" is paid for.
+// @8bitscript/core stays identical everywhere; the machine underneath is
+// reached through here, and a project that imports this package has declared
+// itself VIC-20 specific.
