@@ -1,12 +1,17 @@
 // `8bs build` — compile a program for a target.
 //
-//     8bs build --target vic20 [entry.8bs]
-//     8bs build --target web   [entry.8bs]
+//     8bs build --target vic20-ntsc [entry.8bs]
+//     8bs build --target web        [entry.8bs]
 //
 // The entry defaults to src/main.8bs, or to the `entry` in 8bs.config.ts when
 // the project has one. Output lands in dist/: <name>.prg for the Commodore
 // targets, <name>.wasm for the web, with the generated C or AssemblyScript
 // beside it so what the compiler did is never a mystery.
+//
+// vic20/c64 are never bare: NTSC and PAL machines have different VIC/VIC-II
+// timing and screen geometry, so the target names it explicitly rather than
+// defaulting one way and leaving the other implicit. See parseMachineTarget
+// in @8bitscript/backend-6502 for how a target splits into machine + region.
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
@@ -14,7 +19,7 @@ import { pathToFileURL } from 'node:url';
 
 import { analyze, tokenize, parse, lower, positionAt } from '@8bitscript/compiler';
 
-const TARGETS = new Set(['vic20', 'c64', 'web']);
+const TARGETS = new Set(['vic20-ntsc', 'vic20-pal', 'c64-ntsc', 'c64-pal', 'web']);
 
 /**
  * The project's 8bs.config.ts, if present. Node 26 imports TypeScript with
@@ -49,7 +54,9 @@ export async function compile(target, entryArg) {
   const config = await loadConfig(process.cwd());
 
   if (!TARGETS.has(target)) {
-    process.stderr.write(`8bs build: unknown target '${target}'. Targets: vic20, c64, web\n`);
+    process.stderr.write(
+      `8bs build: unknown target '${target}'. Targets: ${[...TARGETS].join(', ')}\n`,
+    );
     return { ok: false };
   }
   if (config?.targets && !config.targets.includes(target)) {
@@ -118,7 +125,9 @@ export async function build(args) {
   const entry = targetIndex >= 0 ? rest[0] : rest[1];
 
   if (!target) {
-    process.stderr.write('Usage: 8bs build --target <vic20|c64|web> [entry.8bs]\n');
+    process.stderr.write(
+      'Usage: 8bs build --target <vic20-ntsc|vic20-pal|c64-ntsc|c64-pal|web> [entry.8bs]\n',
+    );
     return 2;
   }
   const { ok } = await compile(target, entry);

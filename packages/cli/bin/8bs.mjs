@@ -17,10 +17,11 @@ const PLANNED = ['dev'];
 const usage = () => `Usage: 8bs <command> [options]
 
 Implemented:
-  build --target <t> [entry]   Compile for a target: vic20, c64, or web
-  run <target> [--pal] [entry] Build, then open VICE (vic20/c64, 60fps NTSC
-                               unless --pal) or execute the .wasm and print
-                               its state (web)
+  build --target <t> [entry]   Compile for a target: vic20-ntsc, vic20-pal,
+                               c64-ntsc, c64-pal, or web
+  run <target> [entry]         Build, then open VICE at the target's machine
+                               model (vic20-ntsc/vic20-pal/c64-ntsc/c64-pal)
+                               or execute the .wasm and print its state (web)
   check <files...>             Report diagnostics for 8BitScript source files
   doctor                       Verify the toolchains every target needs
   lsp [--stdio]                Start the language server on stdio

@@ -18,9 +18,21 @@ const C_TYPE = {
   bool: 'uint8_t',
 };
 
+// A build target names a machine and a video region separately —
+// 'vic20-ntsc', 'c64-pal' — because the two regions of a machine have
+// different VIC/VIC-II timing and screen geometry. Neither the driver nor
+// the compile flags below vary by region today (there is no region-specific
+// codegen yet), only by machine, so every caller that needs "which SDK
+// driver" or "which linker flags" goes through the machine half only.
+export function parseMachineTarget(target) {
+  const match = /^(vic20|c64)-(ntsc|pal)$/.exec(target ?? '');
+  if (!match) return null;
+  return { machine: match[1], region: match[2] };
+}
+
 const DRIVER = { vic20: 'mos-vic20-clang', c64: 'mos-c64-clang' };
 
-// Per-target compile flags.
+// Per-machine compile flags.
 //
 // The SDK's vic20 linker script defaults to a machine with 24K of RAM
 // expansion (programs load at $1201). 8BitScript targets the UNEXPANDED
@@ -28,7 +40,7 @@ const DRIVER = { vic20: 'mos-vic20-clang', c64: 'mos-c64-clang' };
 // expansion symbol is pinned to 0. Fitting the small machine is the point;
 // expanded configurations can become an option once someone actually needs
 // one.
-const TARGET_FLAGS = {
+const MACHINE_FLAGS = {
   vic20: ['-Wl,--defsym=__memory_expansion=0'],
   c64: [],
 };
@@ -118,12 +130,14 @@ export function emitC(ir) {
  * Compile IR to a .prg via LLVM-MOS.
  *
  * @param {object} ir
- * @param {{ target: 'vic20'|'c64', outFile: string }} options
+ * @param {{ target: 'vic20-ntsc'|'vic20-pal'|'c64-ntsc'|'c64-pal', outFile: string }} options
  * @returns {Promise<{ ok: boolean, cFile?: string, error?: string }>}
  */
 export async function buildPrg(ir, { target, outFile }) {
-  const driverName = DRIVER[target];
-  if (!driverName) return { ok: false, error: `backend-6502 has no driver for target '${target}'` };
+  const parsed = parseMachineTarget(target);
+  if (!parsed) return { ok: false, error: `backend-6502 has no driver for target '${target}'` };
+  const { machine } = parsed;
+  const driverName = DRIVER[machine];
 
   const home = process.env.LLVM_MOS_HOME;
   if (!home) {
@@ -144,7 +158,7 @@ export async function buildPrg(ir, { target, outFile }) {
   return new Promise((resolvePromise) => {
     const child = spawn(
       driver,
-      ['-Os', ...TARGET_FLAGS[target], '-o', outFile, cFile],
+      ['-Os', ...MACHINE_FLAGS[machine], '-o', outFile, cFile],
       { stdio: ['ignore', 'pipe', 'pipe'] },
     );
     let stderr = '';

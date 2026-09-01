@@ -16,7 +16,7 @@ import { createInterface } from 'node:readline/promises';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const EXAMPLES_DIR = join(ROOT, 'examples');
-const ALL_TARGETS = ['vic20', 'c64', 'web'];
+const ALL_TARGETS = ['vic20-ntsc', 'vic20-pal', 'c64-ntsc', 'c64-pal', 'web'];
 
 async function loadConfig(dir) {
   const path = join(dir, '8bs.config.ts');
