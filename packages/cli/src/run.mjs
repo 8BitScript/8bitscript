@@ -28,7 +28,16 @@ const EMULATOR_ARGS = {
   vic20: ['-autostartprgmode', '1'],
   c64: ['-autostartprgmode', '1'],
 };
-const REGION_ARGS = { ntsc: ['-ntsc'], pal: ['-pal'] };
+// -ntsc/-pal only flip the sync factor (raster timing): the screen-origin
+// registers the KERNAL sets up at boot stay wired to whichever machine model
+// is loaded, so -ntsc alone pairs NTSC timing with PAL geometry and the
+// picture renders off-center — text pinned to the top-left, a dead white
+// area bottom-right, border visible on only two edges. -model switches the
+// whole machine (ROM set, VIC-II/VIC geometry, and timing together).
+const MODEL_ARGS = {
+  vic20: { ntsc: ['-model', 'vic20ntsc'], pal: ['-model', 'vic20pal'] },
+  c64: { ntsc: ['-model', 'ntsc'], pal: ['-model', 'c64'] },
+};
 
 /** @returns {Promise<number>} exit code */
 export async function run(args) {
@@ -64,7 +73,7 @@ export async function run(args) {
   process.stdout.write(`starting ${emulator} (${region}); close the emulator window to finish.\n`);
   const { spawn } = await import('node:child_process');
   return new Promise((resolvePromise) => {
-    const emulatorArgs = [...(EMULATOR_ARGS[target] ?? []), ...REGION_ARGS[region], '-autostart', outFile];
+    const emulatorArgs = [...(EMULATOR_ARGS[target] ?? []), ...MODEL_ARGS[target][region], '-autostart', outFile];
     const child = spawn(emulator, emulatorArgs, { stdio: 'inherit' });
     child.on('error', () => {
       process.stderr.write(`8bs run: cannot start ${emulator}. Run '8bs doctor' — docs/setup/vice.md\n`);
