@@ -1,28 +1,29 @@
-// The classic VIC-20 sign of life: a steady screen and a border that cycles
-// through all eight colours, one step roughly every half second.
+// A steady screen and a border that cycles through every colour the machine
+// has, one step roughly every half second — the classic first sign of life,
+// on whichever machine you build for.
 //
-// $900F is the VIC chip's colour register:
-//
-//   bits 4-7  background colour (1 = white)
-//   bit  3    normal/inverted video (1 = normal)
-//   bits 0-2  border colour
-//
-// So writing 24 + border (0x18 | border) keeps the screen white and normal
-// while only the border changes. Incrementing the whole register instead is
-// an impressive strobe, but not a demo you can look at.
-@address(0x900F)
-let vicColor: volatile<u8>;
-
-let border: u8 = 0;
+// @8bitscript/machine is not a real module of its own: at build time it
+// resolves to the target package for the machine being built —
+// @8bitscript/vic20 or @8bitscript/c64. Both export the same surface: the
+// `border` and `background` colour values, and applyColors(), which writes
+// them to the hardware. The VIC-20 packs both colours into one register
+// ($900F, eight border colours); the C64 gives each its own ($D020/$D021,
+// sixteen). That difference lives inside applyColors, and this file never
+// sees it.
+import { border, background, applyColors } from "@8bitscript/machine";
 
 // volatile, or the optimiser notices the delay loop computes nothing and
 // deletes it — and the border cycles faster than the eye can see again.
 let delay: volatile<u16> = 0;
 
 export function main(): void {
+    background = 1;
+
     while (true) {
-        vicColor = 24 + border;
-        border = (border + 1) & 7;
+        applyColors();
+        // Wraps at 256, which both palette sizes divide evenly; each
+        // machine's applyColors masks it to the colours it actually has.
+        border = border + 1;
 
         delay = 0;
         while (delay < 12000) {

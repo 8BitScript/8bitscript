@@ -11,23 +11,26 @@ exactly as a project installed from the registry would. Nothing here is special
 ## Status
 
 This example does not build yet — deliberately. It is written against the
-intended standard library (`screen`, `input`, `vic`), which does not exist, so
-`pnpm --filter hello-vic run build` fails with `8BS3001` diagnostics naming
-each uncompilable construct:
+intended standard library (`screen`, `input`, `vic`), whose namespace surface
+does not exist. The linker now loads and resolves both imports, so the build
+fails on what is genuinely missing — the names are not exported, and calls do
+not lower:
 
 ```
-error 8BS3001: imports are not compilable yet: there is no linker
-error 8BS3001: a CallExpression expression is not compilable yet
+error 8BS2005: 'screen' is not exported by '@8bitscript/core'
+error 8BS3001: a call through member access is not compilable yet
 ```
 
 That is the exhaustive-with-error rule working: the compiler refuses to build a
 program missing half its meaning rather than emitting something silently wrong.
 For programs that *do* compile and run today, see `examples/counter` (both
-targets) and `examples/border` (VIC-20, visibly).
+targets) and `examples/border` (VIC-20 and C64, visibly — one source file
+that imports its colour API from `@8bitscript/machine`, which resolves to
+the target package for whichever machine is being built).
 
 ## The intended loop
 
-Once the compiler exists, working on it looks like this:
+Working on the toolchain looks like this:
 
 ```
 edit the compiler  ->  edit src/main.8bs  ->  pnpm --filter hello-vic run:vic20  ->  VICE opens

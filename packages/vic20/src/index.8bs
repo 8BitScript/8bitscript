@@ -1,17 +1,42 @@
 // @8bitscript/vic20 — VIC-20 target support.
 //
 // The module entry point named by the "8bitscript".entry field in this
-// package's package.json, loaded by the compiler's resolver for:
+// package's package.json, resolved and linked for:
 //
-//     import { vic } from "@8bitscript/vic20";
+//     import { vicColor } from "@8bitscript/vic20";
 //
-// INTENDED SURFACE, NOT AN IMPLEMENTATION, for the same reason as
-// @8bitscript/core: the declaration syntax is not designed yet.
+// The surface is the hardware, one register at a time, and it grows as the
+// language does: what is here today is what the milestone subset can actually
+// express — exported @address globals. A namespace like `vic.` waits on the
+// declaration syntax being designed.
 //
-//   vic
-//       Direct access to the VIC chip's registers and the VIC-20's memory map.
-//
-// This package is where "portable APIs, without losing the target" is paid for.
-// @8bitscript/core stays identical everywhere; the machine underneath is
+// This package is where "portable APIs, without losing the target" is paid
+// for. @8bitscript/core stays identical everywhere; the machine underneath is
 // reached through here, and a project that imports this package has declared
 // itself VIC-20 specific.
+
+// $900F, the VIC chip's colour register:
+//
+//   bits 4-7  background colour
+//   bit  3    normal/inverted video (1 = normal)
+//   bits 0-2  border colour
+@address(0x900F)
+export let vicColor: volatile<u8>;
+
+// ---- the common colour surface -------------------------------------------
+//
+// Every machine package exports the same three names, which is what lets a
+// program import them from @8bitscript/machine and never name the hardware:
+// set `border` and `background`, call applyColors(), and the machine shows
+// them. (Values are passed through globals because functions take no
+// parameters yet.)
+
+export let border: u8 = 0;
+export let background: u8 = 0;
+
+// One packed register on the VIC: border in bits 0-2 (the VIC has eight
+// border colours, so the value is masked to them), background in bits 4-7,
+// bit 3 held at 1 for normal video.
+export function applyColors(): void {
+    vicColor = (8 | (border & 7)) | (background << 4);
+}

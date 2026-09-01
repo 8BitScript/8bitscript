@@ -21,6 +21,7 @@ import { INTEGER_RANGES } from '../checker/index.mjs';
 
 /**
  * @typedef {object} IrProgram
+ * @property {IrImport[]} imports    Unresolved until the linker consumes them.
  * @property {IrGlobal[]} globals
  * @property {IrFunction[]} functions
  */
@@ -29,6 +30,7 @@ class Lowering {
   constructor(file) {
     this.file = file;
     this.diagnostics = [];
+    this.imports = [];
     this.globals = [];
     this.functions = [];
   }
@@ -50,15 +52,35 @@ class Lowering {
           this.function(node);
           break;
         case NodeType.ImportDeclaration:
-          // The resolver validates imports, but no linker exists to combine
-          // modules, so a program that needs one cannot be compiled yet.
-          this.fail(node, 'imports are not compilable yet: there is no linker');
+          this.import(node);
           break;
         default:
           this.fail(node, `a top-level ${node.type} is not compilable yet`);
       }
     }
-    return { globals: this.globals, functions: this.functions };
+    return { imports: this.imports, globals: this.globals, functions: this.functions };
+  }
+
+  // An import lowers to a record, not to code: the linker resolves it against
+  // the other modules in the graph. IR with a non-empty `imports` is not a
+  // complete program yet, and both backends refuse it rather than dropping it.
+  import(node) {
+    if (!node.source) {
+      // The parser already reported the malformed import; a lowering record
+      // without a source module would be meaningless.
+      return this.fail(node, 'an import without a module specifier is not compilable');
+    }
+    this.imports.push({
+      source: node.source.value,
+      specifiers: (node.specifiers ?? []).map((spec) => ({
+        imported: spec.imported ?? spec.name,
+        local: spec.name,
+        start: spec.start,
+        length: spec.length,
+      })),
+      start: node.start,
+      length: node.length,
+    });
   }
 
   global(node) {
@@ -139,6 +161,7 @@ class Lowering {
         const e = node.expression;
         if (e.type === NodeType.AssignmentExpression) return this.assignment(e);
         if (e.type === NodeType.UpdateExpression) return this.update(e);
+        if (e.type === NodeType.CallExpression) return this.call(e);
         return this.fail(node, `a bare ${e.type} statement is not compilable yet`);
       }
       case NodeType.VariableDeclaration:
@@ -170,6 +193,23 @@ class Lowering {
     }
   }
 
+  // A call is a statement, not an expression: functions take no parameters
+  // and return nothing yet, so a call can only appear on its own line.
+  call(node) {
+    if (node.callee.type !== NodeType.Identifier) {
+      return this.fail(node, 'a call through member access is not compilable yet');
+    }
+    if (node.args.length > 0) {
+      return this.fail(node, 'a call with arguments is not compilable yet: functions take no parameters');
+    }
+    return {
+      kind: 'call',
+      name: node.callee.name,
+      start: node.callee.start,
+      length: node.callee.length,
+    };
+  }
+
   blockOrStatement(node) {
     if (node.type === NodeType.BlockStatement) return this.block(node);
     const lowered = this.statement(node);
@@ -187,11 +227,14 @@ class Lowering {
       value = {
         kind: 'binop',
         operator: node.operator.slice(0, -1),
-        left: { kind: 'ref', name: node.left.name },
+        left: { kind: 'ref', name: node.left.name, start: node.left.start, length: node.left.length },
         right: value,
       };
     }
-    return { kind: 'assign', target: node.left.name, value };
+    return {
+      kind: 'assign', target: node.left.name, value,
+      start: node.left.start, length: node.left.length,
+    };
   }
 
   update(node) {
@@ -201,10 +244,12 @@ class Lowering {
     return {
       kind: 'assign',
       target: node.argument.name,
+      start: node.argument.start,
+      length: node.argument.length,
       value: {
         kind: 'binop',
         operator: node.operator === '++' ? '+' : '-',
-        left: { kind: 'ref', name: node.argument.name },
+        left: { kind: 'ref', name: node.argument.name, start: node.argument.start, length: node.argument.length },
         right: { kind: 'const', value: 1 },
       },
     };
@@ -217,7 +262,9 @@ class Lowering {
       case NodeType.BooleanLiteral:
         return { kind: 'const', value: node.value ? 1 : 0 };
       case NodeType.Identifier:
-        return { kind: 'ref', name: node.name };
+        // The span rides along so the linker can point a diagnostic at the
+        // exact reference when a name resolves to nothing.
+        return { kind: 'ref', name: node.name, start: node.start, length: node.length };
       case NodeType.BinaryExpression: {
         const left = this.expression(node.left);
         const right = this.expression(node.right);

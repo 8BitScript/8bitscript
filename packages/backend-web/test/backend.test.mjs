@@ -25,10 +25,22 @@ test('emits the specified wrap-at-assignment form', () => {
   assert.match(emitted.source, /x = <u8>\(x \+ 1\);/);
 });
 
+test('call statements emit as plain calls', () => {
+  const emitted = emitAssemblyScript(irOf('export function main(): void { apply(); }\nexport function apply(): void { return; }'));
+  assert.ok(emitted.ok);
+  assert.match(emitted.source, /apply\(\);/);
+});
+
 test('@address is a target error, not a shrug', () => {
   const emitted = emitAssemblyScript(irOf('@address(0x900F)\nlet v: volatile<u8>;'));
   assert.equal(emitted.ok, false);
   assert.match(emitted.error, /no such hardware on the web target/);
+});
+
+test('IR with unresolved imports is refused, not dropped', async () => {
+  const result = await buildWasm(irOf('import { limit } from "./lib.8bs";'), { outFile: 'unused.wasm' });
+  assert.equal(result.ok, false);
+  assert.match(result.error, /unresolved imports/);
 });
 
 test('the milestone program runs and its u8 wraps', async () => {

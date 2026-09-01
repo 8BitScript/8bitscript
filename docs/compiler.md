@@ -21,6 +21,11 @@ main.8bs
    v
  lexer  ->  parser  ->  AST  ->  binder  ->  checker  ->  IR
                                                           |
+                                                        linker
+                                             (every imported module goes
+                                             through the same front end;
+                                             the IRs merge into one program)
+                                                          |
                         +---------------------------------+
                         |                                 |
                         v                                 v
@@ -55,15 +60,19 @@ would, and that leaves the effort here on the language.
 | Checker | **One rule implemented** — integer literal range, now on the AST |
 | Resolver | **Implemented.** Checks imports against the package contract |
 | IR + lowering | **Implemented** for the milestone subset; anything else errors |
+| Linker | **Implemented.** Loads the import graph, binds names across modules, merges IR |
 | 6502 backend | **Implemented.** IR → generated C → LLVM-MOS → `.prg` |
 | Web backend | **Implemented.** IR → generated AssemblyScript → asc → `.wasm` |
 | Binder | Not started |
 
 The milestone subset compiles and runs on both targets: globals with machine
-integer types, functions without parameters, assignment and arithmetic,
-`if`/`while`, `@address` hardware globals, and `asm6502` blocks. **Lowering is
+integer types, functions without parameters, parameterless calls in statement
+position, assignment and arithmetic,
+`if`/`while`, `@address` hardware globals, `asm6502` blocks — and imports,
+which the linker resolves across modules. **Lowering is
 exhaustive-with-error**: a construct without a compilation rule fails with a
-diagnostic naming it — imports, calls, locals — never by silently dropping
+diagnostic naming it — calls with arguments, member access, locals — never by
+silently dropping
 code. `8BS3001` is that diagnostic; a program using any of it does not build.
 
 ## Diagnostics first
@@ -118,6 +127,9 @@ Implemented today:
 | `8BS2002` | Package is not an 8BitScript package |
 | `8BS2003` | Package declares an entry that does not exist |
 | `8BS2004` | Cannot find a relative module |
+| `8BS2005` | Imported name is not exported by the module it names |
+| `8BS2006` | Imported name collides with another binding in the module |
+| `8BS2007` | Reference to a name that resolves to nothing |
 | `8BS3001` | Valid construct the compiler cannot lower yet |
 | `8BS3002` | Construct not available on the requested target |
 
@@ -140,7 +152,8 @@ file that exists. Each failure has its own code, so "you did not install it"
 and "you installed something that is not an 8BitScript package" never look the
 same.
 
-This is the only layer that touches the filesystem. The lexer and checker are
+The resolver and the linker are the only layers that touch the filesystem.
+The lexer and checker are
 pure functions over text, which keeps them trivially testable and means a
 broken dependency on disk can never make them fail. It is opt-in for that
 reason: `analyze(text, file, { resolveImports: true })`, enabled by `8bs check`
@@ -154,6 +167,55 @@ is reported.
 
 Resolution currently re-reads manifests on every analysis. At this scale that
 is free; it wants a cache once projects have real dependency graphs.
+
+## The linker
+
+`8bs build` does not compile a file; it links a program. The linker starts at
+the entry module, resolves every import to a file (the same rules as above),
+runs the full front end over each module it discovers, and merges the IRs into
+the one program the backends already understand. The backends did not change
+for modules to arrive — linking happens entirely on the IR.
+
+The model is the per-module namespace [the package model](packages.md)
+promises: a module sees its own top-level declarations plus what it imports,
+and nothing else. Because the merged program becomes one translation unit,
+symbols are renamed to keep modules apart — a symbol keeps its source name
+when it is free (the entry module claims first, so `main` stays `main`), and
+takes a `_2`-style suffix when another module got there first. References are
+rewritten module by module, which is also what makes `import { x as y }`
+aliasing work. `asm6502` text is the one thing never rewritten: inline
+assembly naming a symbol sees its final, possibly-suffixed name.
+
+The linker is where names first mean something, so three diagnostics live
+here: importing a name a module does not export (`8BS2005`), importing a name
+already bound in the module (`8BS2006`), and referencing a name that resolves
+to nothing (`8BS2007`). The last one is load-bearing rather than cosmetic:
+with renaming in play, an undeclared name that slipped through could silently
+capture another module's symbol, and "nothing silent" is the rule.
+
+Two boundaries, stated as decisions. `8bs check` stays per-file — it is the
+editor's view, and it reports what analysis of one file can know, so an
+import of a name that does not exist surfaces at build time, not check time;
+cross-module analysis joins `8bs check` when the binder exists. And the
+linker does no reachability pruning — every module's globals and functions
+are emitted whether used or not. Hardware registers are `#define`s and cost
+nothing; pruning earns its place when packages ship more than registers.
+
+What crosses module boundaries today is exactly what the milestone subset can
+express: globals, including `@address` hardware globals, and parameterless
+functions, which can be called in statement position. One consequence is
+stated as a decision rather than left to be discovered: an imported global is
+a writable alias — assigning to it assigns to the exporting module's global.
+That is the opposite of JavaScript's read-only import bindings, and it is
+deliberate: globals are the only channel for passing a value across a module
+boundary until functions take parameters.
+
+Packages can also make their entry **target-conditional**: an
+`"8bitscript".entry` object keyed by machine resolves to that machine's
+implementation at build time, and a machine the object has no branch for is
+`8BS3002`. The mechanics and the delegation form live in
+[the package model](packages.md); `@8bitscript/machine` is the working
+example.
 
 ## The checker rule that exists
 
@@ -256,16 +318,18 @@ The SDK's own default is a 24K-expanded machine, so the backend pins the
 linker's `__memory_expansion` symbol to 0 — fitting the small machine first is
 the point, and expanded configurations can become an option when a program
 actually needs one. `examples/border` is the visible
-version: an `@address(0x900F)` hardware global incremented in a `while` loop,
-which cycles the VIC-20's border and background colours faster than the raster
-beam draws them.
+version: one source file whose `while` loop cycles the border colour through
+`applyColors()`, imported from `@8bitscript/machine` — which resolves per
+target to `@8bitscript/vic20` or `@8bitscript/c64` — so it is also the first
+program through the linker, and the first through a target-conditional entry.
 
 The generated C and AssemblyScript are written next to each output in `dist/`,
 so what the compiler did is never a mystery.
 
 Features arrive one slice at a time from here: local variables, function
-parameters and calls, then the binder that unlocks imports and real type
-checking. Each slice extends the lowering; the exhaustive-with-error rule means
+parameters and calls, then the binder that unlocks real type checking.
+Imports already compile — the linker merges the module graph into one program.
+Each slice extends the lowering; the exhaustive-with-error rule means
 a feature is either compilable or clearly reported, with no third state.
 
 ## Hardware access is not an afterthought

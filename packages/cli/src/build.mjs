@@ -17,7 +17,7 @@ import { existsSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { analyze, tokenize, parse, lower, positionAt } from '@8bitscript/compiler';
+import { link, positionAt } from '@8bitscript/compiler';
 
 const TARGETS = new Set(['vic20-ntsc', 'vic20-pal', 'c64-ntsc', 'c64-pal', 'web']);
 
@@ -37,10 +37,12 @@ async function loadConfig(dir) {
   }
 }
 
-function printDiagnostics(diagnostics, text, display) {
+// Diagnostics may come from any module in the import graph, so each one is
+// rendered against its own file's text, not the entry's.
+function printDiagnostics(diagnostics, sources) {
   for (const d of diagnostics) {
-    const { line, column } = positionAt(text, d.start);
-    process.stdout.write(`${display}:${line}:${column}\n`);
+    const { line, column } = positionAt(sources.get(d.file) ?? '', d.start);
+    process.stdout.write(`${basename(d.file)}:${line}:${column}\n`);
     process.stdout.write(`${d.severity} ${d.code}: ${d.message}\n\n`);
   }
 }
@@ -74,22 +76,16 @@ export async function compile(target, entryArg) {
   }
 
   const text = await readFile(entry, 'utf8');
-  const display = basename(entry);
 
-  // The full front end first: a program with errors is not compiled.
-  const problems = analyze(text, entry, { resolveImports: true });
-  if (problems.length > 0) {
-    printDiagnostics(problems, text, display);
-    process.stdout.write(`${problems.length} problem(s); not building.\n`);
-    return { ok: false };
-  }
-
-  const { tokens } = tokenize(text, entry);
-  const { ast } = parse(tokens, text, entry);
-  const { ir, diagnostics } = lower(ast, entry);
+  // The linker runs the full front end over the entry and everything it
+  // imports, then merges the graph into one program. Any error in any module
+  // means no build. The machine half of the target rides along so packages
+  // with target-conditional entries resolve to this machine's implementation.
+  const machine = target === 'web' ? 'web' : target.split('-')[0];
+  const { ir, diagnostics, sources } = link(text, entry, { machine });
   if (diagnostics.length > 0) {
-    printDiagnostics(diagnostics, text, display);
-    process.stdout.write(`${diagnostics.length} construct(s) not compilable; not building.\n`);
+    printDiagnostics(diagnostics, sources);
+    process.stdout.write(`${diagnostics.length} problem(s); not building.\n`);
     return { ok: false };
   }
 

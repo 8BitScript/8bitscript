@@ -126,6 +126,10 @@ importers:
         version: 10.1.1
 
   examples/border:
+    dependencies:
+      '@8bitscript/machine':
+        specifier: workspace:*
+        version: link:../../packages/machine
     devDependencies:
       '@8bitscript/cli':
         specifier: workspace:*
@@ -165,6 +169,8 @@ importers:
         specifier: 0.28.20
         version: 0.28.20
 
+  packages/c64: {}
+
   packages/cli:
     dependencies:
       '@8bitscript/backend-6502':
@@ -195,6 +201,15 @@ importers:
       vscode-languageserver-textdocument:
         specifier: 1.0.14
         version: 1.0.14
+
+  packages/machine:
+    dependencies:
+      '@8bitscript/c64':
+        specifier: workspace:*
+        version: link:../c64
+      '@8bitscript/vic20':
+        specifier: workspace:*
+        version: link:../vic20
 
   packages/vic20: {}
 

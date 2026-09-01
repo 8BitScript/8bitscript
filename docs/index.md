@@ -30,6 +30,13 @@ compiler. The remaining pages, in order:
 - [Verify](setup/verify.md) — confirm the host and retro toolchains are both
   working.
 
+## Getting started
+
+Once setup is done, the [getting started tutorial](tutorial.md) walks through
+cloning the repository, building and running the `examples/border` program,
+and where to look next. It is a work in progress, same as everything else
+here — it covers the one path that goes end to end today.
+
 ## The package model
 
 [The package model](packages.md) describes how an 8BitScript project is laid
