@@ -15,8 +15,16 @@ import { readdir, readFile, mkdir, writeFile, rm, cp, stat } from 'node:fs/promi
 import { dirname, join, posix, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import MarkdownIt from 'markdown-it';
+import hljs from 'highlight.js/lib/core';
+import bash from 'highlight.js/lib/languages/bash';
+import json from 'highlight.js/lib/languages/json';
+import yaml from 'highlight.js/lib/languages/yaml';
 
 import { renderPage } from './layout.mjs';
+
+hljs.registerLanguage('bash', bash);
+hljs.registerLanguage('json', json);
+hljs.registerLanguage('yaml', yaml);
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const DOCS_DIR = join(ROOT, 'docs');
@@ -131,8 +139,22 @@ function rewriteHref(href, fromUrl, fromSource) {
   return { href: urlForSource(target) + (hash ? `#${hash}` : ''), target, hash };
 }
 
+/**
+ * Server-side syntax highlighting for fenced code blocks.
+ *
+ * Only the languages registered above are highlighted; every other info
+ * string — including the 101 bare ``` fences that hold plain output or ASCII
+ * diagrams — falls through to markdown-it's default escaped plain text. That
+ * fallback is what returning an empty string does, so it must stay empty
+ * rather than `undefined` for unrecognized langs.
+ */
+function highlight(code, lang) {
+  if (!lang || !hljs.getLanguage(lang)) return '';
+  return hljs.highlight(code, { language: lang }).value;
+}
+
 async function build() {
-  const md = new MarkdownIt({ html: true, linkify: false, typographer: false });
+  const md = new MarkdownIt({ html: true, linkify: false, typographer: false, highlight });
 
   const sources = await findPages();
   const pages = [];
@@ -142,7 +164,10 @@ async function build() {
     pages.push({ source, url: urlForSource(source), title: data.title, body });
   }
 
-  const anchorsBySource = new Map(pages.map((page) => [page.source, new Set()]));
+  /** @type {Map<string, { ids: Set<string>, headings: { level: number, id: string, text: string }[] }>} */
+  const headingsBySource = new Map(
+    pages.map((page) => [page.source, { ids: new Set(), headings: [] }]),
+  );
   /** @type {{ from: string, href: string, target: string, hash: string }[]} */
   const internalLinks = [];
 
@@ -166,12 +191,19 @@ async function build() {
   };
 
   md.renderer.rules.heading_open = (tokens, idx, options, env, self) => {
-    const anchors = anchorsBySource.get(env.source);
-    const base = slugify(tokens[idx + 1].content) || 'section';
+    const { ids, headings } = headingsBySource.get(env.source);
+    const text = tokens[idx + 1].content;
+    const base = slugify(text) || 'section';
     let id = base;
-    for (let n = 1; anchors.has(id); n += 1) id = `${base}-${n}`;
-    anchors.add(id);
+    for (let n = 1; ids.has(id); n += 1) id = `${base}-${n}`;
+    ids.add(id);
     tokens[idx].attrSet('id', id);
+
+    // Level 2 and 3 headings make up the "on this page" rail; h1 repeats the
+    // page title and deeper levels are too fine-grained to be useful there.
+    const level = Number(tokens[idx].tag.slice(1));
+    if (level === 2 || level === 3) headings.push({ level, id, text });
+
     return defaultHeadingOpen(tokens, idx, options, env, self);
   };
 
@@ -180,7 +212,8 @@ async function build() {
 
   for (const page of pages) {
     const content = md.render(page.body, { url: page.url, source: page.source });
-    const html = renderPage({ title: page.title, url: page.url, content });
+    const headings = headingsBySource.get(page.source).headings;
+    const html = renderPage({ title: page.title, url: page.url, content, headings });
     const outFile = join(OUT_DIR, outputPathForUrl(page.url));
     await mkdir(dirname(outFile), { recursive: true });
     await writeFile(outFile, html, 'utf8');
@@ -190,10 +223,10 @@ async function build() {
   // heading on a page that had not been read yet when the link was rewritten.
   const broken = [];
   for (const link of internalLinks) {
-    const anchors = anchorsBySource.get(link.target);
+    const anchors = headingsBySource.get(link.target);
     if (!anchors) {
       broken.push(`docs/${link.from} → ${link.href} (no such page)`);
-    } else if (link.hash && !anchors.has(link.hash)) {
+    } else if (link.hash && !anchors.ids.has(link.hash)) {
       broken.push(`docs/${link.from} → ${link.href} (no such heading)`);
     }
   }

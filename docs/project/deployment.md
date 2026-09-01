@@ -18,19 +18,29 @@ after that, publishing a change is a build and a deploy.
 
 ## What builds the site
 
-Three pieces, all in this repository:
+These pieces, all in this repository:
 
 | Path | Role |
 | ---- | ---- |
 | `docs/**/*.md` | The content. Markdown with a `title` / `nav_order` front-matter block |
 | `site/build.mjs` | The generator. Renders the Markdown, applies the layout, writes `dist/site/` |
 | `site/layout.mjs`, `site/nav.mjs` | The page shell and the sidebar entries |
+| `docs/assets/css/main.css`, `docs/assets/js/site.js` | The visual design and the client-side interactivity (mobile nav, search dialog, code-copy buttons) |
 | `wrangler.jsonc` | Tells Cloudflare to serve `dist/site/` as static assets on `8bitscript.org` |
 
-The build has no framework behind it. `markdown-it` renders the Markdown and
-`wrangler` uploads the result; between them is a single Node script.
-`dist/site/` is generated output — it is covered by `dist/` in `.gitignore` and
-is never committed.
+The build has no framework behind it. `markdown-it` renders the Markdown,
+`highlight.js` highlights fenced code blocks at build time, `pagefind` indexes
+the rendered HTML for client-side search, and `wrangler` uploads the result;
+between them is one Node script and one CLI call. `dist/site/` is generated
+output — it is covered by `dist/` in `.gitignore` and is never committed.
+
+`pnpm run docs:build` runs both steps: `node site/build.mjs` renders the
+Markdown into `dist/site/`, then `pagefind --site dist/site` walks that output
+and writes a search index under `dist/site/pagefind/`. Pagefind only indexes
+elements marked `data-pagefind-body` — that is the page's `<main>` region, set
+in `site/layout.mjs` — so the header, sidebar, and footer never show up in
+search results. It needs the *rendered* HTML, which is why it runs after
+`site/build.mjs` rather than in parallel with it.
 
 ### Why a build step at all
 
@@ -137,8 +147,9 @@ first.
 pnpm run docs:deploy
 ```
 
-That is `pnpm run docs:build` followed by `wrangler deploy`. The build is fast
-enough that there is no reason to run them separately.
+That is `pnpm run docs:build` (Markdown render, then the Pagefind index) followed
+by `wrangler deploy`. The build is fast enough that there is no reason to run
+these steps separately.
 
 > There is intentionally no CI workflow that deploys the site. Nothing in
 > `.github/workflows/` publishes anything, so there is no pipeline to break and
@@ -166,13 +177,18 @@ The build is not a watcher: after editing a page, re-run it.
 After the first deploy finishes, confirm each of these:
 
 - [ ] `https://8bitscript.org/` loads and shows the documentation index.
-- [ ] The page is styled — cream or dark background, monospace headings — which
-      confirms the stylesheet at `/assets/css/main.css` is being served.
+- [ ] The page is styled — a light or dark theme following the OS setting, a
+      sticky header, a sidebar — which confirms the stylesheet at
+      `/assets/css/main.css` is being served.
 - [ ] `https://8bitscript.org/setup/` resolves to the setup guide, confirming
       directory `index.md` pages get directory URLs.
 - [ ] Cross-page links work: from the setup guide open **LLVM-MOS**, then follow
       a link back to the index.
 - [ ] The navigation sidebar lists every page and marks the current one.
+- [ ] Search works: click **Search docs** (or press <kbd>Ctrl</kbd>+<kbd>K</kbd>),
+      type a word that appears in the docs, and confirm results with excerpts
+      appear. This confirms `/pagefind/pagefind.js` and its index chunks are
+      being served.
 - [ ] A page edit, rebuilt and redeployed, appears on the live site within
       seconds.
 
@@ -186,5 +202,8 @@ After the first deploy finishes, confirm each of these:
 | Every sidebar click 307-redirects | A `url` in `site/nav.mjs` was written with a `.html` extension | Drop the extension — see [The URL scheme](#the-url-scheme) |
 | Nav entry never highlights | The `url` in `site/nav.mjs` does not match the generated page URL | Use `/dir/` for an `index.md` and `/dir/page` for every other page |
 | A new page is not in the sidebar | The sidebar is an explicit list, not a directory scan | Add the entry to `site/nav.mjs` |
+| A new page has no "on this page" rail | It has fewer than two `##`/`###` headings | This is by design — `site/layout.mjs` only renders the rail once there is something to jump between |
+| Search finds nothing, or a stale result | `dist/site/pagefind/` was not rebuilt, or `docs:build` ran the Markdown step without the index step | Run `pnpm run docs:build` (not `node site/build.mjs` alone) — see [What builds the site](#what-builds-the-site) |
+| Search box opens but never returns results | `/pagefind/pagefind.js` 404s, usually because `dist/site/pagefind/` was not deployed | Confirm the directory exists locally after `docs:build`, then redeploy |
 | Deploy fails attaching the custom domain | `8bitscript.org` is not an active zone in the authenticated account | Add the domain in the Cloudflare dashboard, then redeploy |
 | Deploy fails with an authentication error | wrangler is not logged in on this machine | Run `npx wrangler login`, or set `CLOUDFLARE_API_TOKEN` |
