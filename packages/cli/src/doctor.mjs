@@ -303,7 +303,10 @@ export async function doctor() {
     }
   }
 
-  const ready = (section) => section.checks.every((c) => c.status === OK);
+  // WARN doesn't block readiness: e.g. VICE's `--version` flag is broken
+  // upstream (prints nothing parseable) even on a working install, and the
+  // VIC-20 boot check above is the real, authoritative signal for that target.
+  const ready = (section) => section.checks.every((c) => c.status !== FAIL);
   const targets = [];
   if (ready(sections[1])) targets.push('web');
   if (ready(sections[2])) targets.push('vic20/c64');
