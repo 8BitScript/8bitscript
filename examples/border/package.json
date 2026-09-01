@@ -5,8 +5,10 @@
   "description": "Cycles the VIC-20 border and background colours forever: the classic first sign of life on real hardware.",
   "license": "MIT",
   "scripts": {
-    "start": "8bs run vic20",
-    "build": "8bs build --target vic20"
+    "start": "8bs run vic20-ntsc",
+    "start:pal": "8bs run vic20-pal",
+    "build": "8bs build --target vic20-ntsc",
+    "build:pal": "8bs build --target vic20-pal"
   },
   "devDependencies": {
     "@8bitscript/cli": "workspace:*"

@@ -7,7 +7,7 @@
   "scripts": {
     "build": "8bs build",
     "dev": "8bs dev",
-    "run:vic20": "8bs run vic20"
+    "run:vic20": "8bs run vic20-ntsc"
   },
   "dependencies": {
     "@8bitscript/core": "workspace:*",

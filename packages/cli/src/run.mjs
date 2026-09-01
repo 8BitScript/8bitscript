@@ -1,14 +1,17 @@
 // `8bs run <target>` — build, then actually run the program.
 //
-//   8bs run vic20         builds the .prg and opens it in the VICE VIC-20
-//                         emulator, at 60fps (NTSC)
-//   8bs run vic20 --pal   the same, at 50fps (PAL) — for checking PAL timing
-//   8bs run c64           the same idea, in the C64 emulator
-//   8bs run web           builds the .wasm, instantiates it, calls main()
-//                         once, and prints the exported globals — a
-//                         provisional harness that stands in until a real
-//                         browser runtime exists
+//   8bs run vic20-ntsc   builds the .prg and opens it in the VICE VIC-20
+//                        emulator, machine model NTSC (60fps)
+//   8bs run vic20-pal    the same, machine model PAL (50fps)
+//   8bs run c64-ntsc     the same idea, in the C64 emulator
+//   8bs run c64-pal
+//   8bs run web          builds the .wasm, instantiates it, calls main()
+//                        once, and prints the exported globals — a
+//                        provisional harness that stands in until a real
+//                        browser runtime exists
 import { readFile } from 'node:fs/promises';
+
+import { parseMachineTarget } from '@8bitscript/backend-6502';
 
 import { compile } from './build.mjs';
 
@@ -21,19 +24,16 @@ const EMULATOR = { vic20: 'xvic', c64: 'x64sc' };
 // __memory_expansion pin ever changes, this table must change with it, or
 // autostart injects the program at the wrong address and silently never runs
 // it. RAM injection (-autostartprgmode 1) skips the emulated disk load.
-//
-// Neither emulator defaults to NTSC on its own — VICE's stock default is PAL
-// (50Hz) for both machines — so the region is always passed explicitly.
 const EMULATOR_ARGS = {
   vic20: ['-autostartprgmode', '1'],
   c64: ['-autostartprgmode', '1'],
 };
-// -ntsc/-pal only flip the sync factor (raster timing): the screen-origin
+// -ntsc/-pal only flip VICE's sync factor (raster timing): the screen-origin
 // registers the KERNAL sets up at boot stay wired to whichever machine model
-// is loaded, so -ntsc alone pairs NTSC timing with PAL geometry and the
-// picture renders off-center — text pinned to the top-left, a dead white
-// area bottom-right, border visible on only two edges. -model switches the
-// whole machine (ROM set, VIC-II/VIC geometry, and timing together).
+// is loaded, so -ntsc alone can pair NTSC timing with PAL geometry and the
+// picture renders off-center. -model switches the whole machine (ROM set,
+// VIC-II/VIC geometry, and timing together), which is why the target names
+// a model rather than a sync-factor flag.
 const MODEL_ARGS = {
   vic20: { ntsc: ['-model', 'vic20ntsc'], pal: ['-model', 'vic20pal'] },
   c64: { ntsc: ['-model', 'ntsc'], pal: ['-model', 'c64'] },
@@ -43,11 +43,10 @@ const MODEL_ARGS = {
 export async function run(args) {
   const target = args.find((a) => !a.startsWith('-'));
   if (!target) {
-    process.stderr.write('Usage: 8bs run <vic20|c64|web> [--pal] [entry.8bs]\n');
+    process.stderr.write('Usage: 8bs run <vic20-ntsc|vic20-pal|c64-ntsc|c64-pal|web> [entry.8bs]\n');
     return 2;
   }
   const entry = args.filter((a) => !a.startsWith('-'))[1];
-  const region = args.includes('--pal') ? 'pal' : 'ntsc';
 
   const { ok, outFile } = await compile(target, entry);
   if (!ok) return 1;
@@ -69,11 +68,14 @@ export async function run(args) {
     return 0;
   }
 
-  const emulator = EMULATOR[target];
+  // build() already rejected anything that isn't a valid target, so this
+  // always matches for vic20-ntsc/vic20-pal/c64-ntsc/c64-pal.
+  const { machine, region } = parseMachineTarget(target);
+  const emulator = EMULATOR[machine];
   process.stdout.write(`starting ${emulator} (${region}); close the emulator window to finish.\n`);
   const { spawn } = await import('node:child_process');
   return new Promise((resolvePromise) => {
-    const emulatorArgs = [...(EMULATOR_ARGS[target] ?? []), ...MODEL_ARGS[target][region], '-autostart', outFile];
+    const emulatorArgs = [...(EMULATOR_ARGS[machine] ?? []), ...MODEL_ARGS[machine][region], '-autostart', outFile];
     const child = spawn(emulator, emulatorArgs, { stdio: 'inherit' });
     child.on('error', () => {
       process.stderr.write(`8bs run: cannot start ${emulator}. Run '8bs doctor' — docs/setup/vice.md\n`);

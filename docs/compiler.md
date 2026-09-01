@@ -5,9 +5,10 @@ nav_order: 3
 
 # The compiler
 
-8BitScript is compiled, not interpreted. `8bs build --target vic20` produces a
-`.prg` containing real 6502 machine code; nothing of 8BitScript is present on
-the machine at run time. The compiler itself is an ordinary Node program.
+8BitScript is compiled, not interpreted. `8bs build --target vic20-ntsc`
+produces a `.prg` containing real 6502 machine code; nothing of 8BitScript is
+present on the machine at run time. The compiler itself is an ordinary Node
+program.
 
 This page is the build plan and the current state of it. Most of the pipeline
 does not exist yet, and this page says plainly which parts do.

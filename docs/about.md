@@ -101,7 +101,7 @@ a strange way.
 The first milestone compiles and runs on both targets. `8bs build` takes a
 program through lexer, parser, checker, IR, and a backend — generated C and
 LLVM-MOS for a VIC-20 or C64 `.prg`, generated AssemblyScript and asc for a
-`.wasm` — and `8bs run vic20` opens the result in VICE. `examples/counter` is
+`.wasm` — and `8bs run vic20-ntsc` opens the result in VICE. `examples/counter` is
 the milestone program; `examples/border` cycles the VIC-20's border colours
 from a compiled `@address` hardware global.
 
