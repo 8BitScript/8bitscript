@@ -1,0 +1,20 @@
+{
+  "name": "@8bitscript/machine",
+  "private": true,
+  "version": "0.0.0",
+  "description": "The machine underneath, whichever it is: resolves to the target package for the machine being built.",
+  "license": "MIT",
+  "8bitscript": {
+    "entry": {
+      "vic20": "@8bitscript/vic20",
+      "c64": "@8bitscript/c64"
+    }
+  },
+  "dependencies": {
+    "@8bitscript/c64": "workspace:*",
+    "@8bitscript/vic20": "workspace:*"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

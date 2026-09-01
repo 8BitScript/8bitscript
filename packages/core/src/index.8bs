@@ -8,11 +8,14 @@
 //
 // INTENDED SURFACE, NOT AN IMPLEMENTATION. The bodies are deliberately absent:
 // 8BitScript's declaration syntax — how a module exports a namespace like
-// `screen`, how extern and target-conditional declarations are written — is not
-// designed yet, and guessing at it here would bake a guess into the first
-// source file in the repository. The entries below record what the portable
-// surface is meant to cover; they become real declarations once the module
-// system is specified.
+// `screen`, how extern declarations are written — is not designed yet, and
+// guessing at it here would bake a guess into the first source file in the
+// repository. (Target-conditional code has its first, module-level form:
+// a package's "8bitscript".entry can be keyed by machine, the way
+// @8bitscript/machine delegates to a target package. Per-declaration
+// conditionals still wait on syntax.) The entries below record what the
+// portable surface is meant to cover; they become real declarations once the
+// module system is specified.
 //
 //   screen.putChar(x: u8, y: u8, code: u8): void
 //       Write a character code to a screen cell.

@@ -39,6 +39,10 @@ export const nav = [
     ],
   },
   {
+    title: 'Getting started',
+    url: '/tutorial',
+  },
+  {
     title: 'Publishing the docs',
     url: '/project/deployment',
   },

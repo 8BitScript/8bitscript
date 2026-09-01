@@ -38,10 +38,28 @@ test('@address becomes a volatile pointer #define', () => {
   assert.match(c, /#define vicColor \(\*\(volatile uint8_t \*\)0x900F\)/);
 });
 
+test('calls emit with prototypes ahead of every definition', () => {
+  // The linker puts the entry's functions first, so main may call a function
+  // defined below it; without the prototype block the C would not compile.
+  const c = emitC(irOf('export function main(): void { apply(); }\nexport function apply(): void { return; }'));
+  assert.match(c, /void apply\(void\);/);
+  assert.match(c, /apply\(\);/);
+  assert.ok(c.indexOf('void apply(void);') < c.indexOf('int main(void)'));
+});
+
 test('asm6502 bodies pass through verbatim', () => {
   const c = emitC(irOf('export function f(): void { asm6502 { lda #$06\n sta $900f } }'));
   assert.match(c, /__asm__ volatile\(/);
   assert.match(c, /lda #\$06/);
+});
+
+test('IR with unresolved imports is refused, not dropped', async () => {
+  const result = await buildPrg(
+    irOf('import { limit } from "./lib.8bs";'),
+    { target: 'vic20-ntsc', outFile: 'unused.prg' },
+  );
+  assert.equal(result.ok, false);
+  assert.match(result.error, /unresolved imports/);
 });
 
 const HAS_SDK = process.env.LLVM_MOS_HOME

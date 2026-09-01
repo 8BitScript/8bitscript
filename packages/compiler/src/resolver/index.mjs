@@ -79,12 +79,138 @@ function findPackageDir(fromDir, name) {
 }
 
 /**
+ * One machine's entry value: a relative path into the package, or a bare
+ * specifier delegating to another package (resolved from the package's own
+ * directory, so its own dependencies serve the delegation).
+ */
+function resolveEntryValue(specifier, packageDir, value, options, seen) {
+  if (typeof value !== 'string') {
+    return {
+      code: Codes.NOT_AN_8BS_PACKAGE,
+      message: `'${specifier}' has a malformed "8bitscript".entry value`,
+    };
+  }
+  if (value.startsWith('.')) {
+    const target = resolvePath(packageDir, value);
+    if (!existsSync(target)) {
+      return { code: Codes.MISSING_PACKAGE_ENTRY, message: `'${specifier}' declares entry '${value}', which does not exist` };
+    }
+    return { path: target };
+  }
+  if (seen.has(packageDir)) {
+    return { code: Codes.MISSING_PACKAGE_ENTRY, message: `'${specifier}' delegates its entry in a cycle` };
+  }
+  seen.add(packageDir);
+  const delegated = resolveSpecifier(value, join(packageDir, 'package.json'), options, seen);
+  if (!delegated) {
+    return {
+      code: Codes.NOT_AN_8BS_PACKAGE,
+      message: `'${specifier}' delegates its entry to '${value}', which is not a resolvable specifier`,
+    };
+  }
+  return delegated;
+}
+
+/**
+ * An entry object keyed by machine — `{ "vic20": …, "c64": … }` — is how a
+ * package provides a target-conditional implementation. With a machine in
+ * hand, that machine's branch resolves (a missing branch is `8BS3002`: the
+ * package genuinely has nothing for this target). Without one — `8bs check`
+ * and the editor analyse files, not builds — every branch is validated, so a
+ * broken branch is reported before anyone builds for that machine.
+ */
+function resolveConditionalEntry(specifier, packageDir, entry, options, seen) {
+  const { machine } = options;
+  if (machine) {
+    const value = entry[machine];
+    if (value === undefined) {
+      return {
+        code: Codes.NOT_ON_THIS_TARGET,
+        message: `'${specifier}' has no entry for the ${machine} target (targets: ${Object.keys(entry).join(', ')})`,
+      };
+    }
+    return resolveEntryValue(specifier, packageDir, value, options, seen);
+  }
+
+  for (const [branchMachine, value] of Object.entries(entry)) {
+    const resolved = resolveEntryValue(
+      specifier, packageDir, value,
+      { ...options, machine: branchMachine }, new Set(seen),
+    );
+    if (resolved?.code) {
+      return { code: resolved.code, message: `for the ${branchMachine} target: ${resolved.message}` };
+    }
+  }
+  // Every branch is sound, but there is no single file to name without a
+  // machine: `path: null` is "valid, and target-dependent".
+  return { path: null };
+}
+
+/**
+ * Resolve one import specifier to the absolute path of the module it names.
+ *
+ * Deliberately narrow: it implements only what docs/packages.md actually
+ * specifies. A bare specifier with a subpath (`@scope/name/thing`) and a
+ * relative specifier without a `.8bs` extension are both unspecified, so both
+ * return `null` — not resolved, not an error — rather than guessing at a rule.
+ *
+ * @param {string} specifier
+ * @param {string} fromFile  Absolute path of the importing file.
+ * @param {{ machine?: 'vic20'|'c64'|'web' }} [options]
+ *   The machine being built for, if one is known; conditional package
+ *   entries resolve to that machine's branch.
+ * @returns {{ path: string|null } | { code: string, message: string } | null}
+ */
+export function resolveSpecifier(specifier, fromFile, options = {}, seen = new Set()) {
+  const fromDir = dirname(fromFile);
+
+  if (specifier.startsWith('.') || specifier.startsWith('/')) {
+    if (!specifier.endsWith('.8bs')) return null;
+    const target = resolvePath(fromDir, specifier);
+    if (!existsSync(target)) {
+      return { code: Codes.UNRESOLVED_RELATIVE_IMPORT, message: `cannot find module '${specifier}'` };
+    }
+    return { path: target };
+  }
+
+  if (!BARE_PACKAGE.test(specifier)) return null;
+
+  const packageDir = findPackageDir(fromDir, specifier);
+  if (!packageDir) {
+    return { code: Codes.UNRESOLVED_PACKAGE, message: `cannot find package '${specifier}'. Is it installed?` };
+  }
+
+  let manifest;
+  try {
+    manifest = JSON.parse(readFileSync(join(packageDir, 'package.json'), 'utf8'));
+  } catch {
+    manifest = null;
+  }
+
+  const entry = manifest?.['8bitscript']?.entry;
+  if (typeof entry === 'string') {
+    const target = resolvePath(packageDir, entry);
+    if (!existsSync(target)) {
+      return { code: Codes.MISSING_PACKAGE_ENTRY, message: `'${specifier}' declares entry '${entry}', which does not exist` };
+    }
+    return { path: target };
+  }
+  if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+    return resolveConditionalEntry(specifier, packageDir, entry, options, seen);
+  }
+
+  return {
+    code: Codes.NOT_AN_8BS_PACKAGE,
+    message: `'${specifier}' is not an 8BitScript package: its package.json has no "8bitscript".entry field`,
+  };
+}
+
+/**
  * Check every import in a file and report the ones that do not resolve.
  *
- * Deliberately narrow: it diagnoses only what docs/packages.md actually
- * specifies. A bare specifier with a subpath (`@scope/name/thing`) and a
- * relative specifier without a `.8bs` extension are both unspecified, so
- * neither is reported rather than guessing at a rule.
+ * A thin consumer of resolveSpecifier: same rules, but reported as
+ * diagnostics on the specifier's span, which is what `8bs check` and the
+ * editor show.
  *
  * @param {object[]} tokens
  * @param {string} file  Absolute path of the importing file.
@@ -92,66 +218,12 @@ function findPackageDir(fromDir, name) {
  */
 export function resolveImports(tokens, file) {
   if (!file || !isAbsolute(file)) return [];
-  const fromDir = dirname(file);
   const diagnostics = [];
 
   for (const { specifier, start, length } of findImports(tokens)) {
-    if (specifier.startsWith('.') || specifier.startsWith('/')) {
-      if (!specifier.endsWith('.8bs')) continue;
-      const target = resolvePath(fromDir, specifier);
-      if (!existsSync(target)) {
-        diagnostics.push(
-          diagnostic(
-            Codes.UNRESOLVED_RELATIVE_IMPORT,
-            `cannot find module '${specifier}'`,
-            file, start, length,
-          ),
-        );
-      }
-      continue;
-    }
-
-    if (!BARE_PACKAGE.test(specifier)) continue;
-
-    const packageDir = findPackageDir(fromDir, specifier);
-    if (!packageDir) {
-      diagnostics.push(
-        diagnostic(
-          Codes.UNRESOLVED_PACKAGE,
-          `cannot find package '${specifier}'. Is it installed?`,
-          file, start, length,
-        ),
-      );
-      continue;
-    }
-
-    let manifest;
-    try {
-      manifest = JSON.parse(readFileSync(join(packageDir, 'package.json'), 'utf8'));
-    } catch {
-      manifest = null;
-    }
-
-    const entry = manifest?.['8bitscript']?.entry;
-    if (typeof entry !== 'string') {
-      diagnostics.push(
-        diagnostic(
-          Codes.NOT_AN_8BS_PACKAGE,
-          `'${specifier}' is not an 8BitScript package: its package.json has no "8bitscript".entry field`,
-          file, start, length,
-        ),
-      );
-      continue;
-    }
-
-    if (!existsSync(resolvePath(packageDir, entry))) {
-      diagnostics.push(
-        diagnostic(
-          Codes.MISSING_PACKAGE_ENTRY,
-          `'${specifier}' declares entry '${entry}', which does not exist`,
-          file, start, length,
-        ),
-      );
+    const resolved = resolveSpecifier(specifier, file);
+    if (resolved && resolved.code) {
+      diagnostics.push(diagnostic(resolved.code, resolved.message, file, start, length));
     }
   }
 

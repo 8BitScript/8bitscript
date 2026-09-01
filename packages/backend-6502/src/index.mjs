@@ -63,6 +63,8 @@ function emitStatement(statement, indent) {
   switch (statement.kind) {
     case 'assign':
       return `${pad}${statement.target} = ${emitExpression(statement.value)};\n`;
+    case 'call':
+      return `${pad}${statement.name}();\n`;
     case 'if': {
       let out = `${pad}if (${emitExpression(statement.test)}) {\n`;
       out += statement.then.map((s) => emitStatement(s, indent + 1)).join('');
@@ -115,6 +117,13 @@ export function emitC(ir) {
   }
   out += '\n';
 
+  // Prototypes before any definition: the linker puts the entry module's
+  // functions first, so main may call a function defined below it.
+  for (const fn of ir.functions) {
+    if (fn.name !== 'main') out += `void ${fn.name}(void);\n`;
+  }
+  out += '\n';
+
   for (const fn of ir.functions) {
     const name = fn.name === 'main' ? 'main' : fn.name;
     const returnType = name === 'main' ? 'int' : 'void';
@@ -134,6 +143,11 @@ export function emitC(ir) {
  * @returns {Promise<{ ok: boolean, cFile?: string, error?: string }>}
  */
 export async function buildPrg(ir, { target, outFile }) {
+  if (ir.imports?.length) {
+    // Unresolved imports mean the caller skipped the linker. Refusing here is
+    // what keeps a lower→backend shortcut from silently dropping modules.
+    return { ok: false, error: 'the IR still has unresolved imports: link() it before the backend' };
+  }
   const parsed = parseMachineTarget(target);
   if (!parsed) return { ok: false, error: `backend-6502 has no driver for target '${target}'` };
   const { machine } = parsed;

@@ -10,9 +10,14 @@ declare libraries as dependencies, and the compiler resolves imports out of
 `node_modules`. There is no separate package manager, no vendoring step, and no
 git submodules anywhere in the model.
 
-Nothing on this page is implemented yet — there is no compiler and no working
-CLI. It describes the design the repository is being built toward, and it is
-the specification the resolver will be written against.
+This page began as pure design; most of it is now real. The resolver
+implements the resolution contract below, and the linker compiles a program
+from its whole import graph — `examples/border` imports its colour API from
+`@8bitscript/machine`, which resolves per target to `@8bitscript/vic20` or
+`@8bitscript/c64`, through exactly this model. What crosses a module boundary
+is still bounded by the milestone subset (globals and parameterless function
+calls), and the namespace-style surfaces sketched below (`screen.putChar`,
+`vic`) wait on declaration syntax.
 
 ## The core idea
 
@@ -104,6 +109,41 @@ your main.8bs
                 `-- node_modules/@8bitscript/vic20/src/index.8bs
 ```
 
+## Target-conditional entries
+
+`8bitscript.entry` can also be an object keyed by machine, which is how a
+package provides a different implementation per target:
+
+```json
+{
+  "name": "@8bitscript/machine",
+  "8bitscript": {
+    "entry": {
+      "vic20": "@8bitscript/vic20",
+      "c64": "@8bitscript/c64"
+    }
+  }
+}
+```
+
+Each branch is either a relative path into the package — a package shipping
+per-machine source files — or a bare specifier delegating to another package,
+resolved from the delegating package's own directory so its own dependencies
+serve it. When the compiler builds for a machine, that machine's branch is
+the module the import resolves to; a machine the object has no branch for is
+`8BS3002` — the package genuinely has nothing for that target. `8bs check`
+and the editor analyse files rather than builds, so with no machine in hand
+they validate every branch instead, and a broken branch is reported before
+anyone builds for it.
+
+`@8bitscript/machine` (shown above) is exactly this and nothing more: no
+source of its own, just the machine-keyed delegation. The two target
+packages export the same surface — `border`, `background`, `applyColors()` —
+so a program that imports it works on whichever machine it is built for.
+`examples/border` is one source file for both machines this way. This is the
+first slice of target-conditional code: whole-module today, per-declaration
+once that syntax is designed.
+
 ## What a package may contain
 
 A package is free to be any of these:
@@ -142,6 +182,7 @@ Only two kinds of package are meant for you:
 | `@8bitscript/cli` | The `8bs` command. A dev dependency |
 | `@8bitscript/core` | The portable standard library |
 | `@8bitscript/vic20`, `@8bitscript/c64` | Target support, one per machine |
+| `@8bitscript/machine` | The machine underneath, whichever it is: resolves per target to a target package |
 
 The compiler, the language server, and the backends are internal:
 `@8bitscript/compiler`, `@8bitscript/language-server`,
@@ -197,9 +238,11 @@ pnpm --filter hello-vic run:vic20
 VICE opens
 ```
 
-Today the CLI is a stub that reports itself unimplemented and exits non-zero,
-so that command fails — but it fails *after* pnpm has linked the packages and
-found the `8bs` binary, which is the part worth having working first.
+The CLI is real now, and that loop works — though `hello-vic` itself still
+does not compile, because its calls and member access wait on the binder.
+[`examples/border`](https://github.com/8BitScript/8bitscript/tree/trunk/examples/border)
+is the example that goes end to end today: it imports hardware registers from
+`@8bitscript/vic20` and `@8bitscript/c64` and runs on both machines.
 
 ## Does npm actually allow this?
 

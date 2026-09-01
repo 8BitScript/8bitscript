@@ -203,8 +203,9 @@ test('@address + volatile lowers to a hardware global', () => {
 test('lowering is exhaustive-with-error, never silent', () => {
   // Every unsupported construct must produce 8BS3001, not vanish.
   for (const src of [
-    'import { a } from "x";',
-    'export function f(): void { g(); }',
+    'export function f(): void { g(1); }',
+    'export function f(): void { a.b(); }',
+    'export function f(): void { x = g(); }',
     'export function f(): void { a.b = 1; }',
     'function f(): void { let local: u8 = 1; }',
   ]) {
@@ -221,4 +222,196 @@ test('compound assignment and updates lower to plain assigns', () => {
   const [a, b] = ir.functions[0].body;
   assert.equal(a.value.operator, '+');
   assert.equal(b.value.right.value, 1);
+});
+
+test('a parameterless call statement lowers to a call', () => {
+  const { ir, diagnostics } = lowered('export function f(): void { g(); }');
+  assert.equal(diagnostics.length, 0);
+  assert.equal(ir.functions[0].body[0].kind, 'call');
+  assert.equal(ir.functions[0].body[0].name, 'g');
+});
+
+test('imports lower to records for the linker, not to failures', () => {
+  const { ir, diagnostics } = lowered('import { limit as max } from "./lib.8bs";');
+  assert.equal(diagnostics.length, 0);
+  assert.deepEqual(
+    ir.imports[0].specifiers.map(({ imported, local }) => ({ imported, local })),
+    [{ imported: 'limit', local: 'max' }],
+  );
+  assert.equal(ir.imports[0].source, './lib.8bs');
+});
+
+// ---- linker (each case materialises a real module graph on disk) ----------
+
+import { link } from '../index.mjs';
+import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+
+const linked = (files, entryName = 'main.8bs') => {
+  const dir = mkdtempSync(join(tmpdir(), '8bs-link-'));
+  try {
+    for (const [name, text] of Object.entries(files)) writeFileSync(join(dir, name), text);
+    return link(files[entryName], join(dir, entryName));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+};
+
+const LIB = 'export let limit: u16 = 12000;\nlet delay: u16 = 0;\nexport function tick(): void { delay = delay + 1; }\n';
+
+test('two modules link into one program', () => {
+  const { ir, diagnostics } = linked({
+    'main.8bs': 'import { limit } from "./lib.8bs";\nlet count: u16 = 0;\nexport function main(): void { while (count < limit) { count = count + 1; } }',
+    'lib.8bs': LIB,
+  });
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(ir.globals.map((g) => g.name).sort(), ['count', 'delay', 'limit']);
+  const main = ir.functions.find((f) => f.name === 'main');
+  assert.equal(main.body[0].test.right.name, 'limit');
+});
+
+test('aliasing rewrites references to the exported name', () => {
+  const { ir, diagnostics } = linked({
+    'main.8bs': 'import { limit as max } from "./lib.8bs";\nlet count: u16 = 0;\nexport function main(): void { count = max; }',
+    'lib.8bs': LIB,
+  });
+  assert.deepEqual(diagnostics, []);
+  const main = ir.functions.find((f) => f.name === 'main');
+  assert.equal(main.body[0].value.name, 'limit');
+});
+
+test('private names in different modules stay apart', () => {
+  const { ir, diagnostics } = linked({
+    'main.8bs': 'import { limit } from "./lib.8bs";\nlet delay: u16 = 0;\nexport function main(): void { delay = limit; }',
+    'lib.8bs': LIB,
+  });
+  assert.deepEqual(diagnostics, []);
+  // The entry loads first and keeps its names; lib's private delay moves.
+  assert.deepEqual(ir.globals.map((g) => g.name).sort(), ['delay', 'delay_2', 'limit']);
+  const tick = ir.functions.find((f) => f.name === 'tick');
+  assert.equal(tick.body[0].target, 'delay_2');
+  const main = ir.functions.find((f) => f.name === 'main');
+  assert.equal(main.body[0].target, 'delay');
+});
+
+test("the entry module's main always keeps its name", () => {
+  const { ir, diagnostics } = linked({
+    'main.8bs': 'import { flag } from "./lib.8bs";\nexport function main(): void { flag = 1; }',
+    'lib.8bs': 'export let flag: u8 = 0;\nexport function main(): void { flag = 2; }',
+  });
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(ir.functions.map((f) => f.name), ['main', 'main_2']);
+});
+
+test('importing a name a module does not export is 8BS2005', () => {
+  // `secret` does not exist; `delay` exists but is private. Both are 2005.
+  const { ir, diagnostics } = linked({
+    'main.8bs': 'import { secret, delay } from "./lib.8bs";',
+    'lib.8bs': LIB,
+  });
+  assert.equal(ir, null);
+  assert.deepEqual(diagnostics.map((d) => d.code), ['8BS2005', '8BS2005']);
+});
+
+test('an import colliding with a local binding is 8BS2006', () => {
+  const { diagnostics } = linked({
+    'main.8bs': 'import { limit } from "./lib.8bs";\nlet limit: u16 = 1;',
+    'lib.8bs': LIB,
+  });
+  assert.deepEqual(diagnostics.map((d) => d.code), ['8BS2006']);
+});
+
+test('a reference that resolves to nothing is 8BS2007, with a span', () => {
+  const src = 'export function main(): void { count = 1; }';
+  const { ir, diagnostics } = linked({ 'main.8bs': src });
+  assert.equal(ir, null);
+  assert.equal(diagnostics[0].code, '8BS2007');
+  assert.equal(src.slice(diagnostics[0].start, diagnostics[0].start + diagnostics[0].length), 'count');
+});
+
+test('import cycles link rather than recurse', () => {
+  const { ir, diagnostics } = linked({
+    'main.8bs': 'import { b } from "./b.8bs";\nexport let a: u8 = 1;\nexport function main(): void { a = b; }',
+    'b.8bs': 'import { a } from "./main.8bs";\nexport let b: u8 = 2;\nexport function swap(): void { b = a; }',
+  });
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(ir.globals.map((g) => g.name).sort(), ['a', 'b']);
+});
+
+test('a bare import links the module in for its declarations', () => {
+  const { ir, diagnostics } = linked({
+    'main.8bs': 'import "./lib.8bs";\nexport function main(): void { return; }',
+    'lib.8bs': LIB,
+  });
+  assert.deepEqual(diagnostics, []);
+  assert.ok(ir.globals.some((g) => g.name === 'limit'));
+});
+
+test('imported calls rewrite across modules', () => {
+  const { ir, diagnostics } = linked({
+    'main.8bs': 'import { tick } from "./lib.8bs";\nexport function main(): void { tick(); }',
+    'lib.8bs': LIB,
+  });
+  assert.deepEqual(diagnostics, []);
+  const main = ir.functions.find((f) => f.name === 'main');
+  assert.equal(main.body[0].kind, 'call');
+  assert.equal(main.body[0].name, 'tick');
+});
+
+test('a call to a name that resolves to nothing is 8BS2007', () => {
+  const { ir, diagnostics } = linked({
+    'main.8bs': 'export function main(): void { launch(); }',
+  });
+  assert.equal(ir, null);
+  assert.deepEqual(diagnostics.map((d) => d.code), ['8BS2007']);
+});
+
+// ---- conditional package entries (the real border example as fixture) -----
+//
+// The border example's entry imports @8bitscript/machine, whose manifest
+// entry is keyed by machine and delegates to @8bitscript/vic20 or
+// @8bitscript/c64 through real pnpm symlinks. This pair is the proof the
+// conditional resolution actually switches implementations.
+
+const BORDER_ENTRY = join(HERE, '..', '..', '..', 'examples', 'border', 'src', 'main.8bs');
+
+test('a conditional entry resolves to the vic20 implementation', () => {
+  const { ir, diagnostics } = link(readFileSync(BORDER_ENTRY, 'utf8'), BORDER_ENTRY, { machine: 'vic20' });
+  assert.deepEqual(diagnostics, []);
+  assert.equal(ir.globals.find((g) => g.name === 'vicColor').address, 0x900f);
+  assert.ok(ir.functions.some((f) => f.name === 'applyColors'));
+  assert.ok(!ir.globals.some((g) => g.name === 'borderColor'));
+});
+
+test('the same entry resolves to the c64 implementation', () => {
+  const { ir, diagnostics } = link(readFileSync(BORDER_ENTRY, 'utf8'), BORDER_ENTRY, { machine: 'c64' });
+  assert.deepEqual(diagnostics, []);
+  assert.equal(ir.globals.find((g) => g.name === 'borderColor').address, 0xd020);
+  assert.ok(!ir.globals.some((g) => g.name === 'vicColor'));
+});
+
+test('a machine the entry has no branch for is 8BS3002', () => {
+  const { ir, diagnostics } = link(readFileSync(BORDER_ENTRY, 'utf8'), BORDER_ENTRY, { machine: 'web' });
+  assert.equal(ir, null);
+  assert.deepEqual(diagnostics.map((d) => d.code), ['8BS3002']);
+});
+
+test('without a machine, every branch of a conditional entry is validated', () => {
+  // analyze/`8bs check` resolve imports with no machine in hand: a sound
+  // conditional entry is clean, not an error.
+  assert.deepEqual(
+    codes('import { applyColors } from "@8bitscript/machine";', BORDER_ENTRY, { resolveImports: true }),
+    [],
+  );
+});
+
+test('errors in an imported module fail the link, against the right file', () => {
+  const { ir, diagnostics } = linked({
+    'main.8bs': 'import { limit } from "./lib.8bs";',
+    'lib.8bs': 'export let limit: u8 = 300;\n',
+  });
+  assert.equal(ir, null);
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].code, '8BS1021');
+  assert.match(diagnostics[0].file, /lib\.8bs$/);
 });

@@ -1,0 +1,41 @@
+// @8bitscript/c64 — C64 target support.
+//
+// The module entry point named by the "8bitscript".entry field in this
+// package's package.json, resolved and linked for:
+//
+//     import { borderColor, backgroundColor } from "@8bitscript/c64";
+//
+// The surface is the hardware, one register at a time, and it grows as the
+// language does: what is here today is what the milestone subset can actually
+// express — exported @address globals. A namespace like `vic2.` waits on the
+// declaration syntax being designed.
+//
+// Where the VIC-20's VIC packs border, background, and video mode into one
+// register, the C64's VIC-II gives each its own. Both take the low four bits;
+// the VIC-II has sixteen colours.
+
+// $D020, the VIC-II border colour register.
+@address(0xD020)
+export let borderColor: volatile<u8>;
+
+// $D021, the VIC-II background colour register (background #0).
+@address(0xD021)
+export let backgroundColor: volatile<u8>;
+
+// ---- the common colour surface -------------------------------------------
+//
+// Every machine package exports the same three names, which is what lets a
+// program import them from @8bitscript/machine and never name the hardware:
+// set `border` and `background`, call applyColors(), and the machine shows
+// them. (Values are passed through globals because functions take no
+// parameters yet.)
+
+export let border: u8 = 0;
+export let background: u8 = 0;
+
+// The VIC-II gives border and background their own registers, sixteen
+// colours each; the masks make the wrap around the palette explicit.
+export function applyColors(): void {
+    borderColor = border & 15;
+    backgroundColor = background & 15;
+}

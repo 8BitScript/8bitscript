@@ -15,7 +15,8 @@ export { parse } from './src/parser/index.mjs';
 export { NodeType, walk } from './src/ast/index.mjs';
 export { check, INTEGER_RANGES } from './src/checker/index.mjs';
 export { lower } from './src/ir/index.mjs';
-export { findImports, resolveImports } from './src/resolver/index.mjs';
+export { link } from './src/linker/index.mjs';
+export { findImports, resolveImports, resolveSpecifier } from './src/resolver/index.mjs';
 export { Codes, diagnostic, positionAt } from './src/diagnostics/index.mjs';
 
 /**

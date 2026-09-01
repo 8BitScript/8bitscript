@@ -99,16 +99,19 @@ one that is not an 8BitScript package is reported rather than failing later in
 a strange way.
 
 The first milestone compiles and runs on both targets. `8bs build` takes a
-program through lexer, parser, checker, IR, and a backend — generated C and
-LLVM-MOS for a VIC-20 or C64 `.prg`, generated AssemblyScript and asc for a
-`.wasm` — and `8bs run vic20-ntsc` opens the result in VICE. `examples/counter` is
-the milestone program; `examples/border` cycles the VIC-20's border colours
-from a compiled `@address` hardware global.
+program through lexer, parser, checker, IR, linker, and a backend — generated
+C and LLVM-MOS for a VIC-20 or C64 `.prg`, generated AssemblyScript and asc
+for a `.wasm` — and `8bs run vic20-ntsc` opens the result in VICE.
+`examples/counter` is the milestone program; `examples/border` is one source
+file that cycles the border colours on the VIC-20 *and* the C64, importing
+its colour API from `@8bitscript/machine` — a package whose entry resolves
+per target to the machine package underneath.
 
-Only the milestone subset compiles: globals, parameterless functions,
-arithmetic, `if`/`while`, hardware access, `asm6502`. Everything else —
-imports, function calls, locals — fails with a diagnostic naming the construct
-rather than building without it. There is no binder yet, `8bs dev` is
+Only the milestone subset compiles: globals, parameterless functions and
+calls to them, arithmetic, `if`/`while`, hardware access, `asm6502`, and
+imports, which the linker resolves across modules. Everything else —
+calls with arguments, member access, locals — fails with a diagnostic naming
+the construct rather than building without it. There is no binder yet, `8bs dev` is
 **planned and not yet implemented**, and breaking changes arrive without
 notice.
 

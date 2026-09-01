@@ -37,6 +37,8 @@ function emitStatement(statement, indent, types) {
       const type = types.get(statement.target) ?? 'i32';
       return `${pad}${statement.target} = <${type}>${emitExpression(statement.value)};\n`;
     }
+    case 'call':
+      return `${pad}${statement.name}();\n`;
     case 'if': {
       let out = `${pad}if (${emitExpression(statement.test)}) {\n`;
       out += statement.then.map((s) => emitStatement(s, indent + 1, types)).join('');
@@ -119,6 +121,11 @@ function findAsc() {
  * @returns {Promise<{ ok: boolean, asFile?: string, error?: string }>}
  */
 export async function buildWasm(ir, { outFile }) {
+  if (ir.imports?.length) {
+    // Unresolved imports mean the caller skipped the linker. Refusing here is
+    // what keeps a lower→backend shortcut from silently dropping modules.
+    return { ok: false, error: 'the IR still has unresolved imports: link() it before the backend' };
+  }
   const emitted = emitAssemblyScript(ir);
   if (!emitted.ok) return { ok: false, error: emitted.error };
 
