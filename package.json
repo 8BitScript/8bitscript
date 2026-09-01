@@ -16,7 +16,8 @@
     "docs:deploy": "node site/build.mjs && wrangler deploy",
     "check": "8bs check",
     "test": "pnpm --recursive --if-present test",
-    "doctor": "8bs doctor"
+    "doctor": "8bs doctor",
+    "examples": "node scripts/launch-example.mjs"
   },
   "devDependencies": {
     "markdown-it": "14.1.0",
