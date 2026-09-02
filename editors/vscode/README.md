@@ -18,7 +18,8 @@ compiler, the language server, and this extension.
   and the toolchain is installed, giving you:
   - **Diagnostics** — lexical, syntax, and range errors, as you type
   - **Hover** — documentation for built-in types (`utinyint`, `int`, ...) and
-    constructs (`volatile`, `ptr`, `array`, `asm6502`, `@address`)
+    constructs (`volatile`, `ptr`, `array`, `asm6502`, `@address`,
+    `memory.read`/`memory.write`)
   - **Completion** — built-in type names in type position (after `:` or
     inside `ptr<...>`/`array<...>`/`volatile<...>`)
 

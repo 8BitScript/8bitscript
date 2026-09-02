@@ -60,7 +60,7 @@ untitled buffer still gets every other diagnostic.
 
 Hover and a first slice of completion, both for built-in constructs. Hovering
 a primitive type (`utinyint`, `u8`, `int`, ...), `volatile`, `ptr`, `array`,
-`asm6502`, or `@address` explains it in place:
+`asm6502`, `@address`, or `memory.read`/`memory.write` explains it in place:
 
 ```
 let lives: utinyint = 3;
