@@ -8,7 +8,9 @@ nav_order: 0
 8BitScript is a TypeScript-flavoured language for writing software that runs in
 the browser and on real 6502-family 8-bit hardware. These pages are the
 reference for using the language and its toolchain. For the project overview,
-principles, and architecture diagram, see [About 8BitScript](about.md).
+principles, and architecture diagram, see [About 8BitScript](about.md). For
+the order in which target machines are being added, and why, see the
+[roadmap](roadmap.md).
 
 Everything here describes work in progress. `8bs check`, `8bs doctor`,
 `8bs build`, and `8bs run` work today for the first-milestone subset of the
