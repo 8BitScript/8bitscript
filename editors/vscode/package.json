@@ -1,7 +1,7 @@
 {
   "name": "8bitscript-lang",
   "displayName": "8BitScript",
-  "description": "Syntax highlighting for 8BitScript (.8bs) source files.",
+  "description": "Syntax highlighting, language server, and a project runner for 8BitScript (.8bs) source files.",
   "version": "0.0.0",
   "publisher": "8bitscript",
   "license": "MIT",
@@ -10,7 +10,8 @@
   },
   "categories": [
     "Programming Languages",
-    "Linters"
+    "Linters",
+    "Other"
   ],
   "contributes": {
     "languages": [
@@ -33,18 +34,260 @@
         "path": "./syntaxes/8bs.tmLanguage.json"
       }
     ],
+    "views": {
+      "explorer": [
+        {
+          "id": "8bitscript.projects",
+          "name": "8BitScript",
+          "icon": "$(chip)",
+          "contextualTitle": "8BitScript projects",
+          "visibility": "visible"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "8bitscript.projects",
+        "contents": "No 8BitScript projects found.\n\nA project is a directory with an `8bs.config.ts` in it; every one in this workspace is listed here with a Run and Build button for each system it targets.\n\n[Refresh](command:8bitscript.projects.refresh)",
+        "when": "!8bitscript.hasProjects"
+      }
+    ],
     "commands": [
       {
         "command": "8bitscript.restartServer",
-        "title": "8BitScript: Restart Language Server"
+        "title": "Restart Language Server",
+        "category": "8BitScript"
+      },
+      {
+        "command": "8bitscript.projects.refresh",
+        "title": "Refresh Projects",
+        "category": "8BitScript",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "8bitscript.doctor",
+        "title": "Doctor: Check Toolchains",
+        "category": "8BitScript",
+        "icon": "$(pulse)"
+      },
+      {
+        "command": "8bitscript.run",
+        "title": "Run",
+        "category": "8BitScript",
+        "icon": "$(play)"
+      },
+      {
+        "command": "8bitscript.build",
+        "title": "Build",
+        "category": "8BitScript",
+        "icon": "$(tools)"
+      },
+      {
+        "command": "8bitscript.runNtsc",
+        "title": "Run (NTSC)",
+        "category": "8BitScript"
+      },
+      {
+        "command": "8bitscript.buildNtsc",
+        "title": "Build (NTSC)",
+        "category": "8BitScript"
+      },
+      {
+        "command": "8bitscript.runPal",
+        "title": "Run (PAL)",
+        "category": "8BitScript"
+      },
+      {
+        "command": "8bitscript.buildPal",
+        "title": "Build (PAL)",
+        "category": "8BitScript"
+      },
+      {
+        "command": "8bitscript.stop",
+        "title": "Stop",
+        "category": "8BitScript",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "8bitscript.openConfig",
+        "title": "Open 8bs.config.ts",
+        "category": "8BitScript"
+      },
+      {
+        "command": "8bitscript.revealProject",
+        "title": "Reveal in Explorer",
+        "category": "8BitScript"
+      },
+      {
+        "command": "8bitscript.openTerminal",
+        "title": "Open in Integrated Terminal",
+        "category": "8BitScript"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        { "command": "8bitscript.runNtsc", "when": "false" },
+        { "command": "8bitscript.buildNtsc", "when": "false" },
+        { "command": "8bitscript.runPal", "when": "false" },
+        { "command": "8bitscript.buildPal", "when": "false" },
+        { "command": "8bitscript.openConfig", "when": "false" },
+        { "command": "8bitscript.revealProject", "when": "false" },
+        { "command": "8bitscript.openTerminal", "when": "false" }
+      ],
+      "view/title": [
+        {
+          "command": "8bitscript.doctor",
+          "when": "view == 8bitscript.projects",
+          "group": "navigation@1"
+        },
+        {
+          "command": "8bitscript.projects.refresh",
+          "when": "view == 8bitscript.projects",
+          "group": "navigation@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "8bitscript.stop",
+          "when": "view == 8bitscript.projects && viewItem =~ /^target/ && viewItem =~ /running/",
+          "group": "inline@0"
+        },
+        {
+          "command": "8bitscript.run",
+          "when": "view == 8bitscript.projects && viewItem =~ /^target/",
+          "group": "inline@1"
+        },
+        {
+          "command": "8bitscript.build",
+          "when": "view == 8bitscript.projects && viewItem =~ /^target/",
+          "group": "inline@2"
+        },
+        {
+          "command": "8bitscript.stop",
+          "when": "view == 8bitscript.projects && viewItem =~ /^project/ && viewItem =~ /running/",
+          "group": "inline@0"
+        },
+        {
+          "command": "8bitscript.run",
+          "when": "view == 8bitscript.projects && viewItem =~ /^project/",
+          "group": "inline@1"
+        },
+        {
+          "command": "8bitscript.runNtsc",
+          "when": "view == 8bitscript.projects && viewItem =~ /^target/ && viewItem =~ /machine/",
+          "group": "1_run@1"
+        },
+        {
+          "command": "8bitscript.runPal",
+          "when": "view == 8bitscript.projects && viewItem =~ /^target/ && viewItem =~ /machine/",
+          "group": "1_run@2"
+        },
+        {
+          "command": "8bitscript.buildNtsc",
+          "when": "view == 8bitscript.projects && viewItem =~ /^target/ && viewItem =~ /machine/",
+          "group": "1_run@3"
+        },
+        {
+          "command": "8bitscript.buildPal",
+          "when": "view == 8bitscript.projects && viewItem =~ /^target/ && viewItem =~ /machine/",
+          "group": "1_run@4"
+        },
+        {
+          "command": "8bitscript.run",
+          "when": "view == 8bitscript.projects && viewItem =~ /^target/ && !(viewItem =~ /machine/)",
+          "group": "1_run@1"
+        },
+        {
+          "command": "8bitscript.build",
+          "when": "view == 8bitscript.projects && viewItem =~ /^target/ && !(viewItem =~ /machine/)",
+          "group": "1_run@2"
+        },
+        {
+          "command": "8bitscript.stop",
+          "when": "view == 8bitscript.projects && viewItem =~ /running/",
+          "group": "1_run@9"
+        },
+        {
+          "command": "8bitscript.openConfig",
+          "when": "view == 8bitscript.projects && viewItem =~ /^project/",
+          "group": "2_open@1"
+        },
+        {
+          "command": "8bitscript.revealProject",
+          "when": "view == 8bitscript.projects && viewItem =~ /^project/",
+          "group": "2_open@2"
+        },
+        {
+          "command": "8bitscript.openTerminal",
+          "when": "view == 8bitscript.projects && viewItem =~ /^project/",
+          "group": "2_open@3"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "8BitScript",
+      "properties": {
+        "8bitscript.region": {
+          "type": "string",
+          "enum": [
+            "ntsc",
+            "pal"
+          ],
+          "enumDescriptions": [
+            "NTSC, 60Hz — the machine model 8bs run and 8bs build use by default.",
+            "PAL, 50Hz — passes --pal to 8bs run and 8bs build."
+          ],
+          "default": "ntsc",
+          "description": "The machine region the Run and Build buttons use for vic20 and c64. Either region is always available from a target's context menu."
+        }
+      }
+    },
+    "taskDefinitions": [
+      {
+        "type": "8bs",
+        "required": [
+          "command"
+        ],
+        "properties": {
+          "command": {
+            "type": "string",
+            "enum": [
+              "run",
+              "build",
+              "doctor"
+            ],
+            "description": "The 8bs subcommand to run."
+          },
+          "project": {
+            "type": "string",
+            "description": "The project directory, relative to the workspace folder. Defaults to the workspace folder itself."
+          },
+          "target": {
+            "type": "string",
+            "enum": [
+              "vic20",
+              "c64",
+              "web"
+            ],
+            "description": "The system to build for or run on. Required for run and build."
+          },
+          "pal": {
+            "type": "boolean",
+            "description": "Use the PAL (50Hz) machine model instead of NTSC. Ignored for web."
+          }
+        }
       }
     ]
   },
   "main": "./src/extension.cjs",
   "activationEvents": [
     "onLanguage:8bitscript",
-    "workspaceContains:**/*.8bs"
+    "workspaceContains:**/*.8bs",
+    "workspaceContains:**/8bs.config.ts"
   ],
+  "scripts": {
+    "test": "node --test"
+  },
   "dependencies": {
     "vscode-languageclient": "10.1.1"
   },

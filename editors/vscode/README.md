@@ -1,12 +1,13 @@
 # 8BitScript for VS Code and Cursor
 
-Syntax highlighting plus a real language server for `.8bs` files. The
-extension itself is still a thin client: it finds the project's `8bs`
-toolchain and runs `8bs lsp --stdio`, and every diagnostic, hover, and
+Syntax highlighting, a real language server, and a project runner for `.8bs`
+files. The extension itself is still a thin client: it finds the project's
+`8bs` toolchain and runs `8bs lsp --stdio`, and every diagnostic, hover, and
 completion it shows comes from `@8bitscript/compiler` through that server —
-not from anything reimplemented here. See
-[Editor support](../../docs/language-server.md) for the split between the
-compiler, the language server, and this extension.
+not from anything reimplemented here. The same goes for building and running:
+the sidebar view only ever starts the `8bs run` and `8bs build` commands you
+would otherwise type. See [Editor support](../../docs/language-server.md) for
+the split between the compiler, the language server, and this extension.
 
 ## What it does
 
@@ -25,6 +26,76 @@ compiler, the language server, and this extension.
 
 If no toolchain is found, the extension says so and falls back to syntax
 highlighting alone — see "Installing it while developing" below.
+
+## The projects view
+
+An **8BitScript** section appears in the Explorer sidebar, under the file
+tree, whenever the workspace has an 8BitScript project in it. It lists every
+project and, under each, the systems that project targets:
+
+```
+8BITSCRIPT                                   ⟳ ♥
+▾ border            examples/border
+    vic20  NTSC                              ▶ 🔧
+    c64    NTSC                              ▶ 🔧
+▾ counter           examples/counter
+    vic20  NTSC                              ▶ 🔧
+    c64    NTSC                              ▶ 🔧
+    web                                      ▶ 🔧
+```
+
+A project is any directory containing an `8bs.config.ts`; that file is
+already the manifest the CLI reads for the entry file and the target list,
+so the view uses it as the marker rather than a second list to maintain. A
+`package.json` on its own does not count — every package in a monorepo has
+one. The search skips `node_modules`, and the view refreshes itself when a
+config file is added, removed, or edited; the ⟳ button forces a rescan.
+
+Each target row has two inline buttons: **Run** (`8bs run <target>`) and
+**Build** (`8bs build --target <target>`). For `vic20` and `c64` those use
+the region in the `8bitscript.region` setting — NTSC unless you change it —
+and the row's right-click menu offers *Run (NTSC)*, *Run (PAL)*, *Build
+(NTSC)*, and *Build (PAL)* explicitly. Each run opens as a task in its own
+terminal, started in the project's directory with the project's own
+`node_modules/.bin/8bs`, so what you see is exactly what the CLI prints. A
+target that is running shows a spinner and a **Stop** button, which
+terminates the task (and with it the emulator).
+
+The project row itself opens the entry `.8bs` file when clicked, and its
+right-click menu has *Open 8bs.config.ts*, *Reveal in Explorer*, and *Open
+in Integrated Terminal*. The ♥ button in the view's title runs `8bs doctor`,
+which reports whether the VICE and LLVM-MOS installs each target needs are
+in place.
+
+From the command palette, **8BitScript: Run** and **8BitScript: Build** ask
+which project and system when there is more than one; **8BitScript: Doctor**
+and **8BitScript: Refresh Projects** are there too.
+
+Every run and build is also a task of type `8bs`, so **Tasks: Run Task**
+lists them, and a favourite can be pinned in `.vscode/tasks.json`:
+
+```json
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "8bs",
+      "command": "run",
+      "project": "examples/border",
+      "target": "c64",
+      "pal": true,
+      "label": "border on a PAL C64"
+    }
+  ]
+}
+```
+
+`project` is relative to the workspace folder and defaults to the folder
+itself; `command` is `run`, `build`, or `doctor`; `pal` is optional.
+
+A project whose toolchain is not installed is still listed, marked with a
+warning icon and *toolchain not installed*; running it explains how to fix
+that (`pnpm install` in the project, or `pnpm add -D @8bitscript/cli`).
 
 Hexadecimal and binary literals are highlighted in both the C spelling
 (`0xC000`, `0b10110000`) and the assembly spelling (`$C000`, `%10110000`),
@@ -67,7 +138,10 @@ command palette, open a `.8bs` file, and check that the language indicator in
 the status bar reads *8BitScript*.
 
 A symlink is used rather than a copy so that editing the grammar and reloading
-the window is the whole development loop. If the editor does not pick up the
+the window is the whole development loop. The projects view has a `node --test`
+suite for the part that does not need the editor — config reading, toolchain
+lookup, and the command each button runs — under `test/`; `pnpm test` from the
+repository root runs it along with everything else. If the editor does not pick up the
 symlink, copy the directory instead of linking it — some builds scan for real
 directories. Remove it with `rm` on the link; nothing else is touched.
 
