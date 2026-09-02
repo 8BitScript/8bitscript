@@ -17,3 +17,6 @@ build/
 # OS cruft
 .DS_Store
 .claude/worktrees/
+
+# Editor state (per-developer, not project config — see .vscode/launch.json for shared debug config)
+.vscode/settings.json

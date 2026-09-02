@@ -68,11 +68,12 @@ window when you're done.
 | `pnpm run start:pal` | VIC-20 | PAL |
 | `pnpm run start:c64` | C64 | NTSC |
 | `pnpm run start:c64-pal` | C64 | PAL |
+| `pnpm run start:web` | Web | — (no PAL/NTSC on the web; see below) |
 
-`pnpm run build` (and its `:pal`, `:c64`, `:c64-pal` variants) compiles
-without opening the emulator; output lands in `dist/` as a `.prg`, with the C
-the backend generated alongside it, so what the compiler did is never a
-mystery.
+`pnpm run build` (and its `:pal`, `:c64`, `:c64-pal`, `:web` variants)
+compiles without opening the emulator or browser; output lands in `dist/` as
+a `.prg` (VIC-20/C64) or a `.wasm` (web), with the C or AssemblyScript the
+backend generated alongside it, so what the compiler did is never a mystery.
 
 ## What the program does
 
@@ -111,6 +112,13 @@ export function main(): void {
 - `delay` is `volatile<usmallint>`: without `volatile`, the optimiser would notice
   the inner loop computes nothing observable and delete it, and the border
   would cycle faster than the eye can follow.
+
+`pnpm run start:web` runs a *different* file, `main.web.8bs`: a browser tab
+calls the program back once per frame instead of handing it the whole
+machine forever, so the `while (true)` above has no web equivalent — see
+[why step 1's program doesn't build for the web](learn/step1-main-loop.md#why-this-step-does-not-build-for-the-web)
+for what its shape looks like instead, and `8bs.config.ts`'s `entry` map for
+how one project points different targets at different files.
 
 ## Make a change
 
@@ -153,8 +161,10 @@ has the exact boundary.
   `.wasm`, and the diagnostic codes you'll hit while writing something that
   goes past the milestone subset.
 - [`examples/counter`](https://github.com/8BitScript/8bitscript/tree/trunk/examples/counter)
-  — the smallest program that compiles, and the only one that also targets
-  the web (`pnpm run web` inside it, after `pnpm install`).
+  — the smallest program that compiles, and the simplest of the two that also
+  target the web (`pnpm run web` inside it, after `pnpm install`) — it has no
+  `frame()`, so `8bs run web` just calls its `main()` once and prints the
+  result, rather than opening a browser tab the way `examples/border` does.
 - [Editor support](language-server.md) — diagnostics under the cursor while
   you write.
 

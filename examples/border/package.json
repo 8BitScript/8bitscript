@@ -9,10 +9,12 @@
     "start:pal": "8bs run vic20 --pal",
     "start:c64": "8bs run c64",
     "start:c64-pal": "8bs run c64 --pal",
+    "start:web": "8bs run web",
     "build": "8bs build --target vic20",
     "build:pal": "8bs build --target vic20 --pal",
     "build:c64": "8bs build --target c64",
-    "build:c64-pal": "8bs build --target c64 --pal"
+    "build:c64-pal": "8bs build --target c64 --pal",
+    "build:web": "8bs build --target web"
   },
   "devDependencies": {
     "@8bitscript/cli": "workspace:*"

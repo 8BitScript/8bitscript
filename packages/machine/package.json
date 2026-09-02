@@ -7,12 +7,14 @@
   "8bitscript": {
     "entry": {
       "vic20": "@8bitscript/vic20",
-      "c64": "@8bitscript/c64"
+      "c64": "@8bitscript/c64",
+      "web": "@8bitscript/web"
     }
   },
   "dependencies": {
     "@8bitscript/c64": "workspace:*",
-    "@8bitscript/vic20": "workspace:*"
+    "@8bitscript/vic20": "workspace:*",
+    "@8bitscript/web": "workspace:*"
   },
   "publishConfig": {
     "access": "public"

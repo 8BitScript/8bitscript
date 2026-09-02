@@ -120,7 +120,8 @@ package provides a different implementation per target:
   "8bitscript": {
     "entry": {
       "vic20": "@8bitscript/vic20",
-      "c64": "@8bitscript/c64"
+      "c64": "@8bitscript/c64",
+      "web": "@8bitscript/web"
     }
   }
 }
@@ -137,12 +138,37 @@ they validate every branch instead, and a broken branch is reported before
 anyone builds for it.
 
 `@8bitscript/machine` (shown above) is exactly this and nothing more: no
-source of its own, just the machine-keyed delegation. The two target
+source of its own, just the machine-keyed delegation. All three target
 packages export the same surface — `border`, `background`, `applyColors()` —
 so a program that imports it works on whichever machine it is built for.
-`examples/border` is one source file for both machines this way. This is the
-first slice of target-conditional code: whole-module today, per-declaration
-once that syntax is designed.
+`examples/border`'s `vic20` and `c64` builds share one source file this way.
+This is the first slice of target-conditional code: whole-module today,
+per-declaration once that syntax is designed.
+
+### A project's own entry can be target-conditional too
+
+A package's `8bitscript.entry` picks a different *import* per target; a
+project's own `8bs.config.ts` can pick a different *entry point* per target
+the same way, keyed identically:
+
+```ts
+export default {
+  entry: { default: 'src/main.8bs', web: 'src/main.web.8bs' },
+  targets: ['vic20', 'c64', 'web'],
+};
+```
+
+`default` covers any target not named explicitly. This exists for the case a
+target-conditional import can't paper over: when a target's execution model
+itself differs, not just the hardware underneath it. `web` is exactly that —
+a browser calls a program back once per frame instead of handing it the
+whole machine forever the way a VIC-20 or a C64 does — so `examples/border`
+uses this to give `web` its own entry file, `main.web.8bs`, shaped for that
+contract instead of `main.8bs`'s `while (true)`. See
+[docs/learn/step1-main-loop.md](learn/step1-main-loop.md#why-this-step-does-not-build-for-the-web)
+for the reasoning, and `main.web.8bs`'s own header comment for what the
+per-frame contract (`main()` sets up once, `frame()` is the per-frame
+callback) looks like from inside the program.
 
 ## What a package may contain
 
@@ -181,7 +207,7 @@ Only two kinds of package are meant for you:
 | ------- | ---- |
 | `@8bitscript/cli` | The `8bs` command. A dev dependency |
 | `@8bitscript/core` | The portable standard library |
-| `@8bitscript/vic20`, `@8bitscript/c64` | Target support, one per machine |
+| `@8bitscript/vic20`, `@8bitscript/c64`, `@8bitscript/web` | Target support, one per machine |
 | `@8bitscript/machine` | The machine underneath, whichever it is: resolves per target to a target package |
 
 The compiler, the language server, and the backends are internal:

@@ -53,6 +53,19 @@ function printDiagnostics(diagnostics, sources) {
 // rather than failing with a bare "unknown target".
 const RETIRED_TARGET = /^(vic20|c64)-(ntsc|pal)$/;
 
+// `entry` in 8bs.config.ts is usually one path shared by every target, the
+// same way @8bitscript/machine resolves one package per target — but a
+// project's *own* entry point can need to differ by target too, not just the
+// hardware package it imports, when a target's execution model (called once
+// forever vs. called once per frame) isn't something a shared source file
+// can paper over. Keyed the same way "8bitscript".entry is, so the two
+// mechanisms read alike; `default` covers whichever targets aren't named.
+function resolveEntryPath(config, target) {
+  const entry = config?.entry;
+  if (entry && typeof entry === 'object') return entry[target] ?? entry.default;
+  return entry;
+}
+
 /**
  * Compile one entry file for one target.
  *
@@ -86,7 +99,7 @@ export async function compile(target, entryArg, { pal = false } = {}) {
     return { ok: false };
   }
 
-  const entry = resolve(entryArg ?? config?.entry ?? 'src/main.8bs');
+  const entry = resolve(entryArg ?? resolveEntryPath(config, target) ?? 'src/main.8bs');
   if (!existsSync(entry)) {
     process.stderr.write(`8bs build: entry ${entry} does not exist\n`);
     return { ok: false };
