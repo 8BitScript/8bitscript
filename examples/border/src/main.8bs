@@ -1,4 +1,4 @@
-// A screen with three things going on: a small frame counter, a curated set
+// A screen with three things going on: a small tick counter, a curated set
 // of colour options the program cycles through, and the border/background
 // colours it sets from whichever option is currently picked — the classic
 // first sign of life, now with a bit more happening on screen, on whichever
@@ -13,7 +13,7 @@
 // (that's `screen.putChar(x, y, code)`/`input.*` in docs/roadmap.md, not
 // built — this package's `screen.putChar` takes one flat cell index
 // instead), so what this file pokes onto the screen — clearing it, the
-// "FRAME"/"OPTION" labels, the two digits — is entirely this app's own
+// "TICK"/"OPTION" labels, the two digits — is entirely this app's own
 // doing, not something the machine packages do for it. There is also no
 // keyboard/joystick input at all, so "changing" an option here means
 // editing `applyOption` below and rebuilding, not pressing a key while it
@@ -24,9 +24,14 @@ import { border, background, applyColors, screen } from "@8bitscript/machine";
 // deletes it — and everything on screen moves faster than the eye can see.
 let delay: volatile<usmallint> = 0;
 
-// The frame counter (its ones digit is shown at cell 6) and the index of
-// the current colour option (shown at cell 15, out of the four below).
-let frameTicks: utinyint = 0;
+// `ticks` counts passes through main()'s loop, *not* real display frames —
+// each pass takes as long as the 12000-iteration delay loop below, roughly
+// half a second, so this advances at about 2Hz no matter how fast the
+// machine's actual display refreshes. "TICK" on screen, not "FRAME": a
+// frame counter would tick at 50/60fps and this deliberately doesn't.
+// Its ones digit is shown at cell 5; `option`, the index of the current
+// colour option (out of the four below), is shown at cell 14.
+let ticks: utinyint = 0;
 let option: utinyint = 0;
 
 // Loop index for clearScreen() below — a global, not a local, since there
@@ -48,37 +53,38 @@ function clearScreen(): void {
 }
 
 // The row-0 labels this app draws once, so the two digits below mean
-// something without a general text API to lean on: "FRAME " then its digit
-// at cell 6, "OPTION " then its digit at cell 15. Screen codes 1-26 are
+// something without a general text API to lean on: "TICK " then its digit
+// at cell 5, "OPTION " then its digit at cell 14 — the same single-line
+// layout main.web.8bs's host draws with a plain string, so the two targets
+// read identically rather than diverging in layout just because one poke
+// path is a character grid and the other is a canvas. Screen codes 1-26 are
 // 'A'-'Z' in every VIC/C64 charset — not their ASCII values, unlike the
 // digits and the space above, which is why this is spelled out letter by
 // letter instead of reusing a text literal.
 function drawLabels(): void {
-    screen.putChar(0, 6);   // F
+    screen.putChar(0, 20);  // T
     screen.putColor(0, 1);
-    screen.putChar(1, 18);  // R
+    screen.putChar(1, 9);   // I
     screen.putColor(1, 1);
-    screen.putChar(2, 1);   // A
+    screen.putChar(2, 3);   // C
     screen.putColor(2, 1);
-    screen.putChar(3, 13);  // M
+    screen.putChar(3, 11);  // K
     screen.putColor(3, 1);
-    screen.putChar(4, 5);   // E
-    screen.putColor(4, 1);
-    screen.putChar(5, 32);  // space
-    screen.putChar(7, 32);  // space
-    screen.putChar(8, 15);  // O
+    screen.putChar(4, 32);  // space
+    screen.putChar(6, 32);  // space
+    screen.putChar(7, 15);  // O
+    screen.putColor(7, 1);
+    screen.putChar(8, 16);  // P
     screen.putColor(8, 1);
-    screen.putChar(9, 16);  // P
+    screen.putChar(9, 20);  // T
     screen.putColor(9, 1);
-    screen.putChar(10, 20); // T
+    screen.putChar(10, 9);  // I
     screen.putColor(10, 1);
-    screen.putChar(11, 9);  // I
+    screen.putChar(11, 15); // O
     screen.putColor(11, 1);
-    screen.putChar(12, 15); // O
+    screen.putChar(12, 14); // N
     screen.putColor(12, 1);
-    screen.putChar(13, 14); // N
-    screen.putColor(13, 1);
-    screen.putChar(14, 32); // space
+    screen.putChar(13, 32); // space
 }
 
 // Four curated border/background pairs instead of cycling raw values 0-255
@@ -107,27 +113,27 @@ export function main(): void {
     drawLabels();
     applyOption();
     applyColors();
-    screen.showDigit(6, 0);
-    screen.showDigit(15, 0);
+    screen.showDigit(5, 0);
+    screen.showDigit(14, 0);
 
     while (true) {
         // Not tied to real vsync — there's no timer API yet either — but it
         // advances once per pass through this loop, same as the colour
         // change below always did, so it's visibly alive even while an
         // option holds.
-        frameTicks = frameTicks + 1;
-        screen.showDigit(6, frameTicks % 10);
+        ticks = ticks + 1;
+        screen.showDigit(5, ticks % 10);
 
         // Every ten ticks, move to the next colour option and show which
         // one is active.
-        if (frameTicks % 10 == 0) {
+        if (ticks % 10 == 0) {
             option = option + 1;
             if (option == 4) {
                 option = 0;
             }
             applyOption();
             applyColors();
-            screen.showDigit(15, option);
+            screen.showDigit(14, option);
         }
 
         delay = 0;
