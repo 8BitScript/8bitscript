@@ -15,7 +15,9 @@ const {
   commandArgs,
   findExamplesDir,
   findToolchain,
+  isInstalled,
   loadExamples,
+  packageManagerFor,
   loadProject,
   loadProjects,
   parseConfig,
@@ -103,6 +105,8 @@ test('loadProject combines the config, package.json, and toolchain', (t) => {
 
   const project = loadProject(path.join(dir, '8bs.config.ts'));
   assert.equal(project.name, 'border');
+  assert.equal(project.installed, true, 'no dependencies declared counts as installed');
+  assert.equal(project.packageManager, 'pnpm');
   assert.equal(project.description, 'Cycles colours.');
   assert.equal(project.dir, dir);
   assert.equal(project.entry, path.join(dir, 'src', 'main.8bs'));
@@ -224,4 +228,28 @@ test('resolveLlvmMosHome prefers the setting, then the environment, then the def
   // and is kept only when nothing better exists.
   assert.equal(resolveLlvmMosHome({ env: { LLVM_MOS_HOME: missing }, defaultHome: fallback }), fallback);
   assert.equal(resolveLlvmMosHome({ env: { LLVM_MOS_HOME: missing }, defaultHome: path.join(root, 'nope') }), missing);
+});
+
+test('isInstalled wants a node_modules only when dependencies are declared', (t) => {
+  const root = scratch(t);
+  const dir = path.join(root, 'game');
+  fs.mkdirSync(dir, { recursive: true });
+  assert.equal(isInstalled(dir, null), true);
+  assert.equal(isInstalled(dir, { name: 'game' }), true);
+  const pkg = { dependencies: { '@8bitscript/machine': 'workspace:*' } };
+  assert.equal(isInstalled(dir, pkg), false);
+  fs.mkdirSync(path.join(dir, 'node_modules'));
+  assert.equal(isInstalled(dir, pkg), true);
+  assert.equal(isInstalled(dir, { devDependencies: { '@8bitscript/cli': '*' } }), true);
+});
+
+test('packageManagerFor follows the nearest lockfile upward, defaulting to pnpm', (t) => {
+  const root = scratch(t);
+  const nested = path.join(root, 'examples', 'thing');
+  fs.mkdirSync(nested, { recursive: true });
+  assert.equal(packageManagerFor(nested), 'pnpm');
+  write(path.join(root, 'package-lock.json'), '{}');
+  assert.equal(packageManagerFor(nested), 'npm');
+  write(path.join(nested, 'yarn.lock'), '');
+  assert.equal(packageManagerFor(nested), 'yarn', 'the closer lockfile wins');
 });

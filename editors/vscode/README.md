@@ -129,9 +129,15 @@ lists them, and a favourite can be pinned in `.vscode/tasks.json`:
 `project` is relative to the workspace folder and defaults to the folder
 itself; `command` is `run`, `build`, or `doctor`; `pal` is optional.
 
-A project whose toolchain is not installed is still listed, marked with a
-warning icon and *toolchain not installed*; running it explains how to fix
-that (`pnpm install` in the project, or `pnpm add -D @8bitscript/cli`).
+A project whose dependencies have never been installed — it declares some
+and has no `node_modules` of its own, which is how a freshly added example
+looks — is listed with a warning icon and *not installed*, and gets an
+**Install** button that runs `pnpm install` (or `npm`/`yarn`, whichever
+lockfile is nearest) in the project as a task. Running such a project asks
+first, because otherwise the compiler fails on the first import it cannot
+resolve, with a message about the package rather than the install. A
+project whose toolchain is missing altogether is marked *toolchain not
+installed*; running it explains how to fix that.
 
 The Commodore targets need the LLVM-MOS SDK, which the CLI finds through
 `LLVM_MOS_HOME`. A task's shell is non-interactive and does not read

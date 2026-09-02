@@ -112,6 +112,12 @@
         "icon": "$(pulse)"
       },
       {
+        "command": "8bitscript.install",
+        "title": "Install Dependencies",
+        "category": "8BitScript",
+        "icon": "$(cloud-download)"
+      },
+      {
         "command": "8bitscript.run",
         "title": "Run",
         "category": "8BitScript",
@@ -220,6 +226,11 @@
       ],
       "view/item/context": [
         {
+          "command": "8bitscript.install",
+          "when": "view == 8bitscript.projects && viewItem =~ /^project/ && viewItem =~ /uninstalled/",
+          "group": "inline@0"
+        },
+        {
           "command": "8bitscript.stop",
           "when": "view == 8bitscript.projects && viewItem =~ /running/",
           "group": "inline@0"
@@ -283,6 +294,11 @@
           "command": "8bitscript.openTerminal",
           "when": "view == 8bitscript.projects && viewItem =~ /^project/",
           "group": "2_open@3"
+        },
+        {
+          "command": "8bitscript.install",
+          "when": "view == 8bitscript.projects && viewItem =~ /^project/",
+          "group": "2_open@0"
         }
       ]
     },
@@ -356,7 +372,8 @@
             "enum": [
               "run",
               "build",
-              "doctor"
+              "doctor",
+              "install"
             ],
             "description": "The 8bs subcommand to run."
           },
