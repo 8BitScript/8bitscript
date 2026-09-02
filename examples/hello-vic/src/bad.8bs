@@ -1,7 +1,7 @@
 // A file with deliberate errors, used to check that diagnostics reach the
 // terminal and the editor. `8bs check` must report every line below.
-let score: u8 = 300;
-let health: i8 = -200;
+let score: utinyint = 300;
+let health: tinyint = -200;
 let name = "unterminated;
 import { a } from "@8bitscript/nonexistent";
 import { b } from "markdown-it";
