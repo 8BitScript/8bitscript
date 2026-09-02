@@ -11,6 +11,7 @@
 // with plain `node --test`. The view (projectsView.cjs) does the file search
 // with the editor's own glob and hands the results here.
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
 const CONFIG_FILE = '8bs.config.ts';
@@ -241,6 +242,35 @@ function bySystem(projects) {
     .filter((group) => group.projects.length > 0);
 }
 
+/** Where docs/setup/llvm-mos.md tells people to unpack the SDK. */
+const DEFAULT_LLVM_MOS_HOME = path.join(os.homedir(), '.local', 'opt', 'llvm-mos');
+
+/**
+ * The LLVM-MOS SDK directory the Commodore targets need, or null.
+ *
+ * The CLI reads $LLVM_MOS_HOME and nothing else, which is right for a
+ * terminal. An editor task runs the shell non-interactively, so an `export`
+ * in ~/.zshrc or ~/.bashrc never reaches it and `8bs doctor` reports the SDK
+ * missing from a machine where it works fine at the prompt. The view closes
+ * that gap before starting the task: an explicit setting wins, then whatever
+ * the editor's own environment carries, then the documented install location
+ * if the SDK is actually there. Nothing resolved means the task runs with the
+ * environment untouched, so doctor still says what is wrong.
+ *
+ * @param {{ setting?: string | null, env?: NodeJS.ProcessEnv, defaultHome?: string }} [options]
+ * @returns {string | null}
+ */
+function resolveLlvmMosHome({ setting = null, env = process.env, defaultHome = DEFAULT_LLVM_MOS_HOME } = {}) {
+  const hasBin = (dir) => Boolean(dir) && fs.existsSync(path.join(dir, 'bin'));
+  const configured = typeof setting === 'string' && setting.trim() !== '' ? setting.trim() : null;
+  // An explicit setting is passed on even when it is wrong, so doctor names
+  // it instead of silently reporting whatever the fallback found.
+  if (configured) return configured;
+  if (hasBin(env.LLVM_MOS_HOME)) return env.LLVM_MOS_HOME;
+  if (hasBin(defaultHome)) return defaultHome;
+  return env.LLVM_MOS_HOME || null;
+}
+
 /**
  * The `8bs` arguments for one action, on one target where the action takes one.
  *
@@ -270,6 +300,7 @@ module.exports = {
   loadProject,
   loadProjects,
   parseConfig,
+  resolveLlvmMosHome,
   runnableOn,
   withExamples,
 };
