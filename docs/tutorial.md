@@ -127,12 +127,14 @@ change along with it.
 
 ## What doesn't compile yet
 
-The compiler covers a fixed subset of the language today: globals,
-parameterless functions and calls to them, arithmetic, `if`/`while`, hardware
-access, `asm6502`, and imports across modules. Anything past that — function
-calls with arguments, member access, local variables — fails with a
-diagnostic naming the construct, rather than compiling into something
-silently wrong.
+The compiler covers a fixed subset of the language today: globals, functions
+with scalar parameters and return values, calls (with arguments, and usable
+as expressions), arithmetic, `if`/`while`, hardware access including
+`memory.read`/`memory.write`, `namespace` declarations for library surfaces
+like `screen.setBorderColor(...)`, `asm6502`, and imports across modules.
+Anything past that — member access that isn't a declared namespace, local
+variables — fails with a diagnostic naming the construct, rather than
+compiling into something silently wrong.
 [`examples/hello-vic`](https://github.com/8BitScript/8bitscript/tree/trunk/examples/hello-vic)
 is written against APIs that need those constructs, so it does not build yet;
 its README shows the diagnostics it produces and why that's the intended

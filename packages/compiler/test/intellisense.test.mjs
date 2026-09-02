@@ -91,6 +91,23 @@ test('hover explains @address', () => {
   assert.match(info.markdown, /Binds a declaration to a specific memory address/);
 });
 
+test('hover explains memory.write and memory.read', () => {
+  let text = 'export function f(): void { memory.write(36879, 27); }';
+  let info = getHoverInfo(text, at(text, 'write'));
+  assert.match(info.markdown, /Writes one byte directly/);
+  assert.match(info.markdown, /POKE/);
+
+  text = 'export function f(): void { let x: utinyint = memory.read(36879); }';
+  info = getHoverInfo(text, at(text, 'read'));
+  assert.match(info.markdown, /Reads one byte directly/);
+  assert.match(info.markdown, /PEEK/);
+});
+
+test('hover does not fire on read/write unless qualified by memory.', () => {
+  const text = 'export function f(): void { let write: utinyint = 0; }';
+  assert.equal(getHoverInfo(text, at(text, 'write')), null);
+});
+
 test('hover on an unrelated identifier returns nothing: there is no binder yet', () => {
   const text = 'let myCounter: u8 = 0;';
   assert.equal(getHoverInfo(text, at(text, 'myCounter')), null);

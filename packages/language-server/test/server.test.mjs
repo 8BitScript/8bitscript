@@ -175,6 +175,27 @@ test('textDocument/hover on an ordinary identifier returns null', async () => {
   });
 });
 
+test('textDocument/hover explains memory.write', async () => {
+  await withServer(async (client) => {
+    await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
+    client.notify('initialized', {});
+
+    const text = 'export function f(): void { memory.write(36879, 27); }';
+    client.notify('textDocument/didOpen', {
+      textDocument: { uri: URI, languageId: '8bitscript', version: 1, text },
+    });
+    await client.waitForNotification('textDocument/publishDiagnostics');
+
+    const response = await client.request('textDocument/hover', {
+      textDocument: { uri: URI },
+      position: positionAt(text, text.indexOf('write') + 2),
+    });
+
+    assert.ok(response.result);
+    assert.match(response.result.contents.value, /POKE/);
+  });
+});
+
 test('textDocument/completion offers canonical built-in types in a type position', async () => {
   await withServer(async (client) => {
     await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });

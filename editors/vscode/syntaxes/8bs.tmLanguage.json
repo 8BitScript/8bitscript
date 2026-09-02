@@ -149,7 +149,7 @@
         },
         {
           "name": "storage.type.8bs",
-          "match": "\\b(function|let|const)\\b"
+          "match": "\\b(function|let|const|namespace)\\b"
         },
         {
           "name": "storage.modifier.8bs",
@@ -184,6 +184,18 @@
             },
             "2": {
               "name": "variable.other.readwrite.8bs"
+            }
+          }
+        },
+        {
+          "comment": "The name in `namespace screen {` — the surface a caller writes `screen.setBorderColor(...)` against.",
+          "match": "\\b(namespace)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": {
+              "name": "storage.type.8bs"
+            },
+            "2": {
+              "name": "entity.name.namespace.8bs"
             }
           }
         }

@@ -118,11 +118,33 @@ const CONSTRUCT_DOCS = {
   },
 };
 
+/** `memory.read`/`memory.write`: the one namespace the compiler recognises itself. */
+const MEMORY_DOCS = {
+  write: [
+    '**memory.write(address, value)**',
+    '',
+    'Writes one byte directly to the target machine\'s address space.',
+    '',
+    'This is the low-level equivalent of `POKE` on Commodore BASIC systems.',
+    '',
+    'Prefer a machine API such as `screen` when one exists for what you are trying to do.',
+  ].join('\n'),
+  read: [
+    '**memory.read(address)**',
+    '',
+    'Reads one byte directly from the target machine\'s address space.',
+    '',
+    'This is the low-level equivalent of `PEEK` on Commodore BASIC systems.',
+    '',
+    'Prefer a machine API such as `screen` when one exists for what you are trying to do.',
+  ].join('\n'),
+};
+
 const TYPE_CONSTRUCTOR_NAMES = ['array', 'ptr', 'volatile'];
 
-/** The token at `offset`, including its boundaries (a cursor right after a word still hits it). */
-function tokenAt(tokens, offset) {
-  return tokens.find((t) => offset >= t.start && offset <= t.start + t.length) ?? null;
+/** The index of the token covering `offset` (a cursor right after a word still hits it), or -1. */
+function tokenIndexAt(tokens, offset) {
+  return tokens.findIndex((t) => offset >= t.start && offset <= t.start + t.length);
 }
 
 /**
@@ -130,9 +152,10 @@ function tokenAt(tokens, offset) {
  *
  * Recognises primitive integer types (canonical spellings like `utinyint` and
  * `int`, or their low-level `u8`/`i32`-style aliases),
- * `volatile`/`ptr`/`array`, `asm6502`, and `@address` — every built-in this
- * milestone documents. Anything else, including a user's own identifiers,
- * returns `null`: there is no binder yet to say what they mean.
+ * `volatile`/`ptr`/`array`, `asm6502`, `@address`, and the `memory.read`/
+ * `memory.write` intrinsic — every built-in this milestone documents.
+ * Anything else, including a user's own identifiers or namespace, returns
+ * `null`: there is no binder yet to say what they mean.
  *
  * @param {string} text
  * @param {number} offset
@@ -140,8 +163,9 @@ function tokenAt(tokens, offset) {
  */
 export function getHoverInfo(text, offset) {
   const { tokens } = tokenize(text);
-  const token = tokenAt(tokens, offset);
-  if (!token) return null;
+  const index = tokenIndexAt(tokens, offset);
+  if (index === -1) return null;
+  const token = tokens[index];
 
   if (token.kind === TokenKind.Type) {
     const integer = resolveIntegerType(token.text);
@@ -159,6 +183,14 @@ export function getHoverInfo(text, offset) {
 
   if (token.kind === TokenKind.Decorator && token.text.slice(1) === 'address') {
     return { start: token.start, length: token.length, markdown: CONSTRUCT_DOCS.address.markdown };
+  }
+
+  if (token.kind === TokenKind.Identifier && (token.text === 'read' || token.text === 'write')) {
+    const dot = tokens[index - 1];
+    const object = tokens[index - 2];
+    if (dot?.text === '.' && object?.kind === TokenKind.Identifier && object.text === 'memory') {
+      return { start: token.start, length: token.length, markdown: MEMORY_DOCS[token.text] };
+    }
   }
 
   return null;

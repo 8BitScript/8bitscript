@@ -355,11 +355,14 @@ program through the linker, and the first through a target-conditional entry.
 The generated C and AssemblyScript are written next to each output in `dist/`,
 so what the compiler did is never a mystery.
 
-Features arrive one slice at a time from here: local variables, function
-parameters and calls, then the binder that unlocks real type checking.
-Imports already compile — the linker merges the module graph into one program.
-Each slice extends the lowering; the exhaustive-with-error rule means
-a feature is either compilable or clearly reported, with no third state.
+Function parameters, return values, and calls used as expressions compile now
+too — a function can take scalar (integer/bool) parameters and return a
+scalar value, and `f() + g()` lowers exactly the way `f(); g();` always did.
+Features still arrive one slice at a time: local variables and the binder
+that unlocks real type checking are next. Imports already compile — the
+linker merges the module graph into one program. Each slice extends the
+lowering; the exhaustive-with-error rule means a feature is either compilable
+or clearly reported, with no third state.
 
 ## Hardware access is not an afterthought
 
@@ -378,6 +381,93 @@ asm6502 {
 
 A language for these machines that cannot reach the machine has missed the
 point. The editor grammar already highlights this syntax.
+
+### `memory.read`/`memory.write`: the escape hatch below a library
+
+`@address` binds one *named declaration* to one *fixed* location, decided at
+compile time. Sometimes what a program actually has is a *runtime* address —
+translating an old POKE, or writing a library that computes where to write.
+`memory.read(address)`/`memory.write(address, value)` are the primitive for
+that: a compiler-owned intrinsic, recognised in lowering the same way
+`asm6502`/`@address` are, not a function anything imports. An old VIC-20 BASIC
+line translates directly:
+
+```basic
+POKE 36879,27
+```
+```
+memory.write(36879, 27);
+```
+```basic
+X = PEEK(36879)
+```
+```
+let x: utinyint = memory.read(36879);
+```
+
+On native targets this is a `volatile` byte-pointer dereference — the address
+is only known at runtime, so it might well be a hardware register, and the
+compiler has no way to tell; it gets the same protection an `@address` global
+gets. On the web target it addresses a 64KB buffer reserved for exactly this
+(one wasm page, matching the 6502's own 16-bit address space) via
+AssemblyScript's `load<u8>`/`store<u8>`. That buffer has no hardware behind
+it — writing to a "register" address on the web target changes a byte in a
+buffer nothing reads, which is a real target-semantics difference worth
+knowing about, not a bug either target hides. Both directions are honest
+about what they actually did: unlike `@address`, which the web backend
+refuses outright (there is no way to fake *specific* hardware), a runtime
+byte address is at least a coherent concept on both targets, even when one of
+them has nothing physical to back it.
+
+`memory.write`/`memory.read` is a **literal translation**, not the preferred
+way to write new code. Once you understand what a POKE actually changes,
+prefer a library that names the operation — see the next section.
+
+### `namespace`: what a POKE becomes once you name it
+
+`namespace Name { ... }` is how a package exposes a surface like
+`screen.setBorderColor(...)` or `BorderColor.Blue` without any runtime
+representation at all. It compiles away entirely: a function member lowers to
+an ordinary function under a mangled name (`screen_setBorderColor`), and a
+const member is never storage — it is inlined as a plain number wherever it
+is used. `screen.setBorderColor(...)` costs exactly what calling a plain
+function by that name would.
+
+```
+export namespace screen {
+    function setBorderColor(color: utinyint): void {
+        memory.write(0x900F, (memory.read(0x900F) & 0xF8) | (color & 0x07));
+    }
+}
+
+export namespace BorderColor {
+    const Blue: utinyint = 6;
+}
+```
+
+`@8bitscript/vic20` is the first real one: `screen.setBorderColor`/
+`setBackgroundColor` do a read-modify-write against the VIC's packed colour
+register ($900F — bits 0-2 border, bit 3 reverse video, bits 4-7 background),
+masking so that changing one field never disturbs the others, and
+`BorderColor`/`BackgroundColor` name the VIC-20's own colour numbers. Two
+namespaces, not one shared `Color`, because the border field is only 3 bits
+wide — the hardware draws that line, not an API preference.
+
+This is the whole point of the layering: a program can stop at whichever
+level it needs.
+
+```
+screen.setBorderColor(BorderColor.Blue);        // friendly — usual code
+memory.write(0x900F, 6);                        // literal POKE translation
+@address(0x900F)  let register: volatile<utinyint>;  // a named register
+asm6502 { ... }                                 // the machine itself
+```
+
+None of these layers removes the one beneath it, and the compiler does not
+know any of `screen`, `BorderColor`, or $900F itself — `namespace` and
+`memory.read`/`write` are the two primitives; everything hardware-specific is
+`@8bitscript/vic20` being an ordinary 8BitScript library, not a special case
+the compiler was taught about.
 
 ## Package layout
 
