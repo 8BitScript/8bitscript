@@ -552,21 +552,12 @@ function registerProjectsView(context, output) {
     return false;
   }
 
-  /** What the task was given beyond the shell's own environment, for the log. */
-  function describeEnv(task) {
-    const env = task.execution.options?.env ?? {};
-    return env.LLVM_MOS_HOME
-      ? ` [LLVM_MOS_HOME=${env.LLVM_MOS_HOME}]`
-      : ' [LLVM_MOS_HOME not found: set 8bitscript.llvmMosHome]';
-  }
-
   async function execute(action, region, node) {
     const resolved = await targetOf(node, action);
     if (!resolved) return;
     const { project, target } = resolved;
     if (!requireToolchain(project)) return;
     const task = makeTask(project, action, target, region ?? settings.getRegion());
-    output.appendLine(`${task.name}: ${task.detail}${describeEnv(task)}`);
     await vscode.tasks.executeTask(task);
   }
 
@@ -591,7 +582,6 @@ function registerProjectsView(context, output) {
       undefined,
       'ntsc',
     );
-    output.appendLine(`${task.name}: ${task.detail}${describeEnv(task)}`);
     await vscode.tasks.executeTask(task);
   }
 
