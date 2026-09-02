@@ -1,4 +1,4 @@
-// The web version of examples/border. Same idea — a frame counter, a
+// The web version of examples/border. Same idea — a tick counter, a
 // curated set of colour options cycled and shown — different shape:
 // main.8bs's `while (true)` plus a busy-wait delay counter assumes the
 // program owns the machine forever, which is true on a VIC-20 or a C64 and
@@ -18,11 +18,13 @@ import { border, background, applyColors, screen } from "@8bitscript/machine";
 
 // 30 logical frames at the host's fixed 60Hz logical rate is half a second —
 // the same cadence main.8bs's 12000-iteration delay loop produces. Every
-// *tick* (not every frame()) advances frameTicks and, every ten ticks, the
+// *tick* (not every frame()) advances `ticks` and, every ten ticks, the
 // colour option — so both digits mean the same "how much time has passed"
 // on the web as they do on the VIC-20 and the C64, not ten times faster.
+// `ticks` deliberately isn't called `frames`: it advances at about 2Hz, not
+// 50/60fps, so "TICK" is what the host below labels it, not "FRAME".
 let logicalFramesUntilTick: utinyint = 30;
-let frameTicks: utinyint = 0;
+let ticks: utinyint = 0;
 let option: utinyint = 0;
 
 // The same four curated border/background pairs as main.8bs — kept in sync
@@ -56,10 +58,10 @@ export function frame(): void {
     if (logicalFramesUntilTick == 0) {
         logicalFramesUntilTick = 30;
 
-        frameTicks = frameTicks + 1;
-        screen.showDigit(0, frameTicks % 10);
+        ticks = ticks + 1;
+        screen.showDigit(0, ticks % 10);
 
-        if (frameTicks % 10 == 0) {
+        if (ticks % 10 == 0) {
             option = option + 1;
             if (option == 4) {
                 option = 0;
