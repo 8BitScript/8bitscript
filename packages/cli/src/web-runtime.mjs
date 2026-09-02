@@ -113,12 +113,15 @@ async function boot() {
     // Bytes 2 and 3 are the two screen.showDigit() slots — the web
     // target's stand-in for the on-screen digits @8bitscript/vic20 and
     // @8bitscript/c64 poke straight into real screen RAM for, agreed on in
-    // @8bitscript/web's WebRegisters.
-    ctx.font = '16px ui-monospace, Menlo, monospace';
+    // @8bitscript/web's WebRegisters. Labelling them is this host's own
+    // choice, the same way main.8bs's drawLabels() is the *program's* own
+    // choice on the other two targets, not something the wasm side does for
+    // it — there's nothing in @8bitscript/web forcing this text to appear.
+    ctx.font = '14px ui-monospace, Menlo, monospace';
     ctx.textBaseline = 'top';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(String(mem[2] % 10), BORDER_PX + 6, BORDER_PX + 4);
-    ctx.fillText(String(mem[3] % 10), BORDER_PX + 20, BORDER_PX + 4);
+    ctx.fillText('FRAME ' + (mem[2] % 10), BORDER_PX + 4, BORDER_PX + 4);
+    ctx.fillText('OPTION ' + (mem[3] % 10), BORDER_PX + 4, BORDER_PX + 20);
   }
 
   instance.exports.main();

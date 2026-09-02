@@ -16,7 +16,12 @@
 // a machine's real refresh rate to begin with.
 import { border, background, applyColors, screen } from "@8bitscript/machine";
 
-let framesUntilStep: utinyint = 30;
+// 30 logical frames at the host's fixed 60Hz logical rate is half a second —
+// the same cadence main.8bs's 12000-iteration delay loop produces. Every
+// *tick* (not every frame()) advances frameTicks and, every ten ticks, the
+// colour option — so both digits mean the same "how much time has passed"
+// on the web as they do on the VIC-20 and the C64, not ten times faster.
+let logicalFramesUntilTick: utinyint = 30;
 let frameTicks: utinyint = 0;
 let option: utinyint = 0;
 
@@ -47,18 +52,21 @@ export function main(): void {
 }
 
 export function frame(): void {
-    frameTicks = frameTicks + 1;
-    screen.showDigit(0, frameTicks % 10);
+    logicalFramesUntilTick = logicalFramesUntilTick - 1;
+    if (logicalFramesUntilTick == 0) {
+        logicalFramesUntilTick = 30;
 
-    framesUntilStep = framesUntilStep - 1;
-    if (framesUntilStep == 0) {
-        framesUntilStep = 30;
-        option = option + 1;
-        if (option == 4) {
-            option = 0;
+        frameTicks = frameTicks + 1;
+        screen.showDigit(0, frameTicks % 10);
+
+        if (frameTicks % 10 == 0) {
+            option = option + 1;
+            if (option == 4) {
+                option = 0;
+            }
+            applyOption();
+            applyColors();
+            screen.showDigit(1, option);
         }
-        applyOption();
-        applyColors();
-        screen.showDigit(1, option);
     }
 }
