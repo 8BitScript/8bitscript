@@ -140,9 +140,8 @@ side bar reports the SDK missing while the terminal has it. The extension
 sets `LLVM_MOS_HOME` on every task it starts: from the `8bitscript.llvmMosHome`
 setting if given, else from the editor's own environment, else from the
 install location the setup guide uses (`~/.local/opt/llvm-mos`) when the SDK
-is there. The 8BitScript output channel logs which one each run used. The
-durable fix is to export the variable from `~/.zshenv` or `~/.profile`
-instead — see [the SDK setup](../../docs/setup/llvm-mos.md).
+is there. The durable fix is to export the variable from `~/.zshenv` or
+`~/.profile` instead — see [the SDK setup](../../docs/setup/llvm-mos.md).
 
 ## The grammar is provisional
 
