@@ -26,7 +26,7 @@ export const TokenKind = {
 export const KEYWORDS = new Set([
   'let', 'const', 'function', 'return', 'export', 'import', 'from', 'as',
   'if', 'else', 'while', 'for', 'do', 'break', 'continue',
-  'switch', 'case', 'default', 'true', 'false', 'asm6502',
+  'switch', 'case', 'default', 'true', 'false', 'asm6502', 'namespace',
 ]);
 
 // Every primitive integer spelling comes from the shared registry — the

@@ -37,7 +37,7 @@ const ASSIGNMENT_OPERATORS = new Set([
 /** Keywords that can begin a statement — used to resynchronise after an error. */
 const STATEMENT_START = new Set([
   'let', 'const', 'function', 'export', 'import', 'return',
-  'if', 'while', 'for', 'break', 'continue', 'asm6502',
+  'if', 'while', 'for', 'break', 'continue', 'asm6502', 'namespace',
 ]);
 
 class Parser {
@@ -170,6 +170,7 @@ class Parser {
         case 'let':
         case 'const': return this.parseVariableDeclaration();
         case 'function': return this.parseFunctionDeclaration(token.start, false);
+        case 'namespace': return this.parseNamespace(token.start, false);
         case 'if': return this.parseIf();
         case 'while': return this.parseWhile();
         case 'for': return this.parseFor();
@@ -270,6 +271,7 @@ class Parser {
   parseExport() {
     const start = this.next().start;
     if (this.atKeyword('function')) return this.parseFunctionDeclaration(start, true);
+    if (this.atKeyword('namespace')) return this.parseNamespace(start, true);
     if (this.atKeyword('let') || this.atKeyword('const')) {
       const declaration = this.parseVariableDeclaration(start);
       if (declaration) declaration.exported = true;
@@ -278,6 +280,39 @@ class Parser {
     this.error(`expected a declaration after 'export', found ${this.describe(this.peek())}`);
     this.synchronize();
     return null;
+  }
+
+  /**
+   * `namespace screen { function setBorderColor(...): void { ... } }`.
+   *
+   * A namespace is compile-time-only qualification, not a struct or a value:
+   * its members compile straight to ordinary functions and inlined
+   * constants, and calling `screen.setBorderColor(...)` is exactly as cheap
+   * as calling a plain function with that name would be. Members are written
+   * without their own `export` — the namespace itself is the unit that is or
+   * isn't visible to other modules.
+   */
+  parseNamespace(start, exported) {
+    this.next(); // 'namespace'
+    const name = this.expectIdentifier('a namespace name');
+    const members = [];
+    if (this.expect('{')) {
+      while (!this.atEnd && !this.at('}')) {
+        const before = this.pos;
+        if (this.atKeyword('function')) {
+          const token = this.peek();
+          members.push(this.parseFunctionDeclaration(token.start, false));
+        } else if (this.atKeyword('let') || this.atKeyword('const')) {
+          members.push(this.parseVariableDeclaration());
+        } else {
+          this.error(`expected a function or const inside a namespace, found ${this.describe(this.peek())}`);
+        }
+        if (this.pos === before) this.next();
+      }
+    }
+    const close = this.expect('}');
+    const end = close ? close.start + 1 : this.endOffset;
+    return node(NodeType.NamespaceDeclaration, start, end, { name, members, exported });
   }
 
   parseVariableDeclaration(startOverride = null) {

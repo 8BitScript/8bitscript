@@ -132,26 +132,44 @@ function declarationsOf(module) {
   return decls;
 }
 
+/** This module's own namespace declarations, keyed by namespace name. */
+function namespacesOf(module) {
+  return new Map((module.ir.namespaces ?? []).map((ns) => [ns.name, ns]));
+}
+
 /**
  * Check import bindings: every imported name must be exported by the module
  * its specifier resolved to, and must not collide with a declaration or
- * another import in the importing module.
+ * another import in the importing module. A namespace import binds
+ * separately from a value/function import — `screen` names a namespace, not
+ * something a bare `ref` could ever resolve to.
  */
 function bindImports(modules, diagnostics) {
   for (const module of modules) {
     module.decls = declarationsOf(module);
+    module.namespaces = namespacesOf(module);
     module.bindings = new Map();
+    module.namespaceBindings = new Map();
   }
   for (const module of modules) {
     for (const imp of module.ir.imports) {
       if (!imp.module) continue; // resolution already failed and reported
       for (const spec of imp.specifiers) {
-        if (module.decls.has(spec.local) || module.bindings.has(spec.local)) {
+        if (
+          module.decls.has(spec.local)
+          || module.bindings.has(spec.local)
+          || module.namespaceBindings.has(spec.local)
+        ) {
           diagnostics.push(diagnostic(
             Codes.DUPLICATE_BINDING,
             `'${spec.local}' is already bound in this module`,
             module.file, spec.start, spec.length,
           ));
+          continue;
+        }
+        const importedNamespace = imp.module.namespaces.get(spec.imported);
+        if (importedNamespace?.exported) {
+          module.namespaceBindings.set(spec.local, { module: imp.module, name: spec.imported });
           continue;
         }
         if (imp.module.decls.get(spec.imported) !== true) {
@@ -166,6 +184,29 @@ function bindImports(modules, diagnostics) {
       }
     }
   }
+}
+
+/**
+ * Resolve `namespace.member` against a module's own namespace declarations
+ * or, failing that, its namespace imports — the same two-step lookup a plain
+ * `ref` gets from `scope`, just kept separate because a namespace member
+ * resolves to a *mangled function name* or a *literal value*, never to an
+ * output-renamed binding by itself.
+ *
+ * @param {'functions'|'consts'} table
+ */
+function resolveNamespaceMember(module, namespaceName, memberName, table) {
+  const own = module.namespaces.get(namespaceName);
+  if (own) {
+    const value = own[table].get(memberName);
+    return { namespaceFound: true, memberFound: value !== undefined, value, targetModule: module };
+  }
+  const binding = module.namespaceBindings.get(namespaceName);
+  if (!binding) return { namespaceFound: false };
+  const target = binding.module.namespaces.get(binding.name);
+  if (!target) return { namespaceFound: false };
+  const value = target[table].get(memberName);
+  return { namespaceFound: true, memberFound: value !== undefined, value, targetModule: binding.module };
 }
 
 /**
@@ -231,6 +272,55 @@ function rewriteExpression(expr, scope, module, diagnostics) {
       // an import — but its address argument can still reference a global.
       rewriteExpression(expr.address, scope, module, diagnostics);
       return;
+    case 'namespaceCall': {
+      const result = resolveNamespaceMember(module, expr.namespace, expr.member, 'functions');
+      if (!result.namespaceFound) {
+        diagnostics.push(diagnostic(
+          Codes.UNRESOLVED_NAME,
+          `cannot find namespace '${expr.namespace}'`,
+          module.file, expr.start ?? 0, expr.length ?? 0,
+        ));
+      } else if (!result.memberFound) {
+        diagnostics.push(diagnostic(
+          Codes.NO_SUCH_EXPORT,
+          `'${expr.member}' is not a function in namespace '${expr.namespace}'`,
+          module.file, expr.start ?? 0, expr.length ?? 0,
+        ));
+      } else {
+        // Once resolved, a namespace call IS a plain call — same shape the
+        // rest of the pipeline (and both backends) already understand.
+        expr.kind = 'call';
+        expr.name = result.targetModule.rename.get(result.value);
+        delete expr.namespace;
+        delete expr.member;
+      }
+      for (const argument of expr.args) rewriteExpression(argument, scope, module, diagnostics);
+      return;
+    }
+    case 'namespaceConst': {
+      const result = resolveNamespaceMember(module, expr.namespace, expr.member, 'consts');
+      if (!result.namespaceFound) {
+        diagnostics.push(diagnostic(
+          Codes.UNRESOLVED_NAME,
+          `cannot find namespace '${expr.namespace}'`,
+          module.file, expr.start ?? 0, expr.length ?? 0,
+        ));
+      } else if (!result.memberFound) {
+        diagnostics.push(diagnostic(
+          Codes.NO_SUCH_EXPORT,
+          `'${expr.member}' is not a const in namespace '${expr.namespace}'`,
+          module.file, expr.start ?? 0, expr.length ?? 0,
+        ));
+      } else {
+        expr.kind = 'const';
+        expr.value = result.value;
+        delete expr.namespace;
+        delete expr.member;
+        delete expr.start;
+        delete expr.length;
+      }
+      return;
+    }
     default: // 'const' names nothing
   }
 }
@@ -265,6 +355,11 @@ function rewriteStatement(statement, scope, module, diagnostics) {
       for (const argument of statement.args) rewriteExpression(argument, scope, module, diagnostics);
       return;
     }
+    case 'namespaceCall':
+      // Same shape whether reached as a statement or a subexpression —
+      // `rewriteExpression`'s handling already mutates it in place.
+      rewriteExpression(statement, scope, module, diagnostics);
+      return;
     case 'memoryWrite':
       rewriteExpression(statement.address, scope, module, diagnostics);
       rewriteExpression(statement.value, scope, module, diagnostics);

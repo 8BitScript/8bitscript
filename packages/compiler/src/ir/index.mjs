@@ -47,6 +47,7 @@ class Lowering {
     this.imports = [];
     this.globals = [];
     this.functions = [];
+    this.namespaces = [];
   }
 
   fail(node, message) {
@@ -65,6 +66,9 @@ class Lowering {
         case NodeType.FunctionDeclaration:
           this.function(node);
           break;
+        case NodeType.NamespaceDeclaration:
+          this.namespaceDeclaration(node);
+          break;
         case NodeType.ImportDeclaration:
           this.import(node);
           break;
@@ -72,7 +76,59 @@ class Lowering {
           this.fail(node, `a top-level ${node.type} is not compilable yet`);
       }
     }
-    return { imports: this.imports, globals: this.globals, functions: this.functions };
+    return {
+      imports: this.imports, globals: this.globals, functions: this.functions, namespaces: this.namespaces,
+    };
+  }
+
+  /**
+   * `namespace screen { function setBorderColor(...) {...} const Blue = 6; }`.
+   *
+   * A namespace has no runtime representation at all: a function member
+   * lowers to an ordinary IR function under a mangled name (`screen_
+   * setBorderColor`), and a const member is recorded as a plain number,
+   * never emitted as storage. `screen.setBorderColor(...)` and `Color.Blue`
+   * are resolved back to these by the linker, once it knows how `screen` (or
+   * an import of it) was actually named in the calling module — lowering
+   * itself only needs to record what this module's own namespaces contain.
+   */
+  namespaceDeclaration(node) {
+    const name = node.name.name;
+    const functions = new Map();
+    const consts = new Map();
+
+    for (const member of node.members) {
+      if (!member) continue;
+      if (member.type === NodeType.FunctionDeclaration) {
+        const memberName = member.name?.name ?? 'anonymous';
+        const mangled = `${name}_${memberName}`;
+        this.function(member, { mangledName: mangled });
+        functions.set(memberName, mangled);
+        continue;
+      }
+      if (member.type === NodeType.VariableDeclaration) {
+        if (member.kind !== 'const') {
+          this.fail(member, 'a namespace member value must be declared with const, not let');
+          continue;
+        }
+        const typeName = member.typeAnnotation?.name;
+        const resolved = typeName && resolveScalarType(typeName);
+        if (!resolved || resolved === 'void') {
+          this.fail(member, `a namespace const of type ${typeName ?? '(none)'} is not compilable yet`);
+          continue;
+        }
+        const literal = member.initializer && this.expression(member.initializer);
+        if (!literal || literal.kind !== 'const') {
+          this.fail(member, 'a namespace const needs a literal initialiser to be compilable');
+          continue;
+        }
+        consts.set(member.name.name, literal.value);
+        continue;
+      }
+      this.fail(member, `a ${member.type} is not compilable inside a namespace yet`);
+    }
+
+    this.namespaces.push({ name, exported: node.exported ?? false, functions, consts });
   }
 
   // An import lowers to a record, not to code: the linker resolves it against
@@ -155,7 +211,7 @@ class Lowering {
     });
   }
 
-  function(node) {
+  function(node, { mangledName } = {}) {
     const params = [];
     for (const p of node.params) {
       const typeName = p.typeAnnotation?.name;
@@ -181,8 +237,11 @@ class Lowering {
     this.currentReturnType = outerReturnType;
 
     this.functions.push({
-      name: node.name?.name ?? 'anonymous',
-      exported: node.exported,
+      name: mangledName ?? (node.name?.name ?? 'anonymous'),
+      // A namespace member is only ever reached through the namespace
+      // (`screen.setBorderColor`, never `import { screen_setBorderColor }`);
+      // its mangled name is never itself an exportable top-level binding.
+      exported: mangledName ? false : node.exported,
       params,
       returnType,
       body,
@@ -248,20 +307,37 @@ class Lowering {
 
   // A call can be a statement (its result, if any, discarded) or, now that
   // functions may return a value, a subexpression — `expression()` below
-  // routes CallExpression here too. `memory.read`/`memory.write` are the one
-  // namespace this milestone recognises: a compiler-owned intrinsic, not a
-  // library import, because raw memory access has to exist before any
-  // library can be written in terms of it. Any other member-access callee
-  // (`screen.setBorderColor(...)`, `a.b()`) is not compilable yet — that is
-  // real library/namespace support, which this milestone does not add.
+  // routes CallExpression here too.
+  //
+  // `memory.read`/`memory.write` are a compiler-owned intrinsic, not a
+  // namespace a module declares: raw memory access has to exist before any
+  // library can be written in terms of it. Every other `object.member(...)`
+  // callee is a namespace-qualified call — `screen.setBorderColor(...)` —
+  // and lowering cannot know yet whether `screen` names a real namespace,
+  // still less which module it came from: that needs the import graph, which
+  // only the linker has. So this only records *what* was asked for; the
+  // linker turns a resolved one into a plain `call` and reports an
+  // unresolved one, exactly as it already does for a bare name.
   callExpression(node) {
     const callee = node.callee;
-    if (
-      callee.type === NodeType.MemberExpression
-      && callee.object.type === NodeType.Identifier
-      && callee.object.name === 'memory'
-    ) {
-      return this.memoryIntrinsic(node, callee);
+    if (callee.type === NodeType.MemberExpression && callee.object.type === NodeType.Identifier) {
+      if (callee.object.name === 'memory') {
+        return this.memoryIntrinsic(node, callee);
+      }
+      const args = [];
+      for (const argument of node.args) {
+        const lowered = this.expression(argument);
+        if (!lowered) return null;
+        args.push(lowered);
+      }
+      return {
+        kind: 'namespaceCall',
+        namespace: callee.object.name,
+        member: callee.property.name,
+        args,
+        start: node.start,
+        length: node.length,
+      };
     }
     if (callee.type !== NodeType.Identifier) {
       return this.fail(node, 'a call through member access is not compilable yet');
@@ -399,6 +475,21 @@ class Lowering {
           return this.fail(node, 'memory.write does not return a value and cannot be used as an expression');
         }
         return call;
+      }
+      case NodeType.MemberExpression: {
+        // `BorderColor.Blue`: a namespace const used as a value, not a call.
+        // Resolved by the linker the same way a namespace-qualified call is —
+        // lowering only records which namespace and member were named.
+        if (node.object.type !== NodeType.Identifier) {
+          return this.fail(node, 'a member expression is not compilable yet');
+        }
+        return {
+          kind: 'namespaceConst',
+          namespace: node.object.name,
+          member: node.property.name,
+          start: node.start,
+          length: node.length,
+        };
       }
       default:
         return this.fail(node, `a ${node.type} expression is not compilable yet`);
