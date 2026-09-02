@@ -37,6 +37,12 @@ The compiler holds the intelligence. The language server is an adapter that
 exposes it over the Language Server Protocol. The editor extension is a cable:
 it tells the editor that `.8bs` is a language and starts `8bs lsp --stdio`.
 
+The same rule covers building and running. The VS Code extension has a
+projects view in the Explorer sidebar that lists every project in the
+workspace with a Run and a Build button per target, but each button only
+starts the `8bs run` or `8bs build` command you would otherwise type, in the
+project's own directory with the project's own toolchain.
+
 The extension deliberately contains no language logic. Putting a checker there
 would mean two implementations of every rule and an editor that disagrees with
 CI.
@@ -117,6 +123,56 @@ toolchain is not installed it says so and stops:
 ```
 8BitScript compiler not found. Run: pnpm add -D @8bitscript/cli
 ```
+
+#### The projects view
+
+Once the extension is active, an **8BitScript** section in the Explorer
+sidebar lists every directory in the workspace that has an `8bs.config.ts`,
+and under each one the systems its config targets. That file is the project
+manifest: it is what the CLI reads for the entry file and the target list, so
+the editor uses it as the marker for a project rather than scanning for
+`package.json`, which every package in a monorepo has.
+
+```
+8BITSCRIPT
+▾ border            examples/border
+    vic20  NTSC                              Run  Build
+    c64    NTSC                              Run  Build
+▾ counter           examples/counter
+    vic20  NTSC                              Run  Build
+    c64    NTSC                              Run  Build
+    web                                      Run  Build
+```
+
+**Run** starts `8bs run <target>` and **Build** starts `8bs build --target
+<target>` as an editor task, in a terminal, from the project's directory. For
+`vic20` and `c64` the region follows the `8bitscript.region` setting (NTSC by
+default), and the row's context menu offers NTSC and PAL explicitly. A
+running target shows a **Stop** button that ends the task and the emulator
+with it. The view's title bar has **Doctor**, which runs `8bs doctor`, and
+**Refresh**.
+
+The same runs are available as tasks of type `8bs`, so a favourite can be
+written in `.vscode/tasks.json`:
+
+```json
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "8bs",
+      "command": "run",
+      "project": "examples/border",
+      "target": "c64",
+      "pal": true,
+      "label": "border on a PAL C64"
+    }
+  ]
+}
+```
+
+`command` is `run`, `build`, or `doctor`; `project` is relative to the
+workspace folder and defaults to the folder itself; `pal` is optional.
 
 ### Any other editor
 

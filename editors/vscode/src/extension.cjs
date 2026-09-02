@@ -1,44 +1,26 @@
-// The editor client. This is the whole extension's behaviour, and it is
-// deliberately tiny: it knows how to find the 8BitScript toolchain and how to
-// speak to it. It contains no knowledge of the language whatsoever.
+// The editor client. It is deliberately small: it knows how to find the
+// 8BitScript toolchain and how to speak to it. It contains no knowledge of the
+// language whatsoever.
 //
 // All the intelligence — diagnostics now, and hover, completion, and
 // go-to-definition later — comes from `8bs lsp`, which is part of the toolchain
 // rather than part of this extension. That is what lets other editors get the
-// same behaviour by running the same command.
+// same behaviour by running the same command. The projects view
+// (projectsView.cjs) follows the same rule for building and running: it only
+// ever starts the `8bs run`/`8bs build` commands a person would type.
 //
 // CommonJS on purpose: it is the entry format every version of the editor host
 // loads without configuration.
 const path = require('path');
-const fs = require('fs');
 
 const vscode = require('vscode');
 const { LanguageClient, TransportKind } = require('vscode-languageclient/node');
 
+const { BINARY, findToolchain } = require('./projects.cjs');
+const { registerProjectsView } = require('./projectsView.cjs');
+
 let client;
 let output;
-
-const BINARY = process.platform === 'win32' ? '8bs.cmd' : '8bs';
-
-/**
- * Find the `8bs` binary that applies to a given path.
- *
- * The search walks up from the file itself rather than starting at the
- * workspace root, because in a monorepo the toolchain belongs to the project
- * the file is in, not to the directory the editor happens to have open. Opening
- * this repository at its root and editing examples/hello-vic/src/main.8bs has to
- * find examples/hello-vic/node_modules/.bin/8bs.
- */
-function findToolchain(startDir) {
-  let dir = startDir;
-  for (;;) {
-    const candidate = path.join(dir, 'node_modules', '.bin', BINARY);
-    if (fs.existsSync(candidate)) return candidate;
-    const parent = path.dirname(dir);
-    if (parent === dir) return null;
-    dir = parent;
-  }
-}
 
 /** Every directory worth searching: open documents first, then folder roots. */
 function searchRoots() {
@@ -124,6 +106,8 @@ function activate(context) {
       tryStart();
     }),
   );
+
+  registerProjectsView(context, output);
 
   tryStart();
 }
