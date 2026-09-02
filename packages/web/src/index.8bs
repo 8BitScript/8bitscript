@@ -1,0 +1,40 @@
+// @8bitscript/web — browser target support for 8BitScript.
+//
+// The module entry point named by the "8bitscript".entry field in this
+// package's package.json, resolved and linked for:
+//
+//     import { border, background, applyColors } from "@8bitscript/web";
+//
+// There is no $900F or $D020 here: the web target has no fixed hardware, so
+// "the screen" is a canvas the host paints from wasm's own linear memory
+// (the `--initialMemory 1` page every web build reserves, per
+// @8bitscript/backend-web). This package agrees on two fixed byte offsets in
+// that memory — one for border, one for background — and applyColors()
+// writes there. The host (packages/cli's browser runtime,
+// packages/cli/src/web-runtime.mjs) reads the same two bytes once per
+// logical frame and paints them onto the canvas. It is the same
+// deferred-apply contract @8bitscript/vic20 and @8bitscript/c64 use for
+// their registers, aimed at a buffer instead.
+namespace WebRegisters {
+    const BorderOffset: usmallint = 0;
+    const BackgroundOffset: usmallint = 1;
+}
+
+// ---- the common colour surface (deferred-apply) ----------------------------
+//
+// Every machine package exports the same three names, which is what lets a
+// program import them from @8bitscript/machine and never name the hardware:
+// set `border` and `background`, call applyColors(), and the machine shows
+// them once applyColors() actually runs.
+
+export let border: utinyint = 0;
+export let background: utinyint = 0;
+
+// Sixteen colours, masked the way the C64's registers are: the web target
+// has no palette size of its own to be faithful to, so it borrows the C64's
+// (see COLORS in packages/cli/src/web-runtime.mjs), which keeps colour
+// numbers meaning the same thing across every 8BitScript example.
+export function applyColors(): void {
+    memory.write(WebRegisters.BorderOffset, border & 15);
+    memory.write(WebRegisters.BackgroundOffset, background & 15);
+}

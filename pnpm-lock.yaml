@@ -226,8 +226,13 @@ importers:
       '@8bitscript/vic20':
         specifier: workspace:*
         version: link:../vic20
+      '@8bitscript/web':
+        specifier: workspace:*
+        version: link:../web
 
   packages/vic20: {}
+
+  packages/web: {}
 
 packages:
 
