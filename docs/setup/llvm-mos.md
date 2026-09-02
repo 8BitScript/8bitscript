@@ -84,15 +84,22 @@ tar -xJf llvm-mos-macos.tar.xz -C "$HOME/.local/opt/llvm-mos" --strip-components
 
 On Linux, substitute `llvm-mos-linux.tar.xz` for the archive name.
 
-Then record the install location in your shell rc file — `~/.zshrc` on macOS and
-on any shell where zsh is the default, `~/.bashrc` on a bash Linux host:
+Then record the install location where every shell will see it — including
+the non-interactive ones an editor starts to run a task. That is `~/.zshenv`
+where zsh is the default shell (macOS, and Linux hosts set up for zsh), and
+`~/.profile` on a bash Linux host:
 
 ```bash
 export LLVM_MOS_HOME="$HOME/.local/opt/llvm-mos"
 ```
 
-Open a new shell — or `source` the rc file in the current one — and confirm the
-variable points where you expect:
+Not `~/.zshrc` or `~/.bashrc`: those are read by interactive shells only, so a
+variable exported there works at the prompt and is invisible to `8bs doctor`
+when an editor runs it as a task. (The VS Code extension papers over this by
+looking in the install location above when the variable is missing, and has an
+`8bitscript.llvmMosHome` setting for an SDK kept elsewhere; other editors do
+not.) Open a new shell — or `source` the file in the current one — and confirm
+the variable points where you expect:
 
 ```bash
 echo "$LLVM_MOS_HOME"

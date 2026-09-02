@@ -34,6 +34,7 @@ const {
   loadExamples,
   loadProject,
   loadProjects,
+  resolveLlvmMosHome,
   runnableOn,
   withExamples,
 } = require('./projects.cjs');
@@ -122,6 +123,18 @@ class RunningTasks {
 }
 
 /**
+ * Environment additions for every `8bs` task: the LLVM-MOS SDK location, when
+ * it can be found, since a task's shell does not read the rc file that
+ * usually exports it. See resolveLlvmMosHome in projects.cjs.
+ */
+function taskEnv() {
+  const home = resolveLlvmMosHome({
+    setting: vscode.workspace.getConfiguration('8bitscript').get('llvmMosHome'),
+  });
+  return home ? { LLVM_MOS_HOME: home } : {};
+}
+
+/**
  * Build the task for one `8bs` invocation.
  *
  * The definition carries `projectDir` as an absolute path so running-state
@@ -149,7 +162,7 @@ function makeTask(project, action, target, region) {
     new vscode.ShellExecution(
       { value: project.toolchain, quoting: vscode.ShellQuoting.Strong },
       args,
-      { cwd: project.dir },
+      { cwd: project.dir, env: taskEnv() },
     ),
   );
   task.detail = `8bs ${args.join(' ')}  (${definition.project})`;
@@ -545,7 +558,11 @@ function registerProjectsView(context, output) {
     const { project, target } = resolved;
     if (!requireToolchain(project)) return;
     const task = makeTask(project, action, target, region ?? settings.getRegion());
-    output.appendLine(`${task.name}: ${task.detail}`);
+    const env = task.execution.options?.env ?? {};
+    output.appendLine(
+      `${task.name}: ${task.detail}` +
+        (env.LLVM_MOS_HOME ? ` [LLVM_MOS_HOME=${env.LLVM_MOS_HOME}]` : ' [LLVM_MOS_HOME not found]'),
+    );
     await vscode.tasks.executeTask(task);
   }
 

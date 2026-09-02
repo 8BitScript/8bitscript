@@ -133,6 +133,17 @@ A project whose toolchain is not installed is still listed, marked with a
 warning icon and *toolchain not installed*; running it explains how to fix
 that (`pnpm install` in the project, or `pnpm add -D @8bitscript/cli`).
 
+The Commodore targets need the LLVM-MOS SDK, which the CLI finds through
+`LLVM_MOS_HOME`. A task's shell is non-interactive and does not read
+`~/.zshrc`, so an `export` there is invisible to it and `8bs doctor` from the
+side bar reports the SDK missing while the terminal has it. The extension
+sets `LLVM_MOS_HOME` on every task it starts: from the `8bitscript.llvmMosHome`
+setting if given, else from the editor's own environment, else from the
+install location the setup guide uses (`~/.local/opt/llvm-mos`) when the SDK
+is there. The 8BitScript output channel logs which one each run used. The
+durable fix is to export the variable from `~/.zshenv` or `~/.profile`
+instead — see [the SDK setup](../../docs/setup/llvm-mos.md).
+
 ## The grammar is provisional
 
 8BitScript's syntax is not fully specified yet. `syntaxes/8bs.tmLanguage.json`
