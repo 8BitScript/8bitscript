@@ -139,8 +139,9 @@ anyone builds for it.
 
 `@8bitscript/machine` (shown above) is exactly this and nothing more: no
 source of its own, just the machine-keyed delegation. All three target
-packages export the same surface — `border`, `background`, `applyColors()` —
-so a program that imports it works on whichever machine it is built for.
+packages export the same surface — `border`, `background`, `applyColors()`,
+and `screen.showDigit()` — so a program that imports it works on whichever
+machine it is built for.
 `examples/border`'s `vic20` and `c64` builds share one source file this way.
 This is the first slice of target-conditional code: whole-module today,
 per-declaration once that syntax is designed.

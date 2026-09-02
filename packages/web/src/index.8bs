@@ -18,6 +18,14 @@
 namespace WebRegisters {
     const BorderOffset: usmallint = 0;
     const BackgroundOffset: usmallint = 1;
+    // Two more agreed-on bytes (offsets 2 and 3, one per `showDigit` slot),
+    // the same deferred-apply contract as border and background above:
+    // `screen.showDigit()` writes here, and the host reads them once per
+    // painted frame and draws them as text — the web target's stand-in for
+    // the on-screen digits @8bitscript/vic20 and @8bitscript/c64 poke
+    // straight into real screen RAM for, since there is no general text API
+    // on any target yet (docs/roadmap.md).
+    const DigitSlot0Offset: usmallint = 2;
 }
 
 // ---- the common colour surface (deferred-apply) ----------------------------
@@ -37,4 +45,11 @@ export let background: utinyint = 0;
 export function applyColors(): void {
     memory.write(WebRegisters.BorderOffset, border & 15);
     memory.write(WebRegisters.BackgroundOffset, background & 15);
+}
+
+// ---- the friendly screen surface (immediate-apply) -------------------------
+export namespace screen {
+    function showDigit(slot: utinyint, digit: utinyint): void {
+        memory.write(WebRegisters.DigitSlot0Offset + slot, digit % 10);
+    }
 }
