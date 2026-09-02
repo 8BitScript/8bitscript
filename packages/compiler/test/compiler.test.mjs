@@ -398,8 +398,17 @@ test('the same entry resolves to the c64 implementation', () => {
   assert.ok(!ir.globals.some((g) => g.name === 'vicColor'));
 });
 
-test('a machine the entry has no branch for is 8BS3002', () => {
+test('the same entry resolves to the web implementation', () => {
   const { ir, diagnostics } = link(readFileSync(BORDER_ENTRY, 'utf8'), BORDER_ENTRY, { machine: 'web' });
+  assert.deepEqual(diagnostics, []);
+  assert.ok(ir.globals.some((g) => g.name === 'border'));
+  assert.ok(!ir.globals.some((g) => g.name === 'vicColor' || g.name === 'borderColor'));
+});
+
+test('a machine the entry has no branch for is 8BS3002', () => {
+  // vic20, c64, and web all have branches now — 'nes' stands in for the
+  // "not one of them" case this error exists for.
+  const { ir, diagnostics } = link(readFileSync(BORDER_ENTRY, 'utf8'), BORDER_ENTRY, { machine: 'nes' });
   assert.equal(ir, null);
   assert.deepEqual(diagnostics.map((d) => d.code), ['8BS3002']);
 });

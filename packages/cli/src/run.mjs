@@ -5,10 +5,18 @@
 //   8bs run vic20 --pal  the same, machine model PAL (50fps)
 //   8bs run c64          the same idea, in the C64 emulator (NTSC default)
 //   8bs run c64 --pal
-//   8bs run web          builds the .wasm, instantiates it, calls main()
-//                        once, and prints the exported globals — a
-//                        provisional harness that stands in until a real
-//                        browser runtime exists
+//   8bs run web          builds the .wasm; if it exports frame(), opens it
+//                        in the browser on a fixed-timestep requestAnimation
+//                        Frame loop (web-runtime.mjs) — otherwise (no
+//                        frame(), e.g. examples/counter) falls back to
+//                        instantiating it in Node, calling main() once, and
+//                        printing the exported globals
+//   8bs run web --no-open  the same, without spawning a browser window —
+//                        for pasting the printed URL into an editor's own
+//                        browser (e.g. VS Code/Cursor's "Simple Browser:
+//                        Show" command), which no CLI can open unattended:
+//                        that command only exists inside the editor, with
+//                        no terminal-invokable equivalent
 import { readFile } from 'node:fs/promises';
 
 import { compile } from './build.mjs';
@@ -40,10 +48,11 @@ const MODEL_ARGS = {
 /** @returns {Promise<number>} exit code */
 export async function run(args) {
   const pal = args.includes('--pal');
+  const open = !args.includes('--no-open');
   const positionals = args.filter((a) => !a.startsWith('-'));
   const target = positionals[0];
   if (!target) {
-    process.stderr.write('Usage: 8bs run <vic20|c64|web> [--pal] [entry.8bs]\n');
+    process.stderr.write('Usage: 8bs run <vic20|c64|web> [--pal] [--no-open] [entry.8bs]\n');
     return 2;
   }
   const entry = positionals[1];
@@ -57,6 +66,14 @@ export async function run(args) {
     if (typeof instance.exports.main !== 'function') {
       process.stderr.write('8bs run: the program exports no main() to call\n');
       return 1;
+    }
+    // frame() is the per-frame contract main.web.8bs-style programs export
+    // (see web-runtime.mjs); a program without one, like examples/counter,
+    // has nothing for a browser loop to call back into, so it keeps the
+    // original one-shot behaviour instead.
+    if (typeof instance.exports.frame === 'function') {
+      const { runInBrowser } = await import('./web-runtime.mjs');
+      return runInBrowser(bytes, { open });
     }
     instance.exports.main();
     process.stdout.write('ran main(); exported state afterwards:\n');

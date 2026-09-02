@@ -319,18 +319,33 @@ that draws something has to decide *when* to draw, not only what.
 `examples/border` is exactly this loop with a delay inside it, so the border
 changes twice a second instead; the next step takes that up.
 
-## Why this project does not build for the web
+## Why this step does not build for the web
 
-`8bs run web` exists, and `examples/counter` uses it: it builds a `.wasm`,
-calls `main()` once, and prints the exported globals afterwards. It does that
-because on the web there *is* something waiting for `main` to return — the
-browser, and today the CLI's harness standing in for it. A `main` that never
-returns would hang the page, and a WebAssembly module has no video chip for
-`applyColors` to write to anyway. So this project lists `vic20` and `c64` and
-not `web`, and the compiler refuses a web build rather than producing one
-that hangs. How a program drives a screen on the web target, where the loop
-is the browser's and the program is called once per frame, is its own step,
-once the runtime for it exists.
+`8bs run web` exists. `examples/counter` uses it one way: it builds a
+`.wasm`, calls `main()` once, and prints the exported globals afterwards.
+That works for `counter` because `counter`'s `main` does one thing and
+returns. This step's program cannot do that: its `main` ends in
+`while (true) {}`, and on the web there *is* something waiting for `main` to
+return — the browser. A `main` that never returns would hang the page. So
+this step lists `vic20` and `c64` and not `web`, and the compiler refuses a
+web build rather than producing one that hangs.
+
+That is a property of *this program's shape*, not of the web target
+generally — `examples/border` builds for `web` today, from a second entry
+file (`main.web.8bs`) written for a different contract: `main()` only sets
+up, once, and a separate exported `frame()` is what the host calls back into,
+once per frame, forever, instead of this program's own `while (true)` doing
+that. [`docs/packages.md`](../packages.md#target-conditional-entries)
+describes `8bs.config.ts`'s `entry` map, which is how one project points
+`vic20`/`c64` at `main.8bs` and `web` at a different file. The host itself —
+a canvas, and a `requestAnimationFrame` loop with its own fixed-timestep
+accumulator, so `frame()` is called at a steady logical rate regardless of
+the display's real refresh rate — is `packages/cli/src/web-runtime.mjs`.
+There is no PAL/NTSC split for `web` for the same reason: nothing about it is
+tied to a machine's real refresh rate to begin with, so one build is enough.
+
+`examples/border`'s own `main.web.8bs` walks through what that looks like in
+practice, with the reasoning in its header comment.
 
 ## Next
 
