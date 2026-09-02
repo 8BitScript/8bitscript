@@ -1,7 +1,7 @@
 import { screen, input } from "@8bitscript/core";
 import { vic } from "@8bitscript/vic20";
 
-let x: u8 = 10;
+let x: utinyint = 10;
 
 export function update(): void {
     if (input.left()) {

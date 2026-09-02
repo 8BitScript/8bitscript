@@ -186,8 +186,9 @@ const lowered = (src) => {
 test('milestone program lowers cleanly', () => {
   const { ir, diagnostics } = lowered('let x: u8 = 10;\nexport function main(): void { x = x + 1; }');
   assert.equal(diagnostics.length, 0);
+  // `u8` is a low-level alias; the IR stores the canonical name it resolves to.
   assert.deepEqual(ir.globals[0], {
-    name: 'x', type: 'u8', volatile: false, address: null, init: 10, exported: false,
+    name: 'x', type: 'utinyint', volatile: false, address: null, init: 10, exported: false,
   });
   assert.equal(ir.functions[0].name, 'main');
   assert.equal(ir.functions[0].body[0].kind, 'assign');

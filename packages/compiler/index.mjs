@@ -13,11 +13,18 @@ import { resolveImports } from './src/resolver/index.mjs';
 export { tokenize, TokenKind, KEYWORDS, TYPE_NAMES } from './src/lexer/index.mjs';
 export { parse } from './src/parser/index.mjs';
 export { NodeType, walk } from './src/ast/index.mjs';
-export { check, INTEGER_RANGES } from './src/checker/index.mjs';
+export { check } from './src/checker/index.mjs';
 export { lower } from './src/ir/index.mjs';
 export { link } from './src/linker/index.mjs';
 export { findImports, resolveImports, resolveSpecifier } from './src/resolver/index.mjs';
 export { Codes, diagnostic, positionAt } from './src/diagnostics/index.mjs';
+export {
+  PRIMITIVE_INTEGER_TYPES,
+  INTEGER_TYPE_NAMES,
+  INTEGER_RANGES,
+  resolveIntegerType,
+} from './src/types/index.mjs';
+export { getHoverInfo, getCompletions } from './src/intellisense/index.mjs';
 
 /**
  * Analyse one source file and return every diagnostic it produces.

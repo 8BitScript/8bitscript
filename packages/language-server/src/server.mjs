@@ -15,10 +15,12 @@ import {
   TextDocuments,
   TextDocumentSyncKind,
   DiagnosticSeverity,
+  MarkupKind,
+  CompletionItemKind,
 } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 
-import { analyze } from '@8bitscript/compiler';
+import { analyze, getHoverInfo, getCompletions } from '@8bitscript/compiler';
 
 const SEVERITY = {
   error: DiagnosticSeverity.Error,
@@ -34,6 +36,8 @@ export function start() {
       // Full sync: files on this hardware are small, and incremental sync buys
       // nothing until the compiler can reuse a previous parse.
       textDocumentSync: TextDocumentSyncKind.Full,
+      hoverProvider: true,
+      completionProvider: { triggerCharacters: [':', '<'] },
     },
     serverInfo: { name: '8BitScript Language Server', version: '0.0.0' },
   }));
@@ -74,6 +78,41 @@ export function start() {
   documents.onDidClose((event) =>
     connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] }),
   );
+
+  // Both handlers below are protocol glue only: the compiler decides what a
+  // position means (a built-in type, `volatile`, `@address`, ...), this file
+  // just converts its answer to LSP shapes. No language knowledge lives here.
+  connection.onHover((params) => {
+    const document = documents.get(params.textDocument.uri);
+    if (!document) return null;
+
+    const offset = document.offsetAt(params.position);
+    const info = getHoverInfo(document.getText(), offset);
+    if (!info) return null;
+
+    return {
+      contents: { kind: MarkupKind.Markdown, value: info.markdown },
+      range: {
+        start: document.positionAt(info.start),
+        end: document.positionAt(info.start + info.length),
+      },
+    };
+  });
+
+  connection.onCompletion((params) => {
+    const document = documents.get(params.textDocument.uri);
+    if (!document) return [];
+
+    const offset = document.offsetAt(params.position);
+    return getCompletions(document.getText(), offset).map((item) => ({
+      label: item.label,
+      kind: CompletionItemKind.TypeParameter,
+      detail: item.detail,
+      documentation: { kind: MarkupKind.Markdown, value: item.documentation },
+      // Canonical names sort ahead of short aliases within the same list.
+      sortText: `${item.sortRank}${item.label}`,
+    }));
+  });
 
   documents.listen(connection);
   connection.listen();
