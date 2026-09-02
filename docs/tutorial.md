@@ -46,11 +46,11 @@ page that fixes it.
 
 [`examples/border`](https://github.com/8BitScript/8bitscript/tree/trunk/examples/border)
 is the example that goes end to end today: it clears the leftover BASIC boot
-screen, labels a `FRAME` counter and the current `OPTION` number, and steps
+screen, labels a `TICK` counter and the current `OPTION` number, and steps
 the border and background through four curated colour combinations, on the
-VIC-20 and the C64, from one source file. It is the classic first sign of
-life on real hardware, so it is the one worth seeing run before reading any
-code.
+VIC-20, the C64, and the web, from one source file (two, counting the web's —
+see below). It is the classic first sign of life on real hardware, so it is
+the one worth seeing run before reading any code.
 
 ```bash
 cd examples/border
@@ -59,11 +59,17 @@ pnpm start
 
 `8bs build`s the program for the unexpanded VIC-20 (`$1001`, no memory
 expansion — VICE's default), then opens it in `xvic`. You should see the
-BASIC banner and `READY.` prompt disappear, replaced by `FRAME` and `OPTION`
-near the top of the screen; the digit after `FRAME` ticks over roughly twice
-a second, and every ten ticks the screen switches to the next of the four
-colour options, with the digit after `OPTION` changing alongside it. Close
-the emulator window when you're done.
+BASIC banner and `READY.` prompt disappear, replaced by a single line reading
+`TICK` and `OPTION` near the top of the screen; the digit after `TICK` ticks
+over roughly twice a second — it counts passes through the program's own
+loop, not real display frames, which is why it's not called "FRAME": the
+display itself is still refreshing at its usual 50/60Hz throughout. Every ten
+ticks the screen switches to the next of the four colour options, with the
+digit after `OPTION` changing alongside it. Close the emulator window when
+you're done. `pnpm run start:web` shows the identical line drawn over the
+canvas instead — same wording, same layout, same twice-a-second/every-ten-
+ticks cadence, so the two feel like the same program rather than two
+different demos that happen to share a name.
 
 `package.json` has one script per target:
 
@@ -88,7 +94,7 @@ backend generated alongside it, so what the compiler did is never a mystery.
 import { border, background, applyColors, screen } from "@8bitscript/machine";
 
 let delay: volatile<usmallint> = 0;
-let frameTicks: utinyint = 0;
+let ticks: utinyint = 0;
 let option: utinyint = 0;
 let clearCell: usmallint = 0;
 
@@ -101,31 +107,29 @@ function clearScreen(): void {
 }
 
 function drawLabels(): void {
-    screen.putChar(0, 6);   // F
+    screen.putChar(0, 20);  // T
     screen.putColor(0, 1);
-    screen.putChar(1, 18);  // R
+    screen.putChar(1, 9);   // I
     screen.putColor(1, 1);
-    screen.putChar(2, 1);   // A
+    screen.putChar(2, 3);   // C
     screen.putColor(2, 1);
-    screen.putChar(3, 13);  // M
+    screen.putChar(3, 11);  // K
     screen.putColor(3, 1);
-    screen.putChar(4, 5);   // E
-    screen.putColor(4, 1);
-    screen.putChar(5, 32);  // space
-    screen.putChar(7, 32);  // space
-    screen.putChar(8, 15);  // O
+    screen.putChar(4, 32);  // space
+    screen.putChar(6, 32);  // space
+    screen.putChar(7, 15);  // O
+    screen.putColor(7, 1);
+    screen.putChar(8, 16);  // P
     screen.putColor(8, 1);
-    screen.putChar(9, 16);  // P
+    screen.putChar(9, 20);  // T
     screen.putColor(9, 1);
-    screen.putChar(10, 20); // T
+    screen.putChar(10, 9);  // I
     screen.putColor(10, 1);
-    screen.putChar(11, 9);  // I
+    screen.putChar(11, 15); // O
     screen.putColor(11, 1);
-    screen.putChar(12, 15); // O
+    screen.putChar(12, 14); // N
     screen.putColor(12, 1);
-    screen.putChar(13, 14); // N
-    screen.putColor(13, 1);
-    screen.putChar(14, 32); // space
+    screen.putChar(13, 32); // space
 }
 
 function applyOption(): void {
@@ -149,21 +153,21 @@ export function main(): void {
     drawLabels();
     applyOption();
     applyColors();
-    screen.showDigit(6, 0);
-    screen.showDigit(15, 0);
+    screen.showDigit(5, 0);
+    screen.showDigit(14, 0);
 
     while (true) {
-        frameTicks = frameTicks + 1;
-        screen.showDigit(6, frameTicks % 10);
+        ticks = ticks + 1;
+        screen.showDigit(5, ticks % 10);
 
-        if (frameTicks % 10 == 0) {
+        if (ticks % 10 == 0) {
             option = option + 1;
             if (option == 4) {
                 option = 0;
             }
             applyOption();
             applyColors();
-            screen.showDigit(15, option);
+            screen.showDigit(14, option);
         }
 
         delay = 0;
@@ -187,10 +191,14 @@ export function main(): void {
 - `delay` is `volatile<usmallint>`: without `volatile`, the optimiser would notice
   the inner loop computes nothing observable and delete it, and everything on
   screen would move faster than the eye can follow.
-- `frameTicks`, `option`, and `clearCell` are ordinary globals too — there
+- `ticks`, `option`, and `clearCell` are ordinary globals too — there
   are no local variables yet, so every value a function needs to remember
   across calls, or a loop across passes, lives at module scope, same as
-  `delay`.
+  `delay`. `ticks` is deliberately not called `frames`: it advances once per
+  pass through the loop below, about twice a second — not once per real
+  display frame, which keeps refreshing at its usual 50/60Hz the whole time
+  regardless. `screen.showDigit()`'s label below reads "TICK" for the same
+  reason.
 - `screen.putChar(cell, code)` and `screen.putColor(cell, color)` poke one
   character cell's code and one cell's colour directly into screen memory —
   a flat cell index, not the `x`/`y` `screen.putChar` still on the roadmap
@@ -202,8 +210,8 @@ export function main(): void {
   program that wants the BASIC boot screen left alone just doesn't call
   `clearScreen()`.
 - `screen.showDigit(cell, digit)` pokes a single decimal digit (in white)
-  at a cell — cell 6 for the frame counter, right after the `FRAME ` label
-  `drawLabels()` draws, and cell 15 for the option number, after `OPTION `.
+  at a cell — cell 5 for the tick counter, right after the `TICK ` label
+  `drawLabels()` draws, and cell 14 for the option number, after `OPTION `.
 - `applyOption()` maps the current `option` (0-3) to one of four curated
   border/background pairs with an `if`/`else` chain, not a lookup table —
   `array<T, N>` parses but isn't in the compiled subset yet either.
@@ -227,7 +235,7 @@ rebuild and run again:
 pnpm start
 ```
 
-A larger bound slows everything down, frame counter included; a smaller one
+A larger bound slows everything down, tick counter included; a smaller one
 speeds it up. Try changing one of `applyOption()`'s colour pairs — option
 0's `background = 3;`, say — to another value, or add a fifth `else if` case
 and bump `main()`'s `option == 4` to `== 5`, and watch a new option join the

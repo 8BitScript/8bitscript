@@ -117,11 +117,15 @@ async function boot() {
     // choice, the same way main.8bs's drawLabels() is the *program's* own
     // choice on the other two targets, not something the wasm side does for
     // it — there's nothing in @8bitscript/web forcing this text to appear.
+    // "TICK", not "FRAME": mem[2] advances about twice a second (main.web.
+    // 8bs's ticks variable), not once per real display frame, so "FRAME"
+    // would overclaim what it counts. One line, same layout main.8bs's
+    // drawLabels() pokes onto the VIC-20/C64's screen memory, so the same
+    // program reads the same way on every target.
     ctx.font = '14px ui-monospace, Menlo, monospace';
     ctx.textBaseline = 'top';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('FRAME ' + (mem[2] % 10), BORDER_PX + 4, BORDER_PX + 4);
-    ctx.fillText('OPTION ' + (mem[3] % 10), BORDER_PX + 4, BORDER_PX + 20);
+    ctx.fillText('TICK ' + (mem[2] % 10) + '  OPTION ' + (mem[3] % 10), BORDER_PX + 4, BORDER_PX + 4);
   }
 
   instance.exports.main();
