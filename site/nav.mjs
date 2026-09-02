@@ -43,6 +43,13 @@ export const nav = [
     url: '/tutorial',
   },
   {
+    title: 'Learn 8BitScript',
+    url: '/learn/',
+    children: [
+      { title: 'Step 1: The main file', url: '/learn/step1-main-loop' },
+    ],
+  },
+  {
     title: 'Publishing the docs',
     url: '/project/deployment',
   },
