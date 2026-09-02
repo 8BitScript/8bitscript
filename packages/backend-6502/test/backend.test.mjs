@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { tokenize, parse, lower } from '@8bitscript/compiler';
-import { emitC, buildPrg, parseMachineTarget } from '../src/index.mjs';
+import { emitC, buildPrg } from '../src/index.mjs';
 
 const irOf = (src) => {
   const { tokens } = tokenize(src, 't');
@@ -23,14 +23,6 @@ test('emits plain C for the milestone program', () => {
   assert.match(c, /int main\(void\) \{/);
   assert.match(c, /x = \(x \+ 1\);/);
   assert.match(c, /return 0;/);
-});
-
-test('parseMachineTarget splits a target into machine and region', () => {
-  assert.deepEqual(parseMachineTarget('vic20-ntsc'), { machine: 'vic20', region: 'ntsc' });
-  assert.deepEqual(parseMachineTarget('c64-pal'), { machine: 'c64', region: 'pal' });
-  assert.equal(parseMachineTarget('vic20'), null);
-  assert.equal(parseMachineTarget('web'), null);
-  assert.equal(parseMachineTarget(undefined), null);
 });
 
 test('@address becomes a volatile pointer #define', () => {
@@ -56,7 +48,7 @@ test('asm6502 bodies pass through verbatim', () => {
 test('IR with unresolved imports is refused, not dropped', async () => {
   const result = await buildPrg(
     irOf('import { limit } from "./lib.8bs";'),
-    { target: 'vic20-ntsc', outFile: 'unused.prg' },
+    { machine: 'vic20', outFile: 'unused.prg' },
   );
   assert.equal(result.ok, false);
   assert.match(result.error, /unresolved imports/);
@@ -71,7 +63,7 @@ test('the milestone program compiles to a real .prg', { skip: !HAS_SDK && 'LLVM_
     const outFile = join(scratch, 'm.prg');
     const result = await buildPrg(
       irOf('let x: u8 = 10;\nexport function main(): void { x = x + 1; }'),
-      { target: 'vic20-ntsc', outFile },
+      { machine: 'vic20', outFile },
     );
     assert.ok(result.ok, result.error);
     const prg = await readFile(outFile);

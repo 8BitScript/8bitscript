@@ -17,10 +17,11 @@ const PLANNED = ['dev'];
 const usage = () => `Usage: 8bs <command> [options]
 
 Implemented:
-  build --target <t> [entry]   Compile for a target: vic20-ntsc, vic20-pal,
-                               c64-ntsc, c64-pal, or web
-  run <target> [entry]         Build, then open VICE at the target's machine
-                               model (vic20-ntsc/vic20-pal/c64-ntsc/c64-pal)
+  build --target <t> [--pal]   Compile for a target: vic20, c64, or web.
+    [entry]                    vic20/c64 default to NTSC (60Hz); --pal builds
+                               the PAL (50Hz) machine model instead.
+  run <target> [--pal] [entry] Build, then open VICE at the target's machine
+                               model (vic20/c64, NTSC unless --pal is given)
                                or execute the .wasm and print its state (web)
   check <files...>             Report diagnostics for 8BitScript source files
   doctor                       Verify the toolchains every target needs

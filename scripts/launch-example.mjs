@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 // Interactive example launcher.
 //
-// Lists every project under examples/, lets you pick one and then pick which
-// target to run it on, and hands off to the real `8bs run <target>` in that
-// example's own directory — the same command an outside consumer would type.
-// Loops back to the menu after each run so you can try another combination
-// without restarting the script.
+// Lists every project under examples/, lets you pick one, then pick which
+// system to run it on, then (for vic20/c64) which format — NTSC (60Hz) or
+// PAL (50Hz), NTSC first as the default — and hands off to the real
+// `8bs run <target> [--pal]` in that example's own directory — the same
+// command an outside consumer would type. Loops back to the menu after each
+// run so you can try another combination without restarting the script.
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { spawn } from 'node:child_process';
@@ -16,7 +17,11 @@ import { createInterface } from 'node:readline/promises';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const EXAMPLES_DIR = join(ROOT, 'examples');
-const ALL_TARGETS = ['vic20-ntsc', 'vic20-pal', 'c64-ntsc', 'c64-pal', 'web'];
+const ALL_TARGETS = ['vic20', 'c64', 'web'];
+const FORMATS = [
+  { region: 'ntsc', label: 'NTSC (60Hz, US)' },
+  { region: 'pal', label: 'PAL (50Hz)' },
+];
 
 async function loadConfig(dir) {
   const path = join(dir, '8bs.config.ts');
@@ -45,11 +50,12 @@ function localBin(dir) {
 }
 
 /** @returns {Promise<number>} exit code of the `8bs run` child process */
-function runExample(example, target) {
+function runExample(example, target, region) {
   const bin = localBin(example.dir);
   const command = bin.endsWith('.mjs') ? process.execPath : bin;
-  const args = bin.endsWith('.mjs') ? [bin, 'run', target] : ['run', target];
-  process.stdout.write(`\n> 8bs run ${target}  (${example.name})\n\n`);
+  const runArgs = region === 'pal' ? ['run', target, '--pal'] : ['run', target];
+  const args = bin.endsWith('.mjs') ? [bin, ...runArgs] : runArgs;
+  process.stdout.write(`\n> 8bs ${runArgs.join(' ')}  (${example.name})\n\n`);
   return new Promise((resolvePromise) => {
     const child = spawn(command, args, { cwd: example.dir, stdio: 'inherit' });
     child.on('error', (error) => {
@@ -92,7 +98,7 @@ async function main() {
   }
 
   for (;;) {
-    const { example, target } = await ask(async (rl) => {
+    const { example, target, region } = await ask(async (rl) => {
       const example = await pick(
         rl,
         'Which example?',
@@ -101,14 +107,16 @@ async function main() {
       );
       const target = await pick(
         rl,
-        `Which target for ${example.name}? (${example.targets.join(', ')})`,
+        `Which system for ${example.name}? (${example.targets.join(', ')})`,
         example.targets,
         (t) => t,
       );
-      return { example, target };
+      if (target === 'web') return { example, target, region: null };
+      const format = await pick(rl, `Which format for ${target}?`, FORMATS, (f) => f.label);
+      return { example, target, region: format.region };
     });
 
-    await runExample(example, target);
+    await runExample(example, target, region);
 
     const again = await ask((rl) => rl.question('\nRun another? [Y/n] '));
     if (again.trim().toLowerCase().startsWith('n')) return 0;

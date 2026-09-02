@@ -1,17 +1,19 @@
 // `8bs build` — compile a program for a target.
 //
-//     8bs build --target vic20-ntsc [entry.8bs]
-//     8bs build --target web        [entry.8bs]
+//     8bs build --target vic20        [entry.8bs]   NTSC (60Hz), the default
+//     8bs build --target vic20 --pal  [entry.8bs]
+//     8bs build --target web          [entry.8bs]
+//
+// The system (vic20/c64/web) is the target; NTSC/PAL is a --pal/--ntsc option
+// on top of it, not a separate flavor of the target, because it changes VICE's
+// machine model at run time and nothing about the build — see the comment on
+// MODEL_ARGS in run.mjs for why that still means picking a whole machine model
+// rather than just a sync-factor flag.
 //
 // The entry defaults to src/main.8bs, or to the `entry` in 8bs.config.ts when
-// the project has one. Output lands in dist/: <name>.prg for the Commodore
-// targets, <name>.wasm for the web, with the generated C or AssemblyScript
-// beside it so what the compiler did is never a mystery.
-//
-// vic20/c64 are never bare: NTSC and PAL machines have different VIC/VIC-II
-// timing and screen geometry, so the target names it explicitly rather than
-// defaulting one way and leaving the other implicit. See parseMachineTarget
-// in @8bitscript/backend-6502 for how a target splits into machine + region.
+// the project has one. Output lands in dist/: <name>-<machine>-<region>.prg
+// for the Commodore targets, <name>.wasm for the web, with the generated C or
+// AssemblyScript beside it so what the compiler did is never a mystery.
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
@@ -19,7 +21,7 @@ import { pathToFileURL } from 'node:url';
 
 import { link, positionAt } from '@8bitscript/compiler';
 
-const TARGETS = new Set(['vic20-ntsc', 'vic20-pal', 'c64-ntsc', 'c64-pal', 'web']);
+const TARGETS = new Set(['vic20', 'c64', 'web']);
 
 /**
  * The project's 8bs.config.ts, if present. Node 26 imports TypeScript with
@@ -47,14 +49,29 @@ function printDiagnostics(diagnostics, sources) {
   }
 }
 
+// The old target names, kept only to point people at their replacement
+// rather than failing with a bare "unknown target".
+const RETIRED_TARGET = /^(vic20|c64)-(ntsc|pal)$/;
+
 /**
  * Compile one entry file for one target.
  *
+ * @param {'vic20'|'c64'|'web'} target
+ * @param {string} [entryArg]
+ * @param {{ pal?: boolean }} [options] NTSC (60Hz) unless pal is true; ignored for web.
  * @returns {Promise<{ ok: boolean, outFile?: string }>}
  */
-export async function compile(target, entryArg) {
+export async function compile(target, entryArg, { pal = false } = {}) {
   const config = await loadConfig(process.cwd());
 
+  const retired = RETIRED_TARGET.exec(target ?? '');
+  if (retired) {
+    process.stderr.write(
+      `8bs build: '${target}' is no longer a target. Use '${retired[1]}'` +
+      `${retired[2] === 'pal' ? " with '--pal'" : ' (NTSC is the default)'} instead.\n`,
+    );
+    return { ok: false };
+  }
   if (!TARGETS.has(target)) {
     process.stderr.write(
       `8bs build: unknown target '${target}'. Targets: ${[...TARGETS].join(', ')}\n`,
@@ -79,10 +96,9 @@ export async function compile(target, entryArg) {
 
   // The linker runs the full front end over the entry and everything it
   // imports, then merges the graph into one program. Any error in any module
-  // means no build. The machine half of the target rides along so packages
-  // with target-conditional entries resolve to this machine's implementation.
-  const machine = target === 'web' ? 'web' : target.split('-')[0];
-  const { ir, diagnostics, sources } = link(text, entry, { machine });
+  // means no build. The machine rides along so packages with target-
+  // conditional entries resolve to this machine's implementation.
+  const { ir, diagnostics, sources } = link(text, entry, { machine: target });
   if (diagnostics.length > 0) {
     printDiagnostics(diagnostics, sources);
     process.stdout.write(`${diagnostics.length} problem(s); not building.\n`);
@@ -103,8 +119,9 @@ export async function compile(target, entryArg) {
   }
 
   const { buildPrg } = await import('@8bitscript/backend-6502');
-  const outFile = resolve('dist', `${stem}-${target}.prg`);
-  const result = await buildPrg(ir, { target, outFile });
+  const region = pal ? 'pal' : 'ntsc';
+  const outFile = resolve('dist', `${stem}-${target}-${region}.prg`);
+  const result = await buildPrg(ir, { machine: target, outFile });
   if (!result.ok) {
     process.stderr.write(`8bs build: ${result.error}\n`);
     return { ok: false };
@@ -115,17 +132,20 @@ export async function compile(target, entryArg) {
 
 /** @returns {Promise<number>} exit code */
 export async function build(args) {
+  const pal = args.includes('--pal');
   const targetIndex = args.indexOf('--target');
-  const target = targetIndex >= 0 ? args[targetIndex + 1] : args[0];
-  const rest = args.filter((a, i) => i !== targetIndex && i !== targetIndex + 1 && !a.startsWith('-'));
-  const entry = targetIndex >= 0 ? rest[0] : rest[1];
+  const positionals = args.filter(
+    (a, i) => (targetIndex < 0 || (i !== targetIndex && i !== targetIndex + 1)) && !a.startsWith('-'),
+  );
+  const target = targetIndex >= 0 ? args[targetIndex + 1] : positionals[0];
+  const entry = targetIndex >= 0 ? positionals[0] : positionals[1];
 
   if (!target) {
     process.stderr.write(
-      'Usage: 8bs build --target <vic20-ntsc|vic20-pal|c64-ntsc|c64-pal|web> [entry.8bs]\n',
+      'Usage: 8bs build --target <vic20|c64|web> [--pal] [entry.8bs]\n',
     );
     return 2;
   }
-  const { ok } = await compile(target, entry);
+  const { ok } = await compile(target, entry, { pal });
   return ok ? 0 : 1;
 }

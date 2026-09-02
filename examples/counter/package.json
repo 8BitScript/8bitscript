@@ -6,11 +6,11 @@
   "license": "MIT",
   "scripts": {
     "web": "8bs run web",
-    "vic20": "8bs run vic20-ntsc",
-    "vic20:pal": "8bs run vic20-pal",
+    "vic20": "8bs run vic20",
+    "vic20:pal": "8bs run vic20 --pal",
     "build:web": "8bs build --target web",
-    "build:vic20": "8bs build --target vic20-ntsc",
-    "build:vic20:pal": "8bs build --target vic20-pal"
+    "build:vic20": "8bs build --target vic20",
+    "build:vic20:pal": "8bs build --target vic20 --pal"
   },
   "devDependencies": {
     "@8bitscript/cli": "workspace:*"

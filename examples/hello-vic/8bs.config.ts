@@ -6,5 +6,5 @@
 // about what a real project contains.
 export default {
   entry: 'src/main.8bs',
-  targets: ['vic20-ntsc', 'vic20-pal', 'web'],
+  targets: ['vic20', 'web'],
 };
