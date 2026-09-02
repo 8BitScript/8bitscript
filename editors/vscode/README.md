@@ -5,7 +5,7 @@ files. The extension itself is still a thin client: it finds the project's
 `8bs` toolchain and runs `8bs lsp --stdio`, and every diagnostic, hover, and
 completion it shows comes from `@8bitscript/compiler` through that server —
 not from anything reimplemented here. The same goes for building and running:
-the sidebar view only ever starts the `8bs run` and `8bs build` commands you
+the projects view only ever starts the `8bs run` and `8bs build` commands you
 would otherwise type. See [Editor support](../../docs/language-server.md) for
 the split between the compiler, the language server, and this extension.
 
@@ -29,12 +29,13 @@ highlighting alone — see "Installing it while developing" below.
 
 ## The projects view
 
-An **8BitScript** section appears in the Explorer sidebar, under the file
-tree, whenever the workspace has an 8BitScript project in it. It lists every
-project and, under each, the systems that project targets:
+The extension adds an **8BitScript** icon to the Activity Bar — the strip of
+icons down the left edge, where the file explorer, search, and source
+control live. Clicking it opens a side bar that lists every project in the
+workspace and, under each, the systems that project targets:
 
 ```
-8BITSCRIPT                                   ⟳ ♥
+8BITSCRIPT: PROJECTS                         ⟳ ♥
 ▾ border            examples/border
     vic20  NTSC                              ▶ 🔧
     c64    NTSC                              ▶ 🔧
@@ -48,8 +49,9 @@ A project is any directory containing an `8bs.config.ts`; that file is
 already the manifest the CLI reads for the entry file and the target list,
 so the view uses it as the marker rather than a second list to maintain. A
 `package.json` on its own does not count — every package in a monorepo has
-one. The search skips `node_modules`, and the view refreshes itself when a
-config file is added, removed, or edited; the ⟳ button forces a rescan.
+one. The search skips `node_modules`, `.git`, and `.claude/worktrees`, and
+the view refreshes itself when a config file is added, removed, or edited;
+the ⟳ button forces a rescan.
 
 Each target row has two inline buttons: **Run** (`8bs run <target>`) and
 **Build** (`8bs build --target <target>`). For `vic20` and `c64` those use

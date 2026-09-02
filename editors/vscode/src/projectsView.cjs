@@ -1,4 +1,4 @@
-// The "8BitScript" view in the Explorer sidebar.
+// The "8BitScript" view: its own Activity Bar icon in the left side bar.
 //
 // It lists every project in the workspace (see projects.cjs for what counts as
 // one), expands each into the systems it builds for, and runs `8bs run` /
@@ -27,6 +27,12 @@ const {
 
 const TASK_TYPE = '8bs';
 const VIEW_ID = '8bitscript.projects';
+
+// Passing an explicit exclude replaces the editor's files.exclude defaults, so
+// everything that hides a project copy has to be listed here: installed
+// packages, git internals, and the per-session worktrees the agent tooling
+// keeps under .claude/worktrees, each a whole second checkout of the repo.
+const SEARCH_EXCLUDE = '{**/node_modules/**,**/.git/**,**/.claude/worktrees/**}';
 
 /** @returns {'ntsc' | 'pal'} */
 function defaultRegion() {
@@ -154,7 +160,7 @@ class ProjectsProvider {
   }
 
   async refresh() {
-    const found = await vscode.workspace.findFiles(`**/${CONFIG_FILE}`, '**/node_modules/**');
+    const found = await vscode.workspace.findFiles(`**/${CONFIG_FILE}`, SEARCH_EXCLUDE);
     this.projects = loadProjects(found.map((uri) => uri.fsPath));
     this.output.appendLine(
       `Projects: ${this.projects.length === 0 ? 'none found' : this.projects.map((p) => p.name).join(', ')}`,

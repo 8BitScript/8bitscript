@@ -34,12 +34,21 @@
         "path": "./syntaxes/8bs.tmLanguage.json"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "8bitscript",
+          "title": "8BitScript",
+          "icon": "media/8bitscript.svg"
+        }
+      ]
+    },
     "views": {
-      "explorer": [
+      "8bitscript": [
         {
           "id": "8bitscript.projects",
-          "name": "8BitScript",
-          "icon": "$(chip)",
+          "name": "Projects",
+          "icon": "media/8bitscript.svg",
           "contextualTitle": "8BitScript projects",
           "visibility": "visible"
         }
@@ -293,6 +302,7 @@
   },
   "files": [
     "src",
+    "media",
     "syntaxes",
     "language-configuration.json",
     "README.md"
