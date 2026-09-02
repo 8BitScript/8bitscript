@@ -160,6 +160,16 @@ importers:
         specifier: workspace:*
         version: link:../../packages/cli
 
+  examples/step1-main-loop:
+    dependencies:
+      '@8bitscript/machine':
+        specifier: workspace:*
+        version: link:../../packages/machine
+    devDependencies:
+      '@8bitscript/cli':
+        specifier: workspace:*
+        version: link:../../packages/cli
+
   packages/backend-6502:
     dependencies:
       '@8bitscript/compiler':
