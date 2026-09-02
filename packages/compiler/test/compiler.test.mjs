@@ -202,11 +202,15 @@ test('@address + volatile lowers to a hardware global', () => {
 });
 
 test('lowering is exhaustive-with-error, never silent', () => {
-  // Every unsupported construct must produce 8BS3001, not vanish.
+  // Every unsupported construct must produce 8BS3001, not vanish. Calls with
+  // arguments and calls used as expressions are no longer on this list —
+  // functions can take parameters and return values now — so these are
+  // constructs that stay unsupported: calling a call result, a call through
+  // member access, assigning through member access, and local variables.
   for (const src of [
-    'export function f(): void { g(1); }',
+    'export function f(): void { g()(); }',
     'export function f(): void { a.b(); }',
-    'export function f(): void { x = g(); }',
+    'export function f(): void { x = g().y; }',
     'export function f(): void { a.b = 1; }',
     'function f(): void { let local: u8 = 1; }',
   ]) {

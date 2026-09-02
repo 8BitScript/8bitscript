@@ -37,6 +37,10 @@ const MACHINE_FLAGS = {
   c64: [],
 };
 
+// `memory.read`/`memory.write` cast a runtime address to a byte pointer and
+// dereference it, `volatile` because the address is not known at compile
+// time — it may well be a hardware register, and the compiler has no way to
+// tell, so it gets the same protection an `@address` global gets.
 function emitExpression(expr) {
   switch (expr.kind) {
     case 'const': return String(expr.value);
@@ -45,6 +49,10 @@ function emitExpression(expr) {
       return `(${emitExpression(expr.left)} ${expr.operator} ${emitExpression(expr.right)})`;
     case 'unop':
       return `(${expr.operator}${emitExpression(expr.argument)})`;
+    case 'call':
+      return `${expr.name}(${expr.args.map(emitExpression).join(', ')})`;
+    case 'memoryRead':
+      return `(*(volatile uint8_t *)${emitExpression(expr.address)})`;
     default:
       throw new Error(`backend-6502: unknown IR expression '${expr.kind}'`);
   }
@@ -56,7 +64,12 @@ function emitStatement(statement, indent) {
     case 'assign':
       return `${pad}${statement.target} = ${emitExpression(statement.value)};\n`;
     case 'call':
-      return `${pad}${statement.name}();\n`;
+      return `${pad}${statement.name}(${statement.args.map(emitExpression).join(', ')});\n`;
+    case 'memoryWrite':
+      return `${pad}*(volatile uint8_t *)${emitExpression(statement.address)} = ${emitExpression(statement.value)};\n`;
+    case 'memoryRead':
+      // Only reachable as a bare statement; the byte read is discarded.
+      return `${pad}${emitExpression(statement)};\n`;
     case 'if': {
       let out = `${pad}if (${emitExpression(statement.test)}) {\n`;
       out += statement.then.map((s) => emitStatement(s, indent + 1)).join('');
@@ -76,7 +89,8 @@ function emitStatement(statement, indent) {
       out += statement.body.map((s) => emitStatement(s, indent + 1)).join('');
       return `${out}${pad}}\n`;
     }
-    case 'return': return `${pad}return;\n`;
+    case 'return':
+      return statement.value ? `${pad}return ${emitExpression(statement.value)};\n` : `${pad}return;\n`;
     case 'break': return `${pad}break;\n`;
     case 'continue': return `${pad}continue;\n`;
     case 'asm':
@@ -109,19 +123,26 @@ export function emitC(ir) {
   }
   out += '\n';
 
+  // `main` is a C entry point regardless of what the source declared: C
+  // mandates `int main(void)`, so that impedance mismatch is absorbed here
+  // rather than by asking every program to write a C-shaped `main`.
+  const signature = (fn) => (fn.name === 'main'
+    ? 'int main(void)'
+    : `${fn.returnType === 'void' ? 'void' : C_TYPE[fn.returnType]} ${fn.name}(${
+      fn.params.length ? fn.params.map((p) => `${C_TYPE[p.type]} ${p.name}`).join(', ') : 'void'
+    })`);
+
   // Prototypes before any definition: the linker puts the entry module's
   // functions first, so main may call a function defined below it.
   for (const fn of ir.functions) {
-    if (fn.name !== 'main') out += `void ${fn.name}(void);\n`;
+    if (fn.name !== 'main') out += `${signature(fn)};\n`;
   }
   out += '\n';
 
   for (const fn of ir.functions) {
-    const name = fn.name === 'main' ? 'main' : fn.name;
-    const returnType = name === 'main' ? 'int' : 'void';
-    out += `${returnType} ${name}(void) {\n`;
+    out += `${signature(fn)} {\n`;
     out += fn.body.map((s) => emitStatement(s, 1)).join('');
-    if (name === 'main') out += '    return 0;\n';
+    if (fn.name === 'main') out += '    return 0;\n';
     out += '}\n\n';
   }
   return out;

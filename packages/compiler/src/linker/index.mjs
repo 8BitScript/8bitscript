@@ -191,10 +191,10 @@ function rewriteExpression(expr, scope, module, diagnostics) {
     case 'ref': {
       const out = scope.get(expr.name);
       if (out === undefined) {
-        // Locals and parameters do not lower yet, so a reference can only
-        // mean a top-level declaration or an import; anything else is a
-        // typo or a missing import, and letting it through would risk it
-        // silently capturing another module's renamed symbol.
+        // A parameter is already in `scope` (mapped to itself — see `link()`),
+        // so anything still unresolved here is a typo or a missing import,
+        // and letting it through would risk it silently capturing another
+        // module's renamed symbol.
         diagnostics.push(diagnostic(
           Codes.UNRESOLVED_NAME,
           `cannot find name '${expr.name}'`,
@@ -211,6 +211,25 @@ function rewriteExpression(expr, scope, module, diagnostics) {
       return;
     case 'unop':
       rewriteExpression(expr.argument, scope, module, diagnostics);
+      return;
+    case 'call': {
+      const out = scope.get(expr.name);
+      if (out === undefined) {
+        diagnostics.push(diagnostic(
+          Codes.UNRESOLVED_NAME,
+          `cannot find name '${expr.name}'`,
+          module.file, expr.start ?? 0, expr.length ?? 0,
+        ));
+      } else {
+        expr.name = out;
+      }
+      for (const argument of expr.args) rewriteExpression(argument, scope, module, diagnostics);
+      return;
+    }
+    case 'memoryRead':
+      // `memory` names nothing to resolve — it is a compiler intrinsic, not
+      // an import — but its address argument can still reference a global.
+      rewriteExpression(expr.address, scope, module, diagnostics);
       return;
     default: // 'const' names nothing
   }
@@ -243,8 +262,20 @@ function rewriteStatement(statement, scope, module, diagnostics) {
       } else {
         statement.name = out;
       }
+      for (const argument of statement.args) rewriteExpression(argument, scope, module, diagnostics);
       return;
     }
+    case 'memoryWrite':
+      rewriteExpression(statement.address, scope, module, diagnostics);
+      rewriteExpression(statement.value, scope, module, diagnostics);
+      return;
+    case 'memoryRead':
+      // Only reachable as a bare statement (the read result discarded).
+      rewriteExpression(statement.address, scope, module, diagnostics);
+      return;
+    case 'return':
+      if (statement.value) rewriteExpression(statement.value, scope, module, diagnostics);
+      return;
     case 'if':
       rewriteExpression(statement.test, scope, module, diagnostics);
       for (const s of statement.then) rewriteStatement(s, scope, module, diagnostics);
@@ -257,7 +288,7 @@ function rewriteStatement(statement, scope, module, diagnostics) {
     case 'block':
       for (const s of statement.body) rewriteStatement(s, scope, module, diagnostics);
       return;
-    default: // 'return', 'break', 'continue' name nothing; 'asm' is opaque
+    default: // 'break', 'continue' name nothing; 'asm' is opaque
   }
 }
 
@@ -298,7 +329,12 @@ export function link(entryText, entryFile, options = {}) {
     }
     for (const fn of module.ir.functions) {
       fn.name = module.rename.get(fn.name);
-      for (const statement of fn.body) rewriteStatement(statement, scope, module, diagnostics);
+      // A parameter is never renamed and always shadows a same-named global
+      // or import within its own function — ordinary lexical scoping, not a
+      // collision the way two modules' globals can collide.
+      const fnScope = fn.params.length > 0 ? new Map(scope) : scope;
+      for (const param of fn.params) fnScope.set(param.name, param.name);
+      for (const statement of fn.body) rewriteStatement(statement, fnScope, module, diagnostics);
       ir.functions.push(fn);
     }
   }
