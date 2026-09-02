@@ -8,22 +8,78 @@
 // resolves to the target package for the machine being built —
 // @8bitscript/vic20 or @8bitscript/c64. All three targets export the same
 // surface: `border`/`background`/`applyColors()` for the colour registers,
-// and `screen.showDigit(slot, digit)` for two fixed on-screen digits. There
-// is no general text API yet (that's `screen.putChar`/`input.*` in
-// docs/roadmap.md, not built), so those two digits are the whole "screen"
-// surface today — and there is no keyboard/joystick input at all, so
-// "changing" an option here means editing `applyOption` below and
-// rebuilding, not pressing a key while it runs.
+// and `screen.putChar()`/`screen.putColor()`/`screen.showDigit()`/
+// `screen.CellCount` for the screen. There is no general text API yet
+// (that's `screen.putChar(x, y, code)`/`input.*` in docs/roadmap.md, not
+// built — this package's `screen.putChar` takes one flat cell index
+// instead), so what this file pokes onto the screen — clearing it, the
+// "FRAME"/"OPTION" labels, the two digits — is entirely this app's own
+// doing, not something the machine packages do for it. There is also no
+// keyboard/joystick input at all, so "changing" an option here means
+// editing `applyOption` below and rebuilding, not pressing a key while it
+// runs.
 import { border, background, applyColors, screen } from "@8bitscript/machine";
 
 // volatile, or the optimiser notices the delay loop computes nothing and
 // deletes it — and everything on screen moves faster than the eye can see.
 let delay: volatile<usmallint> = 0;
 
-// The frame counter (its ones digit is shown in slot 0) and the index of
-// the current colour option (shown in slot 1, out of the four below).
+// The frame counter (its ones digit is shown at cell 6) and the index of
+// the current colour option (shown at cell 15, out of the four below).
 let frameTicks: utinyint = 0;
 let option: utinyint = 0;
+
+// Loop index for clearScreen() below — a global, not a local, since there
+// are no local variables in the compiled subset yet.
+let clearCell: usmallint = 0;
+
+// Blanking the screen is this app's own choice, not something
+// screen.showDigit or applyColors does automatically: on real hardware the
+// VIC-20/C64 boot into BASIC and leave its banner and "READY." on screen,
+// and a program that never touches the rest of screen memory leaves it
+// there, mixed in with whatever it draws. Other programs that want that
+// text left alone just don't call this.
+function clearScreen(): void {
+    clearCell = 0;
+    while (clearCell < screen.CellCount) {
+        screen.putChar(clearCell, 32); // 32 = space, in every VIC/C64 charset
+        clearCell = clearCell + 1;
+    }
+}
+
+// The row-0 labels this app draws once, so the two digits below mean
+// something without a general text API to lean on: "FRAME " then its digit
+// at cell 6, "OPTION " then its digit at cell 15. Screen codes 1-26 are
+// 'A'-'Z' in every VIC/C64 charset — not their ASCII values, unlike the
+// digits and the space above, which is why this is spelled out letter by
+// letter instead of reusing a text literal.
+function drawLabels(): void {
+    screen.putChar(0, 6);   // F
+    screen.putColor(0, 1);
+    screen.putChar(1, 18);  // R
+    screen.putColor(1, 1);
+    screen.putChar(2, 1);   // A
+    screen.putColor(2, 1);
+    screen.putChar(3, 13);  // M
+    screen.putColor(3, 1);
+    screen.putChar(4, 5);   // E
+    screen.putColor(4, 1);
+    screen.putChar(5, 32);  // space
+    screen.putChar(7, 32);  // space
+    screen.putChar(8, 15);  // O
+    screen.putColor(8, 1);
+    screen.putChar(9, 16);  // P
+    screen.putColor(9, 1);
+    screen.putChar(10, 20); // T
+    screen.putColor(10, 1);
+    screen.putChar(11, 9);  // I
+    screen.putColor(11, 1);
+    screen.putChar(12, 15); // O
+    screen.putColor(12, 1);
+    screen.putChar(13, 14); // N
+    screen.putColor(13, 1);
+    screen.putChar(14, 32); // space
+}
 
 // Four curated border/background pairs instead of cycling raw values 0-255
 // — values kept at 7 or under for border, since the VIC-20's border
@@ -47,10 +103,12 @@ function applyOption(): void {
 }
 
 export function main(): void {
+    clearScreen();
+    drawLabels();
     applyOption();
     applyColors();
-    screen.showDigit(0, 0);
-    screen.showDigit(1, 0);
+    screen.showDigit(6, 0);
+    screen.showDigit(15, 0);
 
     while (true) {
         // Not tied to real vsync — there's no timer API yet either — but it
@@ -58,7 +116,7 @@ export function main(): void {
         // change below always did, so it's visibly alive even while an
         // option holds.
         frameTicks = frameTicks + 1;
-        screen.showDigit(0, frameTicks % 10);
+        screen.showDigit(6, frameTicks % 10);
 
         // Every ten ticks, move to the next colour option and show which
         // one is active.
@@ -69,7 +127,7 @@ export function main(): void {
             }
             applyOption();
             applyColors();
-            screen.showDigit(1, option);
+            screen.showDigit(15, option);
         }
 
         delay = 0;

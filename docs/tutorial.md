@@ -45,11 +45,12 @@ page that fixes it.
 ## Run an example
 
 [`examples/border`](https://github.com/8BitScript/8bitscript/tree/trunk/examples/border)
-is the example that goes end to end today: it steps the border and background
-through four curated colour options, with a one-digit frame counter and the
-current option number shown in the top-left corner, on the VIC-20 and the C64,
-from one source file. It is the classic first sign of life on real hardware,
-so it is the one worth seeing run before reading any code.
+is the example that goes end to end today: it clears the leftover BASIC boot
+screen, labels a `FRAME` counter and the current `OPTION` number, and steps
+the border and background through four curated colour combinations, on the
+VIC-20 and the C64, from one source file. It is the classic first sign of
+life on real hardware, so it is the one worth seeing run before reading any
+code.
 
 ```bash
 cd examples/border
@@ -58,9 +59,11 @@ pnpm start
 
 `8bs build`s the program for the unexpanded VIC-20 (`$1001`, no memory
 expansion — VICE's default), then opens it in `xvic`. You should see the
-frame counter tick over roughly twice a second, and every ten ticks the
-screen switches to the next of the four colour options, with the option
-number changing alongside it. Close the emulator window when you're done.
+BASIC banner and `READY.` prompt disappear, replaced by `FRAME` and `OPTION`
+near the top of the screen; the digit after `FRAME` ticks over roughly twice
+a second, and every ten ticks the screen switches to the next of the four
+colour options, with the digit after `OPTION` changing alongside it. Close
+the emulator window when you're done.
 
 `package.json` has one script per target:
 
@@ -87,6 +90,43 @@ import { border, background, applyColors, screen } from "@8bitscript/machine";
 let delay: volatile<usmallint> = 0;
 let frameTicks: utinyint = 0;
 let option: utinyint = 0;
+let clearCell: usmallint = 0;
+
+function clearScreen(): void {
+    clearCell = 0;
+    while (clearCell < screen.CellCount) {
+        screen.putChar(clearCell, 32); // 32 = space, in every VIC/C64 charset
+        clearCell = clearCell + 1;
+    }
+}
+
+function drawLabels(): void {
+    screen.putChar(0, 6);   // F
+    screen.putColor(0, 1);
+    screen.putChar(1, 18);  // R
+    screen.putColor(1, 1);
+    screen.putChar(2, 1);   // A
+    screen.putColor(2, 1);
+    screen.putChar(3, 13);  // M
+    screen.putColor(3, 1);
+    screen.putChar(4, 5);   // E
+    screen.putColor(4, 1);
+    screen.putChar(5, 32);  // space
+    screen.putChar(7, 32);  // space
+    screen.putChar(8, 15);  // O
+    screen.putColor(8, 1);
+    screen.putChar(9, 16);  // P
+    screen.putColor(9, 1);
+    screen.putChar(10, 20); // T
+    screen.putColor(10, 1);
+    screen.putChar(11, 9);  // I
+    screen.putColor(11, 1);
+    screen.putChar(12, 15); // O
+    screen.putColor(12, 1);
+    screen.putChar(13, 14); // N
+    screen.putColor(13, 1);
+    screen.putChar(14, 32); // space
+}
 
 function applyOption(): void {
     if (option == 0) {
@@ -105,14 +145,16 @@ function applyOption(): void {
 }
 
 export function main(): void {
+    clearScreen();
+    drawLabels();
     applyOption();
     applyColors();
-    screen.showDigit(0, 0);
-    screen.showDigit(1, 0);
+    screen.showDigit(6, 0);
+    screen.showDigit(15, 0);
 
     while (true) {
         frameTicks = frameTicks + 1;
-        screen.showDigit(0, frameTicks % 10);
+        screen.showDigit(6, frameTicks % 10);
 
         if (frameTicks % 10 == 0) {
             option = option + 1;
@@ -121,7 +163,7 @@ export function main(): void {
             }
             applyOption();
             applyColors();
-            screen.showDigit(1, option);
+            screen.showDigit(15, option);
         }
 
         delay = 0;
@@ -135,7 +177,7 @@ export function main(): void {
 - `@8bitscript/machine` is not a real package on its own — it is a
   target-conditional entry that resolves to `@8bitscript/vic20` or
   `@8bitscript/c64` depending on which machine you build for. Both export the
-  same `border`, `background`, `applyColors()`, and `screen.showDigit()`, so
+  same `border`, `background`, `applyColors()`, and the `screen` namespace, so
   this file never branches on the machine itself. See
   [target-conditional entries](packages.md#target-conditional-entries) for how
   that resolution works.
@@ -145,19 +187,27 @@ export function main(): void {
 - `delay` is `volatile<usmallint>`: without `volatile`, the optimiser would notice
   the inner loop computes nothing observable and delete it, and everything on
   screen would move faster than the eye can follow.
-- `frameTicks` and `option` are ordinary globals too — there are no local
-  variables yet, so every value the loop needs to remember across a pass
-  lives at module scope, same as `delay`.
+- `frameTicks`, `option`, and `clearCell` are ordinary globals too — there
+  are no local variables yet, so every value a function needs to remember
+  across calls, or a loop across passes, lives at module scope, same as
+  `delay`.
+- `screen.putChar(cell, code)` and `screen.putColor(cell, color)` poke one
+  character cell's code and one cell's colour directly into screen memory —
+  a flat cell index, not the `x`/`y` `screen.putChar` still on the roadmap
+  (see `docs/roadmap.md`) — and `screen.CellCount` says how many cells the
+  whole screen has (506 on the VIC-20, 1000 on the C64). None of that is
+  automatic: `clearScreen()` and `drawLabels()` are this *program's* choice
+  to call them, in a loop and a fixed sequence of pokes respectively, not
+  something `@8bitscript/vic20`/`@8bitscript/c64` do on their own — a
+  program that wants the BASIC boot screen left alone just doesn't call
+  `clearScreen()`.
+- `screen.showDigit(cell, digit)` pokes a single decimal digit (in white)
+  at a cell — cell 6 for the frame counter, right after the `FRAME ` label
+  `drawLabels()` draws, and cell 15 for the option number, after `OPTION `.
 - `applyOption()` maps the current `option` (0-3) to one of four curated
   border/background pairs with an `if`/`else` chain, not a lookup table —
   `array<T, N>` parses but isn't in the compiled subset yet either.
-- `screen.showDigit(slot, digit)` pokes a single decimal digit straight into
-  screen memory. There is no general text API yet (`screen.putChar`/`input.*`
-  are still roadmap items, not built — see [the package
-  model](packages.md#target-conditional-entries) and `docs/roadmap.md`), so
-  this is the whole on-screen "display" surface today: slot 0 shows the frame
-  counter's ones digit, slot 1 shows the current option number. There is
-  likewise no keyboard or joystick input on any target, so "choosing" an
+- There is no keyboard or joystick input on any target, so "choosing" an
   option means editing `applyOption()` and rebuilding, not pressing a key
   while the program runs.
 
