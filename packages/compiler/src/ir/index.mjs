@@ -26,6 +26,20 @@ import { resolveIntegerType } from '../types/index.mjs';
  * @property {IrFunction[]} functions
  */
 
+/**
+ * A parameter or return type: an integer type, `bool`, or (return only) `void`.
+ * Kept separate from `global()`'s own inline resolution — a global can never
+ * be `void`, so the two checks are similar but not the same rule.
+ *
+ * @returns {string | null} the canonical type name, or null if not a scalar type
+ */
+function resolveScalarType(name, { allowVoid = false } = {}) {
+  if (name === 'void') return allowVoid ? 'void' : null;
+  if (name === 'bool') return 'bool';
+  const resolved = resolveIntegerType(name);
+  return resolved ? resolved.canonicalName : null;
+}
+
 class Lowering {
   constructor(file) {
     this.file = file;
@@ -142,13 +156,35 @@ class Lowering {
   }
 
   function(node) {
-    if (node.params.length > 0) {
-      return this.fail(node, 'function parameters are not compilable yet');
+    const params = [];
+    for (const p of node.params) {
+      const typeName = p.typeAnnotation?.name;
+      const type = typeName && resolveScalarType(typeName);
+      if (!type || type === 'void') {
+        return this.fail(p, `a parameter of type ${typeName ?? '(none)'} is not compilable yet`);
+      }
+      params.push({ name: p.name.name, type });
     }
+
+    const returnTypeName = node.returnType?.name ?? 'void';
+    const returnType = resolveScalarType(returnTypeName, { allowVoid: true });
+    if (!returnType) {
+      return this.fail(node, `a return type of ${returnTypeName} is not compilable yet`);
+    }
+
+    // Threaded through statement lowering so a `return` deep inside an
+    // `if`/`while` can be checked against the function it actually belongs
+    // to, without passing the type down every recursive call by hand.
+    const outerReturnType = this.currentReturnType;
+    this.currentReturnType = returnType;
     const body = this.block(node.body);
+    this.currentReturnType = outerReturnType;
+
     this.functions.push({
       name: node.name?.name ?? 'anonymous',
       exported: node.exported,
+      params,
+      returnType,
       body,
     });
   }
@@ -168,7 +204,7 @@ class Lowering {
         const e = node.expression;
         if (e.type === NodeType.AssignmentExpression) return this.assignment(e);
         if (e.type === NodeType.UpdateExpression) return this.update(e);
-        if (e.type === NodeType.CallExpression) return this.call(e);
+        if (e.type === NodeType.CallExpression) return this.callExpression(e);
         return this.fail(node, `a bare ${e.type} statement is not compilable yet`);
       }
       case NodeType.VariableDeclaration:
@@ -184,9 +220,19 @@ class Lowering {
         const body = this.blockOrStatement(node.body);
         return test ? { kind: 'while', test, body } : null;
       }
-      case NodeType.ReturnStatement:
-        if (node.argument) return this.fail(node, 'returning a value is not compilable yet');
-        return { kind: 'return' };
+      case NodeType.ReturnStatement: {
+        if (node.argument) {
+          if (this.currentReturnType === 'void') {
+            return this.fail(node, 'a function declared to return void cannot return a value');
+          }
+          const value = this.expression(node.argument);
+          return value ? { kind: 'return', value } : null;
+        }
+        if (this.currentReturnType && this.currentReturnType !== 'void') {
+          return this.fail(node, `this function must return a value of type ${this.currentReturnType}`);
+        }
+        return { kind: 'return', value: null };
+      }
       case NodeType.BreakStatement:
         return { kind: 'break' };
       case NodeType.ContinueStatement:
@@ -200,21 +246,84 @@ class Lowering {
     }
   }
 
-  // A call is a statement, not an expression: functions take no parameters
-  // and return nothing yet, so a call can only appear on its own line.
-  call(node) {
-    if (node.callee.type !== NodeType.Identifier) {
+  // A call can be a statement (its result, if any, discarded) or, now that
+  // functions may return a value, a subexpression — `expression()` below
+  // routes CallExpression here too. `memory.read`/`memory.write` are the one
+  // namespace this milestone recognises: a compiler-owned intrinsic, not a
+  // library import, because raw memory access has to exist before any
+  // library can be written in terms of it. Any other member-access callee
+  // (`screen.setBorderColor(...)`, `a.b()`) is not compilable yet — that is
+  // real library/namespace support, which this milestone does not add.
+  callExpression(node) {
+    const callee = node.callee;
+    if (
+      callee.type === NodeType.MemberExpression
+      && callee.object.type === NodeType.Identifier
+      && callee.object.name === 'memory'
+    ) {
+      return this.memoryIntrinsic(node, callee);
+    }
+    if (callee.type !== NodeType.Identifier) {
       return this.fail(node, 'a call through member access is not compilable yet');
     }
-    if (node.args.length > 0) {
-      return this.fail(node, 'a call with arguments is not compilable yet: functions take no parameters');
+    const args = [];
+    for (const argument of node.args) {
+      const lowered = this.expression(argument);
+      if (!lowered) return null;
+      args.push(lowered);
     }
     return {
       kind: 'call',
-      name: node.callee.name,
-      start: node.callee.start,
-      length: node.callee.length,
+      name: callee.name,
+      args,
+      start: callee.start,
+      length: callee.length,
     };
+  }
+
+  memoryIntrinsic(node, callee) {
+    const member = callee.property.name;
+    if (member === 'write') {
+      if (node.args.length !== 2) {
+        return this.fail(node, 'memory.write needs exactly two arguments: (address, value)');
+      }
+      const address = this.memoryArgument(node.args[0], 'usmallint');
+      const value = this.memoryArgument(node.args[1], 'utinyint');
+      if (!address || !value) return null;
+      return { kind: 'memoryWrite', address, value, start: node.start, length: node.length };
+    }
+    if (member === 'read') {
+      if (node.args.length !== 1) {
+        return this.fail(node, 'memory.read needs exactly one argument: (address)');
+      }
+      const address = this.memoryArgument(node.args[0], 'usmallint');
+      if (!address) return null;
+      return { kind: 'memoryRead', address, start: node.start, length: node.length };
+    }
+    return this.fail(node, `memory.${member} is not compilable yet: only read and write exist`);
+  }
+
+  /**
+   * Lower one `memory.read`/`memory.write` argument, range-checking it
+   * against `typeName` when it is a literal — the same rule `let x: T = n`
+   * gets, extended to the one built-in call whose parameter types the
+   * compiler knows without a binder.
+   */
+  memoryArgument(node, typeName) {
+    const value = this.expression(node);
+    if (!value) return null;
+    if (value.kind === 'const') {
+      const { min, max } = resolveIntegerType(typeName);
+      if (value.value < min || value.value > max) {
+        this.diagnostics.push(diagnostic(
+          Codes.VALUE_OUT_OF_RANGE,
+          `${value.value} does not fit in ${typeName} (${min}..${max})`,
+          this.file, node.start, node.length,
+        ));
+        return null;
+      }
+    }
+    return value;
   }
 
   blockOrStatement(node) {
@@ -282,6 +391,14 @@ class Lowering {
       case NodeType.UnaryExpression: {
         const argument = this.expression(node.argument);
         return argument ? { kind: 'unop', operator: node.operator, argument } : null;
+      }
+      case NodeType.CallExpression: {
+        const call = this.callExpression(node);
+        if (!call) return null;
+        if (call.kind === 'memoryWrite') {
+          return this.fail(node, 'memory.write does not return a value and cannot be used as an expression');
+        }
+        return call;
       }
       default:
         return this.fail(node, `a ${node.type} expression is not compilable yet`);

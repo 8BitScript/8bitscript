@@ -22,6 +22,11 @@ const AS_TYPE = Object.fromEntries(
 );
 AS_TYPE.bool = 'bool';
 
+// `memory.read`/`memory.write` map straight onto AssemblyScript's own
+// linear-memory intrinsics: a byte at a runtime offset is exactly what
+// `load<u8>`/`store<u8>` are for. This makes raw memory access target-
+// symmetric — real hardware on native, a flat 64KB buffer standing in for it
+// on the web, per the `--initialMemory 1` reservation in `buildWasm` below.
 function emitExpression(expr) {
   switch (expr.kind) {
     case 'const': return String(expr.value);
@@ -30,12 +35,16 @@ function emitExpression(expr) {
       return `(${emitExpression(expr.left)} ${expr.operator} ${emitExpression(expr.right)})`;
     case 'unop':
       return `(${expr.operator}${emitExpression(expr.argument)})`;
+    case 'call':
+      return `${expr.name}(${expr.args.map(emitExpression).join(', ')})`;
+    case 'memoryRead':
+      return `load<u8>(${emitExpression(expr.address)})`;
     default:
       throw new Error(`backend-web: unknown IR expression '${expr.kind}'`);
   }
 }
 
-function emitStatement(statement, indent, types) {
+function emitStatement(statement, indent, types, returnType) {
   const pad = '    '.repeat(indent);
   switch (statement.kind) {
     case 'assign': {
@@ -43,27 +52,37 @@ function emitStatement(statement, indent, types) {
       return `${pad}${statement.target} = <${type}>${emitExpression(statement.value)};\n`;
     }
     case 'call':
-      return `${pad}${statement.name}();\n`;
+      return `${pad}${statement.name}(${statement.args.map(emitExpression).join(', ')});\n`;
+    case 'memoryWrite':
+      return `${pad}store<u8>(${emitExpression(statement.address)}, ${emitExpression(statement.value)});\n`;
+    case 'memoryRead':
+      // Only reachable as a bare statement; the byte read is discarded.
+      return `${pad}${emitExpression(statement)};\n`;
     case 'if': {
       let out = `${pad}if (${emitExpression(statement.test)}) {\n`;
-      out += statement.then.map((s) => emitStatement(s, indent + 1, types)).join('');
+      out += statement.then.map((s) => emitStatement(s, indent + 1, types, returnType)).join('');
       if (statement.else) {
         out += `${pad}} else {\n`;
-        out += statement.else.map((s) => emitStatement(s, indent + 1, types)).join('');
+        out += statement.else.map((s) => emitStatement(s, indent + 1, types, returnType)).join('');
       }
       return `${out}${pad}}\n`;
     }
     case 'while': {
       let out = `${pad}while (${emitExpression(statement.test)}) {\n`;
-      out += statement.body.map((s) => emitStatement(s, indent + 1, types)).join('');
+      out += statement.body.map((s) => emitStatement(s, indent + 1, types, returnType)).join('');
       return `${out}${pad}}\n`;
     }
     case 'block': {
       let out = `${pad}{\n`;
-      out += statement.body.map((s) => emitStatement(s, indent + 1, types)).join('');
+      out += statement.body.map((s) => emitStatement(s, indent + 1, types, returnType)).join('');
       return `${out}${pad}}\n`;
     }
-    case 'return': return `${pad}return;\n`;
+    case 'return':
+      // Same wrap-at-assignment narrowing a store gets: AS widens arithmetic
+      // to i32, so a returned expression is cast back to the declared width.
+      return statement.value
+        ? `${pad}return <${AS_TYPE[returnType]}>${emitExpression(statement.value)};\n`
+        : `${pad}return;\n`;
     case 'break': return `${pad}break;\n`;
     case 'continue': return `${pad}continue;\n`;
     case 'asm':
@@ -101,8 +120,10 @@ export function emitAssemblyScript(ir) {
 
   try {
     for (const fn of ir.functions) {
-      out += `export function ${fn.name}(): void {\n`;
-      out += fn.body.map((s) => emitStatement(s, 1, types)).join('');
+      const params = fn.params.map((p) => `${p.name}: ${AS_TYPE[p.type]}`).join(', ');
+      const returnType = fn.returnType === 'void' ? 'void' : AS_TYPE[fn.returnType];
+      out += `export function ${fn.name}(${params}): ${returnType} {\n`;
+      out += fn.body.map((s) => emitStatement(s, 1, types, fn.returnType)).join('');
       out += '}\n\n';
     }
   } catch (error) {
@@ -141,7 +162,13 @@ export async function buildWasm(ir, { outFile }) {
   return new Promise((resolvePromise) => {
     const child = spawn(
       process.execPath,
-      [findAsc(), asFile, '-o', outFile, '-O3', '--runtime', 'stub'],
+      [
+        findAsc(), asFile, '-o', outFile, '-O3', '--runtime', 'stub',
+        // One page (64KB) reserved unconditionally, matching the 6502's own
+        // 16-bit address space — what memory.read/write address on the web
+        // target when a program uses them.
+        '--initialMemory', '1',
+      ],
       { stdio: ['ignore', 'pipe', 'pipe'] },
     );
     let stderr = '';
