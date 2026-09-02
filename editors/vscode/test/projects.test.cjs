@@ -11,11 +11,16 @@ const {
   ALL_TARGETS,
   BINARY,
   DEFAULT_ENTRY,
+  bySystem,
   commandArgs,
+  findExamplesDir,
   findToolchain,
+  loadExamples,
   loadProject,
   loadProjects,
   parseConfig,
+  runnableOn,
+  withExamples,
 } = require('../src/projects.cjs');
 
 function scratch(t) {
@@ -134,4 +139,64 @@ test('commandArgs spells the same commands a person would type', () => {
   assert.deepEqual(commandArgs('build', 'web', 'pal'), ['build', '--target', 'web'], 'web has no region');
   assert.deepEqual(commandArgs('run', 'web', 'pal'), ['run', 'web']);
   assert.deepEqual(commandArgs('doctor'), ['doctor']);
+});
+
+test('findExamplesDir follows the toolchain link back to a repository checkout', (t) => {
+  const root = scratch(t);
+  const repo = path.join(root, '8bitscript');
+  write(path.join(repo, 'packages', 'cli', 'bin', '8bs.mjs'), '');
+  write(path.join(repo, 'examples', 'border', '8bs.config.ts'), 'export default {};');
+  write(path.join(repo, 'examples', 'notes.md'), '');
+
+  // A consumer whose .bin/8bs is a symlink into the checkout, as pnpm makes.
+  const consumer = path.join(root, 'game');
+  const bin = path.join(consumer, 'node_modules', '.bin', BINARY);
+  fs.mkdirSync(path.dirname(bin), { recursive: true });
+  fs.symlinkSync(path.join(repo, 'packages', 'cli', 'bin', '8bs.mjs'), bin);
+
+  assert.equal(findExamplesDir(bin), path.join(repo, 'examples'));
+
+  // pnpm writes .bin/8bs as a shell shim, not a symlink, and links the
+  // package directory instead: the examples must still be found through it.
+  const shimmed = path.join(root, 'shimmed');
+  const shim = path.join(shimmed, 'node_modules', '.bin', BINARY);
+  write(shim, '#!/bin/sh\nexec node ../@8bitscript/cli/bin/8bs.mjs "$@"\n');
+  fs.mkdirSync(path.join(shimmed, 'node_modules', '@8bitscript'), { recursive: true });
+  fs.symlinkSync(path.join(repo, 'packages', 'cli'), path.join(shimmed, 'node_modules', '@8bitscript', 'cli'));
+  assert.equal(findExamplesDir(shim), path.join(repo, 'examples'));
+
+  assert.equal(findExamplesDir(null), null);
+  assert.equal(findExamplesDir(path.join(root, 'missing')), null);
+
+  const examples = loadExamples(path.join(repo, 'examples'));
+  assert.deepEqual(examples.map((e) => [e.name, e.example]), [['border', true]]);
+});
+
+test('findExamplesDir returns null for a toolchain with no examples beside it', (t) => {
+  const root = scratch(t);
+  const bin = path.join(root, 'node_modules', '.bin', BINARY);
+  write(bin, '');
+  assert.equal(findExamplesDir(bin), null);
+});
+
+test('withExamples skips examples the workspace already lists', () => {
+  const own = { name: 'border', dir: '/repo/examples/border', targets: ['vic20'] };
+  const example = { ...own, example: true };
+  const other = { name: 'counter', dir: '/repo/examples/counter', targets: ['web'], example: true };
+  assert.deepEqual(withExamples([own], [example, other]), [own, other]);
+});
+
+test('runnableOn and bySystem group projects by target', () => {
+  const projects = [
+    { name: 'a', targets: ['vic20', 'c64'] },
+    { name: 'b', targets: ['web'] },
+    { name: 'c', targets: ['vic20', 'web'] },
+  ];
+  assert.deepEqual(runnableOn(projects, 'vic20').map((p) => p.name), ['a', 'c']);
+  assert.deepEqual(runnableOn(projects, 'c64').map((p) => p.name), ['a']);
+  assert.deepEqual(
+    bySystem(projects).map((g) => [g.target, g.projects.map((p) => p.name)]),
+    [['vic20', ['a', 'c']], ['c64', ['a']], ['web', ['b', 'c']]],
+  );
+  assert.deepEqual(bySystem([{ name: 'x', targets: ['web'] }]).map((g) => g.target), ['web']);
 });

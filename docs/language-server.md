@@ -38,8 +38,8 @@ exposes it over the Language Server Protocol. The editor extension is a cable:
 it tells the editor that `.8bs` is a language and starts `8bs lsp --stdio`.
 
 The same rule covers building and running. The VS Code extension adds an
-8BitScript icon to the Activity Bar whose side bar lists every project in the
-workspace with a Run and a Build button per target, but each button only
+8BitScript icon to the Activity Bar whose side bar picks a system and region
+and lists the projects that can run there, but each Run button only
 starts the `8bs run` or `8bs build` command you would otherwise type, in the
 project's own directory with the project's own toolchain.
 
@@ -124,34 +124,37 @@ toolchain is not installed it says so and stops:
 8BitScript compiler not found. Run: pnpm add -D @8bitscript/cli
 ```
 
-#### The projects view
+#### The side bar
 
 The extension adds an **8BitScript** icon to the Activity Bar, the strip of
-icons down the left edge of the window. Its side bar lists every directory in
-the workspace that has an `8bs.config.ts`, and under each one the systems its
-config targets. That file is the project
-manifest: it is what the CLI reads for the entry file and the target list, so
-the editor uses it as the marker for a project rather than scanning for
-`package.json`, which every package in a monorepo has.
+icons down the left edge of the window. Its side bar has two sections. **Run
+Settings** is three dropdowns — the system to run on (`vic20`, `c64`, `web`),
+the region for the Commodore machines (NTSC or PAL), and how the project list
+is laid out — plus, when the toolchain comes from a checkout of this
+repository, a checkbox that adds the repository's `examples/` to the list.
+**Projects** lists every directory in the workspace that has an
+`8bs.config.ts`, which is the project manifest the CLI reads for the entry
+file and the target list.
 
 ```
-8BITSCRIPT: PROJECTS
-▾ border            examples/border
-    vic20  NTSC                              Run  Build
-    c64    NTSC                              Run  Build
-▾ counter           examples/counter
-    vic20  NTSC                              Run  Build
-    c64    NTSC                              Run  Build
-    web                                      Run  Build
+RUN SETTINGS
+System [ vic20 ▾ ]   Region [ NTSC ▾ ]
+View   [ Runnable on the selected system ▾ ]
+
+PROJECTS  runnable on vic20 · NTSC
+  border            examples/border           Run  Build
+  counter           examples/counter          Run  Build
+  hello-vic         examples/hello-vic        Run  Build
 ```
 
-**Run** starts `8bs run <target>` and **Build** starts `8bs build --target
-<target>` as an editor task, in a terminal, from the project's directory. For
-`vic20` and `c64` the region follows the `8bitscript.region` setting (NTSC by
-default), and the row's context menu offers NTSC and PAL explicitly. A
-running target shows a **Stop** button that ends the task and the emulator
-with it. The view's title bar has **Doctor**, which runs `8bs doctor`, and
-**Refresh**.
+The default layout lists only the projects that can run on the selected
+system, one row each, so a run is one click after the dropdowns. The other
+two layouts expand every project into its systems, or every system into its
+projects. **Run** starts `8bs run <target>` and **Build** starts `8bs build
+--target <target>` as an editor task, in a terminal, from the project's
+directory; a row's context menu offers NTSC and PAL explicitly. A running
+row shows a **Stop** button that ends the task and the emulator with it. The
+view's title bar has **Doctor**, which runs `8bs doctor`, and **Refresh**.
 
 The same runs are available as tasks of type `8bs`, so a favourite can be
 written in `.vscode/tasks.json`:

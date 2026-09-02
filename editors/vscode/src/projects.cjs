@@ -146,6 +146,102 @@ function loadProjects(configPaths) {
 }
 
 /**
+ * The example projects that ship with the toolchain, if it came from a
+ * checkout of the 8bitscript repository.
+ *
+ * A project that depends on the repository — as a workspace link, a `file:`
+ * dependency, or a submodule — has node_modules/@8bitscript/cli linked to
+ * <repo>/packages/cli, and the repo keeps its examples two directories up
+ * from there. The package link is followed rather than the bin, because pnpm
+ * writes .bin/8bs as a shell shim rather than a symlink, so the bin's real
+ * path says nothing about where the package lives. A published package would
+ * not carry the examples; the `<cli>/examples` candidate is where they would
+ * go if one ever did.
+ *
+ * @param {string | null} toolchain absolute path of a project's `8bs`
+ * @returns {string | null} the examples directory, or null when there is none
+ */
+function findExamplesDir(toolchain) {
+  if (!toolchain) return null;
+  const nodeModules = path.dirname(path.dirname(toolchain));
+  const packageDirs = [
+    path.join(nodeModules, '@8bitscript', 'cli'),
+    // .../packages/cli/bin/8bs.mjs -> .../packages/cli, when the bin is a
+    // real symlink (npm, or a hand-made link) rather than a shim.
+    (() => {
+      try {
+        return path.dirname(path.dirname(fs.realpathSync(toolchain)));
+      } catch {
+        return null;
+      }
+    })(),
+  ];
+  for (const packageDir of packageDirs) {
+    if (!packageDir) continue;
+    let cliDir;
+    try {
+      cliDir = fs.realpathSync(packageDir);
+    } catch {
+      continue;
+    }
+    for (const candidate of [path.join(cliDir, 'examples'), path.resolve(cliDir, '..', '..', 'examples')]) {
+      if (listExampleConfigs(candidate).length > 0) return candidate;
+    }
+  }
+  return null;
+}
+
+/** Config paths of the projects directly under an examples directory. */
+function listExampleConfigs(dir) {
+  let names;
+  try {
+    names = fs.readdirSync(dir);
+  } catch {
+    return [];
+  }
+  return names
+    .sort()
+    .map((name) => path.join(dir, name, CONFIG_FILE))
+    .filter((config) => fs.existsSync(config));
+}
+
+/**
+ * Load the example projects under a directory, marked so the view can tell
+ * them apart from the workspace's own projects.
+ *
+ * @param {string} dir
+ * @returns {Project[]}
+ */
+function loadExamples(dir) {
+  return loadProjects(listExampleConfigs(dir)).map((project) => ({ ...project, example: true }));
+}
+
+/**
+ * Add example projects to a list without repeating one the workspace already
+ * has — the repository itself lists its examples as ordinary projects.
+ *
+ * @param {Project[]} projects
+ * @param {Project[]} examples
+ * @returns {Project[]}
+ */
+function withExamples(projects, examples) {
+  const seen = new Set(projects.map((p) => p.dir));
+  return [...projects, ...examples.filter((e) => !seen.has(e.dir))];
+}
+
+/** Projects that can run on one system. */
+function runnableOn(projects, system) {
+  return projects.filter((project) => project.targets.includes(system));
+}
+
+/** Every system at least one project targets, each with its projects. */
+function bySystem(projects) {
+  return ALL_TARGETS
+    .map((target) => ({ target, projects: runnableOn(projects, target) }))
+    .filter((group) => group.projects.length > 0);
+}
+
+/**
  * The `8bs` arguments for one action, on one target where the action takes one.
  *
  * @param {'run' | 'build' | 'doctor'} action
@@ -166,9 +262,14 @@ module.exports = {
   CONFIG_FILE,
   DEFAULT_ENTRY,
   MACHINE_TARGETS,
+  bySystem,
   commandArgs,
+  findExamplesDir,
   findToolchain,
+  loadExamples,
   loadProject,
   loadProjects,
   parseConfig,
+  runnableOn,
+  withExamples,
 };

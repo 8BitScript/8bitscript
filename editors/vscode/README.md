@@ -5,7 +5,7 @@ files. The extension itself is still a thin client: it finds the project's
 `8bs` toolchain and runs `8bs lsp --stdio`, and every diagnostic, hover, and
 completion it shows comes from `@8bitscript/compiler` through that server —
 not from anything reimplemented here. The same goes for building and running:
-the projects view only ever starts the `8bs run` and `8bs build` commands you
+the side bar's Run buttons only ever start the `8bs run` and `8bs build` commands you
 would otherwise type. See [Editor support](../../docs/language-server.md) for
 the split between the compiler, the language server, and this extension.
 
@@ -27,51 +27,85 @@ the split between the compiler, the language server, and this extension.
 If no toolchain is found, the extension says so and falls back to syntax
 highlighting alone — see "Installing it while developing" below.
 
-## The projects view
+## The side bar
 
-The extension adds an **8BitScript** icon to the Activity Bar — the strip of
-icons down the left edge, where the file explorer, search, and source
-control live. Clicking it opens a side bar that lists every project in the
-workspace and, under each, the systems that project targets:
+The extension adds an **8BitScript** icon — the pixel "8" from the project
+logo — to the Activity Bar, the strip of icons down the left edge where the
+file explorer, search, and source control live. Clicking it opens a side bar
+with two sections.
+
+**Run Settings** is three dropdowns and a checkbox:
 
 ```
-8BITSCRIPT: PROJECTS                         ⟳ ♥
-▾ border            examples/border
-    vic20  NTSC                              ▶ 🔧
-    c64    NTSC                              ▶ 🔧
-▾ counter           examples/counter
-    vic20  NTSC                              ▶ 🔧
-    c64    NTSC                              ▶ 🔧
-    web                                      ▶ 🔧
+SYSTEM            REGION
+[ vic20       ▾ ] [ NTSC ▾ ]
+VIEW
+[ Runnable on the selected system ▾ ]
+☐ Show example projects
+Run buttons use vic20 · NTSC
 ```
+
+- **System** — `vic20`, `c64`, or `web`: the one every Run and Build button
+  uses (`8bitscript.system`).
+- **Region** — NTSC (60Hz) or PAL (50Hz) for the two Commodore machines
+  (`8bitscript.region`); it is greyed out while the system is `web`, which
+  has no region.
+- **View** — how the Projects list below is laid out
+  (`8bitscript.projectsView`); see the three layouts below.
+- **Show example projects** — appears only when the toolchain in use comes
+  from a checkout of this repository, and adds its `examples/` to the list
+  (`8bitscript.showExamples`). This is how a project that depends on
+  8BitScript gets to browse and run the examples without opening the
+  repository separately. `8bitscript.examplesPath` names a different
+  directory of examples if you have one.
+
+Each choice is an ordinary setting, written at workspace level when a folder
+is open, so it also appears in the Settings editor and survives a restart.
+The same choices are on the command palette as **8BitScript: Select
+System**, **Select Region**, and **Change Projects View**.
+
+**Projects** lists what can be run, in one of three layouts:
+
+```
+PROJECTS  runnable on vic20 · NTSC          ⊞ 📖 ♥ ⟳
+  border          examples/border            ▶ 🔧
+  counter         examples/counter           ▶ 🔧
+  hello-vic       examples/hello-vic         ▶ 🔧
+```
+
+- **Runnable on the selected system** (the default) — one row per project
+  that targets the selected system. Run and Build on the row use that
+  system and region, so it is one click from the dropdowns to the emulator.
+  A project that does not target the system is left out; if none do, the
+  view says so.
+- **By project** — every project, expanded into the systems it targets,
+  with Run and Build on each system row.
+- **By system** — every system with at least one project, expanded into the
+  projects that target it; the selected system starts expanded.
+
+The ⊞ button in the title switches layout, 📖 toggles the example projects
+(only shown when there are any), ♥ runs `8bs doctor`, and ⟳ rescans.
 
 A project is any directory containing an `8bs.config.ts`; that file is
 already the manifest the CLI reads for the entry file and the target list,
 so the view uses it as the marker rather than a second list to maintain. A
 `package.json` on its own does not count — every package in a monorepo has
-one. The search skips `node_modules`, `.git`, and `.claude/worktrees`, and
-the view refreshes itself when a config file is added, removed, or edited;
-the ⟳ button forces a rescan.
+one. The search covers every workspace folder, skips `node_modules`, `.git`,
+and `.claude/worktrees`, and the view refreshes itself when a config file is
+added, removed, or edited.
 
-Each target row has two inline buttons: **Run** (`8bs run <target>`) and
-**Build** (`8bs build --target <target>`). For `vic20` and `c64` those use
-the region in the `8bitscript.region` setting — NTSC unless you change it —
-and the row's right-click menu offers *Run (NTSC)*, *Run (PAL)*, *Build
-(NTSC)*, and *Build (PAL)* explicitly. Each run opens as a task in its own
-terminal, started in the project's directory with the project's own
-`node_modules/.bin/8bs`, so what you see is exactly what the CLI prints. A
-target that is running shows a spinner and a **Stop** button, which
-terminates the task (and with it the emulator).
+**Run** starts `8bs run <target>` and **Build** starts `8bs build --target
+<target>` as a task in its own terminal, from the project's directory with
+the project's own `node_modules/.bin/8bs`, so what you see is exactly what
+the CLI prints. A row's right-click menu offers *Run (NTSC)*, *Run (PAL)*,
+*Build (NTSC)*, and *Build (PAL)* explicitly for the Commodore systems. A
+running row shows a spinner and a **Stop** button, which terminates the task
+(and with it the emulator).
 
-The project row itself opens the entry `.8bs` file when clicked, and its
-right-click menu has *Open 8bs.config.ts*, *Reveal in Explorer*, and *Open
-in Integrated Terminal*. The ♥ button in the view's title runs `8bs doctor`,
-which reports whether the VICE and LLVM-MOS installs each target needs are
-in place.
-
-From the command palette, **8BitScript: Run** and **8BitScript: Build** ask
-which project and system when there is more than one; **8BitScript: Doctor**
-and **8BitScript: Refresh Projects** are there too.
+Clicking a project opens its entry `.8bs` file. Its right-click menu has
+*Open 8bs.config.ts*, *Reveal in Explorer*, and *Open in Integrated
+Terminal*. From the command palette, **8BitScript: Run** and **8BitScript:
+Build** ask which project and system, offering the selected system first.
 
 Every run and build is also a task of type `8bs`, so **Tasks: Run Task**
 lists them, and a favourite can be pinned in `.vscode/tasks.json`:
@@ -98,10 +132,6 @@ itself; `command` is `run`, `build`, or `doctor`; `pal` is optional.
 A project whose toolchain is not installed is still listed, marked with a
 warning icon and *toolchain not installed*; running it explains how to fix
 that (`pnpm install` in the project, or `pnpm add -D @8bitscript/cli`).
-
-Hexadecimal and binary literals are highlighted in both the C spelling
-(`0xC000`, `0b10110000`) and the assembly spelling (`$C000`, `%10110000`),
-since either could end up being the one 8BitScript uses.
 
 ## The grammar is provisional
 
