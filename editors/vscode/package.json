@@ -39,7 +39,7 @@
         {
           "id": "8bitscript",
           "title": "8BitScript",
-          "icon": "media/8bitscript.svg"
+          "icon": "media/8bitscript-logo.svg"
         }
       ]
     },
@@ -49,7 +49,7 @@
           "id": "8bitscript.controls",
           "name": "Run Settings",
           "type": "webview",
-          "icon": "media/8bitscript.svg",
+          "icon": "media/8bitscript-logo.svg",
           "contextualTitle": "8BitScript run settings",
           "visibility": "visible",
           "initialSize": 1
@@ -57,7 +57,7 @@
         {
           "id": "8bitscript.projects",
           "name": "Projects",
-          "icon": "media/8bitscript.svg",
+          "icon": "media/8bitscript-logo.svg",
           "contextualTitle": "8BitScript projects",
           "visibility": "visible",
           "initialSize": 4
