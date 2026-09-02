@@ -17,7 +17,7 @@
 // a message, not with a .prg missing half its logic.
 import { Codes, diagnostic } from '../diagnostics/index.mjs';
 import { NodeType } from '../ast/index.mjs';
-import { INTEGER_RANGES } from '../checker/index.mjs';
+import { resolveIntegerType } from '../types/index.mjs';
 
 /**
  * @typedef {object} IrProgram
@@ -89,19 +89,26 @@ class Lowering {
       return this.fail(node, 'a global needs an explicit type to be compilable');
     }
 
+    // Whatever spelling the programmer used — `u8` or `utinyint` — normalises
+    // to the same canonical id every backend keys its codegen tables by.
+    // `utinyint` and `u8` are one type from here on, never two.
     let type = annotation.name;
     let isVolatile = false;
+    let resolved;
     if (type === 'volatile') {
       const inner = annotation.typeArguments?.[0];
-      if (!inner || !INTEGER_RANGES[inner.name]) {
+      resolved = inner && resolveIntegerType(inner.name);
+      if (!resolved) {
         return this.fail(node, 'volatile<T> needs an integer T to be compilable');
       }
-      type = inner.name;
       isVolatile = true;
+    } else {
+      resolved = resolveIntegerType(type);
     }
-    if (!INTEGER_RANGES[type] && type !== 'bool') {
+    if (!resolved && type !== 'bool') {
       return this.fail(node, `a global of type ${annotation.name} is not compilable yet`);
     }
+    type = resolved ? resolved.canonicalName : 'bool';
 
     let address = null;
     for (const decorator of node.decorators ?? []) {

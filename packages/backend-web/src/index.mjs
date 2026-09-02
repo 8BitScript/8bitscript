@@ -11,11 +11,16 @@ import { createRequire } from 'node:module';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
-const AS_TYPE = {
-  u8: 'u8', i8: 'i8', u16: 'u16', i16: 'i16',
-  u24: 'u32', i24: 'i32', u32: 'u32', i32: 'i32',
-  bool: 'bool',
-};
+import { PRIMITIVE_INTEGER_TYPES } from '@8bitscript/compiler';
+
+// AssemblyScript has no 24-bit integer either, so mediumint/umediumint widen
+// the same way they do for the 6502 backend. Bits/signedness come from the
+// compiler's shared type registry rather than a second hand-written table.
+const NATIVE_WIDTH = { 8: 8, 16: 16, 24: 32, 32: 32 };
+const AS_TYPE = Object.fromEntries(
+  PRIMITIVE_INTEGER_TYPES.map((t) => [t.canonicalName, `${t.signed ? 'i' : 'u'}${NATIVE_WIDTH[t.bits]}`]),
+);
+AS_TYPE.bool = 'bool';
 
 function emitExpression(expr) {
   switch (expr.kind) {

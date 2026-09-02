@@ -8,6 +8,7 @@
 // Every token carries its offset and length. Diagnostics are built from those,
 // so a position is never recomputed by guesswork later.
 import { Codes, diagnostic } from '../diagnostics/index.mjs';
+import { INTEGER_TYPE_NAMES } from '../types/index.mjs';
 
 export const TokenKind = {
   Comment: 'comment',
@@ -28,8 +29,12 @@ export const KEYWORDS = new Set([
   'switch', 'case', 'default', 'true', 'false', 'asm6502',
 ]);
 
+// Every primitive integer spelling comes from the shared registry — the
+// canonical names (`utinyint`, `int`, ...) and the low-level aliases (`u8`,
+// `i32`, ...) — so this set can't drift out of sync with the checker, the
+// backends, or hover/completion.
 export const TYPE_NAMES = new Set([
-  'u8', 'i8', 'u16', 'i16', 'u24', 'i24', 'u32', 'i32',
+  ...INTEGER_TYPE_NAMES,
   'bool', 'void', 'ptr', 'array', 'volatile',
 ]);
 

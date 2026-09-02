@@ -10,13 +10,17 @@ import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
-const C_TYPE = {
-  u8: 'uint8_t', i8: 'int8_t',
-  u16: 'uint16_t', i16: 'int16_t',
-  u24: 'uint32_t', i24: 'int32_t',
-  u32: 'uint32_t', i32: 'int32_t',
-  bool: 'uint8_t',
-};
+import { PRIMITIVE_INTEGER_TYPES } from '@8bitscript/compiler';
+
+// C has no 24-bit integer, so mediumint/umediumint widen to the next native
+// width up. The bits/signedness driving this table come from the compiler's
+// own type registry — this file no longer keeps its own copy of what
+// `utinyint` (or its `u8` alias) means.
+const NATIVE_WIDTH = { 8: 8, 16: 16, 24: 32, 32: 32 };
+const C_TYPE = Object.fromEntries(
+  PRIMITIVE_INTEGER_TYPES.map((t) => [t.canonicalName, `${t.signed ? 'int' : 'uint'}${NATIVE_WIDTH[t.bits]}_t`]),
+);
+C_TYPE.bool = 'uint8_t';
 
 const DRIVER = { vic20: 'mos-vic20-clang', c64: 'mos-c64-clang' };
 

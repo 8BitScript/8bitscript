@@ -15,18 +15,7 @@
 // belongs after a binder that knows what names mean.
 import { Codes, diagnostic } from '../diagnostics/index.mjs';
 import { NodeType, walk } from '../ast/index.mjs';
-
-/** Inclusive value ranges of the machine integer types. */
-export const INTEGER_RANGES = {
-  u8: [0, 255],
-  u16: [0, 65535],
-  u24: [0, 16777215],
-  u32: [0, 4294967295],
-  i8: [-128, 127],
-  i16: [-32768, 32767],
-  i24: [-8388608, 8388607],
-  i32: [-2147483648, 2147483647],
-};
+import { resolveIntegerType } from '../types/index.mjs';
 
 /**
  * The constant value of an initialiser, or null when it is not a plain literal.
@@ -65,15 +54,19 @@ export function check(ast, file = '<unknown>') {
     if (n.type !== NodeType.VariableDeclaration) return;
 
     const typeName = n.typeAnnotation?.name;
-    const range = INTEGER_RANGES[typeName];
     // A type constructor such as ptr<u8> has type arguments and is not itself
-    // an integer, so the lookup above already excludes it.
-    if (!range || n.typeAnnotation?.typeArguments?.length) return;
+    // an integer, so it never resolves against the registry below.
+    if (n.typeAnnotation?.typeArguments?.length) return;
+    const resolved = typeName && resolveIntegerType(typeName);
+    if (!resolved) return;
 
     const literal = literalValue(n.initializer);
     if (!literal) return;
 
-    const [min, max] = range;
+    // The message keeps whatever the programmer actually wrote (`u8` or
+    // `utinyint`) even though both resolve to the same type: a diagnostic
+    // should point at the reader's own words, not a canonicalised rewrite.
+    const { min, max } = resolved;
     if (literal.value < min || literal.value > max) {
       diagnostics.push(
         diagnostic(

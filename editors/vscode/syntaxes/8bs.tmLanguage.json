@@ -135,9 +135,9 @@
           "match": "\\b(ptr|array|volatile)\\b(?=\\s*<)"
         },
         {
-          "comment": "Sized integers matched by shape, so widths not yet settled still colour.",
+          "comment": "Sized integers: the MySQL-inspired canonical spelling (tinyint/smallint/mediumint/int, u-prefixed for unsigned) plus the short systems-programming alias (i8/u8...).",
           "name": "support.type.primitive.8bs",
-          "match": "\\b([ui](?:8|16|24|32)|bool|void)\\b"
+          "match": "\\b(u?tinyint|u?smallint|u?mediumint|u?int|[ui](?:8|16|24|32)|bool|void)\\b"
         }
       ]
     },

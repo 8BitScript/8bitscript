@@ -217,6 +217,41 @@ implementation at build time, and a machine the object has no branch for is
 [the package model](packages.md); `@8bitscript/machine` is the working
 example.
 
+## Primitive integer types
+
+8BitScript's integer type names are MySQL-inspired rather than
+systems-programming abbreviations, because "a 3-byte integer" reads more
+plainly to someone who has never seen `i24` than the abbreviation does:
+
+| Canonical | Low-level alias | Signed | Range |
+| ----------- | --- | :---: | ----- |
+| `tinyint` | `i8` | yes | -128..127 |
+| `utinyint` | `u8` | no | 0..255 |
+| `smallint` | `i16` | yes | -32768..32767 |
+| `usmallint` | `u16` | no | 0..65535 |
+| `mediumint` | `i24` | yes | -8388608..8388607 |
+| `umediumint` | `u24` | no | 0..16777215 |
+| `int` | `i32` | yes | -2147483648..2147483647 |
+| `uint` | `u32` | no | 0..4294967295 |
+
+The name encodes storage size directly: `tinyint` is 1 byte, `smallint` is 2,
+`mediumint` is 3, `int` is 4 — the same convention MySQL uses, and `u` still
+means unsigned. `int`/`uint` are the 4-byte types on every target, VIC-20, C64,
+or web; nothing about their size varies by architecture.
+
+The low-level aliases (`i8`, `u8`, ...) are not a separate, smaller type
+system kept around for compatibility — every stage of the compiler resolves
+both spellings of a type to the same descriptor before doing anything with it,
+so `let x: utinyint = 1;` and `let x: u8 = 1;` produce identical diagnostics,
+IR, and generated code. `bigint`/`ubigint` are reserved for a future 8-byte
+type and are not recognised yet.
+
+All of this — the spellings, the ranges, the aliasing — comes from one
+registry in `packages/compiler/src/types/index.mjs`. The lexer, the checker,
+both backends, and the language server's hover/completion all read it rather
+than keeping their own copy, so a type can't mean something different in one
+stage than another.
+
 ## The checker rule that exists
 
 ```
@@ -236,16 +271,10 @@ It is still narrow on purpose: the initialiser has to be a literal, optionally
 negated. `let x: u8 = 200 + 100` is not folded, because constant folding needs a
 binder that knows what names refer to.
 
-The ranges it knows are the machine integer types:
-
-| Type | Range |
-| ---- | ----- |
-| `u8` | 0..255 |
-| `u16` | 0..65535 |
-| `i8` | -128..127 |
-| `i16` | -32768..32767 |
-
-`u24`/`i24` and `u32`/`i32` are also recognised.
+The ranges it checks against are the [primitive integer types](#primitive-integer-types)
+above, looked up by whichever spelling — canonical or alias — the programmer
+actually wrote; the message keeps that spelling too, rather than rewriting it
+to the canonical form.
 
 ## The parser
 

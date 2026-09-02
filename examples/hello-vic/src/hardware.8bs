@@ -1,10 +1,10 @@
 import { screen, input } from "@8bitscript/core";
 
 @address(0x900F)
-let vicColor: volatile<u8>;
+let vicColor: volatile<utinyint>;
 
-let buffer: array<u8, 16>;
-let cursor: ptr<u8>;
+let buffer: array<utinyint, 16>;
+let cursor: ptr<utinyint>;
 
 export function update(): void {
     if (input.left()) {
@@ -13,7 +13,7 @@ export function update(): void {
         cursor++;
     }
 
-    for (let i: u8 = 0; i < 16; i++) {
+    for (let i: utinyint = 0; i < 16; i++) {
         screen.putChar(i, 10, buffer[0]);
     }
 

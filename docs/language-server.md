@@ -5,9 +5,10 @@ nav_order: 4
 
 # Editor support
 
-8BitScript ships its own language server. Errors, and later hover, completion,
-and go-to-definition, come from the compiler itself rather than from an editor
-plugin that reimplements the language.
+8BitScript ships its own language server. Errors, built-in hover, and built-in
+completion come from the compiler itself rather than from an editor plugin
+that reimplements the language; go-to-definition and completion over your own
+code follow once a binder exists.
 
 ## The split
 
@@ -57,10 +58,34 @@ a package you have not installed, or one that is not an 8BitScript package, is
 underlined on the import line. Import resolution needs a saved file: an
 untitled buffer still gets every other diagnostic.
 
-Hover, completion, go-to-definition, and semantic tokens are **not
-implemented**. They need a binder and a symbol table, which do not exist — see
-[the compiler](compiler.md). They are API work rather than a second compiler
-once those land, which is the whole reason for this architecture.
+Hover and a first slice of completion, both for built-in constructs. Hovering
+a primitive type (`utinyint`, `u8`, `int`, ...), `volatile`, `ptr`, `array`,
+`asm6502`, or `@address` explains it in place:
+
+```
+let lives: utinyint = 3;
+           ~~~~~~~~
+           utinyint
+           Unsigned 1-byte integer.
+           Size: 1 byte / 8 bits
+           Range: 0 through 255
+           Low-level alias: u8
+```
+
+Completion offers the built-in type names — canonical spellings
+(`tinyint`/`utinyint`/`smallint`/`usmallint`/`mediumint`/`umediumint`/`int`/`uint`)
+first, then their low-level aliases (`i8`, `u8`, ...) — wherever a type can
+syntactically appear: after a `:` annotation, or inside `ptr<...>`,
+`array<...>`, or `volatile<...>`. See [the compiler](compiler.md#primitive-integer-types)
+for what each type means and how the aliasing works.
+
+Both come from one compiler API (`getHoverInfo`/`getCompletions` in
+`@8bitscript/compiler`) that recognises built-in syntax only — there is no
+binder yet, so a user's own variables, functions, and imports have no hover or
+completion of their own. That, along with go-to-definition and semantic
+tokens, waits on a binder and a symbol table — see [the compiler](compiler.md).
+It is API work rather than a second compiler once those land, which is the
+whole reason for this architecture.
 
 ## Two layers of highlighting
 
