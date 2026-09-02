@@ -203,13 +203,16 @@ test('@address + volatile lowers to a hardware global', () => {
 
 test('lowering is exhaustive-with-error, never silent', () => {
   // Every unsupported construct must produce 8BS3001, not vanish. Calls with
-  // arguments and calls used as expressions are no longer on this list —
-  // functions can take parameters and return values now — so these are
-  // constructs that stay unsupported: calling a call result, a call through
-  // member access, assigning through member access, and local variables.
+  // arguments, calls used as expressions, and a single level of namespace-
+  // qualified call/value access are no longer on this list — functions can
+  // take parameters and return values now, and `a.b(...)`/`a.b` are deferred
+  // to the linker as a possible namespace reference — so these are
+  // constructs that stay unsupported: calling a call result, a two-level
+  // qualified call, a two-level qualified value, assigning through member
+  // access, and local variables.
   for (const src of [
     'export function f(): void { g()(); }',
-    'export function f(): void { a.b(); }',
+    'export function f(): void { a.b.c(); }',
     'export function f(): void { x = g().y; }',
     'export function f(): void { a.b = 1; }',
     'function f(): void { let local: u8 = 1; }',

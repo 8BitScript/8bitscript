@@ -15,6 +15,7 @@ export const NodeType = {
   ImportDeclaration: 'ImportDeclaration',
   VariableDeclaration: 'VariableDeclaration',
   FunctionDeclaration: 'FunctionDeclaration',
+  NamespaceDeclaration: 'NamespaceDeclaration',
   Parameter: 'Parameter',
 
   BlockStatement: 'BlockStatement',
