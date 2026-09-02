@@ -16,4 +16,4 @@ build/
 
 # OS cruft
 .DS_Store
-.claude/worktrees/docs-redesign/
+.claude/worktrees/
