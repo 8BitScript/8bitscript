@@ -304,6 +304,7 @@ class ProjectsProvider {
       pinned && MACHINE_TARGETS.has(target) && 'machine',
       running && 'running',
       !project.toolchain && 'notoolchain',
+      !project.installed && 'uninstalled',
       project.example && 'example',
     ].filter(Boolean);
     item.contextValue = ['project', ...states].join('.');
@@ -311,6 +312,7 @@ class ProjectsProvider {
     item.description = [
       running && 'running',
       !project.toolchain && 'toolchain not installed',
+      project.toolchain && !project.installed && 'not installed',
       project.example && 'example',
       whereLabel(project),
     ]
@@ -328,13 +330,22 @@ class ProjectsProvider {
         pinned ? `Run: \`8bs ${commandArgs('run', target, region).join(' ')}\`` : '',
         project.toolchain
           ? `Toolchain: \`${project.toolchain}\``
-          : 'Toolchain: **not installed** — run `pnpm install` in the project.',
+          : `Toolchain: **not installed** — run \`${project.packageManager} install\` in the project.`,
+        project.installed
+          ? ''
+          : `Dependencies: **not installed** — run \`${project.packageManager} install\`, or use the Install button.`,
       ]
         .filter((line, i) => line !== '' || i === 1)
         .join('\n'),
     );
     item.iconPath = new vscode.ThemeIcon(
-      running ? 'loading~spin' : !project.toolchain ? 'warning' : project.example ? 'book' : 'package',
+      running
+        ? 'loading~spin'
+        : !project.toolchain || !project.installed
+          ? 'warning'
+          : project.example
+            ? 'book'
+            : 'package',
     );
     item.command = {
       command: 'vscode.open',
@@ -539,13 +550,64 @@ function registerProjectsView(context, output) {
     return picked?.target;
   }
 
+  /** `<package manager> install` in the project, as a task in its terminal. */
+  function installTask(project) {
+    const task = new vscode.Task(
+      { type: TASK_TYPE, command: 'install', project: relativeDir(project.dir), projectDir: project.dir },
+      folderOf(project.dir) ?? vscode.TaskScope.Workspace,
+      `${project.name}: install`,
+      TASK_TYPE,
+      new vscode.ShellExecution(project.packageManager, ['install'], { cwd: project.dir, env: taskEnv() }),
+    );
+    task.detail = `${project.packageManager} install  (${relativeDir(project.dir)})`;
+    task.presentationOptions = {
+      reveal: vscode.TaskRevealKind.Always,
+      panel: vscode.TaskPanelKind.Dedicated,
+      clear: true,
+      showReuseMessage: false,
+    };
+    return task;
+  }
+
+  async function install(node) {
+    const project = node?.project ?? (await pickProject('install', provider.visible));
+    if (!project) return;
+    const execution = await vscode.tasks.executeTask(installTask(project));
+    // Rescan once the install finishes, so the warning clears on its own.
+    const done = vscode.tasks.onDidEndTask((e) => {
+      if (e.execution === execution) {
+        done.dispose();
+        provider.refresh();
+      }
+    });
+    context.subscriptions.push(done);
+  }
+
+  /**
+   * A project whose dependencies are missing fails inside the compiler with
+   * a message about the first package it cannot find, which says nothing
+   * about the install. Offer the install instead of letting that happen.
+   */
+  async function requireInstalled(project) {
+    if (project.installed) return true;
+    const choice = await vscode.window.showWarningMessage(
+      `${project.name} has dependencies that are not installed.`,
+      { modal: false },
+      `Run ${project.packageManager} install`,
+      'Run anyway',
+    );
+    if (choice === 'Run anyway') return true;
+    if (choice) await install({ project });
+    return false;
+  }
+
   function requireToolchain(project) {
     if (project.toolchain) return true;
     output.appendLine(`No 8bs toolchain for ${project.name}: searched upward from ${project.dir}`);
     vscode.window
       .showErrorMessage(
-        `No 8bs toolchain found for ${project.name}. Run pnpm install in ${whereLabel(project)}, ` +
-          'or pnpm add -D @8bitscript/cli.',
+        `No 8bs toolchain found for ${project.name}. Run ${project.packageManager} install in ` +
+          `${whereLabel(project)}, or ${project.packageManager} add -D @8bitscript/cli.`,
         'Refresh',
       )
       .then((choice) => choice === 'Refresh' && provider.refresh());
@@ -557,6 +619,7 @@ function registerProjectsView(context, output) {
     if (!resolved) return;
     const { project, target } = resolved;
     if (!requireToolchain(project)) return;
+    if (!(await requireInstalled(project))) return;
     const task = makeTask(project, action, target, region ?? settings.getRegion());
     await vscode.tasks.executeTask(task);
   }
@@ -632,6 +695,7 @@ function registerProjectsView(context, output) {
   command('8bitscript.selectRegion', chooseRegion);
   command('8bitscript.toggleExamples', () => settings.setShowExamples(!settings.getShowExamples()));
   command('8bitscript.doctor', doctor);
+  command('8bitscript.install', install);
   command('8bitscript.run', (node) => execute('run', undefined, node));
   command('8bitscript.build', (node) => execute('build', undefined, node));
   command('8bitscript.runNtsc', (node) => execute('run', 'ntsc', node));

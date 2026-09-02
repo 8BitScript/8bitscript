@@ -97,6 +97,41 @@ function readPackage(dir) {
 }
 
 /**
+ * Whether a project's dependencies are installed: it declares some, and has
+ * a node_modules of its own to hold them. A project with no dependencies is
+ * always "installed". Walking up is deliberately not done here — the
+ * toolchain may legitimately come from a parent, but a dependency the entry
+ * file imports resolves from the project's own node_modules, and a missing
+ * one fails inside the compiler with a message about the package, not about
+ * the install.
+ */
+function isInstalled(dir, pkg) {
+  const declared = Object.keys({ ...pkg?.dependencies, ...pkg?.devDependencies });
+  if (declared.length === 0) return true;
+  return fs.existsSync(path.join(dir, 'node_modules'));
+}
+
+/**
+ * The package manager that owns a project: the nearest lockfile going
+ * upward decides, since in a workspace the lockfile lives at the root.
+ * pnpm is the default because it is what this toolchain is built with.
+ *
+ * @param {string} startDir
+ * @returns {'pnpm' | 'npm' | 'yarn'}
+ */
+function packageManagerFor(startDir) {
+  let dir = startDir;
+  for (;;) {
+    if (fs.existsSync(path.join(dir, 'pnpm-lock.yaml'))) return 'pnpm';
+    if (fs.existsSync(path.join(dir, 'yarn.lock'))) return 'yarn';
+    if (fs.existsSync(path.join(dir, 'package-lock.json'))) return 'npm';
+    const parent = path.dirname(dir);
+    if (parent === dir) return 'pnpm';
+    dir = parent;
+  }
+}
+
+/**
  * @typedef {object} Project
  * @property {string} name        package.json name, or the directory name
  * @property {string} description package.json description, or ''
@@ -105,6 +140,8 @@ function readPackage(dir) {
  * @property {string} entry       absolute path of the entry .8bs file
  * @property {string[]} targets   systems it builds for, in ALL_TARGETS order
  * @property {string | null} toolchain absolute path of its `8bs`, if installed
+ * @property {boolean} installed  its declared dependencies have a node_modules
+ * @property {'pnpm' | 'npm' | 'yarn'} packageManager what `install` should run
  */
 
 /**
@@ -131,6 +168,8 @@ function loadProject(configPath) {
     entry: path.resolve(dir, entry),
     targets,
     toolchain: findToolchain(dir),
+    installed: isInstalled(dir, pkg),
+    packageManager: packageManagerFor(dir),
   };
 }
 
@@ -296,7 +335,9 @@ module.exports = {
   commandArgs,
   findExamplesDir,
   findToolchain,
+  isInstalled,
   loadExamples,
+  packageManagerFor,
   loadProject,
   loadProjects,
   parseConfig,
