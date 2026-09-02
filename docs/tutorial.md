@@ -143,6 +143,10 @@ has the exact boundary.
 
 ## Where to go next
 
+- [Learn 8BitScript](learn/index.md) — a series of small projects that
+  explain a program part by part, starting with
+  [the main file](learn/step1-main-loop.md): what the files are called, what
+  `main()` is, and why it ends in a loop that never ends.
 - [The package model](packages.md) — how imports resolve, and how a package
   like `@8bitscript/machine` targets more than one machine from one API.
 - [The compiler](compiler.md) — the pipeline from source to `.prg` or

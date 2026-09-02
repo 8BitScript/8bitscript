@@ -107,7 +107,10 @@ Setup instructions for the host and retro toolchains live in
 [docs/setup/index.md](docs/setup/index.md). Once that's done,
 [the getting started tutorial](docs/tutorial.md) walks through cloning this
 repository and building and running `examples/border` — the milestone subset
-of the language, working end to end today, on the VIC-20 and the C64.
+of the language, working end to end today, on the VIC-20 and the C64. From
+there, [Learn 8BitScript](docs/learn/index.md) explains a program part by
+part, one small runnable project per step, starting with
+`examples/step1-main-loop`.
 
 ## Documentation
 
