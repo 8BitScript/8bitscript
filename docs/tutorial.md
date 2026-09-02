@@ -45,10 +45,11 @@ page that fixes it.
 ## Run an example
 
 [`examples/border`](https://github.com/8BitScript/8bitscript/tree/trunk/examples/border)
-is the example that goes end to end today: it cycles the screen border through
-every colour the machine has, on the VIC-20 and the C64, from one source file.
-It is the classic first sign of life on real hardware, so it is the one worth
-seeing run before reading any code.
+is the example that goes end to end today: it steps the border and background
+through four curated colour options, with a one-digit frame counter and the
+current option number shown in the top-left corner, on the VIC-20 and the C64,
+from one source file. It is the classic first sign of life on real hardware,
+so it is the one worth seeing run before reading any code.
 
 ```bash
 cd examples/border
@@ -57,8 +58,9 @@ pnpm start
 
 `8bs build`s the program for the unexpanded VIC-20 (`$1001`, no memory
 expansion — VICE's default), then opens it in `xvic`. You should see the
-border step through its colours, roughly twice a second. Close the emulator
-window when you're done.
+frame counter tick over roughly twice a second, and every ten ticks the
+screen switches to the next of the four colour options, with the option
+number changing alongside it. Close the emulator window when you're done.
 
 `package.json` has one script per target:
 
@@ -80,16 +82,47 @@ backend generated alongside it, so what the compiler did is never a mystery.
 `examples/border/src/main.8bs`:
 
 ```
-import { border, background, applyColors } from "@8bitscript/machine";
+import { border, background, applyColors, screen } from "@8bitscript/machine";
 
 let delay: volatile<usmallint> = 0;
+let frameTicks: utinyint = 0;
+let option: utinyint = 0;
+
+function applyOption(): void {
+    if (option == 0) {
+        border = 6;
+        background = 3;
+    } else if (option == 1) {
+        border = 2;
+        background = 7;
+    } else if (option == 2) {
+        border = 5;
+        background = 0;
+    } else {
+        border = 4;
+        background = 1;
+    }
+}
 
 export function main(): void {
-    background = 1;
+    applyOption();
+    applyColors();
+    screen.showDigit(0, 0);
+    screen.showDigit(1, 0);
 
     while (true) {
-        applyColors();
-        border = border + 1;
+        frameTicks = frameTicks + 1;
+        screen.showDigit(0, frameTicks % 10);
+
+        if (frameTicks % 10 == 0) {
+            option = option + 1;
+            if (option == 4) {
+                option = 0;
+            }
+            applyOption();
+            applyColors();
+            screen.showDigit(1, option);
+        }
 
         delay = 0;
         while (delay < 12000) {
@@ -102,16 +135,31 @@ export function main(): void {
 - `@8bitscript/machine` is not a real package on its own — it is a
   target-conditional entry that resolves to `@8bitscript/vic20` or
   `@8bitscript/c64` depending on which machine you build for. Both export the
-  same `border`, `background`, and `applyColors()`, so this file never
-  branches on the machine itself. See
+  same `border`, `background`, `applyColors()`, and `screen.showDigit()`, so
+  this file never branches on the machine itself. See
   [target-conditional entries](packages.md#target-conditional-entries) for how
   that resolution works.
 - `border` and `background` are ordinary globals until `applyColors()` writes
   them to hardware — one shared register on the VIC-20, two separate ones on
   the C64. That difference lives inside `applyColors`, not here.
 - `delay` is `volatile<usmallint>`: without `volatile`, the optimiser would notice
-  the inner loop computes nothing observable and delete it, and the border
-  would cycle faster than the eye can follow.
+  the inner loop computes nothing observable and delete it, and everything on
+  screen would move faster than the eye can follow.
+- `frameTicks` and `option` are ordinary globals too — there are no local
+  variables yet, so every value the loop needs to remember across a pass
+  lives at module scope, same as `delay`.
+- `applyOption()` maps the current `option` (0-3) to one of four curated
+  border/background pairs with an `if`/`else` chain, not a lookup table —
+  `array<T, N>` parses but isn't in the compiled subset yet either.
+- `screen.showDigit(slot, digit)` pokes a single decimal digit straight into
+  screen memory. There is no general text API yet (`screen.putChar`/`input.*`
+  are still roadmap items, not built — see [the package
+  model](packages.md#target-conditional-entries) and `docs/roadmap.md`), so
+  this is the whole on-screen "display" surface today: slot 0 shows the frame
+  counter's ones digit, slot 1 shows the current option number. There is
+  likewise no keyboard or joystick input on any target, so "choosing" an
+  option means editing `applyOption()` and rebuilding, not pressing a key
+  while the program runs.
 
 `pnpm run start:web` runs a *different* file, `main.web.8bs`: a browser tab
 calls the program back once per frame instead of handing it the whole
@@ -129,9 +177,11 @@ rebuild and run again:
 pnpm start
 ```
 
-A larger bound slows the cycle down; a smaller one speeds it up. Try changing
-`background = 1;` to another value too, and watch the background colour
-change along with it.
+A larger bound slows everything down, frame counter included; a smaller one
+speeds it up. Try changing one of `applyOption()`'s colour pairs — option
+0's `background = 3;`, say — to another value, or add a fifth `else if` case
+and bump `main()`'s `option == 4` to `== 5`, and watch a new option join the
+rotation.
 
 ## What doesn't compile yet
 

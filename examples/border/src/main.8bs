@@ -1,29 +1,76 @@
-// A steady screen and a border that cycles through every colour the machine
-// has, one step roughly every half second — the classic first sign of life,
-// on whichever machine you build for.
+// A screen with three things going on: a small frame counter, a curated set
+// of colour options the program cycles through, and the border/background
+// colours it sets from whichever option is currently picked — the classic
+// first sign of life, now with a bit more happening on screen, on whichever
+// machine you build for.
 //
 // @8bitscript/machine is not a real module of its own: at build time it
 // resolves to the target package for the machine being built —
-// @8bitscript/vic20 or @8bitscript/c64. Both export the same surface: the
-// `border` and `background` colour values, and applyColors(), which writes
-// them to the hardware. The VIC-20 packs both colours into one register
-// ($900F, eight border colours); the C64 gives each its own ($D020/$D021,
-// sixteen). That difference lives inside applyColors, and this file never
-// sees it.
-import { border, background, applyColors } from "@8bitscript/machine";
+// @8bitscript/vic20 or @8bitscript/c64. All three targets export the same
+// surface: `border`/`background`/`applyColors()` for the colour registers,
+// and `screen.showDigit(slot, digit)` for two fixed on-screen digits. There
+// is no general text API yet (that's `screen.putChar`/`input.*` in
+// docs/roadmap.md, not built), so those two digits are the whole "screen"
+// surface today — and there is no keyboard/joystick input at all, so
+// "changing" an option here means editing `applyOption` below and
+// rebuilding, not pressing a key while it runs.
+import { border, background, applyColors, screen } from "@8bitscript/machine";
 
 // volatile, or the optimiser notices the delay loop computes nothing and
-// deletes it — and the border cycles faster than the eye can see again.
+// deletes it — and everything on screen moves faster than the eye can see.
 let delay: volatile<usmallint> = 0;
 
+// The frame counter (its ones digit is shown in slot 0) and the index of
+// the current colour option (shown in slot 1, out of the four below).
+let frameTicks: utinyint = 0;
+let option: utinyint = 0;
+
+// Four curated border/background pairs instead of cycling raw values 0-255
+// — values kept at 7 or under for border, since the VIC-20's border
+// register only has 3 bits either way. This is the "which colours are
+// displayed" choice: add a case, bump the wrap check in main() below from
+// 4, and rebuild.
+function applyOption(): void {
+    if (option == 0) {
+        border = 6;      // blue
+        background = 3;  // cyan
+    } else if (option == 1) {
+        border = 2;      // red
+        background = 7;  // yellow
+    } else if (option == 2) {
+        border = 5;      // green
+        background = 0;  // black
+    } else {
+        border = 4;      // purple
+        background = 1;  // white
+    }
+}
+
 export function main(): void {
-    background = 1;
+    applyOption();
+    applyColors();
+    screen.showDigit(0, 0);
+    screen.showDigit(1, 0);
 
     while (true) {
-        applyColors();
-        // Wraps at 256, which both palette sizes divide evenly; each
-        // machine's applyColors masks it to the colours it actually has.
-        border = border + 1;
+        // Not tied to real vsync — there's no timer API yet either — but it
+        // advances once per pass through this loop, same as the colour
+        // change below always did, so it's visibly alive even while an
+        // option holds.
+        frameTicks = frameTicks + 1;
+        screen.showDigit(0, frameTicks % 10);
+
+        // Every ten ticks, move to the next colour option and show which
+        // one is active.
+        if (frameTicks % 10 == 0) {
+            option = option + 1;
+            if (option == 4) {
+                option = 0;
+            }
+            applyOption();
+            applyColors();
+            screen.showDigit(1, option);
+        }
 
         delay = 0;
         while (delay < 12000) {

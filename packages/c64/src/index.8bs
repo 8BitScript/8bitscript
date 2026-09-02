@@ -39,3 +39,19 @@ export function applyColors(): void {
     borderColor = border & 15;
     backgroundColor = background & 15;
 }
+
+// ---- the friendly screen surface (immediate-apply) -------------------------
+//
+// There is no text API yet (that's `screen.putChar`/`input.*` in
+// docs/roadmap.md, not built), so this is the plainest thing that can stand
+// in for one: poke a single decimal digit into one of a few fixed cells near
+// the top-left corner. Screen RAM defaults to $0400 (40x25) and colour RAM is
+// always at the fixed $D800, independent of where screen RAM is banked.
+// Screen codes 0-9 equal '0'-'9' in the C64's character ROM, same as the
+// VIC-20's, so no lookup table is needed.
+export namespace screen {
+    function showDigit(slot: u8, digit: u8): void {
+        memory.write(0x0400 + slot, 0x30 + (digit % 10));
+        memory.write(0xD800 + slot, 1); // white, so the digit reads on any background
+    }
+}
