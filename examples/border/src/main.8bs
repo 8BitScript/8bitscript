@@ -14,7 +14,7 @@ import { border, background, applyColors } from "@8bitscript/machine";
 
 // volatile, or the optimiser notices the delay loop computes nothing and
 // deletes it — and the border cycles faster than the eye can see again.
-let delay: volatile<u16> = 0;
+let delay: volatile<usmallint> = 0;
 
 export function main(): void {
     background = 1;

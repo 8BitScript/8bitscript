@@ -81,7 +81,7 @@ mystery.
 ```
 import { border, background, applyColors } from "@8bitscript/machine";
 
-let delay: volatile<u16> = 0;
+let delay: volatile<usmallint> = 0;
 
 export function main(): void {
     background = 1;
@@ -108,7 +108,7 @@ export function main(): void {
 - `border` and `background` are ordinary globals until `applyColors()` writes
   them to hardware — one shared register on the VIC-20, two separate ones on
   the C64. That difference lives inside `applyColors`, not here.
-- `delay` is `volatile<u16>`: without `volatile`, the optimiser would notice
+- `delay` is `volatile<usmallint>`: without `volatile`, the optimiser would notice
   the inner loop computes nothing observable and delete it, and the border
   would cycle faster than the eye can follow.
 
