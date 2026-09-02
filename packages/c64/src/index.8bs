@@ -42,16 +42,30 @@ export function applyColors(): void {
 
 // ---- the friendly screen surface (immediate-apply) -------------------------
 //
-// There is no text API yet (that's `screen.putChar`/`input.*` in
-// docs/roadmap.md, not built), so this is the plainest thing that can stand
-// in for one: poke a single decimal digit into one of a few fixed cells near
-// the top-left corner. Screen RAM defaults to $0400 (40x25) and colour RAM is
+// There is no general text API yet (that's `screen.putChar(x, y, code)`/
+// `input.*` in docs/roadmap.md, not built — this `putChar` takes one flat
+// cell index instead of x/y), so these are the plainest things that can
+// stand in for one: poke one cell's character code, poke one cell's colour,
+// and how many cells the whole screen has. Whether a caller uses these to
+// clear the screen, lay out a label, or nothing at all is entirely up to the
+// caller — this package draws nothing on its own. Screen RAM defaults to
+// $0400 (40x25, hence 1000 cells — needs u16, not u8) and colour RAM is
 // always at the fixed $D800, independent of where screen RAM is banked.
-// Screen codes 0-9 equal '0'-'9' in the C64's character ROM, same as the
-// VIC-20's, so no lookup table is needed.
 export namespace screen {
-    function showDigit(slot: u8, digit: u8): void {
-        memory.write(0x0400 + slot, 0x30 + (digit % 10));
-        memory.write(0xD800 + slot, 1); // white, so the digit reads on any background
+    const CellCount: u16 = 1000; // 40 columns x 25 rows
+
+    function putChar(cell: u16, code: u8): void {
+        memory.write(0x0400 + cell, code);
+    }
+
+    function putColor(cell: u16, color: u8): void {
+        memory.write(0xD800 + cell, color & 15);
+    }
+
+    // Screen codes 0-9 equal '0'-'9' in the C64's character ROM, same as the
+    // VIC-20's, so no lookup table is needed here.
+    function showDigit(cell: u16, digit: u8): void {
+        screen.putChar(cell, 0x30 + (digit % 10));
+        screen.putColor(cell, 1); // white, so the digit reads on any background
     }
 }

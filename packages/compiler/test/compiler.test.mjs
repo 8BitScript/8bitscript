@@ -382,6 +382,14 @@ test('a call to a name that resolves to nothing is 8BS2007', () => {
 // conditional resolution actually switches implementations.
 
 const BORDER_ENTRY = join(HERE, '..', '..', '..', 'examples', 'border', 'src', 'main.8bs');
+// main.8bs now also reaches for screen.putChar/putColor/CellCount to clear
+// the screen and draw its labels — real screen-memory primitives that only
+// @8bitscript/vic20 and @8bitscript/c64 have, deliberately, since the web
+// target has no leftover BASIC text to blank and no character grid to lay
+// out against (see @8bitscript/web's header comment). main.web.8bs is the
+// file 8bs.config.ts actually points web builds at, so it's the web
+// implementation to prove conditional resolution against below.
+const BORDER_WEB_ENTRY = join(HERE, '..', '..', '..', 'examples', 'border', 'src', 'main.web.8bs');
 
 test('a conditional entry resolves to the vic20 implementation', () => {
   const { ir, diagnostics } = link(readFileSync(BORDER_ENTRY, 'utf8'), BORDER_ENTRY, { machine: 'vic20' });
@@ -398,8 +406,8 @@ test('the same entry resolves to the c64 implementation', () => {
   assert.ok(!ir.globals.some((g) => g.name === 'vicColor'));
 });
 
-test('the same entry resolves to the web implementation', () => {
-  const { ir, diagnostics } = link(readFileSync(BORDER_ENTRY, 'utf8'), BORDER_ENTRY, { machine: 'web' });
+test('the web entry resolves to the web implementation', () => {
+  const { ir, diagnostics } = link(readFileSync(BORDER_WEB_ENTRY, 'utf8'), BORDER_WEB_ENTRY, { machine: 'web' });
   assert.deepEqual(diagnostics, []);
   assert.ok(ir.globals.some((g) => g.name === 'border'));
   assert.ok(!ir.globals.some((g) => g.name === 'vicColor' || g.name === 'borderColor'));

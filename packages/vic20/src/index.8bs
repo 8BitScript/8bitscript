@@ -110,14 +110,28 @@ export namespace screen {
     // Screen memory for the *unexpanded* VIC-20 — the 22x23 character screen
     // this backend already targets (see docs/compiler.md: load address
     // $1001, `__memory_expansion` pinned to 0) — starts at $1E00, with its
-    // colour nybbles at the fixed $9600. There is no text API yet (that's
-    // `screen.putChar`/`input.*` in docs/roadmap.md, not built), so this is
-    // the plainest thing that can stand in for one: poke a single decimal
-    // digit into one of a few fixed cells near the top-left corner. Screen
-    // codes 0-9 equal '0'-'9' in every VIC/C64 character ROM charset, so no
-    // lookup table is needed.
-    function showDigit(slot: utinyint, digit: utinyint): void {
-        memory.write(0x1E00 + slot, 0x30 + (digit % 10));
-        memory.write(0x9600 + slot, 1); // white, so the digit reads on any background
+    // colour nybbles at the fixed $9600. There is no general text API yet
+    // (that's `screen.putChar(x, y, code)`/`input.*` in docs/roadmap.md, not
+    // built — this `putChar` takes one flat cell index instead of x/y), so
+    // these are the plainest things that can stand in for one: poke one
+    // cell's character code, poke one cell's colour, and how many cells the
+    // whole screen has. Whether a caller uses these to clear the screen,
+    // lay out a label, or nothing at all is entirely up to the caller — this
+    // package draws nothing on its own.
+    const CellCount: usmallint = 506; // 22 columns x 23 rows
+
+    function putChar(cell: usmallint, code: utinyint): void {
+        memory.write(0x1E00 + cell, code);
+    }
+
+    function putColor(cell: usmallint, color: utinyint): void {
+        memory.write(0x9600 + cell, color & 0x0F);
+    }
+
+    // Screen codes 0-9 equal '0'-'9' in every VIC/C64 character ROM charset,
+    // so no lookup table is needed here.
+    function showDigit(cell: usmallint, digit: utinyint): void {
+        screen.putChar(cell, 0x30 + (digit % 10));
+        screen.putColor(cell, 1); // white, so the digit reads on any background
     }
 }
