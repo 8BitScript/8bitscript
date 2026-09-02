@@ -1,8 +1,9 @@
-// The web version of examples/border. Same colours, same @8bitscript/machine
-// import, different shape: main.8bs's `while (true)` plus a busy-wait delay
-// counter assumes the program owns the machine forever, which is true on a
-// VIC-20 or a C64 and false in a browser tab, where something is always
-// waiting for control back — see docs/learn/step1-main-loop.md.
+// The web version of examples/border. Same idea — a frame counter, a
+// curated set of colour options cycled and shown — different shape:
+// main.8bs's `while (true)` plus a busy-wait delay counter assumes the
+// program owns the machine forever, which is true on a VIC-20 or a C64 and
+// false in a browser tab, where something is always waiting for control
+// back — see docs/learn/step1-main-loop.md.
 //
 // So here `main()` only sets up, once, and `frame()` is the per-frame
 // callback the host calls back into on every logical tick of its own
@@ -13,22 +14,51 @@
 // half second" mean the same thing on every screen this runs on. There is no
 // web equivalent of `--pal` for exactly that reason: nothing here is tied to
 // a machine's real refresh rate to begin with.
-import { border, background, applyColors } from "@8bitscript/machine";
+import { border, background, applyColors, screen } from "@8bitscript/machine";
 
 let framesUntilStep: utinyint = 30;
+let frameTicks: utinyint = 0;
+let option: utinyint = 0;
+
+// The same four curated border/background pairs as main.8bs — kept in sync
+// by hand, since there's no shared module either file could pull this from
+// yet without duplicating the whole import list.
+function applyOption(): void {
+    if (option == 0) {
+        border = 6;      // blue
+        background = 3;  // cyan
+    } else if (option == 1) {
+        border = 2;      // red
+        background = 7;  // yellow
+    } else if (option == 2) {
+        border = 5;      // green
+        background = 0;  // black
+    } else {
+        border = 4;      // purple
+        background = 1;  // white
+    }
+}
 
 export function main(): void {
-    background = 1;
+    applyOption();
     applyColors();
+    screen.showDigit(0, 0);
+    screen.showDigit(1, 0);
 }
 
 export function frame(): void {
+    frameTicks = frameTicks + 1;
+    screen.showDigit(0, frameTicks % 10);
+
     framesUntilStep = framesUntilStep - 1;
     if (framesUntilStep == 0) {
         framesUntilStep = 30;
-        // Wraps at 256, which the web palette's 16 colours divide evenly;
-        // applyColors() masks it to the colours it actually has.
-        border = border + 1;
+        option = option + 1;
+        if (option == 4) {
+            option = 0;
+        }
+        applyOption();
         applyColors();
+        screen.showDigit(1, option);
     }
 }

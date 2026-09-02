@@ -109,6 +109,16 @@ async function boot() {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = COLORS[mem[1] & 15];
     ctx.fillRect(BORDER_PX, BORDER_PX, canvas.width - BORDER_PX * 2, canvas.height - BORDER_PX * 2);
+
+    // Bytes 2 and 3 are the two screen.showDigit() slots — the web
+    // target's stand-in for the on-screen digits @8bitscript/vic20 and
+    // @8bitscript/c64 poke straight into real screen RAM for, agreed on in
+    // @8bitscript/web's WebRegisters.
+    ctx.font = '16px ui-monospace, Menlo, monospace';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(String(mem[2] % 10), BORDER_PX + 6, BORDER_PX + 4);
+    ctx.fillText(String(mem[3] % 10), BORDER_PX + 20, BORDER_PX + 4);
   }
 
   instance.exports.main();
