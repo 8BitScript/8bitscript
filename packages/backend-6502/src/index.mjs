@@ -18,18 +18,6 @@ const C_TYPE = {
   bool: 'uint8_t',
 };
 
-// A build target names a machine and a video region separately —
-// 'vic20-ntsc', 'c64-pal' — because the two regions of a machine have
-// different VIC/VIC-II timing and screen geometry. Neither the driver nor
-// the compile flags below vary by region today (there is no region-specific
-// codegen yet), only by machine, so every caller that needs "which SDK
-// driver" or "which linker flags" goes through the machine half only.
-export function parseMachineTarget(target) {
-  const match = /^(vic20|c64)-(ntsc|pal)$/.exec(target ?? '');
-  if (!match) return null;
-  return { machine: match[1], region: match[2] };
-}
-
 const DRIVER = { vic20: 'mos-vic20-clang', c64: 'mos-c64-clang' };
 
 // Per-machine compile flags.
@@ -138,20 +126,21 @@ export function emitC(ir) {
 /**
  * Compile IR to a .prg via LLVM-MOS.
  *
+ * Region (NTSC/PAL) plays no part here: it changes VICE's machine model at
+ * run time, not codegen, so the backend only ever needs to know the machine.
+ *
  * @param {object} ir
- * @param {{ target: 'vic20-ntsc'|'vic20-pal'|'c64-ntsc'|'c64-pal', outFile: string }} options
+ * @param {{ machine: 'vic20'|'c64', outFile: string }} options
  * @returns {Promise<{ ok: boolean, cFile?: string, error?: string }>}
  */
-export async function buildPrg(ir, { target, outFile }) {
+export async function buildPrg(ir, { machine, outFile }) {
   if (ir.imports?.length) {
     // Unresolved imports mean the caller skipped the linker. Refusing here is
     // what keeps a lower→backend shortcut from silently dropping modules.
     return { ok: false, error: 'the IR still has unresolved imports: link() it before the backend' };
   }
-  const parsed = parseMachineTarget(target);
-  if (!parsed) return { ok: false, error: `backend-6502 has no driver for target '${target}'` };
-  const { machine } = parsed;
   const driverName = DRIVER[machine];
+  if (!driverName) return { ok: false, error: `backend-6502 has no driver for machine '${machine}'` };
 
   const home = process.env.LLVM_MOS_HOME;
   if (!home) {

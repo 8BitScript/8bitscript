@@ -1,17 +1,15 @@
 // `8bs run <target>` — build, then actually run the program.
 //
-//   8bs run vic20-ntsc   builds the .prg and opens it in the VICE VIC-20
-//                        emulator, machine model NTSC (60fps)
-//   8bs run vic20-pal    the same, machine model PAL (50fps)
-//   8bs run c64-ntsc     the same idea, in the C64 emulator
-//   8bs run c64-pal
+//   8bs run vic20        builds the .prg and opens it in the VICE VIC-20
+//                        emulator, machine model NTSC (60fps) — the default
+//   8bs run vic20 --pal  the same, machine model PAL (50fps)
+//   8bs run c64          the same idea, in the C64 emulator (NTSC default)
+//   8bs run c64 --pal
 //   8bs run web          builds the .wasm, instantiates it, calls main()
 //                        once, and prints the exported globals — a
 //                        provisional harness that stands in until a real
 //                        browser runtime exists
 import { readFile } from 'node:fs/promises';
-
-import { parseMachineTarget } from '@8bitscript/backend-6502';
 
 import { compile } from './build.mjs';
 
@@ -41,14 +39,16 @@ const MODEL_ARGS = {
 
 /** @returns {Promise<number>} exit code */
 export async function run(args) {
-  const target = args.find((a) => !a.startsWith('-'));
+  const pal = args.includes('--pal');
+  const positionals = args.filter((a) => !a.startsWith('-'));
+  const target = positionals[0];
   if (!target) {
-    process.stderr.write('Usage: 8bs run <vic20-ntsc|vic20-pal|c64-ntsc|c64-pal|web> [entry.8bs]\n');
+    process.stderr.write('Usage: 8bs run <vic20|c64|web> [--pal] [entry.8bs]\n');
     return 2;
   }
-  const entry = args.filter((a) => !a.startsWith('-'))[1];
+  const entry = positionals[1];
 
-  const { ok, outFile } = await compile(target, entry);
+  const { ok, outFile } = await compile(target, entry, { pal });
   if (!ok) return 1;
 
   if (target === 'web') {
@@ -68,14 +68,22 @@ export async function run(args) {
     return 0;
   }
 
-  // build() already rejected anything that isn't a valid target, so this
-  // always matches for vic20-ntsc/vic20-pal/c64-ntsc/c64-pal.
-  const { machine, region } = parseMachineTarget(target);
+  // build() already rejected anything that isn't vic20/c64, so this
+  // always matches.
+  const machine = target;
+  const region = pal ? 'pal' : 'ntsc';
   const emulator = EMULATOR[machine];
   process.stdout.write(`starting ${emulator} (${region}); close the emulator window to finish.\n`);
   const { spawn } = await import('node:child_process');
   return new Promise((resolvePromise) => {
-    const emulatorArgs = [...(EMULATOR_ARGS[machine] ?? []), ...MODEL_ARGS[machine][region], '-autostart', outFile];
+    const emulatorArgs = [
+      ...(EMULATOR_ARGS[machine] ?? []),
+      ...MODEL_ARGS[machine][region],
+      // Skip the "really quit?" confirmation dialog — closing the emulator
+      // window during dev/test cycles should not need a click every time.
+      '+confirmonexit',
+      '-autostart', outFile,
+    ];
     const child = spawn(emulator, emulatorArgs, { stdio: 'inherit' });
     child.on('error', () => {
       process.stderr.write(`8bs run: cannot start ${emulator}. Run '8bs doctor' — docs/setup/vice.md\n`);
