@@ -17,6 +17,10 @@ export const nav = [
     url: '/about',
   },
   {
+    title: 'Roadmap',
+    url: '/roadmap',
+  },
+  {
     title: 'The package model',
     url: '/packages',
   },
