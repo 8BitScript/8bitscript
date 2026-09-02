@@ -18,6 +18,7 @@ const { LanguageClient, TransportKind } = require('vscode-languageclient/node');
 
 const { BINARY, findToolchain } = require('./projects.cjs');
 const { registerProjectsView } = require('./projectsView.cjs');
+const { registerControlsView } = require('./controlsView.cjs');
 
 let client;
 let output;
@@ -107,7 +108,11 @@ function activate(context) {
     }),
   );
 
-  registerProjectsView(context, output);
+  const projects = registerProjectsView(context, output);
+  registerControlsView(context, {
+    hasExamples: () => projects.hasExamples(),
+    onDidChange: projects.onDidChangeTreeData,
+  });
 
   tryStart();
 }
