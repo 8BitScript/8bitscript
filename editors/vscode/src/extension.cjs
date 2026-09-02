@@ -106,7 +106,7 @@ function tryStart({ quiet } = {}) {
 }
 
 function activate(context) {
-  output = vscode.window.createOutputChannel('8BitScript');
+  output = vscode.window.createOutputChannel('8BitScript', { log: true });
   context.subscriptions.push(output);
 
   // A .8bs file may be opened after activation, or in a project the first scan
