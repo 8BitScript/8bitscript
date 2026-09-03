@@ -3,29 +3,34 @@
 // The module entry point named by the "8bitscript".entry field in this
 // package's package.json, resolved and linked for:
 //
-//     import { border, background, applyColors } from "@8bitscript/web";
+//     import { border, background, applyColors, screen } from "@8bitscript/web";
 //
 // There is no $900F or $D020 here: the web target has no fixed hardware, so
 // "the screen" is a canvas the host paints from wasm's own linear memory
 // (the `--initialMemory 1` page every web build reserves, per
-// @8bitscript/backend-web). This package agrees on two fixed byte offsets in
-// that memory — one for border, one for background — and applyColors()
-// writes there. The host (packages/cli's browser runtime,
-// packages/cli/src/web-runtime.mjs) reads the same two bytes once per
-// logical frame and paints them onto the canvas. It is the same
+// @8bitscript/backend-web). This package agrees on a handful of fixed byte
+// offsets in that memory — two for border/background, and a virtual
+// character screen for everything `screen` pokes — and the host (packages/
+// cli's browser runtime, packages/cli/src/web-runtime.mjs) reads them once
+// per painted frame and draws them onto the canvas. It is the same
 // deferred-apply contract @8bitscript/vic20 and @8bitscript/c64 use for
 // their registers, aimed at a buffer instead.
 namespace WebRegisters {
     const BorderOffset: usmallint = 0;
     const BackgroundOffset: usmallint = 1;
-    // Two more agreed-on bytes (offsets 2 and 3, one per `showDigit` slot),
-    // the same deferred-apply contract as border and background above:
-    // `screen.showDigit()` writes here, and the host reads them once per
-    // painted frame and draws them as text — the web target's stand-in for
-    // the on-screen digits @8bitscript/vic20 and @8bitscript/c64 poke
-    // straight into real screen RAM for, since there is no general text API
-    // on any target yet (docs/roadmap.md).
-    const DigitSlot0Offset: usmallint = 2;
+    // A virtual character screen, the same deferred-apply contract as
+    // border/background above, aimed at a buffer instead of a register:
+    // `screen.putChar()`/`putColor()` write here, and the host
+    // (packages/cli/src/web-runtime.mjs) reads them once per painted frame
+    // and draws whatever isn't blank as text. 1000 cells, 40 wide — the
+    // C64's own screen shape (see @8bitscript/c64), picked as a safe
+    // superset of the VIC-20's smaller 506-cell one so the same program's
+    // cell numbers never run off the end of this buffer either. Two
+    // side-by-side regions, not interleaved, so a caller that only ever
+    // touches a handful of cells (as this example does) leaves most of
+    // both untouched.
+    const CharBase: usmallint = 2;
+    const ColorBase: usmallint = 1002;
 }
 
 // ---- the common colour surface (deferred-apply) ----------------------------
@@ -48,8 +53,24 @@ export function applyColors(): void {
 }
 
 // ---- the friendly screen surface (immediate-apply) -------------------------
+//
+// Same three names, same shapes, as @8bitscript/vic20's and
+// @8bitscript/c64's `screen` namespace — a program written against this
+// surface doesn't know or care that "screen memory" is a real 6502 address
+// on two targets and a wasm-memory offset on this one.
 export namespace screen {
-    function showDigit(slot: utinyint, digit: utinyint): void {
-        memory.write(WebRegisters.DigitSlot0Offset + slot, digit % 10);
+    const CellCount: usmallint = 1000; // 40 columns x 25 rows
+
+    function putChar(cell: usmallint, code: utinyint): void {
+        memory.write(WebRegisters.CharBase + cell, code);
+    }
+
+    function putColor(cell: usmallint, color: utinyint): void {
+        memory.write(WebRegisters.ColorBase + cell, color & 0x0F);
+    }
+
+    function showDigit(cell: usmallint, digit: utinyint): void {
+        screen.putChar(cell, 0x30 + (digit % 10));
+        screen.putColor(cell, 1);
     }
 }

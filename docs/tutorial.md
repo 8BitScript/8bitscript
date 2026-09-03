@@ -47,10 +47,10 @@ page that fixes it.
 [`examples/border`](https://github.com/8BitScript/8bitscript/tree/trunk/examples/border)
 is the example that goes end to end today: it clears the leftover BASIC boot
 screen, labels a `TICK` counter and the current `OPTION` number, and steps
-the border and background through four curated colour combinations, on the
-VIC-20, the C64, and the web, from one source file (two, counting the web's —
-see below). It is the classic first sign of life on real hardware, so it is
-the one worth seeing run before reading any code.
+the border and background through four curated colour combinations — one
+program, one source file, on the VIC-20, the C64, *and* the web. It is the
+classic first sign of life on real hardware, so it is the one worth seeing
+run before reading any code.
 
 ```bash
 cd examples/border
@@ -61,20 +61,20 @@ pnpm start
 expansion — VICE's default), then opens it in `xvic`. You should see the
 BASIC banner and `READY.` prompt disappear, replaced by a single line reading
 `TICK` and `OPTION` near the top of the screen; the digit after `TICK` ticks
-over roughly twice a second — it counts passes through the program's own
-loop, not real display frames, which is why it's not called "FRAME": the
-display itself is still refreshing at its usual 50/60Hz throughout. Every ten
+over roughly twice a second — it counts *ticks*, not real display frames,
+which is why it's not called "FRAME": see [what the program
+does](#what-the-program-does) below for what a tick actually is. Every ten
 ticks the screen switches to the next of the four colour options, with the
 digit after `OPTION` changing alongside it. Close the emulator window when
-you're done. `pnpm run start:web` shows the identical line drawn over the
-canvas instead — same wording, same layout, same twice-a-second/every-ten-
-ticks cadence, so the two feel like the same program rather than two
-different demos that happen to share a name — plus a third number, `FPS`,
-that only the web version has: how many times `frame()` actually ran in the
-last real second, sampled once a second. It should read ~60 no matter the
-display's actual refresh rate, since that's the whole point of the fixed
-60Hz logical step described below — `FPS` is how you check that claim
-instead of taking it on faith.
+you're done.
+
+`pnpm run start:web` runs the *identical* file and shows the identical line
+drawn over the canvas instead — same wording, same layout, same cadence, so
+the two read as one program rather than two demos that happen to share a
+name. It also shows a second, clearly separate number in the corner, `FPS`:
+how many times the program's own `frame()` actually ran in the last real
+second, sampled once a second. It should read ~60 no matter the display's
+actual refresh rate — that claim is checked below, not just made.
 
 `package.json` has one script per target:
 
@@ -98,7 +98,7 @@ backend generated alongside it, so what the compiler did is never a mystery.
 ```
 import { border, background, applyColors, screen } from "@8bitscript/machine";
 
-let delay: volatile<usmallint> = 0;
+let logicalFramesUntilTick: utinyint = 30;
 let ticks: utinyint = 0;
 let option: utinyint = 0;
 let clearCell: usmallint = 0;
@@ -160,8 +160,13 @@ export function main(): void {
     applyColors();
     screen.showDigit(5, 0);
     screen.showDigit(14, 0);
+}
 
-    while (true) {
+export function frame(): void {
+    logicalFramesUntilTick = logicalFramesUntilTick - 1;
+    if (logicalFramesUntilTick == 0) {
+        logicalFramesUntilTick = 30;
+
         ticks = ticks + 1;
         screen.showDigit(5, ticks % 10);
 
@@ -174,46 +179,62 @@ export function main(): void {
             applyColors();
             screen.showDigit(14, option);
         }
-
-        delay = 0;
-        while (delay < 12000) {
-            delay = delay + 1;
-        }
     }
 }
 ```
 
 - `@8bitscript/machine` is not a real package on its own — it is a
-  target-conditional entry that resolves to `@8bitscript/vic20` or
-  `@8bitscript/c64` depending on which machine you build for. Both export the
-  same `border`, `background`, `applyColors()`, and the `screen` namespace, so
-  this file never branches on the machine itself. See
-  [target-conditional entries](packages.md#target-conditional-entries) for how
-  that resolution works.
+  target-conditional entry that resolves to `@8bitscript/vic20`,
+  `@8bitscript/c64`, or `@8bitscript/web`, depending on which machine you
+  build for. All three export the same `border`, `background`,
+  `applyColors()`, and `screen` namespace, so this file never branches on
+  the machine itself. See [target-conditional
+  entries](packages.md#target-conditional-entries) for how that resolution
+  works.
 - `border` and `background` are ordinary globals until `applyColors()` writes
   them to hardware — one shared register on the VIC-20, two separate ones on
-  the C64. That difference lives inside `applyColors`, not here.
-- `delay` is `volatile<usmallint>`: without `volatile`, the optimiser would notice
-  the inner loop computes nothing observable and delete it, and everything on
-  screen would move faster than the eye can follow.
-- `ticks`, `option`, and `clearCell` are ordinary globals too — there
-  are no local variables yet, so every value a function needs to remember
-  across calls, or a loop across passes, lives at module scope, same as
-  `delay`. `ticks` is deliberately not called `frames`: it advances once per
-  pass through the loop below, about twice a second — not once per real
-  display frame, which keeps refreshing at its usual 50/60Hz the whole time
-  regardless. `screen.showDigit()`'s label below reads "TICK" for the same
-  reason.
+  the C64, two bytes in a browser tab's wasm memory on the web. That
+  difference lives inside `applyColors`, not here.
+- `main()` sets up once; `frame()` runs once per *tick*, forever — this file
+  never writes the loop that calls `frame()` itself, because it can't: the
+  loop looks completely different per target (a VIC-20/C64 don't have a
+  browser's event loop to hand control back to, and a browser tab can't
+  busy-loop forever without freezing). What drives `frame()` lives
+  underneath this file instead — the 6502 backend synthesises a driving
+  loop for the VIC-20/C64 (see `packages/backend-6502`), and the web host's
+  own `requestAnimationFrame` loop does it for the browser (see
+  `packages/cli/src/web-runtime.mjs`) — so this file only ever has to say
+  what one tick *does*, not how often it happens. A module that only
+  exports `main`, with no `frame`, is unaffected by any of this: its `main`
+  still means exactly what it always has, the whole program, looping
+  forever on its own (`examples/counter`, `examples/step1-main-loop`).
+- `frame()` runs at the same real rate on every target — genuinely close to
+  60 times a second, not a per-target guess. On the VIC-20/C64 that driving
+  loop waits for the video chip's own raster line to reach the top of the
+  screen between calls — real vertical blank, 60Hz NTSC / 50Hz PAL by
+  construction, no calibrated delay constant involved. On the web it's the
+  host's fixed-timestep `requestAnimationFrame` accumulator, which drains
+  real elapsed time in fixed 1/60s steps regardless of the display's actual
+  refresh rate — 60Hz, 120Hz, 144Hz, 50Hz, whatever it is — so `frame()`
+  lands at the same rate on every screen this runs on.
+  `logicalFramesUntilTick`, `ticks`, and `option` are ordinary globals —
+  there are no local variables yet, so every value a function needs to
+  remember across calls lives at module scope.
+- `ticks` is deliberately not called `frames`: `frame()` runs ~60 times a
+  second, but the gate above only lets `ticks` advance once every 30 of
+  those calls — about twice a second. "TICK" is what `screen.showDigit()`'s
+  label reads for exactly that reason: a real frame counter would move 30x
+  faster than what's on screen.
 - `screen.putChar(cell, code)` and `screen.putColor(cell, color)` poke one
-  character cell's code and one cell's colour directly into screen memory —
-  a flat cell index, not the `x`/`y` `screen.putChar` still on the roadmap
-  (see `docs/roadmap.md`) — and `screen.CellCount` says how many cells the
-  whole screen has (506 on the VIC-20, 1000 on the C64). None of that is
-  automatic: `clearScreen()` and `drawLabels()` are this *program's* choice
-  to call them, in a loop and a fixed sequence of pokes respectively, not
-  something `@8bitscript/vic20`/`@8bitscript/c64` do on their own — a
-  program that wants the BASIC boot screen left alone just doesn't call
-  `clearScreen()`.
+  character cell's code and one cell's colour — a flat cell index, not the
+  `x`/`y` `screen.putChar` still on the roadmap (see `docs/roadmap.md`) —
+  and `screen.CellCount` says how many cells the whole screen has (506 on
+  the VIC-20, 1000 on the C64 and, as a safe superset, on the web's virtual
+  screen too). None of that runs automatically: `clearScreen()` and
+  `drawLabels()` are this *program's* choice to call, in a loop and a fixed
+  sequence of pokes respectively, not something any machine package does on
+  its own — a program that wants the BASIC boot screen left alone just
+  doesn't call `clearScreen()`.
 - `screen.showDigit(cell, digit)` pokes a single decimal digit (in white)
   at a cell — cell 5 for the tick counter, right after the `TICK ` label
   `drawLabels()` draws, and cell 14 for the option number, after `OPTION `.
@@ -228,27 +249,20 @@ export function main(): void {
   option means editing `applyOption()` and rebuilding, not pressing a key
   while the program runs.
 
-`pnpm run start:web` runs a *different* file, `main.web.8bs`: a browser tab
-calls the program back once per frame instead of handing it the whole
-machine forever, so the `while (true)` above has no web equivalent — see
-[why step 1's program doesn't build for the web](learn/step1-main-loop.md#why-this-step-does-not-build-for-the-web)
-for what its shape looks like instead, and `8bs.config.ts`'s `entry` map for
-how one project points different targets at different files.
-
 ## Make a change
 
-Edit the delay loop's bound — `12000` — to something larger or smaller, then
-rebuild and run again:
+Edit `logicalFramesUntilTick`'s starting value — `30` — to something larger
+or smaller, then rebuild and run again:
 
 ```bash
 pnpm start
 ```
 
-A larger bound slows everything down, tick counter included; a smaller one
-speeds it up. Try changing one of `applyOption()`'s colour pairs — option
-0's `background = 3;`, say — to another value, or add a fifth `else if` case
-and bump `main()`'s `option == 4` to `== 5`, and watch a new option join the
-rotation.
+A larger value slows the tick counter down; a smaller one speeds it up (try
+`6` for a snappier five ticks a second). Try changing one of
+`applyOption()`'s colour pairs — option 0's `background = 3;`, say — to
+another value, or add a fifth `else if` case and bump `frame()`'s
+`option == 4` to `== 5`, and watch a new option join the rotation.
 
 ## What doesn't compile yet
 
