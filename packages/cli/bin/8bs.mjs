@@ -17,12 +17,19 @@ const PLANNED = ['dev'];
 const usage = () => `Usage: 8bs <command> [options]
 
 Implemented:
-  build --target <t> [--pal]   Compile for a target: vic20, c64, or web.
-    [entry]                    vic20/c64 default to NTSC (60Hz); --pal builds
-                               the PAL (50Hz) machine model instead.
-  run <target> [--pal] [entry] Build, then open VICE at the target's machine
-                               model (vic20/c64, NTSC unless --pal is given)
-                               or execute the .wasm and print its state (web)
+  build --target <t> [--pal] [--profile <p>]
+    [entry]                   Compile for a target: vic20, c64, pet, c128,
+                               atari8, nes, cx16, mega65, or web. vic20/c64/
+                               c128/mega65/atari8 default to NTSC (60Hz);
+                               --pal builds the PAL (50Hz) machine model
+                               instead. --profile only applies to atari8:
+                               800xl (default), 65xe, 130xe, 800, 400, xegs.
+  run <target> [--pal] [--profile <p>] [entry]
+                               Build, then open that target's emulator
+                               (VICE for vic20/c64/pet/c128, atari800,
+                               fceux, x16emu, or Xemu for mega65) at the
+                               right machine model — or execute the .wasm
+                               and print its state (web)
   check <files...>             Report diagnostics for 8BitScript source files
   doctor                       Verify the toolchains every target needs
   lsp [--stdio]                Start the language server on stdio

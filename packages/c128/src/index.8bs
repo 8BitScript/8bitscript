@@ -1,0 +1,72 @@
+// @8bitscript/c128 — C128 target support.
+//
+// The module entry point named by the "8bitscript".entry field in this
+// package's package.json, resolved and linked for:
+//
+//     import { borderColor, backgroundColor } from "@8bitscript/c128";
+//
+// The C128's VIC-IIe is register-compatible with the C64's VIC-II for the
+// registers this target uses — confirmed directly against llvm-mos-sdk's
+// own c128.h, which maps the C128's VIC at $D000 using the identical
+// __vic2 struct the c64 platform uses, colour RAM at the identical $D800.
+// A program built for this target runs in the C128's native 40-column
+// mode, at the VIC-IIe's C64-compatible register layout — the 80-column
+// VDC and the second (Z80) CPU are outside what this target reaches for.
+
+// $D020, the VIC-IIe border colour register — same address, same meaning
+// as the C64's.
+@address(0xD020)
+export let borderColor: volatile<u8>;
+
+// $D021, the VIC-IIe background colour register (background #0).
+@address(0xD021)
+export let backgroundColor: volatile<u8>;
+
+// ---- the common colour surface -------------------------------------------
+//
+// Every machine package exports the same three names, which is what lets a
+// program import them from @8bitscript/machine and never name the hardware:
+// set `border` and `background`, call applyColors(), and the machine shows
+// them. (Values are passed through globals because functions take no
+// parameters yet.)
+
+export let border: u8 = 0;
+export let background: u8 = 0;
+
+// The VIC-IIe gives border and background their own registers, sixteen
+// colours each, same as the C64's VIC-II.
+export function applyColors(): void {
+    borderColor = border & 15;
+    backgroundColor = background & 15;
+}
+
+// ---- the friendly screen surface (immediate-apply) -------------------------
+//
+// There is no general text API yet (that's `screen.putChar(x, y, code)`/
+// `input.*` in docs/roadmap.md, not built — this `putChar` takes one flat
+// cell index instead of x/y), so these are the plainest things that can
+// stand in for one: poke one cell's character code, poke one cell's colour,
+// and how many cells the whole screen has. Whether a caller uses these to
+// clear the screen, lay out a label, or nothing at all is entirely up to
+// the caller — this package draws nothing on its own. In the C128's native
+// 40-column mode the default screen RAM is $0400 (40x25, 1000 cells — same
+// as the C64's, for the same backward-compatibility reasons the KERNAL
+// keeps the C64's screen editor conventions), colour RAM fixed at $D800.
+export namespace screen {
+    const CellCount: u16 = 1000; // 40 columns x 25 rows
+
+    function putChar(cell: u16, code: u8): void {
+        memory.write(0x0400 + cell, code);
+    }
+
+    function putColor(cell: u16, color: u8): void {
+        memory.write(0xD800 + cell, color & 15);
+    }
+
+    // Screen codes 0-9 equal '0'-'9' in the C128's character ROM, same as
+    // the C64's and VIC-20's, so no lookup table is needed here.
+    function showDigit(cell: u16, digit: u8): void {
+        screen.putChar(cell, 0x30 + (digit % 10));
+        screen.putColor(cell, 1); // white, so the digit reads on any background
+    }
+}

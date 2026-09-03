@@ -176,6 +176,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/cli
 
+  packages/atari8: {}
+
   packages/backend-6502:
     dependencies:
       '@8bitscript/compiler':
@@ -190,6 +192,8 @@ importers:
       assemblyscript:
         specifier: 0.28.20
         version: 0.28.20
+
+  packages/c128: {}
 
   packages/c64: {}
 
@@ -212,6 +216,8 @@ importers:
 
   packages/core: {}
 
+  packages/cx16: {}
+
   packages/language-server:
     dependencies:
       '@8bitscript/compiler':
@@ -226,15 +232,39 @@ importers:
 
   packages/machine:
     dependencies:
+      '@8bitscript/atari8':
+        specifier: workspace:*
+        version: link:../atari8
+      '@8bitscript/c128':
+        specifier: workspace:*
+        version: link:../c128
       '@8bitscript/c64':
         specifier: workspace:*
         version: link:../c64
+      '@8bitscript/cx16':
+        specifier: workspace:*
+        version: link:../cx16
+      '@8bitscript/mega65':
+        specifier: workspace:*
+        version: link:../mega65
+      '@8bitscript/nes':
+        specifier: workspace:*
+        version: link:../nes
+      '@8bitscript/pet':
+        specifier: workspace:*
+        version: link:../pet
       '@8bitscript/vic20':
         specifier: workspace:*
         version: link:../vic20
       '@8bitscript/web':
         specifier: workspace:*
         version: link:../web
+
+  packages/mega65: {}
+
+  packages/nes: {}
+
+  packages/pet: {}
 
   packages/vic20: {}
 
