@@ -17,10 +17,10 @@ const path = require('path');
 const CONFIG_FILE = '8bs.config.ts';
 
 /** Every target the toolchain knows, in the order the view lists them. */
-const ALL_TARGETS = ['vic20', 'c64', 'web'];
+const ALL_TARGETS = ['vic20', 'c64', 'pet', 'c128', 'atari8', 'nes', 'cx16', 'mega65', 'web'];
 
 /** Targets that are a machine model, and so have an NTSC/PAL choice. */
-const MACHINE_TARGETS = new Set(['vic20', 'c64']);
+const MACHINE_TARGETS = new Set(['vic20', 'c64', 'pet', 'c128', 'atari8', 'nes', 'mega65']);
 
 const DEFAULT_ENTRY = 'src/main.8bs';
 
