@@ -1,0 +1,17 @@
+{
+  "name": "vic20-first-program",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The VIC-20 User's Guide's first BASIC program, ported line for line: direct hardware access, compiled instead of interpreted.",
+  "license": "MIT",
+  "scripts": {
+    "start": "8bs run vic20",
+    "start:pal": "8bs run vic20 --pal",
+    "build": "8bs build --target vic20",
+    "build:pal": "8bs build --target vic20 --pal"
+  },
+  "devDependencies": {
+    "@8bitscript/cli": "workspace:*"
+  },
+  "type": "module"
+}
