@@ -338,7 +338,7 @@ pnpm web        # builds the .wasm, calls main(), prints x = 11
 pnpm vic20      # builds the .prg and opens it in VICE
 ```
 
-(`examples/border` is started with `pnpm start`.)
+(`examples/borders` is started with `pnpm start`.)
 
 On the web target the u8 genuinely wraps — 251 calls to `main()` leave `x` at
 5, because 261 wrapped at 256. The `.prg` targets the **unexpanded VIC-20**:
@@ -346,7 +346,7 @@ load address `$1001` and 3583 bytes of usable RAM, the machine as it was sold.
 The SDK's own default is a 24K-expanded machine, so the backend pins the
 linker's `__memory_expansion` symbol to 0 — fitting the small machine first is
 the point, and expanded configurations can become an option when a program
-actually needs one. `examples/border` is the visible
+actually needs one. `examples/borders` is the visible
 version: one source file whose `while` loop cycles the border colour through
 `applyColors()`, imported from `@8bitscript/machine` — which resolves per
 target to `@8bitscript/vic20` or `@8bitscript/c64` — so it is also the first

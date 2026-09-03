@@ -68,7 +68,7 @@ System**, **Select Region**, and **Change Projects View**.
 
 ```
 PROJECTS  runnable on vic20 · NTSC          ⊞ 📖 ♥ ⟳
-  border          examples/border            ▶ 🔧
+  borders         examples/borders           ▶ 🔧
   counter         examples/counter           ▶ 🔧
   hello-vic       examples/hello-vic         ▶ 🔧
 ```
@@ -117,10 +117,10 @@ lists them, and a favourite can be pinned in `.vscode/tasks.json`:
     {
       "type": "8bs",
       "command": "run",
-      "project": "examples/border",
+      "project": "examples/borders",
       "target": "c64",
       "pal": true,
-      "label": "border on a PAL C64"
+      "label": "borders on a PAL C64"
     }
   ]
 }

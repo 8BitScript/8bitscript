@@ -4,6 +4,7 @@
 // package's package.json, resolved and linked for:
 //
 //     import { borderColor, backgroundColor } from "@8bitscript/c64";
+//     import { reuStatus, reuCommand } from "@8bitscript/c64"; // --profile reu*
 //
 // The surface is the hardware, one register at a time, and it grows as the
 // language does: what is here today is what the milestone subset can actually
@@ -21,6 +22,35 @@ export let borderColor: volatile<u8>;
 // $D021, the VIC-II background colour register (background #0).
 @address(0xD021)
 export let backgroundColor: volatile<u8>;
+
+// ---- REU (RAM Expansion Unit) --------------------------------------------
+//
+// $DF00-$DF0A, the standard Commodore 1764/1750-compatible REU DMA
+// controller register map — confirmed against VICE's own `-reu`/`-reusize`
+// support (x64sc -help) and the register layout every REU-compatible
+// expansion since the 1700 has shared. These addresses exist in the SDK for
+// every c64 program (the same reasoning @8bitscript/pet documents for
+// `border` on a machine without one): they only do something when the
+// program is actually built and run against a `reu*` hardware profile
+// (--profile in packages/cli/src/build.mjs and run.mjs's `-reu -reusize`) —
+// on the stock C64 these are ordinary, if unusual, memory-mapped I/O
+// addresses, not a real DMA controller. This is raw register access, not a
+// transfer driver: a caller sequences the registers itself (base addresses,
+// length, then a command byte — bit 7 set to execute, bits 0-1 for the
+// transfer direction: 00 stash C64→REU, 01 fetch REU→C64, 10 swap, 11
+// verify), the same level @8bitscript/vic20's `vicColor` and @8bitscript/
+// c64's own `borderColor` above operate at.
+@address(0xDF00) export let reuStatus: volatile<u8>;
+@address(0xDF01) export let reuCommand: volatile<u8>;
+@address(0xDF02) export let reuC64AddressLow: volatile<u8>;
+@address(0xDF03) export let reuC64AddressHigh: volatile<u8>;
+@address(0xDF04) export let reuAddressLow: volatile<u8>;
+@address(0xDF05) export let reuAddressHigh: volatile<u8>;
+@address(0xDF06) export let reuBank: volatile<u8>;
+@address(0xDF07) export let reuLengthLow: volatile<u8>;
+@address(0xDF08) export let reuLengthHigh: volatile<u8>;
+@address(0xDF09) export let reuInterruptMask: volatile<u8>;
+@address(0xDF0A) export let reuAddressControl: volatile<u8>;
 
 // ---- the common colour surface -------------------------------------------
 //

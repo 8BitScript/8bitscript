@@ -316,7 +316,7 @@ border colour several times per scan line — thousands of times per frame —
 and the video chip paints whichever colour is current as the beam passes.
 That is how fast an empty-looking loop runs, and it is why every later step
 that draws something has to decide *when* to draw, not only what.
-`examples/border` is exactly this loop with a delay inside it, so the border
+`examples/borders` is exactly this loop with a delay inside it, so the border
 changes twice a second instead; the next step takes that up.
 
 ## Why this step does not build for the web
@@ -331,14 +331,14 @@ this step lists `vic20` and `c64` and not `web`, and the compiler refuses a
 web build rather than producing one that hangs.
 
 That is a property of *this program's shape*, not of the web target
-generally — it's exactly why `examples/border` doesn't write `while (true)`
+generally — it's exactly why `examples/borders` doesn't write `while (true)`
 at all: it exports `main()` (setup, once) and a separate `frame()` (one
 tick's worth of work), and lets something *else* drive the repeat, instead
 of doing that itself. That used to mean a second entry file for `web` —
 `vic20`/`c64` pointed at `main.8bs`, `web` at a different one, via
 `8bs.config.ts`'s `entry` map (still documented in
 [`docs/packages.md`](../packages.md#target-conditional-entries) as a general
-mechanism, for cases where it's still needed) — but `examples/border` no
+mechanism, for cases where it's still needed) — but `examples/borders` no
 longer needs it: any module exporting both `main` and `frame` gets a driving
 loop synthesised for it by whichever backend is building it, so one file now
 builds correctly everywhere.
@@ -361,6 +361,6 @@ still hang a browser tab exactly as described above.
 ## Next
 
 Step 2 is not written yet. In the meantime,
-[`examples/border`](https://github.com/8BitScript/8bitscript/tree/trunk/examples/border)
+[`examples/borders`](https://github.com/8BitScript/8bitscript/tree/trunk/examples/borders)
 is this program plus a delay loop and a `volatile` counter, and
 [Getting started](../tutorial.md#what-the-program-does) walks through it.

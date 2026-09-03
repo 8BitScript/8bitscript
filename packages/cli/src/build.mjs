@@ -4,6 +4,8 @@
 //     8bs build --target vic20 --pal  [entry.8bs]
 //     8bs build --target web          [entry.8bs]
 //     8bs build --target atari8 --profile 130xe [entry.8bs]
+//     8bs build --target vic20 --profile 16k    [entry.8bs]
+//     8bs build --target c64 --profile reu512   [entry.8bs]
 //
 // The system (vic20/c64/pet/c128/atari8/nes/cx16/mega65/web) is the target;
 // NTSC/PAL is a --pal/--ntsc option on top of it, not a separate flavor of
@@ -14,17 +16,30 @@
 // (see REGION_TARGETS below); it's silently ignored everywhere else, the
 // same as it already was for web.
 //
-// atari8 is one target with several hardware profiles (800XL/65XE/130XE/
-// 800/400/XEGS — see docs/setup) rather than six separate targets, because
-// LLVM-MOS itself treats the 400/800/XL/XE/XEGS lineage as one family that
-// only varies output format; --profile picks one, defaulting to 800XL.
+// --profile picks a hardware profile — a named bundle of settings for
+// hardware that composes on top of the base target, same idea for every
+// target that has one, different meaning per target because the hardware
+// itself differs:
+//
+//   atari8: which machine in the 400/800/XL/XE/XEGS family (default 800XL,
+//     see docs/setup) — one target because LLVM-MOS itself treats that
+//     whole lineage as one family that only varies output format.
+//   vic20: how much RAM-expansion cartridge is plugged in — unexpanded
+//     (default, 3583 bytes free, the machine as sold), 3k/8k/16k/24k, the
+//     same five configurations VICE's `xvic -memory` and the SDK's own
+//     link.ld both recognize (see VIC20_PROFILES in backend-6502).
+//   c64: whether a RAM Expansion Unit is attached — stock (default, no
+//     REU) or reu128/256/512/1m/2m/4m/8m/16m, VICE's own `-reusize` values
+//     (see @8bitscript/c64's `reu` namespace for the register-level API).
 //
 // The entry defaults to src/main.8bs, or to the `entry` in 8bs.config.ts when
 // the project has one. Output lands in dist/, named
 // <name>-<machine>[-<profile>][-<region>].<ext> — .prg for the Commodore/
 // CX16/MEGA65 targets, .xex (or .rom for the xegs profile) for Atari 8-bit,
 // .nes for the NES, .wasm for the web — with the generated C or
-// AssemblyScript beside it so what the compiler did is never a mystery.
+// AssemblyScript beside it so what the compiler did is never a mystery. A
+// vic20/c64 profile only appears in the filename when it isn't the default
+// (atari8's profile always does — see the comment beside nameParts below).
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
@@ -90,7 +105,8 @@ function resolveEntryPath(config, target) {
  * @param {string} [entryArg]
  * @param {{ pal?: boolean, profile?: string }} [options] NTSC (60Hz) unless
  *   pal is true; ignored outside REGION_TARGETS. `profile` only matters for
- *   atari8 (defaults to 800xl); ignored elsewhere.
+ *   atari8 (defaults to 800xl), vic20 (defaults to unexpanded), and c64
+ *   (defaults to stock); ignored elsewhere.
  * @returns {Promise<{ ok: boolean, outFile?: string }>}
  */
 export async function compile(target, entryArg, { pal = false, profile } = {}) {
@@ -118,11 +134,29 @@ export async function compile(target, entryArg, { pal = false, profile } = {}) {
     return { ok: false };
   }
 
-  const { ATARI8_PROFILES, ATARI8_DEFAULT_PROFILE } = await import('@8bitscript/backend-6502');
+  const {
+    ATARI8_PROFILES, ATARI8_DEFAULT_PROFILE,
+    VIC20_PROFILES, VIC20_DEFAULT_PROFILE,
+    C64_PROFILES, C64_DEFAULT_PROFILE,
+  } = await import('@8bitscript/backend-6502');
   const atari8Profile = target === 'atari8' ? (profile ?? ATARI8_DEFAULT_PROFILE) : undefined;
   if (target === 'atari8' && !ATARI8_PROFILES.has(atari8Profile)) {
     process.stderr.write(
       `8bs build: unknown atari8 profile '${atari8Profile}'. Profiles: ${[...ATARI8_PROFILES].join(', ')}\n`,
+    );
+    return { ok: false };
+  }
+  const vic20Profile = target === 'vic20' ? (profile ?? VIC20_DEFAULT_PROFILE) : undefined;
+  if (target === 'vic20' && !VIC20_PROFILES.has(vic20Profile)) {
+    process.stderr.write(
+      `8bs build: unknown vic20 profile '${vic20Profile}'. Profiles: ${[...VIC20_PROFILES].join(', ')}\n`,
+    );
+    return { ok: false };
+  }
+  const c64Profile = target === 'c64' ? (profile ?? C64_DEFAULT_PROFILE) : undefined;
+  if (target === 'c64' && !C64_PROFILES.has(c64Profile)) {
+    process.stderr.write(
+      `8bs build: unknown c64 profile '${c64Profile}'. Profiles: ${[...C64_PROFILES].join(', ')}\n`,
     );
     return { ok: false };
   }
@@ -160,12 +194,26 @@ export async function compile(target, entryArg, { pal = false, profile } = {}) {
   }
 
   const { buildPrg, outputExtension } = await import('@8bitscript/backend-6502');
-  const nameParts = [stem, target];
+  // A per-target entry (config.entry keyed by machine — see
+  // resolveEntryPath above) is commonly named after its target already
+  // (main-atari8.8bs, say, for a target whose execution model needs its own
+  // entry file); skip the redundant second copy of the target name that
+  // would otherwise produce main-atari8-atari8-....xex.
+  const nameParts = stem.endsWith(`-${target}`) ? [stem] : [stem, target];
   if (target === 'atari8') nameParts.push(atari8Profile);
+  // Unlike atari8 (whose profile is always in the filename, even the
+  // default 800xl), vic20/c64 only grow a profile suffix for a non-default
+  // profile — most builds are the stock machine, and changing every
+  // existing main-vic20-ntsc.prg/main-c64-ntsc.prg filename for a feature
+  // most projects never touch was not worth it.
+  if (target === 'vic20' && vic20Profile !== VIC20_DEFAULT_PROFILE) nameParts.push(vic20Profile);
+  if (target === 'c64' && c64Profile !== C64_DEFAULT_PROFILE) nameParts.push(c64Profile);
   if (REGION_TARGETS.has(target)) nameParts.push(pal ? 'pal' : 'ntsc');
   const ext = outputExtension(target, atari8Profile);
   const outFile = resolve('dist', `${nameParts.join('-')}.${ext}`);
-  const result = await buildPrg(ir, { machine: target, atari8Profile, outFile });
+  const result = await buildPrg(ir, {
+    machine: target, atari8Profile, vic20Profile, c64Profile, outFile,
+  });
   if (!result.ok) {
     process.stderr.write(`8bs build: ${result.error}\n`);
     return { ok: false };
@@ -191,7 +239,11 @@ export async function build(args) {
   if (!target) {
     process.stderr.write(
       'Usage: 8bs build --target <vic20|c64|pet|c128|atari8|nes|cx16|mega65|web>\n'
-      + '                 [--pal] [--profile <800xl|65xe|130xe|800|400|xegs>] [entry.8bs]\n',
+      + '                 [--pal]\n'
+      + '                 [--profile <800xl|65xe|130xe|800|400|xegs>]        (atari8)\n'
+      + '                 [--profile <unexpanded|3k|8k|16k|24k>]             (vic20)\n'
+      + '                 [--profile <stock|reu128|reu256|reu512|reu1m|reu2m|reu4m|reu8m|reu16m>] (c64)\n'
+      + '                 [entry.8bs]\n',
     );
     return 2;
   }

@@ -106,7 +106,7 @@ The first milestone compiles and runs on both targets. `8bs build` takes a
 program through lexer, parser, checker, IR, linker, and a backend — generated
 C and LLVM-MOS for a VIC-20 or C64 `.prg`, generated AssemblyScript and asc
 for a `.wasm` — and `8bs run vic20` opens the result in VICE.
-`examples/counter` is the milestone program; `examples/border` cycles the
+`examples/counter` is the milestone program; `examples/borders` cycles the
 border colours on the VIC-20, the C64, *and* the web (`8bs run web`, a real
 browser tab now rather than a one-shot harness — see
 [docs/learn/step1-main-loop.md](docs/learn/step1-main-loop.md#why-this-step-does-not-build-for-the-web)),
@@ -126,7 +126,7 @@ notice.
 Setup instructions for the host and retro toolchains live in
 [docs/setup/index.md](docs/setup/index.md). Once that's done,
 [the getting started tutorial](docs/tutorial.md) walks through cloning this
-repository and building and running `examples/border` — the milestone subset
+repository and building and running `examples/borders` — the milestone subset
 of the language, working end to end today, on the VIC-20 and the C64. From
 there, [Learn 8BitScript](docs/learn/index.md) explains a program part by
 part, one small runnable project per step, starting with
