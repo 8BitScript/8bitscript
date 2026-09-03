@@ -121,22 +121,30 @@ echo "$LLVM_MOS_HOME"
 The SDK provides a separate compiler driver per target machine. Each one knows
 its machine's memory map, startup code, and executable format, so choosing a
 target is a matter of choosing a driver rather than passing a pile of flags.
+Every driver 8BitScript currently targets:
 
-The Commodore drivers are:
+| Driver                       | Machine                              |
+| ----------------------------- | ------------------------------------ |
+| `mos-vic20-clang`             | VIC-20                               |
+| `mos-c64-clang`                | C64                                   |
+| `mos-pet-clang`                | PET                                   |
+| `mos-c128-clang`               | C128                                  |
+| `mos-mega65-clang`             | MEGA65 (C64-compatible register view) |
+| `mos-cx16-clang`               | Commander X16                        |
+| `mos-nes-nrom-clang`           | NES (NROM, the plainest mapper)      |
+| `mos-atari8-dos-clang`         | Atari 8-bit — 800XL/65XE/130XE/800/400 (`.xex`) |
+| `mos-atari8-cart-xegs-clang`   | Atari 8-bit — XEGS profile (cartridge ROM) |
 
-| Driver           | Machine |
-| ---------------- | ------- |
-| `mos-vic20-clang` | VIC-20  |
-| `mos-c64-clang`   | C64     |
-| `mos-c128-clang`  | C128    |
-| `mos-pet-clang`   | PET     |
+Atari 8-bit is one target with several hardware profiles (`8bs build --target
+atari8 --profile <800xl\|65xe\|130xe\|800\|400\|xegs>`, 800XL by default)
+rather than six separate targets, because llvm-mos itself treats the whole
+400/800/XL/XE/XEGS lineage as one family sharing a memory map — a profile
+only changes which of the two drivers above runs, and which atari800 machine
+model `8bs run` launches.
 
-The SDK also ships drivers for a much wider family of 6502 machines — the Atari
-8-bit line and the 2600, the NES, the Commander X16, the Atari Lynx, and others.
-Those are later targets, not current ones. Only `mos-vic20-clang` and
-`mos-c64-clang` matter for the early work: the VIC-20 is the primary target and
-the C64 is the second, and both need to work before any other machine is worth
-discussing.
+The SDK also ships drivers for machines outside this project's scope — the
+Atari 2600, the Atari 5200, other NES mappers (UNROM, MMC1, MMC3, and more),
+the Atari Lynx, and others. Nothing here builds against those yet.
 
 ## Verify
 
@@ -185,7 +193,10 @@ what produced them.)
 
 If both addresses match, the compiler, linker, and per-machine startup code are
 all in place. Once VICE is installed, the same files double as a first program
-to load in the emulator.
+to load in the emulator. `8bs doctor` runs this same existence-and-version
+check against every driver in the table above, every time — the two-driver
+smoke test here is worth doing by hand once, to see what "working" looks
+like, but not something to repeat by hand for every target.
 
 ## Troubleshooting
 
@@ -226,5 +237,7 @@ should list `mos-vic20-clang` among many other tools when it is right.
 
 ## Next
 
-With the 6502 compiler in place, install the emulator that will run its output:
-[VICE](vice.md).
+With the 6502 compiler in place, install the emulator(s) that will run its
+output: [VICE](vice.md) for VIC-20/C64/PET/C128, and the setup pages for
+[Atari 8-bit](atari8.md), [NES](nes.md), [Commander X16](cx16.md), and
+[MEGA65](mega65.md) for the rest.

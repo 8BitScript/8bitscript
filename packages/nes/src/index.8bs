@@ -1,0 +1,24 @@
+// @8bitscript/nes — NES target support.
+//
+// The module entry point named by the "8bitscript".entry field in this
+// package's package.json, resolved and linked for:
+//
+//     import { border, background, applyColors } from "@8bitscript/nes";
+//
+// The NES has no border-colour concept at all (the picture fills the whole
+// frame; there is no separate border area to colour), and its real
+// backdrop colour lives in PPU palette RAM at $3F00 — memory the CPU
+// cannot reach directly the way it reaches VIC/VIC-II registers. Palette
+// RAM sits behind the PPU's own indirect port protocol ($2006 to set an
+// address, $2007 to read/write through it), which this target doesn't
+// build yet. `border`, `background`, and `applyColors()` exist only so
+// portable code written against every machine's common colour surface
+// still links here, the same reasoning @8bitscript/pet documents for a
+// gap in a specific target: they are deliberately inert on this machine.
+
+export let border: u8 = 0;
+export let background: u8 = 0;
+
+export function applyColors(): void {
+    // Deliberately empty — see the file comment above.
+}

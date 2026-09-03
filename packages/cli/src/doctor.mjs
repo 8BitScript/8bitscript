@@ -1,17 +1,21 @@
 // `8bs doctor` — is this machine able to build and run 8BitScript programs?
 //
-// Two output targets, two toolchains to verify:
-//
-//   .wasm — needs the AssemblyScript compiler (asc)
-//   .prg  — needs the LLVM-MOS SDK (via $LLVM_MOS_HOME) and the VICE emulators
-//
+// Every target needs two things: an LLVM-MOS driver (or, for the web, the
+// AssemblyScript compiler) to build with, and an emulator to run against.
 // Every check reports against what the project actually requires, with a
-// pointer to the setup page that installs the tool. The VIC-20 check goes
-// further than versions: a VICE build without ROMs prints a version and still
-// cannot boot a machine, so the doctor launches the emulator for a bounded
-// number of cycles and confirms it actually comes up. docs/setup/vice.md is
-// explicit that anything less reports success on a setup that cannot run a
-// single build.
+// pointer to the setup page that installs the tool, an inline brew/apt/
+// pacman command when one is known, and — for anything this machine's
+// platform can install with a single trusted command — an interactive
+// prompt to run that command right here, rather than making the reader
+// leave the terminal and come back.
+//
+// The VIC-20 check goes further than versions: a VICE build without ROMs
+// prints a version and still cannot boot a machine, so the doctor launches
+// the emulator for a bounded number of cycles and confirms it actually
+// comes up. docs/setup/vice.md is explicit that anything less reports
+// success on a setup that cannot run a single build. The other targets
+// don't get that same depth yet — existence and, where the tool supports
+// it, a version — that's a known gap, not an oversight.
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { existsSync } from 'node:fs';
@@ -50,6 +54,25 @@ export function findLocalBin(dir, name) {
     if (parent === current) return null;
     current = parent;
   }
+}
+
+/**
+ * Pick the install plan this platform can actually run, from an installer's
+ * `darwin`/`linux` options — the first Linux package manager found on PATH,
+ * since a machine only ever has some of apt/pacman/brew(linuxbrew). Returns
+ * null for a source-only installer, an unsupported platform, or a Linux box
+ * with none of the listed managers on PATH (docs/hints still apply either
+ * way; this only decides whether the interactive one-key install applies).
+ */
+export function pickInstallPlan(installer, platform = process.platform, hasBinary = onPath) {
+  if (!installer || installer.buildFromSource) return null;
+  if (platform === 'darwin') {
+    return installer.darwin && hasBinary('brew') ? installer.darwin : null;
+  }
+  if (platform === 'linux') {
+    return (installer.linux ?? []).find((plan) => hasBinary(plan.manager === 'apt' ? 'apt-get' : plan.manager)) ?? null;
+  }
+  return null;
 }
 
 // ---- process running ------------------------------------------------------
@@ -98,7 +121,9 @@ const FAIL = 'fail';
 const WARN = 'warn';
 const SKIP = 'skip';
 
-const result = (status, label, detail, hint = null) => ({ status, label, detail, hint });
+const result = (status, label, detail, hint = null, extra = {}) => ({
+  status, label, detail, hint, installer: extra.installer ?? null, targets: extra.targets ?? [],
+});
 
 async function versionCheck(label, command, args, minimum, hint, describeMin) {
   const r = await run(command, args);
@@ -158,61 +183,177 @@ async function checkWeb() {
     const r = await run(asc, ['--version']);
     const version = parseVersion(r.stdout + r.stderr);
     checks.push(version
-      ? result(OK, 'asc', version.join('.'))
+      ? result(OK, 'asc', version.join('.'), null, { targets: ['web'] })
       : result(WARN, 'asc', 'found, but the version was unreadable'));
   }
   return { title: 'Web target (.wasm)', checks };
 }
 
+// Every LLVM-MOS driver this project builds against, and which target(s) it
+// serves. Confirmed directly against llvm-mos-sdk's own mos-platform/ tree
+// (github.com/llvm-mos/llvm-mos-sdk) — one driver binary per platform, two
+// for Atari 8-bit because that target picks its output format (DOS-loader
+// .xex vs XEGS cartridge) via which driver runs, not a build flag.
+const CLANG_DRIVERS = [
+  { driver: 'mos-vic20-clang', targets: ['vic20'] },
+  { driver: 'mos-c64-clang', targets: ['c64'] },
+  { driver: 'mos-pet-clang', targets: ['pet'] },
+  { driver: 'mos-c128-clang', targets: ['c128'] },
+  { driver: 'mos-mega65-clang', targets: ['mega65'] },
+  { driver: 'mos-cx16-clang', targets: ['cx16'] },
+  { driver: 'mos-nes-nrom-clang', targets: ['nes'] },
+  { driver: 'mos-atari8-dos-clang', targets: ['atari8'] },
+  { driver: 'mos-atari8-cart-xegs-clang', targets: ['atari8'] },
+];
+
 async function checkMos() {
   const checks = [];
   const home = process.env.LLVM_MOS_HOME;
+  const allTargets = [...new Set(CLANG_DRIVERS.flatMap((d) => d.targets))];
 
   if (!home) {
     checks.push(result(FAIL, 'LLVM_MOS_HOME', 'not set', 'docs/setup/llvm-mos.md'));
-    checks.push(result(SKIP, 'mos-vic20-clang', 'skipped — LLVM_MOS_HOME is not set'));
-    checks.push(result(SKIP, 'mos-c64-clang', 'skipped — LLVM_MOS_HOME is not set'));
+    for (const { driver, targets } of CLANG_DRIVERS) {
+      checks.push(result(SKIP, driver, 'skipped — LLVM_MOS_HOME is not set', null, { targets }));
+    }
   } else if (!existsSync(join(home, 'bin'))) {
     checks.push(result(
       FAIL, 'LLVM_MOS_HOME', `set to ${home}, but ${join(home, 'bin')} does not exist`,
       'It must point at the directory that directly contains bin/ — docs/setup/llvm-mos.md',
     ));
-    checks.push(result(SKIP, 'mos-vic20-clang', 'skipped — LLVM_MOS_HOME is wrong'));
-    checks.push(result(SKIP, 'mos-c64-clang', 'skipped — LLVM_MOS_HOME is wrong'));
+    for (const { driver, targets } of CLANG_DRIVERS) {
+      checks.push(result(SKIP, driver, 'skipped — LLVM_MOS_HOME is wrong', null, { targets }));
+    }
   } else {
-    checks.push(result(OK, 'LLVM_MOS_HOME', home));
-    for (const tool of ['mos-vic20-clang', 'mos-c64-clang']) {
-      const path = join(home, 'bin', tool);
+    checks.push(result(OK, 'LLVM_MOS_HOME', home, null, { targets: allTargets }));
+    for (const { driver, targets } of CLANG_DRIVERS) {
+      const path = join(home, 'bin', driver);
       const r = await run(path, ['--version']);
       if (r.missing) {
-        checks.push(result(FAIL, tool, `not found at ${path}`, 'docs/setup/llvm-mos.md'));
+        checks.push(result(FAIL, driver, `not found at ${path}`, 'docs/setup/llvm-mos.md', { targets }));
       } else if (/clang/i.test(r.stdout + r.stderr)) {
         const version = parseVersion(r.stdout + r.stderr);
-        checks.push(result(OK, tool, version ? `clang ${version.join('.')}` : 'a clang'));
+        checks.push(result(OK, driver, version ? `clang ${version.join('.')}` : 'a clang', null, { targets }));
       } else {
-        checks.push(result(WARN, tool, 'runs, but does not identify itself as clang'));
+        checks.push(result(WARN, driver, 'runs, but does not identify itself as clang', null, { targets }));
       }
     }
   }
 
-  for (const [binary, machine] of [['xvic', 'VIC-20'], ['x64sc', 'C64']]) {
+  return { title: 'LLVM-MOS SDK (every 6502 target)', checks };
+}
+
+// ---- emulator installers ---------------------------------------------------
+//
+// One entry per emulator this project can launch (`8bs run <target>`). Each
+// carries: a doctor-facing label, the target(s) it serves, a brew formula
+// for macOS, a Linux package-manager list (tried in the order a machine is
+// likely to have them — apt/pacman native packages first, Linuxbrew last),
+// and either a `docs/setup/*.md` page or — for the two emulators this
+// project could not find a package for — the upstream repo to build from
+// source. `pickInstallPlan()` above turns this into the one command this
+// specific machine can actually run.
+const INSTALLERS = {
+  vice: {
+    label: 'VICE (xvic, x64sc, xpet, x128)',
+    darwin: { manager: 'brew', args: ['install', 'vice'] },
+    linux: [
+      { manager: 'apt', args: ['install', '-y', 'vice'], sudo: true },
+      { manager: 'pacman', args: ['-S', '--noconfirm', 'vice'], sudo: true },
+      { manager: 'brew', args: ['install', 'vice'] },
+    ],
+    docs: 'docs/setup/vice.md',
+  },
+  atari800: {
+    label: 'atari800 (Atari 8-bit)',
+    darwin: { manager: 'brew', args: ['install', 'atari800'] },
+    linux: [
+      { manager: 'apt', args: ['install', '-y', 'atari800'], sudo: true },
+      { manager: 'pacman', args: ['-S', '--noconfirm', 'atari800'], sudo: true },
+      { manager: 'brew', args: ['install', 'atari800'] },
+    ],
+    docs: 'docs/setup/atari8.md',
+  },
+  fceux: {
+    label: 'FCEUX (NES)',
+    darwin: { manager: 'brew', args: ['install', 'fceux'] },
+    linux: [
+      { manager: 'apt', args: ['install', '-y', 'fceux'], sudo: true },
+      { manager: 'pacman', args: ['-S', '--noconfirm', 'fceux'], sudo: true },
+      { manager: 'brew', args: ['install', 'fceux'] },
+    ],
+    docs: 'docs/setup/nes.md',
+  },
+  x16emu: {
+    label: 'x16emu (Commander X16)',
+    buildFromSource: true,
+    repo: 'https://github.com/X16Community/x16-emulator',
+    docs: 'docs/setup/cx16.md',
+  },
+  xmega65: {
+    label: 'Xemu — MEGA65 core (xmega65)',
+    buildFromSource: true,
+    repo: 'https://github.com/lgblgblgb/xemu',
+    docs: 'docs/setup/mega65.md',
+  },
+};
+
+/** One line: what this machine can run, or where to read more. */
+function installerHint(installer) {
+  const plan = pickInstallPlan(installer);
+  if (plan) {
+    const cmd = plan.sudo ? `sudo ${plan.manager === 'apt' ? 'apt-get' : plan.manager}` : plan.manager;
+    return `${cmd} ${plan.args.join(' ')} — ${installer.docs}`;
+  }
+  if (installer.buildFromSource) {
+    return `no packaged build found — ${installer.repo} — ${installer.docs}`;
+  }
+  return `brew install <formula>, or your distro's package manager — ${installer.docs}`;
+}
+
+/** Existence + best-effort version for an emulator binary that may hang on
+ * an unrecognised flag (a GUI emulator opening a window instead of printing
+ * a version) — existence is the check that matters; the version probe only
+ * ever upgrades a result, never fails one, so a slow/silent --version can't
+ * turn a real install into a false FAIL. */
+async function checkEmulator(binary, { label = binary, targets, installerKey, tryVersion = true } = {}) {
+  const installer = INSTALLERS[installerKey];
+  if (!onPath(binary)) {
+    return result(FAIL, label, 'not found', installerHint(installer), { installer, targets });
+  }
+  if (!tryVersion) return result(OK, label, 'found', null, { targets });
+  const r = await run(binary, ['--version']);
+  if (r.missing || r.timedOut) return result(OK, label, 'found (version unconfirmed)', null, { targets });
+  const version = parseVersion(r.stdout + r.stderr);
+  return version
+    ? result(OK, label, version.join('.'), null, { targets })
+    : result(OK, label, 'found (version unconfirmed)', null, { targets });
+}
+
+async function checkVice() {
+  const checks = [];
+  for (const [binary, machine, label] of [
+    ['xvic', 'vic20', 'xvic (VIC-20)'],
+    ['x64sc', 'c64', 'x64sc (C64)'],
+    ['xpet', 'pet', 'xpet (PET)'],
+    ['x128', 'c128', 'x128 (C128)'],
+  ]) {
     if (!onPath(binary)) {
-      checks.push(result(FAIL, binary, 'not found', 'docs/setup/vice.md'));
+      checks.push(result(FAIL, label, 'not found', installerHint(INSTALLERS.vice), { installer: INSTALLERS.vice, targets: [machine] }));
       continue;
     }
     const r = await run(binary, ['--version']);
     const version = parseVersion(r.stdout + r.stderr);
     if (!version) {
-      checks.push(result(WARN, binary, 'found, but the version was unreadable', 'docs/setup/vice.md'));
+      checks.push(result(WARN, label, 'found, but the version was unreadable', 'docs/setup/vice.md', { targets: [machine] }));
     } else if (!atLeast(version, [3, 10])) {
-      checks.push(result(WARN, binary, `VICE ${version.join('.')} — the project expects 3.10`, 'docs/setup/vice.md'));
+      checks.push(result(WARN, label, `VICE ${version.join('.')} — the project expects 3.10`, 'docs/setup/vice.md', { targets: [machine] }));
     } else {
-      checks.push(result(OK, binary, `VICE ${version.join('.')} (${machine})`));
+      checks.push(result(OK, label, `VICE ${version.join('.')}`, null, { targets: [machine] }));
     }
   }
-
   checks.push(await bootCheck());
-  return { title: 'VIC-20 / C64 target (.prg)', checks };
+  return { title: 'VICE (VIC-20 / C64 / PET / C128)', checks };
 }
 
 /**
@@ -281,15 +422,95 @@ async function bootCheck() {
   }
 }
 
+async function checkOtherEmulators() {
+  const checks = [
+    await checkEmulator('atari800', { label: 'atari800 (Atari 8-bit)', targets: ['atari8'], installerKey: 'atari800' }),
+    await checkEmulator('fceux', { label: 'fceux (NES)', targets: ['nes'], installerKey: 'fceux' }),
+    // Built from source, with no confirmed --version flag (see the cx16 and
+    // mega65 setup docs) — existence is all this checks.
+    await checkEmulator('x16emu', { label: 'x16emu (Commander X16)', targets: ['cx16'], installerKey: 'x16emu', tryVersion: false }),
+    await checkEmulator('xmega65', { label: 'xmega65 (MEGA65, via Xemu)', targets: ['mega65'], installerKey: 'xmega65', tryVersion: false }),
+  ];
+  return { title: 'Atari 8-bit / NES / Commander X16 / MEGA65 emulators', checks };
+}
+
+// ---- interactive installer -------------------------------------------------
+//
+// A single keypress, only when there's somewhere for the answer to go: both
+// ends of the terminal have to be interactive (stdin AND stdout — a doctor
+// run piped into `less` or a log file has no way to show the prompt or read
+// a reply) and the install has to be an installer this doctor actually knows
+// how to run unattended (a real package-manager command, not a "build it
+// yourself" pointer). CI and `8bs doctor > log.txt` runs never see a prompt.
+function canPromptInteractively() {
+  return Boolean(process.stdin.isTTY) && Boolean(process.stdout.isTTY);
+}
+
+/** Read one keypress. Restores whatever raw-mode state stdin had before. */
+function readKey() {
+  return new Promise((resolvePromise) => {
+    const wasRaw = process.stdin.isRaw;
+    process.stdin.setRawMode(true);
+    process.stdin.resume();
+    process.stdin.once('data', (buf) => {
+      process.stdin.setRawMode(Boolean(wasRaw));
+      process.stdin.pause();
+      resolvePromise(buf.toString('utf8'));
+    });
+  });
+}
+
+function spawnInstall(command, args) {
+  process.stdout.write(`\n$ ${command} ${args.join(' ')}\n`);
+  return new Promise((resolvePromise) => {
+    const child = spawn(command, args, { stdio: 'inherit' });
+    child.on('error', () => resolvePromise(false));
+    child.on('close', (code) => resolvePromise(code === 0));
+  });
+}
+
+/**
+ * Offer to install one missing tool, right here. Only called for a FAIL
+ * check that carries an `installer` this platform has a real plan for
+ * (`pickInstallPlan` found a package manager on PATH) — a build-from-source
+ * tool, or a platform/manager combination this doctor doesn't recognise,
+ * only ever gets the printed hint, never a prompt.
+ *
+ * @returns {Promise<boolean>} whether an install ran (regardless of outcome)
+ */
+async function offerInstall(check) {
+  const plan = pickInstallPlan(check.installer);
+  if (!plan) return false;
+  process.stdout.write(`\n  ${check.label}: ${check.installer.label} is missing.\n`);
+  process.stdout.write(`  Press [i] to install with ${plan.manager} now, any other key to skip: `);
+  const key = await readKey();
+  process.stdout.write('\n');
+  if (key.toLowerCase() !== 'i') return false;
+  const command = plan.sudo ? 'sudo' : (plan.manager === 'apt' ? 'apt-get' : plan.manager);
+  const args = plan.sudo ? [plan.manager === 'apt' ? 'apt-get' : plan.manager, ...plan.args] : plan.args;
+  const ok = await spawnInstall(command, args);
+  process.stdout.write(ok ? `  ${plan.manager} reported success.\n` : `  ${plan.manager} reported an error — see the output above.\n`);
+  return true;
+}
+
 // ---- report ---------------------------------------------------------------
 
 const MARK = { [OK]: '  ok', [FAIL]: 'FAIL', [WARN]: 'warn', [SKIP]: '  --' };
+
+const ALL_TARGETS = ['web', 'vic20', 'c64', 'pet', 'c128', 'atari8', 'nes', 'cx16', 'mega65'];
 
 /** @returns {Promise<number>} process exit code */
 export async function doctor() {
   process.stdout.write('8bs doctor\n');
 
-  const sections = [await checkHost(), await checkWeb(), await checkMos()];
+  const sections = [
+    await checkHost(),
+    await checkWeb(),
+    await checkMos(),
+    await checkVice(),
+    await checkOtherEmulators(),
+  ];
+  const allChecks = sections.flatMap((s) => s.checks);
   let failures = 0;
   let warnings = 0;
 
@@ -298,22 +519,37 @@ export async function doctor() {
     for (const c of section.checks) {
       if (c.status === FAIL) failures += 1;
       if (c.status === WARN) warnings += 1;
-      process.stdout.write(`  ${MARK[c.status]}  ${c.label.padEnd(16)} ${c.detail}\n`);
+      process.stdout.write(`  ${MARK[c.status]}  ${c.label.padEnd(28)} ${c.detail}\n`);
       if (c.hint && c.status !== OK) process.stdout.write(`        ${c.hint}\n`);
     }
   }
 
-  // WARN doesn't block readiness: e.g. VICE's `--version` flag is broken
-  // upstream (prints nothing parseable) even on a working install, and the
-  // VIC-20 boot check above is the real, authoritative signal for that target.
-  const ready = (section) => section.checks.every((c) => c.status !== FAIL);
-  const targets = [];
-  if (ready(sections[1])) targets.push('web');
-  if (ready(sections[2])) targets.push('vic20/c64');
+  // A target is ready when every check that named it passed. WARN doesn't
+  // block readiness (e.g. VICE's `--version` flag is broken upstream —
+  // prints nothing parseable — even on a working install, and the VIC-20
+  // boot check above is the real, authoritative signal for that one target).
+  const ready = (target) => allChecks
+    .filter((c) => c.targets.includes(target))
+    .every((c) => c.status !== FAIL);
+  const targets = ALL_TARGETS.filter(ready);
 
   process.stdout.write(
     `\nTargets ready: ${targets.length ? targets.join(', ') : 'none'}.\n`,
   );
+
+  // Offer to fix what's broken, one tool at a time, before the final
+  // summary — only the FAIL checks that carry an installer this platform
+  // can actually run unattended, and only in a real interactive terminal.
+  const fixable = allChecks.filter((c) => c.status === FAIL && pickInstallPlan(c.installer));
+  if (fixable.length && canPromptInteractively()) {
+    process.stdout.write(`\n${fixable.length} of those can be installed right now:\n`);
+    for (const check of fixable) {
+      await offerInstall(check);
+    }
+    process.stdout.write('\nRe-run `8bs doctor` to confirm.\n');
+    return failures > 0 ? 1 : 0;
+  }
+
   if (failures || warnings) {
     process.stdout.write(`${failures} problem(s), ${warnings} warning(s). The setup guide is docs/setup/.\n`);
   } else {

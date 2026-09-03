@@ -7,7 +7,9 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { parseVersion, atLeast, findLocalBin } from '../src/doctor.mjs';
+import {
+  parseVersion, atLeast, findLocalBin, pickInstallPlan,
+} from '../src/doctor.mjs';
 
 test('parseVersion finds the first dotted version', () => {
   assert.deepEqual(parseVersion('pnpm 12.1.0'), [12, 1, 0]);
@@ -29,6 +31,48 @@ test('atLeast compares componentwise', () => {
   assert.ok(!atLeast([24, 20, 0], [26]));
   // 3.10 is not 3.1: components are numbers, not decimals.
   assert.ok(atLeast([3, 10, 0], [3, 2]));
+});
+
+test('pickInstallPlan: macOS uses the darwin plan only when brew is on PATH', () => {
+  const installer = { darwin: { manager: 'brew', args: ['install', 'fceux'] } };
+  assert.deepEqual(
+    pickInstallPlan(installer, 'darwin', (bin) => bin === 'brew'),
+    { manager: 'brew', args: ['install', 'fceux'] },
+  );
+  assert.equal(pickInstallPlan(installer, 'darwin', () => false), null);
+});
+
+test('pickInstallPlan: linux tries each listed manager in order, first on PATH wins', () => {
+  const installer = {
+    linux: [
+      { manager: 'apt', args: ['install', '-y', 'vice'], sudo: true },
+      { manager: 'pacman', args: ['-S', '--noconfirm', 'vice'], sudo: true },
+      { manager: 'brew', args: ['install', 'vice'] },
+    ],
+  };
+  // Neither apt-get nor pacman present, but brew (Linuxbrew) is: falls
+  // through to the last option rather than stopping at the first miss.
+  assert.deepEqual(
+    pickInstallPlan(installer, 'linux', (bin) => bin === 'brew'),
+    { manager: 'brew', args: ['install', 'vice'] },
+  );
+  // apt is checked as `apt-get` (the scriptable binary), not `apt`.
+  assert.deepEqual(
+    pickInstallPlan(installer, 'linux', (bin) => bin === 'apt-get'),
+    { manager: 'apt', args: ['install', '-y', 'vice'], sudo: true },
+  );
+  assert.equal(pickInstallPlan(installer, 'linux', () => false), null);
+});
+
+test('pickInstallPlan: a build-from-source installer never gets an auto-install plan', () => {
+  const installer = { buildFromSource: true, repo: 'https://example.invalid' };
+  assert.equal(pickInstallPlan(installer, 'darwin', () => true), null);
+  assert.equal(pickInstallPlan(installer, 'linux', () => true), null);
+});
+
+test('pickInstallPlan: an unsupported platform (or a missing installer) yields no plan', () => {
+  assert.equal(pickInstallPlan({ darwin: { manager: 'brew', args: [] } }, 'win32', () => true), null);
+  assert.equal(pickInstallPlan(null, 'darwin', () => true), null);
 });
 
 test('findLocalBin walks upward and stops at the root', () => {
