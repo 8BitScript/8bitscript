@@ -2,35 +2,47 @@
 // of colour options the program cycles through, and the border/background
 // colours it sets from whichever option is currently picked — the classic
 // first sign of life, now with a bit more happening on screen, on whichever
-// machine you build for.
+// machine you build for. One file, one program, on the VIC-20, the C64, and
+// the web: `main()` sets up once and `frame()` runs once per tick, forever,
+// and nothing in this file drives that loop itself.
 //
-// @8bitscript/machine is not a real module of its own: at build time it
-// resolves to the target package for the machine being built —
-// @8bitscript/vic20 or @8bitscript/c64. All three targets export the same
-// surface: `border`/`background`/`applyColors()` for the colour registers,
-// and `screen.putChar()`/`screen.putColor()`/`screen.showDigit()`/
-// `screen.CellCount` for the screen. There is no general text API yet
-// (that's `screen.putChar(x, y, code)`/`input.*` in docs/roadmap.md, not
-// built — this package's `screen.putChar` takes one flat cell index
-// instead), so what this file pokes onto the screen — clearing it, the
-// "TICK"/"OPTION" labels, the two digits — is entirely this app's own
-// doing, not something the machine packages do for it. There is also no
-// keyboard/joystick input at all, so "changing" an option here means
-// editing `applyOption` below and rebuilding, not pressing a key while it
-// runs.
+// Every target calls frame() at the same real-world rate — a genuine ~60Hz,
+// not a per-target guess — but *how* differs entirely below the language,
+// which is the point: this file never says which target it's building for.
+// On the VIC-20 and C64, the 6502 backend notices this module exports both
+// `main` and `frame` and synthesises the driving loop itself, waiting for
+// the video chip's raster to reach the top of the screen between frame()
+// calls (see packages/backend-6502) — real vertical blank, not a busy-wait
+// calibrated by hand. On the web, the host's requestAnimationFrame loop
+// paces itself the same way (packages/cli/src/web-runtime.mjs). A module
+// that only exports `main`, with no `frame`, is unaffected — it keeps
+// meaning exactly what it always has (`examples/counter`, `examples/
+// step1-main-loop`): the whole program, looping forever on its own.
+//
+// @8bitscript/machine resolves at build time to the target package for the
+// machine being built — @8bitscript/vic20, @8bitscript/c64, or
+// @8bitscript/web. All three export the same surface: `border`/
+// `background`/`applyColors()` for the colour registers, and
+// `screen.putChar()`/`putColor()`/`showDigit()`/`CellCount` for the screen
+// — a real character grid on the VIC-20/C64, a virtual one a browser host
+// renders as text on the web (see @8bitscript/web's header comment). There
+// is no general text API yet (that's `screen.putChar(x, y, code)`/
+// `input.*` in docs/roadmap.md, not built — this package's `screen.putChar`
+// takes one flat cell index instead), so what this file pokes onto the
+// screen — clearing it, the "TICK"/"OPTION" labels, the two digits — is
+// entirely this program's own doing, not something the machine packages do
+// for it. There is also no keyboard/joystick input at all, so "changing" an
+// option here means editing `applyOption` below and rebuilding, not
+// pressing a key while it runs.
 import { border, background, applyColors, screen } from "@8bitscript/machine";
 
-// volatile, or the optimiser notices the delay loop computes nothing and
-// deletes it — and everything on screen moves faster than the eye can see.
-let delay: volatile<usmallint> = 0;
-
-// `ticks` counts passes through main()'s loop, *not* real display frames —
-// each pass takes as long as the 12000-iteration delay loop below, roughly
-// half a second, so this advances at about 2Hz no matter how fast the
-// machine's actual display refreshes. "TICK" on screen, not "FRAME": a
-// frame counter would tick at 50/60fps and this deliberately doesn't.
-// Its ones digit is shown at cell 5; `option`, the index of the current
-// colour option (out of the four below), is shown at cell 14.
+// 30 ticks of frame() at ~60Hz is half a second. Every *tick* (not every
+// frame() call) advances the ones digit shown at cell 5, and every ten
+// ticks the colour option (shown at cell 14) advances too — "TICK" on
+// screen, not "FRAME": a real frame counter would advance 60 times a
+// second, and this deliberately advances at about 2Hz instead, the same
+// real-world rate on every target.
+let logicalFramesUntilTick: utinyint = 30;
 let ticks: utinyint = 0;
 let option: utinyint = 0;
 
@@ -38,7 +50,7 @@ let option: utinyint = 0;
 // are no local variables in the compiled subset yet.
 let clearCell: usmallint = 0;
 
-// Blanking the screen is this app's own choice, not something
+// Blanking the screen is this program's own choice, not something
 // screen.showDigit or applyColors does automatically: on real hardware the
 // VIC-20/C64 boot into BASIC and leave its banner and "READY." on screen,
 // and a program that never touches the rest of screen memory leaves it
@@ -52,12 +64,9 @@ function clearScreen(): void {
     }
 }
 
-// The row-0 labels this app draws once, so the two digits below mean
+// The row-0 labels this program draws once, so the two digits below mean
 // something without a general text API to lean on: "TICK " then its digit
-// at cell 5, "OPTION " then its digit at cell 14 — the same single-line
-// layout main.web.8bs's host draws with a plain string, so the two targets
-// read identically rather than diverging in layout just because one poke
-// path is a character grid and the other is a canvas. Screen codes 1-26 are
+// at cell 5, "OPTION " then its digit at cell 14. Screen codes 1-26 are
 // 'A'-'Z' in every VIC/C64 charset — not their ASCII values, unlike the
 // digits and the space above, which is why this is spelled out letter by
 // letter instead of reusing a text literal.
@@ -90,7 +99,7 @@ function drawLabels(): void {
 // Four curated border/background pairs instead of cycling raw values 0-255
 // — values kept at 7 or under for border, since the VIC-20's border
 // register only has 3 bits either way. This is the "which colours are
-// displayed" choice: add a case, bump the wrap check in main() below from
+// displayed" choice: add a case, bump the wrap check in frame() below from
 // 4, and rebuild. None of the four backgrounds is white(1) or yellow(7):
 // screen.showDigit()/drawLabels() always draw in white(1), and white text
 // is invisible against a white background, barely readable against yellow.
@@ -117,17 +126,16 @@ export function main(): void {
     applyColors();
     screen.showDigit(5, 0);
     screen.showDigit(14, 0);
+}
 
-    while (true) {
-        // Not tied to real vsync — there's no timer API yet either — but it
-        // advances once per pass through this loop, same as the colour
-        // change below always did, so it's visibly alive even while an
-        // option holds.
+export function frame(): void {
+    logicalFramesUntilTick = logicalFramesUntilTick - 1;
+    if (logicalFramesUntilTick == 0) {
+        logicalFramesUntilTick = 30;
+
         ticks = ticks + 1;
         screen.showDigit(5, ticks % 10);
 
-        // Every ten ticks, move to the next colour option and show which
-        // one is active.
         if (ticks % 10 == 0) {
             option = option + 1;
             if (option == 4) {
@@ -136,11 +144,6 @@ export function main(): void {
             applyOption();
             applyColors();
             screen.showDigit(14, option);
-        }
-
-        delay = 0;
-        while (delay < 12000) {
-            delay = delay + 1;
         }
     }
 }

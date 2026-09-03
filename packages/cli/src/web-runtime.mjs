@@ -2,8 +2,10 @@
 // timestep requestAnimationFrame loop — what docs/learn/step1-main-loop.md
 // called "its own step, once the runtime for it exists."
 //
-// A wasm's exported `frame()` (see examples/border/src/main.web.8bs) is
-// called once per *logical* tick, not once per rAF callback. rAF fires at
+// A wasm's exported `frame()` (see examples/border/src/main.8bs, or any
+// other program that exports one — this host is generic, not specific to
+// border) is called once per *logical* tick, not once per rAF callback. rAF
+// fires at
 // whatever rate the display actually refreshes — 60Hz, 120Hz, 144Hz, 50Hz —
 // and a program should not have to know or care which. So the host
 // accumulates real elapsed time and drains it in fixed 1/60s steps: on a
@@ -59,11 +61,20 @@ function renderHtml() {
     transition: opacity 0.6s ease;
   }
   #hint.hidden { opacity: 0; }
+  #fps {
+    position: fixed;
+    top: 10px;
+    right: 14px;
+    font: 11px/1.4 ui-monospace, Menlo, monospace;
+    color: rgba(255, 255, 255, 0.4);
+    pointer-events: none;
+  }
 </style>
 </head>
 <body>
 <canvas id="screen" width="${SCREEN_W}" height="${SCREEN_H}"></canvas>
 <div id="hint">double-click, or press F, for fullscreen</div>
+<div id="fps">FPS --</div>
 <script>
 const COLORS = ${JSON.stringify(COLORS)};
 const LOGICAL_STEP_MS = 1000 / ${LOGICAL_HZ};
@@ -74,6 +85,26 @@ const SCREEN_H = ${SCREEN_H};
 const canvas = document.getElementById('screen');
 const ctx = canvas.getContext('2d');
 const hint = document.getElementById('hint');
+const fpsEl = document.getElementById('fps');
+
+// @8bitscript/web's WebRegisters, mirrored here by hand (there's no shared
+// module the .8bs side and this JS host could both import): a virtual
+// 40-column, 1000-cell character screen starting at byte offset 2, its
+// colour bytes starting at offset 1002. Screen codes 1-26 are 'A'-'Z' and
+// 32-63 mirror ASCII directly (space, digits, punctuation) in every VIC/C64
+// character ROM charset — the same convention @8bitscript/vic20 and
+// @8bitscript/c64 poke into real screen memory for.
+const CHAR_BASE = 2;
+const COLOR_BASE = 1002;
+const GRID_COLS = 40;
+const CHAR_W = 8;
+const CHAR_H = 8;
+
+function decodeScreenCode(code) {
+  if (code >= 1 && code <= 26) return String.fromCharCode(64 + code);
+  if (code >= 32 && code <= 63) return String.fromCharCode(code);
+  return null; // 0 (never written) and everything past 63 aren't decoded yet
+}
 
 // The canvas's on-page size, not its pixel grid: as large as fits the
 // window while keeping the screen's own aspect ratio, so it reads as one
@@ -119,28 +150,20 @@ async function boot() {
     ctx.fillStyle = COLORS[mem[1] & 15];
     ctx.fillRect(BORDER_PX, BORDER_PX, canvas.width - BORDER_PX * 2, canvas.height - BORDER_PX * 2);
 
-    // Bytes 2 and 3 are the two screen.showDigit() slots — the web
-    // target's stand-in for the on-screen digits @8bitscript/vic20 and
-    // @8bitscript/c64 poke straight into real screen RAM for, agreed on in
-    // @8bitscript/web's WebRegisters. Labelling them is this host's own
-    // choice, the same way main.8bs's drawLabels() is the *program's* own
-    // choice on the other two targets, not something the wasm side does for
-    // it — there's nothing in @8bitscript/web forcing this text to appear.
-    // "TICK", not "FRAME": mem[2] advances about twice a second (main.web.
-    // 8bs's ticks variable), not once per real display frame, so "FRAME"
-    // would overclaim what it counts. One line, single spaces throughout,
-    // same layout main.8bs's drawLabels() pokes onto the VIC-20/C64's
-    // screen memory, so the same program reads the same way on every
-    // target. FPS is this host's own addition, not something the wasm side
-    // reports — there's no clock/timer 8BitScript can read yet.
-    ctx.font = '14px ui-monospace, Menlo, monospace';
+    // Whatever the program poked into the virtual character screen — this
+    // host doesn't know or care what any of it means, the same way a real
+    // VIC-20/C64 doesn't know what a program's screen memory says. Blank
+    // cells (never written, or written as a literal space) draw nothing.
+    ctx.font = '8px ui-monospace, Menlo, monospace';
     ctx.textBaseline = 'top';
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(
-      'TICK ' + (mem[2] % 10) + ' OPTION ' + (mem[3] % 10) + ' FPS ' + logicalFps,
-      BORDER_PX + 4,
-      BORDER_PX + 4,
-    );
+    for (let cell = 0; cell < 1000; cell += 1) {
+      const glyph = decodeScreenCode(mem[CHAR_BASE + cell]);
+      if (glyph === null) continue;
+      const col = cell % GRID_COLS;
+      const row = (cell - col) / GRID_COLS;
+      ctx.fillStyle = COLORS[mem[COLOR_BASE + cell] & 15];
+      ctx.fillText(glyph, BORDER_PX + col * CHAR_W, BORDER_PX + row * CHAR_H);
+    }
   }
 
   instance.exports.main();
@@ -165,6 +188,10 @@ async function boot() {
       logicalFps = logicalFrameCount;
       logicalFrameCount = 0;
       logicalFpsWindowStart = now;
+      // This host's own diagnostic, drawn outside the canvas rather than
+      // mixed into whatever the program itself is drawing on its virtual
+      // screen — it isn't something the program can see or control.
+      fpsEl.textContent = 'FPS ' + logicalFps;
     }
     paint();
     requestAnimationFrame(tick);
