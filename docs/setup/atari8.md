@@ -26,10 +26,18 @@ sudo apt update
 sudo apt install atari800
 ```
 
-On Arch and Manjaro:
+On Arch and Manjaro, atari800 is not in the official repos — it's AUR-only.
+On Manjaro, `pamac` (installed by default) builds AUR packages directly:
 
 ```bash
-sudo pacman -S atari800
+pamac install atari800
+```
+
+On plain Arch, or anywhere without `pamac`, use an AUR helper such as
+[yay](https://github.com/Jguer/yay) or [paru](https://github.com/morganamilo/paru):
+
+```bash
+yay -S atari800
 ```
 
 Or, on any Linux with Linuxbrew:

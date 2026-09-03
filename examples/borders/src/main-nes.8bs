@@ -1,0 +1,60 @@
+// examples/borders — NES variant.
+//
+// The NES has no border-colour concept at all (the picture fills the whole
+// frame — there is no separate border area) and no fixed, directly-
+// addressable screen memory the way the Commodore/MEGA65 targets do (NES
+// tile data lives in PPU nametable VRAM, its own address space behind an
+// indirect port, coordinated around vblank — see @8bitscript/nes's own file
+// comment). This variant therefore drops both `border` and the TICK/OPTION
+// digit readout the shared vic20/c64/pet/c128/mega65/web main.8bs draws
+// with `screen`, and only cycles `background` — a real write to the PPU's
+// universal backdrop colour (see @8bitscript/nes for the register
+// protocol). Same 2Hz tick, same four-step cycle, so the visible behaviour
+// (a colour change every half second, the same colour again every two
+// seconds) matches every other target's, even without the on-screen
+// counters.
+import { background, applyColors } from "@8bitscript/machine";
+
+let logicalFramesUntilTick: utinyint = 30;
+let ticks: utinyint = 0;
+let option: utinyint = 0;
+
+// Four indices from different rows of the well-known 2C02 palette ($00-$3F
+// — the hardware-defined range every NES palette entry lives in, regardless
+// of which RGB conversion table an emulator or TV displays it through),
+// picked for visible contrast rather than for matching specific named
+// colours the way @8bitscript/vic20's BorderColor/BackgroundColor
+// namespaces do.
+function applyOption(): void {
+    if (option == 0) {
+        background = 0x0F;
+    } else if (option == 1) {
+        background = 0x11;
+    } else if (option == 2) {
+        background = 0x21;
+    } else {
+        background = 0x31;
+    }
+}
+
+export function main(): void {
+    applyOption();
+    applyColors();
+}
+
+export function frame(): void {
+    logicalFramesUntilTick = logicalFramesUntilTick - 1;
+    if (logicalFramesUntilTick == 0) {
+        logicalFramesUntilTick = 30;
+
+        ticks = ticks + 1;
+        if (ticks % 10 == 0) {
+            option = option + 1;
+            if (option == 4) {
+                option = 0;
+            }
+            applyOption();
+            applyColors();
+        }
+    }
+}

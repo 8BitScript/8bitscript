@@ -24,7 +24,7 @@ error 8BS3001: a call through member access is not compilable yet
 That is the exhaustive-with-error rule working: the compiler refuses to build a
 program missing half its meaning rather than emitting something silently wrong.
 For programs that *do* compile and run today, see `examples/counter` (both
-targets) and `examples/border` (VIC-20 and C64, visibly — one source file
+targets) and `examples/borders` (VIC-20 and C64, visibly — one source file
 that imports its colour API from `@8bitscript/machine`, which resolves to
 the target package for whichever machine is being built).
 

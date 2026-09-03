@@ -27,6 +27,6 @@ produce the `.prg` without launching the emulator.
 ## Status
 
 VIC-20 only: it pokes the unexpanded machine's fixed screen-memory address
-directly. See `examples/border` for a program that targets all three
+directly. See `examples/borders` for a program that targets all three
 machines from one source file, and `examples/step1-main-loop` for the first
 step of the Learn 8BitScript series.

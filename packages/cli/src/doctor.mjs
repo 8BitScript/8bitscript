@@ -19,9 +19,12 @@
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { existsSync } from 'node:fs';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
+
+import { MEGA65_ROM_920413, validateRomBuffer } from './setup/rom.mjs';
+import { MEGA65_ROM_CANONICAL_PATH, xemuRomLinkPath } from './setup/paths.mjs';
 
 // ---- pure helpers, unit-tested --------------------------------------------
 
@@ -59,10 +62,14 @@ export function findLocalBin(dir, name) {
 /**
  * Pick the install plan this platform can actually run, from an installer's
  * `darwin`/`linux` options — the first Linux package manager found on PATH,
- * since a machine only ever has some of apt/pacman/brew(linuxbrew). Returns
- * null for a source-only installer, an unsupported platform, or a Linux box
- * with none of the listed managers on PATH (docs/hints still apply either
- * way; this only decides whether the interactive one-key install applies).
+ * since a machine only ever has some of apt/pacman/pamac/yay/paru/brew
+ * (linuxbrew). `buildFromSource` blocks this outright: x16emu and xmega65
+ * (Xemu) are both source-only, and neither one's AUR package is trusted here
+ * (see the comments on their INSTALLERS entries) — the interactive one-key
+ * install never applies to them; `8bs setup <target>` is the real path in.
+ * Returns null for an unsupported platform, or a Linux box with none of the
+ * listed managers on PATH (docs/hints still apply either way; this only
+ * decides whether the interactive one-key install applies).
  */
 export function pickInstallPlan(installer, platform = process.platform, hasBinary = onPath) {
   if (!installer || installer.buildFromSource) return null;
@@ -248,11 +255,12 @@ async function checkMos() {
 // One entry per emulator this project can launch (`8bs run <target>`). Each
 // carries: a doctor-facing label, the target(s) it serves, a brew formula
 // for macOS, a Linux package-manager list (tried in the order a machine is
-// likely to have them — apt/pacman native packages first, Linuxbrew last),
-// and either a `docs/setup/*.md` page or — for the two emulators this
-// project could not find a package for — the upstream repo to build from
-// source. `pickInstallPlan()` above turns this into the one command this
-// specific machine can actually run.
+// likely to have them — apt/pacman native packages first, AUR-only packages
+// via pamac/yay/paru next, Linuxbrew last), and a `docs/setup/*.md` page.
+// `buildFromSource`/`repo` are set on top of that for the platforms (or, for
+// x16emu, every platform) with no single-command install — `pickInstallPlan()`
+// above only consults `.linux`/`.darwin` for whatever this specific machine
+// can actually run, so `buildFromSource` never overrides a real entry.
 const INSTALLERS = {
   vice: {
     label: 'VICE (xvic, x64sc, xpet, x128)',
@@ -267,9 +275,18 @@ const INSTALLERS = {
   atari800: {
     label: 'atari800 (Atari 8-bit)',
     darwin: { manager: 'brew', args: ['install', 'atari800'] },
+    // No pacman plan: atari800 is not in Arch/Manjaro's official repos, only
+    // the AUR (confirmed against `pacman -Si atari800` — "package not
+    // found"). pamac — Manjaro's default package manager — builds AUR
+    // packages out of the box (confirmed: `pamac search atari800` resolves
+    // the AUR `atari800` package by exact name) and is tried first among the
+    // AUR-capable options since it's what Manjaro ships by default; yay/paru
+    // cover plain Arch installs that don't have pamac.
     linux: [
       { manager: 'apt', args: ['install', '-y', 'atari800'], sudo: true },
-      { manager: 'pacman', args: ['-S', '--noconfirm', 'atari800'], sudo: true },
+      { manager: 'pamac', args: ['build', '--no-confirm', 'atari800'] },
+      { manager: 'yay', args: ['-S', '--noconfirm', 'atari800'] },
+      { manager: 'paru', args: ['-S', '--noconfirm', 'atari800'] },
       { manager: 'brew', args: ['install', 'atari800'] },
     ],
     docs: 'docs/setup/atari8.md',
@@ -286,48 +303,88 @@ const INSTALLERS = {
   },
   x16emu: {
     label: 'x16emu (Commander X16)',
+    // An AUR `x16-emulator` package exists, but it can drift out of sync
+    // with the ROM the emulator needs — the two have to be a matching pair,
+    // per upstream's own notes — and may be outdated or broken. There's no
+    // single-command install plan here as a result: docs/setup/cx16.md's
+    // guided build builds both the emulator and a matching ROM from source
+    // instead. See checkOtherEmulators() for the resulting `x16emu -version`
+    // check — confirmed working (no window, clean exit) against a real
+    // source build on this machine.
     buildFromSource: true,
     repo: 'https://github.com/X16Community/x16-emulator',
     docs: 'docs/setup/cx16.md',
   },
   xmega65: {
     label: 'Xemu — MEGA65 core (xmega65)',
+    // No brew formula. An AUR `xmega65-git` package exists, but it's
+    // unreliable/outdated and this project doesn't depend on it — `8bs setup
+    // mega65` builds targets/mega65 from lgblgblgb/xemu directly instead.
     buildFromSource: true,
     repo: 'https://github.com/lgblgblgb/xemu',
     docs: 'docs/setup/mega65.md',
+    // `8bs setup mega65` builds+installs this (and the ROM — see
+    // checkMega65Rom() below) end to end; point installerHint() at it
+    // instead of just the bare upstream repo.
+    setupCommand: 'mega65',
   },
 };
 
-/** One line: what this machine can run, or where to read more. */
+/** `sudo apt-get install -y foo` style text for one darwin/linux plan. */
+function planCommand(plan) {
+  const manager = plan.manager === 'apt' ? 'apt-get' : plan.manager;
+  return plan.sudo ? `sudo ${manager} ${plan.args.join(' ')}` : `${manager} ${plan.args.join(' ')}`;
+}
+
+/**
+ * Every command line for this platform, in the order it's tried — so a FAIL
+ * always shows concrete things to try, not just the one this machine can run
+ * unattended right now, collapsed behind "your distro's package manager".
+ * The one `pickInstallPlan` would actually run is marked "(detected)".
+ */
 function installerHint(installer) {
-  const plan = pickInstallPlan(installer);
-  if (plan) {
-    const cmd = plan.sudo ? `sudo ${plan.manager === 'apt' ? 'apt-get' : plan.manager}` : plan.manager;
-    return `${cmd} ${plan.args.join(' ')} — ${installer.docs}`;
+  const plans = process.platform === 'darwin'
+    ? (installer.darwin ? [installer.darwin] : [])
+    : process.platform === 'linux'
+      ? (installer.linux ?? [])
+      : [];
+  if (plans.length === 0) {
+    if (installer.buildFromSource) {
+      const setupHint = installer.setupCommand ? `run: 8bs setup ${installer.setupCommand} — ` : '';
+      return `${setupHint}no packaged build found — ${installer.repo} — ${installer.docs}`;
+    }
+    return `brew install <formula>, or your distro's package manager — ${installer.docs}`;
   }
-  if (installer.buildFromSource) {
-    return `no packaged build found — ${installer.repo} — ${installer.docs}`;
-  }
-  return `brew install <formula>, or your distro's package manager — ${installer.docs}`;
+  const detected = pickInstallPlan(installer);
+  const lines = plans.map((plan) => `${planCommand(plan)}${plan === detected ? '  (detected)' : ''}`);
+  return `try:\n        ${lines.join('\n        ')}\n        — ${installer.docs}`;
 }
 
 /** Existence + best-effort version for an emulator binary that may hang on
  * an unrecognised flag (a GUI emulator opening a window instead of printing
  * a version) — existence is the check that matters; the version probe only
- * ever upgrades a result, never fails one, so a slow/silent --version can't
- * turn a real install into a false FAIL. */
-async function checkEmulator(binary, { label = binary, targets, installerKey, tryVersion = true } = {}) {
+ * ever upgrades a result, never fails one, so a slow/silent version flag
+ * can't turn a real install into a false FAIL. `versionArgs` defaults to
+ * `--version`, but x16emu only recognises `-version` (single dash) —
+ * confirmed on this machine: `-version` exits 0 with a clean release line,
+ * `--version` is treated as unrecognised and falls through to the usage
+ * text (also a clean exit, just not a version). */
+async function checkEmulator(binary, { label = binary, targets, installerKey, tryVersion = true, versionArgs = ['--version'] } = {}) {
   const installer = INSTALLERS[installerKey];
   if (!onPath(binary)) {
     return result(FAIL, label, 'not found', installerHint(installer), { installer, targets });
   }
   if (!tryVersion) return result(OK, label, 'found', null, { targets });
-  const r = await run(binary, ['--version']);
+  const r = await run(binary, versionArgs);
   if (r.missing || r.timedOut) return result(OK, label, 'found (version unconfirmed)', null, { targets });
-  const version = parseVersion(r.stdout + r.stderr);
-  return version
-    ? result(OK, label, version.join('.'), null, { targets })
-    : result(OK, label, 'found (version unconfirmed)', null, { targets });
+  const output = r.stdout + r.stderr;
+  const version = parseVersion(output);
+  if (version) return result(OK, label, version.join('.'), null, { targets });
+  // No dotted version to parse (x16emu reports "Release NN" instead) — show
+  // the real first line rather than a canned "unconfirmed" for output we did
+  // get back.
+  const firstLine = output.trim().split('\n')[0]?.trim();
+  return result(OK, label, firstLine || 'found (version unconfirmed)', null, { targets });
 }
 
 async function checkVice() {
@@ -422,14 +479,81 @@ async function bootCheck() {
   }
 }
 
+/**
+ * Does a MEGA65 ROM exist at either place `8bs setup mega65` (or a manual
+ * install) would put it, and is it the full, official 920413 ROM — not just
+ * present, since a redistributable Open ROM or some other file at the same
+ * path is not equivalent for target readiness (see docs/setup/mega65.md).
+ * Checks the canonical install first, then Xemu's own per-user copy, mirroring
+ * setup/mega65.mjs's own read order.
+ */
+export async function findMega65Rom({
+  canonicalPath = MEGA65_ROM_CANONICAL_PATH, linkPath = xemuRomLinkPath(), read = readFile,
+} = {}) {
+  for (const path of [canonicalPath, linkPath]) {
+    try {
+      const buffer = await read(path);
+      return { path, validation: validateRomBuffer(buffer, { size: MEGA65_ROM_920413.romSize, sha256: MEGA65_ROM_920413.romSha256 }) };
+    } catch {
+      // Not at this path — try the next, or report not-found below.
+    }
+  }
+  return null;
+}
+
+/**
+ * Three separate checks, not one — `xmega65` existing is not the same thing
+ * as MEGA65 being ready to run: the full MEGA65 ROM cannot be redistributed
+ * by this project (docs/setup/mega65.md), so a fresh Xemu install has no ROM
+ * until `8bs setup mega65` (or the equivalent manual steps) produces one.
+ */
+async function checkMega65Rom(hasEmulator, find = findMega65Rom) {
+  const checks = [];
+  const found = await find();
+
+  if (!found) {
+    checks.push(result(
+      FAIL, 'MEGA65 ROM', 'not found',
+      hasEmulator
+        ? 'xmega65 is installed, but the full MEGA65 ROM is missing.\n        run: 8bs setup mega65'
+        : 'run: 8bs setup mega65',
+      { targets: ['mega65'] },
+    ));
+  } else if (found.validation.ok) {
+    checks.push(result(OK, 'MEGA65 ROM', MEGA65_ROM_920413.release, null, { targets: ['mega65'] }));
+  } else {
+    checks.push(result(
+      FAIL, 'MEGA65 ROM',
+      `found at ${found.path}, but it isn't the full ${MEGA65_ROM_920413.release} ROM `
+      + '(may be an Open ROM, or a different release)',
+      'run: 8bs setup mega65',
+      { targets: ['mega65'] },
+    ));
+  }
+
+  const ready = hasEmulator && checks[0].status === OK;
+  checks.push(ready
+    ? result(OK, 'MEGA65 boot', 'emulator configuration ready', null, { targets: ['mega65'] })
+    : result(SKIP, 'MEGA65 boot', 'skipped — xmega65 and a full MEGA65 ROM are both required first', null, { targets: ['mega65'] }));
+
+  return checks;
+}
+
 async function checkOtherEmulators() {
+  const xmega65 = await checkEmulator('xmega65', { label: 'xmega65 (MEGA65, via Xemu)', targets: ['mega65'], installerKey: 'xmega65', tryVersion: false });
   const checks = [
     await checkEmulator('atari800', { label: 'atari800 (Atari 8-bit)', targets: ['atari8'], installerKey: 'atari800' }),
     await checkEmulator('fceux', { label: 'fceux (NES)', targets: ['nes'], installerKey: 'fceux' }),
-    // Built from source, with no confirmed --version flag (see the cx16 and
-    // mega65 setup docs) — existence is all this checks.
-    await checkEmulator('x16emu', { label: 'x16emu (Commander X16)', targets: ['cx16'], installerKey: 'x16emu', tryVersion: false }),
-    await checkEmulator('xmega65', { label: 'xmega65 (MEGA65, via Xemu)', targets: ['mega65'], installerKey: 'xmega65', tryVersion: false }),
+    // x16emu's `-version` (confirmed against a real source build: exits 0,
+    // no window, "### Release NN (...)" on stdout) is the one non-default
+    // flag among these checks — see checkEmulator()'s versionArgs.
+    await checkEmulator('x16emu', { label: 'x16emu (Commander X16)', targets: ['cx16'], installerKey: 'x16emu', versionArgs: ['-version'] }),
+    // Built from source, with no confirmed --version flag (see the mega65
+    // setup docs) — existence is all this checks. ROM/readiness are their
+    // own checks right below, deliberately: `xmega65` existing does not
+    // mean the target is ready to run — see checkMega65Rom().
+    xmega65,
+    ...(await checkMega65Rom(xmega65.status === OK)),
   ];
   return { title: 'Atari 8-bit / NES / Commander X16 / MEGA65 emulators', checks };
 }
@@ -499,6 +623,21 @@ const MARK = { [OK]: '  ok', [FAIL]: 'FAIL', [WARN]: 'warn', [SKIP]: '  --' };
 
 const ALL_TARGETS = ['web', 'vic20', 'c64', 'pet', 'c128', 'atari8', 'nes', 'cx16', 'mega65'];
 
+/**
+ * Which of `targets` are ready: every check that named a target passed. WARN
+ * doesn't block readiness (e.g. VICE's `--version` flag is broken upstream —
+ * prints nothing parseable — even on a working install, and the VIC-20 boot
+ * check is the real, authoritative signal for that one target) — only FAIL
+ * does. For mega65 specifically, this is what turns three separate checks
+ * (mos-mega65-clang, xmega65, MEGA65 ROM) into one readiness bit: all three
+ * carry `targets: ['mega65']`, so mega65 is ready only when none of them FAIL.
+ */
+export function readyTargets(checks, targets = ALL_TARGETS) {
+  return targets.filter((target) => checks
+    .filter((c) => c.targets.includes(target))
+    .every((c) => c.status !== FAIL));
+}
+
 /** @returns {Promise<number>} process exit code */
 export async function doctor() {
   process.stdout.write('8bs doctor\n');
@@ -524,14 +663,7 @@ export async function doctor() {
     }
   }
 
-  // A target is ready when every check that named it passed. WARN doesn't
-  // block readiness (e.g. VICE's `--version` flag is broken upstream —
-  // prints nothing parseable — even on a working install, and the VIC-20
-  // boot check above is the real, authoritative signal for that one target).
-  const ready = (target) => allChecks
-    .filter((c) => c.targets.includes(target))
-    .every((c) => c.status !== FAIL);
-  const targets = ALL_TARGETS.filter(ready);
+  const targets = readyTargets(allChecks, ALL_TARGETS);
 
   process.stdout.write(
     `\nTargets ready: ${targets.length ? targets.join(', ') : 'none'}.\n`,

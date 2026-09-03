@@ -16,6 +16,13 @@
 //                        in atari800; --profile picks a different Atari
 //                        8-bit hardware profile, --pal/--ntsc the TV
 //                        standard (NTSC default)
+//   8bs run vic20 --profile 16k   builds for a 16K-expanded VIC-20 and
+//                        passes xvic the matching `-memory` flag, so the
+//                        emulated machine's RAM matches what the program
+//                        was linked for
+//   8bs run c64 --profile reu512  builds for the stock C64 (a REU changes
+//                        nothing about the base memory map) and attaches a
+//                        512K REU to x64sc via `-reu -reusize`
 //   8bs run nes          builds the .nes and opens it in FCEUX
 //   8bs run cx16          builds the .prg and opens it in x16emu
 //   8bs run mega65        builds the .prg and opens it in Xemu's MEGA65
@@ -88,6 +95,14 @@ const ATARI8_MODEL_ARG = {
   xegs: '-xegs',
 };
 
+// xvic's own -memory spec strings (confirmed against `xvic -help`:
+// "none/3k/8k/16k/24k/all") for each VIC20_PROFILES name. 'unexpanded' maps
+// to 'none' — xvic's own default, which is why the unexpanded case worked
+// with no flag at all before profiles existed.
+const VIC20_MEMORY_ARG = {
+  unexpanded: 'none', '3k': '3k', '8k': '8k', '16k': '16k', '24k': '24k',
+};
+
 /** @returns {Promise<number>} exit code */
 export async function run(args) {
   const pal = args.includes('--pal');
@@ -102,7 +117,11 @@ export async function run(args) {
   if (!target) {
     process.stderr.write(
       'Usage: 8bs run <vic20|c64|pet|c128|atari8|nes|cx16|mega65|web>\n'
-      + '                [--pal] [--profile <800xl|65xe|130xe|800|400|xegs>] [--no-open] [entry.8bs]\n',
+      + '                [--pal]\n'
+      + '                [--profile <800xl|65xe|130xe|800|400|xegs>]        (atari8)\n'
+      + '                [--profile <unexpanded|3k|8k|16k|24k>]             (vic20)\n'
+      + '                [--profile <stock|reu128|reu256|reu512|reu1m|reu2m|reu4m|reu8m|reu16m>] (c64)\n'
+      + '                [--no-open] [entry.8bs]\n',
     );
     return 2;
   }
@@ -136,16 +155,26 @@ export async function run(args) {
     return 0;
   }
 
-  const { ATARI8_DEFAULT_PROFILE } = await import('@8bitscript/backend-6502');
+  const {
+    ATARI8_DEFAULT_PROFILE, VIC20_DEFAULT_PROFILE, C64_DEFAULT_PROFILE, C64_REU_SIZE_KIB,
+  } = await import('@8bitscript/backend-6502');
   const region = pal ? 'pal' : 'ntsc';
 
   let emulator;
   let emulatorArgs;
   if (target in VICE_EMULATOR) {
     emulator = VICE_EMULATOR[target];
+    // vic20's -memory must match whichever RAM-expansion profile the
+    // program was linked for (see VIC20_MEMORY_ARG above); c64's REU is
+    // purely additive hardware, so it only ever appends `-reu -reusize`,
+    // never changes anything else about the base machine.
+    const vic20Profile = target === 'vic20' ? (profile ?? VIC20_DEFAULT_PROFILE) : undefined;
+    const c64Profile = target === 'c64' ? (profile ?? C64_DEFAULT_PROFILE) : undefined;
     emulatorArgs = [
       ...(VICE_EMULATOR_ARGS[target] ?? []),
       ...(VICE_MODEL_ARGS[target]?.[region] ?? []),
+      ...(vic20Profile ? ['-memory', VIC20_MEMORY_ARG[vic20Profile]] : []),
+      ...(c64Profile && c64Profile !== 'stock' ? ['-reu', '-reusize', String(C64_REU_SIZE_KIB[c64Profile])] : []),
       // Skip the "really quit?" confirmation dialog — closing the emulator
       // window during dev/test cycles should not need a click every time.
       '+confirmonexit',

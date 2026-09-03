@@ -8,8 +8,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
-  parseVersion, atLeast, findLocalBin, pickInstallPlan,
+  parseVersion, atLeast, findLocalBin, pickInstallPlan, findMega65Rom, readyTargets,
 } from '../src/doctor.mjs';
+import { MEGA65_ROM_920413, sha256Hex } from '../src/setup/rom.mjs';
 
 test('parseVersion finds the first dotted version', () => {
   assert.deepEqual(parseVersion('pnpm 12.1.0'), [12, 1, 0]);
@@ -73,6 +74,77 @@ test('pickInstallPlan: a build-from-source installer never gets an auto-install 
 test('pickInstallPlan: an unsupported platform (or a missing installer) yields no plan', () => {
   assert.equal(pickInstallPlan({ darwin: { manager: 'brew', args: [] } }, 'win32', () => true), null);
   assert.equal(pickInstallPlan(null, 'darwin', () => true), null);
+});
+
+test('findMega65Rom: not found at either the canonical or Xemu-local path', async () => {
+  const found = await findMega65Rom({
+    canonicalPath: '/opt/mega65/MEGA65.ROM',
+    linkPath: '/home/user/.xemu-lgb/MEGA65.ROM',
+    read: async () => { throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' }); },
+  });
+  assert.equal(found, null);
+});
+
+test('findMega65Rom: checks the canonical install before the Xemu-local copy', async () => {
+  const romBytes = Buffer.alloc(MEGA65_ROM_920413.romSize, 3);
+  const reads = [];
+  const found = await findMega65Rom({
+    canonicalPath: '/opt/mega65/MEGA65.ROM',
+    linkPath: '/home/user/.xemu-lgb/MEGA65.ROM',
+    read: async (p) => { reads.push(p); return romBytes; },
+  });
+  assert.deepEqual(reads, ['/opt/mega65/MEGA65.ROM']);
+  assert.equal(found.path, '/opt/mega65/MEGA65.ROM');
+  assert.equal(found.validation.sha256, sha256Hex(romBytes));
+});
+
+test('findMega65Rom: falls back to the Xemu-local copy when the canonical path has nothing', async () => {
+  const romBytes = Buffer.alloc(MEGA65_ROM_920413.romSize, 4);
+  const found = await findMega65Rom({
+    canonicalPath: '/opt/mega65/MEGA65.ROM',
+    linkPath: '/home/user/.xemu-lgb/MEGA65.ROM',
+    read: async (p) => {
+      if (p === '/opt/mega65/MEGA65.ROM') throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+      return romBytes;
+    },
+  });
+  assert.equal(found.path, '/home/user/.xemu-lgb/MEGA65.ROM');
+  assert.equal(found.validation.sha256, sha256Hex(romBytes));
+});
+
+test('findMega65Rom: a present-but-wrong ROM (e.g. an Open ROM) is found but fails validation', async () => {
+  const found = await findMega65Rom({
+    canonicalPath: '/opt/mega65/MEGA65.ROM',
+    linkPath: '/home/user/.xemu-lgb/MEGA65.ROM',
+    read: async () => Buffer.alloc(MEGA65_ROM_920413.romSize, 0xaa),
+  });
+  assert.equal(found.validation.ok, false);
+});
+
+test('readyTargets: mega65 is only ready when compiler, emulator, and ROM checks all pass', () => {
+  const passing = [
+    { status: 'ok', targets: ['mega65'] }, // mos-mega65-clang
+    { status: 'ok', targets: ['mega65'] }, // xmega65
+    { status: 'ok', targets: ['mega65'] }, // MEGA65 ROM
+  ];
+  assert.deepEqual(readyTargets(passing, ['mega65']), ['mega65']);
+
+  for (let i = 0; i < passing.length; i += 1) {
+    const withOneFailing = passing.map((c, j) => (i === j ? { ...c, status: 'fail' } : c));
+    assert.deepEqual(
+      readyTargets(withOneFailing, ['mega65']),
+      [],
+      `check ${i} failing must block mega65 readiness`,
+    );
+  }
+
+  // xmega65 existing alone (the other two missing/failing) must not be enough.
+  const onlyEmulator = [
+    { status: 'fail', targets: ['mega65'] },
+    { status: 'ok', targets: ['mega65'] },
+    { status: 'fail', targets: ['mega65'] },
+  ];
+  assert.deepEqual(readyTargets(onlyEmulator, ['mega65']), []);
 });
 
 test('findLocalBin walks upward and stops at the root', () => {

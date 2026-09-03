@@ -2,9 +2,9 @@
 // timestep requestAnimationFrame loop — what docs/learn/step1-main-loop.md
 // called "its own step, once the runtime for it exists."
 //
-// A wasm's exported `frame()` (see examples/border/src/main.8bs, or any
+// A wasm's exported `frame()` (see examples/borders/src/main.8bs, or any
 // other program that exports one — this host is generic, not specific to
-// border) is called once per *logical* tick, not once per rAF callback. rAF
+// borders) is called once per *logical* tick, not once per rAF callback. rAF
 // fires at
 // whatever rate the display actually refreshes — 60Hz, 120Hz, 144Hz, 50Hz —
 // and a program should not have to know or care which. So the host

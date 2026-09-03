@@ -131,7 +131,7 @@ importers:
         specifier: 10.1.1
         version: 10.1.1
 
-  examples/border:
+  examples/borders:
     dependencies:
       '@8bitscript/machine':
         specifier: workspace:*

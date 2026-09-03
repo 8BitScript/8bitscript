@@ -35,7 +35,7 @@ compiler. The remaining pages, in order:
 ## Getting started
 
 Once setup is done, the [getting started tutorial](tutorial.md) walks through
-cloning the repository, building and running the `examples/border` program,
+cloning the repository, building and running the `examples/borders` program,
 and where to look next. It is a work in progress, same as everything else
 here — it covers the one path that goes end to end today.
 

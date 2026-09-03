@@ -6,19 +6,46 @@
 //     import { border, background, applyColors } from "@8bitscript/nes";
 //
 // The NES has no border-colour concept at all (the picture fills the whole
-// frame; there is no separate border area to colour), and its real
-// backdrop colour lives in PPU palette RAM at $3F00 — memory the CPU
-// cannot reach directly the way it reaches VIC/VIC-II registers. Palette
-// RAM sits behind the PPU's own indirect port protocol ($2006 to set an
-// address, $2007 to read/write through it), which this target doesn't
-// build yet. `border`, `background`, and `applyColors()` exist only so
-// portable code written against every machine's common colour surface
-// still links here, the same reasoning @8bitscript/pet documents for a
-// gap in a specific target: they are deliberately inert on this machine.
-
+// frame; there is no separate border area to colour), so `border` exists
+// only so portable code written against every machine's common colour
+// surface still links here, the same reasoning @8bitscript/pet documents
+// for a gap in a specific target: it is deliberately inert on this machine.
+//
+// `background`, unlike `border`, is real: it writes the PPU's universal
+// backdrop colour, palette RAM entry $3F00 — memory the CPU cannot reach
+// directly the way it reaches VIC/VIC-II registers. Palette RAM sits behind
+// the PPU's own indirect port protocol: reading PPUSTATUS ($2002) resets
+// the shared PPUADDR/PPUSCROLL write-toggle (needed so the two PPUADDR
+// writes below land as a fresh address, not a stray second half of
+// whatever the write-toggle was mid-way through before), then two writes
+// to PPUADDR ($2006) — high byte, then low byte — latch the target VRAM
+// address, and a write to PPUDATA ($2007) stores through it. `background`
+// is a NES palette index (0x0F-0x3F is the usable range; there is no RGB
+// conversion here, the same "portable values are whatever the hardware
+// wants" contract memory.write already has everywhere else), not an RGB
+// byte the way VIC/VIC-II colours are.
+//
+// KNOWN GAP: NESdev's own guidance is to wait for two full vblanks after
+// reset before touching the PPU at all (the chip's analog side needs time
+// to stabilise on power-on). The frame() driver this target shares with
+// every other 'edge'-kind machine (packages/backend-6502's FRAME_SYNC) calls
+// a program's `main()` immediately, with no such wait built in — a program
+// whose `main()` calls `applyColors()` right away (as `examples/borders`
+// does) writes the PPU before that warm-up period. Harmless for a simple
+// backdrop write on every emulator this project tests against, but not the
+// hardware-correct sequence a real NES cartridge should use.
 export let border: u8 = 0;
 export let background: u8 = 0;
 
 export function applyColors(): void {
-    // Deliberately empty — see the file comment above.
+    memory.read(0x2002);         // PPUSTATUS: reset the PPUADDR write-toggle
+    memory.write(0x2006, 0x3F);  // PPUADDR high byte: palette RAM ($3Fxx)
+    memory.write(0x2006, 0x00);  // PPUADDR low byte: $3F00, the universal backdrop
+    memory.write(0x2007, background); // PPUDATA: the backdrop colour itself
+    // PPUMASK bit 3: a fresh NES boots with rendering off, so nothing above
+    // would be visible without this — background rendering only, no
+    // sprites, and the leftmost 8 pixels not clipped (the backdrop colour
+    // is uniform regardless, so clipping only matters for tile edges this
+    // program never draws).
+    memory.write(0x2001, 0x08);
 }
