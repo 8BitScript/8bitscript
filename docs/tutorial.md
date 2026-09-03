@@ -69,7 +69,12 @@ digit after `OPTION` changing alongside it. Close the emulator window when
 you're done. `pnpm run start:web` shows the identical line drawn over the
 canvas instead — same wording, same layout, same twice-a-second/every-ten-
 ticks cadence, so the two feel like the same program rather than two
-different demos that happen to share a name.
+different demos that happen to share a name — plus a third number, `FPS`,
+that only the web version has: how many times `frame()` actually ran in the
+last real second, sampled once a second. It should read ~60 no matter the
+display's actual refresh rate, since that's the whole point of the fixed
+60Hz logical step described below — `FPS` is how you check that claim
+instead of taking it on faith.
 
 `package.json` has one script per target:
 
@@ -138,13 +143,13 @@ function applyOption(): void {
         background = 3;
     } else if (option == 1) {
         border = 2;
-        background = 7;
+        background = 4;
     } else if (option == 2) {
         border = 5;
         background = 0;
     } else {
         border = 4;
-        background = 1;
+        background = 2;
     }
 }
 
@@ -214,7 +219,11 @@ export function main(): void {
   `drawLabels()` draws, and cell 14 for the option number, after `OPTION `.
 - `applyOption()` maps the current `option` (0-3) to one of four curated
   border/background pairs with an `if`/`else` chain, not a lookup table —
-  `array<T, N>` parses but isn't in the compiled subset yet either.
+  `array<T, N>` parses but isn't in the compiled subset yet either. None of
+  the four backgrounds is white(1) or yellow(7), on purpose: the labels and
+  digits always draw in white, and white text on a white (or nearly-white
+  yellow) background is unreadable or invisible — a real bug this palette
+  used to have.
 - There is no keyboard or joystick input on any target, so "choosing" an
   option means editing `applyOption()` and rebuilding, not pressing a key
   while the program runs.
