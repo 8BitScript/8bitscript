@@ -38,25 +38,41 @@ const MACHINE_FLAGS = {
 };
 
 // The video chip's raster line, read as a plain memory location — no IRQ, no
-// interrupt vector, just a byte that counts scanlines and wraps once a
-// frame. This is what the frame()-driver loop below polls so a program's
+// interrupt vector, just a byte (or two) that count scanlines and wrap once
+// a frame. This is what the frame()-driver loop below polls so a program's
 // frame() runs once per real vertical blank: exactly 60Hz NTSC / 50Hz PAL,
 // self-correcting, with no calibrated delay constant to get wrong or to
-// need a separate value per region.
+// need a separate value per region. Each entry is a C boolean expression,
+// true exactly when the raster is at the true top of the frame — not just
+// "read this one register" — because the two chips need a different amount
+// of care to get that right, verified empirically (see below), not assumed
+// from either chip's own datasheet alone.
 //
-// C64 (VIC-II): $D012 holds the raster line's low 8 bits directly. A 9th
-// bit (needed for lines >= 256) lives in $D011 bit 7 — irrelevant here,
-// since line 0 always has that bit clear.
-// (https://www.c64-wiki.com/wiki/VIC)
+// C64 (VIC-II): $D012 holds the raster line's low 8 bits, wrapping at 256 —
+// but the C64 has 312 lines (PAL) or 263 (NTSC), both *past* 256, so $D012
+// alone reads 0 not only at the true top of the frame (line 0) but *again*
+// at line 256. A check of $D012==0 alone fires twice a frame, not once —
+// confirmed the hard way, by actually running the built .prg under VICE
+// with its remote monitor and measuring the real on-screen cycle rate: it
+// came out almost exactly 2x too fast. $D011 bit 7 is the missing 9th bit
+// (https://www.c64-wiki.com/wiki/VIC); requiring it clear rules out line
+// 256 and leaves only the real top of the frame.
 //
 // VIC-20 (VIC-I): a different, non-obvious layout — not inferred from the
 // C64's. $9004 holds bits 8-1 of the 9-bit raster counter and only changes
 // every *second* line; the counter's own bit 0 lives by itself in $9003 bit
-// 7. Reading $9004 alone is coarser — it reads 0 for both raster lines 0
-// and 1 — but that is more than precise enough for "once near the top of
-// the frame," so bit 0 is never read.
+// 7. Its own range tops out around 130 (NTSC) or 155 (PAL) — nowhere near
+// an 8-bit wraparound — so there is no line-256-style aliasing to guard
+// against, and no 9th bit is needed. Reading $9004 alone is coarser than
+// the C64 check (it reads 0 for both raster lines 0 and 1), but that is
+// more than precise enough for "once near the top of the frame." This one
+// was verified the same way as the C64's — measured under VICE, not just
+// reasoned about — and came out correct on the first try.
 // (https://github.com/cbmeeks/VIC-20/blob/master/6561.txt, registers CR3/CR4)
-const RASTER_ADDRESS = { vic20: 0x9004, c64: 0xd012 };
+const RASTER_AT_TOP = {
+  vic20: '(*(volatile uint8_t *)0x9004) == 0',
+  c64: '(*(volatile uint8_t *)0xD012) == 0 && ((*(volatile uint8_t *)0xD011) & 0x80) == 0',
+};
 
 // `memory.read`/`memory.write` cast a runtime address to a byte pointer and
 // dereference it, `volatile` because the address is not known at compile
@@ -196,11 +212,10 @@ export function emitC(ir, { machine } = {}) {
   }
 
   if (hasFrame) {
-    const raster = RASTER_ADDRESS[machine];
-    if (raster === undefined) {
+    const atTop = RASTER_AT_TOP[machine];
+    if (atTop === undefined) {
       throw new Error(`backend-6502: a frame()-driven program needs a known machine to pace it, got '${machine}'`);
     }
-    const addr = `0x${raster.toString(16).toUpperCase()}`;
     // Wait for the raster to LEAVE the top of the frame before waiting for
     // it to return there: without that first wait, a frame() cheap enough
     // to finish inside the same raster line it started on would see "still
@@ -209,8 +224,8 @@ export function emitC(ir, { machine } = {}) {
     out += `    ${cName('main')}();\n`;
     out += '    while (1) {\n';
     out += `        ${cName('frame')}();\n`;
-    out += `        while (*(volatile uint8_t *)${addr} == 0) {}\n`;
-    out += `        while (*(volatile uint8_t *)${addr} != 0) {}\n`;
+    out += `        while (${atTop}) {}\n`;
+    out += `        while (!(${atTop})) {}\n`;
     out += '    }\n';
     out += '    return 0;\n';
     out += '}\n';
