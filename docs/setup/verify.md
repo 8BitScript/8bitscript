@@ -1,6 +1,6 @@
 ---
 title: Verify your setup
-nav_order: 5
+nav_order: 9
 ---
 
 # Verify your setup
@@ -8,7 +8,13 @@ nav_order: 5
 This is the last page of the setup guide. Everything here is a check, not an
 install — if a command fails, the fix lives on the page that installed the tool.
 
-Run the whole checklist in one go:
+The project now has more targets than are worth checking by hand one at a
+time — see [What each answer should look like](#what-each-answer-should-look-like)
+below for the manual version of just two of them (VIC-20 and C64, the
+original targets), and [This checklist is automated](#this-checklist-is-automated)
+for the command that checks every target, including the newer ones.
+
+Run the illustrative checklist in one go:
 
 ```bash
 node --version
