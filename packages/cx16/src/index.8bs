@@ -1,0 +1,38 @@
+// @8bitscript/cx16 — Commander X16 target support.
+//
+// The module entry point named by the "8bitscript".entry field in this
+// package's package.json, resolved and linked for:
+//
+//     import { borderColor } from "@8bitscript/cx16";
+//
+// VERA has no single flat "screen background colour" register the way the
+// VIC/VIC-II do: its border colour lives in a plain, CPU-addressable I/O
+// port ($9F2C — see below), but the background comes from each screen
+// cell's own colour attribute byte, stored in VRAM behind VERA's indirect
+// address/data port protocol ($9F20-$9F24), which this target doesn't
+// build yet. So `background` exists (so portable code that sets it still
+// links, the same reasoning @8bitscript/pet documents for a gap in a
+// specific target) but `applyColors()` only ever writes `border`.
+
+// VERA's border register: struct __vera's `display.border` field (DCSEL=0
+// view) at base $9F20 + 12 — confirmed against llvm-mos-sdk's cx16.h,
+// which lays out that struct exactly. Assumes VERA's DCSEL is still 0, the
+// KERNAL's own boot-time default and what a program that never touches
+// VERA.control leaves it at; a program that switches display-config sets
+// itself is outside what this poke accounts for.
+@address(0x9F2C)
+export let borderColor: volatile<u8>;
+
+// ---- the common colour surface -------------------------------------------
+//
+// Every machine package exports the same three names, which is what lets a
+// program import them from @8bitscript/machine and never name the hardware:
+// set `border` and `background`, call applyColors(), and the machine shows
+// them.
+
+export let border: u8 = 0;
+export let background: u8 = 0;
+
+export function applyColors(): void {
+    borderColor = border;
+}

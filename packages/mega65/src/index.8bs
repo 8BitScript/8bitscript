@@ -1,0 +1,70 @@
+// @8bitscript/mega65 — MEGA65 target support.
+//
+// The module entry point named by the "8bitscript".entry field in this
+// package's package.json, resolved and linked for:
+//
+//     import { borderColor, backgroundColor } from "@8bitscript/mega65";
+//
+// This target reaches the MEGA65 through its VIC-II-compatible register
+// view: llvm-mos-sdk's own mega65.h maps a plain `__vic2` struct (the same
+// one the c64 platform uses) at $D000, and a program launched the ordinary
+// way (SYS, no unlock sequence for the VIC-IV's extended modes) boots into
+// exactly that view — same registers, same colours, same numbers as the
+// C64. The MEGA65's own 40MHz CPU mode, its enhanced VIC-IV video modes,
+// and its expanded memory are outside what this target reaches for; a
+// program built here runs C64-compatibly, on more capable silicon.
+
+// $D020, the VIC-II(-compatible) border colour register.
+@address(0xD020)
+export let borderColor: volatile<u8>;
+
+// $D021, the VIC-II(-compatible) background colour register (background #0).
+@address(0xD021)
+export let backgroundColor: volatile<u8>;
+
+// ---- the common colour surface -------------------------------------------
+//
+// Every machine package exports the same three names, which is what lets a
+// program import them from @8bitscript/machine and never name the hardware:
+// set `border` and `background`, call applyColors(), and the machine shows
+// them. (Values are passed through globals because functions take no
+// parameters yet.)
+
+export let border: u8 = 0;
+export let background: u8 = 0;
+
+export function applyColors(): void {
+    borderColor = border & 15;
+    backgroundColor = background & 15;
+}
+
+// ---- the friendly screen surface (immediate-apply) -------------------------
+//
+// There is no general text API yet (that's `screen.putChar(x, y, code)`/
+// `input.*` in docs/roadmap.md, not built — this `putChar` takes one flat
+// cell index instead of x/y), so these are the plainest things that can
+// stand in for one: poke one cell's character code, poke one cell's colour,
+// and how many cells the whole screen has. Whether a caller uses these to
+// clear the screen, lay out a label, or nothing at all is entirely up to
+// the caller — this package draws nothing on its own. mega65.h names the
+// default screen character matrix directly: DEFAULT_SCREEN at $0800 — not
+// the C64's $0400 — 40x25, 1000 cells; colour RAM stays at the C64's fixed
+// $D800.
+export namespace screen {
+    const CellCount: u16 = 1000; // 40 columns x 25 rows
+
+    function putChar(cell: u16, code: u8): void {
+        memory.write(0x0800 + cell, code);
+    }
+
+    function putColor(cell: u16, color: u8): void {
+        memory.write(0xD800 + cell, color & 15);
+    }
+
+    // Screen codes 0-9 equal '0'-'9' in the MEGA65's C64-compatible
+    // character ROM, so no lookup table is needed here.
+    function showDigit(cell: u16, digit: u8): void {
+        screen.putChar(cell, 0x30 + (digit % 10));
+        screen.putColor(cell, 1); // white, so the digit reads on any background
+    }
+}
