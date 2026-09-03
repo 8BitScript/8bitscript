@@ -29,20 +29,23 @@ let option: utinyint = 0;
 
 // The same four curated border/background pairs as main.8bs — kept in sync
 // by hand, since there's no shared module either file could pull this from
-// yet without duplicating the whole import list.
+// yet without duplicating the whole import list. None of the four
+// backgrounds is white(1) or yellow(7): web-runtime.mjs always draws the
+// TICK/OPTION line in white, and white text is invisible against a white
+// background, barely readable against yellow.
 function applyOption(): void {
     if (option == 0) {
         border = 6;      // blue
         background = 3;  // cyan
     } else if (option == 1) {
         border = 2;      // red
-        background = 7;  // yellow
+        background = 4;  // purple
     } else if (option == 2) {
         border = 5;      // green
         background = 0;  // black
     } else {
         border = 4;      // purple
-        background = 1;  // white
+        background = 2;  // red
     }
 }
 

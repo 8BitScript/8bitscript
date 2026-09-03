@@ -124,8 +124,13 @@ export namespace screen {
         memory.write(0x1E00 + cell, code);
     }
 
+    // Masked to 3 bits, not 4: bit 3 of a VIC-20 colour-RAM nybble is the
+    // per-character multicolour-mode flag, not part of the colour value —
+    // the VIC only gives a hi-res character 8 real colours (0-7). Passing
+    // 8-15 through unmasked would silently flip a cell into multicolour
+    // mode instead of picking a colour that doesn't exist.
     function putColor(cell: usmallint, color: utinyint): void {
-        memory.write(0x9600 + cell, color & 0x0F);
+        memory.write(0x9600 + cell, color & 0x07);
     }
 
     // Screen codes 0-9 equal '0'-'9' in every VIC/C64 character ROM charset,

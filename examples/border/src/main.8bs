@@ -91,20 +91,22 @@ function drawLabels(): void {
 // — values kept at 7 or under for border, since the VIC-20's border
 // register only has 3 bits either way. This is the "which colours are
 // displayed" choice: add a case, bump the wrap check in main() below from
-// 4, and rebuild.
+// 4, and rebuild. None of the four backgrounds is white(1) or yellow(7):
+// screen.showDigit()/drawLabels() always draw in white(1), and white text
+// is invisible against a white background, barely readable against yellow.
 function applyOption(): void {
     if (option == 0) {
         border = 6;      // blue
         background = 3;  // cyan
     } else if (option == 1) {
         border = 2;      // red
-        background = 7;  // yellow
+        background = 4;  // purple
     } else if (option == 2) {
         border = 5;      // green
         background = 0;  // black
     } else {
         border = 4;      // purple
-        background = 1;  // white
+        background = 2;  // red
     }
 }
 

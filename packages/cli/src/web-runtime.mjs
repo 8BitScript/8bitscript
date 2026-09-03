@@ -102,6 +102,15 @@ async function boot() {
   const { instance } = await WebAssembly.instantiate(await res.arrayBuffer(), {});
   const mem = new Uint8Array(instance.exports.memory.buffer);
 
+  // How many times frame() actually ran in the last real second — the
+  // number that answers "is the fixed 60Hz logical step (LOGICAL_HZ above)
+  // actually landing 60 logical frames a second," independent of whatever
+  // Hz the display itself happens to refresh at. Sampled once a second, not
+  // redrawn every rAF, so the digits on screen don't flicker every frame.
+  let logicalFrameCount = 0;
+  let logicalFpsWindowStart = null;
+  let logicalFps = 0;
+
   function paint() {
     // Byte 0 is border, byte 1 is background — the same two offsets
     // @8bitscript/web's applyColors() writes, agreed on there.
@@ -119,13 +128,19 @@ async function boot() {
     // it — there's nothing in @8bitscript/web forcing this text to appear.
     // "TICK", not "FRAME": mem[2] advances about twice a second (main.web.
     // 8bs's ticks variable), not once per real display frame, so "FRAME"
-    // would overclaim what it counts. One line, same layout main.8bs's
-    // drawLabels() pokes onto the VIC-20/C64's screen memory, so the same
-    // program reads the same way on every target.
+    // would overclaim what it counts. One line, single spaces throughout,
+    // same layout main.8bs's drawLabels() pokes onto the VIC-20/C64's
+    // screen memory, so the same program reads the same way on every
+    // target. FPS is this host's own addition, not something the wasm side
+    // reports — there's no clock/timer 8BitScript can read yet.
     ctx.font = '14px ui-monospace, Menlo, monospace';
     ctx.textBaseline = 'top';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('TICK ' + (mem[2] % 10) + '  OPTION ' + (mem[3] % 10), BORDER_PX + 4, BORDER_PX + 4);
+    ctx.fillText(
+      'TICK ' + (mem[2] % 10) + ' OPTION ' + (mem[3] % 10) + ' FPS ' + logicalFps,
+      BORDER_PX + 4,
+      BORDER_PX + 4,
+    );
   }
 
   instance.exports.main();
@@ -143,6 +158,13 @@ async function boot() {
     while (acc >= LOGICAL_STEP_MS) {
       instance.exports.frame();
       acc -= LOGICAL_STEP_MS;
+      logicalFrameCount += 1;
+    }
+    if (logicalFpsWindowStart === null) logicalFpsWindowStart = now;
+    if (now - logicalFpsWindowStart >= 1000) {
+      logicalFps = logicalFrameCount;
+      logicalFrameCount = 0;
+      logicalFpsWindowStart = now;
     }
     paint();
     requestAnimationFrame(tick);
