@@ -96,7 +96,7 @@
       },
       {
         "command": "8bitscript.selectRegion",
-        "title": "Select Region (NTSC/PAL)",
+        "title": "Select Region (NTSC — US/Japan, PAL — Europe)",
         "category": "8BitScript"
       },
       {
@@ -131,22 +131,22 @@
       },
       {
         "command": "8bitscript.runNtsc",
-        "title": "Run (NTSC)",
+        "title": "Run (NTSC — US/Japan)",
         "category": "8BitScript"
       },
       {
         "command": "8bitscript.buildNtsc",
-        "title": "Build (NTSC)",
+        "title": "Build (NTSC — US/Japan)",
         "category": "8BitScript"
       },
       {
         "command": "8bitscript.runPal",
-        "title": "Run (PAL)",
+        "title": "Run (PAL — Europe)",
         "category": "8BitScript"
       },
       {
         "command": "8bitscript.buildPal",
-        "title": "Build (PAL)",
+        "title": "Build (PAL — Europe)",
         "category": "8BitScript"
       },
       {
@@ -312,11 +312,11 @@
             "pal"
           ],
           "enumDescriptions": [
-            "NTSC, 60Hz — the machine model 8bs run and 8bs build use by default.",
-            "PAL, 50Hz — passes --pal to 8bs run and 8bs build."
+            "NTSC (US/Japan), 60Hz — the machine model 8bs run and 8bs build use by default.",
+            "PAL (Europe), 50Hz — passes --pal to 8bs run and 8bs build."
           ],
           "default": "ntsc",
-          "description": "The machine region the Run and Build buttons use for vic20 and c64. Set from the Region dropdown in the 8BitScript side bar; either region is always available from a row's context menu."
+          "description": "The machine region the Run and Build buttons use for vic20 and c64: NTSC (US/Japan) or PAL (Europe). Set from the Region dropdown in the 8BitScript side bar; either region is always available from a row's context menu."
         },
         "8bitscript.system": {
           "type": "string",
@@ -340,7 +340,7 @@
             "Every project, expanded into the systems it targets.",
             "Every system, expanded into the projects that target it."
           ],
-          "default": "runnable",
+          "default": "byProject",
           "description": "How the Projects view lays out the list. Set from the View dropdown in the 8BitScript side bar."
         },
         "8bitscript.showExamples": {
