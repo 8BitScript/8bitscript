@@ -3,16 +3,20 @@
 // The module entry point named by the "8bitscript".entry field in this
 // package's package.json, resolved and linked for:
 //
-//     import { backgroundColor } from "@8bitscript/atari8";
+//     import { borderColor, backgroundColor } from "@8bitscript/atari8";
 //
-// Unlike the Commodore machines, the Atari 8-bit family has no independent
-// border-colour register in its common graphics/text modes: GTIA's COLBK
-// ($D01A) is the playfield BACKGROUND colour, and in ANTIC's standard text
-// and graphics modes that same colour fills the border too — there is
-// nothing else to set. `border` therefore exists (so portable code that
-// sets it still links, the same reasoning @8bitscript/pet documents for a
-// machine missing a hardware concept another target has) but is inert:
-// applyColors() only ever writes `background`.
+// Both halves of the common colour surface are real here, and they are two
+// genuinely different GTIA registers — verified on screen under atari800,
+// not inferred: in ANTIC's standard text mode (the mode the OS boots into,
+// and the one a .XEX inherits), COLBK ($D01A) colours the BORDER around the
+// playfield, while the area behind the characters is COLPF2 ($D018). An
+// earlier version of this file had these the wrong way round: it mapped
+// `background` to COLBK and left `border` inert, so setting `background`
+// visibly painted the *border* and setting `border` did nothing at all.
+//
+// Every write here goes through the OS SHADOW registers as well as the
+// hardware ones — see backgroundColorShadow below for why that is not
+// optional.
 //
 // There is no fixed screen-memory address to build a `screen` namespace
 // on, the way the Commodore machines have: Atari screen memory is wherever
@@ -20,10 +24,40 @@
 // manages), not a constant — reaching it safely needs indirection this
 // target doesn't build yet.
 
-// $D01A, GTIA's playfield/background colour register — also the border
-// colour in ANTIC's standard modes; see the file comment above.
+// $D01A, GTIA's COLBK — the border, in ANTIC's standard text mode.
 @address(0xD01A)
+export let borderColor: volatile<u8>;
+
+// $D018, GTIA's COLPF2 — playfield 2, the colour behind the characters in
+// ANTIC's standard text mode.
+@address(0xD018)
 export let backgroundColor: volatile<u8>;
+
+// $02C8 (COLOR4) and $02C6 (COLOR2), the OS SHADOW registers for COLBK and
+// COLPF2 above — and the ones that actually decide what stays on screen.
+//
+// Writing the hardware registers alone looks correct for about a sixtieth of
+// a second and then silently undoes itself: an Atari program loaded the
+// ordinary way runs with the OS's interrupts live, and the OS's stage-2
+// vertical-blank routine copies its shadow registers in RAM ($02C4-$02C8)
+// over GTIA's colour registers ($D016-$D01A) on every single frame. So the
+// hardware register is not the durable place to put a colour while the OS is
+// running — the shadow is, and the OS then propagates it for us. This is not
+// theoretical: it is exactly why this example rendered as a plain default
+// screen on atari800 before the shadow writes were added. (It is also the
+// same class of problem packages/backend-6502's FRAME_SYNC documents for the
+// PET, where the KERNAL's own IRQ handler wins a race for the vertical-
+// retrace flag; here the OS wins a race for the colour registers, every
+// frame, forever.)
+//
+// A program that takes the machine over completely — disabling the OS VBI —
+// would write only the hardware registers instead. This package targets the
+// OS-friendly case, so applyColors() below writes both.
+@address(0x02C8)
+export let borderColorShadow: volatile<u8>;
+
+@address(0x02C6)
+export let backgroundColorShadow: volatile<u8>;
 
 // ---- the common colour surface -------------------------------------------
 //
@@ -37,8 +71,16 @@ export let background: u8 = 0;
 
 export function applyColors(): void {
     // GTIA colours are 8-bit (4 bits hue, 4 bits luminance) but this
-    // package doesn't interpret them — a caller passes a raw COLBK byte
-    // through `background`, the same "portable values are whatever the
-    // hardware wants" contract memory.write already has everywhere else.
+    // package doesn't interpret them — a caller passes raw GTIA bytes
+    // through `border`/`background`, the same "portable values are whatever
+    // the hardware wants" contract memory.write already has everywhere else.
+    //
+    // Shadow first, then hardware, for two different reasons: the shadow so
+    // the colour survives the OS's next vertical blank (see its declaration
+    // above — without this, the colour lasts one frame), the hardware
+    // register so it appears now rather than at that next blank.
+    borderColorShadow = border;
+    borderColor = border;
+    backgroundColorShadow = background;
     backgroundColor = background;
 }

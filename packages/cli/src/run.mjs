@@ -61,11 +61,18 @@ const VICE_EMULATOR = { vic20: 'xvic', c64: 'x64sc', pet: 'xpet', c128: 'x128' }
 // it. RAM injection (-autostartprgmode 1) skips the emulated disk load. The
 // PET's __ram_size pin (32K) is likewise xpet's own stock default, so it
 // needs no matching flag either.
+// x128 alone among these drives two physical displays — the VIC-IIe (40-
+// column, what this target's screen/border/background all actually reach)
+// and the 80-column VDC, which this target never touches. Without
+// -hidevdcwindow, x128 opens a second window for it anyway, showing
+// whatever the VDC's power-on RAM happens to contain (typically a plain
+// black screen) alongside the real output — not a second copy of the
+// program, just an unused second monitor the hardware genuinely has.
 const VICE_EMULATOR_ARGS = {
   vic20: ['-autostartprgmode', '1'],
   c64: ['-autostartprgmode', '1'],
   pet: ['-autostartprgmode', '1'],
-  c128: ['-autostartprgmode', '1'],
+  c128: ['-autostartprgmode', '1', '-hidevdcwindow'],
 };
 // -ntsc/-pal only flip VICE's sync factor (raster timing): the screen-origin
 // registers the KERNAL sets up at boot stay wired to whichever machine model
@@ -186,6 +193,14 @@ export async function run(args) {
     emulatorArgs = [
       ATARI8_MODEL_ARG[atari8Profile],
       pal ? '-pal' : '-ntsc',
+      // atari800 opens at its emulated resolution — 336x240 — which on any
+      // modern display is a postage stamp you have to lean in to read, and
+      // unlike VICE it has no larger default of its own. 3x that (1008x720)
+      // is a window worth looking at on a 1080p screen and still an exact
+      // integer scale, which is what atari800's own default INTEGRAL
+      // stretch wants: a non-multiple just letterboxes the same small image
+      // inside a bigger window.
+      '-win-width', '1008', '-win-height', '720',
       atari8Profile === 'xegs' ? '-cart' : '-run',
       outFile,
     ];
@@ -197,9 +212,14 @@ export async function run(args) {
     emulator = 'x16emu';
     emulatorArgs = ['-prg', outFile, '-run'];
   } else if (target === 'mega65') {
-    // Best-effort — see the run() docstring above.
+    // Best-effort — see the run() docstring above. -videostd pins the video
+    // standard to match the region the .prg was built for (0=PAL, 1=NTSC);
+    // left unset, Xemu's Hyppo default is PAL regardless of which region
+    // this target compiled for, so an NTSC build gets PAL's ~100 extra
+    // scanlines of VIC-IV border/overscan — the exact off-geometry mismatch
+    // VICE_MODEL_ARGS above documents for -ntsc/-pal not implying a model.
     emulator = 'xmega65';
-    emulatorArgs = ['-prg', outFile];
+    emulatorArgs = ['-prg', outFile, '-videostd', pal ? '0' : '1'];
   } else {
     // build() already validated the target against the same TARGETS set
     // this function branches over, so this is unreachable.
