@@ -411,9 +411,12 @@ test('the same entry resolves to the web implementation', () => {
 });
 
 test('a machine the entry has no branch for is 8BS3002', () => {
-  // vic20, c64, and web all have branches now — 'nes' stands in for the
-  // "not one of them" case this error exists for.
-  const { ir, diagnostics } = link(readFileSync(BORDER_ENTRY, 'utf8'), BORDER_ENTRY, { machine: 'nes' });
+  // vic20, c64, and web all have branches now, and so do every other real
+  // target (pet, c128, atari8, nes, cx16, mega65) — 'atari2600' stands in
+  // for the "not one of them" case this error exists for: a real llvm-mos
+  // platform (so it's not implausible), just not one @8bitscript/machine's
+  // entry map has a branch for.
+  const { ir, diagnostics } = link(readFileSync(BORDER_ENTRY, 'utf8'), BORDER_ENTRY, { machine: 'atari2600' });
   assert.equal(ir, null);
   assert.deepEqual(diagnostics.map((d) => d.code), ['8BS3002']);
 });

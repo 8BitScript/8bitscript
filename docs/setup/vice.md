@@ -5,11 +5,12 @@ nav_order: 4
 
 # VICE
 
-VICE is the emulator 8BitScript targets for development. One suite covers every
-Commodore machine that matters here: `xvic` emulates the VIC-20 and `x64sc`
-emulates the C64, so a single install serves both the primary target and the
-second one. Installing two unrelated emulators to cover two machines would mean
-two sets of quirks, two configuration formats, and two things to keep working.
+VICE is the emulator 8BitScript targets for development. One suite covers
+every Commodore machine that matters here: `xvic` emulates the VIC-20, `x64sc`
+emulates the C64, `xpet` emulates the PET, and `x128` emulates the C128 — a
+single install serves all four. Installing a separate emulator per machine
+would mean a separate set of quirks, a separate configuration format, and a
+separate thing to keep working, times four.
 
 VICE also has the debugging story this project needs. It ships a built-in
 monitor — breakpoints, memory inspection, single-stepping, disassembly — usable
@@ -88,14 +89,18 @@ build.
 
 ## Verify
 
-Confirm both emulators are installed:
+Confirm all four emulators are installed:
 
 ```bash
 xvic --version
 x64sc --version
+xpet --version
+x128 --version
 ```
 
-Both should report VICE 3.10.
+All four should report VICE 3.10. `8bs doctor` runs the same four checks
+(plus the VIC-20 boot check below) every time — this is worth doing by hand
+once, to see what a working install looks like.
 
 Then confirm the VIC-20 emulator can genuinely boot, which the version check
 does not tell you:
@@ -109,6 +114,12 @@ A working install opens a window showing the VIC-20 startup screen and a
 If the window is blank, never reaches `READY.`, or the launch prints a ROM
 error, see the ROM caveat above.
 
+`8bs doctor` only automates this boot check for `xvic`; `x64sc`, `xpet`, and
+`x128` get the version check above but not (yet) a scripted boot. The same
+missing-ROM failure mode applies to all four — if `xpet` or `x128` behave the
+way the caveat above describes, the fix is identical: supply the ROMs
+yourself and place them where that binary's `-help` output says it looks.
+
 ## On cc65
 
 cc65 is intentionally not part of this toolchain, as noted in the
@@ -119,5 +130,9 @@ platform quirks — and would not make a single additional program possible. All
 
 ## Next
 
-With the compiler and the emulator both installed, confirm the whole toolchain
-responds: [Verify your setup](verify.md).
+With the compiler and VICE both installed, the Commodore targets are ready.
+The rest of this project's targets each need their own emulator:
+[Atari 8-bit](atari8.md), [NES](nes.md), [Commander X16](cx16.md), and
+[MEGA65](mega65.md) — or skip straight to
+[verifying the whole toolchain](verify.md) if those targets don't matter to
+you yet.

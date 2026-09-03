@@ -1,0 +1,44 @@
+// @8bitscript/atari8 — Atari 8-bit target support (400/800/XL/XE/XEGS).
+//
+// The module entry point named by the "8bitscript".entry field in this
+// package's package.json, resolved and linked for:
+//
+//     import { backgroundColor } from "@8bitscript/atari8";
+//
+// Unlike the Commodore machines, the Atari 8-bit family has no independent
+// border-colour register in its common graphics/text modes: GTIA's COLBK
+// ($D01A) is the playfield BACKGROUND colour, and in ANTIC's standard text
+// and graphics modes that same colour fills the border too — there is
+// nothing else to set. `border` therefore exists (so portable code that
+// sets it still links, the same reasoning @8bitscript/pet documents for a
+// machine missing a hardware concept another target has) but is inert:
+// applyColors() only ever writes `background`.
+//
+// There is no fixed screen-memory address to build a `screen` namespace
+// on, the way the Commodore machines have: Atari screen memory is wherever
+// the OS's display list points it (SAVMSC, a zero-page pointer the OS
+// manages), not a constant — reaching it safely needs indirection this
+// target doesn't build yet.
+
+// $D01A, GTIA's playfield/background colour register — also the border
+// colour in ANTIC's standard modes; see the file comment above.
+@address(0xD01A)
+export let backgroundColor: volatile<u8>;
+
+// ---- the common colour surface -------------------------------------------
+//
+// Every machine package exports the same three names, which is what lets a
+// program import them from @8bitscript/machine and never name the hardware:
+// set `border` and `background`, call applyColors(), and the machine shows
+// them.
+
+export let border: u8 = 0;
+export let background: u8 = 0;
+
+export function applyColors(): void {
+    // GTIA colours are 8-bit (4 bits hue, 4 bits luminance) but this
+    // package doesn't interpret them — a caller passes a raw COLBK byte
+    // through `background`, the same "portable values are whatever the
+    // hardware wants" contract memory.write already has everywhere else.
+    backgroundColor = background;
+}

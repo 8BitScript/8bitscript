@@ -1,0 +1,52 @@
+// @8bitscript/pet — Commodore PET target support.
+//
+// The module entry point named by the "8bitscript".entry field in this
+// package's package.json, resolved and linked for:
+//
+//     import { border, background, applyColors, screen } from "@8bitscript/pet";
+//
+// The PET is a monochrome machine — green or white phosphor, whatever the
+// monitor is, with no colour hardware at all. `border`, `background`, and
+// `applyColors()` still exist and still link, because the point of the
+// common colour surface (see @8bitscript/vic20 and @8bitscript/c64) is that
+// a single portable program builds for every target without per-target
+// branches in user code — but on the PET they are deliberately inert: there
+// is no register to write, so applyColors() does nothing observable. A
+// program that only ever calls applyColors() through the portable surface
+// still builds and runs correctly everywhere; it simply never shows a
+// border or background tint on a PET, because a PET cannot show one.
+
+export let border: utinyint = 0;
+export let background: utinyint = 0;
+
+export function applyColors(): void {
+    // Deliberately empty — see the file comment above.
+}
+
+// ---- the friendly screen surface (immediate-apply) -------------------------
+//
+// PET screen memory is fixed at $8000 on the common (non-CRTC) 40-column
+// models this target compiles for (see MACHINE_FLAGS.pet in
+// packages/backend-6502: __ram_size pinned to the common 32K PET), 1000
+// cells for a 40x25 display. There is no colour RAM to go with it — a
+// character's screen code alone decides how it looks — so `putColor` exists
+// only so portable code written against every machine's `screen` namespace
+// still compiles; it does nothing, the same way `applyColors()` above does
+// nothing.
+export namespace screen {
+    const CellCount: u16 = 1000; // 40 columns x 25 rows
+
+    function putChar(cell: u16, code: u8): void {
+        memory.write(0x8000 + cell, code);
+    }
+
+    function putColor(cell: u16, color: u8): void {
+        // Deliberately empty — the PET has no colour RAM.
+    }
+
+    // Screen codes 0-9 equal '0'-'9' on the PET's character ROM too, same
+    // as the VIC-20's and C64's, so no lookup table is needed here.
+    function showDigit(cell: u16, digit: u8): void {
+        screen.putChar(cell, 0x30 + (digit % 10));
+    }
+}

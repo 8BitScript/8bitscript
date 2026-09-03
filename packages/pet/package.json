@@ -1,0 +1,16 @@
+{
+  "name": "@8bitscript/pet",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Commodore PET target support for 8BitScript: the hardware underneath the portable APIs.",
+  "license": "MIT",
+  "8bitscript": {
+    "entry": "./src/index.8bs"
+  },
+  "files": [
+    "src"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}
