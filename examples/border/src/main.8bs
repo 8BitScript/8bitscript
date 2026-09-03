@@ -6,15 +6,21 @@
 // the web: `main()` sets up once and `frame()` runs once per tick, forever,
 // and nothing in this file drives that loop itself.
 //
-// Every target calls frame() at the same real-world rate — a genuine ~60Hz,
-// not a per-target guess — but *how* differs entirely below the language,
-// which is the point: this file never says which target it's building for.
-// On the VIC-20 and C64, the 6502 backend notices this module exports both
-// `main` and `frame` and synthesises the driving loop itself, waiting for
-// the video chip's raster to reach the top of the screen between frame()
-// calls (see packages/backend-6502) — real vertical blank, not a busy-wait
-// calibrated by hand. On the web, the host's requestAnimationFrame loop
-// paces itself the same way (packages/cli/src/web-runtime.mjs). A module
+// Every target calls frame() at the same real-world rate — an exact 60Hz
+// of real time, not a per-target guess and not whatever the display
+// hardware happens to refresh at — but *how* differs entirely below the
+// language, which is the point: this file never says which target it's
+// building for. On the VIC-20 and C64, the 6502 backend notices this module
+// exports both `main` and `frame` and synthesises the driving loop itself:
+// it waits for the video chip's raster to reach the top of the screen (real
+// vertical blank, not a busy-wait calibrated by hand), and because no
+// machine's frame is exactly 1/60s — 59.83Hz on an NTSC C64, 60.29Hz on an
+// NTSC VIC-20, ~50Hz on PAL — it drains an exact fixed-point accumulator of
+// logical frames owed rather than blindly calling frame() once per blank
+// (see packages/backend-6502's FRAME_PACING). On the web, the host's
+// requestAnimationFrame loop paces the same fixed 60Hz timestep against
+// real elapsed time (packages/cli/src/web-runtime.mjs). All three tick in
+// lockstep as a result, indefinitely — none of them drifts. A module
 // that only exports `main`, with no `frame`, is unaffected — it keeps
 // meaning exactly what it always has (`examples/counter`, `examples/
 // step1-main-loop`): the whole program, looping forever on its own.
@@ -36,7 +42,7 @@
 // pressing a key while it runs.
 import { border, background, applyColors, screen } from "@8bitscript/machine";
 
-// 30 ticks of frame() at ~60Hz is half a second. Every *tick* (not every
+// 30 calls of frame() at 60Hz is half a second. Every *tick* (not every
 // frame() call) advances the ones digit shown at cell 5, and every ten
 // ticks the colour option (shown at cell 14) advances too — "TICK" on
 // screen, not "FRAME": a real frame counter would advance 60 times a

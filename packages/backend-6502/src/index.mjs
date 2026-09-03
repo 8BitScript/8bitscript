@@ -39,39 +39,99 @@ const MACHINE_FLAGS = {
 
 // The video chip's raster line, read as a plain memory location — no IRQ, no
 // interrupt vector, just a byte (or two) that count scanlines and wrap once
-// a frame. This is what the frame()-driver loop below polls so a program's
-// frame() runs once per real vertical blank: exactly 60Hz NTSC / 50Hz PAL,
-// self-correcting, with no calibrated delay constant to get wrong or to
-// need a separate value per region. Each entry is a C boolean expression,
-// true exactly when the raster is at the true top of the frame — not just
-// "read this one register" — because the two chips need a different amount
-// of care to get that right, verified empirically (see below), not assumed
-// from either chip's own datasheet alone.
+// a frame. This is what the frame()-driver loop below polls to find the top
+// of each frame — self-correcting, with no calibrated delay constant to get
+// wrong or to need a separate value per region. Each entry is a C boolean
+// expression, true exactly when the raster is in the TOP HALF of the frame.
+// Not "at line 0": the loop detects a new frame by seeing the condition go
+// false (raster in the bottom half) and then true again, which happens at
+// the wrap to line 0 and nowhere else, since the raster only counts up. A
+// narrow at-line-0 window — the obvious check, and what this used to be —
+// loses whole frames: the KERNAL's timer IRQ is still running, it is not
+// raster-synced, and its handler runs longer than the ~65-130 cycles lines
+// 0-1 last, so every time its phase drifts across the top of the frame the
+// polling loop sits inside the handler while the window passes by,
+// unobserved. Not hypothetical: measured under VICE (remote monitor +
+// cycle stopwatch) the narrow window lost ~0.08% of frames — 59.95Hz out
+// of an exact-by-construction 60 — and the half-frame window measured
+// 60.0000. An IRQ can still delay *noticing* the wrap by its handler's
+// length, but a half-frame window (thousands of cycles) means it can never
+// hide the wrap entirely, so the error is bounded jitter, never a lost
+// frame.
 //
 // C64 (VIC-II): $D012 holds the raster line's low 8 bits, wrapping at 256 —
 // but the C64 has 312 lines (PAL) or 263 (NTSC), both *past* 256, so $D012
-// alone reads 0 not only at the true top of the frame (line 0) but *again*
-// at line 256. A check of $D012==0 alone fires twice a frame, not once —
-// confirmed the hard way, by actually running the built .prg under VICE
-// with its remote monitor and measuring the real on-screen cycle rate: it
-// came out almost exactly 2x too fast. $D011 bit 7 is the missing 9th bit
-// (https://www.c64-wiki.com/wiki/VIC); requiring it clear rules out line
-// 256 and leaves only the real top of the frame.
+// alone reads low not only in the top half of the frame but *again* from
+// line 256 on. An earlier at-line-0 version of this check learned that the
+// hard way — $D012==0 alone fired twice a frame, measured under VICE at
+// almost exactly 2x the intended rate. $D011 bit 7 is the missing 9th bit
+// (https://www.c64-wiki.com/wiki/VIC); requiring it clear rules out the
+// 256+ lines. The read ORDER matters too, which is why $D012 comes first
+// in the expression (C evaluates && left to right, and both reads are
+// volatile, so the compiler must keep that order): the two registers can't
+// be read in the same cycle, and reading $D011 first opens a race — bit 7
+// still clear at line 255, then $D012 already wrapped to 0 at line 256 —
+// that fakes a top-half reading at line 256. Reading $D012 first closes
+// it: a small $D012 followed by "bit 7 set" is correctly rejected, and if
+// the frame wraps between the two reads, the raster really is at the top.
 //
 // VIC-20 (VIC-I): a different, non-obvious layout — not inferred from the
 // C64's. $9004 holds bits 8-1 of the 9-bit raster counter and only changes
 // every *second* line; the counter's own bit 0 lives by itself in $9003 bit
 // 7. Its own range tops out around 130 (NTSC) or 155 (PAL) — nowhere near
 // an 8-bit wraparound — so there is no line-256-style aliasing to guard
-// against, and no 9th bit is needed. Reading $9004 alone is coarser than
-// the C64 check (it reads 0 for both raster lines 0 and 1), but that is
-// more than precise enough for "once near the top of the frame." This one
-// was verified the same way as the C64's — measured under VICE, not just
-// reasoned about — and came out correct on the first try.
+// against, no 9th bit is needed, and one atomic byte read decides the
+// half. ($9004 < 64 is lines 0-127 on both regions.)
 // (https://github.com/cbmeeks/VIC-20/blob/master/6561.txt, registers CR3/CR4)
-const RASTER_AT_TOP = {
-  vic20: '(*(volatile uint8_t *)0x9004) == 0',
-  c64: '(*(volatile uint8_t *)0xD012) == 0 && ((*(volatile uint8_t *)0xD011) & 0x80) == 0',
+const RASTER_IN_TOP_HALF = {
+  vic20: '(*(volatile uint8_t *)0x9004) < 64',
+  c64: '(*(volatile uint8_t *)0xD012) < 128 && ((*(volatile uint8_t *)0xD011) & 0x80) == 0',
+};
+
+// One hardware frame is NOT 1/60th of a second, and the machines don't even
+// agree with each other: the video chips draw a different number of raster
+// lines per frame, so "once per vertical blank" means 59.826Hz on an NTSC
+// C64 (263 lines x 65 cycles), 60.286Hz on an NTSC VIC-20 (261 x 65),
+// 50.125Hz / 50.036Hz on their PAL versions — while the web host runs
+// frame() at a genuine 60Hz of real time (packages/cli/src/web-runtime.mjs).
+// Tying frame() 1:1 to vblank therefore drifts the targets apart by about a
+// frame every couple of seconds, visibly, forever. So the driver loop below
+// does exactly what the web host does: it still waits for the raster (that
+// part keeps screen updates inside the blank and needs no calibration), but
+// it runs frame() 0, 1, or 2 times per hardware frame, draining a
+// fixed-point accumulator of *logical* 60Hz frames owed.
+//
+// The bookkeeping is exact, not approximate. Each hardware frame lasts
+// cyclesPerFrame / cpuHz seconds, and both numbers are known rationals: the
+// CPU clock is the video crystal divided by a small integer (NTSC C64 and
+// VIC-20: 14318181Hz/14 — the same clock, which is why only the line counts
+// differ; PAL C64: 17734472Hz/18; PAL VIC-20: 4433618Hz/4). So the logical
+// frames owed per hardware frame, 60 * cyclesPerFrame / cpuHz, is the exact
+// integer fraction num/den with num = 60 * cyclesPerFrame * divisor and
+// den = crystalHz. The loop keeps `acc += num; while (acc >= den) frame();`
+// in a uint32 (values stay under 2^25) and the remainder carries over, so
+// nothing is ever rounded and the long-run rate is exactly 60 logical
+// frames per emulated second on every machine, both regions — the drift
+// against the web target is zero by construction, not merely small.
+//
+// NTSC vs PAL changes the constants but stays out of codegen, same as ever
+// (region is a VICE run-time flag, not a build flag): the loop picks the
+// pair at startup by watching one full frame and checking how far down the
+// raster counter gets. The bottom lines only exist on PAL — an NTSC C64
+// never shows $D012 >= 32 while $D011 bit 7 is set (it tops out at line
+// 262, $D012 == 6), a PAL one reaches line 311 ($D012 == 55); an NTSC
+// VIC-20 never shows $9004 >= 140 (tops out at 130), a PAL one reaches 155.
+const FRAME_PACING = {
+  vic20: {
+    palProbe: '(*(volatile uint8_t *)0x9004) >= 140',
+    ntsc: { num: 60 * 261 * 65 * 14, den: 14318181 },
+    pal: { num: 60 * 312 * 71 * 4, den: 4433618 },
+  },
+  c64: {
+    palProbe: '((*(volatile uint8_t *)0xD011) & 0x80) != 0 && (*(volatile uint8_t *)0xD012) >= 32',
+    ntsc: { num: 60 * 263 * 65 * 14, den: 14318181 },
+    pal: { num: 60 * 312 * 63 * 18, den: 17734472 },
+  },
 };
 
 // `memory.read`/`memory.write` cast a runtime address to a byte pointer and
@@ -212,20 +272,43 @@ export function emitC(ir, { machine } = {}) {
   }
 
   if (hasFrame) {
-    const atTop = RASTER_AT_TOP[machine];
-    if (atTop === undefined) {
+    const topHalf = RASTER_IN_TOP_HALF[machine];
+    const pacing = FRAME_PACING[machine];
+    if (topHalf === undefined || pacing === undefined) {
       throw new Error(`backend-6502: a frame()-driven program needs a known machine to pace it, got '${machine}'`);
     }
-    // Wait for the raster to LEAVE the top of the frame before waiting for
-    // it to return there: without that first wait, a frame() cheap enough
-    // to finish inside the same raster line it started on would see "still
-    // at the top" and not actually have waited a frame at all.
+    // Wait for the raster to reach the BOTTOM half of the frame before
+    // waiting for it to wrap back into the top half: without that first
+    // wait, a loop body cheap enough to finish while the raster is still in
+    // the top half would see "already there" and not actually have waited a
+    // frame at all. Used once to reach a known point before the region
+    // sweep, then once per hardware frame forever.
+    const waitOneFrame = (pad, body = '') => (
+      `${pad}while (${topHalf}) {}\n`
+      + `${pad}while (!(${topHalf})) {${body}}\n`
+    );
     out += 'int main(void) {\n';
+    out += `    uint32_t __8bs_num = ${pacing.ntsc.num}u;\n`;
+    out += `    uint32_t __8bs_den = ${pacing.ntsc.den}u;\n`;
+    out += '    uint32_t __8bs_acc;\n';
     out += `    ${cName('main')}();\n`;
+    // Region sweep (see FRAME_PACING): sync to the top of a frame, then
+    // watch one whole frame go by; only a PAL raster ever reaches the probe
+    // line. Costs two frames at startup, once.
+    out += waitOneFrame('    ');
+    out += waitOneFrame('    ', ` if (${pacing.palProbe}) { __8bs_num = ${pacing.pal.num}u; __8bs_den = ${pacing.pal.den}u; } `);
+    // Start with one logical frame of credit so the very first hardware
+    // frame runs frame() at least once instead of showing setup output for
+    // a frame — a constant head start, which cannot affect the long-run
+    // rate the way a per-frame rounding would.
+    out += '    __8bs_acc = __8bs_den;\n';
     out += '    while (1) {\n';
-    out += `        ${cName('frame')}();\n`;
-    out += `        while (${atTop}) {}\n`;
-    out += `        while (!(${atTop})) {}\n`;
+    out += '        __8bs_acc += __8bs_num;\n';
+    out += '        while (__8bs_acc >= __8bs_den) {\n';
+    out += '            __8bs_acc -= __8bs_den;\n';
+    out += `            ${cName('frame')}();\n`;
+    out += '        }\n';
+    out += waitOneFrame('        ');
     out += '    }\n';
     out += '    return 0;\n';
     out += '}\n';
