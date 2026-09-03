@@ -32,6 +32,18 @@ macOS support is explicitly less tested upstream than Linux's — the Xemu
 project's own words are that it "should be fine" there, not that it's
 verified.
 
+## ROMs
+
+Running (not building) needs a MEGA65 ROM image, which Xemu's own wiki does
+not treat as a simple download: it calls fetching the official `MEGA65.ROM`
+"a legal issue" and leaves getting it "at your own risk." The
+[MEGA65/open-roms](https://github.com/MEGA65/open-roms) project is a
+from-scratch, GPLv3 replacement built specifically to sidestep that — prefer
+it unless you have a specific reason to want the original. Either way, Xemu's
+[Mega65 emulation how to
+start](https://github.com/lgblgblgb/xemu/wiki/Mega65-emulation-how-to-start)
+covers the SD-card image setup this project has not automated.
+
 ## Verify
 
 ```bash
