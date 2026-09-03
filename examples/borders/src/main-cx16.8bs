@@ -1,0 +1,58 @@
+// examples/borders — Commander X16 variant.
+//
+// @8bitscript/cx16 has no `screen` namespace yet, and `background` is inert
+// there: VERA has a real, directly-addressable border register ($9F2C), but
+// the background comes from each screen cell's own colour attribute byte in
+// VRAM, reached only through VERA's indirect address/data port protocol
+// ($9F20-$9F24), which this target doesn't build yet (see its own file
+// comment). This variant therefore drops the TICK/OPTION digit readout the
+// shared vic20/c64/pet/c128/mega65/web main.8bs draws with `screen`, and
+// only cycles `border` — the one real colour surface this target has. Same
+// 2Hz tick, same four-step cycle, so the visible behaviour (a colour change
+// every half second, the same colour again every two seconds) matches every
+// other target's, even without the on-screen counters.
+import { border, applyColors } from "@8bitscript/machine";
+
+let logicalFramesUntilTick: utinyint = 30;
+let ticks: utinyint = 0;
+let option: utinyint = 0;
+
+// Four indices into VERA's 256-entry colour palette, spread evenly across
+// its range for visible contrast. This project has not independently
+// verified what the KERNAL's default palette maps each index to (unlike
+// @8bitscript/vic20's BorderColor/BackgroundColor namespaces, whose values
+// and names are confirmed against the VIC-20's own colour numbering), so
+// these are picked as four different colours, not four specific named ones.
+function applyOption(): void {
+    if (option == 0) {
+        border = 0x00;
+    } else if (option == 1) {
+        border = 0x40;
+    } else if (option == 2) {
+        border = 0x80;
+    } else {
+        border = 0xC0;
+    }
+}
+
+export function main(): void {
+    applyOption();
+    applyColors();
+}
+
+export function frame(): void {
+    logicalFramesUntilTick = logicalFramesUntilTick - 1;
+    if (logicalFramesUntilTick == 0) {
+        logicalFramesUntilTick = 30;
+
+        ticks = ticks + 1;
+        if (ticks % 10 == 0) {
+            option = option + 1;
+            if (option == 4) {
+                option = 0;
+            }
+            applyOption();
+            applyColors();
+        }
+    }
+}

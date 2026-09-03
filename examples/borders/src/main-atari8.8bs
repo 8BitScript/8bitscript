@@ -1,0 +1,60 @@
+// examples/borders — Atari 8-bit variant.
+//
+// @8bitscript/atari8 has no `screen` namespace yet (see its own file
+// comment: Atari screen memory floats wherever the OS's display list points
+// it, not a fixed address, so this target doesn't reach it safely yet) and
+// no independent border register — GTIA's COLBK ($D01A) is simultaneously
+// the playfield background AND the border colour in ANTIC's standard text/
+// graphics modes, so there is nothing a separate `border` write would mean
+// here. This variant therefore drops the TICK/OPTION digit readout the
+// shared vic20/c64/pet/c128/mega65/web main.8bs draws with `screen`, and
+// only cycles `background` — the one real colour surface this target has.
+// Same 2Hz tick, same four-step cycle, so the visible behaviour (a colour
+// change every half second, the same colour again every two seconds)
+// matches every other target's, even without the on-screen counters.
+import { background, applyColors } from "@8bitscript/machine";
+
+let logicalFramesUntilTick: utinyint = 30;
+let ticks: utinyint = 0;
+let option: utinyint = 0;
+
+// Four GTIA COLBK bytes: hue in bits 4-7 (16 hues), luminance in bits 1-3
+// (8 levels, bit 0 unused) — hues 2/6/10/14 of GTIA's 16, spread evenly
+// around the wheel, at a consistently bright luminance (6 of 8) so all four
+// read clearly. This project has not independently verified GTIA's
+// hue-to-colour-name chart against a primary source, so these are picked
+// for visible contrast, not for matching specific named colours the way
+// @8bitscript/vic20's BorderColor/BackgroundColor namespaces do.
+function applyOption(): void {
+    if (option == 0) {
+        background = 0x2C;
+    } else if (option == 1) {
+        background = 0x6C;
+    } else if (option == 2) {
+        background = 0xAC;
+    } else {
+        background = 0xEC;
+    }
+}
+
+export function main(): void {
+    applyOption();
+    applyColors();
+}
+
+export function frame(): void {
+    logicalFramesUntilTick = logicalFramesUntilTick - 1;
+    if (logicalFramesUntilTick == 0) {
+        logicalFramesUntilTick = 30;
+
+        ticks = ticks + 1;
+        if (ticks % 10 == 0) {
+            option = option + 1;
+            if (option == 4) {
+                option = 0;
+            }
+            applyOption();
+            applyColors();
+        }
+    }
+}

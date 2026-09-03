@@ -57,6 +57,52 @@ const DRIVER = {
 const ATARI8_PROFILES = new Set(['800xl', '65xe', '130xe', '800', '400', 'xegs']);
 const ATARI8_DEFAULT_PROFILE = '800xl';
 
+// VIC-20 RAM-expansion hardware profiles. The SDK's own link.ld (mos-
+// platform/vic20/lib/link.ld) accepts exactly these five __memory_expansion
+// values (0/3/8/16/24, in KB) and ASSERTs on anything else, so this set is
+// copied from there rather than invented; the same five numbers are also
+// exactly what VICE's `xvic -memory` accepts (none/3k/8k/16k/24k — see
+// VIC20_MEMORY_ARG below). 'unexpanded' is the default and the machine
+// 8BitScript has targeted since Phase 1: load address $1001, 3583 bytes free
+// — the VIC-20 as sold, with no expansion cartridge plugged in.
+//
+// KNOWN GAP: @8bitscript/vic20's `screen` namespace pokes screen memory at a
+// hardcoded $1E00 (the unexpanded/'3k' location — the 3K block at
+// $0400-$0FFF doesn't reach $1E00, so screen memory doesn't move for it).
+// On real hardware and VICE, an 8k/16k/24k VIC-20 relocates the default
+// screen matrix to $1000 instead, to reclaim $1000-$1FFF as contiguous
+// BASIC RAM. This target has no compile-time way yet to make one shared
+// index.8bs branch on which profile it's being built for (see docs/roadmap.md
+// — target predicates are a Phase 1 language feature still to build), so
+// @8bitscript/vic20's `screen` namespace is not updated for those three
+// profiles: use them for programs that only need more RAM for their own
+// code/data (or that talk to `vicColor`/`border`/`background` directly,
+// which stays at $900F regardless of expansion), not ones that also call
+// `screen.putChar`/`putColor` — that would misdraw on real 8k+ hardware.
+const VIC20_PROFILES = new Set(['unexpanded', '3k', '8k', '16k', '24k']);
+const VIC20_DEFAULT_PROFILE = 'unexpanded';
+const VIC20_MEMORY_EXPANSION = {
+  unexpanded: 0, '3k': 3, '8k': 8, '16k': 16, '24k': 24,
+};
+
+// C64 RAM Expansion Unit sizes VICE's x64sc accepts via `-reusize` (128 KiB
+// through 16 MiB — confirmed against `x64sc -help`). Unlike the VIC-20
+// profiles above, attaching a REU changes nothing about the base C64 memory
+// map or where a program's own code/data lives — a REU is a DMA peripheral
+// reached through eight registers at $DF00-$DF0A (see @8bitscript/c64's `reu`
+// namespace), not a relocation of RAM the linker needs to know about — so
+// there is no linker flag here, only the emulator flag in run.mjs and the
+// registers being real. 'stock' (no REU) is the default.
+const C64_PROFILES = new Set([
+  'stock', 'reu128', 'reu256', 'reu512', 'reu1m', 'reu2m', 'reu4m', 'reu8m', 'reu16m',
+]);
+const C64_DEFAULT_PROFILE = 'stock';
+// KiB for `-reusize`, keyed by the profile names above (without the leading
+// 'reu' and 'm'/no-suffix distinction spelled out again).
+const C64_REU_SIZE_KIB = {
+  reu128: 128, reu256: 256, reu512: 512, reu1m: 1024, reu2m: 2048, reu4m: 4096, reu8m: 8192, reu16m: 16384,
+};
+
 function driverFor(machine, atari8Profile) {
   if (machine === 'atari8') {
     return atari8Profile === 'xegs' ? 'mos-atari8-cart-xegs-clang' : 'mos-atari8-dos-clang';
@@ -80,19 +126,19 @@ export function outputExtension(machine, atari8Profile) {
 //
 // The SDK's vic20 linker script defaults to a machine with 24K of RAM
 // expansion (programs load at $1201). 8BitScript targets the UNEXPANDED
-// VIC-20 first — 3583 bytes, load address $1001, the machine as sold — so the
-// expansion symbol is pinned to 0. Fitting the small machine is the point;
-// expanded configurations can become an option once someone actually needs
-// one.
+// VIC-20 by default — 3583 bytes, load address $1001, the machine as sold —
+// but `--profile` (VIC20_PROFILES above) can pick 3k/8k/16k/24k instead, so
+// vic20's __memory_expansion flag is computed in buildPrg() below rather than
+// pinned here.
 //
 // The PET linker script instead exposes __ram_size (8/16/32, in KiB — see
 // mos-platform/pet/link.ld), because unlike the VIC-20's expansion port a
 // PET's RAM size changes where the top of memory (and so the stack) sits.
-// Pinned to 32 (the common 32K PET) for the same reason the VIC-20 is
-// pinned unexpanded: it's the machine most surviving PETs and emulator
-// defaults actually are.
+// Pinned to 32 (the common 32K PET) for the same reason the VIC-20 defaults
+// unexpanded: it's the machine most surviving PETs and emulator defaults
+// actually are.
 const MACHINE_FLAGS = {
-  vic20: ['-Wl,--defsym=__memory_expansion=0'],
+  vic20: [],
   c64: [],
   pet: ['-Wl,--defsym=__ram_size=32'],
   c128: [],
@@ -563,10 +609,16 @@ export function emitC(ir, { machine } = {}) {
  * Atari 8-bit family, which output profile).
  *
  * @param {object} ir
- * @param {{ machine: keyof typeof DRIVER | 'atari8', atari8Profile?: string, outFile: string }} options
+ * @param {{
+ *   machine: keyof typeof DRIVER | 'atari8',
+ *   atari8Profile?: string, vic20Profile?: string, c64Profile?: string,
+ *   outFile: string,
+ * }} options
  * @returns {Promise<{ ok: boolean, cFile?: string, error?: string }>}
  */
-export async function buildPrg(ir, { machine, atari8Profile, outFile }) {
+export async function buildPrg(ir, {
+  machine, atari8Profile, vic20Profile, c64Profile, outFile,
+}) {
   if (ir.imports?.length) {
     // Unresolved imports mean the caller skipped the linker. Refusing here is
     // what keeps a lower→backend shortcut from silently dropping modules.
@@ -577,6 +629,20 @@ export async function buildPrg(ir, { machine, atari8Profile, outFile }) {
     return {
       ok: false,
       error: `backend-6502: unknown atari8 profile '${profile}' (expected one of ${[...ATARI8_PROFILES].join(', ')})`,
+    };
+  }
+  const vic20ProfileResolved = vic20Profile ?? VIC20_DEFAULT_PROFILE;
+  if (machine === 'vic20' && !VIC20_PROFILES.has(vic20ProfileResolved)) {
+    return {
+      ok: false,
+      error: `backend-6502: unknown vic20 profile '${vic20ProfileResolved}' (expected one of ${[...VIC20_PROFILES].join(', ')})`,
+    };
+  }
+  const c64ProfileResolved = c64Profile ?? C64_DEFAULT_PROFILE;
+  if (machine === 'c64' && !C64_PROFILES.has(c64ProfileResolved)) {
+    return {
+      ok: false,
+      error: `backend-6502: unknown c64 profile '${c64ProfileResolved}' (expected one of ${[...C64_PROFILES].join(', ')})`,
     };
   }
   const driverName = driverFor(machine, profile);
@@ -598,10 +664,16 @@ export async function buildPrg(ir, { machine, atari8Profile, outFile }) {
   await mkdir(dirname(outFile), { recursive: true });
   await writeFile(cFile, emitC(ir, { machine }), 'utf8');
 
+  // c64 has no per-profile linker flag (see C64_PROFILES above) — only vic20
+  // computes one, from whichever RAM-expansion profile was resolved.
+  const machineFlags = machine === 'vic20'
+    ? [`-Wl,--defsym=__memory_expansion=${VIC20_MEMORY_EXPANSION[vic20ProfileResolved]}`]
+    : (MACHINE_FLAGS[machine] ?? []);
+
   return new Promise((resolvePromise) => {
     const child = spawn(
       driver,
-      ['-Os', ...(MACHINE_FLAGS[machine] ?? []), '-o', outFile, cFile],
+      ['-Os', ...machineFlags, '-o', outFile, cFile],
       { stdio: ['ignore', 'pipe', 'pipe'] },
     );
     let stderr = '';
@@ -614,4 +686,8 @@ export async function buildPrg(ir, { machine, atari8Profile, outFile }) {
   });
 }
 
-export { ATARI8_PROFILES, ATARI8_DEFAULT_PROFILE };
+export {
+  ATARI8_PROFILES, ATARI8_DEFAULT_PROFILE,
+  VIC20_PROFILES, VIC20_DEFAULT_PROFILE,
+  C64_PROFILES, C64_DEFAULT_PROFILE, C64_REU_SIZE_KIB,
+};

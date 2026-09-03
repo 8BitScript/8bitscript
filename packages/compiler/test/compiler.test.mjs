@@ -374,14 +374,14 @@ test('a call to a name that resolves to nothing is 8BS2007', () => {
   assert.deepEqual(diagnostics.map((d) => d.code), ['8BS2007']);
 });
 
-// ---- conditional package entries (the real border example as fixture) -----
+// ---- conditional package entries (the real borders example as fixture) ----
 //
-// The border example's entry imports @8bitscript/machine, whose manifest
-// entry is keyed by machine and delegates to @8bitscript/vic20 or
+// The borders example's shared entry imports @8bitscript/machine, whose
+// manifest entry is keyed by machine and delegates to @8bitscript/vic20 or
 // @8bitscript/c64 through real pnpm symlinks. This pair is the proof the
 // conditional resolution actually switches implementations.
 
-const BORDER_ENTRY = join(HERE, '..', '..', '..', 'examples', 'border', 'src', 'main.8bs');
+const BORDER_ENTRY = join(HERE, '..', '..', '..', 'examples', 'borders', 'src', 'main.8bs');
 
 test('a conditional entry resolves to the vic20 implementation', () => {
   const { ir, diagnostics } = link(readFileSync(BORDER_ENTRY, 'utf8'), BORDER_ENTRY, { machine: 'vic20' });

@@ -142,7 +142,7 @@ System [ vic20 ▾ ]   Region [ NTSC ▾ ]
 View   [ Runnable on the selected system ▾ ]
 
 PROJECTS  runnable on vic20 · NTSC
-  border            examples/border           Run  Build
+  borders           examples/borders          Run  Build
   counter           examples/counter          Run  Build
   hello-vic         examples/hello-vic        Run  Build
 ```
@@ -166,10 +166,10 @@ written in `.vscode/tasks.json`:
     {
       "type": "8bs",
       "command": "run",
-      "project": "examples/border",
+      "project": "examples/borders",
       "target": "c64",
       "pal": true,
-      "label": "border on a PAL C64"
+      "label": "borders on a PAL C64"
     }
   ]
 }

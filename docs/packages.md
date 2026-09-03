@@ -12,7 +12,7 @@ git submodules anywhere in the model.
 
 This page began as pure design; most of it is now real. The resolver
 implements the resolution contract below, and the linker compiles a program
-from its whole import graph — `examples/border` imports its colour API from
+from its whole import graph — `examples/borders` imports its colour API from
 `@8bitscript/machine`, which resolves per target to `@8bitscript/vic20` or
 `@8bitscript/c64`, through exactly this model. What crosses a module boundary
 is still bounded by the milestone subset (globals and parameterless function
@@ -141,7 +141,7 @@ anyone builds for it.
 source of its own, just the machine-keyed delegation. All three target
 packages export the same surface — `border`, `background`, `applyColors()`,
 and a `screen` namespace — so a program that imports it works on whichever
-machine it is built for. `examples/border`'s `vic20`, `c64`, *and* `web`
+machine it is built for. `examples/borders`'s `vic20`, `c64`, *and* `web`
 builds all share one source file this way. This is the first slice of
 target-conditional code: whole-module today, per-declaration once that
 syntax is designed.
@@ -163,7 +163,7 @@ export default {
 target-conditional import can't paper over: when a target's execution model
 itself differs, not just the hardware underneath it — not merely which
 register or memory layout a name resolves to, but the *shape* of the program
-itself. `examples/border` needed exactly this until recently: a browser tab
+itself. `examples/borders` needed exactly this until recently: a browser tab
 calls a program back once per frame rather than handing it the whole machine
 forever the way a VIC-20 or a C64 does, so its web build used to need its
 own entry file, written for that different contract. It doesn't anymore —
@@ -269,7 +269,7 @@ VICE opens
 
 The CLI is real now, and that loop works — though `hello-vic` itself still
 does not compile, because its calls and member access wait on the binder.
-[`examples/border`](https://github.com/8BitScript/8bitscript/tree/trunk/examples/border)
+[`examples/borders`](https://github.com/8BitScript/8bitscript/tree/trunk/examples/borders)
 is the example that goes end to end today: it imports hardware registers from
 `@8bitscript/vic20` and `@8bitscript/c64` and runs on both machines.
 

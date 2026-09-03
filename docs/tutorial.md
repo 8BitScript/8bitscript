@@ -44,7 +44,7 @@ page that fixes it.
 
 ## Run an example
 
-[`examples/border`](https://github.com/8BitScript/8bitscript/tree/trunk/examples/border)
+[`examples/borders`](https://github.com/8BitScript/8bitscript/tree/trunk/examples/borders)
 is the example that goes end to end today: it clears the leftover BASIC boot
 screen, labels a `TICK` counter and the current `OPTION` number, and steps
 the border and background through four curated colour combinations — one
@@ -53,7 +53,7 @@ classic first sign of life on real hardware, so it is the one worth seeing
 run before reading any code.
 
 ```bash
-cd examples/border
+cd examples/borders
 pnpm start
 ```
 
@@ -93,7 +93,7 @@ backend generated alongside it, so what the compiler did is never a mystery.
 
 ## What the program does
 
-`examples/border/src/main.8bs`:
+`examples/borders/src/main.8bs`:
 
 ```
 import { border, background, applyColors, screen } from "@8bitscript/machine";
@@ -295,7 +295,7 @@ has the exact boundary.
   — the smallest program that compiles, and the simplest of the two that also
   target the web (`pnpm run web` inside it, after `pnpm install`) — it has no
   `frame()`, so `8bs run web` just calls its `main()` once and prints the
-  result, rather than opening a browser tab the way `examples/border` does.
+  result, rather than opening a browser tab the way `examples/borders` does.
 - [Editor support](language-server.md) — diagnostics under the cursor while
   you write.
 
