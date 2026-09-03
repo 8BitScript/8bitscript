@@ -1,0 +1,47 @@
+// The VIC-20 User's Guide's first BASIC program, ported line for line:
+//
+//   10 PRINT "VIC 20"
+//   20 GOTO 10
+//
+// Neither PRINT nor GOTO exists here. PRINT lowers to what it actually did at
+// the hardware level: writing screen codes into screen memory. GOTO 10 lowers
+// to the loop it forms with line 10 — this repokes the same six cells on
+// every pass, the direct translation of "re-run line 10 forever", rather than
+// writing them once before an empty spin.
+//
+// What does NOT carry over is the scroll. Real BASIC's PRINT ends with a
+// newline and advances the cursor, so each pass in real hardware writes to
+// the next line down, scrolling "VIC 20" up the screen forever — the famous
+// look from Commodore's ads. That needs a cursor that moves, which needs
+// addressing screen memory dynamically. This example sticks to globals,
+// arithmetic, and hardware access via @address — not arrays or pointer
+// arithmetic — so every cell here is its own named, fixed address instead,
+// and the six pokes land in the same place every time.
+//
+// Screen memory on an unexpanded VIC-20 starts at $1E00. Screen codes are not
+// PETSCII: '@' is 0, A-Z are 1-26, and space/digits fall through unchanged
+// (screen code == ASCII for $20-$3F). So "VIC 20" is V=22, I=9, C=3,
+// space=32, 2=50, 0=48.
+@address(0x1E00)
+let cell0: volatile<utinyint>;
+@address(0x1E01)
+let cell1: volatile<utinyint>;
+@address(0x1E02)
+let cell2: volatile<utinyint>;
+@address(0x1E03)
+let cell3: volatile<utinyint>;
+@address(0x1E04)
+let cell4: volatile<utinyint>;
+@address(0x1E05)
+let cell5: volatile<utinyint>;
+
+export function main(): void {
+    while (true) {
+        cell0 = 22; // V
+        cell1 = 9;  // I
+        cell2 = 3;  // C
+        cell3 = 32; // (space)
+        cell4 = 50; // 2
+        cell5 = 48; // 0
+    }
+}
