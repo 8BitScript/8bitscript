@@ -29,13 +29,23 @@ const COLORS = [
 
 const LOGICAL_HZ = 60;
 
-// The screen's own pixel grid — a VIC-20/C64-ish 4:3-ish frame at a size
-// that keeps whole-number scaling clean. This is the canvas's *resolution*,
-// not its on-page size: the page stretches it to fill the window (see
-// resize() in the page script below) while image-rendering: pixelated keeps
-// every scaled-up pixel a hard square instead of a blurred one.
-const SCREEN_W = 320;
-const SCREEN_H = 200;
+// The character grid is the C64's own 40×25 of 8×8 cells — 320×200, the
+// same shape @8bitscript/web's virtual screen uses. The coloured border sits
+// around that grid, the way the VIC-II/VIC paint it, rather than eating into
+// it: characters then live entirely in the background, not clipped into the
+// border. This is the canvas's *resolution*, not its on-page size: the
+// page stretches it to fill the window (see resize() in the page script
+// below) while image-rendering: pixelated keeps every scaled-up pixel a
+// hard square instead of a blurred one.
+const GRID_COLS = 40;
+const GRID_ROWS = 25;
+const CHAR_W = 8;
+const CHAR_H = 8;
+const BORDER_PX = 24;
+const INNER_W = GRID_COLS * CHAR_W;
+const INNER_H = GRID_ROWS * CHAR_H;
+const SCREEN_W = INNER_W + BORDER_PX * 2;
+const SCREEN_H = INNER_H + BORDER_PX * 2;
 
 function renderHtml() {
   return `<!doctype html>
@@ -78,7 +88,13 @@ function renderHtml() {
 <script>
 const COLORS = ${JSON.stringify(COLORS)};
 const LOGICAL_STEP_MS = 1000 / ${LOGICAL_HZ};
-const BORDER_PX = 24;
+const BORDER_PX = ${BORDER_PX};
+const GRID_COLS = ${GRID_COLS};
+const GRID_ROWS = ${GRID_ROWS};
+const CHAR_W = ${CHAR_W};
+const CHAR_H = ${CHAR_H};
+const INNER_W = ${INNER_W};
+const INNER_H = ${INNER_H};
 const SCREEN_W = ${SCREEN_W};
 const SCREEN_H = ${SCREEN_H};
 
@@ -96,9 +112,6 @@ const fpsEl = document.getElementById('fps');
 // @8bitscript/c64 poke into real screen memory for.
 const CHAR_BASE = 2;
 const COLOR_BASE = 1002;
-const GRID_COLS = 40;
-const CHAR_W = 8;
-const CHAR_H = 8;
 
 function decodeScreenCode(code) {
   if (code >= 1 && code <= 26) return String.fromCharCode(64 + code);
@@ -142,28 +155,47 @@ async function boot() {
   let logicalFpsWindowStart = null;
   let logicalFps = 0;
 
+  // A real character ROM's 8×8 bits sit entirely inside the cell. System
+  // fonts do not: with textBaseline 'top', glyphs still paint a fraction of
+  // a pixel above y, which (scaled up, pixelated) is the top of "TICK"
+  // clipping into the border. Shift by that overflow so row 0 stays on
+  // the background. Clip to the inner rectangle as well — on the VIC-20/C64
+  // characters cannot draw in the border, and a font that overflows a cell
+  // should not either.
+  ctx.font = CHAR_H + 'px ui-monospace, Menlo, monospace';
+  ctx.textBaseline = 'top';
+  ctx.textAlign = 'left';
+  const glyphY = Math.ceil(ctx.measureText('M').actualBoundingBoxAscent || 0);
+
   function paint() {
     // Byte 0 is border, byte 1 is background — the same two offsets
     // @8bitscript/web's applyColors() writes, agreed on there.
     ctx.fillStyle = COLORS[mem[0] & 15];
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = COLORS[mem[1] & 15];
-    ctx.fillRect(BORDER_PX, BORDER_PX, canvas.width - BORDER_PX * 2, canvas.height - BORDER_PX * 2);
+    ctx.fillRect(BORDER_PX, BORDER_PX, INNER_W, INNER_H);
 
     // Whatever the program poked into the virtual character screen — this
     // host doesn't know or care what any of it means, the same way a real
     // VIC-20/C64 doesn't know what a program's screen memory says. Blank
     // cells (never written, or written as a literal space) draw nothing.
-    ctx.font = '8px ui-monospace, Menlo, monospace';
-    ctx.textBaseline = 'top';
-    for (let cell = 0; cell < 1000; cell += 1) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(BORDER_PX, BORDER_PX, INNER_W, INNER_H);
+    ctx.clip();
+    for (let cell = 0; cell < GRID_COLS * GRID_ROWS; cell += 1) {
       const glyph = decodeScreenCode(mem[CHAR_BASE + cell]);
       if (glyph === null) continue;
       const col = cell % GRID_COLS;
       const row = (cell - col) / GRID_COLS;
       ctx.fillStyle = COLORS[mem[COLOR_BASE + cell] & 15];
-      ctx.fillText(glyph, BORDER_PX + col * CHAR_W, BORDER_PX + row * CHAR_H);
+      ctx.fillText(
+        glyph,
+        BORDER_PX + col * CHAR_W,
+        BORDER_PX + row * CHAR_H + glyphY,
+      );
     }
+    ctx.restore();
   }
 
   instance.exports.main();

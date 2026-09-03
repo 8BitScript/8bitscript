@@ -9,9 +9,18 @@ const { ALL_TARGETS } = require('./projects.cjs');
 const SECTION = '8bitscript';
 
 const VIEW_MODES = [
-  { id: 'runnable', label: 'Runnable on the selected system' },
   { id: 'byProject', label: 'By project' },
+  { id: 'runnable', label: 'Runnable on the selected system' },
   { id: 'bySystem', label: 'By system' },
+];
+
+// The region names on the box: NTSC-format machines were sold as the US/
+// Canada/Japan model, PAL as the European (and Australian) one. 8bs itself
+// only knows "ntsc" and "pal" — these are just what a person remembers the
+// dropdown by.
+const REGIONS = [
+  { id: 'ntsc', label: 'NTSC', place: 'US/Japan', hz: '60Hz' },
+  { id: 'pal', label: 'PAL', place: 'Europe', hz: '50Hz' },
 ];
 
 /** @returns {'ntsc' | 'pal'} */
@@ -71,10 +80,17 @@ function affectsAny(event) {
 }
 
 function regionLabel(region) {
-  return region === 'pal' ? 'PAL' : 'NTSC';
+  const found = REGIONS.find((r) => r.id === region) ?? REGIONS[0];
+  return `${found.label} (${found.place})`;
+}
+
+/** Just "NTSC" or "PAL", for a spot that already supplies its own parens. */
+function regionShort(region) {
+  return (REGIONS.find((r) => r.id === region) ?? REGIONS[0]).label;
 }
 
 module.exports = {
+  REGIONS,
   VIEW_MODES,
   affectsAny,
   getExamplesPath,
@@ -83,6 +99,7 @@ module.exports = {
   getSystem,
   getViewMode,
   regionLabel,
+  regionShort,
   setRegion,
   setShowExamples,
   setSystem,
