@@ -331,21 +331,32 @@ this step lists `vic20` and `c64` and not `web`, and the compiler refuses a
 web build rather than producing one that hangs.
 
 That is a property of *this program's shape*, not of the web target
-generally — `examples/border` builds for `web` today, from a second entry
-file (`main.web.8bs`) written for a different contract: `main()` only sets
-up, once, and a separate exported `frame()` is what the host calls back into,
-once per frame, forever, instead of this program's own `while (true)` doing
-that. [`docs/packages.md`](../packages.md#target-conditional-entries)
-describes `8bs.config.ts`'s `entry` map, which is how one project points
-`vic20`/`c64` at `main.8bs` and `web` at a different file. The host itself —
-a canvas, and a `requestAnimationFrame` loop with its own fixed-timestep
-accumulator, so `frame()` is called at a steady logical rate regardless of
-the display's real refresh rate — is `packages/cli/src/web-runtime.mjs`.
-There is no PAL/NTSC split for `web` for the same reason: nothing about it is
-tied to a machine's real refresh rate to begin with, so one build is enough.
+generally — it's exactly why `examples/border` doesn't write `while (true)`
+at all: it exports `main()` (setup, once) and a separate `frame()` (one
+tick's worth of work), and lets something *else* drive the repeat, instead
+of doing that itself. That used to mean a second entry file for `web` —
+`vic20`/`c64` pointed at `main.8bs`, `web` at a different one, via
+`8bs.config.ts`'s `entry` map (still documented in
+[`docs/packages.md`](../packages.md#target-conditional-entries) as a general
+mechanism, for cases where it's still needed) — but `examples/border` no
+longer needs it: any module exporting both `main` and `frame` gets a driving
+loop synthesised for it by whichever backend is building it, so one file now
+builds correctly everywhere.
 
-`examples/border`'s own `main.web.8bs` walks through what that looks like in
-practice, with the reasoning in its header comment.
+On the web, that driving loop is `packages/cli/src/web-runtime.mjs`'s own
+`requestAnimationFrame` accumulator, calling `frame()` at a steady logical
+rate regardless of the display's real refresh rate. There is still no
+PAL/NTSC split for `web`: nothing about it is tied to a machine's real
+refresh rate to begin with, so one build is enough. On the VIC-20/C64,
+`packages/backend-6502` synthesises a driving loop of its own instead,
+waiting for the video chip's raster line to reach the top of the screen
+between `frame()` calls — real vertical blank, 60Hz NTSC / 50Hz PAL by
+construction, not a busy-wait calibrated by hand.
+
+Either way, this step's program still can't build for `web`: its `main` is
+bare, no `frame`, so it never opted into that convention — there's nothing
+for either backend to drive, and a `while (true) {}` inside `main` would
+still hang a browser tab exactly as described above.
 
 ## Next
 

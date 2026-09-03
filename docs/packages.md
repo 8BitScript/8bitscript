@@ -140,11 +140,11 @@ anyone builds for it.
 `@8bitscript/machine` (shown above) is exactly this and nothing more: no
 source of its own, just the machine-keyed delegation. All three target
 packages export the same surface — `border`, `background`, `applyColors()`,
-and `screen.showDigit()` — so a program that imports it works on whichever
-machine it is built for.
-`examples/border`'s `vic20` and `c64` builds share one source file this way.
-This is the first slice of target-conditional code: whole-module today,
-per-declaration once that syntax is designed.
+and a `screen` namespace — so a program that imports it works on whichever
+machine it is built for. `examples/border`'s `vic20`, `c64`, *and* `web`
+builds all share one source file this way. This is the first slice of
+target-conditional code: whole-module today, per-declaration once that
+syntax is designed.
 
 ### A project's own entry can be target-conditional too
 
@@ -154,22 +154,24 @@ the same way, keyed identically:
 
 ```ts
 export default {
-  entry: { default: 'src/main.8bs', web: 'src/main.web.8bs' },
-  targets: ['vic20', 'c64', 'web'],
+  entry: { default: 'src/main.8bs', special: 'src/main.special.8bs' },
+  targets: ['vic20', 'c64', 'special'],
 };
 ```
 
 `default` covers any target not named explicitly. This exists for the case a
 target-conditional import can't paper over: when a target's execution model
-itself differs, not just the hardware underneath it. `web` is exactly that —
-a browser calls a program back once per frame instead of handing it the
-whole machine forever the way a VIC-20 or a C64 does — so `examples/border`
-uses this to give `web` its own entry file, `main.web.8bs`, shaped for that
-contract instead of `main.8bs`'s `while (true)`. See
-[docs/learn/step1-main-loop.md](learn/step1-main-loop.md#why-this-step-does-not-build-for-the-web)
-for the reasoning, and `main.web.8bs`'s own header comment for what the
-per-frame contract (`main()` sets up once, `frame()` is the per-frame
-callback) looks like from inside the program.
+itself differs, not just the hardware underneath it — not merely which
+register or memory layout a name resolves to, but the *shape* of the program
+itself. `examples/border` needed exactly this until recently: a browser tab
+calls a program back once per frame rather than handing it the whole machine
+forever the way a VIC-20 or a C64 does, so its web build used to need its
+own entry file, written for that different contract. It doesn't anymore —
+see [docs/learn/step1-main-loop.md](learn/step1-main-loop.md#why-this-step-does-not-build-for-the-web)
+for how a `main()`/`frame()` convention synthesised by each backend now
+covers that difference from a single file — but this mechanism is still
+here for whatever execution-model difference comes up next that a shared
+calling convention can't.
 
 ## What a package may contain
 
