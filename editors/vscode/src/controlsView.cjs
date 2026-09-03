@@ -138,9 +138,9 @@ function html(webview) {
     </div>
     <div>
       <label class="field" for="region">Region</label>
-      <select id="region" title="NTSC (60Hz) or PAL (50Hz) machine model for vic20 and c64">
-        <option value="ntsc">NTSC</option>
-        <option value="pal">PAL</option>
+      <select id="region" title="NTSC (US/Japan, 60Hz) or PAL (Europe, 50Hz) machine model for vic20 and c64">
+        <option value="ntsc">NTSC (US/Japan)</option>
+        <option value="pal">PAL (Europe)</option>
       </select>
     </div>
   </div>

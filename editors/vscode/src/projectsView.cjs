@@ -40,7 +40,7 @@ const {
 } = require('./projects.cjs');
 const settings = require('./settings.cjs');
 
-const { regionLabel } = settings;
+const { regionLabel, regionShort } = settings;
 
 const TASK_TYPE = '8bs';
 const VIEW_ID = '8bitscript.projects';
@@ -75,6 +75,39 @@ function relativeDir(dir) {
 function whereLabel(project) {
   if (!project.example) return relativeDir(project.dir);
   return path.join(path.basename(path.dirname(project.dir)), path.basename(project.dir));
+}
+
+/**
+ * The repo (workspace folder) a project belongs to, for grouping by repo.
+ * Keyed by the folder's path rather than its name — two workspace folders
+ * can share a basename (`~/work/frontend` and `~/oss/frontend`), and that
+ * must not merge two different repos into one group.
+ */
+function repoOf(project) {
+  const folder = folderOf(project.dir);
+  return folder ? { key: folder.uri.fsPath, name: folder.name } : { key: '\0examples', name: 'Examples' };
+}
+
+/**
+ * Group projects by the repo they live in, for a multi-root workspace.
+ *
+ * Returns null when there is only one workspace folder, or when every
+ * project resolved to it anyway — a single-repo workspace should not grow an
+ * extra "repo" level it has no use for.
+ *
+ * @param {import('./projects.cjs').Project[]} projects
+ * @returns {{ name: string, projects: import('./projects.cjs').Project[] }[] | null}
+ */
+function groupByFolder(projects) {
+  if ((vscode.workspace.workspaceFolders?.length ?? 0) < 2) return null;
+  const groups = new Map();
+  for (const project of projects) {
+    const { key, name } = repoOf(project);
+    if (!groups.has(key)) groups.set(key, { name, projects: [] });
+    groups.get(key).projects.push(project);
+  }
+  if (groups.size < 2) return null;
+  return [...groups.entries()].map(([key, { name, projects }]) => ({ key, name, projects }));
 }
 
 /**
@@ -152,7 +185,7 @@ function makeTask(project, action, target, region) {
     ...(target ? { target } : {}),
     ...(pal ? { pal: true } : {}),
   };
-  const suffix = target ? ` ${target}${MACHINE_TARGETS.has(target) ? ` (${regionLabel(region)})` : ''}` : '';
+  const suffix = target ? ` ${target}${MACHINE_TARGETS.has(target) ? ` (${regionShort(region)})` : ''}` : '';
   const name = `${project.name}: ${action}${suffix}`;
   const task = new vscode.Task(
     definition,
@@ -247,14 +280,20 @@ class ProjectsProvider {
     if (node.kind === 'project' && !node.target) {
       return node.project.targets.map((target) => ({ kind: 'target', project: node.project, target }));
     }
+    if (node.kind === 'folder') {
+      return node.projects.map((project) => ({ kind: 'project', project, target: node.target }));
+    }
     if (node.kind === 'system') {
-      return runnableOn(this.visible, node.target).map((project) => ({
-        kind: 'project',
-        project,
-        target: node.target,
-      }));
+      return this.projectRows(runnableOn(this.visible, node.target), node.target);
     }
     return [];
+  }
+
+  /** Project rows for a list, grouped by repo first when the workspace has more than one. */
+  projectRows(projects, target) {
+    const groups = groupByFolder(projects);
+    if (groups) return groups.map(({ key, name, projects }) => ({ kind: 'folder', key, name, projects, target }));
+    return projects.map((project) => ({ kind: 'project', project, target }));
   }
 
   roots() {
@@ -263,14 +302,14 @@ class ProjectsProvider {
       case 'bySystem':
         return bySystem(projects).map(({ target }) => ({ kind: 'system', target }));
       case 'byProject':
-        return projects.map((project) => ({ kind: 'project', project }));
+        return this.projectRows(projects);
       default: {
         const system = settings.getSystem();
         const runnable = runnableOn(projects, system);
         if (runnable.length === 0 && projects.length > 0) {
           return [{ kind: 'message', text: `No project targets ${system}. Pick another system above.` }];
         }
-        return runnable.map((project) => ({ kind: 'project', project, target: system }));
+        return this.projectRows(runnable, system);
       }
     }
   }
@@ -283,6 +322,8 @@ class ProjectsProvider {
         return this.targetItem(node);
       case 'system':
         return this.systemItem(node);
+      case 'folder':
+        return this.folderItem(node);
       default: {
         const item = new vscode.TreeItem(node.text, vscode.TreeItemCollapsibleState.None);
         item.iconPath = new vscode.ThemeIcon('info');
@@ -309,16 +350,17 @@ class ProjectsProvider {
     ].filter(Boolean);
     item.contextValue = ['project', ...states].join('.');
     item.id = pinned ? `${project.dir}\0${target}` : project.dir;
+    const region = settings.getRegion();
     item.description = [
       running && 'running',
       !project.toolchain && 'toolchain not installed',
       project.toolchain && !project.installed && 'not installed',
       project.example && 'example',
+      pinned && MACHINE_TARGETS.has(target) && regionLabel(region),
       whereLabel(project),
     ]
       .filter(Boolean)
       .join(' · ');
-    const region = settings.getRegion();
     item.tooltip = new vscode.MarkdownString(
       [
         `**${project.name}**${project.description ? ` — ${project.description}` : ''}`,
@@ -386,6 +428,16 @@ class ProjectsProvider {
     item.contextValue = ['system', machine && 'machine'].filter(Boolean).join('.');
     item.description = `${count} project${count === 1 ? '' : 's'}${machine ? ` · ${regionLabel(settings.getRegion())}` : ''}`;
     item.iconPath = targetIcon(target);
+    return item;
+  }
+
+  /** A repo, when the workspace has more than one and it is worth splitting on. */
+  folderItem({ key, name, projects, target }) {
+    const item = new vscode.TreeItem(name, vscode.TreeItemCollapsibleState.Expanded);
+    item.id = `folder\0${target ?? ''}\0${key}`;
+    item.contextValue = 'folder';
+    item.description = `${projects.length} project${projects.length === 1 ? '' : 's'}`;
+    item.iconPath = new vscode.ThemeIcon('root-folder');
     return item;
   }
 }
@@ -677,10 +729,12 @@ function registerProjectsView(context, output) {
   async function chooseRegion() {
     const current = settings.getRegion();
     const picked = await vscode.window.showQuickPick(
-      [
-        { label: 'NTSC', detail: '60Hz — the default machine model', region: 'ntsc' },
-        { label: 'PAL', detail: '50Hz — passes --pal to 8bs', region: 'pal' },
-      ].map((item) => ({ ...item, description: item.region === current ? 'current' : undefined })),
+      settings.REGIONS.map((r) => ({
+        label: `${r.label} — ${r.place}`,
+        detail: r.id === 'ntsc' ? `${r.hz} — the default machine model` : `${r.hz} — passes --pal to 8bs`,
+        description: r.id === current ? 'current' : undefined,
+        region: r.id,
+      })),
       { placeHolder: 'Which region should vic20 and c64 runs use?' },
     );
     if (picked) await settings.setRegion(picked.region);
