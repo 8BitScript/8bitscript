@@ -9,22 +9,31 @@
 // prompt to run that command right here, rather than making the reader
 // leave the terminal and come back.
 //
-// The VIC-20 check goes further than versions: a VICE build without ROMs
-// prints a version and still cannot boot a machine, so the doctor launches
-// the emulator for a bounded number of cycles and confirms it actually
-// comes up. docs/setup/vice.md is explicit that anything less reports
-// success on a setup that cannot run a single build. The other targets
-// don't get that same depth yet — existence and, where the tool supports
-// it, a version — that's a known gap, not an oversight.
+// The VIC-20 and Commander X16 checks go further than versions: a VICE
+// build without ROMs prints a version and still cannot boot a machine, so
+// the doctor launches the emulator for a bounded number of cycles and
+// confirms it actually comes up; x16emu's `-version` likewise never touches
+// its ROM, so the doctor boots it headless (`-testbench`) — the only check
+// that catches the tested macOS failure where x16emu on PATH is a direct
+// symlink and dies with "Cannot open /usr/local/bin/rom.bin!" (see
+// checkCx16Target()). docs/setup/vice.md is explicit that anything less
+// reports success on a setup that cannot run a single build. The other
+// targets don't get that same depth yet — existence and, where the tool
+// supports it, a version — that's a known gap, not an oversight.
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
 
-import { MEGA65_ROM_920413, validateRomBuffer } from './setup/rom.mjs';
-import { MEGA65_ROM_CANONICAL_PATH, xemuRomLinkPath } from './setup/paths.mjs';
+import { MEGA65_ROM_920413, validateRomBuffer, inspectXemuRomLink } from './setup/rom.mjs';
+import { MEGA65_ROM_CANONICAL_PATH, CX16_ROM_INSTALL_PATH, xemuRomLinkPath } from './setup/paths.mjs';
+import { resolveOnPath } from './setup/host.mjs';
+import { inspectLauncher } from './setup/launcher.mjs';
+import {
+  inspectRomFile, x16emuLauncherSpec, isBrokenMacosSymlink, parseX16emuVersion, romLoadFailure, testbenchBooted,
+} from './setup/cx16.mjs';
 
 // ---- pure helpers, unit-tested --------------------------------------------
 
@@ -306,14 +315,13 @@ const INSTALLERS = {
     // An AUR `x16-emulator` package exists, but it can drift out of sync
     // with the ROM the emulator needs — the two have to be a matching pair,
     // per upstream's own notes — and may be outdated or broken. There's no
-    // single-command install plan here as a result: docs/setup/cx16.md's
-    // guided build builds both the emulator and a matching ROM from source
-    // instead. See checkOtherEmulators() for the resulting `x16emu -version`
-    // check — confirmed working (no window, clean exit) against a real
-    // source build on this machine.
+    // single-command install plan here as a result: `8bs setup cx16` builds
+    // both the emulator and a matching ROM from upstream source instead
+    // (docs/setup/cx16.md). See checkCx16Target() for the resulting checks.
     buildFromSource: true,
     repo: 'https://github.com/X16Community/x16-emulator',
     docs: 'docs/setup/cx16.md',
+    setupCommand: 'cx16',
   },
   xmega65: {
     label: 'Xemu — MEGA65 core (xmega65)',
@@ -324,7 +332,7 @@ const INSTALLERS = {
     repo: 'https://github.com/lgblgblgb/xemu',
     docs: 'docs/setup/mega65.md',
     // `8bs setup mega65` builds+installs this (and the ROM — see
-    // checkMega65Rom() below) end to end; point installerHint() at it
+    // checkMega65Target() below) end to end; point installerHint() at it
     // instead of just the bare upstream repo.
     setupCommand: 'mega65',
   },
@@ -364,11 +372,9 @@ function installerHint(installer) {
  * an unrecognised flag (a GUI emulator opening a window instead of printing
  * a version) — existence is the check that matters; the version probe only
  * ever upgrades a result, never fails one, so a slow/silent version flag
- * can't turn a real install into a false FAIL. `versionArgs` defaults to
- * `--version`, but x16emu only recognises `-version` (single dash) —
- * confirmed on this machine: `-version` exits 0 with a clean release line,
- * `--version` is treated as unrecognised and falls through to the usage
- * text (also a clean exit, just not a version). */
+ * can't turn a real install into a false FAIL. `versionArgs` is there for
+ * a tool whose flag isn't `--version` (x16emu's is `-version`, but that
+ * one has its own deeper checks now — checkCx16Target()). */
 async function checkEmulator(binary, { label = binary, targets, installerKey, tryVersion = true, versionArgs = ['--version'] } = {}) {
   const installer = INSTALLERS[installerKey];
   if (!onPath(binary)) {
@@ -387,8 +393,41 @@ async function checkEmulator(binary, { label = binary, targets, installerKey, tr
   return result(OK, label, firstLine || 'found (version unconfirmed)', null, { targets });
 }
 
+/**
+ * Ask the package manager that installed VICE what version it put down,
+ * bypassing the binaries entirely. This is the fallback for
+ * `xvic --version` et al crashing outright on some Homebrew bottles
+ * (confirmed on 3.9, reproduced here on 3.10) with "Error - argv[0] is
+ * NULL, giving up" — a known upstream regression, vice-emu bug #2108 —
+ * rather than printing anything a version check could parse. The package
+ * manager still knows the version even when the binary can't report its
+ * own; null if no manager confirms one.
+ */
+export async function vicePackageManagerVersion({
+  platform = process.platform, hasBinary = onPath, exec = run,
+} = {}) {
+  if (platform === 'darwin' && hasBinary('brew')) {
+    const r = await exec('brew', ['list', '--versions', 'vice']);
+    const version = parseVersion(r.stdout);
+    if (version) return version;
+  }
+  if (platform === 'linux') {
+    const dpkg = await exec('dpkg-query', ['-W', '-f=${Version}', 'vice']);
+    const dpkgVersion = parseVersion(dpkg.stdout);
+    if (dpkgVersion) return dpkgVersion;
+    const pacman = await exec('pacman', ['-Q', 'vice']);
+    const pacmanVersion = parseVersion(pacman.stdout);
+    if (pacmanVersion) return pacmanVersion;
+  }
+  return null;
+}
+
 async function checkVice() {
   const checks = [];
+  // Fetched lazily, at most once per checkVice() run — one VICE install
+  // serves all four binaries, so the four fallback lookups would otherwise
+  // be identical repeats of each other.
+  let packageManagerVersion; // undefined until first needed, then cached (possibly null)
   for (const [binary, machine, label] of [
     ['xvic', 'vic20', 'xvic (VIC-20)'],
     ['x64sc', 'c64', 'x64sc (C64)'],
@@ -400,13 +439,24 @@ async function checkVice() {
       continue;
     }
     const r = await run(binary, ['--version']);
-    const version = parseVersion(r.stdout + r.stderr);
+    let version = parseVersion(r.stdout + r.stderr);
+    let viaPackageManager = false;
+    if (!version) {
+      if (packageManagerVersion === undefined) packageManagerVersion = await vicePackageManagerVersion();
+      if (packageManagerVersion) {
+        version = packageManagerVersion;
+        viaPackageManager = true;
+      }
+    }
     if (!version) {
       checks.push(result(WARN, label, 'found, but the version was unreadable', 'docs/setup/vice.md', { targets: [machine] }));
     } else if (!atLeast(version, [3, 10])) {
       checks.push(result(WARN, label, `VICE ${version.join('.')} — the project expects 3.10`, 'docs/setup/vice.md', { targets: [machine] }));
     } else {
-      checks.push(result(OK, label, `VICE ${version.join('.')}`, null, { targets: [machine] }));
+      const detail = viaPackageManager
+        ? `VICE ${version.join('.')} (via the package manager — ${binary} --version doesn't print one on this build)`
+        : `VICE ${version.join('.')}`;
+      checks.push(result(OK, label, detail, null, { targets: [machine] }));
     }
   }
   checks.push(await bootCheck());
@@ -502,58 +552,226 @@ export async function findMega65Rom({
 }
 
 /**
- * Three separate checks, not one — `xmega65` existing is not the same thing
- * as MEGA65 being ready to run: the full MEGA65 ROM cannot be redistributed
- * by this project (docs/setup/mega65.md), so a fresh Xemu install has no ROM
- * until `8bs setup mega65` (or the equivalent manual steps) produces one.
+ * MEGA65 readiness, as four separate checks, not one — `xmega65` existing
+ * on `PATH` proves nothing about whether it can actually run the machine:
+ *
+ *   xmega65        the launcher on PATH, reported as its resolved path
+ *                  (like checkCx16Target()'s x16emu, not just "found")
+ *   MEGA65 ROM     a full, official 920413 ROM exists *somewhere* this
+ *                  project or a manual install would put it — the full ROM
+ *                  cannot be redistributed by this project
+ *                  (docs/setup/mega65.md), so a fresh Xemu install has none
+ *                  until `8bs setup mega65` (or the manual steps) makes one
+ *   Xemu ROM link  separately: can *Xemu itself* actually see that ROM?
+ *                  `MEGA65 ROM ok` alone doesn't imply this — a canonical
+ *                  install at /opt/mega65/MEGA65.ROM with no
+ *                  ~/.xemu-lgb/MEGA65.ROM link is a real, tested gap this
+ *                  check exists to catch (see setup/rom.mjs's
+ *                  inspectXemuRomLink(), shared with `8bs setup mega65`)
+ *   MEGA65         ready only when every check above passes
  */
-async function checkMega65Rom(hasEmulator, find = findMega65Rom) {
+export async function checkMega65Target({
+  hasEmulator, emulatorPath = null, find = findMega65Rom,
+  canonicalPath = MEGA65_ROM_CANONICAL_PATH, linkPath = xemuRomLinkPath(), inspectLink = inspectXemuRomLink,
+} = {}) {
+  const targets = ['mega65'];
+  const installer = INSTALLERS.xmega65;
   const checks = [];
-  const found = await find();
 
+  checks.push(hasEmulator
+    ? result(OK, 'xmega65 (MEGA65, via Xemu)', emulatorPath ?? 'found', null, { targets })
+    : result(FAIL, 'xmega65 (MEGA65, via Xemu)', 'not found', installerHint(installer), { installer, targets }));
+
+  const found = await find({ canonicalPath, linkPath });
+  let romOk = false;
   if (!found) {
     checks.push(result(
       FAIL, 'MEGA65 ROM', 'not found',
       hasEmulator
         ? 'xmega65 is installed, but the full MEGA65 ROM is missing.\n        run: 8bs setup mega65'
         : 'run: 8bs setup mega65',
-      { targets: ['mega65'] },
+      { targets },
     ));
   } else if (found.validation.ok) {
-    checks.push(result(OK, 'MEGA65 ROM', MEGA65_ROM_920413.release, null, { targets: ['mega65'] }));
+    romOk = true;
+    checks.push(result(OK, 'MEGA65 ROM', MEGA65_ROM_920413.release, null, { targets }));
   } else {
     checks.push(result(
       FAIL, 'MEGA65 ROM',
       `found at ${found.path}, but it isn't the full ${MEGA65_ROM_920413.release} ROM `
       + '(may be an Open ROM, or a different release)',
       'run: 8bs setup mega65',
-      { targets: ['mega65'] },
+      { targets },
     ));
   }
 
-  const ready = hasEmulator && checks[0].status === OK;
+  const linkInspection = await inspectLink(linkPath, canonicalPath, MEGA65_ROM_920413);
+  let linkOk = false;
+  if (linkInspection.state === 'linked') {
+    linkOk = true;
+    checks.push(result(OK, 'Xemu ROM link', 'configured', null, { targets }));
+  } else if (linkInspection.state === 'migratable') {
+    linkOk = true;
+    checks.push(result(OK, 'Xemu ROM link', `${linkPath} (installed directly, not linked to the canonical copy)`, null, { targets }));
+  } else if (linkInspection.state === 'absent') {
+    checks.push(result(
+      FAIL, 'Xemu ROM link', 'MEGA65.ROM exists but Xemu is not configured to use it.',
+      'run: 8bs setup mega65 --repair', { targets },
+    ));
+  } else {
+    checks.push(result(
+      FAIL, 'Xemu ROM link', `${linkPath} exists but isn't the MEGA65 ROM`,
+      'run: 8bs setup mega65 --repair', { targets },
+    ));
+  }
+
+  const ready = hasEmulator && romOk && linkOk;
+  const firstFail = checks.find((c) => c.status === FAIL);
   checks.push(ready
-    ? result(OK, 'MEGA65 boot', 'emulator configuration ready', null, { targets: ['mega65'] })
-    : result(SKIP, 'MEGA65 boot', 'skipped — xmega65 and a full MEGA65 ROM are both required first', null, { targets: ['mega65'] }));
+    ? result(OK, 'MEGA65', 'ready', null, { targets })
+    : result(SKIP, 'MEGA65', `not ready — ${firstFail?.label ?? 'xmega65'} must pass first`, null, { targets }));
 
   return checks;
 }
 
-async function checkOtherEmulators() {
-  const xmega65 = await checkEmulator('xmega65', { label: 'xmega65 (MEGA65, via Xemu)', targets: ['mega65'], installerKey: 'xmega65', tryVersion: false });
+const ROM_STATE_WORDS = {
+  'not-a-file': 'not a regular file', empty: 'an empty file', unreadable: 'not readable',
+};
+
+/**
+ * Commander X16 readiness, as five separate checks plus a summary — because
+ * `command -v x16emu` succeeding proves almost nothing here. Every one of
+ * these has failed for real on a setup that passed the one before it:
+ *
+ *   x16emu         the launcher on PATH (reported as the path, so a reader
+ *                  sees /usr/local/bin/x16emu vs. some other install)
+ *   ROM            /opt/commander-x16/rom.bin is a regular, readable,
+ *                  non-empty file — or, for an install this project didn't
+ *                  make, a rom.bin beside the real binary
+ *   launcher       on macOS, a direct symlink into /opt/commander-x16 is
+ *                  the tested-broken layout (x16emu looks for rom.bin beside
+ *                  the *symlink*): reported specifically, with the repair
+ *   version        `x16emu -version` → "Release NN" (any release)
+ *   boot           `x16emu -testbench` headless — the only probe that
+ *                  actually loads the ROM through the launcher
+ *
+ * `compilerOk` is mos-cx16-clang's status from checkMos(), folded into the
+ * summary line so "ready" means the whole toolchain, not just the emulator.
+ * Every boundary is injectable for the unit tests; the defaults are real.
+ */
+export async function checkCx16Target({
+  platform = process.platform, compilerOk = true, resolveBinary = resolveOnPath, exec = run,
+  realpathFn = realpath, fs = {},
+} = {}) {
+  const installer = INSTALLERS.x16emu;
+  const targets = ['cx16'];
+  const checks = [];
+  const launcherPath = resolveBinary('x16emu');
+
+  checks.push(launcherPath
+    ? result(OK, 'x16emu (Commander X16)', launcherPath, null, { targets })
+    : result(FAIL, 'x16emu (Commander X16)', 'not found', installerHint(installer), { installer, targets }));
+
+  let rom = await inspectRomFile(CX16_ROM_INSTALL_PATH, fs);
+  if (rom.state !== 'ok' && launcherPath) {
+    // Not the 8bs-managed layout — but an official release zip, or a manual
+    // install, keeps rom.bin beside the real binary, and x16emu finds that
+    // by itself. Accept it, but say so.
+    try {
+      const beside = join(dirname(await realpathFn(launcherPath)), 'rom.bin');
+      if (beside !== CX16_ROM_INSTALL_PATH) {
+        const found = await inspectRomFile(beside, fs);
+        if (found.state === 'ok') rom = { ...found, beside: true };
+      }
+    } catch {
+      // realpath failed (dangling symlink) — the launcher/boot checks below report it.
+    }
+  }
+  if (rom.state === 'ok') {
+    checks.push(result(OK, 'Commander X16 ROM', rom.beside ? `${rom.path} (beside x16emu — not the 8bs-managed layout)` : rom.path, null, { targets }));
+  } else if (rom.state === 'missing') {
+    checks.push(result(
+      FAIL, 'Commander X16 ROM', 'not found',
+      launcherPath ? 'emulator installed but ROM is missing\n        run: 8bs setup cx16' : 'run: 8bs setup cx16',
+      { targets },
+    ));
+  } else {
+    checks.push(result(FAIL, 'Commander X16 ROM', `${rom.path} is ${ROM_STATE_WORDS[rom.state]}`, 'run: 8bs setup cx16', { targets }));
+  }
+
+  let brokenSymlink = false;
+  if (launcherPath) {
+    const spec = x16emuLauncherSpec(platform);
+    const inspection = await inspectLauncher({ ...spec, path: launcherPath }, fs);
+    brokenSymlink = isBrokenMacosSymlink(platform, inspection);
+    if (brokenSymlink) {
+      checks.push(result(
+        FAIL, 'Commander X16 launcher', 'x16emu is installed as a direct symlink and cannot locate rom.bin.',
+        'run: 8bs setup cx16 --repair', { targets },
+      ));
+    } else if (inspection.state === 'wrapper') {
+      checks.push(result(OK, 'Commander X16 launcher', `wrapper, -rom ${CX16_ROM_INSTALL_PATH}`, null, { targets }));
+    } else if (inspection.state === 'symlink') {
+      checks.push(result(OK, 'Commander X16 launcher', `symlink -> ${inspection.target}`, null, { targets }));
+    } else if (inspection.state === 'foreign-symlink' && platform === 'darwin') {
+      checks.push(result(
+        WARN, 'Commander X16 launcher', `a symlink to ${inspection.target}, not 8bs-managed`,
+        'On macOS x16emu looks for rom.bin beside the symlink, not the real binary — the boot check below is authoritative', { targets },
+      ));
+    } else {
+      checks.push(result(OK, 'Commander X16 launcher', `${launcherPath} (not 8bs-managed)`, null, { targets }));
+    }
+
+    // -version: exits 0 with "### Release NN (...)" on stdout, no window —
+    // confirmed against a real r50 build. It never loads the ROM (also
+    // confirmed: it succeeds with `-rom /nonexistent`), hence the boot below.
+    const version = await exec('x16emu', ['-version']);
+    const versionOut = (version.stdout ?? '') + (version.stderr ?? '');
+    const release = parseX16emuVersion(versionOut);
+    if (version.missing || version.timedOut) {
+      checks.push(result(WARN, 'x16emu version', 'unconfirmed — `x16emu -version` did not respond', null, { targets }));
+    } else if (release) {
+      checks.push(result(OK, 'x16emu version', release, null, { targets }));
+    } else if (version.code !== 0) {
+      checks.push(result(FAIL, 'x16emu version', `\`x16emu -version\` exited ${version.code}: ${versionOut.trim().split('\n').pop() || 'no output'}`, 'run: 8bs setup cx16', { targets }));
+    } else {
+      checks.push(result(WARN, 'x16emu version', versionOut.trim().split('\n')[0] || 'unreadable', null, { targets }));
+    }
+
+    const boot = await exec('x16emu', ['-testbench'], { timeout: 30_000 });
+    const bootOut = (boot.stdout ?? '') + (boot.stderr ?? '');
+    const failure = romLoadFailure(bootOut);
+    if (boot.timedOut) {
+      checks.push(result(FAIL, 'Commander X16 boot', 'x16emu -testbench did not finish within 30s', 'docs/setup/cx16.md', { targets }));
+    } else if (failure) {
+      checks.push(result(
+        FAIL, 'Commander X16 boot', `x16emu cannot open its ROM (${failure})`,
+        brokenSymlink ? 'run: 8bs setup cx16 --repair' : 'run: 8bs setup cx16', { targets },
+      ));
+    } else if (testbenchBooted({ code: boot.code, output: bootOut })) {
+      checks.push(result(OK, 'Commander X16 boot', 'boots to BASIC (headless -testbench)', null, { targets }));
+    } else {
+      const reason = (bootOut.trim().split('\n').pop() ?? '').slice(0, 120);
+      checks.push(result(FAIL, 'Commander X16 boot', `x16emu exited without booting${reason ? ` — ${reason}` : ''}`, 'run: 8bs setup cx16', { targets }));
+    }
+  }
+
+  const firstFail = !compilerOk ? { label: 'mos-cx16-clang' } : checks.find((c) => c.status === FAIL);
+  checks.push(firstFail
+    ? result(SKIP, 'Commander X16', `not ready — ${firstFail.label} must pass first`, null, { targets })
+    : result(OK, 'Commander X16', 'ready', null, { targets }));
+  return checks;
+}
+
+async function checkOtherEmulators({ cx16CompilerOk }) {
+  const mega65EmulatorPath = resolveOnPath('xmega65');
   const checks = [
     await checkEmulator('atari800', { label: 'atari800 (Atari 8-bit)', targets: ['atari8'], installerKey: 'atari800' }),
     await checkEmulator('fceux', { label: 'fceux (NES)', targets: ['nes'], installerKey: 'fceux' }),
-    // x16emu's `-version` (confirmed against a real source build: exits 0,
-    // no window, "### Release NN (...)" on stdout) is the one non-default
-    // flag among these checks — see checkEmulator()'s versionArgs.
-    await checkEmulator('x16emu', { label: 'x16emu (Commander X16)', targets: ['cx16'], installerKey: 'x16emu', versionArgs: ['-version'] }),
-    // Built from source, with no confirmed --version flag (see the mega65
-    // setup docs) — existence is all this checks. ROM/readiness are their
-    // own checks right below, deliberately: `xmega65` existing does not
-    // mean the target is ready to run — see checkMega65Rom().
-    xmega65,
-    ...(await checkMega65Rom(xmega65.status === OK)),
+    // Commander X16 is five checks, not one — see checkCx16Target().
+    ...(await checkCx16Target({ compilerOk: cx16CompilerOk })),
+    // MEGA65 is four checks, not one — see checkMega65Target().
+    ...(await checkMega65Target({ hasEmulator: Boolean(mega65EmulatorPath), emulatorPath: mega65EmulatorPath })),
   ];
   return { title: 'Atari 8-bit / NES / Commander X16 / MEGA65 emulators', checks };
 }
@@ -628,9 +846,10 @@ const ALL_TARGETS = ['web', 'vic20', 'c64', 'pet', 'c128', 'atari8', 'nes', 'cx1
  * doesn't block readiness (e.g. VICE's `--version` flag is broken upstream —
  * prints nothing parseable — even on a working install, and the VIC-20 boot
  * check is the real, authoritative signal for that one target) — only FAIL
- * does. For mega65 specifically, this is what turns three separate checks
- * (mos-mega65-clang, xmega65, MEGA65 ROM) into one readiness bit: all three
- * carry `targets: ['mega65']`, so mega65 is ready only when none of them FAIL.
+ * does. For mega65 specifically, this is what turns four separate checks
+ * (mos-mega65-clang, xmega65, MEGA65 ROM, Xemu ROM link) into one readiness
+ * bit: all four carry `targets: ['mega65']`, so mega65 is ready only when
+ * none of them FAIL.
  */
 export function readyTargets(checks, targets = ALL_TARGETS) {
   return targets.filter((target) => checks
@@ -642,12 +861,14 @@ export function readyTargets(checks, targets = ALL_TARGETS) {
 export async function doctor() {
   process.stdout.write('8bs doctor\n');
 
+  const mos = await checkMos();
+  const cx16CompilerOk = mos.checks.some((c) => c.label === 'mos-cx16-clang' && c.status === OK);
   const sections = [
     await checkHost(),
     await checkWeb(),
-    await checkMos(),
+    mos,
     await checkVice(),
-    await checkOtherEmulators(),
+    await checkOtherEmulators({ cx16CompilerOk }),
   ];
   const allChecks = sections.flatMap((s) => s.checks);
   let failures = 0;

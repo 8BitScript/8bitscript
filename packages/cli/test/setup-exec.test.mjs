@@ -31,6 +31,12 @@ test('assertSudoAllowed: refuses any command outside the fixed set, even with an
   assert.throws(() => assertSudoAllowed('chmod', ['777', '/opt/xemu/xmega65']), /not one of the sudo operations/);
 });
 
-test('SUDO_ALLOWED_ROOTS matches the brief exactly: package installation, /opt/xemu, /opt/mega65, /usr/local/bin', () => {
-  assert.deepEqual(SUDO_ALLOWED_ROOTS, ['/opt/xemu', '/opt/mega65', '/usr/local/bin']);
+test('SUDO_ALLOWED_ROOTS is exactly one /opt directory per source-built tool plus /usr/local/bin', () => {
+  assert.deepEqual(SUDO_ALLOWED_ROOTS, ['/opt/xemu', '/opt/mega65', '/opt/commander-x16', '/usr/local/bin']);
+  // cx16's install dir is in, but nothing else under /opt is: the allowlist
+  // widens per target, never to /opt as a whole.
+  assert.doesNotThrow(() => assertSudoAllowed('install', ['-m644', '/home/u/.cache/rom.bin', '/opt/commander-x16/rom.bin']));
+  assert.throws(() => assertSudoAllowed('mkdir', ['-p', '/opt/commander-x16-evil']), /outside the allowed/);
+  // brew is never a sudo command — it runs as the user or not at all.
+  assert.throws(() => assertSudoAllowed('brew', ['install', 'cmake']), /not one of the sudo operations/);
 });

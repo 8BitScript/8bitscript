@@ -1,23 +1,36 @@
 // `8bs setup <target>` — install/configure what a target needs beyond what
-// `8bs doctor` can offer as a single package-manager command. Right now
-// that's just mega65 (Xemu built from source, plus the legally-obtained ROM
-// pipeline docs/setup/mega65.md documents) — this file stays a thin
-// dispatcher so the next source-built target follows the same shape.
+// `8bs doctor` can offer as a single package-manager command: mega65 (Xemu
+// built from source, plus the legally-obtained ROM pipeline
+// docs/setup/mega65.md documents) and cx16 (x16emu and a matching ROM built
+// from upstream source, docs/setup/cx16.md). This file stays a thin
+// dispatcher; the shared machinery lives in setup/{deps,host,source,
+// install,launcher}.mjs so the next source-built target follows the same
+// shape.
 const TARGETS = {
   mega65: () => import('./setup/mega65.mjs').then((m) => m.setupMega65),
+  cx16: () => import('./setup/cx16.mjs').then((m) => m.setupCx16),
 };
+
+const USAGE = 'Usage: 8bs setup <mega65|cx16> [--rom <path>] [--c64-forever <msi>] [--rom-patch <zip>] [--repair] [--update]\n';
 
 function parseArgs(args) {
   const options = {};
   const positionals = [];
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
-    if (arg === '--c64-forever') {
+    if (arg === '--rom') {
+      options.romPath = args[i + 1];
+      i += 1;
+    } else if (arg === '--c64-forever') {
       options.c64ForeverPath = args[i + 1];
       i += 1;
     } else if (arg === '--rom-patch') {
       options.romPatchPath = args[i + 1];
       i += 1;
+    } else if (arg === '--repair') {
+      options.repair = true;
+    } else if (arg === '--update') {
+      options.update = true;
     } else if (!arg.startsWith('-')) {
       positionals.push(arg);
     }
@@ -29,7 +42,7 @@ function parseArgs(args) {
 export async function setup(args) {
   const { target, options } = parseArgs(args);
   if (!target) {
-    process.stderr.write(`Usage: 8bs setup <${Object.keys(TARGETS).join('|')}> [--c64-forever <msi>] [--rom-patch <zip>]\n`);
+    process.stderr.write(USAGE);
     return 2;
   }
   const load = TARGETS[target];
