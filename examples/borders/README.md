@@ -31,12 +31,15 @@ Three things: a small tick counter, a curated set of colour options the
 program cycles through, and the border/background colours it sets from
 whichever option is currently picked.
 
-30 calls of `frame()` at 60Hz is half a second. Every *tick* (not every
-`frame()` call) advances the ones digit shown at cell 5, and every ten ticks
-the colour option (shown at cell 14) advances too — "TICK" on screen, not
-"FRAME": a real frame counter would advance 60 times a second, and this
-deliberately advances at about 2Hz instead, the same real-world rate on
-every target.
+`logicalFramesUntilTick` starts at `seconds(0.5)` — a compile-time constant
+that folds to however many `frame()` calls make half a second at this
+project's configured `frameRate` (30 at the default 60, 25 at a configured
+50 — see `8bs.config.ts` and "How the frame loop is driven" below). Every
+*tick* (not every `frame()` call) advances the ones digit shown at cell 5,
+and every ten ticks the colour option (shown at cell 14) advances too —
+"TICK" on screen, not "FRAME": a real frame counter would advance at
+`frameRate` times a second, and this deliberately advances at about 2Hz
+instead, the same real-world rate on every target regardless of `frameRate`.
 
 `applyOption()` holds four curated border/background pairs, by name,
 instead of cycling raw values 0-255 — every name is one of the eight every
@@ -62,9 +65,20 @@ busy-wait calibrated by hand), and because no machine's frame is exactly
 it drains an exact fixed-point accumulator of logical frames owed rather
 than blindly calling `frame()` once per blank (see packages/backend-6502's
 `FRAME_SYNC`). On the web, the host's `requestAnimationFrame` loop paces
-the same fixed 60Hz timestep against real elapsed time
+the same fixed timestep against real elapsed time
 (`packages/cli/src/web-runtime.mjs`). All of them tick in lockstep as a
 result, indefinitely — none of them drifts.
+
+"The same real-world rate" above means whatever this project's `frameRate`
+is set to (`8bs.config.ts`, default 60) — the same rate on every target,
+regardless of region. This is a different, independent knob from `--pal`:
+`--pal` only picks which real hardware/emulator region a build targets
+(NTSC vs PAL electrical timing, see the `pnpm run start:<target>-pal`
+scripts above) and changes nothing about the logical rate `frame()` is
+called at. A project can be built `--pal` and still logically tick at 60
+(today's default), or built NTSC while logically ticking at 50 — the two
+axes don't interact. `seconds(...)` (see `logicalFramesUntilTick` above)
+always folds against `frameRate`, never against `--pal`.
 
 A module that only exports `main`, with no `frame`, is unaffected — it keeps
 meaning exactly what it always has (`examples/counter`,

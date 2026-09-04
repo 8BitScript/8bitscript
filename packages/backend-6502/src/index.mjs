@@ -152,13 +152,19 @@ const MACHINE_FLAGS = {
 //
 // One hardware frame is NOT 1/60th of a second, and the machines don't even
 // agree with each other or with the web host, which runs frame() at a
-// genuine 60Hz of real time (packages/cli/src/web-runtime.mjs). Tying
+// genuine fixed rate of real time (packages/cli/src/web-runtime.mjs). Tying
 // frame() 1:1 to vblank drifts a target away from that reference forever,
 // so every machine below runs the same fixed-point scheme: an accumulator
-// of *logical* 60Hz frames owed, drained 0, 1, or 2 times per hardware
-// frame — `acc += num; while (acc >= den) frame();` in a uint32 (values
-// stay under 2^25), so nothing is ever rounded and the long-run rate is
-// exactly 60 logical frames per emulated second, by construction.
+// of *logical* frames owed — at whatever rate the project is configured
+// for (`frameRate`, default 60; see 8bs.config.ts), the same rate on every
+// target — drained 0, 1, or 2 times per hardware frame — `acc += num;
+// while (acc >= den) frame();` in a uint32 (values stay comfortably under
+// 2^32 for any sane configured rate; emitC() rejects an implausibly large
+// one rather than let it silently overflow), so nothing is ever rounded
+// and the long-run rate is exactly `frameRate` logical frames per emulated
+// second, by construction. The tables below hold one raw hardware-frame
+// period each, unscaled; emitFrameDriver() multiplies in the configured
+// `frameRate` at emit time.
 //
 // What differs between machines is how a hardware frame boundary is
 // *detected*, which splits them into two families:
@@ -223,11 +229,11 @@ const FRAME_SYNC = {
     palProbe: '(*(volatile uint8_t *)0x9004) >= 140',
     // The CPU clock is the video crystal divided by a small integer (NTSC:
     // 14318181Hz/14 — the same clock the C64 uses, which is why only the
-    // line counts differ; PAL: 4433618Hz/4). num = 60 * cyclesPerFrame *
-    // divisor, den = crystalHz — an exact integer fraction, not a rounded
-    // decimal.
-    ntsc: { num: 60 * 261 * 65 * 14, den: 14318181 },
-    pal: { num: 60 * 312 * 71 * 4, den: 4433618 },
+    // line counts differ; PAL: 4433618Hz/4). num = cyclesPerFrame *
+    // divisor (emitFrameDriver multiplies in the configured `frameRate`),
+    // den = crystalHz — an exact integer fraction, not a rounded decimal.
+    ntsc: { num: 261 * 65 * 14, den: 14318181 },
+    pal: { num: 312 * 71 * 4, den: 4433618 },
   },
   c64: {
     kind: 'level',
@@ -249,8 +255,8 @@ const FRAME_SYNC = {
     // tops out at line 262, $D012 == 6); a PAL one reaches line 311
     // ($D012 == 55).
     palProbe: '((*(volatile uint8_t *)0xD011) & 0x80) != 0 && (*(volatile uint8_t *)0xD012) >= 32',
-    ntsc: { num: 60 * 263 * 65 * 14, den: 14318181 },
-    pal: { num: 60 * 312 * 63 * 18, den: 17734472 },
+    ntsc: { num: 263 * 65 * 14, den: 14318181 },
+    pal: { num: 312 * 63 * 18, den: 17734472 },
   },
   // The C128's VIC-IIe is register-compatible with the C64's VIC-II for
   // $D011/$D012 — confirmed directly against llvm-mos-sdk's own c128.h,
@@ -260,8 +266,8 @@ const FRAME_SYNC = {
     kind: 'level',
     topHalf: '(*(volatile uint8_t *)0xD012) < 128 && ((*(volatile uint8_t *)0xD011) & 0x80) == 0',
     palProbe: '((*(volatile uint8_t *)0xD011) & 0x80) != 0 && (*(volatile uint8_t *)0xD012) >= 32',
-    ntsc: { num: 60 * 263 * 65 * 14, den: 14318181 },
-    pal: { num: 60 * 312 * 63 * 18, den: 17734472 },
+    ntsc: { num: 263 * 65 * 14, den: 14318181 },
+    pal: { num: 312 * 63 * 18, den: 17734472 },
   },
   // The MEGA65's VIC-IV exposes a VIC-II-compatible register view at
   // $D000 for exactly this reason — confirmed against llvm-mos-sdk's
@@ -275,8 +281,8 @@ const FRAME_SYNC = {
     kind: 'level',
     topHalf: '(*(volatile uint8_t *)0xD012) < 128 && ((*(volatile uint8_t *)0xD011) & 0x80) == 0',
     palProbe: '((*(volatile uint8_t *)0xD011) & 0x80) != 0 && (*(volatile uint8_t *)0xD012) >= 32',
-    ntsc: { num: 60 * 263 * 65 * 14, den: 14318181 },
-    pal: { num: 60 * 312 * 63 * 18, den: 17734472 },
+    ntsc: { num: 263 * 65 * 14, den: 14318181 },
+    pal: { num: 312 * 63 * 18, den: 17734472 },
   },
   // ANTIC: $D40B (VCOUNT) is a live half-line counter — it increments every
   // *second* scanline, the same style as the VIC-20's $9004, and lands on
@@ -293,8 +299,8 @@ const FRAME_SYNC = {
     kind: 'level',
     topHalf: '(*(volatile uint8_t *)0xD40B) < 64',
     palProbe: '(*(volatile uint8_t *)0xD40B) >= 140',
-    ntsc: { num: 60 * 262 * 114, den: 1789790 },
-    pal: { num: 60 * 312 * 114, den: 1773447 },
+    ntsc: { num: 262 * 114, den: 1789790 },
+    pal: { num: 312 * 114, den: 1773447 },
   },
   // The PET has no live raster counter to poll at all: its video hardware
   // predates the VIC/VIC-II and exposes no memory-mapped scanline position.
@@ -322,7 +328,12 @@ const FRAME_SYNC = {
     pollFlag: '(*(volatile uint8_t *)0xE813) & 0x80',
     ack: '(void)(*(volatile uint8_t *)0xE812);',
     presync: '__asm__ volatile("sei" ::: "memory");',
-    calibrate: [
+    // A function of the configured `frameRate`, not a plain string: unlike
+    // every other machine here, the PET's num/den pair is computed from a
+    // runtime measurement (`__8bs_elapsed`), not a compile-time constant, so
+    // scaling by the configured rate has to happen inside the emitted C
+    // itself rather than being multiplied in once by emitFrameDriver().
+    calibrate: (frameRate) => [
       '    while (!((*(volatile uint8_t *)0xE813) & 0x80)) {}',
       '    (void)(*(volatile uint8_t *)0xE812);',
       '    *(volatile uint8_t *)0xE848 = 0xFFu;', // VIA1 T2C-L: low half of the one-shot latch
@@ -333,7 +344,7 @@ const FRAME_SYNC = {
       '        uint16_t __8bs_lo = *(volatile uint8_t *)0xE848;',
       '        uint16_t __8bs_hi = *(volatile uint8_t *)0xE849;',
       '        uint16_t __8bs_elapsed = 0xFFFFu - ((__8bs_hi << 8) | __8bs_lo);',
-      '        __8bs_num = 60u * (uint32_t)__8bs_elapsed;',
+      `        __8bs_num = ${frameRate}u * (uint32_t)__8bs_elapsed;`,
       '        __8bs_den = 1000000u;', // the PET's real, region-independent 1MHz CPU clock
       '    }',
     ].join('\n'),
@@ -357,7 +368,7 @@ const FRAME_SYNC = {
     kind: 'edge',
     pollFlag: '(*(volatile uint8_t *)0x2002) & 0x80',
     ack: '',
-    num: 60 * 59601,
+    num: 59601,
     den: 2 * 1789773,
   },
   // VERA's ISR ($9F27) bit 0 is the VSYNC flag: set once per frame, cleared
@@ -368,17 +379,20 @@ const FRAME_SYNC = {
   // 8MHz, and VERA's default output targets a standard ~60Hz display, close
   // enough to exactly 60Hz by hardware design (not a dual NTSC/PAL split
   // like the vintage machines above) that this driver simply calls frame()
-  // once per VSYNC edge rather than building the accumulator's num/den
-  // pair from a video-clock figure this project could not independently
-  // verify. `presync` disables interrupts in case the KERNAL's own jiffy
-  // clock also services this flag, the same risk PET's does.
+  // once per VSYNC edge rather than building the accumulator's num/den pair
+  // from a video-clock figure this project could not independently verify.
+  // `num`/`den` here is 1/60, not 1/1: real hardware fires at a fixed ~60Hz
+  // regardless of the configured `frameRate`, so the accumulator (fed
+  // `frameRate * num`) still has to scale between the two when they differ.
+  // `presync` disables interrupts in case the KERNAL's own jiffy clock also
+  // services this flag, the same risk PET's does.
   cx16: {
     kind: 'edge',
     pollFlag: '(*(volatile uint8_t *)0x9F27) & 0x01',
     ack: '*(volatile uint8_t *)0x9F27 = 0x01;',
     presync: '__asm__ volatile("sei" ::: "memory");',
     num: 1,
-    den: 1,
+    den: 60,
   },
 };
 
@@ -458,7 +472,7 @@ function emitStatement(statement, indent) {
 // `kind`s differ only in how "a new hardware frame arrived" is detected —
 // waitOneFrame(level) vs waitOneFrame(edge) below — everything downstream
 // of that (the accumulator, the call to frame()) is identical.
-function emitFrameDriver(sync, cName) {
+function emitFrameDriver(sync, cName, frameRate) {
   let out = 'int main(void) {\n';
   out += '    uint32_t __8bs_num;\n';
   out += '    uint32_t __8bs_den;\n';
@@ -476,14 +490,14 @@ function emitFrameDriver(sync, cName) {
       + `${pad}while (!(${sync.topHalf})) {${body}}\n`
     );
     out += waitOneFrame('    ');
-    out += `    __8bs_num = ${sync.ntsc.num}u;\n`;
+    out += `    __8bs_num = ${frameRate * sync.ntsc.num}u;\n`;
     out += `    __8bs_den = ${sync.ntsc.den}u;\n`;
     // Region sweep: sync to the top of a frame, then watch one whole frame
     // go by; only a PAL raster ever reaches the probe line. Costs two
     // frames at startup, once.
     out += waitOneFrame(
       '    ',
-      ` if (${sync.palProbe}) { __8bs_num = ${sync.pal.num}u; __8bs_den = ${sync.pal.den}u; } `,
+      ` if (${sync.palProbe}) { __8bs_num = ${frameRate * sync.pal.num}u; __8bs_den = ${sync.pal.den}u; } `,
     );
     out += '    __8bs_acc = __8bs_den;\n';
     out += '    while (1) {\n';
@@ -499,9 +513,9 @@ function emitFrameDriver(sync, cName) {
     // a new frame" is just "poll the flag, then acknowledge it", once.
     if (sync.presync) out += `    ${sync.presync}\n`;
     if (sync.calibrate) {
-      out += `${sync.calibrate}\n`;
+      out += `${sync.calibrate(frameRate)}\n`;
     } else {
-      out += `    __8bs_num = ${sync.num}u;\n`;
+      out += `    __8bs_num = ${frameRate * sync.num}u;\n`;
       out += `    __8bs_den = ${sync.den}u;\n`;
       out += `    while (!(${sync.pollFlag})) {}\n`;
       if (sync.ack) out += `    ${sync.ack}\n`;
@@ -522,15 +536,25 @@ function emitFrameDriver(sync, cName) {
   return out;
 }
 
+// The tightest FRAME_SYNC entry (c64/c128/mega65 PAL: num = 312*63*18 =
+// 353808) overflows uint32_t once frameRate * num exceeds 2^32 — around
+// frameRate ~12,147 for that entry. This cap is comfortably below that for
+// every table entry, so a mistyped config value (`frameRate: 6000`) fails
+// the build loudly instead of silently producing a wrong-rate binary.
+const MAX_FRAME_RATE = 1000;
+
 /**
  * Generate the C translation unit for an IR program.
  *
  * @param {object} ir
- * @param {{ machine?: keyof typeof FRAME_SYNC }} [options] Required when the
- *   module exports `frame` — the frame()-driver loop needs to know which
- *   machine's frame-sync strategy to use. Unused otherwise.
+ * @param {{ machine?: keyof typeof FRAME_SYNC, frameRate?: number }} [options]
+ *   `machine` is required when the module exports `frame` — the
+ *   frame()-driver loop needs to know which machine's frame-sync strategy to
+ *   use. `frameRate` is the logical Hz `frame()` is called at (default 60,
+ *   see 8bs.config.ts) — also only meaningful when the module exports
+ *   `frame`.
  */
-export function emitC(ir, { machine } = {}) {
+export function emitC(ir, { machine, frameRate = 60 } = {}) {
   let out = '/* Generated by 8bs. Do not edit: the source of truth is the .8bs file. */\n';
   out += '#include <stdint.h>\n\n';
 
@@ -594,7 +618,10 @@ export function emitC(ir, { machine } = {}) {
     if (sync === undefined) {
       throw new Error(`backend-6502: a frame()-driven program needs a known machine to pace it, got '${machine}'`);
     }
-    out += emitFrameDriver(sync, cName);
+    if (!Number.isInteger(frameRate) || frameRate <= 0 || frameRate > MAX_FRAME_RATE) {
+      throw new Error(`backend-6502: frameRate must be a positive integer no greater than ${MAX_FRAME_RATE}, got ${frameRate}`);
+    }
+    out += emitFrameDriver(sync, cName, frameRate);
   }
 
   return out;
@@ -612,12 +639,12 @@ export function emitC(ir, { machine } = {}) {
  * @param {{
  *   machine: keyof typeof DRIVER | 'atari8',
  *   atari8Profile?: string, vic20Profile?: string, c64Profile?: string,
- *   outFile: string,
+ *   outFile: string, frameRate?: number,
  * }} options
  * @returns {Promise<{ ok: boolean, cFile?: string, error?: string }>}
  */
 export async function buildPrg(ir, {
-  machine, atari8Profile, vic20Profile, c64Profile, outFile,
+  machine, atari8Profile, vic20Profile, c64Profile, outFile, frameRate = 60,
 }) {
   if (ir.imports?.length) {
     // Unresolved imports mean the caller skipped the linker. Refusing here is
@@ -662,7 +689,7 @@ export async function buildPrg(ir, {
 
   const cFile = outFile.replace(/\.(prg|xex|rom|nes)$/, '.c');
   await mkdir(dirname(outFile), { recursive: true });
-  await writeFile(cFile, emitC(ir, { machine }), 'utf8');
+  await writeFile(cFile, emitC(ir, { machine, frameRate }), 'utf8');
 
   // c64 has no per-profile linker flag (see C64_PROFILES above) — only vic20
   // computes one, from whichever RAM-expansion profile was resolved.

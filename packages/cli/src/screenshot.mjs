@@ -311,7 +311,7 @@ async function nesScreenshot(outFile, screenshotPath, { frames }) {
 // describes this layout, not two hand-synced copies — using an 8x8 bitmap
 // font instead of a browser's own text renderer, and writes the result out
 // with png.mjs.
-const WEB_DEFAULT_FRAMES = 180; // 3 logical seconds at the fixed 60Hz step
+const WEB_DEFAULT_FRAME_SECONDS = 3;
 
 // COLORS is a list of CSS hex strings (a canvas fillStyle); the PNG
 // rasterizer below needs RGB triples instead.
@@ -332,14 +332,15 @@ function fillRect(rgba, width, x0, y0, w, h, color) {
   }
 }
 
-async function webScreenshot(outFile, screenshotPath, { frames }) {
+async function webScreenshot(outFile, screenshotPath, { frames, frameRate = 60 }) {
   const bytes = await readFile(outFile);
   const { instance } = await WebAssembly.instantiate(bytes, {});
   if (typeof instance.exports.main !== 'function' || typeof instance.exports.frame !== 'function') {
     throw new Error('8bs run: web --screenshot needs a program that exports both main() and frame().');
   }
   instance.exports.main();
-  for (let i = 0; i < (frames ?? WEB_DEFAULT_FRAMES); i += 1) instance.exports.frame();
+  const defaultFrames = frameRate * WEB_DEFAULT_FRAME_SECONDS;
+  for (let i = 0; i < (frames ?? defaultFrames); i += 1) instance.exports.frame();
 
   const mem = new Uint8Array(instance.exports.memory.buffer);
   const innerW = GRID_COLS * CHAR_W;
@@ -378,7 +379,9 @@ async function webScreenshot(outFile, screenshotPath, { frames }) {
  * @param {string} target
  * @param {string} outFile The already-built file (from build.mjs's compile()).
  * @param {string} screenshotPath
- * @param {{ pal?: boolean, profile?: string, frames?: number }} [options]
+ * @param {{ pal?: boolean, profile?: string, frames?: number, frameRate?: number }} [options]
+ *   `frameRate` (default 60) only matters for the `web` target, whose default
+ *   `--frames` count (3 logical seconds' worth) scales with it.
  * @returns {Promise<void>}
  */
 export async function captureScreenshot(target, outFile, screenshotPath, options = {}) {

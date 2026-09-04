@@ -182,6 +182,31 @@ export function tokenize(text, file = '<unknown>') {
         push(TokenKind.Number, start, i, { value: 0, radix });
         continue;
       }
+      // A decimal fraction — `0.5` — radix 10 only, and only when a digit
+      // actually follows the `.`: a bare `1.` stays `1` then the `.`
+      // operator (unchanged), and `array<u8, 16>`-style code elsewhere in
+      // the grammar never wants a Number token to swallow a trailing `.`.
+      // Recorded as an exact numerator/denominator pair, never as a
+      // floating-point value used for arithmetic — the only thing that ever
+      // reads `isDecimal`/`numerator`/`denominator` is the `seconds(...)`
+      // compile-time fold (packages/compiler/src/fold), which works in
+      // exact integers throughout; `value` here is cosmetic only (kept for
+      // uniformity with plain-integer Number tokens).
+      if (radix === 10 && text[i] === '.' && isDigit(text[i + 1] ?? '')) {
+        i += 1; // the '.'
+        const fracStart = i;
+        while (i < text.length && digitPattern.test(text[i])) i += 1;
+        const fracDigits = text.slice(fracStart, i).replace(/_/g, '');
+        push(TokenKind.Number, start, i, {
+          value: Number.parseFloat(text.slice(start, i)),
+          radix,
+          isDecimal: true,
+          numerator: Number.parseInt(digits + fracDigits, 10),
+          denominator: 10 ** fracDigits.length,
+        });
+        continue;
+      }
+
       push(TokenKind.Number, start, i, { value: Number.parseInt(digits, radix), radix });
       continue;
     }

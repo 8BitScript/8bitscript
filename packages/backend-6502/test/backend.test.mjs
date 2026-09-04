@@ -129,12 +129,56 @@ test('emitC: cx16 polls VERA ISR and acknowledges by writing the bit back', () =
   const c = emitC(frameIr(), { machine: 'cx16' });
   assert.match(c, /0x9F27/);
   assert.match(c, /"sei"/);
-  assert.match(c, /__8bs_num = 1u;/);
-  assert.match(c, /__8bs_den = 1u;/);
+  // cx16 has no documented crystal split, so its FRAME_SYNC entry is the
+  // degenerate { num: 1, den: 60 }: real hardware fires at a fixed ~60Hz,
+  // so at the default frameRate the accumulator drains 1:1.
+  assert.match(c, /__8bs_num = 60u;/);
+  assert.match(c, /__8bs_den = 60u;/);
 });
 
 test('emitC: an unknown machine refuses rather than guessing', () => {
   assert.throws(() => emitC(frameIr(), { machine: 'commodore-64x' }), /unknown machine|needs a known machine/);
+});
+
+// ---- frameRate: the same accumulator scheme, at a configured logical rate
+// (8bs.config.ts's `frameRate`, default 60) instead of a hardcoded 60. These
+// exercise a 'level' machine, an 'edge'-fixed machine (nes), an
+// 'edge'-calibrated machine (pet), and cx16's degenerate case, at 50 —
+// checking every FRAME_SYNC 'kind' scales uniformly, not just the default.
+
+test('emitC: frameRate scales a level machine\'s num, not its den', () => {
+  const c = emitC(frameIr(), { machine: 'vic20', frameRate: 50 });
+  // vic20 ntsc: { num: 261 * 65 * 14, den: 14318181 } -> num * 50 = 11875500
+  assert.match(c, /__8bs_num = 11875500u;/);
+  assert.match(c, /__8bs_den = 14318181u;/);
+  // vic20 pal: { num: 312 * 71 * 4, den: 4433618 } -> num * 50 = 4430400
+  assert.match(c, /__8bs_num = 4430400u;/);
+  assert.match(c, /__8bs_den = 4433618u;/);
+});
+
+test('emitC: frameRate scales an edge-fixed machine (nes)', () => {
+  const c = emitC(frameIr(), { machine: 'nes', frameRate: 50 });
+  // nes: { num: 59601, den: 2 * 1789773 } -> num * 50 = 2980050
+  assert.match(c, /__8bs_num = 2980050u;/);
+  assert.match(c, /__8bs_den = 3579546u;/);
+});
+
+test('emitC: frameRate is substituted into an edge-calibrated machine\'s (pet) runtime measurement', () => {
+  const c = emitC(frameIr(), { machine: 'pet', frameRate: 50 });
+  assert.match(c, /__8bs_num = 50u \* \(uint32_t\)__8bs_elapsed;/);
+});
+
+test('emitC: frameRate scales cx16\'s degenerate 1/60 ratio', () => {
+  const c = emitC(frameIr(), { machine: 'cx16', frameRate: 50 });
+  assert.match(c, /__8bs_num = 50u;/);
+  assert.match(c, /__8bs_den = 60u;/);
+});
+
+test('emitC: frameRate above the overflow-safe cap is refused, not silently wrapped', () => {
+  assert.throws(
+    () => emitC(frameIr(), { machine: 'vic20', frameRate: 100000 }),
+    /frameRate must be a positive integer/,
+  );
 });
 
 test('buildPrg: an unknown atari8 profile is refused', async () => {
