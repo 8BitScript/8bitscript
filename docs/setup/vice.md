@@ -38,6 +38,25 @@ Alternatively, the VICE project publishes its own macOS builds on
 reaching for if you need a specific version, or a build newer than whatever
 Homebrew currently carries. Either route is fine; do not install both.
 
+> **`xvic --version` (and `x64sc`/`xpet`/`x128 --version`) can crash instead
+> of printing a version.**
+>
+> Some Homebrew bottles (confirmed on 3.9, and reproduced here on 3.10) fail
+> before they get to the version banner:
+>
+> ```
+> Error - failed to retrieve executable path, falling back to getcwd() + argv[0]
+> Error - argv[0] is NULL, giving up.
+> ```
+>
+> This is a known upstream regression
+> ([vice-emu bug #2108](https://sourceforge.net/p/vice-emu/bugs/2108/)), not
+> anything wrong with the install — it happens on a build that runs and boots
+> machines fine. `8bs doctor` already works around it: when the binary itself
+> won't report a version, it asks `brew list --versions vice` instead, and
+> only warns if that comes up empty too. If you want to confirm the version by
+> hand, use `brew list --versions vice` rather than `xvic --version`.
+
 ## Linux
 
 On Debian and Ubuntu, install from the system package manager:
@@ -98,9 +117,13 @@ xpet --version
 x128 --version
 ```
 
-All four should report VICE 3.10. `8bs doctor` runs the same four checks
-(plus the VIC-20 boot check below) every time — this is worth doing by hand
-once, to see what a working install looks like.
+All four should report VICE 3.10. On macOS, don't be alarmed if one or more
+of these crash with the `argv[0] is NULL` error above instead — see the
+caveat in the macOS section; `8bs doctor` (or `brew list --versions vice`)
+is the reliable way to see the installed version on those builds. `8bs
+doctor` runs the same four checks (plus the VIC-20 boot check below) every
+time — this is worth doing by hand once, to see what a working install looks
+like.
 
 Then confirm the VIC-20 emulator can genuinely boot, which the version check
 does not tell you:

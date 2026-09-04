@@ -28,8 +28,8 @@ supported — WSL may work, but it is untested and unsupported.
 | VICE          | 3.10     | Emulates the VIC-20, C64, PET, and C128                           |
 | atari800      | any      | Emulates the Atari 8-bit family                                   |
 | FCEUX         | any      | Emulates the NES                                                  |
-| x16emu        | any      | Emulates the Commander X16 (built from source — no package yet)   |
-| Xemu          | any      | Emulates the MEGA65, via its `xmega65` core (built from source)   |
+| x16emu        | any      | Emulates the Commander X16 (`8bs setup cx16` builds it + its ROM) |
+| Xemu          | any      | Emulates the MEGA65, via `xmega65` (`8bs setup mega65` builds it) |
 
 Check what you already have:
 
@@ -60,6 +60,7 @@ The guide is organized into the following pages:
    point it at the ROMs, and verify the emulators start.
 4. [Atari 8-bit](atari8.md) — install atari800.
 5. [NES](nes.md) — install FCEUX.
-6. [Commander X16](cx16.md) — build x16emu from source.
-7. [MEGA65](mega65.md) — build Xemu from source.
+6. [Commander X16](cx16.md) — `8bs setup cx16` builds x16emu and a matching ROM from source.
+7. [MEGA65](mega65.md) — `8bs setup mega65 --rom <path>` builds Xemu from
+   source and installs your MEGA65 ROM (macOS and Arch/Manjaro).
 8. [Verify](verify.md) — confirm the host and retro toolchains are both working.

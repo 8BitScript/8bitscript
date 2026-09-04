@@ -9,8 +9,8 @@
 // 8BitScript never bundles or downloads the ROM itself — see docs/setup/
 // mega65.md. What lives here only checks a ROM the *user* already has.
 import { createHash } from 'node:crypto';
-import { lstatSync, readlinkSync, existsSync, readFileSync } from 'node:fs';
 import {
+  lstat as fsLstat, readlink as fsReadlink, readFile as fsReadFile,
   mkdir as fsMkdir, symlink as fsSymlink, unlink as fsUnlink,
 } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
@@ -130,27 +130,32 @@ export function classifyXemuRomLink({ exists, isSymlink, resolvedTarget, canonic
  * separate from the pure classifier so doctor.mjs and setup/mega65.mjs can
  * both call this one thing instead of duplicating the fs plumbing, while
  * still being able to unit-test the decision itself without a filesystem.
+ * `fs` overrides (`lstatFn`/`readlinkFn`/`readFileFn`) let both callers fake
+ * the filesystem entirely for `8bs setup mega65`'s own unit tests — real
+ * `node:fs/promises` functions by default.
  */
-export function inspectXemuRomLink(linkPath, canonicalPath, expected = MEGA65_ROM_920413) {
-  let exists;
+export async function inspectXemuRomLink(linkPath, canonicalPath, expected = MEGA65_ROM_920413, {
+  lstatFn = fsLstat, readlinkFn = fsReadlink, readFileFn = fsReadFile,
+} = {}) {
+  let exists = false;
   let isSymlink = false;
   let resolvedTarget = null;
   let isValidRom = false;
   try {
-    const lstat = lstatSync(linkPath);
+    const lstat = await lstatFn(linkPath);
     exists = true;
     isSymlink = lstat.isSymbolicLink();
     if (isSymlink) {
-      const target = readlinkSync(linkPath);
+      const target = await readlinkFn(linkPath);
       // A relative symlink target resolves against the *directory containing
       // the link*, not the link path itself.
       resolvedTarget = target.startsWith('/') ? target : resolve(dirname(linkPath), target);
     } else if (lstat.isFile()) {
-      const { ok } = validateRomBuffer(readFileSync(linkPath), { size: expected.romSize, sha256: expected.romSha256 });
+      const { ok } = validateRomBuffer(await readFileFn(linkPath), { size: expected.romSize, sha256: expected.romSha256 });
       isValidRom = ok;
     }
   } catch {
-    exists = existsSync(linkPath);
+    exists = false;
   }
   const state = classifyXemuRomLink({ exists, isSymlink, resolvedTarget, canonicalPath, isValidRom });
   return { state, exists, isSymlink, resolvedTarget, isValidRom };
@@ -168,9 +173,11 @@ export function inspectXemuRomLink(linkPath, canonicalPath, expected = MEGA65_RO
  */
 export async function ensureXemuRomLink(linkPath, canonicalPath, {
   allowMigrate = false, expected = MEGA65_ROM_920413,
-  mkdir = fsMkdir, symlink = fsSymlink, unlink = fsUnlink, inspect = inspectXemuRomLink,
+  mkdir = fsMkdir, symlink = fsSymlink, unlink = fsUnlink,
+  lstatFn, readlinkFn, readFileFn,
+  inspect = (lp, cp, exp) => inspectXemuRomLink(lp, cp, exp, { lstatFn, readlinkFn, readFileFn }),
 } = {}) {
-  const inspection = inspect(linkPath, canonicalPath, expected);
+  const inspection = await inspect(linkPath, canonicalPath, expected);
   if (inspection.state === 'linked') return { action: 'none', ...inspection };
   if (inspection.state === 'foreign') return { action: 'skipped-foreign', ...inspection };
   if (inspection.state === 'migratable' && !allowMigrate) return { action: 'skipped-migratable', ...inspection };
