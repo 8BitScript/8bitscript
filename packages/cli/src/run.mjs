@@ -45,14 +45,17 @@
 //                        that command only exists inside the editor, with
 //                        no terminal-invokable equivalent
 import { homedir, tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { readFile, writeFile } from 'node:fs/promises';
 
 import { compile } from './build.mjs';
 
 // The VICE family (vic20/c64/pet/c128): one emulator suite, one invocation
-// shape — -autostart injects the built file straight into RAM.
-const VICE_EMULATOR = { vic20: 'xvic', c64: 'x64sc', pet: 'xpet', c128: 'x128' };
+// shape — -autostart injects the built file straight into RAM. Exported so
+// screenshot.mjs's --screenshot path (8bs run <target> --screenshot <file>)
+// can drive the same emulators/flags rather than keeping a second copy that
+// could drift from this one.
+export const VICE_EMULATOR = { vic20: 'xvic', c64: 'x64sc', pet: 'xpet', c128: 'x128' };
 
 // Flags the emulator needs to run our .prg files. The emulated machine must
 // match the memory layout the program was linked for: 8BitScript's vic20
@@ -70,7 +73,7 @@ const VICE_EMULATOR = { vic20: 'xvic', c64: 'x64sc', pet: 'xpet', c128: 'x128' }
 // whatever the VDC's power-on RAM happens to contain (typically a plain
 // black screen) alongside the real output — not a second copy of the
 // program, just an unused second monitor the hardware genuinely has.
-const VICE_EMULATOR_ARGS = {
+export const VICE_EMULATOR_ARGS = {
   vic20: ['-autostartprgmode', '1'],
   c64: ['-autostartprgmode', '1'],
   pet: ['-autostartprgmode', '1'],
@@ -84,7 +87,7 @@ const VICE_EMULATOR_ARGS = {
 // a model rather than a sync-factor flag. Verified against `x128 -help`
 // ("Set C128 model (c128/c128dcr, pal/ntsc)"); the PET has no entry here —
 // see the run() docstring above for why.
-const VICE_MODEL_ARGS = {
+export const VICE_MODEL_ARGS = {
   vic20: { ntsc: ['-model', 'vic20ntsc'], pal: ['-model', 'vic20pal'] },
   c64: { ntsc: ['-model', 'ntsc'], pal: ['-model', 'c64'] },
   c128: { ntsc: ['-model', 'ntsc'], pal: ['-model', 'pal'] },
@@ -95,7 +98,7 @@ const VICE_MODEL_ARGS = {
 // 65XE has no flag of its own: it's electrically and OS-compatible with the
 // 800XL, so it reuses -xl. -pal/-ntsc is a fully independent flag from the
 // model, unlike VICE's combined -model above.
-const ATARI8_MODEL_ARG = {
+export const ATARI8_MODEL_ARG = {
   '800xl': '-xl',
   '65xe': '-xl',
   '130xe': '-xe',
@@ -113,7 +116,7 @@ const ATARI8_MODEL_ARG = {
 // the CRT knobs, and points `-config` at the copy with `-no-autosave-config`
 // so the user's own file is left alone. ROM paths stay whatever the user
 // already configured; without those the emulator boots to black.
-async function atari800CleanDisplayConfig() {
+export async function atari800CleanDisplayConfig() {
   let cfg;
   try {
     cfg = await readFile(join(homedir(), '.atari800.cfg'), 'utf8');
@@ -138,7 +141,7 @@ async function atari800CleanDisplayConfig() {
 // "none/3k/8k/16k/24k/all") for each VIC20_PROFILES name. 'unexpanded' maps
 // to 'none' — xvic's own default, which is why the unexpanded case worked
 // with no flag at all before profiles existed.
-const VIC20_MEMORY_ARG = {
+export const VIC20_MEMORY_ARG = {
   unexpanded: 'none', '3k': '3k', '8k': '8k', '16k': '16k', '24k': '24k',
 };
 
@@ -148,10 +151,19 @@ export async function run(args) {
   const open = !args.includes('--no-open');
   const profileIndex = args.indexOf('--profile');
   const profile = profileIndex >= 0 ? args[profileIndex + 1] : undefined;
-  const positionals = args.filter((a, i) => {
-    if (profileIndex >= 0 && (i === profileIndex || i === profileIndex + 1)) return false;
-    return !a.startsWith('-');
-  });
+  const screenshotIndex = args.indexOf('--screenshot');
+  const screenshotPath = screenshotIndex >= 0 ? resolve(args[screenshotIndex + 1]) : undefined;
+  const framesIndex = args.indexOf('--frames');
+  const framesArg = framesIndex >= 0 ? args[framesIndex + 1] : undefined;
+  const frames = framesArg !== undefined ? Number.parseInt(framesArg, 10) : undefined;
+  if (framesArg !== undefined && !Number.isFinite(frames)) {
+    process.stderr.write(`8bs run: --frames expects a number, got '${framesArg}'\n`);
+    return 2;
+  }
+  const consumed = new Set(
+    [profileIndex, screenshotIndex, framesIndex].flatMap((i) => (i >= 0 ? [i, i + 1] : [])),
+  );
+  const positionals = args.filter((a, i) => !consumed.has(i) && !a.startsWith('-'));
   const target = positionals[0];
   if (!target) {
     process.stderr.write(
@@ -160,7 +172,12 @@ export async function run(args) {
       + '                [--profile <800xl|65xe|130xe|800|400|xegs>]        (atari8)\n'
       + '                [--profile <unexpanded|3k|8k|16k|24k>]             (vic20)\n'
       + '                [--profile <stock|reu128|reu256|reu512|reu1m|reu2m|reu4m|reu8m|reu16m>] (c64)\n'
-      + '                [--no-open] [entry.8bs]\n',
+      + '                [--no-open] [entry.8bs]\n'
+      + '                [--screenshot <file.png>] [--frames <n>]\n'
+      + '                  capture one screenshot through the target\'s own\n'
+      + '                  emulator API instead of opening an interactive\n'
+      + '                  window — see docs/setup/verify.md#screenshots for\n'
+      + '                  what --frames counts on each target\n',
     );
     return 2;
   }
@@ -168,6 +185,18 @@ export async function run(args) {
 
   const { ok, outFile } = await compile(target, entry, { pal, profile });
   if (!ok) return 1;
+
+  if (screenshotPath) {
+    const { captureScreenshot } = await import('./screenshot.mjs');
+    try {
+      await captureScreenshot(target, outFile, screenshotPath, { pal, profile, frames });
+    } catch (err) {
+      process.stderr.write(`${err.message}\n`);
+      return 1;
+    }
+    process.stdout.write(`wrote ${screenshotPath}\n`);
+    return 0;
+  }
 
   if (target === 'web') {
     const bytes = await readFile(outFile);

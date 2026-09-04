@@ -15,12 +15,18 @@
 // Every emulator here is a real GUI program with no CI-style "assert and
 // exit" mode this project could find for atari800/xmega65/fceux (x16emu is
 // the one exception — see its own test below), so every one of them is
-// bounded by a hard timeout and SIGKILL, exactly like doctor.mjs's own
-// `run()` helper: SIGTERM was tried first and found unreliable (fceux
-// especially — observed hanging well past a `timeout`-sent SIGTERM in this
-// project's own testing) so every check here kills with SIGKILL, and
-// "still running when the timeout hit" is the SUCCESS case for anything
-// without its own clean-exit flag (atari800, mega65), not a failure.
+// bounded by a hard timeout, and "still running when the timeout hit" is
+// the SUCCESS case for anything without its own clean-exit flag (atari800,
+// mega65), not a failure. The timeout stops the emulator in two stages:
+// SIGTERM first, then SIGKILL a moment later if it is still alive. Both
+// stages are needed. xmega65 block-buffers its log when stdout is a pipe
+// and only flushes it on a clean exit, so a bare SIGKILL (what doctor.mjs's
+// own `run()` helper uses — it never boots xmega65) throws away every line
+// the mega65 test below asserts on; observed in this project's own testing
+// as zero bytes of output under SIGKILL versus the full log, with exit code
+// 0, well under 100ms after a SIGTERM. And SIGTERM alone was found
+// unreliable (fceux especially — observed hanging well past a
+// `timeout`-sent SIGTERM), hence the SIGKILL backstop.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -74,7 +80,14 @@ function build(target, { profile } = {}) {
   });
 }
 
-/** Spawn an emulator, collect all output, and kill it with SIGKILL after `timeoutMs`. */
+/** How long a SIGTERMed emulator gets to flush and exit before SIGKILL. */
+const KILL_GRACE_MS = 2000;
+
+/**
+ * Spawn an emulator, collect all output, and stop it after `timeoutMs`:
+ * SIGTERM, then SIGKILL after KILL_GRACE_MS if it is still running (see the
+ * file header for why both).
+ */
 function runEmulator(command, args, { timeoutMs = 4000 } = {}) {
   return new Promise((resolvePromise) => {
     let child;
@@ -86,15 +99,21 @@ function runEmulator(command, args, { timeoutMs = 4000 } = {}) {
     }
     let output = '';
     let timedOut = false;
-    const timer = setTimeout(() => { timedOut = true; child.kill('SIGKILL'); }, timeoutMs);
+    let killTimer;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill('SIGTERM');
+      killTimer = setTimeout(() => child.kill('SIGKILL'), KILL_GRACE_MS);
+    }, timeoutMs);
+    const clearTimers = () => { clearTimeout(timer); clearTimeout(killTimer); };
     child.stdout.on('data', (d) => { output += d; });
     child.stderr.on('data', (d) => { output += d; });
     child.on('error', () => {
-      clearTimeout(timer);
+      clearTimers();
       resolvePromise({ missing: true, output, timedOut, code: null });
     });
     child.on('close', (code) => {
-      clearTimeout(timer);
+      clearTimers();
       resolvePromise({ missing: false, output, timedOut, code });
     });
   });

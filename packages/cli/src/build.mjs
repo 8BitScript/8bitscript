@@ -33,7 +33,9 @@
 //     (see @8bitscript/c64's `reu` namespace for the register-level API).
 //
 // The entry defaults to src/main.8bs, or to the `entry` in 8bs.config.ts when
-// the project has one. Output lands in dist/, named
+// the project has one — and whichever file that names, a `.<target>.8bs`
+// twin beside it (main.nes.8bs next to main.8bs) is what a build for that
+// target actually starts from; see resolveEntryPath. Output lands in dist/, named
 // <name>-<machine>[-<profile>][-<region>].<ext> — .prg for the Commodore/
 // CX16/MEGA65 targets, .xex (or .rom for the xegs profile) for Atari 8-bit,
 // .nes for the NES, .wasm for the web — with the generated C or
@@ -45,9 +47,11 @@ import { existsSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { link, positionAt } from '@8bitscript/compiler';
+import {
+  MACHINES, isVariantPath, link, positionAt, variantOf,
+} from '@8bitscript/compiler';
 
-const TARGETS = new Set(['vic20', 'c64', 'pet', 'c128', 'atari8', 'nes', 'cx16', 'mega65', 'web']);
+const TARGETS = new Set(MACHINES);
 
 // The targets whose frame-sync strategy has a real NTSC/PAL split, auto-
 // detected at runtime (packages/backend-6502's FRAME_SYNC 'level' machines)
@@ -85,17 +89,27 @@ function printDiagnostics(diagnostics, sources) {
 // rather than failing with a bare "unknown target".
 const RETIRED_TARGET = /^(vic20|c64)-(ntsc|pal)$/;
 
-// `entry` in 8bs.config.ts is usually one path shared by every target, the
-// same way @8bitscript/machine resolves one package per target — but a
-// project's *own* entry point can need to differ by target too, not just the
-// hardware package it imports, when a target's execution model (called once
-// forever vs. called once per frame) isn't something a shared source file
-// can paper over. Keyed the same way "8bitscript".entry is, so the two
-// mechanisms read alike; `default` covers whichever targets aren't named.
-function resolveEntryPath(config, target) {
-  const entry = config?.entry;
-  if (entry && typeof entry === 'object') return entry[target] ?? entry.default;
-  return entry;
+// `entry` in 8bs.config.ts is one path, shared by every target, and the
+// filename rule does the rest: a project whose entry point genuinely has to
+// differ on one machine — its execution model, its screen codes, its grid
+// — puts that machine's version beside the shared file as
+// `main.<target>.8bs`, and a build for that target starts there instead.
+// The same rule applies to every file the entry imports, so this is not a
+// special case for the entry; it is just where the CLI applies it first.
+// The rule is applied to whatever names the entry — the config, the
+// default, or an explicit argument — unless that path already names one
+// machine's version (`8bs build src/main.nes.8bs`), which is taken as is.
+//
+// `entry` may still be an object keyed by machine (`{ default, nes }`), the
+// older spelling of the same idea, kept working for projects that use it;
+// `default` covers whichever targets aren't named.
+export function resolveEntryPath(config, target, entryArg) {
+  let entry = config?.entry;
+  if (entry && typeof entry === 'object') entry = entry[target] ?? entry.default;
+  const path = resolve(entryArg ?? entry ?? 'src/main.8bs');
+  if (isVariantPath(path)) return path;
+  const variant = variantOf(path, target);
+  return existsSync(variant) ? variant : path;
 }
 
 /**
@@ -161,7 +175,7 @@ export async function compile(target, entryArg, { pal = false, profile } = {}) {
     return { ok: false };
   }
 
-  const entry = resolve(entryArg ?? resolveEntryPath(config, target) ?? 'src/main.8bs');
+  const entry = resolveEntryPath(config, target, entryArg);
   if (!existsSync(entry)) {
     process.stderr.write(`8bs build: entry ${entry} does not exist\n`);
     return { ok: false };
@@ -180,7 +194,12 @@ export async function compile(target, entryArg, { pal = false, profile } = {}) {
     return { ok: false };
   }
 
-  const stem = basename(entry, '.8bs');
+  // A target's own entry file is named after it (main.nes.8bs — see
+  // resolveEntryPath); the output name carries the target once, in the
+  // same place every other target's does, so main.nes.8bs builds to
+  // main-nes.nes just as main.8bs does, not to main.nes-nes.nes.
+  let stem = basename(entry, '.8bs');
+  if (stem.endsWith(`.${target}`)) stem = stem.slice(0, -(target.length + 1));
   if (target === 'web') {
     const { buildWasm } = await import('@8bitscript/backend-web');
     const outFile = resolve('dist', `${stem}.wasm`);
@@ -194,12 +213,7 @@ export async function compile(target, entryArg, { pal = false, profile } = {}) {
   }
 
   const { buildPrg, outputExtension } = await import('@8bitscript/backend-6502');
-  // A per-target entry (config.entry keyed by machine — see
-  // resolveEntryPath above) is commonly named after its target already
-  // (main-atari8.8bs, say, for a target whose execution model needs its own
-  // entry file); skip the redundant second copy of the target name that
-  // would otherwise produce main-atari8-atari8-....xex.
-  const nameParts = stem.endsWith(`-${target}`) ? [stem] : [stem, target];
+  const nameParts = [stem, target];
   if (target === 'atari8') nameParts.push(atari8Profile);
   // Unlike atari8 (whose profile is always in the filename, even the
   // default 800xl), vic20/c64 only grow a profile suffix for a non-default

@@ -27,6 +27,8 @@ export let vicColor: volatile<u8>;
 // call site that happens to need it.
 namespace VicRegisters {
     const BackgroundBorder: usmallint = 0x900F;
+    const MemoryPointer: usmallint = 0x9005;
+    const UppercaseScreenAt1E00: utinyint = 0xF0;
 }
 
 // ---- the common colour surface (deferred-apply) ----------------------------
@@ -52,7 +54,11 @@ export function applyColors(): void {
 // VIC's 16 colours — `BorderColor` and `BackgroundColor` are two namespaces,
 // not one shared `Color`, because the hardware itself draws that line, not
 // an API design preference. Values and names match the VIC-20's own colour
-// numbering (POKE 36879 in the Programmer's Reference Guide).
+// numbering (POKE 36879 in the Programmer's Reference Guide). Those first
+// eight names — Black, White, Red, Cyan, Purple, Green, Blue, Yellow — are
+// the ones every machine package exports in both namespaces, each with its
+// own hardware's value, which is what lets a program say
+// `border = BorderColor.Blue` through @8bitscript/machine on any target.
 
 export namespace BorderColor {
     const Black: utinyint = 0;
@@ -120,15 +126,37 @@ export namespace screen {
     // package draws nothing on its own.
     const CellCount: usmallint = 506; // 22 columns x 23 rows
 
-    function putChar(cell: usmallint, code: utinyint): void {
-        memory.write(0x1E00 + cell, code);
+    // `putChar` takes ASCII on every machine — space (32), '0'-'9' (48-57),
+    // 'A'-'Z' (65-90) and the punctuation `! , - . : ?` — upper case only:
+    // that is the portable set, the characters every target's character
+    // set has (the NES ships its own font, and that is what it has). The
+    // VIC wants screen codes: in every Commodore character ROM codes 32-63
+    // are those same ASCII values, and 'A'-'Z' are 1-26, so this moves
+    // 64-95 down by 64 and leaves 32-63 alone.
+    function asciiToScreenCode(code: utinyint): utinyint {
+        if (code >= 64 && code < 96) {
+            return code - 64;
+        }
+        return code;
     }
 
-    // Masked to 3 bits, not 4: bit 3 of a VIC-20 colour-RAM nybble is the
-    // per-character multicolour-mode flag, not part of the colour value —
-    // the VIC only gives a hi-res character 8 real colours (0-7). Passing
-    // 8-15 through unmasked would silently flip a cell into multicolour
-    // mode instead of picking a colour that doesn't exist.
+    // Whether screen codes 1-26 LOOK like 'A'-'Z' or 'a'-'z' is the
+    // character set's choice, and the start-up code LLVM-MOS links in front
+    // of main() switches the machine to the lower-case set (the one that
+    // shows the BASIC banner in lower case — see docs/learn/
+    // step1-main-loop.md). So putChar() also selects the upper-case set,
+    // every call: $9005 is the VIC's memory pointer (`addr` in llvm-mos-
+    // sdk's _vic.h), and $F0 is screen $1E00 with the upper-case/graphics
+    // character ROM at $8000 — the power-on value (POKE 36869,240 in the
+    // Programmer's Reference Guide), where $F2 is the lower-case ROM at
+    // $8800. One register write, and "TICK" reads as TICK here the way it
+    // does on the NES, the Atari, and the X16, none of which have a
+    // lower-case set to fall into.
+    function putChar(cell: usmallint, code: utinyint): void {
+        memory.write(VicRegisters.MemoryPointer, VicRegisters.UppercaseScreenAt1E00);
+        memory.write(0x1E00 + cell, screen.asciiToScreenCode(code));
+    }
+
     function putColor(cell: usmallint, color: utinyint): void {
         memory.write(0x9600 + cell, color & 0x07);
     }

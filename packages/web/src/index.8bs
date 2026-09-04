@@ -52,12 +52,61 @@ export function applyColors(): void {
     memory.write(WebRegisters.BackgroundOffset, background & 15);
 }
 
+// ---- friendly colour namespaces ---------------------------------------------
+//
+// The same eight names every machine package exports — Black, White, Red,
+// Cyan, Purple, Green, Blue, Yellow — so a program can write
+// `border = BorderColor.Blue` through @8bitscript/machine and get blue on
+// every target. The values are the C64's sixteen colours in the C64's
+// numbering, the palette this target borrows (see applyColors above).
+
+export namespace BorderColor {
+    const Black: utinyint = 0;
+    const White: utinyint = 1;
+    const Red: utinyint = 2;
+    const Cyan: utinyint = 3;
+    const Purple: utinyint = 4;
+    const Green: utinyint = 5;
+    const Blue: utinyint = 6;
+    const Yellow: utinyint = 7;
+    const Orange: utinyint = 8;
+    const Brown: utinyint = 9;
+    const LightRed: utinyint = 10;
+    const DarkGrey: utinyint = 11;
+    const Grey: utinyint = 12;
+    const LightGreen: utinyint = 13;
+    const LightBlue: utinyint = 14;
+    const LightGrey: utinyint = 15;
+}
+
+export namespace BackgroundColor {
+    const Black: utinyint = 0;
+    const White: utinyint = 1;
+    const Red: utinyint = 2;
+    const Cyan: utinyint = 3;
+    const Purple: utinyint = 4;
+    const Green: utinyint = 5;
+    const Blue: utinyint = 6;
+    const Yellow: utinyint = 7;
+    const Orange: utinyint = 8;
+    const Brown: utinyint = 9;
+    const LightRed: utinyint = 10;
+    const DarkGrey: utinyint = 11;
+    const Grey: utinyint = 12;
+    const LightGreen: utinyint = 13;
+    const LightBlue: utinyint = 14;
+    const LightGrey: utinyint = 15;
+}
+
 // ---- the friendly screen surface (immediate-apply) -------------------------
 //
-// Same three names, same shapes, as @8bitscript/vic20's and
-// @8bitscript/c64's `screen` namespace — a program written against this
-// surface doesn't know or care that "screen memory" is a real 6502 address
-// on two targets and a wasm-memory offset on this one.
+// Same names, same shapes, as every other machine package's `screen`
+// namespace — a program written against this surface doesn't know or care
+// that "screen memory" is a real 6502 address on most targets and a
+// wasm-memory offset on this one. Codes are ASCII, as they are everywhere
+// (space, '0'-'9', 'A'-'Z' and a little punctuation, upper case only); this
+// buffer holds them as they come, and the host draws them as the text they
+// are — there is no character ROM here to need screen codes for.
 export namespace screen {
     const CellCount: usmallint = 1000; // 40 columns x 25 rows
 

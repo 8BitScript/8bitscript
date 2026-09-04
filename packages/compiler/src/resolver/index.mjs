@@ -23,6 +23,75 @@ import { TokenKind } from '../lexer/index.mjs';
 const BARE_PACKAGE = /^(?:@[^/\s]+\/[^/\s]+|[^@./\s][^/\s]*)$/;
 
 /**
+ * Every machine a program can be built for — the names `8bs build --target`
+ * accepts, the keys a target-conditional entry is written in, and the
+ * suffixes a system-specific source file carries (see variantOf). The CLI
+ * reads this list rather than keeping its own, so a new target is added in
+ * exactly one place.
+ */
+export const MACHINES = Object.freeze([
+  'vic20', 'c64', 'pet', 'c128', 'atari8', 'nes', 'cx16', 'mega65', 'web',
+]);
+
+/**
+ * The system-specific twin of a `.8bs` path: `main.8bs` on the NES is
+ * `main.nes.8bs`, the machine's name slotted in before the extension. The
+ * portable file keeps the plain name; a machine that needs its own version
+ * of that file gets the suffixed one beside it, and a build for that
+ * machine picks it up without anything else having to name it. Any file in
+ * the graph can have one — the entry, a module it imports, a package's
+ * entry — because the rule is about files, not about configuration.
+ */
+export function variantOf(path, machine) {
+  return `${path.slice(0, -'.8bs'.length)}.${machine}.8bs`;
+}
+
+/** Whether a path already names one machine's version: `x.nes.8bs`. */
+export function isVariantPath(path) {
+  const stem = path.slice(0, -'.8bs'.length);
+  return MACHINES.some((machine) => stem.endsWith(`.${machine}`));
+}
+
+/**
+ * Pick the file a `.8bs` path actually means, given the machine in hand.
+ *
+ * With a machine: its variant if one exists, else the plain file. With
+ * neither, but with *other* machines' variants present, the file genuinely
+ * has nothing for this target — `8BS3002`, the same code a conditional
+ * package entry gives for a machine it has no branch for, because it is the
+ * same situation spelled in filenames. Without a machine (`8bs check` and
+ * the editor analyse files, not builds): the plain file if it exists, else
+ * `path: null` — "valid, and target-dependent" — if any variant does.
+ *
+ * A path that already names a machine's version (`x.nes.8bs`) is taken
+ * literally: it is the explicit form, and stacking another suffix on it
+ * would mean nothing.
+ *
+ * Returns `null` when nothing exists at all, so the caller can report the
+ * missing file with the code that fits how the path was named.
+ */
+function chooseVariant(specifier, path, machine) {
+  const base = existsSync(path);
+  if (isVariantPath(path)) return base ? { path } : null;
+  if (machine) {
+    const variant = variantOf(path, machine);
+    if (existsSync(variant)) return { path: variant };
+    if (base) return { path };
+    const others = MACHINES.filter((m) => existsSync(variantOf(path, m)));
+    if (others.length > 0) {
+      return {
+        code: Codes.NOT_ON_THIS_TARGET,
+        message: `'${specifier}' has no version for the ${machine} target (targets: ${others.join(', ')})`,
+      };
+    }
+    return null;
+  }
+  if (base) return { path };
+  if (MACHINES.some((m) => existsSync(variantOf(path, m)))) return { path: null };
+  return null;
+}
+
+/**
  * Extract every `import ... from "specifier"` and bare `import "specifier"`.
  *
  * Token-level, because there is no parser. The scan is bounded: it gives up at
@@ -193,9 +262,10 @@ function resolveConditionalEntry(specifier, packageDir, entry, options, seen, na
  *
  * @param {string} specifier
  * @param {string} fromFile  Absolute path of the importing file.
- * @param {{ machine?: 'vic20'|'c64'|'web' }} [options]
- *   The machine being built for, if one is known; conditional package
- *   entries resolve to that machine's branch.
+ * @param {{ machine?: string }} [options]
+ *   The machine being built for (one of MACHINES), if one is known;
+ *   conditional package entries resolve to that machine's branch, and a
+ *   `.8bs` file with a `.<machine>.8bs` twin resolves to the twin.
  * @returns {{ path: string|null, native?: string[] } | { code: string, message: string } | null}
  *   `native` — absolute paths of the resolved package's `"8bitscript".native`
  *   files (see nativeSourcesOf) — rides along with a package resolution;
@@ -207,10 +277,13 @@ export function resolveSpecifier(specifier, fromFile, options = {}, seen = new S
   if (specifier.startsWith('.') || specifier.startsWith('/')) {
     if (!specifier.endsWith('.8bs')) return null;
     const target = resolvePath(fromDir, specifier);
-    if (!existsSync(target)) {
+    // `./hardware.8bs` on the NES is `./hardware.nes.8bs` when that file
+    // exists beside it — see chooseVariant.
+    const chosen = chooseVariant(specifier, target, options.machine);
+    if (!chosen) {
       return { code: Codes.UNRESOLVED_RELATIVE_IMPORT, message: `cannot find module '${specifier}'` };
     }
-    return { path: target };
+    return chosen;
   }
 
   if (!BARE_PACKAGE.test(specifier)) return null;
@@ -229,13 +302,18 @@ export function resolveSpecifier(specifier, fromFile, options = {}, seen = new S
 
   const entry = manifest?.['8bitscript']?.entry;
   if (typeof entry === 'string') {
+    // A package's entry follows the same filename rule a relative import
+    // does: `./src/index.8bs` with an `index.nes.8bs` beside it is the NES
+    // version of the package, without the manifest having to say so.
     const target = resolvePath(packageDir, entry);
-    if (!existsSync(target)) {
+    const chosen = chooseVariant(specifier, target, options.machine);
+    if (!chosen) {
       return { code: Codes.MISSING_PACKAGE_ENTRY, message: `'${specifier}' declares entry '${entry}', which does not exist` };
     }
+    if (chosen.code) return chosen;
     const sources = nativeSourcesOf(specifier, packageDir, manifest);
     if (sources.code) return sources;
-    return { path: target, native: sources.native };
+    return { path: chosen.path, native: sources.native };
   }
   if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
     const sources = nativeSourcesOf(specifier, packageDir, manifest);

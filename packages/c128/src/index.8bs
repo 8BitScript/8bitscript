@@ -40,6 +40,53 @@ export function applyColors(): void {
     backgroundColor = background & 15;
 }
 
+// ---- friendly colour namespaces ---------------------------------------------
+//
+// The same eight names every machine package exports — Black, White, Red,
+// Cyan, Purple, Green, Blue, Yellow — so a program can write
+// `border = BorderColor.Blue` through @8bitscript/machine and get blue on
+// every target; the values are this machine's own. The VIC-IIe has
+// the C64's sixteen colours in both registers, in the C64's numbering, so
+// both namespaces carry all sixteen.
+
+export namespace BorderColor {
+    const Black: utinyint = 0;
+    const White: utinyint = 1;
+    const Red: utinyint = 2;
+    const Cyan: utinyint = 3;
+    const Purple: utinyint = 4;
+    const Green: utinyint = 5;
+    const Blue: utinyint = 6;
+    const Yellow: utinyint = 7;
+    const Orange: utinyint = 8;
+    const Brown: utinyint = 9;
+    const LightRed: utinyint = 10;
+    const DarkGrey: utinyint = 11;
+    const Grey: utinyint = 12;
+    const LightGreen: utinyint = 13;
+    const LightBlue: utinyint = 14;
+    const LightGrey: utinyint = 15;
+}
+
+export namespace BackgroundColor {
+    const Black: utinyint = 0;
+    const White: utinyint = 1;
+    const Red: utinyint = 2;
+    const Cyan: utinyint = 3;
+    const Purple: utinyint = 4;
+    const Green: utinyint = 5;
+    const Blue: utinyint = 6;
+    const Yellow: utinyint = 7;
+    const Orange: utinyint = 8;
+    const Brown: utinyint = 9;
+    const LightRed: utinyint = 10;
+    const DarkGrey: utinyint = 11;
+    const Grey: utinyint = 12;
+    const LightGreen: utinyint = 13;
+    const LightBlue: utinyint = 14;
+    const LightGrey: utinyint = 15;
+}
+
 // ---- the friendly screen surface (immediate-apply) -------------------------
 //
 // There is no general text API yet (that's `screen.putChar(x, y, code)`/
@@ -52,11 +99,54 @@ export function applyColors(): void {
 // 40-column mode the default screen RAM is $0400 (40x25, 1000 cells — same
 // as the C64's, for the same backward-compatibility reasons the KERNAL
 // keeps the C64's screen editor conventions), colour RAM fixed at $D800.
+//
+// ---- character codes: ASCII in, screen codes out ----------------------------
+//
+// `screen.putChar` takes ASCII on every machine — space (32), '0'-'9'
+// (48-57), 'A'-'Z' (65-90) and the punctuation `! , - . : ?` — upper case
+// only: that is the portable set, the characters every target's character
+// set has (the NES ships its own font, and that is what it has). The
+// hardware wants screen codes: in every Commodore character ROM, codes
+// 32-63 are those same ASCII values (space, digits, that punctuation), and
+// 'A'-'Z' are 1-26, so asciiToScreenCode() moves 64-95 down by 64 and
+// leaves 32-63 alone. Whether 1-26 then LOOK like 'A'-'Z' or 'a'-'z' is
+// the character set's choice, and the start-up code LLVM-MOS links in
+// front of main() switches these machines to the lower-case set (the one
+// that shows the BASIC banner in lower case — see docs/learn/
+// step1-main-loop.md). So putChar() also selects the upper-case set, every
+// call: one register write, and "TICK" reads as TICK here the way it does
+// on the NES, the Atari, and the X16, none of which have a lower-case set
+// to fall into.
+//
+// $D018 is the VIC-IIe's memory pointer, laid out as the C64's: $14 is
+// screen $0400 and the upper-case/graphics set at $1000 (the C128 KERNAL's
+// reset value — it leaves bit 0 clear where the C64's leaves it set; the
+// VIC ignores that bit either way), $16 the lower-case set at $1800. The
+// C128 also keeps a SHADOW of it, VM1 at $0A2C, which the screen editor's
+// IRQ routine copies back over $D018 every interrupt while in text mode —
+// so writing the register alone lasts until the next IRQ, and putChar()
+// writes the shadow first, the same class of problem @8bitscript/atari8
+// documents for GTIA's colour registers.
+namespace VicRegisters {
+    const MemoryPointer: usmallint = 0xD018;
+    const MemoryPointerShadow: usmallint = 0x0A2C; // VM1
+    const UppercaseScreenAt0400: utinyint = 0x14;
+}
+
 export namespace screen {
     const CellCount: u16 = 1000; // 40 columns x 25 rows
 
+    function asciiToScreenCode(code: utinyint): utinyint {
+        if (code >= 64 && code < 96) {
+            return code - 64;
+        }
+        return code;
+    }
+
     function putChar(cell: u16, code: u8): void {
-        memory.write(0x0400 + cell, code);
+        memory.write(VicRegisters.MemoryPointerShadow, VicRegisters.UppercaseScreenAt0400);
+        memory.write(VicRegisters.MemoryPointer, VicRegisters.UppercaseScreenAt0400);
+        memory.write(0x0400 + cell, screen.asciiToScreenCode(code));
     }
 
     function putColor(cell: u16, color: u8): void {

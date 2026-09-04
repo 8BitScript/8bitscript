@@ -109,6 +109,54 @@ your main.8bs
                 `-- node_modules/@8bitscript/vic20/src/index.8bs
 ```
 
+## System-specific files
+
+A `.8bs` file is portable by default: `player.8bs` is the player on every
+machine. When one machine needs its own version of a file, the version is
+named after the machine, beside the portable one:
+
+```
+src/
+  main.8bs          every machine
+  main.nes.8bs      the NES instead
+  player.8bs
+  player.atari8.8bs
+```
+
+`8bs build --target nes` starts from `main.nes.8bs` and, wherever anything
+imports `./player.8bs`, reads `player.8bs` — the NES has no version of that
+one. `--target atari8` starts from `main.8bs` and reads `player.atari8.8bs`
+for the same import. Nothing names the machine-specific files: the import
+still says `./player.8bs`, the config still says `src/main.8bs`, and the
+filename decides. The machine names are the ones `8bs build --target`
+accepts: `vic20`, `c64`, `pet`, `c128`, `atari8`, `nes`, `cx16`, `mega65`,
+`web`.
+
+The rule applies to every file in the graph, the same way. A package's
+`8bitscript.entry` of `./src/index.8bs` with an `index.nes.8bs` beside it
+is that package's NES version, with nothing in the manifest saying so. An
+import can also name a machine's version outright — `./player.nes.8bs` —
+and gets exactly that file, on every machine; that is the explicit form,
+and no further suffix is looked for on it.
+
+A file can exist *only* in machine-specific versions — `player.nes.8bs` and
+`player.c64.8bs`, with no `player.8bs`. Building for a machine that has one
+is fine; building for one that has none is `8BS3002`, the same code a
+[target-conditional entry](#target-conditional-entries) gives for a machine
+it has no branch for, because it is the same situation spelled in
+filenames. `8bs check` and the editor analyse files rather than builds, so
+with no machine in hand they take the portable file when it exists and
+accept the import as valid-but-target-dependent when it does not, just as
+they do for a conditional entry.
+
+No example in this repository needs one yet. `examples/borders` builds
+for all nine targets from one `src/main.8bs`, because the machine packages
+absorb every difference it would otherwise have to spell out per machine —
+the same ASCII character codes, the same colour names, the same "cell 0 is
+the top-left corner inside the border" on every target. That is the
+preferred shape: a per-machine file is for a difference a package cannot
+absorb, not the first tool to reach for.
+
 ## Target-conditional entries
 
 `8bitscript.entry` can also be an object keyed by machine, which is how a
@@ -146,32 +194,42 @@ builds all share one source file this way. This is the first slice of
 target-conditional code: whole-module today, per-declaration once that
 syntax is designed.
 
-### A project's own entry can be target-conditional too
+The delegation form is what the object is for. A package that merely ships
+per-machine *source files* does not need it: `"entry": "./src/index.8bs"`
+with an `index.nes.8bs` beside it is the
+[system-specific file](#system-specific-files) rule, and reads the same as
+it does in a project.
 
-A package's `8bitscript.entry` picks a different *import* per target; a
-project's own `8bs.config.ts` can pick a different *entry point* per target
-the same way, keyed identically:
+### A project's own entry point
+
+A project's entry point follows the system-specific file rule too, and that
+is the whole story: `entry: 'src/main.8bs'` in `8bs.config.ts` (or no
+config, which means the same), and a `src/main.nes.8bs` beside it if the
+NES needs its own. This is for the case a target-conditional import can't
+paper over: when a target's execution model itself differs, not just the
+hardware underneath it — not merely which register or memory layout a name
+resolves to, but the *shape* of the program itself. (A browser tab calling a
+program back once per frame rather than handing it the whole machine used
+to be such a case for `web`; a `main()`/`frame()` convention synthesised by
+each backend now covers that from a single file — see
+[docs/learn/step1-main-loop.md](learn/step1-main-loop.md#why-this-step-does-not-build-for-the-web).
+`examples/borders` briefly kept per-machine versions of its entry for the
+NES, Atari, and X16 too, for their screen codes and grids; those
+differences now live in the machine packages, and it is one file again.)
+
+`entry` may also be an object keyed by machine, the older spelling of the
+same idea, still honoured:
 
 ```ts
 export default {
-  entry: { default: 'src/main.8bs', special: 'src/main.special.8bs' },
-  targets: ['vic20', 'c64', 'special'],
+  entry: { default: 'src/main.8bs', nes: 'src/console.8bs' },
+  targets: ['vic20', 'c64', 'nes'],
 };
 ```
 
-`default` covers any target not named explicitly. This exists for the case a
-target-conditional import can't paper over: when a target's execution model
-itself differs, not just the hardware underneath it — not merely which
-register or memory layout a name resolves to, but the *shape* of the program
-itself. `examples/borders` needed exactly this until recently: a browser tab
-calls a program back once per frame rather than handing it the whole machine
-forever the way a VIC-20 or a C64 does, so its web build used to need its
-own entry file, written for that different contract. It doesn't anymore —
-see [docs/learn/step1-main-loop.md](learn/step1-main-loop.md#why-this-step-does-not-build-for-the-web)
-for how a `main()`/`frame()` convention synthesised by each backend now
-covers that difference from a single file — but this mechanism is still
-here for whatever execution-model difference comes up next that a shared
-calling convention can't.
+`default` covers any target not named explicitly. Prefer the filename: it
+says the same thing where the file is, and it works for every file in the
+project, not only the entry.
 
 ## What a package may contain
 

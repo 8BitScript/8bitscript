@@ -26,10 +26,9 @@
 //   2. The screen is in ISO mode: the character set VERA is drawing from
 //      is the KERNAL's ISO-8859-15 set, whose tile index IS the character
 //      code — 'A' is 65, '0' is 48, space is 32 — not the PETSCII screen
-//      codes (A = 1) the Commodore packages take. `screen.putChar` here
-//      therefore takes ASCII, the same codes @8bitscript/nes and
-//      @8bitscript/atari8 take, and examples/borders' X16 variant spells
-//      its labels that way.
+//      codes (A = 1) the Commodore machines' screen memory takes.
+//      `screen.putChar` takes ASCII on every machine, so here it passes
+//      the code straight through, where the Commodore packages translate.
 //
 // ---- the display: VERA, and where a border comes from ------------------
 //
@@ -126,10 +125,57 @@
 // with the sixteen C64 colours in C64 order — 0 black, 1 white, 2 red,
 // 3 cyan, 4 purple, 5 green, 6 blue, 7 yellow, and so on — verified on
 // screen under x16emu for the values examples/borders uses, so the
-// Commodore packages' border/background pairs mean the same colours here.
+// Commodore packages' colour numbers mean the same colours here.
 
 export let border: u8 = 0;
 export let background: u8 = 0;
+
+// ---- friendly colour namespaces ---------------------------------------------
+//
+// The same eight names every machine package exports — Black, White, Red,
+// Cyan, Purple, Green, Blue, Yellow — so a program can write
+// `border = BorderColor.Blue` through @8bitscript/machine and get blue on
+// every target. The values are the first sixteen entries of VERA's default
+// palette, which are the C64's sixteen colours in the C64's numbering (see
+// above), so both namespaces carry all sixteen.
+
+export namespace BorderColor {
+    const Black: utinyint = 0;
+    const White: utinyint = 1;
+    const Red: utinyint = 2;
+    const Cyan: utinyint = 3;
+    const Purple: utinyint = 4;
+    const Green: utinyint = 5;
+    const Blue: utinyint = 6;
+    const Yellow: utinyint = 7;
+    const Orange: utinyint = 8;
+    const Brown: utinyint = 9;
+    const LightRed: utinyint = 10;
+    const DarkGrey: utinyint = 11;
+    const Grey: utinyint = 12;
+    const LightGreen: utinyint = 13;
+    const LightBlue: utinyint = 14;
+    const LightGrey: utinyint = 15;
+}
+
+export namespace BackgroundColor {
+    const Black: utinyint = 0;
+    const White: utinyint = 1;
+    const Red: utinyint = 2;
+    const Cyan: utinyint = 3;
+    const Purple: utinyint = 4;
+    const Green: utinyint = 5;
+    const Blue: utinyint = 6;
+    const Yellow: utinyint = 7;
+    const Orange: utinyint = 8;
+    const Brown: utinyint = 9;
+    const LightRed: utinyint = 10;
+    const DarkGrey: utinyint = 11;
+    const Grey: utinyint = 12;
+    const LightGreen: utinyint = 13;
+    const LightBlue: utinyint = 14;
+    const LightGrey: utinyint = 15;
+}
 
 // Loop counters for the attribute repaint — globals, not locals, since
 // there are no local variables in the compiled subset yet.
@@ -208,7 +254,8 @@ export function applyColors(): void {
 //
 // The same names every other machine package exports, so a program that
 // imports `screen` from @8bitscript/machine draws on the X16 too. 80x60 =
-// 4800 cells, row-major; codes are ASCII (ISO mode — see the header).
+// 4800 cells, row-major; codes are ASCII, as on every machine, and here
+// that is also what the hardware wants (ISO mode — see the header).
 // putColor is real here, unlike on the NES and Atari: it sets a cell's
 // foreground nibble, keeping `background` in the high one.
 

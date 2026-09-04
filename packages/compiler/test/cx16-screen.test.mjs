@@ -60,8 +60,8 @@ test('a screen consumer links for cx16 and drives VERA by its port addresses', (
   assert.match(c, /40739 = \(\(background \* 16\) \+ 1\);/);
 });
 
-test('examples/borders main-cx16.8bs links clean for cx16', () => {
-  const file = join(BORDERS_SRC, 'main-cx16.8bs');
+test('examples/borders main.8bs links clean for cx16', () => {
+  const file = join(BORDERS_SRC, 'main.8bs');
   const { ir, diagnostics } = link(readFileSync(file, 'utf8'), file, { machine: 'cx16' });
   assert.deepEqual(diagnostics, []);
   assert.ok(ir.functions.some((fn) => fn.name === 'frame'));

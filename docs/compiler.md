@@ -161,6 +161,14 @@ reason: `analyze(text, file, { resolveImports: true })`, enabled by `8bs check`
 and by the language server for saved files, and left off for an unsaved buffer
 that has no path to resolve against.
 
+A `.8bs` path — a relative import's, or a package's string entry — resolves
+to its **system-specific version** when the build's machine has one:
+`./player.8bs` is `player.nes.8bs` on the NES if that file exists beside it,
+and `player.8bs` otherwise. A file that exists only in machine-specific
+versions is `8BS3002` for a machine that has none. The rule, and what
+`8bs check` does with no machine in hand, is in
+[the package model](packages.md#system-specific-files).
+
 Two cases are deliberately **not** diagnosed, because the package model does
 not specify them: a bare specifier with a subpath (`@scope/name/thing`), and a
 relative import without a `.8bs` extension. Neither is guessed at, and neither
@@ -216,7 +224,9 @@ Packages can also make their entry **target-conditional**: an
 implementation at build time, and a machine the object has no branch for is
 `8BS3002`. The mechanics and the delegation form live in
 [the package model](packages.md); `@8bitscript/machine` is the working
-example.
+example. The same `8BS3002` covers the filename form of the idea — a
+`player.8bs` that exists only as `player.nes.8bs` and `player.c64.8bs`,
+built for a third machine.
 
 A package can also ship **native sources**: an `"8bitscript".native` list of
 files that are not 8BitScript but belong in the build — hand-written 6502

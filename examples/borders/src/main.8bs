@@ -1,88 +1,15 @@
-// A screen with three things going on: a small tick counter, a curated set
-// of colour options the program cycles through, and the border/background
-// colours it sets from whichever option is currently picked — the classic
-// first sign of life, now with a bit more happening on screen, on whichever
-// machine you build for. One file, one program, on every target: `main()`
-// sets up once and `frame()` runs once per tick, forever, and nothing in
-// this file drives that loop itself.
-//
-// Every target calls frame() at the same real-world rate — an exact 60Hz
-// of real time, not a per-target guess and not whatever the display
-// hardware happens to refresh at — but *how* differs entirely below the
-// language, which is the point: this file never says which target it's
-// building for. On the 6502 machines, the backend notices this module
-// exports both `main` and `frame` and synthesises the driving loop itself:
-// it waits for the video chip's raster to reach the top of the screen (real
-// vertical blank, not a busy-wait calibrated by hand), and because no
-// machine's frame is exactly 1/60s — 59.83Hz on an NTSC C64, 60.29Hz on an
-// NTSC VIC-20, ~50Hz on PAL — it drains an exact fixed-point accumulator of
-// logical frames owed rather than blindly calling frame() once per blank
-// (see packages/backend-6502's FRAME_PACING). On the web, the host's
-// requestAnimationFrame loop paces the same fixed 60Hz timestep against
-// real elapsed time (packages/cli/src/web-runtime.mjs). All of them tick in
-// lockstep as a result, indefinitely — none of them drifts. A module
-// that only exports `main`, with no `frame`, is unaffected — it keeps
-// meaning exactly what it always has (`examples/counter`, `examples/
-// step1-main-loop`): the whole program, looping forever on its own.
-//
-// @8bitscript/machine resolves at build time to the target package for the
-// machine being built — @8bitscript/vic20, @8bitscript/c64, @8bitscript/nes,
-// and so on. Every one of them exports the same surface, and this file
-// leans on all of it:
-//
-//   - `border`/`background`/`applyColors()` for the colour registers (or
-//     whatever stands in for them: the NES draws its border as a frame of
-//     tiles, the X16 insets VERA's picture, the PET has no colour at all and
-//     ignores them), and `BorderColor`/`BackgroundColor`, the same eight
-//     colour names on every machine — Black, White, Red, Cyan, Purple,
-//     Green, Blue, Yellow — each holding whatever value that machine's
-//     hardware wants for that colour. A VIC-20 border is a 3-bit field, an
-//     Atari colour is a GTIA hue/luminance byte, an NES colour is a 2C02
-//     palette index; none of that reaches this file.
-//   - `screen.putChar()`/`putColor()`/`showDigit()`/`CellCount` for the
-//     screen: a character grid whose cell 0 is the top-left corner inside
-//     the border on every machine, and whose character codes are ASCII on
-//     every machine — space, '0'-'9', 'A'-'Z' and a little punctuation, in
-//     upper case only, the portable set every target's character set can
-//     show. Each package turns those into what its hardware wants (a
-//     Commodore screen code, an ANTIC internal code, a tile index) and, on
-//     the Commodore machines, keeps the upper-case character set selected,
-//     so "TICK" reads the same on all of them.
-//
-// There is no general text API yet (that's `screen.putChar(x, y, code)`/
-// `input.*` in docs/roadmap.md, not built — this package's `screen.putChar`
-// takes one flat cell index instead), so what this file pokes onto the
-// screen — clearing it, the "TICK"/"OPTION" labels, the two digits — is
-// entirely this program's own doing, not something the machine packages do
-// for it. There is also no keyboard/joystick input at all, so "changing" an
-// option here means editing `applyOption` below and rebuilding, not
-// pressing a key while it runs.
+// Cycles the border/background colours forever with a TICK/OPTION readout,
+// from one file, on every target. See README.md for how the frame loop is
+// driven and what @8bitscript/machine provides on each machine.
 import {
     border, background, applyColors, BorderColor, BackgroundColor, screen,
 } from "@8bitscript/machine";
 
-// 30 calls of frame() at 60Hz is half a second. Every *tick* (not every
-// frame() call) advances the ones digit shown at cell 5, and every ten
-// ticks the colour option (shown at cell 14) advances too — "TICK" on
-// screen, not "FRAME": a real frame counter would advance 60 times a
-// second, and this deliberately advances at about 2Hz instead, the same
-// real-world rate on every target.
-let logicalFramesUntilTick: utinyint = 30;
+let logicalFramesUntilTick: utinyint = 30; // 30 frames at 60Hz = half a second
 let ticks: utinyint = 0;
 let option: utinyint = 0;
+let clearCell: usmallint = 0; // global: no local variables yet
 
-// Loop index for clearScreen() below — a global, not a local, since there
-// are no local variables in the compiled subset yet.
-let clearCell: usmallint = 0;
-
-// Blanking the screen is this program's own choice, not something
-// screen.showDigit or applyColors does automatically: on real hardware the
-// Commodore machines boot into BASIC and leave its banner and "READY." on
-// screen, the NES's screen memory holds garbage at power-on, and a program
-// that never touches the rest of screen memory leaves all that there, mixed
-// in with whatever it draws. screen.CellCount is however many cells this
-// machine's grid has — 506 on the VIC-20, 1000 on the C64, 728 inside the
-// NES's frame, 4800 on the X16 — so the loop is the same everywhere.
 function clearScreen(): void {
     clearCell = 0;
     while (clearCell < screen.CellCount) {
@@ -91,12 +18,6 @@ function clearScreen(): void {
     }
 }
 
-// The row-0 labels this program draws once, so the two digits below mean
-// something without a general text API to lean on: "TICK " then its digit
-// at cell 5, "OPTION " then its digit at cell 14. The codes are ASCII
-// ('A' is 65, 'T' is 84) — upper case, which is the portable set. The
-// colour pokes are for the machines with per-cell colour RAM; the others
-// ignore them and draw all text in white anyway.
 function drawLabels(): void {
     screen.putChar(0, 84);  // T
     screen.putColor(0, 1);
@@ -123,15 +44,7 @@ function drawLabels(): void {
     screen.putChar(13, 32); // space
 }
 
-// Four curated border/background pairs, by name, instead of cycling raw
-// values 0-255 — every name here is one of the eight every machine package
-// defines, so the same four pairs mean the same four pictures on all of
-// them (a VIC-20 border, remember, only reaches those eight). This is the
-// "which colours are displayed" choice: add a case, bump the wrap check in
-// frame() below from 4, and rebuild. None of the four backgrounds is White
-// or Yellow: screen.showDigit()/drawLabels() always draw in white, and
-// white text is invisible against a white background, barely readable
-// against yellow.
+// To add a colour pair: add a case here and bump the wrap check in frame().
 function applyOption(): void {
     if (option == 0) {
         border = BorderColor.Blue;
@@ -148,12 +61,8 @@ function applyOption(): void {
     }
 }
 
-// Everything is drawn BEFORE the first applyColors(). On most machines the
-// order makes no difference; on the NES it does — its screen memory is
-// only freely writable while the picture is off, and applyColors() is what
-// turns the picture on (see @8bitscript/nes). Drawing first is correct
-// everywhere, so that is the order this file uses everywhere. From then on
-// only frame() touches the screen, a digit or two at a time.
+// Draw everything before the first applyColors(): the NES only allows
+// screen writes while the picture is off, and applyColors() turns it on.
 export function main(): void {
     clearScreen();
     drawLabels();

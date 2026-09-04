@@ -776,6 +776,67 @@ async function checkOtherEmulators({ cx16CompilerOk }) {
   return { title: 'Atari 8-bit / NES / Commander X16 / MEGA65 emulators', checks };
 }
 
+// ---- screenshot capability (8bs run <target> --screenshot) -----------------
+//
+// `--screenshot` (see screenshot.mjs) mostly rides on emulators doctor
+// already checks above — a target with a working emulator has a working
+// screenshot path too, with two exceptions worth a dedicated check because
+// they're easy to miss until a --screenshot call fails confusingly later:
+//
+//   - cx16's path needs `ffmpeg` on PATH (to pull a still frame out of
+//     x16emu's -gif recording) — a dependency nothing else in this project
+//     requires, so nothing else checks for it.
+//   - atari8's path needs macOS Screen Recording permission (it captures
+//     the emulator's real window, since atari800 has no scriptable
+//     screenshot flag — see screenshot.mjs's own header comment). Unlike
+//     every other check in this file, there's no package manager fix to
+//     offer: only a person clicking a checkbox in System Settings can grant
+//     this, so the fix here is the exact settings pane to open, not a
+//     command to run. This never fails the overall doctor run — a machine
+//     with the permission not yet granted can still build and run every
+//     target, `--screenshot atari8` just isn't available until it is.
+async function checkScreenshotCapability() {
+  const checks = [
+    result(
+      onPath('ffmpeg') ? OK : WARN,
+      'ffmpeg (cx16 --screenshot)',
+      onPath('ffmpeg') ? 'found' : 'not found — cx16 --screenshot cannot extract a still frame without it',
+      onPath('ffmpeg') ? null : 'brew install ffmpeg (macOS) / apt install ffmpeg (Debian/Ubuntu) / pacman -S ffmpeg (Arch)',
+      { targets: [] },
+    ),
+  ];
+
+  if (process.platform === 'darwin') {
+    if (!onPath('atari800')) {
+      checks.push(result(SKIP, 'macOS Screen Recording (atari8 --screenshot)', 'atari800 not installed — nothing to check yet', null, { targets: [] }));
+    } else {
+      let granted = false;
+      let checkError = null;
+      try {
+        const { hasScreenRecordingPermission } = await import('./mac-window-capture.mjs');
+        granted = await hasScreenRecordingPermission();
+      } catch (err) {
+        checkError = err;
+      }
+      if (checkError) {
+        checks.push(result(WARN, 'macOS Screen Recording (atari8 --screenshot)', `could not check: ${checkError.message}`, null, { targets: [] }));
+      } else {
+        checks.push(result(
+          granted ? OK : WARN,
+          'macOS Screen Recording (atari8 --screenshot)',
+          granted ? 'granted' : 'not granted — atari8 --screenshot would capture a blank/black window',
+          granted ? null : 'Grant Screen Recording to whatever runs `8bs` (Terminal, your IDE, ...): System Settings -> Privacy & Security -> Screen Recording. Open that pane directly with: open "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"',
+          { targets: [] },
+        ));
+      }
+    }
+  } else {
+    checks.push(result(SKIP, 'macOS Screen Recording (atari8 --screenshot)', 'not macOS — atari8 --screenshot has no equivalent on this platform yet', null, { targets: [] }));
+  }
+
+  return { title: 'Screenshot capability (`8bs run <target> --screenshot`)', checks };
+}
+
 // ---- interactive installer -------------------------------------------------
 //
 // A single keypress, only when there's somewhere for the answer to go: both
@@ -869,6 +930,7 @@ export async function doctor() {
     mos,
     await checkVice(),
     await checkOtherEmulators({ cx16CompilerOk }),
+    await checkScreenshotCapability(),
   ];
   const allChecks = sections.flatMap((s) => s.checks);
   let failures = 0;

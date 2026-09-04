@@ -48,7 +48,8 @@ page that fixes it.
 is the example that goes end to end today: it clears the leftover BASIC boot
 screen, labels a `TICK` counter and the current `OPTION` number, and steps
 the border and background through four curated colour combinations — one
-program, one source file, on the VIC-20, the C64, *and* the web. It is the
+program, one source file, on every target from the VIC-20 to the NES to
+the web. It is the
 classic first sign of life on real hardware, so it is the one worth seeing
 run before reading any code.
 
@@ -96,7 +97,9 @@ backend generated alongside it, so what the compiler did is never a mystery.
 `examples/borders/src/main.8bs`:
 
 ```
-import { border, background, applyColors, screen } from "@8bitscript/machine";
+import {
+    border, background, applyColors, BorderColor, BackgroundColor, screen,
+} from "@8bitscript/machine";
 
 let logicalFramesUntilTick: utinyint = 30;
 let ticks: utinyint = 0;
@@ -106,60 +109,60 @@ let clearCell: usmallint = 0;
 function clearScreen(): void {
     clearCell = 0;
     while (clearCell < screen.CellCount) {
-        screen.putChar(clearCell, 32); // 32 = space, in every VIC/C64 charset
+        screen.putChar(clearCell, 32); // 32 = space
         clearCell = clearCell + 1;
     }
 }
 
 function drawLabels(): void {
-    screen.putChar(0, 20);  // T
+    screen.putChar(0, 84);  // T
     screen.putColor(0, 1);
-    screen.putChar(1, 9);   // I
+    screen.putChar(1, 73);  // I
     screen.putColor(1, 1);
-    screen.putChar(2, 3);   // C
+    screen.putChar(2, 67);  // C
     screen.putColor(2, 1);
-    screen.putChar(3, 11);  // K
+    screen.putChar(3, 75);  // K
     screen.putColor(3, 1);
     screen.putChar(4, 32);  // space
     screen.putChar(6, 32);  // space
-    screen.putChar(7, 15);  // O
+    screen.putChar(7, 79);  // O
     screen.putColor(7, 1);
-    screen.putChar(8, 16);  // P
+    screen.putChar(8, 80);  // P
     screen.putColor(8, 1);
-    screen.putChar(9, 20);  // T
+    screen.putChar(9, 84);  // T
     screen.putColor(9, 1);
-    screen.putChar(10, 9);  // I
+    screen.putChar(10, 73); // I
     screen.putColor(10, 1);
-    screen.putChar(11, 15); // O
+    screen.putChar(11, 79); // O
     screen.putColor(11, 1);
-    screen.putChar(12, 14); // N
+    screen.putChar(12, 78); // N
     screen.putColor(12, 1);
     screen.putChar(13, 32); // space
 }
 
 function applyOption(): void {
     if (option == 0) {
-        border = 6;
-        background = 3;
+        border = BorderColor.Blue;
+        background = BackgroundColor.Cyan;
     } else if (option == 1) {
-        border = 2;
-        background = 4;
+        border = BorderColor.Red;
+        background = BackgroundColor.Purple;
     } else if (option == 2) {
-        border = 5;
-        background = 0;
+        border = BorderColor.Green;
+        background = BackgroundColor.Black;
     } else {
-        border = 4;
-        background = 2;
+        border = BorderColor.Purple;
+        background = BackgroundColor.Red;
     }
 }
 
 export function main(): void {
     clearScreen();
     drawLabels();
-    applyOption();
-    applyColors();
     screen.showDigit(5, 0);
     screen.showDigit(14, 0);
+    applyOption();
+    applyColors();
 }
 
 export function frame(): void {
@@ -185,12 +188,19 @@ export function frame(): void {
 
 - `@8bitscript/machine` is not a real package on its own — it is a
   target-conditional entry that resolves to `@8bitscript/vic20`,
-  `@8bitscript/c64`, or `@8bitscript/web`, depending on which machine you
-  build for. All three export the same `border`, `background`,
-  `applyColors()`, and `screen` namespace, so this file never branches on
+  `@8bitscript/c64`, `@8bitscript/nes`, `@8bitscript/web`, and so on,
+  depending on which machine you build for. Every one of them exports the
+  same `border`, `background`, `applyColors()`, `BorderColor`/
+  `BackgroundColor`, and `screen` namespace, so this file never branches on
   the machine itself. See [target-conditional
   entries](packages.md#target-conditional-entries) for how that resolution
   works.
+- `BorderColor.Blue` and the rest are the same eight names on every
+  machine — Black, White, Red, Cyan, Purple, Green, Blue, Yellow — each
+  holding whatever that machine's hardware wants for that colour: a
+  Commodore colour number, a GTIA hue/luminance byte on the Atari, a
+  palette index on the NES. The program says "blue"; the package says what
+  blue is.
 - `border` and `background` are ordinary globals until `applyColors()` writes
   them to hardware — one shared register on the VIC-20, two separate ones on
   the C64, two bytes in a browser tab's wasm memory on the web. That
@@ -230,7 +240,14 @@ export function frame(): void {
   `x`/`y` `screen.putChar` still on the roadmap (see `docs/roadmap.md`) —
   and `screen.CellCount` says how many cells the whole screen has (506 on
   the VIC-20, 1000 on the C64 and, as a safe superset, on the web's virtual
-  screen too). None of that runs automatically: `clearScreen()` and
+  screen too; 728 inside the NES's drawn frame; 4800 on the X16). Codes are
+  ASCII on every machine, upper case only — `84` is `T` everywhere — and
+  each package turns them into whatever its hardware wants (the Commodore
+  machines also switch themselves to the upper-case character set, since
+  the runtime LLVM-MOS links in boots them into the lower-case one). Cell 0
+  is the top-left corner inside the border on every machine, so the labels
+  land in the same place on all of them. None of that runs automatically:
+  `clearScreen()` and
   `drawLabels()` are this *program's* choice to call, in a loop and a fixed
   sequence of pokes respectively, not something any machine package does on
   its own — a program that wants the BASIC boot screen left alone just
@@ -238,10 +255,15 @@ export function frame(): void {
 - `screen.showDigit(cell, digit)` pokes a single decimal digit (in white)
   at a cell — cell 5 for the tick counter, right after the `TICK ` label
   `drawLabels()` draws, and cell 14 for the option number, after `OPTION `.
+- `main()` draws everything first and calls `applyColors()` last. On most
+  machines the order is immaterial; on the NES it is the rule — its screen
+  memory is only freely writable before the picture is switched on, which
+  is what the first `applyColors()` does — so the file uses the order that
+  is correct everywhere.
 - `applyOption()` maps the current `option` (0-3) to one of four curated
   border/background pairs with an `if`/`else` chain, not a lookup table —
   `array<T, N>` parses but isn't in the compiled subset yet either. None of
-  the four backgrounds is white(1) or yellow(7), on purpose: the labels and
+  the four backgrounds is White or Yellow, on purpose: the labels and
   digits always draw in white, and white text on a white (or nearly-white
   yellow) background is unreadable or invisible — a real bug this palette
   used to have.
