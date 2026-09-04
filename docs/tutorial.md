@@ -74,8 +74,9 @@ drawn over the canvas instead — same wording, same layout, same cadence, so
 the two read as one program rather than two demos that happen to share a
 name. It also shows a second, clearly separate number in the corner, `FPS`:
 how many times the program's own `frame()` actually ran in the last real
-second, sampled once a second. It should read ~60 no matter the display's
-actual refresh rate — that claim is checked below, not just made.
+second, sampled once a second. It should read this project's `frameRate`
+(60 by default — see `8bs.config.ts`) no matter the display's actual
+refresh rate — that claim is checked below, not just made.
 
 `package.json` has one script per target:
 
@@ -101,7 +102,7 @@ import {
     border, background, applyColors, BorderColor, BackgroundColor, screen,
 } from "@8bitscript/machine";
 
-let logicalFramesUntilTick: utinyint = 30;
+let logicalFramesUntilTick: utinyint = seconds(0.5);
 let ticks: utinyint = 0;
 let option: utinyint = 0;
 let clearCell: usmallint = 0;
@@ -168,7 +169,7 @@ export function main(): void {
 export function frame(): void {
     logicalFramesUntilTick = logicalFramesUntilTick - 1;
     if (logicalFramesUntilTick == 0) {
-        logicalFramesUntilTick = 30;
+        logicalFramesUntilTick = seconds(0.5);
 
         ticks = ticks + 1;
         screen.showDigit(5, ticks % 10);
@@ -218,23 +219,29 @@ export function frame(): void {
   exports `main`, with no `frame`, is unaffected by any of this: its `main`
   still means exactly what it always has, the whole program, looping
   forever on its own (`examples/counter`, `examples/step1-main-loop`).
-- `frame()` runs at the same real rate on every target — genuinely close to
-  60 times a second, not a per-target guess. On the VIC-20/C64 that driving
-  loop waits for the video chip's own raster line to reach the top of the
-  screen between calls — real vertical blank, 60Hz NTSC / 50Hz PAL by
-  construction, no calibrated delay constant involved. On the web it's the
-  host's fixed-timestep `requestAnimationFrame` accumulator, which drains
-  real elapsed time in fixed 1/60s steps regardless of the display's actual
-  refresh rate — 60Hz, 120Hz, 144Hz, 50Hz, whatever it is — so `frame()`
-  lands at the same rate on every screen this runs on.
+- `frame()` runs at the same real rate on every target — this project's
+  configured `frameRate` (`8bs.config.ts`, default 60), not a per-target
+  guess and not the display's own refresh rate. On the VIC-20/C64 that
+  driving loop waits for the video chip's own raster line to reach the top
+  of the screen between calls — real vertical blank, 60Hz NTSC / 50Hz PAL by
+  construction — and drains a fixed-point accumulator of `frameRate` logical
+  frames owed against it, no calibrated delay constant involved. On the web
+  it's the host's fixed-timestep `requestAnimationFrame` accumulator, which
+  drains real elapsed time in fixed `1/frameRate` steps regardless of the
+  display's actual refresh rate — 60Hz, 120Hz, 144Hz, 50Hz, whatever it is —
+  so `frame()` lands at the same rate on every screen this runs on.
   `logicalFramesUntilTick`, `ticks`, and `option` are ordinary globals —
   there are no local variables yet, so every value a function needs to
   remember across calls lives at module scope.
-- `ticks` is deliberately not called `frames`: `frame()` runs ~60 times a
-  second, but the gate above only lets `ticks` advance once every 30 of
-  those calls — about twice a second. "TICK" is what `screen.showDigit()`'s
-  label reads for exactly that reason: a real frame counter would move 30x
-  faster than what's on screen.
+- `ticks` is deliberately not called `frames`: `frame()` runs `frameRate`
+  times a second, but the gate above only lets `ticks` advance once every
+  `seconds(0.5)` worth of those calls — about twice a second, whatever
+  `frameRate` is set to. `seconds(0.5)` is a compile-time constant that folds
+  to the exact frame count half a second takes (30 at the default 60, 25 at
+  a configured 50) — not a raw frame count written by hand, so the tick rate
+  never has to be recomputed by hand if `frameRate` changes. "TICK" is what
+  `screen.showDigit()`'s label reads for exactly that reason: a real frame
+  counter would move much faster than what's on screen.
 - `screen.putChar(cell, code)` and `screen.putColor(cell, color)` poke one
   character cell's code and one cell's colour — a flat cell index, not the
   `x`/`y` `screen.putChar` still on the roadmap (see `docs/roadmap.md`) —
@@ -273,15 +280,18 @@ export function frame(): void {
 
 ## Make a change
 
-Edit `logicalFramesUntilTick`'s starting value — `30` — to something larger
-or smaller, then rebuild and run again:
+Edit `seconds(0.5)`'s argument — the two places `logicalFramesUntilTick` uses
+it — to something larger or smaller, then rebuild and run again:
 
 ```bash
 pnpm start
 ```
 
-A larger value slows the tick counter down; a smaller one speeds it up (try
-`6` for a snappier five ticks a second). Try changing one of
+A larger duration slows the tick counter down; a smaller one speeds it up
+(try `seconds(0.1)` for a snappier five ticks a second). This still works
+out to the right frame count no matter what `frameRate` this project is
+configured for — that's the whole point of writing a duration instead of a
+raw frame count. Try changing one of
 `applyOption()`'s colour pairs — option 0's `background = 3;`, say — to
 another value, or add a fifth `else if` case and bump `frame()`'s
 `option == 4` to `== 5`, and watch a new option join the rotation.

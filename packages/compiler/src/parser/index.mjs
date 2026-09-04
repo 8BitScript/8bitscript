@@ -499,8 +499,12 @@ class Parser {
       this.next();
       while (!this.atEnd && !this.at('>')) {
         const argToken = this.peek();
-        // An array length is a value, not a type: `array<u8, 16>`.
-        if (argToken?.kind === TokenKind.Number) {
+        // An array length is a value, not a type: `array<u8, 16>`. A decimal
+        // literal (`array<u8, 0.5>`) is never a valid length — fall through
+        // to parseType() below, which reports a plain "expected a type"
+        // diagnostic instead of building a bogus IntegerLiteral from a
+        // fractional token's integer-only fields.
+        if (argToken?.kind === TokenKind.Number && !argToken.isDecimal) {
           this.next();
           typeArguments.push(
             node(NodeType.IntegerLiteral, argToken.start, argToken.start + argToken.length, {
@@ -648,6 +652,11 @@ class Parser {
 
     if (token.kind === TokenKind.Number) {
       this.next();
+      if (token.isDecimal) {
+        return node(NodeType.DecimalLiteral, token.start, end, {
+          numerator: token.numerator, denominator: token.denominator, raw: token.text,
+        });
+      }
       return node(NodeType.IntegerLiteral, token.start, end, {
         value: token.value, raw: token.text, radix: token.radix,
       });

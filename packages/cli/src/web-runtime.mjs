@@ -5,14 +5,15 @@
 // A wasm's exported `frame()` (see examples/borders/src/main.8bs, or any
 // other program that exports one — this host is generic, not specific to
 // borders) is called once per *logical* tick, not once per rAF callback. rAF
-// fires at
-// whatever rate the display actually refreshes — 60Hz, 120Hz, 144Hz, 50Hz —
-// and a program should not have to know or care which. So the host
-// accumulates real elapsed time and drains it in fixed 1/60s steps: on a
-// 60Hz screen that is one frame() per callback, on 120Hz it is one every
-// other callback, on 50Hz it is sometimes two. One build runs correctly
-// anywhere, which is the point — there is no web equivalent of --pal because
-// nothing here is tied to a machine's real refresh rate to begin with.
+// fires at whatever rate the display actually refreshes — 60Hz, 120Hz, 144Hz,
+// 50Hz — and a program should not have to know or care which. So the host
+// accumulates real elapsed time and drains it in fixed steps of the
+// project's configured `frameRate` (8bs.config.ts, default 60): on a screen
+// that refreshes at exactly that rate it's one frame() per callback, on a
+// faster screen it's one every other callback (or less often), on a slower
+// one it's sometimes two. One build runs correctly anywhere, which is the
+// point — there is no web equivalent of --pal because nothing here is tied
+// to a machine's real refresh rate to begin with.
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 
@@ -29,8 +30,6 @@ export const COLORS = [
   '#8b5429', '#574200', '#b86962', '#505050',
   '#787878', '#94e089', '#7869c4', '#9f9f9f',
 ];
-
-const LOGICAL_HZ = 60;
 
 // The character grid is the C64's own 40×25 of 8×8 cells — 320×200, the
 // same shape @8bitscript/web's virtual screen uses. The coloured border sits
@@ -57,7 +56,7 @@ const SCREEN_H = INNER_H + BORDER_PX * 2;
 export const CHAR_BASE = 2;
 export const COLOR_BASE = 1002;
 
-function renderHtml() {
+function renderHtml(frameRate) {
   return `<!doctype html>
 <html>
 <head>
@@ -97,7 +96,7 @@ function renderHtml() {
 <div id="fps">FPS --</div>
 <script>
 const COLORS = ${JSON.stringify(COLORS)};
-const LOGICAL_STEP_MS = 1000 / ${LOGICAL_HZ};
+const LOGICAL_STEP_MS = 1000 / ${frameRate};
 const BORDER_PX = ${BORDER_PX};
 const GRID_COLS = ${GRID_COLS};
 const GRID_ROWS = ${GRID_ROWS};
@@ -156,10 +155,11 @@ async function boot() {
   const mem = new Uint8Array(instance.exports.memory.buffer);
 
   // How many times frame() actually ran in the last real second — the
-  // number that answers "is the fixed 60Hz logical step (LOGICAL_HZ above)
-  // actually landing 60 logical frames a second," independent of whatever
-  // Hz the display itself happens to refresh at. Sampled once a second, not
-  // redrawn every rAF, so the digits on screen don't flicker every frame.
+  // number that answers "is the fixed logical step (LOGICAL_STEP_MS above)
+  // actually landing the configured frameRate's worth of logical frames a
+  // second," independent of whatever Hz the display itself happens to
+  // refresh at. Sampled once a second, not redrawn every rAF, so the digits
+  // on screen don't flicker every frame.
   let logicalFrameCount = 0;
   let logicalFpsWindowStart = null;
   let logicalFps = 0;
@@ -259,15 +259,17 @@ function openBrowser(url) {
  * there is no window-close signal to wait on the way VICE gives run.mjs one.
  *
  * @param {Buffer} wasmBytes
- * @param {{ open?: boolean }} [options] Spawn the OS browser (default true).
- *   An editor's own embedded browser (VS Code/Cursor's "Simple Browser: Show")
- *   has no terminal-invokable equivalent — it is a command inside the editor,
- *   not a URI or CLI flag — so the printed URL is always the fallback; pass
- *   `open: false` to skip the OS browser and use only that.
+ * @param {{ open?: boolean, frameRate?: number }} [options] `open` spawns the
+ *   OS browser (default true). An editor's own embedded browser (VS
+ *   Code/Cursor's "Simple Browser: Show") has no terminal-invokable
+ *   equivalent — it is a command inside the editor, not a URI or CLI flag —
+ *   so the printed URL is always the fallback; pass `open: false` to skip
+ *   the OS browser and use only that. `frameRate` is the logical Hz
+ *   frame() is paced at (default 60, see 8bs.config.ts).
  * @returns {Promise<number>} exit code
  */
-export async function runInBrowser(wasmBytes, { open = true } = {}) {
-  const html = renderHtml();
+export async function runInBrowser(wasmBytes, { open = true, frameRate = 60 } = {}) {
+  const html = renderHtml(frameRate);
   const server = createServer((req, res) => {
     if (req.url === '/') {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });

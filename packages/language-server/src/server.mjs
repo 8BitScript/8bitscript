@@ -7,7 +7,9 @@
 // Despite the package names, `vscode-languageserver` is an editor-agnostic LSP
 // implementation. This server speaks the protocol over stdio, so any client
 // that speaks LSP can drive it: `8bs lsp --stdio` is all an editor needs.
-import { fileURLToPath } from 'node:url';
+import { existsSync, statSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import {
   createConnection,
@@ -26,6 +28,50 @@ const SEVERITY = {
   error: DiagnosticSeverity.Error,
   warning: DiagnosticSeverity.Warning,
 };
+
+/**
+ * Walk upward from `dir` looking for 8bs.config.ts, so a document opened
+ * from src/ (or deeper) still finds its project's config. Stops at the
+ * filesystem root.
+ */
+function findConfigPath(dir) {
+  let current = dir;
+  for (;;) {
+    const candidate = join(current, '8bs.config.ts');
+    if (existsSync(candidate)) return candidate;
+    const parent = dirname(current);
+    if (parent === current) return null;
+    current = parent;
+  }
+}
+
+/**
+ * The project's `frameRate` (8bs.config.ts, default 60) for the document at
+ * `filePath` — so `seconds(...)` diagnostics in the editor agree with what
+ * `8bs build`/`8bs check` would actually report, the same invariant this
+ * file's header comment already promises for every other diagnostic.
+ *
+ * Mirrors packages/cli/src/config.mjs's resolveFrameRate, duplicated rather
+ * than imported: `@8bitscript/cli` already depends on this package (`8bs lsp
+ * --stdio`), so importing it back here would cycle.
+ *
+ * The `?t=<mtime>` on the dynamic import is a cache-buster: Node's ESM
+ * loader otherwise caches a resolved file URL for the life of the process,
+ * so an edited 8bs.config.ts would need a server restart to take effect
+ * without it.
+ */
+async function frameRateFor(filePath) {
+  const configPath = findConfigPath(dirname(filePath));
+  if (!configPath) return 60;
+  try {
+    const { mtimeMs } = statSync(configPath);
+    const module = await import(`${pathToFileURL(configPath).href}?t=${mtimeMs}`);
+    const frameRate = module.default?.frameRate;
+    return Number.isInteger(frameRate) && frameRate > 0 ? frameRate : 60;
+  } catch {
+    return 60;
+  }
+}
 
 export function start() {
   const connection = createConnection(ProposedFeatures.all);
@@ -49,8 +95,9 @@ export function start() {
    * `file:` documents. An untitled buffer still gets every lexical and checker
    * diagnostic; it just cannot be asked whether its imports exist.
    */
-  const validate = (document) => {
+  const validate = async (document) => {
     const text = document.getText();
+    const { version } = document;
     let path = null;
     if (document.uri.startsWith('file://')) {
       try {
@@ -59,8 +106,17 @@ export function start() {
         path = null;
       }
     }
+    const frameRate = path ? await frameRateFor(path) : 60;
+    // Two things can happen while frameRateFor() awaits the filesystem: a
+    // newer edit can land (the TextDocument is mutated in place, not
+    // replaced, so `document.version` — not object identity — is what
+    // reveals that), or the document can close (onDidClose already
+    // published empty diagnostics for it; publishing again here would
+    // resurrect them). Either way, an out-of-order publish would be wrong.
+    if (document.version !== version || documents.get(document.uri) !== document) return;
     const diagnostics = analyze(text, path ?? document.uri, {
       resolveImports: path !== null,
+      frameRate,
     }).map((d) => ({
       severity: SEVERITY[d.severity] ?? DiagnosticSeverity.Error,
       range: {

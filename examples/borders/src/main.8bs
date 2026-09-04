@@ -5,7 +5,7 @@ import {
     border, background, applyColors, BorderColor, BackgroundColor, screen,
 } from "@8bitscript/machine";
 
-let logicalFramesUntilTick: utinyint = 30; // 30 frames at 60Hz = half a second
+let logicalFramesUntilTick: utinyint = seconds(0.5); // half a second, exact at this project's frameRate (8bs.config.ts)
 let ticks: utinyint = 0;
 let option: utinyint = 0;
 let clearCell: usmallint = 0; // global: no local variables yet
@@ -75,7 +75,7 @@ export function main(): void {
 export function frame(): void {
     logicalFramesUntilTick = logicalFramesUntilTick - 1;
     if (logicalFramesUntilTick == 0) {
-        logicalFramesUntilTick = 30;
+        logicalFramesUntilTick = seconds(0.5);
 
         ticks = ticks + 1;
         screen.showDigit(5, ticks % 10);

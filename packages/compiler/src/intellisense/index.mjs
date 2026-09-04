@@ -3,8 +3,9 @@
 // The repository has no binder yet, so there is no symbol table to resolve a
 // user's own variables or functions against. What *can* be answered honestly
 // today is "what does this piece of built-in syntax mean" — a primitive type,
-// `volatile`, `ptr`, `array`, `asm6502`, `@address` — because the compiler
-// already knows all of it statically, independent of any particular program.
+// `volatile`, `ptr`, `array`, `asm6502`, `@address`, `memory.read`/
+// `memory.write`, `seconds(...)` — because the compiler already knows all of
+// it statically, independent of any particular program.
 //
 // This module is that answer, expressed as a small position-based API
 // (`getHoverInfo`, `getCompletions`) that an editor-protocol layer can call
@@ -118,6 +119,17 @@ const CONSTRUCT_DOCS = {
   },
 };
 
+/** `seconds(...)`: the compile-time duration builtin (packages/compiler/src/fold). */
+const SECONDS_DOC = [
+  '**seconds(n)**',
+  '',
+  'Compile-time duration. `n` is an integer or decimal literal — `seconds(1)`, `seconds(0.5)` — never a variable or expression.',
+  '',
+  'Folds at compile time to however many `frame()` calls that duration takes at this project\'s configured `frameRate` (`8bs.config.ts`, default 60) — `seconds(0.5)` becomes `30` at the default rate, `25` at a configured 50. Always a plain integer once compiled: no runtime division, no floating point.',
+  '',
+  'Reserved: a variable, function, parameter, or import named `seconds` is a compile error.',
+].join('\n');
+
 /** `memory.read`/`memory.write`: the one namespace the compiler recognises itself. */
 const MEMORY_DOCS = {
   write: [
@@ -152,10 +164,11 @@ function tokenIndexAt(tokens, offset) {
  *
  * Recognises primitive integer types (canonical spellings like `utinyint` and
  * `int`, or their low-level `u8`/`i32`-style aliases),
- * `volatile`/`ptr`/`array`, `asm6502`, `@address`, and the `memory.read`/
- * `memory.write` intrinsic — every built-in this milestone documents.
- * Anything else, including a user's own identifiers or namespace, returns
- * `null`: there is no binder yet to say what they mean.
+ * `volatile`/`ptr`/`array`, `asm6502`, `@address`, the `memory.read`/
+ * `memory.write` intrinsic, and the `seconds(...)` duration builtin — every
+ * built-in this milestone documents. Anything else, including a user's own
+ * identifiers or namespace, returns `null`: there is no binder yet to say
+ * what they mean.
  *
  * @param {string} text
  * @param {number} offset
@@ -191,6 +204,13 @@ export function getHoverInfo(text, offset) {
     if (dot?.text === '.' && object?.kind === TokenKind.Identifier && object.text === 'memory') {
       return { start: token.start, length: token.length, markdown: MEMORY_DOCS[token.text] };
     }
+  }
+
+  // `seconds` is reserved (see checker/index.mjs's RESERVED_BUILTIN_NAMES),
+  // so unlike memory.read/write there is no namespace to require — any bare
+  // occurrence of the identifier means the builtin, not a user's own name.
+  if (token.kind === TokenKind.Identifier && token.text === 'seconds') {
+    return { start: token.start, length: token.length, markdown: SECONDS_DOC };
   }
 
   return null;
