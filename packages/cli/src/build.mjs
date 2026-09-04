@@ -14,7 +14,11 @@
 // for why that still means picking a whole machine model rather than just a
 // sync-factor flag. It only applies to targets with a real region split
 // (see REGION_TARGETS below); it's silently ignored everywhere else, the
-// same as it already was for web.
+// same as it already was for web. "NTSC (60Hz)" above is the emulator's real
+// hardware region, not the language's logical frame() rate — that's a
+// separate, project-level setting (`frameRate` in 8bs.config.ts, default 60,
+// see packages/backend-6502's FRAME_SYNC and examples/borders/README.md),
+// unaffected by --pal.
 //
 // --profile picks a hardware profile — a named bundle of settings for
 // hardware that composes on top of the base target, same idea for every
@@ -44,12 +48,13 @@
 // (atari8's profile always does — see the comment beside nameParts below).
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { basename, join, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { basename, resolve } from 'node:path';
 
 import {
   MACHINES, isVariantPath, link, positionAt, variantOf,
 } from '@8bitscript/compiler';
+
+import { loadConfig, resolveFrameRate } from './config.mjs';
 
 const TARGETS = new Set(MACHINES);
 
@@ -58,22 +63,6 @@ const TARGETS = new Set(MACHINES);
 // — the only ones where --pal changes anything, or where a region suffix on
 // the output filename means anything.
 const REGION_TARGETS = new Set(['vic20', 'c64', 'c128', 'mega65', 'atari8']);
-
-/**
- * The project's 8bs.config.ts, if present. Node 26 imports TypeScript with
- * type stripping, so the config is an ordinary module, not a parsed format.
- */
-async function loadConfig(dir) {
-  const path = join(dir, '8bs.config.ts');
-  if (!existsSync(path)) return null;
-  try {
-    const module = await import(pathToFileURL(path).href);
-    return module.default ?? null;
-  } catch (error) {
-    process.stderr.write(`8bs build: cannot load 8bs.config.ts: ${error.message}\n`);
-    return null;
-  }
-}
 
 // Diagnostics may come from any module in the import graph, so each one is
 // rendered against its own file's text, not the entry's.
@@ -117,14 +106,23 @@ export function resolveEntryPath(config, target, entryArg) {
  *
  * @param {'vic20'|'c64'|'pet'|'c128'|'atari8'|'nes'|'cx16'|'mega65'|'web'} target
  * @param {string} [entryArg]
- * @param {{ pal?: boolean, profile?: string }} [options] NTSC (60Hz) unless
- *   pal is true; ignored outside REGION_TARGETS. `profile` only matters for
- *   atari8 (defaults to 800xl), vic20 (defaults to unexpanded), and c64
- *   (defaults to stock); ignored elsewhere.
- * @returns {Promise<{ ok: boolean, outFile?: string }>}
+ * @param {{ pal?: boolean, profile?: string }} [options] `pal` selects the
+ *   real hardware/emulator region (NTSC unless true; ignored outside
+ *   REGION_TARGETS) — it does not affect the logical frame() rate, which is
+ *   read from 8bs.config.ts's `frameRate` instead (default 60). `profile`
+ *   only matters for atari8 (defaults to 800xl), vic20 (defaults to
+ *   unexpanded), and c64 (defaults to stock); ignored elsewhere.
+ * @returns {Promise<{ ok: boolean, outFile?: string, frameRate?: number }>}
  */
 export async function compile(target, entryArg, { pal = false, profile } = {}) {
-  const config = await loadConfig(process.cwd());
+  const config = await loadConfig(process.cwd(), '8bs build');
+
+  const frameRateResult = resolveFrameRate(config);
+  if (!frameRateResult.ok) {
+    process.stderr.write(`8bs build: ${frameRateResult.error}\n`);
+    return { ok: false };
+  }
+  const { frameRate } = frameRateResult;
 
   const retired = RETIRED_TARGET.exec(target ?? '');
   if (retired) {
@@ -187,7 +185,7 @@ export async function compile(target, entryArg, { pal = false, profile } = {}) {
   // imports, then merges the graph into one program. Any error in any module
   // means no build. The machine rides along so packages with target-
   // conditional entries resolve to this machine's implementation.
-  const { ir, diagnostics, sources } = link(text, entry, { machine: target });
+  const { ir, diagnostics, sources } = link(text, entry, { machine: target, frameRate });
   if (diagnostics.length > 0) {
     printDiagnostics(diagnostics, sources);
     process.stdout.write(`${diagnostics.length} problem(s); not building.\n`);
@@ -209,7 +207,7 @@ export async function compile(target, entryArg, { pal = false, profile } = {}) {
       return { ok: false };
     }
     process.stdout.write(`built ${outFile}\n(generated AssemblyScript: ${result.asFile})\n`);
-    return { ok: true, outFile };
+    return { ok: true, outFile, frameRate };
   }
 
   const { buildPrg, outputExtension } = await import('@8bitscript/backend-6502');
@@ -226,14 +224,14 @@ export async function compile(target, entryArg, { pal = false, profile } = {}) {
   const ext = outputExtension(target, atari8Profile);
   const outFile = resolve('dist', `${nameParts.join('-')}.${ext}`);
   const result = await buildPrg(ir, {
-    machine: target, atari8Profile, vic20Profile, c64Profile, outFile,
+    machine: target, atari8Profile, vic20Profile, c64Profile, outFile, frameRate,
   });
   if (!result.ok) {
     process.stderr.write(`8bs build: ${result.error}\n`);
     return { ok: false };
   }
   process.stdout.write(`built ${outFile}\n(generated C: ${result.cFile})\n`);
-  return { ok: true, outFile };
+  return { ok: true, outFile, frameRate };
 }
 
 /** @returns {Promise<number>} exit code */

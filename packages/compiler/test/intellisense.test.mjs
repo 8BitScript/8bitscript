@@ -108,6 +108,24 @@ test('hover does not fire on read/write unless qualified by memory.', () => {
   assert.equal(getHoverInfo(text, at(text, 'write')), null);
 });
 
+test('hover explains seconds(...)', () => {
+  const text = 'let x: utinyint = seconds(0.5);';
+  const info = getHoverInfo(text, at(text, 'seconds'));
+  assert.ok(info);
+  assert.match(info.markdown, /Compile-time duration/);
+  assert.match(info.markdown, /seconds\(0\.5\)/);
+  assert.match(info.markdown, /frameRate/);
+  assert.match(info.markdown, /8bs\.config\.ts/);
+  assert.match(info.markdown, /Reserved/);
+});
+
+test('hover on seconds does not require a valid call — helps a reader mid-edit too', () => {
+  const text = 'let x: utinyint = seconds();';
+  const info = getHoverInfo(text, at(text, 'seconds'));
+  assert.ok(info);
+  assert.match(info.markdown, /Compile-time duration/);
+});
+
 test('hover on an unrelated identifier returns nothing: there is no binder yet', () => {
   const text = 'let myCounter: u8 = 0;';
   assert.equal(getHoverInfo(text, at(text, 'myCounter')), null);

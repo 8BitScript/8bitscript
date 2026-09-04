@@ -1,6 +1,8 @@
 // The checker.
 //
-// One rule so far: an integer literal has to fit the type it is assigned to.
+// Two rules so far: an integer literal has to fit the type it is assigned
+// to, and `seconds` — the `seconds(...)` compile-time duration builtin's
+// name (packages/compiler/src/fold) — is reserved.
 //
 // This used to pattern-match a fixed token shape because there was no tree to
 // walk. It now runs on the AST, which is what the parser bought: the rule finds
@@ -16,6 +18,23 @@
 import { Codes, diagnostic } from '../diagnostics/index.mjs';
 import { NodeType, walk } from '../ast/index.mjs';
 import { resolveIntegerType } from '../types/index.mjs';
+
+// `seconds` has no per-machine backing and is not imported from
+// @8bitscript/machine — it is a pure compile-time fold, closer to a keyword
+// than to an ordinary name, but implemented as a reserved identifier rather
+// than a grammar keyword (see foldDurations() in packages/compiler/src/
+// fold for why). A user declaring or importing a binding by this name would
+// otherwise be silently reinterpreted by the fold pass instead of getting a
+// clear diagnostic.
+const RESERVED_BUILTIN_NAMES = new Set(['seconds']);
+
+function reservedNameDiagnostic(nameNode, file) {
+  return diagnostic(
+    Codes.RESERVED_BUILTIN_NAME,
+    `'${nameNode.name}' is reserved for the built-in duration constructor, seconds(...)`,
+    file, nameNode.start, nameNode.length,
+  );
+}
 
 /**
  * The constant value of an initialiser, or null when it is not a plain literal.
@@ -51,7 +70,27 @@ export function check(ast, file = '<unknown>') {
   if (!ast) return diagnostics;
 
   walk(ast, (n) => {
+    if (n.type === NodeType.ImportDeclaration) {
+      for (const specifier of n.specifiers) {
+        if (RESERVED_BUILTIN_NAMES.has(specifier.name)) {
+          diagnostics.push(reservedNameDiagnostic(specifier, file));
+        }
+      }
+      return;
+    }
+
+    if (n.type === NodeType.FunctionDeclaration || n.type === NodeType.Parameter) {
+      if (n.name && RESERVED_BUILTIN_NAMES.has(n.name.name)) {
+        diagnostics.push(reservedNameDiagnostic(n.name, file));
+      }
+      return;
+    }
+
     if (n.type !== NodeType.VariableDeclaration) return;
+
+    if (n.name && RESERVED_BUILTIN_NAMES.has(n.name.name)) {
+      diagnostics.push(reservedNameDiagnostic(n.name, file));
+    }
 
     const typeName = n.typeAnnotation?.name;
     // A type constructor such as ptr<u8> has type arguments and is not itself

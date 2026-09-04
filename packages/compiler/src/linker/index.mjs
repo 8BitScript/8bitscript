@@ -31,6 +31,7 @@ import { readFileSync, realpathSync } from 'node:fs';
 import { tokenize } from '../lexer/index.mjs';
 import { parse } from '../parser/index.mjs';
 import { check } from '../checker/index.mjs';
+import { foldDurations } from '../fold/index.mjs';
 import { lower } from '../ir/index.mjs';
 import { resolveSpecifier } from '../resolver/index.mjs';
 import { Codes, diagnostic } from '../diagnostics/index.mjs';
@@ -45,10 +46,16 @@ function canonical(path) {
 }
 
 /** Run the pure front end over one module's text. */
-function loadModule(file, text, diagnostics) {
+function loadModule(file, text, diagnostics, frameRate) {
   const { tokens, diagnostics: lexical } = tokenize(text, file);
   const { ast, diagnostics: syntax } = parse(tokens, text, file);
-  diagnostics.push(...lexical, ...syntax, ...check(ast, file));
+  diagnostics.push(...lexical, ...syntax);
+  // Folding runs before check(): a seconds(...) call needs to already be a
+  // plain IntegerLiteral by the time the width-fit rule walks the tree, so
+  // e.g. seconds(100) overflowing a utinyint gets that diagnostic for free,
+  // with no separate rule duplicating it here.
+  diagnostics.push(...foldDurations(ast, file, frameRate));
+  diagnostics.push(...check(ast, file));
   const { ir, diagnostics: lowering } = lower(ast, file);
   diagnostics.push(...lowering);
   return { file, ir };
@@ -70,7 +77,7 @@ function loadGraph(entryText, entryFile, diagnostics, sources, options) {
   const nativeSources = new Map();
 
   const enqueue = (file, text) => {
-    const module = loadModule(file, text, diagnostics);
+    const module = loadModule(file, text, diagnostics, options.frameRate);
     modules.push(module);
     byPath.set(canonical(file), module);
     sources.set(file, text);
@@ -405,10 +412,13 @@ function rewriteStatement(statement, scope, module, diagnostics) {
  *
  * @param {string} entryText  The entry module's source.
  * @param {string} entryFile  Its absolute path, the root imports resolve from.
- * @param {{ machine?: string }} [options]
- *   The machine being built for; packages with target-conditional entries
- *   resolve to that machine's implementation, and any `.8bs` file with a
- *   `.<machine>.8bs` twin beside it resolves to the twin.
+ * @param {{ machine?: string, frameRate?: number }} [options]
+ *   `machine` is the target being built for; packages with target-
+ *   conditional entries resolve to that machine's implementation, and any
+ *   `.8bs` file with a `.<machine>.8bs` twin beside it resolves to the
+ *   twin. `frameRate` (default 60) is the project's logical frame() rate —
+ *   see 8bs.config.ts — that every `seconds(...)` call in the graph folds
+ *   against.
  * @returns {{ ir: object|null, diagnostics: object[], sources: Map<string,string> }}
  */
 export function link(entryText, entryFile, options = {}) {

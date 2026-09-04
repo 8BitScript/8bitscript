@@ -183,13 +183,15 @@ export async function run(args) {
   }
   const entry = positionals[1];
 
-  const { ok, outFile } = await compile(target, entry, { pal, profile });
+  const { ok, outFile, frameRate } = await compile(target, entry, { pal, profile });
   if (!ok) return 1;
 
   if (screenshotPath) {
     const { captureScreenshot } = await import('./screenshot.mjs');
     try {
-      await captureScreenshot(target, outFile, screenshotPath, { pal, profile, frames });
+      await captureScreenshot(target, outFile, screenshotPath, {
+        pal, profile, frames, frameRate,
+      });
     } catch (err) {
       process.stderr.write(`${err.message}\n`);
       return 1;
@@ -211,7 +213,7 @@ export async function run(args) {
     // original one-shot behaviour instead.
     if (typeof instance.exports.frame === 'function') {
       const { runInBrowser } = await import('./web-runtime.mjs');
-      return runInBrowser(bytes, { open });
+      return runInBrowser(bytes, { open, frameRate });
     }
     instance.exports.main();
     process.stdout.write('ran main(); exported state afterwards:\n');
