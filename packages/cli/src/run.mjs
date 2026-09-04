@@ -44,7 +44,9 @@
 //                        Show" command), which no CLI can open unattended:
 //                        that command only exists inside the editor, with
 //                        no terminal-invokable equivalent
-import { readFile } from 'node:fs/promises';
+import { homedir, tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { readFile, writeFile } from 'node:fs/promises';
 
 import { compile } from './build.mjs';
 
@@ -101,6 +103,36 @@ const ATARI8_MODEL_ARG = {
   400: '-atari',
   xegs: '-xegs',
 };
+
+// atari800's SDL2 OpenGL shader (atari800-shader.frag) defaults
+// CRT_BEAM_SHAPE=10, which spreads each emulated pixel with a Gaussian
+// falloff — visible as dark vertical stripes across the whole frame,
+// border included, on top of the ordinary horizontal scanline overlay.
+// There is no CLI flag for that uniform (only SCANLINES_PERCENTAGE has
+// `-scanlines`), so `8bs run` copies the user's ~/.atari800.cfg, zeros
+// the CRT knobs, and points `-config` at the copy with `-no-autosave-config`
+// so the user's own file is left alone. ROM paths stay whatever the user
+// already configured; without those the emulator boots to black.
+async function atari800CleanDisplayConfig() {
+  let cfg;
+  try {
+    cfg = await readFile(join(homedir(), '.atari800.cfg'), 'utf8');
+  } catch {
+    return null;
+  }
+  const setKey = (text, key, value) => {
+    const re = new RegExp(`^${key}=.*$`, 'm');
+    if (re.test(text)) return text.replace(re, `${key}=${value}`);
+    return `${text.trimEnd()}\n${key}=${value}\n`;
+  };
+  cfg = setKey(cfg, 'CRT_BEAM_SHAPE', '0');
+  cfg = setKey(cfg, 'CRT_PHOSPHOR_GLOW', '0');
+  cfg = setKey(cfg, 'SCANLINES_PERCENTAGE', '0');
+  cfg = setKey(cfg, 'INTERPOLATE_SCANLINES', '0');
+  const outPath = join(tmpdir(), '8bs-atari800.cfg');
+  await writeFile(outPath, cfg);
+  return outPath;
+}
 
 // xvic's own -memory spec strings (confirmed against `xvic -help`:
 // "none/3k/8k/16k/24k/all") for each VIC20_PROFILES name. 'unexpanded' maps
@@ -190,17 +222,25 @@ export async function run(args) {
   } else if (target === 'atari8') {
     const atari8Profile = profile ?? ATARI8_DEFAULT_PROFILE;
     emulator = 'atari800';
+    // atari800's TV-area visible size (DOC/USAGE -horiz-area/-vert-area):
+    // 336 wide, 224 tall on NTSC and 240 tall on PAL. The emulator opens
+    // at 1x of that — a postage stamp on any modern display — and unlike
+    // VICE it has no larger default of its own. 3x is a window worth
+    // looking at on a 1080p screen and still an exact integer scale, which
+    // is what atari800's own default INTEGRAL stretch wants: a non-multiple
+    // just letterboxes the same small image inside a bigger window.
+    const tvHeight = pal ? 240 : 224;
+    const displayCfg = await atari800CleanDisplayConfig();
     emulatorArgs = [
+      ...(displayCfg ? ['-config', displayCfg, '-no-autosave-config'] : []),
       ATARI8_MODEL_ARG[atari8Profile],
       pal ? '-pal' : '-ntsc',
-      // atari800 opens at its emulated resolution — 336x240 — which on any
-      // modern display is a postage stamp you have to lean in to read, and
-      // unlike VICE it has no larger default of its own. 3x that (1008x720)
-      // is a window worth looking at on a 1080p screen and still an exact
-      // integer scale, which is what atari800's own default INTEGRAL
-      // stretch wants: a non-multiple just letterboxes the same small image
-      // inside a bigger window.
-      '-win-width', '1008', '-win-height', '720',
+      '-horiz-area', 'tv',
+      '-vert-area', 'tv',
+      '-stretch', 'integral',
+      '-scanlines', '0',
+      '-win-width', String(336 * 3),
+      '-win-height', String(tvHeight * 3),
       atari8Profile === 'xegs' ? '-cart' : '-run',
       outFile,
     ];

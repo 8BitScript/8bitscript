@@ -7,6 +7,7 @@ import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { tokenize, parse, lower } from '@8bitscript/compiler';
 import {
@@ -171,3 +172,29 @@ for (const [machine, opts] of [
     }
   });
 }
+
+// The linker's `ir.nativeSources` go to the driver as extra inputs. The
+// NES font is the first real one: a .s whose bytes land in the .nes image's
+// CHR bank — checked by position, since nothing in the C could put them
+// there. iNES layout: 16-byte header, 32 KiB PRG, then 8 KiB CHR; tile $41
+// ('A') is 16 bytes at CHR + $410, its first row 0b00011000 = $18 (see
+// packages/nes/native/6502/font.s).
+test('buildPrg: nativeSources are assembled and linked — the NES font lands in CHR-ROM', { skip: !HAS_SDK && 'LLVM_MOS_HOME not set' }, async () => {
+  const font = fileURLToPath(new URL('../../nes/native/6502/font.s', import.meta.url));
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-test-'));
+  try {
+    const outFile = join(scratch, 'm.nes');
+    const ir = { ...frameIr(), nativeSources: [font] };
+    const result = await buildPrg(ir, { machine: 'nes', outFile });
+    assert.ok(result.ok, result.error);
+    const rom = await readFile(outFile);
+    assert.equal(rom.length, 16 + 32768 + 8192);
+    assert.equal(rom[5], 1); // header byte 5: CHR-ROM size in 8 KiB units
+    const chr = 16 + 32768;
+    assert.deepEqual([...rom.subarray(chr + 0x410, chr + 0x418)], [0x18, 0x3C, 0x66, 0x7E, 0x66, 0x66, 0x66, 0x00]);
+    assert.deepEqual([...rom.subarray(chr + 0x418, chr + 0x420)], [0, 0, 0, 0, 0, 0, 0, 0]); // plane 1 clear
+    assert.deepEqual([...rom.subarray(chr + 0x808, chr + 0x810)], Array(8).fill(0xFF)); // $80: solid, plane 1 set
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});

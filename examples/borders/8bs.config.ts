@@ -9,14 +9,16 @@ export default {
   // deliberately inert on hardware that has no such register (see each
   // package's own file comment).
   //
-  // atari8, cx16, and nes get their own trimmed entry instead: none of the
-  // three has a `screen` namespace yet (see each package's own file
-  // comment for why — none of them has a fixed, directly-addressable screen
-  // memory location the way the Commodore/MEGA65 targets do), so main.8bs
-  // as written would not compile for them. Each variant cycles whichever
-  // one of `border`/`background` is real on that target and drops the
-  // on-screen TICK/OPTION digit readout, at the same 2Hz tick — see each
-  // file's own header for exactly what's real and what's inert there.
+  // atari8, cx16, and nes get their own entry instead of main.8bs. All
+  // three have `screen`, but none can share main.8bs's Commodore screen
+  // codes or its 40x25 CellCount: GR.0 is ATASCII on a 40x24 grid; the
+  // NES is ASCII (its font is laid out that way) on a 32x30 grid whose
+  // outer rows a drawn frame and NTSC overscan claim, and whose screen
+  // memory is only writable at setup or in vertical blank; the X16 is
+  // ASCII too (LLVM-MOS's start-up puts the KERNAL in ISO mode) on an
+  // 80x60 grid whose last 4 columns and rows a VERA active-area inset
+  // hides. main-atari8.8bs, main-nes.8bs, and main-cx16.8bs keep the same
+  // TICK/OPTION readout with their own codes and cell positions.
   //
   // NTSC vs PAL is a --pal flag on `8bs build`/`8bs run`, not a separate
   // entry or target, for every target with a real region split (vic20,

@@ -64,6 +64,10 @@ function loadModule(file, text, diagnostics) {
 function loadGraph(entryText, entryFile, diagnostics, sources, options) {
   const modules = [];
   const byPath = new Map();
+  // A package's "8bitscript".native files (see the resolver), collected
+  // once each however many modules import the package — keyed by canonical
+  // path for the same pnpm-symlink reason `byPath` is.
+  const nativeSources = new Map();
 
   const enqueue = (file, text) => {
     const module = loadModule(file, text, diagnostics);
@@ -118,10 +122,13 @@ function loadGraph(entryText, entryFile, diagnostics, sources, options) {
         enqueue(resolved.path, text);
       }
       imp.module = byPath.get(key);
+      for (const source of resolved.native ?? []) {
+        nativeSources.set(canonical(source), source);
+      }
     }
   }
 
-  return modules;
+  return { modules, nativeSources: [...nativeSources.values()] };
 }
 
 /** Every top-level name a module declares, mapped to whether it is exported. */
@@ -406,13 +413,17 @@ export function link(entryText, entryFile, options = {}) {
   const diagnostics = [];
   const sources = new Map();
 
-  const modules = loadGraph(entryText, entryFile, diagnostics, sources, options);
+  const { modules, nativeSources } = loadGraph(entryText, entryFile, diagnostics, sources, options);
   bindImports(modules, diagnostics);
   if (diagnostics.length > 0) return { ir: null, diagnostics, sources };
 
   assignOutputNames(modules);
 
-  const ir = { imports: [], globals: [], functions: [] };
+  // `nativeSources` is not IR the backends translate — it is the list of
+  // files a backend passes through to its toolchain untouched (the 6502
+  // backend hands them to LLVM-MOS beside the generated C; the web backend
+  // has no use for 6502 assembly or CHR data and ignores it).
+  const ir = { imports: [], globals: [], functions: [], nativeSources };
   for (const module of modules) {
     const scope = new Map(module.rename);
     for (const [local, binding] of module.bindings) {

@@ -670,10 +670,17 @@ export async function buildPrg(ir, {
     ? [`-Wl,--defsym=__memory_expansion=${VIC20_MEMORY_EXPANSION[vic20ProfileResolved]}`]
     : (MACHINE_FLAGS[machine] ?? []);
 
+  // A package's "8bitscript".native files ride along after the generated C,
+  // untouched: the clang driver assembles a .s and links the object like any
+  // other input. @8bitscript/nes's CHR-ROM font is the first — data that
+  // lands in the .nes image's CHR bank through the SDK's `.chr_rom` linker
+  // section, which no construct in the generated C could reach.
+  const nativeSources = ir.nativeSources ?? [];
+
   return new Promise((resolvePromise) => {
     const child = spawn(
       driver,
-      ['-Os', ...machineFlags, '-o', outFile, cFile],
+      ['-Os', ...machineFlags, '-o', outFile, cFile, ...nativeSources],
       { stdio: ['ignore', 'pipe', 'pipe'] },
     );
     let stderr = '';

@@ -130,6 +130,7 @@ Implemented today:
 | `8BS2005` | Imported name is not exported by the module it names |
 | `8BS2006` | Imported name collides with another binding in the module |
 | `8BS2007` | Reference to a name that resolves to nothing |
+| `8BS2008` | Package declares a native source file that does not exist |
 | `8BS3001` | Valid construct the compiler cannot lower yet |
 | `8BS3002` | Construct not available on the requested target |
 
@@ -216,6 +217,18 @@ implementation at build time, and a machine the object has no branch for is
 `8BS3002`. The mechanics and the delegation form live in
 [the package model](packages.md); `@8bitscript/machine` is the working
 example.
+
+A package can also ship **native sources**: an `"8bitscript".native` list of
+files that are not 8BitScript but belong in the build — hand-written 6502
+assembly, or data no `.8bs` construct can express yet. The resolver turns
+each into an absolute path (a listed file that does not exist is `8BS2008`,
+reported at resolution time like a missing entry), the linker collects them
+across the module graph, once each, onto `ir.nativeSources`, and the 6502
+backend passes them to the LLVM-MOS driver after the generated C, untouched.
+The web backend ignores them. `@8bitscript/nes` is the working example: its
+`native/6502/font.s` is the 8 KiB CHR-ROM character set the NES has no ROM
+of its own for, placed in the SDK's `.chr_rom` linker section so it lands in
+the `.nes` image's CHR bank — see the package's `src/index.8bs` for why.
 
 ## Primitive integer types
 

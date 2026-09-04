@@ -116,6 +116,21 @@ video hardware becomes radically different while the language stays the same:
 | Atari 8-bit | ANTIC, GTIA | POKEY | |
 | NES | PPU | APU | sprites, nametables, mappers |
 
+Two of those "Other" entries are traps if taken at face value. "sprites"
+undersells the real constraint: the NES's 64 OAM entries only matter in
+relation to the *eight* the PPU can select for a single scanline — a scene
+well under 64 sprites total can still overflow if too many of them share a
+row, and a metasprite built from several hardware sprites has to be budgeted
+against that per-scanline limit, not the frame total. "mappers" undersells
+it the other way: cartridge hardware (NROM, UNROM, MMC1, MMC3, ...) changes
+how much CHR/PRG memory a program can address and how it's banked, which
+makes "the NES" a family of build profiles rather than one target — the
+same shape `--profile` already gives `atari8`, `vic20`, and `c64` in
+`packages/backend-6502`, just not yet extended to `nes`, which is hardcoded
+to the plainest cartridge shape (NROM) today. See `packages/nes/AGENTS.md`
+for the full set of NES-specific rules, and the root `AGENTS.md` for how
+this generalizes to every target.
+
 **This is where the capability system matters.** Instead of pretending every
 machine has `screen.sprite(...)`, the standard library is split into
 capabilities, and a program imports only the ones its target provides.
@@ -150,6 +165,17 @@ supports both directly. The Commander X16 is especially attractive: a 65C02,
 modern storage, and substantially richer graphics and audio hardware. cc65 also
 has a mature X16 target with dedicated hardware access, graphics, joystick,
 mouse and extended-memory support, which is a useful reference.
+
+The X16 is the mirror image of the NES trap in Phase 3. Where the NES has
+almost nothing and forces abstraction, the X16 has a great deal — 128 KiB
+of VRAM, 128 sprites, up to 2 MB of RAM, three sound engines — and nearly
+all of it sits behind an 8 KiB bank window, VERA's indirect address/data
+ports, write-only registers, a firmware API, or optional expansion
+hardware. Modelling it as "a fast C64" produces bugs that look impossible
+(a pointer into `$A000-$BFFF` means nothing without its bank; a border
+colour that never appears because the active area fills the screen).
+`packages/cx16/AGENTS.md` collects those rules, each checked against the
+emulator and ROM sources at the revisions `8bs setup cx16` installs.
 
 **Native reference machine becomes: Commander X16 first, then potentially
 MEGA65.** The tile editor that started on the C64 and moved to the C128 moves

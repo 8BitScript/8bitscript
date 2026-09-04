@@ -202,6 +202,37 @@ Installed with `pnpm add @somebody/8bs-chipmusic`, imported with
 `import { MusicPlayer } from "@somebody/8bs-chipmusic"`. Nothing about a
 third-party package is different from a first-party one.
 
+The native files are declared next to the entry, as an `"8bitscript".native`
+list of paths relative to the package:
+
+```json
+{
+  "name": "@8bitscript/nes",
+  "8bitscript": {
+    "entry": "./src/index.8bs",
+    "native": ["./native/6502/font.s"]
+  }
+}
+```
+
+This is implemented. Importing the package — directly, or through a
+delegating entry such as `@8bitscript/machine`'s — brings its native files
+into the build: the linker collects them once each across the module graph,
+and the 6502 backend hands them to the LLVM-MOS driver after the generated
+C, where a `.s` is assembled and linked like any other input. A listed file
+the package does not ship is `8BS2008`, reported where the package is
+imported. The web backend ignores the list, so a package that ships
+assembly still resolves for `web` — only the `.8bs` half of it is used
+there.
+
+`@8bitscript/nes` is the first package to need this, and for data rather
+than code: the NES has no character ROM, so a cartridge that shows text
+carries its own 8×8 tile patterns, and `native/6502/font.s` is that
+character set — 8 KiB placed in the SDK's `.chr_rom` linker section so it
+lands in the `.nes` image's CHR bank. No `.8bs` construct can express a
+block of bytes bound for a linker section yet; when one can, the font may
+move, and this field stays for the assembly it was always meant for.
+
 ## Which packages you install
 
 Only two kinds of package are meant for you:
