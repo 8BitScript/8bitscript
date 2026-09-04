@@ -1,0 +1,122 @@
+; @8bitscript/nes — the CHR-ROM character set.
+;
+; The NES has no character ROM of its own. Every Commodore machine and the
+; Atari 8-bit ship their letters and digits in a ROM the video chip reads
+; directly, so `screen.putChar` on those targets only ever writes a code
+; into screen memory. The NES PPU reads its 8x8 tile patterns from the
+; CARTRIDGE (CHR-ROM on NROM), so a cartridge that shows text has to bring
+; its own — this file is that ROM, linked into the .nes image through this
+; package's "8bitscript".native list (see package.json and docs/packages.md).
+;
+; Layout: pattern table 0 ($0000-$0FFF), 256 tiles of 16 bytes, laid out so
+; that TILE INDEX == ASCII CODE for every glyph here — space ($20), the
+; digits ($30-$39), A-Z ($41-$5A), and ! , - . : ? — so @8bitscript/nes's
+; `screen.putChar(cell, code)` writes the ASCII code straight into the
+; nametable with no translation table, the same codes examples/borders'
+; Atari variant already uses. Codes in $20-$5F with no glyph drawn render
+; blank. Tile $80 is solid colour index 2 — the tile @8bitscript/nes lays
+; around the screen edge as the drawn "border" (see index.8bs). Everything
+; else, including all of pattern table 1 ($1000-$1FFF), is blank.
+;
+; Tile format (nesdev.org/wiki/PPU_pattern_tables): 8 bytes of bitplane 0
+; then 8 bytes of bitplane 1, one byte per row, bit 7 the leftmost pixel.
+; A pixel's colour index is plane1:plane0, so a glyph with rows in plane 0
+; and zeros in plane 1 is drawn entirely in colour index 1 — palette entry
+; $3F01, the text colour applyColors() sets — and the solid tile, with zeros
+; in plane 0 and $FF in plane 1, is entirely colour index 2 ($3F02).
+; The binary literals below therefore ARE the glyph artwork: read each
+; `tile` line's eight rows top to bottom, 1 = lit.
+
+.section .chr_rom,"a"
+
+.macro tile r0, r1, r2, r3, r4, r5, r6, r7
+    .byte \r0, \r1, \r2, \r3, \r4, \r5, \r6, \r7
+    .byte 0, 0, 0, 0, 0, 0, 0, 0
+.endm
+
+; $00-$20: control codes and space — 33 blank tiles.
+.space 33 * 16
+
+; $21 '!'
+tile 0b00011000, 0b00011000, 0b00011000, 0b00011000, 0b00000000, 0b00000000, 0b00011000, 0b00000000
+
+; $22-$2B: " # $ % & ' ( ) * + — 10 blank tiles.
+.space 10 * 16
+
+; $2C ','
+tile 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00011000, 0b00011000, 0b00110000, 0b00000000
+; $2D '-'
+tile 0b00000000, 0b00000000, 0b00000000, 0b01111110, 0b00000000, 0b00000000, 0b00000000, 0b00000000
+; $2E '.'
+tile 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00011000, 0b00011000, 0b00000000
+
+; $2F '/' — blank.
+.space 16
+
+; $30-$39 '0'-'9'
+tile 0b00111100, 0b01100110, 0b01101110, 0b01110110, 0b01100110, 0b01100110, 0b00111100, 0b00000000
+tile 0b00011000, 0b00111000, 0b00011000, 0b00011000, 0b00011000, 0b00011000, 0b01111110, 0b00000000
+tile 0b00111100, 0b01100110, 0b00000110, 0b00001100, 0b00110000, 0b01100000, 0b01111110, 0b00000000
+tile 0b00111100, 0b01100110, 0b00000110, 0b00011100, 0b00000110, 0b01100110, 0b00111100, 0b00000000
+tile 0b00001100, 0b00011100, 0b00111100, 0b01101100, 0b01111110, 0b00001100, 0b00001100, 0b00000000
+tile 0b01111110, 0b01100000, 0b01111100, 0b00000110, 0b00000110, 0b01100110, 0b00111100, 0b00000000
+tile 0b00111100, 0b01100000, 0b01111100, 0b01100110, 0b01100110, 0b01100110, 0b00111100, 0b00000000
+tile 0b01111110, 0b00000110, 0b00001100, 0b00011000, 0b00110000, 0b00110000, 0b00110000, 0b00000000
+tile 0b00111100, 0b01100110, 0b01100110, 0b00111100, 0b01100110, 0b01100110, 0b00111100, 0b00000000
+tile 0b00111100, 0b01100110, 0b01100110, 0b00111110, 0b00000110, 0b00001100, 0b00111000, 0b00000000
+
+; $3A ':'
+tile 0b00000000, 0b00011000, 0b00011000, 0b00000000, 0b00011000, 0b00011000, 0b00000000, 0b00000000
+
+; $3B-$3E: ; < = > — 4 blank tiles.
+.space 4 * 16
+
+; $3F '?'
+tile 0b00111100, 0b01100110, 0b00000110, 0b00001100, 0b00011000, 0b00000000, 0b00011000, 0b00000000
+
+; $40 '@' — blank.
+.space 16
+
+; $41-$5A 'A'-'Z'
+tile 0b00011000, 0b00111100, 0b01100110, 0b01111110, 0b01100110, 0b01100110, 0b01100110, 0b00000000
+tile 0b01111100, 0b01100110, 0b01100110, 0b01111100, 0b01100110, 0b01100110, 0b01111100, 0b00000000
+tile 0b00111100, 0b01100110, 0b01100000, 0b01100000, 0b01100000, 0b01100110, 0b00111100, 0b00000000
+tile 0b01111000, 0b01101100, 0b01100110, 0b01100110, 0b01100110, 0b01101100, 0b01111000, 0b00000000
+tile 0b01111110, 0b01100000, 0b01100000, 0b01111000, 0b01100000, 0b01100000, 0b01111110, 0b00000000
+tile 0b01111110, 0b01100000, 0b01100000, 0b01111000, 0b01100000, 0b01100000, 0b01100000, 0b00000000
+tile 0b00111100, 0b01100110, 0b01100000, 0b01101110, 0b01100110, 0b01100110, 0b00111100, 0b00000000
+tile 0b01100110, 0b01100110, 0b01100110, 0b01111110, 0b01100110, 0b01100110, 0b01100110, 0b00000000
+tile 0b00111100, 0b00011000, 0b00011000, 0b00011000, 0b00011000, 0b00011000, 0b00111100, 0b00000000
+tile 0b00011110, 0b00001100, 0b00001100, 0b00001100, 0b00001100, 0b01101100, 0b00111000, 0b00000000
+tile 0b01100110, 0b01101100, 0b01111000, 0b01110000, 0b01111000, 0b01101100, 0b01100110, 0b00000000
+tile 0b01100000, 0b01100000, 0b01100000, 0b01100000, 0b01100000, 0b01100000, 0b01111110, 0b00000000
+tile 0b01100011, 0b01110111, 0b01111111, 0b01101011, 0b01100011, 0b01100011, 0b01100011, 0b00000000
+tile 0b01100110, 0b01110110, 0b01111110, 0b01111110, 0b01101110, 0b01100110, 0b01100110, 0b00000000
+tile 0b00111100, 0b01100110, 0b01100110, 0b01100110, 0b01100110, 0b01100110, 0b00111100, 0b00000000
+tile 0b01111100, 0b01100110, 0b01100110, 0b01111100, 0b01100000, 0b01100000, 0b01100000, 0b00000000
+tile 0b00111100, 0b01100110, 0b01100110, 0b01100110, 0b01100110, 0b00111100, 0b00001110, 0b00000000
+tile 0b01111100, 0b01100110, 0b01100110, 0b01111100, 0b01111000, 0b01101100, 0b01100110, 0b00000000
+tile 0b00111100, 0b01100110, 0b01100000, 0b00111100, 0b00000110, 0b01100110, 0b00111100, 0b00000000
+tile 0b01111110, 0b00011000, 0b00011000, 0b00011000, 0b00011000, 0b00011000, 0b00011000, 0b00000000
+tile 0b01100110, 0b01100110, 0b01100110, 0b01100110, 0b01100110, 0b01100110, 0b00111100, 0b00000000
+tile 0b01100110, 0b01100110, 0b01100110, 0b01100110, 0b01100110, 0b00111100, 0b00011000, 0b00000000
+tile 0b01100011, 0b01100011, 0b01100011, 0b01101011, 0b01111111, 0b01110111, 0b01100011, 0b00000000
+tile 0b01100110, 0b01100110, 0b00111100, 0b00011000, 0b00111100, 0b01100110, 0b01100110, 0b00000000
+tile 0b01100110, 0b01100110, 0b01100110, 0b00111100, 0b00011000, 0b00011000, 0b00011000, 0b00000000
+tile 0b01111110, 0b00000110, 0b00001100, 0b00011000, 0b00110000, 0b01100000, 0b01111110, 0b00000000
+
+; $5B-$7F: [ \ ] ^ _ ` a-z { | } ~ DEL — 37 blank tiles (no lowercase yet).
+.space 37 * 16
+
+; $80: the solid tile — every pixel colour index 2 (plane 1 set, plane 0
+; clear), so it takes whatever palette entry $3F02 holds: `border`.
+.byte 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+.byte 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
+
+; $81-$FF: 127 blank tiles, completing pattern table 0 at exactly 4096 bytes.
+.space 127 * 16
+
+; Pattern table 1 ($1000-$1FFF): unused, blank. Spelled out rather than left
+; to the linker's padding so the section is exactly the 8 KiB the iNES
+; header declares for NROM, whatever the linker script does with a short one.
+.space 4096

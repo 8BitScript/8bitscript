@@ -1,19 +1,51 @@
 // examples/borders — Atari 8-bit variant.
 //
-// @8bitscript/atari8 has no `screen` namespace yet (see its own file
-// comment: Atari screen memory floats wherever the OS's display list points
-// it, not a fixed address, so this target doesn't reach it safely yet), so
-// this variant drops the TICK/OPTION digit readout the shared vic20/c64/
-// pet/c128/mega65/web main.8bs draws with `screen`. What it does do is
-// exactly what every other target does: cycle `border` and `background`
-// together, at the same 2Hz tick, four steps around the cycle — the border
-// really is the border here (GTIA's COLBK) and the background really is
-// the area behind the characters (COLPF2).
-import { border, background, applyColors } from "@8bitscript/machine";
+// Same TICK/OPTION readout as the shared vic20/c64/pet/c128/mega65/web
+// main.8bs, on hardware that cannot share that file: Atari screen codes
+// are ATASCII (this file's letters are 65-90, not Commodore's 1-26), and
+// GR.0 is 40x24 rather than 40x25, so a CellCount-driven clear from
+// main.8bs would be the wrong length even if the letters mapped. What
+// matches every other target is the behaviour: cycle `border` and
+// `background` together at the same 2Hz tick, four steps around the
+// cycle, with the labels and digits on row 0. The border really is the
+// border here (GTIA's COLBK) and the background really is the area
+// behind the characters (COLPF2).
+import { border, background, applyColors, screen } from "@8bitscript/machine";
 
 let logicalFramesUntilTick: utinyint = 30;
 let ticks: utinyint = 0;
 let option: utinyint = 0;
+
+// Loop index for clearScreen() below — a global, not a local, since there
+// are no local variables in the compiled subset yet.
+let clearCell: usmallint = 0;
+
+function clearScreen(): void {
+    clearCell = 0;
+    while (clearCell < screen.CellCount) {
+        screen.putChar(clearCell, 32); // 32 = ATASCII space
+        clearCell = clearCell + 1;
+    }
+}
+
+// Row-0 labels: "TICK " then its digit at cell 5, "OPTION " then its
+// digit at cell 14. These are ATASCII ('A'=65), which @8bitscript/atari8's
+// putChar converts to ANTIC internal codes — not Commodore screen codes.
+function drawLabels(): void {
+    screen.putChar(0, 84);  // T
+    screen.putChar(1, 73);  // I
+    screen.putChar(2, 67);  // C
+    screen.putChar(3, 75);  // K
+    screen.putChar(4, 32);  // space
+    screen.putChar(6, 32);  // space
+    screen.putChar(7, 79);  // O
+    screen.putChar(8, 80);  // P
+    screen.putChar(9, 84);  // T
+    screen.putChar(10, 73); // I
+    screen.putChar(11, 79); // O
+    screen.putChar(12, 78); // N
+    screen.putChar(13, 32); // space
+}
 
 // Four border/background pairs of GTIA bytes: hue in bits 4-7 (16 hues),
 // luminance in bits 1-3 (8 levels, bit 0 unused) — hues spread around the
@@ -22,7 +54,8 @@ let option: utinyint = 0;
 // has not independently verified GTIA's hue-to-colour-name chart against a
 // primary source, so these are picked for visible contrast, not for
 // matching specific named colours the way @8bitscript/vic20's BorderColor/
-// BackgroundColor namespaces do.
+// BackgroundColor namespaces do. Backgrounds stay at luminance 2 so the
+// $0E text luminance applyColors() writes stays readable.
 function applyOption(): void {
     if (option == 0) {
         border = 0x2C;
@@ -42,6 +75,10 @@ function applyOption(): void {
 export function main(): void {
     applyOption();
     applyColors();
+    clearScreen();
+    drawLabels();
+    screen.showDigit(5, 0);
+    screen.showDigit(14, 0);
 }
 
 export function frame(): void {
@@ -50,6 +87,8 @@ export function frame(): void {
         logicalFramesUntilTick = 30;
 
         ticks = ticks + 1;
+        screen.showDigit(5, ticks % 10);
+
         if (ticks % 10 == 0) {
             option = option + 1;
             if (option == 4) {
@@ -57,6 +96,7 @@ export function frame(): void {
             }
             applyOption();
             applyColors();
+            screen.showDigit(14, option);
         }
     }
 }

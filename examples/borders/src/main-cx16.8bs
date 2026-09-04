@@ -1,43 +1,90 @@
 // examples/borders — Commander X16 variant.
 //
-// @8bitscript/cx16 has no `screen` namespace yet, and `background` is inert
-// there: VERA has a real, directly-addressable border register ($9F2C), but
-// the background comes from each screen cell's own colour attribute byte in
-// VRAM, reached only through VERA's indirect address/data port protocol
-// ($9F20-$9F24), which this target doesn't build yet (see its own file
-// comment). This variant therefore drops the TICK/OPTION digit readout the
-// shared vic20/c64/pet/c128/mega65/web main.8bs draws with `screen`, and
-// only cycles `border` — the one real colour surface this target has. Same
-// 2Hz tick, same four-step cycle, so the visible behaviour (a colour change
-// every half second, the same colour again every two seconds) matches every
-// other target's, even without the on-screen counters.
-import { border, applyColors } from "@8bitscript/machine";
+// Same TICK/OPTION readout and the same cycling border/background as the
+// shared vic20/c64/pet/c128/mega65/web main.8bs, on a machine that cannot
+// share that file for two reasons, both documented in @8bitscript/cx16:
+//
+//   - Screen codes are ASCII, not Commodore's 1-26: LLVM-MOS's start-up
+//     code puts the KERNAL into ISO mode before main() runs (which is also
+//     why the boot banner is gone — the KERNAL clears the screen to do
+//     it), and in ISO mode the tile index is the ISO-8859-15 code. 'A' is
+//     65 and '0' is 48, the same codes the NES and Atari variants use.
+//   - The grid is 80x60 (CellCount 4800), not 40x25, and the border is a
+//     16-pixel inset of VERA's active area rather than a dedicated region,
+//     which leaves the 80x60 grid's last 4 columns and 4 rows undrawn. The
+//     grid's cell 0 is at the inset's top-left corner, right against the
+//     border, so the readout sits there — the same cells main.8bs uses.
+//
+// What matches every other target is the behaviour: the same 2Hz tick,
+// the same four-step cycle, and the same four border/background colour
+// pairs as main.8bs, because VERA's default palette begins with the C64's
+// sixteen colours in the C64's order (see @8bitscript/cx16).
+import { border, background, applyColors, screen } from "@8bitscript/machine";
 
 let logicalFramesUntilTick: utinyint = 30;
 let ticks: utinyint = 0;
 let option: utinyint = 0;
 
-// Four indices into VERA's 256-entry colour palette, spread evenly across
-// its range for visible contrast. This project has not independently
-// verified what the KERNAL's default palette maps each index to (unlike
-// @8bitscript/vic20's BorderColor/BackgroundColor namespaces, whose values
-// and names are confirmed against the VIC-20's own colour numbering), so
-// these are picked as four different colours, not four specific named ones.
+// Loop index for clearScreen() below — a global, not a local, since there
+// are no local variables in the compiled subset yet.
+let clearCell: usmallint = 0;
+
+// The KERNAL already cleared the screen switching to ISO mode (see the
+// header), so this is belt and braces — but it is what the program means,
+// and it costs nothing worth saving.
+function clearScreen(): void {
+    clearCell = 0;
+    while (clearCell < screen.CellCount) {
+        screen.putChar(clearCell, 32); // 32 = space
+        clearCell = clearCell + 1;
+    }
+}
+
+// Row 0 from column 0: "TICK " then its digit at cell 5, "OPTION " then
+// its digit at cell 14 — main.8bs's cells, in ASCII.
+function drawLabels(): void {
+    screen.putChar(0, 84);    // T
+    screen.putChar(1, 73);    // I
+    screen.putChar(2, 67);    // C
+    screen.putChar(3, 75);    // K
+    screen.putChar(4, 32);    // space
+    screen.putChar(6, 32);    // space
+    screen.putChar(7, 79);    // O
+    screen.putChar(8, 80);    // P
+    screen.putChar(9, 84);    // T
+    screen.putChar(10, 73);   // I
+    screen.putChar(11, 79);   // O
+    screen.putChar(12, 78);   // N
+    screen.putChar(13, 32);   // space
+}
+
+// The same four pairs as main.8bs, by the same VIC/C64 colour numbers:
+// VERA's default palette entries 0-15 are the C64 colours in C64 order.
+// None of the backgrounds is white(1) or yellow(7), since the readout is
+// drawn in white.
 function applyOption(): void {
     if (option == 0) {
-        border = 0x00;
+        border = 6;      // blue
+        background = 3;  // cyan
     } else if (option == 1) {
-        border = 0x40;
+        border = 2;      // red
+        background = 4;  // purple
     } else if (option == 2) {
-        border = 0x80;
+        border = 5;      // green
+        background = 0;  // black
     } else {
-        border = 0xC0;
+        border = 4;      // purple
+        background = 2;  // red
     }
 }
 
 export function main(): void {
+    clearScreen();
+    drawLabels();
     applyOption();
     applyColors();
+    screen.showDigit(5, 0);
+    screen.showDigit(14, 0);
 }
 
 export function frame(): void {
@@ -46,6 +93,8 @@ export function frame(): void {
         logicalFramesUntilTick = 30;
 
         ticks = ticks + 1;
+        screen.showDigit(5, ticks % 10);
+
         if (ticks % 10 == 0) {
             option = option + 1;
             if (option == 4) {
@@ -53,6 +102,7 @@ export function frame(): void {
             }
             applyOption();
             applyColors();
+            screen.showDigit(14, option);
         }
     }
 }
