@@ -13,6 +13,14 @@ export function setupCacheDir() {
   return join(base, '8bitscript', 'setup');
 }
 
+/** Where `8bs run --screenshot`'s macOS window-capture helper (see
+ * ../mac-window-capture.mjs) caches its compiled binary, so it's built
+ * once per machine rather than on every atari8 screenshot. */
+export function screenshotCacheDir() {
+  const base = process.env.XDG_CACHE_HOME || join(homedir(), '.cache');
+  return join(base, '8bitscript', 'screenshot');
+}
+
 export function xemuSourceDir() {
   return join(setupCacheDir(), 'xemu');
 }

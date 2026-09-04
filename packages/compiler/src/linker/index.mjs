@@ -97,11 +97,12 @@ function loadGraph(entryText, entryFile, diagnostics, sources, options) {
         continue;
       }
       if (resolved.path === null) {
-        // A conditional package entry with no machine to choose by: the
-        // caller linked without one, and guessing a machine would be worse.
+        // A conditional package entry, or a file that exists only in
+        // per-machine versions, with no machine to choose by: the caller
+        // linked without one, and guessing a machine would be worse.
         diagnostics.push(diagnostic(
           Codes.NOT_COMPILABLE,
-          `'${imp.source}' has a target-conditional entry; linking it needs a machine target`,
+          `'${imp.source}' is target-specific; linking it needs a machine target`,
           module.file, imp.start, imp.length,
         ));
         continue;
@@ -404,9 +405,10 @@ function rewriteStatement(statement, scope, module, diagnostics) {
  *
  * @param {string} entryText  The entry module's source.
  * @param {string} entryFile  Its absolute path, the root imports resolve from.
- * @param {{ machine?: 'vic20'|'c64'|'web' }} [options]
+ * @param {{ machine?: string }} [options]
  *   The machine being built for; packages with target-conditional entries
- *   resolve to that machine's implementation.
+ *   resolve to that machine's implementation, and any `.8bs` file with a
+ *   `.<machine>.8bs` twin beside it resolves to the twin.
  * @returns {{ ir: object|null, diagnostics: object[], sources: Map<string,string> }}
  */
 export function link(entryText, entryFile, options = {}) {

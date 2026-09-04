@@ -31,6 +31,13 @@ Implemented:
                                fceux, x16emu, or Xemu for mega65) at the
                                right machine model — or execute the .wasm
                                and print its state (web)
+    [--screenshot <file.png>] Instead of an interactive window, capture one
+    [--frames <n>]             screenshot through the target's own emulator
+                               API (or, for atari8 only, a macOS window
+                               capture — see docs/setup/verify.md#screenshots).
+                               --frames means a different unit per target
+                               (cycles, wall-clock seconds, or exact
+                               frame-advances); omit it for a tested default.
   check <files...>             Report diagnostics for 8BitScript source files
   doctor                       Verify the toolchains every target needs
   setup <target>               Install/configure what a target needs beyond

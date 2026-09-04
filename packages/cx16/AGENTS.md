@@ -186,6 +186,9 @@ Cite these freely; each was read in the source named, not recalled.
 - `x16emu -gif file.gif -warp -sound none` plus `ffmpeg` frame extraction
   is this project's headless verification path; `-echo raw` shows KERNAL
   output (the `^O` at the end of a run is LLVM-MOS's `CHR$(15)`).
+  `8bs run cx16 --screenshot <file.png>` already wraps this (needs `ffmpeg`
+  on PATH) — see [`docs/setup/verify.md`](../../docs/setup/verify.md#screenshots)
+  before reaching for the raw flags directly.
 
 ## Where things live
 
@@ -195,7 +198,7 @@ packages/backend-6502/src/index.mjs      driver (mos-cx16-clang), FRAME_SYNC.cx1
 packages/cli/src/setup/cx16.mjs          8bs setup cx16: emulator+ROM pair, macOS launcher wrapper
 packages/cli/src/run.mjs                 8bs run cx16: x16emu -prg <file> -run
 packages/compiler/test/cx16-screen.test.mjs   the package's generated C, by VERA address
-examples/borders/src/main-cx16.8bs       the working program, ASCII readout at cell 0
+examples/borders/src/main.8bs            the working program (every target), ASCII readout at cell 0
 docs/setup/cx16.md                       install, the wrapper trap, doctor, what the picture shows
 x16-emulator 77f2bab3, x16-rom fbe32a60   the upstream revisions every fact above was read in
                                          (wherever those two repositories are checked out)

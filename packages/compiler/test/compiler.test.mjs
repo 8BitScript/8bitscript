@@ -440,3 +440,143 @@ test('errors in an imported module fail the link, against the right file', () =>
   assert.equal(diagnostics[0].code, '8BS1021');
   assert.match(diagnostics[0].file, /lib\.8bs$/);
 });
+
+// ---- system-specific files: x.8bs and x.<machine>.8bs side by side --------
+//
+// The filename rule: `lib.8bs` is the portable module, and a `lib.nes.8bs`
+// beside it is the NES's version of it, chosen by any build for the NES
+// without the import (or anything else) having to name it. Same semantics
+// as a conditional package entry, spelled in filenames instead of a
+// manifest — including what happens with no machine in hand.
+
+import { MACHINES, isVariantPath, resolveSpecifier, variantOf } from '../index.mjs';
+import { mkdirSync } from 'node:fs';
+
+const linkedFor = (files, options, entryName = 'main.8bs') => {
+  const dir = mkdtempSync(join(tmpdir(), '8bs-variant-'));
+  try {
+    for (const [name, text] of Object.entries(files)) writeFileSync(join(dir, name), text);
+    return link(files[entryName], join(dir, entryName), options);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+};
+
+const withFiles = (files, fn) => {
+  const dir = mkdtempSync(join(tmpdir(), '8bs-variant-'));
+  try {
+    for (const [name, text] of Object.entries(files)) {
+      mkdirSync(dirname(join(dir, name)), { recursive: true });
+      writeFileSync(join(dir, name), text);
+    }
+    return fn(dir);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+};
+
+const USES_LIMIT = 'import { limit } from "./lib.8bs";\nlet count: u16 = 0;\nexport function main(): void { count = limit; }';
+const limitIn = (ir) => ir.globals.find((g) => g.name === 'limit').init;
+
+test('variantOf and isVariantPath: the machine goes before the extension', () => {
+  assert.equal(variantOf('/p/main.8bs', 'nes'), '/p/main.nes.8bs');
+  assert.equal(variantOf('/p/a.b.8bs', 'c64'), '/p/a.b.c64.8bs');
+  assert.ok(isVariantPath('/p/main.nes.8bs'));
+  assert.ok(isVariantPath('/p/main.atari8.8bs'));
+  assert.ok(!isVariantPath('/p/main.8bs'));
+  assert.ok(!isVariantPath('/p/main.nes8.8bs'));
+  assert.ok(MACHINES.includes('nes') && MACHINES.includes('web'));
+});
+
+test('a .<machine>.8bs twin is what that machine\'s build imports', () => {
+  const files = { 'main.8bs': USES_LIMIT, 'lib.8bs': 'export let limit: u16 = 100;', 'lib.nes.8bs': 'export let limit: u16 = 7;' };
+  const nes = linkedFor(files, { machine: 'nes' });
+  assert.deepEqual(nes.diagnostics, []);
+  assert.equal(limitIn(nes.ir), 7);
+  // No c64 twin: the plain file serves, as it does for every other machine.
+  const c64 = linkedFor(files, { machine: 'c64' });
+  assert.deepEqual(c64.diagnostics, []);
+  assert.equal(limitIn(c64.ir), 100);
+  // No machine at all (8bs check, the editor): the plain file, no error.
+  const none = linkedFor(files, {});
+  assert.deepEqual(none.diagnostics, []);
+  assert.equal(limitIn(none.ir), 100);
+});
+
+test('the entry file itself can be a machine\'s version and still import twins', () => {
+  // main.nes.8bs is what `8bs build --target nes` starts from; its imports
+  // follow the same rule as anyone else's.
+  const files = {
+    'main.nes.8bs': USES_LIMIT,
+    'lib.8bs': 'export let limit: u16 = 100;',
+    'lib.nes.8bs': 'export let limit: u16 = 7;',
+  };
+  const nes = linkedFor(files, { machine: 'nes' }, 'main.nes.8bs');
+  assert.deepEqual(nes.diagnostics, []);
+  assert.equal(limitIn(nes.ir), 7);
+});
+
+test('naming a machine\'s version explicitly imports exactly that file', () => {
+  const files = {
+    'main.8bs': 'import { limit } from "./lib.nes.8bs";\nlet count: u16 = 0;\nexport function main(): void { count = limit; }',
+    'lib.8bs': 'export let limit: u16 = 100;',
+    'lib.nes.8bs': 'export let limit: u16 = 7;',
+  };
+  const c64 = linkedFor(files, { machine: 'c64' });
+  assert.deepEqual(c64.diagnostics, []);
+  assert.equal(limitIn(c64.ir), 7);
+});
+
+test('a file that exists only in per-machine versions', () => {
+  const files = { 'main.8bs': USES_LIMIT, 'lib.nes.8bs': 'export let limit: u16 = 7;', 'lib.c64.8bs': 'export let limit: u16 = 3;' };
+  // Each machine that has one gets it.
+  assert.equal(limitIn(linkedFor(files, { machine: 'nes' }).ir), 7);
+  assert.equal(limitIn(linkedFor(files, { machine: 'c64' }).ir), 3);
+  // A machine that has none is 8BS3002, naming the ones that do — the same
+  // code a conditional package entry gives for a branch it lacks.
+  const web = linkedFor(files, { machine: 'web' });
+  assert.equal(web.ir, null);
+  assert.deepEqual(web.diagnostics.map((d) => d.code), ['8BS3002']);
+  assert.match(web.diagnostics[0].message, /no version for the web target \(targets: c64, nes\)/);
+  // With no machine, the import is valid but target-dependent: clean for
+  // `8bs check`, and the linker says what it needs rather than guessing.
+  withFiles(files, (dir) => {
+    assert.deepEqual(codes(USES_LIMIT, join(dir, 'main.8bs'), { resolveImports: true }), []);
+    assert.deepEqual(resolveSpecifier('./lib.8bs', join(dir, 'main.8bs')), { path: null });
+  });
+  const none = linkedFor(files, {});
+  assert.equal(none.ir, null);
+  assert.deepEqual(none.diagnostics.map((d) => d.code), ['8BS3001']);
+  assert.match(none.diagnostics[0].message, /target-specific; linking it needs a machine target/);
+});
+
+test('a file with no version at all is still 8BS2004', () => {
+  const { ir, diagnostics } = linkedFor({ 'main.8bs': USES_LIMIT }, { machine: 'nes' });
+  assert.equal(ir, null);
+  assert.deepEqual(diagnostics.map((d) => d.code), ['8BS2004']);
+});
+
+test('a package\'s string entry follows the same rule', () => {
+  const files = {
+    'main.8bs': 'import { limit } from "@t/p";\nlet count: u16 = 0;\nexport function main(): void { count = limit; }',
+    'node_modules/@t/p/package.json': JSON.stringify({ name: '@t/p', '8bitscript': { entry: './src/index.8bs' } }),
+    'node_modules/@t/p/src/index.8bs': 'export let limit: u16 = 100;',
+    'node_modules/@t/p/src/index.nes.8bs': 'export let limit: u16 = 7;',
+  };
+  withFiles(files, (dir) => {
+    const entry = join(dir, 'main.8bs');
+    assert.match(resolveSpecifier('@t/p', entry, { machine: 'nes' }).path, /index\.nes\.8bs$/);
+    assert.match(resolveSpecifier('@t/p', entry, { machine: 'c64' }).path, /src\/index\.8bs$/);
+    assert.match(resolveSpecifier('@t/p', entry).path, /src\/index\.8bs$/);
+    assert.equal(limitIn(link(files['main.8bs'], entry, { machine: 'nes' }).ir), 7);
+    assert.equal(limitIn(link(files['main.8bs'], entry, { machine: 'web' }).ir), 100);
+  });
+  // Only per-machine versions, and a machine without one: 8BS3002 here too.
+  const onlyVariants = { ...files };
+  delete onlyVariants['node_modules/@t/p/src/index.8bs'];
+  withFiles(onlyVariants, (dir) => {
+    const entry = join(dir, 'main.8bs');
+    assert.equal(resolveSpecifier('@t/p', entry, { machine: 'web' }).code, '8BS3002');
+    assert.equal(resolveSpecifier('@t/p', entry).path, null);
+  });
+});

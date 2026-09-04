@@ -93,6 +93,15 @@ abstraction keeps bank state, VERA state, and optional hardware out of
 game code). If you're adding equivalent depth for another target, put it
 at `packages/<target>/AGENTS.md` and link it from here.
 
+## Seeing what a program actually does
+
+If you're an agent iterating on a program and need to see its output rather
+than just trust that it compiled: `8bs run <target> --screenshot <file.png>`
+builds it and captures one PNG through that target's own emulator API,
+without opening an interactive window or requiring a human at the keyboard —
+see [`docs/setup/verify.md`](docs/setup/verify.md#screenshots) for the
+mechanism and `--frames` semantics on each target.
+
 ## Documentation and workflow
 
 For everything else — trunk-only workflow, running tests, adding a docs

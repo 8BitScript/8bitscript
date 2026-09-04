@@ -70,7 +70,9 @@ export let backgroundColorShadow: volatile<u8>;
 export let textColorShadow: volatile<u8>;
 
 // $02F0, CRSINH — set non-zero to stop the OS screen editor drawing its
-// inverse-video cursor over cell 0.
+// inverse-video cursor over whatever cell it sits on. Both applyColors()
+// and screen.putChar() set it, so a program gets a cursor-free screen
+// whichever of the two it calls first.
 @address(0x02F0)
 export let cursorInhibit: volatile<u8>;
 
@@ -98,8 +100,8 @@ export function applyColors(): void {
     // COLPF1 is forced to $0E (max luminance, hue ignored in GR.0) so
     // characters stay readable against any COLPF2 the caller just set —
     // the Atari equivalent of the Commodore packages drawing digits in
-    // white. CRSINH hides the OS cursor so it cannot invert the first
-    // cell of whatever the caller writes.
+    // white. CRSINH hides the OS cursor so it cannot invert a cell of
+    // whatever the caller writes.
     borderColorShadow = border;
     borderColor = border;
     backgroundColorShadow = background;
@@ -109,15 +111,59 @@ export function applyColors(): void {
     cursorInhibit = 1;
 }
 
+// ---- friendly colour namespaces ---------------------------------------------
+//
+// The same eight names every machine package exports — Black, White, Red,
+// Cyan, Purple, Green, Blue, Yellow — so a program can write
+// `border = BorderColor.Blue` through @8bitscript/machine and get blue on
+// every target. The values are GTIA bytes: hue in the high nibble, luminance
+// in the low (even values only; bit 0 is unused). Hues follow the SETCOLOR
+// hue table in the Atari BASIC Reference Manual — 0 grey, 1 gold, 3 red-
+// orange, 5 purple, 8 blue, 10 turquoise, 12 green — with luminances picked
+// so that each reads as its name and stays darker than the $0E text
+// luminance applyColors() writes. A program that wants a colour not named
+// here passes its own GTIA byte through `border`/`background` directly.
+// Not visually verified under atari800 by this project; the hue table is
+// the manual's, the luminances a judgement.
+
+export namespace BorderColor {
+    const Black: utinyint = 0x00;
+    const White: utinyint = 0x0E;
+    const Red: utinyint = 0x34;
+    const Cyan: utinyint = 0xA8;
+    const Purple: utinyint = 0x58;
+    const Green: utinyint = 0xC6;
+    const Blue: utinyint = 0x84;
+    const Yellow: utinyint = 0x1C;
+}
+
+export namespace BackgroundColor {
+    const Black: utinyint = 0x00;
+    const White: utinyint = 0x0E;
+    const Red: utinyint = 0x34;
+    const Cyan: utinyint = 0xA8;
+    const Purple: utinyint = 0x58;
+    const Green: utinyint = 0xC6;
+    const Blue: utinyint = 0x84;
+    const Yellow: utinyint = 0x1C;
+}
+
 // ---- the friendly screen surface (immediate-apply) -------------------------
 //
 // ANTIC mode 2 (GR.0) is 40x24 = 960 cells, pointed to by SAVMSC at $58
-// (lo) / $59 (hi) — not a fixed address. putChar converts ATASCII to the
-// internal screen code ANTIC actually fetches (space $20 -> $00, digits
-// and letters $20-$5F minus $20). There is no colour RAM: a character's
-// luminance is the global COLPF1 applyColors() writes, so putColor exists
-// only so portable code still compiles and does nothing, the same way
-// @8bitscript/pet's putColor does nothing.
+// (lo) / $59 (hi) — not a fixed address. Codes are ASCII, as they are on
+// every machine (space, '0'-'9', 'A'-'Z' and a little punctuation, upper
+// case only) — ATASCII agrees with ASCII across that whole range, so no
+// translation is needed on the way in; putChar converts to the internal
+// screen code ANTIC actually fetches (space $20 -> $00, digits and letters
+// $20-$5F minus $20). There is no colour RAM: a character's luminance is
+// the global COLPF1 applyColors() writes, so putColor exists only so
+// portable code still compiles and does nothing, the same way
+// @8bitscript/pet's putColor does nothing. putChar also inhibits the OS
+// cursor (see cursorInhibit above), so a program that draws before its
+// first applyColors() — which is the order every program should use, for
+// the NES's sake — does not get its first cell inverted by the cursor
+// sitting on it.
 
 export namespace screen {
     const CellCount: usmallint = 960; // 40 columns x 24 rows
@@ -133,6 +179,7 @@ export namespace screen {
     }
 
     function putChar(cell: usmallint, code: utinyint): void {
+        cursorInhibit = 1;
         memory.write(
             memory.read(0x58) + (memory.read(0x59) * 256) + cell,
             screen.atasciiToInternal(code),

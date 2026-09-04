@@ -67,6 +67,10 @@ export default {
 everything it imports into one program. `src/main.8bs` is also what the CLI
 assumes when there is no config file at all, so this line only makes the
 default explicit; a project that starts somewhere else names that file here.
+(If one machine ever needs its own version of a file, it goes beside the
+shared one as `main.nes.8bs`, say, and that machine's build uses it without
+the config changing — see [the package model](../packages.md#system-specific-files).
+This step has no such file.)
 
 `targets` is the list of machines the project is allowed to build for.
 `8bs build --target web` in this directory is refused, because `web` is not
@@ -335,13 +339,12 @@ generally — it's exactly why `examples/borders` doesn't write `while (true)`
 at all: it exports `main()` (setup, once) and a separate `frame()` (one
 tick's worth of work), and lets something *else* drive the repeat, instead
 of doing that itself. That used to mean a second entry file for `web` —
-`vic20`/`c64` pointed at `main.8bs`, `web` at a different one, via
-`8bs.config.ts`'s `entry` map (still documented in
-[`docs/packages.md`](../packages.md#target-conditional-entries) as a general
+a `main.web.8bs` beside `main.8bs`, in today's spelling (see
+[`docs/packages.md`](../packages.md#system-specific-files) for that general
 mechanism, for cases where it's still needed) — but `examples/borders` no
-longer needs it: any module exporting both `main` and `frame` gets a driving
-loop synthesised for it by whichever backend is building it, so one file now
-builds correctly everywhere.
+longer needs one: any module exporting both `main` and `frame` gets a
+driving loop synthesised for it by whichever backend is building it, so one
+file now builds correctly on all nine targets.
 
 On the web, that driving loop is `packages/cli/src/web-runtime.mjs`'s own
 `requestAnimationFrame` accumulator, calling `frame()` at a steady logical
