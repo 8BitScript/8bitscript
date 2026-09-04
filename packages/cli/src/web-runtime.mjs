@@ -19,8 +19,11 @@ import { spawn } from 'node:child_process';
 // The C64's palette (0-15), reused so a colour number means the same thing
 // in every 8BitScript example, on whichever machine it runs on. See the
 // header comment on @8bitscript/web's applyColors() for why the web target
-// borrows this rather than defining its own.
-const COLORS = [
+// borrows this rather than defining its own. Exported (with the layout
+// constants below) so screenshot.mjs's --screenshot path can rasterize the
+// exact same virtual screen this browser canvas draws, without a second,
+// hand-copied version of these numbers to keep in sync by hand.
+export const COLORS = [
   '#000000', '#ffffff', '#883932', '#67b6bd',
   '#8b3f96', '#55a049', '#40318d', '#bfce72',
   '#8b5429', '#574200', '#b86962', '#505050',
@@ -37,15 +40,22 @@ const LOGICAL_HZ = 60;
 // page stretches it to fill the window (see resize() in the page script
 // below) while image-rendering: pixelated keeps every scaled-up pixel a
 // hard square instead of a blurred one.
-const GRID_COLS = 40;
-const GRID_ROWS = 25;
-const CHAR_W = 8;
-const CHAR_H = 8;
-const BORDER_PX = 24;
+export const GRID_COLS = 40;
+export const GRID_ROWS = 25;
+export const CHAR_W = 8;
+export const CHAR_H = 8;
+export const BORDER_PX = 24;
 const INNER_W = GRID_COLS * CHAR_W;
 const INNER_H = GRID_ROWS * CHAR_H;
 const SCREEN_W = INNER_W + BORDER_PX * 2;
 const SCREEN_H = INNER_H + BORDER_PX * 2;
+
+// Where the virtual screen's character codes and per-cell colours live in
+// the wasm's linear memory — @8bitscript/web's WebRegisters layout, mirrored
+// here by hand (there's no shared module the .8bs side and this JS host
+// could both import). Byte 0 is border, byte 1 is background.
+export const CHAR_BASE = 2;
+export const COLOR_BASE = 1002;
 
 function renderHtml() {
   return `<!doctype html>
@@ -103,20 +113,19 @@ const ctx = canvas.getContext('2d');
 const hint = document.getElementById('hint');
 const fpsEl = document.getElementById('fps');
 
-// @8bitscript/web's WebRegisters, mirrored here by hand (there's no shared
-// module the .8bs side and this JS host could both import): a virtual
-// 40-column, 1000-cell character screen starting at byte offset 2, its
-// colour bytes starting at offset 1002. Screen codes 1-26 are 'A'-'Z' and
-// 32-63 mirror ASCII directly (space, digits, punctuation) in every VIC/C64
-// character ROM charset — the same convention @8bitscript/vic20 and
-// @8bitscript/c64 poke into real screen memory for.
-const CHAR_BASE = 2;
-const COLOR_BASE = 1002;
+// @8bitscript/web's WebRegisters (CHAR_BASE/COLOR_BASE, exported above): a
+// virtual 40-column, 1000-cell character screen starting at byte offset 2,
+// its colour bytes starting at offset 1002. The cells hold ASCII — the
+// portable character codes every machine package's screen.putChar takes:
+// space, '0'-'9', 'A'-'Z' and a little punctuation, upper case only, 32-95.
+// The Commodore packages turn those into screen codes for a character ROM;
+// this host has no ROM, so it draws them as the text they already are.
+const CHAR_BASE = ${CHAR_BASE};
+const COLOR_BASE = ${COLOR_BASE};
 
 function decodeScreenCode(code) {
-  if (code >= 1 && code <= 26) return String.fromCharCode(64 + code);
-  if (code >= 32 && code <= 63) return String.fromCharCode(code);
-  return null; // 0 (never written) and everything past 63 aren't decoded yet
+  if (code >= 32 && code <= 95) return String.fromCharCode(code);
+  return null; // 0 (never written) and everything outside the portable set
 }
 
 // The canvas's on-page size, not its pixel grid: as large as fits the

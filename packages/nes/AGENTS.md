@@ -149,6 +149,15 @@ Facts to actively correct if you see them stated otherwise:
   one game's implementation, not a hardware constraint every NES program
   shares.
 
+## Seeing the screen without a human at FCEUX
+
+`8bs run nes --screenshot <file.png>` builds and captures a PNG through a
+small FCEUX Lua script (`emu.frameadvance()` in a loop, then
+`gui.savescreenshotas()`) instead of opening an interactive window — see
+[`docs/setup/verify.md`](../../docs/setup/verify.md#screenshots) for
+`--frames` (it means exact emulated frames here, not wall-clock time) and
+the other eight targets' own mechanisms.
+
 ## Where things live
 
 ```
@@ -158,7 +167,7 @@ packages/nes/package.json            "8bitscript".native lists the font for the 
 packages/backend-6502/src/index.mjs  driver selection (DRIVER.nes), NTSC frame timing, nativeSources
 packages/compiler/src/resolver/      "8bitscript".native → absolute paths (8BS2008 if missing)
 packages/compiler/test/nes-screen.test.mjs   the package and the native plumbing, end to end
-examples/borders/src/main-nes.8bs    the working program: frame, readout, setup/vblank ordering
+examples/borders/src/main.8bs        the working program (every target): readout, draw-then-applyColors ordering
 docs/setup/nes.md                    install/run FCEUX, 8bs run nes, what the picture shows
 docs/roadmap.md                      Phase 3: why NES is here, the capability-system rationale
 ```

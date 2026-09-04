@@ -43,6 +43,9 @@ test('a screen consumer links for nes with the font in ir.nativeSources', () => 
     '    screen.showDigit(104, 3);',
     '}',
   ].join('\n');
+  // (The 99 and 104 are cells of the 28x26 screen inside the frame — the
+  // package maps them to nametable addresses; see the parity test for the
+  // arithmetic.)
   const { ir, diagnostics } = link(consumer, ENTRY, { machine: 'nes' });
   assert.deepEqual(diagnostics, []);
   assert.equal(ir.nativeSources.length, 1);
@@ -70,8 +73,8 @@ test('the same graph linked for web carries no native sources', () => {
   assert.deepEqual(ir.nativeSources, []);
 });
 
-test('examples/borders main-nes.8bs links clean for nes', () => {
-  const file = join(BORDERS_SRC, 'main-nes.8bs');
+test('examples/borders main.8bs links clean for nes', () => {
+  const file = join(BORDERS_SRC, 'main.8bs');
   const { ir, diagnostics } = link(readFileSync(file, 'utf8'), file, { machine: 'nes' });
   assert.deepEqual(diagnostics, []);
   assert.equal(ir.nativeSources.length, 1);

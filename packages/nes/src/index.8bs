@@ -28,11 +28,12 @@
 // and `border` is the palette entry that solid tile takes its colour from.
 // Two tiles thick, not one, because NTSC televisions — and FCEUX, whose
 // default NTSC view drops the top and bottom 8 lines — overscan the outer
-// tile row away; the inner row survives. Anything a program draws should
-// stay inside the frame: row 2, column 2 is the first cell inside it — the
-// top-left corner, against the border, where examples/borders puts its
-// readout, as every other target does at its own cell 0. The four values
-// applyColors() writes are, in the PPU's own terms:
+// tile row away; the inner row survives. The `screen` a program draws on
+// is the area INSIDE that frame: 28 columns by 26 rows, whose cell 0 is
+// nametable row 2, column 2 — the top-left corner, against the border,
+// which is exactly what cell 0 is on every other target. A program never
+// addresses the frame's own tiles, and never needs to know they exist. The
+// four values applyColors() writes are, in the PPU's own terms:
 //
 //     $3F00  universal backdrop     `background`
 //     $3F01  colour index 1         $30 (white) — every glyph in the font
@@ -54,18 +55,20 @@
 // native/6502/font.s, an 8 KiB CHR-ROM listed in package.json's
 // "8bitscript".native and linked into the .nes image by the 6502 backend —
 // laid out so that tile index == ASCII code. `putChar(cell, 65)` therefore
-// draws an 'A' with no translation table, and the codes examples/borders'
-// Atari variant already uses (ASCII letters and digits, 32 for space) draw
-// the same characters here. Space, digits, A-Z and `! , - . : ?` have
-// glyphs; other codes in $20-$5F are blank tiles.
+// draws an 'A' with no translation table. Space, digits, A-Z and
+// `! , - . : ?` have glyphs; other codes in $20-$5F are blank tiles. That
+// set — upper case only — is what every machine package's putChar takes,
+// precisely because it is what this font has: the portable character set
+// is the smallest one any target can show.
 //
 // Screen memory is not a fixed CPU address either: the nametable lives in
 // the PPU's own 16 KiB address space, reached only through an indirect port
 // — read PPUSTATUS ($2002) to reset the shared address/scroll write toggle,
 // write PPUADDR ($2006) twice (high byte, then low) to latch a VRAM address,
 // then write PPUDATA ($2007), which stores through it and auto-increments.
-// Cell `n` of the 32x30 grid is nametable address $2000 + n. Two rules that
-// protocol brings, both of which this file honours so callers need not:
+// Cell `n` of the 28x26 screen inside the frame is nametable address
+// $2000 + (2 + n / 28) * 32 + 2 + n % 28. Two rules that protocol brings,
+// both of which this file honours so callers need not:
 //
 //   1. Writing PPUADDR moves the PPU's internal address register, which is
 //      also what it scrolls from when rendering resumes — leave it pointing
@@ -83,8 +86,9 @@
 //      frame, the labels; afterwards, write only from frame(), which the
 //      6502 backend's driver calls at the start of vertical blank
 //      (packages/backend-6502's FRAME_SYNC.nes), and keep it short — a few
-//      putChar()s, not a screen clear. examples/borders' NES variant orders
-//      its setup exactly this way; see its comments.
+//      putChar()s, not a screen clear. examples/borders orders its setup
+//      exactly this way — on every target, since drawing first is harmless
+//      elsewhere; see its comments.
 //
 // The CPU cannot read the PPU's mask register back, so `renderingEnabled`
 // below is this package's own record of having switched rendering on: it
@@ -110,6 +114,42 @@
 // was never one.)
 export let border: u8 = 0;
 export let background: u8 = 0;
+
+// ---- friendly colour namespaces ---------------------------------------------
+//
+// The same eight names every machine package exports — Black, White, Red,
+// Cyan, Purple, Green, Blue, Yellow — so a program can write
+// `border = BorderColor.Blue` through @8bitscript/machine and get blue on
+// every target. The values are 2C02 palette indices, by the hue columns of
+// NESdev's palette chart ($x2 blue, $x4 purple, $x6 red, $x8 yellow, $xA
+// green, $xC cyan; $0F black, $30 white), at the mid-brightness row $1x
+// where the hue is unmistakable, except cyan and yellow, whose $1x entries
+// are too dark to read as their names and so come from row $2x. A program
+// that wants a colour not named here passes its own index through
+// `border`/`background` directly. Not visually verified under FCEUX by
+// this project; the chart is NESdev's.
+
+export namespace BorderColor {
+    const Black: utinyint = 0x0F;
+    const White: utinyint = 0x30;
+    const Red: utinyint = 0x16;
+    const Cyan: utinyint = 0x2C;
+    const Purple: utinyint = 0x14;
+    const Green: utinyint = 0x1A;
+    const Blue: utinyint = 0x12;
+    const Yellow: utinyint = 0x28;
+}
+
+export namespace BackgroundColor {
+    const Black: utinyint = 0x0F;
+    const White: utinyint = 0x30;
+    const Red: utinyint = 0x16;
+    const Cyan: utinyint = 0x2C;
+    const Purple: utinyint = 0x14;
+    const Green: utinyint = 0x1A;
+    const Blue: utinyint = 0x12;
+    const Yellow: utinyint = 0x28;
+}
 
 let renderingEnabled: u8 = 0;
 
@@ -198,18 +238,20 @@ export function applyColors(): void {
 // ---- the friendly screen surface ----------------------------------------
 //
 // The same names every other machine package exports, so a program that
-// imports `screen` from @8bitscript/machine draws on the NES too. 32x30 =
-// 960 cells; a cell index is nametable $2000 + cell. Codes are ASCII, by
-// the font's construction (see the header). putColor exists so portable
-// code still compiles and does nothing: the PPU has no per-cell colour —
-// the nearest thing, the attribute table, chooses a palette per 32x32-pixel
-// block, and every block here is palette 0.
+// imports `screen` from @8bitscript/machine draws on the NES too. The
+// screen is the area inside the drawn frame (see the header): 28 columns
+// by 26 rows, 728 cells, cell 0 at nametable row 2, column 2, each row 32
+// bytes apart in the nametable. Codes are ASCII, by the font's
+// construction. putColor exists so portable code still compiles and does
+// nothing: the PPU has no per-cell colour — the nearest thing, the
+// attribute table, chooses a palette per 32x32-pixel block, and every block
+// here is palette 0.
 
 export namespace screen {
-    const CellCount: usmallint = 960;
+    const CellCount: usmallint = 728; // 28 columns x 26 rows, inside the frame
 
     function putChar(cell: usmallint, code: utinyint): void {
-        setVramAddress(0x2000 + cell);
+        setVramAddress(0x2042 + (cell / 28) * 32 + (cell % 28));
         memory.write(0x2007, code);
         resetScroll();
     }

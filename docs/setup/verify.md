@@ -72,5 +72,46 @@ can boot one. A ROM-less VICE — the Debian trap described on the
 The checklist above stays useful for fixing what the doctor finds: each row
 names the page that installs the tool.
 
+## Screenshots
+
+An agent (or a script) working on a program often needs to see what it's
+actually drawing, without a human at the keyboard and without reaching for a
+general-purpose "grab my screen" tool. `8bs run <target> --screenshot
+<file.png>` builds the program and captures one PNG of the result through
+whichever mechanism that target's own emulator exposes for exactly this,
+instead of opening an interactive window:
+
+```bash
+8bs run c64 --screenshot out.png
+```
+
+`--frames` controls how long the program runs before the capture — but it
+counts a different unit on every target, because what's actually being
+counted is genuinely different hardware (the same reasoning
+[`AGENTS.md`](../../AGENTS.md) gives for why "8 sprites" doesn't mean one
+thing across machines). Omit it for a default this project tested against
+`examples/borders` until the machine's own boot sequence had clearly
+cleared:
+
+| Target(s) | Mechanism | `--frames` counts | Default |
+| --------- | --------- | ------------------ | ------- |
+| vic20, c64, pet, c128 | VICE's `-limitcycles` + `-exitscreenshot` (c128: `-exitscreenshotvicii`, since x128 drives a second, unused VDC display — see run.mjs) | converted to CPU cycles at the machine's real NTSC/PAL clock | a cycle count measured per machine (vic20 needs nearly 3x c64/c128's despite an identical clock — observed, not explained) |
+| atari8 | atari800 has no exit-and-screenshot flag; this launches it windowed and asks **macOS** to capture that one window's real pixels (Screen Recording permission, no synthetic keystrokes) | wall-clock seconds | ~4s |
+| cx16 | x16emu's `-gif` recording, read back with `ffmpeg` for a still of the last frame | wall-clock seconds | ~5s |
+| mega65 | Xemu's own `-screenshot <file>` (fires on a plain `SIGTERM`, not just a clean quit) | wall-clock seconds | ~8s |
+| nes | a small FCEUX Lua script: `emu.frameadvance()` in a loop, then `gui.savescreenshotas()` | exact emulated frames | 120 |
+| web | Node's own WebAssembly runtime calls `frame()` directly — no emulator, no timing guesswork, the only target with a frame-exact and OS-independent capture | exact `frame()` calls | 180 |
+
+Every mechanism above is the target's own emulator API — a version of what
+[`packages/cli/test/emulator-smoke.test.mjs`](../../packages/cli/test/emulator-smoke.test.mjs)
+already uses to prove a build boots, pointed at a real output file instead
+of a throwaway one. **atari8 is the one exception**: atari800 has no
+CLI or scriptable way this project found to trigger its own screenshot
+feature (a host keypress only), so that target alone falls back to asking
+the operating system to capture the window — macOS only for now, and it
+needs Screen Recording permission granted to whatever process runs `8bs`
+(System Settings → Privacy & Security → Screen Recording). No target here
+ever needs synthetic keyboard/mouse input.
+
 Setup is complete. Return to the [setup overview](index.md) for the guide's
 contents, or to the [documentation index](../index.md).

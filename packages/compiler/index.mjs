@@ -16,7 +16,9 @@ export { NodeType, walk } from './src/ast/index.mjs';
 export { check } from './src/checker/index.mjs';
 export { lower } from './src/ir/index.mjs';
 export { link } from './src/linker/index.mjs';
-export { findImports, resolveImports, resolveSpecifier } from './src/resolver/index.mjs';
+export {
+  MACHINES, findImports, isVariantPath, resolveImports, resolveSpecifier, variantOf,
+} from './src/resolver/index.mjs';
 export { Codes, diagnostic, positionAt } from './src/diagnostics/index.mjs';
 export {
   PRIMITIVE_INTEGER_TYPES,
