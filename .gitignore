@@ -1,6 +1,11 @@
 # Dependencies
 node_modules/
 
+# Local pnpm content-addressable store (hashed blobs, not lockfile).
+# pnpm's default store lives outside the repo; this directory only appears
+# if something invoked pnpm with --store-dir pointing here.
+.pnpm-store/
+
 # Compiler and bundler output
 dist/
 build/

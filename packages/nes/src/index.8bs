@@ -1,51 +1,224 @@
 // @8bitscript/nes — NES target support.
 //
+// See ../AGENTS.md before extending this file: the NES PPU is tile/pattern
+// oriented rather than a framebuffer, its 64-sprite budget is really an
+// 8-per-scanline budget, and its mapper (only NROM is wired up today) is a
+// build profile question, not a language one — mistakes easy to bake into
+// comments or APIs here if copied from a generic "8-bit" mental model.
+//
 // The module entry point named by the "8bitscript".entry field in this
 // package's package.json, resolved and linked for:
 //
-//     import { border, background, applyColors } from "@8bitscript/nes";
+//     import { border, background, applyColors, screen } from "@8bitscript/nes";
 //
-// The NES has no border-colour concept at all (the picture fills the whole
-// frame; there is no separate border area to colour), so `border` exists
-// only so portable code written against every machine's common colour
-// surface still links here, the same reasoning @8bitscript/pet documents
-// for a gap in a specific target: it is deliberately inert on this machine.
+// ---- what "border" means on a machine that has none --------------------
 //
-// `background`, unlike `border`, is real: it writes the PPU's universal
-// backdrop colour, palette RAM entry $3F00 — memory the CPU cannot reach
-// directly the way it reaches VIC/VIC-II registers. Palette RAM sits behind
-// the PPU's own indirect port protocol: reading PPUSTATUS ($2002) resets
-// the shared PPUADDR/PPUSCROLL write-toggle (needed so the two PPUADDR
-// writes below land as a fresh address, not a stray second half of
-// whatever the write-toggle was mid-way through before), then two writes
-// to PPUADDR ($2006) — high byte, then low byte — latch the target VRAM
-// address, and a write to PPUDATA ($2007) stores through it. `background`
-// is a NES palette index (0x0F-0x3F is the usable range; there is no RGB
-// conversion here, the same "portable values are whatever the hardware
-// wants" contract memory.write already has everywhere else), not an RGB
-// byte the way VIC/VIC-II colours are.
+// The NES has no border-colour register. There is no separate border area
+// for one to colour: the PPU's 256x240 picture IS the whole frame, edge to
+// edge, and every one of those pixels comes from a background tile or a
+// sprite (or, where neither covers it, the universal backdrop colour). VIC,
+// VIC-II and GTIA all draw a picture smaller than the raster and paint the
+// margin around it from a dedicated register; the PPU simply has no
+// margin. So `border` cannot be a register write here, the way it is on
+// every other target.
 //
-// KNOWN GAP: NESdev's own guidance is to wait for two full vblanks after
-// reset before touching the PPU at all (the chip's analog side needs time
-// to stabilise on power-on). The frame() driver this target shares with
-// every other 'edge'-kind machine (packages/backend-6502's FRAME_SYNC) calls
-// a program's `main()` immediately, with no such wait built in — a program
-// whose `main()` calls `applyColors()` right away (as `examples/borders`
-// does) writes the PPU before that warm-up period. Harmless for a simple
-// backdrop write on every emulator this project tests against, but not the
-// hardware-correct sequence a real NES cartridge should use.
+// It is real anyway. This package DRAWS a border: on the first
+// applyColors() call it lays a two-tile-thick frame of a solid tile around
+// the edge of the nametable (rows 0-1 and 28-29, columns 0-1 and 30-31),
+// and `border` is the palette entry that solid tile takes its colour from.
+// Two tiles thick, not one, because NTSC televisions — and FCEUX, whose
+// default NTSC view drops the top and bottom 8 lines — overscan the outer
+// tile row away; the inner row survives. Anything a program draws should
+// stay inside the frame: row 2, column 2 is the first cell inside it — the
+// top-left corner, against the border, where examples/borders puts its
+// readout, as every other target does at its own cell 0. The four values
+// applyColors() writes are, in the PPU's own terms:
+//
+//     $3F00  universal backdrop     `background`
+//     $3F01  colour index 1         $30 (white) — every glyph in the font
+//     $3F02  colour index 2         `border` — the solid frame tile
+//     $3F03  colour index 3         unused
+//
+// all in background palette 0, which every tile on screen uses (the
+// attribute table is zeroed by the same first call, so no 32x32-pixel block
+// picks another palette). `border`/`background` are NES palette indices —
+// $00-$3F, the 2C02's own colour numbers; $0F is black, $30 white, row $0x
+// dark through row $3x pale — not RGB and not the Commodore/Atari values.
+//
+// ---- text: the character set is ours to ship --------------------------
+//
+// A Commodore or Atari `screen.putChar` writes one byte into screen memory
+// and a character ROM in the machine turns it into pixels. The NES has no
+// character ROM: the PPU fetches every 8x8 tile pattern from the cartridge,
+// so a cartridge that shows text must carry its own. This package does —
+// native/6502/font.s, an 8 KiB CHR-ROM listed in package.json's
+// "8bitscript".native and linked into the .nes image by the 6502 backend —
+// laid out so that tile index == ASCII code. `putChar(cell, 65)` therefore
+// draws an 'A' with no translation table, and the codes examples/borders'
+// Atari variant already uses (ASCII letters and digits, 32 for space) draw
+// the same characters here. Space, digits, A-Z and `! , - . : ?` have
+// glyphs; other codes in $20-$5F are blank tiles.
+//
+// Screen memory is not a fixed CPU address either: the nametable lives in
+// the PPU's own 16 KiB address space, reached only through an indirect port
+// — read PPUSTATUS ($2002) to reset the shared address/scroll write toggle,
+// write PPUADDR ($2006) twice (high byte, then low) to latch a VRAM address,
+// then write PPUDATA ($2007), which stores through it and auto-increments.
+// Cell `n` of the 32x30 grid is nametable address $2000 + n. Two rules that
+// protocol brings, both of which this file honours so callers need not:
+//
+//   1. Writing PPUADDR moves the PPU's internal address register, which is
+//      also what it scrolls from when rendering resumes — leave it pointing
+//      into the middle of the nametable and the next frame draws from
+//      there. Every putChar() and applyColors() ends by resetting the
+//      scroll (PPUCTRL $2000 = 0, then PPUSCROLL $2005 = 0 twice), so the
+//      picture stays anchored at the top-left. Invisible while every tile
+//      was blank; not once there is something on screen to shift.
+//
+//   2. While rendering is ON, the PPU owns VRAM outside vertical blank,
+//      and a write outside it lands wherever the PPU's address happens to
+//      be — a corrupted tile and a torn frame. So: before the first
+//      applyColors() (which is what switches rendering on) VRAM is free to
+//      write at any time and at any length — a whole-screen clear, the
+//      frame, the labels; afterwards, write only from frame(), which the
+//      6502 backend's driver calls at the start of vertical blank
+//      (packages/backend-6502's FRAME_SYNC.nes), and keep it short — a few
+//      putChar()s, not a screen clear. examples/borders' NES variant orders
+//      its setup exactly this way; see its comments.
+//
+// The CPU cannot read the PPU's mask register back, so `renderingEnabled`
+// below is this package's own record of having switched rendering on: it
+// is what lets applyColors() lay the frame exactly once, on the call that
+// is by construction the last moment a large VRAM write is free.
+//
+// Nametable and attribute contents are undefined at power-on (real
+// hardware: garbage; FCEUX: zeros, which is why a program that forgot to
+// clear would look fine in the emulator and wrong on a cartridge) — a
+// program should clear the screen once before applyColors(), as
+// examples/borders does; the attribute table is cleared here, since a
+// program has no other way to reach it.
+//
+// PPU warm-up: NESdev's guidance is to wait for two vertical blanks after
+// reset before writing the PPU at all, since the chip is not stable for
+// roughly the first 29,658 CPU cycles. LLVM-MOS's NROM start-up code does
+// exactly that before main() — verified by disassembling mos-platform/
+// nes-nrom/lib/crt0.o: __early_init writes $2000/$2001/$4010 = 0, clears
+// $2002, and spins on it until bit 7 sets; __late_init spins on it once
+// more after RAM is initialised — so by the time a program's main() runs
+// the PPU has seen two vblanks and is safe to write. (An earlier revision
+// of this comment recorded that wait as a gap this target still had; it
+// was never one.)
 export let border: u8 = 0;
 export let background: u8 = 0;
 
+let renderingEnabled: u8 = 0;
+
+// Loop counters for the one-time frame/attribute fill — globals, not
+// locals, since there are no local variables in the compiled subset yet.
+let fillIndex: usmallint = 0;
+let fillRow: usmallint = 0;
+
+// PPUSTATUS read resets the PPUADDR/PPUSCROLL write toggle so the two
+// PPUADDR writes land as a fresh address rather than as a stray second
+// half of whatever came before.
+function setVramAddress(address: usmallint): void {
+    memory.read(0x2002);
+    memory.write(0x2006, address / 256);
+    memory.write(0x2006, address % 256);
+}
+
+// PPUCTRL 0: nametable $2000, PPUDATA increments by 1, background patterns
+// from table 0 (where the font is), NMI off — this target polls PPUSTATUS
+// rather than taking the interrupt. Then PPUSCROLL x = 0, y = 0.
+function resetScroll(): void {
+    memory.write(0x2000, 0x00);
+    memory.write(0x2005, 0x00);
+    memory.write(0x2005, 0x00);
+}
+
+// `count` consecutive nametable cells from `address`, one PPUADDR set and
+// then PPUDATA's auto-increment — the cheap way to write a run.
+function fillRun(address: usmallint, count: usmallint, value: utinyint): void {
+    setVramAddress(address);
+    fillIndex = 0;
+    while (fillIndex < count) {
+        memory.write(0x2007, value);
+        fillIndex = fillIndex + 1;
+    }
+}
+
+// The drawn border: rows 0-1 and 28-29 in full, columns 0-1 and 30-31 of
+// every row between, all tile $80 (solid colour index 2 — see font.s).
+// Then the 64-byte attribute table at $23C0, zeroed: palette 0 everywhere.
+function layFrame(): void {
+    fillRun(0x2000, 64, 0x80);
+    fillRun(0x2380, 64, 0x80);
+    fillRow = 2;
+    while (fillRow < 28) {
+        fillRun(0x2000 + fillRow * 32, 2, 0x80);
+        fillRun(0x2000 + fillRow * 32 + 30, 2, 0x80);
+        fillRow = fillRow + 1;
+    }
+    fillRun(0x23C0, 64, 0x00);
+}
+
 export function applyColors(): void {
-    memory.read(0x2002);         // PPUSTATUS: reset the PPUADDR write-toggle
-    memory.write(0x2006, 0x3F);  // PPUADDR high byte: palette RAM ($3Fxx)
-    memory.write(0x2006, 0x00);  // PPUADDR low byte: $3F00, the universal backdrop
-    memory.write(0x2007, background); // PPUDATA: the backdrop colour itself
-    // PPUMASK bit 3: a fresh NES boots with rendering off, so nothing above
-    // would be visible without this — background rendering only, no
-    // sprites, and the leftmost 8 pixels not clipped (the backdrop colour
-    // is uniform regardless, so clipping only matters for tile edges this
-    // program never draws).
-    memory.write(0x2001, 0x08);
+    // The first call is by construction the last one made with rendering
+    // off (nothing else switches it on), so the frame and the attribute
+    // table — a few hundred VRAM writes — go in here, once, with no vblank
+    // budget to fit. Every later call is a handful of writes: fine from
+    // frame().
+    if (renderingEnabled == 0) {
+        layFrame();
+    }
+    setVramAddress(0x3F00);
+    memory.write(0x2007, background); // $3F00: the universal backdrop
+    memory.write(0x2007, 0x30);       // $3F01: text — white
+    memory.write(0x2007, border);     // $3F02: the frame tile
+    resetScroll();
+    if (renderingEnabled == 0) {
+        // Switching rendering on mid-frame would draw the rest of that
+        // frame from wherever the PPU's address register sits — after the
+        // palette writes above, a nametable it has never been given (the
+        // emulator shows zeros; a cartridge shows garbage) — for one partial
+        // frame. So the first enable waits for vertical blank: PPUSTATUS
+        // bit 7 (the value reads as 128 or more) sets at its start. Only
+        // here — a frame() caller is already in vblank, and spinning would
+        // cost it a whole frame.
+        while (memory.read(0x2002) < 128) {
+        }
+        renderingEnabled = 1;
+    }
+    // PPUMASK: bit 3 shows the background, bit 1 shows it in the leftmost
+    // 8 pixels too — otherwise column 0, the outer edge of the frame,
+    // would be clipped to the backdrop colour. Sprites stay off.
+    memory.write(0x2001, 0x0A);
+}
+
+// ---- the friendly screen surface ----------------------------------------
+//
+// The same names every other machine package exports, so a program that
+// imports `screen` from @8bitscript/machine draws on the NES too. 32x30 =
+// 960 cells; a cell index is nametable $2000 + cell. Codes are ASCII, by
+// the font's construction (see the header). putColor exists so portable
+// code still compiles and does nothing: the PPU has no per-cell colour —
+// the nearest thing, the attribute table, chooses a palette per 32x32-pixel
+// block, and every block here is palette 0.
+
+export namespace screen {
+    const CellCount: usmallint = 960;
+
+    function putChar(cell: usmallint, code: utinyint): void {
+        setVramAddress(0x2000 + cell);
+        memory.write(0x2007, code);
+        resetScroll();
+    }
+
+    function putColor(cell: usmallint, color: utinyint): void {
+        // Deliberately empty — see above.
+    }
+
+    function showDigit(cell: usmallint, digit: utinyint): void {
+        screen.putChar(cell, 0x30 + (digit % 10));
+    }
 }

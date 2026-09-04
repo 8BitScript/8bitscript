@@ -79,11 +79,48 @@ function findPackageDir(fromDir, name) {
 }
 
 /**
+ * A package's `"8bitscript".native` list: files that are not 8BitScript
+ * but belong in the build anyway — hand-written 6502 assembly, or data such
+ * as @8bitscript/nes's CHR-ROM font, which no .8bs construct can express
+ * yet. Paths are relative to the package and resolved here to absolute ones;
+ * the linker collects them across the module graph and the 6502 backend
+ * hands them to LLVM-MOS alongside the generated C. A package that ships
+ * only .8bs simply has no such field. Every listed file must exist: a
+ * package whose manifest names a file it does not ship is `8BS2008`,
+ * reported at resolution time for the same reason a missing entry is —
+ * before anything is built against it.
+ */
+function nativeSourcesOf(specifier, packageDir, manifest) {
+  const native = manifest?.['8bitscript']?.native;
+  if (native === undefined) return { native: [] };
+  if (!Array.isArray(native) || native.some((v) => typeof v !== 'string')) {
+    return {
+      code: Codes.NOT_AN_8BS_PACKAGE,
+      message: `'${specifier}' has a malformed "8bitscript".native value: expected an array of relative paths`,
+    };
+  }
+  const resolved = [];
+  for (const value of native) {
+    const target = resolvePath(packageDir, value);
+    if (!existsSync(target)) {
+      return {
+        code: Codes.MISSING_NATIVE_SOURCE,
+        message: `'${specifier}' declares native source '${value}', which does not exist`,
+      };
+    }
+    resolved.push(target);
+  }
+  return { native: resolved };
+}
+
+/**
  * One machine's entry value: a relative path into the package, or a bare
  * specifier delegating to another package (resolved from the package's own
- * directory, so its own dependencies serve the delegation).
+ * directory, so its own dependencies serve the delegation). A relative
+ * entry carries its own package's native sources; a delegation carries the
+ * delegated package's, since that is whose code is actually being linked.
  */
-function resolveEntryValue(specifier, packageDir, value, options, seen) {
+function resolveEntryValue(specifier, packageDir, value, options, seen, native = []) {
   if (typeof value !== 'string') {
     return {
       code: Codes.NOT_AN_8BS_PACKAGE,
@@ -95,7 +132,7 @@ function resolveEntryValue(specifier, packageDir, value, options, seen) {
     if (!existsSync(target)) {
       return { code: Codes.MISSING_PACKAGE_ENTRY, message: `'${specifier}' declares entry '${value}', which does not exist` };
     }
-    return { path: target };
+    return { path: target, native };
   }
   if (seen.has(packageDir)) {
     return { code: Codes.MISSING_PACKAGE_ENTRY, message: `'${specifier}' delegates its entry in a cycle` };
@@ -119,7 +156,7 @@ function resolveEntryValue(specifier, packageDir, value, options, seen) {
  * and the editor analyse files, not builds — every branch is validated, so a
  * broken branch is reported before anyone builds for that machine.
  */
-function resolveConditionalEntry(specifier, packageDir, entry, options, seen) {
+function resolveConditionalEntry(specifier, packageDir, entry, options, seen, native) {
   const { machine } = options;
   if (machine) {
     const value = entry[machine];
@@ -129,13 +166,13 @@ function resolveConditionalEntry(specifier, packageDir, entry, options, seen) {
         message: `'${specifier}' has no entry for the ${machine} target (targets: ${Object.keys(entry).join(', ')})`,
       };
     }
-    return resolveEntryValue(specifier, packageDir, value, options, seen);
+    return resolveEntryValue(specifier, packageDir, value, options, seen, native);
   }
 
   for (const [branchMachine, value] of Object.entries(entry)) {
     const resolved = resolveEntryValue(
       specifier, packageDir, value,
-      { ...options, machine: branchMachine }, new Set(seen),
+      { ...options, machine: branchMachine }, new Set(seen), native,
     );
     if (resolved?.code) {
       return { code: resolved.code, message: `for the ${branchMachine} target: ${resolved.message}` };
@@ -159,7 +196,10 @@ function resolveConditionalEntry(specifier, packageDir, entry, options, seen) {
  * @param {{ machine?: 'vic20'|'c64'|'web' }} [options]
  *   The machine being built for, if one is known; conditional package
  *   entries resolve to that machine's branch.
- * @returns {{ path: string|null } | { code: string, message: string } | null}
+ * @returns {{ path: string|null, native?: string[] } | { code: string, message: string } | null}
+ *   `native` — absolute paths of the resolved package's `"8bitscript".native`
+ *   files (see nativeSourcesOf) — rides along with a package resolution;
+ *   a relative import has none.
  */
 export function resolveSpecifier(specifier, fromFile, options = {}, seen = new Set()) {
   const fromDir = dirname(fromFile);
@@ -193,10 +233,14 @@ export function resolveSpecifier(specifier, fromFile, options = {}, seen = new S
     if (!existsSync(target)) {
       return { code: Codes.MISSING_PACKAGE_ENTRY, message: `'${specifier}' declares entry '${entry}', which does not exist` };
     }
-    return { path: target };
+    const sources = nativeSourcesOf(specifier, packageDir, manifest);
+    if (sources.code) return sources;
+    return { path: target, native: sources.native };
   }
   if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
-    return resolveConditionalEntry(specifier, packageDir, entry, options, seen);
+    const sources = nativeSourcesOf(specifier, packageDir, manifest);
+    if (sources.code) return sources;
+    return resolveConditionalEntry(specifier, packageDir, entry, options, seen, sources.native);
   }
 
   return {

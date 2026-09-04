@@ -3,36 +3,231 @@
 // The module entry point named by the "8bitscript".entry field in this
 // package's package.json, resolved and linked for:
 //
-//     import { borderColor } from "@8bitscript/cx16";
+//     import { border, background, applyColors, screen } from "@8bitscript/cx16";
 //
-// VERA has no single flat "screen background colour" register the way the
-// VIC/VIC-II do: its border colour lives in a plain, CPU-addressable I/O
-// port ($9F2C — see below), but the background comes from each screen
-// cell's own colour attribute byte, stored in VRAM behind VERA's indirect
-// address/data port protocol ($9F20-$9F24), which this target doesn't
-// build yet. So `background` exists (so portable code that sets it still
-// links, the same reasoning @8bitscript/pet documents for a gap in a
-// specific target) but `applyColors()` only ever writes `border`.
-
-// VERA's border register: struct __vera's `display.border` field (DCSEL=0
-// view) at base $9F20 + 12 — confirmed against llvm-mos-sdk's cx16.h,
-// which lays out that struct exactly. Assumes VERA's DCSEL is still 0, the
-// KERNAL's own boot-time default and what a program that never touches
-// VERA.control leaves it at; a program that switches display-config sets
-// itself is outside what this poke accounts for.
-@address(0x9F2C)
-export let borderColor: volatile<u8>;
-
-// ---- the common colour surface -------------------------------------------
+// ---- what the program finds when main() runs ---------------------------
 //
-// Every machine package exports the same three names, which is what lets a
-// program import them from @8bitscript/machine and never name the hardware:
-// set `border` and `background`, call applyColors(), and the machine shows
-// them.
+// LLVM-MOS's cx16 start-up code prints CHR$(15) through the KERNAL's CHROUT
+// immediately before calling main() — verified by disassembling a linked
+// build (`lda #$0f / jsr $ffd2 / jsr main`, in the SDK's start-up
+// sequence after `_start`; llvm-objdump labels the block with a local
+// symbol, `shift`). CHR$(15) switches the X16 KERNAL's screen editor into ISO mode
+// so that C's ASCII strings print as ASCII, and the KERNAL clears the
+// screen as part of that switch. Two consequences every program on this
+// target inherits, and this package is written around:
+//
+//   1. The screen is blank when main() starts — the boot banner is gone —
+//      and it is the KERNAL's default blue (palette index 6) because that
+//      is the background nibble the KERNAL cleared every cell with. A
+//      program that sets `border` and nothing else therefore appears to do
+//      nothing: examples/borders looked like exactly that, a solid blue
+//      screen, before this package painted anything itself.
+//
+//   2. The screen is in ISO mode: the character set VERA is drawing from
+//      is the KERNAL's ISO-8859-15 set, whose tile index IS the character
+//      code — 'A' is 65, '0' is 48, space is 32 — not the PETSCII screen
+//      codes (A = 1) the Commodore packages take. `screen.putChar` here
+//      therefore takes ASCII, the same codes @8bitscript/nes and
+//      @8bitscript/atari8 take, and examples/borders' X16 variant spells
+//      its labels that way.
+//
+// ---- the display: VERA, and where a border comes from ------------------
+//
+// VERA's border colour is a plain CPU-addressable register — but the
+// border it colours has no size by default. VERA draws layers inside an
+// "active area" whose edges are DC_HSTART/HSTOP/VSTART/VSTOP, and the
+// KERNAL boots with that area set to the entire 640x480 output, so nothing
+// is left over for the border colour to fill. Setting `border` alone is
+// invisible — the second reason examples/borders showed only blue.
+//
+// So applyColors() shrinks the active area by 16 pixels on every side —
+// HSTART/HSTOP count in units of 4 pixels (0..160), VSTART/VSTOP in units
+// of 2 (0..240), hence 4/156 and 8/232 — and VERA fills the 16-pixel ring
+// outside it with the border colour. The text layer is positioned relative
+// to the active area, so a program sees the same 80x60 grid with cell
+// (0,0) at the inset's top-left corner — the rightmost 4 columns and
+// bottom 4 rows now fall outside the active area and are not drawn. This
+// is the closest thing the X16 has to the VIC/VIC-II's dedicated border
+// area, and like the NES's drawn frame it is honest about what it is: a
+// choice this package makes, not a register the machine has.
+//
+// "Relative" needs one correction, measured rather than assumed. Under
+// x16emu r50 the layer's first line lands TWO lines above the active
+// area's top edge whenever VSTART is nonzero: with a 16-line inset, row 0
+// of text occupied lines 14-21 and its top two lines were hidden under
+// the border, and the same two lines with a 32-line inset. The emulator's
+// video.c shows why — its layer line counter starts accumulating on the
+// VSTART line through a two-line register-history pipeline (the one that
+// models VERA's own raster-effect latency), so the active area's first
+// line already reads as layer line 2. applyColors() compensates with layer
+// 1's vertical scroll: 510, which is -2 modulo the map's 512 lines, puts
+// layer line 0 on the active area's first line exactly (verified the same
+// way: row 0's glyphs occupy lines 16-23 with the 16-line inset, none
+// hidden). The horizontal edge needs no such correction. Real hardware
+// has not been checked; if VERA silicon has no such offset, the visible
+// symptom would be the map's last row showing in the top two lines — so
+// the repaint below covers that row too and keeps its characters blank.
+//
+// The four DC_ registers live at $9F29-$9F2C under two views selected by
+// DCSEL (CTRL $9F25 bit 1): DCSEL=0 is VIDEO/HSCALE/VSCALE/BORDER, DCSEL=1
+// is HSTART/HSTOP/VSTART/VSTOP — confirmed against llvm-mos-sdk's cx16.h,
+// which lays out `struct __vera` exactly so. applyColors() sets DCSEL
+// itself both times and leaves it 0 (the KERNAL's default), so nothing
+// here assumes what a previous program left it at. Writing CTRL also
+// clears ADDRSEL (bit 0), selecting DATA0 — the port everything below
+// uses.
+//
+// ---- the background, and text: VRAM through VERA's port -----------------
+//
+// There is no screen-background register at all. The text layer (layer 1
+// in the KERNAL's boot configuration: 1bpp 16-colour text, a tile map 128
+// tiles wide by 64 high, of which 80x60 are on screen — screen_init in
+// the ROM's kernal/drivers/x16/screen.s) takes each cell's colours from
+// that cell's own attribute byte — high nibble background, low nibble
+// foreground — stored in VRAM, which the CPU reaches only through VERA's
+// address/data port: write the 17-bit address into $9F20 (bits 7:0),
+// $9F21 (15:8) and $9F22 (bit 16, plus the auto-increment step in bits
+// 7:4), then read or write $9F23 (DATA0), which advances the address by
+// that step. Cell (x, y) is char byte base + y*256 + x*2, attribute byte
+// one higher.
+//
+// Where `base` is comes from VERA, not from this file: the KERNAL puts
+// the map at $1B000 today, but that is a constant in its source
+// (inc/io.inc), not a published contract, and the ROM's own documentation
+// reserves the right to move it. VERA's layer registers read back what
+// was written to them (verified in the emulator's video_read), so
+// locateTextMap() below reads L1_MAPBASE ($9F35) — the map address
+// divided by 512 — before every access and derives the 17-bit base from
+// it. What this file still assumes is the shape screen_init gives the
+// map: 128 tiles wide (a 256-byte row stride), and wholly within one
+// 64 KiB half of VRAM so the low 16 bits of any cell fit a usmallint.
+//
+// Interrupts are on while main() runs (the frame driver only disables
+// them afterwards), and the KERNAL's IRQ handler drives the mouse-cursor
+// sprite and the cursor blink through this same port. That is safe: both
+// wrap their work in the ROM's screen_save_state/screen_restore_state,
+// which save VERA CTRL, FX_CTRL and ADDR0 (kernal/drivers/x16/screen.s),
+// so an interrupt landing between the three address writes below and the
+// data write finds everything as it left it.
+//
+// `background` is therefore painted, not set: applyColors() writes every
+// one of the 4800 on-screen cells' attribute bytes to `background` in the
+// high nibble and white (1) in the low — 60 rows of 80 auto-incrementing
+// writes — the same way the Commodore packages draw their digits in white
+// against whatever background is chosen. Around 60,000 cycles at 8MHz, a
+// few milliseconds: VERA's VRAM is safe to write at any point in the frame
+// (a write mid-frame can tear for that one frame; it cannot corrupt
+// anything, unlike the NES's port), so this needs no vblank budget and
+// applyColors() is safe from frame() as well as from setup. Its side
+// effect is deliberate and documented: any foreground colour a program
+// set with putColor() is reset to white by the next applyColors().
+//
+// Colours are VERA palette indices. The KERNAL's default palette starts
+// with the sixteen C64 colours in C64 order — 0 black, 1 white, 2 red,
+// 3 cyan, 4 purple, 5 green, 6 blue, 7 yellow, and so on — verified on
+// screen under x16emu for the values examples/borders uses, so the
+// Commodore packages' border/background pairs mean the same colours here.
 
 export let border: u8 = 0;
 export let background: u8 = 0;
 
+// Loop counters for the attribute repaint — globals, not locals, since
+// there are no local variables in the compiled subset yet.
+let paintRow: usmallint = 0;
+let paintCol: usmallint = 0;
+
+// The text map's VRAM address, as (bit 16, low 16 bits), refreshed from
+// VERA by locateTextMap() — see the header for why it is read, not known.
+let mapBank: utinyint = 0;
+let mapLow: usmallint = 0;
+
+// L1_MAPBASE ($9F35) holds the map address >> 9: bit 7 is VRAM bit 16,
+// bits 6:0 are address bits 15:9.
+function locateTextMap(): void {
+    mapBank = memory.read(0x9F35) / 128;
+    // Two steps, not `(byte % 128) * 512`: the product can reach 65024,
+    // past a 16-bit signed int, and in the C this becomes that is
+    // undefined arithmetic on a promoted byte (LLVM-MOS happens to wrap;
+    // nothing promises it). Multiplying a usmallint keeps it unsigned.
+    mapLow = memory.read(0x9F35) % 128;
+    mapLow = mapLow * 512;
+}
+
+// Point DATA0 at a 17-bit VRAM address (bank = bit 16, low = bits 15:0),
+// with the auto-increment step index in the top nibble of $9F22 (0 = no
+// step, 1 = +1, 2 = +2 — VERA's table of steps, not a byte count).
+function setVramAddress(bank: utinyint, low: usmallint, stepIndex: utinyint): void {
+    memory.write(0x9F20, low % 256);
+    memory.write(0x9F21, low / 256);
+    memory.write(0x9F22, bank + stepIndex * 16);
+}
+
 export function applyColors(): void {
-    borderColor = border;
+    // DCSEL=1: the active-area edges. 16 pixels in on every side.
+    memory.write(0x9F25, 0x02);
+    memory.write(0x9F29, 4);    // HSTART: 16px
+    memory.write(0x9F2A, 156);  // HSTOP: 624px
+    memory.write(0x9F2B, 8);    // VSTART: 16px
+    memory.write(0x9F2C, 232);  // VSTOP: 464px
+    // DCSEL=0 (and ADDRSEL=0): the border colour itself.
+    memory.write(0x9F25, 0x00);
+    memory.write(0x9F2C, border);
+    // Layer 1's scroll: horizontal 0, vertical 510 = -2 mod the map's 512
+    // lines — the two-line correction the header explains, so that cell
+    // (0,0) lands exactly at the active area's top-left corner.
+    memory.write(0x9F37, 0x00); // L1_HSCROLL_L
+    memory.write(0x9F38, 0x00); // L1_HSCROLL_H
+    memory.write(0x9F39, 0xFE); // L1_VSCROLL_L: 510 & 0xFF
+    memory.write(0x9F3A, 0x01); // L1_VSCROLL_H: 510 >> 8
+
+    // Every cell's attribute byte: background high, white low. All 64 map
+    // rows, not just the 60 on screen — row 63 is what the vertical-scroll
+    // correction above would expose if real hardware lacks the offset it
+    // corrects (see the header), so it gets the same colours and, below,
+    // blank characters.
+    locateTextMap();
+    paintRow = 0;
+    while (paintRow < 64) {
+        setVramAddress(mapBank, mapLow + 1 + paintRow * 256, 2);
+        paintCol = 0;
+        while (paintCol < 80) {
+            memory.write(0x9F23, background * 16 + 1);
+            paintCol = paintCol + 1;
+        }
+        paintRow = paintRow + 1;
+    }
+    setVramAddress(mapBank, mapLow + 63 * 256, 2);
+    paintCol = 0;
+    while (paintCol < 80) {
+        memory.write(0x9F23, 32);
+        paintCol = paintCol + 1;
+    }
+}
+
+// ---- the friendly screen surface ----------------------------------------
+//
+// The same names every other machine package exports, so a program that
+// imports `screen` from @8bitscript/machine draws on the X16 too. 80x60 =
+// 4800 cells, row-major; codes are ASCII (ISO mode — see the header).
+// putColor is real here, unlike on the NES and Atari: it sets a cell's
+// foreground nibble, keeping `background` in the high one.
+
+export namespace screen {
+    const CellCount: usmallint = 4800;
+
+    function putChar(cell: usmallint, code: utinyint): void {
+        locateTextMap();
+        setVramAddress(mapBank, mapLow + (cell / 80) * 256 + (cell % 80) * 2, 0);
+        memory.write(0x9F23, code);
+    }
+
+    function putColor(cell: usmallint, color: utinyint): void {
+        locateTextMap();
+        setVramAddress(mapBank, mapLow + 1 + (cell / 80) * 256 + (cell % 80) * 2, 0);
+        memory.write(0x9F23, background * 16 + color);
+    }
+
+    function showDigit(cell: usmallint, digit: utinyint): void {
+        screen.putChar(cell, 0x30 + (digit % 10));
+    }
 }

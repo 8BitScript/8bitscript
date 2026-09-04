@@ -2,7 +2,7 @@
   "name": "borders",
   "version": "0.0.0",
   "private": true,
-  "description": "Cycles the border/background colours forever, from one shared source file on the VIC-20, C64, PET, C128, MEGA65, and web, and from a trimmed per-target file on Atari 8-bit, Commander X16, and NES — the classic first sign of life, on every target this project supports.",
+  "description": "Cycles the border/background colours forever with a TICK/OPTION readout, from one shared source file on the VIC-20, C64, PET, C128, MEGA65, and web, and from per-target files with their own screen codes on Atari 8-bit, NES, and Commander X16 — the classic first sign of life, on every target this project supports.",
   "license": "MIT",
   "scripts": {
     "start": "8bs run vic20",
