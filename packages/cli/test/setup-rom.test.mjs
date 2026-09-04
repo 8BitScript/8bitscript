@@ -99,7 +99,7 @@ function makeTmpDir() {
   return mkdtempSync(join(tmpdir(), '8bs-setup-rom-'));
 }
 
-test('inspectXemuRomLink: a valid canonical ROM already linked from the Xemu path', () => {
+test('inspectXemuRomLink: a valid canonical ROM already linked from the Xemu path', async () => {
   const dir = makeTmpDir();
   try {
     const canonical = join(dir, 'MEGA65.ROM');
@@ -107,7 +107,7 @@ test('inspectXemuRomLink: a valid canonical ROM already linked from the Xemu pat
     const romBytes = Buffer.alloc(MEGA65_ROM_920413.romSize, 5);
     writeFileSync(canonical, romBytes);
     symlinkSync(canonical, linkPath);
-    const inspection = inspectXemuRomLink(linkPath, canonical, {
+    const inspection = await inspectXemuRomLink(linkPath, canonical, {
       romSize: MEGA65_ROM_920413.romSize, romSha256: sha256Hex(romBytes),
     });
     assert.equal(inspection.state, 'linked');
@@ -116,7 +116,7 @@ test('inspectXemuRomLink: a valid canonical ROM already linked from the Xemu pat
   }
 });
 
-test('inspectXemuRomLink: an existing valid Xemu-local ROM, not yet linked, is migratable — never touched as foreign', () => {
+test('inspectXemuRomLink: an existing valid Xemu-local ROM, not yet linked, is migratable — never touched as foreign', async () => {
   const dir = makeTmpDir();
   try {
     const canonical = join(dir, 'opt', 'MEGA65.ROM');
@@ -124,14 +124,14 @@ test('inspectXemuRomLink: an existing valid Xemu-local ROM, not yet linked, is m
     const romBytes = Buffer.alloc(MEGA65_ROM_920413.romSize, 9);
     writeFileSync(linkPath, romBytes);
     const expected = { romSize: MEGA65_ROM_920413.romSize, romSha256: sha256Hex(romBytes) };
-    const inspection = inspectXemuRomLink(linkPath, canonical, expected);
+    const inspection = await inspectXemuRomLink(linkPath, canonical, expected);
     assert.equal(inspection.state, 'migratable');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
-test('inspectXemuRomLink: a relative symlink resolves against the link\'s own directory, not the link path itself', () => {
+test('inspectXemuRomLink: a relative symlink resolves against the link\'s own directory, not the link path itself', async () => {
   const dir = makeTmpDir();
   try {
     const canonical = join(dir, 'MEGA65.ROM');
@@ -141,7 +141,7 @@ test('inspectXemuRomLink: a relative symlink resolves against the link\'s own di
     // A relative target, as a hand-made symlink might use: '../MEGA65.ROM'
     // from xemu-lgb/ resolves to dir/MEGA65.ROM — the canonical path.
     symlinkSync('../MEGA65.ROM', linkPath);
-    const inspection = inspectXemuRomLink(linkPath, canonical, MEGA65_ROM_920413);
+    const inspection = await inspectXemuRomLink(linkPath, canonical, MEGA65_ROM_920413);
     assert.equal(inspection.resolvedTarget, canonical);
     assert.equal(inspection.state, 'linked');
   } finally {
@@ -149,13 +149,13 @@ test('inspectXemuRomLink: a relative symlink resolves against the link\'s own di
   }
 });
 
-test('inspectXemuRomLink: an unrelated file at the Xemu ROM path is foreign, never migratable', () => {
+test('inspectXemuRomLink: an unrelated file at the Xemu ROM path is foreign, never migratable', async () => {
   const dir = makeTmpDir();
   try {
     const canonical = join(dir, 'opt', 'MEGA65.ROM');
     const linkPath = join(dir, 'MEGA65.ROM');
     writeFileSync(linkPath, 'not a rom, someone else put this here');
-    const inspection = inspectXemuRomLink(linkPath, canonical, MEGA65_ROM_920413);
+    const inspection = await inspectXemuRomLink(linkPath, canonical, MEGA65_ROM_920413);
     assert.equal(inspection.state, 'foreign');
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -195,7 +195,7 @@ test('ensureXemuRomLink: a migratable ROM is only replaced with a symlink when a
 
     const migrated = await ensureXemuRomLink(linkPath, canonical, { allowMigrate: true, expected });
     assert.equal(migrated.action, 'migrated');
-    const after = inspectXemuRomLink(linkPath, canonical, expected);
+    const after = await inspectXemuRomLink(linkPath, canonical, expected);
     assert.equal(after.state, 'linked');
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -209,7 +209,7 @@ test('ensureXemuRomLink: creates the link (and its parent dir) when nothing is t
     const linkPath = join(dir, 'nested', 'xemu-lgb', 'MEGA65.ROM');
     const result = await ensureXemuRomLink(linkPath, canonical, {});
     assert.equal(result.action, 'linked');
-    const after = inspectXemuRomLink(linkPath, canonical, MEGA65_ROM_920413);
+    const after = await inspectXemuRomLink(linkPath, canonical, MEGA65_ROM_920413);
     assert.equal(after.state, 'linked');
     assert.equal(after.resolvedTarget, canonical);
   } finally {

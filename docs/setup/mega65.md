@@ -14,59 +14,73 @@ registers, same colours, same numbers as the C64, on more capable silicon.
 There's no packaged build to install `xmega65` from, on any platform —
 upstream doesn't tag releases, and this project doesn't depend on the AUR
 `xmega65-git` package (it's unreliable/outdated). `xmega65` is built
-directly from [lgblgblgb/xemu](https://github.com/lgblgblgb/xemu) instead.
-On top of that, actually *running* the MEGA65 core needs a MEGA65 ROM —
-copyrighted Commodore/MEGA65 material this project cannot bundle, download
-on your behalf, or commit to this repository (see
+directly from [lgblgblgb/xemu](https://github.com/lgblgblgb/xemu) instead —
+tested on both Apple Silicon macOS and Arch/Manjaro Linux. On top of that,
+actually *running* the MEGA65 core needs a MEGA65 ROM — copyrighted
+Commodore/MEGA65 material this project cannot bundle, download on your
+behalf, or commit to this repository (see
 [MEGA65 ROM handling](#mega65-rom-handling) below).
 
 ## Automated setup
 
 ```bash
-8bs setup mega65
+8bs setup mega65 --rom ~/Downloads/MEGA65.ROM
 ```
 
-On Arch/Manjaro, this does everything short of what only you can legally
-provide:
+This does everything short of what only you can legally provide — a full
+MEGA65 ROM:
 
 1. Checks `mos-mega65-clang` is on `LLVM_MOS_HOME` (see [LLVM-MOS](llvm-mos.md) —
    `8bs setup` doesn't install the compiler toolchain itself).
-2. Installs Xemu's build dependencies with `pacman` if any are missing
-   (`base-devel git pkgconf sdl2-compat gtk3 readline`) — asks first.
-3. Clones/updates [lgblgblgb/xemu](https://github.com/lgblgblgb/xemu) into a
-   cache directory (not `~/Development`), builds only `targets/mega65`, and
-   installs the result as `/opt/xemu/xmega65` with a
-   `/usr/local/bin/xmega65` symlink — all under `sudo` only for the
-   `install`/`mkdir`/`ln` steps into `/opt` and `/usr/local/bin`; the clone
-   and build run as your normal user.
-4. Walks you through the ROM: asks for the path to a **C64 Forever** MSI
-   installer, extracts the free Commodore 65 ROM from it, downloads the
-   official MEGA65 ROM patch, builds the official `romdiff` patch tool, and
-   patches the two together into `/opt/mega65/MEGA65.ROM` — validating
-   every file's size and SHA-256 along the way, and stopping with a clear
-   error rather than guessing if anything doesn't match.
-5. Links `~/.xemu-lgb/MEGA65.ROM` to the canonical install so Xemu finds it,
+2. **macOS:** checks the Apple Command Line Tools with `xcode-select -p` and
+   offers `xcode-select --install` only if they're absent; then requires
+   Homebrew (found via `PATH`, never a hardcoded `/opt/homebrew`) and
+   installs the build dependencies `sdl2 wget git` with `brew install` if
+   any are missing — asks first. If `brew` itself is missing it says so and
+   points at <https://brew.sh>; it never runs the Homebrew bootstrap script
+   for you.
+   **Linux:** installs `base-devel git pkgconf sdl2-compat gtk3 readline`
+   with `pacman` if missing (asks first).
+3. Clones (or fast-forwards) [lgblgblgb/xemu](https://github.com/lgblgblgb/xemu)
+   into a cache directory — `~/.cache/8bitscript/setup/` (or
+   `$XDG_CACHE_HOME`), never `~/Development` — and builds only
+   `targets/mega65`, as your normal user. Harmless compiler warnings
+   (confirmed on both GCC/Arch and Apple clang/macOS — experimental
+   pointer/sprite features, no `_mm_malloc()` on ARM, unused
+   variables) are expected, not failures; only a non-zero `make` exit or a
+   missing resulting binary is.
+4. Installs the result as `/opt/xemu/xmega65` (never named `xmega65.native`)
+   with `sudo` only for that `mkdir`/`install` step, then puts a
+   `/usr/local/bin/xmega65` symlink on `PATH` — unlike Commander X16's
+   x16emu, a plain symlink works correctly for xmega65 on macOS too
+   (confirmed on a real install), so there's no wrapper script here.
+5. Installs the ROM you provide with `--rom` (see
+   [MEGA65 ROM handling](#mega65-rom-handling)) as
+   `/opt/mega65/MEGA65.ROM`.
+6. Sets up Xemu's own per-user data directory if it doesn't exist yet —
+   `~/Library/Application Support/xemu-lgb/mega65/` on macOS,
+   `~/.local/share/xemu-lgb/mega65/` on Linux — with the `~/.xemu-lgb`
+   compatibility symlink Xemu itself would create on first launch, without
+   ever running the emulator just to get that layout. An existing
+   `~/.xemu-lgb` (Xemu's own, from a prior launch) is left completely
+   alone.
+7. Links `~/.xemu-lgb/MEGA65.ROM` to the canonical install so Xemu finds it,
    without ever overwriting an existing, unrelated file there.
 
-It's interactive where it needs your input (the C64 Forever MSI path, a
-`pacman` install, migrating an existing ROM) and safe to re-run — every step
-checks what's already in place first and skips it.
-
-Two flags skip the interactive prompts, for scripting or when you've already
-downloaded the files by hand:
+It's safe to re-run: every step checks what's already in place first and
+skips it, so a complete install goes straight through with no sudo, no
+Homebrew/pacman, and no rebuild. `--repair` is accepted as an alias for a
+plain run — it already repairs a broken launcher or a missing ROM link
+without rebuilding anything:
 
 ```bash
-8bs setup mega65 --c64-forever ~/Downloads/c64-forever-11-setup.msi
-8bs setup mega65 --rom-patch ~/Downloads/920413_Sn7YEw.zip
+8bs setup mega65 --repair
 ```
 
-`--rom-patch` matters for a specific reason: the official patch's download
-URL (below) carries what looks like a content hash or random token in its
-filename, which may not be stable if MEGA65's file host ever re-issues this
-release. If the automated download ever 404s, grab the zip from
-[files.mega65.org](https://files.mega65.org/) yourself and pass it with
-`--rom-patch` — the ROM's own SHA-256 (also below) is what actually
-guarantees correctness, not the URL.
+If you omit `--rom` and run interactively, setup asks for the path
+directly (`Path to MEGA65.ROM:`) rather than looking for a C64 Forever
+installer — see the next section for why, and for the separate
+`--c64-forever`/`--rom-patch` flow that generates a ROM from scratch.
 
 Once it finishes, confirm with:
 
@@ -74,34 +88,86 @@ Once it finishes, confirm with:
 8bs doctor
 ```
 
-which reports `xmega65`, `MEGA65 ROM`, and `MEGA65 boot` as three separate
-checks — see [Doctor](#doctor) below for why.
+which reports `xmega65`, `MEGA65 ROM`, `Xemu ROM link`, and `MEGA65` as
+four separate checks — see [Doctor](#doctor) below for why.
 
 ## MEGA65 ROM handling
 
 The complete MEGA65 ROM is not freely redistributable — Xemu's own wiki
 calls fetching it "a legal issue" and this project will not bundle it,
-mirror it, or fetch it from anywhere on your behalf. What *is* legal, and
-what `8bs setup mega65` automates, is generating your own copy from two
-things Cloanto and the MEGA65 project both distribute freely:
+mirror it, or fetch it from anywhere on your behalf. `8bs setup mega65`
+therefore always needs *you* to supply one, in one of two ways:
 
-- **The original Commodore 65 ROM** (version 910828), from Cloanto's free
-  **C64 Forever Free Express Edition** for Windows —
-  <https://www.c64forever.com/>. The file needed is
-  `c-65-19910828.rom`, 131072 bytes,
-  SHA-256 `0c4a00b45b65ca553b8a9f38cae83fe5f7dca7e809c24c0051ae40956640509d`,
-  buried inside the MSI installer (no need to run it — see
-  [Extracting the C64 Forever MSI on Linux](#extracting-the-c64-forever-msi-on-linux)
-  below).
-- **The official MEGA65 920413 ROM patch**, a `.rdf` "ROM diff" file (not
-  ROM content) from the MEGA65 project itself:
-  <https://files.mega65.org/files/other/920413_Sn7YEw.zip> (see the caveat
-  about this URL above). The resulting `MEGA65.ROM`, once patched, is 131072
-  bytes with SHA-256
+- **`--rom /path/to/MEGA65.ROM`** — you already have a generated
+  `MEGA65.ROM` (from another machine, or from the manual process below) and
+  just want it installed and linked. This is the primary path, and the one
+  the interactive prompt asks for when `--rom` isn't given.
+- **`--c64-forever <msi>`** (with optional `--rom-patch <zip>`) — generate
+  one from Cloanto's free **C64 Forever Free Express Edition** installer
+  plus the official MEGA65 920413 patch, entirely on this machine. This
+  flow extracts the free Commodore 65 ROM from the MSI, downloads the
+  official patch, builds the official `romdiff` patch tool, and patches the
+  two together — validating every file's size and SHA-256 along the way,
+  and stopping with a clear error rather than guessing if anything doesn't
+  match. See [Generating the ROM from C64 Forever](#generating-the-rom-from-c64-forever)
+  below for the manual equivalent and the exact files involved. This flow
+  is only exercised when you pass `--c64-forever` explicitly — it needs
+  `msiextract` (Arch: `msitools`), which is out of scope for the macOS
+  milestone documented here.
+
+Either way, the result is installed as `/opt/mega65/MEGA65.ROM` and linked
+into Xemu's own per-user data directory at `~/.xemu-lgb/MEGA65.ROM`.
+
+### The pinned release
+
+8BitScript currently verifies ROMs against one specific release:
+
+- **MEGA65 920413**, 131072 bytes, SHA-256
   `af3c447f791a2fdc48cb21e1bd3fab015e32641228d9d30d21259b9e878c6fa0`.
 
-`8bs setup mega65` installs the result as `/opt/mega65/MEGA65.ROM` and links
-it into Xemu's own per-user data directory at `~/.xemu-lgb/MEGA65.ROM`.
+A ROM matching that hash is installed and reported `ready` everywhere. A
+file that's the right size (131072 bytes) but a different hash — a future
+release, an Open ROM saved with the wrong name, or anything else — is
+**installed anyway, never silently rejected or deleted**, but reported as
+an unverified version: `8bs setup mega65` won't print "MEGA65 is ready",
+and `8bs doctor` will report `MEGA65 ROM` as not ready until a verified
+920413 copy replaces it. A file of the wrong size is refused outright —
+that's not a MEGA65 ROM at all. This mirrors the brief this feature was
+built from: known-good releases are meant to be a small table setup can
+grow, not a single hardcoded assumption.
+
+### Xemu's per-user data directory
+
+Xemu keeps its own MEGA65 state — configuration, SD card image, ROM — in a
+per-platform directory, with `~/.xemu-lgb` as a compatibility symlink into
+it (confirmed against real first launches on both platforms):
+
+| Platform | Real data directory |
+| --- | --- |
+| macOS | `~/Library/Application Support/xemu-lgb/mega65/` |
+| Linux | `~/.local/share/xemu-lgb/mega65/` |
+
+`8bs setup mega65` reads and writes the ROM through the `~/.xemu-lgb`
+compatibility path on both platforms, so the canonical system layout
+(`/opt/mega65/MEGA65.ROM`, `/opt/xemu/xmega65`, `/usr/local/bin/xmega65`)
+stays identical across platforms even though Xemu's own user data doesn't.
+If Xemu has never run, `~/.xemu-lgb` doesn't exist yet — setup creates the
+same layout Xemu's first launch would (the real directory, then the
+symlink) rather than launching a GUI emulator during an automated setup.
+Anything already there — Xemu's own symlink from a real prior launch, or a
+plain directory — is left completely untouched.
+
+### Xemu's built-in stub ROM is not a MEGA65 ROM
+
+Without a real `MEGA65.ROM`, Xemu still runs: it reports
+`FILE: @MEGA65.ROM cannot be open` and falls back to its own bundled
+`Xemu-ROMs` (reported as version `920000`). That's Xemu working correctly,
+not this project's target being ready — `xmega65` existing and even
+launching successfully says nothing about whether the *MEGA65 environment*
+it boots into is the real one. `8bs doctor` never looks at Xemu's internal
+stub — it only ever checks the files this project manages
+(`/opt/mega65/MEGA65.ROM` and `~/.xemu-lgb/MEGA65.ROM`), so a stub-only
+install is correctly reported as ROM `not found`, not as ready.
 
 ### Open ROM
 
@@ -117,42 +183,53 @@ come later.
 ## Doctor
 
 ```
-ok   xmega65 (MEGA65, via Xemu)   found
+ok   xmega65 (MEGA65, via Xemu)   /usr/local/bin/xmega65
 ok   MEGA65 ROM                   920413
-ok   MEGA65 boot                  emulator configuration ready
+ok   Xemu ROM link                configured
+ok   MEGA65                       ready
 ```
 
-These are three separate checks, not one — `xmega65` existing on `PATH`
-does not mean MEGA65 is ready to run, since a fresh Xemu install has no ROM
-until `8bs setup mega65` (or the manual steps below) produces one. `8bs
-doctor` checks `/opt/mega65/MEGA65.ROM` first, then
-`~/.xemu-lgb/MEGA65.ROM`, and validates whichever it finds against the known
-920413 size/hash — a present-but-wrong file (an Open ROM, a different
-release, a corrupt download) is reported as a `FAIL`, not silently accepted.
-`MEGA65 boot` is a configuration check, not an actual emulator launch —
-Xemu is a GUI application with no confirmed headless boot-verification flag,
-unlike the [VICE](vice.md) integration's real boot check.
+These are four separate checks, not one:
 
-## Manual reference (Arch/Manjaro)
+- **xmega65** — the launcher found on `PATH`, shown as its resolved path.
+- **MEGA65 ROM** — a full, official 920413 ROM exists somewhere this
+  project (or a manual install) would put it. `8bs doctor` checks
+  `/opt/mega65/MEGA65.ROM` first, then `~/.xemu-lgb/MEGA65.ROM`, and
+  validates whichever it finds against the known 920413 size/hash — a
+  present-but-wrong file (an Open ROM, a different release, a corrupt
+  download) is reported as a `FAIL`, not silently accepted.
+- **Xemu ROM link** — separately: can *Xemu itself* actually see that ROM?
+  A canonical install with no `~/.xemu-lgb/MEGA65.ROM` link passes `MEGA65
+  ROM` but fails this check — a real, tested gap where `xmega65` would
+  still boot into the stub ROM despite a perfectly good ROM sitting at
+  `/opt/mega65`:
 
-Everything below is what `8bs setup mega65` automates. Useful if the
-automated command fails partway and you want to see exactly what it was
-doing, or if you'd rather run each step yourself.
+  ```
+  FAIL  Xemu ROM link   MEGA65.ROM exists but Xemu is not configured to use it.
+        run: 8bs setup mega65 --repair
+  ```
+
+  A ROM installed directly at the Xemu-local path (not linked to a
+  canonical copy — say, a hand-placed file) is accepted and labelled as
+  such rather than treated as a failure.
+- **MEGA65** — ready only when the compiler (`mos-mega65-clang`), `xmega65`,
+  the ROM, and the Xemu ROM link all pass.
+
+## Manual reference — macOS
+
+What `8bs setup mega65 --rom` automates, step by step, as verified on
+Apple Silicon.
 
 ### Dependencies
 
 ```bash
-sudo pacman -S --needed \
-  base-devel \
-  git \
-  pkgconf \
-  sdl2-compat \
-  gtk3 \
-  readline
+xcode-select --install   # skip if `xcode-select -p` already succeeds
+brew install sdl2 wget git
 ```
 
-Current Arch/Manjaro uses `sdl2-compat` (an SDL 1.2-compatible shim over
-SDL2), not a separate `sdl2` package, for this build.
+`sdl2` currently resolves to the `sdl2-compat` formula on current Homebrew
+— confirmed working. Xemu's own build detected `SDL video=cocoa`,
+`SDL renderer=metal` against this.
 
 ### Building xmega65
 
@@ -162,20 +239,102 @@ cd xemu/targets/mega65
 make
 ```
 
-This builds only the MEGA65 core — Xemu has cores for several other
-Commodore/MEGA machines this project doesn't need. The resulting binary is
-`xemu/build/bin/xmega65.native`. On a current Arch/Manjaro system (GCC 16,
-SDL2 compatibility layer 2.32.70, GTK3) this build succeeds with several
-harmless compiler warnings — only a non-zero `make` exit code or a missing
-resulting binary means the build actually failed.
+This builds only the MEGA65 core. The resulting binary is
+`xemu/build/bin/xmega65.native`. A clean build succeeds with several
+harmless compiler warnings (experimental pointer/sprite features, no
+`_mm_malloc()` on ARM, unused variables/functions) — only a non-zero
+`make` exit code or a missing resulting binary means the build actually
+failed.
 
 Install it system-wide (never as `xmega65.native` — always renamed on
-install):
+install) and put it on `PATH`:
 
 ```bash
 sudo mkdir -p /opt/xemu
 sudo install -m755 build/bin/xmega65.native /opt/xemu/xmega65
+sudo mkdir -p /usr/local/bin
 sudo ln -sf /opt/xemu/xmega65 /usr/local/bin/xmega65
+```
+
+Unlike Commander X16's x16emu, this plain symlink layout works correctly
+for xmega65 on macOS — confirmed by running `cd ~ && xmega65` through it
+and getting the same result as running the real binary directly. No
+wrapper script is needed here.
+
+### Installing your MEGA65 ROM
+
+```bash
+sudo mkdir -p /opt/mega65
+sudo install -m644 ~/Downloads/MEGA65.ROM /opt/mega65/MEGA65.ROM
+```
+
+On first launch without a real ROM, Xemu creates its own data directory —
+on macOS, `~/Library/Application Support/xemu-lgb/mega65/` — along with a
+`~/.xemu-lgb` compatibility symlink into it, `mega65-default.cfg`,
+`i2c.bin`, `XEMU-STUB.ROM`, and other first-run files; that's normal, and
+none of it needs to exist before installing the real ROM. If
+`~/.xemu-lgb` doesn't exist yet (Xemu has never run), create the same
+layout by hand rather than launching a GUI emulator just to get it:
+
+```bash
+mkdir -p ~/Library/Application\ Support/xemu-lgb/mega65
+ln -s ~/Library/Application\ Support/xemu-lgb/mega65 ~/.xemu-lgb
+```
+
+Then link the canonical ROM into it — the exact path Xemu reads from is
+`~/.xemu-lgb/MEGA65.ROM`:
+
+```bash
+ln -sf /opt/mega65/MEGA65.ROM ~/.xemu-lgb/MEGA65.ROM
+```
+
+If `~/.xemu-lgb/MEGA65.ROM` already exists as something else — a regular
+file rather than a symlink — check what it is before overwriting it: if
+it's already a valid copy of the same ROM, it's safe to replace with the
+symlink above; if it's not, it may be a different setup you don't want to
+lose, and it should be moved aside rather than deleted outright. And if
+`~/.xemu-lgb` itself already points somewhere else, leave it as-is — it's
+Xemu's own layout from a real prior launch, not something to replace.
+
+### Verifying the ROM hash
+
+```bash
+shasum -a 256 /opt/mega65/MEGA65.ROM
+```
+
+should print `af3c447f791a2fdc48cb21e1bd3fab015e32641228d9d30d21259b9e878c6fa0`
+for the current pinned 920413 release (131072 bytes).
+
+## Generating the ROM from C64 Forever
+
+This is the `--c64-forever`/`--rom-patch` flow — the one part of `8bs setup
+mega65` this project cannot do without files only you can legally provide,
+and (on the current Linux-only build of it) needs `msitools`
+(`msiextract`).
+
+What *is* legal, and what this flow automates, is generating your own
+MEGA65.ROM from two things Cloanto and the MEGA65 project both distribute
+freely:
+
+- **The original Commodore 65 ROM** (version 910828), from Cloanto's free
+  **C64 Forever Free Express Edition** for Windows —
+  <https://www.c64forever.com/>. The file needed is
+  `c-65-19910828.rom`, 131072 bytes,
+  SHA-256 `0c4a00b45b65ca553b8a9f38cae83fe5f7dca7e809c24c0051ae40956640509d`,
+  buried inside the MSI installer (no need to run it).
+- **The official MEGA65 920413 ROM patch**, a `.rdf` "ROM diff" file (not
+  ROM content) from the MEGA65 project itself:
+  <https://files.mega65.org/files/other/920413_Sn7YEw.zip>. The URL
+  carries what looks like a content hash or random token in its filename,
+  which may not be stable if MEGA65's file host ever re-issues this
+  release — if the automated download 404s, grab the zip from
+  [files.mega65.org](https://files.mega65.org/) yourself and pass it with
+  `--rom-patch`; the ROM's own SHA-256 (above) is what actually guarantees
+  correctness, not the URL.
+
+```bash
+8bs setup mega65 --c64-forever ~/Downloads/c64-forever-11-setup.msi
+8bs setup mega65 --rom-patch ~/Downloads/920413_Sn7YEw.zip
 ```
 
 ### Extracting the C64 Forever MSI on Linux
@@ -230,31 +389,9 @@ Read reference ROM '910828.BIN'
 Successfully wrote 'MEGA65.ROM'
 ```
 
-The result should be 131072 bytes with the SHA-256 given above.
-
-### Installing the ROM
-
-```bash
-sudo mkdir -p /opt/mega65
-sudo install -m644 MEGA65.ROM /opt/mega65/MEGA65.ROM
-```
-
-Xemu reads its ROM from its own per-user data directory,
-`~/.xemu-lgb/MEGA65.ROM` on Linux (it may not exist yet if Xemu has never
-run — that's fine, it gets created either by Xemu's own first launch or by
-this symlink step). Link the canonical install into it rather than copying,
-so there's one file to keep up to date:
-
-```bash
-mkdir -p ~/.xemu-lgb
-ln -sf /opt/mega65/MEGA65.ROM ~/.xemu-lgb/MEGA65.ROM
-```
-
-If `~/.xemu-lgb/MEGA65.ROM` already exists as something else — a regular
-file rather than a symlink — check what it is before overwriting it: if
-it's already a valid copy of the same ROM, it's safe to replace with the
-symlink above; if it's not, it may be a different setup you don't want to
-lose, and it should be moved aside rather than deleted outright.
+The result should be 131072 bytes with the SHA-256 given above — from
+here, install it the same way [Installing your MEGA65 ROM](#installing-your-mega65-rom)
+describes, or just pass it straight to `8bs setup mega65 --rom MEGA65.ROM`.
 
 ## Verify
 

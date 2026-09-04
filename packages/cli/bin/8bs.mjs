@@ -34,11 +34,18 @@ Implemented:
   check <files...>             Report diagnostics for 8BitScript source files
   doctor                       Verify the toolchains every target needs
   setup <target>               Install/configure what a target needs beyond
-    [--c64-forever <msi>]      what doctor can offer as a single package-
-    [--rom-patch <zip>]        manager command. Currently: mega65 (builds
-                               Xemu from source; --c64-forever/--rom-patch
-                               supply local files instead of prompting/
-                               downloading — see docs/setup/mega65.md)
+    [--rom <path>]             what doctor can offer as a single package-
+    [--c64-forever <msi>]      manager command. mega65 builds Xemu from
+    [--rom-patch <zip>]        source on macOS (Homebrew) and Arch/Manjaro
+    [--repair] [--update]      (pacman), then installs a MEGA65 ROM: --rom
+                               points at an already-generated MEGA65.ROM
+                               (the primary path); --c64-forever/--rom-patch
+                               generate one from a C64 Forever MSI instead
+                               — docs/setup/mega65.md. cx16 builds x16emu and
+                               a matching ROM from upstream source into
+                               /opt/commander-x16 (--repair fixes a broken
+                               launcher, --update rebuilds the pair —
+                               docs/setup/cx16.md)
   lsp [--stdio]                Start the language server on stdio
 
 Planned, not implemented:

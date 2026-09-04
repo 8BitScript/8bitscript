@@ -54,9 +54,14 @@ export function execInherit(command, args, { cwd } = {}) {
   });
 }
 
-// The only three destinations `8bs setup mega65` is allowed to write to as
-// root, per the brief's "be conservative around sudo" section.
-export const SUDO_ALLOWED_ROOTS = Object.freeze(['/opt/xemu', '/opt/mega65', '/usr/local/bin']);
+// The only destinations any `8bs setup <target>` is allowed to write to as
+// root: one /opt/<tool> directory per source-built tool, plus /usr/local/bin
+// for the launchers that put them on PATH. Adding a target means adding its
+// /opt directory here — deliberately, in one place — rather than widening
+// the check.
+export const SUDO_ALLOWED_ROOTS = Object.freeze([
+  '/opt/xemu', '/opt/mega65', '/opt/commander-x16', '/usr/local/bin',
+]);
 
 /** Last non-flag argument — for `mkdir -p <dir>`, `install -m755 <src>
  * <dst>`, and `ln -sf <target> <linkname>`, that's the one path each of
@@ -75,6 +80,8 @@ function writeTarget(args) {
  * review has to keep true by hand: `pacman` (package installation) is always
  * allowed; `mkdir`/`install`/`ln` are allowed only when the path they write
  * to falls under SUDO_ALLOWED_ROOTS; anything else is refused outright.
+ * Homebrew is deliberately *not* here: `brew` must never run as root (it
+ * refuses to), so setup runs it as the normal user through execInherit.
  * Throws rather than silently skipping, since a caller reaching this with an
  * unexpected command/target is a bug worth surfacing immediately.
  */
