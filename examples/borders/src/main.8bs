@@ -1,7 +1,7 @@
 import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";
 import { text } from "@8bitscript/text";
 
-let logicalFramesUntilTick: utinyint = seconds(0.5);
+let framesUntilTick: utinyint = frames(0.5, seconds);
 let ticks: utinyint = 0;
 let option: utinyint = 0;
 let clearCell: usmallint = 0; // global: no local variables yet
@@ -70,9 +70,9 @@ export function main(): void {
     while (true) {
         waitFrame();
 
-        logicalFramesUntilTick = logicalFramesUntilTick - 1;
-        if (logicalFramesUntilTick == 0) {
-            logicalFramesUntilTick = seconds(0.5);
+        framesUntilTick = framesUntilTick - 1;
+        if (framesUntilTick == 0) {
+            framesUntilTick = frames(0.5, seconds);
 
             ticks = ticks + 1;
             text.showDigit(5, ticks % 10);

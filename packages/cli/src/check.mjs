@@ -21,7 +21,7 @@ export async function check(files) {
   }
 
   // The same project-level `frameRate` a build would use (8bs.config.ts,
-  // default 60) — `seconds(...)` folds against it, so a project's `8bs
+  // default 60) — `frames(...)` folds against it, so a project's `8bs
   // check` and its `8bs build` agree on what a duration means. There is no
   // per-project config for the language server yet (no workspace-root
   // concept to load 8bs.config.ts from), so its diagnostics still assume 60

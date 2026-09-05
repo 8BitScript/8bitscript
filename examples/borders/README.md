@@ -31,13 +31,13 @@ Three things: a small tick counter, a curated set of colour options the
 program cycles through, and the border/background colours it sets from
 whichever option is currently picked.
 
-`logicalFramesUntilTick` starts at `seconds(0.5)` — a compile-time constant
-that folds to however many frames — `waitFrame()` calls — make half a second
-at this project's configured `frameRate` (30 at the default 60, 25 at a
-configured 50 — see `8bs.config.ts` and "How the frame loop is driven"
-below). `seconds(0.5, FRAMES)` is the same thing written out in full: the
-optional second argument names the clock a duration is measured in, and
-`FRAMES` is the only one so far, so it is also the default. Every *tick* (not every frame) advances the ones digit shown at
+`framesUntilTick` starts at `frames(0.5, seconds)` — a compile-time
+constant that folds to however many frames — `waitFrame()` calls — make half
+a second at this project's configured `frameRate` (30 at the default 60, 25
+at a configured 50 — see `8bs.config.ts` and "How the frame loop is driven"
+below). The builtin is named for what comes out, and the second argument
+names what the literal is written in; `seconds` is the only unit so far, and
+it is required. Every *tick* (not every frame) advances the ones digit shown at
 cell 5, and every ten ticks the colour option (shown at cell 14) advances
 too — "TICK" on screen, not "FRAME": a real frame counter would advance at
 `frameRate` times a second, and this deliberately advances at about 2Hz
@@ -88,7 +88,7 @@ electrical timing, see the `pnpm run start:<target>-pal` scripts above) and
 changes nothing about the logical rate `waitFrame()` runs at. A project can
 be built `--pal` and still logically tick at 60 (today's default), or built
 NTSC while logically ticking at 50 — the two axes don't interact.
-`seconds(...)` (see `logicalFramesUntilTick` above) always folds against
+`frames(...)` (see `framesUntilTick` above) always folds against
 `frameRate`, never against `--pal`.
 
 A program that never calls `waitFrame()` is just a program: one that returns

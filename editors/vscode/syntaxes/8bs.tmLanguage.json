@@ -6,7 +6,7 @@
     "Tracks the syntax the project has specified so far: the TypeScript-derived",
     "surface, the machine integer types, the hardware escape hatches",
     "(@address decorators, volatile/ptr/array, and asm6502 blocks), and the",
-    "reserved builtins (seconds(...), its FRAMES clock, waitFrame()) that the",
+    "reserved builtins (frames(...) and waitFrame()) that the",
     "compiler's checker keeps a program from redefining. Constructs",
     "that are still undecided are simply absent — an unmatched keyword costs a",
     "word that does not colour, not a broken file. The language server layers",
@@ -129,7 +129,7 @@
           "match": "\\b0[bB][01_]+\\b|%[01_]+\\b"
         },
         {
-          "comment": "A decimal fraction such as 0.5 — legal only as the first argument to seconds(...), the compiler's compile-time duration builtin; the language has no other float syntax.",
+          "comment": "A decimal fraction such as 0.5 — legal only as the first argument to frames(...), the compiler's compile-time duration builtin; the language has no other float syntax.",
           "name": "constant.numeric.decimal.fraction.8bs",
           "match": "\\b[0-9][0-9_]*\\.[0-9][0-9_]*\\b"
         },
@@ -216,14 +216,29 @@
     "builtins": {
       "patterns": [
         {
-          "comment": "The reserved builtin functions: seconds(...) (compile-time duration, packages/compiler/src/fold) and waitFrame() (packages/compiler/src/ir). Listed before #calls so they read as builtins, not ordinary user calls.",
-          "name": "support.function.builtin.8bs",
-          "match": "\\b(seconds|waitFrame)\\b(?=\\s*\\()"
+          "comment": "frames(...), the compile-time duration builtin (packages/compiler/src/fold), as a region so its unit word can be coloured only where it *is* a unit: `seconds` is not a reserved name, it is the required second argument — frames(0.5, seconds) — and anywhere else it is an ordinary identifier. Listed before #calls so the callee reads as a builtin, not an ordinary user call.",
+          "begin": "\\b(frames)\\s*(\\()",
+          "beginCaptures": {
+            "1": { "name": "support.function.builtin.8bs" },
+            "2": { "name": "punctuation.section.arguments.begin.8bs" }
+          },
+          "end": "\\)",
+          "endCaptures": {
+            "0": { "name": "punctuation.section.arguments.end.8bs" }
+          },
+          "patterns": [
+            { "include": "#comments" },
+            { "include": "#numbers" },
+            {
+              "name": "constant.language.unit.8bs",
+              "match": "\\bseconds\\b"
+            }
+          ]
         },
         {
-          "comment": "The clocks a seconds(...) duration can be measured in — the optional second argument, seconds(0.5, FRAMES). Reserved names, like the builtin functions.",
-          "name": "constant.language.clock.8bs",
-          "match": "\\bFRAMES\\b"
+          "comment": "waitFrame() (packages/compiler/src/ir), the other reserved builtin function.",
+          "name": "support.function.builtin.8bs",
+          "match": "\\b(waitFrame)\\b(?=\\s*\\()"
         }
       ]
     },

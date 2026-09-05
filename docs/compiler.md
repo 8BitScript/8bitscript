@@ -46,16 +46,20 @@ targets share a front end and a set of optimisations, rather than each
 re-deriving the language from the AST.
 
 The one pass between the parser and the checker today is the *fold*
-(`packages/compiler/src/fold`): it rewrites every `seconds(...)` call — the
-compile-time duration builtin, `seconds(0.5)` or, spelling out the clock it
-is measured in, `seconds(0.5, FRAMES)` — into a plain integer literal holding
-how many frames that duration takes at the project's `frameRate`
-(`8bs.config.ts`, default 60), using exact integer arithmetic. `FRAMES` is
-the only clock so far and therefore the default. Folding first is what lets
-the checker's ordinary range rule catch `seconds(100)` overflowing a
-`utinyint` with no special case. The tutorial (see
-[tutorial.md](tutorial.md)) shows the builtin in a program; hovering
-`seconds` or `FRAMES` in an editor gives the same description.
+(`packages/compiler/src/fold`): it rewrites every `frames(...)` call — the
+compile-time duration builtin, `frames(0.5, seconds)` — into a plain integer
+literal holding how many frames that much time takes at the project's
+`frameRate` (`8bs.config.ts`, default 60), using exact integer arithmetic.
+The builtin is named for what comes out, a frame count, and its required
+second argument names the unit the literal is written in; `seconds` is the
+only unit so far. The unit word is not a reserved name — it only means the
+unit in that argument slot, so a program is free to declare its own
+`seconds` — while `frames` itself is reserved, like `waitFrame`. Folding
+first is what lets the checker's ordinary range rule catch
+`frames(100, seconds)` overflowing a `utinyint` with no special case. The
+tutorial (see [tutorial.md](tutorial.md)) shows the builtin in a program;
+hovering `frames`, or the `seconds` inside its call, in an editor gives the
+same description.
 
 Generating C for the 6502 rather than emitting assembly directly is a
 deliberate hand-off: LLVM-MOS already does register allocation, zero-page
@@ -133,13 +137,13 @@ Implemented today:
 | `8BS1006` | Unterminated block comment |
 | `8BS1007` | Unterminated `asm6502` block |
 | `8BS1008` | Invalid number literal |
-| `8BS1009` | Decimal literal (`0.5`) used anywhere other than as `seconds(...)`'s first argument |
+| `8BS1009` | Decimal literal (`0.5`) used anywhere other than as `frames(...)`'s first argument |
 | `8BS1101` | Syntax error — expected one thing, found another |
 | `8BS1021` | Integer literal out of range for its type |
-| `8BS1022` | `seconds(...)` argument shape is wrong — not one integer/decimal literal plus an optional clock name |
-| `8BS1023` | `seconds(...)` rounds to zero ticks at the project's `frameRate` |
-| `8BS1024` | `seconds(...)` is not exact at the project's `frameRate` — rounded (warning) |
-| `8BS1025` | `seconds(...)`'s second argument is not a clock it knows (`FRAMES` is the only one, and the default) |
+| `8BS1022` | `frames(...)` argument shape is wrong — not one integer/decimal literal plus the unit it is measured in (the unit is required: `frames(30)` is this) |
+| `8BS1023` | `frames(...)` rounds to zero frames at the project's `frameRate` |
+| `8BS1024` | `frames(...)` is not exact at the project's `frameRate` — rounded (warning) |
+| `8BS1025` | `frames(...)`'s second argument is not a unit it knows (`seconds` is the only one) |
 | `8BS2001` | Cannot find package |
 | `8BS2002` | Package is not an 8BitScript package |
 | `8BS2003` | Package declares an entry that does not exist |
@@ -148,7 +152,7 @@ Implemented today:
 | `8BS2006` | Imported name collides with another binding in the module |
 | `8BS2007` | Reference to a name that resolves to nothing |
 | `8BS2008` | Package declares a native source file that does not exist |
-| `8BS2009` | Declaration or import named after a reserved builtin (`seconds`, `FRAMES`, `waitFrame`) |
+| `8BS2009` | Declaration or import named after a reserved builtin (`frames`, `waitFrame`) |
 | `8BS2010` | Entry module must export exactly one parameterless function — the program |
 | `8BS2011` | Package does not export the requested subpath |
 | `8BS3001` | Valid construct the compiler cannot lower yet |

@@ -108,20 +108,20 @@ test('hover does not fire on read/write unless qualified by memory.', () => {
   assert.equal(getHoverInfo(text, at(text, 'write')), null);
 });
 
-test('hover explains seconds(...)', () => {
-  const text = 'let x: utinyint = seconds(0.5);';
-  const info = getHoverInfo(text, at(text, 'seconds'));
+test('hover explains frames(...)', () => {
+  const text = 'let x: utinyint = frames(0.5, seconds);';
+  const info = getHoverInfo(text, at(text, 'frames'));
   assert.ok(info);
   assert.match(info.markdown, /Compile-time duration/);
-  assert.match(info.markdown, /seconds\(0\.5\)/);
+  assert.match(info.markdown, /frames\(0\.5, seconds\)/);
   assert.match(info.markdown, /frameRate/);
   assert.match(info.markdown, /8bs\.config\.ts/);
   assert.match(info.markdown, /Reserved/);
 });
 
-test('hover on seconds does not require a valid call — helps a reader mid-edit too', () => {
-  const text = 'let x: utinyint = seconds();';
-  const info = getHoverInfo(text, at(text, 'seconds'));
+test('hover on frames does not require a valid call — helps a reader mid-edit too', () => {
+  const text = 'let x: utinyint = frames();';
+  const info = getHoverInfo(text, at(text, 'frames'));
   assert.ok(info);
   assert.match(info.markdown, /Compile-time duration/);
 });

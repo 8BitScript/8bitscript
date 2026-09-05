@@ -102,7 +102,7 @@ backend generated alongside it, so what the compiler did is never a mystery.
 import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";
 import { text } from "@8bitscript/text";
 
-let logicalFramesUntilTick: utinyint = seconds(0.5);
+let framesUntilTick: utinyint = frames(0.5, seconds);
 let ticks: utinyint = 0;
 let option: utinyint = 0;
 let clearCell: usmallint = 0; // global: no local variables yet
@@ -163,9 +163,9 @@ export function main(): void {
     while (true) {
         waitFrame();
 
-        logicalFramesUntilTick = logicalFramesUntilTick - 1;
-        if (logicalFramesUntilTick == 0) {
-            logicalFramesUntilTick = seconds(0.5);
+        framesUntilTick = framesUntilTick - 1;
+        if (framesUntilTick == 0) {
+            framesUntilTick = frames(0.5, seconds);
 
             ticks = ticks + 1;
             text.showDigit(5, ticks % 10);
@@ -228,21 +228,22 @@ export function main(): void {
   `waitFrame()` blocks on the page's frame clock, which releases frames on a
   fixed `1/frameRate` timestep regardless of the display's actual refresh
   rate — 60Hz, 120Hz, 144Hz, 50Hz, whatever it is (see
-  `packages/cli/src/web-runtime.mjs`). `logicalFramesUntilTick`, `ticks`,
+  `packages/cli/src/web-runtime.mjs`). `framesUntilTick`, `ticks`,
   and `option` are ordinary globals — there are no local variables yet, so
   every value the loop needs to remember across passes lives at module
   scope.
 - `ticks` is deliberately not called `frames`: `waitFrame()` returns
   `frameRate` times a second, but the gate below it only lets `ticks`
-  advance once every `seconds(0.5)` worth of those returns — about twice a
-  second, whatever `frameRate` is set to. `seconds(0.5)` is a compile-time
-  constant that folds to the exact frame count half a second takes (30 at
-  the default 60, 25 at a configured 50) — not a raw frame count written by
-  hand, so the tick rate never has to be recomputed by hand if `frameRate`
-  changes. An optional second argument says *how* the time is measured:
-  `seconds(0.5, FRAMES)` spells out what `seconds(0.5)` already means, since
-  `FRAMES` — logical frames at `frameRate` — is the only clock so far and
-  the default. "TICK" is what `text.showDigit()`'s label reads for exactly
+  advance once every `frames(0.5, seconds)` worth of those returns — about
+  twice a second, whatever `frameRate` is set to. `frames(0.5, seconds)` is
+  a compile-time constant that folds to the exact frame count half a second
+  takes (30 at the default 60, 25 at a configured 50) — not a raw frame
+  count written by hand, so the tick rate never has to be recomputed by hand
+  if `frameRate` changes. The builtin is named for what it gives you, a
+  frame count, and the second argument says what the literal is written in;
+  it is required, so the call always reads as the conversion it is.
+  `seconds` is the only unit so far, and it is not a reserved word — it is
+  only a unit in that slot. "TICK" is what `text.showDigit()`'s label reads for exactly
   that reason: a real frame counter would move much faster than what's on
   screen.
 - `text.putChar(cell, code)` and `text.putColor(cell, color)` poke one
@@ -283,15 +284,16 @@ export function main(): void {
 
 ## Make a change
 
-Edit `seconds(0.5)`'s argument — the two places `logicalFramesUntilTick` uses
-it — to something larger or smaller, then rebuild and run again:
+Edit `frames(0.5, seconds)`'s first argument — the two places
+`framesUntilTick` uses it — to something larger or smaller, then rebuild and
+run again:
 
 ```bash
 pnpm start
 ```
 
 A larger duration slows the tick counter down; a smaller one speeds it up
-(try `seconds(0.1)` for a snappier five ticks a second). This still works
+(try `frames(0.1, seconds)` for a snappier five ticks a second). This still works
 out to the right frame count no matter what `frameRate` this project is
 configured for — that's the whole point of writing a duration instead of a
 raw frame count. Try changing one of
