@@ -1,29 +1,42 @@
-// The `seconds(...)` compile-time duration fold.
+// The `frames(...)` compile-time duration fold.
 //
-// `seconds(x)` — x an integer or decimal literal — folds to a plain
-// IntegerLiteral holding however many ticks of some *clock* that duration
-// takes. The optional second argument names the clock; there is one so far,
-// `FRAMES`, and it is the default, so `seconds(0.5)` and
-// `seconds(0.5, FRAMES)` are the same call: however many frames —
-// waitFrame() calls — half a second is at the project's configured
-// `frameRate` (8bs.config.ts, default 60; see packages/backend-6502's
-// FRAME_SYNC and packages/cli/src/web-runtime.mjs, which both pace
-// waitFrame() at that same rate). The clock argument exists so a program
-// can say *how* a duration is measured once there is more than one way to
-// measure it — a future clock is one more entry in DURATION_CLOCKS below,
-// not a new builtin. Runs between parse() and
-// check(), so the existing literal-fits-the-declared-width rule
-// (VALUE_OUT_OF_RANGE) fires on the *folded* value for free — `seconds(100)`
-// in a `utinyint` gets that diagnostic with no separate rule needed here.
+// `frames(x, unit)` — x an integer or decimal literal, `unit` the word
+// saying what x is measured in — folds to a plain IntegerLiteral holding
+// however many frames — waitFrame() calls — that much time is at the
+// project's configured `frameRate` (8bs.config.ts, default 60; see
+// packages/backend-6502's FRAME_SYNC and packages/cli/src/web-runtime.mjs,
+// which both pace waitFrame() at that same rate). `frames(0.5, seconds)`
+// is 30 at the default rate, 25 at a configured 50.
 //
-// Deliberately narrow, the same way the checker's literal-width rule is: it
-// only ever recognises a call whose callee is literally the identifier
-// `seconds`, with one literal argument and, optionally, one bare clock
-// identifier after it. This is not general
+// The builtin is named for what comes *out* — a program stores the result
+// in a frame counter, so the call reads as the frame count it is — and the
+// unit word names what went *in*. The unit is required: `frames(30)` would
+// either mean thirty frames (pointless) or silently guess a unit, and
+// either way the reader is left doing the conversion in their head, which
+// is the one thing this builtin exists to prevent.
+//
+// Two tables, two directions of growth. DURATION_UNITS is what x can be
+// measured in (`seconds`, so far); DURATION_CLOCKS is what a duration can
+// be counted out in — one entry per builtin function, `frames` so far. A
+// future input unit is one more unit entry; a future output clock is one
+// more clock entry, which is also one more builtin name.
+//
+// The unit word is *contextual*, not reserved: it is only ever looked up by
+// spelling in the second-argument slot of a clock call, a slot that cannot
+// hold a variable (that is the INVALID_DURATION_ARGUMENT shape rule), so
+// `let seconds: uint` elsewhere in the program is an ordinary declaration
+// and never collides. Only the clock names — the callees — are reserved
+// (see checker/index.mjs's RESERVED_BUILTIN_NAMES, which spreads
+// DURATION_CLOCKS), because a callee *can* be a user's function and a
+// silently shadowed builtin is worse than a clear diagnostic.
+//
+// Runs between parse() and check(), so the existing
+// literal-fits-the-declared-width rule (VALUE_OUT_OF_RANGE) fires on the
+// *folded* value for free — `frames(100, seconds)` in a `utinyint` gets
+// that diagnostic with no separate rule needed here. Deliberately narrow,
+// the same way the checker's literal-width rule is: this is not general
 // constant folding (`let x: u8 = 200 + 100` still isn't folded anywhere in
-// the compiler) — `seconds` and the clock names are special, reserved
-// names (see checker/index.mjs's RESERVED_BUILTIN_NAMES), not ordinary
-// functions or constants a binder could someday resolve and inline.
+// the compiler).
 //
 // Every arithmetic step below is exact BigInt division — never a `Number`
 // or `parseFloat` intermediate — so a duration's real-world length is never
@@ -31,17 +44,33 @@
 import { Codes, diagnostic } from '../diagnostics/index.mjs';
 import { NodeType, walk } from '../ast/index.mjs';
 
-const BUILTIN_NAME = 'seconds';
+/**
+ * The units a duration literal can be written in, keyed by the bare word a
+ * program writes as the second argument: `frames(0.5, seconds)`. Each entry
+ * turns the literal (an exact rational `numerator/denominator`, both
+ * BigInt) into an exact rational number of seconds, the common currency
+ * every clock below is defined against.
+ *
+ * Adding a unit means adding an entry here and writing it a hover in
+ * intellisense/index.mjs. Nothing is reserved: the word is only recognised
+ * in that one argument slot.
+ */
+export const DURATION_UNITS = new Map([
+  ['seconds', {
+    toSeconds: (numerator, denominator) => ({ numerator, denominator }),
+  }],
+]);
 
 /**
- * The clocks a `seconds(...)` duration can be measured in, keyed by the bare
- * identifier a program writes as the second argument. Each entry turns an
- * exact rational number of seconds (`numerator/denominator`, both BigInt)
- * into an exact rational number of that clock's ticks — still a fraction,
- * so the one rounding step (and its ZERO_DURATION / INEXACT_DURATION
- * diagnostics) happens in foldSecondsCall() identically for every clock.
+ * The clocks a duration can be counted out in, keyed by the builtin
+ * function name a program calls: `frames(...)`. Each entry turns an exact
+ * rational number of seconds into an exact rational number of that clock's
+ * ticks — still a fraction, so the one rounding step (and its
+ * ZERO_DURATION / INEXACT_DURATION diagnostics) happens in foldClockCall()
+ * identically for every clock.
  *
- * `describe(options)` names the rate the fold happened at, for diagnostics.
+ * `tick` names one tick for diagnostics; `describe(options)` names the rate
+ * the fold happened at.
  *
  * Adding a clock means adding an entry here and writing it a hover in
  * intellisense/index.mjs. The checker reserves every name in this table
@@ -49,24 +78,20 @@ const BUILTIN_NAME = 'seconds';
  * automatic — nothing else in the compiler needs to know.
  */
 export const DURATION_CLOCKS = new Map([
-  ['FRAMES', {
+  ['frames', {
     // Logical frames: waitFrame() calls, `frameRate` of them a second.
     ticks: (numerator, denominator, { frameRate }) => ({
       numerator: numerator * BigInt(frameRate),
       denominator,
     }),
-    unit: 'frame',
+    tick: 'frame',
     describe: ({ frameRate }) => `this project's frameRate (${frameRate})`,
   }],
 ]);
 
-/** The clock `seconds(x)` uses when no second argument names one. */
-export const DEFAULT_DURATION_CLOCK = 'FRAMES';
-
-function isSecondsCall(n) {
-  return n.type === NodeType.CallExpression
-    && n.callee?.type === NodeType.Identifier
-    && n.callee.name === BUILTIN_NAME;
+function clockCallName(n) {
+  if (n.type !== NodeType.CallExpression || n.callee?.type !== NodeType.Identifier) return null;
+  return DURATION_CLOCKS.has(n.callee.name) ? n.callee.name : null;
 }
 
 /**
@@ -82,92 +107,92 @@ function roundFraction(numerator, denominator) {
   return { value: remainder * 2n >= denominator ? quotient + 1n : quotient, exact: false };
 }
 
-// Mutates a folded-away `seconds(...)` CallExpression node into a plain
+// Mutates a folded-away clock CallExpression node into a plain
 // IntegerLiteral in place, preserving its original start/length so a
 // downstream diagnostic (e.g. VALUE_OUT_OF_RANGE) underlines the whole
-// `seconds(...)` call rather than a synthetic span. Deleting `callee`/`args`
+// `frames(...)` call rather than a synthetic span. Deleting `callee`/`args`
 // also means walk()'s own descent — which reads Object.values(root) *after*
 // this visit callback returns — never revisits the argument subtree, so a
-// DecimalLiteral consumed by a valid (or invalidly-shaped) seconds() call is
-// never separately flagged as misplaced, and a clock identifier is never
-// handed to the linker to fail to resolve. Every exit from foldSecondsCall()
-// goes through here for exactly that reason.
-function replaceWithTickCount(n, value) {
+// DecimalLiteral consumed by a valid (or invalidly-shaped) clock call is
+// never separately flagged as misplaced, and a unit word is never handed to
+// the linker to fail to resolve. Every exit from foldClockCall() goes
+// through here for exactly that reason.
+function replaceWithTickCount(n, clockName, value) {
   delete n.callee;
   delete n.args;
   n.type = NodeType.IntegerLiteral;
   n.value = value;
-  n.raw = 'seconds(...)';
+  n.raw = `${clockName}(...)`;
   n.radix = 10;
 }
 
-function foldSecondsCall(n, file, frameRate, diagnostics) {
-  const args = n.args ?? [];
-  const [argument, clockArgument] = args;
-  const isLiteralArgument = args.length >= 1 && args.length <= 2 && (
-    argument?.type === NodeType.IntegerLiteral || argument?.type === NodeType.DecimalLiteral
-  );
-  const isClockShape = args.length === 1 || clockArgument?.type === NodeType.Identifier;
+const exampleCalls = (clockName) => `${clockName}(1, seconds) or ${clockName}(0.5, seconds)`;
 
-  if (!isLiteralArgument || !isClockShape) {
+function foldClockCall(n, clockName, file, frameRate, diagnostics) {
+  const clock = DURATION_CLOCKS.get(clockName);
+  const args = n.args ?? [];
+  const [argument, unitArgument] = args;
+  const isLiteralArgument = argument?.type === NodeType.IntegerLiteral
+    || argument?.type === NodeType.DecimalLiteral;
+  const isUnitShape = args.length === 2 && unitArgument?.type === NodeType.Identifier;
+
+  if (!isLiteralArgument || !isUnitShape) {
     diagnostics.push(diagnostic(
       Codes.INVALID_DURATION_ARGUMENT,
-      'seconds(...) takes one integer or decimal literal and, optionally, the clock to measure it in, '
-        + 'e.g. seconds(1), seconds(0.5), or seconds(0.5, FRAMES)',
+      `${clockName}(...) takes one integer or decimal literal and the unit it is measured in, `
+        + `e.g. ${exampleCalls(clockName)}`,
       file, n.start, n.length,
     ));
-    replaceWithTickCount(n, 0);
+    replaceWithTickCount(n, clockName, 0);
     return;
   }
 
-  const clockName = clockArgument ? clockArgument.name : DEFAULT_DURATION_CLOCK;
-  const clock = DURATION_CLOCKS.get(clockName);
-  if (!clock) {
+  const unitName = unitArgument.name;
+  const unit = DURATION_UNITS.get(unitName);
+  if (!unit) {
     diagnostics.push(diagnostic(
-      Codes.UNKNOWN_DURATION_CLOCK,
-      `'${clockName}' is not a clock seconds(...) can be measured in — `
-        + `the clocks are ${[...DURATION_CLOCKS.keys()]
-          .map((name) => (name === DEFAULT_DURATION_CLOCK ? `${name} (the default)` : name)).join(', ')}`,
-      file, clockArgument.start, clockArgument.length,
+      Codes.UNKNOWN_DURATION_UNIT,
+      `'${unitName}' is not a unit ${clockName}(...) can measure — `
+        + `the units are ${[...DURATION_UNITS.keys()].join(', ')}`,
+      file, unitArgument.start, unitArgument.length,
     ));
-    replaceWithTickCount(n, 0);
+    replaceWithTickCount(n, clockName, 0);
     return;
   }
 
   const options = { frameRate };
-  const seconds = {
-    numerator: BigInt(argument.type === NodeType.IntegerLiteral ? argument.value : argument.numerator),
-    denominator: BigInt(argument.type === NodeType.IntegerLiteral ? 1 : argument.denominator),
-  };
+  const seconds = unit.toSeconds(
+    BigInt(argument.type === NodeType.IntegerLiteral ? argument.value : argument.numerator),
+    BigInt(argument.type === NodeType.IntegerLiteral ? 1 : argument.denominator),
+  );
   const ticks = clock.ticks(seconds.numerator, seconds.denominator, options);
   const { value, exact } = roundFraction(ticks.numerator, ticks.denominator);
-  const written = clockArgument ? `seconds(${argument.raw}, ${clockName})` : `seconds(${argument.raw})`;
+  const written = `${clockName}(${argument.raw}, ${unitName})`;
 
   if (value === 0n) {
     diagnostics.push(diagnostic(
       Codes.ZERO_DURATION,
-      `${written} rounds to 0 ${clock.unit}s at ${clock.describe(options)} — `
-        + `every seconds(...) call must round to at least one ${clock.unit}`,
+      `${written} rounds to 0 ${clock.tick}s at ${clock.describe(options)} — `
+        + `every ${clockName}(...) call must round to at least one ${clock.tick}`,
       file, n.start, n.length,
     ));
   } else if (!exact) {
     diagnostics.push(diagnostic(
       Codes.INEXACT_DURATION,
       `${written} is not exact at ${clock.describe(options)} — `
-        + `rounded to ${value} ${clock.unit}${value === 1n ? '' : 's'}`,
+        + `rounded to ${value} ${clock.tick}${value === 1n ? '' : 's'}`,
       file, n.start, n.length, 'warning',
     ));
   }
 
-  replaceWithTickCount(n, Number(value));
+  replaceWithTickCount(n, clockName, Number(value));
 }
 
 /**
- * Fold every `seconds(...)` call in `ast` into a plain IntegerLiteral,
- * mutating the tree in place, and flag any decimal literal found outside a
- * valid `seconds(...)` argument (the language has no other float syntax).
- * The clock a call names (or defaults to) decides what the integer counts —
- * see DURATION_CLOCKS.
+ * Fold every clock call (`frames(...)`, see DURATION_CLOCKS) in `ast` into
+ * a plain IntegerLiteral, mutating the tree in place, and flag any decimal
+ * literal found outside a valid clock-call argument (the language has no
+ * other float syntax).
  *
  * @param {object} ast    Program node from the parser.
  * @param {string} file
@@ -181,14 +206,16 @@ export function foldDurations(ast, file = '<unknown>', frameRate = 60) {
   if (!ast) return diagnostics;
 
   walk(ast, (n) => {
-    if (isSecondsCall(n)) {
-      foldSecondsCall(n, file, frameRate, diagnostics);
+    const clockName = clockCallName(n);
+    if (clockName) {
+      foldClockCall(n, clockName, file, frameRate, diagnostics);
       return;
     }
     if (n.type === NodeType.DecimalLiteral) {
       diagnostics.push(diagnostic(
         Codes.MISPLACED_DECIMAL_LITERAL,
-        `a decimal literal ('${n.raw}') is only valid as the argument to seconds(...)`,
+        `a decimal literal ('${n.raw}') is only valid as the first argument to `
+          + `${[...DURATION_CLOCKS.keys()].map((name) => `${name}(...)`).join(', ')}`,
         file, n.start, n.length,
       ));
     }

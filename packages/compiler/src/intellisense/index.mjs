@@ -4,7 +4,7 @@
 // user's own variables or functions against. What *can* be answered honestly
 // today is "what does this piece of built-in syntax mean" — a primitive type,
 // `volatile`, `ptr`, `array`, `asm6502`, `@address`, `memory.read`/
-// `memory.write`, `seconds(...)`, `FRAMES`, `waitFrame()` — because the compiler
+// `memory.write`, `frames(...)`, its `seconds` unit, `waitFrame()` — because the compiler
 // already knows all of it statically, independent of any particular program.
 //
 // This module is that answer, expressed as a small position-based API
@@ -14,6 +14,7 @@
 // shape is a dead end.
 import { tokenize, TokenKind } from '../lexer/index.mjs';
 import { PRIMITIVE_INTEGER_TYPES, resolveIntegerType } from '../types/index.mjs';
+import { DURATION_CLOCKS, DURATION_UNITS } from '../fold/index.mjs';
 
 /** Insert thousands separators without touching locale/ICU: `-8388608` -> `-8,388,608`. */
 function formatNumber(n) {
@@ -119,24 +120,27 @@ const CONSTRUCT_DOCS = {
   },
 };
 
-/** `seconds(...)`: the compile-time duration builtin (packages/compiler/src/fold). */
-const SECONDS_DOC = [
-  '**seconds(n, clock?)**',
+/** `frames(...)`: the compile-time duration builtin (packages/compiler/src/fold). */
+const FRAMES_DOC = [
+  '**frames(n, unit)**',
   '',
-  'Compile-time duration. `n` is an integer or decimal literal — `seconds(1)`, `seconds(0.5)` — never a variable or expression. `clock` says how the time is measured; the only clock so far is `FRAMES`, and it is the default, so `seconds(0.5)` and `seconds(0.5, FRAMES)` mean the same thing.',
+  'Compile-time duration, as a frame count. `n` is an integer or decimal literal — `frames(1, seconds)`, `frames(0.5, seconds)` — never a variable or expression. `unit` says what `n` is measured in and is required; the only unit so far is `seconds`.',
   '',
-  'Measured in `FRAMES`, it folds at compile time to however many frames — `waitFrame()` calls — that duration takes at this project\'s configured `frameRate` (`8bs.config.ts`, default 60) — `seconds(0.5)` becomes `30` at the default rate, `25` at a configured 50. Always a plain integer once compiled: no runtime division, no floating point.',
+  'Folds at compile time to however many frames — `waitFrame()` calls — that much time takes at this project\'s configured `frameRate` (`8bs.config.ts`, default 60) — `frames(0.5, seconds)` becomes `30` at the default rate, `25` at a configured 50. Always a plain integer once compiled: no runtime division, no floating point.',
   '',
-  'Reserved: a variable, function, parameter, or import named `seconds` (or after a clock, such as `FRAMES`) is a compile error.',
+  'Reserved: a variable, function, parameter, or import named `frames` is a compile error. The unit word is not reserved — it is only a unit in this argument position.',
 ].join('\n');
 
-/** `FRAMES`: the (only, and default) clock a `seconds(...)` duration can be measured in. */
-const FRAMES_DOC = [
-  '**FRAMES**',
+/** The units a `frames(...)` duration can be written in, keyed as DURATION_UNITS is. */
+const UNIT_DOCS = {};
+
+/** `seconds`: the (only) unit a `frames(...)` duration can be written in. */
+UNIT_DOCS.seconds = [
+  '**seconds**',
   '',
-  'A clock for `seconds(...)`: `seconds(0.5, FRAMES)` measures half a second in logical frames — `waitFrame()` calls — at this project\'s configured `frameRate` (`8bs.config.ts`, default 60). It is the default clock, so `seconds(0.5)` means exactly the same thing; naming it is a way of saying, in the program, how the duration is measured.',
+  'A unit for `frames(...)`: `frames(0.5, seconds)` is half a second, counted in logical frames — `waitFrame()` calls — at this project\'s configured `frameRate` (`8bs.config.ts`, default 60). The unit is required, so the call always says what its literal is measured in.',
   '',
-  'Only valid as the second argument to `seconds(...)`. Reserved: a variable, function, parameter, or import named `FRAMES` is a compile error.',
+  'Only a unit in the second argument to `frames(...)`; anywhere else, `seconds` is an ordinary name a program is free to declare.',
 ].join('\n');
 
 /** `waitFrame()`: block until the next logical frame (packages/compiler/src/ir). */
@@ -145,7 +149,7 @@ const WAITFRAME_DOC = [
   '',
   'Blocks until the next logical frame, then returns. Call it once per pass through your main loop — `while (true) { waitFrame(); ... }` — the way an 8-bit program waits for vertical blank (cc65\'s `waitvsync()`).',
   '',
-  'Frames arrive at this project\'s configured `frameRate` (`8bs.config.ts`, default 60) on every target, whatever the real hardware refreshes at — on the 6502 machines it waits on the video chip\'s own vertical blank, on the web it waits on the page\'s frame clock. Pair it with `seconds(...)` to count time: `seconds(0.5)` is how many `waitFrame()` calls make half a second.',
+  'Frames arrive at this project\'s configured `frameRate` (`8bs.config.ts`, default 60) on every target, whatever the real hardware refreshes at — on the 6502 machines it waits on the video chip\'s own vertical blank, on the web it waits on the page\'s frame clock. Pair it with `frames(...)` to count time: `frames(0.5, seconds)` is how many `waitFrame()` calls make half a second.',
   '',
   'Takes no arguments and returns nothing. Reserved: a variable, function, parameter, or import named `waitFrame` is a compile error.',
 ].join('\n');
@@ -185,8 +189,8 @@ function tokenIndexAt(tokens, offset) {
  * Recognises primitive integer types (canonical spellings like `utinyint` and
  * `int`, or their low-level `u8`/`i32`-style aliases),
  * `volatile`/`ptr`/`array`, `asm6502`, `@address`, the `memory.read`/
- * `memory.write` intrinsic, and the `seconds(...)` and `waitFrame()`
- * builtins — every built-in this milestone documents. Anything else,
+ * `memory.write` intrinsic, and the `frames(...)` (with its `seconds` unit)
+ * and `waitFrame()` builtins — every built-in this milestone documents. Anything else,
  * including a user's own identifiers or namespace, returns `null`: there is
  * no binder yet to say what they mean.
  *
@@ -226,21 +230,38 @@ export function getHoverInfo(text, offset) {
     }
   }
 
-  // `seconds`, `FRAMES`, and `waitFrame` are reserved (see checker/
-  // index.mjs's RESERVED_BUILTIN_NAMES), so unlike memory.read/write there
-  // is no namespace to require — any bare occurrence of the identifier means
-  // the builtin, not a user's own name.
-  if (token.kind === TokenKind.Identifier && token.text === 'seconds') {
-    return { start: token.start, length: token.length, markdown: SECONDS_DOC };
-  }
-  if (token.kind === TokenKind.Identifier && token.text === 'FRAMES') {
+  // `frames` and `waitFrame` are reserved (see checker/index.mjs's
+  // RESERVED_BUILTIN_NAMES), so unlike memory.read/write there is no
+  // namespace to require — any bare occurrence of the identifier means the
+  // builtin, not a user's own name.
+  if (token.kind === TokenKind.Identifier && token.text === 'frames') {
     return { start: token.start, length: token.length, markdown: FRAMES_DOC };
+  }
+  // The unit word is *not* reserved — it only means the unit in the second
+  // argument slot of a clock call, `frames(0.5, seconds)`, so the hover has
+  // to check it is actually in that slot before claiming so.
+  if (token.kind === TokenKind.Identifier && DURATION_UNITS.has(token.text) && isDurationUnitSlot(tokens, index)) {
+    return { start: token.start, length: token.length, markdown: UNIT_DOCS[token.text] };
   }
   if (token.kind === TokenKind.Identifier && token.text === 'waitFrame') {
     return { start: token.start, length: token.length, markdown: WAITFRAME_DOC };
   }
 
   return null;
+}
+
+/**
+ * Is the identifier at `index` the unit argument of a duration clock call —
+ * the `seconds` in `frames(0.5, seconds)`? Matches the exact shape the fold
+ * accepts: `<clock> ( <number> , <unit>`.
+ */
+function isDurationUnitSlot(tokens, index) {
+  const [callee, open, literal, comma] = [tokens[index - 4], tokens[index - 3], tokens[index - 2], tokens[index - 1]];
+  return comma?.text === ','
+    && literal?.kind === TokenKind.Number
+    && open?.text === '('
+    && callee?.kind === TokenKind.Identifier
+    && DURATION_CLOCKS.has(callee.text);
 }
 
 /**

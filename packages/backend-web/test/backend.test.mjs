@@ -83,7 +83,7 @@ test('a waitFrame() program builds with shared memory and runs against a host-su
   const scratch = await mkdtemp(join(tmpdir(), '8bs-web-test-'));
   try {
     const outFile = join(scratch, 'w.wasm');
-    const src = 'let frames: u8 = 0;\nexport function main(): void {\n    while (true) {\n        waitFrame();\n        frames = frames + 1;\n    }\n}\n';
+    const src = 'let frameCount: u8 = 0;\nexport function main(): void {\n    while (true) {\n        waitFrame();\n        frameCount = frameCount + 1;\n    }\n}\n';
     const result = await buildWasm(irOf(src), { outFile });
     assert.ok(result.ok, result.error);
 
@@ -108,7 +108,7 @@ test('a waitFrame() program builds with shared memory and runs against a host-su
     });
     assert.ok(instance.exports.memory.buffer instanceof SharedArrayBuffer, 'memory must be shared');
     assert.throws(() => instance.exports.main(), Stop);
-    assert.equal(instance.exports.frames.value, 10);
+    assert.equal(instance.exports.frameCount.value, 10);
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }

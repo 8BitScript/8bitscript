@@ -50,9 +50,9 @@ function loadModule(file, text, diagnostics, frameRate) {
   const { tokens, diagnostics: lexical } = tokenize(text, file);
   const { ast, diagnostics: syntax } = parse(tokens, text, file);
   diagnostics.push(...lexical, ...syntax);
-  // Folding runs before check(): a seconds(...) call needs to already be a
+  // Folding runs before check(): a frames(...) call needs to already be a
   // plain IntegerLiteral by the time the width-fit rule walks the tree, so
-  // e.g. seconds(100) overflowing a utinyint gets that diagnostic for free,
+  // e.g. frames(100, seconds) overflowing a utinyint gets that diagnostic for free,
   // with no separate rule duplicating it here.
   diagnostics.push(...foldDurations(ast, file, frameRate));
   diagnostics.push(...check(ast, file));
@@ -470,7 +470,7 @@ function checkEntryExports(module) {
  *   conditional entries resolve to that machine's implementation, and any
  *   `.8bs` file with a `.<machine>.8bs` twin beside it resolves to the
  *   twin. `frameRate` (default 60) is the project's logical frame rate —
- *   see 8bs.config.ts — that every `seconds(...)` call in the graph folds
+ *   see 8bs.config.ts — that every `frames(...)` call in the graph folds
  *   against.
  * @returns {{ ir: object|null, diagnostics: object[], sources: Map<string,string> }}
  */

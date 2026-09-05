@@ -15,7 +15,7 @@ export { tokenize, TokenKind, KEYWORDS, TYPE_NAMES } from './src/lexer/index.mjs
 export { parse } from './src/parser/index.mjs';
 export { NodeType, walk } from './src/ast/index.mjs';
 export { check } from './src/checker/index.mjs';
-export { foldDurations, DURATION_CLOCKS, DEFAULT_DURATION_CLOCK } from './src/fold/index.mjs';
+export { foldDurations, DURATION_CLOCKS, DURATION_UNITS } from './src/fold/index.mjs';
 export { lower, entryOf } from './src/ir/index.mjs';
 export { link } from './src/linker/index.mjs';
 export {
@@ -45,7 +45,7 @@ export { getHoverInfo, getCompletions } from './src/intellisense/index.mjs';
  * @param {string} file
  * @param {{ resolveImports?: boolean, frameRate?: number }} [options]
  *   `frameRate` (default 60) is the project's logical frame rate — see
- *   8bs.config.ts — that every `seconds(...)` call folds against, mirroring
+ *   8bs.config.ts — that every `frames(...)` call folds against, mirroring
  *   link()'s option of the same name so `8bs check`/the editor and a real
  *   build agree on what a duration means.
  * @returns {object[]} diagnostics, in source order
@@ -55,7 +55,7 @@ export function analyze(text, file = '<unknown>', options = {}) {
   const { ast, diagnostics: syntax } = parse(tokens, text, file);
 
   // Folding runs before check(), same ordering as the linker: a
-  // seconds(...) call needs to already be a plain IntegerLiteral by the
+  // frames(...) call needs to already be a plain IntegerLiteral by the
   // time the width-fit rule walks the tree.
   const folding = foldDurations(ast, file, options.frameRate);
   const all = [...lexical, ...syntax, ...folding, ...check(ast, file)];

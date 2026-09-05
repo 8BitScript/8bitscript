@@ -114,8 +114,8 @@ test('declaring or importing "waitFrame" is 8BS2009 with the right wording', () 
     assert.equal(d.code, '8BS2009', src);
     assert.match(d.message, /frame wait, waitFrame\(\)/);
   }
-  // And seconds' wording did not regress.
-  assert.match(analyze('let seconds: u8 = 1;', 't.8bs')[0].message, /duration constructor, seconds\(\.\.\.\)/);
+  // And frames' wording did not regress.
+  assert.match(analyze('let frames: u8 = 1;', 't.8bs')[0].message, /duration clock, frames\(\.\.\., seconds\)/);
 });
 
 test('hover explains waitFrame()', () => {

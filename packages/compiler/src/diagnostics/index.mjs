@@ -32,31 +32,31 @@ export const Codes = {
   UNTERMINATED_ASM_BLOCK: '8BS1007',
   INVALID_NUMBER: '8BS1008',
   // A decimal literal (`0.5`) used anywhere other than as the first argument
-  // to `seconds(...)` — the only place the language has any float-shaped
-  // syntax. foldDurations() (packages/compiler/src/fold) consumes and
+  // to a duration clock call, `frames(...)` — the only place the language
+  // has any float-shaped syntax. foldDurations() (packages/compiler/src/fold) consumes and
   // removes every valid one before check() ever runs, so any that survive
   // to be walked here were misplaced.
   MISPLACED_DECIMAL_LITERAL: '8BS1009',
   SYNTAX_ERROR: '8BS1101',
   VALUE_OUT_OF_RANGE: '8BS1021',
-  // `seconds(...)`'s argument shape is wrong — not one integer-or-decimal
-  // literal followed by, at most, one bare clock identifier (see
-  // foldDurations()).
+  // `frames(...)`'s argument shape is wrong — not one integer-or-decimal
+  // literal followed by the bare unit word it is measured in (see
+  // foldDurations()). The unit is required: `frames(30)` is this.
   INVALID_DURATION_ARGUMENT: '8BS1022',
-  // A `seconds(...)` call folded to zero frames at the project's configured
+  // A `frames(...)` call folded to zero frames at the project's configured
   // frameRate — always a bug, not a benign rounding nicety: it would wrap a
-  // countdown like `let ticks: utinyint = seconds(...); ... ticks = ticks - 1;`
+  // countdown like `let ticks: utinyint = frames(...); ... ticks = ticks - 1;`
   // straight through 0 instead of ticking.
   ZERO_DURATION: '8BS1023',
-  // A `seconds(...)` call didn't fold to an exact frame count at the
+  // A `frames(...)` call didn't fold to an exact frame count at the
   // project's configured frameRate — reported so a rate change (e.g. 60 to
   // 50) that silently nudges a duration's real-world length is never
   // invisible.
   INEXACT_DURATION: '8BS1024',
-  // `seconds(...)`'s second argument names a clock the fold doesn't know —
-  // the only one so far is `FRAMES`, the default (see the fold pass's
-  // DURATION_CLOCKS). Reported at the identifier itself, not the whole call.
-  UNKNOWN_DURATION_CLOCK: '8BS1025',
+  // `frames(...)`'s second argument names a unit the fold doesn't know —
+  // the only one so far is `seconds` (see the fold pass's DURATION_UNITS).
+  // Reported at the identifier itself, not the whole call.
+  UNKNOWN_DURATION_UNIT: '8BS1025',
 
   UNRESOLVED_PACKAGE: '8BS2001',
   NOT_AN_8BS_PACKAGE: '8BS2002',
@@ -66,8 +66,8 @@ export const Codes = {
   DUPLICATE_BINDING: '8BS2006',
   UNRESOLVED_NAME: '8BS2007',
   MISSING_NATIVE_SOURCE: '8BS2008',
-  // A declaration or import named after a builtin — `seconds` or a duration
-  // clock such as `FRAMES` (packages/compiler/src/fold), or `waitFrame`
+  // A declaration or import named after a builtin — a duration clock such
+  // as `frames` (packages/compiler/src/fold), or `waitFrame`
   // (packages/compiler/src/ir). A user binding by that name would otherwise
   // be silently reinterpreted as the builtin rather than getting a clear
   // diagnostic.
