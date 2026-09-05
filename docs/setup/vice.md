@@ -143,6 +143,27 @@ missing-ROM failure mode applies to all four — if `xpet` or `x128` behave the
 way the caveat above describes, the fix is identical: supply the ROMs
 yourself and place them where that binary's `-help` output says it looks.
 
+## VIC-20 memory
+
+The VIC-20 is one target with five RAM profiles, the expansions the SDK's
+link script and `xvic -memory` both know: `8bs build --target vic20
+--profile 16k`. `unexpanded` is the default.
+
+| Profile | Expansion | Program loads at | Screen / colour RAM |
+| ------- | --------- | ---------------- | ------------------- |
+| `unexpanded` | none (5K) | `$1001` | `$1E00` / `$9600` |
+| `3k` | 3K at `$0400` | `$0401` | `$1E00` / `$9600` |
+| `8k`, `16k`, `24k` | 8K, 16K, 24K from `$2000` | `$1201` | `$1000` / `$9400` |
+
+With 8K or more the KERNAL moves the screen down to `$1000` so BASIC RAM
+runs unbroken from `$1200`; `@8bitscript/vic20`'s text and screen
+packages follow it through a profile version of one small file
+(`geometry.vic20.8k.8bs`, see [the package model](../packages.md#system-specific-files)),
+so one program draws in the right place on every profile. The profile has
+to match the machine it runs on; `8bs run` passes the matching
+`-memory` to xvic, and a non-default profile is in the output name
+(`main-vic20-8k-ntsc.prg`).
+
 ## PET models
 
 The PET is one target with several hardware profiles, named the way the
@@ -170,6 +191,8 @@ editors it ships make it refuse autostart) and the no-CRTC 3xxx at its own
 one `.prg` runs at the configured `frameRate` on either. `--pal` prints a
 note and changes nothing. The 96K/128K machines (8096, 8296) are banked, not
 bigger, and the SDK's PET link script refuses them; they are not profiles.
+The keyboard column is the profile's too: `@8bitscript/pet/keys` names the
+keys of the graphics matrix, and of the business matrix for `8032`.
 `packages/pet/AGENTS.md` has the hardware behind each column of the table.
 
 ## On cc65

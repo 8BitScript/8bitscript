@@ -11,6 +11,7 @@
 // at the top-left corner inside the border — so a program that imports it
 // from @8bitscript/text draws the same thing on every target.
 import { memoryPointer } from "./index.8bs";
+import { Video } from "./geometry.8bs";
 
 // The screen is addressed by flat cell index — a position is
 // `y * text.COLUMNS + x` — and these are the plainest things a text API
@@ -19,10 +20,12 @@ import { memoryPointer } from "./index.8bs";
 // screen, lay out a label, or nothing at all is entirely up to the caller —
 // this package draws nothing on its own.
 //
-// Screen memory for the *unexpanded* VIC-20 — the 22x23 character screen
-// this backend already targets (see docs/compiler.md: load address $1001,
-// `__memory_expansion` pinned to 0) — starts at $1E00, with its colour
-// nybbles at the fixed $9600.
+// Where the 22x23 screen and its colour nybbles are depends on the RAM the
+// machine has — $1E00/$9600 unexpanded or with 3K, $1000/$9400 with 8K or
+// more — and that is the build's `--profile` to say (VIC20_PROFILES in
+// packages/backend-6502). It reaches this file as ./geometry.8bs's `Video`
+// namespace, whose 8k/16k/24k twins the profile selects; nothing here
+// names an address.
 //
 // ---- character codes: ASCII in, screen codes out ----------------------------
 //
@@ -41,12 +44,10 @@ import { memoryPointer } from "./index.8bs";
 // CHR$(14); packages/backend-6502's commodoreCharsetGuard() keeps that out
 // of the link). putChar()
 // selects the upper-case set, every call, through the VIC's memory pointer
-// (see @8bitscript/vic20's `memoryPointer`): one register write, and
-// "TICK" reads as TICK here the way it does on the NES, the Atari, and the
-// X16, none of which have a lower-case set to fall into.
-namespace CharacterSet {
-    const UPPERCASE_SCREEN_AT_1E00: utinyint = 0xF0;
-}
+// (see @8bitscript/vic20's `memoryPointer`): one register write — of the
+// value that also names this profile's screen base, since $9005 holds
+// both — and "TICK" reads as TICK here the way it does on the NES, the
+// Atari, and the X16, none of which have a lower-case set to fall into.
 
 function asciiToScreenCode(code: utinyint): utinyint {
     if (code >= 64 && code < 96) {
@@ -77,12 +78,12 @@ let currentColor: utinyint = 1; // white, until text.setColor() says otherwise
 
 // What a run of text needs once, before its first character.
 function prepare(): void {
-    memoryPointer = CharacterSet.UPPERCASE_SCREEN_AT_1E00;
+    memoryPointer = Video.MEMORY_POINTER_UPPERCASE;
 }
 
 function place(cell: usmallint, code: utinyint): void {
-    memory.write(0x1E00 + cell, asciiToScreenCode(code));
-    memory.write(0x9600 + cell, currentColor & 0x07); // bit 3 would make the cell multicolour
+    memory.write(Video.SCREEN + cell, asciiToScreenCode(code));
+    memory.write(Video.COLOR + cell, currentColor & 0x07); // bit 3 would make the cell multicolour
 }
 
 // ---- digits -------------------------------------------------------------
@@ -95,16 +96,16 @@ function place(cell: usmallint, code: utinyint): void {
 const DIGIT_PLACES: array<usmallint, 5> = [10000, 1000, 100, 10, 1];
 
 export namespace text {
-    const CELL_COUNT: usmallint = 506; // 22 columns x 23 rows
-    const COLUMNS: utinyint = 22; // cells per row, so cell = y * text.COLUMNS + x
+    const CELL_COUNT: usmallint = Video.CELL_COUNT; // 22 columns x 23 rows
+    const COLUMNS: utinyint = Video.COLUMNS; // cells per row, so cell = y * text.COLUMNS + x
 
     function putChar(cell: usmallint, code: utinyint): void {
         prepare();
-        memory.write(0x1E00 + cell, asciiToScreenCode(code));
+        memory.write(Video.SCREEN + cell, asciiToScreenCode(code));
     }
 
     function putColor(cell: usmallint, color: utinyint): void {
-        memory.write(0x9600 + cell, color & 0x07);
+        memory.write(Video.COLOR + cell, color & 0x07);
     }
 
     function setColor(color: utinyint): void {

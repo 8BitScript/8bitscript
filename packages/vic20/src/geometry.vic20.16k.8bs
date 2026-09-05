@@ -1,0 +1,19 @@
+// @8bitscript/vic20 — where the screen is, with 16K or more of expansion.
+//
+// The 16k profile's version of geometry.8bs (see that file for the whole
+// story): with 8K or more the KERNAL moves the screen matrix to $1000 and
+// colour RAM to $9400 so BASIC RAM runs unbroken from $1200, and the SDK
+// loads the program at $1201. $9005's screen nybble becomes $C0 (POKE
+// 36869,192). Three files say exactly this — this one, `geometry.vic20.8k.8bs` and `geometry.vic20.24k.8bs` —
+// because a profile's version is named after one profile; the test in
+// packages/compiler/test/vic20-profiles.test.mjs holds their namespaces
+// identical. Change one, change all three.
+
+export namespace Video {
+    const SCREEN: usmallint = 0x1000; // screen matrix: one screen code per cell
+    const COLOR: usmallint = 0x9400; // colour RAM: one nybble per cell, same cell index
+    const MEMORY_POINTER_UPPERCASE: utinyint = 0xC0; // $9005: this screen, upper-case ROM
+    const COLUMNS: utinyint = 22;
+    const ROWS: utinyint = 23;
+    const CELL_COUNT: usmallint = 506; // COLUMNS * ROWS
+}

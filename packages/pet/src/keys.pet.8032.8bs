@@ -1,0 +1,100 @@
+// @8bitscript/pet/keys — the keyboard matrix, key by key: business keyboard.
+//
+// The 8032 profile's version of keys.8bs (see that file for how the two
+// tables relate and which names both share). This is the **business**
+// keyboard of the 8032 (and the 4032B/3032B, which are not profiles):
+// typewriter layout with the digits on the top row, a numeric keypad of
+// its own, TAB, ESC and RPT, and the symbols `! " # ...` reached with
+// SHIFT rather than as keys of their own — so this table has KEYPAD_n
+// and no EXCLAMATION. Same encoding, `row * 8 + column` in PIA1's matrix.
+//
+// Source: the business matrix the PET references give, checked key for
+// key against VICE's positional map for the 8032, /opt/homebrew/share/
+// vice/PET/gtk3_buuk_pos.vkm — the UK business layout, which is the one
+// xpet's 8032 model loads. The US business keyboard is wired to the same
+// matrix in every reference consulted, but has not been checked here.
+
+export namespace Key {
+    // row 0
+    const DIGIT_2: utinyint = 0;
+    const DIGIT_5: utinyint = 1;
+    const DIGIT_8: utinyint = 2;
+    const MINUS: utinyint = 3; // shifted: =
+    const KEYPAD_8: utinyint = 4;
+    const CURSOR_RIGHT: utinyint = 5; // shifted: cursor left
+    // row 1
+    const DIGIT_1: utinyint = 8;
+    const DIGIT_4: utinyint = 9;
+    const DIGIT_7: utinyint = 10;
+    const DIGIT_0: utinyint = 11;
+    const KEYPAD_7: utinyint = 12;
+    const UP_ARROW: utinyint = 13;
+    const KEYPAD_9: utinyint = 15;
+    // row 2
+    const ESCAPE: utinyint = 16;
+    const S: utinyint = 17;
+    const F: utinyint = 18;
+    const H: utinyint = 19;
+    const BRACKET_RIGHT: utinyint = 20;
+    const K: utinyint = 21;
+    const SEMICOLON: utinyint = 22; // shifted: +
+    const KEYPAD_5: utinyint = 23;
+    // row 3
+    const A: utinyint = 24;
+    const D: utinyint = 25;
+    const G: utinyint = 26;
+    const J: utinyint = 27;
+    const RETURN: utinyint = 28;
+    const L: utinyint = 29;
+    const AT: utinyint = 30;
+    const KEYPAD_6: utinyint = 31;
+    // row 4
+    const TAB: utinyint = 32;
+    const W: utinyint = 33;
+    const R: utinyint = 34;
+    const Y: utinyint = 35;
+    const BACKSLASH: utinyint = 36;
+    const I: utinyint = 37;
+    const P: utinyint = 38;
+    const DELETE: utinyint = 39; // INST/DEL
+    // row 5
+    const Q: utinyint = 40;
+    const E: utinyint = 41;
+    const T: utinyint = 42;
+    const U: utinyint = 43;
+    const CURSOR_DOWN: utinyint = 44; // shifted: cursor up
+    const O: utinyint = 45;
+    const BRACKET_LEFT: utinyint = 46;
+    const KEYPAD_4: utinyint = 47;
+    // row 6
+    const SHIFT_LEFT: utinyint = 48;
+    const C: utinyint = 49;
+    const B: utinyint = 50;
+    const PERIOD: utinyint = 51;
+    const KEYPAD_PERIOD: utinyint = 52;
+    const SHIFT_RIGHT: utinyint = 54;
+    const KEYPAD_3: utinyint = 55;
+    // row 7
+    const Z: utinyint = 56;
+    const V: utinyint = 57;
+    const N: utinyint = 58;
+    const COMMA: utinyint = 59;
+    const KEYPAD_0: utinyint = 60;
+    const REPEAT: utinyint = 62; // RPT
+    const KEYPAD_2: utinyint = 63;
+    // row 8
+    const REVERSE: utinyint = 64; // RVS
+    const X: utinyint = 65;
+    const SPACE: utinyint = 66;
+    const M: utinyint = 67;
+    const HOME: utinyint = 68; // CLR/HOME
+    const SLASH: utinyint = 70; // shifted: ?
+    const KEYPAD_1: utinyint = 71;
+    // row 9
+    const LEFT_ARROW: utinyint = 72; // the back-arrow key, top row left
+    const DIGIT_3: utinyint = 73;
+    const DIGIT_6: utinyint = 74;
+    const DIGIT_9: utinyint = 75;
+    const STOP: utinyint = 76; // RUN/STOP
+    const COLON: utinyint = 77; // shifted: *
+}

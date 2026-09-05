@@ -1,0 +1,35 @@
+// @8bitscript/vic20 — where the screen is, for the unexpanded and 3K VIC-20.
+//
+// The VIC-20's screen moves with its memory. Unexpanded (and with a 3K
+// expansion, which fills $0400-$0FFF and leaves everything above alone)
+// the KERNAL puts the 22x23 screen matrix at $1E00 with its colour nybbles
+// at $9600, and BASIC starts at $1001. With 8K or more the KERNAL moves the
+// screen down to $1000 and colour RAM to $9400, so that $1200 upward is one
+// contiguous run of BASIC RAM — which is why the SDK loads an 8K+ program at
+// $1201 (mos-platform/vic20/lib/link.ld). This file is the unexpanded/3K
+// geometry; the 8k, 16k and 24k profiles each have a twin beside it
+// (`geometry.vic20.8k.8bs` and so on — three identical files, because a
+// profile's version is named after one profile) that a build with that
+// `--profile` reads instead. text.8bs and screen.8bs are written once,
+// against these numbers (docs/packages.md, "System-specific files").
+//
+// Two of these are the VIC's, not the KERNAL's, and the package writes one
+// of them itself: MEMORY_POINTER_UPPERCASE is what text.8bs stores in $9005
+// before every run of text — bits 4-7 the screen base, bits 0-3 the
+// upper-case character ROM at $8000 — $F0 for a screen at $1E00, $C0 for
+// one at $1000 (POKE 36869,240 and POKE 36869,192 in the Programmer's
+// Reference Guide). The screen's address bit 9 and the colour RAM base
+// both come from $9002 bit 7, which the package leaves as the KERNAL set
+// it at boot from the RAM it found. So the profile has to match the
+// machine: a `--profile 8k` build on an unexpanded VIC-20 would write $C0
+// to a VIC whose $9002 still says $1E00, and draw nowhere useful. `8bs run`
+// launches xvic with the matching `-memory`, so the emulator always agrees.
+
+export namespace Video {
+    const SCREEN: usmallint = 0x1E00; // screen matrix: one screen code per cell
+    const COLOR: usmallint = 0x9600; // colour RAM: one nybble per cell, same cell index
+    const MEMORY_POINTER_UPPERCASE: utinyint = 0xF0; // $9005: this screen, upper-case ROM
+    const COLUMNS: utinyint = 22;
+    const ROWS: utinyint = 23;
+    const CELL_COUNT: usmallint = 506; // COLUMNS * ROWS
+}

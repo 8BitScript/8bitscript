@@ -110,7 +110,11 @@ editor on a hack that the capability would replace:
 - **Input** — a keyboard on the computers, a joypad on the NES, the
   browser's keyboard on the web — as a capability package like
   `@8bitscript/screen`: one API, each machine's implementation behind it.
-  Nothing in Studio can be interactive before this exists.
+  Nothing in Studio can be interactive before this exists. The PET has
+  the hardware layer such a package would sit on (`@8bitscript/pet/keyboard`
+  scans the matrix once a frame, `@8bitscript/pet/keys` names the keys per
+  profile; see `packages/pet/AGENTS.md`); importing it directly makes a
+  program PET-only, which Studio's shared code must not be.
 - **Character and sprite access** — reading and writing the character
   set and, where the machine has them, sprite definitions and positions,
   through the intent-level API the root `AGENTS.md` insists on

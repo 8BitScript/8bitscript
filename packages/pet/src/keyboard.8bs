@@ -1,0 +1,72 @@
+// @8bitscript/pet/keyboard — the PET's keyboard matrix, one snapshot a frame.
+//
+// Named by "8bitscript".exports["./keyboard"] in this package's package.json:
+//
+//     import { keyboard } from "@8bitscript/pet/keyboard";
+//     import { Key } from "@8bitscript/pet/keys";
+//
+// This is hardware-level, PET-only surface — the layer a portable input
+// capability (`@8bitscript/input`, not yet written; see
+// packages/studio/AGENTS.md) will be built on, the way ./text.8bs is the
+// layer under @8bitscript/text. Importing it makes a program PET-specific.
+//
+// ---- how the matrix works -----------------------------------------------
+//
+// Ten rows by eight columns, no diodes. Writing a row number 0-9 to PIA1
+// port A ($E810) selects that row; PIA1 port B ($E812) then reads its eight
+// keys, a 0 bit where a key is down. A program that calls waitFrame()
+// anywhere — one scanning once a frame does — runs with interrupts off from
+// start-up (FRAME_SYNC.pet's `sei`, in the frame prologue the backend
+// emits for it), so the KERNAL's own scan is not running against this one.
+// A program with no waitFrame() at all still has the KERNAL IRQ alive and
+// selecting rows of its own sixty times a second; scan() there would read
+// a row it did not select. This package keeps no key buffer and decodes no
+// PETSCII; it answers "is this key down now", which is what a game loop asks.
+//
+// Reading $E812 has a side effect: it clears the retrace flag the frame
+// runtime waits on (see `pia1PortB` in ./index.8bs). So the matrix is read
+// exactly once a frame, all ten rows into `state`, by `keyboard.scan()`
+// — called right after waitFrame() returns, when the edge was just
+// consumed and the next is a whole frame away — and every question after
+// that reads the snapshot, never the port. Ten writes and ten reads, about
+// 200 cycles of a 20000-cycle frame.
+//
+// Ghosting: three keys down can read as four (any three corners of a
+// rectangle in the matrix light the fourth). Two keys are always safe.
+import { pia1PortA, pia1PortB } from "./index.8bs";
+
+// The last scan, one byte per row, a 1 bit where a key is down (the port's
+// active-low columns inverted once, here, so nothing else has to think
+// about it). All zero until the first scan.
+let state: array<utinyint, 10>;
+
+// Column masks, indexed rather than shifted: `1 << n` with a variable n is
+// a loop on the 6502, a table lookup is one indexed load.
+const COLUMN_BIT: array<utinyint, 8> = [1, 2, 4, 8, 16, 32, 64, 128];
+
+export namespace keyboard {
+    const ROWS: utinyint = 10;
+    const COLUMNS: utinyint = 8;
+
+    // Read all ten rows into the snapshot. Once a frame, right after
+    // waitFrame().
+    function scan(): void {
+        for (let row: utinyint = 0; row < 10; row++) {
+            pia1PortA = row;
+            state[row] = pia1PortB ^ 0xFF;
+        }
+    }
+
+    // Is this key down in the last scan? `key` is a `Key.*` value from
+    // @8bitscript/pet/keys — `row * 8 + column` in the profile's matrix.
+    function pressed(key: utinyint): bool {
+        return (state[key >> 3] & COLUMN_BIT[key & 7]) != 0;
+    }
+
+    // The last scan's eight columns of one row, a 1 bit per key down:
+    // for code that wants a whole row at once (a matrix ghosting check,
+    // an "any key" test over all ten).
+    function row(index: utinyint): utinyint {
+        return state[index];
+    }
+}

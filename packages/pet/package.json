@@ -8,7 +8,9 @@
     "entry": "./src/index.8bs",
     "exports": {
       "./screen": "./src/screen.8bs",
-      "./text": "./src/text.8bs"
+      "./text": "./src/text.8bs",
+      "./keyboard": "./src/keyboard.8bs",
+      "./keys": "./src/keys.8bs"
     }
   },
   "files": [
