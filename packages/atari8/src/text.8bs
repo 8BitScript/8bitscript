@@ -1,0 +1,62 @@
+// @8bitscript/atari8/text — the Atari 8-bit's implementation of
+// @8bitscript/text.
+//
+// Named by "8bitscript".exports["./text"] in this package's package.json,
+// and what
+//
+//     import { text } from "@8bitscript/text";
+//
+// resolves to when the build is for the Atari. Built on the registers
+// @8bitscript/atari8 exports. Every machine's text.8bs exports this same
+// namespace — the same names, the same shapes, ASCII codes, and a cell 0
+// at the top-left corner inside the border — so a program that imports it
+// from @8bitscript/text draws the same thing on every target.
+import { cursorInhibit } from "./index.8bs";
+
+// ANTIC mode 2 (GR.0) is 40x24 = 960 cells, pointed to by SAVMSC at $58
+// (lo) / $59 (hi) — not a fixed address the way the Commodore machines have
+// it: screen memory lives wherever the OS's display list points it, so
+// putChar() goes through memory.read of those two bytes rather than a
+// compile-time constant. Codes are ASCII, as they are on every machine
+// (space, '0'-'9', 'A'-'Z' and a little punctuation, upper case only) —
+// ATASCII agrees with ASCII across that whole range, so no translation is
+// needed on the way in; putChar converts to the internal screen code ANTIC
+// actually fetches (space $20 -> $00, digits and letters $20-$5F minus
+// $20). There is no colour RAM: a character's luminance is the global
+// COLPF1 that `screen.setColors()` writes, so putColor exists only so
+// portable code still compiles and does nothing, the same way
+// @8bitscript/pet's putColor does nothing. putChar also inhibits the OS
+// cursor (see @8bitscript/atari8's `cursorInhibit`), so a program that
+// draws before its first setColors() — which is the order every program
+// should use, for the NES's sake — does not get its first cell inverted by
+// the cursor sitting on it.
+
+function atasciiToInternal(code: utinyint): utinyint {
+    if (code < 32) {
+        return code + 64;
+    }
+    if (code < 96) {
+        return code - 32;
+    }
+    return code;
+}
+
+export namespace text {
+    const CellCount: usmallint = 960; // 40 columns x 24 rows
+
+    function putChar(cell: usmallint, code: utinyint): void {
+        cursorInhibit = 1;
+        memory.write(
+            memory.read(0x58) + (memory.read(0x59) * 256) + cell,
+            atasciiToInternal(code),
+        );
+    }
+
+    function putColor(cell: usmallint, color: utinyint): void {
+        // Deliberately empty — GR.0 has no per-cell colour RAM.
+    }
+
+    function showDigit(cell: usmallint, digit: utinyint): void {
+        text.putChar(cell, 0x30 + (digit % 10));
+    }
+}

@@ -1,0 +1,57 @@
+// @8bitscript/pet/screen — the PET's implementation of @8bitscript/screen.
+//
+// Named by "8bitscript".exports["./screen"] in this package's package.json,
+// and what
+//
+//     import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";
+//
+// resolves to when the build is for the PET: @8bitscript/screen's entry is
+// keyed by machine and delegates here. Every machine's screen.8bs exports
+// this same surface, which is what lets a program import it from
+// @8bitscript/screen and never name the hardware.
+//
+// The PET is a monochrome machine — green or white phosphor, whatever the
+// monitor is, with no colour hardware at all. `screen.setColors()` still
+// exists and still links, because the point of the portable surface (see
+// @8bitscript/vic20 and @8bitscript/c64's screen.8bs) is that a single
+// portable program builds for every target without per-target branches in
+// user code — but here it is deliberately inert: there is no register to
+// write, so setColors() does nothing observable. A program that only ever
+// sets colours through the portable surface still builds and runs correctly
+// everywhere; it simply never shows a border or background tint on a PET,
+// because a PET cannot show one.
+
+export namespace screen {
+    function setColors(border: u8, background: u8): void {
+        // Deliberately empty — see the file comment above.
+    }
+}
+
+// ---- colour names ----------------------------------------------------------
+//
+// The same eight names every machine's screen.8bs exports, so a program that
+// says `screen.setColors(BorderColor.Blue, BackgroundColor.Black)` through
+// @8bitscript/screen still links here. The values are the C64's numbering,
+// for want of any of the PET's own — nothing reads them.
+
+export namespace BorderColor {
+    const Black: utinyint = 0;
+    const White: utinyint = 1;
+    const Red: utinyint = 2;
+    const Cyan: utinyint = 3;
+    const Purple: utinyint = 4;
+    const Green: utinyint = 5;
+    const Blue: utinyint = 6;
+    const Yellow: utinyint = 7;
+}
+
+export namespace BackgroundColor {
+    const Black: utinyint = 0;
+    const White: utinyint = 1;
+    const Red: utinyint = 2;
+    const Cyan: utinyint = 3;
+    const Purple: utinyint = 4;
+    const Green: utinyint = 5;
+    const Blue: utinyint = 6;
+    const Yellow: utinyint = 7;
+}

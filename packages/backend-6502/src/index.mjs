@@ -10,7 +10,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
-import { PRIMITIVE_INTEGER_TYPES } from '@8bitscript/compiler';
+import { PRIMITIVE_INTEGER_TYPES, entryOf } from '@8bitscript/compiler';
 
 // C has no 24-bit integer, so mediumint/umediumint widen to the next native
 // width up. The bits/signedness driving this table come from the compiler's
@@ -76,9 +76,9 @@ const ATARI8_DEFAULT_PROFILE = '800xl';
 // — target predicates are a Phase 1 language feature still to build), so
 // @8bitscript/vic20's `screen` namespace is not updated for those three
 // profiles: use them for programs that only need more RAM for their own
-// code/data (or that talk to `vicColor`/`border`/`background` directly,
+// code/data (or that talk to `vicColor`/`screen.setColors` directly,
 // which stays at $900F regardless of expansion), not ones that also call
-// `screen.putChar`/`putColor` — that would misdraw on real 8k+ hardware.
+// `text.putChar`/`putColor` — that would misdraw on real 8k+ hardware.
 const VIC20_PROFILES = new Set(['unexpanded', '3k', '8k', '16k', '24k']);
 const VIC20_DEFAULT_PROFILE = 'unexpanded';
 const VIC20_MEMORY_EXPANSION = {
@@ -148,23 +148,24 @@ const MACHINE_FLAGS = {
   atari8: [],
 };
 
-// ---- frame() pacing --------------------------------------------------------
+// ---- waitFrame() pacing ----------------------------------------------------
 //
 // One hardware frame is NOT 1/60th of a second, and the machines don't even
-// agree with each other or with the web host, which runs frame() at a
+// agree with each other or with the web host, which paces waitFrame() at a
 // genuine fixed rate of real time (packages/cli/src/web-runtime.mjs). Tying
-// frame() 1:1 to vblank drifts a target away from that reference forever,
-// so every machine below runs the same fixed-point scheme: an accumulator
-// of *logical* frames owed — at whatever rate the project is configured
-// for (`frameRate`, default 60; see 8bs.config.ts), the same rate on every
-// target — drained 0, 1, or 2 times per hardware frame — `acc += num;
-// while (acc >= den) frame();` in a uint32 (values stay comfortably under
-// 2^32 for any sane configured rate; emitC() rejects an implausibly large
-// one rather than let it silently overflow), so nothing is ever rounded
-// and the long-run rate is exactly `frameRate` logical frames per emulated
-// second, by construction. The tables below hold one raw hardware-frame
-// period each, unscaled; emitFrameDriver() multiplies in the configured
-// `frameRate` at emit time.
+// waitFrame() 1:1 to vblank drifts a target away from that reference
+// forever, so every machine below runs the same fixed-point scheme: an
+// accumulator of *logical* frames owed — at whatever rate the project is
+// configured for (`frameRate`, default 60; see 8bs.config.ts), the same rate
+// on every target. `__8bs_wait_frame()` waits hardware frames, adding `num`
+// per frame, until at least `den` is owed, then takes `den` off — so one
+// hardware frame can satisfy 0, 1, or 2 waitFrame() calls, and the long-run
+// rate is exactly `frameRate` logical frames per emulated second, by
+// construction, with nothing ever rounded. All in a uint32 (values stay
+// comfortably under 2^32 for any sane configured rate; emitC() rejects an
+// implausibly large one rather than let it silently overflow). The tables
+// below hold one raw hardware-frame period each, unscaled; the configured
+// `frameRate` is multiplied in at emit time.
 //
 // What differs between machines is how a hardware frame boundary is
 // *detected*, which splits them into two families:
@@ -194,7 +195,7 @@ const MACHINE_FLAGS = {
 const FRAME_SYNC = {
   // The video chip's raster line, read as a plain memory location — no IRQ,
   // no interrupt vector, just a byte (or two) that count scanlines and wrap
-  // once a frame. This is what the frame()-driver loop polls to find the
+  // once a frame. This is what `__8bs_wait_frame()` polls to find the
   // top of each frame — self-correcting, with no calibrated delay constant
   // to get wrong or to need a separate value per region. `topHalf` is a C
   // boolean expression, true exactly when the raster is in the TOP HALF of
@@ -230,7 +231,7 @@ const FRAME_SYNC = {
     // The CPU clock is the video crystal divided by a small integer (NTSC:
     // 14318181Hz/14 — the same clock the C64 uses, which is why only the
     // line counts differ; PAL: 4433618Hz/4). num = cyclesPerFrame *
-    // divisor (emitFrameDriver multiplies in the configured `frameRate`),
+    // divisor (the configured `frameRate` is multiplied in at emit time),
     // den = crystalHz — an exact integer fraction, not a rounded decimal.
     ntsc: { num: 261 * 65 * 14, den: 14318181 },
     pal: { num: 312 * 71 * 4, den: 4433618 },
@@ -332,7 +333,7 @@ const FRAME_SYNC = {
     // every other machine here, the PET's num/den pair is computed from a
     // runtime measurement (`__8bs_elapsed`), not a compile-time constant, so
     // scaling by the configured rate has to happen inside the emitted C
-    // itself rather than being multiplied in once by emitFrameDriver().
+    // itself rather than being multiplied in once at emit time.
     calibrate: (frameRate) => [
       '    while (!((*(volatile uint8_t *)0xE813) & 0x80)) {}',
       '    (void)(*(volatile uint8_t *)0xE812);',
@@ -378,12 +379,13 @@ const FRAME_SYNC = {
   // with region-dependent crystals — its CPU runs a documented, exact
   // 8MHz, and VERA's default output targets a standard ~60Hz display, close
   // enough to exactly 60Hz by hardware design (not a dual NTSC/PAL split
-  // like the vintage machines above) that this driver simply calls frame()
-  // once per VSYNC edge rather than building the accumulator's num/den pair
-  // from a video-clock figure this project could not independently verify.
-  // `num`/`den` here is 1/60, not 1/1: real hardware fires at a fixed ~60Hz
-  // regardless of the configured `frameRate`, so the accumulator (fed
-  // `frameRate * num`) still has to scale between the two when they differ.
+  // like the vintage machines above) that waitFrame() is simply one VSYNC
+  // edge at the default frameRate rather than an accumulator built from a
+  // video-clock figure this project could not independently verify — at 60
+  // the 1:1 ratio folds away entirely (see isOneToOne). `num`/`den` here is
+  // 1/60, not 1/1: real hardware fires at a fixed ~60Hz regardless of the
+  // configured `frameRate`, so at any other rate the accumulator (fed
+  // `frameRate * num`) scales between the two.
   // `presync` disables interrupts in case the KERNAL's own jiffy clock also
   // services this flag, the same risk PET's does.
   cx16: {
@@ -424,6 +426,10 @@ function emitStatement(statement, indent) {
       return `${pad}${statement.target} = ${emitExpression(statement.value)};\n`;
     case 'call':
       return `${pad}${statement.name}(${statement.args.map(emitExpression).join(', ')});\n`;
+    case 'waitFrame':
+      // The frame-sync runtime emitted by emitFrameRuntime(), present exactly
+      // when a program contains at least one of these.
+      return `${pad}__8bs_wait_frame();\n`;
     case 'memoryWrite':
       return `${pad}*(volatile uint8_t *)${emitExpression(statement.address)} = ${emitExpression(statement.value)};\n`;
     case 'memoryRead':
@@ -466,74 +472,106 @@ function emitStatement(statement, indent) {
   }
 }
 
-// Emit the synthesized `main()` that drives a frame()-exporting module,
-// forever: call the user's setup once, then run frame() 0/1/2 times per
-// hardware frame off the accumulator described above `FRAME_SYNC`. The two
-// `kind`s differ only in how "a new hardware frame arrived" is detected —
-// waitOneFrame(level) vs waitOneFrame(edge) below — everything downstream
-// of that (the accumulator, the call to frame()) is identical.
-function emitFrameDriver(sync, cName, frameRate) {
-  let out = 'int main(void) {\n';
-  out += '    uint32_t __8bs_num;\n';
-  out += '    uint32_t __8bs_den;\n';
-  out += '    uint32_t __8bs_acc;\n';
-  out += `    ${cName('main')}();\n`;
-
+// "Wait for one hardware frame to pass", as C, per FRAME_SYNC kind. For a
+// 'level' machine: wait for the raster to reach the BOTTOM half of the frame
+// before waiting for it to wrap back into the top half — without that first
+// wait, a caller cheap enough to come back while the raster is still in the
+// top half would see "already there" and not actually have waited a frame.
+// For an 'edge' machine the flag latches, so it's just "poll, then ack".
+// `body` is C spliced into the wrap-wait (the level machines' region probe).
+function waitOneHardwareFrame(sync, pad, body = '') {
   if (sync.kind === 'level') {
-    // Wait for the raster to reach the BOTTOM half of the frame before
-    // waiting for it to wrap back into the top half: without that first
-    // wait, a loop body cheap enough to finish while the raster is still in
-    // the top half would see "already there" and not actually have waited
-    // a frame at all.
-    const waitOneFrame = (pad, body = '') => (
-      `${pad}while (${sync.topHalf}) {}\n`
-      + `${pad}while (!(${sync.topHalf})) {${body}}\n`
-    );
-    out += waitOneFrame('    ');
+    return `${pad}while (${sync.topHalf}) {}\n`
+      + `${pad}while (!(${sync.topHalf})) {${body}}\n`;
+  }
+  return `${pad}while (!(${sync.pollFlag})) {}\n`
+    + (sync.ack ? `${pad}${sync.ack}\n` : '');
+}
+
+// Whether a machine's logical-to-hardware ratio is exactly 1:1 at this
+// frameRate — known at emit time only for an 'edge' machine with a fixed
+// num/den (cx16 at the default 60). Then there is nothing to accumulate:
+// waitFrame() is one hardware frame, and the runtime is just the poll.
+// Level machines choose num/den at runtime (the region probe) and the PET
+// measures its own, so neither can fold.
+function isOneToOne(sync, frameRate) {
+  return sync.kind === 'edge' && !sync.calibrate && frameRate * sync.num === sync.den;
+}
+
+// Whether num/den are compile-time constants — an 'edge' machine without a
+// runtime calibration. Then they are #defines, not variables: two fewer
+// uint32s in RAM and no stores at startup. Level machines (runtime region
+// probe) and the PET (runtime measurement) need real variables.
+function hasConstantRatio(sync) {
+  return sync.kind === 'edge' && !sync.calibrate;
+}
+
+// The frame-sync runtime: `__8bs_wait_frame()` and whatever state it needs.
+// Emitted only when the program calls waitFrame() at least once — a program
+// that never does pays nothing for any of this.
+function emitFrameRuntime(sync, frameRate) {
+  let out = '';
+  if (isOneToOne(sync, frameRate)) {
+    out += 'static void __8bs_wait_frame(void) {\n';
+    out += waitOneHardwareFrame(sync, '    ');
+    out += '}\n\n';
+    return out;
+  }
+  if (hasConstantRatio(sync)) {
+    out += `#define __8bs_num ${frameRate * sync.num}u\n`;
+    out += `#define __8bs_den ${sync.den}u\n`;
+  } else {
+    out += 'static uint32_t __8bs_num, __8bs_den;\n';
+  }
+  out += 'static uint32_t __8bs_acc;\n';
+  out += 'static void __8bs_wait_frame(void) {\n';
+  out += '    while (__8bs_acc < __8bs_den) {\n';
+  out += waitOneHardwareFrame(sync, '        ');
+  out += '        __8bs_acc += __8bs_num;\n';
+  out += '    }\n';
+  out += '    __8bs_acc -= __8bs_den;\n';
+  out += '}\n\n';
+  return out;
+}
+
+// What runs once, before the entry function, when the program uses
+// waitFrame(): pick (or measure) num/den, and sync to a frame boundary so
+// the first waitFrame() waits a whole frame rather than the tail of one.
+function emitFramePrologue(sync, frameRate) {
+  let out = '';
+  if (sync.kind === 'level') {
+    out += waitOneHardwareFrame(sync, '    ');
     out += `    __8bs_num = ${frameRate * sync.ntsc.num}u;\n`;
     out += `    __8bs_den = ${sync.ntsc.den}u;\n`;
     // Region sweep: sync to the top of a frame, then watch one whole frame
     // go by; only a PAL raster ever reaches the probe line. Costs two
     // frames at startup, once.
-    out += waitOneFrame(
-      '    ',
+    out += waitOneHardwareFrame(
+      sync, '    ',
       ` if (${sync.palProbe}) { __8bs_num = ${frameRate * sync.pal.num}u; __8bs_den = ${sync.pal.den}u; } `,
     );
-    out += '    __8bs_acc = __8bs_den;\n';
-    out += '    while (1) {\n';
-    out += '        __8bs_acc += __8bs_num;\n';
-    out += '        while (__8bs_acc >= __8bs_den) {\n';
-    out += '            __8bs_acc -= __8bs_den;\n';
-    out += `            ${cName('frame')}();\n`;
-    out += '        }\n';
-    out += waitOneFrame('        ');
-    out += '    }\n';
-  } else {
-    // 'edge': no half-frame window needed — the flag latches, so "wait for
-    // a new frame" is just "poll the flag, then acknowledge it", once.
-    if (sync.presync) out += `    ${sync.presync}\n`;
-    if (sync.calibrate) {
-      out += `${sync.calibrate(frameRate)}\n`;
-    } else {
-      out += `    __8bs_num = ${frameRate * sync.num}u;\n`;
-      out += `    __8bs_den = ${sync.den}u;\n`;
-      out += `    while (!(${sync.pollFlag})) {}\n`;
-      if (sync.ack) out += `    ${sync.ack}\n`;
-    }
-    out += '    __8bs_acc = __8bs_den;\n';
-    out += '    while (1) {\n';
-    out += '        __8bs_acc += __8bs_num;\n';
-    out += '        while (__8bs_acc >= __8bs_den) {\n';
-    out += '            __8bs_acc -= __8bs_den;\n';
-    out += `            ${cName('frame')}();\n`;
-    out += '        }\n';
-    out += `        while (!(${sync.pollFlag})) {}\n`;
-    if (sync.ack) out += `        ${sync.ack}\n`;
-    out += '    }\n';
+    return out;
   }
-  out += '    return 0;\n';
-  out += '}\n';
+  if (sync.presync) out += `    ${sync.presync}\n`;
+  if (sync.calibrate) {
+    // Measures num/den itself and ends synced to a frame edge.
+    out += `${sync.calibrate(frameRate)}\n`;
+    return out;
+  }
+  out += waitOneHardwareFrame(sync, '    ');
   return out;
+}
+
+/** Every statement in every function, nested ones included. */
+function forEachStatement(functions, visit) {
+  const walkBody = (body) => {
+    for (const s of body) {
+      visit(s);
+      if (s.kind === 'if') { walkBody(s.then); if (s.else) walkBody(s.else); }
+      else if (s.kind === 'while' || s.kind === 'block') walkBody(s.body);
+    }
+  };
+  for (const fn of functions) walkBody(fn.body);
 }
 
 // The tightest FRAME_SYNC entry (c64/c128/mega65 PAL: num = 312*63*18 =
@@ -548,11 +586,9 @@ const MAX_FRAME_RATE = 1000;
  *
  * @param {object} ir
  * @param {{ machine?: keyof typeof FRAME_SYNC, frameRate?: number }} [options]
- *   `machine` is required when the module exports `frame` — the
- *   frame()-driver loop needs to know which machine's frame-sync strategy to
- *   use. `frameRate` is the logical Hz `frame()` is called at (default 60,
- *   see 8bs.config.ts) — also only meaningful when the module exports
- *   `frame`.
+ *   Both matter only when the program calls waitFrame(): `machine` picks the
+ *   frame-sync strategy, `frameRate` is the logical Hz waitFrame() runs at
+ *   (default 60, see 8bs.config.ts).
  */
 export function emitC(ir, { machine, frameRate = 60 } = {}) {
   let out = '/* Generated by 8bs. Do not edit: the source of truth is the .8bs file. */\n';
@@ -569,59 +605,62 @@ export function emitC(ir, { machine, frameRate = 60 } = {}) {
   }
   out += '\n';
 
-  // A module exporting both `main` and `frame` gets the same portable
-  // calling convention the web host already gives one: `main` sets up once
-  // and `frame` runs once per tick, forever — nothing in the program's own
-  // source drives that loop. On the web that loop lives in the host's
-  // requestAnimationFrame callback (packages/cli/src/web-runtime.mjs);
-  // here it is synthesised below as C's own `main`, so the user's
-  // `main`/`frame` are renamed rather than becoming those literal C names.
-  // A module with no `frame` keeps the old contract exactly: its `main` IS
-  // the C entry point, expected to loop forever on its own (`examples/
-  // counter`, `examples/step1-main-loop`).
-  const hasFrame = ir.functions.some((fn) => fn.name === 'frame');
-  const cName = (name) => {
-    if (!hasFrame) return name;
-    if (name === 'main') return '__8bs_setup';
-    if (name === 'frame') return '__8bs_frame';
-    return name;
-  };
+  // The program is its entry function (the entry module's one export — see
+  // the linker's checkEntryExports and the compiler's entryOf), called once
+  // from a synthesised C `main`. There is no other convention: a program
+  // that runs forever loops itself, calling waitFrame() each pass, and one
+  // that finishes returns. The frame-sync runtime exists exactly when
+  // waitFrame() is used somewhere — the machine and rate only matter then.
+  const entry = entryOf(ir);
+  let usesWaitFrame = false;
+  let asmText = '';
+  forEachStatement(ir.functions, (s) => {
+    if (s.kind === 'waitFrame') usesWaitFrame = true;
+    if (s.kind === 'asm') asmText += `${s.text}\n`;
+  });
 
-  // `main` is a C entry point regardless of what the source declared (when
-  // there is no `frame` to change that): C mandates `int main(void)`, so
-  // that impedance mismatch is absorbed here rather than by asking every
-  // program to write a C-shaped `main`.
-  const signature = (fn) => (fn.name === 'main' && !hasFrame
-    ? 'int main(void)'
-    : `${fn.returnType === 'void' ? 'void' : C_TYPE[fn.returnType]} ${cName(fn.name)}(${
-      fn.params.length ? fn.params.map((p) => `${C_TYPE[p.type]} ${p.name}`).join(', ') : 'void'
-    })`);
+  let sync = null;
+  if (usesWaitFrame) {
+    sync = FRAME_SYNC[machine];
+    if (sync === undefined) {
+      throw new Error(`backend-6502: a program that calls waitFrame() needs a known machine to pace it, got '${machine}'`);
+    }
+    if (!Number.isInteger(frameRate) || frameRate <= 0 || frameRate > MAX_FRAME_RATE) {
+      throw new Error(`backend-6502: frameRate must be a positive integer no greater than ${MAX_FRAME_RATE}, got ${frameRate}`);
+    }
+    out += emitFrameRuntime(sync, frameRate);
+  }
+
+  // Every user function is `static`: this is one translation unit, so LLVM
+  // can inline a single-call function (the entry, above all) and drop a dead
+  // one. The exception is a function an asm6502 block names — LLVM does not
+  // read inline-assembly text, so it would see no caller and remove it,
+  // then fail to link. `main` is C's own entry point, so a user function by
+  // that name (the usual name for the entry) gets a prefix.
+  const cName = (name) => (name === 'main' ? '__8bs_main' : name);
+  const namedInAsm = (name) => new RegExp(`\\b${name}\\b`).test(asmText);
+  const signature = (fn) => `${namedInAsm(fn.name) ? '' : 'static '}${
+    fn.returnType === 'void' ? 'void' : C_TYPE[fn.returnType]} ${cName(fn.name)}(${
+    fn.params.length ? fn.params.map((p) => `${C_TYPE[p.type]} ${p.name}`).join(', ') : 'void'
+  })`;
 
   // Prototypes before any definition: the linker puts the entry module's
-  // functions first, so one may call a function defined below it. Skipped
-  // only for the literal C `main` (nothing calls it — the CRT does), which
-  // is exactly the one case `hasFrame` rules out.
-  for (const fn of ir.functions) {
-    if (fn.name !== 'main' || hasFrame) out += `${signature(fn)};\n`;
-  }
+  // functions first, so one may call a function defined below it.
+  for (const fn of ir.functions) out += `${signature(fn)};\n`;
   out += '\n';
 
   for (const fn of ir.functions) {
     out += `${signature(fn)} {\n`;
     out += fn.body.map((s) => emitStatement(s, 1)).join('');
-    if (fn.name === 'main' && !hasFrame) out += '    return 0;\n';
     out += '}\n\n';
   }
 
-  if (hasFrame) {
-    const sync = FRAME_SYNC[machine];
-    if (sync === undefined) {
-      throw new Error(`backend-6502: a frame()-driven program needs a known machine to pace it, got '${machine}'`);
-    }
-    if (!Number.isInteger(frameRate) || frameRate <= 0 || frameRate > MAX_FRAME_RATE) {
-      throw new Error(`backend-6502: frameRate must be a positive integer no greater than ${MAX_FRAME_RATE}, got ${frameRate}`);
-    }
-    out += emitFrameDriver(sync, cName, frameRate);
+  if (entry !== null) {
+    out += 'int main(void) {\n';
+    if (usesWaitFrame) out += emitFramePrologue(sync, frameRate);
+    out += `    ${cName(entry)}();\n`;
+    out += '    return 0;\n';
+    out += '}\n';
   }
 
   return out;

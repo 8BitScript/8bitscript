@@ -1,0 +1,64 @@
+// @8bitscript/pet/text — the PET's implementation of @8bitscript/text.
+//
+// Named by "8bitscript".exports["./text"] in this package's package.json,
+// and what
+//
+//     import { text } from "@8bitscript/text";
+//
+// resolves to when the build is for the PET. Built on the register
+// @8bitscript/pet exports. Every machine's text.8bs exports this same
+// namespace — the same names, the same shapes, ASCII codes, and a cell 0
+// at the top-left corner of the screen — so a program that imports it from
+// @8bitscript/text draws the same thing on every target.
+import { viaPeripheralControl } from "./index.8bs";
+
+// PET screen memory is fixed at $8000 on the common (non-CRTC) 40-column
+// models this target compiles for (see MACHINE_FLAGS.pet in
+// packages/backend-6502: __ram_size pinned to the common 32K PET), 1000
+// cells for a 40x25 display. There is no colour RAM to go with it — a
+// character's screen code alone decides how it looks — so `putColor` exists
+// only so portable code written against every machine's `text` namespace
+// still compiles; it does nothing, the same way this package's
+// `screen.setColors()` does nothing.
+//
+// `text.putChar` takes ASCII on every machine — space (32), '0'-'9'
+// (48-57), 'A'-'Z' (65-90) and the punctuation `! , - . : ?` — upper case
+// only: that is the portable set, the characters every target's character
+// set has (the NES ships its own font, and that is what it has). The PET
+// wants screen codes: codes 32-63 are those same ASCII values, and 'A'-'Z'
+// are 1-26, so asciiToScreenCode() moves 64-95 down by 64 and leaves 32-63
+// alone. Whether 1-26 then LOOK like 'A'-'Z' or 'a'-'z' is the character
+// set's choice, and the start-up code LLVM-MOS links in front of main()
+// switches the machine to the lower-case ("text") set. So putChar() also
+// selects the upper-case ("graphics") set, every call, through the VIA's
+// peripheral control register (see @8bitscript/pet): one register write,
+// and "TICK" reads as TICK here the way it does on every other target.
+namespace CharacterSet {
+    const Graphics: utinyint = 0x0C;
+}
+
+function asciiToScreenCode(code: utinyint): utinyint {
+    if (code >= 64 && code < 96) {
+        return code - 64;
+    }
+    return code;
+}
+
+export namespace text {
+    const CellCount: u16 = 1000; // 40 columns x 25 rows
+
+    function putChar(cell: u16, code: u8): void {
+        viaPeripheralControl = CharacterSet.Graphics;
+        memory.write(0x8000 + cell, asciiToScreenCode(code));
+    }
+
+    function putColor(cell: u16, color: u8): void {
+        // Deliberately empty — the PET has no colour RAM.
+    }
+
+    // Screen codes 0-9 equal '0'-'9' on the PET's character ROM too, same
+    // as the VIC-20's and C64's, so no lookup table is needed here.
+    function showDigit(cell: u16, digit: u8): void {
+        text.putChar(cell, 0x30 + (digit % 10));
+    }
+}

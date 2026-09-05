@@ -4,8 +4,8 @@
 // user's own variables or functions against. What *can* be answered honestly
 // today is "what does this piece of built-in syntax mean" — a primitive type,
 // `volatile`, `ptr`, `array`, `asm6502`, `@address`, `memory.read`/
-// `memory.write`, `seconds(...)` — because the compiler already knows all of
-// it statically, independent of any particular program.
+// `memory.write`, `seconds(...)`, `FRAMES`, `waitFrame()` — because the compiler
+// already knows all of it statically, independent of any particular program.
 //
 // This module is that answer, expressed as a small position-based API
 // (`getHoverInfo`, `getCompletions`) that an editor-protocol layer can call
@@ -121,13 +121,33 @@ const CONSTRUCT_DOCS = {
 
 /** `seconds(...)`: the compile-time duration builtin (packages/compiler/src/fold). */
 const SECONDS_DOC = [
-  '**seconds(n)**',
+  '**seconds(n, clock?)**',
   '',
-  'Compile-time duration. `n` is an integer or decimal literal — `seconds(1)`, `seconds(0.5)` — never a variable or expression.',
+  'Compile-time duration. `n` is an integer or decimal literal — `seconds(1)`, `seconds(0.5)` — never a variable or expression. `clock` says how the time is measured; the only clock so far is `FRAMES`, and it is the default, so `seconds(0.5)` and `seconds(0.5, FRAMES)` mean the same thing.',
   '',
-  'Folds at compile time to however many `frame()` calls that duration takes at this project\'s configured `frameRate` (`8bs.config.ts`, default 60) — `seconds(0.5)` becomes `30` at the default rate, `25` at a configured 50. Always a plain integer once compiled: no runtime division, no floating point.',
+  'Measured in `FRAMES`, it folds at compile time to however many frames — `waitFrame()` calls — that duration takes at this project\'s configured `frameRate` (`8bs.config.ts`, default 60) — `seconds(0.5)` becomes `30` at the default rate, `25` at a configured 50. Always a plain integer once compiled: no runtime division, no floating point.',
   '',
-  'Reserved: a variable, function, parameter, or import named `seconds` is a compile error.',
+  'Reserved: a variable, function, parameter, or import named `seconds` (or after a clock, such as `FRAMES`) is a compile error.',
+].join('\n');
+
+/** `FRAMES`: the (only, and default) clock a `seconds(...)` duration can be measured in. */
+const FRAMES_DOC = [
+  '**FRAMES**',
+  '',
+  'A clock for `seconds(...)`: `seconds(0.5, FRAMES)` measures half a second in logical frames — `waitFrame()` calls — at this project\'s configured `frameRate` (`8bs.config.ts`, default 60). It is the default clock, so `seconds(0.5)` means exactly the same thing; naming it is a way of saying, in the program, how the duration is measured.',
+  '',
+  'Only valid as the second argument to `seconds(...)`. Reserved: a variable, function, parameter, or import named `FRAMES` is a compile error.',
+].join('\n');
+
+/** `waitFrame()`: block until the next logical frame (packages/compiler/src/ir). */
+const WAITFRAME_DOC = [
+  '**waitFrame()**',
+  '',
+  'Blocks until the next logical frame, then returns. Call it once per pass through your main loop — `while (true) { waitFrame(); ... }` — the way an 8-bit program waits for vertical blank (cc65\'s `waitvsync()`).',
+  '',
+  'Frames arrive at this project\'s configured `frameRate` (`8bs.config.ts`, default 60) on every target, whatever the real hardware refreshes at — on the 6502 machines it waits on the video chip\'s own vertical blank, on the web it waits on the page\'s frame clock. Pair it with `seconds(...)` to count time: `seconds(0.5)` is how many `waitFrame()` calls make half a second.',
+  '',
+  'Takes no arguments and returns nothing. Reserved: a variable, function, parameter, or import named `waitFrame` is a compile error.',
 ].join('\n');
 
 /** `memory.read`/`memory.write`: the one namespace the compiler recognises itself. */
@@ -165,10 +185,10 @@ function tokenIndexAt(tokens, offset) {
  * Recognises primitive integer types (canonical spellings like `utinyint` and
  * `int`, or their low-level `u8`/`i32`-style aliases),
  * `volatile`/`ptr`/`array`, `asm6502`, `@address`, the `memory.read`/
- * `memory.write` intrinsic, and the `seconds(...)` duration builtin — every
- * built-in this milestone documents. Anything else, including a user's own
- * identifiers or namespace, returns `null`: there is no binder yet to say
- * what they mean.
+ * `memory.write` intrinsic, and the `seconds(...)` and `waitFrame()`
+ * builtins — every built-in this milestone documents. Anything else,
+ * including a user's own identifiers or namespace, returns `null`: there is
+ * no binder yet to say what they mean.
  *
  * @param {string} text
  * @param {number} offset
@@ -206,11 +226,18 @@ export function getHoverInfo(text, offset) {
     }
   }
 
-  // `seconds` is reserved (see checker/index.mjs's RESERVED_BUILTIN_NAMES),
-  // so unlike memory.read/write there is no namespace to require — any bare
-  // occurrence of the identifier means the builtin, not a user's own name.
+  // `seconds`, `FRAMES`, and `waitFrame` are reserved (see checker/
+  // index.mjs's RESERVED_BUILTIN_NAMES), so unlike memory.read/write there
+  // is no namespace to require — any bare occurrence of the identifier means
+  // the builtin, not a user's own name.
   if (token.kind === TokenKind.Identifier && token.text === 'seconds') {
     return { start: token.start, length: token.length, markdown: SECONDS_DOC };
+  }
+  if (token.kind === TokenKind.Identifier && token.text === 'FRAMES') {
+    return { start: token.start, length: token.length, markdown: FRAMES_DOC };
+  }
+  if (token.kind === TokenKind.Identifier && token.text === 'waitFrame') {
+    return { start: token.start, length: token.length, markdown: WAITFRAME_DOC };
   }
 
   return null;

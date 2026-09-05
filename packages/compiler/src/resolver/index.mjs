@@ -11,8 +11,9 @@
 //
 // The contract implemented here is the one specified in docs/packages.md: a
 // bare specifier resolves through node_modules to a package whose package.json
-// carries an "8bitscript" entry field, and Node itself is never asked to
-// understand a .8bs file.
+// carries an "8bitscript" entry field, a package subpath (`@scope/name/thing`)
+// resolves through that package's "8bitscript".exports map, and Node itself
+// is never asked to understand a .8bs file.
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve as resolvePath } from 'node:path';
 
@@ -21,6 +22,14 @@ import { TokenKind } from '../lexer/index.mjs';
 
 /** A bare specifier naming exactly one package: `name` or `@scope/name`. */
 const BARE_PACKAGE = /^(?:@[^/\s]+\/[^/\s]+|[^@./\s][^/\s]*)$/;
+
+/**
+ * A package name followed by a subpath: `name/thing`, `@scope/name/thing`,
+ * or deeper. Group 1 is the package, group 2 the subpath — the key the
+ * package's `"8bitscript".exports` map is looked up by, as `./thing`, the
+ * same shape Node's own "exports" field uses so nobody learns a second one.
+ */
+const PACKAGE_SUBPATH = /^((?:@[^/\s]+\/)?[^@./\s][^/\s]*)\/([^\s]+)$/;
 
 /**
  * Every machine a program can be built for — the names `8bs build --target`
@@ -183,9 +192,63 @@ function nativeSourcesOf(specifier, packageDir, manifest) {
 }
 
 /**
+ * A package's `"8bitscript".exports` map: the subpaths it offers besides its
+ * entry, each a relative path into the package — `{ "./screen": "./src/
+ * screen.8bs" }` makes `@scope/name/screen` resolve to that file. This is
+ * how a target package such as @8bitscript/c64 offers its `screen` and
+ * `text` implementations to the portable @8bitscript/screen and
+ * @8bitscript/text packages, whose machine-keyed entries delegate to
+ * `@8bitscript/c64/screen` and so on: the per-machine code stays inside the
+ * machine's own package, next to the registers it is built on.
+ *
+ * The exported file follows the same filename rule every other .8bs path
+ * does (`screen.8bs` with a `screen.nes.8bs` beside it — see chooseVariant),
+ * and the package's native sources ride along with it, since it is that
+ * package's code being linked. A subpath the map has no key for is
+ * `8BS2011`: the package is sound, it just does not offer that; a key whose
+ * file does not exist is `8BS2003`, like a missing entry.
+ */
+function resolveSubpath(specifier, name, packageDir, manifest, subpath, options) {
+  const key = `./${subpath}`;
+  const exports = manifest?.['8bitscript']?.exports;
+  if (exports !== undefined && (typeof exports !== 'object' || exports === null || Array.isArray(exports))) {
+    return {
+      code: Codes.NOT_AN_8BS_PACKAGE,
+      message: `'${name}' has a malformed "8bitscript".exports value: expected an object of './subpath' keys to relative paths`,
+    };
+  }
+  const value = exports?.[key];
+  if (value === undefined) {
+    const offered = exports ? Object.keys(exports) : [];
+    return {
+      code: Codes.NO_SUCH_SUBPATH,
+      message: offered.length > 0
+        ? `'${name}' does not export '${key}' (exports: ${offered.join(', ')})`
+        : `'${name}' does not export '${key}': its package.json has no "8bitscript".exports field`,
+    };
+  }
+  if (typeof value !== 'string' || !value.startsWith('.')) {
+    return {
+      code: Codes.NOT_AN_8BS_PACKAGE,
+      message: `'${name}' has a malformed "8bitscript".exports value for '${key}': expected a relative path`,
+    };
+  }
+  const target = resolvePath(packageDir, value);
+  const chosen = chooseVariant(specifier, target, options.machine);
+  if (!chosen) {
+    return { code: Codes.MISSING_PACKAGE_ENTRY, message: `'${name}' exports '${key}' as '${value}', which does not exist` };
+  }
+  if (chosen.code) return chosen;
+  const sources = nativeSourcesOf(name, packageDir, manifest);
+  if (sources.code) return sources;
+  return { path: chosen.path, native: sources.native };
+}
+
+/**
  * One machine's entry value: a relative path into the package, or a bare
- * specifier delegating to another package (resolved from the package's own
- * directory, so its own dependencies serve the delegation). A relative
+ * specifier delegating to another package — its entry, or one of its
+ * subpaths (`@8bitscript/c64/screen`) — resolved from the package's own
+ * directory, so its own dependencies serve the delegation. A relative
  * entry carries its own package's native sources; a delegation carries the
  * delegated package's, since that is whose code is actually being linked.
  */
@@ -256,9 +319,10 @@ function resolveConditionalEntry(specifier, packageDir, entry, options, seen, na
  * Resolve one import specifier to the absolute path of the module it names.
  *
  * Deliberately narrow: it implements only what docs/packages.md actually
- * specifies. A bare specifier with a subpath (`@scope/name/thing`) and a
- * relative specifier without a `.8bs` extension are both unspecified, so both
- * return `null` — not resolved, not an error — rather than guessing at a rule.
+ * specifies — a relative `.8bs` path, a bare package name (its entry), or a
+ * package subpath (an `"8bitscript".exports` key). A relative specifier
+ * without a `.8bs` extension is unspecified, so it returns `null` — not
+ * resolved, not an error — rather than guessing at a rule.
  *
  * @param {string} specifier
  * @param {string} fromFile  Absolute path of the importing file.
@@ -286,11 +350,13 @@ export function resolveSpecifier(specifier, fromFile, options = {}, seen = new S
     return chosen;
   }
 
-  if (!BARE_PACKAGE.test(specifier)) return null;
+  const subpath = PACKAGE_SUBPATH.exec(specifier);
+  if (!subpath && !BARE_PACKAGE.test(specifier)) return null;
+  const name = subpath ? subpath[1] : specifier;
 
-  const packageDir = findPackageDir(fromDir, specifier);
+  const packageDir = findPackageDir(fromDir, name);
   if (!packageDir) {
-    return { code: Codes.UNRESOLVED_PACKAGE, message: `cannot find package '${specifier}'. Is it installed?` };
+    return { code: Codes.UNRESOLVED_PACKAGE, message: `cannot find package '${name}'. Is it installed?` };
   }
 
   let manifest;
@@ -298,6 +364,16 @@ export function resolveSpecifier(specifier, fromFile, options = {}, seen = new S
     manifest = JSON.parse(readFileSync(join(packageDir, 'package.json'), 'utf8'));
   } catch {
     manifest = null;
+  }
+
+  if (subpath) {
+    if (!manifest?.['8bitscript']) {
+      return {
+        code: Codes.NOT_AN_8BS_PACKAGE,
+        message: `'${name}' is not an 8BitScript package: its package.json has no "8bitscript" field`,
+      };
+    }
+    return resolveSubpath(specifier, name, packageDir, manifest, subpath[2], options);
   }
 
   const entry = manifest?.['8bitscript']?.entry;

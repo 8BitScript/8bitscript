@@ -102,6 +102,49 @@ without opening an interactive window or requiring a human at the keyboard —
 see [`docs/setup/verify.md`](docs/setup/verify.md#screenshots) for the
 mechanism and `--frames` semantics on each target.
 
+## Changing a core part of the language
+
+The compiler is the single source of truth for what the language is, but it
+is not the only place the language is *described*. Every builtin, keyword,
+type, literal form, and diagnostic is also written down for humans in
+`docs/`, for editors in the language server and the VS Code extension, and
+for agents in the per-package `AGENTS.md` files. Those copies do not update
+themselves, and the tests that would catch the drift are only as complete as
+the last person made them — `docs/compiler.md`'s diagnostic-code table once
+fell six codes behind the compiler before anyone noticed.
+
+So whenever you touch a core section — the lexer, parser, checker, fold pass,
+diagnostics, IR, a backend's view of a builtin, or a reserved name — finish
+the change everywhere it is described, in the same commit:
+
+- **Docs.** `docs/compiler.md` (the pipeline description and the
+  diagnostic-code table), `docs/language-server.md` (what hover, completion,
+  and diagnostics cover), `docs/tutorial.md` and `docs/learn/`, and any
+  example `README.md` that shows the construct. Keep
+  [`CONTRIBUTING.md`](CONTRIBUTING.md)'s rule in mind: never describe
+  behaviour that isn't implemented.
+- **IntelliSense in the compiler.** Hover and completion live in
+  `packages/compiler/src/intellisense/index.mjs`, not in the editor: a new or
+  changed builtin needs its hover text there, with a test in
+  `packages/compiler/test/intellisense.test.mjs` (or the feature's own test
+  file).
+- **The language server.** `packages/language-server` only forwards the
+  compiler's diagnostics, hover, and completion, so it rarely needs code
+  changes — but its end-to-end tests
+  (`packages/language-server/test/server.test.mjs`) are the proof that a new
+  diagnostic or hover actually reaches an editor over the wire. Add one.
+- **The editor plugin(s).** `editors/vscode/syntaxes/8bs.tmLanguage.json`
+  colours keywords, types, literal forms, and reserved builtins by name, so a
+  new one is invisible there until you add it; `editors/vscode/README.md`
+  lists what the extension highlights and hovers. Any further editor
+  integration added under `editors/` follows the same rule.
+- **Per-package `AGENTS.md` files** (`packages/<target>/AGENTS.md`) if the
+  change alters what a target package is allowed or expected to do.
+
+A useful check before you're done: grep the repository for the old spelling,
+the old diagnostic count, or the old argument shape — anything that was true
+before your change and isn't now — and fix every hit outside `node_modules`.
+
 ## Documentation and workflow
 
 For everything else — trunk-only workflow, running tests, adding a docs

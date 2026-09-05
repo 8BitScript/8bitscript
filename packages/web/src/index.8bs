@@ -1,125 +1,37 @@
-// @8bitscript/web — browser target support for 8BitScript.
+// @8bitscript/web — browser target support for 8BitScript: the "hardware"
+// underneath.
 //
 // The module entry point named by the "8bitscript".entry field in this
 // package's package.json, resolved and linked for:
 //
-//     import { border, background, applyColors, screen } from "@8bitscript/web";
+//     import { WebRegisters } from "@8bitscript/web";
+//
+// What a program usually wants sits one layer up, in this package's own
+// implementations of the portable capability packages — `./src/screen.8bs`
+// behind @8bitscript/screen and `./src/text.8bs` behind @8bitscript/text,
+// named by the "8bitscript".exports map in package.json — which are built
+// on what this file exports and on nothing else.
 //
 // There is no $900F or $D020 here: the web target has no fixed hardware, so
 // "the screen" is a canvas the host paints from wasm's own linear memory
 // (the `--initialMemory 1` page every web build reserves, per
-// @8bitscript/backend-web). This package agrees on a handful of fixed byte
-// offsets in that memory — two for border/background, and a virtual
-// character screen for everything `screen` pokes — and the host (packages/
-// cli's browser runtime, packages/cli/src/web-runtime.mjs) reads them once
-// per painted frame and draws them onto the canvas. It is the same
-// deferred-apply contract @8bitscript/vic20 and @8bitscript/c64 use for
-// their registers, aimed at a buffer instead.
-namespace WebRegisters {
+// @8bitscript/backend-web). This package's hardware surface is therefore an
+// AGREEMENT rather than a register map: a handful of fixed byte offsets in
+// that memory — two for the border and background colours, and a virtual
+// character screen for everything `text` pokes — which the host
+// (packages/cli's browser runtime, packages/cli/src/web-runtime.mjs) reads
+// once per painted frame and draws onto the canvas. It is the same
+// deferred-apply contract a VIC-II register has, aimed at a buffer instead.
+//
+// The character screen is 1000 cells, 40 wide — the C64's own screen shape
+// (see @8bitscript/c64) — picked as a safe superset of the VIC-20's smaller
+// 506-cell one so the same program's cell numbers never run off the end of
+// this buffer either. Two side-by-side regions, not interleaved, so a
+// caller that only ever touches a handful of cells leaves most of both
+// untouched.
+export namespace WebRegisters {
     const BorderOffset: usmallint = 0;
     const BackgroundOffset: usmallint = 1;
-    // A virtual character screen, the same deferred-apply contract as
-    // border/background above, aimed at a buffer instead of a register:
-    // `screen.putChar()`/`putColor()` write here, and the host
-    // (packages/cli/src/web-runtime.mjs) reads them once per painted frame
-    // and draws whatever isn't blank as text. 1000 cells, 40 wide — the
-    // C64's own screen shape (see @8bitscript/c64), picked as a safe
-    // superset of the VIC-20's smaller 506-cell one so the same program's
-    // cell numbers never run off the end of this buffer either. Two
-    // side-by-side regions, not interleaved, so a caller that only ever
-    // touches a handful of cells (as this example does) leaves most of
-    // both untouched.
     const CharBase: usmallint = 2;
     const ColorBase: usmallint = 1002;
-}
-
-// ---- the common colour surface (deferred-apply) ----------------------------
-//
-// Every machine package exports the same three names, which is what lets a
-// program import them from @8bitscript/machine and never name the hardware:
-// set `border` and `background`, call applyColors(), and the machine shows
-// them once applyColors() actually runs.
-
-export let border: utinyint = 0;
-export let background: utinyint = 0;
-
-// Sixteen colours, masked the way the C64's registers are: the web target
-// has no palette size of its own to be faithful to, so it borrows the C64's
-// (see COLORS in packages/cli/src/web-runtime.mjs), which keeps colour
-// numbers meaning the same thing across every 8BitScript example.
-export function applyColors(): void {
-    memory.write(WebRegisters.BorderOffset, border & 15);
-    memory.write(WebRegisters.BackgroundOffset, background & 15);
-}
-
-// ---- friendly colour namespaces ---------------------------------------------
-//
-// The same eight names every machine package exports — Black, White, Red,
-// Cyan, Purple, Green, Blue, Yellow — so a program can write
-// `border = BorderColor.Blue` through @8bitscript/machine and get blue on
-// every target. The values are the C64's sixteen colours in the C64's
-// numbering, the palette this target borrows (see applyColors above).
-
-export namespace BorderColor {
-    const Black: utinyint = 0;
-    const White: utinyint = 1;
-    const Red: utinyint = 2;
-    const Cyan: utinyint = 3;
-    const Purple: utinyint = 4;
-    const Green: utinyint = 5;
-    const Blue: utinyint = 6;
-    const Yellow: utinyint = 7;
-    const Orange: utinyint = 8;
-    const Brown: utinyint = 9;
-    const LightRed: utinyint = 10;
-    const DarkGrey: utinyint = 11;
-    const Grey: utinyint = 12;
-    const LightGreen: utinyint = 13;
-    const LightBlue: utinyint = 14;
-    const LightGrey: utinyint = 15;
-}
-
-export namespace BackgroundColor {
-    const Black: utinyint = 0;
-    const White: utinyint = 1;
-    const Red: utinyint = 2;
-    const Cyan: utinyint = 3;
-    const Purple: utinyint = 4;
-    const Green: utinyint = 5;
-    const Blue: utinyint = 6;
-    const Yellow: utinyint = 7;
-    const Orange: utinyint = 8;
-    const Brown: utinyint = 9;
-    const LightRed: utinyint = 10;
-    const DarkGrey: utinyint = 11;
-    const Grey: utinyint = 12;
-    const LightGreen: utinyint = 13;
-    const LightBlue: utinyint = 14;
-    const LightGrey: utinyint = 15;
-}
-
-// ---- the friendly screen surface (immediate-apply) -------------------------
-//
-// Same names, same shapes, as every other machine package's `screen`
-// namespace — a program written against this surface doesn't know or care
-// that "screen memory" is a real 6502 address on most targets and a
-// wasm-memory offset on this one. Codes are ASCII, as they are everywhere
-// (space, '0'-'9', 'A'-'Z' and a little punctuation, upper case only); this
-// buffer holds them as they come, and the host draws them as the text they
-// are — there is no character ROM here to need screen codes for.
-export namespace screen {
-    const CellCount: usmallint = 1000; // 40 columns x 25 rows
-
-    function putChar(cell: usmallint, code: utinyint): void {
-        memory.write(WebRegisters.CharBase + cell, code);
-    }
-
-    function putColor(cell: usmallint, color: utinyint): void {
-        memory.write(WebRegisters.ColorBase + cell, color & 0x0F);
-    }
-
-    function showDigit(cell: usmallint, digit: utinyint): void {
-        screen.putChar(cell, 0x30 + (digit % 10));
-        screen.putColor(cell, 1);
-    }
 }

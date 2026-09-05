@@ -1,93 +1,90 @@
-// Cycles the border/background colours forever with a TICK/OPTION readout,
-// from one file, on every target. See README.md for how the frame loop is
-// driven and what @8bitscript/machine provides on each machine.
-import {
-    border, background, applyColors, BorderColor, BackgroundColor, screen,
-} from "@8bitscript/machine";
+import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";
+import { text } from "@8bitscript/text";
 
-let logicalFramesUntilTick: utinyint = seconds(0.5); // half a second, exact at this project's frameRate (8bs.config.ts)
+let logicalFramesUntilTick: utinyint = seconds(0.5);
 let ticks: utinyint = 0;
 let option: utinyint = 0;
 let clearCell: usmallint = 0; // global: no local variables yet
 
 function clearScreen(): void {
     clearCell = 0;
-    while (clearCell < screen.CellCount) {
-        screen.putChar(clearCell, 32); // 32 = space
+    while (clearCell < text.CellCount) {
+        text.putChar(clearCell, 32); // 32 = space
         clearCell = clearCell + 1;
     }
 }
 
 function drawLabels(): void {
-    screen.putChar(0, 84);  // T
-    screen.putColor(0, 1);
-    screen.putChar(1, 73);  // I
-    screen.putColor(1, 1);
-    screen.putChar(2, 67);  // C
-    screen.putColor(2, 1);
-    screen.putChar(3, 75);  // K
-    screen.putColor(3, 1);
-    screen.putChar(4, 32);  // space
-    screen.putChar(6, 32);  // space
-    screen.putChar(7, 79);  // O
-    screen.putColor(7, 1);
-    screen.putChar(8, 80);  // P
-    screen.putColor(8, 1);
-    screen.putChar(9, 84);  // T
-    screen.putColor(9, 1);
-    screen.putChar(10, 73); // I
-    screen.putColor(10, 1);
-    screen.putChar(11, 79); // O
-    screen.putColor(11, 1);
-    screen.putChar(12, 78); // N
-    screen.putColor(12, 1);
-    screen.putChar(13, 32); // space
+    text.putChar(0, 84);  // T
+    text.putColor(0, 1);
+    text.putChar(1, 73);  // I
+    text.putColor(1, 1);
+    text.putChar(2, 67);  // C
+    text.putColor(2, 1);
+    text.putChar(3, 75);  // K
+    text.putColor(3, 1);
+    text.putChar(4, 32);  // space
+    text.putChar(6, 32);  // space
+    text.putChar(7, 79);  // O
+    text.putColor(7, 1);
+    text.putChar(8, 80);  // P
+    text.putColor(8, 1);
+    text.putChar(9, 84);  // T
+    text.putColor(9, 1);
+    text.putChar(10, 73); // I
+    text.putColor(10, 1);
+    text.putChar(11, 79); // O
+    text.putColor(11, 1);
+    text.putChar(12, 78); // N
+    text.putColor(12, 1);
+    text.putChar(13, 32); // space
 }
 
-// To add a colour pair: add a case here and bump the wrap check in frame().
+// To add a colour pair: add a case here and bump the wrap check in main().
 function applyOption(): void {
     if (option == 0) {
-        border = BorderColor.Blue;
-        background = BackgroundColor.Cyan;
+        screen.setColors(BorderColor.Blue, BackgroundColor.Cyan);
     } else if (option == 1) {
-        border = BorderColor.Red;
-        background = BackgroundColor.Purple;
+        screen.setColors(BorderColor.Red, BackgroundColor.Purple);
     } else if (option == 2) {
-        border = BorderColor.Green;
-        background = BackgroundColor.Black;
+        screen.setColors(BorderColor.Green, BackgroundColor.Black);
     } else {
-        border = BorderColor.Purple;
-        background = BackgroundColor.Red;
+        screen.setColors(BorderColor.Purple, BackgroundColor.Red);
     }
 }
 
-// Draw everything before the first applyColors(): the NES only allows
-// screen writes while the picture is off, and applyColors() turns it on.
+// The program: set up once, then loop forever, one pass per frame.
+//
+// Draw everything before the first screen.setColors(): the NES only allows
+// screen writes while the picture is off, and setColors() turns it on.
+// From then on, every screen write happens right after waitFrame() returns —
+// which on the NES is the start of vertical blank, the only time its screen
+// memory is writable while the picture is on.
 export function main(): void {
     clearScreen();
     drawLabels();
-    screen.showDigit(5, 0);
-    screen.showDigit(14, 0);
+    text.showDigit(5, 0);
+    text.showDigit(14, 0);
     applyOption();
-    applyColors();
-}
 
-export function frame(): void {
-    logicalFramesUntilTick = logicalFramesUntilTick - 1;
-    if (logicalFramesUntilTick == 0) {
-        logicalFramesUntilTick = seconds(0.5);
+    while (true) {
+        waitFrame();
 
-        ticks = ticks + 1;
-        screen.showDigit(5, ticks % 10);
+        logicalFramesUntilTick = logicalFramesUntilTick - 1;
+        if (logicalFramesUntilTick == 0) {
+            logicalFramesUntilTick = seconds(0.5);
 
-        if (ticks % 10 == 0) {
-            option = option + 1;
-            if (option == 4) {
-                option = 0;
+            ticks = ticks + 1;
+            text.showDigit(5, ticks % 10);
+
+            if (ticks % 10 == 0) {
+                option = option + 1;
+                if (option == 4) {
+                    option = 0;
+                }
+                applyOption();
+                text.showDigit(14, option);
             }
-            applyOption();
-            applyColors();
-            screen.showDigit(14, option);
         }
     }
 }

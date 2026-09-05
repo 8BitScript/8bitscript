@@ -83,7 +83,7 @@ test('a call with arguments lowers each argument', () => {
 // ---- linking: parameters shadow same-named globals -------------------------
 
 test('a parameter shadows a same-named global within its own function', () => {
-  const src = 'let x: utinyint = 1;\nexport function f(x: utinyint): utinyint { return x; }\nexport function main(): void { f(2); }';
+  const src = 'let x: utinyint = 1;\nfunction f(x: utinyint): utinyint { return x; }\nexport function main(): void { f(2); }';
   const { ir, diagnostics } = link(src, 't.8bs');
   assert.deepEqual(diagnostics, []);
   // The parameter is never renamed, and the function body must still refer
@@ -175,7 +175,8 @@ test('backend-6502 emits a volatile pointer dereference for memory.read/write', 
 test('backend-web emits real AssemblyScript signatures and load/store intrinsics', () => {
   const as = emitAssemblyScript(irOf('function double(n: utinyint): utinyint { return n * 2; }\nexport function main(): void { double(3); }'));
   assert.ok(as.ok);
-  assert.match(as.source, /export function double\(n: u8\): u8 \{/);
+  // Only the entry is a wasm export; a helper is a plain function.
+  assert.match(as.source, /^function double\(n: u8\): u8 \{/m);
   assert.match(as.source, /return <u8>\(n \* 2\);/);
 
   const mem = emitAssemblyScript(irOf('export function f(): void { memory.write(0x900F, 27); }'));

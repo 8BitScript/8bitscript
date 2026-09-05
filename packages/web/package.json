@@ -5,7 +5,11 @@
   "description": "Browser target support for 8BitScript: the hardware underneath the portable APIs, where the hardware is a canvas.",
   "license": "MIT",
   "8bitscript": {
-    "entry": "./src/index.8bs"
+    "entry": "./src/index.8bs",
+    "exports": {
+      "./screen": "./src/screen.8bs",
+      "./text": "./src/text.8bs"
+    }
   },
   "files": [
     "src"

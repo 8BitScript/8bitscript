@@ -20,14 +20,37 @@ const irOf = (src) => {
   return lower(ast, 't').ir;
 };
 
-const frameIr = () => irOf('export function main(): void { }\nexport function frame(): void { }');
+// A program that uses waitFrame(): the shape every frame-paced program has,
+// and what makes the backend emit its frame-sync runtime and prologue.
+const frameIr = () => irOf('export function main(): void { while (true) { waitFrame(); } }');
 
 test('emits plain C for the milestone program', () => {
   const c = emitC(irOf('let x: u8 = 10;\nexport function main(): void { x = x + 1; }'));
   assert.match(c, /uint8_t x = 10;/);
-  assert.match(c, /int main\(void\) \{/);
+  // The entry is an ordinary static function; C's own main calls it once.
+  assert.match(c, /static void __8bs_main\(void\) \{/);
+  assert.match(c, /int main\(void\) \{\n    __8bs_main\(\);\n    return 0;\n\}/);
   assert.match(c, /x = \(x \+ 1\);/);
-  assert.match(c, /return 0;/);
+});
+
+test('a program that never calls waitFrame() carries none of the frame-sync runtime', () => {
+  const c = emitC(irOf('let x: u8 = 10;\nexport function main(): void { x = x + 1; }'), { machine: 'vic20' });
+  assert.doesNotMatch(c, /__8bs_wait_frame|__8bs_acc|__8bs_num|0x9004/);
+});
+
+test('the entry may have any name; a user function named main is renamed off C\'s', () => {
+  const c = emitC(irOf('export function start(): void { }'));
+  assert.match(c, /static void start\(void\);/);
+  assert.match(c, /int main\(void\) \{\n    start\(\);/);
+});
+
+test('every user function is static, except one an asm6502 block names', () => {
+  const c = emitC(irOf(
+    'function helper(): void { }\nfunction other(): void { asm6502 { jsr helper } }\n'
+    + 'export function main(): void { other(); }',
+  ));
+  assert.match(c, /^void helper\(void\);/m);
+  assert.match(c, /^static void other\(void\);/m);
 });
 
 test('@address becomes a volatile pointer #define', () => {
@@ -38,10 +61,10 @@ test('@address becomes a volatile pointer #define', () => {
 test('calls emit with prototypes ahead of every definition', () => {
   // The linker puts the entry's functions first, so main may call a function
   // defined below it; without the prototype block the C would not compile.
-  const c = emitC(irOf('export function main(): void { apply(); }\nexport function apply(): void { return; }'));
+  const c = emitC(irOf('export function main(): void { apply(); }\nfunction apply(): void { return; }'));
   assert.match(c, /void apply\(void\);/);
   assert.match(c, /apply\(\);/);
-  assert.ok(c.indexOf('void apply(void);') < c.indexOf('int main(void)'));
+  assert.ok(c.indexOf('void apply(void);') < c.indexOf('__8bs_main(void) {'));
 });
 
 test('asm6502 bodies pass through verbatim', () => {
@@ -121,8 +144,10 @@ test('emitC: pet calibrates its frame period at runtime via VIA1 T2, under SEI',
 test('emitC: nes polls PPUSTATUS, which self-acknowledges on read', () => {
   const c = emitC(frameIr(), { machine: 'nes' });
   assert.match(c, /0x2002/);
-  assert.match(c, /__8bs_num = 3576060u;/);
-  assert.match(c, /__8bs_den = 3579546u;/);
+  // A fixed, documented ratio is a pair of #defines, not two uint32s in RAM.
+  assert.match(c, /#define __8bs_num 3576060u/);
+  assert.match(c, /#define __8bs_den 3579546u/);
+  assert.match(c, /static uint32_t __8bs_acc;/);
 });
 
 test('emitC: cx16 polls VERA ISR and acknowledges by writing the bit back', () => {
@@ -130,10 +155,24 @@ test('emitC: cx16 polls VERA ISR and acknowledges by writing the bit back', () =
   assert.match(c, /0x9F27/);
   assert.match(c, /"sei"/);
   // cx16 has no documented crystal split, so its FRAME_SYNC entry is the
-  // degenerate { num: 1, den: 60 }: real hardware fires at a fixed ~60Hz,
-  // so at the default frameRate the accumulator drains 1:1.
-  assert.match(c, /__8bs_num = 60u;/);
-  assert.match(c, /__8bs_den = 60u;/);
+  // degenerate { num: 1, den: 60 }: real hardware fires at a fixed ~60Hz, so
+  // at the default frameRate the ratio is exactly 1:1 and folds away —
+  // waitFrame() is one poll, with no accumulator at all.
+  assert.doesNotMatch(c, /__8bs_acc|__8bs_num|__8bs_den/);
+  assert.match(c, /static void __8bs_wait_frame\(void\) \{\n    while \(!\(\(\*\(volatile uint8_t \*\)0x9F27\) & 0x01\)\) \{\}\n/);
+});
+
+test('emitC: the frame-sync runtime is the accumulator read from the waiting side', () => {
+  const c = emitC(frameIr(), { machine: 'vic20' });
+  assert.match(c, /static uint32_t __8bs_num, __8bs_den;/);
+  assert.match(c, /while \(__8bs_acc < __8bs_den\) \{/);
+  assert.match(c, /__8bs_acc \+= __8bs_num;/);
+  assert.match(c, /__8bs_acc -= __8bs_den;/);
+  // The prologue runs in C's main before the entry: sync, pick region, call.
+  assert.match(c, /int main\(void\) \{\n    while \(\(\*\(volatile uint8_t \*\)0x9004\) < 64\) \{\}/);
+  assert.match(c, /__8bs_main\(\);\n    return 0;/);
+  // And the loop body calls the runtime, not a hidden driver.
+  assert.match(c, /while \(1\) \{\n        __8bs_wait_frame\(\);/);
 });
 
 test('emitC: an unknown machine refuses rather than guessing', () => {
@@ -159,8 +198,8 @@ test('emitC: frameRate scales a level machine\'s num, not its den', () => {
 test('emitC: frameRate scales an edge-fixed machine (nes)', () => {
   const c = emitC(frameIr(), { machine: 'nes', frameRate: 50 });
   // nes: { num: 59601, den: 2 * 1789773 } -> num * 50 = 2980050
-  assert.match(c, /__8bs_num = 2980050u;/);
-  assert.match(c, /__8bs_den = 3579546u;/);
+  assert.match(c, /#define __8bs_num 2980050u/);
+  assert.match(c, /#define __8bs_den 3579546u/);
 });
 
 test('emitC: frameRate is substituted into an edge-calibrated machine\'s (pet) runtime measurement', () => {
@@ -168,10 +207,11 @@ test('emitC: frameRate is substituted into an edge-calibrated machine\'s (pet) r
   assert.match(c, /__8bs_num = 50u \* \(uint32_t\)__8bs_elapsed;/);
 });
 
-test('emitC: frameRate scales cx16\'s degenerate 1/60 ratio', () => {
+test('emitC: frameRate scales cx16\'s degenerate 1/60 ratio (no longer 1:1, so the accumulator is back)', () => {
   const c = emitC(frameIr(), { machine: 'cx16', frameRate: 50 });
-  assert.match(c, /__8bs_num = 50u;/);
-  assert.match(c, /__8bs_den = 60u;/);
+  assert.match(c, /#define __8bs_num 50u/);
+  assert.match(c, /#define __8bs_den 60u/);
+  assert.match(c, /static uint32_t __8bs_acc;/);
 });
 
 test('emitC: frameRate above the overflow-safe cap is refused, not silently wrapped', () => {
@@ -203,7 +243,7 @@ for (const [machine, opts] of [
   ['atari8', { atari8Profile: 'xegs' }],
 ]) {
   const label = `${machine}${opts.atari8Profile ? `/${opts.atari8Profile}` : ''}`;
-  test(`buildPrg: a frame()-driven program compiles for real on ${label}`, { skip: !HAS_SDK && 'LLVM_MOS_HOME not set' }, async () => {
+  test(`buildPrg: a waitFrame() program compiles for real on ${label}`, { skip: !HAS_SDK && 'LLVM_MOS_HOME not set' }, async () => {
     const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-test-'));
     try {
       const ext = outputExtension(machine, opts.atari8Profile);

@@ -25,11 +25,12 @@ export async function loadConfig(dir, label = '8bs') {
 }
 
 /**
- * The project's logical `frame()` rate — the same rate on every target,
+ * The project's logical frame rate — what `waitFrame()` runs at, the same on every target,
  * independent of --pal (which only selects a real hardware/emulator
  * region, not the logical rate; see packages/backend-6502's FRAME_SYNC).
- * Defaults to 60; `seconds(...)` durations and the frame()-driver loop are
- * both built against whatever this resolves to.
+ * Defaults to 60; `seconds(...)` durations (measured in `FRAMES`, the
+ * default clock) and the waitFrame() runtime are both built against
+ * whatever this resolves to.
  *
  * @param {object|null} config
  * @returns {{ ok: true, frameRate: number } | { ok: false, error: string }}

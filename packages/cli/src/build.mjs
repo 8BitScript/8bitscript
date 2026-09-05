@@ -15,7 +15,7 @@
 // sync-factor flag. It only applies to targets with a real region split
 // (see REGION_TARGETS below); it's silently ignored everywhere else, the
 // same as it already was for web. "NTSC (60Hz)" above is the emulator's real
-// hardware region, not the language's logical frame() rate — that's a
+// hardware region, not the language's logical frame rate — that's a
 // separate, project-level setting (`frameRate` in 8bs.config.ts, default 60,
 // see packages/backend-6502's FRAME_SYNC and examples/borders/README.md),
 // unaffected by --pal.
@@ -108,7 +108,7 @@ export function resolveEntryPath(config, target, entryArg) {
  * @param {string} [entryArg]
  * @param {{ pal?: boolean, profile?: string }} [options] `pal` selects the
  *   real hardware/emulator region (NTSC unless true; ignored outside
- *   REGION_TARGETS) — it does not affect the logical frame() rate, which is
+ *   REGION_TARGETS) — it does not affect the logical frame rate, which is
  *   read from 8bs.config.ts's `frameRate` instead (default 60). `profile`
  *   only matters for atari8 (defaults to 800xl), vic20 (defaults to
  *   unexpanded), and c64 (defaults to stock); ignored elsewhere.

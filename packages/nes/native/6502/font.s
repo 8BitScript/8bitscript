@@ -2,7 +2,7 @@
 ;
 ; The NES has no character ROM of its own. Every Commodore machine and the
 ; Atari 8-bit ship their letters and digits in a ROM the video chip reads
-; directly, so `screen.putChar` on those targets only ever writes a code
+; directly, so `text.putChar` on those targets only ever writes a code
 ; into screen memory. The NES PPU reads its 8x8 tile patterns from the
 ; CARTRIDGE (CHR-ROM on NROM), so a cartridge that shows text has to bring
 ; its own — this file is that ROM, linked into the .nes image through this
@@ -11,7 +11,7 @@
 ; Layout: pattern table 0 ($0000-$0FFF), 256 tiles of 16 bytes, laid out so
 ; that TILE INDEX == ASCII CODE for every glyph here — space ($20), the
 ; digits ($30-$39), A-Z ($41-$5A), and ! , - . : ? — so @8bitscript/nes's
-; `screen.putChar(cell, code)` writes the ASCII code straight into the
+; `text.putChar(cell, code)` writes the ASCII code straight into the
 ; nametable with no translation table, the same codes examples/borders'
 ; Atari variant already uses. Codes in $20-$5F with no glyph drawn render
 ; blank. Tile $80 is solid colour index 2 — the tile @8bitscript/nes lays
@@ -22,7 +22,7 @@
 ; then 8 bytes of bitplane 1, one byte per row, bit 7 the leftmost pixel.
 ; A pixel's colour index is plane1:plane0, so a glyph with rows in plane 0
 ; and zeros in plane 1 is drawn entirely in colour index 1 — palette entry
-; $3F01, the text colour applyColors() sets — and the solid tile, with zeros
+; $3F01, the text colour screen.setColors() sets — and the solid tile, with zeros
 ; in plane 0 and $FF in plane 1, is entirely colour index 2 ($3F02).
 ; The binary literals below therefore ARE the glyph artwork: read each
 ; `tile` line's eight rows top to bottom, 1 = lit.

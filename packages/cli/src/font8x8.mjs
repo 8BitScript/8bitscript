@@ -1,7 +1,7 @@
 // The 64 glyphs (ASCII 32 "space" through 95 "_") from Daniel Hepper's
 // font8x8_basic (https://github.com/dhepper/font8x8, public domain, itself
 // based on Marcel Sondaar's public-domain VGA font) — the same portable
-// character set @8bitscript/web's screen.putChar accepts (space, 0-9, A-Z,
+// character set @8bitscript/web/text's putChar accepts (space, 0-9, A-Z,
 // a little punctuation, upper case only; see web-runtime.mjs's
 // decodeScreenCode). Trimmed from the original's full 128-entry table to
 // just the range this project's screen codes ever use.

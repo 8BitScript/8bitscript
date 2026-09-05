@@ -220,6 +220,48 @@ test('textDocument/hover explains seconds(...)', async () => {
   });
 });
 
+test('textDocument/hover explains FRAMES, the clock argument to seconds(...)', async () => {
+  await withServer(async (client) => {
+    await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
+    client.notify('initialized', {});
+
+    const text = 'let x: utinyint = seconds(0.5, FRAMES);\n';
+    client.notify('textDocument/didOpen', {
+      textDocument: { uri: URI, languageId: '8bitscript', version: 1, text },
+    });
+    const published = await client.waitForNotification('textDocument/publishDiagnostics');
+    assert.deepEqual(published.params.diagnostics, [], 'FRAMES is the default clock — no diagnostic');
+
+    const response = await client.request('textDocument/hover', {
+      textDocument: { uri: URI },
+      position: positionAt(text, text.indexOf('FRAMES') + 2),
+    });
+
+    assert.ok(response.result);
+    assert.match(response.result.contents.value, /\*\*FRAMES\*\*/);
+    assert.match(response.result.contents.value, /default clock/);
+  });
+});
+
+test('diagnostics: an unknown seconds(...) clock reaches the editor at the clock name', async () => {
+  await withServer(async (client) => {
+    await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
+    client.notify('initialized', {});
+
+    const text = 'let x: utinyint = seconds(0.5, frames);\n';
+    client.notify('textDocument/didOpen', {
+      textDocument: { uri: URI, languageId: '8bitscript', version: 1, text },
+    });
+    const published = await client.waitForNotification('textDocument/publishDiagnostics');
+    assert.equal(published.params.diagnostics.length, 1);
+    const [d] = published.params.diagnostics;
+    assert.equal(d.code, '8BS1025');
+    assert.equal(d.range.start.character, text.indexOf('frames'));
+    assert.equal(d.range.end.character, text.indexOf('frames') + 'frames'.length);
+    assert.match(d.message, /FRAMES \(the default\)/);
+  });
+});
+
 // `seconds(4.5)` in a utinyint (0..255) overflows at the default frameRate
 // (4.5 * 60 = 270) but fits at a configured 50 (4.5 * 50 = 225) — a
 // diagnostic that only differs between the two rates, so it proves whether
@@ -298,4 +340,46 @@ test('textDocument/completion offers canonical built-in types in a type position
     }
     assert.ok(response.result.every((item) => item.documentation?.kind === 'markdown'));
   });
+});
+
+// A package subpath the package does not export — `@t/p/sprites` against a
+// manifest whose "8bitscript".exports has no './sprites' — is 8BS2011 in the
+// compiler (packages/compiler/src/resolver); this is the proof it reaches
+// an editor over the wire, on the import line, for a saved file the server
+// can resolve imports from.
+test('diagnostics: a package subpath the package does not export reaches the editor as 8BS2011', async () => {
+  const projectDir = await mkdtemp(join(tmpdir(), '8bs-lsp-subpath-'));
+  try {
+    const pkgDir = join(projectDir, 'node_modules', '@t', 'p');
+    await mkdir(join(pkgDir, 'src'), { recursive: true });
+    await writeFile(join(pkgDir, 'package.json'), JSON.stringify({
+      name: '@t/p',
+      '8bitscript': { entry: './src/index.8bs', exports: { './screen': './src/screen.8bs' } },
+    }));
+    await writeFile(join(pkgDir, 'src', 'index.8bs'), 'export let a: u8 = 1;\n');
+    await writeFile(join(pkgDir, 'src', 'screen.8bs'), 'export let b: u8 = 2;\n');
+    await mkdir(join(projectDir, 'src'));
+    const filePath = join(projectDir, 'src', 'main.8bs');
+    const text = 'import { b } from "@t/p/screen";\nimport { s } from "@t/p/sprites";\nexport function main(): void {}\n';
+    await writeFile(filePath, text);
+    const uri = pathToFileURL(filePath).href;
+
+    await withServer(async (client) => {
+      await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
+      client.notify('initialized', {});
+
+      client.notify('textDocument/didOpen', {
+        textDocument: { uri, languageId: '8bitscript', version: 1, text },
+      });
+
+      const published = await client.waitForNotification('textDocument/publishDiagnostics');
+      assert.equal(published.params.diagnostics.length, 1, JSON.stringify(published.params.diagnostics));
+      const [d] = published.params.diagnostics;
+      assert.equal(d.code, '8BS2011');
+      assert.equal(d.range.start.line, 1);
+      assert.match(d.message, /'@t\/p' does not export '\.\/sprites' \(exports: \.\/screen\)/);
+    });
+  } finally {
+    await rm(projectDir, { recursive: true, force: true });
+  }
 });

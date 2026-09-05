@@ -31,7 +31,7 @@ export const Codes = {
   UNTERMINATED_BLOCK_COMMENT: '8BS1006',
   UNTERMINATED_ASM_BLOCK: '8BS1007',
   INVALID_NUMBER: '8BS1008',
-  // A decimal literal (`0.5`) used anywhere other than as the sole argument
+  // A decimal literal (`0.5`) used anywhere other than as the first argument
   // to `seconds(...)` — the only place the language has any float-shaped
   // syntax. foldDurations() (packages/compiler/src/fold) consumes and
   // removes every valid one before check() ever runs, so any that survive
@@ -39,8 +39,9 @@ export const Codes = {
   MISPLACED_DECIMAL_LITERAL: '8BS1009',
   SYNTAX_ERROR: '8BS1101',
   VALUE_OUT_OF_RANGE: '8BS1021',
-  // `seconds(...)`'s argument shape is wrong — not exactly one integer-or-
-  // decimal literal (see foldDurations()).
+  // `seconds(...)`'s argument shape is wrong — not one integer-or-decimal
+  // literal followed by, at most, one bare clock identifier (see
+  // foldDurations()).
   INVALID_DURATION_ARGUMENT: '8BS1022',
   // A `seconds(...)` call folded to zero frames at the project's configured
   // frameRate — always a bug, not a benign rounding nicety: it would wrap a
@@ -52,6 +53,10 @@ export const Codes = {
   // 50) that silently nudges a duration's real-world length is never
   // invisible.
   INEXACT_DURATION: '8BS1024',
+  // `seconds(...)`'s second argument names a clock the fold doesn't know —
+  // the only one so far is `FRAMES`, the default (see the fold pass's
+  // DURATION_CLOCKS). Reported at the identifier itself, not the whole call.
+  UNKNOWN_DURATION_CLOCK: '8BS1025',
 
   UNRESOLVED_PACKAGE: '8BS2001',
   NOT_AN_8BS_PACKAGE: '8BS2002',
@@ -61,11 +66,25 @@ export const Codes = {
   DUPLICATE_BINDING: '8BS2006',
   UNRESOLVED_NAME: '8BS2007',
   MISSING_NATIVE_SOURCE: '8BS2008',
-  // `seconds` is reserved for the built-in duration constructor
-  // (packages/compiler/src/fold) — a user declaring or importing a binding
-  // by that name would otherwise be silently reinterpreted by the fold pass
-  // rather than getting a clear diagnostic.
+  // A declaration or import named after a builtin — `seconds` or a duration
+  // clock such as `FRAMES` (packages/compiler/src/fold), or `waitFrame`
+  // (packages/compiler/src/ir). A user binding by that name would otherwise
+  // be silently reinterpreted as the builtin rather than getting a clear
+  // diagnostic.
   RESERVED_BUILTIN_NAME: '8BS2009',
+  // The entry module must export exactly one thing — a function taking no
+  // parameters — and that is the program: what a 6502 target's synthesised
+  // C `main` calls and what the web host's worker calls. Zero exports, a
+  // second export, an exported global or namespace, or a parameterised entry
+  // are all this diagnostic. Other modules (packages, libraries) may export
+  // whatever they like.
+  ENTRY_EXPORTS: '8BS2010',
+  // A package subpath — `@scope/name/thing` — that the package's
+  // `"8bitscript".exports` map has no entry for (packages/compiler/src/
+  // resolver). The package itself is fine; the import asks it for something
+  // it does not offer, which is a different failure from a missing entry
+  // file (8BS2003) or a package that is not 8BitScript at all (8BS2002).
+  NO_SUCH_SUBPATH: '8BS2011',
 
   NOT_COMPILABLE: '8BS3001',
   NOT_ON_THIS_TARGET: '8BS3002',

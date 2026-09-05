@@ -1,4 +1,5 @@
-import { screen, input } from "@8bitscript/core";
+import { text } from "@8bitscript/text";
+import { input } from "@8bitscript/input";
 import { vic } from "@8bitscript/vic20";
 
 let x: utinyint = 10;
@@ -8,5 +9,5 @@ export function update(): void {
         x--;
     }
 
-    screen.putChar(x, 10, 65);
+    text.putChar(x, 10, 65);
 }

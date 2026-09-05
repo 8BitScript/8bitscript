@@ -12,12 +12,13 @@ git submodules anywhere in the model.
 
 This page began as pure design; most of it is now real. The resolver
 implements the resolution contract below, and the linker compiles a program
-from its whole import graph — `examples/borders` imports its colour API from
-`@8bitscript/machine`, which resolves per target to `@8bitscript/vic20` or
-`@8bitscript/c64`, through exactly this model. What crosses a module boundary
-is still bounded by the milestone subset (globals and parameterless function
-calls), and the namespace-style surfaces sketched below (`screen.putChar`,
-`vic`) wait on declaration syntax.
+from its whole import graph — `examples/borders` imports its screen from
+`@8bitscript/screen` and its character grid from `@8bitscript/text`, each of
+which resolves per target to that machine package's own implementation
+(`@8bitscript/vic20/screen`, `@8bitscript/c64/text`, and so on), through
+exactly this model. The namespace surfaces those packages export
+(`screen.setColors`, `text.putChar`) are real; a machine's own chip-level
+namespace (`vic`) still waits on declaration syntax.
 
 ## The core idea
 
@@ -48,14 +49,17 @@ You install the toolchain the way you would install any other:
 
 ```bash
 pnpm add -D @8bitscript/cli
-pnpm add @8bitscript/core @8bitscript/vic20
+pnpm add @8bitscript/screen @8bitscript/text @8bitscript/vic20
 ```
 
-And a source file imports from those packages by name:
+And a source file imports from those packages by name — one package per
+capability, so a program says exactly which parts of a machine it uses:
 
 ```
-import { screen, input } from "@8bitscript/core";
-import { vic } from "@8bitscript/vic20";
+import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";
+import { text } from "@8bitscript/text";
+import { input } from "@8bitscript/input";   // planned — not built yet
+import { vic } from "@8bitscript/vic20";     // planned — the chip itself
 
 let x: u8 = 10;
 
@@ -64,9 +68,14 @@ export function update(): void {
         x--;
     }
 
-    screen.putChar(x, 10, 65);
+    screen.setColors(BorderColor.Blue, BackgroundColor.Black);
+    text.putChar(x, 10, 65);
 }
 ```
+
+`@8bitscript/screen` and `@8bitscript/text` exist and build (with a flat
+cell index for `putChar` today, not `x, y`); `@8bitscript/input` and a
+`vic` namespace are the shape the rest will take.
 
 ## How an import resolves
 
@@ -102,12 +111,53 @@ your main.8bs
       |
       +-- ./player.8bs
       |
-      +-- @8bitscript/core
-      |         `-- node_modules/@8bitscript/core/src/index.8bs
+      +-- @8bitscript/text
+      |         `-- node_modules/@8bitscript/text/package.json   (entry keyed by machine)
+      |                   `-- @8bitscript/vic20/text
+      |                             `-- node_modules/@8bitscript/vic20/src/text.8bs
+      |                                       `-- ./index.8bs   (the registers it is built on)
       |
       `-- @8bitscript/vic20
                 `-- node_modules/@8bitscript/vic20/src/index.8bs
 ```
+
+## Package subpaths
+
+A package can offer more than its entry. `@8bitscript/vic20/screen` — a
+package name followed by a subpath — resolves through the package's
+`8bitscript.exports` map, whose keys are the subpaths it offers and whose
+values are files inside it, the same shape Node's own `exports` field has so
+nobody learns a second one:
+
+```json
+{
+  "name": "@8bitscript/vic20",
+  "8bitscript": {
+    "entry": "./src/index.8bs",
+    "exports": {
+      "./screen": "./src/screen.8bs",
+      "./text": "./src/text.8bs"
+    }
+  }
+}
+```
+
+This is how a target package keeps its implementation of each portable
+capability *inside its own package*, next to the registers it is built on:
+`src/index.8bs` is the hardware — `vicColor`, `memoryPointer` — and
+`src/screen.8bs` imports those registers with an ordinary relative import
+and builds the portable `screen` namespace on them. Nothing about the
+machine leaks upward, and nothing about the portable surface leaks into the
+register file. A project that has declared itself VIC-20 specific may import
+the subpath directly; a portable one reaches the same file through
+`@8bitscript/screen` (next section).
+
+The exported file follows the [system-specific file](#system-specific-files)
+rule like any other `.8bs` path, and the package's native sources ride along
+with every subpath, since it is that package's code being linked. A subpath
+the map has no key for is `8BS2011` — the package is sound, it just does not
+offer that — and a key naming a file the package does not ship is
+`8BS2003`, like a missing entry.
 
 ## System-specific files
 
@@ -164,35 +214,44 @@ package provides a different implementation per target:
 
 ```json
 {
-  "name": "@8bitscript/machine",
+  "name": "@8bitscript/screen",
   "8bitscript": {
     "entry": {
-      "vic20": "@8bitscript/vic20",
-      "c64": "@8bitscript/c64",
-      "web": "@8bitscript/web"
+      "vic20": "@8bitscript/vic20/screen",
+      "c64": "@8bitscript/c64/screen",
+      "nes": "@8bitscript/nes/screen",
+      "web": "@8bitscript/web/screen"
     }
   }
 }
 ```
 
 Each branch is either a relative path into the package — a package shipping
-per-machine source files — or a bare specifier delegating to another package,
-resolved from the delegating package's own directory so its own dependencies
-serve it. When the compiler builds for a machine, that machine's branch is
-the module the import resolves to; a machine the object has no branch for is
-`8BS3002` — the package genuinely has nothing for that target. `8bs check`
-and the editor analyse files rather than builds, so with no machine in hand
-they validate every branch instead, and a broken branch is reported before
-anyone builds for it.
+per-machine source files — or a bare specifier delegating to another
+package's entry or [subpath](#package-subpaths), resolved from the
+delegating package's own directory so its own dependencies serve it. When
+the compiler builds for a machine, that machine's branch is the module the
+import resolves to; a machine the object has no branch for is `8BS3002` —
+the package genuinely has nothing for that target. `8bs check` and the
+editor analyse files rather than builds, so with no machine in hand they
+validate every branch instead, and a broken branch is reported before anyone
+builds for it.
 
-`@8bitscript/machine` (shown above) is exactly this and nothing more: no
-source of its own, just the machine-keyed delegation. All three target
-packages export the same surface — `border`, `background`, `applyColors()`,
-and a `screen` namespace — so a program that imports it works on whichever
-machine it is built for. `examples/borders`'s `vic20`, `c64`, *and* `web`
-builds all share one source file this way. This is the first slice of
-target-conditional code: whole-module today, per-declaration once that
-syntax is designed.
+`@8bitscript/screen` (shown above, abridged — the real one has a branch for
+all nine targets) is exactly this and nothing more: no source of its own,
+just the machine-keyed delegation to each target package's `./screen`.
+Every target's `screen.8bs` exports the same surface — a `screen` namespace
+with `setColors(border, background)`, and the eight shared colour names in
+`BorderColor` and `BackgroundColor` — so a program that imports it works on
+whichever machine it is built for. `@8bitscript/text` is the same shape for
+the character grid (`text.putChar`/`putColor`/`showDigit`, `CellCount`).
+`examples/borders` builds for all nine targets from one source file this
+way. One package per capability, rather than one package for "the machine",
+is deliberate: a program imports only the parts of a machine it uses, and
+a capability some machines lack (sprites, say) can be a package that
+simply has no branch for them — `8BS3002` at build time, not a stub. This
+is the first slice of target-conditional code: whole-module today,
+per-declaration once that syntax is designed.
 
 The delegation form is what the object is for. A package that merely ships
 per-machine *source files* does not need it: `"entry": "./src/index.8bs"`
@@ -210,8 +269,9 @@ paper over: when a target's execution model itself differs, not just the
 hardware underneath it — not merely which register or memory layout a name
 resolves to, but the *shape* of the program itself. (A browser tab calling a
 program back once per frame rather than handing it the whole machine used
-to be such a case for `web`; a `main()`/`frame()` convention synthesised by
-each backend now covers that from a single file — see
+to be such a case for `web`; the web runtime now hands the program its own
+worker thread, and `waitFrame()` means the same thing there as on the 6502
+machines, so a single file covers it — see
 [docs/learn/step1-main-loop.md](learn/step1-main-loop.md#why-this-step-does-not-build-for-the-web).
 `examples/borders` briefly kept per-machine versions of its entry for the
 NES, Atari, and X16 too, for their screen codes and grids; those
@@ -274,7 +334,8 @@ list of paths relative to the package:
 ```
 
 This is implemented. Importing the package — directly, or through a
-delegating entry such as `@8bitscript/machine`'s — brings its native files
+delegating entry such as `@8bitscript/text`'s, or a subpath such as
+`@8bitscript/nes/text` — brings its native files
 into the build: the linker collects them once each across the module graph,
 and the 6502 backend hands them to the LLVM-MOS driver after the generated
 C, where a `.s` is assembled and linked like any other input. A listed file
@@ -298,9 +359,8 @@ Only two kinds of package are meant for you:
 | Package | Role |
 | ------- | ---- |
 | `@8bitscript/cli` | The `8bs` command. A dev dependency |
-| `@8bitscript/core` | The portable standard library |
-| `@8bitscript/vic20`, `@8bitscript/c64`, `@8bitscript/web` | Target support, one per machine |
-| `@8bitscript/machine` | The machine underneath, whichever it is: resolves per target to a target package |
+| `@8bitscript/screen`, `@8bitscript/text` | The portable standard library, one package per capability: each resolves per target to that machine package's own implementation |
+| `@8bitscript/vic20`, `@8bitscript/c64`, `@8bitscript/nes`, … `@8bitscript/web` | Target support, one per machine: the hardware underneath (registers, port protocols), plus that machine's `./screen` and `./text` subpaths |
 
 The compiler, the language server, and the backends are internal:
 `@8bitscript/compiler`, `@8bitscript/language-server`,
@@ -309,8 +369,11 @@ you never name them in your own `package.json`. Keeping that
 boundary means the internals can be reorganised without every project having to
 follow along.
 
-Later targets — other 6502-family machines — arrive as further target packages
-alongside `vic20` and `c64`, with nothing else about a project changing.
+Later targets — other 6502-family machines — arrive as further target
+packages alongside the nine that exist, each adding its branch to the
+capability packages it can implement, with nothing else about a project
+changing. Later capabilities — `input`, `sprites` — arrive as further
+portable packages of the same shape.
 
 ## Developing the toolchain itself
 
@@ -329,7 +392,7 @@ and they depend on it with `workspace:*`:
 {
   "devDependencies": { "@8bitscript/cli": "workspace:*" },
   "dependencies": {
-    "@8bitscript/core": "workspace:*",
+    "@8bitscript/text": "workspace:*",
     "@8bitscript/vic20": "workspace:*"
   }
 }
@@ -357,10 +420,10 @@ VICE opens
 ```
 
 The CLI is real now, and that loop works — though `hello-vic` itself still
-does not compile, because its calls and member access wait on the binder.
+does not compile, because the `input` package it imports does not exist yet.
 [`examples/borders`](https://github.com/8BitScript/8bitscript/tree/trunk/examples/borders)
-is the example that goes end to end today: it imports hardware registers from
-`@8bitscript/vic20` and `@8bitscript/c64` and runs on both machines.
+is the example that goes end to end today: it imports `@8bitscript/screen`
+and `@8bitscript/text` and runs on all nine targets.
 
 ## Does npm actually allow this?
 
@@ -374,14 +437,15 @@ validates that its contents are executable by Node, and nothing requires a
 publishes with `main` pointing at a `.css` file, and every `@types/*` package
 ships only type declarations that Node never runs.
 
-What was actually checked, using `@8bitscript/core` as it stands in this
-repository:
+What was actually checked, using the first package manifest in this
+repository (the since-retired `@8bitscript/core`; today's `@8bitscript/text`
+has the same shape):
 
 | Check | Result |
 | ----- | ------ |
 | `pnpm pack` | Produced a tarball containing `package.json`, `src/index.8bs`, and `LICENSE` |
 | Custom manifest field | `"8bitscript": { "entry": "./src/index.8bs" }` survived verbatim |
-| Install from that tarball into an unrelated project | Resolved; `node_modules/@8bitscript/core/src/index.8bs` present and readable |
+| Install from that tarball into an unrelated project | Resolved; `node_modules/@8bitscript/core/src/index.8bs` was present and readable |
 | `npm publish --dry-run` | Succeeded — no complaint about the missing `main`, the `.8bs` payload, or the unknown field. Only authentication was missing |
 
 So the model holds: npm carries the bytes and the version metadata, and the
@@ -407,7 +471,7 @@ its own `LICENSE` file.
 
 ### Still to confirm
 
-Nothing is published at `@8bitscript/core` today — that much is confirmed. What
+Nothing is published under `@8bitscript/*` today — that much is confirmed. What
 cannot be checked without signing in is whether the **`8bitscript` organisation
 name itself** is still claimable on npm. Confirm it by trying to create the
 organisation at `npmjs.com/org/create` before depending on the scope.

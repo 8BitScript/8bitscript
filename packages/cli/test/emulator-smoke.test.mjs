@@ -253,20 +253,20 @@ test('nes: fceux launches against a real build without crashing', { skip: !HAS_S
 // ---- Web (Node's own WebAssembly runtime) -----------------------------------
 //
 // Not an emulator — the web target's runtime IS a WebAssembly host, so this
-// exercises the .wasm build directly the way packages/cli/src/run.mjs's
-// non-browser fallback does, calling main() then frame() a few times and
-// checking the exported `background`/`ticks` globals actually moved, the
-// same observable behaviour every other target's screen shows.
+// exercises the .wasm build directly the way `8bs run web --screenshot`
+// does: run the program's one exported function with a bounded waitFrame()
+// (packages/cli/src/wasm-host.mjs) for a few frames and check the exported
+// `ticks` global actually moved — the same observable behaviour every other
+// target's screen shows.
 
-test('web: the build runs in Node\'s WebAssembly runtime and frame() advances state', async () => {
+test('web: the build runs in Node\'s WebAssembly runtime and waitFrame() paces it', async () => {
   const outFile = await build('web');
   const bytes = readFileSync(outFile);
-  const { instance } = await WebAssembly.instantiate(bytes);
-  assert.equal(typeof instance.exports.main, 'function');
-  assert.equal(typeof instance.exports.frame, 'function');
-  instance.exports.main();
-  const before = instance.exports.ticks?.value;
-  for (let i = 0; i < 31; i += 1) instance.exports.frame();
-  const after = instance.exports.ticks?.value;
-  assert.notEqual(before, after, 'ticks did not advance after 31 frame() calls (30 is one tick)');
+  const { runProgram } = await import('../src/wasm-host.mjs');
+  const { instance, entryName, usesWaitFrame, memory } = await runProgram(bytes, { frames: 31 });
+  assert.equal(entryName, 'main');
+  assert.equal(usesWaitFrame, true);
+  assert.ok(memory.buffer instanceof SharedArrayBuffer, 'a waitFrame() program has shared memory');
+  // 31 frames is one tick (seconds(0.5) = 30 at the default 60Hz) plus one.
+  assert.equal(instance.exports.ticks.value, 1, 'ticks did not advance after 31 waitFrame() calls');
 });

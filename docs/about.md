@@ -122,8 +122,8 @@ C and LLVM-MOS for a VIC-20 or C64 `.prg`, generated AssemblyScript and asc
 for a `.wasm` — and `8bs run vic20` opens the result in VICE.
 `examples/counter` is the milestone program; `examples/borders` is one source
 file that cycles the border colours on the VIC-20 *and* the C64, importing
-its colour API from `@8bitscript/machine` — a package whose entry resolves
-per target to the machine package underneath.
+its screen from `@8bitscript/screen` — a package whose entry resolves per
+target to that machine package's own implementation.
 
 Only the milestone subset compiles: globals, parameterless functions and
 calls to them, arithmetic, `if`/`while`, hardware access, `asm6502`, and
