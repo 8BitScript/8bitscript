@@ -1,0 +1,7 @@
+// The full tier: every editor. Every target starts here unless a
+// `main.<target>.8bs` beside this file says otherwise — see 8bs.config.ts.
+import { studio, Tier } from "./studio.8bs";
+
+export function main(): void {
+    studio.start(Tier.FULL);
+}

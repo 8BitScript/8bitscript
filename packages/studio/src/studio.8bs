@@ -1,0 +1,112 @@
+// 8BitScript Studio: the shared program every tier's entry file starts.
+//
+// What exists today is the front door — the title, the version, the tier
+// this machine gets, and which of Studio's editors that tier opens — drawn
+// with the same @8bitscript/screen and @8bitscript/text every program uses,
+// so it builds and runs on all nine targets. Nothing behind the door exists
+// yet: the language has no input, sound, sprite, or storage capability to
+// build an editor on. AGENTS.md lists those prerequisites and the design
+// each editor waits for; nothing here claims more than it draws.
+import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";
+import { text, TextColor } from "@8bitscript/text";
+
+// How much of Studio a machine gets. A higher tier opens every editor a
+// lower one does, and a file is never tied to the tier that made it — the
+// tier gates the editors, not the formats (see AGENTS.md).
+export namespace Tier {
+    const VIEWER: utinyint = 0; // look at files; no editing, no storage
+    const BASIC: utinyint = 1;  // character editing and rudimentary playback
+    const FULL: utinyint = 2;   // every editor
+}
+
+// One row of cells on this machine's grid, resolved by 8bitscript from the
+// text package the build picked: 22 on the VIC-20, 40 on a C64, 28 inside
+// the NES's frame.
+const ROW: usmallint = text.COLUMNS;
+
+// The library's version: Studio ships with the toolchain, and its version
+// is the toolchain's. test/studio.test.mjs checks this literal against
+// package.json, which in turn is the workspace's one version.
+const VERSION: string = "0.0.0";
+
+// Helpers stay at top level: a namespace function reaches a sibling only
+// through the namespace's name, and these are not part of Studio's surface.
+function printTier(cell: usmallint, tier: utinyint): void {
+    if (tier == Tier.FULL) {
+        text.print(cell, "FULL TIER");
+    }
+    if (tier == Tier.BASIC) {
+        text.print(cell, "BASIC TIER");
+    }
+    if (tier == Tier.VIEWER) {
+        text.print(cell, "VIEWER TIER");
+    }
+}
+
+// One line per editor: its name, then what this tier can do in it.
+function printEditors(cell: usmallint, tier: utinyint): void {
+    text.print(cell, "CHARACTERS");
+    if (tier == Tier.VIEWER) {
+        text.print(cell + 12, "VIEW");
+    }
+    if (tier != Tier.VIEWER) {
+        text.print(cell + 12, "EDIT");
+    }
+    cell = cell + ROW;
+
+    text.print(cell, "SPRITES");
+    if (tier == Tier.FULL) {
+        text.print(cell + 12, "EDIT");
+    }
+    if (tier != Tier.FULL) {
+        text.print(cell + 12, "VIEW");
+    }
+    cell = cell + ROW;
+
+    text.print(cell, "MUSIC");
+    if (tier == Tier.FULL) {
+        text.print(cell + 12, "EDIT");
+    }
+    if (tier == Tier.BASIC) {
+        text.print(cell + 12, "PLAY");
+    }
+    if (tier == Tier.VIEWER) {
+        text.print(cell + 12, "VIEW");
+    }
+    cell = cell + ROW;
+
+    text.print(cell, "FILES");
+    if (tier == Tier.VIEWER) {
+        text.print(cell + 12, "NONE");
+    }
+    if (tier != Tier.VIEWER) {
+        text.print(cell + 12, "LOAD SAVE");
+    }
+}
+
+export namespace studio {
+
+    // Blank and draw everything before the loop, the way every program
+    // does: the NES only accepts screen writes while the picture is off,
+    // and screen.blank() leaves it off until the first waitFrame().
+    function start(tier: utinyint): void {
+        screen.blank(BorderColor.BLUE, BackgroundColor.BLACK);
+        text.setColor(TextColor.WHITE);
+
+        let cell: usmallint = 0;
+        text.print(cell, "8BITSCRIPT STUDIO");
+        cell = cell + ROW;
+        text.print(cell, "VERSION ");
+        text.print(cell + 8, VERSION);
+        cell = cell + ROW + ROW;
+        printTier(cell, tier);
+        cell = cell + ROW + ROW;
+        printEditors(cell, tier);
+        cell = cell + ROW + ROW + ROW + ROW + ROW;
+        text.print(cell, "NO INPUT YET");
+
+        while (true) {
+            waitFrame();
+        }
+    }
+}

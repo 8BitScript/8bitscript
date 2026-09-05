@@ -4,6 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
+import { execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -11,7 +12,8 @@ import { fileURLToPath } from 'node:url';
 
 import { tokenize, parse, lower } from '@8bitscript/compiler';
 import {
-  emitC, buildPrg, outputExtension, ATARI8_PROFILES,
+  emitC, buildPrg, outputExtension, ATARI8_PROFILES, reduceRatio, frameRatio, FRAME_SYNC,
+  PET_PROFILES, PET_DEFAULT_PROFILE, PET_RAM_SIZE_KIB, PET_COLUMNS,
 } from '../src/index.mjs';
 
 const irOf = (src) => {
@@ -26,10 +28,12 @@ const frameIr = () => irOf('export function main(): void { while (true) { waitFr
 
 test('emits plain C for the milestone program', () => {
   const c = emitC(irOf('let x: u8 = 10;\nexport function main(): void { x = x + 1; }'));
-  assert.match(c, /uint8_t x = 10;/);
+  // A variable names its section and takes its starting value in main():
+  // no .data/.bss for the SDK's start-up code to copy or zero.
+  assert.match(c, /uint8_t x __attribute__\(\(section\("\.zp\.noinit\.x"\)\)\);/);
   // The entry is an ordinary static function; C's own main calls it once.
   assert.match(c, /static void __8bs_main\(void\) \{/);
-  assert.match(c, /int main\(void\) \{\n    __8bs_main\(\);\n    return 0;\n\}/);
+  assert.match(c, /int main\(void\) \{\n    x = 10;\n    __8bs_main\(\);\n    return 0;\n\}/);
   assert.match(c, /x = \(x \+ 1\);/);
 });
 
@@ -51,6 +55,15 @@ test('every user function is static, except one an asm6502 block names', () => {
   ));
   assert.match(c, /^void helper\(void\);/m);
   assert.match(c, /^static void other\(void\);/m);
+});
+
+test('a string literal is a static const length-prefixed table; a string parameter is a const uint8_t pointer', () => {
+  const c = emitC(irOf('let n: utinyint = 0;\nfunction show(s: string): void { n = s.length; n = s[n]; }\nexport function main(): void { show("TICK"); }'));
+  assert.match(c, /static const uint8_t __8bs_str_0\[\] __attribute__\(\(section\("\.rodata\.__8bs_str_0"\)\)\) = \{ 4, 84, 73, 67, 75 \}; \/\* "TICK" \*\//);
+  assert.match(c, /static void show\(const uint8_t \* s\)/);
+  assert.match(c, /n = s\[0\];/);
+  assert.match(c, /n = s\[1 \+ n\];/);
+  assert.match(c, /show\(__8bs_str_0\);/);
 });
 
 test('@address becomes a volatile pointer #define', () => {
@@ -106,6 +119,38 @@ test('the milestone program compiles to a real .prg', { skip: !HAS_SDK && 'LLVM_
   }
 });
 
+test('emitC: the Commodore-KERNAL machines carry the char-conv guard; the others do not', () => {
+  for (const machine of ['vic20', 'c64', 'pet', 'c128', 'mega65']) {
+    const c = emitC(frameIr(), { machine });
+    assert.match(c, /int __from_ascii\(char c, void \*ctx, int \(\*write\)\(char c, void \*ctx\)\) \{ return write\(c, ctx\); \}/, machine);
+    assert.match(c, /int __to_ascii\(void \*ctx, int \(\*read\)\(void \*ctx\)\) \{ return read\(ctx\); \}/, machine);
+  }
+  for (const machine of ['nes', 'atari8', 'cx16']) {
+    assert.doesNotMatch(emitC(frameIr(), { machine }), /__to_ascii|__from_ascii/, machine);
+  }
+});
+
+test('buildPrg: a Commodore build makes no KERNAL CHROUT call before main() — the SDK\'s PETSCII 14 switch is gone', { skip: !HAS_SDK && 'LLVM_MOS_HOME not set' }, async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-test-'));
+  try {
+    for (const machine of ['pet', 'c64']) {
+      const outFile = join(scratch, `${machine}.prg`);
+      const result = await buildPrg(frameIr(), { machine, outFile });
+      assert.ok(result.ok, result.error);
+      const objdump = join(process.env.LLVM_MOS_HOME, 'bin', 'llvm-objdump');
+      const listing = await new Promise((resolvePromise, rejectPromise) => {
+        execFile(objdump, ['-d', `${outFile}.elf`], (error, stdout) => (error ? rejectPromise(error) : resolvePromise(stdout)));
+      });
+      // $FFD2 is CHROUT on every Commodore KERNAL; the SDK's `shift:`
+      // routine was `lda #$0e / jsr $ffd2` at the very start of _start.
+      assert.doesNotMatch(listing, /jsr\s+\$ffd2/i, `${machine} still calls CHROUT before main()`);
+      assert.doesNotMatch(listing, /__to_ascii|__from_ascii/, `${machine} kept the guard's own bodies`);
+    }
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
 // ---- Phase 2-4 targets: PET, C128, Atari 8-bit, NES, Commander X16, MEGA65
 
 test('outputExtension: prg everywhere except NES (.nes) and Atari 8-bit (.xex, or .rom for xegs)', () => {
@@ -144,10 +189,24 @@ test('emitC: pet calibrates its frame period at runtime via VIA1 T2, under SEI',
 test('emitC: nes polls PPUSTATUS, which self-acknowledges on read', () => {
   const c = emitC(frameIr(), { machine: 'nes' });
   assert.match(c, /0x2002/);
-  // A fixed, documented ratio is a pair of #defines, not two uint32s in RAM.
-  assert.match(c, /#define __8bs_num 3576060u/);
-  assert.match(c, /#define __8bs_den 3579546u/);
-  assert.match(c, /static uint32_t __8bs_acc;/);
+  // A fixed, documented ratio is a pair of #defines, not two variables in
+  // RAM — reduced to sixteen bits: 60 * 59601 / 3579546 is 6155/6161 to
+  // within 1e-9.
+  assert.match(c, /#define __8bs_num 6155u/);
+  assert.match(c, /#define __8bs_den 6161u/);
+  assert.match(c, /static uint16_t __8bs_acc __attribute__\(\(section\("\.zp\.noinit\.__8bs_acc"\)\)\);/);
+});
+
+test('emitC: a machine\'s frame hook is called after every hardware frame edge, only when the program defines it', () => {
+  const plain = emitC(frameIr(), { machine: 'nes' });
+  assert.doesNotMatch(plain, /nesVerticalBlank/);
+  const hooked = emitC(irOf('function nesVerticalBlank(): void { }\nexport function main(): void { while (true) { waitFrame(); nesVerticalBlank(); } }'), { machine: 'nes' });
+  // Declared before the runtime (which is emitted first), defined with the program's functions.
+  assert.match(hooked, /static void nesVerticalBlank\(void\);\n(#define[^\n]*\n)+static uint16_t __8bs_acc/);
+  assert.match(hooked, /while \(!\(\(\*\(volatile uint8_t \*\)0x2002\) & 0x80\)\) \{\}\n\s+nesVerticalBlank\(\);\n\s+__8bs_acc \+= __8bs_num;/);
+  // Not on a machine that has no hook.
+  const c64 = emitC(irOf('function nesVerticalBlank(): void { }\nexport function main(): void { while (true) { waitFrame(); nesVerticalBlank(); } }'), { machine: 'c64' });
+  assert.doesNotMatch(c64, /nesVerticalBlank\(\);\n\s+__8bs_acc/);
 });
 
 test('emitC: cx16 polls VERA ISR and acknowledges by writing the bit back', () => {
@@ -164,12 +223,14 @@ test('emitC: cx16 polls VERA ISR and acknowledges by writing the bit back', () =
 
 test('emitC: the frame-sync runtime is the accumulator read from the waiting side', () => {
   const c = emitC(frameIr(), { machine: 'vic20' });
-  assert.match(c, /static uint32_t __8bs_num, __8bs_den;/);
+  assert.match(c, /static uint16_t __8bs_num __attribute__\(\(section\("\.zp\.noinit\.__8bs_num"\)\)\);/);
+  assert.match(c, /static uint16_t __8bs_den __attribute__\(\(section\("\.zp\.noinit\.__8bs_den"\)\)\);/);
   assert.match(c, /while \(__8bs_acc < __8bs_den\) \{/);
   assert.match(c, /__8bs_acc \+= __8bs_num;/);
   assert.match(c, /__8bs_acc -= __8bs_den;/);
-  // The prologue runs in C's main before the entry: sync, pick region, call.
-  assert.match(c, /int main\(void\) \{\n    while \(\(\*\(volatile uint8_t \*\)0x9004\) < 64\) \{\}/);
+  // The prologue runs in C's main before the entry: zero the accumulator,
+  // sync, pick region, call.
+  assert.match(c, /int main\(void\) \{\n    __8bs_acc = 0;\n    while \(\(\*\(volatile uint8_t \*\)0x9004\) < 64\) \{\}/);
   assert.match(c, /__8bs_main\(\);\n    return 0;/);
   // And the loop body calls the runtime, not a hidden driver.
   assert.match(c, /while \(1\) \{\n        __8bs_wait_frame\(\);/);
@@ -187,19 +248,20 @@ test('emitC: an unknown machine refuses rather than guessing', () => {
 
 test('emitC: frameRate scales a level machine\'s num, not its den', () => {
   const c = emitC(frameIr(), { machine: 'vic20', frameRate: 50 });
-  // vic20 ntsc: { num: 261 * 65 * 14, den: 14318181 } -> num * 50 = 11875500
-  assert.match(c, /__8bs_num = 11875500u;/);
-  assert.match(c, /__8bs_den = 14318181u;/);
-  // vic20 pal: { num: 312 * 71 * 4, den: 4433618 } -> num * 50 = 4430400
-  assert.match(c, /__8bs_num = 4430400u;/);
-  assert.match(c, /__8bs_den = 4433618u;/);
+  // vic20 ntsc: { num: 261 * 65 * 14, den: 14318181 } -> 11875500/14318181,
+  // in sixteen bits 24566/29619
+  assert.match(c, /__8bs_num = 24566u;/);
+  assert.match(c, /__8bs_den = 29619u;/);
+  // vic20 pal: { num: 312 * 71 * 4, den: 4433618 } -> 4430400/4433618 -> 5507/5511
+  assert.match(c, /__8bs_num = 5507u;/);
+  assert.match(c, /__8bs_den = 5511u;/);
 });
 
 test('emitC: frameRate scales an edge-fixed machine (nes)', () => {
   const c = emitC(frameIr(), { machine: 'nes', frameRate: 50 });
-  // nes: { num: 59601, den: 2 * 1789773 } -> num * 50 = 2980050
-  assert.match(c, /#define __8bs_num 2980050u/);
-  assert.match(c, /#define __8bs_den 3579546u/);
+  // nes: { num: 59601, den: 2 * 1789773 } -> 2980050/3579546 -> 18636/22385
+  assert.match(c, /#define __8bs_num 18636u/);
+  assert.match(c, /#define __8bs_den 22385u/);
 });
 
 test('emitC: frameRate is substituted into an edge-calibrated machine\'s (pet) runtime measurement', () => {
@@ -209,9 +271,77 @@ test('emitC: frameRate is substituted into an edge-calibrated machine\'s (pet) r
 
 test('emitC: frameRate scales cx16\'s degenerate 1/60 ratio (no longer 1:1, so the accumulator is back)', () => {
   const c = emitC(frameIr(), { machine: 'cx16', frameRate: 50 });
-  assert.match(c, /#define __8bs_num 50u/);
-  assert.match(c, /#define __8bs_den 60u/);
-  assert.match(c, /static uint32_t __8bs_acc;/);
+  assert.match(c, /#define __8bs_num 5u/);
+  assert.match(c, /#define __8bs_den 6u/);
+  assert.match(c, /static uint16_t __8bs_acc/);
+});
+
+// ---- the sixteen-bit ratio -----------------------------------------------------
+
+test('reduceRatio: the closest p/q with p + q <= 65535, exact when the ratio already fits', () => {
+  assert.deepEqual(reduceRatio(50, 60), { num: 5, den: 6, error: 0 });
+  const r = reduceRatio(60 * 263 * 65 * 14, 14318181); // c64 NTSC at 60
+  assert.deepEqual([r.num, r.den], [23117, 23050]);
+  assert.ok(r.num + r.den <= 65535);
+  assert.ok(r.error < 1e-8, `relative error ${r.error}`);
+});
+
+test('frameRatio: every machine at every ordinary rate fits sixteen bits within a frame a day', () => {
+  for (const [machine, sync] of Object.entries(FRAME_SYNC)) {
+    if (sync.calibrate) continue; // the PET measures its own, in 32 bits
+    for (const frameRate of [30, 50, 60, 100, 120]) {
+      const { type, pairs } = frameRatio(sync, frameRate);
+      assert.equal(type, 'uint16_t', `${machine} at ${frameRate}`);
+      for (const [region, { num, den }] of Object.entries(pairs)) {
+        assert.ok(num + den <= 65535, `${machine} ${region} at ${frameRate}: ${num} + ${den}`);
+        const exact = sync.kind === 'level' ? sync[region] : sync;
+        const truth = (frameRate * exact.num) / exact.den;
+        const driftPerDay = (Math.abs(num / den - truth) / truth) * frameRate * 86400;
+        assert.ok(driftPerDay < 1, `${machine} ${region} at ${frameRate} drifts ${driftPerDay} frames a day`);
+      }
+    }
+  }
+});
+
+test('frameRatio: a rate the sixteen-bit form cannot hold accurately falls back to the exact 32-bit pair', () => {
+  const { type, pairs } = frameRatio(FRAME_SYNC.c64, 1000);
+  assert.equal(type, 'uint32_t');
+  assert.deepEqual(pairs.ntsc, { num: 1000 * 263 * 65 * 14, den: 14318181 });
+  const c = emitC(frameIr(), { machine: 'c64', frameRate: 1000 });
+  assert.match(c, /static uint32_t __8bs_num/);
+  assert.match(c, /__8bs_num = 239330000u;/);
+});
+
+// ---- where every byte lives ------------------------------------------------------
+
+test('emitC: const arrays and strings are .rodata; let arrays with values load in place; the rest is noinit set by main()', () => {
+  const src = 'const T: array<utinyint, 3> = [1, 2, 3];\nlet v: array<utinyint, 3> = [4, 5, 6];\nlet z: array<usmallint, 300>;\nlet n: usmallint = 7;\n'
+    + 'export function main(): void { n = T[0] + v[1] + z[2]; }';
+  const c = emitC(irOf(src), { machine: 'c64' });
+  assert.match(c, /static const uint8_t T\[3\] __attribute__\(\(section\("\.rodata\.T"\)\)\) = \{ 1, 2, 3 \};/);
+  assert.match(c, /uint8_t v\[3\] __attribute__\(\(section\("\.data\.v"\)\)\) = \{ 4, 5, 6 \};/);
+  assert.match(c, /uint16_t z\[300\] __attribute__\(\(section\("\.noinit\.z"\)\)\);/);
+  assert.match(c, /uint16_t n __attribute__\(\(section\("\.zp\.noinit\.n"\)\)\);/);
+  // main() zeroes the array with a counter wide enough for its length, and stores the scalar.
+  assert.match(c, /int main\(void\) \{\n    for \(uint16_t i = 0; i < 300; i\+\+\) z\[i\] = 0;\n    n = 7;\n/);
+  assert.doesNotMatch(c, /__8bs_init_v/);
+});
+
+test('emitC: on a cartridge (nes) an initialised let array is copied from a .rodata twin by main()', () => {
+  const src = 'let v: array<utinyint, 3> = [4, 5, 6];\nexport function main(): void { v[0] = v[1]; }';
+  const c = emitC(irOf(src), { machine: 'nes' });
+  assert.match(c, /static const uint8_t __8bs_init_v\[3\] __attribute__\(\(section\("\.rodata\.__8bs_init_v"\)\)\) = \{ 4, 5, 6 \};/);
+  assert.match(c, /uint8_t v\[3\] __attribute__\(\(section\("\.noinit\.v"\)\)\);/);
+  assert.match(c, /for \(uint8_t i = 0; i < 3; i\+\+\) v\[i\] = __8bs_init_v\[i\];/);
+});
+
+test('emitC: scalars take zero page until the budget is spent, then ordinary RAM', () => {
+  const decls = Array.from({ length: 30 }, (_, i) => `let v${i}: uint = ${i};`).join('\n');
+  const c = emitC(irOf(`${decls}\nexport function main(): void { v0 = v29; }`), { machine: 'c64' });
+  // 30 four-byte variables: the first twelve (48 bytes) fit, the thirteenth does not.
+  assert.match(c, /uint32_t v11 __attribute__\(\(section\("\.zp\.noinit\.v11"\)\)\);/);
+  assert.match(c, /uint32_t v12 __attribute__\(\(section\("\.noinit\.v12"\)\)\);/);
+  assert.match(c, /v29 = 29;/);
 });
 
 test('emitC: frameRate above the overflow-safe cap is refused, not silently wrapped', () => {
@@ -227,6 +357,39 @@ test('buildPrg: an unknown atari8 profile is refused', async () => {
   });
   assert.equal(result.ok, false);
   assert.match(result.error, /unknown atari8 profile/);
+});
+
+test('PET_PROFILES are the PET model numbers, each with the RAM its name says; an unknown one is refused', async () => {
+  assert.deepEqual([...PET_PROFILES].sort(), ['3008', '3016', '3032', '4016', '4032', '8032']);
+  assert.equal(PET_DEFAULT_PROFILE, '3032');
+  for (const profile of PET_PROFILES) {
+    assert.equal(PET_RAM_SIZE_KIB[profile], Number(profile.slice(-2)), profile);
+    assert.equal(PET_COLUMNS[profile], profile.startsWith('8') ? 80 : 40, profile);
+  }
+  const result = await buildPrg(frameIr(), { machine: 'pet', petProfile: '2001', outFile: 'x.prg' });
+  assert.equal(result.ok, false);
+  assert.match(result.error, /unknown pet profile '2001'/);
+});
+
+test('buildPrg: a PET profile links for that machine\'s RAM — a 3008 build fits under 8K with its stack at the top', { skip: !HAS_SDK && 'LLVM_MOS_HOME not set' }, async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-test-'));
+  try {
+    const outFile = join(scratch, 'm.prg');
+    const result = await buildPrg(frameIr(), { machine: 'pet', petProfile: '3008', outFile });
+    assert.ok(result.ok, result.error);
+    const prg = await readFile(outFile);
+    assert.equal(prg[0], 0x01); // load address $0401, behind the BASIC SYS stub
+    assert.equal(prg[1], 0x04);
+    assert.ok(prg.length <= 8 * 1024 - 0x401, `prg is ${prg.length} bytes`);
+    // The SDK's link.ld puts __stack at __ram_size KiB: $2000 for the 3008.
+    const nm = join(process.env.LLVM_MOS_HOME, 'bin', 'llvm-nm');
+    const symbols = await new Promise((resolvePromise, rejectPromise) => {
+      execFile(nm, [`${outFile}.elf`], (error, stdout) => (error ? rejectPromise(error) : resolvePromise(stdout)));
+    });
+    assert.match(symbols, /00002000 A __stack/);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
 });
 
 test('ATARI8_PROFILES lists exactly the six documented hardware profiles', () => {

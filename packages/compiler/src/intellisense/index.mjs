@@ -4,7 +4,7 @@
 // user's own variables or functions against. What *can* be answered honestly
 // today is "what does this piece of built-in syntax mean" — a primitive type,
 // `volatile`, `ptr`, `array`, `asm6502`, `@address`, `memory.read`/
-// `memory.write`, `frames(...)`, its `seconds` unit, `waitFrame()` — because the compiler
+// `memory.write`, `string`, `#frames(...)`, its `seconds` unit, `waitFrame()` — because the compiler
 // already knows all of it statically, independent of any particular program.
 //
 // This module is that answer, expressed as a small position-based API
@@ -66,6 +66,18 @@ function integerHoverMarkdown(type, spelling) {
 
 /** Documentation for the non-integer built-ins, in 8BitScript's own terms. */
 const CONSTRUCT_DOCS = {
+  string: {
+    summary: 'Constant text in the program image, as a parameter type.',
+    markdown: [
+      '**string**',
+      '',
+      'Text that lives in the program image — ROM on a cartridge, the `.prg` on a Commodore, a data segment on the web — written as a literal: `"TICK"`. A `string` parameter receives one; `s.length` is its byte count and `s[i]` its i-th character (ASCII), so a loop can put it on screen one cell at a time.',
+      '',
+      'Only the portable character set is allowed — space, `0`-`9`, `A`-`Z`, and `! , - . : ?` (upper case only), the characters every target can show — and at most 255 of them. A backtick string with `${...}` fields, `\`TICK ${ticks:1}\``, is a template: `text.print(cell, ...)` lays it out at compile time into one `print` per run of text and one `printNumber(cell, value, width)` per field.',
+      '',
+      '`const Label: string = "..."` names constant text. `let name: string<8>` is text that changes: 8 characters of RAM behind a length byte — the shape a literal has, so it goes wherever a `string` goes. `name = "..."` or `name = other` copies at runtime, cut to the capacity (a literal that does not fit is a diagnostic); `name.length` and `name[i]` read it. There is no concatenation.',
+    ].join('\n'),
+  },
   volatile: {
     summary: 'Value that may change outside normal program flow.',
     markdown: [
@@ -93,9 +105,9 @@ const CONSTRUCT_DOCS = {
     markdown: [
       '**array<T, N>**',
       '',
-      'A fixed-size array of N values of type T.',
+      'A fixed-size array of N values of type T, read and written one element at a time: `a[i]`, `a[i] = v`. `a.length` is N, a number 8bitscript fills in.',
       '',
-      'Its size is part of the type, so memory usage is predictable — no hidden allocation or resizing.',
+      '`let a: array<T, N>` is N values in RAM (zero until written, or `= [..]`); `const Table: array<T, N> = [..]` is N values of data in the program, never in RAM; `@address(0x0400) let screenRam: array<T, N>` is N cells of hardware. N is a literal or a `const`, and the size is part of the type, so memory usage is predictable — no hidden allocation or resizing.',
     ].join('\n'),
   },
   asm6502: {
@@ -120,27 +132,27 @@ const CONSTRUCT_DOCS = {
   },
 };
 
-/** `frames(...)`: the compile-time duration builtin (packages/compiler/src/fold). */
+/** `#frames(...)`: the compile-time duration builtin (packages/compiler/src/fold). */
 const FRAMES_DOC = [
-  '**frames(n, unit)**',
+  '**#frames(n, unit)**',
   '',
-  'Compile-time duration, as a frame count. `n` is an integer or decimal literal — `frames(1, seconds)`, `frames(0.5, seconds)` — never a variable or expression. `unit` says what `n` is measured in and is required; the only unit so far is `seconds`.',
+  'Compile-time duration, as a frame count. `n` is an integer or decimal literal — `#frames(1, seconds)`, `#frames(0.5, seconds)` — never a variable or expression. `unit` says what `n` is measured in and is required; the only unit so far is `seconds`.',
   '',
-  'Folds at compile time to however many frames — `waitFrame()` calls — that much time takes at this project\'s configured `frameRate` (`8bs.config.ts`, default 60) — `frames(0.5, seconds)` becomes `30` at the default rate, `25` at a configured 50. Always a plain integer once compiled: no runtime division, no floating point.',
+  'Folds at compile time to however many frames — `waitFrame()` calls — that much time takes at this project\'s configured `frameRate` (`8bs.config.ts`, default 60) — `#frames(0.5, seconds)` becomes `30` at the default rate, `25` at a configured 50. Always a plain integer once compiled: no runtime division, no floating point.',
   '',
-  'Reserved: a variable, function, parameter, or import named `frames` is a compile error. The unit word is not reserved — it is only a unit in this argument position.',
+  'The `#` says 8bitscript evaluates this before any target toolchain runs; a plain `name(...)` always runs on the machine. Nothing is reserved: `#frames` is its own token, and the unit word is only a unit in this argument position.',
 ].join('\n');
 
-/** The units a `frames(...)` duration can be written in, keyed as DURATION_UNITS is. */
+/** The units a `#frames(...)` duration can be written in, keyed as DURATION_UNITS is. */
 const UNIT_DOCS = {};
 
-/** `seconds`: the (only) unit a `frames(...)` duration can be written in. */
+/** `seconds`: the (only) unit a `#frames(...)` duration can be written in. */
 UNIT_DOCS.seconds = [
   '**seconds**',
   '',
-  'A unit for `frames(...)`: `frames(0.5, seconds)` is half a second, counted in logical frames — `waitFrame()` calls — at this project\'s configured `frameRate` (`8bs.config.ts`, default 60). The unit is required, so the call always says what its literal is measured in.',
+  'A unit for `#frames(...)`: `#frames(0.5, seconds)` is half a second, counted in logical frames — `waitFrame()` calls — at this project\'s configured `frameRate` (`8bs.config.ts`, default 60). The unit is required, so the call always says what its literal is measured in.',
   '',
-  'Only a unit in the second argument to `frames(...)`; anywhere else, `seconds` is an ordinary name a program is free to declare.',
+  'Only a unit in the second argument to `#frames(...)`; anywhere else, `seconds` is an ordinary name a program is free to declare.',
 ].join('\n');
 
 /** `waitFrame()`: block until the next logical frame (packages/compiler/src/ir). */
@@ -149,7 +161,7 @@ const WAITFRAME_DOC = [
   '',
   'Blocks until the next logical frame, then returns. Call it once per pass through your main loop — `while (true) { waitFrame(); ... }` — the way an 8-bit program waits for vertical blank (cc65\'s `waitvsync()`).',
   '',
-  'Frames arrive at this project\'s configured `frameRate` (`8bs.config.ts`, default 60) on every target, whatever the real hardware refreshes at — on the 6502 machines it waits on the video chip\'s own vertical blank, on the web it waits on the page\'s frame clock. Pair it with `frames(...)` to count time: `frames(0.5, seconds)` is how many `waitFrame()` calls make half a second.',
+  'Frames arrive at this project\'s configured `frameRate` (`8bs.config.ts`, default 60) on every target, whatever the real hardware refreshes at — on the 6502 machines it waits on the video chip\'s own vertical blank, on the web it waits on the page\'s frame clock. Pair it with `#frames(...)` to count time: `#frames(0.5, seconds)` is how many `waitFrame()` calls make half a second.',
   '',
   'Takes no arguments and returns nothing. Reserved: a variable, function, parameter, or import named `waitFrame` is a compile error.',
 ].join('\n');
@@ -189,7 +201,7 @@ function tokenIndexAt(tokens, offset) {
  * Recognises primitive integer types (canonical spellings like `utinyint` and
  * `int`, or their low-level `u8`/`i32`-style aliases),
  * `volatile`/`ptr`/`array`, `asm6502`, `@address`, the `memory.read`/
- * `memory.write` intrinsic, and the `frames(...)` (with its `seconds` unit)
+ * `memory.write` intrinsic, and the `#frames(...)` (with its `seconds` unit)
  * and `waitFrame()` builtins — every built-in this milestone documents. Anything else,
  * including a user's own identifiers or namespace, returns `null`: there is
  * no binder yet to say what they mean.
@@ -200,9 +212,25 @@ function tokenIndexAt(tokens, offset) {
  */
 export function getHoverInfo(text, offset) {
   const { tokens } = tokenize(text);
+  return hoverAt(tokens, offset, text);
+}
+
+function hoverAt(tokens, offset, text) {
   const index = tokenIndexAt(tokens, offset);
   if (index === -1) return null;
   const token = tokens[index];
+
+  // Inside a template string, a `${...}` field is ordinary source: re-lex
+  // the field the parser's way (offsets shifted back into the file) and
+  // answer for the token under the cursor there — `#frames`, its unit, a
+  // type in a future cast — as if it stood outside the string.
+  if (token.kind === TokenKind.Template) {
+    const field = token.parts.find((p) => p.kind === 'field' && offset >= p.sourceStart && offset <= p.sourceEnd);
+    if (!field) return null;
+    const inner = tokenize(text.slice(field.sourceStart, field.sourceEnd)).tokens;
+    for (const t of inner) t.start += field.sourceStart;
+    return hoverAt(inner, offset, text);
+  }
 
   if (token.kind === TokenKind.Type) {
     const integer = resolveIntegerType(token.text);
@@ -230,15 +258,15 @@ export function getHoverInfo(text, offset) {
     }
   }
 
-  // `frames` and `waitFrame` are reserved (see checker/index.mjs's
+  // `#frames` is its own token kind, so any occurrence is the compile-time
+  // function; `waitFrame` is reserved (see checker/index.mjs's
   // RESERVED_BUILTIN_NAMES), so unlike memory.read/write there is no
-  // namespace to require — any bare occurrence of the identifier means the
-  // builtin, not a user's own name.
-  if (token.kind === TokenKind.Identifier && token.text === 'frames') {
+  // namespace to require — any bare occurrence means the builtin.
+  if (token.kind === TokenKind.CompileTime && DURATION_CLOCKS.has(token.text.slice(1))) {
     return { start: token.start, length: token.length, markdown: FRAMES_DOC };
   }
   // The unit word is *not* reserved — it only means the unit in the second
-  // argument slot of a clock call, `frames(0.5, seconds)`, so the hover has
+  // argument slot of a clock call, `#frames(0.5, seconds)`, so the hover has
   // to check it is actually in that slot before claiming so.
   if (token.kind === TokenKind.Identifier && DURATION_UNITS.has(token.text) && isDurationUnitSlot(tokens, index)) {
     return { start: token.start, length: token.length, markdown: UNIT_DOCS[token.text] };
@@ -252,16 +280,35 @@ export function getHoverInfo(text, offset) {
 
 /**
  * Is the identifier at `index` the unit argument of a duration clock call —
- * the `seconds` in `frames(0.5, seconds)`? Matches the exact shape the fold
- * accepts: `<clock> ( <number> , <unit>`.
+ * the `seconds` in `#frames(0.5, seconds)`? Matches the exact shape the fold
+ * accepts: `#<clock> ( <number> , <unit>`.
  */
 function isDurationUnitSlot(tokens, index) {
   const [callee, open, literal, comma] = [tokens[index - 4], tokens[index - 3], tokens[index - 2], tokens[index - 1]];
   return comma?.text === ','
     && literal?.kind === TokenKind.Number
     && open?.text === '('
-    && callee?.kind === TokenKind.Identifier
-    && DURATION_CLOCKS.has(callee.text);
+    && callee?.kind === TokenKind.CompileTime
+    && DURATION_CLOCKS.has(callee.text.slice(1));
+}
+
+/**
+ * The token index the cursor is asking *about*: a word the cursor is still
+ * inside or at the end of is the thing being typed, not context, so step
+ * back to whatever precedes it.
+ */
+function contextIndex(tokens, offset) {
+  const before = tokens.filter((t) => t.start < offset);
+  let i = before.length - 1;
+  const current = before[i];
+  if (
+    current
+    && current.start + current.length >= offset
+    && [TokenKind.Identifier, TokenKind.Type, TokenKind.Keyword, TokenKind.CompileTime].includes(current.kind)
+  ) {
+    i -= 1;
+  }
+  return { before, i };
 }
 
 /**
@@ -272,22 +319,8 @@ function isDurationUnitSlot(tokens, index) {
  * (`ptr<`, `array<`, `volatile<`). Both are checked by token, not regex, so
  * `x < 5` does not get mistaken for `ptr<u8>`.
  */
-function isTypePosition(text, offset) {
-  const { tokens } = tokenize(text);
-  const before = tokens.filter((t) => t.start < offset);
-
-  let i = before.length - 1;
-  // A word the cursor is still inside/at the end of is the thing being typed,
-  // not context — step back to whatever precedes it.
-  const current = before[i];
-  if (
-    current
-    && current.start + current.length >= offset
-    && [TokenKind.Identifier, TokenKind.Type, TokenKind.Keyword].includes(current.kind)
-  ) {
-    i -= 1;
-  }
-
+function isTypePosition(tokens, offset) {
+  const { before, i } = contextIndex(tokens, offset);
   const context = before[i];
   if (!context) return false;
   if (context.text === ':') return true;
@@ -296,32 +329,105 @@ function isTypePosition(text, offset) {
 }
 
 /**
+ * Is `offset` inside the `#name` spelling — either a `#` just typed (which
+ * is not a token on its own: the lexer only makes one when an identifier
+ * character follows) or a `#name` being typed?
+ */
+function compileTimePosition(tokens, offset, text) {
+  const at = tokens.find((t) => t.kind === TokenKind.CompileTime
+    && offset > t.start && offset <= t.start + t.length);
+  if (at) return { replacing: true };
+  return text[offset - 1] === '#' ? { replacing: false } : null;
+}
+
+/**
+ * Is `offset` the unit argument of a compile-time clock call — the
+ * `seconds` in `#frames(0.5, |)`? The same shape isDurationUnitSlot()
+ * recognises for hover, one token earlier.
+ */
+function isDurationUnitPosition(tokens, offset) {
+  const { before, i } = contextIndex(tokens, offset);
+  const [callee, open, literal, comma] = [before[i - 3], before[i - 2], before[i - 1], before[i]];
+  return comma?.text === ','
+    && literal?.kind === TokenKind.Number
+    && open?.text === '('
+    && callee?.kind === TokenKind.CompileTime
+    && DURATION_CLOCKS.has(callee.text.slice(1));
+}
+
+/**
  * Built-in completion items available at `offset` in `text`.
  *
- * First slice of IntelliSense: built-in type names only, offered where a type
- * can syntactically appear. No project-wide or member completion — that needs
- * the binder this milestone deliberately does not add.
+ * Built-ins only — the type names where a type can appear, the compile-time
+ * functions after a `#`, and the unit words inside a `#frames(...)` call.
+ * No project-wide or member completion: that needs the binder this
+ * milestone deliberately does not add. Inside a template string, a
+ * `${...}` field is ordinary source and gets the same answers it would
+ * outside one.
  *
  * @param {string} text
  * @param {number} offset
- * @returns {{ label: string, sortRank: number, detail: string, documentation: string }[]}
+ * @returns {{ label: string, kind: 'type'|'function'|'constant', sortRank: number,
+ *   detail: string, documentation: string, insertText?: string }[]}
  */
 export function getCompletions(text, offset) {
-  if (!isTypePosition(text, offset)) return [];
+  const { tokens } = tokenize(text);
+  return completionsAt(tokens, offset, text);
+}
+
+function completionsAt(tokens, offset, text) {
+  const index = tokenIndexAt(tokens, offset);
+  const token = tokens[index];
+  if (token?.kind === TokenKind.Template) {
+    const field = token.parts.find((p) => p.kind === 'field'
+      && offset >= p.sourceStart && offset <= p.sourceEnd);
+    if (!field) return [];
+    const inner = tokenize(text.slice(field.sourceStart, field.sourceEnd)).tokens;
+    for (const t of inner) t.start += field.sourceStart;
+    return completionsAt(inner, offset, text);
+  }
+
+  const compileTime = compileTimePosition(tokens, offset, text);
+  if (compileTime) {
+    return [...DURATION_CLOCKS.keys()].map((name) => ({
+      label: `#${name}`,
+      kind: 'function',
+      sortRank: 0,
+      detail: 'Compile-time duration, as a frame count.',
+      documentation: FRAMES_DOC,
+      // The `#` is already in the buffer unless the lexer made a token of
+      // it, in which case the whole `#name` is what gets replaced.
+      ...(compileTime.replacing ? {} : { insertText: name }),
+    }));
+  }
+
+  if (isDurationUnitPosition(tokens, offset)) {
+    return [...DURATION_UNITS.keys()].map((name) => ({
+      label: name,
+      kind: 'constant',
+      sortRank: 0,
+      detail: 'A unit a #frames(...) duration can be written in.',
+      documentation: UNIT_DOCS[name],
+    }));
+  }
+
+  if (!isTypePosition(tokens, offset)) return [];
 
   const items = [];
 
   for (const type of PRIMITIVE_INTEGER_TYPES) {
     items.push({
       label: type.canonicalName,
+      kind: 'type',
       sortRank: 0,
       detail: `${type.summary} (${type.min}..${type.max})`,
       documentation: integerHoverMarkdown(type, type.canonicalName),
     });
   }
-  for (const name of TYPE_CONSTRUCTOR_NAMES) {
+  for (const name of ['string', ...TYPE_CONSTRUCTOR_NAMES]) {
     items.push({
       label: name,
+      kind: 'type',
       sortRank: 0,
       detail: CONSTRUCT_DOCS[name].summary,
       documentation: CONSTRUCT_DOCS[name].markdown,
@@ -330,6 +436,7 @@ export function getCompletions(text, offset) {
   for (const type of PRIMITIVE_INTEGER_TYPES) {
     items.push({
       label: type.legacyAlias,
+      kind: 'type',
       sortRank: 1,
       detail: `Low-level alias for ${type.canonicalName}`,
       documentation: integerHoverMarkdown(type, type.legacyAlias),

@@ -7,6 +7,13 @@
 // package.json alone is not enough — every package in packages/ and this
 // extension itself have one, and none of them is a program to run.
 //
+// A project is one of three kinds, and the view keeps them apart: the
+// workspace's own programs; the proofs of concept under
+// examples/proof-of-concept/ in the 8bitscript repository, which exist to
+// exercise the toolchain; and the apps that ship with the toolchain —
+// packages whose package.json carries an `8bitscript.app` field, Studio
+// being the first — found beside the CLI package the toolchain came from.
+//
 // This module is deliberately free of the `vscode` API so it can be tested
 // with plain `node --test`. The view (projectsView.cjs) does the file search
 // with the editor's own glob and hands the results here.
@@ -19,10 +26,25 @@ const CONFIG_FILE = '8bs.config.ts';
 /** Every target the toolchain knows, in the order the view lists them. */
 const ALL_TARGETS = ['vic20', 'c64', 'pet', 'c128', 'atari8', 'nes', 'cx16', 'mega65', 'web'];
 
-/** Targets that are a machine model, and so have an NTSC/PAL choice. */
-const MACHINE_TARGETS = new Set(['vic20', 'c64', 'pet', 'c128', 'atari8', 'nes', 'mega65']);
+/**
+ * Targets that are a machine model with an NTSC/PAL choice. The PET is a
+ * machine model but has no region: its refresh is the model's, chosen by
+ * `--profile` (3032 ~60Hz, 4032/8032 50Hz), so `--pal` is never passed
+ * for it — `8bs run pet --pal` would only print a note saying as much.
+ */
+const MACHINE_TARGETS = new Set(['vic20', 'c64', 'c128', 'atari8', 'nes', 'mega65']);
 
 const DEFAULT_ENTRY = 'src/main.8bs';
+
+/** The directory under examples/ that holds the proofs of concept. */
+const PROOFS_DIR = 'proof-of-concept';
+
+/** The three kinds of project, in the order the view lists their sections. */
+const KINDS = [
+  { id: 'project', label: 'Projects' },
+  { id: 'proof', label: 'Proofs of concept' },
+  { id: 'app', label: 'Apps' },
+];
 
 const BINARY = process.platform === 'win32' ? '8bs.cmd' : '8bs';
 
@@ -71,8 +93,8 @@ function parseConfig(text) {
  * Find the `8bs` binary that applies to a directory, walking upward.
  *
  * In a monorepo the toolchain belongs to the project, not to the folder the
- * editor has open: examples/hello-vic/node_modules/.bin/8bs is the one that
- * runs examples/hello-vic, even when the repository root is the workspace.
+ * editor has open: examples/proof-of-concept/borders/node_modules/.bin/8bs is the one that
+ * runs examples/proof-of-concept/borders, even when the repository root is the workspace.
  *
  * @param {string} startDir
  * @returns {string | null}
@@ -94,6 +116,30 @@ function readPackage(dir) {
   } catch {
     return null;
   }
+}
+
+/** The `8bitscript.app` manifest of a package, or null when it is not an app. */
+function appManifest(pkg) {
+  const field = pkg && pkg['8bitscript'];
+  const app = field && typeof field === 'object' ? field.app : undefined;
+  return app && typeof app === 'object' ? app : null;
+}
+
+/**
+ * Which kind of project a directory holds. An app declares itself in its
+ * package.json; a proof of concept is placed — `examples/proof-of-concept/
+ * <name>` — so the repository's own checkout and a consumer that found the
+ * same directory through its toolchain agree on what it is.
+ *
+ * @param {string} dir
+ * @param {object | null} pkg
+ * @returns {'project' | 'proof' | 'app'}
+ */
+function kindOf(dir, pkg) {
+  if (appManifest(pkg)) return 'app';
+  const parent = path.dirname(dir);
+  if (path.basename(parent) === PROOFS_DIR && path.basename(path.dirname(parent)) === 'examples') return 'proof';
+  return 'project';
 }
 
 /**
@@ -134,6 +180,8 @@ function packageManagerFor(startDir) {
 /**
  * @typedef {object} Project
  * @property {string} name        package.json name, or the directory name
+ * @property {string} title       an app's display name from its manifest, else the name
+ * @property {'project' | 'proof' | 'app'} kind what the project is to the view
  * @property {string} description package.json description, or ''
  * @property {string} dir         absolute project directory
  * @property {string} configPath  absolute path of its 8bs.config.ts
@@ -142,6 +190,7 @@ function packageManagerFor(startDir) {
  * @property {string | null} toolchain absolute path of its `8bs`, if installed
  * @property {boolean} installed  its declared dependencies have a node_modules
  * @property {'pnpm' | 'npm' | 'yarn'} packageManager what `install` should run
+ * @property {boolean} [shipped]  found beside the toolchain rather than in the workspace
  */
 
 /**
@@ -160,8 +209,12 @@ function loadProject(configPath) {
   }
   const { entry, targets } = parseConfig(text);
   const pkg = readPackage(dir);
+  const name = (pkg && typeof pkg.name === 'string' && pkg.name) || path.basename(dir);
+  const app = appManifest(pkg);
   return {
-    name: (pkg && typeof pkg.name === 'string' && pkg.name) || path.basename(dir),
+    name,
+    title: (app && typeof app.title === 'string' && app.title) || name,
+    kind: kindOf(dir, pkg),
     description: (pkg && typeof pkg.description === 'string' && pkg.description) || '',
     dir,
     configPath,
@@ -186,28 +239,24 @@ function loadProjects(configPaths) {
 }
 
 /**
- * The example projects that ship with the toolchain, if it came from a
- * checkout of the 8bitscript repository.
+ * The directory of the `@8bitscript/cli` package a toolchain belongs to,
+ * resolved through the link, or null.
  *
  * A project that depends on the repository — as a workspace link, a `file:`
  * dependency, or a submodule — has node_modules/@8bitscript/cli linked to
- * <repo>/packages/cli, and the repo keeps its examples two directories up
- * from there. The package link is followed rather than the bin, because pnpm
- * writes .bin/8bs as a shell shim rather than a symlink, so the bin's real
- * path says nothing about where the package lives. A published package would
- * not carry the examples; the `<cli>/examples` candidate is where they would
- * go if one ever did.
+ * <repo>/packages/cli. The package link is followed rather than the bin,
+ * because pnpm writes .bin/8bs as a shell shim rather than a symlink, so the
+ * bin's real path says nothing about where the package lives; a real symlink
+ * (npm, or a hand-made link) is honoured as a second route.
  *
  * @param {string | null} toolchain absolute path of a project's `8bs`
- * @returns {string | null} the examples directory, or null when there is none
+ * @returns {string | null}
  */
-function findExamplesDir(toolchain) {
+function cliPackageDir(toolchain) {
   if (!toolchain) return null;
   const nodeModules = path.dirname(path.dirname(toolchain));
-  const packageDirs = [
+  const candidates = [
     path.join(nodeModules, '@8bitscript', 'cli'),
-    // .../packages/cli/bin/8bs.mjs -> .../packages/cli, when the bin is a
-    // real symlink (npm, or a hand-made link) rather than a shim.
     (() => {
       try {
         return path.dirname(path.dirname(fs.realpathSync(toolchain)));
@@ -216,23 +265,42 @@ function findExamplesDir(toolchain) {
       }
     })(),
   ];
-  for (const packageDir of packageDirs) {
-    if (!packageDir) continue;
-    let cliDir;
+  for (const candidate of candidates) {
+    if (!candidate) continue;
     try {
-      cliDir = fs.realpathSync(packageDir);
+      const dir = fs.realpathSync(candidate);
+      if (readPackage(dir)?.name === '@8bitscript/cli') return dir;
     } catch {
-      continue;
-    }
-    for (const candidate of [path.join(cliDir, 'examples'), path.resolve(cliDir, '..', '..', 'examples')]) {
-      if (listExampleConfigs(candidate).length > 0) return candidate;
+      // not there — try the next route
     }
   }
   return null;
 }
 
-/** Config paths of the projects directly under an examples directory. */
-function listExampleConfigs(dir) {
+/**
+ * The proofs of concept that ship with the toolchain, if it came from a
+ * checkout of the 8bitscript repository: the repo keeps them at
+ * examples/proof-of-concept, two directories up from packages/cli. A
+ * published package would not carry them; the `<cli>/examples` candidate is
+ * where they would go if one ever did.
+ *
+ * @param {string | null} toolchain absolute path of a project's `8bs`
+ * @returns {string | null} the proofs directory, or null when there is none
+ */
+function findProofsDir(toolchain) {
+  const cliDir = cliPackageDir(toolchain);
+  if (!cliDir) return null;
+  for (const candidate of [
+    path.join(cliDir, 'examples', PROOFS_DIR),
+    path.resolve(cliDir, '..', '..', 'examples', PROOFS_DIR),
+  ]) {
+    if (listProjectConfigs(candidate).length > 0) return candidate;
+  }
+  return null;
+}
+
+/** Config paths of the projects directly under a directory. */
+function listProjectConfigs(dir) {
   let names;
   try {
     names = fs.readdirSync(dir);
@@ -246,27 +314,90 @@ function listExampleConfigs(dir) {
 }
 
 /**
- * Load the example projects under a directory, marked so the view can tell
- * them apart from the workspace's own projects.
+ * Load the proofs of concept under a directory, marked as shipped so the
+ * view can tell them apart from the workspace's own projects.
  *
  * @param {string} dir
  * @returns {Project[]}
  */
-function loadExamples(dir) {
-  return loadProjects(listExampleConfigs(dir)).map((project) => ({ ...project, example: true }));
+function loadProofs(dir) {
+  return loadProjects(listProjectConfigs(dir)).map((project) => ({ ...project, shipped: true }));
 }
 
 /**
- * Add example projects to a list without repeating one the workspace already
- * has — the repository itself lists its examples as ordinary projects.
+ * The apps that ship with the toolchain: every package with an
+ * `8bitscript.app` field and an 8bs.config.ts, looked for in the two places
+ * the CLI's dependencies live — its own node_modules/@8bitscript when it
+ * was installed, and its sibling packages/ in a checkout. Both are searched
+ * and the results de-duplicated through their real paths, since in a
+ * checkout the first is a link to the second.
  *
- * @param {Project[]} projects
- * @param {Project[]} examples
+ * An app is launched with the toolchain that found it: an installed app
+ * sits inside pnpm's store, where walking upward for a `.bin/8bs` finds
+ * nothing.
+ *
+ * @param {string | null} toolchain absolute path of a project's `8bs`
  * @returns {Project[]}
  */
-function withExamples(projects, examples) {
+function loadApps(toolchain) {
+  const cliDir = cliPackageDir(toolchain);
+  if (!cliDir) return [];
+  const dirs = new Set();
+  for (const parent of [path.join(cliDir, 'node_modules', '@8bitscript'), path.dirname(cliDir)]) {
+    let names;
+    try {
+      names = fs.readdirSync(parent);
+    } catch {
+      continue;
+    }
+    for (const name of names) {
+      let dir;
+      try {
+        dir = fs.realpathSync(path.join(parent, name));
+      } catch {
+        continue;
+      }
+      if (appManifest(readPackage(dir)) && fs.existsSync(path.join(dir, CONFIG_FILE))) dirs.add(dir);
+    }
+  }
+  return [...dirs].sort().map((dir) => {
+    const project = loadProject(path.join(dir, CONFIG_FILE));
+    return { ...project, shipped: true, toolchain: project.toolchain ?? toolchain };
+  });
+}
+
+/**
+ * Add shipped projects to a list without repeating one the workspace already
+ * has — the repository itself lists its proofs of concept and apps as
+ * ordinary projects.
+ *
+ * @param {Project[]} projects
+ * @param {Project[]} shipped
+ * @returns {Project[]}
+ */
+function withShipped(projects, shipped) {
   const seen = new Set(projects.map((p) => p.dir));
-  return [...projects, ...examples.filter((e) => !seen.has(e.dir))];
+  return [...projects, ...shipped.filter((e) => !seen.has(e.dir))];
+}
+
+/** Projects of one kind. */
+function ofKind(projects, kind) {
+  return projects.filter((project) => project.kind === kind);
+}
+
+/**
+ * Split a list into its kinds, in KINDS order, for the view's sections.
+ * Returns null when every project is the same kind — a workspace of plain
+ * projects should not grow a section level it has no use for.
+ *
+ * @param {Project[]} projects
+ * @returns {{ kind: string, label: string, projects: Project[] }[] | null}
+ */
+function byKind(projects) {
+  const groups = KINDS
+    .map(({ id, label }) => ({ kind: id, label, projects: ofKind(projects, id) }))
+    .filter((group) => group.projects.length > 0);
+  return groups.length > 1 ? groups : null;
 }
 
 /** Projects that can run on one system. */
@@ -331,17 +462,24 @@ module.exports = {
   CONFIG_FILE,
   DEFAULT_ENTRY,
   MACHINE_TARGETS,
+  KINDS,
+  PROOFS_DIR,
+  byKind,
   bySystem,
+  cliPackageDir,
   commandArgs,
-  findExamplesDir,
+  findProofsDir,
   findToolchain,
   isInstalled,
-  loadExamples,
+  kindOf,
+  loadApps,
+  loadProofs,
+  ofKind,
   packageManagerFor,
   loadProject,
   loadProjects,
   parseConfig,
   resolveLlvmMosHome,
   runnableOn,
-  withExamples,
+  withShipped,
 };

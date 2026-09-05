@@ -44,13 +44,50 @@ export namespace screen {
         textColor = 0x0E;
         cursorInhibit = 1;
     }
+
+    // `blank(border, background)`: every cell blank and both colours set —
+    // black when left off, or `BorderColor.KEEP` / `BackgroundColor.KEEP`
+    // to leave one as it is. `setBorder` and `setBackground` are one
+    // colour each, `setColors` the pair; `text.setColor` owns what the
+    // next print looks like.
+    function blank(border: utinyint = BorderColor.BLACK, background: utinyint = BackgroundColor.BLACK): void {
+        if (border != BorderColor.KEEP) {
+            screen.setBorder(border);
+        }
+        if (background != BackgroundColor.KEEP) {
+            screen.setBackground(background);
+        }
+        cursorInhibit = 1;
+        // Screen memory is wherever the OS put it (SAVMSC, $58/$59); 0 is
+        // the blank internal code, what putChar turns a space into.
+        let base: usmallint = memory.read(0x58) + memory.read(0x59) * 256;
+        for (let cell: usmallint = 0; cell < 960; cell++) {
+            memory.write(base + cell, 0);
+        }
+    }
+
+    function setBackground(background: u8): void {
+        backgroundColorShadow = background;
+        backgroundColor = background;
+        textColorShadow = 0x0E;
+        textColor = 0x0E;
+        cursorInhibit = 1;
+    }
+
+    function setBorder(border: u8): void {
+        borderColorShadow = border;
+        borderColor = border;
+        textColorShadow = 0x0E;
+        textColor = 0x0E;
+        cursorInhibit = 1;
+    }
 }
 
 // ---- colour names ----------------------------------------------------------
 //
 // The same eight names every machine's screen.8bs exports — Black, White,
 // Red, Cyan, Purple, Green, Blue, Yellow — so a program can write
-// `screen.setColors(BorderColor.Blue, BackgroundColor.Black)` through
+// `screen.setColors(BorderColor.BLUE, BackgroundColor.BLACK)` through
 // @8bitscript/screen and get blue on every target. The values are GTIA
 // bytes: hue in the high nibble, luminance in the low (even values only;
 // bit 0 is unused). Hues follow the SETCOLOR hue table in the Atari BASIC
@@ -62,23 +99,31 @@ export namespace screen {
 // project; the hue table is the manual's, the luminances a judgement.
 
 export namespace BorderColor {
-    const Black: utinyint = 0x00;
-    const White: utinyint = 0x0E;
-    const Red: utinyint = 0x34;
-    const Cyan: utinyint = 0xA8;
-    const Purple: utinyint = 0x58;
-    const Green: utinyint = 0xC6;
-    const Blue: utinyint = 0x84;
-    const Yellow: utinyint = 0x1C;
+    const BLACK: utinyint = 0x00;
+    const WHITE: utinyint = 0x0E;
+    const RED: utinyint = 0x34;
+    const CYAN: utinyint = 0xA8;
+    const PURPLE: utinyint = 0x58;
+    const GREEN: utinyint = 0xC6;
+    const BLUE: utinyint = 0x84;
+    const YELLOW: utinyint = 0x1C;
+    // Not a colour: `blank(KEEP, ...)` leaves this one as it is. 255 is
+    // a value no register here takes — except on this machine, where
+    // every byte is a colour: hue 15 at its brightest is given up for it.
+    const KEEP: utinyint = 255;
 }
 
 export namespace BackgroundColor {
-    const Black: utinyint = 0x00;
-    const White: utinyint = 0x0E;
-    const Red: utinyint = 0x34;
-    const Cyan: utinyint = 0xA8;
-    const Purple: utinyint = 0x58;
-    const Green: utinyint = 0xC6;
-    const Blue: utinyint = 0x84;
-    const Yellow: utinyint = 0x1C;
+    const BLACK: utinyint = 0x00;
+    const WHITE: utinyint = 0x0E;
+    const RED: utinyint = 0x34;
+    const CYAN: utinyint = 0xA8;
+    const PURPLE: utinyint = 0x58;
+    const GREEN: utinyint = 0xC6;
+    const BLUE: utinyint = 0x84;
+    const YELLOW: utinyint = 0x1C;
+    // Not a colour: `blank(KEEP, ...)` leaves this one as it is. 255 is
+    // a value no register here takes — except on this machine, where
+    // every byte is a colour: hue 15 at its brightest is given up for it.
+    const KEEP: utinyint = 255;
 }

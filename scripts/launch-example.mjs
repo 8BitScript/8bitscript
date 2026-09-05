@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Interactive example launcher.
 //
-// Lists every project under examples/, lets you pick one, then pick which
+// Lists every project under examples/proof-of-concept/, lets you pick one, then pick which
 // system to run it on, then (for vic20/c64) which format — NTSC (60Hz) or
 // PAL (50Hz), NTSC first as the default — and hands off to the real
 // `8bs run <target> [--pal]` in that example's own directory — the same
@@ -16,7 +16,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createInterface } from 'node:readline/promises';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const EXAMPLES_DIR = join(ROOT, 'examples');
+const EXAMPLES_DIR = join(ROOT, 'examples', 'proof-of-concept');
 const ALL_TARGETS = ['vic20', 'c64', 'web'];
 const FORMATS = [
   { region: 'ntsc', label: 'NTSC (60Hz, US)' },

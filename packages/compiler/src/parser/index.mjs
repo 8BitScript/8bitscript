@@ -13,7 +13,7 @@
 // honest syntax error rather than a silently accepted guess at syntax nobody
 // has decided on.
 import { Codes, diagnostic } from '../diagnostics/index.mjs';
-import { TokenKind } from '../lexer/index.mjs';
+import { TokenKind, tokenize } from '../lexer/index.mjs';
 import { NodeType, node } from '../ast/index.mjs';
 
 /** Binary operator precedence, loosest first. Mirrors the C/TypeScript table. */
@@ -355,9 +355,14 @@ class Parser {
         if (!paramName) break;
         let paramType = null;
         if (this.eat(':')) paramType = this.parseType();
-        const pEnd = (paramType ?? paramName).start + (paramType ?? paramName).length;
+        // `border: utinyint = BorderColor.BLACK`: a default, a compile-time
+        // value the call site gets when the argument is left off.
+        let defaultValue = null;
+        if (this.eat('=')) defaultValue = this.parseExpression();
+        const last = defaultValue ?? paramType ?? paramName;
+        const pEnd = last.start + last.length;
         params.push(node(NodeType.Parameter, paramName.start, pEnd, {
-          name: paramName, typeAnnotation: paramType,
+          name: paramName, typeAnnotation: paramType, defaultValue,
         }));
         if (!this.eat(',')) break;
       }
@@ -642,6 +647,56 @@ class Parser {
     }
   }
 
+  /**
+   * `\`TICK ${ticks % 10:1} OPTION ${option}\``: the lexer handed over one
+   * token with the spans of its text runs and `${...}` fields; each field's
+   * source is re-lexed here (its offsets shifted back into the file, so a
+   * diagnostic inside a field lands on the right characters) and parsed as
+   * an ordinary expression, followed by an optional `:width` — an integer
+   * literal saying how many cells the field takes. `:` is not a binary
+   * operator in this grammar, so the expression parser stops at it by
+   * itself.
+   */
+  parseTemplate(token) {
+    const parts = [];
+    for (const part of token.parts) {
+      if (part.kind === 'text') {
+        parts.push(node(NodeType.TemplateText, part.start, part.end, {
+          value: this.text.slice(part.start, part.end),
+        }));
+        continue;
+      }
+      const source = this.text.slice(part.sourceStart, part.sourceEnd);
+      const { tokens, diagnostics } = tokenize(source, this.file);
+      for (const t of tokens) t.start += part.sourceStart;
+      for (const d of diagnostics) d.start += part.sourceStart;
+      this.diagnostics.push(...diagnostics);
+      const inner = new Parser(tokens, this.text, this.file);
+      inner.pos = 0;
+      const expression = inner.parseExpression();
+      let width = null;
+      if (expression && inner.eat(':')) {
+        const widthToken = inner.peek();
+        if (widthToken?.kind === TokenKind.Number && !widthToken.isDecimal) {
+          inner.next();
+          width = node(NodeType.IntegerLiteral, widthToken.start, widthToken.start + widthToken.length, {
+            value: widthToken.value, raw: widthToken.text, radix: widthToken.radix,
+          });
+        } else {
+          inner.error(`expected a field width after ':', found ${inner.describe(widthToken)}`, widthToken);
+          inner.pos = inner.tokens.length; // reported once; don't also flag the rest as junk
+        }
+      }
+      if (expression && !inner.atEnd) {
+        inner.error(`unexpected ${inner.describe(inner.peek())} in template field`);
+      }
+      this.diagnostics.push(...inner.diagnostics);
+      if (!expression) continue;
+      parts.push(node(NodeType.TemplateField, part.start, part.end, { expression, width }));
+    }
+    return node(NodeType.TemplateLiteral, token.start, token.start + token.length, { parts });
+  }
+
   parsePrimary() {
     const token = this.peek();
     if (!token) {
@@ -664,7 +719,16 @@ class Parser {
 
     if (token.kind === TokenKind.String) {
       this.next();
-      return node(NodeType.StringLiteral, token.start, end, { value: token.text.slice(1, -1) });
+      return node(NodeType.StringLiteral, token.start, end, {
+        value: token.text.slice(1, -1),
+        // Already reported by the lexer; the checker leaves its text alone.
+        ...(token.unterminated ? { unterminated: true } : {}),
+      });
+    }
+
+    if (token.kind === TokenKind.Template) {
+      this.next();
+      return this.parseTemplate(token);
     }
 
     if (token.kind === TokenKind.Keyword && (token.text === 'true' || token.text === 'false')) {
@@ -678,11 +742,35 @@ class Parser {
       return node(NodeType.Identifier, token.start, end, { name: token.text });
     }
 
+    // `#frames`: an identifier the compiler evaluates (the fold pass consumes
+    // it as a call; one left over anywhere else is that pass's diagnostic).
+    if (token.kind === TokenKind.CompileTime) {
+      this.next();
+      return node(NodeType.Identifier, token.start, end, { name: token.text.slice(1), compileTime: true });
+    }
+
     if (token.text === '(') {
       this.next();
       const inner = this.parseExpression();
       this.expect(')');
       return inner;
+    }
+
+    // `[1, 2, 3]`: an array initialiser. A trailing comma is allowed, as in
+    // TypeScript, so a table one value per line can end every line alike.
+    if (token.text === '[') {
+      this.next();
+      const elements = [];
+      while (!this.atEnd && !this.at(']')) {
+        const element = this.parseExpression();
+        if (!element) break;
+        elements.push(element);
+        if (!this.eat(',')) break;
+      }
+      const close = this.expect(']');
+      const last = elements[elements.length - 1];
+      const literalEnd = close ? close.start + 1 : (last ? last.start + last.length : end);
+      return node(NodeType.ArrayLiteral, token.start, literalEnd, { elements });
     }
 
     this.error(`expected an expression, found ${this.describe(token)}`, token);

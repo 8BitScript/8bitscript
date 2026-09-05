@@ -143,6 +143,35 @@ missing-ROM failure mode applies to all four — if `xpet` or `x128` behave the
 way the caveat above describes, the fix is identical: supply the ROMs
 yourself and place them where that binary's `-help` output says it looks.
 
+## PET models
+
+The PET is one target with several hardware profiles, named the way the
+machines were: `8bs build --target pet --profile 8032`. The profile picks
+the RAM the program is linked for, the screen width the `@8bitscript/text`
+and `@8bitscript/screen` packages draw to, and the model `xpet` launches.
+`3032` is the default.
+
+| Profile | RAM | Columns | Video | ROMs | xpet refresh |
+| ------- | --- | ------- | ----- | ---- | ------------ |
+| `3008`, `3016`, `3032` | 8K, 16K, 32K | 40 | no CRTC (9-inch) | BASIC 2, graphics keyboard | ~60 Hz |
+| `4016`, `4032` | 16K, 32K | 40 | 6545 CRTC (12-inch) | BASIC 4, graphics keyboard | 50 Hz |
+| `8032` | 32K | 80 | 6545 CRTC (12-inch) | BASIC 4, business keyboard | 50 Hz |
+
+```bash
+8bs run pet                    # a 3032: 40 columns, 32K, ~60Hz
+8bs run pet --profile 8032     # the 80-column business machine
+8bs run pet --profile 3008     # 8K: the smallest RAM the SDK links for
+```
+
+There is no `--pal` for the PET. Its refresh rate is the model's, not a
+region's: VICE runs the CRTC models with their 50 Hz editor ROMs (the 60 Hz
+editors it ships make it refuse autostart) and the no-CRTC 3xxx at its own
+~60.1 Hz, and every build measures the real frame period at start-up, so
+one `.prg` runs at the configured `frameRate` on either. `--pal` prints a
+note and changes nothing. The 96K/128K machines (8096, 8296) are banked, not
+bigger, and the SDK's PET link script refuses them; they are not profiles.
+`packages/pet/AGENTS.md` has the hardware behind each column of the table.
+
 ## On cc65
 
 cc65 is intentionally not part of this toolchain, as noted in the

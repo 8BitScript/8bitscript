@@ -35,6 +35,8 @@ import { foldDurations } from '../fold/index.mjs';
 import { lower } from '../ir/index.mjs';
 import { resolveSpecifier } from '../resolver/index.mjs';
 import { Codes, diagnostic } from '../diagnostics/index.mjs';
+import { storageBytes, resolveIntegerType } from '../types/index.mjs';
+import { checkHardwareHazards } from './hazards.mjs';
 
 /** The canonical identity of a file: two pnpm symlink routes, one module. */
 function canonical(path) {
@@ -50,14 +52,18 @@ function loadModule(file, text, diagnostics, frameRate) {
   const { tokens, diagnostics: lexical } = tokenize(text, file);
   const { ast, diagnostics: syntax } = parse(tokens, text, file);
   diagnostics.push(...lexical, ...syntax);
-  // Folding runs before check(): a frames(...) call needs to already be a
+  // Folding runs before check(): a #frames(...) call needs to already be a
   // plain IntegerLiteral by the time the width-fit rule walks the tree, so
-  // e.g. frames(100, seconds) overflowing a utinyint gets that diagnostic for free,
+  // e.g. #frames(100, seconds) overflowing a utinyint gets that diagnostic for free,
   // with no separate rule duplicating it here.
   diagnostics.push(...foldDurations(ast, file, frameRate));
-  diagnostics.push(...check(ast, file));
-  const { ir, diagnostics: lowering } = lower(ast, file);
-  diagnostics.push(...lowering);
+  diagnostics.push(...check(ast, file, text));
+  const { ir, diagnostics: lowering } = lower(ast, file, text);
+  // The template layout runs in both check() (so the editor sees it) and
+  // lower() (so a direct lower() can never drop a template silently); one
+  // problem is reported once.
+  const seen = new Set(diagnostics.map((d) => `${d.code}@${d.start}+${d.length}`));
+  diagnostics.push(...lowering.filter((d) => !seen.has(`${d.code}@${d.start}+${d.length}`)));
   return { file, ir };
 }
 
@@ -144,7 +150,246 @@ function declarationsOf(module) {
   const decls = new Map();
   for (const g of module.ir.globals) decls.set(g.name, g.exported);
   for (const f of module.ir.functions) decls.set(f.name, f.exported);
+  for (const c of module.ir.consts ?? []) decls.set(c.name, c.exported);
   return decls;
+}
+
+/** This module's own globals, by their original (pre-rename) name. */
+function globalsOf(module) {
+  return new Map(module.ir.globals.map((g) => [g.name, g]));
+}
+
+/**
+ * The global a name in `module` refers to — its own, or the one an import
+ * binds — or null when it names something else (a function, a const, a
+ * parameter). Used for what only the whole program can know about an
+ * array: an importer's `a[i]` needs the element type, and a store into an
+ * imported const array is refused here.
+ */
+function globalNamed(module, name) {
+  if (module.globalsByName.has(name)) return module.globalsByName.get(name);
+  const binding = module.bindings?.get(name);
+  return binding ? (binding.module.globalsByName.get(binding.name) ?? null) : null;
+}
+
+/** Does `name`, in this function's scope, refer to something another module declares? */
+function isImportedName(module, scope, name) {
+  return !module.globalsByName.has(name) && !scope.bound?.has(name) && module.bindings?.has(name);
+}
+
+/**
+ * A scope for a nested block: the enclosing names, plus whatever locals
+ * the block declares — which go out of scope with it. `bound` is the set
+ * of names a parameter or local binds in the function, for the rules that
+ * ask "is this an import?".
+ */
+function childScope(scope) {
+  const child = new Map(scope);
+  child.bound = new Set(scope.bound ?? []);
+  return child;
+}
+
+/** Bind a parameter or local: never renamed, and it shadows everything else of the name. */
+function bindLocal(scope, name) {
+  scope.set(name, name);
+  if (!scope.bound) scope.bound = new Set();
+  scope.bound.add(name);
+}
+
+/**
+ * Resolve the array an `index`/`storeIndex` node names: rename its `ref`,
+ * fill in the element type lowering could not see, and check what only
+ * this layer can. `expr.array` is the ref; own-module problems were
+ * reported when the module was lowered, so only an imported array is
+ * examined here.
+ */
+function rewriteArrayAccess(expr, scope, module, diagnostics, { store = false } = {}) {
+  const name = expr.array.name;
+  const imported = isImportedName(module, scope, name);
+  rewriteExpression(expr.array, scope, module, diagnostics);
+  rewriteExpression(expr.index, scope, module, diagnostics);
+  if (!imported || expr.array.kind !== 'ref') return;
+  const g = globalNamed(module, name);
+  const at = (code, message) => diagnostics.push(diagnostic(code, message, module.file, expr.array.start ?? 0, expr.array.length ?? 0));
+  if (!g || !g.array) {
+    at(Codes.NOT_COMPILABLE, `'${name}' is not an array: ${store ? 'assigning to an element' : 'indexing'} needs an array<T, N>`);
+    return;
+  }
+  expr.elementType = g.type;
+  if (store && g.constant) {
+    at(Codes.ASSIGN_TO_CONST, `'${name}' is a const array — data in the program, not RAM — and cannot be assigned to`);
+  }
+  if (expr.index.kind === 'const' && (expr.index.value < 0 || expr.index.value >= g.array)) {
+    at(Codes.INDEX_OUT_OF_RANGE, `index ${expr.index.value} is outside an array<${g.type}, ${g.array}>: elements are 0..${g.array - 1}`);
+  }
+}
+
+/**
+ * A pending initialiser — an imported const by name, or `Namespace.Member`
+ * — as the number it stands for, range-checked against the global's type.
+ * Anything else is reported and stands in as 0.
+ */
+function resolveInitialiser(expr, g, scope, module, diagnostics) {
+  const at = (code, message) => diagnostics.push(diagnostic(code, message, module.file, expr.start ?? 0, expr.length ?? 0));
+  if (expr.kind === 'ref' && typeof module.constValues.get(expr.name) === 'object') {
+    at(Codes.NOT_COMPILABLE, `'${expr.name}' is a string const; it cannot initialise a ${g.type}`);
+    return 0;
+  }
+  if (expr.kind === 'ref' && !module.constValues.has(expr.name)) {
+    at(scope.has(expr.name) ? Codes.NOT_COMPILABLE : Codes.UNRESOLVED_NAME,
+      scope.has(expr.name)
+        ? `'${expr.name}' is not a const, so it cannot initialise a global: an initialiser is a literal or a const`
+        : `cannot find name '${expr.name}'`);
+    return 0;
+  }
+  const before = diagnostics.length;
+  rewriteExpression(expr, scope, module, diagnostics);
+  if (diagnostics.length > before) return 0;
+  if (expr.kind !== 'const') {
+    at(Codes.NOT_COMPILABLE, 'an initialiser is a literal or a const');
+    return 0;
+  }
+  const range = g.type === 'bool' ? { min: 0, max: 1 } : resolveIntegerType(g.type);
+  if (expr.value < range.min || expr.value > range.max) {
+    at(Codes.VALUE_OUT_OF_RANGE, `${expr.value} does not fit in ${g.type} (${range.min}..${range.max})`);
+    return 0;
+  }
+  return expr.value;
+}
+
+/**
+ * A call, once its callee is an output name: the argument count checked
+ * against the parameters, and every argument left off filled in from the
+ * parameter's default — a value 8bitscript resolved, so the machine sees
+ * a complete call. Too many, or fewer than the parameters without a
+ * default, is WRONG_ARGUMENT_COUNT.
+ */
+function completeCall(call, module, diagnostics) {
+  const fn = module.program?.functionsByOutput?.get(call.name);
+  if (!fn) return;
+  const min = fn.params.filter((p) => p.default === undefined).length;
+  const max = fn.params.length;
+  if (call.args.length > max || call.args.length < min) {
+    const takes = min === max ? `${max}` : `${min} to ${max}`;
+    diagnostics.push(diagnostic(
+      Codes.WRONG_ARGUMENT_COUNT,
+      `'${call.original ?? call.name}' takes ${takes} argument${max === 1 ? '' : 's'}, not ${call.args.length}`,
+      module.file, call.start ?? 0, call.length ?? 0,
+    ));
+    return;
+  }
+  for (let i = call.args.length; i < max; i += 1) call.args.push(structuredClone(fn.params[i].default));
+}
+
+/**
+ * This module's own top-level consts, name to value — a number, or for a
+ * string const `{ string: slot }` in the module's own string table (moved
+ * to the program's table in link(), once that exists).
+ */
+function constsOf(module) {
+  return new Map((module.ir.consts ?? []).map((c) => [
+    c.name,
+    c.pending ? { pending: c.pending, type: c.type } : c.type === 'string' ? { string: c.string } : c.value,
+  ]));
+}
+
+/**
+ * A const whose initialiser only the linker can see — `const HIGHLIGHT:
+ * utinyint = TextColor.YELLOW`, or `= Imported` — gets its value here,
+ * before any module inlines it. A pending const may name another pending
+ * const (in any module), so this repeats until nothing changes; what is
+ * still pending then is a cycle, and is reported.
+ */
+function resolvePendingConsts(modules, diagnostics) {
+  // Every const slot the linker may still owe a value: the module's own
+  // top-level consts, and the const members of each of its namespaces
+  // (`namespace text { const COLUMNS: utinyint = Video.COLUMNS; }`), which
+  // take the same initialisers and resolve by the same rule.
+  const pendingOf = (module) => [
+    ...[...module.ownConsts].filter(([, v]) => v?.pending)
+      .map(([name, v]) => ({ name, ...v, table: module.ownConsts })),
+    ...[...module.namespaces.values()].flatMap((ns) => [...ns.consts]
+      .filter(([, v]) => v?.pending)
+      .map(([member, v]) => ({ name: `${ns.name}.${member}`, ...v, table: ns.consts, key: member }))),
+  ];
+  const settle = (slot, value) => slot.table.set(slot.key ?? slot.name, value);
+  const scopes = new Map(modules.map((m) => [m, new Map(m.rename)]));
+  for (let progress = true; progress;) {
+    progress = false;
+    for (const module of modules) {
+      for (const slot of pendingOf(module)) {
+        const { pending, type } = slot;
+        const expr = structuredClone(pending);
+        if (expr.kind === 'ref') {
+          // Own const first (a chain inside one module), then an import.
+          const binding = module.ownConsts.has(expr.name)
+            ? { module, name: expr.name } : module.bindings.get(expr.name);
+          const other = binding && binding.module.ownConsts.get(binding.name);
+          if (other?.pending) continue; // not yet; another pass
+          if (other === undefined) {
+            diagnostics.push(diagnostic(
+              binding ? Codes.NOT_COMPILABLE : Codes.UNRESOLVED_NAME,
+              binding ? `'${expr.name}' is not a const, so it cannot initialise a const` : `cannot find name '${expr.name}'`,
+              module.file, expr.start ?? 0, expr.length ?? 0,
+            ));
+            settle(slot, 0);
+            progress = true;
+            continue;
+          }
+        } else if (expr.kind === 'namespaceConst') {
+          // `Other.MEMBER`: a member still pending waits for another pass;
+          // a namespace or member that does not exist is left to
+          // rewriteExpression below, which reports it.
+          const result = resolveNamespaceMember(module, expr.namespace, expr.member, 'consts');
+          if (result.namespaceFound && result.memberFound && result.value?.pending) continue;
+        }
+        // constValues is what rewriteExpression inlines from; for this pass
+        // it is the module's own resolved consts plus its imports' values.
+        module.constValues = new Map([...module.ownConsts].filter(([, v]) => !v?.pending));
+        for (const [local, binding] of module.bindings) {
+          const v = binding.module.ownConsts.get(binding.name);
+          if (v !== undefined && !v?.pending) module.constValues.set(local, v);
+        }
+        settle(slot, resolveInitialiser(expr, { type }, scopes.get(module), module, diagnostics));
+        progress = true;
+      }
+    }
+  }
+  for (const module of modules) {
+    for (const slot of pendingOf(module)) {
+      diagnostics.push(diagnostic(
+        Codes.NOT_COMPILABLE,
+        `'${slot.name}' is a const whose value depends on itself, through the consts it names`,
+        module.file, slot.pending.start ?? 0, slot.pending.length ?? 0,
+      ));
+      settle(slot, 0);
+    }
+  }
+}
+
+/** A const's inlined value as an IR expression: a number, or a string slot. */
+function constExpression(value) {
+  return typeof value === 'object' ? { kind: 'string', index: value.string } : { kind: 'const', value };
+}
+
+/** Is `name` a string in this scope — a parameter or local, a string const, or a string<N> variable? */
+function isStringName(module, scope, name) {
+  if (scope.bound?.has(name)) return true; // a parameter's type is the callee's business; lowering checked its own
+  if (typeof module.constValues.get(name) === 'object') return true;
+  return Boolean(globalNamed(module, name)?.stringCapacity);
+}
+
+/** A string source checked against a `string<N>` target's capacity, for a literal. */
+function checkStringFits(source, capacity, ir, module, diagnostics) {
+  if (source.kind !== 'string') return;
+  const s = ir.strings[source.index];
+  if (s.bytes.length > capacity) {
+    diagnostics.push(diagnostic(
+      Codes.STRING_TOO_LONG,
+      `"${s.text}" is ${s.bytes.length} characters and does not fit in string<${capacity}>`,
+      module.file, source.start ?? 0, source.length ?? 0,
+    ));
+  }
 }
 
 /** This module's own namespace declarations, keyed by namespace name. */
@@ -162,7 +407,9 @@ function namespacesOf(module) {
 function bindImports(modules, diagnostics) {
   for (const module of modules) {
     module.decls = declarationsOf(module);
+    module.globalsByName = globalsOf(module);
     module.namespaces = namespacesOf(module);
+    module.ownConsts = constsOf(module);
     module.bindings = new Map();
     module.namespaceBindings = new Map();
   }
@@ -234,6 +481,8 @@ function assignOutputNames(modules) {
   for (const module of modules) {
     module.rename = new Map();
     for (const name of module.decls.keys()) {
+      // A const has no output at all: it is inlined wherever it is read.
+      if (module.ownConsts.has(name)) continue;
       let out = name;
       for (let n = 2; taken.has(out); n += 1) out = `${name}_${n}`;
       taken.add(out);
@@ -246,6 +495,15 @@ function rewriteExpression(expr, scope, module, diagnostics) {
   switch (expr.kind) {
     case 'ref': {
       const out = scope.get(expr.name);
+      if (out === undefined && module.constValues.has(expr.name)) {
+        // A const, this module's own or imported: the value, inlined. A
+        // parameter of the same name is in `scope` and so shadowed it above.
+        const value = constExpression(module.constValues.get(expr.name));
+        delete expr.name;
+        if (value.kind === 'const') { delete expr.start; delete expr.length; }
+        Object.assign(expr, value);
+        return;
+      }
       if (out === undefined) {
         // A parameter is already in `scope` (mapped to itself — see `link()`),
         // so anything still unresolved here is a typo or a missing import,
@@ -268,6 +526,36 @@ function rewriteExpression(expr, scope, module, diagnostics) {
     case 'unop':
       rewriteExpression(expr.argument, scope, module, diagnostics);
       return;
+    case 'string':
+      // The module's own string table was merged into the program's (see
+      // link()); the slot number moves with it.
+      expr.index = module.stringMap[expr.index];
+      return;
+    case 'stringLength':
+      rewriteExpression(expr.string, scope, module, diagnostics);
+      return;
+    case 'stringByte':
+      rewriteExpression(expr.string, scope, module, diagnostics);
+      rewriteExpression(expr.index, scope, module, diagnostics);
+      return;
+    case 'index': {
+      const imported = isImportedName(module, scope, expr.array.name);
+      const buffer = imported ? globalNamed(module, expr.array.name) : null;
+      const stringConst = imported && typeof module.constValues.get(expr.array.name) === 'object';
+      if (buffer?.stringCapacity || stringConst) {
+        // `s[i]` on an imported string<N>: lowering could not tell it from
+        // an array; it is the i-th character, as it is for a string parameter.
+        rewriteExpression(expr.array, scope, module, diagnostics);
+        rewriteExpression(expr.index, scope, module, diagnostics);
+        expr.kind = 'stringByte';
+        expr.string = expr.array;
+        delete expr.array;
+        delete expr.elementType;
+        return;
+      }
+      rewriteArrayAccess(expr, scope, module, diagnostics);
+      return;
+    }
     case 'call': {
       const out = scope.get(expr.name);
       if (out === undefined) {
@@ -277,9 +565,13 @@ function rewriteExpression(expr, scope, module, diagnostics) {
           module.file, expr.start ?? 0, expr.length ?? 0,
         ));
       } else {
+        expr.original = expr.name;
         expr.name = out;
       }
       for (const argument of expr.args) rewriteExpression(argument, scope, module, diagnostics);
+      // After the caller's own arguments: a filled-in default is already
+      // in the program's terms (its string slot rebased by its own module).
+      if (out !== undefined) { completeCall(expr, module, diagnostics); delete expr.original; }
       return;
     }
     case 'memoryRead':
@@ -305,15 +597,51 @@ function rewriteExpression(expr, scope, module, diagnostics) {
         // Once resolved, a namespace call IS a plain call — same shape the
         // rest of the pipeline (and both backends) already understand.
         expr.kind = 'call';
+        expr.original = `${expr.namespace}.${expr.member}`;
         expr.name = result.targetModule.rename.get(result.value);
         delete expr.namespace;
         delete expr.member;
       }
       for (const argument of expr.args) rewriteExpression(argument, scope, module, diagnostics);
+      if (expr.kind === 'call') { completeCall(expr, module, diagnostics); delete expr.original; }
       return;
     }
     case 'namespaceConst': {
       const result = resolveNamespaceMember(module, expr.namespace, expr.member, 'consts');
+      const array = !result.namespaceFound && !module.globalsByName.has(expr.namespace)
+        ? globalNamed(module, expr.namespace) : null;
+      const stringConst = !result.namespaceFound && isImportedName(module, scope, expr.namespace)
+        && typeof module.constValues.get(expr.namespace) === 'object';
+      if (stringConst && expr.member === 'length') {
+        // `Label.length` on an imported string const: the literal's length byte.
+        expr.kind = 'stringLength';
+        expr.string = constExpression(module.constValues.get(expr.namespace));
+        delete expr.namespace;
+        delete expr.member;
+        return;
+      }
+      if (array?.stringCapacity && expr.member === 'length') {
+        // `name.length` on an imported string<N>: the length byte, at runtime.
+        const ref = { kind: 'ref', name: expr.namespace, start: expr.start, length: expr.length };
+        rewriteExpression(ref, scope, module, diagnostics);
+        expr.kind = 'stringLength';
+        expr.string = ref;
+        delete expr.namespace;
+        delete expr.member;
+        return;
+      }
+      if (array?.array && expr.member === 'length') {
+        // `buffer.length` on an imported array: lowering could not tell it
+        // from a namespace const, so it arrives as one. A number, like an
+        // own array's length is.
+        expr.kind = 'const';
+        expr.value = array.array;
+        delete expr.namespace;
+        delete expr.member;
+        delete expr.start;
+        delete expr.length;
+        return;
+      }
       if (!result.namespaceFound) {
         diagnostics.push(diagnostic(
           Codes.UNRESOLVED_NAME,
@@ -344,16 +672,85 @@ function rewriteStatement(statement, scope, module, diagnostics) {
   switch (statement.kind) {
     case 'assign': {
       const out = scope.get(statement.target);
-      if (out === undefined) {
+      if (out === undefined && module.constValues.has(statement.target)) {
+        // The checker already reports a module's own consts; this is the
+        // imported one it could not see.
+        diagnostics.push(diagnostic(
+          Codes.ASSIGN_TO_CONST,
+          `'${statement.target}' is a const — a compile-time value with no storage — and cannot be assigned`,
+          module.file, statement.start ?? 0, statement.length ?? 0,
+        ));
+      } else if (out === undefined) {
         diagnostics.push(diagnostic(
           Codes.UNRESOLVED_NAME,
           `cannot find name '${statement.target}'`,
+          module.file, statement.start ?? 0, statement.length ?? 0,
+        ));
+      } else if (isImportedName(module, scope, statement.target) && globalNamed(module, statement.target)?.stringCapacity) {
+        // `name = ...` on an imported string<N>: a copy, as for an own one.
+        const g = globalNamed(module, statement.target);
+        statement.kind = 'stringCopy';
+        statement.target = { kind: 'ref', name: statement.target, start: statement.start, length: statement.length };
+        statement.source = statement.value;
+        statement.capacity = g.stringCapacity;
+        delete statement.value;
+        rewriteStatement(statement, scope, module, diagnostics);
+        return;
+      } else if (isImportedName(module, scope, statement.target) && globalNamed(module, statement.target)?.array) {
+        // An imported array; an own one was refused when the module lowered.
+        diagnostics.push(diagnostic(
+          Codes.NOT_COMPILABLE,
+          `'${statement.target}' is an array: it is written one element at a time, ${statement.target}[i] = ...`,
           module.file, statement.start ?? 0, statement.length ?? 0,
         ));
       } else {
         statement.target = out;
       }
       rewriteExpression(statement.value, scope, module, diagnostics);
+      if (statement.value.kind === 'string' && out !== undefined && !scope.bound?.has(statement.target)) {
+        // A string const (own or imported, now inlined) into a number global.
+        diagnostics.push(diagnostic(
+          Codes.NOT_COMPILABLE,
+          `'${statement.target}' is not a string: a string is assigned to a string<N>`,
+          module.file, statement.value.start ?? 0, statement.value.length ?? 0,
+        ));
+      }
+      return;
+    }
+    case 'storeIndex':
+      if (isImportedName(module, scope, statement.array.name) && globalNamed(module, statement.array.name)?.stringCapacity) {
+        diagnostics.push(diagnostic(
+          Codes.NOT_COMPILABLE,
+          `a string is assigned whole (${statement.array.name} = "..."), not one character at a time`,
+          module.file, statement.start ?? 0, statement.length ?? 0,
+        ));
+        return;
+      }
+      rewriteArrayAccess(statement, scope, module, diagnostics, { store: true });
+      rewriteExpression(statement.value, scope, module, diagnostics);
+      return;
+    case 'stringCopy': {
+      // The source must be a string: a literal (checked against the
+      // capacity here, where the program's string table is), a string
+      // const, a parameter, or a string<N> — own or imported.
+      const sourceName = statement.source.kind === 'ref' ? statement.source.name : null;
+      if (sourceName !== null && !isStringName(module, scope, sourceName)) {
+        diagnostics.push(diagnostic(
+          Codes.NOT_COMPILABLE,
+          `'${statement.target.name}' is a string<${statement.capacity}>: it is assigned a string — a literal, a const, a parameter, or another string variable`,
+          module.file, statement.source.start ?? 0, statement.source.length ?? 0,
+        ));
+      }
+      rewriteExpression(statement.target, scope, module, diagnostics);
+      rewriteExpression(statement.source, scope, module, diagnostics);
+      if (statement.source.kind === 'const') {
+        diagnostics.push(diagnostic(
+          Codes.NOT_COMPILABLE,
+          `'${statement.target.name}' is a string<${statement.capacity}>: it is assigned a string, not a number`,
+          module.file, statement.start ?? 0, statement.length ?? 0,
+        ));
+      }
+      checkStringFits(statement.source, statement.capacity, module.program, module, diagnostics);
       return;
     }
     case 'call': {
@@ -365,9 +762,11 @@ function rewriteStatement(statement, scope, module, diagnostics) {
           module.file, statement.start ?? 0, statement.length ?? 0,
         ));
       } else {
+        statement.original = statement.name;
         statement.name = out;
       }
       for (const argument of statement.args) rewriteExpression(argument, scope, module, diagnostics);
+      if (out !== undefined) { completeCall(statement, module, diagnostics); delete statement.original; }
       return;
     }
     case 'namespaceCall':
@@ -386,18 +785,49 @@ function rewriteStatement(statement, scope, module, diagnostics) {
     case 'return':
       if (statement.value) rewriteExpression(statement.value, scope, module, diagnostics);
       return;
-    case 'if':
+    case 'local':
+      // The initialiser is evaluated before the name exists (`let x = x`
+      // reads the outer x, or nothing); then the local shadows.
+      rewriteExpression(statement.init, scope, module, diagnostics);
+      if (statement.init.kind === 'string') {
+        diagnostics.push(diagnostic(
+          Codes.NOT_COMPILABLE,
+          `a string cannot initialise a ${statement.type}: a string lives in a string<N> or a const`,
+          module.file, statement.init.start ?? 0, statement.init.length ?? 0,
+        ));
+      }
+      bindLocal(scope, statement.name);
+      return;
+    case 'if': {
       rewriteExpression(statement.test, scope, module, diagnostics);
-      for (const s of statement.then) rewriteStatement(s, scope, module, diagnostics);
-      for (const s of statement.else ?? []) rewriteStatement(s, scope, module, diagnostics);
+      const thenScope = childScope(scope);
+      for (const s of statement.then) rewriteStatement(s, thenScope, module, diagnostics);
+      const elseScope = childScope(scope);
+      for (const s of statement.else ?? []) rewriteStatement(s, elseScope, module, diagnostics);
       return;
-    case 'while':
+    }
+    case 'while': {
       rewriteExpression(statement.test, scope, module, diagnostics);
-      for (const s of statement.body) rewriteStatement(s, scope, module, diagnostics);
+      const inner = childScope(scope);
+      for (const s of statement.body) rewriteStatement(s, inner, module, diagnostics);
       return;
-    case 'block':
-      for (const s of statement.body) rewriteStatement(s, scope, module, diagnostics);
+    }
+    case 'for': {
+      // The initialiser's local is in scope for the test, the update, and
+      // the body, and gone after the loop.
+      const inner = childScope(scope);
+      if (statement.init) rewriteStatement(statement.init, inner, module, diagnostics);
+      if (statement.test) rewriteExpression(statement.test, inner, module, diagnostics);
+      if (statement.update) rewriteStatement(statement.update, inner, module, diagnostics);
+      const bodyScope = childScope(inner);
+      for (const s of statement.body) rewriteStatement(s, bodyScope, module, diagnostics);
       return;
+    }
+    case 'block': {
+      const inner = childScope(scope);
+      for (const s of statement.body) rewriteStatement(s, inner, module, diagnostics);
+      return;
+    }
     default: // 'break', 'continue' name nothing; 'asm' is opaque
   }
 }
@@ -422,7 +852,10 @@ function checkEntryExports(module) {
   ));
 
   const functions = module.ir.functions.filter((fn) => fn.exported);
-  const globals = module.ir.globals.filter((g) => g.exported);
+  const globals = [
+    ...module.ir.globals.filter((g) => g.exported),
+    ...(module.ir.consts ?? []).filter((c) => c.exported),
+  ];
   const namespaces = (module.ir.namespaces ?? []).filter((ns) => ns.exported);
 
   for (const g of globals) {
@@ -465,13 +898,15 @@ function checkEntryExports(module) {
  *
  * @param {string} entryText  The entry module's source.
  * @param {string} entryFile  Its absolute path, the root imports resolve from.
- * @param {{ machine?: string, frameRate?: number }} [options]
+ * @param {{ machine?: string, profile?: string, frameRate?: number }} [options]
  *   `machine` is the target being built for; packages with target-
  *   conditional entries resolve to that machine's implementation, and any
  *   `.8bs` file with a `.<machine>.8bs` twin beside it resolves to the
- *   twin. `frameRate` (default 60) is the project's logical frame rate —
- *   see 8bs.config.ts — that every `frames(...)` call in the graph folds
- *   against.
+ *   twin. `profile` is the machine's hardware profile (the build's
+ *   `--profile`, default included): a `.<machine>.<profile>.8bs` twin is
+ *   taken before the machine's own. `frameRate` (default 60) is the
+ *   project's logical frame rate — see 8bs.config.ts — that every
+ *   `#frames(...)` call in the graph folds against.
  * @returns {{ ir: object|null, diagnostics: object[], sources: Map<string,string> }}
  */
 export function link(entryText, entryFile, options = {}) {
@@ -486,21 +921,99 @@ export function link(entryText, entryFile, options = {}) {
   if (diagnostics.length > 0) return { ir: null, diagnostics, sources };
 
   assignOutputNames(modules);
+  resolvePendingConsts(modules, diagnostics);
+  if (diagnostics.length > 0) return { ir: null, diagnostics, sources };
 
   // `nativeSources` is not IR the backends translate — it is the list of
   // files a backend passes through to its toolchain untouched (the 6502
   // backend hands them to LLVM-MOS beside the generated C; the web backend
   // has no use for 6502 assembly or CHR data and ignores it).
   const ir = {
-    imports: [], globals: [], functions: [], nativeSources,
+    imports: [], globals: [], functions: [], strings: [], nativeSources,
     entry: modules[0].rename.get(entry.name),
   };
   for (const module of modules) {
+    // One string table for the program, deduplicated across modules by
+    // content — "TICK" in two modules is one constant. `stringMap` takes a
+    // module's slot number to the program's. Every module's table first: a
+    // string const is imported by its slot, and the importer may come
+    // before the module that declares it.
+    module.stringMap = (module.ir.strings ?? []).map((s) => {
+      let index = ir.strings.findIndex((t) => t.text === s.text);
+      if (index === -1) { index = ir.strings.length; ir.strings.push(s); }
+      return index;
+    });
+    module.program = ir;
+    for (const [name, value] of module.ownConsts) {
+      if (typeof value === 'object') module.ownConsts.set(name, { string: module.stringMap[value.string] });
+    }
+  }
+  for (const module of modules) {
     const scope = new Map(module.rename);
+    // Consts are inlined, not renamed: this module's own plus every import
+    // that names another module's const.
+    module.constValues = new Map(module.ownConsts);
     for (const [local, binding] of module.bindings) {
+      if (binding.module.ownConsts.has(binding.name)) {
+        module.constValues.set(local, binding.module.ownConsts.get(binding.name));
+        continue;
+      }
       scope.set(local, binding.module.rename.get(binding.name));
     }
+    module.scope = scope;
+  }
+  // Every function's parameter defaults, resolved, and every function by
+  // its output name — before any body is rewritten, since a call in one
+  // module is completed from the parameters of a function in another.
+  ir.functionsByOutput = new Map();
+  const functionFiles = new Map(); // each linked function to its module's file, for checkHardwareHazards
+  for (const module of modules) {
+    for (const fn of module.ir.functions) {
+      for (const param of fn.params) {
+        if (param.default === undefined) continue;
+        if (param.default.kind === 'string') {
+          param.default = { kind: 'string', index: module.stringMap[param.default.index] };
+        } else if (param.default.kind !== 'const') {
+          param.default = { kind: 'const', value: resolveInitialiser(param.default, { type: param.type }, module.scope, module, diagnostics) };
+        }
+      }
+      ir.functionsByOutput.set(module.rename.get(fn.name), fn);
+    }
+  }
+  for (const module of modules) {
+    const { scope } = module;
     for (const g of module.ir.globals) {
+      // An initialiser lowering left pending is a bare name or a
+      // namespace const: an imported const or `BorderColor.BLUE` is its
+      // value, and anything else cannot initialise a global — there is no
+      // code to run before the program starts. An array's pending
+      // elements are resolved the same way, one at a time.
+      if (Array.isArray(g.init)) {
+        g.init = g.init.map((element) => (typeof element === 'object'
+          ? resolveInitialiser(element, g, scope, module, diagnostics) : element));
+      } else if (g.init !== null && typeof g.init === 'object' && g.init.kind === 'namespaceConst') {
+        g.init = resolveInitialiser(g.init, g, scope, module, diagnostics);
+      } else if (g.init !== null && typeof g.init === 'object') {
+        const { name, start, length } = g.init;
+        if (typeof module.constValues.get(name) === 'object') {
+          diagnostics.push(diagnostic(
+            Codes.NOT_COMPILABLE, `'${name}' is a string const; it cannot initialise a ${g.type}`,
+            module.file, start ?? 0, length ?? 0,
+          ));
+          g.init = 0;
+        } else if (module.constValues.has(name)) {
+          g.init = module.constValues.get(name);
+        } else {
+          diagnostics.push(diagnostic(
+            scope.has(name) ? Codes.NOT_COMPILABLE : Codes.UNRESOLVED_NAME,
+            scope.has(name)
+              ? `'${name}' is not a const, so it cannot initialise a global: an initialiser is a literal or a const`
+              : `cannot find name '${name}'`,
+            module.file, start ?? 0, length ?? 0,
+          ));
+          g.init = 0;
+        }
+      }
       g.name = module.rename.get(g.name);
       ir.globals.push(g);
     }
@@ -509,13 +1022,44 @@ export function link(entryText, entryFile, options = {}) {
       // A parameter is never renamed and always shadows a same-named global
       // or import within its own function — ordinary lexical scoping, not a
       // collision the way two modules' globals can collide.
-      const fnScope = fn.params.length > 0 ? new Map(scope) : scope;
-      for (const param of fn.params) fnScope.set(param.name, param.name);
+      const fnScope = childScope(scope);
+      for (const param of fn.params) bindLocal(fnScope, param.name);
       for (const statement of fn.body) rewriteStatement(statement, fnScope, module, diagnostics);
       ir.functions.push(fn);
+      functionFiles.set(fn, module.file);
     }
   }
 
   if (diagnostics.length > 0) return { ir: null, diagnostics, sources };
+  // After every body is rewritten — consts inlined, globals under their
+  // output names — the writes the target refuses are visible as what they
+  // are, whichever module spelled them and however it named the address.
+  checkHardwareHazards(ir, options.machine, functionFiles, diagnostics);
+  if (diagnostics.length > 0) return { ir: null, diagnostics, sources };
+  ir.memory = memoryOf(ir);
   return { ir, diagnostics, sources };
+}
+
+/**
+ * What the program declares, in bytes: `variables` is RAM (every `let`,
+ * arrays and `string<N>` included, at the size of its type; not an
+ * `@address`, which names hardware, and not a const array, which is
+ * data), `data` is constant program data (string literals with their
+ * length byte, const arrays). Declared, not measured: a target's
+ * toolchain may still drop a variable nothing reads, so the 6502 backend
+ * reports what the linked program actually holds when it can.
+ *
+ * @returns {{ variables: number, data: number }}
+ */
+export function memoryOf(ir) {
+  let variables = 0;
+  let data = 0;
+  for (const g of ir.globals) {
+    if (g.address !== null) continue;
+    const bytes = storageBytes(g.type) * (g.array ?? 1);
+    if (g.constant) data += bytes;
+    else variables += bytes;
+  }
+  for (const s of ir.strings ?? []) data += 1 + s.bytes.length;
+  return { variables, data };
 }

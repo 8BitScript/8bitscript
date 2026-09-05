@@ -16,12 +16,14 @@ Implemented:
   build --target <t> [--pal] [--profile <p>]
     [entry]                   Compile for a target: vic20, c64, pet, c128,
                                atari8, nes, cx16, mega65, or web. vic20/c64/
-                               c128/mega65/atari8 default to NTSC (60Hz);
-                               --pal builds the PAL (50Hz) machine model
-                               instead. --profile is a hardware profile,
-                               meaning differs by target: atari8 picks the
-                               machine (800xl default, 65xe, 130xe, 800,
-                               400, xegs), vic20 picks a RAM expansion
+                               pet/c128/mega65/atari8 default to NTSC (60Hz)
+                               at run time; --pal selects the PAL (50Hz)
+                               machine model (for pet, a 3032 NTSC / 4032
+                               PAL; the .prg itself is the same). --profile
+                               is a hardware profile, meaning differs by
+                               target: atari8
+                               picks the machine (800xl default, 65xe, 130xe,
+                               800, 400, xegs), vic20 picks a RAM expansion
                                (unexpanded default, 3k, 8k, 16k, 24k), c64
                                picks a REU (stock default, reu128, reu256,
                                reu512, reu1m, reu2m, reu4m, reu8m, reu16m).

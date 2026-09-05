@@ -15,7 +15,8 @@
 // every target.
 import { mapBank, mapLow, locateTextMap, setVramAddress } from "./index.8bs";
 
-// 80x60 = 4800 cells, row-major; codes are ASCII, as on every machine, and
+// 76x56 = 4256 cells, row-major (the map is 80x60; screen.8bs's border
+// inset shows 76x56 of it, and that is the grid); codes are ASCII, as on every machine, and
 // here that is also what the hardware wants (ISO mode — see
 // @8bitscript/cx16). Each cell is two bytes in the map — the character,
 // then its attribute byte: background colour in the high nibble,
@@ -29,22 +30,127 @@ import { mapBank, mapLow, locateTextMap, setVramAddress } from "./index.8bs";
 // background that nibble holds is not this module's business: the KERNAL's
 // blue before screen.setColors() has painted, the painted colour after.
 
+// ---- print: strings and number fields ------------------------------------
+//
+// `text.print(cell, s)` writes a string's characters into consecutive
+// cells from `cell`, and `text.printNumber(cell, value, width)` writes
+// `value` as exactly `width` decimal digits, zero-padded and right-aligned,
+// so a field on a HUD never shifts columns. Both draw in the current colour —
+// white until `text.setColor(TextColor.CYAN)` changes it, and that one
+// call then colours everything printed after it, on the machines that have
+// per-cell colour. They are also the two
+// functions the compiler's template layout targets: `text.print(0,
+// \`TICK ${ticks:1}\`)` is laid out at compile time into these same calls
+// (see packages/compiler/src/ir).
+//
+// Under them: `locate()` turns a cell into a
+// VERA address without dividing, and a run of text lets VERA step the
+// address itself.
+// `text.putChar` and `text.putColor` stay the one-cell pokes a caller can
+// build anything from.
+let currentColor: utinyint = 1; // white, until text.setColor() says otherwise
+
+// Point VERA at a cell, and hand back its column for a caller that walks
+// on from there. Rows are 256 bytes apart in the map, cells two bytes —
+// character, then colour (background in the high nibble, text in the low).
+// No division: with 76 cells to a row and 256 = 3 * 76 + 28, a cell's row
+// is three per 256 plus (28 * high byte + low byte) / 76, and that last
+// quotient, on a number below 704, is ((x / 4) * 54) / 1024 exactly —
+// checked for every cell. Two address ports: port 0 walks character, colour,
+// character... stepping by one, and is what gets written; port 1 walks the
+// colour bytes stepping by two, and is read for each cell's background
+// nibble so a print keeps whatever `screen.setBackground` put there.
+// Leaves ADDRSEL at 0, which screen.8bs assumes.
+function locate(cell: usmallint): utinyint {
+    locateTextMap();
+    let high: utinyint = cell / 256;
+    let x: usmallint = high * 28 + cell % 256;
+    let row: utinyint = high * 3 + ((x / 4) * 54) / 1024;
+    let col: utinyint = cell - row * 76;
+    let at: usmallint = mapLow + row * 256 + col * 2;
+    memory.write(0x9F25, 0x01); // ADDRSEL=1
+    setVramAddress(mapBank, at + 1, 2);
+    memory.write(0x9F25, 0x00); // ADDRSEL=0
+    setVramAddress(mapBank, at, 1);
+    return col;
+}
+
+// ---- digits -------------------------------------------------------------
+//
+// A number is written one place at a time, high to low, by subtracting the
+// place value until it no longer fits: the 6502 has no divide instruction,
+// and `value / 10` would link a 250-byte routine to do it. Places above the
+// field are still taken off, so a field narrower than its number shows the
+// low digits; places the number does not reach print as zeros.
+const DIGIT_PLACES: array<usmallint, 5> = [10000, 1000, 100, 10, 1];
+
 export namespace text {
-    const CellCount: usmallint = 4800;
+    const CELL_COUNT: usmallint = 4256; // 76 columns x 56 rows, inside the inset
+    const COLUMNS: utinyint = 76; // cells per row, so cell = y * text.COLUMNS + x
 
     function putChar(cell: usmallint, code: utinyint): void {
-        locateTextMap();
-        setVramAddress(mapBank, mapLow + (cell / 80) * 256 + (cell % 80) * 2, 0);
+        locate(cell);
         memory.write(0x9F23, code);
     }
 
     function putColor(cell: usmallint, color: utinyint): void {
-        locateTextMap();
-        setVramAddress(mapBank, mapLow + 1 + (cell / 80) * 256 + (cell % 80) * 2, 0);
-        memory.write(0x9F23, (memory.read(0x9F23) & 0xF0) | (color & 0x0F));
+        locate(cell);
+        memory.read(0x9F23); // step port 0 past the character byte
+        memory.write(0x9F23, (memory.read(0x9F24) & 0xF0) | (color & 0x0F));
     }
 
-    function showDigit(cell: usmallint, digit: utinyint): void {
-        text.putChar(cell, 0x30 + (digit % 10));
+    function setColor(color: utinyint): void {
+        currentColor = color;
     }
+
+    function print(cell: usmallint, s: string): void {
+        let col: utinyint = locate(cell);
+        for (let i: utinyint = 0; i < s.length; i++) {
+            memory.write(0x9F23, s[i]);
+            memory.write(0x9F23, (memory.read(0x9F24) & 0xF0) | currentColor);
+            col++;
+            if (col == text.COLUMNS) {
+                col = locate(cell + i + 1); // the next row is not the next address
+            }
+        }
+    }
+
+    function printNumber(cell: usmallint, value: usmallint, width: utinyint): void {
+        let col: utinyint = locate(cell);
+        let k: utinyint = width;
+        if (k < DIGIT_PLACES.length) {
+            k = DIGIT_PLACES.length;
+        }
+        while (k > 0) {
+            let digit: utinyint = 48; // '0'
+            if (k <= DIGIT_PLACES.length) {
+                while (value >= DIGIT_PLACES[DIGIT_PLACES.length - k]) {
+                    value = value - DIGIT_PLACES[DIGIT_PLACES.length - k];
+                    digit++;
+                }
+            }
+            if (k <= width) {
+                memory.write(0x9F23, digit);
+                memory.write(0x9F23, (memory.read(0x9F24) & 0xF0) | currentColor);
+                col++;
+                if (col == text.COLUMNS) {
+                    col = locate(cell + width - k + 1); // the next row is not the next address
+                }
+            }
+            k--;
+        }
+    }
+}
+
+// The colours `text.setColor()` takes: the eight names every machine
+// shares, with this machine's colour-RAM values.
+export namespace TextColor {
+    const BLACK: utinyint = 0;
+    const WHITE: utinyint = 1;
+    const RED: utinyint = 2;
+    const CYAN: utinyint = 3;
+    const PURPLE: utinyint = 4;
+    const GREEN: utinyint = 5;
+    const BLUE: utinyint = 6;
+    const YELLOW: utinyint = 7;
 }

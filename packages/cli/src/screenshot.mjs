@@ -16,7 +16,7 @@
 // KERNAL's autostart, an NES cartridge's reset handler) costs before the
 // *program's* first real frame, not just the frames you want to see after
 // that. Each target's DEFAULT_FRAMES was chosen by testing against
-// examples/borders until the boot sequence had clearly cleared.
+// examples/proof-of-concept/borders until the boot sequence had clearly cleared.
 import { spawn } from 'node:child_process';
 import {
   access, mkdtemp, readFile, rm, writeFile,
@@ -26,6 +26,7 @@ import { join } from 'node:path';
 
 import {
   ATARI8_MODEL_ARG, VICE_EMULATOR, VICE_EMULATOR_ARGS, VICE_MODEL_ARGS, VIC20_MEMORY_ARG,
+  PET_MODEL_ARGS, PET_PROFILE_FPS,
   atari800CleanDisplayConfig,
 } from './run.mjs';
 import { encodePNG } from './png.mjs';
@@ -110,7 +111,7 @@ const VICE_CLOCK_HZ = {
 const VICE_FPS = { ntsc: 60, pal: 50 };
 
 // -limitcycles values confirmed in this project's own testing to comfortably
-// clear -autostartprgmode's BASIC/KERNAL boot and land on examples/borders'
+// clear -autostartprgmode's BASIC/KERNAL boot and land on examples/proof-of-concept/borders'
 // own steady state (not the boot banner), checked by eye against the
 // resulting PNG on each machine individually. These are not derived from a
 // shared formula across machines and shouldn't be compared to each other —
@@ -118,16 +119,17 @@ const VICE_FPS = { ntsc: 60, pal: 50 };
 const VICE_DEFAULT_CYCLES = {
   vic20: 14_000_000, c64: 5_000_000, pet: 8_000_000, c128: 8_000_000,
 };
-// The PET has no NTSC/PAL split (see FRAME_SYNC's pet entry in
-// backend-6502): a flat, region-independent 1MHz CPU clock and a measured
-// ~50Hz refresh.
+// The PET's CPU clock is a flat, region-independent 1MHz (FRAME_SYNC.pet
+// in backend-6502). Video refresh is the xpet model the profile names
+// (PET_PROFILE_FPS in run.mjs: the 3xxx ~60Hz, the CRTC models 50Hz);
+// these numbers only convert an explicit --frames into a cycle count. The
+// program still measures the actual period at startup.
 const PET_CLOCK_HZ = 1_000_000;
-const PET_FPS = 50;
 
-function viceCycles(target, region, frames) {
+function viceCycles(target, region, frames, petProfile) {
   if (frames === undefined) return VICE_DEFAULT_CYCLES[target];
   const clockHz = target === 'pet' ? PET_CLOCK_HZ : VICE_CLOCK_HZ[target][region];
-  const fps = target === 'pet' ? PET_FPS : VICE_FPS[region];
+  const fps = target === 'pet' ? PET_PROFILE_FPS[petProfile] : VICE_FPS[region];
   return Math.round((clockHz * frames) / fps);
 }
 
@@ -135,7 +137,12 @@ async function viceScreenshot(target, outFile, screenshotPath, { pal, profile, f
   const region = pal ? 'pal' : 'ntsc';
   const emulator = VICE_EMULATOR[target];
   const vic20Profile = target === 'vic20' ? profile : undefined;
-  const cycles = viceCycles(target, region, frames);
+  let petProfile;
+  if (target === 'pet') {
+    const { PET_DEFAULT_PROFILE } = await import('@8bitscript/backend-6502');
+    petProfile = profile ?? PET_DEFAULT_PROFILE;
+  }
+  const cycles = viceCycles(target, region, frames, petProfile);
   const exitFlag = target === 'c128' ? '-exitscreenshotvicii' : '-exitscreenshot';
 
   // c64's REU is purely additive hardware (see run.mjs's own comment on
@@ -152,6 +159,7 @@ async function viceScreenshot(target, outFile, screenshotPath, { pal, profile, f
     '-default', '-warp', '+sound',
     ...(VICE_EMULATOR_ARGS[target] ?? []),
     ...(VICE_MODEL_ARGS[target]?.[region] ?? []),
+    ...(petProfile ? PET_MODEL_ARGS(petProfile) : []),
     ...(vic20Profile ? ['-memory', VIC20_MEMORY_ARG[vic20Profile]] : []),
     ...reuArgs,
     '-limitcycles', String(cycles),

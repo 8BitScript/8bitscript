@@ -60,13 +60,13 @@ const setRegion = (region) => update('region', region);
 const setSystem = (system) => update('system', system);
 const setViewMode = (mode) => update('projectsView', mode);
 
-/** Whether the example projects shipped with the toolchain are listed. */
+/** Whether the proofs of concept shipped with the toolchain are listed (the `showExamples` setting). */
 function getShowExamples() {
   return config().get('showExamples') === true;
 }
 const setShowExamples = (show) => update('showExamples', show);
 
-/** An explicit directory of example projects, when the setting names one. */
+/** An explicit directory of proofs of concept, when the `examplesPath` setting names one. */
 function getExamplesPath() {
   const value = config().get('examplesPath');
   return typeof value === 'string' && value.trim() !== '' ? value.trim() : null;

@@ -58,7 +58,7 @@ comment on `FRAME_SYNC.nes` in `packages/backend-6502`).
 
 Two things about the picture are the NES, not a bug. There is no border
 register on this machine — the PPU's 256×240 picture fills the frame edge
-to edge — so the coloured frame `examples/borders` shows is *drawn*: a ring
+to edge — so the coloured frame `examples/proof-of-concept/borders` shows is *drawn*: a ring
 of solid tiles that `@8bitscript/nes` lays around the screen, coloured by
 `border`. And FCEUX's default NTSC view hides the top and bottom 8 lines,
 the way a television's overscan does, which is why that ring is two tiles

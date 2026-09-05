@@ -88,14 +88,14 @@ instead of opening an interactive window:
 `--frames` controls how long the program runs before the capture — but it
 counts a different unit on every target, because what's actually being
 counted is genuinely different hardware (the same reasoning
-[`AGENTS.md`](../../AGENTS.md) gives for why "8 sprites" doesn't mean one
+[`AGENTS.md`](https://github.com/8BitScript/8bitscript/blob/trunk/AGENTS.md) gives for why "8 sprites" doesn't mean one
 thing across machines). Omit it for a default this project tested against
-`examples/borders` until the machine's own boot sequence had clearly
+`examples/proof-of-concept/borders` until the machine's own boot sequence had clearly
 cleared:
 
 | Target(s) | Mechanism | `--frames` counts | Default |
 | --------- | --------- | ------------------ | ------- |
-| vic20, c64, pet, c128 | VICE's `-limitcycles` + `-exitscreenshot` (c128: `-exitscreenshotvicii`, since x128 drives a second, unused VDC display — see run.mjs) | converted to CPU cycles at the machine's real NTSC/PAL clock | a cycle count measured per machine (vic20 needs nearly 3x c64/c128's despite an identical clock — observed, not explained) |
+| vic20, c64, pet, c128 | VICE's `-limitcycles` + `-exitscreenshot` (c128: `-exitscreenshotvicii`, since x128 drives a second, unused VDC display — see run.mjs) | converted to CPU cycles at the machine's real NTSC/PAL clock (pet: its flat 1 MHz clock and the profile's refresh — ~60 Hz for the 3xxx models, 50 Hz for the CRTC ones; see [VICE](vice.md#pet-models)) | a cycle count measured per machine (vic20 needs nearly 3x c64/c128's despite an identical clock — observed, not explained) |
 | atari8 | atari800 has no exit-and-screenshot flag; this launches it windowed and asks **macOS** to capture that one window's real pixels (Screen Recording permission, no synthetic keystrokes) | wall-clock seconds | ~4s |
 | cx16 | x16emu's `-gif` recording, read back with `ffmpeg` for a still of the last frame | wall-clock seconds | ~5s |
 | mega65 | Xemu's own `-screenshot <file>` (fires on a plain `SIGTERM`, not just a clean quit) | wall-clock seconds | ~8s |

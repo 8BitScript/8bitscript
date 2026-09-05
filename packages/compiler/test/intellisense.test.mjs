@@ -108,19 +108,19 @@ test('hover does not fire on read/write unless qualified by memory.', () => {
   assert.equal(getHoverInfo(text, at(text, 'write')), null);
 });
 
-test('hover explains frames(...)', () => {
-  const text = 'let x: utinyint = frames(0.5, seconds);';
+test('hover explains #frames(...)', () => {
+  const text = 'let x: utinyint = #frames(0.5, seconds);';
   const info = getHoverInfo(text, at(text, 'frames'));
   assert.ok(info);
   assert.match(info.markdown, /Compile-time duration/);
-  assert.match(info.markdown, /frames\(0\.5, seconds\)/);
+  assert.match(info.markdown, /#frames\(0\.5, seconds\)/);
   assert.match(info.markdown, /frameRate/);
   assert.match(info.markdown, /8bs\.config\.ts/);
-  assert.match(info.markdown, /Reserved/);
+  assert.match(info.markdown, /Nothing is reserved/);
 });
 
 test('hover on frames does not require a valid call — helps a reader mid-edit too', () => {
-  const text = 'let x: utinyint = frames();';
+  const text = 'let x: utinyint = #frames();';
   const info = getHoverInfo(text, at(text, 'frames'));
   assert.ok(info);
   assert.match(info.markdown, /Compile-time duration/);
@@ -177,4 +177,41 @@ test('completion is empty outside a type position', () => {
 
   const compare = 'if (x < ';
   assert.deepEqual(getCompletions(compare, compare.length), []);
+});
+
+// ---- completion beyond type names ------------------------------------------
+
+test('completion after a # offers the compile-time functions, inserting without a second #', () => {
+  const typed = 'let x: utinyint = #';
+  const [item] = getCompletions(typed, typed.length);
+  assert.equal(item.label, '#frames');
+  assert.equal(item.kind, 'function');
+  assert.equal(item.insertText, 'frames', 'the # is already in the buffer');
+  assert.match(item.documentation, /\*\*#frames\(n, unit\)\*\*/);
+
+  // Mid-word, the whole #name token is what gets replaced, so no insertText.
+  const partial = 'let x: utinyint = #fra';
+  assert.equal(getCompletions(partial, partial.length)[0].insertText, undefined);
+});
+
+test('completion in the unit slot offers the units, and nothing elsewhere in the call', () => {
+  const unit = 'let x: utinyint = #frames(0.5, ';
+  assert.deepEqual(getCompletions(unit, unit.length).map((i) => i.label), ['seconds']);
+  assert.equal(getCompletions(unit, unit.length)[0].kind, 'constant');
+  const literal = 'let x: utinyint = #frames(';
+  assert.deepEqual(getCompletions(literal, literal.length), []);
+});
+
+test('completion inside a ${...} field answers as it would outside one', () => {
+  const field = 'text.print(0, `T ${#';
+  assert.deepEqual(getCompletions(field, field.length).map((i) => i.label), ['#frames']);
+  const unit = 'text.print(0, `T ${#frames(0.5, ';
+  assert.deepEqual(getCompletions(unit, unit.length).map((i) => i.label), ['seconds']);
+  const text = 'text.print(0, `T ';
+  assert.deepEqual(getCompletions(text, text.length), [], 'template text is not a completion position');
+});
+
+test('every completion item says what kind of thing it is', () => {
+  const types = 'let x: ';
+  assert.ok(getCompletions(types, types.length).every((i) => i.kind === 'type'));
 });

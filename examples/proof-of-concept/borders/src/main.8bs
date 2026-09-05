@@ -1,90 +1,64 @@
 import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";
-import { text } from "@8bitscript/text";
+import { text, TextColor } from "@8bitscript/text";
 
-let framesUntilTick: utinyint = frames(0.5, seconds);
+// The four colour pairs, as two tables. A `const` array is data in the
+// program — never in RAM — and its elements are resolved by 8bitscript,
+// like the `#frames(...)` below: `BorderColor.BLUE` is a number by the
+// time the machine sees it. `BORDERS.length` is 4, worked out at compile
+// time, so adding a pair means adding a line to each table and nothing else.
+const BORDERS: array<utinyint, 4> = [
+    BorderColor.BLUE, BorderColor.RED, BorderColor.GREEN, BorderColor.PURPLE,
+];
+const BACKGROUNDS: array<utinyint, 4> = [
+    BackgroundColor.CYAN, BackgroundColor.PURPLE, BackgroundColor.BLACK, BackgroundColor.RED,
+];
+
+let framesUntilTick: utinyint = #frames(0.5, seconds);
 let ticks: utinyint = 0;
 let option: utinyint = 0;
-let clearCell: usmallint = 0; // global: no local variables yet
 
-function clearScreen(): void {
-    clearCell = 0;
-    while (clearCell < text.CellCount) {
-        text.putChar(clearCell, 32); // 32 = space
-        clearCell = clearCell + 1;
-    }
+// The whole HUD is one template: the text is drawn as written, and each
+// `${...}` field is laid out at compile time into a zero-padded number
+// field of the width after the `:` — one digit each here — at the cell the
+// text before it adds up to. Nothing is formatted at runtime: this becomes
+// the same print/printNumber calls a person would write by hand.
+function drawHud(): void {
+    text.print(0, `TICK ${ticks % 10:1} OPTION ${option:1}`);
 }
 
-function drawLabels(): void {
-    text.putChar(0, 84);  // T
-    text.putColor(0, 1);
-    text.putChar(1, 73);  // I
-    text.putColor(1, 1);
-    text.putChar(2, 67);  // C
-    text.putColor(2, 1);
-    text.putChar(3, 75);  // K
-    text.putColor(3, 1);
-    text.putChar(4, 32);  // space
-    text.putChar(6, 32);  // space
-    text.putChar(7, 79);  // O
-    text.putColor(7, 1);
-    text.putChar(8, 80);  // P
-    text.putColor(8, 1);
-    text.putChar(9, 84);  // T
-    text.putColor(9, 1);
-    text.putChar(10, 73); // I
-    text.putColor(10, 1);
-    text.putChar(11, 79); // O
-    text.putColor(11, 1);
-    text.putChar(12, 78); // N
-    text.putColor(12, 1);
-    text.putChar(13, 32); // space
-}
-
-// To add a colour pair: add a case here and bump the wrap check in main().
+// The current pair, looked up in the tables above.
 function applyOption(): void {
-    if (option == 0) {
-        screen.setColors(BorderColor.Blue, BackgroundColor.Cyan);
-    } else if (option == 1) {
-        screen.setColors(BorderColor.Red, BackgroundColor.Purple);
-    } else if (option == 2) {
-        screen.setColors(BorderColor.Green, BackgroundColor.Black);
-    } else {
-        screen.setColors(BorderColor.Purple, BackgroundColor.Red);
-    }
+    screen.setColors(BORDERS[option], BACKGROUNDS[option]);
 }
 
 // The program: set up once, then loop forever, one pass per frame.
 //
-// Draw everything before the first screen.setColors(): the NES only allows
-// screen writes while the picture is off, and setColors() turns it on.
-// From then on, every screen write happens right after waitFrame() returns —
-// which on the NES is the start of vertical blank, the only time its screen
-// memory is writable while the picture is on.
+// Blank and draw everything before the first screen.setColors(): the NES
+// only allows screen writes while the picture is off, and setColors() turns
+// it on. From then on, every screen write happens right after waitFrame()
+// returns — which on the NES is the start of vertical blank, the only time
+// its screen memory is writable while the picture is on.
 export function main(): void {
-    clearScreen();
-    drawLabels();
-    text.showDigit(5, 0);
-    text.showDigit(14, 0);
-    applyOption();
+    screen.blank(BORDERS[option], BACKGROUNDS[option]); // every cell blank, both colours set
+    text.setColor(TextColor.YELLOW); // the current colour: everything printed from here on
+    drawHud();
 
     while (true) {
         waitFrame();
 
         framesUntilTick = framesUntilTick - 1;
         if (framesUntilTick == 0) {
-            framesUntilTick = frames(0.5, seconds);
+            framesUntilTick = #frames(0.5, seconds);
 
             ticks = ticks + 1;
-            text.showDigit(5, ticks % 10);
-
             if (ticks % 10 == 0) {
                 option = option + 1;
-                if (option == 4) {
+                if (option == BORDERS.length) {
                     option = 0;
                 }
                 applyOption();
-                text.showDigit(14, option);
             }
+            drawHud();
         }
     }
 }

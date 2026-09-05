@@ -12,21 +12,29 @@ the split between the compiler, the language server, and this extension.
 ## What it does
 
 - Registers `.8bs` as the language **8BitScript**
-- Colours comments, strings, numbers (including the `0.5` a `frames(...)`
-  duration takes), types, keywords, declarations, calls, the reserved
-  builtins `frames(...)` and `waitFrame()`, and the `seconds` unit inside
-  a `frames(...)` call
-- `//` line comments and `/* */` blocks, so comment-toggling works
+- Colours comments, strings and template strings (with their `${...}`
+  fields), numbers (including the `0.5` a `#frames(...)` duration takes),
+  types, keywords, declarations, calls, the compile-time `#frames(...)`
+  (any `#name` colours as compile-time), the reserved `waitFrame()`, and
+  the `seconds` unit inside a `#frames(...)` call
+- **Snippets** for the constructs that compile — `program`, `loop`,
+  `countdown`, `print`, `#frames`, `const`, `let`, `for`, `array`,
+  `table`, `address`, `namespace`, `asm6502`, `poke`/`peek`. Nothing is offered that the compiler would
+  reject, and the compiler's own test suite is what holds that
+- `//` line comments and `/* */` blocks, so comment-toggling works, and a
+  `/** */` block continues its `*` column on Enter
 - Bracket matching, auto-closing pairs, and `// #region` folding
 - Starts the language server (`8bs lsp --stdio`) when a `.8bs` file is open
   and the toolchain is installed, giving you:
   - **Diagnostics** — lexical, syntax, and range errors, as you type
   - **Hover** — documentation for built-in types (`utinyint`, `int`, ...),
-    constructs (`volatile`, `ptr`, `array`, `asm6502`, `@address`,
-    `memory.read`/`memory.write`), and the builtins `frames(...)`, its
-    `seconds` unit, and `waitFrame()`
+    constructs (`string`, `volatile`, `ptr`, `array`, `asm6502`,
+    `@address`, `memory.read`/`memory.write`), and the builtins
+    `#frames(...)`, its `seconds` unit, and `waitFrame()`
   - **Completion** — built-in type names in type position (after `:` or
-    inside `ptr<...>`/`array<...>`/`volatile<...>`)
+    inside `ptr<...>`/`array<...>`/`volatile<...>`), the compile-time
+    functions after a `#`, and the unit words inside a `#frames(...)`
+    call — inside a template's `${...}` field as much as outside one
 
 If no toolchain is found, the extension says so and falls back to syntax
 highlighting alone — see "Installing it while developing" below.
@@ -45,36 +53,46 @@ SYSTEM            REGION
 [ vic20       ▾ ] [ NTSC ▾ ]
 VIEW
 [ Runnable on the selected system ▾ ]
-☐ Show example projects
+☐ Show proofs of concept
 Run buttons use vic20 · NTSC
 ```
 
 - **System** — `vic20`, `c64`, or `web`: the one every Run and Build button
   uses (`8bitscript.system`).
-- **Region** — NTSC (60Hz) or PAL (50Hz) for the two Commodore machines
+- **Region** — NTSC (60Hz) or PAL (50Hz) for the machines that have one
   (`8bitscript.region`); it is greyed out while the system is `web`, which
-  has no region.
+  has no region, or `pet`, whose refresh rate is its model's (`8bs run pet
+  --profile 4032` for a 50Hz machine) rather than a region's.
 - **View** — how the Projects list below is laid out
   (`8bitscript.projectsView`); see the three layouts below.
-- **Show example projects** — appears only when the toolchain in use comes
-  from a checkout of this repository, and adds its `examples/` to the list
-  (`8bitscript.showExamples`). This is how a project that depends on
-  8BitScript gets to browse and run the examples without opening the
-  repository separately. `8bitscript.examplesPath` names a different
-  directory of examples if you have one.
+- **Show proofs of concept** — appears only when the toolchain in use
+  comes from a checkout of this repository, and adds its
+  `examples/proof-of-concept/` to the list (`8bitscript.showExamples`).
+  This is how a project that depends on 8BitScript gets to browse and run
+  them without opening the repository separately. `8bitscript.examplesPath`
+  names a different directory if you have one.
 
 Each choice is an ordinary setting, written at workspace level when a folder
 is open, so it also appears in the Settings editor and survives a restart.
 The same choices are on the command palette as **8BitScript: Select
 System**, **Select Region**, and **Change Projects View**.
 
-**Projects** lists what can be run, in one of three layouts:
+**Projects** lists what can be run, in one of three layouts, and keeps
+three kinds of project apart when the list holds more than one of them:
+the workspace's own **Projects**; the **Proofs of concept** from the
+8bitscript repository's `examples/proof-of-concept/`, there to exercise
+the toolchain; and the **Apps** that ship with the toolchain — packages
+whose `package.json` declares an `8bitscript.app`, found beside the
+`@8bitscript/cli` in use. Studio is the first app.
 
 ```
-PROJECTS  runnable on vic20 · NTSC          ⊞ 📖 ♥ ⟳
-  borders         examples/borders           ▶ 🔧
-  counter         examples/counter           ▶ 🔧
-  hello-vic       examples/hello-vic         ▶ 🔧
+PROJECTS  runnable on cx16                          ⊞ 📖 🚀 ♥ ⟳
+  Projects
+    my-game           src/my-game                     ▶ 🔧
+  Proofs of concept
+    borders           proof-of-concept/borders        ▶ 🔧
+  Apps
+    Studio            @8bitscript/studio              ▶ 🔧
 ```
 
 - **Runnable on the selected system** (the default) — one row per project
@@ -87,8 +105,16 @@ PROJECTS  runnable on vic20 · NTSC          ⊞ 📖 ♥ ⟳
 - **By system** — every system with at least one project, expanded into the
   projects that target it; the selected system starts expanded.
 
-The ⊞ button in the title switches layout, 📖 toggles the example projects
-(only shown when there are any), ♥ runs `8bs doctor`, and ⟳ rescans.
+The ⊞ button in the title switches layout, 📖 toggles the proofs of
+concept (only shown when there are any), 🚀 launches Studio, ♥ runs
+`8bs doctor`, and ⟳ rescans.
+
+**Launch Studio**, **Launch App…**, and **Launch Proof of Concept…** on the
+command palette start one of the shipped programs without hunting for its
+row: pick it (when there is a choice), pick the system to open it on — the
+selected system is offered first — and it runs as an ordinary `8bs run`
+task. An app is run with the toolchain that found it, so an installed
+Studio launches even though its own directory sits inside `node_modules`.
 
 A project is any directory containing an `8bs.config.ts`; that file is
 already the manifest the CLI reads for the entry file and the target list,
@@ -121,7 +147,7 @@ lists them, and a favourite can be pinned in `.vscode/tasks.json`:
     {
       "type": "8bs",
       "command": "run",
-      "project": "examples/borders",
+      "project": "examples/proof-of-concept/borders",
       "target": "c64",
       "pal": true,
       "label": "borders on a PAL C64"
@@ -134,8 +160,8 @@ lists them, and a favourite can be pinned in `.vscode/tasks.json`:
 itself; `command` is `run`, `build`, or `doctor`; `pal` is optional.
 
 A project whose dependencies have never been installed — it declares some
-and has no `node_modules` of its own, which is how a freshly added example
-looks — is listed with a warning icon and *not installed*, and gets an
+and has no `node_modules` of its own, which is how a freshly added proof
+of concept looks — is listed with a warning icon and *not installed*, and gets an
 **Install** button that runs `pnpm install` (or `npm`/`yarn`, whichever
 lockfile is nearest) in the project as a task. Running such a project asks
 first, because otherwise the compiler fails on the first import it cannot

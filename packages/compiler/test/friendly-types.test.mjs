@@ -5,12 +5,22 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { analyze, tokenize, parse, lower } from '../index.mjs';
+import { analyze, tokenize, parse, lower, check, foldDurations } from '../index.mjs';
 import { emitAssemblyScript } from '../../backend-web/src/index.mjs';
 import { emitC } from '../../backend-6502/src/index.mjs';
 
 const codes = (src) => analyze(src, 't.8bs').map((d) => d.code);
 const clean = (src) => assert.deepEqual(codes(src), []);
+
+// The front end alone: `ptr<T>` is specified and parses but is not in the
+// compiled subset, so `analyze()` reports it (8BS3001), and an array's
+// lowering has its own rules (arrays.test.mjs). The rule under test here
+// is the checker's, not lowering's.
+const frontEndCodes = (src) => {
+  const { tokens, diagnostics: lexical } = tokenize(src, 't.8bs');
+  const { ast, diagnostics: syntax } = parse(tokens, src, 't.8bs');
+  return [...lexical, ...syntax, ...foldDurations(ast, 't.8bs'), ...check(ast, 't.8bs', src)].map((d) => d.code);
+};
 
 const CANONICAL_NAMES = [
   'tinyint', 'utinyint', 'smallint', 'usmallint',
@@ -76,8 +86,8 @@ test('the diagnostic keeps the spelling the programmer wrote', () => {
 });
 
 test('a type constructor is still not an integer', () => {
-  clean('let p: ptr<utinyint>;');
-  clean('let a: array<utinyint, 300>;');
+  assert.deepEqual(frontEndCodes('let p: ptr<utinyint>;'), []);
+  assert.deepEqual(frontEndCodes('let a: array<utinyint, 300>;'), []);
 });
 
 // ---- lowering: canonical and alias spellings are one type internally ----
@@ -136,7 +146,8 @@ test('backend-6502 emits the same C for utinyint and u8', () => {
   const canonical = emitC(irOf('let x: utinyint = 10;\nexport function main(): void { x = x + 1; }'));
   const legacy = emitC(irOf('let x: u8 = 10;\nexport function main(): void { x = x + 1; }'));
   assert.equal(canonical, legacy);
-  assert.match(canonical, /uint8_t x = 10;/);
+  assert.match(canonical, /uint8_t x __attribute__/);
+  assert.match(canonical, /    x = 10;/);
 });
 
 test('backend-web emits the same AssemblyScript for utinyint and u8', () => {
@@ -159,5 +170,6 @@ test('int and uint are 32-bit types, not 16-bit', () => {
   assert.equal(ir32.globals[1].type, 'uint');
 
   const cOut = emitC(irOf('let x: int = 0;\nexport function main(): void { x = x + 1; }'));
-  assert.match(cOut, /int32_t x = 0;/);
+  assert.match(cOut, /int32_t x __attribute__/);
+  assert.match(cOut, /    x = 0;/);
 });

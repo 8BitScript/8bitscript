@@ -1,0 +1,25 @@
+// @8bitscript/pet — the screen's geometry, for the 40-column PETs.
+//
+// The one thing about the PET's display that changes between models is how
+// wide it is: 40 columns on the 2001/3xxx/4xxx machines, 80 on the 8xxx
+// business machines. Everything else this package does with the screen —
+// screen RAM at $8000, one byte per cell, 25 rows, no colour — is the same
+// on every PET ever made, so it is written once, in screen.8bs and text.8bs,
+// against these three numbers. This file is the 40-column version, and
+// what every PET profile reads except the 8032, which has its own
+// `geometry.pet.8032.8bs` beside it: a build for that profile resolves the
+// import of `./geometry.8bs` to that file instead (docs/packages.md,
+// "System-specific files"), and text.COLUMNS, text.CELL_COUNT, and
+// screen.blank()'s extent follow, with no second copy of the surface.
+//
+// Why a file, not a runtime probe: `cell = y * text.COLUMNS + x` is compile-
+// time arithmetic in every program that uses it, and a 40-column constant on
+// an 80-column screen does not draw narrow — row 1 lands in the middle of row
+// 0. The width is a property of the build, chosen once, like Studio's tier.
+// See packages/pet/AGENTS.md ("Models are profiles").
+
+export namespace Video {
+    const COLUMNS: utinyint = 40;
+    const ROWS: utinyint = 25;
+    const CELL_COUNT: usmallint = 1000; // COLUMNS * ROWS: exactly the 1K of screen RAM at $8000
+}

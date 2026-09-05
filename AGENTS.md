@@ -28,12 +28,18 @@ why NES is the first target where this stops being optional.
 ## Rules that apply to every target
 
 - **A "machine" and a "cartridge/media profile" are different axes.** This
-  repo already has the pattern: `ATARI8_PROFILES`, `VIC20_PROFILES`, and
-  `C64_PROFILES` in `packages/backend-6502/src/index.mjs` let one machine
-  resolve to several build configurations. Any new machine-specific storage,
-  banking, or output-format question should extend that pattern rather than
-  invent a new one, and rather than being hardcoded into the machine's base
-  target the way NES's mapper currently is (see
+  repo already has the pattern: `ATARI8_PROFILES`, `VIC20_PROFILES`,
+  `C64_PROFILES`, and `PET_PROFILES` in `packages/backend-6502/src/index.mjs`
+  let one machine resolve to several build configurations. Any new
+  machine-specific storage, banking, or output-format question should extend
+  that pattern rather than invent a new one, and rather than being hardcoded
+  into the machine's base target the way NES's mapper currently is (see
+  [`packages/nes/AGENTS.md`](packages/nes/AGENTS.md)). When a profile changes
+  what a *package* must do — the PET's 8032 is 80 columns wide — the package
+  reads the difference from a profile-specific version of one small file
+  (`geometry.pet.8032.8bs` beside `geometry.8bs`, see
+  [`docs/packages.md`](docs/packages.md#system-specific-files)), never from a
+  runtime probe: the width is a property of the build. (see
   [`packages/nes/AGENTS.md`](packages/nes/AGENTS.md)).
 - **Don't assume a framebuffer.** A target may be character-cell, tile/
   nametable, sprite/display-list, or bitmap based, or some mix. A portable
@@ -79,7 +85,12 @@ why NES is the first target where this stops being optional.
   or a compiler diagnostic.** A specific game's collision algorithm, PRNG
   choice, or ROM byte count is a good anecdote for prose and a bad thing to
   encode into the standard library or the compiler — it describes that game,
-  not a hardware constraint every program on the target shares.
+  not a hardware constraint every program on the target shares. The one
+  thing that *does* earn a diagnostic is a write the target's own
+  documentation says can destroy hardware: `8BS3003` refuses the PET's
+  "killer poke" (`$E842` with bit 5 set) and nothing less serious
+  (`packages/compiler/src/linker/hazards.mjs` is the whole table, with the
+  bar for adding to it).
 
 ## Per-target rules
 
@@ -90,8 +101,16 @@ machine with almost nothing, where abstraction is forced) and
 [`packages/cx16/AGENTS.md`](packages/cx16/AGENTS.md) (a machine with a
 great deal, all of it behind windows, ports, and firmware — where
 abstraction keeps bank state, VERA state, and optional hardware out of
-game code). If you're adding equivalent depth for another target, put it
-at `packages/<target>/AGENTS.md` and link it from here.
+game code), and [`packages/pet/AGENTS.md`](packages/pet/AGENTS.md) (a
+machine with only RAM, a character ROM, and three I/O chips — where the
+variety is in *models*: RAM size, 40 or 80 columns, CRTC or not, which
+ROM and keyboard — and where the research notes it was built from needed
+correcting against primary sources). If you're adding equivalent depth
+for another target, put it at `packages/<target>/AGENTS.md` and link it
+from here.
+[`packages/studio/AGENTS.md`](packages/studio/AGENTS.md) is the same kind
+of file for Studio, the app that ships with the toolchain: its tiers per
+machine, and the capabilities each editor is waiting for.
 
 ## Seeing what a program actually does
 
@@ -119,7 +138,7 @@ the change everywhere it is described, in the same commit:
 
 - **Docs.** `docs/compiler.md` (the pipeline description and the
   diagnostic-code table), `docs/language-server.md` (what hover, completion,
-  and diagnostics cover), `docs/tutorial.md` and `docs/learn/`, and any
+  and diagnostics cover), `docs/tutorial.md`, and any
   example `README.md` that shows the construct. Keep
   [`CONTRIBUTING.md`](CONTRIBUTING.md)'s rule in mind: never describe
   behaviour that isn't implemented.
@@ -134,12 +153,42 @@ the change everywhere it is described, in the same commit:
   (`packages/language-server/test/server.test.mjs`) are the proof that a new
   diagnostic or hover actually reaches an editor over the wire. Add one.
 - **The editor plugin(s).** `editors/vscode/syntaxes/8bs.tmLanguage.json`
-  colours keywords, types, literal forms, and reserved builtins by name, so a
-  new one is invisible there until you add it; `editors/vscode/README.md`
-  lists what the extension highlights and hovers. Any further editor
-  integration added under `editors/` follows the same rule.
+  colours keywords, types, literal forms, and builtins by name, so a new one
+  is invisible there until you add it; `editors/vscode/snippets/8bs.json`
+  offers the constructs that compile, and is checked against the compiler by
+  `packages/compiler/test/snippets.test.mjs`, so a construct entering or
+  leaving the compiled subset belongs there too;
+  `editors/vscode/language-configuration.json` holds the bracket, quote, and
+  word rules (a new sigil needs its `wordPattern` entry, or completion will
+  insert it twice); and `editors/vscode/README.md` lists what the extension
+  highlights, hovers, and completes. Any further editor integration added
+  under `editors/` follows the same rule.
 - **Per-package `AGENTS.md` files** (`packages/<target>/AGENTS.md`) if the
   change alters what a target package is allowed or expected to do.
+
+### Names say which side they are on
+
+A `const` is `UPPER_SNAKE` (`OPTION_COUNT`, `BorderColor.BLUE`,
+`text.CELL_COUNT`); a variable starts with a lower-case letter; functions
+and parameters are `camelCase`; namespaces and types are `PascalCase`. The
+checker enforces the first two (`8BS1034`), so every `.8bs` file in this
+repository — packages, examples, and the programs inside tests and docs —
+follows them. A capitalised name is a compile-time value, and that is the
+whole point of the rule.
+
+### A new construct picks a side, and its spelling says which
+
+8BitScript resolves a construct itself — before any target toolchain sees
+anything — when and only when it is spelled a literal, a `const`, or
+`#name(...)`. Everything else runs on the machine. That rule is a promise
+to the reader (see
+[`docs/compiler.md`](docs/compiler.md#what-8bitscript-resolves-and-what-runs-on-the-machine)),
+so a new compile-time function is spelled with a `#` and a new runtime
+builtin is not. Two consequences worth stating: a `#name` needs no reserved
+word, because the spelling is its own token and cannot collide with
+anything a program declares; and a runtime builtin that *is* a bare name
+(only `waitFrame` today) must be reserved in the checker, or a user's own
+declaration would silently shadow it.
 
 A useful check before you're done: grep the repository for the old spelling,
 the old diagnostic count, or the old argument shape — anything that was true

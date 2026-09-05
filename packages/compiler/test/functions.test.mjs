@@ -202,7 +202,9 @@ test('a function with params/return + memory.write compiles and runs the same on
 
   const emitted = emitAssemblyScript(irOf(src));
   assert.ok(emitted.ok);
-  assert.match(emitted.source, /store<u8>\(4352, scaled\(21\)\);/);
+  // The argument narrows to the parameter's declared width (AssemblyScript
+  // widens arithmetic to i32 and will not pass a widened value to a u8).
+  assert.match(emitted.source, /store<u8>\(4352, scaled\(<u8>21\)\);/);
 
   const { buildWasm } = await import('../../backend-web/src/index.mjs');
   const dir = mkdtempSync(join(tmpdir(), '8bs-fn-test-'));

@@ -6,8 +6,9 @@
     "Tracks the syntax the project has specified so far: the TypeScript-derived",
     "surface, the machine integer types, the hardware escape hatches",
     "(@address decorators, volatile/ptr/array, and asm6502 blocks), and the",
-    "reserved builtins (frames(...) and waitFrame()) that the",
-    "compiler's checker keeps a program from redefining. Constructs",
+    "compile-time functions (#frames(...)), the reserved runtime builtin",
+    "(waitFrame()) the checker keeps a program from redefining, and string and",
+    "template literals (`TICK ${ticks:1}`) with their ${...} fields. Constructs",
     "that are still undecided are simply absent — an unmatched keyword costs a",
     "word that does not colour, not a broken file. The language server layers",
     "semantic tokens over this once it reports them. Keep this in step with",
@@ -93,6 +94,33 @@
     "strings": {
       "patterns": [
         {
+          "comment": "A template string: `TICK ${ticks % 10:1} OPTION ${option}`. Each ${...} field holds an ordinary expression (coloured as source, via the same rules as the file) and an optional :width — see packages/compiler/src/ir's template layout.",
+          "name": "string.template.8bs",
+          "begin": "`",
+          "end": "`",
+          "patterns": [
+            {
+              "name": "constant.character.escape.8bs",
+              "match": "\\\\."
+            },
+            {
+              "name": "meta.template.field.8bs",
+              "begin": "\\$\\{",
+              "beginCaptures": { "0": { "name": "punctuation.definition.template-expression.begin.8bs" } },
+              "end": "\\}",
+              "endCaptures": { "0": { "name": "punctuation.definition.template-expression.end.8bs" } },
+              "patterns": [
+                {
+                  "comment": "The :width after a field's expression — how many cells it takes.",
+                  "match": ":\\s*([0-9]+)",
+                  "captures": { "1": { "name": "constant.numeric.decimal.8bs" } }
+                },
+                { "include": "$self" }
+              ]
+            }
+          ]
+        },
+        {
           "name": "string.quoted.double.8bs",
           "begin": "\"",
           "end": "\"",
@@ -129,7 +157,7 @@
           "match": "\\b0[bB][01_]+\\b|%[01_]+\\b"
         },
         {
-          "comment": "A decimal fraction such as 0.5 — legal only as the first argument to frames(...), the compiler's compile-time duration builtin; the language has no other float syntax.",
+          "comment": "A decimal fraction such as 0.5 — legal only as the first argument to #frames(...), the compiler's compile-time duration function; the language has no other float syntax.",
           "name": "constant.numeric.decimal.fraction.8bs",
           "match": "\\b[0-9][0-9_]*\\.[0-9][0-9_]*\\b"
         },
@@ -149,7 +177,7 @@
         {
           "comment": "Sized integers: the MySQL-inspired canonical spelling (tinyint/smallint/mediumint/int, u-prefixed for unsigned) plus the short systems-programming alias (i8/u8...).",
           "name": "support.type.primitive.8bs",
-          "match": "\\b(u?tinyint|u?smallint|u?mediumint|u?int|[ui](?:8|16|24|32)|bool|void)\\b"
+          "match": "\\b(u?tinyint|u?smallint|u?mediumint|u?int|[ui](?:8|16|24|32)|bool|void|string)\\b"
         }
       ]
     },
@@ -216,10 +244,10 @@
     "builtins": {
       "patterns": [
         {
-          "comment": "frames(...), the compile-time duration builtin (packages/compiler/src/fold), as a region so its unit word can be coloured only where it *is* a unit: `seconds` is not a reserved name, it is the required second argument — frames(0.5, seconds) — and anywhere else it is an ordinary identifier. Listed before #calls so the callee reads as a builtin, not an ordinary user call.",
-          "begin": "\\b(frames)\\s*(\\()",
+          "comment": "#frames(...), the compile-time duration function (packages/compiler/src/fold) — the `#` is the spelling for anything 8bitscript evaluates before the target sees it — as a region so its unit word can be coloured only where it *is* a unit: `seconds` is not a reserved name, it is the required second argument — #frames(0.5, seconds) — and anywhere else it is an ordinary identifier.",
+          "begin": "(#frames)\\s*(\\()",
           "beginCaptures": {
-            "1": { "name": "support.function.builtin.8bs" },
+            "1": { "name": "support.function.compile-time.8bs" },
             "2": { "name": "punctuation.section.arguments.begin.8bs" }
           },
           "end": "\\)",
@@ -236,7 +264,12 @@
           ]
         },
         {
-          "comment": "waitFrame() (packages/compiler/src/ir), the other reserved builtin function.",
+          "comment": "Any other #name: the compile-time spelling, coloured as such so a reader sees it is not a runtime call (the compiler reports one it does not know).",
+          "name": "support.function.compile-time.8bs",
+          "match": "#[A-Za-z_][A-Za-z0-9_]*"
+        },
+        {
+          "comment": "waitFrame() (packages/compiler/src/ir), the reserved runtime builtin function.",
           "name": "support.function.builtin.8bs",
           "match": "\\b(waitFrame)\\b(?=\\s*\\()"
         }

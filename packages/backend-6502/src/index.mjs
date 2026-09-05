@@ -5,7 +5,7 @@
 // first-generation backend would, so the work here is a faithful translation
 // of the IR and nothing more. The generated C is deliberately boring — every
 // construct maps one-to-one, so reading it against the source is easy.
-import { spawn } from 'node:child_process';
+import { spawn, execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -21,6 +21,19 @@ const C_TYPE = Object.fromEntries(
   PRIMITIVE_INTEGER_TYPES.map((t) => [t.canonicalName, `${t.signed ? 'int' : 'uint'}${NATIVE_WIDTH[t.bits]}_t`]),
 );
 C_TYPE.bool = 'uint8_t';
+// Bytes a variable of each type takes on the machine — what the zero-page
+// budget below is counted in.
+const C_SIZE = Object.fromEntries(
+  PRIMITIVE_INTEGER_TYPES.map((t) => [t.canonicalName, NATIVE_WIDTH[t.bits] / 8]),
+);
+C_SIZE.bool = 1;
+// A string value is a pointer to its constant, length-prefixed bytes (see
+// the compiler's IR notes on strings); the bytes themselves are emitted as
+// `static const` tables, which LLVM-MOS places in read-only data — PRG-ROM
+// on a cartridge, part of the .prg on a Commodore.
+C_TYPE.string = 'const uint8_t *';
+
+const stringName = (index) => `__8bs_str_${index}`;
 
 // llvm-mos-sdk ships one driver binary per platform, confirmed against its
 // own mos-platform/ tree (github.com/llvm-mos/llvm-mos-sdk). Atari 8-bit is
@@ -71,13 +84,15 @@ const ATARI8_DEFAULT_PROFILE = '800xl';
 // $0400-$0FFF doesn't reach $1E00, so screen memory doesn't move for it).
 // On real hardware and VICE, an 8k/16k/24k VIC-20 relocates the default
 // screen matrix to $1000 instead, to reclaim $1000-$1FFF as contiguous
-// BASIC RAM. This target has no compile-time way yet to make one shared
-// index.8bs branch on which profile it's being built for (see docs/roadmap.md
-// — target predicates are a Phase 1 language feature still to build), so
-// @8bitscript/vic20's `screen` namespace is not updated for those three
-// profiles: use them for programs that only need more RAM for their own
-// code/data (or that talk to `vicColor`/`screen.setColors` directly,
-// which stays at $900F regardless of expansion), not ones that also call
+// BASIC RAM. The mechanism to fix this now exists — a profile's version of
+// a file, `geometry.vic20.8k.8bs` beside `geometry.8bs`, read by the text
+// and screen packages through a namespace const (the way @8bitscript/pet
+// gets its 80-column geometry for the 8032 profile; see docs/packages.md
+// "System-specific files") — but @8bitscript/vic20 has not been moved onto
+// it yet, so its `screen`/`text` still assume $1E00 on every profile: use
+// 8k/16k/24k for programs that only need more RAM for their own code/data
+// (or that talk to `vicColor`/`screen.setColors` directly, which stays at
+// $900F regardless of expansion), not ones that also call
 // `text.putChar`/`putColor` — that would misdraw on real 8k+ hardware.
 const VIC20_PROFILES = new Set(['unexpanded', '3k', '8k', '16k', '24k']);
 const VIC20_DEFAULT_PROFILE = 'unexpanded';
@@ -102,6 +117,79 @@ const C64_DEFAULT_PROFILE = 'stock';
 const C64_REU_SIZE_KIB = {
   reu128: 128, reu256: 256, reu512: 512, reu1m: 1024, reu2m: 2048, reu4m: 4096, reu8m: 8192, reu16m: 16384,
 };
+
+// PET hardware profiles, named the way the PET world names its machines and
+// the way VICE's `xpet -model` takes them: the first digit is the series
+// (3xxx: no CRTC, 9-inch, BASIC 2; 4xxx: CRTC, 40 columns, BASIC 4; 8xxx:
+// CRTC, 80 columns, BASIC 4, business keyboard) and the last two are the
+// RAM in KiB. Two things a build needs fall out of the name. The RAM size
+// goes to the SDK's link script as `__ram_size` (mos-platform/pet/link.ld
+// accepts 8, 16 or 32 and refuses the 96K/128K banked machines outright:
+// "8x96 and SuperPETs are not supported by this target"), and unlike the
+// VIC-20's expansion it moves the top of memory and so the stack — a
+// program linked for 32K does not run on a 3008. The screen width reaches
+// @8bitscript/pet through the profile's own version of its geometry file
+// (`geometry.pet.8032.8bs`; see docs/packages.md "System-specific files"),
+// which is why the resolver is handed the resolved profile too. Refresh
+// rate is the model's, not a region flag's: VICE runs the no-CRTC 3xxx at
+// its hardcoded ~60.1 Hz and the CRTC models with their 50 Hz editor ROMs
+// (the 60 Hz editors make VICE refuse autostart), and FRAME_SYNC.pet
+// measures whatever it gets at start-up — so `--pal` means nothing here.
+// 3032 is the default for the same reason it was the fixed target before
+// profiles existed: 40 columns, 32K, the most common surviving PET and the
+// one autostart works on at 60 Hz. See packages/pet/AGENTS.md.
+const PET_PROFILES = new Set(['3032', '3008', '3016', '4016', '4032', '8032']);
+const PET_DEFAULT_PROFILE = '3032';
+const PET_RAM_SIZE_KIB = {
+  3008: 8, 3016: 16, 3032: 32, 4016: 16, 4032: 32, 8032: 32,
+};
+// Columns per profile — the fact the geometry file variants encode; here so
+// the CLI and tests can state it without reading a .8bs file.
+const PET_COLUMNS = {
+  3008: 40, 3016: 40, 3032: 40, 4016: 40, 4032: 40, 8032: 80,
+};
+
+// The machines whose LLVM-MOS platform is built on the Commodore KERNAL
+// (mos-platform/commodore, shared by these five) — and so whose libc carries
+// the start-up character-set switch commodoreCharsetGuard() keeps out. The
+// X16 is a Commodore-style KERNAL too, but its own platform switches to ISO
+// mode instead, which @8bitscript/cx16/text relies on; it is not in this set.
+const COMMODORE_KERNAL_MACHINES = new Set(['vic20', 'c64', 'pet', 'c128', 'mega65']);
+
+// LLVM-MOS's Commodore libc (mos-platform/commodore/char-conv.c) prints
+// PETSCII 14 through the KERNAL's CHROUT before main() — `shift:` in a
+// `.init.250` section — switching the machine to its lower-case character
+// set for C's stdio. That section lives in the same object as the weak
+// `__from_ascii`/`__to_ascii` conversions, and the linker's speculative
+// libcall pass extracts that object in every build (abort → fputs →
+// stdio-minimal → __to_ascii, confirmed with `--why-extract`), after which
+// the KEEP'd init section survives garbage collection even though nothing
+// here prints through stdio. So every program used to start with one
+// KERNAL call that flipped the character set behind the text packages'
+// backs — which is why each of them re-selects the upper-case set on every
+// run of text, and why an earlier reading of this project's own binaries
+// mistook the switch for the ROM's boot state.
+//
+// Defining the two conversions here, strong, satisfies the references before
+// the archive is searched, so the SDK's object — and its init section — is
+// never linked. The bodies pass characters through unchanged: 8bitscript
+// programs never use libc stdio, and if one ever did, "no PETSCII
+// conversion" is the behaviour this project wants anyway. One documented
+// consequence: an `asm6502` block that called libc's own `__putchar` or
+// `printf` would now print unconverted ASCII — libc stdio through inline
+// assembly is off the map on these targets, by design, not by accident.
+// Both bodies are dead after garbage collection, so the guard costs no
+// bytes on the machine. The
+// machine starts in whatever character set its ROM booted (see
+// packages/pet/AGENTS.md: the business PETs boot in lower-case), and the
+// text packages select the set they need themselves.
+function commodoreCharsetGuard() {
+  return '/* Keep LLVM-MOS\'s libc from printing PETSCII 14 (lower-case set) before main():\n'
+    + '   defining its weak char-conv symbols here leaves that object, and its .init.250\n'
+    + '   section, out of the link. See COMMODORE_KERNAL_MACHINES in backend-6502. */\n'
+    + 'int __from_ascii(char c, void *ctx, int (*write)(char c, void *ctx)) { return write(c, ctx); }\n'
+    + 'int __to_ascii(void *ctx, int (*read)(void *ctx)) { return read(ctx); }\n\n';
+}
 
 function driverFor(machine, atari8Profile) {
   if (machine === 'atari8') {
@@ -133,14 +221,13 @@ export function outputExtension(machine, atari8Profile) {
 //
 // The PET linker script instead exposes __ram_size (8/16/32, in KiB — see
 // mos-platform/pet/link.ld), because unlike the VIC-20's expansion port a
-// PET's RAM size changes where the top of memory (and so the stack) sits.
-// Pinned to 32 (the common 32K PET) for the same reason the VIC-20 defaults
-// unexpanded: it's the machine most surviving PETs and emulator defaults
-// actually are.
+// PET's RAM size changes where the top of memory (and so the stack) sits;
+// like vic20's flag it is computed in buildPrg() from the profile
+// (PET_PROFILES above), not pinned here.
 const MACHINE_FLAGS = {
   vic20: [],
   c64: [],
-  pet: ['-Wl,--defsym=__ram_size=32'],
+  pet: [],
   c128: [],
   mega65: [],
   cx16: [],
@@ -324,6 +411,11 @@ const FRAME_SYNC = {
   // using VIA1's Timer 2 as a hardware stopwatch (immune to codegen
   // variance, unlike counting loop iterations would be). Verified under
   // VICE's default PAL PET model: measured ~19992 cycles/frame, 50.02Hz.
+  // Which rate a run gets is the model's — the profile `8bs run pet`
+  // launches (PET_PROFILES above, PET_MODEL_ARGS in the CLI): the no-CRTC
+  // 3xxx at VICE's ~60.1Hz, the CRTC models at their 50Hz editor ROMs
+  // (the 60Hz editors make VICE refuse autostart). This measurement is
+  // what makes that not matter to the program.
   pet: {
     kind: 'edge',
     pollFlag: '(*(volatile uint8_t *)0xE813) & 0x80',
@@ -371,6 +463,13 @@ const FRAME_SYNC = {
     ack: '',
     num: 59601,
     den: 2 * 1789773,
+    // The NES package queues its screen writes (VRAM is the PPU's outside
+    // vertical blank — see packages/nes/src/index.8bs) and this function,
+    // when the linked program defines it, delivers them: the runtime calls
+    // it right after every hardware frame edge, which on the NES is the
+    // start of vertical blank. A program that links no NES package has no
+    // such function and pays nothing.
+    frameHook: 'nesVerticalBlank',
   },
   // VERA's ISR ($9F27) bit 0 is the VSYNC flag: set once per frame, cleared
   // by writing a 1 back to it (standard write-1-to-clear, same convention
@@ -414,6 +513,15 @@ function emitExpression(expr) {
       return `${expr.name}(${expr.args.map(emitExpression).join(', ')})`;
     case 'memoryRead':
       return `(*(volatile uint8_t *)${emitExpression(expr.address)})`;
+    case 'string':
+      return stringName(expr.index);
+    case 'stringLength':
+      // Byte 0 is the length; the characters follow.
+      return `${emitExpression(expr.string)}[0]`;
+    case 'stringByte':
+      return `${emitExpression(expr.string)}[1 + ${emitExpression(expr.index)}]`;
+    case 'index':
+      return `${emitExpression(expr.array)}[${emitExpression(expr.index)}]`;
     default:
       throw new Error(`backend-6502: unknown IR expression '${expr.kind}'`);
   }
@@ -424,6 +532,20 @@ function emitStatement(statement, indent) {
   switch (statement.kind) {
     case 'assign':
       return `${pad}${statement.target} = ${emitExpression(statement.value)};\n`;
+    case 'storeIndex':
+      return `${pad}${emitExpression(statement.array)}[${emitExpression(statement.index)}] = ${emitExpression(statement.value)};\n`;
+    case 'local':
+      return `${pad}${C_TYPE[statement.type]} ${statement.name} = ${emitExpression(statement.init)};\n`;
+    case 'stringCopy':
+      return `${pad}__8bs_string_copy(${emitExpression(statement.target)}, ${emitExpression(statement.source)}, ${statement.capacity});\n`;
+    case 'for': {
+      // The initialiser and update are statements; inside the parentheses
+      // they lose their line ending.
+      const clause = (s) => (s ? emitStatement(s, 0).trim().replace(/;$/, '') : '');
+      let out = `${pad}for (${clause(statement.init)}; ${statement.test ? emitExpression(statement.test) : ''}; ${clause(statement.update)}) {\n`;
+      out += statement.body.map((s) => emitStatement(s, indent + 1)).join('');
+      return `${out}${pad}}\n`;
+    }
     case 'call':
       return `${pad}${statement.name}(${statement.args.map(emitExpression).join(', ')});\n`;
     case 'waitFrame':
@@ -506,27 +628,119 @@ function hasConstantRatio(sync) {
   return sync.kind === 'edge' && !sync.calibrate;
 }
 
+// ---- the ratio, in sixteen bits -------------------------------------------
+//
+// The accumulator compares and adds num/den every frame, and on a 6502 a
+// 32-bit add or compare is four times the code and cycles of a 16-bit one,
+// with three times the zero page. The exact ratio (frameRate * cycles per
+// hardware frame / crystal Hz) does not fit in 16 bits, but a fraction that
+// does is as good as exact: the best p/q with p + q <= 65535 sits within
+// about 1e-9 of the true ratio at 60Hz — under a hundredth of a frame a
+// day. `p + q <= 65535` is the real bound, not p, q <= 65535: the
+// accumulator is below den before every add, so acc + num never wraps.
+const RATIO_LIMIT = 65535;
+
+function gcd(a, b) {
+  while (b) [a, b] = [b, a % b];
+  return a;
+}
+
+// Python's Fraction.limit_denominator, on a fraction already in lowest
+// terms: the closest p/q to n/d with q <= maxDen, from the continued
+// fraction's convergents and the last semiconvergent.
+function limitDenominator(n, d, maxDen) {
+  if (d <= maxDen) return [n, d];
+  let [p0, q0, p1, q1] = [0, 1, 1, 0];
+  let [nn, dd] = [n, d];
+  while (dd !== 0) {
+    const a = Math.floor(nn / dd);
+    const q2 = q0 + a * q1;
+    if (q2 > maxDen) break;
+    [p0, q0, p1, q1] = [p1, q1, p0 + a * p1, q2];
+    [nn, dd] = [dd, nn - a * dd];
+  }
+  const k = Math.floor((maxDen - q0) / q1);
+  const bound1 = [p0 + k * p1, q0 + k * q1];
+  const bound2 = [p1, q1];
+  const err = ([p, q]) => Math.abs(p / q - n / d);
+  return err(bound2) <= err(bound1) ? bound2 : bound1;
+}
+
+/**
+ * The best sixteen-bit stand-in for num/den: `{ num, den, error }` with
+ * num + den <= 65535 and `error` the relative difference from the true
+ * ratio (0 when it fits as it is).
+ */
+export function reduceRatio(num, den) {
+  const g = gcd(num, den);
+  const [n, d] = [num / g, den / g];
+  let maxDen = Math.floor(RATIO_LIMIT / (1 + n / d));
+  for (;;) {
+    const [p, q] = limitDenominator(n, d, maxDen);
+    if (p + q <= RATIO_LIMIT) return { num: p, den: q, error: Math.abs(p / q - n / d) / (n / d) };
+    maxDen = q - 1;
+  }
+}
+
+// How far a sixteen-bit ratio may drift, in logical frames per day, before
+// the runtime falls back to the exact 32-bit pair. The reduction is far
+// inside this at any sane rate (1e-9 relative at 60Hz is 0.005 frames a
+// day); it is here so a strange frameRate degrades to slower code, never to
+// a clock that is visibly wrong.
+const MAX_DRIFT_FRAMES_PER_DAY = 1;
+
+/**
+ * The num/den pairs the runtime uses for a machine at a rate, and the C
+ * type that holds them: `{ type: 'uint16_t' | 'uint32_t', pairs }` where
+ * `pairs` is `{ ntsc, pal }` for a level machine (runtime region probe)
+ * or `{ fixed }` for an edge machine with a known ratio. The PET measures
+ * its own ratio at startup, so it has no pairs and stays 32-bit.
+ */
+export function frameRatio(sync, frameRate) {
+  if (sync.calibrate) return { type: 'uint32_t', pairs: {} };
+  const exact = sync.kind === 'level'
+    ? { ntsc: sync.ntsc, pal: sync.pal }
+    : { fixed: { num: sync.num, den: sync.den } };
+  const reduced = {};
+  for (const [region, { num, den }] of Object.entries(exact)) {
+    const r = reduceRatio(frameRate * num, den);
+    if (r.error * frameRate * 86400 > MAX_DRIFT_FRAMES_PER_DAY) {
+      return {
+        type: 'uint32_t',
+        pairs: Object.fromEntries(Object.entries(exact).map(([k, v]) => [k, { num: frameRate * v.num, den: v.den }])),
+      };
+    }
+    reduced[region] = { num: r.num, den: r.den };
+  }
+  return { type: 'uint16_t', pairs: reduced };
+}
+
 // The frame-sync runtime: `__8bs_wait_frame()` and whatever state it needs.
 // Emitted only when the program calls waitFrame() at least once — a program
-// that never does pays nothing for any of this.
-function emitFrameRuntime(sync, frameRate) {
+// that never does pays nothing for any of this. The state lives in
+// `.zp.noinit` and is set by the prologue in main(), like every other
+// variable (see emitC): no start-up code, no copy.
+function emitFrameRuntime(sync, frameRate, hook = null) {
   let out = '';
+  const edge = (pad) => waitOneHardwareFrame(sync, pad) + (hook ? `${pad}${hook}();\n` : '');
   if (isOneToOne(sync, frameRate)) {
     out += 'static void __8bs_wait_frame(void) {\n';
-    out += waitOneHardwareFrame(sync, '    ');
+    out += edge('    ');
     out += '}\n\n';
     return out;
   }
+  const ratio = frameRatio(sync, frameRate);
   if (hasConstantRatio(sync)) {
-    out += `#define __8bs_num ${frameRate * sync.num}u\n`;
-    out += `#define __8bs_den ${sync.den}u\n`;
+    out += `#define __8bs_num ${ratio.pairs.fixed.num}u\n`;
+    out += `#define __8bs_den ${ratio.pairs.fixed.den}u\n`;
   } else {
-    out += 'static uint32_t __8bs_num, __8bs_den;\n';
+    out += `static ${ratio.type} __8bs_num __attribute__((section(".zp.noinit.__8bs_num")));\n`;
+    out += `static ${ratio.type} __8bs_den __attribute__((section(".zp.noinit.__8bs_den")));\n`;
   }
-  out += 'static uint32_t __8bs_acc;\n';
+  out += `static ${ratio.type} __8bs_acc __attribute__((section(".zp.noinit.__8bs_acc")));\n`;
   out += 'static void __8bs_wait_frame(void) {\n';
   out += '    while (__8bs_acc < __8bs_den) {\n';
-  out += waitOneHardwareFrame(sync, '        ');
+  out += edge('        ');
   out += '        __8bs_acc += __8bs_num;\n';
   out += '    }\n';
   out += '    __8bs_acc -= __8bs_den;\n';
@@ -539,16 +753,18 @@ function emitFrameRuntime(sync, frameRate) {
 // the first waitFrame() waits a whole frame rather than the tail of one.
 function emitFramePrologue(sync, frameRate) {
   let out = '';
+  if (!isOneToOne(sync, frameRate)) out += '    __8bs_acc = 0;\n';
   if (sync.kind === 'level') {
+    const { ntsc, pal } = frameRatio(sync, frameRate).pairs;
     out += waitOneHardwareFrame(sync, '    ');
-    out += `    __8bs_num = ${frameRate * sync.ntsc.num}u;\n`;
-    out += `    __8bs_den = ${sync.ntsc.den}u;\n`;
+    out += `    __8bs_num = ${ntsc.num}u;\n`;
+    out += `    __8bs_den = ${ntsc.den}u;\n`;
     // Region sweep: sync to the top of a frame, then watch one whole frame
     // go by; only a PAL raster ever reaches the probe line. Costs two
     // frames at startup, once.
     out += waitOneHardwareFrame(
       sync, '    ',
-      ` if (${sync.palProbe}) { __8bs_num = ${frameRate * sync.pal.num}u; __8bs_den = ${sync.pal.den}u; } `,
+      ` if (${sync.palProbe}) { __8bs_num = ${pal.num}u; __8bs_den = ${pal.den}u; } `,
     );
     return out;
   }
@@ -569,16 +785,17 @@ function forEachStatement(functions, visit) {
       visit(s);
       if (s.kind === 'if') { walkBody(s.then); if (s.else) walkBody(s.else); }
       else if (s.kind === 'while' || s.kind === 'block') walkBody(s.body);
+      else if (s.kind === 'for') { if (s.init) visit(s.init); if (s.update) visit(s.update); walkBody(s.body); }
     }
   };
   for (const fn of functions) walkBody(fn.body);
 }
 
-// The tightest FRAME_SYNC entry (c64/c128/mega65 PAL: num = 312*63*18 =
-// 353808) overflows uint32_t once frameRate * num exceeds 2^32 — around
-// frameRate ~12,147 for that entry. This cap is comfortably below that for
-// every table entry, so a mistyped config value (`frameRate: 6000`) fails
-// the build loudly instead of silently producing a wrong-rate binary.
+// A mistyped config value (`frameRate: 6000`) fails the build loudly
+// instead of silently producing a wrong-rate binary. The cap also keeps
+// the exact 32-bit fallback pair in range: the tightest FRAME_SYNC entry
+// (c64/c128/mega65 PAL: num = 312*63*18 = 353808) would overflow uint32_t
+// once frameRate * num passed 2^32, around frameRate ~12,147.
 const MAX_FRAME_RATE = 1000;
 
 /**
@@ -593,17 +810,7 @@ const MAX_FRAME_RATE = 1000;
 export function emitC(ir, { machine, frameRate = 60 } = {}) {
   let out = '/* Generated by 8bs. Do not edit: the source of truth is the .8bs file. */\n';
   out += '#include <stdint.h>\n\n';
-
-  for (const g of ir.globals) {
-    const type = C_TYPE[g.type];
-    if (g.address !== null) {
-      // A hardware register: a name for a fixed location, not storage.
-      out += `#define ${g.name} (*(volatile ${type} *)0x${g.address.toString(16).toUpperCase()})\n`;
-    } else {
-      out += `${g.volatile ? 'volatile ' : ''}${type} ${g.name} = ${g.init};\n`;
-    }
-  }
-  out += '\n';
+  if (COMMODORE_KERNAL_MACHINES.has(machine)) out += commodoreCharsetGuard();
 
   // The program is its entry function (the entry module's one export — see
   // the linker's checkEntryExports and the compiler's entryOf), called once
@@ -613,11 +820,94 @@ export function emitC(ir, { machine, frameRate = 60 } = {}) {
   // waitFrame() is used somewhere — the machine and rate only matter then.
   const entry = entryOf(ir);
   let usesWaitFrame = false;
+  let usesStringCopy = false;
   let asmText = '';
   forEachStatement(ir.functions, (s) => {
     if (s.kind === 'waitFrame') usesWaitFrame = true;
+    if (s.kind === 'stringCopy') usesStringCopy = true;
     if (s.kind === 'asm') asmText += `${s.text}\n`;
   });
+
+  // ---- where every byte lives ------------------------------------------------
+  //
+  // Each global names its section, so nothing is left to the SDK's start-up
+  // code: a `.data`/`.bss` variable would pull in memcpy and memset and the
+  // routines that call them — 130 bytes of program before main() runs — and
+  // LLVM-MOS would copy small const tables into zero page, counting data as
+  // RAM. Instead:
+  //
+  //   const arrays, strings   .rodata.<name>   in the program, read in place
+  //   let arrays with values  .data.<name>     loaded where they live (a disk
+  //                                            or tape image); on a cartridge
+  //                                            (NES) the values are a .rodata
+  //                                            twin copied by main()
+  //   let arrays, no values   .noinit.<name>   RAM, zeroed by main()
+  //   scalars                 .zp.noinit.<name> zero page while the budget
+  //                                            lasts, then .noinit; main()
+  //                                            stores the starting value
+  //
+  // `noinit` sections are exactly that — the linker drops an initialiser
+  // on one silently — so main() begins with the stores below, before the
+  // frame prologue and the entry function.
+  const section = (name) => `__attribute__((section("${name}")))`;
+  const loadsInPlace = machine !== 'nes';
+  // Zero page the scalars may take, in bytes: the smallest platform (cx16)
+  // has 94 above LLVM-MOS's imaginary registers, and LLVM spills into the
+  // same region — 16 bytes in one measured program. 48 leaves it room.
+  const ZP_BUDGET = 48;
+  let zpBytes = usesWaitFrame ? 6 : 0; // the frame accumulator and its ratio
+  const init = [];
+
+  for (const [index, s] of (ir.strings ?? []).entries()) {
+    const name = stringName(index);
+    out += `static const uint8_t ${name}[] ${section(`.rodata.${name}`)} = { ${[s.bytes.length, ...s.bytes].join(', ')} }; /* "${s.text}" */\n`;
+  }
+  if (ir.strings?.length) out += '\n';
+
+  for (const g of ir.globals) {
+    const type = C_TYPE[g.type];
+    if (g.array) {
+      const counter = g.array > 255 ? 'uint16_t' : 'uint8_t';
+      if (g.address !== null) {
+        // N cells of hardware from a fixed location.
+        out += `#define ${g.name} ((volatile ${type} *)0x${g.address.toString(16).toUpperCase()})\n`;
+      } else if (g.constant) {
+        out += `static const ${type} ${g.name}[${g.array}] ${section(`.rodata.${g.name}`)} = { ${g.init.join(', ')} };\n`;
+      } else if (g.init && loadsInPlace) {
+        out += `${type} ${g.name}[${g.array}] ${section(`.data.${g.name}`)} = { ${g.init.join(', ')} };\n`;
+      } else if (g.init) {
+        out += `static const ${type} __8bs_init_${g.name}[${g.array}] ${section(`.rodata.__8bs_init_${g.name}`)} = { ${g.init.join(', ')} };\n`;
+        out += `${type} ${g.name}[${g.array}] ${section(`.noinit.${g.name}`)};\n`;
+        init.push(`for (${counter} i = 0; i < ${g.array}; i++) ${g.name}[i] = __8bs_init_${g.name}[i];`);
+      } else {
+        out += `${type} ${g.name}[${g.array}] ${section(`.noinit.${g.name}`)};\n`;
+        init.push(`for (${counter} i = 0; i < ${g.array}; i++) ${g.name}[i] = 0;`);
+      }
+      continue;
+    }
+    if (g.address !== null) {
+      // A hardware register: a name for a fixed location, not storage.
+      out += `#define ${g.name} (*(volatile ${type} *)0x${g.address.toString(16).toUpperCase()})\n`;
+      continue;
+    }
+    const size = C_SIZE[g.type] ?? 1;
+    const zp = zpBytes + size <= ZP_BUDGET;
+    if (zp) zpBytes += size;
+    out += `${g.volatile ? 'volatile ' : ''}${type} ${g.name} ${section(`${zp ? '.zp' : ''}.noinit.${g.name}`)};\n`;
+    init.push(`${g.name} = ${g.init};`);
+  }
+  out += '\n';
+  if (usesStringCopy) {
+    // `name = other` on a string<N>: the length byte and then the
+    // characters, cut to the capacity. Present exactly when a program
+    // assigns a string variable.
+    out += 'static void __8bs_string_copy(uint8_t *dst, const uint8_t *src, uint8_t capacity) {\n';
+    out += '    uint8_t n = src[0];\n';
+    out += '    if (n > capacity) n = capacity;\n';
+    out += '    dst[0] = n;\n';
+    out += '    for (uint8_t i = 0; i < n; i++) dst[1 + i] = src[1 + i];\n';
+    out += '}\n\n';
+  }
 
   let sync = null;
   if (usesWaitFrame) {
@@ -628,7 +918,13 @@ export function emitC(ir, { machine, frameRate = 60 } = {}) {
     if (!Number.isInteger(frameRate) || frameRate <= 0 || frameRate > MAX_FRAME_RATE) {
       throw new Error(`backend-6502: frameRate must be a positive integer no greater than ${MAX_FRAME_RATE}, got ${frameRate}`);
     }
-    out += emitFrameRuntime(sync, frameRate);
+    // The machine's frame hook, if this program links the function that
+    // is it (FRAME_SYNC.nes.frameHook); the linker keeps a package's own
+    // names unless they clash with the entry module's, so the lookup is by
+    // the name the package gave it.
+    const hook = sync.frameHook && ir.functions.some((fn) => fn.name === sync.frameHook) ? sync.frameHook : null;
+    if (hook) out += `static void ${hook}(void);\n`; // defined with the program's functions, below
+    out += emitFrameRuntime(sync, frameRate, hook);
   }
 
   // Every user function is `static`: this is one translation unit, so LLVM
@@ -657,6 +953,7 @@ export function emitC(ir, { machine, frameRate = 60 } = {}) {
 
   if (entry !== null) {
     out += 'int main(void) {\n';
+    for (const statement of init) out += `    ${statement}\n`;
     if (usesWaitFrame) out += emitFramePrologue(sync, frameRate);
     out += `    ${cName(entry)}();\n`;
     out += '    return 0;\n';
@@ -677,13 +974,13 @@ export function emitC(ir, { machine, frameRate = 60 } = {}) {
  * @param {object} ir
  * @param {{
  *   machine: keyof typeof DRIVER | 'atari8',
- *   atari8Profile?: string, vic20Profile?: string, c64Profile?: string,
+ *   atari8Profile?: string, vic20Profile?: string, c64Profile?: string, petProfile?: string,
  *   outFile: string, frameRate?: number,
  * }} options
  * @returns {Promise<{ ok: boolean, cFile?: string, error?: string }>}
  */
 export async function buildPrg(ir, {
-  machine, atari8Profile, vic20Profile, c64Profile, outFile, frameRate = 60,
+  machine, atari8Profile, vic20Profile, c64Profile, petProfile, outFile, frameRate = 60,
 }) {
   if (ir.imports?.length) {
     // Unresolved imports mean the caller skipped the linker. Refusing here is
@@ -711,6 +1008,13 @@ export async function buildPrg(ir, {
       error: `backend-6502: unknown c64 profile '${c64ProfileResolved}' (expected one of ${[...C64_PROFILES].join(', ')})`,
     };
   }
+  const petProfileResolved = petProfile ?? PET_DEFAULT_PROFILE;
+  if (machine === 'pet' && !PET_PROFILES.has(petProfileResolved)) {
+    return {
+      ok: false,
+      error: `backend-6502: unknown pet profile '${petProfileResolved}' (expected one of ${[...PET_PROFILES].join(', ')})`,
+    };
+  }
   const driverName = driverFor(machine, profile);
   if (!driverName) return { ok: false, error: `backend-6502 has no driver for machine '${machine}'` };
 
@@ -730,11 +1034,11 @@ export async function buildPrg(ir, {
   await mkdir(dirname(outFile), { recursive: true });
   await writeFile(cFile, emitC(ir, { machine, frameRate }), 'utf8');
 
-  // c64 has no per-profile linker flag (see C64_PROFILES above) — only vic20
-  // computes one, from whichever RAM-expansion profile was resolved.
-  const machineFlags = machine === 'vic20'
-    ? [`-Wl,--defsym=__memory_expansion=${VIC20_MEMORY_EXPANSION[vic20ProfileResolved]}`]
-    : (MACHINE_FLAGS[machine] ?? []);
+  // c64 has no per-profile linker flag (see C64_PROFILES above); vic20 and
+  // pet each compute one, from whichever RAM profile was resolved.
+  let machineFlags = MACHINE_FLAGS[machine] ?? [];
+  if (machine === 'vic20') machineFlags = [`-Wl,--defsym=__memory_expansion=${VIC20_MEMORY_EXPANSION[vic20ProfileResolved]}`];
+  if (machine === 'pet') machineFlags = [`-Wl,--defsym=__ram_size=${PET_RAM_SIZE_KIB[petProfileResolved]}`];
 
   // A package's "8bitscript".native files ride along after the generated C,
   // untouched: the clang driver assembles a .s and links the object like any
@@ -743,10 +1047,12 @@ export async function buildPrg(ir, {
   // section, which no construct in the generated C could reach.
   const nativeSources = ir.nativeSources ?? [];
 
-  return new Promise((resolvePromise) => {
+  const built = await new Promise((resolvePromise) => {
     const child = spawn(
       driver,
-      ['-Os', ...machineFlags, '-o', outFile, cFile, ...nativeSources],
+      // -fno-builtin: without it LLVM turns main()'s zeroing loops back
+      // into the memset call they were written to avoid.
+      ['-Os', '-fno-builtin', ...machineFlags, '-o', outFile, cFile, ...nativeSources],
       { stdio: ['ignore', 'pipe', 'pipe'] },
     );
     let stderr = '';
@@ -754,13 +1060,60 @@ export async function buildPrg(ir, {
     child.on('close', (code) => {
       resolvePromise(code === 0
         ? { ok: true, cFile }
-        : { ok: false, cFile, error: `${driverName} failed:\n${stderr}` });
+        : { ok: false, cFile, error: `${driverName} failed:\n${stderr}`, stderr });
     });
   });
+  if (!built.ok) {
+    // The SDK's linker script knows each machine's RAM, and refuses a
+    // program that does not fit — the honest limit, stated in the
+    // machine's own terms before the raw linker text.
+    const overflow = /will not fit in region '(\w+)': overflowed by (\d+) bytes/.exec(built.stderr);
+    if (overflow) {
+      const profile = machine === 'vic20' ? ` (${vic20ProfileResolved})` : machine === 'pet' ? ` ${petProfileResolved}` : '';
+      const region = { ram: 'RAM', zp: 'zero page' }[overflow[1]] ?? overflow[1];
+      built.error = `this program needs ${overflow[2]} more bytes of ${region} than the ${machine}${profile} has. `
+        + 'Fewer or smaller variables and arrays, or a const array for data that never changes, brings it down.\n'
+        + built.error;
+    }
+    return built;
+  }
+  const memory = await measureElf(`${outFile}.elf`);
+  return memory ? { ...built, memory } : built;
+}
+
+/**
+ * What the linked program actually holds, from the ELF the SDK's linker
+ * writes beside the output: `program` is what is loaded or burned (code,
+ * constant data, initial values), `variables` is RAM the program's
+ * variables take once running (zero-page ones included). Measured with
+ * the SDK's own llvm-size, so a variable LLVM dropped for being unread is
+ * not counted. Null when the tool is not there.
+ *
+ * @returns {Promise<{ program: number, variables: number } | null>}
+ */
+async function measureElf(elfFile) {
+  const size = join(process.env.LLVM_MOS_HOME ?? '', 'bin', 'llvm-size');
+  if (!process.env.LLVM_MOS_HOME || !existsSync(size)) return null;
+  const listing = await new Promise((resolvePromise) => {
+    execFile(size, ['-A', elfFile], (error, stdout) => resolvePromise(error ? null : stdout));
+  });
+  if (!listing) return null;
+  const sections = new Map();
+  for (const line of listing.split('\n')) {
+    const m = /^(\S+)\s+(\d+)\s+\d+$/.exec(line.trim());
+    if (m) sections.set(m[1], Number(m[2]));
+  }
+  const sum = (...names) => names.reduce((n, name) => n + (sections.get(name) ?? 0), 0);
+  return {
+    program: sum('.basic_header', '.text', '.rodata', '.data', '.zp.data'),
+    variables: sum('.data', '.zp.data', '.bss', '.noinit', '.zp.bss', '.zp'),
+  };
 }
 
 export {
   ATARI8_PROFILES, ATARI8_DEFAULT_PROFILE,
   VIC20_PROFILES, VIC20_DEFAULT_PROFILE,
   C64_PROFILES, C64_DEFAULT_PROFILE, C64_REU_SIZE_KIB,
+  PET_PROFILES, PET_DEFAULT_PROFILE, PET_RAM_SIZE_KIB, PET_COLUMNS,
+  FRAME_SYNC,
 };

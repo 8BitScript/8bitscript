@@ -35,24 +35,22 @@ compiler. The remaining pages, in order:
 ## Getting started
 
 Once setup is done, the [getting started tutorial](tutorial.md) walks through
-cloning the repository, building and running the `examples/borders` program,
+cloning the repository, building and running the `examples/proof-of-concept/borders` program,
 and where to look next. It is a work in progress, same as everything else
 here — it covers the one path that goes end to end today.
 
-## Learn 8BitScript
+## Studio
 
-[Learn 8BitScript](learn/index.md) is a series of small runnable projects,
-one per step, each with a page that explains every file and every line: what
-it is for, what it does, and what the compiler turned it into. It starts with
-[Step 1: The main file](learn/step1-main-loop.md) — the files a project has,
-`main()`, and the `while (true)` loop every program on these machines is
-built around.
+[Studio](studio.md) is the asset editor that ships with the toolchain and
+runs on the machines themselves — the full editor on the Commander X16, a
+smaller one down to the PET, a viewer on the NES. Today it is a front door
+with nothing behind it yet; the page says exactly what runs.
 
 ## The package model
 
 [The package model](packages.md) describes how an 8BitScript project is laid
 out, how the compiler resolves an import out of `node_modules`, and how the
-toolchain is developed against the `examples/hello-vic` project inside this
+toolchain is developed against the `examples/proof-of-concept/borders` project inside this
 repository. It is the specification the module resolver is being written
 against.
 

@@ -1,4 +1,4 @@
-// One smoke test per target emulator: build examples/borders for real
+// One smoke test per target emulator: build examples/proof-of-concept/borders for real
 // through the actual `8bs` CLI (not the internal compile() function — this
 // is meant to exercise exactly what a user's `8bs run <target>` does), then
 // launch that target's real emulator headlessly and confirm it actually
@@ -38,7 +38,7 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CLI_BIN = join(HERE, '..', 'bin', '8bs.mjs');
-const BORDERS_DIR = join(HERE, '..', '..', '..', 'examples', 'borders');
+const BORDERS_DIR = join(HERE, '..', '..', '..', 'examples', 'proof-of-concept', 'borders');
 
 function onPath(name) {
   const binary = process.platform === 'win32' ? `${name}.exe` : name;
@@ -50,7 +50,7 @@ function onPath(name) {
 const HAS_SDK = Boolean(process.env.LLVM_MOS_HOME);
 
 /**
- * Build examples/borders for `target` through the real CLI, exactly the
+ * Build examples/proof-of-concept/borders for `target` through the real CLI, exactly the
  * way `8bs build --target <target> [--profile <profile>]` would from that
  * project's own directory. Returns the built file's path, parsed from the
  * CLI's own "built <path>" line rather than reconstructed here, so this
@@ -267,6 +267,6 @@ test('web: the build runs in Node\'s WebAssembly runtime and waitFrame() paces i
   assert.equal(entryName, 'main');
   assert.equal(usesWaitFrame, true);
   assert.ok(memory.buffer instanceof SharedArrayBuffer, 'a waitFrame() program has shared memory');
-  // 31 frames is one tick (frames(0.5, seconds) = 30 at the default 60Hz) plus one.
+  // 31 frames is one tick (#frames(0.5, seconds) = 30 at the default 60Hz) plus one.
   assert.equal(instance.exports.ticks.value, 1, 'ticks did not advance after 31 waitFrame() calls');
 });

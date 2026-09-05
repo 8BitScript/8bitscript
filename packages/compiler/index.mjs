@@ -9,6 +9,7 @@ import { tokenize } from './src/lexer/index.mjs';
 import { parse } from './src/parser/index.mjs';
 import { check } from './src/checker/index.mjs';
 import { foldDurations } from './src/fold/index.mjs';
+import { lower } from './src/ir/index.mjs';
 import { resolveImports } from './src/resolver/index.mjs';
 
 export { tokenize, TokenKind, KEYWORDS, TYPE_NAMES } from './src/lexer/index.mjs';
@@ -17,7 +18,7 @@ export { NodeType, walk } from './src/ast/index.mjs';
 export { check } from './src/checker/index.mjs';
 export { foldDurations, DURATION_CLOCKS, DURATION_UNITS } from './src/fold/index.mjs';
 export { lower, entryOf } from './src/ir/index.mjs';
-export { link } from './src/linker/index.mjs';
+export { link, memoryOf } from './src/linker/index.mjs';
 export {
   MACHINES, findImports, isVariantPath, resolveImports, resolveSpecifier, variantOf,
 } from './src/resolver/index.mjs';
@@ -27,6 +28,7 @@ export {
   INTEGER_TYPE_NAMES,
   INTEGER_RANGES,
   resolveIntegerType,
+  storageBytes,
 } from './src/types/index.mjs';
 export { getHoverInfo, getCompletions } from './src/intellisense/index.mjs';
 
@@ -41,11 +43,18 @@ export { getHoverInfo, getCompletions } from './src/intellisense/index.mjs';
  * filesystem, and it needs a real absolute path to resolve against. Callers
  * working with an unsaved buffer leave it off.
  *
+ * Lowering runs too, and its diagnostics are part of the answer: "this
+ * construct is not compilable yet" is exactly what someone needs to see
+ * while typing, not at the end of a build. It is a pure AST-to-IR pass with
+ * no filesystem in it, so the only thing it cannot report on its own is
+ * anything that needs the other modules — an unresolved name, a namespace
+ * member that doesn't exist — which the linker reports at build time.
+ *
  * @param {string} text
  * @param {string} file
  * @param {{ resolveImports?: boolean, frameRate?: number }} [options]
  *   `frameRate` (default 60) is the project's logical frame rate — see
- *   8bs.config.ts — that every `frames(...)` call folds against, mirroring
+ *   8bs.config.ts — that every `#frames(...)` call folds against, mirroring
  *   link()'s option of the same name so `8bs check`/the editor and a real
  *   build agree on what a duration means.
  * @returns {object[]} diagnostics, in source order
@@ -55,10 +64,19 @@ export function analyze(text, file = '<unknown>', options = {}) {
   const { ast, diagnostics: syntax } = parse(tokens, text, file);
 
   // Folding runs before check(), same ordering as the linker: a
-  // frames(...) call needs to already be a plain IntegerLiteral by the
+  // #frames(...) call needs to already be a plain IntegerLiteral by the
   // time the width-fit rule walks the tree.
   const folding = foldDurations(ast, file, options.frameRate);
-  const all = [...lexical, ...syntax, ...folding, ...check(ast, file)];
+  const all = [...lexical, ...syntax, ...folding, ...check(ast, file, text)];
+  // A few rules — the template layout above all — are deliberately run by
+  // both check() and lower(), so that `check()` alone is a complete
+  // AST-level answer and `lower()` alone can never drop a construct
+  // silently. One problem is still reported once (the linker dedupes the
+  // same way for the same reason).
+  const seen = new Set(all.map((d) => `${d.code}@${d.start}+${d.length}`));
+  for (const d of lower(ast, file, text).diagnostics) {
+    if (!seen.has(`${d.code}@${d.start}+${d.length}`)) all.push(d);
+  }
   // Import resolution stays on tokens rather than the AST, deliberately: a
   // syntax error on line 30 should not stop line 1's import from being checked.
   if (options.resolveImports) all.push(...resolveImports(tokens, file));

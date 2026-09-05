@@ -14,8 +14,8 @@
 // carries an "8bitscript" entry field, a package subpath (`@scope/name/thing`)
 // resolves through that package's "8bitscript".exports map, and Node itself
 // is never asked to understand a .8bs file.
-import { existsSync, readFileSync } from 'node:fs';
-import { dirname, isAbsolute, join, resolve as resolvePath } from 'node:path';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { basename, dirname, isAbsolute, join, resolve as resolvePath } from 'node:path';
 
 import { Codes, diagnostic } from '../diagnostics/index.mjs';
 import { TokenKind } from '../lexer/index.mjs';
@@ -50,53 +50,100 @@ export const MACHINES = Object.freeze([
  * machine picks it up without anything else having to name it. Any file in
  * the graph can have one — the entry, a module it imports, a package's
  * entry — because the rule is about files, not about configuration.
+ *
+ * With a profile as well — a machine's hardware profile, the `--profile`
+ * a build was made with (`8032` on the PET, `16k` on the VIC-20) — the
+ * twin is one level more specific: `geometry.pet.8032.8bs`, the profile's
+ * name after the machine's. It is looked for first, and a machine's plain
+ * twin is what every other profile of that machine gets.
  */
-export function variantOf(path, machine) {
-  return `${path.slice(0, -'.8bs'.length)}.${machine}.8bs`;
-}
-
-/** Whether a path already names one machine's version: `x.nes.8bs`. */
-export function isVariantPath(path) {
+export function variantOf(path, machine, profile) {
   const stem = path.slice(0, -'.8bs'.length);
-  return MACHINES.some((machine) => stem.endsWith(`.${machine}`));
+  return profile ? `${stem}.${machine}.${profile}.8bs` : `${stem}.${machine}.8bs`;
 }
 
 /**
- * Pick the file a `.8bs` path actually means, given the machine in hand.
+ * Whether a path already names one machine's version — `x.nes.8bs` — or
+ * one profile's: `x.pet.8032.8bs`. A profile name is one word (letters,
+ * digits, `_`, `-`), so `x.pet.8032.8bs` is recognised and `x.data.8bs` is
+ * not: `data` is no machine.
+ */
+export function isVariantPath(path) {
+  const stem = path.slice(0, -'.8bs'.length);
+  return MACHINES.some((machine) => stem.endsWith(`.${machine}`)
+    || new RegExp(`\\.${machine}\\.[A-Za-z0-9_-]+$`).test(stem));
+}
+
+/**
+ * Every system-specific twin of `path` that exists beside it — a machine's
+ * (`x.nes.8bs`) or a profile's (`x.pet.8032.8bs`) — as `{ machine,
+ * profile }` pairs, `profile` undefined for a machine's plain twin. One
+ * directory listing, filtered by name, rather than a probe per machine
+ * per possible profile: the profiles are not the resolver's to know.
+ */
+function variantsPresent(path) {
+  const stem = basename(path, '.8bs');
+  let entries;
+  try {
+    entries = readdirSync(dirname(path));
+  } catch {
+    return [];
+  }
+  const found = [];
+  for (const entry of entries) {
+    if (!entry.startsWith(`${stem}.`) || !entry.endsWith('.8bs')) continue;
+    const suffix = entry.slice(stem.length + 1, -'.8bs'.length).split('.');
+    if (!MACHINES.includes(suffix[0])) continue;
+    if (suffix.length === 1) found.push({ machine: suffix[0] });
+    else if (suffix.length === 2 && /^[A-Za-z0-9_-]+$/.test(suffix[1])) found.push({ machine: suffix[0], profile: suffix[1] });
+  }
+  return found;
+}
+
+/**
+ * Pick the file a `.8bs` path actually means, given the machine — and its
+ * hardware profile — in hand.
  *
- * With a machine: its variant if one exists, else the plain file. With
- * neither, but with *other* machines' variants present, the file genuinely
- * has nothing for this target — `8BS3002`, the same code a conditional
- * package entry gives for a machine it has no branch for, because it is the
- * same situation spelled in filenames. Without a machine (`8bs check` and
- * the editor analyse files, not builds): the plain file if it exists, else
- * `path: null` — "valid, and target-dependent" — if any variant does.
+ * With a machine: the profile's variant if one exists, else the machine's,
+ * else the plain file. With none of those, but with *other* machines' or
+ * profiles' variants present, the file genuinely has nothing for this
+ * target — `8BS3002`, the same code a conditional package entry gives for a
+ * machine it has no branch for, because it is the same situation spelled
+ * in filenames. Without a machine (`8bs check` and the editor analyse
+ * files, not builds): the plain file if it exists, else `path: null` —
+ * "valid, and target-dependent" — if any variant does.
  *
- * A path that already names a machine's version (`x.nes.8bs`) is taken
- * literally: it is the explicit form, and stacking another suffix on it
- * would mean nothing.
+ * A path that already names a machine's or a profile's version
+ * (`x.nes.8bs`, `x.pet.8032.8bs`) is taken literally: it is the explicit
+ * form, and stacking another suffix on it would mean nothing.
  *
  * Returns `null` when nothing exists at all, so the caller can report the
  * missing file with the code that fits how the path was named.
  */
-function chooseVariant(specifier, path, machine) {
+function chooseVariant(specifier, path, machine, profile) {
   const base = existsSync(path);
   if (isVariantPath(path)) return base ? { path } : null;
   if (machine) {
+    if (profile) {
+      const forProfile = variantOf(path, machine, profile);
+      if (existsSync(forProfile)) return { path: forProfile };
+    }
     const variant = variantOf(path, machine);
     if (existsSync(variant)) return { path: variant };
     if (base) return { path };
-    const others = MACHINES.filter((m) => existsSync(variantOf(path, m)));
+    const others = variantsPresent(path);
     if (others.length > 0) {
+      const names = [...new Set(others.map((v) => (v.profile ? `${v.machine} (${v.profile})` : v.machine)))];
+      const here = profile ? `${machine} target's ${profile} profile` : `${machine} target`;
       return {
         code: Codes.NOT_ON_THIS_TARGET,
-        message: `'${specifier}' has no version for the ${machine} target (targets: ${others.join(', ')})`,
+        message: `'${specifier}' has no version for the ${here} (targets: ${names.join(', ')})`,
       };
     }
     return null;
   }
   if (base) return { path };
-  if (MACHINES.some((m) => existsSync(variantOf(path, m)))) return { path: null };
+  if (variantsPresent(path).length > 0) return { path: null };
   return null;
 }
 
@@ -234,7 +281,7 @@ function resolveSubpath(specifier, name, packageDir, manifest, subpath, options)
     };
   }
   const target = resolvePath(packageDir, value);
-  const chosen = chooseVariant(specifier, target, options.machine);
+  const chosen = chooseVariant(specifier, target, options.machine, options.profile);
   if (!chosen) {
     return { code: Codes.MISSING_PACKAGE_ENTRY, message: `'${name}' exports '${key}' as '${value}', which does not exist` };
   }
@@ -326,10 +373,12 @@ function resolveConditionalEntry(specifier, packageDir, entry, options, seen, na
  *
  * @param {string} specifier
  * @param {string} fromFile  Absolute path of the importing file.
- * @param {{ machine?: string }} [options]
+ * @param {{ machine?: string, profile?: string }} [options]
  *   The machine being built for (one of MACHINES), if one is known;
  *   conditional package entries resolve to that machine's branch, and a
- *   `.8bs` file with a `.<machine>.8bs` twin resolves to the twin.
+ *   `.8bs` file with a `.<machine>.8bs` twin resolves to the twin. With
+ *   the machine's hardware profile as well, a `.<machine>.<profile>.8bs`
+ *   twin is taken before the machine's own (see variantOf).
  * @returns {{ path: string|null, native?: string[] } | { code: string, message: string } | null}
  *   `native` — absolute paths of the resolved package's `"8bitscript".native`
  *   files (see nativeSourcesOf) — rides along with a package resolution;
@@ -343,7 +392,7 @@ export function resolveSpecifier(specifier, fromFile, options = {}, seen = new S
     const target = resolvePath(fromDir, specifier);
     // `./hardware.8bs` on the NES is `./hardware.nes.8bs` when that file
     // exists beside it — see chooseVariant.
-    const chosen = chooseVariant(specifier, target, options.machine);
+    const chosen = chooseVariant(specifier, target, options.machine, options.profile);
     if (!chosen) {
       return { code: Codes.UNRESOLVED_RELATIVE_IMPORT, message: `cannot find module '${specifier}'` };
     }
@@ -382,7 +431,7 @@ export function resolveSpecifier(specifier, fromFile, options = {}, seen = new S
     // does: `./src/index.8bs` with an `index.nes.8bs` beside it is the NES
     // version of the package, without the manifest having to say so.
     const target = resolvePath(packageDir, entry);
-    const chosen = chooseVariant(specifier, target, options.machine);
+    const chosen = chooseVariant(specifier, target, options.machine, options.profile);
     if (!chosen) {
       return { code: Codes.MISSING_PACKAGE_ENTRY, message: `'${specifier}' declares entry '${entry}', which does not exist` };
     }

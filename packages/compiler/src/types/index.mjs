@@ -70,6 +70,24 @@ for (const type of PRIMITIVE_INTEGER_TYPES) {
   for (const alias of type.aliases) BY_SPELLING.set(alias, type);
 }
 
+/**
+ * Bytes one value of a type takes in the target's memory: what an array's
+ * or a variable's RAM comes to. The 24-bit types widen to 4 bytes, since
+ * neither backend has a 3-byte integer (see their NATIVE_WIDTH tables);
+ * `bool` is a byte; a `string` is a pointer, 2 bytes on a 6502 (the web's
+ * 4-byte `usize` is not RAM a program counts).
+ *
+ * @param {string} name  A canonical type name or alias, `bool`, or `string`.
+ * @returns {number}
+ */
+export function storageBytes(name) {
+  if (name === 'bool') return 1;
+  if (name === 'string') return 2;
+  const type = BY_SPELLING.get(name);
+  if (!type) return 0;
+  return type.bits === 24 ? 4 : type.bits / 8;
+}
+
 /** Every spelling a primitive integer type can be written with, canonical or alias. */
 export const INTEGER_TYPE_NAMES = [...BY_SPELLING.keys()];
 

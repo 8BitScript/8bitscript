@@ -20,7 +20,25 @@ Do not describe more than this as working:
   the first `setColors()` lays a two-tile-thick ring of a solid tile around
   the nametable and `border` is that tile's colour (`$3F02`).
   `text.putChar(cell, code)` writes an ASCII code into the 28×26 grid
-  inside that frame through PPUADDR/PPUDATA and resets the scroll;
+  inside that frame — into the package's write queue, which `waitFrame()`
+  delivers through PPUADDR/PPUDATA at the start of vertical blank and then
+  resets the scroll (`nesVerticalBlank()` in `index.8bs`, called by the
+  backend's frame runtime via `FRAME_SYNC.nes.frameHook`); a program
+  prints whenever it likes and never sees the blank's budget. The queue
+  holds 128 bytes (about four 28-column rows); delivery costs 15 cycles a
+  byte plus a header per run, so a full queue empties in about 2000 of
+  the blank's 2273 cycles. When the queue fills before the frame is over
+  the package waits for the next blank, delivers, and carries on — a
+  bigger HUD costs frames, never the picture. Delivering mid-frame would
+  corrupt it: PPUADDR is the PPU's own fetch position while it draws.
+  `locate()` finds a cell's row in eight-bit shifts and two corrections
+  (`q = cell / 4`, `q / 8 + q / 64`, then take off sevens) because LLVM-MOS
+  links a 248-byte routine for a 16-bit divide, turns a counted-subtraction
+  loop into one, and calls a 300-cycle `__mulhi3` for `x * 147` — the
+  vertical blank is about 2270 cycles, and a HUD that overruns it writes
+  into whatever the PPU is fetching; `print`/`printNumber` locate once and
+  let PPUDATA's auto-increment carry the run, locating again only at a row
+  wrap; each run goes into the queue, and delivery is the cheap part.
   `putColor` is a documented no-op (attribute-table granularity); text is
   white (`$3F01 = $30`).
 - `packages/nes/native/6502/font.s` is the CHR-ROM character set — the NES
@@ -36,7 +54,7 @@ Do not describe more than this as working:
 - Timing is NTSC-only (`FRAME_SYNC.nes` in `packages/backend-6502`); PAL NES
   is not supported. FCEUX's default NTSC view hides the top and bottom 8
   lines (rows 0 and 29), which is why the frame is two tiles thick.
-  `examples/borders` puts its readout at row 2, column 2 — the first cell
+  `examples/proof-of-concept/borders` puts its readout at row 2, column 2 — the first cell
   inside the frame, matching the cell-0 position every other target uses.
 - `docs/setup/nes.md` covers installing and running FCEUX, the emulator
   `8bs run nes` targets.
@@ -167,14 +185,14 @@ the other eight targets' own mechanisms.
 
 ```
 packages/nes/src/index.8bs           target package: the PPU port protocol (setVramAddress, resetScroll)
-packages/nes/src/screen.8bs          @8bitscript/nes/screen: screen.setColors(), the drawn frame, colour names
-packages/nes/src/text.8bs            @8bitscript/nes/text: text.putChar/putColor/showDigit, CellCount 728
+packages/nes/src/screen.8bs          @8bitscript/nes/screen: screen.blank()/setBorder()/setBackground()/setColors(), the drawn frame, colour names
+packages/nes/src/text.8bs            @8bitscript/nes/text: text.print/printNumber/setColor/putChar/putColor, CELL_COUNT 728, COLUMNS 28, TextColor (inert)
 packages/nes/native/6502/font.s      the CHR-ROM character set (tile index == ASCII)
 packages/nes/package.json            "8bitscript".exports names the two subpaths; .native lists the font
 packages/backend-6502/src/index.mjs  driver selection (DRIVER.nes), NTSC frame timing, nativeSources
 packages/compiler/src/resolver/      "8bitscript".native → absolute paths (8BS2008 if missing)
 packages/compiler/test/nes-screen.test.mjs   the package and the native plumbing, end to end
-examples/borders/src/main.8bs        the working program (every target): readout, draw-then-setColors ordering
+examples/proof-of-concept/borders/src/main.8bs        the working program (every target): readout, draw-then-setColors ordering
 docs/setup/nes.md                    install/run FCEUX, 8bs run nes, what the picture shows
 docs/roadmap.md                      Phase 3: why NES is here, the capability-system rationale
 ```

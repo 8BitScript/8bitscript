@@ -1,5 +1,7 @@
-# The monorepo. Every publishable package lives in packages/, and every
-# consumer application that exists to exercise them lives in examples/.
+# The monorepo. Every publishable package lives in packages/ — the
+# toolchain, the machine and capability packages, and the apps that ship
+# with them — and every proof-of-concept program that exists to exercise
+# them lives in examples/proof-of-concept/.
 #
 # Editor integrations live in editors/. They are workspace members because the
 # editor client has npm dependencies of its own; nothing there is published to
@@ -12,7 +14,7 @@
 # nothing published yet.
 packages:
   - packages/*
-  - examples/*
+  - examples/proof-of-concept/*
   - editors/*
 
 # pnpm blocks dependency install scripts unless they are approved here. Both

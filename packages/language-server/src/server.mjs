@@ -24,6 +24,15 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 
 import { analyze, getHoverInfo, getCompletions } from '@8bitscript/compiler';
 
+// What the compiler calls a completion item, in LSP's vocabulary. The
+// compiler says what kind of thing a name is (a type, a compile-time
+// function, a unit constant); this file only translates.
+const COMPLETION_KIND = {
+  type: CompletionItemKind.TypeParameter,
+  function: CompletionItemKind.Function,
+  constant: CompletionItemKind.Constant,
+};
+
 const SEVERITY = {
   error: DiagnosticSeverity.Error,
   warning: DiagnosticSeverity.Warning,
@@ -47,7 +56,7 @@ function findConfigPath(dir) {
 
 /**
  * The project's `frameRate` (8bs.config.ts, default 60) for the document at
- * `filePath` — so `frames(...)` diagnostics in the editor agree with what
+ * `filePath` — so `#frames(...)` diagnostics in the editor agree with what
  * `8bs build`/`8bs check` would actually report, the same invariant this
  * file's header comment already promises for every other diagnostic.
  *
@@ -162,11 +171,14 @@ export function start() {
     const offset = document.offsetAt(params.position);
     return getCompletions(document.getText(), offset).map((item) => ({
       label: item.label,
-      kind: CompletionItemKind.TypeParameter,
+      kind: COMPLETION_KIND[item.kind] ?? CompletionItemKind.TypeParameter,
       detail: item.detail,
       documentation: { kind: MarkupKind.Markdown, value: item.documentation },
       // Canonical names sort ahead of short aliases within the same list.
       sortText: `${item.sortRank}${item.label}`,
+      // Present only when what gets typed differs from the label — the
+      // `#` of a `#frames` already in the buffer, say.
+      ...(item.insertText ? { insertText: item.insertText } : {}),
     }));
   });
 

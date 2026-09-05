@@ -27,16 +27,20 @@ const {
   ALL_TARGETS,
   CONFIG_FILE,
   MACHINE_TARGETS,
+  PROOFS_DIR,
+  byKind,
   bySystem,
   commandArgs,
-  findExamplesDir,
+  findProofsDir,
   findToolchain,
-  loadExamples,
+  loadApps,
   loadProject,
   loadProjects,
+  loadProofs,
+  ofKind,
   resolveLlvmMosHome,
   runnableOn,
-  withExamples,
+  withShipped,
 } = require('./projects.cjs');
 const settings = require('./settings.cjs');
 
@@ -71,10 +75,20 @@ function relativeDir(dir) {
     : relative;
 }
 
-/** Where a project lives, as the row's grey text: `examples/border`. */
+/**
+ * Where a project lives, as the row's grey text: a workspace project's
+ * relative path, `proof-of-concept/borders`, or an app's package name.
+ */
 function whereLabel(project) {
-  if (!project.example) return relativeDir(project.dir);
+  if (project.kind === 'app') return project.name;
+  if (project.kind === 'proof') return path.join(PROOFS_DIR, path.basename(project.dir));
+  if (!project.shipped) return relativeDir(project.dir);
   return path.join(path.basename(path.dirname(project.dir)), path.basename(project.dir));
+}
+
+/** The name a row shows: an app's title, otherwise the package name. */
+function labelOf(project) {
+  return project.kind === 'app' ? project.title : project.name;
 }
 
 /**
@@ -85,7 +99,7 @@ function whereLabel(project) {
  */
 function repoOf(project) {
   const folder = folderOf(project.dir);
-  return folder ? { key: folder.uri.fsPath, name: folder.name } : { key: '\0examples', name: 'Examples' };
+  return folder ? { key: folder.uri.fsPath, name: folder.name } : { key: '\0shipped', name: 'Shipped with the toolchain' };
 }
 
 /**
@@ -222,34 +236,50 @@ class ProjectsProvider {
     this.output = output;
     /** @type {import('./projects.cjs').Project[]} */
     this.projects = [];
-    /** @type {import('./projects.cjs').Project[]} */
-    this.examples = [];
+    /** @type {import('./projects.cjs').Project[]} the toolchain's proofs of concept */
+    this.proofs = [];
+    /** @type {import('./projects.cjs').Project[]} the apps that ship with the toolchain */
+    this.apps = [];
     this.changed = new vscode.EventEmitter();
     this.onDidChangeTreeData = this.changed.event;
     this.running = new RunningTasks(() => this.changed.fire());
   }
 
-  /** The projects the list shows: the workspace's own, plus examples if asked. */
+  /**
+   * The projects the list shows: the workspace's own, the apps that ship
+   * with the toolchain (always — they are the point of shipping them), and
+   * its proofs of concept when the checkbox asks for them.
+   */
   get visible() {
-    return settings.getShowExamples() ? withExamples(this.projects, this.examples) : this.projects;
+    const shipped = settings.getShowExamples() ? [...this.proofs, ...this.apps] : this.apps;
+    return withShipped(this.projects, shipped);
+  }
+
+  /** Every project the workspace or the toolchain offers, checkbox or not. */
+  get all() {
+    return withShipped(this.projects, [...this.proofs, ...this.apps]);
   }
 
   /**
-   * Whether showing examples would add anything. Inside the repository the
-   * examples are already workspace projects, so the checkbox stays hidden.
+   * Whether showing the proofs of concept would add anything. Inside the
+   * repository they are already workspace projects, so the checkbox stays
+   * hidden.
    */
   hasExamples() {
     const own = new Set(this.projects.map((p) => p.dir));
-    return this.examples.some((example) => !own.has(example.dir));
+    return this.proofs.some((proof) => !own.has(proof.dir));
   }
 
   async refresh() {
     const found = await vscode.workspace.findFiles(`**/${CONFIG_FILE}`, SEARCH_EXCLUDE);
     this.projects = loadProjects(found.map((uri) => uri.fsPath));
-    this.examples = this.discoverExamples();
+    const shipped = this.discoverShipped();
+    this.proofs = shipped.proofs;
+    this.apps = shipped.apps;
     this.output.appendLine(
       `Projects: ${this.projects.length === 0 ? 'none found' : this.projects.map((p) => p.name).join(', ')}` +
-        (this.examples.length > 0 ? `; examples: ${this.examples.map((p) => p.name).join(', ')}` : ''),
+        (this.proofs.length > 0 ? `; proofs of concept: ${this.proofs.map((p) => p.name).join(', ')}` : '') +
+        (this.apps.length > 0 ? `; apps: ${this.apps.map((p) => p.name).join(', ')}` : ''),
     );
     await vscode.commands.executeCommand('setContext', '8bitscript.hasProjects', this.visible.length > 0);
     await vscode.commands.executeCommand('setContext', '8bitscript.hasExamples', this.hasExamples());
@@ -257,22 +287,30 @@ class ProjectsProvider {
   }
 
   /**
-   * The example projects that ship with the toolchain in use. An explicit
-   * `8bitscript.examplesPath` wins; otherwise they are looked for beside the
-   * first toolchain found — a project's own, or the workspace folder's.
+   * What ships with the toolchain in use: its apps, and its proofs of
+   * concept. Both are looked for beside the first toolchain that has them —
+   * a project's own, or the workspace folder's. An explicit
+   * `8bitscript.examplesPath` names the proofs directory instead.
+   *
+   * @returns {{ proofs: import('./projects.cjs').Project[], apps: import('./projects.cjs').Project[] }}
    */
-  discoverExamples() {
+  discoverShipped() {
     const explicit = settings.getExamplesPath();
-    if (explicit) return loadExamples(explicit);
+    let proofs = explicit ? loadProofs(explicit) : [];
+    let apps = [];
     const toolchains = [
       ...this.projects.map((p) => p.toolchain),
       ...(vscode.workspace.workspaceFolders ?? []).map((f) => findToolchain(f.uri.fsPath)),
     ].filter(Boolean);
     for (const toolchain of toolchains) {
-      const dir = findExamplesDir(toolchain);
-      if (dir) return loadExamples(dir);
+      if (!explicit && proofs.length === 0) {
+        const dir = findProofsDir(toolchain);
+        if (dir) proofs = loadProofs(dir);
+      }
+      if (apps.length === 0) apps = loadApps(toolchain);
+      if (proofs.length > 0 && apps.length > 0) break;
     }
-    return [];
+    return { proofs, apps };
   }
 
   getChildren(node) {
@@ -283,10 +321,26 @@ class ProjectsProvider {
     if (node.kind === 'folder') {
       return node.projects.map((project) => ({ kind: 'project', project, target: node.target }));
     }
+    if (node.kind === 'section') {
+      return this.projectRows(node.projects, node.target);
+    }
     if (node.kind === 'system') {
-      return this.projectRows(runnableOn(this.visible, node.target), node.target);
+      return this.sectionRows(runnableOn(this.visible, node.target), node.target);
     }
     return [];
+  }
+
+  /**
+   * Section rows — Projects, Proofs of concept, Apps — when the list mixes
+   * kinds, so what the workspace holds is never confused with what the
+   * toolchain brought along; the plain project rows when it does not.
+   */
+  sectionRows(projects, target) {
+    const sections = byKind(projects);
+    if (sections) {
+      return sections.map(({ kind, label, projects }) => ({ kind: 'section', section: kind, label, projects, target }));
+    }
+    return this.projectRows(projects, target);
   }
 
   /** Project rows for a list, grouped by repo first when the workspace has more than one. */
@@ -302,14 +356,14 @@ class ProjectsProvider {
       case 'bySystem':
         return bySystem(projects).map(({ target }) => ({ kind: 'system', target }));
       case 'byProject':
-        return this.projectRows(projects);
+        return this.sectionRows(projects);
       default: {
         const system = settings.getSystem();
         const runnable = runnableOn(projects, system);
         if (runnable.length === 0 && projects.length > 0) {
           return [{ kind: 'message', text: `No project targets ${system}. Pick another system above.` }];
         }
-        return this.projectRows(runnable, system);
+        return this.sectionRows(runnable, system);
       }
     }
   }
@@ -324,6 +378,8 @@ class ProjectsProvider {
         return this.systemItem(node);
       case 'folder':
         return this.folderItem(node);
+      case 'section':
+        return this.sectionItem(node);
       default: {
         const item = new vscode.TreeItem(node.text, vscode.TreeItemCollapsibleState.None);
         item.iconPath = new vscode.ThemeIcon('info');
@@ -336,7 +392,7 @@ class ProjectsProvider {
   projectItem({ project, target }) {
     const pinned = target !== undefined;
     const item = new vscode.TreeItem(
-      project.name,
+      labelOf(project),
       pinned ? vscode.TreeItemCollapsibleState.None : vscode.TreeItemCollapsibleState.Expanded,
     );
     const running = this.running.isRunning(project.dir, target);
@@ -346,7 +402,8 @@ class ProjectsProvider {
       running && 'running',
       !project.toolchain && 'notoolchain',
       !project.installed && 'uninstalled',
-      project.example && 'example',
+      project.shipped && 'shipped',
+      project.kind !== 'project' && project.kind,
     ].filter(Boolean);
     item.contextValue = ['project', ...states].join('.');
     item.id = pinned ? `${project.dir}\0${target}` : project.dir;
@@ -355,7 +412,6 @@ class ProjectsProvider {
       running && 'running',
       !project.toolchain && 'toolchain not installed',
       project.toolchain && !project.installed && 'not installed',
-      project.example && 'example',
       pinned && MACHINE_TARGETS.has(target) && regionLabel(region),
       whereLabel(project),
     ]
@@ -363,9 +419,13 @@ class ProjectsProvider {
       .join(' · ');
     item.tooltip = new vscode.MarkdownString(
       [
-        `**${project.name}**${project.description ? ` — ${project.description}` : ''}`,
+        `**${labelOf(project)}**${project.description ? ` — ${project.description}` : ''}`,
         '',
-        project.example ? 'An example project shipped with the toolchain.' : '',
+        project.kind === 'app'
+          ? `An app that ships with the toolchain (\`${project.name}\`); its version is the toolchain's.`
+          : project.kind === 'proof'
+            ? 'A proof of concept from the 8bitscript repository, there to exercise the toolchain.'
+            : '',
         `Directory: \`${project.dir}\``,
         `Entry: \`${path.relative(project.dir, project.entry)}\``,
         `Targets: ${project.targets.join(', ')}`,
@@ -385,9 +445,11 @@ class ProjectsProvider {
         ? 'loading~spin'
         : !project.toolchain || !project.installed
           ? 'warning'
-          : project.example
-            ? 'book'
-            : 'package',
+          : project.kind === 'proof'
+            ? 'beaker'
+            : project.kind === 'app'
+              ? 'rocket'
+              : 'package',
     );
     item.command = {
       command: 'vscode.open',
@@ -428,6 +490,16 @@ class ProjectsProvider {
     item.contextValue = ['system', machine && 'machine'].filter(Boolean).join('.');
     item.description = `${count} project${count === 1 ? '' : 's'}${machine ? ` · ${regionLabel(settings.getRegion())}` : ''}`;
     item.iconPath = targetIcon(target);
+    return item;
+  }
+
+  /** One of the three kinds, when the list holds more than one of them. */
+  sectionItem({ section, label, projects, target }) {
+    const item = new vscode.TreeItem(label, vscode.TreeItemCollapsibleState.Expanded);
+    item.id = `section\0${target ?? ''}\0${section}`;
+    item.contextValue = `section.${section}`;
+    item.description = `${projects.length}`;
+    item.iconPath = new vscode.ThemeIcon(section === 'proof' ? 'beaker' : section === 'app' ? 'rocket' : 'root-folder');
     return item;
   }
 
@@ -566,7 +638,7 @@ function registerProjectsView(context, output) {
   }
 
   async function pickProject(action, candidates) {
-    if (provider.projects.length === 0 && provider.examples.length === 0) await provider.refresh();
+    if (provider.all.length === 0) await provider.refresh();
     if (candidates.length === 0) {
       vscode.window.showInformationMessage(
         `No 8BitScript projects found. A project is a directory with an ${CONFIG_FILE}.`,
@@ -576,7 +648,7 @@ function registerProjectsView(context, output) {
     if (candidates.length === 1) return candidates[0];
     const picked = await vscode.window.showQuickPick(
       candidates.map((project) => ({
-        label: project.name,
+        label: labelOf(project),
         description: whereLabel(project),
         detail: project.description || undefined,
         project,
@@ -597,7 +669,7 @@ function registerProjectsView(context, output) {
         description: target === preferred ? 'selected system' : undefined,
         target,
       })),
-      { placeHolder: `Which system to ${action} ${project.name} on?` },
+      { placeHolder: `Which system to ${action} ${labelOf(project)} on?` },
     );
     return picked?.target;
   }
@@ -740,6 +812,31 @@ function registerProjectsView(context, output) {
     if (picked) await settings.setRegion(picked.region);
   }
 
+  /**
+   * Launch something the toolchain ships — an app, or a proof of concept —
+   * separately from the workspace's own projects: pick it when there is a
+   * choice, pick the system to open it on (the selected system first), run.
+   * The checkbox that hides the proofs from the list does not hide them
+   * here; this is the way to reach them without listing them.
+   */
+  async function launch(kind, what, filter = () => true) {
+    if (provider.all.length === 0) await provider.refresh();
+    const candidates = ofKind(provider.all, kind).filter(filter);
+    if (candidates.length === 0) {
+      vscode.window.showInformationMessage(
+        kind === 'app'
+          ? `No ${what} found. Apps ship with @8bitscript/cli: install it in a project, then refresh.`
+          : `No ${what} found. They live in the 8bitscript repository, under examples/${PROOFS_DIR}.`,
+      );
+      return;
+    }
+    const project = candidates.length === 1 ? candidates[0] : await pickProject('launch', candidates);
+    if (!project) return;
+    const target = await pickTarget(project, 'launch');
+    if (!target) return;
+    await execute('run', undefined, { kind: 'target', project, target });
+  }
+
   const command = (id, handler) =>
     context.subscriptions.push(vscode.commands.registerCommand(id, handler));
 
@@ -748,6 +845,9 @@ function registerProjectsView(context, output) {
   command('8bitscript.selectSystem', chooseSystem);
   command('8bitscript.selectRegion', chooseRegion);
   command('8bitscript.toggleExamples', () => settings.setShowExamples(!settings.getShowExamples()));
+  command('8bitscript.launchStudio', () => launch('app', 'Studio', (p) => p.name === '@8bitscript/studio'));
+  command('8bitscript.launchApp', () => launch('app', 'apps'));
+  command('8bitscript.launchProof', () => launch('proof', 'proofs of concept'));
   command('8bitscript.doctor', doctor);
   command('8bitscript.install', install);
   command('8bitscript.run', (node) => execute('run', undefined, node));
