@@ -1,8 +1,0 @@
-// The first program 8BitScript ever compiled: the milestone from the design
-// notes. One utinyint, one function, utinyint arithmetic that wraps at 256 on
-// every target. `u8` is `utinyint`'s low-level alias and still works the same way.
-let x: utinyint = 10;
-
-export function main(): void {
-    x = x + 1;
-}
