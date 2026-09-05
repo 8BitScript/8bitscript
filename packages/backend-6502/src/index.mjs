@@ -79,21 +79,16 @@ const ATARI8_DEFAULT_PROFILE = '800xl';
 // 8BitScript has targeted since Phase 1: load address $1001, 3583 bytes free
 // — the VIC-20 as sold, with no expansion cartridge plugged in.
 //
-// KNOWN GAP: @8bitscript/vic20's `screen` namespace pokes screen memory at a
-// hardcoded $1E00 (the unexpanded/'3k' location — the 3K block at
-// $0400-$0FFF doesn't reach $1E00, so screen memory doesn't move for it).
-// On real hardware and VICE, an 8k/16k/24k VIC-20 relocates the default
-// screen matrix to $1000 instead, to reclaim $1000-$1FFF as contiguous
-// BASIC RAM. The mechanism to fix this now exists — a profile's version of
-// a file, `geometry.vic20.8k.8bs` beside `geometry.8bs`, read by the text
-// and screen packages through a namespace const (the way @8bitscript/pet
-// gets its 80-column geometry for the 8032 profile; see docs/packages.md
-// "System-specific files") — but @8bitscript/vic20 has not been moved onto
-// it yet, so its `screen`/`text` still assume $1E00 on every profile: use
-// 8k/16k/24k for programs that only need more RAM for their own code/data
-// (or that talk to `vicColor`/`screen.setColors` directly, which stays at
-// $900F regardless of expansion), not ones that also call
-// `text.putChar`/`putColor` — that would misdraw on real 8k+ hardware.
+// The screen moves with the profile: an 8k/16k/24k VIC-20 relocates the
+// screen matrix from $1E00 to $1000 (colour RAM $9600 to $9400) to reclaim
+// $1000-$1FFF as contiguous BASIC RAM, which is also why link.ld loads
+// those builds at $1201. @8bitscript/vic20 follows: text.8bs and screen.8bs
+// read every address from geometry.8bs's `Video` namespace, and the 8k, 16k
+// and 24k profiles each have a twin of that file beside it (`geometry.vic20.
+// 8k.8bs` and so on) that the resolver reads for that --profile (docs/
+// packages.md "System-specific files"; packages/compiler/test/vic20-profiles.
+// test.mjs). 3k keeps the base file: the 3K block is $0400-$0FFF and the
+// screen does not move for it.
 const VIC20_PROFILES = new Set(['unexpanded', '3k', '8k', '16k', '24k']);
 const VIC20_DEFAULT_PROFILE = 'unexpanded';
 const VIC20_MEMORY_EXPANSION = {

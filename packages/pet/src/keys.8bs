@@ -1,0 +1,120 @@
+// @8bitscript/pet/keys — the keyboard matrix, key by key: graphics keyboard.
+//
+// Named by "8bitscript".exports["./keys"] in this package's package.json, for
+//
+//     import { keyboard } from "@8bitscript/pet/keyboard";
+//     import { Key } from "@8bitscript/pet/keys";
+//
+//     if (keyboard.pressed(Key.SPACE)) { ... }
+//
+// Each value is `row * 8 + column` in PIA1's matrix (see ./keyboard.8bs),
+// so a build for a profile reads that profile's table: this file is the
+// **graphics** keyboard of the 2001, 3xxx and 4xxx (calculator-style
+// keypad digits, the symbol row `! " # $ % & ' ( ) ←` above the letters,
+// every character unshifted), and `keys.pet.8032.8bs` beside it is the
+// **business** keyboard the 8032 has (typewriter layout: digits on the
+// top row, a numeric keypad, TAB, ESC, RPT). The two matrices wire the
+// same letters to different rows, which is exactly why the table is the
+// profile's and a program names keys, never numbers.
+//
+// A key that exists on both keyboards has the same name in both files —
+// letters, `DIGIT_n`, SPACE, RETURN, STOP, HOME, DELETE, the cursor keys,
+// both shifts, REVERSE, the arrows and the shared punctuation — so a
+// program that sticks to those builds for every PET. Names that exist
+// only here (the symbol row: EXCLAMATION, HASH, ... EQUALS) or only on
+// the business keyboard (KEYPAD_n, TAB, ESCAPE, REPEAT) are that
+// keyboard's alone, and an 8032 build of a program using one stops at
+// the import with "no member" — which is the right time to find out.
+//
+// Source: the matrix every PET reference gives for the graphics keyboard,
+// checked here key for key against VICE's own positional map for it,
+// /opt/homebrew/share/vice/PET/gtk3_grus_pos.vkm (each line there is
+// `keysym row column shiftflag`); packages/compiler/test/pet-keys.test.mjs
+// repeats that check when the file is present. Row 0 is `$E810 = 0`,
+// column 0 is PB0. A row's missing columns (1,5 and so on) have no key.
+
+export namespace Key {
+    // row 0
+    const EXCLAMATION: utinyint = 0;
+    const HASH: utinyint = 1;
+    const PERCENT: utinyint = 2;
+    const AMPERSAND: utinyint = 3;
+    const PAREN_LEFT: utinyint = 4;
+    const LEFT_ARROW: utinyint = 5; // the back-arrow key, top row right
+    const HOME: utinyint = 6; // CLR/HOME
+    const CURSOR_RIGHT: utinyint = 7; // shifted: cursor left
+    // row 1
+    const QUOTE: utinyint = 8;
+    const DOLLAR: utinyint = 9;
+    const APOSTROPHE: utinyint = 10;
+    const PAREN_RIGHT: utinyint = 11;
+    const BACKSLASH: utinyint = 12;
+    const CURSOR_DOWN: utinyint = 14; // shifted: cursor up
+    const DELETE: utinyint = 15; // INST/DEL
+    // row 2
+    const Q: utinyint = 16;
+    const E: utinyint = 17;
+    const T: utinyint = 18;
+    const U: utinyint = 19;
+    const O: utinyint = 20;
+    const UP_ARROW: utinyint = 21;
+    const DIGIT_7: utinyint = 22; // keypad
+    const DIGIT_9: utinyint = 23;
+    // row 3
+    const W: utinyint = 24;
+    const R: utinyint = 25;
+    const Y: utinyint = 26;
+    const I: utinyint = 27;
+    const P: utinyint = 28;
+    const DIGIT_8: utinyint = 30;
+    const SLASH: utinyint = 31;
+    // row 4
+    const A: utinyint = 32;
+    const D: utinyint = 33;
+    const G: utinyint = 34;
+    const J: utinyint = 35;
+    const L: utinyint = 36;
+    const DIGIT_4: utinyint = 38;
+    const DIGIT_6: utinyint = 39;
+    // row 5
+    const S: utinyint = 40;
+    const F: utinyint = 41;
+    const H: utinyint = 42;
+    const K: utinyint = 43;
+    const COLON: utinyint = 44;
+    const DIGIT_5: utinyint = 46;
+    const ASTERISK: utinyint = 47;
+    // row 6
+    const Z: utinyint = 48;
+    const C: utinyint = 49;
+    const B: utinyint = 50;
+    const M: utinyint = 51;
+    const SEMICOLON: utinyint = 52;
+    const RETURN: utinyint = 53;
+    const DIGIT_1: utinyint = 54;
+    const DIGIT_3: utinyint = 55;
+    // row 7
+    const X: utinyint = 56;
+    const V: utinyint = 57;
+    const N: utinyint = 58;
+    const COMMA: utinyint = 59;
+    const QUESTION: utinyint = 60;
+    const DIGIT_2: utinyint = 62;
+    const PLUS: utinyint = 63;
+    // row 8
+    const SHIFT_LEFT: utinyint = 64;
+    const AT: utinyint = 65;
+    const BRACKET_RIGHT: utinyint = 66;
+    const GREATER: utinyint = 68;
+    const SHIFT_RIGHT: utinyint = 69;
+    const DIGIT_0: utinyint = 70;
+    const MINUS: utinyint = 71;
+    // row 9
+    const REVERSE: utinyint = 72; // RVS
+    const BRACKET_LEFT: utinyint = 73;
+    const SPACE: utinyint = 74;
+    const LESS: utinyint = 75;
+    const STOP: utinyint = 76; // RUN/STOP
+    const PERIOD: utinyint = 78;
+    const EQUALS: utinyint = 79;
+}

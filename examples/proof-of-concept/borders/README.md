@@ -23,7 +23,9 @@ region split — `vic20`, `c64`, `c128`, `mega65`, `atari8` each have a
 `start:<target>-pal` script. The flag is ignored for `nes`, `cx16`, and
 `web`, none of which have one (see [docs/setup](../../../docs/setup) and
 packages/backend-6502's `FRAME_SYNC` for why per target). `start:16k` and
-`start:c64-reu` build for the VIC-20 16K and C64 REU memory profiles. The
+`start:c64-reu` build for the VIC-20 16K and C64 REU memory profiles (the
+16K VIC-20 has its screen at `$1000`, not `$1E00`, and the build follows,
+so it is its own file, `main-vic20-16k-ntsc.prg`). The
 PET has no region either: its refresh rate is its model's, and the model is
 a `--profile` — `start:pet` is the default 3032 (no CRTC, 40 columns, ~60Hz
 under VICE), `start:pet-8032` the 80-column business machine (50Hz: VICE

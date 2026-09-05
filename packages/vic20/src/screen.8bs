@@ -11,6 +11,7 @@
 // this same surface, which is what lets a program import it from
 // @8bitscript/screen and never name the hardware.
 import { vicColor } from "./index.8bs";
+import { Video } from "./geometry.8bs";
 
 // ---- the screen: border and background --------------------------------------
 //
@@ -37,8 +38,8 @@ export namespace screen {
         if (background != BackgroundColor.KEEP) {
             screen.setBackground(background);
         }
-        for (let cell: usmallint = 0; cell < 506; cell++) {
-            memory.write(0x1E00 + cell, 32); // 32: the space screen code
+        for (let cell: usmallint = 0; cell < Video.CELL_COUNT; cell++) {
+            memory.write(Video.SCREEN + cell, 32); // 32: the space screen code
         }
     }
 

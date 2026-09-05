@@ -223,7 +223,8 @@ exist. This is how a package keeps one surface and several geometries: a
 namespace const may be initialised from another module's const
 (`namespace text { const COLUMNS: utinyint = Video.COLUMNS; }`), so the
 surface reads a small geometry file and only that file has a profile's
-version — see [the compiler](compiler.md#namespace-what-a-poke-becomes-once-you-name-it).
+version (the PET's 80-column 8032, the VIC-20's screen at `$1000` once it has 8K
+or more: `geometry.vic20.8k.8bs`) — see [the compiler](compiler.md#namespace-what-a-poke-becomes-once-you-name-it).
 
 No example in this repository needs one yet. `examples/proof-of-concept/borders` builds
 for all nine targets from one `src/main.8bs`, because the machine packages
@@ -400,7 +401,7 @@ Only two kinds of package are meant for you:
 | ------- | ---- |
 | `@8bitscript/cli` | The `8bs` command. A dev dependency |
 | `@8bitscript/screen`, `@8bitscript/text` | The portable standard library, one package per capability: each resolves per target to that machine package's own implementation |
-| `@8bitscript/vic20`, `@8bitscript/c64`, `@8bitscript/nes`, … `@8bitscript/web` | Target support, one per machine: the hardware underneath (registers, port protocols), plus that machine's `./screen` and `./text` subpaths |
+| `@8bitscript/vic20`, `@8bitscript/c64`, `@8bitscript/nes`, … `@8bitscript/web` | Target support, one per machine: the hardware underneath (registers, port protocols), plus that machine's `./screen` and `./text` subpaths, and any hardware-level subpath of its own (`@8bitscript/pet/keyboard`, `@8bitscript/pet/keys`) that a portable capability does not cover yet |
 
 The compiler, the language server, and the backends are internal:
 `@8bitscript/compiler`, `@8bitscript/language-server`,

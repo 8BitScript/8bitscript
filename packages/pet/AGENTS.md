@@ -31,9 +31,11 @@ program built for one point in that space does not run on the others.
 
 Do not describe more than this as working:
 
-- `packages/pet/src/index.8bs` exports one register, `viaPeripheralControl`
+- `packages/pet/src/index.8bs` exports three registers: `viaPeripheralControl`
   (`$E84C`, the 6522 VIA's PCR), whose bit 1 selects the character set:
-  `$0C` upper-case/graphics, `$0E` upper/lower-case text. It is the only
+  `$0C` upper-case/graphics, `$0E` upper/lower-case text, and PIA1's two
+  ports `pia1PortA`/`pia1PortB` (`$E810`/`$E812`) for the keyboard layer
+  below. The PCR is the only
   hardware the package's two portable surfaces need: `src/screen.8bs`
   (behind `@8bitscript/screen`, as `@8bitscript/pet/screen`) and
   `src/text.8bs` (behind `@8bitscript/text`).
@@ -76,9 +78,12 @@ Do not describe more than this as working:
   with VIA Timer 2 (`$E848`/`$E849`) and derives the frame ratio from the
   measured cycles-per-frame and the flat 1 MHz clock, so one build runs at
   the configured `frameRate` on a 50 Hz and a 60 Hz PET alike. Consequence
-  worth knowing: **every 8bitscript PET program runs with interrupts off**,
-  so the KERNAL keyboard scan is dead and any future input capability must
-  poll PIA1 itself.
+  worth knowing: **a program that calls `waitFrame()` anywhere runs with
+  interrupts off from start-up** — the `sei` is in the frame prologue the
+  backend emits for such a program — so the KERNAL keyboard scan is dead
+  there and input polls PIA1 itself. A program with no `waitFrame()` gets
+  no prologue and keeps the KERNAL IRQ; nothing in this package is written
+  for that case.
 - `8bs run pet` launches `xpet -model <profile>` and nothing about a
   region: the PET has no `--pal` (`PET_MODEL_ARGS` in `packages/cli`; the
   flag prints a note and changes nothing). VICE runs the no-CRTC 3xxx at
@@ -90,11 +95,20 @@ Do not describe more than this as working:
 - `8BS3003` (the linker's hardware-hazard check) refuses a write to
   `$E842` on the PET unless it is a compile-time value with bit 5 clear —
   see "Hazards" below.
+- **Keyboard**, PET-only, the layer a portable `@8bitscript/input` will
+  sit on: `@8bitscript/pet/keyboard` (`src/keyboard.8bs`) reads all ten
+  matrix rows into a snapshot once a frame — `keyboard.scan()` right after
+  `waitFrame()` — and answers `keyboard.pressed(key)` / `keyboard.row(n)`
+  from it; `@8bitscript/pet/keys` (`src/keys.8bs`) names every key as
+  `Key.X = row * 8 + column` for the graphics matrix, with
+  `keys.pet.8032.8bs` the business matrix the 8032 profile reads instead.
+  PIA1's two ports are exported from `src/index.8bs` (`pia1PortA` `$E810`,
+  `pia1PortB` `$E812`). No buffer, no PETSCII: "is this key down now".
 - `packages/studio/src/main.pet.8bs` starts Studio's basic tier on the PET
   (character editing, "rudimentary playback" once sound exists).
 
-There is no sound, no keyboard input (the profile knows which matrix the
-machine has, but nothing reads it yet), no reverse-video access, no `.tap`
+There is no sound, no *portable* input (the keyboard layer above is the
+PET's own; `@8bitscript/input` does not exist), no reverse-video access, no `.tap`
 output, no banking model, and no model detection — for the PET or (mostly)
 for any machine. The rules below are what to hold that work to when it
 comes.
@@ -106,6 +120,8 @@ under xpet, not recalled.
 
 | Fact | Where |
 | ---- | ----- |
+| Scanning all ten keyboard rows (ten reads of `$E812`) right after `waitFrame()` returns loses no frames: 1000+ frame intervals timed with VIA T2 inside the program on the 3032 and the 8032, and the count of over-long intervals is identical with and without the scan (2 and 2 on the 3032 — the runtime's own double-waits for 60 logical frames on 60.1 Hz hardware — 0 and 0 on the 8032). Reading `$E812` between a retrace and the poll *would* eat that edge; the snapshot rule keeps the read where it is safe. | measured here, `scratch-lost` runs under xpet |
+| Both `Key` tables match VICE's positional keyboard maps key for key (graphics: `gtk3_grus_pos.vkm`; business: `gtk3_buuk_pos.vkm`, the UK layout xpet's 8032 loads). | `/opt/homebrew/share/vice/PET/`, `packages/compiler/test/pet-keys.test.mjs` |
 | Program load address `$0401`; usable RAM `$0401` to `__ram_size` KiB; stack grows down from the top of RAM; `__ram_size` must be 8, 16 or 32 — the link script asserts against 96K/128K machines. | `$LLVM_MOS_HOME/mos-platform/pet/lib/link.ld` |
 | The `.prg` starts with a one-line BASIC program whose `SYS` jumps to `_start`, so `RUN` after `LOAD` starts it. | `pet/lib/basic-header.o`, `commodore/lib/commodore.ld` |
 | PIA1 `$E810`, PIA2 `$E820`, VIA `$E840`, CRTC `$E880` (data at `$E881`); the SDK models the CRTC as a **6545** (`_6545.h`, "all models from 40xx and above"), and a 6551 ACIA at `$EFF0` as SuperPET-only. | `pet/include/pet.h` |
@@ -218,8 +234,11 @@ The **graphics** (40-column) and **business** (80-column, and 4032B) key
 matrices are different tables — e.g. Stop is row 9 bit 4 on both, but
 letters and digits move. The 2001 chiclet keyboard shares the graphics
 matrix. Interrupts must be off during a scan if the KERNAL IRQ is alive
-(it is not, in an 8bitscript program). Three simultaneous keys can ghost
-a fourth: there are no diodes.
+(it is not, once the program calls `waitFrame()` anywhere — see above).
+Three simultaneous keys can ghost a fourth: there are no diodes. And
+reading `$E812` clears the CB1 retrace flag the frame runtime waits on,
+which is why `@8bitscript/pet/keyboard` reads the matrix exactly once a
+frame, into a snapshot, right after `waitFrame()`.
 
 **8096 / 8296 banking** (8x96.html, 8296 supplement, Tynemouth): a
 write-only register at `$FFF0` — bit 7 enable expansion, bit 6 I/O
@@ -301,8 +320,8 @@ unverified:
   script's whole range), **screen width** (40 or 80 — `text.COLUMNS`,
   `text.CELL_COUNT`, `screen.blank()`'s extent, through the geometry
   file's profile twin — and which xpet model `8bs run` picks) and
-  **keyboard matrix** (graphics on 3xxx/4xxx, business on the 8032; the
-  fact is the profile's, the table is still to write). All three are
+  **keyboard matrix** (graphics on 3xxx/4xxx, business on the 8032:
+  `keys.8bs` and its `keys.pet.8032.8bs` twin). All three are
   compile-time, the way Studio's tier is; a program must never probe the
   screen width at run time. `cell = y * text.COLUMNS + x` with a
   40-column constant on an 80-column screen is not "narrow" — row 1 lands
@@ -361,9 +380,22 @@ unverified:
 ### Input is a matrix you scan yourself
 
 - Poll PIA1 directly: row value to `$E810`, columns from `$E812`, active
-  low. The matrix table is part of the profile (graphics vs business).
-  Any "joystick" is a key mapping; there is no port. Expect ghosting
-  beyond two simultaneous keys.
+  low. The matrix table is part of the profile (graphics vs business):
+  `Key.*` from `@8bitscript/pet/keys`, never a number. Any "joystick" is
+  a key mapping; there is no port. Expect ghosting beyond two
+  simultaneous keys.
+- **Read `$E812` once a frame, right after `waitFrame()`, into a
+  snapshot** — `keyboard.scan()` — and answer every question from the
+  snapshot. Reading the port clears the retrace flag the frame runtime
+  polls; a read anywhere else in the frame can eat an edge and stall a
+  whole frame. Anything built on this layer (a portable `input`, a key
+  repeat, a text field) queries `keyboard.pressed()`/`keyboard.row()`,
+  never the port. Verified frame-exact under xpet (table above).
+- Keys a program can name on every PET are the ones both tables share
+  (letters, `DIGIT_n`, SPACE, RETURN, STOP, cursor keys, shifts, the
+  shared punctuation — `packages/compiler/test/pet-keys.test.mjs` lists
+  them). A graphics-only name (`EXCLAMATION`) is a link error on the 8032,
+  by design.
 
 ### Hazards
 
@@ -408,7 +440,11 @@ packages/pet/src/geometry.8bs        Video.COLUMNS/ROWS/CELL_COUNT for the 40-co
 packages/pet/src/geometry.pet.8032.8bs   the 8032 profile's version (80, 25, 2000), chosen by --profile
 packages/pet/src/screen.8bs          @8bitscript/pet/screen: inert colours, blank() over Video.CELL_COUNT cells at $8000
 packages/pet/src/text.8bs            @8bitscript/pet/text: ASCII → screen code, direct writes, COLUMNS/CELL_COUNT from Video
-packages/pet/package.json            "8bitscript".exports names the two subpaths
+packages/pet/src/keyboard.8bs        @8bitscript/pet/keyboard: scan() snapshot of the ten rows, pressed(key), row(n)
+packages/pet/src/keys.8bs            @8bitscript/pet/keys: Key.X = row * 8 + column, graphics keyboard
+packages/pet/src/keys.pet.8032.8bs   the 8032 profile's version: the business keyboard
+packages/pet/package.json            "8bitscript".exports names the four subpaths
+packages/compiler/test/pet-keys.test.mjs   both tables well formed, shared names, VICE .vkm cross-check, profile picks the table
 packages/backend-6502/src/index.mjs  PET_PROFILES (__ram_size per model), FRAME_SYNC.pet (CB1 retrace, T2 calibration), commodoreCharsetGuard()
 packages/compiler/src/linker/hazards.mjs   8BS3003: the $E842 killer-poke rule
 packages/cli/src/run.mjs             PET_MODEL_ARGS (xpet -model <profile>), PET_PROFILE_FPS, why no --pal and no 60 Hz editors

@@ -35,9 +35,10 @@ why NES is the first target where this stops being optional.
   that pattern rather than invent a new one, and rather than being hardcoded
   into the machine's base target the way NES's mapper currently is (see
   [`packages/nes/AGENTS.md`](packages/nes/AGENTS.md)). When a profile changes
-  what a *package* must do — the PET's 8032 is 80 columns wide — the package
+  what a *package* must do — the PET's 8032 is 80 columns wide, an 8K+
+  VIC-20's screen is at `$1000` — the package
   reads the difference from a profile-specific version of one small file
-  (`geometry.pet.8032.8bs` beside `geometry.8bs`, see
+  (`geometry.pet.8032.8bs` or `geometry.vic20.8k.8bs` beside `geometry.8bs`, see
   [`docs/packages.md`](docs/packages.md#system-specific-files)), never from a
   runtime probe: the width is a property of the build. (see
   [`packages/nes/AGENTS.md`](packages/nes/AGENTS.md)).

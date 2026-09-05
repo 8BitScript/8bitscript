@@ -23,3 +23,26 @@
 // case) — the POKE 59468,12 / POKE 59468,14 every PET manual gives.
 @address(0xE84C)
 export let viaPeripheralControl: volatile<u8>;
+
+// PIA1 at $E810 (pet.h's `pia1`, a 6520): the keyboard is here, not on the
+// VIA. PA0-3 select one of the ten matrix rows through a 4-to-10 decoder
+// (write 0-9; 10-15 select nothing), PA4-7 are inputs (cassette switches,
+// IEEE EOI in, the diagnostic sense line) that the ROM's data-direction
+// setup leaves as inputs, so a bare row number is what to store. PB0-7 read
+// the eight columns of the selected row, ACTIVE LOW: a pressed key is a 0
+// bit. ./keyboard.8bs turns the pair into a per-frame snapshot.
+//
+// One thing to know before reading $E812 anywhere else: on a 6520, reading
+// the port B data register also clears the CB1 interrupt flag in CRB
+// ($E813 bit 7), and that flag is the vertical-retrace edge the frame
+// runtime waits for (FRAME_SYNC.pet in packages/backend-6502 polls it and
+// acknowledges it by reading this register). A read here between a retrace
+// and the next waitFrame() eats that frame. Scan once, right after
+// waitFrame() returns. $E811 (CRA / DDRA) and $E813 are not exported: CA2
+// is IEEE EOI out on every board after the first, and the retrace flag is
+// the runtime's.
+@address(0xE810)
+export let pia1PortA: volatile<u8>;
+
+@address(0xE812)
+export let pia1PortB: volatile<u8>;
