@@ -1,27 +1,30 @@
-// @8bitscript/atari8 — Atari 8-bit target support (400/800/XL/XE/XEGS).
+// @8bitscript/atari8 — Atari 8-bit target support (400/800/XL/XE/XEGS): the
+// hardware underneath.
 //
 // The module entry point named by the "8bitscript".entry field in this
 // package's package.json, resolved and linked for:
 //
-//     import { border, background, applyColors, screen } from "@8bitscript/atari8";
+//     import { borderColor, backgroundColor, cursorInhibit } from "@8bitscript/atari8";
 //
-// Both halves of the common colour surface are real here, and they are two
-// genuinely different GTIA registers — verified on screen under atari800,
-// not inferred: in ANTIC's standard text mode (the mode the OS boots into,
-// and the one a .XEX inherits), COLBK ($D01A) colours the BORDER around the
-// playfield, while the area behind the characters is COLPF2 ($D018). An
-// earlier version of this file had these the wrong way round: it mapped
-// `background` to COLBK and left `border` inert, so setting `background`
-// visibly painted the *border* and setting `border` did nothing at all.
+// The surface is the hardware, one register at a time. What a program
+// usually wants sits one layer up, in this package's own implementations of
+// the portable capability packages — `./src/screen.8bs` behind
+// @8bitscript/screen and `./src/text.8bs` behind @8bitscript/text, named by
+// the "8bitscript".exports map in package.json — which import these
+// registers and are built on nothing else.
 //
-// Every write here goes through the OS SHADOW registers as well as the
+// Border and background are two genuinely different GTIA registers here —
+// verified on screen under atari800, not inferred: in ANTIC's standard text
+// mode (the mode the OS boots into, and the one a .XEX inherits), COLBK
+// ($D01A) colours the BORDER around the playfield, while the area behind
+// the characters is COLPF2 ($D018). An earlier version of this package had
+// these the wrong way round: it mapped the background to COLBK and left the
+// border inert, so setting the background visibly painted the *border* and
+// setting the border did nothing at all.
+//
+// Every colour write goes through the OS SHADOW registers as well as the
 // hardware ones — see backgroundColorShadow below for why that is not
 // optional.
-//
-// Screen memory is not a fixed address the way the Commodore machines have
-// it: it lives wherever the OS's display list points it. SAVMSC ($58/$59)
-// is that pointer, so putChar() goes through memory.read of those two
-// bytes rather than a compile-time constant.
 
 // $D01A, GTIA's COLBK — the border, in ANTIC's standard text mode.
 @address(0xD01A)
@@ -50,7 +53,7 @@ export let textColor: volatile<u8>;
 // over GTIA's colour registers ($D016-$D01A) on every single frame. So the
 // hardware register is not the durable place to put a colour while the OS is
 // running — the shadow is, and the OS then propagates it for us. This is not
-// theoretical: it is exactly why this example rendered as a plain default
+// theoretical: it is exactly why examples/borders rendered as a plain default
 // screen on atari800 before the shadow writes were added. (It is also the
 // same class of problem packages/backend-6502's FRAME_SYNC documents for the
 // PET, where the KERNAL's own IRQ handler wins a race for the vertical-
@@ -58,8 +61,8 @@ export let textColor: volatile<u8>;
 // frame, forever.)
 //
 // A program that takes the machine over completely — disabling the OS VBI —
-// would write only the hardware registers instead. This package targets the
-// OS-friendly case, so applyColors() below writes both.
+// would write only the hardware registers instead. This package's screen.8bs
+// targets the OS-friendly case, so it writes both.
 @address(0x02C8)
 export let borderColorShadow: volatile<u8>;
 
@@ -70,127 +73,8 @@ export let backgroundColorShadow: volatile<u8>;
 export let textColorShadow: volatile<u8>;
 
 // $02F0, CRSINH — set non-zero to stop the OS screen editor drawing its
-// inverse-video cursor over whatever cell it sits on. Both applyColors()
-// and screen.putChar() set it, so a program gets a cursor-free screen
-// whichever of the two it calls first.
+// inverse-video cursor over whatever cell it sits on. Both
+// `screen.setColors()` and `text.putChar()` set it, so a program gets a
+// cursor-free screen whichever of the two it calls first.
 @address(0x02F0)
 export let cursorInhibit: volatile<u8>;
-
-// ---- the common colour surface -------------------------------------------
-//
-// Every machine package exports the same three names, which is what lets a
-// program import them from @8bitscript/machine and never name the hardware:
-// set `border` and `background`, call applyColors(), and the machine shows
-// them.
-
-export let border: u8 = 0;
-export let background: u8 = 0;
-
-export function applyColors(): void {
-    // GTIA colours are 8-bit (4 bits hue, 4 bits luminance) but this
-    // package doesn't interpret them — a caller passes raw GTIA bytes
-    // through `border`/`background`, the same "portable values are whatever
-    // the hardware wants" contract memory.write already has everywhere else.
-    //
-    // Shadow first, then hardware, for two different reasons: the shadow so
-    // the colour survives the OS's next vertical blank (see its declaration
-    // above — without this, the colour lasts one frame), the hardware
-    // register so it appears now rather than at that next blank.
-    //
-    // COLPF1 is forced to $0E (max luminance, hue ignored in GR.0) so
-    // characters stay readable against any COLPF2 the caller just set —
-    // the Atari equivalent of the Commodore packages drawing digits in
-    // white. CRSINH hides the OS cursor so it cannot invert a cell of
-    // whatever the caller writes.
-    borderColorShadow = border;
-    borderColor = border;
-    backgroundColorShadow = background;
-    backgroundColor = background;
-    textColorShadow = 0x0E;
-    textColor = 0x0E;
-    cursorInhibit = 1;
-}
-
-// ---- friendly colour namespaces ---------------------------------------------
-//
-// The same eight names every machine package exports — Black, White, Red,
-// Cyan, Purple, Green, Blue, Yellow — so a program can write
-// `border = BorderColor.Blue` through @8bitscript/machine and get blue on
-// every target. The values are GTIA bytes: hue in the high nibble, luminance
-// in the low (even values only; bit 0 is unused). Hues follow the SETCOLOR
-// hue table in the Atari BASIC Reference Manual — 0 grey, 1 gold, 3 red-
-// orange, 5 purple, 8 blue, 10 turquoise, 12 green — with luminances picked
-// so that each reads as its name and stays darker than the $0E text
-// luminance applyColors() writes. A program that wants a colour not named
-// here passes its own GTIA byte through `border`/`background` directly.
-// Not visually verified under atari800 by this project; the hue table is
-// the manual's, the luminances a judgement.
-
-export namespace BorderColor {
-    const Black: utinyint = 0x00;
-    const White: utinyint = 0x0E;
-    const Red: utinyint = 0x34;
-    const Cyan: utinyint = 0xA8;
-    const Purple: utinyint = 0x58;
-    const Green: utinyint = 0xC6;
-    const Blue: utinyint = 0x84;
-    const Yellow: utinyint = 0x1C;
-}
-
-export namespace BackgroundColor {
-    const Black: utinyint = 0x00;
-    const White: utinyint = 0x0E;
-    const Red: utinyint = 0x34;
-    const Cyan: utinyint = 0xA8;
-    const Purple: utinyint = 0x58;
-    const Green: utinyint = 0xC6;
-    const Blue: utinyint = 0x84;
-    const Yellow: utinyint = 0x1C;
-}
-
-// ---- the friendly screen surface (immediate-apply) -------------------------
-//
-// ANTIC mode 2 (GR.0) is 40x24 = 960 cells, pointed to by SAVMSC at $58
-// (lo) / $59 (hi) — not a fixed address. Codes are ASCII, as they are on
-// every machine (space, '0'-'9', 'A'-'Z' and a little punctuation, upper
-// case only) — ATASCII agrees with ASCII across that whole range, so no
-// translation is needed on the way in; putChar converts to the internal
-// screen code ANTIC actually fetches (space $20 -> $00, digits and letters
-// $20-$5F minus $20). There is no colour RAM: a character's luminance is
-// the global COLPF1 applyColors() writes, so putColor exists only so
-// portable code still compiles and does nothing, the same way
-// @8bitscript/pet's putColor does nothing. putChar also inhibits the OS
-// cursor (see cursorInhibit above), so a program that draws before its
-// first applyColors() — which is the order every program should use, for
-// the NES's sake — does not get its first cell inverted by the cursor
-// sitting on it.
-
-export namespace screen {
-    const CellCount: usmallint = 960; // 40 columns x 24 rows
-
-    function atasciiToInternal(code: utinyint): utinyint {
-        if (code < 32) {
-            return code + 64;
-        }
-        if (code < 96) {
-            return code - 32;
-        }
-        return code;
-    }
-
-    function putChar(cell: usmallint, code: utinyint): void {
-        cursorInhibit = 1;
-        memory.write(
-            memory.read(0x58) + (memory.read(0x59) * 256) + cell,
-            screen.atasciiToInternal(code),
-        );
-    }
-
-    function putColor(cell: usmallint, color: utinyint): void {
-        // Deliberately empty — GR.0 has no per-cell colour RAM.
-    }
-
-    function showDigit(cell: usmallint, digit: utinyint): void {
-        screen.putChar(cell, 0x30 + (digit % 10));
-    }
-}

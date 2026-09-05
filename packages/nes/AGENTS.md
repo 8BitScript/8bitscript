@@ -10,16 +10,19 @@ and are not repeated here.
 
 Do not describe more than this as working:
 
-- `packages/nes/src/index.8bs` exports the common colour surface and the
-  `screen` namespace every other machine package has. `background` writes
-  PPU palette RAM `$3F00`, the universal backdrop. `border` is real but
-  *drawn*: the NES has no border register (the picture fills the frame edge
-  to edge), so the first `applyColors()` lays a two-tile-thick ring of a
-  solid tile around the nametable and `border` is that tile's colour
-  (`$3F02`). `screen.putChar(cell, code)` writes an ASCII code into the
-  32×30 nametable (`$2000 + cell`) through PPUADDR/PPUDATA and resets the
-  scroll; `putColor` is a documented no-op (attribute-table granularity);
-  text is white (`$3F01 = $30`).
+- `packages/nes/src/index.8bs` exports the PPU port protocol —
+  `setVramAddress()` and `resetScroll()` — that the package's two portable
+  surfaces are built on: `src/screen.8bs` (behind `@8bitscript/screen`, as
+  `@8bitscript/nes/screen`) and `src/text.8bs` (behind `@8bitscript/text`).
+  `screen.setColors(border, background)`'s background writes PPU palette
+  RAM `$3F00`, the universal backdrop. Its border is real but *drawn*: the
+  NES has no border register (the picture fills the frame edge to edge), so
+  the first `setColors()` lays a two-tile-thick ring of a solid tile around
+  the nametable and `border` is that tile's colour (`$3F02`).
+  `text.putChar(cell, code)` writes an ASCII code into the 28×26 grid
+  inside that frame through PPUADDR/PPUDATA and resets the scroll;
+  `putColor` is a documented no-op (attribute-table granularity); text is
+  white (`$3F01 = $30`).
 - `packages/nes/native/6502/font.s` is the CHR-ROM character set — the NES
   has no character ROM, so the package ships one, laid out so tile index ==
   ASCII (space, digits, A-Z, `! , - . : ?`; tile `$80` is the solid frame
@@ -44,11 +47,13 @@ persistence, and no PRNG library yet — for any machine, not just this one.
 If you're implementing one of these, the rules below are what to hold it
 to; if you're just writing docs or comments, don't imply it already exists.
 
-Two PPU rules `index.8bs` already honours and any extension must keep:
-VRAM is free to write only while rendering is off (before the first
-`applyColors()`) or during vertical blank (from `frame()`, which the driver
-calls at vblank start) — never from setup code that runs after rendering is
-on; and every PPUADDR/PPUDATA sequence must end with a scroll reset
+Two PPU rules `index.8bs` documents, `screen.8bs`/`text.8bs` already
+honour, and any extension must keep: VRAM is free to write only while
+rendering is off (before the first `screen.setColors()`) or during
+vertical blank (right after `waitFrame()`
+returns, which on the NES is vblank start) — never from setup code that
+runs after rendering is on, and never late in a frame's work; and every
+PPUADDR/PPUDATA sequence must end with a scroll reset
 (`$2000 = 0`, `$2005 = 0` twice), or the next frame draws from wherever the
 address register was left.
 
@@ -67,7 +72,7 @@ hardware fact worth having memorized before writing NES-facing API or docs:
 | Pattern space | Two 4K pattern tables (8K total addressable by the PPU at once) of 256 tiles each — background and sprites can each use either table. What's actually *in* pattern space (ROM, fixed, bank-switched, RAM) depends on the mapper, not on the PPU. |
 | Sprites (OAM) | 64 entries, 4 bytes each (Y, tile index, attributes, X) — the familiar "4 bytes per sprite" figure. |
 | **Sprite-per-scanline limit** | Only **8** of those 64 entries can be drawn on any single scanline. This is the constraint that actually breaks games, not the 64 total — four hardware sprites forming one large metasprite already spend half a scanline's budget. |
-| Palette RAM | 32 bytes at PPU address `$3F00`–`$3F1F`, reached indirectly through `PPUADDR`/`PPUDATA` (`$2006`/`$2007`) the way `applyColors()` already does — the CPU cannot address it directly. |
+| Palette RAM | 32 bytes at PPU address `$3F00`–`$3F1F`, reached indirectly through `PPUADDR`/`PPUDATA` (`$2006`/`$2007`) the way `screen.setColors()` already does — the CPU cannot address it directly. |
 
 Facts to actively correct if you see them stated otherwise:
 
@@ -118,7 +123,7 @@ Facts to actively correct if you see them stated otherwise:
   look like `background.setTile(x, y, tile)`, `sprites.place(id, x, y,
   frame)`, `scroll.set(x, y)` — game logic updates a shadow representation,
   and a frame-time commit step transfers changes to the PPU at a safe point
-  (vblank). Raw PPU access (as `applyColors()` already does) stays available
+  (vblank). Raw PPU access (as `screen.setColors()` already does) stays available
   underneath for anyone who wants it; the portable layer should never be the
   *only* way in.
 - **The PPU warm-up is already handled — don't add a second one.** NESdev's
@@ -161,13 +166,15 @@ the other eight targets' own mechanisms.
 ## Where things live
 
 ```
-packages/nes/src/index.8bs           target package: border/background/applyColors(), screen
+packages/nes/src/index.8bs           target package: the PPU port protocol (setVramAddress, resetScroll)
+packages/nes/src/screen.8bs          @8bitscript/nes/screen: screen.setColors(), the drawn frame, colour names
+packages/nes/src/text.8bs            @8bitscript/nes/text: text.putChar/putColor/showDigit, CellCount 728
 packages/nes/native/6502/font.s      the CHR-ROM character set (tile index == ASCII)
-packages/nes/package.json            "8bitscript".native lists the font for the build
+packages/nes/package.json            "8bitscript".exports names the two subpaths; .native lists the font
 packages/backend-6502/src/index.mjs  driver selection (DRIVER.nes), NTSC frame timing, nativeSources
 packages/compiler/src/resolver/      "8bitscript".native → absolute paths (8BS2008 if missing)
 packages/compiler/test/nes-screen.test.mjs   the package and the native plumbing, end to end
-examples/borders/src/main.8bs        the working program (every target): readout, draw-then-applyColors ordering
+examples/borders/src/main.8bs        the working program (every target): readout, draw-then-setColors ordering
 docs/setup/nes.md                    install/run FCEUX, 8bs run nes, what the picture shows
 docs/roadmap.md                      Phase 3: why NES is here, the capability-system rationale
 ```

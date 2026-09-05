@@ -1,0 +1,34 @@
+{
+  "name": "@8bitscript/screen",
+  "private": true,
+  "version": "0.0.0",
+  "description": "The screen, on whichever machine is being built: border and background colours, with the same eight colour names everywhere. Resolves per target to that machine's own screen implementation.",
+  "license": "MIT",
+  "8bitscript": {
+    "entry": {
+      "vic20": "@8bitscript/vic20/screen",
+      "c64": "@8bitscript/c64/screen",
+      "pet": "@8bitscript/pet/screen",
+      "c128": "@8bitscript/c128/screen",
+      "atari8": "@8bitscript/atari8/screen",
+      "nes": "@8bitscript/nes/screen",
+      "cx16": "@8bitscript/cx16/screen",
+      "mega65": "@8bitscript/mega65/screen",
+      "web": "@8bitscript/web/screen"
+    }
+  },
+  "dependencies": {
+    "@8bitscript/atari8": "workspace:*",
+    "@8bitscript/c64": "workspace:*",
+    "@8bitscript/c128": "workspace:*",
+    "@8bitscript/cx16": "workspace:*",
+    "@8bitscript/mega65": "workspace:*",
+    "@8bitscript/nes": "workspace:*",
+    "@8bitscript/pet": "workspace:*",
+    "@8bitscript/vic20": "workspace:*",
+    "@8bitscript/web": "workspace:*"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

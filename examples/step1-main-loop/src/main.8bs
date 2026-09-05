@@ -5,24 +5,22 @@
 // explained in docs/learn/step1-main-loop.md; the short version is in the
 // comments here.
 
-// The colour API comes from the machine package. `@8bitscript/machine` is not
-// a package with code of its own: at build time it resolves to
-// `@8bitscript/vic20` or `@8bitscript/c64`, whichever machine you asked for.
-// Both export these three names, so this file builds for either machine
-// without changing.
-import { border, background, applyColors } from "@8bitscript/machine";
+// The screen comes from the screen package. `@8bitscript/screen` has no code
+// of its own: at build time it resolves to the VIC-20's or the C64's own
+// implementation, whichever machine you asked for. Both export the same
+// `screen` namespace, so this file builds for either machine without
+// changing.
+import { screen } from "@8bitscript/screen";
 
-// `main` is where the program starts. It must be exported, or the compiler
-// has no entry point to hand the machine, and it returns `void` because there
-// is nobody to return a value to.
+// `main` is where the program starts: the one function this file exports.
+// The compiler insists on exactly one export from the entry file — that is
+// the program, whatever it is called (`main` is the convention) — and it
+// returns `void` because there is nobody to return a value to.
 export function main(): void {
-    // `border` and `background` are ordinary variables until applyColors()
-    // writes them to the video chip. Colours 0-7 have the same numbers on the
+    // Border, then background. Colours 0-7 have the same numbers on the
     // VIC-20 and the C64: 0 black, 1 white, 2 red, 3 cyan, 4 purple,
-    // 5 green, 6 blue, 7 yellow.
-    border = 6;
-    background = 0;
-    applyColors();
+    // 5 green, 6 blue, 7 yellow. This is the line where the screen changes.
+    screen.setColors(6, 0);
 
     // The loop that never ends. On an 8-bit machine there is no operating
     // system waiting to take over when main() returns: control goes straight

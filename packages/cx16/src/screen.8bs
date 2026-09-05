@@ -1,0 +1,178 @@
+// @8bitscript/cx16/screen — the Commander X16's implementation of
+// @8bitscript/screen.
+//
+// Named by "8bitscript".exports["./screen"] in this package's package.json,
+// and what
+//
+//     import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";
+//
+// resolves to when the build is for the X16: @8bitscript/screen's entry is
+// keyed by machine and delegates here. Built on the VERA port protocol
+// @8bitscript/cx16 exports — read that file first for what the KERNAL
+// leaves on screen and how VRAM is reached. Every machine's screen.8bs
+// exports this same surface, which is what lets a program import it from
+// @8bitscript/screen and never name the hardware.
+import { mapBank, mapLow, locateTextMap, setVramAddress } from "./index.8bs";
+
+// ---- where a border comes from --------------------------------------------
+//
+// VERA's border colour is a plain CPU-addressable register — but the
+// border it colours has no size by default. VERA draws layers inside an
+// "active area" whose edges are DC_HSTART/HSTOP/VSTART/VSTOP, and the
+// KERNAL boots with that area set to the entire 640x480 output, so nothing
+// is left over for the border colour to fill. Setting the border alone is
+// invisible — the second reason examples/borders once showed only blue.
+//
+// So setColors() shrinks the active area by 16 pixels on every side —
+// HSTART/HSTOP count in units of 4 pixels (0..160), VSTART/VSTOP in units
+// of 2 (0..240), hence 4/156 and 8/232 — and VERA fills the 16-pixel ring
+// outside it with the border colour. The text layer is positioned relative
+// to the active area, so a program sees the same 80x60 grid with cell
+// (0,0) at the inset's top-left corner — the rightmost 4 columns and
+// bottom 4 rows now fall outside the active area and are not drawn. This
+// is the closest thing the X16 has to the VIC/VIC-II's dedicated border
+// area, and like the NES's drawn frame it is honest about what it is: a
+// choice this module makes, not a register the machine has.
+//
+// "Relative" needs one correction, measured rather than assumed. Under
+// x16emu r50 the layer's first line lands TWO lines above the active
+// area's top edge whenever VSTART is nonzero: with a 16-line inset, row 0
+// of text occupied lines 14-21 and its top two lines were hidden under
+// the border, and the same two lines with a 32-line inset. The emulator's
+// video.c shows why — its layer line counter starts accumulating on the
+// VSTART line through a two-line register-history pipeline (the one that
+// models VERA's own raster-effect latency), so the active area's first
+// line already reads as layer line 2. setColors() compensates with layer
+// 1's vertical scroll: 510, which is -2 modulo the map's 512 lines, puts
+// layer line 0 on the active area's first line exactly (verified the same
+// way: row 0's glyphs occupy lines 16-23 with the 16-line inset, none
+// hidden). The horizontal edge needs no such correction. Real hardware
+// has not been checked; if VERA silicon has no such offset, the visible
+// symptom would be the map's last row showing in the top two lines — so
+// the repaint below covers that row too and keeps its characters blank.
+//
+// The four DC_ registers live at $9F29-$9F2C under two views selected by
+// DCSEL (CTRL $9F25 bit 1): DCSEL=0 is VIDEO/HSCALE/VSCALE/BORDER, DCSEL=1
+// is HSTART/HSTOP/VSTART/VSTOP — confirmed against llvm-mos-sdk's cx16.h,
+// which lays out `struct __vera` exactly so. setColors() sets DCSEL
+// itself both times and leaves it 0 (the KERNAL's default), so nothing
+// here assumes what a previous program left it at.
+//
+// ---- the background: painted, not set ---------------------------------------
+//
+// There is no screen-background register at all: each text cell's colours
+// come from its own attribute byte in VRAM (see @8bitscript/cx16). So the
+// background is painted: setColors() writes every one of the 4800
+// on-screen cells' attribute bytes to `background` in the high nibble and
+// white (1) in the low — 60 rows of 80 auto-incrementing writes — the same
+// way the Commodore packages draw their digits in white against whatever
+// background is chosen. Around 60,000 cycles at 8MHz, a few milliseconds:
+// VERA's VRAM is safe to write at any point in the frame (a write mid-frame
+// can tear for that one frame; it cannot corrupt anything, unlike the
+// NES's port), so this needs no vblank budget and setColors() is safe from
+// the frame loop as well as from setup. Its side effect is deliberate and
+// documented: any foreground colour a program set with text.putColor() is
+// reset to white by the next setColors().
+//
+// Colours are VERA palette indices. The KERNAL's default palette starts
+// with the sixteen C64 colours in C64 order — 0 black, 1 white, 2 red,
+// 3 cyan, 4 purple, 5 green, 6 blue, 7 yellow, and so on — verified on
+// screen under x16emu for the values examples/borders uses, so the
+// Commodore packages' colour numbers mean the same colours here.
+
+// Loop counters for the attribute repaint — globals, not locals, since
+// there are no local variables in the compiled subset yet.
+let paintRow: usmallint = 0;
+let paintCol: usmallint = 0;
+
+export namespace screen {
+    function setColors(border: u8, background: u8): void {
+        // DCSEL=1: the active-area edges. 16 pixels in on every side.
+        memory.write(0x9F25, 0x02);
+        memory.write(0x9F29, 4);    // HSTART: 16px
+        memory.write(0x9F2A, 156);  // HSTOP: 624px
+        memory.write(0x9F2B, 8);    // VSTART: 16px
+        memory.write(0x9F2C, 232);  // VSTOP: 464px
+        // DCSEL=0 (and ADDRSEL=0): the border colour itself.
+        memory.write(0x9F25, 0x00);
+        memory.write(0x9F2C, border);
+        // Layer 1's scroll: horizontal 0, vertical 510 = -2 mod the map's
+        // 512 lines — the two-line correction the header explains, so that
+        // cell (0,0) lands exactly at the active area's top-left corner.
+        memory.write(0x9F37, 0x00); // L1_HSCROLL_L
+        memory.write(0x9F38, 0x00); // L1_HSCROLL_H
+        memory.write(0x9F39, 0xFE); // L1_VSCROLL_L: 510 & 0xFF
+        memory.write(0x9F3A, 0x01); // L1_VSCROLL_H: 510 >> 8
+
+        // Every cell's attribute byte: background high, white low. All 64
+        // map rows, not just the 60 on screen — row 63 is what the
+        // vertical-scroll correction above would expose if real hardware
+        // lacks the offset it corrects (see the header), so it gets the
+        // same colours and, below, blank characters.
+        locateTextMap();
+        paintRow = 0;
+        while (paintRow < 64) {
+            setVramAddress(mapBank, mapLow + 1 + paintRow * 256, 2);
+            paintCol = 0;
+            while (paintCol < 80) {
+                memory.write(0x9F23, background * 16 + 1);
+                paintCol = paintCol + 1;
+            }
+            paintRow = paintRow + 1;
+        }
+        setVramAddress(mapBank, mapLow + 63 * 256, 2);
+        paintCol = 0;
+        while (paintCol < 80) {
+            memory.write(0x9F23, 32);
+            paintCol = paintCol + 1;
+        }
+    }
+}
+
+// ---- colour names ----------------------------------------------------------
+//
+// The same eight names every machine's screen.8bs exports — Black, White,
+// Red, Cyan, Purple, Green, Blue, Yellow — so a program can write
+// `screen.setColors(BorderColor.Blue, BackgroundColor.Black)` through
+// @8bitscript/screen and get blue on every target. The values are the first
+// sixteen entries of VERA's default palette, which are the C64's sixteen
+// colours in the C64's numbering (see above), so both namespaces carry all
+// sixteen.
+
+export namespace BorderColor {
+    const Black: utinyint = 0;
+    const White: utinyint = 1;
+    const Red: utinyint = 2;
+    const Cyan: utinyint = 3;
+    const Purple: utinyint = 4;
+    const Green: utinyint = 5;
+    const Blue: utinyint = 6;
+    const Yellow: utinyint = 7;
+    const Orange: utinyint = 8;
+    const Brown: utinyint = 9;
+    const LightRed: utinyint = 10;
+    const DarkGrey: utinyint = 11;
+    const Grey: utinyint = 12;
+    const LightGreen: utinyint = 13;
+    const LightBlue: utinyint = 14;
+    const LightGrey: utinyint = 15;
+}
+
+export namespace BackgroundColor {
+    const Black: utinyint = 0;
+    const White: utinyint = 1;
+    const Red: utinyint = 2;
+    const Cyan: utinyint = 3;
+    const Purple: utinyint = 4;
+    const Green: utinyint = 5;
+    const Blue: utinyint = 6;
+    const Yellow: utinyint = 7;
+    const Orange: utinyint = 8;
+    const Brown: utinyint = 9;
+    const LightRed: utinyint = 10;
+    const DarkGrey: utinyint = 11;
+    const Grey: utinyint = 12;
+    const LightGreen: utinyint = 13;
+    const LightBlue: utinyint = 14;
+    const LightGrey: utinyint = 15;
+}

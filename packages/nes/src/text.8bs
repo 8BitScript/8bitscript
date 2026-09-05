@@ -1,0 +1,59 @@
+// @8bitscript/nes/text — the NES's implementation of @8bitscript/text.
+//
+// Named by "8bitscript".exports["./text"] in this package's package.json,
+// and what
+//
+//     import { text } from "@8bitscript/text";
+//
+// resolves to when the build is for the NES. Built on the PPU port protocol
+// @8bitscript/nes exports — read that file first for the two VRAM rules
+// this one lives by. Every machine's text.8bs exports this same namespace —
+// the same names, the same shapes, ASCII codes, and a cell 0 at the
+// top-left corner inside the border — so a program that imports it from
+// @8bitscript/text draws the same thing on every target.
+import { setVramAddress, resetScroll } from "./index.8bs";
+
+// ---- text: the character set is ours to ship --------------------------
+//
+// A Commodore or Atari `text.putChar` writes one byte into screen memory
+// and a character ROM in the machine turns it into pixels. The NES has no
+// character ROM: the PPU fetches every 8x8 tile pattern from the cartridge,
+// so a cartridge that shows text must carry its own. This package does —
+// native/6502/font.s, an 8 KiB CHR-ROM listed in package.json's
+// "8bitscript".native and linked into the .nes image by the 6502 backend
+// (it rides along with every import of this package, its entry or any of
+// its subpaths) — laid out so that tile index == ASCII code.
+// `putChar(cell, 65)` therefore draws an 'A' with no translation table.
+// Space, digits, A-Z and `! , - . : ?` have glyphs; other codes in $20-$5F
+// are blank tiles. That set — upper case only — is what every machine's
+// putChar takes, precisely because it is what this font has: the portable
+// character set is the smallest one any target can show.
+//
+// The grid is the area inside the frame screen.8bs draws (see there):
+// 28 columns by 26 rows, 728 cells, cell 0 at nametable row 2, column 2,
+// each row 32 bytes apart in the nametable — cell `n` is nametable address
+// $2000 + (2 + n / 28) * 32 + 2 + n % 28. Nothing shows until
+// screen.setColors() has switched rendering on; until then, writes here
+// are free of any vblank budget (rule 2 in @8bitscript/nes), which is why
+// a program clears and labels first and sets colours last. putColor exists
+// so portable code still compiles and does nothing: the PPU has no
+// per-cell colour — the nearest thing, the attribute table, chooses a
+// palette per 32x32-pixel block, and every block here is palette 0.
+
+export namespace text {
+    const CellCount: usmallint = 728; // 28 columns x 26 rows, inside the frame
+
+    function putChar(cell: usmallint, code: utinyint): void {
+        setVramAddress(0x2042 + (cell / 28) * 32 + (cell % 28));
+        memory.write(0x2007, code);
+        resetScroll();
+    }
+
+    function putColor(cell: usmallint, color: utinyint): void {
+        // Deliberately empty — see above.
+    }
+
+    function showDigit(cell: usmallint, digit: utinyint): void {
+        text.putChar(cell, 0x30 + (digit % 10));
+    }
+}

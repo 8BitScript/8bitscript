@@ -1,15 +1,17 @@
-// @8bitscript/vic20 — VIC-20 target support.
+// @8bitscript/vic20 — VIC-20 target support: the hardware underneath.
 //
 // The module entry point named by the "8bitscript".entry field in this
 // package's package.json, resolved and linked for:
 //
-//     import { vicColor } from "@8bitscript/vic20";
-//     import { screen, BorderColor, BackgroundColor } from "@8bitscript/vic20";
+//     import { vicColor, memoryPointer } from "@8bitscript/vic20";
 //
-// This package is where "portable APIs, without losing the target" is paid
-// for. @8bitscript/core stays identical everywhere; the machine underneath is
-// reached through here, and a project that imports this package has declared
-// itself VIC-20 specific.
+// The surface is the hardware, one register at a time. What a program
+// usually wants sits one layer up, in this package's own implementations of
+// the portable capability packages — `./src/screen.8bs` behind
+// @8bitscript/screen and `./src/text.8bs` behind @8bitscript/text, named by
+// the "8bitscript".exports map in package.json — which import these
+// registers and are built on nothing else. A project that imports THIS
+// package has declared itself VIC-20 specific.
 
 // $900F, the VIC chip's screen/colour register. Bits verified against the
 // VIC-20's own hardware map, not inferred from a BASIC POKE example:
@@ -20,151 +22,10 @@
 @address(0x900F)
 export let vicColor: volatile<u8>;
 
-// Not exported: which register a friendly API touches, and how its bits are
-// arranged, is an implementation detail of this package. A caller reaches
-// for `screen.setBorderColor(...)`, not `0x900F` — this is the one place
-// that number is allowed to appear, named once rather than repeated at every
-// call site that happens to need it.
-namespace VicRegisters {
-    const BackgroundBorder: usmallint = 0x900F;
-    const MemoryPointer: usmallint = 0x9005;
-    const UppercaseScreenAt1E00: utinyint = 0xF0;
-}
-
-// ---- the common colour surface (deferred-apply) ----------------------------
-//
-// Every machine package exports the same three names, which is what lets a
-// program import them from @8bitscript/machine and never name the hardware:
-// set `border` and `background`, call applyColors(), and the machine shows
-// them once applyColors() actually runs.
-
-export let border: utinyint = 0;
-export let background: utinyint = 0;
-
-// One packed register on the VIC: border in bits 0-2 (the VIC has eight
-// border colours, so the value is masked to them), background in bits 4-7,
-// bit 3 held at 1 for normal video.
-export function applyColors(): void {
-    vicColor = (8 | (border & 7)) | (background << 4);
-}
-
-// ---- friendly colour namespaces ---------------------------------------------
-//
-// The border field only has 3 bits, so it can only reach the first 8 of the
-// VIC's 16 colours — `BorderColor` and `BackgroundColor` are two namespaces,
-// not one shared `Color`, because the hardware itself draws that line, not
-// an API design preference. Values and names match the VIC-20's own colour
-// numbering (POKE 36879 in the Programmer's Reference Guide). Those first
-// eight names — Black, White, Red, Cyan, Purple, Green, Blue, Yellow — are
-// the ones every machine package exports in both namespaces, each with its
-// own hardware's value, which is what lets a program say
-// `border = BorderColor.Blue` through @8bitscript/machine on any target.
-
-export namespace BorderColor {
-    const Black: utinyint = 0;
-    const White: utinyint = 1;
-    const Red: utinyint = 2;
-    const Cyan: utinyint = 3;
-    const Purple: utinyint = 4;
-    const Green: utinyint = 5;
-    const Blue: utinyint = 6;
-    const Yellow: utinyint = 7;
-}
-
-export namespace BackgroundColor {
-    const Black: utinyint = 0;
-    const White: utinyint = 1;
-    const Red: utinyint = 2;
-    const Cyan: utinyint = 3;
-    const Purple: utinyint = 4;
-    const Green: utinyint = 5;
-    const Blue: utinyint = 6;
-    const Yellow: utinyint = 7;
-    const Orange: utinyint = 8;
-    const LightOrange: utinyint = 9;
-    const PinkRed: utinyint = 10;
-    const LightCyan: utinyint = 11;
-    const LightPurple: utinyint = 12;
-    const LightGreen: utinyint = 13;
-    const LightBlue: utinyint = 14;
-    const LightYellow: utinyint = 15;
-}
-
-// ---- the friendly screen surface (immediate-apply) -------------------------
-//
-// Unlike `border`/`background`/`applyColors()` above, these take effect the
-// moment they are called: each does a read-modify-write against the packed
-// register, through the same `memory.read`/`memory.write` a translated BASIC
-// POKE would use, masking so that changing one field never disturbs the
-// other or the reverse-video bit they share a byte with.
-
-export namespace screen {
-    function setBorderColor(color: utinyint): void {
-        memory.write(
-            VicRegisters.BackgroundBorder,
-            (memory.read(VicRegisters.BackgroundBorder) & 0xF8) | (color & 0x07),
-        );
-    }
-
-    function setBackgroundColor(color: utinyint): void {
-        memory.write(
-            VicRegisters.BackgroundBorder,
-            (memory.read(VicRegisters.BackgroundBorder) & 0x0F) | ((color & 0x0F) << 4),
-        );
-    }
-
-    // Screen memory for the *unexpanded* VIC-20 — the 22x23 character screen
-    // this backend already targets (see docs/compiler.md: load address
-    // $1001, `__memory_expansion` pinned to 0) — starts at $1E00, with its
-    // colour nybbles at the fixed $9600. There is no general text API yet
-    // (that's `screen.putChar(x, y, code)`/`input.*` in docs/roadmap.md, not
-    // built — this `putChar` takes one flat cell index instead of x/y), so
-    // these are the plainest things that can stand in for one: poke one
-    // cell's character code, poke one cell's colour, and how many cells the
-    // whole screen has. Whether a caller uses these to clear the screen,
-    // lay out a label, or nothing at all is entirely up to the caller — this
-    // package draws nothing on its own.
-    const CellCount: usmallint = 506; // 22 columns x 23 rows
-
-    // `putChar` takes ASCII on every machine — space (32), '0'-'9' (48-57),
-    // 'A'-'Z' (65-90) and the punctuation `! , - . : ?` — upper case only:
-    // that is the portable set, the characters every target's character
-    // set has (the NES ships its own font, and that is what it has). The
-    // VIC wants screen codes: in every Commodore character ROM codes 32-63
-    // are those same ASCII values, and 'A'-'Z' are 1-26, so this moves
-    // 64-95 down by 64 and leaves 32-63 alone.
-    function asciiToScreenCode(code: utinyint): utinyint {
-        if (code >= 64 && code < 96) {
-            return code - 64;
-        }
-        return code;
-    }
-
-    // Whether screen codes 1-26 LOOK like 'A'-'Z' or 'a'-'z' is the
-    // character set's choice, and the start-up code LLVM-MOS links in front
-    // of main() switches the machine to the lower-case set (the one that
-    // shows the BASIC banner in lower case — see docs/learn/
-    // step1-main-loop.md). So putChar() also selects the upper-case set,
-    // every call: $9005 is the VIC's memory pointer (`addr` in llvm-mos-
-    // sdk's _vic.h), and $F0 is screen $1E00 with the upper-case/graphics
-    // character ROM at $8000 — the power-on value (POKE 36869,240 in the
-    // Programmer's Reference Guide), where $F2 is the lower-case ROM at
-    // $8800. One register write, and "TICK" reads as TICK here the way it
-    // does on the NES, the Atari, and the X16, none of which have a
-    // lower-case set to fall into.
-    function putChar(cell: usmallint, code: utinyint): void {
-        memory.write(VicRegisters.MemoryPointer, VicRegisters.UppercaseScreenAt1E00);
-        memory.write(0x1E00 + cell, screen.asciiToScreenCode(code));
-    }
-
-    function putColor(cell: usmallint, color: utinyint): void {
-        memory.write(0x9600 + cell, color & 0x07);
-    }
-
-    // Screen codes 0-9 equal '0'-'9' in every VIC/C64 character ROM charset,
-    // so no lookup table is needed here.
-    function showDigit(cell: usmallint, digit: utinyint): void {
-        screen.putChar(cell, 0x30 + (digit % 10));
-        screen.putColor(cell, 1); // white, so the digit reads on any background
-    }
-}
+// $9005, the VIC's memory pointer (`addr` in llvm-mos-sdk's _vic.h): bits
+// 4-7 the screen base, bits 0-3 the character set base. $F0 is screen $1E00
+// with the upper-case/graphics character ROM at $8000 — the power-on value
+// (POKE 36869,240 in the Programmer's Reference Guide), where $F2 is the
+// lower-case ROM at $8800.
+@address(0x9005)
+export let memoryPointer: volatile<u8>;

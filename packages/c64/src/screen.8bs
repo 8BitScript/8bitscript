@@ -1,0 +1,73 @@
+// @8bitscript/c64/screen — the C64's implementation of @8bitscript/screen.
+//
+// Named by "8bitscript".exports["./screen"] in this package's package.json,
+// and what
+//
+//     import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";
+//
+// resolves to when the build is for the C64: @8bitscript/screen's entry is
+// keyed by machine and delegates here. Built on the registers @8bitscript/c64
+// itself exports, one layer up from them. Every machine's screen.8bs exports
+// this same surface, which is what lets a program import it from
+// @8bitscript/screen and never name the hardware.
+import { borderColor, backgroundColor } from "./index.8bs";
+
+// ---- the screen: border and background --------------------------------------
+//
+// The VIC-II gives border and background their own registers, sixteen
+// colours each; the masks make the wrap around the palette explicit.
+export namespace screen {
+    function setColors(border: u8, background: u8): void {
+        borderColor = border & 15;
+        backgroundColor = background & 15;
+    }
+}
+
+// ---- colour names ----------------------------------------------------------
+//
+// The same eight names every machine's screen.8bs exports — Black, White,
+// Red, Cyan, Purple, Green, Blue, Yellow — so a program can write
+// `screen.setColors(BorderColor.Blue, BackgroundColor.Black)` through
+// @8bitscript/screen and get blue on every target; the values are this
+// machine's own. The VIC-II has sixteen colours in both registers, so both
+// namespaces carry all sixteen, in the VIC-II's own numbering — the
+// numbering the VIC-20 shares for its first eight, and that @8bitscript/web
+// and @8bitscript/cx16 borrow.
+
+export namespace BorderColor {
+    const Black: utinyint = 0;
+    const White: utinyint = 1;
+    const Red: utinyint = 2;
+    const Cyan: utinyint = 3;
+    const Purple: utinyint = 4;
+    const Green: utinyint = 5;
+    const Blue: utinyint = 6;
+    const Yellow: utinyint = 7;
+    const Orange: utinyint = 8;
+    const Brown: utinyint = 9;
+    const LightRed: utinyint = 10;
+    const DarkGrey: utinyint = 11;
+    const Grey: utinyint = 12;
+    const LightGreen: utinyint = 13;
+    const LightBlue: utinyint = 14;
+    const LightGrey: utinyint = 15;
+}
+
+export namespace BackgroundColor {
+    const Black: utinyint = 0;
+    const White: utinyint = 1;
+    const Red: utinyint = 2;
+    const Cyan: utinyint = 3;
+    const Purple: utinyint = 4;
+    const Green: utinyint = 5;
+    const Blue: utinyint = 6;
+    const Yellow: utinyint = 7;
+    const Orange: utinyint = 8;
+    const Brown: utinyint = 9;
+    const LightRed: utinyint = 10;
+    const DarkGrey: utinyint = 11;
+    const Grey: utinyint = 12;
+    const LightGreen: utinyint = 13;
+    const LightBlue: utinyint = 14;
+    const LightGrey: utinyint = 15;
+}

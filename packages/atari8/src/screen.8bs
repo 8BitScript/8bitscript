@@ -1,0 +1,84 @@
+// @8bitscript/atari8/screen — the Atari 8-bit's implementation of
+// @8bitscript/screen.
+//
+// Named by "8bitscript".exports["./screen"] in this package's package.json,
+// and what
+//
+//     import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";
+//
+// resolves to when the build is for the Atari: @8bitscript/screen's entry is
+// keyed by machine and delegates here. Built on the registers
+// @8bitscript/atari8 itself exports, one layer up from them — see that file
+// for which GTIA register is which, and why the OS shadows matter. Every
+// machine's screen.8bs exports this same surface, which is what lets a
+// program import it from @8bitscript/screen and never name the hardware.
+import {
+    borderColor, borderColorShadow, backgroundColor, backgroundColorShadow,
+    textColor, textColorShadow, cursorInhibit,
+} from "./index.8bs";
+
+// ---- the screen: border and background --------------------------------------
+//
+// GTIA colours are 8-bit (4 bits hue, 4 bits luminance) but this package
+// doesn't interpret them — a caller passes raw GTIA bytes, the same
+// "portable values are whatever the hardware wants" contract memory.write
+// already has everywhere else.
+//
+// Shadow first, then hardware, for two different reasons: the shadow so the
+// colour survives the OS's next vertical blank (see @8bitscript/atari8 —
+// without this, the colour lasts one frame), the hardware register so it
+// appears now rather than at that next blank.
+//
+// COLPF1 is forced to $0E (max luminance, hue ignored in GR.0) so
+// characters stay readable against any COLPF2 the caller just set — the
+// Atari equivalent of the Commodore packages drawing digits in white.
+// CRSINH hides the OS cursor so it cannot invert a cell of whatever the
+// caller writes.
+export namespace screen {
+    function setColors(border: u8, background: u8): void {
+        borderColorShadow = border;
+        borderColor = border;
+        backgroundColorShadow = background;
+        backgroundColor = background;
+        textColorShadow = 0x0E;
+        textColor = 0x0E;
+        cursorInhibit = 1;
+    }
+}
+
+// ---- colour names ----------------------------------------------------------
+//
+// The same eight names every machine's screen.8bs exports — Black, White,
+// Red, Cyan, Purple, Green, Blue, Yellow — so a program can write
+// `screen.setColors(BorderColor.Blue, BackgroundColor.Black)` through
+// @8bitscript/screen and get blue on every target. The values are GTIA
+// bytes: hue in the high nibble, luminance in the low (even values only;
+// bit 0 is unused). Hues follow the SETCOLOR hue table in the Atari BASIC
+// Reference Manual — 0 grey, 1 gold, 3 red-orange, 5 purple, 8 blue, 10
+// turquoise, 12 green — with luminances picked so that each reads as its
+// name and stays darker than the $0E text luminance setColors() writes. A
+// program that wants a colour not named here passes its own GTIA byte to
+// setColors() directly. Not visually verified under atari800 by this
+// project; the hue table is the manual's, the luminances a judgement.
+
+export namespace BorderColor {
+    const Black: utinyint = 0x00;
+    const White: utinyint = 0x0E;
+    const Red: utinyint = 0x34;
+    const Cyan: utinyint = 0xA8;
+    const Purple: utinyint = 0x58;
+    const Green: utinyint = 0xC6;
+    const Blue: utinyint = 0x84;
+    const Yellow: utinyint = 0x1C;
+}
+
+export namespace BackgroundColor {
+    const Black: utinyint = 0x00;
+    const White: utinyint = 0x0E;
+    const Red: utinyint = 0x34;
+    const Cyan: utinyint = 0xA8;
+    const Purple: utinyint = 0x58;
+    const Green: utinyint = 0xC6;
+    const Blue: utinyint = 0x84;
+    const Yellow: utinyint = 0x1C;
+}

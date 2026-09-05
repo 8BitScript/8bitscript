@@ -30,7 +30,7 @@ export const NodeType = {
 
   Identifier: 'Identifier',
   IntegerLiteral: 'IntegerLiteral',
-  // A decimal fraction (`0.5`) — legal only as the sole argument to the
+  // A decimal fraction (`0.5`) — legal only as the first argument to the
   // `seconds(...)` compile-time duration builtin (packages/compiler/src/
   // fold), which consumes and removes every valid one before anything else
   // sees the tree; one surviving to `check()` means it was used somewhere

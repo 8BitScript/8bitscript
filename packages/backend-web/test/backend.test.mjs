@@ -26,9 +26,27 @@ test('emits the specified wrap-at-assignment form', () => {
 });
 
 test('call statements emit as plain calls', () => {
-  const emitted = emitAssemblyScript(irOf('export function main(): void { apply(); }\nexport function apply(): void { return; }'));
+  const emitted = emitAssemblyScript(irOf('export function main(): void { apply(); }\nfunction apply(): void { return; }'));
   assert.ok(emitted.ok);
   assert.match(emitted.source, /apply\(\);/);
+});
+
+test('only the entry is a wasm export; other functions are plain', () => {
+  const emitted = emitAssemblyScript(irOf('export function main(): void { apply(); }\nfunction apply(): void { return; }'));
+  assert.ok(emitted.ok);
+  assert.match(emitted.source, /^export function main\(\): void \{/m);
+  assert.match(emitted.source, /^function apply\(\): void \{/m);
+  assert.equal(emitted.usesWaitFrame, false);
+});
+
+test('waitFrame() is a host import, declared only when used', () => {
+  const emitted = emitAssemblyScript(irOf('export function main(): void { while (true) { waitFrame(); } }'));
+  assert.ok(emitted.ok);
+  assert.equal(emitted.usesWaitFrame, true);
+  assert.match(emitted.source, /@external\("env", "waitFrame"\)\ndeclare function waitFrame\(\): void;/);
+  assert.match(emitted.source, /waitFrame\(\);/);
+  const without = emitAssemblyScript(irOf(MILESTONE));
+  assert.doesNotMatch(without.source, /@external/);
 });
 
 test('@address is a target error, not a shrug', () => {
@@ -56,6 +74,41 @@ test('the milestone program runs and its u8 wraps', async () => {
     assert.equal(instance.exports.x.value, 11);
     for (let i = 0; i < 250; i += 1) instance.exports.main();
     assert.equal(instance.exports.x.value, 5, 'u8 must wrap at 256');
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('a waitFrame() program builds with shared memory and runs against a host-supplied import', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-web-test-'));
+  try {
+    const outFile = join(scratch, 'w.wasm');
+    const src = 'let frames: u8 = 0;\nexport function main(): void {\n    while (true) {\n        waitFrame();\n        frames = frames + 1;\n    }\n}\n';
+    const result = await buildWasm(irOf(src), { outFile });
+    assert.ok(result.ok, result.error);
+
+    const module = await WebAssembly.compile(await readFile(outFile));
+    assert.deepEqual(
+      WebAssembly.Module.imports(module).map((i) => `${i.module}.${i.name}`),
+      ['env.waitFrame'],
+    );
+    // Exactly one function export — the program — beside its globals/memory.
+    assert.deepEqual(
+      WebAssembly.Module.exports(module).filter((e) => e.kind === 'function').map((e) => e.name),
+      ['main'],
+    );
+
+    // A headless host bounds the program by throwing out of the import: the
+    // exception unwinds through the wasm frames to the caller of main().
+    class Stop extends Error {}
+    let calls = 0;
+    // Instantiating a compiled Module yields the Instance directly.
+    const instance = await WebAssembly.instantiate(module, {
+      env: { waitFrame() { calls += 1; if (calls > 10) throw new Stop(); } },
+    });
+    assert.ok(instance.exports.memory.buffer instanceof SharedArrayBuffer, 'memory must be shared');
+    assert.throws(() => instance.exports.main(), Stop);
+    assert.equal(instance.exports.frames.value, 10);
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }

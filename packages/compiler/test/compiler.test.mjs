@@ -153,7 +153,9 @@ test('type constructors are not integers', () => {
 
 test('workspace imports resolve through pnpm links', () => {
   const file = join(HELLO_VIC, 'main.8bs');
-  const src = 'import { screen } from "@8bitscript/core";\nimport { vic } from "@8bitscript/vic20";\n';
+  // hello-vic depends on @8bitscript/text and @8bitscript/vic20 with
+  // workspace:*; a target package's own subpath resolves the same way.
+  const src = 'import { text } from "@8bitscript/text";\nimport { vic } from "@8bitscript/vic20";\nimport { screen } from "@8bitscript/vic20/screen";\n';
   assert.deepEqual(codes(src, file, { resolveImports: true }), []);
 });
 
@@ -189,6 +191,7 @@ test('milestone program lowers cleanly', () => {
   // `u8` is a low-level alias; the IR stores the canonical name it resolves to.
   assert.deepEqual(ir.globals[0], {
     name: 'x', type: 'utinyint', volatile: false, address: null, init: 10, exported: false,
+    start: 4, length: 1, // the name's span, for the linker's entry-export rule
   });
   assert.equal(ir.functions[0].name, 'main');
   assert.equal(ir.functions[0].body[0].kind, 'assign');
@@ -314,7 +317,7 @@ test("the entry module's main always keeps its name", () => {
 test('importing a name a module does not export is 8BS2005', () => {
   // `secret` does not exist; `delay` exists but is private. Both are 2005.
   const { ir, diagnostics } = linked({
-    'main.8bs': 'import { secret, delay } from "./lib.8bs";',
+    'main.8bs': 'import { secret, delay } from "./lib.8bs";\nexport function main(): void {}',
     'lib.8bs': LIB,
   });
   assert.equal(ir, null);
@@ -323,7 +326,7 @@ test('importing a name a module does not export is 8BS2005', () => {
 
 test('an import colliding with a local binding is 8BS2006', () => {
   const { diagnostics } = linked({
-    'main.8bs': 'import { limit } from "./lib.8bs";\nlet limit: u16 = 1;',
+    'main.8bs': 'import { limit } from "./lib.8bs";\nlet limit: u16 = 1;\nexport function main(): void {}',
     'lib.8bs': LIB,
   });
   assert.deepEqual(diagnostics.map((d) => d.code), ['8BS2006']);
@@ -338,9 +341,12 @@ test('a reference that resolves to nothing is 8BS2007, with a span', () => {
 });
 
 test('import cycles link rather than recurse', () => {
+  // The cycle is between two libraries (the entry exports only its entry
+  // point, so it cannot be one side of an import cycle itself).
   const { ir, diagnostics } = linked({
-    'main.8bs': 'import { b } from "./b.8bs";\nexport let a: u8 = 1;\nexport function main(): void { a = b; }',
-    'b.8bs': 'import { a } from "./main.8bs";\nexport let b: u8 = 2;\nexport function swap(): void { b = a; }',
+    'main.8bs': 'import { a } from "./a.8bs";\nexport function main(): void { a = a + 1; }',
+    'a.8bs': 'import { b } from "./b.8bs";\nexport let a: u8 = 1;\nexport function take(): void { a = b; }',
+    'b.8bs': 'import { a } from "./a.8bs";\nexport let b: u8 = 2;\nexport function swap(): void { b = a; }',
   });
   assert.deepEqual(diagnostics, []);
   assert.deepEqual(ir.globals.map((g) => g.name).sort(), ['a', 'b']);
@@ -376,10 +382,12 @@ test('a call to a name that resolves to nothing is 8BS2007', () => {
 
 // ---- conditional package entries (the real borders example as fixture) ----
 //
-// The borders example's shared entry imports @8bitscript/machine, whose
-// manifest entry is keyed by machine and delegates to @8bitscript/vic20 or
-// @8bitscript/c64 through real pnpm symlinks. This pair is the proof the
-// conditional resolution actually switches implementations.
+// The borders example's shared entry imports @8bitscript/screen and
+// @8bitscript/text, whose manifest entries are keyed by machine and
+// delegate to each target package's `./screen` and `./text` subpaths —
+// @8bitscript/vic20/screen, @8bitscript/c64/screen, and so on — through
+// real pnpm symlinks. This group is the proof the conditional resolution
+// actually switches implementations.
 
 const BORDER_ENTRY = join(HERE, '..', '..', '..', 'examples', 'borders', 'src', 'main.8bs');
 
@@ -387,7 +395,7 @@ test('a conditional entry resolves to the vic20 implementation', () => {
   const { ir, diagnostics } = link(readFileSync(BORDER_ENTRY, 'utf8'), BORDER_ENTRY, { machine: 'vic20' });
   assert.deepEqual(diagnostics, []);
   assert.equal(ir.globals.find((g) => g.name === 'vicColor').address, 0x900f);
-  assert.ok(ir.functions.some((f) => f.name === 'applyColors'));
+  assert.ok(ir.functions.some((f) => f.name === 'screen_setColors'));
   assert.ok(!ir.globals.some((g) => g.name === 'borderColor'));
 });
 
@@ -399,40 +407,40 @@ test('the same entry resolves to the c64 implementation', () => {
 });
 
 test('the same entry resolves to the web implementation', () => {
-  // main.8bs is a genuinely single file now: it exports main()+frame(),
-  // and each target's own screen namespace (real screen memory on the
-  // VIC-20/C64, a virtual character grid on the web — see @8bitscript/
-  // web's header comment) gives clearScreen()/drawLabels() something to
-  // poke everywhere, so the same source links clean against all three.
+  // main.8bs is a genuinely single file: it exports main(), and each
+  // target's own text namespace (real screen memory on the VIC-20/C64, a
+  // virtual character grid on the web — see @8bitscript/web's header
+  // comment) gives clearScreen()/drawLabels() something to poke everywhere,
+  // so the same source links clean against all three.
   const { ir, diagnostics } = link(readFileSync(BORDER_ENTRY, 'utf8'), BORDER_ENTRY, { machine: 'web' });
   assert.deepEqual(diagnostics, []);
-  assert.ok(ir.globals.some((g) => g.name === 'border'));
+  assert.ok(ir.functions.some((f) => f.name === 'screen_setColors'));
   assert.ok(!ir.globals.some((g) => g.name === 'vicColor' || g.name === 'borderColor'));
 });
 
 test('a machine the entry has no branch for is 8BS3002', () => {
-  // vic20, c64, and web all have branches now, and so do every other real
-  // target (pet, c128, atari8, nes, cx16, mega65) — 'atari2600' stands in
-  // for the "not one of them" case this error exists for: a real llvm-mos
-  // platform (so it's not implausible), just not one @8bitscript/machine's
-  // entry map has a branch for.
+  // Every real target (vic20, c64, pet, c128, atari8, nes, cx16, mega65,
+  // web) has a branch — 'atari2600' stands in for the "not one of them"
+  // case this error exists for: a real llvm-mos platform (so it's not
+  // implausible), just not one @8bitscript/screen's entry map has a branch
+  // for. Both imports fail the same way.
   const { ir, diagnostics } = link(readFileSync(BORDER_ENTRY, 'utf8'), BORDER_ENTRY, { machine: 'atari2600' });
   assert.equal(ir, null);
-  assert.deepEqual(diagnostics.map((d) => d.code), ['8BS3002']);
+  assert.deepEqual(diagnostics.map((d) => d.code), ['8BS3002', '8BS3002']);
 });
 
 test('without a machine, every branch of a conditional entry is validated', () => {
   // analyze/`8bs check` resolve imports with no machine in hand: a sound
   // conditional entry is clean, not an error.
   assert.deepEqual(
-    codes('import { applyColors } from "@8bitscript/machine";', BORDER_ENTRY, { resolveImports: true }),
+    codes('import { screen } from "@8bitscript/screen";', BORDER_ENTRY, { resolveImports: true }),
     [],
   );
 });
 
 test('errors in an imported module fail the link, against the right file', () => {
   const { ir, diagnostics } = linked({
-    'main.8bs': 'import { limit } from "./lib.8bs";',
+    'main.8bs': 'import { limit } from "./lib.8bs";\nexport function main(): void {}',
     'lib.8bs': 'export let limit: u8 = 300;\n',
   });
   assert.equal(ir, null);

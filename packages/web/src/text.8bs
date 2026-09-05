@@ -1,0 +1,37 @@
+// @8bitscript/web/text — the browser target's implementation of
+// @8bitscript/text.
+//
+// Named by "8bitscript".exports["./text"] in this package's package.json,
+// and what
+//
+//     import { text } from "@8bitscript/text";
+//
+// resolves to when the build is for the web. Built on the memory-layout
+// agreement @8bitscript/web exports. Every machine's text.8bs exports this
+// same namespace — the same names, the same shapes, ASCII codes, and a cell
+// 0 at the top-left corner inside the border — so a program written against
+// it doesn't know or care that "screen memory" is a real 6502 address on
+// most targets and a wasm-memory offset on this one.
+import { WebRegisters } from "./index.8bs";
+
+// Codes are ASCII, as they are everywhere (space, '0'-'9', 'A'-'Z' and a
+// little punctuation, upper case only); this buffer holds them as they
+// come, and the host (packages/cli/src/web-runtime.mjs) draws whatever
+// isn't blank as the text it is, once per painted frame — there is no
+// character ROM here to need screen codes for.
+export namespace text {
+    const CellCount: usmallint = 1000; // 40 columns x 25 rows
+
+    function putChar(cell: usmallint, code: utinyint): void {
+        memory.write(WebRegisters.CharBase + cell, code);
+    }
+
+    function putColor(cell: usmallint, color: utinyint): void {
+        memory.write(WebRegisters.ColorBase + cell, color & 0x0F);
+    }
+
+    function showDigit(cell: usmallint, digit: utinyint): void {
+        text.putChar(cell, 0x30 + (digit % 10));
+        text.putColor(cell, 1);
+    }
+}

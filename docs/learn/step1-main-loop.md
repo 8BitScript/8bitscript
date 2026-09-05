@@ -37,14 +37,14 @@ compiler:
     "@8bitscript/cli": "workspace:*"
   },
   "dependencies": {
-    "@8bitscript/machine": "workspace:*"
+    "@8bitscript/screen": "workspace:*"
   }
 }
 ```
 
 `@8bitscript/cli` provides the `8bs` command the scripts call.
-`@8bitscript/machine` is the package the program imports its colour API
-from; it has to be listed here, because an import resolves out of
+`@8bitscript/screen` is the package the program imports the screen from; it
+has to be listed here, because an import resolves out of
 `node_modules` the same way it would in any npm project, and an import of a
 package that is not installed is an error (`8BS2001`), not a guess.
 `workspace:*` is only because the packages are not published yet — pnpm
@@ -119,12 +119,10 @@ a different video chip underneath.
 `src/main.8bs`, with its comments stripped:
 
 ```
-import { border, background, applyColors } from "@8bitscript/machine";
+import { screen } from "@8bitscript/screen";
 
 export function main(): void {
-    border = 6;
-    background = 0;
-    applyColors();
+    screen.setColors(6, 0);
 
     while (true) {
     }
@@ -136,20 +134,25 @@ Four parts. In order:
 ### The import
 
 ```
-import { border, background, applyColors } from "@8bitscript/machine";
+import { screen } from "@8bitscript/screen";
 ```
 
 Nothing in 8BitScript is in scope until it is declared or imported, and the
-compiler itself knows nothing about colours or video chips. The three names
-come from a package, and the package is what makes this file build for two
+compiler itself knows nothing about colours or video chips. `screen` comes
+from a package, and the package is what makes this file build for two
 machines.
 
-`@8bitscript/machine` has no code of its own. Its `package.json` names a
-different entry for each machine — `@8bitscript/vic20` when you build for the
-VIC-20, `@8bitscript/c64` for the C64 — and the compiler follows that at build
-time. Both of those packages export the same three names, so this import line
-means the right thing on either machine without a single `if` in the
-program. [The package model](../packages.md#target-conditional-entries)
+`@8bitscript/screen` has no code of its own. Its `package.json` names a
+different entry for each machine — `@8bitscript/vic20/screen` when you build
+for the VIC-20, `@8bitscript/c64/screen` for the C64 — and the compiler
+follows that at build time. Each of those is a file inside the machine's own
+package (`packages/vic20/src/screen.8bs`), built on the registers that
+package exports, and both export the same `screen` namespace, so this import
+line means the right thing on either machine without a single `if` in the
+program. The package is named for what it is — the screen — rather than for
+the machine, because a program imports the parts of a machine it uses, one
+package each; `@8bitscript/text`, the character grid, is the next one a
+program reaches for. [The package model](../packages.md#target-conditional-entries)
 describes the mechanism.
 
 ### `export function main(): void`
@@ -171,35 +174,40 @@ other function in a file is private to that file unless you export it.
 useful to return a value *to* — the section on the loop below says what is
 actually waiting when `main` returns.
 
-### Colours are values until you apply them
+### Colours go to the screen in one call
 
 ```
-    border = 6;
-    background = 0;
-    applyColors();
+    screen.setColors(6, 0);
 ```
 
-`border` and `background` are two ordinary variables exported by the machine
-package. Assigning to them changes nothing on screen: they are one byte each,
-somewhere in RAM. `applyColors()` is the function that writes them to the
-video chip, and that is the line where the screen changes.
+`screen` is a namespace exported by the machine's screen module: a name with
+functions under it and no storage of its own — `screen.setColors` compiles
+to an ordinary function call, nothing more. Border first, then background,
+and this is the line where the screen changes.
 
-The split exists because the two machines store colours differently. The
-VIC-20 packs border and background into one register (`$900F`: border in the
-low three bits, background in the high four); the C64 gives each its own
-(`$D020` and `$D021`). Setting two values and calling one function is the
-same on both machines; the register-level difference lives inside the
-machine package's `applyColors`, and this program never sees it.
+One call for both colours, because the two machines store them differently
+and neither should show through. The VIC-20 packs border and background
+into one register (`$900F`: border in the low three bits, background in the
+high four), so on it the two arrive together or not at all; the C64 gives
+each its own (`$D020` and `$D021`). Calling one function with two values is
+the same on both machines; the register-level difference lives inside each
+machine's `setColors`, and this program never sees it. (Other machines go
+further: the NES has no border register at all and *draws* one, and there
+the two colours genuinely are one operation — which is why the portable
+surface is a call and not two variables.)
 
 Colours 0–7 have the same numbers on the VIC-20 and the C64: 0 black,
 1 white, 2 red, 3 cyan, 4 purple, 5 green, 6 blue, 7 yellow. Both machines
 have sixteen colours, but the VIC-20 only has room for eight in its border
-field, so its `applyColors` masks the border to 0–7; the C64 masks both to
-0–15. A value past the mask wraps rather than failing.
+field, so its `setColors` masks the border to 0–7; the C64 masks both to
+0–15. A value past the mask wraps rather than failing. `@8bitscript/screen`
+also exports the names — `BorderColor.Blue`, `BackgroundColor.Black` — and
+the next example uses those instead of numbers; here the numbers are the
+point, because the next section shows where they end up.
 
-`border` and `background` are `utinyint`s: one byte, 0–255. The range check
-the compiler has today is on declarations — `let c: utinyint = 300;` reports
-`8BS1021` and does not build — but an assignment like `border = 300;` is not
+The two parameters are `u8`s: one byte, 0–255. The range check the compiler
+has today is on declarations — `let c: utinyint = 300;` reports `8BS1021`
+and does not build — but an argument like `screen.setColors(300, 0)` is not
 checked yet, because that needs the binder, and the value silently wraps to
 44 in the generated C. Keep the literals in range until the checker catches
 up.
@@ -249,23 +257,26 @@ it depends on something it did not write down.
 program's part of `dist/main-vic20-ntsc.c` is:
 
 ```
-int main(void) {
-    border = 6;
-    background = 0;
-    applyColors();
+static void __8bs_main(void) {
+    screen_setColors(6, 0);
     while (1) {
     }
-    return 0;
 }
-
-void applyColors(void) {
+static void screen_setColors(uint8_t border, uint8_t background) {
     vicColor = ((8 | (border & 7)) | (background << 4));
+}
+int main(void) {
+    __8bs_main();
+    return 0;
 }
 ```
 
-Line for line the same as the source. `vicColor` is the machine package's
-`@address(0x900F)` register, which became a `#define` over a `volatile`
-pointer. The `return 0;` is the C `main` signature's, not yours.
+Line for line the same as the source. `screen.setColors` became the plain
+function `screen_setColors` — the namespace is a naming convention the
+compiler erases, not a thing that exists at run time. `vicColor` is the
+machine package's `@address(0x900F)` register, which became a `#define`
+over a `volatile` pointer. The `int main` and its `return 0;` are the C
+signature's, not yours: your `main` is called from it.
 
 LLVM-MOS then compiles that C. Disassembling `dist/main-vic20-ntsc.prg.elf`
 shows what the VIC-20 actually runs for `main`:
@@ -277,7 +288,7 @@ shows what the VIC-20 actually runs for `main`:
     1026: 4c 26 10     	jmp	$1026 <main+0x5>
 ```
 
-Three instructions. The two assignments and the call folded into one store of
+Three instructions. The call and its two arguments folded into one store of
 `$0E` — `8 | (6 & 7) | (0 << 4)` — to the colour register, and the `while`
 became a `jmp` to its own address. The C64 build stores `6` to `$D020` and
 `0` to `$D021` and ends in the same `jmp`. This is the "generated code is
@@ -296,11 +307,11 @@ To see the disassembly yourself, with the SDK installed as in
 Each of these is an edit to `src/main.8bs` followed by `pnpm start` (or
 `pnpm run start:c64`).
 
-**Change the colours.** Set `border` and `background` to other values from
-the 0–7 table above. Then try `background = 14;`: light blue on the C64, and
+**Change the colours.** Give `screen.setColors` other values from the 0–7
+table above. Then try `screen.setColors(6, 14)`: light blue on the C64, and
 light blue on the VIC-20 too, since its background field is four bits wide.
-Then try `border = 14;`: light blue on the C64, but blue on the VIC-20 — the
-three-bit border field keeps only `14 & 7`, which is `6`.
+Then try `screen.setColors(14, 0)`: light blue on the C64, but blue on the
+VIC-20 — the three-bit border field keeps only `14 & 7`, which is `6`.
 
 **Delete the loop.** Remove the `while (true) { }` and rebuild. The screen
 looks exactly the same, for the reason above: `main` returned into the
@@ -310,12 +321,14 @@ runtime's own loop. Nothing on the screen tells you the program is over.
 
 ```
     while (true) {
-        border = border + 1;
-        applyColors();
+        color = color + 1;
+        screen.setColors(color, 0);
     }
 ```
 
-The border stops being a colour and becomes stripes. The loop changes the
+with `let color: u8 = 0;` above `main` (there are no local variables yet, so
+the counter lives at module scope). The border stops being a colour and
+becomes stripes. The loop changes the
 border colour several times per scan line — thousands of times per frame —
 and the video chip paints whichever colour is current as the beam passes.
 That is how fast an empty-looking loop runs, and it is why every later step
@@ -325,41 +338,42 @@ changes twice a second instead; the next step takes that up.
 
 ## Why this step does not build for the web
 
-`8bs run web` exists. `examples/counter` uses it one way: it builds a
-`.wasm`, calls `main()` once, and prints the exported globals afterwards.
-That works for `counter` because `counter`'s `main` does one thing and
-returns. This step's program cannot do that: its `main` ends in
-`while (true) {}`, and on the web there *is* something waiting for `main` to
-return — the browser. A `main` that never returns would hang the page. So
-this step lists `vic20` and `c64` and not `web`, and the compiler refuses a
-web build rather than producing one that hangs.
+Nothing stops it building — `8bs run web` runs any program, and this
+step's `8bs.config.ts` simply lists `vic20` and `c64` and not `web`, so a
+web build is refused by the `targets` check, not by anything the compiler
+knows about the program. The reason it's left out is what the page would
+show: nothing.
 
-That is a property of *this program's shape*, not of the web target
-generally — it's exactly why `examples/borders` doesn't write `while (true)`
-at all: it exports `main()` (setup, once) and a separate `frame()` (one
-tick's worth of work), and lets something *else* drive the repeat, instead
-of doing that itself. That used to mean a second entry file for `web` —
-a `main.web.8bs` beside `main.8bs`, in today's spelling (see
-[`docs/packages.md`](../packages.md#system-specific-files) for that general
-mechanism, for cases where it's still needed) — but `examples/borders` no
-longer needs one: any module exporting both `main` and `frame` gets a
-driving loop synthesised for it by whichever backend is building it, so one
-file now builds correctly on all nine targets.
+On the web the program runs in a worker, exactly as it would run on a real
+machine — it owns its thread and can loop forever — and the page plays the
+video chip, painting the program's screen memory every display refresh.
+That painting is paced by frames: a program tells the page it has finished a
+frame's work by calling `waitFrame()`, which blocks until the next logical
+frame, the way an 8-bit program waits for vertical blank (cc65 calls it
+`waitvsync()`). This step's loop never does — `while (true) {}` neither waits
+for a frame nor returns — so the page never gets a first picture to paint,
+and the tab stays black while the worker spins. On the VIC-20 and C64 that
+same loop is harmless: the video chip paints from screen memory regardless
+of what the CPU is doing, which is the whole point of step 1.
 
-On the web, that driving loop is `packages/cli/src/web-runtime.mjs`'s own
-`requestAnimationFrame` accumulator, calling `frame()` at a steady logical
-rate regardless of the display's real refresh rate. There is still no
-PAL/NTSC split for `web`: nothing about it is tied to a machine's real
-refresh rate to begin with, so one build is enough. On the VIC-20/C64,
-`packages/backend-6502` synthesises a driving loop of its own instead,
-waiting for the video chip's raster line to reach the top of the screen
-between `frame()` calls — real vertical blank, 60Hz NTSC / 50Hz PAL by
-construction, not a busy-wait calibrated by hand.
+`examples/borders` shows the shape that works everywhere — the same loop,
+with one line added:
 
-Either way, this step's program still can't build for `web`: its `main` is
-bare, no `frame`, so it never opted into that convention — there's nothing
-for either backend to drive, and a `while (true) {}` inside `main` would
-still hang a browser tab exactly as described above.
+```
+    while (true) {
+        waitFrame();
+        // ...one frame's worth of work...
+    }
+```
+
+`waitFrame()` runs at the project's configured `frameRate` (default 60) on
+every target — on the 6502 machines it waits on the video chip's own raster
+(real vertical blank, 60Hz NTSC / 50Hz PAL by construction, drained through
+an exact accumulator so the logical rate never drifts — see
+`packages/backend-6502`), on the web on the page's frame clock
+(`packages/cli/src/web-runtime.mjs`). There is still no PAL/NTSC split for
+`web`: nothing about it is tied to a machine's real refresh rate to begin
+with, so one build is enough. The next step takes that up.
 
 ## Next
 
