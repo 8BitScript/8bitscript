@@ -12,9 +12,10 @@ the split between the compiler, the language server, and this extension.
 ## What it does
 
 - Registers `.8bs` as the language **8BitScript**
-- Colours comments, strings, numbers (including the `0.5` a `seconds(...)`
-  duration takes), types, keywords, declarations, calls, and the reserved
-  builtins `seconds(...)`, `FRAMES`, and `waitFrame()`
+- Colours comments, strings, numbers (including the `0.5` a `frames(...)`
+  duration takes), types, keywords, declarations, calls, the reserved
+  builtins `frames(...)` and `waitFrame()`, and the `seconds` unit inside
+  a `frames(...)` call
 - `//` line comments and `/* */` blocks, so comment-toggling works
 - Bracket matching, auto-closing pairs, and `// #region` folding
 - Starts the language server (`8bs lsp --stdio`) when a `.8bs` file is open
@@ -22,8 +23,8 @@ the split between the compiler, the language server, and this extension.
   - **Diagnostics** — lexical, syntax, and range errors, as you type
   - **Hover** — documentation for built-in types (`utinyint`, `int`, ...),
     constructs (`volatile`, `ptr`, `array`, `asm6502`, `@address`,
-    `memory.read`/`memory.write`), and the builtins `seconds(...)`, its
-    `FRAMES` clock, and `waitFrame()`
+    `memory.read`/`memory.write`), and the builtins `frames(...)`, its
+    `seconds` unit, and `waitFrame()`
   - **Completion** — built-in type names in type position (after `:` or
     inside `ptr<...>`/`array<...>`/`volatile<...>`)
 

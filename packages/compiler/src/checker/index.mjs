@@ -1,7 +1,7 @@
 // The checker.
 //
 // Two rules so far: an integer literal has to fit the type it is assigned
-// to, and the builtins' names — `seconds` and its clocks such as `FRAMES`
+// to, and the builtins' names — the duration clocks such as `frames`
 // (packages/compiler/src/fold) and `waitFrame` (packages/compiler/src/ir) —
 // are reserved.
 //
@@ -22,20 +22,23 @@ import { resolveIntegerType } from '../types/index.mjs';
 import { DURATION_CLOCKS } from '../fold/index.mjs';
 
 // The language's builtins, none of which is imported from @8bitscript/screen
-// or declared anywhere a binder could find: `seconds(...)` is a pure
-// compile-time fold (packages/compiler/src/fold) and the clock names it
-// accepts as a second argument (`FRAMES`) are consumed by that same fold,
-// `waitFrame()` lowers to its own IR kind that every backend emits in its
-// own way (packages/compiler/src/ir). All are closer to keywords than to
+// or declared anywhere a binder could find: the duration clocks
+// (`frames(...)`) are a pure compile-time fold (packages/compiler/src/fold),
+// and `waitFrame()` lowers to its own IR kind that every backend emits in
+// its own way (packages/compiler/src/ir). All are closer to keywords than to
 // ordinary names, but implemented as reserved identifiers rather than
 // grammar keywords — a call's *shape* is an ordinary call, and keywords are
-// not valid callees or arguments. Reserving the names here is what keeps a
-// user's own `seconds`/`FRAMES`/`waitFrame` from being silently
-// reinterpreted as the builtin instead of getting a clear diagnostic.
+// not valid callees. Reserving the names here is what keeps a user's own
+// `frames`/`waitFrame` from being silently reinterpreted as the builtin
+// instead of getting a clear diagnostic.
+//
+// The unit word a clock call takes (`seconds` in `frames(0.5, seconds)`) is
+// deliberately *not* here: that argument slot can never hold a variable, so
+// the fold recognises the word by spelling in place and `let seconds: uint`
+// anywhere else stays an ordinary declaration.
 const RESERVED_BUILTIN_NAMES = new Map([
-  ['seconds', 'the built-in duration constructor, seconds(...)'],
   ...[...DURATION_CLOCKS.keys()].map((name) => [
-    name, `the built-in duration clock, seconds(..., ${name})`,
+    name, `the built-in duration clock, ${name}(..., seconds)`,
   ]),
   ['waitFrame', 'the built-in frame wait, waitFrame()'],
 ]);

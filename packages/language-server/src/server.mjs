@@ -47,7 +47,7 @@ function findConfigPath(dir) {
 
 /**
  * The project's `frameRate` (8bs.config.ts, default 60) for the document at
- * `filePath` — so `seconds(...)` diagnostics in the editor agree with what
+ * `filePath` — so `frames(...)` diagnostics in the editor agree with what
  * `8bs build`/`8bs check` would actually report, the same invariant this
  * file's header comment already promises for every other diagnostic.
  *

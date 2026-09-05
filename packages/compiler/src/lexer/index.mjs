@@ -188,7 +188,7 @@ export function tokenize(text, file = '<unknown>') {
       // the grammar never wants a Number token to swallow a trailing `.`.
       // Recorded as an exact numerator/denominator pair, never as a
       // floating-point value used for arithmetic — the only thing that ever
-      // reads `isDecimal`/`numerator`/`denominator` is the `seconds(...)`
+      // reads `isDecimal`/`numerator`/`denominator` is the `frames(...)`
       // compile-time fold (packages/compiler/src/fold), which works in
       // exact integers throughout; `value` here is cosmetic only (kept for
       // uniformity with plain-integer Number tokens).

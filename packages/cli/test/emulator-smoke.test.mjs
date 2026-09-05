@@ -267,6 +267,6 @@ test('web: the build runs in Node\'s WebAssembly runtime and waitFrame() paces i
   assert.equal(entryName, 'main');
   assert.equal(usesWaitFrame, true);
   assert.ok(memory.buffer instanceof SharedArrayBuffer, 'a waitFrame() program has shared memory');
-  // 31 frames is one tick (seconds(0.5) = 30 at the default 60Hz) plus one.
+  // 31 frames is one tick (frames(0.5, seconds) = 30 at the default 60Hz) plus one.
   assert.equal(instance.exports.ticks.value, 1, 'ticks did not advance after 31 waitFrame() calls');
 });

@@ -198,12 +198,12 @@ test('textDocument/hover explains memory.write', async () => {
   });
 });
 
-test('textDocument/hover explains seconds(...)', async () => {
+test('textDocument/hover explains frames(...)', async () => {
   await withServer(async (client) => {
     await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
     client.notify('initialized', {});
 
-    const text = 'let x: utinyint = seconds(0.5);\n';
+    const text = 'let x: utinyint = frames(0.5, seconds);\n';
     client.notify('textDocument/didOpen', {
       textDocument: { uri: URI, languageId: '8bitscript', version: 1, text },
     });
@@ -211,7 +211,7 @@ test('textDocument/hover explains seconds(...)', async () => {
 
     const response = await client.request('textDocument/hover', {
       textDocument: { uri: URI },
-      position: positionAt(text, text.indexOf('seconds') + 2),
+      position: positionAt(text, text.indexOf('frames') + 2),
     });
 
     assert.ok(response.result);
@@ -220,35 +220,35 @@ test('textDocument/hover explains seconds(...)', async () => {
   });
 });
 
-test('textDocument/hover explains FRAMES, the clock argument to seconds(...)', async () => {
+test('textDocument/hover explains seconds, the unit argument to frames(...)', async () => {
   await withServer(async (client) => {
     await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
     client.notify('initialized', {});
 
-    const text = 'let x: utinyint = seconds(0.5, FRAMES);\n';
+    const text = 'let x: utinyint = frames(0.5, seconds);\n';
     client.notify('textDocument/didOpen', {
       textDocument: { uri: URI, languageId: '8bitscript', version: 1, text },
     });
     const published = await client.waitForNotification('textDocument/publishDiagnostics');
-    assert.deepEqual(published.params.diagnostics, [], 'FRAMES is the default clock — no diagnostic');
+    assert.deepEqual(published.params.diagnostics, [], 'seconds is a known unit — no diagnostic');
 
     const response = await client.request('textDocument/hover', {
       textDocument: { uri: URI },
-      position: positionAt(text, text.indexOf('FRAMES') + 2),
+      position: positionAt(text, text.indexOf('seconds') + 2),
     });
 
     assert.ok(response.result);
-    assert.match(response.result.contents.value, /\*\*FRAMES\*\*/);
-    assert.match(response.result.contents.value, /default clock/);
+    assert.match(response.result.contents.value, /\*\*seconds\*\*/);
+    assert.match(response.result.contents.value, /unit for `frames\(\.\.\.\)`/);
   });
 });
 
-test('diagnostics: an unknown seconds(...) clock reaches the editor at the clock name', async () => {
+test('diagnostics: an unknown frames(...) unit reaches the editor at the unit word', async () => {
   await withServer(async (client) => {
     await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
     client.notify('initialized', {});
 
-    const text = 'let x: utinyint = seconds(0.5, frames);\n';
+    const text = 'let x: utinyint = frames(0.5, minutes);\n';
     client.notify('textDocument/didOpen', {
       textDocument: { uri: URI, languageId: '8bitscript', version: 1, text },
     });
@@ -256,17 +256,17 @@ test('diagnostics: an unknown seconds(...) clock reaches the editor at the clock
     assert.equal(published.params.diagnostics.length, 1);
     const [d] = published.params.diagnostics;
     assert.equal(d.code, '8BS1025');
-    assert.equal(d.range.start.character, text.indexOf('frames'));
-    assert.equal(d.range.end.character, text.indexOf('frames') + 'frames'.length);
-    assert.match(d.message, /FRAMES \(the default\)/);
+    assert.equal(d.range.start.character, text.indexOf('minutes'));
+    assert.equal(d.range.end.character, text.indexOf('minutes') + 'minutes'.length);
+    assert.match(d.message, /the units are seconds/);
   });
 });
 
-// `seconds(4.5)` in a utinyint (0..255) overflows at the default frameRate
-// (4.5 * 60 = 270) but fits at a configured 50 (4.5 * 50 = 225) — a
-// diagnostic that only differs between the two rates, so it proves whether
+// `frames(4.5, seconds)` in a utinyint (0..255) overflows at the default
+// frameRate (4.5 * 60 = 270) but fits at a configured 50 (4.5 * 50 = 225) —
+// a diagnostic that only differs between the two rates, so it proves whether
 // the server actually read 8bs.config.ts rather than always assuming 60.
-const OVERFLOWS_AT_60_FITS_AT_50 = 'let x: utinyint = seconds(4.5);\nexport function main(): void {}\n';
+const OVERFLOWS_AT_60_FITS_AT_50 = 'let x: utinyint = frames(4.5, seconds);\nexport function main(): void {}\n';
 
 test('diagnostics assume frameRate 60 when no 8bs.config.ts is found', async () => {
   await withServer(async (client) => {
@@ -307,7 +307,7 @@ test('diagnostics use the project\'s 8bs.config.ts frameRate, walking up from th
       });
 
       const published = await client.waitForNotification('textDocument/publishDiagnostics');
-      assert.deepEqual(published.params.diagnostics, [], 'frameRate 50 should make seconds(4.5) fit a utinyint');
+      assert.deepEqual(published.params.diagnostics, [], 'frameRate 50 should make frames(4.5, seconds) fit a utinyint');
     });
   } finally {
     await rm(projectDir, { recursive: true, force: true });
