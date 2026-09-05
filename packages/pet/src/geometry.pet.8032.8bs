@@ -1,0 +1,15 @@
+// @8bitscript/pet — the screen's geometry, for the 80-column 8032.
+//
+// The 8032 profile's version of geometry.8bs (see that file for why the
+// geometry is a file of its own): a build with `--profile 8032` resolves
+// every import of `./geometry.8bs` in this package to this one. The 8032's
+// CRTC reads two bytes of screen RAM per character clock, so the screen is
+// 80 x 25 = 2000 cells, still at $8000 ($8000-$87CF); nothing else about
+// the display differs from the 40-column machines. Verified on screen under
+// `xpet -model 8032` — see packages/pet/AGENTS.md.
+
+export namespace Video {
+    const COLUMNS: utinyint = 80;
+    const ROWS: utinyint = 25;
+    const CELL_COUNT: usmallint = 2000; // COLUMNS * ROWS: $8000-$87CF
+}

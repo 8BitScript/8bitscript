@@ -20,9 +20,40 @@
 // sets colours through the portable surface still builds and runs correctly
 // everywhere; it simply never shows a border or background tint on a PET,
 // because a PET cannot show one.
+//
+// `blank()` is the one thing here that touches the screen, and how much
+// screen there is depends on the model: 1000 cells on the 40-column PETs,
+// 2000 on the 80-column 8032. That number comes from ./geometry.8bs, whose
+// 8032 version is chosen by the build's profile — see that file.
+import { Video } from "./geometry.8bs";
 
 export namespace screen {
     function setColors(border: u8, background: u8): void {
+        // Deliberately empty — see the file comment above.
+    }
+
+    // `blank(border, background)`: every cell blank and both colours set —
+    // black when left off, or `BorderColor.KEEP` / `BackgroundColor.KEEP`
+    // to leave one as it is. `setBorder` and `setBackground` are one
+    // colour each, `setColors` the pair; `text.setColor` owns what the
+    // next print looks like.
+    function blank(border: utinyint = BorderColor.BLACK, background: utinyint = BackgroundColor.BLACK): void {
+        if (border != BorderColor.KEEP) {
+            screen.setBorder(border);
+        }
+        if (background != BackgroundColor.KEEP) {
+            screen.setBackground(background);
+        }
+        for (let cell: usmallint = 0; cell < Video.CELL_COUNT; cell++) {
+            memory.write(0x8000 + cell, 32); // 32: the space screen code
+        }
+    }
+
+    function setBackground(background: u8): void {
+        // Deliberately empty — see the file comment above.
+    }
+
+    function setBorder(border: u8): void {
         // Deliberately empty — see the file comment above.
     }
 }
@@ -30,28 +61,34 @@ export namespace screen {
 // ---- colour names ----------------------------------------------------------
 //
 // The same eight names every machine's screen.8bs exports, so a program that
-// says `screen.setColors(BorderColor.Blue, BackgroundColor.Black)` through
+// says `screen.setColors(BorderColor.BLUE, BackgroundColor.BLACK)` through
 // @8bitscript/screen still links here. The values are the C64's numbering,
 // for want of any of the PET's own — nothing reads them.
 
 export namespace BorderColor {
-    const Black: utinyint = 0;
-    const White: utinyint = 1;
-    const Red: utinyint = 2;
-    const Cyan: utinyint = 3;
-    const Purple: utinyint = 4;
-    const Green: utinyint = 5;
-    const Blue: utinyint = 6;
-    const Yellow: utinyint = 7;
+    const BLACK: utinyint = 0;
+    const WHITE: utinyint = 1;
+    const RED: utinyint = 2;
+    const CYAN: utinyint = 3;
+    const PURPLE: utinyint = 4;
+    const GREEN: utinyint = 5;
+    const BLUE: utinyint = 6;
+    const YELLOW: utinyint = 7;
+    // Not a colour: `blank(KEEP, ...)` leaves this one as it is. 255 is
+    // a value no register here takes.
+    const KEEP: utinyint = 255;
 }
 
 export namespace BackgroundColor {
-    const Black: utinyint = 0;
-    const White: utinyint = 1;
-    const Red: utinyint = 2;
-    const Cyan: utinyint = 3;
-    const Purple: utinyint = 4;
-    const Green: utinyint = 5;
-    const Blue: utinyint = 6;
-    const Yellow: utinyint = 7;
+    const BLACK: utinyint = 0;
+    const WHITE: utinyint = 1;
+    const RED: utinyint = 2;
+    const CYAN: utinyint = 3;
+    const PURPLE: utinyint = 4;
+    const GREEN: utinyint = 5;
+    const BLUE: utinyint = 6;
+    const YELLOW: utinyint = 7;
+    // Not a colour: `blank(KEEP, ...)` leaves this one as it is. 255 is
+    // a value no register here takes.
+    const KEEP: utinyint = 255;
 }

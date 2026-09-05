@@ -1,0 +1,39 @@
+{
+  "name": "@8bitscript/studio",
+  "private": true,
+  "version": "0.0.0",
+  "description": "8BitScript Studio: the asset editor that ships with the toolchain and runs on the machines themselves \u2014 characters, sprites, and music, with the full editor on the Commander X16 and a smaller one down to the PET.",
+  "license": "MIT",
+  "type": "module",
+  "8bitscript": {
+    "app": {
+      "title": "Studio",
+      "entry": "./src/main.8bs"
+    }
+  },
+  "files": [
+    "src",
+    "8bs.config.ts"
+  ],
+  "scripts": {
+    "test": "node --test",
+    "start": "8bs run cx16",
+    "start:vic20": "8bs run vic20",
+    "start:c64": "8bs run c64",
+    "start:pet": "8bs run pet",
+    "start:c128": "8bs run c128",
+    "start:atari8": "8bs run atari8",
+    "start:nes": "8bs run nes",
+    "start:cx16": "8bs run cx16",
+    "start:mega65": "8bs run mega65",
+    "start:web": "8bs run web",
+    "build": "8bs build --target cx16"
+  },
+  "dependencies": {
+    "@8bitscript/screen": "workspace:*",
+    "@8bitscript/text": "workspace:*"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

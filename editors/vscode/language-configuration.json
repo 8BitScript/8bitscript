@@ -1,4 +1,6 @@
 {
+  "_comment": "wordPattern makes `#frames` and `@address` one word each, not a sigil beside a word. Completion replaces the word under the cursor, so without this, accepting `#frames` half-way through `#fra` would leave `##frames`; double-click selection and word-wise motion follow the same rule.",
+  "wordPattern": "[#@]?[A-Za-z_][A-Za-z0-9_]*",
   "comments": {
     "lineComment": "//",
     "blockComment": ["/*", "*/"]
@@ -9,14 +11,38 @@
     { "open": "[", "close": "]" },
     { "open": "(", "close": ")" },
     { "open": "\"", "close": "\"", "notIn": ["string", "comment"] },
-    { "open": "'", "close": "'", "notIn": ["string", "comment"] }
+    { "open": "'", "close": "'", "notIn": ["string", "comment"] },
+    { "open": "`", "close": "`", "notIn": ["string", "comment"] }
   ],
   "surroundingPairs": [
     ["{", "}"],
     ["[", "]"],
     ["(", ")"],
     ["\"", "\""],
-    ["'", "'"]
+    ["'", "'"],
+    ["`", "`"]
+  ],
+  "_autoCloseBefore": "Autoclose a quote or bracket only before whitespace or a closing bracket — typing `\"` in front of an identifier is nearly always a wrap, not a new string. The default set has no backtick reason to differ.",
+  "autoCloseBefore": ";:.,=}])>` \n\t",
+  "_onEnterRules": "Continue a /* */ block on Enter, and close it when the cursor sits between the delimiters — the same behaviour C-family languages have, which this grammar's comments are.",
+  "onEnterRules": [
+    {
+      "beforeText": "^\\s*/\\*\\*(?!/)([^*]|\\*(?!/))*$",
+      "afterText": "^\\s*\\*/$",
+      "action": { "indent": "indentOutdent", "appendText": " * " }
+    },
+    {
+      "beforeText": "^\\s*/\\*\\*(?!/)([^*]|\\*(?!/))*$",
+      "action": { "indent": "none", "appendText": " * " }
+    },
+    {
+      "beforeText": "^(\\t|[ ])*[ ]\\*([ ]([^*]|\\*(?!/))*)?$",
+      "action": { "indent": "none", "appendText": "* " }
+    },
+    {
+      "beforeText": "^(\\t|[ ])*[ ]\\*/\\s*$",
+      "action": { "indent": "none", "removeText": 1 }
+    }
   ],
   "folding": {
     "markers": {

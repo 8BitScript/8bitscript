@@ -6,11 +6,16 @@
 //   8bs run c64          the same idea, in the C64 emulator (NTSC default)
 //   8bs run c64 --pal
 //   8bs run pet          builds the .prg and opens it in VICE's PET emulator
-//                        (xpet) — no --pal/--ntsc: unlike the raster-based
-//                        machines above, this target measures its actual
-//                        frame rate at runtime (see FRAME_SYNC.pet in
-//                        packages/backend-6502), so there's no separate
-//                        machine model to pick here
+//                        (xpet) as the model the profile names — a 3032 by
+//                        default: no CRTC, 40 columns, 32K, VICE's hardcoded
+//                        ~60.1Hz. --profile 8032 builds for and launches the
+//                        80-column business machine, 3008/3016/4016/4032 the
+//                        other RAM sizes and series (PET_PROFILES in
+//                        backend-6502). There is no --pal for the PET: its
+//                        refresh is the model's (the CRTC models run their
+//                        50Hz editor ROMs; the 60Hz ones make VICE refuse
+//                        autostart), and the program measures the actual
+//                        frame period at runtime (FRAME_SYNC.pet).
 //   8bs run c128         VICE's C128 emulator (x128), NTSC default, --pal
 //   8bs run atari8       builds for the default 800XL profile and opens it
 //                        in atari800; --profile picks a different Atari
@@ -83,15 +88,42 @@ export const VICE_EMULATOR_ARGS = {
 // registers the KERNAL sets up at boot stay wired to whichever machine model
 // is loaded, so -ntsc alone can pair NTSC timing with PAL geometry and the
 // picture renders off-center. -model switches the whole machine (ROM set,
-// VIC-II/VIC geometry, and timing together), which is why the target names
-// a model rather than a sync-factor flag. Verified against `x128 -help`
-// ("Set C128 model (c128/c128dcr, pal/ntsc)"); the PET has no entry here —
-// see the run() docstring above for why.
+// VIC-II/VIC geometry, and timing together), which is why vic20/c64/c128
+// name a model rather than a sync-factor flag. Verified against `x128 -help`
+// ("Set C128 model (c128/c128dcr, pal/ntsc)").
+//
+// The PET is not in this table: its refresh is not a sync factor but the
+// model's, and the model is the profile — see PET_MODEL_ARGS below.
 export const VICE_MODEL_ARGS = {
   vic20: { ntsc: ['-model', 'vic20ntsc'], pal: ['-model', 'vic20pal'] },
   c64: { ntsc: ['-model', 'ntsc'], pal: ['-model', 'c64'] },
   c128: { ntsc: ['-model', 'ntsc'], pal: ['-model', 'pal'] },
 };
+
+// xpet's `-model` takes the PET's own model numbers, which are exactly the
+// names PET_PROFILES uses (backend-6502), so the profile is the flag's
+// value. No `-ntsc`/`-pal` goes with it. VICE's own pet.h: 50Hz vs 60Hz on
+// a PET is which editor ROM programs the CRTC, not a sync factor. The 60Hz
+// editor ROMs VICE ships (`edit-4-*-60Hz*`) do switch the CRTC to ~60Hz,
+// but they also make VICE refuse autostart ("Autostart is not available on
+// this setup") — observed with both the 40-column and 80-column 60Hz
+// editors, with and without `-default` — so the CRTC models (4016, 4032,
+// 8032) run their stock 50Hz editors here, measured at 49.92-50.02Hz, and
+// the no-CRTC 3xxx models run at VICE's hardcoded ~60.1Hz. The program
+// measures whichever it gets at start-up (FRAME_SYNC.pet), so the build is
+// the same either way; `8bs run pet --pal` prints a note and changes
+// nothing. Verified with `xpet -verbose -limitcycles` and by whether
+// `-autostart` of examples/proof-of-concept/borders stays running.
+export const PET_MODEL_ARGS = (profile) => ['-model', profile];
+
+// What each xpet model refreshes at, nominally — for turning `--frames`
+// into cycles in screenshot.mjs, nothing else.
+export const PET_PROFILE_FPS = {
+  3008: 60, 3016: 60, 3032: 60, 4016: 50, 4032: 50, 8032: 50,
+};
+
+export const PET_REGION_NOTE = '8bs run: the PET has no --pal/--ntsc — its refresh rate is the model\'s. '
+  + 'Pick a model with --profile (3032 is ~60Hz; 4016, 4032 and 8032 are 50Hz).\n';
 
 // atari800's machine-model flag per profile — verified against its own
 // DOC/USAGE: -atari (800/400), -xl (800XL), -xe (130XE), -xegs (XEGS). The
@@ -172,6 +204,7 @@ export async function run(args) {
       + '                [--profile <800xl|65xe|130xe|800|400|xegs>]        (atari8)\n'
       + '                [--profile <unexpanded|3k|8k|16k|24k>]             (vic20)\n'
       + '                [--profile <stock|reu128|reu256|reu512|reu1m|reu2m|reu4m|reu8m|reu16m>] (c64)\n'
+      + '                [--profile <3032|3008|3016|4016|4032|8032>]          (pet)\n'
       + '                [--no-open] [entry.8bs]\n'
       + '                [--screenshot <file.png>] [--frames <n>]\n'
       + '                  capture one screenshot through the target\'s own\n'
@@ -182,6 +215,9 @@ export async function run(args) {
     return 2;
   }
   const entry = positionals[1];
+
+  // Said once, before either route — the PET has no region (PET_MODEL_ARGS).
+  if (target === 'pet' && pal) process.stderr.write(PET_REGION_NOTE);
 
   const { ok, outFile, frameRate } = await compile(target, entry, { pal, profile });
   if (!ok) return 1;
@@ -210,7 +246,7 @@ export async function run(args) {
   }
 
   const {
-    ATARI8_DEFAULT_PROFILE, VIC20_DEFAULT_PROFILE, C64_DEFAULT_PROFILE, C64_REU_SIZE_KIB,
+    ATARI8_DEFAULT_PROFILE, VIC20_DEFAULT_PROFILE, C64_DEFAULT_PROFILE, C64_REU_SIZE_KIB, PET_DEFAULT_PROFILE,
   } = await import('@8bitscript/backend-6502');
   const region = pal ? 'pal' : 'ntsc';
 
@@ -221,12 +257,15 @@ export async function run(args) {
     // vic20's -memory must match whichever RAM-expansion profile the
     // program was linked for (see VIC20_MEMORY_ARG above); c64's REU is
     // purely additive hardware, so it only ever appends `-reu -reusize`,
-    // never changes anything else about the base machine.
+    // never changes anything else about the base machine; pet's profile is
+    // the whole machine model (PET_MODEL_ARGS above).
     const vic20Profile = target === 'vic20' ? (profile ?? VIC20_DEFAULT_PROFILE) : undefined;
     const c64Profile = target === 'c64' ? (profile ?? C64_DEFAULT_PROFILE) : undefined;
+    const petProfile = target === 'pet' ? (profile ?? PET_DEFAULT_PROFILE) : undefined;
     emulatorArgs = [
       ...(VICE_EMULATOR_ARGS[target] ?? []),
       ...(VICE_MODEL_ARGS[target]?.[region] ?? []),
+      ...(petProfile ? PET_MODEL_ARGS(petProfile) : []),
       ...(vic20Profile ? ['-memory', VIC20_MEMORY_ARG[vic20Profile]] : []),
       ...(c64Profile && c64Profile !== 'stock' ? ['-reu', '-reusize', String(C64_REU_SIZE_KIB[c64Profile])] : []),
       // Skip the "really quit?" confirmation dialog — closing the emulator

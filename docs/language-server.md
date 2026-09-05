@@ -64,10 +64,29 @@ a package you have not installed, one that is not an 8BitScript package, or a
 subpath a package does not export, is underlined on the import line. Import resolution needs a saved file: an
 untitled buffer still gets every other diagnostic.
 
-`frames(...)` diagnostics (an invalid argument, a unit it doesn't know —
+What the editor cannot show is anything that depends on the machine being
+built for, because it analyses a file, not a build: a file that has no
+version for a target (`8BS3002`) and a write the target refuses as a
+hardware hazard (`8BS3003`, the PET's killer poke) are reported by
+`8bs build`, which knows the target — see
+[the compiler's diagnostics](compiler.md#codes). The same goes for a const
+whose value lives in another module — `const COLUMNS: utinyint =
+Video.COLUMNS`, at module level or inside a namespace: whether it exists,
+fits the type, or depends on itself is the linker's to report.
+
+`#frames(...)` diagnostics (an invalid argument, a unit it doesn't know —
 `seconds` is the only one — a duration that rounds to zero frames, one that
-isn't exact, a decimal literal used outside `frames(...)`, or a declaration
-that shadows a reserved name) use the same
+isn't exact, a decimal literal used outside `#frames(...)`, or a declaration
+that shadows a reserved name), string diagnostics (a character outside
+the portable set, a string over 255 characters), template diagnostics (a
+template anywhere but `print(cell, ...)`, a field with no width the
+compiler can determine), assignment to a `const`, an unknown `#name`, and
+every "not compilable yet" the compiler would report at build time (a
+`ptr<T>`, a local array — they parse, they do not lower yet), an array
+index past the end, an array initialiser of the wrong size, a string
+that does not fit its `string<N>`, a name in the wrong case (a `const`
+is `UPPER_SNAKE`, a variable starts lower-case), and a call to one of the
+file's own functions with the wrong number of arguments use the same
 project-level `frameRate` a real build would (`8bs.config.ts`, default 60):
 the server walks upward from the open file looking for `8bs.config.ts`, the
 same way it would be found from any file inside the project, so the editor
@@ -76,8 +95,9 @@ buffer, with no file on disk to walk up from, assumes the default 60.
 
 Hover and a first slice of completion, both for built-in constructs. Hovering
 a primitive type (`utinyint`, `u8`, `int`, ...), `volatile`, `ptr`, `array`,
-`asm6502`, `@address`, `memory.read`/`memory.write`, `frames(...)`, the
-`seconds` unit inside it, or `waitFrame()` explains it in place:
+`asm6502`, `@address`, `memory.read`/`memory.write`, `string`,
+`#frames(...)`, the `seconds` unit inside it, or `waitFrame()` explains it
+in place — inside a template's `${...}` field as much as outside one:
 
 ```
 let lives: utinyint = 3;
@@ -91,10 +111,16 @@ let lives: utinyint = 3;
 
 Completion offers the built-in type names — canonical spellings
 (`tinyint`/`utinyint`/`smallint`/`usmallint`/`mediumint`/`umediumint`/`int`/`uint`)
-first, then their low-level aliases (`i8`, `u8`, ...) — wherever a type can
-syntactically appear: after a `:` annotation, or inside `ptr<...>`,
-`array<...>`, or `volatile<...>`. See [the compiler](compiler.md#primitive-integer-types)
-for what each type means and how the aliasing works.
+first, then their low-level aliases (`i8`, `u8`, ...), and `string` —
+wherever a type can syntactically appear: after a `:` annotation, or inside
+`ptr<...>`, `array<...>`, or `volatile<...>`. See
+[the compiler](compiler.md#primitive-integer-types) for what each type
+means and how the aliasing works. Two more places have something to offer:
+a `#` offers the compile-time functions (`#frames`), and the second
+argument of one offers the units it can measure (`seconds`). Each item
+says what kind of thing it is, so an editor can show a type, a function,
+and a constant differently. All three work inside a template's `${...}`
+field as well as outside one — a field is ordinary source.
 
 Both come from one compiler API (`getHoverInfo`/`getCompletions` in
 `@8bitscript/compiler`) that recognises built-in syntax only — there is no
@@ -106,8 +132,9 @@ whole reason for this architecture.
 
 ## Two layers of highlighting
 
-Basic colouring — keywords, types, strings, numbers, and the reserved builtins
-(`frames(...)`, `waitFrame()`) — comes from a TextMate grammar in
+Basic colouring — keywords, types, strings and templates, numbers, the
+compile-time `#frames(...)`, and the reserved `waitFrame()` — comes from a
+TextMate grammar in
 the editor extension (`editors/vscode/syntaxes/8bs.tmLanguage.json`). It is fast, works with no server running, and
 does not need to understand the program.
 
@@ -140,29 +167,37 @@ toolchain is not installed it says so and stops:
 
 The extension adds an **8BitScript** icon to the Activity Bar, the strip of
 icons down the left edge of the window. Its side bar has two sections. **Run
-Settings** is three dropdowns — the system to run on (`vic20`, `c64`, `web`),
-the region for the Commodore machines (NTSC or PAL), and how the project list
-is laid out — plus, when the toolchain comes from a checkout of this
-repository, a checkbox that adds the repository's `examples/` to the list.
+Settings** is three dropdowns — the system to run on, the region for the
+machines that have one (NTSC or PAL), and how the project list is laid out —
+plus, when the toolchain comes from a checkout of this repository, a
+checkbox that adds the repository's proofs of concept to the list.
 **Projects** lists every directory in the workspace that has an
 `8bs.config.ts`, which is the project manifest the CLI reads for the entry
-file and the target list.
+file and the target list — and keeps what the toolchain brought along in
+sections of its own: the **apps** that ship with it ([Studio](studio.md)),
+and the **proofs of concept** from `examples/proof-of-concept`.
 
 ```
 RUN SETTINGS
-System [ vic20 ▾ ]   Region [ NTSC ▾ ]
+System [ cx16 ▾ ]   Region [ NTSC ▾ ]
 View   [ Runnable on the selected system ▾ ]
 
-PROJECTS  runnable on vic20 · NTSC
-  borders           examples/borders          Run  Build
-  counter           examples/counter          Run  Build
-  hello-vic         examples/hello-vic        Run  Build
+PROJECTS  runnable on cx16
+  Projects
+    my-game           src/my-game                       Run  Build
+  Proofs of concept
+    borders           proof-of-concept/borders          Run  Build
+  Apps
+    Studio            @8bitscript/studio                Run  Build
 ```
 
 The default layout lists only the projects that can run on the selected
 system, one row each, so a run is one click after the dropdowns. The other
 two layouts expand every project into its systems, or every system into its
-projects. **Run** starts `8bs run <target>` and **Build** starts `8bs build
+projects. The sections appear only when the list mixes kinds; a workspace
+of plain projects is a plain list. **Launch Studio**, **Launch App…**, and
+**Launch Proof of Concept…** on the command palette start one of the
+shipped programs on a system you pick, whether or not it is listed. **Run** starts `8bs run <target>` and **Build** starts `8bs build
 --target <target>` as an editor task, in a terminal, from the project's
 directory; a row's context menu offers NTSC and PAL explicitly. A running
 row shows a **Stop** button that ends the task and the emulator with it. The
@@ -178,7 +213,7 @@ written in `.vscode/tasks.json`:
     {
       "type": "8bs",
       "command": "run",
-      "project": "examples/borders",
+      "project": "examples/proof-of-concept/borders",
       "target": "c64",
       "pal": true,
       "label": "borders on a PAL C64"

@@ -30,8 +30,8 @@
 // caller that only ever touches a handful of cells leaves most of both
 // untouched.
 export namespace WebRegisters {
-    const BorderOffset: usmallint = 0;
-    const BackgroundOffset: usmallint = 1;
-    const CharBase: usmallint = 2;
-    const ColorBase: usmallint = 1002;
+    const BORDER_OFFSET: usmallint = 0;
+    const BACKGROUND_OFFSET: usmallint = 1;
+    const CHAR_BASE: usmallint = 2;
+    const COLOR_BASE: usmallint = 1002;
 }

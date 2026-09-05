@@ -11,7 +11,7 @@
 // the same names, the same shapes, ASCII codes, and a cell 0 at the
 // top-left corner inside the border — so a program that imports it from
 // @8bitscript/text draws the same thing on every target.
-import { setVramAddress, resetScroll } from "./index.8bs";
+import { queueRun, queueByte } from "./index.8bs";
 
 // ---- text: the character set is ours to ship --------------------------
 //
@@ -40,20 +40,127 @@ import { setVramAddress, resetScroll } from "./index.8bs";
 // per-cell colour — the nearest thing, the attribute table, chooses a
 // palette per 32x32-pixel block, and every block here is palette 0.
 
+// ---- print: strings and number fields ------------------------------------
+//
+// `text.print(cell, s)` writes a string's characters into consecutive
+// cells from `cell`, and `text.printNumber(cell, value, width)` writes
+// `value` as exactly `width` decimal digits, zero-padded and right-aligned,
+// so a field on a HUD never shifts columns. Both draw in the current colour —
+// white until `text.setColor(TextColor.CYAN)` changes it, and that one
+// call then colours everything printed after it, on the machines that have
+// per-cell colour. They are also the two
+// functions the compiler's template layout targets: `text.print(0,
+// \`TICK ${ticks:1}\`)` is laid out at compile time into these same calls
+// (see packages/compiler/src/ir).
+//
+// Under them: `locate()` turns a cell into a
+// nametable address without dividing, and a run of text lets the PPU step
+// the address itself.
+// `text.putChar` and `text.putColor` stay the one-cell pokes a caller can
+// build anything from.
+let currentColor: utinyint = 1; // white, until text.setColor() says otherwise
+
+// The nametable address of a cell — row `cell / 28`, column the rest — and
+// the column back, for a caller that walks on from there. Eight-bit
+// arithmetic only, and no division or multiplication: LLVM-MOS links a
+// 250-byte routine for a 16-bit divide, turns a counted-subtraction loop
+// into one, and calls a 300-cycle multiply for `x * 147` — none of which
+// fits the vertical blank this runs in. A quarter of the cell fits a byte
+// (below 728, q < 182); q / 8 + q / 64 is q / 7 or one or two short, and
+// what is left over says which. Verified for every cell. It opens a run
+// in the package's write queue at that address (see index.8bs: nothing
+// here touches the PPU; waitFrame() delivers the queue in vertical
+// blank), and the run's bytes land in consecutive cells of the row.
+function locate(cell: usmallint): utinyint {
+    let q: utinyint = cell / 4;
+    let row: utinyint = q / 8 + q / 64;
+    let rest: utinyint = q - row * 8 + row; // q - row * 7, without the multiply
+    if (rest >= 7) {
+        rest = rest - 7;
+        row++;
+    }
+    if (rest >= 7) {
+        rest = rest - 7;
+        row++;
+    }
+    let col: utinyint = rest * 4 + cell % 4;
+    queueRun(0x2042 + row * 32 + col);
+    return col;
+}
+
+// ---- digits -------------------------------------------------------------
+//
+// A number is written one place at a time, high to low, by subtracting the
+// place value until it no longer fits: the 6502 has no divide instruction,
+// and `value / 10` would link a 250-byte routine to do it. Places above the
+// field are still taken off, so a field narrower than its number shows the
+// low digits; places the number does not reach print as zeros.
+const DIGIT_PLACES: array<usmallint, 5> = [10000, 1000, 100, 10, 1];
+
 export namespace text {
-    const CellCount: usmallint = 728; // 28 columns x 26 rows, inside the frame
+    const CELL_COUNT: usmallint = 728; // 28 columns x 26 rows, inside the frame
+    const COLUMNS: utinyint = 28; // cells per row, so cell = y * text.COLUMNS + x
 
     function putChar(cell: usmallint, code: utinyint): void {
-        setVramAddress(0x2042 + (cell / 28) * 32 + (cell % 28));
-        memory.write(0x2007, code);
-        resetScroll();
+        locate(cell);
+        queueByte(code);
     }
 
     function putColor(cell: usmallint, color: utinyint): void {
         // Deliberately empty — see above.
     }
 
-    function showDigit(cell: usmallint, digit: utinyint): void {
-        text.putChar(cell, 0x30 + (digit % 10));
+    function setColor(color: utinyint): void {
+        currentColor = color;
     }
+
+    function print(cell: usmallint, s: string): void {
+        let col: utinyint = locate(cell);
+        for (let i: utinyint = 0; i < s.length; i++) {
+            queueByte(s[i]);
+            col++;
+            if (col == text.COLUMNS) {
+                col = locate(cell + i + 1); // the next row is not the next address
+            }
+        }
+    }
+
+    function printNumber(cell: usmallint, value: usmallint, width: utinyint): void {
+        let col: utinyint = locate(cell);
+        let k: utinyint = width;
+        if (k < DIGIT_PLACES.length) {
+            k = DIGIT_PLACES.length;
+        }
+        while (k > 0) {
+            let digit: utinyint = 48; // '0'
+            if (k <= DIGIT_PLACES.length) {
+                while (value >= DIGIT_PLACES[DIGIT_PLACES.length - k]) {
+                    value = value - DIGIT_PLACES[DIGIT_PLACES.length - k];
+                    digit++;
+                }
+            }
+            if (k <= width) {
+                queueByte(digit);
+                col++;
+                if (col == text.COLUMNS) {
+                    col = locate(cell + width - k + 1); // the next row is not the next address
+                }
+            }
+            k--;
+        }
+    }
+}
+
+// The colours `text.setColor()` takes. The NES text grid has no per-cell colour, so the
+// names are here for a program that compiles everywhere and their values
+// go nowhere.
+export namespace TextColor {
+    const BLACK: utinyint = 0;
+    const WHITE: utinyint = 1;
+    const RED: utinyint = 2;
+    const CYAN: utinyint = 3;
+    const PURPLE: utinyint = 4;
+    const GREEN: utinyint = 5;
+    const BLUE: utinyint = 6;
+    const YELLOW: utinyint = 7;
 }

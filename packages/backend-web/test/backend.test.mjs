@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { tokenize, parse, lower } from '@8bitscript/compiler';
-import { emitAssemblyScript, buildWasm } from '../src/index.mjs';
+import { emitAssemblyScript, buildWasm, STRING_DATA_BASE } from '../src/index.mjs';
 
 const MILESTONE = 'let x: u8 = 10;\nexport function main(): void {\n    x = x + 1;\n}\n';
 
@@ -109,6 +109,57 @@ test('a waitFrame() program builds with shared memory and runs against a host-su
     assert.ok(instance.exports.memory.buffer instanceof SharedArrayBuffer, 'memory must be shared');
     assert.throws(() => instance.exports.main(), Stop);
     assert.equal(instance.exports.frameCount.value, 10);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+// ---- strings ----------------------------------------------------------------
+//
+// A string literal is a static data segment; `--memoryBase` puts it at
+// STRING_DATA_BASE, above the character screen @8bitscript/web's memory
+// agreement keeps at the bottom of the page, so a program that clears its
+// screen can never clear its own labels. The test writes a label into the
+// screen region the way the text package does and reads both regions back.
+
+const PRINTS = [
+  'let n: utinyint = 0;',
+  'function show(cell: usmallint, s: string): void {',
+  '    n = 0;',
+  '    while (n < s.length) { memory.write(2 + cell + n, s[n]); n = n + 1; }',
+  '}',
+  'export function main(): void { show(3, "TICK"); }',
+].join('\n');
+
+test('a string parameter is a usize into a memory.data segment; .length and s[i] are byte loads', () => {
+  const emitted = emitAssemblyScript(irOf(PRINTS));
+  assert.ok(emitted.ok, emitted.error);
+  assert.match(emitted.source, /const __8bs_str_0: usize = memory\.data<u8>\(\[4, 84, 73, 67, 75\]\); \/\/ "TICK"/);
+  assert.match(emitted.source, /function show\(cell: u16, s: usize\): void/);
+  assert.match(emitted.source, /load<u8>\(s\)/);
+  assert.match(emitted.source, /load<u8>\(<usize>\(s \+ 1 \+ n\)\)/);
+  assert.match(emitted.source, /show\(<u16>3, <usize>__8bs_str_0\);/);
+});
+
+test('call arguments narrow to the callee\'s parameter types, and a parameter can be assigned', () => {
+  const emitted = emitAssemblyScript(irOf('let w: usmallint = 300;\nfunction f(x: utinyint): void { x = x / 10; }\nexport function main(): void { f(w); }'));
+  assert.ok(emitted.ok, emitted.error);
+  assert.match(emitted.source, /f\(<u8>w\);/);
+  assert.match(emitted.source, /x = <u8>\(x \/ 10\);/);
+});
+
+test('string data lands at STRING_DATA_BASE, clear of the screen region a program writes', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-web-test-'));
+  try {
+    const outFile = join(scratch, 's.wasm');
+    const result = await buildWasm(irOf(PRINTS), { outFile });
+    assert.ok(result.ok, result.error);
+    const { instance } = await WebAssembly.instantiate(await readFile(outFile), {});
+    instance.exports.main();
+    const memory = new Uint8Array(instance.exports.memory.buffer);
+    assert.deepEqual([...memory.slice(2 + 3, 2 + 3 + 5)], [84, 73, 67, 75, 0], 'TICK at cells 3..6, nothing after');
+    assert.deepEqual([...memory.slice(STRING_DATA_BASE, STRING_DATA_BASE + 5)], [4, 84, 73, 67, 75], 'the length-prefixed constant sits at the data base');
+    assert.equal(STRING_DATA_BASE, 0xE000);
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }

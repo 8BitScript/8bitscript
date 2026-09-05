@@ -41,21 +41,27 @@
 //
 //   2. While rendering is ON, the PPU owns VRAM outside vertical blank,
 //      and a write outside it lands wherever the PPU's address happens to
-//      be — a corrupted tile and a torn frame. So: before the first
-//      screen.setColors() (which is what switches rendering on) VRAM is
-//      free to write at any time and at any length — a whole-screen clear,
-//      the frame, the labels; afterwards, write only right after
-//      waitFrame() returns — which is the start of vertical blank
-//      (packages/backend-6502's FRAME_SYNC.nes) — and keep it short — a
-//      few putChar()s, not a screen clear. examples/borders orders its
-//      setup exactly this way — on every target, since drawing first is
-//      harmless elsewhere; see its comments.
+//      be — a corrupted tile and a torn frame. Vertical blank is about
+//      2270 CPU cycles, and a program cannot be asked to know that. So
+//      the text and palette writes do not go to the PPU when a program
+//      makes them: they go into the queue below, as runs of bytes at a
+//      VRAM address, and `nesVerticalBlank()` delivers the whole queue
+//      at the start of the next vertical blank — packages/backend-6502's
+//      frame runtime calls it right after every hardware frame edge
+//      (FRAME_SYNC.nes.frameHook), before waitFrame() returns. Delivery
+//      is a tight loop, about 15 cycles a byte, so a frame's worth of
+//      text fits with room to spare; a program prints whenever it likes
+//      and sees the result the next frame. The queue holds 128 bytes;
+//      more than that in one frame is delivered as it overflows, which
+//      may tear. screen.blank() switches rendering off and writes the
+//      nametable directly, delivering the queue first so nothing printed
+//      before the blank appears after it.
 //
 // Nametable and attribute contents are undefined at power-on (real
 // hardware: garbage; FCEUX: zeros, which is why a program that forgot to
 // clear would look fine in the emulator and wrong on a cartridge) — a
 // program should clear the screen once before screen.setColors(), as
-// examples/borders does; the attribute table is cleared by screen.8bs,
+// examples/proof-of-concept/borders does; the attribute table is cleared by screen.8bs,
 // since a program has no other way to reach it.
 //
 // PPU warm-up: NESdev's guidance is to wait for two vertical blanks after
@@ -85,4 +91,76 @@ export function resetScroll(): void {
     memory.write(0x2000, 0x00);
     memory.write(0x2005, 0x00);
     memory.write(0x2005, 0x00);
+}
+
+// ---- the write queue -------------------------------------------------------
+//
+// Runs of bytes for the PPU, each a two-byte VRAM address (high, low), a
+// count, and the bytes: `queueRun(address)` opens one, `queueByte(value)`
+// adds to it, and `nesVerticalBlank()` writes them all out in order and
+// resets the scroll. Rule 2 above says why.
+const QUEUE_SIZE: utinyint = 128;
+let queue: array<utinyint, QUEUE_SIZE>;
+let queueEnd: utinyint = 0;
+let runCount: utinyint = 0; // where the open run's count byte is
+let runAddress: usmallint = 0; // the open run's VRAM address
+
+export function queueRun(address: usmallint): void {
+    if (queueEnd > QUEUE_SIZE - 4) {
+        deliverAtVerticalBlank(); // no room for a header and a byte
+    }
+    queue[queueEnd] = address / 256;
+    queue[queueEnd + 1] = address % 256;
+    runCount = queueEnd + 2;
+    queue[runCount] = 0;
+    queueEnd = queueEnd + 3;
+    runAddress = address;
+}
+
+export function queueByte(value: utinyint): void {
+    if (queueEnd == QUEUE_SIZE) {
+        // Full: deliver what there is and reopen the run where it left off.
+        queueRun(runAddress + queue[runCount]);
+    }
+    queue[queueEnd] = value;
+    queueEnd++;
+    queue[runCount]++;
+}
+
+// The queue is full before the frame is over: wait for the next vertical
+// blank and deliver it there. The program loses the rest of this frame —
+// a HUD too big for one frame costs frames, it never costs the picture.
+// Delivering mid-frame instead would corrupt it: PPUADDR is the PPU's
+// own fetch position while it draws, and PPUDATA writes move it. The
+// status read first clears a vertical-blank flag left over from earlier,
+// so the loop waits for the edge and not for a stale flag.
+function deliverAtVerticalBlank(): void {
+    memory.read(0x2002);
+    while (memory.read(0x2002) < 128) {
+    }
+    nesVerticalBlank();
+}
+
+// Every queued run to the PPU, then the scroll back to the top-left (each
+// run's PPUADDR write moved it). Called by the frame runtime at the start
+// of vertical blank; by deliverAtVerticalBlank() when the queue is full;
+// by screen.blank() with rendering off.
+export function nesVerticalBlank(): void {
+    let i: utinyint = 0;
+    while (i < queueEnd) {
+        setVramAddress(queue[i] * 256 + queue[i + 1]);
+        let n: utinyint = queue[i + 2];
+        i = i + 3;
+        // Indexed straight off `i`, one byte at a time: an `i + k` index
+        // made LLVM-MOS walk a pointer at 23 cycles a byte; this is 15.
+        while (n > 0) {
+            memory.write(0x2007, queue[i]);
+            i++;
+            n--;
+        }
+    }
+    if (queueEnd > 0) {
+        queueEnd = 0;
+        resetScroll();
+    }
 }

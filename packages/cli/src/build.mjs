@@ -6,6 +6,7 @@
 //     8bs build --target atari8 --profile 130xe [entry.8bs]
 //     8bs build --target vic20 --profile 16k    [entry.8bs]
 //     8bs build --target c64 --profile reu512   [entry.8bs]
+//     8bs build --target pet --profile 8032     [entry.8bs]   80 columns, 32K
 //
 // The system (vic20/c64/pet/c128/atari8/nes/cx16/mega65/web) is the target;
 // NTSC/PAL is a --pal/--ntsc option on top of it, not a separate flavor of
@@ -17,7 +18,7 @@
 // same as it already was for web. "NTSC (60Hz)" above is the emulator's real
 // hardware region, not the language's logical frame rate — that's a
 // separate, project-level setting (`frameRate` in 8bs.config.ts, default 60,
-// see packages/backend-6502's FRAME_SYNC and examples/borders/README.md),
+// see packages/backend-6502's FRAME_SYNC and examples/proof-of-concept/borders/README.md),
 // unaffected by --pal.
 //
 // --profile picks a hardware profile — a named bundle of settings for
@@ -60,8 +61,10 @@ const TARGETS = new Set(MACHINES);
 
 // The targets whose frame-sync strategy has a real NTSC/PAL split, auto-
 // detected at runtime (packages/backend-6502's FRAME_SYNC 'level' machines)
-// — the only ones where --pal changes anything, or where a region suffix on
-// the output filename means anything.
+// — the only ones where --pal changes the build or a region suffix on the
+// output filename. The PET has no region at all: its refresh is the
+// model's (a `--profile`, see PET_PROFILES in backend-6502), FRAME_SYNC.pet
+// measures it at start-up, and `8bs run pet` says so if given --pal.
 const REGION_TARGETS = new Set(['vic20', 'c64', 'c128', 'mega65', 'atari8']);
 
 // Diagnostics may come from any module in the import graph, so each one is
@@ -150,6 +153,7 @@ export async function compile(target, entryArg, { pal = false, profile } = {}) {
     ATARI8_PROFILES, ATARI8_DEFAULT_PROFILE,
     VIC20_PROFILES, VIC20_DEFAULT_PROFILE,
     C64_PROFILES, C64_DEFAULT_PROFILE,
+    PET_PROFILES, PET_DEFAULT_PROFILE,
   } = await import('@8bitscript/backend-6502');
   const atari8Profile = target === 'atari8' ? (profile ?? ATARI8_DEFAULT_PROFILE) : undefined;
   if (target === 'atari8' && !ATARI8_PROFILES.has(atari8Profile)) {
@@ -172,6 +176,13 @@ export async function compile(target, entryArg, { pal = false, profile } = {}) {
     );
     return { ok: false };
   }
+  const petProfile = target === 'pet' ? (profile ?? PET_DEFAULT_PROFILE) : undefined;
+  if (target === 'pet' && !PET_PROFILES.has(petProfile)) {
+    process.stderr.write(
+      `8bs build: unknown pet profile '${petProfile}'. Profiles: ${[...PET_PROFILES].join(', ')}\n`,
+    );
+    return { ok: false };
+  }
 
   const entry = resolveEntryPath(config, target, entryArg);
   if (!existsSync(entry)) {
@@ -184,8 +195,11 @@ export async function compile(target, entryArg, { pal = false, profile } = {}) {
   // The linker runs the full front end over the entry and everything it
   // imports, then merges the graph into one program. Any error in any module
   // means no build. The machine rides along so packages with target-
-  // conditional entries resolve to this machine's implementation.
-  const { ir, diagnostics, sources } = link(text, entry, { machine: target, frameRate });
+  // conditional entries resolve to this machine's implementation, and the
+  // resolved profile (the default when none was asked for) so a file with a
+  // `.<machine>.<profile>.8bs` twin resolves to that.
+  const resolvedProfile = atari8Profile ?? vic20Profile ?? c64Profile ?? petProfile;
+  const { ir, diagnostics, sources } = link(text, entry, { machine: target, profile: resolvedProfile, frameRate });
   if (diagnostics.length > 0) {
     printDiagnostics(diagnostics, sources);
     process.stdout.write(`${diagnostics.length} problem(s); not building.\n`);
@@ -207,6 +221,7 @@ export async function compile(target, entryArg, { pal = false, profile } = {}) {
       return { ok: false };
     }
     process.stdout.write(`built ${outFile}\n(generated AssemblyScript: ${result.asFile})\n`);
+    process.stdout.write(`${memoryLine(ir.memory)}\n`);
     return { ok: true, outFile, frameRate };
   }
 
@@ -220,18 +235,35 @@ export async function compile(target, entryArg, { pal = false, profile } = {}) {
   // most projects never touch was not worth it.
   if (target === 'vic20' && vic20Profile !== VIC20_DEFAULT_PROFILE) nameParts.push(vic20Profile);
   if (target === 'c64' && c64Profile !== C64_DEFAULT_PROFILE) nameParts.push(c64Profile);
+  if (target === 'pet' && petProfile !== PET_DEFAULT_PROFILE) nameParts.push(petProfile);
   if (REGION_TARGETS.has(target)) nameParts.push(pal ? 'pal' : 'ntsc');
   const ext = outputExtension(target, atari8Profile);
   const outFile = resolve('dist', `${nameParts.join('-')}.${ext}`);
   const result = await buildPrg(ir, {
-    machine: target, atari8Profile, vic20Profile, c64Profile, outFile, frameRate,
+    machine: target, atari8Profile, vic20Profile, c64Profile, petProfile, outFile, frameRate,
   });
   if (!result.ok) {
     process.stderr.write(`8bs build: ${result.error}\n`);
     return { ok: false };
   }
   process.stdout.write(`built ${outFile}\n(generated C: ${result.cFile})\n`);
+  process.stdout.write(`${memoryLine(ir.memory, result.memory)}\n`);
   return { ok: true, outFile, frameRate };
+}
+
+/**
+ * The memory line under "built": how much RAM the program's variables
+ * take and how much constant data it carries. Measured from the linked
+ * program when the backend could (the 6502 backend reads the ELF; a
+ * variable LLVM dropped for being unread is not counted), else as
+ * declared in the source. The machine's own limit is the toolchain's:
+ * a program that does not fit does not build, and the build says so.
+ */
+export function memoryLine(declared, measured = null) {
+  if (measured) {
+    return `memory: ${measured.variables} bytes of RAM for variables, ${measured.program} bytes of program (code and data)`;
+  }
+  return `memory: ${declared.variables} bytes of RAM for variables, ${declared.data} bytes of constant data (as declared)`;
 }
 
 /** @returns {Promise<number>} exit code */
@@ -255,6 +287,7 @@ export async function build(args) {
       + '                 [--profile <800xl|65xe|130xe|800|400|xegs>]        (atari8)\n'
       + '                 [--profile <unexpanded|3k|8k|16k|24k>]             (vic20)\n'
       + '                 [--profile <stock|reu128|reu256|reu512|reu1m|reu2m|reu4m|reu8m|reu16m>] (c64)\n'
+      + '                 [--profile <3032|3008|3016|4016|4032|8032>]          (pet)\n'
       + '                 [entry.8bs]\n',
     );
     return 2;

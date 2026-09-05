@@ -49,8 +49,8 @@ Both run in VICE, as `xvic` and `x64sc`, sharing one emulator infrastructure
 and one monitor for debugging. LLVM-MOS already provides `mos-vic20-clang` and
 `mos-c64-clang`.
 
-**Native reference machine: C64.** When native 8BitScript development tools
-are written, this is where they live first. Conceptually:
+**Native tools.** The native 8BitScript development tools are
+[Studio](studio.md), the app that ships with the toolchain. Conceptually:
 
 - a character editor
 - a tile and map editor
@@ -58,9 +58,11 @@ are written, this is where they live first. Conceptually:
 - a sound editor
 - a memory inspector
 
-The web versions of these can be much fancier. The native C64 versions are
-dogfooding: real programs, written in 8BitScript, that have to work on the
-hardware.
+Their reference machine is the Commander X16, not one of these three (see
+[the tool strategy](#the-tool-strategy)); the C64 gets the full editor
+sized to its hardware, and the VIC-20 the basic tier. The web version can
+be much fancier. The native versions are dogfooding: real programs, written
+in 8BitScript, that have to work on the hardware.
 
 ## Phase 2: the Commodore family
 
@@ -125,7 +127,7 @@ against that per-scanline limit, not the frame total. "mappers" undersells
 it the other way: cartridge hardware (NROM, UNROM, MMC1, MMC3, ...) changes
 how much CHR/PRG memory a program can address and how it's banked, which
 makes "the NES" a family of build profiles rather than one target — the
-same shape `--profile` already gives `atari8`, `vic20`, and `c64` in
+same shape `--profile` already gives `atari8`, `vic20`, `c64`, and `pet` in
 `packages/backend-6502`, just not yet extended to `nes`, which is hardcoded
 to the plainest cartridge shape (NROM) today. See `packages/nes/AGENTS.md`
 for the full set of NES-specific rules, and the root `AGENTS.md` for how
@@ -158,9 +160,11 @@ Portable when you want it. Metal when you want it.
 
 The first two capabilities exist, spelled as the npm packages the
 [package model](packages.md) resolves rather than a `8bit:` scheme:
-`@8bitscript/screen` (`screen.setColors(border, background)` and the shared
-colour names) and `@8bitscript/text` (`text.putChar`/`putColor`/`showDigit`
-and `CellCount`, one flat cell index for now). Each is a machine-keyed
+`@8bitscript/screen` (`screen.blank(border, background)`, `setBorder`, `setBackground`, `setColors(border, background)` and the shared
+colour names) and `@8bitscript/text` (`text.print` with template strings,
+`printNumber`, a current colour via `setColor` and the `TextColor` names,
+`putChar`/`putColor`, and `CELL_COUNT`/`COLUMNS` — one flat cell index,
+`y * text.COLUMNS + x`). Each is a machine-keyed
 manifest delegating to the target package's own implementation —
 `@8bitscript/nes/screen`, `@8bitscript/c64/text` — so the per-machine code
 stays in the machine's package, beside the registers it is built on, and
@@ -294,32 +298,32 @@ and then `8bs run pet` works, the design is right.
 
 ## The tool strategy
 
-The native development tools are part of the roadmap, not a side project. Each
-new reference machine gets the tools ported and enhanced:
+The native development tools are [Studio](studio.md) — `@8bitscript/studio`,
+an ordinary 8BitScript program that ships with the toolchain, at the
+toolchain's version — and they are part of the roadmap, not a side project.
+Studio's reference machine is the **Commander X16**: it has the most room
+and a keyboard and storage out of the box, so the full editor is designed
+there, and every other machine runs the same program at the tier its
+hardware supports. A higher tier opens everything a lower one made.
 
 ```
-C64
- |
- v
-native development tools v1
- |
-C128
- |
- v
-port and enhance the tools
- |
 Commander X16
  |
  v
-port and enhance the tools
+Studio: the full editor
  |
-MEGA65
+ +--> MEGA65, C128, C64, Atari 8-bit, web: the full editor, sized to the machine
  |
- v
-the deluxe edition
+ +--> VIC-20, PET: character editing and rudimentary playback
+ |
+ +--> NES: the viewer
 ```
 
-This gives every phase something real to build. The tools become increasingly
+The tiers, and what each one still has to prove on its hardware, are in
+[`packages/studio/AGENTS.md`](https://github.com/8BitScript/8bitscript/blob/trunk/packages/studio/AGENTS.md).
+Each editor waits on a language capability — input first, then character
+and sprite access, sound, and storage — so Studio sets the order those
+arrive in. This gives every phase something real to build. The tools become increasingly
 demanding real-world test suites for 8BitScript, and the small games prove the
 portable game APIs. That feedback loop is what the project needs, and it beats
 six months of staring at compiler unit tests.

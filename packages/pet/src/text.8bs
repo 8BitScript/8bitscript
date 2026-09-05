@@ -11,15 +11,17 @@
 // at the top-left corner of the screen — so a program that imports it from
 // @8bitscript/text draws the same thing on every target.
 import { viaPeripheralControl } from "./index.8bs";
+import { Video } from "./geometry.8bs";
 
-// PET screen memory is fixed at $8000 on the common (non-CRTC) 40-column
-// models this target compiles for (see MACHINE_FLAGS.pet in
-// packages/backend-6502: __ram_size pinned to the common 32K PET), 1000
-// cells for a 40x25 display. There is no colour RAM to go with it — a
-// character's screen code alone decides how it looks — so `putColor` exists
-// only so portable code written against every machine's `text` namespace
-// still compiles; it does nothing, the same way this package's
-// `screen.setColors()` does nothing.
+// PET screen memory is at $8000 on every model: 1000 cells for the 40x25
+// display of the 2001/3xxx/4xxx machines, 2000 for the 80x25 of the 8032 —
+// which is the build's `--profile` to say (PET_PROFILES in
+// packages/backend-6502), and reaches this file as ./geometry.8bs's
+// `Video` namespace, whose 8032 version the profile selects. There is no
+// colour RAM to go with it — a character's screen code alone decides how it
+// looks — so `putColor` exists only so portable code written against every
+// machine's `text` namespace still compiles; it does nothing, the same way
+// this package's `screen.setColors()` does nothing.
 //
 // `text.putChar` takes ASCII on every machine — space (32), '0'-'9'
 // (48-57), 'A'-'Z' (65-90) and the punctuation `! , - . : ?` — upper case
@@ -28,13 +30,18 @@ import { viaPeripheralControl } from "./index.8bs";
 // wants screen codes: codes 32-63 are those same ASCII values, and 'A'-'Z'
 // are 1-26, so asciiToScreenCode() moves 64-95 down by 64 and leaves 32-63
 // alone. Whether 1-26 then LOOK like 'A'-'Z' or 'a'-'z' is the character
-// set's choice, and the start-up code LLVM-MOS links in front of main()
-// switches the machine to the lower-case ("text") set. So putChar() also
-// selects the upper-case ("graphics") set, every call, through the VIA's
-// peripheral control register (see @8bitscript/pet): one register write,
-// and "TICK" reads as TICK here the way it does on every other target.
+// set's choice, and on the PET that is the editor ROM's boot state: the
+// graphics-keyboard 3032/4032 boot in the upper-case ("graphics") set, the
+// business-keyboard 8032 (xpet's default model) in the lower-case ("text")
+// set. So putChar() selects the graphics set itself, every call, through
+// the VIA's peripheral control register (see @8bitscript/pet): one register
+// write, and "TICK" reads as TICK here on every model the way it does on
+// every other target. (LLVM-MOS's libc used to flip every Commodore machine
+// to lower-case before main() with a hidden CHR$(14) through the KERNAL;
+// packages/backend-6502's commodoreCharsetGuard() keeps that out of the
+// link. See packages/pet/AGENTS.md.)
 namespace CharacterSet {
-    const Graphics: utinyint = 0x0C;
+    const GRAPHICS: utinyint = 0x0C;
 }
 
 function asciiToScreenCode(code: utinyint): utinyint {
@@ -44,21 +51,100 @@ function asciiToScreenCode(code: utinyint): utinyint {
     return code;
 }
 
-export namespace text {
-    const CellCount: u16 = 1000; // 40 columns x 25 rows
+// ---- print: strings and number fields ------------------------------------
+//
+// `text.print(cell, s)` writes a string's characters into consecutive
+// cells from `cell`, and `text.printNumber(cell, value, width)` writes
+// `value` as exactly `width` decimal digits, zero-padded and right-aligned,
+// so a field on a HUD never shifts columns. Both draw in the current colour —
+// white until `text.setColor(TextColor.CYAN)` changes it, and that one
+// call then colours everything printed after it, on the machines that have
+// per-cell colour. They are also the two
+// functions the compiler's template layout targets: `text.print(0,
+// \`TICK ${ticks:1}\`)` is laid out at compile time into these same calls
+// (see packages/compiler/src/ir).
+//
+// Under them: `place()` puts one character at one cell in the current
+// colour, and is all a run of text costs per character, with `prepare()` selecting the
+// graphics set once for the run.
+// `text.putChar` and `text.putColor` stay the one-cell pokes a caller can
+// build anything from.
+let currentColor: utinyint = 1; // white, until text.setColor() says otherwise
 
-    function putChar(cell: u16, code: u8): void {
-        viaPeripheralControl = CharacterSet.Graphics;
+// What a run of text needs once, before its first character.
+function prepare(): void {
+    viaPeripheralControl = CharacterSet.GRAPHICS;
+}
+
+function place(cell: usmallint, code: utinyint): void {
+    memory.write(0x8000 + cell, asciiToScreenCode(code));
+}
+
+// ---- digits -------------------------------------------------------------
+//
+// A number is written one place at a time, high to low, by subtracting the
+// place value until it no longer fits: the 6502 has no divide instruction,
+// and `value / 10` would link a 250-byte routine to do it. Places above the
+// field are still taken off, so a field narrower than its number shows the
+// low digits; places the number does not reach print as zeros.
+const DIGIT_PLACES: array<usmallint, 5> = [10000, 1000, 100, 10, 1];
+
+export namespace text {
+    const CELL_COUNT: usmallint = Video.CELL_COUNT; // 40 x 25, or 80 x 25 on the 8032 profile
+    const COLUMNS: utinyint = Video.COLUMNS; // cells per row, so cell = y * text.COLUMNS + x
+
+    function putChar(cell: usmallint, code: utinyint): void {
+        prepare();
         memory.write(0x8000 + cell, asciiToScreenCode(code));
     }
 
-    function putColor(cell: u16, color: u8): void {
+    function putColor(cell: usmallint, color: utinyint): void {
         // Deliberately empty — the PET has no colour RAM.
     }
 
-    // Screen codes 0-9 equal '0'-'9' on the PET's character ROM too, same
-    // as the VIC-20's and C64's, so no lookup table is needed here.
-    function showDigit(cell: u16, digit: u8): void {
-        text.putChar(cell, 0x30 + (digit % 10));
+    function setColor(color: utinyint): void {
+        currentColor = color;
     }
+
+    function print(cell: usmallint, s: string): void {
+        prepare();
+        for (let i: utinyint = 0; i < s.length; i++) {
+            place(cell + i, s[i]);
+        }
+    }
+
+    function printNumber(cell: usmallint, value: usmallint, width: utinyint): void {
+        prepare();
+        let k: utinyint = width;
+        if (k < DIGIT_PLACES.length) {
+            k = DIGIT_PLACES.length;
+        }
+        while (k > 0) {
+            let digit: utinyint = 48; // '0'
+            if (k <= DIGIT_PLACES.length) {
+                while (value >= DIGIT_PLACES[DIGIT_PLACES.length - k]) {
+                    value = value - DIGIT_PLACES[DIGIT_PLACES.length - k];
+                    digit++;
+                }
+            }
+            if (k <= width) {
+                place(cell + width - k, digit);
+            }
+            k--;
+        }
+    }
+}
+
+// The colours `text.setColor()` takes. The PET has no colour RAM, so the
+// names are here for a program that compiles everywhere and their values
+// go nowhere.
+export namespace TextColor {
+    const BLACK: utinyint = 0;
+    const WHITE: utinyint = 1;
+    const RED: utinyint = 2;
+    const CYAN: utinyint = 3;
+    const PURPLE: utinyint = 4;
+    const GREEN: utinyint = 5;
+    const BLUE: utinyint = 6;
+    const YELLOW: utinyint = 7;
 }

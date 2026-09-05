@@ -21,13 +21,38 @@ export namespace screen {
         borderColor = border & 15;
         backgroundColor = background & 15;
     }
+
+    // `blank(border, background)`: every cell blank and both colours set —
+    // black when left off, or `BorderColor.KEEP` / `BackgroundColor.KEEP`
+    // to leave one as it is. `setBorder` and `setBackground` are one
+    // colour each, `setColors` the pair; `text.setColor` owns what the
+    // next print looks like.
+    function blank(border: utinyint = BorderColor.BLACK, background: utinyint = BackgroundColor.BLACK): void {
+        if (border != BorderColor.KEEP) {
+            screen.setBorder(border);
+        }
+        if (background != BackgroundColor.KEEP) {
+            screen.setBackground(background);
+        }
+        for (let cell: usmallint = 0; cell < 1000; cell++) {
+            memory.write(0x0400 + cell, 32); // 32: the space screen code
+        }
+    }
+
+    function setBackground(background: u8): void {
+        backgroundColor = background & 15;
+    }
+
+    function setBorder(border: u8): void {
+        borderColor = border & 15;
+    }
 }
 
 // ---- colour names ----------------------------------------------------------
 //
 // The same eight names every machine's screen.8bs exports — Black, White,
 // Red, Cyan, Purple, Green, Blue, Yellow — so a program can write
-// `screen.setColors(BorderColor.Blue, BackgroundColor.Black)` through
+// `screen.setColors(BorderColor.BLUE, BackgroundColor.BLACK)` through
 // @8bitscript/screen and get blue on every target; the values are this
 // machine's own. The VIC-II has sixteen colours in both registers, so both
 // namespaces carry all sixteen, in the VIC-II's own numbering — the
@@ -35,39 +60,45 @@ export namespace screen {
 // and @8bitscript/cx16 borrow.
 
 export namespace BorderColor {
-    const Black: utinyint = 0;
-    const White: utinyint = 1;
-    const Red: utinyint = 2;
-    const Cyan: utinyint = 3;
-    const Purple: utinyint = 4;
-    const Green: utinyint = 5;
-    const Blue: utinyint = 6;
-    const Yellow: utinyint = 7;
-    const Orange: utinyint = 8;
-    const Brown: utinyint = 9;
-    const LightRed: utinyint = 10;
-    const DarkGrey: utinyint = 11;
-    const Grey: utinyint = 12;
-    const LightGreen: utinyint = 13;
-    const LightBlue: utinyint = 14;
-    const LightGrey: utinyint = 15;
+    const BLACK: utinyint = 0;
+    const WHITE: utinyint = 1;
+    const RED: utinyint = 2;
+    const CYAN: utinyint = 3;
+    const PURPLE: utinyint = 4;
+    const GREEN: utinyint = 5;
+    const BLUE: utinyint = 6;
+    const YELLOW: utinyint = 7;
+    const ORANGE: utinyint = 8;
+    const BROWN: utinyint = 9;
+    const LIGHT_RED: utinyint = 10;
+    const DARK_GREY: utinyint = 11;
+    const GREY: utinyint = 12;
+    const LIGHT_GREEN: utinyint = 13;
+    const LIGHT_BLUE: utinyint = 14;
+    const LIGHT_GREY: utinyint = 15;
+    // Not a colour: `blank(KEEP, ...)` leaves this one as it is. 255 is
+    // a value no register here takes.
+    const KEEP: utinyint = 255;
 }
 
 export namespace BackgroundColor {
-    const Black: utinyint = 0;
-    const White: utinyint = 1;
-    const Red: utinyint = 2;
-    const Cyan: utinyint = 3;
-    const Purple: utinyint = 4;
-    const Green: utinyint = 5;
-    const Blue: utinyint = 6;
-    const Yellow: utinyint = 7;
-    const Orange: utinyint = 8;
-    const Brown: utinyint = 9;
-    const LightRed: utinyint = 10;
-    const DarkGrey: utinyint = 11;
-    const Grey: utinyint = 12;
-    const LightGreen: utinyint = 13;
-    const LightBlue: utinyint = 14;
-    const LightGrey: utinyint = 15;
+    const BLACK: utinyint = 0;
+    const WHITE: utinyint = 1;
+    const RED: utinyint = 2;
+    const CYAN: utinyint = 3;
+    const PURPLE: utinyint = 4;
+    const GREEN: utinyint = 5;
+    const BLUE: utinyint = 6;
+    const YELLOW: utinyint = 7;
+    const ORANGE: utinyint = 8;
+    const BROWN: utinyint = 9;
+    const LIGHT_RED: utinyint = 10;
+    const DARK_GREY: utinyint = 11;
+    const GREY: utinyint = 12;
+    const LIGHT_GREEN: utinyint = 13;
+    const LIGHT_BLUE: utinyint = 14;
+    const LIGHT_GREY: utinyint = 15;
+    // Not a colour: `blank(KEEP, ...)` leaves this one as it is. 255 is
+    // a value no register here takes.
+    const KEEP: utinyint = 255;
 }

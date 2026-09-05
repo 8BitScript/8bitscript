@@ -34,6 +34,12 @@
         "path": "./syntaxes/8bs.tmLanguage.json"
       }
     ],
+    "snippets": [
+      {
+        "language": "8bitscript",
+        "path": "./snippets/8bs.json"
+      }
+    ],
     "viewsContainers": {
       "activitybar": [
         {
@@ -67,7 +73,7 @@
     "viewsWelcome": [
       {
         "view": "8bitscript.projects",
-        "contents": "No 8BitScript projects found.\n\nA project is a directory with an `8bs.config.ts` in it; every one in this workspace is listed here with a Run and Build button for each system it targets.\n\n[Refresh](command:8bitscript.projects.refresh)",
+        "contents": "No 8BitScript projects found.\n\nA project is a directory with an `8bs.config.ts` in it; every one in this workspace is listed here with a Run and Build button for each system it targets. The apps that ship with the toolchain, and the proofs of concept from the 8bitscript repository, get sections of their own.\n\n[Refresh](command:8bitscript.projects.refresh)\n\n[Launch Studio](command:8bitscript.launchStudio)",
         "when": "!8bitscript.hasProjects"
       }
     ],
@@ -101,9 +107,25 @@
       },
       {
         "command": "8bitscript.toggleExamples",
-        "title": "Show or Hide Example Projects",
+        "title": "Show or Hide Proofs of Concept",
         "category": "8BitScript",
         "icon": "$(book)"
+      },
+      {
+        "command": "8bitscript.launchStudio",
+        "title": "Launch Studio",
+        "category": "8BitScript",
+        "icon": "$(rocket)"
+      },
+      {
+        "command": "8bitscript.launchApp",
+        "title": "Launch App…",
+        "category": "8BitScript"
+      },
+      {
+        "command": "8bitscript.launchProof",
+        "title": "Launch Proof of Concept…",
+        "category": "8BitScript"
       },
       {
         "command": "8bitscript.doctor",
@@ -214,14 +236,19 @@
           "group": "navigation@1"
         },
         {
-          "command": "8bitscript.doctor",
+          "command": "8bitscript.launchStudio",
           "when": "view == 8bitscript.projects",
           "group": "navigation@2"
         },
         {
-          "command": "8bitscript.projects.refresh",
+          "command": "8bitscript.doctor",
           "when": "view == 8bitscript.projects",
           "group": "navigation@3"
+        },
+        {
+          "command": "8bitscript.projects.refresh",
+          "when": "view == 8bitscript.projects",
+          "group": "navigation@4"
         }
       ],
       "view/item/context": [
@@ -287,7 +314,7 @@
         },
         {
           "command": "8bitscript.revealProject",
-          "when": "view == 8bitscript.projects && viewItem =~ /^project/ && !(viewItem =~ /example/)",
+          "when": "view == 8bitscript.projects && viewItem =~ /^project/ && !(viewItem =~ /shipped/)",
           "group": "2_open@2"
         },
         {
@@ -346,12 +373,12 @@
         "8bitscript.showExamples": {
           "type": "boolean",
           "default": false,
-          "description": "List the example projects that ship with the 8BitScript toolchain alongside the workspace's own projects. Only offered when the toolchain in use comes from a checkout of the 8bitscript repository, which is where the examples live."
+          "description": "List the proofs of concept from the 8bitscript repository, in a section of their own, alongside the workspace's projects and the apps that ship with the toolchain. Only offered when the toolchain in use comes from a checkout of the repository, which is where they live (examples/proof-of-concept). Launch Proof of Concept… reaches them either way."
         },
         "8bitscript.examplesPath": {
           "type": "string",
           "default": "",
-          "description": "A directory of example projects to list when \"Show example projects\" is on, instead of the one found beside the toolchain. Each subdirectory with an 8bs.config.ts is an example."
+          "description": "A directory of proofs of concept to list when \"Show proofs of concept\" is on, instead of the one found beside the toolchain. Each subdirectory with an 8bs.config.ts is one."
         },
         "8bitscript.llvmMosHome": {
           "type": "string",

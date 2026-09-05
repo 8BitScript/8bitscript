@@ -92,6 +92,11 @@ class LspClient {
   }
 }
 
+// CompletionItemKind values from the LSP specification — this test reads
+// what actually goes over the wire, so it names the numbers a client will
+// see rather than importing the server's own enum.
+const LSP_COMPLETION_KIND = { Function: 3, Constant: 21, TypeParameter: 25 };
+
 const URI = 'file:///t.8bs';
 
 /** Character offset -> LSP {line, character}, for text with no multi-byte lines. */
@@ -198,12 +203,12 @@ test('textDocument/hover explains memory.write', async () => {
   });
 });
 
-test('textDocument/hover explains frames(...)', async () => {
+test('textDocument/hover explains #frames(...)', async () => {
   await withServer(async (client) => {
     await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
     client.notify('initialized', {});
 
-    const text = 'let x: utinyint = frames(0.5, seconds);\n';
+    const text = 'let x: utinyint = #frames(0.5, seconds);\n';
     client.notify('textDocument/didOpen', {
       textDocument: { uri: URI, languageId: '8bitscript', version: 1, text },
     });
@@ -220,12 +225,12 @@ test('textDocument/hover explains frames(...)', async () => {
   });
 });
 
-test('textDocument/hover explains seconds, the unit argument to frames(...)', async () => {
+test('textDocument/hover explains seconds, the unit argument to #frames(...)', async () => {
   await withServer(async (client) => {
     await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
     client.notify('initialized', {});
 
-    const text = 'let x: utinyint = frames(0.5, seconds);\n';
+    const text = 'let x: utinyint = #frames(0.5, seconds);\n';
     client.notify('textDocument/didOpen', {
       textDocument: { uri: URI, languageId: '8bitscript', version: 1, text },
     });
@@ -239,16 +244,16 @@ test('textDocument/hover explains seconds, the unit argument to frames(...)', as
 
     assert.ok(response.result);
     assert.match(response.result.contents.value, /\*\*seconds\*\*/);
-    assert.match(response.result.contents.value, /unit for `frames\(\.\.\.\)`/);
+    assert.match(response.result.contents.value, /unit for `#frames\(\.\.\.\)`/);
   });
 });
 
-test('diagnostics: an unknown frames(...) unit reaches the editor at the unit word', async () => {
+test('diagnostics: an unknown #frames(...) unit reaches the editor at the unit word', async () => {
   await withServer(async (client) => {
     await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
     client.notify('initialized', {});
 
-    const text = 'let x: utinyint = frames(0.5, minutes);\n';
+    const text = 'let x: utinyint = #frames(0.5, minutes);\n';
     client.notify('textDocument/didOpen', {
       textDocument: { uri: URI, languageId: '8bitscript', version: 1, text },
     });
@@ -262,11 +267,141 @@ test('diagnostics: an unknown frames(...) unit reaches the editor at the unit wo
   });
 });
 
-// `frames(4.5, seconds)` in a utinyint (0..255) overflows at the default
+test('diagnostics: a string outside the portable character set reaches the editor at the literal', async () => {
+  await withServer(async (client) => {
+    await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
+    client.notify('initialized', {});
+
+    const text = 'function f(s: string): void { }\nexport function main(): void { f("tick"); }\n';
+    client.notify('textDocument/didOpen', {
+      textDocument: { uri: URI, languageId: '8bitscript', version: 1, text },
+    });
+    const published = await client.waitForNotification('textDocument/publishDiagnostics');
+    assert.equal(published.params.diagnostics.length, 1);
+    const [d] = published.params.diagnostics;
+    assert.equal(d.code, '8BS1026');
+    assert.equal(d.range.start.line, 1);
+    assert.equal(d.range.start.character, 'export function main(): void { f('.length);
+    assert.match(d.message, /upper case only/);
+  });
+});
+
+test('diagnostics: a misplaced template and an unsizeable field reach the editor', async () => {
+  await withServer(async (client) => {
+    await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
+    client.notify('initialized', {});
+
+    const text = 'export function main(): void {\n    text.putChar(0, `A`);\n    text.print(0, `${text.width()}`);\n}\n';
+    client.notify('textDocument/didOpen', {
+      textDocument: { uri: URI, languageId: '8bitscript', version: 1, text },
+    });
+    const published = await client.waitForNotification('textDocument/publishDiagnostics');
+    assert.deepEqual(published.params.diagnostics.map((d) => d.code), ['8BS1028', '8BS1029']);
+    const [misplaced, field] = published.params.diagnostics;
+    assert.equal(misplaced.range.start.line, 1);
+    assert.equal(misplaced.range.start.character, '    text.putChar(0, '.length);
+    assert.equal(field.range.start.line, 2);
+    assert.match(field.message, /say it: \$\{text\.width\(\):3\}/);
+  });
+});
+
+test('diagnostics: assigning to a const reaches the editor at the name', async () => {
+  await withServer(async (client) => {
+    await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
+    client.notify('initialized', {});
+
+    const text = 'const LIMIT: utinyint = 4;\nexport function main(): void { LIMIT = 5; }\n';
+    client.notify('textDocument/didOpen', {
+      textDocument: { uri: URI, languageId: '8bitscript', version: 1, text },
+    });
+    const published = await client.waitForNotification('textDocument/publishDiagnostics');
+    assert.equal(published.params.diagnostics.length, 1);
+    const [d] = published.params.diagnostics;
+    assert.equal(d.code, '8BS1031');
+    assert.equal(d.range.start.line, 1);
+    assert.equal(d.range.start.character, 'export function main(): void { '.length);
+    assert.equal(d.range.end.character, d.range.start.character + 'LIMIT'.length);
+  });
+});
+
+test('diagnostics: a const spelt like a variable and a call with the wrong count reach the editor', async () => {
+  await withServer(async (client) => {
+    await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
+    client.notify('initialized', {});
+
+    const text = 'const Limit: utinyint = 4;\nfunction f(a: utinyint, b: utinyint = 2): void { }\nexport function main(): void { f(); }\n';
+    client.notify('textDocument/didOpen', {
+      textDocument: { uri: URI, languageId: '8bitscript', version: 1, text },
+    });
+    const published = await client.waitForNotification('textDocument/publishDiagnostics');
+    assert.deepEqual(published.params.diagnostics.map((d) => d.code), ['8BS1034', '8BS1035']);
+    const [caseRule, count] = published.params.diagnostics;
+    assert.equal(caseRule.range.start.line, 0);
+    assert.equal(caseRule.range.start.character, 'const '.length);
+    assert.equal(caseRule.range.end.character, 'const Limit'.length);
+    assert.match(caseRule.message, /LIMIT/);
+    assert.equal(count.range.start.line, 2);
+    assert.match(count.message, /'f' takes 1 to 2 arguments/);
+  });
+});
+
+test('textDocument/hover works inside a template field, and on the #frames spelling', async () => {
+  await withServer(async (client) => {
+    await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
+    client.notify('initialized', {});
+
+    const text = 'export function main(): void { text.print(0, `T ${#frames(0.5, seconds):2}`); }\n';
+    client.notify('textDocument/didOpen', {
+      textDocument: { uri: URI, languageId: '8bitscript', version: 1, text },
+    });
+    await client.waitForNotification('textDocument/publishDiagnostics');
+
+    const onFrames = await client.request('textDocument/hover', {
+      textDocument: { uri: URI },
+      position: positionAt(text, text.indexOf('#frames') + 3),
+    });
+    assert.ok(onFrames.result);
+    assert.match(onFrames.result.contents.value, /\*\*#frames\(n, unit\)\*\*/);
+    assert.equal(onFrames.result.range.start.character, text.indexOf('#frames'));
+
+    const onUnit = await client.request('textDocument/hover', {
+      textDocument: { uri: URI },
+      position: positionAt(text, text.indexOf('seconds') + 2),
+    });
+    assert.ok(onUnit.result);
+    assert.match(onUnit.result.contents.value, /\*\*seconds\*\*/);
+  });
+});
+
+test('diagnostics: a construct the compiler cannot lower yet reaches the editor as it is typed', async () => {
+  await withServer(async (client) => {
+    await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
+    client.notify('initialized', {});
+
+    // Both parse and break no rule; both are 8BS3001. Seeing them here is
+    // the point: `analyze()` lowers, so the editor answers "will this
+    // build", not only "does this parse".
+    const text = 'const BIG: usmallint = 400;\nlet cursor: ptr<utinyint>;\nexport function main(): void {\n    let local: utinyint = 1;\n    memory.write(1024, BIG);\n}\n';
+    client.notify('textDocument/didOpen', {
+      textDocument: { uri: URI, languageId: '8bitscript', version: 1, text },
+    });
+    const published = await client.waitForNotification('textDocument/publishDiagnostics');
+    assert.deepEqual(published.params.diagnostics.map((d) => d.code), ['8BS3001', '8BS1021']);
+    const [pointer, overflow] = published.params.diagnostics;
+    assert.equal(pointer.range.start.line, 1);
+    assert.match(pointer.message, /a global of type ptr is not compilable yet/);
+    // The const is inlined before the range rule sees it, so a value that
+    // does not fit the byte memory.write takes is caught here, not at build.
+    assert.equal(overflow.range.start.line, 4);
+    assert.match(overflow.message, /400 does not fit in utinyint/);
+  });
+});
+
+// `#frames(4.5, seconds)` in a utinyint (0..255) overflows at the default
 // frameRate (4.5 * 60 = 270) but fits at a configured 50 (4.5 * 50 = 225) —
 // a diagnostic that only differs between the two rates, so it proves whether
 // the server actually read 8bs.config.ts rather than always assuming 60.
-const OVERFLOWS_AT_60_FITS_AT_50 = 'let x: utinyint = frames(4.5, seconds);\nexport function main(): void {}\n';
+const OVERFLOWS_AT_60_FITS_AT_50 = 'let x: utinyint = #frames(4.5, seconds);\nexport function main(): void {}\n';
 
 test('diagnostics assume frameRate 60 when no 8bs.config.ts is found', async () => {
   await withServer(async (client) => {
@@ -307,11 +442,40 @@ test('diagnostics use the project\'s 8bs.config.ts frameRate, walking up from th
       });
 
       const published = await client.waitForNotification('textDocument/publishDiagnostics');
-      assert.deepEqual(published.params.diagnostics, [], 'frameRate 50 should make frames(4.5, seconds) fit a utinyint');
+      assert.deepEqual(published.params.diagnostics, [], 'frameRate 50 should make #frames(4.5, seconds) fit a utinyint');
     });
   } finally {
     await rm(projectDir, { recursive: true, force: true });
   }
+});
+
+test('textDocument/completion offers #frames after a # and the unit inside the call', async () => {
+  await withServer(async (client) => {
+    await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
+    client.notify('initialized', {});
+
+    const text = 'let a: utinyint = #\nlet b: utinyint = #frames(0.5, \n';
+    client.notify('textDocument/didOpen', {
+      textDocument: { uri: URI, languageId: '8bitscript', version: 1, text },
+    });
+    await client.waitForNotification('textDocument/publishDiagnostics');
+
+    const afterHash = await client.request('textDocument/completion', {
+      textDocument: { uri: URI },
+      position: { line: 0, character: 'let a: utinyint = #'.length },
+    });
+    const [frames] = afterHash.result;
+    assert.equal(frames.label, '#frames');
+    assert.equal(frames.kind, LSP_COMPLETION_KIND.Function);
+    assert.equal(frames.insertText, 'frames');
+
+    const inUnitSlot = await client.request('textDocument/completion', {
+      textDocument: { uri: URI },
+      position: { line: 1, character: 'let b: utinyint = #frames(0.5, '.length },
+    });
+    assert.deepEqual(inUnitSlot.result.map((i) => i.label), ['seconds']);
+    assert.equal(inUnitSlot.result[0].kind, LSP_COMPLETION_KIND.Constant);
+  });
 });
 
 test('textDocument/completion offers canonical built-in types in a type position', async () => {

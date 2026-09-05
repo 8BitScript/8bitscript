@@ -12,6 +12,7 @@
     "start:c64-pal": "8bs run c64 --pal",
     "start:c64-reu": "8bs run c64 --profile reu512",
     "start:pet": "8bs run pet",
+    "start:pet-8032": "8bs run pet --profile 8032",
     "start:c128": "8bs run c128",
     "start:c128-pal": "8bs run c128 --pal",
     "start:atari8": "8bs run atari8",

@@ -131,53 +131,18 @@ importers:
         specifier: 10.1.1
         version: 10.1.1
 
-  examples/borders:
+  examples/proof-of-concept/borders:
     dependencies:
       '@8bitscript/screen':
         specifier: workspace:*
-        version: link:../../packages/screen
+        version: link:../../../packages/screen
       '@8bitscript/text':
         specifier: workspace:*
-        version: link:../../packages/text
+        version: link:../../../packages/text
     devDependencies:
       '@8bitscript/cli':
         specifier: workspace:*
-        version: link:../../packages/cli
-
-  examples/counter:
-    devDependencies:
-      '@8bitscript/cli':
-        specifier: workspace:*
-        version: link:../../packages/cli
-
-  examples/hello-vic:
-    dependencies:
-      '@8bitscript/text':
-        specifier: workspace:*
-        version: link:../../packages/text
-      '@8bitscript/vic20':
-        specifier: workspace:*
-        version: link:../../packages/vic20
-    devDependencies:
-      '@8bitscript/cli':
-        specifier: workspace:*
-        version: link:../../packages/cli
-
-  examples/step1-main-loop:
-    dependencies:
-      '@8bitscript/screen':
-        specifier: workspace:*
-        version: link:../../packages/screen
-    devDependencies:
-      '@8bitscript/cli':
-        specifier: workspace:*
-        version: link:../../packages/cli
-
-  examples/vic20-first-program:
-    devDependencies:
-      '@8bitscript/cli':
-        specifier: workspace:*
-        version: link:../../packages/cli
+        version: link:../../../packages/cli
 
   packages/atari8: {}
 
@@ -214,8 +179,18 @@ importers:
       '@8bitscript/language-server':
         specifier: workspace:*
         version: link:../language-server
+      '@8bitscript/studio':
+        specifier: workspace:*
+        version: link:../studio
 
-  packages/compiler: {}
+  packages/compiler:
+    devDependencies:
+      '@8bitscript/text':
+        specifier: workspace:*
+        version: link:../text
+      '@8bitscript/vic20':
+        specifier: workspace:*
+        version: link:../vic20
 
   packages/cx16: {}
 
@@ -266,6 +241,15 @@ importers:
       '@8bitscript/web':
         specifier: workspace:*
         version: link:../web
+
+  packages/studio:
+    dependencies:
+      '@8bitscript/screen':
+        specifier: workspace:*
+        version: link:../screen
+      '@8bitscript/text':
+        specifier: workspace:*
+        version: link:../text
 
   packages/text:
     dependencies:

@@ -31,7 +31,7 @@ export const NodeType = {
   Identifier: 'Identifier',
   IntegerLiteral: 'IntegerLiteral',
   // A decimal fraction (`0.5`) — legal only as the first argument to the
-  // `frames(...)` compile-time duration builtin (packages/compiler/src/
+  // `#frames(...)` compile-time duration builtin (packages/compiler/src/
   // fold), which consumes and removes every valid one before anything else
   // sees the tree; one surviving to `check()` means it was used somewhere
   // else, which is always a diagnostic (the language has no other float
@@ -39,6 +39,20 @@ export const NodeType = {
   DecimalLiteral: 'DecimalLiteral',
   BooleanLiteral: 'BooleanLiteral',
   StringLiteral: 'StringLiteral',
+  // A backtick string with `${...}` fields: `TICK ${ticks % 10:1}`. `parts`
+  // is an ordered array of TemplateText and TemplateField nodes — real
+  // nodes, so walk() reaches every field expression and the fold pass and
+  // checker see them like any other expression.
+  TemplateLiteral: 'TemplateLiteral',
+  TemplateText: 'TemplateText',
+  // `${expression}` or `${expression:width}` — `width` an IntegerLiteral or
+  // null when the field left it to the expression's type.
+  TemplateField: 'TemplateField',
+  // `[1, 2, 3]`: the initialiser of an `array<T, N>`. Elements are
+  // expressions in the tree (so hover and the fold pass reach them), but
+  // lowering only accepts compile-time values there — the data is laid
+  // out before the program runs.
+  ArrayLiteral: 'ArrayLiteral',
 
   AssignmentExpression: 'AssignmentExpression',
   BinaryExpression: 'BinaryExpression',

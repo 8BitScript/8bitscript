@@ -106,17 +106,23 @@ The first milestone compiles and runs on both targets. `8bs build` takes a
 program through lexer, parser, checker, IR, linker, and a backend — generated
 C and LLVM-MOS for a VIC-20 or C64 `.prg`, generated AssemblyScript and asc
 for a `.wasm` — and `8bs run vic20` opens the result in VICE.
-`examples/counter` is the milestone program; `examples/borders` cycles the
-border colours on the VIC-20, the C64, *and* the web (`8bs run web`, a real
-browser tab now rather than a one-shot harness — see
-[docs/learn/step1-main-loop.md](docs/learn/step1-main-loop.md#why-this-step-does-not-build-for-the-web)),
-importing its screen from `@8bitscript/screen` — a package whose entry
+`examples/proof-of-concept/borders` cycles the
+border colours on the VIC-20, the C64, *and* the web (`8bs run web` opens a
+real browser tab, and `waitFrame()` means the same thing there as on the
+6502 machines), importing its screen from `@8bitscript/screen` — a package whose entry
 resolves per target to that machine package's own implementation.
+[Studio](docs/studio.md), the asset editor that ships with the toolchain
+as `@8bitscript/studio`, builds and runs on all nine too — today only its
+front door, which says what each machine's tier will open.
 
-Only the milestone subset compiles: globals, parameterless functions and
-calls to them, arithmetic, `if`/`while`, hardware access, `asm6502`, and
+Only a fixed subset compiles: globals and locals, arrays (`let` in RAM,
+`const` as data), `const`s (inlined at compile time), functions with
+parameters and return values, arithmetic, `if`/`while`/`for`, hardware
+access, `asm6502`, namespaces, strings (literals as `string` parameters,
+`string` consts, `string<N>` variables, and templates —
+`text.print(0, \`TICK ${ticks:1}\`)` — laid out at compile time), and
 imports, which the linker resolves across modules. Everything else —
-calls with arguments, member access, locals — fails with a diagnostic naming
+pointers, local arrays, arrays as arguments — fails with a diagnostic naming
 the construct rather than building without it. There is no binder yet, `8bs dev` is
 **planned and not yet implemented**, and breaking changes arrive without
 notice.
@@ -126,11 +132,8 @@ notice.
 Setup instructions for the host and retro toolchains live in
 [docs/setup/index.md](docs/setup/index.md). Once that's done,
 [the getting started tutorial](docs/tutorial.md) walks through cloning this
-repository and building and running `examples/borders` — the milestone subset
-of the language, working end to end today, on the VIC-20 and the C64. From
-there, [Learn 8BitScript](docs/learn/index.md) explains a program part by
-part, one small runnable project per step, starting with
-`examples/step1-main-loop`.
+repository and building and running `examples/proof-of-concept/borders` — the milestone subset
+of the language, working end to end today, on every target.
 
 ## Documentation
 

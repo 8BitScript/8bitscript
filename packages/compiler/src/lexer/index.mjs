@@ -13,11 +13,19 @@ import { INTEGER_TYPE_NAMES } from '../types/index.mjs';
 export const TokenKind = {
   Comment: 'comment',
   String: 'string',
+  // A backtick string with `${...}` fields — `TICK ${ticks} OPTION ${option}`.
+  // One token for the whole thing; `parts` records where its literal text
+  // and its field sources sit, and the parser re-lexes each field.
+  Template: 'template',
   Number: 'number',
   Identifier: 'identifier',
   Keyword: 'keyword',
   Type: 'type',
   Decorator: 'decorator',
+  // `#frames` — a function the compiler evaluates, never the target. The
+  // `#` is the one spelling that says "8bitscript resolves this before any
+  // target toolchain runs"; a plain `name(...)` always runs on the machine.
+  CompileTime: 'compileTime',
   AsmBlock: 'asm',
   Punctuation: 'punctuation',
   Operator: 'operator',
@@ -35,7 +43,7 @@ export const KEYWORDS = new Set([
 // backends, or hover/completion.
 export const TYPE_NAMES = new Set([
   ...INTEGER_TYPE_NAMES,
-  'bool', 'void', 'ptr', 'array', 'volatile',
+  'bool', 'void', 'string', 'ptr', 'array', 'volatile',
 ]);
 
 const BRACKET_PAIRS = { ')': '(', ']': '[', '}': '{' };
@@ -138,7 +146,65 @@ export function tokenize(text, file = '<unknown>') {
           ),
         );
       }
-      push(TokenKind.String, start, i);
+      push(TokenKind.String, start, i, closed ? {} : { unterminated: true });
+      continue;
+    }
+
+    // Template strings: `TICK ${ticks} OPTION ${option}`. Lexed as one token
+    // so the parser sees a single literal, with `parts` marking each run of
+    // text and each `${...}` field's source span (the field's own tokens are
+    // produced by the parser re-lexing that span, offsets intact). Braces
+    // nest inside a field so a future `{`-bearing expression still ends at
+    // the right `}`. Single-line, like the other strings.
+    if (c === '`') {
+      const start = i;
+      i += 1;
+      const parts = [];
+      let textStart = i;
+      let closed = false;
+      const flushText = (end) => {
+        if (end > textStart) parts.push({ kind: 'text', start: textStart, end });
+      };
+      while (i < text.length) {
+        if (text[i] === '\\') { i += 2; continue; }
+        if (text[i] === '`') { flushText(i); i += 1; closed = true; break; }
+        if (text[i] === '\n') break;
+        if (text[i] === '$' && text[i + 1] === '{') {
+          flushText(i);
+          const fieldStart = i;
+          i += 2;
+          const sourceStart = i;
+          let depth = 1;
+          while (i < text.length && text[i] !== '\n') {
+            if (text[i] === '{') depth += 1;
+            else if (text[i] === '}') { depth -= 1; if (depth === 0) break; }
+            i += 1;
+          }
+          if (depth !== 0) {
+            diagnostics.push(diagnostic(
+              Codes.UNTERMINATED_STRING, "unterminated '${' field in template string", file, fieldStart, i - fieldStart,
+            ));
+            // Recorded anyway: a field being typed has no `}` yet, and
+            // hover and completion inside it are exactly what a person
+            // wants at that moment (half-typed source is the normal input,
+            // see this file's header).
+            parts.push({ kind: 'field', start: fieldStart, end: i, sourceStart, sourceEnd: i });
+            closed = true; // one diagnostic, not this plus "unterminated template"
+            break;
+          }
+          parts.push({ kind: 'field', start: fieldStart, end: i + 1, sourceStart, sourceEnd: i });
+          i += 1;
+          textStart = i;
+          continue;
+        }
+        i += 1;
+      }
+      if (!closed) {
+        diagnostics.push(diagnostic(
+          Codes.UNTERMINATED_STRING, 'unterminated template string', file, start, i - start,
+        ));
+      }
+      push(TokenKind.Template, start, i, { parts });
       continue;
     }
 
@@ -152,6 +218,7 @@ export function tokenize(text, file = '<unknown>') {
       prev.kind === TokenKind.Identifier ||
       prev.kind === TokenKind.Number ||
       prev.kind === TokenKind.String ||
+      prev.kind === TokenKind.Template ||
       prev.kind === TokenKind.Type ||
       [')', ']'].includes(prev.text)
     );
@@ -188,7 +255,7 @@ export function tokenize(text, file = '<unknown>') {
       // the grammar never wants a Number token to swallow a trailing `.`.
       // Recorded as an exact numerator/denominator pair, never as a
       // floating-point value used for arithmetic — the only thing that ever
-      // reads `isDecimal`/`numerator`/`denominator` is the `frames(...)`
+      // reads `isDecimal`/`numerator`/`denominator` is the `#frames(...)`
       // compile-time fold (packages/compiler/src/fold), which works in
       // exact integers throughout; `value` here is cosmetic only (kept for
       // uniformity with plain-integer Number tokens).
@@ -208,6 +275,15 @@ export function tokenize(text, file = '<unknown>') {
       }
 
       push(TokenKind.Number, start, i, { value: Number.parseInt(digits, radix), radix });
+      continue;
+    }
+
+    // `#frames(...)` — a compile-time function (see TokenKind.CompileTime).
+    if (c === '#' && isIdentStart(text[i + 1] ?? '')) {
+      const start = i;
+      i += 1;
+      while (i < text.length && isIdentPart(text[i])) i += 1;
+      push(TokenKind.CompileTime, start, i);
       continue;
     }
 

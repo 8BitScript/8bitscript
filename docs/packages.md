@@ -12,7 +12,7 @@ git submodules anywhere in the model.
 
 This page began as pure design; most of it is now real. The resolver
 implements the resolution contract below, and the linker compiles a program
-from its whole import graph — `examples/borders` imports its screen from
+from its whole import graph — `examples/proof-of-concept/borders` imports its screen from
 `@8bitscript/screen` and its character grid from `@8bitscript/text`, each of
 which resolves per target to that machine package's own implementation
 (`@8bitscript/vic20/screen`, `@8bitscript/c64/text`, and so on), through
@@ -68,7 +68,7 @@ export function update(): void {
         x--;
     }
 
-    screen.setColors(BorderColor.Blue, BackgroundColor.Black);
+    screen.setColors(BorderColor.BLUE, BackgroundColor.BLACK);
     text.putChar(x, 10, 65);
 }
 ```
@@ -199,7 +199,33 @@ with no machine in hand they take the portable file when it exists and
 accept the import as valid-but-target-dependent when it does not, just as
 they do for a conditional entry.
 
-No example in this repository needs one yet. `examples/borders` builds
+The rule has one more level, for a machine's **hardware profiles** — the
+`--profile` a build is made with (`8bs build --target pet --profile 8032`;
+see the target's setup page for its list). A file named after the machine
+*and* the profile is that profile's version:
+
+```
+src/
+  geometry.8bs           every machine
+  geometry.pet.8bs       every PET
+  geometry.pet.8032.8bs  the 80-column PET instead
+```
+
+A PET build with `--profile 8032` reads `geometry.pet.8032.8bs`; a PET
+build with any other profile, or with none asked for (the default profile
+is still a profile), reads `geometry.pet.8bs`; every other machine reads
+`geometry.8bs`. The profile's name goes after the machine's, and is one
+word — the names a target's profile list uses. Explicitly naming one
+(`./geometry.pet.8032.8bs`) gets exactly that file, as with a machine's
+version. A file that exists only as a profile's version is `8BS3002` for
+the machine's other profiles, and the message names the versions that do
+exist. This is how a package keeps one surface and several geometries: a
+namespace const may be initialised from another module's const
+(`namespace text { const COLUMNS: utinyint = Video.COLUMNS; }`), so the
+surface reads a small geometry file and only that file has a profile's
+version — see [the compiler](compiler.md#namespace-what-a-poke-becomes-once-you-name-it).
+
+No example in this repository needs one yet. `examples/proof-of-concept/borders` builds
 for all nine targets from one `src/main.8bs`, because the machine packages
 absorb every difference it would otherwise have to spell out per machine —
 the same ASCII character codes, the same colour names, the same "cell 0 is
@@ -241,12 +267,27 @@ builds for it.
 all nine targets) is exactly this and nothing more: no source of its own,
 just the machine-keyed delegation to each target package's `./screen`.
 Every target's `screen.8bs` exports the same surface — a `screen` namespace
-with `setColors(border, background)`, and the eight shared colour names in
+with `blank(border, background)` (both default to black; `KEEP` leaves
+one alone), `setBorder(border)`, `setBackground(background)`, and
+`setColors(border, background)`, and the eight shared colour names plus
+`KEEP` in
 `BorderColor` and `BackgroundColor` — so a program that imports it works on
 whichever machine it is built for. `@8bitscript/text` is the same shape for
-the character grid (`text.putChar`/`putColor`/`showDigit`, `CellCount`).
-`examples/borders` builds for all nine targets from one source file this
-way. One package per capability, rather than one package for "the machine",
+the character grid (`text.print`/`printNumber`/`setColor`/`putChar`/`putColor`,
+`CELL_COUNT`/`COLUMNS`, and the eight shared colour names in `TextColor`).
+`examples/proof-of-concept/borders` builds for all nine targets from one source file this
+way.
+
+`text` carries one more agreement, and it is a *compiler* one: a namespace
+that exports `print(cell, s: string)` and
+`printNumber(cell, value, width)` accepts a template string as `print`'s
+second argument. `text.print(0, \`TICK ${ticks:1}\`)` is split at compile
+time into a `print` per run of text and a `printNumber` per `${...}` field,
+each at the cell the text before it adds up to (see
+[the compiler](compiler.md#what-8bitscript-resolves-and-what-runs-on-the-machine)).
+It is a protocol, not a builtin: any namespace exporting those two
+functions gets templates, on any target, and a package that implements
+`text` must provide both or the layout has nothing to call. One package per capability, rather than one package for "the machine",
 is deliberate: a program imports only the parts of a machine it uses, and
 a capability some machines lack (sprites, say) can be a package that
 simply has no branch for them — `8BS3002` at build time, not a stub. This
@@ -271,9 +312,8 @@ resolves to, but the *shape* of the program itself. (A browser tab calling a
 program back once per frame rather than handing it the whole machine used
 to be such a case for `web`; the web runtime now hands the program its own
 worker thread, and `waitFrame()` means the same thing there as on the 6502
-machines, so a single file covers it — see
-[docs/learn/step1-main-loop.md](learn/step1-main-loop.md#why-this-step-does-not-build-for-the-web).
-`examples/borders` briefly kept per-machine versions of its entry for the
+machines, so a single file covers it.
+`examples/proof-of-concept/borders` briefly kept per-machine versions of its entry for the
 NES, Atari, and X16 too, for their screen codes and grids; those
 differences now live in the machine packages, and it is one file again.)
 
@@ -382,18 +422,20 @@ This repository is a pnpm workspace:
 ```yaml
 packages:
   - packages/*
-  - examples/*
+  - examples/proof-of-concept/*
+  - editors/*
 ```
 
-`packages/` holds the toolchain. `examples/` holds programs that consume it,
-and they depend on it with `workspace:*`:
+`packages/` holds the toolchain, the machine and capability packages, and
+the apps that ship with them. `examples/proof-of-concept/` holds programs
+that consume the toolchain, and they depend on it with `workspace:*`:
 
 ```json
 {
   "devDependencies": { "@8bitscript/cli": "workspace:*" },
   "dependencies": {
-    "@8bitscript/text": "workspace:*",
-    "@8bitscript/vic20": "workspace:*"
+    "@8bitscript/screen": "workspace:*",
+    "@8bitscript/text": "workspace:*"
   }
 }
 ```
@@ -403,27 +445,46 @@ them through its own `node_modules` exactly as an installed project would, so
 an example is a genuine consumer rather than a special case wired up by the
 build. Nothing has to be published for this to work.
 
-[`examples/hello-vic`](https://github.com/8BitScript/8bitscript/tree/trunk/examples/hello-vic)
-is the first of them. Once the compiler exists, the development loop is:
+[`examples/proof-of-concept/borders`](https://github.com/8BitScript/8bitscript/tree/trunk/examples/proof-of-concept/borders)
+is the one that goes end to end: it imports `@8bitscript/screen` and
+`@8bitscript/text` and runs on all nine targets. The development loop is:
 
 ```
 edit the compiler
       |
       v
-edit examples/hello-vic/src/main.8bs
+edit examples/proof-of-concept/borders/src/main.8bs
       |
       v
-pnpm --filter hello-vic run:vic20
+pnpm --filter borders start
       |
       v
 VICE opens
 ```
 
-The CLI is real now, and that loop works — though `hello-vic` itself still
-does not compile, because the `input` package it imports does not exist yet.
-[`examples/borders`](https://github.com/8BitScript/8bitscript/tree/trunk/examples/borders)
-is the example that goes end to end today: it imports `@8bitscript/screen`
-and `@8bitscript/text` and runs on all nine targets.
+## Apps
+
+Some packages are programs that ship *with* the toolchain rather than
+libraries written against it: [Studio](studio.md) is the first. Such a
+package declares itself an **app** in its manifest:
+
+```json
+{
+  "name": "@8bitscript/studio",
+  "version": "0.0.0",
+  "8bitscript": {
+    "app": { "title": "Studio", "entry": "./src/main.8bs" }
+  }
+}
+```
+
+An app is also an ordinary project — it has an `8bs.config.ts`, and
+`8bs run <target>` in its directory starts it — and it is a dependency of
+`@8bitscript/cli`, so installing the toolchain installs it. Its version is
+the toolchain's; the workspace has one version, and an app carries it. The
+VS Code extension finds apps beside the CLI package it is using and lists
+them in a section of their own, with *Launch App…* to start one on a
+system of your choosing.
 
 ## Does npm actually allow this?
 

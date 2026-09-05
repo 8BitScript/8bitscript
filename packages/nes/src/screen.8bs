@@ -11,7 +11,7 @@
 // this one lives by. Every machine's screen.8bs exports this same surface,
 // which is what lets a program import it from @8bitscript/screen and never
 // name the hardware.
-import { setVramAddress, resetScroll } from "./index.8bs";
+import { setVramAddress, resetScroll, queueRun, queueByte, nesVerticalBlank } from "./index.8bs";
 
 // ---- what "border" means on a machine that has none --------------------
 //
@@ -55,19 +55,12 @@ import { setVramAddress, resetScroll } from "./index.8bs";
 
 let renderingEnabled: u8 = 0;
 
-// Loop counters for the one-time frame/attribute fill — globals, not
-// locals, since there are no local variables in the compiled subset yet.
-let fillIndex: usmallint = 0;
-let fillRow: usmallint = 0;
-
 // `count` consecutive nametable cells from `address`, one PPUADDR set and
 // then PPUDATA's auto-increment — the cheap way to write a run.
 function fillRun(address: usmallint, count: usmallint, value: utinyint): void {
     setVramAddress(address);
-    fillIndex = 0;
-    while (fillIndex < count) {
+    for (let i: usmallint = 0; i < count; i++) {
         memory.write(0x2007, value);
-        fillIndex = fillIndex + 1;
     }
 }
 
@@ -77,49 +70,103 @@ function fillRun(address: usmallint, count: usmallint, value: utinyint): void {
 function layFrame(): void {
     fillRun(0x2000, 64, 0x80);
     fillRun(0x2380, 64, 0x80);
-    fillRow = 2;
-    while (fillRow < 28) {
-        fillRun(0x2000 + fillRow * 32, 2, 0x80);
-        fillRun(0x2000 + fillRow * 32 + 30, 2, 0x80);
-        fillRow = fillRow + 1;
+    for (let row: usmallint = 2; row < 28; row++) {
+        fillRun(0x2000 + row * 32, 2, 0x80);
+        fillRun(0x2000 + row * 32 + 30, 2, 0x80);
     }
     fillRun(0x23C0, 64, 0x00);
 }
 
+// Switch the picture on, the first time anything asks for one: the frame
+// and attribute table go in with rendering off (a few hundred VRAM
+// writes, no vblank budget to fit), the text palette entry is set, and
+// rendering starts at the next vertical blank — switching it on mid-frame
+// would draw the rest of that frame from wherever the PPU's address
+// register sits. Every later call returns at once.
+function showPicture(): void {
+    if (renderingEnabled == 1) {
+        return;
+    }
+    layFrame();
+    setVramAddress(0x3F01);
+    memory.write(0x2007, 0x30); // $3F01: text — white
+    resetScroll();
+    while (memory.read(0x2002) < 128) {
+    }
+    renderingEnabled = 1;
+    // PPUMASK: bit 3 shows the background, bit 1 shows it in the leftmost
+    // 8 pixels too — otherwise column 0, the outer edge of the frame, would
+    // be clipped to the backdrop colour. Sprites stay off.
+    memory.write(0x2001, 0x0A);
+}
+
+// One palette entry. With the picture on it goes through the write queue
+// and lands at the next vertical blank, like text (see index.8bs); with
+// the picture off the PPU is free and it is written now.
+function setPalette(entry: usmallint, color: utinyint): void {
+    if (renderingEnabled == 1) {
+        queueRun(entry);
+        queueByte(color);
+        return;
+    }
+    setVramAddress(entry);
+    memory.write(0x2007, color);
+    resetScroll();
+}
+
 export namespace screen {
     function setColors(border: u8, background: u8): void {
-        // The first call is by construction the last one made with
-        // rendering off (nothing else switches it on), so the frame and
-        // the attribute table — a few hundred VRAM writes — go in here,
-        // once, with no vblank budget to fit. Every later call is a
-        // handful of writes: fine right after waitFrame().
-        if (renderingEnabled == 0) {
-            layFrame();
+        setPalette(0x3F00, background); // $3F00: the universal backdrop
+        setPalette(0x3F02, border);     // $3F02: the frame tile
+        showPicture();
+    }
+
+    // `blank(border, background)`: every cell blank and both colours set —
+    // black when left off, or `BorderColor.KEEP` / `BackgroundColor.KEEP`
+    // to leave one as it is. `setBorder` and `setBackground` are one
+    // colour each, `setColors` the pair; `text.setColor` owns what the
+    // next print looks like.
+    function blank(border: utinyint = BorderColor.BLACK, background: utinyint = BackgroundColor.BLACK): void {
+        // The nametable can only be filled in bulk with the picture off.
+        // Before the first call that shows it, it already is; after, this
+        // switches it off, fills, and switches it back on at the next
+        // vertical blank — one dark frame, what every NES game does on a
+        // scene change. Cells are the 28x26 area inside the frame; tile 32
+        // is the blank, as putChar's space is.
+        let wasShowing: utinyint = renderingEnabled;
+        if (wasShowing == 1) {
+            memory.write(0x2001, 0x00);
+            renderingEnabled = 0; // the PPU is free until this switches it back on
         }
-        setVramAddress(0x3F00);
-        memory.write(0x2007, background); // $3F00: the universal backdrop
-        memory.write(0x2007, 0x30);       // $3F01: text — white
-        memory.write(0x2007, border);     // $3F02: the frame tile
+        nesVerticalBlank(); // whatever was printed before this, with the PPU free
+        if (border != BorderColor.KEEP) {
+            setPalette(0x3F02, border);
+        }
+        if (background != BackgroundColor.KEEP) {
+            setPalette(0x3F00, background);
+        }
+        for (let row: usmallint = 2; row < 28; row++) {
+            fillRun(0x2000 + row * 32 + 2, 28, 32);
+        }
         resetScroll();
-        if (renderingEnabled == 0) {
-            // Switching rendering on mid-frame would draw the rest of that
-            // frame from wherever the PPU's address register sits — after
-            // the palette writes above, a nametable it has never been
-            // given (the emulator shows zeros; a cartridge shows garbage)
-            // — for one partial frame. So the first enable waits for
-            // vertical blank: PPUSTATUS bit 7 (the value reads as 128 or
-            // more) sets at its start. Only here — a caller that has just
-            // returned from waitFrame() is already in vblank, and spinning
-            // would cost it a whole frame.
+        if (wasShowing == 1) {
             while (memory.read(0x2002) < 128) {
             }
             renderingEnabled = 1;
+            memory.write(0x2001, 0x0A);
+        } else {
+            showPicture();
         }
-        // PPUMASK: bit 3 shows the background, bit 1 shows it in the
-        // leftmost 8 pixels too — otherwise column 0, the outer edge of
-        // the frame, would be clipped to the backdrop colour. Sprites stay
-        // off.
-        memory.write(0x2001, 0x0A);
+    }
+
+    function setBackground(background: u8): void {
+        setPalette(0x3F00, background);
+        showPicture();
+    }
+
+    function setBorder(border: u8): void {
+        setPalette(0x3F02, border);
+        showPicture();
     }
 }
 
@@ -127,7 +174,7 @@ export namespace screen {
 //
 // The same eight names every machine's screen.8bs exports — Black, White,
 // Red, Cyan, Purple, Green, Blue, Yellow — so a program can write
-// `screen.setColors(BorderColor.Blue, BackgroundColor.Black)` through
+// `screen.setColors(BorderColor.BLUE, BackgroundColor.BLACK)` through
 // @8bitscript/screen and get blue on every target. The values are 2C02
 // palette indices, by the hue columns of NESdev's palette chart ($x2 blue,
 // $x4 purple, $x6 red, $x8 yellow, $xA green, $xC cyan; $0F black, $30
@@ -138,23 +185,29 @@ export namespace screen {
 // under FCEUX by this project; the chart is NESdev's.
 
 export namespace BorderColor {
-    const Black: utinyint = 0x0F;
-    const White: utinyint = 0x30;
-    const Red: utinyint = 0x16;
-    const Cyan: utinyint = 0x2C;
-    const Purple: utinyint = 0x14;
-    const Green: utinyint = 0x1A;
-    const Blue: utinyint = 0x12;
-    const Yellow: utinyint = 0x28;
+    const BLACK: utinyint = 0x0F;
+    const WHITE: utinyint = 0x30;
+    const RED: utinyint = 0x16;
+    const CYAN: utinyint = 0x2C;
+    const PURPLE: utinyint = 0x14;
+    const GREEN: utinyint = 0x1A;
+    const BLUE: utinyint = 0x12;
+    const YELLOW: utinyint = 0x28;
+    // Not a colour: `blank(KEEP, ...)` leaves this one as it is. 255 is
+    // a value no register here takes.
+    const KEEP: utinyint = 255;
 }
 
 export namespace BackgroundColor {
-    const Black: utinyint = 0x0F;
-    const White: utinyint = 0x30;
-    const Red: utinyint = 0x16;
-    const Cyan: utinyint = 0x2C;
-    const Purple: utinyint = 0x14;
-    const Green: utinyint = 0x1A;
-    const Blue: utinyint = 0x12;
-    const Yellow: utinyint = 0x28;
+    const BLACK: utinyint = 0x0F;
+    const WHITE: utinyint = 0x30;
+    const RED: utinyint = 0x16;
+    const CYAN: utinyint = 0x2C;
+    const PURPLE: utinyint = 0x14;
+    const GREEN: utinyint = 0x1A;
+    const BLUE: utinyint = 0x12;
+    const YELLOW: utinyint = 0x28;
+    // Not a colour: `blank(KEEP, ...)` leaves this one as it is. 255 is
+    // a value no register here takes.
+    const KEEP: utinyint = 255;
 }

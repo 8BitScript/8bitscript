@@ -1,0 +1,141 @@
+{
+  "_comment": [
+    "Snippets for the constructs that actually compile today — see the",
+    "'first milestone' section of docs/compiler.md. Nothing here expands to",
+    "syntax the compiler would reject: a snippet that produces a diagnostic",
+    "is worse than no snippet, and CONTRIBUTING.md's rule (never describe",
+    "behaviour that isn't implemented) applies to the editor as much as to",
+    "prose. So there is no snippet for a pointer — it parses, it does not",
+    "lower yet.",
+    "Keep in step with packages/compiler: a construct entering or leaving the",
+    "compiled subset belongs here too (see the repository's AGENTS.md)."
+  ],
+  "Program with a frame loop": {
+    "prefix": "program",
+    "description": "The shape of a program: set up once, then one pass per frame, forever.",
+    "body": [
+      "export function ${1:main}(): void {",
+      "\t$2",
+      "",
+      "\twhile (true) {",
+      "\t\twaitFrame();",
+      "\t\t$0",
+      "\t}",
+      "}"
+    ]
+  },
+  "Frame loop": {
+    "prefix": "loop",
+    "description": "while (true) { waitFrame(); ... } — the loop a program writes itself.",
+    "body": [
+      "while (true) {",
+      "\twaitFrame();",
+      "\t$0",
+      "}"
+    ]
+  },
+  "Countdown to a tick": {
+    "prefix": "countdown",
+    "description": "Count frames down to a tick, then reload — the usual way to do something every N seconds.",
+    "body": [
+      "${1:framesUntilTick} = ${1:framesUntilTick} - 1;",
+      "if (${1:framesUntilTick} == 0) {",
+      "\t${1:framesUntilTick} = #frames(${2:0.5}, seconds);",
+      "\t$0",
+      "}"
+    ]
+  },
+  "Compile-time duration": {
+    "prefix": "#frames",
+    "description": "#frames(n, seconds) — how many waitFrame() calls that much time takes, worked out at compile time.",
+    "body": ["#frames(${1:0.5}, seconds)"]
+  },
+  "Print a template": {
+    "prefix": "print",
+    "description": "text.print(cell, `...`) — text and ${...} data fields, laid out at compile time.",
+    "body": ["text.print(${1:0}, `${2:TICK }\\${${3:ticks}:${4:1}}`);"]
+  },
+  "Compile-time constant": {
+    "prefix": "const",
+    "description": "A const: inlined wherever it is read, never stored on the machine.",
+    "body": ["const ${1:NAME}: ${2:utinyint} = ${3:0};"]
+  },
+  "Variable": {
+    "prefix": "let",
+    "description": "A variable: a global at the top level, a local inside a function.",
+    "body": ["let ${1:name}: ${2:utinyint} = ${3:0};"]
+  },
+  "For loop": {
+    "prefix": "for",
+    "description": "for (let i = 0; i < n; i++) — a counted loop with its own local.",
+    "body": [
+      "for (let ${1:i}: ${2:utinyint} = 0; ${1:i} < ${3:count}; ${1:i}++) {",
+      "\t$0",
+      "}"
+    ]
+  },
+  "Array in RAM": {
+    "prefix": "array",
+    "description": "let name: array<T, N> — N values of T in RAM, zero until written; a[i] and a.length.",
+    "body": ["let ${1:name}: array<${2:utinyint}, ${3:4}>;"]
+  },
+  "Data table": {
+    "prefix": "table",
+    "description": "const NAME: array<T, N> = [...] — N values as data in the program, never in RAM; read with NAME[i].",
+    "body": ["const ${1:TABLE}: array<${2:utinyint}, ${3:3}> = [${4:1, 2, 3}];"]
+  },
+  "Hardware register": {
+    "prefix": "address",
+    "description": "@address — a name for a fixed memory location, not storage the compiler assigns.",
+    "body": [
+      "@address(${1:0xD020})",
+      "let ${2:borderColor}: volatile<utinyint>;"
+    ]
+  },
+  "Function": {
+    "prefix": "function",
+    "description": "A function with scalar parameters and a return type.",
+    "body": [
+      "function ${1:name}(${2:value}: ${3:utinyint}): ${4:void} {",
+      "\t$0",
+      "}"
+    ]
+  },
+  "Namespace": {
+    "prefix": "namespace",
+    "description": "A namespace: compile-time qualification for a library surface, with no runtime cost.",
+    "body": [
+      "export namespace ${1:screen} {",
+      "\tconst ${2:CELL_COUNT}: usmallint = ${3:1000};",
+      "",
+      "\tfunction ${4:setColors}(${5:border}: utinyint): void {",
+      "\t\t$0",
+      "\t}",
+      "}"
+    ]
+  },
+  "Import a capability": {
+    "prefix": "import",
+    "description": "Import a capability package; it resolves to whichever machine is being built.",
+    "body": ["import { ${1:text} } from \"@8bitscript/${1:text}\";"]
+  },
+  "Inline 6502 assembly": {
+    "prefix": "asm6502",
+    "description": "Raw 6502, passed through untouched — not available on the web target.",
+    "body": [
+      "asm6502 {",
+      "\t${0:lda #$06}",
+      "}"
+    ]
+  },
+  "Poke a byte": {
+    "prefix": "poke",
+    "description": "memory.write — the low-level equivalent of POKE.",
+    "body": ["memory.write(${1:0xD020}, ${2:6});"]
+  },
+  "Peek a byte": {
+    "prefix": "peek",
+    "description": "memory.read — the low-level equivalent of PEEK.",
+    "body": ["memory.read(${1:0xD012})"]
+  }
+}

@@ -19,5 +19,9 @@
   ],
   "scripts": {
     "test": "node --test"
+  },
+  "devDependencies": {
+    "@8bitscript/text": "workspace:*",
+    "@8bitscript/vic20": "workspace:*"
   }
 }

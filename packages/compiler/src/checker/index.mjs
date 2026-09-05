@@ -1,9 +1,15 @@
 // The checker.
 //
-// Two rules so far: an integer literal has to fit the type it is assigned
-// to, and the builtins' names — the duration clocks such as `frames`
-// (packages/compiler/src/fold) and `waitFrame` (packages/compiler/src/ir) —
-// are reserved.
+// Four rules so far: an integer literal has to fit the type it is assigned
+// to; the runtime builtin's name — `waitFrame` (packages/compiler/src/ir)
+// — is reserved; a string that becomes program data (a literal, or the
+// text of a template) holds only the portable character set, at most 255
+// of them; a template string sits where the compiler can lay it out
+// (`namespace.print(cell, \`...\`)` as a statement) with every field
+// sized — the same layout lowering performs (packages/compiler/src/
+// templates), run here so its diagnostics reach the editor; and a
+// top-level `const` — a compile-time constant with no storage — is never
+// assigned to.
 //
 // This used to pattern-match a fixed token shape because there was no tree to
 // walk. It now runs on the AST, which is what the parser bought: the rule finds
@@ -19,29 +25,59 @@
 import { Codes, diagnostic } from '../diagnostics/index.mjs';
 import { NodeType, walk } from '../ast/index.mjs';
 import { resolveIntegerType } from '../types/index.mjs';
-import { DURATION_CLOCKS } from '../fold/index.mjs';
+import {
+  scanDeclaredTypes, parameterTypes, layoutTemplate, isTemplateCall, misplacedTemplate, resolveScalarType,
+} from '../templates/index.mjs';
 
-// The language's builtins, none of which is imported from @8bitscript/screen
-// or declared anywhere a binder could find: the duration clocks
-// (`frames(...)`) are a pure compile-time fold (packages/compiler/src/fold),
-// and `waitFrame()` lowers to its own IR kind that every backend emits in
-// its own way (packages/compiler/src/ir). All are closer to keywords than to
-// ordinary names, but implemented as reserved identifiers rather than
-// grammar keywords — a call's *shape* is an ordinary call, and keywords are
-// not valid callees. Reserving the names here is what keeps a user's own
-// `frames`/`waitFrame` from being silently reinterpreted as the builtin
-// instead of getting a clear diagnostic.
+// The one runtime builtin that is a bare name: `waitFrame()` lowers to its
+// own IR kind that every backend emits in its own way
+// (packages/compiler/src/ir). It is closer to a keyword than to an ordinary
+// name, but implemented as a reserved identifier rather than a grammar
+// keyword — a call's *shape* is an ordinary call, and keywords are not
+// valid callees. Reserving the name here is what keeps a user's own
+// `waitFrame` from being silently reinterpreted as the builtin instead of
+// getting a clear diagnostic.
 //
-// The unit word a clock call takes (`seconds` in `frames(0.5, seconds)`) is
-// deliberately *not* here: that argument slot can never hold a variable, so
-// the fold recognises the word by spelling in place and `let seconds: uint`
-// anywhere else stays an ordinary declaration.
+// Compile-time functions (`#frames(...)`, packages/compiler/src/fold) need
+// no reservation: their `#` spelling is its own token, so `let frames`
+// never collides. Nor does the unit word (`seconds` in
+// `#frames(0.5, seconds)`): that argument slot can never hold a variable,
+// so the fold recognises the word by spelling in place and
+// `let seconds: uint` anywhere else stays an ordinary declaration.
 const RESERVED_BUILTIN_NAMES = new Map([
-  ...[...DURATION_CLOCKS.keys()].map((name) => [
-    name, `the built-in duration clock, ${name}(..., seconds)`,
-  ]),
   ['waitFrame', 'the built-in frame wait, waitFrame()'],
 ]);
+
+// What every target's character set can show: the NES ships its own font
+// (packages/nes/native/6502/font.s) with exactly these glyphs, and the
+// Commodore machines are switched to their upper-case set by putChar.
+// Anything else is a diagnostic here — not silently blanked on one machine
+// and shown on another. Import specifiers are StringLiteral nodes too and
+// are skipped: a module path is not screen text.
+const PORTABLE_CHARACTERS = /^[ 0-9A-Z!,\-.:?]*$/;
+const MAX_STRING_LENGTH = 255;
+
+function checkScreenText(n, file, diagnostics) {
+  if (n.unterminated) return; // the lexer reported it; whatever follows the quote is not the text
+  const value = n.value ?? '';
+  if (!PORTABLE_CHARACTERS.test(value)) {
+    const bad = [...value].find((ch) => !PORTABLE_CHARACTERS.test(ch));
+    const hint = /[a-z]/.test(bad) ? ' — upper case only' : '';
+    diagnostics.push(diagnostic(
+      Codes.UNPORTABLE_CHARACTER,
+      `'${bad}' is not in the portable character set (space, 0-9, A-Z, and ! , - . : ?)${hint}`,
+      file, n.start, n.length,
+    ));
+    return;
+  }
+  if (value.length > MAX_STRING_LENGTH) {
+    diagnostics.push(diagnostic(
+      Codes.STRING_TOO_LONG,
+      `a string holds at most ${MAX_STRING_LENGTH} characters; this one is ${value.length}`,
+      file, n.start, n.length,
+    ));
+  }
+}
 
 function reservedNameDiagnostic(nameNode, file) {
   return diagnostic(
@@ -75,16 +111,135 @@ function literalValue(expression) {
   return null;
 }
 
+// A const is UPPER_SNAKE; a variable starts with a lower-case letter. The
+// spelling is the compile-time signal: `LIMIT` is resolved by 8bitscript,
+// `limit` is storage on the machine. Namespace members count — `const`
+// inside `namespace BorderColor` is `BLUE` — and so does a local.
+const CONST_NAME = /^[A-Z][A-Z0-9_]*$/;
+const VARIABLE_NAME = /^[a-z_]/;
+
+/** `OptionCount` -> `OPTION_COUNT`, `borders` -> `BORDERS`: the spelling a const should have. */
+function constSpelling(name) {
+  return name.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toUpperCase();
+}
+
+function checkNameCase(n, file, diagnostics) {
+  const name = n.name.name;
+  if (n.kind === 'const' && !CONST_NAME.test(name)) {
+    diagnostics.push(diagnostic(
+      Codes.NAME_CASE,
+      `a const is written in upper case, so a reader knows it is resolved by 8bitscript: ${constSpelling(name)}`,
+      file, n.name.start, n.name.length,
+    ));
+  } else if (n.kind === 'let' && !VARIABLE_NAME.test(name)) {
+    diagnostics.push(diagnostic(
+      Codes.NAME_CASE,
+      `a variable starts with a lower-case letter; an upper-case name is a const`,
+      file, n.name.start, n.name.length,
+    ));
+  }
+}
+
+/**
+ * The rules that need a function's scope. Templates: each one must be the
+ * second argument of a `namespace.print` call in statement position, and
+ * each of its fields must have a width the layout can determine — a field
+ * expression is typed in the scope of the parameters around it, and a
+ * template outside any function (a global initialiser) has nowhere to be
+ * laid out at all. Consts: this module's top-level `const`s are never
+ * assigned to or `++`/`--`ed, unless a parameter of the same name shadows
+ * one, which is ordinary lexical scoping.
+ */
+function checkFunctions(ast, file, source, diagnostics) {
+  const declared = scanDeclaredTypes(ast);
+  const consts = new Set(ast.body
+    .filter((n) => n.type === NodeType.VariableDeclaration && n.kind === 'const' && n.name)
+    .map((n) => n.name.name));
+  const constArrays = new Set([...declared.arrayTypes].filter(([, a]) => a.constant).map(([name]) => name));
+  // `HALF = 2` on a const, or `Table[0] = 2` on a const array (whose
+  // elements are data in the program). Either way the name is the span.
+  const assignedConst = (target, params) => {
+    const name = target?.type === NodeType.IndexExpression ? target.object : target;
+    if (name?.type !== NodeType.Identifier || params.has(name.name)) return null;
+    if (target.type === NodeType.IndexExpression) return constArrays.has(name.name) ? name : null;
+    return consts.has(name.name) ? name : null;
+  };
+  const visitFunction = (fn) => {
+    if (!fn.body) return; // a function whose body is still being typed
+    // Locals count with parameters here — function-scoped, an approximation
+    // of the block scoping lowering applies, enough to know a name is not
+    // the const or array it shadows and what type a field of it has.
+    const paramTypes = parameterTypes(fn);
+    walk(fn.body, (n) => {
+      if (n.type !== NodeType.VariableDeclaration || !n.name || n.kind !== 'let') return;
+      const type = n.typeAnnotation?.name && resolveScalarType(n.typeAnnotation.name);
+      if (type && !n.typeAnnotation.typeArguments?.length) paramTypes.set(n.name.name, type);
+    });
+    const scope = { ...declared, paramTypes };
+    // Parents are visited before children, so a template reached through
+    // its statement is claimed here before walk() descends to it.
+    const placed = new Set();
+    walk(fn.body, (n) => {
+      if (n.type === NodeType.ExpressionStatement && isTemplateCall(n.expression)) {
+        const template = n.expression.args[1];
+        placed.add(template);
+        diagnostics.push(...layoutTemplate(template, scope, file, source).diagnostics);
+        return;
+      }
+      if (n.type === NodeType.TemplateLiteral && !placed.has(n)) {
+        diagnostics.push(misplacedTemplate(n, file));
+        return;
+      }
+      const target = n.type === NodeType.AssignmentExpression ? n.left
+        : n.type === NodeType.UpdateExpression ? n.argument : null;
+      const name = target && assignedConst(target, paramTypes);
+      if (name) {
+        diagnostics.push(diagnostic(
+          Codes.ASSIGN_TO_CONST,
+          target.type === NodeType.IndexExpression
+            ? `'${name.name}' is a const array — data in the program, not RAM — and cannot be assigned to`
+            : `'${name.name}' is a const — a compile-time value with no storage — and cannot be assigned`,
+          file, name.start, name.length,
+        ));
+      }
+    });
+  };
+  for (const node of ast.body) {
+    if (node.type === NodeType.FunctionDeclaration) visitFunction(node);
+    if (node.type === NodeType.NamespaceDeclaration) {
+      for (const member of node.members ?? []) {
+        if (member?.type === NodeType.FunctionDeclaration) visitFunction(member);
+      }
+    }
+    if (node.type === NodeType.VariableDeclaration) {
+      walk(node.initializer, (n) => {
+        if (n.type === NodeType.TemplateLiteral) diagnostics.push(misplacedTemplate(n, file));
+      });
+    }
+  }
+}
+
 /**
  * @param {object} ast   Program node from the parser.
  * @param {string} file
+ * @param {string|null} [source]  The file's text, so a diagnostic can quote code back.
  * @returns {object[]} diagnostics
  */
-export function check(ast, file = '<unknown>') {
+export function check(ast, file = '<unknown>', source = null) {
   const diagnostics = [];
   if (!ast) return diagnostics;
 
-  walk(ast, (n) => {
+  checkFunctions(ast, file, source, diagnostics);
+
+  walk(ast, (n, parent) => {
+    if (
+      (n.type === NodeType.StringLiteral && parent?.type !== NodeType.ImportDeclaration)
+      || n.type === NodeType.TemplateText
+    ) {
+      checkScreenText(n, file, diagnostics);
+      return;
+    }
+
     if (n.type === NodeType.ImportDeclaration) {
       for (const specifier of n.specifiers) {
         if (RESERVED_BUILTIN_NAMES.has(specifier.name)) {
@@ -106,6 +261,7 @@ export function check(ast, file = '<unknown>') {
     if (n.name && RESERVED_BUILTIN_NAMES.has(n.name.name)) {
       diagnostics.push(reservedNameDiagnostic(n.name, file));
     }
+    if (n.name) checkNameCase(n, file, diagnostics);
 
     const typeName = n.typeAnnotation?.name;
     // A type constructor such as ptr<u8> has type arguments and is not itself

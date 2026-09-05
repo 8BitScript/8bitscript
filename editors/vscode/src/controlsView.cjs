@@ -2,8 +2,8 @@
 //
 // A tree view cannot hold a <select>, so this is a small webview: three
 // dropdowns — the system to run on, the region for the Commodore machines,
-// and which way to lay out the project list — plus a checkbox for the example
-// projects when any are available. Every choice is written straight to the
+// and which way to lay out the project list — plus a checkbox for the
+// toolchain's proofs of concept when any are available. Every choice is written straight to the
 // extension's settings (see settings.cjs); the projects view reads those
 // settings, so the two views never hold state of their own to disagree over.
 const crypto = require('crypto');
@@ -148,7 +148,7 @@ function html(webview) {
   <select id="view" title="How the project list below is laid out"></select>
   <div class="check" id="examplesRow" hidden>
     <input type="checkbox" id="examples">
-    <label for="examples">Show example projects</label>
+    <label for="examples">Show proofs of concept</label>
   </div>
   <div class="hint" id="hint"></div>
   <script nonce="${nonce}">

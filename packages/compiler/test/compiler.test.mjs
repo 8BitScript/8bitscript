@@ -7,13 +7,32 @@ import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-import { analyze, tokenize, parse, NodeType } from '../index.mjs';
+import {
+  analyze, tokenize, parse, check, foldDurations, getHoverInfo, getCompletions, NodeType,
+} from '../index.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const HELLO_VIC = join(HERE, '..', '..', '..', 'examples', 'hello-vic', 'src');
+// The resolver's fixture: this package lists @8bitscript/text and
+// @8bitscript/vic20 as devDependencies, so a file under test/fixtures
+// resolves them through a real pnpm-linked node_modules.
+const FIXTURES = join(HERE, 'fixtures');
 
 const codes = (src, file, options) => analyze(src, file ?? 't.8bs', options).map((d) => d.code);
 const clean = (src) => assert.deepEqual(codes(src), []);
+
+// The front end alone — lexer, parser, fold, checker — with no lowering.
+// `analyze()` also lowers, so it answers "will this build", and a good deal
+// of the specified surface below (local variables, `for`, arrays, pointers,
+// member calls) parses and passes every rule while not being in the
+// compiled subset yet. These tests are about the layer that accepts them,
+// so they ask that layer rather than the whole pipeline.
+const frontEndCodes = (src) => {
+  const { tokens, diagnostics: lexical } = tokenize(src, 't.8bs');
+  const { ast, diagnostics: syntax } = parse(tokens, src, 't.8bs');
+  return [...lexical, ...syntax, ...foldDurations(ast, 't.8bs'), ...check(ast, 't.8bs', src)]
+    .sort((a, b) => a.start - b.start).map((d) => d.code);
+};
+const parsesClean = (src) => assert.deepEqual(frontEndCodes(src), []);
 
 // ---- lexer ----------------------------------------------------------------
 
@@ -30,9 +49,9 @@ test('numeric literal spellings', () => {
 });
 
 test('shipped bug: modulo is not a binary literal', () => {
-  clean('function f(): void { let y: u8 = x%2; }');
-  clean('function f(): void { let y: u8 = a%b; }');
-  clean('function f(): void { x %= 2; }');
+  parsesClean('function f(): void { let y: u8 = x%2; }');
+  parsesClean('function f(): void { let y: u8 = a%b; }');
+  parsesClean('function f(): void { x %= 2; }');
   // In value position, % still reads as binary.
   const { tokens } = tokenize('let x: u8 = %101;', 't');
   const literal = tokens.find((t) => t.kind === 'number');
@@ -48,9 +67,9 @@ test('shipped bug: no token may carry NaN', () => {
 });
 
 test('shipped bug: operators lex by maximal munch, not greed', () => {
-  clean('function f(): void { x=-1; }');
-  clean('function f(): void { let y: bool = a<-1; }');
-  clean('function f(): void { x <<= 1; }');
+  parsesClean('function f(): void { x=-1; }');
+  parsesClean('function f(): void { let y: bool = a<-1; }');
+  parsesClean('function f(): void { x <<= 1; }');
 });
 
 test('empty radix prefix is an invalid literal, not silence', () => {
@@ -58,14 +77,14 @@ test('empty radix prefix is an invalid literal, not silence', () => {
 });
 
 test('shipped bug: asm6502 bodies are opaque', () => {
-  clean('asm6502 {\n    lda #$06\n    sta $900f\n}\n');
-  assert.deepEqual(codes('asm6502 {\n lda #$06\n'), ['8BS1007']);
+  parsesClean('asm6502 {\n    lda #$06\n    sta $900f\n}\n');
+  assert.deepEqual(frontEndCodes('asm6502 {\n lda #$06\n'), ['8BS1007']);
 });
 
 test('unterminated constructs each have one code', () => {
-  assert.deepEqual(codes('let s = "abc;'), ['8BS1002']);
-  assert.deepEqual(codes('/* never closed'), ['8BS1006']);
-  assert.deepEqual(codes('function f(): void {'), ['8BS1005', '8BS1101']);
+  assert.deepEqual(frontEndCodes('let s = "abc;'), ['8BS1002']);
+  assert.deepEqual(frontEndCodes('/* never closed'), ['8BS1006']);
+  assert.deepEqual(frontEndCodes('function f(): void {'), ['8BS1005', '8BS1101']);
 });
 
 // ---- parser ---------------------------------------------------------------
@@ -83,7 +102,7 @@ test('milestone AST has the specified shape', () => {
 });
 
 test('full specified surface parses clean', () => {
-  clean(`
+  parsesClean(`
 @address(0x900F)
 let vicColor: volatile<u8>;
 let buffer: array<u8, 16>;
@@ -136,31 +155,52 @@ test('negated literals use the full span', () => {
 });
 
 test('the rule reaches nested declarations now', () => {
-  assert.deepEqual(codes('function f(): void { let x: u8 = 300; }'), ['8BS1021']);
-  assert.deepEqual(codes('function f(): void { for (let i: u8 = 300; ; ) {} }'), ['8BS1021']);
+  assert.deepEqual(frontEndCodes('function f(): void { let x: u8 = 300; }'), ['8BS1021']);
+  assert.deepEqual(frontEndCodes('function f(): void { for (let i: u8 = 300; ; ) {} }'), ['8BS1021']);
 });
 
 test('expressions are not folded yet', () => {
-  clean('let x: u8 = 200 + 100;');
+  parsesClean('let x: u8 = 200 + 100;');
 });
 
 test('type constructors are not integers', () => {
-  clean('let p: ptr<u8>;');
-  clean('let a: array<u8, 300>;');
+  parsesClean('let p: ptr<u8>;');
+  parsesClean('let a: array<u8, 300>;');
 });
 
-// ---- resolver (uses the real example project as its fixture) --------------
+// ---- analyze() answers "will this build", not only "does this parse" -----
+
+test('a construct the compiler cannot lower yet is reported by analyze(), not saved for the build', () => {
+  // Each of these parses and breaks no rule, and each is 8BS3001 — the
+  // editor and `8bs check` say so as it is typed, rather than a build
+  // saying it later.
+  assert.deepEqual(codes('let p: ptr<u8>;'), ['8BS3001']);
+  assert.deepEqual(codes('let x: u8 = 200 + 100;'), ['8BS3001']);
+  // Arrays, locals, and for loops lower now (arrays.test.mjs,
+  // locals.test.mjs); a pointer still does not.
+  clean('let a: array<u8, 16>;');
+  clean('function f(): void { let local: u8 = 1; }');
+  clean('export function main(): void { for (;;) { break; } }');
+});
+
+test('a signed type takes its most negative literal — a negated literal is a literal', () => {
+  clean('let x: tinyint = -128;');
+  clean('const LOWEST: int = -2147483648;');
+  assert.deepEqual(codes('let x: tinyint = -129;'), ['8BS1021']);
+});
+
+// ---- resolver (uses the pnpm-linked fixture directory) -------------------
 
 test('workspace imports resolve through pnpm links', () => {
-  const file = join(HELLO_VIC, 'main.8bs');
-  // hello-vic depends on @8bitscript/text and @8bitscript/vic20 with
-  // workspace:*; a target package's own subpath resolves the same way.
+  const file = join(FIXTURES, 'main.8bs');
+  // @8bitscript/text and @8bitscript/vic20 are workspace:* devDependencies
+  // of this package; a target package's own subpath resolves the same way.
   const src = 'import { text } from "@8bitscript/text";\nimport { vic } from "@8bitscript/vic20";\nimport { screen } from "@8bitscript/vic20/screen";\n';
   assert.deepEqual(codes(src, file, { resolveImports: true }), []);
 });
 
 test('each resolution failure has its own code', () => {
-  const file = join(HELLO_VIC, 'main.8bs');
+  const file = join(FIXTURES, 'main.8bs');
   const src = [
     'import { a } from "@8bitscript/nonexistent";',
     'import { b } from "markdown-it";',
@@ -211,14 +251,13 @@ test('lowering is exhaustive-with-error, never silent', () => {
   // take parameters and return values now, and `a.b(...)`/`a.b` are deferred
   // to the linker as a possible namespace reference — so these are
   // constructs that stay unsupported: calling a call result, a two-level
-  // qualified call, a two-level qualified value, assigning through member
-  // access, and local variables.
+  // qualified call, a two-level qualified value, and assigning through
+  // member access.
   for (const src of [
     'export function f(): void { g()(); }',
     'export function f(): void { a.b.c(); }',
     'export function f(): void { x = g().y; }',
     'export function f(): void { a.b = 1; }',
-    'function f(): void { let local: u8 = 1; }',
   ]) {
     const { diagnostics } = lowered(src);
     assert.ok(
@@ -389,7 +428,7 @@ test('a call to a name that resolves to nothing is 8BS2007', () => {
 // real pnpm symlinks. This group is the proof the conditional resolution
 // actually switches implementations.
 
-const BORDER_ENTRY = join(HERE, '..', '..', '..', 'examples', 'borders', 'src', 'main.8bs');
+const BORDER_ENTRY = join(HERE, '..', '..', '..', 'examples', 'proof-of-concept', 'borders', 'src', 'main.8bs');
 
 test('a conditional entry resolves to the vic20 implementation', () => {
   const { ir, diagnostics } = link(readFileSync(BORDER_ENTRY, 'utf8'), BORDER_ENTRY, { machine: 'vic20' });
@@ -410,7 +449,7 @@ test('the same entry resolves to the web implementation', () => {
   // main.8bs is a genuinely single file: it exports main(), and each
   // target's own text namespace (real screen memory on the VIC-20/C64, a
   // virtual character grid on the web — see @8bitscript/web's header
-  // comment) gives clearScreen()/drawLabels() something to poke everywhere,
+  // comment) gives clearScreen()/drawHud() something to poke everywhere,
   // so the same source links clean against all three.
   const { ir, diagnostics } = link(readFileSync(BORDER_ENTRY, 'utf8'), BORDER_ENTRY, { machine: 'web' });
   assert.deepEqual(diagnostics, []);
@@ -587,4 +626,48 @@ test('a package\'s string entry follows the same rule', () => {
     assert.equal(resolveSpecifier('@t/p', entry, { machine: 'web' }).code, '8BS3002');
     assert.equal(resolveSpecifier('@t/p', entry).path, null);
   });
+});
+
+// ---- half-typed source is the normal input --------------------------------
+//
+// `analyze()` runs on every keystroke, and it lowers now, so lowering sees
+// partial trees the parser deliberately leaves holes in — `clearCell =`
+// with nothing after it, `while (` with no body, `namespace` with no name.
+// Every layer promises not to throw; the language server has no net under
+// it, so a throw here is a dead editor rather than a bad message.
+
+test('analyze, hover, and completion never throw on any prefix of a real program', () => {
+  const files = [
+    join(HERE, '..', '..', '..', 'examples', 'proof-of-concept', 'borders', 'src', 'main.8bs'),
+    join(HERE, '..', '..', 'c64', 'src', 'text.8bs'),
+    join(HERE, '..', '..', 'nes', 'src', 'screen.8bs'),
+    // Arrays, a for loop with a local, and a ptr global that still does not lower.
+    join(FIXTURES, 'partial-subset.8bs'),
+  ];
+  for (const file of files) {
+    const source = readFileSync(file, 'utf8');
+    for (let i = 0; i <= source.length; i += 1) {
+      const prefix = source.slice(0, i);
+      assert.doesNotThrow(() => {
+        analyze(prefix, 't.8bs');
+        getHoverInfo(prefix, i);
+        getCompletions(prefix, i);
+      }, `threw at offset ${i} of ${file}: ${JSON.stringify(prefix.slice(-40))}`);
+    }
+  }
+});
+
+test('analyze never throws on a statement caught mid-keystroke', () => {
+  for (const source of [
+    'if (', 'if (x) {', 'while (', 'while (true)', 'for (', 'return',
+    'let', 'let x: = ', 'const X: u8 =', 'function f(', 'namespace', 'namespace n {',
+    'export ', '@address(', 'asm6502 {', 'memory.write(', 'f(1,', 'x.', '#',
+    'text.print(0, `${', '`${', 'export function main(): void { clearCell =',
+  ]) {
+    assert.doesNotThrow(() => {
+      analyze(source, 't.8bs');
+      getHoverInfo(source, source.length);
+      getCompletions(source, source.length);
+    }, JSON.stringify(source));
+  }
 });

@@ -63,7 +63,7 @@ test('two exported functions in the entry module is 8BS2010, once per function',
 test('an exported global or namespace in the entry module is 8BS2010', () => {
   assert.deepEqual(linkCodes('export let x: u8 = 1;\nexport function main(): void {}'), ['8BS2010']);
   assert.deepEqual(
-    linkCodes('export namespace n { const k: u8 = 1; }\nexport function main(): void {}'),
+    linkCodes('export namespace n { const K: u8 = 1; }\nexport function main(): void {}'),
     ['8BS2010'],
   );
 });
@@ -114,8 +114,8 @@ test('declaring or importing "waitFrame" is 8BS2009 with the right wording', () 
     assert.equal(d.code, '8BS2009', src);
     assert.match(d.message, /frame wait, waitFrame\(\)/);
   }
-  // And frames' wording did not regress.
-  assert.match(analyze('let frames: u8 = 1;', 't.8bs')[0].message, /duration clock, frames\(\.\.\., seconds\)/);
+  // `frames` is not reserved: `#frames` is its own token.
+  assert.deepEqual(analyze('let frames: u8 = 1;', 't.8bs'), []);
 });
 
 test('hover explains waitFrame()', () => {

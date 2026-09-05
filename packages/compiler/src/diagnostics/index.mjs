@@ -19,9 +19,9 @@
  *
  * 1000s are lexical and syntax problems — things findable without knowing what
  * any name refers to. 2000s are resolution and type errors (resolution is
- * implemented; type errors wait on a binder). 3000s are compilation limits: the
- * construct is valid but the compiler cannot lower it yet, or not for the
- * requested target.
+ * implemented; type errors wait on a binder). 3000s are target limits: the
+ * construct is valid but the compiler cannot lower it yet, it is not available
+ * on the requested target, or the target refuses it as a hardware hazard.
  */
 export const Codes = {
   UNTERMINATED_STRING: '8BS1002',
@@ -32,31 +32,78 @@ export const Codes = {
   UNTERMINATED_ASM_BLOCK: '8BS1007',
   INVALID_NUMBER: '8BS1008',
   // A decimal literal (`0.5`) used anywhere other than as the first argument
-  // to a duration clock call, `frames(...)` — the only place the language
+  // to a duration clock call, `#frames(...)` — the only place the language
   // has any float-shaped syntax. foldDurations() (packages/compiler/src/fold) consumes and
   // removes every valid one before check() ever runs, so any that survive
   // to be walked here were misplaced.
   MISPLACED_DECIMAL_LITERAL: '8BS1009',
   SYNTAX_ERROR: '8BS1101',
   VALUE_OUT_OF_RANGE: '8BS1021',
-  // `frames(...)`'s argument shape is wrong — not one integer-or-decimal
+  // `#frames(...)`'s argument shape is wrong — not one integer-or-decimal
   // literal followed by the bare unit word it is measured in (see
-  // foldDurations()). The unit is required: `frames(30)` is this.
+  // foldDurations()). The unit is required: `#frames(30)` is this.
   INVALID_DURATION_ARGUMENT: '8BS1022',
-  // A `frames(...)` call folded to zero frames at the project's configured
+  // A `#frames(...)` call folded to zero frames at the project's configured
   // frameRate — always a bug, not a benign rounding nicety: it would wrap a
-  // countdown like `let ticks: utinyint = frames(...); ... ticks = ticks - 1;`
+  // countdown like `let ticks: utinyint = #frames(...); ... ticks = ticks - 1;`
   // straight through 0 instead of ticking.
   ZERO_DURATION: '8BS1023',
-  // A `frames(...)` call didn't fold to an exact frame count at the
+  // A `#frames(...)` call didn't fold to an exact frame count at the
   // project's configured frameRate — reported so a rate change (e.g. 60 to
   // 50) that silently nudges a duration's real-world length is never
   // invisible.
   INEXACT_DURATION: '8BS1024',
-  // `frames(...)`'s second argument names a unit the fold doesn't know —
+  // `#frames(...)`'s second argument names a unit the fold doesn't know —
   // the only one so far is `seconds` (see the fold pass's DURATION_UNITS).
   // Reported at the identifier itself, not the whole call.
   UNKNOWN_DURATION_UNIT: '8BS1025',
+  // A string literal (or the text of a template) holds a character outside
+  // the portable set — space, `0`-`9`, `A`-`Z`, and `! , - . : ?` — the
+  // characters every target's character set can show (the NES ships its own
+  // font with exactly these; the Commodore machines are switched to their
+  // upper-case set). Reported where the string becomes program data
+  // (packages/compiler/src/ir), never for an import specifier.
+  UNPORTABLE_CHARACTER: '8BS1026',
+  // A string literal longer than 255 bytes: strings are length-prefixed
+  // with one byte, and no screen this compiles for has that many cells in
+  // a row anyway.
+  STRING_TOO_LONG: '8BS1027',
+  // A template string (`\`TICK ${ticks}\``) somewhere other than the second
+  // argument of a namespace's `print(cell, ...)` — the one place the
+  // compiler expands one — or with the wrong shape around it.
+  MISPLACED_TEMPLATE: '8BS1028',
+  // A `${...}` field the compiler cannot lay out: its width was not given
+  // and could not be taken from the expression's type (an imported name, a
+  // call across modules), or the value is not something a number field can
+  // show (signed, or wider than 16 bits).
+  UNPRINTABLE_FIELD: '8BS1029',
+  // `#name` — the compile-time spelling — naming a function the compiler
+  // doesn't evaluate (`#frames` is the only one), or a compile-time function
+  // used without being called (`#frames` on its own).
+  UNKNOWN_COMPILE_TIME_FUNCTION: '8BS1030',
+  // Assignment (or `++`/`--`) to a `const`: a compile-time constant, inlined
+  // wherever it is read, has no storage on the target to assign to. The
+  // checker reports a module's own consts; the linker, an imported one.
+  ASSIGN_TO_CONST: '8BS1031',
+  // `a[7]` on an `array<T, 4>`: a literal index at or past the array's
+  // length. Only a literal (or a const) can be checked at compile time; a
+  // runtime index is the program's own responsibility, as on the machine.
+  INDEX_OUT_OF_RANGE: '8BS1032',
+  // `[1, 2, 3]` for an `array<T, 4>`: an array initialiser has exactly as
+  // many elements as the type says — the length is part of the type, and
+  // the data is laid out at compile time, so nothing can pad or truncate.
+  ARRAY_SIZE_MISMATCH: '8BS1033',
+  // Names say which side of the compile-time rule they are on: a `const`
+  // is UPPER_SNAKE (`OPTION_COUNT`, `BorderColor.BLUE`), a variable starts
+  // with a lower-case letter. So a reader knows `LIMIT` is resolved by
+  // 8bitscript and `limit` is storage on the machine, without looking up
+  // the declaration.
+  NAME_CASE: '8BS1034',
+  // A call with more arguments than the function has parameters, or fewer
+  // than the parameters without a default. A default (`border: utinyint =
+  // BorderColor.BLACK`) is a compile-time value 8bitscript fills in at the
+  // call, so every call the machine sees is complete.
+  WRONG_ARGUMENT_COUNT: '8BS1035',
 
   UNRESOLVED_PACKAGE: '8BS2001',
   NOT_AN_8BS_PACKAGE: '8BS2002',
@@ -66,9 +113,9 @@ export const Codes = {
   DUPLICATE_BINDING: '8BS2006',
   UNRESOLVED_NAME: '8BS2007',
   MISSING_NATIVE_SOURCE: '8BS2008',
-  // A declaration or import named after a builtin — a duration clock such
-  // as `frames` (packages/compiler/src/fold), or `waitFrame`
-  // (packages/compiler/src/ir). A user binding by that name would otherwise
+  // A declaration or import named after a builtin — `waitFrame`
+  // (packages/compiler/src/ir). Compile-time functions (`#frames`) need no
+  // reservation: their `#` spelling is a different token from any name. A user binding by that name would otherwise
   // be silently reinterpreted as the builtin rather than getting a clear
   // diagnostic.
   RESERVED_BUILTIN_NAME: '8BS2009',
@@ -88,6 +135,12 @@ export const Codes = {
 
   NOT_COMPILABLE: '8BS3001',
   NOT_ON_THIS_TARGET: '8BS3002',
+  // A write the requested target's own documentation says can damage the
+  // machine — the PET's "killer poke" ($E842 with bit 5 set) is the one
+  // entry (packages/compiler/src/linker/hazards.mjs). Reported by the
+  // linker, which alone knows the machine and has every const inlined; so
+  // it is a build-time diagnostic, not one `8bs check` or the editor show.
+  HARDWARE_HAZARD: '8BS3003',
 };
 
 /** @returns {Diagnostic} */

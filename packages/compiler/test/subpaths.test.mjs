@@ -40,14 +40,14 @@ const PACKAGE = {
     '    function setColors(border: u8, background: u8): void { borderColor = border & 15; }',
     '}',
   ].join('\n'),
-  'node_modules/@t/p/src/text.8bs': 'export namespace text {\n    const CellCount: u16 = 1000;\n}\n',
+  'node_modules/@t/p/src/text.8bs': 'export namespace text {\n    const CELL_COUNT: u16 = 1000;\n}\n',
 };
 
 const CONSUMER = [
   'import { screen } from "@t/p/screen";',
   'import { text } from "@t/p/text";',
   'let cells: u16 = 0;',
-  'export function main(): void { screen.setColors(6, 0); cells = text.CellCount; }',
+  'export function main(): void { screen.setColors(6, 0); cells = text.CELL_COUNT; }',
 ].join('\n');
 
 test('a package subpath resolves through the "8bitscript".exports map', () => {
@@ -73,7 +73,7 @@ test('a program importing subpaths links, and the subpath module reaches the pac
     const main = ir.functions.find((f) => f.name === 'main');
     assert.equal(main.body[0].kind, 'call');
     assert.equal(main.body[0].name, 'screen_setColors');
-    assert.deepEqual(main.body[1].value, { kind: 'const', value: 1000 }); // text.CellCount inlined
+    assert.deepEqual(main.body[1].value, { kind: 'const', value: 1000 }); // text.CELL_COUNT inlined
   });
 });
 

@@ -28,10 +28,18 @@ Do not describe more than this as working:
   colour. Its background is *painted*: there is no register for it, so
   every text cell's attribute byte is rewritten through VERA's data port.
   `text.putChar(cell, code)` takes ASCII — LLVM-MOS's start-up puts the
-  KERNAL in ISO mode before `main()` — on an 80×60 grid whose map base is
-  read from VERA's `L1_MAPBASE` at runtime, not assumed. `putColor` is real
-  (per-cell foreground nibble, a read-modify-write that keeps whatever
-  background nibble the cell has).
+  KERNAL in ISO mode before `main()` — on the 76×56 grid the border inset
+  leaves visible (the map is 80×60; `text.COLUMNS` is 76 and
+  `text.CELL_COUNT` 4256, so a program never addresses a cell it cannot
+  see), whose map base is read from VERA's `L1_MAPBASE` at runtime, not
+  assumed. `locate()` finds a cell's row by a reciprocal multiply on the
+  cell's split bytes (see the package), not a divide, and parks both VERA
+  address ports: port 0 on the character byte stepping by one, port 1 on
+  the colour byte stepping by two. `putColor` is real (per-cell foreground
+  nibble): a run of text writes character then colour through port 0,
+  reading each cell's old colour byte through port 1 so whatever
+  background nibble the cell has is kept. `locate()` leaves ADDRSEL at 0,
+  which `screen.8bs` assumes.
 - `waitFrame()` (`FRAME_SYNC.cx16` in `packages/backend-6502`) polls
   VERA's ISR VSYNC bit under `sei` — at the default `frameRate` of 60 that
   is exactly one VSYNC per `waitFrame()`, with no accumulator emitted at all.
@@ -200,13 +208,13 @@ Cite these freely; each was read in the source named, not recalled.
 
 ```
 packages/cx16/src/index.8bs              target package: the VERA port helpers (setVramAddress, locateTextMap)
-packages/cx16/src/screen.8bs             @8bitscript/cx16/screen: screen.setColors(), the inset border, the painted background
-packages/cx16/src/text.8bs               @8bitscript/cx16/text: text.putChar/putColor/showDigit, CellCount 4800
+packages/cx16/src/screen.8bs             @8bitscript/cx16/screen: screen.blank()/setBorder()/setBackground()/setColors(), the inset border, the painted background
+packages/cx16/src/text.8bs               @8bitscript/cx16/text: text.print/printNumber/setColor/putChar/putColor, CELL_COUNT 4256, COLUMNS 76, TextColor
 packages/backend-6502/src/index.mjs      driver (mos-cx16-clang), FRAME_SYNC.cx16 (VERA ISR poll)
 packages/cli/src/setup/cx16.mjs          8bs setup cx16: emulator+ROM pair, macOS launcher wrapper
 packages/cli/src/run.mjs                 8bs run cx16: x16emu -prg <file> -run
 packages/compiler/test/cx16-screen.test.mjs   the package's generated C, by VERA address
-examples/borders/src/main.8bs            the working program (every target), ASCII readout at cell 0
+examples/proof-of-concept/borders/src/main.8bs            the working program (every target), ASCII readout at cell 0
 docs/setup/cx16.md                       install, the wrapper trap, doctor, what the picture shows
 x16-emulator 77f2bab3, x16-rom fbe32a60   the upstream revisions every fact above was read in
                                          (wherever those two repositories are checked out)

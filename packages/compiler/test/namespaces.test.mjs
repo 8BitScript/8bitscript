@@ -1,5 +1,5 @@
 // `namespace` declarations: compile-time-only qualification for library
-// surfaces like `screen.setBorderColor(...)` and `BorderColor.Blue`. See
+// surfaces like `screen.setBorderColor(...)` and `BorderColor.BLUE`. See
 // docs/compiler.md and packages/vic20/src/index.8bs for the real thing this
 // exists to support.
 import { test } from 'node:test';
@@ -30,7 +30,7 @@ export namespace screen {
     }
 }
 export namespace BorderColor {
-    const Blue: utinyint = 6;
+    const BLUE: utinyint = 6;
 }
 `;
   const { ast, diagnostics } = parse(tokenize(src, 't').tokens, src, 't');
@@ -38,7 +38,7 @@ export namespace BorderColor {
   assert.equal(ast.body[0].type, NodeType.NamespaceDeclaration);
   assert.equal(ast.body[0].name.name, 'screen');
   assert.equal(ast.body[0].exported, true);
-  assert.equal(ast.body[1].members[0].name.name, 'Blue');
+  assert.equal(ast.body[1].members[0].name.name, 'BLUE');
 });
 
 // ---- lowering: members mangle, consts never become storage --------------
@@ -60,11 +60,11 @@ test('a namespace function lowers to a mangled top-level function', () => {
 });
 
 test('a namespace const is recorded as a value, never emitted as a global', () => {
-  const { ir, diagnostics } = lowered('export namespace BorderColor {\n    const Blue: utinyint = 6;\n}\n');
+  const { ir, diagnostics } = lowered('export namespace BorderColor {\n    const BLUE: utinyint = 6;\n}\n');
   assert.equal(diagnostics.length, 0);
   assert.equal(ir.globals.length, 0);
   assert.equal(ir.functions.length, 0);
-  assert.deepEqual(ir.namespaces[0].consts, new Map([['Blue', 6]]));
+  assert.deepEqual(ir.namespaces[0].consts, new Map([['BLUE', 6]]));
 });
 
 test('a namespace member must be const, not let', () => {
@@ -94,9 +94,9 @@ test('a call inside the same module resolves against its own namespace', () => {
 test('a namespace const inlines to its literal value wherever it is used', () => {
   const src = [
     'namespace BorderColor {',
-    '    const Blue: utinyint = 6;',
+    '    const BLUE: utinyint = 6;',
     '}',
-    'export function main(): void { memory.write(0x900F, BorderColor.Blue); }',
+    'export function main(): void { memory.write(0x900F, BorderColor.BLUE); }',
   ].join('\n');
   const { ir, diagnostics } = link(src, 't.8bs');
   assert.deepEqual(diagnostics, []);
@@ -150,13 +150,13 @@ test('an exported namespace works when imported from another module', () => {
       '    }',
       '}',
       'export namespace BorderColor {',
-      '    const Blue: utinyint = 6;',
+      '    const BLUE: utinyint = 6;',
       '}',
     ].join('\n');
     const main = [
       'import { screen, BorderColor } from "./lib.8bs";',
       'export function main(): void {',
-      '    screen.setBorderColor(BorderColor.Blue);',
+      '    screen.setBorderColor(BorderColor.BLUE);',
       '}',
     ].join('\n');
     writeFileSync(join(dir, 'lib.8bs'), lib);
@@ -172,7 +172,7 @@ test('an exported namespace works when imported from another module', () => {
 
     const c = emitC(ir);
     assert.match(c, /void screen_setBorderColor\(uint8_t color\)/);
-    assert.match(c, /screen_setBorderColor\(6\);/); // main() calling with BorderColor.Blue inlined
+    assert.match(c, /screen_setBorderColor\(6\);/); // main() calling with BorderColor.BLUE inlined
     // Inside the function body: read-modify-write against the packed
     // register, masking to preserve the bits `color` does not own.
     assert.match(c, /\(\*\(volatile uint8_t \*\)36879\) & 248/);
@@ -182,7 +182,7 @@ test('an exported namespace works when imported from another module', () => {
     const as = emitAssemblyScript(ir);
     assert.ok(as.ok);
     assert.match(as.source, /screen_setBorderColor\(color: u8\): void/);
-    assert.match(as.source, /screen_setBorderColor\(6\);/);
+    assert.match(as.source, /screen_setBorderColor\(<u8>6\);/);
     assert.match(as.source, /load<u8>\(36879\) & 248/);
     assert.match(as.source, /color & 7/);
     assert.match(as.source, /store<u8>\(36879, /);

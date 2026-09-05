@@ -14,10 +14,10 @@ import { link, resolveSpecifier } from '../index.mjs';
 import { emitC } from '../../backend-6502/src/index.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-// examples/borders depends on @8bitscript/screen and @8bitscript/text,
+// examples/proof-of-concept/borders depends on @8bitscript/screen and @8bitscript/text,
 // whose nes branches delegate to @8bitscript/nes/screen and
 // @8bitscript/nes/text — the real pnpm-linked graph, not a fixture.
-const BORDERS_SRC = join(HERE, '..', '..', '..', 'examples', 'borders', 'src');
+const BORDERS_SRC = join(HERE, '..', '..', '..', 'examples', 'proof-of-concept', 'borders', 'src');
 const ENTRY = join(BORDERS_SRC, 'nes-consumer.8bs');
 
 test('resolving @8bitscript/text for nes carries the CHR-ROM font as a native source', () => {
@@ -43,7 +43,7 @@ test('a screen and text consumer links for nes with the font in ir.nativeSources
     'export function main(): void {',
     '    text.putChar(99, 84);',
     '    screen.setColors(0x2C, 0x01);',
-    '    text.showDigit(104, 3);',
+    '    text.printNumber(104, 3, 1);',
     '}',
   ].join('\n');
   // (The 99 and 104 are cells of the 28x26 grid inside the frame — the
@@ -64,12 +64,23 @@ test('a screen and text consumer links for nes with the font in ir.nativeSources
   // PPUDATA ($2007 = 8199); and the scroll reset after every write
   // (PPUCTRL $2000 = 8192, PPUSCROLL $2005 = 8197).
   assert.match(c, /\*\(volatile uint8_t \*\)8198 = \(address \/ 256\);/);
-  assert.match(c, /\*\(volatile uint8_t \*\)8199 = code;/);
   assert.match(c, /\*\(volatile uint8_t \*\)8197 = 0;/);
+  // A character goes into the write queue, not to the PPU: putChar opens a
+  // run at the cell's address and adds the code; nesVerticalBlank() —
+  // the frame hook the backend calls at every vertical blank — is what
+  // writes PPUDATA ($2007 = 8199), and it is the only thing that does.
+  assert.match(c, /static void text_putChar\(uint16_t cell, uint8_t code\) \{\n\s+locate\(cell\);\n\s+queueByte\(code\);/);
+  assert.equal((c.match(/\*\(volatile uint8_t \*\)8199 = /g) ?? []).length, 4,
+    'PPUDATA is written by the queue delivery, the frame/blank fill, the text palette in showPicture, and a palette write with the picture off');
+  assert.match(c, /static void nesVerticalBlank\(void\) \{/);
+  // A full queue waits for the next vertical blank (PPUSTATUS $2002 =
+  // 8194 read once to clear a stale flag, then polled for bit 7) before
+  // it delivers: a delivery mid-frame would corrupt the picture.
+  assert.match(c, /static void deliverAtVerticalBlank\(void\) \{\n\s+\(\*\(volatile uint8_t \*\)8194\);\n\s+while \(\(\(\*\(volatile uint8_t \*\)8194\) < 128\)\) \{\n\s+\}\n\s+nesVerticalBlank\(\);/);
   // Palette entries in order: backdrop, text (white, $30 = 48), frame —
   // from setColors's two parameters.
   assert.match(c, /void screen_setColors\(uint8_t border, uint8_t background\)/);
-  assert.match(c, /8199 = background;\n\s+\*\(volatile uint8_t \*\)8199 = 48;\n\s+\*\(volatile uint8_t \*\)8199 = border;/);
+  assert.match(c, /setPalette\(16128, background\);\n\s+setPalette\(16130, border\);\n\s+showPicture\(\);/);
 });
 
 test('the same graph linked for web carries no native sources', () => {
@@ -81,7 +92,7 @@ test('the same graph linked for web carries no native sources', () => {
   assert.deepEqual(ir.nativeSources, []);
 });
 
-test('examples/borders main.8bs links clean for nes', () => {
+test('examples/proof-of-concept/borders main.8bs links clean for nes', () => {
   const file = join(BORDERS_SRC, 'main.8bs');
   const { ir, diagnostics } = link(readFileSync(file, 'utf8'), file, { machine: 'nes' });
   assert.deepEqual(diagnostics, []);

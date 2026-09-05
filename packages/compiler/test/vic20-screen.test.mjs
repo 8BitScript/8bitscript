@@ -13,11 +13,12 @@ import { emitC } from '../../backend-6502/src/index.mjs';
 import { buildWasm } from '../../backend-web/src/index.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-// hello-vic already depends on @8bitscript/vic20 with workspace:*, so this
-// resolves through a real pnpm-linked node_modules, not a hand-rolled
-// fixture — the entry text is passed directly; only its directory needs to
-// exist for the resolver to walk up from.
-const HELLO_VIC_SRC = join(HERE, '..', '..', '..', 'examples', 'hello-vic', 'src');
+// This package lists @8bitscript/vic20 as a workspace:* devDependency, so a
+// file under test/fixtures resolves it through a real pnpm-linked
+// node_modules, not a hand-rolled fixture — the entry text is passed
+// directly; only its directory needs to exist for the resolver to walk up
+// from.
+const FIXTURES = join(HERE, 'fixtures');
 const VIC20_SCREEN_FILE = join(HERE, '..', '..', 'vic20', 'src', 'screen.8bs');
 
 // ---- the real package: BorderColor/BackgroundColor have the sizes the VIC-20 actually supports ----
@@ -29,22 +30,22 @@ const vic20ScreenIr = () => {
   return lower(ast, VIC20_SCREEN_FILE).ir;
 };
 
-test('BorderColor has exactly the 8 colours the border field can hold', () => {
+test('BorderColor has exactly the 8 colours the border field can hold, plus KEEP', () => {
   const ir = vic20ScreenIr();
   const border = ir.namespaces.find((ns) => ns.name === 'BorderColor');
-  assert.equal(border.consts.size, 8);
+  assert.equal(border.consts.size, 9);
   assert.deepEqual([...border.consts.keys()], [
-    'Black', 'White', 'Red', 'Cyan', 'Purple', 'Green', 'Blue', 'Yellow',
+    'BLACK', 'WHITE', 'RED', 'CYAN', 'PURPLE', 'GREEN', 'BLUE', 'YELLOW', 'KEEP',
   ]);
-  assert.deepEqual([...border.consts.values()], [0, 1, 2, 3, 4, 5, 6, 7]);
+  assert.deepEqual([...border.consts.values()], [0, 1, 2, 3, 4, 5, 6, 7, 255]);
 });
 
-test('BackgroundColor has all 16 colours the background field can hold', () => {
+test('BackgroundColor has all 16 colours the background field can hold, plus KEEP', () => {
   const ir = vic20ScreenIr();
   const background = ir.namespaces.find((ns) => ns.name === 'BackgroundColor');
-  assert.equal(background.consts.size, 16);
+  assert.equal(background.consts.size, 17);
   assert.deepEqual([...background.consts.values()], [
-    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 255,
   ]);
 });
 
@@ -58,15 +59,15 @@ test('a program using screen.setColors links against the real vic20 package', ()
   const consumer = [
     'import { screen, BorderColor, BackgroundColor } from "@8bitscript/vic20/screen";',
     'export function main(): void {',
-    '    screen.setColors(BorderColor.Blue, BackgroundColor.Black);',
+    '    screen.setColors(BorderColor.BLUE, BackgroundColor.BLACK);',
     '}',
   ].join('\n');
-  const entryFile = join(HELLO_VIC_SRC, 'screen-consumer.8bs');
+  const entryFile = join(FIXTURES, 'screen-consumer.8bs');
   const { ir, diagnostics } = link(consumer, entryFile);
   assert.deepEqual(diagnostics, []);
 
   const c = emitC(ir);
-  assert.match(c, /screen_setColors\(6, 0\);/); // BorderColor.Blue, BackgroundColor.Black inlined
+  assert.match(c, /screen_setColors\(6, 0\);/); // BorderColor.BLUE, BackgroundColor.BLACK inlined
   // The register is the one @8bitscript/vic20 exports, reached by name; the
   // $900F address appears exactly once, in its #define.
   assert.match(c, /#define vicColor \(\*\(volatile uint8_t \*\)0x900F\)/);
@@ -81,9 +82,9 @@ test('referencing a colour name a namespace does not have is a compile error', (
   // unrepresentable at all rather than merely unwise.
   const consumer = [
     'import { screen, BorderColor, BackgroundColor } from "@8bitscript/vic20/screen";',
-    'export function main(): void { screen.setColors(BorderColor.Orange, BackgroundColor.Black); }',
+    'export function main(): void { screen.setColors(BorderColor.ORANGE, BackgroundColor.BLACK); }',
   ].join('\n');
-  const entryFile = join(HELLO_VIC_SRC, 'screen-consumer-bad.8bs');
+  const entryFile = join(FIXTURES, 'screen-consumer-bad.8bs');
   const { ir, diagnostics } = link(consumer, entryFile);
   assert.equal(ir, null);
   assert.deepEqual(diagnostics.map((d) => d.code), ['8BS2005']);
@@ -167,7 +168,8 @@ test('every background colour (0..15) lands in exactly its own 4 bits', async ()
 });
 
 test('a border colour past the 3-bit field wraps: 14 shows as 6', async () => {
-  // docs/learn/step1-main-loop.md promises exactly this.
+  // The border field is 3 bits wide, so a value past 7 wraps — the packing
+  // rule the vic20 package's screen.8bs documents, checked for real here.
   const mem = await runPackingProgram();
   assert.equal(mem[0x1130] & 0x07, 6);
 });
