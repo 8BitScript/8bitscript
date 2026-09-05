@@ -60,13 +60,14 @@ let score: u8 = 300;
 
 That covers lexical problems, syntax errors, the integer range rule, and
 unresolved imports —
-a package you have not installed, or one that is not an 8BitScript package, is
-underlined on the import line. Import resolution needs a saved file: an
+a package you have not installed, one that is not an 8BitScript package, or a
+subpath a package does not export, is underlined on the import line. Import resolution needs a saved file: an
 untitled buffer still gets every other diagnostic.
 
-`seconds(...)` diagnostics (an invalid argument, a duration that rounds to
+`seconds(...)` diagnostics (an invalid argument, a clock name it doesn't
+know — `FRAMES` is the only one, and the default — a duration that rounds to
 zero frames, one that isn't exact, a decimal literal used outside
-`seconds(...)`, or a declaration that shadows the reserved name) use the same
+`seconds(...)`, or a declaration that shadows a reserved name) use the same
 project-level `frameRate` a real build would (`8bs.config.ts`, default 60):
 the server walks upward from the open file looking for `8bs.config.ts`, the
 same way it would be found from any file inside the project, so the editor
@@ -75,8 +76,8 @@ buffer, with no file on disk to walk up from, assumes the default 60.
 
 Hover and a first slice of completion, both for built-in constructs. Hovering
 a primitive type (`utinyint`, `u8`, `int`, ...), `volatile`, `ptr`, `array`,
-`asm6502`, `@address`, `memory.read`/`memory.write`, or `seconds(...)`
-explains it in place:
+`asm6502`, `@address`, `memory.read`/`memory.write`, `seconds(...)`, `FRAMES`,
+or `waitFrame()` explains it in place:
 
 ```
 let lives: utinyint = 3;
@@ -105,8 +106,9 @@ whole reason for this architecture.
 
 ## Two layers of highlighting
 
-Basic colouring — keywords, types, strings, numbers — comes from a TextMate
-grammar in the editor extension. It is fast, works with no server running, and
+Basic colouring — keywords, types, strings, numbers, and the reserved builtins
+(`seconds(...)`, `FRAMES`, `waitFrame()`) — comes from a TextMate grammar in
+the editor extension (`editors/vscode/syntaxes/8bs.tmLanguage.json`). It is fast, works with no server running, and
 does not need to understand the program.
 
 Semantic highlighting comes later from the language server, which can tell a

@@ -2,7 +2,7 @@
   "name": "step1-main-loop",
   "version": "0.0.0",
   "private": true,
-  "description": "Learn 8BitScript, step 1: the main file, main(), and the loop that keeps the program alive — on the VIC-20 or the C64.",
+  "description": "Learn 8BitScript, step 1: the main file, main(), and the loop that keeps the program alive \u2014 on the VIC-20 or the C64.",
   "license": "MIT",
   "scripts": {
     "start": "8bs run vic20",
@@ -18,7 +18,7 @@
     "@8bitscript/cli": "workspace:*"
   },
   "dependencies": {
-    "@8bitscript/machine": "workspace:*"
+    "@8bitscript/screen": "workspace:*"
   },
   "type": "module"
 }

@@ -29,6 +29,7 @@ import {
   atari800CleanDisplayConfig,
 } from './run.mjs';
 import { encodePNG } from './png.mjs';
+import { runProgram } from './wasm-host.mjs';
 import { glyphRows } from './font8x8.mjs';
 import {
   BORDER_PX, CHAR_BASE, CHAR_H, CHAR_W, COLOR_BASE, COLORS, GRID_COLS, GRID_ROWS,
@@ -304,8 +305,8 @@ async function nesScreenshot(outFile, screenshotPath, { frames }) {
 // ---- Web (Node's own WebAssembly runtime) -----------------------------------
 //
 // The cleanest of the nine: no emulator, no process, no timing guesswork.
-// This calls main() then frame() exactly --frames times against the real
-// .wasm build, then rasterizes the exact same virtual screen web-runtime.mjs's
+// This runs the real .wasm build for exactly --frames waitFrame() calls (or
+// until it returns), then rasterizes the exact same virtual screen web-runtime.mjs's
 // browser canvas draws — imported from there directly (COLORS, the grid/
 // border layout, CHAR_BASE/COLOR_BASE) so there's exactly one place that
 // describes this layout, not two hand-synced copies — using an 8x8 bitmap
@@ -334,15 +335,13 @@ function fillRect(rgba, width, x0, y0, w, h, color) {
 
 async function webScreenshot(outFile, screenshotPath, { frames, frameRate = 60 }) {
   const bytes = await readFile(outFile);
-  const { instance } = await WebAssembly.instantiate(bytes, {});
-  if (typeof instance.exports.main !== 'function' || typeof instance.exports.frame !== 'function') {
-    throw new Error('8bs run: web --screenshot needs a program that exports both main() and frame().');
-  }
-  instance.exports.main();
-  const defaultFrames = frameRate * WEB_DEFAULT_FRAME_SECONDS;
-  for (let i = 0; i < (frames ?? defaultFrames); i += 1) instance.exports.frame();
+  // The program runs until it returns or has taken --frames waitFrame()s
+  // (3 logical seconds' worth by default), whichever comes first; a program
+  // that never calls waitFrame() and never returns cannot be bounded and
+  // would spin here, exactly as it would on a real machine.
+  const { memory } = await runProgram(bytes, { frames: frames ?? frameRate * WEB_DEFAULT_FRAME_SECONDS });
 
-  const mem = new Uint8Array(instance.exports.memory.buffer);
+  const mem = new Uint8Array(memory.buffer);
   const innerW = GRID_COLS * CHAR_W;
   const innerH = GRID_ROWS * CHAR_H;
   const width = innerW + BORDER_PX * 2;

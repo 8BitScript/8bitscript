@@ -1,0 +1,75 @@
+// @8bitscript/c128/text — the C128's implementation of @8bitscript/text.
+//
+// Named by "8bitscript".exports["./text"] in this package's package.json,
+// and what
+//
+//     import { text } from "@8bitscript/text";
+//
+// resolves to when the build is for the C128. Built on the registers
+// @8bitscript/c128 exports. Every machine's text.8bs exports this same
+// namespace — the same names, the same shapes, ASCII codes, and a cell 0
+// at the top-left corner inside the border — so a program that imports it
+// from @8bitscript/text draws the same thing on every target.
+import { memoryPointer, memoryPointerShadow } from "./index.8bs";
+
+// There is no general text API yet (that's `text.putChar(x, y, code)` in
+// docs/roadmap.md, not built — this `putChar` takes one flat cell index
+// instead of x/y), so these are the plainest things that can stand in for
+// one: poke one cell's character code, poke one cell's colour, and how many
+// cells the whole screen has. Whether a caller uses these to clear the
+// screen, lay out a label, or nothing at all is entirely up to the caller —
+// this package draws nothing on its own. In the C128's native 40-column
+// mode the default screen RAM is $0400 (40x25, 1000 cells — same as the
+// C64's, for the same backward-compatibility reasons the KERNAL keeps the
+// C64's screen editor conventions), colour RAM fixed at $D800.
+//
+// ---- character codes: ASCII in, screen codes out ----------------------------
+//
+// `text.putChar` takes ASCII on every machine — space (32), '0'-'9'
+// (48-57), 'A'-'Z' (65-90) and the punctuation `! , - . : ?` — upper case
+// only: that is the portable set, the characters every target's character
+// set has (the NES ships its own font, and that is what it has). The
+// hardware wants screen codes: in every Commodore character ROM, codes
+// 32-63 are those same ASCII values (space, digits, that punctuation), and
+// 'A'-'Z' are 1-26, so asciiToScreenCode() moves 64-95 down by 64 and
+// leaves 32-63 alone. Whether 1-26 then LOOK like 'A'-'Z' or 'a'-'z' is
+// the character set's choice, and the start-up code LLVM-MOS links in
+// front of main() switches these machines to the lower-case set (the one
+// that shows the BASIC banner in lower case — see docs/learn/
+// step1-main-loop.md). So putChar() also selects the upper-case set, every
+// call — writing the KERNAL's shadow first and then the register, since
+// the screen editor's IRQ copies the shadow back over the register (see
+// @8bitscript/c128's `memoryPointerShadow`) — and "TICK" reads as TICK
+// here the way it does on the NES, the Atari, and the X16, none of which
+// have a lower-case set to fall into.
+namespace CharacterSet {
+    const UppercaseScreenAt0400: utinyint = 0x14;
+}
+
+function asciiToScreenCode(code: utinyint): utinyint {
+    if (code >= 64 && code < 96) {
+        return code - 64;
+    }
+    return code;
+}
+
+export namespace text {
+    const CellCount: u16 = 1000; // 40 columns x 25 rows
+
+    function putChar(cell: u16, code: u8): void {
+        memoryPointerShadow = CharacterSet.UppercaseScreenAt0400;
+        memoryPointer = CharacterSet.UppercaseScreenAt0400;
+        memory.write(0x0400 + cell, asciiToScreenCode(code));
+    }
+
+    function putColor(cell: u16, color: u8): void {
+        memory.write(0xD800 + cell, color & 15);
+    }
+
+    // Screen codes 0-9 equal '0'-'9' in the C128's character ROM, same as
+    // the C64's and VIC-20's, so no lookup table is needed here.
+    function showDigit(cell: u16, digit: u8): void {
+        text.putChar(cell, 0x30 + (digit % 10));
+        text.putColor(cell, 1); // white, so the digit reads on any background
+    }
+}

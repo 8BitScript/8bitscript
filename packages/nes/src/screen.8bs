@@ -1,0 +1,160 @@
+// @8bitscript/nes/screen — the NES's implementation of @8bitscript/screen.
+//
+// Named by "8bitscript".exports["./screen"] in this package's package.json,
+// and what
+//
+//     import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";
+//
+// resolves to when the build is for the NES: @8bitscript/screen's entry is
+// keyed by machine and delegates here. Built on the PPU port protocol
+// @8bitscript/nes exports — read that file first for the two VRAM rules
+// this one lives by. Every machine's screen.8bs exports this same surface,
+// which is what lets a program import it from @8bitscript/screen and never
+// name the hardware.
+import { setVramAddress, resetScroll } from "./index.8bs";
+
+// ---- what "border" means on a machine that has none --------------------
+//
+// The NES has no border-colour register. There is no separate border area
+// for one to colour: the PPU's 256x240 picture IS the whole frame, edge to
+// edge, and every one of those pixels comes from a background tile or a
+// sprite (or, where neither covers it, the universal backdrop colour). VIC,
+// VIC-II and GTIA all draw a picture smaller than the raster and paint the
+// margin around it from a dedicated register; the PPU simply has no
+// margin. So the border cannot be a register write here, the way it is on
+// every other target.
+//
+// It is real anyway. This module DRAWS a border: on the first setColors()
+// call it lays a two-tile-thick frame of a solid tile around the edge of
+// the nametable (rows 0-1 and 28-29, columns 0-1 and 30-31), and `border`
+// is the palette entry that solid tile takes its colour from. Two tiles
+// thick, not one, because NTSC televisions — and FCEUX, whose default NTSC
+// view drops the top and bottom 8 lines — overscan the outer tile row
+// away; the inner row survives. The text grid a program draws on (see
+// text.8bs) is the area INSIDE that frame: 28 columns by 26 rows, whose
+// cell 0 is nametable row 2, column 2 — the top-left corner, against the
+// border, which is exactly what cell 0 is on every other target. A program
+// never addresses the frame's own tiles, and never needs to know they
+// exist. The four values setColors() writes are, in the PPU's own terms:
+//
+//     $3F00  universal backdrop     `background`
+//     $3F01  colour index 1         $30 (white) — every glyph in the font
+//     $3F02  colour index 2         `border` — the solid frame tile
+//     $3F03  colour index 3         unused
+//
+// all in background palette 0, which every tile on screen uses (the
+// attribute table is zeroed by the same first call, so no 32x32-pixel block
+// picks another palette). Both colours are NES palette indices — $00-$3F,
+// the 2C02's own colour numbers; $0F is black, $30 white, row $0x dark
+// through row $3x pale — not RGB and not the Commodore/Atari values.
+//
+// The CPU cannot read the PPU's mask register back, so `renderingEnabled`
+// below is this module's own record of having switched rendering on: it
+// is what lets setColors() lay the frame exactly once, on the call that
+// is by construction the last moment a large VRAM write is free.
+
+let renderingEnabled: u8 = 0;
+
+// Loop counters for the one-time frame/attribute fill — globals, not
+// locals, since there are no local variables in the compiled subset yet.
+let fillIndex: usmallint = 0;
+let fillRow: usmallint = 0;
+
+// `count` consecutive nametable cells from `address`, one PPUADDR set and
+// then PPUDATA's auto-increment — the cheap way to write a run.
+function fillRun(address: usmallint, count: usmallint, value: utinyint): void {
+    setVramAddress(address);
+    fillIndex = 0;
+    while (fillIndex < count) {
+        memory.write(0x2007, value);
+        fillIndex = fillIndex + 1;
+    }
+}
+
+// The drawn border: rows 0-1 and 28-29 in full, columns 0-1 and 30-31 of
+// every row between, all tile $80 (solid colour index 2 — see font.s).
+// Then the 64-byte attribute table at $23C0, zeroed: palette 0 everywhere.
+function layFrame(): void {
+    fillRun(0x2000, 64, 0x80);
+    fillRun(0x2380, 64, 0x80);
+    fillRow = 2;
+    while (fillRow < 28) {
+        fillRun(0x2000 + fillRow * 32, 2, 0x80);
+        fillRun(0x2000 + fillRow * 32 + 30, 2, 0x80);
+        fillRow = fillRow + 1;
+    }
+    fillRun(0x23C0, 64, 0x00);
+}
+
+export namespace screen {
+    function setColors(border: u8, background: u8): void {
+        // The first call is by construction the last one made with
+        // rendering off (nothing else switches it on), so the frame and
+        // the attribute table — a few hundred VRAM writes — go in here,
+        // once, with no vblank budget to fit. Every later call is a
+        // handful of writes: fine right after waitFrame().
+        if (renderingEnabled == 0) {
+            layFrame();
+        }
+        setVramAddress(0x3F00);
+        memory.write(0x2007, background); // $3F00: the universal backdrop
+        memory.write(0x2007, 0x30);       // $3F01: text — white
+        memory.write(0x2007, border);     // $3F02: the frame tile
+        resetScroll();
+        if (renderingEnabled == 0) {
+            // Switching rendering on mid-frame would draw the rest of that
+            // frame from wherever the PPU's address register sits — after
+            // the palette writes above, a nametable it has never been
+            // given (the emulator shows zeros; a cartridge shows garbage)
+            // — for one partial frame. So the first enable waits for
+            // vertical blank: PPUSTATUS bit 7 (the value reads as 128 or
+            // more) sets at its start. Only here — a caller that has just
+            // returned from waitFrame() is already in vblank, and spinning
+            // would cost it a whole frame.
+            while (memory.read(0x2002) < 128) {
+            }
+            renderingEnabled = 1;
+        }
+        // PPUMASK: bit 3 shows the background, bit 1 shows it in the
+        // leftmost 8 pixels too — otherwise column 0, the outer edge of
+        // the frame, would be clipped to the backdrop colour. Sprites stay
+        // off.
+        memory.write(0x2001, 0x0A);
+    }
+}
+
+// ---- colour names ----------------------------------------------------------
+//
+// The same eight names every machine's screen.8bs exports — Black, White,
+// Red, Cyan, Purple, Green, Blue, Yellow — so a program can write
+// `screen.setColors(BorderColor.Blue, BackgroundColor.Black)` through
+// @8bitscript/screen and get blue on every target. The values are 2C02
+// palette indices, by the hue columns of NESdev's palette chart ($x2 blue,
+// $x4 purple, $x6 red, $x8 yellow, $xA green, $xC cyan; $0F black, $30
+// white), at the mid-brightness row $1x where the hue is unmistakable,
+// except cyan and yellow, whose $1x entries are too dark to read as their
+// names and so come from row $2x. A program that wants a colour not named
+// here passes its own index to setColors() directly. Not visually verified
+// under FCEUX by this project; the chart is NESdev's.
+
+export namespace BorderColor {
+    const Black: utinyint = 0x0F;
+    const White: utinyint = 0x30;
+    const Red: utinyint = 0x16;
+    const Cyan: utinyint = 0x2C;
+    const Purple: utinyint = 0x14;
+    const Green: utinyint = 0x1A;
+    const Blue: utinyint = 0x12;
+    const Yellow: utinyint = 0x28;
+}
+
+export namespace BackgroundColor {
+    const Black: utinyint = 0x0F;
+    const White: utinyint = 0x30;
+    const Red: utinyint = 0x16;
+    const Cyan: utinyint = 0x2C;
+    const Purple: utinyint = 0x14;
+    const Green: utinyint = 0x1A;
+    const Blue: utinyint = 0x12;
+    const Yellow: utinyint = 0x28;
+}

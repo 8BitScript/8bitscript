@@ -2,7 +2,7 @@
   "name": "borders",
   "version": "0.0.0",
   "private": true,
-  "description": "Cycles the border/background colours forever with a TICK/OPTION readout, from one shared source file on the VIC-20, C64, PET, C128, MEGA65, and web, and from per-target files with their own screen codes on Atari 8-bit, NES, and Commander X16 — the classic first sign of life, on every target this project supports.",
+  "description": "Cycles the border/background colours forever with a TICK/OPTION readout, from one source file on every target this project supports \u2014 VIC-20, C64, PET, C128, MEGA65, Atari 8-bit, NES, Commander X16, and web \u2014 the classic first sign of life.",
   "license": "MIT",
   "scripts": {
     "start": "8bs run vic20",
@@ -42,7 +42,8 @@
     "@8bitscript/cli": "workspace:*"
   },
   "dependencies": {
-    "@8bitscript/machine": "workspace:*"
+    "@8bitscript/screen": "workspace:*",
+    "@8bitscript/text": "workspace:*"
   },
   "type": "module"
 }

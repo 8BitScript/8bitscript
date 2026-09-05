@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 
 import {
   analyze, link, tokenize, parse, foldDurations, NodeType,
+  DURATION_CLOCKS, DEFAULT_DURATION_CLOCK, getHoverInfo,
 } from '../index.mjs';
 
 const codes = (src, options) => analyze(src, 't.8bs', options).map((d) => d.code);
@@ -84,6 +85,70 @@ test('fold: seconds(1) is exact at any integer frameRate', () => {
   assert.equal(at7.ir.globals[0].init, 7);
 });
 
+// ---- fold: the clock argument --------------------------------------------------
+
+test('fold: FRAMES is the only clock and the default one', () => {
+  assert.deepEqual([...DURATION_CLOCKS.keys()], ['FRAMES']);
+  assert.equal(DEFAULT_DURATION_CLOCK, 'FRAMES');
+});
+
+test('fold: seconds(0.5, FRAMES) is the same duration as seconds(0.5), at 60 and at 50', () => {
+  const program = (call) => `let x: utinyint = ${call};\nexport function main(): void {}`;
+  for (const frameRate of [60, 50]) {
+    const bare = link(program('seconds(0.5)'), 't', { frameRate });
+    const named = link(program('seconds(0.5, FRAMES)'), 't', { frameRate });
+    assert.deepEqual(named.diagnostics, []);
+    assert.equal(named.ir.globals[0].init, bare.ir.globals[0].init);
+    assert.equal(named.ir.globals[0].init, frameRate / 2);
+  }
+});
+
+test('fold: the clock argument goes through the same zero/inexact checks as the bare form', () => {
+  assert.deepEqual(codes('let x: utinyint = seconds(0.001, FRAMES);'), ['8BS1023']);
+  const d = analyze('let x: utinyint = seconds(0.5, FRAMES);', 't.8bs', { frameRate: 7 });
+  assert.equal(d.length, 1);
+  assert.equal(d[0].code, '8BS1024');
+  assert.match(d[0].message, /seconds\(0\.5, FRAMES\) is not exact .* rounded to 4 frames/);
+});
+
+test('fold: an unknown clock is its own diagnostic, at the clock name, naming the clocks that exist', () => {
+  const src = 'let x: utinyint = seconds(0.5, frames);';
+  const d = analyze(src, 't.8bs');
+  assert.equal(d.length, 1, 'no cascade — the decimal literal is consumed, not re-flagged');
+  assert.equal(d[0].code, '8BS1025');
+  assert.equal(d[0].start, src.indexOf('frames)'));
+  assert.equal(d[0].length, 'frames'.length);
+  assert.match(d[0].message, /'frames' is not a clock/);
+  assert.match(d[0].message, /FRAMES \(the default\)/);
+});
+
+test('fold: a clock in the wrong position, a non-identifier clock, or a third argument is the shape diagnostic', () => {
+  assert.deepEqual(codes('let x: utinyint = seconds(FRAMES);'), ['8BS1022']);
+  assert.deepEqual(codes('let x: utinyint = seconds(FRAMES, 0.5);'), ['8BS1022']);
+  assert.deepEqual(codes('let x: utinyint = seconds(0.5, 60);'), ['8BS1022']);
+  assert.deepEqual(codes('let x: utinyint = seconds(0.5, FRAMES, 1);'), ['8BS1022']);
+});
+
+test('fold: the shape diagnostic shows the two-argument form too', () => {
+  const [d] = analyze('let x: utinyint = seconds();', 't.8bs');
+  assert.equal(d.code, '8BS1022');
+  assert.match(d.message, /seconds\(0\.5, FRAMES\)/);
+});
+
+test('fold: foldDurations consumes the clock identifier so the linker never tries to resolve it', () => {
+  const src = 'let x: utinyint = seconds(0.5, FRAMES);\nexport function main(): void {}';
+  const { diagnostics } = link(src, 't');
+  assert.deepEqual(diagnostics, []);
+});
+
+test('hover explains FRAMES', () => {
+  const text = 'let x: utinyint = seconds(0.5, FRAMES);';
+  const info = getHoverInfo(text, text.indexOf('FRAMES') + 1);
+  assert.ok(info);
+  assert.match(info.markdown, /\*\*FRAMES\*\*/);
+  assert.match(info.markdown, /default/);
+});
+
 test('fold: seconds(...) that overflows the declared type gets the existing width diagnostic, folded first', () => {
   assert.deepEqual(codes('let x: utinyint = seconds(100);'), ['8BS1021']);
 });
@@ -132,4 +197,13 @@ test('reserved name: declaring or importing "seconds" is a diagnostic, not silen
   assert.deepEqual(codes('let seconds: u8 = 1;'), ['8BS2009']);
   assert.deepEqual(codes('import { seconds } from "./x.8bs";'), ['8BS2009']);
   assert.deepEqual(codes('function f(seconds: u8): void { }'), ['8BS2009']);
+});
+
+test('reserved name: a duration clock ("FRAMES") is reserved the same way', () => {
+  const [d] = analyze('let FRAMES: u8 = 60;', 't.8bs');
+  assert.equal(d.code, '8BS2009');
+  assert.match(d.message, /duration clock, seconds\(\.\.\., FRAMES\)/);
+  assert.deepEqual(codes('function FRAMES(): void { }'), ['8BS2009']);
+  assert.deepEqual(codes('import { FRAMES } from "./x.8bs";'), ['8BS2009']);
+  assert.deepEqual(codes('function f(FRAMES: u8): void { }'), ['8BS2009']);
 });

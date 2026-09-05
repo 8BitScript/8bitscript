@@ -1,8 +1,9 @@
 // The checker.
 //
 // Two rules so far: an integer literal has to fit the type it is assigned
-// to, and `seconds` — the `seconds(...)` compile-time duration builtin's
-// name (packages/compiler/src/fold) — is reserved.
+// to, and the builtins' names — `seconds` and its clocks such as `FRAMES`
+// (packages/compiler/src/fold) and `waitFrame` (packages/compiler/src/ir) —
+// are reserved.
 //
 // This used to pattern-match a fixed token shape because there was no tree to
 // walk. It now runs on the AST, which is what the parser bought: the rule finds
@@ -18,20 +19,31 @@
 import { Codes, diagnostic } from '../diagnostics/index.mjs';
 import { NodeType, walk } from '../ast/index.mjs';
 import { resolveIntegerType } from '../types/index.mjs';
+import { DURATION_CLOCKS } from '../fold/index.mjs';
 
-// `seconds` has no per-machine backing and is not imported from
-// @8bitscript/machine — it is a pure compile-time fold, closer to a keyword
-// than to an ordinary name, but implemented as a reserved identifier rather
-// than a grammar keyword (see foldDurations() in packages/compiler/src/
-// fold for why). A user declaring or importing a binding by this name would
-// otherwise be silently reinterpreted by the fold pass instead of getting a
-// clear diagnostic.
-const RESERVED_BUILTIN_NAMES = new Set(['seconds']);
+// The language's builtins, none of which is imported from @8bitscript/screen
+// or declared anywhere a binder could find: `seconds(...)` is a pure
+// compile-time fold (packages/compiler/src/fold) and the clock names it
+// accepts as a second argument (`FRAMES`) are consumed by that same fold,
+// `waitFrame()` lowers to its own IR kind that every backend emits in its
+// own way (packages/compiler/src/ir). All are closer to keywords than to
+// ordinary names, but implemented as reserved identifiers rather than
+// grammar keywords — a call's *shape* is an ordinary call, and keywords are
+// not valid callees or arguments. Reserving the names here is what keeps a
+// user's own `seconds`/`FRAMES`/`waitFrame` from being silently
+// reinterpreted as the builtin instead of getting a clear diagnostic.
+const RESERVED_BUILTIN_NAMES = new Map([
+  ['seconds', 'the built-in duration constructor, seconds(...)'],
+  ...[...DURATION_CLOCKS.keys()].map((name) => [
+    name, `the built-in duration clock, seconds(..., ${name})`,
+  ]),
+  ['waitFrame', 'the built-in frame wait, waitFrame()'],
+]);
 
 function reservedNameDiagnostic(nameNode, file) {
   return diagnostic(
     Codes.RESERVED_BUILTIN_NAME,
-    `'${nameNode.name}' is reserved for the built-in duration constructor, seconds(...)`,
+    `'${nameNode.name}' is reserved for ${RESERVED_BUILTIN_NAMES.get(nameNode.name)}`,
     file, nameNode.start, nameNode.length,
   );
 }

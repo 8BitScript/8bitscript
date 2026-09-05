@@ -10,7 +10,7 @@
     "run:vic20": "8bs run vic20"
   },
   "dependencies": {
-    "@8bitscript/core": "workspace:*",
+    "@8bitscript/text": "workspace:*",
     "@8bitscript/vic20": "workspace:*"
   },
   "devDependencies": {

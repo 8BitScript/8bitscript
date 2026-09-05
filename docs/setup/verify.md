@@ -100,7 +100,7 @@ cleared:
 | cx16 | x16emu's `-gif` recording, read back with `ffmpeg` for a still of the last frame | wall-clock seconds | ~5s |
 | mega65 | Xemu's own `-screenshot <file>` (fires on a plain `SIGTERM`, not just a clean quit) | wall-clock seconds | ~8s |
 | nes | a small FCEUX Lua script: `emu.frameadvance()` in a loop, then `gui.savescreenshotas()` | exact emulated frames | 120 |
-| web | Node's own WebAssembly runtime calls `frame()` directly — no emulator, no timing guesswork, the only target with a frame-exact and OS-independent capture | exact `frame()` calls | 180 |
+| web | Node's own WebAssembly runtime runs the program with a counting `waitFrame()` that stops it after exactly N frames — no emulator, no timing guesswork, the only target with a frame-exact and OS-independent capture | exact `waitFrame()` calls | 180 (3 seconds at the default `frameRate`) |
 
 Every mechanism above is the target's own emulator API — a version of what
 [`packages/cli/test/emulator-smoke.test.mjs`](../../packages/cli/test/emulator-smoke.test.mjs)

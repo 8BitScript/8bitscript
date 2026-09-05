@@ -94,7 +94,7 @@ function loadGraph(entryText, entryFile, diagnostics, sources, options) {
       if (!resolved) {
         diagnostics.push(diagnostic(
           Codes.NOT_COMPILABLE,
-          `import specifier '${imp.source}' is not linkable yet: only './file.8bs' paths and bare package names are specified`,
+          `import specifier '${imp.source}' is not linkable yet: only './file.8bs' paths, bare package names, and package subpaths ('@scope/name/thing') are specified`,
           module.file, imp.start, imp.length,
         ));
         continue;
@@ -403,12 +403,65 @@ function rewriteStatement(statement, scope, module, diagnostics) {
 }
 
 /**
+ * The entry module's one export is the program.
+ *
+ * Exactly one thing may be exported from the entry module, it must be a
+ * function, and it must take no parameters: that function is what the 6502
+ * backend's synthesised C `main` calls and what the web host's worker calls,
+ * bare. Any name is fine (`main` is the convention, not a rule). Other
+ * modules — packages, libraries — export whatever they like; this rule is
+ * about the file a build starts from.
+ *
+ * @returns {{ name: string|null, diagnostics: object[] }} the entry
+ *   function's source name (null when the rule failed).
+ */
+function checkEntryExports(module) {
+  const diagnostics = [];
+  const at = (item, message) => diagnostics.push(diagnostic(
+    Codes.ENTRY_EXPORTS, message, module.file, item.start ?? 0, item.length ?? 0,
+  ));
+
+  const functions = module.ir.functions.filter((fn) => fn.exported);
+  const globals = module.ir.globals.filter((g) => g.exported);
+  const namespaces = (module.ir.namespaces ?? []).filter((ns) => ns.exported);
+
+  for (const g of globals) {
+    at(g, `the entry module may export only its entry function; '${g.name}' is a global`);
+  }
+  for (const ns of namespaces) {
+    at(ns, `the entry module may export only its entry function; '${ns.name}' is a namespace`);
+  }
+  if (functions.length === 0) {
+    if (globals.length === 0 && namespaces.length === 0) {
+      at({}, 'the entry module exports nothing; export exactly one function to be the program');
+    } else {
+      at({}, 'the entry module exports no function; export exactly one to be the program');
+    }
+    return { name: null, diagnostics };
+  }
+  if (functions.length > 1) {
+    for (const fn of functions) {
+      at(fn, `the entry module must export exactly one function, its entry point; '${fn.name}' is one of ${functions.length}`);
+    }
+    return { name: null, diagnostics };
+  }
+  const [entry] = functions;
+  if (entry.params.length > 0) {
+    at(entry, `the entry point '${entry.name}' must take no parameters`);
+    return { name: null, diagnostics };
+  }
+  return { name: diagnostics.length === 0 ? entry.name : null, diagnostics };
+}
+
+/**
  * Link a program from its entry module.
  *
  * The full front end runs over every module in the graph, so the diagnostics
  * returned cover all of them — the `sources` map carries each file's text for
  * rendering positions. `ir` is null whenever there are diagnostics: a program
- * with any error in any module is not linked.
+ * with any error in any module is not linked. The linked IR carries `entry`,
+ * the output name of the entry module's one exported function (see
+ * checkEntryExports).
  *
  * @param {string} entryText  The entry module's source.
  * @param {string} entryFile  Its absolute path, the root imports resolve from.
@@ -416,7 +469,7 @@ function rewriteStatement(statement, scope, module, diagnostics) {
  *   `machine` is the target being built for; packages with target-
  *   conditional entries resolve to that machine's implementation, and any
  *   `.8bs` file with a `.<machine>.8bs` twin beside it resolves to the
- *   twin. `frameRate` (default 60) is the project's logical frame() rate —
+ *   twin. `frameRate` (default 60) is the project's logical frame rate —
  *   see 8bs.config.ts — that every `seconds(...)` call in the graph folds
  *   against.
  * @returns {{ ir: object|null, diagnostics: object[], sources: Map<string,string> }}
@@ -426,6 +479,9 @@ export function link(entryText, entryFile, options = {}) {
   const sources = new Map();
 
   const { modules, nativeSources } = loadGraph(entryText, entryFile, diagnostics, sources, options);
+  // modules[0] is the entry: loadGraph enqueues it before walking imports.
+  const entry = checkEntryExports(modules[0]);
+  diagnostics.push(...entry.diagnostics);
   bindImports(modules, diagnostics);
   if (diagnostics.length > 0) return { ir: null, diagnostics, sources };
 
@@ -435,7 +491,10 @@ export function link(entryText, entryFile, options = {}) {
   // files a backend passes through to its toolchain untouched (the 6502
   // backend hands them to LLVM-MOS beside the generated C; the web backend
   // has no use for 6502 assembly or CHR data and ignores it).
-  const ir = { imports: [], globals: [], functions: [], nativeSources };
+  const ir = {
+    imports: [], globals: [], functions: [], nativeSources,
+    entry: modules[0].rename.get(entry.name),
+  };
   for (const module of modules) {
     const scope = new Map(module.rename);
     for (const [local, binding] of module.bindings) {

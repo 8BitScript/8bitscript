@@ -1,25 +1,28 @@
-// The web target's real runtime: a browser tab, a canvas, and a fixed-
-// timestep requestAnimationFrame loop — what docs/learn/step1-main-loop.md
-// called "its own step, once the runtime for it exists."
+// The web target's real runtime: a browser tab, a canvas, and a worker.
 //
-// A wasm's exported `frame()` (see examples/borders/src/main.8bs, or any
-// other program that exports one — this host is generic, not specific to
-// borders) is called once per *logical* tick, not once per rAF callback. rAF
-// fires at whatever rate the display actually refreshes — 60Hz, 120Hz, 144Hz,
-// 50Hz — and a program should not have to know or care which. So the host
-// accumulates real elapsed time and drains it in fixed steps of the
-// project's configured `frameRate` (8bs.config.ts, default 60): on a screen
-// that refreshes at exactly that rate it's one frame() per callback, on a
-// faster screen it's one every other callback (or less often), on a slower
-// one it's sometimes two. One build runs correctly anywhere, which is the
-// point — there is no web equivalent of --pal because nothing here is tied
-// to a machine's real refresh rate to begin with.
+// The program — the .wasm's one exported function — runs in a Web Worker,
+// exactly as it would run on a real machine: it owns its thread, loops
+// forever if it wants to, and calls waitFrame() to wait for the next frame.
+// The page is the video chip. It never calls into the program; it paints the
+// program's screen memory (shared with the worker) every display refresh,
+// and releases one logical frame at a time on a fixed timestep at the
+// project's configured `frameRate` (8bs.config.ts, default 60) — the same
+// rate on every target, whatever the display actually refreshes at (60Hz,
+// 120Hz, 144Hz, 50Hz). waitFrame() in the worker is a wasm import that blocks
+// on `Atomics.wait` until the page releases a frame: one build runs correctly
+// anywhere, and there is no web equivalent of --pal because nothing here is
+// tied to a machine's real refresh rate to begin with.
+//
+// A program that never calls waitFrame() runs the same way. One that returns
+// simply ends (the page says so); one that spins burns its own worker, not
+// the tab — the page keeps painting whatever was last written, like a real
+// machine with a program stuck in a loop.
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 
 // The C64's palette (0-15), reused so a colour number means the same thing
 // in every 8BitScript example, on whichever machine it runs on. See the
-// header comment on @8bitscript/web's applyColors() for why the web target
+// header comment on @8bitscript/web/screen's setColors() for why the web target
 // borrows this rather than defining its own. Exported (with the layout
 // constants below) so screenshot.mjs's --screenshot path can rasterize the
 // exact same virtual screen this browser canvas draws, without a second,
@@ -55,6 +58,57 @@ const SCREEN_H = INNER_H + BORDER_PX * 2;
 // could both import). Byte 0 is border, byte 1 is background.
 export const CHAR_BASE = 2;
 export const COLOR_BASE = 1002;
+
+// The two words the page and the worker share, in a SharedArrayBuffer beside
+// the program's memory: how many logical frames the page has released, and
+// how many the program has taken. Their difference is how far behind the
+// program is.
+const ISSUED = 0;
+const CONSUMED = 1;
+
+// The worker: the machine the program runs on. It instantiates the program
+// with the one import a program can have — waitFrame(), blocking on the
+// page's frame clock — hands the page its memory to paint, and calls the
+// program's one exported function.
+function renderWorker() {
+  return `
+const ISSUED = ${ISSUED};
+const CONSUMED = ${CONSUMED};
+
+self.onmessage = async ({ data: { ctrl } }) => {
+  // Block until the page has released a frame this program hasn't taken yet.
+  // Returns at once when one is already owed — two logical frames per real
+  // one on a slow display — otherwise sleeps until the page notifies. The
+  // same 0/1/2-frames-per-wait behaviour the 6502 backend's accumulator has.
+  const waitFrame = () => {
+    const next = Atomics.load(ctrl, CONSUMED) + 1;
+    for (let issued; (issued = Atomics.load(ctrl, ISSUED)) < next;) {
+      Atomics.wait(ctrl, ISSUED, issued);
+    }
+    Atomics.store(ctrl, CONSUMED, next);
+  };
+
+  const response = await fetch('/program.wasm');
+  const module = await WebAssembly.compile(await response.arrayBuffer());
+  const shared = WebAssembly.Module.imports(module).some((i) => i.module === 'env' && i.name === 'waitFrame');
+  const instance = await WebAssembly.instantiate(module, { env: { waitFrame } });
+  const entry = Object.values(instance.exports).find((v) => typeof v === 'function');
+
+  // A waitFrame() program's memory is shared, so the page can paint it while
+  // the program runs. One that never waits has ordinary memory: it runs to
+  // completion first, and the page gets a copy of the result to paint.
+  if (shared) self.postMessage({ memory: instance.exports.memory.buffer });
+  try {
+    entry();
+    if (!shared) self.postMessage({ memory: instance.exports.memory.buffer });
+    self.postMessage({ done: true });
+  } catch (error) {
+    if (!shared) self.postMessage({ memory: instance.exports.memory.buffer });
+    self.postMessage({ error: String(error) });
+  }
+};
+`;
+}
 
 function renderHtml(frameRate) {
   return `<!doctype html>
@@ -106,6 +160,8 @@ const INNER_W = ${INNER_W};
 const INNER_H = ${INNER_H};
 const SCREEN_W = ${SCREEN_W};
 const SCREEN_H = ${SCREEN_H};
+const ISSUED = ${ISSUED};
+const CONSUMED = ${CONSUMED};
 
 const canvas = document.getElementById('screen');
 const ctx = canvas.getContext('2d');
@@ -115,7 +171,7 @@ const fpsEl = document.getElementById('fps');
 // @8bitscript/web's WebRegisters (CHAR_BASE/COLOR_BASE, exported above): a
 // virtual 40-column, 1000-cell character screen starting at byte offset 2,
 // its colour bytes starting at offset 1002. The cells hold ASCII — the
-// portable character codes every machine package's screen.putChar takes:
+// portable character codes every machine's text.putChar takes:
 // space, '0'-'9', 'A'-'Z' and a little punctuation, upper case only, 32-95.
 // The Commodore packages turn those into screen codes for a character ROM;
 // this host has no ROM, so it draws them as the text they already are.
@@ -147,100 +203,111 @@ canvas.addEventListener('dblclick', toggleFullscreen);
 window.addEventListener('keydown', (e) => {
   if (e.key === 'f' || e.key === 'F') toggleFullscreen();
 });
-setTimeout(() => hint.classList.add('hidden'), 3000);
+let hintTimer = setTimeout(() => hint.classList.add('hidden'), 3000);
+function say(text) {
+  clearTimeout(hintTimer);
+  hint.textContent = text;
+  hint.classList.remove('hidden');
+}
 
-async function boot() {
-  const res = await fetch('/program.wasm');
-  const { instance } = await WebAssembly.instantiate(await res.arrayBuffer(), {});
-  const mem = new Uint8Array(instance.exports.memory.buffer);
+// A real character ROM's 8×8 bits sit entirely inside the cell. System
+// fonts do not: with textBaseline 'top', glyphs still paint a fraction of
+// a pixel above y, which (scaled up, pixelated) is the top of "TICK"
+// clipping into the border. Shift by that overflow so row 0 stays on
+// the background. Clip to the inner rectangle as well — on the VIC-20/C64
+// characters cannot draw in the border, and a font that overflows a cell
+// should not either.
+ctx.font = CHAR_H + 'px ui-monospace, Menlo, monospace';
+ctx.textBaseline = 'top';
+ctx.textAlign = 'left';
+const glyphY = Math.ceil(ctx.measureText('M').actualBoundingBoxAscent || 0);
 
-  // How many times frame() actually ran in the last real second — the
-  // number that answers "is the fixed logical step (LOGICAL_STEP_MS above)
-  // actually landing the configured frameRate's worth of logical frames a
-  // second," independent of whatever Hz the display itself happens to
-  // refresh at. Sampled once a second, not redrawn every rAF, so the digits
-  // on screen don't flicker every frame.
-  let logicalFrameCount = 0;
-  let logicalFpsWindowStart = null;
-  let logicalFps = 0;
+function paint(mem) {
+  // Byte 0 is border, byte 1 is background — the same two offsets
+  // @8bitscript/web's screen.setColors() writes, agreed on in that
+  // package's WebRegisters.
+  ctx.fillStyle = COLORS[mem[0] & 15];
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = COLORS[mem[1] & 15];
+  ctx.fillRect(BORDER_PX, BORDER_PX, INNER_W, INNER_H);
 
-  // A real character ROM's 8×8 bits sit entirely inside the cell. System
-  // fonts do not: with textBaseline 'top', glyphs still paint a fraction of
-  // a pixel above y, which (scaled up, pixelated) is the top of "TICK"
-  // clipping into the border. Shift by that overflow so row 0 stays on
-  // the background. Clip to the inner rectangle as well — on the VIC-20/C64
-  // characters cannot draw in the border, and a font that overflows a cell
-  // should not either.
-  ctx.font = CHAR_H + 'px ui-monospace, Menlo, monospace';
-  ctx.textBaseline = 'top';
-  ctx.textAlign = 'left';
-  const glyphY = Math.ceil(ctx.measureText('M').actualBoundingBoxAscent || 0);
-
-  function paint() {
-    // Byte 0 is border, byte 1 is background — the same two offsets
-    // @8bitscript/web's applyColors() writes, agreed on there.
-    ctx.fillStyle = COLORS[mem[0] & 15];
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = COLORS[mem[1] & 15];
-    ctx.fillRect(BORDER_PX, BORDER_PX, INNER_W, INNER_H);
-
-    // Whatever the program poked into the virtual character screen — this
-    // host doesn't know or care what any of it means, the same way a real
-    // VIC-20/C64 doesn't know what a program's screen memory says. Blank
-    // cells (never written, or written as a literal space) draw nothing.
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(BORDER_PX, BORDER_PX, INNER_W, INNER_H);
-    ctx.clip();
-    for (let cell = 0; cell < GRID_COLS * GRID_ROWS; cell += 1) {
-      const glyph = decodeScreenCode(mem[CHAR_BASE + cell]);
-      if (glyph === null) continue;
-      const col = cell % GRID_COLS;
-      const row = (cell - col) / GRID_COLS;
-      ctx.fillStyle = COLORS[mem[COLOR_BASE + cell] & 15];
-      ctx.fillText(
-        glyph,
-        BORDER_PX + col * CHAR_W,
-        BORDER_PX + row * CHAR_H + glyphY,
-      );
-    }
-    ctx.restore();
+  // Whatever the program poked into the virtual character screen — this
+  // host doesn't know or care what any of it means, the same way a real
+  // VIC-20/C64 doesn't know what a program's screen memory says. Blank
+  // cells (never written, or written as a literal space) draw nothing.
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(BORDER_PX, BORDER_PX, INNER_W, INNER_H);
+  ctx.clip();
+  for (let cell = 0; cell < GRID_COLS * GRID_ROWS; cell += 1) {
+    const glyph = decodeScreenCode(mem[CHAR_BASE + cell]);
+    if (glyph === null) continue;
+    const col = cell % GRID_COLS;
+    const row = (cell - col) / GRID_COLS;
+    ctx.fillStyle = COLORS[mem[COLOR_BASE + cell] & 15];
+    ctx.fillText(
+      glyph,
+      BORDER_PX + col * CHAR_W,
+      BORDER_PX + row * CHAR_H + glyphY,
+    );
   }
+  ctx.restore();
+}
 
-  instance.exports.main();
-  paint();
-
-  let acc = 0;
-  let last = null;
-  function tick(now) {
-    if (last === null) last = now;
-    acc += now - last;
-    last = now;
-    // A backgrounded/stalled tab shouldn't spin through a huge backlog of
-    // logical frames the instant it regains focus.
-    if (acc > LOGICAL_STEP_MS * 10) acc = LOGICAL_STEP_MS * 10;
-    while (acc >= LOGICAL_STEP_MS) {
-      instance.exports.frame();
-      acc -= LOGICAL_STEP_MS;
-      logicalFrameCount += 1;
+// The frame clock. Real elapsed time accumulates and is released to the
+// program in fixed logical steps — on a display refreshing at exactly
+// frameRate that is one frame per callback, on a faster one fewer, on a
+// slower one sometimes two. The program is *behind* by however many
+// released frames it hasn't taken yet; when that reaches two, a step is
+// dropped rather than banked — the same rule the 6502 backend's accumulator
+// has, where at most about two frames can ever be owed and the rest are
+// lost. Without it, a program that lagged for a while would race through a
+// backlog at full speed afterwards, which no real machine does.
+const ctrl = new Int32Array(new SharedArrayBuffer(8));
+let mem = null;
+let acc = 0;
+let last = null;
+let fpsWindowStart = null;
+let fpsConsumedAtWindowStart = 0;
+function tick(now) {
+  if (last === null) last = now;
+  acc += now - last;
+  last = now;
+  // A backgrounded/stalled tab shouldn't spin through a huge backlog of
+  // logical frames the instant it regains focus.
+  if (acc > LOGICAL_STEP_MS * 10) acc = LOGICAL_STEP_MS * 10;
+  while (acc >= LOGICAL_STEP_MS) {
+    acc -= LOGICAL_STEP_MS;
+    if (Atomics.load(ctrl, ISSUED) - Atomics.load(ctrl, CONSUMED) < 2) {
+      Atomics.add(ctrl, ISSUED, 1);
+      Atomics.notify(ctrl, ISSUED);
     }
-    if (logicalFpsWindowStart === null) logicalFpsWindowStart = now;
-    if (now - logicalFpsWindowStart >= 1000) {
-      logicalFps = logicalFrameCount;
-      logicalFrameCount = 0;
-      logicalFpsWindowStart = now;
-      // This host's own diagnostic, drawn outside the canvas rather than
-      // mixed into whatever the program itself is drawing on its virtual
-      // screen — it isn't something the program can see or control.
-      fpsEl.textContent = 'FPS ' + logicalFps;
-    }
-    paint();
-    requestAnimationFrame(tick);
   }
+  // How many frames the program actually took in the last real second —
+  // the number that answers "is it really running at frameRate," whatever
+  // Hz the display refreshes at. Sampled once a second so the digits don't
+  // flicker. This host's own diagnostic, drawn outside the canvas: not
+  // something the program can see or control.
+  if (fpsWindowStart === null) fpsWindowStart = now;
+  if (now - fpsWindowStart >= 1000) {
+    const consumed = Atomics.load(ctrl, CONSUMED);
+    fpsEl.textContent = 'FPS ' + (consumed - fpsConsumedAtWindowStart);
+    fpsConsumedAtWindowStart = consumed;
+    fpsWindowStart = now;
+  }
+  if (mem) paint(mem);
   requestAnimationFrame(tick);
 }
 
-boot();
+const worker = new Worker('/worker.js');
+worker.onmessage = ({ data }) => {
+  if (data.memory) mem = new Uint8Array(data.memory);
+  if (data.done) say('the program finished');
+  if (data.error) say('the program failed: ' + data.error);
+};
+worker.onerror = (e) => say('the program failed: ' + e.message);
+worker.postMessage({ ctrl });
+requestAnimationFrame(tick);
 </script>
 </body>
 </html>
@@ -253,8 +320,17 @@ function openBrowser(url) {
   return spawn('xdg-open', [url], { stdio: 'ignore' });
 }
 
+// SharedArrayBuffer — what lets the page paint the worker's memory and the
+// worker block on the page's frame clock — is only available to a page that
+// opts into cross-origin isolation with these two headers. Everything this
+// server sends is same-origin, so they cost nothing.
+const ISOLATION_HEADERS = {
+  'Cross-Origin-Opener-Policy': 'same-origin',
+  'Cross-Origin-Embedder-Policy': 'require-corp',
+};
+
 /**
- * Serve a program's .wasm with the canvas/rAF host page, open it in the
+ * Serve a program's .wasm with the canvas page and its worker, open it in the
  * system browser, and keep running until the user interrupts (Ctrl+C) —
  * there is no window-close signal to wait on the way VICE gives run.mjs one.
  *
@@ -265,23 +341,29 @@ function openBrowser(url) {
  *   equivalent — it is a command inside the editor, not a URI or CLI flag —
  *   so the printed URL is always the fallback; pass `open: false` to skip
  *   the OS browser and use only that. `frameRate` is the logical Hz
- *   frame() is paced at (default 60, see 8bs.config.ts).
+ *   waitFrame() is paced at (default 60, see 8bs.config.ts).
  * @returns {Promise<number>} exit code
  */
 export async function runInBrowser(wasmBytes, { open = true, frameRate = 60 } = {}) {
   const html = renderHtml(frameRate);
+  const worker = renderWorker();
   const server = createServer((req, res) => {
     if (req.url === '/') {
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', ...ISOLATION_HEADERS });
       res.end(html);
       return;
     }
+    if (req.url === '/worker.js') {
+      res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', ...ISOLATION_HEADERS });
+      res.end(worker);
+      return;
+    }
     if (req.url === '/program.wasm') {
-      res.writeHead(200, { 'Content-Type': 'application/wasm' });
+      res.writeHead(200, { 'Content-Type': 'application/wasm', ...ISOLATION_HEADERS });
       res.end(wasmBytes);
       return;
     }
-    res.writeHead(404);
+    res.writeHead(404, ISOLATION_HEADERS);
     res.end();
   });
 

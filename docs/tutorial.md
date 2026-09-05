@@ -73,8 +73,9 @@ you're done.
 drawn over the canvas instead — same wording, same layout, same cadence, so
 the two read as one program rather than two demos that happen to share a
 name. It also shows a second, clearly separate number in the corner, `FPS`:
-how many times the program's own `frame()` actually ran in the last real
-second, sampled once a second. It should read this project's `frameRate`
+how many frames the program actually took — `waitFrame()` calls that
+returned — in the last real second, sampled once a second. It should read
+this project's `frameRate`
 (60 by default — see `8bs.config.ts`) no matter the display's actual
 refresh rate — that claim is checked below, not just made.
 
@@ -98,154 +99,156 @@ backend generated alongside it, so what the compiler did is never a mystery.
 `examples/borders/src/main.8bs`:
 
 ```
-import {
-    border, background, applyColors, BorderColor, BackgroundColor, screen,
-} from "@8bitscript/machine";
+import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";
+import { text } from "@8bitscript/text";
 
 let logicalFramesUntilTick: utinyint = seconds(0.5);
 let ticks: utinyint = 0;
 let option: utinyint = 0;
-let clearCell: usmallint = 0;
+let clearCell: usmallint = 0; // global: no local variables yet
 
 function clearScreen(): void {
     clearCell = 0;
-    while (clearCell < screen.CellCount) {
-        screen.putChar(clearCell, 32); // 32 = space
+    while (clearCell < text.CellCount) {
+        text.putChar(clearCell, 32); // 32 = space
         clearCell = clearCell + 1;
     }
 }
 
 function drawLabels(): void {
-    screen.putChar(0, 84);  // T
-    screen.putColor(0, 1);
-    screen.putChar(1, 73);  // I
-    screen.putColor(1, 1);
-    screen.putChar(2, 67);  // C
-    screen.putColor(2, 1);
-    screen.putChar(3, 75);  // K
-    screen.putColor(3, 1);
-    screen.putChar(4, 32);  // space
-    screen.putChar(6, 32);  // space
-    screen.putChar(7, 79);  // O
-    screen.putColor(7, 1);
-    screen.putChar(8, 80);  // P
-    screen.putColor(8, 1);
-    screen.putChar(9, 84);  // T
-    screen.putColor(9, 1);
-    screen.putChar(10, 73); // I
-    screen.putColor(10, 1);
-    screen.putChar(11, 79); // O
-    screen.putColor(11, 1);
-    screen.putChar(12, 78); // N
-    screen.putColor(12, 1);
-    screen.putChar(13, 32); // space
+    text.putChar(0, 84);  // T
+    text.putColor(0, 1);
+    text.putChar(1, 73);  // I
+    text.putColor(1, 1);
+    text.putChar(2, 67);  // C
+    text.putColor(2, 1);
+    text.putChar(3, 75);  // K
+    text.putColor(3, 1);
+    text.putChar(4, 32);  // space
+    text.putChar(6, 32);  // space
+    text.putChar(7, 79);  // O
+    text.putColor(7, 1);
+    text.putChar(8, 80);  // P
+    text.putColor(8, 1);
+    text.putChar(9, 84);  // T
+    text.putColor(9, 1);
+    text.putChar(10, 73); // I
+    text.putColor(10, 1);
+    text.putChar(11, 79); // O
+    text.putColor(11, 1);
+    text.putChar(12, 78); // N
+    text.putColor(12, 1);
+    text.putChar(13, 32); // space
 }
 
 function applyOption(): void {
     if (option == 0) {
-        border = BorderColor.Blue;
-        background = BackgroundColor.Cyan;
+        screen.setColors(BorderColor.Blue, BackgroundColor.Cyan);
     } else if (option == 1) {
-        border = BorderColor.Red;
-        background = BackgroundColor.Purple;
+        screen.setColors(BorderColor.Red, BackgroundColor.Purple);
     } else if (option == 2) {
-        border = BorderColor.Green;
-        background = BackgroundColor.Black;
+        screen.setColors(BorderColor.Green, BackgroundColor.Black);
     } else {
-        border = BorderColor.Purple;
-        background = BackgroundColor.Red;
+        screen.setColors(BorderColor.Purple, BackgroundColor.Red);
     }
 }
 
 export function main(): void {
     clearScreen();
     drawLabels();
-    screen.showDigit(5, 0);
-    screen.showDigit(14, 0);
+    text.showDigit(5, 0);
+    text.showDigit(14, 0);
     applyOption();
-    applyColors();
-}
 
-export function frame(): void {
-    logicalFramesUntilTick = logicalFramesUntilTick - 1;
-    if (logicalFramesUntilTick == 0) {
-        logicalFramesUntilTick = seconds(0.5);
+    while (true) {
+        waitFrame();
 
-        ticks = ticks + 1;
-        screen.showDigit(5, ticks % 10);
+        logicalFramesUntilTick = logicalFramesUntilTick - 1;
+        if (logicalFramesUntilTick == 0) {
+            logicalFramesUntilTick = seconds(0.5);
 
-        if (ticks % 10 == 0) {
-            option = option + 1;
-            if (option == 4) {
-                option = 0;
+            ticks = ticks + 1;
+            text.showDigit(5, ticks % 10);
+
+            if (ticks % 10 == 0) {
+                option = option + 1;
+                if (option == 4) {
+                    option = 0;
+                }
+                applyOption();
+                text.showDigit(14, option);
             }
-            applyOption();
-            applyColors();
-            screen.showDigit(14, option);
         }
     }
 }
 ```
 
-- `@8bitscript/machine` is not a real package on its own — it is a
-  target-conditional entry that resolves to `@8bitscript/vic20`,
-  `@8bitscript/c64`, `@8bitscript/nes`, `@8bitscript/web`, and so on,
-  depending on which machine you build for. Every one of them exports the
-  same `border`, `background`, `applyColors()`, `BorderColor`/
-  `BackgroundColor`, and `screen` namespace, so this file never branches on
-  the machine itself. See [target-conditional
-  entries](packages.md#target-conditional-entries) for how that resolution
-  works.
+- `@8bitscript/screen` and `@8bitscript/text` have no code of their own —
+  each is a target-conditional entry that resolves to the machine package's
+  own implementation: `@8bitscript/vic20/screen`, `@8bitscript/c64/screen`,
+  `@8bitscript/nes/text`, and so on, depending on which machine you build
+  for. Every machine implements the same `screen` namespace
+  (`setColors(border, background)`, with `BorderColor`/`BackgroundColor`
+  beside it) and the same `text` namespace, so this file never branches on
+  the machine itself. One package per capability, so the import lines say
+  which parts of the machine the program uses. See [target-conditional
+  entries](packages.md#target-conditional-entries) and [package
+  subpaths](packages.md#package-subpaths) for how that resolution works.
 - `BorderColor.Blue` and the rest are the same eight names on every
   machine — Black, White, Red, Cyan, Purple, Green, Blue, Yellow — each
   holding whatever that machine's hardware wants for that colour: a
   Commodore colour number, a GTIA hue/luminance byte on the Atari, a
   palette index on the NES. The program says "blue"; the package says what
   blue is.
-- `border` and `background` are ordinary globals until `applyColors()` writes
-  them to hardware — one shared register on the VIC-20, two separate ones on
-  the C64, two bytes in a browser tab's wasm memory on the web. That
-  difference lives inside `applyColors`, not here.
-- `main()` sets up once; `frame()` runs once per *tick*, forever — this file
-  never writes the loop that calls `frame()` itself, because it can't: the
-  loop looks completely different per target (a VIC-20/C64 don't have a
-  browser's event loop to hand control back to, and a browser tab can't
-  busy-loop forever without freezing). What drives `frame()` lives
-  underneath this file instead — the 6502 backend synthesises a driving
-  loop for the VIC-20/C64 (see `packages/backend-6502`), and the web host's
-  own `requestAnimationFrame` loop does it for the browser (see
-  `packages/cli/src/web-runtime.mjs`) — so this file only ever has to say
-  what one tick *does*, not how often it happens. A module that only
-  exports `main`, with no `frame`, is unaffected by any of this: its `main`
-  still means exactly what it always has, the whole program, looping
-  forever on its own (`examples/counter`, `examples/step1-main-loop`).
-- `frame()` runs at the same real rate on every target — this project's
+- `screen.setColors(border, background)` is the line where the screen
+  changes: one shared register on the VIC-20, two separate ones on the C64,
+  two bytes in a browser tab's wasm memory on the web, a palette write and
+  a drawn frame on the NES. That difference lives inside each machine's
+  `setColors`, not here. Both colours in one call, because on the NES and
+  the X16 setting them genuinely is one operation.
+- `main()` is the program: the file's one exported function, where the
+  machine starts (any name works — `main` is the convention, and the
+  compiler insists on exactly one export from the entry file). It sets up
+  once, then loops forever — the loop is written right here, in plain sight,
+  the way every 8-bit program is written: set up, then `while (true)`, one
+  pass per frame.
+- `waitFrame()` is what makes a pass "per frame": it blocks until the next
+  logical frame, then returns — the 8BitScript spelling of the wait-for-
+  vertical-blank every 8-bit program does (cc65 calls it `waitvsync()`).
+  Call it once per pass, and everything after it in the loop happens once a
+  frame. It runs at the same real rate on every target — this project's
   configured `frameRate` (`8bs.config.ts`, default 60), not a per-target
-  guess and not the display's own refresh rate. On the VIC-20/C64 that
-  driving loop waits for the video chip's own raster line to reach the top
-  of the screen between calls — real vertical blank, 60Hz NTSC / 50Hz PAL by
-  construction — and drains a fixed-point accumulator of `frameRate` logical
-  frames owed against it, no calibrated delay constant involved. On the web
-  it's the host's fixed-timestep `requestAnimationFrame` accumulator, which
-  drains real elapsed time in fixed `1/frameRate` steps regardless of the
-  display's actual refresh rate — 60Hz, 120Hz, 144Hz, 50Hz, whatever it is —
-  so `frame()` lands at the same rate on every screen this runs on.
-  `logicalFramesUntilTick`, `ticks`, and `option` are ordinary globals —
-  there are no local variables yet, so every value a function needs to
-  remember across calls lives at module scope.
-- `ticks` is deliberately not called `frames`: `frame()` runs `frameRate`
-  times a second, but the gate above only lets `ticks` advance once every
-  `seconds(0.5)` worth of those calls — about twice a second, whatever
-  `frameRate` is set to. `seconds(0.5)` is a compile-time constant that folds
-  to the exact frame count half a second takes (30 at the default 60, 25 at
-  a configured 50) — not a raw frame count written by hand, so the tick rate
-  never has to be recomputed by hand if `frameRate` changes. "TICK" is what
-  `screen.showDigit()`'s label reads for exactly that reason: a real frame
-  counter would move much faster than what's on screen.
-- `screen.putChar(cell, code)` and `screen.putColor(cell, color)` poke one
+  guess and not the display's own refresh rate. On the VIC-20/C64 it waits
+  for the video chip's own raster line to reach the top of the screen — real
+  vertical blank, 60Hz NTSC / 50Hz PAL by construction — through an exact
+  fixed-point accumulator, so a 60Hz `frameRate` on a 50Hz PAL machine
+  returns twice from one hardware frame every so often and the logical rate
+  never drifts; no calibrated delay constant is involved (see
+  `packages/backend-6502`). On the web the program runs in a worker and
+  `waitFrame()` blocks on the page's frame clock, which releases frames on a
+  fixed `1/frameRate` timestep regardless of the display's actual refresh
+  rate — 60Hz, 120Hz, 144Hz, 50Hz, whatever it is (see
+  `packages/cli/src/web-runtime.mjs`). `logicalFramesUntilTick`, `ticks`,
+  and `option` are ordinary globals — there are no local variables yet, so
+  every value the loop needs to remember across passes lives at module
+  scope.
+- `ticks` is deliberately not called `frames`: `waitFrame()` returns
+  `frameRate` times a second, but the gate below it only lets `ticks`
+  advance once every `seconds(0.5)` worth of those returns — about twice a
+  second, whatever `frameRate` is set to. `seconds(0.5)` is a compile-time
+  constant that folds to the exact frame count half a second takes (30 at
+  the default 60, 25 at a configured 50) — not a raw frame count written by
+  hand, so the tick rate never has to be recomputed by hand if `frameRate`
+  changes. An optional second argument says *how* the time is measured:
+  `seconds(0.5, FRAMES)` spells out what `seconds(0.5)` already means, since
+  `FRAMES` — logical frames at `frameRate` — is the only clock so far and
+  the default. "TICK" is what `text.showDigit()`'s label reads for exactly
+  that reason: a real frame counter would move much faster than what's on
+  screen.
+- `text.putChar(cell, code)` and `text.putColor(cell, color)` poke one
   character cell's code and one cell's colour — a flat cell index, not the
-  `x`/`y` `screen.putChar` still on the roadmap (see `docs/roadmap.md`) —
-  and `screen.CellCount` says how many cells the whole screen has (506 on
+  `x`/`y` `text.putChar` still on the roadmap (see `docs/roadmap.md`) —
+  and `text.CellCount` says how many cells the whole screen has (506 on
   the VIC-20, 1000 on the C64 and, as a safe superset, on the web's virtual
   screen too; 728 inside the NES's drawn frame; 4800 on the X16). Codes are
   ASCII on every machine, upper case only — `84` is `T` everywhere — and
@@ -259,14 +262,14 @@ export function frame(): void {
   sequence of pokes respectively, not something any machine package does on
   its own — a program that wants the BASIC boot screen left alone just
   doesn't call `clearScreen()`.
-- `screen.showDigit(cell, digit)` pokes a single decimal digit (in white)
+- `text.showDigit(cell, digit)` pokes a single decimal digit (in white)
   at a cell — cell 5 for the tick counter, right after the `TICK ` label
   `drawLabels()` draws, and cell 14 for the option number, after `OPTION `.
-- `main()` draws everything first and calls `applyColors()` last. On most
-  machines the order is immaterial; on the NES it is the rule — its screen
-  memory is only freely writable before the picture is switched on, which
-  is what the first `applyColors()` does — so the file uses the order that
-  is correct everywhere.
+- `main()` draws everything first and sets the colours last, through
+  `applyOption()`. On most machines the order is immaterial; on the NES it
+  is the rule — its screen memory is only freely writable before the
+  picture is switched on, which is what the first `screen.setColors()` does
+  — so the file uses the order that is correct everywhere.
 - `applyOption()` maps the current `option` (0-3) to one of four curated
   border/background pairs with an `if`/`else` chain, not a lookup table —
   `array<T, N>` parses but isn't in the compiled subset yet either. None of
@@ -292,8 +295,8 @@ A larger duration slows the tick counter down; a smaller one speeds it up
 out to the right frame count no matter what `frameRate` this project is
 configured for — that's the whole point of writing a duration instead of a
 raw frame count. Try changing one of
-`applyOption()`'s colour pairs — option 0's `background = 3;`, say — to
-another value, or add a fifth `else if` case and bump `frame()`'s
+`applyOption()`'s colour pairs — option 0's `BackgroundColor.Cyan`, say — to
+another name, or add a fifth `else if` case and bump the loop's
 `option == 4` to `== 5`, and watch a new option join the rotation.
 
 ## What doesn't compile yet
@@ -302,7 +305,7 @@ The compiler covers a fixed subset of the language today: globals, functions
 with scalar parameters and return values, calls (with arguments, and usable
 as expressions), arithmetic, `if`/`while`, hardware access including
 `memory.read`/`memory.write`, `namespace` declarations for library surfaces
-like `screen.setBorderColor(...)`, `asm6502`, and imports across modules.
+like `screen.setColors(...)`, `asm6502`, and imports across modules.
 Anything past that — member access that isn't a declared namespace, local
 variables — fails with a diagnostic naming the construct, rather than
 compiling into something silently wrong.
@@ -319,15 +322,15 @@ has the exact boundary.
   [the main file](learn/step1-main-loop.md): what the files are called, what
   `main()` is, and why it ends in a loop that never ends.
 - [The package model](packages.md) — how imports resolve, and how a package
-  like `@8bitscript/machine` targets more than one machine from one API.
+  like `@8bitscript/screen` targets more than one machine from one API.
 - [The compiler](compiler.md) — the pipeline from source to `.prg` or
   `.wasm`, and the diagnostic codes you'll hit while writing something that
   goes past the milestone subset.
 - [`examples/counter`](https://github.com/8BitScript/8bitscript/tree/trunk/examples/counter)
   — the smallest program that compiles, and the simplest of the two that also
-  target the web (`pnpm run web` inside it, after `pnpm install`) — it has no
-  `frame()`, so `8bs run web` just calls its `main()` once and prints the
-  result, rather than opening a browser tab the way `examples/borders` does.
+  target the web (`pnpm run web` inside it, after `pnpm install`) — its
+  `main()` does one thing and returns, so in the browser the page just
+  reports that the program finished; it never draws anything.
 - [Editor support](language-server.md) — diagnostics under the cursor while
   you write.
 

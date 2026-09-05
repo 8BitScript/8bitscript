@@ -32,12 +32,12 @@
 //                        -prg the way its other machine cores do (its docs
 //                        don't cover autoloading); run `xmega65 -h` if this
 //                        doesn't work as expected
-//   8bs run web          builds the .wasm; if it exports frame(), opens it
-//                        in the browser on a fixed-timestep requestAnimation
-//                        Frame loop (web-runtime.mjs) — otherwise (no
-//                        frame(), e.g. examples/counter) falls back to
-//                        instantiating it in Node, calling main() once, and
-//                        printing the exported globals
+//   8bs run web          builds the .wasm and opens it in the browser
+//                        runtime (web-runtime.mjs): the program runs in a
+//                        worker, its waitFrame() paced by the page's frame
+//                        clock, the page painting its screen memory — the
+//                        same for every program, whether it loops on
+//                        waitFrame(), returns, or spins
 //   8bs run web --no-open  the same, without spawning a browser window —
 //                        for pasting the printed URL into an editor's own
 //                        browser (e.g. VS Code/Cursor's "Simple Browser:
@@ -201,28 +201,12 @@ export async function run(args) {
   }
 
   if (target === 'web') {
+    // Every program runs the same way on the web: in the browser runtime's
+    // worker (web-runtime.mjs), whether it loops on waitFrame(), returns, or
+    // spins. Headless execution is `--screenshot`'s job, bounded by --frames.
     const bytes = await readFile(outFile);
-    const { instance } = await WebAssembly.instantiate(bytes);
-    if (typeof instance.exports.main !== 'function') {
-      process.stderr.write('8bs run: the program exports no main() to call\n');
-      return 1;
-    }
-    // frame() is the per-frame contract main.web.8bs-style programs export
-    // (see web-runtime.mjs); a program without one, like examples/counter,
-    // has nothing for a browser loop to call back into, so it keeps the
-    // original one-shot behaviour instead.
-    if (typeof instance.exports.frame === 'function') {
-      const { runInBrowser } = await import('./web-runtime.mjs');
-      return runInBrowser(bytes, { open, frameRate });
-    }
-    instance.exports.main();
-    process.stdout.write('ran main(); exported state afterwards:\n');
-    for (const [name, value] of Object.entries(instance.exports)) {
-      if (value instanceof WebAssembly.Global) {
-        process.stdout.write(`  ${name} = ${value.value}\n`);
-      }
-    }
-    return 0;
+    const { runInBrowser } = await import('./web-runtime.mjs');
+    return runInBrowser(bytes, { open, frameRate });
   }
 
   const {

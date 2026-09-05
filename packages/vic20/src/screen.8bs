@@ -1,0 +1,69 @@
+// @8bitscript/vic20/screen — the VIC-20's implementation of @8bitscript/screen.
+//
+// Named by "8bitscript".exports["./screen"] in this package's package.json,
+// and what
+//
+//     import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";
+//
+// resolves to when the build is for the VIC-20: @8bitscript/screen's entry is
+// keyed by machine and delegates here. Built on the register @8bitscript/vic20
+// itself exports, one layer up from it. Every machine's screen.8bs exports
+// this same surface, which is what lets a program import it from
+// @8bitscript/screen and never name the hardware.
+import { vicColor } from "./index.8bs";
+
+// ---- the screen: border and background --------------------------------------
+//
+// One packed register on the VIC: border in bits 0-2 (the VIC has eight
+// border colours, so the value is masked to them), background in bits 4-7,
+// bit 3 held at 1 for normal video. Both colours in one call because they
+// are one write here — and because on the NES and the X16 the two are
+// genuinely one operation (see those packages), so the portable surface is
+// the one every machine can honour.
+export namespace screen {
+    function setColors(border: u8, background: u8): void {
+        vicColor = (8 | (border & 7)) | (background << 4);
+    }
+}
+
+// ---- colour names ----------------------------------------------------------
+//
+// The border field only has 3 bits, so it can only reach the first 8 of the
+// VIC's 16 colours — `BorderColor` and `BackgroundColor` are two namespaces,
+// not one shared `Color`, because the hardware itself draws that line, not
+// an API design preference. Values and names match the VIC-20's own colour
+// numbering (POKE 36879 in the Programmer's Reference Guide). Those first
+// eight names — Black, White, Red, Cyan, Purple, Green, Blue, Yellow — are
+// the ones every machine's screen.8bs exports in both namespaces, each with
+// its own hardware's value, which is what lets a program say
+// `screen.setColors(BorderColor.Blue, BackgroundColor.Black)` on any target.
+
+export namespace BorderColor {
+    const Black: utinyint = 0;
+    const White: utinyint = 1;
+    const Red: utinyint = 2;
+    const Cyan: utinyint = 3;
+    const Purple: utinyint = 4;
+    const Green: utinyint = 5;
+    const Blue: utinyint = 6;
+    const Yellow: utinyint = 7;
+}
+
+export namespace BackgroundColor {
+    const Black: utinyint = 0;
+    const White: utinyint = 1;
+    const Red: utinyint = 2;
+    const Cyan: utinyint = 3;
+    const Purple: utinyint = 4;
+    const Green: utinyint = 5;
+    const Blue: utinyint = 6;
+    const Yellow: utinyint = 7;
+    const Orange: utinyint = 8;
+    const LightOrange: utinyint = 9;
+    const PinkRed: utinyint = 10;
+    const LightCyan: utinyint = 11;
+    const LightPurple: utinyint = 12;
+    const LightGreen: utinyint = 13;
+    const LightBlue: utinyint = 14;
+    const LightYellow: utinyint = 15;
+}

@@ -15,8 +15,8 @@ export { tokenize, TokenKind, KEYWORDS, TYPE_NAMES } from './src/lexer/index.mjs
 export { parse } from './src/parser/index.mjs';
 export { NodeType, walk } from './src/ast/index.mjs';
 export { check } from './src/checker/index.mjs';
-export { foldDurations } from './src/fold/index.mjs';
-export { lower } from './src/ir/index.mjs';
+export { foldDurations, DURATION_CLOCKS, DEFAULT_DURATION_CLOCK } from './src/fold/index.mjs';
+export { lower, entryOf } from './src/ir/index.mjs';
 export { link } from './src/linker/index.mjs';
 export {
   MACHINES, findImports, isVariantPath, resolveImports, resolveSpecifier, variantOf,
@@ -44,7 +44,7 @@ export { getHoverInfo, getCompletions } from './src/intellisense/index.mjs';
  * @param {string} text
  * @param {string} file
  * @param {{ resolveImports?: boolean, frameRate?: number }} [options]
- *   `frameRate` (default 60) is the project's logical frame() rate — see
+ *   `frameRate` (default 60) is the project's logical frame rate — see
  *   8bs.config.ts — that every `seconds(...)` call folds against, mirroring
  *   link()'s option of the same name so `8bs check`/the editor and a real
  *   build agree on what a duration means.

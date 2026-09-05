@@ -1,110 +1,25 @@
-// @8bitscript/pet — Commodore PET target support.
+// @8bitscript/pet — Commodore PET target support: the hardware underneath.
 //
 // The module entry point named by the "8bitscript".entry field in this
 // package's package.json, resolved and linked for:
 //
-//     import { border, background, applyColors, screen } from "@8bitscript/pet";
+//     import { viaPeripheralControl } from "@8bitscript/pet";
+//
+// The surface is the hardware, one register at a time. What a program
+// usually wants sits one layer up, in this package's own implementations of
+// the portable capability packages — `./src/screen.8bs` behind
+// @8bitscript/screen and `./src/text.8bs` behind @8bitscript/text, named by
+// the "8bitscript".exports map in package.json — which import these
+// registers and are built on nothing else.
 //
 // The PET is a monochrome machine — green or white phosphor, whatever the
-// monitor is, with no colour hardware at all. `border`, `background`, and
-// `applyColors()` still exist and still link, because the point of the
-// common colour surface (see @8bitscript/vic20 and @8bitscript/c64) is that
-// a single portable program builds for every target without per-target
-// branches in user code — but on the PET they are deliberately inert: there
-// is no register to write, so applyColors() does nothing observable. A
-// program that only ever calls applyColors() through the portable surface
-// still builds and runs correctly everywhere; it simply never shows a
-// border or background tint on a PET, because a PET cannot show one.
+// monitor is, with no colour hardware at all — so there is no colour
+// register here to export; see screen.8bs for what that means for the
+// portable surface. What it does have is a character set to select.
 
-export let border: utinyint = 0;
-export let background: utinyint = 0;
-
-export function applyColors(): void {
-    // Deliberately empty — see the file comment above.
-}
-
-// ---- friendly colour namespaces ---------------------------------------------
-//
-// The same eight names every machine package exports, so a program that
-// says `border = BorderColor.Blue` through @8bitscript/machine still links
-// here. The values are the C64's numbering, for want of any of the PET's
-// own — nothing reads them.
-
-export namespace BorderColor {
-    const Black: utinyint = 0;
-    const White: utinyint = 1;
-    const Red: utinyint = 2;
-    const Cyan: utinyint = 3;
-    const Purple: utinyint = 4;
-    const Green: utinyint = 5;
-    const Blue: utinyint = 6;
-    const Yellow: utinyint = 7;
-}
-
-export namespace BackgroundColor {
-    const Black: utinyint = 0;
-    const White: utinyint = 1;
-    const Red: utinyint = 2;
-    const Cyan: utinyint = 3;
-    const Purple: utinyint = 4;
-    const Green: utinyint = 5;
-    const Blue: utinyint = 6;
-    const Yellow: utinyint = 7;
-}
-
-// ---- the friendly screen surface (immediate-apply) -------------------------
-//
-// PET screen memory is fixed at $8000 on the common (non-CRTC) 40-column
-// models this target compiles for (see MACHINE_FLAGS.pet in
-// packages/backend-6502: __ram_size pinned to the common 32K PET), 1000
-// cells for a 40x25 display. There is no colour RAM to go with it — a
-// character's screen code alone decides how it looks — so `putColor` exists
-// only so portable code written against every machine's `screen` namespace
-// still compiles; it does nothing, the same way `applyColors()` above does
-// nothing.
-//
-// `screen.putChar` takes ASCII on every machine — space (32), '0'-'9'
-// (48-57), 'A'-'Z' (65-90) and the punctuation `! , - . : ?` — upper case
-// only: that is the portable set, the characters every target's character
-// set has (the NES ships its own font, and that is what it has). The PET
-// wants screen codes: codes 32-63 are those same ASCII values, and 'A'-'Z'
-// are 1-26, so asciiToScreenCode() moves 64-95 down by 64 and leaves 32-63
-// alone. Whether 1-26 then LOOK like 'A'-'Z' or 'a'-'z' is the character
-// set's choice, and the start-up code LLVM-MOS links in front of main()
-// switches the machine to the lower-case ("text") set. So putChar() also
-// selects the upper-case ("graphics") set, every call: on the PET that is
-// bit 1 of the VIA's peripheral control register, $E84C (VIA at $E840 in
-// llvm-mos-sdk's pet.h, `pcr` at offset 12 in its _6522.h) — $0C for
-// graphics, $0E for text, the POKE 59468,12 / POKE 59468,14 every PET
-// manual gives. One register write, and "TICK" reads as TICK here the way
-// it does on every other target.
-namespace PetRegisters {
-    const ViaPeripheralControl: usmallint = 0xE84C;
-    const GraphicsCharacterSet: utinyint = 0x0C;
-}
-
-export namespace screen {
-    const CellCount: u16 = 1000; // 40 columns x 25 rows
-
-    function asciiToScreenCode(code: utinyint): utinyint {
-        if (code >= 64 && code < 96) {
-            return code - 64;
-        }
-        return code;
-    }
-
-    function putChar(cell: u16, code: u8): void {
-        memory.write(PetRegisters.ViaPeripheralControl, PetRegisters.GraphicsCharacterSet);
-        memory.write(0x8000 + cell, screen.asciiToScreenCode(code));
-    }
-
-    function putColor(cell: u16, color: u8): void {
-        // Deliberately empty — the PET has no colour RAM.
-    }
-
-    // Screen codes 0-9 equal '0'-'9' on the PET's character ROM too, same
-    // as the VIC-20's and C64's, so no lookup table is needed here.
-    function showDigit(cell: u16, digit: u8): void {
-        screen.putChar(cell, 0x30 + (digit % 10));
-    }
-}
+// $E84C, the VIA's peripheral control register (VIA at $E840 in
+// llvm-mos-sdk's pet.h, `pcr` at offset 12 in its _6522.h). Bit 1 chooses
+// the character set: $0C for graphics (upper case), $0E for text (lower
+// case) — the POKE 59468,12 / POKE 59468,14 every PET manual gives.
+@address(0xE84C)
+export let viaPeripheralControl: volatile<u8>;

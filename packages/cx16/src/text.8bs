@@ -1,0 +1,50 @@
+// @8bitscript/cx16/text — the Commander X16's implementation of
+// @8bitscript/text.
+//
+// Named by "8bitscript".exports["./text"] in this package's package.json,
+// and what
+//
+//     import { text } from "@8bitscript/text";
+//
+// resolves to when the build is for the X16. Built on the VERA port protocol
+// @8bitscript/cx16 exports — read that file first for what the KERNAL
+// leaves on screen and how VRAM is reached. Every machine's text.8bs
+// exports this same namespace — the same names, the same shapes, ASCII
+// codes, and a cell 0 at the top-left corner inside the border — so a
+// program that imports it from @8bitscript/text draws the same thing on
+// every target.
+import { mapBank, mapLow, locateTextMap, setVramAddress } from "./index.8bs";
+
+// 80x60 = 4800 cells, row-major; codes are ASCII, as on every machine, and
+// here that is also what the hardware wants (ISO mode — see
+// @8bitscript/cx16). Each cell is two bytes in the map — the character,
+// then its attribute byte: background colour in the high nibble,
+// foreground in the low.
+//
+// putColor is real here, unlike on the NES and Atari: it sets a cell's
+// foreground nibble and leaves the background nibble as it finds it — a
+// read-modify-write through the same port, with the auto-increment step at
+// 0 so the read and the write land on one byte (VERA fetches the byte when
+// the address is set, so DATA0 reads it back without moving). Whose
+// background that nibble holds is not this module's business: the KERNAL's
+// blue before screen.setColors() has painted, the painted colour after.
+
+export namespace text {
+    const CellCount: usmallint = 4800;
+
+    function putChar(cell: usmallint, code: utinyint): void {
+        locateTextMap();
+        setVramAddress(mapBank, mapLow + (cell / 80) * 256 + (cell % 80) * 2, 0);
+        memory.write(0x9F23, code);
+    }
+
+    function putColor(cell: usmallint, color: utinyint): void {
+        locateTextMap();
+        setVramAddress(mapBank, mapLow + 1 + (cell / 80) * 256 + (cell % 80) * 2, 0);
+        memory.write(0x9F23, (memory.read(0x9F23) & 0xF0) | (color & 0x0F));
+    }
+
+    function showDigit(cell: usmallint, digit: utinyint): void {
+        text.putChar(cell, 0x30 + (digit % 10));
+    }
+}

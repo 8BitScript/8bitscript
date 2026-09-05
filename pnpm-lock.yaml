@@ -133,9 +133,12 @@ importers:
 
   examples/borders:
     dependencies:
-      '@8bitscript/machine':
+      '@8bitscript/screen':
         specifier: workspace:*
-        version: link:../../packages/machine
+        version: link:../../packages/screen
+      '@8bitscript/text':
+        specifier: workspace:*
+        version: link:../../packages/text
     devDependencies:
       '@8bitscript/cli':
         specifier: workspace:*
@@ -149,9 +152,9 @@ importers:
 
   examples/hello-vic:
     dependencies:
-      '@8bitscript/core':
+      '@8bitscript/text':
         specifier: workspace:*
-        version: link:../../packages/core
+        version: link:../../packages/text
       '@8bitscript/vic20':
         specifier: workspace:*
         version: link:../../packages/vic20
@@ -162,9 +165,9 @@ importers:
 
   examples/step1-main-loop:
     dependencies:
-      '@8bitscript/machine':
+      '@8bitscript/screen':
         specifier: workspace:*
-        version: link:../../packages/machine
+        version: link:../../packages/screen
     devDependencies:
       '@8bitscript/cli':
         specifier: workspace:*
@@ -214,8 +217,6 @@ importers:
 
   packages/compiler: {}
 
-  packages/core: {}
-
   packages/cx16: {}
 
   packages/language-server:
@@ -230,7 +231,13 @@ importers:
         specifier: 1.0.14
         version: 1.0.14
 
-  packages/machine:
+  packages/mega65: {}
+
+  packages/nes: {}
+
+  packages/pet: {}
+
+  packages/screen:
     dependencies:
       '@8bitscript/atari8':
         specifier: workspace:*
@@ -260,11 +267,35 @@ importers:
         specifier: workspace:*
         version: link:../web
 
-  packages/mega65: {}
-
-  packages/nes: {}
-
-  packages/pet: {}
+  packages/text:
+    dependencies:
+      '@8bitscript/atari8':
+        specifier: workspace:*
+        version: link:../atari8
+      '@8bitscript/c128':
+        specifier: workspace:*
+        version: link:../c128
+      '@8bitscript/c64':
+        specifier: workspace:*
+        version: link:../c64
+      '@8bitscript/cx16':
+        specifier: workspace:*
+        version: link:../cx16
+      '@8bitscript/mega65':
+        specifier: workspace:*
+        version: link:../mega65
+      '@8bitscript/nes':
+        specifier: workspace:*
+        version: link:../nes
+      '@8bitscript/pet':
+        specifier: workspace:*
+        version: link:../pet
+      '@8bitscript/vic20':
+        specifier: workspace:*
+        version: link:../vic20
+      '@8bitscript/web':
+        specifier: workspace:*
+        version: link:../web
 
   packages/vic20: {}
 

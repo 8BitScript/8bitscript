@@ -19,31 +19,43 @@ does not exist yet, and this page says plainly which parts do.
 main.8bs
    |
    v
- lexer  ->  parser  ->  AST  ->  binder  ->  checker  ->  IR
-                                                          |
-                                                        linker
-                                             (every imported module goes
-                                             through the same front end;
-                                             the IRs merge into one program)
-                                                          |
-                        +---------------------------------+
-                        |                                 |
-                        v                                 v
-                   web backend                     6502 backend
-                        |                                 |
-                        v                                 v
-             generated AssemblyScript              generated C
-                        |                                 |
-                        v                                 v
-                       asc                mos-vic20-clang / mos-c64-clang
-                        |                                 |
-                        v                                 v
-                     .wasm                              .prg
+ lexer  ->  parser  ->  AST  ->  fold  ->  binder  ->  checker  ->  IR
+                                                                    |
+                                                                  linker
+                                                       (every imported module goes
+                                                       through the same front end;
+                                                       the IRs merge into one program)
+                                                                    |
+                                  +---------------------------------+
+                                  |                                 |
+                                  v                                 v
+                             web backend                     6502 backend
+                                  |                                 |
+                                  v                                 v
+                       generated AssemblyScript              generated C
+                                  |                                 |
+                                  v                                 v
+                                 asc                mos-vic20-clang / mos-c64-clang
+                                  |                                 |
+                                  v                                 v
+                               .wasm                              .prg
 ```
 
 The order matters. Lowering to an IR before either backend means the two
 targets share a front end and a set of optimisations, rather than each
 re-deriving the language from the AST.
+
+The one pass between the parser and the checker today is the *fold*
+(`packages/compiler/src/fold`): it rewrites every `seconds(...)` call — the
+compile-time duration builtin, `seconds(0.5)` or, spelling out the clock it
+is measured in, `seconds(0.5, FRAMES)` — into a plain integer literal holding
+how many frames that duration takes at the project's `frameRate`
+(`8bs.config.ts`, default 60), using exact integer arithmetic. `FRAMES` is
+the only clock so far and therefore the default. Folding first is what lets
+the checker's ordinary range rule catch `seconds(100)` overflowing a
+`utinyint` with no special case. The tutorial (see
+[tutorial.md](tutorial.md)) shows the builtin in a program; hovering
+`seconds` or `FRAMES` in an editor gives the same description.
 
 Generating C for the 6502 rather than emitting assembly directly is a
 deliberate hand-off: LLVM-MOS already does register allocation, zero-page
@@ -121,8 +133,13 @@ Implemented today:
 | `8BS1006` | Unterminated block comment |
 | `8BS1007` | Unterminated `asm6502` block |
 | `8BS1008` | Invalid number literal |
+| `8BS1009` | Decimal literal (`0.5`) used anywhere other than as `seconds(...)`'s first argument |
 | `8BS1101` | Syntax error — expected one thing, found another |
 | `8BS1021` | Integer literal out of range for its type |
+| `8BS1022` | `seconds(...)` argument shape is wrong — not one integer/decimal literal plus an optional clock name |
+| `8BS1023` | `seconds(...)` rounds to zero ticks at the project's `frameRate` |
+| `8BS1024` | `seconds(...)` is not exact at the project's `frameRate` — rounded (warning) |
+| `8BS1025` | `seconds(...)`'s second argument is not a clock it knows (`FRAMES` is the only one, and the default) |
 | `8BS2001` | Cannot find package |
 | `8BS2002` | Package is not an 8BitScript package |
 | `8BS2003` | Package declares an entry that does not exist |
@@ -131,6 +148,9 @@ Implemented today:
 | `8BS2006` | Imported name collides with another binding in the module |
 | `8BS2007` | Reference to a name that resolves to nothing |
 | `8BS2008` | Package declares a native source file that does not exist |
+| `8BS2009` | Declaration or import named after a reserved builtin (`seconds`, `FRAMES`, `waitFrame`) |
+| `8BS2010` | Entry module must export exactly one parameterless function — the program |
+| `8BS2011` | Package does not export the requested subpath |
 | `8BS3001` | Valid construct the compiler cannot lower yet |
 | `8BS3002` | Construct not available on the requested target |
 
@@ -169,10 +189,19 @@ versions is `8BS3002` for a machine that has none. The rule, and what
 `8bs check` does with no machine in hand, is in
 [the package model](packages.md#system-specific-files).
 
-Two cases are deliberately **not** diagnosed, because the package model does
-not specify them: a bare specifier with a subpath (`@scope/name/thing`), and a
-relative import without a `.8bs` extension. Neither is guessed at, and neither
-is reported.
+A bare specifier with a **subpath** — `@8bitscript/c64/screen` — resolves
+through the package's `"8bitscript".exports` map, a `./screen` key naming a
+file inside the package; the exported file follows the system-specific
+filename rule too, and the package's native sources ride along with it. A
+subpath the map has no key for is `8BS2011`; a key whose file does not exist
+is `8BS2003`, like a missing entry. This is how each target package offers
+its `screen` and `text` implementations beside the registers they are built
+on, and how `@8bitscript/screen`'s machine-keyed entry reaches them — see
+[the package model](packages.md#package-subpaths).
+
+One case is deliberately **not** diagnosed, because the package model does
+not specify it: a relative import without a `.8bs` extension. It is not
+guessed at, and not reported.
 
 Resolution currently re-reads manifests on every analysis. At this scale that
 is free; it wants a cache once projects have real dependency graphs.
@@ -223,8 +252,9 @@ Packages can also make their entry **target-conditional**: an
 `"8bitscript".entry` object keyed by machine resolves to that machine's
 implementation at build time, and a machine the object has no branch for is
 `8BS3002`. The mechanics and the delegation form live in
-[the package model](packages.md); `@8bitscript/machine` is the working
-example. The same `8BS3002` covers the filename form of the idea — a
+[the package model](packages.md); `@8bitscript/screen` and `@8bitscript/text`
+are the working examples — each branch of theirs delegates to a target
+package's subpath. The same `8BS3002` covers the filename form of the idea — a
 `player.8bs` that exists only as `player.nes.8bs` and `player.c64.8bs`,
 built for a third machine.
 
@@ -357,23 +387,26 @@ It does, on both targets. `examples/counter` is that program verbatim:
 
 ```bash
 cd examples/counter
-pnpm web        # builds the .wasm, calls main(), prints x = 11
+pnpm web        # builds the .wasm and opens it in the browser runtime
 pnpm vic20      # builds the .prg and opens it in VICE
 ```
 
-(`examples/borders` is started with `pnpm start`.)
+(`examples/borders` is started with `pnpm start`. `counter`'s `main()`
+returns at once and draws nothing, so the browser page only reports that the
+program finished — it exists to prove the pipeline, not to show a picture.)
 
-On the web target the u8 genuinely wraps — 251 calls to `main()` leave `x` at
-5, because 261 wrapped at 256. The `.prg` targets the **unexpanded VIC-20**:
+On the web target the u8 genuinely wraps — the web backend's own test calls
+`main()` 251 times and finds `x` at 5, because 261 wrapped at 256. The `.prg` targets the **unexpanded VIC-20**:
 load address `$1001` and 3583 bytes of usable RAM, the machine as it was sold.
 The SDK's own default is a 24K-expanded machine, so the backend pins the
 linker's `__memory_expansion` symbol to 0 — fitting the small machine first is
 the point, and expanded configurations can become an option when a program
 actually needs one. `examples/borders` is the visible
 version: one source file whose `while` loop cycles the border colour through
-`applyColors()`, imported from `@8bitscript/machine` — which resolves per
-target to `@8bitscript/vic20` or `@8bitscript/c64` — so it is also the first
-program through the linker, and the first through a target-conditional entry.
+`screen.setColors()`, imported from `@8bitscript/screen` — which resolves per
+target to `@8bitscript/vic20/screen` or `@8bitscript/c64/screen` — so it is
+also the first program through the linker, and the first through a
+target-conditional entry.
 
 The generated C and AssemblyScript are written next to each output in `dist/`,
 so what the compiler did is never a mystery.
@@ -449,17 +482,19 @@ prefer a library that names the operation — see the next section.
 ### `namespace`: what a POKE becomes once you name it
 
 `namespace Name { ... }` is how a package exposes a surface like
-`screen.setBorderColor(...)` or `BorderColor.Blue` without any runtime
+`screen.setColors(...)` or `BorderColor.Blue` without any runtime
 representation at all. It compiles away entirely: a function member lowers to
-an ordinary function under a mangled name (`screen_setBorderColor`), and a
-const member is never storage — it is inlined as a plain number wherever it
-is used. `screen.setBorderColor(...)` costs exactly what calling a plain
-function by that name would.
+an ordinary function under a mangled name (`screen_setColors`), and a const
+member is never storage — it is inlined as a plain number wherever it is
+used. `screen.setColors(...)` costs exactly what calling a plain function by
+that name would.
 
 ```
+import { vicColor } from "./index.8bs";
+
 export namespace screen {
-    function setBorderColor(color: utinyint): void {
-        memory.write(0x900F, (memory.read(0x900F) & 0xF8) | (color & 0x07));
+    function setColors(border: u8, background: u8): void {
+        vicColor = (8 | (border & 7)) | (background << 4);
     }
 }
 
@@ -468,29 +503,31 @@ export namespace BorderColor {
 }
 ```
 
-`@8bitscript/vic20` is the first real one: `screen.setBorderColor`/
-`setBackgroundColor` do a read-modify-write against the VIC's packed colour
-register ($900F — bits 0-2 border, bit 3 reverse video, bits 4-7 background),
-masking so that changing one field never disturbs the others, and
-`BorderColor`/`BackgroundColor` name the VIC-20's own colour numbers. Two
+`@8bitscript/vic20/screen` is the first real one — that listing is it, less
+the comments. `screen.setColors` packs both colours into the VIC's one
+colour register ($900F — bits 0-2 border, bit 3 normal video, bits 4-7
+background), imported from `@8bitscript/vic20` as the named register it is,
+and `BorderColor`/`BackgroundColor` name the VIC-20's own colour numbers. Two
 namespaces, not one shared `Color`, because the border field is only 3 bits
-wide — the hardware draws that line, not an API preference.
+wide — the hardware draws that line, not an API preference. A namespace
+member must be `const` or a function: state lives in the module around it,
+which is why colours are a call, not two variables and an apply.
 
 This is the whole point of the layering: a program can stop at whichever
 level it needs.
 
 ```
-screen.setBorderColor(BorderColor.Blue);        // friendly — usual code
-memory.write(0x900F, 6);                        // literal POKE translation
-@address(0x900F)  let register: volatile<utinyint>;  // a named register
-asm6502 { ... }                                 // the machine itself
+screen.setColors(BorderColor.Blue, BackgroundColor.Black); // friendly — usual code
+vicColor = 8 | 6;                                    // the named register
+memory.write(0x900F, 14);                            // literal POKE translation
+asm6502 { ... }                                      // the machine itself
 ```
 
 None of these layers removes the one beneath it, and the compiler does not
-know any of `screen`, `BorderColor`, or $900F itself — `namespace` and
-`memory.read`/`write` are the two primitives; everything hardware-specific is
-`@8bitscript/vic20` being an ordinary 8BitScript library, not a special case
-the compiler was taught about.
+know any of `screen`, `BorderColor`, `vicColor`, or $900F itself —
+`namespace`, `@address`, and `memory.read`/`write` are the primitives;
+everything hardware-specific is `@8bitscript/vic20` being an ordinary
+8BitScript library, not a special case the compiler was taught about.
 
 ## Package layout
 

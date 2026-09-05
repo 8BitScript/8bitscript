@@ -156,6 +156,17 @@ import { VICII, SID } from "8bit:c64";
 
 Portable when you want it. Metal when you want it.
 
+The first two capabilities exist, spelled as the npm packages the
+[package model](packages.md) resolves rather than a `8bit:` scheme:
+`@8bitscript/screen` (`screen.setColors(border, background)` and the shared
+colour names) and `@8bitscript/text` (`text.putChar`/`putColor`/`showDigit`
+and `CellCount`, one flat cell index for now). Each is a machine-keyed
+manifest delegating to the target package's own implementation —
+`@8bitscript/nes/screen`, `@8bitscript/c64/text` — so the per-machine code
+stays in the machine's package, beside the registers it is built on, and
+`@8bitscript/nes` itself is the raw hardware underneath. `input` and
+`sprites` follow the same shape when they arrive.
+
 ## Phase 4: the super-6502 machines
 
 Add: `commander-x16`, `mega65`.

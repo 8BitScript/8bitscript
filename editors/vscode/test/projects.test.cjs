@@ -236,7 +236,7 @@ test('isInstalled wants a node_modules only when dependencies are declared', (t)
   fs.mkdirSync(dir, { recursive: true });
   assert.equal(isInstalled(dir, null), true);
   assert.equal(isInstalled(dir, { name: 'game' }), true);
-  const pkg = { dependencies: { '@8bitscript/machine': 'workspace:*' } };
+  const pkg = { dependencies: { '@8bitscript/screen': 'workspace:*' } };
   assert.equal(isInstalled(dir, pkg), false);
   fs.mkdirSync(path.join(dir, 'node_modules'));
   assert.equal(isInstalled(dir, pkg), true);

@@ -4,11 +4,15 @@
   "scopeName": "source.8bs",
   "_comment": [
     "Tracks the syntax the project has specified so far: the TypeScript-derived",
-    "surface, the machine integer types, and the hardware escape hatches",
-    "(@address decorators, volatile/ptr/array, and asm6502 blocks). Constructs",
-    "that are still undecided are simply absent \u2014 an unmatched keyword costs a",
+    "surface, the machine integer types, the hardware escape hatches",
+    "(@address decorators, volatile/ptr/array, and asm6502 blocks), and the",
+    "reserved builtins (seconds(...), its FRAMES clock, waitFrame()) that the",
+    "compiler's checker keeps a program from redefining. Constructs",
+    "that are still undecided are simply absent — an unmatched keyword costs a",
     "word that does not colour, not a broken file. The language server layers",
-    "semantic tokens over this once it reports them."
+    "semantic tokens over this once it reports them. Keep this in step with",
+    "packages/compiler: a new keyword, type, literal form, or reserved builtin",
+    "there belongs here too (see the repository's AGENTS.md)."
   ],
   "patterns": [
     {
@@ -34,6 +38,9 @@
     },
     {
       "include": "#declarations"
+    },
+    {
+      "include": "#builtins"
     },
     {
       "include": "#calls"
@@ -122,6 +129,11 @@
           "match": "\\b0[bB][01_]+\\b|%[01_]+\\b"
         },
         {
+          "comment": "A decimal fraction such as 0.5 — legal only as the first argument to seconds(...), the compiler's compile-time duration builtin; the language has no other float syntax.",
+          "name": "constant.numeric.decimal.fraction.8bs",
+          "match": "\\b[0-9][0-9_]*\\.[0-9][0-9_]*\\b"
+        },
+        {
           "name": "constant.numeric.decimal.8bs",
           "match": "\\b[0-9][0-9_]*\\b"
         }
@@ -188,7 +200,7 @@
           }
         },
         {
-          "comment": "The name in `namespace screen {` — the surface a caller writes `screen.setBorderColor(...)` against.",
+          "comment": "The name in `namespace screen {` — the surface a caller writes `screen.setColors(...)` against.",
           "match": "\\b(namespace)\\s+([A-Za-z_][A-Za-z0-9_]*)",
           "captures": {
             "1": {
@@ -201,6 +213,20 @@
         }
       ]
     },
+    "builtins": {
+      "patterns": [
+        {
+          "comment": "The reserved builtin functions: seconds(...) (compile-time duration, packages/compiler/src/fold) and waitFrame() (packages/compiler/src/ir). Listed before #calls so they read as builtins, not ordinary user calls.",
+          "name": "support.function.builtin.8bs",
+          "match": "\\b(seconds|waitFrame)\\b(?=\\s*\\()"
+        },
+        {
+          "comment": "The clocks a seconds(...) duration can be measured in — the optional second argument, seconds(0.5, FRAMES). Reserved names, like the builtin functions.",
+          "name": "constant.language.clock.8bs",
+          "match": "\\bFRAMES\\b"
+        }
+      ]
+    },
     "calls": {
       "patterns": [
         {
@@ -209,7 +235,7 @@
           "match": "\\b([A-Za-z_][A-Za-z0-9_]*)(?=\\s*\\()"
         },
         {
-          "comment": "The object side of `screen.putChar(...)`.",
+          "comment": "The object side of `text.putChar(...)`.",
           "match": "\\b([A-Za-z_][A-Za-z0-9_]*)(?=\\s*\\.)",
           "name": "variable.other.object.8bs"
         }

@@ -1,9 +1,16 @@
-// @8bitscript/mega65 — MEGA65 target support.
+// @8bitscript/mega65 — MEGA65 target support: the hardware underneath.
 //
 // The module entry point named by the "8bitscript".entry field in this
 // package's package.json, resolved and linked for:
 //
-//     import { borderColor, backgroundColor } from "@8bitscript/mega65";
+//     import { borderColor, backgroundColor, memoryPointer } from "@8bitscript/mega65";
+//
+// The surface is the hardware, one register at a time. What a program
+// usually wants sits one layer up, in this package's own implementations of
+// the portable capability packages — `./src/screen.8bs` behind
+// @8bitscript/screen and `./src/text.8bs` behind @8bitscript/text, named by
+// the "8bitscript".exports map in package.json — which import these
+// registers and are built on nothing else.
 //
 // This target reaches the MEGA65 through its VIC-II-compatible register
 // view: llvm-mos-sdk's own mega65.h maps a plain `__vic2` struct (the same
@@ -22,136 +29,13 @@ export let borderColor: volatile<u8>;
 @address(0xD021)
 export let backgroundColor: volatile<u8>;
 
-// ---- the common colour surface -------------------------------------------
-//
-// Every machine package exports the same three names, which is what lets a
-// program import them from @8bitscript/machine and never name the hardware:
-// set `border` and `background`, call applyColors(), and the machine shows
-// them. (Values are passed through globals because functions take no
-// parameters yet.)
-
-export let border: u8 = 0;
-export let background: u8 = 0;
-
-export function applyColors(): void {
-    borderColor = border & 15;
-    backgroundColor = background & 15;
-}
-
-// ---- friendly colour namespaces ---------------------------------------------
-//
-// The same eight names every machine package exports — Black, White, Red,
-// Cyan, Purple, Green, Blue, Yellow — so a program can write
-// `border = BorderColor.Blue` through @8bitscript/machine and get blue on
-// every target; the values are this machine's own. In the VIC-II-
-// compatible view this target runs in, both registers take the C64's
-// sixteen colours in the C64's numbering, so both namespaces carry all
-// sixteen.
-
-export namespace BorderColor {
-    const Black: utinyint = 0;
-    const White: utinyint = 1;
-    const Red: utinyint = 2;
-    const Cyan: utinyint = 3;
-    const Purple: utinyint = 4;
-    const Green: utinyint = 5;
-    const Blue: utinyint = 6;
-    const Yellow: utinyint = 7;
-    const Orange: utinyint = 8;
-    const Brown: utinyint = 9;
-    const LightRed: utinyint = 10;
-    const DarkGrey: utinyint = 11;
-    const Grey: utinyint = 12;
-    const LightGreen: utinyint = 13;
-    const LightBlue: utinyint = 14;
-    const LightGrey: utinyint = 15;
-}
-
-export namespace BackgroundColor {
-    const Black: utinyint = 0;
-    const White: utinyint = 1;
-    const Red: utinyint = 2;
-    const Cyan: utinyint = 3;
-    const Purple: utinyint = 4;
-    const Green: utinyint = 5;
-    const Blue: utinyint = 6;
-    const Yellow: utinyint = 7;
-    const Orange: utinyint = 8;
-    const Brown: utinyint = 9;
-    const LightRed: utinyint = 10;
-    const DarkGrey: utinyint = 11;
-    const Grey: utinyint = 12;
-    const LightGreen: utinyint = 13;
-    const LightBlue: utinyint = 14;
-    const LightGrey: utinyint = 15;
-}
-
-// ---- the friendly screen surface (immediate-apply) -------------------------
-//
-// There is no general text API yet (that's `screen.putChar(x, y, code)`/
-// `input.*` in docs/roadmap.md, not built — this `putChar` takes one flat
-// cell index instead of x/y), so these are the plainest things that can
-// stand in for one: poke one cell's character code, poke one cell's colour,
-// and how many cells the whole screen has. Whether a caller uses these to
-// clear the screen, lay out a label, or nothing at all is entirely up to
-// the caller — this package draws nothing on its own. mega65.h names the
-// default screen character matrix directly: DEFAULT_SCREEN at $0800 — not
-// the C64's $0400 — 40x25, 1000 cells; colour RAM stays at the C64's fixed
-// $D800.
-//
-// ---- character codes: ASCII in, screen codes out ----------------------------
-//
-// `screen.putChar` takes ASCII on every machine — space (32), '0'-'9'
-// (48-57), 'A'-'Z' (65-90) and the punctuation `! , - . : ?` — upper case
-// only: that is the portable set, the characters every target's character
-// set has (the NES ships its own font, and that is what it has). The
-// hardware wants screen codes: in every Commodore character ROM, codes
-// 32-63 are those same ASCII values (space, digits, that punctuation), and
-// 'A'-'Z' are 1-26, so asciiToScreenCode() moves 64-95 down by 64 and
-// leaves 32-63 alone. Whether 1-26 then LOOK like 'A'-'Z' or 'a'-'z' is
-// the character set's choice, and the start-up code LLVM-MOS links in
-// front of main() switches these machines to the lower-case set (the one
-// that shows the BASIC banner in lower case — see docs/learn/
-// step1-main-loop.md). So putChar() also selects the upper-case set, every
-// call: one register write, and "TICK" reads as TICK here the way it does
-// on the NES, the Atari, and the X16, none of which have a lower-case set
-// to fall into.
-//
-// $D018 is the VIC-II-compatible memory pointer, laid out as the C64's:
-// bits 4-7 the screen base in 1K units, bits 1-3 the character set base in
-// 2K units. With the screen at $0800 that is $2x, and $24 selects the
-// upper-case/graphics set at $1000 — the same 2K the C64 has there —
-// where $26 would be the lower-case set at $1800. The MEGA65 re-derives
-// its own wider VIC-IV pointers from a legacy $D018 write, so this is
-// enough; verified on screen under xmega65, not inferred.
-namespace VicRegisters {
-    const MemoryPointer: usmallint = 0xD018;
-    const UppercaseScreenAt0800: utinyint = 0x24;
-}
-
-export namespace screen {
-    const CellCount: u16 = 1000; // 40 columns x 25 rows
-
-    function asciiToScreenCode(code: utinyint): utinyint {
-        if (code >= 64 && code < 96) {
-            return code - 64;
-        }
-        return code;
-    }
-
-    function putChar(cell: u16, code: u8): void {
-        memory.write(VicRegisters.MemoryPointer, VicRegisters.UppercaseScreenAt0800);
-        memory.write(0x0800 + cell, screen.asciiToScreenCode(code));
-    }
-
-    function putColor(cell: u16, color: u8): void {
-        memory.write(0xD800 + cell, color & 15);
-    }
-
-    // Screen codes 0-9 equal '0'-'9' in the MEGA65's C64-compatible
-    // character ROM, so no lookup table is needed here.
-    function showDigit(cell: u16, digit: u8): void {
-        screen.putChar(cell, 0x30 + (digit % 10));
-        screen.putColor(cell, 1); // white, so the digit reads on any background
-    }
-}
+// $D018, the VIC-II-compatible memory pointer, laid out as the C64's: bits
+// 4-7 the screen base in 1K units, bits 1-3 the character set base in 2K
+// units. mega65.h names the default screen character matrix directly:
+// DEFAULT_SCREEN at $0800 — not the C64's $0400 — so the screen half is
+// $2x, and $24 selects the upper-case/graphics set at $1000 (the same 2K
+// the C64 has there) where $26 would be the lower-case set at $1800. The
+// MEGA65 re-derives its own wider VIC-IV pointers from a legacy $D018
+// write, so this is enough; verified on screen under xmega65, not inferred.
+@address(0xD018)
+export let memoryPointer: volatile<u8>;

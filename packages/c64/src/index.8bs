@@ -1,15 +1,18 @@
-// @8bitscript/c64 — C64 target support.
+// @8bitscript/c64 — C64 target support: the hardware underneath.
 //
 // The module entry point named by the "8bitscript".entry field in this
 // package's package.json, resolved and linked for:
 //
-//     import { borderColor, backgroundColor } from "@8bitscript/c64";
+//     import { borderColor, backgroundColor, memoryPointer } from "@8bitscript/c64";
 //     import { reuStatus, reuCommand } from "@8bitscript/c64"; // --profile reu*
 //
-// The surface is the hardware, one register at a time, and it grows as the
-// language does: what is here today is what the milestone subset can actually
-// express — exported @address globals. A namespace like `vic2.` waits on the
-// declaration syntax being designed.
+// The surface is the hardware, one register at a time. What a program
+// usually wants sits one layer up, in this package's own implementations of
+// the portable capability packages — `./src/screen.8bs` behind
+// @8bitscript/screen and `./src/text.8bs` behind @8bitscript/text, named by
+// the "8bitscript".exports map in package.json — which import these
+// registers and are built on nothing else. A namespace like `vic2.` for the
+// whole chip waits on the declaration syntax being designed.
 //
 // Where the VIC-20's VIC packs border, background, and video mode into one
 // register, the C64's VIC-II gives each its own. Both take the low four bits;
@@ -23,23 +26,31 @@ export let borderColor: volatile<u8>;
 @address(0xD021)
 export let backgroundColor: volatile<u8>;
 
+// $D018, the VIC-II's memory pointer (`addr` in llvm-mos-sdk's _vic2.h):
+// bits 4-7 the screen base in 1K units within the VIC bank, bits 1-3 the
+// character set base in 2K units. $15 is screen $0400 and the upper-case/
+// graphics set at $1000, the value the KERNAL resets to (POKE 53272,21 in
+// the Programmer's Reference Guide); $17 is the lower-case set at $1800.
+@address(0xD018)
+export let memoryPointer: volatile<u8>;
+
 // ---- REU (RAM Expansion Unit) --------------------------------------------
 //
 // $DF00-$DF0A, the standard Commodore 1764/1750-compatible REU DMA
 // controller register map — confirmed against VICE's own `-reu`/`-reusize`
 // support (x64sc -help) and the register layout every REU-compatible
 // expansion since the 1700 has shared. These addresses exist in the SDK for
-// every c64 program (the same reasoning @8bitscript/pet documents for
-// `border` on a machine without one): they only do something when the
-// program is actually built and run against a `reu*` hardware profile
-// (--profile in packages/cli/src/build.mjs and run.mjs's `-reu -reusize`) —
-// on the stock C64 these are ordinary, if unusual, memory-mapped I/O
-// addresses, not a real DMA controller. This is raw register access, not a
-// transfer driver: a caller sequences the registers itself (base addresses,
-// length, then a command byte — bit 7 set to execute, bits 0-1 for the
-// transfer direction: 00 stash C64→REU, 01 fetch REU→C64, 10 swap, 11
-// verify), the same level @8bitscript/vic20's `vicColor` and @8bitscript/
-// c64's own `borderColor` above operate at.
+// every c64 program (the same reasoning @8bitscript/pet's screen.8bs
+// documents for `setColors` on a machine without colour): they only do
+// something when the program is actually built and run against a `reu*`
+// hardware profile (--profile in packages/cli/src/build.mjs and run.mjs's
+// `-reu -reusize`) — on the stock C64 these are ordinary, if unusual,
+// memory-mapped I/O addresses, not a real DMA controller. This is raw
+// register access, not a transfer driver: a caller sequences the registers
+// itself (base addresses, length, then a command byte — bit 7 set to
+// execute, bits 0-1 for the transfer direction: 00 stash C64→REU, 01 fetch
+// REU→C64, 10 swap, 11 verify), the same level @8bitscript/vic20's
+// `vicColor` and this package's own `borderColor` above operate at.
 @address(0xDF00) export let reuStatus: volatile<u8>;
 @address(0xDF01) export let reuCommand: volatile<u8>;
 @address(0xDF02) export let reuC64AddressLow: volatile<u8>;
@@ -51,136 +62,3 @@ export let backgroundColor: volatile<u8>;
 @address(0xDF08) export let reuLengthHigh: volatile<u8>;
 @address(0xDF09) export let reuInterruptMask: volatile<u8>;
 @address(0xDF0A) export let reuAddressControl: volatile<u8>;
-
-// ---- the common colour surface -------------------------------------------
-//
-// Every machine package exports the same three names, which is what lets a
-// program import them from @8bitscript/machine and never name the hardware:
-// set `border` and `background`, call applyColors(), and the machine shows
-// them. (Values are passed through globals because functions take no
-// parameters yet.)
-
-export let border: u8 = 0;
-export let background: u8 = 0;
-
-// The VIC-II gives border and background their own registers, sixteen
-// colours each; the masks make the wrap around the palette explicit.
-export function applyColors(): void {
-    borderColor = border & 15;
-    backgroundColor = background & 15;
-}
-
-// ---- friendly colour namespaces ---------------------------------------------
-//
-// The same eight names every machine package exports — Black, White, Red,
-// Cyan, Purple, Green, Blue, Yellow — so a program can write
-// `border = BorderColor.Blue` through @8bitscript/machine and get blue on
-// every target; the values are this machine's own. The VIC-II has
-// sixteen colours in both registers, so both namespaces carry all sixteen,
-// in the VIC-II's own numbering — the numbering the VIC-20 shares for its
-// first eight, and that @8bitscript/web and @8bitscript/cx16 borrow.
-
-export namespace BorderColor {
-    const Black: utinyint = 0;
-    const White: utinyint = 1;
-    const Red: utinyint = 2;
-    const Cyan: utinyint = 3;
-    const Purple: utinyint = 4;
-    const Green: utinyint = 5;
-    const Blue: utinyint = 6;
-    const Yellow: utinyint = 7;
-    const Orange: utinyint = 8;
-    const Brown: utinyint = 9;
-    const LightRed: utinyint = 10;
-    const DarkGrey: utinyint = 11;
-    const Grey: utinyint = 12;
-    const LightGreen: utinyint = 13;
-    const LightBlue: utinyint = 14;
-    const LightGrey: utinyint = 15;
-}
-
-export namespace BackgroundColor {
-    const Black: utinyint = 0;
-    const White: utinyint = 1;
-    const Red: utinyint = 2;
-    const Cyan: utinyint = 3;
-    const Purple: utinyint = 4;
-    const Green: utinyint = 5;
-    const Blue: utinyint = 6;
-    const Yellow: utinyint = 7;
-    const Orange: utinyint = 8;
-    const Brown: utinyint = 9;
-    const LightRed: utinyint = 10;
-    const DarkGrey: utinyint = 11;
-    const Grey: utinyint = 12;
-    const LightGreen: utinyint = 13;
-    const LightBlue: utinyint = 14;
-    const LightGrey: utinyint = 15;
-}
-
-// ---- the friendly screen surface (immediate-apply) -------------------------
-//
-// There is no general text API yet (that's `screen.putChar(x, y, code)`/
-// `input.*` in docs/roadmap.md, not built — this `putChar` takes one flat
-// cell index instead of x/y), so these are the plainest things that can
-// stand in for one: poke one cell's character code, poke one cell's colour,
-// and how many cells the whole screen has. Whether a caller uses these to
-// clear the screen, lay out a label, or nothing at all is entirely up to the
-// caller — this package draws nothing on its own. Screen RAM defaults to
-// $0400 (40x25, hence 1000 cells — needs u16, not u8) and colour RAM is
-// always at the fixed $D800, independent of where screen RAM is banked.
-//
-// ---- character codes: ASCII in, screen codes out ----------------------------
-//
-// `screen.putChar` takes ASCII on every machine — space (32), '0'-'9'
-// (48-57), 'A'-'Z' (65-90) and the punctuation `! , - . : ?` — upper case
-// only: that is the portable set, the characters every target's character
-// set has (the NES ships its own font, and that is what it has). The
-// hardware wants screen codes: in every Commodore character ROM, codes
-// 32-63 are those same ASCII values (space, digits, that punctuation), and
-// 'A'-'Z' are 1-26, so asciiToScreenCode() moves 64-95 down by 64 and
-// leaves 32-63 alone. Whether 1-26 then LOOK like 'A'-'Z' or 'a'-'z' is
-// the character set's choice, and the start-up code LLVM-MOS links in
-// front of main() switches these machines to the lower-case set (the one
-// that shows the BASIC banner in lower case — see docs/learn/
-// step1-main-loop.md). So putChar() also selects the upper-case set, every
-// call: one register write, and "TICK" reads as TICK here the way it does
-// on the NES, the Atari, and the X16, none of which have a lower-case set
-// to fall into.
-//
-// $D018 is the VIC-II's memory pointer (`addr` in llvm-mos-sdk's _vic2.h):
-// bits 4-7 the screen base in 1K units within the VIC bank, bits 1-3 the
-// character set base in 2K units. $15 is screen $0400 and the upper-case/
-// graphics set at $1000, the value the KERNAL resets to (POKE 53272,21 in
-// the Programmer's Reference Guide); $17 is the lower-case set at $1800.
-namespace VicRegisters {
-    const MemoryPointer: usmallint = 0xD018;
-    const UppercaseScreenAt0400: utinyint = 0x15;
-}
-
-export namespace screen {
-    const CellCount: u16 = 1000; // 40 columns x 25 rows
-
-    function asciiToScreenCode(code: utinyint): utinyint {
-        if (code >= 64 && code < 96) {
-            return code - 64;
-        }
-        return code;
-    }
-
-    function putChar(cell: u16, code: u8): void {
-        memory.write(VicRegisters.MemoryPointer, VicRegisters.UppercaseScreenAt0400);
-        memory.write(0x0400 + cell, screen.asciiToScreenCode(code));
-    }
-
-    function putColor(cell: u16, color: u8): void {
-        memory.write(0xD800 + cell, color & 15);
-    }
-
-    // Screen codes 0-9 equal '0'-'9' in the C64's character ROM, same as the
-    // VIC-20's, so no lookup table is needed here.
-    function showDigit(cell: u16, digit: u8): void {
-        screen.putChar(cell, 0x30 + (digit % 10));
-        screen.putColor(cell, 1); // white, so the digit reads on any background
-    }
-}

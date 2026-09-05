@@ -17,18 +17,24 @@ indirect ports, stateful registers, firmware APIs, and optional hardware.
 
 Do not describe more than this as working:
 
-- `packages/cx16/src/index.8bs` exports the common colour surface and the
-  `screen` namespace. `border` is real but *made*: VERA's border colour has
-  nowhere to show by default (the active display area fills the 640×480
-  output), so `applyColors()` insets the active area by 16 pixels on every
-  side and that ring takes the colour. `background` is *painted*: there is
-  no register for it, so every text cell's attribute byte is rewritten
-  through VERA's data port. `screen.putChar(cell, code)` takes ASCII —
-  LLVM-MOS's start-up puts the KERNAL in ISO mode before `main()` — on an
-  80×60 grid whose map base is read from VERA's `L1_MAPBASE` at runtime,
-  not assumed. `putColor` is real (per-cell foreground nibble).
-- The frame driver (`FRAME_SYNC.cx16` in `packages/backend-6502`) polls
-  VERA's ISR VSYNC bit under `sei`, one `frame()` per VSYNC.
+- `packages/cx16/src/index.8bs` exports the VERA port helpers —
+  `setVramAddress()`, `locateTextMap()`, and the `mapBank`/`mapLow` it
+  fills — that the package's two portable surfaces are built on:
+  `src/screen.8bs` (behind `@8bitscript/screen`, as `@8bitscript/cx16/screen`)
+  and `src/text.8bs` (behind `@8bitscript/text`). `screen.setColors()`'s
+  border is real but *made*: VERA's border colour has nowhere to show by
+  default (the active display area fills the 640×480 output), so it insets
+  the active area by 16 pixels on every side and that ring takes the
+  colour. Its background is *painted*: there is no register for it, so
+  every text cell's attribute byte is rewritten through VERA's data port.
+  `text.putChar(cell, code)` takes ASCII — LLVM-MOS's start-up puts the
+  KERNAL in ISO mode before `main()` — on an 80×60 grid whose map base is
+  read from VERA's `L1_MAPBASE` at runtime, not assumed. `putColor` is real
+  (per-cell foreground nibble, a read-modify-write that keeps whatever
+  background nibble the cell has).
+- `waitFrame()` (`FRAME_SYNC.cx16` in `packages/backend-6502`) polls
+  VERA's ISR VSYNC bit under `sei` — at the default `frameRate` of 60 that
+  is exactly one VSYNC per `waitFrame()`, with no accumulator emitted at all.
 - There is no `--profile` for the X16 yet — no banked-RAM size, no
   video-output (VGA/composite) profile, no expansion-card capabilities.
 - `8bs setup cx16` builds the emulator and ROM together from upstream and
@@ -193,7 +199,9 @@ Cite these freely; each was read in the source named, not recalled.
 ## Where things live
 
 ```
-packages/cx16/src/index.8bs              target package: border/background/applyColors(), screen
+packages/cx16/src/index.8bs              target package: the VERA port helpers (setVramAddress, locateTextMap)
+packages/cx16/src/screen.8bs             @8bitscript/cx16/screen: screen.setColors(), the inset border, the painted background
+packages/cx16/src/text.8bs               @8bitscript/cx16/text: text.putChar/putColor/showDigit, CellCount 4800
 packages/backend-6502/src/index.mjs      driver (mos-cx16-clang), FRAME_SYNC.cx16 (VERA ISR poll)
 packages/cli/src/setup/cx16.mjs          8bs setup cx16: emulator+ROM pair, macOS launcher wrapper
 packages/cli/src/run.mjs                 8bs run cx16: x16emu -prg <file> -run

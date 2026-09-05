@@ -14,59 +14,67 @@ import { link, resolveSpecifier } from '../index.mjs';
 import { emitC } from '../../backend-6502/src/index.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-// examples/borders depends on @8bitscript/machine, whose nes branch
-// delegates to @8bitscript/nes — the real pnpm-linked graph, not a fixture.
+// examples/borders depends on @8bitscript/screen and @8bitscript/text,
+// whose nes branches delegate to @8bitscript/nes/screen and
+// @8bitscript/nes/text — the real pnpm-linked graph, not a fixture.
 const BORDERS_SRC = join(HERE, '..', '..', '..', 'examples', 'borders', 'src');
 const ENTRY = join(BORDERS_SRC, 'nes-consumer.8bs');
 
-test('resolving @8bitscript/machine for nes carries the CHR-ROM font as a native source', () => {
-  const resolved = resolveSpecifier('@8bitscript/machine', ENTRY, { machine: 'nes' });
-  assert.ok(resolved.path.endsWith(join('nes', 'src', 'index.8bs')), resolved.path);
-  assert.equal(resolved.native.length, 1);
-  assert.ok(resolved.native[0].endsWith(join('nes', 'native', '6502', 'font.s')), resolved.native[0]);
+test('resolving @8bitscript/text for nes carries the CHR-ROM font as a native source', () => {
+  // The font is the package's, so it rides along with either subpath.
+  for (const [pkg, file] of [['@8bitscript/text', 'text.8bs'], ['@8bitscript/screen', 'screen.8bs']]) {
+    const resolved = resolveSpecifier(pkg, ENTRY, { machine: 'nes' });
+    assert.ok(resolved.path.endsWith(join('nes', 'src', file)), resolved.path);
+    assert.equal(resolved.native.length, 1);
+    assert.ok(resolved.native[0].endsWith(join('nes', 'native', '6502', 'font.s')), resolved.native[0]);
+  }
 });
 
 test('a target with no native files resolves with an empty list, not a missing field', () => {
-  const resolved = resolveSpecifier('@8bitscript/machine', ENTRY, { machine: 'web' });
-  assert.ok(resolved.path.endsWith(join('web', 'src', 'index.8bs')));
+  const resolved = resolveSpecifier('@8bitscript/text', ENTRY, { machine: 'web' });
+  assert.ok(resolved.path.endsWith(join('web', 'src', 'text.8bs')));
   assert.deepEqual(resolved.native, []);
 });
 
-test('a screen consumer links for nes with the font in ir.nativeSources', () => {
+test('a screen and text consumer links for nes with the font in ir.nativeSources', () => {
   const consumer = [
-    'import { border, background, applyColors, screen } from "@8bitscript/machine";',
+    'import { screen } from "@8bitscript/screen";',
+    'import { text } from "@8bitscript/text";',
     'export function main(): void {',
-    '    screen.putChar(99, 84);',
-    '    border = 0x2C;',
-    '    background = 0x01;',
-    '    applyColors();',
-    '    screen.showDigit(104, 3);',
+    '    text.putChar(99, 84);',
+    '    screen.setColors(0x2C, 0x01);',
+    '    text.showDigit(104, 3);',
     '}',
   ].join('\n');
-  // (The 99 and 104 are cells of the 28x26 screen inside the frame — the
+  // (The 99 and 104 are cells of the 28x26 grid inside the frame — the
   // package maps them to nametable addresses; see the parity test for the
   // arithmetic.)
   const { ir, diagnostics } = link(consumer, ENTRY, { machine: 'nes' });
   assert.deepEqual(diagnostics, []);
+  // The two subpaths share the package's PPU helpers through its index, so
+  // the font is collected once, not twice.
   assert.equal(ir.nativeSources.length, 1);
   assert.ok(ir.nativeSources[0].endsWith('font.s'));
+  assert.equal(ir.functions.filter((f) => f.name === 'setVramAddress').length, 1);
 
   const c = emitC(ir, { machine: 'nes' });
   // Tile index == ASCII: the 'T' goes into the nametable as 84, unmapped.
-  assert.match(c, /screen_putChar\(99, 84\);/);
+  assert.match(c, /text_putChar\(99, 84\);/);
   // The PPU port protocol, by address: PPUADDR ($2006 = 8198) twice, then
   // PPUDATA ($2007 = 8199); and the scroll reset after every write
   // (PPUCTRL $2000 = 8192, PPUSCROLL $2005 = 8197).
   assert.match(c, /\*\(volatile uint8_t \*\)8198 = \(address \/ 256\);/);
   assert.match(c, /\*\(volatile uint8_t \*\)8199 = code;/);
   assert.match(c, /\*\(volatile uint8_t \*\)8197 = 0;/);
-  // Palette entries in order: backdrop, text (white, $30 = 48), frame.
+  // Palette entries in order: backdrop, text (white, $30 = 48), frame —
+  // from setColors's two parameters.
+  assert.match(c, /void screen_setColors\(uint8_t border, uint8_t background\)/);
   assert.match(c, /8199 = background;\n\s+\*\(volatile uint8_t \*\)8199 = 48;\n\s+\*\(volatile uint8_t \*\)8199 = border;/);
 });
 
 test('the same graph linked for web carries no native sources', () => {
   const { ir, diagnostics } = link(
-    'import { screen } from "@8bitscript/machine";\nexport function main(): void { screen.putChar(0, 65); }',
+    'import { text } from "@8bitscript/text";\nexport function main(): void { text.putChar(0, 65); }',
     ENTRY, { machine: 'web' },
   );
   assert.deepEqual(diagnostics, []);
@@ -78,7 +86,7 @@ test('examples/borders main.8bs links clean for nes', () => {
   const { ir, diagnostics } = link(readFileSync(file, 'utf8'), file, { machine: 'nes' });
   assert.deepEqual(diagnostics, []);
   assert.equal(ir.nativeSources.length, 1);
-  assert.ok(ir.functions.some((fn) => fn.name === 'frame'));
+  assert.equal(ir.entry, 'main');
 });
 
 // ---- a manifest naming a native file it does not ship -------------------

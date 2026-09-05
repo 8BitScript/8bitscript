@@ -128,7 +128,10 @@ class Lowering {
       this.fail(member, `a ${member.type} is not compilable inside a namespace yet`);
     }
 
-    this.namespaces.push({ name, exported: node.exported ?? false, functions, consts });
+    this.namespaces.push({
+      name, exported: node.exported ?? false, functions, consts,
+      start: node.name.start, length: node.name.length,
+    });
   }
 
   // An import lowers to a record, not to code: the linker resolves it against
@@ -208,6 +211,8 @@ class Lowering {
       name: node.name.name, type, volatile: isVolatile, address,
       init: init ? init.value : 0,
       exported: node.exported ?? false,
+      // The name's span, so the linker's entry-export rule can point at it.
+      start: node.name.start, length: node.name.length,
     });
   }
 
@@ -245,6 +250,9 @@ class Lowering {
       params,
       returnType,
       body,
+      // The name's span, so the linker's entry-export rule can point at it.
+      start: node.name?.start ?? node.start,
+      length: node.name?.length ?? node.length,
     });
   }
 
@@ -341,6 +349,18 @@ class Lowering {
     }
     if (callee.type !== NodeType.Identifier) {
       return this.fail(node, 'a call through member access is not compilable yet');
+    }
+    // `waitFrame()` — block until the next logical frame. A builtin with its
+    // own IR kind rather than a call to a function that exists somewhere:
+    // every backend emits it differently (the 6502 backend as its frame-sync
+    // runtime, the web backend as a host import), and it takes no arguments.
+    // The name is reserved (checker/index.mjs's RESERVED_BUILTIN_NAMES), so
+    // nothing a user declares can be what this refers to.
+    if (callee.name === 'waitFrame') {
+      if (node.args.length !== 0) {
+        return this.fail(node, 'waitFrame() takes no arguments');
+      }
+      return { kind: 'waitFrame', start: node.start, length: node.length };
     }
     const args = [];
     for (const argument of node.args) {
@@ -474,6 +494,9 @@ class Lowering {
         if (call.kind === 'memoryWrite') {
           return this.fail(node, 'memory.write does not return a value and cannot be used as an expression');
         }
+        if (call.kind === 'waitFrame') {
+          return this.fail(node, 'waitFrame() does not return a value and cannot be used as an expression');
+        }
         return call;
       }
       case NodeType.MemberExpression: {
@@ -508,4 +531,23 @@ export function lower(ast, file = '<unknown>') {
   const lowering = new Lowering(file);
   const ir = lowering.program(ast);
   return { ir, diagnostics: lowering.diagnostics };
+}
+
+/**
+ * The program's entry function, by output name, or null when the IR has none.
+ *
+ * Linked IR records it as `ir.entry` (the linker enforces exactly one
+ * exported, parameterless function in the entry module). IR straight from
+ * `lower()` — a single module, as the backends' own tests use — has no
+ * linker to have decided, so the same rule is applied here after the fact:
+ * the sole exported function, if there is exactly one. Both backends go
+ * through this so "which function is the program" is decided in one place.
+ *
+ * @param {IrProgram & { entry?: string }} ir
+ * @returns {string|null}
+ */
+export function entryOf(ir) {
+  if (ir.entry) return ir.entry;
+  const exported = ir.functions.filter((fn) => fn.exported);
+  return exported.length === 1 ? exported[0].name : null;
 }

@@ -110,8 +110,8 @@ for a `.wasm` — and `8bs run vic20` opens the result in VICE.
 border colours on the VIC-20, the C64, *and* the web (`8bs run web`, a real
 browser tab now rather than a one-shot harness — see
 [docs/learn/step1-main-loop.md](docs/learn/step1-main-loop.md#why-this-step-does-not-build-for-the-web)),
-importing its colour API from `@8bitscript/machine` — a package whose entry
-resolves per target to the machine package underneath.
+importing its screen from `@8bitscript/screen` — a package whose entry
+resolves per target to that machine package's own implementation.
 
 Only the milestone subset compiles: globals, parameterless functions and
 calls to them, arithmetic, `if`/`while`, hardware access, `asm6502`, and

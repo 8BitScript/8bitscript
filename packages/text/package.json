@@ -1,0 +1,34 @@
+{
+  "name": "@8bitscript/text",
+  "private": true,
+  "version": "0.0.0",
+  "description": "The character grid, on whichever machine is being built: ASCII in, one cell at a time, the same on every target. Resolves per target to that machine's own text implementation.",
+  "license": "MIT",
+  "8bitscript": {
+    "entry": {
+      "vic20": "@8bitscript/vic20/text",
+      "c64": "@8bitscript/c64/text",
+      "pet": "@8bitscript/pet/text",
+      "c128": "@8bitscript/c128/text",
+      "atari8": "@8bitscript/atari8/text",
+      "nes": "@8bitscript/nes/text",
+      "cx16": "@8bitscript/cx16/text",
+      "mega65": "@8bitscript/mega65/text",
+      "web": "@8bitscript/web/text"
+    }
+  },
+  "dependencies": {
+    "@8bitscript/atari8": "workspace:*",
+    "@8bitscript/c64": "workspace:*",
+    "@8bitscript/c128": "workspace:*",
+    "@8bitscript/cx16": "workspace:*",
+    "@8bitscript/mega65": "workspace:*",
+    "@8bitscript/nes": "workspace:*",
+    "@8bitscript/pet": "workspace:*",
+    "@8bitscript/vic20": "workspace:*",
+    "@8bitscript/web": "workspace:*"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
