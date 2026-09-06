@@ -39,17 +39,22 @@ Do not describe more than this as working:
   nine targets; `8bs run <target> --screenshot` shows it.
 - `src/main.8bs` is the one entry for every machine. It reads the
   machine's facts from `@8bitscript/system` — `Input.KEYBOARD`,
-  `Video.SPRITES`, each a `#fact(...)` the compiler folds from the
-  build's hardware — and hands `studio.start()` the tier: the viewer tier
-  where there is no keyboard (the NES, and the web until its runtime
-  reads keys), the basic tier where there are no hardware sprites (the
-  VIC-20, the PET), the full tier everywhere else. The other tiers'
-  branches fold away on any one build (`test/studio.test.mjs` reads the
-  tier off the linked IR for each target, linking with each machine's
-  stock facts). There used to be a `main.<target>.8bs` per lower
-  tier; the filename rule is still the right tool for a machine that
-  needs *different code*, but a machine that only needs a different
-  *number* gets it from one file now.
+  `Memory.RAM`, `Video.GLYPHS`, `Video.SPRITES`, `Audio.VOICES`, each a
+  `#fact(...)` the compiler folds from the build's hardware — and hands
+  `studio.start()` the tier. Two questions, in that order: can this build
+  edit at all (a keyboard, and `EDIT_BYTES` of RAM to hold an editor), and
+  then how much of it has anything to edit. The other tiers' branches fold
+  away on any one build — `test/studio.test.mjs` reads the tier off the
+  linked IR for each target, and the generated C for a PET is literally
+  `if ((1 && (31743 >= 8192))) { if ((((0 > 0) && (0 > 0)) && (1 > 1)))
+  ... }`, which clang folds to `tier = 0`. There used to be a
+  `main.<target>.8bs` per lower tier; the filename rule is still the right
+  tool for a machine that needs *different code*, but a machine that only
+  needs a different *number* gets it from one file now.
+- `src/studio.8bs` prints each editor's row from the tier *and* the fact
+  behind that editor, so a viewer is read-only rather than featureless: it
+  still views a character set and a sprite, plays a tune where there is a
+  voice, and loads a file where there is storage.
 - Nothing responds to a key, plays a note, or reads or writes a file. The
   language has no capability for any of those yet. The screen says
   `NO INPUT YET` for that reason.
@@ -66,50 +71,106 @@ program* at the tier its hardware supports:
 | Tier | Machines | Characters | Sprites | Music | Files |
 | --- | --- | --- | --- | --- | --- |
 | Full | cx16, mega65, c128, c64, atari8 | edit | edit | edit | load, save |
-| Basic | vic20, pet | edit | view | play | load, save |
-| Viewer | nes, web | view | view | view | none |
+| Basic | vic20 with 8K or more | edit | view | edit | load, save |
+| Viewer | pet, vic20 stock and 3K, nes, web | view | view | play¹ | load² |
 
-This table is a proposal, not a measurement. The reasoning, and what each
-row still has to prove:
+¹ where the machine has a voice at all: the PET's one square wave and the
+NES's APU play, the web (no sound yet) only views. ² where the machine has
+storage: every PET and every VIC-20 loads, the NES on a plain cartridge
+and the web have nowhere to load from.
 
-- **Full** is every machine with hardware sprites and a programmable
-  sound chip: VIC-II + SID, ANTIC/GTIA + POKEY, VERA + its engines, and
-  the browser, which is the *host* of Studio's fancier version and can do
-  anything. "Sized to the machine" is the part to design: a C64 editor
-  and an X16 editor share code, not screen layouts.
-- **Basic** is the two machines without hardware sprites. The VIC-20's
-  constraint is RAM (a little over 5K unexpanded — the profile chosen at
-  build time decides how much Studio may use). The PET's constraint is
-  sound: it has no sound chip. Its one voice is the 6522 VIA's shift
-  register free-running onto the CB2 line (`$E84B`, `$E84A`, `$E848`) — a
-  square wave with a pitch and a duty cycle, no volume, heard through the
-  built-in piezo on the CRTC boards only (see
-  [`packages/pet/AGENTS.md`](../pet/AGENTS.md)); enough for "rudimentary
-  playback" and no more.
-  Character editing is native to both: their character cells are the
-  whole display.
-- **Viewer** is the NES: no keyboard on the stock console, and on the
-  cartridge profile this repository builds today, nowhere to save. That is
-  a property of the profile, not the machine — battery-backed SRAM boards
-  exist ([`packages/nes/AGENTS.md`](../nes/AGENTS.md)) — so a later
-  profile may lift the NES to Basic. Viewing is still worth having: it is
-  how you check an asset on the hardware it is for.
+The rule that produces the table, in `src/main.8bs`, is two questions.
+
+**Can this build edit at all?** It needs `Input.KEYBOARD` — the NES has
+none, and the web's runtime does not read one yet — and `Memory.RAM >=
+EDIT_BYTES`, the RAM an editor, its buffers and a playback routine that
+keeps running while you edit have to share. `EDIT_BYTES` is 8192 today.
+**It is a budget, not a measurement** — nothing behind the front door is
+built — and it is one named const so that measuring it later is one edit.
+The line it draws: an unexpanded VIC-20 (3583 bytes) and one with the 3K
+expansion (6655) are read-only; 8K (11775) and up edit. Studio is an audio
+program as much as an editor, and that does not fit in 3.5K.
+
+**Then how much has anything to edit?** One fact per editor: a character
+set the program can redefine (`Video.GLYPHS`), hardware sprites
+(`Video.SPRITES`), and more than one voice (`Audio.VOICES`) — one
+fixed-volume voice plays a tune but does not compose one. All three is
+**full**; some of them is **basic**; none of them is a **viewer with a
+keyboard**, which is every PET.
+
+What each row means, and what it still has to prove:
+
+- **Full** is every machine with hardware sprites, a redefinable character
+  set and a real sound chip: VIC-II + SID, ANTIC/GTIA + POKEY, VERA + its
+  engines. "Sized to the machine" is the part to design: a C64 editor and
+  an X16 editor share code, not screen layouts.
+- **Basic** is the expanded VIC-20: 256 redefinable glyphs and the VIC's
+  four voices, and no hardware sprites, so the sprite editor stays a
+  viewer while the other two edit. Which VIC-20 a build is for is chosen
+  at build time — `8bs build vic20 --profile 8k`, or `targets.vic20.hardware`
+  in a project's `8bs.config.ts` — and the fact sheet the tier is read
+  from follows it. This is the one place where fitting hardware changes
+  what Studio *is*, and it is worth keeping true as more expandable
+  machines arrive.
+- **Viewer** is read-only: view, play, load, never edit or save. Four
+  machines land there for three different reasons, and the reasons matter
+  because only one of them can be bought away:
+  - the **NES** and the **web** have no keyboard to edit with. The NES's
+    is the stock console; on the cartridge profile this repository builds
+    there is also nowhere to save, though battery-backed SRAM boards exist
+    ([`packages/nes/AGENTS.md`](../nes/AGENTS.md)). The web's is today's
+    runtime, not the browser.
+  - the **stock VIC-20** has the keyboard and not the room. **A RAM
+    expansion lifts it**, and that is the whole of what an expansion can do
+    for Studio today.
+  - the **PET** has the keyboard and, on a 3032 or 8032, 31743 bytes —
+    more than the 8K VIC-20 that edits. It is a viewer because of what the
+    machine *is*: its 128 glyphs are in a character ROM the program cannot
+    redefine (`video.glyphs` 0 — see [`packages/pet/AGENTS.md`](../pet/AGENTS.md)),
+    it has no sprites, and its one voice is the 6522 VIA's shift register
+    free-running onto the CB2 line (`$E84B`, `$E84A`, `$E848`) — a square
+    wave with a pitch and a duty cycle, no volume, heard through the
+    built-in piezo on the CRTC boards only. So **no expansion lifts the
+    PET**: RAM is not its gate. A hi-res board (`petdww`, `pethre`) or a
+    SID cartridge would be, and neither is in the catalog or has a driver;
+    a machine that grew either would want new facts, not a new tier rule.
+
+  Viewing is still worth having, and it is most of what Studio is for on
+  these machines: it is how you check an asset on the hardware it is for,
+  and a PET or VIC-20 loading and playing what an X16 saved is the round
+  trip working.
+
+One limit on "an expansion lifts the machine", and it is the fact sheet's
+own rule: **only hardware settled at build time can move a tier.** The
+VIC-20's `ram` option is, so it does. A REU, an MMU bank, VERA's banks are
+`run` facts — the const means "this build may use it", and whether it is
+really plugged in is the capability's answer at run time (see
+[`docs/systems.md`](../../docs/systems.md#facts-what-a-build-knows-about-itself))
+— so they can never pick the tier, which is one compile-time constant by
+rule 2 below. A machine that wanted its editors to appear only when a
+detected expansion is found would be asking for something else: an editor
+built in that refuses to open, not a different tier. Nothing needs that
+today, and the machines it would apply to (the C64, the C128, the X16) are
+already full.
 
 Two rules follow from the table and must survive any redesign:
 
 1. **The tier gates the editors, not the formats.** A file is never tied
-   to the tier that made it. Whatever a PET saves, an X16 opens and edits;
-   whatever an X16 saves, a PET at least views, if the asset is one the
-   PET can show at all. This is what "higher-tier systems edit files from
-   lower-tier systems" means in practice, and it is what makes one format
-   per asset kind the right number.
+   to the tier that made it. Whatever an X16 saves, a PET at least views,
+   if the asset is one the PET can show at all — and since the viewer tier
+   still loads wherever there is storage, that round trip is the point of
+   the tier, not a consolation. This is what "higher-tier systems edit
+   files from lower-tier systems" means in practice, and it is what makes
+   one format per asset kind the right number.
 2. **A tier is a property of the build, chosen once, in `main.8bs`.**
    Studio never probes the machine at runtime to decide what it can do;
    the build already knows which machine it is for, and `main.8bs` picks
-   the tier from the machine's facts (`Input.KEYBOARD`, `Video.SPRITES`
+   the tier from the machine's facts (`Input.KEYBOARD`, `Memory.RAM`,
+   `Video.GLYPHS`, `Video.SPRITES`, `Audio.VOICES`
    — see [`docs/systems.md`](../../docs/systems.md#facts-what-a-build-knows-about-itself)),
-   never from its name, so a new machine with a keyboard and sprites
-   gets the full tier without anyone editing Studio. Keep the tier a
+   never from its name, so a new machine with a keyboard, room and
+   something to edit gets the full tier without anyone editing Studio,
+   and a machine fitted with more RAM gets what that RAM buys it. Keep the tier a
    compile-time constant (`Tier.FULL` and the others are namespace
    consts, inlined by the compiler; so is every fact).
 

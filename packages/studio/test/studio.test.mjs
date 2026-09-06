@@ -8,7 +8,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { link } from '../../compiler/index.mjs';
-import { stockFacts } from '../../cli/src/hardware.mjs';
+import { loadCatalog, resolveHardware, stockFacts } from '../../cli/src/hardware.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -48,22 +48,34 @@ for (const target of TARGETS) {
 
 // Which tier main() hands studio.start() on a machine, read off the linked
 // IR: the facts and the Tier names fold to constants, so every test in the
-// if-chain is a comparison or a negation of folded constants, which this
-// walks the way the machine would. One entry file, and the machine's facts
-// pick the tier.
+// if-chain is a comparison, a negation or a combination of folded
+// constants, which this walks the way the machine would. One entry file,
+// and the machine's facts pick the tier.
 const TIERS = ['VIEWER', 'BASIC', 'FULL'];
+const value = (expr) => {
+  assert.equal(expr.kind, 'const', `not folded to a constant: ${JSON.stringify(expr)}`);
+  return expr.value;
+};
 const truthy = (expr) => {
   if (expr.kind === 'const') return expr.value !== 0;
   if (expr.kind === 'unop' && expr.operator === '!') return !truthy(expr.argument);
-  if (expr.kind === 'binop' && expr.operator === '==') {
-    assert.equal(expr.left.kind, 'const');
-    assert.equal(expr.right.kind, 'const');
-    return expr.left.value === expr.right.value;
+  if (expr.kind === 'binop') {
+    switch (expr.operator) {
+      case '&&': return truthy(expr.left) && truthy(expr.right);
+      case '||': return truthy(expr.left) || truthy(expr.right);
+      case '==': return value(expr.left) === value(expr.right);
+      case '!=': return value(expr.left) !== value(expr.right);
+      case '<': return value(expr.left) < value(expr.right);
+      case '<=': return value(expr.left) <= value(expr.right);
+      case '>': return value(expr.left) > value(expr.right);
+      case '>=': return value(expr.left) >= value(expr.right);
+      default: break;
+    }
   }
   assert.fail(`a test main.8bs is not expected to have: ${JSON.stringify(expr)}`);
 };
-const tierOf = (target) => {
-  const { ir, diagnostics } = link(readFileSync(ENTRY, 'utf8'), ENTRY, { machine: target, facts: stockFacts(target) });
+const tierOf = (target, facts = stockFacts(target)) => {
+  const { ir, diagnostics } = link(readFileSync(ENTRY, 'utf8'), ENTRY, { machine: target, facts });
   assert.deepEqual(diagnostics, [], target);
   const main = ir.functions.find((f) => f.name === 'main');
   let tier;
@@ -78,14 +90,39 @@ const tierOf = (target) => {
   return TIERS[tier];
 };
 
+// The sheet a build gets when hardware is chosen for it — `8bs build vic20
+// --profile 8k` — so a tier can be asserted for a fitted machine and not
+// only for the stock one.
+const factsWith = (machine, profile) => {
+  const resolved = resolveHardware(loadCatalog(machine), { profile });
+  assert.ok(resolved.ok, `${machine} --profile ${profile}: ${resolved.error}`);
+  return resolved.hardware.facts;
+};
+
 test('each machine starts from the tier its facts pick', () => {
   // No keyboard to edit with: the NES, and the web until its runtime reads keys.
   assert.equal(tierOf('nes'), 'VIEWER');
   assert.equal(tierOf('web'), 'VIEWER');
-  // A keyboard but no hardware sprites.
-  assert.equal(tierOf('vic20'), 'BASIC');
-  assert.equal(tierOf('pet'), 'BASIC');
+  // A keyboard, but 3583 bytes to live in: read-only until the machine is expanded.
+  assert.equal(tierOf('vic20'), 'VIEWER');
+  // A keyboard and 31743 bytes, and nothing an editor could change: the PET's
+  // font is in ROM, it has no sprites, and its one voice plays but does not
+  // compose. RAM is not the PET's gate, so no expansion lifts it.
+  assert.equal(tierOf('pet'), 'VIEWER');
   for (const target of ['c64', 'c128', 'atari8', 'cx16', 'mega65']) assert.equal(tierOf(target), 'FULL', target);
+});
+
+test('a RAM expansion lifts the VIC-20 to the basic tier; nothing lifts the PET', () => {
+  // The catalog's own presets, resolved the way `8bs build --profile` does.
+  assert.equal(tierOf('vic20', factsWith('vic20', 'unexpanded')), 'VIEWER'); // 3583 bytes
+  assert.equal(tierOf('vic20', factsWith('vic20', '3k')), 'VIEWER');         // 6655, still under the budget
+  assert.equal(tierOf('vic20', factsWith('vic20', '8k')), 'BASIC');          // 11775: characters and music edit
+  assert.equal(tierOf('vic20', factsWith('vic20', '16k')), 'BASIC');
+  assert.equal(tierOf('vic20', factsWith('vic20', '24k')), 'BASIC');
+  // Every PET model, from the 8K 3008 to the 32K 8032, is a viewer.
+  for (const model of ['3008', '3016', '3032', '4016', '4032', '8032']) {
+    assert.equal(tierOf('pet', factsWith('pet', model)), 'VIEWER', model);
+  }
 });
 
 test('the tier follows the facts, not the name: a machine with no facts is the placeholder sheet', () => {

@@ -9,13 +9,20 @@
 // each editor waits for; nothing here claims more than it draws.
 import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";
 import { text, TextColor } from "@8bitscript/text";
+import { Audio, Storage, Video } from "@8bitscript/system";
 
 // How much of Studio a machine gets. A higher tier opens every editor a
 // lower one does, and a file is never tied to the tier that made it — the
 // tier gates the editors, not the formats (see AGENTS.md).
+//
+// The tier says whether this machine edits at all; the facts below say
+// which editors there is anything to edit *with*. So a viewer is
+// read-only, not featureless: it still shows a character set and a sprite,
+// plays a tune if the machine has a voice, and loads a file if the machine
+// has anywhere to load one from — which is every PET and every VIC-20.
 export namespace Tier {
-    const VIEWER: utinyint = 0; // look at files; no editing, no storage
-    const BASIC: utinyint = 1;  // character editing and rudimentary playback
+    const VIEWER: utinyint = 0; // read-only: view, play, load — never edit or save
+    const BASIC: utinyint = 1;  // the editors this machine's hardware has something for
     const FULL: utinyint = 2;   // every editor
 }
 
@@ -43,44 +50,53 @@ function printTier(cell: usmallint, tier: utinyint): void {
     }
 }
 
-// One line per editor: its name, then what this tier can do in it.
+// One line per editor: its name, then what this build can do in it — the
+// tier for whether it edits, and the machine's own fact for whether there
+// is anything to edit. Every row reads the same way: EDIT where both say
+// so, and the best read-only thing the machine can do otherwise.
 function printEditors(cell: usmallint, tier: utinyint): void {
+    // Characters are editable where the program can redefine the font.
+    // The PET's is in ROM, so a PET shows one and never changes it.
     text.print(cell, "CHARACTERS");
-    if (tier == Tier.VIEWER) {
-        text.print(cell + 12, "VIEW");
-    }
-    if (tier != Tier.VIEWER) {
+    if (tier != Tier.VIEWER && Video.GLYPHS > 0) {
         text.print(cell + 12, "EDIT");
+    } else {
+        text.print(cell + 12, "VIEW");
     }
     cell = cell + ROW;
 
+    // Sprites are editable where the machine has hardware ones; elsewhere
+    // a shape is still worth looking at on the display it is meant for.
     text.print(cell, "SPRITES");
-    if (tier == Tier.FULL) {
+    if (tier != Tier.VIEWER && Video.SPRITES > 0) {
         text.print(cell + 12, "EDIT");
-    }
-    if (tier != Tier.FULL) {
+    } else {
         text.print(cell + 12, "VIEW");
     }
     cell = cell + ROW;
 
+    // Music needs more than one voice to be worth writing; one voice — the
+    // PET's square wave — is enough to hear what someone else wrote.
     text.print(cell, "MUSIC");
-    if (tier == Tier.FULL) {
+    if (tier != Tier.VIEWER && Audio.VOICES > 1) {
         text.print(cell + 12, "EDIT");
-    }
-    if (tier == Tier.BASIC) {
+    } else if (Audio.VOICES > 0) {
         text.print(cell + 12, "PLAY");
-    }
-    if (tier == Tier.VIEWER) {
+    } else {
         text.print(cell + 12, "VIEW");
     }
     cell = cell + ROW;
 
+    // A viewer loads but never saves: reading a file is how an asset gets
+    // onto the machine it is for. Where there is no storage at all — the
+    // NES on a plain cartridge, the web — there is neither.
     text.print(cell, "FILES");
-    if (tier == Tier.VIEWER) {
-        text.print(cell + 12, "NONE");
-    }
-    if (tier != Tier.VIEWER) {
+    if (tier != Tier.VIEWER && Storage.SAVE) {
         text.print(cell + 12, "LOAD SAVE");
+    } else if (Storage.SAVE) {
+        text.print(cell + 12, "LOAD");
+    } else {
+        text.print(cell + 12, "NONE");
     }
 }
 
