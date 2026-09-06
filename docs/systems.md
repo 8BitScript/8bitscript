@@ -110,13 +110,16 @@ the hardware's fact, and that is what a program lays itself out by.
 
 ## Facts: what a build knows about itself
 
-Proposal, with the plumbing built: the catalog already carries facts per
-value (`video.columns` 80 on an 8032, `input.mouse` on a 1351 in a port,
-`memory.banked` with a REU), the CLI merges them for a build, and the
-result reaches the linker and the editor's panel. What is left is the
-program's side: a fact sheet of consts a program reads, generated for the
+Proposal, with the first plumbing built: the catalog already carries
+facts per value (`video.columns` 80 on an 8032, `input.mouse` on a 1351
+in a port, `memory.banked` with a REU), the CLI merges them onto the
+resolved hardware of a build, and `8bs targets --json` lists them per
+value. Nothing reads them yet: the linker is handed the hardware's tags
+only, and the editor's panel shows values, not facts. What is left is the
+program's side — a fact sheet of consts a program reads, generated for the
 build from those merged facts the way `#system()` is, so every fact is a
-compile-time number and `8bs check` can validate every machine's sheet.
+compile-time number and `8bs check` can validate every machine's sheet —
+and the panel that shows them.
 
 ```
 import { System, Video, Audio, Input, Storage, Memory } from "@8bitscript/system";

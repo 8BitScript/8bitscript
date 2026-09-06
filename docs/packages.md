@@ -221,9 +221,9 @@ the option's default value has none; a catalog value may name a different
 tag when several values share what a file differs on — the VIC-20's 8k,
 16k and 24k values all carry the tag `expanded`, because the screen moves
 at 8K and does not move again, so one `geometry.vic20.expanded.8bs` serves
-all three. A build carries several tags at once (an 8032 PET with a SID
-card is `8032` and `sidcart`); a file with a version for each of two of
-them is `8BS3004`, and the resolver will not choose. Explicitly naming a
+all three. A build carries several tags at once (a C64 with a 512K REU
+and the later SID is `reu512` and `8580`); a file with a version for each
+of two of them is `8BS3004`, and the resolver will not choose. Explicitly naming a
 version (`./geometry.pet.8032.8bs`) gets exactly that file, as with a
 machine's. A file that exists only as a tag's version is `8BS3002` for a
 build without that tag, and the message names the versions that exist.
