@@ -96,7 +96,8 @@ buffer, with no file on disk to walk up from, assumes the default 60.
 Hover and a first slice of completion, both for built-in constructs. Hovering
 a primitive type (`utinyint`, `u8`, `int`, ...), `volatile`, `ptr`, `array`,
 `asm6502`, `@address`, `memory.read`/`memory.write`, `string`,
-`#frames(...)`, the `seconds` unit inside it, `#system()`, or `waitFrame()` explains it
+`#frames(...)`, the `seconds` unit inside it, `#system()`, `#fact(...)`, a fact key
+inside it (`video.columns`), or `waitFrame()` explains it
 in place — inside a template's `${...}` field as much as outside one:
 
 ```
@@ -116,8 +117,9 @@ wherever a type can syntactically appear: after a `:` annotation, or inside
 `ptr<...>`, `array<...>`, or `volatile<...>`. See
 [the compiler](compiler.md#primitive-integer-types) for what each type
 means and how the aliasing works. Two more places have something to offer:
-a `#` offers the compile-time functions (`#frames`, `#system`), and the second
-argument of one offers the units it can measure (`seconds`). Each item
+a `#` offers the compile-time functions (`#frames`, `#system`, `#fact`), the second
+argument of `#frames` offers the units it can measure (`seconds`), and the
+argument of `#fact` offers the fact keys. Each item
 says what kind of thing it is, so an editor can show a type, a function,
 and a constant differently. All three work inside a template's `${...}`
 field as well as outside one — a field is ordinary source.

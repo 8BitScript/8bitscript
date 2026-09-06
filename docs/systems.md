@@ -110,46 +110,82 @@ the hardware's fact, and that is what a program lays itself out by.
 
 ## Facts: what a build knows about itself
 
-Proposal, with the first plumbing built: the catalog already carries
-facts per value (`video.columns` 80 on an 8032, `input.mouse` on a 1351
-in a port, `memory.banked` with a REU), the CLI merges them onto the
-resolved hardware of a build, and `8bs targets --json` lists them per
-value. Nothing reads them yet: the linker is handed the hardware's tags
-only, and the editor's panel shows values, not facts. What is left is the
-program's side — a fact sheet of consts a program reads, generated for the
-build from those merged facts the way `#system()` is, so every fact is a
-compile-time number and `8bs check` can validate every machine's sheet —
-and the panel that shows them.
+Built. A *fact* is a number or a yes/no with one meaning on every
+machine, and a program reads it as a compile-time constant:
 
 ```
-import { System, Video, Audio, Input, Storage, Memory } from "@8bitscript/system";
+import { Video, Audio, Input, Storage, Memory } from "@8bitscript/system";
+
+if (Video.SPRITES == 0) { ... }        // software objects here
+if (!Input.KEYBOARD) { ... }           // nothing to type with
 ```
 
-| Namespace | Facts | Notes |
-| --------- | ----- | ----- |
-| `Video` | `COLUMNS`, `ROWS` (text grid); `WIDTH`, `HEIGHT` (visible pixels); `CELL_WIDTH`, `CELL_HEIGHT`; `PALETTE` (colours the machine can show at once); `CELL_COLORS` (colours one cell may hold); `GLYPHS` (redefinable characters, 0 on the PET); `BLOCK_WIDTH`, `BLOCK_HEIGHT` (pseudo-pixels per cell from block glyphs: 2×2 on PETSCII machines, 0 where there are none); `BITMAP` (a pixel-addressable mode exists); `LAYERS`; `SCROLL` (hardware fine scroll); `SPRITES` (total); `SPRITES_PER_LINE` (the number that breaks programs); `SPRITE_WIDTH`, `SPRITE_HEIGHT`, `SPRITE_COLORS` | Every count is 0 rather than absent. `SPRITES_PER_LINE` on a machine with a cycle budget instead of a count (X16) is the worst-case count at the package's default sprite size, and the package says so. |
-| `Audio` | `VOICES`; `NOISE` (a noise voice exists); `ENVELOPE` (hardware ADSR); `FILTER`; `PCM` (sample playback); `VOLUME` (per-voice volume exists — false on the PET); `ENTROPY` (a hardware random source exists) | The PET is `VOICES = 1`, `VOLUME = false`, and that is the honest sheet, not a stub. |
-| `Input` | `KEYBOARD`; `JOYSTICKS` (ports); `MOUSE`; `PADDLES`; `PADS` (console controllers) | Presence of the *port*. Whether something is plugged in is the capability's runtime answer. |
-| `Storage` | `LOAD`; `SAVE`; `BYTES` (persistent bytes the profile guarantees, 0 on an NROM cartridge, 32 in the X16's RTC NVRAM) | Persistence is the profile's, never the machine name's. |
-| `Memory` | `RAM` (KiB the build may use); `BANKED` (RAM beyond the CPU window exists); `BANK_SIZE` | The linker enforces `RAM`; the fact is there so a program can size a buffer at compile time. |
+Each const is one `#fact(...)` — `Video.COLUMNS` is `#fact(video.columns)`
+— that the compiler folds the way it folds `#system()`. The keys and their
+types are the compiler's (`packages/compiler/src/fold/facts.mjs`, one
+table); the values are the machine packages': each catalog's top-level
+`facts` is the stock machine's sheet, each hardware value's `facts` is
+what fitting it changes, and the CLI merges them for a build in the order
+it resolves hardware (`8bs targets --json` shows both). So `Video.COLUMNS`
+is 40 on a PET and 80 on a `--profile 8032` build, from the same source
+line, and the editor's Hardware panel shows the sheet a selection gives.
 
-Two rules for the sheet:
+| Namespace | Facts |
+| --------- | ----- |
+| `Video` | `COLUMNS`, `ROWS`, `CELL_WIDTH`, `CELL_HEIGHT` (the text grid); `PALETTE` (colours at once); `CELL_COLORS`; `GLYPHS` (redefinable characters, 0 where the font is fixed); `BLOCK_WIDTH`, `BLOCK_HEIGHT` (pseudo-pixels per cell from block glyphs, 0 where there are none); `BITMAP`; `LAYERS`; `SCROLL`; `SPRITES`; `SPRITES_PER_LINE`; `SPRITE_WIDTH`, `SPRITE_HEIGHT` (the largest); `SPRITE_COLORS` |
+| `Audio` | `VOICES`; `NOISE`; `ENVELOPE`; `FILTER`; `PCM`; `VOLUME` (a volume per voice — false on the PET); `ENTROPY` (a hardware random source) |
+| `Input` | `KEYBOARD`; `JOYSTICKS`; `PADS` (the ports); `MOUSE`, `PADDLES` (run time — see below) |
+| `Storage` | `SAVE` (somewhere this build can persist bytes) |
+| `Memory` | `RAM` (bytes the program is linked to use); `BANKED`, `BANKED_KIB` (run time) |
+
+Three rules:
 
 1. **A fact is never missing.** A machine without hardware sprites says
    `Video.SPRITES = 0`; a program that reads it gets a number it can branch
-   on, and the branch folds away. `actors.PER_ROW` on the same machine is
-   still a number — what its software actors can manage — because the
-   concept exists there even though the chip does not.
+   on, and the branch folds away. Every catalog declares every key (the
+   CLI's tests hold them to it), and every value must fit the sheet's type
+   on every machine and every hardware value (the system package's tests
+   link all of them).
 2. **A fact is the worst case that matters, not the brochure figure.** The
-   NES's sprite fact that decides whether a scene works is 8 per line, not
-   64 per frame. The X16's is a per-line pixel budget. When the brochure
-   figure is also useful it is a second const with its own name, never the
-   same name meaning different things on different machines.
+   NES's `SPRITES_PER_LINE` is 8, not the 64 per frame. The X16's is 46,
+   which is the 798-cycle line budget divided by the cost of its smallest
+   sprite (8 px, 4 bpp, up to 17 cycles); its package notes say so, and an
+   actors package must say which size its own count assumes.
+3. **A fact says when it is settled.** Most are fixed by the build — the
+   grid, the chip, the RAM the program was linked into — and the const is
+   the truth on every machine the binary runs on. A few name hardware the
+   machine may or may not have when the program runs: a mouse in a port, a
+   REU, banked RAM. For those the const means *this build may use it*: the
+   hardware was chosen for the build, so the capability's detection code is
+   compiled in, and whether it is really there is the capability's answer
+   at run time. A build never fitted with it carries no code for it. This
+   is how one binary per machine finds optional hardware and uses it, and
+   how a program that never asked for a REU pays nothing for one.
 
-Studio's tier is the first customer: once the sheet exists, "full tier" is
-`Video.SPRITES > 0 && Audio.VOICES >= 3 && Storage.SAVE`, not a list of
-machine names, and a tenth machine gets the right tier without anyone
-editing Studio.
+What stays a separate build is what changes the binary: the 80-column
+PET, whose screen is a different size and a different place, is a
+different program, not a probe. A project that is written for the wide
+PET says so once — `targets: { pet: { hardware: { model: '8032' } } }` —
+and every PET build of that project is an 80-column one; the default is
+the 40-column machine, which most programs want.
+
+Not on the sheet, on purpose: the display's refresh rate. The Commodore
+and Atari machines detect NTSC or PAL when the program starts (one binary
+runs on both), so a compile-time `FRAME_RATE` would sometimes be wrong.
+The catalog still carries `video.frameRate` for the CLI, which times a
+PET screenshot by its model's rate.
+
+Studio is the first customer: its tier is `!Input.KEYBOARD` → viewer,
+`Video.SPRITES == 0` → basic, otherwise full — not a list of machine
+names — and a tenth machine gets the right tier without anyone editing
+Studio. It also moved the web to the viewer tier, honestly: the web
+runtime has no keyboard yet.
+
+Still to build: the run-time probes themselves, one per capability (REU
+presence, a 1351 in a port, the C128's bank, the X16's bank count) — the
+sheet says which builds want them; a way to mark, per option, whether the
+machine can detect the value at all; and `8bs check` validating a
+project's own sheet.
 
 ## Behaviour: capability packages
 
@@ -433,13 +469,18 @@ export default {
     cx16: {},
     c64: { profiles: { loaded: { ram: 'reu512', sid: '8580', port1: 'mouse1351' } } },
     vic20: { profiles: { big: { ram: '24k' } } },
-    pet: { profiles: { wide: { model: '8032' } } },
+    pet: { hardware: { model: '8032' }, profiles: { small: { model: '3008' } } },
     web: {},
   },
 };
 ```
 
 - The array form still means "these targets, stock hardware".
+- `hardware` is the project's own stock for that machine, under any
+  profile and any `--hardware`: the PET above is an 80-column one on
+  every build of this project unless a build says otherwise. Most
+  projects want the catalog's default (the 40-column PET) and leave it
+  out.
 - `--profile <name>` names one of the project's profiles or a catalog
   preset; a project's name shadows a preset's, and the error for an
   unknown name lists both. `--hardware option=value,...` sets single
