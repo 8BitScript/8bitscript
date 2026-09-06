@@ -121,7 +121,7 @@ class ControlsViewProvider {
           default: option.default,
           detect: option.detect ?? null,
           values: Object.entries(option.values).map(([value, entry]) => ({
-            id: value, label: entry.label, affectsBuild: entry.affectsBuild,
+            id: value, label: entry.label, affectsBuild: entry.affectsBuild, detect: entry.detect ?? null,
           })),
         })),
         effective: effectiveOptions(target, selection),
@@ -262,15 +262,21 @@ function html(webview) {
         const row = document.createElement('div');
         row.className = 'option' + (option.id in hardware.selection.options ? ' set' : '');
         const label = document.createElement('label');
-        label.textContent = option.label + (option.detect ? ' \u25CE' : '');
+        const probes = [...new Set(option.values
+          .filter((v) => v.detect && v.id !== option.default).map((v) => v.detect))];
+        label.textContent = option.label + (probes.length > 0 ? ' \u25CE' : '');
         label.title = option.label + ' (--hardware ' + option.id + '=...)'
-          + (option.detect ? '\nFound on the machine at run time by ' + option.detect + ': one build serves every value.' : '\nChosen at build time: each value is its own build.');
+          + (probes.length > 0
+            ? '\n\u25CE found on the machine at run time by ' + probes.join(', ')
+              + ': one build serves those values, and fitting one here compiles the probe in.'
+            : '\nChosen at build time: each value is its own build.');
         const select = document.createElement('select');
         select.title = label.title;
         for (const value of option.values) {
           const el = document.createElement('option');
           el.value = value.id;
-          el.textContent = value.label + (value.affectsBuild ? '  [build]' : '');
+          el.textContent = value.label + (value.affectsBuild ? '  [build]' : '')
+            + (value.detect && value.id !== option.default ? '  \u25CE' : '');
           el.selected = value.id === hardware.effective[option.id];
           select.appendChild(el);
         }
@@ -288,8 +294,9 @@ function html(webview) {
     }
 
     // The fact sheet for the selection, grouped the way @8bitscript/system
-    // names it: `video.columns` is Video.COLUMNS. A run-time fact reads
-    // "may use", since the machine answers whether it is really there.
+    // names it: the key video.columns is Video.COLUMNS. A run-time fact
+    // reads "may use", since the machine answers whether it is there.
+    // (No backticks in here: this whole page is a template literal.)
     function renderFacts(root, facts) {
       if (!facts || facts.length === 0) return;
       const details = document.createElement('details');

@@ -1,0 +1,22 @@
+// The Atari extended-RAM probe, run for real: prints the KiB banks.kib()
+// found and sets the border to a colour that encodes it — red for none, a
+// different colour for each 16 KiB step up to the 130XE's 64. See
+// test/banks.test.mjs.
+import { screen } from "../src/screen.8bs";
+import { text } from "../src/text.8bs";
+import { banks } from "../src/banks.8bs";
+
+export function main(): void {
+    screen.blank();
+    let kib: usmallint = banks.kib();
+    text.print(0, "EXTRA KIB");
+    text.printNumber(10, kib, 5);
+    let color: utinyint = 52;      // dark red
+    if (kib != 0) {
+        color = 196;               // bright green: a 130XE
+    }
+    screen.setColors(color, 0);
+    while (true) {
+        waitFrame();
+    }
+}

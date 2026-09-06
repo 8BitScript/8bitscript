@@ -8,7 +8,8 @@
     "entry": "./src/index.8bs",
     "exports": {
       "./screen": "./src/screen.8bs",
-      "./text": "./src/text.8bs"
+      "./text": "./src/text.8bs",
+      "./banks": "./src/banks.8bs"
     },
     "hardware": {
       "facts": {
@@ -51,6 +52,7 @@
         "ram": {
           "label": "Banked RAM",
           "default": "512",
+          "detect": "@8bitscript/cx16/banks",
           "values": {
             "64": {
               "label": "64 KiB of banked RAM",
@@ -135,5 +137,8 @@
   ],
   "publishConfig": {
     "access": "public"
+  },
+  "scripts": {
+    "test": "node --test"
   }
 }

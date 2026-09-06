@@ -1,0 +1,82 @@
+// @8bitscript/c128/banks — how much banked RAM this C128 has: the 64 KiB
+// of bank 1 every C128 has, or the 192 KiB of a machine with the 256 KiB
+// modification.
+//
+// Named by "8bitscript".exports["./banks"] in this package's package.json:
+//
+//     import { banks } from "@8bitscript/c128/banks";
+//
+//     let kib: usmallint = banks.kib();   // 64, or 192 with the mod
+//
+// A run-time hardware probe, like @8bitscript/c64/reu. Every C128 has a
+// second 64 KiB bank; a modified one (`x128 -c128fullbanks`, the
+// catalog's `ram=256k`) has two more. One binary runs on both, and this
+// is how it finds out which. A program that never imports this file
+// carries none of it.
+//
+// **Why this is more delicate than the other probes.** The C128's banks
+// are not a window: selecting bank 2 changes what the whole address space
+// is, including the bytes the CPU is fetching instructions from. Code
+// running at `$1C01` in bank 0 that selects bank 2 executes whatever bank
+// 2 holds at `$1C01`, which is nothing in particular. The MMU's answer is
+// *common RAM*: an area that stays bank 0's in every configuration. The
+// RAM configuration register (`$D506`) sets its size, and the C128 boots
+// with 1 KiB of it at the bottom — enough for the stack and the KERNAL's
+// workspace, not for a program at `$1C01`. So this widens it to 16 KiB
+// (`$0000`–`$3FFF`) for the length of the probe, which covers every
+// program this toolchain builds for the C128 today (the linker starts
+// them at `$1C01`; the borders example ends well below `$3000`), then
+// puts the register back exactly as it found it.
+//
+// Two consequences worth stating. A program whose code or data reaches
+// past `$3FFF` must not call this — it would vanish mid-instruction; and
+// the byte this scribbles on, `$8000`, is above the common area on
+// purpose, since a byte inside it would be the same byte in every bank
+// and the probe would prove nothing. The KERNAL's interrupt keeps running
+// throughout, which is safe for the same reason the program is: its
+// vectors, its workspace and the stack are all inside the widened common
+// area.
+//
+// **The test.** A marker goes into `$8000` in bank 0; bank 2 is selected
+// through the configuration register's top two bits and given a different
+// marker; bank 0 is selected again and its byte read back. On a 128 KiB
+// machine banks 2 and 3 are banks 0 and 1 over again, so the second write
+// landed on the first byte and bank 0 has lost its marker. On a 256 KiB
+// machine both markers survive.
+//
+// The configuration register is written through its `$FF00` mirror, not
+// `$D500`: the mirror is visible in every configuration, which is exactly
+// what a register that changes the configuration has to be.
+
+@address(0xFF00) let mmuConfig: volatile<u8>;      // CR mirror: bits 6-7 the RAM bank
+@address(0xD506) let mmuRamControl: volatile<u8>;  // RCR: common RAM size and where
+
+namespace Mmu {
+    const KEEP: utinyint = 0x3F;         // everything but the bank bits
+    const BANK_2: utinyint = 0x80;       // %10 in the top bits
+    const COMMON_16K: utinyint = 0x07;   // 16 KiB of common RAM, at the bottom
+    const PROBE: usmallint = 0x8000;     // a byte above the common area
+    const BANK0_MARK: utinyint = 0x5A;
+    const BANK2_MARK: utinyint = 0xC3;
+}
+
+export namespace banks {
+    // KiB of banked RAM this machine has beyond the bank the program runs
+    // in: 64 on every C128, 192 with the 256 KiB modification. One call at
+    // start-up; keep the answer.
+    function kib(): usmallint {
+        let savedCommon: utinyint = mmuRamControl;
+        let savedConfig: utinyint = mmuConfig;
+        mmuRamControl = Mmu.COMMON_16K;
+        memory.write(Mmu.PROBE, Mmu.BANK0_MARK);
+        mmuConfig = (savedConfig & Mmu.KEEP) | Mmu.BANK_2;
+        memory.write(Mmu.PROBE, Mmu.BANK2_MARK);
+        mmuConfig = savedConfig;
+        let kept: utinyint = memory.read(Mmu.PROBE);
+        mmuRamControl = savedCommon;
+        if (kept == Mmu.BANK0_MARK) {
+            return 192;
+        }
+        return 64;
+    }
+}
