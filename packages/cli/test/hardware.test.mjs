@@ -4,6 +4,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
+import { createRequire } from 'node:module';
+
 import { MACHINES } from '@8bitscript/compiler';
 
 import {
@@ -180,4 +182,22 @@ test('a project\'s own hardware for a target sits under a profile and under --ha
   const bad = resolveHardware(catalog, { defaults: { model: 'nope' } });
   assert.equal(bad.ok, false);
   assert.match(bad.error, /'nope' is not a value .* \(from this project's hardware\)/);
+});
+
+test('an option\'s detect names a subpath the machine package really exports', () => {
+  
+  let seen = 0;
+  for (const machine of MACHINES) {
+    const catalog = loadCatalog(machine);
+    for (const [id, option] of Object.entries(catalog.options)) {
+      if (option.detect === undefined) continue;
+      seen += 1;
+      const [, scope, name, ...rest] = option.detect.match(/^(@8bitscript)\/([a-z0-9]+)\/(.+)$/) ?? [];
+      assert.equal(scope, '@8bitscript', `${machine} ${id}: ${option.detect}`);
+      assert.equal(name, machine, `${machine} ${id}: a probe lives in its own machine's package`);
+      const pkg = createRequire(import.meta.url)(`@8bitscript/${machine}/package.json`);
+      assert.ok(pkg['8bitscript'].exports[`./${rest.join('/')}`], `${machine} ${id}: ${option.detect} is exported`);
+    }
+  }
+  assert.equal(seen, 1, 'the C64 REU is the one probe so far');
 });

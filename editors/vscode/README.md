@@ -77,7 +77,9 @@ Run buttons use 8bs run c64 --profile reu512 --hardware sid=8580,port1=mouse1351
   or `reu512`, or one the open project composes in its `8bs.config.ts`)
   and one control per option the catalog offers, each showing the value
   it ends up with; `[build]` marks a value that changes the program, not
-  only the emulator. The selection is `8bitscript.hardware`, an object
+  only the emulator, and ◎ after an option's name means the machine finds
+  that hardware at run time (a C64 REU, through `@8bitscript/c64/reu`),
+  so one build serves every value of it. The selection is `8bitscript.hardware`, an object
   keyed by system, and it rides on every Run and Build as `--profile` and
   `--hardware` — the hint shows the exact `8bs run` line. *Back to stock*
   clears it (stock is the catalog's default, or the project's own

@@ -20,6 +20,12 @@
 //   facts  what a program can then rely on, as dotted keys (`input.mouse`,
 //          `video.columns`) — carried through the build for the fact
 //          sheet and the editor's hardware panel
+// and an option may name, in `detect`, the package subpath whose probe
+// finds that hardware on the machine at run time (`@8bitscript/c64/reu`):
+// one build then serves every value, and the value chosen for a build
+// says what the emulator is fitted with and what the program may use.
+// An option without `detect` is chosen at build time — each value its own
+// build (a PET model, a VIC-20 expansion that moves the screen).
 //
 // A project's 8bs.config.ts may add named profiles of its own under
 // `targets.<machine>.profiles`, each a set of option values; `--profile`

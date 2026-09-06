@@ -119,6 +119,7 @@ class ControlsViewProvider {
           id,
           label: option.label,
           default: option.default,
+          detect: option.detect ?? null,
           values: Object.entries(option.values).map(([value, entry]) => ({
             id: value, label: entry.label, affectsBuild: entry.affectsBuild,
           })),
@@ -261,8 +262,9 @@ function html(webview) {
         const row = document.createElement('div');
         row.className = 'option' + (option.id in hardware.selection.options ? ' set' : '');
         const label = document.createElement('label');
-        label.textContent = option.label;
-        label.title = option.label + ' (--hardware ' + option.id + '=...)';
+        label.textContent = option.label + (option.detect ? ' \u25CE' : '');
+        label.title = option.label + ' (--hardware ' + option.id + '=...)'
+          + (option.detect ? '\nFound on the machine at run time by ' + option.detect + ': one build serves every value.' : '\nChosen at build time: each value is its own build.');
         const select = document.createElement('select');
         select.title = label.title;
         for (const value of option.values) {

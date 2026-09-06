@@ -1,0 +1,135 @@
+// @8bitscript/c64/reu — is a RAM Expansion Unit plugged in, and how big.
+//
+// Named by "8bitscript".exports["./reu"] in this package's package.json:
+//
+//     import { reu } from "@8bitscript/c64/reu";
+//
+//     let banked: usmallint = reu.detect();   // KiB found, 0 for none
+//
+// The first run-time hardware probe. A build fitted with a REU
+// (`--hardware ram=reu512`, or a profile) says so at compile time —
+// `Memory.BANKED` from @8bitscript/system is true, `Memory.BANKED_KIB` is
+// what the build was fitted with — and that means "this build may use
+// one", not "one is there": the same binary runs on a C64 with no REU, a
+// 1700, or a 16 MiB modern one, and `detect()` is how it finds out which.
+// A program that never imports this file carries none of it: only what a
+// program imports is compiled, so an app with no use for a REU pays
+// nothing for one, and the same goes for every probe to come. See
+// docs/systems.md, "Facts", the third rule.
+//
+// C64-only, hardware-level, like ./sid.8bs: the layer a portable banked-
+// memory capability will sit on. Two questions, answered in order:
+//
+// 1. Is there a REU at all? A register round trip. `$DF02` (C64 base
+//    address, low byte) stores what is written and reads it back on every
+//    REU; on a C64 without one, `$DF00`–`$DFFF` is open bus and reads
+//    whatever byte last crossed it, which is not two different values in
+//    a row. Writing $55 then $AA and reading each back is the test.
+// 2. How much RAM? Sixty-four-KiB banks, found by writing a marker to the
+//    first byte of each bank in turn and looking for it to land somewhere
+//    it should not. One-byte DMA transfers do the writing and reading:
+//    `stash` copies a byte from C64 RAM into the REU, `fetch` the other
+//    way. Bank 0 is marked first; then for each higher bank, its marker
+//    is stashed and two things are checked — did bank 0's marker change
+//    (the address wrapped: this bank *is* bank 0 again), and does the
+//    bank read its own marker back (a bank that does not exist reads
+//    nothing back). Either ends the count. The units with 3-bit bank
+//    registers (1700, 1764, 1750: 128, 256, 512 KiB) wrap at 8 banks or
+//    alias below it; the larger units have all 8 bits, up to 256 banks.
+//    Verified against VICE's reu.c (see AGENTS.md): the bank register's
+//    unused bits are forced high on those units, addresses wrap at the
+//    unit's size, every register reads back what was written, and
+//    autoload restores the bank register too.
+//
+// The byte the DMA reads and writes is `probe`, one location in the
+// cassette buffer ($033C–$03FB), which nothing else in an 8bitscript
+// program uses (interrupts are off; there is no tape). The registers are
+// set once: with bit 5 of the command (autoload) the REU reloads every
+// address and the length from what was written after each transfer, and
+// with bit 4 the transfer runs immediately, without the $FF00 trigger the
+// original REU firmware wants. So a transfer is two writes — the bank and
+// the command. Measured: a program that calls `detect()` is about 180
+// bytes bigger than the same program without it (the size loop is most
+// of that; `present()` alone is a couple of dozen), and a program that
+// does not import this file is not one byte bigger.
+//
+// `detect()` is safe to call on a C64 without a REU (question 1 stops it),
+// costs a few hundred DMA cycles at most, and is meant to run once at
+// start-up; keep the answer in a variable rather than asking again.
+import {
+    reuCommand, reuC64AddressLow, reuC64AddressHigh, reuAddressLow, reuAddressHigh,
+    reuBank, reuLengthLow, reuLengthHigh, reuAddressControl,
+} from "./index.8bs";
+
+// The one C64 byte the transfers touch. Its address goes into $DF02/$DF03.
+@address(0x033C) let probe: volatile<u8>;
+
+namespace Reu {
+    const PROBE_LOW: utinyint = 0x3C;    // low byte of `probe`'s address
+    const PROBE_HIGH: utinyint = 0x03;   // high byte
+    const STASH: utinyint = 0xB0;        // execute now, autoload, C64 → REU
+    const FETCH: utinyint = 0xB1;        // execute now, autoload, REU → C64
+}
+
+export namespace reu {
+    // Question 1: is a REU present? A register that stores what it is
+    // given, twice, with different values.
+    function present(): bool {
+        reuC64AddressLow = 0x55;
+        if (reuC64AddressLow != 0x55) {
+            return false;
+        }
+        reuC64AddressLow = 0xAA;
+        return reuC64AddressLow == 0xAA;
+    }
+
+    // Question 2, given a REU: how many 64 KiB banks it has, 1..255, or 0
+    // meaning all 256 (16 MiB — the count does not fit the byte). Every
+    // transfer is one byte between `probe` and the first byte of a bank.
+    function banks(): utinyint {
+        reuC64AddressLow = Reu.PROBE_LOW;
+        reuC64AddressHigh = Reu.PROBE_HIGH;
+        reuAddressLow = 0;
+        reuAddressHigh = 0;
+        reuLengthLow = 1;
+        reuLengthHigh = 0;
+        reuAddressControl = 0;
+        probe = 0;
+        reuBank = 0;
+        reuCommand = Reu.STASH;
+        let bank: utinyint = 1;
+        while (bank != 0) {
+            probe = bank;
+            reuBank = bank;
+            reuCommand = Reu.STASH;
+            probe = 0xFF;
+            reuBank = 0;
+            reuCommand = Reu.FETCH;
+            if (probe == bank) {
+                return bank;        // wrapped: this bank is bank 0 again
+            }
+            probe = 0xFF;
+            reuBank = bank;
+            reuCommand = Reu.FETCH;
+            if (probe != bank) {
+                return bank;        // nothing there
+            }
+            bank = bank + 1;
+        }
+        return 0;
+    }
+
+    // KiB of REU RAM plugged in: 0 for none, 128 for a 1700, 512 for a
+    // 1750, up to 16384. One call at start-up; keep the answer.
+    function detect(): usmallint {
+        if (!reu.present()) {
+            return 0;
+        }
+        let found: utinyint = reu.banks();
+        if (found == 0) {
+            return 16384;
+        }
+        let kib: usmallint = found;
+        return kib * 64;
+    }
+}

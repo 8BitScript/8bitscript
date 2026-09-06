@@ -15,7 +15,7 @@ const SAMPLE = JSON.stringify({
     emulator: 'x64sc',
     region: true,
     options: {
-      ram: { label: 'RAM Expansion Unit', default: 'none', values: { none: { label: 'No expansion', affectsBuild: false }, reu512: { label: 'REU, 512 KiB', affectsBuild: false, facts: { 'memory.banked': true, 'memory.bankedKib': 512 } } } },
+      ram: { label: 'RAM Expansion Unit', default: 'none', detect: '@8bitscript/c64/reu', values: { none: { label: 'No expansion', affectsBuild: false }, reu512: { label: 'REU, 512 KiB', affectsBuild: false, facts: { 'memory.banked': true, 'memory.bankedKib': 512 } } } },
       port1: { label: 'Control port 1', default: 'none', values: { none: { label: 'Nothing', affectsBuild: false }, mouse1351: { label: '1351', affectsBuild: false, facts: { 'input.mouse': true } } } },
     },
     presets: { stock: { ram: 'none' }, reu512: { ram: 'reu512' } },
