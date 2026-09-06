@@ -1,0 +1,21 @@
+// The C128 bank probe, run for real: prints the KiB banks.kib() found and
+// paints the border green for the 256 KiB machine, red for a stock one.
+// See test/banks.test.mjs.
+import { screen } from "../src/screen.8bs";
+import { text } from "../src/text.8bs";
+import { banks } from "../src/banks.8bs";
+
+export function main(): void {
+    screen.blank();
+    let kib: usmallint = banks.kib();
+    text.print(0, "BANKED KIB");
+    text.printNumber(11, kib, 5);
+    let color: utinyint = 2;
+    if (kib != 64) {
+        color = 5;
+    }
+    screen.setColors(color, 0);
+    while (true) {
+        waitFrame();
+    }
+}

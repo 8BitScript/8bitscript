@@ -12,10 +12,10 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { inflateSync } from 'node:zlib';
 
 import { link } from '../../compiler/index.mjs';
 import { loadCatalog, stockFacts } from '../../cli/src/hardware.mjs';
+import { pixelAt } from '../../cli/src/png.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -59,65 +59,6 @@ function runCli(args, { timeoutMs = 60_000 } = {}) {
   });
 }
 
-/**
- * The colour of one pixel of a PNG: enough of a decoder for what VICE
- * writes (8-bit RGB, RGBA or palette, no interlace). Returns [r, g, b].
- */
-function pixelAt(path, x, y) {
-  const buf = readFileSync(path);
-  assert.ok(buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])), 'a PNG');
-  let offset = 8;
-  let width = 0; let height = 0; let depth = 0; let colorType = 0; let interlace = 0;
-  let palette = null;
-  const idat = [];
-  while (offset < buf.length) {
-    const length = buf.readUInt32BE(offset);
-    const type = buf.toString('ascii', offset + 4, offset + 8);
-    const data = buf.subarray(offset + 8, offset + 8 + length);
-    if (type === 'IHDR') {
-      width = data.readUInt32BE(0); height = data.readUInt32BE(4);
-      depth = data[8]; colorType = data[9]; interlace = data[12];
-    } else if (type === 'PLTE') palette = data;
-    else if (type === 'IDAT') idat.push(data);
-    else if (type === 'IEND') break;
-    offset += 12 + length;
-  }
-  assert.equal(depth, 8, '8-bit PNG'); assert.equal(interlace, 0, 'not interlaced');
-  assert.ok(x < width && y < height, 'pixel inside the image');
-  const channels = { 2: 3, 3: 1, 6: 4 }[colorType];
-  assert.ok(channels, `colour type ${colorType}`);
-  const raw = inflateSync(Buffer.concat(idat));
-  const stride = width * channels;
-  const rows = [];
-  let previous = Buffer.alloc(stride);
-  for (let row = 0; row <= y; row++) {
-    const filter = raw[row * (stride + 1)];
-    const line = Buffer.from(raw.subarray(row * (stride + 1) + 1, (row + 1) * (stride + 1)));
-    for (let i = 0; i < stride; i++) {
-      const a = i >= channels ? line[i - channels] : 0;
-      const b = previous[i];
-      const c = i >= channels ? previous[i - channels] : 0;
-      let predictor = 0;
-      if (filter === 1) predictor = a;
-      else if (filter === 2) predictor = b;
-      else if (filter === 3) predictor = (a + b) >> 1;
-      else if (filter === 4) {
-        const p = a + b - c; const pa = Math.abs(p - a); const pb = Math.abs(p - b); const pc = Math.abs(p - c);
-        predictor = pa <= pb && pa <= pc ? a : (pb <= pc ? b : c);
-      }
-      line[i] = (line[i] + predictor) & 0xff;
-    }
-    rows.push(line);
-    previous = line;
-  }
-  const line = rows[y];
-  if (colorType === 3) {
-    const index = line[x];
-    return [palette[index * 3], palette[index * 3 + 1], palette[index * 3 + 2]];
-  }
-  return [line[x * channels], line[x * channels + 1], line[x * channels + 2]];
-}
-
 test(
   'under VICE, reu.detect() finds no REU on the stock machine and 512 KiB on one fitted with it',
   { skip: (!HAS_SDK && 'LLVM_MOS_HOME not set') || (!onPath('x64sc') && 'x64sc not on PATH') },
@@ -129,7 +70,7 @@ test(
         const shot = join(scratch, `${name}.png`);
         const { code, stdout, stderr } = await runCli(['run', 'c64', ...hardware, '--screenshot', shot, 'test/reu-probe.8bs'], { timeoutMs: 90_000 });
         assert.equal(code, 0, `8bs run c64 ${hardware.join(' ')} --screenshot failed:\n${stdout}${stderr}`);
-        shots[name] = pixelAt(shot, 4, 4); // well inside the border
+        shots[name] = pixelAt(readFileSync(shot), 4, 4); // well inside the border
       }
       // reu-probe.8bs: red for no REU (VICE's red is a dark red, R well
       // above G and B), blue for 512 KiB (B well above R and G).
@@ -137,6 +78,61 @@ test(
       assert.ok(nr > ng + 40 && nr > nb + 40, `no REU: a red border, got rgb(${shots.none})`);
       const [r, g, b] = shots.reu512;
       assert.ok(b > r + 40 && b > g + 40, `512 KiB: a blue border, got rgb(${shots.reu512})`);
+    } finally {
+      await rm(scratch, { recursive: true, force: true });
+    }
+  },
+);
+
+// --- the 1351 mouse ------------------------------------------------------
+//
+// @8bitscript/c64/mouse is a probe and a driver at once: a 1351 says
+// nothing about itself except through the lines its movement arrives on.
+// What can be checked without a hand on the mouse is presence — measured
+// under VICE at all four settings of the port, at rest — and that is what
+// this covers. Movement decoding is not exercised: nothing in a headless
+// run moves the host pointer VICE reads.
+const MOUSE_PROBE = join(HERE, 'mouse-probe.8bs');
+
+test('the package exports ./mouse, and a 1351 in a port is the value found at run time by it', () => {
+  assert.equal(pkg['8bitscript'].exports['./mouse'], './src/mouse.8bs');
+  const { options } = loadCatalog('c64');
+  for (const port of ['port1', 'port2']) {
+    assert.equal(options[port].values.mouse1351.detect, '@8bitscript/c64/mouse', port);
+    assert.equal(options[port].values.joystick.detect, undefined, `${port}: a joystick is invisible at rest`);
+    assert.equal(options[port].detect, undefined, `${port}: not the whole option`);
+  }
+});
+
+test('the mouse probe links clean for the C64, and its parts are real functions in the IR', () => {
+  const { ir, diagnostics } = link(readFileSync(MOUSE_PROBE, 'utf8'), MOUSE_PROBE, { machine: 'c64', facts: stockFacts('c64') });
+  assert.deepEqual(diagnostics, []);
+  const names = ir.functions.map((f) => f.name);
+  for (const name of ['mouse_select', 'mouse_poll', 'mouse_present', 'mouse_step', 'mouse_x', 'mouse_left']) {
+    assert.ok(names.includes(name), name);
+  }
+});
+
+test(
+  'under VICE, mouse.present() is true only with a 1351 in the port',
+  { skip: (!HAS_SDK && 'LLVM_MOS_HOME not set') || (!onPath('x64sc') && 'x64sc not on PATH') },
+  async () => {
+    const scratch = await mkdtemp(join(tmpdir(), '8bs-mouse-test-'));
+    try {
+      for (const [device, expected] of [['mouse1351', true], ['joystick', false], ['none', false], ['paddles', false]]) {
+        const shot = join(scratch, `${device}.png`);
+        const { code, stdout, stderr } = await runCli(
+          ['run', 'c64', '--hardware', `port1=${device}`, '--screenshot', shot, 'test/mouse-probe.8bs'],
+          { timeoutMs: 90_000 },
+        );
+        assert.equal(code, 0, `8bs run c64 --hardware port1=${device} --screenshot failed:\n${stdout}${stderr}`);
+        // mouse-probe.8bs: green border when present(), red when not.
+        const [r, g, b] = pixelAt(readFileSync(shot), 4, 4);
+        const green = g > r + 30 && g > b + 30;
+        const red = r > g + 30 && r > b + 30;
+        assert.equal(green, expected, `${device}: expected ${expected ? 'a mouse' : 'no mouse'}, got rgb(${[r, g, b]})`);
+        assert.equal(red, !expected, `${device}: the other colour, got rgb(${[r, g, b]})`);
+      }
     } finally {
       await rm(scratch, { recursive: true, force: true });
     }

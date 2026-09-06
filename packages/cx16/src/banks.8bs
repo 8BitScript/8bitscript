@@ -1,0 +1,128 @@
+// @8bitscript/cx16/banks — how much banked RAM this X16 has.
+//
+// Named by "8bitscript".exports["./banks"] in this package's package.json:
+//
+//     import { banks } from "@8bitscript/cx16/banks";
+//
+//     let kib: usmallint = banks.kib();   // 64 .. 2048
+//
+// A run-time hardware probe, like @8bitscript/c64/reu. The X16's banked
+// RAM is not a fixed amount: a board carries anywhere from 64 KiB to 2
+// MiB of it, `x16emu -ram <KiB>` emulates each, and one binary runs on
+// all of them. The build says which the *emulator* is fitted with (the
+// catalog's `ram` option; `Memory.BANKED_KIB` from @8bitscript/system),
+// and this says what the machine the program is running on really has. A
+// program that never imports this file carries none of it.
+//
+// Banked RAM is 8 KiB pages seen through the window at `$A000`–`$BFFF`,
+// the page selected by a write to `$0000` (the X16 puts its two bank
+// registers in the zero page, which is why the SDK's own zero-page
+// allocation starts at `$0022`). A machine has a power of two of them, 8
+// pages (64 KiB) to 256 (2 MiB). So the count is found by asking about
+// pages 8, 16, 32, 64 and 128 in turn: the first one the machine does not
+// really have is the count.
+//
+// "Does not really have" has two shapes, and the probe tests for both,
+// because which one a machine shows is the machine's business:
+//
+// 1. **It is a page it does have, under another number.** A board that
+//    keeps fewer than 8 bits of the page register wraps, so page N is
+//    page (N mod count). Every page tested here is one above a power of
+//    two, so where it wraps it lands on page 1 — the page the KERNAL
+//    leaves to us — and the test is whether page N+1 shows a marker just
+//    written to page 1. It is confirmed with a second, different marker,
+//    so a page that merely happens to hold those two bytes is not
+//    mistaken for a mirror.
+// 2. **It is nothing at all.** Then the window floats: writes do not
+//    stick and reads return whatever was last on the bus. Verified under
+//    x16emu, which is this shape — with `-ram 64`, a byte written to
+//    page 200 read back as `$A0`, the high byte of the window's own
+//    address, and page 9 read `$3E`. So the second test is the plain
+//    one: write two different bytes and read both back.
+//
+// Only pages 1 and N+1 are ever written, and page N+1 only after it has
+// been shown not to be a mirror — page 0 is the KERNAL's own workspace
+// and is never touched. The two bytes at `$A000`–`$A001` of page 1 are
+// scribbled on, so call this at start-up, before storing anything in
+// banked RAM, and keep the answer. Page 1 is left selected, which is
+// where the KERNAL leaves it.
+//
+// (The KERNAL can answer this too — `MEMTOP` with carry set returns the
+// page count — but calling it means a JSR with register conventions the
+// language has no spelling for. See ../AGENTS.md.)
+
+namespace Bank {
+    const SELECT: usmallint = 0x0000;    // the RAM page register
+    const WINDOW: usmallint = 0xA000;    // first byte of the 8 KiB window
+    const WINDOW1: usmallint = 0xA001;   // and the second
+    const OURS: utinyint = 1;            // the page the KERNAL leaves to us
+}
+
+export namespace banks {
+    // Put `value` and its complement in our own page's first two bytes.
+    function mark(value: utinyint): void {
+        memory.write(Bank.SELECT, Bank.OURS);
+        memory.write(Bank.WINDOW, value);
+        memory.write(Bank.WINDOW1, value ^ 0xFF);
+    }
+
+    // Does `page` show what mark(value) wrote — is it our own page under
+    // another number?
+    function shows(page: utinyint, value: utinyint): bool {
+        memory.write(Bank.SELECT, page);
+        if (memory.read(Bank.WINDOW) != value) {
+            return false;
+        }
+        return memory.read(Bank.WINDOW1) == (value ^ 0xFF);
+    }
+
+    // Is `page` real memory? Two different bytes, both read back: a
+    // floating window echoes at most one of them.
+    function backed(page: utinyint): bool {
+        memory.write(Bank.SELECT, page);
+        memory.write(Bank.WINDOW, 0x5A);
+        memory.write(Bank.WINDOW1, 0xA5);
+        if (memory.read(Bank.WINDOW) != 0x5A) {
+            return false;
+        }
+        return memory.read(Bank.WINDOW1) == 0xA5;
+    }
+
+    // The 8 KiB pages of banked RAM this machine has: 8, 16, 32, 64, 128
+    // or 256.
+    function count(): usmallint {
+        let pages: utinyint = 8;
+        while (pages != 0) {
+            let above: utinyint = pages + Bank.OURS;
+            banks.mark(0x5A);
+            if (banks.shows(above, 0x5A)) {
+                banks.mark(0xC3);
+                if (banks.shows(above, 0xC3)) {
+                    return banks.answer(pages);   // a mirror of our own page
+                }
+            }
+            if (!banks.backed(above)) {
+                return banks.answer(pages);       // nothing there
+            }
+            pages = pages * 2;
+        }
+        return banks.answer(0);
+    }
+
+    // Leave page 1 selected, as the KERNAL does, and widen the count; 0
+    // pages means the register never ran out, which is all 256.
+    function answer(pages: utinyint): usmallint {
+        memory.write(Bank.SELECT, Bank.OURS);
+        if (pages == 0) {
+            return 256;
+        }
+        let found: usmallint = pages;
+        return found;
+    }
+
+    // KiB of banked RAM plugged in: 64 on the smallest board, 2048 on the
+    // largest. One call at start-up; keep the answer.
+    function kib(): usmallint {
+        return banks.count() * 8;
+    }
+}

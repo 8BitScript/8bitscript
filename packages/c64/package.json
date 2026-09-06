@@ -15,7 +15,8 @@
       "./keys": "./src/keys.8bs",
       "./joystick": "./src/joystick.8bs",
       "./sid": "./src/sid.8bs",
-      "./reu": "./src/reu.8bs"
+      "./reu": "./src/reu.8bs",
+      "./mouse": "./src/mouse.8bs"
     },
     "hardware": {
       "facts": {
@@ -245,7 +246,8 @@
               },
               "facts": {
                 "input.mouse": true
-              }
+              },
+              "detect": "@8bitscript/c64/mouse"
             }
           }
         },
@@ -293,7 +295,8 @@
               },
               "facts": {
                 "input.mouse": true
-              }
+              },
+              "detect": "@8bitscript/c64/mouse"
             }
           }
         }

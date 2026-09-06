@@ -20,12 +20,16 @@
 //   facts  what a program can then rely on, as dotted keys (`input.mouse`,
 //          `video.columns`) — carried through the build for the fact
 //          sheet and the editor's hardware panel
-// and an option may name, in `detect`, the package subpath whose probe
-// finds that hardware on the machine at run time (`@8bitscript/c64/reu`):
-// one build then serves every value, and the value chosen for a build
-// says what the emulator is fitted with and what the program may use.
-// An option without `detect` is chosen at build time — each value its own
-// build (a PET model, a VIC-20 expansion that moves the screen).
+// and `detect` names the package subpath whose probe finds that hardware
+// on the machine at run time (`@8bitscript/c64/reu`). It sits on the
+// option when one probe finds every value of it — one build then serves
+// them all — or on a single value when only that one can be found: an
+// Atari 130XE's extra RAM can be, an 800XL's absence of it needs no
+// probe, and a `xegs` cartridge is a different binary either way. Without
+// `detect` a value is chosen at build time, each its own build (a PET
+// model, a VIC-20 expansion that moves the screen). Fitting the hardware
+// for a build is the opt-in: it compiles the probe's caller in and sets
+// the fact to "may use", and the probe confirms it on the machine.
 //
 // A project's 8bs.config.ts may add named profiles of its own under
 // `targets.<machine>.profiles`, each a set of option values; `--profile`

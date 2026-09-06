@@ -1,0 +1,164 @@
+// @8bitscript/c64/mouse — a 1351 mouse in a control port: is one there,
+// where has it moved, which button is down.
+//
+// Named by "8bitscript".exports["./mouse"] in this package's package.json:
+//
+//     import { mouse } from "@8bitscript/c64/mouse";
+//
+//     mouse.select(Mouse.PORT_1);      // once, at start-up
+//     ...
+//     waitFrame();
+//     mouse.poll();                    // once a frame
+//     if (mouse.present()) { ... mouse.x() ... }
+//
+// A run-time hardware probe *and* the driver that uses it, because for a
+// mouse the two cannot be separated: a 1351 says nothing about itself
+// except through the same two lines its movement arrives on. A build
+// fitted with one (`--hardware port1=mouse1351`) has `Input.MOUSE` true
+// from @8bitscript/system, meaning this build may use a mouse; this is
+// how it finds out whether one is really plugged in. A program that never
+// imports this file carries none of it.
+//
+// **How a 1351 talks.** It is not a switch like a joystick. Each axis is
+// a counter the mouse advances as it moves, presented on the port's
+// analogue line, which the SID converts and hands back at `$D419` (X) and
+// `$D41A` (Y) — the same registers a paddle uses. VICE's `mouse_1351.c`
+// returns `(counter & 0x7f) + 0x40`, so the value lives in 64..191 and
+// wraps; movement is the *difference* between two readings, not the
+// reading. Sampled once a frame, a difference above half the range is the
+// counter having wrapped the other way, which is what makes it a signed
+// step rather than a jump.
+//
+// **How presence is answered, and how honestly.** Measured under VICE
+// with `-controlport1device` at each of its four settings, at rest, both
+// lines read: nothing 255, a joystick 255, paddles 255, a 1351 **64** —
+// exactly the zero of the formula above. So a reading inside the 1351's
+// range is what says a mouse is there, and 255 says one is not. Two
+// things to be honest about: a real paddle sits wherever it was last
+// turned, so a paddle at mid-travel reads in this range too and only
+// movement tells them apart; and a mouse is only *found* once the program
+// has waited a frame after `select()` for the SID's converter to settle.
+// `present()` therefore means "consistent with a 1351", and a program
+// that must be certain should watch for movement before believing it.
+//
+// **The buttons** are not analogue at all: they ride the port's ordinary
+// joystick lines, left on FIRE and right on UP (`mouse_1351.c`), so they
+// are read exactly as a joystick's switches are — which also means a
+// joystick pushed up looks like a right button, and this file will not
+// pretend otherwise.
+//
+// **The port select** is CIA1 port A's top two bits: `%01` reads port 1's
+// analogue lines, `%10` port 2's (confirmed here — `$DC00 = $40` is what
+// made the 1351 readable in port 1). Those same bits are keyboard column
+// outputs, so `select()` leaves the other six high, driving no column;
+// `@8bitscript/c64/keyboard`'s scan writes all eight itself and must be
+// followed by another `select()` before the next `poll()` if both are
+// used. The converter needs about half a millisecond after a select, so
+// the order that works is: `select()` at start-up, then one `poll()` a
+// frame.
+import { paddleX, paddleY, cia1PortA, cia1PortB } from "./index.8bs";
+
+export namespace Mouse {
+    const PORT_1: utinyint = 0x7F;   // %01 in the top bits, no keyboard column driven
+    const PORT_2: utinyint = 0xBF;   // %10
+}
+
+namespace Pot {
+    const COUNTER: utinyint = 0x7F;  // the counter's bits in a pot reading
+    const LOWEST: utinyint = 64;     // a 1351 at its zero point
+    const HIGHEST: utinyint = 191;   // and at the other end of its wrap
+    const HALF: utinyint = 64;       // half the counter's range: a bigger step is a wrap
+}
+
+// The last counter reading on each axis, and where the pointer has got to.
+let lastX: utinyint = 0;
+let lastY: utinyint = 0;
+let atX: usmallint = 0;
+let atY: usmallint = 0;
+let started: bool = false;
+
+export namespace mouse {
+    // Point the SID's analogue lines at one control port: Mouse.PORT_1 or
+    // Mouse.PORT_2. Once, at start-up — the converter needs a frame to
+    // settle before the first poll() means anything.
+    function select(port: utinyint): void {
+        cia1PortA = port;
+    }
+
+    // One axis' movement since the last reading, added to `at`. The
+    // difference is taken in the counter's own 7 bits, and a difference
+    // past half the range is the counter having gone the other way.
+    function step(at: usmallint, last: utinyint, now: utinyint): usmallint {
+        let delta: utinyint = (now - last) & Pot.COUNTER;
+        if (delta == 0) {
+            return at;
+        }
+        if (delta < Pot.HALF) {
+            return at + delta;
+        }
+        let back: utinyint = 128 - delta;
+        if (back > at) {
+            return 0;
+        }
+        return at - back;
+    }
+
+    // Read both axes. Once a frame, after waitFrame().
+    function poll(): void {
+        let nowX: utinyint = paddleX & Pot.COUNTER;
+        let nowY: utinyint = paddleY & Pot.COUNTER;
+        if (started) {
+            atX = mouse.step(atX, lastX, nowX);
+            atY = mouse.step(atY, lastY, nowY);
+        }
+        lastX = nowX;
+        lastY = nowY;
+        started = true;
+    }
+
+    // Is a 1351 in the selected port? True when both lines read inside
+    // the 1351's range: nothing, a joystick and paddles at rest all read
+    // 255. A paddle turned to the middle of its travel also reads here,
+    // so this means "consistent with a mouse" — movement is what proves
+    // one.
+    function present(): bool {
+        if (paddleX > Pot.HIGHEST) {
+            return false;
+        }
+        if (paddleY > Pot.HIGHEST) {
+            return false;
+        }
+        if (paddleX < Pot.LOWEST) {
+            return false;
+        }
+        return paddleY >= Pot.LOWEST;
+    }
+
+    // Where the pointer has moved to since the program started, in mouse
+    // counts. A program scales these to its own screen.
+    function x(): usmallint {
+        return atX;
+    }
+
+    function y(): usmallint {
+        return atY;
+    }
+
+    // The buttons, on the port's joystick lines: left is FIRE, right is
+    // UP. Port 1 is CIA1 port B; port 2 is port A, which is also the
+    // register select() writes, so a port-2 mouse's buttons are read from
+    // what the port reads back, not from what was written.
+    function left(port: utinyint): bool {
+        if (port == Mouse.PORT_1) {
+            return (cia1PortB & 16) == 0;
+        }
+        return (cia1PortA & 16) == 0;
+    }
+
+    function right(port: utinyint): bool {
+        if (port == Mouse.PORT_1) {
+            return (cia1PortB & 1) == 0;
+        }
+        return (cia1PortA & 1) == 0;
+    }
+}

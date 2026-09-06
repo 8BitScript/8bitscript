@@ -1,0 +1,25 @@
+// The X16 bank probe, run for real: prints the KiB of banked RAM
+// banks.kib() found and sets the border to a colour that encodes it, so a
+// headless screenshot can be read without decoding text — one colour per
+// size, 64 KiB up: red, purple, green, blue, yellow, orange. See
+// test/banks.test.mjs.
+import { screen } from "../src/screen.8bs";
+import { text } from "../src/text.8bs";
+import { banks } from "../src/banks.8bs";
+
+export function main(): void {
+    screen.blank();
+    let kib: usmallint = banks.kib();
+    text.print(0, "BANKED KIB");
+    text.printNumber(11, kib, 5);
+    let color: utinyint = 2;
+    let size: usmallint = 64;
+    while (size != kib) {
+        size = size * 2;
+        color = color + 1;
+    }
+    screen.setColors(color, 0);
+    while (true) {
+        waitFrame();
+    }
+}

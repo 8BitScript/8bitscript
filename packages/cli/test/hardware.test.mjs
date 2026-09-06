@@ -184,20 +184,34 @@ test('a project\'s own hardware for a target sits under a profile and under --ha
   assert.match(bad.error, /'nope' is not a value .* \(from this project's hardware\)/);
 });
 
-test('an option\'s detect names a subpath the machine package really exports', () => {
-  
-  let seen = 0;
+test('every detect names a subpath its own machine package really exports, on the option or on one value', () => {
+  const require_ = createRequire(import.meta.url);
+  const found = [];
   for (const machine of MACHINES) {
     const catalog = loadCatalog(machine);
     for (const [id, option] of Object.entries(catalog.options)) {
-      if (option.detect === undefined) continue;
-      seen += 1;
-      const [, scope, name, ...rest] = option.detect.match(/^(@8bitscript)\/([a-z0-9]+)\/(.+)$/) ?? [];
-      assert.equal(scope, '@8bitscript', `${machine} ${id}: ${option.detect}`);
-      assert.equal(name, machine, `${machine} ${id}: a probe lives in its own machine's package`);
-      const pkg = createRequire(import.meta.url)(`@8bitscript/${machine}/package.json`);
-      assert.ok(pkg['8bitscript'].exports[`./${rest.join('/')}`], `${machine} ${id}: ${option.detect} is exported`);
+      const probes = [[option.detect, id]];
+      for (const [value, entry] of Object.entries(option.values)) probes.push([entry.detect, `${id}=${value}`]);
+      for (const [detect, where] of probes) {
+        if (detect === undefined) continue;
+        found.push(`${machine} ${where} -> ${detect}`);
+        const parts = /^@8bitscript\/([a-z0-9]+)\/(.+)$/.exec(detect);
+        assert.ok(parts, `${machine} ${where}: '${detect}' is not a package subpath`);
+        assert.equal(parts[1], machine, `${machine} ${where}: a probe lives in its own machine's package`);
+        const pkg = require_(`@8bitscript/${machine}/package.json`);
+        assert.ok(pkg['8bitscript'].exports[`./${parts[2]}`], `${machine} ${where}: ${detect} is exported`);
+      }
     }
   }
-  assert.equal(seen, 1, 'the C64 REU is the one probe so far');
+  found.sort();
+  assert.deepEqual(found, [
+    // On the option: one probe finds every value of it.
+    'c64 ram -> @8bitscript/c64/reu',
+    'cx16 ram -> @8bitscript/cx16/banks',
+    // On one value: its siblings are a different build, or nothing to find.
+    'c64 port1=mouse1351 -> @8bitscript/c64/mouse',
+    'c64 port2=mouse1351 -> @8bitscript/c64/mouse',
+    'c128 ram=256k -> @8bitscript/c128/banks',
+    'atari8 model=130xe -> @8bitscript/atari8/banks',
+  ].sort(), 'every probe that exists');
 });

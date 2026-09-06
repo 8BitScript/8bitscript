@@ -8,7 +8,8 @@
     "entry": "./src/index.8bs",
     "exports": {
       "./screen": "./src/screen.8bs",
-      "./text": "./src/text.8bs"
+      "./text": "./src/text.8bs",
+      "./banks": "./src/banks.8bs"
     },
     "hardware": {
       "facts": {
@@ -94,7 +95,8 @@
               "facts": {
                 "memory.banked": true,
                 "memory.bankedKib": 64
-              }
+              },
+              "detect": "@8bitscript/atari8/banks"
             },
             "xegs": {
               "label": "XEGS: a 256 KiB bank-switched cartridge, not a DOS executable",
@@ -220,5 +222,8 @@
   ],
   "publishConfig": {
     "access": "public"
+  },
+  "scripts": {
+    "test": "node --test"
   }
 }

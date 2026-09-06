@@ -1,0 +1,124 @@
+// @8bitscript/atari8/banks — the extra RAM behind PORTB, if this machine
+// has any.
+//
+// Named by "8bitscript".exports["./banks"] in this package's package.json:
+//
+//     import { banks } from "@8bitscript/atari8/banks";
+//
+//     let kib: usmallint = banks.kib();   // 0 on an 800XL, 64 on a 130XE
+//
+// A run-time hardware probe, like @8bitscript/c64/reu. A 130XE is an
+// 800XL with 64 KiB more RAM, reached four 16 KiB banks at a time through
+// the window at `$4000`–`$7FFF`; the two machines are otherwise the same,
+// one binary runs on both, and this is how it finds out which it is on.
+// The build says which the emulator is fitted with (the catalog's `model`
+// option; `Memory.BANKED_KIB` from @8bitscript/system). A program that
+// never imports this file carries none of it.
+//
+// PORTB (`$D301`) is the PIA's second port, and on the XL/XE it is not a
+// joystick port at all but the memory-control register: bit 0 the OS ROM,
+// bit 1 BASIC, bits 2–3 which extended bank, bit 4 clear to let the *CPU*
+// see it at `$4000`, bit 5 clear to let *ANTIC* see it, bit 7 the
+// self-test ROM. Read from atari800's `MEMORY_HandlePORTB`, where the
+// 128 KiB machine's bank is `((byte & 0x0c) >> 2) + 1` and a machine with
+// no extended RAM runs the same code with no effect — which is exactly
+// what makes the probe work: on an 800XL the window never stops being
+// ordinary RAM.
+//
+// So the question is whether writing through the window with a bank
+// selected leaves base RAM alone. A marker goes into base RAM at `$4000`;
+// then each bank is selected in turn and given a marker of its own; then
+// base RAM is looked at again. If it still holds its marker, the writes
+// went somewhere else and the machine has extended RAM; if it holds the
+// last bank's marker, there was only ever one RAM there. Each bank is
+// then read back to be sure it kept its own marker and is not a mirror of
+// another.
+//
+// Only bits 2, 3 and 4 are ever touched, and only for the length of the
+// probe: bit 5 is left as it was so ANTIC keeps drawing the screen from
+// base RAM throughout, bit 0 so the OS ROM stays in (its vectors are live
+// — the OS's vertical-blank NMI runs whatever this code does, and `sei`
+// does not stop it), and bits 1 and 7 so BASIC and the self-test stay
+// where they were. PORTB is put back exactly as found.
+//
+// **This probe writes to `$4000`–`$4001`**, which is inside the region
+// the linker gives the program (`$2000`–`$BFFF`). It is safe only while
+// the program's own code and data end below `$4000` and its stack is
+// above `$7FFF` — true of anything this toolchain builds today (the
+// borders example ends at `$2332`, and the soft stack starts from MEMTOP,
+// around `$9C00`), and worth checking with `llvm-nm` for a program big
+// enough to reach `$4000`. See ../AGENTS.md.
+
+@address(0xD301) let portB: volatile<u8>;
+
+namespace Xe {
+    const KEEP: utinyint = 0xE3;         // bits 0, 1, 5, 6, 7 — everything but the bank and CPU-access bits
+    const CPU_BASE: utinyint = 0x10;     // bit 4 set: the CPU sees base RAM again
+    const WINDOW: usmallint = 0x4000;    // first byte of the 16 KiB window
+    const BASE_MARK: utinyint = 0x5A;    // what base RAM is given to hold
+    const BANK_MARK: utinyint = 0xA0;    // plus the bank number, what each bank is given
+    const BANKS: utinyint = 4;           // banks the 130XE's two bits can name
+}
+
+export namespace banks {
+    // Point the window at extended bank `bank` for the CPU only, keeping
+    // every other PORTB bit as `saved` had it.
+    function select(bank: utinyint, saved: utinyint): void {
+        portB = (saved & Xe.KEEP) | (bank * 4);
+    }
+
+    // Put the window back on base RAM.
+    function base(saved: utinyint): void {
+        portB = saved | Xe.CPU_BASE;
+    }
+
+    // Give every bank a marker of its own.
+    function markAll(saved: utinyint): void {
+        let bank: utinyint = 0;
+        while (bank != Xe.BANKS) {
+            banks.select(bank, saved);
+            memory.write(Xe.WINDOW, Xe.BANK_MARK + bank);
+            bank = bank + 1;
+        }
+        banks.base(saved);
+    }
+
+    // How many banks kept their own marker — 0 if the first one did not,
+    // which is what a machine with no extended RAM looks like once base
+    // RAM has been overwritten.
+    function kept(saved: utinyint): utinyint {
+        let bank: utinyint = 0;
+        while (bank != Xe.BANKS) {
+            banks.select(bank, saved);
+            let back: utinyint = memory.read(Xe.WINDOW);
+            banks.base(saved);
+            if (back != (Xe.BANK_MARK + bank)) {
+                return bank;
+            }
+            bank = bank + 1;
+        }
+        return Xe.BANKS;
+    }
+
+    // KiB of extended RAM this machine has: 0 on an 800XL or a 65XE, 64
+    // on a 130XE. One call at start-up; keep the answer.
+    //
+    // A machine with more than the 130XE's four banks (a 320XE, a 1088XE)
+    // needs more bank bits than the two this reads, and answers 64 here —
+    // the four it was asked about.
+    function kib(): usmallint {
+        let saved: utinyint = portB;
+        banks.base(saved);
+        memory.write(Xe.WINDOW, Xe.BASE_MARK);
+        banks.markAll(saved);
+        let found: utinyint = 0;
+        // Base RAM still holding its own marker is what says the bank
+        // writes went somewhere else at all.
+        if (memory.read(Xe.WINDOW) == Xe.BASE_MARK) {
+            found = banks.kept(saved);
+        }
+        portB = saved;
+        let k: usmallint = found;
+        return k * 16;
+    }
+}

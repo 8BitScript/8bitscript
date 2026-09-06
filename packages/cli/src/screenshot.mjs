@@ -217,7 +217,7 @@ async function atari8Screenshot(outFile, screenshotPath, { pal, hardware = stock
 const CX16_FPS = 60;
 const CX16_DEFAULT_FRAMES = 300; // ~5s: measured enough for -run's BASIC RUN and a program's own steady state
 
-async function cx16Screenshot(outFile, screenshotPath, { frames }) {
+async function cx16Screenshot(outFile, screenshotPath, { frames, hardware = stockHardware('cx16') }) {
   const ffmpegCheck = await run('ffmpeg', ['-version']).catch(() => ({ code: 1 }));
   if (ffmpegCheck.code !== 0) {
     throw new Error('8bs run: cx16 --screenshot needs ffmpeg on PATH (to pull a still frame out of x16emu\'s -gif recording).');
@@ -225,7 +225,16 @@ async function cx16Screenshot(outFile, screenshotPath, { frames }) {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-cx16-shot-'));
   const gifPath = join(scratch, 'capture.gif');
   try {
-    const child = spawn('x16emu', ['-prg', outFile, '-run', '-gif', gifPath, '-sound', 'none'], { stdio: 'ignore' });
+    // The catalog's own flags first (the banked-RAM size), then how the
+    // built file is handed over — the same list the interactive `8bs run`
+    // passes, so a screenshot reflects the hardware the program was built
+    // for instead of silently running on the emulator's defaults.
+    const args = [
+      ...(hardware.run.x16emu ?? []),
+      ...loadArgs(hardware, 'x16emu', outFile, ['-prg', outFile, '-run']),
+      '-gif', gifPath, '-sound', 'none',
+    ];
+    const child = spawn('x16emu', args, { stdio: 'ignore' });
     await sleep(1000 * ((frames ?? CX16_DEFAULT_FRAMES) / CX16_FPS));
     await terminateAndWait(child);
     const { code, stderr } = await run('ffmpeg', ['-y', '-sseof', '-0.1', '-i', gifPath, '-update', '1', '-frames:v', '1', screenshotPath]);
@@ -250,9 +259,12 @@ async function cx16Screenshot(outFile, screenshotPath, { frames }) {
 const MEGA65_FPS = 60;
 const MEGA65_DEFAULT_FRAMES = 480; // ~8s: measured enough for Hyppo boot + the READY. autoload inject
 
-async function mega65Screenshot(outFile, screenshotPath, { pal, frames }) {
+async function mega65Screenshot(outFile, screenshotPath, { pal, frames, hardware = stockHardware('mega65') }) {
   const args = [
-    '-besure', '-screenshot', screenshotPath, '-prg', outFile, '-videostd', pal ? '0' : '1',
+    '-besure', '-screenshot', screenshotPath,
+    ...(hardware.run.xmega65 ?? []),
+    ...loadArgs(hardware, 'xmega65', outFile, ['-prg', outFile]),
+    '-videostd', pal ? '0' : '1',
   ];
   const child = spawn('xmega65', args, { stdio: 'ignore' });
   await sleep(1000 * ((frames ?? MEGA65_DEFAULT_FRAMES) / MEGA65_FPS));
@@ -285,12 +297,16 @@ function nesLuaScript(frames, screenshotPath) {
   ].join('\n');
 }
 
-async function nesScreenshot(outFile, screenshotPath, { frames }) {
+async function nesScreenshot(outFile, screenshotPath, { frames, hardware = stockHardware('nes') }) {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-nes-shot-'));
   const luaPath = join(scratch, 'screenshot.lua');
   try {
     await writeFile(luaPath, nesLuaScript(frames ?? NES_DEFAULT_FRAMES, screenshotPath));
-    const { stderr } = await run('fceux', ['--no-config', '1', '--loadlua', luaPath, outFile]);
+    const { stderr } = await run('fceux', [
+      '--no-config', '1', '--loadlua', luaPath,
+      ...(hardware.run.fceux ?? []),
+      ...loadArgs(hardware, 'fceux', outFile, [outFile]),
+    ]);
     if (!(await fileExists(screenshotPath))) {
       throw new Error(`8bs run: fceux did not produce a screenshot:\n${stderr.slice(-500)}`);
     }

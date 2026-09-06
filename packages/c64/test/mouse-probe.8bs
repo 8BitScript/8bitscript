@@ -1,0 +1,35 @@
+// The 1351 probe, run for real: waits a frame for the SID's converter to
+// settle after select(), then prints the two pot readings and whether
+// mouse.present() believes a mouse is there, and paints the border green
+// for yes and red for no so a screenshot can be read without decoding
+// text. See test/mouse.test.mjs.
+import { screen } from "../src/screen.8bs";
+import { text } from "../src/text.8bs";
+import { mouse, Mouse } from "../src/mouse.8bs";
+import { paddleX, paddleY } from "../src/index.8bs";
+
+export function main(): void {
+    screen.blank();
+    mouse.select(Mouse.PORT_1);
+    let n: utinyint = 0;
+    while (n != 30) {
+        waitFrame();
+        mouse.poll();
+        n = n + 1;
+    }
+    text.print(0, "POTX");
+    text.printNumber(5, paddleX, 3);
+    text.print(40, "POTY");
+    text.printNumber(45, paddleY, 3);
+    let color: utinyint = 2;
+    if (mouse.present()) {
+        color = 5;
+        text.print(80, "MOUSE FOUND");
+    } else {
+        text.print(80, "NO MOUSE");
+    }
+    screen.setColors(color, 0);
+    while (true) {
+        waitFrame();
+    }
+}

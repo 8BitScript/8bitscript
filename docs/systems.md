@@ -189,11 +189,36 @@ names — and a tenth machine gets the right tier without anyone editing
 Studio. It also moved the web to the viewer tier, honestly: the web
 runtime has no keyboard yet.
 
-Still to build: the other probes, each in its machine package as the REU's
-is — a 1351 in a port, the C128's second bank, the Atari 130XE's banks,
-the X16's bank count — and the portable capabilities (`input`, banked
-memory) that call them so a program never imports a machine's probe
-itself; and `8bs check` validating a project's own sheet.
+The X16's is the second: `banks.kib()` from `@8bitscript/cx16/banks`
+answers 64 KiB to 2 MiB, from the same one binary, for 179 bytes.
+
+Five probes exist, one for each piece of fitted hardware a program most
+wants to find, each in its own machine package and each verified by
+running it under that machine's emulator with the hardware fitted and
+without:
+
+| Probe | Answers | Bytes |
+| ----- | ------- | ----- |
+| `@8bitscript/c64/reu` | `reu.detect()`: KiB of REU, 0 to 16384 | 182 |
+| `@8bitscript/c64/mouse` | `mouse.present()`, and a 1351's movement and buttons | 248 |
+| `@8bitscript/cx16/banks` | `banks.kib()`: 64 to 2048 | 179 |
+| `@8bitscript/atari8/banks` | `banks.kib()`: 0, or a 130XE's 64 | 151 |
+| `@8bitscript/c128/banks` | `banks.kib()`: 64, or 192 with the 256 KiB modification | 65 |
+
+The bytes are what a program that calls one grows by, measured against
+the same program with the answer written in. A program that does not
+import one carries nothing of it.
+
+Still to build: the portable capabilities (`input`, banked memory) that
+call these, so a program never imports a machine's probe itself; `8bs
+check` validating a project's own sheet; and the probes the catalogs
+already imply but nobody has written. Those are, exactly: paddles and a
+1351 on the VIC-20, whose pot lines are on the VIC at `$9008`/`$9009`
+rather than a SID; a mouse in either C128 port; paddles on the C64 and
+the C128; the C128's 64 KiB VDC; the Atari's second POKEY; and the
+Atari's ST, Amiga and trackball mice, which are quadrature on the stick
+lines and need reading faster than once a frame, so they wait on
+something finer than `waitFrame()`.
 
 ## Behaviour: capability packages
 

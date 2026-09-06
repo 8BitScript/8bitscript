@@ -35,12 +35,16 @@ export function describeTargets(config) {
       label: option.label,
       default: option.default,
       // The package subpath whose probe finds this hardware on the machine
-      // at run time — one binary serves every value — or null when the
-      // value has to be chosen at build time (a PET model).
+      // at run time, when one probe finds every value of the option; a
+      // value may name its own instead (see below). Null when the choice
+      // is the build's (a PET model).
       detect: option.detect ?? null,
       values: Object.fromEntries(Object.entries(option.values).map(([value, entry]) => [value, {
         label: entry.label,
         affectsBuild: Boolean(entry.build),
+        // What finds *this* value at run time: its own probe, or the
+        // option's when one probe covers them all.
+        detect: entry.detect ?? option.detect ?? null,
         tag: Object.hasOwn(entry, 'tag') ? entry.tag : (value === option.default ? null : value),
         facts: entry.facts ?? {},
       }])),
@@ -83,7 +87,15 @@ export async function targets(args) {
       const values = Object.entries(option.values)
         .map(([value, entry]) => `${value}${value === option.default ? '*' : ''}${entry.affectsBuild ? ' (build)' : ''}`)
         .join(', ');
-      process.stdout.write(`         --hardware ${optionId}=  ${option.label}: ${values}${option.detect ? ` — found at run time by ${option.detect}` : ''}\n`);
+      process.stdout.write(`         --hardware ${optionId}=  ${option.label}: ${values}\n`);
+      const probes = new Map();
+      for (const [value, entry] of Object.entries(option.values)) {
+        if (!entry.detect || value === option.default) continue;
+        probes.set(entry.detect, [...(probes.get(entry.detect) ?? []), value]);
+      }
+      for (const [probe, found] of probes) {
+        process.stdout.write(`                            ${found.join(', ')} found at run time by ${probe}\n`);
+      }
     }
     if (presets.length > 0) process.stdout.write(`         --profile  presets: ${presets.join(', ')}\n`);
     if (profiles.length > 0) process.stdout.write(`         --profile  this project: ${profiles.join(', ')}\n`);
