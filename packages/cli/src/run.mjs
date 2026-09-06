@@ -31,12 +31,10 @@
 //   8bs run nes          builds the .nes and opens it in FCEUX
 //   8bs run cx16          builds the .prg and opens it in x16emu
 //   8bs run mega65        builds the .prg and opens it in Xemu's MEGA65
-//                        core (xmega65) — best-effort: unlike the VICE and
-//                        atari800 integrations above, this project has not
-//                        independently confirmed Xemu's mega65 core accepts
-//                        -prg the way its other machine cores do (its docs
-//                        don't cover autoloading); run `xmega65 -h` if this
-//                        doesn't work as expected
+//                        core (xmega65) with -prg, which autoloads and RUNs
+//                        it in MEGA65 mode ($2001 load address; a c64-target
+//                        .prg would go to C64 mode) — verified on screen,
+//                        see packages/mega65/AGENTS.md
 //   8bs run web          builds the .wasm and opens it in the browser
 //                        runtime (web-runtime.mjs): the program runs in a
 //                        worker, its waitFrame() paced by the page's frame
@@ -115,6 +113,12 @@ export const VICE_MODEL_ARGS = {
 // nothing. Verified with `xpet -verbose -limitcycles` and by whether
 // `-autostart` of examples/proof-of-concept/borders stays running.
 export const PET_MODEL_ARGS = (profile) => ['-model', profile];
+
+// atari800's cartridge type for the image the XEGS profile links: a raw
+// 256 KiB XEGS bank-switched cartridge (`-cart-type 23`; 36 is the
+// switchable variant, which also runs it). Passed with `-cart` because a
+// raw image of that size is ambiguous to atari800 on its own.
+export const ATARI8_XEGS_CART_TYPE = '23';
 
 // What each xpet model refreshes at, nominally — for turning `--frames`
 // into cycles in screenshot.mjs, nothing else.
@@ -295,8 +299,11 @@ export async function run(args) {
       '-scanlines', '0',
       '-win-width', String(336 * 3),
       '-win-height', String(tvHeight * 3),
-      atari8Profile === 'xegs' ? '-cart' : '-run',
-      outFile,
+      // A raw 256 KiB cartridge image matches eight of atari800's cartridge
+      // types, and without a type it stops at its "Select Cartridge Type"
+      // menu: 23 is "XEGS 256 KB", the shape the XEGS driver links
+      // (packages/atari8/AGENTS.md).
+      ...(atari8Profile === 'xegs' ? ['-cart', outFile, '-cart-type', ATARI8_XEGS_CART_TYPE] : ['-run', outFile]),
     ];
   } else if (target === 'nes') {
     emulator = 'fceux';

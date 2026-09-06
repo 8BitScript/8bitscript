@@ -25,7 +25,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
-  ATARI8_MODEL_ARG, VICE_EMULATOR, VICE_EMULATOR_ARGS, VICE_MODEL_ARGS, VIC20_MEMORY_ARG,
+  ATARI8_MODEL_ARG, ATARI8_XEGS_CART_TYPE, VICE_EMULATOR, VICE_EMULATOR_ARGS, VICE_MODEL_ARGS, VIC20_MEMORY_ARG,
   PET_MODEL_ARGS, PET_PROFILE_FPS,
   atari800CleanDisplayConfig,
 } from './run.mjs';
@@ -202,7 +202,9 @@ async function atari8Screenshot(outFile, screenshotPath, { pal, profile, frames 
     ...(displayCfg ? ['-config', displayCfg, '-no-autosave-config'] : []),
     ATARI8_MODEL_ARG[profile ?? ATARI8_DEFAULT_PROFILE],
     pal ? '-pal' : '-ntsc',
-    '-run', outFile,
+    // The XEGS profile links a cartridge image, not an executable: -run
+    // would hand it to the executable loader and capture a blank OS screen.
+    ...(profile === 'xegs' ? ['-cart', outFile, '-cart-type', ATARI8_XEGS_CART_TYPE] : ['-run', outFile]),
   ];
   const child = spawn('atari800', args, { stdio: 'ignore' });
   try {
