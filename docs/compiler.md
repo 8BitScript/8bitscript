@@ -80,8 +80,11 @@ and only when it is spelled one of three ways:
   tool runs — the machine always sees a complete call. The argument count
   is checked against the parameters (`8BS1035`).
 - **`#name(...)`.** A function the compiler evaluates: `#frames(0.5,
-  seconds)` becomes `30` in the generated code. A `#name` the compiler
-  doesn't know, or a `#frames` that isn't called, is `8BS1030`.
+  seconds)` becomes `30` in the generated code, and `#system()` becomes
+  the number of the machine being built for (`2` on a C64), to compare
+  with the names `@8bitscript/system` exports. A `#name` the compiler
+  doesn't know, or a `#frames` or `#system` that isn't called, is
+  `8BS1030`; `#system` with arguments is `8BS1036`.
 
 Everything else runs on the machine: loops, assignments, arithmetic on
 variables, every plain `name(...)` call including `waitFrame()` and
@@ -98,7 +101,14 @@ The one pass between the parser and the checker today is the *fold*
 (`packages/compiler/src/fold`): it rewrites every `#frames(...)` call — the
 compile-time duration builtin, `#frames(0.5, seconds)` — into a plain integer
 literal holding how many frames that much time takes at the project's
-`frameRate` (`8bs.config.ts`, default 60), using exact integer arithmetic.
+`frameRate` (`8bs.config.ts`, default 60), using exact integer arithmetic,
+and every `#system()` call into the number of the machine the build is
+for (the fold's `SYSTEMS` table; `@8bitscript/system` names the same
+numbers, so `if (#system() == System.NES)` is a comparison of two
+constants). `8bs check` and the editor analyse files rather than builds,
+so with no machine in hand `#system()` folds to a placeholder and is
+valid-but-target-dependent, the same answer a `.<machine>.8bs` import gets
+— see [systems](systems.md).
 The function is named for what comes out, a frame count, and its required
 second argument names the unit the literal is written in; `seconds` is the
 only unit so far. Nothing is reserved: `#frames` is its own token, so a
@@ -255,12 +265,13 @@ Implemented today:
 | `8BS1027` | String longer than 255 characters, or a literal or const that does not fit the `string<N>` it is assigned to |
 | `8BS1028` | Template string anywhere other than the second argument of a namespace's `print(cell, ...)` |
 | `8BS1029` | Template field the compiler cannot lay out: no `:width` and no visible type, a signed or 32-bit value, or a width outside 1..255 |
-| `8BS1030` | `#name` is not a function the compiler evaluates (`#frames` is the only one), or `#frames` was not called |
+| `8BS1030` | `#name` is not a function the compiler evaluates (`#frames` and `#system` are the two), or one of them was not called |
 | `8BS1031` | Assignment to a `const` — a compile-time constant with no storage on the target — or to an element of a `const` array |
 | `8BS1032` | Literal index at or past an array's length (`a[4]` on an `array<T, 4>`) |
 | `8BS1033` | Array initialiser with other than exactly N elements |
 | `8BS1034` | A `const` not written `UPPER_SNAKE`, or a variable not starting with a lower-case letter |
 | `8BS1035` | A call with more arguments than the function has parameters, or fewer than those without a default |
+| `8BS1036` | `#system()` called with arguments — it takes none |
 | `8BS2001` | Cannot find package |
 | `8BS2002` | Package is not an 8BitScript package |
 | `8BS2003` | Package declares an entry that does not exist |

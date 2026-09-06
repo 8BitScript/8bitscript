@@ -401,7 +401,7 @@ Only two kinds of package are meant for you:
 | ------- | ---- |
 | `@8bitscript/cli` | The `8bs` command. A dev dependency |
 | `@8bitscript/screen`, `@8bitscript/text` | The portable standard library, one package per capability: each resolves per target to that machine package's own implementation |
-| `@8bitscript/system` | Which machine a build is for, as a compile-time constant: `System.CURRENT`, and one name per target (`System.C64`, `System.PET`, …). A program branches on it with an ordinary `if`, and the other machines' branches fold away — see [systems](systems.md) |
+| `@8bitscript/system` | One name per target (`System.C64`, `System.PET`, …) to compare the compiler's `#system()` with: `if (#system() == System.PET)`. Both sides are compile-time numbers, so the other machines' branches fold away — see [systems](systems.md) |
 | `@8bitscript/vic20`, `@8bitscript/c64`, `@8bitscript/nes`, … `@8bitscript/web` | Target support, one per machine: the hardware underneath (registers, port protocols), plus that machine's `./screen` and `./text` subpaths, and any hardware-level subpath of its own (`@8bitscript/pet/keyboard`, `@8bitscript/pet/keys`; `@8bitscript/c64/sprites`, `/keyboard`, `/keys`, `/joystick`, `/sid`, `/video`) that a portable capability does not cover yet |
 
 The compiler, the language server, and the backends are internal:

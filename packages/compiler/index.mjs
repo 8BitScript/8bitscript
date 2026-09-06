@@ -8,7 +8,7 @@
 import { tokenize } from './src/lexer/index.mjs';
 import { parse } from './src/parser/index.mjs';
 import { check } from './src/checker/index.mjs';
-import { foldDurations } from './src/fold/index.mjs';
+import { foldCompileTime } from './src/fold/index.mjs';
 import { lower } from './src/ir/index.mjs';
 import { resolveImports } from './src/resolver/index.mjs';
 
@@ -16,7 +16,7 @@ export { tokenize, TokenKind, KEYWORDS, TYPE_NAMES } from './src/lexer/index.mjs
 export { parse } from './src/parser/index.mjs';
 export { NodeType, walk } from './src/ast/index.mjs';
 export { check } from './src/checker/index.mjs';
-export { foldDurations, DURATION_CLOCKS, DURATION_UNITS } from './src/fold/index.mjs';
+export { foldCompileTime, DURATION_CLOCKS, DURATION_UNITS, SYSTEMS } from './src/fold/index.mjs';
 export { lower, entryOf } from './src/ir/index.mjs';
 export { link, memoryOf } from './src/linker/index.mjs';
 export {
@@ -52,8 +52,10 @@ export { getHoverInfo, getCompletions } from './src/intellisense/index.mjs';
  *
  * @param {string} text
  * @param {string} file
- * @param {{ resolveImports?: boolean, frameRate?: number }} [options]
- *   `frameRate` (default 60) is the project's logical frame rate — see
+ * @param {{ resolveImports?: boolean, frameRate?: number, machine?: string }} [options]
+ *   `machine` is the target when one is known; without it `#system()`
+ *   folds to a placeholder and is valid-but-target-dependent, as a
+ *   `.<machine>.8bs` import is. `frameRate` (default 60) is the project's logical frame rate — see
  *   8bs.config.ts — that every `#frames(...)` call folds against, mirroring
  *   link()'s option of the same name so `8bs check`/the editor and a real
  *   build agree on what a duration means.
@@ -66,7 +68,7 @@ export function analyze(text, file = '<unknown>', options = {}) {
   // Folding runs before check(), same ordering as the linker: a
   // #frames(...) call needs to already be a plain IntegerLiteral by the
   // time the width-fit rule walks the tree.
-  const folding = foldDurations(ast, file, options.frameRate);
+  const folding = foldCompileTime(ast, file, { frameRate: options.frameRate, machine: options.machine });
   const all = [...lexical, ...syntax, ...folding, ...check(ast, file, text)];
   // A few rules — the template layout above all — are deliberately run by
   // both check() and lower(), so that `check()` alone is a complete

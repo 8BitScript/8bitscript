@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  analyze, link, tokenize, parse, foldDurations, NodeType,
+  analyze, link, tokenize, parse, foldCompileTime, NodeType,
   DURATION_CLOCKS, DURATION_UNITS, getHoverInfo,
 } from '../index.mjs';
 
@@ -145,7 +145,7 @@ test('fold: #frames() with the wrong argument shape is one clear diagnostic, not
   assert.deepEqual(codes('let y: utinyint = 1;\nlet x: utinyint = #frames(y, seconds);'), ['8BS1022']);
 });
 
-test('fold: foldDurations consumes the unit word so the linker never tries to resolve it', () => {
+test('fold: foldCompileTime consumes the unit word so the linker never tries to resolve it', () => {
   const { diagnostics } = link(program('#frames(0.5, seconds)'), 't');
   assert.deepEqual(diagnostics, []);
 });
@@ -156,13 +156,13 @@ test('fold: a bare decimal literal outside #frames(...) is misplaced', () => {
   assert.match(d.message, /#frames\(\.\.\.\)/);
 });
 
-test('fold: foldDurations mutates the call node into a plain IntegerLiteral in place', () => {
+test('fold: foldCompileTime mutates the call node into a plain IntegerLiteral in place', () => {
   const src = '#frames(0.5, seconds);';
   const { tokens } = tokenize(src, 't');
   const { ast } = parse(tokens, src, 't');
   const before = ast.body[0].expression;
   assert.equal(before.type, NodeType.CallExpression);
-  foldDurations(ast, 't', 60);
+  foldCompileTime(ast, 't', { frameRate: 60 });
   const after = ast.body[0].expression;
   assert.equal(after, before, 'same node object, mutated in place');
   assert.equal(after.type, NodeType.IntegerLiteral);

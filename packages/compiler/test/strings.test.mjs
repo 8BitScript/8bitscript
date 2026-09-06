@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
-  analyze, link, tokenize, parse, lower, foldDurations, NodeType, getHoverInfo, getCompletions,
+  analyze, link, tokenize, parse, lower, foldCompileTime, NodeType, getHoverInfo, getCompletions,
 } from '../index.mjs';
 
 const codes = (src, options) => analyze(src, 't.8bs', options).map((d) => d.code);
@@ -125,7 +125,7 @@ test('parser: a field expression is reachable by walk() — #frames(...) inside 
   const src = 'text.print(0, `${#frames(0.5, seconds)}`);';
   const { tokens } = tokenize(src, 't');
   const { ast } = parse(tokens, src, 't');
-  assert.deepEqual(foldDurations(ast, 't', 60), []);
+  assert.deepEqual(foldCompileTime(ast, 't', { frameRate: 60 }), []);
   assert.equal(ast.body[0].expression.args[1].parts[0].expression.value, 30);
 });
 

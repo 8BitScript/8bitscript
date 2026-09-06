@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { analyze, tokenize, parse, lower, check, foldDurations } from '../index.mjs';
+import { analyze, tokenize, parse, lower, check, foldCompileTime } from '../index.mjs';
 import { emitAssemblyScript } from '../../backend-web/src/index.mjs';
 import { emitC } from '../../backend-6502/src/index.mjs';
 
@@ -19,7 +19,7 @@ const clean = (src) => assert.deepEqual(codes(src), []);
 const frontEndCodes = (src) => {
   const { tokens, diagnostics: lexical } = tokenize(src, 't.8bs');
   const { ast, diagnostics: syntax } = parse(tokens, src, 't.8bs');
-  return [...lexical, ...syntax, ...foldDurations(ast, 't.8bs'), ...check(ast, 't.8bs', src)].map((d) => d.code);
+  return [...lexical, ...syntax, ...foldCompileTime(ast, 't.8bs'), ...check(ast, 't.8bs', src)].map((d) => d.code);
 };
 
 const CANONICAL_NAMES = [

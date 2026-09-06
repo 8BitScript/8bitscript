@@ -15,7 +15,7 @@ the split between the compiler, the language server, and this extension.
 - Colours comments, strings and template strings (with their `${...}`
   fields), numbers (including the `0.5` a `#frames(...)` duration takes),
   types, keywords, declarations, calls, the compile-time `#frames(...)`
-  (any `#name` colours as compile-time), the reserved `waitFrame()`, and
+  and `#system()` (any `#name` colours as compile-time), the reserved `waitFrame()`, and
   the `seconds` unit inside a `#frames(...)` call
 - **Snippets** for the constructs that compile — `program`, `loop`,
   `countdown`, `print`, `#frames`, `const`, `let`, `for`, `array`,

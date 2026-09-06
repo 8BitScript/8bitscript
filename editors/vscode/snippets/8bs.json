@@ -48,22 +48,30 @@
   "Compile-time duration": {
     "prefix": "#frames",
     "description": "#frames(n, seconds) — how many waitFrame() calls that much time takes, worked out at compile time.",
-    "body": ["#frames(${1:0.5}, seconds)"]
+    "body": [
+      "#frames(${1:0.5}, seconds)"
+    ]
   },
   "Print a template": {
     "prefix": "print",
     "description": "text.print(cell, `...`) — text and ${...} data fields, laid out at compile time.",
-    "body": ["text.print(${1:0}, `${2:TICK }\\${${3:ticks}:${4:1}}`);"]
+    "body": [
+      "text.print(${1:0}, `${2:TICK }\\${${3:ticks}:${4:1}}`);"
+    ]
   },
   "Compile-time constant": {
     "prefix": "const",
     "description": "A const: inlined wherever it is read, never stored on the machine.",
-    "body": ["const ${1:NAME}: ${2:utinyint} = ${3:0};"]
+    "body": [
+      "const ${1:NAME}: ${2:utinyint} = ${3:0};"
+    ]
   },
   "Variable": {
     "prefix": "let",
     "description": "A variable: a global at the top level, a local inside a function.",
-    "body": ["let ${1:name}: ${2:utinyint} = ${3:0};"]
+    "body": [
+      "let ${1:name}: ${2:utinyint} = ${3:0};"
+    ]
   },
   "For loop": {
     "prefix": "for",
@@ -77,12 +85,16 @@
   "Array in RAM": {
     "prefix": "array",
     "description": "let name: array<T, N> — N values of T in RAM, zero until written; a[i] and a.length.",
-    "body": ["let ${1:name}: array<${2:utinyint}, ${3:4}>;"]
+    "body": [
+      "let ${1:name}: array<${2:utinyint}, ${3:4}>;"
+    ]
   },
   "Data table": {
     "prefix": "table",
     "description": "const NAME: array<T, N> = [...] — N values as data in the program, never in RAM; read with NAME[i].",
-    "body": ["const ${1:TABLE}: array<${2:utinyint}, ${3:3}> = [${4:1, 2, 3}];"]
+    "body": [
+      "const ${1:TABLE}: array<${2:utinyint}, ${3:3}> = [${4:1, 2, 3}];"
+    ]
   },
   "Hardware register": {
     "prefix": "address",
@@ -117,7 +129,9 @@
   "Import a capability": {
     "prefix": "import",
     "description": "Import a capability package; it resolves to whichever machine is being built.",
-    "body": ["import { ${1:text} } from \"@8bitscript/${1:text}\";"]
+    "body": [
+      "import { ${1:text} } from \"@8bitscript/${1:text}\";"
+    ]
   },
   "Inline 6502 assembly": {
     "prefix": "asm6502",
@@ -131,11 +145,22 @@
   "Poke a byte": {
     "prefix": "poke",
     "description": "memory.write — the low-level equivalent of POKE.",
-    "body": ["memory.write(${1:0xD020}, ${2:6});"]
+    "body": [
+      "memory.write(${1:0xD020}, ${2:6});"
+    ]
   },
   "Peek a byte": {
     "prefix": "peek",
     "description": "memory.read — the low-level equivalent of PEEK.",
-    "body": ["memory.read(${1:0xD012})"]
+    "body": [
+      "memory.read(${1:0xD012})"
+    ]
+  },
+  "Compile-time machine": {
+    "prefix": "#system",
+    "description": "#system() — the machine this build is for, worked out at compile time; compare with System.C64 and the other names from @8bitscript/system.",
+    "body": [
+      "#system()"
+    ]
   }
 }

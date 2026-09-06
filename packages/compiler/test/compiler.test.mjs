@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 import {
-  analyze, tokenize, parse, check, foldDurations, getHoverInfo, getCompletions, NodeType,
+  analyze, tokenize, parse, check, foldCompileTime, getHoverInfo, getCompletions, NodeType,
 } from '../index.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -29,7 +29,7 @@ const clean = (src) => assert.deepEqual(codes(src), []);
 const frontEndCodes = (src) => {
   const { tokens, diagnostics: lexical } = tokenize(src, 't.8bs');
   const { ast, diagnostics: syntax } = parse(tokens, src, 't.8bs');
-  return [...lexical, ...syntax, ...foldDurations(ast, 't.8bs'), ...check(ast, 't.8bs', src)]
+  return [...lexical, ...syntax, ...foldCompileTime(ast, 't.8bs'), ...check(ast, 't.8bs', src)]
     .sort((a, b) => a.start - b.start).map((d) => d.code);
 };
 const parsesClean = (src) => assert.deepEqual(frontEndCodes(src), []);
