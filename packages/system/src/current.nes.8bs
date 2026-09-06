@@ -1,0 +1,6 @@
+// @8bitscript/system — this build is for the NES. Read by index.8bs
+// through the filename rule; the number is System.NES's, and
+// test/system.test.mjs holds the two in step.
+export namespace Current {
+    const SYSTEM: utinyint = 6;
+}

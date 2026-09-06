@@ -104,8 +104,9 @@ Do not describe more than this as working:
   `keys.pet.8032.8bs` the business matrix the 8032 profile reads instead.
   PIA1's two ports are exported from `src/index.8bs` (`pia1PortA` `$E810`,
   `pia1PortB` `$E812`). No buffer, no PETSCII: "is this key down now".
-- `packages/studio/src/main.pet.8bs` starts Studio's basic tier on the PET
-  (character editing, "rudimentary playback" once sound exists).
+- `packages/studio/src/main.8bs` starts Studio's basic tier on the PET
+  (`System.CURRENT == System.PET`: character editing, "rudimentary
+  playback" once sound exists).
 
 There is no sound, no *portable* input (the keyboard layer above is the
 PET's own; `@8bitscript/input` does not exist), no reverse-video access, no `.tap`
@@ -449,7 +450,7 @@ packages/backend-6502/src/index.mjs  PET_PROFILES (__ram_size per model), FRAME_
 packages/compiler/src/linker/hazards.mjs   8BS3003: the $E842 killer-poke rule
 packages/cli/src/run.mjs             PET_MODEL_ARGS (xpet -model <profile>), PET_PROFILE_FPS, why no --pal and no 60 Hz editors
 packages/cli/src/screenshot.mjs      PET_CLOCK_HZ, --frames → cycles at the profile's rate
-packages/studio/src/main.pet.8bs     Studio's basic tier entry for the PET
+packages/studio/src/main.8bs         Studio's entry; the PET branch picks the basic tier
 docs/setup/vice.md                   installing xpet with the other VICE emulators
 docs/roadmap.md                      Phase 2: why the PET is in the target list
 $LLVM_MOS_HOME/mos-platform/pet/     link.ld (__ram_size range, $0401), pet.h (chip bases), _6522.h/_pia.h/_6545.h

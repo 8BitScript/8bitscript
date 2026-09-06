@@ -247,9 +247,14 @@ importers:
       '@8bitscript/screen':
         specifier: workspace:*
         version: link:../screen
+      '@8bitscript/system':
+        specifier: workspace:*
+        version: link:../system
       '@8bitscript/text':
         specifier: workspace:*
         version: link:../text
+
+  packages/system: {}
 
   packages/text:
     dependencies:

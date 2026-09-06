@@ -37,11 +37,16 @@ Do not describe more than this as working:
   machine gets, and which editors that tier opens — using `@8bitscript/
   screen` and `@8bitscript/text`, nothing else. It builds and runs on all
   nine targets; `8bs run <target> --screenshot` shows it.
-- `src/main.8bs` starts the full tier. `src/main.vic20.8bs`,
-  `src/main.pet.8bs`, and `src/main.nes.8bs` start the basic and viewer
-  tiers, chosen by the CLI's filename rule (`main.<target>.8bs` beside the
-  shared entry wins for that target — the current spelling; the
-  `entry: { default, nes }` map in `8bs.config.ts` is the older one).
+- `src/main.8bs` is the one entry for every machine. It reads
+  `System.CURRENT` from `@8bitscript/system` — a compile-time constant
+  naming the machine being built for — and hands `studio.start()` the
+  tier: the viewer tier on the NES, the basic tier on the VIC-20 and PET,
+  the full tier everywhere else. The other machines' branches fold away
+  on any one build (`test/studio.test.mjs` reads the tier off the linked
+  IR for each target). There used to be a `main.<target>.8bs` per lower
+  tier; the filename rule is still the right tool for a machine that
+  needs *different code*, but a machine that only needs a different
+  *number* gets it from one file now.
 - Nothing responds to a key, plays a note, or reads or writes a file. The
   language has no capability for any of those yet. The screen says
   `NO INPUT YET` for that reason.
@@ -95,11 +100,17 @@ Two rules follow from the table and must survive any redesign:
    PET can show at all. This is what "higher-tier systems edit files from
    lower-tier systems" means in practice, and it is what makes one format
    per asset kind the right number.
-2. **A tier is a property of the build, chosen once, by the entry
-   variant.** Studio never probes the machine at runtime to decide what
-   it can do; the machine package already knows, and the build already
-   picked it. Keep the tier a compile-time constant (`Tier.FULL` and the
-   others are namespace consts, inlined by the compiler).
+2. **A tier is a property of the build, chosen once, in `main.8bs`.**
+   Studio never probes the machine at runtime to decide what it can do;
+   the build already knows which machine it is for, and `main.8bs` picks
+   the tier from `System.CURRENT`. Keep the tier a compile-time constant
+   (`Tier.FULL` and the others are namespace consts, inlined by the
+   compiler). When the capability packages publish their facts
+   (`sprites.COUNT`, a sound package's voice count, whether storage
+   exists — see [`docs/systems.md`](../../docs/systems.md)), the tier
+   should be computed from those instead of from the machine's name: a
+   new machine with sprites and a chip then gets the full tier without
+   anyone editing Studio.
 
 ## What Studio needs from the language
 
@@ -133,10 +144,15 @@ editor on a hack that the capability would replace:
 - **Storage** — loading and saving a file from Studio, and getting it
   from the emulator back into the repository. This is the piece that
   makes "Launch in Studio" possible and it is the least designed: each
-  emulator has its own route to the host filesystem (*to verify* per
-  target: VICE attaches disk images; x16emu has a host-filesystem option;
-  the web runtime can hand the browser a file), and the CLI would have to
-  drive each. Persistence is a capability of a machine's media profile,
+  emulator has its own route to the host filesystem (checked against each
+  emulator's own help: VICE mounts a host directory as drive 8 with
+  `-fs8 <dir>` and attaches images with `-8`; atari800 mounts one as `H1:`
+  with `-H1 <dir>`; x16emu has `-fsroot <dir>` and `-sdcard <image>`;
+  xemu mounts a `.d81` with `-8` and redirects the hypervisor's DOS to a
+  directory with `-hdosdir`; the NES has only the emulator's `.sav`; the
+  web runtime can hand the browser a file — see
+  [`docs/systems.md`](../../docs/systems.md#storage)), and the CLI would
+  have to drive each. Persistence is a capability of a machine's media profile,
   never assumed from its name.
 
 ## Files: a proposal
