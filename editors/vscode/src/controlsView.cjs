@@ -1,23 +1,29 @@
-// The dropdowns at the top of the 8BitScript side bar.
+// The controls at the top of the 8BitScript side bar.
 //
-// A tree view cannot hold a <select>, so this is a small webview: three
-// dropdowns — the system to run on, the region for the Commodore machines,
-// and which way to lay out the project list — plus a checkbox for the
-// toolchain's proofs of concept when any are available. Every choice is written straight to the
-// extension's settings (see settings.cjs); the projects view reads those
-// settings, so the two views never hold state of their own to disagree over.
+// A tree view cannot hold a <select>, so this is a small webview: the
+// system to run on, the region for the machines that have one, the
+// hardware fitted to that system — a profile (a catalog preset or one the
+// project composes in its 8bs.config.ts) and single options on top, every
+// option and value read from `8bs targets --json` so the editor lists
+// nothing of its own — and which way to lay out the project list, plus a
+// checkbox for the toolchain's proofs of concept when any are available.
+// Every choice is written straight to the extension's settings (see
+// settings.cjs); the projects view reads those settings, so the two views
+// never hold state of their own to disagree over, and the Run button on
+// any row runs exactly the `8bs run` line the hint shows.
 const crypto = require('crypto');
 
 const vscode = require('vscode');
 
-const { ALL_TARGETS, MACHINE_TARGETS } = require('./projects.cjs');
+const { ALL_TARGETS, MACHINE_TARGETS, commandArgs } = require('./projects.cjs');
 const settings = require('./settings.cjs');
+const { effectiveOptions, normalizeSelection } = require('./hardwareCatalog.cjs');
 
 const VIEW_ID = '8bitscript.controls';
 
 class ControlsViewProvider {
   /**
-   * @param {{ hasExamples: () => boolean, onDidChange: vscode.Event<unknown> }} projects
+   * @param {{ hasExamples: () => boolean, onDidChange: vscode.Event<unknown>, loadTargets: () => Promise<Map<string, object>|null> }} projects
    */
   constructor(projects) {
     this.projects = projects;
@@ -62,24 +68,65 @@ class ControlsViewProvider {
       case 'examples':
         await settings.setShowExamples(Boolean(message.value));
         break;
+      case 'profile': {
+        const system = settings.getSystem();
+        const current = settings.getHardware(system);
+        await settings.setHardware(system, { ...current, profile: message.value || null });
+        break;
+      }
+      case 'option': {
+        const system = settings.getSystem();
+        const current = settings.getHardware(system);
+        const options = { ...current.options };
+        if (message.value === '' || message.value === undefined) delete options[message.option];
+        else options[message.option] = String(message.value);
+        await settings.setHardware(system, { ...current, options });
+        break;
+      }
+      case 'stock': {
+        await settings.setHardware(settings.getSystem(), { profile: null, options: {} });
+        break;
+      }
       default:
         break;
     }
   }
 
   /** Push the current settings to the page; it never keeps its own copy. */
-  post() {
+  async post() {
     if (!this.view) return;
     const system = settings.getSystem();
+    const targets = await this.projects.loadTargets();
+    if (!this.view) return;
+    const target = targets?.get(system) ?? null;
+    const selection = normalizeSelection(settings.getHardware(system));
+    const region = settings.getRegion();
     this.view.webview.postMessage({
       type: 'state',
-      systems: ALL_TARGETS.map((id) => ({ id, machine: MACHINE_TARGETS.has(id) })),
+      systems: ALL_TARGETS.map((id) => ({ id, machine: MACHINE_TARGETS.has(id), title: targets?.get(id)?.title ?? id })),
       views: settings.VIEW_MODES,
       system,
-      region: settings.getRegion(),
+      region,
       view: settings.getViewMode(),
       showExamples: settings.getShowExamples(),
       hasExamples: this.projects.hasExamples(),
+      hardware: target ? {
+        profiles: [
+          ...Object.keys(target.profiles ?? {}).map((id) => ({ id, label: `${id} (this project)` })),
+          ...Object.keys(target.presets ?? {}).map((id) => ({ id, label: id })),
+        ],
+        options: Object.entries(target.options ?? {}).map(([id, option]) => ({
+          id,
+          label: option.label,
+          default: option.default,
+          values: Object.entries(option.values).map(([value, entry]) => ({
+            id: value, label: entry.label, affectsBuild: entry.affectsBuild,
+          })),
+        })),
+        effective: effectiveOptions(target, selection),
+        selection,
+      } : null,
+      command: `8bs ${commandArgs('run', system, region, selection).join(' ')}`,
     });
   }
 }
@@ -124,6 +171,13 @@ function html(webview) {
   select:focus { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
   select:disabled { opacity: 0.5; }
   .check { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
+  .hardware { margin-top: 4px; }
+  .hardware .option { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
+  .hardware .option label { flex: 0 0 38%; font-size: 11px; opacity: 0.85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hardware .option select { flex: 1; }
+  .hardware .option.set label { opacity: 1; font-weight: 600; }
+  .hardware .none { font-size: 11px; opacity: 0.6; margin: 4px 0; }
+  .link { background: none; border: none; padding: 0; font: inherit; font-size: 11px; color: var(--vscode-textLink-foreground); cursor: pointer; }
   .check input { margin: 0; }
   .hint { margin-top: 8px; font-size: 11px; opacity: 0.7; }
   code { font-family: var(--vscode-editor-font-family); }
@@ -144,6 +198,9 @@ function html(webview) {
       </select>
     </div>
   </div>
+  <label class="field" for="profile">Hardware</label>
+  <select id="profile" title="A profile: a preset from the system's catalog, or one this project composes in its 8bs.config.ts"></select>
+  <div class="hardware" id="hardware"></div>
   <label class="field" for="view">View</label>
   <select id="view" title="How the project list below is laid out"></select>
   <div class="check" id="examplesRow" hidden>
@@ -166,22 +223,71 @@ function html(webview) {
       }
     }
 
+    function renderHardware(hardware) {
+      const root = $('hardware');
+      root.textContent = '';
+      if (!hardware) {
+        fill($('profile'), [{ id: '', label: 'stock' }], '');
+        $('profile').disabled = true;
+        const none = document.createElement('div');
+        none.className = 'none';
+        none.textContent = 'No toolchain found to ask about hardware.';
+        root.appendChild(none);
+        return;
+      }
+      $('profile').disabled = false;
+      fill($('profile'), [{ id: '', label: 'stock' }, ...hardware.profiles], hardware.selection.profile ?? '');
+      if (hardware.options.length === 0) {
+        const none = document.createElement('div');
+        none.className = 'none';
+        none.textContent = 'Nothing to fit on this system.';
+        root.appendChild(none);
+        return;
+      }
+      for (const option of hardware.options) {
+        const row = document.createElement('div');
+        row.className = 'option' + (option.id in hardware.selection.options ? ' set' : '');
+        const label = document.createElement('label');
+        label.textContent = option.label;
+        label.title = option.label + ' (--hardware ' + option.id + '=...)';
+        const select = document.createElement('select');
+        select.title = label.title;
+        for (const value of option.values) {
+          const el = document.createElement('option');
+          el.value = value.id;
+          el.textContent = value.label + (value.affectsBuild ? '  [build]' : '');
+          el.selected = value.id === hardware.effective[option.id];
+          select.appendChild(el);
+        }
+        select.addEventListener('change', (e) => vscode.postMessage({ type: 'set', key: 'option', option: option.id, value: e.target.value }));
+        row.appendChild(label);
+        row.appendChild(select);
+        root.appendChild(row);
+      }
+      const reset = document.createElement('button');
+      reset.className = 'link';
+      reset.textContent = 'Back to stock';
+      reset.addEventListener('click', () => vscode.postMessage({ type: 'set', key: 'stock' }));
+      root.appendChild(reset);
+    }
+
     window.addEventListener('message', ({ data }) => {
       if (data.type !== 'state') return;
-      fill($('system'), data.systems.map((s) => ({ id: s.id, label: s.id })), data.system);
+      fill($('system'), data.systems.map((s) => ({ id: s.id, label: s.title === s.id ? s.id : s.id + ' \\u2014 ' + s.title })), data.system);
       fill($('view'), data.views, data.view);
       $('region').value = data.region;
       const machine = data.systems.find((s) => s.id === data.system)?.machine ?? false;
       $('region').disabled = !machine;
       $('examplesRow').hidden = !data.hasExamples;
       $('examples').checked = data.showExamples;
-      const regionText = machine ? ' \\u00b7 ' + data.region.toUpperCase() : '';
-      $('hint').innerHTML = 'Run buttons use <code>' + data.system + regionText + '</code>';
+      renderHardware(data.hardware);
+      $('hint').innerHTML = 'Run buttons use <code>' + data.command + '</code>';
     });
 
     for (const key of ['system', 'region', 'view']) {
       $(key).addEventListener('change', (e) => vscode.postMessage({ type: 'set', key, value: e.target.value }));
     }
+    $('profile').addEventListener('change', (e) => vscode.postMessage({ type: 'set', key: 'profile', value: e.target.value }));
     $('examples').addEventListener('change', (e) => vscode.postMessage({ type: 'set', key: 'examples', value: e.target.checked }));
   </script>
 </body>

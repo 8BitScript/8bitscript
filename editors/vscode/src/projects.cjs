@@ -48,6 +48,8 @@ const KINDS = [
 
 const BINARY = process.platform === 'win32' ? '8bs.cmd' : '8bs';
 
+const { hardwareArgs } = require('./hardwareCatalog.cjs');
+
 // Drop line and block comments so a commented-out key is not read as live.
 function stripComments(text) {
   return text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
@@ -69,6 +71,11 @@ function quotedStrings(text) {
  * is exactly what the CLI does when the key is absent. An unlisted target then
  * fails at `8bs build` with the CLI's message rather than silently here.
  *
+ * `targets` is either the array (`['vic20', 'c64']`) or the object form
+ * that composes hardware profiles per machine (`{ c64: { profiles: {...} }
+ * }`); either way the machines named are the project's targets, in the
+ * toolchain's order.
+ *
  * @param {string} text
  * @returns {{ entry: string, targets: string[] }}
  */
@@ -81,12 +88,42 @@ function parseConfig(text) {
 
   let targets = ALL_TARGETS;
   const targetsMatch = /\btargets\s*:\s*\[([^\]]*)\]/.exec(source);
+  const objectMatch = /\btargets\s*:\s*\{/.exec(source);
   if (targetsMatch) {
     const listed = quotedStrings(targetsMatch[1]).filter((t) => ALL_TARGETS.includes(t));
+    if (listed.length > 0) targets = ALL_TARGETS.filter((t) => listed.includes(t));
+  } else if (objectMatch) {
+    const listed = topLevelKeys(source, objectMatch.index + objectMatch[0].length).filter((t) => ALL_TARGETS.includes(t));
     if (listed.length > 0) targets = ALL_TARGETS.filter((t) => listed.includes(t));
   }
 
   return { entry, targets };
+}
+
+/**
+ * The keys of an object literal whose body starts at `from` (just after its
+ * `{`), at depth one only — `c64` and `web` in `{ c64: { profiles: { loaded:
+ * {} } }, web: {} }`, not `profiles` or `loaded`.
+ */
+function topLevelKeys(source, from) {
+  const keys = [];
+  let depth = 1;
+  let i = from;
+  while (i < source.length && depth > 0) {
+    const c = source[i];
+    if (c === '{' || c === '[') depth += 1;
+    else if (c === '}' || c === ']') depth -= 1;
+    else if (depth === 1) {
+      const m = /^\s*(?:(['"`])([^'"`]+)\1|([A-Za-z_$][\w$]*))\s*:/.exec(source.slice(i));
+      if (m) {
+        keys.push(m[2] ?? m[3]);
+        i += m[0].length;
+        continue;
+      }
+    }
+    i += 1;
+  }
+  return keys;
 }
 
 /**
@@ -447,12 +484,16 @@ function resolveLlvmMosHome({ setting = null, env = process.env, defaultHome = D
  * @param {'run' | 'build' | 'doctor'} action
  * @param {string} [target]        required for run and build
  * @param {'ntsc' | 'pal'} [region] ignored for targets without a machine model
+ * @param {{ profile?: string|null, options?: object }} [hardware] the
+ *   hardware fitted (the side bar's selection for that system): `--profile`
+ *   and `--hardware option=value,...`, as a person would type them
  * @returns {string[]}
  */
-function commandArgs(action, target, region = 'ntsc') {
+function commandArgs(action, target, region = 'ntsc', hardware = undefined) {
   if (action !== 'run' && action !== 'build') return [action];
   const args = action === 'build' ? ['build', '--target', target] : ['run', target];
   if (region === 'pal' && MACHINE_TARGETS.has(target)) args.push('--pal');
+  if (hardware) args.push(...hardwareArgs(hardware));
   return args;
 }
 

@@ -157,6 +157,25 @@ test('commandArgs spells the same commands a person would type', () => {
   assert.deepEqual(commandArgs('build', 'web', 'pal'), ['build', '--target', 'web'], 'web has no region');
   assert.deepEqual(commandArgs('run', 'web', 'pal'), ['run', 'web']);
   assert.deepEqual(commandArgs('doctor'), ['doctor']);
+  // The hardware fitted rides along as a person would type it.
+  assert.deepEqual(
+    commandArgs('run', 'c64', 'ntsc', { profile: 'reu512', options: { port1: 'mouse1351', sid: '8580' } }),
+    ['run', 'c64', '--profile', 'reu512', '--hardware', 'port1=mouse1351,sid=8580'],
+  );
+  assert.deepEqual(commandArgs('build', 'pet', 'pal', { profile: '8032', options: {} }), ['build', '--target', 'pet', '--profile', '8032']);
+  assert.deepEqual(commandArgs('run', 'vic20', 'pal', { profile: null, options: {} }), ['run', 'vic20', '--pal']);
+});
+
+test('parseConfig reads the object form of targets — the machines composing profiles — at depth one only', () => {
+  const config = parseConfig(`export default {
+  entry: 'src/main.8bs',
+  targets: {
+    c64: { profiles: { loaded: { ram: 'reu512', port1: 'mouse1351' }, vic20: { ram: '8k' } } },
+    web: {},
+    "pet": { profiles: { wide: { model: '8032' } } },
+  },
+};`);
+  assert.deepEqual(config.targets, ['c64', 'pet', 'web']);
 });
 
 /**
