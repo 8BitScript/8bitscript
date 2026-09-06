@@ -12,7 +12,28 @@
     },
     "native": [
       "./native/6502/font.s"
-    ]
+    ],
+    "hardware": {
+      "options": {
+        "mapper": {
+          "label": "Cartridge board",
+          "default": "nrom",
+          "values": {
+            "nrom": {
+              "label": "NROM: 32K PRG, 8K CHR-ROM, no save",
+              "build": {
+                "driver": "mos-nes-nrom-clang",
+                "output": "nes"
+              },
+              "facts": {
+                "storage.save": false
+              }
+            }
+          }
+        }
+      },
+      "presets": {}
+    }
   },
   "files": [
     "src",

@@ -16,11 +16,20 @@
     "src"
   ],
   "dependencies": {
-    "@8bitscript/compiler": "workspace:*",
-    "@8bitscript/language-server": "workspace:*",
-    "@8bitscript/backend-web": "workspace:*",
+    "@8bitscript/atari8": "workspace:*",
     "@8bitscript/backend-6502": "workspace:*",
-    "@8bitscript/studio": "workspace:*"
+    "@8bitscript/backend-web": "workspace:*",
+    "@8bitscript/c128": "workspace:*",
+    "@8bitscript/c64": "workspace:*",
+    "@8bitscript/compiler": "workspace:*",
+    "@8bitscript/cx16": "workspace:*",
+    "@8bitscript/language-server": "workspace:*",
+    "@8bitscript/mega65": "workspace:*",
+    "@8bitscript/nes": "workspace:*",
+    "@8bitscript/pet": "workspace:*",
+    "@8bitscript/studio": "workspace:*",
+    "@8bitscript/vic20": "workspace:*",
+    "@8bitscript/web": "workspace:*"
   },
   "publishConfig": {
     "access": "public"

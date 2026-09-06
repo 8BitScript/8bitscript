@@ -9,6 +9,10 @@
     "exports": {
       "./screen": "./src/screen.8bs",
       "./text": "./src/text.8bs"
+    },
+    "hardware": {
+      "options": {},
+      "presets": {}
     }
   },
   "files": [

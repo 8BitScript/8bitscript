@@ -25,10 +25,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
-  ATARI8_MODEL_ARG, ATARI8_XEGS_CART_TYPE, VICE_EMULATOR, VICE_EMULATOR_ARGS, VICE_MODEL_ARGS, VIC20_MEMORY_ARG,
-  PET_MODEL_ARGS, PET_PROFILE_FPS,
+  DEFAULT_LOAD, VICE_EMULATOR, VICE_EMULATOR_ARGS, VICE_MODEL_ARGS,
   atari800CleanDisplayConfig,
 } from './run.mjs';
+import { loadArgs, loadCatalog, resolveHardware } from './hardware.mjs';
+
+/** The stock hardware, for a caller that did not resolve any. */
+const stockHardware = (target) => resolveHardware(loadCatalog(target)).hardware;
 import { encodePNG } from './png.mjs';
 import { runProgram } from './wasm-host.mjs';
 import { glyphRows } from './font8x8.mjs';
@@ -120,51 +123,36 @@ const VICE_DEFAULT_CYCLES = {
   vic20: 14_000_000, c64: 5_000_000, pet: 8_000_000, c128: 8_000_000,
 };
 // The PET's CPU clock is a flat, region-independent 1MHz (FRAME_SYNC.pet
-// in backend-6502). Video refresh is the xpet model the profile names
-// (PET_PROFILE_FPS in run.mjs: the 3xxx ~60Hz, the CRTC models 50Hz);
-// these numbers only convert an explicit --frames into a cycle count. The
-// program still measures the actual period at startup.
+// in backend-6502). Video refresh is the xpet model's — the catalog's
+// `video.frameRate` fact for the model fitted (the 3xxx ~60Hz, the CRTC
+// models 50Hz); these numbers only convert an explicit --frames into a
+// cycle count. The program still measures the actual period at startup.
 const PET_CLOCK_HZ = 1_000_000;
 
-function viceCycles(target, region, frames, petProfile) {
+function viceCycles(target, region, frames, hardware) {
   if (frames === undefined) return VICE_DEFAULT_CYCLES[target];
   const clockHz = target === 'pet' ? PET_CLOCK_HZ : VICE_CLOCK_HZ[target][region];
-  const fps = target === 'pet' ? PET_PROFILE_FPS[petProfile] : VICE_FPS[region];
+  const fps = target === 'pet' ? (hardware.facts['video.frameRate'] ?? 60) : VICE_FPS[region];
   return Math.round((clockHz * frames) / fps);
 }
 
-async function viceScreenshot(target, outFile, screenshotPath, { pal, profile, frames }) {
+async function viceScreenshot(target, outFile, screenshotPath, { pal, hardware = stockHardware(target), frames }) {
   const region = pal ? 'pal' : 'ntsc';
   const emulator = VICE_EMULATOR[target];
-  const vic20Profile = target === 'vic20' ? profile : undefined;
-  let petProfile;
-  if (target === 'pet') {
-    const { PET_DEFAULT_PROFILE } = await import('@8bitscript/backend-6502');
-    petProfile = profile ?? PET_DEFAULT_PROFILE;
-  }
-  const cycles = viceCycles(target, region, frames, petProfile);
+  const cycles = viceCycles(target, region, frames, hardware);
   const exitFlag = target === 'c128' ? '-exitscreenshotvicii' : '-exitscreenshot';
 
-  // c64's REU is purely additive hardware (see run.mjs's own comment on
-  // this) — attaching it here too, not just for the interactive `8bs run`
-  // path, so `--profile reu512 --screenshot out.png` actually reflects the
-  // REU the program was linked against instead of silently running without it.
-  let reuArgs = [];
-  if (target === 'c64' && profile && profile !== 'stock') {
-    const { C64_REU_SIZE_KIB } = await import('@8bitscript/backend-6502');
-    reuArgs = ['-reu', '-reusize', String(C64_REU_SIZE_KIB[profile])];
-  }
-
+  // The same hardware flags the interactive `8bs run` passes (the
+  // catalog's `run` list), so a screenshot reflects the REU, the mouse, the
+  // model the program was built for instead of silently running without.
   const args = [
     '-default', '-warp', '+sound',
     ...(VICE_EMULATOR_ARGS[target] ?? []),
     ...(VICE_MODEL_ARGS[target]?.[region] ?? []),
-    ...(petProfile ? PET_MODEL_ARGS(petProfile) : []),
-    ...(vic20Profile ? ['-memory', VIC20_MEMORY_ARG[vic20Profile]] : []),
-    ...reuArgs,
+    ...(hardware.run[emulator] ?? []),
     '-limitcycles', String(cycles),
     '+confirmonexit',
-    '-autostart', outFile,
+    ...loadArgs(hardware, emulator, outFile, DEFAULT_LOAD[emulator](outFile)),
     exitFlag, screenshotPath,
   ];
   const { stderr } = await run(emulator, args);
@@ -191,20 +179,19 @@ async function viceScreenshot(target, outFile, screenshotPath, { pal, profile, f
 const ATARI8_FPS = 60;
 const ATARI8_DEFAULT_FRAMES = 240; // ~4s: measured enough for the OS boot and a program's own steady state
 
-async function atari8Screenshot(outFile, screenshotPath, { pal, profile, frames }) {
+async function atari8Screenshot(outFile, screenshotPath, { pal, hardware = stockHardware('atari8'), frames }) {
   if (process.platform !== 'darwin') {
     throw new Error('8bs run: atari8 --screenshot needs macOS (window capture via Screen Recording permission); no equivalent has been wired up for this platform yet.');
   }
   const { findWindowIdForPid, captureWindow } = await import('./mac-window-capture.mjs');
-  const { ATARI8_DEFAULT_PROFILE } = await import('@8bitscript/backend-6502');
   const displayCfg = await atari800CleanDisplayConfig();
   const args = [
     ...(displayCfg ? ['-config', displayCfg, '-no-autosave-config'] : []),
-    ATARI8_MODEL_ARG[profile ?? ATARI8_DEFAULT_PROFILE],
+    ...(hardware.run.atari800 ?? []),
     pal ? '-pal' : '-ntsc',
-    // The XEGS profile links a cartridge image, not an executable: -run
-    // would hand it to the executable loader and capture a blank OS screen.
-    ...(profile === 'xegs' ? ['-cart', outFile, '-cart-type', ATARI8_XEGS_CART_TYPE] : ['-run', outFile]),
+    // An XEGS cartridge is not an executable: the catalog's `load` says
+    // `-cart ... -cart-type 23` where the default would be `-run`.
+    ...loadArgs(hardware, 'atari800', outFile, DEFAULT_LOAD.atari800(outFile)),
   ];
   const child = spawn('atari800', args, { stdio: 'ignore' });
   try {
@@ -388,7 +375,9 @@ async function webScreenshot(outFile, screenshotPath, { frames, frameRate = 60 }
  * @param {string} target
  * @param {string} outFile The already-built file (from build.mjs's compile()).
  * @param {string} screenshotPath
- * @param {{ pal?: boolean, profile?: string, frames?: number, frameRate?: number }} [options]
+ * @param {{ pal?: boolean, hardware?: object, frames?: number, frameRate?: number }} [options]
+ *   `hardware` is the resolved hardware the program was built for (from
+ *   compile()); left off, the stock machine.
  *   `frameRate` (default 60) only matters for the `web` target, whose default
  *   `--frames` count (3 logical seconds' worth) scales with it.
  * @returns {Promise<void>}

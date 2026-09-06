@@ -1,13 +1,14 @@
-// @8bitscript/vic20 — where the screen is, with 16K or more of expansion.
+// @8bitscript/vic20 — where the screen is, with 8K or more of expansion.
 //
-// The 16k profile's version of geometry.8bs (see that file for the whole
+// The `expanded` version of geometry.8bs (see that file for the whole
 // story): with 8K or more the KERNAL moves the screen matrix to $1000 and
 // colour RAM to $9400 so BASIC RAM runs unbroken from $1200, and the SDK
 // loads the program at $1201. $9005's screen nybble becomes $C0 (POKE
-// 36869,192). Three files say exactly this — this one, `geometry.vic20.8k.8bs` and `geometry.vic20.24k.8bs` —
-// because a profile's version is named after one profile; the test in
-// packages/compiler/test/vic20-profiles.test.mjs holds their namespaces
-// identical. Change one, change all three.
+// 36869,192). One file serves the 8k, 16k and 24k values of the `ram`
+// option because the catalog (package.json, "8bitscript".hardware) gives
+// all three the same `expanded` tag: where the screen is depends on
+// whether there is 8K or more, not on how much more, and a tag names
+// exactly the thing a file differs on.
 
 export namespace Video {
     const SCREEN: usmallint = 0x1000; // screen matrix: one screen code per cell

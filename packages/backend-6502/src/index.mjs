@@ -36,11 +36,10 @@ C_TYPE.string = 'const uint8_t *';
 const stringName = (index) => `__8bs_str_${index}`;
 
 // llvm-mos-sdk ships one driver binary per platform, confirmed against its
-// own mos-platform/ tree (github.com/llvm-mos/llvm-mos-sdk). Atari 8-bit is
-// the one machine with more than one driver: llvm-mos treats "Atari 8-bit"
-// as a single target family and varies the *output format* rather than the
-// CPU/ABI, so the driver depends on the chosen ATARI8_PROFILE, not on
-// `machine` alone — see driverFor() below.
+// own mos-platform/ tree (github.com/llvm-mos/llvm-mos-sdk). These are the
+// stock drivers; a hardware value may name another (the Atari XEGS
+// cartridge driver, an NES mapper's) through its catalog `build.driver` —
+// see driverFor() below.
 const DRIVER = {
   vic20: 'mos-vic20-clang',
   c64: 'mos-c64-clang',
@@ -53,96 +52,17 @@ const DRIVER = {
   // drivers for bigger cartridges, not wired up here since nothing in this
   // project needs more than 32K yet.
   nes: 'mos-nes-nrom-clang',
+  atari8: 'mos-atari8-dos-clang',
 };
 
-// Atari 8-bit hardware profiles. LLVM-MOS's own linker scripts don't
-// distinguish 800 from 800XL from 130XE at the link level — the 400/800/
-// XL/XE/XEGS lineage shares one memory map and one DOS-compatible .XEX
-// loader format (mos-atari8-dos-clang), so a profile only changes which
-// driver/output-format is used (XEGS profile → cartridge ROM) and which
-// atari800 machine model `8bs run` launches. 800XL is the reference/default
-// profile: it's the machine most Atari homebrew targets today, and 65XE is
-// its later, electrically-identical cost-reduced sibling (same OS, same
-// driver). 130XE's extra 64K is bank-switched extended memory reached via
-// PORTB ($D301), outside the linear address space the linker allocates
-// into, so it needs no special linker flags either — a program that never
-// touches banking builds identically on all five DOS-format profiles.
-const ATARI8_PROFILES = new Set(['800xl', '65xe', '130xe', '800', '400', 'xegs']);
-const ATARI8_DEFAULT_PROFILE = '800xl';
-
-// VIC-20 RAM-expansion hardware profiles. The SDK's own link.ld (mos-
-// platform/vic20/lib/link.ld) accepts exactly these five __memory_expansion
-// values (0/3/8/16/24, in KB) and ASSERTs on anything else, so this set is
-// copied from there rather than invented; the same five numbers are also
-// exactly what VICE's `xvic -memory` accepts (none/3k/8k/16k/24k — see
-// VIC20_MEMORY_ARG below). 'unexpanded' is the default and the machine
-// 8BitScript has targeted since Phase 1: load address $1001, 3583 bytes free
-// — the VIC-20 as sold, with no expansion cartridge plugged in.
-//
-// The screen moves with the profile: an 8k/16k/24k VIC-20 relocates the
-// screen matrix from $1E00 to $1000 (colour RAM $9600 to $9400) to reclaim
-// $1000-$1FFF as contiguous BASIC RAM, which is also why link.ld loads
-// those builds at $1201. @8bitscript/vic20 follows: text.8bs and screen.8bs
-// read every address from geometry.8bs's `Video` namespace, and the 8k, 16k
-// and 24k profiles each have a twin of that file beside it (`geometry.vic20.
-// 8k.8bs` and so on) that the resolver reads for that --profile (docs/
-// packages.md "System-specific files"; packages/compiler/test/vic20-profiles.
-// test.mjs). 3k keeps the base file: the 3K block is $0400-$0FFF and the
-// screen does not move for it.
-const VIC20_PROFILES = new Set(['unexpanded', '3k', '8k', '16k', '24k']);
-const VIC20_DEFAULT_PROFILE = 'unexpanded';
-const VIC20_MEMORY_EXPANSION = {
-  unexpanded: 0, '3k': 3, '8k': 8, '16k': 16, '24k': 24,
-};
-
-// C64 RAM Expansion Unit sizes VICE's x64sc accepts via `-reusize` (128 KiB
-// through 16 MiB — confirmed against `x64sc -help`). Unlike the VIC-20
-// profiles above, attaching a REU changes nothing about the base C64 memory
-// map or where a program's own code/data lives — a REU is a DMA peripheral
-// reached through eight registers at $DF00-$DF0A (see @8bitscript/c64's `reu`
-// namespace), not a relocation of RAM the linker needs to know about — so
-// there is no linker flag here, only the emulator flag in run.mjs and the
-// registers being real. 'stock' (no REU) is the default.
-const C64_PROFILES = new Set([
-  'stock', 'reu128', 'reu256', 'reu512', 'reu1m', 'reu2m', 'reu4m', 'reu8m', 'reu16m',
-]);
-const C64_DEFAULT_PROFILE = 'stock';
-// KiB for `-reusize`, keyed by the profile names above (without the leading
-// 'reu' and 'm'/no-suffix distinction spelled out again).
-const C64_REU_SIZE_KIB = {
-  reu128: 128, reu256: 256, reu512: 512, reu1m: 1024, reu2m: 2048, reu4m: 4096, reu8m: 8192, reu16m: 16384,
-};
-
-// PET hardware profiles, named the way the PET world names its machines and
-// the way VICE's `xpet -model` takes them: the first digit is the series
-// (3xxx: no CRTC, 9-inch, BASIC 2; 4xxx: CRTC, 40 columns, BASIC 4; 8xxx:
-// CRTC, 80 columns, BASIC 4, business keyboard) and the last two are the
-// RAM in KiB. Two things a build needs fall out of the name. The RAM size
-// goes to the SDK's link script as `__ram_size` (mos-platform/pet/link.ld
-// accepts 8, 16 or 32 and refuses the 96K/128K banked machines outright:
-// "8x96 and SuperPETs are not supported by this target"), and unlike the
-// VIC-20's expansion it moves the top of memory and so the stack — a
-// program linked for 32K does not run on a 3008. The screen width reaches
-// @8bitscript/pet through the profile's own version of its geometry file
-// (`geometry.pet.8032.8bs`; see docs/packages.md "System-specific files"),
-// which is why the resolver is handed the resolved profile too. Refresh
-// rate is the model's, not a region flag's: VICE runs the no-CRTC 3xxx at
-// its hardcoded ~60.1 Hz and the CRTC models with their 50 Hz editor ROMs
-// (the 60 Hz editors make VICE refuse autostart), and FRAME_SYNC.pet
-// measures whatever it gets at start-up — so `--pal` means nothing here.
-// 3032 is the default for the same reason it was the fixed target before
-// profiles existed: 40 columns, 32K, the most common surviving PET and the
-// one autostart works on at 60 Hz. See packages/pet/AGENTS.md.
-const PET_PROFILES = new Set(['3032', '3008', '3016', '4016', '4032', '8032']);
-const PET_DEFAULT_PROFILE = '3032';
-const PET_RAM_SIZE_KIB = {
-  3008: 8, 3016: 16, 3032: 32, 4016: 16, 4032: 32, 8032: 32,
-};
-// Columns per profile — the fact the geometry file variants encode; here so
-// the CLI and tests can state it without reading a .8bs file.
-const PET_COLUMNS = {
-  3008: 40, 3016: 40, 3032: 40, 4016: 40, 4032: 40, 8032: 80,
-};
+// What a build's hardware changes here is read from the resolved hardware
+// the CLI hands buildPrg() (packages/cli/src/hardware.mjs, from each
+// machine package's "8bitscript".hardware catalog): `defsym` symbols for
+// the SDK's link script (a VIC-20's `__memory_expansion`, a PET's
+// `__ram_size` — both names the SDK's own link.ld provides and asserts
+// on), an alternative `driver` (the Atari XEGS cartridge build), and the
+// `output` extension that goes with it. Nothing about a particular
+// machine's options is spelled here any more.
 
 // The machines whose LLVM-MOS platform is built on the Commodore KERNAL
 // (mos-platform/commodore, shared by these five) — and so whose libc carries
@@ -186,39 +106,34 @@ function commodoreCharsetGuard() {
     + 'int __to_ascii(void *ctx, int (*read)(void *ctx)) { return read(ctx); }\n\n';
 }
 
-function driverFor(machine, atari8Profile) {
-  if (machine === 'atari8') {
-    return atari8Profile === 'xegs' ? 'mos-atari8-cart-xegs-clang' : 'mos-atari8-dos-clang';
-  }
-  return DRIVER[machine];
+function driverFor(machine, hardware) {
+  return hardware?.build?.driver ?? DRIVER[machine];
 }
 
 // The file extension the linker actually produces. Every Commodore/CX16/
 // MEGA65 target keeps the traditional .prg (a 2-byte load address header
 // the KERNAL's LOAD understands); NES cartridges are .nes (an iNES header
 // + PRG/CHR banks); Atari DOS-format output is .xex (Atari DOS's own
-// loader format), except the XEGS profile, which links a cartridge ROM
-// image instead.
-export function outputExtension(machine, atari8Profile) {
+// loader format). A hardware value that links something else says so
+// (`build.output`: the XEGS cartridge is a .rom).
+export function outputExtension(machine, hardware) {
+  if (hardware?.build?.output) return hardware.build.output;
   if (machine === 'nes') return 'nes';
-  if (machine === 'atari8') return atari8Profile === 'xegs' ? 'rom' : 'xex';
+  if (machine === 'atari8') return 'xex';
   return 'prg';
 }
 
-// Per-machine compile flags.
-//
-// The SDK's vic20 linker script defaults to a machine with 24K of RAM
-// expansion (programs load at $1201). 8BitScript targets the UNEXPANDED
-// VIC-20 by default — 3583 bytes, load address $1001, the machine as sold —
-// but `--profile` (VIC20_PROFILES above) can pick 3k/8k/16k/24k instead, so
-// vic20's __memory_expansion flag is computed in buildPrg() below rather than
-// pinned here.
-//
-// The PET linker script instead exposes __ram_size (8/16/32, in KiB — see
-// mos-platform/pet/link.ld), because unlike the VIC-20's expansion port a
-// PET's RAM size changes where the top of memory (and so the stack) sits;
-// like vic20's flag it is computed in buildPrg() from the profile
-// (PET_PROFILES above), not pinned here.
+// The link symbols that make a build with no hardware named the machine
+// as sold: the SDK's vic20 link script defaults to a 24K-expanded machine
+// (programs at $1201) and its pet script to 32K, so these pin the
+// unexpanded VIC-20 ($1001, 3583 bytes) and the 32K PET. A hardware's own
+// `build.defsym` (the catalog's `ram`/`model` values) overrides them.
+const STOCK_DEFSYM = {
+  vic20: { __memory_expansion: 0 },
+  pet: { __ram_size: 32 },
+};
+
+// Per-machine compile flags beyond the link symbols; none today.
 const MACHINE_FLAGS = {
   vic20: [],
   c64: [],
@@ -981,54 +896,28 @@ export function emitC(ir, { machine, frameRate = 60 } = {}) {
  *
  * Region (NTSC/PAL) plays no part here: for the machines with a live raster
  * counter it's a runtime probe generated straight into the C, not a build
- * flag, so the backend only ever needs to know the machine (and, for the
- * Atari 8-bit family, which output profile).
+ * flag, so the backend only ever needs to know the machine and what its
+ * hardware asks of the linker.
  *
  * @param {object} ir
  * @param {{
- *   machine: keyof typeof DRIVER | 'atari8',
- *   atari8Profile?: string, vic20Profile?: string, c64Profile?: string, petProfile?: string,
+ *   machine: keyof typeof DRIVER,
+ *   hardware?: { build?: { defsym?: object, driver?: string, output?: string }, label?: string },
  *   outFile: string, frameRate?: number,
- * }} options
+ * }} options `hardware` is the resolved hardware from packages/cli/src/
+ *   hardware.mjs (its `build` block is all this reads); none means the
+ *   stock machine with the SDK's own link defaults.
  * @returns {Promise<{ ok: boolean, cFile?: string, error?: string }>}
  */
 export async function buildPrg(ir, {
-  machine, atari8Profile, vic20Profile, c64Profile, petProfile, outFile, frameRate = 60,
+  machine, hardware, outFile, frameRate = 60,
 }) {
   if (ir.imports?.length) {
     // Unresolved imports mean the caller skipped the linker. Refusing here is
     // what keeps a lower→backend shortcut from silently dropping modules.
     return { ok: false, error: 'the IR still has unresolved imports: link() it before the backend' };
   }
-  const profile = atari8Profile ?? ATARI8_DEFAULT_PROFILE;
-  if (machine === 'atari8' && !ATARI8_PROFILES.has(profile)) {
-    return {
-      ok: false,
-      error: `backend-6502: unknown atari8 profile '${profile}' (expected one of ${[...ATARI8_PROFILES].join(', ')})`,
-    };
-  }
-  const vic20ProfileResolved = vic20Profile ?? VIC20_DEFAULT_PROFILE;
-  if (machine === 'vic20' && !VIC20_PROFILES.has(vic20ProfileResolved)) {
-    return {
-      ok: false,
-      error: `backend-6502: unknown vic20 profile '${vic20ProfileResolved}' (expected one of ${[...VIC20_PROFILES].join(', ')})`,
-    };
-  }
-  const c64ProfileResolved = c64Profile ?? C64_DEFAULT_PROFILE;
-  if (machine === 'c64' && !C64_PROFILES.has(c64ProfileResolved)) {
-    return {
-      ok: false,
-      error: `backend-6502: unknown c64 profile '${c64ProfileResolved}' (expected one of ${[...C64_PROFILES].join(', ')})`,
-    };
-  }
-  const petProfileResolved = petProfile ?? PET_DEFAULT_PROFILE;
-  if (machine === 'pet' && !PET_PROFILES.has(petProfileResolved)) {
-    return {
-      ok: false,
-      error: `backend-6502: unknown pet profile '${petProfileResolved}' (expected one of ${[...PET_PROFILES].join(', ')})`,
-    };
-  }
-  const driverName = driverFor(machine, profile);
+  const driverName = driverFor(machine, hardware);
   if (!driverName) return { ok: false, error: `backend-6502 has no driver for machine '${machine}'` };
 
   const home = process.env.LLVM_MOS_HOME;
@@ -1047,11 +936,13 @@ export async function buildPrg(ir, {
   await mkdir(dirname(outFile), { recursive: true });
   await writeFile(cFile, emitC(ir, { machine, frameRate }), 'utf8');
 
-  // c64 has no per-profile linker flag (see C64_PROFILES above); vic20 and
-  // pet each compute one, from whichever RAM profile was resolved.
-  let machineFlags = MACHINE_FLAGS[machine] ?? [];
-  if (machine === 'vic20') machineFlags = [`-Wl,--defsym=__memory_expansion=${VIC20_MEMORY_EXPANSION[vic20ProfileResolved]}`];
-  if (machine === 'pet') machineFlags = [`-Wl,--defsym=__ram_size=${PET_RAM_SIZE_KIB[petProfileResolved]}`];
+  // The hardware's link symbols, if any: `-Wl,--defsym=NAME=VALUE` each,
+  // straight from the catalog value's `build.defsym`.
+  const defsym = { ...(STOCK_DEFSYM[machine] ?? {}), ...(hardware?.build?.defsym ?? {}) };
+  const machineFlags = [
+    ...(MACHINE_FLAGS[machine] ?? []),
+    ...Object.entries(defsym).map(([name, value]) => `-Wl,--defsym=${name}=${value}`),
+  ];
 
   // A package's "8bitscript".native files ride along after the generated C,
   // untouched: the clang driver assembles a .s and links the object like any
@@ -1082,9 +973,9 @@ export async function buildPrg(ir, {
     // machine's own terms before the raw linker text.
     const overflow = /will not fit in region '(\w+)': overflowed by (\d+) bytes/.exec(built.stderr);
     if (overflow) {
-      const profile = machine === 'vic20' ? ` (${vic20ProfileResolved})` : machine === 'pet' ? ` ${petProfileResolved}` : '';
+      const fitted = hardware?.label && hardware.label !== 'stock' ? ` (${hardware.label})` : '';
       const region = { ram: 'RAM', zp: 'zero page' }[overflow[1]] ?? overflow[1];
-      built.error = `this program needs ${overflow[2]} more bytes of ${region} than the ${machine}${profile} has. `
+      built.error = `this program needs ${overflow[2]} more bytes of ${region} than the ${machine}${fitted} has. `
         + 'Fewer or smaller variables and arrays, or a const array for data that never changes, brings it down.\n'
         + built.error;
     }
@@ -1124,9 +1015,6 @@ async function measureElf(elfFile) {
 }
 
 export {
-  ATARI8_PROFILES, ATARI8_DEFAULT_PROFILE,
-  VIC20_PROFILES, VIC20_DEFAULT_PROFILE,
-  C64_PROFILES, C64_DEFAULT_PROFILE, C64_REU_SIZE_KIB,
-  PET_PROFILES, PET_DEFAULT_PROFILE, PET_RAM_SIZE_KIB, PET_COLUMNS,
+  DRIVER,
   FRAME_SYNC,
 };
