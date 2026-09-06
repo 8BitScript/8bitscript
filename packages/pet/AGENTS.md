@@ -107,9 +107,16 @@ Do not describe more than this as working:
   `keys.pet.8032.8bs` the business matrix a build tagged `8032` reads instead.
   PIA1's two ports are exported from `src/index.8bs` (`pia1PortA` `$E810`,
   `pia1PortB` `$E812`). No buffer, no PETSCII: "is this key down now".
-- `packages/studio/src/main.8bs` starts Studio's basic tier on the PET
-  (`#system() == System.PET`: character editing, "rudimentary
-  playback" once sound exists).
+- `packages/studio/src/main.8bs` starts Studio's **viewer** tier on the
+  PET — read-only: view a character set and a sprite, play a tune, load a
+  file, never edit or save. Nothing about the PET's name says so; the
+  tier is read from its facts, and the PET fails all three editor gates
+  (`video.glyphs` 0, the font is this ROM; `video.sprites` 0;
+  `audio.voices` 1, and one fixed-volume voice plays a tune but does not
+  compose one). RAM is *not* the gate here — a 3032 has 31743 bytes, more
+  than the VIC-20 that does edit — so no memory expansion lifts the PET.
+  A hi-res board or a SID cartridge would, by changing those facts; see
+  `packages/studio/AGENTS.md`.
 
 There is no sound, no *portable* input (the keyboard layer above is the
 PET's own; `@8bitscript/input` does not exist), no reverse-video access, no `.tap`
@@ -456,7 +463,7 @@ packages/backend-6502/src/index.mjs  STOCK_DEFSYM.pet (32K when nothing is fitte
 packages/compiler/src/linker/hazards.mjs   8BS3003: the $E842 killer-poke rule
 packages/cli/src/run.mjs             PET_REGION_NOTE, why no --pal and no 60 Hz editors; the model's flags come from the catalog
 packages/cli/src/screenshot.mjs      PET_CLOCK_HZ, --frames → cycles at the model's rate (the video.frameRate fact)
-packages/studio/src/main.8bs         Studio's entry; the PET branch picks the basic tier
+packages/studio/src/main.8bs         Studio's entry; the PET's facts pick the viewer tier (glyphs/sprites/voices, not RAM)
 docs/setup/vice.md                   installing xpet with the other VICE emulators
 docs/roadmap.md                      Phase 2: why the PET is in the target list
 $LLVM_MOS_HOME/mos-platform/pet/     link.ld (__ram_size range, $0401), pet.h (chip bases), _6522.h/_pia.h/_6545.h

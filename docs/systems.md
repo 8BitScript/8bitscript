@@ -54,10 +54,13 @@ where "if C64 then 40 columns" is wrong on a C128 in 80-column mode.
   the compiler replaces it with the number of the machine being built
   for. `@8bitscript/system` exports one `System` namespace naming those
   numbers, so `if (#system() == System.NES)` compares two constants and
-  the other machines' branches fold away. Studio's `main.8bs` uses it to
-  pick its tier with an ordinary `if` chain — one entry file where there
-  used to be four. With no machine in hand (`8bs check`, the editor) the
-  call is valid and target-dependent, like a `.<machine>.8bs` import.
+  the other machines' branches fold away. It is for what is genuinely the
+  machine's identity — a title, a credit line; Studio's `main.8bs` picks
+  its tier from the *facts* below instead, in one `if` chain where there
+  used to be four entry files, because two VIC-20s with different RAM
+  fitted are the same machine and not the same tier. With no machine in
+  hand (`8bs check`, the editor) the call is valid and target-dependent,
+  like a `.<machine>.8bs` import.
 - **Two capabilities**: `@8bitscript/screen` (border and background) and
   `@8bitscript/text` (a character grid, ASCII in, with `COLUMNS` and
   `CELL_COUNT` as the first facts). Each is a machine-keyed manifest
@@ -196,11 +199,17 @@ runs on both), so a compile-time `FRAME_RATE` would sometimes be wrong.
 The catalog still carries `video.frameRate` for the CLI, which times a
 PET screenshot by its model's rate.
 
-Studio is the first customer: its tier is `!Input.KEYBOARD` → viewer,
-`Video.SPRITES == 0` → basic, otherwise full — not a list of machine
-names — and a tenth machine gets the right tier without anyone editing
-Studio. It also moved the web to the viewer tier, honestly: the web
-runtime has no keyboard yet.
+Studio is the first customer: a build edits only with `Input.KEYBOARD`
+and `Memory.RAM` above its editing budget, and then `Video.GLYPHS`,
+`Video.SPRITES` and `Audio.VOICES` say which editors have anything to
+edit — all three is the full tier, some the basic one, none the read-only
+viewer. Not a list of machine names, so a tenth machine gets the right
+tier without anyone editing Studio. It also moved the web to the viewer
+tier, honestly (the web runtime has no keyboard yet), put every PET there
+(its font is in ROM, it has no sprites, and its one voice has no volume —
+facts no memory expansion changes), and made the VIC-20's tier follow the
+RAM its build was fitted with: `--profile 8k` is the difference between a
+viewer and an editor on the same machine.
 
 The X16's is the second: `banks.kib()` from `@8bitscript/cx16/banks`
 answers 64 KiB to 2 MiB, from the same one binary, for 179 bytes.
@@ -300,8 +309,11 @@ Three tools, from most to least preferred:
    package from a portable program, because an import is resolved for the
    whole module: an `if` cannot hide it.
 3. **The machine's name.** `if (#system() == System.NES)` for what is
-   genuinely identity — which tier, which title, which help text. It is a
-   compile-time constant; the other arms fold away in the generated code.
+   genuinely identity — which title, which credit line, which help text.
+   It is a compile-time constant; the other arms fold away in the
+   generated code. A tier is *not* identity, however tempting the list of
+   names looks: Studio reads its own from the facts, which is why an
+   expanded VIC-20 and a stock one get different answers.
 
 What is *not* offered, deliberately: a runtime probe. A program never asks
 the machine what it is; the build already knows, and the answer would
@@ -315,9 +327,9 @@ one is an honest syntax error today. The statement they should become:
 
 ```
 switch (#system()) {
-    case System.NES: { tier = Tier.VIEWER; }
-    case System.VIC20, System.PET: { tier = Tier.BASIC; }
-    default: { tier = Tier.FULL; }
+    case System.PET: { text.print(cell, "COMMODORE PET"); }
+    case System.VIC20, System.C64: { text.print(cell, "COMMODORE"); }
+    default: { text.print(cell, "8BITSCRIPT"); }
 }
 ```
 

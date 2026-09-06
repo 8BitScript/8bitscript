@@ -43,8 +43,9 @@ here — it covers the one path that goes end to end today.
 
 [Studio](studio.md) is the asset editor that ships with the toolchain and
 runs on the machines themselves — the full editor on the Commander X16, a
-smaller one down to the PET, a viewer on the NES. Today it is a front door
-with nothing behind it yet; the page says exactly what runs.
+smaller one on an expanded VIC-20, and a read-only viewer (look, listen,
+load) on the PET and the NES. Today it is a front door with nothing behind
+it yet; the page says exactly what runs.
 
 ## The package model
 

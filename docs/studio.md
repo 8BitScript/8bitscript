@@ -42,17 +42,36 @@ runs the same program at the tier its hardware supports. A higher tier
 opens everything a lower one does, and a file is never tied to the tier
 that made it: whatever a PET saves, an X16 opens and edits.
 
-The tier is picked from the machine's facts, not its name: no keyboard
-(`Input.KEYBOARD`) is the viewer tier, no hardware sprites
-(`Video.SPRITES`) the basic tier, and anything else the full tier. That
-is why the web is a viewer today — its runtime has no keyboard yet — and
-why a new machine lands on the right row without anyone editing Studio.
+The tier is picked from the machine's facts, not its name, in two steps.
+First, can this build edit at all? It needs a keyboard (`Input.KEYBOARD`)
+and room to hold an editor and the playback that keeps running while you
+use it (`Memory.RAM`, against Studio's 8 KB editing budget). Then, how
+much has anything to edit? A redefinable character set (`Video.GLYPHS`),
+hardware sprites (`Video.SPRITES`) and more than one voice
+(`Audio.VOICES`) — all three is the full editor, some of them the basic
+one, none of them a viewer. A new machine lands on the right row without
+anyone editing Studio.
 
 | Tier | Machines | Characters | Sprites | Music | Files |
 | --- | --- | --- | --- | --- | --- |
 | Full | Commander X16, MEGA65, C128, C64, Atari 8-bit | edit | edit | edit | load, save |
-| Basic | VIC-20, PET | edit | view | play | load, save |
-| Viewer | NES, web | view | view | view | none |
+| Basic | VIC-20 with 8K or more | edit | view | edit | load, save |
+| Viewer | PET, VIC-20 (stock, 3K), NES, web | view | view | play¹ | load² |
+
+¹ where there is a voice: the PET's square wave and the NES's APU play; the
+web has no sound yet and only views. ² where there is storage: every PET
+and every VIC-20 loads; the NES on a plain cartridge and the web have
+nowhere to load from.
+
+The viewer tier is read-only — view, play, load, never edit or save — and
+the four machines on it are there for different reasons. The NES and the
+web have no keyboard (the web's runtime, not the browser). The stock
+VIC-20 has one and not the room: **a RAM expansion lifts it**, and
+`8bs run vic20 --profile 8k` is Studio with editors on. The PET has both
+the keyboard and, on a 3032, 31743 bytes — more than the VIC-20 that
+edits — and is a viewer for what the machine is: its font is in ROM, it
+has no sprites, and its one voice has no volume. No expansion lifts the
+PET.
 
 The table is the design, not a measurement; the reasoning behind each row,
 and what has still to be verified on the hardware, is in

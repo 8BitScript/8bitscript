@@ -84,10 +84,13 @@ reach the worker), no sound, no sprites, no tiles, no bitmap, no
 redefinable character set, no block graphics, no scrolling, no storage,
 no palette beyond the borrowed sixteen, no `--profile`, no `--pal`
 (ignored), and no way for the program to reach the canvas as pixels.
-Studio has one `main.8bs` for every machine; it compares `#system()` — the
-compiler's number for the build's machine, `0` here — with the names
-`@8bitscript/system` exports, and the web falls through its `if` chain to
-`Tier.FULL`.
+Studio has one `main.8bs` for every machine, and it reads the tier from
+the build's facts rather than from `#system()`. The web's sheet says
+`input.keyboard` false, so the web takes the read-only **viewer** tier —
+and, with `audio.voices` 0 and `storage.save` false, it is the one viewer
+that cannot even play or load: view only. The runtime growing a keyboard
+is what lifts it (item 1 below), and its 57344 bytes and the browser's
+capacity are why the full tier is designed to be hosted here eventually.
 door renders correctly in the browser was not run while writing this
 file (*to verify*). `docs/compiler.md`
 names the web backend and the `0xE000` data segment but does not describe
@@ -422,9 +425,9 @@ packages/cli/src/config.mjs              resolveFrameRate: the one timing knob
 packages/cli/test/screenshot.test.mjs    web: --screenshot produces a PNG with no emulator at all
 packages/backend-6502/src/index.mjs      FRAME_SYNC's accumulator comment: this host is the reference the 6502 clock imitates
 packages/compiler/src/fold/index.mjs     SYSTEMS: #system() is 0 on a web build (System.WEB)
-packages/studio/src/main.8bs             the one Studio entry: the web falls through to Tier.FULL
+packages/studio/src/main.8bs             the one Studio entry: no input.keyboard fact, so the web takes Tier.VIEWER
 docs/compiler.md                         the web backend row, 0xE000 strings, the 8 KB static-data limit, memory.write on the web
 docs/setup/verify.md                     the web row of the --screenshot table
-docs/roadmap.md, docs/studio.md          "the web version can be much fancier"; the full tier includes web
+docs/roadmap.md, docs/studio.md          "the web version can be much fancier"; the web is a viewer until its runtime reads keys
 packages/studio/AGENTS.md                what Studio needs (browser keyboard, "the web runtime can hand the browser a file")
 ```

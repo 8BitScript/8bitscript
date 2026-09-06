@@ -63,7 +63,7 @@ and one monitor for debugging. LLVM-MOS already provides `mos-vic20-clang` and
 
 Their reference machine is the Commander X16, not one of these three (see
 [the tool strategy](#the-tool-strategy)); the C64 gets the full editor
-sized to its hardware, and the VIC-20 the basic tier. The web version can
+sized to its hardware, and an expanded VIC-20 the basic tier. The web version can
 be much fancier. The native versions are dogfooding: real programs, written
 in 8BitScript, that have to work on the hardware.
 
@@ -323,11 +323,11 @@ Commander X16
  v
 Studio: the full editor
  |
- +--> MEGA65, C128, C64, Atari 8-bit, web: the full editor, sized to the machine
+ +--> MEGA65, C128, C64, Atari 8-bit: the full editor, sized to the machine
  |
- +--> VIC-20, PET: character editing and rudimentary playback
+ +--> VIC-20 with 8K or more: characters and music edit, sprites view
  |
- +--> NES: the viewer
+ +--> PET, stock VIC-20, NES, web: the viewer — look, listen, load
 ```
 
 The tiers, and what each one still has to prove on its hardware, are in
