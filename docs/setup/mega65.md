@@ -411,13 +411,15 @@ stub/open ROM one.
 8bs run mega65
 ```
 
-**This one is best-effort.** `8bs run` passes the built `.prg` as `-prg
-<file>`, the same flag other Xemu cores accept — but this project has not
-independently confirmed the MEGA65 core accepts it the same way, because
-Xemu's own MEGA65 documentation covers SD-card-image setup, not command-line
-autoloading. If `8bs run mega65` doesn't load the program, run `xmega65 -h`
-to see what your build actually supports, and load the `.prg` from
-`dist/` by hand.
+`8bs run` passes the built `.prg` as `-prg <file>`, and xmega65 autoloads
+and `RUN`s it in MEGA65 mode (it picks the mode from the load address:
+`$2001` here). That was checked on screen with `8bs run mega65
+--screenshot`; what the program then finds — an 80-column screen at
+`$0800`, the VIC-IV personality, the CPU at 40.5 MHz, interrupts off — is
+recorded in
+[`packages/mega65/AGENTS.md`](https://github.com/8BitScript/8bitscript/blob/trunk/packages/mega65/AGENTS.md).
+If a build of xemu behaves differently, `xmega65 -h` lists what it
+accepts (`-prgmode 64|65` forces a mode).
 
 ## Next
 
