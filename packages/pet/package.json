@@ -11,6 +11,150 @@
       "./text": "./src/text.8bs",
       "./keyboard": "./src/keyboard.8bs",
       "./keys": "./src/keys.8bs"
+    },
+    "hardware": {
+      "options": {
+        "model": {
+          "label": "Model",
+          "default": "3032",
+          "values": {
+            "3032": {
+              "label": "3032: 40 columns, 32K, no CRTC, ~60 Hz",
+              "build": {
+                "defsym": {
+                  "__ram_size": 32
+                }
+              },
+              "run": {
+                "xpet": [
+                  "-model",
+                  "3032"
+                ]
+              },
+              "facts": {
+                "video.columns": 40,
+                "memory.ram": 31743,
+                "video.frameRate": 60
+              }
+            },
+            "3008": {
+              "label": "3008: 40 columns, 8K",
+              "build": {
+                "defsym": {
+                  "__ram_size": 8
+                }
+              },
+              "run": {
+                "xpet": [
+                  "-model",
+                  "3008"
+                ]
+              },
+              "facts": {
+                "video.columns": 40,
+                "memory.ram": 7167,
+                "video.frameRate": 60
+              }
+            },
+            "3016": {
+              "label": "3016: 40 columns, 16K",
+              "build": {
+                "defsym": {
+                  "__ram_size": 16
+                }
+              },
+              "run": {
+                "xpet": [
+                  "-model",
+                  "3016"
+                ]
+              },
+              "facts": {
+                "video.columns": 40,
+                "memory.ram": 15359,
+                "video.frameRate": 60
+              }
+            },
+            "4016": {
+              "label": "4016: 40 columns, 16K, CRTC, 50 Hz",
+              "build": {
+                "defsym": {
+                  "__ram_size": 16
+                }
+              },
+              "run": {
+                "xpet": [
+                  "-model",
+                  "4016"
+                ]
+              },
+              "facts": {
+                "video.columns": 40,
+                "memory.ram": 15359,
+                "video.frameRate": 50
+              }
+            },
+            "4032": {
+              "label": "4032: 40 columns, 32K, CRTC, 50 Hz",
+              "build": {
+                "defsym": {
+                  "__ram_size": 32
+                }
+              },
+              "run": {
+                "xpet": [
+                  "-model",
+                  "4032"
+                ]
+              },
+              "facts": {
+                "video.columns": 40,
+                "memory.ram": 31743,
+                "video.frameRate": 50
+              }
+            },
+            "8032": {
+              "label": "8032: 80 columns, 32K, business keyboard, 50 Hz",
+              "build": {
+                "defsym": {
+                  "__ram_size": 32
+                }
+              },
+              "run": {
+                "xpet": [
+                  "-model",
+                  "8032"
+                ]
+              },
+              "facts": {
+                "video.columns": 80,
+                "memory.ram": 31743,
+                "video.frameRate": 50
+              }
+            }
+          }
+        }
+      },
+      "presets": {
+        "3032": {
+          "model": "3032"
+        },
+        "3008": {
+          "model": "3008"
+        },
+        "3016": {
+          "model": "3016"
+        },
+        "4016": {
+          "model": "4016"
+        },
+        "4032": {
+          "model": "4032"
+        },
+        "8032": {
+          "model": "8032"
+        }
+      }
     }
   },
   "files": [

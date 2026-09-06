@@ -15,6 +15,280 @@
       "./keys": "./src/keys.8bs",
       "./joystick": "./src/joystick.8bs",
       "./sid": "./src/sid.8bs"
+    },
+    "hardware": {
+      "options": {
+        "ram": {
+          "label": "RAM Expansion Unit",
+          "default": "none",
+          "values": {
+            "none": {
+              "label": "No expansion"
+            },
+            "reu128": {
+              "label": "REU, 128 KiB",
+              "run": {
+                "x64sc": [
+                  "-reu",
+                  "-reusize",
+                  "128"
+                ]
+              },
+              "facts": {
+                "memory.banked": true,
+                "memory.bankedKib": 128
+              }
+            },
+            "reu256": {
+              "label": "REU, 256 KiB",
+              "run": {
+                "x64sc": [
+                  "-reu",
+                  "-reusize",
+                  "256"
+                ]
+              },
+              "facts": {
+                "memory.banked": true,
+                "memory.bankedKib": 256
+              }
+            },
+            "reu512": {
+              "label": "REU, 512 KiB",
+              "run": {
+                "x64sc": [
+                  "-reu",
+                  "-reusize",
+                  "512"
+                ]
+              },
+              "facts": {
+                "memory.banked": true,
+                "memory.bankedKib": 512
+              }
+            },
+            "reu1m": {
+              "label": "REU, 1 MiB",
+              "run": {
+                "x64sc": [
+                  "-reu",
+                  "-reusize",
+                  "1024"
+                ]
+              },
+              "facts": {
+                "memory.banked": true,
+                "memory.bankedKib": 1024
+              }
+            },
+            "reu2m": {
+              "label": "REU, 2 MiB",
+              "run": {
+                "x64sc": [
+                  "-reu",
+                  "-reusize",
+                  "2048"
+                ]
+              },
+              "facts": {
+                "memory.banked": true,
+                "memory.bankedKib": 2048
+              }
+            },
+            "reu4m": {
+              "label": "REU, 4 MiB",
+              "run": {
+                "x64sc": [
+                  "-reu",
+                  "-reusize",
+                  "4096"
+                ]
+              },
+              "facts": {
+                "memory.banked": true,
+                "memory.bankedKib": 4096
+              }
+            },
+            "reu8m": {
+              "label": "REU, 8 MiB",
+              "run": {
+                "x64sc": [
+                  "-reu",
+                  "-reusize",
+                  "8192"
+                ]
+              },
+              "facts": {
+                "memory.banked": true,
+                "memory.bankedKib": 8192
+              }
+            },
+            "reu16m": {
+              "label": "REU, 16 MiB",
+              "run": {
+                "x64sc": [
+                  "-reu",
+                  "-reusize",
+                  "16384"
+                ]
+              },
+              "facts": {
+                "memory.banked": true,
+                "memory.bankedKib": 16384
+              }
+            }
+          }
+        },
+        "sid": {
+          "label": "SID",
+          "default": "6581",
+          "values": {
+            "6581": {
+              "label": "6581 (the original SID)",
+              "run": {
+                "x64sc": [
+                  "-sidmodel",
+                  "0"
+                ]
+              }
+            },
+            "8580": {
+              "label": "8580 (the later SID)",
+              "run": {
+                "x64sc": [
+                  "-sidmodel",
+                  "1"
+                ]
+              }
+            }
+          }
+        },
+        "port1": {
+          "label": "Control port 1",
+          "default": "none",
+          "values": {
+            "none": {
+              "label": "Nothing plugged in",
+              "run": {
+                "x64sc": [
+                  "-controlport1device",
+                  "0"
+                ]
+              }
+            },
+            "joystick": {
+              "label": "Joystick",
+              "run": {
+                "x64sc": [
+                  "-controlport1device",
+                  "1"
+                ]
+              }
+            },
+            "paddles": {
+              "label": "Paddles",
+              "run": {
+                "x64sc": [
+                  "-controlport1device",
+                  "2"
+                ]
+              },
+              "facts": {
+                "input.paddles": true
+              }
+            },
+            "mouse1351": {
+              "label": "Commodore 1351 mouse",
+              "run": {
+                "x64sc": [
+                  "-controlport1device",
+                  "3"
+                ]
+              },
+              "facts": {
+                "input.mouse": true
+              }
+            }
+          }
+        },
+        "port2": {
+          "label": "Control port 2",
+          "default": "joystick",
+          "values": {
+            "none": {
+              "label": "Nothing plugged in",
+              "run": {
+                "x64sc": [
+                  "-controlport2device",
+                  "0"
+                ]
+              }
+            },
+            "joystick": {
+              "label": "Joystick",
+              "run": {
+                "x64sc": [
+                  "-controlport2device",
+                  "1"
+                ]
+              }
+            },
+            "paddles": {
+              "label": "Paddles",
+              "run": {
+                "x64sc": [
+                  "-controlport2device",
+                  "2"
+                ]
+              },
+              "facts": {
+                "input.paddles": true
+              }
+            },
+            "mouse1351": {
+              "label": "Commodore 1351 mouse",
+              "run": {
+                "x64sc": [
+                  "-controlport2device",
+                  "3"
+                ]
+              },
+              "facts": {
+                "input.mouse": true
+              }
+            }
+          }
+        }
+      },
+      "presets": {
+        "stock": {
+          "ram": "none"
+        },
+        "reu128": {
+          "ram": "reu128"
+        },
+        "reu256": {
+          "ram": "reu256"
+        },
+        "reu512": {
+          "ram": "reu512"
+        },
+        "reu1m": {
+          "ram": "reu1m"
+        },
+        "reu2m": {
+          "ram": "reu2m"
+        },
+        "reu4m": {
+          "ram": "reu4m"
+        },
+        "reu8m": {
+          "ram": "reu8m"
+        },
+        "reu16m": {
+          "ram": "reu16m"
+        }
+      }
     }
   },
   "files": [

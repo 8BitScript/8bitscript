@@ -21,32 +21,26 @@
 // see packages/backend-6502's FRAME_SYNC and examples/proof-of-concept/borders/README.md),
 // unaffected by --pal.
 //
-// --profile picks a hardware profile — a named bundle of settings for
-// hardware that composes on top of the base target, same idea for every
-// target that has one, different meaning per target because the hardware
-// itself differs:
-//
-//   atari8: which machine in the 400/800/XL/XE/XEGS family (default 800XL,
-//     see docs/setup) — one target because LLVM-MOS itself treats that
-//     whole lineage as one family that only varies output format.
-//   vic20: how much RAM-expansion cartridge is plugged in — unexpanded
-//     (default, 3583 bytes free, the machine as sold), 3k/8k/16k/24k, the
-//     same five configurations VICE's `xvic -memory` and the SDK's own
-//     link.ld both recognize (see VIC20_PROFILES in backend-6502).
-//   c64: whether a RAM Expansion Unit is attached — stock (default, no
-//     REU) or reu128/256/512/1m/2m/4m/8m/16m, VICE's own `-reusize` values
-//     (see @8bitscript/c64's `reu` namespace for the register-level API).
+// --profile names the hardware the build is for: a preset from the
+// machine package's catalog (`8032`, `130xe`, `reu512` — the community's
+// names for whole configurations) or a profile the project composes in
+// its 8bs.config.ts (`targets: { c64: { profiles: { loaded: { ram:
+// 'reu512', port1: 'mouse1351' } } } }`). --hardware option=value,...
+// sets single options on top of either. What each option changes — a
+// link symbol, a driver, an emulator flag, a fact a program can read — is
+// the catalog's to say; see packages/cli/src/hardware.mjs and
+// docs/systems.md. `8bs targets` lists every option and preset.
 //
 // The entry defaults to src/main.8bs, or to the `entry` in 8bs.config.ts when
 // the project has one — and whichever file that names, a `.<target>.8bs`
 // twin beside it (main.nes.8bs next to main.8bs) is what a build for that
 // target actually starts from; see resolveEntryPath. Output lands in dist/, named
-// <name>-<machine>[-<profile>][-<region>].<ext> — .prg for the Commodore/
-// CX16/MEGA65 targets, .xex (or .rom for the xegs profile) for Atari 8-bit,
+// <name>-<machine>[-<hardware>...][-<region>].<ext> — .prg for the Commodore/
+// CX16/MEGA65 targets, .xex (or .rom for an XEGS cartridge) for Atari 8-bit,
 // .nes for the NES, .wasm for the web — with the generated C or
-// AssemblyScript beside it so what the compiler did is never a mystery. A
-// vic20/c64 profile only appears in the filename when it isn't the default
-// (atari8's profile always does — see the comment beside nameParts below).
+// AssemblyScript beside it so what the compiler did is never a mystery.
+// Only hardware that changes the *build* is in the name (a PET's model, a
+// VIC-20's RAM): a mouse or a REU makes the same program, so it is not.
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
@@ -56,6 +50,9 @@ import {
 } from '@8bitscript/compiler';
 
 import { loadConfig, resolveFrameRate } from './config.mjs';
+import {
+  HARDWARE_USAGE, hardwareArgs, listedTargets, loadCatalog, projectProfiles, resolveHardware,
+} from './hardware.mjs';
 
 const TARGETS = new Set(MACHINES);
 
@@ -63,8 +60,9 @@ const TARGETS = new Set(MACHINES);
 // detected at runtime (packages/backend-6502's FRAME_SYNC 'level' machines)
 // — the only ones where --pal changes the build or a region suffix on the
 // output filename. The PET has no region at all: its refresh is the
-// model's (a `--profile`, see PET_PROFILES in backend-6502), FRAME_SYNC.pet
-// measures it at start-up, and `8bs run pet` says so if given --pal.
+// model's (a hardware option — see packages/pet/package.json's catalog),
+// FRAME_SYNC.pet measures it at start-up, and `8bs run pet` says so if
+// given --pal.
 const REGION_TARGETS = new Set(['vic20', 'c64', 'c128', 'mega65', 'atari8']);
 
 // Diagnostics may come from any module in the import graph, so each one is
@@ -109,15 +107,17 @@ export function resolveEntryPath(config, target, entryArg) {
  *
  * @param {'vic20'|'c64'|'pet'|'c128'|'atari8'|'nes'|'cx16'|'mega65'|'web'} target
  * @param {string} [entryArg]
- * @param {{ pal?: boolean, profile?: string }} [options] `pal` selects the
+ * @param {{ pal?: boolean, profile?: string, hardware?: object }} [options] `pal` selects the
  *   real hardware/emulator region (NTSC unless true; ignored outside
  *   REGION_TARGETS) — it does not affect the logical frame rate, which is
  *   read from 8bs.config.ts's `frameRate` instead (default 60). `profile`
- *   only matters for atari8 (defaults to 800xl), vic20 (defaults to
- *   unexpanded), and c64 (defaults to stock); ignored elsewhere.
- * @returns {Promise<{ ok: boolean, outFile?: string, frameRate?: number }>}
+ *   names a project profile or a catalog preset, `hardware` is option
+ *   values set on top (`--hardware`); see hardware.mjs.
+ * @returns {Promise<{ ok: boolean, outFile?: string, frameRate?: number, hardware?: object }>}
+ *   `hardware` is the resolved hardware the program was built for, for
+ *   whoever runs it next.
  */
-export async function compile(target, entryArg, { pal = false, profile } = {}) {
+export async function compile(target, entryArg, { pal = false, profile, hardware: overrides = {} } = {}) {
   const config = await loadConfig(process.cwd(), '8bs build');
 
   const frameRateResult = resolveFrameRate(config);
@@ -141,48 +141,23 @@ export async function compile(target, entryArg, { pal = false, profile } = {}) {
     );
     return { ok: false };
   }
-  if (config?.targets && !config.targets.includes(target)) {
+  const listed = listedTargets(config);
+  if (listed && !listed.includes(target)) {
     process.stderr.write(
       `8bs build: this project's 8bs.config.ts does not list '${target}' ` +
-      `(targets: ${config.targets.join(', ')})\n`,
+      `(targets: ${listed.join(', ')})\n`,
     );
     return { ok: false };
   }
 
-  const {
-    ATARI8_PROFILES, ATARI8_DEFAULT_PROFILE,
-    VIC20_PROFILES, VIC20_DEFAULT_PROFILE,
-    C64_PROFILES, C64_DEFAULT_PROFILE,
-    PET_PROFILES, PET_DEFAULT_PROFILE,
-  } = await import('@8bitscript/backend-6502');
-  const atari8Profile = target === 'atari8' ? (profile ?? ATARI8_DEFAULT_PROFILE) : undefined;
-  if (target === 'atari8' && !ATARI8_PROFILES.has(atari8Profile)) {
-    process.stderr.write(
-      `8bs build: unknown atari8 profile '${atari8Profile}'. Profiles: ${[...ATARI8_PROFILES].join(', ')}\n`,
-    );
+  const resolved = resolveHardware(loadCatalog(target), {
+    profile, overrides, profiles: projectProfiles(config, target),
+  });
+  if (!resolved.ok) {
+    process.stderr.write(`8bs build: ${resolved.error}\n`);
     return { ok: false };
   }
-  const vic20Profile = target === 'vic20' ? (profile ?? VIC20_DEFAULT_PROFILE) : undefined;
-  if (target === 'vic20' && !VIC20_PROFILES.has(vic20Profile)) {
-    process.stderr.write(
-      `8bs build: unknown vic20 profile '${vic20Profile}'. Profiles: ${[...VIC20_PROFILES].join(', ')}\n`,
-    );
-    return { ok: false };
-  }
-  const c64Profile = target === 'c64' ? (profile ?? C64_DEFAULT_PROFILE) : undefined;
-  if (target === 'c64' && !C64_PROFILES.has(c64Profile)) {
-    process.stderr.write(
-      `8bs build: unknown c64 profile '${c64Profile}'. Profiles: ${[...C64_PROFILES].join(', ')}\n`,
-    );
-    return { ok: false };
-  }
-  const petProfile = target === 'pet' ? (profile ?? PET_DEFAULT_PROFILE) : undefined;
-  if (target === 'pet' && !PET_PROFILES.has(petProfile)) {
-    process.stderr.write(
-      `8bs build: unknown pet profile '${petProfile}'. Profiles: ${[...PET_PROFILES].join(', ')}\n`,
-    );
-    return { ok: false };
-  }
+  const { hardware } = resolved;
 
   const entry = resolveEntryPath(config, target, entryArg);
   if (!existsSync(entry)) {
@@ -196,10 +171,9 @@ export async function compile(target, entryArg, { pal = false, profile } = {}) {
   // imports, then merges the graph into one program. Any error in any module
   // means no build. The machine rides along so packages with target-
   // conditional entries resolve to this machine's implementation, and the
-  // resolved profile (the default when none was asked for) so a file with a
-  // `.<machine>.<profile>.8bs` twin resolves to that.
-  const resolvedProfile = atari8Profile ?? vic20Profile ?? c64Profile ?? petProfile;
-  const { ir, diagnostics, sources } = link(text, entry, { machine: target, profile: resolvedProfile, frameRate });
+  // hardware's tags so a file with a `.<machine>.<tag>.8bs` twin resolves
+  // to that.
+  const { ir, diagnostics, sources } = link(text, entry, { machine: target, tags: hardware.tags, frameRate });
   if (diagnostics.length > 0) {
     printDiagnostics(diagnostics, sources);
     process.stdout.write(`${diagnostics.length} problem(s); not building.\n`);
@@ -222,33 +196,25 @@ export async function compile(target, entryArg, { pal = false, profile } = {}) {
     }
     process.stdout.write(`built ${outFile}\n(generated AssemblyScript: ${result.asFile})\n`);
     process.stdout.write(`${memoryLine(ir.memory)}\n`);
-    return { ok: true, outFile, frameRate };
+    return { ok: true, outFile, frameRate, hardware };
   }
 
   const { buildPrg, outputExtension } = await import('@8bitscript/backend-6502');
-  const nameParts = [stem, target];
-  if (target === 'atari8') nameParts.push(atari8Profile);
-  // Unlike atari8 (whose profile is always in the filename, even the
-  // default 800xl), vic20/c64 only grow a profile suffix for a non-default
-  // profile — most builds are the stock machine, and changing every
-  // existing main-vic20-ntsc.prg/main-c64-ntsc.prg filename for a feature
-  // most projects never touch was not worth it.
-  if (target === 'vic20' && vic20Profile !== VIC20_DEFAULT_PROFILE) nameParts.push(vic20Profile);
-  if (target === 'c64' && c64Profile !== C64_DEFAULT_PROFILE) nameParts.push(c64Profile);
-  if (target === 'pet' && petProfile !== PET_DEFAULT_PROFILE) nameParts.push(petProfile);
+  // Hardware that changes the build is in the name (an 8032 PET, an
+  // expanded VIC-20, an XEGS cartridge); hardware that only changes the
+  // emulator is not, because the file is the same file.
+  const nameParts = [stem, target, ...hardware.buildValues];
   if (REGION_TARGETS.has(target)) nameParts.push(pal ? 'pal' : 'ntsc');
-  const ext = outputExtension(target, atari8Profile);
+  const ext = outputExtension(target, hardware);
   const outFile = resolve('dist', `${nameParts.join('-')}.${ext}`);
-  const result = await buildPrg(ir, {
-    machine: target, atari8Profile, vic20Profile, c64Profile, petProfile, outFile, frameRate,
-  });
+  const result = await buildPrg(ir, { machine: target, hardware, outFile, frameRate });
   if (!result.ok) {
     process.stderr.write(`8bs build: ${result.error}\n`);
     return { ok: false };
   }
   process.stdout.write(`built ${outFile}\n(generated C: ${result.cFile})\n`);
   process.stdout.write(`${memoryLine(ir.memory, result.memory)}\n`);
-  return { ok: true, outFile, frameRate };
+  return { ok: true, outFile, frameRate, hardware };
 }
 
 /**
@@ -270,11 +236,14 @@ export function memoryLine(declared, measured = null) {
 export async function build(args) {
   const pal = args.includes('--pal');
   const targetIndex = args.indexOf('--target');
-  const profileIndex = args.indexOf('--profile');
-  const profile = profileIndex >= 0 ? args[profileIndex + 1] : undefined;
+  const hw = hardwareArgs(args);
+  if (!hw.ok) {
+    process.stderr.write(`8bs build: ${hw.error}\n`);
+    return 2;
+  }
   const positionals = args.filter((a, i) => {
     if (targetIndex >= 0 && (i === targetIndex || i === targetIndex + 1)) return false;
-    if (profileIndex >= 0 && (i === profileIndex || i === profileIndex + 1)) return false;
+    if (hw.consumed.has(i)) return false;
     return !a.startsWith('-');
   });
   const target = targetIndex >= 0 ? args[targetIndex + 1] : positionals[0];
@@ -284,14 +253,11 @@ export async function build(args) {
     process.stderr.write(
       'Usage: 8bs build --target <vic20|c64|pet|c128|atari8|nes|cx16|mega65|web>\n'
       + '                 [--pal]\n'
-      + '                 [--profile <800xl|65xe|130xe|800|400|xegs>]        (atari8)\n'
-      + '                 [--profile <unexpanded|3k|8k|16k|24k>]             (vic20)\n'
-      + '                 [--profile <stock|reu128|reu256|reu512|reu1m|reu2m|reu4m|reu8m|reu16m>] (c64)\n'
-      + '                 [--profile <3032|3008|3016|4016|4032|8032>]          (pet)\n'
+      + HARDWARE_USAGE
       + '                 [entry.8bs]\n',
     );
     return 2;
   }
-  const { ok } = await compile(target, entry, { pal, profile });
+  const { ok } = await compile(target, entry, { pal, profile: hw.profile, hardware: hw.overrides });
   return ok ? 0 : 1;
 }

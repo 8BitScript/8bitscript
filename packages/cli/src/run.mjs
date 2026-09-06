@@ -6,28 +6,30 @@
 //   8bs run c64          the same idea, in the C64 emulator (NTSC default)
 //   8bs run c64 --pal
 //   8bs run pet          builds the .prg and opens it in VICE's PET emulator
-//                        (xpet) as the model the profile names — a 3032 by
+//                        (xpet) as the model the hardware names — a 3032 by
 //                        default: no CRTC, 40 columns, 32K, VICE's hardcoded
 //                        ~60.1Hz. --profile 8032 builds for and launches the
 //                        80-column business machine, 3008/3016/4016/4032 the
-//                        other RAM sizes and series (PET_PROFILES in
-//                        backend-6502). There is no --pal for the PET: its
-//                        refresh is the model's (the CRTC models run their
-//                        50Hz editor ROMs; the 60Hz ones make VICE refuse
-//                        autostart), and the program measures the actual
-//                        frame period at runtime (FRAME_SYNC.pet).
+//                        other RAM sizes and series (the `model` option in
+//                        packages/pet's catalog). There is no --pal for the
+//                        PET: its refresh is the model's (the CRTC models
+//                        run their 50Hz editor ROMs; the 60Hz ones make VICE
+//                        refuse autostart), and the program measures the
+//                        actual frame period at runtime (FRAME_SYNC.pet).
 //   8bs run c128         VICE's C128 emulator (x128), NTSC default, --pal
-//   8bs run atari8       builds for the default 800XL profile and opens it
-//                        in atari800; --profile picks a different Atari
-//                        8-bit hardware profile, --pal/--ntsc the TV
+//   8bs run atari8       builds for the default 800XL and opens it in
+//                        atari800; --profile picks another machine in the
+//                        family (130xe, xegs, ...), --pal/--ntsc the TV
 //                        standard (NTSC default)
 //   8bs run vic20 --profile 16k   builds for a 16K-expanded VIC-20 and
 //                        passes xvic the matching `-memory` flag, so the
 //                        emulated machine's RAM matches what the program
 //                        was linked for
-//   8bs run c64 --profile reu512  builds for the stock C64 (a REU changes
-//                        nothing about the base memory map) and attaches a
-//                        512K REU to x64sc via `-reu -reusize`
+//   8bs run c64 --hardware ram=reu512,port1=mouse1351
+//                        builds for the stock C64 (neither changes the
+//                        memory map) and fits x64sc a 512K REU and a 1351
+//                        in port 1 — every option, and what each does, is
+//                        the machine package's catalog (`8bs targets`)
 //   8bs run nes          builds the .nes and opens it in FCEUX
 //   8bs run cx16          builds the .prg and opens it in x16emu
 //   8bs run mega65        builds the .prg and opens it in Xemu's MEGA65
@@ -52,6 +54,7 @@ import { join, resolve } from 'node:path';
 import { readFile, writeFile } from 'node:fs/promises';
 
 import { compile } from './build.mjs';
+import { HARDWARE_USAGE, hardwareArgs, loadArgs } from './hardware.mjs';
 
 // The VICE family (vic20/c64/pet/c128): one emulator suite, one invocation
 // shape — -autostart injects the built file straight into RAM. Exported so
@@ -91,19 +94,19 @@ export const VICE_EMULATOR_ARGS = {
 // ("Set C128 model (c128/c128dcr, pal/ntsc)").
 //
 // The PET is not in this table: its refresh is not a sync factor but the
-// model's, and the model is the profile — see PET_MODEL_ARGS below.
+// model's, and the model is a hardware option — see PET_REGION_NOTE below.
 export const VICE_MODEL_ARGS = {
   vic20: { ntsc: ['-model', 'vic20ntsc'], pal: ['-model', 'vic20pal'] },
   c64: { ntsc: ['-model', 'ntsc'], pal: ['-model', 'c64'] },
   c128: { ntsc: ['-model', 'ntsc'], pal: ['-model', 'pal'] },
 };
 
-// xpet's `-model` takes the PET's own model numbers, which are exactly the
-// names PET_PROFILES uses (backend-6502), so the profile is the flag's
-// value. No `-ntsc`/`-pal` goes with it. VICE's own pet.h: 50Hz vs 60Hz on
-// a PET is which editor ROM programs the CRTC, not a sync factor. The 60Hz
-// editor ROMs VICE ships (`edit-4-*-60Hz*`) do switch the CRTC to ~60Hz,
-// but they also make VICE refuse autostart ("Autostart is not available on
+// The PET's model is a hardware option (packages/pet's catalog: `-model`
+// to xpet, `__ram_size` to the linker, the columns as a fact). No
+// `-ntsc`/`-pal` goes with it. VICE's own pet.h: 50Hz vs 60Hz on a PET is
+// which editor ROM programs the CRTC, not a sync factor. The 60Hz editor
+// ROMs VICE ships (`edit-4-*-60Hz*`) do switch the CRTC to ~60Hz, but
+// they also make VICE refuse autostart ("Autostart is not available on
 // this setup") — observed with both the 40-column and 80-column 60Hz
 // editors, with and without `-default` — so the CRTC models (4016, 4032,
 // 8032) run their stock 50Hz editors here, measured at 49.92-50.02Hz, and
@@ -112,35 +115,21 @@ export const VICE_MODEL_ARGS = {
 // the same either way; `8bs run pet --pal` prints a note and changes
 // nothing. Verified with `xpet -verbose -limitcycles` and by whether
 // `-autostart` of examples/proof-of-concept/borders stays running.
-export const PET_MODEL_ARGS = (profile) => ['-model', profile];
-
-// atari800's cartridge type for the image the XEGS profile links: a raw
-// 256 KiB XEGS bank-switched cartridge (`-cart-type 23`; 36 is the
-// switchable variant, which also runs it). Passed with `-cart` because a
-// raw image of that size is ambiguous to atari800 on its own.
-export const ATARI8_XEGS_CART_TYPE = '23';
-
-// What each xpet model refreshes at, nominally — for turning `--frames`
-// into cycles in screenshot.mjs, nothing else.
-export const PET_PROFILE_FPS = {
-  3008: 60, 3016: 60, 3032: 60, 4016: 50, 4032: 50, 8032: 50,
-};
-
 export const PET_REGION_NOTE = '8bs run: the PET has no --pal/--ntsc — its refresh rate is the model\'s. '
   + 'Pick a model with --profile (3032 is ~60Hz; 4016, 4032 and 8032 are 50Hz).\n';
 
-// atari800's machine-model flag per profile — verified against its own
-// DOC/USAGE: -atari (800/400), -xl (800XL), -xe (130XE), -xegs (XEGS). The
-// 65XE has no flag of its own: it's electrically and OS-compatible with the
-// 800XL, so it reuses -xl. -pal/-ntsc is a fully independent flag from the
-// model, unlike VICE's combined -model above.
-export const ATARI8_MODEL_ARG = {
-  '800xl': '-xl',
-  '65xe': '-xl',
-  '130xe': '-xe',
-  800: '-atari',
-  400: '-atari',
-  xegs: '-xegs',
+// How each emulator is handed the built file when the hardware does not
+// say otherwise (a catalog value's `load` — the Atari XEGS cartridge —
+// overrides this; see hardware.mjs's loadArgs).
+export const DEFAULT_LOAD = {
+  xvic: (out) => ['-autostart', out],
+  x64sc: (out) => ['-autostart', out],
+  xpet: (out) => ['-autostart', out],
+  x128: (out) => ['-autostart', out],
+  atari800: (out) => ['-run', out],
+  fceux: (out) => [out],
+  x16emu: (out) => ['-prg', out, '-run'],
+  xmega65: (out) => ['-prg', out],
 };
 
 // atari800's SDL2 OpenGL shader (atari800-shader.frag) defaults
@@ -173,20 +162,15 @@ export async function atari800CleanDisplayConfig() {
   return outPath;
 }
 
-// xvic's own -memory spec strings (confirmed against `xvic -help`:
-// "none/3k/8k/16k/24k/all") for each VIC20_PROFILES name. 'unexpanded' maps
-// to 'none' — xvic's own default, which is why the unexpanded case worked
-// with no flag at all before profiles existed.
-export const VIC20_MEMORY_ARG = {
-  unexpanded: 'none', '3k': '3k', '8k': '8k', '16k': '16k', '24k': '24k',
-};
-
 /** @returns {Promise<number>} exit code */
 export async function run(args) {
   const pal = args.includes('--pal');
   const open = !args.includes('--no-open');
-  const profileIndex = args.indexOf('--profile');
-  const profile = profileIndex >= 0 ? args[profileIndex + 1] : undefined;
+  const hw = hardwareArgs(args);
+  if (!hw.ok) {
+    process.stderr.write(`8bs run: ${hw.error}\n`);
+    return 2;
+  }
   const screenshotIndex = args.indexOf('--screenshot');
   const screenshotPath = screenshotIndex >= 0 ? resolve(args[screenshotIndex + 1]) : undefined;
   const framesIndex = args.indexOf('--frames');
@@ -196,19 +180,17 @@ export async function run(args) {
     process.stderr.write(`8bs run: --frames expects a number, got '${framesArg}'\n`);
     return 2;
   }
-  const consumed = new Set(
-    [profileIndex, screenshotIndex, framesIndex].flatMap((i) => (i >= 0 ? [i, i + 1] : [])),
-  );
+  const consumed = new Set([
+    ...hw.consumed,
+    ...[screenshotIndex, framesIndex].flatMap((i) => (i >= 0 ? [i, i + 1] : [])),
+  ]);
   const positionals = args.filter((a, i) => !consumed.has(i) && !a.startsWith('-'));
   const target = positionals[0];
   if (!target) {
     process.stderr.write(
       'Usage: 8bs run <vic20|c64|pet|c128|atari8|nes|cx16|mega65|web>\n'
       + '                [--pal]\n'
-      + '                [--profile <800xl|65xe|130xe|800|400|xegs>]        (atari8)\n'
-      + '                [--profile <unexpanded|3k|8k|16k|24k>]             (vic20)\n'
-      + '                [--profile <stock|reu128|reu256|reu512|reu1m|reu2m|reu4m|reu8m|reu16m>] (c64)\n'
-      + '                [--profile <3032|3008|3016|4016|4032|8032>]          (pet)\n'
+      + HARDWARE_USAGE
       + '                [--no-open] [entry.8bs]\n'
       + '                [--screenshot <file.png>] [--frames <n>]\n'
       + '                  capture one screenshot through the target\'s own\n'
@@ -220,17 +202,17 @@ export async function run(args) {
   }
   const entry = positionals[1];
 
-  // Said once, before either route — the PET has no region (PET_MODEL_ARGS).
+  // Said once, before either route — the PET has no region (PET_REGION_NOTE).
   if (target === 'pet' && pal) process.stderr.write(PET_REGION_NOTE);
 
-  const { ok, outFile, frameRate } = await compile(target, entry, { pal, profile });
+  const { ok, outFile, frameRate, hardware } = await compile(target, entry, { pal, profile: hw.profile, hardware: hw.overrides });
   if (!ok) return 1;
 
   if (screenshotPath) {
     const { captureScreenshot } = await import('./screenshot.mjs');
     try {
       await captureScreenshot(target, outFile, screenshotPath, {
-        pal, profile, frames, frameRate,
+        pal, hardware, frames, frameRate,
       });
     } catch (err) {
       process.stderr.write(`${err.message}\n`);
@@ -249,36 +231,24 @@ export async function run(args) {
     return runInBrowser(bytes, { open, frameRate });
   }
 
-  const {
-    ATARI8_DEFAULT_PROFILE, VIC20_DEFAULT_PROFILE, C64_DEFAULT_PROFILE, C64_REU_SIZE_KIB, PET_DEFAULT_PROFILE,
-  } = await import('@8bitscript/backend-6502');
   const region = pal ? 'pal' : 'ntsc';
 
+  // The emulator's own flags for the machine, then whatever the hardware
+  // fits (the catalog's `run` list for this emulator), then the file.
   let emulator;
   let emulatorArgs;
   if (target in VICE_EMULATOR) {
     emulator = VICE_EMULATOR[target];
-    // vic20's -memory must match whichever RAM-expansion profile the
-    // program was linked for (see VIC20_MEMORY_ARG above); c64's REU is
-    // purely additive hardware, so it only ever appends `-reu -reusize`,
-    // never changes anything else about the base machine; pet's profile is
-    // the whole machine model (PET_MODEL_ARGS above).
-    const vic20Profile = target === 'vic20' ? (profile ?? VIC20_DEFAULT_PROFILE) : undefined;
-    const c64Profile = target === 'c64' ? (profile ?? C64_DEFAULT_PROFILE) : undefined;
-    const petProfile = target === 'pet' ? (profile ?? PET_DEFAULT_PROFILE) : undefined;
     emulatorArgs = [
       ...(VICE_EMULATOR_ARGS[target] ?? []),
       ...(VICE_MODEL_ARGS[target]?.[region] ?? []),
-      ...(petProfile ? PET_MODEL_ARGS(petProfile) : []),
-      ...(vic20Profile ? ['-memory', VIC20_MEMORY_ARG[vic20Profile]] : []),
-      ...(c64Profile && c64Profile !== 'stock' ? ['-reu', '-reusize', String(C64_REU_SIZE_KIB[c64Profile])] : []),
+      ...(hardware.run[emulator] ?? []),
       // Skip the "really quit?" confirmation dialog — closing the emulator
       // window during dev/test cycles should not need a click every time.
       '+confirmonexit',
-      '-autostart', outFile,
+      ...loadArgs(hardware, emulator, outFile, DEFAULT_LOAD[emulator](outFile)),
     ];
   } else if (target === 'atari8') {
-    const atari8Profile = profile ?? ATARI8_DEFAULT_PROFILE;
     emulator = 'atari800';
     // atari800's TV-area visible size (DOC/USAGE -horiz-area/-vert-area):
     // 336 wide, 224 tall on NTSC and 240 tall on PAL. The emulator opens
@@ -291,7 +261,7 @@ export async function run(args) {
     const displayCfg = await atari800CleanDisplayConfig();
     emulatorArgs = [
       ...(displayCfg ? ['-config', displayCfg, '-no-autosave-config'] : []),
-      ATARI8_MODEL_ARG[atari8Profile],
+      ...(hardware.run.atari800 ?? []),
       pal ? '-pal' : '-ntsc',
       '-horiz-area', 'tv',
       '-vert-area', 'tv',
@@ -299,28 +269,24 @@ export async function run(args) {
       '-scanlines', '0',
       '-win-width', String(336 * 3),
       '-win-height', String(tvHeight * 3),
-      // A raw 256 KiB cartridge image matches eight of atari800's cartridge
-      // types, and without a type it stops at its "Select Cartridge Type"
-      // menu: 23 is "XEGS 256 KB", the shape the XEGS driver links
-      // (packages/atari8/AGENTS.md).
-      ...(atari8Profile === 'xegs' ? ['-cart', outFile, '-cart-type', ATARI8_XEGS_CART_TYPE] : ['-run', outFile]),
+      ...loadArgs(hardware, emulator, outFile, DEFAULT_LOAD.atari800(outFile)),
     ];
   } else if (target === 'nes') {
     emulator = 'fceux';
-    emulatorArgs = [outFile];
+    emulatorArgs = [...(hardware.run.fceux ?? []), ...loadArgs(hardware, emulator, outFile, DEFAULT_LOAD.fceux(outFile))];
   } else if (target === 'cx16') {
     // Confirmed against the X16Community/x16-emulator README.
     emulator = 'x16emu';
-    emulatorArgs = ['-prg', outFile, '-run'];
+    emulatorArgs = [...(hardware.run.x16emu ?? []), ...loadArgs(hardware, emulator, outFile, DEFAULT_LOAD.x16emu(outFile))];
   } else if (target === 'mega65') {
-    // Best-effort — see the run() docstring above. -videostd pins the video
-    // standard to match the region the .prg was built for (0=PAL, 1=NTSC);
-    // left unset, Xemu's Hyppo default is PAL regardless of which region
-    // this target compiled for, so an NTSC build gets PAL's ~100 extra
-    // scanlines of VIC-IV border/overscan — the exact off-geometry mismatch
-    // VICE_MODEL_ARGS above documents for -ntsc/-pal not implying a model.
+    // -videostd pins the video standard to match the region the .prg was
+    // built for (0=PAL, 1=NTSC); left unset, Xemu's Hyppo default is PAL
+    // regardless of which region this target compiled for, so an NTSC
+    // build gets PAL's ~100 extra scanlines of VIC-IV border/overscan — the
+    // exact off-geometry mismatch VICE_MODEL_ARGS above documents for
+    // -ntsc/-pal not implying a model.
     emulator = 'xmega65';
-    emulatorArgs = ['-prg', outFile, '-videostd', pal ? '0' : '1'];
+    emulatorArgs = [...(hardware.run.xmega65 ?? []), ...loadArgs(hardware, emulator, outFile, DEFAULT_LOAD.xmega65(outFile)), '-videostd', pal ? '0' : '1'];
   } else {
     // build() already validated the target against the same TARGETS set
     // this function branches over, so this is unreachable.

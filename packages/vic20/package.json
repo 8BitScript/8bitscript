@@ -9,6 +9,170 @@
     "exports": {
       "./screen": "./src/screen.8bs",
       "./text": "./src/text.8bs"
+    },
+    "hardware": {
+      "options": {
+        "ram": {
+          "label": "RAM expansion",
+          "default": "none",
+          "values": {
+            "none": {
+              "label": "Unexpanded (3583 bytes for the program)",
+              "build": {
+                "defsym": {
+                  "__memory_expansion": 0
+                }
+              },
+              "run": {
+                "xvic": [
+                  "-memory",
+                  "none"
+                ]
+              },
+              "facts": {
+                "memory.ram": 3583
+              }
+            },
+            "3k": {
+              "label": "3K (VIC-1210): $0400-$0FFF",
+              "tag": "3k",
+              "build": {
+                "defsym": {
+                  "__memory_expansion": 3
+                }
+              },
+              "run": {
+                "xvic": [
+                  "-memory",
+                  "3k"
+                ]
+              },
+              "facts": {
+                "memory.ram": 6655
+              }
+            },
+            "8k": {
+              "label": "8K: screen moves to $1000",
+              "tag": "expanded",
+              "build": {
+                "defsym": {
+                  "__memory_expansion": 8
+                }
+              },
+              "run": {
+                "xvic": [
+                  "-memory",
+                  "8k"
+                ]
+              },
+              "facts": {
+                "memory.ram": 11775
+              }
+            },
+            "16k": {
+              "label": "16K: screen moves to $1000",
+              "tag": "expanded",
+              "build": {
+                "defsym": {
+                  "__memory_expansion": 16
+                }
+              },
+              "run": {
+                "xvic": [
+                  "-memory",
+                  "16k"
+                ]
+              },
+              "facts": {
+                "memory.ram": 19967
+              }
+            },
+            "24k": {
+              "label": "24K: screen moves to $1000",
+              "tag": "expanded",
+              "build": {
+                "defsym": {
+                  "__memory_expansion": 24
+                }
+              },
+              "run": {
+                "xvic": [
+                  "-memory",
+                  "24k"
+                ]
+              },
+              "facts": {
+                "memory.ram": 28159
+              }
+            }
+          }
+        },
+        "port1": {
+          "label": "Control port 1",
+          "default": "joystick",
+          "values": {
+            "none": {
+              "label": "Nothing plugged in",
+              "run": {
+                "xvic": [
+                  "-controlport1device",
+                  "0"
+                ]
+              }
+            },
+            "joystick": {
+              "label": "Joystick",
+              "run": {
+                "xvic": [
+                  "-controlport1device",
+                  "1"
+                ]
+              }
+            },
+            "paddles": {
+              "label": "Paddles",
+              "run": {
+                "xvic": [
+                  "-controlport1device",
+                  "2"
+                ]
+              },
+              "facts": {
+                "input.paddles": true
+              }
+            },
+            "mouse1351": {
+              "label": "Commodore 1351 mouse",
+              "run": {
+                "xvic": [
+                  "-controlport1device",
+                  "3"
+                ]
+              },
+              "facts": {
+                "input.mouse": true
+              }
+            }
+          }
+        }
+      },
+      "presets": {
+        "unexpanded": {
+          "ram": "none"
+        },
+        "3k": {
+          "ram": "3k"
+        },
+        "8k": {
+          "ram": "8k"
+        },
+        "16k": {
+          "ram": "16k"
+        },
+        "24k": {
+          "ram": "24k"
+        }
+      }
     }
   },
   "files": [

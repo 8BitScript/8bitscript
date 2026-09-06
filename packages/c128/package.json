@@ -9,6 +9,149 @@
     "exports": {
       "./screen": "./src/screen.8bs",
       "./text": "./src/text.8bs"
+    },
+    "hardware": {
+      "options": {
+        "vdc": {
+          "label": "VDC RAM",
+          "default": "16k",
+          "values": {
+            "16k": {
+              "label": "16 KiB VDC RAM (flat C128, C128D)",
+              "run": {
+                "x128": [
+                  "-VDC16KB"
+                ]
+              }
+            },
+            "64k": {
+              "label": "64 KiB VDC RAM (C128DCR)",
+              "run": {
+                "x128": [
+                  "-VDC64KB"
+                ]
+              }
+            }
+          }
+        },
+        "ram": {
+          "label": "RAM",
+          "default": "128k",
+          "values": {
+            "128k": {
+              "label": "128 KiB"
+            },
+            "256k": {
+              "label": "256 KiB (banks 2 and 3 fitted)",
+              "run": {
+                "x128": [
+                  "-c128fullbanks"
+                ]
+              },
+              "facts": {
+                "memory.bankedKib": 256
+              }
+            }
+          }
+        },
+        "port1": {
+          "label": "Control port 1",
+          "default": "none",
+          "values": {
+            "none": {
+              "label": "Nothing plugged in",
+              "run": {
+                "x128": [
+                  "-controlport1device",
+                  "0"
+                ]
+              }
+            },
+            "joystick": {
+              "label": "Joystick",
+              "run": {
+                "x128": [
+                  "-controlport1device",
+                  "1"
+                ]
+              }
+            },
+            "paddles": {
+              "label": "Paddles",
+              "run": {
+                "x128": [
+                  "-controlport1device",
+                  "2"
+                ]
+              },
+              "facts": {
+                "input.paddles": true
+              }
+            },
+            "mouse1351": {
+              "label": "Commodore 1351 mouse",
+              "run": {
+                "x128": [
+                  "-controlport1device",
+                  "3"
+                ]
+              },
+              "facts": {
+                "input.mouse": true
+              }
+            }
+          }
+        },
+        "port2": {
+          "label": "Control port 2",
+          "default": "joystick",
+          "values": {
+            "none": {
+              "label": "Nothing plugged in",
+              "run": {
+                "x128": [
+                  "-controlport2device",
+                  "0"
+                ]
+              }
+            },
+            "joystick": {
+              "label": "Joystick",
+              "run": {
+                "x128": [
+                  "-controlport2device",
+                  "1"
+                ]
+              }
+            },
+            "paddles": {
+              "label": "Paddles",
+              "run": {
+                "x128": [
+                  "-controlport2device",
+                  "2"
+                ]
+              },
+              "facts": {
+                "input.paddles": true
+              }
+            },
+            "mouse1351": {
+              "label": "Commodore 1351 mouse",
+              "run": {
+                "x128": [
+                  "-controlport2device",
+                  "3"
+                ]
+              },
+              "facts": {
+                "input.mouse": true
+              }
+            }
+          }
+        }
+      },
+      "presets": {}
     }
   },
   "files": [

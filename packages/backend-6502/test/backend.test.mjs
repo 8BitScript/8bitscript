@@ -12,8 +12,7 @@ import { fileURLToPath } from 'node:url';
 
 import { tokenize, parse, lower } from '@8bitscript/compiler';
 import {
-  emitC, buildPrg, outputExtension, ATARI8_PROFILES, reduceRatio, frameRatio, FRAME_SYNC,
-  PET_PROFILES, PET_DEFAULT_PROFILE, PET_RAM_SIZE_KIB, PET_COLUMNS,
+  emitC, buildPrg, outputExtension, reduceRatio, frameRatio, FRAME_SYNC, DRIVER,
 } from '../src/index.mjs';
 
 const irOf = (src) => {
@@ -161,8 +160,8 @@ test('outputExtension: prg everywhere except NES (.nes) and Atari 8-bit (.xex, o
   assert.equal(outputExtension('mega65'), 'prg');
   assert.equal(outputExtension('cx16'), 'prg');
   assert.equal(outputExtension('nes'), 'nes');
-  assert.equal(outputExtension('atari8', '800xl'), 'xex');
-  assert.equal(outputExtension('atari8', 'xegs'), 'rom');
+  assert.equal(outputExtension('atari8', { build: { defsym: {} } }), 'xex');
+  assert.equal(outputExtension('atari8', { build: { driver: 'mos-atari8-cart-xegs-clang', output: 'rom' } }), 'rom');
 });
 
 test('emitC: level machines (c128, mega65, atari8) reuse a raster/VCOUNT poll, no acknowledgement', () => {
@@ -351,31 +350,31 @@ test('emitC: frameRate above the overflow-safe cap is refused, not silently wrap
   );
 });
 
-test('buildPrg: an unknown atari8 profile is refused', async () => {
-  const result = await buildPrg(irOf('export function main(): void { }'), {
-    machine: 'atari8', atari8Profile: 'bogus', outFile: 'unused.xex',
-  });
-  assert.equal(result.ok, false);
-  assert.match(result.error, /unknown atari8 profile/);
+// The hardware a build is for reaches the backend already resolved
+// (packages/cli/src/hardware.mjs): a `build` block with the link symbols,
+// and possibly another driver and output. These are the shapes the
+// catalogs produce today.
+const PET_3008 = { build: { defsym: { __ram_size: 8 } }, label: 'model=3008' };
+const XEGS = { build: { driver: 'mos-atari8-cart-xegs-clang', output: 'rom' }, label: 'model=xegs' };
+
+test('outputExtension: the machine\'s own, unless the hardware links something else', () => {
+  assert.equal(outputExtension('c64'), 'prg');
+  assert.equal(outputExtension('nes'), 'nes');
+  assert.equal(outputExtension('atari8'), 'xex');
+  assert.equal(outputExtension('atari8', XEGS), 'rom');
+  assert.equal(outputExtension('atari8', { build: { defsym: {} } }), 'xex');
 });
 
-test('PET_PROFILES are the PET model numbers, each with the RAM its name says; an unknown one is refused', async () => {
-  assert.deepEqual([...PET_PROFILES].sort(), ['3008', '3016', '3032', '4016', '4032', '8032']);
-  assert.equal(PET_DEFAULT_PROFILE, '3032');
-  for (const profile of PET_PROFILES) {
-    assert.equal(PET_RAM_SIZE_KIB[profile], Number(profile.slice(-2)), profile);
-    assert.equal(PET_COLUMNS[profile], profile.startsWith('8') ? 80 : 40, profile);
-  }
-  const result = await buildPrg(frameIr(), { machine: 'pet', petProfile: '2001', outFile: 'x.prg' });
-  assert.equal(result.ok, false);
-  assert.match(result.error, /unknown pet profile '2001'/);
+test('DRIVER names one stock driver per 6502 machine', () => {
+  assert.deepEqual(Object.keys(DRIVER).sort(), ['atari8', 'c128', 'c64', 'cx16', 'mega65', 'nes', 'pet', 'vic20']);
+  assert.equal(DRIVER.atari8, 'mos-atari8-dos-clang');
 });
 
-test('buildPrg: a PET profile links for that machine\'s RAM — a 3008 build fits under 8K with its stack at the top', { skip: !HAS_SDK && 'LLVM_MOS_HOME not set' }, async () => {
+test('buildPrg: the hardware\'s link symbols reach the linker — a 3008 PET build fits under 8K with its stack at the top', { skip: !HAS_SDK && 'LLVM_MOS_HOME not set' }, async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-test-'));
   try {
     const outFile = join(scratch, 'm.prg');
-    const result = await buildPrg(frameIr(), { machine: 'pet', petProfile: '3008', outFile });
+    const result = await buildPrg(frameIr(), { machine: 'pet', hardware: PET_3008, outFile });
     assert.ok(result.ok, result.error);
     const prg = await readFile(outFile);
     assert.equal(prg[0], 0x01); // load address $0401, behind the BASIC SYS stub
@@ -392,24 +391,20 @@ test('buildPrg: a PET profile links for that machine\'s RAM — a 3008 build fit
   }
 });
 
-test('ATARI8_PROFILES lists exactly the six documented hardware profiles', () => {
-  assert.deepEqual([...ATARI8_PROFILES].sort(), ['130xe', '400', '65xe', '800', '800xl', 'xegs']);
-});
-
 for (const [machine, opts] of [
   ['pet', {}],
   ['c128', {}],
   ['mega65', {}],
   ['cx16', {}],
   ['nes', {}],
-  ['atari8', { atari8Profile: '800xl' }],
-  ['atari8', { atari8Profile: 'xegs' }],
+  ['atari8', {}],
+  ['atari8', { hardware: XEGS }],
 ]) {
-  const label = `${machine}${opts.atari8Profile ? `/${opts.atari8Profile}` : ''}`;
+  const label = `${machine}${opts.hardware ? `/${opts.hardware.label}` : ''}`;
   test(`buildPrg: a waitFrame() program compiles for real on ${label}`, { skip: !HAS_SDK && 'LLVM_MOS_HOME not set' }, async () => {
     const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-test-'));
     try {
-      const ext = outputExtension(machine, opts.atari8Profile);
+      const ext = outputExtension(machine, opts.hardware);
       const outFile = join(scratch, `m.${ext}`);
       const result = await buildPrg(frameIr(), { machine, outFile, ...opts });
       assert.ok(result.ok, result.error);

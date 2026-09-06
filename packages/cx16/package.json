@@ -9,6 +9,89 @@
     "exports": {
       "./screen": "./src/screen.8bs",
       "./text": "./src/text.8bs"
+    },
+    "hardware": {
+      "options": {
+        "ram": {
+          "label": "Banked RAM",
+          "default": "512",
+          "values": {
+            "64": {
+              "label": "64 KiB of banked RAM",
+              "run": {
+                "x16emu": [
+                  "-ram",
+                  "64"
+                ]
+              },
+              "facts": {
+                "memory.bankedKib": 64
+              }
+            },
+            "128": {
+              "label": "128 KiB of banked RAM",
+              "run": {
+                "x16emu": [
+                  "-ram",
+                  "128"
+                ]
+              },
+              "facts": {
+                "memory.bankedKib": 128
+              }
+            },
+            "256": {
+              "label": "256 KiB of banked RAM",
+              "run": {
+                "x16emu": [
+                  "-ram",
+                  "256"
+                ]
+              },
+              "facts": {
+                "memory.bankedKib": 256
+              }
+            },
+            "512": {
+              "label": "512 KiB of banked RAM",
+              "run": {
+                "x16emu": [
+                  "-ram",
+                  "512"
+                ]
+              },
+              "facts": {
+                "memory.bankedKib": 512
+              }
+            },
+            "1024": {
+              "label": "1024 KiB of banked RAM",
+              "run": {
+                "x16emu": [
+                  "-ram",
+                  "1024"
+                ]
+              },
+              "facts": {
+                "memory.bankedKib": 1024
+              }
+            },
+            "2048": {
+              "label": "2048 KiB of banked RAM",
+              "run": {
+                "x16emu": [
+                  "-ram",
+                  "2048"
+                ]
+              },
+              "facts": {
+                "memory.bankedKib": 2048
+              }
+            }
+          }
+        }
+      },
+      "presets": {}
     }
   },
   "files": [

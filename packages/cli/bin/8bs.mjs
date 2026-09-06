@@ -7,27 +7,28 @@
 // under the cursor.
 const [, , command, ...rest] = process.argv;
 
-const IMPLEMENTED = new Set(['check', 'lsp', 'doctor', 'build', 'run', 'setup']);
+const IMPLEMENTED = new Set(['check', 'lsp', 'doctor', 'build', 'run', 'setup', 'targets']);
 const PLANNED = ['dev'];
 
 const usage = () => `Usage: 8bs <command> [options]
 
 Implemented:
-  build --target <t> [--pal] [--profile <p>]
-    [entry]                   Compile for a target: vic20, c64, pet, c128,
+  build --target <t> [--pal] [--profile <name>]
+    [--hardware option=value,...] [entry]
+                               Compile for a target: vic20, c64, pet, c128,
                                atari8, nes, cx16, mega65, or web. vic20/c64/
-                               pet/c128/mega65/atari8 default to NTSC (60Hz)
-                               at run time; --pal selects the PAL (50Hz)
-                               machine model (for pet, a 3032 NTSC / 4032
-                               PAL; the .prg itself is the same). --profile
-                               is a hardware profile, meaning differs by
-                               target: atari8
-                               picks the machine (800xl default, 65xe, 130xe,
-                               800, 400, xegs), vic20 picks a RAM expansion
-                               (unexpanded default, 3k, 8k, 16k, 24k), c64
-                               picks a REU (stock default, reu128, reu256,
-                               reu512, reu1m, reu2m, reu4m, reu8m, reu16m).
-  run <target> [--pal] [--profile <p>] [entry]
+                               c128/mega65/atari8 default to NTSC (60Hz) at
+                               run time; --pal selects the PAL (50Hz)
+                               machine model (the pet has no region: its
+                               model is hardware). --profile names the
+                               hardware fitted — a preset from the machine's
+                               catalog (8032, 130xe, reu512) or a profile the
+                               project composes in 8bs.config.ts — and
+                               --hardware sets single options on top
+                               (ram=8k, port1=mouse1351). "8bs targets"
+                               lists every option, value and preset.
+  run <target> [--pal] [--profile <name>]
+    [--hardware option=value,...] [entry]
                                Build, then open that target's emulator
                                (VICE for vic20/c64/pet/c128, atari800,
                                fceux, x16emu, or Xemu for mega65) at the
@@ -40,6 +41,10 @@ Implemented:
                                --frames means a different unit per target
                                (cycles, wall-clock seconds, or exact
                                frame-advances); omit it for a tested default.
+  targets [--json]             List every target and the hardware it can be
+                               fitted with — options, values, presets, and
+                               this project's own profiles; --json is what
+                               the editor reads
   check <files...>             Report diagnostics for 8BitScript source files
   doctor                       Verify the toolchains every target needs
   setup <target>               Install/configure what a target needs beyond
@@ -93,6 +98,11 @@ if (command === 'build') {
 if (command === 'run') {
   const { run } = await import('../src/run.mjs');
   process.exit(await run(rest));
+}
+
+if (command === 'targets') {
+  const { targets } = await import('../src/targets.mjs');
+  process.exit(await targets(rest));
 }
 
 if (command === 'setup') {

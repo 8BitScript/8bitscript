@@ -1,10 +1,11 @@
-// @8bitscript/vic20 across its profiles: one surface (screen.8bs, text.8bs),
-// one geometry file with 8k/16k/24k versions beside it, and the build's
-// profile deciding where the screen is. The real package, through the real
-// pnpm-linked node_modules, the way the borders example resolves it.
+// @8bitscript/vic20 across its RAM options: one surface (screen.8bs,
+// text.8bs), one geometry file with an `expanded` twin beside it, and the
+// build's hardware tags — from the package's own catalog — deciding where
+// the screen is. The real package, through the real pnpm-linked
+// node_modules, the way the borders example resolves it.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -15,10 +16,23 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const BORDERS_MAIN = join(HERE, '..', '..', '..', 'examples', 'proof-of-concept', 'borders', 'src', 'main.8bs');
 const VIC20_SRC = join(HERE, '..', '..', 'vic20', 'src');
 
-const linked = (profile) => {
+// The tags a `ram` value carries, read from the catalog the way the CLI
+// reads it (packages/cli/src/hardware.mjs): the value's `tag` if it names
+// one, else its own name, and none for the option's default.
+const CATALOG = JSON.parse(readFileSync(join(VIC20_SRC, '..', 'package.json'), 'utf8'))['8bitscript'].hardware;
+const tagsFor = (ram) => {
+  if (ram === undefined) return [];
+  const option = CATALOG.options.ram;
+  const entry = option.values[ram];
+  assert.ok(entry, `${ram} is a ram value`);
+  if (Object.hasOwn(entry, 'tag')) return entry.tag === null ? [] : [entry.tag];
+  return ram === option.default ? [] : [ram];
+};
+
+const linked = (ram) => {
   const src = readFileSync(BORDERS_MAIN, 'utf8');
-  const { ir, diagnostics } = link(src, BORDERS_MAIN, { machine: 'vic20', profile });
-  assert.deepEqual(diagnostics, [], profile);
+  const { ir, diagnostics } = link(src, BORDERS_MAIN, { machine: 'vic20', tags: tagsFor(ram) });
+  assert.deepEqual(diagnostics, [], String(ram));
   return emitC(ir, { machine: 'vic20' });
 };
 
@@ -35,7 +49,7 @@ const expectGeometry = (c, where, label) => {
 };
 
 test('unexpanded and 3k draw at $1E00/$9600 with $9005 = $F0; 8k, 16k and 24k at $1000/$9400 with $C0', () => {
-  for (const profile of [undefined, 'unexpanded', '3k']) {
+  for (const profile of [undefined, 'none', '3k']) {
     const c = linked(profile);
     expectGeometry(c, UNEXPANDED, String(profile));
     assert.doesNotMatch(c, /\(4096 \+ /, `${profile}: no expanded screen base`);
@@ -49,26 +63,27 @@ test('unexpanded and 3k draw at $1E00/$9600 with $9005 = $F0; 8k, 16k and 24k at
 });
 
 test('the screen is still 22 x 23 on every profile: only where it is changes', () => {
-  for (const profile of ['unexpanded', '8k']) {
+  for (const profile of ['none', '8k']) {
     assert.match(linked(profile), /cell < 506/, profile);
   }
 });
 
-test('the three expanded geometry files declare the same namespace, and it differs from the base file only where the screen is', () => {
+test('the 8k, 16k and 24k values share one `expanded` tag, and the one expanded geometry file differs from the base only where the screen is', () => {
+  for (const ram of ['8k', '16k', '24k']) assert.deepEqual(tagsFor(ram), ['expanded'], ram);
+  assert.deepEqual(tagsFor('3k'), ['3k']);
+  assert.deepEqual(tagsFor('none'), []);
+  const twins = readdirSync(VIC20_SRC).filter((f) => f.startsWith('geometry.'));
+  assert.deepEqual(twins.sort(), ['geometry.8bs', 'geometry.vic20.expanded.8bs']);
+
   const namespaceOf = (file) => {
     const text = readFileSync(join(VIC20_SRC, file), 'utf8');
     const start = text.indexOf('export namespace Video');
     assert.ok(start >= 0, `${file}: has a Video namespace`);
     return text.slice(start).replace(/\/\/[^\n]*/g, '').replace(/\s+/g, ' ').trim();
   };
-  const [eight, sixteen, twentyFour] = ['geometry.vic20.8k.8bs', 'geometry.vic20.16k.8bs', 'geometry.vic20.24k.8bs'].map(namespaceOf);
-  assert.equal(sixteen, eight);
-  assert.equal(twentyFour, eight);
-
-  const base = namespaceOf('geometry.8bs');
   const values = (ns) => Object.fromEntries([...ns.matchAll(/const (\w+): \w+ = (0x[0-9A-Fa-f]+|\d+);/g)].map(([, name, v]) => [name, Number(v)]));
-  const b = values(base);
-  const e = values(eight);
+  const b = values(namespaceOf('geometry.8bs'));
+  const e = values(namespaceOf('geometry.vic20.expanded.8bs'));
   assert.deepEqual(Object.keys(b), Object.keys(e));
   assert.deepEqual([b.SCREEN, b.COLOR, b.MEMORY_POINTER_UPPERCASE], [0x1E00, 0x9600, 0xF0]);
   assert.deepEqual([e.SCREEN, e.COLOR, e.MEMORY_POINTER_UPPERCASE], [0x1000, 0x9400, 0xC0]);

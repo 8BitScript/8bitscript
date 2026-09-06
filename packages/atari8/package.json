@@ -9,6 +9,174 @@
     "exports": {
       "./screen": "./src/screen.8bs",
       "./text": "./src/text.8bs"
+    },
+    "hardware": {
+      "options": {
+        "model": {
+          "label": "Model",
+          "default": "800xl",
+          "values": {
+            "800xl": {
+              "label": "800XL: 64K",
+              "run": {
+                "atari800": [
+                  "-xl"
+                ]
+              }
+            },
+            "65xe": {
+              "label": "65XE: 64K (an 800XL electrically)",
+              "run": {
+                "atari800": [
+                  "-xl"
+                ]
+              }
+            },
+            "130xe": {
+              "label": "130XE: 64K + 64K banked",
+              "run": {
+                "atari800": [
+                  "-xe"
+                ]
+              },
+              "facts": {
+                "memory.banked": true,
+                "memory.bankedKib": 64
+              }
+            },
+            "800": {
+              "label": "800: 48K, OS-B, four ports",
+              "run": {
+                "atari800": [
+                  "-atari"
+                ]
+              }
+            },
+            "400": {
+              "label": "400",
+              "run": {
+                "atari800": [
+                  "-atari"
+                ]
+              }
+            },
+            "xegs": {
+              "label": "XEGS: a 256 KiB bank-switched cartridge, not a DOS executable",
+              "run": {
+                "atari800": [
+                  "-xegs"
+                ]
+              },
+              "build": {
+                "driver": "mos-atari8-cart-xegs-clang",
+                "output": "rom"
+              },
+              "load": {
+                "atari800": [
+                  "-cart",
+                  "{out}",
+                  "-cart-type",
+                  "23"
+                ]
+              },
+              "facts": {
+                "memory.ram": 6400
+              }
+            }
+          }
+        },
+        "mouse": {
+          "label": "Mouse",
+          "default": "none",
+          "values": {
+            "none": {
+              "label": "None",
+              "run": {
+                "atari800": [
+                  "-mouse",
+                  "off"
+                ]
+              }
+            },
+            "st": {
+              "label": "Atari ST mouse",
+              "run": {
+                "atari800": [
+                  "-mouse",
+                  "st"
+                ]
+              },
+              "facts": {
+                "input.mouse": true
+              }
+            },
+            "amiga": {
+              "label": "Amiga mouse",
+              "run": {
+                "atari800": [
+                  "-mouse",
+                  "amiga"
+                ]
+              },
+              "facts": {
+                "input.mouse": true
+              }
+            },
+            "trak": {
+              "label": "Atari CX-22 Trak-Ball",
+              "run": {
+                "atari800": [
+                  "-mouse",
+                  "trak"
+                ]
+              },
+              "facts": {
+                "input.mouse": true
+              }
+            }
+          }
+        },
+        "stereo": {
+          "label": "Second POKEY",
+          "default": "off",
+          "values": {
+            "off": {
+              "label": "One POKEY"
+            },
+            "on": {
+              "label": "Two POKEYs (stereo)",
+              "run": {
+                "atari800": [
+                  "-stereo"
+                ]
+              },
+              "facts": {
+                "audio.voices": 8
+              }
+            }
+          }
+        }
+      },
+      "presets": {
+        "800xl": {
+          "model": "800xl"
+        },
+        "65xe": {
+          "model": "65xe"
+        },
+        "130xe": {
+          "model": "130xe"
+        },
+        "800": {
+          "model": "800"
+        },
+        "400": {
+          "model": "400"
+        },
+        "xegs": {
+          "model": "xegs"
+        }
+      }
     }
   },
   "files": [
