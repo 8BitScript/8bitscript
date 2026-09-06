@@ -43,6 +43,8 @@ const {
   withShipped,
 } = require('./projects.cjs');
 const settings = require('./settings.cjs');
+const { selectionLabel, parseTargets } = require('./hardwareCatalog.cjs');
+const { execFile } = require('child_process');
 
 const { regionLabel, regionShort } = settings;
 
@@ -189,7 +191,8 @@ function taskEnv() {
  * person would write in tasks.json.
  */
 function makeTask(project, action, target, region) {
-  const args = commandArgs(action, target, region);
+  const hardware = settings.getHardware(target);
+  const args = commandArgs(action, target, region, hardware);
   const pal = region === 'pal' && MACHINE_TARGETS.has(target);
   const definition = {
     type: TASK_TYPE,
@@ -199,7 +202,10 @@ function makeTask(project, action, target, region) {
     ...(target ? { target } : {}),
     ...(pal ? { pal: true } : {}),
   };
-  const suffix = target ? ` ${target}${MACHINE_TARGETS.has(target) ? ` (${regionShort(region)})` : ''}` : '';
+  const fitted = selectionLabel(hardware);
+  const suffix = target
+    ? ` ${target}${MACHINE_TARGETS.has(target) ? ` (${regionShort(region)})` : ''}${fitted ? ` ${fitted}` : ''}`
+    : '';
   const name = `${project.name}: ${action}${suffix}`;
   const task = new vscode.Task(
     definition,
@@ -250,6 +256,42 @@ class ProjectsProvider {
    * with the toolchain (always — they are the point of shipping them), and
    * its proofs of concept when the checkbox asks for them.
    */
+  /**
+   * What `8bs targets --json` says, asked of the first project with a
+   * toolchain (the catalogs are the toolchain's; a project's own profiles
+   * are that project's), cached until the next refresh. Null when no
+   * toolchain can be found or the command fails — the controls view then
+   * shows the fixed target list and no hardware.
+   *
+   * @returns {Promise<Map<string, object>|null>}
+   */
+  async loadTargets() {
+    if (this.targetsPromise) return this.targetsPromise;
+    const project = this.visible.find((p) => p.toolchain) ?? this.all.find((p) => p.toolchain);
+    if (!project) return null;
+    this.targetsPromise = new Promise((resolvePromise) => {
+      execFile(
+        project.toolchain,
+        ['targets', '--json'],
+        { cwd: project.dir, env: { ...process.env, ...taskEnv() }, maxBuffer: 4 * 1024 * 1024 },
+        (error, stdout) => {
+          if (error) {
+            this.output?.appendLine(`8bs targets --json failed: ${error.message}`);
+            resolvePromise(null);
+            return;
+          }
+          try {
+            resolvePromise(parseTargets(stdout));
+          } catch (parseError) {
+            this.output?.appendLine(`8bs targets --json: unreadable output: ${parseError.message}`);
+            resolvePromise(null);
+          }
+        },
+      );
+    });
+    return this.targetsPromise;
+  }
+
   get visible() {
     const shipped = settings.getShowExamples() ? [...this.proofs, ...this.apps] : this.apps;
     return withShipped(this.projects, shipped);
@@ -273,6 +315,7 @@ class ProjectsProvider {
   async refresh() {
     const found = await vscode.workspace.findFiles(`**/${CONFIG_FILE}`, SEARCH_EXCLUDE);
     this.projects = loadProjects(found.map((uri) => uri.fsPath));
+    this.targetsPromise = undefined;
     const shipped = this.discoverShipped();
     this.proofs = shipped.proofs;
     this.apps = shipped.apps;
@@ -413,6 +456,7 @@ class ProjectsProvider {
       !project.toolchain && 'toolchain not installed',
       project.toolchain && !project.installed && 'not installed',
       pinned && MACHINE_TARGETS.has(target) && regionLabel(region),
+      pinned && selectionLabel(settings.getHardware(target)),
       whereLabel(project),
     ]
       .filter(Boolean)
@@ -429,7 +473,7 @@ class ProjectsProvider {
         `Directory: \`${project.dir}\``,
         `Entry: \`${path.relative(project.dir, project.entry)}\``,
         `Targets: ${project.targets.join(', ')}`,
-        pinned ? `Run: \`8bs ${commandArgs('run', target, region).join(' ')}\`` : '',
+        pinned ? `Run: \`8bs ${commandArgs('run', target, region, settings.getHardware(target)).join(' ')}\`` : '',
         project.toolchain
           ? `Toolchain: \`${project.toolchain}\``
           : `Toolchain: **not installed** — run \`${project.packageManager} install\` in the project.`,
@@ -473,7 +517,7 @@ class ProjectsProvider {
     const region = settings.getRegion();
     item.description = running ? 'running' : machine ? regionLabel(region) : '';
     item.iconPath = running ? new vscode.ThemeIcon('loading~spin') : targetIcon(target);
-    item.tooltip = `8bs ${commandArgs('run', target, region).join(' ')}`;
+    item.tooltip = `8bs ${commandArgs('run', target, region, settings.getHardware(target)).join(' ')}`;
     return item;
   }
 

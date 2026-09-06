@@ -112,6 +112,7 @@ function activate(context) {
   registerControlsView(context, {
     hasExamples: () => projects.hasExamples(),
     onDidChange: projects.onDidChangeTreeData,
+    loadTargets: () => projects.loadTargets(),
   });
 
   tryStart();

@@ -390,6 +390,28 @@
           "type": "string",
           "default": "",
           "description": "The LLVM-MOS SDK directory (the one containing bin/), passed to every 8bs task as LLVM_MOS_HOME. Leave empty to use the LLVM_MOS_HOME the editor was started with, or failing that the documented install location, ~/.local/opt/llvm-mos. Set this when 8bs doctor from the side bar says LLVM_MOS_HOME is not set but your terminal has it: a task’s shell does not read ~/.zshrc."
+        },
+        "8bitscript.hardware": {
+          "type": "object",
+          "default": {},
+          "description": "The hardware fitted to each system when the Run and Build buttons run it: an object keyed by system, each `{ profile, options }` — a profile name (a preset from the machine's catalog, or one the project composes in its 8bs.config.ts) and option values set on top, passed as --profile and --hardware. Set from the Hardware controls in the 8BitScript side bar; `8bs targets` lists what each system can be fitted with.",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "profile": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "options": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            }
+          }
         }
       }
     },

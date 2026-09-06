@@ -1,10 +1,12 @@
-// The three choices the side bar's dropdowns control, kept as ordinary
-// settings so they also show up in the Settings editor, survive restarts, and
-// can be set per workspace. Everything that runs a project reads them from
+// The choices the side bar's controls make — system, region, view, and
+// the hardware fitted per system — kept as ordinary settings so they also
+// show up in the Settings editor, survive restarts, and can be set per
+// workspace. Everything that runs a project reads them from
 // here, so the Run button on any row means the same thing the dropdowns say.
 const vscode = require('vscode');
 
 const { ALL_TARGETS } = require('./projects.cjs');
+const { normalizeSelection } = require('./hardwareCatalog.cjs');
 
 const SECTION = '8bitscript';
 
@@ -72,9 +74,32 @@ function getExamplesPath() {
   return typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
 }
 
-/** True when a change event touches any of the three settings. */
+/**
+ * The hardware fitted to one system when it is run: `{ profile, options }`
+ * from the `hardware` setting, an object keyed by system. Stock when
+ * nothing is stored.
+ *
+ * @param {string} system
+ * @returns {{ profile: string|null, options: Record<string, string> }}
+ */
+function getHardware(system) {
+  const all = config().get('hardware');
+  return normalizeSelection(all && typeof all === 'object' ? all[system] : undefined);
+}
+
+/** Store one system's hardware selection, leaving the others as they are. */
+async function setHardware(system, selection) {
+  const all = config().get('hardware');
+  const next = { ...(all && typeof all === 'object' ? all : {}) };
+  const normalized = normalizeSelection(selection);
+  if (!normalized.profile && Object.keys(normalized.options).length === 0) delete next[system];
+  else next[system] = normalized;
+  await update('hardware', next);
+}
+
+/** True when a change event touches any of the run settings. */
 function affectsAny(event) {
-  return ['region', 'system', 'projectsView'].some((key) =>
+  return ['region', 'system', 'projectsView', 'hardware'].some((key) =>
     event.affectsConfiguration(`${SECTION}.${key}`),
   );
 }
@@ -94,12 +119,14 @@ module.exports = {
   VIEW_MODES,
   affectsAny,
   getExamplesPath,
+  getHardware,
   getRegion,
   getShowExamples,
   getSystem,
   getViewMode,
   regionLabel,
   regionShort,
+  setHardware,
   setRegion,
   setShowExamples,
   setSystem,
