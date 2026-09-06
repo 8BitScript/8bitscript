@@ -28,7 +28,7 @@ function getRegion() {
   return config().get('region') === 'pal' ? 'pal' : 'ntsc';
 }
 
-/** @returns {'vic20' | 'c64' | 'web'} */
+/** @returns {string} one of ALL_TARGETS */
 function getSystem() {
   const value = config().get('system');
   return ALL_TARGETS.includes(value) ? value : ALL_TARGETS[0];

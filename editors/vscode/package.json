@@ -350,10 +350,16 @@
           "enum": [
             "vic20",
             "c64",
+            "pet",
+            "c128",
+            "atari8",
+            "nes",
+            "cx16",
+            "mega65",
             "web"
           ],
           "default": "vic20",
-          "description": "The system the Run and Build buttons use, and the one the \"runnable\" projects view lists. Set from the System dropdown in the 8BitScript side bar."
+          "description": "The system the Run and Build buttons use, and the one the \"runnable\" projects view lists. Set from the System dropdown in the 8BitScript side bar. The list is the one 8bs build --target accepts; a system the toolchain cannot build yet shows in the side bar with 8bs doctor's verdict."
         },
         "8bitscript.projectsView": {
           "type": "string",
