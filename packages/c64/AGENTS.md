@@ -1,9 +1,10 @@
 # Writing Commodore 64 support for 8BitScript
 
 This file is for anyone — human or agent — touching `packages/c64`,
-`packages/backend-6502`'s `c64` entries (`C64_PROFILES`, `C64_REU_SIZE_KIB`,
-`FRAME_SYNC.c64`), `packages/cli`'s `x64sc` handling (`VICE_MODEL_ARGS.c64`,
-the REU flags), or the C64 rows of `docs/roadmap.md`, `docs/setup/vice.md`
+this package's hardware catalog (`package.json`, `"8bitscript".hardware`:
+the REU, the SID, the two control ports), `packages/backend-6502`'s
+`FRAME_SYNC.c64`, `packages/cli`'s `x64sc` handling (`VICE_MODEL_ARGS.c64`),
+or the C64 rows of `docs/roadmap.md`, `docs/setup/vice.md`
 and `packages/studio/AGENTS.md`. Read the root [`AGENTS.md`](../../AGENTS.md)
 first; the rules there apply to every target and are not repeated.
 [`packages/nes/AGENTS.md`](../nes/AGENTS.md), [`packages/cx16/AGENTS.md`](../cx16/AGENTS.md)
@@ -22,9 +23,11 @@ models. The C64 is a fourth case —
 
 The models (breadbin, C64C, SX-64, C64GS, Educator 64, the Japanese and
 Argentine boards) differ in chips and case, not in map: one build runs on
-all of them, and unlike the PET's models they are not profiles. The one
-`--profile` axis is the REU, an optional DMA peripheral. Region (PAL/NTSC)
-is a runtime fact the frame driver probes, not a build option.
+all of them, and unlike the PET's models they are not hardware options
+(see "Models are not profiles" below). What *is* fitted à la carte — the
+catalog's options — is the REU, the SID, and what is in each control
+port; none of them changes the build. Region (PAL/NTSC) is a runtime fact
+the frame driver probes, not a build option.
 
 ## What exists today
 
@@ -92,10 +95,15 @@ Do not describe more than this as working:
     `gateOn`/`release`, `play(voice, Note.X)`, `setFilter`, `reset`;
     `Waveform.*`, `Filter.*`, `Note.C0`–`Note.B6` over a PAL frequency
     table. The registers are write-only; the control bytes are shadowed.
-- **Profiles** (`C64_PROFILES`): `stock` (default) and `reu128`…`reu16m`.
-  A REU changes nothing about the build — it is eight registers at
-  `$DF00` and a DMA engine — so the profile only reaches `8bs run c64`
-  (`-reu -reusize`) and the output name. No transfer driver exists.
+- **Hardware** (the catalog in `package.json`): `ram` — `none` (default)
+  or `reu128`…`reu16m`, with presets `stock` and `reu…` of the same names;
+  `sid` — `6581` (default) or `8580` (`-sidmodel`); `port1`/`port2` —
+  `none`, `joystick`, `paddles`, `mouse1351` (`-controlport1device`
+  0/1/2/3; port 2 defaults to a joystick). A REU changes nothing about the
+  build — it is eight registers at `$DF00` and a DMA engine — so none of
+  these reaches the linker or the output name: each only fits x64sc the
+  same thing, and sets a fact (`memory.banked`, `input.mouse`). No REU
+  transfer driver exists.
 - `FRAME_SYNC.c64` (`packages/backend-6502`): a *level* driver — top half
   of the frame is `$D012 < 128` with `$D011` bit 7 clear (read in that
   order), the PAL probe is a raster line past 287 — and, since this work,
@@ -394,7 +402,10 @@ are wrong, misleading, or unverified:
 - One `.prg` runs on every model VICE lists and every real board; the
   chip differences (6581/8580 filter and volume click, 6567R56A's 262-line
   frame, the Drean's 65-cycle lines) are runtime facts a program may
-  notice and the build cannot select. `--profile` is the REU only. The
+  notice and the build cannot select. The catalog's options are the REU,
+  the SID, and the control ports, not the model: VICE's `-model` is how
+  `--pal` is expressed here, so a `model` option waits until region moves
+  into the catalog. The
   frame driver's NTSC figure is the 6567R8's; on an R56A the frame period
   is 1.9% off (262 × 64 against 263 × 65) and on a Drean under 1%
   (`docs/setup/vice.md`), which a future probe could fix by counting
@@ -451,7 +462,9 @@ packages/c64/src/sid.8bs             @8bitscript/c64/sid: voices, envelopes, fil
 packages/c64/package.json            "8bitscript".exports names the eight subpaths (screen, text, video, sprites, keyboard, keys, joystick, sid)
 packages/compiler/test/c64-package.test.mjs   layout consistency, registers, borders through the bank, each subpath's emitted C, keys vs VICE, the note table
 packages/compiler/test/borders-parity.test.mjs   the c64 row expects $D018 = 132
-packages/backend-6502/src/index.mjs  C64_PROFILES (REU), FRAME_SYNC.c64 (level driver, presync sei, PAL probe)
-packages/cli/src/run.mjs             x64sc, -model ntsc/c64, -reu -reusize
+packages/c64/package.json            "8bitscript".hardware: ram (REU), sid, port1, port2 — values, x64sc flags, facts, presets
+packages/backend-6502/src/index.mjs  FRAME_SYNC.c64 (level driver, presync sei, PAL probe)
+packages/cli/src/run.mjs             x64sc, -model ntsc/c64, the catalog's flags appended
+packages/cli/src/hardware.mjs        how a build's hardware is resolved from the catalog
 docs/setup/vice.md                   the x64sc -model table
 ```

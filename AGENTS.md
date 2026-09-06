@@ -27,21 +27,25 @@ why NES is the first target where this stops being optional.
 
 ## Rules that apply to every target
 
-- **A "machine" and a "cartridge/media profile" are different axes.** This
-  repo already has the pattern: `ATARI8_PROFILES`, `VIC20_PROFILES`,
-  `C64_PROFILES`, and `PET_PROFILES` in `packages/backend-6502/src/index.mjs`
-  let one machine resolve to several build configurations. Any new
-  machine-specific storage, banking, or output-format question should extend
-  that pattern rather than invent a new one, and rather than being hardcoded
-  into the machine's base target the way NES's mapper currently is (see
-  [`packages/nes/AGENTS.md`](packages/nes/AGENTS.md)). When a profile changes
+- **A "machine" and the "hardware fitted to it" are different axes.** Each
+  machine package declares its hardware catalog in `package.json` under
+  `"8bitscript".hardware` — options with values (a RAM expansion, a
+  model, a cartridge board, a mouse in a port) and presets — and each value
+  says what fitting it changes: a link symbol or driver for the build, an
+  emulator's flags, a file-twin tag, facts a program can rely on
+  (`packages/cli/src/hardware.mjs` resolves a build's hardware from it;
+  `8bs targets` lists it; [`docs/systems.md`](docs/systems.md#three-axes-not-one)
+  is the design). Any new machine-specific storage, banking, or
+  output-format question is a new option or value in that catalog, never a
+  table in the backend or a constant in the machine's base target — the
+  NES's mapper is the one still hard-wired that way (see
+  [`packages/nes/AGENTS.md`](packages/nes/AGENTS.md)). When a value changes
   what a *package* must do — the PET's 8032 is 80 columns wide, an 8K+
-  VIC-20's screen is at `$1000` — the package
-  reads the difference from a profile-specific version of one small file
-  (`geometry.pet.8032.8bs` or `geometry.vic20.8k.8bs` beside `geometry.8bs`, see
+  VIC-20's screen is at `$1000` — the package reads the difference from
+  the value's tag's version of one small file (`geometry.pet.8032.8bs`,
+  `geometry.vic20.expanded.8bs` beside `geometry.8bs`, see
   [`docs/packages.md`](docs/packages.md#system-specific-files)), never from a
-  runtime probe: the width is a property of the build. (see
-  [`packages/nes/AGENTS.md`](packages/nes/AGENTS.md)).
+  runtime probe: the width is a property of the build.
 - **Don't assume a framebuffer.** A target may be character-cell, tile/
   nametable, sprite/display-list, or bitmap based, or some mix. A portable
   drawing API has to describe intent (`sprites.place(...)`,

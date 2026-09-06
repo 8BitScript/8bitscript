@@ -199,10 +199,12 @@ with no machine in hand they take the portable file when it exists and
 accept the import as valid-but-target-dependent when it does not, just as
 they do for a conditional entry.
 
-The rule has one more level, for a machine's **hardware profiles** — the
-`--profile` a build is made with (`8bs build --target pet --profile 8032`;
-see the target's setup page for its list). A file named after the machine
-*and* the profile is that profile's version:
+The rule has one more level, for the **hardware** a build is made for —
+the options fitted from the machine package's catalog (`8bs build
+--target pet --profile 8032`, `--hardware ram=8k`; see
+[systems](systems.md#three-axes-not-one) and `8bs targets`). Every
+non-default value a build carries has a *tag*, one word, and a file named
+after the machine *and* a tag is that hardware's version:
 
 ```
 src/
@@ -211,20 +213,25 @@ src/
   geometry.pet.8032.8bs  the 80-column PET instead
 ```
 
-A PET build with `--profile 8032` reads `geometry.pet.8032.8bs`; a PET
-build with any other profile, or with none asked for (the default profile
-is still a profile), reads `geometry.pet.8bs`; every other machine reads
-`geometry.8bs`. The profile's name goes after the machine's, and is one
-word — the names a target's profile list uses. Explicitly naming one
-(`./geometry.pet.8032.8bs`) gets exactly that file, as with a machine's
-version. A file that exists only as a profile's version is `8BS3002` for
-the machine's other profiles, and the message names the versions that do
-exist. This is how a package keeps one surface and several geometries: a
+A PET build whose hardware carries the `8032` tag reads
+`geometry.pet.8032.8bs`; a PET build with any other model reads
+`geometry.pet.8bs`; every other machine reads `geometry.8bs`. The tag goes
+after the machine's name. By default a value's tag is its own name, and
+the option's default value has none; a catalog value may name a different
+tag when several values share what a file differs on — the VIC-20's 8k,
+16k and 24k values all carry the tag `expanded`, because the screen moves
+at 8K and does not move again, so one `geometry.vic20.expanded.8bs` serves
+all three. A build carries several tags at once (an 8032 PET with a SID
+card is `8032` and `sidcart`); a file with a version for each of two of
+them is `8BS3004`, and the resolver will not choose. Explicitly naming a
+version (`./geometry.pet.8032.8bs`) gets exactly that file, as with a
+machine's. A file that exists only as a tag's version is `8BS3002` for a
+build without that tag, and the message names the versions that exist.
+This is how a package keeps one surface and several geometries: a
 namespace const may be initialised from another module's const
 (`namespace text { const COLUMNS: utinyint = Video.COLUMNS; }`), so the
-surface reads a small geometry file and only that file has a profile's
-version (the PET's 80-column 8032, the VIC-20's screen at `$1000` once it has 8K
-or more: `geometry.vic20.8k.8bs`) — see [the compiler](compiler.md#namespace-what-a-poke-becomes-once-you-name-it).
+surface reads a small geometry file and only that file has a hardware
+version — see [the compiler](compiler.md#namespace-what-a-poke-becomes-once-you-name-it).
 
 No example in this repository needs one yet. `examples/proof-of-concept/borders` builds
 for all nine targets from one `src/main.8bs`, because the machine packages

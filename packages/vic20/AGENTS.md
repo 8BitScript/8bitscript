@@ -1,9 +1,9 @@
 # Writing Commodore VIC-20 support for 8BitScript
 
 This file is for anyone — human or agent — touching `packages/vic20`,
-`packages/backend-6502`'s `vic20` entries (`VIC20_PROFILES`,
-`VIC20_MEMORY_EXPANSION`, `FRAME_SYNC.vic20`), `packages/cli`'s `xvic`
-handling (`VIC20_MEMORY_ARG`, `VICE_MODEL_ARGS.vic20`, the `--screenshot`
+this package's hardware catalog (`package.json`, `"8bitscript".hardware`:
+`ram`, `port1`), `packages/backend-6502`'s `FRAME_SYNC.vic20`,
+`packages/cli`'s `xvic` handling (`VICE_MODEL_ARGS.vic20`, the `--screenshot`
 cycle counts), or the VIC-20 rows of `docs/roadmap.md`, `docs/setup/vice.md`
 and `packages/studio/AGENTS.md`. Read the root [`AGENTS.md`](../../AGENTS.md)
 first; the rules there apply to every target and are not repeated.
@@ -26,8 +26,9 @@ is; the VIC-20's changes where the *screen* is —
 
 The machine's variety is in *RAM expansion*, and that one axis moves the
 program's load address, the screen matrix, the colour RAM and the top of
-memory together: the five profiles are the five configurations the SDK's
-link script and VICE both accept, not a choice this project made.
+memory together: the `ram` option's five values are the five
+configurations the SDK's link script and VICE both accept, not a choice
+this project made.
 
 ## What exists today
 
@@ -49,23 +50,27 @@ Do not describe more than this as working:
 - `text.putChar(cell, code)` takes ASCII, converts to a screen code
   (`A`–`Z` → 1–26, 32–63 unchanged), writes `Video.SCREEN + cell`, and
   before every run of text stores `Video.MEMORY_POINTER_UPPERCASE` in
-  `$9005` — the value that names both this profile's screen base and the
+  `$9005` — the value that names both this hardware's screen base and the
   upper-case ROM. `putColor`/`place` write the low three bits of the colour
   to `Video.COLOR + cell` (bit 3 would make the cell multicolour).
-  `text.COLUMNS` is 22 and `text.CELL_COUNT` 506 on every profile. Writes
+  `text.COLUMNS` is 22 and `text.CELL_COUNT` 506 whatever RAM is fitted. Writes
   happen at any time; there is no vertical-blank queue and none is needed.
-- **Profiles** (`VIC20_PROFILES` in `packages/backend-6502`): `unexpanded`
-  (default), `3k`, `8k`, `16k`, `24k` — exactly the five
-  `__memory_expansion` values the SDK's `vic20/lib/link.ld` asserts on, and
-  exactly what `xvic -memory` takes (`none/3k/8k/16k/24k`). The profile
-  sets the link (`-Wl,--defsym=__memory_expansion=N`), the geometry file
-  the package reads (`geometry.8bs` for unexpanded and 3k — screen `$1E00`,
-  colour `$9600`, `$9005 = $F0`; the three identical twins
-  `geometry.vic20.8k.8bs`/`16k`/`24k` — screen `$1000`, colour `$9400`,
-  `$9005 = $C0`, held identical by
-  `packages/compiler/test/vic20-profiles.test.mjs`), and the `-memory`
-  flag `8bs run vic20` passes so the emulated RAM matches the link. A
-  non-default profile is in the output name (`main-vic20-8k-ntsc.prg`).
+- **Hardware** (the catalog in `package.json`): `ram` — `none` (default),
+  `3k`, `8k`, `16k`, `24k` — exactly the five `__memory_expansion` values
+  the SDK's `vic20/lib/link.ld` asserts on, and exactly what `xvic
+  -memory` takes (`none/3k/8k/16k/24k`); presets `unexpanded`, `3k`, `8k`,
+  `16k`, `24k` keep the old `--profile` names. A value sets the link (its
+  `build.defsym`, `__memory_expansion=N`), the geometry file the package
+  reads through its tag (`geometry.8bs` for none and 3k — screen `$1E00`,
+  colour `$9600`, `$9005 = $F0`; `geometry.vic20.expanded.8bs` for 8k, 16k
+  and 24k, which all carry the tag `expanded` — screen `$1000`, colour
+  `$9400`, `$9005 = $C0`; `packages/compiler/test/vic20-profiles.test.mjs`
+  holds the tags and the two files to this), the `-memory` flag `8bs run
+  vic20` passes so the emulated RAM matches the link, and a `memory.ram`
+  fact. A non-default value is in the output name
+  (`main-vic20-8k-ntsc.prg`). `port1` — `joystick` (default), `none`,
+  `paddles`, `mouse1351` (`-controlport1device`; the 1351 on a VIC-20 is
+  *to verify* on hardware, below).
 - `FRAME_SYNC.vic20` (`packages/backend-6502`) is a *level* driver on the
   VIC's raster counter: `$9004` holds bits 8–1 of the line and changes every
   second line, the top half of the frame is `$9004 < 64`, and `$9004 >= 140`
@@ -75,7 +80,7 @@ Do not describe more than this as working:
   KERNAL's IRQ alive — the jiffy clock, the keyboard scan and the cursor
   all keep running under a program that calls `waitFrame()`.
 - `8bs run vic20` launches `xvic -model vic20ntsc` (or `-model vic20pal`
-  with `--pal`) `-memory <profile> -autostartprgmode 1`; `--screenshot`
+  with `--pal`) `-memory <ram> -controlport1device <n> -autostartprgmode 1`; `--screenshot`
   goes through `-limitcycles`/`-exitscreenshot` at the region's real clock
   (`VICE_CLOCK_HZ.vic20`, 1022727/1108405) with a default of 14 000 000
   cycles — nearly three times the C64's, observed and not explained.
@@ -255,22 +260,24 @@ facts, and these are the ones that are wrong on this machine:
 
 ## Rules for this target
 
-### RAM is a profile, and it moves the screen
+### RAM is hardware, and it moves the screen
 
-- `VIC20_PROFILES` is the whole set: five, named as the community and
-  `xvic -memory` name them. A profile fixes the load address and region
+- The `ram` option is the whole set: five values, named as the community
+  and `xvic -memory` name them. A value fixes the load address and region
   (link script), the screen and colour base and the `$9005` value (the
-  geometry file's twin), and the emulator flag. All three come from one
-  `--profile`; a program never probes `$9002` or `$37/$38` at run time to
-  find its screen. A build for one profile on a machine of another draws
-  nowhere (`geometry.8bs` documents the exact failure).
-- New per-profile facts go the same way the geometry did: a profile's
-  version of one small file, read through a namespace const, never a copy
-  of a surface. The three expanded twins are identical by design and by
-  test; change one, change all three.
-- Block 5 (`$A000`) and `all` are not profiles: a program there is a
+  geometry file's tag twin), and the emulator flag. All three come from
+  one catalog entry; a program never probes `$9002` or `$37/$38` at run
+  time to find its screen. A build for one RAM on a machine of another
+  draws nowhere (`geometry.8bs` documents the exact failure).
+- The 8k, 16k and 24k values share the tag `expanded`, because a tag
+  names exactly what a file differs on — whether there is 8K or more —
+  and one `geometry.vic20.expanded.8bs` serves all three. New per-value
+  facts go the same way: a tag's version of one small file, read through
+  a namespace const, never a copy of a surface — or, for a number, a
+  `facts` entry on the value.
+- Block 5 (`$A000`) and `all` are not `ram` values: a program there is a
   cartridge, which the SDK has no link script for. If cartridge output
-  arrives it is a new profile axis (media), not a RAM size.
+  arrives it is a new option (media), not a RAM size.
 - The VIC's data — screen, colour, a RAM charset — lives only where the
   VIC can see it: the internal `$0000`–`$03FF` and `$1000`–`$1FFF`, and
   the ROM; not the 3K block, not the 8K blocks. The linker owns `$1001`
@@ -363,8 +370,8 @@ facts, and these are the ones that are wrong on this machine:
 - One `.prg` runs on every VIC-20 board and every `xvic -model`; the
   differences (PAL/NTSC VIC, KERNAL revision, the Japanese character ROM)
   are runtime facts. `--pal` is the emulator's region, not a build option.
-  The `vic21` model is a 16K NTSC machine and is what `--profile 16k
-  --ntsc` already builds for.
+  The `vic21` model is a 16K NTSC machine and is what `--hardware ram=16k`
+  on NTSC already builds for.
 
 ## Seeing the screen without a human at xvic
 
@@ -383,15 +390,16 @@ and `$9002` named.
 ```
 packages/vic20/src/index.8bs            target package: vicColor ($900F), memoryPointer ($9005)
 packages/vic20/src/geometry.8bs         Video.SCREEN/COLOR/MEMORY_POINTER_UPPERCASE/COLUMNS/ROWS/CELL_COUNT for unexpanded and 3k
-packages/vic20/src/geometry.vic20.8k.8bs    the 8k profile's version ($1000/$9400/$C0); .16k and .24k are identical twins
+packages/vic20/src/geometry.vic20.expanded.8bs    the `expanded` tag's version ($1000/$9400/$C0), for 8k, 16k and 24k alike
+packages/vic20/package.json             "8bitscript".hardware: ram (defsym, -memory, the expanded tag, memory.ram), port1; presets
 packages/vic20/src/screen.8bs           @8bitscript/vic20/screen: one packed register, BorderColor (8) and BackgroundColor (16)
 packages/vic20/src/text.8bs             @8bitscript/vic20/text: ASCII → screen code, colour nybble masked to 3 bits, 22 × 23
-packages/backend-6502/src/index.mjs     VIC20_PROFILES/VIC20_MEMORY_EXPANSION (link.ld's five values), FRAME_SYNC.vic20 ($9004 poll, no presync), commodoreCharsetGuard()
-packages/cli/src/run.mjs                VIC20_MEMORY_ARG (xvic -memory), VICE_MODEL_ARGS.vic20 (-model vic20ntsc/vic20pal)
+packages/backend-6502/src/index.mjs     STOCK_DEFSYM.vic20 (unexpanded when nothing is fitted), FRAME_SYNC.vic20 ($9004 poll, no presync), commodoreCharsetGuard()
+packages/cli/src/run.mjs                VICE_MODEL_ARGS.vic20 (-model vic20ntsc/vic20pal); the catalog's -memory and port flags appended
 packages/cli/src/screenshot.mjs         VICE_CLOCK_HZ.vic20, the 14 000 000-cycle default
-packages/compiler/test/vic20-profiles.test.mjs   every profile draws at its geometry; the three twins are identical
+packages/compiler/test/vic20-profiles.test.mjs   every ram value draws at its geometry; 8k/16k/24k share the expanded tag and one file
 packages/studio/src/main.8bs            Studio's basic tier when #system() == System.VIC20
-docs/setup/vice.md                      installing xvic; the RAM profiles table
+docs/setup/vice.md                      installing xvic; the ram option's table
 docs/roadmap.md                         Phase 1: the original hardware target
 $LLVM_MOS_HOME/mos-platform/vic20/      link.ld (__memory_expansion, the three regions), vic20.h/_vic.h/_6522.h, libcrt0.a (init-stack-memtop)
 vice/src/vic20/ (SourceForge trunk)     vic-cycle.c (the 14-bit address fix-up), vic-draw.c (multicolour order), vic20sound.c, vic20via1.c/vic20via2.c, vic20model.c, vic20-cmdline-options.c

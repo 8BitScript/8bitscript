@@ -122,14 +122,16 @@ Facts to actively correct if you see them stated otherwise:
 
 ## Rules for this target
 
-- **Cartridge/mapper is a target *profile*, not a language concept, and not
-  something `nes` alone determines.** This project already has the right
-  shape for that: `ATARI8_PROFILES`, `VIC20_PROFILES`, and `C64_PROFILES` in
-  `packages/backend-6502/src/index.mjs` each let one machine resolve to
-  several build configurations via `--profile`. NES doesn't have this yet —
-  `DRIVER.nes` is a single hardcoded string. Adding mapper selection means
-  following that existing pattern (an `NES_PROFILES` set, a default of
-  `'nrom'`, a `driverFor()` branch), not inventing a new mechanism.
+- **Cartridge/mapper is a hardware *option*, not a language concept, and
+  not something `nes` alone determines.** This project already has the
+  shape for that: every machine package's `"8bitscript".hardware` catalog
+  (`packages/cli/src/hardware.mjs` resolves it; `8bs targets` lists it).
+  The NES's catalog has one option, `mapper`, with one value, `nrom`,
+  carrying `build.driver: mos-nes-nrom-clang` and `storage.save: false`.
+  Adding a mapper is adding a value there — its SDK driver
+  (`mos-nes-mmc1-clang` and the rest exist), whether the font's `.chr_rom`
+  section still lands (unverified for any but NROM), its battery-SRAM
+  fact — not a table in the backend.
 - **Budget sprites per scanline, not just per frame.** Any future sprite/
   metasprite API or asset tooling must be able to answer "how many hardware
   sprites does this scene need on its worst scanline," not only "how many

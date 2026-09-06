@@ -38,12 +38,18 @@ where "if C64 then 40 columns" is wrong on a C128 in 80-column mode.
 
 - **Nine targets**, named the way `8bs build --target` accepts them:
   `vic20`, `c64`, `pet`, `c128`, `atari8`, `nes`, `cx16`, `mega65`, `web`.
-- **Profiles** on four of them (`--profile`): RAM expansions on the
-  VIC-20, models on the PET, REU sizes on the C64, output formats on the
-  Atari. A profile is a *build*: the linker script, the load address, the
-  screen's location, and which per-profile file a package reads
-  (`geometry.pet.8032.8bs`) all follow from it. The NES has no profiles
-  yet and is hard-wired to NROM; the X16, MEGA65, C128 and web have none.
+- **Hardware catalogs.** Every machine package declares, in its
+  `package.json` under `"8bitscript".hardware`, what can be fitted to
+  the machine: *options* with their values (a VIC-20's RAM expansion, a
+  C64's SID and its two control ports, a PET's model, an Atari's machine
+  and mouse, a C128's VDC RAM, an X16's banked RAM), and *presets*, the
+  community's names for whole configurations (`8032`, `130xe`,
+  `reu512`). Each value says what fitting it changes: a link symbol or
+  another driver for the build, the flags each emulator takes, the tag a
+  file twin is named with, and the facts a program can rely on. `8bs
+  targets` lists it all; `--profile <preset>` and `--hardware
+  option=value,...` choose; a project composes its own profiles in its
+  config. The MEGA65 and web catalogs are empty; the NES's has NROM only.
 - **Identity**: `#system()` is a compile-time builtin, like `#frames()`:
   the compiler replaces it with the number of the machine being built
   for. `@8bitscript/system` exports one `System` namespace naming those
@@ -71,37 +77,46 @@ Every question about "the hardware" is one of three, and they are answered
 in three different places:
 
 ```
-machine   --target c64        the chips: what the program can be written against
-profile   --profile reu512    the build: RAM, media, banking, columns, mapper
-region    --pal               the run: 50 or 60 Hz, which model the emulator boots
+machine    --target c64                          the chips: what the program can be written against
+hardware   --profile reu512                      what is fitted: RAM, a mouse, a model, a cartridge board
+           --hardware sid=8580,port1=mouse1351
+region     --pal                                 the run: 50 or 60 Hz, which model the emulator boots
 ```
 
 - The **machine** decides which packages exist and what their facts are.
-- The **profile** decides the numbers that change with the hardware fitted:
-  a PET is 40 or 80 columns wide, a VIC-20 has 5K or 29K, an NES cartridge
-  does or does not have CHR-RAM and battery SRAM. Profiles are named the
-  way that machine's community names them (`8032`, `130xe`, `mmc1`), never
-  by a generic "small/medium/large".
+- The **hardware** is everything fitted to the machine, à la carte, from
+  the machine package's catalog: each option is one thing a real machine
+  can have or lack, and each value says what it changes. Some change the
+  *build* — a PET model sets the RAM the program is linked for and the
+  columns its text package draws; an 8K VIC-20 moves the screen; an XEGS
+  cartridge is another driver and another output — and those are in the
+  output filename. Others change only the *run* — a REU, a SID, a mouse
+  in a port — and the emulator is fitted the same thing. All of them can
+  change the *facts*: a mouse in port 1 makes the pointer fact true. The
+  community's names for whole configurations are presets in the same
+  catalog (`8032`, `130xe`, `reu512`), and a project composes its own
+  named profiles from the same options. Options are named for the thing
+  fitted, never by a generic "small/medium/large".
 - The **region** decides nothing about the build. `waitFrame()` runs at the
   project's logical `frameRate` on either; `--pal` only chooses which real
-  machine the emulator pretends to be. A model difference that a build
-  cannot select (a 6581 against an 8580 SID) is a region-like run choice,
-  not a profile — see `packages/c64/AGENTS.md`, "Models are not profiles".
+  machine the emulator pretends to be. The C64 and C128 express region as
+  a VICE model (`-model c64` against `-model ntsc`), which is why a
+  `model` option for them waits until region itself moves into the
+  catalog — see `packages/c64/AGENTS.md`, "Models are not profiles".
 
-A fourth thing that looks like an axis is not one: **an optional
-peripheral** (a mouse, a second joystick, an expansion card) is a fact a
-program reads and a capability it imports, never a build. Whether a mouse
-is *present* is a runtime question the input capability answers; whether
-the machine *can have* one is a fact.
+Whether a mouse is *present* at run time is still the input capability's
+question to answer on the machine; whether the build was made for one is
+the hardware's fact, and that is what a program lays itself out by.
 
 ## Facts: what a build knows about itself
 
-Proposal. `@8bitscript/system` grows from one namespace to a fact sheet:
-each target package ships a `system.8bs` (with per-profile twins where a
-profile changes a number, the way `geometry.pet.8032.8bs` does today), and
-`@8bitscript/system` delegates to it by machine, exactly as `screen` and
-`text` delegate. The fact sheet is consts, so every fact is a compile-time
-number, and `8bs check` can validate every machine's sheet at once.
+Proposal, with the plumbing built: the catalog already carries facts per
+value (`video.columns` 80 on an 8032, `input.mouse` on a 1351 in a port,
+`memory.banked` with a REU), the CLI merges them for a build, and the
+result reaches the linker and the editor's panel. What is left is the
+program's side: a fact sheet of consts a program reads, generated for the
+build from those merged facts the way `#system()` is, so every fact is a
+compile-time number and `8bs check` can validate every machine's sheet.
 
 ```
 import { System, Video, Audio, Input, Storage, Memory } from "@8bitscript/system";
@@ -154,6 +169,7 @@ nothing. The proposed set, in the order Studio needs them:
 | `@8bitscript/text` | a cell grid of characters and a current colour | all nine | `COLUMNS`, `CELL_COUNT` |
 | `@8bitscript/input` | keys, sticks, pads, and a pointer, as *intent*: `input.left()`, `input.confirm()`, `input.pointerX()` | all nine (the NES answers from the pad; a machine without a pointer answers `pointerPresent() == false`) | `Input.*` |
 | `@8bitscript/canvas` | a work area of pseudo-pixels the program draws into, at a size and depth it asks for; the machine picks the unit (see [the display model](#the-display-model-units-not-pixels)) | every machine with glyphs, blocks, or a bitmap — that is all of them but the NROM NES | `canvas.MAX_WIDTH`, `MAX_HEIGHT`, `COLORS` |
+| `@8bitscript/bitmap` | the whole screen as pixels, where the hardware has a pixel mode: `bitmap.set(x, y, colour)`, `fill`, `line`, at the chip's own colour granularity | machines with a bitmap mode (C64, C128, Atari, X16, MEGA65, Plus/4, Apple II, BBC, Oric, Lynx, Supervision, Spectrum, CPC, MSX2); a build error on the PET, NES, VIC-20 | `Video.BITMAP`, `bitmap.WIDTH`, `HEIGHT`, `COLORS`, `CELL_COLORS` (how many colours one attribute cell may hold) |
 | `@8bitscript/tiles` | a scrolling layer of tile indices: `tiles.set(x, y, t)`, `tiles.scroll(x, y)`, `tiles.define(t, shape)` | machines with a tile or redefinable-character layer | `Video.GLYPHS`, `Video.SCROLL` |
 | `@8bitscript/actors` | moving objects: `actors.place(n, x, y)`, `setShape`, `hide`; coordinates from the visible top-left. Hardware sprites where they exist (C64, NES, X16, MEGA65), players and missiles on the Atari, the blitter on the Lynx, redrawn cells or glyphs on the PET, VIC-20, Plus/4, Apple II | all nine, and every roadmap machine | `actors.COUNT` (how many at once), `actors.PER_ROW` (how many may share a row: 8 on a C64, 8 on the NES, a handful on a PET before the frame is spent), `actors.WIDTH`, `HEIGHT`, `COLORS` |
 | `@8bitscript/palette` | name the colours a program uses, once, and let each machine map them | all nine (a fixed-palette machine maps to its nearest) | `Video.PALETTE` |
@@ -166,6 +182,17 @@ Under each capability the hardware layer stays available and machine-only:
 `@8bitscript/c64/sprites` is what `@8bitscript/actors` is built on for
 the C64, and a C64-only program may import it directly. The capability is
 never the only way in.
+
+The per-row number is the one a program most needs help with, so `actors`
+does more than publish it. Proposal: the tooling counts, and the runtime
+can be asked. The Studio preview counts the actors it is about to place
+on each row against `actors.PER_ROW` and marks a row that overflows before
+the hardware drops anything; a build made with a debug flag keeps the
+same count at run time and stops at the first overflow with the row
+number, and a release build does not carry the check. What the hardware
+does when it overflows differs — the NES drops the ninth, the C64 never
+has a ninth, a software implementation slows down — and the program
+should find out from the count, not from the picture.
 
 A capability's surface is designed on the machine that has the *least* of
 it, then checked against the one that has the most. `actors` is designed
@@ -391,9 +418,9 @@ repository.
 
 ## Project configuration
 
-Today `8bs.config.ts` lists targets as an array and the profile is a
-command-line flag. Proposal: `targets` may also be a map, and each entry
-says which profiles the project supports, first one default:
+`8bs.config.ts` lists targets as an array, or — the object form — as a
+map that composes hardware profiles per machine from the catalog's
+options:
 
 ```ts
 export default {
@@ -401,57 +428,55 @@ export default {
   frameRate: 60,
   targets: {
     cx16: {},
-    c64: { profiles: ['stock', 'reu512'] },
-    vic20: { profiles: ['8k', '16k', '24k'] },   // not unexpanded: the tileset needs the RAM
-    pet: { profiles: ['4032', '8032'] },
-    nes: { profiles: ['mmc1'] },                 // CHR-RAM and battery SRAM, once NES has profiles
+    c64: { profiles: { loaded: { ram: 'reu512', sid: '8580', port1: 'mouse1351' } } },
+    vic20: { profiles: { big: { ram: '24k' } } },
+    pet: { profiles: { wide: { model: '8032' } } },
     web: {},
   },
 };
 ```
 
-- The array form stays as shorthand for "every profile the machine has,
-  default first".
-- `--profile` on the command line overrides, and a profile the project
-  did not list is an error naming the ones it did, the way an unlisted
-  target is today.
-- The map is the *whole* statement of hardware support. There is no
-  separate RAM number: the profile is the RAM, the linker script enforces
-  it, and the build's memory line reports it. A program that fits the 8K
-  VIC-20 says so by listing `8k`, not by writing `ram: 8`.
-- A per-target `run` block carries run-time choices the CLI knows by name
-  (`model`, `sidModel`, `videoOutput`) and passes to the emulator — never
-  raw emulator flags, so the same config drives VICE, atari800, FCEUX,
-  x16emu, and xemu without knowing which.
+- The array form still means "these targets, stock hardware".
+- `--profile <name>` names one of the project's profiles or a catalog
+  preset; a project's name shadows a preset's, and the error for an
+  unknown name lists both. `--hardware option=value,...` sets single
+  options on top of whichever was chosen.
+- The profile is the whole statement of hardware. There is no separate
+  RAM number: an option's value is the RAM, the catalog knows what the
+  linker needs for it, and the build's memory line reports what fit. A
+  program that needs the 8K VIC-20 says so with `ram: '8k'`, and a build
+  for less fails with the linker's honest overflow message.
+- Nothing in the config names an emulator flag. What each value means to
+  each emulator is the catalog's, so the same profile drives VICE,
+  atari800, FCEUX, x16emu, and xemu.
+
+Still to build: a way for the editor to save a selection back into the
+config as a named profile (today the editor keeps ad-hoc selections in a
+workspace setting and passes them as `--hardware`).
 
 ## The editor
 
-The VS Code extension already has System and Region dropdowns and a
-Projects view; it should not have to know the nine names, and today it
-does (in `projects.cjs`, while its settings schema still lists three of
-them). Proposal:
+The VS Code extension asks the toolchain what exists and shows that; it
+lists no target, option, value, or preset of its own.
 
-- **`8bs targets --json`**: the CLI prints every target it can build, with
-  its title, its profiles (id, label, what the profile changes, which is
-  default), whether region applies, which emulator runs it, and whether
-  `8bs doctor` finds that emulator. The extension reads this once per
-  session and builds its dropdowns from it. A new machine in the CLI is a
+- **`8bs targets --json`** prints every target with its title, emulator,
+  whether region applies, its options (each value with its label, whether
+  it changes the build, its tag, its facts), its presets, and — run inside
+  a project — that project's own profiles. `8bs targets` without the flag
+  prints the same as a table. A new machine or option in a package is a
   new row in the editor with no extension release.
-- **A Profile dropdown** beside System and Region, filtered to what the
-  open project's `targets` map allows, passed as `--profile` to Run,
-  Build, and the screenshot task. The settings schema gains
-  `8bitscript.profile`, and the System enum is generated from the same
-  listing rather than hand-written.
-- **A capability panel** for the selected system and profile: the fact
-  sheet, read by linking a probe against `@8bitscript/system` the way
-  `packages/system/test` does, so the editor shows the same numbers the
-  program will fold. This is where "set the emulator up with the proper
-  settings" lives: choosing a profile in the panel *is* choosing the
-  emulator's RAM, model, and media, because the CLI maps one to the other
-  in one place (`packages/cli/src/run.mjs`).
-- **Debug launch settings** (`8bitscript.run.<target>`) for the run-time
-  choices the config's `run` block names, shown as dropdowns whose values
-  come from the listing.
+- **The Hardware controls** in the side bar: a profile dropdown (the
+  presets, and the open project's profiles) and one control per option,
+  showing the value each ends up with after the profile and the options
+  set on top, marked where a value changes the build. The selection is a
+  workspace setting keyed by system (`8bitscript.hardware`), every Run
+  and Build passes it as `--profile` and `--hardware`, the hint shows the
+  exact `8bs run` line, and a row's description names what is fitted.
+- **Still to build:** a facts panel — the numbers the program will see
+  for the selected hardware, from the same listing — and saving a
+  selection into the project's config as a named profile. Emulator model
+  choices that are region-coupled (which SID a C64 model has by default,
+  which VIC-II) stay on `--pal` until region moves into the catalog.
 
 ## What a new machine needs
 
@@ -461,7 +486,8 @@ of files, and adding a machine is writing them:
 
 ```
 packages/<machine>/
-  package.json          8bitscript.entry, .exports for each capability it has, .native
+  package.json          8bitscript.entry, .exports for each capability it has, .native,
+                        and .hardware: the catalog of options, values, and presets
   AGENTS.md             the verified hardware notes, in the shape the others use
   src/
     index.8bs           the registers and ports, named
@@ -477,10 +503,11 @@ packages/<machine>/
     storage.8bs
 ```
 
-plus one entry per capability manifest, one `FRAME_SYNC` and one driver
-entry in `packages/backend-6502`, one emulator entry in
-`packages/cli/src/run.mjs`, and a `docs/setup/<machine>.md`. Nothing in
-the compiler. That holds for every 6502-family machine on the
+plus one entry per capability manifest, one `FRAME_SYNC` and one stock
+driver in `packages/backend-6502`, one emulator entry (its name and how it
+takes a file) in `packages/cli/src/run.mjs`, and a
+`docs/setup/<machine>.md`. Nothing in the compiler, and nothing per
+option: what a RAM expansion or a mouse changes is the catalog's to say. That holds for every 6502-family machine on the
 roadmap. The Z80 family and the Game Boy are the exception the roadmap
 already expects (a second backend), and the research adds one thing they
 force on the *language*, not just the backend: every Z80 machine reaches

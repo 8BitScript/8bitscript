@@ -133,14 +133,17 @@ Every driver 8BitScript currently targets:
 | `mos-cx16-clang`               | Commander X16                        |
 | `mos-nes-nrom-clang`           | NES (NROM, the plainest mapper)      |
 | `mos-atari8-dos-clang`         | Atari 8-bit — 800XL/65XE/130XE/800/400 (`.xex`) |
-| `mos-atari8-cart-xegs-clang`   | Atari 8-bit — XEGS profile (cartridge ROM) |
+| `mos-atari8-cart-xegs-clang`   | Atari 8-bit — the XEGS cartridge (`model=xegs`) |
 
-Atari 8-bit is one target with several hardware profiles (`8bs build --target
-atari8 --profile <800xl\|65xe\|130xe\|800\|400\|xegs>`, 800XL by default)
-rather than six separate targets, because llvm-mos itself treats the whole
-400/800/XL/XE/XEGS lineage as one family sharing a memory map — a profile
-only changes which of the two drivers above runs, and which atari800 machine
-model `8bs run` launches.
+Atari 8-bit is one target whose machine is a hardware option (`8bs build
+--target atari8 --profile <800xl\|65xe\|130xe\|800\|400\|xegs>`, 800XL by
+default) rather than six separate targets, because llvm-mos itself treats
+the whole 400/800/XL/XE/XEGS lineage as one family sharing a memory map.
+The five `.xex` models build byte-identical programs and differ only in
+which atari800 model `8bs run` launches; the XEGS value is the second
+driver above, and with it a different load address (`$A000`, a fixed
+bank, with RAM only at `$0700`–`$1FFF`), a 6.25K RAM budget instead of
+40K, and a 256 KiB image.
 
 The SDK also ships drivers for machines outside this project's scope — the
 Atari 2600, the Atari 5200, other NES mappers (UNROM, MMC1, MMC3, and more),

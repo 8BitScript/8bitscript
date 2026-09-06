@@ -7,8 +7,9 @@ nav_order: 5
 
 [atari800](https://github.com/atari800/atari800) is the emulator 8BitScript
 targets for the Atari 8-bit family — the 400/800/XL/XE/XEGS lineage `8bs
-build --target atari8` compiles for (see [LLVM-MOS](llvm-mos.md) for the
-profile list). One binary covers every profile: `--model` picks the machine,
+build --target atari8` compiles for. Which machine is the `model`
+hardware option (`8bs targets` lists it, with a preset per model); one
+binary covers every model, since atari800's own flag picks the machine,
 not a separate install.
 
 ## macOS
@@ -73,11 +74,16 @@ attempt to verify a real boot the way the VIC-20 check on the VICE page does.
 8bs run atari8 --profile 130xe --pal
 ```
 
-`8bs run` maps each profile to atari800's own machine-model flag — verified
-against atari800's `DOC/USAGE`: `-atari` for 800/400, `-xl` for 800XL and
-65XE (electrically and OS-compatible, so they share a flag), `-xe` for
-130XE, `-xegs` for XEGS — plus `-run <file.xex>` for every profile except
-XEGS, which loads as a cartridge instead (`-cart <file.rom>`).
+The `model` option's values carry atari800's own machine-model flag —
+verified against atari800's `DOC/USAGE`: `-atari` for 800/400, `-xl` for
+800XL and 65XE (electrically and OS-compatible, so they share a flag),
+`-xe` for 130XE, `-xegs` for XEGS. Every model but the XEGS is a `.xex`
+handed over with `-run`; the XEGS value links a 256 KiB cartridge image
+with the SDK's XEGS driver and loads it with `-cart <file.rom> -cart-type
+23`, because a raw image of that size matches eight of atari800's
+cartridge types and without the type it stops at a menu. Two more
+options: `mouse` (`st`, `amiga`, `trak` in a joystick port, off by
+default) and `stereo` (a second POKEY).
 
 ## Next
 
