@@ -285,6 +285,7 @@ Implemented today:
 | `8BS2011` | Package does not export the requested subpath |
 | `8BS3001` | Valid construct the compiler cannot lower yet |
 | `8BS3002` | Construct not available on the requested target |
+| `8BS3004` | Two of a build's hardware tags each have their own version of a file (`x.pet.8032.8bs` and `x.pet.sidcart.8bs` on a build carrying both); the resolver will not pick |
 | `8BS3003` | Write the requested target documents as able to damage the machine — the PET's "killer poke" (`$E842` with bit 5 set); allowed only as a compile-time value with the bit clear |
 
 Module resolution landed in the 2000s before a binder exists because it needs

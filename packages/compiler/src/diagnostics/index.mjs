@@ -137,6 +137,9 @@ export const Codes = {
 
   NOT_COMPILABLE: '8BS3001',
   NOT_ON_THIS_TARGET: '8BS3002',
+  // Two of a build's hardware tags each have their own version of a file,
+  // and nothing says which wins (see the resolver's chooseVariant).
+  AMBIGUOUS_VARIANT: '8BS3004',
   // A write the requested target's own documentation says can damage the
   // machine — the PET's "killer poke" ($E842 with bit 5 set) is the one
   // entry (packages/compiler/src/linker/hazards.mjs). Reported by the

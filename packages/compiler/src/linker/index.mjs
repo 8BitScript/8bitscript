@@ -898,13 +898,14 @@ function checkEntryExports(module) {
  *
  * @param {string} entryText  The entry module's source.
  * @param {string} entryFile  Its absolute path, the root imports resolve from.
- * @param {{ machine?: string, profile?: string, frameRate?: number }} [options]
+ * @param {{ machine?: string, tags?: string[], profile?: string, frameRate?: number }} [options]
  *   `machine` is the target being built for; packages with target-
  *   conditional entries resolve to that machine's implementation, and any
  *   `.8bs` file with a `.<machine>.8bs` twin beside it resolves to the
- *   twin. `profile` is the machine's hardware profile (the build's
- *   `--profile`, default included): a `.<machine>.<profile>.8bs` twin is
- *   taken before the machine's own. `frameRate` (default 60) is the
+ *   twin. `tags` are the hardware tags the build carries (an 8032 PET, an
+ *   expanded VIC-20): a `.<machine>.<tag>.8bs` twin is taken before the
+ *   machine's own, and two tags each with a twin is `8BS3004`. The older
+ *   `profile` is accepted as one tag. `frameRate` (default 60) is the
  *   project's logical frame rate — see 8bs.config.ts — that every
  *   `#frames(...)` call in the graph folds against; `machine` is also what
  *   every `#system()` call folds to.
