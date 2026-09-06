@@ -75,6 +75,21 @@ PPUADDR/PPUDATA sequence must end with a scroll reset
 (`$2000 = 0`, `$2005 = 0` twice), or the next frame draws from wherever the
 address register was left.
 
+**The catalog's stock fact sheet** (`"8bitscript".hardware.facts` in
+`package.json`, what `Video.*` and the rest of `@8bitscript/system` fold
+to): grid 28×26 of 8×8 (the nametable's 32×30 less the inset `text`
+draws inside), 25 colours at once (four background and four sprite
+palettes of three, plus the backdrop), 3 per cell (a 16×16 attribute
+block's palette), no redefinable glyphs on NROM's CHR-ROM, no block
+glyphs, no bitmap, one layer (two nametables) with fine scroll; 64
+sprites, **8 per line**, 8×16, 3 colours; APU: two pulses, triangle,
+noise and DMC = 5 voices, hardware envelopes, samples on the DMC, a
+volume per pulse and noise, no filter or random source; no keyboard, two
+pad ports; nothing to save to on NROM (the `mapper` value's fact); 1536
+bytes of RAM for the program (`nes.ld`'s `ram`, `$0200`–`$07FF`, beside
+the zero page), nothing banked. Sources: `src/text.8bs`, the PPU and APU
+tables below, `$LLVM_MOS_HOME/mos-platform/nes/lib/nes.ld` (read).
+
 ## How the NES actually works (verify before you cite it)
 
 The PPU is not a framebuffer device. It assembles the picture every frame

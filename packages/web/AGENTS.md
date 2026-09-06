@@ -128,6 +128,7 @@ what to search for when they drift.
 | Output is `dist/<stem>.wasm` beside its generated `dist/<stem>.ts`, no target/region/profile suffix; the memory line is the source's declared counts. | `build.mjs:215-225, 262-268`, `memoryLine` (read); `built …/dist/main.wasm`, `memory: 4 bytes of RAM for variables, 23 bytes of constant data (as declared)` (ran) |
 | The checker's portable string set is space, `0`–`9`, `A`–`Z`, `! , - . : ?` — a subset of what the host draws (32–95). `text.putChar` takes any `utinyint`; the host decides what shows. | `packages/compiler/src/checker/index.mjs:68` (read) |
 | The web is the last of nine machines the resolver knows; `@8bitscript/screen` and `@8bitscript/text` map it to this package's two subpaths. | `packages/compiler/src/resolver/index.mjs:42`; `packages/screen/package.json`, `packages/web/package.json:9-12` (read) |
+| The catalog's stock fact sheet: grid 40×25 of 8×8, 16 colours, 2 per cell (its own foreground, the global background), no redefinable glyphs, no block glyphs (only codes 32–95 draw), no bitmap, one layer, no scroll, no sprites; no sound, keyboard, ports, pads, mouse or paddles, and nowhere to save — every one `0` or `false`, honestly, until the runtime grows them (see the proposal below); 57344 bytes (`0x0000`–`0xDFFF`, under the data base), nothing banked. The absence of a keyboard is why Studio is a viewer here. | `src/text.8bs`; the grid, font, memory and `--memoryBase` rows above; `package.json` (read) |
 
 ## The schema, as the runtime decides it today
 

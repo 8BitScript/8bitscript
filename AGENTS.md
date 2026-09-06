@@ -32,7 +32,11 @@ why NES is the first target where this stops being optional.
   `"8bitscript".hardware` — options with values (a RAM expansion, a
   model, a cartridge board, a mouse in a port) and presets — and each value
   says what fitting it changes: a link symbol or driver for the build, an
-  emulator's flags, a file-twin tag, facts a program can rely on
+  emulator's flags, a file-twin tag, facts a program can rely on — and
+  the catalog's top-level `facts` is the stock machine's whole sheet,
+  every key the compiler's `FACTS` table names, read by a program as
+  `#fact(...)` through `@8bitscript/system`'s `Video.*`, `Audio.*`,
+  `Input.*`, `Storage.*`, `Memory.*` consts
   (`packages/cli/src/hardware.mjs` resolves a build's hardware from it;
   `8bs targets` lists it; [`docs/systems.md`](docs/systems.md#three-axes-not-one)
   is the design). Any new machine-specific storage, banking, or

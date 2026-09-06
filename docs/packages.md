@@ -215,7 +215,15 @@ src/
 
 A PET build whose hardware carries the `8032` tag reads
 `geometry.pet.8032.8bs`; a PET build with any other model reads
-`geometry.pet.8bs`; every other machine reads `geometry.8bs`. The tag goes
+`geometry.pet.8bs`; every other machine reads `geometry.8bs`. The same
+value also changes the build's *facts*: a catalog's top-level `facts` is
+the stock machine's sheet and each value's `facts` is what fitting it
+changes, so `Video.COLUMNS` from `@8bitscript/system` is 80 on that build
+too, with no file of its own (see
+[systems](systems.md#facts-what-a-build-knows-about-itself)). A project
+whose PET is always the wide one says so in its config
+(`targets: { pet: { hardware: { model: '8032' } } }`) and never types the
+profile. The tag goes
 after the machine's name. By default a value's tag is its own name, and
 the option's default value has none; a catalog value may name a different
 tag when several values share what a file differs on — the VIC-20's 8k,
@@ -408,7 +416,7 @@ Only two kinds of package are meant for you:
 | ------- | ---- |
 | `@8bitscript/cli` | The `8bs` command. A dev dependency |
 | `@8bitscript/screen`, `@8bitscript/text` | The portable standard library, one package per capability: each resolves per target to that machine package's own implementation |
-| `@8bitscript/system` | One name per target (`System.C64`, `System.PET`, …) to compare the compiler's `#system()` with: `if (#system() == System.PET)`. Both sides are compile-time numbers, so the other machines' branches fold away — see [systems](systems.md) |
+| `@8bitscript/system` | The machine, by name and by fact: `System.C64`, `System.PET`, … to compare the compiler's `#system()` with, and the fact sheet — `Video.COLUMNS`, `Video.SPRITES`, `Audio.VOICES`, `Input.KEYBOARD`, `Storage.SAVE`, `Memory.RAM`, … — each one `#fact(...)` folded from the build's hardware. Every one is a compile-time constant, so a branch on another machine, or on hardware this build lacks, folds away — see [systems](systems.md#facts-what-a-build-knows-about-itself) |
 | `@8bitscript/vic20`, `@8bitscript/c64`, `@8bitscript/nes`, … `@8bitscript/web` | Target support, one per machine: the hardware underneath (registers, port protocols), plus that machine's `./screen` and `./text` subpaths, and any hardware-level subpath of its own (`@8bitscript/pet/keyboard`, `@8bitscript/pet/keys`; `@8bitscript/c64/sprites`, `/keyboard`, `/keys`, `/joystick`, `/sid`, `/video`) that a portable capability does not cover yet |
 
 The compiler, the language server, and the backends are internal:
