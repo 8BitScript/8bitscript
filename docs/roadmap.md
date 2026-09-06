@@ -7,8 +7,11 @@ nav_order: 2
 
 This page is the order in which 8BitScript takes on target machines, and why
 that order. It is a plan, not a status report: for what compiles today, see
-[the compiler](compiler.md). The only targets that exist right now are `web`,
-`vic20`, and `c64`.
+[the compiler](compiler.md). Nine targets build today — `web`, `vic20`,
+`c64`, `pet`, `c128`, `atari8`, `nes`, `cx16`, and `mega65` — with the
+two portable capabilities the [package model](packages.md) describes; how
+they are told apart, and how the rest of the machines below will be, is
+[the systems page](systems.md).
 
 ## The phases at a glance
 
@@ -202,15 +205,21 @@ maps, and it is still written in 8BitScript.
 Add: `apple2`, `plus4` (also covering the C16 and C116), `bbc-micro`, `oric`.
 
 These machines are attractive but less frictionless on the LLVM-MOS path than
-the earlier phases. cc65 officially supports the Apple II, BBC Micro, C16,
-Plus/4 and Oric Atmos, among many others.
+the earlier phases. cc65 supports the Apple II, C16, Plus/4 and Oric Atmos
+with a C library each; for the BBC Micro it ships only an assembler
+configuration, no library. The research for each of the four is in
+[machines on the roadmap](project/machines/index.md).
 
 The Apple II is here rather than in Phase 2 or 3 for a technical reason, not a
-philosophical one. As of September 2026, the LLVM-MOS SDK's Apple II ProDOS
-target is an open pull request under active development, not part of its
-supported-platform list. The options are to wait for that target to mature,
-contribute to it, write our own platform layer, or eventually support a second
-native backend such as cc65. None of that needs to complicate 8BitScript 0.1.
+philosophical one. The LLVM-MOS SDK's Apple II ProDOS target was an open pull
+request for most of 2026 and merged upstream on 2 September 2026 as a minimal
+ProDOS 8 `SYS` target (load at `$2000`, Monitor-routine stdio, no hires, aux
+memory, or 80 columns); the SDK revision `8bs setup` installs predates it.
+The options are to move to an SDK that has it, contribute the missing video
+support, write our own platform layer, or eventually support a second native
+backend such as cc65. None of the other three Phase 5 machines has an
+LLVM-MOS target at all, so each needs a platform written for it. None of
+that needs to complicate 8BitScript 0.1.
 
 ## Phase 6: specialist consoles
 

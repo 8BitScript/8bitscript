@@ -112,8 +112,24 @@ measures 8-bit software against: a video chip that reads one 16K bank of
 the same RAM the program lives in, eight real sprites, a synthesizer, and
 a linker that owns most of the address space — where the work is deciding
 who owns which RAM and which chip, and where the research notes needed the
-same correcting). If you're adding equivalent depth for another target,
-put it at `packages/<target>/AGENTS.md` and link it from here.
+same correcting). The other five have the same kind of file:
+[`packages/vic20/AGENTS.md`](packages/vic20/AGENTS.md) (a screen that moves
+with the RAM fitted, and a video chip that cannot see any of that RAM),
+[`packages/c128/AGENTS.md`](packages/c128/AGENTS.md) (an MMU over 128K, and
+two independent video chips — one the C64's, one an 80-column display
+behind a two-byte port), [`packages/atari8/AGENTS.md`](packages/atari8/AGENTS.md)
+(a display list instead of a screen, players and missiles instead of
+sprites, and an OS that rewrites the colour registers every frame),
+[`packages/mega65/AGENTS.md`](packages/mega65/AGENTS.md) (a C64 in name only:
+40.5 MHz, 80 columns, 384K, four SIDs, and a start-up that leaves interrupts
+off), and [`packages/web/AGENTS.md`](packages/web/AGENTS.md) (a machine whose
+every "hardware" fact is a decision recorded in the runtime's source). The
+research for machines the toolchain does not build yet is in
+[`docs/project/machines/`](docs/project/machines/index.md), in the same
+sixteen-question shape, and [`docs/systems.md`](docs/systems.md) is the
+design that ties the machines' facts, capabilities, and identities together.
+If you're adding equivalent depth for another target, put it at
+`packages/<target>/AGENTS.md` and link it from here.
 [`packages/studio/AGENTS.md`](packages/studio/AGENTS.md) is the same kind
 of file for Studio, the app that ships with the toolchain: its tiers per
 machine, and the capabilities each editor is waiting for.

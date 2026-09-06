@@ -1,7 +1,0 @@
-// The viewer tier: look at files, edit nothing. The NES has no keyboard and,
-// on the cartridge profile built today, nowhere to save — see AGENTS.md.
-import { studio, Tier } from "./studio.8bs";
-
-export function main(): void {
-    studio.start(Tier.VIEWER);
-}

@@ -1,7 +1,0 @@
-// The basic tier: character editing and rudimentary playback, on a machine
-// with no hardware sprites. See AGENTS.md for what the tier holds.
-import { studio, Tier } from "./studio.8bs";
-
-export function main(): void {
-    studio.start(Tier.BASIC);
-}
