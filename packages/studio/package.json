@@ -2,7 +2,7 @@
   "name": "@8bitscript/studio",
   "private": true,
   "version": "0.0.0",
-  "description": "8BitScript Studio: the asset editor that ships with the toolchain and runs on the machines themselves \u2014 characters, sprites, and music, with the full editor on the Commander X16 and a smaller one down to the PET.",
+  "description": "8BitScript Studio: the asset editor that ships with the toolchain and runs on the machines themselves — characters, sprites, and music, with the full editor on the Commander X16 and a smaller one down to the PET.",
   "license": "MIT",
   "type": "module",
   "8bitscript": {
@@ -31,7 +31,8 @@
   },
   "dependencies": {
     "@8bitscript/screen": "workspace:*",
-    "@8bitscript/text": "workspace:*"
+    "@8bitscript/text": "workspace:*",
+    "@8bitscript/system": "workspace:*"
   },
   "publishConfig": {
     "access": "public"

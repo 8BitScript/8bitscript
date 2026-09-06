@@ -1,0 +1,44 @@
+// @8bitscript/system — the machine this build is for, as a compile-time
+// constant.
+//
+//     import { System } from "@8bitscript/system";
+//
+//     if (System.CURRENT == System.PET) { ... }
+//
+// System.CURRENT is a const, so 8bitscript resolves the comparison itself
+// (docs/compiler.md, "what 8bitscript resolves and what runs on the
+// machine"): the branch for another machine costs nothing on this one. It
+// comes from `./current.8bs`, which exists only in per-machine versions —
+// `current.c64.8bs`, `current.pet.8bs`, and so on — so the filename rule
+// (docs/packages.md, "System-specific files") picks the file for the
+// build, and this one file lists the names once.
+//
+// Two rules for using it. First, prefer a capability's own facts to the
+// machine's name: `text.COLUMNS` says how wide the screen is on every
+// machine, including ones this namespace does not know yet, where
+// `System.CURRENT == System.PET` says nothing about a C128 in 80 columns.
+// Branch on the name for what is genuinely the machine's identity — which
+// tier of an app it gets, which title to print — and on a fact for
+// anything a fact could say. Second, a branch is not a conditional
+// import: both arms of an `if` are compiled and linked on every machine,
+// so a machine-only package (`@8bitscript/c64/sprites`) still belongs in a
+// per-machine file, not behind a comparison.
+//
+// The names are the ones `8bs build --target` accepts. The numbers are
+// arbitrary and stable: a machine keeps its number when others are added,
+// so a saved file that records one stays readable.
+import { Current } from "./current.8bs";
+
+export namespace System {
+    const WEB: utinyint = 0;      // the browser runtime
+    const VIC20: utinyint = 1;    // Commodore VIC-20
+    const C64: utinyint = 2;      // Commodore 64
+    const PET: utinyint = 3;      // Commodore PET
+    const C128: utinyint = 4;     // Commodore 128
+    const ATARI8: utinyint = 5;   // Atari 400/800/XL/XE
+    const NES: utinyint = 6;      // Nintendo Entertainment System
+    const CX16: utinyint = 7;     // Commander X16
+    const MEGA65: utinyint = 8;   // MEGA65
+
+    const CURRENT: utinyint = Current.SYSTEM; // the machine this build is for
+}
