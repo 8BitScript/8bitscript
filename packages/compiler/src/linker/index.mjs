@@ -48,7 +48,7 @@ function canonical(path) {
 }
 
 /** Run the pure front end over one module's text. */
-function loadModule(file, text, diagnostics, { frameRate, machine }) {
+function loadModule(file, text, diagnostics, { frameRate, machine, facts }) {
   const { tokens, diagnostics: lexical } = tokenize(text, file);
   const { ast, diagnostics: syntax } = parse(tokens, text, file);
   diagnostics.push(...lexical, ...syntax);
@@ -56,7 +56,7 @@ function loadModule(file, text, diagnostics, { frameRate, machine }) {
   // plain IntegerLiteral by the time the width-fit rule walks the tree, so
   // e.g. #frames(100, seconds) overflowing a utinyint gets that diagnostic for free,
   // with no separate rule duplicating it here.
-  diagnostics.push(...foldCompileTime(ast, file, { frameRate, machine }));
+  diagnostics.push(...foldCompileTime(ast, file, { frameRate, machine, facts }));
   diagnostics.push(...check(ast, file, text));
   const { ir, diagnostics: lowering } = lower(ast, file, text);
   // The template layout runs in both check() (so the editor sees it) and
@@ -83,7 +83,7 @@ function loadGraph(entryText, entryFile, diagnostics, sources, options) {
   const nativeSources = new Map();
 
   const enqueue = (file, text) => {
-    const module = loadModule(file, text, diagnostics, { frameRate: options.frameRate, machine: options.machine });
+    const module = loadModule(file, text, diagnostics, { frameRate: options.frameRate, machine: options.machine, facts: options.facts });
     modules.push(module);
     byPath.set(canonical(file), module);
     sources.set(file, text);
@@ -898,7 +898,7 @@ function checkEntryExports(module) {
  *
  * @param {string} entryText  The entry module's source.
  * @param {string} entryFile  Its absolute path, the root imports resolve from.
- * @param {{ machine?: string, tags?: string[], profile?: string, frameRate?: number }} [options]
+ * @param {{ machine?: string, tags?: string[], profile?: string, frameRate?: number, facts?: object }} [options]
  *   `machine` is the target being built for; packages with target-
  *   conditional entries resolve to that machine's implementation, and any
  *   `.8bs` file with a `.<machine>.8bs` twin beside it resolves to the
@@ -908,7 +908,10 @@ function checkEntryExports(module) {
  *   `profile` is accepted as one tag. `frameRate` (default 60) is the
  *   project's logical frame rate — see 8bs.config.ts — that every
  *   `#frames(...)` call in the graph folds against; `machine` is also what
- *   every `#system()` call folds to.
+ *   every `#system()` call folds to. `facts` is the build's hardware fact
+ *   sheet (the merged `facts` of packages/cli/src/hardware.mjs's
+ *   resolveHardware), what every `#fact(...)` folds from; a build that
+ *   names a machine and reads a fact without one is `8BS1038`.
  * @returns {{ ir: object|null, diagnostics: object[], sources: Map<string,string> }}
  */
 export function link(entryText, entryFile, options = {}) {

@@ -89,7 +89,7 @@ test('hover on #system explains the builtin and lists the machines', () => {
 test('completion after # offers #frames and #system', () => {
   const src = 'let x: utinyint = #';
   const items = getCompletions(src, src.length);
-  assert.deepEqual(items.map((i) => i.label), ['#frames', '#system']);
+  assert.deepEqual(items.map((i) => i.label), ['#frames', '#system', '#fact']);
   assert.equal(items.find((i) => i.label === '#system').insertText, 'system()');
   const typed = 'let x: utinyint = #sys';
   const replacing = getCompletions(typed, typed.length);

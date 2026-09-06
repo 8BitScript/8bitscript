@@ -246,6 +246,32 @@ test('textDocument/hover explains #system()', async () => {
   });
 });
 
+test('textDocument/hover explains #fact(...) and a key inside it', async () => {
+  await withServer(async (client) => {
+    await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
+    client.notify('initialized', {});
+
+    const text = 'let x: utinyint = #fact(video.columns);\n';
+    client.notify('textDocument/didOpen', {
+      textDocument: { uri: URI, languageId: '8bitscript', version: 1, text },
+    });
+    const published = await client.waitForNotification('textDocument/publishDiagnostics');
+    assert.deepEqual(published.params.diagnostics, [], 'with no machine in hand a fact is valid and target-dependent');
+
+    const call = await client.request('textDocument/hover', {
+      textDocument: { uri: URI },
+      position: positionAt(text, text.indexOf('fact') + 1),
+    });
+    assert.match(call.result.contents.value, /one fact about the machine this build is for/);
+
+    const key = await client.request('textDocument/hover', {
+      textDocument: { uri: URI },
+      position: positionAt(text, text.indexOf('columns') + 2),
+    });
+    assert.match(key.result.contents.value, /\*\*video\.columns\*\*/);
+  });
+});
+
 test('textDocument/hover explains seconds, the unit argument to #frames(...)', async () => {
   await withServer(async (client) => {
     await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });

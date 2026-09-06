@@ -184,7 +184,7 @@ test('completion is empty outside a type position', () => {
 test('completion after a # offers the compile-time functions, inserting without a second #', () => {
   const typed = 'let x: utinyint = #';
   const items = getCompletions(typed, typed.length);
-  assert.deepEqual(items.map((i) => i.label), ['#frames', '#system']);
+  assert.deepEqual(items.map((i) => i.label), ['#frames', '#system', '#fact']);
   const [item] = items;
   assert.equal(item.label, '#frames');
   assert.equal(item.kind, 'function');
@@ -206,7 +206,7 @@ test('completion in the unit slot offers the units, and nothing elsewhere in the
 
 test('completion inside a ${...} field answers as it would outside one', () => {
   const field = 'text.print(0, `T ${#';
-  assert.deepEqual(getCompletions(field, field.length).map((i) => i.label), ['#frames', '#system']);
+  assert.deepEqual(getCompletions(field, field.length).map((i) => i.label), ['#frames', '#system', '#fact']);
   const unit = 'text.print(0, `T ${#frames(0.5, ';
   assert.deepEqual(getCompletions(unit, unit.length).map((i) => i.label), ['seconds']);
   const text = 'text.print(0, `T ';

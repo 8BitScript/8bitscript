@@ -15,6 +15,7 @@
 import { tokenize, TokenKind } from '../lexer/index.mjs';
 import { PRIMITIVE_INTEGER_TYPES, resolveIntegerType } from '../types/index.mjs';
 import { DURATION_CLOCKS, DURATION_UNITS, SYSTEMS } from '../fold/index.mjs';
+import { FACTS } from '../fold/facts.mjs';
 
 /** Insert thousands separators without touching locale/ICU: `-8388608` -> `-8,388,608`. */
 function formatNumber(n) {
@@ -154,6 +155,28 @@ const SYSTEM_DOC = [
   'Prefer a fact to the name where one exists: `text.COLUMNS` is right on a machine this list has never heard of; `#system() == System.PET` says nothing about a C128 in 80 columns.',
 ].join('\n');
 
+const FACT_DOC = [
+  '**#fact(...)**',
+  '',
+  'Compile-time: one fact about the machine this build is for — a number or a yes/no from its hardware fact sheet, written as words: `#fact(video.columns)`, `#fact(memory.banked)`. The value is the machine package\'s catalog entry for the stock machine, changed by whatever hardware the build was fitted with (`--profile`, `--hardware`), so the branch for hardware this build lacks folds away.',
+  '',
+  'A program rarely writes this itself: `@8bitscript/system` gives every fact a name — `Video.COLUMNS`, `Audio.VOICES`, `Input.KEYBOARD`, `Memory.RAM` — and reads it this way. A fact marked *run time* there means "this build may use it"; whether the hardware is really there is the capability\'s answer on the machine.',
+  '',
+  `The keys: ${[...FACTS].filter(([, f]) => f.program).map(([key]) => `\`${key}\``).join(', ')}. With no machine in hand — \`8bs check\`, this editor — every fact is its placeholder (0 or false) and target-dependent, like \`#system()\`.`,
+].join('\n');
+
+/** One fact key's hover, inside a `#fact(...)`. */
+const factKeyDoc = (key) => {
+  const fact = FACTS.get(key);
+  return [
+    `**${key}**`,
+    '',
+    `${fact.doc} A ${fact.type === 'flag' ? 'yes/no' : 'count'}, settled ${fact.when === 'run' ? 'at run time: the const says this build may use it, and the capability says whether it is there' : 'by the build'}.${fact.program ? '' : ' Not on the program\'s sheet: the CLI reads it.'}`,
+    '',
+    'Only a key inside `#fact(...)`; anywhere else these words are ordinary names a program is free to declare.',
+  ].join('\n');
+};
+
 /** Every `#name` the compiler evaluates, with what completion says about it. */
 const COMPILE_TIME_DOCS = {
   // `insert` is what goes into the buffer after a `#` the user has typed;
@@ -161,6 +184,7 @@ const COMPILE_TIME_DOCS = {
   // replaced, by the label itself unless `insert` adds something to it.
   frames: { detail: 'Compile-time duration, as a frame count.', documentation: FRAMES_DOC, insert: 'frames' },
   system: { detail: 'Compile-time: the machine this build is for.', documentation: SYSTEM_DOC, insert: 'system()' },
+  fact: { detail: 'Compile-time: one fact about the machine this build is for.', documentation: FACT_DOC, insert: 'fact' },
 };
 
 /** The units a `#frames(...)` duration can be written in, keyed as DURATION_UNITS is. */
@@ -288,6 +312,16 @@ function hoverAt(tokens, offset, text) {
   if (token.kind === TokenKind.CompileTime && token.text === '#system') {
     return { start: token.start, length: token.length, markdown: SYSTEM_DOC };
   }
+  if (token.kind === TokenKind.CompileTime && token.text === '#fact') {
+    return { start: token.start, length: token.length, markdown: FACT_DOC };
+  }
+  // A fact key's words are not reserved either — `video.columns` only
+  // means the fact inside `#fact(...)` — so the hover finds the whole key
+  // the hovered word is part of, and only claims it there.
+  if (token.kind === TokenKind.Identifier) {
+    const key = factKeyAt(tokens, index);
+    if (key) return { start: key.start, length: key.length, markdown: factKeyDoc(key.text) };
+  }
   // The unit word is *not* reserved — it only means the unit in the second
   // argument slot of a clock call, `#frames(0.5, seconds)`, so the hover has
   // to check it is actually in that slot before claiming so.
@@ -306,6 +340,27 @@ function hoverAt(tokens, offset, text) {
  * the `seconds` in `#frames(0.5, seconds)`? Matches the exact shape the fold
  * accepts: `#<clock> ( <number> , <unit>`.
  */
+/**
+ * The fact key the identifier at `index` belongs to — `video.columns` for
+ * either word — when it sits inside a `#fact(...)` call and is a key the
+ * compiler knows; null otherwise.
+ *
+ * @returns {{ text: string, start: number, length: number } | null}
+ */
+function factKeyAt(tokens, index) {
+  let first = index;
+  while (tokens[first - 1]?.text === '.' && tokens[first - 2]?.kind === TokenKind.Identifier) first -= 2;
+  let last = index;
+  while (tokens[last + 1]?.text === '.' && tokens[last + 2]?.kind === TokenKind.Identifier) last += 2;
+  const open = tokens[first - 1];
+  const callee = tokens[first - 2];
+  const close = tokens[last + 1];
+  if (open?.text !== '(' || close?.text !== ')' || callee?.kind !== TokenKind.CompileTime || callee.text !== '#fact') return null;
+  const text = tokens.slice(first, last + 1).map((t) => t.text).join('');
+  if (!FACTS.has(text)) return null;
+  return { text, start: tokens[first].start, length: tokens[last].start + tokens[last].length - tokens[first].start };
+}
+
 function isDurationUnitSlot(tokens, index) {
   const [callee, open, literal, comma] = [tokens[index - 4], tokens[index - 3], tokens[index - 2], tokens[index - 1]];
   return comma?.text === ','
@@ -368,6 +423,24 @@ function compileTimePosition(tokens, offset, text) {
  * `seconds` in `#frames(0.5, |)`? The same shape isDurationUnitSlot()
  * recognises for hover, one token earlier.
  */
+/**
+ * Is `offset` the key argument of a `#fact(...)` call — `#fact(|)`, or a
+ * key already partly typed, `#fact(vid|)` / `#fact(video.col|)`?
+ */
+function isFactKeyPosition(tokens, offset) {
+  const { before, i } = contextIndex(tokens, offset);
+  let j = i;
+  // Step back over a partly typed dotted key: the word being typed is
+  // already behind `i`, so what is left is `video.` or `video`, or nothing.
+  if (before[j]?.text === '.') j -= 1;
+  while (before[j]?.kind === TokenKind.Identifier) {
+    if (before[j - 1]?.text === '.') { j -= 2; continue; }
+    j -= 1;
+    break;
+  }
+  return before[j]?.text === '(' && before[j - 1]?.kind === TokenKind.CompileTime && before[j - 1].text === '#fact';
+}
+
 function isDurationUnitPosition(tokens, offset) {
   const { before, i } = contextIndex(tokens, offset);
   const [callee, open, literal, comma] = [before[i - 3], before[i - 2], before[i - 1], before[i]];
@@ -424,6 +497,16 @@ function completionsAt(tokens, offset, text) {
       ...(compileTime.replacing
         ? (doc.insert === name ? {} : { insertText: `#${doc.insert}` })
         : { insertText: doc.insert }),
+    }));
+  }
+
+  if (isFactKeyPosition(tokens, offset)) {
+    return [...FACTS].filter(([, fact]) => fact.program).map(([key, fact]) => ({
+      label: key,
+      kind: 'constant',
+      sortRank: 0,
+      detail: fact.doc,
+      documentation: factKeyDoc(key),
     }));
   }
 

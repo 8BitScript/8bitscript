@@ -106,6 +106,12 @@ export const Codes = {
   WRONG_ARGUMENT_COUNT: '8BS1035',
   // `#system(...)` called with arguments: it takes none (see the fold pass).
   SYSTEM_TAKES_NO_ARGUMENTS: '8BS1036',
+  // `#fact(...)` of a key the sheet does not have, or with no key at all
+  // (see the fold pass and fold/facts.mjs for the keys).
+  UNKNOWN_FACT: '8BS1037',
+  // `#fact(...)` in a build that knows its machine but was handed no
+  // hardware facts: the fold will not guess a sheet for a real build.
+  NO_HARDWARE_FACTS: '8BS1038',
 
   UNRESOLVED_PACKAGE: '8BS2001',
   NOT_AN_8BS_PACKAGE: '8BS2002',
