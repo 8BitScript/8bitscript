@@ -1,5 +1,6 @@
-// The compile-time folds: `#frames(...)`, the duration builtin, and
-// `#system()`, the machine a build is for.
+// The compile-time folds: `#frames(...)`, the duration builtin, `#system()`,
+// the machine a build is for, and `#fact(...)`, one fact about it (see
+// facts.mjs for the keys and where the values come from).
 //
 // `#frames(x, unit)` — x an integer or decimal literal, `unit` the word
 // saying what x is measured in — folds to a plain IntegerLiteral holding
@@ -48,6 +49,7 @@
 // silently perturbed by floating-point rounding.
 import { Codes, diagnostic } from '../diagnostics/index.mjs';
 import { NodeType, walk } from '../ast/index.mjs';
+import { FACTS, factPlaceholder } from './facts.mjs';
 
 /**
  * The units a duration literal can be written in, keyed by the bare word a
@@ -119,7 +121,8 @@ function compileTimeCallName(n) {
   return n.callee.compileTime ? n.callee.name : null;
 }
 
-const KNOWN_COMPILE_TIME = () => [...[...DURATION_CLOCKS.keys()].map((name) => `#${name}(...)`), '#system()'].join(', ');
+const KNOWN_COMPILE_TIME = () => [...[...DURATION_CLOCKS.keys()].map((name) => `#${name}(...)`), '#system()', '#fact(...)'].join(', ');
+const BUILTIN = (name) => DURATION_CLOCKS.has(name) || name === 'system' || name === 'fact';
 
 /**
  * Round `numerator/denominator` (both BigInt, denominator > 0) to the
@@ -153,9 +156,85 @@ function replaceWithTickCount(n, name, value) {
   n.radix = 10;
 }
 
-const exampleCalls = (name) => (name === 'system'
-  ? '#system()'
-  : `#${name}(1, seconds) or #${name}(0.5, seconds)`);
+// The same, for a fact: a count becomes an IntegerLiteral, a flag a
+// BooleanLiteral, so a `bool` const on the sheet takes a flag and the
+// checker's literal-fits-the-type rule sees the right kind of literal.
+function replaceWithFact(n, key, value) {
+  delete n.callee;
+  delete n.args;
+  if (typeof value === 'boolean') {
+    n.type = NodeType.BooleanLiteral;
+    n.value = value;
+    delete n.radix;
+  } else {
+    n.type = NodeType.IntegerLiteral;
+    n.value = value;
+    n.radix = 10;
+  }
+  n.raw = `#fact(${key})`;
+}
+
+const exampleCalls = (name) => {
+  if (name === 'system') return '#system()';
+  if (name === 'fact') return '#fact(video.columns) or #fact(memory.ram)';
+  return `#${name}(1, seconds) or #${name}(0.5, seconds)`;
+};
+
+/**
+ * The dotted key a `#fact(...)` argument spells — `video.columns` is a
+ * member expression of plain identifiers — or null for any other shape.
+ * The words are contextual, not reserved: they are only read here, in this
+ * one slot, so `let video` elsewhere is an ordinary declaration.
+ */
+function factKeyOf(argument) {
+  if (!argument) return null;
+  if (argument.type === NodeType.Identifier) return argument.compileTime ? null : argument.name;
+  if (argument.type === NodeType.MemberExpression && argument.property?.type === NodeType.Identifier) {
+    const head = factKeyOf(argument.object);
+    return head === null ? null : `${head}.${argument.property.name}`;
+  }
+  return null;
+}
+
+/**
+ * `#fact(key)`: one fact about the machine this build is for, from the
+ * sheet the build was handed (FACTS has the keys; the machine packages'
+ * catalogs and the CLI's resolveHardware have the values). With no machine
+ * in hand — `8bs check`, the editor — it folds to the key's placeholder
+ * (0 or false) and is "valid and target-dependent", as `#system()` is. With
+ * a machine but no facts it is a diagnostic: a real build has a real sheet,
+ * and the fold will not invent one for it.
+ */
+function foldFactCall(n, file, machine, facts, diagnostics) {
+  const args = n.args ?? [];
+  const key = args.length === 1 ? factKeyOf(args[0]) : null;
+  if (key === null || !FACTS.has(key)) {
+    diagnostics.push(diagnostic(
+      Codes.UNKNOWN_FACT,
+      key === null
+        ? `#fact(...) takes one fact key, written as words — ${exampleCalls('fact')}`
+        : `'${key}' is not a fact — the keys are ${[...FACTS.keys()].join(', ')}`,
+      file, n.start, n.length,
+    ));
+    replaceWithFact(n, key ?? '?', 0);
+    return;
+  }
+  if (machine === undefined) {
+    replaceWithFact(n, key, factPlaceholder(key));
+    return;
+  }
+  if (facts === undefined) {
+    diagnostics.push(diagnostic(
+      Codes.NO_HARDWARE_FACTS,
+      `#fact(${key}) needs this build's hardware facts, and the ${machine} build was given none — a build resolves its hardware first (8bs build does; link() takes 'facts')`,
+      file, n.start, n.length,
+    ));
+    replaceWithFact(n, key, factPlaceholder(key));
+    return;
+  }
+  const value = Object.hasOwn(facts, key) ? facts[key] : factPlaceholder(key);
+  replaceWithFact(n, key, value);
+}
 
 /**
  * `#system()`: the machine this build is for, as its number in SYSTEMS.
@@ -261,15 +340,18 @@ function foldClockCall(n, clockName, file, frameRate, diagnostics) {
  *
  * @param {object} ast    Program node from the parser.
  * @param {string} file
- * @param {{ frameRate?: number, machine?: string }} [options]
+ * @param {{ frameRate?: number, machine?: string, facts?: object }} [options]
  *   `frameRate` is the project's logical frame rate (default 60; already
  *   validated positive-integer by the caller — see
  *   packages/cli/src/config.mjs's resolveFrameRate). `machine` is the
  *   target being built for, or undefined when a file is being checked
- *   rather than built (see foldSystemCall).
+ *   rather than built (see foldSystemCall). `facts` is the build's merged
+ *   hardware facts, keyed as facts.mjs's FACTS is, that every `#fact(...)`
+ *   folds from; required whenever `machine` is given and a fact is read
+ *   (see foldFactCall).
  * @returns {object[]} diagnostics
  */
-export function foldCompileTime(ast, file = '<unknown>', { frameRate = 60, machine } = {}) {
+export function foldCompileTime(ast, file = '<unknown>', { frameRate = 60, machine, facts } = {}) {
   const diagnostics = [];
   if (!ast) return diagnostics;
 
@@ -278,6 +360,10 @@ export function foldCompileTime(ast, file = '<unknown>', { frameRate = 60, machi
     if (name) {
       if (name === 'system') {
         foldSystemCall(n, file, machine, diagnostics);
+        return;
+      }
+      if (name === 'fact') {
+        foldFactCall(n, file, machine, facts, diagnostics);
         return;
       }
       if (!DURATION_CLOCKS.has(name)) {
@@ -297,7 +383,7 @@ export function foldCompileTime(ast, file = '<unknown>', { frameRate = 60, machi
       // descends), so this one is bare: `#frames` with no argument list.
       diagnostics.push(diagnostic(
         Codes.UNKNOWN_COMPILE_TIME_FUNCTION,
-        DURATION_CLOCKS.has(n.name) || n.name === 'system'
+        BUILTIN(n.name)
           ? `'#${n.name}' is a compile-time function and must be called: ${exampleCalls(n.name)}`
           : `'#${n.name}' is not a function the compiler evaluates — the compile-time functions are ${KNOWN_COMPILE_TIME()}`,
         file, n.start, n.length,
