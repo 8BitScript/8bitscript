@@ -14,8 +14,11 @@ import { borderColor, backgroundColor } from "./index.8bs";
 
 // ---- the screen: border and background --------------------------------------
 //
-// In the VIC-II-compatible view this target runs in, border and background
-// have their own registers, sixteen colours each, exactly as on the C64.
+// Border and background have their own registers at the C64's addresses;
+// the VIC-IV's are 8 bits wide (256 palette entries), and the shared eight
+// names stay on 0-15 so a program's colour means the same thing everywhere.
+// The screen a build runs on is 80x25 at $0800 (see text.8bs), so a blank
+// clears 2000 cells.
 export namespace screen {
     function setColors(border: u8, background: u8): void {
         borderColor = border & 15;
@@ -34,7 +37,7 @@ export namespace screen {
         if (background != BackgroundColor.KEEP) {
             screen.setBackground(background);
         }
-        for (let cell: usmallint = 0; cell < 1000; cell++) {
+        for (let cell: usmallint = 0; cell < 2000; cell++) {
             memory.write(0x0800 + cell, 32); // 32: the space screen code
         }
     }
