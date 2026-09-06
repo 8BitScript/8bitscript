@@ -65,9 +65,9 @@ program* at the tier its hardware supports:
 
 | Tier | Machines | Characters | Sprites | Music | Files |
 | --- | --- | --- | --- | --- | --- |
-| Full | cx16, mega65, c128, c64, atari8, web | edit | edit | edit | load, save |
+| Full | cx16, mega65, c128, c64, atari8 | edit | edit | edit | load, save |
 | Basic | vic20, pet | edit | view | play | load, save |
-| Viewer | nes | view | view | view | none |
+| Viewer | nes, web | view | view | view | none |
 
 This table is a proposal, not a measurement. The reasoning, and what each
 row still has to prove:
