@@ -106,9 +106,14 @@ game code), and [`packages/pet/AGENTS.md`](packages/pet/AGENTS.md) (a
 machine with only RAM, a character ROM, and three I/O chips — where the
 variety is in *models*: RAM size, 40 or 80 columns, CRTC or not, which
 ROM and keyboard — and where the research notes it was built from needed
-correcting against primary sources). If you're adding equivalent depth
-for another target, put it at `packages/<target>/AGENTS.md` and link it
-from here.
+correcting against primary sources), and
+[`packages/c64/AGENTS.md`](packages/c64/AGENTS.md) (the machine everyone
+measures 8-bit software against: a video chip that reads one 16K bank of
+the same RAM the program lives in, eight real sprites, a synthesizer, and
+a linker that owns most of the address space — where the work is deciding
+who owns which RAM and which chip, and where the research notes needed the
+same correcting). If you're adding equivalent depth for another target,
+put it at `packages/<target>/AGENTS.md` and link it from here.
 [`packages/studio/AGENTS.md`](packages/studio/AGENTS.md) is the same kind
 of file for Studio, the app that ships with the toolchain: its tiers per
 machine, and the capabilities each editor is waiting for.

@@ -4,35 +4,251 @@
 // package's package.json, resolved and linked for:
 //
 //     import { borderColor, backgroundColor, memoryPointer } from "@8bitscript/c64";
+//     import { spriteEnable, spritePositions, cia1PortA } from "@8bitscript/c64";
 //     import { reuStatus, reuCommand } from "@8bitscript/c64"; // --profile reu*
 //
-// The surface is the hardware, one register at a time. What a program
-// usually wants sits one layer up, in this package's own implementations of
-// the portable capability packages — `./src/screen.8bs` behind
-// @8bitscript/screen and `./src/text.8bs` behind @8bitscript/text, named by
-// the "8bitscript".exports map in package.json — which import these
-// registers and are built on nothing else. A namespace like `vic2.` for the
-// whole chip waits on the declaration syntax being designed.
+// The surface is the hardware, one register at a time — the VIC-II, the
+// SID, the two CIAs, the 6510's own port — under the names llvm-mos-sdk's
+// c64.h gives the chips (`VIC`, `SID`, `CIA1`, `CIA2`) and the fields its
+// _vic2.h/_sid.h/_6526.h give the registers. What a program usually wants
+// sits one layer up, in this package's own implementations of the portable
+// capability packages — `./src/screen.8bs` behind @8bitscript/screen and
+// `./src/text.8bs` behind @8bitscript/text, named by the "8bitscript".exports
+// map in package.json — and in the C64-only subpaths beside them:
+// `@8bitscript/c64/sprites`, `/keyboard` + `/keys`, `/joystick`, `/sid`.
+// All of them import these registers and are built on nothing else. A
+// project that imports THIS package has declared itself C64 specific.
 //
-// Where the VIC-20's VIC packs border, background, and video mode into one
-// register, the C64's VIC-II gives each its own. Both take the low four bits;
-// the VIC-II has sixteen colours.
+// Every fact stated here was read in a primary source or seen on screen
+// under x64sc; packages/c64/AGENTS.md says which, and holds what was not
+// checked. Where the VIC-20's VIC packs border, background, and video mode
+// into one register, the C64's VIC-II gives each its own; both take the low
+// four bits, and the VIC-II has sixteen colours everywhere.
+import { Video } from "./geometry.8bs";
 
-// $D020, the VIC-II border colour register.
-@address(0xD020)
-export let borderColor: volatile<u8>;
+// ---- the 6510's port: what the CPU sees at $A000, $D000, $E000 -------------
+//
+// $0001, the processor port. Bits 0-2 are LORAM, HIRAM and CHAREN: which of
+// BASIC ROM, KERNAL ROM and the I/O area / character ROM the CPU sees over
+// the RAM that is always underneath. The SDK's start-up (unmap-basic.o's
+// .init section: `ldx #$2f / stx $00 / ldx #$3e / stx $01`) leaves it at
+// $3E — BASIC out, KERNAL in, I/O in — so $A000-$BFFF is program RAM. Bits
+// 3-5 are the cassette lines. Change it by reading, masking and writing
+// back, never with a literal: setupVideo() below is the one place this
+// package does, to see the character ROM for the length of one copy.
+@address(0x0001)
+export let processorPort: volatile<u8>;
 
-// $D021, the VIC-II background colour register (background #0).
-@address(0xD021)
-export let backgroundColor: volatile<u8>;
+// ---- VIC-II ($D000-$D02E) ------------------------------------------------
 
-// $D018, the VIC-II's memory pointer (`addr` in llvm-mos-sdk's _vic2.h):
-// bits 4-7 the screen base in 1K units within the VIC bank, bits 1-3 the
-// character set base in 2K units. $15 is screen $0400 and the upper-case/
-// graphics set at $1000, the value the KERNAL resets to (POKE 53272,21 in
-// the Programmer's Reference Guide); $17 is the lower-case set at $1800.
+// $D000-$D00F: sprite 0's X, sprite 0's Y, sprite 1's X, ... — `2 * n` is
+// sprite n's X and `2 * n + 1` its Y (`spr_pos[n].x/.y` in _vic2.h). X is
+// nine bits wide: the ninth of each sprite is a bit of $D010.
+@address(0xD000)
+export let spritePositions: array<u8, 16>;
+
+// $D010, bit n = bit 8 of sprite n's X coordinate (`spr_hi_x`).
+@address(0xD010)
+export let spriteXHigh: volatile<u8>;
+
+// $D011, control register 1 (`ctrl1`): bit 7 RST8 (bit 8 of the raster
+// line, read; of the raster compare, write), 6 ECM, 5 BMM, 4 DEN (display
+// enable), 3 RSEL (25 rows / 24), 0-2 YSCROLL. The frame runtime reads
+// bit 7 (FRAME_SYNC.c64 in packages/backend-6502).
+@address(0xD011)
+export let control1: volatile<u8>;
+
+// $D012, the raster line's low eight bits (read) / raster compare (write).
+@address(0xD012)
+export let raster: volatile<u8>;
+
+// $D015, one enable bit per sprite (`spr_ena`).
+@address(0xD015)
+export let spriteEnable: volatile<u8>;
+
+// $D016, control register 2 (`ctrl2`): bit 4 MCM (multicolour text/bitmap),
+// 3 CSEL (40 columns / 38), 0-2 XSCROLL.
+@address(0xD016)
+export let control2: volatile<u8>;
+
+// $D017 / $D01D, one bit per sprite: drawn twice as tall / twice as wide.
+@address(0xD017)
+export let spriteExpandY: volatile<u8>;
+@address(0xD01D)
+export let spriteExpandX: volatile<u8>;
+
+// $D018, the VIC-II's memory pointer (`addr` in _vic2.h): bits 4-7 the
+// screen matrix's position in the bank in 1K steps, bits 1-3 the character
+// set's in 2K steps (bit 3 alone for a bitmap). $15 is the KERNAL's boot
+// value (screen $0400, ROM upper-case set at $1000, POKE 53272,21 in the
+// Programmer's Reference Guide); this package's screen is at $E000 with
+// its own copy of the ROM at $D000, which in bank 3 is $84 — see
+// Video.MEMORY_POINTER_UPPERCASE in ./geometry.8bs.
 @address(0xD018)
 export let memoryPointer: volatile<u8>;
+
+// $D019 / $D01A, interrupt status and mask (`irr`/`imr`): bit 0 raster,
+// 1 sprite-background collision, 2 sprite-sprite collision, 3 light pen;
+// status bit 7 = any. Writing a 1 to a status bit acknowledges it. Nothing
+// in this package enables a VIC interrupt: the program runs with
+// interrupts off (see FRAME_SYNC.c64) and polls.
+@address(0xD019)
+export let interruptStatus: volatile<u8>;
+@address(0xD01A)
+export let interruptMask: volatile<u8>;
+
+// $D01B, one bit per sprite: 1 = the sprite is drawn BEHIND the
+// background's foreground pixels (`spr_bg_prio`). Sprite-to-sprite order
+// is fixed: a lower-numbered sprite is always in front.
+@address(0xD01B)
+export let spritePriority: volatile<u8>;
+
+// $D01C, one bit per sprite: multicolour (12x21 double-width pixels, three
+// colours plus transparent: the sprite's own and the two shared ones).
+@address(0xD01C)
+export let spriteMulticolor: volatile<u8>;
+
+// $D01E / $D01F: which sprites touched another sprite / the background's
+// foreground since last read. Both CLEAR WHEN READ (and cannot be
+// written), so read each once a frame and keep the value.
+@address(0xD01E)
+export let spriteCollision: volatile<u8>;
+@address(0xD01F)
+export let spriteBackgroundCollision: volatile<u8>;
+
+// $D020, the border colour; $D021-$D024, background colours 0-3 (only 0
+// shows in the standard text mode; 1-3 are for extended-colour and
+// multicolour modes); $D025 / $D026, the two colours every multicolour
+// sprite shares; $D027-$D02E, each sprite's own colour. Low four bits.
+@address(0xD020)
+export let borderColor: volatile<u8>;
+@address(0xD021)
+export let backgroundColor: volatile<u8>;
+@address(0xD022)
+export let backgroundColor1: volatile<u8>;
+@address(0xD023)
+export let backgroundColor2: volatile<u8>;
+@address(0xD024)
+export let backgroundColor3: volatile<u8>;
+@address(0xD025)
+export let spriteSharedColor0: volatile<u8>;
+@address(0xD026)
+export let spriteSharedColor1: volatile<u8>;
+@address(0xD027)
+export let spriteColors: array<u8, 8>;
+
+// ---- SID ($D400-$D41C) ------------------------------------------------------
+//
+// Twenty-five registers, seven per voice then the filter and volume. The
+// write-only ones read back as nothing useful — the SID has no readable
+// state below $D419 — so @8bitscript/c64/sid keeps its own copy of what it
+// wrote. Voice n's registers start at 7 * n: 0-1 frequency (low, high),
+// 2-3 pulse width (low, high nybble), 4 control (bit 0 gate, 1 sync, 2
+// ring, 3 test, 4 triangle, 5 sawtooth, 6 pulse, 7 noise), 5 attack/decay
+// nybbles, 6 sustain/release nybbles. 21-22 filter cutoff (low three bits,
+// high eight), 23 resonance nybble / which voices are filtered, 24 = $D418:
+// filter mode bits 4-6, voice 3 off bit 7, master volume in the low nybble.
+@address(0xD400)
+export let sidRegisters: array<u8, 25>;
+
+// $D419 / $D41A, the two paddle A/D converters (`ad1`/`ad2`); which port's
+// paddles is CIA1 port A bits 6-7's choice. $D41B / $D41C, voice 3's
+// oscillator and envelope, readable — the oscillator with a noise waveform
+// is the hardware entropy the root AGENTS.md wants kept out of the
+// deterministic PRNG.
+@address(0xD419)
+export let paddleX: volatile<u8>;
+@address(0xD41A)
+export let paddleY: volatile<u8>;
+@address(0xD41B)
+export let voice3Oscillator: volatile<u8>;
+@address(0xD41C)
+export let voice3Envelope: volatile<u8>;
+
+// ---- CIA1 ($DC00): keyboard, joysticks, the KERNAL's IRQ timer ---------------
+//
+// Port A ($DC00) drives the keyboard's eight columns (a 0 bit selects a
+// column) and reads joystick port 2 on bits 0-4; port B ($DC01) reads the
+// eight rows of the selected column, a 0 bit where a key is down, and
+// joystick port 1 on the same bits 0-4. The joystick lines sit in parallel
+// with the matrix — port 1's pull the rows, port 2's pull the columns —
+// which is why a joystick "types" and why @8bitscript/c64/keyboard and
+// /joystick read the ports in a fixed order once a frame. The KERNAL sets
+// the directions (A out, B in) at boot; the packages set them again.
+// Timer A ($DC04-$DC05) is the KERNAL's 60 Hz IRQ source, silenced by the
+// `sei` the frame runtime starts with; $DC0D is its interrupt control.
+@address(0xDC00)
+export let cia1PortA: volatile<u8>;
+@address(0xDC01)
+export let cia1PortB: volatile<u8>;
+@address(0xDC02)
+export let cia1DirectionA: volatile<u8>;
+@address(0xDC03)
+export let cia1DirectionB: volatile<u8>;
+@address(0xDC0D)
+export let cia1InterruptControl: volatile<u8>;
+
+// ---- CIA2 ($DD00): the VIC bank, the serial bus, the user port ---------------
+//
+// Port A bits 0-1 choose the VIC's 16K bank, INVERTED: %11 = bank 0
+// ($0000, the boot state), %10 = bank 1 ($4000), %01 = bank 2 ($8000),
+// %00 = bank 3 ($C000, this package). Bits 3-5 are the serial bus (ATN,
+// CLOCK and DATA out) and bits 6-7 its inputs, so the bank is changed by
+// masking, never by storing a whole byte. $DD02 is the direction register:
+// bits 0-1 must be outputs (the KERNAL sets $3F).
+@address(0xDD00)
+export let cia2PortA: volatile<u8>;
+@address(0xDD02)
+export let cia2DirectionA: volatile<u8>;
+
+// ---- the screen's memory --------------------------------------------------
+//
+// `screenRam`, `colorRam`, `spritePointers` and `spriteShapes` — the arrays
+// over the RAM the VIC reads — are declared in ./geometry.8bs beside the
+// addresses they are built from, and imported from there.
+
+// ---- video set-up: the bank, the character set, the pointer -----------------
+//
+// Once, before the first thing is drawn: copy the character ROM into the
+// RAM under it, point the VIC at bank 3, and set $D018. Every surface in
+// this package calls it first (screen.blank(), text's prepare(), the
+// sprites' show()), and the guard makes every call after the first cost a
+// load and a branch.
+//
+// The copy: with CHAREN ($01 bit 2) clear the CPU READS the character ROM
+// at $D000-$DFFF, and its WRITES there still land in the RAM underneath —
+// so reading each byte and storing it back to the same address copies the
+// ROM into RAM in place. The I/O area is gone for the length of the loop
+// (about four frames at 1 MHz), so nothing here touches a register inside
+// it, and interrupts are off around it: the KERNAL's IRQ handler ends by
+// reading CIA1's interrupt register to acknowledge, which with I/O banked
+// out reads the ROM instead and never acknowledges — the interrupt fires
+// again on return, forever. Seen here: the first version of this copy,
+// run before the frame runtime's own `sei`, hung the machine exactly so.
+// `sei` here as well, so a program that draws before its first
+// waitFrame() — or never calls it — is safe too; from this point on the
+// program owns the machine (packages/c64/AGENTS.md).
+let videoReady: bool = false;
+
+export function setupVideo(): void {
+    if (videoReady) {
+        return;
+    }
+    videoReady = true;
+    asm6502 {
+        sei
+    }
+    let port: u8 = processorPort;
+    processorPort = port & 0xFB; // CHAREN = 0: character ROM at $D000, I/O out
+    for (let i: usmallint = 0; i < 4096; i++) {
+        memory.write(Video.CHARSET + i, memory.read(Video.CHARSET + i));
+    }
+    processorPort = port; // I/O back
+    cia2DirectionA = cia2DirectionA | 0x03;
+    cia2PortA = cia2PortA & 0xFC; // bank 3
+    memoryPointer = Video.MEMORY_POINTER_UPPERCASE;
+    spriteEnable = 0; // no sprite until a program asks; the pointers are whatever RAM held
+}
 
 // ---- REU (RAM Expansion Unit) --------------------------------------------
 //

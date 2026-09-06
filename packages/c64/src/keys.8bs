@@ -1,0 +1,103 @@
+// @8bitscript/c64/keys — the keyboard matrix, key by key.
+//
+// Named by "8bitscript".exports["./keys"] in this package's package.json, for
+//
+//     import { keyboard } from "@8bitscript/c64/keyboard";
+//     import { Key } from "@8bitscript/c64/keys";
+//
+//     if (keyboard.pressed(Key.SPACE)) { ... }
+//
+// Each value is `column * 8 + row` in CIA1's matrix (see ./keyboard.8bs):
+// the column is the bit of port A ($DC00) driven low to select it, the row
+// the bit of port B ($DC01) that reads low. Every C64 ever made has this
+// one matrix — the C64C, SX-64, and the rest moved keys on the case, not
+// on the wires — so unlike the PET there is one table and no profile twin.
+// Two keys are not in it: RESTORE is wired to the CPU's NMI line, and
+// SHIFT LOCK is the left SHIFT key's own wire, held down.
+//
+// A key that also exists on the PET has the same name here — letters,
+// `DIGIT_n`, SPACE, RETURN, STOP, HOME, DELETE, the cursor keys, both
+// shifts, the arrows and the shared punctuation — so a program that
+// sticks to those names reads the same on both machines' keyboard layers.
+//
+// Source: the matrix in the Programmer's Reference Guide and every C64
+// reference since, checked here key for key against VICE's own positional
+// keyboard map for the C64, /opt/homebrew/share/vice/C64/gtk3_pos.vkm
+// (each line there is `keysym column row shiftflag`, in the same
+// numbering as this file); packages/compiler/test/c64-keys.test.mjs repeats
+// that check when the file is present.
+
+export namespace Key {
+    // column 0
+    const DELETE: utinyint = 0; // INST/DEL
+    const RETURN: utinyint = 1;
+    const CURSOR_RIGHT: utinyint = 2; // shifted: cursor left
+    const F7: utinyint = 3; // shifted: F8
+    const F1: utinyint = 4; // shifted: F2
+    const F3: utinyint = 5; // shifted: F4
+    const F5: utinyint = 6; // shifted: F6
+    const CURSOR_DOWN: utinyint = 7; // shifted: cursor up
+    // column 1
+    const DIGIT_3: utinyint = 8;
+    const W: utinyint = 9;
+    const A: utinyint = 10;
+    const DIGIT_4: utinyint = 11;
+    const Z: utinyint = 12;
+    const S: utinyint = 13;
+    const E: utinyint = 14;
+    const SHIFT_LEFT: utinyint = 15; // also SHIFT LOCK
+    // column 2
+    const DIGIT_5: utinyint = 16;
+    const R: utinyint = 17;
+    const D: utinyint = 18;
+    const DIGIT_6: utinyint = 19;
+    const C: utinyint = 20;
+    const F: utinyint = 21;
+    const T: utinyint = 22;
+    const X: utinyint = 23;
+    // column 3
+    const DIGIT_7: utinyint = 24;
+    const Y: utinyint = 25;
+    const G: utinyint = 26;
+    const DIGIT_8: utinyint = 27;
+    const B: utinyint = 28;
+    const H: utinyint = 29;
+    const U: utinyint = 30;
+    const V: utinyint = 31;
+    // column 4
+    const DIGIT_9: utinyint = 32;
+    const I: utinyint = 33;
+    const J: utinyint = 34;
+    const DIGIT_0: utinyint = 35;
+    const M: utinyint = 36;
+    const K: utinyint = 37;
+    const O: utinyint = 38;
+    const N: utinyint = 39;
+    // column 5
+    const PLUS: utinyint = 40;
+    const P: utinyint = 41;
+    const L: utinyint = 42;
+    const MINUS: utinyint = 43;
+    const PERIOD: utinyint = 44;
+    const COLON: utinyint = 45;
+    const AT: utinyint = 46;
+    const COMMA: utinyint = 47;
+    // column 6
+    const POUND: utinyint = 48; // £
+    const ASTERISK: utinyint = 49;
+    const SEMICOLON: utinyint = 50;
+    const HOME: utinyint = 51; // CLR/HOME
+    const SHIFT_RIGHT: utinyint = 52;
+    const EQUALS: utinyint = 53;
+    const UP_ARROW: utinyint = 54;
+    const SLASH: utinyint = 55;
+    // column 7
+    const DIGIT_1: utinyint = 56;
+    const LEFT_ARROW: utinyint = 57;
+    const CONTROL: utinyint = 58;
+    const DIGIT_2: utinyint = 59;
+    const SPACE: utinyint = 60;
+    const COMMODORE: utinyint = 61; // the C= key
+    const Q: utinyint = 62;
+    const STOP: utinyint = 63; // RUN/STOP
+}

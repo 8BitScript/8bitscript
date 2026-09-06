@@ -1,0 +1,174 @@
+// @8bitscript/c64/sprites — the VIC-II's eight hardware sprites.
+//
+// Named by "8bitscript".exports["./sprites"] in this package's package.json:
+//
+//     import { sprites } from "@8bitscript/c64/sprites";
+//     import { spriteShapes } from "@8bitscript/c64/video";
+//
+// This is hardware-level, C64-only surface — the layer a portable sprite
+// capability (the `sprites.place(...)` intent API the root AGENTS.md
+// describes) will sit on, the way ./text.8bs is the layer under
+// @8bitscript/text. Importing it makes a program C64-specific, and it
+// promises what the VIC-II has: eight movable objects, no more, each 24x21
+// pixels of one colour over a transparent background (or 12x21 double-
+// width pixels of three colours in multicolour), each drawn in front of
+// or behind the background by its own bit, and in a fixed order among
+// themselves — sprite 0 is always in front of sprite 1.
+//
+// ---- shapes -----------------------------------------------------------------
+//
+// A sprite's picture is 63 bytes — 21 rows of 3 bytes, one bit per pixel
+// left to right — in a 64-byte block inside the VIC's bank, and the
+// sprite's pointer (screen + $3F8 + n, `spritePointers[n]`) names the block
+// as its address / 64. The blocks this package owns are $E400-$FFBF,
+// blocks 144-254 in bank 3 (./geometry.8bs says why the picture is there),
+// reachable as one array: `spriteShapes[64 * (block - FIRST_BLOCK) + i]`.
+// Shape data is a program's own `const` table, and a const array is data
+// wherever the linker put it — which the VIC cannot see — so a program
+// copies each shape into a block once, at start-up:
+//
+//     const SHIP: array<u8, 63> = [ ... ];
+//     const SHIP_BLOCK: u8 = sprites.FIRST_BLOCK;
+//     for (let i: u8 = 0; i < 63; i++) {
+//         spriteShapes[sprites.blockOffset(SHIP_BLOCK) + i] = SHIP[i];
+//     }
+//     sprites.setShape(0, SHIP_BLOCK);
+//
+// and from then on `setShape` is one byte, which is how animation works:
+// several blocks, one pointer write a frame.
+//
+// ---- positions --------------------------------------------------------------
+//
+// Coordinates are the VIC's: X is 9 bits (0-511) and Y 8 bits, in a space
+// where the visible 320x200 window starts at (24, 50) with 25 rows and 40
+// columns on — so a sprite at X = 24, Y = 50 has its top-left pixel in the
+// top-left corner of the screen, X < 24 or Y < 50 slides it under the
+// border, and the last fully visible position is (320, 229). `place` takes
+// the 9-bit X as one number and splits it across $D000 and $D010 itself.
+//
+// ---- collisions -------------------------------------------------------------
+//
+// The VIC records which sprites overlapped another sprite ($D01E) or a
+// foreground pixel of the background ($D01F) as it drew the last frame,
+// and CLEARS EACH REGISTER WHEN IT IS READ. So `collisions()` and
+// `backgroundCollisions()` are read once, right after waitFrame(), and the
+// byte is kept: a second read in the same frame is zero. A bit says a
+// sprite touched something, not what; two set bits in $D01E were a pair.
+import {
+    spritePositions, spriteXHigh, spriteEnable, spriteExpandX, spriteExpandY,
+    spritePriority, spriteMulticolor, spriteCollision, spriteBackgroundCollision,
+    spriteSharedColor0, spriteSharedColor1, spriteColors, setupVideo,
+} from "./index.8bs";
+import { Video, spritePointers, spriteShapes } from "./geometry.8bs";
+
+
+// Bit masks, indexed rather than shifted: `1 << n` with a variable n is a
+// loop on the 6502, a table lookup is one indexed load.
+const BIT: array<utinyint, 8> = [1, 2, 4, 8, 16, 32, 64, 128];
+const NOT_BIT: array<utinyint, 8> = [254, 253, 251, 247, 239, 223, 191, 127];
+
+export namespace sprites {
+    const COUNT: utinyint = 8;
+    const WIDTH: utinyint = 24; // pixels, before X expansion
+    const HEIGHT: utinyint = 21; // pixels, before Y expansion
+    const BYTES: utinyint = 63; // one shape: 21 rows of 3 bytes
+    const FIRST_BLOCK: utinyint = Video.SHAPE_BLOCK_FIRST; // 144: the first block this package owns
+    const BLOCK_COUNT: utinyint = Video.SHAPE_COUNT; // 111 blocks, 144-254
+    const LEFT: usmallint = 24; // X of the screen's left edge
+    const TOP: utinyint = 50; // Y of the screen's top edge
+    const VISIBLE_WIDTH: usmallint = 320;
+    const VISIBLE_HEIGHT: utinyint = 200;
+
+    // Where block `block`'s 63 bytes start in `spriteShapes`.
+    function blockOffset(block: utinyint): usmallint {
+        return (block - Video.SHAPE_BLOCK_FIRST) * 64;
+    }
+
+    // Put sprite `index` at (x, y) — X 0-511, Y 0-255, the VIC's space.
+    function place(index: utinyint, x: usmallint, y: utinyint): void {
+        spritePositions[index * 2] = x;
+        spritePositions[index * 2 + 1] = y;
+        if (x >= 256) {
+            spriteXHigh = spriteXHigh | BIT[index];
+        } else {
+            spriteXHigh = spriteXHigh & NOT_BIT[index];
+        }
+    }
+
+    // Draw sprite `index` from shape block `block` (FIRST_BLOCK and up).
+    function setShape(index: utinyint, block: utinyint): void {
+        spritePointers[index] = block;
+    }
+
+    function setColor(index: utinyint, color: utinyint): void {
+        spriteColors[index] = color & 15;
+    }
+
+    // The sprite is drawn from the next frame on. Sets the picture up
+    // (bank 3, the character set) if nothing has yet.
+    function show(index: utinyint): void {
+        setupVideo();
+        spriteEnable = spriteEnable | BIT[index];
+    }
+
+    function hide(index: utinyint): void {
+        spriteEnable = spriteEnable & NOT_BIT[index];
+    }
+
+    function hideAll(): void {
+        spriteEnable = 0;
+    }
+
+    // Twice as wide and/or twice as tall, from the same 24x21 shape.
+    function expand(index: utinyint, wide: bool, tall: bool): void {
+        if (wide) {
+            spriteExpandX = spriteExpandX | BIT[index];
+        } else {
+            spriteExpandX = spriteExpandX & NOT_BIT[index];
+        }
+        if (tall) {
+            spriteExpandY = spriteExpandY | BIT[index];
+        } else {
+            spriteExpandY = spriteExpandY & NOT_BIT[index];
+        }
+    }
+
+    // Behind the background's foreground pixels (text, a bitmap's set
+    // bits) rather than in front of them. Background colour always shows
+    // through a sprite's transparent pixels either way.
+    function setBehindBackground(index: utinyint, behind: bool): void {
+        if (behind) {
+            spritePriority = spritePriority | BIT[index];
+        } else {
+            spritePriority = spritePriority & NOT_BIT[index];
+        }
+    }
+
+    // Multicolour: pixel pairs, %01 shared colour 0, %10 the sprite's own
+    // colour, %11 shared colour 1, %00 transparent. Half the horizontal
+    // resolution for two more colours; the shared pair is one for all.
+    function setMulticolor(index: utinyint, on: bool): void {
+        if (on) {
+            spriteMulticolor = spriteMulticolor | BIT[index];
+        } else {
+            spriteMulticolor = spriteMulticolor & NOT_BIT[index];
+        }
+    }
+
+    function setSharedColors(color0: utinyint, color1: utinyint): void {
+        spriteSharedColor0 = color0 & 15;
+        spriteSharedColor1 = color1 & 15;
+    }
+
+    // Sprites that overlapped another sprite while the last frame was
+    // drawn, one bit each. Clears when read: once a frame, keep the byte.
+    function collisions(): utinyint {
+        return spriteCollision;
+    }
+
+    // Sprites that overlapped a foreground pixel of the background while
+    // the last frame was drawn. Clears when read, the same way.
+    function backgroundCollisions(): utinyint {
+        return spriteBackgroundCollision;
+    }
+}

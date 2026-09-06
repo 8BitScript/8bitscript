@@ -8,7 +8,13 @@
     "entry": "./src/index.8bs",
     "exports": {
       "./screen": "./src/screen.8bs",
-      "./text": "./src/text.8bs"
+      "./text": "./src/text.8bs",
+      "./video": "./src/geometry.8bs",
+      "./sprites": "./src/sprites.8bs",
+      "./keyboard": "./src/keyboard.8bs",
+      "./keys": "./src/keys.8bs",
+      "./joystick": "./src/joystick.8bs",
+      "./sid": "./src/sid.8bs"
     }
   },
   "files": [

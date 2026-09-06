@@ -113,14 +113,23 @@ editor on a hack that the capability would replace:
   Nothing in Studio can be interactive before this exists. The PET has
   the hardware layer such a package would sit on (`@8bitscript/pet/keyboard`
   scans the matrix once a frame, `@8bitscript/pet/keys` names the keys per
-  profile; see `packages/pet/AGENTS.md`); importing it directly makes a
-  program PET-only, which Studio's shared code must not be.
+  profile; see `packages/pet/AGENTS.md`), and so does the C64
+  (`@8bitscript/c64/keyboard` + `/keys` for the matrix, `/joystick` for
+  the two control ports; see `packages/c64/AGENTS.md`); importing either
+  directly makes a program that machine's only, which Studio's shared
+  code must not be.
 - **Character and sprite access** — reading and writing the character
   set and, where the machine has them, sprite definitions and positions,
   through the intent-level API the root `AGENTS.md` insists on
-  (`sprites.place(...)`, not a VIC-II register).
+  (`sprites.place(...)`, not a VIC-II register). The C64 has its hardware
+  layer for this too: `@8bitscript/c64/sprites` (eight sprites, shapes in
+  blocks the package owns) and `@8bitscript/c64/video` (the character
+  set's RAM copy, the screen, colour RAM) — C64-only, the layer the
+  capability sits on, not the capability.
 - **Sound** — a note-level API for the machines with a chip, and the
-  PET's one voice behind the same API.
+  PET's one voice behind the same API. `@8bitscript/c64/sid` is the C64's
+  hardware layer for it: three voices, waveforms, envelopes, the filter,
+  and a PAL note table (see `packages/c64/AGENTS.md` for the NTSC caveat).
 - **Storage** — loading and saving a file from Studio, and getting it
   from the emulator back into the repository. This is the piece that
   makes "Launch in Studio" possible and it is the least designed: each

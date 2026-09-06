@@ -1,0 +1,173 @@
+// @8bitscript/c64/sid — the SID, voice by voice.
+//
+// Named by "8bitscript".exports["./sid"] in this package's package.json:
+//
+//     import { sid, Waveform, Note } from "@8bitscript/c64/sid";
+//
+//     sid.setVolume(15);
+//     sid.setEnvelope(0, 0, 9, 8, 6);
+//     sid.setWaveform(0, Waveform.PULSE);
+//     sid.setPulseWidth(0, 2048);
+//     sid.play(0, Note.A4);       // gate on, at 440 Hz on a PAL machine
+//     ...
+//     sid.release(0);             // gate off: the release phase begins
+//
+// Hardware-level, C64-only surface — the layer a portable, note-level
+// sound capability (packages/studio/AGENTS.md) will sit on. It is the
+// 6581/8580's three voices as they are: an oscillator with four waveforms
+// (triangle, sawtooth, pulse with a 12-bit width, noise), an ADSR envelope
+// per voice, ring modulation and hard sync between neighbours, one filter
+// shared by all three, and a master volume. Nothing here is a tracker, a
+// sequencer or a driver; it is the registers with their units named.
+//
+// The SID's registers are write-only, so this file keeps a copy of each
+// voice's control byte: `setWaveform` changes the waveform bits and keeps
+// the gate, `play`/`release` change the gate and keep the waveform.
+//
+// ---- pitch --------------------------------------------------------------
+//
+// A voice's 16-bit frequency register is `Fn`, and the pitch it plays is
+// `Fn * clock / 16777216` Hz (the 6581 datasheet: 2^24), where `clock` is
+// the CPU clock — 985248 Hz on a PAL machine, 1022727 on NTSC. `Note`
+// names the equal-tempered notes C0 to B6 (A4 = 440 Hz), and `NOTE_PAL`
+// holds each one's `Fn` for the PAL clock, computed from that formula and
+// checked by packages/compiler/test/c64-sid.test.mjs. One build runs on
+// both regions (there is no region at build time — the frame runtime
+// probes the raster at start-up), so on an NTSC machine the same table
+// plays every note about 3.8 percent sharp: two thirds of a semitone, in
+// tune with itself. The table stops at the last complete octave: B7's
+// `Fn` would overflow the register on PAL (the ceiling is about 3848 Hz),
+// though C7 to A#7 would fit; `setFrequency` takes any `Fn` directly.
+import { sidRegisters } from "./index.8bs";
+
+// Control-register waveform bits; one of the four, or the ring/sync
+// modifiers OR-ed in. Ring modulation replaces a voice's triangle output
+// with the ring product against the previous voice (voice 0's partner is
+// voice 2); sync resets the oscillator on the previous voice's cycle.
+export namespace Waveform {
+    const TRIANGLE: utinyint = 0x10;
+    const SAWTOOTH: utinyint = 0x20;
+    const PULSE: utinyint = 0x40;
+    const NOISE: utinyint = 0x80;
+    const RING: utinyint = 0x04;
+    const SYNC: utinyint = 0x02;
+}
+
+// Filter modes for `setFilter`: OR them together for more than one.
+export namespace Filter {
+    const OFF: utinyint = 0x00;
+    const LOW_PASS: utinyint = 0x10;
+    const BAND_PASS: utinyint = 0x20;
+    const HIGH_PASS: utinyint = 0x40;
+}
+
+// Note indexes into NOTE_PAL: octave * 12 + semitone, C0 = 0, A4 = 57.
+// CS is C sharp, and so on.
+export namespace Note {
+    const C0: utinyint = 0; const CS0: utinyint = 1; const D0: utinyint = 2; const DS0: utinyint = 3; const E0: utinyint = 4; const F0: utinyint = 5; const FS0: utinyint = 6; const G0: utinyint = 7; const GS0: utinyint = 8; const A0: utinyint = 9; const AS0: utinyint = 10; const B0: utinyint = 11;
+    const C1: utinyint = 12; const CS1: utinyint = 13; const D1: utinyint = 14; const DS1: utinyint = 15; const E1: utinyint = 16; const F1: utinyint = 17; const FS1: utinyint = 18; const G1: utinyint = 19; const GS1: utinyint = 20; const A1: utinyint = 21; const AS1: utinyint = 22; const B1: utinyint = 23;
+    const C2: utinyint = 24; const CS2: utinyint = 25; const D2: utinyint = 26; const DS2: utinyint = 27; const E2: utinyint = 28; const F2: utinyint = 29; const FS2: utinyint = 30; const G2: utinyint = 31; const GS2: utinyint = 32; const A2: utinyint = 33; const AS2: utinyint = 34; const B2: utinyint = 35;
+    const C3: utinyint = 36; const CS3: utinyint = 37; const D3: utinyint = 38; const DS3: utinyint = 39; const E3: utinyint = 40; const F3: utinyint = 41; const FS3: utinyint = 42; const G3: utinyint = 43; const GS3: utinyint = 44; const A3: utinyint = 45; const AS3: utinyint = 46; const B3: utinyint = 47;
+    const C4: utinyint = 48; const CS4: utinyint = 49; const D4: utinyint = 50; const DS4: utinyint = 51; const E4: utinyint = 52; const F4: utinyint = 53; const FS4: utinyint = 54; const G4: utinyint = 55; const GS4: utinyint = 56; const A4: utinyint = 57; const AS4: utinyint = 58; const B4: utinyint = 59;
+    const C5: utinyint = 60; const CS5: utinyint = 61; const D5: utinyint = 62; const DS5: utinyint = 63; const E5: utinyint = 64; const F5: utinyint = 65; const FS5: utinyint = 66; const G5: utinyint = 67; const GS5: utinyint = 68; const A5: utinyint = 69; const AS5: utinyint = 70; const B5: utinyint = 71;
+    const C6: utinyint = 72; const CS6: utinyint = 73; const D6: utinyint = 74; const DS6: utinyint = 75; const E6: utinyint = 76; const F6: utinyint = 77; const FS6: utinyint = 78; const G6: utinyint = 79; const GS6: utinyint = 80; const A6: utinyint = 81; const AS6: utinyint = 82; const B6: utinyint = 83;
+}
+
+// Fn per note for a 985248 Hz clock: round(f * 2^24 / 985248).
+const NOTE_PAL: array<usmallint, 84> = [
+    278, 295, 313, 331, 351, 372, 394, 417, 442, 468, 496, 526, // octave 0
+    557, 590, 625, 662, 702, 743, 788, 834, 884, 937, 992, 1051, // octave 1
+    1114, 1180, 1250, 1325, 1403, 1487, 1575, 1669, 1768, 1873, 1985, 2103, // octave 2
+    2228, 2360, 2500, 2649, 2807, 2973, 3150, 3338, 3536, 3746, 3969, 4205, // octave 3
+    4455, 4720, 5001, 5298, 5613, 5947, 6300, 6675, 7072, 7493, 7938, 8410, // octave 4
+    8910, 9440, 10001, 10596, 11226, 11894, 12601, 13350, 14144, 14985, 15876, 16820, // octave 5
+    17820, 18880, 20003, 21192, 22452, 23787, 25202, 26700, 28288, 29970, 31752, 33640, // octave 6
+];
+
+// Each voice's register base: 7 * voice, without a multiply.
+const VOICE_BASE: array<utinyint, 3> = [0, 7, 14];
+
+// The control byte last written per voice (write-only register).
+let control: array<utinyint, 3>;
+// $D417 and $D418, likewise: filter routing/resonance and mode/volume.
+let filterControl: utinyint = 0;
+let modeVolume: utinyint = 0;
+
+export namespace sid {
+    const VOICE_COUNT: utinyint = 3;
+
+    // Master volume, 0-15. Filter mode bits are kept.
+    function setVolume(volume: utinyint): void {
+        modeVolume = (modeVolume & 0xF0) | (volume & 15);
+        sidRegisters[24] = modeVolume;
+    }
+
+    // The raw 16-bit frequency register; see the pitch formula above.
+    function setFrequency(voice: utinyint, frequency: usmallint): void {
+        sidRegisters[VOICE_BASE[voice]] = frequency & 0xFF;
+        sidRegisters[VOICE_BASE[voice] + 1] = frequency >> 8;
+    }
+
+    // Pulse width for Waveform.PULSE, 0-4095; 2048 is a square wave.
+    function setPulseWidth(voice: utinyint, width: usmallint): void {
+        sidRegisters[VOICE_BASE[voice] + 2] = width & 0xFF;
+        sidRegisters[VOICE_BASE[voice] + 3] = (width >> 8) & 0x0F;
+    }
+
+    // Attack and decay rates 0-15 (2 ms to 8 s), sustain level 0-15,
+    // release rate 0-15 (6 ms to 24 s) — the datasheet's tables.
+    function setEnvelope(voice: utinyint, attack: utinyint, decay: utinyint, sustain: utinyint, release: utinyint): void {
+        sidRegisters[VOICE_BASE[voice] + 5] = (attack << 4) | (decay & 15);
+        sidRegisters[VOICE_BASE[voice] + 6] = (sustain << 4) | (release & 15);
+    }
+
+    // The waveform (and ring/sync) bits; the gate is left as it is.
+    function setWaveform(voice: utinyint, waveform: utinyint): void {
+        control[voice] = (control[voice] & 0x01) | (waveform & 0xF6);
+        sidRegisters[VOICE_BASE[voice] + 4] = control[voice];
+    }
+
+    // Gate on: the envelope starts its attack, at whatever pitch is set.
+    function gateOn(voice: utinyint): void {
+        control[voice] = control[voice] | 0x01;
+        sidRegisters[VOICE_BASE[voice] + 4] = control[voice];
+    }
+
+    // Gate off: the envelope enters its release phase.
+    function release(voice: utinyint): void {
+        control[voice] = control[voice] & 0xFE;
+        sidRegisters[VOICE_BASE[voice] + 4] = control[voice];
+    }
+
+    // Set the pitch to `note` (a `Note.*` index) and gate on.
+    function play(voice: utinyint, note: utinyint): void {
+        sid.setFrequency(voice, NOTE_PAL[note]);
+        sid.gateOn(voice);
+    }
+
+    // The filter: an 11-bit cutoff, resonance 0-15, which voices go
+    // through it (bits 0-2, one per voice), and the mode. Mode bits share
+    // $D418 with the volume; both copies are kept here.
+    function setFilter(cutoff: usmallint, resonance: utinyint, voices: utinyint, mode: utinyint): void {
+        sidRegisters[21] = cutoff & 0x07;
+        sidRegisters[22] = (cutoff >> 3) & 0xFF;
+        filterControl = (resonance << 4) | (voices & 0x07);
+        sidRegisters[23] = filterControl;
+        modeVolume = (modeVolume & 0x0F) | (mode & 0x70);
+        sidRegisters[24] = modeVolume;
+    }
+
+    // Every voice gated off with its waveform cleared, the filter off,
+    // volume 0: the state a program should leave the chip in, and a good
+    // one to start from.
+    function reset(): void {
+        for (let voice: utinyint = 0; voice < 3; voice++) {
+            control[voice] = 0;
+            sidRegisters[VOICE_BASE[voice] + 4] = 0;
+        }
+        filterControl = 0;
+        sidRegisters[23] = 0;
+        modeVolume = 0;
+        sidRegisters[24] = 0;
+    }
+}

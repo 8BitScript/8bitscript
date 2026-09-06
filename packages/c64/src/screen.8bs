@@ -10,7 +10,13 @@
 // itself exports, one layer up from them. Every machine's screen.8bs exports
 // this same surface, which is what lets a program import it from
 // @8bitscript/screen and never name the hardware.
-import { borderColor, backgroundColor } from "./index.8bs";
+//
+// Where the screen is — VIC bank 3, above the program, with the ROM
+// character set copied under the I/O area — is ./geometry.8bs's story, and
+// `setupVideo()` (in ./index.8bs) is what puts it there, once, before the
+// first cell is written.
+import { borderColor, backgroundColor, setupVideo } from "./index.8bs";
+import { Video, screenRam } from "./geometry.8bs";
 
 // ---- the screen: border and background --------------------------------------
 //
@@ -28,14 +34,15 @@ export namespace screen {
     // colour each, `setColors` the pair; `text.setColor` owns what the
     // next print looks like.
     function blank(border: utinyint = BorderColor.BLACK, background: utinyint = BackgroundColor.BLACK): void {
+        setupVideo();
         if (border != BorderColor.KEEP) {
             screen.setBorder(border);
         }
         if (background != BackgroundColor.KEEP) {
             screen.setBackground(background);
         }
-        for (let cell: usmallint = 0; cell < 1000; cell++) {
-            memory.write(0x0400 + cell, 32); // 32: the space screen code
+        for (let cell: usmallint = 0; cell < Video.CELL_COUNT; cell++) {
+            screenRam[cell] = 32; // 32: the space screen code
         }
     }
 

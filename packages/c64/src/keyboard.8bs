@@ -1,0 +1,84 @@
+// @8bitscript/c64/keyboard — the C64's keyboard matrix, one snapshot a frame.
+//
+// Named by "8bitscript".exports["./keyboard"] in this package's package.json:
+//
+//     import { keyboard } from "@8bitscript/c64/keyboard";
+//     import { Key } from "@8bitscript/c64/keys";
+//
+// This is hardware-level, C64-only surface — the layer a portable input
+// capability (`@8bitscript/input`, not yet written; see
+// packages/studio/AGENTS.md) will be built on, the way ./text.8bs is the
+// layer under @8bitscript/text. Importing it makes a program C64-specific.
+// It keeps no key buffer and decodes no PETSCII; it answers "is this key
+// down now", which is what a game loop asks.
+//
+// ---- how the matrix works -----------------------------------------------
+//
+// Eight columns by eight rows on CIA1, no diodes. Writing a byte with one
+// 0 bit to port A ($DC00) selects that column; port B ($DC01) then reads
+// the column's eight keys, a 0 bit where a key is down. The KERNAL's own
+// scan (SCNKEY, from its 60 Hz timer IRQ) drives the same two ports, and
+// would land its column select between this scan's write and read — which
+// is one reason the frame runtime starts a C64 program with `sei`
+// (FRAME_SYNC.c64 in packages/backend-6502): from the first waitFrame()
+// on, only this program touches CIA1. `scan()` writes the two direction
+// registers itself (A out, B in — the KERNAL's setting, made sure of), so
+// it does not depend on what ran before.
+//
+// `scan()` reads all eight columns into `state`, once a frame, right after
+// waitFrame() returns; every question after that reads the snapshot.
+// Sixteen port accesses, well under 200 cycles of a 17000-cycle NTSC frame.
+// It leaves port A at $FF — no column selected — which is the state
+// @8bitscript/c64/joystick needs to read the ports as joysticks; call
+// `keyboard.scan()` first and `joystick.scan()` second, both once a frame.
+//
+// The joystick lines are wired in parallel with the matrix: a stick in
+// port 1 pulls rows (a pushed direction reads as a key in every column),
+// a stick in port 2 pulls columns (an extra column selected, its keys
+// showing up under another's). A program that uses the keyboard and a
+// joystick at once lives with that, as every C64 game did — port 2 for
+// the stick, and keys that a stick cannot fake (a game that pauses on
+// RUN/STOP should expect it while the port-1 stick is pushed up: row 7).
+// Ghosting: three keys down can read as four (any three corners of a
+// rectangle in the matrix light the fourth). Two keys are always safe.
+import { cia1PortA, cia1PortB, cia1DirectionA, cia1DirectionB } from "./index.8bs";
+
+// The last scan, one byte per column, a 1 bit where a key is down (the
+// port's active-low rows inverted once, here, so nothing else has to
+// think about it). All zero until the first scan.
+let state: array<utinyint, 8>;
+
+// The column-select byte for each column, and the row masks — indexed
+// rather than shifted, as `1 << n` with a variable n is a loop on the 6502.
+const COLUMN_SELECT: array<utinyint, 8> = [254, 253, 251, 247, 239, 223, 191, 127];
+const ROW_BIT: array<utinyint, 8> = [1, 2, 4, 8, 16, 32, 64, 128];
+
+export namespace keyboard {
+    const COLUMNS: utinyint = 8;
+    const ROWS: utinyint = 8;
+
+    // Read all eight columns into the snapshot. Once a frame, right after
+    // waitFrame(), before joystick.scan().
+    function scan(): void {
+        cia1DirectionA = 0xFF;
+        cia1DirectionB = 0x00;
+        for (let column: utinyint = 0; column < 8; column++) {
+            cia1PortA = COLUMN_SELECT[column];
+            state[column] = cia1PortB ^ 0xFF;
+        }
+        cia1PortA = 0xFF;
+    }
+
+    // Is this key down in the last scan? `key` is a `Key.*` value from
+    // @8bitscript/c64/keys — `column * 8 + row` in the matrix.
+    function pressed(key: utinyint): bool {
+        return (state[key >> 3] & ROW_BIT[key & 7]) != 0;
+    }
+
+    // The last scan's eight rows of one column, a 1 bit per key down:
+    // for code that wants a whole column at once (an "any key" test over
+    // all eight, a ghosting check).
+    function column(index: utinyint): utinyint {
+        return state[index];
+    }
+}
