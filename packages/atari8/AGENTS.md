@@ -1,9 +1,10 @@
 # Writing Atari 8-bit support for 8BitScript
 
 This file is for anyone — human or agent — touching `packages/atari8`,
-`packages/backend-6502`'s `atari8` entries (`ATARI8_PROFILES`,
-`driverFor()`, `outputExtension()`, `FRAME_SYNC.atari8`), `packages/cli`'s
-atari800 handling (`ATARI8_MODEL_ARG`, `atari800CleanDisplayConfig()`,
+this package's hardware catalog (`package.json`, `"8bitscript".hardware`:
+`model`, `mouse`, `stereo`), `packages/backend-6502`'s `atari8` entries
+(`DRIVER.atari8`, `FRAME_SYNC.atari8`), `packages/cli`'s atari800 handling
+(`atari800CleanDisplayConfig()`,
 `atari8Screenshot()`, the `CLANG_DRIVERS` rows in `doctor.mjs`),
 `docs/setup/atari8.md`, or the Atari rows of `docs/roadmap.md`,
 `docs/setup/llvm-mos.md` and `packages/studio/AGENTS.md`. Read the root
@@ -27,8 +28,8 @@ video chip reading one bank. The Atari is a fifth case —
 > takes the machine over" — never as "a C64 with a different colour
 > table".**
 
-The machine's variety runs on three axes that this repo's single
-`--profile` flag currently folds into one: the *model* (400/800 with 8–48K
+The machine's variety runs on three axes; the catalog's `model` option
+still folds the first two into one value (see the rule below): the *model* (400/800 with 8–48K
 and four joystick ports; 800XL/65XE with 64K; 130XE with 64K more behind
 PORTB; XEGS, a 65XE in a console case), the *media* (a DOS-loaded `.xex`,
 an 8/16K standard cartridge, a 32–512K XEGS cartridge, a 16–512K
@@ -65,16 +66,19 @@ Do not describe more than this as working:
   run (`prepare()`) and inhibit the cursor; `putColor` and `setColor` are
   inert because GR.0 has no per-cell colour. `printNumber` is the
   subtraction routine, not a divide.
-- **Profiles** (`ATARI8_PROFILES`): `800xl` (default), `65xe`, `130xe`,
-  `800`, `400` → `mos-atari8-dos-clang`, a `.xex`; `xegs` →
-  `mos-atari8-cart-xegs-clang`, a `.rom`. `MACHINE_FLAGS.atari8` is empty
-  and no `--defsym` is passed, so the five `.xex` profiles produce
-  byte-identical programs (checked here for `800xl`, `130xe` and `800`:
-  818 bytes of program each; `65xe` and `400` follow from the empty flag
-  table, not from a build) and only change which atari800 model flag
-  `8bs run` uses. The XEGS
-  build takes the SDK's default `__cart_rom_size = 256` and is a 262144-byte
-  image. Output names are `main-atari8-<profile>-<region>.xex|rom`.
+- **Hardware** (the catalog in `package.json`): `model` — `800xl`
+  (default), `65xe`, `130xe`, `800`, `400` build with the stock
+  `mos-atari8-dos-clang` into a `.xex`, and `xegs` carries
+  `build.driver: mos-atari8-cart-xegs-clang` and `build.output: rom`; a
+  preset per model keeps `--profile 130xe` working. No `--defsym` is
+  passed, so the five `.xex` models produce byte-identical programs
+  (checked here for `800xl`, `130xe` and `800`: 818 bytes of program
+  each) and only change which atari800 model flag `8bs run` uses. The XEGS
+  build takes the SDK's default `__cart_rom_size = 256` and is a
+  262144-byte image; being the one value that changes the build, it is
+  the one in the output name (`main-atari8-xegs-ntsc.rom`; the others are
+  `main-atari8-<region>.xex`). `mouse` — `none`, `st`, `amiga`, `trak`
+  (`-mouse`, a fact `input.mouse`); `stereo` — `off`/`on` (`-stereo`).
 - `FRAME_SYNC.atari8` is a *level* driver polling ANTIC's VCOUNT
   (`$D40B < 64` for the top half, `>= 140` as the PAL probe), NTSC
   `262 × 114 / 1789790`, PAL `312 × 114 / 1773447`. It has no `presync`:
@@ -82,17 +86,16 @@ Do not describe more than this as working:
   the OS's VBI keeps running — its jiffy clock, keyboard, joystick shadows
   and colour-shadow copy all stay alive under an 8BitScript program.
 - `8bs run atari8` launches `atari800` with a copy of `~/.atari800.cfg`
-  whose CRT-shader knobs are zeroed, the model flag (`-atari` for 800 and
-  400, `-xl` for 800xl and 65xe, `-xe` for 130xe, `-xegs`), `-ntsc`/`-pal`,
-  a 3× window of the "tv" area, and `-run <file.xex>` — or, for `xegs`,
-  `-cart <file.rom>`. **That XEGS launch does not run the program** (see
-  the verified table: atari800 stops at its "Select Cartridge Type" menu
-  because a raw 256 KiB image matches eight cartridge types and `run.mjs`
-  passes no `-cart-type`). `8bs run atari8 --screenshot` (macOS window
-  capture, wall-clock `--frames` at a nominal 60 Hz) passes `-run` for
-  *every* profile, so for `xegs` it hands the `.rom` to the executable
-  loader and captures a blank OS screen. Neither file is changed by this
-  note; both are listed under "Corrections".
+  whose CRT-shader knobs are zeroed, the model's flag from the catalog
+  (`-atari` for 800 and 400, `-xl` for 800xl and 65xe, `-xe` for 130xe,
+  `-xegs`), `-ntsc`/`-pal`, a 3× window of the "tv" area, and `-run
+  <file.xex>` — or, for `xegs`, the value's own `load`: `-cart <file.rom>
+  -cart-type 23`, because a raw 256 KiB image matches eight of atari800's
+  cartridge types and without the type it stopped at its "Select
+  Cartridge Type" menu (verified below; fixed the day this file was
+  written, in `run.mjs` and `screenshot.mjs` both). `8bs run atari8
+  --screenshot` (macOS window capture, wall-clock `--frames` at a nominal
+  60 Hz) takes the same flags.
 - `8bs doctor` checks that both drivers and `atari800` exist; nothing
   checks for the OS ROMs atari800 needs (`docs/setup/atari8.md`).
 - `packages/studio/AGENTS.md` lists `atari8` in Studio's full tier; nothing
@@ -100,8 +103,8 @@ Do not describe more than this as working:
 
 There is no sound, no input, no player/missile, no display-list, no
 character-set, no banking (130XE) and no storage API, no standard-cartridge
-or MegaCart profile, no `-cart-type` plumbing, and no non-macOS screenshot
-route — for this target or (mostly) for any machine. The rules below are
+or MegaCart value, and no non-macOS screenshot route — for this target or
+(mostly) for any machine. The rules below are
 what to hold that work to when it comes.
 
 ## Facts verified here
@@ -192,9 +195,8 @@ verify* in the ST/Trak-Ball documentation.
   fix is one flag — `-cart-type 23` for a 256K XEGS image, or the matching
   type for whatever `__cart_rom_size` the backend passes once it passes
   one — not a different emulator. Not changed by this note.
-- **`packages/cli/src/screenshot.mjs`**: `atari8Screenshot()` hardcodes
-  `-run`; for the `xegs` profile it must mirror `run.mjs`'s `-cart` (and
-  the `-cart-type`). Not changed by this note.
+- **`packages/cli/src/screenshot.mjs`** used to hardcode `-run`; it now
+  takes the catalog's `load` for the value, as `run.mjs` does. Fixed.
 - **`docs/setup/llvm-mos.md`**: "a profile only changes which of the two
   drivers above runs, and which atari800 machine model `8bs run`
   launches" — also true, but the XEGS driver changes the *load address*
@@ -214,21 +216,22 @@ verify* in the ST/Trak-Ball documentation.
 
 ## Rules for this target
 
-### Model, media and region are three axes, not one profile
+### Model, media and region are three axes, not one option
 
-- `ATARI8_PROFILES` mixes a model (`800xl`) with a medium (`xegs`). When
-  the next profile arrives (a standard 8K/16K cartridge, a MegaCart, a
-  130XE build that uses its extra RAM), split the axes the way the root
-  file asks: the model decides the atari800 flag, the joystick-port count
-  and the RAM ceiling; the medium decides the driver, `__cart_rom_size`,
-  the load address and the persistence story; the region is already a
-  separate flag. Pass `__cart_rom_size` explicitly and the matching
-  atari800 `-cart-type` in the same change — a raw cartridge image has no
+- The catalog's `model` option mixes a model (`800xl`) with a medium
+  (`xegs`). When the next medium arrives (a standard 8K/16K cartridge, a
+  MegaCart, a 130XE build that uses its extra RAM), split it into its own
+  option the way the root file asks: `model` decides the atari800 flag,
+  the joystick-port count and the RAM ceiling; a `media` option decides
+  the driver, `__cart_rom_size`, the load address, the `load` flags and
+  the persistence story; the region is already a separate flag. Give a
+  cartridge value its `__cart_rom_size` defsym and the matching atari800
+  `-cart-type` in the same catalog entry — a raw cartridge image has no
   header and the emulator cannot guess its type.
-- A `.xex` profile links every model identically (verified). That is
+- A `.xex` model links every machine identically (verified). That is
   honest for 64K machines; on a 16K 400 the `$2000-$BFFF` region does not
-  exist, so a `400` profile that means anything must cap the RAM region
-  (a `--defsym`, the way the PET's `__ram_size` does) rather than only
+  exist, so a `400` value that means anything must cap the RAM region
+  (a `defsym`, the way the PET's `__ram_size` does) rather than only
   choosing the emulator flag.
 - Never probe RAMTOP, PORTB or the OS revision at run time to learn what
   the build is for. Width, RAM, ports and medium are properties of the
@@ -398,14 +401,15 @@ here" when you do.
 packages/atari8/src/index.8bs           target package: COLBK/COLPF2/COLPF1 ($D01A/$D018/$D017), their OS shadows ($02C8/$02C6/$02C5), CRSINH ($02F0)
 packages/atari8/src/screen.8bs          @8bitscript/atari8/screen: shadow-then-hardware colours, blank() over 960 cells at SAVMSC, GTIA-byte colour names, KEEP = 255
 packages/atari8/src/text.8bs            @8bitscript/atari8/text: ASCII → internal code, SAVMSC read per run, inert putColor, CELL_COUNT 960 / COLUMNS 40
-packages/backend-6502/src/index.mjs     ATARI8_PROFILES, driverFor() (dos vs cart-xegs), outputExtension() (.xex/.rom), FRAME_SYNC.atari8 (VCOUNT poll, no sei)
-packages/cli/src/run.mjs                ATARI8_MODEL_ARG, atari800CleanDisplayConfig(), the -run/-cart launch (no -cart-type: see Corrections)
-packages/cli/src/screenshot.mjs         atari8Screenshot(): macOS window capture, always -run (see Corrections)
+packages/atari8/package.json            "8bitscript".hardware: model (flags, the xegs driver/output/load), mouse, stereo; a preset per model
+packages/backend-6502/src/index.mjs     DRIVER.atari8 (dos), driverFor()/outputExtension() reading the hardware's build block, FRAME_SYNC.atari8 (VCOUNT poll, no sei)
+packages/cli/src/run.mjs                atari800CleanDisplayConfig(), the launch: the catalog's flags, then -run or the value's load
+packages/cli/src/screenshot.mjs         atari8Screenshot(): macOS window capture, the same flags
 packages/cli/src/mac-window-capture.mjs findWindowIdForPid()/captureWindow(), the capture route for any atari800 launch
 packages/cli/src/doctor.mjs             CLANG_DRIVERS rows for both Atari drivers; the atari800 install plan
 packages/cli/test/emulator-smoke.test.mjs   atari800 -xl -ntsc -run boots a real build
-docs/setup/atari8.md                    installing atari800, the ROM caveat, the profile → flag table
-docs/setup/llvm-mos.md                  the two Atari drivers and the profile list
+docs/setup/atari8.md                    installing atari800, the ROM caveat, the model → flag list
+docs/setup/llvm-mos.md                  the two Atari drivers and what the XEGS value changes
 docs/setup/verify.md                    why atari8's screenshot is the one OS-level capture
 examples/proof-of-concept/borders/src/main.8bs   the program every screenshot above shows
 $SDK/mos-platform/atari8-common/        _antic.h, _gtia.h, _pokey.h, _pia.h, _atarios.h, atari.h (chip bases, PORTB bits), asminc/atari.inc (OS vectors)

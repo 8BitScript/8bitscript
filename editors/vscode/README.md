@@ -46,23 +46,43 @@ logo — to the Activity Bar, the strip of icons down the left edge where the
 file explorer, search, and source control live. Clicking it opens a side bar
 with two sections.
 
-**Run Settings** is three dropdowns and a checkbox:
+**Run Settings** is the system, the region, the hardware fitted, the
+view, and a checkbox:
 
 ```
-SYSTEM            REGION
-[ vic20       ▾ ] [ NTSC ▾ ]
+SYSTEM                       REGION
+[ c64 — Commodore 64     ▾ ] [ NTSC ▾ ]
+HARDWARE
+[ reu512                 ▾ ]
+  RAM Expansion Unit   [ REU, 512 KiB         ▾ ]
+  SID                  [ 8580 (the later SID) ▾ ]
+  Control port 1       [ Commodore 1351 mouse ▾ ]
+  Control port 2       [ Joystick             ▾ ]
+  Back to stock
 VIEW
 [ Runnable on the selected system ▾ ]
 ☐ Show proofs of concept
-Run buttons use vic20 · NTSC
+Run buttons use 8bs run c64 --profile reu512 --hardware sid=8580,port1=mouse1351
 ```
 
-- **System** — `vic20`, `c64`, or `web`: the one every Run and Build button
-  uses (`8bitscript.system`).
+- **System** — one of the nine targets, every Run and Build button uses
+  (`8bitscript.system`). The list, and the title beside each id, come from
+  `8bs targets --json`.
 - **Region** — NTSC (60Hz) or PAL (50Hz) for the machines that have one
   (`8bitscript.region`); it is greyed out while the system is `web`, which
   has no region, or `pet`, whose refresh rate is its model's (`8bs run pet
   --profile 4032` for a 50Hz machine) rather than a region's.
+- **Hardware** — what is fitted to the selected system when it runs: a
+  profile (a preset from the machine package's catalog, such as `8032`
+  or `reu512`, or one the open project composes in its `8bs.config.ts`)
+  and one control per option the catalog offers, each showing the value
+  it ends up with; `[build]` marks a value that changes the program, not
+  only the emulator. The selection is `8bitscript.hardware`, an object
+  keyed by system, and it rides on every Run and Build as `--profile` and
+  `--hardware` — the hint shows the exact `8bs run` line. *Back to stock*
+  clears it. The extension lists nothing of its own here; it asks the
+  toolchain (`8bs targets --json`), so a new option in a package appears
+  with no extension update.
 - **View** — how the Projects list below is laid out
   (`8bitscript.projectsView`); see the three layouts below.
 - **Show proofs of concept** — appears only when the toolchain in use

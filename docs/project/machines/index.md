@@ -14,7 +14,14 @@ input, storage, timing, hardware variants, emulator, LLVM-MOS status, and
 the traps — so that [the systems page](../../systems.md)'s matrix can
 compare a machine that exists with one that does not, row for row.
 
-These pages are research, not status. Nothing on them compiles; a claim
+These pages are research, not status. They were written a few hours
+before the hardware catalogs arrived, so where a page proposes an
+`<X>_PROFILES` table in `packages/backend-6502`, read it as the machine
+package's `"8bitscript".hardware` catalog — options and values with what
+each changes, resolved by `packages/cli/src/hardware.mjs` — which is the
+one mechanism every existing target now uses (see
+[systems](../../systems.md#three-axes-not-one)); the *axes* each page
+identifies (a model, a medium, a mapper) are what become its options. Nothing on them compiles; a claim
 read in a primary source names the source, and a claim the author could
 not confirm is marked *to verify*. When a machine's turn comes, its page
 becomes the first draft of `packages/<machine>/AGENTS.md`, and the

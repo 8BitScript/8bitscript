@@ -145,34 +145,39 @@ yourself and place them where that binary's `-help` output says it looks.
 
 ## VIC-20 memory
 
-The VIC-20 is one target with five RAM profiles, the expansions the SDK's
-link script and `xvic -memory` both know: `8bs build --target vic20
---profile 16k`. `unexpanded` is the default.
+The VIC-20's RAM expansion is a hardware option, `ram`, with the five
+values the SDK's link script and `xvic -memory` both know; the presets
+carry the same names, so `8bs build --target vic20 --profile 16k` and
+`--hardware ram=16k` are the same build. Unexpanded is the default.
 
-| Profile | Expansion | Program loads at | Screen / colour RAM |
-| ------- | --------- | ---------------- | ------------------- |
-| `unexpanded` | none (5K) | `$1001` | `$1E00` / `$9600` |
-| `3k` | 3K at `$0400` | `$0401` | `$1E00` / `$9600` |
-| `8k`, `16k`, `24k` | 8K, 16K, 24K from `$2000` | `$1201` | `$1000` / `$9400` |
+| `ram` | Expansion | Program loads at | Screen / colour RAM | Tag |
+| ----- | --------- | ---------------- | ------------------- | --- |
+| `none` | none (5K) | `$1001` | `$1E00` / `$9600` | — |
+| `3k` | 3K at `$0400` | `$0401` | `$1E00` / `$9600` | `3k` |
+| `8k`, `16k`, `24k` | 8K, 16K, 24K from `$2000` | `$1201` | `$1000` / `$9400` | `expanded` |
 
 With 8K or more the KERNAL moves the screen down to `$1000` so BASIC RAM
 runs unbroken from `$1200`; `@8bitscript/vic20`'s text and screen
-packages follow it through a profile version of one small file
-(`geometry.vic20.8k.8bs`, see [the package model](../packages.md#system-specific-files)),
-so one program draws in the right place on every profile. The profile has
-to match the machine it runs on; `8bs run` passes the matching
-`-memory` to xvic, and a non-default profile is in the output name
-(`main-vic20-8k-ntsc.prg`).
+packages follow it through one hardware version of one small file
+(`geometry.vic20.expanded.8bs`, the `expanded` tag all three values
+share — see [the package model](../packages.md#system-specific-files)),
+so one program draws in the right place whatever is fitted. The RAM has
+to match the machine it runs on; `8bs run` passes the matching `-memory`
+to xvic, and the value is in the output name (`main-vic20-8k-ntsc.prg`).
+The other option is `port1` (a joystick by default; paddles, or a 1351
+mouse, which xvic accepts and the hardware notes mark *to verify*). `8bs
+targets` lists both.
 
 ## PET models
 
-The PET is one target with several hardware profiles, named the way the
-machines were: `8bs build --target pet --profile 8032`. The profile picks
-the RAM the program is linked for, the screen width the `@8bitscript/text`
-and `@8bitscript/screen` packages draw to, and the model `xpet` launches.
-`3032` is the default.
+The PET's model is a hardware option, `model`, named the way the machines
+were, with a preset per model: `8bs build --target pet --profile 8032`.
+The model picks the RAM the program is linked for, the screen width the
+`@8bitscript/text` and `@8bitscript/screen` packages draw to (through the
+`8032` tag's version of the geometry file), the keyboard matrix, and the
+model `xpet` launches. `3032` is the default.
 
-| Profile | RAM | Columns | Video | ROMs | xpet refresh |
+| `model` | RAM | Columns | Video | ROMs | xpet refresh |
 | ------- | --- | ------- | ----- | ---- | ------------ |
 | `3008`, `3016`, `3032` | 8K, 16K, 32K | 40 | no CRTC (9-inch) | BASIC 2, graphics keyboard | ~60 Hz |
 | `4016`, `4032` | 16K, 32K | 40 | 6545 CRTC (12-inch) | BASIC 4, graphics keyboard | 50 Hz |
@@ -190,9 +195,9 @@ editors it ships make it refuse autostart) and the no-CRTC 3xxx at its own
 ~60.1 Hz, and every build measures the real frame period at start-up, so
 one `.prg` runs at the configured `frameRate` on either. `--pal` prints a
 note and changes nothing. The 96K/128K machines (8096, 8296) are banked, not
-bigger, and the SDK's PET link script refuses them; they are not profiles.
-The keyboard column is the profile's too: `@8bitscript/pet/keys` names the
-keys of the graphics matrix, and of the business matrix for `8032`.
+bigger, and the SDK's PET link script refuses them; they are not values.
+The keyboard is the model's too: `@8bitscript/pet/keys` names the keys of
+the graphics matrix, and of the business matrix for the `8032` tag.
 `packages/pet/AGENTS.md` has the hardware behind each column of the table.
 
 ## C64 models and the REU
@@ -200,12 +205,24 @@ keys of the graphics matrix, and of the business matrix for `8032`.
 The C64 is one build for every model. Unlike the PET, nothing about a
 C64 model changes what the program is linked for — a breadbin C64, a C64C,
 an SX-64 and a C64GS all load a `.prg` at `$0801` into the same map — so
-`--profile` on the C64 is not a model: it is the RAM Expansion Unit
-(`stock`, the default, or `reu128` … `reu16m`), the one piece of optional
-hardware the build wants to know about, and `8bs run c64` attaches it to
-x64sc with `-reu -reusize`. Region is `--pal` (x64sc's `-model c64`, a
-6569 VIC-II) or the NTSC default (`-model ntsc`, a 6567R8). To run a build
-on another model, launch x64sc yourself with its `-model`:
+none of the C64's hardware options changes the build; each only fits
+x64sc the same thing:
+
+| Option | Values | x64sc |
+| ------ | ------ | ----- |
+| `ram` | `none` (default), `reu128` … `reu16m` — also the presets `stock`, `reu512` and so on | `-reu -reusize` |
+| `sid` | `6581` (default), `8580` | `-sidmodel` |
+| `port1` | `none` (default), `joystick`, `paddles`, `mouse1351` | `-controlport1device` |
+| `port2` | `joystick` (default), `none`, `paddles`, `mouse1351` | `-controlport2device` |
+
+```bash
+8bs run c64 --profile reu512                       # a 512K REU
+8bs run c64 --hardware port1=mouse1351,sid=8580    # a 1351 in port 1, the later SID
+```
+
+Region is `--pal` (x64sc's `-model c64`, a 6569 VIC-II) or the NTSC
+default (`-model ntsc`, a 6567R8). To run a build on another model,
+launch x64sc yourself with its `-model`:
 
 | `-model` | Region | VIC-II | SID | CIA | Notes |
 | -------- | ------ | ------ | --- | --- | ----- |

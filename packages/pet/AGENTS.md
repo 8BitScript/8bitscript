@@ -1,9 +1,10 @@
 # Writing Commodore PET support for 8BitScript
 
 This file is for anyone — human or agent — touching `packages/pet`,
-`packages/backend-6502`'s `pet` entries (`PET_PROFILES`,
-`FRAME_SYNC.pet`), `packages/cli`'s `xpet` handling (`PET_MODEL_ARGS`,
-`PET_CLOCK_HZ`), the `pet` row of the linker's hardware-hazard table, or
+this package's hardware catalog (`package.json`, `"8bitscript".hardware`:
+the `model` option), `packages/backend-6502`'s `FRAME_SYNC.pet`,
+`packages/cli`'s `xpet` handling (`PET_REGION_NOTE`, `PET_CLOCK_HZ`), the
+`pet` row of the linker's hardware-hazard table, or
 the PET rows of `docs/roadmap.md` and
 `packages/studio/AGENTS.md`. Read the root [`AGENTS.md`](../../AGENTS.md)
 first; the rules there apply to every target and are not repeated.
@@ -52,23 +53,25 @@ Do not describe more than this as working:
   lower-case set (see the verified table below).
   `text.COLUMNS` and `text.CELL_COUNT` are `Video.COLUMNS` and
   `Video.CELL_COUNT` from `src/geometry.8bs` (40 and 1000), whose
-  `geometry.pet.8032.8bs` twin (80 and 2000) a build with `--profile
-  8032` reads instead — the profile-level file rule in
+  `geometry.pet.8032.8bs` twin (80 and 2000) a build whose hardware
+  carries the `8032` tag reads instead — the hardware-tag file rule in
   `docs/packages.md`, and the reason namespace consts may now be
   initialised from another module's const. `screen.blank()` clears
   `Video.CELL_COUNT` cells the same way. `locate()` is not needed here:
   the screen is a flat array and cell arithmetic is the address.
-- **Profiles** (`PET_PROFILES` in `packages/backend-6502`): `3032`
-  (default), `3008`, `3016`, `4016`, `4032`, `8032` — the PET's own model
-  numbers, which are also what `xpet -model` takes. A profile sets the
-  RAM the program is linked for (`-Wl,--defsym=__ram_size=8|16|32`: the
+- **Hardware** (the catalog in `package.json`): one option, `model` —
+  `3032` (default), `3008`, `3016`, `4016`, `4032`, `8032` — the PET's own
+  model numbers, which are also what `xpet -model` takes, with a preset
+  per model so `--profile 8032` works. A model sets the
+  RAM the program is linked for (its `build.defsym`, `__ram_size` 8/16/32: the
   SDK's `pet/lib/link.ld` asserts `8 <= __ram_size <= 32`, "8x96 and
   SuperPETs are not supported by this target", places the program at
   `$0401` behind a BASIC `SYS` stub so the `.prg` autostarts with `RUN`,
   and puts the stack at the top of RAM — `$2000` on a 3008, `$8000` on a
   32K machine), the screen width the package draws to (80 for the 8032,
-  through the geometry twin), and the model `8bs run pet` launches. A
-  non-default profile appears in the output name (`main-pet-8032.prg`).
+  through the geometry twin, and the fact `video.columns`), and the model
+  `8bs run pet` launches. A non-default model appears in the output name
+  (`main-pet-8032.prg`).
 - `FRAME_SYNC.pet` (`packages/backend-6502`) is the only *edge* driver
   that measures rather than assumes: PIA1's CB1 line carries vertical
   retrace, its flag is CRB bit 7 at `$E813`, and reading ORB (`$E812`)
@@ -84,14 +87,14 @@ Do not describe more than this as working:
   there and input polls PIA1 itself. A program with no `waitFrame()` gets
   no prologue and keeps the KERNAL IRQ; nothing in this package is written
   for that case.
-- `8bs run pet` launches `xpet -model <profile>` and nothing about a
-  region: the PET has no `--pal` (`PET_MODEL_ARGS` in `packages/cli`; the
-  flag prints a note and changes nothing). VICE runs the no-CRTC 3xxx at
+- `8bs run pet` launches `xpet -model <model>` (the value's `run` flags)
+  and nothing about a region: the PET has no `--pal` (`PET_REGION_NOTE` in
+  `packages/cli`; the flag prints a note and changes nothing). VICE runs the no-CRTC 3xxx at
   its hardcoded ~60.1 Hz and the CRTC models (4016, 4032, 8032) with their
   50 Hz editor ROMs, because the 60 Hz editors it ships make it refuse
   autostart; the program measures whichever it gets. `--screenshot`
   converts `--frames` to cycles with `PET_CLOCK_HZ = 1_000_000` and the
-  profile's nominal rate (`PET_PROFILE_FPS`).
+  model's nominal rate (the value's `video.frameRate` fact).
 - `8BS3003` (the linker's hardware-hazard check) refuses a write to
   `$E842` on the PET unless it is a compile-time value with bit 5 clear —
   see "Hazards" below.
@@ -101,7 +104,7 @@ Do not describe more than this as working:
   `waitFrame()` — and answers `keyboard.pressed(key)` / `keyboard.row(n)`
   from it; `@8bitscript/pet/keys` (`src/keys.8bs`) names every key as
   `Key.X = row * 8 + column` for the graphics matrix, with
-  `keys.pet.8032.8bs` the business matrix the 8032 profile reads instead.
+  `keys.pet.8032.8bs` the business matrix a build tagged `8032` reads instead.
   PIA1's two ports are exported from `src/index.8bs` (`pia1PortA` `$E810`,
   `pia1PortB` `$E812`). No buffer, no PETSCII: "is this key down now".
 - `packages/studio/src/main.8bs` starts Studio's basic tier on the PET
@@ -314,25 +317,26 @@ unverified:
 
 ## Rules for this target
 
-### Models are profiles, and width is not derivable from RAM
+### The model is the hardware, and width is not derivable from RAM
 
-- `PET_PROFILES` (`packages/backend-6502`) is a profile per model number,
-  and a profile fixes **RAM size** (`__ram_size` 8/16/32 — the link
+- The catalog's `model` option has a value per model number, and a value
+  fixes **RAM size** (`__ram_size` 8/16/32 — the link
   script's whole range), **screen width** (40 or 80 — `text.COLUMNS`,
   `text.CELL_COUNT`, `screen.blank()`'s extent, through the geometry
-  file's profile twin — and which xpet model `8bs run` picks) and
+  file's tag twin — and which xpet model `8bs run` picks) and
   **keyboard matrix** (graphics on 3xxx/4xxx, business on the 8032:
   `keys.8bs` and its `keys.pet.8032.8bs` twin). All three are
   compile-time, the way Studio's tier is; a program must never probe the
   screen width at run time. `cell = y * text.COLUMNS + x` with a
   40-column constant on an 80-column screen is not "narrow" — row 1 lands
-  in the middle of row 0. New per-profile facts go the same way: a
-  profile's version of one small file (`x.pet.8032.8bs`), read through a
-  namespace const, never a copy of a surface.
+  in the middle of row 0. New per-model facts go the same way: the
+  value's tag's version of one small file (`x.pet.8032.8bs`), read through
+  a namespace const, never a copy of a surface — or, for a number, a
+  `facts` entry on the value.
 - 96K/128K is not a RAM size, it is a banking model, and the SDK refuses
   it. If it ever arrives it follows the root rule for banked machines: a
-  (block, offset) pair is not a pointer — and it is not a `PET_PROFILES`
-  entry until the link script and the language can hold it.
+  (block, offset) pair is not a pointer — and it is not a `model` value
+  until the link script and the language can hold it.
 - The 60 Hz BASIC 4 editor ROMs break VICE autostart; that is an emulator
   fact, not a hardware one, and it is why the 4xxx/8xxx profiles run at
   50 Hz here and the default is the 3032. A 60 Hz CRTC PET needs another
@@ -438,18 +442,19 @@ that is how the 8032 row above was checked.
 ```
 packages/pet/src/index.8bs           target package: viaPeripheralControl ($E84C), the character-set bit
 packages/pet/src/geometry.8bs        Video.COLUMNS/ROWS/CELL_COUNT for the 40-column PETs (40, 25, 1000)
-packages/pet/src/geometry.pet.8032.8bs   the 8032 profile's version (80, 25, 2000), chosen by --profile
+packages/pet/src/geometry.pet.8032.8bs   the 8032 tag's version (80, 25, 2000), chosen by the model value
 packages/pet/src/screen.8bs          @8bitscript/pet/screen: inert colours, blank() over Video.CELL_COUNT cells at $8000
 packages/pet/src/text.8bs            @8bitscript/pet/text: ASCII → screen code, direct writes, COLUMNS/CELL_COUNT from Video
 packages/pet/src/keyboard.8bs        @8bitscript/pet/keyboard: scan() snapshot of the ten rows, pressed(key), row(n)
 packages/pet/src/keys.8bs            @8bitscript/pet/keys: Key.X = row * 8 + column, graphics keyboard
-packages/pet/src/keys.pet.8032.8bs   the 8032 profile's version: the business keyboard
+packages/pet/src/keys.pet.8032.8bs   the 8032 tag's version: the business keyboard
 packages/pet/package.json            "8bitscript".exports names the four subpaths
 packages/compiler/test/pet-keys.test.mjs   both tables well formed, shared names, VICE .vkm cross-check, profile picks the table
-packages/backend-6502/src/index.mjs  PET_PROFILES (__ram_size per model), FRAME_SYNC.pet (CB1 retrace, T2 calibration), commodoreCharsetGuard()
+packages/pet/package.json            "8bitscript".hardware: the model option (__ram_size, -model, tag, columns and frame-rate facts), a preset per model
+packages/backend-6502/src/index.mjs  STOCK_DEFSYM.pet (32K when nothing is fitted), FRAME_SYNC.pet (CB1 retrace, T2 calibration), commodoreCharsetGuard()
 packages/compiler/src/linker/hazards.mjs   8BS3003: the $E842 killer-poke rule
-packages/cli/src/run.mjs             PET_MODEL_ARGS (xpet -model <profile>), PET_PROFILE_FPS, why no --pal and no 60 Hz editors
-packages/cli/src/screenshot.mjs      PET_CLOCK_HZ, --frames → cycles at the profile's rate
+packages/cli/src/run.mjs             PET_REGION_NOTE, why no --pal and no 60 Hz editors; the model's flags come from the catalog
+packages/cli/src/screenshot.mjs      PET_CLOCK_HZ, --frames → cycles at the model's rate (the video.frameRate fact)
 packages/studio/src/main.8bs         Studio's entry; the PET branch picks the basic tier
 docs/setup/vice.md                   installing xpet with the other VICE emulators
 docs/roadmap.md                      Phase 2: why the PET is in the target list
