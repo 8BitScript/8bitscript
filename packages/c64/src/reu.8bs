@@ -1,10 +1,34 @@
-// @8bitscript/c64/reu — is a RAM Expansion Unit plugged in, and how big.
+// @8bitscript/c64/reu — a RAM Expansion Unit: is one plugged in, how big,
+// and moving memory to and from it.
 //
 // Named by "8bitscript".exports["./reu"] in this package's package.json:
 //
 //     import { reu } from "@8bitscript/c64/reu";
 //
 //     let banked: usmallint = reu.detect();   // KiB found, 0 for none
+//     if (banked != 0) {
+//         reu.stash(0xE000, 0, 0x0000, 1000);  // the screen into bank 0
+//         ...
+//         reu.fetch(0xE000, 0, 0x0000, 1000);  // and back
+//     }
+//
+// ---- transfers ------------------------------------------------------------
+//
+// The REU is a DMA controller with its own RAM in 64 KiB banks: given a
+// C64 address, a REU address (bank, then 16 bits within it) and a length,
+// it copies in either direction, swaps, or compares, with the CPU halted
+// for about a cycle a byte — a thousand bytes in a millisecond, which no
+// loop on the 6510 approaches. `stash` copies C64 → REU, `fetch` REU →
+// C64, `swap` exchanges, `verify` compares and says whether they matched;
+// `fillReu` writes one byte across a REU range. A length of 0 means 65536.
+// The C64 side goes through the CPU's memory map as $01 has it (./index.8bs):
+// $E000-$FFFF is the screen's RAM (KERNAL out), $D000-$DFFF the I/O area,
+// so a transfer touching the character set or a bitmap's colour matrix
+// needs the I/O area banked out around it (bankIoOut/bankIoIn) — and
+// nothing here does that for a caller. Every transfer sets every register,
+// so the REU's own address stepping after a transfer never matters. The
+// REU's contents survive a RESET but not power off; VICE's `-reu` keeps
+// nothing between runs unless told to.
 //
 // The first run-time hardware probe. A build fitted with a REU
 // (`--hardware ram=reu512`, or a profile) says so at compile time —
@@ -58,7 +82,7 @@
 // costs a few hundred DMA cycles at most, and is meant to run once at
 // start-up; keep the answer in a variable rather than asking again.
 import {
-    reuCommand, reuC64AddressLow, reuC64AddressHigh, reuAddressLow, reuAddressHigh,
+    reuStatus, reuCommand, reuC64AddressLow, reuC64AddressHigh, reuAddressLow, reuAddressHigh,
     reuBank, reuLengthLow, reuLengthHigh, reuAddressControl,
 } from "./index.8bs";
 
@@ -70,6 +94,27 @@ namespace Reu {
     const PROBE_HIGH: utinyint = 0x03;   // high byte
     const STASH: utinyint = 0xB0;        // execute now, autoload, C64 → REU
     const FETCH: utinyint = 0xB1;        // execute now, autoload, REU → C64
+    const EXECUTE: utinyint = 0x90;      // execute now, no autoload; OR the direction in
+    const TO_REU: utinyint = 0;          // command bits 0-1
+    const FROM_REU: utinyint = 1;
+    const EXCHANGE: utinyint = 2;
+    const COMPARE: utinyint = 3;
+    const FIX_C64: utinyint = 0x80;      // address control: the C64 address does not advance
+    const FAULT: utinyint = 0x20;        // status: a verify found a difference
+}
+
+// One transfer: every register, then the command. `control` is the
+// address-control register (0, or Reu.FIX_C64).
+function transfer(direction: utinyint, control: utinyint, c64Address: usmallint, bank: utinyint, address: usmallint, length: usmallint): void {
+    reuC64AddressLow = c64Address & 0xFF;
+    reuC64AddressHigh = c64Address >> 8;
+    reuAddressLow = address & 0xFF;
+    reuAddressHigh = address >> 8;
+    reuBank = bank;
+    reuLengthLow = length & 0xFF;
+    reuLengthHigh = length >> 8;
+    reuAddressControl = control;
+    reuCommand = Reu.EXECUTE | direction;
 }
 
 export namespace reu {
@@ -132,5 +177,34 @@ export namespace reu {
         }
         let kib: usmallint = found;
         return kib * 64;
+    }
+
+    // `length` bytes from C64 `c64Address` into the REU at `bank`:`address`.
+    function stash(c64Address: usmallint, bank: utinyint, address: usmallint, length: usmallint): void {
+        transfer(Reu.TO_REU, 0, c64Address, bank, address, length);
+    }
+
+    // `length` bytes from the REU at `bank`:`address` into C64 `c64Address`.
+    function fetch(c64Address: usmallint, bank: utinyint, address: usmallint, length: usmallint): void {
+        transfer(Reu.FROM_REU, 0, c64Address, bank, address, length);
+    }
+
+    // The two ranges exchanged.
+    function swap(c64Address: usmallint, bank: utinyint, address: usmallint, length: usmallint): void {
+        transfer(Reu.EXCHANGE, 0, c64Address, bank, address, length);
+    }
+
+    // True if the two ranges hold the same bytes.
+    function verify(c64Address: usmallint, bank: utinyint, address: usmallint, length: usmallint): bool {
+        let cleared: utinyint = reuStatus; // reading clears the fault bit from before
+        transfer(Reu.COMPARE, 0, c64Address, bank, address, length);
+        return (reuStatus & Reu.FAULT) == 0;
+    }
+
+    // `length` bytes of the REU at `bank`:`address` all set to `value`: a
+    // stash from one C64 byte that does not advance.
+    function fillReu(bank: utinyint, address: usmallint, length: usmallint, value: utinyint): void {
+        probe = value;
+        transfer(Reu.TO_REU, Reu.FIX_C64, 0x033C, bank, address, length);
     }
 }

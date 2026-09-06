@@ -47,3 +47,59 @@ export let memoryPointer: volatile<u8>;
 // @8bitscript/atari8 documents for GTIA's colour registers.
 @address(0x0A2C)
 export let memoryPointerShadow: volatile<u8>;
+
+// ---- SID ($D400) -----------------------------------------------------------
+//
+// The same chip at the same address as the C64's, and every register means
+// what packages/c64/AGENTS.md says it means: twenty-five registers, seven
+// per voice then the filter and volume. Which SID is fitted is the board —
+// a 6581 in the flat C128 and C128D, an 8580 in the C128DCR, the catalog's
+// `sid` option — and the difference is the filter's character, not the
+// register map.
+//
+// Two things that are this machine's and not the C64's. The SID has its
+// own clock line, so **2 MHz mode does not change its pitch or its
+// timing**: the C128 PRG lists it among the parts that "are still driven
+// by a 1 MHz source". And the KERNAL's interrupt is alive here, but it
+// does not touch these registers — its work is the keyboard, the jiffy
+// clock and the VIC's shadows — so a program owns the SID without having
+// to take the interrupt over first.
+@address(0xD400)
+export let sidRegisters: array<u8, 25>;
+
+// $D419 / $D41A, the two paddle A/D converters, which are also the lines a
+// 1351 mouse reports its movement on. $D41B / $D41C, voice 3's oscillator
+// and envelope — the only readable outputs the chip has, and the hardware
+// entropy the root AGENTS.md wants kept out of the deterministic PRNG.
+@address(0xD419)
+export let paddleX: volatile<u8>;
+@address(0xD41A)
+export let paddleY: volatile<u8>;
+@address(0xD41B)
+export let voice3Oscillator: volatile<u8>;
+@address(0xD41C)
+export let voice3Envelope: volatile<u8>;
+
+// ---- which machine this is -------------------------------------------------
+//
+// $0A03, the KERNAL's PAL flag: it worked the region out at boot and wrote
+// it down, so on this machine finding out costs one read. The C64 has no
+// such byte and @8bitscript/c64 watches two whole frames of the raster to
+// answer the same question; that difference is the reason this is here
+// rather than shared. Anything whose units are the CPU clock needs it —
+// the SID's pitch above all, since a note's frequency register is
+// `f * 2^24 / clock` and the two clocks differ by 3.8 percent.
+@address(0x0A03)
+export let palFlag: volatile<u8>;
+
+export namespace Region {
+    const PAL: utinyint = 0;
+    const NTSC: utinyint = 1;
+}
+
+export function detectRegion(): utinyint {
+    if (palFlag != 0) {
+        return Region.PAL;
+    }
+    return Region.NTSC;
+}

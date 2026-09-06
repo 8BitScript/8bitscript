@@ -9,7 +9,13 @@
     "exports": {
       "./screen": "./src/screen.8bs",
       "./text": "./src/text.8bs",
-      "./banks": "./src/banks.8bs"
+      "./banks": "./src/banks.8bs",
+      "./joystick": "./src/joystick.8bs",
+      "./console": "./src/console.8bs",
+      "./keyboard": "./src/keyboard.8bs",
+      "./keys": "./src/keys.8bs",
+      "./pokey": "./src/pokey.8bs",
+      "./random": "./src/random.8bs"
     },
     "hardware": {
       "facts": {
@@ -54,18 +60,32 @@
           "default": "800xl",
           "values": {
             "400": {
-              "label": "400",
+              "label": "400: 8-16K, membrane keyboard, four joystick ports",
               "run": {
                 "atari800": [
                   "-atari"
                 ]
+              },
+              "facts": {
+                "input.joysticks": 4
               }
             },
             "800": {
-              "label": "800: 48K, OS-B, four ports",
+              "label": "800: up to 48K, OS-B, four joystick ports",
               "run": {
                 "atari800": [
                   "-atari"
+                ]
+              },
+              "facts": {
+                "input.joysticks": 4
+              }
+            },
+            "1200xl": {
+              "label": "1200XL: 64K, the first XL, HELP key, two ports",
+              "run": {
+                "atari800": [
+                  "-1200"
                 ]
               }
             },
@@ -86,7 +106,7 @@
               }
             },
             "130xe": {
-              "label": "130XE: 64K + 64K banked",
+              "label": "130XE: 64K + 64K banked behind PORTB",
               "run": {
                 "atari800": [
                   "-xe"
@@ -99,15 +119,140 @@
               "detect": "@8bitscript/atari8/banks"
             },
             "xegs": {
-              "label": "XEGS: a 256 KiB bank-switched cartridge, not a DOS executable",
+              "label": "XEGS console: a 65XE in a console case",
               "run": {
                 "atari800": [
                   "-xegs"
                 ]
+              }
+            }
+          }
+        },
+        "media": {
+          "label": "Media",
+          "default": "xex",
+          "values": {
+            "xex": {
+              "label": "Atari DOS executable (.xex), loaded from D: into $2000-$BFFF"
+            },
+            "cart8": {
+              "label": "8 KiB cartridge at $A000",
+              "build": {
+                "driver": "mos-atari8-cart-std-clang",
+                "output": "rom",
+                "defsym": {
+                  "__cart_rom_size": 8
+                }
               },
+              "load": {
+                "atari800": [
+                  "-cart",
+                  "{out}",
+                  "-cart-type",
+                  "1"
+                ]
+              },
+              "facts": {
+                "memory.ram": 6400,
+                "storage.save": false
+              }
+            },
+            "cart16": {
+              "label": "16 KiB cartridge at $8000",
+              "build": {
+                "driver": "mos-atari8-cart-std-clang",
+                "output": "rom",
+                "defsym": {
+                  "__cart_rom_size": 16
+                }
+              },
+              "load": {
+                "atari800": [
+                  "-cart",
+                  "{out}",
+                  "-cart-type",
+                  "2"
+                ]
+              },
+              "facts": {
+                "memory.ram": 6400,
+                "storage.save": false
+              }
+            },
+            "xegs32": {
+              "label": "32 KiB XEGS cartridge",
               "build": {
                 "driver": "mos-atari8-cart-xegs-clang",
-                "output": "rom"
+                "output": "rom",
+                "defsym": {
+                  "__cart_rom_size": 32
+                }
+              },
+              "load": {
+                "atari800": [
+                  "-cart",
+                  "{out}",
+                  "-cart-type",
+                  "12"
+                ]
+              },
+              "facts": {
+                "memory.ram": 6400,
+                "storage.save": false
+              }
+            },
+            "xegs64": {
+              "label": "64 KiB XEGS cartridge",
+              "build": {
+                "driver": "mos-atari8-cart-xegs-clang",
+                "output": "rom",
+                "defsym": {
+                  "__cart_rom_size": 64
+                }
+              },
+              "load": {
+                "atari800": [
+                  "-cart",
+                  "{out}",
+                  "-cart-type",
+                  "13"
+                ]
+              },
+              "facts": {
+                "memory.ram": 6400,
+                "storage.save": false
+              }
+            },
+            "xegs128": {
+              "label": "128 KiB XEGS cartridge",
+              "build": {
+                "driver": "mos-atari8-cart-xegs-clang",
+                "output": "rom",
+                "defsym": {
+                  "__cart_rom_size": 128
+                }
+              },
+              "load": {
+                "atari800": [
+                  "-cart",
+                  "{out}",
+                  "-cart-type",
+                  "14"
+                ]
+              },
+              "facts": {
+                "memory.ram": 6400,
+                "storage.save": false
+              }
+            },
+            "xegs256": {
+              "label": "256 KiB XEGS cartridge",
+              "build": {
+                "driver": "mos-atari8-cart-xegs-clang",
+                "output": "rom",
+                "defsym": {
+                  "__cart_rom_size": 256
+                }
               },
               "load": {
                 "atari800": [
@@ -118,13 +263,168 @@
                 ]
               },
               "facts": {
-                "memory.ram": 6400
+                "memory.ram": 6400,
+                "storage.save": false
+              }
+            },
+            "xegs512": {
+              "label": "512 KiB XEGS cartridge",
+              "build": {
+                "driver": "mos-atari8-cart-xegs-clang",
+                "output": "rom",
+                "defsym": {
+                  "__cart_rom_size": 512
+                }
+              },
+              "load": {
+                "atari800": [
+                  "-cart",
+                  "{out}",
+                  "-cart-type",
+                  "24"
+                ]
+              },
+              "facts": {
+                "memory.ram": 6400,
+                "storage.save": false
+              }
+            },
+            "mega16": {
+              "label": "16 KiB MegaCart",
+              "build": {
+                "driver": "mos-atari8-cart-megacart-clang",
+                "output": "rom",
+                "defsym": {
+                  "__cart_rom_size": 16
+                }
+              },
+              "load": {
+                "atari800": [
+                  "-cart",
+                  "{out}",
+                  "-cart-type",
+                  "26"
+                ]
+              },
+              "facts": {
+                "memory.ram": 6400,
+                "storage.save": false
+              }
+            },
+            "mega32": {
+              "label": "32 KiB MegaCart",
+              "build": {
+                "driver": "mos-atari8-cart-megacart-clang",
+                "output": "rom",
+                "defsym": {
+                  "__cart_rom_size": 32
+                }
+              },
+              "load": {
+                "atari800": [
+                  "-cart",
+                  "{out}",
+                  "-cart-type",
+                  "27"
+                ]
+              },
+              "facts": {
+                "memory.ram": 6400,
+                "storage.save": false
+              }
+            },
+            "mega64": {
+              "label": "64 KiB MegaCart",
+              "build": {
+                "driver": "mos-atari8-cart-megacart-clang",
+                "output": "rom",
+                "defsym": {
+                  "__cart_rom_size": 64
+                }
+              },
+              "load": {
+                "atari800": [
+                  "-cart",
+                  "{out}",
+                  "-cart-type",
+                  "28"
+                ]
+              },
+              "facts": {
+                "memory.ram": 6400,
+                "storage.save": false
+              }
+            },
+            "mega128": {
+              "label": "128 KiB MegaCart",
+              "build": {
+                "driver": "mos-atari8-cart-megacart-clang",
+                "output": "rom",
+                "defsym": {
+                  "__cart_rom_size": 128
+                }
+              },
+              "load": {
+                "atari800": [
+                  "-cart",
+                  "{out}",
+                  "-cart-type",
+                  "29"
+                ]
+              },
+              "facts": {
+                "memory.ram": 6400,
+                "storage.save": false
+              }
+            },
+            "mega256": {
+              "label": "256 KiB MegaCart",
+              "build": {
+                "driver": "mos-atari8-cart-megacart-clang",
+                "output": "rom",
+                "defsym": {
+                  "__cart_rom_size": 256
+                }
+              },
+              "load": {
+                "atari800": [
+                  "-cart",
+                  "{out}",
+                  "-cart-type",
+                  "30"
+                ]
+              },
+              "facts": {
+                "memory.ram": 6400,
+                "storage.save": false
+              }
+            },
+            "mega512": {
+              "label": "512 KiB MegaCart",
+              "build": {
+                "driver": "mos-atari8-cart-megacart-clang",
+                "output": "rom",
+                "defsym": {
+                  "__cart_rom_size": 512
+                }
+              },
+              "load": {
+                "atari800": [
+                  "-cart",
+                  "{out}",
+                  "-cart-type",
+                  "31"
+                ]
+              },
+              "facts": {
+                "memory.ram": 6400,
+                "storage.save": false
               }
             }
           }
         },
         "mouse": {
-          "label": "Mouse",
+          "label": "Pointing device",
           "default": "none",
           "values": {
             "none": {
@@ -171,6 +471,115 @@
               "facts": {
                 "input.mouse": true
               }
+            },
+            "paddles": {
+              "label": "Paddles (POKEY POT lines)",
+              "run": {
+                "atari800": [
+                  "-mouse",
+                  "pad"
+                ]
+              },
+              "facts": {
+                "input.paddles": true
+              }
+            },
+            "touch": {
+              "label": "Atari Touch Tablet",
+              "run": {
+                "atari800": [
+                  "-mouse",
+                  "touch"
+                ]
+              },
+              "facts": {
+                "input.paddles": true
+              }
+            },
+            "koala": {
+              "label": "Koala Pad",
+              "run": {
+                "atari800": [
+                  "-mouse",
+                  "koala"
+                ]
+              },
+              "facts": {
+                "input.paddles": true
+              }
+            },
+            "pen": {
+              "label": "Light pen (ANTIC PENH/PENV)",
+              "run": {
+                "atari800": [
+                  "-mouse",
+                  "pen"
+                ]
+              }
+            },
+            "gun": {
+              "label": "Light gun",
+              "run": {
+                "atari800": [
+                  "-mouse",
+                  "gun"
+                ]
+              }
+            },
+            "joy": {
+              "label": "Host mouse as a joystick",
+              "run": {
+                "atari800": [
+                  "-mouse",
+                  "joy"
+                ]
+              }
+            }
+          }
+        },
+        "mouseport": {
+          "label": "Pointing-device port",
+          "default": "1",
+          "values": {
+            "1": {
+              "label": "Port 1",
+              "tag": null,
+              "run": {
+                "atari800": [
+                  "-mouseport",
+                  "1"
+                ]
+              }
+            },
+            "2": {
+              "label": "Port 2",
+              "tag": null,
+              "run": {
+                "atari800": [
+                  "-mouseport",
+                  "2"
+                ]
+              }
+            },
+            "3": {
+              "label": "Port 3 (400/800 only)",
+              "tag": null,
+              "run": {
+                "atari800": [
+                  "-mouseport",
+                  "3"
+                ]
+              }
+            },
+            "4": {
+              "label": "Port 4 (400/800 only)",
+              "tag": null,
+              "run": {
+                "atari800": [
+                  "-mouseport",
+                  "4"
+                ]
+              }
             }
           }
         },
@@ -202,6 +611,9 @@
         "800": {
           "model": "800"
         },
+        "1200xl": {
+          "model": "1200xl"
+        },
         "800xl": {
           "model": "800xl"
         },
@@ -212,7 +624,8 @@
           "model": "130xe"
         },
         "xegs": {
-          "model": "xegs"
+          "model": "xegs",
+          "media": "xegs256"
         }
       }
     }

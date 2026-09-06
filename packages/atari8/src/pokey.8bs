@@ -1,0 +1,225 @@
+// @8bitscript/atari8/pokey — the four voices, one register pair each.
+//
+// Named by "8bitscript".exports["./pokey"] in this package's package.json:
+//
+//     import { pokey, Distortion, Note } from "@8bitscript/atari8/pokey";
+//
+//     pokey.reset();
+//     pokey.setDistortion(0, Distortion.TONE);
+//     pokey.setVolume(0, 8);
+//     pokey.play(0, Note.A4);
+//
+// Hardware-level, Atari-only surface, the same shape as @8bitscript/c64/sid:
+// a voice count, `setVolume`/`play`/`silence`/`reset`, a `Note` namespace
+// indexed the same way (C0 = 0, A4 = 57) and a per-region divider table, so
+// a tune written against one machine's layer transposes to the other by
+// changing the import. What POKEY has instead of the SID's envelopes and
+// filter is six kinds of noise, and this file does not pretend otherwise.
+//
+// ---- what a voice is -------------------------------------------------------
+//
+// Four channels at $D200-$D207, a pair of registers each: AUDF (the divider)
+// and AUDC (four bits of volume in the low nybble, three bits of distortion
+// in the high). There is no envelope generator — an Atari envelope is the
+// program writing AUDC every frame — no filter beyond two high-pass links,
+// and no waveform choice: a "waveform" here is which polynomial counter
+// gates the square wave, which is why five of the six settings are flavours
+// of noise and only `Distortion.TONE` is a clean pitch.
+//
+// ---- the pitch you can actually ask for ------------------------------------
+//
+// AUDF is eight bits and the default clock is the 64 kHz one, so a voice
+// runs at `clock / (2 * (AUDF + 1))` — about 125 Hz at AUDF 255, and coarser
+// and coarser going up. That is a real ceiling and a real floor, and this
+// file exposes both rather than rounding them away:
+//
+//   - Octaves 0 to 2 do not exist on this clock. `frequencyOf()` answers 255
+//     for them, the lowest pitch the machine has (~125 Hz, near B2), and
+//     `play()` sounds that. A program that needs a bass line uses the 15 kHz
+//     clock (`Audctl.CLOCK_15KHZ`, which divides every voice by about four)
+//     or joins two channels into one 16-bit divider (`Audctl.JOIN_1_2`),
+//     and drives AUDF itself with `setDivider()`.
+//   - Near the top the divider runs out of resolution: on NTSC, A6 comes out
+//     at 1775.6 Hz against 1760 — about 15 cents sharp — and it gets worse
+//     above that. The tables stop at B6 for that reason.
+//
+// The tables are computed from POKEY's own clock, which is the machine clock
+// divided by 28: 1789790/28 = 63921 Hz on NTSC, 1773447/28 = 63337 Hz on PAL
+// (the machine clocks are the nominal ones packages/backend-6502's
+// FRAME_SYNC.atari8 uses; see ../AGENTS.md on which figure is which). The
+// `clock / (2 * (AUDF + 1))` relation is the standard published one and is
+// derived here, not measured on screen — *to verify* against a tone before
+// anything depends on the exact cents.
+//
+// ---- what this file does not touch -----------------------------------------
+//
+// SKCTL ($D20F) must have its two low bits set for POKEY to run its keyboard
+// scan and debounce, and the OS leaves it that way ($03) — writing SKCTL is
+// how a program breaks its own keyboard, so nothing here writes it.
+// $D209 is KBCODE reading and STIMER writing, and $D20F is SKSTAT reading
+// and SKCTL writing: same address, different register, which is why
+// ./index.8bs declares each of them twice. The RANDOM register shares the
+// chip and is deliberately not here — it is @8bitscript/atari8/random, a
+// separate import, because hardware entropy is never something a program
+// gets by accident.
+import { audctl, palRegister } from "./index.8bs";
+
+// AUDF1 at $D200; each voice is two bytes on from the last.
+const AUDIO_BASE: usmallint = 0xD200;
+
+// AUDC's high three bits: which polynomial counter gates the square wave.
+// Only TONE is a clean pitch; the rest are the noises Atari games are made
+// of. VOLUME_ONLY is the sample-playback bit — the voice stops oscillating
+// and the low nybble drives the speaker level directly, which is how a
+// program plays digitised sound by writing it fast enough.
+export namespace Distortion {
+    const POLY_5_17: utinyint = 0x00; // 5-bit then 17-bit: the roughest noise
+    const POLY_5: utinyint = 0x20;    // 5-bit only: a buzzy, pitched rasp
+    const POLY_5_4: utinyint = 0x40;  // 5-bit then 4-bit
+    const POLY_17: utinyint = 0x80;   // 17-bit: the smoothest noise, near white
+    const TONE: utinyint = 0xA0;      // pure square wave — the only clean pitch
+    const POLY_4: utinyint = 0xC0;    // 4-bit: a short, metallic loop
+    const VOLUME_ONLY: utinyint = 0x10; // OR this on: no oscillator, volume is the output
+}
+
+// AUDCTL ($D208) bits, for `pokey.setAudctl()`. OR together what is wanted;
+// the register is global, not per voice.
+export namespace Audctl {
+    const CLOCK_15KHZ: utinyint = 0x01;  // every voice's base clock becomes ~15.7 kHz
+    const HIGHPASS_2_4: utinyint = 0x02; // filter voice 2 by voice 4
+    const HIGHPASS_1_3: utinyint = 0x04; // filter voice 1 by voice 3
+    const JOIN_3_4: utinyint = 0x08;     // voices 3+4 as one 16-bit divider
+    const JOIN_1_2: utinyint = 0x10;     // voices 1+2 as one 16-bit divider
+    const FAST_3: utinyint = 0x20;       // clock voice 3 at 1.79 MHz
+    const FAST_1: utinyint = 0x40;       // clock voice 1 at 1.79 MHz
+    const POLY_9BIT: utinyint = 0x80;    // 9-bit instead of 17-bit poly (also changes RANDOM)
+}
+
+// Which table `play()` reads.
+export namespace Region {
+    const PAL: utinyint = 0;
+    const NTSC: utinyint = 1;
+}
+
+// Note indexes: octave * 12 + semitone, C0 = 0, A4 = 57 — the same numbering
+// as @8bitscript/c64/sid, so a melody is the same list of names on both.
+// CS is C sharp, and so on.
+export namespace Note {
+    const C0: utinyint = 0; const CS0: utinyint = 1; const D0: utinyint = 2; const DS0: utinyint = 3; const E0: utinyint = 4; const F0: utinyint = 5; const FS0: utinyint = 6; const G0: utinyint = 7; const GS0: utinyint = 8; const A0: utinyint = 9; const AS0: utinyint = 10; const B0: utinyint = 11;
+    const C1: utinyint = 12; const CS1: utinyint = 13; const D1: utinyint = 14; const DS1: utinyint = 15; const E1: utinyint = 16; const F1: utinyint = 17; const FS1: utinyint = 18; const G1: utinyint = 19; const GS1: utinyint = 20; const A1: utinyint = 21; const AS1: utinyint = 22; const B1: utinyint = 23;
+    const C2: utinyint = 24; const CS2: utinyint = 25; const D2: utinyint = 26; const DS2: utinyint = 27; const E2: utinyint = 28; const F2: utinyint = 29; const FS2: utinyint = 30; const G2: utinyint = 31; const GS2: utinyint = 32; const A2: utinyint = 33; const AS2: utinyint = 34; const B2: utinyint = 35;
+    const C3: utinyint = 36; const CS3: utinyint = 37; const D3: utinyint = 38; const DS3: utinyint = 39; const E3: utinyint = 40; const F3: utinyint = 41; const FS3: utinyint = 42; const G3: utinyint = 43; const GS3: utinyint = 44; const A3: utinyint = 45; const AS3: utinyint = 46; const B3: utinyint = 47;
+    const C4: utinyint = 48; const CS4: utinyint = 49; const D4: utinyint = 50; const DS4: utinyint = 51; const E4: utinyint = 52; const F4: utinyint = 53; const FS4: utinyint = 54; const G4: utinyint = 55; const GS4: utinyint = 56; const A4: utinyint = 57; const AS4: utinyint = 58; const B4: utinyint = 59;
+    const C5: utinyint = 60; const CS5: utinyint = 61; const D5: utinyint = 62; const DS5: utinyint = 63; const E5: utinyint = 64; const F5: utinyint = 65; const FS5: utinyint = 66; const G5: utinyint = 67; const GS5: utinyint = 68; const A5: utinyint = 69; const AS5: utinyint = 70; const B5: utinyint = 71;
+    const C6: utinyint = 72; const CS6: utinyint = 73; const D6: utinyint = 74; const DS6: utinyint = 75; const E6: utinyint = 76; const F6: utinyint = 77; const FS6: utinyint = 78; const G6: utinyint = 79; const GS6: utinyint = 80; const A6: utinyint = 81; const AS6: utinyint = 82; const B6: utinyint = 83;
+}
+
+// AUDF per note for POKEY's 63921 Hz clock (NTSC): round(clock / (2 * f)) - 1,
+// clamped to the 8-bit register. Octaves 0-2 are all 255 — see the header:
+// they are below what this clock reaches, not a table this file got wrong.
+const NOTE_NTSC: array<utinyint, 84> = [
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, // octave 0
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, // octave 1
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, // octave 2
+    243, 230, 217, 204, 193, 182, 172, 162, 153, 144, 136, 128, // octave 3
+    121, 114, 108, 102, 96, 91, 85, 81, 76, 72, 68, 64, // octave 4
+    60, 57, 53, 50, 47, 45, 42, 40, 37, 35, 33, 31, // octave 5
+    30, 28, 26, 25, 23, 22, 21, 19, 18, 17, 16, 15, // octave 6
+];
+
+// The same for PAL's 63337 Hz clock.
+const NOTE_PAL: array<utinyint, 84> = [
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, // octave 0
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, // octave 1
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, // octave 2
+    241, 228, 215, 203, 191, 180, 170, 161, 152, 143, 135, 127, // octave 3
+    120, 113, 107, 101, 95, 90, 85, 80, 75, 71, 67, 63, // octave 4
+    60, 56, 53, 50, 47, 44, 42, 39, 37, 35, 33, 31, // octave 5
+    29, 28, 26, 24, 23, 22, 20, 19, 18, 17, 16, 15, // octave 6
+];
+
+// Which table `play()` reads: PAL until `setRegion()` or `detectRegion()`
+// says otherwise, matching @8bitscript/c64/sid's default.
+let region: utinyint = 0;
+
+// The AUDC byte last written per voice, since the register cannot be read
+// back: volume and distortion are set separately and each needs the other.
+let control: array<utinyint, 4>;
+
+export namespace pokey {
+    const VOICE_COUNT: utinyint = 4;
+
+    // Every voice silent, every divider zero, AUDCTL cleared to the plain
+    // 64 kHz per-voice clock. Call it before the first note; a program that
+    // does not is at the mercy of whatever the OS left behind.
+    function reset(): void {
+        audctl = 0;
+        for (let voice: utinyint = 0; voice < pokey.VOICE_COUNT; voice++) {
+            control[voice] = 0;
+            memory.write(AUDIO_BASE + voice * 2, 0);
+            memory.write(AUDIO_BASE + voice * 2 + 1, 0);
+        }
+    }
+
+    // Volume 0-15 for one voice, keeping its distortion.
+    function setVolume(voice: utinyint, volume: utinyint): void {
+        control[voice] = (control[voice] & 0xF0) | (volume & 0x0F);
+        memory.write(AUDIO_BASE + voice * 2 + 1, control[voice]);
+    }
+
+    // One of the `Distortion.*` settings for one voice, keeping its volume.
+    function setDistortion(voice: utinyint, distortion: utinyint): void {
+        control[voice] = (control[voice] & 0x0F) | (distortion & 0xF0);
+        memory.write(AUDIO_BASE + voice * 2 + 1, control[voice]);
+    }
+
+    // AUDF straight through, for a program driving pitch itself — a 16-bit
+    // pair, the 15 kHz clock, a slide, a sound effect that is not a note.
+    function setDivider(voice: utinyint, divider: utinyint): void {
+        memory.write(AUDIO_BASE + voice * 2, divider);
+    }
+
+    // The AUDF this region's table gives a `Note.*`, without playing it.
+    function frequencyOf(note: utinyint): utinyint {
+        if (region == Region.NTSC) {
+            return NOTE_NTSC[note];
+        }
+        return NOTE_PAL[note];
+    }
+
+    // Sound a `Note.*` on a voice, at whatever volume and distortion the
+    // voice already has. `setDistortion(voice, Distortion.TONE)` first, or
+    // it plays as noise.
+    function play(voice: utinyint, note: utinyint): void {
+        memory.write(AUDIO_BASE + voice * 2, pokey.frequencyOf(note));
+    }
+
+    // Volume to zero, leaving the divider and distortion alone.
+    function silence(voice: utinyint): void {
+        pokey.setVolume(voice, 0);
+    }
+
+    // AUDCTL, from `Audctl.*` bits OR-ed together. Global to all four voices.
+    function setAudctl(bits: utinyint): void {
+        audctl = bits;
+    }
+
+    // Which table `play()` reads: `Region.PAL` or `Region.NTSC`.
+    function setRegion(which: utinyint): void {
+        region = which;
+    }
+
+    // Ask the machine and set the region from the answer. GTIA's PAL
+    // register ($D014) reports the TV standard in its low bits: a PAL
+    // machine answers 1, an NTSC one 14 or 15 (atari800 returns $01 and
+    // $0F). One binary therefore plays in tune on both, the same way
+    // waitFrame()'s pacing adapts at start-up. Returns what it chose.
+    function detectRegion(): utinyint {
+        if ((palRegister & 0x0E) == 0) {
+            region = Region.PAL;
+        } else {
+            region = Region.NTSC;
+        }
+        return region;
+    }
+}

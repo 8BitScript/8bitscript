@@ -6,6 +6,9 @@
   "license": "MIT",
   "8bitscript": {
     "entry": "./src/index.8bs",
+    "native": [
+      "./native/6502/raster.s"
+    ],
     "exports": {
       "./screen": "./src/screen.8bs",
       "./text": "./src/text.8bs",
@@ -16,7 +19,11 @@
       "./joystick": "./src/joystick.8bs",
       "./sid": "./src/sid.8bs",
       "./reu": "./src/reu.8bs",
-      "./mouse": "./src/mouse.8bs"
+      "./mouse": "./src/mouse.8bs",
+      "./raster": "./src/raster.8bs",
+      "./bitmap": "./src/bitmap.8bs",
+      "./charset": "./src/charset.8bs",
+      "./scroll": "./src/scroll.8bs"
     },
     "hardware": {
       "facts": {
@@ -333,7 +340,8 @@
     }
   },
   "files": [
-    "src"
+    "src",
+    "native"
   ],
   "publishConfig": {
     "access": "public"

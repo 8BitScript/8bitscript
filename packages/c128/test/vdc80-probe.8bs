@@ -1,0 +1,84 @@
+// The 80-column text surface, run for real. Everything here is checked on
+// the VDC's own display by test/vdc.test.mjs, which drives x128 by hand
+// because `8bs run --screenshot` captures the VIC-IIe's screen.
+//
+// What each part proves:
+//
+//   blank()      the block fill covers every one of the 2000 cells and
+//                stops there. Both directions are checked, because they
+//                fail differently: filling too FEW leaves some of the 'Q'
+//                pre-fill on screen (visible), while filling too MANY
+//                spills into $07D0, the unused gap between the matrix and
+//                the attributes, where nothing would show. So a sentinel
+//                byte is put at $07D0 first and read back afterwards, and
+//                the last cell ($07CF) is read back too. The 40-column
+//                border is green only if both are right
+//   print()      streamed characters and a filled attribute run
+//   printNumber() the digit field, right-aligned
+//   setColor()   a different attribute colour on a later row
+//   the corners  cell 0 and cell 1999 addressed directly, so the last
+//                cell of the last row is known to be reachable
+import { screen } from "../src/screen.8bs";
+import { text } from "../src/text.8bs";
+import { vdc } from "../src/vdc.8bs";
+import { vdc80, Vdc80Color } from "../src/vdc80.8bs";
+
+const SENTINEL: utinyint = 0xE5;
+const LAST_CELL: usmallint = 0x07CF;  // cell 1999, the end of the matrix
+const PAST_END: usmallint = 0x07D0;   // the first byte beyond it
+
+export function main(): void {
+    screen.blank();
+
+    // A byte just past the last cell, to catch a fill that runs long.
+    vdc.setAddress(PAST_END);
+    vdc.put(SENTINEL);
+
+    // A whole screen of a visible glyph first: if the fill wrote one byte
+    // too few or too many per run, the last row is where it shows.
+    vdc80.setColor(Vdc80Color.DARK_GREEN);
+    vdc.fill(0x0000, 81, 2000);          // 81 = screen code for 'Q'
+    vdc.fill(0x0800, Vdc80Color.DARK_GREEN, 2000);
+
+    // Then the real clear, over the top of it.
+    vdc80.setColor(Vdc80Color.WHITE);
+    vdc80.blank(Vdc80Color.BLACK);
+
+    vdc.setAddress(LAST_CELL);
+    let lastCell: utinyint = vdc.get();
+    vdc.setAddress(PAST_END);
+    let pastEnd: utinyint = vdc.get();
+
+    vdc80.print(0, "80 COLUMNS FROM 8BITSCRIPT");
+    vdc80.setColor(Vdc80Color.CYAN);
+    vdc80.print(vdc80.COLUMNS, "VDC KIB");
+    vdc80.printNumber(vdc80.COLUMNS + 8, vdc.ramKib(), 3);
+    vdc80.setColor(Vdc80Color.YELLOW);
+    vdc80.print(vdc80.COLUMNS * 2, "REVISION");
+    vdc80.printNumber(vdc80.COLUMNS * 2 + 9, vdc.revision(), 3);
+
+    // The two far corners, addressed as single cells.
+    vdc80.setColor(Vdc80Color.RED);
+    vdc80.putChar(0, 42);                            // '*' over the first cell
+    vdc80.putColor(0, Vdc80Color.RED);
+    vdc80.putChar(vdc80.CELL_COUNT - 1, 42);         // and the very last
+    vdc80.putColor(vdc80.CELL_COUNT - 1, Vdc80Color.RED);
+
+    // A cue on the 40-column screen too, so both displays say something,
+    // and the fill-count verdict where a screenshot test can read it.
+    text.print(0, "VDC80 PROBE");
+    text.print(40, "LAST CELL");
+    text.printNumber(50, lastCell, 3);
+    text.print(80, "PAST END");
+    text.printNumber(89, pastEnd, 3);
+
+    let border: utinyint = 5; // green: the fill ended exactly where it should
+    if (lastCell != 32 || pastEnd != SENTINEL) {
+        border = 2; // red
+    }
+    screen.setColors(border, 0);
+
+    while (true) {
+        waitFrame();
+    }
+}

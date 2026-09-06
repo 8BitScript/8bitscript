@@ -2,7 +2,7 @@
 
 This file is for anyone — human or agent — touching `packages/atari8`,
 this package's hardware catalog (`package.json`, `"8bitscript".hardware`:
-`model`, `mouse`, `stereo`), `packages/backend-6502`'s `atari8` entries
+`model`, `media`, `mouse`, `mouseport`, `stereo`), `packages/backend-6502`'s `atari8` entries
 (`DRIVER.atari8`, `FRAME_SYNC.atari8`), `packages/cli`'s atari800 handling
 (`atari800CleanDisplayConfig()`,
 `atari8Screenshot()`, the `CLANG_DRIVERS` rows in `doctor.mjs`),
@@ -28,21 +28,23 @@ video chip reading one bank. The Atari is a fifth case —
 > takes the machine over" — never as "a C64 with a different colour
 > table".**
 
-The machine's variety runs on three axes; the catalog's `model` option
-still folds the first two into one value (see the rule below): the *model* (400/800 with 8–48K
-and four joystick ports; 800XL/65XE with 64K; 130XE with 64K more behind
-PORTB; XEGS, a 65XE in a console case), the *media* (a DOS-loaded `.xex`,
-an 8/16K standard cartridge, a 32–512K XEGS cartridge, a 16–512K
-MegaCart/SIC! cartridge), and the *region* (NTSC 262 lines / PAL 312 lines,
-with different palettes for the same GTIA byte). A program built for one
-point in that space does not necessarily load, fit, or look the same on
-the others.
+The machine's variety runs on three axes, and the catalog now keeps all
+three apart: the *model* (400/800 with 8–48K and four joystick ports;
+1200XL, 800XL and 65XE with 64K; 130XE with 64K more behind PORTB; XEGS, a
+65XE in a console case), the *media* (a DOS-loaded `.xex`, an 8/16K
+standard cartridge, a 32–512K XEGS cartridge, a 16–512K MegaCart/SIC!
+cartridge), and the *region* (NTSC 262 lines / PAL 312 lines, with
+different palettes for the same GTIA byte). A program built for one point
+in that space does not necessarily load, fit, or look the same on the
+others. Model and media are genuinely independent — a standard cartridge
+runs on an 800XL as happily as on an XEGS console — which is why they are
+two options and not one, and the rule below says what belongs on each.
 
 ## What exists today
 
 Do not describe more than this as working:
 
-- `packages/atari8/src/index.8bs` exports seven registers, all `@address`:
+- `packages/atari8/src/index.8bs` exports sixteen registers, all `@address`:
   GTIA's `borderColor` (`$D01A`, COLBK), `backgroundColor` (`$D018`,
   COLPF2) and `textColor` (`$D017`, COLPF1 — only its luminance nybble
   shows in the text mode), the OS **shadow** of each (`$02C8` COLOR4,
@@ -50,7 +52,14 @@ Do not describe more than this as working:
   The file's own comment records why the shadows exist: the OS's
   vertical-blank routine copies `$02C4-$02C8` over `$D016-$D01A` every
   frame, so a hardware-only colour write lasts one frame (seen on screen
-  by this project when `examples/proof-of-concept/borders` first ran).
+  by this project when `examples/proof-of-concept/borders` first ran). The
+  other nine are what the input and sound layers below are built on:
+  `attract` (`$4D`), `chShadow` (`$02FC`, CH), `consolRead` and
+  `consolWrite` (both `$D01F`), `kbcode` (`$D209` read), `skstat` (`$D20F`
+  read), `audctl` (`$D208`), `randomRegister` (`$D20A`) and `palRegister`
+  (`$D014`). Three of those addresses are one register read and a
+  different one written — CONSOL, KBCODE/STIMER, SKSTAT/SKCTL — so each
+  direction has its own name and a layer cannot pick the wrong one.
 - `src/screen.8bs` (`@8bitscript/atari8/screen`, behind
   `@8bitscript/screen`): `setColors`/`setBorder`/`setBackground` write
   shadow then hardware, force COLPF1 to `$0E` so text stays readable, and
@@ -66,19 +75,70 @@ Do not describe more than this as working:
   run (`prepare()`) and inhibit the cursor; `putColor` and `setColor` are
   inert because GR.0 has no per-cell colour. `printNumber` is the
   subtraction routine, not a divide.
+- `src/joystick.8bs` (`@8bitscript/atari8/joystick`): `scan()` once a
+  frame into a snapshot, then `bits`/`up`/`down`/`left`/`right`/`fire`, and
+  `Joystick.PORT_1`-`PORT_4`. It reads the OS shadows STICK0-3
+  (`$0278`) and STRIG0-3 (`$0284`), not PORTA/TRIG, because the OS VBI is
+  alive under every build this toolchain makes; the direction bits are
+  inverted once, here. `Joystick.PORTS` is `#fact(input.joysticks)`, so the
+  scan loop is two iterations on an XL/XE build and four on a 400/800 one —
+  a program never reads PORTB and calls the memory-control bits a joystick.
+  `scan()` also zeroes ATRACT every frame, which is the whole fix for
+  attract mode in a joystick-only game.
+- `src/console.8bs` (`@8bitscript/atari8/console`): `scan()`/`pressed()`/
+  `bits()` over CONSOL's three keys (START, SELECT, OPTION, active low,
+  read from the hardware so they work with or without the OS), plus
+  `click()` and `speaker()` for the console speaker on the same address's
+  bit 3. Not a voice — there is no frequency and no volume.
+- `src/keyboard.8bs` + `src/keys.8bs` (`@8bitscript/atari8/keyboard`,
+  `/keys`): `scan()` takes CH (`$02FC`) and hands `$FF` back, the
+  documented way to consume a key, and reads SKSTAT for "still held" and
+  "SHIFT down"; `pressed`/`key`/`code`/`down`/`shift`/`control`/`clear`,
+  and `raw()` for KBCODE when the OS has been switched off. **It cannot
+  answer chords** — POKEY reports one key and one held bit, so "are these
+  two keys both down" is not a question this machine answers, and the file
+  says so rather than offering a `pressed()` that lies. `keys.8bs` is
+  *generated* from the SDK's own `atari.h` (61 codes) and a test rechecks
+  it against that header.
+- `src/pokey.8bs` (`@8bitscript/atari8/pokey`): four voices,
+  `reset`/`setVolume`/`setDistortion`/`setDivider`/`play`/`silence`, the
+  six `Distortion.*` settings, `Audctl.*` bits, and `Note`/`frequencyOf`/
+  `setRegion`/`detectRegion` shaped exactly like `@8bitscript/c64/sid`. The
+  AUDF tables are computed from POKEY's clock (machine clock ÷ 28) and
+  clamp octaves 0-2 to 255, because the 8-bit divider on the 64 kHz clock
+  does not reach below about 125 Hz — a stated limit, not a rounding.
+- `src/random.8bs` (`@8bitscript/atari8/random`): `byte()`/`word()` over
+  RANDOM (`$D20A`). Its own import, never folded into `./pokey`, per the
+  root rule on hardware entropy.
 - **Hardware** (the catalog in `package.json`): `model` — `800xl`
-  (default), `65xe`, `130xe`, `800`, `400` build with the stock
-  `mos-atari8-dos-clang` into a `.xex`, and `xegs` carries
-  `build.driver: mos-atari8-cart-xegs-clang` and `build.output: rom`; a
-  preset per model keeps `--profile 130xe` working. No `--defsym` is
-  passed, so the five `.xex` models produce byte-identical programs
-  (checked here for `800xl`, `130xe` and `800`: 818 bytes of program
-  each) and only change which atari800 model flag `8bs run` uses. The XEGS
-  build takes the SDK's default `__cart_rom_size = 256` and is a
-  262144-byte image; being the one value that changes the build, it is
-  the one in the output name (`main-atari8-xegs-ntsc.rom`; the others are
-  `main-atari8-<region>.xex`). `mouse` — `none`, `st`, `amiga`, `trak`
-  (`-mouse`, a fact `input.mouse`); `stereo` — `off`/`on` (`-stereo`).
+  (default), `65xe`, `130xe`, `1200xl`, `800`, `400` and `xegs` (the
+  *console*) are run-only: each carries an atari800 model flag and its own
+  facts (`input.joysticks` 4 on the 400 and 800, `memory.banked` on the
+  130XE with `detect: @8bitscript/atari8/banks`), no `build` block at all,
+  so every model links a byte-identical program and none of them appears in
+  an output filename. `media` is the axis that changes the build:
+  `xex` (default, the stock `mos-atari8-dos-clang`), `cart8`/`cart16`
+  (`mos-atari8-cart-std-clang`), `xegs32`-`xegs512`
+  (`mos-atari8-cart-xegs-clang`) and `mega16`-`mega512`
+  (`mos-atari8-cart-megacart-clang`). Each cartridge value carries
+  `build.output: rom`, its `__cart_rom_size` defsym, the matching atari800
+  `-cart-type` in its `load`, and the facts a cartridge changes
+  (`memory.ram` 6400, `storage.save` false); being the value that changes
+  the build, it is the one in the output name
+  (`main-atari8-xegs256-ntsc.rom`, `main-atari8-cart8-ntsc.rom`; a `.xex`
+  is `main-atari8-<region>.xex`). A preset per model keeps `--profile
+  130xe` working, and `--profile xegs` is now one value on each axis
+  (`model: xegs, media: xegs256`), which is what it always meant.
+  `mouse` (labelled *Pointing device*) — `none`, `st`, `amiga`, `trak`,
+  `paddles`, `touch`, `koala`, `pen`, `gun`, `joy`, one per atari800 `-mouse`
+  kind, and the fact each sets follows what the device is actually wired to:
+  a mouse or Trak-Ball is quadrature on a joystick port's direction bits
+  (`input.mouse`), paddles, a Touch Tablet and a Koala Pad are analogue on
+  POKEY's POT lines (`input.paddles`), and a light pen or gun is ANTIC's
+  PENH/PENV, which the fact sheet has no key for, so those set neither.
+  `mouseport` — `1`-`4` (`-mouseport`), every value `tag: null` because it
+  never changes the build and a file twin named `.atari8.2.8bs` would mean
+  nothing. `stereo` — `off`/`on` (`-stereo`).
 - `FRAME_SYNC.atari8` is a *level* driver polling ANTIC's VCOUNT
   (`$D40B < 64` for the top half, `>= 140` as the PAL probe), NTSC
   `262 × 114 / 1789790`, PAL `312 × 114 / 1773447`. It has no `presync`:
@@ -101,11 +161,13 @@ Do not describe more than this as working:
 - `packages/studio/AGENTS.md` lists `atari8` in Studio's full tier; nothing
   in Studio is Atari-specific yet.
 
-There is no sound, no input, no player/missile, no display-list, no
-character-set, no banking (130XE) and no storage API, no standard-cartridge
-or MegaCart value, and no non-macOS screenshot route — for this target or
-(mostly) for any machine. The rules below are
-what to hold that work to when it comes.
+There is no player/missile, no display-list, no character-set, no bitmap
+and no storage API, no paddle or mouse layer, and no non-macOS screenshot
+route — for this target or (mostly) for any machine. The four video layers
+are blocked on one unsettled question, not on effort: see "A hardware
+buffer needs an address the program can name" below, and settle that before
+starting any of them. The rules below are what to hold that work to when it
+comes.
 
 ## Facts verified here
 
@@ -120,7 +182,7 @@ for anything else), not recalled. `$SDK` is `~/.local/opt/llvm-mos`.
 | Imaginary registers are `$80-$9F`; the program's zero-page variables start at `$A0` (`ticks` in the borders build). | `link.ld` (`__rc0 = 0x80`, `__rc31 == 0x9f`), `llvm-objdump` of the ELF |
 | DOS crt0: `_start` sets the soft stack pointer `__rc0/1` to `MEMTOP ($02E5/$02E6) + 1`, calls `main`, then `exit` → `_Exit`, which is `jmp ($0A)` (DOSVEC). Nothing is printed, no CIO call is made and no character set is switched before `main`. The SDK's own `putchar` would go through CIO's `E:` handler; 8BitScript never links it. | `init-stack.S`, `_Exit.c`, `putchar.c` (upstream `mos-platform/atari8-*`), `llvm-objdump` of the linked `.xex.elf` (no `jsr $E4xx`, no `sei`) |
 | XEGS cartridge: an 8K *fixed* bank always at `$A000-$BFFF` and `__cart_rom_size / 8 − 1` switchable 8K banks at `$8000-$9FFF`, selected by a write to `$D500-$D5FF`; sizes 32–512K, power of two, default 256. RAM for the program is `$0700-$1FFF` ("assume at most 8 KiB of RAM"). The vector at `$BFFA` is `_start`, `0` ("inserted"), `$04` (bit 2 = boot), `_cart_init`. The default `_cart_init` is weak and writes 0 to `$D500` "because on real hardware the XEGS bank selection is random". In the file the fixed bank comes **last**: the built image has `00 A0 00 04 16 A0` at offset `$3FFFA` and zeros at `$1FFA`. `.data`/`.bss` land at `$0700`. | `atari8-cart-xegs/lib/link.ld`, upstream `syms.s`, `xxd`/`llvm-readelf` of the built `.rom` |
-| Standard cartridge (`mos-atari8-cart-std-clang`, not wired up here): 8K at `$A000` or 16K at `$8000`, same `$BFFA` vector, same `$0700-$1FFF` RAM. MegaCart/SIC! (`mos-atari8-cart-megacart-clang`, not wired up): 16–512K in 16K banks mapped over `$8000-$BFFF`, bank 0 at power-up, a 20-byte tail in bank 0 that shrinks RAMTOP (`$6A`) to `$80` if needed and writes `$20` to `$D500` for SIC! carts. | `atari8-cart-std/lib/link.ld`, `atari8-cart-megacart/lib/link.ld`, `tail0.s` |
+| Standard cartridge (`mos-atari8-cart-std-clang`, now `media=cart8`/`cart16`): 8K at `$A000` or 16K at `$8000`, same `$BFFA` vector, same `$0700-$1FFF` RAM. MegaCart/SIC! (`mos-atari8-cart-megacart-clang`, now `media=mega16`…`mega512`): 16–512K in 16K banks mapped over `$8000-$BFFF`, bank 0 at power-up, a 20-byte tail in bank 0 that shrinks RAMTOP (`$6A`) to `$80` if needed and writes `$20` to `$D500` for SIC! carts. | `atari8-cart-std/lib/link.ld`, `atari8-cart-megacart/lib/link.ld`, `tail0.s` |
 | atari800 cartridge types: 8K standard = type 1 at `$A000`; 16K = 2 at `$8000`; XEGS 32/64/128/256/512K = 12/13/14/23/24 (2–6 low bits of a `$D500` write pick the `$8000` bank); switchable XEGS = 33–37 (bit 7 disables); MegaCart 16–512K = 26–31 (bit 7 disables, low bits pick a 16K bank); SIC! 128/256/512K = 54/55/56 (`$D500-$D51F`). A raw image whose size matches more than one type is `CARTRIDGE_UNKNOWN`; the SDL build then opens the **"Select Cartridge Type"** menu and inserts nothing until a key is pressed. `-cart-type <0..160>` picks explicitly. | upstream `DOC/cart.txt`, `src/cartridge.c`, `src/ui.c`, `src/atari.c`; `atari800 -help` |
 | The 256 KiB XEGS build, given to `atari800 -xegs -cart` without a type, shows that menu with eight candidates (XEGS 256 KB, MegaCart 256 KB, Switchable XEGS 256 KB, SIC! 256 KB, Super Cart 256 KB 5200, XE Multicart, Double Ram-Cart, J(atari)Cart). With `-cart-type 23` or `-cart-type 36` the borders program runs (`TICK n OPTION 0`, cell 0, teal on blue). The same program on `-xl` (800xl), `-xe` (130xe) and `-atari` (800, OS-B) runs the same way; the `65xe` and `400` profiles were not launched. | on screen (window capture), this project |
 | `8bs run atari8 --screenshot` passes `'-run', outFile` unconditionally; with `--profile xegs` the captured window is the XL OS's blank blue screen with a cursor — the `.rom` was never inserted. | `packages/cli/src/screenshot.mjs` `atari8Screenshot()`, on screen |
@@ -139,6 +201,16 @@ for anything else), not recalled. `$SDK` is `~/.local/opt/llvm-mos`.
 | Under `8bs run` the emulated 800XL, 130XE and 800 show the borders program at cell 0 in the top-left of the playfield, inside a border whose colour is COLBK; the OS text screen sits below 24 blank lines and inside a normal-width (40-byte) playfield. | on screen |
 | The catalog's stock fact sheet: grid 40×24 of 8×8 (ANTIC mode 2), 256 colours (GTIA's 16 hues × 16 luminances), 2 per cell (one hue, two luminances), 128 glyphs per charset, no full block set (`video.blockWidth`/`Height` 0: ATASCII's control-graphics range is not a quarter-block set), bitmap, one layer with fine scroll; 4 players as the sprites (missiles are not counted), 4 per line, 8 pixels wide and as tall as the display (192 lines of per-line data), one colour each; POKEY's 4 voices with a volume each, noise distortions, volume-only samples, no envelope or filter, `RANDOM` as a random source; keyboard, two ports on the XL/XE models, no pads; disk under DOS; 40960 bytes (`$2000`–`$BFFF`), nothing banked until `model=130xe`, no mouse until a `mouse` value. | `src/text.8bs`; the `.xex`/`link.ld`, ANTIC, GTIA and POKEY rows above; `package.json` (read) |
 | `@8bitscript/atari8/banks` — `banks.kib()`: a marker in base RAM at `$4000`, then a marker of its own into each of the four banks bits 2–3 name (bit 4 clear so only the CPU sees them, bit 5 left alone so ANTIC keeps drawing base RAM, bits 0/1/7 left alone so the OS ROM, BASIC and self-test stay put), then base RAM read again. Still its own marker means the writes went elsewhere and the machine has extended RAM; the last bank's marker means there was only ever one RAM. Each bank is then read back so a mirror is not counted. atari800's `MEMORY_HandlePORTB` computes the 128 KiB bank as `((byte & 0x0c) >> 2) + 1` and runs the same code to no effect on a 64 KiB machine, which is what makes this work. Under atari800 the probe printed 64 KiB for `model=130xe` and 0 for `800xl`, `65xe` and `800` — including the 800, where PORTB is joystick ports 3 and 4 and the writes are harmless. Cost: `test/banks-probe.8bs` is 682 bytes of program with the probe and 531 with the answer written in — 151 bytes. | `src/banks.8bs`; atari800 `src/memory.c` (fetched 2026-09-05); four screenshots (ran); `test/banks.test.mjs` |
+| The `.xex` link script's RAM region is a **literal** `ORIGIN = 0x2000, LENGTH = 0xa000` — there is no `PROVIDE` and no symbol to override, unlike the VIC-20's `__memory_expansion` or the PET's `__ram_size`. So a `400` or `800` value **cannot** cap the linked RAM with a `--defsym`, and the catalog does not pretend to: those values change the emulator's model and the joystick-port fact only. Capping RAM for a 16K 400 needs a link script this project supplies, which nothing does yet. | `$SDK/mos-platform/atari8-dos/lib/link.ld` (read) |
+| `atari8-cart-std/lib/link.ld` has **no** `PROVIDE(__cart_rom_size)` — only `ASSERT(__cart_rom_size == 8 \|\| __cart_rom_size == 16, ...)`. The standard-cartridge driver therefore cannot link at all without the defsym, where the XEGS (`PROVIDE(... = 256)`) and MegaCart (`= 512`) scripts have defaults. Every cartridge value in the catalog passes it explicitly for that reason. | the three cartridge `link.ld`s (read) |
+| All fourteen `media` values link the borders example and produce exactly the size their name claims: `.xex` 830 bytes; `cart8` 8192; `cart16` 16384; `xegs32/64/128/256/512` 32768/65536/131072/262144/524288; `mega16`…`mega512` 16384…524288. `cart8`, `cart16`, `xegs256` and `mega128` were each launched and photographed running the program (teal playfield, blue border, `TICK n OPTION 0`) — so both newly-wired drivers work, not just the XEGS one. | `8bs build --target atari8 --hardware media=<v>` for all fourteen; four window captures (ran) |
+| SKSTAT's keyboard bits are **active low**, settled on screen rather than from the header: with nothing pressed, `test/layers-probe.8bs` prints `SKSTAT 255`, so bit 2 (last key still held) and bit 3 (SHIFT held) are 1 when idle and 0 when true. The SDK's `_pokey.h` names them `SKSTAT_LASTKEY_PRESSED`/`SKSTAT_SHIFTKEY_PRESSED` and states no polarity. In the same capture every input reads idle — `STICK 00000`, `CONSOL 000`, `KEY 255`, `HELD 0` — so no layer inverts a sense the wrong way. | `test/layers-probe.8bs` on screen (ran) |
+| The Atari's own joystick masks are bit for bit the C64's: `JOY_UP_MASK` `$01`, `JOY_DOWN_MASK` `$02`, `JOY_LEFT_MASK` `$04`, `JOY_RIGHT_MASK` `$08`, `JOY_BTN_1_MASK` `$10`. That is why `@8bitscript/atari8/joystick` can export the same `Joystick.*` values as the C64 layer without either machine being fudged. | `$SDK/mos-platform/atari8-common/include/atari.h` |
+| The KBCODE table is in the SDK — `KEY_*` in `atari8-common/include/atari.h`, mirrored as equates in `asminc/atari.inc`: 61 codes, all under `$40`, with `KEY_SHIFT` `$40` and `KEY_CTRL` `$80` as masks OR-ed on and `KEY_NONE` `$FF`. `src/keys.8bs` is generated from that header and `test/layers.test.mjs` rechecks every value against it. (This row was "to verify" until the header was found; it is now sourced.) | `atari.h`, `asminc/atari.inc`; `test/layers.test.mjs` (ran) |
+| `#fact(input.joysticks)` really folds per model, end to end: the same `test/layers-probe.8bs` prints `PORTS 2` on a stock 800XL build and `PORTS 4` on `--hardware model=800`, and the IR for the two builds differs in the scan loop's bound. So the catalog's new per-model facts reach generated code, not just `8bs targets`. | two window captures (ran); `test/layers.test.mjs` |
+| POKEY's clock is the machine clock ÷ 28 — 63921 Hz NTSC, 63337 Hz PAL from the nominal figures `FRAME_SYNC.atari8` uses — and an 8-bit AUDF on it reaches about 125 Hz at 255. So octaves 0-2 of the standard note numbering are **not playable** on the default clock (the tables clamp them to 255) and the top octave is coarse: NTSC A6 lands at 1775.6 Hz against 1760, about 15 cents sharp. Computed here from `clock / (2 * (AUDF + 1))`, the standard published relation — *to verify* on screen against a tone before anything depends on exact cents. | `src/pokey.8bs` (the tables are generated, not transcribed) |
+| An ST/Amiga mouse or a Trak-Ball **is** the joystick as far as the port is concerned: atari800 signals its movement as quadrature on PORTA's direction bits, so a `joystick.scan()` of that port returns mouse motion. Shown here rather than reasoned about — `test/layers-probe.8bs` paints its border green only when every input reads idle, and under `--hardware mouse=st` it comes up **red** while `mouse=paddles` and `mouse=koala,mouseport=4` stay green, because paddles and a Koala Pad are on POKEY's POT lines and leave the stick bits alone. Put the two in different ports (`mouseport`), or do not scan the pointer's port as a stick. | three window captures (ran) |
+| The layers cost what they say: `test/layers-probe.8bs`, which imports all six, is 1328 bytes of program and 11 bytes of RAM — screen, text, joystick, console, keyboard, POKEY and RANDOM together. A program that imports none of them links none of it. | `8bs run atari8` build line (ran) |
 
 ## From the sources, not verified here
 
@@ -168,9 +240,12 @@ nine minutes without a key the OS starts cycling the colours through
 COLRSH/DRKMSK; a joystick-only game must zero ATRACT each frame. The
 duration is *to verify*; the flag's existence is in `_atarios.h`.
 
-**Keyboard codes.** KBCODE's values (row/column encoding, SHIFT/CTRL in
-bits 6/7) and the OS's CH shadow are documented in the OS manual; the table
-is *to verify* before a `keys.8bs` is written.
+**Keyboard codes.** *Resolved* — the table is the SDK's own `KEY_*` and is
+now a verified row above; `src/keys.8bs` is generated from it. What remains
+unverified is the *auto-repeat*: the OS's VBI repeats a held key into CH
+after a delay, so `keyboard.key()` fires again on its own. The delay and
+rate are in the OS manual and are *to verify* before a menu depends on
+them.
 
 **Model RAM.** 400 = 8K (16K later), 800 = up to 48K, 1200XL/800XL/65XE =
 64K, 130XE = 128K: from the machines' own manuals, *to verify*. What
@@ -191,20 +266,19 @@ verify* in the ST/Trak-Ball documentation.
 
 ## Corrections to what the repository says
 
-- **`docs/setup/atari8.md`** and `packages/cli/src/run.mjs`: "XEGS, which
-  loads as a cartridge instead (`-cart <file.rom>`)". As wired, that launch
-  stops at atari800's "Select Cartridge Type" menu (verified above). The
-  fix is one flag — `-cart-type 23` for a 256K XEGS image, or the matching
-  type for whatever `__cart_rom_size` the backend passes once it passes
-  one — not a different emulator. Not changed by this note.
+- **`docs/setup/atari8.md`**: the old "XEGS, which loads as a cartridge
+  instead (`-cart <file.rom>`)" launch stopped at atari800's "Select
+  Cartridge Type" menu. Fixed: every cartridge value in the catalog now
+  carries its own `-cart-type`, and the page has been rewritten around the
+  `model` × `media` split with a table of all fourteen media values.
 - **`packages/cli/src/screenshot.mjs`** used to hardcode `-run`; it now
   takes the catalog's `load` for the value, as `run.mjs` does. Fixed.
-- **`docs/setup/llvm-mos.md`**: "a profile only changes which of the two
-  drivers above runs, and which atari800 machine model `8bs run`
-  launches" — also true, but the XEGS driver changes the *load address*
-  (`$A000` fixed bank, RAM at `$0700`), the *RAM budget* (6.25K, not 40K)
-  and the *image size* (256 KiB by default). Say so wherever the XEGS
-  profile is described.
+- **`docs/setup/llvm-mos.md`** said "a profile only changes which of the
+  two drivers above runs, and which atari800 machine model `8bs run`
+  launches". Fixed: the page now lists all four Atari drivers and says that
+  the *media* axis — not the model — changes the load address, the RAM
+  budget (6400 bytes, not 40960), the image size and whether the program
+  can save at all.
 - **`packages/backend-6502`'s `FRAME_SYNC.atari8` comment** says the
   Atari clocks could not be re-derived. atari800's own constants give
   `59.9227434 × 262 × 114 = 1789772.5` and `49.8607597 × 312 × 114 =
@@ -220,24 +294,33 @@ verify* in the ST/Trak-Ball documentation.
 
 ### Model, media and region are three axes, not one option
 
-- The catalog's `model` option mixes a model (`800xl`) with a medium
-  (`xegs`). When the next medium arrives (a standard 8K/16K cartridge, a
-  MegaCart, a 130XE build that uses its extra RAM), split it into its own
-  option the way the root file asks: `model` decides the atari800 flag,
-  the joystick-port count and the RAM ceiling; a `media` option decides
-  the driver, `__cart_rom_size`, the load address, the `load` flags and
-  the persistence story; the region is already a separate flag. Give a
-  cartridge value its `__cart_rom_size` defsym and the matching atari800
-  `-cart-type` in the same catalog entry — a raw cartridge image has no
-  header and the emulator cannot guess its type.
-- A `.xex` model links every machine identically (verified). That is
-  honest for 64K machines; on a 16K 400 the `$2000-$BFFF` region does not
-  exist, so a `400` value that means anything must cap the RAM region
-  (a `defsym`, the way the PET's `__ram_size` does) rather than only
-  choosing the emulator flag.
+- **The split is done; keep it.** `model` decides the atari800 flag, the
+  joystick-port count and the model's own facts, and carries **no** `build`
+  block — every model links the same program. `media` decides the driver,
+  `__cart_rom_size`, the load address, the `load` flags and the persistence
+  story. Region is a separate flag already. A new machine goes on `model`, a
+  new cartridge board on `media`, and nothing goes on both. Give a cartridge
+  value its `__cart_rom_size` defsym and the matching atari800 `-cart-type`
+  in the same entry — a raw cartridge image has no header and the emulator
+  cannot guess its type; the std script has no default for the size at all.
+- A `.xex` links every model identically (verified). That is honest for 64K
+  machines, and on a 16K 400 it is a program that will not fit — but the
+  `.xex` link script's RAM region is a literal with no symbol to override
+  (verified above), so a `400` value **cannot** cap it with a defsym the way
+  the PET's `__ram_size` does. Capping it means this project supplying its
+  own link script. Until then, do not claim `--profile 400` builds a program
+  a real 400 can run; it picks the emulator's model and the four-port fact,
+  and that is all it does.
 - Never probe RAMTOP, PORTB or the OS revision at run time to learn what
   the build is for. Width, RAM, ports and medium are properties of the
   build.
+- atari800's bigger machines — `-320xe`, `-rambo`, `-576xe`, `-1088xe` —
+  are deliberately **not** `model` values yet. Their extra RAM is reached
+  through PORTB bits that `banks.kib()` does not read (atari800 reuses bits
+  1 and 5-7 for them), so a `320xe` value carrying `memory.bankedKib: 256`
+  and pointing `detect` at the current probe would state a number the probe
+  answers 64 to. Extend the probe first, then add the values — a `detect`
+  that under-reports is worse than no value at all.
 
 ### The OS is in the loop until the program takes the machine over
 
@@ -298,6 +381,58 @@ verify* in the ST/Trak-Ball documentation.
 - The border is COLBK and the playfield width (DMACTL bits 0–1) decides
   how much of it shows; a wide playfield shows none. `screen.setBorder`
   is real here, unlike the X16.
+
+### A hardware buffer needs an address the program can name
+
+This is the one thing blocking the character-set, display-list,
+player/missile and bitmap layers, and it is a language question, not an
+Atari one. Settle it before starting any of the four; all four have the
+same shape.
+
+ANTIC fetches from addresses a *register* names — CHBASE for the character
+set, SDLSTL/H for the display list, PMBASE for the player/missile area, an
+LMS operand for screen memory — and every one of those is alignment-
+constrained (a 1K character set, a 2K or 1K P/M area, a display list that
+must not cross a 1K boundary). So the program has to be able to tell ANTIC
+where its buffer is. And it cannot:
+
+- 8BitScript has no address-of operator. `memory.read`/`memory.write` are
+  the whole memory surface (`packages/compiler/src/ir`, `memoryIntrinsic`),
+  and a `let` or `const` array is placed by the linker with no way for the
+  program to learn or constrain where it landed. So a linker-allocated
+  array cannot be a buffer ANTIC reads.
+- The C64 never had to answer this, which is why no precedent exists: its
+  hardware buffers go at fixed addresses under I/O and ROM, where the
+  linker never allocates anything. The Atari has no such region — the
+  program owns `$2000-$BFFF` and the linker fills it from the bottom while
+  the soft stack grows down from MEMTOP (about `$9C00`).
+
+Two honest routes, and a third that is not:
+
+1. **A fixed `@address` buffer in the middle of the region**, with the
+   collision budget stated and checked. This is exactly what
+   `src/banks.8bs` already does at `$4000`, hazard note and all: it is safe
+   while `.data`/`.bss` end below the buffer and the stack does not reach
+   down to it, and `llvm-nm` on the linked ELF is how that is checked
+   (`test/banks.test.mjs` has the check to copy). Cheapest, and it works
+   today; the cost is that the budget is a promise the compiler does not
+   enforce, and a big enough program breaks it silently.
+2. **Lower RAMTOP/MEMTOP and use the space above**, the way real Atari
+   programs do — page-aligned by construction and safe from the linker,
+   but the crt0 sets the soft stack from MEMTOP *before* `main` runs
+   (verified: `init-stack.S`), so lowering it in `main` does not move the
+   stack, and the program must re-derive it. That is a runtime change, not
+   a package change.
+3. **Not** an array plus a runtime alignment scan. Allocating 2K and using
+   the 1K-aligned half inside it sounds clever and is unimplementable
+   without the address-of operator route (1) needs anyway — there is
+   nothing to align.
+
+Route 1 is the recommendation, because it needs nothing new and the
+package already has the precedent and the test for it. Whichever is
+chosen, write the budget into this file with the numbers, and add the
+`llvm-nm` check to the layer's own test — a buffer that collides with the
+stack is a bug that only appears in a big program, months later.
 
 ### Players and missiles are strips, not sprites
 
@@ -403,12 +538,21 @@ here" when you do.
 packages/atari8/src/index.8bs           target package: COLBK/COLPF2/COLPF1 ($D01A/$D018/$D017), their OS shadows ($02C8/$02C6/$02C5), CRSINH ($02F0)
 packages/atari8/src/screen.8bs          @8bitscript/atari8/screen: shadow-then-hardware colours, blank() over 960 cells at SAVMSC, GTIA-byte colour names, KEEP = 255
 packages/atari8/src/text.8bs            @8bitscript/atari8/text: ASCII → internal code, SAVMSC read per run, inert putColor, CELL_COUNT 960 / COLUMNS 40
-packages/atari8/package.json            "8bitscript".hardware: model (flags, the xegs driver/output/load), mouse, stereo; a preset per model
+packages/atari8/src/joystick.8bs        @8bitscript/atari8/joystick: STICK/STRIG shadows, ports from #fact(input.joysticks), ATRACT zeroed each scan
+packages/atari8/src/console.8bs         @8bitscript/atari8/console: CONSOL's three keys (read) and the speaker (write), one address twice
+packages/atari8/src/keyboard.8bs        @8bitscript/atari8/keyboard: CH consumed per frame, SKSTAT for held/SHIFT, no chords on this machine
+packages/atari8/src/keys.8bs            @8bitscript/atari8/keys: the 61 KBCODE values, GENERATED from the SDK's atari.h — regenerate, do not hand-edit
+packages/atari8/src/pokey.8bs           @8bitscript/atari8/pokey: 4 voices, 6 distortions, AUDF tables computed from the ÷28 clock, sid.8bs's shape
+packages/atari8/src/random.8bs          @8bitscript/atari8/random: RANDOM ($D20A), its own import on purpose
+packages/atari8/src/banks.8bs           @8bitscript/atari8/banks: the 130XE probe, and the precedent for a fixed @address buffer
+packages/atari8/test/layers-probe.8bs   every input layer on one screen: the polarity check, and what settled SKSTAT
+packages/atari8/test/layers.test.mjs    links the probe, rechecks keys.8bs against the SDK header, checks the port-count fold, runs it under atari800
+packages/atari8/package.json            "8bitscript".hardware: model (run flags + facts only), media (driver/defsym/output/load), mouse, stereo; a preset per model
 packages/backend-6502/src/index.mjs     DRIVER.atari8 (dos), driverFor()/outputExtension() reading the hardware's build block, FRAME_SYNC.atari8 (VCOUNT poll, no sei)
 packages/cli/src/run.mjs                atari800CleanDisplayConfig(), the launch: the catalog's flags, then -run or the value's load
 packages/cli/src/screenshot.mjs         atari8Screenshot(): macOS window capture, the same flags
 packages/cli/src/mac-window-capture.mjs findWindowIdForPid()/captureWindow(), the capture route for any atari800 launch
-packages/cli/src/doctor.mjs             CLANG_DRIVERS rows for both Atari drivers; the atari800 install plan
+packages/cli/src/doctor.mjs             CLANG_DRIVERS rows for all four Atari drivers (dos, cart-std, cart-xegs, cart-megacart); the atari800 install plan
 packages/cli/test/emulator-smoke.test.mjs   atari800 -xl -ntsc -run boots a real build
 docs/setup/atari8.md                    installing atari800, the ROM caveat, the model → flag list
 docs/setup/llvm-mos.md                  the two Atari drivers and what the XEGS value changes
@@ -417,8 +561,8 @@ examples/proof-of-concept/borders/src/main.8bs   the program every screenshot ab
 $SDK/mos-platform/atari8-common/        _antic.h, _gtia.h, _pokey.h, _pia.h, _atarios.h, atari.h (chip bases, PORTB bits), asminc/atari.inc (OS vectors)
 $SDK/mos-platform/atari8-dos/lib/link.ld        the .xex format, $2000, the MEMLO survey
 $SDK/mos-platform/atari8-cart-xegs/lib/link.ld  fixed $A000 + 8K banks at $8000, $BFFA vector, RAM $0700-$1FFF
-$SDK/mos-platform/atari8-cart-std/lib/link.ld   8K/16K standard cartridge (not wired up)
-$SDK/mos-platform/atari8-cart-megacart/lib/     MegaCart/SIC! (not wired up), tail0.o
+$SDK/mos-platform/atari8-cart-std/lib/link.ld   8K/16K standard cartridge (media=cart8/cart16); ASSERTs __cart_rom_size with NO default
+$SDK/mos-platform/atari8-cart-megacart/lib/     MegaCart/SIC! (media=mega16..mega512), tail0.o
 github.com/llvm-mos/llvm-mos-sdk mos-platform/atari8-*/   the crt0 sources (init-stack.S, _Exit.c, syms.s, tail0.s, putchar.c)
 github.com/atari800/atari800 src/, DOC/cart.txt           antic.c/antic.h/atari.h (timing), gtia.c, pokey.c, pia.c, memory.c (PORTB), cartridge.c/ui.c (types, the menu), input.c (controllers)
 ```

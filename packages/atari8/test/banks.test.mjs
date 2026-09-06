@@ -28,7 +28,7 @@ test('the package exports ./banks, and the 130XE is the value found at run time 
   assert.equal(pkg['8bitscript'].exports['./banks'], './src/banks.8bs');
   const { options } = loadCatalog('atari8');
   assert.equal(options.model.values['130xe'].detect, '@8bitscript/atari8/banks');
-  assert.equal(options.model.detect, undefined, 'not the whole option: a xegs is a different binary either way');
+  assert.equal(options.model.detect, undefined, 'not the whole option: only the 130XE has anything to find');
   assert.equal(options.model.values['800xl'].detect, undefined, 'and an 800XL has nothing to find');
 });
 

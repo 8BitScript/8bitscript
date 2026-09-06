@@ -66,8 +66,21 @@ where "if C64 then 40 columns" is wrong on a C128 in 80-column mode.
   that is genuinely different per machine, and per-profile files for a
   difference a profile makes.
 - **Hardware layers** under some machines: `@8bitscript/c64/sprites`,
-  `/sid`, `/keyboard`, `/joystick`, `/video`; `@8bitscript/pet/keyboard`.
-  Importing one makes a program that machine's only.
+  `/sid`, `/keyboard`, `/joystick`, `/video`, `/raster` (a list of
+  register writes at raster lines), `/bitmap`, `/charset`, `/scroll`,
+  `/reu`, `/mouse`; `@8bitscript/atari8/joystick`, `/console` (START,
+  SELECT, OPTION and the speaker), `/keyboard`, `/keys`, `/pokey`,
+  `/random`, `/banks`; `@8bitscript/pet/keyboard`; `@8bitscript/cx16/banks`;
+  `@8bitscript/c128/vdc`, `/vdc80`. Importing one makes a program that
+  machine's only.
+
+  Where two machines can honestly agree, the layers are the same shape on
+  purpose — `@8bitscript/atari8/joystick` has the C64's `scan()` and its
+  `Joystick.UP`/`DOWN`/`LEFT`/`RIGHT`/`FIRE` values, because the Atari's own
+  masks in the SDK's `atari.h` happen to be bit for bit the same. Where they
+  cannot, the layer says so rather than pretending: the Atari's keyboard
+  reports one key and one "still held" bit, so `@8bitscript/atari8/keyboard`
+  cannot answer "are these two keys both down" and does not offer to.
 
 Everything below the next heading that is not in this list is a proposal.
 
@@ -405,8 +418,8 @@ page. It is designed on the X16 and runs the same source everywhere:
 | X16 | text, 76×56 | canvas on a bitmap layer, 8 bpp; zoomed tile and full tileset side by side | tiles on layer 0, sprites over it | mouse (the KERNAL's, on a VERA sprite), keyboard |
 | MEGA65 | text, 80×25 | full-colour characters as the canvas | real | 1351 or Amiga mouse, keyboard |
 | C128 | text, 40 columns (VIC-IIe side) | glyph window or bitmap | real sprites | 1351 mouse or keyboard |
-| C64 | text, 40×25 | glyph window (a redefined charset block) or hires bitmap | real sprites, `@8bitscript/c64/sprites` under `actors` | 1351 mouse (proposal), joystick, keyboard |
-| Atari 8-bit | text, 40×24 | redefined charset in GR.0, or a bitmap mode via a display list | players/missiles as sprites | ST mouse (proposal), joystick, keyboard |
+| C64 | text, 40×25 | glyph window (`@8bitscript/c64/charset`) or hires bitmap (`@8bitscript/c64/bitmap`) | real sprites, `@8bitscript/c64/sprites` under `actors` | 1351 mouse (`@8bitscript/c64/mouse`), joystick, keyboard |
+| Atari 8-bit | text, 40×24 | redefined charset in GR.0, or a bitmap mode via a display list | players/missiles as sprites | ST mouse (proposal), joystick (`@8bitscript/atari8/joystick`), keyboard (`/keyboard`) |
 | web | anything | anything | anything | mouse, keyboard |
 | VIC-20 | text, 22×23 | glyph window: a tile is edited as cells, the tileset shown through redefined characters, as many as RAM allows | software actors: the glyph itself moved through the cells | keyboard, joystick |
 | PET | text, 40 or 80 columns | cells: one pseudo-pixel per cell at zoom; quarter-blocks for the tileset overview | software actors in cells; monochrome | keyboard only |
@@ -456,7 +469,7 @@ those onto what it has:
 | C64 | matrix, scanned (`@8bitscript/c64/keyboard`) | 2 ports (`/joystick`) | 1351 mouse in a port, proposal |
 | PET | matrix, scanned once a frame (`@8bitscript/pet/keyboard`) | none | none |
 | C128 | matrix, scanned | 2 ports | 1351 mouse |
-| Atari 8-bit | POKEY keyboard | 2 ports (4 on the 400/800) | ST mouse or trackball in a port, proposal |
+| Atari 8-bit | POKEY keyboard, one key at a time (`@8bitscript/atari8/keyboard`, `/keys`); START/SELECT/OPTION (`/console`) | 2 ports, 4 on the 400/800 — `#fact(input.joysticks)` (`/joystick`) | ST mouse or trackball in a port, proposal |
 | NES | none | 2 pads | none (the Zapper is not a pointer for this purpose) |
 | X16 | PS/2 through the KERNAL | SNES pads (how many the KERNAL scans: *to verify*) | PS/2 mouse, KERNAL-drawn cursor |
 | MEGA65 | matrix plus the ASCII key register | 2 ports | 1351 or Amiga mouse |
@@ -708,7 +721,7 @@ profile can persist bytes. "Frame" is how a program waits for one.
 | Machine | Keyboard | Sticks, pads | Pointer | Save | Frame |
 | ------- | -------- | ------------ | ------- | ---- | ----- |
 | VIC-20 | matrix (VIA) | 1 port | paddles; 1351 *to verify* | disk, tape | poll `$9004`; no vblank flag or IRQ |
-| C64 | matrix (CIA) | 2 ports | 1351 in a port | disk, tape, REU (volatile) | poll `$D012` under `sei`; raster IRQ |
+| C64 | matrix (CIA) | 2 ports | 1351 in a port | disk, tape, REU (volatile; `reu.stash`/`fetch`) | poll `$D012` under `sei`, KERNAL out; the raster interrupt is a write list (`@8bitscript/c64/raster`) |
 | PET | matrix (PIA), snapshot once a frame | none | none | disk, tape | `$E812` retrace edge |
 | C128 | matrix + 3 extra columns | 2 ports | 1351 | disk (1571/1581), tape | as C64; VDC has no vsync |
 | Atari 8-bit | POKEY-scanned | 2 (4 on 400/800) | ST/Amiga mouse, trackball, in a port | disk under DOS, tape | poll VCOUNT; OS VBI (an NMI, `sei` does not stop it) |

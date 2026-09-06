@@ -220,6 +220,8 @@ const CLANG_DRIVERS = [
   { driver: 'mos-nes-nrom-clang', targets: ['nes'] },
   { driver: 'mos-atari8-dos-clang', targets: ['atari8'] },
   { driver: 'mos-atari8-cart-xegs-clang', targets: ['atari8'] },
+  { driver: 'mos-atari8-cart-std-clang', targets: ['atari8'] },
+  { driver: 'mos-atari8-cart-megacart-clang', targets: ['atari8'] },
 ];
 
 async function checkMos() {

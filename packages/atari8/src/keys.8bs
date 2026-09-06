@@ -1,0 +1,116 @@
+// @8bitscript/atari8/keys — the keyboard's codes, key by key.
+//
+// Named by "8bitscript".exports["./keys"] in this package's package.json, for
+//
+//     import { keyboard } from "@8bitscript/atari8/keyboard";
+//     import { Key } from "@8bitscript/atari8/keys";
+//
+//     if (keyboard.pressed(Key.SPACE)) { ... }
+//
+// Each value is the code POKEY leaves in KBCODE ($D209) and the OS leaves in
+// CH ($02FC) — not a row and column the way the C64's and PET's tables are,
+// because on this machine a program never scans a matrix. POKEY scans it in
+// hardware and hands over one code (see ./keyboard.8bs for what that costs).
+//
+// The numbering looks arbitrary because it is: it is the order POKEY's own
+// scan counter reaches each key, so `L` is 0 and `A` is $3F with nothing in
+// between to reason about. Bits 6 and 7 are the SHIFT and CTRL modifiers
+// OR-ed onto the key's own six bits, which is why every code here is under
+// $40 and why `Key.SHIFT` and `Key.CTRL` are masks rather than keys.
+//
+// A key that also exists on the C64 and PET has the same name here —
+// letters, `DIGIT_n`, SPACE, RETURN, DELETE, ESC, the punctuation — so a
+// program that sticks to those names reads the same on all three machines'
+// keyboard layers.
+//
+// Source: `KEY_*` in the LLVM-MOS SDK's own
+// `mos-platform/atari8-common/include/atari.h`, which is also mirrored as
+// assembler equates in `asminc/atari.inc`; this file is generated from that
+// header, not transcribed, and packages/atari8/test/keys.test.mjs checks
+// every value against it whenever the SDK is present. (../AGENTS.md listed
+// this table as "to verify" before the header was found; it is now sourced.)
+
+export namespace Key {
+    // Nothing pressed: what CH holds when the OS has no key for the program,
+    // and what `keyboard.key()` answers.
+    const NONE: utinyint = 0xFF;
+
+    // Letters.
+    const A: utinyint = 0x3F;
+    const B: utinyint = 0x15;
+    const C: utinyint = 0x12;
+    const D: utinyint = 0x3A;
+    const E: utinyint = 0x2A;
+    const F: utinyint = 0x38;
+    const G: utinyint = 0x3D;
+    const H: utinyint = 0x39;
+    const I: utinyint = 0x0D;
+    const J: utinyint = 0x01;
+    const K: utinyint = 0x05;
+    const L: utinyint = 0x00;
+    const M: utinyint = 0x25;
+    const N: utinyint = 0x23;
+    const O: utinyint = 0x08;
+    const P: utinyint = 0x0A;
+    const Q: utinyint = 0x2F;
+    const R: utinyint = 0x28;
+    const S: utinyint = 0x3E;
+    const T: utinyint = 0x2D;
+    const U: utinyint = 0x0B;
+    const V: utinyint = 0x10;
+    const W: utinyint = 0x2E;
+    const X: utinyint = 0x16;
+    const Y: utinyint = 0x2B;
+    const Z: utinyint = 0x17;
+
+    // Digits, named DIGIT_n so a name never starts with a number.
+    const DIGIT_0: utinyint = 0x32;
+    const DIGIT_1: utinyint = 0x1F;
+    const DIGIT_2: utinyint = 0x1E;
+    const DIGIT_3: utinyint = 0x1A;
+    const DIGIT_4: utinyint = 0x18;
+    const DIGIT_5: utinyint = 0x1D;
+    const DIGIT_6: utinyint = 0x1B;
+    const DIGIT_7: utinyint = 0x33;
+    const DIGIT_8: utinyint = 0x35;
+    const DIGIT_9: utinyint = 0x30;
+
+    // Punctuation, unshifted. The shifted character on the same key is
+    // that key OR Key.SHIFT.
+    const COMMA: utinyint = 0x20;
+    const PERIOD: utinyint = 0x22;
+    const SLASH: utinyint = 0x26;
+    const SEMICOLON: utinyint = 0x02;
+    const PLUS: utinyint = 0x06; // '+', shifted '\\'
+    const ASTERISK: utinyint = 0x07; // '*'
+    const DASH: utinyint = 0x0E; // '-'
+    const EQUALS: utinyint = 0x0F; // '='
+    const LESSTHAN: utinyint = 0x36; // '<', on its own key
+    const GREATERTHAN: utinyint = 0x37; // '>', on its own key
+
+    // The keys that are not characters.
+    const ESC: utinyint = 0x1C;
+    const TAB: utinyint = 0x2C;
+    const SPACE: utinyint = 0x21;
+    const RETURN: utinyint = 0x0C;
+    const DELETE: utinyint = 0x34; // DELETE/BACK S
+    const CAPS: utinyint = 0x3C; // CAPS/LOWR
+    const INVERSE: utinyint = 0x27; // the Atari-logo key: inverse video
+    const HELP: utinyint = 0x11; // the 1200XL and later only
+
+    // Function keys: the 1200XL had four; no other model has any.
+    const F1: utinyint = 0x03;
+    const F2: utinyint = 0x04;
+    const F3: utinyint = 0x13;
+    const F4: utinyint = 0x14;
+
+    // Modifiers, as masks OR-ed onto a key code rather than keys of their
+    // own. Neither can be read alone through KBCODE: SHIFT on its own is
+    // SKSTAT's bit 3 (`keyboard.shift()`), and CTRL on its own cannot be
+    // read at all. There is no way to tell left SHIFT from right SHIFT.
+    const SHIFT: utinyint = 0x40;
+    const CTRL: utinyint = 0x80;
+    // The key itself, with both modifiers masked off — what
+    // `keyboard.key()` is compared against.
+    const CODE: utinyint = 0x3F;
+}

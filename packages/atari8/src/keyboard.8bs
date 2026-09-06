@@ -1,0 +1,157 @@
+// @8bitscript/atari8/keyboard — the keyboard, one snapshot a frame.
+//
+// Named by "8bitscript".exports["./keyboard"] in this package's package.json:
+//
+//     import { keyboard } from "@8bitscript/atari8/keyboard";
+//     import { Key } from "@8bitscript/atari8/keys";
+//
+//     keyboard.scan();
+//     if (keyboard.pressed(Key.SPACE)) { ... }
+//
+// Hardware-level, Atari-only surface, the same shape as
+// @8bitscript/c64/keyboard and @8bitscript/pet/keyboard — `scan()` once a
+// frame, then questions answered from the snapshot. What is behind it is
+// not the same shape at all, and the difference is the whole point of this
+// file, so read the next paragraph before writing a game around it.
+//
+// ---- this machine cannot tell you which keys are down ----------------------
+//
+// The C64 and PET have a matrix a program drives itself: select a column,
+// read eight rows, and after eight passes you know the state of every key at
+// once. The Atari has no matrix a program can reach. POKEY scans the
+// keyboard in hardware and reports *one* thing — the code of the last key
+// it saw, in KBCODE ($D209), with an IRQ to say it changed — plus one bit in
+// SKSTAT saying whether a key, that key, is still held. So:
+//
+//   - "is SPACE down" is answerable: the last key was SPACE and a key is
+//     still held. `pressed()` is exactly that, and it is honest.
+//   - "are UP and FIRE both down" is *not* answerable here. Two keys at once
+//     is what the joystick is for on this machine (./joystick.8bs), and it
+//     is why Atari games put movement on a stick and reserve the keyboard
+//     for one-at-a-time choices. A portable input capability must not
+//     promise chords on this target.
+//   - a key held down repeats: the OS's VBI auto-repeats it into CH after a
+//     delay, so `key()` fires again. `pressed()` does not care, but a menu
+//     that steps on every `key()` will step twice.
+//
+// ---- why this reads the OS shadow, not KBCODE ------------------------------
+//
+// The same reasoning as ./joystick.8bs. POKEY's keyboard IRQ is live under an
+// 8BitScript build (no `sei` is emitted; see ../AGENTS.md), and the OS's
+// handler is what debounces the key, applies SHIFT and CTRL, handles the
+// auto-repeat and the CAPS lock, and leaves the result in CH ($02FC), $FF
+// for "nothing new". Reading KBCODE instead means racing that handler for a
+// register it is already consuming, and re-implementing debounce. So
+// `scan()` takes CH and hands it back to the OS as $FF — the documented way
+// a program consumes a key — and only the "still held" bit comes from the
+// hardware, because the OS keeps no shadow of it.
+//
+// A program that has taken the machine over (NMIEN's VBI bit cleared) has no
+// CH being filled and must read KBCODE itself; `keyboard.raw()` is that
+// register, for exactly that case.
+import { chShadow, skstat, kbcode } from "./index.8bs";
+
+// The last code `scan()` took from CH, modifiers included, or `Key.NONE`.
+let last: utinyint = 0xFF;
+// Whether a key was still held at the last scan.
+let held: bool = false;
+// Whether SHIFT was down at the last scan, from SKSTAT rather than from the
+// code's bit 6 — so it is true while SHIFT is held on its own.
+let shifted: bool = false;
+
+// SKSTAT's keyboard bits are active low: the bit is 0 while the thing is
+// true. (Atari Hardware Manual; the SDK's _pokey.h names them
+// SKSTAT_LASTKEY_PRESSED and SKSTAT_SHIFTKEY_PRESSED without the polarity.
+// Checked here under atari800 with nothing pressed — both bits read 1 — by
+// test/layers-probe.8bs.)
+const SK_KEY_HELD: utinyint = 0x04;
+const SK_SHIFT_HELD: utinyint = 0x08;
+
+export namespace keyboard {
+    // Take whatever the OS has, once a frame, right after waitFrame().
+    //
+    // A key is consumed here: CH goes back to $FF so the next press is seen
+    // as new. That means exactly one `scan()` per frame — a second call in
+    // the same frame finds nothing and clears the answer.
+    function scan(): void {
+        let code: utinyint = chShadow;
+        if (code != 0xFF) {
+            last = code;
+            chShadow = 0xFF;
+        } else {
+            // No new key. Keep the old code only while it is still held, so
+            // `pressed()` follows the key down and up rather than latching
+            // the last key pressed forever.
+            let status: utinyint = skstat;
+            if ((status & SK_KEY_HELD) != 0) {
+                last = 0xFF;
+            }
+        }
+        let status2: utinyint = skstat;
+        held = (status2 & SK_KEY_HELD) == 0;
+        shifted = (status2 & SK_SHIFT_HELD) == 0;
+    }
+
+    // Is this key the one being pressed? `key` is a `Key.*` code; SHIFT and
+    // CTRL are masked off both sides, so `pressed(Key.A)` is true for a
+    // shifted A as well. To require a modifier, compare `code()` against
+    // `Key.A + Key.SHIFT` instead.
+    //
+    // The `Key.NONE` guard is not belt-and-braces: `Key.NONE` is $FF and the
+    // mask is $3F, so masking an idle keyboard gives $3F — which is exactly
+    // `Key.A`. Without this line an untouched machine reports A held down
+    // forever, and it looks perfectly correct in source. test/layers-probe.8bs
+    // checks this one case in its idle reading for that reason.
+    function pressed(key: utinyint): bool {
+        if (last == 0xFF) {
+            return false;
+        }
+        return (last & 0x3F) == (key & 0x3F);
+    }
+
+    // The last key's code with its modifiers masked off, or `Key.NONE`.
+    function key(): utinyint {
+        if (last == 0xFF) {
+            return 0xFF;
+        }
+        return last & 0x3F;
+    }
+
+    // The last key's code exactly as it arrived, `Key.SHIFT` and `Key.CTRL`
+    // still on it, or `Key.NONE`.
+    function code(): utinyint {
+        return last;
+    }
+
+    // Is a key — the one `key()` names — still being held down?
+    function down(): bool {
+        return held;
+    }
+
+    // Is SHIFT held, whether or not any other key is? This is SKSTAT's own
+    // bit, so it is true for SHIFT alone, which the key code cannot say.
+    function shift(): bool {
+        return shifted;
+    }
+
+    // Was CTRL held when the last key arrived? CTRL alone cannot be read on
+    // this machine at all — there is no bit for it — so this is the code's
+    // modifier and nothing more.
+    function control(): bool {
+        return (last & 0x80) != 0;
+    }
+
+    // Forget the last key, without waiting for a scan: a menu that has acted
+    // on a choice and does not want it acted on twice.
+    function clear(): void {
+        last = 0xFF;
+        chShadow = 0xFF;
+    }
+
+    // POKEY's own KBCODE, unfiltered and undebounced — for a program that
+    // has cleared NMIEN's VBI bit and so has no OS filling CH. Nothing else
+    // in this file reads it.
+    function raw(): utinyint {
+        return kbcode;
+    }
+}

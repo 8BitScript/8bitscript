@@ -1,0 +1,147 @@
+// @8bitscript/atari8/joystick — the control ports, one snapshot a frame.
+//
+// Named by "8bitscript".exports["./joystick"] in this package's package.json:
+//
+//     import { joystick, Joystick } from "@8bitscript/atari8/joystick";
+//
+//     joystick.scan();
+//     if (joystick.left(Joystick.PORT_1)) { ... }
+//
+// Hardware-level, Atari-only surface, the layer a portable input capability
+// will sit on — the same shape as @8bitscript/c64/joystick, deliberately:
+// `scan()` once a frame into a snapshot, then `up`/`down`/`left`/`right`/
+// `fire` answering from it, and the same `Joystick.UP`/`DOWN`/`LEFT`/
+// `RIGHT`/`FIRE` bit values. That is not a coincidence to be tidied away
+// later: the Atari's own masks in the SDK's `atari.h` (`JOY_UP_MASK` $01,
+// `JOY_DOWN_MASK` $02, `JOY_LEFT_MASK` $04, `JOY_RIGHT_MASK` $08,
+// `JOY_BTN_1_MASK` $10) are bit for bit the C64's, so the two machines'
+// layers agree without either one pretending.
+//
+// ---- why this reads the OS shadows, not the hardware ----------------------
+//
+// A digital joystick is five switches to ground. The hardware is PIA's
+// PORTA ($D300) — four direction bits per port, 0 where a switch is
+// closed — and GTIA's TRIG0-3 ($D010-$D013), 0 while the button is down.
+// A program could read those directly, and one that has cleared NMIEN's
+// VBI bit and taken the machine over must. This layer does not, because on
+// an 8BitScript build it does not have to: an Atari program built by this
+// toolchain contains no `sei` and never disables the OS vertical blank
+// (checked in the linked ELF; see ../AGENTS.md), so the OS's own VBI
+// refreshes STICK0-3 ($0278-$027B) and STRIG0-3 ($0284-$0287) every single
+// frame, already debounced and already split per port. Reading the shadow
+// is one `lda abs,x` against PORTA's mask-and-shift, and it cannot race the
+// OS the way the C64's matrix scan races the KERNAL.
+//
+// The one thing it costs: the shadows are only as fresh as the last VBI, so
+// `scan()` belongs right after `waitFrame()`, which is where a frame's
+// input reads belong anyway.
+//
+// ---- a mouse in a port IS the joystick ------------------------------------
+//
+// An ST or Amiga mouse and a Trak-Ball are not separate devices to the
+// machine: they sit on a joystick port and signal movement as quadrature on
+// the very direction bits this file reads. So with `--hardware mouse=st` in
+// the port a program is scanning, `bits()` returns mouse motion and `up()`
+// and friends go true while the mouse moves — that is the hardware being
+// honest, not this layer being wrong. Seen here: test/layers-probe.8bs paints
+// its border green when every input reads idle, and under `mouse=st` it goes
+// red while `mouse=paddles` and `mouse=koala` stay green, because paddles and
+// a Koala Pad are on POKEY's POT lines instead and leave the stick bits
+// alone. A program that wants both puts them in different ports
+// (`--hardware mouseport=2`), or reads the pointer and does not scan that
+// port as a stick.
+//
+// ---- how many ports there are is a fact, not a guess -----------------------
+//
+// The 400 and 800 have four ports; every XL and XE has two, and on those
+// machines PORTB is not a joystick port at all but the memory-control
+// register (see ./banks.8bs). So the port count is a property of the
+// *model* the build was made for — `input.joysticks` on the fact sheet,
+// which the catalog's `model` option sets — and `scan()` reads exactly that
+// many. `#fact(input.joysticks)` is a compile-time constant, so on an
+// 800XL build the loop is two iterations and ports 3 and 4 cost nothing;
+// on an 800 build it is four. Asking for a port the machine does not have
+// answers "nothing pushed" rather than reading PORTB and calling the
+// memory-control bits a joystick.
+import { attract } from "./index.8bs";
+
+// The OS's per-port shadows, refreshed by its VBI: four directions at
+// STICK0 and one button at STRIG0, one byte each, consecutive.
+const STICK0: usmallint = 0x0278;
+const STRIG0: usmallint = 0x0284;
+
+// The last scan, one byte per port, `Joystick.*` bits, 1 = pushed — the
+// hardware's active-low sense inverted once, here, so nothing above has to
+// think about it. All zero until the first scan.
+let state: array<utinyint, 4>;
+
+export namespace Joystick {
+    const PORT_1: utinyint = 0;
+    const PORT_2: utinyint = 1;
+    // Only on a 400 or an 800; `Joystick.PORTS` says whether this build has
+    // them, and `scan()` leaves them at zero when it does not.
+    const PORT_3: utinyint = 2;
+    const PORT_4: utinyint = 3;
+
+    const UP: utinyint = 1;
+    const DOWN: utinyint = 2;
+    const LEFT: utinyint = 4;
+    const RIGHT: utinyint = 8;
+    const FIRE: utinyint = 16;
+
+    // What this build's model has: 4 on a 400 or 800, 2 on every XL/XE.
+    // The same number as `Input.JOYSTICKS` from @8bitscript/system — the
+    // fact sheet is the one source, this is it spelled without the import.
+    const PORTS: utinyint = #fact(input.joysticks);
+}
+
+export namespace joystick {
+    // Read every port this machine has into the snapshot. Once a frame,
+    // right after waitFrame().
+    //
+    // It also zeroes ATRACT ($4D), and that is not a side errand. The OS
+    // counts that byte up in its VBI and, after roughly nine minutes with
+    // no key pressed, starts cycling the playfield colours to save the
+    // phosphor — which a keyboard game never sees, because the OS clears
+    // ATRACT on a keypress, and a joystick-only game always does, because
+    // a joystick is not a key. Left alone it turns a working game's screen
+    // into slowly rolling colours partway through a long session. Three
+    // bytes here is the whole fix, and this is the one function a
+    // joystick-only game is certain to call every frame.
+    function scan(): void {
+        for (let port: utinyint = 0; port < Joystick.PORTS; port++) {
+            let pushed: utinyint = (memory.read(STICK0 + port) ^ 0x0F) & 0x0F;
+            // TRIG is 0 while the button is down.
+            if (memory.read(STRIG0 + port) == 0) {
+                pushed = pushed + Joystick.FIRE;
+            }
+            state[port] = pushed;
+        }
+        attract = 0;
+    }
+
+    // The five switches of one port as `Joystick.*` bits, 1 = pushed.
+    function bits(port: utinyint): utinyint {
+        return state[port];
+    }
+
+    function up(port: utinyint): bool {
+        return (state[port] & Joystick.UP) != 0;
+    }
+
+    function down(port: utinyint): bool {
+        return (state[port] & Joystick.DOWN) != 0;
+    }
+
+    function left(port: utinyint): bool {
+        return (state[port] & Joystick.LEFT) != 0;
+    }
+
+    function right(port: utinyint): bool {
+        return (state[port] & Joystick.RIGHT) != 0;
+    }
+
+    function fire(port: utinyint): bool {
+        return (state[port] & Joystick.FIRE) != 0;
+    }
+}

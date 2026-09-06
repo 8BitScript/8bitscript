@@ -1,0 +1,176 @@
+// @8bitscript/c128/vdc80 — text on the C128's 80-column screen.
+//
+// Named by "8bitscript".exports["./vdc80"] in this package's package.json:
+//
+//     import { vdc80, Vdc80Color } from "@8bitscript/c128/vdc80";
+//
+//     vdc80.blank();
+//     vdc80.setColor(Vdc80Color.CYAN);
+//     vdc80.print(0, "HELLO");
+//
+// **This is not @8bitscript/text.** The portable text surface is the
+// 40-column VIC-IIe picture every Commodore has, and it stays that way:
+// this is the C128's second display, 80 columns wide, drawn by a different
+// chip out of memory the CPU cannot address, in its own sixteen colours,
+// on its own frame clock. A program that wants it names it. Both screens
+// are live at once, so a program may use this *and* @8bitscript/text and
+// get two pictures.
+//
+// The shape is deliberately the same as @8bitscript/text's all the same —
+// `putChar`, `putColor`, `setColor`, `print`, `printNumber`, `COLUMNS`,
+// `CELL_COUNT`, cell 0 at the top left, ASCII in — so that a program moving
+// between the two changes an import and a width, and so that the open
+// question of whether a build could ever point @8bitscript/text at this
+// chip stays a decision rather than a rewrite (packages/c128/AGENTS.md).
+//
+// Everything here goes through @8bitscript/c128/vdc, which owns $D600 and
+// $D601; this file never touches them.
+import { vdc } from "./vdc.8bs";
+
+// The KERNAL's layout of VDC RAM, which this surface adopts rather than
+// imposing its own: the 80 x 25 character matrix at $0000 (2000 cells),
+// one attribute byte per cell at $0800, and the two character sets at
+// $2000. Adopting it is what lets a program draw here without first
+// taking the screen over — the picture the KERNAL set up at boot is
+// already the picture this writes into.
+namespace Screen {
+    const MATRIX: usmallint = 0x0000;
+    const ATTRIBUTES: usmallint = 0x0800;
+    const SPACE: utinyint = 32;
+}
+
+// R26 holds the screen's own two colours for the area outside the
+// characters. Its nybbles are the opposite way round from a bitmap
+// attribute byte: **foreground in the high nybble, background in the
+// low** — a trap worth naming, because the same chip spells the same idea
+// both ways depending on the register.
+namespace Register {
+    const COLORS: utinyint = 26;
+    const BACKGROUND: utinyint = 0x0F;
+}
+
+// The attribute byte is a colour in bits 0-3 and four switches above it:
+// bit 4 flash, bit 5 underline, bit 6 reverse, bit 7 the alternate
+// character set. This surface keeps all four clear, which is what makes a
+// colour and an attribute byte the same number here — and keeps the
+// character set on the upper-case/graphics half, matching what
+// @8bitscript/text draws on the VIC's screen.
+let currentColor: utinyint = 15; // white, until vdc80.setColor() says otherwise
+
+// The VDC's glyphs are the VIC's, uploaded into VDC RAM by the KERNAL at
+// boot, so the screen codes are the same ones @8bitscript/text uses: codes
+// 32-63 are ASCII already, and 'A'-'Z' live at 1-26.
+function asciiToScreenCode(code: utinyint): utinyint {
+    if (code >= 64 && code < 96) {
+        return code - 64;
+    }
+    return code;
+}
+
+const DIGIT_PLACES: array<usmallint, 5> = [10000, 1000, 100, 10, 1];
+
+export namespace vdc80 {
+    const COLUMNS: utinyint = 80; // cells per row, so cell = y * vdc80.COLUMNS + x
+    const ROWS: utinyint = 25;
+    const CELL_COUNT: usmallint = 2000;
+
+    // Every cell blank and the screen background set, using the chip's
+    // block fill — two runs, one over the characters and one over the
+    // attributes, rather than 4000 single writes.
+    function blank(background: utinyint = 0): void {
+        vdc80.setBackground(background);
+        vdc.fill(Screen.MATRIX, Screen.SPACE, vdc80.CELL_COUNT);
+        vdc.fill(Screen.ATTRIBUTES, currentColor, vdc80.CELL_COUNT);
+    }
+
+    // The colour behind every character, from R26's low nybble.
+    function setBackground(background: utinyint): void {
+        let colors: utinyint = vdc.read(Register.COLORS);
+        vdc.write(Register.COLORS, (colors & 0xF0) | (background & Register.BACKGROUND));
+    }
+
+    // What the next print is drawn in.
+    function setColor(color: utinyint): void {
+        currentColor = color & 15;
+    }
+
+    function putChar(cell: usmallint, code: utinyint): void {
+        vdc.setAddress(Screen.MATRIX + cell);
+        vdc.put(asciiToScreenCode(code));
+    }
+
+    function putColor(cell: usmallint, color: utinyint): void {
+        vdc.setAddress(Screen.ATTRIBUTES + cell);
+        vdc.put(color & 15);
+    }
+
+    // A string into consecutive cells. Two streamed runs: the update
+    // address advances itself after every byte, so a run of characters
+    // costs one address set and then one transfer each, and the colours
+    // are a block fill over the same span.
+    function print(cell: usmallint, s: string): void {
+        vdc.setAddress(Screen.MATRIX + cell);
+        for (let i: utinyint = 0; i < s.length; i++) {
+            vdc.put(asciiToScreenCode(s[i]));
+        }
+        vdc.fill(Screen.ATTRIBUTES + cell, currentColor, s.length);
+    }
+
+    // `value` as exactly `width` digits, zero-padded and right-aligned, so
+    // a field on a display never shifts columns. The digits are found by
+    // subtracting place values, as @8bitscript/text does and for the same
+    // reason: the 8502 has no divide. Places above the field are still
+    // taken off, so a field narrower than its number shows the low digits.
+    function printNumber(cell: usmallint, value: usmallint, width: utinyint): void {
+        let k: utinyint = width;
+        if (k < DIGIT_PLACES.length) {
+            k = DIGIT_PLACES.length;
+        }
+        while (k > 0) {
+            let digit: utinyint = 48; // '0'
+            if (k <= DIGIT_PLACES.length) {
+                while (value >= DIGIT_PLACES[DIGIT_PLACES.length - k]) {
+                    value = value - DIGIT_PLACES[DIGIT_PLACES.length - k];
+                    digit++;
+                }
+            }
+            if (k <= width) {
+                // The printed positions are consecutive and in order, so
+                // the address is set once, at the first of them, and the
+                // auto-increment carries the rest.
+                if (k == width) {
+                    vdc.setAddress(Screen.MATRIX + cell);
+                }
+                vdc.put(digit);
+            }
+            k--;
+        }
+        vdc.fill(Screen.ATTRIBUTES + cell, currentColor, width);
+    }
+}
+
+// The VDC's sixteen colours are RGBI, one nybble: bit 3 red, bit 2 green,
+// bit 1 blue, bit 0 intensity — a different set and a different order from
+// the VIC's sixteen, so a colour number carried over from the 40-column
+// screen means something else here. The eight names every machine's text
+// surface shares are given their intensity-set values, because on an
+// 80-column display the bright half is the legible one; the dark halves
+// are named too.
+export namespace Vdc80Color {
+    const BLACK: utinyint = 0;
+    const DARK_GREY: utinyint = 1;
+    const DARK_BLUE: utinyint = 2;
+    const BLUE: utinyint = 3;
+    const DARK_GREEN: utinyint = 4;
+    const GREEN: utinyint = 5;
+    const DARK_CYAN: utinyint = 6;
+    const CYAN: utinyint = 7;
+    const DARK_RED: utinyint = 8;
+    const RED: utinyint = 9;
+    const DARK_PURPLE: utinyint = 10;
+    const PURPLE: utinyint = 11;
+    const BROWN: utinyint = 12;
+    const YELLOW: utinyint = 13;
+    const LIGHT_GREY: utinyint = 14;
+    const WHITE: utinyint = 15;
+}

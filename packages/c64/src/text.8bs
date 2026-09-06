@@ -10,7 +10,7 @@
 // namespace — the same names, the same shapes, ASCII codes, and a cell 0
 // at the top-left corner inside the border — so a program that imports it
 // from @8bitscript/text draws the same thing on every target.
-import { memoryPointer, setupVideo } from "./index.8bs";
+import { memoryPointer, setupVideo, videoMode, VideoMode } from "./index.8bs";
 import { Video, screenRam, colorRam } from "./geometry.8bs";
 
 // The screen is addressed by flat cell index — a position is
@@ -36,7 +36,8 @@ import { Video, screenRam, colorRam } from "./geometry.8bs";
 // the character set's choice — the ROM's boot state, whatever a program
 // ran before, or a user's SHIFT+C= — so this package owns the choice
 // rather than inheriting one: prepare() selects the upper-case set, every
-// run, through the VIC-II's memory pointer (see @8bitscript/c64's
+// run in text mode (in bitmap mode $D018 is the bitmap's, and left alone),
+// through the VIC-II's memory pointer (see @8bitscript/c64's
 // `memoryPointer`): one register write, of the value that also names this
 // screen's position in the bank, and "TICK" reads as TICK here the way it
 // does on the NES, the Atari, and the X16, none of which have a lower-case
@@ -74,7 +75,9 @@ let currentColor: utinyint = 1; // white, until text.setColor() says otherwise
 // What a run of text needs once, before its first character.
 function prepare(): void {
     setupVideo();
-    memoryPointer = Video.MEMORY_POINTER_UPPERCASE;
+    if (videoMode == VideoMode.TEXT) {
+        memoryPointer = Video.MEMORY_POINTER_UPPERCASE;
+    }
 }
 
 function place(cell: usmallint, code: utinyint): void {

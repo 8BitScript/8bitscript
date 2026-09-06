@@ -1,0 +1,39 @@
+// The raster list, run for real: four border colours down one screen from
+// a list applied by the interrupt handler in native/6502/raster.s, and a
+// screen read back (the KERNAL is out) printed as a check, and the
+// vectors the .init section wrote checked (green background). A screenshot
+// reads the border at a row inside each band and one background pixel.
+// See test/layers.test.mjs.
+import { screen, BorderColor, BackgroundColor } from "../src/screen.8bs";
+import { text, TextColor } from "../src/text.8bs";
+import { raster, Register } from "../src/raster.8bs";
+import { screenRam } from "../src/geometry.8bs";
+
+let frames: u8 = 0;
+
+export function main(): void {
+    screen.blank(BorderColor.BLUE, BackgroundColor.BLACK);
+    text.setColor(TextColor.WHITE);
+    text.print(0, `RASTER LIST`);
+    let read: u8 = screenRam[100];
+    text.print(40, `READ ${read:2}`);
+    // Before enable() moves the IRQ vector: raster.s's .init section has
+    // pointed both the NMI and the IRQ vector at the same rti, in RAM the
+    // CPU now reads. Green background if so, red if not.
+    if (memory.read(0xFFFA) == memory.read(0xFFFE) && memory.read(0xFFFB) == memory.read(0xFFFF) && memory.read(0xFFFE) != 0) {
+        screen.setBackground(BackgroundColor.GREEN);
+    } else {
+        screen.setBackground(BackgroundColor.RED);
+    }
+    raster.clear();
+    raster.at(100, Register.BORDER, 2);      // red from line 100
+    raster.at(150, Register.BORDER, 5);      // green from 150
+    raster.at(200, Register.BORDER, 7);      // yellow from 200
+    raster.at(240, Register.BORDER, 6);      // blue again: the top of the next frame
+    raster.enable();
+    while (true) {
+        waitFrame();
+        frames = frames + 1;
+        text.print(80, `FRAME ${frames:3}`);
+    }
+}

@@ -43,6 +43,15 @@ const namespaceConsts = (file, name) => {
   }));
 };
 
+
+// Where a function's definition starts in the emitted C (a prototype ends
+// in `);`, the definition's signature in `) {`).
+const defAt = (c, name) => {
+  const at = c.search(new RegExp(`static \\w+ ${name}\\([^)]*\\) \\{`));
+  assert.ok(at >= 0, `${name} is defined`);
+  return at;
+};
+
 // ---- geometry: one bank, everything the VIC reads inside it ------------------
 
 const VIDEO = namespaceConsts('geometry.8bs', 'Video');
@@ -118,19 +127,184 @@ test('borders on the c64 draws at $E000 with colour at $D800, sets $D018 to $84,
   assert.match(c, /"sei"/, 'the frame prologue disables interrupts');
 });
 
-test('setupVideo copies the character ROM in place with CHAREN clear, selects bank 3 by masking, and runs once', () => {
+test('setupVideo copies the character ROM in place with HIRAM set and CHAREN clear, banks the KERNAL out, selects bank 3 by masking, and runs once', () => {
   const { c } = linked('import { setupVideo } from "./index.8bs";\nexport function main(): void { setupVideo(); setupVideo(); }');
-  const body = c.slice(c.indexOf('static void setupVideo(void) {'));
+  const body = c.slice(defAt(c, 'setupVideo'), defAt(c, 'copyCharacterRom'));
   assert.match(body, /if \(videoReady\)/);
   assert.match(body, /__asm__ volatile\(\s*"sei/);
-  assert.match(body, /processorPort = \(port & 251\);/); // bit 2 clear: character ROM readable
-  assert.match(body, /i < 4096/);
-  assert.match(body, /\*\(volatile uint8_t \*\)\(53248 \+ i\) = \(\*\(volatile uint8_t \*\)\(53248 \+ i\)\);/); // read the ROM at $D000+i, store to the RAM under it
-  assert.match(body, /processorPort = port;/);
+  assert.match(body, /copyCharacterRom\(\);/);
   assert.match(body, /cia2DirectionA = \(cia2DirectionA \| 3\);/);
   assert.match(body, /cia2PortA = \(cia2PortA & 252\);/); // %00 = bank 3, serial-bus bits kept
-  assert.doesNotMatch(body, /processorPort = \d+;/, 'never a literal into $01');
   assert.doesNotMatch(body, /cia2PortA = \d+;/, 'never a literal into $DD00');
+  const copy = c.slice(defAt(c, 'copyCharacterRom'), defAt(c, 'bankIoOut'));
+  assert.match(copy, /__asm__ volatile\(\s*"sei/);
+  assert.match(copy, /processorPort = \(\(processorPort & 248\) \| 2\);/); // %010: KERNAL in, character ROM readable
+  assert.match(copy, /i < 4096/);
+  assert.match(copy, /\*\(volatile uint8_t \*\)\(53248 \+ i\) = \(\*\(volatile uint8_t \*\)\(53248 \+ i\)\);/); // read the ROM at $D000+i, store to the RAM under it
+  assert.match(copy, /processorPort = \(\(processorPort & 248\) \| 5\);/); // %101: KERNAL out, I/O in
+  assert.match(copy, /if \(interruptsOn\)[\s\S]*"cli/);
+  assert.doesNotMatch(c, /processorPort = \d+;/, 'never a literal into $01');
+  // A window under the I/O area: interrupts off, CHAREN clear, back, cli only if the raster interrupt is on.
+  const out = c.slice(defAt(c, 'bankIoOut'), defAt(c, 'bankIoIn'));
+  assert.match(out, /"sei[\s\S]*processorPort = \(processorPort & 251\);/);
+  const back = c.slice(defAt(c, 'bankIoIn'));
+  assert.match(back, /processorPort = \(processorPort \| 4\);[\s\S]*if \(interruptsOn\)[\s\S]*"cli/);
+});
+
+test('the package ships the vector stub as native assembly, and only the raster module names the handler', () => {
+  const pkg = JSON.parse(readFileSync(join(C64_SRC, '..', 'package.json'), 'utf8'));
+  assert.deepEqual(pkg['8bitscript'].native, ['./native/6502/raster.s']);
+  const asm = readFileSync(join(C64_SRC, '..', 'native', '6502', 'raster.s'), 'utf8');
+  // The .init section points both vectors at the rti; only the install routine names the handler.
+  const init = asm.slice(asm.indexOf('.section .init.250'), asm.indexOf('.section .text.__8bs_c64_rti'));
+  assert.match(init, /lda #<__8bs_c64_rti[\s\S]*sta 0xFFFA[\s\S]*sta 0xFFFE/);
+  assert.doesNotMatch(init, /raster_irq/);
+  const install = asm.slice(asm.indexOf('__8bs_c64_raster_install:'), asm.indexOf('.section .text.__8bs_c64_raster_irq'));
+  assert.match(install, /pha[\s\S]*lda #<__8bs_c64_raster_irq[\s\S]*sta 0xFFFE[\s\S]*lda #>__8bs_c64_raster_irq[\s\S]*sta 0xFFFF[\s\S]*pla[\s\S]*rts/);
+  // The handler: acknowledge $D019, walk the list at $0200, set $D012, save and restore A and X, no zero page.
+  const irq = asm.slice(asm.indexOf('__8bs_c64_raster_irq:'));
+  assert.match(irq, /lda #0x01\s*\n\s*sta 0xD019/);
+  assert.match(irq, /ldx 0x0301/);
+  assert.match(irq, /cpx 0x0300/);
+  assert.match(irq, /lda 0x0201,x[\s\S]*lda 0x0202,x[\s\S]*lda 0x0203,x/);
+  assert.match(irq, /sta 0xD012/);
+  assert.doesNotMatch(irq, /\bsta 0x[0-9A-F]{2}\b/, 'no zero page');
+  assert.doesNotMatch(irq, /\b(tya|ldy|sty)\b/, 'Y is not touched');
+  // A relative import of a file inside the package carries the package's
+  // native sources, as a subpath import does — the package's own probe
+  // programs under test/ build with the vector stub this way.
+  const { ir } = linked('import { setupVideo } from "./index.8bs";\nexport function main(): void { setupVideo(); }');
+  assert.equal(ir.nativeSources.length, 1);
+  assert.match(ir.nativeSources[0], /native\/6502\/raster\.s$/);
+});
+
+// ---- raster ---------------------------------------------------------------------
+
+const RASTER_SRC = readFileSync(join(C64_SRC, 'raster.8bs'), 'utf8');
+
+test('the raster list lives at $0200 with its state at $0300, the numbers the handler in raster.s reads', () => {
+  const list = Object.fromEntries([...RASTER_SRC.matchAll(/^const (\w+): usmallint = (0x[0-9A-F]+);/gm)].map(([, n, v]) => [n, Number(v)]));
+  assert.deepEqual(list, { LIST_ADDRESS: 0x0200, END_ADDRESS: 0x0300, INDEX_ADDRESS: 0x0301 });
+  assert.match(RASTER_SRC, /@address\(LIST_ADDRESS\)\nlet rasterList: array<u8, 252>;/);
+  const R = namespaceConsts('raster.8bs', 'Register');
+  assert.deepEqual([R.BORDER, R.BACKGROUND, R.CONTROL_1, R.CONTROL_2, R.MEMORY_POINTER], [0xD020, 0xD021, 0xD011, 0xD016, 0xD018]);
+  assert.equal(R.SPRITE_POINTERS, VIDEO.SPRITE_POINTERS);
+  assert.equal(namespaceConsts('raster.8bs', 'raster').MAX, 63);
+});
+
+test('raster.at writes the four bytes before it counts the entry and refuses a line below the last; enable silences the CIAs, acknowledges the VIC, installs the handler, then cli', () => {
+  const src = [
+    'import { raster, Register } from "./raster.8bs";',
+    'export function main(): void { raster.clear(); raster.at(100, Register.BORDER, 2); raster.at(200, raster.spriteY(1), 60); raster.enable(); while (true) { waitFrame(); } }',
+  ].join('\n');
+  const { c } = linked(src);
+  assert.match(c, /raster_at\(100, 53280, 2\)/);
+  const at = c.slice(defAt(c, 'raster_at'), defAt(c, 'raster_count'));
+  assert.match(at, /if \(\(\(offset >= 252\) \|\| \(line < lastLine\)\)\)/);
+  assert.match(at, /rasterList\[offset\] = line;[\s\S]*rasterList\[\(offset \+ 3\)\] = value;[\s\S]*rasterEnd = \(offset \+ 4\);/);
+  const enable = c.slice(defAt(c, 'raster_enable'), defAt(c, 'raster_disable'));
+  const order = ['setupVideo();', 'rasterIndex = 0;', 'control1 = (control1 & 127);', 'raster = rasterList[0];', 'cia1InterruptControl = 127;', 'cia2InterruptControl = 127;', 'interruptStatus = 15;', 'interruptMask = 1;', 'jsr __8bs_c64_raster_install', 'interruptsOn = 1;', '"cli'];
+  let from = 0;
+  for (const step of order) {
+    const found = enable.indexOf(step, from);
+    assert.ok(found >= 0, `enable: ${step} after the previous step`);
+    from = found;
+  }
+});
+
+// ---- bitmap -------------------------------------------------------------------
+
+test('bitmap mode: the matrix under I/O at $DC00 leaves the upper-case set intact, and $D018 = $78 names both halves', () => {
+  const B = namespaceConsts('geometry.8bs', 'Bitmap');
+  assert.equal(B.ADDRESS, 0xE000);
+  assert.equal(VIDEO.BANK + (B.MEMORY_POINTER >> 4) * 0x400, B.MATRIX, 'bits 4-7 name the matrix');
+  assert.equal(VIDEO.BANK + ((B.MEMORY_POINTER >> 1) & 4) * 0x800, B.ADDRESS, 'bit 3 names the bitmap');
+  assert.equal(B.SPRITE_POINTERS, B.MATRIX + 0x3F8);
+  assert.ok(B.MATRIX >= VIDEO.CHARSET + 0x800, 'the matrix is in the lower-case half, not the upper-case set');
+  assert.ok(B.MATRIX + 1000 <= 0xE000);
+  assert.equal(B.SHAPES, VIDEO.BANK + B.SHAPE_BLOCK_FIRST * 64);
+  assert.equal(B.SHAPES + B.SHAPE_COUNT * 64, B.MATRIX);
+  assert.deepEqual([B.BYTES, B.WIDTH, B.HEIGHT], [8000, 320, 200]);
+});
+
+test('bitmap: enter sets BMM with the raster bit clear, plot computes the VIC layout, colours go under I/O, and setShape routes by mode', () => {
+  const src = [
+    'import { bitmap } from "./bitmap.8bs";',
+    'import { sprites } from "./sprites.8bs";',
+    'export function main(): void { bitmap.enter(true); bitmap.plot(319, 199); bitmap.plotColor(159, 199, 3); bitmap.setCellColors(0, 1, 2); bitmap.fillColors(1, 0); sprites.setShape(0, 96); sprites.setShapeByte(96, 0, 255); bitmap.leave(); }',
+  ].join('\n');
+  const { c } = linked(src);
+  const enter = c.slice(defAt(c, 'bitmap_enter'), defAt(c, 'bitmap_leave'));
+  assert.match(enter, /videoMode = 1;/);
+  assert.match(enter, /control1 = \(\(control1 & 31\) \| 32\);/);
+  assert.match(enter, /memoryPointer = 120;/);
+  assert.match(c, /return \(\(ROW_OFFSET\[\(y >> 3\)\] \+ \(x & 504\)\) \+ \(y & 7\)\);/);
+  assert.match(c, /writeUnderIo\(\(56320 \+ cell\), \(\(foreground << 4\) \| \(background & 15\)\)\);/);
+  const fill = c.slice(defAt(c, 'bitmap_fillColors'), defAt(c, 'bitmap_setCellColor3'));
+  assert.match(fill, /bankIoOut\(\);[\s\S]*cell < 1000[\s\S]*\*\(volatile uint8_t \*\)\(56320 \+ cell\) = pair;[\s\S]*bankIoIn\(\);/);
+  const setShape = c.slice(defAt(c, 'sprites_setShape'), defAt(c, 'sprites_setShapeByte'));
+  assert.match(setShape, /if \(\(videoMode == 1\)\)[\s\S]*writeUnderIo\(\(57336 \+ index\), block\);[\s\S]*else[\s\S]*spritePointers\[index\] = block;/);
+  const leave = c.slice(defAt(c, 'bitmap_leave'), defAt(c, 'bitmap_clear'));
+  assert.match(leave, /control1 = \(control1 & 31\);[\s\S]*memoryPointer = 132;[\s\S]*videoMode = 0;/);
+});
+
+// ---- charset and scroll -----------------------------------------------------------
+
+test('charset.define writes eight rows at $D000 + 8 * code in one window; restore is the ROM copy again', () => {
+  const src = [
+    'import { charset } from "./charset.8bs";',
+    'export function main(): void { charset.define(1, 255, 129, 129, 129, 129, 129, 129, 255); charset.copy(2, 1); charset.restore(); }',
+  ].join('\n');
+  const { c } = linked(src);
+  assert.match(c, /return \(53248 \+ \(code \* 8\)\);/);
+  const define = c.slice(defAt(c, 'charset_define'), defAt(c, 'charset_setRow'));
+  assert.match(define, /bankIoOut\(\);[\s\S]*\*\(volatile uint8_t \*\)at = row0;[\s\S]*\*\(volatile uint8_t \*\)\(at \+ 7\) = row7;[\s\S]*bankIoIn\(\);/);
+  assert.match(c, /static void charset_restore\(void\) \{[\s\S]*copyCharacterRom\(\);/);
+});
+
+test('scroll: fine scroll masks the low three bits and keeps $D011 bit 7 clear; a coarse shift copies screen and colour RAM together', () => {
+  const src = [
+    'import { scroll } from "./scroll.8bs";',
+    'export function main(): void { scroll.setX(5); scroll.setY(3); scroll.setNarrow(true); scroll.shiftLeft(32, 1); scroll.shiftUp(32, 1); }',
+  ].join('\n');
+  const { c } = linked(src);
+  assert.match(c, /control2 = \(\(control2 & 248\) \| \(pixels & 7\)\);/);
+  assert.match(c, /control1 = \(\(control1 & 120\) \| \(pixels & 7\)\);/);
+  assert.match(c, /control2 = \(control2 & 247\);/);
+  const left = c.slice(defAt(c, 'scroll_shiftLeft'), defAt(c, 'scroll_shiftRight'));
+  assert.match(left, /screenRam\[cell\] = screenRam\[\(cell \+ 1\)\];[\s\S]*colorRam\[cell\] = colorRam\[\(cell \+ 1\)\];/);
+  const up = c.slice(defAt(c, 'scroll_shiftUp'), defAt(c, 'scroll_shiftDown'));
+  assert.match(up, /cell < 960[\s\S]*screenRam\[cell\] = screenRam\[\(cell \+ 40\)\];/);
+});
+
+// ---- reu transfers -------------------------------------------------------------
+
+test('reu transfers set every register then the command: $90 plus the direction, the fault bit answers verify, fillReu fixes the C64 address', () => {
+  const src = [
+    'import { reu } from "./reu.8bs";',
+    'let ok: bool = false;',
+    'export function main(): void { reu.stash(0xE000, 1, 0x1000, 1000); reu.fetch(0xE000, 1, 0x1000, 1000); reu.swap(0xE000, 1, 0x1000, 0); ok = reu.verify(0xE000, 1, 0x1000, 1000); reu.fillReu(1, 0, 0, 32); }',
+  ].join('\n');
+  const { c } = linked(src);
+  const transfer = c.slice(defAt(c, 'transfer'), defAt(c, 'reu_present'));
+  for (const step of ['reuC64AddressLow = (c64Address & 255);', 'reuC64AddressHigh = (c64Address >> 8);', 'reuAddressLow = (address & 255);', 'reuAddressHigh = (address >> 8);', 'reuBank = bank;', 'reuLengthLow = (length & 255);', 'reuLengthHigh = (length >> 8);', 'reuAddressControl = control;', 'reuCommand = (144 | direction);']) {
+    assert.ok(transfer.includes(step), step);
+  }
+  assert.match(c, /transfer\(0, 0, c64Address, bank, address, length\);/); // stash
+  assert.match(c, /transfer\(1, 0, c64Address, bank, address, length\);/); // fetch
+  assert.match(c, /transfer\(2, 0, c64Address, bank, address, length\);/); // swap
+  assert.match(c, /transfer\(3, 0, c64Address, bank, address, length\);[\s\S]*return \(\(reuStatus & 32\) == 0\);/); // verify
+  assert.match(c, /probe = value;[\s\S]*transfer\(0, 128, 828, bank, address, length\);/); // fillReu from $033C, fixed
+});
+
+// ---- the region ------------------------------------------------------------------
+
+test('detectRegion is the frame driver\'s probe in 8bitscript: $D012 before $D011, a whole frame watched for line 288', () => {
+  const { c } = linked('import { detectRegion, Region } from "./index.8bs";\nlet r: u8 = 0;\nexport function main(): void { r = detectRegion(); if (r == Region.PAL) { memory.write(0xD020, 5); } }');
+  assert.match(c, /return \(\(raster < 128\) && \(\(control1 & 128\) == 0\)\);/);
+  const probe = c.slice(defAt(c, 'detectRegion'));
+  assert.match(probe, /while \(rasterInTopHalf\(\)\)[\s\S]*while \(\(!rasterInTopHalf\(\)\)\)[\s\S]*while \(rasterInTopHalf\(\)\)[\s\S]*while \(\(!rasterInTopHalf\(\)\)\) \{[\s\S]*\(\(control1 & 128\) != 0\) && \(raster >= 32\)/);
+  assert.match(c, /if \(\(r == 0\)\)/, 'Region.PAL is 0');
 });
 
 // ---- sprites ---------------------------------------------------------------
@@ -143,11 +317,11 @@ test('sprites: place splits a 9-bit X across $D000 and $D010; show sets the pict
   ].join('\n');
   const { c } = linked(src);
   assert.match(c, /sprites_setShape\(0, 144\)/);
-  const place = c.slice(c.indexOf('static void sprites_place(uint8_t index, uint16_t x, uint8_t y) {'));
+  const place = c.slice(defAt(c, 'sprites_place'));
   assert.match(place, /spritePositions\[\(index \* 2\)\] = x;/);
   assert.match(place, /spritePositions\[\(\(index \* 2\) \+ 1\)\] = y;/);
   assert.match(place, /if \(\(x >= 256\)\)[\s\S]*spriteXHigh = \(spriteXHigh \| BIT\[index\]\)/);
-  const show = c.slice(c.indexOf('static void sprites_show(uint8_t index) {'));
+  const show = c.slice(defAt(c, 'sprites_show'));
   assert.match(show, /setupVideo\(\);[\s\S]*spriteEnable = \(spriteEnable \| BIT\[index\]\)/);
   assert.match(c, /return spriteCollision;/);
 });
@@ -235,32 +409,41 @@ test('keyboard.scan drives the eight columns through CIA1, inverts once, and lea
   ].join('\n');
   const { c } = linked(src);
   assert.match(c, /keyboard_pressed\(60\)/);
-  const scan = c.slice(c.indexOf('static void keyboard_scan(void) {'), c.indexOf('static uint8_t keyboard_pressed(uint8_t key) {'));
+  const scan = c.slice(defAt(c, 'keyboard_scan'), defAt(c, 'keyboard_pressed'));
   assert.match(scan, /cia1DirectionA = 255;/);
   assert.match(scan, /cia1DirectionB = 0;/);
   assert.match(scan, /cia1PortA = COLUMN_SELECT\[column\];/);
   assert.match(scan, /state\[column\] = \(cia1PortB \^ 255\);/);
   assert.match(scan, /cia1PortA = 255;\n\}/);
-  const joy = c.slice(c.indexOf('static void joystick_scan(void) {'), c.indexOf('static uint8_t joystick_bits(uint8_t port) {'));
+  const joy = c.slice(defAt(c, 'joystick_scan'), defAt(c, 'joystick_bits'));
   assert.match(joy, /cia1PortA = 255;[\s\S]*\(cia1PortB \^ 255\) & 31\)[\s\S]*\(cia1PortA \^ 255\) & 31\)/);
   assert.match(c, /joystick_fire\(1\)/); // PORT_2 is index 1
 });
 
 // ---- sid ----------------------------------------------------------------------
 
-test('the PAL note table is Fn = round(f * 2^24 / 985248) for C0-B6 at A4 = 440 Hz, and fits the register', () => {
+const noteTable = (name) => {
   const text = readFileSync(join(C64_SRC, 'sid.8bs'), 'utf8');
-  const start = text.indexOf('const NOTE_PAL');
+  const start = text.indexOf(`const ${name}`);
   const body = text.slice(start, text.indexOf('];', start));
   // The array's literal values: every number followed by a comma (the `84`
   // in its type is followed by `>`).
-  const values = [...body.matchAll(/\b(\d+)\b(?=\s*,)/g)].map((m) => Number(m[1]));
+  return [...body.matchAll(/\b(\d+)\b(?=\s*,)/g)].map((m) => Number(m[1]));
+};
+
+test('the note tables are Fn = round(f * 2^24 / clock) for C0-B6 at A4 = 440 Hz, PAL at 985248 Hz and NTSC at 1022727, and fit the register', () => {
+  const values = noteTable('NOTE_PAL');
+  const ntsc = noteTable('NOTE_NTSC');
   assert.equal(values.length, 84);
+  assert.equal(ntsc.length, 84);
   for (let n = 0; n < 84; n++) {
     const f = 440 * 2 ** ((n - 57) / 12);
-    assert.equal(values[n], Math.round((f * 16777216) / 985248), `note ${n}`);
+    assert.equal(values[n], Math.round((f * 16777216) / 985248), `PAL note ${n}`);
+    assert.equal(ntsc[n], Math.round((f * 16777216) / 1022727), `NTSC note ${n}`);
   }
   assert.ok(values[83] < 65536);
+  assert.ok(ntsc[83] < 65536);
+  assert.ok(Math.abs((ntsc[57] * 1022727) / 16777216 - 440) < 0.07);
   const NOTE = namespaceConsts('sid.8bs', 'Note');
   assert.equal(Object.keys(NOTE).length, 84);
   assert.equal(NOTE.A4, 57);
@@ -279,6 +462,9 @@ test('sid: play sets both frequency bytes then gates on, keeping the waveform; t
   const { c } = linked(src);
   assert.match(c, /sid_setWaveform\(0, 64\)/);
   assert.match(c, /sid_play\(0, 57\)/);
+  // play reads the region's table: NTSC when told, PAL otherwise.
+  assert.match(c, /if \(\(region == 1\)\)[\s\S]*return NOTE_NTSC\[note\];[\s\S]*return NOTE_PAL\[note\];/);
+  assert.match(c, /sid_setFrequency\(voice, sid_frequencyOf\(note\)\);/);
   assert.match(c, /sidRegisters\[VOICE_BASE\[voice\]\] = \(frequency & 255\);/);
   assert.match(c, /sidRegisters\[\(VOICE_BASE\[voice\] \+ 1\)\] = \(frequency >> 8\);/);
   assert.match(c, /control\[voice\] = \(control\[voice\] \| 1\);/);

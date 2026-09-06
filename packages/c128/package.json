@@ -9,7 +9,10 @@
     "exports": {
       "./screen": "./src/screen.8bs",
       "./text": "./src/text.8bs",
-      "./banks": "./src/banks.8bs"
+      "./banks": "./src/banks.8bs",
+      "./vdc": "./src/vdc.8bs",
+      "./vdc80": "./src/vdc80.8bs",
+      "./sid": "./src/sid.8bs"
     },
     "hardware": {
       "facts": {
@@ -49,28 +52,6 @@
         "memory.bankedKib": 64
       },
       "options": {
-        "vdc": {
-          "label": "VDC RAM",
-          "default": "16k",
-          "values": {
-            "16k": {
-              "label": "16 KiB VDC RAM (flat C128, C128D)",
-              "run": {
-                "x128": [
-                  "-VDC16KB"
-                ]
-              }
-            },
-            "64k": {
-              "label": "64 KiB VDC RAM (C128DCR)",
-              "run": {
-                "x128": [
-                  "-VDC64KB"
-                ]
-              }
-            }
-          }
-        },
         "ram": {
           "label": "RAM",
           "default": "128k",
@@ -88,7 +69,214 @@
               "facts": {
                 "memory.bankedKib": 192
               },
-              "detect": "@8bitscript/c128/banks"
+              "detect": "@8bitscript/c128/banks",
+              "tag": null
+            }
+          }
+        },
+        "vdc": {
+          "label": "VDC RAM",
+          "default": "16k",
+          "values": {
+            "16k": {
+              "label": "16 KiB VDC RAM (flat C128 and C128D as sold)",
+              "run": {
+                "x128": [
+                  "-VDC16KB"
+                ]
+              }
+            },
+            "64k": {
+              "label": "64 KiB VDC RAM (C128DCR, and the common upgrade)",
+              "run": {
+                "x128": [
+                  "-VDC64KB"
+                ]
+              },
+              "tag": null
+            }
+          },
+          "detect": "@8bitscript/c128/vdc"
+        },
+        "vdcrev": {
+          "label": "VDC chip",
+          "default": "8563",
+          "values": {
+            "8563": {
+              "label": "8563 R8/R9 (flat C128, C128D)",
+              "run": {
+                "x128": [
+                  "-VDCRevision",
+                  "1"
+                ]
+              }
+            },
+            "8568": {
+              "label": "8568 (C128DCR)",
+              "tag": null,
+              "run": {
+                "x128": [
+                  "-VDCRevision",
+                  "2"
+                ]
+              }
+            },
+            "8563r7a": {
+              "label": "8563 R7A (earliest 80-column chip)",
+              "tag": null,
+              "run": {
+                "x128": [
+                  "-VDCRevision",
+                  "0"
+                ]
+              }
+            }
+          }
+        },
+        "sid": {
+          "label": "SID",
+          "default": "6581",
+          "values": {
+            "6581": {
+              "label": "6581 (flat C128, C128D)",
+              "run": {
+                "x128": [
+                  "-sidmodel",
+                  "0"
+                ]
+              }
+            },
+            "8580": {
+              "label": "8580 (C128DCR)",
+              "tag": null,
+              "run": {
+                "x128": [
+                  "-sidmodel",
+                  "1"
+                ]
+              }
+            }
+          }
+        },
+        "cia": {
+          "label": "CIA",
+          "default": "6526",
+          "values": {
+            "6526": {
+              "label": "6526 (flat C128, C128D)",
+              "run": {
+                "x128": [
+                  "-ciamodel",
+                  "0"
+                ]
+              }
+            },
+            "8521": {
+              "label": "8521 (C128DCR)",
+              "tag": null,
+              "run": {
+                "x128": [
+                  "-ciamodel",
+                  "1"
+                ]
+              }
+            }
+          }
+        },
+        "expansion": {
+          "label": "RAM Expansion Unit",
+          "default": "none",
+          "values": {
+            "none": {
+              "label": "No expansion"
+            },
+            "reu128": {
+              "label": "REU, 128 KiB (1700)",
+              "tag": null,
+              "run": {
+                "x128": [
+                  "-reu",
+                  "-reusize",
+                  "128"
+                ]
+              }
+            },
+            "reu256": {
+              "label": "REU, 256 KiB (1764)",
+              "tag": null,
+              "run": {
+                "x128": [
+                  "-reu",
+                  "-reusize",
+                  "256"
+                ]
+              }
+            },
+            "reu512": {
+              "label": "REU, 512 KiB (1750)",
+              "tag": null,
+              "run": {
+                "x128": [
+                  "-reu",
+                  "-reusize",
+                  "512"
+                ]
+              }
+            },
+            "reu1m": {
+              "label": "REU, 1 MiB",
+              "tag": null,
+              "run": {
+                "x128": [
+                  "-reu",
+                  "-reusize",
+                  "1024"
+                ]
+              }
+            },
+            "reu2m": {
+              "label": "REU, 2 MiB",
+              "tag": null,
+              "run": {
+                "x128": [
+                  "-reu",
+                  "-reusize",
+                  "2048"
+                ]
+              }
+            },
+            "reu4m": {
+              "label": "REU, 4 MiB",
+              "tag": null,
+              "run": {
+                "x128": [
+                  "-reu",
+                  "-reusize",
+                  "4096"
+                ]
+              }
+            },
+            "reu8m": {
+              "label": "REU, 8 MiB",
+              "tag": null,
+              "run": {
+                "x128": [
+                  "-reu",
+                  "-reusize",
+                  "8192"
+                ]
+              }
+            },
+            "reu16m": {
+              "label": "REU, 16 MiB",
+              "tag": null,
+              "run": {
+                "x128": [
+                  "-reu",
+                  "-reusize",
+                  "16384"
+                ]
+              }
             }
           }
         },
@@ -189,7 +377,45 @@
           }
         }
       },
-      "presets": {}
+      "presets": {
+        "c128": {
+          "ram": "128k",
+          "vdc": "16k",
+          "vdcrev": "8563",
+          "sid": "6581",
+          "cia": "6526"
+        },
+        "c128d": {
+          "ram": "128k",
+          "vdc": "16k",
+          "vdcrev": "8563",
+          "sid": "6581",
+          "cia": "6526"
+        },
+        "c128dcr": {
+          "ram": "128k",
+          "vdc": "64k",
+          "vdcrev": "8568",
+          "sid": "8580",
+          "cia": "8521"
+        },
+        "vdc64": {
+          "vdc": "64k"
+        },
+        "ram256": {
+          "ram": "256k"
+        },
+        "loaded": {
+          "ram": "256k",
+          "vdc": "64k",
+          "vdcrev": "8568",
+          "sid": "8580",
+          "cia": "8521",
+          "expansion": "reu512",
+          "port1": "mouse1351",
+          "port2": "joystick"
+        }
+      }
     }
   },
   "files": [
