@@ -1,21 +1,20 @@
-// Studio's one entry: every machine starts here, and the machine picks the
-// tier. #system() is resolved by 8bitscript before any target toolchain
-// runs, so on any one build the other machines' branches cost nothing, and
-// there is one file to read to see which machine gets what — see AGENTS.md
-// for the tiers and why each machine sits where it does.
-import { System } from "@8bitscript/system";
+// Studio's one entry: every machine starts here, and the machine's facts
+// pick the tier. Each fact is resolved by 8bitscript before any target
+// toolchain runs, so on any one build the other tiers' branches cost
+// nothing, and a tenth machine gets the right tier without anyone editing
+// this file — see AGENTS.md for the tiers and what each needs.
+import { Input, Video } from "@8bitscript/system";
 import { studio, Tier } from "./studio.8bs";
 
 export function main(): void {
     let tier: utinyint = Tier.FULL;
-    if (#system() == System.NES) {
-        // No keyboard, and nowhere to save on the cartridge built today.
+    if (!Input.KEYBOARD) {
+        // Nothing to type with: look, don't edit. The NES, and the web
+        // until its runtime reads keys.
         tier = Tier.VIEWER;
-    } else if (#system() == System.VIC20) {
-        // No hardware sprites, and a little over 5K unexpanded.
-        tier = Tier.BASIC;
-    } else if (#system() == System.PET) {
-        // No hardware sprites, and one voice with no volume.
+    } else if (Video.SPRITES == 0) {
+        // Moving objects are software here, so the sprite editor stays
+        // out: the VIC-20 and the PET.
         tier = Tier.BASIC;
     }
     studio.start(tier);

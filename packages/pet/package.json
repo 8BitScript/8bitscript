@@ -13,30 +13,47 @@
       "./keys": "./src/keys.8bs"
     },
     "hardware": {
+      "facts": {
+        "video.columns": 40,
+        "video.rows": 25,
+        "video.cellWidth": 8,
+        "video.cellHeight": 8,
+        "video.palette": 2,
+        "video.cellColors": 2,
+        "video.glyphs": 0,
+        "video.blockWidth": 2,
+        "video.blockHeight": 2,
+        "video.bitmap": false,
+        "video.layers": 1,
+        "video.scroll": false,
+        "video.sprites": 0,
+        "video.spritesPerLine": 0,
+        "video.spriteWidth": 0,
+        "video.spriteHeight": 0,
+        "video.spriteColors": 0,
+        "video.frameRate": 60,
+        "audio.voices": 1,
+        "audio.noise": false,
+        "audio.envelope": false,
+        "audio.filter": false,
+        "audio.pcm": false,
+        "audio.volume": false,
+        "audio.entropy": false,
+        "input.keyboard": true,
+        "input.joysticks": 0,
+        "input.pads": 0,
+        "input.mouse": false,
+        "input.paddles": false,
+        "storage.save": true,
+        "memory.ram": 31743,
+        "memory.banked": false,
+        "memory.bankedKib": 0
+      },
       "options": {
         "model": {
           "label": "Model",
           "default": "3032",
           "values": {
-            "3032": {
-              "label": "3032: 40 columns, 32K, no CRTC, ~60 Hz",
-              "build": {
-                "defsym": {
-                  "__ram_size": 32
-                }
-              },
-              "run": {
-                "xpet": [
-                  "-model",
-                  "3032"
-                ]
-              },
-              "facts": {
-                "video.columns": 40,
-                "memory.ram": 31743,
-                "video.frameRate": 60
-              }
-            },
             "3008": {
               "label": "3008: 40 columns, 8K",
               "build": {
@@ -72,6 +89,25 @@
               "facts": {
                 "video.columns": 40,
                 "memory.ram": 15359,
+                "video.frameRate": 60
+              }
+            },
+            "3032": {
+              "label": "3032: 40 columns, 32K, no CRTC, ~60 Hz",
+              "build": {
+                "defsym": {
+                  "__ram_size": 32
+                }
+              },
+              "run": {
+                "xpet": [
+                  "-model",
+                  "3032"
+                ]
+              },
+              "facts": {
+                "video.columns": 40,
+                "memory.ram": 31743,
                 "video.frameRate": 60
               }
             },
@@ -136,14 +172,14 @@
         }
       },
       "presets": {
-        "3032": {
-          "model": "3032"
-        },
         "3008": {
           "model": "3008"
         },
         "3016": {
           "model": "3016"
+        },
+        "3032": {
+          "model": "3032"
         },
         "4016": {
           "model": "4016"

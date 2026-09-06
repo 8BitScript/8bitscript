@@ -17,7 +17,7 @@ const vscode = require('vscode');
 
 const { ALL_TARGETS, MACHINE_TARGETS, commandArgs } = require('./projects.cjs');
 const settings = require('./settings.cjs');
-const { effectiveOptions, normalizeSelection } = require('./hardwareCatalog.cjs');
+const { effectiveFacts, effectiveOptions, normalizeSelection } = require('./hardwareCatalog.cjs');
 
 const VIEW_ID = '8bitscript.controls';
 
@@ -125,6 +125,12 @@ class ControlsViewProvider {
         })),
         effective: effectiveOptions(target, selection),
         selection,
+        // What a program can rely on with this selection: the sheet
+        // @8bitscript/system's consts fold to, labelled from the schema.
+        facts: (targets.facts ?? []).filter((fact) => fact.program).map((fact) => ({
+          key: fact.key, doc: fact.doc, when: fact.when, type: fact.type,
+          value: effectiveFacts(target, selection)[fact.key] ?? (fact.type === 'flag' ? false : 0),
+        })),
       } : null,
       command: `8bs ${commandArgs('run', system, region, selection).join(' ')}`,
     });
@@ -180,6 +186,13 @@ function html(webview) {
   .link { background: none; border: none; padding: 0; font: inherit; font-size: 11px; color: var(--vscode-textLink-foreground); cursor: pointer; }
   .check input { margin: 0; }
   .hint { margin-top: 8px; font-size: 11px; opacity: 0.7; }
+  details.facts { margin-top: 8px; }
+  details.facts summary { cursor: pointer; font-size: 11px; opacity: 0.8; }
+  table.facts { border-collapse: collapse; width: 100%; font-size: 11px; margin-top: 4px; }
+  table.facts td { padding: 1px 4px; vertical-align: top; }
+  table.facts td.value { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  table.facts td.run { opacity: 0.7; }
+  table.facts tr.group td { padding-top: 5px; font-weight: 600; opacity: 0.8; }
   code { font-family: var(--vscode-editor-font-family); }
 </style>
 <title>8BitScript</title>
@@ -269,6 +282,49 @@ function html(webview) {
       reset.textContent = 'Back to stock';
       reset.addEventListener('click', () => vscode.postMessage({ type: 'set', key: 'stock' }));
       root.appendChild(reset);
+      renderFacts(root, hardware.facts);
+    }
+
+    // The fact sheet for the selection, grouped the way @8bitscript/system
+    // names it: `video.columns` is Video.COLUMNS. A run-time fact reads
+    // "may use", since the machine answers whether it is really there.
+    function renderFacts(root, facts) {
+      if (!facts || facts.length === 0) return;
+      const details = document.createElement('details');
+      details.className = 'facts';
+      const summary = document.createElement('summary');
+      summary.textContent = 'What a program can rely on';
+      details.appendChild(summary);
+      const table = document.createElement('table');
+      table.className = 'facts';
+      let group = null;
+      for (const fact of facts) {
+        const [head, ...rest] = fact.key.split('.');
+        if (head !== group) {
+          group = head;
+          const row = document.createElement('tr');
+          row.className = 'group';
+          const cell = document.createElement('td');
+          cell.colSpan = 2;
+          cell.textContent = head[0].toUpperCase() + head.slice(1);
+          row.appendChild(cell);
+          table.appendChild(row);
+        }
+        const row = document.createElement('tr');
+        row.title = fact.doc + (fact.when === 'run' ? ' (run time: the build may use it; the machine says whether it is there)' : '');
+        const name = document.createElement('td');
+        name.textContent = rest.join('.').replace(/([a-z])([A-Z])/g, '$1_$2').toUpperCase();
+        const value = document.createElement('td');
+        value.className = 'value' + (fact.when === 'run' ? ' run' : '');
+        value.textContent = fact.type === 'flag'
+          ? (fact.value ? (fact.when === 'run' ? 'may use' : 'yes') : 'no')
+          : String(fact.value);
+        row.appendChild(name);
+        row.appendChild(value);
+        table.appendChild(row);
+      }
+      details.appendChild(table);
+      root.appendChild(details);
     }
 
     window.addEventListener('message', ({ data }) => {

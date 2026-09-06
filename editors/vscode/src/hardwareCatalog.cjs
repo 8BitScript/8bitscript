@@ -17,6 +17,9 @@ function parseTargets(text) {
   const parsed = JSON.parse(text);
   const targets = new Map();
   for (const target of parsed.targets ?? []) targets.set(target.id, target);
+  // The fact schema rides along on the map: the panel's sheet labels
+  // itself from it, and there is one for every target.
+  targets.facts = Array.isArray(parsed.facts) ? parsed.facts : [];
   return targets;
 }
 
@@ -69,10 +72,32 @@ function effectiveOptions(target, selection) {
   const { profile, options } = normalizeSelection(selection);
   const result = {};
   for (const [id, option] of Object.entries(target.options ?? {})) result[id] = option.default;
+  // The project's own default hardware for this machine (8bs.config.ts,
+  // `targets.<machine>.hardware`) is its stock.
+  for (const [id, value] of Object.entries(target.hardware ?? {})) if (id in result) result[id] = String(value);
   const named = profile ? (target.profiles?.[profile] ?? target.presets?.[profile] ?? {}) : {};
   for (const [id, value] of Object.entries(named)) if (id in result) result[id] = String(value);
   for (const [id, value] of Object.entries(options)) if (id in result) result[id] = value;
   return result;
+}
+
+/**
+ * The fact sheet a selection gives a program on a target: the stock
+ * machine's facts, changed by each chosen value's facts in option order —
+ * the merge the CLI's resolveHardware does, so the panel's sheet is what
+ * `Video.COLUMNS` and the rest fold to in that build.
+ *
+ * @param {object} target one entry of parseTargets()
+ * @param {{ profile: string|null, options: Record<string, string> }} selection
+ * @returns {Record<string, number|boolean>}
+ */
+function effectiveFacts(target, selection) {
+  const facts = { ...(target.facts ?? {}) };
+  const effective = effectiveOptions(target, selection);
+  for (const [id, option] of Object.entries(target.options ?? {})) {
+    Object.assign(facts, option.values?.[effective[id]]?.facts ?? {});
+  }
+  return facts;
 }
 
 /**
@@ -88,6 +113,7 @@ function selectionLabel(selection) {
 }
 
 module.exports = {
+  effectiveFacts,
   effectiveOptions,
   hardwareArgs,
   normalizeSelection,

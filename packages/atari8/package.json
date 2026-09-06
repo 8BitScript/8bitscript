@@ -11,11 +11,63 @@
       "./text": "./src/text.8bs"
     },
     "hardware": {
+      "facts": {
+        "video.columns": 40,
+        "video.rows": 24,
+        "video.cellWidth": 8,
+        "video.cellHeight": 8,
+        "video.palette": 256,
+        "video.cellColors": 2,
+        "video.glyphs": 128,
+        "video.blockWidth": 0,
+        "video.blockHeight": 0,
+        "video.bitmap": true,
+        "video.layers": 1,
+        "video.scroll": true,
+        "video.sprites": 4,
+        "video.spritesPerLine": 4,
+        "video.spriteWidth": 8,
+        "video.spriteHeight": 192,
+        "video.spriteColors": 1,
+        "video.frameRate": 60,
+        "audio.voices": 4,
+        "audio.noise": true,
+        "audio.envelope": false,
+        "audio.filter": false,
+        "audio.pcm": true,
+        "audio.volume": true,
+        "audio.entropy": true,
+        "input.keyboard": true,
+        "input.joysticks": 2,
+        "input.pads": 0,
+        "input.mouse": false,
+        "input.paddles": false,
+        "storage.save": true,
+        "memory.ram": 40960,
+        "memory.banked": false,
+        "memory.bankedKib": 0
+      },
       "options": {
         "model": {
           "label": "Model",
           "default": "800xl",
           "values": {
+            "400": {
+              "label": "400",
+              "run": {
+                "atari800": [
+                  "-atari"
+                ]
+              }
+            },
+            "800": {
+              "label": "800: 48K, OS-B, four ports",
+              "run": {
+                "atari800": [
+                  "-atari"
+                ]
+              }
+            },
             "800xl": {
               "label": "800XL: 64K",
               "run": {
@@ -42,22 +94,6 @@
               "facts": {
                 "memory.banked": true,
                 "memory.bankedKib": 64
-              }
-            },
-            "800": {
-              "label": "800: 48K, OS-B, four ports",
-              "run": {
-                "atari800": [
-                  "-atari"
-                ]
-              }
-            },
-            "400": {
-              "label": "400",
-              "run": {
-                "atari800": [
-                  "-atari"
-                ]
               }
             },
             "xegs": {
@@ -158,6 +194,12 @@
         }
       },
       "presets": {
+        "400": {
+          "model": "400"
+        },
+        "800": {
+          "model": "800"
+        },
         "800xl": {
           "model": "800xl"
         },
@@ -166,12 +208,6 @@
         },
         "130xe": {
           "model": "130xe"
-        },
-        "800": {
-          "model": "800"
-        },
-        "400": {
-          "model": "400"
         },
         "xegs": {
           "model": "xegs"

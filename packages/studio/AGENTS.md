@@ -37,13 +37,16 @@ Do not describe more than this as working:
   machine gets, and which editors that tier opens — using `@8bitscript/
   screen` and `@8bitscript/text`, nothing else. It builds and runs on all
   nine targets; `8bs run <target> --screenshot` shows it.
-- `src/main.8bs` is the one entry for every machine. It compares
-  `#system()` — the compile-time builtin naming the machine being built
-  for — with the names `@8bitscript/system` exports, and hands
-  `studio.start()` the tier: the viewer tier on the NES, the basic tier on the VIC-20 and PET,
-  the full tier everywhere else. The other machines' branches fold away
-  on any one build (`test/studio.test.mjs` reads the tier off the linked
-  IR for each target). There used to be a `main.<target>.8bs` per lower
+- `src/main.8bs` is the one entry for every machine. It reads the
+  machine's facts from `@8bitscript/system` — `Input.KEYBOARD`,
+  `Video.SPRITES`, each a `#fact(...)` the compiler folds from the
+  build's hardware — and hands `studio.start()` the tier: the viewer tier
+  where there is no keyboard (the NES, and the web until its runtime
+  reads keys), the basic tier where there are no hardware sprites (the
+  VIC-20, the PET), the full tier everywhere else. The other tiers'
+  branches fold away on any one build (`test/studio.test.mjs` reads the
+  tier off the linked IR for each target, linking with each machine's
+  stock facts). There used to be a `main.<target>.8bs` per lower
   tier; the filename rule is still the right tool for a machine that
   needs *different code*, but a machine that only needs a different
   *number* gets it from one file now.
@@ -103,14 +106,12 @@ Two rules follow from the table and must survive any redesign:
 2. **A tier is a property of the build, chosen once, in `main.8bs`.**
    Studio never probes the machine at runtime to decide what it can do;
    the build already knows which machine it is for, and `main.8bs` picks
-   the tier from `#system()`. Keep the tier a compile-time constant
-   (`Tier.FULL` and the others are namespace consts, inlined by the
-   compiler). When the capability packages publish their facts
-   (`sprites.COUNT`, a sound package's voice count, whether storage
-   exists — see [`docs/systems.md`](../../docs/systems.md)), the tier
-   should be computed from those instead of from the machine's name: a
-   new machine with sprites and a chip then gets the full tier without
-   anyone editing Studio.
+   the tier from the machine's facts (`Input.KEYBOARD`, `Video.SPRITES`
+   — see [`docs/systems.md`](../../docs/systems.md#facts-what-a-build-knows-about-itself)),
+   never from its name, so a new machine with a keyboard and sprites
+   gets the full tier without anyone editing Studio. Keep the tier a
+   compile-time constant (`Tier.FULL` and the others are namespace
+   consts, inlined by the compiler; so is every fact).
 
 ## What Studio needs from the language
 
