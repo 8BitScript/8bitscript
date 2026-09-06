@@ -20,7 +20,7 @@ export { foldCompileTime, DURATION_CLOCKS, DURATION_UNITS, SYSTEMS } from './src
 export { lower, entryOf } from './src/ir/index.mjs';
 export { link, memoryOf } from './src/linker/index.mjs';
 export {
-  MACHINES, findImports, isVariantPath, resolveImports, resolveSpecifier, variantOf,
+  MACHINES, findImports, isVariantPath, resolveImports, resolveSpecifier, variantOf, tagsOf,
 } from './src/resolver/index.mjs';
 export { Codes, diagnostic, positionAt } from './src/diagnostics/index.mjs';
 export {

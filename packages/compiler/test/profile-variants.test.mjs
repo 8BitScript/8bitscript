@@ -98,7 +98,7 @@ test('a file that exists only as a profile\'s twin: that profile builds, the mac
     assert.deepEqual(codes(link(MAIN, entry, { machine: 'c64', profile: 'stock' }).diagnostics), []);
     const other = link(MAIN, entry, { machine: 'pet', profile: '3032' });
     assert.deepEqual(codes(other.diagnostics), ['8BS3002']);
-    assert.match(other.diagnostics[0].message, /no version for the pet target's 3032 profile \(targets: c64, pet \(8032\)\)/);
+    assert.match(other.diagnostics[0].message, /no version for the pet target's 3032 hardware \(targets: c64, pet \(8032\)\)/);
     const bare = link(MAIN, entry, { machine: 'pet' });
     assert.deepEqual(codes(bare.diagnostics), ['8BS3002']);
     assert.match(bare.diagnostics[0].message, /no version for the pet target \(targets/);
@@ -124,6 +124,39 @@ test('an import that names a profile\'s twin outright gets exactly that file, on
       assert.deepEqual(diagnostics, [], JSON.stringify(options));
       assert.match(emitC(ir, { machine: 'pet' }), /cell < 2000/);
     }
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+// ---- tags: a build carries several, and each may have a twin ---------------
+
+test('a build with several hardware tags reads the one tag\'s twin that exists; two twins at once is 8BS3004', async () => {
+  const dir = await mkdtemp(join(tmpdir(), '8bs-profile-variants-'));
+  try {
+    const entry = join(dir, 'main.8bs');
+    await writeFile(entry, MAIN);
+    await writeFile(join(dir, 'lib.8bs'), LIB);
+    await writeFile(join(dir, 'geometry.8bs'), GEOMETRY_40);
+    await writeFile(join(dir, 'geometry.pet.8032.8bs'), GEOMETRY_80);
+    const columnsOf = (options) => /32768\)? = (\d+);/.exec(emitC(link(MAIN, entry, options).ir, { machine: 'pet' }))[1];
+    // Only one of the build's tags has a twin: that twin is the file.
+    assert.equal(columnsOf({ machine: 'pet', tags: ['8032', 'sidcart'] }), '80');
+    assert.equal(columnsOf({ machine: 'pet', tags: ['sidcart', '8032'] }), '80');
+    // None of them does: the plain file.
+    assert.equal(columnsOf({ machine: 'pet', tags: ['sidcart'] }), '40');
+    assert.equal(columnsOf({ machine: 'pet', tags: [] }), '40');
+    // `profile` is the older spelling of one tag.
+    assert.equal(columnsOf({ machine: 'pet', profile: '8032' }), '80');
+
+    // Two tags, two twins: the resolver will not pick between them.
+    await writeFile(join(dir, 'geometry.pet.sidcart.8bs'), GEOMETRY_40);
+    const { diagnostics } = link(MAIN, entry, { machine: 'pet', tags: ['8032', 'sidcart'] });
+    assert.deepEqual(codes(diagnostics), ['8BS3004']);
+    assert.match(diagnostics[0].message, /'8032' and 'sidcart'/);
+    // Either tag alone is unambiguous.
+    assert.equal(columnsOf({ machine: 'pet', tags: ['8032'] }), '80');
+    assert.equal(columnsOf({ machine: 'pet', tags: ['sidcart'] }), '40');
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
