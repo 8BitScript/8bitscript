@@ -36,7 +36,8 @@
 //    nothing back). Either ends the count. The units with 3-bit bank
 //    registers (1700, 1764, 1750: 128, 256, 512 KiB) wrap at 8 banks or
 //    alias below it; the larger units have all 8 bits, up to 256 banks.
-//    Verified against VICE's reu.c (see AGENTS.md): the bank register's
+//    Run under VICE at 128 KiB, 256, 512, 1 MiB and 16 MiB, and with no
+//    REU (see AGENTS.md); verified against VICE's reu.c: the bank register's
 //    unused bits are forced high on those units, addresses wrap at the
 //    unit's size, every register reads back what was written, and
 //    autoload restores the bank register too.
