@@ -80,8 +80,13 @@ Run buttons use 8bs run c64 --profile reu512 --hardware sid=8580,port1=mouse1351
   only the emulator. The selection is `8bitscript.hardware`, an object
   keyed by system, and it rides on every Run and Build as `--profile` and
   `--hardware` — the hint shows the exact `8bs run` line. *Back to stock*
-  clears it. The extension lists nothing of its own here; it asks the
-  toolchain (`8bs targets --json`), so a new option in a package appears
+  clears it (stock is the catalog's default, or the project's own
+  `targets.<system>.hardware` when its config sets one). Under the
+  options, *What a program can rely on* is the fact sheet that selection
+  gives `@8bitscript/system`'s consts — the grid, the sprites, the voices,
+  the RAM — with a run-time fact (a REU, a mouse) shown as *may use*. The
+  extension lists nothing of its own here; it asks the toolchain (`8bs
+  targets --json`), so a new option, or a new fact, in a package appears
   with no extension update.
 - **View** — how the Projects list below is laid out
   (`8bitscript.projectsView`); see the three layouts below.

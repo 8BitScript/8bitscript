@@ -5,10 +5,10 @@
 // the JSON form to build its System, Profile and Hardware controls, so a
 // new machine or option in a package is a new row there with nothing to
 // update by hand.
-import { MACHINES } from '@8bitscript/compiler';
+import { FACTS, MACHINES } from '@8bitscript/compiler';
 
 import { loadConfig } from './config.mjs';
-import { loadCatalog, projectProfiles } from './hardware.mjs';
+import { loadCatalog, projectHardware, projectProfiles, stockFacts } from './hardware.mjs';
 import { VICE_EMULATOR } from './run.mjs';
 
 const EMULATOR = {
@@ -49,8 +49,18 @@ export function describeTargets(config) {
       options,
       presets: catalog.presets,
       profiles: projectProfiles(config, id),
+      // The project's own default values for this machine, under any profile.
+      hardware: projectHardware(config, id),
+      // The stock machine's sheet; a chosen value's `facts` change it, in
+      // option order, the way resolveHardware merges them.
+      facts: stockFacts(id),
     };
   });
+}
+
+/** The fact keys, typed and described, so the editor's sheet labels itself from one place. */
+export function describeFacts() {
+  return [...FACTS].map(([key, fact]) => ({ key, ...fact }));
 }
 
 /** @returns {Promise<number>} exit code */
@@ -58,7 +68,7 @@ export async function targets(args) {
   const config = await loadConfig(process.cwd(), '8bs targets');
   const described = describeTargets(config);
   if (args.includes('--json')) {
-    process.stdout.write(`${JSON.stringify({ targets: described }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({ targets: described, facts: describeFacts() }, null, 2)}\n`);
     return 0;
   }
   for (const t of described) {
@@ -73,6 +83,8 @@ export async function targets(args) {
     }
     if (presets.length > 0) process.stdout.write(`         --profile  presets: ${presets.join(', ')}\n`);
     if (profiles.length > 0) process.stdout.write(`         --profile  this project: ${profiles.join(', ')}\n`);
+    const own = Object.entries(t.hardware).map(([k, v]) => `${k}=${v}`);
+    if (own.length > 0) process.stdout.write(`         this project's default: ${own.join(' ')}\n`);
   }
   process.stdout.write('\n* the default; (build) changes the program, not only the emulator\n');
   return 0;

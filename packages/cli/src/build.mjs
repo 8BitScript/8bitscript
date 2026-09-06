@@ -51,7 +51,7 @@ import {
 
 import { loadConfig, resolveFrameRate } from './config.mjs';
 import {
-  HARDWARE_USAGE, hardwareArgs, listedTargets, loadCatalog, projectProfiles, resolveHardware,
+  HARDWARE_USAGE, hardwareArgs, listedTargets, loadCatalog, projectHardware, projectProfiles, resolveHardware,
 } from './hardware.mjs';
 
 const TARGETS = new Set(MACHINES);
@@ -151,7 +151,7 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   }
 
   const resolved = resolveHardware(loadCatalog(target), {
-    profile, overrides, profiles: projectProfiles(config, target),
+    profile, overrides, profiles: projectProfiles(config, target), defaults: projectHardware(config, target),
   });
   if (!resolved.ok) {
     process.stderr.write(`8bs build: ${resolved.error}\n`);
@@ -171,9 +171,11 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   // imports, then merges the graph into one program. Any error in any module
   // means no build. The machine rides along so packages with target-
   // conditional entries resolve to this machine's implementation, and the
+  // hardware's facts so every `#fact(...)` — the sheet @8bitscript/system
+  // declares — folds to this build's value, and the
   // hardware's tags so a file with a `.<machine>.<tag>.8bs` twin resolves
   // to that.
-  const { ir, diagnostics, sources } = link(text, entry, { machine: target, tags: hardware.tags, frameRate });
+  const { ir, diagnostics, sources } = link(text, entry, { machine: target, tags: hardware.tags, facts: hardware.facts, frameRate });
   if (diagnostics.length > 0) {
     printDiagnostics(diagnostics, sources);
     process.stdout.write(`${diagnostics.length} problem(s); not building.\n`);

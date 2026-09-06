@@ -8,6 +8,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { link } from '../../compiler/index.mjs';
+import { stockFacts } from '../../cli/src/hardware.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -39,43 +40,57 @@ test('the CLI depends on Studio, so it ships with the toolchain', () => {
 
 for (const target of TARGETS) {
   test(`Studio links clean for ${target}`, () => {
-    const { ir, diagnostics } = link(readFileSync(ENTRY, 'utf8'), ENTRY, { machine: target });
+    const { ir, diagnostics } = link(readFileSync(ENTRY, 'utf8'), ENTRY, { machine: target, facts: stockFacts(target) });
     assert.deepEqual(diagnostics, []);
     assert.equal(ir.entry, 'main');
   });
 }
 
 // Which tier main() hands studio.start() on a machine, read off the linked
-// IR: #system() and the Tier names fold to numbers, so every test in the
-// if-chain is a comparison of two folded numbers, which this walks the way
-// the machine would. One entry file, and the machine picks the tier.
+// IR: the facts and the Tier names fold to constants, so every test in the
+// if-chain is a comparison or a negation of folded constants, which this
+// walks the way the machine would. One entry file, and the machine's facts
+// pick the tier.
 const TIERS = ['VIEWER', 'BASIC', 'FULL'];
+const truthy = (expr) => {
+  if (expr.kind === 'const') return expr.value !== 0;
+  if (expr.kind === 'unop' && expr.operator === '!') return !truthy(expr.argument);
+  if (expr.kind === 'binop' && expr.operator === '==') {
+    assert.equal(expr.left.kind, 'const');
+    assert.equal(expr.right.kind, 'const');
+    return expr.left.value === expr.right.value;
+  }
+  assert.fail(`a test main.8bs is not expected to have: ${JSON.stringify(expr)}`);
+};
 const tierOf = (target) => {
-  const { ir } = link(readFileSync(ENTRY, 'utf8'), ENTRY, { machine: target });
+  const { ir, diagnostics } = link(readFileSync(ENTRY, 'utf8'), ENTRY, { machine: target, facts: stockFacts(target) });
+  assert.deepEqual(diagnostics, [], target);
   const main = ir.functions.find((f) => f.name === 'main');
   let tier;
   const run = (statements) => {
     for (const s of statements) {
       if (s.kind === 'local' && s.name === 'tier') tier = s.init.value;
       if (s.kind === 'assign' && s.target === 'tier') tier = s.value.value;
-      if (s.kind === 'if') {
-        const { left, right, operator } = s.test;
-        assert.equal(operator, '==');
-        assert.equal(left.kind, 'const');
-        assert.equal(right.kind, 'const');
-        run(left.value === right.value ? s.then : s.else ?? []);
-      }
+      if (s.kind === 'if') run(truthy(s.test) ? s.then : s.else ?? []);
     }
   };
   run(main.body);
   return TIERS[tier];
 };
 
-test('each machine starts from the tier main.8bs picks for it', () => {
+test('each machine starts from the tier its facts pick', () => {
+  // No keyboard to edit with: the NES, and the web until its runtime reads keys.
   assert.equal(tierOf('nes'), 'VIEWER');
+  assert.equal(tierOf('web'), 'VIEWER');
+  // A keyboard but no hardware sprites.
   assert.equal(tierOf('vic20'), 'BASIC');
   assert.equal(tierOf('pet'), 'BASIC');
-  for (const target of ['c64', 'c128', 'atari8', 'cx16', 'mega65', 'web']) assert.equal(tierOf(target), 'FULL', target);
+  for (const target of ['c64', 'c128', 'atari8', 'cx16', 'mega65']) assert.equal(tierOf(target), 'FULL', target);
+});
+
+test('the tier follows the facts, not the name: a machine with no facts is the placeholder sheet', () => {
+  const { diagnostics } = link(readFileSync(ENTRY, 'utf8'), ENTRY, { machine: 'c64' });
+  assert.ok(diagnostics.some((d) => d.code === '8BS1038'), 'a real build without its sheet is refused, not guessed');
 });
 
 test('Studio has one entry file: no main.<target>.8bs variants', () => {

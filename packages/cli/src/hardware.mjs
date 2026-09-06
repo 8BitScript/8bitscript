@@ -53,6 +53,17 @@ export function loadCatalog(machine) {
 }
 
 /**
+ * The stock machine's fact sheet: what `8bs build <machine>` with no
+ * profile and no `--hardware` hands the compiler. Tests link against it.
+ *
+ * @param {string} machine
+ * @returns {object} facts, keyed as the compiler's FACTS table is
+ */
+export function stockFacts(machine) {
+  return resolveHardware(loadCatalog(machine), {}).hardware.facts;
+}
+
+/**
  * `ram=8k,port1=mouse1351` → `{ ram: '8k', port1: 'mouse1351' }`. Several
  * `--hardware` arguments may be given; join their texts with commas.
  *
@@ -85,6 +96,22 @@ export function projectProfiles(config, machine) {
 }
 
 /**
+ * The hardware a project fits one target with by default — its own stock
+ * for that machine, applied under any named profile and any `--hardware`:
+ * `targets: { pet: { hardware: { model: '8032' } } }` makes every PET
+ * build of this project an 80-column one unless a build says otherwise.
+ *
+ * @param {object|null} config
+ * @param {string} machine
+ * @returns {object} option → value
+ */
+export function projectHardware(config, machine) {
+  const targets = config?.targets;
+  if (!targets || Array.isArray(targets)) return {};
+  return targets[machine]?.hardware ?? {};
+}
+
+/**
  * The targets a project's config lists, in either form, or null for
  * "every target" when it lists none.
  *
@@ -101,10 +128,12 @@ export function listedTargets(config) {
  * Resolve the hardware for one build.
  *
  * @param {{ machine: string, options: object, presets: object, facts: object }} catalog
- * @param {{ profile?: string, overrides?: object, profiles?: object }} [choice]
- *   `profile` names a project profile (`profiles`, from projectProfiles())
- *   or, failing that, a catalog preset; `overrides` are option values set
- *   on top (`--hardware`).
+ * @param {{ profile?: string, overrides?: object, profiles?: object, defaults?: object }} [choice]
+ *   `defaults` are the project's own values for this machine (from
+ *   projectHardware()), applied over the catalog's; `profile` names a
+ *   project profile (`profiles`, from projectProfiles()) or, failing that,
+ *   a catalog preset, applied over those; `overrides` are option values
+ *   set on top of everything (`--hardware`).
  * @returns {{ ok: true, hardware: Hardware } | { ok: false, error: string }}
  *
  * @typedef {{
@@ -118,7 +147,7 @@ export function listedTargets(config) {
  *   the merged linker effects; `run`/`load` per-emulator flag lists;
  *   `facts` the merged facts; `label` a short human spelling.
  */
-export function resolveHardware(catalog, { profile, overrides = {}, profiles = {} } = {}) {
+export function resolveHardware(catalog, { profile, overrides = {}, profiles = {}, defaults = {} } = {}) {
   const { machine, options: catalogOptions, presets } = catalog;
   const named = (name) => {
     if (name === undefined) return { ok: true, values: {} };
@@ -137,7 +166,7 @@ export function resolveHardware(catalog, { profile, overrides = {}, profiles = {
 
   const options = {};
   for (const [id, option] of Object.entries(catalogOptions)) options[id] = option.default;
-  for (const [source, values] of [['profile', base.values], ['--hardware', overrides]]) {
+  for (const [source, values] of [['this project\'s hardware', defaults], ['profile', base.values], ['--hardware', overrides]]) {
     for (const [id, value] of Object.entries(values)) {
       const option = catalogOptions[id];
       if (!option) {

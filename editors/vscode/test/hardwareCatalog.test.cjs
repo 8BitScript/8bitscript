@@ -5,7 +5,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
-  effectiveOptions, hardwareArgs, normalizeSelection, parseTargets, selectionLabel,
+  effectiveFacts, effectiveOptions, hardwareArgs, normalizeSelection, parseTargets, selectionLabel,
 } = require('../src/hardwareCatalog.cjs');
 
 const SAMPLE = JSON.stringify({
@@ -15,12 +15,20 @@ const SAMPLE = JSON.stringify({
     emulator: 'x64sc',
     region: true,
     options: {
-      ram: { label: 'RAM Expansion Unit', default: 'none', values: { none: { label: 'No expansion', affectsBuild: false }, reu512: { label: 'REU, 512 KiB', affectsBuild: false } } },
-      port1: { label: 'Control port 1', default: 'none', values: { none: { label: 'Nothing', affectsBuild: false }, mouse1351: { label: '1351', affectsBuild: false } } },
+      ram: { label: 'RAM Expansion Unit', default: 'none', values: { none: { label: 'No expansion', affectsBuild: false }, reu512: { label: 'REU, 512 KiB', affectsBuild: false, facts: { 'memory.banked': true, 'memory.bankedKib': 512 } } } },
+      port1: { label: 'Control port 1', default: 'none', values: { none: { label: 'Nothing', affectsBuild: false }, mouse1351: { label: '1351', affectsBuild: false, facts: { 'input.mouse': true } } } },
     },
     presets: { stock: { ram: 'none' }, reu512: { ram: 'reu512' } },
     profiles: { reu512: { ram: 'none', port1: 'mouse1351' } },
+    hardware: {},
+    facts: { 'video.sprites': 8, 'input.mouse': false, 'memory.banked': false, 'memory.bankedKib': 0 },
   }],
+  facts: [
+    { key: 'video.sprites', type: 'count', when: 'build', program: true, doc: 'Hardware sprites in total.' },
+    { key: 'input.mouse', type: 'flag', when: 'run', program: true, doc: 'A mouse this build may use.' },
+    { key: 'memory.banked', type: 'flag', when: 'run', program: true, doc: 'RAM beyond the window.' },
+    { key: 'memory.bankedKib', type: 'count', when: 'run', program: true, doc: 'KiB of it.' },
+  ],
 });
 
 test('parseTargets keys the CLI\'s list by id', () => {
@@ -47,4 +55,27 @@ test('effectiveOptions resolves defaults, then the profile (a project profile sh
   assert.deepEqual(effectiveOptions(target, { profile: 'stock', options: { ram: 'reu512' } }), { ram: 'reu512', port1: 'none' });
   assert.equal(selectionLabel({ profile: 'stock', options: { ram: 'reu512' } }), 'stock ram=reu512');
   assert.equal(selectionLabel({ profile: null, options: {} }), '');
+});
+
+test('parseTargets carries the fact schema, and effectiveFacts merges the stock sheet with the chosen values\'', () => {
+  const targets = parseTargets(SAMPLE);
+  assert.deepEqual(targets.facts.map((f) => f.key), ['video.sprites', 'input.mouse', 'memory.banked', 'memory.bankedKib']);
+  const target = targets.get('c64');
+  assert.deepEqual(effectiveFacts(target, {}), { 'video.sprites': 8, 'input.mouse': false, 'memory.banked': false, 'memory.bankedKib': 0 });
+  assert.deepEqual(effectiveFacts(target, { profile: 'reu512', options: { port1: 'mouse1351' } }), {
+    'video.sprites': 8, 'input.mouse': true, 'memory.banked': false, 'memory.bankedKib': 0,
+  }, 'the project profile named reu512 shadows the preset and fits no REU');
+  assert.deepEqual(effectiveFacts(target, { options: { ram: 'reu512' } }), {
+    'video.sprites': 8, 'input.mouse': false, 'memory.banked': true, 'memory.bankedKib': 512,
+  });
+  assert.deepEqual(effectiveFacts({ options: {} }, {}), {}, 'a target with no catalog has an empty sheet here');
+  assert.deepEqual(parseTargets(JSON.stringify({ targets: [] })).facts, [], 'an older CLI without a schema');
+});
+
+test('a project\'s own hardware for a target is its stock in the panel, under a profile and the options', () => {
+  const target = { ...parseTargets(SAMPLE).get('c64'), hardware: { ram: 'reu512' } };
+  assert.equal(effectiveOptions(target, {}).ram, 'reu512');
+  assert.equal(effectiveOptions(target, { profile: 'stock' }).ram, 'none', 'a named profile over it');
+  assert.equal(effectiveOptions(target, { options: { ram: 'none' } }).ram, 'none', 'an option over it');
+  assert.equal(effectiveFacts(target, {})['memory.banked'], true);
 });

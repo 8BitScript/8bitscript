@@ -1,27 +1,29 @@
-// @8bitscript/system — one name per machine, to compare #system() against.
+// @8bitscript/system — the machine a build is for, by name and by fact.
 //
-//     import { System } from "@8bitscript/system";
+//     import { System, Video, Audio, Input, Storage, Memory } from "@8bitscript/system";
 //
-//     if (#system() == System.PET) { ... }
+//     if (#system() == System.PET) { ... }        // which machine
+//     if (Video.SPRITES == 0) { ... }             // what it has
 //
-// #system() is the machine this build is for, as a number; 8bitscript
-// evaluates it before any target toolchain runs (docs/compiler.md, "what
-// 8bitscript resolves and what runs on the machine"), so the comparison is
-// two compile-time numbers and the branch for another machine costs nothing
-// on this one. This namespace gives those numbers names. The compiler's
-// table (packages/compiler/src/fold, SYSTEMS) is the source of truth for
-// which number is which; test/system.test.mjs holds this file to it.
+// Everything here is a compile-time number: #system() is the machine this
+// build is for, and #fact(...) is one fact about it, both resolved by
+// 8bitscript before any target toolchain runs (docs/compiler.md, "what
+// 8bitscript resolves and what runs on the machine"), so a comparison is
+// two constants and the branch for another machine, or for hardware this
+// one lacks, costs nothing on it. The compiler's tables are the source of
+// truth — packages/compiler/src/fold's SYSTEMS for the names, its
+// fold/facts.mjs for the fact keys — and test/system.test.mjs holds this
+// file to both.
 //
-// Two rules for using it. First, prefer a capability's own facts to the
-// machine's name: `text.COLUMNS` says how wide the screen is on every
-// machine, including ones this namespace does not know yet, where
-// `#system() == System.PET` says nothing about a C128 in 80 columns.
+// Two rules for using it. First, prefer a fact to the machine's name:
+// `Video.COLUMNS` is right on a machine this file has never heard of, and
+// on a C128 in 80 columns, where `#system() == System.PET` says nothing.
 // Branch on the name for what is genuinely the machine's identity — which
-// tier of an app it gets, which title to print — and on a fact for
-// anything a fact could say. Second, a branch is not a conditional
-// import: both arms of an `if` are compiled and linked on every machine,
-// so a machine-only package (`@8bitscript/c64/sprites`) still belongs in a
-// per-machine file, not behind a comparison.
+// title to print — and on a fact for anything a fact could say. Second, a
+// branch is not a conditional import: both arms of an `if` are compiled
+// and linked on every machine, so a machine-only package
+// (`@8bitscript/c64/sprites`) still belongs in a per-machine file, not
+// behind a comparison.
 //
 // The names are the ones `8bs build --target` accepts. The numbers are
 // arbitrary and stable: a machine keeps its number when others are added,
@@ -36,4 +38,79 @@ export namespace System {
     const NES: utinyint = 6;      // Nintendo Entertainment System
     const CX16: utinyint = 7;     // Commander X16
     const MEGA65: utinyint = 8;   // MEGA65
+}
+
+// The fact sheet. Each const is one #fact(...) — the value the machine
+// package's hardware catalog declares for the stock machine, changed by
+// whatever hardware the build was fitted with (`8bs build c64 --hardware
+// ram=reu512`; docs/packages.md, "the hardware catalog"). A fact is never
+// missing: a machine without hardware sprites says SPRITES 0, and a
+// program's branch on it folds away. A fact is the worst case that
+// matters: SPRITES_PER_LINE is 8 on the NES, not the 64 per frame.
+//
+// Two kinds of fact, and the difference is when it is settled. Most are
+// fixed by the build — the grid, the chip, the RAM the program was linked
+// into — and the const is the truth on every machine the binary runs on.
+// A few name hardware the machine may or may not have when the program
+// runs: a mouse in a port, a REU, banked RAM. For those the const means
+// "this build may use it" — the hardware was chosen for the build, so the
+// capability's detection code is compiled in — and whether it is really
+// there is the capability's answer at run time. A build never fitted with
+// it carries no code for it. The comments mark which is which.
+//
+// With no machine in hand (8bs check, the editor) every fact is its
+// placeholder — 0 or false — and target-dependent, as #system() is.
+
+// The display: the text grid the portable `text` draws on, and what the
+// display is made of beyond it.
+export namespace Video {
+    const COLUMNS: utinyint = #fact(video.columns);             // cells across
+    const ROWS: utinyint = #fact(video.rows);                   // cells down
+    const CELL_WIDTH: utinyint = #fact(video.cellWidth);        // pixels across one cell
+    const CELL_HEIGHT: utinyint = #fact(video.cellHeight);      // pixels down one cell
+    const PALETTE: usmallint = #fact(video.palette);            // colours on screen at once
+    const CELL_COLORS: utinyint = #fact(video.cellColors);      // colours one cell can hold
+    const GLYPHS: usmallint = #fact(video.glyphs);              // characters redefinable at run time; 0 = fixed font
+    const BLOCK_WIDTH: utinyint = #fact(video.blockWidth);      // pseudo-pixels across a cell from block glyphs; 0 = none
+    const BLOCK_HEIGHT: utinyint = #fact(video.blockHeight);    // pseudo-pixels down a cell; 0 = none
+    const BITMAP: bool = #fact(video.bitmap);                   // a pixel-addressable mode exists
+    const LAYERS: utinyint = #fact(video.layers);               // independent background layers
+    const SCROLL: bool = #fact(video.scroll);                   // hardware fine scroll
+    const SPRITES: utinyint = #fact(video.sprites);             // hardware sprites in total; 0 = software objects
+    const SPRITES_PER_LINE: utinyint = #fact(video.spritesPerLine); // what one scanline can show
+    const SPRITE_WIDTH: utinyint = #fact(video.spriteWidth);    // pixels across the largest sprite
+    const SPRITE_HEIGHT: utinyint = #fact(video.spriteHeight);  // pixels down the largest sprite
+    const SPRITE_COLORS: utinyint = #fact(video.spriteColors);  // colours one sprite can hold
+}
+
+// The sound hardware's shape.
+export namespace Audio {
+    const VOICES: utinyint = #fact(audio.voices);   // voices at once; 0 = no sound
+    const NOISE: bool = #fact(audio.noise);         // a noise voice
+    const ENVELOPE: bool = #fact(audio.envelope);   // hardware volume envelopes
+    const FILTER: bool = #fact(audio.filter);       // a hardware filter
+    const PCM: bool = #fact(audio.pcm);             // sample playback
+    const VOLUME: bool = #fact(audio.volume);       // a volume per voice
+    const ENTROPY: bool = #fact(audio.entropy);     // a hardware random source
+}
+
+// The ports, and what this build may find plugged into them.
+export namespace Input {
+    const KEYBOARD: bool = #fact(input.keyboard);   // a keyboard the program can read
+    const JOYSTICKS: utinyint = #fact(input.joysticks); // joystick ports
+    const PADS: utinyint = #fact(input.pads);       // console controller ports
+    const MOUSE: bool = #fact(input.mouse);         // run time: this build may use a mouse
+    const PADDLES: bool = #fact(input.paddles);     // run time: this build may use paddles
+}
+
+// Where bytes can outlive the program.
+export namespace Storage {
+    const SAVE: bool = #fact(storage.save);         // somewhere to persist bytes
+}
+
+// What the program was linked into, and what it may reach beyond it.
+export namespace Memory {
+    const RAM: usmallint = #fact(memory.ram);       // bytes the program is linked to use
+    const BANKED: bool = #fact(memory.banked);      // run time: this build may use RAM beyond the window
+    const BANKED_KIB: usmallint = #fact(memory.bankedKib); // KiB of it the build was fitted with
 }

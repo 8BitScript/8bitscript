@@ -126,3 +126,58 @@ test('parseHardwareArg and the config helpers', () => {
   assert.deepEqual(listedTargets({ targets: ['vic20'] }), ['vic20']);
   assert.equal(listedTargets(null), null);
 });
+
+// The fact sheets: every catalog's stock facts cover every key a program
+// can read (a fact is never missing), every fact anywhere in a catalog is
+// a key the compiler knows with a value of its type, and the CLI's stock
+// sheet is the catalog's own merged for its defaults.
+import { FACTS, PROGRAM_FACTS, factProblems } from '@8bitscript/compiler';
+import { projectHardware, stockFacts } from '../src/hardware.mjs';
+
+test('every catalog declares every program fact for the stock machine, and only known facts anywhere', () => {
+  for (const machine of MACHINES) {
+    const catalog = loadCatalog(machine);
+    assert.deepEqual(factProblems(catalog.facts), [], `${machine}: catalog facts`);
+    const missing = PROGRAM_FACTS.filter((key) => !Object.hasOwn(catalog.facts, key));
+    assert.deepEqual(missing, [], `${machine}: a fact is never missing — declare it, 0 or false if the machine lacks the thing`);
+    for (const [id, option] of Object.entries(catalog.options)) {
+      for (const [value, entry] of Object.entries(option.values)) {
+        assert.deepEqual(factProblems(entry.facts ?? {}), [], `${machine} ${id}=${value}`);
+        for (const key of Object.keys(entry.facts ?? {})) assert.ok(FACTS.has(key), `${machine} ${id}=${value}: ${key}`);
+      }
+    }
+  }
+});
+
+test('stockFacts is the catalog\'s sheet with each default value\'s facts merged; a value changes it', () => {
+  assert.deepEqual(stockFacts('c64'), resolveHardware(loadCatalog('c64'), {}).hardware.facts);
+  assert.equal(stockFacts('c64')['video.sprites'], 8);
+  assert.equal(stockFacts('c64')['memory.banked'], false);
+  const reu = resolveHardware(loadCatalog('c64'), { profile: 'reu512' }).hardware.facts;
+  assert.equal(reu['memory.banked'], true);
+  assert.equal(reu['memory.bankedKib'], 512);
+  assert.equal(reu['video.sprites'], 8, 'the rest of the sheet is untouched');
+  assert.equal(stockFacts('pet')['video.columns'], 40);
+  assert.equal(stockFacts('nes')['input.keyboard'], false);
+  assert.equal(stockFacts('vic20')['memory.ram'], 3583, 'the unexpanded VIC-20');
+  assert.equal(resolveHardware(loadCatalog('vic20'), { profile: '8k' }).hardware.facts['memory.ram'], 11775);
+});
+
+test('a project\'s own hardware for a target sits under a profile and under --hardware', () => {
+  const config = { targets: { pet: { hardware: { model: '8032' }, profiles: { small: { model: '3008' } } }, c64: {} } };
+  assert.deepEqual(projectHardware(config, 'pet'), { model: '8032' });
+  assert.deepEqual(projectHardware(config, 'c64'), {});
+  assert.deepEqual(projectHardware(null, 'pet'), {});
+  assert.deepEqual(projectHardware({ targets: ['pet'] }, 'pet'), {});
+  const catalog = loadCatalog('pet');
+  const defaults = projectHardware(config, 'pet');
+  const profiles = projectProfiles(config, 'pet');
+  assert.equal(resolveHardware(catalog, { defaults }).hardware.options.model, '8032', 'the project\'s default');
+  assert.equal(resolveHardware(catalog, { defaults }).hardware.facts['video.columns'], 80);
+  assert.deepEqual(resolveHardware(catalog, { defaults }).hardware.tags, ['8032']);
+  assert.equal(resolveHardware(catalog, { defaults, profiles, profile: 'small' }).hardware.options.model, '3008', 'a profile over it');
+  assert.equal(resolveHardware(catalog, { defaults, profiles, profile: 'small', overrides: { model: '4032' } }).hardware.options.model, '4032', '--hardware over both');
+  const bad = resolveHardware(catalog, { defaults: { model: 'nope' } });
+  assert.equal(bad.ok, false);
+  assert.match(bad.error, /'nope' is not a value .* \(from this project's hardware\)/);
+});
