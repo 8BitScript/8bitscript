@@ -6,7 +6,7 @@
     "Tracks the syntax the project has specified so far: the TypeScript-derived",
     "surface, the machine integer types, the hardware escape hatches",
     "(@address decorators, volatile/ptr/array, and asm6502 blocks), and the",
-    "compile-time functions (#frames(...)), the reserved runtime builtin",
+    "compile-time functions (#frames(...), #system()), the reserved runtime builtin",
     "(waitFrame()) the checker keeps a program from redefining, and string and",
     "template literals (`TICK ${ticks:1}`) with their ${...} fields. Constructs",
     "that are still undecided are simply absent — an unmatched keyword costs a",
@@ -106,16 +106,30 @@
             {
               "name": "meta.template.field.8bs",
               "begin": "\\$\\{",
-              "beginCaptures": { "0": { "name": "punctuation.definition.template-expression.begin.8bs" } },
+              "beginCaptures": {
+                "0": {
+                  "name": "punctuation.definition.template-expression.begin.8bs"
+                }
+              },
               "end": "\\}",
-              "endCaptures": { "0": { "name": "punctuation.definition.template-expression.end.8bs" } },
+              "endCaptures": {
+                "0": {
+                  "name": "punctuation.definition.template-expression.end.8bs"
+                }
+              },
               "patterns": [
                 {
                   "comment": "The :width after a field's expression — how many cells it takes.",
                   "match": ":\\s*([0-9]+)",
-                  "captures": { "1": { "name": "constant.numeric.decimal.8bs" } }
+                  "captures": {
+                    "1": {
+                      "name": "constant.numeric.decimal.8bs"
+                    }
+                  }
                 },
-                { "include": "$self" }
+                {
+                  "include": "$self"
+                }
               ]
             }
           ]
@@ -247,21 +261,46 @@
           "comment": "#frames(...), the compile-time duration function (packages/compiler/src/fold) — the `#` is the spelling for anything 8bitscript evaluates before the target sees it — as a region so its unit word can be coloured only where it *is* a unit: `seconds` is not a reserved name, it is the required second argument — #frames(0.5, seconds) — and anywhere else it is an ordinary identifier.",
           "begin": "(#frames)\\s*(\\()",
           "beginCaptures": {
-            "1": { "name": "support.function.compile-time.8bs" },
-            "2": { "name": "punctuation.section.arguments.begin.8bs" }
+            "1": {
+              "name": "support.function.compile-time.8bs"
+            },
+            "2": {
+              "name": "punctuation.section.arguments.begin.8bs"
+            }
           },
           "end": "\\)",
           "endCaptures": {
-            "0": { "name": "punctuation.section.arguments.end.8bs" }
+            "0": {
+              "name": "punctuation.section.arguments.end.8bs"
+            }
           },
           "patterns": [
-            { "include": "#comments" },
-            { "include": "#numbers" },
+            {
+              "include": "#comments"
+            },
+            {
+              "include": "#numbers"
+            },
             {
               "name": "constant.language.unit.8bs",
               "match": "\\bseconds\\b"
             }
           ]
+        },
+        {
+          "comment": "#system(), the compile-time machine (packages/compiler/src/fold): the number of the machine a build is for, to compare with the names @8bitscript/system exports.",
+          "match": "(#system)\\s*(\\()\\s*(\\))",
+          "captures": {
+            "1": {
+              "name": "support.function.compile-time.8bs"
+            },
+            "2": {
+              "name": "punctuation.section.arguments.begin.8bs"
+            },
+            "3": {
+              "name": "punctuation.section.arguments.end.8bs"
+            }
+          }
         },
         {
           "comment": "Any other #name: the compile-time spelling, coloured as such so a reader sees it is not a runtime call (the compiler reports one it does not know).",
@@ -311,5 +350,6 @@
         }
       ]
     }
-  }
+  },
+  "comment": ""
 }

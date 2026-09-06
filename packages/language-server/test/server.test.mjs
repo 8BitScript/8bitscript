@@ -225,6 +225,27 @@ test('textDocument/hover explains #frames(...)', async () => {
   });
 });
 
+test('textDocument/hover explains #system()', async () => {
+  await withServer(async (client) => {
+    await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
+    client.notify('initialized', {});
+
+    const text = 'let x: utinyint = #system();\n';
+    client.notify('textDocument/didOpen', {
+      textDocument: { uri: URI, languageId: '8bitscript', version: 1, text },
+    });
+    await client.waitForNotification('textDocument/publishDiagnostics');
+
+    const response = await client.request('textDocument/hover', {
+      textDocument: { uri: URI },
+      position: positionAt(text, text.indexOf('system') + 2),
+    });
+
+    assert.ok(response.result);
+    assert.match(response.result.contents.value, /the machine this build is for/);
+  });
+});
+
 test('textDocument/hover explains seconds, the unit argument to #frames(...)', async () => {
   await withServer(async (client) => {
     await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });

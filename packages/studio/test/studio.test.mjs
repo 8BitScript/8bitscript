@@ -46,7 +46,7 @@ for (const target of TARGETS) {
 }
 
 // Which tier main() hands studio.start() on a machine, read off the linked
-// IR: System.CURRENT and the Tier names are consts, so every test in the
+// IR: #system() and the Tier names fold to numbers, so every test in the
 // if-chain is a comparison of two folded numbers, which this walks the way
 // the machine would. One entry file, and the machine picks the tier.
 const TIERS = ['VIEWER', 'BASIC', 'FULL'];

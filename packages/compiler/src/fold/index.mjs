@@ -1,4 +1,5 @@
-// The `#frames(...)` compile-time duration fold.
+// The compile-time folds: `#frames(...)`, the duration builtin, and
+// `#system()`, the machine a build is for.
 //
 // `#frames(x, unit)` — x an integer or decimal literal, `unit` the word
 // saying what x is measured in — folds to a plain IntegerLiteral holding
@@ -91,13 +92,34 @@ export const DURATION_CLOCKS = new Map([
   }],
 ]);
 
+/**
+ * The machines `#system()` can name, keyed by the target name `8bs build
+ * --target` accepts, each with the number `#system()` folds to on that
+ * machine. `@8bitscript/system`'s `System` namespace lists the same names
+ * with the same numbers (its test checks them against this map), so
+ * `#system() == System.C64` compares two compile-time numbers. The numbers
+ * are arbitrary and stable: a machine keeps its number when others are
+ * added, so a file that records one stays readable.
+ */
+export const SYSTEMS = new Map([
+  ['web', 0],
+  ['vic20', 1],
+  ['c64', 2],
+  ['pet', 3],
+  ['c128', 4],
+  ['atari8', 5],
+  ['nes', 6],
+  ['cx16', 7],
+  ['mega65', 8],
+]);
+
 /** The `#name` a compile-time call names, or null for anything else. */
 function compileTimeCallName(n) {
   if (n.type !== NodeType.CallExpression || n.callee?.type !== NodeType.Identifier) return null;
   return n.callee.compileTime ? n.callee.name : null;
 }
 
-const KNOWN_COMPILE_TIME = () => [...DURATION_CLOCKS.keys()].map((name) => `#${name}(...)`).join(', ');
+const KNOWN_COMPILE_TIME = () => [...[...DURATION_CLOCKS.keys()].map((name) => `#${name}(...)`), '#system()'].join(', ');
 
 /**
  * Round `numerator/denominator` (both BigInt, denominator > 0) to the
@@ -122,16 +144,52 @@ function roundFraction(numerator, denominator) {
 // never separately flagged as misplaced, and a unit word is never handed to
 // the linker to fail to resolve. Every exit from foldClockCall() goes
 // through here for exactly that reason.
-function replaceWithTickCount(n, clockName, value) {
+function replaceWithTickCount(n, name, value) {
   delete n.callee;
   delete n.args;
   n.type = NodeType.IntegerLiteral;
   n.value = value;
-  n.raw = `#${clockName}(...)`;
+  n.raw = name === 'system' ? '#system()' : `#${name}(...)`;
   n.radix = 10;
 }
 
-const exampleCalls = (clockName) => `#${clockName}(1, seconds) or #${clockName}(0.5, seconds)`;
+const exampleCalls = (name) => (name === 'system'
+  ? '#system()'
+  : `#${name}(1, seconds) or #${name}(0.5, seconds)`);
+
+/**
+ * `#system()`: the machine this build is for, as its number in SYSTEMS.
+ * Takes no arguments. With no machine in hand — `8bs check` and the editor
+ * analyse files, not builds — it folds to 0 and is simply "valid, and
+ * target-dependent", the same answer the resolver gives a `.<machine>.8bs`
+ * file then: only a build can say which machine, and only a build needs to.
+ */
+function foldSystemCall(n, file, machine, diagnostics) {
+  if ((n.args ?? []).length > 0) {
+    diagnostics.push(diagnostic(
+      Codes.SYSTEM_TAKES_NO_ARGUMENTS,
+      '#system() takes no arguments: it is the machine this build is for, and the build already knows which',
+      file, n.start, n.length,
+    ));
+    replaceWithTickCount(n, 'system', 0);
+    return;
+  }
+  if (machine === undefined) {
+    replaceWithTickCount(n, 'system', 0);
+    return;
+  }
+  const value = SYSTEMS.get(machine);
+  if (value === undefined) {
+    diagnostics.push(diagnostic(
+      Codes.NOT_ON_THIS_TARGET,
+      `#system() has no number for '${machine}' — the machines are ${[...SYSTEMS.keys()].join(', ')}`,
+      file, n.start, n.length,
+    ));
+    replaceWithTickCount(n, 'system', 0);
+    return;
+  }
+  replaceWithTickCount(n, 'system', value);
+}
 
 function foldClockCall(n, clockName, file, frameRate, diagnostics) {
   const clock = DURATION_CLOCKS.get(clockName);
@@ -194,26 +252,34 @@ function foldClockCall(n, clockName, file, frameRate, diagnostics) {
 }
 
 /**
- * Fold every compile-time call (`#frames(...)`, see DURATION_CLOCKS) in
- * `ast` into a plain IntegerLiteral, mutating the tree in place, and flag
- * any decimal literal found outside a valid clock-call argument (the
- * language has no other float syntax), any `#name` the compiler doesn't
- * evaluate, and any `#frames` that isn't called.
+ * Fold every compile-time call — `#frames(...)` (see DURATION_CLOCKS) and
+ * `#system()` (see SYSTEMS) — in `ast` into a plain IntegerLiteral,
+ * mutating the tree in place, and flag any decimal literal found outside a
+ * valid clock-call argument (the language has no other float syntax), any
+ * `#name` the compiler doesn't evaluate, and any `#frames` or `#system`
+ * that isn't called.
  *
  * @param {object} ast    Program node from the parser.
  * @param {string} file
- * @param {number} [frameRate] The project's logical frame rate (default
- *   60; already validated positive-integer by the caller — see
- *   packages/cli/src/config.mjs's resolveFrameRate).
+ * @param {{ frameRate?: number, machine?: string }} [options]
+ *   `frameRate` is the project's logical frame rate (default 60; already
+ *   validated positive-integer by the caller — see
+ *   packages/cli/src/config.mjs's resolveFrameRate). `machine` is the
+ *   target being built for, or undefined when a file is being checked
+ *   rather than built (see foldSystemCall).
  * @returns {object[]} diagnostics
  */
-export function foldDurations(ast, file = '<unknown>', frameRate = 60) {
+export function foldCompileTime(ast, file = '<unknown>', { frameRate = 60, machine } = {}) {
   const diagnostics = [];
   if (!ast) return diagnostics;
 
   walk(ast, (n) => {
     const name = compileTimeCallName(n);
     if (name) {
+      if (name === 'system') {
+        foldSystemCall(n, file, machine, diagnostics);
+        return;
+      }
       if (!DURATION_CLOCKS.has(name)) {
         diagnostics.push(diagnostic(
           Codes.UNKNOWN_COMPILE_TIME_FUNCTION,
@@ -231,7 +297,7 @@ export function foldDurations(ast, file = '<unknown>', frameRate = 60) {
       // descends), so this one is bare: `#frames` with no argument list.
       diagnostics.push(diagnostic(
         Codes.UNKNOWN_COMPILE_TIME_FUNCTION,
-        DURATION_CLOCKS.has(n.name)
+        DURATION_CLOCKS.has(n.name) || n.name === 'system'
           ? `'#${n.name}' is a compile-time function and must be called: ${exampleCalls(n.name)}`
           : `'#${n.name}' is not a function the compiler evaluates — the compile-time functions are ${KNOWN_COMPILE_TIME()}`,
         file, n.start, n.length,

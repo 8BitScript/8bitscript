@@ -80,7 +80,7 @@ Do not describe more than this as working:
   (`VICE_CLOCK_HZ.vic20`, 1022727/1108405) with a default of 14 000 000
   cycles — nearly three times the C64's, observed and not explained.
 - `packages/studio/src/main.8bs` starts Studio's basic tier when
-  `System.CURRENT == System.VIC20` (character editing, rudimentary
+  `#system() == System.VIC20` (character editing, rudimentary
   playback once sound exists); every Studio string is kept under 22
   columns for this machine.
 - No hazard entry: no primary source read here documents a VIC-20 write
@@ -390,7 +390,7 @@ packages/backend-6502/src/index.mjs     VIC20_PROFILES/VIC20_MEMORY_EXPANSION (l
 packages/cli/src/run.mjs                VIC20_MEMORY_ARG (xvic -memory), VICE_MODEL_ARGS.vic20 (-model vic20ntsc/vic20pal)
 packages/cli/src/screenshot.mjs         VICE_CLOCK_HZ.vic20, the 14 000 000-cycle default
 packages/compiler/test/vic20-profiles.test.mjs   every profile draws at its geometry; the three twins are identical
-packages/studio/src/main.8bs            Studio's basic tier when System.CURRENT == System.VIC20
+packages/studio/src/main.8bs            Studio's basic tier when #system() == System.VIC20
 docs/setup/vice.md                      installing xvic; the RAM profiles table
 docs/roadmap.md                         Phase 1: the original hardware target
 $LLVM_MOS_HOME/mos-platform/vic20/      link.ld (__memory_expansion, the three regions), vic20.h/_vic.h/_6522.h, libcrt0.a (init-stack-memtop)

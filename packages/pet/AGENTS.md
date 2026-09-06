@@ -105,7 +105,7 @@ Do not describe more than this as working:
   PIA1's two ports are exported from `src/index.8bs` (`pia1PortA` `$E810`,
   `pia1PortB` `$E812`). No buffer, no PETSCII: "is this key down now".
 - `packages/studio/src/main.8bs` starts Studio's basic tier on the PET
-  (`System.CURRENT == System.PET`: character editing, "rudimentary
+  (`#system() == System.PET`: character editing, "rudimentary
   playback" once sound exists).
 
 There is no sound, no *portable* input (the keyboard layer above is the

@@ -37,10 +37,10 @@ Do not describe more than this as working:
   machine gets, and which editors that tier opens — using `@8bitscript/
   screen` and `@8bitscript/text`, nothing else. It builds and runs on all
   nine targets; `8bs run <target> --screenshot` shows it.
-- `src/main.8bs` is the one entry for every machine. It reads
-  `System.CURRENT` from `@8bitscript/system` — a compile-time constant
-  naming the machine being built for — and hands `studio.start()` the
-  tier: the viewer tier on the NES, the basic tier on the VIC-20 and PET,
+- `src/main.8bs` is the one entry for every machine. It compares
+  `#system()` — the compile-time builtin naming the machine being built
+  for — with the names `@8bitscript/system` exports, and hands
+  `studio.start()` the tier: the viewer tier on the NES, the basic tier on the VIC-20 and PET,
   the full tier everywhere else. The other machines' branches fold away
   on any one build (`test/studio.test.mjs` reads the tier off the linked
   IR for each target). There used to be a `main.<target>.8bs` per lower
@@ -103,7 +103,7 @@ Two rules follow from the table and must survive any redesign:
 2. **A tier is a property of the build, chosen once, in `main.8bs`.**
    Studio never probes the machine at runtime to decide what it can do;
    the build already knows which machine it is for, and `main.8bs` picks
-   the tier from `System.CURRENT`. Keep the tier a compile-time constant
+   the tier from `#system()`. Keep the tier a compile-time constant
    (`Tier.FULL` and the others are namespace consts, inlined by the
    compiler). When the capability packages publish their facts
    (`sprites.COUNT`, a sound package's voice count, whether storage

@@ -14,7 +14,7 @@
 // shape is a dead end.
 import { tokenize, TokenKind } from '../lexer/index.mjs';
 import { PRIMITIVE_INTEGER_TYPES, resolveIntegerType } from '../types/index.mjs';
-import { DURATION_CLOCKS, DURATION_UNITS } from '../fold/index.mjs';
+import { DURATION_CLOCKS, DURATION_UNITS, SYSTEMS } from '../fold/index.mjs';
 
 /** Insert thousands separators without touching locale/ICU: `-8388608` -> `-8,388,608`. */
 function formatNumber(n) {
@@ -143,6 +143,26 @@ const FRAMES_DOC = [
   'The `#` says 8bitscript evaluates this before any target toolchain runs; a plain `name(...)` always runs on the machine. Nothing is reserved: `#frames` is its own token, and the unit word is only a unit in this argument position.',
 ].join('\n');
 
+/** `#system()`: the machine this build is for (packages/compiler/src/fold). */
+const SYSTEM_DOC = [
+  '**#system()**',
+  '',
+  'Compile-time: the machine this build is for, as a number. Compare it with the names `@8bitscript/system` exports — `if (#system() == System.NES) { ... }` — and the other machines\' branches fold away in the generated code. Takes no arguments: the build already knows which machine.',
+  '',
+  `The machines, in the order \`8bs build --target\` lists them: ${[...SYSTEMS.keys()].map((name) => `\`${name}\``).join(', ')}. With no machine in hand — \`8bs check\`, this editor — the call is valid and target-dependent, like a \`.<machine>.8bs\` file.`,
+  '',
+  'Prefer a fact to the name where one exists: `text.COLUMNS` is right on a machine this list has never heard of; `#system() == System.PET` says nothing about a C128 in 80 columns.',
+].join('\n');
+
+/** Every `#name` the compiler evaluates, with what completion says about it. */
+const COMPILE_TIME_DOCS = {
+  // `insert` is what goes into the buffer after a `#` the user has typed;
+  // when the lexer already made a `#name` token the whole token is
+  // replaced, by the label itself unless `insert` adds something to it.
+  frames: { detail: 'Compile-time duration, as a frame count.', documentation: FRAMES_DOC, insert: 'frames' },
+  system: { detail: 'Compile-time: the machine this build is for.', documentation: SYSTEM_DOC, insert: 'system()' },
+};
+
 /** The units a `#frames(...)` duration can be written in, keyed as DURATION_UNITS is. */
 const UNIT_DOCS = {};
 
@@ -201,8 +221,8 @@ function tokenIndexAt(tokens, offset) {
  * Recognises primitive integer types (canonical spellings like `utinyint` and
  * `int`, or their low-level `u8`/`i32`-style aliases),
  * `volatile`/`ptr`/`array`, `asm6502`, `@address`, the `memory.read`/
- * `memory.write` intrinsic, and the `#frames(...)` (with its `seconds` unit)
- * and `waitFrame()` builtins — every built-in this milestone documents. Anything else,
+ * `memory.write` intrinsic, and the `#frames(...)` (with its `seconds` unit),
+ * `#system()`, and `waitFrame()` builtins — every built-in this milestone documents. Anything else,
  * including a user's own identifiers or namespace, returns `null`: there is
  * no binder yet to say what they mean.
  *
@@ -264,6 +284,9 @@ function hoverAt(tokens, offset, text) {
   // namespace to require — any bare occurrence means the builtin.
   if (token.kind === TokenKind.CompileTime && DURATION_CLOCKS.has(token.text.slice(1))) {
     return { start: token.start, length: token.length, markdown: FRAMES_DOC };
+  }
+  if (token.kind === TokenKind.CompileTime && token.text === '#system') {
+    return { start: token.start, length: token.length, markdown: SYSTEM_DOC };
   }
   // The unit word is *not* reserved — it only means the unit in the second
   // argument slot of a clock call, `#frames(0.5, seconds)`, so the hover has
@@ -389,15 +412,18 @@ function completionsAt(tokens, offset, text) {
 
   const compileTime = compileTimePosition(tokens, offset, text);
   if (compileTime) {
-    return [...DURATION_CLOCKS.keys()].map((name) => ({
+    return Object.entries(COMPILE_TIME_DOCS).map(([name, doc]) => ({
       label: `#${name}`,
       kind: 'function',
       sortRank: 0,
-      detail: 'Compile-time duration, as a frame count.',
-      documentation: FRAMES_DOC,
+      detail: doc.detail,
+      documentation: doc.documentation,
       // The `#` is already in the buffer unless the lexer made a token of
-      // it, in which case the whole `#name` is what gets replaced.
-      ...(compileTime.replacing ? {} : { insertText: name }),
+      // it, in which case the whole `#name` is what gets replaced — by the
+      // label, unless the insertion adds the call's parentheses.
+      ...(compileTime.replacing
+        ? (doc.insert === name ? {} : { insertText: `#${doc.insert}` })
+        : { insertText: doc.insert }),
     }));
   }
 

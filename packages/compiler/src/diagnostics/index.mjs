@@ -104,6 +104,8 @@ export const Codes = {
   // BorderColor.BLACK`) is a compile-time value 8bitscript fills in at the
   // call, so every call the machine sees is complete.
   WRONG_ARGUMENT_COUNT: '8BS1035',
+  // `#system(...)` called with arguments: it takes none (see the fold pass).
+  SYSTEM_TAKES_NO_ARGUMENTS: '8BS1036',
 
   UNRESOLVED_PACKAGE: '8BS2001',
   NOT_AN_8BS_PACKAGE: '8BS2002',
