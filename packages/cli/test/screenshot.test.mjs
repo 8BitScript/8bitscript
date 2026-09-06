@@ -126,7 +126,7 @@ test(
 // shows the menu instead of the program. This is the case that regressed
 // silently once, so it stays covered here.
 test(
-  'atari8: --hardware model=xegs builds a cartridge and screenshots it',
+  'atari8: --hardware media=xegs256 builds a cartridge and screenshots it',
   { skip: (!HAS_SDK && 'LLVM_MOS_HOME not set') || (process.platform !== 'darwin' && 'macOS only') },
   async (t) => {
     if (!onPath('atari800')) { t.skip('atari800 not on PATH'); return; }
@@ -134,11 +134,11 @@ test(
     try {
       const shot = join(scratch, 'out.png');
       const { code, stdout, stderr } = await runCli(
-        ['run', 'atari8', '--hardware', 'model=xegs', '--screenshot', shot],
+        ['run', 'atari8', '--hardware', 'media=xegs256', '--screenshot', shot],
         { timeoutMs: 30_000 },
       );
-      assert.equal(code, 0, `8bs run atari8 --hardware model=xegs --screenshot failed:\n${stdout}${stderr}`);
-      assert.match(stdout, /built .*-atari8-xegs-ntsc\.rom/, 'XEGS build did not produce a .rom named for the model');
+      assert.equal(code, 0, `8bs run atari8 --hardware media=xegs256 --screenshot failed:\n${stdout}${stderr}`);
+      assert.match(stdout, /built .*-atari8-xegs256-ntsc\.rom/, 'XEGS build did not produce a .rom named for the medium');
       assert.ok(isPng(shot), 'output is not a valid PNG');
     } finally {
       await rm(scratch, { recursive: true, force: true });

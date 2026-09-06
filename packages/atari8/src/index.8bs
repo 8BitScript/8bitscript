@@ -78,3 +78,73 @@ export let textColorShadow: volatile<u8>;
 // cursor-free screen whichever of the two it calls first.
 @address(0x02F0)
 export let cursorInhibit: volatile<u8>;
+
+// ---- the registers the layers above this file are built on ------------------
+//
+// Everything below is imported by one of this package's own hardware layers —
+// ./joystick.8bs, ./console.8bs, ./keyboard.8bs, ./pokey.8bs, ./random.8bs —
+// and a program that imports none of them links none of this. Each layer's
+// own file says what it does with these and why; this file only says where
+// they are.
+//
+// Two of them are the same address twice, which is not a mistake. On this
+// machine several I/O locations are one register when read and a completely
+// different one when written — GTIA's CONSOL, POKEY's KBCODE/STIMER and
+// SKSTAT/SKCTL — so each direction gets its own name and the layer that uses
+// it cannot pick the wrong one by accident.
+
+// $004D, ATRACT — the OS's attract-mode counter. Its VBI counts this up and,
+// once it passes a threshold (roughly nine minutes), starts cycling the
+// playfield colours to spare the phosphor. The OS zeroes it on a keypress, so
+// only a program read with a joystick has to; @8bitscript/atari8/joystick's
+// scan() does, every frame.
+@address(0x004D)
+export let attract: volatile<u8>;
+
+// $02FC, CH — the last key the OS's keyboard handler decoded, $FF for
+// "nothing new". A program consumes a key by writing $FF back.
+@address(0x02FC)
+export let chShadow: volatile<u8>;
+
+// $D01F read: GTIA's CONSOL as the three console keys, bits 0/1/2 =
+// START/SELECT/OPTION, 0 while pressed.
+@address(0xD01F)
+export let consolRead: volatile<u8>;
+
+// $D01F written: the same address as the console speaker. Bit 3 low pushes
+// the cone; $08 is its resting state.
+@address(0xD01F)
+export let consolWrite: volatile<u8>;
+
+// $D209 read: POKEY's KBCODE, the raw scan code of the last key, with SHIFT
+// in bit 6 and CTRL in bit 7. (Writing this address is STIMER instead, which
+// nothing here does.)
+@address(0xD209)
+export let kbcode: volatile<u8>;
+
+// $D20F read: POKEY's SKSTAT. Its keyboard bits are active low — bit 2 is 0
+// while the last key is still held, bit 3 is 0 while SHIFT is held. (Writing
+// this address is SKCTL, which nothing here does: the OS leaves it at $03 to
+// keep POKEY's keyboard scan and debounce running, and a program that
+// overwrites it breaks its own keyboard.)
+@address(0xD20F)
+export let skstat: volatile<u8>;
+
+// $D208, POKEY's AUDCTL — the global audio control: clock choice, the
+// high-pass links, the 16-bit channel joins. Per-voice AUDF/AUDC are
+// $D200-$D207 and @8bitscript/atari8/pokey reaches them by offset from a
+// base rather than as eight names.
+@address(0xD208)
+export let audctl: volatile<u8>;
+
+// $D20A read: POKEY's RANDOM, a sample of the free-running 17-bit polynomial
+// counter. Behind @8bitscript/atari8/random and deliberately nowhere else.
+@address(0xD20A)
+export let randomRegister: volatile<u8>;
+
+// $D014 read: GTIA's PAL register, the TV standard this machine was built
+// for. A PAL machine answers 1 in the low bits, an NTSC one 14 or 15
+// (atari800 returns $01 and $0F). One binary reads it at start-up and adapts,
+// the way the frame runtime already does.
+@address(0xD014)
+export let palRegister: volatile<u8>;

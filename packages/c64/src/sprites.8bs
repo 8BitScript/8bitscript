@@ -58,8 +58,9 @@ import {
     spritePositions, spriteXHigh, spriteEnable, spriteExpandX, spriteExpandY,
     spritePriority, spriteMulticolor, spriteCollision, spriteBackgroundCollision,
     spriteSharedColor0, spriteSharedColor1, spriteColors, setupVideo,
+    videoMode, VideoMode, writeUnderIo,
 } from "./index.8bs";
-import { Video, spritePointers, spriteShapes } from "./geometry.8bs";
+import { Video, Bitmap, spritePointers, spriteShapes } from "./geometry.8bs";
 
 
 // Bit masks, indexed rather than shifted: `1 << n` with a variable n is a
@@ -95,9 +96,31 @@ export namespace sprites {
         }
     }
 
-    // Draw sprite `index` from shape block `block` (FIRST_BLOCK and up).
+    // Draw sprite `index` from shape block `block` (FIRST_BLOCK and up; in
+    // bitmap mode, Bitmap.SHAPE_BLOCK_FIRST and up). The pointer is at
+    // screen + $3F8 wherever the screen matrix is: $E3F8 in text mode,
+    // $DFF8 under the I/O area in bitmap mode.
     function setShape(index: utinyint, block: utinyint): void {
-        spritePointers[index] = block;
+        if (videoMode == VideoMode.BITMAP) {
+            writeUnderIo(Bitmap.SPRITE_POINTERS + index, block);
+        } else {
+            spritePointers[index] = block;
+        }
+    }
+
+    // Byte `i` (0-62) of shape block `block`, wherever the block is:
+    // blocks 144-254 are `spriteShapes` in plain RAM, blocks 96-111 are
+    // under the I/O area (for sprites over a bitmap) and each byte is its
+    // own window there. A shape copy loop can use this for either. Any
+    // other block is refused: below 64 is the program's own RAM, 64-95
+    // the upper-case character set, 112-143 the text screen (or the
+    // bitmap's colour matrix), 255 the CPU's vectors.
+    function setShapeByte(block: utinyint, i: utinyint, value: utinyint): void {
+        if (block >= Video.SHAPE_BLOCK_FIRST && block < Video.SHAPE_BLOCK_FIRST + Video.SHAPE_COUNT) {
+            spriteShapes[sprites.blockOffset(block) + i] = value;
+        } else if (block >= Bitmap.SHAPE_BLOCK_FIRST && block < Bitmap.SHAPE_BLOCK_FIRST + Bitmap.SHAPE_COUNT) {
+            writeUnderIo(Video.BANK + block * 64 + i, value);
+        }
     }
 
     function setColor(index: utinyint, color: utinyint): void {

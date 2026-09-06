@@ -98,10 +98,12 @@ does not go away.
 
 Add: `atari8`, `nes`.
 
-`atari8` covers the Atari 400, 800, XL, XE and XEGS-style environments.
-LLVM-MOS supports Atari 8-bit DOS executables plus standard, XEGS and MegaCart
-cartridge formats. Its NES support already includes several mapper targets,
-among them NROM, UNROM, MMC1 and MMC3.
+`atari8` covers the Atari 400, 800, 1200XL, XL, XE and XEGS-style
+environments, chosen with the catalog's `model` option; all four of LLVM-MOS's
+Atari formats are wired up on a second, independent `media` axis — DOS
+executables plus standard, XEGS and MegaCart cartridges, fourteen values in
+all. Its NES support already includes several mapper targets, among them
+NROM, UNROM, MMC1 and MMC3, of which only NROM is wired up here.
 
 ```
              8BitScript

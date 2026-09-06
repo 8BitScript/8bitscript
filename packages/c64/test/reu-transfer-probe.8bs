@@ -1,0 +1,39 @@
+// REU transfers, run for real: the screen filled with a solid glyph,
+// stashed into bank 1, blanked, verified different, fetched back, verified
+// the same; a row filled through the REU and a row swapped with it. Green
+// border when every check passes, red otherwise (and red on a C64 with no
+// REU, where nothing is tried). See test/layers.test.mjs.
+import { screen, BorderColor, BackgroundColor } from "../src/screen.8bs";
+import { text, TextColor } from "../src/text.8bs";
+import { reu } from "../src/reu.8bs";
+import { screenRam } from "../src/geometry.8bs";
+
+export function main(): void {
+    screen.blank(BorderColor.BLUE, BackgroundColor.BLACK);
+    text.setColor(TextColor.WHITE);
+    let color: u8 = 2;
+    let kib: u16 = reu.detect();
+    if (kib != 0) {
+        for (let cell: u16 = 0; cell < 1000; cell++) {
+            screenRam[cell] = 160;
+        }
+        reu.stash(0xE000, 1, 0x1000, 1000);
+        for (let cell: u16 = 0; cell < 1000; cell++) {
+            screenRam[cell] = 32;
+        }
+        let differ: bool = !reu.verify(0xE000, 1, 0x1000, 1000);
+        reu.fetch(0xE000, 1, 0x1000, 1000);
+        let same: bool = reu.verify(0xE000, 1, 0x1000, 1000);
+        reu.fillReu(1, 0x2000, 40, 32);
+        reu.fetch(0xE000, 1, 0x2000, 40);   // row 0 blank
+        reu.swap(0xE028, 1, 0x2000, 40);    // row 1 blank, the REU holds row 1's glyphs
+        if (differ && same && screenRam[0] == 32 && screenRam[40] == 32 && screenRam[80] == 160) {
+            color = 5;
+        }
+        text.print(0, `REU ${kib:5} KIB`);
+    }
+    screen.setBorder(color);
+    while (true) {
+        waitFrame();
+    }
+}

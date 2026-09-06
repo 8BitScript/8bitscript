@@ -47,7 +47,7 @@ test('the catalog defaults are the stock machine: no tags, no build values, and 
   assert.equal(stock.hardware.label, 'stock');
   assert.deepEqual(Object.keys(loadCatalog('vic20').presets), ['unexpanded', '3k', '8k', '16k', '24k']);
   assert.deepEqual(Object.keys(loadCatalog('pet').presets).sort(), ['3008', '3016', '3032', '4016', '4032', '8032']);
-  assert.deepEqual(Object.keys(loadCatalog('atari8').presets).sort(), ['130xe', '400', '65xe', '800', '800xl', 'xegs']);
+  assert.deepEqual(Object.keys(loadCatalog('atari8').presets).sort(), ['1200xl', '130xe', '400', '65xe', '800', '800xl', 'xegs']);
   assert.ok(Object.keys(loadCatalog('c64').presets).includes('reu512'));
 });
 
@@ -76,15 +76,82 @@ test('the PET model is a build (RAM), a run flag, a tag, and facts', () => {
   assert.equal(stock.facts['video.columns'], 40);
 });
 
-test('the Atari XEGS changes the driver, the output, and how atari800 loads the file', () => {
-  const { hardware } = resolveHardware(loadCatalog('atari8'), { profile: 'xegs' });
+test('the Atari splits the machine from the medium: `model` picks the atari800 model, `media` picks the driver, the ROM size and the cartridge type', () => {
+  const catalog = loadCatalog('atari8');
+
+  // Stock: an 800XL loading a .xex, which is the SDK's own dos driver and
+  // needs no build block at all.
+  const stock = resolveHardware(catalog).hardware;
+  assert.equal(stock.build.driver, undefined);
+  assert.deepEqual(stock.build.defsym, {});
+  assert.deepEqual(loadArgs(stock, 'atari800', '/x/m.xex', ['-run', '/x/m.xex']), ['-run', '/x/m.xex']);
+  assert.deepEqual(stock.run.atari800, ['-xl', '-mouse', 'off', '-mouseport', '1']);
+  assert.equal(stock.facts['storage.save'], true, 'a .xex under a DOS can save through CIO');
+  assert.equal(stock.facts['memory.ram'], 40960);
+  assert.equal(stock.facts['input.joysticks'], 2);
+
+  // The `xegs` preset is one value on each axis — the console with a 256K
+  // cartridge in it — which is what `--profile xegs` meant before the split.
+  const { hardware } = resolveHardware(catalog, { profile: 'xegs' });
+  assert.deepEqual(hardware.options.model, 'xegs');
+  assert.deepEqual(hardware.options.media, 'xegs256');
   assert.equal(hardware.build.driver, 'mos-atari8-cart-xegs-clang');
   assert.equal(hardware.build.output, 'rom');
+  assert.deepEqual(hardware.build.defsym, { __cart_rom_size: 256 });
   assert.deepEqual(loadArgs(hardware, 'atari800', '/x/m.rom', ['-run', '/x/m.rom']), ['-cart', '/x/m.rom', '-cart-type', '23']);
-  const stock = resolveHardware(loadCatalog('atari8')).hardware;
-  assert.equal(stock.build.driver, undefined);
-  assert.deepEqual(loadArgs(stock, 'atari800', '/x/m.xex', ['-run', '/x/m.xex']), ['-run', '/x/m.xex']);
-  assert.deepEqual(stock.run.atari800, ['-xl', '-mouse', 'off']);
+  assert.deepEqual(hardware.run.atari800, ['-xegs', '-mouse', 'off', '-mouseport', '1']);
+
+  // Every medium: the driver that links it, the __cart_rom_size its link
+  // script asserts on (the std cartridge script has no PROVIDE for it, so
+  // the defsym is not optional there), and the atari800 -cart-type that
+  // matches the image size — a raw cartridge image has no header, so
+  // without the type the emulator stops at its "Select Cartridge Type" menu.
+  const MEDIA = {
+    cart8: ['mos-atari8-cart-std-clang', 8, '1'],
+    cart16: ['mos-atari8-cart-std-clang', 16, '2'],
+    xegs32: ['mos-atari8-cart-xegs-clang', 32, '12'],
+    xegs64: ['mos-atari8-cart-xegs-clang', 64, '13'],
+    xegs128: ['mos-atari8-cart-xegs-clang', 128, '14'],
+    xegs256: ['mos-atari8-cart-xegs-clang', 256, '23'],
+    xegs512: ['mos-atari8-cart-xegs-clang', 512, '24'],
+    mega16: ['mos-atari8-cart-megacart-clang', 16, '26'],
+    mega32: ['mos-atari8-cart-megacart-clang', 32, '27'],
+    mega64: ['mos-atari8-cart-megacart-clang', 64, '28'],
+    mega128: ['mos-atari8-cart-megacart-clang', 128, '29'],
+    mega256: ['mos-atari8-cart-megacart-clang', 256, '30'],
+    mega512: ['mos-atari8-cart-megacart-clang', 512, '31'],
+  };
+  for (const [media, [driver, size, type]] of Object.entries(MEDIA)) {
+    const h = resolveHardware(catalog, { overrides: { media } }).hardware;
+    assert.equal(h.build.driver, driver, media);
+    assert.equal(h.build.output, 'rom', media);
+    assert.deepEqual(h.build.defsym, { __cart_rom_size: size }, media);
+    assert.deepEqual(loadArgs(h, 'atari800', '/x/m.rom', ['-run', '/x/m.rom']), ['-cart', '/x/m.rom', '-cart-type', type], media);
+    // A cartridge links against the SDK's $0700-$1FFF window and has no
+    // writable storage of its own.
+    assert.equal(h.facts['memory.ram'], 6400, media);
+    assert.equal(h.facts['storage.save'], false, media);
+    assert.deepEqual(h.buildValues, [media], `${media} is the one value that changes the build, so it names the output`);
+  }
+});
+
+test('the Atari model axis is run-only: every model links the same .xex, and only 400/800 have four joystick ports', () => {
+  const catalog = loadCatalog('atari8');
+  const FLAG = {
+    400: '-atari', 800: '-atari', '1200xl': '-1200', '800xl': '-xl', '65xe': '-xl', '130xe': '-xe', xegs: '-xegs',
+  };
+  for (const [model, flag] of Object.entries(FLAG)) {
+    const h = resolveHardware(catalog, { overrides: { model } }).hardware;
+    assert.deepEqual(h.run.atari800, [flag, '-mouse', 'off', '-mouseport', '1'], model);
+    assert.equal(h.build.driver, undefined, `${model} still links the stock .xex driver`);
+    assert.deepEqual(h.buildValues, [], `${model} changes nothing about the build, so it never names the output`);
+    assert.equal(h.facts['input.joysticks'], model === '400' || model === '800' ? 4 : 2, model);
+  }
+  // Only the 130XE has extended RAM, and only it names a probe for it.
+  const xe = resolveHardware(catalog, { overrides: { model: '130xe' } }).hardware;
+  assert.equal(xe.facts['memory.banked'], true);
+  assert.equal(xe.facts['memory.bankedKib'], 64);
+  assert.equal(resolveHardware(catalog, { overrides: { model: '800xl' } }).hardware.facts['memory.banked'], false);
 });
 
 test('--hardware sets options on top of a profile; a mouse in a port is a fact', () => {
@@ -207,6 +274,7 @@ test('every detect names a subpath its own machine package really exports, on th
   assert.deepEqual(found, [
     // On the option: one probe finds every value of it.
     'c64 ram -> @8bitscript/c64/reu',
+    'c128 vdc -> @8bitscript/c128/vdc',
     'cx16 ram -> @8bitscript/cx16/banks',
     // On one value: its siblings are a different build, or nothing to find.
     'c64 port1=mouse1351 -> @8bitscript/c64/mouse',

@@ -1,0 +1,142 @@
+// @8bitscript/c64/charset — the character set is RAM: redefine it.
+//
+// Named by "8bitscript".exports["./charset"] in this package's package.json:
+//
+//     import { charset } from "@8bitscript/c64/charset";
+//
+//     // Screen code 1 ('A' as text prints it) becomes a solid block with a hole.
+//     charset.define(1, 0xFF, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0xFF);
+//     charset.copy(2, 1);             // and code 2 the same
+//     charset.restore();              // the ROM's glyphs again
+//
+// The set the VIC draws text from is this package's copy of the character
+// ROM in the RAM under the I/O area ($D000, ./geometry.8bs), and a copy is
+// writable: a program's own tiles, a font, a map's terrain are glyphs
+// written over the ROM's, each 8 bytes — one byte a pixel row, bit 7 the
+// left pixel — at `Video.CHARSET + 8 * code`. The upper-case set (256
+// glyphs at $D000-$D7FF) is the one @8bitscript/text selects on every
+// print, so it is the one to define into: codes 1-26 are what text prints
+// for 'A'-'Z', 32-63 the digits and punctuation, 64-127 the graphics, and
+// 128-255 the same in reverse video. A program that never prints text is
+// free to use all 256.
+//
+// Every write here is a window with the I/O area banked out (./index.8bs,
+// writeUnderIo): `define` is one window for a glyph's 8 bytes, `copy`
+// one for 8 reads and 8 writes. With the raster interrupt on, each window
+// is a few dozen cycles that frame's entries wait for; `restore` is a
+// second ROM copy (about four frames of window) — do it before
+// raster.enable(), or accept the frame.
+//
+// Multicolour text ($D016 bit 4, `charset.setMulticolor`): in a cell whose
+// colour RAM nybble has bit 3 set, pixels are pairs — %00 the background,
+// %01 $D022, %10 $D023, %11 the low three bits of the cell's colour — and
+// a cell without bit 3 is drawn hi-res in that colour, so one screen mixes
+// both. `useLowercase` selects the ROM's other set at $D800 for a program
+// that wants it; @8bitscript/text's next print selects upper-case again.
+import {
+    control2, memoryPointer, backgroundColor1, backgroundColor2,
+    setupVideo, copyCharacterRom, videoMode, VideoMode, bankIoOut, bankIoIn, readUnderIo,
+} from "./index.8bs";
+import { Video } from "./geometry.8bs";
+
+export namespace charset {
+    const COUNT: usmallint = 256;
+    const BYTES: utinyint = 8; // a glyph: one byte a row
+
+    // Where glyph `code`'s 8 bytes start, in the upper-case set.
+    function offset(code: utinyint): usmallint {
+        return Video.CHARSET + code * 8;
+    }
+
+    // Glyph `code` becomes the eight rows given, top to bottom.
+    function define(code: utinyint, row0: utinyint, row1: utinyint, row2: utinyint, row3: utinyint, row4: utinyint, row5: utinyint, row6: utinyint, row7: utinyint): void {
+        setupVideo();
+        let at: usmallint = charset.offset(code);
+        bankIoOut();
+        memory.write(at, row0);
+        memory.write(at + 1, row1);
+        memory.write(at + 2, row2);
+        memory.write(at + 3, row3);
+        memory.write(at + 4, row4);
+        memory.write(at + 5, row5);
+        memory.write(at + 6, row6);
+        memory.write(at + 7, row7);
+        bankIoIn();
+    }
+
+    // One row of glyph `code`.
+    function setRow(code: utinyint, row: utinyint, bits: utinyint): void {
+        setupVideo();
+        bankIoOut();
+        memory.write(charset.offset(code) + (row & 7), bits);
+        bankIoIn();
+    }
+
+    // Read one row back.
+    function readRow(code: utinyint, row: utinyint): utinyint {
+        setupVideo();
+        return readUnderIo(charset.offset(code) + (row & 7));
+    }
+
+    // Glyph `target` becomes a copy of glyph `source`.
+    function copy(target: utinyint, source: utinyint): void {
+        setupVideo();
+        let sourceAt: usmallint = charset.offset(source);
+        let targetAt: usmallint = charset.offset(target);
+        bankIoOut();
+        for (let i: utinyint = 0; i < 8; i++) {
+            memory.write(targetAt + i, memory.read(sourceAt + i));
+        }
+        bankIoIn();
+    }
+
+    // Every row of glyph `code` the same byte: 0 blank, 255 solid.
+    function fill(code: utinyint, bits: utinyint): void {
+        setupVideo();
+        let at: usmallint = charset.offset(code);
+        bankIoOut();
+        for (let i: utinyint = 0; i < 8; i++) {
+            memory.write(at + i, bits);
+        }
+        bankIoIn();
+    }
+
+    // The ROM's glyphs again, both sets — all 4K under the I/O area, so
+    // in bitmap mode this also overwrites the colour matrix and the shape
+    // blocks that live there: leave bitmap mode first.
+    function restore(): void {
+        setupVideo();
+        copyCharacterRom();
+    }
+
+    // Multicolour text mode on or off (see the header).
+    function setMulticolor(on: bool): void {
+        if (on) {
+            control2 = control2 | 0x10;
+        } else {
+            control2 = control2 & 0xEF;
+        }
+    }
+
+    // The two shared multicolour text colours ($D022, $D023).
+    function setSharedColors(color1: utinyint, color2: utinyint): void {
+        backgroundColor1 = color1 & 15;
+        backgroundColor2 = color2 & 15;
+    }
+
+    // The ROM's lower-case set (text mode only; the next text print
+    // selects upper-case again).
+    function useLowercase(): void {
+        setupVideo();
+        if (videoMode == VideoMode.TEXT) {
+            memoryPointer = Video.MEMORY_POINTER_LOWERCASE;
+        }
+    }
+
+    function useUppercase(): void {
+        setupVideo();
+        if (videoMode == VideoMode.TEXT) {
+            memoryPointer = Video.MEMORY_POINTER_UPPERCASE;
+        }
+    }
+}

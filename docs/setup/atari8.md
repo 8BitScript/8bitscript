@@ -74,16 +74,61 @@ attempt to verify a real boot the way the VIC-20 check on the VICE page does.
 8bs run atari8 --profile 130xe --pal
 ```
 
-The `model` option's values carry atari800's own machine-model flag —
-verified against atari800's `DOC/USAGE`: `-atari` for 800/400, `-xl` for
-800XL and 65XE (electrically and OS-compatible, so they share a flag),
-`-xe` for 130XE, `-xegs` for XEGS. Every model but the XEGS is a `.xex`
-handed over with `-run`; the XEGS value links a 256 KiB cartridge image
-with the SDK's XEGS driver and loads it with `-cart <file.rom> -cart-type
-23`, because a raw image of that size matches eight of atari800's
-cartridge types and without the type it stops at a menu. Two more
-options: `mouse` (`st`, `amiga`, `trak` in a joystick port, off by
-default) and `stereo` (a second POKEY).
+The Atari's variety runs on two axes in the catalog, and they are
+deliberately separate options: `model` is the *machine*, `media` is how the
+program is *delivered*. They are independent — a standard cartridge runs on
+an 800XL as happily as on an XEGS console — and folding them together is
+what the catalog used to do wrong.
+
+`model` values carry atari800's own machine-model flag, verified against
+atari800's `DOC/USAGE`: `-atari` for 800 and 400, `-1200` for the 1200XL,
+`-xl` for 800XL and 65XE (electrically and OS-compatible, so they share a
+flag), `-xe` for 130XE, `-xegs` for the XEGS console. Nothing on this axis
+changes the build — every model links the same `.xex` — so it never appears
+in the output filename. What it does change is the fact sheet: the 400 and
+800 have four joystick ports where every XL and XE has two, and only the
+130XE has extended RAM (found at run time by
+[`@8bitscript/atari8/banks`](../packages.md)).
+
+`media` is the axis that changes the build — the driver, the link address,
+the RAM budget and the image — so its value names the output file:
+
+| `media` | Links with | Image | Loaded as |
+| ------- | ---------- | ----- | --------- |
+| `xex` (default) | `mos-atari8-dos-clang` | `.xex`, program at `$2000`–`$BFFF` | `-run <file.xex>` |
+| `cart8`, `cart16` | `mos-atari8-cart-std-clang` | 8 KiB at `$A000` / 16 KiB at `$8000` | `-cart-type 1` / `2` |
+| `xegs32` … `xegs512` | `mos-atari8-cart-xegs-clang` | 32–512 KiB, 8 KiB banks at `$8000` + a fixed bank at `$A000` | `-cart-type 12/13/14/23/24` |
+| `mega16` … `mega512` | `mos-atari8-cart-megacart-clang` | 16–512 KiB in 16 KiB banks over `$8000`–`$BFFF` | `-cart-type 26`–`31` |
+
+Every cartridge medium passes `__cart_rom_size` as a link symbol — the
+standard-cartridge link script has no default for it and will not link
+without one — and names its atari800 `-cart-type` explicitly, because a raw
+cartridge image carries no header: a 256 KiB file matches eight of
+atari800's types, and without the type the emulator stops at its "Select
+Cartridge Type" menu instead of running anything. A cartridge also links
+against a much smaller RAM window (`$0700`–`$1FFF`, 6400 bytes, against the
+`.xex`'s 40960) and has no writable storage of its own, both of which are on
+its fact sheet.
+
+```bash
+8bs run atari8 --hardware media=cart8            # an 8K cartridge on an 800XL
+8bs run atari8 --hardware model=800,media=cart16 # ... a 16K one on an 800
+8bs run atari8 --profile xegs                    # the console with a 256K XEGS cart
+```
+
+Two more axes cover what is plugged in. `mouse` is the pointing device, one
+value per atari800 `-mouse` kind, and which fact it sets follows what the
+device is really wired to: `st`, `amiga` and `trak` are quadrature on a
+joystick port's *direction bits* (`input.mouse`); `paddles`, `touch` and
+`koala` are analogue on POKEY's POT lines (`input.paddles`); `pen` and `gun`
+are ANTIC's light-pen registers, which the fact sheet has no key for; `joy`
+is the host mouse pretending to be a stick. `mouseport` (`1`–`4`) says which
+port it is in — which matters, because a mouse or Trak-Ball in the port a
+program scans as a joystick *is* that joystick, and its motion reads as
+directions pushed. Put them in different ports, or do not scan the pointer's
+port as a stick.
+
+`stereo` fits a second POKEY.
 
 ## Next
 

@@ -1,0 +1,78 @@
+// The C128 SID layer, run for real. A sound chip cannot be checked from a
+// screenshot by listening to it, so this asks the chip the only two
+// questions it will answer — voice 3's oscillator and its envelope — and
+// puts the answers where a screenshot can read them.
+//
+//   the border      green when voice 3's noise oscillator gave different
+//                   values on different frames *and* its envelope rose
+//                   after the gate went on: the chip is clocked, the
+//                   writes landed, and the envelope generator is running.
+//                   Red if either failed
+//   the background  blue on a PAL machine, black on an NTSC one, from
+//                   sid.detectRegion() — which on the C128 is a read of
+//                   the KERNAL's own $0A03 flag, so this doubles as the
+//                   check that the flag means what it is documented to
+//
+// See test/sid.test.mjs, which runs it as both machines.
+import { screen } from "../src/screen.8bs";
+import { text } from "../src/text.8bs";
+import { sid, Waveform, Note } from "../src/sid.8bs";
+import { Region } from "../src/index.8bs";
+
+export function main(): void {
+    screen.blank();
+
+    let region: utinyint = sid.detectRegion();
+
+    sid.reset();
+    sid.setVolume(15);
+
+    // Voice 3 (index 2) as the instrument under test: noise, a fast
+    // envelope that climbs to full sustain, and a high oscillator rate so
+    // the noise register moves quickly between frames.
+    sid.setEnvelope(2, 0, 0, 15, 0);
+    sid.setFrequency(2, 0x4000);
+    sid.setWaveform(2, Waveform.NOISE);
+    sid.gateOn(2);
+
+    let first: utinyint = sid.oscillator3();
+    waitFrame();
+    let second: utinyint = sid.oscillator3();
+    waitFrame();
+    let third: utinyint = sid.oscillator3();
+    let envelope: utinyint = sid.envelope3();
+
+    // And a real note on voice 1, so something is actually playing while
+    // the screenshot is taken.
+    sid.setEnvelope(0, 0, 9, 12, 6);
+    sid.setWaveform(0, Waveform.PULSE);
+    sid.setPulseWidth(0, 2048);
+    sid.play(0, Note.A4);
+
+    text.print(0, "SID PROBE");
+    text.print(40, "REGION");
+    text.printNumber(47, region, 1);
+    text.print(80, "OSC3");
+    text.printNumber(85, first, 3);
+    text.printNumber(89, second, 3);
+    text.printNumber(93, third, 3);
+    text.print(120, "ENV3");
+    text.printNumber(125, envelope, 3);
+    text.print(160, "NOTE A4 FN");
+    text.printNumber(171, sid.frequencyOf(Note.A4), 5);
+
+    let moved: bool = first != second || second != third;
+    let border: utinyint = 5; // green
+    if (!moved || envelope == 0) {
+        border = 2; // red
+    }
+    let background: utinyint = 0; // black: NTSC
+    if (region == Region.PAL) {
+        background = 6; // blue
+    }
+    screen.setColors(border, background);
+
+    while (true) {
+        waitFrame();
+    }
+}

@@ -209,6 +209,37 @@ export function findImports(tokens) {
   return found;
 }
 
+/**
+ * The native sources a file brings with it by where it sits: the nearest
+ * package.json above it — the package boundary, as Node draws it — and
+ * that manifest's `"8bitscript".native` list, if any. A package's files
+ * are the package's code however they were reached: through its entry, a
+ * subpath, a relative import between two of its files, or as the entry of
+ * a build inside the package (its own probe programs under `test/`). So a
+ * relative import of a file under @8bitscript/c64 carries raster.s the same
+ * way `@8bitscript/c64/raster` does. `{ native: [] }` for a file with no
+ * package above it, or one whose manifest lists nothing.
+ */
+export function nativeSourcesBeside(file) {
+  let dir = dirname(file);
+  for (;;) {
+    const manifestPath = join(dir, 'package.json');
+    if (existsSync(manifestPath)) {
+      let manifest;
+      try {
+        manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+      } catch {
+        return { native: [] };
+      }
+      const name = typeof manifest?.name === 'string' ? manifest.name : dir;
+      return nativeSourcesOf(name, dir, manifest);
+    }
+    const parent = dirname(dir);
+    if (parent === dir) return { native: [] };
+    dir = parent;
+  }
+}
+
 /** Walk up from a directory looking for `node_modules/<name>`. */
 function findPackageDir(fromDir, name) {
   let dir = fromDir;
@@ -400,8 +431,9 @@ function resolveConditionalEntry(specifier, packageDir, entry, options, seen, na
  *   twin is taken before the machine's own (see variantOf).
  * @returns {{ path: string|null, native?: string[] } | { code: string, message: string } | null}
  *   `native` — absolute paths of the resolved package's `"8bitscript".native`
- *   files (see nativeSourcesOf) — rides along with a package resolution;
- *   a relative import has none.
+ *   files (see nativeSourcesOf) — rides along with a package resolution,
+ *   and with a relative import of a file inside a package that has one
+ *   (nativeSourcesBeside).
  */
 export function resolveSpecifier(specifier, fromFile, options = {}, seen = new Set()) {
   const fromDir = dirname(fromFile);
@@ -415,7 +447,12 @@ export function resolveSpecifier(specifier, fromFile, options = {}, seen = new S
     if (!chosen) {
       return { code: Codes.UNRESOLVED_RELATIVE_IMPORT, message: `cannot find module '${specifier}'` };
     }
-    return chosen;
+    // The file's own package's native sources come with it (see
+    // nativeSourcesBeside); a package whose manifest names a missing one
+    // is reported here as it would be at the package's own resolution.
+    const sources = nativeSourcesBeside(chosen.path ?? target);
+    if (sources.code) return sources;
+    return sources.native.length > 0 ? { ...chosen, native: sources.native } : chosen;
   }
 
   const subpath = PACKAGE_SUBPATH.exec(specifier);

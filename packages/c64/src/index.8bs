@@ -15,8 +15,9 @@
 // capability packages — `./src/screen.8bs` behind @8bitscript/screen and
 // `./src/text.8bs` behind @8bitscript/text, named by the "8bitscript".exports
 // map in package.json — and in the C64-only subpaths beside them:
-// `@8bitscript/c64/sprites`, `/keyboard` + `/keys`, `/joystick`, `/sid`.
-// All of them import these registers and are built on nothing else. A
+// `@8bitscript/c64/sprites`, `/raster`, `/bitmap`, `/charset`, `/scroll`,
+// `/keyboard` + `/keys`, `/joystick`, `/sid`, `/reu`, `/mouse`. All of
+// them import these registers and are built on nothing else. A
 // project that imports THIS package has declared itself C64 specific.
 //
 // Every fact stated here was read in a primary source or seen on screen
@@ -34,8 +35,19 @@ import { Video } from "./geometry.8bs";
 // .init section: `ldx #$2f / stx $00 / ldx #$3e / stx $01`) leaves it at
 // $3E — BASIC out, KERNAL in, I/O in — so $A000-$BFFF is program RAM. Bits
 // 3-5 are the cassette lines. Change it by reading, masking and writing
-// back, never with a literal: setupVideo() below is the one place this
-// package does, to see the character ROM for the length of one copy.
+// back, never with a literal: the three functions at the end of this file
+// are the only places this package does.
+//
+// The low three bits, and what the CPU sees (c64-wiki, "Bank Switching"):
+//   %111 $37  BASIC, KERNAL, I/O            the machine's boot state
+//   %110      BASIC, KERNAL, character ROM
+//   %011 $3B  RAM at $A000, KERNAL, I/O     the SDK's state (as $3E)
+//   %010      RAM at $A000, KERNAL, character ROM   the copy below
+//   %101 $35  RAM at $A000 and $E000, I/O   this package's state (as $3D)
+//   %100, %00x  RAM everywhere, no I/O      writes under I/O (as $3C)
+// HIRAM (bit 1) low hides the character ROM as well as the KERNAL: from
+// %101, clearing CHAREN gives RAM everywhere, not the ROM, so a copy of
+// the ROM sets %010 first and %101 after.
 @address(0x0001)
 export let processorPort: volatile<u8>;
 
@@ -89,9 +101,10 @@ export let memoryPointer: volatile<u8>;
 
 // $D019 / $D01A, interrupt status and mask (`irr`/`imr`): bit 0 raster,
 // 1 sprite-background collision, 2 sprite-sprite collision, 3 light pen;
-// status bit 7 = any. Writing a 1 to a status bit acknowledges it. Nothing
-// in this package enables a VIC interrupt: the program runs with
-// interrupts off (see FRAME_SYNC.c64) and polls.
+// status bit 7 = any. Writing a 1 to a status bit acknowledges it. The
+// program runs with interrupts off (see FRAME_SYNC.c64) and polls; the
+// one interrupt this package ever enables is the raster compare, for
+// @8bitscript/c64/raster's write list, whose handler acknowledges it.
 @address(0xD019)
 export let interruptStatus: volatile<u8>;
 @address(0xD01A)
@@ -195,11 +208,15 @@ export let cia1InterruptControl: volatile<u8>;
 // %00 = bank 3 ($C000, this package). Bits 3-5 are the serial bus (ATN,
 // CLOCK and DATA out) and bits 6-7 its inputs, so the bank is changed by
 // masking, never by storing a whole byte. $DD02 is the direction register:
-// bits 0-1 must be outputs (the KERNAL sets $3F).
+// bits 0-1 must be outputs (the KERNAL sets $3F). $DD0D is CIA2's
+// interrupt control: its interrupts are the NMI line (the RESTORE key is
+// the other NMI source), and @8bitscript/c64/raster masks them.
 @address(0xDD00)
 export let cia2PortA: volatile<u8>;
 @address(0xDD02)
 export let cia2DirectionA: volatile<u8>;
+@address(0xDD0D)
+export let cia2InterruptControl: volatile<u8>;
 
 // ---- the screen's memory --------------------------------------------------
 //
@@ -207,27 +224,63 @@ export let cia2DirectionA: volatile<u8>;
 // over the RAM the VIC reads — are declared in ./geometry.8bs beside the
 // addresses they are built from, and imported from there.
 
+// ---- the machine's state: which mode, and whether interrupts are on --------
+//
+// What the VIC is showing — `VideoMode.TEXT` (the screen at $E000 over the
+// character set at $D000, the state setupVideo() leaves) or
+// `VideoMode.BITMAP` (@8bitscript/c64/bitmap: the bitmap at $E000, its
+// colour matrix under the I/O area). The sprite layer reads it, because
+// the sprite pointers move with the screen matrix; text's prepare() reads
+// it, because its $D018 write is the text mode's.
+export namespace VideoMode {
+    const TEXT: utinyint = 0;
+    const BITMAP: utinyint = 1;
+}
+export let videoMode: utinyint = 0;
+
+// True once @8bitscript/c64/raster has enabled the raster interrupt. The
+// one thing it changes here: a window with the I/O area banked out
+// (bankIoOut/bankIoIn below) has to be an interrupt-free window, because
+// an interrupt handler that fires inside it acknowledges $D019 into RAM
+// and fires again forever — the hang the copy below documents.
+export let interruptsOn: bool = false;
+
 // ---- video set-up: the bank, the character set, the pointer -----------------
 //
 // Once, before the first thing is drawn: copy the character ROM into the
-// RAM under it, point the VIC at bank 3, and set $D018. Every surface in
-// this package calls it first (screen.blank(), text's prepare(), the
-// sprites' show()), and the guard makes every call after the first cost a
-// load and a branch.
+// RAM under it, point the VIC at bank 3, set $D018, and bank the KERNAL
+// out. Every surface in this package calls it first (screen.blank(),
+// text's prepare(), the sprites' show()), and the guard makes every call
+// after the first cost a load and a branch.
 //
-// The copy: with CHAREN ($01 bit 2) clear the CPU READS the character ROM
-// at $D000-$DFFF, and its WRITES there still land in the RAM underneath —
-// so reading each byte and storing it back to the same address copies the
-// ROM into RAM in place. The I/O area is gone for the length of the loop
-// (about four frames at 1 MHz), so nothing here touches a register inside
-// it, and interrupts are off around it: the KERNAL's IRQ handler ends by
-// reading CIA1's interrupt register to acknowledge, which with I/O banked
-// out reads the ROM instead and never acknowledges — the interrupt fires
-// again on return, forever. Seen here: the first version of this copy,
-// run before the frame runtime's own `sei`, hung the machine exactly so.
-// `sei` here as well, so a program that draws before its first
-// waitFrame() — or never calls it — is safe too; from this point on the
-// program owns the machine (packages/c64/AGENTS.md).
+// The copy (copyCharacterRom): with CHAREN ($01 bit 2) clear and HIRAM
+// set, the CPU READS the character ROM at $D000-$DFFF, and its WRITES
+// there still land in the RAM underneath — so reading each byte and
+// storing it back to the same address copies the ROM into RAM in place.
+// The I/O area is gone for the length of the loop (about four frames at
+// 1 MHz), so nothing here touches a register inside it, and interrupts are
+// off around it: the KERNAL's IRQ handler ends by reading CIA1's interrupt
+// register to acknowledge, which with I/O banked out reads the ROM
+// instead and never acknowledges — the interrupt fires again on return,
+// forever. Seen here: the first version of this copy, run before the
+// frame runtime's own `sei`, hung the machine exactly so. `sei` here as
+// well, so a program that draws before its first waitFrame() — or never
+// calls it — is safe too; from this point on the program owns the machine
+// (packages/c64/AGENTS.md).
+//
+// The KERNAL goes out ($01 low bits %101) at the end, and stays out. Two
+// reasons, both structural. The screen is at $E000, and with the KERNAL
+// ROM mapped the CPU's writes there land in RAM but its READS return ROM:
+// `screenRam[cell]` read back the KERNAL, a coarse scroll copied it, a
+// bitmap plot would read-modify-write it. With the ROM out, $E000-$FFFF
+// reads as the RAM the VIC shows. And the CPU's interrupt vectors at
+// $FFFA-$FFFF are then RAM too, which is how @8bitscript/c64/raster owns
+// the IRQ without the KERNAL's handler in the way: this package's native
+// start-up code (native/6502/raster.s, an .init section, so it runs before
+// main() in every program that links this package) has already pointed
+// both the NMI and the IRQ vector at a bare `rti`, so a RESTORE key press
+// with the ROM out does nothing at all. Nothing in an 8bitscript program
+// calls the KERNAL after this point — main() never returns to it either.
 let videoReady: bool = false;
 
 export function setupVideo(): void {
@@ -238,16 +291,110 @@ export function setupVideo(): void {
     asm6502 {
         sei
     }
-    let port: u8 = processorPort;
-    processorPort = port & 0xFB; // CHAREN = 0: character ROM at $D000, I/O out
-    for (let i: usmallint = 0; i < 4096; i++) {
-        memory.write(Video.CHARSET + i, memory.read(Video.CHARSET + i));
-    }
-    processorPort = port; // I/O back
+    copyCharacterRom();
     cia2DirectionA = cia2DirectionA | 0x03;
     cia2PortA = cia2PortA & 0xFC; // bank 3
     memoryPointer = Video.MEMORY_POINTER_UPPERCASE;
     spriteEnable = 0; // no sprite until a program asks; the pointers are whatever RAM held
+}
+
+// The character ROM's 4K into the RAM under it, in place, and the port left
+// at %101 (KERNAL out, I/O in). Safe from any port state, and callable
+// again — @8bitscript/c64/charset's restore() is a second copy over a
+// program's own glyphs. Interrupts are off for the copy and back on after
+// it only if the raster interrupt had them on.
+export function copyCharacterRom(): void {
+    asm6502 {
+        sei
+    }
+    processorPort = (processorPort & 0xF8) | 0x02; // %010: KERNAL in, character ROM at $D000, I/O out
+    for (let i: usmallint = 0; i < 4096; i++) {
+        memory.write(Video.CHARSET + i, memory.read(Video.CHARSET + i));
+    }
+    processorPort = (processorPort & 0xF8) | 0x05; // %101: KERNAL out, I/O in
+    if (interruptsOn) {
+        asm6502 {
+            cli
+        }
+    }
+}
+
+// ---- the region, at run time ------------------------------------------------
+//
+// PAL or NTSC is not a build fact: one .prg runs on both, and the frame
+// runtime finds out for itself at start-up (FRAME_SYNC.c64's probe,
+// packages/backend-6502) — but keeps the answer to itself. So this is the
+// same probe, for a program that needs it: @8bitscript/c64/sid's note
+// tables (the SID's pitch is the CPU clock's), a program timing something
+// in raster lines. Sync to the top of a frame, then watch one whole frame
+// go by: only a PAL raster (312 lines) ever reaches line 288 — bit 8 set
+// in $D011 with $D012 at 32 or more — where an NTSC frame stops at 262.
+// Two frames, once; keep the answer. A cross-machine builtin that
+// publishes the runtime's own answer is the design this waits for.
+export namespace Region {
+    const PAL: utinyint = 0;
+    const NTSC: utinyint = 1;
+}
+
+function rasterInTopHalf(): bool {
+    // $D012 first, then $D011 bit 8 (FRAME_SYNC.c64 says why the order).
+    return raster < 128 && (control1 & 0x80) == 0;
+}
+
+export function detectRegion(): utinyint {
+    let pal: bool = false;
+    while (rasterInTopHalf()) {}
+    while (!rasterInTopHalf()) {} // the wrap to line 0
+    while (rasterInTopHalf()) {}
+    while (!rasterInTopHalf()) {
+        if ((control1 & 0x80) != 0 && raster >= 32) {
+            pal = true;
+        }
+    }
+    if (pal) {
+        return Region.PAL;
+    }
+    return Region.NTSC;
+}
+
+// ---- writes under the I/O area --------------------------------------------
+//
+// $D000-$DFFF is RAM the VIC reads (the character set, and in bitmap mode
+// the colour matrix and the sprite pointers) that the CPU can only reach
+// with the I/O area banked out — so every write there is a window: `sei`,
+// CHAREN clear (%100 from %101: RAM everywhere), the writes, I/O back,
+// `cli` if the raster interrupt is on. Nothing between bankIoOut() and
+// bankIoIn() may touch a register, and the window is kept short: the
+// raster interrupt, if enabled, is late by the window's length.
+export function bankIoOut(): void {
+    asm6502 {
+        sei
+    }
+    processorPort = processorPort & 0xFB;
+}
+
+export function bankIoIn(): void {
+    processorPort = processorPort | 0x04;
+    if (interruptsOn) {
+        asm6502 {
+            cli
+        }
+    }
+}
+
+// One byte into the RAM under the I/O area, in its own window.
+export function writeUnderIo(address: usmallint, value: utinyint): void {
+    bankIoOut();
+    memory.write(address, value);
+    bankIoIn();
+}
+
+// One byte from the RAM under the I/O area.
+export function readUnderIo(address: usmallint): utinyint {
+    bankIoOut();
+    let value: utinyint = memory.read(address);
+    bankIoIn();
+    return value;
 }
 
 // ---- REU (RAM Expansion Unit) --------------------------------------------

@@ -1,0 +1,282 @@
+// @8bitscript/c128/vdc — the 80-column screen, and the only way to reach it.
+//
+// Named by "8bitscript".exports["./vdc"] in this package's package.json:
+//
+//     import { vdc } from "@8bitscript/c128/vdc";
+//
+//     let kib: usmallint = vdc.ramKib();     // 16, or 64 on a C128DCR
+//     vdc.setAddress(0x0000);
+//     vdc.put(8);                            // an 'H' in the top-left cell
+//
+// The C128 has two display chips and this is the second one. The VIC-IIe
+// draws the 40-column picture every other Commodore draws, at the C64's
+// registers, and @8bitscript/screen and @8bitscript/text are that picture.
+// The VDC (8563, or the 8568 in a C128DCR) draws an entirely separate
+// 80-column display, on a different connector, out of its own 16 or 64 KiB
+// of RAM that the CPU cannot address — it has its own character set, its
+// own sixteen RGBI colours in a different order from the VIC's, its own
+// attribute model, and its own frame clock. Both screens are live at once:
+// this file's probe writes to the VDC while the KERNAL is still driving the
+// 40-column screen, and both pictures come out.
+//
+// **Everything goes through two bytes.** `$D600` written is a register
+// number; `$D600` read is a status byte; `$D601` is whichever register the
+// number selected. There are 38 registers behind those two addresses, and
+// the chip is busy for tens of cycles after some accesses — bit 7 of the
+// status is "ready". So every access is select, wait, transfer, and this
+// file is the one place that does it. Nothing else in this package may
+// touch `$D600` or `$D601`: the selected register and the update address
+// (R18/R19) are shared mutable state, in the way VERA's ports are on the
+// X16, and two callers interleaving their own select/transfer pairs
+// corrupt each other.
+//
+// **RAM is reached a byte at a time, through a register.** R18/R19 hold a
+// 16-bit address into VDC RAM; reading or writing R31 transfers one byte
+// there and advances the address. `setAddress()` then a run of `put()` is
+// the whole write path, and it is not cheap — a full 80 x 25 screen is
+// 2000 of them. R30's block fill and R24 bit 7's block copy are the
+// chip's own answer to that and are not wrapped here yet: their exact
+// count semantics differ between chip revisions and are unverified (see
+// packages/c128/AGENTS.md).
+//
+// **The KERNAL's interrupt never touches this chip**, in either screen
+// mode — its cursor blink returns immediately when the 80-column screen is
+// active (the VDC blinks its own cursor in hardware) and otherwise writes
+// only VIC memory, which is checkable in Commodore's own editor source.
+// That is what makes owning the VDC while the KERNAL runs the 40-column
+// screen safe rather than lucky. What does drive the chip is the screen
+// *editor*, when 80 columns is the active screen: a program that takes the
+// VDC over must not also call CHROUT or SWAPPER for it. One national ROM
+// (the German one) is the exception and can reach a character-set upload
+// from its keyboard scan.
+
+// $D600 — write: the register number to select. Read: status. Bit 7 is
+// ready (the chip is not busy with a previous transfer), bit 6 is the
+// light-pen latch, bit 5 is set while the display is *disabled* — the top
+// and bottom border — which is not the vertical retrace despite what most
+// documentation calls it, and bits 0-2 are the chip revision.
+@address(0xD600)
+let vdcPort: volatile<u8>;
+
+// $D601 — the register selected by the last write to $D600.
+@address(0xD601)
+let vdcData: volatile<u8>;
+
+namespace Register {
+    const UPDATE_HIGH: utinyint = 18; // R18/R19: the address in VDC RAM that
+    const UPDATE_LOW: utinyint = 19;  // R31 reads or writes, and advances
+    const BLOCK_CONTROL: utinyint = 24; // bit 7: 0 = block fill, 1 = block copy
+    const CHARACTER_BASE: utinyint = 28; // bits 5-7 the character set, bit 4 RAM type
+    const WORD_COUNT: utinyint = 30;  // R30: writing it runs the fill or copy
+    const DATA: utinyint = 31;        // R31: one byte of VDC RAM
+}
+
+namespace Block {
+    const FILL: utinyint = 0x7F;      // R24 bit 7 clear
+    const LONGEST: usmallint = 255;   // R30 is one byte
+}
+
+// R28 bit 4 is not a report of how much RAM is fitted — it is the *control*
+// that says which kind is: clear for the 4416s of a 16 KiB VDC, set for the
+// 4464s of a 64 KiB one, and it picks how the chip multiplexes the address
+// onto them. With it clear, a 64 KiB VDC addresses only its first 16 KiB.
+// So software that wants the upper 48 KiB sets it, and software that wants
+// to *find out* sets it before it looks (verified: with the bit left alone
+// the probe below reports 16 on a C128DCR, which has 64).
+namespace RamType {
+    const SIXTY_FOUR_K: utinyint = 0x10;
+}
+
+namespace Status {
+    const READY: utinyint = 0x80;
+    const LIGHT_PEN: utinyint = 0x40;
+    const DISPLAY_OFF: utinyint = 0x20; // in the top or bottom border
+    const REVISION: utinyint = 0x07;
+}
+
+// Where the probe writes, and why exactly those two addresses.
+//
+// A 16 KiB VDC cannot reach 64 KiB, so in 64 KiB addressing some address
+// bits go nowhere and addresses fold onto each other. Which bits is not a
+// guess: the C128 Programmer's Reference Guide prints the chip's DRAM
+// row/column multiplex for both RAM types, and for the 4416s of a 16 KiB
+// VDC the column line that would carry A8 carries A8 again in place of
+// A15 — so **A8 and A15 are the two bits that vanish**. VICE's model
+// agrees exactly (`vdc-mem.c`, `vdc_64k_to_16k_map`: keep `$00FF`, slide
+// `$7E00` down one).
+//
+// So two addresses differing only in A8 are one byte on a 16 KiB chip and
+// two on a 64 KiB one, and that is the test. `$A000`/`$A100` is the pair,
+// because on a 64 KiB chip both are past everything the KERNAL lays out
+// (screen $0000, attributes $0800, the two character sets $2000-$3FFF),
+// and on a 16 KiB chip both fold onto $1000 — the gap the KERNAL leaves
+// between the attributes and the character sets. **No byte the 80-column
+// display is made of is ever written, on either chip.**
+//
+// A warning, because the wrong version of this test is the common one:
+// **a pair differing in A14 — including the widely circulated `$0000`
+// versus `$4000` — is wrong**, and wrong in a way that passes under some
+// emulators and reports the wrong size on real hardware. A14 is not one
+// of the bits a 16 KiB chip loses in 64 KiB addressing. cc65's own VDC
+// driver probes pages `$02` and `$42`, which differ in A14.
+namespace Probe {
+    const A8_LOW: usmallint = 0xA000;
+    const A8_HIGH: usmallint = 0xA100;
+    const MARK_A: utinyint = 0x5A;
+    const MARK_B: utinyint = 0xC3;
+}
+
+export namespace vdc {
+    // Select a register and wait for the chip. Every transfer starts here.
+    function select(index: utinyint): void {
+        vdcPort = index;
+        while ((vdcPort & Status.READY) == 0) {}
+    }
+
+    // One register, written.
+    function write(index: utinyint, value: utinyint): void {
+        vdc.select(index);
+        vdcData = value;
+    }
+
+    // One register, read.
+    function read(index: utinyint): utinyint {
+        vdc.select(index);
+        return vdcData;
+    }
+
+    // The chip's status byte, unwaited — the one read that must not wait
+    // for ready, since it is what ready is read from.
+    function status(): utinyint {
+        return vdcPort;
+    }
+
+    // The chip revision the status byte reports: 0, 1 or 2. A flat C128 is
+    // an 8563 and a C128DCR an 8568; VICE's -VDCRevision picks it.
+    function revision(): utinyint {
+        return vdcPort & Status.REVISION;
+    }
+
+    // True while the display is in the top or bottom border. This is not
+    // the vertical retrace, and it is not a frame boundary: it is on for
+    // the whole of both borders. A frame-exact effect on this chip needs a
+    // different scheme (see AGENTS.md); this is for "the display is not
+    // fetching, a burst of writes will not be seen tearing".
+    function displayOff(): utinyint {
+        return vdcPort & Status.DISPLAY_OFF;
+    }
+
+    // Point the RAM window at an address. The next put() or get() is that
+    // byte, and the address advances by one after each.
+    function setAddress(address: usmallint): void {
+        vdc.write(Register.UPDATE_HIGH, address >> 8);
+        vdc.write(Register.UPDATE_LOW, address & 0xFF);
+    }
+
+    // Write one byte of VDC RAM at the current address, and advance.
+    function put(value: utinyint): void {
+        vdc.write(Register.DATA, value);
+    }
+
+    // Read one byte of VDC RAM at the current address, and advance.
+    function get(): utinyint {
+        return vdc.read(Register.DATA);
+    }
+
+    // Set a run of VDC RAM to one value, using the chip's own block fill
+    // instead of a byte at a time. This is how a screen gets cleared: a
+    // measured break-even against a `put()` loop is around seven bytes,
+    // and a whole 2000-cell screen is the difference between a visible
+    // pause and none.
+    //
+    // **The count is the subtle part, and the two block operations do not
+    // agree.** For a *fill*, the write that puts the value into R31 is
+    // itself the first byte written, and the PRG says so outright — "one
+    // write cycle will follow the initial write of data to R31, so the
+    // quantity written to R30 should be one less than the total number of
+    // memory locations desired to be written". So `count` bytes means
+    // `R30 = count - 1`, and a one-byte fill must not write R30 at all,
+    // since R30 = 0 means 256. A block *copy* (R24 bit 7 set, not wrapped
+    // here) takes the exact count instead. Do not share the arithmetic
+    // between them if copy is ever added.
+    //
+    // R30 is one byte, so a longer run is several fills. The order below
+    // is the PRG's: address, data, R24, R30.
+    function fill(address: usmallint, value: utinyint, count: usmallint): void {
+        let control: utinyint = vdc.read(Register.BLOCK_CONTROL) & Block.FILL;
+        let at: usmallint = address;
+        let left: usmallint = count;
+        while (left > 0) {
+            let run: usmallint = left;
+            if (run > Block.LONGEST) {
+                run = Block.LONGEST;
+            }
+            vdc.setAddress(at);
+            vdc.put(value);
+            vdc.write(Register.BLOCK_CONTROL, control);
+            if (run > 1) {
+                vdc.write(Register.WORD_COUNT, run - 1);
+            }
+            at = at + run;
+            left = left - run;
+        }
+    }
+
+    // True when two addresses turn out to be the same byte of VDC RAM:
+    // a marker in each, then a look at the first. Every byte it touches
+    // is read first and put back after, so it is safe to call with an
+    // 80-column display already set up. When the two *are* one byte the
+    // two saved values are the same value, and putting both back leaves
+    // it as it was.
+    function sameByte(a: usmallint, b: usmallint): utinyint {
+        vdc.setAddress(a);
+        let savedA: utinyint = vdc.get();
+        vdc.setAddress(b);
+        let savedB: utinyint = vdc.get();
+
+        vdc.setAddress(a);
+        vdc.put(Probe.MARK_A);
+        vdc.setAddress(b);
+        vdc.put(Probe.MARK_B);
+        vdc.setAddress(a);
+        let kept: utinyint = vdc.get();
+
+        vdc.setAddress(a);
+        vdc.put(savedA);
+        vdc.setAddress(b);
+        vdc.put(savedB);
+
+        if (kept == Probe.MARK_A) {
+            return 0;
+        }
+        return 1;
+    }
+
+    // KiB of RAM this VDC has: 16 on a flat C128 or C128D, 64 on a
+    // C128DCR and on an upgraded flat machine. One call at start-up; keep
+    // the answer.
+    //
+    // R28 bit 4 has to be set first, and not because it reports anything:
+    // it is the control that puts the chip into 64 KiB addressing, and
+    // without it even a 64 KiB VDC reaches only its first 16 KiB and this
+    // would answer 16 on a C128DCR (it did, before the bit was set here).
+    // The bit is put back afterwards, so a caller that wants the upper
+    // 48 KiB sets it again and keeps it set.
+    //
+    // On a 16 KiB chip the bit also scrambles the chip's addressing while
+    // it is set, so the 80-column picture is briefly wrong during the
+    // probe; call this at start-up, before there is a picture to spoil.
+    function ramKib(): usmallint {
+        let savedType: utinyint = vdc.read(Register.CHARACTER_BASE);
+        vdc.write(Register.CHARACTER_BASE, savedType | RamType.SIXTY_FOUR_K);
+
+        let folded: utinyint = vdc.sameByte(Probe.A8_LOW, Probe.A8_HIGH);
+
+        vdc.write(Register.CHARACTER_BASE, savedType);
+
+        if (folded != 0) {
+            return 16;
+        }
+        return 64;
+    }
+}

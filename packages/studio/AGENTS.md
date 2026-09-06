@@ -135,13 +135,18 @@ editor on a hack that the capability would replace:
   through the intent-level API the root `AGENTS.md` insists on
   (`sprites.place(...)`, not a VIC-II register). The C64 has its hardware
   layer for this too: `@8bitscript/c64/sprites` (eight sprites, shapes in
-  blocks the package owns) and `@8bitscript/c64/video` (the character
-  set's RAM copy, the screen, colour RAM) — C64-only, the layer the
-  capability sits on, not the capability.
+  blocks the package owns), `@8bitscript/c64/charset` (glyphs redefined
+  in the character set's RAM copy), `@8bitscript/c64/bitmap` (320×200 or
+  160×200 pixels), `@8bitscript/c64/scroll` and `@8bitscript/c64/raster`
+  (register writes at raster lines: a status bar under a scrolling
+  playfield) over `@8bitscript/c64/video` (the screen, colour RAM, the
+  bank's layout) — C64-only, the layer the capability sits on, not the
+  capability.
 - **Sound** — a note-level API for the machines with a chip, and the
   PET's one voice behind the same API. `@8bitscript/c64/sid` is the C64's
   hardware layer for it: three voices, waveforms, envelopes, the filter,
-  and a PAL note table (see `packages/c64/AGENTS.md` for the NTSC caveat).
+  and a note table per region, chosen at run time by `sid.detectRegion()`
+  (see `packages/c64/AGENTS.md`).
 - **Storage** — loading and saving a file from Studio, and getting it
   from the emulator back into the repository. This is the piece that
   makes "Launch in Studio" possible and it is the least designed: each

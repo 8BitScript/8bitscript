@@ -1,49 +1,50 @@
-// @8bitscript/c64/sid — the SID, voice by voice.
+// @8bitscript/c128/sid — the SID, voice by voice.
 //
 // Named by "8bitscript".exports["./sid"] in this package's package.json:
 //
-//     import { sid, Waveform, Note } from "@8bitscript/c64/sid";
+//     import { sid, Waveform, Note } from "@8bitscript/c128/sid";
 //
+//     sid.detectRegion();         // one byte on this machine; see below
 //     sid.setVolume(15);
 //     sid.setEnvelope(0, 0, 9, 8, 6);
 //     sid.setWaveform(0, Waveform.PULSE);
 //     sid.setPulseWidth(0, 2048);
-//     sid.play(0, Note.A4);       // gate on, at 440 Hz on a PAL machine
+//     sid.play(0, Note.A4);       // gate on, at 440 Hz
 //     ...
 //     sid.release(0);             // gate off: the release phase begins
 //
-// Hardware-level, C64-only surface — the layer a portable, note-level
-// sound capability (packages/studio/AGENTS.md) will sit on. It is the
-// 6581/8580's three voices as they are: an oscillator with four waveforms
-// (triangle, sawtooth, pulse with a 12-bit width, noise), an ADSR envelope
-// per voice, ring modulation and hard sync between neighbours, one filter
-// shared by all three, and a master volume. Nothing here is a tracker, a
-// sequencer or a driver; it is the registers with their units named.
+// The C128's sound chip is the C64's, at the C64's address, and this
+// surface is deliberately the same one @8bitscript/c64/sid offers: three
+// voices with four waveforms and a 12-bit pulse width, an ADSR envelope
+// each, ring modulation and hard sync between neighbours, one shared
+// filter, a master volume. Nothing here is a tracker or a driver; it is
+// the registers with their units named. It is a separate file rather than
+// a shared one for the reason packages/c128/AGENTS.md gives for the whole
+// C64 half: the machine around the chip differs, and that is what a
+// machine package is for.
 //
-// The SID's registers are write-only, so this file keeps a copy of each
-// voice's control byte: `setWaveform` changes the waveform bits and keeps
-// the gate, `play`/`release` change the gate and keep the waveform.
+// **What actually differs here, and it is worth knowing:**
 //
-// ---- pitch --------------------------------------------------------------
+//   Finding the region costs one byte. A note's frequency register is
+//   `f * 2^24 / clock`, so the note tables depend on whether the CPU
+//   clock is PAL's 985248 Hz or NTSC's 1022727 — and getting it wrong
+//   plays everything 3.8 percent sharp, two thirds of a semitone, in
+//   tune with itself. The C64 has to watch two whole frames of the
+//   raster to find out. The C128's KERNAL already worked it out at boot
+//   and left it in $0A03, so `sid.detectRegion()` here is a read.
 //
-// A voice's 16-bit frequency register is `Fn`, and the pitch it plays is
-// `Fn * clock / 16777216` Hz (the 6581 datasheet: 2^24), where `clock` is
-// the CPU clock — 985248 Hz on a PAL machine, 1022727 on NTSC. `Note`
-// names the equal-tempered notes C0 to B6 (A4 = 440 Hz), and `NOTE_PAL`
-// and `NOTE_NTSC` hold each one's `Fn` for the two clocks, computed from
-// that formula and checked by packages/compiler/test/c64-package.test.mjs.
-// One build runs on both regions (there is no region at build time), so
-// which table `play` reads is a run-time choice: `sid.setRegion(Region.X)`
-// from a program that knows, or `sid.detectRegion()`, which watches one
-// frame of the raster (detectRegion in @8bitscript/c64: two frames, once)
-// and chooses. Until either is called the PAL table is in use, and on an
-// NTSC machine that plays every note about 3.8 percent sharp: two thirds
-// of a semitone, in tune with itself. Both tables stop at the last
-// complete octave: B7's `Fn` would overflow the register on PAL (the
-// ceiling is about 3848 Hz), though C7 to A#7 would fit, and NTSC's
-// higher ceiling is not a reason for the tables to differ; `setFrequency`
-// takes any `Fn` directly.
-import { sidRegisters, detectRegion, Region } from "./index.8bs";
+//   2 MHz mode does not change the pitch. The SID is driven from its own
+//   1 MHz source whatever $D030 bit 0 says, so these tables stay right in
+//   fast mode — unlike anything timed by counting CPU cycles.
+//
+//   The KERNAL's interrupt is alive and does not touch the SID, so a
+//   program owns the chip without first taking the interrupt over. What
+//   it must not do is leave a BASIC SOUND or PLAY running underneath it.
+//
+// The tables below are the C64 package's, unchanged and for a good
+// reason: the two machines run the same crystal-derived clocks, so the
+// same `Fn` means the same pitch on both.
+import { sidRegisters, voice3Oscillator, voice3Envelope, detectRegion, Region } from "./index.8bs";
 
 // Control-register waveform bits; one of the four, or the ring/sync
 // modifiers OR-ed in. Ring modulation replaces a voice's triangle output
@@ -66,7 +67,7 @@ export namespace Filter {
     const HIGH_PASS: utinyint = 0x40;
 }
 
-// Note indexes into NOTE_PAL: octave * 12 + semitone, C0 = 0, A4 = 57.
+// Note indexes into the tables: octave * 12 + semitone, C0 = 0, A4 = 57.
 // CS is C sharp, and so on.
 export namespace Note {
     const C0: utinyint = 0; const CS0: utinyint = 1; const D0: utinyint = 2; const DS0: utinyint = 3; const E0: utinyint = 4; const F0: utinyint = 5; const FS0: utinyint = 6; const G0: utinyint = 7; const GS0: utinyint = 8; const A0: utinyint = 9; const AS0: utinyint = 10; const B0: utinyint = 11;
@@ -106,7 +107,7 @@ let region: utinyint = 0;
 // Each voice's register base: 7 * voice, without a multiply.
 const VOICE_BASE: array<utinyint, 3> = [0, 7, 14];
 
-// The control byte last written per voice (write-only register).
+// The control byte last written per voice (the register is write-only).
 let control: array<utinyint, 3>;
 // $D417 and $D418, likewise: filter routing/resonance and mode/volume.
 let filterControl: utinyint = 0;
@@ -177,7 +178,9 @@ export namespace sid {
         region = which;
     }
 
-    // Find the region from the raster (two frames) and use it. Returns it.
+    // Find the region and use it. Returns it. One read of the KERNAL's
+    // own flag on this machine — call it once at start-up, before the
+    // first note.
     function detectRegion(): utinyint {
         region = detectRegion();
         return region;
@@ -185,7 +188,9 @@ export namespace sid {
 
     // The filter: an 11-bit cutoff, resonance 0-15, which voices go
     // through it (bits 0-2, one per voice), and the mode. Mode bits share
-    // $D418 with the volume; both copies are kept here.
+    // $D418 with the volume; both copies are kept here. Which SID is
+    // fitted changes what this sounds like — the 6581 and the 8580 filter
+    // differently — but not what it does.
     function setFilter(cutoff: usmallint, resonance: utinyint, voices: utinyint, mode: utinyint): void {
         sidRegisters[21] = cutoff & 0x07;
         sidRegisters[22] = (cutoff >> 3) & 0xFF;
@@ -193,6 +198,22 @@ export namespace sid {
         sidRegisters[23] = filterControl;
         modeVolume = (modeVolume & 0x0F) | (mode & 0x70);
         sidRegisters[24] = modeVolume;
+    }
+
+    // Voice 3's oscillator output, and its envelope — the only two things
+    // this chip will tell a program. With voice 3 set to Waveform.NOISE
+    // the oscillator is the machine's hardware entropy, and the root
+    // AGENTS.md is clear that such a thing belongs behind an explicit
+    // import and never underneath a deterministic PRNG: reading it here
+    // is a program asking for the hardware on purpose. Voice 3 can be cut
+    // out of the mix ($D418 bit 7) and still be read, which is how it is
+    // usually used for this.
+    function oscillator3(): utinyint {
+        return voice3Oscillator;
+    }
+
+    function envelope3(): utinyint {
+        return voice3Envelope;
     }
 
     // Every voice gated off with its waveform cleared, the filter off,

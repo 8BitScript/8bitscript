@@ -1,0 +1,22 @@
+// The region probe, run for real: green border for PAL, yellow for NTSC,
+// and the SID's A4 for the region printed. See test/layers.test.mjs.
+import { screen, BorderColor, BackgroundColor } from "../src/screen.8bs";
+import { text, TextColor } from "../src/text.8bs";
+import { sid, Note } from "../src/sid.8bs";
+import { Region } from "../src/index.8bs";
+
+export function main(): void {
+    screen.blank(BorderColor.BLUE, BackgroundColor.BLACK);
+    text.setColor(TextColor.WHITE);
+    let region: u8 = sid.detectRegion();
+    let a4: u16 = sid.frequencyOf(Note.A4);
+    text.print(0, `REGION ${region:1} A4 ${a4:5}`);
+    if (region == Region.PAL) {
+        screen.setBorder(5);
+    } else {
+        screen.setBorder(7);
+    }
+    while (true) {
+        waitFrame();
+    }
+}

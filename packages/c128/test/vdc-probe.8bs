@@ -1,0 +1,62 @@
+// The C128 VDC probe, run for real. Three answers, on the VIC-IIe's
+// 40-column screen so `8bs run --screenshot` can read them:
+//
+//   the border   red for a 16 KiB VDC, green for 64 KiB (vdc.ramKib())
+//   the background  black when a byte written into VDC RAM read back as
+//                itself, white when it did not — the round trip through
+//                setAddress/put/get that everything else on this chip is
+//                built from
+//   the text     the numbers, for a human looking at the window
+//
+// It also writes "HELLO" into the 80-column screen's own RAM while the
+// KERNAL is still driving the 40-column one, which is what the VDC
+// screenshot in test/vdc.test.mjs looks for. See test/vdc.test.mjs.
+import { screen } from "../src/screen.8bs";
+import { text } from "../src/text.8bs";
+import { vdc } from "../src/vdc.8bs";
+
+// $1800: inside every VDC's RAM and outside the KERNAL's layout (screen
+// $0000, attributes $0800, character sets $2000-$3FFF).
+const SCRATCH: usmallint = 0x1800;
+const TOKEN: utinyint = 0x3C;
+
+export function main(): void {
+    screen.blank();
+
+    let kib: usmallint = vdc.ramKib();
+
+    vdc.setAddress(SCRATCH);
+    vdc.put(TOKEN);
+    vdc.setAddress(SCRATCH);
+    let back: utinyint = vdc.get();
+
+    // "HELLO" in the top-left of the 80-column screen. VDC screen codes are
+    // the same as the VIC's: 8 5 12 12 15.
+    vdc.setAddress(0x0000);
+    vdc.put(8);
+    vdc.put(5);
+    vdc.put(12);
+    vdc.put(12);
+    vdc.put(15);
+
+    text.print(0, "VDC KIB");
+    text.printNumber(8, kib, 3);
+    text.print(40, "REVISION");
+    text.printNumber(49, vdc.revision(), 3);
+    text.print(80, "ROUND TRIP");
+    text.printNumber(91, back, 3);
+
+    let border: utinyint = 2; // red: 16 KiB
+    if (kib == 64) {
+        border = 5; // green
+    }
+    let background: utinyint = 0; // black: the round trip held
+    if (back != TOKEN) {
+        background = 1; // white
+    }
+    screen.setColors(border, background);
+
+    while (true) {
+        waitFrame();
+    }
+}

@@ -1,0 +1,59 @@
+// @8bitscript/atari8/random — POKEY's hardware entropy.
+//
+// Named by "8bitscript".exports["./random"] in this package's package.json:
+//
+//     import { random } from "@8bitscript/atari8/random";
+//
+//     let seed: utinyint = random.byte();
+//
+// Its own import, and not part of ./pokey.8bs, on purpose. RANDOM ($D20A) is
+// a *hardware* source: it reads the free-running 17-bit polynomial counter
+// POKEY uses to make noise, sampled wherever the beam happens to be, so two
+// runs of the same program never agree. That is exactly what a program wants
+// for a seed and exactly what it does not want anywhere else — a game that
+// reads it inside its logic cannot be replayed, cannot be tested against a
+// recorded input, and cannot be debugged from a screenshot. The root
+// AGENTS.md rule is that hardware entropy is never the deterministic PRNG's
+// seed by default and never arrives without being asked for; this file is
+// the asking.
+//
+// The usual shape: read one byte at start-up, seed a deterministic generator
+// with it, and never touch this again.
+//
+// ---- what the number actually is -------------------------------------------
+//
+// The counter is 17 bits and runs continuously off the same clock the audio
+// channels use, so consecutive reads a few cycles apart are consecutive
+// states of one shift register, not independent samples: reading it in a
+// tight loop gives a walk through the polynomial, not eight fresh bytes.
+// `bytes()` is here for a program that wants more than eight bits and knows
+// that; anything that needs many independent values wants a PRNG seeded once
+// from here.
+//
+// AUDCTL's bit 7 (`Audctl.POLY_9BIT` in ./pokey.8bs) switches the counter to
+// 9 bits, which shortens this to a 511-state cycle. A program that sets it
+// for the sound it makes has also changed what this returns; read the seed
+// before touching AUDCTL, or leave that bit alone.
+//
+// In atari800 the register is a table indexed by a scanline counter plus the
+// current cycle (upstream `pokey.c`), so under the emulator it is
+// reproducible in principle and unpredictable in practice — the same as on
+// the machine, for a program's purposes, but not a source of cryptographic
+// randomness on either. Nothing here is.
+import { randomRegister } from "./index.8bs";
+
+export namespace random {
+    // One byte from the counter, 0-255.
+    function byte(): utinyint {
+        return randomRegister;
+    }
+
+    // Two bytes as one 16-bit value. See the header: the two reads are
+    // consecutive states of one shift register, close together in time, so
+    // this is wider than `byte()` but not twice as random.
+    function word(): usmallint {
+        let high: usmallint = randomRegister;
+        let low: usmallint = randomRegister;
+        return high * 256 + low;
+    }
+}

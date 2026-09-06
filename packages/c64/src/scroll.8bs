@@ -1,0 +1,130 @@
+// @8bitscript/c64/scroll — the VIC-II's fine scroll, and coarse shifts of
+// the text screen.
+//
+// Named by "8bitscript".exports["./scroll"] in this package's package.json:
+//
+//     import { scroll } from "@8bitscript/c64/scroll";
+//
+//     scroll.setNarrow(true);              // 38 columns: the edges are border
+//     let fine: u8 = 7;
+//     ...
+//     // each frame, a world moving left:
+//     if (fine == 0) {
+//         fine = 7;
+//         scroll.shiftLeft(32, 1);         // a column of spaces in, white
+//         ... draw the new column at 39 ...
+//     } else {
+//         fine = fine - 1;
+//     }
+//     scroll.setX(fine);
+//
+// Hardware-level, C64-only surface. The VIC-II shifts the whole picture
+// by 0-7 pixels horizontally ($D016 bits 0-2, XSCROLL) and vertically
+// ($D011 bits 0-2, YSCROLL; 3 is the boot value that puts the first row
+// at line 51), and hides the edge a scroll exposes by drawing 38 columns
+// instead of 40 ($D016 bit 3, CSEL, clear) or 24 rows instead of 25
+// ($D011 bit 3, RSEL, clear) — the border grows over the outer half-cells.
+// Smooth scrolling is the two together: fine scroll one pixel a frame,
+// and every eighth frame shift the screen a cell and reset the fine scroll,
+// as the sketch above does. The shifts move screen codes and colour RAM
+// together and fill the column or row that opens with one code and colour;
+// each is a thousand-cell copy, some 20000 cycles — a frame's worth of
+// CPU on the frame it happens.
+//
+// YSCROLL moves the bad lines: the VIC fetches a row of screen codes on
+// every line whose low three bits equal YSCROLL, so a raster list's timing
+// (@8bitscript/c64/raster) shifts with it. Reads of the screen work
+// because the KERNAL is banked out (./index.8bs, setupVideo).
+import { control1, control2, setupVideo } from "./index.8bs";
+import { Video, screenRam, colorRam } from "./geometry.8bs";
+
+export namespace scroll {
+    // Horizontal fine scroll, 0-7 pixels right.
+    function setX(pixels: utinyint): void {
+        control2 = (control2 & 0xF8) | (pixels & 7);
+    }
+
+    // Vertical fine scroll, 0-7 pixels down; 3 is the default position.
+    // Bit 7 — the raster compare's ninth bit on a write — is kept clear.
+    function setY(pixels: utinyint): void {
+        control1 = (control1 & 0x78) | (pixels & 7);
+    }
+
+    // 38 columns (true) or 40: the border covers half a cell at each side.
+    function setNarrow(on: bool): void {
+        if (on) {
+            control2 = control2 & 0xF7;
+        } else {
+            control2 = control2 | 0x08;
+        }
+    }
+
+    // 24 rows (true) or 25: the border covers half a cell top and bottom.
+    function setShort(on: bool): void {
+        if (on) {
+            control1 = control1 & 0x77;
+        } else {
+            control1 = (control1 & 0x7F) | 0x08;
+        }
+    }
+
+    // Every cell moves one column left; column 39 becomes `code` in `color`.
+    function shiftLeft(code: utinyint, color: utinyint): void {
+        setupVideo();
+        let cell: usmallint = 0;
+        for (let row: utinyint = 0; row < Video.ROWS; row++) {
+            for (let column: utinyint = 0; column < 39; column++) {
+                screenRam[cell] = screenRam[cell + 1];
+                colorRam[cell] = colorRam[cell + 1];
+                cell = cell + 1;
+            }
+            screenRam[cell] = code;
+            colorRam[cell] = color;
+            cell = cell + 1;
+        }
+    }
+
+    // Every cell moves one column right; column 0 becomes `code` in `color`.
+    function shiftRight(code: utinyint, color: utinyint): void {
+        setupVideo();
+        let cell: usmallint = Video.CELL_COUNT - 1;
+        for (let row: utinyint = 0; row < Video.ROWS; row++) {
+            for (let column: utinyint = 0; column < 39; column++) {
+                screenRam[cell] = screenRam[cell - 1];
+                colorRam[cell] = colorRam[cell - 1];
+                cell = cell - 1;
+            }
+            screenRam[cell] = code;
+            colorRam[cell] = color;
+            cell = cell - 1;
+        }
+    }
+
+    // Every row moves up one; row 24 becomes `code` in `color`.
+    function shiftUp(code: utinyint, color: utinyint): void {
+        setupVideo();
+        for (let cell: usmallint = 0; cell < 960; cell++) {
+            screenRam[cell] = screenRam[cell + 40];
+            colorRam[cell] = colorRam[cell + 40];
+        }
+        for (let cell: usmallint = 960; cell < Video.CELL_COUNT; cell++) {
+            screenRam[cell] = code;
+            colorRam[cell] = color;
+        }
+    }
+
+    // Every row moves down one; row 0 becomes `code` in `color`.
+    function shiftDown(code: utinyint, color: utinyint): void {
+        setupVideo();
+        let cell: usmallint = Video.CELL_COUNT - 1;
+        while (cell >= 40) {
+            screenRam[cell] = screenRam[cell - 40];
+            colorRam[cell] = colorRam[cell - 40];
+            cell = cell - 1;
+        }
+        for (let first: utinyint = 0; first < 40; first++) {
+            screenRam[first] = code;
+            colorRam[first] = color;
+        }
+    }
+}

@@ -1,0 +1,190 @@
+// @8bitscript/c64/raster — a list of register writes, each at a raster line.
+//
+// Named by "8bitscript".exports["./raster"] in this package's package.json:
+//
+//     import { raster, Register } from "@8bitscript/c64/raster";
+//
+//     raster.clear();
+//     raster.at(49, Register.BORDER, 0);         // black border over the picture
+//     raster.at(49, Register.BACKGROUND, 6);     // blue playfield
+//     raster.at(210, Register.BACKGROUND, 0);    // a black status area from line 210
+//     raster.at(210, Register.CONTROL_2, 0x08);  // ... that does not scroll
+//     raster.at(250, Register.BORDER, 2);        // red border below the picture
+//     raster.enable();
+//
+// The VIC-II can interrupt the CPU when the raster reaches a line, and a
+// program that changes a register there — border, background, the
+// character set, the scroll position, a sprite's coordinates — shows two
+// things on one screen: a playfield over a status bar, a fixed strip of
+// score under a scrolling world, sixteen objects from eight sprites. This
+// module is that, as a list: an entry says which line, which address,
+// which value, and the handler this package ships in assembly
+// (native/6502/raster.s) applies each at its line, every frame, with no
+// program code running in the interrupt at all. What it is not: a handler
+// of the program's own. 8bitscript has no function values, so nothing a
+// program writes can be named as the code to run at a line; a write list
+// covers colour splits, split scrolling, character-set and screen switches
+// (any $D018 value), and sprite multiplexing (rewriting a sprite's Y, X,
+// pointer and colour at a line, as entries), and a computed effect —
+// a sine border, a per-line colour cycle — is a list a program rebuilds
+// each frame, up to the 63 entries the list holds.
+//
+// ---- rules ----------------------------------------------------------------
+//
+// - Lines run 0-255 and entries are added in ascending order; `at` refuses
+//   a line below the last one, and a list full at 63 entries. Entries on
+//   the same line are applied together. The visible picture is lines
+//   50-249 (the first text row starts at 51 with the default YSCROLL);
+//   0-49 and 250-255 are border. On PAL the frame has 312 lines, on NTSC
+//   263: lines past 255 cannot be named, and are border on both.
+// - The write lands a few cycles into the line — the handler's entry
+//   (about 30 cycles) plus the instruction the interrupt interrupted (up
+//   to 7), plus, on a bad line (every eighth, from 51 with the default
+//   scroll: the VIC takes 40 of the line's 63 cycles), that. So a colour
+//   change at a line inside the picture shows a step partway across the
+//   line; put it on the line BEFORE the one that should look different,
+//   or in the border, or on a line the VIC is not fetching (not 51, 59,
+//   67, ...). Border and background writes at line 49 and 250 are clean.
+// - Rebuild the list between frames: right after waitFrame(), which is
+//   line 0 or so, before the first entry's line. The handler reads the
+//   list live; `at` writes an entry's four bytes before it counts it, so
+//   a frame never sees a half-written entry, but a list rebuilt while the
+//   raster is inside it applies part of the old list and part of the new,
+//   for that frame.
+// - `enable()` banks the KERNAL out (setupVideo() does; the CPU's vectors
+//   are then RAM, and this package's start-up code has already pointed
+//   them at a bare rti), silences both CIAs, acknowledges everything the
+//   VIC has pending, points the IRQ vector at the handler and runs `cli`.
+//   From then on, `interruptsOn` in @8bitscript/c64 is true, and every
+//   window the package opens with the I/O area banked out (a write under
+//   it: the character set, the bitmap's colour matrix) is an interrupt-
+//   free window — the handler cannot acknowledge $D019 through RAM. A
+//   long window (bitmap.fillColors, charset.restore) delays that frame's
+//   entries by its length; do those before `enable()`, or between frames
+//   and accept the frame.
+// - The handler touches A, X and the list's three state bytes at
+//   $0300-$0302, and nothing else: no zero page, no register but $D012 and
+//   $D019 besides the entries' own. It costs about 30 cycles plus 25 per
+//   entry, out of a frame's 17000-19000.
+import {
+    control1, raster as rasterCompare, interruptStatus, interruptMask,
+    cia1InterruptControl, cia2InterruptControl, setupVideo, interruptsOn,
+} from "./index.8bs";
+
+// The list, where native/6502/raster.s reads it. Four bytes an entry:
+// line, address low, address high, value; then the three state bytes.
+const LIST_ADDRESS: usmallint = 0x0200;
+const END_ADDRESS: usmallint = 0x0300;
+const INDEX_ADDRESS: usmallint = 0x0301;
+
+@address(LIST_ADDRESS)
+let rasterList: array<u8, 252>;
+@address(END_ADDRESS)
+let rasterEnd: volatile<u8>; // entries * 4
+@address(INDEX_ADDRESS)
+let rasterIndex: volatile<u8>; // the handler's next entry * 4
+
+let lastLine: utinyint = 0;
+
+// Addresses for `at`: the registers a split usually writes. `spriteX(n)`
+// and friends below build the per-sprite ones.
+export namespace Register {
+    const BORDER: usmallint = 0xD020;
+    const BACKGROUND: usmallint = 0xD021;
+    const BACKGROUND_1: usmallint = 0xD022;
+    const BACKGROUND_2: usmallint = 0xD023;
+    const BACKGROUND_3: usmallint = 0xD024;
+    const CONTROL_1: usmallint = 0xD011; // YSCROLL bits 0-2, RSEL 3, DEN 4, BMM 5, ECM 6; keep bit 7 clear
+    const CONTROL_2: usmallint = 0xD016; // XSCROLL bits 0-2, CSEL 3, MCM 4
+    const MEMORY_POINTER: usmallint = 0xD018; // screen and character set (or bitmap) in the bank
+    const SPRITE_POSITIONS: usmallint = 0xD000; // + 2n for sprite n's X, + 2n + 1 for its Y
+    const SPRITE_X_HIGH: usmallint = 0xD010;
+    const SPRITE_ENABLE: usmallint = 0xD015;
+    const SPRITE_EXPAND_Y: usmallint = 0xD017;
+    const SPRITE_PRIORITY: usmallint = 0xD01B;
+    const SPRITE_MULTICOLOR: usmallint = 0xD01C;
+    const SPRITE_EXPAND_X: usmallint = 0xD01D;
+    const SPRITE_SHARED_0: usmallint = 0xD025;
+    const SPRITE_SHARED_1: usmallint = 0xD026;
+    const SPRITE_COLORS: usmallint = 0xD027; // + n
+    const SPRITE_POINTERS: usmallint = 0xE3F8; // + n, in text mode (Video.SPRITE_POINTERS); in bitmap mode they are under the I/O area, out of the list's reach
+    const SID_VOLUME: usmallint = 0xD418;
+}
+
+export namespace raster {
+    const MAX: utinyint = 63; // entries
+
+    // Sprite n's registers, for `at`.
+    function spriteX(sprite: utinyint): usmallint {
+        return Register.SPRITE_POSITIONS + sprite * 2;
+    }
+    function spriteY(sprite: utinyint): usmallint {
+        return Register.SPRITE_POSITIONS + sprite * 2 + 1;
+    }
+    function spriteColor(sprite: utinyint): usmallint {
+        return Register.SPRITE_COLORS + sprite;
+    }
+    function spritePointer(sprite: utinyint): usmallint {
+        return Register.SPRITE_POINTERS + sprite;
+    }
+
+    // Empty the list. The handler, if enabled, then fires at the stale
+    // first line and applies nothing until entries are added again.
+    function clear(): void {
+        rasterEnd = 0;
+        rasterIndex = 0;
+        lastLine = 0;
+    }
+
+    // Append: at `line`, write `value` to `address`. False, and nothing
+    // added, if the list is full or `line` is below the last entry's.
+    function at(line: utinyint, address: usmallint, value: utinyint): bool {
+        let offset: utinyint = rasterEnd;
+        if (offset >= 252 || line < lastLine) {
+            return false;
+        }
+        rasterList[offset] = line;
+        rasterList[offset + 1] = address & 0xFF;
+        rasterList[offset + 2] = address >> 8;
+        rasterList[offset + 3] = value;
+        lastLine = line;
+        rasterEnd = offset + 4;
+        return true;
+    }
+
+    // How many entries the list holds.
+    function count(): utinyint {
+        return rasterEnd >> 2;
+    }
+
+    // Own the IRQ: the list is applied from the next frame on.
+    function enable(): void {
+        setupVideo(); // KERNAL out: the vectors are RAM
+        rasterIndex = 0;
+        control1 = control1 & 0x7F; // raster compare bit 8 = 0: lines 0-255
+        rasterCompare = rasterList[0];
+        cia1InterruptControl = 0x7F; // no CIA interrupt reaches the handler: the KERNAL's timer A is one
+        cia2InterruptControl = 0x7F;
+        let pending: utinyint = cia1InterruptControl; // reading acknowledges what was latched
+        pending = cia2InterruptControl;
+        interruptStatus = 0x0F; // and whatever the VIC had
+        interruptMask = 0x01; // the raster compare only
+        asm6502 {
+            jsr __8bs_c64_raster_install
+        }
+        interruptsOn = true;
+        asm6502 {
+            cli
+        }
+    }
+
+    // Interrupts off again; the list is kept.
+    function disable(): void {
+        asm6502 {
+            sei
+        }
+        interruptMask = 0;
+        interruptStatus = 0x0F;
+        interruptsOn = false;
+    }
+}

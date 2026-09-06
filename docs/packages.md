@@ -154,7 +154,11 @@ the subpath directly; a portable one reaches the same file through
 
 The exported file follows the [system-specific file](#system-specific-files)
 rule like any other `.8bs` path, and the package's native sources ride along
-with every subpath, since it is that package's code being linked. A subpath
+with every subpath, since it is that package's code being linked — and with
+any file inside the package however it was reached: a relative import
+between two of its files, or a program built from inside the package (its
+own probe programs under `test/`). The package boundary is the nearest
+`package.json` above the file, as Node draws it. A subpath
 the map has no key for is `8BS2011` — the package is sound, it just does not
 offer that — and a key naming a file the package does not ship is
 `8BS2003`, like a missing entry.
@@ -391,8 +395,8 @@ list of paths relative to the package:
 
 This is implemented. Importing the package — directly, or through a
 delegating entry such as `@8bitscript/text`'s, or a subpath such as
-`@8bitscript/nes/text` — brings its native files
-into the build: the linker collects them once each across the module graph,
+`@8bitscript/nes/text`, or a relative import of one of its files from
+another — brings its native files into the build: the linker collects them once each across the module graph,
 and the 6502 backend hands them to the LLVM-MOS driver after the generated
 C, where a `.s` is assembled and linked like any other input. A listed file
 the package does not ship is `8BS2008`, reported where the package is
@@ -417,7 +421,7 @@ Only two kinds of package are meant for you:
 | `@8bitscript/cli` | The `8bs` command. A dev dependency |
 | `@8bitscript/screen`, `@8bitscript/text` | The portable standard library, one package per capability: each resolves per target to that machine package's own implementation |
 | `@8bitscript/system` | The machine, by name and by fact: `System.C64`, `System.PET`, … to compare the compiler's `#system()` with, and the fact sheet — `Video.COLUMNS`, `Video.SPRITES`, `Audio.VOICES`, `Input.KEYBOARD`, `Storage.SAVE`, `Memory.RAM`, … — each one `#fact(...)` folded from the build's hardware. Every one is a compile-time constant, so a branch on another machine, or on hardware this build lacks, folds away — see [systems](systems.md#facts-what-a-build-knows-about-itself) |
-| `@8bitscript/vic20`, `@8bitscript/c64`, `@8bitscript/nes`, … `@8bitscript/web` | Target support, one per machine: the hardware underneath (registers, port protocols), plus that machine's `./screen` and `./text` subpaths, and any hardware-level subpath of its own (`@8bitscript/pet/keyboard`, `@8bitscript/pet/keys`; `@8bitscript/c64/sprites`, `/keyboard`, `/keys`, `/joystick`, `/sid`, `/video`, `/reu` — the REU probe, `reu.detect()`; `@8bitscript/cx16/banks` and `@8bitscript/atari8/banks` — `banks.kib()`) that a portable capability does not cover yet |
+| `@8bitscript/vic20`, `@8bitscript/c64`, `@8bitscript/nes`, … `@8bitscript/web` | Target support, one per machine: the hardware underneath (registers, port protocols), plus that machine's `./screen` and `./text` subpaths, and any hardware-level subpath of its own (`@8bitscript/pet/keyboard`, `@8bitscript/pet/keys`; `@8bitscript/c64/sprites`, `/keyboard`, `/keys`, `/joystick`, `/sid`, `/video`, `/raster`, `/bitmap`, `/charset`, `/scroll`, `/mouse`, `/reu` — the REU probe, `reu.detect()`, and its transfers; `@8bitscript/atari8/joystick`, `/console` — START/SELECT/OPTION and the console speaker, `/keyboard`, `/keys`, `/pokey` — POKEY's four voices, `/random` — POKEY's hardware entropy, behind its own import; `@8bitscript/c128/vdc`, `/vdc80`; `@8bitscript/cx16/banks` and `@8bitscript/atari8/banks` — `banks.kib()`) that a portable capability does not cover yet |
 
 The compiler, the language server, and the backends are internal:
 `@8bitscript/compiler`, `@8bitscript/language-server`,

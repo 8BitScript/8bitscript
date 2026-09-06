@@ -1,0 +1,85 @@
+// @8bitscript/atari8/console — START, SELECT, OPTION and the console speaker.
+//
+// Named by "8bitscript".exports["./console"] in this package's package.json:
+//
+//     import { console, ConsoleKey } from "@8bitscript/atari8/console";
+//
+//     console.scan();
+//     if (console.pressed(ConsoleKey.START)) { ... }
+//
+// The three keys to the right of the keyboard are not on the keyboard: they
+// are three bits of GTIA's CONSOL ($D01F), active low, read directly with no
+// OS shadow and no interrupt in the way. That makes them the cheapest input
+// on the machine and the reason so many Atari games start on START and cycle
+// difficulty on SELECT — a cartridge with no DOS and no keyboard handler
+// still has these three.
+//
+// CONSOL is the register this project's own `examples/proof-of-concept/borders`
+// already reads for its OPTION readout; this file is that, named.
+//
+// ---- the fourth bit is an output ------------------------------------------
+//
+// The same register's bit 3 drives the console speaker — the click the OS
+// makes on every keypress. It is not a voice: there is no frequency and no
+// volume, only a cone that moves when the bit changes, so a tone means
+// toggling it in a timed loop and a "click" means toggling it twice. POKEY
+// is where sound lives (./pokey.8bs); this is here because it is the same
+// register and would otherwise be a trap — a program that writes CONSOL to
+// clear something and leaves bit 3 low holds the speaker cone out of centre.
+// `scan()` never writes CONSOL, and `click()` puts the bit back.
+//
+// Reading CONSOL returns the keys; writing it drives the speaker. They are
+// the same address and genuinely different registers, which is why this file
+// declares it twice.
+import { consolRead, consolWrite } from "./index.8bs";
+
+// The last scan: `ConsoleKey.*` bits, 1 = pressed, the hardware's active-low
+// sense inverted once here. Zero until the first scan.
+let state: utinyint = 0;
+
+export namespace ConsoleKey {
+    const START: utinyint = 1;
+    const SELECT: utinyint = 2;
+    const OPTION: utinyint = 4;
+}
+
+export namespace console {
+    // Read the three keys into the snapshot. Once a frame, beside
+    // joystick.scan(); unlike the joystick this reads the hardware and so
+    // is live whether or not the OS VBI is running.
+    function scan(): void {
+        state = (consolRead ^ 0x07) & 0x07;
+    }
+
+    // One key, from the snapshot: `console.pressed(ConsoleKey.START)`.
+    function pressed(key: utinyint): bool {
+        return (state & key) != 0;
+    }
+
+    // All three at once, as `ConsoleKey.*` bits.
+    function bits(): utinyint {
+        return state;
+    }
+
+    // Move the speaker cone out and back — the OS's keyclick, without the
+    // OS. Bit 3 low pushes the cone; the four low bits of a CONSOL write are
+    // the ones that matter, and $08 (bit 3 set) is its resting state, which
+    // is what this leaves behind. Two calls a frame is a buzz; one on an
+    // event is a click. A tone means toggling `speaker()` on a timed loop
+    // instead, which costs the CPU the whole time it sounds — POKEY is the
+    // answer for anything longer than a click.
+    function click(): void {
+        consolWrite = 0x00;
+        consolWrite = 0x08;
+    }
+
+    // The speaker bit on its own, for a program timing its own tone:
+    // `out` true pushes the cone, false lets it rest.
+    function speaker(out: bool): void {
+        if (out) {
+            consolWrite = 0x00;
+        } else {
+            consolWrite = 0x08;
+        }
+    }
+}

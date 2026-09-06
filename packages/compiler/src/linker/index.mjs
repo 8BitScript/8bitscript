@@ -33,7 +33,7 @@ import { parse } from '../parser/index.mjs';
 import { check } from '../checker/index.mjs';
 import { foldCompileTime } from '../fold/index.mjs';
 import { lower } from '../ir/index.mjs';
-import { resolveSpecifier } from '../resolver/index.mjs';
+import { resolveSpecifier, nativeSourcesBeside } from '../resolver/index.mjs';
 import { Codes, diagnostic } from '../diagnostics/index.mjs';
 import { storageBytes, resolveIntegerType } from '../types/index.mjs';
 import { checkHardwareHazards } from './hazards.mjs';
@@ -91,6 +91,11 @@ function loadGraph(entryText, entryFile, diagnostics, sources, options) {
   };
 
   enqueue(entryFile, entryText);
+  // The entry's own package, if it sits inside one that ships native
+  // sources (a package's probe program under its test/ directory).
+  for (const source of nativeSourcesBeside(entryFile).native ?? []) {
+    nativeSources.set(canonical(source), source);
+  }
 
   // modules grows while we walk it: a plain index loop is the worklist.
   for (let i = 0; i < modules.length; i += 1) {
