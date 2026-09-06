@@ -195,6 +195,37 @@ The keyboard column is the profile's too: `@8bitscript/pet/keys` names the
 keys of the graphics matrix, and of the business matrix for `8032`.
 `packages/pet/AGENTS.md` has the hardware behind each column of the table.
 
+## C64 models and the REU
+
+The C64 is one build for every model. Unlike the PET, nothing about a
+C64 model changes what the program is linked for — a breadbin C64, a C64C,
+an SX-64 and a C64GS all load a `.prg` at `$0801` into the same map — so
+`--profile` on the C64 is not a model: it is the RAM Expansion Unit
+(`stock`, the default, or `reu128` … `reu16m`), the one piece of optional
+hardware the build wants to know about, and `8bs run c64` attaches it to
+x64sc with `-reu -reusize`. Region is `--pal` (x64sc's `-model c64`, a
+6569 VIC-II) or the NTSC default (`-model ntsc`, a 6567R8). To run a build
+on another model, launch x64sc yourself with its `-model`:
+
+| `-model` | Region | VIC-II | SID | CIA | Notes |
+| -------- | ------ | ------ | --- | --- | ----- |
+| `c64` | PAL | 6569 | 6581 | 6526 | the default `--pal` machine |
+| `c64c` | PAL | 8565 | 8580 | 6526A | the later, cost-reduced board |
+| `c64old` | PAL | 6569R1 | 6581 | 6526 | early PAL board, KERNAL rev 2 |
+| `ntsc` | NTSC | 6567R8 | 6581 | 6526 | the default machine |
+| `newntsc` | NTSC | 8562 | 8580 | 6526A | NTSC C64C |
+| `oldntsc` | NTSC | 6567R56A | 6581 | 6526 | 262 lines of 64 cycles: the frame runtime's NTSC figure (263 × 65) is 1.9% off here |
+| `drean` | PAL-N | 6572 | 6581 | 6526 | Argentina; 312 lines of 65 cycles (Bauer, VICE) at a clock near NTSC's (unverified) — the runtime's PAL probe sees it as PAL and its frame period is under 1% off |
+| `jap` | NTSC | 6567R8 | 6581 | 6526 | Japanese KERNAL and character ROM |
+| `c64gs` | PAL | 8565 | 8580 | 6526A | the cartridge console: no keyboard, boots to a cartridge prompt instead of BASIC |
+| `pet64` | PAL/NTSC | 6569/6567 | 6581 | 6526 | the Educator 64: the 4064 KERNAL, a monochrome monitor |
+| `ultimax` | NTSC | 6567R56A | 6581 | 6526 | the MAX Machine: 2K RAM, no KERNAL — a `.prg` cannot run there |
+
+(VICE 3.10's `x64sc -help` and its `c64model.c` table; `-sidmodel 0/1/2`
+picks 6581, 8580, or 8580 with the digi fix, `-VICIImodel` a chip
+revision by itself.) `packages/c64/AGENTS.md` has what each column means
+for a program.
+
 ## On cc65
 
 cc65 is intentionally not part of this toolchain, as noted in the

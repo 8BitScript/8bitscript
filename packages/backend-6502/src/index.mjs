@@ -338,6 +338,20 @@ const FRAME_SYNC = {
     // tops out at line 262, $D012 == 6); a PAL one reaches line 311
     // ($D012 == 55).
     palProbe: '((*(volatile uint8_t *)0xD011) & 0x80) != 0 && (*(volatile uint8_t *)0xD012) >= 32',
+    // The program owns the machine from the first waitFrame() on: the
+    // KERNAL's IRQ (CIA1 timer A, ~60 times a second) scans the keyboard
+    // matrix through CIA1's ports, and any scan @8bitscript/c64/keyboard
+    // makes of the same ports would race it — a column select of the
+    // KERNAL's landing between this program's write and its read. It also
+    // updates the jiffy clock and blinks a cursor nothing here uses. With
+    // interrupts off the ports read what the program selected, joystick
+    // reads on $DC00/$DC01 see only the joystick, and the frame runtime
+    // loses nothing (it polls a raster line, which no handler touches).
+    // Consequence, as on the PET: a program that calls waitFrame() has no
+    // KERNAL keyboard, and returning from main() into BASIC is off the
+    // map (packages/c64/AGENTS.md). Interrupts stay off for the charset
+    // copy @8bitscript/c64's video setup does with I/O banked out, too.
+    presync: '__asm__ volatile("sei" ::: "memory");',
     ntsc: { num: 263 * 65 * 14, den: 14318181 },
     pal: { num: 312 * 63 * 18, den: 17734472 },
   },
@@ -748,6 +762,11 @@ function emitFrameRuntime(sync, frameRate, hook = null) {
 // the first waitFrame() waits a whole frame rather than the tail of one.
 function emitFramePrologue(sync, frameRate) {
   let out = '';
+  // Interrupts off before the first poll, on the machines whose entry asks
+  // for it — level drivers included: the C64's reason is not a race on the
+  // flag (a raster line is read, not acknowledged) but ownership of CIA1,
+  // see FRAME_SYNC.c64.
+  if (sync.presync) out += `    ${sync.presync}\n`;
   if (!isOneToOne(sync, frameRate)) out += '    __8bs_acc = 0;\n';
   if (sync.kind === 'level') {
     const { ntsc, pal } = frameRatio(sync, frameRate).pairs;
@@ -763,7 +782,6 @@ function emitFramePrologue(sync, frameRate) {
     );
     return out;
   }
-  if (sync.presync) out += `    ${sync.presync}\n`;
   if (sync.calibrate) {
     // Measures num/den itself and ends synced to a frame edge.
     out += `${sync.calibrate(frameRate)}\n`;

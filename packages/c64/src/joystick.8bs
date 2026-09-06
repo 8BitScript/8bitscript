@@ -1,0 +1,78 @@
+// @8bitscript/c64/joystick — the two control ports, one snapshot a frame.
+//
+// Named by "8bitscript".exports["./joystick"] in this package's package.json:
+//
+//     import { joystick, Joystick } from "@8bitscript/c64/joystick";
+//
+//     joystick.scan();
+//     if (joystick.left(Joystick.PORT_2)) { ... }
+//
+// Hardware-level, C64-only surface, like ./keyboard.8bs: the layer a
+// portable input capability will sit on. A digital joystick is five
+// switches to ground — up, down, left, right, fire — on CIA1: port 2 on
+// port A ($DC00) bits 0-4, port 1 on port B ($DC01) bits 0-4, a 0 bit
+// where a switch is closed. `scan()` reads both once a frame into a
+// snapshot with the bits inverted (1 = pushed) and everything else answers
+// from it.
+//
+// Port A has to be $FF for the read to mean the joystick: its bits are
+// the keyboard's column selects, and a selected column's keys would show
+// up in port B as joystick 1. `keyboard.scan()` leaves it so; `scan()`
+// writes it again anyway, so a program with no keyboard is right too. The
+// order once a frame is: waitFrame(), keyboard.scan(), joystick.scan().
+//
+// Port 2 is where a game reads its player, and where every C64 game asked
+// for the stick: port 1 shares wires with the keyboard's rows, so a stick
+// there "types" (the KERNAL's scan sees it — irrelevant here, interrupts
+// are off) and, the other way round, keys held down read as joystick 1
+// pushes. Port 2 shares the column lines, which a scan only drives for the
+// length of `keyboard.scan()`. Paddles and the 1351 mouse are the SID's
+// two A/D lines (`paddleX`/`paddleY` in ./index.8bs), not this file.
+import { cia1PortA, cia1PortB } from "./index.8bs";
+
+// The last scan: index 0 port 1, index 1 port 2; bits as in `Joystick`.
+let state: array<utinyint, 2>;
+
+export namespace Joystick {
+    const PORT_1: utinyint = 0;
+    const PORT_2: utinyint = 1;
+    const UP: utinyint = 1;
+    const DOWN: utinyint = 2;
+    const LEFT: utinyint = 4;
+    const RIGHT: utinyint = 8;
+    const FIRE: utinyint = 16;
+}
+
+export namespace joystick {
+    // Read both ports into the snapshot. Once a frame, after keyboard.scan().
+    function scan(): void {
+        cia1PortA = 0xFF;
+        state[0] = (cia1PortB ^ 0xFF) & 0x1F;
+        state[1] = (cia1PortA ^ 0xFF) & 0x1F;
+    }
+
+    // The five switches of one port as `Joystick.*` bits, 1 = pushed.
+    function bits(port: utinyint): utinyint {
+        return state[port];
+    }
+
+    function up(port: utinyint): bool {
+        return (state[port] & Joystick.UP) != 0;
+    }
+
+    function down(port: utinyint): bool {
+        return (state[port] & Joystick.DOWN) != 0;
+    }
+
+    function left(port: utinyint): bool {
+        return (state[port] & Joystick.LEFT) != 0;
+    }
+
+    function right(port: utinyint): bool {
+        return (state[port] & Joystick.RIGHT) != 0;
+    }
+
+    function fire(port: utinyint): bool {
+        return (state[port] & Joystick.FIRE) != 0;
+    }
+}

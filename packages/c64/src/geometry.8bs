@@ -1,0 +1,74 @@
+// @8bitscript/c64 — where the picture lives: VIC bank 3, above the program.
+//
+// The VIC-II sees one 16K bank at a time, and everything it draws from —
+// the screen matrix, the character set, the sprite shapes, the eight
+// sprite pointers — has to be inside that one bank. The SDK links a
+// program into $0801-$CFFF (mos-platform/c64/lib/link.ld: `ram` is
+// ORIGIN $0801, LENGTH $C7FF, and the C stack grows down from $D000), and
+// it decides where every byte of code and data goes. Nothing the VIC
+// needs can be promised a place inside that region without a build-time
+// overlap check the toolchain does not have, so the picture lives in the
+// only RAM the linker never touches: $D000-$FFFF, the upper half of VIC
+// bank 3 ($C000-$FFFF). The VIC always reads RAM there — its two
+// character-ROM windows are in banks 0 and 2 ($1000 and $9000), not here —
+// and the CPU writes RAM there too: a store to $E000-$FFFF lands under the
+// KERNAL ROM whether the ROM is mapped or not.
+//
+//   $D000-$DFFF  the character ROM's 4K, copied into the RAM under the I/O
+//                area once at start-up (setupVideo() in ./index.8bs): the
+//                upper-case/graphics set at $D000, lower-case at $D800.
+//                The same offset ($1000) in the bank as the ROM window has
+//                in bank 0, so $D018's charset field is the ROM's own.
+//   $E000-$E3E7  the 40x25 screen matrix, one screen code per cell.
+//   $E3F8-$E3FF  the eight sprite pointers (screen + $3F8, a VIC rule).
+//   $E400-$FFBF  111 sprite shape blocks of 64 bytes, blocks 144-254 of
+//                the bank. Block 255 ($FFC0-$FFFF) is RAM too, but it sits
+//                under the CPU's reset/IRQ/NMI vectors and is left alone.
+//
+// Colour RAM does not move with the bank: it is the 1K of nybbles at $D800
+// in the I/O area, wherever the screen is. So a cell's colour is written
+// through I/O ($01 bit 2 set) while its character is written to RAM — the
+// normal state of the machine, and the state setupVideo() leaves it in.
+//
+// Screenshots of a program using this layout under x64sc (text from the
+// copied set, a sprite from block 144) are how these numbers were checked;
+// packages/c64/AGENTS.md has the table.
+
+// The addresses themselves, as this module's own consts: `@address` takes
+// a literal or a const declared beside it, so the arrays over the screen,
+// the colour RAM, the sprite pointers and the shape blocks are declared
+// here, where the numbers are, and `Video` names the same numbers for
+// everything else.
+const SCREEN_ADDRESS: usmallint = 0xE000;
+const COLOR_ADDRESS: usmallint = 0xD800;
+const SPRITE_POINTERS_ADDRESS: usmallint = 0xE3F8;
+const SHAPES_ADDRESS: usmallint = 0xE400;
+
+// The screen matrix: 1000 screen codes, cell 0 top-left.
+@address(SCREEN_ADDRESS)
+export let screenRam: array<u8, 1000>;
+// Colour RAM: the low nybble of each byte is that cell's colour.
+@address(COLOR_ADDRESS)
+export let colorRam: array<u8, 1000>;
+// Sprite n's shape block: the VIC reads shape data from bank + 64 * pointer.
+@address(SPRITE_POINTERS_ADDRESS)
+export let spritePointers: array<u8, 8>;
+// The shape blocks, one array: block b's 63 bytes start at 64 * (b - 144).
+@address(SHAPES_ADDRESS)
+export let spriteShapes: array<u8, 7104>;
+
+export namespace Video {
+    const BANK: usmallint = 0xC000; // VIC bank 3, selected through CIA2 port A bits 0-1 (= %00)
+    const SCREEN: usmallint = SCREEN_ADDRESS; // screen matrix: one screen code per cell
+    const COLOR: usmallint = COLOR_ADDRESS; // colour RAM: one nybble per cell, same cell index, never moves
+    const CHARSET: usmallint = 0xD000; // the character ROM's copy in RAM: upper-case set here, lower-case at +$0800
+    const SPRITE_POINTERS: usmallint = SPRITE_POINTERS_ADDRESS; // eight bytes: shape block per sprite (address / 64 within the bank)
+    const SHAPES: usmallint = SHAPES_ADDRESS; // first sprite shape block
+    const SHAPE_BLOCK_FIRST: utinyint = 144; // (SHAPES - BANK) / 64
+    const SHAPE_COUNT: utinyint = 111; // blocks 144-254
+    const MEMORY_POINTER_UPPERCASE: utinyint = 0x84; // $D018: screen at bank+$2000 (bits 4-7 = 8), charset at bank+$1000 (bits 1-3 = 2)
+    const MEMORY_POINTER_LOWERCASE: utinyint = 0x86; // the same screen, the lower-case set at bank+$1800
+    const COLUMNS: utinyint = 40;
+    const ROWS: utinyint = 25;
+    const CELL_COUNT: usmallint = 1000; // COLUMNS * ROWS
+}

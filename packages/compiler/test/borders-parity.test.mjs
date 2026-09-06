@@ -102,7 +102,7 @@ const T_CONSUMER = 'import { text } from "@8bitscript/text";\nexport function ma
 test('the Commodore packages map ASCII to screen codes and select the upper-case set', () => {
   const charsetWrite = {
     vic20: [/#define memoryPointer \(\*\(volatile uint8_t \*\)0x9005\)/, /memoryPointer = 240;/],   // $9005 = $F0
-    c64: [/#define memoryPointer \(\*\(volatile uint8_t \*\)0xD018\)/, /memoryPointer = 21;/],      // $D018 = $15
+    c64: [/#define memoryPointer \(\*\(volatile uint8_t \*\)0xD018\)/, /memoryPointer = 132;/],     // $D018 = $84: screen $E000, charset $D000, in VIC bank 3
     c128: [/#define memoryPointerShadow \(\*\(volatile uint8_t \*\)0xA2C\)/, /memoryPointerShadow = 20;\n\s+memoryPointer = 20;/], // VM1 then $D018, both $14
     mega65: [/#define memoryPointer \(\*\(volatile uint8_t \*\)0xD018\)/, /memoryPointer = 36;/],   // $D018 = $24 (screen at $0800)
     pet: [/#define viaPeripheralControl \(\*\(volatile uint8_t \*\)0xE84C\)/, /viaPeripheralControl = 12;/], // VIA PCR = $0C, graphics set
