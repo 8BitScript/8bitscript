@@ -163,7 +163,7 @@ Three rules:
    how a program that never asked for a REU pays nothing for one. The
    first probe is the C64's: `reu.detect()` from `@8bitscript/c64/reu`
    answers 0 KiB on a stock machine and the unit's size on one with a REU
-   — checked under VICE at 0, 128 KiB, 512 KiB and 16 MiB — and the
+   — checked under VICE with no REU and at 128 KiB, 256, 512, 1 MiB and 16 MiB — and the
    catalog's `ram` option names it in `detect`, which is how `8bs targets`
    and the editor's panel know that one C64 build serves every REU. It
    costs the program that calls it about 180 bytes, and a program that
