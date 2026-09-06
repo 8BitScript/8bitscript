@@ -160,7 +160,15 @@ Three rules:
    compiled in, and whether it is really there is the capability's answer
    at run time. A build never fitted with it carries no code for it. This
    is how one binary per machine finds optional hardware and uses it, and
-   how a program that never asked for a REU pays nothing for one.
+   how a program that never asked for a REU pays nothing for one. The
+   first probe is the C64's: `reu.detect()` from `@8bitscript/c64/reu`
+   answers 0 KiB on a stock machine and the unit's size on one with a REU
+   — checked under VICE at 0, 128 KiB, 512 KiB and 16 MiB — and the
+   catalog's `ram` option names it in `detect`, which is how `8bs targets`
+   and the editor's panel know that one C64 build serves every REU. It
+   costs the program that calls it about 180 bytes, and a program that
+   never imports it nothing: only what a program imports is compiled, so
+   an app with no use for a mouse or a REU carries no code to look for one.
 
 What stays a separate build is what changes the binary: the 80-column
 PET, whose screen is a different size and a different place, is a
@@ -181,11 +189,11 @@ names — and a tenth machine gets the right tier without anyone editing
 Studio. It also moved the web to the viewer tier, honestly: the web
 runtime has no keyboard yet.
 
-Still to build: the run-time probes themselves, one per capability (REU
-presence, a 1351 in a port, the C128's bank, the X16's bank count) — the
-sheet says which builds want them; a way to mark, per option, whether the
-machine can detect the value at all; and `8bs check` validating a
-project's own sheet.
+Still to build: the other probes, each in its machine package as the REU's
+is — a 1351 in a port, the C128's second bank, the Atari 130XE's banks,
+the X16's bank count — and the portable capabilities (`input`, banked
+memory) that call them so a program never imports a machine's probe
+itself; and `8bs check` validating a project's own sheet.
 
 ## Behaviour: capability packages
 

@@ -34,6 +34,10 @@ export function describeTargets(config) {
     const options = Object.fromEntries(Object.entries(catalog.options).map(([optionId, option]) => [optionId, {
       label: option.label,
       default: option.default,
+      // The package subpath whose probe finds this hardware on the machine
+      // at run time — one binary serves every value — or null when the
+      // value has to be chosen at build time (a PET model).
+      detect: option.detect ?? null,
       values: Object.fromEntries(Object.entries(option.values).map(([value, entry]) => [value, {
         label: entry.label,
         affectsBuild: Boolean(entry.build),
@@ -79,7 +83,7 @@ export async function targets(args) {
       const values = Object.entries(option.values)
         .map(([value, entry]) => `${value}${value === option.default ? '*' : ''}${entry.affectsBuild ? ' (build)' : ''}`)
         .join(', ');
-      process.stdout.write(`         --hardware ${optionId}=  ${option.label}: ${values}\n`);
+      process.stdout.write(`         --hardware ${optionId}=  ${option.label}: ${values}${option.detect ? ` — found at run time by ${option.detect}` : ''}\n`);
     }
     if (presets.length > 0) process.stdout.write(`         --profile  presets: ${presets.join(', ')}\n`);
     if (profiles.length > 0) process.stdout.write(`         --profile  this project: ${profiles.join(', ')}\n`);

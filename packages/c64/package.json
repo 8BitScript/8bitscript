@@ -14,7 +14,8 @@
       "./keyboard": "./src/keyboard.8bs",
       "./keys": "./src/keys.8bs",
       "./joystick": "./src/joystick.8bs",
-      "./sid": "./src/sid.8bs"
+      "./sid": "./src/sid.8bs",
+      "./reu": "./src/reu.8bs"
     },
     "hardware": {
       "facts": {
@@ -57,6 +58,7 @@
         "ram": {
           "label": "RAM Expansion Unit",
           "default": "none",
+          "detect": "@8bitscript/c64/reu",
           "values": {
             "none": {
               "label": "No expansion"
@@ -332,5 +334,8 @@
   ],
   "publishConfig": {
     "access": "public"
+  },
+  "scripts": {
+    "test": "node --test"
   }
 }

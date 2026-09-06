@@ -36,7 +36,10 @@ why NES is the first target where this stops being optional.
   the catalog's top-level `facts` is the stock machine's whole sheet,
   every key the compiler's `FACTS` table names, read by a program as
   `#fact(...)` through `@8bitscript/system`'s `Video.*`, `Audio.*`,
-  `Input.*`, `Storage.*`, `Memory.*` consts
+  `Input.*`, `Storage.*`, `Memory.*` consts — and an option whose hardware
+  one binary can find on the machine names its probe in `detect`
+  (`@8bitscript/c64/reu`, the first; an option without one is a separate
+  build per value)
   (`packages/cli/src/hardware.mjs` resolves a build's hardware from it;
   `8bs targets` lists it; [`docs/systems.md`](docs/systems.md#three-axes-not-one)
   is the design). Any new machine-specific storage, banking, or

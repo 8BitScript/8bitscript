@@ -1,0 +1,28 @@
+// The REU probe, run for real: prints what reu.detect() found and sets the
+// border to a colour that encodes it, so a headless screenshot can be read
+// by a test without decoding text — red for no REU, then one colour per
+// size: purple 128 KiB, green 256, blue 512, yellow 1 MiB, orange 2, brown
+// 4, light red 8, dark grey 16. See test/reu.test.mjs.
+import { screen } from "../src/screen.8bs";
+import { text } from "../src/text.8bs";
+import { reu } from "../src/reu.8bs";
+
+export function main(): void {
+    screen.blank();
+    let kib: usmallint = reu.detect();
+    text.print(0, "REU KIB");
+    text.printNumber(8, kib, 5);
+    let color: utinyint = 2;
+    if (kib != 0) {
+        color = 3;
+        let size: usmallint = 64;
+        while (size != kib) {
+            size = size * 2;
+            color = color + 1;
+        }
+    }
+    screen.setColors(color, 0);
+    while (true) {
+        waitFrame();
+    }
+}
