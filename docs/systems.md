@@ -18,18 +18,21 @@ The whole page follows from one rule, the root `AGENTS.md`'s:
 > never abstract away a hardware limit that determines whether a program
 > actually works.
 
-So a machine is described three ways, and the three are kept apart:
+So a program can ask three different things about the machine it is
+being built for, and the three are kept apart. In plain words: *which
+machine is it*, *what are its numbers*, and *what can it do*.
 
 | Kind | What it answers | Spelled as | Status |
 | ---- | --------------- | ---------- | ------ |
-| **Identity** | Which machine is this build for? | `System.CURRENT == System.C64` | exists: `@8bitscript/system` |
+| **Identity** | Which machine is this build for? | `#system() == System.C64` | exists: `#system()` in the compiler, the names in `@8bitscript/system` |
 | **Facts** | How wide is the screen? How many sprites per line? Is there a mouse? | `text.COLUMNS`, `Video.SPRITES_PER_LINE`, `Input.MOUSE` | `text.COLUMNS` and `CELL_COUNT` exist; the rest is proposal |
 | **Behaviour** | Draw a tile here. Play this note. Read the joystick. | `tiles.set(x, y, t)`, `sound.play(...)`, `input.left()` | `screen` and `text` exist; the rest is proposal |
 
-A program branches on identity rarely, reads facts when a number decides
-its layout, and calls behaviour for everything else. The order of
-preference is the reverse of the table: a fact beats a name, because a
-fact is still right on a machine the name has never heard of.
+A program asks *which machine* rarely, reads a *number* when it decides a
+layout, and calls a *capability* for everything else. The order of
+preference is the reverse of the table: a number beats a name, because
+`text.COLUMNS` is still right on a machine the name has never heard of,
+where "if C64 then 40 columns" is wrong on a C128 in 80-column mode.
 
 ## What exists today
 
@@ -41,13 +44,14 @@ fact is still right on a machine the name has never heard of.
   screen's location, and which per-profile file a package reads
   (`geometry.pet.8032.8bs`) all follow from it. The NES has no profiles
   yet and is hard-wired to NROM; the X16, MEGA65, C128 and web have none.
-- **Identity**: `@8bitscript/system` exports one `System` namespace with a
-  name per target and `System.CURRENT`, the machine being built for. It
-  is a `const`, so it is resolved at compile time; the per-machine
-  version of one small file behind it (`current.c64.8bs`) is picked by the
-  same filename rule every project has. Studio's `main.8bs` uses it to
+- **Identity**: `#system()` is a compile-time builtin, like `#frames()`:
+  the compiler replaces it with the number of the machine being built
+  for. `@8bitscript/system` exports one `System` namespace naming those
+  numbers, so `if (#system() == System.NES)` compares two constants and
+  the other machines' branches fold away. Studio's `main.8bs` uses it to
   pick its tier with an ordinary `if` chain — one entry file where there
-  used to be four.
+  used to be four. With no machine in hand (`8bs check`, the editor) the
+  call is valid and target-dependent, like a `.<machine>.8bs` import.
 - **Two capabilities**: `@8bitscript/screen` (border and background) and
   `@8bitscript/text` (a character grid, ASCII in, with `COLUMNS` and
   `CELL_COUNT` as the first facts). Each is a machine-keyed manifest
@@ -113,10 +117,11 @@ import { System, Video, Audio, Input, Storage, Memory } from "@8bitscript/system
 
 Two rules for the sheet:
 
-1. **A fact is never missing.** A machine without sprites says
+1. **A fact is never missing.** A machine without hardware sprites says
    `Video.SPRITES = 0`; a program that reads it gets a number it can branch
-   on, and the branch folds away. Contrast the behaviour packages below,
-   where a capability the machine lacks *is* missing, on purpose.
+   on, and the branch folds away. `actors.PER_ROW` on the same machine is
+   still a number — what its software actors can manage — because the
+   concept exists there even though the chip does not.
 2. **A fact is the worst case that matters, not the brochure figure.** The
    NES's sprite fact that decides whether a scene works is 8 per line, not
    64 per frame. The X16's is a per-line pixel budget. When the brochure
@@ -132,9 +137,16 @@ editing Studio.
 
 A capability is one npm package per concept, delegating per machine to
 that machine's own implementation, with the rule already in force for
-`screen` and `text`: the surface is identical everywhere it exists, and a
-machine that cannot implement it is `8BS3002` at build time, not a stub
-that does nothing. The proposed set, in the order Studio needs them:
+`screen` and `text`: the surface is identical everywhere it exists. A
+capability is named for the *concept* a program has, never for the chip
+that happens to provide it, and so it exists on every machine where the
+concept makes sense at all — a moving object is a concept on the PET even
+though a sprite is not, so `actors` exists there, drawn by rewriting
+cells, and the number that comes with it says how many can share a row
+before the machine cannot keep up. Only a concept a machine genuinely
+lacks (persistence on an NROM cartridge, a pointer on a machine with no
+port for one) is `8BS3002` at build time, and never a stub that does
+nothing. The proposed set, in the order Studio needs them:
 
 | Package | Intent | Exists on | First facts |
 | ------- | ------ | --------- | ----------- |
@@ -143,7 +155,7 @@ that does nothing. The proposed set, in the order Studio needs them:
 | `@8bitscript/input` | keys, sticks, pads, and a pointer, as *intent*: `input.left()`, `input.confirm()`, `input.pointerX()` | all nine (the NES answers from the pad; a machine without a pointer answers `pointerPresent() == false`) | `Input.*` |
 | `@8bitscript/canvas` | a work area of pseudo-pixels the program draws into, at a size and depth it asks for; the machine picks the unit (see [the display model](#the-display-model-units-not-pixels)) | every machine with glyphs, blocks, or a bitmap — that is all of them but the NROM NES | `canvas.MAX_WIDTH`, `MAX_HEIGHT`, `COLORS` |
 | `@8bitscript/tiles` | a scrolling layer of tile indices: `tiles.set(x, y, t)`, `tiles.scroll(x, y)`, `tiles.define(t, shape)` | machines with a tile or redefinable-character layer | `Video.GLYPHS`, `Video.SCROLL` |
-| `@8bitscript/sprites` | `sprites.place(n, x, y)`, `setShape`, `hide`; coordinates from the visible top-left | machines with hardware sprites, player/missile graphics, or a blitter | `Video.SPRITES`, `SPRITES_PER_LINE` |
+| `@8bitscript/actors` | moving objects: `actors.place(n, x, y)`, `setShape`, `hide`; coordinates from the visible top-left. Hardware sprites where they exist (C64, NES, X16, MEGA65), players and missiles on the Atari, the blitter on the Lynx, redrawn cells or glyphs on the PET, VIC-20, Plus/4, Apple II | all nine, and every roadmap machine | `actors.COUNT` (how many at once), `actors.PER_ROW` (how many may share a row: 8 on a C64, 8 on the NES, a handful on a PET before the frame is spent), `actors.WIDTH`, `HEIGHT`, `COLORS` |
 | `@8bitscript/palette` | name the colours a program uses, once, and let each machine map them | all nine (a fixed-palette machine maps to its nearest) | `Video.PALETTE` |
 | `@8bitscript/sound` | `sound.play(voice, note, instrument)`, `stop`, `volume`; an instrument is a portable parameter set each chip maps (ADSR in hardware on a SID, in software on a POKEY) | all nine, including the PET's one voice | `Audio.*` |
 | `@8bitscript/storage` | `storage.save(slot, ...)`, `load`; a slot is the profile's persistent bytes | profiles with somewhere to write | `Storage.*` |
@@ -151,15 +163,17 @@ that does nothing. The proposed set, in the order Studio needs them:
 | `@8bitscript/entropy` | the hardware source, explicitly | machines with one | `Audio.ENTROPY` |
 
 Under each capability the hardware layer stays available and machine-only:
-`@8bitscript/c64/sprites` is what `@8bitscript/sprites` is built on for
+`@8bitscript/c64/sprites` is what `@8bitscript/actors` is built on for
 the C64, and a C64-only program may import it directly. The capability is
 never the only way in.
 
 A capability's surface is designed on the machine that has the *least* of
-it that still has it at all, then checked against the one that has the
-most. `sprites` is designed against the C64's eight and the NES's eight
-per line, and checked against the X16's 128; `canvas` is designed against
-the PET's cells and checked against the X16's bitmap layer.
+it, then checked against the one that has the most. `actors` is designed
+against the PET's redrawn cells and the NES's eight per line, and checked
+against the X16's 128 and the Lynx's blitter; `canvas` is designed
+against the PET's cells and checked against the X16's bitmap layer. The
+program never says "sprite"; it says what it wants moved, and reads the
+number that says how much of that this build can do.
 
 ## Branching on the machine
 
@@ -173,7 +187,7 @@ Three tools, from most to least preferred:
    names a machine. This is also the only way to use a machine-only
    package from a portable program, because an import is resolved for the
    whole module: an `if` cannot hide it.
-3. **The machine's name.** `if (System.CURRENT == System.NES)` for what is
+3. **The machine's name.** `if (#system() == System.NES)` for what is
    genuinely identity — which tier, which title, which help text. It is a
    compile-time constant; the other arms fold away in the generated code.
 
@@ -188,7 +202,7 @@ says.
 one is an honest syntax error today. The statement they should become:
 
 ```
-switch (System.CURRENT) {
+switch (#system()) {
     case System.NES: { tier = Tier.VIEWER; }
     case System.VIC20, System.PET: { tier = Tier.BASIC; }
     default: { tier = Tier.FULL; }
@@ -214,7 +228,7 @@ It is a core change, so it lands with the whole checklist in the root
 `AGENTS.md` (parser, checker, IR, both backends, hover and completion, the
 language-server test, the grammar, the snippets, the docs) in one commit,
 and it is not needed for anything on this page to be built: an `if` chain
-on `System.CURRENT` does the same job without the exhaustiveness check.
+on `#system()` does the same job without the exhaustiveness check.
 
 ## The display model: units, not pixels
 
@@ -234,8 +248,8 @@ written in terms of the unit, never the pixel:
 
 The rule that follows: **a portable drawing call names a unit and a
 position, never an RGB value at a pixel.** `text.putChar(cell, code)` is
-the cell unit. `tiles.set(x, y, t)` is the tile unit. `sprites.place(n,
-x, y)` is the sprite unit. The one place a program draws pixels is the
+the cell unit. `tiles.set(x, y, t)` is the tile unit. `actors.place(n,
+x, y)` is the moving-object unit. The one place a program draws pixels is the
 canvas, and the canvas is a unit of its own:
 
 ### The canvas: pseudo-pixels the machine chooses how to show
@@ -292,11 +306,11 @@ page. It is designed on the X16 and runs the same source everywhere:
 | X16 | text, 76×56 | canvas on a bitmap layer, 8 bpp; zoomed tile and full tileset side by side | tiles on layer 0, sprites over it | mouse (the KERNAL's, on a VERA sprite), keyboard |
 | MEGA65 | text, 80×25 | full-colour characters as the canvas | real | 1351 or Amiga mouse, keyboard |
 | C128 | text, 40 columns (VIC-IIe side) | glyph window or bitmap | real sprites | 1351 mouse or keyboard |
-| C64 | text, 40×25 | glyph window (a redefined charset block) or hires bitmap | real sprites, `@8bitscript/c64/sprites` under `sprites` | 1351 mouse (proposal), joystick, keyboard |
+| C64 | text, 40×25 | glyph window (a redefined charset block) or hires bitmap | real sprites, `@8bitscript/c64/sprites` under `actors` | 1351 mouse (proposal), joystick, keyboard |
 | Atari 8-bit | text, 40×24 | redefined charset in GR.0, or a bitmap mode via a display list | players/missiles as sprites | ST mouse (proposal), joystick, keyboard |
 | web | anything | anything | anything | mouse, keyboard |
-| VIC-20 | text, 22×23 | glyph window: a tile is edited as cells, the tileset shown through redefined characters, as many as RAM allows | none (no sprites): the "preview" is the glyph itself on screen | keyboard, joystick |
-| PET | text, 40 or 80 columns | cells: one pseudo-pixel per cell at zoom; quarter-blocks for the tileset overview | none; monochrome | keyboard only |
+| VIC-20 | text, 22×23 | glyph window: a tile is edited as cells, the tileset shown through redefined characters, as many as RAM allows | software actors: the glyph itself moved through the cells | keyboard, joystick |
+| PET | text, 40 or 80 columns | cells: one pseudo-pixel per cell at zoom; quarter-blocks for the tileset overview | software actors in cells; monochrome | keyboard only |
 | NES | text, 28×26 | none on NROM (CHR-ROM is read-only); a CHR-RAM profile gets a glyph window | real tiles and sprites | pad only — no text entry, so: the viewer |
 
 Every row is the same program. What differs is the fact sheet it was
@@ -458,7 +472,7 @@ packages/<machine>/
     input.8bs           and so on, one per capability the machine can honour
     canvas.8bs
     tiles.8bs
-    sprites.8bs
+    actors.8bs
     sound.8bs
     storage.8bs
 ```
