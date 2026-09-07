@@ -37,10 +37,21 @@ import { WebRegisters } from "./index.8bs";
 // `text.putChar` and `text.putColor` stay the one-cell pokes a caller can
 // build anything from.
 let currentColor: utinyint = 1; // white, until text.setColor() says otherwise
+let currentReverse: bool = false; // until text.setReverse() says otherwise
+
+// Reverse rides in bit 7 of the colour byte: the host fills the cell with
+// the foreground colour and punches the glyph out in the screen background.
+// A reverse space is a solid block. The low four bits stay the colour.
+function colorByte(): utinyint {
+    if (currentReverse) {
+        return currentColor + 128;
+    }
+    return currentColor;
+}
 
 function place(cell: usmallint, code: utinyint): void {
     memory.write(WebRegisters.CHAR_BASE + cell, code);
-    memory.write(WebRegisters.COLOR_BASE + cell, currentColor); // the host keeps the low four bits
+    memory.write(WebRegisters.COLOR_BASE + cell, colorByte());
 }
 
 export namespace text {
@@ -57,6 +68,10 @@ export namespace text {
 
     function setColor(color: utinyint): void {
         currentColor = color;
+    }
+
+    function setReverse(on: bool): void {
+        currentReverse = on;
     }
 
     function print(cell: usmallint, s: string): void {

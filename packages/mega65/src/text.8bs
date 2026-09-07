@@ -77,6 +77,18 @@ function asciiToScreenCode(code: utinyint): utinyint {
 // `text.putChar` and `text.putColor` stay the one-cell pokes a caller can
 // build anything from.
 let currentColor: utinyint = 1; // white, until text.setColor() says otherwise
+let currentReverse: bool = false; // until text.setReverse() says otherwise
+
+// Reverse video is bit 7 of the screen code, as on the C64. Colour RAM's
+// upper nibble is also an attribute field (blink, reverse) — keep it
+// clear, and invert by the ROM copy instead.
+function toScreen(code: utinyint): utinyint {
+    let screen: utinyint = asciiToScreenCode(code);
+    if (currentReverse) {
+        screen = screen + 128;
+    }
+    return screen;
+}
 
 // What a run of text needs once, before its first character.
 function prepare(): void {
@@ -85,7 +97,7 @@ function prepare(): void {
 }
 
 function place(cell: usmallint, code: utinyint): void {
-    memory.write(0x0800 + cell, asciiToScreenCode(code));
+    memory.write(0x0800 + cell, toScreen(code));
     memory.write(0xD800 + cell, currentColor & 15); // the upper nibble is attributes (blink, reverse) — keep it clear
 }
 
@@ -104,7 +116,7 @@ export namespace text {
 
     function putChar(cell: usmallint, code: utinyint): void {
         prepare();
-        memory.write(0x0800 + cell, asciiToScreenCode(code));
+        memory.write(0x0800 + cell, toScreen(code));
     }
 
     function putColor(cell: usmallint, color: utinyint): void {
@@ -114,6 +126,10 @@ export namespace text {
 
     function setColor(color: utinyint): void {
         currentColor = color;
+    }
+
+    function setReverse(on: bool): void {
+        currentReverse = on;
     }
 
     function print(cell: usmallint, s: string): void {

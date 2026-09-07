@@ -72,7 +72,8 @@ Do not describe more than this as working:
   `CELL_COUNT` 960, `COLUMNS` 40; `putChar` takes ASCII, converts to
   ANTIC's internal code (`$00-$1F` → +64, `$20-$5F` → −32, else unchanged)
   and writes `SAVMSC + cell`; `print`/`printNumber` read SAVMSC once per
-  run (`prepare()`) and inhibit the cursor; `putColor` and `setColor` are
+  run (`prepare()`) and inhibit the cursor; `setReverse` sets bit 7 of the
+  internal code; `putColor` and `setColor` are
   inert because GR.0 has no per-cell colour. `printNumber` is the
   subtraction routine, not a divide.
 - `src/joystick.8bs` (`@8bitscript/atari8/joystick`): `scan()` once a

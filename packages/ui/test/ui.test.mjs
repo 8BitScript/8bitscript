@@ -105,22 +105,20 @@ test('drawing goes through print, not putChar, everywhere but the one blanking l
   const putChar = [...code.matchAll(/text\.putChar\(/g)];
   assert.equal(putChar.length, 1, 'only the blanking loop may put a character one cell at a time');
   assert.match(code, /function blank\(/, 'and that one call belongs to blank()');
+  assert.match(code, /text\.setReverse\(on\)/, 'the selected item is inverted, not recoloured');
+  assert.match(code, /text\.setReverse\(false\)/, 'reverse is turned off after each item');
 });
 
-test('the highlight is drawn the way the machine can draw it, decided while compiling', () => {
-  // The component asks `video.colorPerCell` and nothing else: colour where
-  // a cell has its own, brackets where it does not. That is the whole of
-  // what makes one source file right on nine machines, so it is worth a
-  // test rather than a comment.
-  //
-  // The three without a per-cell colour are exactly the three whose
-  // `text.putColor` is a deliberately empty function — the PET (no colour
-  // RAM), the Atari 8-bit (GR.0 has none) and the NES (colour lives in a
-  // 2x2 attribute block the text layer does not touch).
-  const bracketed = ['pet', 'atari8', 'nes'];
+test('the highlight is invert on every machine, and colorPerCell is still the fact it was', () => {
+  // Invert does not need per-cell colour, so the bar no longer branches
+  // on `video.colorPerCell`. The fact is still the split the PET, Atari
+  // and NES make against the other six — the three whose `text.putColor`
+  // is a deliberately empty function — and a later component that *does*
+  // need a colour per cell should still ask it.
+  const noCellColor = ['pet', 'atari8', 'nes'];
   for (const target of TARGETS) {
     const colorPerCell = stockFacts(target)['video.colorPerCell'];
-    assert.equal(colorPerCell, !bracketed.includes(target),
+    assert.equal(colorPerCell, !noCellColor.includes(target),
       `${target} disagrees with the set of machines that can colour one cell`);
   }
 });

@@ -46,7 +46,9 @@ Do not describe more than this as working:
   ASCII (space, digits, A-Z, `! , - . : ?`; tile `$80` is the solid frame
   tile). It reaches the `.nes` image through the package's
   `"8bitscript".native` list — the resolver/linker/backend plumbing in
-  `docs/packages.md` — into the SDK's `.chr_rom` linker section.
+  `docs/packages.md` — into the SDK's `.chr_rom` linker section. Reverse
+  video of the portable set is the same tiles at ASCII+128 ($A0-$DF);
+  tile $80 stays the solid frame.
 - `packages/backend-6502` hardcodes the NES driver to `mos-nes-nrom-clang` —
   NROM, the plainest cartridge shape: 32K PRG-ROM, 8K CHR-ROM, no bank
   switching. LLVM-MOS also ships `unrom`/`mmc1`/`mmc3`/`cnrom`/`gtrom`/
@@ -203,8 +205,8 @@ the other eight targets' own mechanisms.
 ```
 packages/nes/src/index.8bs           target package: the PPU port protocol (setVramAddress, resetScroll)
 packages/nes/src/screen.8bs          @8bitscript/nes/screen: screen.blank()/setBorder()/setBackground()/setColors(), the drawn frame, colour names
-packages/nes/src/text.8bs            @8bitscript/nes/text: text.print/printNumber/setColor/putChar/putColor, CELL_COUNT 728, COLUMNS 28, TextColor (inert)
-packages/nes/native/6502/font.s      the CHR-ROM character set (tile index == ASCII)
+packages/nes/src/text.8bs            @8bitscript/nes/text: text.print/printNumber/setColor/setReverse/putChar/putColor, CELL_COUNT 728, COLUMNS 28, TextColor (inert)
+packages/nes/native/6502/font.s      the CHR-ROM character set (tile index == ASCII; reverse at ASCII+128)
 packages/nes/package.json            "8bitscript".exports names the two subpaths; .native lists the font
 packages/backend-6502/src/index.mjs  driver selection (DRIVER.nes), NTSC frame timing, nativeSources
 packages/compiler/src/resolver/      "8bitscript".native → absolute paths (8BS2008 if missing)

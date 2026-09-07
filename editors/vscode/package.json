@@ -318,7 +318,6 @@
   },
   "main": "./src/extension.cjs",
   "activationEvents": [
-    "onView:8bitscript.launcher",
     "workspaceContains:**/*.8bs",
     "workspaceContains:**/8bs.config.ts"
   ],

@@ -60,9 +60,20 @@ function atasciiToInternal(code: utinyint): utinyint {
 // `text.putChar` and `text.putColor` stay the one-cell pokes a caller can
 // build anything from.
 let currentColor: utinyint = 1; // white, until text.setColor() says otherwise
+let currentReverse: bool = false; // until text.setReverse() says otherwise
 
 // Where the OS put screen memory (SAVMSC, $58/$59), read by prepare().
 let screenBase: usmallint = 0;
+
+// Reverse video is bit 7 of ANTIC's internal code. A reverse space is a
+// solid block in COLPF1, which is how a selected menu item becomes a bar.
+function toInternal(code: utinyint): utinyint {
+    let screen: utinyint = atasciiToInternal(code);
+    if (currentReverse) {
+        screen = screen + 128;
+    }
+    return screen;
+}
 
 // What a run of text needs once, before its first character.
 function prepare(): void {
@@ -71,7 +82,7 @@ function prepare(): void {
 }
 
 function place(cell: usmallint, code: utinyint): void {
-    memory.write(screenBase + cell, atasciiToInternal(code));
+    memory.write(screenBase + cell, toInternal(code));
 }
 
 // ---- digits -------------------------------------------------------------
@@ -89,7 +100,7 @@ export namespace text {
 
     function putChar(cell: usmallint, code: utinyint): void {
         prepare();
-        memory.write(screenBase + cell, atasciiToInternal(code));
+        memory.write(screenBase + cell, toInternal(code));
     }
 
     function putColor(cell: usmallint, color: utinyint): void {
@@ -98,6 +109,10 @@ export namespace text {
 
     function setColor(color: utinyint): void {
         currentColor = color;
+    }
+
+    function setReverse(on: bool): void {
+        currentReverse = on;
     }
 
     function print(cell: usmallint, s: string): void {

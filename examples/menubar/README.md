@@ -44,31 +44,25 @@ nine different pieces of hardware. What differs is what each machine can
 | Line | What it reads |
 | --- | --- |
 | `ITEM` | Which item is highlighted, or `NONE` — a bar starts deselected |
-| `MARK` | `COLOR` or `BRACKETS`: how the highlight is drawn here |
+| `MARK` | `INVERT`: reverse video on every machine |
 | `MOUSE` | `NO`, or `LOOKING`/`FOUND` on a build fitted with one |
 
-## The highlight is chosen while compiling
+## The highlight is reverse video
 
-`MARK` is the interesting line, because **the program never decides it and
-neither does the machine at run time.** `@8bitscript/ui/menubar` asks one
-fact, `video.colorPerCell`, and that fact is folded to a constant before
-any target toolchain runs:
+The selected item is inverted on every machine — a filled bar of the item
+colour, letters punched out, padding included. That is `text.setReverse`,
+and each machine's text package decides how invert reaches the screen: a
+ROM copy at ASCII+128 on the Commodores and the NES, swapped attribute
+nibbles on the X16, colour bit 7 on the web.
 
-| Machine | `video.colorPerCell` | The highlight |
-| --- | --- | --- |
-| VIC-20, C64, C128, X16, MEGA65, web | true | the label in the highlight colour |
-| PET, Atari 8-bit, NES | false | the label bracketed, `-FILE-` |
-
-Those three are exactly the machines whose `text.putColor` is a
-deliberately empty function — the PET has no colour RAM, the Atari 8-bit's
-GR.0 has none, and the NES's colour lives in a 2x2-cell attribute block the
-text layer does not touch. On them a colour highlight would be invisible,
-so the component draws brackets instead; on the other six the two `print`
-calls that would draw those brackets **are never compiled at all**.
+`video.colorPerCell` is still a real split (the PET, the Atari 8-bit and
+the NES cannot give one cell its own colour) but the bar does not use it
+for this. Invert does not need per-cell colour.
 
 Note that `video.cellColors` — which is 2 on all nine, PET included — does
-not answer this question, and that is why `video.colorPerCell` exists. A
-PET cell does hold two colours. They are just not a program's to set.
+not answer the per-cell-colour question, and that is why
+`video.colorPerCell` exists. A PET cell does hold two colours. They are
+just not a program's to set.
 
 ## The mouse is a build decision *and* a run-time answer
 

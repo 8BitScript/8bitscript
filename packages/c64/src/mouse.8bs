@@ -29,15 +29,15 @@
 // counter having wrapped the other way, which is what makes it a signed
 // step rather than a jump.
 //
-// **Bit 0 is not movement.** The SID's converter (and VICE's `makepotval`
-// for a 1351, `lib_unsigned_rand(0, 1)`) leaves the LSB noisy: at rest
-// under x64sc the pots sit in 64..65 and a driver that steps on all seven
-// bits walks the pointer ±1 pixel a frame, including after the host mouse
-// is ungrabbed. The real 1351 keeps its count in bits 1–6. Masking with
-// `$7E` drops that bit. At odd rest the same +1 becomes a 2-count step
-// through the mask, so `step()` also ignores a difference of 1 or 2;
-// measured 2026-09-07, the accumulator then stays put while the pots
-// still flicker.
+// **A 1-count is fuzz until it happens twice the same way.** VICE's
+// 1351 is a 7-bit counter — `(x & 0x7f) + 0x40` in `mouse_1351.c` — so a
+// host pixel is often a 1-count step, and at rest the pots flicker 64/65.
+// Applying every 1-count walked the pointer with no host motion. Masking
+// to bits 1–6 and ignoring `|delta| < 3` (the previous driver) threw slow
+// motion away: `last` still advanced, so a slow move never accumulated
+// and the pointer hung until the host jumped several counts in one frame
+// (Studio, 2026-09-07). Holding the first 1-count and applying on the
+// second keeps rest still and lets a slow move through.
 //
 // **How presence is answered, and how honestly.** Measured under VICE
 // with `-controlport1device` at each of its four settings, at rest, both
@@ -74,11 +74,21 @@ export namespace Mouse {
 }
 
 namespace Pot {
-    const COUNTER: utinyint = 0x7E;  // bits 1-6; bit 0 is SID ADC noise, not motion
+    const COUNTER: utinyint = 0x7F;  // VICE's 1351 is 7 bits; bit 0 is also fuzz
     const LOWEST: utinyint = 64;     // a 1351 at its zero point
     const HIGHEST: utinyint = 191;   // and at the other end of its wrap
     const HALF: utinyint = 64;       // half the 7-bit wrap space: a bigger step is a wrap
-    const STILL: utinyint = 3;       // |delta| < 3 is fuzz, not a move
+}
+
+// Per-axis filter for 1-count steps. Rest's 64/65 flicker is +1 then -1
+// and never leaves WAIT; a slow host move is +1, +1 and then tracks at
+// one pixel a count instead of jumping two and stalling on the next.
+namespace Axis {
+    const IDLE: utinyint = 0;
+    const WAIT_POS: utinyint = 1;
+    const RUN_POS: utinyint = 2;
+    const WAIT_NEG: utinyint = 3;
+    const RUN_NEG: utinyint = 4;
 }
 
 // The last counter reading on each axis, and where the pointer has got to.
@@ -87,6 +97,7 @@ let lastY: utinyint = 0;
 let atX: usmallint = 0;
 let atY: usmallint = 0;
 let started: bool = false;
+let hold: array<utinyint, 2>;
 
 // Whether the reading the last poll() took was consistent with a 1351.
 // **Kept, rather than asked again**, and that is not an optimisation: the
@@ -126,38 +137,57 @@ export namespace mouse {
     }
 
     // One axis' movement since the last reading, added to `at` and held
-    // between 0 and `limit`. The difference is taken in bits 1–6, and a
-    // difference past half the 7-bit wrap space is the counter having
-    // gone the other way.
+    // between 0 and `limit`. The difference is taken in all seven bits,
+    // and a difference past half the 7-bit wrap space is the counter
+    // having gone the other way.
     //
-    // **A 1- or 2-count step is not a move.** VICE's `makepotval` adds 0
-    // or 1 of fuzz to a 1351. At even rest (64/65) `$7E` already drops
-    // that; at odd rest the same +1 becomes a 2-count step through the
-    // mask (67→66, 68→68) and the pointer walks ±2 a frame. Ignoring
-    // |delta| < 3 leaves the accumulator still (measured 2026-09-07).
-    function step(at: usmallint, last: utinyint, now: utinyint, limit: usmallint): usmallint {
+    // **A 1-count is fuzz until it happens twice the same way, then it
+    // tracks.** VICE's rest reading flickers 64/65; applying every
+    // 1-count walked the pointer with no host motion. Masking to bits 1–6
+    // and ignoring `|delta| < 3` *and* updating `last` (the previous
+    // driver) ate slow host motion: a trackpad step is often 1–2 counts a
+    // frame, so the pointer hung until the host jumped (Studio,
+    // 2026-09-07). Confirming the first 1-count, then applying each
+    // further 1-count, keeps rest still and lets a slow move through one
+    // pixel at a time. A still frame after a *run* drops back to idle so
+    // rest cannot walk; a still frame while *waiting* is kept, because a
+    // slow host move is often one count then several frames of zero —
+    // idling there ate the second count (Studio, 2026-09-07).
+    function step(at: usmallint, last: utinyint, now: utinyint, limit: usmallint, axis: utinyint): usmallint {
         let delta: utinyint = (now - last) & Pot.COUNTER;
+        let state: utinyint = hold[axis];
         if (delta == 0) {
+            if (state == Axis.RUN_POS || state == Axis.RUN_NEG) {
+                hold[axis] = Axis.IDLE;
+            }
             return at;
         }
         if (delta < Pot.HALF) {
-            if (delta < Pot.STILL) {
-                return at;
+            if (delta == 1) {
+                if (state == Axis.WAIT_POS || state == Axis.RUN_POS) {
+                    hold[axis] = Axis.RUN_POS;
+                } else {
+                    hold[axis] = Axis.WAIT_POS;
+                    return at;
+                }
+            } else {
+                hold[axis] = Axis.RUN_POS;
             }
-            // Asked as a subtraction rather than as `at + delta > limit`:
-            // `at` never exceeds `limit`, so `limit - at` cannot borrow,
-            // and the sum that could carry is never formed. The same
-            // reasoning as the room check in @8bitscript/ui/menubar, and
-            // for the same reason — the two backends do not agree on what
-            // a widened byte sum does (see that file).
             if (limit - at < delta) {
                 return limit;
             }
             return at + delta;
         }
         let back: utinyint = 128 - delta;
-        if (back < Pot.STILL) {
-            return at;
+        if (back == 1) {
+            if (state == Axis.WAIT_NEG || state == Axis.RUN_NEG) {
+                hold[axis] = Axis.RUN_NEG;
+            } else {
+                hold[axis] = Axis.WAIT_NEG;
+                return at;
+            }
+        } else {
+            hold[axis] = Axis.RUN_NEG;
         }
         if (back > at) {
             return 0;
@@ -177,19 +207,17 @@ export namespace mouse {
         let rawX: utinyint = paddleX;
         let rawY: utinyint = paddleY;
         there = rawX >= Pot.LOWEST && rawX <= Pot.HIGHEST && rawY >= Pot.LOWEST && rawY <= Pot.HIGHEST;
-        let nowX: utinyint = rawX & Pot.COUNTER;
-        let nowY: utinyint = rawY & Pot.COUNTER;
         if (started) {
-            atX = mouse.step(atX, lastX, nowX, limitX);
+            atX = mouse.step(atX, lastX, rawX, limitX, 0);
             // Y runs opposite the screen. Verified under x64sc (Studio,
             // 2026-09-07): the same sign as X moved the arrow up when the
             // mouse moved down. last and now are swapped so the *delta*
             // flips and the rest position stays 0 (top-left). Reporting
             // `limitY - atY` would park the arrow at the bottom instead.
-            atY = mouse.step(atY, nowY, lastY, limitY);
+            atY = mouse.step(atY, rawY, lastY, limitY, 1);
         }
-        lastX = nowX;
-        lastY = nowY;
+        lastX = rawX;
+        lastY = rawY;
         started = true;
     }
 

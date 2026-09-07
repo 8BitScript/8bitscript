@@ -437,6 +437,9 @@ test('buildPrg: nativeSources are assembled and linked — the NES font lands in
     assert.deepEqual([...rom.subarray(chr + 0x410, chr + 0x418)], [0x18, 0x3C, 0x66, 0x7E, 0x66, 0x66, 0x66, 0x00]);
     assert.deepEqual([...rom.subarray(chr + 0x418, chr + 0x420)], [0, 0, 0, 0, 0, 0, 0, 0]); // plane 1 clear
     assert.deepEqual([...rom.subarray(chr + 0x808, chr + 0x810)], Array(8).fill(0xFF)); // $80: solid, plane 1 set
+    // Reverse 'A' at ASCII+128 ($C1): plane 0 is ~ of tile $41.
+    assert.deepEqual([...rom.subarray(chr + 0xC10, chr + 0xC18)], [0xE7, 0xC3, 0x99, 0x81, 0x99, 0x99, 0x99, 0xFF]);
+    assert.deepEqual([...rom.subarray(chr + 0xA00, chr + 0xA08)], Array(8).fill(0xFF)); // reverse space: solid index 1
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }

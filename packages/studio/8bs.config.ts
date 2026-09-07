@@ -21,8 +21,8 @@
 // which is what compiles the pointer half of the input layer in at all.
 //
 // It costs what a mouse costs and nothing on the machines that do not ask:
-// a C64 Studio is 1523 bytes stock and 1824 with the mouse; a C128 Studio
-// is 1436 bytes stock and 2195 with the mouse; an X16 Studio is 1253
+// a C64 Studio is 1553 bytes stock and 2637 with the mouse; a C128 Studio
+// is 1455 bytes stock and 2577 with the mouse; an X16 Studio is 1253
 // bytes without the pointer layer and 1571 with it. The other six
 // machines are listed with no hardware of their own — their input
 // layers have no pointer to fit (see packages/input/AGENTS.md), so asking

@@ -51,8 +51,9 @@ Do not describe more than this as working:
   (no screen-code conversion — there is no character ROM to convert for),
   `text.putColor` writes `1002 + cell`, `text.print`/`printNumber` write
   both, in the colour `text.setColor()` last set (white until then).
-  `printNumber` uses a real divide, since wasm has one. `TextColor` has the
-  eight shared names only.
+  `text.setReverse` ORs 128 into that colour byte so the host can fill the
+  cell and punch the glyph out. `printNumber` uses a real divide, since
+  wasm has one. `TextColor` has the eight shared names only.
 - `packages/backend-web` lowers the IR to AssemblyScript and drives `asc`
   (0.28.20) to a `.wasm`: one 64 KB page, static data (string literals,
   `const` *and* `let` arrays, `string<N>` variables) from `0xE000`, and a
@@ -225,9 +226,11 @@ web each answer is a line of code, cited above; this is the compact form.
   or program that writes characters with `putChar` and never `putColor`
   gets invisible text on a black background and black text on any other.
   `print`/`printNumber` write both; prefer them.
-- Codes outside 32–95 are blank. There is no reverse video, no PETSCII,
-  no block set, no lower case. A portable "block/pattern" helper cannot
-  be implemented here today without a font change in *both* renderers.
+- Codes outside 32–95 are blank. Reverse video is colour bit 7: the host
+  fills the cell with the foreground colour and punches the glyph out in
+  the screen background. There is no PETSCII, no block set, no lower case.
+  A portable "block/pattern" helper cannot be implemented here today
+  without a font change in *both* renderers.
 - The two renderers differ in font. When a screenshot and the tab
   disagree about glyph shape, that is expected; when they disagree about
   which cell is which colour, that is a bug.
@@ -269,8 +272,8 @@ wrong web program, today:
   Arrays and strings are in the page — at `0xE000`, and `let` arrays
   count against the same 8 KB as the constants.
 - **Colour RAM starts black, and there is only a foreground nibble.**
-  `putChar` alone is invisible on black; there is no per-cell background,
-  no reverse video, no colours 16+, nothing above code 95.
+  `putChar` alone is invisible on black; reverse video is colour bit 7,
+  not a second nibble. No colours 16+, nothing above code 95.
 - **There is no vblank — in both directions.** Writes are always safe and
   never lost, but the page may paint the middle of your redraw. And the
   tab's font is not the screenshot's font.
@@ -410,7 +413,7 @@ sources before a capability depends on it.
 ```
 packages/web/src/index.8bs               target package: WebRegisters — the four offsets (0, 1, 2, 1002) the host reads
 packages/web/src/screen.8bs              @8bitscript/web/screen: setColors/setBorder/setBackground (& 15), blank() over 1000 chars, sixteen names + KEEP
-packages/web/src/text.8bs                @8bitscript/web/text: ASCII straight into the page, COLUMNS 40, CELL_COUNT 1000, divide-based printNumber, eight TextColor names
+packages/web/src/text.8bs                @8bitscript/web/text: ASCII straight into the page, setReverse (colour bit 7), COLUMNS 40, CELL_COUNT 1000, divide-based printNumber, eight TextColor names
 packages/web/package.json                "8bitscript".entry and the two subpaths ./screen, ./text
 packages/backend-web/src/index.mjs       IR → AssemblyScript → asc: STRING_DATA_BASE 0xE000, one page, env.waitFrame import, @address/asm6502 refusals, the asc flags
 packages/backend-web/test/backend.test.mjs   u8 wrap, shared memory + host import, string data at 0xE000 clear of the screen

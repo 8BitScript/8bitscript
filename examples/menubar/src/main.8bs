@@ -17,7 +17,7 @@
 import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";
 import { text, TextColor } from "@8bitscript/text";
 import { input } from "@8bitscript/input";
-import { Input, Video } from "@8bitscript/system";
+import { Input } from "@8bitscript/system";
 import { menubar } from "@8bitscript/ui/menubar";
 
 // One row of this machine's grid, resolved at compile time from the text
@@ -55,17 +55,10 @@ function drawStatus(): void {
         text.printNumber(cell + 5, menubar.selected(), 1);
     }
 
-    // How the highlight is drawn here, which the component decided while
-    // compiling from `video.colorPerCell` — colour on the six machines
-    // that have a colour per cell, brackets on the PET, the Atari 8-bit
-    // and the NES, which do not.
+    // How the highlight is drawn: reverse video on every machine.
     cell = cell + ROW;
     text.print(cell, "MARK");
-    if (Video.COLOR_PER_CELL) {
-        text.print(cell + 5, "COLOR");
-    } else {
-        text.print(cell + 5, "BRACKETS");
-    }
+    text.print(cell + 5, "INVERT");
 
     // And whether there is a pointer. Three different answers, and which
     // one a machine gives is the whole two-stage story: NO on a build that

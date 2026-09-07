@@ -116,13 +116,12 @@ as `@8bitscript/studio`, builds and runs on all nine too — today only its
 front door, which says what each machine's tier will open.
 `@8bitscript/ui` is the first of the reusable interface components a
 program builds a screen out of: `@8bitscript/ui/menubar` draws a menu bar
-on all nine machines from one piece of code, and picks how to highlight
-the active item **while compiling** — the label recoloured on the six
-machines where `#fact(video.colorPerCell)` is true, bracketed with a marker
-character on the PET, the Atari 8-bit and the NES, where it is false and a
-colour highlight would be invisible. Neither machine carries the other's
-code. It reports what a narrow screen could not fit rather than overrunning
-the row.
+on all nine machines from one piece of code. The active item is inverted
+— reverse video, a filled bar of the item colour — via `text.setReverse`,
+which each machine's text package implements (a ROM copy at ASCII+128 on
+the Commodores and the NES, swapped attribute nibbles on the X16, colour
+bit 7 on the web). It reports what a narrow screen could not fit rather
+than overrunning the row.
 
 `@8bitscript/input` is the capability that drives it: four directions,
 confirm, cancel and a pointer, all edge-triggered, resolved per target to

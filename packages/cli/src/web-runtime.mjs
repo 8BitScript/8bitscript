@@ -230,26 +230,39 @@ function paint(mem) {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = COLORS[mem[1] & 15];
   ctx.fillRect(BORDER_PX, BORDER_PX, INNER_W, INNER_H);
+  const background = COLORS[mem[1] & 15];
 
   // Whatever the program poked into the virtual character screen — this
   // host doesn't know or care what any of it means, the same way a real
   // VIC-20/C64 doesn't know what a program's screen memory says. Blank
-  // cells (never written, or written as a literal space) draw nothing.
+  // cells (never written, or written as a literal space) draw nothing,
+  // unless reverse video (colour bit 7) is set: then the cell fills with
+  // the foreground colour and the glyph is punched out in the background.
   ctx.save();
   ctx.beginPath();
   ctx.rect(BORDER_PX, BORDER_PX, INNER_W, INNER_H);
   ctx.clip();
   for (let cell = 0; cell < GRID_COLS * GRID_ROWS; cell += 1) {
+    const colorByte = mem[COLOR_BASE + cell];
+    const reverse = (colorByte & 128) !== 0;
     const glyph = decodeScreenCode(mem[CHAR_BASE + cell]);
-    if (glyph === null) continue;
+    if (glyph === null && !reverse) continue;
     const col = cell % GRID_COLS;
     const row = (cell - col) / GRID_COLS;
-    ctx.fillStyle = COLORS[mem[COLOR_BASE + cell] & 15];
-    ctx.fillText(
-      glyph,
-      BORDER_PX + col * CHAR_W,
-      BORDER_PX + row * CHAR_H + glyphY,
-    );
+    const x = BORDER_PX + col * CHAR_W;
+    const y = BORDER_PX + row * CHAR_H;
+    const fg = COLORS[colorByte & 15];
+    if (reverse) {
+      ctx.fillStyle = fg;
+      ctx.fillRect(x, y, CHAR_W, CHAR_H);
+      if (glyph !== null && glyph !== ' ') {
+        ctx.fillStyle = background;
+        ctx.fillText(glyph, x, y + glyphY);
+      }
+    } else if (glyph !== null) {
+      ctx.fillStyle = fg;
+      ctx.fillText(glyph, x, y + glyphY);
+    }
   }
   ctx.restore();
 }

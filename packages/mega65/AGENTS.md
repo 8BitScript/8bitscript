@@ -338,7 +338,7 @@ when the code is next touched (this file does not edit them):
 ```
 packages/mega65/src/index.8bs            target package: borderColor ($D020), backgroundColor ($D021), memoryPointer ($D018)
 packages/mega65/src/screen.8bs           @8bitscript/mega65/screen: setColors/blank/setBorder/setBackground (4-bit mask, 1000 cells — see above)
-packages/mega65/src/text.8bs             @8bitscript/mega65/text: print/printNumber/setColor/putChar/putColor, COLUMNS 40 / CELL_COUNT 1000 (wrong: screen is 80x25)
+packages/mega65/src/text.8bs             @8bitscript/mega65/text: print/printNumber/setColor/setReverse/putChar/putColor, COLUMNS 80 / CELL_COUNT 2000
 packages/backend-6502/src/index.mjs      driver (mos-mega65-clang), FRAME_SYNC.mega65 (C64 entry reused), COMMODORE_KERNAL_MACHINES (charset guard)
 packages/cli/src/run.mjs                 8bs run mega65: xmega65 -prg <file> -videostd 0|1
 packages/cli/src/screenshot.mjs          --screenshot: -besure -screenshot <png>, wall-clock --frames at 60, SIGTERM

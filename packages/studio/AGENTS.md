@@ -98,13 +98,18 @@ Do not describe more than this as working:
 - **A click on the bar selects the item under the pointer**, on the builds
   fitted with a mouse. `menubar` hit-tests during a *run* of the bar and
   answers `pointed()` from that run, so `start()`'s loop calls
-  `menubar.point()` and redraws whenever the pointer changes cell — a
-  click can only land on the right item if the bar has run since the
-  pointer last moved. Clicking the bar's padding, or anywhere off it,
-  deselects: the same thing RUN/STOP means. `input.pointer()` is a
+  `menubar.point()` whenever the pointer changes cell — `point()` hit-tests
+  against the last run's labels, and the bar is not redrawn, because
+  nothing on screen changes. A click reads `pointed()` and then redraws
+  only if the highlight actually moved. On the C64 and C128 that rewrite
+  waits until raster line 58, after VIC-II has scanned the bar this
+  frame: `waitFrame()` returns in the top half, and `begin()` no longer
+  re-blanks a span it has already laid, both of which were visible
+  flicker (Studio, 2026-09-07). Clicking the bar's padding, or anywhere
+  off it, deselects: the same thing RUN/STOP means. `input.pointer()` is a
   constant false on a build without a mouse, so the whole block is proved
-  dead and deleted — a C64 Studio with `--hardware port1=none` is 1523
-  bytes, byte for byte what it was before any of this was written.
+  dead and deleted — a C64 Studio with `--hardware port1=none` is 1553
+  bytes, measured 2026-09-07.
 - **Studio fits its own mouse**, which is why `8bs run c64`,
   `8bs run c128` and `8bs run cx16` start it with one and no flags.
   `8bs.config.ts` uses the object form of `targets` and asks for
@@ -116,11 +121,11 @@ Do not describe more than this as working:
   machine: it sits under any profile and under `--hardware`, so taking
   the 1351 out on the command line still works. The editor's Launch
   Studio picker offers each Commodore as a mouse arrangement and a
-  joystick one. Cost on a C64: 1523 bytes stock, 2038 with the mouse and
-  the click handling (1824 of that is the driver the input layer compiles
-  in; 214 is Studio using it). Cost on a C128: 1436 bytes stock, 2195
-  with the mouse and the arrow — **759 bytes of program and 12 of RAM**,
-  measured 2026-09-07. Cost on the X16: 1253 bytes without the pointer
+  joystick one. Cost on a C64: 1553 bytes stock, 2637 with the mouse and
+  the click handling — **1084 bytes of program and 45 of RAM**, measured
+  2026-09-07. Cost on a C128: 1455 bytes stock, 2577 with the mouse and
+  the arrow — **1122 bytes of program and 38 of RAM**, measured
+  2026-09-07. Cost on the X16: 1253 bytes without the pointer
   layer, 1571 with it — **318 bytes of program and 5 of RAM**, measured
   2026-09-07 by building Studio with the layer taken out.
 

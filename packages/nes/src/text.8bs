@@ -25,9 +25,12 @@ import { queueRun, queueByte } from "./index.8bs";
 // its subpaths) — laid out so that tile index == ASCII code.
 // `putChar(cell, 65)` therefore draws an 'A' with no translation table.
 // Space, digits, A-Z and `! , - . : ?` have glyphs; other codes in $20-$5F
-// are blank tiles. That set — upper case only — is what every machine's
-// putChar takes, precisely because it is what this font has: the portable
-// character set is the smallest one any target can show.
+// are blank tiles. Reverse video of that range lives at ASCII+128 ($A0-$DF)
+// so `text.setReverse` is the same `code + 128` as on the Commodores. Tile
+// $80 is the solid frame, not a reverse copy, and +128 of a portable
+// character never lands on it. That set — upper case only — is what every
+// machine's putChar takes, precisely because it is what this font has: the
+// portable character set is the smallest one any target can show.
 //
 // The grid is the area inside the frame screen.8bs draws (see there):
 // 28 columns by 26 rows, 728 cells, cell 0 at nametable row 2, column 2,
@@ -59,6 +62,18 @@ import { queueRun, queueByte } from "./index.8bs";
 // `text.putChar` and `text.putColor` stay the one-cell pokes a caller can
 // build anything from.
 let currentColor: utinyint = 1; // white, until text.setColor() says otherwise
+let currentReverse: bool = false; // until text.setReverse() says otherwise
+
+// Reverse video is ASCII+128: the font ships inverted copies of $20-$5F
+// at $A0-$DF. Tile $80 is the drawn border and is not a reverse copy, so
+// the +128 of a portable character never lands on it. A reverse space is
+// a solid block in the text colour.
+function toTile(code: utinyint): utinyint {
+    if (currentReverse) {
+        return code + 128;
+    }
+    return code;
+}
 
 // The nametable address of a cell — row `cell / 28`, column the rest — and
 // the column back, for a caller that walks on from there. Eight-bit
@@ -103,7 +118,7 @@ export namespace text {
 
     function putChar(cell: usmallint, code: utinyint): void {
         locate(cell);
-        queueByte(code);
+        queueByte(toTile(code));
     }
 
     function putColor(cell: usmallint, color: utinyint): void {
@@ -114,10 +129,14 @@ export namespace text {
         currentColor = color;
     }
 
+    function setReverse(on: bool): void {
+        currentReverse = on;
+    }
+
     function print(cell: usmallint, s: string): void {
         let col: utinyint = locate(cell);
         for (let i: utinyint = 0; i < s.length; i++) {
-            queueByte(s[i]);
+            queueByte(toTile(s[i]));
             col++;
             if (col == text.COLUMNS) {
                 col = locate(cell + i + 1); // the next row is not the next address
@@ -140,7 +159,7 @@ export namespace text {
                 }
             }
             if (k <= width) {
-                queueByte(digit);
+                queueByte(toTile(digit));
                 col++;
                 if (col == text.COLUMNS) {
                     col = locate(cell + width - k + 1); // the next row is not the next address
