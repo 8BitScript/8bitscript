@@ -61,7 +61,7 @@
 // hardware: garbage; FCEUX: zeros, which is why a program that forgot to
 // clear would look fine in the emulator and wrong on a cartridge) — a
 // program should clear the screen once before screen.setColors(), as
-// examples/proof-of-concept/borders does; the attribute table is cleared by screen.8bs,
+// examples/borders does; the attribute table is cleared by screen.8bs,
 // since a program has no other way to reach it.
 //
 // PPU warm-up: NESdev's guidance is to wait for two vertical blanks after

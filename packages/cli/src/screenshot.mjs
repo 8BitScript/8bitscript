@@ -16,7 +16,7 @@
 // KERNAL's autostart, an NES cartridge's reset handler) costs before the
 // *program's* first real frame, not just the frames you want to see after
 // that. Each target's DEFAULT_FRAMES was chosen by testing against
-// examples/proof-of-concept/borders until the boot sequence had clearly cleared.
+// examples/borders until the boot sequence had clearly cleared.
 import { spawn } from 'node:child_process';
 import {
   access, mkdtemp, readFile, rm, writeFile,
@@ -114,7 +114,7 @@ const VICE_CLOCK_HZ = {
 const VICE_FPS = { ntsc: 60, pal: 50 };
 
 // -limitcycles values confirmed in this project's own testing to comfortably
-// clear -autostartprgmode's BASIC/KERNAL boot and land on examples/proof-of-concept/borders'
+// clear -autostartprgmode's BASIC/KERNAL boot and land on examples/borders'
 // own steady state (not the boot banner), checked by eye against the
 // resulting PNG on each machine individually. These are not derived from a
 // shared formula across machines and shouldn't be compared to each other —

@@ -1,0 +1,39 @@
+{
+  "name": "@8bitscript/pointer",
+  "private": true,
+  "version": "0.0.0",
+  "description": "A pointer the user can see: an arrow drawn where @8bitscript/input says the pointer is, with whatever the machine has to draw one with. Resolves per target to that machine's own implementation.",
+  "license": "MIT",
+  "8bitscript": {
+    "entry": {
+      "vic20": "@8bitscript/vic20/pointer",
+      "c64": "@8bitscript/c64/pointer",
+      "pet": "@8bitscript/pet/pointer",
+      "c128": "@8bitscript/c128/pointer",
+      "atari8": "@8bitscript/atari8/pointer",
+      "nes": "@8bitscript/nes/pointer",
+      "cx16": "@8bitscript/cx16/pointer",
+      "mega65": "@8bitscript/mega65/pointer",
+      "web": "@8bitscript/web/pointer"
+    }
+  },
+  "dependencies": {
+    "@8bitscript/atari8": "workspace:*",
+    "@8bitscript/c128": "workspace:*",
+    "@8bitscript/c64": "workspace:*",
+    "@8bitscript/cx16": "workspace:*",
+    "@8bitscript/input": "workspace:*",
+    "@8bitscript/mega65": "workspace:*",
+    "@8bitscript/nes": "workspace:*",
+    "@8bitscript/pet": "workspace:*",
+    "@8bitscript/text": "workspace:*",
+    "@8bitscript/vic20": "workspace:*",
+    "@8bitscript/web": "workspace:*"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "test": "node --test test/"
+  }
+}

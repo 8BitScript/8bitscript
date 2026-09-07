@@ -30,9 +30,12 @@
     "build": "8bs build --target cx16"
   },
   "dependencies": {
+    "@8bitscript/input": "workspace:*",
+    "@8bitscript/pointer": "workspace:*",
     "@8bitscript/screen": "workspace:*",
+    "@8bitscript/system": "workspace:*",
     "@8bitscript/text": "workspace:*",
-    "@8bitscript/system": "workspace:*"
+    "@8bitscript/ui": "workspace:*"
   },
   "publishConfig": {
     "access": "public"

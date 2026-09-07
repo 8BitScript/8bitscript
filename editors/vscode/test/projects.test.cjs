@@ -11,17 +11,17 @@ const {
   ALL_TARGETS,
   BINARY,
   DEFAULT_ENTRY,
-  PROOFS_DIR,
+  EXAMPLES_DIR,
   byKind,
   bySystem,
   cliPackageDir,
   commandArgs,
-  findProofsDir,
+  findExamplesDir,
   findToolchain,
   isInstalled,
   kindOf,
   loadApps,
-  loadProofs,
+  loadExamples,
   ofKind,
   packageManagerFor,
   loadProject,
@@ -180,7 +180,7 @@ test('parseConfig reads the object form of targets — the machines composing pr
 
 /**
  * A checkout of the repository, as the tests see it: the CLI package, one
- * proof of concept, and one app — plus a note beside them that is neither.
+ * example, and one app — plus a note beside them that is neither.
  */
 function checkout(root) {
   const repo = path.join(root, '8bitscript');
@@ -193,8 +193,8 @@ function checkout(root) {
   }));
   write(path.join(repo, 'packages', 'studio', '8bs.config.ts'), "export default { targets: ['cx16', 'pet'] };");
   write(path.join(repo, 'packages', 'text', 'package.json'), JSON.stringify({ name: '@8bitscript/text' }));
-  write(path.join(repo, 'examples', PROOFS_DIR, 'border', '8bs.config.ts'), 'export default {};');
-  write(path.join(repo, 'examples', PROOFS_DIR, 'notes.md'), '');
+  write(path.join(repo, EXAMPLES_DIR, 'border', '8bs.config.ts'), 'export default {};');
+  write(path.join(repo, EXAMPLES_DIR, 'notes.md'), '');
   return repo;
 }
 
@@ -232,33 +232,37 @@ test('cliPackageDir follows either kind of toolchain link back to the CLI packag
   assert.equal(cliPackageDir(stray), null);
 });
 
-test('findProofsDir finds examples/proof-of-concept beside a repository checkout', (t) => {
+test('findExamplesDir finds examples/ beside a repository checkout', (t) => {
   const root = scratch(t);
   const repo = checkout(root);
-  const proofs = path.join(repo, 'examples', PROOFS_DIR);
-  assert.equal(findProofsDir(linkedConsumer(root, repo, 'game')), proofs);
-  assert.equal(findProofsDir(shimmedConsumer(root, repo, 'shimmed')), proofs);
-  assert.equal(findProofsDir(null), null);
+  const examples = path.join(repo, EXAMPLES_DIR);
+  assert.equal(findExamplesDir(linkedConsumer(root, repo, 'game')), examples);
+  assert.equal(findExamplesDir(shimmedConsumer(root, repo, 'shimmed')), examples);
+  assert.equal(findExamplesDir(null), null);
 
-  const loaded = loadProofs(proofs);
-  assert.deepEqual(loaded.map((p) => [p.name, p.kind, p.shipped]), [['border', 'proof', true]]);
+  const loaded = loadExamples(examples);
+  assert.deepEqual(loaded.map((p) => [p.name, p.kind, p.shipped]), [['border', 'example', true]]);
 });
 
-test('findProofsDir returns null for a toolchain with no proofs beside it', (t) => {
+test('findExamplesDir returns null for a toolchain with no examples beside it', (t) => {
   const root = scratch(t);
   const repo = path.join(root, 'bare');
   write(path.join(repo, 'packages', 'cli', 'package.json'), JSON.stringify({ name: '@8bitscript/cli' }));
   write(path.join(repo, 'packages', 'cli', 'bin', '8bs.mjs'), '');
-  assert.equal(findProofsDir(linkedConsumer(root, repo, 'game')), null);
+  assert.equal(findExamplesDir(linkedConsumer(root, repo, 'game')), null);
 });
 
-test('kindOf: an app declares itself, a proof of concept is placed, everything else is a project', () => {
+test('kindOf: an app declares itself, an example is placed, everything else is a project', () => {
   const app = { name: '@8bitscript/studio', '8bitscript': { app: { title: 'Studio' } } };
   assert.equal(kindOf('/repo/packages/studio', app), 'app');
-  assert.equal(kindOf('/repo/examples/proof-of-concept/borders', null), 'proof');
-  assert.equal(kindOf('/repo/examples/proof-of-concept/borders', { name: 'borders' }), 'proof');
-  assert.equal(kindOf('/repo/examples/borders', { name: 'borders' }), 'project', 'only under proof-of-concept');
-  assert.equal(kindOf('/repo/proof-of-concept/borders', null), 'project', 'and only under examples');
+  // Placed, not declared: anything directly under an `examples` directory
+  // is an example, with or without a package.json of its own.
+  assert.equal(kindOf('/repo/examples/borders', null), 'example');
+  assert.equal(kindOf('/repo/examples/borders', { name: 'borders' }), 'example');
+  // One level only. A directory nested deeper is a project the user
+  // happens to keep near the examples, not one of them.
+  assert.equal(kindOf('/repo/examples/group/borders', null), 'project', 'directly under examples/, not deeper');
+  assert.equal(kindOf('/repo/borders', null), 'project', 'and under examples/, not anywhere');
   assert.equal(kindOf('/repo/game', { '8bitscript': { entry: './src/index.8bs' } }), 'project', 'a library is not an app');
   assert.equal(kindOf('/repo/game', { '8bitscript': { app: true } }), 'project', 'the app field is an object');
 });
@@ -297,31 +301,31 @@ test('loadProject reads the kind and an app title from package.json', (t) => {
   assert.equal(studio.kind, 'app');
   assert.equal(studio.title, 'Studio');
   assert.equal(studio.name, '@8bitscript/studio');
-  const border = loadProject(path.join(repo, 'examples', PROOFS_DIR, 'border', '8bs.config.ts'));
-  assert.equal(border.kind, 'proof');
+  const border = loadProject(path.join(repo, EXAMPLES_DIR, 'border', '8bs.config.ts'));
+  assert.equal(border.kind, 'example');
   assert.equal(border.title, 'border', 'a project with no app manifest is titled by its name');
 });
 
 test('withShipped skips shipped projects the workspace already lists', () => {
-  const own = { name: 'border', dir: '/repo/examples/proof-of-concept/border', targets: ['vic20'] };
-  const proof = { ...own, shipped: true };
+  const own = { name: 'border', dir: '/repo/examples/border', targets: ['vic20'] };
+  const shipped = { ...own, shipped: true };
   const app = { name: '@8bitscript/studio', dir: '/repo/packages/studio', targets: ['cx16'], shipped: true };
-  assert.deepEqual(withShipped([own], [proof, app]), [own, app]);
+  assert.deepEqual(withShipped([own], [shipped, app]), [own, app]);
 });
 
 test('byKind splits a mixed list into sections in a fixed order, and leaves a uniform one alone', () => {
   const game = { name: 'game', kind: 'project' };
-  const border = { name: 'border', kind: 'proof' };
+  const border = { name: 'border', kind: 'example' };
   const studio = { name: '@8bitscript/studio', kind: 'app' };
   assert.deepEqual(
     byKind([studio, border, game]).map((s) => [s.kind, s.label, s.projects.map((p) => p.name)]),
     [
       ['project', 'Projects', ['game']],
-      ['proof', 'Proofs of concept', ['border']],
+      ['example', 'Examples', ['border']],
       ['app', 'Apps', ['@8bitscript/studio']],
     ],
   );
-  assert.deepEqual(byKind([studio, border]).map((s) => s.kind), ['proof', 'app'], 'only the kinds present');
+  assert.deepEqual(byKind([studio, border]).map((s) => s.kind), ['example', 'app'], 'only the kinds present');
   assert.equal(byKind([game]), null, 'one kind needs no sections');
   assert.equal(byKind([]), null);
   assert.deepEqual(ofKind([studio, border, game], 'app'), [studio]);

@@ -18,7 +18,7 @@
 // same as it already was for web. "NTSC (60Hz)" above is the emulator's real
 // hardware region, not the language's logical frame rate — that's a
 // separate, project-level setting (`frameRate` in 8bs.config.ts, default 60,
-// see packages/backend-6502's FRAME_SYNC and examples/proof-of-concept/borders/README.md),
+// see packages/backend-6502's FRAME_SYNC and examples/borders/README.md),
 // unaffected by --pal.
 //
 // --profile names the hardware the build is for: a preset from the

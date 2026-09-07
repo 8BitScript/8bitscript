@@ -131,18 +131,59 @@ importers:
         specifier: 10.1.1
         version: 10.1.1
 
-  examples/proof-of-concept/borders:
+  examples/borders:
     dependencies:
       '@8bitscript/screen':
         specifier: workspace:*
-        version: link:../../../packages/screen
+        version: link:../../packages/screen
       '@8bitscript/text':
         specifier: workspace:*
-        version: link:../../../packages/text
+        version: link:../../packages/text
     devDependencies:
       '@8bitscript/cli':
         specifier: workspace:*
-        version: link:../../../packages/cli
+        version: link:../../packages/cli
+
+  examples/menubar:
+    dependencies:
+      '@8bitscript/input':
+        specifier: workspace:*
+        version: link:../../packages/input
+      '@8bitscript/screen':
+        specifier: workspace:*
+        version: link:../../packages/screen
+      '@8bitscript/system':
+        specifier: workspace:*
+        version: link:../../packages/system
+      '@8bitscript/text':
+        specifier: workspace:*
+        version: link:../../packages/text
+      '@8bitscript/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+    devDependencies:
+      '@8bitscript/cli':
+        specifier: workspace:*
+        version: link:../../packages/cli
+
+  examples/pointer:
+    dependencies:
+      '@8bitscript/input':
+        specifier: workspace:*
+        version: link:../../packages/input
+      '@8bitscript/pointer':
+        specifier: workspace:*
+        version: link:../../packages/pointer
+      '@8bitscript/screen':
+        specifier: workspace:*
+        version: link:../../packages/screen
+      '@8bitscript/text':
+        specifier: workspace:*
+        version: link:../../packages/text
+    devDependencies:
+      '@8bitscript/cli':
+        specifier: workspace:*
+        version: link:../../packages/cli
 
   packages/atari8: {}
 
@@ -221,6 +262,36 @@ importers:
 
   packages/cx16: {}
 
+  packages/input:
+    dependencies:
+      '@8bitscript/atari8':
+        specifier: workspace:*
+        version: link:../atari8
+      '@8bitscript/c128':
+        specifier: workspace:*
+        version: link:../c128
+      '@8bitscript/c64':
+        specifier: workspace:*
+        version: link:../c64
+      '@8bitscript/cx16':
+        specifier: workspace:*
+        version: link:../cx16
+      '@8bitscript/mega65':
+        specifier: workspace:*
+        version: link:../mega65
+      '@8bitscript/nes':
+        specifier: workspace:*
+        version: link:../nes
+      '@8bitscript/pet':
+        specifier: workspace:*
+        version: link:../pet
+      '@8bitscript/vic20':
+        specifier: workspace:*
+        version: link:../vic20
+      '@8bitscript/web':
+        specifier: workspace:*
+        version: link:../web
+
   packages/language-server:
     dependencies:
       '@8bitscript/compiler':
@@ -238,6 +309,42 @@ importers:
   packages/nes: {}
 
   packages/pet: {}
+
+  packages/pointer:
+    dependencies:
+      '@8bitscript/atari8':
+        specifier: workspace:*
+        version: link:../atari8
+      '@8bitscript/c128':
+        specifier: workspace:*
+        version: link:../c128
+      '@8bitscript/c64':
+        specifier: workspace:*
+        version: link:../c64
+      '@8bitscript/cx16':
+        specifier: workspace:*
+        version: link:../cx16
+      '@8bitscript/input':
+        specifier: workspace:*
+        version: link:../input
+      '@8bitscript/mega65':
+        specifier: workspace:*
+        version: link:../mega65
+      '@8bitscript/nes':
+        specifier: workspace:*
+        version: link:../nes
+      '@8bitscript/pet':
+        specifier: workspace:*
+        version: link:../pet
+      '@8bitscript/text':
+        specifier: workspace:*
+        version: link:../text
+      '@8bitscript/vic20':
+        specifier: workspace:*
+        version: link:../vic20
+      '@8bitscript/web':
+        specifier: workspace:*
+        version: link:../web
 
   packages/screen:
     dependencies:
@@ -271,6 +378,12 @@ importers:
 
   packages/studio:
     dependencies:
+      '@8bitscript/input':
+        specifier: workspace:*
+        version: link:../input
+      '@8bitscript/pointer':
+        specifier: workspace:*
+        version: link:../pointer
       '@8bitscript/screen':
         specifier: workspace:*
         version: link:../screen
@@ -280,6 +393,9 @@ importers:
       '@8bitscript/text':
         specifier: workspace:*
         version: link:../text
+      '@8bitscript/ui':
+        specifier: workspace:*
+        version: link:../ui
 
   packages/system: {}
 
@@ -312,6 +428,12 @@ importers:
       '@8bitscript/web':
         specifier: workspace:*
         version: link:../web
+
+  packages/ui:
+    dependencies:
+      '@8bitscript/text':
+        specifier: workspace:*
+        version: link:../text
 
   packages/vic20: {}
 

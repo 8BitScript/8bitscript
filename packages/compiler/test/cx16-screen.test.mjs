@@ -13,7 +13,7 @@ import { link } from '../index.mjs';
 import { emitC } from '../../backend-6502/src/index.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const BORDERS_SRC = join(HERE, '..', '..', '..', 'examples', 'proof-of-concept', 'borders', 'src');
+const BORDERS_SRC = join(HERE, '..', '..', '..', 'examples', 'borders', 'src');
 const ENTRY = join(BORDERS_SRC, 'cx16-consumer.8bs');
 
 test('a screen and text consumer links for cx16 and drives VERA by its port addresses', () => {
@@ -71,7 +71,7 @@ test('a screen and text consumer links for cx16 and drives VERA by its port addr
   assert.match(c, /40739 = \(\(background \* 16\) \+ 1\);/);
 });
 
-test('examples/proof-of-concept/borders main.8bs links clean for cx16', () => {
+test('examples/borders main.8bs links clean for cx16', () => {
   const file = join(BORDERS_SRC, 'main.8bs');
   const { ir, diagnostics } = link(readFileSync(file, 'utf8'), file, { machine: 'cx16' });
   assert.deepEqual(diagnostics, []);

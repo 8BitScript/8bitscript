@@ -1,0 +1,41 @@
+// @8bitscript/c128/pointer — the C128 behind @8bitscript/pointer, and the
+// gap most worth closing of the eight.
+//
+// Every call here does nothing and `DRAWS` is false, and that is a missing
+// *driver*, not a missing capability: the C128's 40-column side is a
+// VIC-IIe, so it has **the same eight hardware sprites the C64 has**, and
+// @8bitscript/c128/input already reads a 1351 in a control port
+// (`port1: mouse1351` in this package's catalog). Everything needed to
+// draw an arrow is on the machine. What is missing is this package's
+// equivalent of @8bitscript/c64/sprites: nothing here owns the sprite
+// registers, the shape blocks, or the VIC bank they have to live in, and
+// @8bitscript/c64/pointer is 40 lines on top of that layer.
+//
+// So the work, in order: a `./sprites.8bs` for this package over a
+// `./geometry.8bs` that says where the shape blocks are in whichever bank
+// the 128's screen is in, then this file becomes the C64's with the import
+// changed. Two cautions the C64 does not have — the MMU means the bank
+// the VIC-IIe reads is not automatically the one the program is linked
+// into (see packages/c128/AGENTS.md), and **the 80-column side is a VDC
+// with no sprites at all**, so a program on `vdc80` would still have no
+// arrow and this file would still have to say so.
+//
+// It costs the C128 nothing today: `DRAWS` is a const and every function
+// is empty, so a program's `if (pointer.DRAWS)` folds away and LLVM
+// deletes the calls.
+export namespace pointer {
+
+    const DRAWS: bool = false;
+
+    function begin(): void {
+    }
+
+    function setColor(color: utinyint): void {
+    }
+
+    function update(): void {
+    }
+
+    function hide(): void {
+    }
+}

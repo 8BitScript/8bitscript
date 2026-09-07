@@ -5,10 +5,10 @@
 //     import { keyboard } from "@8bitscript/c64/keyboard";
 //     import { Key } from "@8bitscript/c64/keys";
 //
-// This is hardware-level, C64-only surface — the layer a portable input
-// capability (`@8bitscript/input`, not yet written; see
-// packages/studio/AGENTS.md) will be built on, the way ./text.8bs is the
-// layer under @8bitscript/text. Importing it makes a program C64-specific.
+// This is hardware-level, C64-only surface — the layer the portable input
+// capability is built on: `@8bitscript/c64/input` reads this file and
+// @8bitscript/input resolves to that, the way ./text.8bs is the layer
+// under @8bitscript/text. Importing it makes a program C64-specific.
 // It keeps no key buffer and decodes no PETSCII; it answers "is this key
 // down now", which is what a game loop asks.
 //

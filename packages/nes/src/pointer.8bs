@@ -1,0 +1,39 @@
+// @8bitscript/nes/pointer — the NES behind @8bitscript/pointer.
+//
+// Every call here does nothing and `DRAWS` is false. The PPU has 64
+// sprites and could draw an arrow without difficulty, so this is not the
+// drawing half that is missing — **it is that a stock NES has nothing to
+// move one with.** @8bitscript/nes/input reports a D-pad and buttons and
+// no pointer, because the console this repository builds for has two
+// controller ports and a cartridge, and a pad is not a pointer: a cursor
+// driven by a D-pad is a selection moving between items, which is what
+// `menubar.next()` and `previous()` already are, and dressing that up as
+// an arrow would be a worse interface, not a better one.
+//
+// The machine that *would* answer is a Zapper or a Power Pad, and neither
+// is a mouse either. A Famicom mouse existed and the hardware option for
+// one does not: packages/nes's catalog has no controller axis at all yet
+// (its mapper is still hard-wired — see packages/nes/AGENTS.md), so
+// fitting one would be a new option there first, then an input driver, and
+// only then this file.
+//
+// It costs the NES nothing: `DRAWS` is a const and every function is
+// empty, so a program's `if (pointer.DRAWS)` folds away and LLVM deletes
+// the calls — which matters most here, where a program has 2 KiB of RAM
+// and every byte of the cartridge is budgeted.
+export namespace pointer {
+
+    const DRAWS: bool = false;
+
+    function begin(): void {
+    }
+
+    function setColor(color: utinyint): void {
+    }
+
+    function update(): void {
+    }
+
+    function hide(): void {
+    }
+}

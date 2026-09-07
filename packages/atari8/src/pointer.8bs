@@ -1,0 +1,39 @@
+// @8bitscript/atari8/pointer — the Atari 8-bit behind @8bitscript/pointer.
+//
+// Every call here does nothing and `DRAWS` is false, and both halves are
+// missing for the same reason: nobody has written the drivers.
+//
+// **The hardware could do it.** GTIA has four players and four missiles —
+// movable objects a cursor fits in, though a player is 8 pixels wide and
+// as tall as the display, so an arrow is a few bytes of a player's stripe
+// rather than a 24x21 block like the VIC's sprite. And the catalog already
+// offers a pointing device: `mouse` with `st`, `amiga` and `trak` values,
+// each of which atari800 emulates on `-mouseport`.
+//
+// **Neither end is built.** This package has no players/missiles layer for
+// the drawing, and @8bitscript/atari8/input reports no pointer because an
+// ST or Amiga mouse on this machine is quadrature on a joystick port's
+// direction bits, decoded in software at a high poll rate — a driver in
+// its own right, listed as a gap in packages/input/AGENTS.md. An arrow
+// wants the input half first: there is no point drawing a cursor with
+// nothing to move it.
+//
+// It costs the machine nothing meanwhile: `DRAWS` is a const and every
+// function is empty, so a program's `if (pointer.DRAWS)` folds away and
+// LLVM deletes the calls.
+export namespace pointer {
+
+    const DRAWS: bool = false;
+
+    function begin(): void {
+    }
+
+    function setColor(color: utinyint): void {
+    }
+
+    function update(): void {
+    }
+
+    function hide(): void {
+    }
+}

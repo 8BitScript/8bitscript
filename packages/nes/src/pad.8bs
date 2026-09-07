@@ -1,0 +1,120 @@
+// @8bitscript/nes/pad — the two controller ports, one snapshot a frame.
+//
+// Named by "8bitscript".exports["./pad"] in this package's package.json:
+//
+//     import { pad, Pad } from "@8bitscript/nes/pad";
+//
+//     pad.scan();
+//     if (pad.pressed(Pad.PORT_1, Pad.RIGHT)) { ... }
+//
+// Hardware-level, NES-only surface — the layer @8bitscript/nes/input sits
+// on, the way ./text.8bs sits under @8bitscript/text. Importing it makes a
+// program NES-specific. It keeps no history and decodes nothing; it
+// answers "is this button down now", which is what a frame loop asks.
+//
+// ---- how a controller talks ----------------------------------------------
+//
+// A standard controller is an 8-bit parallel-to-serial shift register, not
+// a set of addressable switches. Writing 1 then 0 to JOY1 ($4016) strobes
+// *both* ports: the 1 loads each pad's eight buttons into its register,
+// the 0 lets them be clocked out. After that, each read of $4016 returns
+// pad 1's next button in bit 0 and each read of $4017 returns pad 2's, in
+// this fixed order:
+//
+//     A, B, SELECT, START, UP, DOWN, LEFT, RIGHT
+//
+// A 1 bit is a button held down. Only bit 0 carries a button — the upper
+// bits are open bus on the NES and expansion-port data on a Famicom — so
+// every read is masked. Eight reads of two ports is about 200 cycles of a
+// 29780-cycle frame.
+//
+// `scan()` shifts each read into the top of a byte and shifts the byte
+// down, so after eight rounds the first button read (A) has travelled to
+// bit 0 and the last (RIGHT) sits at bit 7 — which is the `Pad.*` layout
+// below, and why there is no bit table here the way the C64's keyboard
+// needs one.
+//
+// ---- two things this file does not do, on purpose ------------------------
+//
+// **It does not re-read to defend against DMC corruption.** When the APU's
+// sample channel fetches a byte it can steal a cycle from a controller
+// read and drop or double-clock a bit — the reason commercial games read
+// the pad twice and keep the reading that agrees. Nothing in 8BitScript
+// drives the DMC channel today, so the defence would cost every program
+// cycles to guard against a channel no program can turn on. **When sample
+// playback arrives on this target, this is the file that has to grow the
+// double read**, and that is the note to find here when it does.
+//
+// **It does not know about a four-player adapter, a Zapper, or a Power
+// Pad.** Those change what the extra bits after the eighth read mean; this
+// reads eight and stops.
+//
+// Written from the documented strobe-then-eight-reads protocol (NESdev's
+// "Standard controller" and "Controller port registers"), which is the
+// sequence every NES program has used since 1983. **Not yet confirmed on
+// screen under a controller** — `--screenshot` builds and captures a
+// frame but cannot press a button, so the button order below is the
+// documented one and not a measured one. Anyone who runs
+// examples/first-look/menubar under FCEUX with a pad should replace this
+// paragraph with what they saw.
+
+// The two ports. JOY2's *write* side is the APU's frame counter, which is
+// why nothing here ever writes it — the strobe goes to JOY1 alone and
+// latches both pads.
+const JOY1: usmallint = 0x4016;
+const JOY2: usmallint = 0x4017;
+
+// The last scan: index 0 is port 1, index 1 is port 2; bits as in `Pad`.
+let state: array<utinyint, 2>;
+
+export namespace Pad {
+    const PORT_1: utinyint = 0;
+    const PORT_2: utinyint = 1;
+
+    // In the order the shift register clocks them out, which is the order
+    // the bits end up in after `scan()`.
+    const A: utinyint = 1;
+    const B: utinyint = 2;
+    const SELECT: utinyint = 4;
+    const START: utinyint = 8;
+    const UP: utinyint = 16;
+    const DOWN: utinyint = 32;
+    const LEFT: utinyint = 64;
+    const RIGHT: utinyint = 128;
+}
+
+export namespace pad {
+    // Strobe both pads and clock all sixteen buttons in. Once a frame,
+    // right after waitFrame().
+    function scan(): void {
+        memory.write(JOY1, 1);
+        memory.write(JOY1, 0);
+        // Both ports are clocked by the same eight reads, so they are read
+        // together rather than in two loops — one strobe, one pass.
+        let one: utinyint = 0;
+        let two: utinyint = 0;
+        for (let i: utinyint = 0; i < 8; i++) {
+            one = one >> 1;
+            if ((memory.read(JOY1) & 1) != 0) {
+                one = one | 128;
+            }
+            two = two >> 1;
+            if ((memory.read(JOY2) & 1) != 0) {
+                two = two | 128;
+            }
+        }
+        state[Pad.PORT_1] = one;
+        state[Pad.PORT_2] = two;
+    }
+
+    // The eight buttons of one port as `Pad.*` bits, 1 = held down.
+    function bits(port: utinyint): utinyint {
+        return state[port];
+    }
+
+    // Is this button — one `Pad.*` bit, or several or'd together — down in
+    // the last scan? Several bits ask "any of these".
+    function pressed(port: utinyint, button: utinyint): bool {
+        return (state[port] & button) != 0;
+    }
+}

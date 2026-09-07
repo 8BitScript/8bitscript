@@ -14,7 +14,7 @@ import { link } from '../index.mjs';
 import { emitC } from '../../backend-6502/src/index.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const BORDERS_MAIN = join(HERE, '..', '..', '..', 'examples', 'proof-of-concept', 'borders', 'src', 'main.8bs');
+const BORDERS_MAIN = join(HERE, '..', '..', '..', 'examples', 'borders', 'src', 'main.8bs');
 const C64_SRC = join(HERE, '..', '..', 'c64', 'src');
 const VICE_C64 = '/opt/homebrew/share/vice/C64';
 
@@ -122,7 +122,14 @@ test('borders on the c64 draws at $E000 with colour at $D800, sets $D018 to $84,
   assert.match(c, /#define screenRam \(\(volatile uint8_t \*\)0xE000\)/);
   assert.match(c, /#define colorRam \(\(volatile uint8_t \*\)0xD800\)/);
   assert.match(c, /memoryPointer = 132;/);
-  assert.match(c, /cell < 1000/);
+  // blank() clears all 1000 cells, as four quarters off one 8-bit index
+  // (packages/c64/src/screen.8bs says why): 250 iterations covering
+  // 0, 250, 500, 750 — still every cell, and still only this screen's.
+  assert.match(c, /i < 250/);
+  for (const q of [0, 250, 500, 750]) {
+    const at = q === 0 ? String.raw`screenRam\[i\]` : String.raw`screenRam\[\(i \+ ${q}\)\]`;
+    assert.match(c, new RegExp(`${at} = 32;`), `quarter at ${q} is not cleared`);
+  }
   assert.doesNotMatch(c, /\(1024 \+ /, 'nothing writes the KERNAL\'s screen at $0400');
   assert.match(c, /"sei"/, 'the frame prologue disables interrupts');
 });

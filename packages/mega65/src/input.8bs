@@ -1,0 +1,168 @@
+// @8bitscript/mega65/input — the MEGA65 behind @8bitscript/input.
+//
+// Named by "8bitscript".exports["./input"] in this package's package.json,
+// and by "8bitscript".entry.mega65 in @8bitscript/input's, so a portable
+// program writes
+//
+//     import { input } from "@8bitscript/input";
+//
+// and gets this file on a MEGA65.
+//
+// ---- a C64's matrix on a machine that is not a C64 -----------------------
+//
+// For input, this machine is a C64: CIA1 at $DC00, eight columns by eight
+// rows, the same key in the same place, the two control ports on the same
+// bits. So the codes below are @8bitscript/c64/keys's codes, and the scan
+// is the C64's — write a byte with one 0 bit to port A to select a column,
+// read port B for that column's eight keys.
+//
+//   - **left / right / up / down** — the C64-shaped cursor keys, with
+//     SHIFT reversing each, or'd with a joystick in port 2.
+//   - **confirm** — RETURN, or fire. **cancel** — RUN/STOP.
+//
+// **What this leaves on the table is most of the keyboard.** A MEGA65 has
+// full-travel keys a C64 never had — four dedicated cursor keys, **ALT**,
+// CAPS LOCK, NO SCROLL, HELP — presented through the machine's own
+// registers rather than through this matrix. Reading them is the next
+// thing to do here, and it would make this the machine where a menu takes
+// ALT+letter. Until then a MEGA65 navigates exactly like a C64, which is
+// correct but is less than the hardware offers, and that is worth knowing
+// rather than discovering.
+//
+// **No mouse.** This package's hardware catalog has no options at all yet,
+// so `input.mouse` is false and there is nothing to detect. A 1351 on a
+// MEGA65 would be the C64's driver against these same registers.
+import { cia1PortA, cia1PortB, cia1DirectionA, cia1DirectionB } from "./index.8bs";
+
+// The C64 matrix's codes, for the keys this file maps.
+namespace Key {
+    const RETURN: utinyint = 1;
+    const CURSOR_RIGHT: utinyint = 2; // shifted: cursor left
+    const CURSOR_DOWN: utinyint = 7; // shifted: cursor up
+    const SHIFT_LEFT: utinyint = 15;
+    const SHIFT_RIGHT: utinyint = 52;
+    const STOP: utinyint = 63; // RUN/STOP
+}
+
+const COLUMN_SELECT: array<utinyint, 8> = [254, 253, 251, 247, 239, 223, 191, 127];
+const ROW_BIT: array<utinyint, 8> = [1, 2, 4, 8, 16, 32, 64, 128];
+
+let matrix: array<utinyint, 8>;
+
+namespace Edge {
+    const LEFT: utinyint = 1;
+    const RIGHT: utinyint = 2;
+    const UP: utinyint = 4;
+    const DOWN: utinyint = 8;
+    const CONFIRM: utinyint = 16;
+    const CANCEL: utinyint = 32;
+}
+
+let held: utinyint = 0;
+let before: utinyint = 0;
+let began: utinyint = 0;
+
+// Is this key down in the last scan?
+function keyDown(key: utinyint): bool {
+    return (matrix[key >> 3] & ROW_BIT[key & 7]) != 0;
+}
+
+export namespace input {
+
+    // Nothing to set up: no pointer to give a ceiling to.
+    function begin(): void {
+    }
+
+    function poll(): void {
+        cia1DirectionA = 0xFF;
+        cia1DirectionB = 0x00;
+        for (let column: utinyint = 0; column < 8; column++) {
+            cia1PortA = COLUMN_SELECT[column];
+            matrix[column] = cia1PortB ^ 0xFF;
+        }
+        cia1PortA = 0xFF;
+        // Port A back at $FF is what makes port B read as joystick 1 and
+        // port A as joystick 2, exactly as on a C64.
+        let stick: utinyint = (cia1PortA ^ 0xFF) & 0x1F;
+
+        before = held;
+        held = 0;
+
+        let shifted: bool = keyDown(Key.SHIFT_LEFT) || keyDown(Key.SHIFT_RIGHT);
+        if (keyDown(Key.CURSOR_RIGHT)) {
+            if (shifted) {
+                held = held | Edge.LEFT;
+            } else {
+                held = held | Edge.RIGHT;
+            }
+        }
+        if (keyDown(Key.CURSOR_DOWN)) {
+            if (shifted) {
+                held = held | Edge.UP;
+            } else {
+                held = held | Edge.DOWN;
+            }
+        }
+        if (keyDown(Key.RETURN)) {
+            held = held | Edge.CONFIRM;
+        }
+        if (keyDown(Key.STOP)) {
+            held = held | Edge.CANCEL;
+        }
+
+        // The stick in port 2: up 1, down 2, left 4, right 8, fire 16.
+        if ((stick & 4) != 0) {
+            held = held | Edge.LEFT;
+        }
+        if ((stick & 8) != 0) {
+            held = held | Edge.RIGHT;
+        }
+        if ((stick & 1) != 0) {
+            held = held | Edge.UP;
+        }
+        if ((stick & 2) != 0) {
+            held = held | Edge.DOWN;
+        }
+        if ((stick & 16) != 0) {
+            held = held | Edge.CONFIRM;
+        }
+
+        began = held & (before ^ 0xFF);
+    }
+
+    function left(): bool {
+        return (began & Edge.LEFT) != 0;
+    }
+
+    function right(): bool {
+        return (began & Edge.RIGHT) != 0;
+    }
+
+    function up(): bool {
+        return (began & Edge.UP) != 0;
+    }
+
+    function down(): bool {
+        return (began & Edge.DOWN) != 0;
+    }
+
+    function confirm(): bool {
+        return (began & Edge.CONFIRM) != 0;
+    }
+
+    function cancel(): bool {
+        return (began & Edge.CANCEL) != 0;
+    }
+
+    function pointer(): bool {
+        return false;
+    }
+
+    function pointerCell(): usmallint {
+        return 0;
+    }
+
+    function pointerButton(): bool {
+        return false;
+    }
+}

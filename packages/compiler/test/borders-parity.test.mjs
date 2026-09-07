@@ -1,4 +1,4 @@
-// examples/proof-of-concept/borders is one file for nine machines, and this is what holds
+// examples/borders is one file for nine machines, and this is what holds
 // that: every machine package implements the same two portable surfaces —
 // `./screen` (a `screen` namespace with setColors(border, background) and
 // the eight shared colour names in `BorderColor` and `BackgroundColor`) and
@@ -19,7 +19,7 @@ import { MACHINES, link, tokenize, parse, lower } from '../index.mjs';
 import { emitC } from '../../backend-6502/src/index.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const BORDERS_MAIN = join(HERE, '..', '..', '..', 'examples', 'proof-of-concept', 'borders', 'src', 'main.8bs');
+const BORDERS_MAIN = join(HERE, '..', '..', '..', 'examples', 'borders', 'src', 'main.8bs');
 const PACKAGES = join(HERE, '..', '..');
 
 const SHARED_COLORS = ['BLACK', 'WHITE', 'RED', 'CYAN', 'PURPLE', 'GREEN', 'BLUE', 'YELLOW'];
@@ -33,7 +33,7 @@ const moduleIr = (machine, name) => {
 };
 
 for (const machine of MACHINES) {
-  test(`examples/proof-of-concept/borders main.8bs links clean for ${machine}`, () => {
+  test(`examples/borders main.8bs links clean for ${machine}`, () => {
     const { ir, diagnostics } = link(readFileSync(BORDERS_MAIN, 'utf8'), BORDERS_MAIN, { machine });
     assert.deepEqual(diagnostics, []);
     // One entry, the program; it loops on waitFrame() itself — no frame().

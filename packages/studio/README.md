@@ -8,10 +8,11 @@ starts it, and the VS Code extension's **Launch Studio** does the same from
 the editor.
 
 Today it is a front door and nothing behind it: the screen shows the tier
-this machine gets and which editors that tier will open, and says
-`NO INPUT YET`. The language has no input, sound, sprite, or storage
-capability to build an editor on; [`AGENTS.md`](AGENTS.md) has the tiers,
-the design, and what each editor is waiting for.
+this machine gets, which editors that tier will open, and what is driving
+it. The menu bar moves — `@8bitscript/input` reads whatever the machine has
+— but there is still no sound, sprite or storage capability to build an
+editor on; [`AGENTS.md`](AGENTS.md) has the tiers, the design, and what each
+editor is waiting for.
 
 ```bash
 pnpm start                 # the Commander X16

@@ -1,0 +1,110 @@
+// @8bitscript/cx16/input — the Commander X16 behind @8bitscript/input.
+//
+// Named by "8bitscript".exports["./input"] in this package's package.json,
+// and by "8bitscript".entry.cx16 in @8bitscript/input's, so a portable
+// program writes
+//
+//     import { input } from "@8bitscript/input";
+//
+// and gets this file on an X16.
+//
+// ---- this layer answers nothing, and that is the honest answer today -----
+//
+// **Everything below returns false.** This is the machine with the most
+// input hardware of the nine and the least of it reachable from here, and
+// the reason is worth stating plainly rather than leaving as a puzzle.
+//
+// The X16 has no keyboard matrix a program can scan. Its keyboard is
+// **PS/2**, decoded by the KERNAL's own interrupt handler into a queue;
+// its joysticks are read by a KERNAL routine that knows about SNES-style
+// controllers; and its mouse is a KERNAL service that also draws the
+// pointer as a VERA sprite. All three are **subroutine calls into ROM**:
+//
+//   - `$FFE4` GETIN — the next key from the queue, or 0.
+//   - `$FF56` joystick_get — one controller's state.
+//   - `$FF68` mouse_config / `$FF6B` mouse_get — turn the pointer on, and
+//     read where it is and which buttons are down.
+//
+// That is what makes this file different from every other machine's: there
+// are no registers to poke, so nothing here can be written the way
+// ./text.8bs or ./banks.8bs are. It needs `asm6502` blocks that call those
+// vectors and hand the results back — which the language does have (see
+// @8bitscript/c64's raster handler for the pattern) — plus care about what
+// the KERNAL expects to still be true when it is called.
+//
+// **`input.mouse` is true on this machine by default**, because the
+// hardware really does have one; a build therefore compiles the pointer
+// branch in, and this file then says `pointer()` false. That is a gap
+// declared rather than a lie: the fact is about the machine, this file is
+// about what has been written. Closing it is the single highest-value
+// thing anyone could do in this package — the X16 is the reference machine
+// for Studio, and it is currently the one that cannot be driven.
+//
+// Until then a program still links and runs here; it just never sees a
+// press. Nothing in a component has to know that.
+
+namespace Edge {
+    const LEFT: utinyint = 1;
+    const RIGHT: utinyint = 2;
+    const UP: utinyint = 4;
+    const DOWN: utinyint = 8;
+    const CONFIRM: utinyint = 16;
+    const CANCEL: utinyint = 32;
+}
+
+let held: utinyint = 0;
+let before: utinyint = 0;
+let began: utinyint = 0;
+
+export namespace input {
+
+    // Nothing to set up until there is something to read.
+    function begin(): void {
+    }
+
+    // Reads nothing yet — see the header. Left as a real function rather
+    // than removed from the surface so that a program written for nine
+    // machines calls the same thing on all nine, and so that the day the
+    // KERNAL calls land, no program changes.
+    function poll(): void {
+        before = held;
+        held = 0;
+        began = held & (before ^ 0xFF);
+    }
+
+    function left(): bool {
+        return (began & Edge.LEFT) != 0;
+    }
+
+    function right(): bool {
+        return (began & Edge.RIGHT) != 0;
+    }
+
+    function up(): bool {
+        return (began & Edge.UP) != 0;
+    }
+
+    function down(): bool {
+        return (began & Edge.DOWN) != 0;
+    }
+
+    function confirm(): bool {
+        return (began & Edge.CONFIRM) != 0;
+    }
+
+    function cancel(): bool {
+        return (began & Edge.CANCEL) != 0;
+    }
+
+    function pointer(): bool {
+        return false;
+    }
+
+    function pointerCell(): usmallint {
+        return 0;
+    }
+
+    function pointerButton(): bool {
+        return false;
+    }
+}

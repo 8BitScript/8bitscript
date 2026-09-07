@@ -109,6 +109,8 @@ const CONSTRUCT_DOCS = {
       'A fixed-size array of N values of type T, read and written one element at a time: `a[i]`, `a[i] = v`. `a.length` is N, a number 8bitscript fills in.',
       '',
       '`let a: array<T, N>` is N values in RAM (zero until written, or `= [..]`); `const Table: array<T, N> = [..]` is N values of data in the program, never in RAM; `@address(0x0400) let screenRam: array<T, N>` is N cells of hardware. N is a literal or a `const`, and the size is part of the type, so memory usage is predictable — no hidden allocation or resizing.',
+      '',
+      'A function takes one the same way — `function pick(t: array<u8, 4>, i: u8)` — and the call passes the array by name: the address of its first element, with nothing copied and no length travelling alongside it, since `t.length` is folded from the type. An array parameter is read-only and has no default.',
     ].join('\n'),
   },
   asm6502: {

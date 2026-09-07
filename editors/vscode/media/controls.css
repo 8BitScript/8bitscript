@@ -1,0 +1,95 @@
+body {
+  margin: 0;
+  padding: 6px 12px 8px;
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  color: var(--vscode-foreground);
+}
+label.field {
+  display: block;
+  margin: 0 0 2px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+.row { display: flex; gap: 6px; align-items: flex-end; }
+.row > .grow { flex: 1; min-width: 0; }
+.row + .row { margin-top: 6px; }
+select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 3px 6px;
+  font: inherit;
+  color: var(--vscode-dropdown-foreground);
+  background: var(--vscode-dropdown-background);
+  border: 1px solid var(--vscode-dropdown-border, transparent);
+  border-radius: 2px;
+}
+select:focus { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+select:disabled { opacity: 0.5; }
+button.action {
+  flex: 0 0 auto;
+  padding: 3px 10px;
+  font: inherit;
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+}
+button.action.secondary {
+  color: var(--vscode-button-secondaryForeground);
+  background: var(--vscode-button-secondaryBackground);
+}
+button.action:hover { background: var(--vscode-button-hoverBackground); }
+button.action.secondary:hover { background: var(--vscode-button-secondaryHoverBackground); }
+button.action:disabled { opacity: 0.4; cursor: default; }
+details.panel { margin-top: 8px; }
+details.panel > summary {
+  cursor: pointer;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+details.panel > summary .summary-value {
+  text-transform: none;
+  letter-spacing: 0;
+  opacity: 0.9;
+}
+.option { margin: 6px 0 0; }
+.option label {
+  display: block;
+  margin: 0 0 2px;
+  font-size: 11px;
+  opacity: 0.85;
+}
+.option.set label { opacity: 1; font-weight: 600; }
+.option .tags { opacity: 0.7; font-weight: 400; }
+.none { font-size: 11px; opacity: 0.6; margin: 6px 0 0; }
+.link {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-top: 8px;
+  font: inherit;
+  font-size: 11px;
+  color: var(--vscode-textLink-foreground);
+  cursor: pointer;
+}
+.hint {
+  margin-top: 8px;
+  font-size: 11px;
+  opacity: 0.7;
+  overflow-wrap: anywhere;
+}
+.hint.warn { opacity: 1; color: var(--vscode-editorWarning-foreground, var(--vscode-foreground)); }
+details.facts { margin-top: 8px; }
+details.facts summary { cursor: pointer; font-size: 11px; opacity: 0.8; }
+table.facts { border-collapse: collapse; width: 100%; font-size: 11px; margin-top: 4px; }
+table.facts td { padding: 1px 4px; vertical-align: top; }
+table.facts td.value { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+table.facts td.run { opacity: 0.7; }
+table.facts tr.group td { padding-top: 5px; font-weight: 600; opacity: 0.8; }
+code { font-family: var(--vscode-editor-font-family); }

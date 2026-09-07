@@ -1,0 +1,43 @@
+// @8bitscript/web/pointer — the web runtime behind @8bitscript/pointer,
+// and the one target where the pointer the user already has is the
+// problem rather than the solution.
+//
+// Every call here does nothing and `DRAWS` is false, because
+// @8bitscript/web/input delivers nothing: the runtime does not listen to
+// the browser, and what it would need is the shared state block in the
+// worker that packages/input/AGENTS.md lists as this target's whole gap.
+// Nothing points, so nothing needs drawing.
+//
+// This target has a decision the other eight do not, and it is worth
+// writing down before anyone implements it: **the user is already looking
+// at a real mouse cursor** — the browser's — sitting over the canvas. So
+// "draw a pointer" here means one of two quite different things. Either
+// the runtime hides the browser's cursor over the canvas and draws the
+// machine's own arrow, which is what makes a web build look like the
+// machine it is emulating and what every other target does; or it leaves
+// the browser's cursor alone and `DRAWS` stays false forever, with
+// `input.pointerCell()` reporting where that cursor is. The second is less
+// work and the first is more honest to what this target is for, and every
+// "hardware" fact of this machine is a decision recorded in the runtime's
+// source (see packages/web/AGENTS.md), so this one belongs written down
+// there when it is made.
+//
+// It costs the target nothing today: `DRAWS` is a const and every function
+// is empty, so a program's `if (pointer.DRAWS)` folds away and the backend
+// drops the calls.
+export namespace pointer {
+
+    const DRAWS: bool = false;
+
+    function begin(): void {
+    }
+
+    function setColor(color: utinyint): void {
+    }
+
+    function update(): void {
+    }
+
+    function hide(): void {
+    }
+}

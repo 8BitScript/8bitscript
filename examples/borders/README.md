@@ -7,7 +7,7 @@ whichever machine you build for. One file, one program, on every target:
 right there in `src/main.8bs`, paced by `waitFrame()`.
 
 The walkthrough that builds and runs this project is
-[docs/tutorial.md](../../../docs/tutorial.md).
+[docs/tutorial.md](../../docs/tutorial.md).
 
 ```bash
 pnpm start            # VIC-20, NTSC
@@ -21,7 +21,7 @@ without opening the emulator. NTSC vs PAL is a `--pal` flag on `8bs build`
 /`8bs run`, not a separate entry or target, for every target with a real
 region split — `vic20`, `c64`, `c128`, `mega65`, `atari8` each have a
 `start:<target>-pal` script. The flag is ignored for `nes`, `cx16`, and
-`web`, none of which have one (see [docs/setup](../../../docs/setup) and
+`web`, none of which have one (see [docs/setup](../../docs/setup) and
 packages/backend-6502's `FRAME_SYNC` for why per target). `start:16k` and
 `start:c64-reu` build for the VIC-20 16K and C64 REU memory profiles (the
 16K VIC-20 has its screen at `$1000`, not `$1E00`, and the build follows,
@@ -32,7 +32,7 @@ under VICE), `start:pet-8032` the 80-column business machine (50Hz: VICE
 runs the CRTC models' 50Hz editor ROMs, since the 60Hz ones make it refuse
 autostart). One `.prg` runs on either — `waitFrame()` measures the actual
 refresh — but the 8032 build draws to 80 columns, so it is its own file
-(`main-pet-8032.prg`); see [docs/setup/vice.md](../../../docs/setup/vice.md#pet-models).
+(`main-pet-8032.prg`); see [docs/setup/vice.md](../../docs/setup/vice.md#pet-models).
 
 ## What it shows
 
@@ -200,7 +200,7 @@ time its screen memory is writable while the picture is on.
 The text API is flat cells and templates (`text.print(cell, ...)`); a
 position is `y * text.COLUMNS + x`, worked out by the program, and there is
 no cursor and no scrolling (`input.*` is in
-[docs/roadmap.md](../../../docs/roadmap.md), not built), so what this program
+[docs/roadmap.md](../../docs/roadmap.md), not built), so what this program
 puts on the screen — the blank, the HUD line — is its own doing, not
 something the machine packages do on their own. Number fields show unsigned
 values up to 16 bits, and a template has no string fields (a `string<N>`

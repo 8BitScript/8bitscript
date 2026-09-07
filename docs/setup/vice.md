@@ -220,6 +220,14 @@ x64sc the same thing:
 8bs run c64 --hardware port1=mouse1351,sid=8580    # a 1351 in port 1, the later SID
 ```
 
+**A 1351 comes with VICE's mouse grab**, because on its own
+`-controlport1device 3` puts a mouse in the port and never moves it: the
+emulator only translates the host pointer into the device's lines while it
+has the pointer grabbed (`-mouse`, "Enable mouse grab" in `x64sc -help`).
+So `mouse1351` passes both, and the emulator window takes your pointer as
+soon as it opens. **Command+M gives it back** — `mouse-grab-toggle` in
+VICE's own `hotkeys.vhk`, `Alt+M` on platforms other than macOS.
+
 Region is `--pal` (x64sc's `-model c64`, a 6569 VIC-II) or the NTSC
 default (`-model ntsc`, a 6567R8). To run a build on another model,
 launch x64sc yourself with its `-model`:

@@ -1,0 +1,269 @@
+// @8bitscript/c64/input — the C64 behind @8bitscript/input.
+//
+// Named by "8bitscript".exports["./input"] in this package's package.json,
+// and by "8bitscript".entry.c64 in @8bitscript/input's, so a portable
+// program writes
+//
+//     import { input } from "@8bitscript/input";
+//
+// and gets this file on a C64. Nothing here is C64-specific to a program:
+// it is the same ten calls on all nine machines, answered from whatever
+// this one has. The machine-level layers underneath — ./keyboard.8bs,
+// ./keys.8bs, ./joystick.8bs, ./mouse.8bs — stay available to a program
+// that wants the matrix itself.
+//
+// ---- what a direction means here ------------------------------------------
+//
+// A menu asks "did the user just press right", not "is right held down",
+// so every direction and button here is **edge-triggered**: true on the
+// one frame the press begins, false while it is held. That is what makes
+// a highlight step one item per press instead of racing across the bar,
+// and it is why `poll()` has to be called exactly once a frame — twice a
+// frame and every press is seen once and then swallowed.
+//
+// Three things can move the highlight on this machine, and all three are
+// or'd together, because a program should not care which the user reached
+// for:
+//
+//   - **The cursor keys.** The C64 has two, not four: `CURSOR_RIGHT` and
+//     `CURSOR_DOWN`, with SHIFT reversing each. So left is SHIFT plus the
+//     right key, which is what the machine actually has and what this file
+//     reports rather than pretending there are four keys.
+//   - **A joystick in port 2**, which is where every C64 game asked for
+//     one. Port 1 shares wires with the keyboard's rows, so a stick there
+//     types; port 2 is the one that does not fight the matrix.
+//   - **A 1351 mouse in port 1**, if this build was fitted with one — see
+//     below.
+//
+// RETURN or the joystick's fire button confirms; RUN/STOP cancels.
+//
+// ---- the mouse is a compile-time decision and a run-time answer -----------
+//
+// `#fact(input.mouse)` is false on a stock C64 and true for a build made
+// with `--hardware port1=mouse1351`. It is a `run` fact, so what it means
+// is "this build may use a mouse" — and that is exactly the two-stage
+// shape this machine needs:
+//
+//   - **Compiling.** `HAS_MOUSE` is a const, so `if (HAS_MOUSE)` is
+//     `if (false)` on a stock build and the pointer code below is never
+//     reached, never referenced, and never linked. A program that did not
+//     ask for a mouse pays nothing for one — not a byte of code, not a
+//     byte of the accumulator.
+//   - **Running.** A 1351 says nothing about itself except through the
+//     lines its movement arrives on, so even a build that asked for one
+//     has to find out whether one is plugged in. `pointer()` answers that,
+//     from ./mouse.8bs's probe, every frame.
+//
+// **The port assignment is this file's choice, not a fact.**
+// `input.mouse` is one flag and does not say which port the mouse is in.
+// This file reads the mouse in **port 1** and the joystick in **port 2**,
+// which is the arrangement C64 software settled on — a stick in the port
+// that does not fight the keyboard, a pointer in the one that does. A
+// program that needs it the other way round wants ./mouse.8bs directly.
+//
+// **The pointer is reported in cells, not pixels**, because that is the
+// unit @8bitscript/text works in and the unit a component hit-tests
+// against: `pointerCell()` is a flat cell index, the same number
+// `text.print()` takes. A 1351 count is about a pixel, so the accumulator
+// is limited to the screen in pixels and shifted down by the cell size.
+//
+// **Y is inverted in ./mouse.8bs**, not here. A 1351's Y counter runs
+// opposite the screen; `poll()` there swaps last and now on that axis so
+// `mouse.y()` is already in screen rows (0 at the top). This file only
+// shifts that number to a cell. Verified under x64sc (Studio, 2026-09-07):
+// applying Y with the same sign as X moved the arrow up when the mouse
+// moved down; inverting the delta, not `LIMIT_Y - y`, kept the rest
+// position in the top-left corner.
+import { Video } from "./geometry.8bs";
+import { keyboard } from "./keyboard.8bs";
+import { Key } from "./keys.8bs";
+import { joystick, Joystick } from "./joystick.8bs";
+import { mouse, Mouse } from "./mouse.8bs";
+
+// Was this build fitted with a mouse? Folded while compiling, so the whole
+// pointer half of this file is either present or absent, never tested.
+const HAS_MOUSE: bool = #fact(input.mouse);
+
+// The pointer's travel, in mouse counts — a count is about a pixel, and a
+// cell is 8 of them on this machine. The shift is written as a shift
+// rather than a divide by CELL_PIXELS because a 6502 has neither, and the
+// one the compiler can do without a helper routine is this one.
+const CELL_SHIFT: utinyint = 3; // 8 pixels a cell
+const LIMIT_X: usmallint = 319; // Video.COLUMNS * 8 - 1
+const LIMIT_Y: usmallint = 199; // Video.ROWS * 8 - 1
+
+// One bit per thing a program can ask about, so a frame's input is one
+// byte and an edge is one AND.
+namespace Edge {
+    const LEFT: utinyint = 1;
+    const RIGHT: utinyint = 2;
+    const UP: utinyint = 4;
+    const DOWN: utinyint = 8;
+    const CONFIRM: utinyint = 16;
+    const CANCEL: utinyint = 32;
+    const BUTTON: utinyint = 64;
+}
+
+// What is held now, what was held at the last poll, and what began this
+// frame — `now & ~last`, written with the XOR the language has.
+let held: utinyint = 0;
+let before: utinyint = 0;
+let began: utinyint = 0;
+
+// Where the pointer is, in cells, and whether one is really there.
+let atCell: usmallint = 0;
+let havePointer: bool = false;
+
+export namespace input {
+
+    // Once, at start-up, before the first poll() — the input equivalent of
+    // screen.blank(). On this machine it gives the pointer its ceiling and
+    // points the SID at the mouse's port so the first poll() has something
+    // settled to read. On a build with no mouse it compiles to nothing at
+    // all, and on a machine with no pointer it is an empty function that
+    // costs a program one call it can write once and forget.
+    function begin(): void {
+        if (HAS_MOUSE) {
+            mouse.setLimits(LIMIT_X, LIMIT_Y);
+            mouse.select(Mouse.PORT_1);
+        }
+    }
+
+    // Everything this machine offers, gathered once. Call it once a frame,
+    // right after waitFrame(), and never twice.
+    //
+    // The order is forced by the hardware and is the whole reason this
+    // function exists rather than three calls in a program:
+    //
+    //   1. **Read the pots first.** They answer for the port `select()`
+    //      pointed the SID at during the *previous* poll — the converter
+    //      needs about half a millisecond to settle, and a frame is thirty
+    //      times that, so last frame's select is exactly what makes this
+    //      frame's reading mean something.
+    //   2. **Then the keyboard**, which drives all eight column lines and
+    //      leaves port A at $FF.
+    //   3. **Then the joysticks**, which need port A at $FF to read as
+    //      joysticks — which is the state the keyboard scan just left.
+    //   4. **Then point the SID back at the mouse's port**, for the read
+    //      at the top of the next frame.
+    function poll(): void {
+        if (HAS_MOUSE) {
+            mouse.poll();
+        }
+        keyboard.scan();
+        joystick.scan();
+
+        before = held;
+        held = 0;
+
+        // The two cursor keys and SHIFT, which is what "four directions"
+        // is on this keyboard.
+        let shifted: bool = keyboard.pressed(Key.SHIFT_LEFT) || keyboard.pressed(Key.SHIFT_RIGHT);
+        if (keyboard.pressed(Key.CURSOR_RIGHT)) {
+            if (shifted) {
+                held = held | Edge.LEFT;
+            } else {
+                held = held | Edge.RIGHT;
+            }
+        }
+        if (keyboard.pressed(Key.CURSOR_DOWN)) {
+            if (shifted) {
+                held = held | Edge.UP;
+            } else {
+                held = held | Edge.DOWN;
+            }
+        }
+        if (keyboard.pressed(Key.RETURN)) {
+            held = held | Edge.CONFIRM;
+        }
+        if (keyboard.pressed(Key.STOP)) {
+            held = held | Edge.CANCEL;
+        }
+
+        // The stick in port 2, or'd on top: same directions, same confirm.
+        let stick: utinyint = joystick.bits(Joystick.PORT_2);
+        if ((stick & Joystick.LEFT) != 0) {
+            held = held | Edge.LEFT;
+        }
+        if ((stick & Joystick.RIGHT) != 0) {
+            held = held | Edge.RIGHT;
+        }
+        if ((stick & Joystick.UP) != 0) {
+            held = held | Edge.UP;
+        }
+        if ((stick & Joystick.DOWN) != 0) {
+            held = held | Edge.DOWN;
+        }
+        if ((stick & Joystick.FIRE) != 0) {
+            held = held | Edge.CONFIRM;
+        }
+
+        if (HAS_MOUSE) {
+            havePointer = mouse.present();
+            if (havePointer) {
+                // Counts to cells. Y is already screen-space: ./mouse.8bs
+                // inverts the 1351's counter so 0 is the top row.
+                let column: usmallint = mouse.x() >> CELL_SHIFT;
+                let row: usmallint = mouse.y() >> CELL_SHIFT;
+                atCell = row * Video.COLUMNS + column;
+            }
+            // The mouse's buttons ride the port's ordinary joystick lines,
+            // so they are already in the snapshot taken above — read from
+            // there rather than from the live port, which by now has a
+            // keyboard column driven on it.
+            if ((joystick.bits(Joystick.PORT_1) & Joystick.FIRE) != 0) {
+                held = held | Edge.BUTTON;
+            }
+            // Point the SID at the mouse's port for the next frame's read.
+            // Last, because joystick.scan() puts port A back to $FF.
+            mouse.select(Mouse.PORT_1);
+        }
+
+        began = held & (before ^ 0xFF);
+    }
+
+    // The four directions, each true only on the frame its press began.
+    function left(): bool {
+        return (began & Edge.LEFT) != 0;
+    }
+
+    function right(): bool {
+        return (began & Edge.RIGHT) != 0;
+    }
+
+    function up(): bool {
+        return (began & Edge.UP) != 0;
+    }
+
+    function down(): bool {
+        return (began & Edge.DOWN) != 0;
+    }
+
+    // RETURN, or the stick's fire button.
+    function confirm(): bool {
+        return (began & Edge.CONFIRM) != 0;
+    }
+
+    // RUN/STOP.
+    function cancel(): bool {
+        return (began & Edge.CANCEL) != 0;
+    }
+
+    // Is a pointer really there? False on every stock build, where the
+    // question folds away entirely; on a build fitted with a mouse, this
+    // is ./mouse.8bs's probe answering every frame.
+    function pointer(): bool {
+        return havePointer;
+    }
+
+    // Where it is, as a flat cell index — the same unit text.print() takes.
+    // Meaningless unless pointer() is true.
+    function pointerCell(): usmallint {
+        return atCell;
+    }
+
+    // The pointer's main button, on the frame its press began.
+    function pointerButton(): bool {
+        return (began & Edge.BUTTON) != 0;
+    }
+}

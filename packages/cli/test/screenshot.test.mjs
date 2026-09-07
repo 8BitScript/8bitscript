@@ -1,6 +1,6 @@
 // One test per target for `8bs run <target> --screenshot <file>` — the
 // real CLI path (not screenshot.mjs's internals directly), against a real
-// build of examples/proof-of-concept/borders, confirming an actual PNG lands on disk. See
+// build of examples/borders, confirming an actual PNG lands on disk. See
 // docs/setup/verify.md#screenshots for what this feature is and why each
 // target's mechanism differs; see emulator-smoke.test.mjs for the same
 // "skip rather than fail when the tool isn't installed" convention this
@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CLI_BIN = join(HERE, '..', 'bin', '8bs.mjs');
-const BORDERS_DIR = join(HERE, '..', '..', '..', 'examples', 'proof-of-concept', 'borders');
+const BORDERS_DIR = join(HERE, '..', '..', '..', 'examples', 'borders');
 
 function onPath(name) {
   const binary = process.platform === 'win32' ? `${name}.exe` : name;

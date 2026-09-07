@@ -73,7 +73,7 @@
     "viewsWelcome": [
       {
         "view": "8bitscript.projects",
-        "contents": "No 8BitScript projects found.\n\nA project is a directory with an `8bs.config.ts` in it; every one in this workspace is listed here with a Run and Build button for each system it targets. The apps that ship with the toolchain, and the proofs of concept from the 8bitscript repository, get sections of their own.\n\n[Refresh](command:8bitscript.projects.refresh)\n\n[Launch Studio](command:8bitscript.launchStudio)",
+        "contents": "No 8BitScript projects found.\n\nA project is a directory with an `8bs.config.ts` in it; every one in this workspace is listed here with a Run and Build button for each system it targets. The apps that ship with the toolchain, and the examples from the 8bitscript repository, get sections of their own.\n\n[Refresh](command:8bitscript.projects.refresh)\n\n[Launch Studio](command:8bitscript.launchStudio)",
         "when": "!8bitscript.hasProjects"
       }
     ],
@@ -107,7 +107,7 @@
       },
       {
         "command": "8bitscript.toggleExamples",
-        "title": "Show or Hide Proofs of Concept",
+        "title": "Show or Hide Examples",
         "category": "8BitScript",
         "icon": "$(book)"
       },
@@ -123,8 +123,8 @@
         "category": "8BitScript"
       },
       {
-        "command": "8bitscript.launchProof",
-        "title": "Launch Proof of Concept…",
+        "command": "8bitscript.launchExample",
+        "title": "Launch Example…",
         "category": "8BitScript"
       },
       {
@@ -361,6 +361,11 @@
           "default": "vic20",
           "description": "The system the Run and Build buttons use, and the one the \"runnable\" projects view lists. Set from the System dropdown in the 8BitScript side bar. The list is the one 8bs build --target accepts; a system the toolchain cannot build yet shows in the side bar with 8bs doctor's verdict."
         },
+        "8bitscript.project": {
+          "type": "string",
+          "default": "",
+          "description": "The project the Run and Build buttons in the 8BitScript side bar act on, as an absolute directory. Empty means the first project the workspace offers. Set from the Project dropdown in the side bar."
+        },
         "8bitscript.projectsView": {
           "type": "string",
           "enum": [
@@ -379,12 +384,12 @@
         "8bitscript.showExamples": {
           "type": "boolean",
           "default": false,
-          "description": "List the proofs of concept from the 8bitscript repository, in a section of their own, alongside the workspace's projects and the apps that ship with the toolchain. Only offered when the toolchain in use comes from a checkout of the repository, which is where they live (examples/proof-of-concept). Launch Proof of Concept… reaches them either way."
+          "description": "List the examples from the 8bitscript repository, in a section of their own, alongside the workspace's projects and the apps that ship with the toolchain. Only offered when the toolchain in use comes from a checkout of the repository, which is where they live (examples/). Launch Example… reaches them either way."
         },
         "8bitscript.examplesPath": {
           "type": "string",
           "default": "",
-          "description": "A directory of proofs of concept to list when \"Show proofs of concept\" is on, instead of the one found beside the toolchain. Each subdirectory with an 8bs.config.ts is one."
+          "description": "A directory of examples to list when \"Show examples\" is on, instead of the one found beside the toolchain. Each subdirectory with an 8bs.config.ts is one."
         },
         "8bitscript.llvmMosHome": {
           "type": "string",

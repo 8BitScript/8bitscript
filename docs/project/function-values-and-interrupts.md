@@ -1,3 +1,8 @@
+---
+title: Function values and interrupt handlers
+nav_order: 92
+---
+
 # Function values and interrupt handlers — design
 
 Status: **design, not built.** This note specifies a language feature and

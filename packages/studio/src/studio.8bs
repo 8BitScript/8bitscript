@@ -4,12 +4,21 @@
 // this machine gets, and which of Studio's editors that tier opens — drawn
 // with the same @8bitscript/screen and @8bitscript/text every program uses,
 // so it builds and runs on all nine targets. Nothing behind the door exists
-// yet: the language has no input, sound, sprite, or storage capability to
-// build an editor on. AGENTS.md lists those prerequisites and the design
-// each editor waits for; nothing here claims more than it draws.
+// yet: the language has no sound, sprite, or storage capability to build an
+// editor on. AGENTS.md lists those prerequisites and the design each editor
+// waits for; nothing here claims more than it draws.
+//
+// **The bar moves now.** @8bitscript/input arrived, so the front door reads
+// whatever the machine it is on has — a C64's cursor keys, an NES D-pad, an
+// Atari joystick, a 1351 in a port — and the highlight steps between the
+// icon and FILE under it. The bar starts deselected, the way a menu bar
+// does before anyone has touched it.
 import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";
 import { text, TextColor } from "@8bitscript/text";
-import { Audio, Storage, Video } from "@8bitscript/system";
+import { input } from "@8bitscript/input";
+import { pointer } from "@8bitscript/pointer";
+import { Audio, Input, Storage, Video } from "@8bitscript/system";
+import { menubar } from "@8bitscript/ui/menubar";
 
 // How much of Studio a machine gets. A higher tier opens every editor a
 // lower one does, and a file is never tied to the tier that made it — the
@@ -35,6 +44,29 @@ const ROW: usmallint = text.COLUMNS;
 // is the toolchain's. test/studio.test.mjs checks this literal against
 // package.json, which in turn is the workspace's one version.
 const VERSION: string = "0.0.0";
+
+// Studio's menu bar, across the top row on every machine, from
+// @8bitscript/ui — the first component Studio takes from the shared
+// library rather than drawing itself.
+//
+// **It is Studio's mark and one menu**, and that is the whole bar for now.
+// A desktop's leftmost item is its own badge rather than a word, and the
+// menus beside it arrive as there is something behind them to open; FILE
+// is the one that has meaning on every machine, because every machine
+// either loads or does not and the front door already says which.
+//
+// Two cells and four letters fits every one of the nine, including the
+// VIC-20's 22 columns and the NES's 28 — which is why there is no longer
+// a short-name branch here. The four-editor bar this used to draw needed
+// 35 cells and had to be abbreviated on two machines; a bar that fits
+// everywhere needs no abbreviating, and the editors it named are reached
+// from the FILE menu's own list rather than from the top row.
+function drawMenu(): void {
+    menubar.begin(0, text.COLUMNS);
+    menubar.icon();
+    menubar.item("FILE");
+    menubar.end();
+}
 
 // Helpers stay at top level: a namespace function reaches a sibling only
 // through the namespace's name, and these are not part of Studio's surface.
@@ -107,9 +139,21 @@ export namespace studio {
     // and screen.blank() leaves it off until the first waitFrame().
     function start(tier: utinyint): void {
         screen.blank(BorderColor.BLUE, BackgroundColor.BLACK);
+
+        // The bar first, then the front door's own colour: drawing a bar
+        // leaves the text colour set to the bar's, because that is how the
+        // component gets its colours on without a second pass over every
+        // cell it just wrote (see packages/ui/AGENTS.md). A program that
+        // cares picks its colour after the bar, not before.
+        menubar.setColors(TextColor.CYAN, TextColor.WHITE);
+        drawMenu();
         text.setColor(TextColor.WHITE);
 
-        let cell: usmallint = 0;
+        // The front door starts on the row after the bar. menubar.HEIGHT is
+        // how a program lays out under a bar without knowing how tall one
+        // is, and both it and ROW are constants, so this is one number by
+        // the time the machine sees it.
+        let cell: usmallint = menubar.HEIGHT * ROW;
         text.print(cell, "8BITSCRIPT STUDIO");
         cell = cell + ROW;
         text.print(cell, "VERSION ");
@@ -119,10 +163,102 @@ export namespace studio {
         cell = cell + ROW + ROW;
         printEditors(cell, tier);
         cell = cell + ROW + ROW + ROW + ROW + ROW;
-        text.print(cell, "NO INPUT YET");
+
+        // What is driving the bar on this machine. `Input.KEYBOARD` and
+        // `Input.PADS` are facts folded while compiling, so each machine
+        // compiles the one line that is true of it and none of the others:
+        // the NES says PAD, the PET and the computers say KEYS, and the
+        // web — whose runtime does not deliver input yet — says NONE,
+        // which is also why its tier is a viewer.
+        text.print(cell, "INPUT ");
+        if (Input.KEYBOARD) {
+            text.print(cell + 6, "KEYS");
+        } else if (Input.PADS > 0) {
+            text.print(cell + 6, "PAD");
+        } else {
+            text.print(cell + 6, "NONE");
+        }
+
+        // Once, before the first poll: on a machine with a pointer this
+        // gives it its ceiling and points the hardware at the right port;
+        // elsewhere it is an empty call.
+        input.begin();
+
+        // And the arrow the user aims with, on the machines that have
+        // something to draw one with — one of the VIC's sprites on a C64
+        // fitted with a mouse, nothing anywhere else yet. `pointer.DRAWS`
+        // is a compile-time constant, so on the other eight this call and
+        // the update() below are deleted rather than made.
+        pointer.begin();
+        pointer.setColor(TextColor.WHITE);
+
+        // Where the pointer was when the bar was last drawn. `menubar` hit-
+        // tests during a *run* of the bar and answers `pointed()` from that
+        // run, so a click can only land on the right item if the bar has
+        // run since the pointer last moved — which is what this remembers.
+        // 65535 is `menubar`'s own "no pointer" cell: no item can contain
+        // it, so the first real reading always counts as a move.
+        let pointerCell: usmallint = 65535;
 
         while (true) {
             waitFrame();
+            // Exactly once a frame, and never twice — every direction is
+            // edge-triggered, so a second poll would see each press once
+            // and then swallow it.
+            input.poll();
+            // Right after the poll that moved it, and once a frame like the
+            // poll: the arrow is drawn where the mouse got to this frame.
+            pointer.update();
+
+            let moved: bool = false;
+
+            // The pointer, on a build fitted with one. `input.pointer()` is
+            // a constant false everywhere else, so on the eight machines
+            // without a mouse — and on a stock C64 — this whole block is
+            // proved dead and deleted rather than tested every frame.
+            if (input.pointer()) {
+                let at: usmallint = input.pointerCell();
+                if (at != pointerCell) {
+                    pointerCell = at;
+                    menubar.point(at);
+                    // Redraw so `pointed()` answers for where the pointer
+                    // is now rather than where it was. Nothing on screen
+                    // changes; the run is what re-does the hit test.
+                    moved = true;
+                }
+                // A click takes the item under the pointer, and clicking
+                // the bar's own padding or anywhere off it means "nothing"
+                // — the same thing RUN/STOP means.
+                if (input.pointerButton()) {
+                    let over: utinyint = menubar.pointed();
+                    if (over == menubar.NONE) {
+                        menubar.deselect();
+                    } else {
+                        menubar.select(over);
+                    }
+                    moved = true;
+                }
+            }
+
+            if (input.right()) {
+                menubar.next();
+                moved = true;
+            }
+            if (input.left()) {
+                menubar.previous();
+                moved = true;
+            }
+            if (input.cancel()) {
+                menubar.deselect();
+                moved = true;
+            }
+            if (moved) {
+                // Redraw the bar and put the colour back the way the
+                // opening sequence above does: a bar leaves the text
+                // colour set to its own.
+                drawMenu();
+                text.setColor(TextColor.WHITE);
+            }
         }
     }
 }

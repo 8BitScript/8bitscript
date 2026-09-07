@@ -172,12 +172,12 @@ icons down the left edge of the window. Its side bar has two sections. **Run
 Settings** is three dropdowns — the system to run on, the region for the
 machines that have one (NTSC or PAL), and how the project list is laid out —
 plus, when the toolchain comes from a checkout of this repository, a
-checkbox that adds the repository's proofs of concept to the list.
+checkbox that adds the repository's examples to the list.
 **Projects** lists every directory in the workspace that has an
 `8bs.config.ts`, which is the project manifest the CLI reads for the entry
 file and the target list — and keeps what the toolchain brought along in
 sections of its own: the **apps** that ship with it ([Studio](studio.md)),
-and the **proofs of concept** from `examples/proof-of-concept`.
+and the **examples** from `examples/`.
 
 ```
 RUN SETTINGS
@@ -187,8 +187,8 @@ View   [ Runnable on the selected system ▾ ]
 PROJECTS  runnable on cx16
   Projects
     my-game           src/my-game                       Run  Build
-  Proofs of concept
-    borders           proof-of-concept/borders          Run  Build
+  Examples
+    borders           examples/borders                  Run  Build
   Apps
     Studio            @8bitscript/studio                Run  Build
 ```
@@ -198,7 +198,7 @@ system, one row each, so a run is one click after the dropdowns. The other
 two layouts expand every project into its systems, or every system into its
 projects. The sections appear only when the list mixes kinds; a workspace
 of plain projects is a plain list. **Launch Studio**, **Launch App…**, and
-**Launch Proof of Concept…** on the command palette start one of the
+**Launch Example…** on the command palette start one of the
 shipped programs on a system you pick, whether or not it is listed. **Run** starts `8bs run <target>` and **Build** starts `8bs build
 --target <target>` as an editor task, in a terminal, from the project's
 directory; a row's context menu offers NTSC and PAL explicitly. A running
@@ -215,7 +215,7 @@ written in `.vscode/tasks.json`:
     {
       "type": "8bs",
       "command": "run",
-      "project": "examples/proof-of-concept/borders",
+      "project": "examples/borders",
       "target": "c64",
       "pal": true,
       "label": "borders on a PAL C64"

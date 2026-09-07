@@ -114,7 +114,7 @@ export const VICE_MODEL_ARGS = {
 // measures whichever it gets at start-up (FRAME_SYNC.pet), so the build is
 // the same either way; `8bs run pet --pal` prints a note and changes
 // nothing. Verified with `xpet -verbose -limitcycles` and by whether
-// `-autostart` of examples/proof-of-concept/borders stays running.
+// `-autostart` of examples/borders stays running.
 export const PET_REGION_NOTE = '8bs run: the PET has no --pal/--ntsc — its refresh rate is the model\'s. '
   + 'Pick a model with --profile (3032 is ~60Hz; 4016, 4032 and 8032 are 50Hz).\n';
 

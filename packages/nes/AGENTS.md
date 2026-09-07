@@ -54,7 +54,7 @@ Do not describe more than this as working:
 - Timing is NTSC-only (`FRAME_SYNC.nes` in `packages/backend-6502`); PAL NES
   is not supported. FCEUX's default NTSC view hides the top and bottom 8
   lines (rows 0 and 29), which is why the frame is two tiles thick.
-  `examples/proof-of-concept/borders` puts its readout at row 2, column 2 — the first cell
+  `examples/borders` puts its readout at row 2, column 2 — the first cell
   inside the frame, matching the cell-0 position every other target uses.
 - `docs/setup/nes.md` covers installing and running FCEUX, the emulator
   `8bs run nes` targets.
@@ -209,7 +209,7 @@ packages/nes/package.json            "8bitscript".exports names the two subpaths
 packages/backend-6502/src/index.mjs  driver selection (DRIVER.nes), NTSC frame timing, nativeSources
 packages/compiler/src/resolver/      "8bitscript".native → absolute paths (8BS2008 if missing)
 packages/compiler/test/nes-screen.test.mjs   the package and the native plumbing, end to end
-examples/proof-of-concept/borders/src/main.8bs        the working program (every target): readout, draw-then-setColors ordering
+examples/borders/src/main.8bs        the working program (every target): readout, draw-then-setColors ordering
 docs/setup/nes.md                    install/run FCEUX, 8bs run nes, what the picture shows
 docs/roadmap.md                      Phase 3: why NES is here, the capability-system rationale
 ```

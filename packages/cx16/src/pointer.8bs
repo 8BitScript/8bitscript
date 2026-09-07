@@ -1,0 +1,46 @@
+// @8bitscript/cx16/pointer — the X16 behind @8bitscript/pointer, and the
+// machine where the gap is most embarrassing and most easily closed.
+//
+// Every call here does nothing and `DRAWS` is false, on the machine that
+// has **more to draw a cursor with than any of the other eight**: VERA
+// offers 128 sprites, and the X16's KERNAL has a mouse pointer built in —
+// `$FF68` mouse_config turns one on and the firmware draws and moves it
+// for you, which is the one machine of the nine where a program need not
+// draw a cursor at all.
+//
+// It is false anyway, because reaching any of that means an `asm6502`
+// block to make a KERNAL call, and @8bitscript/cx16/input is in exactly
+// the same position for exactly the same reason: it names `$FFE4` GETIN,
+// `$FF56` joystick_get and `$FF6B` mouse_get and cannot reach one of them.
+// **The X16 is currently the machine that cannot be driven at all**, and a
+// cursor is downstream of that: an arrow with nothing moving it is worse
+// than no arrow.
+//
+// So the order of work is the input layer's three KERNAL calls first, and
+// then this file has a choice the others do not — let the firmware draw
+// the pointer (`mouse_config`, and `DRAWS` true with `update()` doing
+// nothing at all, since the KERNAL moves it), or ignore it and drive a
+// VERA sprite the way @8bitscript/c64/pointer drives a VIC one. The
+// firmware's is almost certainly right: it is already written, it costs
+// no sprite, and the X16's own software expects that pointer.
+//
+// It costs the X16 nothing today: `DRAWS` is a const and every function is
+// empty, so a program's `if (pointer.DRAWS)` folds away and LLVM deletes
+// the calls — the same zero this package's input layer measures at (see
+// packages/input/AGENTS.md).
+export namespace pointer {
+
+    const DRAWS: bool = false;
+
+    function begin(): void {
+    }
+
+    function setColor(color: utinyint): void {
+    }
+
+    function update(): void {
+    }
+
+    function hide(): void {
+    }
+}

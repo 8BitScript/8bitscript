@@ -61,6 +61,7 @@ export const FACTS = new Map([
   ['video.cellHeight', count('build', 'Pixels down one cell.')],
   ['video.palette', count('build', 'Colours the display can show at once.')],
   ['video.cellColors', count('build', 'Colours one cell can hold in the text mode the grid uses.')],
+  ['video.colorPerCell', flag('build', 'A program can set one cell\'s colour without changing its neighbours\'.')],
   ['video.glyphs', count('build', 'Characters a program can redefine at run time; 0 where the font is fixed.')],
   ['video.blockWidth', count('build', 'Pseudo-pixels across one cell from the fixed font\'s block glyphs; 0 where there are none.')],
   ['video.blockHeight', count('build', 'Pseudo-pixels down one cell from the block glyphs; 0 where there are none.')],

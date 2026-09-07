@@ -32,6 +32,12 @@ C_SIZE.bool = 1;
 // `static const` tables, which LLVM-MOS places in read-only data — PRG-ROM
 // on a cartridge, part of the .prg on a Commodore.
 C_TYPE.string = 'const uint8_t *';
+// An array parameter is the array's address, not a copy: `t: array<u8, 4>`
+// is `const uint8_t *t`, and C's own array-to-pointer decay means the call
+// site passes the name and nothing is copied. Read-only, which is what the
+// language allows through a parameter today — an element is read, never
+// assigned through. The length is in the type, so it never travels.
+const paramCType = (p) => (p.type === 'array' ? `const ${C_TYPE[p.elementType]} *` : C_TYPE[p.type]);
 
 const stringName = (index) => `__8bs_str_${index}`;
 
@@ -865,7 +871,7 @@ export function emitC(ir, { machine, frameRate = 60 } = {}) {
   const namedInAsm = (name) => new RegExp(`\\b${name}\\b`).test(asmText);
   const signature = (fn) => `${namedInAsm(fn.name) ? '' : 'static '}${
     fn.returnType === 'void' ? 'void' : C_TYPE[fn.returnType]} ${cName(fn.name)}(${
-    fn.params.length ? fn.params.map((p) => `${C_TYPE[p.type]} ${p.name}`).join(', ') : 'void'
+    fn.params.length ? fn.params.map((p) => `${paramCType(p)} ${p.name}`).join(', ') : 'void'
   })`;
 
   // Prototypes before any definition: the linker puts the entry module's
@@ -951,12 +957,12 @@ export async function buildPrg(ir, {
   // section, which no construct in the generated C could reach.
   const nativeSources = ir.nativeSources ?? [];
 
-  const built = await new Promise((resolvePromise) => {
+  // -fno-builtin: without it LLVM turns main()'s zeroing loops back into
+  // the memset call they were written to avoid.
+  const compile = (level) => new Promise((resolvePromise) => {
     const child = spawn(
       driver,
-      // -fno-builtin: without it LLVM turns main()'s zeroing loops back
-      // into the memset call they were written to avoid.
-      ['-Os', '-fno-builtin', ...machineFlags, '-o', outFile, cFile, ...nativeSources],
+      [level, '-fno-builtin', ...machineFlags, '-o', outFile, cFile, ...nativeSources],
       { stdio: ['ignore', 'pipe', 'pipe'] },
     );
     let stderr = '';
@@ -967,6 +973,31 @@ export async function buildPrg(ir, {
         : { ok: false, cFile, error: `${driverName} failed:\n${stderr}`, stderr });
     });
   });
+
+  // Build the program at both of LLVM's size levels and keep whichever came
+  // out smaller. Neither wins everywhere — measured over three programs on
+  // all eight 6502 targets, `-Oz` was smaller on eighteen and *larger* on
+  // six, by as much as 56 bytes — and there is no way to tell which from
+  // the source, so the honest answer is to compile it and look. The cost is
+  // one more pass of a compiler that takes a fraction of a second; the
+  // benefit is that no program is ever built at the worse of the two. See
+  // AGENTS.md, "the rule that decides where work happens".
+  let built = await compile('-Os');
+  let level = '-Os';
+  if (built.ok) {
+    const first = await measureElf(`${outFile}.elf`);
+    const second = await compile('-Oz');
+    if (second.ok) {
+      const other = await measureElf(`${outFile}.elf`);
+      // No measurement (no llvm-size) means no basis to choose: keep -Os,
+      // which is what every earlier build of this project used.
+      if (first && other && other.program < first.program) {
+        level = '-Oz';
+      } else {
+        built = await compile('-Os');
+      }
+    }
+  }
   if (!built.ok) {
     // The SDK's linker script knows each machine's RAM, and refuses a
     // program that does not fit — the honest limit, stated in the
@@ -982,7 +1013,7 @@ export async function buildPrg(ir, {
     return built;
   }
   const memory = await measureElf(`${outFile}.elf`);
-  return memory ? { ...built, memory } : built;
+  return memory ? { ...built, memory, level } : { ...built, level };
 }
 
 /**

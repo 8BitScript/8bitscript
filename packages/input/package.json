@@ -1,0 +1,34 @@
+{
+  "name": "@8bitscript/input",
+  "private": true,
+  "version": "0.0.0",
+  "description": "What the user just did, on whichever machine is being built: four directions, confirm, cancel, and a pointer where there is one. Resolves per target to that machine's own input implementation.",
+  "license": "MIT",
+  "8bitscript": {
+    "entry": {
+      "vic20": "@8bitscript/vic20/input",
+      "c64": "@8bitscript/c64/input",
+      "pet": "@8bitscript/pet/input",
+      "c128": "@8bitscript/c128/input",
+      "atari8": "@8bitscript/atari8/input",
+      "nes": "@8bitscript/nes/input",
+      "cx16": "@8bitscript/cx16/input",
+      "mega65": "@8bitscript/mega65/input",
+      "web": "@8bitscript/web/input"
+    }
+  },
+  "dependencies": {
+    "@8bitscript/atari8": "workspace:*",
+    "@8bitscript/c64": "workspace:*",
+    "@8bitscript/c128": "workspace:*",
+    "@8bitscript/cx16": "workspace:*",
+    "@8bitscript/mega65": "workspace:*",
+    "@8bitscript/nes": "workspace:*",
+    "@8bitscript/pet": "workspace:*",
+    "@8bitscript/vic20": "workspace:*",
+    "@8bitscript/web": "workspace:*"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

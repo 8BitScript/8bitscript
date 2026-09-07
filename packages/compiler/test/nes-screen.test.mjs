@@ -14,10 +14,10 @@ import { link, resolveSpecifier } from '../index.mjs';
 import { emitC } from '../../backend-6502/src/index.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-// examples/proof-of-concept/borders depends on @8bitscript/screen and @8bitscript/text,
+// examples/borders depends on @8bitscript/screen and @8bitscript/text,
 // whose nes branches delegate to @8bitscript/nes/screen and
 // @8bitscript/nes/text — the real pnpm-linked graph, not a fixture.
-const BORDERS_SRC = join(HERE, '..', '..', '..', 'examples', 'proof-of-concept', 'borders', 'src');
+const BORDERS_SRC = join(HERE, '..', '..', '..', 'examples', 'borders', 'src');
 const ENTRY = join(BORDERS_SRC, 'nes-consumer.8bs');
 
 test('resolving @8bitscript/text for nes carries the CHR-ROM font as a native source', () => {
@@ -92,7 +92,7 @@ test('the same graph linked for web carries no native sources', () => {
   assert.deepEqual(ir.nativeSources, []);
 });
 
-test('examples/proof-of-concept/borders main.8bs links clean for nes', () => {
+test('examples/borders main.8bs links clean for nes', () => {
   const file = join(BORDERS_SRC, 'main.8bs');
   const { ir, diagnostics } = link(readFileSync(file, 'utf8'), file, { machine: 'nes' });
   assert.deepEqual(diagnostics, []);

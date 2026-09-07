@@ -1,0 +1,39 @@
+// @8bitscript/pet/pointer — the PET behind @8bitscript/pointer, and the
+// one machine of the nine where "no cursor" is the final answer rather
+// than a gap.
+//
+// Every call here does nothing and `DRAWS` is false, because **the PET has
+// no control ports at all** — no mouse, no joystick, no paddles, nothing to
+// point with — which is why @8bitscript/pet/input answers `pointer()`
+// false too. There is nothing to draw an arrow for, and a machine with
+// nothing to point cannot be given a pointer by writing more code.
+//
+// It still has to exist: Studio and every other portable program links
+// @8bitscript/pointer, so a missing entry is not a program without a
+// cursor, it is a program that does not build for the PET.
+//
+// It costs the PET nothing. `DRAWS` is a const and every function is
+// empty, so a program's `if (pointer.DRAWS)` folds away and LLVM deletes
+// the calls — the same zero the X16's input layer measures at (see
+// packages/input/AGENTS.md).
+//
+// Were a pointer ever wanted here it would need hardware the machine does
+// not have and this repository has no driver for: the light pen on the
+// 8296's user port, or a KoalaPad. Both would be a new hardware option in
+// packages/pet's catalog first, and neither would be a mouse.
+export namespace pointer {
+
+    const DRAWS: bool = false;
+
+    function begin(): void {
+    }
+
+    function setColor(color: utinyint): void {
+    }
+
+    function update(): void {
+    }
+
+    function hide(): void {
+    }
+}
