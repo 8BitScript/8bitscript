@@ -24,7 +24,7 @@
         "video.rows": 24,
         "video.cellWidth": 8,
         "video.cellHeight": 8,
-        "video.palette": 256,
+        "video.palette": 128,
         "video.cellColors": 2,
         "video.colorPerCell": false,
         "video.glyphs": 128,
