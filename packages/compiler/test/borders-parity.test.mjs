@@ -62,7 +62,7 @@ for (const machine of MACHINES) {
     const ir = moduleIr(machine, 'text');
     const text = ir.namespaces.find((n) => n.name === 'text');
     assert.ok(text && text.exported, `${machine} has no exported text namespace`);
-    assert.deepEqual([...text.functions.keys()].sort(), ['print', 'printNumber', 'putChar', 'putColor', 'setColor'], `${machine}'s text surface drifted`);
+    assert.deepEqual([...text.functions.keys()].sort(), ['print', 'printNumber', 'putChar', 'putColor', 'setColor', 'setReverse'], `${machine}'s text surface drifted`);
     assert.deepEqual([...text.consts.keys()], ['CELL_COUNT', 'COLUMNS'], `${machine}'s text consts drifted`);
     const colors = ir.namespaces.find((n) => n.name === 'TextColor');
     assert.ok(colors && colors.exported, `${machine} has no exported TextColor namespace`);

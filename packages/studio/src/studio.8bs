@@ -17,7 +17,7 @@ import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";
 import { text, TextColor } from "@8bitscript/text";
 import { input } from "@8bitscript/input";
 import { pointer } from "@8bitscript/pointer";
-import { Audio, Input, Storage, Video } from "@8bitscript/system";
+import { Audio, Input, Storage, System, Video } from "@8bitscript/system";
 import { menubar } from "@8bitscript/ui/menubar";
 
 // How much of Studio a machine gets. A higher tier opens every editor a
@@ -193,12 +193,11 @@ export namespace studio {
         pointer.begin();
         pointer.setColor(TextColor.WHITE);
 
-        // Where the pointer was when the bar was last drawn. `menubar` hit-
-        // tests during a *run* of the bar and answers `pointed()` from that
-        // run, so a click can only land on the right item if the bar has
-        // run since the pointer last moved — which is what this remembers.
-        // 65535 is `menubar`'s own "no pointer" cell: no item can contain
-        // it, so the first real reading always counts as a move.
+        // Where the pointer last sat, as a cell. `point()` is updated
+        // whenever it changes so a click can read `pointed()`; the bar is
+        // not redrawn for that — nothing on screen changes. 65535 is
+        // `menubar`'s own "no pointer" cell, so the first real reading
+        // always counts as a move.
         let pointerCell: usmallint = 65535;
 
         while (true) {
@@ -223,10 +222,6 @@ export namespace studio {
                 if (at != pointerCell) {
                     pointerCell = at;
                     menubar.point(at);
-                    // Redraw so `pointed()` answers for where the pointer
-                    // is now rather than where it was. Nothing on screen
-                    // changes; the run is what re-does the hit test.
-                    moved = true;
                 }
                 // A click takes the item under the pointer, and clicking
                 // the bar's own padding or anywhere off it means "nothing"
@@ -234,11 +229,16 @@ export namespace studio {
                 if (input.pointerButton()) {
                     let over: utinyint = menubar.pointed();
                     if (over == menubar.NONE) {
-                        menubar.deselect();
+                        if (menubar.selected() != menubar.NONE) {
+                            menubar.deselect();
+                            moved = true;
+                        }
                     } else {
-                        menubar.select(over);
+                        if (over != menubar.selected()) {
+                            menubar.select(over);
+                            moved = true;
+                        }
                     }
-                    moved = true;
                 }
             }
 
@@ -258,6 +258,15 @@ export namespace studio {
                 // Redraw the bar and put the colour back the way the
                 // opening sequence above does: a bar leaves the text
                 // colour set to its own.
+                // waitFrame() returns in the top half of the frame, while
+                // VIC-II is about to scan the bar. Rewrite it after that
+                // row has been drawn this frame.
+                if (#system() == System.C64 || #system() == System.C128) {
+                    let line: utinyint = memory.read(0xD012);
+                    while (line < 58) {
+                        line = memory.read(0xD012);
+                    }
+                }
                 drawMenu();
                 text.setColor(TextColor.WHITE);
             }

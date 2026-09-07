@@ -247,7 +247,7 @@ packages/cx16/src/mouse.8bs              @8bitscript/cx16/mouse: mouse.begin/pol
 packages/cx16/src/input.8bs              @8bitscript/cx16/input: the pointer in cells; directions still false
 packages/cx16/src/pointer.8bs            @8bitscript/cx16/pointer: the firmware arrow; update() empty unless recovering from hide()
 packages/cx16/test/mouse-probe.8bs       run under x16emu: green border when present(); test/mouse.test.mjs reads it
-packages/cx16/src/text.8bs               @8bitscript/cx16/text: text.print/printNumber/setColor/putChar/putColor, CELL_COUNT 4256, COLUMNS 76, TextColor
+packages/cx16/src/text.8bs               @8bitscript/cx16/text: text.print/printNumber/setColor/setReverse/putChar/putColor, CELL_COUNT 4256, COLUMNS 76, TextColor
 packages/backend-6502/src/index.mjs      driver (mos-cx16-clang), FRAME_SYNC.cx16 (VERA ISR poll)
 packages/cli/src/setup/cx16.mjs          8bs setup cx16: emulator+ROM pair, macOS launcher wrapper
 packages/cli/src/run.mjs                 8bs run cx16: x16emu -prg <file> -run

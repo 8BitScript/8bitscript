@@ -5,7 +5,7 @@
 //     menubar.select(1);
 //     menubar.begin(0, text.COLUMNS);
 //     menubar.item("FILE");
-//     if (menubar.item("EDIT")) { /* this one is highlighted */ }
+//     if (menubar.item("EDIT")) { /* this one is inverted */ }
 //     menubar.item("HELP");
 //     menubar.end();
 //
@@ -44,20 +44,16 @@
 //
 //     ` FILE  EDIT  HELP `
 //
-// The highlighted item puts a marker character in the padding cell either
-// side of its label, in place of the space that would be there:
+// The selected item is inverted — reverse video in the item colour, padding
+// spaces included, so it reads as a filled button rather than a recoloured
+// word. `text.setReverse` is a text mode, not a portable glyph: each
+// machine's text package decides how invert reaches the screen (a ROM copy
+// at ASCII+128 on the Commodores and the NES, swapped attribute nibbles on
+// the X16, colour bit 7 on the web). A reverse space is a solid block on
+// every one of them.
 //
-//     ` FILE -EDIT- HELP `
-//
-// The marker is the highlight that works everywhere, and that is why it is
-// the default rather than colour. `text.setColor`/`text.putColor` do carry
-// a highlight on the machines with per-cell colour, and `setColors()` uses
-// them — but the PET's screen has one colour, and the NES's colour lives in
-// a 2x2-cell attribute block that this text layer deliberately does not
-// touch (`putColor` there is empty). On those two a colour highlight would
-// be invisible. A marker is drawn out of the same portable character set as
-// the labels, so it is visible on every target, and it costs no width: it
-// replaces a padding cell rather than adding one.
+// `setColors()` still takes a highlight colour so the call shape stays;
+// invert uses the item colour.
 //
 // ---- what does not fit ----------------------------------------------------
 //
@@ -69,41 +65,10 @@
 // a second row — rather than finding half a word overwritten.
 import { text, TextColor } from "@8bitscript/text";
 
-// The default marker: '-' in the portable character set, chosen because it
-// costs the padding cell it replaces and reads as a bracket around the
-// label. `setMarker(0)` turns it off for a program that highlights with
-// colour alone.
+// The default marker: '-' in the portable character set. Invert is the
+// highlight on every machine, so the marker is unused while reverse does
+// the job; `setMarker` stays so the call shape stays.
 const SPACE: utinyint = 32;
-
-// Can this machine give one cell its own colour? Folded while compiling
-// from the build's fact sheet, and the one thing that decides how a
-// highlight is drawn here.
-//
-// It is a fact and not a guess about a machine's name because the answer
-// splits the nine three ways that no other fact does: the VIC-20, C64,
-// C128, X16, MEGA65 and web all have a colour per cell, and the **PET**
-// (no colour RAM at all), the **Atari 8-bit** (GR.0 has none) and the
-// **NES** (its colour lives in a 2x2-cell attribute block this text layer
-// does not touch) do not — which is exactly the set where
-// `text.putColor` is a deliberately empty function. `video.cellColors`
-// does not answer this: it is 2 on all nine, including the PET, because a
-// cell does hold two colours there — they are just not a program's to set.
-//
-//     colour per cell:  ` FILE  EDIT `  with EDIT in the highlight colour
-//     no colour:        ` FILE -EDIT- `
-//
-// So the marker is not a fallback that also runs where it is not needed.
-// It is what a highlight *is* on three machines, and it costs the other
-// six nothing.
-const COLOR_PER_CELL: bool = #fact(video.colorPerCell);
-
-// So: bracket the highlighted item only where colour cannot say it. The
-// test is written `if (!COLOR_PER_CELL)` at its one use below rather than
-// as a `const` of its own, because a global initialiser has to be a
-// literal or a const and `!` is neither (8BS3001) — the fold is the same
-// either way, and on a C64 the two `print` calls that draw the brackets
-// are not skipped at run time, they are never compiled. On a PET they are
-// the whole highlight.
 
 // Nothing is highlighted — the value `highlighted` and `pointed` hold when
 // no item is chosen and none is under a pointer. `menubar.NONE` is the
@@ -118,11 +83,6 @@ let padding: utinyint = 1;
 // One cell wide by declaration: `string<1>` cannot hold more, so a marker
 // can never push a label out of the width the layout reserved for it, and
 // "" turns it off.
-//
-// **Whether it is drawn at all is the machine's answer, not a taste** —
-// see `COLOR_PER_CELL` above. This holds which character to use on the
-// machines that draw one; on the machines that colour a cell instead, it
-// and every use of it fold away.
 let marker: string<1> = "-";
 
 // Where the bar is and how much of it is left, between `begin()` and
@@ -151,6 +111,23 @@ let overflowed: bool = false;
 let pointerAt: usmallint = 65535;
 let pointedIndex: utinyint = NO_SELECTION;
 
+// Last run's label cells, so `point()` can answer `pointed()` without
+// another draw. A bar is blanked at `begin()`, and redrawing it just to
+// hit-test is visible flicker on a C64. Eight slots is more items than
+// any bar this component currently draws; extras still take an index and
+// are still hit-tested during a run.
+const HIT_SLOTS: utinyint = 8;
+let hitAt: array<usmallint, 8>;
+let hitLen: array<utinyint, 8>;
+
+// Last span `begin()` blanked. A later run of the same span overwrites
+// items in place: blanking the row every time is visible flicker on a
+// C64, where `waitFrame()` returns in the top half while VIC-II is about
+// to scan that row (Studio, 2026-09-07). A different `at`/`cells` blanks
+// again, so a bar that moves or resizes still clears what it leaves.
+let laidAt: usmallint = 0;
+let laidCells: utinyint = 0;
+
 // The icon slot's label — see `icon()`. One cell wide by declaration.
 let iconLabel: string<1> = "8";
 
@@ -177,18 +154,20 @@ export namespace menubar {
 
     // ---- style, before begin() --------------------------------------------
 
-    // The colour an item is drawn in, and the colour the highlighted one
-    // gets, on the machines with a colour per cell. The eight names in
-    // `TextColor` are the portable ones.
+    // The colour every item is drawn in. The selected one is inverted in
+    // that same colour rather than recoloured; `highlight` is kept so the
+    // call shape stays, and is unused while reverse video does the job.
+    // The eight names in `TextColor` are the portable ones.
     //
-    // **Drawing a bar leaves the text colour set to the bar's.** The
-    // component colours its text by calling `text.setColor` before each
-    // `print`, rather than walking back over the cells with `putColor`
-    // afterwards, and there is no `text.getColor` to put the caller's
-    // setting back with. Paying a second pass over every cell to avoid
-    // this cost about 200 bytes on a C64, which is a bad trade for a
+    // **Drawing a bar leaves the text colour set to the bar's, and reverse
+    // off.** The component colours its text by calling `text.setColor`
+    // before each `print`, rather than walking back over the cells with
+    // `putColor` afterwards, and there is no `text.getColor` to put the
+    // caller's setting back with. Paying a second pass over every cell to
+    // avoid this cost about 200 bytes on a C64, which is a bad trade for a
     // program that can pick its own colour on the line after the bar. So:
-    // draw the bar, then set your colour.
+    // draw the bar, then set your colour. Reverse is turned off after
+    // each item, so a later `text.setColor` cannot leave inverted glyphs.
     function setColors(item: utinyint, highlight: utinyint): void {
         itemColor = item;
         highlightColor = highlight;
@@ -200,10 +179,9 @@ export namespace menubar {
         padding = cells;
     }
 
-    // The character that brackets the highlighted item, in place of the
-    // padding cell either side of its label. `-` by default; "" draws
-    // none, which leaves colour as the only highlight — right for a
-    // program that knows the machine it is for. Anything longer than one
+    // The character that would bracket the highlighted item. Invert is the
+    // highlight; this stays so a program written against the call still
+    // compiles. `-` by default; "" is none. Anything longer than one
     // character is cut to one, because that is the room the layout keeps.
     function setMarker(bracket: string): void {
         marker = bracket;
@@ -273,6 +251,11 @@ export namespace menubar {
     // before `begin()`; each `item()` then works out whether it is the one
     // under the pointer, and `pointed()` says which afterwards.
     //
+    // After a bar has been run once, `point()` also hit-tests against that
+    // run's labels, so `pointed()` is current without redrawing. A click
+    // can then select the item under the pointer without `begin()` blanking
+    // the row on every cell the mouse crosses.
+    //
     // **The component does not move the highlight itself**, and that is
     // deliberate: hover and selection are the program's policy, not a menu
     // bar's. A program that wants hover-to-highlight writes the one line
@@ -286,6 +269,22 @@ export namespace menubar {
     // `begin()` leaves the cell at 65535, which no item can contain.
     function point(cell: usmallint): void {
         pointerAt = cell;
+        pointedIndex = NO_SELECTION;
+        let i: utinyint = 0;
+        while (i < index) {
+            if (i < HIT_SLOTS) {
+                let start: usmallint = hitAt[i];
+                let n: utinyint = hitLen[i];
+                if (n > 0) {
+                    if (pointerAt >= start) {
+                        if (pointerAt - start < n) {
+                            pointedIndex = i;
+                        }
+                    }
+                }
+            }
+            i = i + 1;
+        }
     }
 
     // Which item the pointer was over during the last run, or `NONE`. The
@@ -345,11 +344,16 @@ export namespace menubar {
         pointedIndex = NO_SELECTION;
         // Blank the whole bar here, in the one loop that puts a character
         // for a whole row, rather than a run of blanks around every item
-        // and another behind the last one. It costs writing the label cells
-        // twice — a bar is drawn when something changes, not every frame —
-        // and it buys `item()` and `end()` not having to lay blanks at all,
-        // which is most of what either used to compile to.
-        blank(at, cells);
+        // and another behind the last one — but only the first time this
+        // span is laid, or when the span itself changes. A highlight
+        // redraw overwrites the same cells; punching 40 spaces through
+        // them while VIC-II is scanning the top of the screen is the
+        // flash a C64 shows on click.
+        if (laidCells != cells || laidAt != at) {
+            blank(at, cells);
+            laidAt = at;
+            laidCells = cells;
+        }
     }
 
     // Draw the next item, and say whether it is the highlighted one. An
@@ -364,7 +368,7 @@ export namespace menubar {
         // the order here is deliberate: answer the highlight question,
         // measure the item, and move the bar's own cursor on — all before
         // printing anything. By the time the first call happens only
-        // `start`, `n`, `on` and the marker are still wanted, and the
+        // `start`, `n` and `on` are still wanted, and the
         // prologue shrinks with them. Written the natural way round, with
         // the bookkeeping after the drawing, this function was 320 bytes on
         // a C64 rather than the number in AGENTS.md.
@@ -395,17 +399,29 @@ export namespace menubar {
         let n: utinyint = name.length;
         if (n > remaining) {
             overflowed = true;
+            if (index < HIT_SLOTS) {
+                hitAt[index] = 0;
+                hitLen[index] = 0;
+            }
             index = index + 1;
             return on;
         }
         let room: utinyint = remaining - n;
         if (padding > room) {
             overflowed = true;
+            if (index < HIT_SLOTS) {
+                hitAt[index] = 0;
+                hitLen[index] = 0;
+            }
             index = index + 1;
             return on;
         }
         if (padding > room - padding) {
             overflowed = true;
+            if (index < HIT_SLOTS) {
+                hitAt[index] = 0;
+                hitLen[index] = 0;
+            }
             index = index + 1;
             return on;
         }
@@ -413,6 +429,10 @@ export namespace menubar {
         // The item's own cells, and the bar's cursor moved past them, while
         // the numbers that say so are still in hand.
         let start: usmallint = cursor + padding;
+        if (index < HIT_SLOTS) {
+            hitAt[index] = start;
+            hitLen[index] = n;
+        }
 
         // Is the pointer on this item? Asked here, with `start` and `n`
         // already worked out and before anything is drawn, for the same
@@ -441,24 +461,23 @@ export namespace menubar {
         // machine's per-run setup once and then walks the string;
         // `text.putChar` redoes that setup, an ASCII conversion and a
         // sixteen-bit pointer build for every cell, inlined into the call
-        // site. So everything here is a string: the label, and the marker
-        // that brackets the highlighted item in the padding cell either
-        // side of it. The colour rides along on `print` rather than a
-        // second pass of `putColor` over the cells just written.
-        if (on) {
-            text.setColor(highlightColor);
-        } else {
-            text.setColor(itemColor);
+        // site. So everything here is a string: the label, and a padding
+        // space either side of it (a reverse space is the filled end of a
+        // button). Reverse is a mode, not a colour: turn it on for the
+        // selected item, print, then turn it off so the next print — this
+        // bar's or the program's — is not inverted. Unselected items print
+        // the same padding spaces with reverse off, which is what clears a
+        // leftover filled cell when the selection moves.
+        text.setColor(itemColor);
+        text.setReverse(on);
+        if (padding > 0) {
+            text.print(start - 1, " ");
         }
         text.print(start, name);
-        if (!COLOR_PER_CELL) {
-            if (on) {
-                if (padding > 0) {
-                    text.print(start - 1, marker);
-                    text.print(start + n, marker);
-                }
-            }
+        if (padding > 0) {
+            text.print(start + n, " ");
         }
+        text.setReverse(false);
         return on;
     }
 

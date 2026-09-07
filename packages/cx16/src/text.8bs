@@ -49,6 +49,19 @@ import { mapBank, mapLow, locateTextMap, setVramAddress } from "./index.8bs";
 // `text.putChar` and `text.putColor` stay the one-cell pokes a caller can
 // build anything from.
 let currentColor: utinyint = 1; // white, until text.setColor() says otherwise
+let currentReverse: bool = false; // until text.setReverse() says otherwise
+
+// ISO mode has no reverse copies of the glyphs, so invert is a swap of
+// the attribute nibbles: the cell fills with the text colour and the
+// glyph pixels take whatever background `screen.setColors` left. Port 1
+// is already sitting on this cell's colour byte after locate().
+function attributeByte(): utinyint {
+    let attr: utinyint = memory.read(0x9F24);
+    if (currentReverse) {
+        return (currentColor * 16) + (attr / 16);
+    }
+    return (attr & 0xF0) | currentColor;
+}
 
 // Point VERA at a cell, and hand back its column for a caller that walks
 // on from there. Rows are 256 bytes apart in the map, cells two bytes —
@@ -103,11 +116,15 @@ export namespace text {
         currentColor = color;
     }
 
+    function setReverse(on: bool): void {
+        currentReverse = on;
+    }
+
     function print(cell: usmallint, s: string): void {
         let col: utinyint = locate(cell);
         for (let i: utinyint = 0; i < s.length; i++) {
             memory.write(0x9F23, s[i]);
-            memory.write(0x9F23, (memory.read(0x9F24) & 0xF0) | currentColor);
+            memory.write(0x9F23, attributeByte());
             col++;
             if (col == text.COLUMNS) {
                 col = locate(cell + i + 1); // the next row is not the next address
@@ -131,7 +148,7 @@ export namespace text {
             }
             if (k <= width) {
                 memory.write(0x9F23, digit);
-                memory.write(0x9F23, (memory.read(0x9F24) & 0xF0) | currentColor);
+                memory.write(0x9F23, attributeByte());
                 col++;
                 if (col == text.COLUMNS) {
                     col = locate(cell + width - k + 1); // the next row is not the next address

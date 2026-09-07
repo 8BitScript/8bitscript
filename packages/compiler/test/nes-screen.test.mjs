@@ -69,7 +69,7 @@ test('a screen and text consumer links for nes with the font in ir.nativeSources
   // run at the cell's address and adds the code; nesVerticalBlank() —
   // the frame hook the backend calls at every vertical blank — is what
   // writes PPUDATA ($2007 = 8199), and it is the only thing that does.
-  assert.match(c, /static void text_putChar\(uint16_t cell, uint8_t code\) \{\n\s+locate\(cell\);\n\s+queueByte\(code\);/);
+  assert.match(c, /static void text_putChar\(uint16_t cell, uint8_t code\) \{\n\s+locate\(cell\);\n\s+queueByte\(toTile\(code\)\);/);
   assert.equal((c.match(/\*\(volatile uint8_t \*\)8199 = /g) ?? []).length, 4,
     'PPUDATA is written by the queue delivery, the frame/blank fill, the text palette in showPicture, and a palette write with the picture off');
   assert.match(c, /static void nesVerticalBlank\(void\) \{/);

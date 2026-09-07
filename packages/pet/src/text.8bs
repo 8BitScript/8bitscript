@@ -70,6 +70,17 @@ function asciiToScreenCode(code: utinyint): utinyint {
 // `text.putChar` and `text.putColor` stay the one-cell pokes a caller can
 // build anything from.
 let currentColor: utinyint = 1; // white, until text.setColor() says otherwise
+let currentReverse: bool = false; // until text.setReverse() says otherwise
+
+// Reverse video is bit 7 of the screen code: 128-255 are the ROM's
+// inverted copies of 0-127. A reverse space is a solid block.
+function toScreen(code: utinyint): utinyint {
+    let screen: utinyint = asciiToScreenCode(code);
+    if (currentReverse) {
+        screen = screen + 128;
+    }
+    return screen;
+}
 
 // What a run of text needs once, before its first character.
 function prepare(): void {
@@ -77,7 +88,7 @@ function prepare(): void {
 }
 
 function place(cell: usmallint, code: utinyint): void {
-    memory.write(0x8000 + cell, asciiToScreenCode(code));
+    memory.write(0x8000 + cell, toScreen(code));
 }
 
 // ---- digits -------------------------------------------------------------
@@ -95,7 +106,7 @@ export namespace text {
 
     function putChar(cell: usmallint, code: utinyint): void {
         prepare();
-        memory.write(0x8000 + cell, asciiToScreenCode(code));
+        memory.write(0x8000 + cell, toScreen(code));
     }
 
     function putColor(cell: usmallint, color: utinyint): void {
@@ -104,6 +115,10 @@ export namespace text {
 
     function setColor(color: utinyint): void {
         currentColor = color;
+    }
+
+    function setReverse(on: bool): void {
+        currentReverse = on;
     }
 
     function print(cell: usmallint, s: string): void {

@@ -293,7 +293,7 @@ one alone), `setBorder(border)`, `setBackground(background)`, and
 `KEEP` in
 `BorderColor` and `BackgroundColor` — so a program that imports it works on
 whichever machine it is built for. `@8bitscript/text` is the same shape for
-the character grid (`text.print`/`printNumber`/`setColor`/`putChar`/`putColor`,
+the character grid (`text.print`/`printNumber`/`setColor`/`setReverse`/`putChar`/`putColor`,
 `CELL_COUNT`/`COLUMNS`, and the eight shared colour names in `TextColor`).
 `examples/borders` builds for all nine targets from one source file this
 way.

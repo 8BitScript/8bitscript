@@ -365,20 +365,29 @@ async function webScreenshot(outFile, screenshotPath, { frames, frameRate = 60 }
 
   fillRect(rgba, width, 0, 0, width, height, RGB_COLORS[mem[0] & 15]);
   fillRect(rgba, width, BORDER_PX, BORDER_PX, innerW, innerH, RGB_COLORS[mem[1] & 15]);
+  const background = RGB_COLORS[mem[1] & 15];
 
   for (let cell = 0; cell < GRID_COLS * GRID_ROWS; cell += 1) {
     const code = mem[CHAR_BASE + cell];
+    const colorByte = mem[COLOR_BASE + cell];
+    const reverse = (colorByte & 128) !== 0;
     const rows = glyphRows(code);
-    if (rows === null) continue;
+    if (rows === null && !reverse) continue;
     const col = cell % GRID_COLS;
     const row = (cell - col) / GRID_COLS;
-    const color = RGB_COLORS[mem[COLOR_BASE + cell] & 15];
+    const color = RGB_COLORS[colorByte & 15];
     const x0 = BORDER_PX + col * CHAR_W;
     const y0 = BORDER_PX + row * CHAR_H;
-    for (let gy = 0; gy < 8; gy += 1) {
-      const bits = rows[gy];
-      for (let gx = 0; gx < 8; gx += 1) {
-        if ((bits >> gx) & 1) setPixel(rgba, width, x0 + gx, y0 + gy, color);
+    if (reverse) {
+      fillRect(rgba, width, x0, y0, CHAR_W, CHAR_H, color);
+    }
+    if (rows !== null) {
+      const ink = reverse ? background : color;
+      for (let gy = 0; gy < 8; gy += 1) {
+        const bits = rows[gy];
+        for (let gx = 0; gx < 8; gx += 1) {
+          if ((bits >> gx) & 1) setPixel(rgba, width, x0 + gx, y0 + gy, ink);
+        }
       }
     }
   }

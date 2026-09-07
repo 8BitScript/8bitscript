@@ -168,7 +168,7 @@ The first two capabilities exist, spelled as the npm packages the
 `@8bitscript/screen` (`screen.blank(border, background)`, `setBorder`, `setBackground`, `setColors(border, background)` and the shared
 colour names) and `@8bitscript/text` (`text.print` with template strings,
 `printNumber`, a current colour via `setColor` and the `TextColor` names,
-`putChar`/`putColor`, and `CELL_COUNT`/`COLUMNS` — one flat cell index,
+`putChar`/`putColor`, a current reverse via `setReverse`, and `CELL_COUNT`/`COLUMNS` — one flat cell index,
 `y * text.COLUMNS + x`). Each is a machine-keyed
 manifest delegating to the target package's own implementation —
 `@8bitscript/nes/screen`, `@8bitscript/c64/text` — so the per-machine code

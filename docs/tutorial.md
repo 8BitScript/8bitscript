@@ -265,6 +265,12 @@ export function main(): void {
   `setColor`. `TextColor` has the same eight names on every machine as
   `BorderColor` does; on a machine with no per-cell colour (the PET, the
   Atari, the NES) the call is accepted and changes nothing.
+- `text.setReverse(true)` inverts glyphs printed after it: the character
+  pixels take the background colour and the rest of the cell takes the
+  text colour. A reverse space is a solid block, which is how a selected
+  menu item becomes a filled bar. On the NES that is a second copy of the
+  font at ASCII+128, because the machine has no reverse-video bit of its
+  own.
 - `text.print(cell, ...)` is how the HUD gets on screen, and its argument is
   a *template*: a backtick string whose `${...}` fields are placeholders
   for data. The compiler lays it out — at compile time — into the calls a

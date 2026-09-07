@@ -49,17 +49,18 @@
 // C64's: each axis is a counter presented on the port's analogue line and
 // converted by the SID at $D419/$D41A, valued `(counter & 0x7f) + 0x40` so
 // it lives in 64..191 and wraps; movement is the difference between two
-// readings, with bit 0 dropped (`$7E`) because the SID's LSB is noise —
-// the same mask `@8bitscript/c64/mouse` uses, measured there under x64sc.
-// CIA1 port A's top two bits pick the port. Presence uses the C64's
-// range check (a 1351 sits in 64..191; nothing, a stick and paddles at
-// rest read 255). **One reading of each pot a frame** answers both
-// presence and movement — a second read of the SID's converter is a
-// different moment, which is the bug `@8bitscript/pointer` was written
-// against. The KERNAL IRQ is alive here and writes CIA1 for the keyboard
-// scan, so `poll()` holds `sei` across the pot read and the matrix
-// snapshot and waits for the SID after selecting the port; the C64's
-// `waitFrame()` `sei` is what makes the same select-at-end-of-poll
+// readings. Bit 0 of that reading is VICE rest-fuzz (64/65), not a host
+// step — confirming a 1-count before tracking is what `@8bitscript/c64/mouse`
+// measured under x64sc; masking to `$7E` and ignoring `|delta| < 3` ate
+// slow motion instead. CIA1 port A's top two bits pick the port. Presence
+// uses the C64's range check (a 1351 sits in 64..191; nothing, a stick
+// and paddles at rest read 255). **One reading of each pot a frame**
+// answers both presence and movement — a second read of the SID's
+// converter is a different moment, which is the bug `@8bitscript/pointer`
+// was written against. The KERNAL IRQ is alive here and writes CIA1 for
+// the keyboard scan, so `poll()` holds `sei` across the pot read and the
+// matrix snapshot and waits for the SID after selecting the port; the
+// C64's `waitFrame()` `sei` is what makes the same select-at-end-of-poll
 // arrangement work there without a delay.
 import { cia1PortA, cia1PortB, cia1DirectionA, cia1DirectionB, paddleX, paddleY } from "./index.8bs";
 
@@ -88,11 +89,19 @@ namespace Edge {
 // The analogue lines' reading, as on the C64: a 1351 sits in 64..191 and
 // anything else at rest reads 255.
 namespace Pot {
-    const COUNTER: utinyint = 0x7E;  // bits 1-6; bit 0 is SID ADC noise, not motion
+    const COUNTER: utinyint = 0x7F;  // VICE's 1351 is 7 bits; bit 0 is also fuzz
     const LOWEST: utinyint = 64;
     const HIGHEST: utinyint = 191;
     const HALF: utinyint = 64;
-    const STILL: utinyint = 3;       // |delta| < 3 is fuzz, not a move
+}
+
+// Per-axis filter for 1-count steps — same machine as @8bitscript/c64/mouse.
+namespace Axis {
+    const IDLE: utinyint = 0;
+    const WAIT_POS: utinyint = 1;
+    const RUN_POS: utinyint = 2;
+    const WAIT_NEG: utinyint = 3;
+    const RUN_NEG: utinyint = 4;
 }
 
 // %01 in port A's top bits reads port 1's analogue lines, and drives no
@@ -123,6 +132,7 @@ let lastY: utinyint = 0;
 let atX: usmallint = 0;
 let atY: usmallint = 0;
 let started: bool = false;
+let hold: array<utinyint, 2>;
 let atCell: usmallint = 0;
 let havePointer: bool = false;
 
@@ -132,18 +142,32 @@ function keyDown(key: utinyint): bool {
 }
 
 // One axis' movement since the last reading, held between 0 and `limit`.
+// Same 1-count confirm-then-track filter as @8bitscript/c64/mouse: rest
+// 64/65 never leaves WAIT, a slow host move tracks one pixel a count,
+// and a still frame while waiting is kept so gapped 1-counts still confirm.
 // The subtraction rather than `at + delta > limit` is deliberate: `at`
 // never exceeds `limit`, so `limit - at` cannot borrow and the sum that
 // could carry is never formed (see @8bitscript/ui/menubar on why a byte
 // sum is not to be trusted across both backends).
-function step(at: usmallint, last: utinyint, now: utinyint, limit: usmallint): usmallint {
+function step(at: usmallint, last: utinyint, now: utinyint, limit: usmallint, axis: utinyint): usmallint {
     let delta: utinyint = (now - last) & Pot.COUNTER;
+    let state: utinyint = hold[axis];
     if (delta == 0) {
+        if (state == Axis.RUN_POS || state == Axis.RUN_NEG) {
+            hold[axis] = Axis.IDLE;
+        }
         return at;
     }
     if (delta < Pot.HALF) {
-        if (delta < Pot.STILL) {
-            return at;
+        if (delta == 1) {
+            if (state == Axis.WAIT_POS || state == Axis.RUN_POS) {
+                hold[axis] = Axis.RUN_POS;
+            } else {
+                hold[axis] = Axis.WAIT_POS;
+                return at;
+            }
+        } else {
+            hold[axis] = Axis.RUN_POS;
         }
         if (limit - at < delta) {
             return limit;
@@ -151,8 +175,15 @@ function step(at: usmallint, last: utinyint, now: utinyint, limit: usmallint): u
         return at + delta;
     }
     let back: utinyint = 128 - delta;
-    if (back < Pot.STILL) {
-        return at;
+    if (back == 1) {
+        if (state == Axis.WAIT_NEG || state == Axis.RUN_NEG) {
+            hold[axis] = Axis.RUN_NEG;
+        } else {
+            hold[axis] = Axis.WAIT_NEG;
+            return at;
+        }
+    } else {
+        hold[axis] = Axis.RUN_NEG;
     }
     if (back > at) {
         return 0;
@@ -196,17 +227,15 @@ export namespace input {
             let rawX: utinyint = paddleX;
             let rawY: utinyint = paddleY;
             havePointer = rawX >= Pot.LOWEST && rawX <= Pot.HIGHEST && rawY >= Pot.LOWEST && rawY <= Pot.HIGHEST;
-            let nowX: utinyint = rawX & Pot.COUNTER;
-            let nowY: utinyint = rawY & Pot.COUNTER;
             if (started) {
-                atX = step(atX, lastX, nowX, LIMIT_X);
+                atX = step(atX, lastX, rawX, LIMIT_X, 0);
                 // Same 1351 Y polarity as the C64: the counter runs
                 // opposite the screen. last and now swapped so the delta
                 // flips and rest stays 0. See @8bitscript/c64/mouse.
-                atY = step(atY, nowY, lastY, LIMIT_Y);
+                atY = step(atY, rawY, lastY, LIMIT_Y, 1);
             }
-            lastX = nowX;
-            lastY = nowY;
+            lastX = rawX;
+            lastY = rawY;
             started = true;
         }
 
