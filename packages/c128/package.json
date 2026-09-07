@@ -52,7 +52,8 @@
         "storage.save": true,
         "memory.ram": 41983,
         "memory.banked": true,
-        "memory.bankedKib": 64
+        "memory.bankedKib": 64,
+        "storage.kib": 329
       },
       "options": {
         "ram": {
@@ -378,6 +379,44 @@
               "facts": {
                 "input.mouse": true
               }
+            }
+          }
+        },
+        "drive": {
+          "label": "Disk drive",
+          "default": "1571",
+          "values": {
+            "none": {
+              "label": "No drive",
+              "facts": {
+                "storage.save": false,
+                "storage.kib": 0
+              },
+              "tag": null
+            },
+            "1541": {
+              "label": "1541 (170K disk)",
+              "facts": {
+                "storage.save": true,
+                "storage.kib": 164
+              },
+              "tag": null
+            },
+            "1571": {
+              "label": "1571 (340K disk) — built into the C128D",
+              "facts": {
+                "storage.save": true,
+                "storage.kib": 329
+              },
+              "tag": null
+            },
+            "1581": {
+              "label": "1581 (800K disk)",
+              "facts": {
+                "storage.save": true,
+                "storage.kib": 783
+              },
+              "tag": null
             }
           }
         }

@@ -90,6 +90,7 @@ export const FACTS = new Map([
   ['input.paddles', flag('run', 'Paddles this build may use; whether they are plugged in is the capability\'s answer at run time.')],
   // Storage.
   ['storage.save', flag('build', 'Somewhere this build can persist bytes: disk, SD card, battery RAM.')],
+  ['storage.kib', count('build', 'KiB that place holds — the medium\'s usable capacity, not its image size; 0 where there is nowhere to save. Where the route is a host directory or a card whose size is the owner\'s, it is the smallest real medium that route stands for, so a program that fits the fact fits the hardware. KiB rather than bytes because a disk does not fit in the 16 bits an 8-bit machine counts in — the same reason memory.bankedKib is KiB.')],
   // Memory.
   ['memory.ram', count('build', 'Bytes of RAM the program is linked to use, code and data together.')],
   ['memory.banked', flag('run', 'RAM beyond the CPU\'s window this build may use (a REU, an MMU bank, VERA-style banks); whether it is there is the capability\'s answer at run time.')],
@@ -125,6 +126,65 @@ export function factConstName(key) {
  */
 export function factPlaceholder(key) {
   return FACTS.get(key)?.type === 'flag' ? false : 0;
+}
+
+/**
+ * Check a `requires` block against the table: what a program needs of the
+ * machine it is built for, before the machine is known.
+ *
+ * A count is a floor and a flag must be true — "at least this much RAM",
+ * "somewhere to save" — because that is the shape of every requirement a
+ * program actually has. A `when: 'run'` fact cannot be required: whether a
+ * mouse is plugged in is answered on the machine, not by the build, so a
+ * program that needs one asks the capability and says so itself.
+ *
+ * @param {object} requires
+ * @returns {string[]} the problems, in words; empty when clean
+ */
+export function requiresProblems(requires) {
+  const problems = [];
+  for (const [key, need] of Object.entries(requires ?? {})) {
+    const fact = FACTS.get(key);
+    if (!fact) {
+      problems.push(`'${key}' is not a fact — the keys are ${PROGRAM_FACTS.join(', ')}`);
+      continue;
+    }
+    if (!fact.program) {
+      problems.push(`'${key}' is not on a program's sheet, so a program cannot require it`);
+      continue;
+    }
+    if (fact.when === 'run') {
+      problems.push(
+        `'${key}' is settled on the machine, not by the build, so it cannot be required — `
+        + 'ask the capability at run time instead',
+      );
+      continue;
+    }
+    if (fact.type === 'flag' && need !== true) {
+      problems.push(`'${key}' is a flag: require it with true, or leave it out — not ${JSON.stringify(need)}`);
+    }
+    if (fact.type === 'count' && !(Number.isInteger(need) && need > 0)) {
+      problems.push(`'${key}' is a count: require a whole number above zero, not ${JSON.stringify(need)}`);
+    }
+  }
+  return problems;
+}
+
+/**
+ * What a `requires` block asks for that a build's facts do not give.
+ *
+ * @param {object} requires  already checked by requiresProblems
+ * @param {object} facts     the merged sheet for one build
+ * @returns {{ key: string, need: number|boolean, have: number|boolean }[]} empty when the build is enough
+ */
+export function unmetRequirements(requires, facts) {
+  const unmet = [];
+  for (const [key, need] of Object.entries(requires ?? {})) {
+    const have = facts?.[key] ?? factPlaceholder(key);
+    const met = FACTS.get(key)?.type === 'flag' ? have === true : have >= need;
+    if (!met) unmet.push({ key, need, have });
+  }
+  return unmet;
 }
 
 /**

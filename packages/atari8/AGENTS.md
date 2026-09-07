@@ -217,6 +217,16 @@ for anything else), not recalled. `$SDK` is `~/.local/opt/llvm-mos`.
 Each of these comes from the document named and is a lead to confirm the
 first time code depends on it.
 
+**`storage.kib` is 86 on the stock sheet.** A single-density Atari DOS 2
+floppy is 720 sectors of 128 bytes; the boot sectors, the VTOC and the
+directory take 13 of them, leaving 707 free sectors that hold 125 bytes of
+payload each — 88375 bytes, 86 KiB rounded down. Every cartridge `media` value says 0 instead —
+there is nowhere to write. The figure is **recalled, not measured in this
+project**: the Commodore drives' capacities were taken by formatting an
+image with `c1541` and reading the free blocks back, and no equivalent was
+run here. *To verify* by booting DOS 2.0S under atari800 and reading the
+free-sector count off the directory.
+
 **Which HPOS values are visible.** The registers are 8-bit; atari800's
 `gtia.c` maps `HPOS − $20` onto its pixel-pair scanline with clipping at
 `$22`/`$BE`, which is the emulator's internal geometry, not the documented

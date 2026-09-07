@@ -1,0 +1,35 @@
+// The X16 mouse, run for real: turns the KERNAL pointer on, waits a
+// handful of frames for mouse_config to finish drawing it, then paints the
+// border green so a screenshot can be read without decoding text. The
+// pointer itself is asserted in pixels by packages/pointer/test/pointer.test.mjs
+// (the firmware parks it at the centre, not the corner). See test/mouse.test.mjs.
+import { screen } from "../src/screen.8bs";
+import { text } from "../src/text.8bs";
+import { mouse } from "../src/mouse.8bs";
+
+export function main(): void {
+    screen.blank();
+    mouse.begin();
+    let n: utinyint = 0;
+    while (n != 30) {
+        waitFrame();
+        mouse.poll();
+        n = n + 1;
+    }
+    text.print(0, "MOUSE X");
+    text.printNumber(8, mouse.x(), 5);
+    text.print(40, "MOUSE Y");
+    text.printNumber(48, mouse.y(), 5);
+    let color: utinyint = 2;
+    if (mouse.present()) {
+        color = 5;
+        text.print(80, "MOUSE FOUND");
+    } else {
+        text.print(80, "NO MOUSE");
+    }
+    screen.setColors(color, 0);
+    while (true) {
+        waitFrame();
+        mouse.poll();
+    }
+}

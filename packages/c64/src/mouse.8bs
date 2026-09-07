@@ -29,6 +29,16 @@
 // counter having wrapped the other way, which is what makes it a signed
 // step rather than a jump.
 //
+// **Bit 0 is not movement.** The SID's converter (and VICE's `makepotval`
+// for a 1351, `lib_unsigned_rand(0, 1)`) leaves the LSB noisy: at rest
+// under x64sc the pots sit in 64..65 and a driver that steps on all seven
+// bits walks the pointer ±1 pixel a frame, including after the host mouse
+// is ungrabbed. The real 1351 keeps its count in bits 1–6. Masking with
+// `$7E` drops that bit. At odd rest the same +1 becomes a 2-count step
+// through the mask, so `step()` also ignores a difference of 1 or 2;
+// measured 2026-09-07, the accumulator then stays put while the pots
+// still flicker.
+//
 // **How presence is answered, and how honestly.** Measured under VICE
 // with `-controlport1device` at each of its four settings, at rest, both
 // lines read: nothing 255, a joystick 255, paddles 255, a 1351 **64** —
@@ -64,10 +74,11 @@ export namespace Mouse {
 }
 
 namespace Pot {
-    const COUNTER: utinyint = 0x7F;  // the counter's bits in a pot reading
+    const COUNTER: utinyint = 0x7E;  // bits 1-6; bit 0 is SID ADC noise, not motion
     const LOWEST: utinyint = 64;     // a 1351 at its zero point
     const HIGHEST: utinyint = 191;   // and at the other end of its wrap
-    const HALF: utinyint = 64;       // half the counter's range: a bigger step is a wrap
+    const HALF: utinyint = 64;       // half the 7-bit wrap space: a bigger step is a wrap
+    const STILL: utinyint = 3;       // |delta| < 3 is fuzz, not a move
 }
 
 // The last counter reading on each axis, and where the pointer has got to.
@@ -115,15 +126,24 @@ export namespace mouse {
     }
 
     // One axis' movement since the last reading, added to `at` and held
-    // between 0 and `limit`. The difference is taken in the counter's own
-    // 7 bits, and a difference past half the range is the counter having
+    // between 0 and `limit`. The difference is taken in bits 1–6, and a
+    // difference past half the 7-bit wrap space is the counter having
     // gone the other way.
+    //
+    // **A 1- or 2-count step is not a move.** VICE's `makepotval` adds 0
+    // or 1 of fuzz to a 1351. At even rest (64/65) `$7E` already drops
+    // that; at odd rest the same +1 becomes a 2-count step through the
+    // mask (67→66, 68→68) and the pointer walks ±2 a frame. Ignoring
+    // |delta| < 3 leaves the accumulator still (measured 2026-09-07).
     function step(at: usmallint, last: utinyint, now: utinyint, limit: usmallint): usmallint {
         let delta: utinyint = (now - last) & Pot.COUNTER;
         if (delta == 0) {
             return at;
         }
         if (delta < Pot.HALF) {
+            if (delta < Pot.STILL) {
+                return at;
+            }
             // Asked as a subtraction rather than as `at + delta > limit`:
             // `at` never exceeds `limit`, so `limit - at` cannot borrow,
             // and the sum that could carry is never formed. The same
@@ -136,6 +156,9 @@ export namespace mouse {
             return at + delta;
         }
         let back: utinyint = 128 - delta;
+        if (back < Pot.STILL) {
+            return at;
+        }
         if (back > at) {
             return 0;
         }

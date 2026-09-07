@@ -415,8 +415,11 @@ const FRAME_SYNC = {
   // 1/60, not 1/1: real hardware fires at a fixed ~60Hz regardless of the
   // configured `frameRate`, so at any other rate the accumulator (fed
   // `frameRate * num`) scales between the two.
-  // `presync` disables interrupts in case the KERNAL's own jiffy clock also
-  // services this flag, the same risk PET's does.
+  // `presync` disables interrupts so this poll owns the flag. The KERNAL's
+  // VSYNC IRQ would otherwise acknowledge $9F27 before the loop sees it
+  // (and a later KERNAL call can `cli`, so sei is repeated every waitFrame,
+  // not only once in the prologue). Mouse packets then have to be fetched
+  // from poll() — see packages/cx16/src/mouse.8bs.
   cx16: {
     kind: 'edge',
     pollFlag: '(*(volatile uint8_t *)0x9F27) & 0x01',
@@ -532,11 +535,17 @@ function emitStatement(statement, indent) {
 // For an 'edge' machine the flag latches, so it's just "poll, then ack".
 // `body` is C spliced into the wrap-wait (the level machines' region probe).
 function waitOneHardwareFrame(sync, pad, body = '') {
+  // Repeat sei every hardware frame on machines that asked for it: a
+  // KERNAL call between waitFrame()s can restore I, and the IRQ would
+  // steal the edge this poll is waiting for.
+  const lock = sync.presync ? `${pad}${sync.presync}\n` : '';
   if (sync.kind === 'level') {
-    return `${pad}while (${sync.topHalf}) {}\n`
+    return lock
+      + `${pad}while (${sync.topHalf}) {}\n`
       + `${pad}while (!(${sync.topHalf})) {${body}}\n`;
   }
-  return `${pad}while (!(${sync.pollFlag})) {}\n`
+  return lock
+    + `${pad}while (!(${sync.pollFlag})) {}\n`
     + (sync.ack ? `${pad}${sync.ack}\n` : '');
 }
 

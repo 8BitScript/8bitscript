@@ -8,40 +8,49 @@
 //
 // and gets this file on an X16.
 //
-// ---- this layer answers nothing, and that is the honest answer today -----
+// ---- what this layer answers ----------------------------------------------
 //
-// **Everything below returns false.** This is the machine with the most
-// input hardware of the nine and the least of it reachable from here, and
-// the reason is worth stating plainly rather than leaving as a puzzle.
+// **The pointer, through the KERNAL.** `$FF68` mouse_config, `$FF71`
+// mouse_scan and `$FF6B` mouse_get, wrapped by ./mouse.8bs. A menu asks
+// "did the user just press", so the button is edge-triggered: true on the
+// one frame the press begins, false while it is held. `poll()` has to be
+// called exactly once a frame — twice a frame and every press is seen once
+// and then swallowed. See ./mouse.8bs for why mouse_scan is called from
+// here rather than left to the KERNAL IRQ (the frame driver has interrupts
+// off).
 //
-// The X16 has no keyboard matrix a program can scan. Its keyboard is
-// **PS/2**, decoded by the KERNAL's own interrupt handler into a queue;
-// its joysticks are read by a KERNAL routine that knows about SNES-style
-// controllers; and its mouse is a KERNAL service that also draws the
-// pointer as a VERA sprite. All three are **subroutine calls into ROM**:
-//
-//   - `$FFE4` GETIN — the next key from the queue, or 0.
-//   - `$FF56` joystick_get — one controller's state.
-//   - `$FF68` mouse_config / `$FF6B` mouse_get — turn the pointer on, and
-//     read where it is and which buttons are down.
-//
-// That is what makes this file different from every other machine's: there
-// are no registers to poke, so nothing here can be written the way
-// ./text.8bs or ./banks.8bs are. It needs `asm6502` blocks that call those
-// vectors and hand the results back — which the language does have (see
-// @8bitscript/c64's raster handler for the pattern) — plus care about what
-// the KERNAL expects to still be true when it is called.
+// **Nothing else yet.** The keyboard is PS/2 decoded into a KERNAL queue
+// (`$FFE4` GETIN) and the SNES-style pads are another KERNAL call
+// (`$FF56` joystick_get). Both are still unreachable from this file for
+// the same reason the mouse was: they need `asm6502` blocks and care about
+// what the KERNAL expects to still be true when they are called. They are
+// the next thing this layer should grow, not a gap this file hides —
+// `left()`/`right()`/`confirm()`/`cancel()` stay false, and a program
+// still links.
 //
 // **`input.mouse` is true on this machine by default**, because the
-// hardware really does have one; a build therefore compiles the pointer
-// branch in, and this file then says `pointer()` false. That is a gap
-// declared rather than a lie: the fact is about the machine, this file is
-// about what has been written. Closing it is the single highest-value
-// thing anyone could do in this package — the X16 is the reference machine
-// for Studio, and it is currently the one that cannot be driven.
+// hardware really does have one. `HAS_MOUSE` is that fact, so on a future
+// build that could take the mouse out the pointer half of this file is
+// `if (false)` and LLVM deletes it. Today there is no such catalog option;
+// the emulator's mouse is always there.
 //
-// Until then a program still links and runs here; it just never sees a
-// press. Nothing in a component has to know that.
+// **The pointer is reported in cells, not pixels.** `pointerCell()` is a
+// flat cell index, the same number `text.print()` takes. The KERNAL's
+// position is a pixel from the top-left of the *active area* — the same
+// origin cell (0, 0) has after screen.8bs insets the display so VERA's
+// border colour has somewhere to show. An earlier draft subtracted that
+// 16-pixel inset again, and the arrow sat two cells down-right of the
+// cell `pointerCell()` named: mouse_get said (319, 239) and the sprite
+// was on screen at (335, 254), which is (319, 239) plus the inset, so
+// the KERNAL is already in the inset space. Shift down by the 8-pixel
+// cell size; a pointer past the visible 76×56 clamps to the last cell.
+import { mouse } from "./mouse.8bs";
+
+const HAS_MOUSE: bool = #fact(input.mouse);
+
+const COLUMNS: usmallint = #fact(video.columns);
+const ROWS: usmallint = #fact(video.rows);
+const CELL_SHIFT: utinyint = 3; // 8 pixels a cell
 
 namespace Edge {
     const LEFT: utinyint = 1;
@@ -50,25 +59,52 @@ namespace Edge {
     const DOWN: utinyint = 8;
     const CONFIRM: utinyint = 16;
     const CANCEL: utinyint = 32;
+    const BUTTON: utinyint = 64;
 }
 
 let held: utinyint = 0;
 let before: utinyint = 0;
 let began: utinyint = 0;
 
+let atCell: usmallint = 0;
+
+// Pixel to a column or row on the visible grid: shift down by the cell
+// size, clamp to the last cell. mouse_get's origin is the active area's
+// top-left (see the header), so there is no inset to subtract.
+function cellOn(pixel: usmallint, limit: usmallint): usmallint {
+    let at: usmallint = pixel >> CELL_SHIFT;
+    if (at >= limit) {
+        return limit - 1;
+    }
+    return at;
+}
+
 export namespace input {
 
-    // Nothing to set up until there is something to read.
     function begin(): void {
+        if (HAS_MOUSE) {
+            mouse.begin();
+        }
     }
 
-    // Reads nothing yet — see the header. Left as a real function rather
-    // than removed from the surface so that a program written for nine
-    // machines calls the same thing on all nine, and so that the day the
-    // KERNAL calls land, no program changes.
+    // Once a frame, right after waitFrame(), and never twice.
     function poll(): void {
+        if (HAS_MOUSE) {
+            mouse.poll();
+        }
+
         before = held;
         held = 0;
+
+        if (HAS_MOUSE) {
+            let column: usmallint = cellOn(mouse.x(), COLUMNS);
+            let row: usmallint = cellOn(mouse.y(), ROWS);
+            atCell = row * COLUMNS + column;
+            if (mouse.left()) {
+                held = held | Edge.BUTTON;
+            }
+        }
+
         began = held & (before ^ 0xFF);
     }
 
@@ -97,14 +133,14 @@ export namespace input {
     }
 
     function pointer(): bool {
-        return false;
+        return HAS_MOUSE;
     }
 
     function pointerCell(): usmallint {
-        return 0;
+        return atCell;
     }
 
     function pointerButton(): bool {
-        return false;
+        return (began & Edge.BUTTON) != 0;
     }
 }

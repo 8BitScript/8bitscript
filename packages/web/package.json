@@ -48,7 +48,8 @@
         "storage.save": false,
         "memory.ram": 57344,
         "memory.banked": false,
-        "memory.bankedKib": 0
+        "memory.bankedKib": 0,
+        "storage.kib": 0
       },
       "options": {},
       "presets": {}

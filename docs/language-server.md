@@ -38,10 +38,10 @@ exposes it over the Language Server Protocol. The editor extension is a cable:
 it tells the editor that `.8bs` is a language and starts `8bs lsp --stdio`.
 
 The same rule covers building and running. The VS Code extension adds an
-8BitScript icon to the Activity Bar whose side bar picks a system and region
-and lists the projects that can run there, but each Run button only
-starts the `8bs run` or `8bs build` command you would otherwise type, in the
-project's own directory with the project's own toolchain.
+8BitScript icon to the Activity Bar whose side bar is a launcher — a project,
+a system, and one button — but that button only starts the `8bs run` or `8bs
+build` command you would otherwise type, in the project's own directory with
+the project's own toolchain.
 
 The extension deliberately contains no language logic. Putting a checker there
 would mean two implementations of every rule and an editor that disagrees with
@@ -168,42 +168,57 @@ toolchain is not installed it says so and stops:
 #### The side bar
 
 The extension adds an **8BitScript** icon to the Activity Bar, the strip of
-icons down the left edge of the window. Its side bar has two sections. **Run
-Settings** is three dropdowns — the system to run on, the region for the
-machines that have one (NTSC or PAL), and how the project list is laid out —
-plus, when the toolchain comes from a checkout of this repository, a
-checkbox that adds the repository's examples to the list.
-**Projects** lists every directory in the workspace that has an
-`8bs.config.ts`, which is the project manifest the CLI reads for the entry
-file and the target list — and keeps what the toolchain brought along in
-sections of its own: the **apps** that ship with it ([Studio](studio.md)),
-and the **examples** from `examples/`.
+icons down the left edge of the window. Its side bar holds one view, and
+that view is a launcher: what to run, where to run it, and the button.
 
 ```
-RUN SETTINGS
-System [ cx16 ▾ ]   Region [ NTSC ▾ ]
-View   [ Runnable on the selected system ▾ ]
+8BITSCRIPT                    📖  🚀  ♥  ⟳  …
 
-PROJECTS  runnable on cx16
-  Projects
-    my-game           src/my-game                       Run  Build
-  Examples
-    borders           examples/borders                  Run  Build
-  Apps
-    Studio            @8bitscript/studio                Run  Build
+  ┌────────────────────────────────────────┐
+  │  ▶   Run borders                       │
+  │      Commodore 64 · stock · NTSC       │
+  └────────────────────────────────────────┘
+
+  SYSTEM
+  [ c64 — Commodore 64                ▾ ]
+
+  PROJECT
+  [ borders  —  examples/borders      ▾ ] 🔧 📄
+
+  ▸ HARDWARE · REGION · FACTS   stock machine
+
+  RUNNING
+    borders     run · c64               ⏹
+
+  8bs run c64
 ```
 
-The default layout lists only the projects that can run on the selected
-system, one row each, so a run is one click after the dropdowns. The other
-two layouts expand every project into its systems, or every system into its
-projects. The sections appear only when the list mixes kinds; a workspace
-of plain projects is a plain list. **Launch Studio**, **Launch App…**, and
-**Launch Example…** on the command palette start one of the
-shipped programs on a system you pick, whether or not it is listed. **Run** starts `8bs run <target>` and **Build** starts `8bs build
---target <target>` as an editor task, in a terminal, from the project's
-directory; a row's context menu offers NTSC and PAL explicitly. A running
-row shows a **Stop** button that ends the task and the emulator with it. The
-view's title bar has **Doctor**, which runs `8bs doctor`, and **Refresh**.
+The **Project** dropdown lists every directory in the workspace that has an
+`8bs.config.ts` — the project manifest the CLI reads for the entry file and
+the target list — grouped with the **apps** that ship with the toolchain
+([Studio](studio.md)). The **examples** from `examples/` are left out
+unless the book in the title bar asks for them, since in a checkout of this
+repository they outnumber the projects someone is working on. The **System** dropdown offers the machines that project has been
+[set up for](systems.md#the-machines-a-project-is-set-up-for) — its
+config's `systems` block, each entry a machine with its hardware and
+region already fitted — above the nine bare targets; picking a project
+loads the first of them. The primary button names the project and where it
+is about to run, so nothing has to be read off a dropdown to know what it
+will do, and it greys out with the reason when the project does not target
+the selected system.
+
+**Run** starts `8bs run <target>` and **Build** — the wrench on the
+project's row — starts `8bs build --target <target>`, both as editor tasks
+in a terminal, from the project's directory.
+The **Running** section lists what is in flight with a **Stop** on each row,
+which ends the task and the emulator with it. Everything a run usually does
+not care about — the region, the hardware fitted to the machine, and the
+facts that hardware gives a program — is behind one disclosure. The view's
+title bar has **Show or Hide Examples**, **Launch Studio**, **Doctor**
+(`8bs doctor`) and **Refresh**;
+**Launch App…** and **Launch Example…** start one of the shipped programs
+on a system you pick without making it the selected project. All of it is
+on the command palette too.
 
 The same runs are available as tasks of type `8bs`, so a favourite can be
 written in `.vscode/tasks.json`:

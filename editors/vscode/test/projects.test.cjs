@@ -13,7 +13,6 @@ const {
   DEFAULT_ENTRY,
   EXAMPLES_DIR,
   byKind,
-  bySystem,
   cliPackageDir,
   commandArgs,
   findExamplesDir,
@@ -22,7 +21,9 @@ const {
   kindOf,
   loadApps,
   loadExamples,
+  insertSystem,
   ofKind,
+  systemLine,
   packageManagerFor,
   loadProject,
   loadProjects,
@@ -331,7 +332,7 @@ test('byKind splits a mixed list into sections in a fixed order, and leaves a un
   assert.deepEqual(ofKind([studio, border, game], 'app'), [studio]);
 });
 
-test('runnableOn and bySystem group projects by target', () => {
+test('runnableOn keeps the projects that can run on one system', () => {
   const projects = [
     { name: 'a', targets: ['vic20', 'c64'] },
     { name: 'b', targets: ['web'] },
@@ -339,11 +340,7 @@ test('runnableOn and bySystem group projects by target', () => {
   ];
   assert.deepEqual(runnableOn(projects, 'vic20').map((p) => p.name), ['a', 'c']);
   assert.deepEqual(runnableOn(projects, 'c64').map((p) => p.name), ['a']);
-  assert.deepEqual(
-    bySystem(projects).map((g) => [g.target, g.projects.map((p) => p.name)]),
-    [['vic20', ['a', 'c']], ['c64', ['a']], ['web', ['b', 'c']]],
-  );
-  assert.deepEqual(bySystem([{ name: 'x', targets: ['web'] }]).map((g) => g.target), ['web']);
+  assert.deepEqual(runnableOn(projects, 'nes'), []);
 });
 
 test('resolveLlvmMosHome prefers the setting, then the environment, then the default', (t) => {
@@ -392,4 +389,55 @@ test('packageManagerFor follows the nearest lockfile upward, defaulting to pnpm'
   assert.equal(packageManagerFor(nested), 'npm');
   write(path.join(nested, 'yarn.lock'), '');
   assert.equal(packageManagerFor(nested), 'yarn', 'the closer lockfile wins');
+});
+
+// Writing a system into an 8bs.config.ts. The config is source, not a
+// settings file, so this is a text edit on the one object it adds to:
+// everything else in the file — the comments most of all — is untouched.
+test('insertSystem opens a systems block, adds to one, and replaces a name', () => {
+  const plain = "export default {\n  entry: 'src/main.8bs',\n  targets: ['c64', 'nes'],\n};\n";
+
+  const first = insertSystem(plain, 'My C64', { target: 'c64', hardware: { sid: '8580' }, region: 'pal' });
+  assert.equal(first, "export default {\n  entry: 'src/main.8bs',\n  targets: ['c64', 'nes'],\n"
+    + "  systems: {\n    'My C64': { target: 'c64', hardware: { sid: '8580' }, region: 'pal' },\n  },\n};\n");
+
+  const second = insertSystem(first, 'NES', { target: 'nes' });
+  assert.match(second, /'My C64': \{ target: 'c64'/);
+  assert.match(second, /\n    NES: \{ target: 'nes' \},\n/, 'a bare identifier is left unquoted');
+  assert.equal(second.match(/systems: \{/g).length, 1, 'one block, not two');
+
+  const again = insertSystem(second, 'My C64', { target: 'c64', profile: 'reu512' });
+  assert.equal(again.match(/'My C64'/g).length, 1, 'saving over a name replaces it');
+  assert.match(again, /'My C64': \{ target: 'c64', profile: 'reu512' \}/);
+  assert.match(again, /NES: \{ target: 'nes' \}/, 'and leaves the others alone');
+});
+
+test('insertSystem keeps the rest of the file, and refuses a shape it cannot edit', () => {
+  const commented = "// what this program is\nexport default {\n  // the entry\n  entry: 'a.8bs',\n"
+    + "  targets: { c64: {} },  // just the one\n};\n";
+  const out = insertSystem(commented, 'C64', { target: 'c64' });
+  assert.match(out, /^\/\/ what this program is\n/);
+  assert.match(out, /\/\/ the entry/);
+  assert.match(out, /\/\/ just the one/);
+  assert.match(out, /systems: \{\n    C64: \{ target: 'c64' \},\n  \},\n\};/);
+
+  // A brace inside a comment or a string must not close the object early.
+  const tricky = "export default {\n  entry: 'a}b.8bs', // }\n  targets: ['c64'],\n};\n";
+  assert.match(insertSystem(tricky, 'C64', { target: 'c64' }), /systems: \{[\s\S]*\},\n\};\n$/);
+
+  assert.equal(insertSystem('const c = build();\nexport default c;\n', 'x', { target: 'c64' }), null);
+
+  // A `systems:` someone has commented out is not a block to add to.
+  const disabled = "export default {\n  entry: 'a.8bs',\n  // systems: { old: { target: 'c64' } },\n  targets: ['c64'],\n};\n";
+  const added = insertSystem(disabled, 'New', { target: 'c64' });
+  assert.match(added, /\/\/ systems: \{ old: \{ target: 'c64' \} \},\n/, 'the comment is left as it was');
+  assert.match(added, /\n  systems: \{\n    New: \{ target: 'c64' \},\n  \},\n\};/);
+});
+
+test('systemLine writes the entry a person would have typed', () => {
+  assert.equal(systemLine('C64', { target: 'c64' }), "C64: { target: 'c64' },");
+  assert.equal(
+    systemLine("Bob's C64", { target: 'c64', profile: 'reu512', hardware: { sid: '8580' }, region: 'pal' }),
+    "'Bob\\'s C64': { target: 'c64', profile: 'reu512', hardware: { sid: '8580' }, region: 'pal' },",
+  );
 });

@@ -1,11 +1,11 @@
-// What `8bs targets --json` says, as the controls view needs it.
+// What `8bs targets --json` says, as the launcher needs it.
 //
 // The CLI is the only place the machines' hardware catalogs live (each
 // machine package's "8bitscript".hardware), so the editor never lists an
 // option, a value, or a preset of its own: it asks the toolchain and shows
 // the answer. This module is deliberately free of the `vscode` API so it
-// can be tested with plain `node --test`; the view (controlsView.cjs)
-// spawns the command and hands the text here.
+// can be tested with plain `node --test`; runner.cjs spawns the command
+// and hands the text here.
 
 /**
  * Parse the JSON `8bs targets --json` prints.
@@ -20,7 +20,41 @@ function parseTargets(text) {
   // The fact schema rides along on the map: the panel's sheet labels
   // itself from it, and there is one for every target.
   targets.facts = Array.isArray(parsed.facts) ? parsed.facts : [];
+  // So do the whole machines the project has been set up for — its
+  // `systems` block, already resolved and validated by the CLI. They are
+  // the project's, not a machine's, so they hang off the map rather than
+  // off an entry.
+  targets.systems = Array.isArray(parsed.systems) ? parsed.systems : [];
+  // A `systems` block the config gets wrong costs the panel its systems
+  // and nothing else — the CLI still answers about the machines. The
+  // message is shown where a warning goes, so a typo is findable.
+  targets.systemsError = typeof parsed.systemsError === 'string' ? parsed.systemsError : null;
+  // And what the program asks of any machine it is built for — its
+  // `requires` block. Each system carries what it falls short of, worked
+  // out by the CLI against the same sheet the build will resolve to.
+  targets.requires = parsed.requires && typeof parsed.requires === 'object' ? parsed.requires : {};
+  targets.requiresError = typeof parsed.requiresError === 'string' ? parsed.requiresError : null;
   return targets;
+}
+
+/**
+ * Whether a selection is exactly what one of the project's systems fits:
+ * the same machine, the same region, and every option landing on the same
+ * value. Compared by what the options resolve to rather than by
+ * remembering which entry was picked, so the panel still holds no state —
+ * reaching the same machine by hand names it just the same.
+ *
+ * @param {object} system one entry of targets.systems
+ * @param {object|undefined} target the catalog entry for system.target
+ * @param {{ profile: string|null, options: Record<string, string> }} selection
+ * @param {'ntsc'|'pal'} region
+ */
+function matchesSystem(system, target, selection, region) {
+  if (system.region !== null && system.region !== region) return false;
+  if (!target) return false;
+  const theirs = effectiveOptions(target, { profile: system.profile, options: system.hardware });
+  const ours = effectiveOptions(target, selection);
+  return Object.keys(theirs).every((id) => theirs[id] === ours[id]);
 }
 
 /**
@@ -113,6 +147,7 @@ function selectionLabel(selection) {
 }
 
 module.exports = {
+  matchesSystem,
   effectiveFacts,
   effectiveOptions,
   hardwareArgs,

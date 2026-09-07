@@ -50,7 +50,8 @@
         "storage.save": true,
         "memory.ram": 31743,
         "memory.banked": false,
-        "memory.bankedKib": 0
+        "memory.bankedKib": 0,
+        "storage.kib": 166
       },
       "options": {
         "model": {
@@ -170,6 +171,44 @@
                 "memory.ram": 31743,
                 "video.frameRate": 50
               }
+            }
+          }
+        },
+        "drive": {
+          "label": "Disk drive",
+          "default": "4040",
+          "values": {
+            "none": {
+              "label": "No drive (tape or nothing)",
+              "facts": {
+                "storage.save": false,
+                "storage.kib": 0
+              },
+              "tag": null
+            },
+            "4040": {
+              "label": "2040/4040 (170K disk)",
+              "facts": {
+                "storage.save": true,
+                "storage.kib": 166
+              },
+              "tag": null
+            },
+            "8050": {
+              "label": "8050 (520K disk)",
+              "facts": {
+                "storage.save": true,
+                "storage.kib": 508
+              },
+              "tag": null
+            },
+            "8250": {
+              "label": "8250 (1M disk)",
+              "facts": {
+                "storage.save": true,
+                "storage.kib": 1025
+              },
+              "tag": null
             }
           }
         }

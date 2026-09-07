@@ -75,11 +75,14 @@ Those are different statements and the headers make both:
 - **Missing hardware**, and no code will fix it: the **PET** has no control
   ports at all, and the **VIC-20** has no sprites.
 - **Missing driver**, on hardware that is sitting right there: the
-  **C128** and the **MEGA65** have the VIC-II's eight sprites and control
-  ports, and neither package has a sprites layer; the **X16** has 128 VERA
-  sprites *and a pointer in its own KERNAL* and cannot reach either without
-  `asm6502`; the **Atari 8-bit** has players and missiles and three mouse
-  values in its catalog, and no quadrature driver.
+  **MEGA65** has the VIC-II's eight sprites and control ports, and no
+  sprites layer; the **Atari 8-bit** has players and missiles and three
+  mouse values in its catalog, and no quadrature driver. The C128 used
+  to sit here: it has the VIC-IIe's eight sprites *and* a 1351 driver in
+  `@8bitscript/c128/input`, and the arrow is now sprite 0 from the
+  KERNAL's shape area at `$0E00`. The X16 used to sit here too: it has
+  128 VERA sprites *and* a pointer in its own KERNAL, and the KERNAL
+  path is the one that is now wired (`@8bitscript/cx16/mouse`).
 - **A decision nobody has made**: the **web**, where the user is already
   looking at the browser's cursor, so "draw a pointer" means either hiding
   that one or never drawing at all.
@@ -119,13 +122,21 @@ The same caution applies to anything else a layer polls: read it in
 
 The root rule — *verify hardware facts before writing them down* — has a
 sharp edge here, because **`--screenshot` cannot move a mouse.** It can
-still prove almost everything, and the way it does is worth copying: a
-1351 reads its zero on both axes until it is moved, so **a fitted build
-puts the arrow in the top-left corner of the screen and a build with the
-mouse taken out puts nothing there.** That is a difference a headless run
-can see, and `pointer.test.mjs` asserts it by counting white pixels in the
-two blank rows `examples/pointer` keeps clear for the purpose — 58 with a
-mouse, 0 without.
+still prove almost everything, and the way it does is worth copying:
+
+- A **1351** reads its zero on both axes until it is moved, so **a fitted
+  C64 or C128 puts the arrow in the top-left corner of the screen and a
+  build with the mouse taken out puts nothing there.** That is a difference
+  a headless run can see, and `pointer.test.mjs` asserts it by counting
+  white pixels in the two blank rows `examples/pointer` keeps clear for the
+  purpose — 58 with a mouse, 0 without, under both x64sc and x128.
+- The **X16** parks at the *centre*: mouse_config with a nonzero size
+  leaves the pointer at half the current screen_mode range, (319, 239) of
+  the 640×480 the mode names. After `screen.8bs` insets the display by 16
+  pixels, that sprite is on the screenshot at (335, 254). The example's
+  top two rows are white text here, so a corner count would not prove an
+  arrow; the test counts white pixels in that centre box instead — 43
+  under x16emu r50 / ROM `fbe32a60`.
 
 What a screenshot cannot answer, and what needs a human at the machine:
 
@@ -139,14 +150,14 @@ What a screenshot cannot answer, and what needs a human at the machine:
   mouse is fitted and never moves. The C64, C128 and VIC-20 catalogs pass
   both together for exactly that reason.
 
-## What each machine has, as of 2026-09-06
+## What each machine has, as of 2026-09-07
 
 | Machine | Draws | With what | Gap worth closing |
 | --- | --- | --- | --- |
 | C64 | **yes**, on a build with a 1351 | sprite 0, shape block 254 | — |
-| C128 | no | — | a `./sprites` layer over a `./geometry`; then this is the C64's file |
+| C128 | **yes**, on a build with a 1351 | sprite 0, KERNAL shape block 56 at `$0E00` | a `./sprites` layer over a `./geometry`; this file would then be the C64's |
+| X16 | **yes**, on the stock machine | KERNAL pointer, VERA sprite 0 | — |
 | MEGA65 | no | — | control-port options in the catalog, then a sprites layer |
-| X16 | no | — | the KERNAL's own pointer (`$FF68` mouse_config), after the input layer's three calls |
 | Atari 8-bit | no | — | a quadrature driver for the ST/Amiga/trak values already in the catalog |
 | NES | no | — | nothing a pad should drive; a Famicom mouse is not in the catalog |
 | VIC-20 | no | — | no sprites: a cell cursor is a different feature |
@@ -168,6 +179,11 @@ What a screenshot cannot answer, and what needs a human at the machine:
 5. **Measure it, in bytes, and write the number down.** The C64's arrow is
    182 bytes of program and 1 of RAM on top of the input layer's mouse;
    a mouse and its arrow together take Studio from 1523 bytes and 28 of
-   RAM to 2208 and 47. The other eight targets build to the byte they
-   built to before the package existed, which is the whole claim about
-   what an empty layer costs.
+   RAM to 2208 and 47. The C128's arrow is the same sprite from the
+   KERNAL's `$0E00` block: a mouse and its arrow take Studio from 1436
+   bytes and 30 of RAM to 2195 and 42 — **759 bytes of program and 12 of
+   RAM**, measured 2026-09-07. The X16's KERNAL pointer takes Studio from
+   1253 bytes and 30 of RAM to 1571 and 35 — 318 bytes of program and 5
+   of RAM, measured 2026-09-07 by building with the layer taken out. The
+   other six targets build to the byte they built to before the package
+   existed, which is the whole claim about what an empty layer costs.

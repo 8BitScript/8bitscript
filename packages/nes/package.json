@@ -52,7 +52,8 @@
         "storage.save": false,
         "memory.ram": 1536,
         "memory.banked": false,
-        "memory.bankedKib": 0
+        "memory.bankedKib": 0,
+        "storage.kib": 0
       },
       "options": {
         "mapper": {

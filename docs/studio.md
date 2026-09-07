@@ -28,8 +28,9 @@ machine's own facts while compiling.
 **The bar moves.** `@8bitscript/input` exists now, so left and right step
 the highlight between Studio's icon and its FILE menu under whatever the
 machine has: a C64's cursor keys, an NES D-pad, an Atari joystick, a 1351
-mouse in a port. The bar starts deselected, the way a menu bar does before
-anyone has touched it.
+mouse in a port on the C64 or the C128, the X16's KERNAL mouse. The bar
+starts deselected, the way a menu bar does before anyone has touched it.
+On a build with a pointer, a click on the bar selects the item under it.
 
 Everything behind the door is still waiting. Studio has no sound, sprite or
 storage capability to build an editor on, and nothing on this page
@@ -37,11 +38,9 @@ describes an editor as working.
 
 The bar is `@8bitscript/ui/menubar` — the first component Studio takes from
 [the shared component library](packages.md#which-packages-you-install)
-rather than drawing itself. It names the four editors, in full on a
-40-column machine and as `CHR SPR MUS FIL` on the VIC-20's 22 columns and
-the NES's 28, chosen from `text.COLUMNS` at compile time so the branch for
-the other width costs nothing. Nothing selects anything yet: the highlight
-sits on the first item until there is a keyboard to move it.
+rather than drawing itself. It is Studio's mark and the FILE menu, and that
+is the whole bar for now. Nothing behind FILE opens yet: there is still no
+sound, sprite or storage capability to build an editor on.
 
 ```bash
 cd packages/studio
@@ -51,7 +50,7 @@ pnpm run start:pet             # the PET
 ```
 
 From VS Code, **8BitScript: Launch Studio** asks which system and runs the
-same command; the rocket in the Projects view's title does the same.
+same command; the rocket in the side bar's title does the same.
 
 ## Tiers
 

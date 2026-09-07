@@ -76,22 +76,25 @@ Do not describe more than this as working:
   voice, and loads a file where there is storage.
 - **The menu bar responds to input**; nothing else does. `@8bitscript/input`
   landed, so left and right step the highlight between the icon and FILE on
-  every machine that can answer, and the screen says which — `INPUT KEYS`,
-  `INPUT PAD`, or `INPUT NONE` on the X16 and the web, whose layers cannot
-  answer yet and say so. Nothing plays a note or reads or writes a file:
-  there is still no sound or storage capability.
+  every machine that can answer, and the screen says which — `INPUT KEYS`
+  on the computers (the X16 included: it has a keyboard, even though the
+  layer does not read keys yet), `INPUT PAD` on the NES, `INPUT NONE` on
+  the web, whose runtime does not deliver input yet and says so. On the
+  X16 the bar moves under the KERNAL mouse. Nothing plays a note or reads
+  or writes a file: there is still no sound or storage capability.
 - **The pointer is visible**, on a build that has one to draw:
-  `@8bitscript/pointer` arrived alongside this, and on a C64 fitted with a
-  1351 Studio draws a real arrow with one of the VIC's sprites, moving a
-  pixel at a time. `pointer.begin()` goes after `input.begin()` and
-  `pointer.update()` right after `input.poll()`, once each a frame — that
-  ordering is the contract between the two packages, and a program that
-  polls without updating gets an arrow that never moves. On the other
-  eight machines `pointer.DRAWS` is false, the calls are empty, and the
-  whole thing is deleted; see
-  [`packages/pointer/AGENTS.md`](../pointer/AGENTS.md) for why each of
-  them draws nothing yet, and `examples/pointer` for the same program
-  without the rest of Studio around it.
+  `@8bitscript/pointer` arrived alongside this, and on a C64 or C128
+  fitted with a 1351 Studio draws a real arrow with one of the VIC's
+  sprites, moving a pixel at a time; on the X16 the KERNAL draws its own
+  arrow (VERA sprite 0), parked at the centre until it is moved.
+  `pointer.begin()` goes after `input.begin()` and `pointer.update()`
+  right after `input.poll()`, once each a frame — that ordering is the
+  contract between the two packages, and a program that polls without
+  updating gets an arrow that never moves. On the other six machines
+  `pointer.DRAWS` is false, the calls are empty, and the whole thing is
+  deleted; see [`packages/pointer/AGENTS.md`](../pointer/AGENTS.md) for
+  why each of them draws nothing yet, and `examples/pointer` for the
+  same program without the rest of Studio around it.
 - **A click on the bar selects the item under the pointer**, on the builds
   fitted with a mouse. `menubar` hit-tests during a *run* of the bar and
   answers `pointed()` from that run, so `start()`'s loop calls
@@ -102,16 +105,24 @@ Do not describe more than this as working:
   constant false on a build without a mouse, so the whole block is proved
   dead and deleted — a C64 Studio with `--hardware port1=none` is 1523
   bytes, byte for byte what it was before any of this was written.
-- **Studio fits its own mouse**, which is why `8bs run c64` starts it with
-  one plugged in and no flags. `8bs.config.ts` uses the object form of
-  `targets` and asks for `port1: mouse1351` on the C64 and the C128 — the
-  two machines whose input layer has a pointer — so `#fact(input.mouse)`
-  is true for those builds and the pointer half of the layer is compiled
-  in at all. It is the project's *stock* for the machine: it sits under
-  any profile and under `--hardware`, so taking the mouse out on the
-  command line still works. Cost on a C64: 1523 bytes stock, 2038 with the
-  mouse and the click handling (1824 of that is the driver the input layer
-  compiles in; 214 is Studio using it).
+- **Studio fits its own mouse**, which is why `8bs run c64`,
+  `8bs run c128` and `8bs run cx16` start it with one and no flags.
+  `8bs.config.ts` uses the object form of `targets` and asks for
+  `port1: mouse1351` on the C64 and the C128 — the two Commodores whose
+  input layer has a pointer — and lists the X16 with no hardware of its
+  own, because `input.mouse` is already true on the stock sheet.
+  `#fact(input.mouse)` is true for those builds and the pointer half of
+  the layer is compiled in at all. It is the project's *stock* for the
+  machine: it sits under any profile and under `--hardware`, so taking
+  the 1351 out on the command line still works. The editor's Launch
+  Studio picker offers each Commodore as a mouse arrangement and a
+  joystick one. Cost on a C64: 1523 bytes stock, 2038 with the mouse and
+  the click handling (1824 of that is the driver the input layer compiles
+  in; 214 is Studio using it). Cost on a C128: 1436 bytes stock, 2195
+  with the mouse and the arrow — **759 bytes of program and 12 of RAM**,
+  measured 2026-09-07. Cost on the X16: 1253 bytes without the pointer
+  layer, 1571 with it — **318 bytes of program and 5 of RAM**, measured
+  2026-09-07 by building Studio with the layer taken out.
 
 ## Tiers
 
@@ -238,13 +249,14 @@ editor on a hack that the capability would replace:
   cancel and a pointer, all edge-triggered, resolving per target to that
   machine's own layer the way `@8bitscript/screen` does. Studio's menu bar
   moves under it. What is still missing is per-machine rather than
-  structural, and `packages/input/AGENTS.md` lists it: the **X16** and the
-  **web** answer nothing yet (the X16's keyboard, joysticks and mouse are
-  all KERNAL calls; the web runtime does not listen), the **VIC-20** has a
-  joystick but no verified key matrix, and the three machines with an
-  **ALT** key — C128, MEGA65, X16 — do not read it, which is what
-  `ALT`+letter menu accelerators wait on. A text *editor* will also want
-  more than this surface offers: typed characters, not directions.
+  structural, and `packages/input/AGENTS.md` lists it: the **X16** reads
+  its mouse and not yet its keyboard or pads (KERNAL `$FFE4` GETIN and
+  `$FF56` joystick_get), the **web** answers nothing (the runtime does
+  not listen), the **VIC-20** has a joystick but no verified key matrix,
+  and the three machines with an **ALT** key — C128, MEGA65, X16 — do
+  not read it, which is what `ALT`+letter menu accelerators wait on. A
+  text *editor* will also want more than this surface offers: typed
+  characters, not directions.
 - **Character and sprite access** — reading and writing the character
   set and, where the machine has them, sprite definitions and positions,
   through the intent-level API the root `AGENTS.md` insists on

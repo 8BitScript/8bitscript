@@ -47,11 +47,13 @@ import { basename, resolve } from 'node:path';
 
 import {
   MACHINES, isVariantPath, link, positionAt, variantOf,
+  unmetRequirements,
 } from '@8bitscript/compiler';
 
 import { loadConfig, resolveFrameRate } from './config.mjs';
 import {
-  HARDWARE_USAGE, hardwareArgs, listedTargets, loadCatalog, projectHardware, projectProfiles, resolveHardware,
+  HARDWARE_USAGE, REGION_MACHINES, hardwareArgs, listedTargets, loadCatalog, projectHardware,
+  projectProfiles, projectRequires, projectSystems, resolveHardware, whatSatisfies,
 } from './hardware.mjs';
 
 const TARGETS = new Set(MACHINES);
@@ -62,8 +64,9 @@ const TARGETS = new Set(MACHINES);
 // output filename. The PET has no region at all: its refresh is the
 // model's (a hardware option — see packages/pet/package.json's catalog),
 // FRAME_SYNC.pet measures it at start-up, and `8bs run pet` says so if
-// given --pal.
-const REGION_TARGETS = new Set(['vic20', 'c64', 'c128', 'mega65', 'atari8']);
+// given --pal. It is the same set `8bs targets` reports a region for, so
+// there is one of it (hardware.mjs).
+const REGION_TARGETS = REGION_MACHINES;
 
 // Diagnostics may come from any module in the import graph, so each one is
 // rendered against its own file's text, not the entry's.
@@ -127,6 +130,12 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   }
   const { frameRate } = frameRateResult;
 
+  // Nothing in a build reads the `systems` block, but a typo in one should
+  // not wait for someone to open the editor to be noticed. Said once, and
+  // not fatal: the build asked for is still the build to make.
+  const systems = projectSystems(config);
+  if (!systems.ok) process.stderr.write(`8bs build: ${systems.error}\n`);
+
   const retired = RETIRED_TARGET.exec(target ?? '');
   if (retired) {
     process.stderr.write(
@@ -158,6 +167,37 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
     return { ok: false };
   }
   const { hardware } = resolved;
+
+  // What the program needs of the machine, before the machine gets a
+  // chance to disappoint it. A program that cannot run in the RAM it was
+  // given fails at the linker with an overflow measured in bytes of
+  // section; this says the same thing in the program's own terms, names
+  // what it asked for, and — the useful half — what this machine could be
+  // fitted with that would do.
+  const required = projectRequires(config);
+  if (!required.ok) {
+    process.stderr.write(`8bs build: ${required.error}\n`);
+    return { ok: false };
+  }
+  const unmet = unmetRequirements(required.requires, hardware.facts);
+  if (unmet.length > 0) {
+    const catalog = loadCatalog(target);
+    process.stderr.write(
+      `8bs build: this program asks for more than a ${hardware.label === 'stock' ? `stock ${target}` : `${target} with ${hardware.label}`} gives.\n`,
+    );
+    for (const { key, need, have } of unmet) {
+      process.stderr.write(
+        `  ${key}: needs ${need === true ? 'it' : need}, this build has ${have === true ? 'it' : have}\n`,
+      );
+      const fits = whatSatisfies(catalog, key, need, {
+        profile, overrides, profiles: projectProfiles(config, target), defaults: projectHardware(config, target),
+      });
+      process.stderr.write(fits.length > 0
+        ? `    fit one of: ${fits.join(', ')}  (--hardware, or a system in 8bs.config.ts)\n`
+        : `    no ${target} can be fitted with that; this program is not for this machine\n`);
+    }
+    return { ok: false };
+  }
 
   const entry = resolveEntryPath(config, target, entryArg);
   if (!existsSync(entry)) {

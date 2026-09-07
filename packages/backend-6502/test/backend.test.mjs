@@ -218,7 +218,7 @@ test('emitC: cx16 polls VERA ISR and acknowledges by writing the bit back', () =
   // at the default frameRate the ratio is exactly 1:1 and folds away —
   // waitFrame() is one poll, with no accumulator at all.
   assert.doesNotMatch(c, /__8bs_acc|__8bs_num|__8bs_den/);
-  assert.match(c, /static void __8bs_wait_frame\(void\) \{\n    while \(!\(\(\*\(volatile uint8_t \*\)0x9F27\) & 0x01\)\) \{\}\n/);
+  assert.match(c, /static void __8bs_wait_frame\(void\) \{\n    __asm__ volatile\("sei" ::: "memory"\);\n    while \(!\(\(\*\(volatile uint8_t \*\)0x9F27\) & 0x01\)\) \{\}\n/);
 });
 
 test('emitC: the frame-sync runtime is the accumulator read from the waiting side', () => {

@@ -52,64 +52,33 @@
     "views": {
       "8bitscript": [
         {
-          "id": "8bitscript.controls",
-          "name": "Run Settings",
+          "id": "8bitscript.launcher",
+          "name": "8BitScript",
           "type": "webview",
           "icon": "media/8bitscript-logo.svg",
-          "contextualTitle": "8BitScript run settings",
-          "visibility": "visible",
-          "initialSize": 1
-        },
-        {
-          "id": "8bitscript.projects",
-          "name": "Projects",
-          "icon": "media/8bitscript-logo.svg",
-          "contextualTitle": "8BitScript projects",
-          "visibility": "visible",
-          "initialSize": 4
+          "contextualTitle": "8BitScript",
+          "visibility": "visible"
         }
       ]
     },
-    "viewsWelcome": [
-      {
-        "view": "8bitscript.projects",
-        "contents": "No 8BitScript projects found.\n\nA project is a directory with an `8bs.config.ts` in it; every one in this workspace is listed here with a Run and Build button for each system it targets. The apps that ship with the toolchain, and the examples from the 8bitscript repository, get sections of their own.\n\n[Refresh](command:8bitscript.projects.refresh)\n\n[Launch Studio](command:8bitscript.launchStudio)",
-        "when": "!8bitscript.hasProjects"
-      }
-    ],
     "commands": [
       {
-        "command": "8bitscript.restartServer",
-        "title": "Restart Language Server",
-        "category": "8BitScript"
-      },
-      {
-        "command": "8bitscript.projects.refresh",
-        "title": "Refresh Projects",
+        "command": "8bitscript.run",
+        "title": "Run",
         "category": "8BitScript",
-        "icon": "$(refresh)"
+        "icon": "$(play)"
       },
       {
-        "command": "8bitscript.projects.viewMode",
-        "title": "Change Projects View",
+        "command": "8bitscript.build",
+        "title": "Build",
         "category": "8BitScript",
-        "icon": "$(list-tree)"
+        "icon": "$(tools)"
       },
       {
-        "command": "8bitscript.selectSystem",
-        "title": "Select System",
-        "category": "8BitScript"
-      },
-      {
-        "command": "8bitscript.selectRegion",
-        "title": "Select Region (NTSC — US/Japan, PAL — Europe)",
-        "category": "8BitScript"
-      },
-      {
-        "command": "8bitscript.toggleExamples",
-        "title": "Show or Hide Examples",
+        "command": "8bitscript.stop",
+        "title": "Stop",
         "category": "8BitScript",
-        "icon": "$(book)"
+        "icon": "$(debug-stop)"
       },
       {
         "command": "8bitscript.launchStudio",
@@ -134,48 +103,48 @@
         "icon": "$(pulse)"
       },
       {
+        "command": "8bitscript.saveSystem",
+        "title": "Save as a System…",
+        "category": "8BitScript",
+        "icon": "$(save)"
+      },
+      {
+        "command": "8bitscript.toggleExamples",
+        "title": "Show or Hide Examples",
+        "category": "8BitScript",
+        "icon": "$(book)"
+      },
+      {
+        "command": "8bitscript.refresh",
+        "title": "Refresh Projects",
+        "category": "8BitScript",
+        "icon": "$(refresh)"
+      },
+      {
         "command": "8bitscript.install",
         "title": "Install Dependencies",
         "category": "8BitScript",
         "icon": "$(cloud-download)"
       },
       {
-        "command": "8bitscript.run",
-        "title": "Run",
-        "category": "8BitScript",
-        "icon": "$(play)"
-      },
-      {
-        "command": "8bitscript.build",
-        "title": "Build",
-        "category": "8BitScript",
-        "icon": "$(tools)"
-      },
-      {
-        "command": "8bitscript.runNtsc",
-        "title": "Run (NTSC — US/Japan)",
+        "command": "8bitscript.selectProject",
+        "title": "Select Project",
         "category": "8BitScript"
       },
       {
-        "command": "8bitscript.buildNtsc",
-        "title": "Build (NTSC — US/Japan)",
+        "command": "8bitscript.selectSystem",
+        "title": "Select System",
         "category": "8BitScript"
       },
       {
-        "command": "8bitscript.runPal",
-        "title": "Run (PAL — Europe)",
+        "command": "8bitscript.selectRegion",
+        "title": "Select Region (NTSC — US/Japan, PAL — Europe)",
         "category": "8BitScript"
       },
       {
-        "command": "8bitscript.buildPal",
-        "title": "Build (PAL — Europe)",
+        "command": "8bitscript.openEntry",
+        "title": "Open Entry File",
         "category": "8BitScript"
-      },
-      {
-        "command": "8bitscript.stop",
-        "title": "Stop",
-        "category": "8BitScript",
-        "icon": "$(debug-stop)"
       },
       {
         "command": "8bitscript.openConfig",
@@ -183,149 +152,47 @@
         "category": "8BitScript"
       },
       {
-        "command": "8bitscript.revealProject",
-        "title": "Reveal in Explorer",
-        "category": "8BitScript"
-      },
-      {
-        "command": "8bitscript.openTerminal",
-        "title": "Open in Integrated Terminal",
+        "command": "8bitscript.restartServer",
+        "title": "Restart Language Server",
         "category": "8BitScript"
       }
     ],
     "menus": {
-      "commandPalette": [
-        {
-          "command": "8bitscript.runNtsc",
-          "when": "false"
-        },
-        {
-          "command": "8bitscript.buildNtsc",
-          "when": "false"
-        },
-        {
-          "command": "8bitscript.runPal",
-          "when": "false"
-        },
-        {
-          "command": "8bitscript.buildPal",
-          "when": "false"
-        },
-        {
-          "command": "8bitscript.openConfig",
-          "when": "false"
-        },
-        {
-          "command": "8bitscript.revealProject",
-          "when": "false"
-        },
-        {
-          "command": "8bitscript.openTerminal",
-          "when": "false"
-        }
-      ],
       "view/title": [
         {
-          "command": "8bitscript.projects.viewMode",
-          "when": "view == 8bitscript.projects",
+          "command": "8bitscript.toggleExamples",
+          "when": "view == 8bitscript.launcher && 8bitscript.hasExamples",
           "group": "navigation@0"
         },
         {
-          "command": "8bitscript.toggleExamples",
-          "when": "view == 8bitscript.projects && 8bitscript.hasExamples",
+          "command": "8bitscript.launchStudio",
+          "when": "view == 8bitscript.launcher",
           "group": "navigation@1"
         },
         {
-          "command": "8bitscript.launchStudio",
-          "when": "view == 8bitscript.projects",
+          "command": "8bitscript.doctor",
+          "when": "view == 8bitscript.launcher",
           "group": "navigation@2"
         },
         {
-          "command": "8bitscript.doctor",
-          "when": "view == 8bitscript.projects",
+          "command": "8bitscript.refresh",
+          "when": "view == 8bitscript.launcher",
           "group": "navigation@3"
         },
         {
-          "command": "8bitscript.projects.refresh",
-          "when": "view == 8bitscript.projects",
-          "group": "navigation@4"
-        }
-      ],
-      "view/item/context": [
-        {
-          "command": "8bitscript.install",
-          "when": "view == 8bitscript.projects && viewItem =~ /^project/ && viewItem =~ /uninstalled/",
-          "group": "inline@0"
+          "command": "8bitscript.launchApp",
+          "when": "view == 8bitscript.launcher",
+          "group": "1_launch@0"
         },
         {
-          "command": "8bitscript.stop",
-          "when": "view == 8bitscript.projects && viewItem =~ /running/",
-          "group": "inline@0"
+          "command": "8bitscript.launchExample",
+          "when": "view == 8bitscript.launcher",
+          "group": "1_launch@1"
         },
         {
-          "command": "8bitscript.run",
-          "when": "view == 8bitscript.projects && (viewItem =~ /^target/ || viewItem =~ /^project/)",
-          "group": "inline@1"
-        },
-        {
-          "command": "8bitscript.build",
-          "when": "view == 8bitscript.projects && (viewItem =~ /^target/ || viewItem =~ /pinned/)",
-          "group": "inline@2"
-        },
-        {
-          "command": "8bitscript.runNtsc",
-          "when": "view == 8bitscript.projects && viewItem =~ /machine/ && !(viewItem =~ /^system/)",
-          "group": "1_run@1"
-        },
-        {
-          "command": "8bitscript.runPal",
-          "when": "view == 8bitscript.projects && viewItem =~ /machine/ && !(viewItem =~ /^system/)",
-          "group": "1_run@2"
-        },
-        {
-          "command": "8bitscript.buildNtsc",
-          "when": "view == 8bitscript.projects && viewItem =~ /machine/ && !(viewItem =~ /^system/)",
-          "group": "1_run@3"
-        },
-        {
-          "command": "8bitscript.buildPal",
-          "when": "view == 8bitscript.projects && viewItem =~ /machine/ && !(viewItem =~ /^system/)",
-          "group": "1_run@4"
-        },
-        {
-          "command": "8bitscript.run",
-          "when": "view == 8bitscript.projects && (viewItem =~ /^target/ || viewItem =~ /^project/) && !(viewItem =~ /machine/)",
-          "group": "1_run@1"
-        },
-        {
-          "command": "8bitscript.build",
-          "when": "view == 8bitscript.projects && (viewItem =~ /^target/ || viewItem =~ /^project/) && !(viewItem =~ /machine/)",
-          "group": "1_run@2"
-        },
-        {
-          "command": "8bitscript.stop",
-          "when": "view == 8bitscript.projects && viewItem =~ /running/",
-          "group": "1_run@9"
-        },
-        {
-          "command": "8bitscript.openConfig",
-          "when": "view == 8bitscript.projects && viewItem =~ /^project/",
-          "group": "2_open@1"
-        },
-        {
-          "command": "8bitscript.revealProject",
-          "when": "view == 8bitscript.projects && viewItem =~ /^project/ && !(viewItem =~ /shipped/)",
-          "group": "2_open@2"
-        },
-        {
-          "command": "8bitscript.openTerminal",
-          "when": "view == 8bitscript.projects && viewItem =~ /^project/",
-          "group": "2_open@3"
-        },
-        {
-          "command": "8bitscript.install",
-          "when": "view == 8bitscript.projects && viewItem =~ /^project/",
-          "group": "2_open@0"
+          "command": "8bitscript.saveSystem",
+          "when": "view == 8bitscript.launcher",
+          "group": "2_system@0"
         }
       ]
     },
@@ -343,7 +210,7 @@
             "PAL (Europe), 50Hz — passes --pal to 8bs run and 8bs build."
           ],
           "default": "ntsc",
-          "description": "The machine region the Run and Build buttons use for vic20 and c64: NTSC (US/Japan) or PAL (Europe). Set from the Region dropdown in the 8BitScript side bar; either region is always available from a row's context menu."
+          "description": "The machine region the launcher runs with: NTSC (US/Japan) or PAL (Europe). Passed as --pal for the machines that have a region, ignored for the ones that do not. Set from the Region dropdown under Hardware · Region · Facts in the 8BitScript side bar."
         },
         "8bitscript.system": {
           "type": "string",
@@ -359,37 +226,17 @@
             "web"
           ],
           "default": "vic20",
-          "description": "The system the Run and Build buttons use, and the one the \"runnable\" projects view lists. Set from the System dropdown in the 8BitScript side bar. The list is the one 8bs build --target accepts; a system the toolchain cannot build yet shows in the side bar with 8bs doctor's verdict."
+          "description": "The system the launcher's Run and Build buttons use. Set from the System dropdown in the 8BitScript side bar, or 8BitScript: Select System. The list is the one 8bs build --target accepts; a system the toolchain cannot build yet is still listed, and 8bs doctor from the title bar says why it fails."
         },
         "8bitscript.project": {
           "type": "string",
           "default": "",
-          "description": "The project the Run and Build buttons in the 8BitScript side bar act on, as an absolute directory. Empty means the first project the workspace offers. Set from the Project dropdown in the side bar."
-        },
-        "8bitscript.projectsView": {
-          "type": "string",
-          "enum": [
-            "runnable",
-            "byProject",
-            "bySystem"
-          ],
-          "enumDescriptions": [
-            "Only the projects that can run on the selected system, one row each.",
-            "Every project, expanded into the systems it targets.",
-            "Every system, expanded into the projects that target it."
-          ],
-          "default": "byProject",
-          "description": "How the Projects view lays out the list. Set from the View dropdown in the 8BitScript side bar."
-        },
-        "8bitscript.showExamples": {
-          "type": "boolean",
-          "default": false,
-          "description": "List the examples from the 8bitscript repository, in a section of their own, alongside the workspace's projects and the apps that ship with the toolchain. Only offered when the toolchain in use comes from a checkout of the repository, which is where they live (examples/). Launch Example… reaches them either way."
+          "description": "The project the launcher's Run and Build buttons act on, as an absolute directory. Empty means the first project the workspace offers. Set from the Project dropdown in the 8BitScript side bar."
         },
         "8bitscript.examplesPath": {
           "type": "string",
           "default": "",
-          "description": "A directory of examples to list when \"Show examples\" is on, instead of the one found beside the toolchain. Each subdirectory with an 8bs.config.ts is one."
+          "description": "A directory of examples to list in the launcher's Project dropdown, instead of the one found beside the toolchain. Each subdirectory with an 8bs.config.ts is one."
         },
         "8bitscript.llvmMosHome": {
           "type": "string",
@@ -399,7 +246,7 @@
         "8bitscript.hardware": {
           "type": "object",
           "default": {},
-          "description": "The hardware fitted to each system when the Run and Build buttons run it: an object keyed by system, each `{ profile, options }` — a profile name (a preset from the machine's catalog, or one the project composes in its 8bs.config.ts) and option values set on top, passed as --profile and --hardware. Set from the Hardware controls in the 8BitScript side bar; `8bs targets` lists what each system can be fitted with.",
+          "description": "The hardware fitted to each system when the launcher runs it: an object keyed by system, each `{ profile, options }` — a profile name (a preset from the machine's catalog, or one the project composes in its 8bs.config.ts) and option values set on top, passed as --profile and --hardware. Set under Hardware · Region · Facts in the 8BitScript side bar; `8bs targets` lists what each system can be fitted with.",
           "additionalProperties": {
             "type": "object",
             "properties": {
@@ -417,6 +264,11 @@
               }
             }
           }
+        },
+        "8bitscript.showExamples": {
+          "type": "boolean",
+          "default": false,
+          "description": "List the examples and proofs of concept that ship with the toolchain in the launcher's Project dropdown, in a group of their own beside the workspace's projects and the toolchain's apps. Off by default: in a checkout of the 8bitscript repository they outnumber the projects you are working on. Toggled with the book icon in the 8BitScript side bar's title bar, which is only offered when there are examples to show. Launch Example… reaches them either way."
         }
       }
     },
@@ -446,6 +298,12 @@
             "enum": [
               "vic20",
               "c64",
+              "pet",
+              "c128",
+              "atari8",
+              "nes",
+              "cx16",
+              "mega65",
               "web"
             ],
             "description": "The system to build for or run on. Required for run and build."
@@ -460,6 +318,7 @@
   },
   "main": "./src/extension.cjs",
   "activationEvents": [
+    "onView:8bitscript.launcher",
     "workspaceContains:**/*.8bs",
     "workspaceContains:**/8bs.config.ts"
   ],

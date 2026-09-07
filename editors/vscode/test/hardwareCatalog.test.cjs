@@ -5,7 +5,8 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
-  effectiveFacts, effectiveOptions, hardwareArgs, normalizeSelection, parseTargets, selectionLabel,
+  effectiveFacts, effectiveOptions, hardwareArgs, matchesSystem, normalizeSelection, parseTargets,
+  selectionLabel,
 } = require('../src/hardwareCatalog.cjs');
 
 const SAMPLE = JSON.stringify({
@@ -23,6 +24,10 @@ const SAMPLE = JSON.stringify({
     hardware: {},
     facts: { 'video.sprites': 8, 'input.mouse': false, 'memory.banked': false, 'memory.bankedKib': 0 },
   }],
+  systems: [
+    { name: 'C64 with a mouse', target: 'c64', profile: null, hardware: { port1: 'mouse1351' }, region: null, label: 'port1=mouse1351' },
+    { name: 'PAL C64 with an REU', target: 'c64', profile: 'reu512', hardware: {}, region: 'pal', label: 'port1=mouse1351' },
+  ],
   facts: [
     { key: 'video.sprites', type: 'count', when: 'build', program: true, doc: 'Hardware sprites in total.' },
     { key: 'input.mouse', type: 'flag', when: 'run', program: true, doc: 'A mouse this build may use.' },
@@ -78,4 +83,44 @@ test('a project\'s own hardware for a target is its stock in the panel, under a 
   assert.equal(effectiveOptions(target, { profile: 'stock' }).ram, 'none', 'a named profile over it');
   assert.equal(effectiveOptions(target, { options: { ram: 'none' } }).ram, 'none', 'an option over it');
   assert.equal(effectiveFacts(target, {})['memory.banked'], true);
+});
+
+// The whole machines a project has been set up for ride on the map the way
+// the fact schema does: they are the project's, not any one machine's.
+test('parseTargets carries the project\'s systems, and an old toolchain\'s answer has none', () => {
+  assert.deepEqual(parseTargets(SAMPLE).systems.map((s) => s.name), ['C64 with a mouse', 'PAL C64 with an REU']);
+  assert.deepEqual(parseTargets(JSON.stringify({ targets: [] })).systems, []);
+  assert.equal(parseTargets(SAMPLE).systemsError, null);
+});
+
+test('a systems block the config gets wrong is a message, not a missing panel', () => {
+  // The CLI still answers about the machines; only the systems are gone,
+  // and the reason comes with them so the typo can be found.
+  const targets = parseTargets(JSON.stringify({
+    targets: [{ id: 'c64', title: 'Commodore 64', options: {}, presets: {}, profiles: {}, hardware: {}, facts: {} }],
+    systems: [],
+    systemsError: "8bs.config.ts: system 'My NES': this project does not target nes",
+  }));
+  assert.equal(targets.get('c64').title, 'Commodore 64');
+  assert.deepEqual(targets.systems, []);
+  assert.match(targets.systemsError, /does not target nes/);
+});
+
+test('a selection is recognised as one of the project\'s systems by what it fits, not by what was clicked', () => {
+  const targets = parseTargets(SAMPLE);
+  const target = targets.get('c64');
+  const [mouse, reu] = targets.systems;
+
+  // Reaching the same machine by hand names it just the same.
+  assert.equal(matchesSystem(mouse, target, { profile: null, options: { port1: 'mouse1351' } }, 'ntsc'), true);
+  assert.equal(matchesSystem(mouse, target, { profile: null, options: {} }, 'ntsc'), false);
+
+  // The project's `reu512` profile is a mouse and no expansion; the entry
+  // names that profile, so a selection naming it directly is the same fit.
+  assert.equal(matchesSystem(reu, target, { profile: 'reu512', options: {} }, 'pal'), true);
+  // ...but not on the wrong region, which the entry pins.
+  assert.equal(matchesSystem(reu, target, { profile: 'reu512', options: {} }, 'ntsc'), false);
+  // An entry that pins no region fits either.
+  assert.equal(matchesSystem(mouse, target, { profile: null, options: { port1: 'mouse1351' } }, 'pal'), true);
+  assert.equal(matchesSystem(mouse, undefined, { profile: null, options: {} }, 'ntsc'), false);
 });

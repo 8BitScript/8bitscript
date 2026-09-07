@@ -5,9 +5,10 @@
 // All the intelligence — diagnostics now, and hover, completion, and
 // go-to-definition later — comes from `8bs lsp`, which is part of the toolchain
 // rather than part of this extension. That is what lets other editors get the
-// same behaviour by running the same command. The projects view
-// (projectsView.cjs) follows the same rule for building and running: it only
-// ever starts the `8bs run`/`8bs build` commands a person would type.
+// same behaviour by running the same command. The side bar's launcher
+// (launcherView.cjs, over runner.cjs) follows the same rule for building and
+// running: it only ever starts the `8bs run`/`8bs build` commands a person
+// would type.
 //
 // CommonJS on purpose: it is the entry format every version of the editor host
 // loads without configuration.
@@ -17,8 +18,8 @@ const vscode = require('vscode');
 const { LanguageClient, TransportKind } = require('vscode-languageclient/node');
 
 const { BINARY, findToolchain } = require('./projects.cjs');
-const { registerProjectsView } = require('./projectsView.cjs');
-const { registerControlsView } = require('./controlsView.cjs');
+const { registerRunner } = require('./runner.cjs');
+const { registerLauncherView } = require('./launcherView.cjs');
 
 let client;
 let output;
@@ -108,12 +109,7 @@ function activate(context) {
     }),
   );
 
-  const projects = registerProjectsView(context, output);
-  registerControlsView(context, {
-    list: () => projects.visible,
-    onDidChange: projects.onDidChangeTreeData,
-    loadTargets: (dir) => projects.loadTargets(dir),
-  });
+  registerLauncherView(context, registerRunner(context, output));
 
   tryStart();
 }

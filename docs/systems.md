@@ -151,7 +151,7 @@ line, and the editor's Hardware panel shows the sheet a selection gives.
 | `Video` | `COLUMNS`, `ROWS`, `CELL_WIDTH`, `CELL_HEIGHT` (the text grid); `PALETTE` (colours at once); `CELL_COLORS`; `COLOR_PER_CELL` (whether one cell's colour can be set on its own — false on the PET, the Atari 8-bit and the NES, where `CELL_COLORS` is still 2); `GLYPHS` (redefinable characters, 0 where the font is fixed); `BLOCK_WIDTH`, `BLOCK_HEIGHT` (pseudo-pixels per cell from block glyphs, 0 where there are none); `BITMAP`; `LAYERS`; `SCROLL`; `SPRITES`; `SPRITES_PER_LINE`; `SPRITE_WIDTH`, `SPRITE_HEIGHT` (the largest); `SPRITE_COLORS` |
 | `Audio` | `VOICES`; `NOISE`; `ENVELOPE`; `FILTER`; `PCM`; `VOLUME` (a volume per voice — false on the PET); `ENTROPY` (a hardware random source) |
 | `Input` | `KEYBOARD`; `JOYSTICKS`; `PADS` (the ports); `MOUSE`, `PADDLES` (run time — see below) |
-| `Storage` | `SAVE` (somewhere this build can persist bytes) |
+| `Storage` | `SAVE` (somewhere this build can persist bytes); `KIB` (how much that place holds) |
 | `Memory` | `RAM` (bytes the program is linked to use); `BANKED`, `BANKED_KIB` (run time) |
 
 Three rules:
@@ -513,6 +513,19 @@ Studio's assets are 8BitScript source (`packages/studio/AGENTS.md`,
 place it as data. Storage is what gets it from the emulator back to the
 repository.
 
+**How much of it there is** is a hardware choice, not a property of the
+machine: a C64 with a 1541 has 164 KiB to write to and the same C64 with a
+1581 has 783. So the Commodore machines carry a `drive` option — `8bs
+targets` lists the values — and it sets two facts, `storage.save` and
+`storage.kib`. KiB rather than bytes for the same reason
+`memory.bankedKib` is KiB: a disk does not fit in the 16 bits an 8-bit
+machine counts in. The figures are the drives' *usable* capacity, measured
+by formatting an image of each type with VICE's `c1541` and reading the
+free blocks back — 664 blocks of 254 bytes on a 1541, 3160 on a 1581 —
+not the image's size on disk. Where the route has no fixed size (a host
+directory, an SD card), the sheet states the smallest real medium that
+route can stand for, so a program that fits the fact fits the hardware.
+
 ## Project configuration
 
 `8bs.config.ts` lists targets as an array, or — the object form — as a
@@ -552,9 +565,92 @@ export default {
   each emulator is the catalog's, so the same profile drives VICE,
   atari800, FCEUX, x16emu, and xemu.
 
-Still to build: a way for the editor to save a selection back into the
-config as a named profile (today the editor keeps ad-hoc selections in a
-workspace setting and passes them as `--hardware`).
+### The machines a project is set up for
+
+`targets` says what a program compiles for, and the answer is usually
+*everything* — a portable program is the point. But a machine is not one
+thing. Some hardware is always a choice rather than a fact of the machine:
+a mouse or a stick in a port, how much RAM is in the expansion, which
+model of PET. A stock VIC-20 and an 8K one run different programs from the
+same source, because `#fact(memory.size)` folds differently in each.
+
+`systems` names those arrangements, so they can be picked instead of
+assembled:
+
+```ts
+export default {
+  entry: 'src/main.8bs',
+  targets: { c64: { hardware: { port1: 'mouse1351' } }, vic20: {}, pet: {}, web: {} },
+  systems: {
+    'C64 with a mouse':       { target: 'c64' },
+    'C64 with a joystick':    { target: 'c64', hardware: { port1: 'joystick' } },
+    'VIC-20, expanded to 8K': { target: 'vic20', profile: '8k' },
+    'PAL C64':                { target: 'c64', region: 'pal' },
+    'The browser':            { target: 'web' },
+  },
+};
+```
+
+- An entry is a `8bs run` line written down: `target` is the machine,
+  `profile` names a catalog preset or one of that machine's own profiles,
+  `hardware` sets options on top, and `region` is `'ntsc'` or `'pal'` for
+  the machines that have one. Nothing new resolves here — it is the same
+  order `--profile` and `--hardware` resolve in, so a system shows exactly
+  what it will run.
+- `target` must be one the project builds for, every option and value must
+  exist, and a region on a machine without one is refused. A bad entry is
+  an error from `8bs targets` and a warning from `8bs build`, rather than
+  a name that quietly fails to appear in the editor.
+- `8bs targets` lists them under *This project is set up for*, with the
+  command each stands for. The [editor's side bar](#the-editor) offers
+  them in its System dropdown above the bare machines, and picking one
+  fits the machine, its hardware and its region in a single choice.
+- The names are the project's, so they can say what the arrangement is
+  *for* — "the editor tier", "what the demo needs" — rather than repeat
+  the option values.
+
+### The floor a program sets
+
+Most programs are written to degrade: they read the fact sheet and do less
+where there is less, which is what `#fact(...)` is for and what
+[Studio](studio.md) does. Some cannot. A program that needs 8K to hold its
+editor, or 200 KiB of disk to write its files to, has a floor, and
+`requires` is where it says so:
+
+```ts
+export default {
+  entry: 'src/main.8bs',
+  targets: ['vic20', 'c64', 'nes'],
+  requires: { 'memory.ram': 8192, 'storage.kib': 200 },
+};
+```
+
+- A key is any fact on the program's sheet. A **count is a floor** and a
+  **flag must be true** — that is the shape every real requirement has.
+- A `when: 'run'` fact cannot be required. Whether a mouse is plugged in is
+  answered on the machine, not by the build, so a program that needs one
+  asks the capability and says so itself; requiring it would be a promise
+  the build cannot keep. `requires` refuses it, by name.
+- `8bs build` checks it against the sheet the build resolves to, **before
+  the compiler runs**, and refuses with what is short and what would fix
+  it:
+
+```
+8bs build: this program asks for more than a stock c64 gives.
+  storage.kib: needs 200, this build has 164
+    fit one of: drive=1571 gives 329, drive=1581 gives 783  (--hardware, or a system in 8bs.config.ts)
+```
+
+  That is the point of the feature. Without it the same program fails at
+  the linker with a section overflow measured in bytes, which is true and
+  says nothing about what to do.
+
+- `8bs targets` lists the floor, and marks every
+  [system](#the-machines-a-project-is-set-up-for) that falls short of it;
+  the editor's System dropdown marks those *(too small)* and the panel
+  says what is missing. A short system is still listed and still runnable
+  — the build is the authority, and a fact sheet the editor worked out is
+  reason to warn, not to refuse.
 
 ## The editor
 
@@ -564,21 +660,32 @@ lists no target, option, value, or preset of its own.
 - **`8bs targets --json`** prints every target with its title, emulator,
   whether region applies, its options (each value with its label, whether
   it changes the build, its tag, its facts), its presets, and — run inside
-  a project — that project's own profiles. `8bs targets` without the flag
+  a project — that project's own profiles and the whole
+  [systems](#the-machines-a-project-is-set-up-for) it is set up for. `8bs targets` without the flag
   prints the same as a table. A new machine or option in a package is a
   new row in the editor with no extension release.
-- **The Hardware controls** in the side bar: a profile dropdown (the
-  presets, and the open project's profiles) and one control per option,
-  showing the value each ends up with after the profile and the options
-  set on top, marked where a value changes the build. The selection is a
-  workspace setting keyed by system (`8bitscript.hardware`), every Run
-  and Build passes it as `--profile` and `--hardware`, the hint shows the
-  exact `8bs run` line, and a row's description names what is fitted.
-- **Still to build:** a facts panel — the numbers the program will see
-  for the selected hardware, from the same listing — and saving a
-  selection into the project's config as a named profile. Emulator model
-  choices that are region-coupled (which SID a C64 model has by default,
-  which VIC-II) stay on `--pal` until region moves into the catalog.
+- **The Hardware controls** in the side bar, behind the launcher's one
+  disclosure: a profile dropdown (the presets, and the open project's
+  profiles) and one control per option, showing the value each ends up
+  with after the profile and the options set on top, marked where a value
+  changes the build. Under them, *What a program can rely on* is the fact
+  sheet that selection produces — the numbers `@8bitscript/system`'s
+  consts fold to in that build, with a run-time fact shown as *may use*.
+  The selection is a workspace setting keyed by system
+  (`8bitscript.hardware`), every Run and Build passes it as `--profile`
+  and `--hardware`, the launcher's last line is the exact `8bs run` line,
+  and the button itself names what is fitted.
+- **Save as a System…** in the side bar writes what the panel is set to
+  into the project's `8bs.config.ts` as a named
+  [system](#the-machines-a-project-is-set-up-for), so an arrangement
+  someone worked out is one choice from then on — and one the whole team
+  gets, since the config is the project's rather than the editor's. The
+  write is a text edit on that one block; a config that computes its
+  targets rather than writing them out is opened with the entry to place
+  instead of being rewritten.
+- **Still to build:** emulator model choices that are region-coupled
+  (which SID a C64 model has by default, which VIC-II) stay on `--pal`
+  until region moves into the catalog.
 
 ## What a new machine needs
 

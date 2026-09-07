@@ -8,7 +8,8 @@ import assert from 'node:assert/strict';
 
 import {
   analyze, link, tokenize, parse, foldCompileTime, NodeType, FACTS, PROGRAM_FACTS,
-  factConstName, factPlaceholder, factProblems, getHoverInfo, getCompletions,
+  factConstName, factPlaceholder, factProblems, requiresProblems, unmetRequirements,
+  getHoverInfo, getCompletions,
 } from '../index.mjs';
 
 const codes = (src, options) => analyze(src, 't.8bs', options).map((d) => d.code);
@@ -159,3 +160,47 @@ test('completion after # offers #fact, and inside #fact( offers the program\'s k
   assert.deepEqual(partial.map((i) => i.label), PROGRAM_FACTS, 'a partly typed key still completes');
   assert.deepEqual(getCompletions('let x: utinyint = #frames(', 26), [], 'not inside another builtin');
 });
+
+// `requires`: the floor a program sets on the machine it is built for. The
+// table owns what may be required and what "enough" means; the CLI owns
+// the message and the machine.
+test('a requirement is a floor for a count and a yes for a flag, and nothing else', () => {
+  assert.deepEqual(requiresProblems({ 'memory.ram': 8192, 'storage.save': true }), []);
+  assert.deepEqual(requiresProblems({}), []);
+  assert.deepEqual(requiresProblems(undefined), []);
+
+  const one = (requires) => requiresProblems(requires)[0];
+  // A run fact is the machine's answer, not the build's, so requiring it
+  // would be a promise the build cannot keep.
+  assert.match(one({ 'input.mouse': true }), /settled on the machine, not by the build/);
+  assert.match(one({ 'memory.bankedKib': 512 }), /settled on the machine/);
+  assert.match(one({ 'video.frameRate': 50 }), /not on a program's sheet/);
+  assert.match(one({ 'nope.nope': 1 }), /is not a fact/);
+  assert.match(one({ 'video.columns': -1 }), /a whole number above zero/);
+  assert.match(one({ 'video.bitmap': false }), /require it with true, or leave it out/);
+});
+
+test('unmetRequirements answers against a build\'s sheet, and a missing fact is the placeholder', () => {
+  const facts = { 'memory.ram': 3583, 'storage.save': false, 'video.columns': 22 };
+  assert.deepEqual(unmetRequirements({ 'memory.ram': 8192 }, facts), [{ key: 'memory.ram', need: 8192, have: 3583 }]);
+  assert.deepEqual(unmetRequirements({ 'memory.ram': 3583 }, facts), [], 'a floor is met exactly');
+  assert.deepEqual(unmetRequirements({ 'video.columns': 40 }, facts), [{ key: 'video.columns', need: 40, have: 22 }]);
+  assert.deepEqual(unmetRequirements({ 'storage.save': true }, facts), [{ key: 'storage.save', need: true, have: false }]);
+  assert.deepEqual(unmetRequirements({ 'memory.ram': 8192, 'video.columns': 22 }, facts).map((u) => u.key), ['memory.ram']);
+  // A sheet that never mentioned the key answers with the placeholder
+  // rather than throwing: every catalog declares every program fact, but
+  // this is asked of hand-made sheets too.
+  assert.deepEqual(unmetRequirements({ 'video.sprites': 1 }, facts), [{ key: 'video.sprites', need: 1, have: 0 }]);
+  assert.deepEqual(unmetRequirements({}, facts), []);
+});
+
+test('storage.kib is on the program\'s sheet, a build-time count', () => {
+  const fact = FACTS.get('storage.kib');
+  assert.equal(fact.type, 'count');
+  assert.equal(fact.when, 'build');
+  assert.equal(fact.program, true);
+  assert.ok(PROGRAM_FACTS.includes('storage.kib'));
+  assert.equal(factPlaceholder('storage.kib'), 0);
+  assert.deepEqual(factConstName('storage.kib'), { namespace: 'Storage', name: 'KIB' });
+});
+

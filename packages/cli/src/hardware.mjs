@@ -37,9 +37,16 @@
 // preset's — and `--hardware ram=8k,port1=mouse1351` sets options on top
 // of whichever was chosen. The result is one object the build, the
 // emulator launch, the screenshot path, and `8bs targets` all read.
+// One thing to know when reading a catalog: an option value whose name is
+// all digits (`1541`, a PET's `8032`) is a canonical array index to
+// JavaScript, so `Object.keys` hands those back first, in numeric order,
+// ahead of every name with a letter in it. Nothing here depends on the
+// order of *values* — facts merge per option, and `buildValues` only ever
+// holds values that carry a `build` — but a list printed from one is not
+// in the order the package.json writes it, and that is why.
 import { createRequire } from 'node:module';
 
-import { MACHINES } from '@8bitscript/compiler';
+import { MACHINES, requiresProblems, unmetRequirements } from '@8bitscript/compiler';
 
 const require = createRequire(import.meta.url);
 
@@ -48,7 +55,7 @@ const require = createRequire(import.meta.url);
  * with nothing to fit (web).
  *
  * @param {string} machine
- * @returns {{ machine: string, options: object, presets: object, facts: object }}
+ * @returns {{ machine: string, options: object, presets: object, facts: object, run: object }}
  */
 export function loadCatalog(machine) {
   if (!MACHINES.includes(machine)) throw new Error(`no such machine '${machine}'`);
@@ -59,6 +66,7 @@ export function loadCatalog(machine) {
     options: hardware.options ?? {},
     presets: hardware.presets ?? {},
     facts: hardware.facts ?? {},
+    run: hardware.run ?? {},
   };
 }
 
@@ -135,9 +143,175 @@ export function listedTargets(config) {
 }
 
 /**
+ * The floor a program sets: `requires` in its 8bs.config.ts, a fact key to
+ * the least of it the program needs.
+ *
+ *     requires: { 'memory.ram': 8192, 'storage.save': true }
+ *
+ * The machines are not alike, and this is where a program says which of
+ * the differences it cannot live with. A count is a floor and a flag must
+ * be true, checked against the sheet the build resolves to — so "needs 8K"
+ * is a sentence about the program, answered before the compiler runs,
+ * instead of a linker overflow at the end of one.
+ *
+ * @param {object|null} config
+ * @returns {{ ok: true, requires: object } | { ok: false, error: string }}
+ */
+export function projectRequires(config) {
+  const requires = config?.requires;
+  if (requires === undefined) return { ok: true, requires: {} };
+  if (requires === null || typeof requires !== 'object' || Array.isArray(requires)) {
+    return { ok: false, error: "8bs.config.ts's `requires` must be an object of fact → the least of it the program needs" };
+  }
+  const problems = requiresProblems(requires);
+  if (problems.length > 0) {
+    return { ok: false, error: `8bs.config.ts's \`requires\`: ${problems.join('; ')}` };
+  }
+  return { ok: true, requires };
+}
+
+/**
+ * What this machine could be fitted with that would meet a requirement the
+ * build does not — the half of the message that makes it actionable, since
+ * "needs 8192 bytes" on a stock VIC-20 is only useful beside "ram=8k gives
+ * 28671".
+ *
+ * Every value of every option is resolved on top of the choice already
+ * made, so what comes back is one change away, not a different machine.
+ *
+ * @param {object} catalog
+ * @param {string} key   the fact that fell short
+ * @param {number|boolean} need
+ * @param {object} [choice] the same shape resolveHardware takes
+ * @returns {string[]} `option=value gives N`, in catalog order
+ */
+export function whatSatisfies(catalog, key, need, choice = {}) {
+  const found = [];
+  for (const [id, option] of Object.entries(catalog.options ?? {})) {
+    for (const value of Object.keys(option.values ?? {})) {
+      const resolved = resolveHardware(catalog, {
+        ...choice,
+        overrides: { ...choice.overrides, [id]: value },
+      });
+      if (!resolved.ok) continue;
+      const have = resolved.hardware.facts[key];
+      if (unmetRequirements({ [key]: need }, resolved.hardware.facts).length === 0) {
+        found.push(`${id}=${value} gives ${have === true ? 'it' : have}`);
+      }
+    }
+  }
+  return found;
+}
+
+/** The machines whose emulator takes a region; `--pal` means nothing elsewhere. */
+export const REGION_MACHINES = new Set(['vic20', 'c64', 'c128', 'mega65', 'atari8']);
+
+/**
+ * The machines a project has been *set up for*: its `systems` block, each
+ * entry one of its targets with the hardware already fitted.
+ *
+ * This is the layer above `targets`. A program is normally written for
+ * every machine — `targets` stays the whole list — but some hardware is
+ * always a choice rather than a fact of the machine: a mouse or a stick in
+ * a port, how much RAM is in the expansion, which drive is attached. A
+ * `systems` entry names one such arrangement, so a person picks *"C64 with
+ * a mouse"* instead of assembling `--profile`/`--hardware` from the
+ * catalog each time, and the editor lists it ready to run:
+ *
+ *     systems: {
+ *       'C64 with a mouse': { target: 'c64', hardware: { port1: 'mouse1351' } },
+ *       'Expanded VIC-20':  { target: 'vic20', profile: '8k' },
+ *       'X16':              { target: 'cx16' },
+ *     }
+ *
+ * `profile` names a catalog preset or one of that machine's own profiles
+ * and `hardware` sets options on top, exactly as `--profile` and
+ * `--hardware` do — an entry is the command line, written down. `region`
+ * is `'ntsc'` or `'pal'` for the machines that have one.
+ *
+ * Every entry is checked here rather than where it is used: a name in the
+ * config that quietly fails to appear in the editor is worse than an
+ * error, so a bad entry fails the whole block.
+ *
+ * @param {object|null} config
+ * @returns {{ ok: true, systems: SystemSetup[] } | { ok: false, error: string }}
+ *
+ * @typedef {{
+ *   name: string, target: string, profile: string|null,
+ *   hardware: object, region: 'ntsc'|'pal'|null, label: string,
+ * }} SystemSetup
+ */
+export function projectSystems(config) {
+  const declared = config?.systems;
+  if (declared === undefined) return { ok: true, systems: [] };
+  if (declared === null || typeof declared !== 'object' || Array.isArray(declared)) {
+    return { ok: false, error: "8bs.config.ts's `systems` must be an object of name → { target, ... }" };
+  }
+  const listed = listedTargets(config);
+  // The floor, but only once it is a floor: an unchecked `requires` would
+  // have every system marked short over a key the CLI is about to refuse
+  // — and `requires: ['memory.ram']` would ask the sheet for a fact named
+  // '0'. A config with a bad block gets its error, and its systems get no
+  // verdict rather than a wrong one.
+  const required = projectRequires(config);
+  const floor = required.ok ? required.requires : {};
+  const systems = [];
+  for (const [name, entry] of Object.entries(declared)) {
+    const where = `8bs.config.ts: system '${name}'`;
+    if (!entry || typeof entry !== 'object') {
+      return { ok: false, error: `${where} must be an object with a target` };
+    }
+    // A system is offered beside the bare machines, in one list. A name
+    // that is already a machine's would be two entries answering to the
+    // same word, and the wrong one would win.
+    if (MACHINES.includes(name)) {
+      return { ok: false, error: `${where}: '${name}' is a machine's own name; call the system something else` };
+    }
+    const { target, profile, hardware = {}, region = null } = entry;
+    if (!MACHINES.includes(target)) {
+      return { ok: false, error: `${where}: '${target}' is not a machine. Machines: ${MACHINES.join(', ')}` };
+    }
+    if (listed && !listed.includes(target)) {
+      return { ok: false, error: `${where}: this project does not target ${target}. Targets: ${listed.join(', ')}` };
+    }
+    if (region !== null && region !== 'ntsc' && region !== 'pal') {
+      return { ok: false, error: `${where}: region must be 'ntsc' or 'pal', got ${JSON.stringify(region)}` };
+    }
+    if (region !== null && !REGION_MACHINES.has(target)) {
+      return { ok: false, error: `${where}: the ${target} has no region to pick; leave it out` };
+    }
+    // The entry has to resolve the way the build will resolve it, or the
+    // editor offers a machine that cannot be run. `profile: null` is
+    // written out by anything that fills the shape in mechanically, and
+    // means the same as leaving it out — not a profile called "null".
+    const resolved = resolveHardware(loadCatalog(target), {
+      profile: profile ?? undefined,
+      overrides: hardware,
+      profiles: projectProfiles(config, target),
+      defaults: projectHardware(config, target),
+    });
+    if (!resolved.ok) return { ok: false, error: `${where}: ${resolved.error}` };
+    systems.push({
+      name,
+      target,
+      profile: profile ?? null,
+      hardware: Object.fromEntries(Object.entries(hardware).map(([k, v]) => [k, String(v)])),
+      region,
+      label: resolved.hardware.label,
+      // What this arrangement falls short of, if the program set a floor.
+      // A system that cannot run the program is still listed — it is in
+      // the config, and silently dropping it would be the debugging trap
+      // this function exists to avoid — but it is listed as such.
+      unmet: unmetRequirements(floor, resolved.hardware.facts),
+    });
+  }
+  return { ok: true, systems };
+}
+
+/**
  * Resolve the hardware for one build.
  *
- * @param {{ machine: string, options: object, presets: object, facts: object }} catalog
+ * @param {{ machine: string, options: object, presets: object, facts: object, run?: object }} catalog
  * @param {{ profile?: string, overrides?: object, profiles?: object, defaults?: object }} [choice]
  *   `defaults` are the project's own values for this machine (from
  *   projectHardware()), applied over the catalog's; `profile` names a
@@ -211,6 +385,11 @@ export function resolveHardware(catalog, { profile, overrides = {}, profiles = {
     for (const [emulator, args] of Object.entries(entry.load ?? {})) load[emulator] = args;
     Object.assign(facts, entry.facts ?? {});
     if (!isDefault) labels.push(`${id}=${value}`);
+  }
+  // Stock-machine emulator flags (the X16's mouse grab, etc.), after the
+  // option values so a value can still prepend its own flags.
+  for (const [emulator, args] of Object.entries(catalog.run ?? {})) {
+    run[emulator] = [...(run[emulator] ?? []), ...args];
   }
   return {
     ok: true,

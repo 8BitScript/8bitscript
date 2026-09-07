@@ -126,7 +126,8 @@ test(
           { timeoutMs: 90_000 },
         );
         assert.equal(code, 0, `8bs run c64 --hardware port1=${device} --screenshot failed:\n${stdout}${stderr}`);
-        // mouse-probe.8bs: green border when present(), red when not.
+        // mouse-probe.8bs: green border when present() and still at rest,
+        // red when not, yellow if the accumulator drifted with no motion.
         const [r, g, b] = pixelAt(readFileSync(shot), 4, 4);
         const green = g > r + 30 && g > b + 30;
         const red = r > g + 30 && r > b + 30;

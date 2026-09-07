@@ -17,7 +17,10 @@ export { parse } from './src/parser/index.mjs';
 export { NodeType, walk } from './src/ast/index.mjs';
 export { check } from './src/checker/index.mjs';
 export { foldCompileTime, DURATION_CLOCKS, DURATION_UNITS, SYSTEMS } from './src/fold/index.mjs';
-export { FACTS, PROGRAM_FACTS, factConstName, factPlaceholder, factProblems } from './src/fold/facts.mjs';
+export {
+  FACTS, PROGRAM_FACTS, factConstName, factPlaceholder, factProblems,
+  requiresProblems, unmetRequirements,
+} from './src/fold/facts.mjs';
 export { lower, entryOf } from './src/ir/index.mjs';
 export { link, memoryOf } from './src/linker/index.mjs';
 export {

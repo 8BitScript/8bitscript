@@ -49,11 +49,18 @@
 // C64's: each axis is a counter presented on the port's analogue line and
 // converted by the SID at $D419/$D41A, valued `(counter & 0x7f) + 0x40` so
 // it lives in 64..191 and wraps; movement is the difference between two
-// readings. CIA1 port A's top two bits pick the port. **Not verified on
-// this machine** — the C64's was measured under VICE at each of
-// `-controlport1device`'s settings, and the same measurement under x128
-// has not been made. The code is the C64's, against registers this
-// package already declares at the same addresses.
+// readings, with bit 0 dropped (`$7E`) because the SID's LSB is noise —
+// the same mask `@8bitscript/c64/mouse` uses, measured there under x64sc.
+// CIA1 port A's top two bits pick the port. Presence uses the C64's
+// range check (a 1351 sits in 64..191; nothing, a stick and paddles at
+// rest read 255). **One reading of each pot a frame** answers both
+// presence and movement — a second read of the SID's converter is a
+// different moment, which is the bug `@8bitscript/pointer` was written
+// against. The KERNAL IRQ is alive here and writes CIA1 for the keyboard
+// scan, so `poll()` holds `sei` across the pot read and the matrix
+// snapshot and waits for the SID after selecting the port; the C64's
+// `waitFrame()` `sei` is what makes the same select-at-end-of-poll
+// arrangement work there without a delay.
 import { cia1PortA, cia1PortB, cia1DirectionA, cia1DirectionB, paddleX, paddleY } from "./index.8bs";
 
 const HAS_MOUSE: bool = #fact(input.mouse);
@@ -81,10 +88,11 @@ namespace Edge {
 // The analogue lines' reading, as on the C64: a 1351 sits in 64..191 and
 // anything else at rest reads 255.
 namespace Pot {
-    const COUNTER: utinyint = 0x7F;
+    const COUNTER: utinyint = 0x7E;  // bits 1-6; bit 0 is SID ADC noise, not motion
     const LOWEST: utinyint = 64;
     const HIGHEST: utinyint = 191;
     const HALF: utinyint = 64;
+    const STILL: utinyint = 3;       // |delta| < 3 is fuzz, not a move
 }
 
 // %01 in port A's top bits reads port 1's analogue lines, and drives no
@@ -134,12 +142,18 @@ function step(at: usmallint, last: utinyint, now: utinyint, limit: usmallint): u
         return at;
     }
     if (delta < Pot.HALF) {
+        if (delta < Pot.STILL) {
+            return at;
+        }
         if (limit - at < delta) {
             return limit;
         }
         return at + delta;
     }
     let back: utinyint = 128 - delta;
+    if (back < Pot.STILL) {
+        return at;
+    }
     if (back > at) {
         return 0;
     }
@@ -158,14 +172,32 @@ export namespace input {
     }
 
     // Once a frame, right after waitFrame(), and never twice. The order is
-    // the C64's and forced by the same hardware: read the pots for the
-    // port last frame's select settled, then the matrix (which drives all
-    // eight columns and leaves port A at $FF), then the sticks (which need
-    // port A at $FF), then point the SID back at the mouse's port.
+    // the C64's and forced by the same hardware: read the pots, then the
+    // matrix (which drives all eight columns and leaves port A at $FF),
+    // then the sticks (which need port A at $FF), then point the SID back
+    // at the mouse's port. `sei` across that work: the KERNAL IRQ owns
+    // CIA1 between scans on this machine.
     function poll(): void {
+        asm6502 { sei }
         if (HAS_MOUSE) {
-            let nowX: utinyint = paddleX & Pot.COUNTER;
-            let nowY: utinyint = paddleY & Pot.COUNTER;
+            // Select, then wait: the SID needs ~0.5 ms after the port
+            // bits change. 256 DEX/BNE is ~1.3 ms at 1 MHz, and `sei`
+            // keeps the KERNAL from stealing the select during it.
+            cia1PortA = MOUSE_PORT_1;
+            asm6502 {
+                ldx #0
+            1:
+                dex
+                bne 1b
+            }
+            // One reading of each line, answering both questions. The
+            // C64's `present()` used to re-read the converter later in
+            // the same frame and the arrow flickered out; keep these.
+            let rawX: utinyint = paddleX;
+            let rawY: utinyint = paddleY;
+            havePointer = rawX >= Pot.LOWEST && rawX <= Pot.HIGHEST && rawY >= Pot.LOWEST && rawY <= Pot.HIGHEST;
+            let nowX: utinyint = rawX & Pot.COUNTER;
+            let nowY: utinyint = rawY & Pot.COUNTER;
             if (started) {
                 atX = step(atX, lastX, nowX, LIMIT_X);
                 // Same 1351 Y polarity as the C64: the counter runs
@@ -176,7 +208,6 @@ export namespace input {
             lastX = nowX;
             lastY = nowY;
             started = true;
-            havePointer = paddleX >= Pot.LOWEST && paddleX <= Pot.HIGHEST && paddleY >= Pot.LOWEST && paddleY <= Pot.HIGHEST;
         }
 
         cia1DirectionA = 0xFF;
@@ -246,6 +277,7 @@ export namespace input {
             }
             cia1PortA = MOUSE_PORT_1;
         }
+        asm6502 { cli }
 
         began = held & (before ^ 0xFF);
     }
@@ -284,5 +316,23 @@ export namespace input {
 
     function pointerButton(): bool {
         return (began & Edge.BUTTON) != 0;
+    }
+}
+
+// Pixel position and presence from the same reading `poll()` kept.
+// @8bitscript/c128/pointer draws from these rather than from
+// `pointerCell()`, which is in cells. Not a portable extra: a C64
+// program reaches the same three calls on `@8bitscript/c64/mouse`.
+export namespace mouse {
+    function x(): usmallint {
+        return atX;
+    }
+
+    function y(): usmallint {
+        return atY;
+    }
+
+    function present(): bool {
+        return havePointer;
     }
 }
