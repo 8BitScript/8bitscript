@@ -35,7 +35,7 @@ compiler. The remaining pages, in order:
 ## Getting started
 
 Once setup is done, the [getting started tutorial](tutorial.md) walks through
-cloning the repository, building and running the `examples/proof-of-concept/borders` program,
+cloning the repository, building and running the `examples/borders` program,
 and where to look next. It is a work in progress, same as everything else
 here — it covers the one path that goes end to end today.
 
@@ -51,7 +51,7 @@ it yet; the page says exactly what runs.
 
 [The package model](packages.md) describes how an 8BitScript project is laid
 out, how the compiler resolves an import out of `node_modules`, and how the
-toolchain is developed against the `examples/proof-of-concept/borders` project inside this
+toolchain is developed against the `examples/borders` project inside this
 repository. It is the specification the module resolver is being written
 against.
 

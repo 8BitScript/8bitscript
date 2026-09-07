@@ -3,6 +3,7 @@
 // when it is not — CI without the SDK still runs the emitter tests).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
@@ -439,4 +440,19 @@ test('buildPrg: nativeSources are assembled and linked — the NES font lands in
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
+});
+
+// ---- the size level is chosen by measuring, not assumed --------------------
+//
+// Neither -Os nor -Oz is smaller everywhere (docs/compiler.md), so buildPrg
+// compiles the program at both and keeps whichever linked smaller. This is
+// a guard against that quietly becoming a single pass again: over the
+// repository's own three programs on eight targets, best-of-two was 669
+// bytes better than -Os alone and made no build worse.
+test('buildPrg compiles at both of LLVM\'s size levels and keeps the smaller', () => {
+  const source = readFileSync(new URL('../src/index.mjs', import.meta.url), 'utf8');
+  const build = source.slice(source.indexOf('export async function buildPrg'));
+  assert.match(build, /compile\('-Os'\)/, 'the build still tries -Os');
+  assert.match(build, /compile\('-Oz'\)/, 'the build still tries -Oz');
+  assert.match(build, /other\.program < first\.program/, 'and keeps whichever linked smaller');
 });

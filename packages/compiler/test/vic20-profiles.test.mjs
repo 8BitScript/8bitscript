@@ -13,7 +13,7 @@ import { link } from '../index.mjs';
 import { emitC } from '../../backend-6502/src/index.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const BORDERS_MAIN = join(HERE, '..', '..', '..', 'examples', 'proof-of-concept', 'borders', 'src', 'main.8bs');
+const BORDERS_MAIN = join(HERE, '..', '..', '..', 'examples', 'borders', 'src', 'main.8bs');
 const VIC20_SRC = join(HERE, '..', '..', 'vic20', 'src');
 
 // The tags a `ram` value carries, read from the catalog the way the CLI

@@ -29,3 +29,29 @@ export let vicColor: volatile<u8>;
 // lower-case ROM at $8800.
 @address(0x9005)
 export let memoryPointer: volatile<u8>;
+
+// ---- the VIAs ($9110, $9120): the control port and the keyboard -------------
+//
+// The VIC-20 splits one joystick across two chips, which is the single
+// most surprising thing about input on this machine. VIA1's port A carries
+// up, down, left and fire; **right is VIA2 port B bit 7** — a line that is
+// otherwise a keyboard *column output*. So reading it means turning that
+// one bit around to an input and back, which is what
+// `@8bitscript/vic20/input` does and why it cannot simply read a port.
+//
+// The keyboard is VIA2: port B selects columns (outputs, DDRB $FF at boot)
+// and port A reads the rows of the selected column (inputs, DDRA $00).
+//
+// Verified against VICE's `vic20via1.c` and `vic20via2.c` — see
+// ../AGENTS.md, which records the port bits and the boot-time direction
+// registers this package relies on.
+@address(0x9111)
+export let via1PortA: volatile<u8>;
+@address(0x9120)
+export let via2PortB: volatile<u8>;
+@address(0x9121)
+export let via2PortA: volatile<u8>;
+@address(0x9122)
+export let via2DirectionB: volatile<u8>;
+@address(0x9123)
+export let via2DirectionA: volatile<u8>;

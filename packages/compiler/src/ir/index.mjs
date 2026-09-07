@@ -80,6 +80,7 @@ class Lowering {
     this.functionTypes = new Map();
     this.functionArity = new Map();
     this.currentParams = new Map();
+    this.currentArrayParams = new Map();
     // This module's own arrays, name to { type, length, constant }: what
     // `a[i]` and `a.length` mean here. An imported array is resolved by the
     // linker, which fills in the element type it cannot know from here.
@@ -664,6 +665,13 @@ class Lowering {
     }
     const name = object.name;
     const ref = { kind: 'ref', name, start: object.start, length: object.length };
+    // An array parameter is the array it was handed, with its element type
+    // and length known from its own type — so `t[i]` range-checks against
+    // the declared length and `t.length` folds, exactly as for a global.
+    if (this.currentArrayParams?.has(name)) {
+      const p = this.currentArrayParams.get(name);
+      return { ref, array: { type: p.elementType, length: p.length } };
+    }
     if (this.currentParams.has(name)) {
       return this.fail(object, `'${name}' is a parameter or local, not an array: ${what} needs an array`);
     }
@@ -759,6 +767,25 @@ class Lowering {
     const params = [];
     for (const p of node.params) {
       const typeName = p.typeAnnotation?.name;
+      // `t: array<utinyint, 4>` — the array itself, passed by reference.
+      // The length is part of the type, so `t.length` is a constant inside
+      // the callee and costs nothing at run time; the caller passes the
+      // array's address and nothing is copied. Read-only for now: an
+      // element is read (`t[i]`), never assigned through.
+      if (typeName === 'array') {
+        const resolved = resolveArrayType(p.typeAnnotation, this.ownConsts);
+        if (resolved.error) return this.fail(p.typeAnnotation, resolved.error);
+        if (p.defaultValue) {
+          return this.fail(p, 'an array parameter has no default: an array is passed, never filled in');
+        }
+        if (params.some((q) => q.default !== undefined)) {
+          return this.fail(p, `'${p.name.name}' needs a default: every parameter after one with a default has one`);
+        }
+        params.push({
+          name: p.name.name, type: 'array', elementType: resolved.type, length: resolved.length,
+        });
+        continue;
+      }
       const type = typeName && resolveScalarType(typeName, { allowString: true });
       if (!type || type === 'void') {
         return this.fail(p, `a parameter of type ${typeName ?? '(none)'} is not compilable yet`);
@@ -789,16 +816,25 @@ class Lowering {
     // to, without passing the type down every recursive call by hand.
     const outerReturnType = this.currentReturnType;
     const outerParams = this.currentParams;
+    const outerArrayParams = this.currentArrayParams;
     this.currentReturnType = returnType;
     this.currentParams = parameterTypes(node);
+    // Array parameters are kept apart from the scalar ones: `parameterTypes`
+    // feeds type inference, which reasons about integers, and an array is
+    // not one. What the body needs from them is the element type and the
+    // length, so `t[i]` range-checks and `t.length` folds.
+    this.currentArrayParams = new Map(
+      params.filter((q) => q.type === 'array').map((q) => [q.name, q]),
+    );
     // A parameter is declared in the body's block: `let x` over a
     // parameter x is a redeclaration, as it is in C and AssemblyScript.
     const outerBlock = this.blockNames;
-    this.blockNames = new Set(this.currentParams.keys());
+    this.blockNames = new Set([...this.currentParams.keys(), ...this.currentArrayParams.keys()]);
     const body = this.functionBody(node.body);
     this.blockNames = outerBlock;
     this.currentReturnType = outerReturnType;
     this.currentParams = outerParams;
+    this.currentArrayParams = outerArrayParams;
 
     this.functions.push({
       name: mangledName ?? (node.name?.name ?? 'anonymous'),
@@ -1048,6 +1084,16 @@ class Lowering {
     if (!this.checkArity(node, callee.name, node.args.length)) return null;
     const args = [];
     for (const argument of node.args) {
+      // An array is handed over by name — `pick(STARTS, i)` — and this is
+      // the one place its bare name is a value: the address of its first
+      // element, nothing copied. Everywhere else a bare array name is an
+      // error, because an array is otherwise used one element at a time.
+      if (argument.type === NodeType.Identifier
+        && !this.currentParams.has(argument.name)
+        && (this.arrays.has(argument.name) || this.currentArrayParams.has(argument.name))) {
+        args.push({ kind: 'ref', name: argument.name, start: argument.start, length: argument.length });
+        continue;
+      }
       const lowered = this.expression(argument);
       if (!lowered) return null;
       args.push(lowered);
@@ -1259,6 +1305,9 @@ class Lowering {
         if (!this.currentParams.has(node.name) && this.arrays.has(node.name)) {
           return this.fail(node, `'${node.name}' is an array: read an element (${node.name}[i]) or its .length`);
         }
+        if (this.currentArrayParams?.has(node.name)) {
+          return this.fail(node, `'${node.name}' is an array parameter: read an element (${node.name}[i]) or its .length`);
+        }
         // The span rides along so the linker can point a diagnostic at the
         // exact reference when a name resolves to nothing.
         return { kind: 'ref', name: node.name, start: node.start, length: node.length };
@@ -1302,6 +1351,15 @@ class Lowering {
             return this.fail(node, `a string has no '${node.property.name}'; it has .length and s[i]`);
           }
           return { kind: 'stringLength', string: this.stringRef(node.object) };
+        }
+        // `t.length` on an array parameter: the length is part of the
+        // parameter's type, so it is a constant here and nothing about it
+        // reaches the machine.
+        if (this.currentArrayParams.has(node.object.name)) {
+          if (node.property.name !== 'length') {
+            return this.fail(node, `an array has no '${node.property.name}'; it has .length and a[i]`);
+          }
+          return { kind: 'const', value: this.currentArrayParams.get(node.object.name).length };
         }
         // `a.length` on this module's own array: a number, right here. On a
         // name this module does not declare it is left as a namespace const

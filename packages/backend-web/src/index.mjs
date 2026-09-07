@@ -26,6 +26,11 @@ AS_TYPE.bool = 'bool';
 // STRING_DATA_BASE (see buildWasm), above the screen agreement in
 // @8bitscript/web so a `clearScreen()` can never write over a label.
 AS_TYPE.string = 'usize';
+// An array parameter is the address of the array's first element, the same
+// way a string parameter is: linear memory, indexed by elementAddress().
+// The element type and the length live in the callee's own signature, so
+// neither travels with the call.
+AS_TYPE.array = 'usize';
 // Bytes one element of each type takes in linear memory: the stride of an
 // array, and what `memory.data(size)` reserves for a `let` array.
 const AS_SIZE = Object.fromEntries(

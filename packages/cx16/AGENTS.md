@@ -218,7 +218,7 @@ packages/backend-6502/src/index.mjs      driver (mos-cx16-clang), FRAME_SYNC.cx1
 packages/cli/src/setup/cx16.mjs          8bs setup cx16: emulator+ROM pair, macOS launcher wrapper
 packages/cli/src/run.mjs                 8bs run cx16: x16emu -prg <file> -run
 packages/compiler/test/cx16-screen.test.mjs   the package's generated C, by VERA address
-examples/proof-of-concept/borders/src/main.8bs            the working program (every target), ASCII readout at cell 0
+examples/borders/src/main.8bs            the working program (every target), ASCII readout at cell 0
 docs/setup/cx16.md                       install, the wrapper trap, doctor, what the picture shows
 x16-emulator 77f2bab3, x16-rom fbe32a60   the upstream revisions every fact above was read in
                                          (wherever those two repositories are checked out)

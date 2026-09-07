@@ -1,0 +1,90 @@
+// Everything @8bitscript/c64/pointer's arrow depends on, printed on
+// screen, so a headless `--screenshot` says *why* an arrow is missing
+// rather than only that it is:
+//
+//     8bs run c64 --hardware port1=mouse1351 --screenshot shot.png test/pointer-probe.8bs
+//
+// Two kinds of thing are on it, and both have already been the answer once.
+//
+// **The sprite registers**, because `setupVideo()` sets none of them: a
+// sprite's multicolour, expand and priority bits are whatever the RAM held
+// when the program started, and any of the three can hide a correctly
+// placed arrow without anything looking wrong in the source.
+//
+// **The two presence readings**, `INPUT` and `POINTERSEES`, which must
+// agree. They are `input.pointer()` and `mouse.present()` in the same
+// frame, and they read **0 and 1** while the arrow was invisible: the pot
+// registers were being read twice a frame off a converter that runs
+// continuously, so the input layer refused to move the pointer in the very
+// frame the pointer layer drew it. Presence is now decided once in
+// `mouse.poll()` and kept, and these two columns are what says it stayed
+// that way. See packages/pointer/AGENTS.md.
+import { screen, BorderColor, BackgroundColor } from "../src/screen.8bs";
+import { text, TextColor } from "../src/text.8bs";
+import { pointer } from "../src/pointer.8bs";
+import { mouse } from "../src/mouse.8bs";
+import { input } from "../src/input.8bs";
+import {
+    spriteEnable, spriteMulticolor, spriteExpandX, spriteExpandY,
+    spritePriority, spriteXHigh, spriteColors, spritePositions,
+} from "../src/index.8bs";
+import { spritePointers } from "../src/geometry.8bs";
+
+const ROW: usmallint = text.COLUMNS;
+
+export function main(): void {
+    screen.blank(BorderColor.BLUE, BackgroundColor.BLACK);
+    text.setColor(TextColor.WHITE);
+
+    // The opening sequence a program using both packages writes, in that
+    // order: the input layer claims the port, then the arrow.
+    input.begin();
+    pointer.begin();
+
+    text.print(0, "POINTER PROBE");
+
+    while (true) {
+        waitFrame();
+
+        // The whole input layer, the way a program runs it — keyboard and
+        // joystick scans included, because those drive the same CIA port
+        // the pot lines are selected with.
+        input.poll();
+
+        // What the input layer concluded during that poll.
+        let byInput: utinyint = 0;
+        if (input.pointer()) {
+            byInput = 1;
+        }
+
+        // And what the pointer layer sees when it asks the same question a
+        // moment later in the same frame. These must match.
+        let byPointer: utinyint = 0;
+        if (mouse.present()) {
+            byPointer = 1;
+        }
+
+        pointer.update();
+
+        let at: usmallint = ROW + ROW;
+        text.print(at, `INPUT ${byInput:1} POINTERSEES ${byPointer:1}`);
+        at = at + ROW;
+        text.print(at, `MOUSE X ${mouse.x():5} Y ${mouse.y():5}`);
+        at = at + ROW;
+        text.print(at, `ENABLE  ${spriteEnable:3}`);
+        at = at + ROW;
+        text.print(at, `MULTI   ${spriteMulticolor:3}`);
+        at = at + ROW;
+        text.print(at, `EXPANDX ${spriteExpandX:3} Y ${spriteExpandY:3}`);
+        at = at + ROW;
+        text.print(at, `BEHIND  ${spritePriority:3}`);
+        at = at + ROW;
+        text.print(at, `XHIGH   ${spriteXHigh:3}`);
+        at = at + ROW;
+        text.print(at, `COLOR0  ${spriteColors[0]:3}`);
+        at = at + ROW;
+        text.print(at, `POINTER ${spritePointers[0]:3}`);
+        at = at + ROW;
+        text.print(at, `POS X ${spritePositions[0]:3} Y ${spritePositions[1]:3}`);
+    }
+}

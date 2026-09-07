@@ -19,11 +19,29 @@ says how a package declares itself one.
 
 ## What runs today
 
-The front door. Studio draws its title, its version, the tier the machine
-you started it on gets, and which editors that tier opens — and says
-`NO INPUT YET`, because that is true: the language has no input, sound,
-sprite, or storage capability yet, and every editor is waiting on one of
-them. Nothing on this page describes an editor as working.
+The front door. Studio draws a menu bar across the top row, then its title,
+its version, the tier the machine you started it on gets, which editors that
+tier opens, and what is driving it — `INPUT KEYS` on the computers,
+`INPUT PAD` on the NES, `INPUT NONE` on the web, each folded from the
+machine's own facts while compiling.
+
+**The bar moves.** `@8bitscript/input` exists now, so left and right step
+the highlight between Studio's icon and its FILE menu under whatever the
+machine has: a C64's cursor keys, an NES D-pad, an Atari joystick, a 1351
+mouse in a port. The bar starts deselected, the way a menu bar does before
+anyone has touched it.
+
+Everything behind the door is still waiting. Studio has no sound, sprite or
+storage capability to build an editor on, and nothing on this page
+describes an editor as working.
+
+The bar is `@8bitscript/ui/menubar` — the first component Studio takes from
+[the shared component library](packages.md#which-packages-you-install)
+rather than drawing itself. It names the four editors, in full on a
+40-column machine and as `CHR SPR MUS FIL` on the VIC-20's 22 columns and
+the NES's 28, chosen from `text.COLUMNS` at compile time so the branch for
+the other width costs nothing. Nothing selects anything yet: the highlight
+sits on the first item until there is a keyboard to move it.
 
 ```bash
 cd packages/studio

@@ -59,7 +59,78 @@ test('a non-void function must return a value, not a bare return', () => {
 });
 
 test('a parameter of an unsupported type is not compilable', () => {
-  assert.deepEqual(loweredCodes('function f(x: array<utinyint, 4>): void { }'), ['8BS3001']);
+  assert.deepEqual(loweredCodes('function f(x: ptr<utinyint>): void { }'), ['8BS3001']);
+});
+
+// ---- array parameters -------------------------------------------------------
+//
+// An array is passed by reference — the address of its first element, with
+// nothing copied — and its length rides in the type, so `t.length` is a
+// constant inside the callee and never reaches the machine. See
+// docs/compiler.md and AGENTS.md's "the rule that decides where work happens".
+
+test('an array parameter carries its element type and length', () => {
+  const { ir, diagnostics } = lowered(
+    'const T: array<utinyint, 4> = [1, 7, 13, 19];\n'
+    + 'function pick(t: array<utinyint, 4>, i: utinyint): utinyint { return t[i]; }\n'
+    + 'export function main(): void { let x: utinyint = pick(T, 2); }',
+  );
+  assert.deepEqual(diagnostics, []);
+  const pick = ir.functions.find((f) => f.name === 'pick');
+  assert.deepEqual(pick.params[0], { name: 't', type: 'array', elementType: 'utinyint', length: 4 });
+  assert.equal(pick.body[0].value.kind, 'index');
+});
+
+test("an array is handed over by name, and that is the only place its bare name is a value", () => {
+  const { ir, diagnostics } = lowered(
+    'const T: array<utinyint, 2> = [1, 2];\n'
+    + 'function f(t: array<utinyint, 2>): utinyint { return t[0]; }\n'
+    + 'export function main(): void { let x: utinyint = f(T); }',
+  );
+  assert.deepEqual(diagnostics, []);
+  const call = ir.functions.find((f) => f.name === 'main').body[0].init;
+  assert.deepEqual(call.args.map((a) => [a.kind, a.name]), [['ref', 'T']]);
+  // Anywhere else, an array's name is still not a value.
+  assert.deepEqual(
+    loweredCodes('const T: array<utinyint, 2> = [1, 2];\nfunction f(): void { let x: utinyint = T; }'),
+    ['8BS3001'],
+  );
+  assert.deepEqual(
+    loweredCodes('function f(t: array<utinyint, 2>): void { let x: utinyint = t; }'),
+    ['8BS3001'],
+  );
+});
+
+test("an array parameter's .length is folded, not carried", () => {
+  const { ir, diagnostics } = lowered(
+    'function n(t: array<utinyint, 7>): utinyint { return t.length; }',
+  );
+  assert.deepEqual(diagnostics, []);
+  // A constant in the IR: nothing about the length reaches the machine, and
+  // no second argument travels with the call.
+  assert.deepEqual(ir.functions[0].body[0].value, { kind: 'const', value: 7 });
+  assert.equal(ir.functions[0].params.length, 1);
+});
+
+test('an array parameter has no default', () => {
+  assert.deepEqual(
+    loweredCodes('const T: array<utinyint, 2> = [1, 2];\nfunction f(t: array<utinyint, 2> = T): void { }'),
+    ['8BS3001'],
+  );
+});
+
+test('both backends pass an array as an address, not a copy', () => {
+  const { ir } = lowered(
+    'const T: array<utinyint, 4> = [1, 7, 13, 19];\n'
+    + 'function pick(t: array<utinyint, 4>, i: utinyint): utinyint { return t[i]; }\n'
+    + 'export function main(): void { let x: utinyint = pick(T, 2); }',
+  );
+  const c = emitC(ir, { machine: 'c64', frameRate: 60 });
+  assert.match(c, /static uint8_t pick\(const uint8_t \* t, uint8_t i\)/);
+  assert.match(c, /pick\(T, 2\)/);
+  const as = emitAssemblyScript(ir, { frameRate: 60 });
+  assert.ok(as.ok, as.error);
+  assert.match(as.source, /function pick\(t: usize, i: u8\)/);
 });
 
 test('a call is now usable as an expression, not just a statement', () => {

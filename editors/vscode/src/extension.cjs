@@ -110,9 +110,9 @@ function activate(context) {
 
   const projects = registerProjectsView(context, output);
   registerControlsView(context, {
-    hasExamples: () => projects.hasExamples(),
+    list: () => projects.visible,
     onDidChange: projects.onDidChangeTreeData,
-    loadTargets: () => projects.loadTargets(),
+    loadTargets: (dir) => projects.loadTargets(dir),
   });
 
   tryStart();

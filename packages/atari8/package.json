@@ -15,7 +15,9 @@
       "./keyboard": "./src/keyboard.8bs",
       "./keys": "./src/keys.8bs",
       "./pokey": "./src/pokey.8bs",
-      "./random": "./src/random.8bs"
+      "./random": "./src/random.8bs",
+      "./input": "./src/input.8bs",
+      "./pointer": "./src/pointer.8bs"
     },
     "hardware": {
       "facts": {
@@ -25,6 +27,7 @@
         "video.cellHeight": 8,
         "video.palette": 256,
         "video.cellColors": 2,
+        "video.colorPerCell": false,
         "video.glyphs": 128,
         "video.blockWidth": 0,
         "video.blockHeight": 0,

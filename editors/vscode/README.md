@@ -46,42 +46,61 @@ logo — to the Activity Bar, the strip of icons down the left edge where the
 file explorer, search, and source control live. Clicking it opens a side bar
 with two sections.
 
-**Run Settings** is the system, the region, the hardware fitted, the
-view, and a checkbox:
+**Run Settings** is four lines: what to run, where to run it, and — folded
+away until you want it — the hardware fitted to that machine.
 
 ```
+PROJECT
+[ menubar — c64, nes, web ▾ ]  [ Run ] [ Build ]
 SYSTEM                       REGION
 [ c64 — Commodore 64     ▾ ] [ NTSC ▾ ]
-HARDWARE
-[ reu512                 ▾ ]
-  RAM Expansion Unit   [ REU, 512 KiB         ▾ ]
-  SID                  [ 8580 (the later SID) ▾ ]
-  Control port 1       [ Commodore 1351 mouse ▾ ]
-  Control port 2       [ Joystick             ▾ ]
-  Back to stock
-VIEW
-[ Runnable on the selected system ▾ ]
-☐ Show proofs of concept
-Run buttons use 8bs run c64 --profile reu512 --hardware sid=8580,port1=mouse1351
+▸ HARDWARE  reu512 sid=8580
+8bs run c64 --profile reu512 --hardware sid=8580
 ```
 
-- **System** — one of the nine targets, every Run and Build button uses
+Opening **Hardware** unfolds the preset and one dropdown per catalog
+option, and nothing else moves on the screen:
+
+```
+▾ HARDWARE  reu512 sid=8580
+[ reu512                      ▾ ]
+  RAM Expansion Unit  build · probe
+  [ REU, 512 KiB  [probe]     ▾ ]
+  SID
+  [ 8580 (the later SID)      ▾ ]
+  Control port 1
+  [ Commodore 1351 mouse      ▾ ]
+  Back to stock
+  ▸ What a program can rely on
+```
+
+- **Project** — the project Run and Build act on, with the systems it
+  targets beside its name (`8bitscript.project`). The list is the same one
+  the Projects view below shows: the workspace's own projects, the apps
+  that ship with the toolchain, and its examples when those are turned on.
+  **Run** and **Build** start the same task a row's buttons do, and are
+  greyed out when the project does not target the selected system — the
+  hint line says so in place of the command.
+- **System** — one of the nine targets, every Run and Build uses
   (`8bitscript.system`). The list, and the title beside each id, come from
   `8bs targets --json`.
 - **Region** — NTSC (60Hz) or PAL (50Hz) for the machines that have one
   (`8bitscript.region`); it is greyed out while the system is `web`, which
   has no region, or `pet`, whose refresh rate is its model's (`8bs run pet
   --profile 4032` for a 50Hz machine) rather than a region's.
-- **Hardware** — what is fitted to the selected system when it runs: a
-  profile (a preset from the machine package's catalog, such as `8032`
-  or `reu512`, or one the open project composes in its `8bs.config.ts`)
-  and one control per option the catalog offers, each showing the value
-  it ends up with; `[build]` marks a value that changes the program, not
-  only the emulator, and ◎ marks a value the machine finds at run time (a
-  C64 REU, through `@8bitscript/c64/reu`), so one build serves it and the
-  stock machine alike; the option's own name carries ◎ when any of its
-  values does, and the tooltip names the probe. The selection is `8bitscript.hardware`, an object
-  keyed by system, and it rides on every Run and Build as `--profile` and
+- **Hardware** — what is on the selected system when it runs, folded away
+  with the current fitting beside its name so a run that does not care
+  never sees it. The top control is a preset: *Stock machine*, then any
+  profile this project composes in its `8bs.config.ts`, then the catalog
+  presets (`reu512`, `8032`, `8k`, …). Under that, **every catalog option
+  is its own dropdown** — RAM expansion, PET/Atari model, VIC-20 memory,
+  SID, control ports — each showing the value the preset (or stock) ends up with.
+  Change one to override the preset; those rows go bold. `[build]` marks a
+  value that changes the program, not only the emulator; `probe` marks a
+  value the machine finds at run time (a C64 REU, through
+  `@8bitscript/c64/reu`), so one build serves it and the stock machine
+  alike. The selection is `8bitscript.hardware`, an object keyed by
+  system, and it rides on every Run and Build as `--profile` and
   `--hardware` — the hint shows the exact `8bs run` line. *Back to stock*
   clears it (stock is the catalog's default, or the project's own
   `targets.<system>.hardware` when its config sets one). Under the
@@ -91,14 +110,12 @@ Run buttons use 8bs run c64 --profile reu512 --hardware sid=8580,port1=mouse1351
   extension lists nothing of its own here; it asks the toolchain (`8bs
   targets --json`), so a new option, or a new fact, in a package appears
   with no extension update.
-- **View** — how the Projects list below is laid out
-  (`8bitscript.projectsView`); see the three layouts below.
-- **Show proofs of concept** — appears only when the toolchain in use
-  comes from a checkout of this repository, and adds its
-  `examples/proof-of-concept/` to the list (`8bitscript.showExamples`).
-  This is how a project that depends on 8BitScript gets to browse and run
-  them without opening the repository separately. `8bitscript.examplesPath`
-  names a different directory if you have one.
+How the Projects list below is laid out (`8bitscript.projectsView`) and
+whether it shows the toolchain's examples (`8bitscript.showExamples`) are
+buttons on **that** view's title bar, not rows in this panel — it sits
+above the list and must not push the list off the screen.
+`8bitscript.examplesPath` names a different examples directory if you have
+one.
 
 Each choice is an ordinary setting, written at workspace level when a folder
 is open, so it also appears in the Settings editor and survives a restart.
@@ -107,8 +124,8 @@ System**, **Select Region**, and **Change Projects View**.
 
 **Projects** lists what can be run, in one of three layouts, and keeps
 three kinds of project apart when the list holds more than one of them:
-the workspace's own **Projects**; the **Proofs of concept** from the
-8bitscript repository's `examples/proof-of-concept/`, there to exercise
+the workspace's own **Projects**; the **Examples** from the
+8bitscript repository's `examples/`, there to exercise
 the toolchain; and the **Apps** that ship with the toolchain — packages
 whose `package.json` declares an `8bitscript.app`, found beside the
 `@8bitscript/cli` in use. Studio is the first app.
@@ -117,8 +134,8 @@ whose `package.json` declares an `8bitscript.app`, found beside the
 PROJECTS  runnable on cx16                          ⊞ 📖 🚀 ♥ ⟳
   Projects
     my-game           src/my-game                     ▶ 🔧
-  Proofs of concept
-    borders           proof-of-concept/borders        ▶ 🔧
+  Examples
+    borders           examples/borders                ▶ 🔧
   Apps
     Studio            @8bitscript/studio              ▶ 🔧
 ```
@@ -133,11 +150,11 @@ PROJECTS  runnable on cx16                          ⊞ 📖 🚀 ♥ ⟳
 - **By system** — every system with at least one project, expanded into the
   projects that target it; the selected system starts expanded.
 
-The ⊞ button in the title switches layout, 📖 toggles the proofs of
+The ⊞ button in the title switches layout, 📖 toggles the examples of
 concept (only shown when there are any), 🚀 launches Studio, ♥ runs
 `8bs doctor`, and ⟳ rescans.
 
-**Launch Studio**, **Launch App…**, and **Launch Proof of Concept…** on the
+**Launch Studio**, **Launch App…**, and **Launch Example…** on the
 command palette start one of the shipped programs without hunting for its
 row: pick it (when there is a choice), pick the system to open it on — the
 selected system is offered first — and it runs as an ordinary `8bs run`
@@ -175,7 +192,7 @@ lists them, and a favourite can be pinned in `.vscode/tasks.json`:
     {
       "type": "8bs",
       "command": "run",
-      "project": "examples/proof-of-concept/borders",
+      "project": "examples/borders",
       "target": "c64",
       "pal": true,
       "label": "borders on a PAL C64"
@@ -188,7 +205,7 @@ lists them, and a favourite can be pinned in `.vscode/tasks.json`:
 itself; `command` is `run`, `build`, or `doctor`; `pal` is optional.
 
 A project whose dependencies have never been installed — it declares some
-and has no `node_modules` of its own, which is how a freshly added proof
+and has no `node_modules` of its own, which is how a freshly added example
 of concept looks — is listed with a warning icon and *not installed*, and gets an
 **Install** button that runs `pnpm install` (or `npm`/`yarn`, whichever
 lockfile is nearest) in the project as a task. Running such a project asks

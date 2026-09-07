@@ -106,7 +106,7 @@ The first milestone compiles and runs on both targets. `8bs build` takes a
 program through lexer, parser, checker, IR, linker, and a backend — generated
 C and LLVM-MOS for a VIC-20 or C64 `.prg`, generated AssemblyScript and asc
 for a `.wasm` — and `8bs run vic20` opens the result in VICE.
-`examples/proof-of-concept/borders` cycles the
+`examples/borders` cycles the
 border colours on the VIC-20, the C64, *and* the web (`8bs run web` opens a
 real browser tab, and `waitFrame()` means the same thing there as on the
 6502 machines), importing its screen from `@8bitscript/screen` — a package whose entry
@@ -114,15 +114,36 @@ resolves per target to that machine package's own implementation.
 [Studio](docs/studio.md), the asset editor that ships with the toolchain
 as `@8bitscript/studio`, builds and runs on all nine too — today only its
 front door, which says what each machine's tier will open.
+`@8bitscript/ui` is the first of the reusable interface components a
+program builds a screen out of: `@8bitscript/ui/menubar` draws a menu bar
+on all nine machines from one piece of code, and picks how to highlight
+the active item **while compiling** — the label recoloured on the six
+machines where `#fact(video.colorPerCell)` is true, bracketed with a marker
+character on the PET, the Atari 8-bit and the NES, where it is false and a
+colour highlight would be invisible. Neither machine carries the other's
+code. It reports what a narrow screen could not fit rather than overrunning
+the row.
+
+`@8bitscript/input` is the capability that drives it: four directions,
+confirm, cancel and a pointer, all edge-triggered, resolved per target to
+that machine's own layer — a key matrix on the Commodores, a shift register
+on the NES, a joystick split across two chips on the VIC-20, a 1351 mouse
+on a C64 fitted with one. A build that did not ask for a mouse links none
+of the pointer code; a machine that cannot answer yet (the X16, the web)
+says so in its layer's header and costs nothing at all. `examples/menubar`
+runs it everywhere and Studio's front door has one across the top, moving
+under whatever the machine has.
 
 Only a fixed subset compiles: globals and locals, arrays (`let` in RAM,
-`const` as data), `const`s (inlined at compile time), functions with
-parameters and return values, arithmetic, `if`/`while`/`for`, hardware
+`const` as data, and passed to a function by name as
+`t: array<utinyint, 4>` — the address, nothing copied, with `t.length` a
+constant inside the callee), `const`s (inlined at compile time), functions
+with parameters and return values, arithmetic, `if`/`while`/`for`, hardware
 access, `asm6502`, namespaces, strings (literals as `string` parameters,
 `string` consts, `string<N>` variables, and templates —
 `text.print(0, \`TICK ${ticks:1}\`)` — laid out at compile time), and
 imports, which the linker resolves across modules. Everything else —
-pointers, local arrays, arrays as arguments — fails with a diagnostic naming
+pointers and local arrays — fails with a diagnostic naming
 the construct rather than building without it. There is no binder yet, `8bs dev` is
 **planned and not yet implemented**, and breaking changes arrive without
 notice.
@@ -132,7 +153,7 @@ notice.
 Setup instructions for the host and retro toolchains live in
 [docs/setup/index.md](docs/setup/index.md). Once that's done,
 [the getting started tutorial](docs/tutorial.md) walks through cloning this
-repository and building and running `examples/proof-of-concept/borders` — the milestone subset
+repository and building and running `examples/borders` — the milestone subset
 of the language, working end to end today, on every target.
 
 ## Documentation

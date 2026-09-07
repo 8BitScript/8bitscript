@@ -44,7 +44,7 @@ page that fixes it.
 
 ## Run an example
 
-[`examples/proof-of-concept/borders`](https://github.com/8BitScript/8bitscript/tree/trunk/examples/proof-of-concept/borders)
+[`examples/borders`](https://github.com/8BitScript/8bitscript/tree/trunk/examples/borders)
 is the example that goes end to end today: it clears the leftover BASIC boot
 screen, labels a `TICK` counter and the current `OPTION` number, and steps
 the border and background through four curated colour combinations — one
@@ -54,7 +54,7 @@ classic first sign of life on real hardware, so it is the one worth seeing
 run before reading any code.
 
 ```bash
-cd examples/proof-of-concept/borders
+cd examples/borders
 pnpm start
 ```
 
@@ -96,7 +96,7 @@ backend generated alongside it, so what the compiler did is never a mystery.
 
 ## What the program does
 
-`examples/proof-of-concept/borders/src/main.8bs`:
+`examples/borders/src/main.8bs`:
 
 ```
 import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";

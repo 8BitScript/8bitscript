@@ -55,3 +55,25 @@ export namespace VicIIIControl {
     const SDK_STARTUP: utinyint = 0x44;          // what .init.010 stores
     const COLOR_RAM_2K: utinyint = 0x45;         // the same, plus CRAM2K
 }
+
+// ---- CIA1 ($DC00): the keyboard matrix and the two control ports ------------
+//
+// A MEGA65 is a C64 here: the same chip at the same address, the same
+// eight columns by eight rows, the same key in the same place, and the
+// same two control ports on the same bits. So @8bitscript/c64/keys's codes
+// are the right codes on this machine, and `@8bitscript/mega65/input`
+// reads them exactly as the C64's layer does.
+//
+// What this machine adds and that layer does not yet read: the MEGA65's
+// own extended keyboard — the full-travel keys a C64 never had, including
+// **ALT**, CAPS LOCK and the four dedicated cursor keys — which the
+// hardware presents through its own registers rather than through this
+// matrix. That is the next thing to wire up here.
+@address(0xDC00)
+export let cia1PortA: volatile<u8>;
+@address(0xDC01)
+export let cia1PortB: volatile<u8>;
+@address(0xDC02)
+export let cia1DirectionA: volatile<u8>;
+@address(0xDC03)
+export let cia1DirectionB: volatile<u8>;

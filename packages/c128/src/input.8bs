@@ -1,0 +1,288 @@
+// @8bitscript/c128/input — the C128 behind @8bitscript/input.
+//
+// Named by "8bitscript".exports["./input"] in this package's package.json,
+// and by "8bitscript".entry.c128 in @8bitscript/input's, so a portable
+// program writes
+//
+//     import { input } from "@8bitscript/input";
+//
+// and gets this file on a C128.
+//
+// ---- why this file reads the hardware itself -----------------------------
+//
+// On the C64 this same surface is four lines over ./keyboard.8bs,
+// ./joystick.8bs and ./mouse.8bs, because that package has them. This one
+// does not, so the scan is here. That is a gap to close, not a design:
+// **a C128 ./keyboard.8bs, ./keys.8bs, ./joystick.8bs and ./mouse.8bs
+// would each be a near-copy of the C64's**, since CIA1 is the same chip at
+// the same address and the SID's two analogue lines are at the same $D419
+// and $D41A. When someone writes them, this file becomes the C64's.
+//
+// ---- the matrix, and the half of it this file does not read --------------
+//
+// For the eight columns by eight rows the C64 has, a C128 puts the same
+// key in the same place, so the codes below are @8bitscript/c64/keys's
+// codes. Writing a byte with one 0 bit to port A ($DC00) selects that
+// column; port B ($DC01) reads its eight keys, a 0 bit where a key is down.
+//
+// **The C128's second matrix is not read here, and it is the interesting
+// one.** The dedicated cursor keys — all four of them, which is what this
+// machine has that a C64 does not — plus the numeric keypad, HELP, ESC,
+// TAB, LINE FEED, NO SCROLL and **ALT** hang off three extra column lines
+// driven by the VIC-IIe's $D02F (declared in ./index.8bs as
+// `extraKeyboardLines`) and read back through the same port B. So on this
+// machine the four-way cursor and an ALT key both genuinely exist, and
+// this file still makes left out of SHIFT and the right key the way a C64
+// does. Wiring $D02F up is the next thing anyone should do here, and it
+// would make the C128 the one Commodore where a menu takes ALT+letter.
+//
+// Until then:
+//
+//   - **left / right / up / down** — the C64-shaped cursor keys, with
+//     SHIFT reversing each, or'd with a joystick in port 2.
+//   - **confirm** — RETURN, or fire. **cancel** — RUN/STOP.
+//
+// ---- the mouse -----------------------------------------------------------
+//
+// A 1351 in port 1, if the build asked for one (`--hardware
+// port1=mouse1351`, which sets `input.mouse`). Identical hardware to the
+// C64's: each axis is a counter presented on the port's analogue line and
+// converted by the SID at $D419/$D41A, valued `(counter & 0x7f) + 0x40` so
+// it lives in 64..191 and wraps; movement is the difference between two
+// readings. CIA1 port A's top two bits pick the port. **Not verified on
+// this machine** — the C64's was measured under VICE at each of
+// `-controlport1device`'s settings, and the same measurement under x128
+// has not been made. The code is the C64's, against registers this
+// package already declares at the same addresses.
+import { cia1PortA, cia1PortB, cia1DirectionA, cia1DirectionB, paddleX, paddleY } from "./index.8bs";
+
+const HAS_MOUSE: bool = #fact(input.mouse);
+
+// The C64 matrix's codes, for the keys this file maps: `column * 8 + row`.
+namespace Key {
+    const RETURN: utinyint = 1;
+    const CURSOR_RIGHT: utinyint = 2; // shifted: cursor left
+    const CURSOR_DOWN: utinyint = 7; // shifted: cursor up
+    const SHIFT_LEFT: utinyint = 15;
+    const SHIFT_RIGHT: utinyint = 52;
+    const STOP: utinyint = 63; // RUN/STOP
+}
+
+namespace Edge {
+    const LEFT: utinyint = 1;
+    const RIGHT: utinyint = 2;
+    const UP: utinyint = 4;
+    const DOWN: utinyint = 8;
+    const CONFIRM: utinyint = 16;
+    const CANCEL: utinyint = 32;
+    const BUTTON: utinyint = 64;
+}
+
+// The analogue lines' reading, as on the C64: a 1351 sits in 64..191 and
+// anything else at rest reads 255.
+namespace Pot {
+    const COUNTER: utinyint = 0x7F;
+    const LOWEST: utinyint = 64;
+    const HIGHEST: utinyint = 191;
+    const HALF: utinyint = 64;
+}
+
+// %01 in port A's top bits reads port 1's analogue lines, and drives no
+// keyboard column with the other six.
+const MOUSE_PORT_1: utinyint = 0x7F;
+
+const COLUMN_SELECT: array<utinyint, 8> = [254, 253, 251, 247, 239, 223, 191, 127];
+const ROW_BIT: array<utinyint, 8> = [1, 2, 4, 8, 16, 32, 64, 128];
+
+// The pointer's travel in mouse counts — a count is about a pixel, a cell
+// is 8 of them on the 40-column screen this file hit-tests against.
+// The grid this file hit-tests against, from the build's own fact sheet
+// rather than from a number typed here twice.
+const COLUMNS: utinyint = #fact(video.columns);
+const CELL_SHIFT: utinyint = 3;
+const LIMIT_X: usmallint = 319;
+const LIMIT_Y: usmallint = 199;
+
+let matrix: array<utinyint, 8>;
+let sticks: array<utinyint, 2>;
+
+let held: utinyint = 0;
+let before: utinyint = 0;
+let began: utinyint = 0;
+
+let lastX: utinyint = 0;
+let lastY: utinyint = 0;
+let atX: usmallint = 0;
+let atY: usmallint = 0;
+let started: bool = false;
+let atCell: usmallint = 0;
+let havePointer: bool = false;
+
+// Is this key down in the last scan?
+function keyDown(key: utinyint): bool {
+    return (matrix[key >> 3] & ROW_BIT[key & 7]) != 0;
+}
+
+// One axis' movement since the last reading, held between 0 and `limit`.
+// The subtraction rather than `at + delta > limit` is deliberate: `at`
+// never exceeds `limit`, so `limit - at` cannot borrow and the sum that
+// could carry is never formed (see @8bitscript/ui/menubar on why a byte
+// sum is not to be trusted across both backends).
+function step(at: usmallint, last: utinyint, now: utinyint, limit: usmallint): usmallint {
+    let delta: utinyint = (now - last) & Pot.COUNTER;
+    if (delta == 0) {
+        return at;
+    }
+    if (delta < Pot.HALF) {
+        if (limit - at < delta) {
+            return limit;
+        }
+        return at + delta;
+    }
+    let back: utinyint = 128 - delta;
+    if (back > at) {
+        return 0;
+    }
+    return at - back;
+}
+
+export namespace input {
+
+    // Once, at start-up, before the first poll(): point the SID at the
+    // mouse's port so the first reading has had a frame to settle. Folds
+    // to nothing on a build with no mouse.
+    function begin(): void {
+        if (HAS_MOUSE) {
+            cia1PortA = MOUSE_PORT_1;
+        }
+    }
+
+    // Once a frame, right after waitFrame(), and never twice. The order is
+    // the C64's and forced by the same hardware: read the pots for the
+    // port last frame's select settled, then the matrix (which drives all
+    // eight columns and leaves port A at $FF), then the sticks (which need
+    // port A at $FF), then point the SID back at the mouse's port.
+    function poll(): void {
+        if (HAS_MOUSE) {
+            let nowX: utinyint = paddleX & Pot.COUNTER;
+            let nowY: utinyint = paddleY & Pot.COUNTER;
+            if (started) {
+                atX = step(atX, lastX, nowX, LIMIT_X);
+                // Same 1351 Y polarity as the C64: the counter runs
+                // opposite the screen. last and now swapped so the delta
+                // flips and rest stays 0. See @8bitscript/c64/mouse.
+                atY = step(atY, nowY, lastY, LIMIT_Y);
+            }
+            lastX = nowX;
+            lastY = nowY;
+            started = true;
+            havePointer = paddleX >= Pot.LOWEST && paddleX <= Pot.HIGHEST && paddleY >= Pot.LOWEST && paddleY <= Pot.HIGHEST;
+        }
+
+        cia1DirectionA = 0xFF;
+        cia1DirectionB = 0x00;
+        for (let column: utinyint = 0; column < 8; column++) {
+            cia1PortA = COLUMN_SELECT[column];
+            matrix[column] = cia1PortB ^ 0xFF;
+        }
+        cia1PortA = 0xFF;
+        sticks[0] = (cia1PortB ^ 0xFF) & 0x1F;
+        sticks[1] = (cia1PortA ^ 0xFF) & 0x1F;
+
+        before = held;
+        held = 0;
+
+        let shifted: bool = keyDown(Key.SHIFT_LEFT) || keyDown(Key.SHIFT_RIGHT);
+        if (keyDown(Key.CURSOR_RIGHT)) {
+            if (shifted) {
+                held = held | Edge.LEFT;
+            } else {
+                held = held | Edge.RIGHT;
+            }
+        }
+        if (keyDown(Key.CURSOR_DOWN)) {
+            if (shifted) {
+                held = held | Edge.UP;
+            } else {
+                held = held | Edge.DOWN;
+            }
+        }
+        if (keyDown(Key.RETURN)) {
+            held = held | Edge.CONFIRM;
+        }
+        if (keyDown(Key.STOP)) {
+            held = held | Edge.CANCEL;
+        }
+
+        // The stick in port 2, bits as on the C64: up 1, down 2, left 4,
+        // right 8, fire 16.
+        let stick: utinyint = sticks[1];
+        if ((stick & 4) != 0) {
+            held = held | Edge.LEFT;
+        }
+        if ((stick & 8) != 0) {
+            held = held | Edge.RIGHT;
+        }
+        if ((stick & 1) != 0) {
+            held = held | Edge.UP;
+        }
+        if ((stick & 2) != 0) {
+            held = held | Edge.DOWN;
+        }
+        if ((stick & 16) != 0) {
+            held = held | Edge.CONFIRM;
+        }
+
+        if (HAS_MOUSE) {
+            if (havePointer) {
+                let column: usmallint = atX >> CELL_SHIFT;
+                let row: usmallint = atY >> CELL_SHIFT;
+                atCell = row * COLUMNS + column;
+            }
+            // The mouse's left button is FIRE on its own port's joystick
+            // lines — port 1, which is the snapshot taken above.
+            if ((sticks[0] & 16) != 0) {
+                held = held | Edge.BUTTON;
+            }
+            cia1PortA = MOUSE_PORT_1;
+        }
+
+        began = held & (before ^ 0xFF);
+    }
+
+    function left(): bool {
+        return (began & Edge.LEFT) != 0;
+    }
+
+    function right(): bool {
+        return (began & Edge.RIGHT) != 0;
+    }
+
+    function up(): bool {
+        return (began & Edge.UP) != 0;
+    }
+
+    function down(): bool {
+        return (began & Edge.DOWN) != 0;
+    }
+
+    function confirm(): bool {
+        return (began & Edge.CONFIRM) != 0;
+    }
+
+    function cancel(): bool {
+        return (began & Edge.CANCEL) != 0;
+    }
+
+    function pointer(): bool {
+        return havePointer;
+    }
+
+    function pointerCell(): usmallint {
+        return atCell;
+    }
+
+    function pointerButton(): bool {
+        return (began & Edge.BUTTON) != 0;
+    }
+}

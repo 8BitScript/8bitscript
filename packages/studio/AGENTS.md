@@ -26,17 +26,36 @@ rather than being written against it. An app is any package whose
 `package.json` carries an `8bitscript.app` field and an `8bs.config.ts` —
 see [the package model](../../docs/packages.md#apps). The VS Code
 extension lists apps in a section of their own, separate from the
-workspace's projects and from the proofs of concept, and *Launch Studio*
+workspace's projects and from the examples, and *Launch Studio*
 builds and runs this package on a system of your choosing.
 
 ## What exists today
 
 Do not describe more than this as working:
 
-- `src/studio.8bs` draws the front door: title, version, the tier this
-  machine gets, and which editors that tier opens — using `@8bitscript/
-  screen` and `@8bitscript/text`, nothing else. It builds and runs on all
-  nine targets; `8bs run <target> --screenshot` shows it.
+- `src/studio.8bs` draws the front door: a menu bar across the top row,
+  then the title, version, the tier this machine gets, and which editors
+  that tier opens — using `@8bitscript/screen`, `@8bitscript/text` and
+  `@8bitscript/ui`, nothing else. It builds and runs on all nine targets;
+  `8bs run <target> --screenshot` shows it.
+- The menu bar is `@8bitscript/ui/menubar`, the first component Studio takes
+  from the shared library rather than drawing itself (see
+  [`packages/ui/AGENTS.md`](../ui/AGENTS.md)). It names the four editors,
+  and `drawMenu()` picks the long names or three-letter ones from
+  `text.COLUMNS`, a compile-time constant — the long set is 35 cells with
+  its padding, so a 40-column machine and wider gets `CHARACTERS SPRITES
+  MUSIC FILES` and the VIC-20's 22 and the NES's 28 get `CHR SPR MUS FIL`,
+  with the other branch costing nothing on either. **Selecting an item
+  still opens nothing**: the highlight moves under the keys, a stick and a
+  mouse, and `menubar.item()` returns whether an item is highlighted, but
+  no menu drops down, because there is nothing behind one yet. The bar
+  costs Studio 423 bytes on a C64, 396 on a
+  VIC-20 and 360 on an NES — against 446 bytes for a whole C64 program that
+  just prints four labels and does none of what it does — measured for every machine, and
+  tabulated with where they go in
+  [`packages/ui/AGENTS.md`](../ui/AGENTS.md#what-it-costs). Note the
+  ordering in `start()`: the bar is drawn *before* `text.setColor`, because
+  drawing a bar leaves the text colour set to the bar's own.
 - `src/main.8bs` is the one entry for every machine. It reads the
   machine's facts from `@8bitscript/system` — `Input.KEYBOARD`,
   `Memory.RAM`, `Video.GLYPHS`, `Video.SPRITES`, `Audio.VOICES`, each a
@@ -55,9 +74,44 @@ Do not describe more than this as working:
   behind that editor, so a viewer is read-only rather than featureless: it
   still views a character set and a sprite, plays a tune where there is a
   voice, and loads a file where there is storage.
-- Nothing responds to a key, plays a note, or reads or writes a file. The
-  language has no capability for any of those yet. The screen says
-  `NO INPUT YET` for that reason.
+- **The menu bar responds to input**; nothing else does. `@8bitscript/input`
+  landed, so left and right step the highlight between the icon and FILE on
+  every machine that can answer, and the screen says which — `INPUT KEYS`,
+  `INPUT PAD`, or `INPUT NONE` on the X16 and the web, whose layers cannot
+  answer yet and say so. Nothing plays a note or reads or writes a file:
+  there is still no sound or storage capability.
+- **The pointer is visible**, on a build that has one to draw:
+  `@8bitscript/pointer` arrived alongside this, and on a C64 fitted with a
+  1351 Studio draws a real arrow with one of the VIC's sprites, moving a
+  pixel at a time. `pointer.begin()` goes after `input.begin()` and
+  `pointer.update()` right after `input.poll()`, once each a frame — that
+  ordering is the contract between the two packages, and a program that
+  polls without updating gets an arrow that never moves. On the other
+  eight machines `pointer.DRAWS` is false, the calls are empty, and the
+  whole thing is deleted; see
+  [`packages/pointer/AGENTS.md`](../pointer/AGENTS.md) for why each of
+  them draws nothing yet, and `examples/pointer` for the same program
+  without the rest of Studio around it.
+- **A click on the bar selects the item under the pointer**, on the builds
+  fitted with a mouse. `menubar` hit-tests during a *run* of the bar and
+  answers `pointed()` from that run, so `start()`'s loop calls
+  `menubar.point()` and redraws whenever the pointer changes cell — a
+  click can only land on the right item if the bar has run since the
+  pointer last moved. Clicking the bar's padding, or anywhere off it,
+  deselects: the same thing RUN/STOP means. `input.pointer()` is a
+  constant false on a build without a mouse, so the whole block is proved
+  dead and deleted — a C64 Studio with `--hardware port1=none` is 1523
+  bytes, byte for byte what it was before any of this was written.
+- **Studio fits its own mouse**, which is why `8bs run c64` starts it with
+  one plugged in and no flags. `8bs.config.ts` uses the object form of
+  `targets` and asks for `port1: mouse1351` on the C64 and the C128 — the
+  two machines whose input layer has a pointer — so `#fact(input.mouse)`
+  is true for those builds and the pointer half of the layer is compiled
+  in at all. It is the project's *stock* for the machine: it sits under
+  any profile and under `--hardware`, so taking the mouse out on the
+  command line still works. Cost on a C64: 1523 bytes stock, 2038 with the
+  mouse and the click handling (1824 of that is the driver the input layer
+  compiles in; 214 is Studio using it).
 
 ## Tiers
 
@@ -180,17 +234,17 @@ Each editor waits on a capability the language does not have. They are
 listed here so the order of work is visible, and so nobody builds an
 editor on a hack that the capability would replace:
 
-- **Input** — a keyboard on the computers, a joypad on the NES, the
-  browser's keyboard on the web — as a capability package like
-  `@8bitscript/screen`: one API, each machine's implementation behind it.
-  Nothing in Studio can be interactive before this exists. The PET has
-  the hardware layer such a package would sit on (`@8bitscript/pet/keyboard`
-  scans the matrix once a frame, `@8bitscript/pet/keys` names the keys per
-  profile; see `packages/pet/AGENTS.md`), and so does the C64
-  (`@8bitscript/c64/keyboard` + `/keys` for the matrix, `/joystick` for
-  the two control ports; see `packages/c64/AGENTS.md`); importing either
-  directly makes a program that machine's only, which Studio's shared
-  code must not be.
+- **Input** — **done**, as `@8bitscript/input`: four directions, confirm,
+  cancel and a pointer, all edge-triggered, resolving per target to that
+  machine's own layer the way `@8bitscript/screen` does. Studio's menu bar
+  moves under it. What is still missing is per-machine rather than
+  structural, and `packages/input/AGENTS.md` lists it: the **X16** and the
+  **web** answer nothing yet (the X16's keyboard, joysticks and mouse are
+  all KERNAL calls; the web runtime does not listen), the **VIC-20** has a
+  joystick but no verified key matrix, and the three machines with an
+  **ALT** key — C128, MEGA65, X16 — do not read it, which is what
+  `ALT`+letter menu accelerators wait on. A text *editor* will also want
+  more than this surface offers: typed characters, not directions.
 - **Character and sprite access** — reading and writing the character
   set and, where the machine has them, sprite definitions and positions,
   through the intent-level API the root `AGENTS.md` insists on
@@ -250,8 +304,8 @@ capability is designed toward it.
   an app as installed when its toolchain is.
 - The VS Code extension's **Launch Studio** (command palette, or the
   rocket in the Projects view's title) asks which system, then runs the
-  same command. **Launch App…** and **Launch Proof of Concept…** do the
-  same for any app and for the repository's proofs of concept.
+  same command. **Launch App…** and **Launch Example…** do the
+  same for any app and for the repository's examples.
 - **Launch in Studio** — opening a project's asset file in the editor — is
   not implemented and cannot be until storage exists; see above.
 

@@ -8,7 +8,10 @@
     "entry": "./src/index.8bs",
     "exports": {
       "./screen": "./src/screen.8bs",
-      "./text": "./src/text.8bs"
+      "./text": "./src/text.8bs",
+      "./pad": "./src/pad.8bs",
+      "./input": "./src/input.8bs",
+      "./pointer": "./src/pointer.8bs"
     },
     "native": [
       "./native/6502/font.s"
@@ -21,6 +24,7 @@
         "video.cellHeight": 8,
         "video.palette": 25,
         "video.cellColors": 3,
+        "video.colorPerCell": false,
         "video.glyphs": 0,
         "video.blockWidth": 0,
         "video.blockHeight": 0,

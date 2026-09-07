@@ -1,0 +1,47 @@
+// A program built from inside the package, the way packages/*/test does it:
+// every call @8bitscript/ui/menubar offers, so linking it for each target
+// proves the whole surface compiles there and not just the parts a
+// particular example happens to use. The import is relative because a
+// package does not resolve its own name; a consumer writes
+// `import { menubar } from "@8bitscript/ui/menubar"`, which
+// examples/menubar does.
+import { text, TextColor } from "@8bitscript/text";
+import { menubar } from "../src/menubar.8bs";
+
+export function main(): void {
+    menubar.setColors(TextColor.WHITE, TextColor.YELLOW);
+    menubar.setPadding(1);
+    menubar.setMarker("-");
+    menubar.setIcon("8");
+    menubar.select(1);
+
+    // The whole highlight surface, including the deselected state a bar
+    // starts in and the two ways of stepping out of it.
+    menubar.deselect();
+    menubar.next();
+    menubar.previous();
+    if (menubar.selected() == menubar.NONE) {
+        text.print(text.COLUMNS, "NONE");
+    }
+
+    // A pointer over the bar. `point()` before `begin()`, `pointed()`
+    // after `end()` — that order is the surface's one rule.
+    menubar.point(1);
+
+    menubar.begin(0, text.COLUMNS);
+    menubar.icon();
+    if (menubar.item("FILE")) {
+        text.print(text.COLUMNS + menubar.HEIGHT, "FILE MENU");
+    }
+    menubar.end();
+
+    if (menubar.pointed() != menubar.NONE) {
+        menubar.select(menubar.pointed());
+    }
+
+    if (menubar.clipped()) {
+        text.print(text.COLUMNS, "CLIPPED");
+    }
+    text.printNumber(text.COLUMNS, menubar.count(), 1);
+    text.printNumber(text.COLUMNS, menubar.selected(), 1);
+}

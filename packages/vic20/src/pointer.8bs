@@ -1,0 +1,40 @@
+// @8bitscript/vic20/pointer — the VIC-20 behind @8bitscript/pointer.
+//
+// Every call here does nothing and `DRAWS` is false, and on this machine
+// that is the hardware's answer: **the VIC has no sprites.** There are no
+// movable objects to put an arrow in, so a cursor here would have to be a
+// character cell — which means putting back the cell it covered, and
+// @8bitscript/text can write a cell but not read one, so it cannot. A
+// redefined glyph moved a cell at a time is the shape such a cursor would
+// take, and it would be a different thing from the C64's pixel-precise
+// arrow rather than a poorer copy of it.
+//
+// The other half is missing too: @8bitscript/vic20/input reports no
+// pointer. The catalog offers `port1: mouse1351` and xvic accepts it, but
+// this repository has no 1351 driver for the VIC-20 and the hardware note
+// marks the 1351 on this machine *to verify* (see
+// packages/vic20/AGENTS.md). So there is nothing to draw and nowhere to
+// draw it from, in that order.
+//
+// It still has to exist: Studio and every other portable program links
+// @8bitscript/pointer, so a missing entry is not a program without a
+// cursor, it is a program that does not build for the VIC-20 — the machine
+// with the least room to spare, which is exactly why this file is
+// constants. `DRAWS` is a const and every function is empty, so a
+// program's `if (pointer.DRAWS)` folds away and LLVM deletes the calls.
+export namespace pointer {
+
+    const DRAWS: bool = false;
+
+    function begin(): void {
+    }
+
+    function setColor(color: utinyint): void {
+    }
+
+    function update(): void {
+    }
+
+    function hide(): void {
+    }
+}

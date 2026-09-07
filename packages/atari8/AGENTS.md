@@ -52,7 +52,7 @@ Do not describe more than this as working:
   The file's own comment records why the shadows exist: the OS's
   vertical-blank routine copies `$02C4-$02C8` over `$D016-$D01A` every
   frame, so a hardware-only colour write lasts one frame (seen on screen
-  by this project when `examples/proof-of-concept/borders` first ran). The
+  by this project when `examples/borders` first ran). The
   other nine are what the input and sound layers below are built on:
   `attract` (`$4D`), `chShadow` (`$02FC`, CH), `consolRead` and
   `consolWrite` (both `$D01F`), `kbcode` (`$D209` read), `skstat` (`$D20F`
@@ -557,7 +557,7 @@ packages/cli/test/emulator-smoke.test.mjs   atari800 -xl -ntsc -run boots a real
 docs/setup/atari8.md                    installing atari800, the ROM caveat, the model → flag list
 docs/setup/llvm-mos.md                  the two Atari drivers and what the XEGS value changes
 docs/setup/verify.md                    why atari8's screenshot is the one OS-level capture
-examples/proof-of-concept/borders/src/main.8bs   the program every screenshot above shows
+examples/borders/src/main.8bs   the program every screenshot above shows
 $SDK/mos-platform/atari8-common/        _antic.h, _gtia.h, _pokey.h, _pia.h, _atarios.h, atari.h (chip bases, PORTB bits), asminc/atari.inc (OS vectors)
 $SDK/mos-platform/atari8-dos/lib/link.ld        the .xex format, $2000, the MEMLO survey
 $SDK/mos-platform/atari8-cart-xegs/lib/link.ld  fixed $A000 + 8K banks at $8000, $BFFA vector, RAM $0700-$1FFF

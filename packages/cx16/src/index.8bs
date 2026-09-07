@@ -35,7 +35,7 @@
 //      and it is the KERNAL's default blue (palette index 6) because that
 //      is the background nibble the KERNAL cleared every cell with. A
 //      program that sets a border and nothing else therefore appears to do
-//      nothing: examples/proof-of-concept/borders looked like exactly that, a solid blue
+//      nothing: examples/borders looked like exactly that, a solid blue
 //      screen, before screen.8bs painted anything itself.
 //
 //   2. The screen is in ISO mode: the character set VERA is drawing from

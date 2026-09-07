@@ -90,7 +90,7 @@ counts a different unit on every target, because what's actually being
 counted is genuinely different hardware (the same reasoning
 [`AGENTS.md`](https://github.com/8BitScript/8bitscript/blob/trunk/AGENTS.md) gives for why "8 sprites" doesn't mean one
 thing across machines). Omit it for a default this project tested against
-`examples/proof-of-concept/borders` until the machine's own boot sequence had clearly
+`examples/borders` until the machine's own boot sequence had clearly
 cleared:
 
 | Target(s) | Mechanism | `--frames` counts | Default |

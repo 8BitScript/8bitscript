@@ -1,0 +1,183 @@
+// @8bitscript/c64/pointer — the C64 behind @8bitscript/pointer: an arrow,
+// drawn with one of the VIC-II's eight sprites.
+//
+// Named by "8bitscript".exports["./pointer"] in this package's package.json,
+// and by "8bitscript".entry.c64 in @8bitscript/pointer's, so a portable
+// program writes
+//
+//     import { pointer } from "@8bitscript/pointer";
+//
+// and gets this file on a C64. It is the *visible* half of the pointer
+// @8bitscript/input already reports: `input` says where the pointer is and
+// whether its button went down, and this says what the user sees while
+// they aim it. Two packages rather than one because reading and drawing
+// are separate everywhere else in this library — `text` draws, `input`
+// reads — and because a machine can perfectly well answer `pointerCell()`
+// and have nothing whatever to draw an arrow with. Eight of the nine are
+// in exactly that position today.
+//
+// ---- why a sprite, and which one ------------------------------------------
+//
+// A cursor has to move without disturbing what is under it, and on this
+// machine the only thing that does that is a movable object: a character
+// cell cursor would have to put back the cell it covered, and
+// @8bitscript/text can write a cell but not read one, so it could not.
+// A sprite also moves a pixel at a time where a cell cursor moves eight,
+// which is the difference between aiming at a menu item and guessing at
+// one.
+//
+// **This file owns sprite 0 and the last shape block, and says so.** The
+// VIC has eight sprites in a fixed front-to-back order and sprite 0 is
+// always in front, which is where a cursor belongs — it is over the
+// interface, not in it. The shape goes in the *last* block
+// @8bitscript/c64/sprites owns rather than the first, because a program
+// laying its own shapes out counts up from `sprites.FIRST_BLOCK` and would
+// otherwise land on the cursor's. A program that wants all eight sprites
+// and no cursor simply does not import this file, and pays nothing for it.
+//
+// ---- the position comes from the mouse's accumulator ----------------------
+//
+// `update()` reads ./mouse.8bs's x and y directly, in **pixels**, rather
+// than taking `input.pointerCell()` — a cell is 8 pixels and a cursor that
+// jumped 8 pixels at a time would be the cell cursor this file exists to
+// avoid. Reading the accumulator is free and safe: ./input.8bs's `poll()`
+// is what advances it, once a frame, and this only looks at where it got
+// to. That is the one ordering rule here, and it is the same one `input`
+// already has: **`poll()` then `update()`, once each a frame.** A program
+// that never calls `input.poll()` gets an arrow that never moves.
+//
+// The arrow's tip is its top-left pixel, so the sprite goes at the mouse's
+// pixel plus the screen's origin in the VIC's coordinate space
+// (`sprites.LEFT`, `sprites.TOP` — 24 and 50, documented in
+// ./sprites.8bs): the tip lands exactly on the pixel the mouse is at, and
+// `input.pointerCell()` is the cell that pixel is in, so what the user
+// aims at and what the program hit-tests are the same thing by
+// construction.
+//
+// ---- a build without a mouse pays nothing ---------------------------------
+//
+// `#fact(input.mouse)` is false on a stock C64, so `HAS_MOUSE` is a const,
+// `if (HAS_MOUSE)` is `if (false)`, and the arrow, its 63 bytes of shape
+// and every register write below are neither reached, referenced nor
+// linked. Fitting a mouse is what compiles them in — measured on Studio,
+// where the arrow costs **182 bytes of program and 1 of RAM** on top of
+// the input layer's mouse, and a mouse and its arrow together take that
+// program from 1523 bytes and 28 of RAM to 2208 and 47.
+import { sprites } from "./sprites.8bs";
+import { mouse } from "./mouse.8bs";
+
+// Was this build fitted with a mouse? Folded while compiling.
+const HAS_MOUSE: bool = #fact(input.mouse);
+
+// The colour the arrow starts in, in the VIC's sixteen. White reads against
+// every background @8bitscript/screen offers, and `setColor` changes it.
+const WHITE: utinyint = 1;
+
+// The arrow: 21 rows of 3 bytes, one bit a pixel, left to right — the
+// shape format ./sprites.8bs documents. Only the leftmost byte of each row
+// is set, so the arrow is 8 pixels wide inside a 24-pixel sprite; the tip
+// is the top-left pixel, which is what makes the sprite's position and the
+// pointer's position the same number.
+//
+//     X.......    XXXXXXXX
+//     XX......    XXXXXX..
+//     XXX.....    XXX.XX..
+//     XXXX....    XX...XX.
+//     XXXXX...    X....XX.
+//     XXXXXX..    ......XX
+//     XXXXXXX.    .......X
+//
+// A const array is data in the program image and never in RAM, so the
+// picture costs no memory the program could have used.
+const ARROW: array<utinyint, 63> = [
+    0x80, 0, 0,
+    0xC0, 0, 0,
+    0xE0, 0, 0,
+    0xF0, 0, 0,
+    0xF8, 0, 0,
+    0xFC, 0, 0,
+    0xFE, 0, 0,
+    0xFF, 0, 0,
+    0xFC, 0, 0,
+    0xEC, 0, 0,
+    0xC6, 0, 0,
+    0x86, 0, 0,
+    0x06, 0, 0,
+    0x03, 0, 0,
+    0, 0, 0,
+    0, 0, 0,
+    0, 0, 0,
+    0, 0, 0,
+    0, 0, 0,
+    0, 0, 0,
+    0, 0, 0,
+];
+
+export namespace pointer {
+
+    // Does this machine draw a pointer at all? A compile-time constant, so
+    // a program can lay itself out around the answer — and on the C64 it is
+    // "only if this build was fitted with a mouse", which is the same
+    // question `input.pointer()` answers at run time.
+    const DRAWS: bool = #fact(input.mouse);
+
+    // The sprite and the shape block this file claims. Named rather than
+    // hidden so a program using @8bitscript/c64/sprites alongside a cursor
+    // knows which two it may not have.
+    const SPRITE: utinyint = 0;
+    const BLOCK: utinyint = 254; // sprites.FIRST_BLOCK + sprites.BLOCK_COUNT - 1
+
+    // Once, at start-up, after input.begin(): copy the arrow into its block
+    // and point the sprite at it. The shape is copied rather than pointed
+    // at where it lies because the VIC reads its own bank and a const array
+    // is wherever the linker put it — the copy loop ./sprites.8bs's header
+    // describes. On a build with no mouse this compiles to nothing.
+    function begin(): void {
+        if (HAS_MOUSE) {
+            let i: utinyint = 0;
+            while (i < sprites.BYTES) {
+                sprites.setShapeByte(pointer.BLOCK, i, ARROW[i]);
+                i = i + 1;
+            }
+            sprites.setShape(pointer.SPRITE, pointer.BLOCK);
+            sprites.setColor(pointer.SPRITE, WHITE);
+        }
+    }
+
+    // The arrow's colour, in the VIC's sixteen — the same numbers
+    // @8bitscript/text's colours are.
+    function setColor(color: utinyint): void {
+        if (HAS_MOUSE) {
+            sprites.setColor(pointer.SPRITE, color);
+        }
+    }
+
+    // Once a frame, after input.poll(): put the arrow where the mouse got
+    // to, and show it only while a mouse is really answering. `present()`
+    // is ./mouse.8bs's probe — a build may be fitted for a mouse and not
+    // have one plugged in, and an arrow parked in a corner would be a lie
+    // about that.
+    function update(): void {
+        if (HAS_MOUSE) {
+            if (mouse.present()) {
+                // The VIC's Y is 8 bits and the screen's 200 rows of pixels
+                // start at 50, so the sum is at most 249 and cannot carry
+                // out of a byte — which is why this needs no clamp of its
+                // own beyond the ceiling input.begin() gave the mouse.
+                sprites.place(pointer.SPRITE, sprites.LEFT + mouse.x(), sprites.TOP + mouse.y());
+                sprites.show(pointer.SPRITE);
+            } else {
+                sprites.hide(pointer.SPRITE);
+            }
+        }
+    }
+
+    // Take the arrow off the screen and leave it off until the next
+    // update(). What a program does while it is doing something the user
+    // cannot point at.
+    function hide(): void {
+        if (HAS_MOUSE) {
+            sprites.hide(pointer.SPRITE);
+        }
+    }
+}

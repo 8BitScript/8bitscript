@@ -179,6 +179,174 @@ PPU accepts them — so a program prints whenever it likes (a HUD bigger
 than the queue's 128 bytes waits for the next blank); a program that
 links no such function pays nothing.
 
+## What a call costs on a 6502, measured
+
+The 6502 backend hands the whole program to LLVM-MOS as one C translation
+unit compiled with `-Os -fno-builtin`. A recurring question is what that
+costs at a call, and the measurements below are here so the next person
+answers it with numbers rather than intuition. All are `mos-c64-clang`,
+read with `llvm-nm --print-size` and `llvm-objdump -d` on the `.prg.elf`
+the build leaves beside the output.
+
+### What the abstraction costs, measured against hand-written C
+
+The same
+picture — blank the screen, draw ` FILE -EDIT- VIEW  HELP` across the top
+row of a C64, loop — built three ways and checked to be pixel-identical in
+VICE:
+
+| Built as | Bytes |
+| --- | --- |
+| Hand-written C, screen codes in a table, writing `$0400` directly | 178 |
+| 8BitScript, `screen.blank` + four `text.print` calls | 482 |
+| 8BitScript, the same through `@8bitscript/ui/menubar` | 809 |
+
+Where the difference goes, from `llvm-nm` on the three ELFs:
+
+- **`text_print`, 172 bytes.** It takes ASCII, converts each character to a
+  screen code as it goes, handles any length, and is the same call on nine
+  machines. The hand-written version has a 24-byte table of screen codes
+  computed by the programmer, and converts nothing.
+- **`setupVideo`, 86 bytes.** The C64 package's video setup — its guard,
+  the video-mode check, the register writes that put the screen where the
+  package wants it and select the upper-case character set. The
+  hand-written version is three stores, because it knows it is a C64 and
+  knows nothing else will ever run.
+- **`menubar_item`, 314 bytes.** Runtime layout: clipping, padding, marker
+  placement, the colour, the item index. The hand-written version has no
+  layout at all — the bar was laid out by the person who typed the table.
+
+That is the whole of it, and it is worth stating plainly rather than
+apologising for: **the hand-written version precomputes the answer at
+compile time into 24 bytes of data; the portable one computes it at run
+time, because the labels, the machine and the highlight are not known when
+the code is written.** 178 bytes buys one bar on one machine. 809 buys a bar
+with any labels, on any of nine machines, with a highlight that moves and a
+row it will not overrun.
+
+It also points at the cheapest possible menu bar, for anyone who wants to
+build one: **lay it out at compile time.** The compiler already does exactly
+this shape of work for templates — `text.print(0, \`TICK ${ticks:1}\`)`
+becomes `print` and `printNumber` calls with their cells worked out during
+compilation, and nothing formats at run time. A bar whose labels are all
+literals is the same problem, and a constant-folded bar would approach the
+178-byte version rather than the 809-byte one. Nothing like it is built or
+designed; this is the note saying it is possible and where the ceiling is.
+
+The C the first row was built from, for anyone re-running it — `mos-c64-clang
+-Os -fno-builtin`:
+
+```c
+#include <stdint.h>
+#define SCREEN ((volatile uint8_t *)0x0400)
+#define COLOR  ((volatile uint8_t *)0xD800)
+static const uint8_t BAR[24] = {
+    32, 6, 9,12, 5, 32,  45, 5, 4, 9,20, 45,
+    32,22, 9, 5,23, 32,  32, 8, 5,12,16, 32
+};
+int main(void) {
+    *(volatile uint8_t *)0xD018 = 0x14;   /* upper-case charset */
+    *(volatile uint8_t *)0xD020 = 6;
+    *(volatile uint8_t *)0xD021 = 0;
+    for (uint16_t i = 0; i < 1000; i++) { SCREEN[i] = 32; COLOR[i] = 1; }
+    for (uint8_t i = 0; i < 24; i++) {
+        SCREEN[i] = BAR[i];
+        COLOR[i] = (i >= 6 && i < 12) ? 7 : 1;
+    }
+    for (;;) { }
+}
+```
+
+### The calling convention is already tight
+
+Passing a sixteen-bit pointer costs exactly eight bytes at the call site,
+which is what the instruction set allows:
+
+```
+ldx #lo / stx $4      ; __rc2
+ldx #hi / stx $5      ; __rc3
+jsr callee
+```
+
+There is no cheaper way to put sixteen bits somewhere on this chip. LLVM-MOS
+also allocates zero page across the whole program and does interprocedural
+register allocation, so a callee's clobbers are known at each call site.
+None of this is a place where 8BitScript can do better by emitting different
+C — the generated C for such a call is already just `f(arg);`.
+
+**What does cost, and it is not the convention: register pressure in a big
+caller.** When many functions inline into one, the allocator runs out of
+places to keep things and starts writing an argument twice — once into a
+preserved pair and once into the argument pair — turning an eight-byte call
+site into sixteen. Measured in `@8bitscript/studio`, where the front door's
+helpers all inline into `main()`: four call sites paid the doubled cost, and
+compiling the same C with the caller kept as its own function restored the
+eight-byte form and took 20 bytes off the program. 8BitScript has no way to
+say "do not inline this" today; if one is ever wanted, this is the evidence
+for it, and 20 bytes on this program is the size of the prize.
+
+**Anything still live across a call has to survive it**, and LLVM-MOS pays
+for that by pushing zero-page registers to a soft stack on entry and popping
+them on exit. A function holding a dozen values across a call had about 130
+bytes of prologue and epilogue, paid even on paths that returned early.
+Reordering it so the values are dead before the first call replaced that
+with a five-byte frame built after the early returns. This is the single
+largest lever a program has over its own size, and it is entirely in the
+source: **measure, then move work before the call.**
+
+**The build compiles at both of LLVM's size levels and keeps the smaller
+one.** Neither `-Os` nor `-Oz` wins everywhere: across 24 builds — Studio,
+and the `borders` and `menubar` examples, on all eight 6502
+targets — `-Oz` was smaller on eighteen and *larger* on six, by as much as
+56 bytes. Nothing in the source says which a given program will prefer, so
+the backend does not guess: it builds the program twice and keeps whichever
+came out smaller, measured off the linked ELF. Over those same 24 builds
+that is **669 bytes saved and not one build made worse**, the largest single
+saving being 78 bytes (`borders` on the Commander X16) and the largest
+proportional one 9% (`borders` on a VIC-20). The cost is one extra pass of a
+compiler that takes a fraction of a second, which is the right trade for a
+machine measured in kilobytes — see `AGENTS.md`, "the rule that decides
+where work happens". `-flto` changes nothing: the program is already one
+translation unit.
+
+### Array parameters
+
+An array is passed to a function by name, and the parameter's type says
+what it holds and how much of it:
+
+```
+const STARTS: array<utinyint, 4> = [1, 7, 13, 19];
+
+function pick(t: array<utinyint, 4>, i: utinyint): utinyint {
+    return t[i];
+}
+
+let cell: utinyint = pick(STARTS, 2);
+```
+
+**Nothing is copied and nothing extra travels with the call.** The argument
+is the address of the array's first element — `const uint8_t *t` in the
+generated C, where C's own array-to-pointer decay makes `pick(STARTS, 2)`
+pass the name; a `usize` into linear memory on the web, which is how a
+`string` parameter already works. **The length is part of the type**, so
+`t.length` is a constant folded during compilation rather than a second
+argument the caller pushes — in keeping with the repository's `AGENTS.md`,
+under *"the rule that decides where work happens"*.
+
+Three consequences worth stating:
+
+- **A bare array name is a value in exactly one place: an argument.**
+  Everywhere else an array is used one element at a time (`t[i]`,
+  `t.length`), and `let x = t;` is refused, as it was before.
+- **An array parameter is read-only.** An element is read through it; there
+  is no assignment through a parameter yet.
+- **An array parameter has no default.** An array is handed over, never
+  filled in.
+
+This is what a component needs to be given a table the compiler computed —
+see [compile-time layout](project/compile-time-layout.md), which was blocked
+on it.
+
 ## Where it actually is
 
 | Layer | State |
@@ -196,13 +364,14 @@ links no such function pays nothing.
 
 The compiled subset runs on both targets: globals with machine integer
 types, `array<T, N>` (`let` in RAM, `const` as data, `@address` over
-hardware), `string<N>` variables and `string` consts, local variables
+hardware, and passed to a function by name — see
+[array parameters](#array-parameters) below), `string<N>` variables and `string` consts, local variables
 (block-scoped), functions with scalar parameters and return values, calls,
 assignment and arithmetic, `if`/`while`/`for`, `@address` hardware globals,
 `asm6502` blocks, namespaces, templates — and imports, which the linker
 resolves across modules. **Lowering is exhaustive-with-error**: a construct
 without a compilation rule fails with a diagnostic naming it — a `ptr<T>`,
-a local array, an array passed as an argument, member access that is not a
+a local array, member access that is not a
 namespace — never by silently dropping code. `8BS3001` is that diagnostic;
 a program using any of it does not build.
 
@@ -597,7 +766,7 @@ load address `$1001` and 3583 bytes of usable RAM, the machine as it was sold.
 The SDK's own default is a 24K-expanded machine, so the backend pins the
 linker's `__memory_expansion` symbol to 0 — fitting the small machine first is
 the point, and expanded configurations can become an option when a program
-actually needs one. `examples/proof-of-concept/borders` is the visible
+actually needs one. `examples/borders` is the visible
 version: one source file whose `while` loop cycles the border colour through
 `screen.setColors()`, imported from `@8bitscript/screen` — which resolves per
 target to `@8bitscript/vic20/screen` or `@8bitscript/c64/screen` — so it is
@@ -611,7 +780,7 @@ Function parameters, return values, and calls used as expressions compile now
 too — a function can take scalar (integer/bool) parameters and return a
 scalar value, and `f() + g()` lowers exactly the way `f(); g();` always did.
 Arrays, local variables, `for` loops, and string variables compile too:
-`examples/proof-of-concept/borders` keeps its colour pairs in two `const` arrays, and the
+`examples/borders` keeps its colour pairs in two `const` arrays, and the
 text packages print with a `for` over a local. Features still arrive one slice at a
 time: the binder that unlocks real type checking is next. Each slice
 extends the lowering; the exhaustive-with-error rule means a feature is
@@ -752,3 +921,70 @@ The dependency direction is one-way, and it is the important part:
 Never the reverse. The compiler knows nothing about any editor, and nothing
 about the CLI. That is what allows one checker to serve the terminal, CI, and
 every editor at once.
+
+### Write the loop a 6502 can index
+
+One more measured shape, because it is the kind of thing that looks like the
+compiler's job and is not. Clearing the C64's 1000-cell screen as the obvious
+loop —
+
+```
+for (let cell: usmallint = 0; cell < Video.CELL_COUNT; cell++) {
+    screenRam[cell] = 32;
+}
+```
+
+— gives LLVM-MOS an index that does not fit a register, so it emits a
+sixteen-bit counter and a sixteen-bit pointer walked a byte at a time with
+its own carry (`sta ($04),y`, `inc $04`, `bne`, `inc $05`): about 34 bytes,
+1000 iterations. Four constant offsets off one 8-bit index is the shape the
+instruction set actually has:
+
+```
+for (let i: utinyint = 0; i < 250; i++) {
+    screenRam[i] = 32;
+    screenRam[i + 250] = 32;
+    screenRam[i + 500] = 32;
+    screenRam[i + 750] = 32;
+}
+```
+
+That becomes four absolute-indexed stores and a quarter of the iterations,
+and takes **23 bytes** off every C64 program that blanks the screen.
+
+**It only works where the screen is an `@address` array.** The same rewrite
+applied to the machines whose `screen.blank` uses `memory.write(base + cell,
+…)` made them *bigger* — C128 +43, MEGA65 +89, Atari 8-bit +63 — because a
+`memory.write` is a volatile store to a computed address, which cannot fold
+into an indexed one, so unrolling only multiplies the code. Those three were
+measured and reverted. The lesson is not "unroll loops"; it is that **an
+index the machine can hold in a register is worth arranging for, and the
+only way to know whether an arrangement helped is to build it and look.**
+
+### Names cost nothing, so write long ones
+
+Worth stating because the instinct is a reasonable one — in JavaScript,
+names ship, so shortening them shrinks the download. **Here they do not
+ship.** An identifier exists in the generated C and in the linked ELF's
+symbol table, and neither is loaded onto the machine. What goes on the
+machine is the `.prg` (or `.xex`, `.nes`): instructions, and the data the
+program actually uses.
+
+Measured on `examples/menubar` for the C64, the same
+program built twice with every function, const and variable in `main.8bs`
+renamed to two letters:
+
+| | Bytes |
+| --- | --- |
+| `drawBar`, `drawStatus`, `ROW`, `STEP`, `ticks`, `next` | 1404 |
+| `aa`, `bb`, `cc`, `dd`, `ee`, `ff` | 1404 |
+
+Byte for byte identical. And the only text inside the `.prg` at all is the
+labels the program prints — `FILE`, `EDIT`, `VIEW`, `HELP` — which are there
+because they are drawn on screen, not because of what they are called. The
+`.prg` is 1406 bytes; the ELF beside it, which carries the symbol table, is
+7420.
+
+So the naming style everywhere in this repository — long, explanatory names
+and comments that say why — is free at run time. Optimise the shape of the
+code, never the length of its names.

@@ -1,0 +1,141 @@
+// @8bitscript/nes/input — the NES behind @8bitscript/input.
+//
+// Named by "8bitscript".exports["./input"] in this package's package.json,
+// and by "8bitscript".entry.nes in @8bitscript/input's, so a portable
+// program writes
+//
+//     import { input } from "@8bitscript/input";
+//
+// and gets this file on an NES. The pad itself is ./pad.8bs, which stays
+// available to a program that wants both controllers or the buttons this
+// file does not map.
+//
+// ---- what this machine has, and what it does not -------------------------
+//
+// This is the machine that makes the portable input surface worth having,
+// because it has none of what the others have. **No keyboard** — the fact
+// sheet says so (`input.keyboard` is false) and Studio reads that fact to
+// decide the NES is a viewer. **No pointer** — there is no mouse for a
+// stock NES, so `pointer()` is a constant false and everything that hangs
+// off it folds away. What there is, is a D-pad, and a D-pad is exactly
+// what a menu bar needs.
+//
+// So the mapping is the whole file:
+//
+//   - **left / right / up / down** — the D-pad on controller 1.
+//   - **confirm** — A, or START. START is included because on a console
+//     the button that opens a menu is the one people press to commit to
+//     something in it, and A is the one they press by reflex.
+//   - **cancel** — B.
+//
+// Controller 2 is read by ./pad.8bs and ignored here: the portable surface
+// describes one user driving one interface. A two-player program wants the
+// pad layer directly.
+//
+// ---- edges, not levels ---------------------------------------------------
+//
+// Every answer here is **edge-triggered**: true on the one frame the press
+// begins, false while it is held. Holding right does not race the highlight
+// across the bar. `poll()` must be called exactly once a frame, right after
+// waitFrame() — twice a frame and every press is seen once and swallowed.
+import { pad, Pad } from "./pad.8bs";
+
+// One bit per thing a program can ask about, so a frame's input is one
+// byte and an edge is one AND. The same seven bits as every other
+// machine's input layer; this one never sets BUTTON.
+namespace Edge {
+    const LEFT: utinyint = 1;
+    const RIGHT: utinyint = 2;
+    const UP: utinyint = 4;
+    const DOWN: utinyint = 8;
+    const CONFIRM: utinyint = 16;
+    const CANCEL: utinyint = 32;
+}
+
+let held: utinyint = 0;
+let before: utinyint = 0;
+let began: utinyint = 0;
+
+export namespace input {
+
+    // Nothing to set up on this machine: the pad needs no configuration
+    // and there is no pointer to give a ceiling to. Here so that a program
+    // written for nine machines calls the same thing on all of them.
+    function begin(): void {
+    }
+
+    // Strobe the pad and work out what began this frame. Once a frame,
+    // right after waitFrame().
+    function poll(): void {
+        pad.scan();
+
+        before = held;
+        held = 0;
+
+        // The D-pad's four bits and the pad's own bit layout differ, so
+        // this is a translation rather than a mask — and it is four
+        // compares rather than a table because a table would cost a byte
+        // of RAM per entry to save nothing.
+        let buttons: utinyint = pad.bits(Pad.PORT_1);
+        if ((buttons & Pad.LEFT) != 0) {
+            held = held | Edge.LEFT;
+        }
+        if ((buttons & Pad.RIGHT) != 0) {
+            held = held | Edge.RIGHT;
+        }
+        if ((buttons & Pad.UP) != 0) {
+            held = held | Edge.UP;
+        }
+        if ((buttons & Pad.DOWN) != 0) {
+            held = held | Edge.DOWN;
+        }
+        if ((buttons & Pad.A) != 0 || (buttons & Pad.START) != 0) {
+            held = held | Edge.CONFIRM;
+        }
+        if ((buttons & Pad.B) != 0) {
+            held = held | Edge.CANCEL;
+        }
+
+        began = held & (before ^ 0xFF);
+    }
+
+    function left(): bool {
+        return (began & Edge.LEFT) != 0;
+    }
+
+    function right(): bool {
+        return (began & Edge.RIGHT) != 0;
+    }
+
+    function up(): bool {
+        return (began & Edge.UP) != 0;
+    }
+
+    function down(): bool {
+        return (began & Edge.DOWN) != 0;
+    }
+
+    function confirm(): bool {
+        return (began & Edge.CONFIRM) != 0;
+    }
+
+    function cancel(): bool {
+        return (began & Edge.CANCEL) != 0;
+    }
+
+    // There is no pointer on an NES, and this is a constant — so a
+    // component's `if (input.pointer())` costs this machine nothing at
+    // all, which is the point of answering the question rather than
+    // leaving the call out.
+    function pointer(): bool {
+        return false;
+    }
+
+    function pointerCell(): usmallint {
+        return 0;
+    }
+
+    function pointerButton(): bool {
+        return false;
+    }
+}

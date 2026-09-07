@@ -1,0 +1,488 @@
+// @8bitscript/ui/menubar — a menu bar across one row of the character grid.
+//
+//     import { menubar } from "@8bitscript/ui/menubar";
+//
+//     menubar.select(1);
+//     menubar.begin(0, text.COLUMNS);
+//     menubar.item("FILE");
+//     if (menubar.item("EDIT")) { /* this one is highlighted */ }
+//     menubar.item("HELP");
+//     menubar.end();
+//
+// Drawn only through @8bitscript/text, so the same call draws the same bar
+// on all nine targets, and a machine's own text package decides how a cell
+// reaches its screen — the VIC-20 pokes it, the NES queues it for the next
+// vertical blank.
+//
+// ---- immediate mode: the bar is a call, not a structure -------------------
+//
+// The bar holds no list of items. `begin()` opens it, each `item()` draws
+// one where the cursor is and moves the cursor along, and `end()` closes
+// it. That is not a shortcut around a missing language feature — it is what
+// these machines want. A retained bar would need an array of strings, a
+// pointer per item, and RAM to keep them in, all to redraw something a
+// program can redraw by running four calls again. Nothing here allocates,
+// and a program links only the components it names.
+//
+// It is also the shape input wants. `item()` already returns whether that
+// item is the highlighted one, so
+//
+//     if (menubar.item("FILE")) { drawFileMenu(); }
+//
+// is written the same way whether the highlight moves under a program's
+// own `select()`, under the cursor keys, or under a mouse. **Nothing here
+// reads a key**, and now that `@8bitscript/input` exists that is a rule
+// rather than a limitation: a component that imported it would make every
+// program drawing a bar link an input layer, and would decide for everyone
+// what hovering means. The bar offers `next()`, `previous()` and
+// `point()`; the program says when to call them.
+//
+// ---- how an item is laid out ----------------------------------------------
+//
+// Each item is its label with `padding` cells either side, so a bar reads
+// as separated words rather than one run of text:
+//
+//     ` FILE  EDIT  HELP `
+//
+// The highlighted item puts a marker character in the padding cell either
+// side of its label, in place of the space that would be there:
+//
+//     ` FILE -EDIT- HELP `
+//
+// The marker is the highlight that works everywhere, and that is why it is
+// the default rather than colour. `text.setColor`/`text.putColor` do carry
+// a highlight on the machines with per-cell colour, and `setColors()` uses
+// them — but the PET's screen has one colour, and the NES's colour lives in
+// a 2x2-cell attribute block that this text layer deliberately does not
+// touch (`putColor` there is empty). On those two a colour highlight would
+// be invisible. A marker is drawn out of the same portable character set as
+// the labels, so it is visible on every target, and it costs no width: it
+// replaces a padding cell rather than adding one.
+//
+// ---- what does not fit ----------------------------------------------------
+//
+// A bar is given the cells it may use and never writes past them. The grid
+// is 22 columns on a VIC-20 and 76 on a Commander X16, so a bar that fits
+// one machine is not a bar that fits them all, and this component refuses
+// to pretend otherwise: an item with no room is not drawn, `clipped()` says
+// so afterwards, and the program can decide — shorter labels, less padding,
+// a second row — rather than finding half a word overwritten.
+import { text, TextColor } from "@8bitscript/text";
+
+// The default marker: '-' in the portable character set, chosen because it
+// costs the padding cell it replaces and reads as a bracket around the
+// label. `setMarker(0)` turns it off for a program that highlights with
+// colour alone.
+const SPACE: utinyint = 32;
+
+// Can this machine give one cell its own colour? Folded while compiling
+// from the build's fact sheet, and the one thing that decides how a
+// highlight is drawn here.
+//
+// It is a fact and not a guess about a machine's name because the answer
+// splits the nine three ways that no other fact does: the VIC-20, C64,
+// C128, X16, MEGA65 and web all have a colour per cell, and the **PET**
+// (no colour RAM at all), the **Atari 8-bit** (GR.0 has none) and the
+// **NES** (its colour lives in a 2x2-cell attribute block this text layer
+// does not touch) do not — which is exactly the set where
+// `text.putColor` is a deliberately empty function. `video.cellColors`
+// does not answer this: it is 2 on all nine, including the PET, because a
+// cell does hold two colours there — they are just not a program's to set.
+//
+//     colour per cell:  ` FILE  EDIT `  with EDIT in the highlight colour
+//     no colour:        ` FILE -EDIT- `
+//
+// So the marker is not a fallback that also runs where it is not needed.
+// It is what a highlight *is* on three machines, and it costs the other
+// six nothing.
+const COLOR_PER_CELL: bool = #fact(video.colorPerCell);
+
+// So: bracket the highlighted item only where colour cannot say it. The
+// test is written `if (!COLOR_PER_CELL)` at its one use below rather than
+// as a `const` of its own, because a global initialiser has to be a
+// literal or a const and `!` is neither (8BS3001) — the fold is the same
+// either way, and on a C64 the two `print` calls that draw the brackets
+// are not skipped at run time, they are never compiled. On a PET they are
+// the whole highlight.
+
+// Nothing is highlighted — the value `highlighted` and `pointed` hold when
+// no item is chosen and none is under a pointer. `menubar.NONE` is the
+// same number on the surface.
+const NO_SELECTION: utinyint = 255;
+
+// Style. Every one of these is a knob a program may turn before `begin()`,
+// and each has a default that draws a sensible bar with no call at all.
+let itemColor: utinyint = TextColor.WHITE;
+let highlightColor: utinyint = TextColor.YELLOW;
+let padding: utinyint = 1;
+// One cell wide by declaration: `string<1>` cannot hold more, so a marker
+// can never push a label out of the width the layout reserved for it, and
+// "" turns it off.
+//
+// **Whether it is drawn at all is the machine's answer, not a taste** —
+// see `COLOR_PER_CELL` above. This holds which character to use on the
+// machines that draw one; on the machines that colour a cell instead, it
+// and every use of it fold away.
+let marker: string<1> = "-";
+
+// Where the bar is and how much of it is left, between `begin()` and
+// `end()`. `cursor` is the next free cell, `remaining` the cells after it.
+let cursor: usmallint = 0;
+let remaining: utinyint = 0;
+
+// Which item is highlighted, how many the last bar drew, and whether any of
+// them had to be dropped for want of room.
+//
+// **Nothing is highlighted to begin with.** A bar opens deselected —
+// `highlighted` is `NONE`, no item is bracketed, and `item()` answers false
+// for every one of them — because that is what a menu bar looks like before
+// anyone has touched it. The first `next()` or `previous()` lands on an end
+// of the bar, and `deselect()` puts it back.
+let highlighted: utinyint = NO_SELECTION;
+let index: utinyint = 0;
+let overflowed: bool = false;
+
+// Where a pointer is, as a flat cell, and which item it turned out to be
+// over. 65535 is "no pointer", and it is not a special case anywhere: an
+// item's hit test asks `at >= start` and then `at - start < length`, and
+// 65535 fails the second for every item on every machine. Both are reset
+// by `begin()`, so a bar drawn without `point()` costs nothing for the
+// pointer it does not have.
+let pointerAt: usmallint = 65535;
+let pointedIndex: utinyint = NO_SELECTION;
+
+// The icon slot's label — see `icon()`. One cell wide by declaration.
+let iconLabel: string<1> = "8";
+
+// Helpers stay at module level: a namespace function reaches a sibling only
+// through the namespace's name, and none of these is part of the surface.
+
+// Blank `count` cells from `at`: the bed the whole bar is laid on, and the
+// one place in this component that puts a character rather than printing a
+// string. No colour goes with it, and that is not an oversight — a space
+// shows the screen's background colour whatever its colour cell says, so
+// colouring a blank achieves nothing on any of the nine. Each item sets the
+// colour it prints in.
+function blank(at: usmallint, count: utinyint): void {
+    for (let i: utinyint = 0; i < count; i++) {
+        text.putChar(at + i, SPACE);
+    }
+}
+
+export namespace menubar {
+
+    // Rows the bar occupies, so a program can lay out under it —
+    // `text.print(menubar.HEIGHT * text.COLUMNS, ...)` is the line below.
+    const HEIGHT: utinyint = 1;
+
+    // ---- style, before begin() --------------------------------------------
+
+    // The colour an item is drawn in, and the colour the highlighted one
+    // gets, on the machines with a colour per cell. The eight names in
+    // `TextColor` are the portable ones.
+    //
+    // **Drawing a bar leaves the text colour set to the bar's.** The
+    // component colours its text by calling `text.setColor` before each
+    // `print`, rather than walking back over the cells with `putColor`
+    // afterwards, and there is no `text.getColor` to put the caller's
+    // setting back with. Paying a second pass over every cell to avoid
+    // this cost about 200 bytes on a C64, which is a bad trade for a
+    // program that can pick its own colour on the line after the bar. So:
+    // draw the bar, then set your colour.
+    function setColors(item: utinyint, highlight: utinyint): void {
+        itemColor = item;
+        highlightColor = highlight;
+    }
+
+    // Cells of space either side of every label. 1 by default; 0 runs the
+    // labels together and leaves the marker nowhere to go.
+    function setPadding(cells: utinyint): void {
+        padding = cells;
+    }
+
+    // The character that brackets the highlighted item, in place of the
+    // padding cell either side of its label. `-` by default; "" draws
+    // none, which leaves colour as the only highlight — right for a
+    // program that knows the machine it is for. Anything longer than one
+    // character is cut to one, because that is the room the layout keeps.
+    function setMarker(bracket: string): void {
+        marker = bracket;
+    }
+
+    // ---- the highlight ------------------------------------------------------
+
+    // Highlight the item with this index — 0 is the first one drawn. The
+    // bar redraws on the next begin()/item()/end() run; nothing moves on
+    // its own: this component never reads input, so a program moves the
+    // highlight with `select()`, `next()`, `previous()` or `deselect()`.
+    function select(item: utinyint): void {
+        highlighted = item;
+    }
+
+    function selected(): utinyint {
+        return highlighted;
+    }
+
+    // Nothing highlighted. A bar starts here, and `deselect()` returns to
+    // it — which is what closing a menu without choosing anything means.
+    const NONE: utinyint = NO_SELECTION;
+
+    function deselect(): void {
+        highlighted = NO_SELECTION;
+    }
+
+    // Step the highlight along the bar, wrapping at the ends. **From
+    // nothing, `next()` lands on the first item and `previous()` on the
+    // last** — so the very first press of either key puts the user
+    // somewhere sensible rather than doing nothing visible.
+    //
+    // Both count from the *last* run of the bar: `index` is how many items
+    // that run offered, so these are called after `end()` and before the
+    // redraw. A bar that has never been drawn offers nothing to step
+    // through, and both leave it alone rather than selecting an item that
+    // is not there.
+    function next(): void {
+        if (index == 0) {
+            return;
+        }
+        if (highlighted == NO_SELECTION) {
+            highlighted = 0;
+            return;
+        }
+        highlighted = highlighted + 1;
+        if (highlighted >= index) {
+            highlighted = 0;
+        }
+    }
+
+    function previous(): void {
+        if (index == 0) {
+            return;
+        }
+        if (highlighted == NO_SELECTION || highlighted == 0) {
+            highlighted = index - 1;
+            return;
+        }
+        highlighted = highlighted - 1;
+    }
+
+    // ---- a pointer over the bar ---------------------------------------------
+
+    // Tell the bar where a pointer is, as a flat cell — the same unit
+    // `text.print()` and `@8bitscript/input`'s `pointerCell()` use. Set it
+    // before `begin()`; each `item()` then works out whether it is the one
+    // under the pointer, and `pointed()` says which afterwards.
+    //
+    // **The component does not move the highlight itself**, and that is
+    // deliberate: hover and selection are the program's policy, not a menu
+    // bar's. A program that wants hover-to-highlight writes the one line
+    //
+    //     if (menubar.pointed() != menubar.NONE) { menubar.select(menubar.pointed()); }
+    //
+    // and a program that only wants a click to count reads `pointed()`
+    // when the button goes down. Neither costs the other anything.
+    //
+    // A bar drawn without ever calling this is not paying for a pointer:
+    // `begin()` leaves the cell at 65535, which no item can contain.
+    function point(cell: usmallint): void {
+        pointerAt = cell;
+    }
+
+    // Which item the pointer was over during the last run, or `NONE`. The
+    // pointer has to be on one of an item's *label* cells; the padding
+    // either side belongs to the bar, not to the item, so a pointer in the
+    // gap between two items is over neither.
+    function pointed(): utinyint {
+        return pointedIndex;
+    }
+
+    // ---- the icon slot ------------------------------------------------------
+
+    // Draw the leftmost item as the bar's icon — the slot a desktop puts
+    // its own mark in, before the first real menu.
+    //
+    // **Today it draws one character, and that is a limit worth naming.**
+    // A component may only draw from the portable character set the
+    // checker enforces — space, `0`-`9`, `A`-`Z` and `! , - . : ?` — and
+    // `text.putChar` converts ASCII to a screen code, so there is no
+    // portable route to an arbitrary shape. An icon in the sense a desktop
+    // means it needs either a redefinable glyph (`Video.GLYPHS`, which
+    // three of the nine do not have) or a way to put a raw character code
+    // on the grid, and neither exists yet.
+    //
+    // So this is the *slot*, not the picture. It exists as its own call
+    // rather than as `item("8")` so that when a glyph capability arrives,
+    // `icon()` starts drawing a real mark and **no program changes** —
+    // which is the rule for anything added here before compile-time layout
+    // lands (see AGENTS.md).
+    //
+    // It is an ordinary item in every other way: it takes an index, it can
+    // be highlighted, and it answers whether it is.
+    function icon(): bool {
+        return menubar.item(iconLabel);
+    }
+
+    // The character the icon slot draws, from the portable set. One cell
+    // wide by declaration, so it can never widen the slot.
+    function setIcon(mark: string): void {
+        iconLabel = mark;
+    }
+
+    // ---- drawing ------------------------------------------------------------
+
+    // Open a bar at `at`, using `cells` cells of that row and never one
+    // more. A full-width bar on the top row is `begin(0, text.COLUMNS)`;
+    // the two arguments are what let a bar sit inside something narrower.
+    function begin(at: usmallint, cells: utinyint): void {
+        cursor = at;
+        remaining = cells;
+        index = 0;
+        overflowed = false;
+        // Which item the pointer is over is a question about *this* run,
+        // so it is answered from scratch each time. The pointer's own cell
+        // is not cleared here: a program sets it once a frame with
+        // `point()` and the bar may be drawn more than once between.
+        pointedIndex = NO_SELECTION;
+        // Blank the whole bar here, in the one loop that puts a character
+        // for a whole row, rather than a run of blanks around every item
+        // and another behind the last one. It costs writing the label cells
+        // twice — a bar is drawn when something changes, not every frame —
+        // and it buys `item()` and `end()` not having to lay blanks at all,
+        // which is most of what either used to compile to.
+        blank(at, cells);
+    }
+
+    // Draw the next item, and say whether it is the highlighted one. An
+    // item with no room left is not drawn — the bar is clipped, not
+    // overrun — but it still takes its index and still answers for the
+    // highlight, so which item is selected does not depend on how wide the
+    // machine's screen is.
+    function item(name: string): bool {
+        // Everything this function still needs after the first `text.print`
+        // has to survive that call, and on a 6502 that means LLVM-MOS
+        // pushing it to a soft stack on entry and popping it on exit. So
+        // the order here is deliberate: answer the highlight question,
+        // measure the item, and move the bar's own cursor on — all before
+        // printing anything. By the time the first call happens only
+        // `start`, `n`, `on` and the marker are still wanted, and the
+        // prologue shrinks with them. Written the natural way round, with
+        // the bookkeeping after the drawing, this function was 320 bytes on
+        // a C64 rather than the number in AGENTS.md.
+        let on: bool = index == highlighted;
+
+        // Is there room? Checked in three steps that can never wrap a byte,
+        // rather than by adding the width up and comparing it: `padding`
+        // is the caller's number, and `padding + name.length + padding`
+        // can carry past 255 and come back a small number that passes the
+        // comparison — which would draw the item straight past the end of
+        // the bar, the one thing this component promises not to do. So the
+        // label goes first, then each side's padding out of what the label
+        // leaves.
+        //
+        // Widening the sum instead — `let width: usmallint = padding +
+        // name.length + padding` — is not the fix, and this is worth
+        // knowing before someone tries it: the two backends do not agree
+        // on it. With padding 200 and a 2-character label the 6502 build
+        // computes 402 (the generated C promotes both bytes to `int`) and
+        // the web build computes 146 (the generated AssemblyScript wraps
+        // at eight bits). Measured, both targets, 2026-09-06. Until that
+        // is settled in the compiler, a component that must not overrun
+        // does its arithmetic where a byte cannot carry.
+        //
+        // An item that is not drawn still takes its index — which is why
+        // each of the three ways out below advances it. Which item is
+        // selected must not depend on how wide the machine's screen is.
+        let n: utinyint = name.length;
+        if (n > remaining) {
+            overflowed = true;
+            index = index + 1;
+            return on;
+        }
+        let room: utinyint = remaining - n;
+        if (padding > room) {
+            overflowed = true;
+            index = index + 1;
+            return on;
+        }
+        if (padding > room - padding) {
+            overflowed = true;
+            index = index + 1;
+            return on;
+        }
+
+        // The item's own cells, and the bar's cursor moved past them, while
+        // the numbers that say so are still in hand.
+        let start: usmallint = cursor + padding;
+
+        // Is the pointer on this item? Asked here, with `start` and `n`
+        // already worked out and before anything is drawn, for the same
+        // reason as everything else above it: whatever is still live when
+        // the first `text.print` runs has to be pushed to a soft stack and
+        // popped back, and that prologue is the most expensive thing in
+        // this function (see AGENTS.md).
+        //
+        // Two comparisons, not one. `at < start + n` would form a sum of a
+        // 16-bit cell and a byte length, and the two backends do not agree
+        // on what that does — the same trap as the room check above. So:
+        // is it at or after the start, and is its distance from the start
+        // inside the label. That also makes "no pointer" free: 65535 is
+        // past every start and its distance is past every length.
+        if (pointerAt >= start) {
+            if (pointerAt - start < n) {
+                pointedIndex = index;
+            }
+        }
+
+        index = index + 1;
+        cursor = start + n + padding;
+        remaining = room - padding - padding;
+
+        // Now draw, holding as little as possible. `text.print` does a
+        // machine's per-run setup once and then walks the string;
+        // `text.putChar` redoes that setup, an ASCII conversion and a
+        // sixteen-bit pointer build for every cell, inlined into the call
+        // site. So everything here is a string: the label, and the marker
+        // that brackets the highlighted item in the padding cell either
+        // side of it. The colour rides along on `print` rather than a
+        // second pass of `putColor` over the cells just written.
+        if (on) {
+            text.setColor(highlightColor);
+        } else {
+            text.setColor(itemColor);
+        }
+        text.print(start, name);
+        if (!COLOR_PER_CELL) {
+            if (on) {
+                if (padding > 0) {
+                    text.print(start - 1, marker);
+                    text.print(start + n, marker);
+                }
+            }
+        }
+        return on;
+    }
+
+    // Close the bar. Nothing is left to draw — `begin()` blanked the whole
+    // row before the first item, which is what stops a bar redrawn with
+    // shorter labels showing any of the longer ones — so this just marks
+    // the bar finished, and is here because a program should not have to
+    // know that.
+    function end(): void {
+        cursor = cursor + remaining;
+        remaining = 0;
+    }
+
+    // ---- what the last bar did ----------------------------------------------
+
+    // How many items the last run offered, drawn or not.
+    function count(): utinyint {
+        return index;
+    }
+
+    // Whether an item had to be dropped for want of room: true after a bar
+    // that asked for more cells than it was given. A program that must fit
+    // every machine can check it and lay out again.
+    function clipped(): bool {
+        return overflowed;
+    }
+}

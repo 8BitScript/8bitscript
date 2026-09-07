@@ -36,6 +36,20 @@ function getSystem() {
   return ALL_TARGETS.includes(value) ? value : ALL_TARGETS[0];
 }
 
+/**
+ * The project the Run Settings panel acts on: the absolute directory of
+ * one, or '' for "whichever the workspace offers first". A path rather
+ * than a name, because two workspace folders can hold projects of the
+ * same name.
+ *
+ * @returns {string}
+ */
+function getProject() {
+  const value = config().get('project');
+  return typeof value === 'string' ? value : '';
+}
+const setProject = (dir) => update('project', dir ?? '');
+
 /** @returns {'runnable' | 'byProject' | 'bySystem'} */
 function getViewMode() {
   const value = config().get('projectsView');
@@ -62,13 +76,13 @@ const setRegion = (region) => update('region', region);
 const setSystem = (system) => update('system', system);
 const setViewMode = (mode) => update('projectsView', mode);
 
-/** Whether the proofs of concept shipped with the toolchain are listed (the `showExamples` setting). */
+/** Whether the examples shipped with the toolchain are listed (the `showExamples` setting). */
 function getShowExamples() {
   return config().get('showExamples') === true;
 }
 const setShowExamples = (show) => update('showExamples', show);
 
-/** An explicit directory of proofs of concept, when the `examplesPath` setting names one. */
+/** An explicit directory of examples, when the `examplesPath` setting names one. */
 function getExamplesPath() {
   const value = config().get('examplesPath');
   return typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
@@ -99,7 +113,7 @@ async function setHardware(system, selection) {
 
 /** True when a change event touches any of the run settings. */
 function affectsAny(event) {
-  return ['region', 'system', 'projectsView', 'hardware'].some((key) =>
+  return ['region', 'system', 'project', 'projectsView', 'hardware'].some((key) =>
     event.affectsConfiguration(`${SECTION}.${key}`),
   );
 }
@@ -120,6 +134,7 @@ module.exports = {
   affectsAny,
   getExamplesPath,
   getHardware,
+  getProject,
   getRegion,
   getShowExamples,
   getSystem,
@@ -127,6 +142,7 @@ module.exports = {
   regionLabel,
   regionShort,
   setHardware,
+  setProject,
   setRegion,
   setShowExamples,
   setSystem,

@@ -1,0 +1,135 @@
+// @8bitscript/pet/input — the PET behind @8bitscript/input.
+//
+// Named by "8bitscript".exports["./input"] in this package's package.json,
+// and by "8bitscript".entry.pet in @8bitscript/input's, so a portable
+// program writes
+//
+//     import { input } from "@8bitscript/input";
+//
+// and gets this file on a PET. The matrix itself is ./keyboard.8bs with
+// ./keys.8bs, which stay available to a program that wants a key this file
+// does not map.
+//
+// ---- a keyboard and nothing else -----------------------------------------
+//
+// The PET is the machine with the least to offer this surface, and saying
+// so plainly is the job. There are **no control ports** — no joystick, no
+// paddles, no mouse, nothing to plug in — because the machine predates the
+// idea. `pointer()` is a constant false, and so every `if
+// (input.pointer())` in a component folds away to nothing here.
+//
+// What there is is a keyboard, and it has the two cursor keys the
+// Commodore machines all have rather than four: `CURSOR_RIGHT` and
+// `CURSOR_DOWN`, each reversed by SHIFT. So left is SHIFT plus the right
+// key. That is what the machine has, and this file reports it rather than
+// pretending otherwise.
+//
+//   - **left / right / up / down** — the two cursor keys, with SHIFT.
+//   - **confirm** — RETURN.
+//   - **cancel** — RUN/STOP.
+//
+// ---- edges, not levels ---------------------------------------------------
+//
+// Every answer is **edge-triggered**: true on the one frame the press
+// begins, false while it is held. `poll()` must be called exactly once a
+// frame, right after waitFrame().
+//
+// One thing worth knowing about this keyboard specifically: the PET's
+// matrix is read a row at a time and has the same ghosting every
+// undiodedmatrix does — three keys down can read as four. Two keys are
+// always safe, and SHIFT plus a cursor key is two.
+import { keyboard } from "./keyboard.8bs";
+import { Key } from "./keys.8bs";
+
+namespace Edge {
+    const LEFT: utinyint = 1;
+    const RIGHT: utinyint = 2;
+    const UP: utinyint = 4;
+    const DOWN: utinyint = 8;
+    const CONFIRM: utinyint = 16;
+    const CANCEL: utinyint = 32;
+}
+
+let held: utinyint = 0;
+let before: utinyint = 0;
+let began: utinyint = 0;
+
+export namespace input {
+
+    // Nothing to set up: there is no pointer to give a ceiling to and the
+    // matrix needs no configuration. Here so a program written for nine
+    // machines calls the same thing on all of them.
+    function begin(): void {
+    }
+
+    // Snapshot the matrix and work out what began this frame. Once a
+    // frame, right after waitFrame().
+    function poll(): void {
+        keyboard.scan();
+
+        before = held;
+        held = 0;
+
+        let shifted: bool = keyboard.pressed(Key.SHIFT_LEFT) || keyboard.pressed(Key.SHIFT_RIGHT);
+        if (keyboard.pressed(Key.CURSOR_RIGHT)) {
+            if (shifted) {
+                held = held | Edge.LEFT;
+            } else {
+                held = held | Edge.RIGHT;
+            }
+        }
+        if (keyboard.pressed(Key.CURSOR_DOWN)) {
+            if (shifted) {
+                held = held | Edge.UP;
+            } else {
+                held = held | Edge.DOWN;
+            }
+        }
+        if (keyboard.pressed(Key.RETURN)) {
+            held = held | Edge.CONFIRM;
+        }
+        if (keyboard.pressed(Key.STOP)) {
+            held = held | Edge.CANCEL;
+        }
+
+        began = held & (before ^ 0xFF);
+    }
+
+    function left(): bool {
+        return (began & Edge.LEFT) != 0;
+    }
+
+    function right(): bool {
+        return (began & Edge.RIGHT) != 0;
+    }
+
+    function up(): bool {
+        return (began & Edge.UP) != 0;
+    }
+
+    function down(): bool {
+        return (began & Edge.DOWN) != 0;
+    }
+
+    function confirm(): bool {
+        return (began & Edge.CONFIRM) != 0;
+    }
+
+    function cancel(): bool {
+        return (began & Edge.CANCEL) != 0;
+    }
+
+    // No control ports on this machine, so no pointer — a constant, not a
+    // measurement.
+    function pointer(): bool {
+        return false;
+    }
+
+    function pointerCell(): usmallint {
+        return 0;
+    }
+
+    function pointerButton(): bool {
+        return false;
+    }
+}

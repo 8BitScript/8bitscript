@@ -12,7 +12,7 @@ git submodules anywhere in the model.
 
 This page began as pure design; most of it is now real. The resolver
 implements the resolution contract below, and the linker compiles a program
-from its whole import graph — `examples/proof-of-concept/borders` imports its screen from
+from its whole import graph — `examples/borders` imports its screen from
 `@8bitscript/screen` and its character grid from `@8bitscript/text`, each of
 which resolves per target to that machine package's own implementation
 (`@8bitscript/vic20/screen`, `@8bitscript/c64/text`, and so on), through
@@ -58,7 +58,7 @@ capability, so a program says exactly which parts of a machine it uses:
 ```
 import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";
 import { text } from "@8bitscript/text";
-import { input } from "@8bitscript/input";   // planned — not built yet
+import { input } from "@8bitscript/input";
 import { vic } from "@8bitscript/vic20";     // planned — the chip itself
 
 let x: u8 = 10;
@@ -73,9 +73,9 @@ export function update(): void {
 }
 ```
 
-`@8bitscript/screen` and `@8bitscript/text` exist and build (with a flat
-cell index for `putChar` today, not `x, y`); `@8bitscript/input` and a
-`vic` namespace are the shape the rest will take.
+`@8bitscript/screen`, `@8bitscript/text` and `@8bitscript/input` exist and
+build (with a flat cell index for `putChar` today, not `x, y`); a `vic`
+namespace is the shape the rest will take.
 
 ## How an import resolves
 
@@ -245,7 +245,7 @@ namespace const may be initialised from another module's const
 surface reads a small geometry file and only that file has a hardware
 version — see [the compiler](compiler.md#namespace-what-a-poke-becomes-once-you-name-it).
 
-No example in this repository needs one yet. `examples/proof-of-concept/borders` builds
+No example in this repository needs one yet. `examples/borders` builds
 for all nine targets from one `src/main.8bs`, because the machine packages
 absorb every difference it would otherwise have to spell out per machine —
 the same ASCII character codes, the same colour names, the same "cell 0 is
@@ -295,7 +295,7 @@ one alone), `setBorder(border)`, `setBackground(background)`, and
 whichever machine it is built for. `@8bitscript/text` is the same shape for
 the character grid (`text.print`/`printNumber`/`setColor`/`putChar`/`putColor`,
 `CELL_COUNT`/`COLUMNS`, and the eight shared colour names in `TextColor`).
-`examples/proof-of-concept/borders` builds for all nine targets from one source file this
+`examples/borders` builds for all nine targets from one source file this
 way.
 
 `text` carries one more agreement, and it is a *compiler* one: a namespace
@@ -333,7 +333,7 @@ program back once per frame rather than handing it the whole machine used
 to be such a case for `web`; the web runtime now hands the program its own
 worker thread, and `waitFrame()` means the same thing there as on the 6502
 machines, so a single file covers it.
-`examples/proof-of-concept/borders` briefly kept per-machine versions of its entry for the
+`examples/borders` briefly kept per-machine versions of its entry for the
 NES, Atari, and X16 too, for their screen codes and grids; those
 differences now live in the machine packages, and it is one file again.)
 
@@ -419,7 +419,10 @@ Only two kinds of package are meant for you:
 | Package | Role |
 | ------- | ---- |
 | `@8bitscript/cli` | The `8bs` command. A dev dependency |
-| `@8bitscript/screen`, `@8bitscript/text` | The portable standard library, one package per capability: each resolves per target to that machine package's own implementation |
+| `@8bitscript/screen`, `@8bitscript/text`, `@8bitscript/input`, `@8bitscript/pointer` | The portable standard library, one package per capability: each resolves per target to that machine package's own implementation |
+| `@8bitscript/ui` | Reusable interface components, drawn on the character grid through the capability packages: one component per subpath (`@8bitscript/ui/menubar`), so a program links the ones it names. A component is portable code, not a capability — there is one menu bar, not one per machine — and it is written to what the grid really gives you: three of the nine targets have no per-cell colour, so the menu bar's highlight is a marker character first and a colour second, and a bar that will not fit a VIC-20's 22 columns reports it rather than overrunning the row |
+| `@8bitscript/input` | What the user just did, on whichever machine is being built: four directions, confirm, cancel, and a pointer where there is one — all edge-triggered, so a press is true on the one frame it begins. Every answer comes from that machine's own layer (`@8bitscript/c64/input` reads a key matrix, `@8bitscript/nes/input` a shift register), and a machine that cannot answer yet says so and costs nothing: the X16's layer returns constants, which LLVM deletes entirely. `#fact(input.mouse)` decides while compiling whether a build carries pointer code at all; whether a mouse is really plugged in is the layer's answer each frame. See `packages/input/AGENTS.md` for what each of the nine reads today |
+| `@8bitscript/pointer` | The other half of `input`: an arrow the user can see, drawn with whatever the machine has to draw one with. `DRAWS` is a const, so a program lays itself out around whether this machine draws a cursor at all and the branch it does not take costs nothing; `begin()` claims the hardware and `update()`, once a frame right after `input.poll()`, moves the arrow to wherever the poll left the pointer. Two packages rather than one because reading and drawing are different jobs and a machine can do either without the other — the X16 has a pointer in its own firmware and an input layer that cannot read a key. Today the **C64** is the only one that draws: sprite 0, a pixel at a time, on a build fitted with a 1351. See `packages/pointer/AGENTS.md` and `examples/pointer` |
 | `@8bitscript/system` | The machine, by name and by fact: `System.C64`, `System.PET`, … to compare the compiler's `#system()` with, and the fact sheet — `Video.COLUMNS`, `Video.SPRITES`, `Audio.VOICES`, `Input.KEYBOARD`, `Storage.SAVE`, `Memory.RAM`, … — each one `#fact(...)` folded from the build's hardware. Every one is a compile-time constant, so a branch on another machine, or on hardware this build lacks, folds away — see [systems](systems.md#facts-what-a-build-knows-about-itself) |
 | `@8bitscript/vic20`, `@8bitscript/c64`, `@8bitscript/nes`, … `@8bitscript/web` | Target support, one per machine: the hardware underneath (registers, port protocols), plus that machine's `./screen` and `./text` subpaths, and any hardware-level subpath of its own (`@8bitscript/pet/keyboard`, `@8bitscript/pet/keys`; `@8bitscript/c64/sprites`, `/keyboard`, `/keys`, `/joystick`, `/sid`, `/video`, `/raster`, `/bitmap`, `/charset`, `/scroll`, `/mouse`, `/reu` — the REU probe, `reu.detect()`, and its transfers; `@8bitscript/atari8/joystick`, `/console` — START/SELECT/OPTION and the console speaker, `/keyboard`, `/keys`, `/pokey` — POKEY's four voices, `/random` — POKEY's hardware entropy, behind its own import; `@8bitscript/c128/vdc`, `/vdc80`; `@8bitscript/cx16/banks` and `@8bitscript/atari8/banks` — `banks.kib()`) that a portable capability does not cover yet |
 
@@ -443,12 +446,12 @@ This repository is a pnpm workspace:
 ```yaml
 packages:
   - packages/*
-  - examples/proof-of-concept/*
+  - examples/*
   - editors/*
 ```
 
 `packages/` holds the toolchain, the machine and capability packages, and
-the apps that ship with them. `examples/proof-of-concept/` holds programs
+the apps that ship with them. `examples/` holds programs
 that consume the toolchain, and they depend on it with `workspace:*`:
 
 ```json
@@ -466,7 +469,7 @@ them through its own `node_modules` exactly as an installed project would, so
 an example is a genuine consumer rather than a special case wired up by the
 build. Nothing has to be published for this to work.
 
-[`examples/proof-of-concept/borders`](https://github.com/8BitScript/8bitscript/tree/trunk/examples/proof-of-concept/borders)
+[`examples/borders`](https://github.com/8BitScript/8bitscript/tree/trunk/examples/borders)
 is the one that goes end to end: it imports `@8bitscript/screen` and
 `@8bitscript/text` and runs on all nine targets. The development loop is:
 
@@ -474,7 +477,7 @@ is the one that goes end to end: it imports `@8bitscript/screen` and
 edit the compiler
       |
       v
-edit examples/proof-of-concept/borders/src/main.8bs
+edit examples/borders/src/main.8bs
       |
       v
 pnpm --filter borders start

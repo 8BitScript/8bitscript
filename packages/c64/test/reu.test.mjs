@@ -14,7 +14,7 @@ import { delimiter, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { link } from '../../compiler/index.mjs';
-import { loadCatalog, stockFacts } from '../../cli/src/hardware.mjs';
+import { loadCatalog, resolveHardware, stockFacts } from '../../cli/src/hardware.mjs';
 import { pixelAt } from '../../cli/src/png.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -138,3 +138,34 @@ test(
     }
   },
 );
+
+// ---- the arrow ------------------------------------------------------------
+//
+// @8bitscript/c64/pointer is the visible half of the same hardware: the
+// mouse driver above says where the pointer is, and this draws it with a
+// sprite. Whether the arrow really reaches the screen is asserted in
+// pixels by packages/pointer/test/pointer.test.mjs, which can do it
+// headlessly because a 1351 reads its zero until it is moved. What belongs
+// here is that the layer compiles against this package's own sprite and
+// mouse layers, and that it claims the sprite and block it documents.
+const POINTER_PROBE = join(HERE, 'pointer-probe.8bs');
+
+test('the package exports ./pointer, and the arrow is the sprite and block it documents', () => {
+  assert.equal(pkg['8bitscript'].exports['./pointer'], './src/pointer.8bs');
+  const source = readFileSync(join(HERE, '..', 'src', 'pointer.8bs'), 'utf8');
+  // Sprite 0 because the VIC's order is fixed and a cursor belongs in
+  // front; the last block the sprites layer owns because a program lays
+  // its own shapes out counting up from the first.
+  assert.match(source, /const SPRITE: utinyint = 0;/);
+  assert.match(source, /const BLOCK: utinyint = 254;/);
+});
+
+test('the pointer probe links clean for the C64, and the arrow is in the IR', () => {
+  const facts = resolveHardware(loadCatalog('c64'), { overrides: { port1: 'mouse1351' } }).hardware.facts;
+  const { ir, diagnostics } = link(readFileSync(POINTER_PROBE, 'utf8'), POINTER_PROBE, { machine: 'c64', facts });
+  assert.deepEqual(diagnostics, []);
+  const names = ir.functions.map((f) => f.name);
+  for (const name of ['pointer_begin', 'pointer_update', 'sprites_place', 'sprites_show', 'mouse_present']) {
+    assert.ok(names.includes(name), name);
+  }
+});

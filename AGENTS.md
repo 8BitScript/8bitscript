@@ -25,6 +25,67 @@ either doesn't exist on some machine or means a different amount of hardware
 on each one. See [`docs/roadmap.md`](docs/roadmap.md)'s Phase 3 section for
 why NES is the first target where this stops being optional.
 
+## The rule that decides where work happens
+
+> **If the compiler can do it, the compiler does it. A byte of RAM or
+> program space that a program spends working something out at run time,
+> when the answer was knowable while it was being compiled, is a byte
+> 8BitScript wasted — and on these machines there is nothing spare to waste
+> it with.**
+
+8BitScript exists to produce *small, fast* programs for machines with
+kilobytes. That is not a nice-to-have that yields to convenience: when
+there is a choice between computing something at run time and folding it
+away during compilation, **folding it away is the answer**, and "the
+run-time version was easier to write" is not a reason. If a construct can
+be turned into a table, a constant, or a straight-line sequence of calls
+before the machine ever sees it, that is what it must become.
+
+This is already how several parts of the language work, and they are the
+pattern to follow rather than exceptions:
+
+- `#fact(...)`, `#system()` and `#frames(x, seconds)` are resolved before
+  any target toolchain runs, so a branch on another machine's hardware
+  costs that machine nothing.
+- A **template** — `text.print(0, \`TICK ${ticks:1}\`)` — is laid out during
+  compilation into `print` and `printNumber` calls with every cell already
+  worked out. Nothing formats at run time.
+- `const`s are inlined, `const` arrays are data in the image and never in
+  RAM, and every global names the section it belongs in.
+
+The measured case that made this rule explicit is in
+[the compiler](docs/compiler.md#what-the-abstraction-costs-measured-against-hand-written-c):
+the same menu bar on a C64 is **178 bytes** hand-written in C with its
+layout precomputed into a table, **809** built by a library that works the
+layout out at run time, and **455** when the layout is precomputed the way
+a compiler could precompute it. The 354 bytes between the last two are not
+the price of the feature — they are the price of doing the arithmetic at
+the wrong time.
+
+So, when adding anything:
+
+- **Ask what is knowable at compile time.** Literal labels, fixed
+  positions, a grid width, a machine's facts, the size of a thing — all of
+  it is knowable, and none of it should reach the 6502 as work.
+- **Prefer emitting data over emitting code.** A table the program indexes
+  is almost always smaller than the code that would recompute it, and it
+  lives in the program image rather than in RAM.
+- **Measure it, in bytes, and write the number down.** `llvm-nm
+  --print-size --size-sort` and `llvm-objdump -d --disassemble-symbols=`
+  on the `.prg.elf` beside any build say where a program's bytes went;
+  [the compiler](docs/compiler.md#what-a-call-costs-on-a-6502-measured)
+  has worked examples. A size claim without a measurement is not a size
+  claim. Where a package or a program records what it costs
+  (`packages/ui/AGENTS.md`), re-measure and update the table in the same
+  commit rather than deleting it.
+
+The one thing this rule does not license is breaking the rule above it: a
+compile-time answer must be the *right* answer on the machine being built
+for. Folding away a branch is correct because the fact it tested is a
+property of the build; folding away something a program can only discover
+at run time — whether a REU is really plugged in — is not an optimisation,
+it is a wrong program.
+
 ## Rules that apply to every target
 
 - **A "machine" and the "hardware fitted to it" are different axes.** Each
@@ -144,6 +205,15 @@ If you're adding equivalent depth for another target, put it at
 [`packages/studio/AGENTS.md`](packages/studio/AGENTS.md) is the same kind
 of file for Studio, the app that ships with the toolchain: its tiers per
 machine, and the capabilities each editor is waiting for.
+[`packages/input/AGENTS.md`](packages/input/AGENTS.md) is the one file that
+is about all nine at once rather than one of them — what a machine's
+`input` layer has to answer, what each of the nine can answer today, and
+why a layer that can answer nothing still has to exist and still has to
+cost that machine zero.
+[`packages/pointer/AGENTS.md`](packages/pointer/AGENTS.md) is its other
+half in the same shape — what it takes to draw an arrow the user can see,
+why that is a separate package from reading where the pointer is, and why
+eight of the nine draw nothing today for four quite different reasons.
 
 ## Seeing what a program actually does
 

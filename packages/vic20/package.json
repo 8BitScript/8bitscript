@@ -8,7 +8,9 @@
     "entry": "./src/index.8bs",
     "exports": {
       "./screen": "./src/screen.8bs",
-      "./text": "./src/text.8bs"
+      "./text": "./src/text.8bs",
+      "./input": "./src/input.8bs",
+      "./pointer": "./src/pointer.8bs"
     },
     "hardware": {
       "facts": {
@@ -18,6 +20,7 @@
         "video.cellHeight": 8,
         "video.palette": 16,
         "video.cellColors": 2,
+        "video.colorPerCell": true,
         "video.glyphs": 256,
         "video.blockWidth": 2,
         "video.blockHeight": 2,
@@ -182,7 +185,8 @@
               "run": {
                 "xvic": [
                   "-controlport1device",
-                  "3"
+                  "3",
+                  "-mouse"
                 ]
               },
               "facts": {

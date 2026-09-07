@@ -428,7 +428,7 @@ test('a call to a name that resolves to nothing is 8BS2007', () => {
 // real pnpm symlinks. This group is the proof the conditional resolution
 // actually switches implementations.
 
-const BORDER_ENTRY = join(HERE, '..', '..', '..', 'examples', 'proof-of-concept', 'borders', 'src', 'main.8bs');
+const BORDER_ENTRY = join(HERE, '..', '..', '..', 'examples', 'borders', 'src', 'main.8bs');
 
 test('a conditional entry resolves to the vic20 implementation', () => {
   const { ir, diagnostics } = link(readFileSync(BORDER_ENTRY, 'utf8'), BORDER_ENTRY, { machine: 'vic20' });
@@ -638,7 +638,7 @@ test('a package\'s string entry follows the same rule', () => {
 
 test('analyze, hover, and completion never throw on any prefix of a real program', () => {
   const files = [
-    join(HERE, '..', '..', '..', 'examples', 'proof-of-concept', 'borders', 'src', 'main.8bs'),
+    join(HERE, '..', '..', '..', 'examples', 'borders', 'src', 'main.8bs'),
     join(HERE, '..', '..', 'c64', 'src', 'text.8bs'),
     join(HERE, '..', '..', 'nes', 'src', 'screen.8bs'),
     // Arrays, a for loop with a local, and a ptr global that still does not lower.

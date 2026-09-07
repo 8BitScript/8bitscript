@@ -164,7 +164,11 @@ test('--hardware sets options on top of a profile; a mouse in a port is a fact',
   assert.deepEqual(hardware.buildValues, [], 'nothing on the C64 changes the build');
   assert.equal(hardware.facts['input.mouse'], true);
   assert.equal(hardware.facts['memory.banked'], true);
-  assert.deepEqual(hardware.run.x64sc, ['-reu', '-reusize', '512', '-sidmodel', '1', '-controlport1device', '3', '-controlport2device', '1']);
+  // `-mouse` is VICE's mouse *grab* ("Enable mouse grab" in x64sc -help), and
+  // it rides with the 1351 rather than being a separate option: without it
+  // the emulator never feeds host pointer movement to the device in the
+  // port, so a program fitted with a mouse would find one that never moves.
+  assert.deepEqual(hardware.run.x64sc, ['-reu', '-reusize', '512', '-sidmodel', '1', '-controlport1device', '3', '-mouse', '-controlport2device', '1']);
   assert.equal(hardware.label, 'ram=reu512 sid=8580 port1=mouse1351');
 });
 

@@ -8,8 +8,8 @@
 // extension itself have one, and none of them is a program to run.
 //
 // A project is one of three kinds, and the view keeps them apart: the
-// workspace's own programs; the proofs of concept under
-// examples/proof-of-concept/ in the 8bitscript repository, which exist to
+// workspace's own programs; the examples under
+// examples/ in the 8bitscript repository, which exist to
 // exercise the toolchain; and the apps that ship with the toolchain —
 // packages whose package.json carries an `8bitscript.app` field, Studio
 // being the first — found beside the CLI package the toolchain came from.
@@ -36,13 +36,13 @@ const MACHINE_TARGETS = new Set(['vic20', 'c64', 'c128', 'atari8', 'nes', 'mega6
 
 const DEFAULT_ENTRY = 'src/main.8bs';
 
-/** The directory under examples/ that holds the proofs of concept. */
-const PROOFS_DIR = 'proof-of-concept';
+/** The directory a repository checkout keeps its example programs in. */
+const EXAMPLES_DIR = 'examples';
 
 /** The three kinds of project, in the order the view lists their sections. */
 const KINDS = [
   { id: 'project', label: 'Projects' },
-  { id: 'proof', label: 'Proofs of concept' },
+  { id: 'example', label: 'Examples' },
   { id: 'app', label: 'Apps' },
 ];
 
@@ -130,8 +130,8 @@ function topLevelKeys(source, from) {
  * Find the `8bs` binary that applies to a directory, walking upward.
  *
  * In a monorepo the toolchain belongs to the project, not to the folder the
- * editor has open: examples/proof-of-concept/borders/node_modules/.bin/8bs is the one that
- * runs examples/proof-of-concept/borders, even when the repository root is the workspace.
+ * editor has open: examples/borders/node_modules/.bin/8bs is the one that
+ * runs examples/borders, even when the repository root is the workspace.
  *
  * @param {string} startDir
  * @returns {string | null}
@@ -164,18 +164,17 @@ function appManifest(pkg) {
 
 /**
  * Which kind of project a directory holds. An app declares itself in its
- * package.json; a proof of concept is placed — `examples/proof-of-concept/
- * <name>` — so the repository's own checkout and a consumer that found the
- * same directory through its toolchain agree on what it is.
+ * package.json; an example is placed — `examples/<name>` — so the
+ * repository's own checkout and a consumer that found the same directory
+ * through its toolchain agree on what it is.
  *
  * @param {string} dir
  * @param {object | null} pkg
- * @returns {'project' | 'proof' | 'app'}
+ * @returns {'project' | 'example' | 'app'}
  */
 function kindOf(dir, pkg) {
   if (appManifest(pkg)) return 'app';
-  const parent = path.dirname(dir);
-  if (path.basename(parent) === PROOFS_DIR && path.basename(path.dirname(parent)) === 'examples') return 'proof';
+  if (path.basename(path.dirname(dir)) === EXAMPLES_DIR) return 'example';
   return 'project';
 }
 
@@ -218,7 +217,7 @@ function packageManagerFor(startDir) {
  * @typedef {object} Project
  * @property {string} name        package.json name, or the directory name
  * @property {string} title       an app's display name from its manifest, else the name
- * @property {'project' | 'proof' | 'app'} kind what the project is to the view
+ * @property {'project' | 'example' | 'app'} kind what the project is to the view
  * @property {string} description package.json description, or ''
  * @property {string} dir         absolute project directory
  * @property {string} configPath  absolute path of its 8bs.config.ts
@@ -315,21 +314,21 @@ function cliPackageDir(toolchain) {
 }
 
 /**
- * The proofs of concept that ship with the toolchain, if it came from a
+ * The example programs that ship with the toolchain, if it came from a
  * checkout of the 8bitscript repository: the repo keeps them at
- * examples/proof-of-concept, two directories up from packages/cli. A
- * published package would not carry them; the `<cli>/examples` candidate is
- * where they would go if one ever did.
+ * examples/, two directories up from packages/cli. A published package
+ * would not carry them; the `<cli>/examples` candidate is where they would
+ * go if one ever did.
  *
  * @param {string | null} toolchain absolute path of a project's `8bs`
- * @returns {string | null} the proofs directory, or null when there is none
+ * @returns {string | null} the examples directory, or null when there is none
  */
-function findProofsDir(toolchain) {
+function findExamplesDir(toolchain) {
   const cliDir = cliPackageDir(toolchain);
   if (!cliDir) return null;
   for (const candidate of [
-    path.join(cliDir, 'examples', PROOFS_DIR),
-    path.resolve(cliDir, '..', '..', 'examples', PROOFS_DIR),
+    path.join(cliDir, EXAMPLES_DIR),
+    path.resolve(cliDir, '..', '..', EXAMPLES_DIR),
   ]) {
     if (listProjectConfigs(candidate).length > 0) return candidate;
   }
@@ -351,13 +350,13 @@ function listProjectConfigs(dir) {
 }
 
 /**
- * Load the proofs of concept under a directory, marked as shipped so the
+ * Load the examples under a directory, marked as shipped so the
  * view can tell them apart from the workspace's own projects.
  *
  * @param {string} dir
  * @returns {Project[]}
  */
-function loadProofs(dir) {
+function loadExamples(dir) {
   return loadProjects(listProjectConfigs(dir)).map((project) => ({ ...project, shipped: true }));
 }
 
@@ -405,7 +404,7 @@ function loadApps(toolchain) {
 
 /**
  * Add shipped projects to a list without repeating one the workspace already
- * has — the repository itself lists its proofs of concept and apps as
+ * has — the repository itself lists its examples and apps as
  * ordinary projects.
  *
  * @param {Project[]} projects
@@ -504,17 +503,17 @@ module.exports = {
   DEFAULT_ENTRY,
   MACHINE_TARGETS,
   KINDS,
-  PROOFS_DIR,
+  EXAMPLES_DIR,
   byKind,
   bySystem,
   cliPackageDir,
   commandArgs,
-  findProofsDir,
+  findExamplesDir,
   findToolchain,
   isInstalled,
   kindOf,
   loadApps,
-  loadProofs,
+  loadExamples,
   ofKind,
   packageManagerFor,
   loadProject,

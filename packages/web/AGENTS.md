@@ -102,7 +102,7 @@ header comment of `web-runtime.mjs` itself.
 Every row below is a design decision, not a hardware fact: each was chosen
 by whoever wrote the file in the *Where* column, and changing that file
 changes the "machine". Rows marked **ran** were observed by building
-`examples/proof-of-concept/borders` for the web and instantiating the
+`examples/borders` for the web and instantiating the
 result in Node while writing this file; rows marked **read** were read in
 the source named but not executed (the browser page was not driven by a
 script). Line numbers are as of this writing; the symbol beside each is

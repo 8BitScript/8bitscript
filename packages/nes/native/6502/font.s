@@ -12,7 +12,7 @@
 ; that TILE INDEX == ASCII CODE for every glyph here — space ($20), the
 ; digits ($30-$39), A-Z ($41-$5A), and ! , - . : ? — so @8bitscript/nes's
 ; `text.putChar(cell, code)` writes the ASCII code straight into the
-; nametable with no translation table, the same codes examples/proof-of-concept/borders'
+; nametable with no translation table, the same codes examples/borders'
 ; Atari variant already uses. Codes in $20-$5F with no glyph drawn render
 ; blank. Tile $80 is solid colour index 2 — the tile @8bitscript/nes lays
 ; around the screen edge as the drawn "border" (see index.8bs). Everything

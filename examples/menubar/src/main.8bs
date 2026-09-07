@@ -1,0 +1,172 @@
+// A menu bar you can actually drive, on every target, from one source file.
+//
+// @8bitscript/ui/menubar draws it through @8bitscript/text and
+// @8bitscript/input reads whatever this machine has, so nothing here names
+// a machine: the same file puts the same bar on a VIC-20's 22 columns and a
+// Commander X16's 76, and moves the highlight under a C64's cursor keys, an
+// NES D-pad, an Atari joystick or a 1351 mouse without knowing which.
+//
+// The bar is **an icon and one menu**, which is the smallest bar that is
+// still a bar — and, unlike the four-item version this example used to
+// draw, it fits every one of the nine machines including the VIC-20.
+//
+// It starts **deselected**, the way a menu bar does before anyone touches
+// it. Left and right move the highlight; from nothing, right lands on the
+// icon and left on the last menu. Confirm reports which item was chosen;
+// cancel puts the bar back to deselected.
+import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";
+import { text, TextColor } from "@8bitscript/text";
+import { input } from "@8bitscript/input";
+import { Input, Video } from "@8bitscript/system";
+import { menubar } from "@8bitscript/ui/menubar";
+
+// One row of this machine's grid, resolved at compile time from the text
+// package the build picked.
+const ROW: usmallint = text.COLUMNS;
+
+// Whether this build has a pointer to ask about at all. A `run` fact: on a
+// stock C64 it is false and every line below that mentions the pointer
+// folds away; with `--hardware port1=mouse1351` it is true and the
+// pointer code is compiled in, and whether a mouse is really plugged in is
+// what `input.pointer()` answers each frame.
+const MAY_HAVE_POINTER: bool = Input.MOUSE;
+
+// Drawing the bar is one run of calls, top to bottom, every time. There is
+// no bar object to update — `item()` draws where the cursor is and says
+// whether that item is the highlighted one.
+function drawBar(): void {
+    menubar.begin(0, text.COLUMNS);
+    menubar.icon();
+    menubar.item("FILE");
+    menubar.end();
+}
+
+// Under the bar, what the bar just did and what is driving it. Every line
+// here is the machine describing itself, which is the point of the example:
+// the same source prints different truths on different hardware.
+function drawStatus(): void {
+    text.setColor(TextColor.CYAN);
+
+    let cell: usmallint = ROW + ROW;
+    text.print(cell, "ITEM");
+    if (menubar.selected() == menubar.NONE) {
+        text.print(cell + 5, "NONE");
+    } else {
+        text.printNumber(cell + 5, menubar.selected(), 1);
+    }
+
+    // How the highlight is drawn here, which the component decided while
+    // compiling from `video.colorPerCell` — colour on the six machines
+    // that have a colour per cell, brackets on the PET, the Atari 8-bit
+    // and the NES, which do not.
+    cell = cell + ROW;
+    text.print(cell, "MARK");
+    if (Video.COLOR_PER_CELL) {
+        text.print(cell + 5, "COLOR");
+    } else {
+        text.print(cell + 5, "BRACKETS");
+    }
+
+    // And whether there is a pointer. Three different answers, and which
+    // one a machine gives is the whole two-stage story: NO on a build that
+    // never asked for a mouse (this line folds to the one branch there),
+    // and on a build that did, LOOKING or FOUND depending on what the
+    // probe sees this frame.
+    cell = cell + ROW;
+    text.print(cell, "MOUSE");
+    if (MAY_HAVE_POINTER) {
+        if (input.pointer()) {
+            text.print(cell + 6, "FOUND");
+        } else {
+            text.print(cell + 6, "LOOKING");
+        }
+    } else {
+        text.print(cell + 6, "NO");
+    }
+}
+
+export function main(): void {
+    // Blank and draw before the loop, the way every program does: the NES
+    // only accepts screen writes while the picture is off, and
+    // screen.blank() leaves it off until the first waitFrame().
+    screen.blank(BorderColor.BLUE, BackgroundColor.BLACK);
+
+    // Once, before the first poll: on a machine with a pointer this gives
+    // it its ceiling and points the hardware at the right port. On the
+    // others it is an empty call that costs nothing.
+    input.begin();
+
+    menubar.setColors(TextColor.WHITE, TextColor.YELLOW);
+    drawBar();
+    drawStatus();
+
+    // The pointer's cell as of the last frame, so the bar is only redrawn
+    // when the pointer actually moves rather than every frame it exists.
+    let pointerWas: usmallint = 65535;
+
+    while (true) {
+        waitFrame();
+        // Exactly once a frame, and never twice: every direction is
+        // edge-triggered, so a second poll in the same frame would see
+        // each press once and then swallow it.
+        input.poll();
+
+        let moved: bool = false;
+
+        if (input.right()) {
+            menubar.next();
+            moved = true;
+        }
+        if (input.left()) {
+            menubar.previous();
+            moved = true;
+        }
+        if (input.cancel()) {
+            menubar.deselect();
+            moved = true;
+        }
+
+        // Hover, where there is a pointer to hover with. Telling the bar
+        // where the pointer is has to happen *before* it is drawn, because
+        // an item works out whether it is the one under the pointer as it
+        // lays itself out — so `point()` here, and `pointed()` only after
+        // a `drawBar()`.
+        let pointerMoved: bool = false;
+        if (MAY_HAVE_POINTER) {
+            if (input.pointer()) {
+                let at: usmallint = input.pointerCell();
+                if (at != pointerWas) {
+                    pointerWas = at;
+                    menubar.point(at);
+                    pointerMoved = true;
+                    moved = true;
+                }
+            }
+        }
+
+        if (moved) {
+            drawBar();
+            drawStatus();
+
+            // Now the bar has laid itself out, so it knows which item the
+            // pointer landed on. The component works that out; this
+            // program decides what it means — which is the division of
+            // labour that keeps @8bitscript/ui free of any input package
+            // at all.
+            //
+            // **Only on a frame the pointer actually moved.** The bar is
+            // redrawn for key presses too, and the hit test runs every
+            // time it is; acting on it unconditionally would let a
+            // stationary pointer snap the highlight back the instant the
+            // cursor keys moved it somewhere else. Whichever device the
+            // user last used is the one that decides.
+            if (pointerMoved) {
+                if (menubar.pointed() != menubar.NONE && menubar.pointed() != menubar.selected()) {
+                    menubar.select(menubar.pointed());
+                    drawBar();
+                    drawStatus();
+                }
+            }
+        }
+    }
+}

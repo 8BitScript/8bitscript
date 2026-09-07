@@ -10,7 +10,9 @@
       "./screen": "./src/screen.8bs",
       "./text": "./src/text.8bs",
       "./keyboard": "./src/keyboard.8bs",
-      "./keys": "./src/keys.8bs"
+      "./keys": "./src/keys.8bs",
+      "./input": "./src/input.8bs",
+      "./pointer": "./src/pointer.8bs"
     },
     "hardware": {
       "facts": {
@@ -20,6 +22,7 @@
         "video.cellHeight": 8,
         "video.palette": 2,
         "video.cellColors": 2,
+        "video.colorPerCell": false,
         "video.glyphs": 0,
         "video.blockWidth": 2,
         "video.blockHeight": 2,

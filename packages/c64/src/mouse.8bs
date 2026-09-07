@@ -77,6 +77,25 @@ let atX: usmallint = 0;
 let atY: usmallint = 0;
 let started: bool = false;
 
+// Whether the reading the last poll() took was consistent with a 1351.
+// **Kept, rather than asked again**, and that is not an optimisation: the
+// SID's converter runs continuously, so two reads of `$D419` are two
+// different moments, and a program that asks twice in one frame can get
+// two different answers. Measured under x64sc with a 1351 fitted in port
+// 1: `@8bitscript/c64/input`'s poll() concluded *no pointer* while a read
+// taken a few instructions later in the same frame said there was one, so
+// an arrow drawn from one answer and hit-tested from the other flickered
+// out of existence. One reading a frame, and everyone shares it.
+let there: bool = false;
+
+// How far the pointer may travel on each axis. A 1351's counters run on
+// for as long as the mouse is pushed, so without a ceiling a pointer
+// shoved off the right of the screen has to be dragged all the way back
+// before it reappears — the accumulator, not the display, is what has to
+// stop. Wide open until a program calls `setLimits()`.
+let limitX: usmallint = 65535;
+let limitY: usmallint = 65535;
+
 export namespace mouse {
     // Point the SID's analogue lines at one control port: Mouse.PORT_1 or
     // Mouse.PORT_2. Once, at start-up — the converter needs a frame to
@@ -85,15 +104,35 @@ export namespace mouse {
         cia1PortA = port;
     }
 
-    // One axis' movement since the last reading, added to `at`. The
-    // difference is taken in the counter's own 7 bits, and a difference
-    // past half the range is the counter having gone the other way.
-    function step(at: usmallint, last: utinyint, now: utinyint): usmallint {
+    // The ceiling each axis stops at, in mouse counts — `setLimits(319,
+    // 199)` for a C64's pixels, `setLimits(39, 24)` for its cells if the
+    // program scales before it gets here. Both axes stop at 0 either way.
+    // Set it once at start-up; a program that never calls this gets an
+    // accumulator that runs as far as the mouse is pushed.
+    function setLimits(x: usmallint, y: usmallint): void {
+        limitX = x;
+        limitY = y;
+    }
+
+    // One axis' movement since the last reading, added to `at` and held
+    // between 0 and `limit`. The difference is taken in the counter's own
+    // 7 bits, and a difference past half the range is the counter having
+    // gone the other way.
+    function step(at: usmallint, last: utinyint, now: utinyint, limit: usmallint): usmallint {
         let delta: utinyint = (now - last) & Pot.COUNTER;
         if (delta == 0) {
             return at;
         }
         if (delta < Pot.HALF) {
+            // Asked as a subtraction rather than as `at + delta > limit`:
+            // `at` never exceeds `limit`, so `limit - at` cannot borrow,
+            // and the sum that could carry is never formed. The same
+            // reasoning as the room check in @8bitscript/ui/menubar, and
+            // for the same reason — the two backends do not agree on what
+            // a widened byte sum does (see that file).
+            if (limit - at < delta) {
+                return limit;
+            }
             return at + delta;
         }
         let back: utinyint = 128 - delta;
@@ -104,12 +143,27 @@ export namespace mouse {
     }
 
     // Read both axes. Once a frame, after waitFrame().
+    //
+    // **One reading of each line, answering both questions.** Whether a
+    // mouse is there and how far it moved come out of the same two bytes,
+    // because they are two readings of one moment: the range check says a
+    // 1351 and the difference from last frame says how far. Reading the
+    // registers a second time later in the frame — which is what
+    // `present()` used to do — samples a converter that has moved on.
     function poll(): void {
-        let nowX: utinyint = paddleX & Pot.COUNTER;
-        let nowY: utinyint = paddleY & Pot.COUNTER;
+        let rawX: utinyint = paddleX;
+        let rawY: utinyint = paddleY;
+        there = rawX >= Pot.LOWEST && rawX <= Pot.HIGHEST && rawY >= Pot.LOWEST && rawY <= Pot.HIGHEST;
+        let nowX: utinyint = rawX & Pot.COUNTER;
+        let nowY: utinyint = rawY & Pot.COUNTER;
         if (started) {
-            atX = mouse.step(atX, lastX, nowX);
-            atY = mouse.step(atY, lastY, nowY);
+            atX = mouse.step(atX, lastX, nowX, limitX);
+            // Y runs opposite the screen. Verified under x64sc (Studio,
+            // 2026-09-07): the same sign as X moved the arrow up when the
+            // mouse moved down. last and now are swapped so the *delta*
+            // flips and the rest position stays 0 (top-left). Reporting
+            // `limitY - atY` would park the arrow at the bottom instead.
+            atY = mouse.step(atY, nowY, lastY, limitY);
         }
         lastX = nowX;
         lastY = nowY;
@@ -121,17 +175,13 @@ export namespace mouse {
     // 255. A paddle turned to the middle of its travel also reads here,
     // so this means "consistent with a mouse" — movement is what proves
     // one.
+    //
+    // **This is what the last `poll()` saw, not a fresh reading**, so it
+    // is false until the first poll and it gives every caller in a frame
+    // the same answer. See `there` above for the measurement that made
+    // that necessary.
     function present(): bool {
-        if (paddleX > Pot.HIGHEST) {
-            return false;
-        }
-        if (paddleY > Pot.HIGHEST) {
-            return false;
-        }
-        if (paddleX < Pot.LOWEST) {
-            return false;
-        }
-        return paddleY >= Pot.LOWEST;
+        return there;
     }
 
     // Where the pointer has moved to since the program started, in mouse

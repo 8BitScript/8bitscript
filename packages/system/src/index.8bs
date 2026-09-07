@@ -70,6 +70,7 @@ export namespace Video {
     const CELL_HEIGHT: utinyint = #fact(video.cellHeight);      // pixels down one cell
     const PALETTE: usmallint = #fact(video.palette);            // colours on screen at once
     const CELL_COLORS: utinyint = #fact(video.cellColors);      // colours one cell can hold
+    const COLOR_PER_CELL: bool = #fact(video.colorPerCell);     // one cell's colour can be set without changing its neighbours'
     const GLYPHS: usmallint = #fact(video.glyphs);              // characters redefinable at run time; 0 = fixed font
     const BLOCK_WIDTH: utinyint = #fact(video.blockWidth);      // pseudo-pixels across a cell from block glyphs; 0 = none
     const BLOCK_HEIGHT: utinyint = #fact(video.blockHeight);    // pseudo-pixels down a cell; 0 = none

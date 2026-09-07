@@ -27,16 +27,16 @@ const {
   ALL_TARGETS,
   CONFIG_FILE,
   MACHINE_TARGETS,
-  PROOFS_DIR,
+  EXAMPLES_DIR,
   byKind,
   bySystem,
   commandArgs,
-  findProofsDir,
+  findExamplesDir,
   findToolchain,
   loadApps,
   loadProject,
   loadProjects,
-  loadProofs,
+  loadExamples,
   ofKind,
   resolveLlvmMosHome,
   runnableOn,
@@ -79,11 +79,11 @@ function relativeDir(dir) {
 
 /**
  * Where a project lives, as the row's grey text: a workspace project's
- * relative path, `proof-of-concept/borders`, or an app's package name.
+ * relative path, `examples/borders`, or an app's package name.
  */
 function whereLabel(project) {
   if (project.kind === 'app') return project.name;
-  if (project.kind === 'proof') return path.join(PROOFS_DIR, path.basename(project.dir));
+  if (project.kind === 'example') return path.join(EXAMPLES_DIR, path.basename(project.dir));
   if (!project.shipped) return relativeDir(project.dir);
   return path.join(path.basename(path.dirname(project.dir)), path.basename(project.dir));
 }
@@ -242,34 +242,45 @@ class ProjectsProvider {
     this.output = output;
     /** @type {import('./projects.cjs').Project[]} */
     this.projects = [];
-    /** @type {import('./projects.cjs').Project[]} the toolchain's proofs of concept */
-    this.proofs = [];
+    /** @type {import('./projects.cjs').Project[]} the toolchain's examples */
+    this.examples = [];
     /** @type {import('./projects.cjs').Project[]} the apps that ship with the toolchain */
     this.apps = [];
     this.changed = new vscode.EventEmitter();
     this.onDidChangeTreeData = this.changed.event;
     this.running = new RunningTasks(() => this.changed.fire());
+    // `8bs targets --json` per project directory: a project's own hardware
+    // and profiles come from its config, so the answer is not shared.
+    this.targetsPromises = new Map();
   }
 
   /**
    * The projects the list shows: the workspace's own, the apps that ship
    * with the toolchain (always — they are the point of shipping them), and
-   * its proofs of concept when the checkbox asks for them.
+   * its examples when the checkbox asks for them.
    */
   /**
-   * What `8bs targets --json` says, asked of the first project with a
-   * toolchain (the catalogs are the toolchain's; a project's own profiles
-   * are that project's), cached until the next refresh. Null when no
-   * toolchain can be found or the command fails — the controls view then
-   * shows the fixed target list and no hardware.
+   * What `8bs targets --json` says, **asked in one project's directory**,
+   * cached per directory until the next refresh. Which directory matters:
+   * the machine catalogs are the toolchain's, but the `hardware` and
+   * `profiles` a project fits its targets with are that project's
+   * `8bs.config.ts` (Studio asks for a 1351 on a C64), so asking in the
+   * wrong directory shows the panel someone else's stock machine. Falls
+   * back to the first project with a toolchain when `dir` names none, and
+   * null when no toolchain can be found or the command fails — the
+   * controls view then shows the fixed target list and no hardware.
    *
+   * @param {string} [dir] the project to ask in
    * @returns {Promise<Map<string, object>|null>}
    */
-  async loadTargets() {
-    if (this.targetsPromise) return this.targetsPromise;
-    const project = this.visible.find((p) => p.toolchain) ?? this.all.find((p) => p.toolchain);
+  async loadTargets(dir) {
+    const project = (dir && this.all.find((p) => p.dir === dir && p.toolchain))
+      ?? this.visible.find((p) => p.toolchain)
+      ?? this.all.find((p) => p.toolchain);
     if (!project) return null;
-    this.targetsPromise = new Promise((resolvePromise) => {
+    const cached = this.targetsPromises.get(project.dir);
+    if (cached) return cached;
+    const pending = new Promise((resolvePromise) => {
       execFile(
         project.toolchain,
         ['targets', '--json'],
@@ -289,39 +300,40 @@ class ProjectsProvider {
         },
       );
     });
-    return this.targetsPromise;
+    this.targetsPromises.set(project.dir, pending);
+    return pending;
   }
 
   get visible() {
-    const shipped = settings.getShowExamples() ? [...this.proofs, ...this.apps] : this.apps;
+    const shipped = settings.getShowExamples() ? [...this.examples, ...this.apps] : this.apps;
     return withShipped(this.projects, shipped);
   }
 
   /** Every project the workspace or the toolchain offers, checkbox or not. */
   get all() {
-    return withShipped(this.projects, [...this.proofs, ...this.apps]);
+    return withShipped(this.projects, [...this.examples, ...this.apps]);
   }
 
   /**
-   * Whether showing the proofs of concept would add anything. Inside the
+   * Whether showing the examples would add anything. Inside the
    * repository they are already workspace projects, so the checkbox stays
    * hidden.
    */
   hasExamples() {
     const own = new Set(this.projects.map((p) => p.dir));
-    return this.proofs.some((proof) => !own.has(proof.dir));
+    return this.examples.some((example) => !own.has(example.dir));
   }
 
   async refresh() {
     const found = await vscode.workspace.findFiles(`**/${CONFIG_FILE}`, SEARCH_EXCLUDE);
     this.projects = loadProjects(found.map((uri) => uri.fsPath));
-    this.targetsPromise = undefined;
+    this.targetsPromises.clear();
     const shipped = this.discoverShipped();
-    this.proofs = shipped.proofs;
+    this.examples = shipped.examples;
     this.apps = shipped.apps;
     this.output.appendLine(
       `Projects: ${this.projects.length === 0 ? 'none found' : this.projects.map((p) => p.name).join(', ')}` +
-        (this.proofs.length > 0 ? `; proofs of concept: ${this.proofs.map((p) => p.name).join(', ')}` : '') +
+        (this.examples.length > 0 ? `; examples: ${this.examples.map((p) => p.name).join(', ')}` : '') +
         (this.apps.length > 0 ? `; apps: ${this.apps.map((p) => p.name).join(', ')}` : ''),
     );
     await vscode.commands.executeCommand('setContext', '8bitscript.hasProjects', this.visible.length > 0);
@@ -330,30 +342,30 @@ class ProjectsProvider {
   }
 
   /**
-   * What ships with the toolchain in use: its apps, and its proofs of
+   * What ships with the toolchain in use: its apps, and its examples of
    * concept. Both are looked for beside the first toolchain that has them —
    * a project's own, or the workspace folder's. An explicit
-   * `8bitscript.examplesPath` names the proofs directory instead.
+   * `8bitscript.examplesPath` names the examples directory instead.
    *
-   * @returns {{ proofs: import('./projects.cjs').Project[], apps: import('./projects.cjs').Project[] }}
+   * @returns {{ examples: import('./projects.cjs').Project[], apps: import('./projects.cjs').Project[] }}
    */
   discoverShipped() {
     const explicit = settings.getExamplesPath();
-    let proofs = explicit ? loadProofs(explicit) : [];
+    let examples = explicit ? loadExamples(explicit) : [];
     let apps = [];
     const toolchains = [
       ...this.projects.map((p) => p.toolchain),
       ...(vscode.workspace.workspaceFolders ?? []).map((f) => findToolchain(f.uri.fsPath)),
     ].filter(Boolean);
     for (const toolchain of toolchains) {
-      if (!explicit && proofs.length === 0) {
-        const dir = findProofsDir(toolchain);
-        if (dir) proofs = loadProofs(dir);
+      if (!explicit && examples.length === 0) {
+        const dir = findExamplesDir(toolchain);
+        if (dir) examples = loadExamples(dir);
       }
       if (apps.length === 0) apps = loadApps(toolchain);
-      if (proofs.length > 0 && apps.length > 0) break;
+      if (examples.length > 0 && apps.length > 0) break;
     }
-    return { proofs, apps };
+    return { examples, apps };
   }
 
   getChildren(node) {
@@ -374,7 +386,7 @@ class ProjectsProvider {
   }
 
   /**
-   * Section rows — Projects, Proofs of concept, Apps — when the list mixes
+   * Section rows — Projects, Examples, Apps — when the list mixes
    * kinds, so what the workspace holds is never confused with what the
    * toolchain brought along; the plain project rows when it does not.
    */
@@ -449,8 +461,8 @@ class ProjectsProvider {
       project.kind !== 'project' && project.kind,
     ].filter(Boolean);
     item.contextValue = ['project', ...states].join('.');
-    item.id = pinned ? `${project.dir}\0${target}` : project.dir;
     const region = settings.getRegion();
+    item.id = pinned ? `${project.dir}\0${target}\0${region}` : project.dir;
     item.description = [
       running && 'running',
       !project.toolchain && 'toolchain not installed',
@@ -467,8 +479,8 @@ class ProjectsProvider {
         '',
         project.kind === 'app'
           ? `An app that ships with the toolchain (\`${project.name}\`); its version is the toolchain's.`
-          : project.kind === 'proof'
-            ? 'A proof of concept from the 8bitscript repository, there to exercise the toolchain.'
+          : project.kind === 'example'
+            ? 'A example from the 8bitscript repository, there to exercise the toolchain.'
             : '',
         `Directory: \`${project.dir}\``,
         `Entry: \`${path.relative(project.dir, project.entry)}\``,
@@ -489,7 +501,7 @@ class ProjectsProvider {
         ? 'loading~spin'
         : !project.toolchain || !project.installed
           ? 'warning'
-          : project.kind === 'proof'
+          : project.kind === 'example'
             ? 'beaker'
             : project.kind === 'app'
               ? 'rocket'
@@ -513,8 +525,8 @@ class ProjectsProvider {
       !project.toolchain && 'notoolchain',
     ].filter(Boolean);
     item.contextValue = ['target', ...states].join('.');
-    item.id = `${project.dir}\0${target}`;
     const region = settings.getRegion();
+    item.id = `${project.dir}\0${target}\0${region}`;
     item.description = running ? 'running' : machine ? regionLabel(region) : '';
     item.iconPath = running ? new vscode.ThemeIcon('loading~spin') : targetIcon(target);
     item.tooltip = `8bs ${commandArgs('run', target, region, settings.getHardware(target)).join(' ')}`;
@@ -530,9 +542,10 @@ class ProjectsProvider {
         ? vscode.TreeItemCollapsibleState.Expanded
         : vscode.TreeItemCollapsibleState.Collapsed,
     );
-    item.id = `system\0${target}`;
+    const region = settings.getRegion();
+    item.id = `system\0${target}\0${region}`;
     item.contextValue = ['system', machine && 'machine'].filter(Boolean).join('.');
-    item.description = `${count} project${count === 1 ? '' : 's'}${machine ? ` · ${regionLabel(settings.getRegion())}` : ''}`;
+    item.description = `${count} project${count === 1 ? '' : 's'}${machine ? ` · ${regionLabel(region)}` : ''}`;
     item.iconPath = targetIcon(target);
     return item;
   }
@@ -543,7 +556,7 @@ class ProjectsProvider {
     item.id = `section\0${target ?? ''}\0${section}`;
     item.contextValue = `section.${section}`;
     item.description = `${projects.length}`;
-    item.iconPath = new vscode.ThemeIcon(section === 'proof' ? 'beaker' : section === 'app' ? 'rocket' : 'root-folder');
+    item.iconPath = new vscode.ThemeIcon(section === 'example' ? 'beaker' : section === 'app' ? 'rocket' : 'root-folder');
     return item;
   }
 
@@ -857,10 +870,10 @@ function registerProjectsView(context, output) {
   }
 
   /**
-   * Launch something the toolchain ships — an app, or a proof of concept —
+   * Launch something the toolchain ships — an app, or a example —
    * separately from the workspace's own projects: pick it when there is a
    * choice, pick the system to open it on (the selected system first), run.
-   * The checkbox that hides the proofs from the list does not hide them
+   * The checkbox that hides the examples from the list does not hide them
    * here; this is the way to reach them without listing them.
    */
   async function launch(kind, what, filter = () => true) {
@@ -870,7 +883,7 @@ function registerProjectsView(context, output) {
       vscode.window.showInformationMessage(
         kind === 'app'
           ? `No ${what} found. Apps ship with @8bitscript/cli: install it in a project, then refresh.`
-          : `No ${what} found. They live in the 8bitscript repository, under examples/${PROOFS_DIR}.`,
+          : `No ${what} found. They live in the 8bitscript repository, under examples/${EXAMPLES_DIR}.`,
       );
       return;
     }
@@ -891,7 +904,7 @@ function registerProjectsView(context, output) {
   command('8bitscript.toggleExamples', () => settings.setShowExamples(!settings.getShowExamples()));
   command('8bitscript.launchStudio', () => launch('app', 'Studio', (p) => p.name === '@8bitscript/studio'));
   command('8bitscript.launchApp', () => launch('app', 'apps'));
-  command('8bitscript.launchProof', () => launch('proof', 'proofs of concept'));
+  command('8bitscript.launchExample', () => launch('example', 'examples'));
   command('8bitscript.doctor', doctor);
   command('8bitscript.install', install);
   command('8bitscript.run', (node) => execute('run', undefined, node));

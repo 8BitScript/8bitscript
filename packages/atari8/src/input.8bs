@@ -1,0 +1,178 @@
+// @8bitscript/atari8/input — the Atari 8-bit behind @8bitscript/input.
+//
+// Named by "8bitscript".exports["./input"] in this package's package.json,
+// and by "8bitscript".entry.atari8 in @8bitscript/input's, so a portable
+// program writes
+//
+//     import { input } from "@8bitscript/input";
+//
+// and gets this file on a 400, 800, XL or XE. The layers underneath —
+// ./keyboard.8bs with ./keys.8bs, ./joystick.8bs, ./console.8bs — stay
+// available to a program that wants what this file does not map.
+//
+// ---- four directions out of a keyboard that has no arrow keys ------------
+//
+// This machine has no arrow keys. It has four *keys with arrows printed on
+// them* — `+` `*` `-` `=` — which the OS turns into cursor movement only
+// when CTRL is held, and that is genuinely how an Atari user moves a
+// cursor. So:
+//
+//   - **left** CTRL and `+`, **right** CTRL and `*`,
+//     **up** CTRL and `-`, **down** CTRL and `=`.
+//   - **confirm** — RETURN, or the joystick's fire button.
+//   - **cancel** — ESC.
+//
+// A joystick in **port 1** is or'd on top of the keyboard, so a program
+// does not care which the user reached for. Ports 3 and 4 exist only on a
+// 400 or an 800 (`Joystick.PORTS` is the fact), and this file reads
+// neither: the portable surface describes one user driving one interface.
+//
+// The console keys — START, SELECT, OPTION — are *not* mapped here. They
+// are the machine's own three buttons and a program that wants them means
+// them specifically; folding them into `confirm()` would make a menu
+// commit when someone reached for the one that usually means "choose
+// something else". ./console.8bs is one import away.
+//
+// ---- the mouse this file does not drive ----------------------------------
+//
+// **The catalog offers three, and none of them has a driver yet.**
+// `--hardware mouse=st`, `=amiga` and `=trak` all set `input.mouse` true,
+// so `#fact(input.mouse)` says this build may use one — and this file
+// still answers `pointer()` false, because saying "maybe" and then never
+// finding one is worse than saying no.
+//
+// What is missing is a real driver, and it is not the C64's. An ST or
+// Amiga mouse on this machine is **quadrature on the joystick port's four
+// direction lines** — two bits per axis whose *transition order* gives the
+// direction — read through PORTA, not through an analogue converter. The
+// Atari trak-ball is a third protocol again, and a 1350-style mouse would
+// be a fourth. That is a per-device driver in this package with its own
+// `detect`, sitting beside ./joystick.8bs, and then three lines here.
+// Until someone writes and verifies it against atari800, this file says
+// what is true: no pointer.
+//
+// ---- edges, not levels ---------------------------------------------------
+//
+// Every answer is **edge-triggered**: true on the one frame the press
+// begins, false while it is held. `poll()` must be called exactly once a
+// frame, right after waitFrame().
+//
+// One caution this machine brings that the Commodores do not: its keyboard
+// hardware reports **one key code at a time**, not a matrix — so "CTRL and
+// `+`" is the CTRL *modifier bit* alongside the last key code, which the
+// hardware does give, but two ordinary keys at once is not a question this
+// machine can answer. That is a property of the hardware, not of this file.
+import { keyboard } from "./keyboard.8bs";
+import { Key } from "./keys.8bs";
+import { joystick, Joystick } from "./joystick.8bs";
+
+namespace Edge {
+    const LEFT: utinyint = 1;
+    const RIGHT: utinyint = 2;
+    const UP: utinyint = 4;
+    const DOWN: utinyint = 8;
+    const CONFIRM: utinyint = 16;
+    const CANCEL: utinyint = 32;
+}
+
+let held: utinyint = 0;
+let before: utinyint = 0;
+let began: utinyint = 0;
+
+export namespace input {
+
+    // Nothing to set up: no pointer to give a ceiling to. Here so a
+    // program written for nine machines calls the same thing on all.
+    function begin(): void {
+    }
+
+    // Read the key register and the port, and work out what began this
+    // frame. Once a frame, right after waitFrame().
+    function poll(): void {
+        keyboard.scan();
+        joystick.scan();
+
+        before = held;
+        held = 0;
+
+        // The arrows are CTRL plus a printed key — asked once and reused,
+        // because the modifier is a separate bit from the key code.
+        if (keyboard.control()) {
+            if (keyboard.pressed(Key.PLUS)) {
+                held = held | Edge.LEFT;
+            }
+            if (keyboard.pressed(Key.ASTERISK)) {
+                held = held | Edge.RIGHT;
+            }
+            if (keyboard.pressed(Key.DASH)) {
+                held = held | Edge.UP;
+            }
+            if (keyboard.pressed(Key.EQUALS)) {
+                held = held | Edge.DOWN;
+            }
+        }
+        if (keyboard.pressed(Key.RETURN)) {
+            held = held | Edge.CONFIRM;
+        }
+        if (keyboard.pressed(Key.ESC)) {
+            held = held | Edge.CANCEL;
+        }
+
+        let stick: utinyint = joystick.bits(Joystick.PORT_1);
+        if ((stick & Joystick.LEFT) != 0) {
+            held = held | Edge.LEFT;
+        }
+        if ((stick & Joystick.RIGHT) != 0) {
+            held = held | Edge.RIGHT;
+        }
+        if ((stick & Joystick.UP) != 0) {
+            held = held | Edge.UP;
+        }
+        if ((stick & Joystick.DOWN) != 0) {
+            held = held | Edge.DOWN;
+        }
+        if ((stick & Joystick.FIRE) != 0) {
+            held = held | Edge.CONFIRM;
+        }
+
+        began = held & (before ^ 0xFF);
+    }
+
+    function left(): bool {
+        return (began & Edge.LEFT) != 0;
+    }
+
+    function right(): bool {
+        return (began & Edge.RIGHT) != 0;
+    }
+
+    function up(): bool {
+        return (began & Edge.UP) != 0;
+    }
+
+    function down(): bool {
+        return (began & Edge.DOWN) != 0;
+    }
+
+    function confirm(): bool {
+        return (began & Edge.CONFIRM) != 0;
+    }
+
+    function cancel(): bool {
+        return (began & Edge.CANCEL) != 0;
+    }
+
+    // No driver for any of the three mice the catalog offers — see the
+    // header. False rather than "maybe", and a constant either way.
+    function pointer(): bool {
+        return false;
+    }
+
+    function pointerCell(): usmallint {
+        return 0;
+    }
+
+    function pointerButton(): bool {
+        return false;
+    }
+}

@@ -103,3 +103,30 @@ export function detectRegion(): utinyint {
     }
     return Region.NTSC;
 }
+
+// ---- CIA1 ($DC00): the keyboard matrix and the two control ports ------------
+//
+// The same chip at the same address as a C64's, and — for the eight
+// columns by eight rows the C64 has — the same key at the same place, so
+// @8bitscript/c64/keys's codes are the right codes on this machine too.
+//
+// What a C128 adds is a *second* matrix: the dedicated cursor keys, the
+// numeric keypad, HELP, ALT, ESC, TAB, LINE FEED and NO SCROLL hang off
+// three extra column lines driven by the VIC-IIe's $D02F, read back
+// through this same port B. `@8bitscript/c128/input` reads the C64-shaped
+// matrix only and says so; $D02F is declared here for whoever wires the
+// rest up.
+@address(0xDC00)
+export let cia1PortA: volatile<u8>;
+@address(0xDC01)
+export let cia1PortB: volatile<u8>;
+@address(0xDC02)
+export let cia1DirectionA: volatile<u8>;
+@address(0xDC03)
+export let cia1DirectionB: volatile<u8>;
+
+// The VIC-IIe's extra keyboard column lines, K0-K2 in bits 0-2: drive one
+// low and port B above reads that extra column's keys. $FF selects none,
+// which is the state the C64-compatible scan needs.
+@address(0xD02F)
+export let extraKeyboardLines: volatile<u8>;

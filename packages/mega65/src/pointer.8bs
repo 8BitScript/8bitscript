@@ -1,0 +1,40 @@
+// @8bitscript/mega65/pointer — the MEGA65 behind @8bitscript/pointer.
+//
+// Every call here does nothing and `DRAWS` is false, and as with the C128
+// this is a missing driver rather than a missing capability: the VIC-IV is
+// a superset of the VIC-II, so the eight sprites are there (and more
+// besides), and the machine has control ports a 1351 fits.
+//
+// Two things are missing, in this order. **The input half:**
+// @8bitscript/mega65/input reads the keyboard and the C64's joystick
+// arrangement and reports no pointer, because packages/mega65's catalog
+// has no control-port options at all yet — no value to set
+// `#fact(input.mouse)` true, so nothing to fit and no fact to compile a
+// pointer in from. **Then the drawing half:** this package has no sprites
+// layer, so there is nothing for a file like @8bitscript/c64/pointer to
+// sit on.
+//
+// Worth knowing before either is written: this machine starts up with
+// interrupts off and at 40.5 MHz (see packages/mega65/AGENTS.md), so it
+// has cycles to spare for a pointer — the constraint here is entirely that
+// nobody has written the two layers, not the hardware.
+//
+// It costs the MEGA65 nothing meanwhile: `DRAWS` is a const and every
+// function is empty, so a program's `if (pointer.DRAWS)` folds away and
+// LLVM deletes the calls.
+export namespace pointer {
+
+    const DRAWS: bool = false;
+
+    function begin(): void {
+    }
+
+    function setColor(color: utinyint): void {
+    }
+
+    function update(): void {
+    }
+
+    function hide(): void {
+    }
+}

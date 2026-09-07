@@ -148,7 +148,7 @@ line, and the editor's Hardware panel shows the sheet a selection gives.
 
 | Namespace | Facts |
 | --------- | ----- |
-| `Video` | `COLUMNS`, `ROWS`, `CELL_WIDTH`, `CELL_HEIGHT` (the text grid); `PALETTE` (colours at once); `CELL_COLORS`; `GLYPHS` (redefinable characters, 0 where the font is fixed); `BLOCK_WIDTH`, `BLOCK_HEIGHT` (pseudo-pixels per cell from block glyphs, 0 where there are none); `BITMAP`; `LAYERS`; `SCROLL`; `SPRITES`; `SPRITES_PER_LINE`; `SPRITE_WIDTH`, `SPRITE_HEIGHT` (the largest); `SPRITE_COLORS` |
+| `Video` | `COLUMNS`, `ROWS`, `CELL_WIDTH`, `CELL_HEIGHT` (the text grid); `PALETTE` (colours at once); `CELL_COLORS`; `COLOR_PER_CELL` (whether one cell's colour can be set on its own — false on the PET, the Atari 8-bit and the NES, where `CELL_COLORS` is still 2); `GLYPHS` (redefinable characters, 0 where the font is fixed); `BLOCK_WIDTH`, `BLOCK_HEIGHT` (pseudo-pixels per cell from block glyphs, 0 where there are none); `BITMAP`; `LAYERS`; `SCROLL`; `SPRITES`; `SPRITES_PER_LINE`; `SPRITE_WIDTH`, `SPRITE_HEIGHT` (the largest); `SPRITE_COLORS` |
 | `Audio` | `VOICES`; `NOISE`; `ENVELOPE`; `FILTER`; `PCM`; `VOLUME` (a volume per voice — false on the PET); `ENTROPY` (a hardware random source) |
 | `Input` | `KEYBOARD`; `JOYSTICKS`; `PADS` (the ports); `MOUSE`, `PADDLES` (run time — see below) |
 | `Storage` | `SAVE` (somewhere this build can persist bytes) |
