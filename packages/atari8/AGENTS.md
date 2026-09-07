@@ -213,7 +213,7 @@ and why.
 | The emulated CPU implements the unofficial 6502 opcodes (ASO/SLO, RLA, LAX, DCM/DCP, INS/ISC …) and the `JMP (addr)` page-wrap bug (a `CPU65C02` build define only removes the bug emulation). | upstream `cpu.c` |
 | `atari800 -help` (7.1.2): models `-atari -1200 -xl -xe -320xe -rambo -576xe -1088xe -xegs -5200`; `-pal/-ntsc`; `-run <file>` (COM/EXE/XEX/BAS/LST); `-cart <file>` + `-cart-type <num>` (0..160), `-cart2`; `-H1..-H4 <path>` host directories as `H1:`–`H4:`, `-Hpath`, `-hreadonly/-hreadwrite` (needs the OS patch; `-nopatchall` kills `H:`); `-tape/-boottape`; `-mouse off|pad|touch|koala|pen|gun|amiga|st|trak|joy`, `-mouseport 1-4`, `-cx85`, `-multijoy`; `-stereo` (two POKEYs); `-xep80/-af80/-bit3` 80-column boards; `-record/-playback` input; `-screenshots <pattern>` is only a filename pattern for the hotkey — there is no exit-and-screenshot flag; `-monitor`, `-bpc`, `-label-file`. With no Atari 5200 ROM configured, `-5200` boots on atari800's bundled Altirra 5200 kernel (seen); the same fallback for the XL/XE OS (`-xl-rev altirra`) is listed in `-help` but this host has the real XL ROM, so it is *to verify*. | `atari800 -help`; on screen (5200) |
 | Under `8bs run` the emulated 800XL, 130XE and 800 show the borders program at cell 0 in the top-left of the playfield, inside a border whose colour is COLBK; the OS text screen sits below 24 blank lines and inside a normal-width (40-byte) playfield. | on screen |
-| The catalog's stock fact sheet: grid 40×24 of 8×8 (ANTIC mode 2), 256 colours (GTIA's 16 hues × 16 luminances), 2 per cell (one hue, two luminances), 128 glyphs per charset, no full block set (`video.blockWidth`/`Height` 0: ATASCII's control-graphics range is not a quarter-block set), bitmap, one layer with fine scroll; 4 players as the sprites (missiles are not counted), 4 per line, 8 pixels wide and as tall as the display (192 lines of per-line data), one colour each; POKEY's 4 voices with a volume each, noise distortions, volume-only samples, no envelope or filter, `RANDOM` as a random source; keyboard, two ports on the XL/XE models, no pads; disk under DOS; 40960 bytes (`$2000`–`$BFFF`), nothing banked until `model=130xe`, no mouse until a `mouse` value. | `src/text.8bs`; the `.xex`/`link.ld`, ANTIC, GTIA and POKEY rows above; `package.json` (read) |
+| The catalog's stock fact sheet: grid 40×24 of 8×8 (ANTIC mode 2), 128 colours (GTIA's 16 hues × 8 luminances — a colour register ignores bit 0; the 256 this row used to claim is GTIA mode 9 only), 2 per cell (one hue, two luminances), 128 glyphs per charset, no full block set (`video.blockWidth`/`Height` 0: ATASCII's control-graphics range is not a quarter-block set), bitmap, one layer with fine scroll; 4 players as the sprites (missiles are not counted), 4 per line, 8 pixels wide and as tall as the display (192 lines of per-line data), one colour each; POKEY's 4 voices with a volume each, noise distortions, volume-only samples, no envelope or filter, `RANDOM` as a random source; keyboard, two ports on the XL/XE models, no pads; disk under DOS; 40960 bytes (`$2000`–`$BFFF`), nothing banked until `model=130xe`, no mouse until a `mouse` value. | `src/text.8bs`; the `.xex`/`link.ld`, ANTIC, GTIA and POKEY rows above; `package.json` (read) |
 | `@8bitscript/atari8/banks` — `banks.kib()`: a marker in base RAM at `$4000`, then a marker of its own into each of the four banks bits 2–3 name (bit 4 clear so only the CPU sees them, bit 5 left alone so ANTIC keeps drawing base RAM, bits 0/1/7 left alone so the OS ROM, BASIC and self-test stay put), then base RAM read again. Still its own marker means the writes went elsewhere and the machine has extended RAM; the last bank's marker means there was only ever one RAM. Each bank is then read back so a mirror is not counted. atari800's `MEMORY_HandlePORTB` computes the 128 KiB bank as `((byte & 0x0c) >> 2) + 1` and runs the same code to no effect on a 64 KiB machine, which is what makes this work. Under atari800 the probe printed 64 KiB for `model=130xe` and 0 for `800xl`, `65xe` and `800` — including the 800, where PORTB is joystick ports 3 and 4 and the writes are harmless. Cost: `test/banks-probe.8bs` is 682 bytes of program with the probe and 531 with the answer written in — 151 bytes. | `src/banks.8bs`; atari800 `src/memory.c` (fetched 2026-09-05); four screenshots (ran); `test/banks.test.mjs` |
 | The `.xex` link script's RAM region is a **literal** `ORIGIN = 0x2000, LENGTH = 0xa000` — there is no `PROVIDE` and no symbol to override, unlike the VIC-20's `__memory_expansion` or the PET's `__ram_size`. So a `400` or `800` value **cannot** cap the linked RAM with a `--defsym`, and the catalog does not pretend to: those values change the emulator's model and the joystick-port fact only. Capping RAM for a 16K 400 needs a link script this project supplies, which nothing does yet. | `$SDK/mos-platform/atari8-dos/lib/link.ld` (read) |
 | `atari8-cart-std/lib/link.ld` has **no** `PROVIDE(__cart_rom_size)` — only `ASSERT(__cart_rom_size == 8 \|\| __cart_rom_size == 16, ...)`. The standard-cartridge driver therefore cannot link at all without the defsym, where the XEGS (`PROVIDE(... = 256)`) and MegaCart (`= 512`) scripts have defaults. Every cartridge value in the catalog passes it explicitly for that reason. | the three cartridge `link.ld`s (read) |
@@ -332,6 +332,10 @@ it must loop with a JVB (`$41`) or be restarted by the CPU.
   list, and a stray `$C1` there sets a DLI on every scan line until
   vertical blank. Change the pointer with display-list DMA off or during
   vertical blank, and never one byte at a time.
+- A mode line that runs past scan line 248 is **truncated**, and if it
+  carried a DLI that interrupt never fires, because its last scan line
+  never happens. A display list that overruns is therefore not just too
+  tall — it silently loses the handler at the bottom of the screen.
 
 ### Scrolling, and what it costs
 
@@ -496,15 +500,22 @@ resolution chosen by DMACTL bit 4:
 
 Two routes, and a runtime must pick one and say which:
 
-- **ANTIC DMA** from PMBASE. Both sides must agree: DMACTL bit 2 (missiles)
-  and bit 3 (players) tell ANTIC to fetch — and bit 3 turns missile
-  fetching on as well — while GRACTL (`$D01D`) bits 0 and 1 tell GTIA to
-  accept. Enable one side without the other and GTIA latches whatever was
-  on the bus.
+- **ANTIC DMA** from PMBASE. Both sides must agree: DMACTL bit 2
+  (missiles) and bit 3 (players) tell ANTIC to fetch — and bit 3 turns
+  missile fetching on as well — while GRACTL (`$D01D`) bits 0 and 1 tell
+  GTIA to accept. The two mismatches fail differently, and neither fails
+  quietly: **GRACTL on with DMACTL off** loads the players with whatever
+  the CPU happened to have on the bus during cycles 2-5, and if ANTIC's
+  P/M DMA is off entirely, GTIA mistakes the first halted cycle of
+  horizontal blank for the missile fetch and reads a *display-list
+  instruction* as missile data. **GRACTL off** simply leaves the graphics
+  registers holding their last value.
 - **The CPU writing GRAFP0-3 (`$D00D-$D010`) and GRAFM (`$D011`)** with
   DMA off, per scan line, which is the 2600-style racing-the-beam route
-  the SDK header itself points at. With DMA off, the registers simply hold
-  their last value, which is why an abandoned player becomes a full-height
+  the SDK header itself points at. Because the registers hold their last
+  value, one write can also be left standing deliberately — GTIA reuses
+  the pattern on every scan line, so a vertical bar costs no RAM and no
+  DMA at all. It is also why an *abandoned* player becomes a full-height
   stripe down the screen.
 
 DMA costs 1 ANTIC cycle per scan line for the missiles (cycle 0) and 4 for
@@ -559,9 +570,9 @@ priority must therefore take one of four values, not a bit mask.
 
 ### Collisions are hardware, and they are cheap
 
-Sixteen read-only registers at `$D000-$D00F` (the same addresses the HPOS
-registers occupy for writing), four significant bits each, 60 meaningful
-bits in total:
+Sixteen read-only registers at `$D000-$D00F` — the same addresses the
+HPOS, SIZE and GRAF registers occupy for *writing* — four significant bits
+each, 60 meaningful bits in total:
 
 - `$D000-$D003` M0PF-M3PF, `$D004-$D007` P0PF-P3PF — each missile and
   player against playfields PF0-PF3.
@@ -976,8 +987,10 @@ it has to keep.
   six names and emit the canonical byte.
 - In a 16-bit pair it is the **high** channel (2 or 4) that carries the
   period and gets enabled for audio; the low one is normally silent. Get
-  this backwards and the note is an octave-and-a-bit wrong, not silent,
-  which is exactly the sort of bug that survives a test.
+  this backwards and you hear the low timer's own period instead — it
+  keeps underflowing every 256 ticks — so the result is a wrong pitch
+  rather than silence, which is exactly the sort of bug that survives a
+  test.
 - POKEY's mixer saturates above a summed volume of 15 across actively
   sounding channels. A four-voice API that lets every voice sit at 15 is
   not louder, it is compressed and distorted — and a voice left at a
