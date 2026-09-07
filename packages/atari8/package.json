@@ -55,7 +55,8 @@
         "storage.save": true,
         "memory.ram": 40960,
         "memory.banked": false,
-        "memory.bankedKib": 0
+        "memory.bankedKib": 0,
+        "storage.kib": 86
       },
       "options": {
         "model": {
@@ -157,7 +158,8 @@
               },
               "facts": {
                 "memory.ram": 6400,
-                "storage.save": false
+                "storage.save": false,
+                "storage.kib": 0
               }
             },
             "cart16": {
@@ -179,7 +181,8 @@
               },
               "facts": {
                 "memory.ram": 6400,
-                "storage.save": false
+                "storage.save": false,
+                "storage.kib": 0
               }
             },
             "xegs32": {
@@ -201,7 +204,8 @@
               },
               "facts": {
                 "memory.ram": 6400,
-                "storage.save": false
+                "storage.save": false,
+                "storage.kib": 0
               }
             },
             "xegs64": {
@@ -223,7 +227,8 @@
               },
               "facts": {
                 "memory.ram": 6400,
-                "storage.save": false
+                "storage.save": false,
+                "storage.kib": 0
               }
             },
             "xegs128": {
@@ -245,7 +250,8 @@
               },
               "facts": {
                 "memory.ram": 6400,
-                "storage.save": false
+                "storage.save": false,
+                "storage.kib": 0
               }
             },
             "xegs256": {
@@ -267,7 +273,8 @@
               },
               "facts": {
                 "memory.ram": 6400,
-                "storage.save": false
+                "storage.save": false,
+                "storage.kib": 0
               }
             },
             "xegs512": {
@@ -289,7 +296,8 @@
               },
               "facts": {
                 "memory.ram": 6400,
-                "storage.save": false
+                "storage.save": false,
+                "storage.kib": 0
               }
             },
             "mega16": {
@@ -311,7 +319,8 @@
               },
               "facts": {
                 "memory.ram": 6400,
-                "storage.save": false
+                "storage.save": false,
+                "storage.kib": 0
               }
             },
             "mega32": {
@@ -333,7 +342,8 @@
               },
               "facts": {
                 "memory.ram": 6400,
-                "storage.save": false
+                "storage.save": false,
+                "storage.kib": 0
               }
             },
             "mega64": {
@@ -355,7 +365,8 @@
               },
               "facts": {
                 "memory.ram": 6400,
-                "storage.save": false
+                "storage.save": false,
+                "storage.kib": 0
               }
             },
             "mega128": {
@@ -377,7 +388,8 @@
               },
               "facts": {
                 "memory.ram": 6400,
-                "storage.save": false
+                "storage.save": false,
+                "storage.kib": 0
               }
             },
             "mega256": {
@@ -399,7 +411,8 @@
               },
               "facts": {
                 "memory.ram": 6400,
-                "storage.save": false
+                "storage.save": false,
+                "storage.kib": 0
               }
             },
             "mega512": {
@@ -421,7 +434,8 @@
               },
               "facts": {
                 "memory.ram": 6400,
-                "storage.save": false
+                "storage.save": false,
+                "storage.kib": 0
               }
             }
           }

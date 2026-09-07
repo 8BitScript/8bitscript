@@ -1,4 +1,4 @@
-// Project discovery for the sidebar view.
+// Project discovery for the side bar.
 //
 // An 8BitScript project is a directory with an `8bs.config.ts` in it. That
 // file is the manifest: the CLI already reads it for the entry file and the
@@ -7,23 +7,23 @@
 // package.json alone is not enough — every package in packages/ and this
 // extension itself have one, and none of them is a program to run.
 //
-// A project is one of three kinds, and the view keeps them apart: the
-// workspace's own programs; the examples under
-// examples/ in the 8bitscript repository, which exist to
-// exercise the toolchain; and the apps that ship with the toolchain —
-// packages whose package.json carries an `8bitscript.app` field, Studio
-// being the first — found beside the CLI package the toolchain came from.
+// A project is one of three kinds, and the launcher keeps them apart in
+// its dropdown: the workspace's own programs; the examples under
+// examples/ in the 8bitscript repository, which exist to exercise the
+// toolchain; and the apps that ship with the toolchain — packages whose
+// package.json carries an `8bitscript.app` field, Studio being the first —
+// found beside the CLI package the toolchain came from.
 //
 // This module is deliberately free of the `vscode` API so it can be tested
-// with plain `node --test`. The view (projectsView.cjs) does the file search
-// with the editor's own glob and hands the results here.
+// with plain `node --test`. runner.cjs does the file search with the
+// editor's own glob and hands the results here.
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
 const CONFIG_FILE = '8bs.config.ts';
 
-/** Every target the toolchain knows, in the order the view lists them. */
+/** Every target the toolchain knows, in the order the launcher lists them. */
 const ALL_TARGETS = ['vic20', 'c64', 'pet', 'c128', 'atari8', 'nes', 'cx16', 'mega65', 'web'];
 
 /**
@@ -39,7 +39,7 @@ const DEFAULT_ENTRY = 'src/main.8bs';
 /** The directory a repository checkout keeps its example programs in. */
 const EXAMPLES_DIR = 'examples';
 
-/** The three kinds of project, in the order the view lists their sections. */
+/** The three kinds of project, in the order the launcher groups them. */
 const KINDS = [
   { id: 'project', label: 'Projects' },
   { id: 'example', label: 'Examples' },
@@ -350,8 +350,8 @@ function listProjectConfigs(dir) {
 }
 
 /**
- * Load the examples under a directory, marked as shipped so the
- * view can tell them apart from the workspace's own projects.
+ * Load the examples under a directory, marked as shipped so the launcher
+ * can tell them apart from the workspace's own projects.
  *
  * @param {string} dir
  * @returns {Project[]}
@@ -422,9 +422,9 @@ function ofKind(projects, kind) {
 }
 
 /**
- * Split a list into its kinds, in KINDS order, for the view's sections.
+ * Split a list into its kinds, in KINDS order, for the dropdown's groups.
  * Returns null when every project is the same kind — a workspace of plain
- * projects should not grow a section level it has no use for.
+ * projects should not grow a group level it has no use for.
  *
  * @param {Project[]} projects
  * @returns {{ kind: string, label: string, projects: Project[] }[] | null}
@@ -436,16 +436,134 @@ function byKind(projects) {
   return groups.length > 1 ? groups : null;
 }
 
+/**
+ * Write one system into an 8bs.config.ts's `systems` block, and give back
+ * the whole file.
+ *
+ * The config is a TypeScript module, so this is a text edit rather than a
+ * serialisation: the file is someone's, comments and all, and the only
+ * part of it this touches is the one object it is adding to. It handles
+ * the shape every config in this repository has — a `export default { ...
+ * }` literal — and returns null for anything else rather than guessing,
+ * so a config that computes its targets is opened for the person to paste
+ * into instead of being rewritten wrongly.
+ *
+ * A name already in the block is replaced, so saving twice under one name
+ * updates it rather than writing a duplicate key.
+ *
+ * @param {string} text the current 8bs.config.ts
+ * @param {string} name what to call the system
+ * @param {{ target: string, profile?: string|null, hardware?: object, region?: string|null }} entry
+ * @returns {string|null} the new file, or null when the shape is not one to edit
+ */
+function insertSystem(text, name, entry) {
+  const body = entryText(entry);
+  // `[ \t]*` rather than `\s*`: a `systems:` that a `//` on the same line
+  // has commented out is not a block to add to.
+  const block = objectBody(text, /\n[ \t]*systems\s*:\s*\{/);
+  if (block) {
+    const indent = `${block.indent}  `;
+    const without = removeKey(text.slice(block.start, block.end), name);
+    const existing = without.trim() === ''
+      ? ''
+      : without.replace(/^\n*/, '').replace(/,?\s*$/, ',\n');
+    return text.slice(0, block.start)
+      + `\n${existing}${indent}${quoteKey(name)}: ${body},\n${block.indent}`
+      + text.slice(block.end);
+  }
+  // No block yet: open one at the end of the default export's own object.
+  const root = objectBody(text, /export\s+default\s*\{/);
+  if (!root) return null;
+  const indent = `${root.indent}  `;
+  const before = text.slice(root.start, root.end).replace(/\s*$/, '');
+  return text.slice(0, root.start)
+    + `${before.endsWith(',') || before === '' ? before : `${before},`}\n`
+    + `${indent}systems: {\n${indent}  ${quoteKey(name)}: ${body},\n${indent}},\n${root.indent}`
+    + text.slice(root.end);
+}
+
+/**
+ * One named system as it is written in a config — the line insertSystem
+ * splices in, and the same line to hand someone when it cannot.
+ *
+ * @param {string} name
+ * @param {{ target: string, profile?: string|null, hardware?: object, region?: string|null }} entry
+ */
+function systemLine(name, entry) {
+  return `${quoteKey(name)}: ${entryText(entry)},`;
+}
+
+/** One system as it is written in a config. */
+function entryText({ target, profile = null, hardware = {}, region = null }) {
+  const parts = [`target: ${quote(target)}`];
+  if (profile) parts.push(`profile: ${quote(profile)}`);
+  const options = Object.entries(hardware ?? {});
+  if (options.length > 0) {
+    parts.push(`hardware: { ${options.map(([k, v]) => `${quoteKey(k)}: ${quote(String(v))}`).join(', ')} }`);
+  }
+  if (region) parts.push(`region: ${quote(region)}`);
+  return `{ ${parts.join(', ')} }`;
+}
+
+const quote = (value) => `'${value.replaceAll('\\', '\\\\').replaceAll("'", "\\'")}'`;
+/** A bare identifier stays bare; anything else is quoted, as a person would write it. */
+const quoteKey = (key) => (/^[A-Za-z_$][\w$]*$/.test(key) ? key : quote(key));
+
+/**
+ * The inside of the object literal a pattern's `{` opens: where its body
+ * starts and ends, and the indent of the line the pattern began on.
+ * Comments and strings are skipped so a `}` inside either does not close
+ * it. Null when the pattern does not match or the braces do not balance.
+ */
+function objectBody(text, pattern) {
+  const match = pattern.exec(text);
+  if (!match) return null;
+  const start = match.index + match[0].length;
+  const line = text.lastIndexOf('\n', match.index + 1) + 1;
+  const indent = /^[ \t]*/.exec(text.slice(line))[0];
+  let depth = 1;
+  for (let i = start; i < text.length; i += 1) {
+    const c = text[i];
+    if (c === '/' && text[i + 1] === '/') { i = text.indexOf('\n', i); if (i < 0) return null; continue; }
+    if (c === '/' && text[i + 1] === '*') { i = text.indexOf('*/', i); if (i < 0) return null; i += 1; continue; }
+    if (c === "'" || c === '"' || c === '`') {
+      for (i += 1; i < text.length && text[i] !== c; i += 1) if (text[i] === '\\') i += 1;
+      continue;
+    }
+    if (c === '{' || c === '[' || c === '(') depth += 1;
+    else if (c === '}' || c === ']' || c === ')') {
+      depth -= 1;
+      if (depth === 0) return { start, end: i, indent };
+    }
+  }
+  return null;
+}
+
+/**
+ * A `systems` body with one name's entry taken out, so saving over a name
+ * replaces it rather than writing the key twice.
+ *
+ * The entry's value is scanned for its matching brace rather than matched
+ * with a pattern: a system with `hardware: { sid: '8580' }` in it has a
+ * nested object, and a regexp that stops at the first `}` would leave half
+ * of it behind.
+ */
+function removeKey(body, name) {
+  const key = `(?:${escapeRegExp(quoteKey(name))}|${escapeRegExp(quote(name))}|${escapeRegExp(`"${name}"`)})`;
+  const match = new RegExp(`\\n[ \\t]*${key}\\s*:\\s*(?=\\{)`).exec(body);
+  if (!match) return body;
+  const value = objectBody(body, new RegExp(`\\n[ \\t]*${key}\\s*:\\s*\\{`));
+  if (!value) return body;
+  let end = value.end + 1;
+  if (body[end] === ',') end += 1;
+  return body.slice(0, match.index) + body.slice(end);
+}
+
+const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 /** Projects that can run on one system. */
 function runnableOn(projects, system) {
   return projects.filter((project) => project.targets.includes(system));
-}
-
-/** Every system at least one project targets, each with its projects. */
-function bySystem(projects) {
-  return ALL_TARGETS
-    .map((target) => ({ target, projects: runnableOn(projects, target) }))
-    .filter((group) => group.projects.length > 0);
 }
 
 /** Where docs/setup/llvm-mos.md tells people to unpack the SDK. */
@@ -505,7 +623,6 @@ module.exports = {
   KINDS,
   EXAMPLES_DIR,
   byKind,
-  bySystem,
   cliPackageDir,
   commandArgs,
   findExamplesDir,
@@ -514,7 +631,9 @@ module.exports = {
   kindOf,
   loadApps,
   loadExamples,
+  insertSystem,
   ofKind,
+  systemLine,
   packageManagerFor,
   loadProject,
   loadProjects,

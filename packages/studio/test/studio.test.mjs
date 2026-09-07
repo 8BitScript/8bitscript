@@ -133,3 +133,12 @@ test('the tier follows the facts, not the name: a machine with no facts is the p
 test('Studio has one entry file: no main.<target>.8bs variants', () => {
   for (const target of TARGETS) assert.ok(!existsSync(join(SRC, `main.${target}.8bs`)), target);
 });
+
+test('Studio is set up for a mouse on every machine that can have one', () => {
+  const config = readFileSync(join(ROOT, '8bs.config.ts'), 'utf8');
+  assert.match(config, /c64: \{ hardware: \{ port1: 'mouse1351' \} \}/);
+  assert.match(config, /c128: \{ hardware: \{ port1: 'mouse1351' \} \}/);
+  assert.match(config, /'C64 with a mouse'/);
+  assert.match(config, /'C128 with a mouse'/);
+  assert.match(config, /'Commander X16'/);
+});

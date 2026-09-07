@@ -1,46 +1,77 @@
-// @8bitscript/cx16/pointer — the X16 behind @8bitscript/pointer, and the
-// machine where the gap is most embarrassing and most easily closed.
+// @8bitscript/cx16/pointer — the X16 behind @8bitscript/pointer: the
+// KERNAL's own mouse cursor.
 //
-// Every call here does nothing and `DRAWS` is false, on the machine that
-// has **more to draw a cursor with than any of the other eight**: VERA
-// offers 128 sprites, and the X16's KERNAL has a mouse pointer built in —
-// `$FF68` mouse_config turns one on and the firmware draws and moves it
-// for you, which is the one machine of the nine where a program need not
-// draw a cursor at all.
+// Named by "8bitscript".exports["./pointer"] in this package's package.json,
+// and by "8bitscript".entry.cx16 in @8bitscript/pointer's, so a portable
+// program writes
 //
-// It is false anyway, because reaching any of that means an `asm6502`
-// block to make a KERNAL call, and @8bitscript/cx16/input is in exactly
-// the same position for exactly the same reason: it names `$FFE4` GETIN,
-// `$FF56` joystick_get and `$FF6B` mouse_get and cannot reach one of them.
-// **The X16 is currently the machine that cannot be driven at all**, and a
-// cursor is downstream of that: an arrow with nothing moving it is worse
-// than no arrow.
+//     import { pointer } from "@8bitscript/pointer";
 //
-// So the order of work is the input layer's three KERNAL calls first, and
-// then this file has a choice the others do not — let the firmware draw
-// the pointer (`mouse_config`, and `DRAWS` true with `update()` doing
-// nothing at all, since the KERNAL moves it), or ignore it and drive a
-// VERA sprite the way @8bitscript/c64/pointer drives a VIC one. The
-// firmware's is almost certainly right: it is already written, it costs
-// no sprite, and the X16's own software expects that pointer.
+// and gets this file on an X16. It is the *visible* half of the pointer
+// @8bitscript/input already reports: `input` says where the pointer is and
+// whether its button went down, and this says what the user sees while
+// they aim it.
 //
-// It costs the X16 nothing today: `DRAWS` is a const and every function is
-// empty, so a program's `if (pointer.DRAWS)` folds away and LLVM deletes
-// the calls — the same zero this package's input layer measures at (see
-// packages/input/AGENTS.md).
+// ---- the firmware draws it ------------------------------------------------
+//
+// This is the one machine of the nine where a program need not draw a
+// cursor at all. `$FF68` mouse_config (./mouse.8bs's begin()) loads the
+// KERNAL's default pointer — Susan Kare's 16×16 1bpp arrow — into VERA
+// sprite 0 and the firmware moves it. `update()` here is therefore empty
+// on the happy path: `input.poll()` has already called mouse_scan, which
+// writes the sprite's position. A program that never polls gets an arrow
+// that never moves, the same contract as on the C64.
+//
+// `DRAWS` is `#fact(input.mouse)`, true on the stock machine. The rest
+// position is the *centre* of the 640×480 output, not the corner: that is
+// where mouse_config parks it, verified in ps2mouse.s (x16-rom fbe32a60).
+//
+// `setColor` does nothing. The firmware pointer is 1bpp black and white,
+// not a VIC-style sprite colour this layer can poke without fighting the
+// KERNAL's sprite_set_image. Studio asks for white, which is already what
+// the arrow's fill is.
+//
+// `hide()` turns the KERNAL mouse off (mouse_config 0) and `update()`
+// turns it back on without re-centering (mouse_config $FF, size left
+// as-is), so a program that hides for one frame — the pointer example's
+// cancel — gets the arrow back on the next without a jump.
+import { mouse } from "./mouse.8bs";
+
+const HAS_MOUSE: bool = #fact(input.mouse);
+
+let hidden: bool = false;
+
 export namespace pointer {
 
-    const DRAWS: bool = false;
+    const DRAWS: bool = #fact(input.mouse);
 
     function begin(): void {
+        if (HAS_MOUSE) {
+            // input.begin() has usually already done this; mouse.begin()
+            // is skipped the second time so the pointer is not re-centered.
+            mouse.begin();
+        }
     }
 
     function setColor(color: utinyint): void {
+        if (HAS_MOUSE) {
+            // The firmware pointer is black and white; see the header.
+        }
     }
 
     function update(): void {
+        if (HAS_MOUSE) {
+            if (hidden) {
+                mouse.show();
+                hidden = false;
+            }
+        }
     }
 
     function hide(): void {
+        if (HAS_MOUSE) {
+            mouse.hide();
+            hidden = true;
+        }
     }
 }

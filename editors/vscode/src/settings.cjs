@@ -1,20 +1,14 @@
-// The choices the side bar's controls make — system, region, view, and
-// the hardware fitted per system — kept as ordinary settings so they also
+// The choices the launcher makes — the project, the system, its region,
+// and the hardware fitted to it — kept as ordinary settings so they also
 // show up in the Settings editor, survive restarts, and can be set per
-// workspace. Everything that runs a project reads them from
-// here, so the Run button on any row means the same thing the dropdowns say.
+// workspace. Everything that runs a project reads them from here, so the
+// Run button means exactly what the panel says it does.
 const vscode = require('vscode');
 
 const { ALL_TARGETS } = require('./projects.cjs');
 const { normalizeSelection } = require('./hardwareCatalog.cjs');
 
 const SECTION = '8bitscript';
-
-const VIEW_MODES = [
-  { id: 'byProject', label: 'By project' },
-  { id: 'runnable', label: 'Runnable on the selected system' },
-  { id: 'bySystem', label: 'By system' },
-];
 
 // The region names on the box: NTSC-format machines were sold as the US/
 // Canada/Japan model, PAL as the European (and Australian) one. 8bs itself
@@ -37,10 +31,9 @@ function getSystem() {
 }
 
 /**
- * The project the Run Settings panel acts on: the absolute directory of
- * one, or '' for "whichever the workspace offers first". A path rather
- * than a name, because two workspace folders can hold projects of the
- * same name.
+ * The project the launcher acts on: the absolute directory of one, or ''
+ * for "whichever the workspace offers first". A path rather than a name,
+ * because two workspace folders can hold projects of the same name.
  *
  * @returns {string}
  */
@@ -50,18 +43,12 @@ function getProject() {
 }
 const setProject = (dir) => update('project', dir ?? '');
 
-/** @returns {'runnable' | 'byProject' | 'bySystem'} */
-function getViewMode() {
-  const value = config().get('projectsView');
-  return VIEW_MODES.some((mode) => mode.id === value) ? value : VIEW_MODES[0].id;
-}
-
 function config() {
   return vscode.workspace.getConfiguration(SECTION);
 }
 
 /**
- * Write one of the three settings. A workspace-level write when a folder is
+ * Write one of the settings. A workspace-level write when a folder is
  * open, so two repositories can default to different machines; global
  * otherwise, so the choice still sticks in an empty window.
  */
@@ -74,9 +61,14 @@ async function update(key, value) {
 
 const setRegion = (region) => update('region', region);
 const setSystem = (system) => update('system', system);
-const setViewMode = (mode) => update('projectsView', mode);
 
-/** Whether the examples shipped with the toolchain are listed (the `showExamples` setting). */
+/**
+ * Whether the examples and proofs of concept that ship with the toolchain
+ * are in the Project dropdown (the `showExamples` setting). Off by
+ * default: in a checkout of the repository they outnumber the projects
+ * someone is actually working on, and the point of the picker is to reach
+ * *your* program. `Launch Example…` reaches them either way.
+ */
 function getShowExamples() {
   return config().get('showExamples') === true;
 }
@@ -113,24 +105,18 @@ async function setHardware(system, selection) {
 
 /** True when a change event touches any of the run settings. */
 function affectsAny(event) {
-  return ['region', 'system', 'project', 'projectsView', 'hardware'].some((key) =>
+  return ['region', 'system', 'project', 'hardware'].some((key) =>
     event.affectsConfiguration(`${SECTION}.${key}`),
   );
 }
 
-function regionLabel(region) {
-  const found = REGIONS.find((r) => r.id === region) ?? REGIONS[0];
-  return `${found.label} (${found.place})`;
-}
-
-/** Just "NTSC" or "PAL", for a spot that already supplies its own parens. */
+/** Just "NTSC" or "PAL"; the panel's own line supplies the context. */
 function regionShort(region) {
   return (REGIONS.find((r) => r.id === region) ?? REGIONS[0]).label;
 }
 
 module.exports = {
   REGIONS,
-  VIEW_MODES,
   affectsAny,
   getExamplesPath,
   getHardware,
@@ -138,13 +124,10 @@ module.exports = {
   getRegion,
   getShowExamples,
   getSystem,
-  getViewMode,
-  regionLabel,
   regionShort,
   setHardware,
   setProject,
   setRegion,
   setShowExamples,
   setSystem,
-  setViewMode,
 };

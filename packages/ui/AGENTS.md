@@ -191,7 +191,8 @@ Seven things about it that are decisions, not accidents:
 Measured by building Studio's front door three ways — as it is, with the
 menu bar taken out, and with input taken out — on 2026-09-06, after the
 bar grew a deselected state, navigation, a pointer hit test and an icon
-slot. Studio's bar is now an icon and one menu, where the earlier table
+slot, and the Commander X16 row again on 2026-09-07 after its KERNAL mouse
+landed. Studio's bar is now an icon and one menu, where the earlier table
 measured four items, so these numbers replace those rather than continuing
 them.
 
@@ -203,18 +204,19 @@ them.
 | C128 | 1395 B | 956 | **+439** | 1045 | **+350** |
 | Atari 8-bit | 1456 B | 828 | **+628** | 1067 | **+389** |
 | NES | 1820 B | 1277 | **+543** | 1610 | **+210** |
-| Commander X16 | 1253 B | 987 | **+266** | 1253 | **+0** |
+| Commander X16 | 1571 B | 1180 | **+391** | 1253 | **+318** |
 | MEGA65 | 1292 B | 889 | **+403** | 970 | **+322** |
 
 Three things in that table are worth more than the totals:
 
-- **The X16's input costs nothing at all**, and that is the layer working
-  as intended rather than a mistake. `@8bitscript/cx16/input` answers
-  false to everything — its keyboard, joysticks and mouse are all KERNAL
-  subroutine calls nobody has written yet — so LLVM proves the whole
-  read-and-dispatch loop dead and deletes it. **A capability a machine
-  cannot honour should cost that machine zero**, and this is the
-  measurement that says the shape achieves it.
+- **The X16's input is the pointer**, not the keyboard. `@8bitscript/cx16/input`
+  answers the KERNAL mouse (`$FF68` / `$FF71` / `$FF6B`) and still returns
+  false for directions, confirm and cancel — GETIN and joystick_get are
+  the next calls. Measured 2026-09-07: Studio is 1253 bytes without that
+  layer and 1571 with it, **318 bytes of program and 5 of RAM**. The
+  unanswered half still costs zero. The bar column grew with it (+391
+  against the earlier +266) because `input.pointer()` is now live, so the
+  hit-test in Studio's loop is compiled in rather than deleted.
 - **The Atari 8-bit pays most for the bar** (+628). Its `text` layer is the
   one that does the most work per call, so anything that draws more
   strings costs more there; that is the machine to check when a component
@@ -225,7 +227,9 @@ Three things in that table are worth more than the totals:
   a C64 with no mouse fitted. Fit the C64 with one and the mouse adds a
   further **490 bytes of program and 17 of RAM**, measured on the menubar
   example: 1517 B stock against 2007 B with `--hardware port1=mouse1351`.
-  A build that never asked for a mouse links none of it.
+  A build that never asked for a mouse links none of it. The X16's mouse
+  is stock, so there is no "without" build to subtract — taking the layer
+  out of Studio is how 318 was measured.
 
 **Measure against the floor, not against the text.** Four labels are 27
 bytes of characters, and it is tempting to conclude a bar should cost about

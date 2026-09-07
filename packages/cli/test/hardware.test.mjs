@@ -9,7 +9,8 @@ import { createRequire } from 'node:module';
 import { MACHINES } from '@8bitscript/compiler';
 
 import {
-  loadCatalog, resolveHardware, parseHardwareArg, projectProfiles, listedTargets, loadArgs,
+  loadCatalog, resolveHardware, parseHardwareArg, projectProfiles, projectRequires, projectSystems,
+  listedTargets, loadArgs, whatSatisfies,
 } from '../src/hardware.mjs';
 
 const EMULATOR = {
@@ -30,12 +31,24 @@ test('every machine has a catalog; every value names only its own emulator, and 
         if (entry.load) assert.ok(entry.load[EMULATOR[machine]].includes('{out}'), `${machine}.${id}=${value}: load names {out}`);
       }
     }
+    for (const emulator of Object.keys(catalog.run ?? {})) {
+      assert.equal(emulator, EMULATOR[machine], `${machine} stock run names its own emulator`);
+    }
     for (const [name, values] of Object.entries(catalog.presets)) {
       for (const [id, value] of Object.entries(values)) {
         assert.ok(catalog.options[id]?.values[value], `${machine} preset '${name}' sets ${id}=${value}, which exists`);
       }
     }
   }
+});
+
+test('stock X16 run captures the host mouse, the same job VICE -mouse does for a 1351', () => {
+  // x16emu's -capture is mouse grab. Without it the KERNAL pointer only
+  // tracks while the host cursor is over the window, and the mapping is
+  // absolute so the arrow leaves the picture before the host cursor hits
+  // the window edge. Ctrl+M toggles the same grab.
+  const { hardware } = resolveHardware(loadCatalog('cx16'));
+  assert.deepEqual(hardware.run.x16emu, ['-ram', '512', '-capture']);
 });
 
 test('the catalog defaults are the stock machine: no tags, no build values, and the presets that existed as --profile names still do', () => {
@@ -159,7 +172,7 @@ test('--hardware sets options on top of a profile; a mouse in a port is a fact',
     profile: 'reu512', overrides: { port1: 'mouse1351', sid: '8580' },
   });
   assert.ok(ok);
-  assert.deepEqual(hardware.options, { ram: 'reu512', sid: '8580', port1: 'mouse1351', port2: 'joystick' });
+  assert.deepEqual(hardware.options, { ram: 'reu512', sid: '8580', port1: 'mouse1351', port2: 'joystick', drive: '1541' });
   assert.deepEqual(hardware.tags, ['reu512', '8580', 'mouse1351']);
   assert.deepEqual(hardware.buildValues, [], 'nothing on the C64 changes the build');
   assert.equal(hardware.facts['input.mouse'], true);
@@ -198,6 +211,73 @@ test('parseHardwareArg and the config helpers', () => {
   assert.deepEqual(listedTargets(config), ['c64', 'web']);
   assert.deepEqual(listedTargets({ targets: ['vic20'] }), ['vic20']);
   assert.equal(listedTargets(null), null);
+});
+
+// The `systems` block: whole machines a project has been set up for, each
+// one of its targets with the hardware already fitted. Every entry is
+// checked here, because a system the config names and the editor silently
+// drops is worse to debug than an error.
+test('a project\'s systems resolve to the command line each one stands for', () => {
+  const config = {
+    targets: { c64: { hardware: { port1: 'mouse1351' }, profiles: { loaded: { ram: 'reu512' } } }, vic20: {}, web: {} },
+    systems: {
+      'C64 with an REU': { target: 'c64', profile: 'loaded', region: 'pal' },
+      'C64 with a joystick': { target: 'c64', hardware: { port1: 'joystick' } },
+      'Expanded VIC-20': { target: 'vic20', profile: '8k' },
+      'The browser': { target: 'web' },
+    },
+  };
+  const { ok, systems } = projectSystems(config);
+  assert.ok(ok);
+  assert.deepEqual(systems.map((s) => s.name), [
+    'C64 with an REU', 'C64 with a joystick', 'Expanded VIC-20', 'The browser',
+  ]);
+  // A project profile is resolved against that machine's own profiles, and
+  // the project's stock hardware is under it: the mouse is still fitted.
+  assert.deepEqual(systems[0], {
+    name: 'C64 with an REU', target: 'c64', profile: 'loaded', hardware: {}, region: 'pal',
+    label: 'ram=reu512 port1=mouse1351', unmet: [],
+  });
+  assert.equal(systems[1].label, 'port1=joystick');
+  assert.equal(systems[2].label, 'ram=8k');
+  assert.equal(systems[3].label, 'stock');
+  assert.deepEqual(projectSystems({ targets: ['c64'] }), { ok: true, systems: [] });
+  assert.deepEqual(projectSystems(null), { ok: true, systems: [] });
+  // An explicit `profile: null` is what anything filling the shape in
+  // mechanically writes, and means the same as leaving it out.
+  const explicit = projectSystems({ targets: ['nes'], systems: { x: { target: 'nes', profile: null, hardware: {}, region: null } } });
+  assert.ok(explicit.ok, explicit.error);
+  assert.equal(explicit.systems[0].label, 'stock');
+});
+
+test('a system the config gets wrong is an error, not a missing row', () => {
+  const base = { targets: { c64: {}, pet: {}, web: {} } };
+  const bad = (systems) => projectSystems({ ...base, systems });
+  assert.match(bad({ x: { target: 'spectrum' } }).error, /'spectrum' is not a machine/);
+  assert.match(bad({ x: { target: 'nes' } }).error, /does not target nes\. Targets: c64, pet, web/);
+  assert.match(bad({ x: { target: 'c64', region: 'secam' } }).error, /region must be 'ntsc' or 'pal'/);
+  assert.match(bad({ x: { target: 'pet', region: 'pal' } }).error, /the pet has no region to pick/);
+  assert.match(bad({ x: { target: 'c64', profile: 'huge' } }).error, /unknown c64 profile 'huge'/);
+  assert.match(bad({ x: { target: 'c64', hardware: { model: '8032' } } }).error, /has no 'model' option/);
+  assert.match(bad({ x: { target: 'c64', hardware: { ram: '8k' } } }).error, /'8k' is not a value the c64's 'ram' option takes/);
+  assert.match(bad({ x: 'c64' }).error, /must be an object with a target/);
+  assert.match(projectSystems({ ...base, systems: ['c64'] }).error, /must be an object of name/);
+  // A system is offered beside the bare machines, in one list, so a name
+  // that is already a machine's would be two entries answering to one word.
+  assert.match(bad({ c64: { target: 'c64' } }).error, /'c64' is a machine's own name/);
+  // The name of the system is in every message, so it can be found.
+  assert.match(bad({ 'My C64': { target: 'spectrum' } }).error, /system 'My C64'/);
+});
+
+test('the machines with a region are one set, and a system may only pin one for those', () => {
+  const config = { targets: ['c64', 'nes', 'pet', 'web'] };
+  const withRegion = (target) => projectSystems({ ...config, systems: { x: { target, region: 'pal' } } });
+  for (const target of ['c64']) assert.ok(withRegion(target).ok, target);
+  // The editor's Save writes `region` only for the machines this says have
+  // one; NES and PET do not, and a config claiming otherwise is refused.
+  for (const target of ['nes', 'pet', 'web']) {
+    assert.match(withRegion(target).error, new RegExp(`the ${target} has no region to pick`));
+  }
 });
 
 // The fact sheets: every catalog's stock facts cover every key a program
@@ -286,4 +366,113 @@ test('every detect names a subpath its own machine package really exports, on th
     'c128 ram=256k -> @8bitscript/c128/banks',
     'atari8 model=130xe -> @8bitscript/atari8/banks',
   ].sort(), 'every probe that exists');
+});
+
+// What a program needs of any machine it is built for: `requires` in its
+// config, a floor per fact. This is the sentence a program gets to say
+// instead of the linker's overflow at the end of a build.
+test('requires takes a floor per fact, and refuses what cannot be a floor', () => {
+  assert.deepEqual(projectRequires({ requires: { 'memory.ram': 8192, 'storage.save': true } }),
+    { ok: true, requires: { 'memory.ram': 8192, 'storage.save': true } });
+  assert.deepEqual(projectRequires({}), { ok: true, requires: {} });
+  assert.deepEqual(projectRequires(null), { ok: true, requires: {} });
+
+  const bad = (requires) => projectRequires({ requires }).error;
+  // A run fact is answered on the machine, not by the build.
+  assert.match(bad({ 'input.mouse': true }), /settled on the machine, not by the build/);
+  assert.match(bad({ 'memory.banked': true }), /settled on the machine/);
+  assert.match(bad({ 'video.nope': 1 }), /is not a fact/);
+  assert.match(bad({ 'video.frameRate': 50 }), /not on a program's sheet/);
+  assert.match(bad({ 'memory.ram': 0 }), /a whole number above zero/);
+  assert.match(bad({ 'memory.ram': '8k' }), /a whole number above zero/);
+  assert.match(bad({ 'storage.save': false }), /require it with true, or leave it out/);
+  assert.match(projectRequires({ requires: ['memory.ram'] }).error, /must be an object of fact/);
+});
+
+test('whatSatisfies names the one change that would meet a requirement', () => {
+  // The half of the message that makes it actionable: not "needs 8192"
+  // but "ram=8k gives 11775".
+  assert.deepEqual(whatSatisfies(loadCatalog('vic20'), 'memory.ram', 8192),
+    ['ram=8k gives 11775', 'ram=16k gives 19967', 'ram=24k gives 28159']);
+  // Nothing fits when the machine cannot be fitted with it at all.
+  assert.deepEqual(whatSatisfies(loadCatalog('nes'), 'storage.save', true), []);
+  // A drive is what makes a machine one a program can save on.
+  assert.deepEqual(whatSatisfies(loadCatalog('c64'), 'storage.kib', 780),
+    ['drive=1581 gives 783']);
+});
+
+test('a system carries what it falls short of, and one that fits carries nothing', () => {
+  const config = {
+    targets: ['vic20', 'nes'],
+    requires: { 'memory.ram': 8192, 'storage.save': true },
+    systems: {
+      'VIC-20, stock': { target: 'vic20' },
+      'VIC-20 with 8K': { target: 'vic20', profile: '8k' },
+      'NES': { target: 'nes' },
+    },
+  };
+  const { systems } = projectSystems(config);
+  assert.deepEqual(systems[0].unmet, [{ key: 'memory.ram', need: 8192, have: 3583 }]);
+  assert.deepEqual(systems[1].unmet, []);
+  assert.deepEqual(systems[2].unmet.map((u) => u.key), ['memory.ram', 'storage.save']);
+});
+
+test('a requires block the config gets wrong gives no verdict rather than a wrong one', () => {
+  // Otherwise every system is marked short over a key the CLI is about to
+  // refuse, and an array `requires` asks the sheet for a fact named '0'.
+  const withRequires = (requires) => projectSystems({
+    targets: ['c64'], requires, systems: { C64: { target: 'c64' } },
+  }).systems[0].unmet;
+  assert.deepEqual(withRequires({ 'input.mouse': true }), [], 'a run fact is refused, not applied');
+  assert.deepEqual(withRequires(['memory.ram']), []);
+  assert.deepEqual(withRequires({ 'memory.ram': 8192 }), [], 'a c64 has 51199');
+  assert.deepEqual(withRequires({ 'memory.ram': 60000 }), [{ key: 'memory.ram', need: 60000, have: 51199 }]);
+});
+
+// Storage: the drives, measured rather than recalled. `c1541` formatted an
+// image of each type and its own directory reported the free blocks; a
+// block holds 254 bytes.
+test('the Commodore drives are a hardware axis, and each says what it holds', () => {
+  // Measured, then divided: c1541 formatted an image of each type and its
+  // own directory reported the free blocks; a block holds 254 bytes, and
+  // the fact is KiB rounded down.
+  const usable = (machine, drive) => resolveHardware(loadCatalog(machine), { overrides: { drive } })
+    .hardware.facts['storage.kib'];
+  assert.equal(usable('c64', '1541'), 164, '664 blocks = 168656 bytes');
+  assert.equal(usable('c64', '1571'), 329, '1328 blocks = 337312 bytes');
+  assert.equal(usable('c64', '1581'), 783, '3160 blocks = 802640 bytes');
+  assert.equal(usable('pet', '4040'), 166, '670 blocks = 170180 bytes');
+  assert.equal(usable('pet', '8050'), 508, '2052 blocks = 521208 bytes');
+  assert.equal(usable('pet', '8250'), 1025, '4133 blocks = 1049782 bytes');
+  assert.equal(usable('c128', '1571'), 329);
+
+  // No drive is nowhere to save, and both facts say so together.
+  const none = resolveHardware(loadCatalog('vic20'), { overrides: { drive: 'none' } }).hardware.facts;
+  assert.equal(none['storage.save'], false);
+  assert.equal(none['storage.kib'], 0);
+
+  // A drive is not linked in and is not an emulator flag — it is what the
+  // program may assume — so it carries no tag and no build values.
+  const fitted = resolveHardware(loadCatalog('c64'), { overrides: { drive: '1581' } }).hardware;
+  assert.deepEqual(fitted.tags, []);
+  assert.deepEqual(fitted.buildValues, []);
+});
+
+test('storage.save and storage.kib agree on every machine and every value', () => {
+  for (const machine of MACHINES) {
+    const catalog = loadCatalog(machine);
+    const check = (facts, where) => {
+      if (!Object.hasOwn(facts, 'storage.save') && !Object.hasOwn(facts, 'storage.kib')) return;
+      const stock = resolveHardware(catalog).hardware.facts;
+      const save = facts['storage.save'] ?? stock['storage.save'];
+      const bytes = facts['storage.kib'] ?? stock['storage.kib'];
+      assert.equal(save, bytes > 0, `${where}: storage.save ${save} but storage.kib ${bytes}`);
+    };
+    check(catalog.facts, `${machine} stock`);
+    for (const [id, option] of Object.entries(catalog.options)) {
+      for (const [value, entry] of Object.entries(option.values)) {
+        check(entry.facts ?? {}, `${machine} ${id}=${value}`);
+      }
+    }
+  }
 });

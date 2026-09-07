@@ -23,8 +23,15 @@ export function main(): void {
     text.printNumber(45, paddleY, 3);
     let color: utinyint = 2;
     if (mouse.present()) {
+        // Green only while the accumulator is still at rest: a 1351's
+        // pots flicker 64..65 at rest, and a driver that stepped on bit 0
+        // walked x/y off zero with no host motion (Studio, 2026-09-07).
         color = 5;
         text.print(80, "MOUSE FOUND");
+        if (mouse.x() != 0 || mouse.y() != 0) {
+            color = 7;
+            text.print(120, "DRIFTED");
+        }
     } else {
         text.print(80, "NO MOUSE");
     }

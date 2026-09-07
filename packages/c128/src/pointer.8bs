@@ -1,41 +1,163 @@
-// @8bitscript/c128/pointer — the C128 behind @8bitscript/pointer, and the
-// gap most worth closing of the eight.
+// @8bitscript/c128/pointer — the C128 behind @8bitscript/pointer: an arrow,
+// drawn with one of the VIC-IIe's eight sprites.
 //
-// Every call here does nothing and `DRAWS` is false, and that is a missing
-// *driver*, not a missing capability: the C128's 40-column side is a
-// VIC-IIe, so it has **the same eight hardware sprites the C64 has**, and
-// @8bitscript/c128/input already reads a 1351 in a control port
-// (`port1: mouse1351` in this package's catalog). Everything needed to
-// draw an arrow is on the machine. What is missing is this package's
-// equivalent of @8bitscript/c64/sprites: nothing here owns the sprite
-// registers, the shape blocks, or the VIC bank they have to live in, and
-// @8bitscript/c64/pointer is 40 lines on top of that layer.
+// Named by "8bitscript".exports["./pointer"] in this package's package.json,
+// and by "8bitscript".entry.c128 in @8bitscript/pointer's, so a portable
+// program writes
 //
-// So the work, in order: a `./sprites.8bs` for this package over a
-// `./geometry.8bs` that says where the shape blocks are in whichever bank
-// the 128's screen is in, then this file becomes the C64's with the import
-// changed. Two cautions the C64 does not have — the MMU means the bank
-// the VIC-IIe reads is not automatically the one the program is linked
-// into (see packages/c128/AGENTS.md), and **the 80-column side is a VDC
-// with no sprites at all**, so a program on `vdc80` would still have no
-// arrow and this file would still have to say so.
+//     import { pointer } from "@8bitscript/pointer";
 //
-// It costs the C128 nothing today: `DRAWS` is a const and every function
-// is empty, so a program's `if (pointer.DRAWS)` folds away and LLVM
-// deletes the calls.
+// and gets this file on a C128. It is the *visible* half of the pointer
+// @8bitscript/c128/input already reports: `input` says where the pointer is
+// and whether its button went down, and this says what the user sees while
+// they aim it.
+//
+// ---- why a sprite, and which one ------------------------------------------
+//
+// A cursor has to move without disturbing what is under it. The 40-column
+// side is a VIC-IIe with the same eight hardware sprites the C64 has, and
+// sprite 0 is always in front — which is where a cursor belongs. This file
+// owns sprite 0 and the first of the KERNAL's eight sprite blocks at
+// `$0E00` (block 56: `$0E00` / 64), in VIC bank 0, the bank `$DD00` and
+// `$D506` leave selected at boot. A later `./sprites` layer would own the
+// registers and the shape space; until then this talks to them directly
+// rather than pretending that layer exists.
+//
+// The C64's bank-3 layout does not carry over: native mode has the KERNAL
+// in at `$C000`–`$FFFF` and the screen at `$0400`, so the sprite pointers
+// live at `$07F8` and the shape cannot sit at C64 block 254. `$0E00`–`$0FFF`
+// is the area the KERNAL already reserved for sprite definitions, below
+// where the SDK links a program (`$1C01`).
+//
+// **The 80-column VDC has no sprites.** A program on `vdc80` still has no
+// arrow, and this file would still have to say so — today's builds draw
+// on the VIC, which is the picture `-exitscreenshotvicii` captures.
+//
+// ---- the position comes from the mouse's accumulator ----------------------
+//
+// `update()` reads ./input.8bs's `mouse.x()` / `mouse.y()` in **pixels**,
+// rather than `input.pointerCell()` — a cell is 8 pixels. Those three
+// calls (`x`, `y`, `present`) are the same reading `poll()` kept, so the
+// arrow and the hit-test cannot disagree. **`poll()` then `update()`,
+// once each a frame.**
+//
+// The arrow's tip is its top-left pixel, so the sprite goes at the mouse's
+// pixel plus the screen's origin in the VIC's space (24, 50): the tip
+// lands on the pixel the mouse is at, and `input.pointerCell()` is the
+// cell that pixel is in.
+//
+// ---- a build without a mouse pays nothing ---------------------------------
+//
+// `#fact(input.mouse)` is false on a stock C128, so `HAS_MOUSE` is a const
+// and every register write below is neither reached nor linked. Fitting a
+// 1351 is what compiles them in.
+import { mouse } from "./input.8bs";
+import {
+    spritePositions, spriteXHigh, spriteEnable, spriteExpandX, spriteExpandY,
+    spritePriority, spriteMulticolor, spriteColors,
+} from "./index.8bs";
+
+const HAS_MOUSE: bool = #fact(input.mouse);
+
+const WHITE: utinyint = 1;
+
+// The VIC's visible 320x200 window starts at (24, 50). Same numbers as
+// @8bitscript/c64/sprites — the VIC-IIe is the C64's chip for this.
+const LEFT: usmallint = 24;
+const TOP: utinyint = 50;
+const BYTES: utinyint = 63;
+
+// Sprite pointers sit at screen + $3F8. Screen is $0400 in native 40-column
+// mode, so $07F8. Shape block 56 is $0E00, the first of the KERNAL's eight.
+@address(0x07F8)
+let spritePointers: array<u8, 8>;
+@address(0x0E00)
+let arrowShape: array<u8, 64>;
+
+// The arrow: 21 rows of 3 bytes, one bit a pixel. Same picture as the
+// C64's, so a screenshot of the two can be compared. A const array is
+// data in the program image and never in RAM.
+const ARROW: array<utinyint, 63> = [
+    0x80, 0, 0,
+    0xC0, 0, 0,
+    0xE0, 0, 0,
+    0xF0, 0, 0,
+    0xF8, 0, 0,
+    0xFC, 0, 0,
+    0xFE, 0, 0,
+    0xFF, 0, 0,
+    0xFC, 0, 0,
+    0xEC, 0, 0,
+    0xC6, 0, 0,
+    0x86, 0, 0,
+    0x06, 0, 0,
+    0x03, 0, 0,
+    0, 0, 0,
+    0, 0, 0,
+    0, 0, 0,
+    0, 0, 0,
+    0, 0, 0,
+    0, 0, 0,
+    0, 0, 0,
+];
+
 export namespace pointer {
 
-    const DRAWS: bool = false;
+    // Does this machine draw a pointer at all? A compile-time constant —
+    // on the C128 it is "only if this build was fitted with a mouse".
+    const DRAWS: bool = #fact(input.mouse);
+
+    const SPRITE: utinyint = 0;
+    const BLOCK: utinyint = 56; // $0E00 / 64, first KERNAL sprite block
 
     function begin(): void {
+        if (HAS_MOUSE) {
+            let i: utinyint = 0;
+            while (i < BYTES) {
+                arrowShape[i] = ARROW[i];
+                i = i + 1;
+            }
+            spritePointers[pointer.SPRITE] = pointer.BLOCK;
+            spriteColors[pointer.SPRITE] = WHITE;
+            // Known state: hires, unexpanded, in front of the background.
+            spriteExpandX = spriteExpandX & 254;
+            spriteExpandY = spriteExpandY & 254;
+            spriteMulticolor = spriteMulticolor & 254;
+            spritePriority = spritePriority & 254;
+        }
     }
 
     function setColor(color: utinyint): void {
+        if (HAS_MOUSE) {
+            spriteColors[pointer.SPRITE] = color & 15;
+        }
     }
 
     function update(): void {
+        if (HAS_MOUSE) {
+            if (mouse.present()) {
+                // The VIC's Y is 8 bits and the screen's 200 rows of pixels
+                // start at 50, so the sum is at most 249 and cannot carry
+                // out of a byte — which is why this needs no clamp of its
+                // own beyond the ceiling the mouse's step() already has.
+                let x: usmallint = LEFT + mouse.x();
+                spritePositions[0] = x;
+                spritePositions[1] = TOP + mouse.y();
+                if (x >= 256) {
+                    spriteXHigh = spriteXHigh | 1;
+                } else {
+                    spriteXHigh = spriteXHigh & 254;
+                }
+                spriteEnable = spriteEnable | 1;
+            } else {
+                spriteEnable = spriteEnable & 254;
+            }
+        }
     }
 
     function hide(): void {
+        if (HAS_MOUSE) {
+            spriteEnable = spriteEnable & 254;
+        }
     }
 }

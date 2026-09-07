@@ -10,6 +10,7 @@
       "./screen": "./src/screen.8bs",
       "./text": "./src/text.8bs",
       "./banks": "./src/banks.8bs",
+      "./mouse": "./src/mouse.8bs",
       "./input": "./src/input.8bs",
       "./pointer": "./src/pointer.8bs"
     },
@@ -49,7 +50,13 @@
         "storage.save": true,
         "memory.ram": 38655,
         "memory.banked": true,
-        "memory.bankedKib": 512
+        "memory.bankedKib": 512,
+        "storage.kib": 32768
+      },
+      "run": {
+        "x16emu": [
+          "-capture"
+        ]
       },
       "options": {
         "ram": {

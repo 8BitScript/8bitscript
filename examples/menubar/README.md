@@ -108,15 +108,16 @@ component never reads input.
 | Atari 8-bit | CTRL + `+` `*` `-` `=`, joystick 1 | no arrow keys; those four are what an Atari uses |
 | NES | the D-pad on controller 1 | A or START confirms, B cancels |
 | VIC-20 | joystick only | right is on a keyboard-column line; see below |
-| X16, web | nothing yet | both need work described in their input layer's header |
+| X16 | the KERNAL mouse | keyboard and pads are still KERNAL calls this layer does not make |
+| web | nothing yet | the runtime does not listen |
 
 Two of those are worth reading the source for. The **VIC-20** splits one
 joystick across two chips — up, down, left and fire on VIA1, and *right* on
 VIA2 port B bit 7, which is otherwise a keyboard column output, so reading
 it means turning that one bit around and putting it back. The **X16** has
-the most input hardware of the nine and the least of it reachable: its
-keyboard, joysticks and mouse are all KERNAL subroutine calls rather than
-registers, so its layer is honest about answering nothing yet.
+the most input hardware of the nine: its mouse is a KERNAL service
+(`$FF68` / `$FF71` / `$FF6B`) and that half of the layer now answers; GETIN
+and joystick_get are the next calls, not a gap the file hides.
 
 ## Why the bar fits everywhere now
 

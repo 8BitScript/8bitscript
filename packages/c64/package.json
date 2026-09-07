@@ -63,7 +63,8 @@
         "storage.save": true,
         "memory.ram": 51199,
         "memory.banked": false,
-        "memory.bankedKib": 0
+        "memory.bankedKib": 0,
+        "storage.kib": 164
       },
       "options": {
         "ram": {
@@ -309,6 +310,44 @@
                 "input.mouse": true
               },
               "detect": "@8bitscript/c64/mouse"
+            }
+          }
+        },
+        "drive": {
+          "label": "Disk drive",
+          "default": "1541",
+          "values": {
+            "none": {
+              "label": "No drive (tape or nothing)",
+              "facts": {
+                "storage.save": false,
+                "storage.kib": 0
+              },
+              "tag": null
+            },
+            "1541": {
+              "label": "1541 (170K disk)",
+              "facts": {
+                "storage.save": true,
+                "storage.kib": 164
+              },
+              "tag": null
+            },
+            "1571": {
+              "label": "1571 (340K disk)",
+              "facts": {
+                "storage.save": true,
+                "storage.kib": 329
+              },
+              "tag": null
+            },
+            "1581": {
+              "label": "1581 (800K disk)",
+              "facts": {
+                "storage.save": true,
+                "storage.kib": 783
+              },
+              "tag": null
             }
           }
         }

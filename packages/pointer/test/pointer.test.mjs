@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { delimiter, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { link } from '../../compiler/index.mjs';
@@ -74,10 +74,11 @@ const PROBE = join(EXAMPLE, 'src', 'main.8bs');
 for (const target of TARGETS) {
   test(`the pointer links clean for ${target}`, () => {
     const source = readFileSync(PROBE, 'utf8');
-    const facts = target === 'c64'
-      // The C64's arrow only exists on a build fitted with a mouse, so this
-      // is the target where the interesting code is behind a fact.
-      ? resolveHardware(loadCatalog('c64'), { overrides: { port1: 'mouse1351' } }).hardware.facts
+    const facts = (target === 'c64' || target === 'c128')
+      // The C64's and C128's arrows only exist on a build fitted with a
+      // mouse, so those are the targets where the interesting code is
+      // behind a fact.
+      ? resolveHardware(loadCatalog(target), { overrides: { port1: 'mouse1351' } }).hardware.facts
       : stockFacts(target);
     const { ir, diagnostics } = link(source, PROBE, { machine: target, facts });
     assert.deepEqual(diagnostics, []);
@@ -101,11 +102,17 @@ test('the arrow is behind the mouse fact, and the fact is what the catalog says'
   // The fold itself happens below the IR — `if (HAS_MOUSE)` reaches the
   // backend as `if (0)` and clang deletes it — so what is checkable here
   // is that the layer is gated on the fact at all, and that the fact is
-  // false on a stock C64 and true for a build fitted with a 1351. The
-  // bytes the fold saves are measured, not asserted: see AGENTS.md.
+  // false on a stock C64, true for a build fitted with a 1351, and true
+  // on the stock X16 (the emulator's mouse is always there). The bytes
+  // the fold saves are measured, not asserted: see AGENTS.md.
   assert.equal(stockFacts('c64')['input.mouse'], false);
   const fitted = resolveHardware(loadCatalog('c64'), { overrides: { port1: 'mouse1351' } }).hardware;
   assert.equal(fitted.facts['input.mouse'], true);
+  assert.equal(stockFacts('cx16')['input.mouse'], true);
+
+  const fittedC128 = resolveHardware(loadCatalog('c128'), { overrides: { port1: 'mouse1351' } }).hardware;
+  assert.equal(stockFacts('c128')['input.mouse'], false);
+  assert.equal(fittedC128.facts['input.mouse'], true);
 
   const layer = readFileSync(join(REPO, 'packages', 'c64', 'src', 'pointer.8bs'), 'utf8');
   assert.match(layer, /const HAS_MOUSE: bool = #fact\(input\.mouse\);/);
@@ -118,6 +125,14 @@ test('the arrow is behind the mouse fact, and the fact is what the catalog says'
     layer.match(/if \(HAS_MOUSE\) \{/g).length,
     SURFACE.length,
     'every call in the surface should gate its body on the mouse fact',
+  );
+
+  const c128 = readFileSync(join(REPO, 'packages', 'c128', 'src', 'pointer.8bs'), 'utf8');
+  assert.match(c128, /const HAS_MOUSE: bool = #fact\(input\.mouse\);/);
+  assert.equal(
+    c128.match(/if \(HAS_MOUSE\) \{/g).length,
+    SURFACE.length,
+    'every call in the C128 surface should gate its body on the mouse fact',
   );
 });
 
@@ -166,3 +181,80 @@ test('under VICE, the C64 draws an arrow in the corner, and a machine with no mo
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('under VICE, the C128 draws an arrow in the corner, and a machine with no mouse draws none', { timeout: 180000 }, () => {
+  const dir = mkdtempSync(join(tmpdir(), '8bs-pointer-c128-'));
+  try {
+    const cornerWhite = (hardware) => {
+      const shot = join(dir, `${hardware}.png`);
+      execFileSync(
+        join(REPO, 'node_modules', '.bin', '8bs'),
+        ['run', 'c128', '--hardware', `port1=${hardware}`, '--screenshot', shot],
+        { cwd: EXAMPLE, stdio: 'pipe' },
+      );
+      const png = readFileSync(shot);
+      // Same rest position as the C64: a 1351's zero is the top-left, and
+      // the example keeps the first two rows blank. Measured under x128:
+      // the playfield origin is at (32, 23) as on the C64, 58 white
+      // pixels with a mouse and 0 without.
+      let count = 0;
+      for (let y = 23; y < 39; y++) {
+        for (let x = 32; x < 64; x++) {
+          const c = pixelAt(png, x, y);
+          const [r, g, b] = Array.isArray(c) ? c : [c.r, c.g, c.b];
+          if (r > 200 && g > 200 && b > 200) count += 1;
+        }
+      }
+      return count;
+    };
+
+    const fitted = cornerWhite('mouse1351');
+    const bare = cornerWhite('none');
+    assert.equal(bare, 0, `a C128 with no mouse should draw nothing in the corner, found ${bare} white pixels`);
+    assert.ok(fitted > 20, `a C128 with a 1351 should draw an arrow in the corner, found only ${fitted} white pixels`);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+function onPath(name) {
+  return (process.env.PATH ?? '').split(delimiter).some((dir) => dir && existsSync(join(dir, name)));
+}
+
+// The X16's rest position is the centre, not the corner: mouse_config
+// parks there, and screen.8bs's 16-pixel inset puts the firmware sprite
+// on the screenshot at (335, 254) — (319, 239) plus that inset. The
+// example's top two rows are white text, so a corner count would not
+// prove an arrow. This box is where the KERNAL arrow actually is.
+test(
+  'under x16emu, the X16 draws the KERNAL arrow at the centre',
+  {
+    timeout: 180000,
+    skip: (!process.env.LLVM_MOS_HOME && 'LLVM_MOS_HOME not set')
+      || (!onPath('x16emu') && 'x16emu not on PATH')
+      || (!onPath('ffmpeg') && 'ffmpeg not on PATH (the x16emu screenshot route needs it)'),
+  },
+  () => {
+    const dir = mkdtempSync(join(tmpdir(), '8bs-pointer-cx16-'));
+    try {
+      const shot = join(dir, 'cx16.png');
+      execFileSync(
+        join(REPO, 'node_modules', '.bin', '8bs'),
+        ['run', 'cx16', '--screenshot', shot],
+        { cwd: EXAMPLE, stdio: 'pipe' },
+      );
+      const png = readFileSync(shot);
+      let count = 0;
+      for (let y = 248; y < 272; y++) {
+        for (let x = 328; x < 352; x++) {
+          const c = pixelAt(png, x, y);
+          const [r, g, b] = Array.isArray(c) ? c : [c.r, c.g, c.b];
+          if (r > 200 && g > 200 && b > 200) count += 1;
+        }
+      }
+      assert.ok(count > 20, `the X16 should draw the KERNAL arrow at the centre, found only ${count} white pixels`);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  },
+);

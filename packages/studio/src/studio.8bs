@@ -10,9 +10,9 @@
 //
 // **The bar moves now.** @8bitscript/input arrived, so the front door reads
 // whatever the machine it is on has — a C64's cursor keys, an NES D-pad, an
-// Atari joystick, a 1351 in a port — and the highlight steps between the
-// icon and FILE under it. The bar starts deselected, the way a menu bar
-// does before anyone has touched it.
+// Atari joystick, a 1351 in a port, the X16's KERNAL mouse — and the
+// highlight steps between the icon and FILE under it. The bar starts
+// deselected, the way a menu bar does before anyone has touched it.
 import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";
 import { text, TextColor } from "@8bitscript/text";
 import { input } from "@8bitscript/input";
@@ -167,9 +167,10 @@ export namespace studio {
         // What is driving the bar on this machine. `Input.KEYBOARD` and
         // `Input.PADS` are facts folded while compiling, so each machine
         // compiles the one line that is true of it and none of the others:
-        // the NES says PAD, the PET and the computers say KEYS, and the
-        // web — whose runtime does not deliver input yet — says NONE,
-        // which is also why its tier is a viewer.
+        // the NES says PAD, the computers (including the X16, which has a
+        // keyboard even though this layer does not read it yet) say KEYS,
+        // and the web — whose runtime does not deliver input yet — says
+        // NONE, which is also why its tier is a viewer.
         text.print(cell, "INPUT ");
         if (Input.KEYBOARD) {
             text.print(cell + 6, "KEYS");
@@ -186,9 +187,9 @@ export namespace studio {
 
         // And the arrow the user aims with, on the machines that have
         // something to draw one with — one of the VIC's sprites on a C64
-        // fitted with a mouse, nothing anywhere else yet. `pointer.DRAWS`
-        // is a compile-time constant, so on the other eight this call and
-        // the update() below are deleted rather than made.
+        // or C128 fitted with a mouse, the KERNAL's own sprite on the X16.
+        // `pointer.DRAWS` is a compile-time constant, so on the other six
+        // this call and the update() below are deleted rather than made.
         pointer.begin();
         pointer.setColor(TextColor.WHITE);
 
@@ -213,9 +214,10 @@ export namespace studio {
             let moved: bool = false;
 
             // The pointer, on a build fitted with one. `input.pointer()` is
-            // a constant false everywhere else, so on the eight machines
-            // without a mouse — and on a stock C64 — this whole block is
-            // proved dead and deleted rather than tested every frame.
+            // a constant false everywhere else, so on a machine without a
+            // mouse — and on a stock C64 — this whole block is proved dead
+            // and deleted rather than tested every frame. The X16's stock
+            // sheet has a mouse, so this is live there.
             if (input.pointer()) {
                 let at: usmallint = input.pointerCell();
                 if (at != pointerCell) {

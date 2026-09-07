@@ -107,6 +107,7 @@ export namespace Input {
 // Where bytes can outlive the program.
 export namespace Storage {
     const SAVE: bool = #fact(storage.save);         // somewhere to persist bytes
+    const KIB: usmallint = #fact(storage.kib);      // KiB that place holds
 }
 
 // What the program was linked into, and what it may reach beyond it.

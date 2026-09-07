@@ -128,11 +128,11 @@ the row.
 confirm, cancel and a pointer, all edge-triggered, resolved per target to
 that machine's own layer — a key matrix on the Commodores, a shift register
 on the NES, a joystick split across two chips on the VIC-20, a 1351 mouse
-on a C64 fitted with one. A build that did not ask for a mouse links none
-of the pointer code; a machine that cannot answer yet (the X16, the web)
-says so in its layer's header and costs nothing at all. `examples/menubar`
-runs it everywhere and Studio's front door has one across the top, moving
-under whatever the machine has.
+on a C64 fitted with one, the KERNAL mouse on the X16. A build that did not
+ask for a mouse links none of the pointer code; a machine that cannot
+answer yet (the web) says so in its layer's header and costs nothing at
+all. `examples/menubar` runs it everywhere and Studio's front door has one
+across the top, moving under whatever the machine has.
 
 Only a fixed subset compiles: globals and locals, arrays (`let` in RAM,
 `const` as data, and passed to a function by name as

@@ -1,3 +1,8 @@
+// The launcher page. A real .js file rather than a template literal in the
+// provider: a `\n` inside a template became a real newline in the generated
+// script, which failed to parse, and every dropdown filled from here stayed
+// empty. It keeps no state — the extension posts the whole panel on every
+// change and this redraws it.
 const vscode = acquireVsCodeApi();
 const $ = (id) => document.getElementById(id);
 
@@ -13,7 +18,13 @@ function fill(select, options, selected) {
     }
     const el = document.createElement('option');
     el.value = option.id;
-    el.textContent = option.label;
+    el.textContent = (option.where && option.where !== option.label
+      ? option.label + '  —  ' + option.where
+      : option.label)
+      // A machine this project does not build for is still in the list,
+      // so choosing it explains itself rather than simply not being there.
+      + (option.runnable === false ? '  (not a target)' : '')
+      + (option.short ? '  (too small)' : '');
     el.selected = option.id === selected;
     (group ?? select).appendChild(el);
   }
@@ -22,7 +33,6 @@ function fill(select, options, selected) {
 function renderHardware(hardware) {
   const root = $('options');
   root.textContent = '';
-  $('fitted').textContent = hardware ? hardware.summary : '';
   if (!hardware) {
     fill($('profile'), [{ id: '', label: 'Stock machine' }], '');
     $('profile').disabled = true;
@@ -47,7 +57,7 @@ function renderHardware(hardware) {
     if (tags.length > 0) {
       const span = document.createElement('span');
       span.className = 'tags';
-      span.textContent = ' ' + tags.join(' \u00b7 ');
+      span.textContent = ' ' + tags.join(' · ');
       label.appendChild(span);
     }
     label.title = option.label + ' (--hardware ' + option.id + '=...)'
@@ -129,29 +139,72 @@ function renderFacts(root, facts) {
   root.appendChild(details);
 }
 
+/** The Running section: one row per `8bs` task, each with its own Stop. */
+function renderRunning(running) {
+  const section = $('running');
+  const rows = $('running-rows');
+  rows.textContent = '';
+  section.hidden = running.length === 0;
+  for (const entry of running) {
+    const row = document.createElement('div');
+    row.className = 'run-row';
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = entry.label;
+    const detail = document.createElement('span');
+    detail.className = 'detail';
+    detail.textContent = entry.detail;
+    const stop = document.createElement('button');
+    stop.className = 'icon';
+    stop.title = 'Stop ' + entry.label;
+    stop.innerHTML = ICON_STOP;
+    stop.addEventListener('click', () => vscode.postMessage({
+      type: 'stop', dir: entry.dir, target: entry.target,
+    }));
+    row.append(name, detail, stop);
+    rows.appendChild(row);
+  }
+}
+
 window.addEventListener('message', ({ data }) => {
   if (data.type !== 'state') return;
+  const empty = data.projects.length === 0;
+
   fill($('project'), data.projects, data.project);
-  $('project').disabled = data.projects.length === 0;
-  fill($('system'), data.systems.map((s) => ({
-    id: s.id,
-    label: s.title === s.id ? s.id : s.id + ' \u2014 ' + s.title,
-  })), data.system);
+  $('project').disabled = empty;
+  $('open').disabled = empty;
+  // The System dropdown holds two kinds of entry when the project's config
+  // declares systems: those first, then the bare machines.
+  fill($('system'), data.systems, data.system);
   $('region').value = data.region;
-  const machine = data.systems.find((s) => s.id === data.system)?.machine ?? false;
-  $('region').disabled = !machine;
+  $('region').disabled = !data.machine;
+
+  // The button says what it will do, so nothing has to be read off the
+  // dropdowns to know what Run means. On one of the project's own systems
+  // the name is the whole answer, and the machine it stands for goes on
+  // the line below.
+  $('run-title').textContent = empty ? 'Run' : 'Run ' + data.projectLabel;
+  $('run-sub').textContent = data.subtitle
+    ?? [data.systemTitle, data.fitted, data.regionLabel].filter(Boolean).join(' · ');
   $('run').disabled = !data.runnable;
   $('build').disabled = !data.runnable;
+
+  const notice = $('notice');
+  notice.hidden = !data.warning;
+  notice.textContent = data.warning ?? '';
+
+  const install = $('install');
+  install.hidden = data.installed || empty;
+  install.textContent = 'Run ' + data.packageManager + ' install';
+
+  $('fitted').textContent = data.fitted;
   renderHardware(data.hardware);
+  renderRunning(data.running);
+
   const hint = $('hint');
-  hint.className = 'hint' + (data.warning ? ' warn' : '');
-  if (data.warning) {
-    hint.textContent = data.warning;
-  } else {
-    hint.replaceChildren(
-      Object.assign(document.createElement('code'), { textContent: data.command }),
-    );
-  }
+  hint.replaceChildren(
+    Object.assign(document.createElement('code'), { textContent: data.command }),
+  );
 });
 
 $('project').addEventListener('change', (e) => vscode.postMessage({ type: 'set', key: 'project', value: e.target.value }));
@@ -161,5 +214,7 @@ for (const key of ['system', 'region']) {
 $('profile').addEventListener('change', (e) => vscode.postMessage({ type: 'set', key: 'profile', value: e.target.value }));
 $('run').addEventListener('click', () => vscode.postMessage({ type: 'launch', action: 'run' }));
 $('build').addEventListener('click', () => vscode.postMessage({ type: 'launch', action: 'build' }));
+$('open').addEventListener('click', () => vscode.postMessage({ type: 'command', id: '8bitscript.openEntry' }));
+$('install').addEventListener('click', () => vscode.postMessage({ type: 'command', id: '8bitscript.install' }));
 
 vscode.postMessage({ type: 'ready' });

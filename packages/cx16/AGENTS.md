@@ -43,6 +43,24 @@ Do not describe more than this as working:
 - `waitFrame()` (`FRAME_SYNC.cx16` in `packages/backend-6502`) polls
   VERA's ISR VSYNC bit under `sei` — at the default `frameRate` of 60 that
   is exactly one VSYNC per `waitFrame()`, with no accumulator emitted at all.
+- `src/mouse.8bs` (behind `@8bitscript/cx16/mouse`), `src/input.8bs` and
+  `src/pointer.8bs` are the X16 behind `@8bitscript/input` and
+  `@8bitscript/pointer`. The pointer is a KERNAL service: `$FF68`
+  mouse_config turns it on (and the firmware draws Susan Kare's arrow as
+  VERA sprite 0), `$FF71` mouse_scan has to be called from `poll()` because
+  `waitFrame()` runs under `sei` and the KERNAL IRQ no longer scans, and
+  `$FF6B` mouse_get copies position and buttons into `$80`–`$84` — past
+  the SDK's `__basic_zp_end`, so LLVM will not put a variable there.
+  `present()` is `#fact(input.mouse)`, not a stored flag: an `asm6502`
+  block is opaque, and a bool set before a KERNAL call and read after it
+  was kept in a register the call trashed (measured: the arrow drawing at
+  (319, 239) while `present()` was false). The rest position is the
+  centre of the 640×480 the current screen_mode names; after
+  `screen.8bs` insets the display, the sprite is on screen at (335, 254).
+  Keyboard (`$FFE4` GETIN) and pads (`$FF56` joystick_get) are still
+  unanswered. `test/mouse-probe.8bs` is 1184 bytes of program and 25 of
+  RAM; Studio with the layer is 1571 bytes and 35 of RAM, 318 and 5
+  above the same program with it taken out.
 - There is no `--profile` for the X16 yet — no banked-RAM size, no
   video-output (VGA/composite) profile, no expansion-card capabilities.
 - `8bs setup cx16` builds the emulator and ROM together from upstream and
@@ -53,9 +71,11 @@ Do not describe more than this as working:
   those commits.
 
 There is no banked-memory model in the language, no far pointer, no VRAM
-allocator, no asset pipeline, no sprite/tile/audio/storage/input API, and
-no capability probing yet — for any machine. The rules below are what to
-hold that work to when it comes; don't write docs implying it exists.
+allocator, no asset pipeline, no sprite/tile/audio/storage API, and no
+capability probing yet — for any machine. The X16's mouse is the exception
+on the input side; its keyboard and pads are still unanswered. The rules
+below are what to hold that work to when it comes; don't write docs
+implying it exists.
 
 ## Facts verified here (against the installed emulator and ROM sources)
 
@@ -82,8 +102,18 @@ Cite these freely; each was read in the source named, not recalled.
 | With a nonzero VSTART, VERA's layer line 0 lands two lines above the active area's top edge (the layer line counter starts on the VSTART line through a two-line register-history pipeline). | `video.c` ~1029-1063, and on screen |
 | The catalog's stock fact sheet: grid 76×56 of 8×8 (the map's 80×60 less the border inset), 256 palette entries, 2 colours per cell, 256 glyphs in the text layer's tileset, 2×2 blocks (the PETSCII set in the ROM font), bitmap, 2 layers with fine scroll each; 128 sprites, up to 64×64, 255 colours at 8 bpp; 16 PSG + 8 FM + 1 PCM = 25 voices, envelopes on the FM side, noise on the PSG, a volume per voice, no filter or random source; keyboard and mouse through the KERNAL (`input.mouse` is true on the stock machine: the emulator's mouse is always there), 2 SNES pad ports (*to verify*: some boards carry 4), no joystick ports; the SD card to save to; 38655 bytes of low RAM (`$0801`–`$9EFF`), 512 KiB banked by default (the `ram` values change it). **`video.spritesPerLine` is 46**: the VERA reference gives a 798-cycle deadline per line and 13–17 cycles for the smallest sprite (8 px, 4 bpp), so 798 ÷ 17 = 46 of those is the worst case; the biggest (64 px, 8 bpp, 99–147 cycles) fits 5. The sheet states the small-sprite figure, and an actors package must say which size its own count assumes. | `src/text.8bs`; the `link.ld`, palette and sprite-budget rows above; VERA Programmer's Reference, "Sprite renderer / line buffer" (fetched 2026-09-05); `package.json` (read) |
 | `@8bitscript/cx16/banks` — `banks.kib()`: the count is the first page above a power of two that the machine does not really have. Two shapes, both tested: a mirror of page 1 (a board that keeps fewer than 8 bank bits wraps, and every page tested is one above a power of two, so a wrap lands on page 1), confirmed with a second marker; or nothing at all, caught by writing two different bytes and reading both back. **x16emu is the second shape**: with `-ram 64`, a byte written to page 200 read back as `$A0` (the window's own address high byte) and page 9 read `$3E` — writes to a page the machine does not have are dropped and reads float. Page 0 is never written (KERNAL workspace) and page 1 is left selected. Under x16emu the probe printed 64 / 512 / 2048 KiB for `ram=64`, `512`, `2048`. Cost: `test/banks-probe.8bs` is 1179 bytes of program with the probe and 1000 with the size written in — 179 bytes. | `src/banks.8bs`; three screenshots and one diagnostic build (ran); `test/banks.test.mjs` |
+| `@8bitscript/cx16/mouse` — `$FF68` mouse_config A=1, size from `$FF5F` screen_mode (carry set; 80×60 in KERNAL text), parks at (319, 239); `$FF71` mouse_scan is required because FRAME_SYNC.cx16's `sei` silences the KERNAL IRQ that would have scanned; `$FF6B` mouse_get into `$80`–`$84` (the SDK's program ZP ends at `$80`). Presence is the `input.mouse` fact, not a flag stored across an opaque `asm6502` call. After screen.8bs insets the display, the firmware sprite is on the screenshot at (335, 254); `pointerCell()` is `x>>3`, `y>>3` in that active-area space (an earlier draft subtracted the inset again and sat two cells off). Probe 1184 B / 25 B RAM, green border under x16emu when present(). | `src/mouse.8bs`; `test/mouse-probe.8bs` (ran); `packages/pointer/test/pointer.test.mjs` |
 
 ## Corrections to the research notes
+
+- **`storage.kib` is 32768 on the stock sheet, and it is a floor, not a
+  measurement.** The route is the SD card, whose size is the owner's
+  rather than the medium's, so the sheet states the smallest medium that
+  route can stand for: 32 MiB (32768 KiB), the smallest volume FAT32 is
+  defined for.
+  **Recalled, not measured in this project** — the Commodore drives'
+  figures were taken by formatting an image with `c1541`; no equivalent
+  was run here. *To verify* against the KERNAL's DOS and a real card.
 
 - **"Five monitors at 8 MHz / 2 MHz."** Those are CPU-side MMIO windows,
   not displays: VERA at `$9F20`, expansion IO3 at `$9F60`, IO4 at `$9F80`
@@ -213,6 +243,10 @@ packages/cx16/src/index.8bs              target package: the VERA port helpers (
 packages/cx16/src/screen.8bs             @8bitscript/cx16/screen: screen.blank()/setBorder()/setBackground()/setColors(), the inset border, the painted background
 packages/cx16/src/banks.8bs              @8bitscript/cx16/banks: banks.kib() — banked RAM found at run time, 64..2048 KiB
 packages/cx16/test/banks-probe.8bs       the probe run for real: prints the KiB, border colour encodes it; test/banks.test.mjs reads it under x16emu
+packages/cx16/src/mouse.8bs              @8bitscript/cx16/mouse: mouse.begin/poll/present/x/y/left/hide/show, through the KERNAL
+packages/cx16/src/input.8bs              @8bitscript/cx16/input: the pointer in cells; directions still false
+packages/cx16/src/pointer.8bs            @8bitscript/cx16/pointer: the firmware arrow; update() empty unless recovering from hide()
+packages/cx16/test/mouse-probe.8bs       run under x16emu: green border when present(); test/mouse.test.mjs reads it
 packages/cx16/src/text.8bs               @8bitscript/cx16/text: text.print/printNumber/setColor/putChar/putColor, CELL_COUNT 4256, COLUMNS 76, TextColor
 packages/backend-6502/src/index.mjs      driver (mos-cx16-clang), FRAME_SYNC.cx16 (VERA ISR poll)
 packages/cli/src/setup/cx16.mjs          8bs setup cx16: emulator+ROM pair, macOS launcher wrapper

@@ -27,11 +27,12 @@ export function main(): void {
     pointer.setColor(TextColor.WHITE);
 
     // **The top two rows are left blank on purpose.** A 1351 reads its
-    // zero on both axes until it is moved, so the arrow starts in the
-    // top-left corner — and packages/pointer/test/pointer.test.mjs proves
-    // the arrow is drawn by finding white pixels there and none in the
-    // same corner of a build with no mouse fitted. Text in those rows
-    // would make that comparison meaningless.
+    // zero on both axes until it is moved, so the C64 and C128 arrows
+    // start in the top-left corner — and packages/pointer/test/pointer.test.mjs
+    // proves that arrow is drawn by finding white pixels there and none
+    // in the same corner of a build with no mouse fitted. The X16 parks
+    // at the centre instead, so its assertion is a different box. Text
+    // in these rows would make the Commodore comparison meaningless.
     text.print(ROW + ROW, "POINTER");
 
     // `pointer.DRAWS` is a compile-time constant on every machine, so only

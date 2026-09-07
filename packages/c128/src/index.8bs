@@ -33,6 +33,43 @@ export let borderColor: volatile<u8>;
 @address(0xD021)
 export let backgroundColor: volatile<u8>;
 
+// ---- VIC-IIe sprites ($D000) ----------------------------------------------
+//
+// The same eight movable objects the C64's VIC-II has, at the same
+// addresses — llvm-mos-sdk's c128.h maps them with the identical __vic2
+// struct. @8bitscript/c128/pointer owns sprite 0 on a 1351 build; a
+// general ./sprites layer is still to write, and would use these.
+
+// $D000-$D00F: sprite n's X at 2*n, Y at 2*n+1. X is nine bits; the
+// ninth of each is a bit of $D010.
+@address(0xD000)
+export let spritePositions: array<u8, 16>;
+
+@address(0xD010)
+export let spriteXHigh: volatile<u8>;
+
+// $D015, one enable bit per sprite.
+@address(0xD015)
+export let spriteEnable: volatile<u8>;
+
+// $D017 / $D01D, one bit per sprite: twice as tall / twice as wide.
+@address(0xD017)
+export let spriteExpandY: volatile<u8>;
+@address(0xD01D)
+export let spriteExpandX: volatile<u8>;
+
+// $D01B, 1 = drawn behind the background's foreground pixels.
+@address(0xD01B)
+export let spritePriority: volatile<u8>;
+
+// $D01C, one bit per sprite: multicolour.
+@address(0xD01C)
+export let spriteMulticolor: volatile<u8>;
+
+// $D027-$D02E, each sprite's own colour. Low four bits.
+@address(0xD027)
+export let spriteColors: array<u8, 8>;
+
 // $D018, the VIC-IIe's memory pointer, laid out as the C64's: $14 is
 // screen $0400 and the upper-case/graphics set at $1000 (the C128 KERNAL's
 // reset value — it leaves bit 0 clear where the C64's leaves it set; the

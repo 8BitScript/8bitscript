@@ -1,0 +1,217 @@
+/*
+ * The launcher panel.
+ *
+ * Every colour is one of the editor's own theme variables, so the panel is
+ * whatever theme the window is wearing and never a light card in a dark
+ * window. Sizes follow the side bar's: 22px rows, 11px uppercase section
+ * labels, 2px corners — a webview that invents its own is the thing that
+ * reads as bolted on.
+ */
+/* A `display` of our own outranks the user agent's [hidden] rule, and the
+ * Install button and the Running section are both laid out with one. */
+[hidden] { display: none !important; }
+
+body {
+  margin: 0;
+  padding: 10px 12px 12px;
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  color: var(--vscode-foreground);
+}
+
+/* The one loud thing in the panel. */
+button.launch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  font: inherit;
+  text-align: left;
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+}
+button.launch:hover { background: var(--vscode-button-hoverBackground); }
+button.launch:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; }
+button.launch:disabled { opacity: 0.45; cursor: default; }
+button.launch:disabled:hover { background: var(--vscode-button-background); }
+button.launch svg { flex: 0 0 auto; }
+.launch-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.35; }
+.launch-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.launch-sub {
+  font-size: 11px;
+  opacity: 0.85;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+button.wide {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 6px;
+  padding: 4px 10px;
+  font: inherit;
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+}
+button.secondary {
+  color: var(--vscode-button-secondaryForeground);
+  background: var(--vscode-button-secondaryBackground);
+}
+button.secondary:hover { background: var(--vscode-button-secondaryHoverBackground); }
+button.wide:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; }
+button.wide:disabled { opacity: 0.45; cursor: default; }
+button.wide:disabled:hover { background: var(--vscode-button-secondaryBackground); }
+
+/* The machine first — it is what changes between two runs of the same
+ * program — then the project, with Build on its row. */
+.fields { margin-top: 14px; }
+.field + .field { margin-top: 8px; }
+.field-label {
+  display: block;
+  margin: 0 0 3px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground));
+  opacity: 0.8;
+}
+.control { display: flex; gap: 4px; align-items: center; }
+.control > select { flex: 1; min-width: 0; }
+
+select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 3px 6px;
+  font: inherit;
+  color: var(--vscode-dropdown-foreground);
+  background: var(--vscode-dropdown-background);
+  border: 1px solid var(--vscode-dropdown-border, transparent);
+  border-radius: 2px;
+}
+select:focus { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+select:disabled { opacity: 0.5; }
+
+button.icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  color: var(--vscode-icon-foreground, var(--vscode-foreground));
+  background: none;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+button.icon:hover { background: var(--vscode-toolbar-hoverBackground); }
+button.icon:disabled { opacity: 0.4; cursor: default; background: none; }
+/* The icons come from one set drawn at 16; the row is 22 tall. */
+button.icon svg { width: 14px; height: 14px; }
+
+/* Everything a run usually does not care about. */
+details.more { margin-top: 14px; }
+details.more > summary {
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground));
+  opacity: 0.8;
+}
+details.more > summary:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
+details.more > summary .summary-value {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+  opacity: 0.85;
+}
+details.more > .field, details.more > #options { margin-top: 8px; }
+
+.option { margin: 8px 0 0; }
+.option label {
+  display: block;
+  margin: 0 0 3px;
+  font-size: 11px;
+  opacity: 0.85;
+}
+.option.set label { opacity: 1; font-weight: 600; }
+.option .tags { opacity: 0.7; font-weight: 400; }
+.none { font-size: 11px; opacity: 0.6; margin: 8px 0 0; }
+.link {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-top: 10px;
+  font: inherit;
+  font-size: 11px;
+  color: var(--vscode-textLink-foreground);
+  cursor: pointer;
+}
+.link:hover { color: var(--vscode-textLink-activeForeground); }
+
+/* What is running, as side bar rows. */
+.running { margin-top: 16px; }
+.section-label {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground));
+  opacity: 0.8;
+}
+.run-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 2px 0 4px;
+  border-radius: 3px;
+}
+.run-row:hover { background: var(--vscode-list-hoverBackground); }
+.run-row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.run-row .detail {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  opacity: 0.7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notice {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--vscode-editorWarning-foreground, var(--vscode-foreground));
+}
+.hint {
+  margin-top: 14px;
+  font-size: 11px;
+  opacity: 0.65;
+  overflow-wrap: anywhere;
+}
+code { font-family: var(--vscode-editor-font-family); }
+
+details.facts { margin-top: 10px; }
+details.facts summary { cursor: pointer; font-size: 11px; opacity: 0.8; }
+table.facts { border-collapse: collapse; width: 100%; font-size: 11px; margin-top: 4px; }
+table.facts td { padding: 1px 4px; vertical-align: top; }
+table.facts td.value { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+table.facts td.run { opacity: 0.7; }
+table.facts tr.group td { padding-top: 5px; font-weight: 600; opacity: 0.8; }

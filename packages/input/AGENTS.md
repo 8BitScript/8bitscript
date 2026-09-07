@@ -75,15 +75,15 @@ portable program links `@8bitscript/input`, so a missing layer is not a
 degraded program, it is a program that does not build for that machine.
 
 So a machine with nothing wired up yet ships a layer that returns false to
-everything — and **says so in its header, in detail**. `@8bitscript/cx16/input`
-is the model: it names the three KERNAL vectors (`$FFE4` GETIN, `$FF56`
-joystick_get, `$FF6B` mouse_get), says why they cannot be reached without
-`asm6502` blocks, and states plainly that the X16 is currently the machine
-that cannot be driven.
-
-That is not a placeholder that costs something. Measured on Studio, the X16
-input layer costs **zero bytes**: every answer is a constant, so LLVM
-proves the read-and-dispatch loop dead and deletes it
+everything — and **says so in its header, in detail**. `@8bitscript/web/input`
+is the model of that: the runtime does not listen, every answer is a
+constant, and LLVM deletes the read-and-dispatch loop. `@8bitscript/cx16/input`
+used to be the same shape; it now answers the pointer through the KERNAL
+(`$FF68` mouse_config, `$FF71` mouse_scan, `$FF6B` mouse_get) and still
+returns false for directions, confirm and cancel — GETIN and joystick_get
+are the next calls, not a gap the file hides. Measured on Studio, the X16
+pointer costs **318 bytes of program and 5 of RAM** (1253 B without the
+layer, 1571 with it); the unanswered half still costs zero
 ([`packages/ui/AGENTS.md`](../ui/AGENTS.md) has the table). **A capability a
 machine cannot honour should cost that machine nothing**, and a layer of
 honest constants achieves that where a missing file would not compile and a
@@ -91,8 +91,9 @@ half-working one would mislead.
 
 What is never acceptable is a header that implies more than the code does.
 `input.mouse` is true by default on the X16 because the *hardware* has a
-mouse; the layer answers `pointer()` false because *nobody has written the
-driver*. Those are different statements and the header makes both.
+mouse, and `pointer()` is that fact — the KERNAL has no 1351-style probe.
+Keyboard and pads stay false until someone writes those calls. Those are
+different statements and the header makes both.
 
 ## Facts decide what is compiled; probes decide what is true
 
@@ -111,8 +112,10 @@ where it shows most clearly.
   it.
 - **Whether a mouse is actually plugged in is not knowable while
   compiling**, and folding that away would be a wrong program, not an
-  optimisation. `pointer()` answers it every frame from the machine
-  package's probe.
+  optimisation — on a machine with a probe. `pointer()` answers it every
+  frame from that probe. The X16's KERNAL has none, so `pointer()` is the
+  `input.mouse` fact; a board whose SMC reports `BAT_FAIL` will still say
+  present. That case has not been seen under x16emu.
 - **A probe is read once a frame, in `poll()`, and kept.** This is not a
   saving, it is correctness: a live input register read twice in one frame
   is read at two different moments and can give two different answers.
@@ -152,18 +155,18 @@ The standard this package holds to:
   key for key against VICE's own keymap. A recalled matrix that is wrong in
   two places is worse than a documented gap.
 
-## What each machine has, as of 2026-09-06
+## What each machine has, as of 2026-09-07
 
 | Machine | Directions | Pointer | Gap worth closing |
 | --- | --- | --- | --- |
 | C64 | cursor keys + SHIFT, joystick 2 | **1351 in port 1** | — |
-| C128 | as the C64's | 1351, code unverified under x128 | the second matrix on `$D02F`: four real cursor keys, and **ALT** |
+| C128 | as the C64's | **1351 in port 1** | the second matrix on `$D02F`: four real cursor keys, and **ALT** |
 | MEGA65 | as the C64's | none (no catalog options yet) | its extended keyboard: cursor keys, **ALT**, HELP |
 | PET | cursor keys + SHIFT | none — no control ports exist | — |
 | Atari 8-bit | CTRL + `+` `*` `-` `=`, joystick 1 | none | the catalog offers ST, Amiga and trak-ball mice; each is a quadrature driver nobody has written |
 | NES | D-pad, A/START, B | none | confirm the pad on real input |
 | VIC-20 | joystick only | none | a verified `keys.8bs`, then a `keyboard.8bs` |
-| X16 | **nothing** | nothing | all of it — three KERNAL calls |
+| X16 | **nothing** | **KERNAL mouse** | GETIN (`$FFE4`) and joystick_get (`$FF56`); **ALT** |
 | web | **nothing** | nothing | the runtime does not listen; a shared state block in the worker |
 
 **Three machines have an ALT key** — the C128, the MEGA65 and the X16 — and

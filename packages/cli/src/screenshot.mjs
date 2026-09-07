@@ -225,12 +225,14 @@ async function cx16Screenshot(outFile, screenshotPath, { frames, hardware = stoc
   const scratch = await mkdtemp(join(tmpdir(), '8bs-cx16-shot-'));
   const gifPath = join(scratch, 'capture.gif');
   try {
-    // The catalog's own flags first (the banked-RAM size), then how the
-    // built file is handed over — the same list the interactive `8bs run`
-    // passes, so a screenshot reflects the hardware the program was built
-    // for instead of silently running on the emulator's defaults.
+    // The catalog's own flags first (the banked-RAM size, the mouse grab),
+    // then how the built file is handed over — the same list the interactive
+    // `8bs run` passes, so a screenshot reflects the hardware the program
+    // was built for instead of silently running on the emulator's defaults.
+    // `-capture` is dropped: it grabs the host pointer, which a headless
+    // -gif recording has no window to grab, and x16emu then exits 13.
     const args = [
-      ...(hardware.run.x16emu ?? []),
+      ...(hardware.run.x16emu ?? []).filter((flag) => flag !== '-capture'),
       ...loadArgs(hardware, 'x16emu', outFile, ['-prg', outFile, '-run']),
       '-gif', gifPath, '-sound', 'none',
     ];

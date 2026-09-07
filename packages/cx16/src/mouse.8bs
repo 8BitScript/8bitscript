@@ -1,0 +1,187 @@
+// @8bitscript/cx16/mouse — the X16's PS/2 mouse, through the KERNAL.
+//
+// Named by "8bitscript".exports["./mouse"] in this package's package.json:
+//
+//     import { mouse } from "@8bitscript/cx16/mouse";
+//
+//     mouse.begin();                   // once, at start-up
+//     ...
+//     waitFrame();
+//     mouse.poll();                    // once a frame
+//     if (mouse.present()) { ... mouse.x() ... }
+//
+// The X16 has no control-port mouse and no registers a program pokes. The
+// pointer is a KERNAL service: `$FF68` mouse_config turns it on (and the
+// firmware draws it as VERA sprite 0), `$FF71` mouse_scan reads the PS/2
+// device and moves that sprite, `$FF6B` mouse_get copies the position and
+// buttons out. All three were read in the ROM this package was verified
+// against — x16-rom `fbe32a60`, `kernal/drivers/x16/ps2mouse.s` — not
+// recalled.
+//
+// **Why poll() calls ps2data_fetch then mouse_scan.** The frame driver
+// disables interrupts (FRAME_SYNC.cx16's `sei`, every waitFrame(), so it
+// can own VERA's VSYNC bit instead of racing the KERNAL IRQ for it). The
+// KERNAL IRQ is what would have called extapi `$08` ps2data_fetch (poll
+// the SMC) and then mouse_scan. mouse_scan only applies bytes already in
+// that buffer — with the IRQ silenced, a scan alone is a no-op and the
+// sprite stays at mouse_config's rest position. `$FEAB` with A=8 is the
+// published fetch; it is not re-entrant, which is why poll() `sei`s first.
+// mouse_scan then saves and restores VERA address state around the sprite
+// write (the same screen_save_state/restore_state the IRQ uses), so a
+// program's text port is still where it left it.
+//
+// **Why the buffer lives at `$80`–`$84`.** mouse_get wants a zero-page
+// address in X and writes four consecutive bytes there (X lo/hi, Y lo/hi),
+// returning buttons in A. The SDK's cx16 link script gives the *program*
+// `$02`–`$7F` (`__basic_zp_end = $80`), and LLVM-MOS allocates that range
+// for imaginary registers and `.zp.noinit` variables. An earlier draft
+// parked this buffer at `$7B` and `sta $7B` for the buttons overwrote
+// `there` every poll — `present()` was false on a machine whose pointer
+// was drawing in the middle of the screen. `$80`–`$84` is the first byte
+// the program is not given, so the linker will not put a variable there.
+// The KERNAL's mouse state lives in banked KVARSB0, not here.
+//
+// **Presence is the fact, not a probe.** A 1351 says it is there through
+// the SID's pots; the X16's KERNAL does not. `input.mouse` is true on the
+// stock sheet because the hardware has a mouse (the emulator's is always
+// there), and `present()` is that fact. A stored flag set before a KERNAL
+// call and read after it is not safe: `asm6502` is opaque, LLVM may keep
+// the flag in a register the call trashes — measured, with the pointer
+// drawing at (319, 239) while `present()` was false. A board whose SMC
+// reports `BAT_FAIL` ($FC) leaves the mouse off and this file will still
+// say present. That case has not been seen under x16emu; *to verify* on a
+// machine with the mouse unplugged.
+//
+// **The rest position is the centre**, not the corner. mouse_config with
+// a nonzero size (this file asks screen_mode, $FF5F, carry set, for the
+// current 8-pixel size — 80×60 in the KERNAL's text mode) parks the
+// pointer at half that range. Under x16emu that is pixel (319, 239) of
+// the 640×480 output. Movement is not exercised headlessly: nothing in a
+// `--screenshot` run moves the host pointer x16emu reads.
+const HAS_MOUSE: bool = #fact(input.mouse);
+
+// mouse_get's 4-byte position (X, then Y, 16-bit little-endian each) and
+// the button byte it returns in A. See the header for why these addresses.
+@address(0x80)
+let posX: volatile<usmallint>;
+@address(0x82)
+let posY: volatile<usmallint>;
+@address(0x84)
+let rawButtons: volatile<utinyint>;
+
+// Copied out of the buffer during poll(), so every caller in a frame
+// shares one reading — the same discipline @8bitscript/c64/mouse holds
+// to, even though these locations do not run on their own the way the
+// SID's converter does.
+let atX: usmallint = 0;
+let atY: usmallint = 0;
+let heldButtons: utinyint = 0;
+let started: bool = false;
+
+export namespace Mouse {
+    const LEFT: utinyint = 1;
+}
+
+export namespace mouse {
+
+    // Once, at start-up, before the first poll(). Turns the KERNAL mouse
+    // on at the current screen's 8-pixel size, which also loads the default
+    // pointer into sprite 0 and parks it at the centre. Harmless to call
+    // twice: the second call is skipped, so input.begin() and pointer.begin()
+    // can both name it without re-centering.
+    function begin(): void {
+        if (HAS_MOUSE) {
+            if (started) {
+                return;
+            }
+            started = true;
+            asm6502 {
+                sec
+                jsr $FF5F
+                lda #1
+                jsr $FF68
+                ldx #$80
+                jsr $FF6B
+                sta $84
+            }
+            atX = posX;
+            atY = posY;
+            heldButtons = rawButtons;
+        }
+    }
+
+    // Once a frame, after waitFrame(). Fetch from the SMC first (the IRQ
+    // is off), then mouse_scan, then mouse_get into the buffer, then copy.
+    // One reading, kept.
+    function poll(): void {
+        if (HAS_MOUSE) {
+            asm6502 {
+                sei
+                lda #8
+                jsr $FEAB
+                jsr $FF71
+                ldx #$80
+                jsr $FF6B
+                sta $84
+            }
+            atX = posX;
+            atY = posY;
+            heldButtons = rawButtons;
+        }
+    }
+
+    // True on a build fitted with a mouse, which is every stock X16. This
+    // is the fact, not a stored flag: an `asm6502` block is opaque to
+    // LLVM, so a bool set before a KERNAL call and read after it can be
+    // kept in a register the call trashes. Measured: `there = true` in
+    // begin() then mouse_get in poll() left present() false while the
+    // pointer was drawing at (319, 239).
+    function present(): bool {
+        return HAS_MOUSE;
+    }
+
+    // Pixel position from the top-left of the active area — the same
+    // origin cell (0, 0) has after screen.8bs insets the display. The
+    // KERNAL parks a freshly configured mouse at half the current
+    // screen_mode range; under x16emu that is (319, 239), which is the
+    // centre of the 640×480 the mode names, not of the inset picture.
+    function x(): usmallint {
+        return atX;
+    }
+
+    function y(): usmallint {
+        return atY;
+    }
+
+    // The left button, as of the last poll(). Bit 0 of mouse_get's A,
+    // which ps2mouse.s documents as left (bit 1 right, bit 2 middle).
+    function left(): bool {
+        return (heldButtons & Mouse.LEFT) != 0;
+    }
+
+    // Hide the pointer and stop tracking. pointer.hide() is the caller;
+    // the next show() turns tracking back on without re-centering
+    // (mouse_config $FF, size left as-is).
+    function hide(): void {
+        if (HAS_MOUSE) {
+            asm6502 {
+                lda #0
+                ldx #0
+                ldy #0
+                jsr $FF68
+            }
+        }
+    }
+
+    // Undo hide(): mouse on, keep the current cursor and position.
+    function show(): void {
+        if (HAS_MOUSE) {
+            asm6502 {
+                lda #$FF
+                ldx #0
+                ldy #0
+                jsr $FF68
+            }
+        }
+    }
+}
