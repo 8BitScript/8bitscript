@@ -83,6 +83,83 @@ parser  ->  binder  ->  checker  ->  HIR  ->  MIR
                  browser                                              VICE
 ```
 
+## How it compares
+
+8BitScript sits between hand-written assembly and C on these machines, and
+nowhere near BASIC.
+
+**BASIC** (the ROM BASIC these machines shipped with) is tokenized and
+interpreted: every line is re-parsed and dispatched by an interpreter loop
+each time it runs. 8BitScript is compiled ahead of time to native machine
+code — there is no interpreter shipped with your program and no per-line
+dispatch cost at run time. An old BASIC line translates directly to a
+compiler intrinsic rather than an interpreter call:
+
+```basic
+POKE 36879,27
+```
+```
+memory.write(36879, 27);
+```
+
+**Assembly** gives you every byte and cycle, but you own register
+allocation, memory layout, and stack discipline by hand, with no type
+checking — nothing stops a two-byte pointer being treated as a one-byte
+counter. 8BitScript keeps `asm6502` blocks, `@address` decorators, and
+`memory.read`/`memory.write` as first-class language features, not
+bolted-on escape hatches, so hand assembly is available inline wherever a
+program actually needs it. What the compiler does *not* do is its own
+register allocation or instruction selection: it generates C and hands that
+to LLVM-MOS, which already does that job better than a first-generation
+backend would. What 8BitScript controls instead is where every global
+lives — `.rodata`, `.data`, `.noinit`, or `.zp.noinit` — decided by whether
+it is `const` or `let` and how it is initialised, not left to a C-style
+runtime initialiser.
+
+**C** is the closest relative: on the 6502 targets, 8BitScript's own
+ceiling is LLVM-MOS's C ceiling, because that toolchain compiles the
+generated C — `mos-vic20-clang`/`mos-c64-clang`. The differences are what
+8BitScript adds on top: range-checked, fixed-width integers caught at
+compile time (`let score: u8 = 300;` fails to build with `300 does not fit
+in u8 (0..255)` rather than silently wrapping), no `malloc` and no heap
+(arrays and strings are laid out at compile time), and portable APIs —
+`screen`, `text`, `input`, and so on — that resolve to each machine's own
+implementation, so the same source targets nine different machines without
+an `#ifdef` in sight.
+
+### What to expect for compiled size
+
+There is no garbage collector, no boxing, and no hidden allocation in
+either 8BitScript or C, so the two stay close by construction. The gap that
+does exist is measured, not guessed at — the same C64 screen (blank it,
+draw a line of text, loop), built three ways and checked pixel-identical in
+VICE:
+
+| Built as | Bytes |
+| --- | --- |
+| Hand-written C, screen codes precomputed into a table | 178 |
+| 8BitScript, `screen.blank` + `text.print` calls | 482 |
+| 8BitScript, the same through `@8bitscript/ui/menubar` | 809 |
+
+The difference is what gets computed at compile time versus run time: the
+hand-written version bakes the answer for one machine into a 24-byte table;
+the portable calls convert ASCII to screen codes and lay out a menu bar at
+run time, because the machine and the labels aren't known until then. Full
+byte-by-byte accounting is in
+[compiler.md](compiler.md#what-a-call-costs-on-a-6502-measured).
+
+Absolute size is bounded by the machine, not the language: `8bs build`
+reports memory used after every build —
+
+```
+memory: 3 bytes of RAM for variables, 771 bytes of program (code and data)
+```
+
+— and refuses to link a program that doesn't fit, saying by how many bytes.
+The unexpanded VIC-20 — the machine 8BitScript targets first — has 3583
+bytes of usable RAM; the web target caps static data (arrays and string
+constants) at 8192 bytes.
+
 ## What 8BitScript is not
 
 - **Not TypeScript.** It borrows the syntax and nothing else. Existing
