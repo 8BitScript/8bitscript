@@ -17,6 +17,10 @@ One number, four stores:
 | Open VSX | `ovsx publish` | same VSIX; must not wait on Marketplace |
 | GitHub Release | `gh release create vX.Y.Z` | waits on the jobs above |
 
+The GitHub Release for 0.1.1 was deleted (the tag `v0.1.1` stays so
+npm's provenance still points at a real commit). Marketplace and Open
+VSX already have 0.1.1. The next GitHub Release is 0.1.2.
+
 The Version Packages PR is what bumps every `package.json`. Merging
 it is a human decision — see the root
 [`AGENTS.md`](../AGENTS.md#version-bumps-are-a-human-decision). After
