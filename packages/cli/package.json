@@ -3,6 +3,11 @@
   "version": "0.1.1",
   "description": "The 8bs command line interface: builds, runs, and diagnoses 8BitScript projects.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/8BitScript/8bitscript.git",
+    "directory": "packages/cli"
+  },
   "type": "module",
   "engines": {
     "node": ">=26"
