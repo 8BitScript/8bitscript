@@ -45,11 +45,11 @@ the project's own toolchain.
 
 The extension deliberately contains no language logic. Putting a checker there
 would mean two implementations of every rule and an editor that disagrees with
-CI. What it *does* ship is Microsoft's `vscode-languageclient` — the JSON-RPC
-client that talks to `8bs lsp` — bundled and minified into
-`dist/extension.cjs`. That library is why the VSIX is hundreds of KB: a VSIX
-installs offline, so the client cannot be downloaded later, and leaving it in
-`node_modules` for vsce to pack would ship the same code larger and unminified.
+CI. The VS Code extension starts `8bs lsp --stdio` with a small
+Content-Length JSON-RPC client (`editors/vscode/src/lspClient.cjs`) that
+speaks only what this server speaks: document sync, diagnostics, hover, and
+completion. Microsoft's `vscode-languageclient` is not shipped — that
+library is the rest of the LSP spec and is why a thin editor was a megabyte.
 
 ## What works today
 

@@ -366,9 +366,8 @@ npx @vscode/vsce publish
 npx ovsx publish
 ```
 
-`vscode:prepublish` minifies the bundle. The 8BitScript sources here are
-about 90 KB; the rest of `dist/extension.cjs` is Microsoft's
-`vscode-languageclient`, which is the editor-side LSP speaker for `8bs lsp`.
-A VSIX is a zip the editor installs offline — it cannot fetch that library
-later — and packing `node_modules` unminified is larger than bundling it.
-See [Editor support](../../docs/language-server.md).
+`vscode:prepublish` minifies the bundle. Diagnostics, hover, and completion
+come from `8bs lsp` over a small stdio JSON-RPC client in this package, not
+from Microsoft's `vscode-languageclient`. The remaining weight is the
+launcher side bar, the grammar, and this README — not a second copy of the
+compiler. See [Editor support](../../docs/language-server.md).

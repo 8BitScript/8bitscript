@@ -25,13 +25,12 @@ that merge, `tag-release.yml` tags `vX.Y.Z` and dispatches
 
 ## The editor VSIX
 
-`editors/vscode` is a thin client: syntax, the launcher, and
-`vscode-languageclient` talking to `8bs lsp`. The language server is
-**not** in the VSIX. The hundreds of KB in `dist/extension.cjs` are
-Microsoft's LSP client, bundled and minified, because a VSIX installs
-offline. Do not move that library to `dependencies` and stop
-bundling — vsce would pack `node_modules` unminified and the VSIX
-would grow. Do not download it at runtime.
+`editors/vscode` is a thin client: syntax, the launcher, and a small
+stdio JSON-RPC speaker (`src/lspClient.cjs`) for `8bs lsp`. The
+language server and the compiler are **not** in the VSIX. Do not add
+`vscode-languageclient` back — that library is the rest of the LSP
+spec and is why 0.1.1's first VSIX was a megabyte. Do not download
+code from npm at activation.
 
 A Marketplace timeout is the Azure gallery hanging for ~180 seconds,
 not the VSIX being "too big." Still minify. Still retry. Still
