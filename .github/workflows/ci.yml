@@ -5,6 +5,9 @@ on:
   push:
     branches: [trunk]
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -18,3 +21,33 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - uses: ./.github/actions/setup-llvm-mos
       - run: pnpm run test:ci
+
+  # Skipped until SONAR_TOKEN is set on the repo (Settings → Secrets and
+  # variables → Actions) and the 8bitscript_8bitscript project exists on
+  # SonarCloud with Automatic Analysis off (Administration → Analysis
+  # Method) — otherwise every PR would go red for a secret nobody added yet.
+  sonarqube:
+    if: ${{ secrets.SONAR_TOKEN != '' }}
+    name: SonarQube
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # Shallow clones should be disabled for a better relevancy of analysis
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-llvm-mos
+      - name: Test with coverage
+        run: pnpm run test:coverage
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v8.1.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.qualitygate.wait=true
