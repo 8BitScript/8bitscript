@@ -28,6 +28,9 @@ jobs:
   extension:
     needs: npm
     runs-on: ubuntu-latest
+    env:
+      VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      OVSX_PAT: ${{ secrets.OVSX_PAT }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -36,16 +39,12 @@ jobs:
           node-version: 26
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - if: ${{ secrets.VSCE_PAT != '' }}
+      - if: ${{ env.VSCE_PAT != '' }}
         run: pnpm exec vsce publish
         working-directory: editors/vscode
-        env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
-      - if: ${{ secrets.OVSX_PAT != '' }}
+      - if: ${{ env.OVSX_PAT != '' }}
         run: pnpm exec ovsx publish -p "$OVSX_PAT"
         working-directory: editors/vscode
-        env:
-          OVSX_PAT: ${{ secrets.OVSX_PAT }}
 
   docs:
     needs: npm
