@@ -64,7 +64,11 @@ These are interactive and need a human:
 2. Create the Visual Studio Marketplace publisher `8bitscript` and an
    Open VSX personal access token.
 3. Store `NPM_TOKEN`, `VSCE_PAT`, `OVSX_PAT`, and `CLOUDFLARE_API_TOKEN`
-   as GitHub org secrets.
+   as GitHub org secrets. `VSCE_PAT` and `OVSX_PAT` are optional: the
+   `extension` job's publish steps each skip (not fail) when their
+   secret is unset, so npm and docs still publish without the editor
+   extension. Add the secret later and the next tag picks it up with no
+   workflow change.
 4. Add the `8bitscript.com` zone to the same Cloudflare account as
    `8bitscript.org` (needed for `2048.8bitscript.com`).
 5. Create an empty `8BitScript/2048` repository, push `trunk`, set it as
