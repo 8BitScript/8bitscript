@@ -1,5 +1,20 @@
 # @8bitscript/studio
 
+## 0.1.2
+
+### Patch Changes
+
+- b9aea09: The editor talks to `8bs lsp` with a thin stdio client instead of
+  `vscode-languageclient`, so the VSIX is tens of kilobytes. Marketplace
+  publish no longer uses vsce's 180-second gallery timeout.
+- Updated dependencies [b9aea09]
+  - @8bitscript/input@0.1.2
+  - @8bitscript/pointer@0.1.2
+  - @8bitscript/screen@0.1.2
+  - @8bitscript/system@0.1.2
+  - @8bitscript/text@0.1.2
+  - @8bitscript/ui@0.1.2
+
 ## 0.1.1
 
 ### Patch Changes
