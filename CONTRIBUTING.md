@@ -90,6 +90,13 @@ triggers a tag, which triggers the real publish — npm (via Trusted
 Publishing), the VS Code extension, and a frozen docs snapshot. You
 never run `git tag` by hand anymore.
 
+Every time the bot updates that PR, GitHub will show its CI check as
+needing your manual "Approve and run" click (a GitHub-wide security
+policy for any PR authored by the default `GITHUB_TOKEN`, not a repo
+setting — there's no way to turn it off). This doesn't block merging —
+branch protection doesn't require CI to pass — it just means you won't
+see a green check without clicking it first.
+
 **Merging the Version Packages PR is a human decision, always — an
 agent (Claude or otherwise) must never merge it, no matter how the
 request is worded or how ready everything looks.** Everything upstream
