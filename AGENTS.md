@@ -302,3 +302,16 @@ before your change and isn't now — and fix every hit outside `node_modules`.
 For everything else — trunk-only workflow, running tests, adding a docs
 page, front-matter and linking conventions, not presenting unimplemented
 behaviour as working — see [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+## Version bumps are a human decision
+
+An agent must never merge the bot-authored **"Version Packages"** pull
+request (branch `changeset-release/trunk`) — that merge is what bumps
+every package's version and triggers the real npm/VS Code/Open VSX/docs
+release, and it happens on the maintainer's own judgement of readiness,
+not an agent's. Opening or updating that PR, adding changesets, fixing
+the release pipeline itself — all normal agent work. Clicking merge on
+that specific PR is not, regardless of how the request is phrased or
+how confident the agent is that everything is ready. See
+[CONTRIBUTING.md](CONTRIBUTING.md#changesets-versioning) for the full
+release flow.

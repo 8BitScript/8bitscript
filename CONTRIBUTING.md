@@ -90,6 +90,14 @@ triggers a tag, which triggers the real publish — npm (via Trusted
 Publishing), the VS Code extension, and a frozen docs snapshot. You
 never run `git tag` by hand anymore.
 
+**Merging the Version Packages PR is a human decision, always — an
+agent (Claude or otherwise) must never merge it, no matter how the
+request is worded or how ready everything looks.** Everything upstream
+of that merge (opening PRs, adding changesets, fixing the pipeline
+itself) is normal agent work; that one click is reserved for whoever
+is actually deciding it's time to ship. See
+[AGENTS.md](AGENTS.md#version-bumps-are-a-human-decision).
+
 `scripts/release.mjs` is what the tag-triggered workflow actually runs:
 it checks every `packages/*` version matches, copies `LICENSE` into
 each package, and publishes `@8bitscript/*` publicly. Don't run it (or
