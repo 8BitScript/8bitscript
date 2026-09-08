@@ -9,6 +9,31 @@ the side bar's launcher only ever starts the `8bs run` and `8bs build`
 commands you would otherwise type. See [Editor support](../../docs/language-server.md) for
 the split between the compiler, the language server, and this extension.
 
+## New to 8BitScript?
+
+It's a statically compiled language for 6502-based 8-bit machines and the
+web — closer to C than to BASIC or hand-written assembly. There's no
+interpreter and no garbage collector; the 6502 backend generates C and
+hands it to LLVM-MOS, the same toolchain a hand-written C program for these
+machines would use, so code quality is inherited rather than reinvented. A
+range-checked type like `u8` is a compile error on overflow
+(`300 does not fit in u8 (0..255)`) instead of a silent wrap, and one
+source targets nine machines through packages that resolve per target,
+instead of `#ifdef`.
+
+Compiled size sits close to hand-written C for that same reason: the same
+screen built by hand in C came to 178 bytes on a C64, the equivalent
+through 8BitScript's portable `screen`/`text` calls to 482, and through a
+reusable UI component to 809 — the difference being what gets computed at
+compile time (the hand-written version) versus resolved at run time (the
+portable one). `8bs build` reports exactly what a program used, and a
+build that doesn't fit its machine's RAM — 3583 bytes on the unexpanded
+VIC-20 8BitScript targets first — is refused rather than truncated.
+
+Full byte-by-byte accounting is in
+[docs/compiler.md](../../docs/compiler.md#what-a-call-costs-on-a-6502-measured);
+the project overview is in the [root README](../../README.md).
+
 ## What it does
 
 - Registers `.8bs` as the language **8BitScript**
