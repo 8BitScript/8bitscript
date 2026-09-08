@@ -326,23 +326,29 @@
       }
     ]
   },
-  "main": "./src/extension.cjs",
+  "main": "./dist/extension.cjs",
   "activationEvents": [
     "workspaceContains:**/*.8bs",
     "workspaceContains:**/8bs.config.ts"
   ],
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "bundle": "esbuild src/extension.cjs --bundle --platform=node --format=cjs --external:vscode --outfile=dist/extension.cjs",
+    "vscode:prepublish": "pnpm run bundle"
   },
-  "dependencies": {
+  "devDependencies": {
+    "@vscode/vsce": "^3.2.1",
+    "esbuild": "0.28.1",
+    "ovsx": "^0.10.1",
     "vscode-languageclient": "10.1.1"
   },
   "files": [
-    "src",
+    "dist",
     "media",
     "syntaxes",
     "snippets",
     "language-configuration.json",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ]
 }

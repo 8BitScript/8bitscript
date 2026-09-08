@@ -16,10 +16,16 @@ packages:
   - examples/*
   - editors/*
 
-# pnpm blocks dependency install scripts unless they are approved here. Both
-# entries belong to wrangler: workerd is the Workers runtime used by
-# `wrangler dev`, and esbuild is its bundler. Their postinstall scripts unpack
-# the platform binaries, so without this the docs preview server cannot start.
+# pnpm blocks dependency install scripts unless they are approved here.
+# workerd and esbuild belong to wrangler: workerd is the Workers runtime used
+# by `wrangler dev`, and esbuild is its bundler. Their postinstall scripts
+# unpack the platform binaries, so without this the docs preview server
+# cannot start. vsce-sign and keytar belong to @vscode/vsce: vsce-sign
+# unpacks the native binary it uses to sign/verify .vsix packages, and keytar
+# unpacks the native module `vsce login` uses to store a PAT in the OS
+# keychain.
 allowBuilds:
+  '@vscode/vsce-sign': true
   esbuild: true
+  keytar: true
   workerd: true
