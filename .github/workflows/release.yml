@@ -36,11 +36,13 @@ jobs:
           node-version: 26
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec vsce publish
+      - if: ${{ secrets.VSCE_PAT != '' }}
+        run: pnpm exec vsce publish
         working-directory: editors/vscode
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
-      - run: pnpm exec ovsx publish -p "$OVSX_PAT"
+      - if: ${{ secrets.OVSX_PAT != '' }}
+        run: pnpm exec ovsx publish -p "$OVSX_PAT"
         working-directory: editors/vscode
         env:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
