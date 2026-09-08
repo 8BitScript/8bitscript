@@ -4,6 +4,11 @@ name: Tag Release
 # changesets.yml on branch changeset-release/trunk) is merged. Reads the
 # version changesets just bumped everything to and tags it, which is what
 # actually triggers release.yml's npm/extension/docs publish.
+#
+# That merge is a human decision, always. An agent must never merge the
+# Version Packages PR itself — see AGENTS.md#version-bumps-are-a-human-decision.
+# This workflow only reacts to a merge that already happened; it doesn't
+# perform or encourage one.
 on:
   pull_request:
     types: [closed]
