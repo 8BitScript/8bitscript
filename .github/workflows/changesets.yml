@@ -25,3 +25,4 @@ jobs:
           commit: "chore: version packages"
           title: "Version Packages"
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          commitMode: github-api
