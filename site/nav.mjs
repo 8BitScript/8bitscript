@@ -13,6 +13,10 @@ export const nav = [
     url: '/',
   },
   {
+    title: 'Install from npm',
+    url: '/install',
+  },
+  {
     title: 'About 8BitScript',
     url: '/about',
   },
@@ -41,6 +45,14 @@ export const nav = [
       { title: 'VICE', url: '/setup/vice' },
       { title: 'Verify your setup', url: '/setup/verify' },
     ],
+  },
+  {
+    title: 'Building on GitHub',
+    url: '/github',
+  },
+  {
+    title: 'Hosting the web target',
+    url: '/web',
   },
   {
     title: 'Getting started',

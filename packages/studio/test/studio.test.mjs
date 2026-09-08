@@ -100,7 +100,8 @@ const factsWith = (machine, profile) => {
 };
 
 test('each machine starts from the tier its facts pick', () => {
-  // No keyboard to edit with: the NES, and the web until its runtime reads keys.
+  // No keyboard to edit with: the NES. The web has a keyboard now but
+  // nothing to edit (glyphs, sprites and voices are all zero).
   assert.equal(tierOf('nes'), 'VIEWER');
   assert.equal(tierOf('web'), 'VIEWER');
   // A keyboard, but 3583 bytes to live in: read-only until the machine is expanded.

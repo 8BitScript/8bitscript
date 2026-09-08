@@ -141,3 +141,100 @@ initNavToggle();
 initSearch();
 initCodeCopyButtons();
 initTocScrollSpy();
+initVersionPicker();
+
+function initVersionPicker() {
+  const picker = document.getElementById('version-picker');
+  const trigger = document.getElementById('version-trigger');
+  const panel = document.getElementById('version-panel');
+  const search = document.getElementById('version-search');
+  const list = document.getElementById('version-list');
+  if (!picker || !trigger || !panel || !search || !list) return;
+
+  const current = document.documentElement.dataset.docsVersion ?? '';
+  const currentBase = document.documentElement.dataset.docsBase ?? '';
+
+  function pagePath() {
+    let path = window.location.pathname;
+    if (currentBase && path.startsWith(currentBase)) {
+      path = path.slice(currentBase.length) || '/';
+    }
+    if (!path.startsWith('/')) path = `/${path}`;
+    return path;
+  }
+
+  function hrefFor(entry) {
+    const destBase = entry.latest ? '' : entry.path;
+    const rest = pagePath();
+    if (!destBase) return rest;
+    return rest === '/' ? `${destBase}/` : `${destBase}${rest}`;
+  }
+
+  function render(entries, query) {
+    const q = query.trim().toLowerCase();
+    const matched = q
+      ? entries.filter((e) => e.label.toLowerCase().includes(q) || e.major.toLowerCase().includes(q))
+      : entries;
+    list.replaceChildren();
+    if (matched.length === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'version-empty';
+      empty.textContent = 'No matching version';
+      list.append(empty);
+      return;
+    }
+    const groups = new Map();
+    for (const entry of matched) {
+      const key = `${entry.major}.x`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(entry);
+    }
+    for (const [label, group] of groups) {
+      const heading = document.createElement('p');
+      heading.className = 'version-group';
+      heading.textContent = label;
+      list.append(heading);
+      for (const entry of group) {
+        const a = document.createElement('a');
+        a.className = `version-option${entry.version === current ? ' is-current' : ''}`;
+        a.href = hrefFor(entry);
+        a.textContent = entry.latest ? `${entry.label} (latest)` : entry.label;
+        a.setAttribute('role', 'option');
+        list.append(a);
+      }
+    }
+  }
+
+  let versions = [];
+  fetch('/versions.json')
+    .then((res) => (res.ok ? res.json() : null))
+    .then((data) => {
+      versions = data?.versions ?? [];
+      render(versions, search.value);
+    })
+    .catch(() => {
+      versions = [{ version: current, label: current, major: current.split('.')[0] ?? '0', path: currentBase || '/', latest: !currentBase }];
+      render(versions, '');
+    });
+
+  function setOpen(open) {
+    panel.hidden = !open;
+    trigger.setAttribute('aria-expanded', String(open));
+    if (open) {
+      search.focus();
+      search.select();
+    }
+  }
+
+  trigger.addEventListener('click', () => setOpen(panel.hidden));
+  search.addEventListener('input', () => render(versions, search.value));
+  document.addEventListener('click', (event) => {
+    if (!picker.contains(event.target) && !panel.hidden) setOpen(false);
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !panel.hidden) {
+      setOpen(false);
+      trigger.focus();
+    }
+  });
+}

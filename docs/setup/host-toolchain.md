@@ -185,7 +185,7 @@ matching, and auto-closing pairs. Link it into your editor and reload the
 window:
 
 ```bash
-ln -s "$PWD/editors/vscode" ~/.cursor/extensions/8bitscript.8bitscript-lang-0.0.0
+ln -s "$PWD/editors/vscode" ~/.cursor/extensions/8bitscript.8bitscript-lang-0.1.0
 ```
 
 Use `~/.vscode/extensions/` instead for VS Code, and run the command from the

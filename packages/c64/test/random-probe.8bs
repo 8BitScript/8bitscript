@@ -1,0 +1,14 @@
+// Every call @8bitscript/c64/random offers, linked the way a program built
+// from inside the package tests it: the import is relative because a
+// package does not resolve its own name; a consumer writes
+// `import { random } from "@8bitscript/c64/random"`.
+import { random } from "../src/random.8bs";
+
+let seed: utinyint = 0;
+let wide: usmallint = 0;
+
+export function main(): void {
+    random.begin();
+    seed = random.byte();
+    wide = random.word();
+}

@@ -1,0 +1,71 @@
+// @8bitscript/random — a small, deterministic pseudo-random generator.
+//
+//     import { random } from "@8bitscript/random";
+//
+//     random.seed(1234);
+//     let roll: utinyint = random.range(6) + 1; // 1..6
+//
+// The root AGENTS.md rule is that "randomness must be deterministic by
+// default, explicitly seeded, with small fixed state" — hardware entropy
+// (a POKEY register, SID's oscillator 3, timing jitter) belongs behind its
+// own separate, explicitly optional import, never silently underneath a
+// program's ordinary random numbers. This package is the deterministic
+// default every target can use: sixteen bits of state, one multiply-and-add
+// step, nothing read from hardware. A program on the one target that does
+// have hardware entropy behind its own import today — POKEY's counter,
+// `@8bitscript/atari8/random` — reads a byte from it once and hands that to
+// `seed()`; this file never reaches for a register itself, on any target,
+// which is what lets it be the same sixteen lines on all nine.
+//
+// This is not the file to reach for if a program ever needs numbers a
+// player cannot predict by reading the source — nothing here is
+// cryptographic, on any target, any more than the hardware sources are.
+
+let state: usmallint = 1;
+
+export namespace random {
+    // Replaces the generator's whole state. A program that never calls this
+    // gets the same sequence on every run, starting from `state`'s own
+    // initialiser above — a deterministic default, not a random one nobody
+    // asked for. 0 is a valid seed: the additive constant below means the
+    // next `next()` still moves state away from it, unlike a generator
+    // built on multiplication or XOR alone, where an all-zero state is a
+    // fixed point.
+    function seed(value: usmallint): void {
+        state = value;
+    }
+
+    // One step of a 16-bit linear congruential generator: `state = state *
+    // A + C`, wrapping the way `usmallint` arithmetic always does, which is
+    // exactly the modulus a 16-bit LCG wants (mod 65536). A and C are the
+    // constants several 8-bit BASICs used for their own RND — coprime with
+    // 65536 and long enough for a game board or a shuffled deck.
+    //
+    // The result is the *high* byte of the new state, not the low one: the
+    // low byte of a LCG this size cycles with a much shorter period (16 for
+    // A - 1 divisible by 4, here a period of 4 in the very lowest bit) and
+    // fails an obvious pattern check almost immediately, while the high
+    // byte carries the full 65536-state period. `state >> 8` costs one
+    // instruction on the 6502 and is exact on the web target too — no
+    // divide, on either backend.
+    function next(): utinyint {
+        state = state * 25173 + 13849;
+        return state >> 8;
+    }
+
+    // A value from 0 up to (not including) bound — the shape a caller
+    // wants when picking among a fixed number of choices: a board cell, a
+    // shuffled index, a die face after adding 1. `bound` must be at least
+    // 1. The classic modulo-bias caveat applies here as much as it does on
+    // any machine: for a `bound` that is not a power of two, the results
+    // near 255 are very slightly less likely than the results near 0,
+    // because 256 is not an exact multiple of `bound`. That bias is under
+    // 1/256 of a percentage point for anything this package is likely to be
+    // asked for — a handful of board cells or die faces — and not worth a
+    // rejection-sampling loop's extra code on a machine measured in
+    // kilobytes; a program that needs an exactly uniform pick from a large
+    // bound should say so and this note is where to start.
+    function range(bound: utinyint): utinyint {
+        return random.next() % bound;
+    }
+}

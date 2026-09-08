@@ -2,11 +2,10 @@
 // and the one target where the pointer the user already has is the
 // problem rather than the solution.
 //
-// Every call here does nothing and `DRAWS` is false, because
-// @8bitscript/web/input delivers nothing: the runtime does not listen to
-// the browser, and what it would need is the shared state block in the
-// worker that packages/input/AGENTS.md lists as this target's whole gap.
-// Nothing points, so nothing needs drawing.
+// Every call here does nothing and `DRAWS` is false: the runtime now
+// delivers arrow keys through @8bitscript/web/input, but still no pointer.
+// A mouse belongs in the same shared snapshot as those keys, and until
+// that lands there is nothing to draw.
 //
 // This target has a decision the other eight do not, and it is worth
 // writing down before anyone implements it: **the user is already looking

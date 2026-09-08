@@ -176,7 +176,7 @@ a function the runtime calls right after every hardware frame edge, when
 the linked program defines it. The NES package uses it to deliver its
 queued screen writes at the start of vertical blank — the only time the
 PPU accepts them — so a program prints whenever it likes (a HUD bigger
-than the queue's 128 bytes waits for the next blank); a program that
+than the queue's 112 bytes waits for the next blank); a program that
 links no such function pays nothing.
 
 ## What a call costs on a 6502, measured

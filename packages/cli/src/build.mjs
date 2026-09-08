@@ -236,9 +236,13 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
       process.stderr.write(`8bs build: ${result.error}\n`);
       return { ok: false };
     }
+    const { writeWebBundle } = await import('./web-runtime.mjs');
+    const webDir = resolve('dist', 'web');
+    await writeWebBundle(webDir, await readFile(outFile), { frameRate });
     process.stdout.write(`built ${outFile}\n(generated AssemblyScript: ${result.asFile})\n`);
+    process.stdout.write(`web bundle: ${webDir}/\n`);
     process.stdout.write(`${memoryLine(ir.memory)}\n`);
-    return { ok: true, outFile, frameRate, hardware };
+    return { ok: true, outFile, frameRate, hardware, webDir };
   }
 
   const { buildPrg, outputExtension } = await import('@8bitscript/backend-6502');

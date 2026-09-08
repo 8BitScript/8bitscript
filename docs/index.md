@@ -19,11 +19,11 @@ is **planned and not yet implemented**.
 
 ## Setup
 
-Start with the [setup guide](setup/index.md). It covers the host toolchain, the
-LLVM-MOS SDK, the VICE emulator, and how to verify the result. Its first page,
-[Host toolchain](setup/host-toolchain.md), installs Node 26, pnpm 12, git,
-and an editor — start there if you only need a machine ready to work on the
-compiler. The remaining pages, in order:
+Start with [Install from npm](install.md) if you are writing a program.
+Work on the compiler itself from the [setup guide](setup/index.md). It covers
+the host toolchain, the LLVM-MOS SDK, the VICE emulator, and how to verify
+the result. Its first page, [Host toolchain](setup/host-toolchain.md),
+installs Node 26, pnpm 12, git, and an editor. The remaining pages, in order:
 
 - [LLVM-MOS SDK](setup/llvm-mos.md) — install the SDK and configure it for this
   project, without adding its tools to the global `PATH`.
@@ -74,11 +74,11 @@ real content.
 
 ## Publishing
 
-This site is built from the `docs/` directory by `site/build.mjs` and served by
-Cloudflare Workers at <https://8bitscript.org/>.
-[Publishing the docs](project/deployment.md) is the runbook for it: what the
-build does, the one-time GitHub and Cloudflare setup, how to preview locally,
-and what to check when a page renders unstyled or a link 404s.
+This site is built from the `docs/` directory by `site/build-all.mjs` and served by
+Cloudflare Workers at <https://8bitscript.org/>. Each release is frozen at
+`/0.1.0/`, `/0.2.0/`, and so on; `/` is the latest. The header dropdown
+jumps between them. [Publishing the docs](project/deployment.md) is the
+runbook.
 
 ## Authoring conventions
 

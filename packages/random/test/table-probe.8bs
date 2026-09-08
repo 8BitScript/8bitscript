@@ -1,0 +1,17 @@
+// Every call @8bitscript/random/table offers, plus the default generator
+// alongside it in the same file — proof the package's bare entry and its
+// "./table" subpath resolve together, not just each on its own.
+import { random } from "../src/index.8bs";
+import { table } from "../src/table.8bs";
+
+let picked: utinyint = 0;
+
+export function main(): void {
+    random.seed(1);
+    picked = random.range(6);
+
+    table.seed(37);
+    picked = table.next();
+    picked = table.range(6);
+    picked = table.at(0);
+}

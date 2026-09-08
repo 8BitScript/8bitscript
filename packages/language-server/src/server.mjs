@@ -94,7 +94,7 @@ export function start() {
       hoverProvider: true,
       completionProvider: { triggerCharacters: [':', '<'] },
     },
-    serverInfo: { name: '8BitScript Language Server', version: '0.0.0' },
+    serverInfo: { name: '8BitScript Language Server', version: '0.1.0' },
   }));
 
   /**

@@ -21,8 +21,8 @@ says how a package declares itself one.
 
 The front door. Studio draws a menu bar across the top row, then its title,
 its version, the tier the machine you started it on gets, which editors that
-tier opens, and what is driving it — `INPUT KEYS` on the computers,
-`INPUT PAD` on the NES, `INPUT NONE` on the web, each folded from the
+tier opens, and what is driving it — `INPUT KEYS` on the computers and the
+web, `INPUT PAD` on the NES, each folded from the
 machine's own facts while compiling.
 
 **The bar moves.** `@8bitscript/input` exists now, so left and right step
@@ -81,9 +81,10 @@ and every VIC-20 loads; the NES on a plain cartridge and the web have
 nowhere to load from.
 
 The viewer tier is read-only — view, play, load, never edit or save — and
-the four machines on it are there for different reasons. The NES and the
-web have no keyboard (the web's runtime, not the browser). The stock
-VIC-20 has one and not the room: **a RAM expansion lifts it**, and
+the four machines on it are there for different reasons. The NES has no
+keyboard. The web now reads keys, and is a viewer because it has nothing
+to edit. The stock
+VIC-20 has a keyboard and not the room: **a RAM expansion lifts it**, and
 `8bs run vic20 --profile 8k` is Studio with editors on. The PET has both
 the keyboard and, on a 3032, 31743 bytes — more than the VIC-20 that
 edits — and is a viewer for what the machine is: its font is in ROM, it

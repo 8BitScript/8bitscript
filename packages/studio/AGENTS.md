@@ -77,9 +77,7 @@ Do not describe more than this as working:
 - **The menu bar responds to input**; nothing else does. `@8bitscript/input`
   landed, so left and right step the highlight between the icon and FILE on
   every machine that can answer, and the screen says which — `INPUT KEYS`
-  on the computers (the X16 included: it has a keyboard, even though the
-  layer does not read keys yet), `INPUT PAD` on the NES, `INPUT NONE` on
-  the web, whose runtime does not deliver input yet and says so. On the
+  on the computers and the web, `INPUT PAD` on the NES. On the
   X16 the bar moves under the KERNAL mouse. Nothing plays a note or reads
   or writes a file: there is still no sound or storage capability.
 - **The pointer is visible**, on a build that has one to draw:
@@ -152,7 +150,7 @@ and the web have nowhere to load from.
 The rule that produces the table, in `src/main.8bs`, is two questions.
 
 **Can this build edit at all?** It needs `Input.KEYBOARD` — the NES has
-none, and the web's runtime does not read one yet — and `Memory.RAM >=
+none; the web now reads keys but still has nothing to edit — and `Memory.RAM >=
 EDIT_BYTES`, the RAM an editor, its buffers and a playback routine that
 keeps running while you edit have to share. `EDIT_BYTES` is 8192 today.
 **It is a budget, not a measurement** — nothing behind the front door is
@@ -185,11 +183,12 @@ What each row means, and what it still has to prove:
 - **Viewer** is read-only: view, play, load, never edit or save. Four
   machines land there for three different reasons, and the reasons matter
   because only one of them can be bought away:
-  - the **NES** and the **web** have no keyboard to edit with. The NES's
-    is the stock console; on the cartridge profile this repository builds
-    there is also nowhere to save, though battery-backed SRAM boards exist
-    ([`packages/nes/AGENTS.md`](../nes/AGENTS.md)). The web's is today's
-    runtime, not the browser.
+  - the **NES** has no keyboard to edit with. On the cartridge profile
+    this repository builds there is also nowhere to save, though
+    battery-backed SRAM boards exist
+    ([`packages/nes/AGENTS.md`](../nes/AGENTS.md)). The **web** now reads
+    keys, and is a viewer because it has no glyphs, sprites or voices to
+    edit, not because of the keyboard.
   - the **stock VIC-20** has the keyboard and not the room. **A RAM
     expansion lifts it**, and that is the whole of what an expansion can do
     for Studio today.
@@ -256,8 +255,8 @@ editor on a hack that the capability would replace:
   moves under it. What is still missing is per-machine rather than
   structural, and `packages/input/AGENTS.md` lists it: the **X16** reads
   its mouse and not yet its keyboard or pads (KERNAL `$FFE4` GETIN and
-  `$FF56` joystick_get), the **web** answers nothing (the runtime does
-  not listen), the **VIC-20** has a joystick but no verified key matrix,
+  `$FF56` joystick_get), the **web** reads arrows, Enter and Escape (no
+  pointer yet), the **VIC-20** has a joystick but no verified key matrix,
   and the three machines with an **ALT** key — C128, MEGA65, X16 — do
   not read it, which is what `ALT`+letter menu accelerators wait on. A
   text *editor* will also want more than this surface offers: typed

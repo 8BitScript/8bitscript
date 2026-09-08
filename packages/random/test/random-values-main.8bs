@@ -1,0 +1,5 @@
+import { run } from "./random-values.8bs";
+
+export function main(): void {
+    run();
+}

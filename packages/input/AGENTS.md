@@ -76,9 +76,9 @@ degraded program, it is a program that does not build for that machine.
 
 So a machine with nothing wired up yet ships a layer that returns false to
 everything — and **says so in its header, in detail**. `@8bitscript/web/input`
-is the model of that: the runtime does not listen, every answer is a
-constant, and LLVM deletes the read-and-dispatch loop. `@8bitscript/cx16/input`
-used to be the same shape; it now answers the pointer through the KERNAL
+used to be the model of that; it now reads a snapshot byte the page writes
+into shared memory (arrows, Enter, Escape) and still returns false for the
+pointer. `@8bitscript/cx16/input` used to be the same shape; it now answers the pointer through the KERNAL
 (`$FF68` mouse_config, `$FF71` mouse_scan, `$FF6B` mouse_get) and still
 returns false for directions, confirm and cancel — GETIN and joystick_get
 are the next calls, not a gap the file hides. Measured on Studio, the X16
@@ -167,7 +167,7 @@ The standard this package holds to:
 | NES | D-pad, A/START, B | none | confirm the pad on real input |
 | VIC-20 | joystick only | none | a verified `keys.8bs`, then a `keyboard.8bs` |
 | X16 | **nothing** | **KERNAL mouse** | GETIN (`$FFE4`) and joystick_get (`$FF56`); **ALT** |
-| web | **nothing** | nothing | the runtime does not listen; a shared state block in the worker |
+| web | arrow keys, Enter, Escape | nothing | a pointer in the same snapshot byte |
 
 **Three machines have an ALT key** — the C128, the MEGA65 and the X16 — and
 none of them reads it yet. That is the prerequisite for `ALT`+letter menu

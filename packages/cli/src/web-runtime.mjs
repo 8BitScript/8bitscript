@@ -5,7 +5,8 @@
 // forever if it wants to, and calls waitFrame() to wait for the next frame.
 // The page is the video chip. It never calls into the program; it paints the
 // program's screen memory (shared with the worker) every display refresh,
-// and releases one logical frame at a time on a fixed timestep at the
+// writes a one-byte input snapshot into that memory for @8bitscript/web/input
+// to read, and releases one logical frame at a time on a fixed timestep at the
 // project's configured `frameRate` (8bs.config.ts, default 60) — the same
 // rate on every target, whatever the display actually refreshes at (60Hz,
 // 120Hz, 144Hz, 50Hz). waitFrame() in the worker is a wasm import that blocks
@@ -17,7 +18,10 @@
 // simply ends (the page says so); one that spins burns its own worker, not
 // the tab — the page keeps painting whatever was last written, like a real
 // machine with a program stuck in a loop.
+import { createReadStream } from 'node:fs';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
+import { extname, join } from 'node:path';
 import { spawn } from 'node:child_process';
 
 // The C64's palette (0-15), reused so a colour number means the same thing
@@ -58,6 +62,58 @@ const SCREEN_H = INNER_H + BORDER_PX * 2;
 // could both import). Byte 0 is border, byte 1 is background.
 export const CHAR_BASE = 2;
 export const COLOR_BASE = 1002;
+// Directions / confirm / cancel: the page writes this byte, @8bitscript/web/input
+// reads it. Same Edge bits as every other machine's input layer. First byte
+// after the 1000 colour cells at COLOR_BASE.
+export const INPUT_OFFSET = 2002;
+
+export const InputEdge = {
+  LEFT: 1,
+  RIGHT: 2,
+  UP: 4,
+  DOWN: 8,
+  CONFIRM: 16,
+  CANCEL: 32,
+};
+
+const KEY_TO_EDGE = {
+  ArrowLeft: InputEdge.LEFT,
+  ArrowRight: InputEdge.RIGHT,
+  ArrowUp: InputEdge.UP,
+  ArrowDown: InputEdge.DOWN,
+  Enter: InputEdge.CONFIRM,
+  Escape: InputEdge.CANCEL,
+};
+
+/** Bit in the INPUT_OFFSET snapshot for a DOM `KeyboardEvent.key`, or 0. */
+export function inputBitForKey(key) {
+  return KEY_TO_EDGE[key] ?? 0;
+}
+
+// A swipe shorter than this (in CSS pixels on the canvas) is a tap, which
+// the page writes as confirm — the same edge as Enter. A longer gesture
+// takes the dominant axis. Exported so the mapping is tested, not inferred
+// from the inlined page script.
+export const SWIPE_THRESHOLD = 28;
+
+/** Direction or confirm bit for a pointer gesture, or 0 if it did not move enough to count. */
+export function swipeEdge(dx, dy) {
+  const ax = Math.abs(dx);
+  const ay = Math.abs(dy);
+  if (ax < SWIPE_THRESHOLD && ay < SWIPE_THRESHOLD) return 0;
+  if (ax > ay) return dx < 0 ? InputEdge.LEFT : InputEdge.RIGHT;
+  return dy < 0 ? InputEdge.UP : InputEdge.DOWN;
+}
+
+export const ISOLATION_HEADERS = {
+  'Cross-Origin-Opener-Policy': 'same-origin',
+  'Cross-Origin-Embedder-Policy': 'require-corp',
+};
+
+const HEADERS_FILE = `/*
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
+`;
 
 // The two words the page and the worker share, in a SharedArrayBuffer beside
 // the program's memory: how many logical frames the page has released, and
@@ -88,7 +144,7 @@ self.onmessage = async ({ data: { ctrl } }) => {
     Atomics.store(ctrl, CONSUMED, next);
   };
 
-  const response = await fetch('/program.wasm');
+  const response = await fetch(new URL('program.wasm', self.location.href));
   const module = await WebAssembly.compile(await response.arrayBuffer());
   const shared = WebAssembly.Module.imports(module).some((i) => i.module === 'env' && i.name === 'waitFrame');
   const instance = await WebAssembly.instantiate(module, { env: { waitFrame } });
@@ -115,11 +171,12 @@ function renderHtml(frameRate) {
 <html>
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>8BitScript</title>
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #000; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #000; touch-action: none; }
   body { display: flex; align-items: center; justify-content: center; }
-  canvas { image-rendering: pixelated; display: block; }
+  canvas { image-rendering: pixelated; display: block; touch-action: none; }
   #hint {
     position: fixed;
     left: 50%;
@@ -146,7 +203,7 @@ function renderHtml(frameRate) {
 </head>
 <body>
 <canvas id="screen" width="${SCREEN_W}" height="${SCREEN_H}"></canvas>
-<div id="hint">double-click, or press F, for fullscreen</div>
+<div id="hint">arrows or swipe to move · double-click or F for fullscreen</div>
 <div id="fps">FPS --</div>
 <script>
 const COLORS = ${JSON.stringify(COLORS)};
@@ -177,6 +234,17 @@ const fpsEl = document.getElementById('fps');
 // this host has no ROM, so it draws them as the text they already are.
 const CHAR_BASE = ${CHAR_BASE};
 const COLOR_BASE = ${COLOR_BASE};
+const INPUT_OFFSET = ${INPUT_OFFSET};
+const KEY_TO_EDGE = ${JSON.stringify(KEY_TO_EDGE)};
+const SWIPE_THRESHOLD = ${SWIPE_THRESHOLD};
+const InputEdgeConfirm = ${InputEdge.CONFIRM};
+function swipeEdge(dx, dy) {
+  const ax = Math.abs(dx);
+  const ay = Math.abs(dy);
+  if (ax < SWIPE_THRESHOLD && ay < SWIPE_THRESHOLD) return 0;
+  if (ax > ay) return dx < 0 ? ${InputEdge.LEFT} : ${InputEdge.RIGHT};
+  return dy < 0 ? ${InputEdge.UP} : ${InputEdge.DOWN};
+}
 
 function decodeScreenCode(code) {
   if (code >= 32 && code <= 95) return String.fromCharCode(code);
@@ -200,9 +268,6 @@ function toggleFullscreen() {
   else document.body.requestFullscreen().catch(() => {});
 }
 canvas.addEventListener('dblclick', toggleFullscreen);
-window.addEventListener('keydown', (e) => {
-  if (e.key === 'f' || e.key === 'F') toggleFullscreen();
-});
 let hintTimer = setTimeout(() => hint.classList.add('hidden'), 3000);
 function say(text) {
   clearTimeout(hintTimer);
@@ -278,6 +343,61 @@ function paint(mem) {
 // backlog at full speed afterwards, which no real machine does.
 const ctrl = new Int32Array(new SharedArrayBuffer(8));
 let mem = null;
+let keysHeld = 0;
+function writeInput() {
+  if (mem) mem[INPUT_OFFSET] = keysHeld;
+}
+function setInputBit(bit, down) {
+  if (!bit) return;
+  if (down) keysHeld |= bit;
+  else keysHeld &= ~bit;
+  writeInput();
+}
+window.addEventListener('keydown', (e) => {
+  const bit = KEY_TO_EDGE[e.key] || 0;
+  if (bit) {
+    e.preventDefault();
+    setInputBit(bit, true);
+  }
+  if (e.key === 'f' || e.key === 'F') toggleFullscreen();
+});
+window.addEventListener('keyup', (e) => {
+  const bit = KEY_TO_EDGE[e.key] || 0;
+  if (bit) {
+    e.preventDefault();
+    setInputBit(bit, false);
+  }
+});
+window.addEventListener('blur', () => {
+  keysHeld = 0;
+  writeInput();
+});
+let pulseTimer = 0;
+function pulseBit(bit) {
+  if (!bit) return;
+  setInputBit(bit, true);
+  clearTimeout(pulseTimer);
+  pulseTimer = setTimeout(() => setInputBit(bit, false), 80);
+}
+let pointerStart = null;
+function onPointerDown(e) {
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  pointerStart = { x: e.clientX, y: e.clientY };
+  e.preventDefault();
+}
+function onPointerUp(e) {
+  if (!pointerStart) return;
+  const dx = e.clientX - pointerStart.x;
+  const dy = e.clientY - pointerStart.y;
+  pointerStart = null;
+  e.preventDefault();
+  const swipe = swipeEdge(dx, dy);
+  pulseBit(swipe || InputEdgeConfirm);
+}
+canvas.addEventListener('pointerdown', onPointerDown);
+canvas.addEventListener('pointerup', onPointerUp);
+canvas.addEventListener('pointercancel', () => { pointerStart = null; });
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 let acc = 0;
 let last = null;
 let fpsWindowStart = null;
@@ -312,9 +432,12 @@ function tick(now) {
   requestAnimationFrame(tick);
 }
 
-const worker = new Worker('/worker.js');
+const worker = new Worker('worker.js');
 worker.onmessage = ({ data }) => {
-  if (data.memory) mem = new Uint8Array(data.memory);
+  if (data.memory) {
+    mem = new Uint8Array(data.memory);
+    writeInput();
+  }
   if (data.done) say('the program finished');
   if (data.error) say('the program failed: ' + data.error);
 };
@@ -333,45 +456,80 @@ function openBrowser(url) {
   return spawn('xdg-open', [url], { stdio: 'ignore' });
 }
 
-// SharedArrayBuffer — what lets the page paint the worker's memory and the
-// worker block on the page's frame clock — is only available to a page that
-// opts into cross-origin isolation with these two headers. Everything this
-// server sends is same-origin, so they cost nothing.
-const ISOLATION_HEADERS = {
-  'Cross-Origin-Opener-Policy': 'same-origin',
-  'Cross-Origin-Embedder-Policy': 'require-corp',
+const MIME = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.wasm': 'application/wasm',
+  '.txt': 'text/plain; charset=utf-8',
 };
+
+/**
+ * Write the hostable web bundle: index.html, worker.js, program.wasm, and
+ * a Cloudflare `_headers` file with the COOP/COEP isolation headers
+ * SharedArrayBuffer needs. `8bs build --target web` writes this to
+ * dist/web/; wrangler (or any static host) serves the same directory.
+ *
+ * @param {string} dir
+ * @param {Buffer} wasmBytes
+ * @param {{ frameRate?: number }} [options]
+ */
+export async function writeWebBundle(dir, wasmBytes, { frameRate = 60 } = {}) {
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, 'index.html'), renderHtml(frameRate));
+  await writeFile(join(dir, 'worker.js'), renderWorker());
+  await writeFile(join(dir, 'program.wasm'), wasmBytes);
+  await writeFile(join(dir, '_headers'), HEADERS_FILE);
+}
 
 /**
  * Serve a program's .wasm with the canvas page and its worker, open it in the
  * system browser, and keep running until the user interrupts (Ctrl+C) —
  * there is no window-close signal to wait on the way VICE gives run.mjs one.
  *
+ * When `root` is set, the directory is served as-is (the dist/web/ bundle
+ * `8bs build --target web` writes). Otherwise the same files are generated
+ * in memory so `8bs run web` still works without a prior build.
+ *
  * @param {Buffer} wasmBytes
- * @param {{ open?: boolean, frameRate?: number }} [options] `open` spawns the
- *   OS browser (default true). An editor's own embedded browser (VS
- *   Code/Cursor's "Simple Browser: Show") has no terminal-invokable
- *   equivalent — it is a command inside the editor, not a URI or CLI flag —
- *   so the printed URL is always the fallback; pass `open: false` to skip
- *   the OS browser and use only that. `frameRate` is the logical Hz
- *   waitFrame() is paced at (default 60, see 8bs.config.ts).
+ * @param {{ open?: boolean, frameRate?: number, root?: string }} [options]
  * @returns {Promise<number>} exit code
  */
-export async function runInBrowser(wasmBytes, { open = true, frameRate = 60 } = {}) {
-  const html = renderHtml(frameRate);
-  const worker = renderWorker();
+export async function runInBrowser(wasmBytes, { open = true, frameRate = 60, root } = {}) {
+  const html = root ? null : renderHtml(frameRate);
+  const worker = root ? null : renderWorker();
   const server = createServer((req, res) => {
-    if (req.url === '/') {
+    const url = new URL(req.url ?? '/', 'http://127.0.0.1');
+    let pathname = url.pathname === '/' ? '/index.html' : url.pathname;
+    if (root) {
+      if (pathname.includes('..')) {
+        res.writeHead(404, ISOLATION_HEADERS);
+        res.end();
+        return;
+      }
+      const file = join(root, pathname.slice(1));
+      const type = MIME[extname(file)] ?? 'application/octet-stream';
+      const stream = createReadStream(file);
+      stream.on('error', () => {
+        res.writeHead(404, ISOLATION_HEADERS);
+        res.end();
+      });
+      stream.on('open', () => {
+        res.writeHead(200, { 'Content-Type': type, ...ISOLATION_HEADERS });
+        stream.pipe(res);
+      });
+      return;
+    }
+    if (pathname === '/index.html') {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', ...ISOLATION_HEADERS });
       res.end(html);
       return;
     }
-    if (req.url === '/worker.js') {
+    if (pathname === '/worker.js') {
       res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', ...ISOLATION_HEADERS });
       res.end(worker);
       return;
     }
-    if (req.url === '/program.wasm') {
+    if (pathname === '/program.wasm') {
       res.writeHead(200, { 'Content-Type': 'application/wasm', ...ISOLATION_HEADERS });
       res.end(wasmBytes);
       return;
@@ -389,7 +547,7 @@ export async function runInBrowser(wasmBytes, { open = true, frameRate = 60 } = 
     'to view it inside the editor.\n',
   );
   if (open) openBrowser(url);
-  process.stdout.write('press Ctrl+C to stop. (in the page: double-click, or F, for fullscreen)\n');
+  process.stdout.write('press Ctrl+C to stop. (in the page: swipe or arrows to move; F for fullscreen)\n');
 
   return new Promise((resolvePromise) => {
     process.on('SIGINT', () => {

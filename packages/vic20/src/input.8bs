@@ -6,7 +6,9 @@
 //
 //     import { input } from "@8bitscript/input";
 //
-// and gets this file on a VIC-20.
+// and gets this file on a VIC-20. The machine-level layers underneath —
+// ./keyboard.8bs, ./keys.8bs — stay available to a program that wants the
+// matrix itself.
 //
 // ---- one joystick split across two chips ---------------------------------
 //
@@ -15,26 +17,25 @@
 // where a switch is closed, as everywhere. **Right is VIA2 port B bit 7**
 // ($9120), which is otherwise a keyboard *column output*. So reading right
 // means turning that one bit around to an input, reading it, and putting
-// it back an output before anything else touches the keyboard lines —
-// which is what `poll()` does below, and why this file cannot simply mask
-// a byte the way the C64's can.
+// it back an output before anything else touches the keyboard lines — and
+// it has to happen *after* `keyboard.scan()` below, which is the thing
+// actually driving those seven other columns each frame; read the joystick
+// first and scan() would find every column selected but the last, and read
+// "right" as though nothing else had touched the port.
 //
 // Verified against VICE's `vic20via1.c` and `vic20via2.c`; ../AGENTS.md
 // records the bits and the boot-time direction registers.
 //
-// ---- what this file does not read, and why -------------------------------
+// ---- the keyboard, and the cursor keys' two directions --------------------
 //
-// **The keyboard.** The wiring is known — VIA2 port B selects columns,
-// port A reads the selected column's rows — but the VIC-20's *key matrix
-// codes* are its own, not the C64's, and this package has no verified
-// table of them the way @8bitscript/c64/keys has one checked key for key
-// against VICE's own keymap. Writing this file's four directions against a
-// matrix recalled rather than checked is exactly what the root AGENTS.md
-// forbids ("verify hardware facts before writing them into comments or
-// docs"), so it is left undone and said out loud instead: **on a VIC-20
-// today, a menu moves under a joystick and not under the cursor keys.**
-// Closing it is a `./keys.8bs` checked against VICE's `gtk3_pos.vkm` for
-// this machine, then a ./keyboard.8bs, then six lines here.
+// Like the C64, this keyboard has two cursor keys, not four:
+// `CURSOR_LEFT_RIGHT` and `CURSOR_UP_DOWN`, with SHIFT reversing each — so
+// left is SHIFT plus the right key, and up is SHIFT plus the down key,
+// which is what the machine actually has rather than four keys it does
+// not. `Key`'s table (./keys.8bs) is checked key for key against VICE's
+// own positional keyboard map (packages/compiler/test/vic20-keys.test.mjs)
+// rather than recalled from memory, per the root AGENTS.md's rule to
+// verify hardware facts before writing them down.
 //
 // **A mouse.** `--hardware port1=mouse1351` sets `input.mouse` on this
 // machine, but a 1351 here would read through the VIC's own analogue lines
@@ -47,6 +48,8 @@
 // Every answer is edge-triggered: true on the one frame the press begins.
 // `poll()` once a frame, right after waitFrame().
 import { via1PortA, via2PortB, via2DirectionB } from "./index.8bs";
+import { keyboard } from "./keyboard.8bs";
+import { Key } from "./keys.8bs";
 
 // VIA1 port A's four switches, and the odd one out on VIA2.
 const JOY_UP: utinyint = 4;
@@ -75,6 +78,11 @@ export namespace input {
     }
 
     function poll(): void {
+        // First, so the other seven keyboard columns are already driven
+        // for this frame before the joystick-right read below borrows
+        // bit 7 of the same port.
+        keyboard.scan();
+
         // The four on VIA1, inverted once so a 1 bit means pushed.
         let stick: utinyint = via1PortA ^ 0xFF;
 
@@ -103,6 +111,31 @@ export namespace input {
         }
         if ((stick & JOY_FIRE) != 0) {
             held = held | Edge.CONFIRM;
+        }
+
+        // The two cursor keys and SHIFT, which is what "four directions"
+        // is on this keyboard — or'd on top of the joystick, same as the
+        // C64: a program should not care which the user reached for.
+        let shifted: bool = keyboard.pressed(Key.SHIFT_LEFT) || keyboard.pressed(Key.SHIFT_RIGHT);
+        if (keyboard.pressed(Key.CURSOR_LEFT_RIGHT)) {
+            if (shifted) {
+                held = held | Edge.LEFT;
+            } else {
+                held = held | Edge.RIGHT;
+            }
+        }
+        if (keyboard.pressed(Key.CURSOR_UP_DOWN)) {
+            if (shifted) {
+                held = held | Edge.UP;
+            } else {
+                held = held | Edge.DOWN;
+            }
+        }
+        if (keyboard.pressed(Key.RETURN)) {
+            held = held | Edge.CONFIRM;
+        }
+        if (keyboard.pressed(Key.RUN_STOP)) {
+            held = held | Edge.CANCEL;
         }
 
         began = held & (before ^ 0xFF);

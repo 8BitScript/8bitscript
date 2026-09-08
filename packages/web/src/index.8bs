@@ -17,11 +17,12 @@
 // (the `--initialMemory 1` page every web build reserves, per
 // @8bitscript/backend-web). This package's hardware surface is therefore an
 // AGREEMENT rather than a register map: a handful of fixed byte offsets in
-// that memory — two for the border and background colours, and a virtual
-// character screen for everything `text` pokes — which the host
-// (packages/cli's browser runtime, packages/cli/src/web-runtime.mjs) reads
-// once per painted frame and draws onto the canvas. It is the same
-// deferred-apply contract a VIC-II register has, aimed at a buffer instead.
+// that memory — two for the border and background colours, a virtual
+// character screen for everything `text` pokes, and one byte of input the
+// page writes and `@8bitscript/web/input` reads — which the host
+// (packages/cli's browser runtime, packages/cli/src/web-runtime.mjs) paints
+// from once per display refresh. It is the same deferred-apply contract a
+// VIC-II register has, aimed at a buffer instead.
 //
 // The character screen is 1000 cells, 40 wide — the C64's own screen shape
 // (see @8bitscript/c64) — picked as a safe superset of the VIC-20's smaller
@@ -34,4 +35,8 @@ export namespace WebRegisters {
     const BACKGROUND_OFFSET: usmallint = 1;
     const CHAR_BASE: usmallint = 2;
     const COLOR_BASE: usmallint = 1002;
+    // Directions, confirm and cancel as the same Edge bits every input
+    // layer uses. The page writes this; poll() in ./input.8bs reads it.
+    // First byte after the 1000 colour cells at COLOR_BASE.
+    const INPUT_OFFSET: usmallint = 2002;
 }

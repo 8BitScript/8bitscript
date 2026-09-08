@@ -1,7 +1,6 @@
 {
   "name": "@8bitscript/language-server",
-  "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Internal: the 8BitScript language server, served to editors over LSP.",
   "license": "MIT",
   "type": "module",
@@ -23,5 +22,8 @@
   },
   "scripts": {
     "test": "node --test"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

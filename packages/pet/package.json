@@ -1,7 +1,6 @@
 {
   "name": "@8bitscript/pet",
-  "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Commodore PET target support for 8BitScript: the hardware underneath the portable APIs.",
   "license": "MIT",
   "8bitscript": {
@@ -11,6 +10,7 @@
       "./text": "./src/text.8bs",
       "./keyboard": "./src/keyboard.8bs",
       "./keys": "./src/keys.8bs",
+      "./blocks": "./src/blocks.8bs",
       "./input": "./src/input.8bs",
       "./pointer": "./src/pointer.8bs"
     },
@@ -178,14 +178,6 @@
           "label": "Disk drive",
           "default": "4040",
           "values": {
-            "none": {
-              "label": "No drive (tape or nothing)",
-              "facts": {
-                "storage.save": false,
-                "storage.kib": 0
-              },
-              "tag": null
-            },
             "4040": {
               "label": "2040/4040 (170K disk)",
               "facts": {
@@ -207,6 +199,14 @@
               "facts": {
                 "storage.save": true,
                 "storage.kib": 1025
+              },
+              "tag": null
+            },
+            "none": {
+              "label": "No drive (tape or nothing)",
+              "facts": {
+                "storage.save": false,
+                "storage.kib": 0
               },
               "tag": null
             }

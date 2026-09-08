@@ -1,7 +1,6 @@
 {
   "name": "@8bitscript/screen",
-  "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "The screen, on whichever machine is being built: border and background colours, with the same eight colour names everywhere. Resolves per target to that machine's own screen implementation.",
   "license": "MIT",
   "8bitscript": {
@@ -30,5 +29,8 @@
   },
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "files": [
+    "package.json"
+  ]
 }

@@ -1,0 +1,81 @@
+// @8bitscript/c64/random — SID voice 3's hardware entropy.
+//
+// Named by "8bitscript".exports["./random"] in this package's package.json:
+//
+//     import { random } from "@8bitscript/c64/random";
+//
+//     random.begin();
+//     let seed: utinyint = random.byte();
+//
+// Its own import, and not part of ./sid.8bs, on purpose — the same reason
+// @8bitscript/atari8/random stands apart from ./pokey.8bs there. Voice 3's
+// oscillator ($D41B) and envelope generator ($D41C) are readable *hardware*
+// state: with the oscillator set to the noise waveform, $D41B is the top
+// byte of a free-running 23-bit polynomial counter, sampled wherever it
+// happens to be when the CPU reads it, so two runs of the same program
+// never agree. That is exactly what a program wants for a seed and exactly
+// what it does not want anywhere else — a game that reads it inside its
+// logic cannot be replayed, cannot be tested against a recorded input, and
+// cannot be debugged from a screenshot. The root AGENTS.md rule is that
+// hardware entropy is never the deterministic PRNG's seed by default and
+// never arrives without being asked for; this file is the asking.
+//
+// The usual shape: read one byte at start-up, seed a deterministic
+// generator (`@8bitscript/random` or `@8bitscript/random/table`) with it,
+// and never touch this again.
+//
+// ---- this claims voice 3 whole ---------------------------------------------
+//
+// Reading real noise means voice 3 has to actually be making it: `begin()`
+// sets its frequency to the fastest the register allows (the noise LFSR is
+// clocked by the oscillator's own carries, so a low frequency barely
+// changes it between two reads a frame apart) and its waveform to noise,
+// then sets $D418's voice-3-off bit so none of that reaches the speaker.
+// The SID's registers below $D419 are write-only — the chip has no way to
+// report what is already there — so `begin()` writes $D418 as a whole
+// known byte (silent, no filter, volume 0) rather than trying to preserve
+// whatever a program had set before. **Call `begin()` first, before
+// `@8bitscript/c64/sid` touches the volume or the filter**, or its own
+// write will win and this file has no way to know that happened — the two
+// packages do not coordinate, the same way @8bitscript/atari8/random warns
+// about AUDCTL. A program that wants both real sound *and* this seed reads
+// the seed once, at start-up, before it plays a single note; using voice 3
+// for both music and entropy at the same time is not something this file
+// can make safe.
+//
+// ---- what the number actually is -------------------------------------------
+//
+// The noise waveform's LFSR is 23 bits, and $D41B is its top 8, so
+// consecutive reads a few cycles apart are consecutive shifts of one
+// register, not independent samples — the same caveat
+// @8bitscript/atari8/random's header gives POKEY's counter. `word()` is
+// here for a program that wants more than eight bits and knows that;
+// anything that needs many independent values wants a PRNG seeded once
+// from here. Nothing here is a source of cryptographic randomness, on this
+// chip or on POKEY's.
+import { sidRegisters, voice3Oscillator } from "./index.8bs";
+
+export namespace random {
+    // Claims voice 3: fastest-clocked noise, silenced. See the header for
+    // why this must run before anything else touches $D418.
+    function begin(): void {
+        sidRegisters[14] = 0xFF; // voice 3 frequency, low byte
+        sidRegisters[15] = 0xFF; // voice 3 frequency, high byte — fastest LFSR clock
+        sidRegisters[18] = 0x80; // voice 3 control: noise waveform, gate off
+        sidRegisters[24] = 0x80; // $D418: voice 3 off, filter off, volume 0 — a whole known byte, not a read-modify-write of a write-only register
+    }
+
+    // One byte from the oscillator, 0-255.
+    function byte(): utinyint {
+        return voice3Oscillator;
+    }
+
+    // Two bytes as one 16-bit value. See the header: the two reads are
+    // consecutive shifts of one register, close together in time, so this
+    // is wider than `byte()` but not twice as random.
+    function word(): usmallint {
+        let high: usmallint = voice3Oscillator;
+        let low: usmallint = voice3Oscillator;
+        return high * 256 + low;
+    }
+}

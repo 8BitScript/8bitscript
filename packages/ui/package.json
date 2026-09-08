@@ -1,7 +1,6 @@
 {
   "name": "@8bitscript/ui",
-  "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Reusable interface components for 8BitScript programs: a menu bar today, drawn on the character grid through @8bitscript/text, so one component works on every target.",
   "license": "MIT",
   "type": "module",

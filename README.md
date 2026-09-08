@@ -149,11 +149,17 @@ notice.
 
 ## Getting started
 
-Setup instructions for the host and retro toolchains live in
-[docs/setup/index.md](docs/setup/index.md). Once that's done,
-[the getting started tutorial](docs/tutorial.md) walks through cloning this
-repository and building and running `examples/borders` — the milestone subset
-of the language, working end to end today, on every target.
+Install the toolchain from npm:
+
+```bash
+pnpm add -D @8bitscript/cli@0.1.0
+```
+
+Setup for LLVM-MOS and the emulators lives in
+[docs/setup/index.md](docs/setup/index.md). [Install from npm](docs/install.md)
+is the page for a program outside this repository.
+[Building on GitHub](docs/github.md) compiles a project in Actions.
+[Hosting the web target](docs/web.md) deploys `dist/web/` to Cloudflare.
 
 ## Documentation
 
@@ -177,9 +183,9 @@ anyway.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the trunk-only workflow, how to add a
-documentation page, the documentation style rules, and how design changes are
-made.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for pull requests into `trunk`, how to
+add a documentation page, the documentation style rules, and how a `v*` tag
+publishes npm, the editor extension, and a frozen docs snapshot.
 
 ## License
 
@@ -187,6 +193,6 @@ MIT. See [LICENSE](LICENSE).
 
 ## Branching
 
-This project is trunk-only: all work lands on `trunk`. There are no long-lived
-feature branches and no release branches. Keep changes small enough to merge
-directly.
+`trunk` is the default branch. New work lands through a short-lived pull
+request. Releases are git tags `v0.1.0`, `v0.2.0`, … — there are no
+long-lived release branches.

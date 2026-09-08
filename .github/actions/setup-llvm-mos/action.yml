@@ -1,0 +1,24 @@
+name: Setup LLVM-MOS
+
+description: Download and cache the LLVM-MOS SDK, then export LLVM_MOS_HOME.
+
+runs:
+  using: composite
+  steps:
+    - name: Cache LLVM-MOS SDK
+      id: cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ runner.temp }}/llvm-mos
+        key: llvm-mos-linux-${{ runner.os }}
+    - name: Install LLVM-MOS SDK
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        curl -sL https://github.com/llvm-mos/llvm-mos-sdk/releases/latest/download/llvm-mos-linux.tar.xz -o "$RUNNER_TEMP/llvm-mos.tar.xz"
+        mkdir -p "$RUNNER_TEMP/llvm-mos"
+        tar -xJf "$RUNNER_TEMP/llvm-mos.tar.xz" -C "$RUNNER_TEMP/llvm-mos" --strip-components=1
+    - name: Export LLVM_MOS_HOME
+      shell: bash
+      run: echo "LLVM_MOS_HOME=$RUNNER_TEMP/llvm-mos" >> "$GITHUB_ENV"

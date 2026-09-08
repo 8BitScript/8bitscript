@@ -20,7 +20,7 @@ import bash from 'highlight.js/lib/languages/bash';
 import json from 'highlight.js/lib/languages/json';
 import yaml from 'highlight.js/lib/languages/yaml';
 
-import { renderPage } from './layout.mjs';
+import { renderPage, configureSite, withBase } from './layout.mjs';
 
 hljs.registerLanguage('bash', bash);
 hljs.registerLanguage('json', json);
@@ -29,7 +29,12 @@ hljs.registerLanguage('yaml', yaml);
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const DOCS_DIR = join(ROOT, 'docs');
 const ASSETS_DIR = join(DOCS_DIR, 'assets');
-const OUT_DIR = join(ROOT, 'dist', 'site');
+
+function resolveOutDir() {
+  return process.env.DOCS_OUT
+    ? resolve(ROOT, process.env.DOCS_OUT)
+    : join(ROOT, 'dist', 'site');
+}
 
 /**
  * Split a `---`-delimited YAML front-matter block off the top of a document.
@@ -154,6 +159,11 @@ function highlight(code, lang) {
 }
 
 async function build() {
+  const OUT_DIR = resolveOutDir();
+  const version = process.env.DOCS_VERSION ?? '0.1.0';
+  const base = process.env.DOCS_BASE ?? '';
+  configureSite({ base, version });
+
   const md = new MarkdownIt({ html: true, linkify: false, typographer: false, highlight });
 
   const sources = await findPages();
@@ -185,7 +195,7 @@ async function build() {
       const raw = token.attrs[hrefIndex][1];
       const { href, target, hash } = rewriteHref(raw, env.url, env.source);
       if (target) internalLinks.push({ from: env.source, href: raw, target, hash });
-      token.attrs[hrefIndex][1] = href;
+      token.attrs[hrefIndex][1] = href.startsWith('/') ? withBase(href) : href;
     }
     return defaultLinkOpen(tokens, idx, options, env, self);
   };
@@ -243,7 +253,14 @@ async function build() {
   );
 }
 
-await stat(DOCS_DIR).catch(() => {
-  throw new Error('docs/ not found — run this from the repository root.');
-});
-await build();
+export { build };
+
+const isMain =
+  process.argv[1] &&
+  fileURLToPath(import.meta.url) === resolve(process.argv[1]);
+if (isMain) {
+  await stat(DOCS_DIR).catch(() => {
+    throw new Error('docs/ not found — run this from the repository root.');
+  });
+  await build();
+}
