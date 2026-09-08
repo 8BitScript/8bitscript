@@ -63,3 +63,22 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm run docs:build
+
+  github-release:
+    needs: [npm, extension, docs]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract this version's changelog entry
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v ver="## $version" '
+            $0 == ver { found=1; next }
+            found && /^## / { exit }
+            found { print }
+          ' packages/cli/CHANGELOG.md > /tmp/release-notes.md
+      - run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file /tmp/release-notes.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
