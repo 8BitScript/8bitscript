@@ -5,20 +5,34 @@
 // the gallery sitting silent after the upload, not the size of the
 // package — a 200 KB VSIX is on the wire in a second.
 import { readFile } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { statSync } from 'node:fs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const VSIX_DIR = resolve('/tmp');
 const MARKETPLACE = 'https://marketplace.visualstudio.com';
 const API = '7.2-preview.2';
 const WAIT_MS = 10 * 60 * 1000;
 
-const vsixPath = process.argv[2];
-if (!vsixPath) {
-  process.stderr.write('usage: node scripts/publish-marketplace.mjs <file.vsix>\n');
-  process.exit(2);
+// argv is untrusted (CI, a shell, an agent). Take only the filename and
+// resolve it under /tmp — the directory release.yml already writes to —
+// so `..` and absolute paths cannot pick a file elsewhere.
+function resolveVsixPath(input) {
+  const fileName = basename(input ?? '');
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*\.vsix$/.test(fileName)) {
+    process.stderr.write('usage: node scripts/publish-marketplace.mjs <file.vsix>\n');
+    process.exit(2);
+  }
+  const resolved = resolve(VSIX_DIR, fileName);
+  if (!resolved.startsWith(VSIX_DIR + sep)) {
+    process.stderr.write('VSIX path is outside /tmp.\n');
+    process.exit(2);
+  }
+  return resolved;
 }
+
+const vsixPath = resolveVsixPath(process.argv[2]);
 
 const pat = process.env.VSCE_PAT;
 if (!pat) {
