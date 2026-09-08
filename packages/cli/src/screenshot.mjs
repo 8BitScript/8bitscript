@@ -19,7 +19,7 @@
 // examples/borders until the boot sequence had clearly cleared.
 import { spawn } from 'node:child_process';
 import {
-  access, mkdtemp, readFile, rm, writeFile,
+  access, mkdir, mkdtemp, readFile, rm, writeFile,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -59,6 +59,49 @@ function run(command, args) {
 
 function sleep(ms) {
   return new Promise((resolvePromise) => { setTimeout(resolvePromise, ms); });
+}
+
+function pidAlive(pid) {
+  try { process.kill(pid, 0); return true; } catch { return false; }
+}
+
+// atari800 screenshots are a real window plus screencapture: two of those
+// at once share a display, a config file, and (under `pnpm test`) a CPU
+// that makes the wall-clock `--frames` wait fire before the OS has
+// painted. One capture at a time, with a stale-pid break so a killed test
+// cannot leave the next one waiting forever.
+const ATARI8_LOCK = join(tmpdir(), '8bs-atari8-screenshot.lock');
+
+async function withAtari8ScreenshotLock(fn) {
+  const started = Date.now();
+  while (true) {
+    try {
+      await mkdir(ATARI8_LOCK);
+      await writeFile(join(ATARI8_LOCK, 'pid'), String(process.pid));
+      break;
+    } catch (err) {
+      if (err.code !== 'EEXIST') throw err;
+      try {
+        const holder = Number.parseInt(await readFile(join(ATARI8_LOCK, 'pid'), 'utf8'), 10);
+        if (!Number.isFinite(holder) || !pidAlive(holder)) {
+          await rm(ATARI8_LOCK, { recursive: true, force: true });
+          continue;
+        }
+      } catch {
+        await rm(ATARI8_LOCK, { recursive: true, force: true }).catch(() => {});
+        continue;
+      }
+      if (Date.now() - started > 180_000) {
+        throw new Error('8bs run: timed out waiting for another atari8 screenshot to finish');
+      }
+      await sleep(100);
+    }
+  }
+  try {
+    return await fn();
+  } finally {
+    await rm(ATARI8_LOCK, { recursive: true, force: true });
+  }
 }
 
 async function fileExists(path) {
@@ -183,25 +226,32 @@ async function atari8Screenshot(outFile, screenshotPath, { pal, hardware = stock
   if (process.platform !== 'darwin') {
     throw new Error('8bs run: atari8 --screenshot needs macOS (window capture via Screen Recording permission); no equivalent has been wired up for this platform yet.');
   }
-  const { findWindowIdForPid, captureWindow } = await import('./mac-window-capture.mjs');
-  const displayCfg = await atari800CleanDisplayConfig();
-  const args = [
-    ...(displayCfg ? ['-config', displayCfg, '-no-autosave-config'] : []),
-    ...(hardware.run.atari800 ?? []),
-    pal ? '-pal' : '-ntsc',
-    // An XEGS cartridge is not an executable: the catalog's `load` says
-    // `-cart ... -cart-type 23` where the default would be `-run`.
-    ...loadArgs(hardware, 'atari800', outFile, DEFAULT_LOAD.atari800(outFile)),
-  ];
-  const child = spawn('atari800', args, { stdio: 'ignore' });
-  try {
-    await sleep(1000 * ((frames ?? ATARI8_DEFAULT_FRAMES) / ATARI8_FPS));
-    const windowId = await findWindowIdForPid(child.pid);
-    if (windowId === null) throw new Error('8bs run: could not find the atari800 window to capture.');
-    await captureWindow(windowId, screenshotPath);
-  } finally {
-    child.kill('SIGKILL');
-  }
+  return withAtari8ScreenshotLock(async () => {
+    const { findWindowIdForPid, captureWindow } = await import('./mac-window-capture.mjs');
+    const displayCfg = await atari800CleanDisplayConfig();
+    const args = [
+      ...(displayCfg ? ['-config', displayCfg, '-no-autosave-config'] : []),
+      ...(hardware.run.atari800 ?? []),
+      pal ? '-pal' : '-ntsc',
+      // An XEGS cartridge is not an executable: the catalog's `load` says
+      // `-cart ... -cart-type 23` where the default would be `-run`.
+      ...loadArgs(hardware, 'atari800', outFile, DEFAULT_LOAD.atari800(outFile)),
+    ];
+    const child = spawn('atari800', args, { stdio: 'ignore' });
+    try {
+      await sleep(1000 * ((frames ?? ATARI8_DEFAULT_FRAMES) / ATARI8_FPS));
+      let windowId = null;
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        windowId = await findWindowIdForPid(child.pid);
+        if (windowId !== null) break;
+        await sleep(250);
+      }
+      if (windowId === null) throw new Error('8bs run: could not find the atari800 window to capture.');
+      await captureWindow(windowId, screenshotPath);
+    } finally {
+      child.kill('SIGKILL');
+    }
+  });
 }
 
 // ---- Commander X16 (x16emu) -------------------------------------------------
@@ -229,10 +279,16 @@ async function cx16Screenshot(outFile, screenshotPath, { frames, hardware = stoc
     // then how the built file is handed over — the same list the interactive
     // `8bs run` passes, so a screenshot reflects the hardware the program
     // was built for instead of silently running on the emulator's defaults.
-    // `-capture` is dropped: it grabs the host pointer, which a headless
-    // -gif recording has no window to grab, and x16emu then exits 13.
+    // Keep `-capture`. Without it, x16emu reports the host cursor as off
+    // the window and mouse_scan slams the KERNAL pointer to the last cell
+    // (examples/pointer printed CELL 04255); the sprite sits off-screen
+    // and packages/pointer's centre-arrow count is 0. An earlier x16emu
+    // exited 13 combining `-capture` with a gif and no window; r50
+    // ("next" 77f2bab3) records the gif with `-capture` and the arrow
+    // is in the still (measured: 43 white pixels in the 24×24 centre box,
+    // 0 without `-capture`).
     const args = [
-      ...(hardware.run.x16emu ?? []).filter((flag) => flag !== '-capture'),
+      ...(hardware.run.x16emu ?? []),
       ...loadArgs(hardware, 'x16emu', outFile, ['-prg', outFile, '-run']),
       '-gif', gifPath, '-sound', 'none',
     ];

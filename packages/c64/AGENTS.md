@@ -198,16 +198,20 @@ Do not describe more than this as working:
 - `FRAME_SYNC.c64` (`packages/backend-6502`): a *level* driver — top half
   of the frame is `$D012 < 128` with `$D011` bit 7 clear (read in that
   order), the PAL probe is a raster line past 287 — and a `presync` of
-  `sei`: **a program that calls `waitFrame()` anywhere runs with
-  interrupts off from start-up**, and one that draws first has them off
-  from `setupVideo()`. The KERNAL's 60 Hz IRQ (CIA1 timer A) scans the
-  keyboard through the same ports `keyboard.scan()` uses and would race
-  it; with it silenced the ports read what the program selected. The only
-  interrupt that ever runs after that is the raster list's, if a program
-  enables it. Consequences: no KERNAL keyboard buffer, no jiffy clock, no
-  RUN/STOP+RESTORE (with the ROM out, RESTORE's NMI is a bare `rti`), and
-  returning from `main()` into BASIC is off the map. NTSC is 263 × 65
-  cycles at 1022727 Hz (a 6567R8), PAL 312 × 63 at 985248 Hz (6569).
+  `sei`: **a program that calls `waitFrame()` runs with interrupts off
+  from start-up**, and one that draws first has them off from
+  `setupVideo()`, **until `raster.enable()`**. The KERNAL's 60 Hz IRQ
+  (CIA1 timer A) scans the keyboard through the same ports
+  `keyboard.scan()` uses and would race it; with it silenced the ports
+  read what the program selected. `raster.enable()` silences both CIAs,
+  installs the list's handler, sets `interruptsOn` and `cli`s, and from
+  then on `waitFrame()` skips `sei` so that handler can run (otherwise
+  the visible frame is polled with I set and the split never shows —
+  `test/layers.test.mjs` caught a solid blue border). Consequences: no
+  KERNAL keyboard buffer, no jiffy clock, no RUN/STOP+RESTORE (with the
+  ROM out, RESTORE's NMI is a bare `rti`), and returning from `main()`
+  into BASIC is off the map. NTSC is 263 × 65 cycles at 1022727 Hz (a
+  6567R8), PAL 312 × 63 at 985248 Hz (6569).
 - `8bs run c64` launches `x64sc -model ntsc` (or `-model c64` with
   `--pal`), `--screenshot` through `-limitcycles`/`-exitscreenshot`.
   Other models: `docs/setup/vice.md` has the `-model` table.
@@ -609,7 +613,7 @@ packages/c64/package.json            "8bitscript".exports names the fourteen sub
 packages/compiler/test/c64-package.test.mjs   layout consistency, registers, borders through the bank, each subpath's emitted C, raster.s's shape, keys vs VICE, both note tables
 packages/compiler/test/borders-parity.test.mjs   the c64 row expects $D018 = 132
 packages/c64/package.json            "8bitscript".hardware: ram (REU), sid, port1, port2 — values, x64sc flags, facts, presets
-packages/backend-6502/src/index.mjs  FRAME_SYNC.c64 (level driver, presync sei, PAL probe)
+packages/backend-6502/src/index.mjs  FRAME_SYNC.c64 (level driver, presync sei unless interruptsOn, PAL probe)
 packages/compiler/src/resolver/index.mjs   nativeSourcesBeside(): a package's native files ride with its own files, however imported
 packages/cli/src/run.mjs             x64sc, -model ntsc/c64, the catalog's flags appended
 packages/cli/src/hardware.mjs        how a build's hardware is resolved from the catalog

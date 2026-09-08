@@ -35,11 +35,14 @@ Two features, related but separable:
 
 Every C64 program in this repo runs with **interrupts off from the first
 `waitFrame()` or the first draw** — `FRAME_SYNC.c64.presync` is `sei`, and
-`setupVideo()` runs `sei` too. The reason is real: the KERNAL's own IRQ
-scans the keyboard through the same CIA ports a game reads, and the frame
-driver polls the raster rather than taking an interrupt. "The program owns
-the machine" is the C64 target's founding invariant
-(`packages/c64/AGENTS.md`).
+`setupVideo()` runs `sei` too — **until `raster.enable()`**. That call
+silences the CIAs, installs the list's handler, sets `interruptsOn` and
+`cli`s; `waitFrame()` then skips `sei` so the handler can run during the
+visible-frame poll. The reason interrupts are off otherwise is real: the
+KERNAL's own IRQ scans the keyboard through the same CIA ports a game
+reads, and the frame driver polls the raster rather than taking an
+interrupt. "The program owns the machine" is the C64 target's founding
+invariant (`packages/c64/AGENTS.md`).
 
 A handler written in 8bitscript that runs at an interrupt means:
 

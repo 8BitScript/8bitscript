@@ -138,9 +138,13 @@ export const DEFAULT_LOAD = {
 // border included, on top of the ordinary horizontal scanline overlay.
 // There is no CLI flag for that uniform (only SCANLINES_PERCENTAGE has
 // `-scanlines`), so `8bs run` copies the user's ~/.atari800.cfg, zeros
-// the CRT knobs, and points `-config` at the copy with `-no-autosave-config`
-// so the user's own file is left alone. ROM paths stay whatever the user
-// already configured; without those the emulator boots to black.
+// the CRT knobs, and points `-config` at a *per-process* copy with
+// `-no-autosave-config` so the user's own file is left alone. The path
+// includes the pid because `pnpm test` runs atari8 screenshot tests in
+// parallel (banks vs layers, and other packages' emulators at the same
+// time): a shared `8bs-atari800.cfg` is two writers and two atari800s
+// reading one file. ROM paths stay whatever the user already configured;
+// without those the emulator boots to black.
 export async function atari800CleanDisplayConfig() {
   let cfg;
   try {
@@ -157,7 +161,7 @@ export async function atari800CleanDisplayConfig() {
   cfg = setKey(cfg, 'CRT_PHOSPHOR_GLOW', '0');
   cfg = setKey(cfg, 'SCANLINES_PERCENTAGE', '0');
   cfg = setKey(cfg, 'INTERPOLATE_SCANLINES', '0');
-  const outPath = join(tmpdir(), '8bs-atari800.cfg');
+  const outPath = join(tmpdir(), `8bs-atari800-${process.pid}.cfg`);
   await writeFile(outPath, cfg);
   return outPath;
 }

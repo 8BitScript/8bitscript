@@ -272,6 +272,12 @@ const FRAME_SYNC = {
     // KERNAL keyboard, and returning from main() into BASIC is off the
     // map (packages/c64/AGENTS.md). Interrupts stay off for the charset
     // copy @8bitscript/c64's video setup does with I/O banked out, too.
+    // The exception is the raster list: raster.enable() silences both
+    // CIAs, points the IRQ at the package's handler, sets interruptsOn,
+    // and cli's. From then on this poll must leave I clear, or the
+    // handler never runs and a split-border program shows one colour
+    // (measured: raster-probe's screenshot was solid blue at every
+    // sample, with the green background that proves main() ran).
     presync: '__asm__ volatile("sei" ::: "memory");',
     ntsc: { num: 263 * 65 * 14, den: 14318181 },
     pal: { num: 312 * 63 * 18, den: 17734472 },
@@ -867,6 +873,13 @@ export function emitC(ir, { machine, frameRate = 60 } = {}) {
     // the name the package gave it.
     const hook = sync.frameHook && ir.functions.some((fn) => fn.name === sync.frameHook) ? sync.frameHook : null;
     if (hook) out += `static void ${hook}(void);\n`; // defined with the program's functions, below
+    // c64: waitFrame()'s sei is for the KERNAL's CIA1 IRQ. Once the
+    // raster list owns the interrupt (`interruptsOn`, always a global of
+    // the c64 target package), sei would mask the handler for the whole
+    // visible frame. Skip it then. Copy the entry: FRAME_SYNC is shared.
+    if (sync.presync && ir.globals.some((g) => g.name === 'interruptsOn')) {
+      sync = { ...sync, presync: `if (!interruptsOn) { ${sync.presync} }` };
+    }
     out += emitFrameRuntime(sync, frameRate, hook);
   }
 
