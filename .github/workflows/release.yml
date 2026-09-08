@@ -49,11 +49,28 @@ jobs:
           node-version: 26
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Both marketplaces' publish APIs are occasionally flaky (v0.1.1 hit
+      # a "Request timeout: /_apis/gallery" from vsce on a GitHub-hosted
+      # runner, not just from a home network) — retry a few times before
+      # giving up. --skip-duplicate covers the case where a "timed out"
+      # request actually succeeded server-side.
       - if: ${{ env.VSCE_PAT != '' }}
-        run: pnpm exec vsce publish
+        run: |
+          for attempt in 1 2 3; do
+            pnpm exec vsce publish --skip-duplicate && break
+            [ "$attempt" = 3 ] && exit 1
+            echo "vsce publish failed (attempt $attempt/3), retrying in 15s..."
+            sleep 15
+          done
         working-directory: editors/vscode
       - if: ${{ env.OVSX_PAT != '' }}
-        run: pnpm exec ovsx publish -p "$OVSX_PAT"
+        run: |
+          for attempt in 1 2 3; do
+            pnpm exec ovsx publish -p "$OVSX_PAT" --skip-duplicate && break
+            [ "$attempt" = 3 ] && exit 1
+            echo "ovsx publish failed (attempt $attempt/3), retrying in 15s..."
+            sleep 15
+          done
         working-directory: editors/vscode
 
   docs:
