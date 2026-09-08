@@ -5,6 +5,7 @@
   "version": "0.1.2",
   "private": true,
   "publisher": "8bitscript",
+  "icon": "media/8bitscript-icon.png",
   "license": "MIT",
   "repository": {
     "type": "git",
