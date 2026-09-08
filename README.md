@@ -1,5 +1,10 @@
 # 8BitScript
 
+[![Release](https://img.shields.io/github/v/release/8BitScript/8bitscript?label=release)](https://github.com/8BitScript/8bitscript/releases)
+[![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=8bitscript_8bitscript&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=8bitscript_8bitscript)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=8bitscript_8bitscript&metric=coverage)](https://sonarcloud.io/component_measures?id=8bitscript_8bitscript&metric=coverage)
+[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=8bitscript_8bitscript&metric=code_smells)](https://sonarcloud.io/project/issues?id=8bitscript_8bitscript&resolved=false&types=CODE_SMELL)
+
 8BitScript is a statically compiled programming language for classic 8-bit
 computers and the web, using TypeScript-inspired syntax without inheriting the
 managed runtime that normally comes with it.
