@@ -36,6 +36,7 @@ const {
   ofKind,
   resolveLlvmMosHome,
   systemLine,
+  toolchainVersion,
   withShipped,
 } = require('./projects.cjs');
 const settings = require('./settings.cjs');
@@ -583,6 +584,12 @@ function registerRunner(context, output) {
       return;
     }
     const dir = project?.dir ?? path.dirname(path.dirname(path.dirname(toolchain)));
+    const version = project?.toolchainVersion ?? toolchainVersion(toolchain);
+    output.appendLine(
+      version
+        ? `8bs toolchain: @8bitscript/cli ${version} at ${toolchain}`
+        : `8bs toolchain at ${toolchain}: version unreadable`,
+    );
     await vscode.tasks.executeTask(makeTask(
       project ?? { name: '8bs', dir, toolchain, targets: [] },
       'doctor',

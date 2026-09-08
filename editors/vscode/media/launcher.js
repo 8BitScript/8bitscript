@@ -172,6 +172,9 @@ window.addEventListener('message', ({ data }) => {
 
   fill($('project'), data.projects, data.project);
   $('project').disabled = empty;
+  $('project').title = data.toolchainVersion
+    ? 'The project Run and Build act on — @8bitscript/cli ' + data.toolchainVersion
+    : 'The project Run and Build act on';
   $('open').disabled = empty;
   // The System dropdown holds two kinds of entry when the project's config
   // declares systems: those first, then the bare machines.

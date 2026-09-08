@@ -224,6 +224,7 @@ class LauncherViewProvider {
       projects: projectOptions(listed),
       project: project?.dir ?? '',
       projectLabel: project ? labelOf(project) : '',
+      toolchainVersion: project?.toolchainVersion ?? null,
       installed: project ? project.installed : true,
       packageManager: project?.packageManager ?? 'pnpm',
       systems: systemOptions(targets, project),

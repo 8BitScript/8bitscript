@@ -224,6 +224,7 @@ function packageManagerFor(startDir) {
  * @property {string} entry       absolute path of the entry .8bs file
  * @property {string[]} targets   systems it builds for, in ALL_TARGETS order
  * @property {string | null} toolchain absolute path of its `8bs`, if installed
+ * @property {string | null} toolchainVersion `@8bitscript/cli`'s package.json version, if resolvable
  * @property {boolean} installed  its declared dependencies have a node_modules
  * @property {'pnpm' | 'npm' | 'yarn'} packageManager what `install` should run
  * @property {boolean} [shipped]  found beside the toolchain rather than in the workspace
@@ -247,6 +248,7 @@ function loadProject(configPath) {
   const pkg = readPackage(dir);
   const name = (pkg && typeof pkg.name === 'string' && pkg.name) || path.basename(dir);
   const app = appManifest(pkg);
+  const toolchain = findToolchain(dir);
   return {
     name,
     title: (app && typeof app.title === 'string' && app.title) || name,
@@ -256,7 +258,8 @@ function loadProject(configPath) {
     configPath,
     entry: path.resolve(dir, entry),
     targets,
-    toolchain: findToolchain(dir),
+    toolchain,
+    toolchainVersion: toolchainVersion(toolchain),
     installed: isInstalled(dir, pkg),
     packageManager: packageManagerFor(dir),
   };
@@ -311,6 +314,22 @@ function cliPackageDir(toolchain) {
     }
   }
   return null;
+}
+
+/**
+ * The version of `@8bitscript/cli` a toolchain resolves to, or null when it
+ * cannot be read. A `link:`-ed or monorepo toolchain reports the linked
+ * checkout's own package.json version — the source, not a registry
+ * snapshot — which is the right answer for someone developing against it.
+ *
+ * @param {string | null} toolchain absolute path of a project's `8bs`
+ * @returns {string | null}
+ */
+function toolchainVersion(toolchain) {
+  const dir = cliPackageDir(toolchain);
+  if (!dir) return null;
+  const version = readPackage(dir)?.version;
+  return typeof version === 'string' ? version : null;
 }
 
 /**
@@ -398,7 +417,13 @@ function loadApps(toolchain) {
   }
   return [...dirs].sort().map((dir) => {
     const project = loadProject(path.join(dir, CONFIG_FILE));
-    return { ...project, shipped: true, toolchain: project.toolchain ?? toolchain };
+    const resolved = project.toolchain ?? toolchain;
+    return {
+      ...project,
+      shipped: true,
+      toolchain: resolved,
+      toolchainVersion: project.toolchainVersion ?? toolchainVersion(resolved),
+    };
   });
 }
 
@@ -640,5 +665,6 @@ module.exports = {
   parseConfig,
   resolveLlvmMosHome,
   runnableOn,
+  toolchainVersion,
   withShipped,
 };

@@ -30,6 +30,7 @@ const {
   parseConfig,
   resolveLlvmMosHome,
   runnableOn,
+  toolchainVersion,
   withShipped,
 } = require('../src/projects.cjs');
 
@@ -124,6 +125,7 @@ test('loadProject combines the config, package.json, and toolchain', (t) => {
   assert.equal(project.entry, path.join(dir, 'src', 'main.8bs'));
   assert.deepEqual(project.targets, ['vic20', 'c64']);
   assert.equal(project.toolchain, path.join(dir, 'node_modules', '.bin', BINARY));
+  assert.equal(project.toolchainVersion, null, 'no real @8bitscript/cli package behind this bin');
 });
 
 test('loadProject names a project after its directory when package.json is missing', (t) => {
@@ -185,7 +187,7 @@ test('parseConfig reads the object form of targets — the machines composing pr
  */
 function checkout(root) {
   const repo = path.join(root, '8bitscript');
-  write(path.join(repo, 'packages', 'cli', 'package.json'), JSON.stringify({ name: '@8bitscript/cli' }));
+  write(path.join(repo, 'packages', 'cli', 'package.json'), JSON.stringify({ name: '@8bitscript/cli', version: '0.1.2' }));
   write(path.join(repo, 'packages', 'cli', 'bin', '8bs.mjs'), '');
   write(path.join(repo, 'packages', 'studio', 'package.json'), JSON.stringify({
     name: '@8bitscript/studio',
@@ -231,6 +233,17 @@ test('cliPackageDir follows either kind of toolchain link back to the CLI packag
   const stray = path.join(root, 'stray', 'node_modules', '.bin', BINARY);
   write(stray, '');
   assert.equal(cliPackageDir(stray), null);
+});
+
+test('toolchainVersion reads the CLI package.json through either kind of link', (t) => {
+  const root = scratch(t);
+  const repo = checkout(root);
+  // A link or a monorepo checkout reports the linked package's own
+  // version — the source, not whatever the registry last published.
+  assert.equal(toolchainVersion(linkedConsumer(root, repo, 'game')), '0.1.2');
+  assert.equal(toolchainVersion(shimmedConsumer(root, repo, 'shimmed')), '0.1.2');
+  assert.equal(toolchainVersion(null), null);
+  assert.equal(toolchainVersion(path.join(root, 'missing')), null);
 });
 
 test('findExamplesDir finds examples/ beside a repository checkout', (t) => {
@@ -283,6 +296,7 @@ test('loadApps finds the apps that ship with the toolchain, in a checkout and in
   ]);
   // An app is launched with the toolchain that found it when it has none of its own.
   assert.equal(apps[0].toolchain, bin);
+  assert.equal(apps[0].toolchainVersion, '0.1.2', 'falls back the same way toolchain does');
   assert.equal(apps[0].dir, path.join(repo, 'packages', 'studio'));
 
   assert.deepEqual(loadApps(null), []);
