@@ -123,6 +123,10 @@ publisher to it, so a brand-new package's first publish can't go
 through CI — it needs a one-time manual step before (or as part of)
 the PR that adds it:
 
+0. Copy the `"repository"` field from an existing `packages/*/package.json`
+   (updating `directory`) — `scripts/release.mjs` checks for it before
+   publishing and fails fast if it's missing, since npm's Trusted
+   Publishing provenance check rejects a publish without it.
 1. `npm login` (interactive, needs 2FA) if not already logged in.
 2. From the repo root: `pnpm install`, then `pnpm --filter ./packages/<name> publish --access public`
    to create the package on npm.

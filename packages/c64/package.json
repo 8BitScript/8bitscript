@@ -3,6 +3,11 @@
   "version": "0.1.1",
   "description": "C64 target support for 8BitScript: the hardware underneath the portable APIs.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/8BitScript/8bitscript.git",
+    "directory": "packages/c64"
+  },
   "8bitscript": {
     "entry": "./src/index.8bs",
     "native": [

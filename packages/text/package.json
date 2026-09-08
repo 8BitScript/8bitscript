@@ -3,6 +3,11 @@
   "version": "0.1.1",
   "description": "The character grid, on whichever machine is being built: ASCII in, one cell at a time, the same on every target. Resolves per target to that machine's own text implementation.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/8BitScript/8bitscript.git",
+    "directory": "packages/text"
+  },
   "8bitscript": {
     "entry": {
       "vic20": "@8bitscript/vic20/text",

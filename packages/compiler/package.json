@@ -3,6 +3,11 @@
   "version": "0.1.1",
   "description": "Internal: the 8BitScript front end — lexer, checker, and diagnostics.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/8BitScript/8bitscript.git",
+    "directory": "packages/compiler"
+  },
   "type": "module",
   "engines": {
     "node": ">=26"
