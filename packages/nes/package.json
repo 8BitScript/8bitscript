@@ -3,6 +3,11 @@
   "version": "0.1.1",
   "description": "NES target support for 8BitScript: the hardware underneath the portable APIs.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/8BitScript/8bitscript.git",
+    "directory": "packages/nes"
+  },
   "8bitscript": {
     "entry": "./src/index.8bs",
     "exports": {

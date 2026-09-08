@@ -3,6 +3,11 @@
   "version": "0.1.1",
   "description": "The screen, on whichever machine is being built: border and background colours, with the same eight colour names everywhere. Resolves per target to that machine's own screen implementation.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/8BitScript/8bitscript.git",
+    "directory": "packages/screen"
+  },
   "8bitscript": {
     "entry": {
       "vic20": "@8bitscript/vic20/screen",

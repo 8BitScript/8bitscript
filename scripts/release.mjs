@@ -36,10 +36,23 @@ const dirs = (await readdir(join(ROOT, 'packages'), { withFileTypes: true }))
   .filter((e) => e.isDirectory())
   .map((e) => e.name);
 
+const expectedRepoUrl = 'https://github.com/8BitScript/8bitscript.git';
+
 for (const name of dirs) {
   const pkg = JSON.parse(await readFile(join(ROOT, 'packages', name, 'package.json'), 'utf8'));
   if (pkg.version !== version) {
     process.stderr.write(`${name} is ${pkg.version}, expected ${version}\n`);
+    process.exit(1);
+  }
+  // npm's sigstore provenance check (from Trusted Publishing) verifies
+  // package.json's repository.url against the OIDC-issued workflow
+  // identity and rejects the publish if it's missing or wrong — this
+  // caught v0.1.1 with a real 422 mid-release, so check it up front.
+  if (pkg.repository?.url !== expectedRepoUrl) {
+    process.stderr.write(
+      `${name}'s package.json is missing "repository": { "url": "${expectedRepoUrl}" } ` +
+        '(or it doesn\'t match) — npm Trusted Publishing rejects the provenance check without it.\n',
+    );
     process.exit(1);
   }
   await cp(join(ROOT, 'LICENSE'), join(ROOT, 'packages', name, 'LICENSE'));
@@ -47,4 +60,4 @@ for (const name of dirs) {
 
 process.stdout.write(`Publishing @8bitscript/* ${version} from the workspace.\n`);
 await run('pnpm', ['-r', 'publish', '--filter', './packages/*', '--access', 'public', '--no-git-checks']);
-process.stdout.write(`Published ${version}. Tag with: git tag v${version} && git push origin v${version}\n`);
+process.stdout.write(`Published ${version}.\n`);

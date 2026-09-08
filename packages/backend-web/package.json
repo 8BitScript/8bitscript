@@ -3,6 +3,11 @@
   "version": "0.1.1",
   "description": "Internal: lowers IR to generated AssemblyScript and drives asc to a .wasm.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/8BitScript/8bitscript.git",
+    "directory": "packages/backend-web"
+  },
   "type": "module",
   "engines": {
     "node": ">=26"
