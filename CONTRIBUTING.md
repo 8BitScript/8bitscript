@@ -56,24 +56,49 @@ git push origin v0.1.0
 publishes `@8bitscript/*` publicly. Do not publish by hand unless you
 are recovering a failed tag.
 
-### First 0.1.0 publish (one-time)
+npm publishing from CI uses [Trusted Publishing](https://docs.npmjs.com/trusted-publishers/)
+(OIDC) — no `NPM_TOKEN` needed for packages that already have a trust
+config pointing at this repo and `release.yml`. `NPM_TOKEN` is kept as
+a fallback only; pnpm tries OIDC first automatically.
 
-These are interactive and need a human:
+### Adding a new package to `packages/`
 
-1. Create the npm organisation `8bitscript` and run `npm login`.
-2. Create the Visual Studio Marketplace publisher `8bitscript` and an
-   Open VSX personal access token.
-3. Store `NPM_TOKEN`, `VSCE_PAT`, `OVSX_PAT`, and `CLOUDFLARE_API_TOKEN`
-   as GitHub org secrets. `VSCE_PAT` and `OVSX_PAT` are optional: the
-   `extension` job's publish steps each skip (not fail) when their
-   secret is unset, so npm and docs still publish without the editor
-   extension. Add the secret later and the next tag picks it up with no
-   workflow change.
-4. Add the `8bitscript.com` zone to the same Cloudflare account as
+A package needs to exist on npm before you can attach a trusted
+publisher to it, so a brand-new package's first publish can't go
+through CI — it needs a one-time manual step before (or as part of)
+the PR that adds it:
+
+1. `npm login` (interactive, needs 2FA) if not already logged in.
+2. From the repo root: `pnpm install`, then `pnpm --filter ./packages/<name> publish --access public`
+   to create the package on npm.
+3. `npm trust github @8bitscript/<name> --file release.yml --repo 8BitScript/8bitscript --allow-publish --yes`
+   to wire it into CI permanently (one-time 2FA browser approval, same
+   as the first `npm trust` call in a batch — subsequent calls in the
+   same session don't re-challenge).
+
+After that, the package is on the same lockstep-versioned, tag-triggered
+release as everything else — no more manual steps for it.
+
+### First 0.1.0 publish (historical)
+
+The 0.1.0 launch predates Trusted Publishing being set up, and npm's
+bypass-2FA CI tokens turned out to be a dead end (being phased out,
+and the account setting to allow them may already be disabled org-wide).
+What actually happened: all 22 packages and the VS Code extension were
+published by hand from a human's authenticated machine, then Trusted
+Publishing was configured per-package afterward so v0.2.0 onward can
+release through CI normally. See git history around the `v0.1.0` tag
+for the blow-by-blow if this ever needs to be repeated for a similar
+situation (e.g. a second npm org).
+
+Remaining one-time setup for a *new* project under this org (e.g. the
+planned `2048`):
+
+1. Add the `8bitscript.com` zone to the same Cloudflare account as
    `8bitscript.org` (needed for `2048.8bitscript.com`).
-5. Create an empty `8BitScript/2048` repository, push `trunk`, set it as
-   the default branch.
-6. Tag from `trunk`: `git tag v0.1.0 && git push origin v0.1.0`.
+2. Create an empty `8BitScript/2048` repository, push `trunk`, set it
+   as the default branch, and store `CLOUDFLARE_API_TOKEN` as a repo
+   secret if it deploys docs the same way this repo does.
 
 The documentation site is built from `docs/` by `site/build-all.mjs`.
 Production `/` is the latest tagged version; `/0.1.0/` is that version's
