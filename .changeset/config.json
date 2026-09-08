@@ -1,0 +1,38 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config@3.0.0/schema.json",
+  "changelog": "@changesets/cli/changelog",
+  "commit": false,
+  "fixed": [
+    [
+      "@8bitscript/atari8",
+      "@8bitscript/backend-6502",
+      "@8bitscript/backend-web",
+      "@8bitscript/c64",
+      "@8bitscript/c128",
+      "@8bitscript/cli",
+      "@8bitscript/compiler",
+      "@8bitscript/cx16",
+      "@8bitscript/input",
+      "@8bitscript/language-server",
+      "@8bitscript/mega65",
+      "@8bitscript/nes",
+      "@8bitscript/pet",
+      "@8bitscript/pointer",
+      "@8bitscript/random",
+      "@8bitscript/screen",
+      "@8bitscript/studio",
+      "@8bitscript/system",
+      "@8bitscript/text",
+      "@8bitscript/ui",
+      "@8bitscript/vic20",
+      "@8bitscript/web",
+      "8bitscript-lang"
+    ]
+  ],
+  "linked": [],
+  "access": "public",
+  "baseBranch": "trunk",
+  "updateInternalDependencies": "patch",
+  "ignore": ["borders", "menubar", "pointer"],
+  "privatePackages": { "version": true, "tag": false }
+}

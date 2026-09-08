@@ -7,54 +7,94 @@ are documentation, compiler, package, and editor work.
 
 ## Workflow
 
-`trunk` is the default branch. New work lands through a short-lived pull
-request into `trunk`. There are no long-lived feature branches and no
-release branches. A version is a git tag `v0.1.0`, `v0.2.0`, … that
-triggers npm publish, the editor extension, and a frozen docs snapshot.
+`trunk` is the default branch, and it's protected: nobody — including
+repo admins — can push to it directly. Every change, however small,
+goes through a pull request. No approval is required to merge (so this
+doesn't block solo work), but the PR itself is mandatory. There are no
+long-lived feature branches and no release branches.
+
+If you've never opened a pull request before, here's the whole loop:
 
 ```bash
+git checkout trunk
+git pull origin trunk
 git checkout -b describe-the-change
 # make the change
 pnpm test
-git add -A
-git commit -m "docs: describe the change"
-git push -u origin HEAD
 ```
 
-Open a pull request against `trunk`. The CI workflow runs `pnpm run
-test:ci`, not `pnpm test`: it excludes `atari8`, `c128`, `c64`, `cx16`,
-`pet`, and `pointer`, whose tests boot a real emulator (VICE, atari800,
-Xemu) and assert on what it does. GitHub's hosted runners cannot legally
-carry Commodore ROMs — Debian's own `vice` package ships without them,
-for exactly that reason — so those packages' tests hard-fail there with
-nothing wrong in the code. `pnpm test` (no `:ci`) runs everything,
-including that suite, and needs the emulators from
-[docs/setup](docs/setup/index.md) installed locally. `@8bitscript/cli`'s
-own emulator tests (`screenshot.test.mjs`, `emulator-smoke.test.mjs`)
-already skip rather than fail when a target's toolchain is missing,
-which is why `cli` stays in `test:ci` while the six machine packages
-above do not.
+If your change touches anything under `packages/` or `editors/vscode`
+(i.e. anything that gets published), add a changeset describing it —
+see [Changesets](#changesets-versioning) below. Docs-only or
+CI-only changes don't need one.
 
-**Before tagging a release, run the full suite locally:**
+```bash
+git status                 # check what you're about to stage
+git add <the files you touched>
+git commit -m "docs: describe the change"
+git push -u origin HEAD
+gh pr create --base trunk
+```
+
+(No `gh`? Push the branch, then open
+<https://github.com/8BitScript/8bitscript/pull/new/your-branch-name> in
+a browser and click through the same form.) CI runs automatically on
+the PR. Once it's green, merge it — either with `gh pr merge --squash
+--delete-branch` or the "Squash and merge" button on the PR page.
+
+The CI workflow runs `pnpm run test:ci`, not `pnpm test`: it excludes
+`atari8`, `c128`, `c64`, `cx16`, `pet`, and `pointer`, whose tests boot
+a real emulator (VICE, atari800, Xemu) and assert on what it does.
+GitHub's hosted runners cannot legally carry Commodore ROMs — Debian's
+own `vice` package ships without them, for exactly that reason — so
+those packages' tests hard-fail there with nothing wrong in the code.
+`pnpm test` (no `:ci`) runs everything, including that suite, and needs
+the emulators from [docs/setup](docs/setup/index.md) installed
+locally. `@8bitscript/cli`'s own emulator tests (`screenshot.test.mjs`,
+`emulator-smoke.test.mjs`) already skip rather than fail when a
+target's toolchain is missing, which is why `cli` stays in `test:ci`
+while the six machine packages above do not.
+
+**Before merging a PR meant to ship soon, run the full suite locally:**
 
 ```bash
 pnpm test
 ```
 
-This is the real release gate — CI's `pnpm run test:ci` is a cheap
-sanity check, not a substitute for it. Do not tag on `test:ci` alone.
+This is the real gate before a release — CI's `pnpm run test:ci` is a
+cheap sanity check, not a substitute for it.
 
-Releases are tagged from `trunk`:
+### Changesets (versioning)
+
+Every `@8bitscript/*` npm package and the VS Code extension version
+together as one number — there's no picking-and-choosing which package
+is "0.2.0" versus "0.1.4". A changeset just records that *something*
+in this release should bump, and by how much:
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+pnpm changeset
 ```
 
-`scripts/release.mjs` is what the tag workflow runs: it checks every
-`packages/*` version matches, copies `LICENSE` into each package, and
-publishes `@8bitscript/*` publicly. Do not publish by hand unless you
-are recovering a failed tag.
+It asks which packages changed (pick any that apply — since everything
+is locked together, this mostly just decides the changelog entry, not
+the version) and whether the change is a patch, minor, or major bump.
+It writes a small file into `.changeset/` — commit that file alongside
+your code change.
+
+Once your PR merges, a bot automatically opens or updates a **"Version
+Packages"** pull request on `trunk`, collecting every changeset merged
+since the last release. That PR is the release button: whenever you're
+ready to ship what's accumulated, merge it. Merging it bumps every
+package's `package.json` (and writes `CHANGELOG.md` entries), which
+triggers a tag, which triggers the real publish — npm (via Trusted
+Publishing), the VS Code extension, and a frozen docs snapshot. You
+never run `git tag` by hand anymore.
+
+`scripts/release.mjs` is what the tag-triggered workflow actually runs:
+it checks every `packages/*` version matches, copies `LICENSE` into
+each package, and publishes `@8bitscript/*` publicly. Don't run it (or
+`git tag`) by hand unless you're recovering a failed release — the
+normal path is entirely "merge the Version Packages PR."
 
 npm publishing from CI uses [Trusted Publishing](https://docs.npmjs.com/trusted-publishers/)
 (OIDC) — no `NPM_TOKEN` needed for packages that already have a trust

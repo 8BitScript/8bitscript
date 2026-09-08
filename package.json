@@ -15,6 +15,7 @@
     "docs:dev": "pnpm run docs:build && wrangler dev",
     "docs:deploy": "pnpm run docs:build && wrangler deploy",
     "release": "node scripts/release.mjs",
+    "changeset": "changeset",
     "check": "8bs check",
     "test": "pnpm --recursive --if-present test",
     "test:ci": "pnpm --recursive --if-present --filter='!@8bitscript/atari8' --filter='!@8bitscript/c128' --filter='!@8bitscript/c64' --filter='!@8bitscript/cx16' --filter='!@8bitscript/pet' --filter='!@8bitscript/pointer' test",
@@ -23,6 +24,7 @@
   },
   "devDependencies": {
     "@8bitscript/cli": "workspace:*",
+    "@changesets/cli": "^3.0.2",
     "highlight.js": "^11.12.0",
     "markdown-it": "14.1.0",
     "pagefind": "^1.5.2",
