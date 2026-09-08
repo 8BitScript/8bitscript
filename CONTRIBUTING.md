@@ -21,7 +21,28 @@ git commit -m "docs: describe the change"
 git push -u origin HEAD
 ```
 
-Open a pull request against `trunk`. The CI workflow runs `pnpm test`.
+Open a pull request against `trunk`. The CI workflow runs `pnpm run
+test:ci`, not `pnpm test`: it excludes `atari8`, `c128`, `c64`, `cx16`,
+`pet`, and `pointer`, whose tests boot a real emulator (VICE, atari800,
+Xemu) and assert on what it does. GitHub's hosted runners cannot legally
+carry Commodore ROMs — Debian's own `vice` package ships without them,
+for exactly that reason — so those packages' tests hard-fail there with
+nothing wrong in the code. `pnpm test` (no `:ci`) runs everything,
+including that suite, and needs the emulators from
+[docs/setup](docs/setup/index.md) installed locally. `@8bitscript/cli`'s
+own emulator tests (`screenshot.test.mjs`, `emulator-smoke.test.mjs`)
+already skip rather than fail when a target's toolchain is missing,
+which is why `cli` stays in `test:ci` while the six machine packages
+above do not.
+
+**Before tagging a release, run the full suite locally:**
+
+```bash
+pnpm test
+```
+
+This is the real release gate — CI's `pnpm run test:ci` is a cheap
+sanity check, not a substitute for it. Do not tag on `test:ci` alone.
 
 Releases are tagged from `trunk`:
 
