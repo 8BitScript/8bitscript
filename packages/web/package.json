@@ -1,6 +1,6 @@
 {
   "name": "@8bitscript/web",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Browser target support for 8BitScript: the hardware underneath the portable APIs, where the hardware is a canvas.",
   "license": "MIT",
   "repository": {
