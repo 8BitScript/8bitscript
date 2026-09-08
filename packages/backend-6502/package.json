@@ -1,6 +1,6 @@
 {
   "name": "@8bitscript/backend-6502",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Internal: lowers IR to generated C and drives LLVM-MOS to a .prg.",
   "license": "MIT",
   "type": "module",
