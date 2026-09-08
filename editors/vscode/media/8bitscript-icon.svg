@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="8BitScript">
+  <title>8BitScript</title>
+  <rect width="128" height="128" rx="16" fill="#3a2fa8"/>
+  <g fill="#f4f1e8">
+    <rect x="40" y="16" width="16" height="16"/>
+    <rect x="56" y="16" width="16" height="16"/>
+    <rect x="72" y="16" width="16" height="16"/>
+
+    <rect x="24" y="32" width="16" height="16"/>
+    <rect x="88" y="32" width="16" height="16"/>
+
+    <rect x="40" y="48" width="16" height="16"/>
+    <rect x="56" y="48" width="16" height="16"/>
+    <rect x="72" y="48" width="16" height="16"/>
+
+    <rect x="24" y="64" width="16" height="16"/>
+    <rect x="88" y="64" width="16" height="16"/>
+
+    <rect x="24" y="80" width="16" height="16"/>
+    <rect x="88" y="80" width="16" height="16"/>
+
+    <rect x="40" y="96" width="16" height="16"/>
+    <rect x="56" y="96" width="16" height="16"/>
+    <rect x="72" y="96" width="16" height="16"/>
+  </g>
+</svg>
