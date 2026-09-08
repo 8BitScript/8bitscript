@@ -2,8 +2,15 @@ name: Tag Release
 
 # Fires when the bot-maintained "Version Packages" PR (opened by
 # changesets.yml on branch changeset-release/trunk) is merged. Reads the
-# version changesets just bumped everything to and tags it, which is what
-# actually triggers release.yml's npm/extension/docs publish.
+# version changesets just bumped everything to and tags it, then
+# explicitly dispatches release.yml against that tag.
+#
+# The explicit dispatch matters: a tag pushed with the default
+# GITHUB_TOKEN does NOT fire release.yml's own `push: tags` trigger —
+# GitHub suppresses workflow runs triggered by another workflow's
+# GITHUB_TOKEN specifically to prevent infinite loops. workflow_dispatch
+# is exempt from that suppression, so this workflow calls it directly
+# instead of relying on the tag push alone.
 #
 # That merge is a human decision, always. An agent must never merge the
 # Version Packages PR itself — see AGENTS.md#version-bumps-are-a-human-decision.
@@ -16,6 +23,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   tag:
@@ -32,3 +40,6 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag "v${{ steps.version.outputs.version }}"
           git push origin "v${{ steps.version.outputs.version }}"
+      - run: gh workflow run release.yml --ref "v${{ steps.version.outputs.version }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
