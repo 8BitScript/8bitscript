@@ -10,18 +10,22 @@
 // running: it only ever starts the `8bs run`/`8bs build` commands a person
 // would type.
 //
+// The LSP speaker is lspClient.cjs: Content-Length JSON-RPC over stdio, only
+// the methods `8bs lsp` implements. Microsoft's vscode-languageclient is not
+// a dependency.
+//
 // CommonJS on purpose: it is the entry format every version of the editor host
 // loads without configuration.
 const path = require('path');
 
 const vscode = require('vscode');
-const { LanguageClient, TransportKind } = require('vscode-languageclient/node');
 
 const { BINARY, findToolchain } = require('./projects.cjs');
 const { registerRunner } = require('./runner.cjs');
 const { registerLauncherView } = require('./launcherView.cjs');
+const { registerLanguageServer } = require('./lsp.cjs');
 
-let client;
+let server;
 let output;
 
 /** Every directory worth searching: open documents first, then folder roots. */
@@ -38,44 +42,15 @@ function searchRoots() {
   return roots;
 }
 
-function startClient(toolchain) {
-  if (client) return;
-
-  output.appendLine(`Starting language server: ${toolchain} lsp --stdio`);
-
-  const run = { command: toolchain, args: ['lsp', '--stdio'], transport: TransportKind.stdio };
-  client = new LanguageClient(
-    '8bitscript',
-    '8BitScript Language Server',
-    { run, debug: run },
-    {
-      documentSelector: [{ scheme: 'file', language: '8bitscript' }],
-      diagnosticCollectionName: '8bs',
-      outputChannel: output,
-    },
-  );
-
-  client.start().then(
-    () => output.appendLine('Language server started.'),
-    (error) => {
-      output.appendLine(`Language server failed to start: ${error?.stack ?? error}`);
-      vscode.window.showErrorMessage(
-        `8BitScript language server failed to start: ${error?.message ?? error}`,
-      );
-      client = undefined;
-    },
-  );
-}
-
 /** Look for the toolchain and start the server, or explain why we cannot. */
 function tryStart({ quiet } = {}) {
-  if (client) return;
+  if (server.running) return;
 
   const roots = searchRoots();
   for (const root of roots) {
     const toolchain = findToolchain(root);
     if (toolchain) {
-      startClient(toolchain);
+      server.start(toolchain);
       return;
     }
   }
@@ -92,6 +67,7 @@ function tryStart({ quiet } = {}) {
 function activate(context) {
   output = vscode.window.createOutputChannel('8BitScript', { log: true });
   context.subscriptions.push(output);
+  server = registerLanguageServer(context, output);
 
   // A .8bs file may be opened after activation, or in a project the first scan
   // could not see, so retry rather than giving up on the first miss.
@@ -103,8 +79,7 @@ function activate(context) {
 
   context.subscriptions.push(
     vscode.commands.registerCommand('8bitscript.restartServer', async () => {
-      await client?.stop();
-      client = undefined;
+      await server.stop();
       tryStart();
     }),
   );
@@ -115,7 +90,7 @@ function activate(context) {
 }
 
 function deactivate() {
-  return client?.stop();
+  return server?.stop();
 }
 
 module.exports = { activate, deactivate };

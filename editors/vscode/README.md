@@ -357,11 +357,17 @@ directories. Remove it with `rm` on the link; nothing else is touched.
 ## Publishing
 
 A `.vsix` is built with `@vscode/vsce` and published to the Visual Studio
-Marketplace and to Open VSX. The tag workflow (`.github/workflows/release.yml`)
-runs both when `v*` is pushed. Locally, from `editors/vscode`:
+Marketplace and to Open VSX. The release workflow
+(`.github/workflows/release.yml`) runs both. Locally, from `editors/vscode`:
 
 ```bash
 npx @vscode/vsce package
 npx @vscode/vsce publish
 npx ovsx publish
 ```
+
+`vscode:prepublish` minifies the bundle. Diagnostics, hover, and completion
+come from `8bs lsp` over a small stdio JSON-RPC client in this package, not
+from Microsoft's `vscode-languageclient`. The remaining weight is the
+launcher side bar, the grammar, and this README — not a second copy of the
+compiler. See [Editor support](../../docs/language-server.md).
