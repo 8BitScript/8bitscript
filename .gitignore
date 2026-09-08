@@ -13,7 +13,8 @@ build/
 # Compiled Commodore program images
 *.prg
 
-# Packaged VS Code extension
+# Packaged VS Code extension (local `pnpm package` writes
+# editors/vscode/dist/8bitscript-lang.vsix)
 *.vsix
 
 # Wrangler local state and cache
@@ -29,3 +30,5 @@ build/
 # Editor state (per-developer, not project config — see .vscode/launch.json for shared debug config)
 .vscode/settings.json
 .claude/settings.local.json
+.cursor/rules/
+.cursor/cli.json

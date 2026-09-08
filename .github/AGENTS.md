@@ -72,3 +72,25 @@ gh run watch
 Check the stores before calling it done: `npm view @8bitscript/cli version`,
 the Marketplace item `8bitscript.8bitscript-lang`, and
 `https://open-vsx.org/api/8bitscript/8bitscript-lang`.
+
+## Open VSX namespace
+
+`publisher` in `editors/vscode/package.json` is the Open VSX namespace
+(`8bitscript`). Publishing creates you as a **contributor**, not an
+owner, so the listing shows *“not a verified publisher of the
+namespace”* until ownership is granted.
+
+That is a one-time public claim: an issue on
+[EclipseFdn/open-vsx.org](https://github.com/EclipseFdn/open-vsx.org)
+with the *Claim namespace ownership* template (Option 1 — we are the
+same VS Code Marketplace publisher and the repo is in the `8BitScript`
+org). The claim for this namespace is
+[#13097](https://github.com/EclipseFdn/open-vsx.org/issues/13097).
+Eclipse staff flip the namespace to verified; do not republish to
+clear the banner.
+
+The GitHub user who holds `OVSX_PAT` must stay a namespace member
+(owner or contributor). After you are owner, add any extra PAT
+accounts as contributors on
+https://open-vsx.org/user-settings/namespaces — not by changing
+`publisher`.
