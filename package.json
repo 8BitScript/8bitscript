@@ -16,6 +16,7 @@
     "docs:deploy": "pnpm run docs:build && wrangler deploy",
     "release": "node scripts/release.mjs",
     "changeset": "changeset",
+    "changeset:version": "changeset version && pnpm install --no-frozen-lockfile",
     "check": "8bs check",
     "test": "pnpm --recursive --if-present test",
     "test:ci": "pnpm --recursive --if-present --filter='!@8bitscript/atari8' --filter='!@8bitscript/c128' --filter='!@8bitscript/c64' --filter='!@8bitscript/cx16' --filter='!@8bitscript/pet' --filter='!@8bitscript/pointer' test",
