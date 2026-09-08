@@ -13,6 +13,9 @@ build/
 # Compiled Commodore program images
 *.prg
 
+# Packaged VS Code extension
+*.vsix
+
 # Wrangler local state and cache
 .wrangler/
 
