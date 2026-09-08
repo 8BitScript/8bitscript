@@ -1,47 +1,66 @@
 # Contributing to 8BitScript
 
-The compiler runs end to end for the first-milestone subset: lexer, parser,
-checker, IR, and two backends, with `8bs build` and `8bs run` driving them.
-There is no binder yet, so imports and function calls do not compile.
-Contributions today are documentation and compiler work, and the notes below
-describe how to make one that fits.
+The compiler runs end to end for the milestone subset: lexer, parser,
+checker, linker, IR, and two backends, with `8bs build` and `8bs run`
+driving them. Imports, function calls, and locals compile. Contributions
+are documentation, compiler, package, and editor work.
 
-## Trunk-only workflow
+## Workflow
 
-This project is trunk-only. All work lands directly on `trunk`. There are no
-long-lived feature branches, no release branches, and no `gh-pages` branch —
-the documentation site is built from the `docs/` directory of `trunk` itself.
-
-Keep changes small enough to commit directly:
+`trunk` is the default branch. New work lands through a short-lived pull
+request into `trunk`. There are no long-lived feature branches and no
+release branches. A version is a git tag `v0.1.0`, `v0.2.0`, … that
+triggers npm publish, the editor extension, and a frozen docs snapshot.
 
 ```bash
-git pull --rebase
+git checkout -b describe-the-change
 # make the change
+pnpm test
 git add -A
 git commit -m "docs: describe the change"
-git push
+git push -u origin HEAD
 ```
 
-Run the tests before pushing:
+Open a pull request against `trunk`. The CI workflow runs `pnpm test`.
+
+Releases are tagged from `trunk`:
 
 ```bash
-pnpm test
+git tag v0.1.0
+git push origin v0.1.0
 ```
 
-The compiler's suite is mostly shipped bugs kept as regressions; when a fix
-lands, its reproduction lands in the suite in the same change.
+`scripts/release.mjs` is what the tag workflow runs: it checks every
+`packages/*` version matches, copies `LICENSE` into each package, and
+publishes `@8bitscript/*` publicly. Do not publish by hand unless you
+are recovering a failed tag.
 
-Pushing does not publish the site: deploying is a separate, deliberate step,
-`pnpm run docs:deploy`, described in
-[docs/project/deployment.md](docs/project/deployment.md). There is no staging
-environment, so preview locally before you deploy:
+### First 0.1.0 publish (one-time)
+
+These are interactive and need a human:
+
+1. Create the npm organisation `8bitscript` and run `npm login`.
+2. Create the Visual Studio Marketplace publisher `8bitscript` and an
+   Open VSX personal access token.
+3. Store `NPM_TOKEN`, `VSCE_PAT`, `OVSX_PAT`, and `CLOUDFLARE_API_TOKEN`
+   as GitHub org secrets.
+4. Add the `8bitscript.com` zone to the same Cloudflare account as
+   `8bitscript.org` (needed for `2048.8bitscript.com`).
+5. Create an empty `8BitScript/2048` repository, push `trunk`, set it as
+   the default branch.
+6. Tag from `trunk`: `git tag v0.1.0 && git push origin v0.1.0`.
+
+The documentation site is built from `docs/` by `site/build-all.mjs`.
+Production `/` is the latest tagged version; `/0.1.0/` is that version's
+frozen snapshot. Preview locally before you merge:
 
 ```bash
 pnpm run docs:dev
 ```
 
-That builds `docs/` and serves it with the same runtime Cloudflare uses, so the
-URLs you click locally are the ones that get published.
+That builds `docs/` (including the version dropdown) and serves it with
+the same runtime Cloudflare uses. Deploying the live site is the tag
+workflow, described in [docs/project/deployment.md](docs/project/deployment.md).
 
 ## Adding a documentation page
 
@@ -84,10 +103,9 @@ a documentation page and carries no front matter.
 - **Give macOS and Linux separate instructions wherever the commands differ.**
   Windows is not supported; do not add Windows instructions.
 - **Never present unimplemented behaviour as working.** `8bs check`,
-  `8bs doctor`, `8bs build`, and `8bs run` work for the milestone subset;
-  imports, calls, and locals do not compile yet. A feature the compiler cannot
-  lower must be described as such, and any mention of `8bs dev` must be
-  labelled **planned and not yet implemented**.
+  `8bs doctor`, `8bs build`, and `8bs run` work for the milestone subset.
+  A feature the compiler cannot lower must be described as such, and any
+  mention of `8bs dev` must be labelled **planned and not yet implemented**.
 
 ## Site styling
 

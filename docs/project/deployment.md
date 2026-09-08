@@ -99,9 +99,8 @@ first.
 > served by Cloudflare; leaving Pages off means there is only ever one live
 > copy of the documentation.
 
-> The matching npm `@8bitscript` organisation is a forward-looking step. Nothing
-> is published to npm yet, so claiming the scope is optional at this stage; it
-> only becomes necessary when the first package is ready to publish.
+> The npm `@8bitscript` organisation matches this GitHub organisation. Packages
+> publish from a `v*` tag via `.github/workflows/release.yml`.
 
 ### Cloudflare
 
@@ -147,16 +146,13 @@ first.
 pnpm run docs:deploy
 ```
 
-That is `pnpm run docs:build` (Markdown render, then the Pagefind index) followed
-by `wrangler deploy`. The build is fast enough that there is no reason to run
-these steps separately.
+That is `pnpm run docs:build` (Markdown render of the latest release at `/`
+and of each tagged snapshot at `/0.1.0/`, `/0.2.0/`, …, then a Pagefind
+index per tree) followed by `wrangler deploy`. A `v*` tag's release
+workflow runs this; a docs-only pull request only builds.
 
-> There is intentionally no CI workflow that deploys the site. Nothing in
-> `.github/workflows/` publishes anything, so there is no pipeline to break and
-> no deploy credential stored in the repository. If that trade stops being worth
-> it, Cloudflare's **Workers Builds** can watch `trunk` and run the same two
-> commands on every push — configured in the dashboard, with no file added
-> here.
+The header's version dropdown reads `/versions.json`. It lists every
+snapshot, grouped by major version (`0.x`, later `1.x`), and is searchable.
 
 ## Previewing locally
 

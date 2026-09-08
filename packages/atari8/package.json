@@ -1,7 +1,6 @@
 {
   "name": "@8bitscript/atari8",
-  "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Atari 8-bit target support for 8BitScript: the hardware underneath the portable APIs, for the 400/800/XL/XE/XEGS family.",
   "license": "MIT",
   "8bitscript": {

@@ -1,7 +1,6 @@
 {
   "name": "@8bitscript/c128",
-  "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "C128 target support for 8BitScript: the hardware underneath the portable APIs.",
   "license": "MIT",
   "8bitscript": {
@@ -386,14 +385,6 @@
           "label": "Disk drive",
           "default": "1571",
           "values": {
-            "none": {
-              "label": "No drive",
-              "facts": {
-                "storage.save": false,
-                "storage.kib": 0
-              },
-              "tag": null
-            },
             "1541": {
               "label": "1541 (170K disk)",
               "facts": {
@@ -415,6 +406,14 @@
               "facts": {
                 "storage.save": true,
                 "storage.kib": 783
+              },
+              "tag": null
+            },
+            "none": {
+              "label": "No drive",
+              "facts": {
+                "storage.save": false,
+                "storage.kib": 0
               },
               "tag": null
             }

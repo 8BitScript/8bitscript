@@ -1,0 +1,288 @@
+// @8bitscript/pet/blocks — quadrant-block pseudo-pixels, and the big digit
+// tiles built from them.
+//
+// The PET has no bitmap and no redefinable glyphs (`video.glyphs` is 0),
+// but its ROM has sixteen "quadrant block" characters — the fact sheet's
+// `video.blockWidth`/`blockHeight` of 2: eight are ROM glyphs at screen
+// codes 96-127 (blank, a half, a quadrant alone, or two diagonal
+// quadrants), and the other eight are their hardware-inverted complements
+// at 224-255 — bit 7 flips every pixel, so a pattern this ROM does not draw
+// directly is its opposite, reversed. Together the sixteen cover every
+// possible 2x2 on/off pattern one cell can show, turning the 40x25 (or
+// 80x25) text grid into an 80x50 (or 160x50) grid of pseudo-pixels — see
+// `docs/systems.md`'s "Blocks" canvas rung. Verified against the actual
+// ROM: `characters-2.901447-10.bin`'s screen codes 96-127 are byte-for-byte
+// identical whether the PCR selects the graphics or text set (both are the
+// shared "$60-$7F graphics" range packages/pet/AGENTS.md's character-set
+// table describes), so unlike `text.8bs`, nothing here ever needs to touch
+// `viaPeripheralControl` — a block or a digit tile draws the same regardless
+// of which set is selected, and can sit on screen next to either kind of text.
+//
+// `blocks.quad(topLeft, topRight, bottomLeft, bottomRight)` is the whole
+// primitive: four bits in, one screen code out — enough to draw any
+// pattern a cell can show. `digits` is one thing built from it: a 2x3-cell
+// (4x6 pseudo-pixel) tile per digit 0-9, laid out as `const` data so the
+// font costs only the bytes it draws — `draw()` for one digit, `print()`
+// for a zero-padded field the way `text.printNumber` lays one out, and
+// `printCentered()` for a number that grows and shrinks (a game tile: "2",
+// then "16", then "2048") centered in a box instead of padded to a fixed
+// width. Every one of them takes `invert`: drawn over a solid reverse-video
+// tile, an inverted digit reads as dark ink cut into the tile's colour
+// rather than a fresh glyph punching a black rectangle through it.
+//
+// 2 cells is the font's size, not a preference: four side-by-side tiles on
+// a 40-column screen leave 9 cells per tile at most (4*9 + 3 gaps = 39), and
+// a 3-wide font's own widest number ("2048", 4 digits) alone needs 12 — a
+// 2-wide font needs 8, which fits with a column to spare. It also makes
+// every digit count center exactly: leftover space is (cellWidth − digits×2),
+// always the same parity as cellWidth, so an even tile width splits evenly
+// on both sides for 1, 2, 3 or 4 digits alike — a scoreboard-size font (3
+// wide) cannot do that for every digit count no matter which tile width is
+// picked, the parity always favours some counts over others.
+//
+// The pixel art above each row of the table is the font's real source —
+// redraw it there, then re-derive that row's two codes from `quad()`'s
+// table below (or a quick script over it) to change how a digit looks.
+import { Video } from "./geometry.8bs";
+
+const COLUMNS: utinyint = Video.COLUMNS; // cells per row, so cell = y * COLUMNS + x
+
+// Screen code for each of the sixteen 2x2 patterns, indexed by
+// (topLeft<<3 | topRight<<2 | bottomLeft<<1 | bottomRight). The first eight
+// (indexes 0-8, one bit set at most plus the all-off and the TL+BR
+// diagonal) are ROM glyphs; the rest are those same bits inverted, which is
+// exactly what reverse video already does in hardware, so the table just
+// names the +128 codes directly rather than setting a reverse flag.
+const QUAD: array<utinyint, 16> = [
+    32,  108, 123, 98,   // 0000 0001 0010 0011
+    124, 225, 255, 254,  // 0100 0101 0110 0111
+    126, 127, 97,  252,  // 1000 1001 1010 1011
+    226, 251, 236, 160,  // 1100 1101 1110 1111
+];
+
+function patternIndex(topLeft: bool, topRight: bool, bottomLeft: bool, bottomRight: bool): utinyint {
+    let index: utinyint = 0;
+    if (topLeft) {
+        index = index + 8;
+    }
+    if (topRight) {
+        index = index + 4;
+    }
+    if (bottomLeft) {
+        index = index + 2;
+    }
+    if (bottomRight) {
+        index = index + 1;
+    }
+    return index;
+}
+
+function place(cell: usmallint, code: utinyint): void {
+    memory.write(0x8000 + cell, code);
+}
+
+export namespace blocks {
+    // The screen code that draws one cell's four pseudo-pixels: `true` lights
+    // a quadrant, `false` leaves it off. Anything a 2x2 block can show is one
+    // call away — a checkerboard, a diagonal, a custom glyph of your own.
+    function quad(topLeft: bool, topRight: bool, bottomLeft: bool, bottomRight: bool): utinyint {
+        return QUAD[patternIndex(topLeft, topRight, bottomLeft, bottomRight)];
+    }
+
+    // Writes one cell's worth of pseudo-pixels at `cell`, so a caller who
+    // does not want to hand-roll `memory.write` can still work in blocks.
+    function put(cell: usmallint, topLeft: bool, topRight: bool, bottomLeft: bool, bottomRight: bool): void {
+        place(cell, QUAD[patternIndex(topLeft, topRight, bottomLeft, bottomRight)]);
+    }
+}
+
+// ---- digits ---------------------------------------------------------------
+//
+// Each digit is 2 cells wide, 3 tall — 4x6 pseudo-pixels, a classic 3x5
+// dot-matrix numeral elongated by one row (its own row 1 repeated) to fill
+// all 6 rows with real strokes, plus one blank pixel-column of margin (the
+// right column) so adjacent digits do not touch. There is no blank *row*:
+// earlier drafts padded the 5-row numeral with one, and that row landing
+// only at the bottom made a tile's margin above a digit come out twice its
+// margin below (see @8bitscript/pet's AGENTS.md and this file's own
+// digits.HEIGHT comment — a whole spare cell can only sit on one side of a
+// digit, so any asymmetry inside the font itself compounds whichever side
+// that cell lands on). A digit with no internal blank row leaves margin
+// entirely to whoever places it, which is what makes a symmetric split
+// possible at all. Drawn left to right, top to bottom, 6 codes per digit,
+// one array line per tile row of 2 cells. `#` below is a lit pseudo-pixel,
+// `.` unlit; every 2x2 block of picture cells is one QUAD code in the line
+// beneath it, in the same (topLeft, topRight, bottomLeft, bottomRight)
+// order `patternIndex` reads.
+//
+//     0     1     2     3     4     5     6     7     8     9
+//     ###.  .#..  ###.  ###.  #.#.  ###.  ###.  ###.  ###.  ###.
+//     #.#.  ##..  ..#.  ..#.  #.#.  #...  #...  ..#.  #.#.  #.#.
+//     #.#.  ##..  ..#.  ..#.  #.#.  #...  #...  ..#.  #.#.  #.#.
+//     #.#.  .#..  ###.  ###.  ###.  ###.  ###.  ..#.  ###.  ###.
+//     #.#.  .#..  #...  ..#.  ..#.  ..#.  #.#.  ..#.  #.#.  ..#.
+//     ###.  ###.  ###.  ###.  ..#.  ###.  ###.  ..#.  ###.  ###.
+//
+const DIGIT_TILES: array<utinyint, 60> = [
+    // 0
+    236, 97,
+    97,  97,
+    252, 97,
+    // 1
+    254, 32,
+    251, 32,
+    254, 123,
+    // 2
+    226, 97,
+    98,  97,
+    252, 123,
+    // 3
+    226, 97,
+    98,  97,
+    98,  97,
+    // 4
+    97,  97,
+    252, 97,
+    32,  97,
+    // 5
+    236, 126,
+    252, 123,
+    98,  97,
+    // 6
+    236, 126,
+    252, 123,
+    252, 97,
+    // 7
+    226, 97,
+    32,  97,
+    32,  97,
+    // 8
+    236, 97,
+    252, 97,
+    252, 97,
+    // 9
+    236, 97,
+    252, 97,
+    98,  97,
+];
+
+// Cell offset into DIGIT_TILES per digit (value * 6), read off instead of
+// multiplied — the 6502 has no multiply instruction, and every value here
+// is small and fixed.
+const DIGIT_BASE: array<usmallint, 10> = [0, 6, 12, 18, 24, 30, 36, 42, 48, 54];
+
+// Places above a field are still taken off, so a field narrower than its
+// number shows the low digits — the same rule text.printNumber follows.
+const DIGIT_PLACES: array<usmallint, 5> = [10000, 1000, 100, 10, 1];
+
+// How many cells `count` digit tiles take, read off instead of multiplied
+// by WIDTH (2) — the same reason DIGIT_BASE exists. Index 0 is unused (a
+// number always has at least one digit) and kept so `count` indexes it
+// directly.
+const DIGIT_TILE_WIDTHS: array<utinyint, 6> = [0, 2, 4, 6, 8, 10];
+
+export namespace digits {
+    const WIDTH: utinyint = 2;  // cells per digit tile
+    const HEIGHT: utinyint = 3; // cells per digit tile
+
+    // How many decimal digits `value` has with no leading zeros — "16" is
+    // 2, "2048" is 4 — the width printCentered() lays out around, as
+    // opposed to print()'s fixed, zero-padded width.
+    function count(value: usmallint): utinyint {
+        let digitCount: utinyint = 1;
+        if (value >= 10) {
+            digitCount = 2;
+        }
+        if (value >= 100) {
+            digitCount = 3;
+        }
+        if (value >= 1000) {
+            digitCount = 4;
+        }
+        if (value >= 10000) {
+            digitCount = 5;
+        }
+        return digitCount;
+    }
+
+    // Draws one digit (0-9) as a WIDTH x HEIGHT tile whose top-left cell is
+    // `cell`. `base` and `rowCell` walk forward by WIDTH and COLUMNS each
+    // row instead of multiplying row by either, for the same reason
+    // DIGIT_BASE exists.
+    //
+    // `invert` swaps every cell's on and off quadrants (screen code bit 7,
+    // the same bit reverse video always was) — the digit's ink and its gaps
+    // trade places. Drawn over a solid reverse-video tile (a game board
+    // square, say), an inverted digit reads as dark ink cut into the tile's
+    // colour instead of a fresh glyph punching a black rectangle through
+    // it. QUAD's sixteen codes were chosen to be closed under this exact
+    // flip (every pattern's complement is also in the table), so inverting
+    // costs one add-or-subtract of 128 per cell, no second font.
+    function draw(cell: usmallint, value: utinyint, invert: bool = false): void {
+        let base: usmallint = DIGIT_BASE[value];
+        let rowCell: usmallint = cell;
+        let row: utinyint = 0;
+        while (row < digits.HEIGHT) {
+            let col: utinyint = 0;
+            while (col < digits.WIDTH) {
+                let code: utinyint = DIGIT_TILES[base + col];
+                if (invert) {
+                    if (code < 128) {
+                        code = code + 128;
+                    } else {
+                        code = code - 128;
+                    }
+                }
+                place(rowCell + col, code);
+                col++;
+            }
+            base = base + digits.WIDTH;
+            rowCell = rowCell + COLUMNS;
+            row++;
+        }
+    }
+
+    // Writes `value` as exactly `width` block-digit tiles, zero-padded and
+    // right-aligned, laid out left to right starting at `cell` — a scoreboard
+    // line built from digits instead of text.printNumber's characters. `at`
+    // advances by WIDTH cells per digit instead of multiplying width by
+    // WIDTH, the same reason draw() steps rather than multiplies.
+    function print(cell: usmallint, value: usmallint, width: utinyint, invert: bool = false): void {
+        let k: utinyint = width;
+        if (k < DIGIT_PLACES.length) {
+            k = DIGIT_PLACES.length;
+        }
+        let at: usmallint = cell;
+        while (k > 0) {
+            let digit: utinyint = 0;
+            if (k <= DIGIT_PLACES.length) {
+                while (value >= DIGIT_PLACES[DIGIT_PLACES.length - k]) {
+                    value = value - DIGIT_PLACES[DIGIT_PLACES.length - k];
+                    digit++;
+                }
+            }
+            if (k <= width) {
+                digits.draw(at, digit, invert);
+                at = at + digits.WIDTH;
+            }
+            k--;
+        }
+    }
+
+    // Writes `value` with no leading zeros, centered in a `widthCells`-wide
+    // box whose left edge is `left` — a number that grows from one digit to
+    // several (a 2048 tile: "2", then "16", then "2048") without print()'s
+    // fixed field or its zero-padding. Odd leftover space rounds to the
+    // left, the same way a centered thing usually does when it cannot split
+    // evenly. If the digits are wider than the box, they simply start at
+    // `left` and run past its right edge rather than negative into `pad`.
+    function printCentered(left: usmallint, widthCells: utinyint, value: usmallint, invert: bool = false): void {
+        let digitCount: utinyint = digits.count(value);
+        let used: utinyint = DIGIT_TILE_WIDTHS[digitCount];
+        let pad: utinyint = 0;
+        if (widthCells > used) {
+            pad = (widthCells - used) >> 1;
+        }
+        digits.print(left + pad, value, digitCount, invert);
+    }
+}

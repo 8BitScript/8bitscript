@@ -25,12 +25,28 @@ Do not describe more than this as working:
   resets the scroll (`nesVerticalBlank()` in `index.8bs`, called by the
   backend's frame runtime via `FRAME_SYNC.nes.frameHook`); a program
   prints whenever it likes and never sees the blank's budget. The queue
-  holds 128 bytes (about four 28-column rows); delivery costs 15 cycles a
-  byte plus a header per run, so a full queue empties in about 2000 of
-  the blank's 2273 cycles. When the queue fills before the frame is over
-  the package waits for the next blank, delivers, and carries on — a
-  bigger HUD costs frames, never the picture. Delivering mid-frame would
-  corrupt it: PPUADDR is the PPU's own fetch position while it draws.
+  holds 112 bytes; delivery costs 15 cycles a byte, plus a header per run
+  that the byte cost alone does not price in. That distinction is worth
+  keeping straight: a HUD of a few wide rows is nearly all data bytes, but
+  a grid of many narrow fields (`packages/2048`'s 4-character tile cells,
+  three `text.print()` runs per tile) pays a run header on almost every
+  write. QUEUE_SIZE was 128 — "about four 28-column rows," a number sized
+  against the wide-row case, empties in about 2000 of the blank's 2273
+  cycles — until 2048's 16-tile board (~19 runs to fill one queue) proved
+  by measurement that a full 128-byte queue of small runs delivers a few
+  cycles past the blank, corrupting whichever tile was mid-flight when
+  rendering resumed under it (FCEUX, `8bs run nes --screenshot`,
+  2026-09-07: 128 corrupted two tiles; 120 and under, light or full board,
+  did not; 124 did again). 112 was fixed as comfortably under that
+  observed failure band rather than at its edge, since neither this
+  project's cycle estimates nor FCEUX's timing are trusted to the single
+  cycle this boundary lives at. A future program with smaller or more
+  numerous runs than 2048's could still find a new floor — measure with
+  `--screenshot` before assuming 112 holds for it. When the queue fills
+  before the frame is over the package waits for the next blank,
+  delivers, and carries on — a bigger HUD costs frames, never the
+  picture. Delivering mid-frame would corrupt it: PPUADDR is the PPU's
+  own fetch position while it draws.
   `locate()` finds a cell's row in eight-bit shifts and two corrections
   (`q = cell / 4`, `q / 8 + q / 64`, then take off sevens) because LLVM-MOS
   links a 248-byte routine for a 16-bit divide, turns a counted-subtraction

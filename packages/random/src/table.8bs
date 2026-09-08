@@ -1,0 +1,88 @@
+// @8bitscript/random/table — a precomputed lookup table, not an algorithm:
+// the "random" byte for any position is a read of program data, nothing
+// computed. This is the technique 8-bit code reached for before spending a
+// multiply on randomness was affordable, and it is still the cheapest random
+// byte 8BitScript can produce on any of the nine targets.
+//
+//     import { table } from "@8bitscript/random/table";
+//
+//     table.seed(37);                     // any utinyint start point
+//     let roll: utinyint = table.range(6) + 1; // 1..6
+//
+// Same shape as the default generator's (`@8bitscript/random`,
+// ../index.8bs): `seed()`, `next()`, `range(bound)`. A program can switch
+// between the two by changing one import line, which is the point of
+// keeping the surface identical rather than making this generator's
+// strengths (or its one real weakness) show up as a different set of calls.
+//
+// **The trade this makes, stated plainly**: `next()` repeats every 256
+// calls, always in the same order from wherever `index` is — a far shorter
+// period than the default generator's 65536 states, and a predictable one:
+// see `index` once and every value after it is known. What it buys back is
+// that `next()` is one indexed load — `TABLE[index]`, `index++` — never a
+// 16-bit multiply and add, on the 6502 or the web. A program that needs
+// more than 256 calls' worth of unpredictability, or that hands `index`'s
+// value to anything a player could see, wants `@8bitscript/random` instead;
+// one that calls this a handful of times per frame, in code where a 6502
+// multiply is the thing being budgeted against, is exactly what this file
+// is for.
+//
+// **The 256 bytes are a permutation, not an arbitrary sequence** — every
+// value 0-255 appears exactly once, shuffled once (a seeded Fisher-Yates,
+// off the source repository, not on any target) and baked in here as
+// `.rodata`. That is a real property this table has and a plain LCG does
+// not: any 256 consecutive calls to `next()`, from any starting `index`,
+// use every possible byte exactly once — perfectly even in the long run
+// by construction, not by chance, at the cost of the short period above.
+const TABLE: array<utinyint, 256> = [
+    184, 152, 234,  42, 232, 225, 236, 202, 129, 123, 183,  74, 187,  15, 249, 166,
+     47,  68, 218,  37, 134, 110, 147,  91, 219, 229, 148, 135,  13, 111, 222, 195,
+    113, 126,  19, 190,  49,  11, 142,  18,  10, 154, 206, 254,  77, 199,  99, 250,
+    231,  59, 233,  72, 107, 196,  26, 252, 235, 238, 100, 138, 139, 189, 178, 118,
+    212,  78,  98, 214, 167, 143,  71, 145,  87, 179, 165,  28,  16,  53,  30,  86,
+     60, 205, 247, 120, 128,  76, 185, 207,  97,  51, 204, 169,  39, 159, 217, 161,
+     43,  57,   4,  75, 141,   3, 251,  84, 155, 198,  23, 239,  61,  27,  90,  14,
+    177, 230, 245, 197,  64, 140,  65, 226, 151,   6,  56, 127, 181, 255,  88, 103,
+    223,  21,  29, 224,  62, 115,  46,  22, 173,   1, 156, 241,  17, 125, 208, 228,
+    122, 132,  54,  70,  69, 105, 149, 101, 200, 112, 243, 168,  80,  66, 182, 248,
+    203, 201,  31,  85, 176,  55,  63,  50, 211, 193,  52,  38,  45,  40, 209, 237,
+    119, 133, 216,  41, 244,  25, 246, 121, 215, 171,  12, 160, 144,  92, 106, 227,
+     35, 130,   8, 108, 158, 162,  36,  48, 174,  34, 117,  67, 153, 186, 194,  32,
+    157, 175,  95,  79, 221, 191,  81,  44, 163,   0, 253, 104, 136, 150, 240,  73,
+    210,  96,   7, 146, 188, 114,   5,  82, 213, 137,  93, 124,  94,  83,  89,  58,
+    116, 170, 180,   2, 242, 131, 192, 102,  20, 164, 109, 172, 220,  24,   9,  33,
+];
+
+let index: utinyint = 0;
+
+export namespace table {
+    // Replaces the running position, wherever a program wants to start —
+    // `index` is a `utinyint`, so any value is in range and wraps at 256
+    // for free (256 is exactly `TABLE.length`).
+    function seed(value: utinyint): void {
+        index = value;
+    }
+
+    // The byte at the current position, then step to the next one.
+    function next(): utinyint {
+        let value: utinyint = TABLE[index];
+        index++;
+        return value;
+    }
+
+    // A value from 0 up to (not including) bound. See ../index.8bs for the
+    // same modulo-bias note — it applies here too, and for the same reason.
+    function range(bound: utinyint): utinyint {
+        return table.next() % bound;
+    }
+
+    // The table with no state at all: a program that already keeps its own
+    // running counter — frames elapsed since start-up is the usual one —
+    // reads a "random" byte by indexing this table with it directly,
+    // rather than asking this file to keep a second counter next to it.
+    // `at(0)` and repeated `next()` calls from `seed(0)` agree, because
+    // this is exactly what `next()` reads before it steps `index`.
+    function at(i: utinyint): utinyint {
+        return TABLE[i];
+    }
+}

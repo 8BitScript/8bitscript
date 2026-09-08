@@ -59,6 +59,42 @@ Do not describe more than this as working:
   initialised from another module's const. `screen.blank()` clears
   `Video.CELL_COUNT` cells the same way. `locate()` is not needed here:
   the screen is a flat array and cell arithmetic is the address.
+- `src/blocks.8bs` (`@8bitscript/pet/blocks`, PET-only — no portable
+  `blocks` capability exists to implement): the sixteen quadrant-block
+  screen codes (`video.blockWidth`/`blockHeight` = 2 in the fact sheet) as
+  `blocks.quad()`/`blocks.put()`, and a `digits` namespace built on them —
+  a 2x3-cell (4x6 pseudo-pixel) tile per digit 0-9 — a classic 3x5
+  dot-matrix numeral elongated to fill all 6 rows (its own row 1 repeated,
+  no blank row left over), not a scoreboard size: 2 cells wide is what
+  makes every leftover space, for 1 to 4 digits alike, come out even, so
+  `digits.printCentered()` can center a game tile's number exactly instead
+  of `text.printNumber`'s odd-leftover bias to one side, and 4 tiles of 8
+  cells (4 digits x 2) plus 3 gaps is 35, fitting a 40-column screen with
+  room to spare. The font has no blank row of its own on purpose: a spare
+  cell above or below a digit (however a caller lays a tile out) can only
+  ever sit on one side by itself, so a font with a leftover blank row of
+  its own always adds to whichever side that row lands on — the first
+  version of this font padded a 5-row numeral to 6 with a trailing blank
+  row, and a caller centering it inside a taller tile got visibly more
+  margin above the digit than below (reported directly against
+  `~/Development/2048`'s PET build, 2026-09-07); the fix was fitting real
+  strokes into every row so nothing but the caller's own placement decides
+  the margin. `digits.draw()` for one digit, `digits.print()` for a
+  zero-padded field the same shape as `text.printNumber`, and
+  `digits.printCentered()` for a number that grows and shrinks (a game
+  tile's value) centered in a cell-width box instead of padded to a fixed
+  one. Every one of the three takes `invert`: QUAD's sixteen codes are
+  closed under the bit-7 flip, so an inverted digit reads as dark ink cut
+  into a solid reverse-video tile instead of a fresh glyph punching a black
+  rectangle through it — the look a 2048-style board wants, and the reason
+  this shipped: it is what `~/Development/2048`'s PET build now uses
+  (`src/tile.pet.8bs`, that project's own system-specific twin of
+  `src/tile.8bs`).
+  Verified against `characters-2.901447-10.bin`: the eight ROM quadrant
+  glyphs (screen codes 96-127) are byte-identical whether the PCR selects
+  the graphics or text set, and their reverse-video complements (224-255)
+  cover the other eight patterns, so unlike `text.8bs` this module never
+  touches `viaPeripheralControl`.
 - **Hardware** (the catalog in `package.json`): one option, `model` —
   `3032` (default), `3008`, `3016`, `4016`, `4032`, `8032` — the PET's own
   model numbers, which are also what `xpet -model` takes, with a preset
@@ -143,6 +179,7 @@ under xpet, not recalled.
 | ROM sets: 3032 = kernal-2 + edit-2-**n** (graphics keyboard) + characters-2 (901447-10) + basic-2; 4032 = kernal-4 + edit-4-40-n-50Hz + characters-2 + basic-4; 8032 = kernal-4 + edit-4-80-**b**-50Hz + characters-2 + basic-4; 2001 = kernal-1 + edit-1-n + characters-1 (901447-**08**) + basic-1. | `/opt/homebrew/share/vice/PET/*.vrs` |
 | Measured frame period under VICE's 4032 (PAL): ~19992 cycles, 50.02 Hz. | `FRAME_SYNC.pet` comment (this project's earlier measurement) |
 | The catalog's stock fact sheet: grid 40×25 of 8×8 (80 on the 8032, its `model` value's fact), 2 colours, 2 per cell (normal and reverse), no redefinable glyphs, 2×2 PETSCII blocks, no bitmap, one layer, no scroll, no sprites; one CB2 voice with no volume, envelope, noise, samples or random source; keyboard, no joystick or pad ports; disk; RAM per model (`memory.ram` on each `model` value, from `__ram_size`), nothing banked, no mouse or paddles. | `src/geometry.8bs`, `src/geometry.pet.8032.8bs`; the `__ram_size` and sound rows above; `package.json` (read) |
+| The sixteen quadrant-block screen codes: eight ROM glyphs at 96-127 (blank, a half, one quadrant alone, or the TL+BR diagonal), byte-identical whether the ROM address's charset-select bit is 0 or 1, and their reverse-video complements at 224-255 cover the remaining eight patterns (top half, the TR+BL diagonal, and every three-quarter pattern). | a script reading `characters-2.901447-10.bin` 8 bytes/glyph, `packages/pet/src/blocks.8bs`, `packages/pet/test/blocks.test.mjs`'s xpet screenshot check |
 
 ## From the sources, not verified here
 

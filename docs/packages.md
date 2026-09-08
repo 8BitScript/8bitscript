@@ -421,10 +421,11 @@ Only two kinds of package are meant for you:
 | `@8bitscript/cli` | The `8bs` command. A dev dependency |
 | `@8bitscript/screen`, `@8bitscript/text`, `@8bitscript/input`, `@8bitscript/pointer` | The portable standard library, one package per capability: each resolves per target to that machine package's own implementation |
 | `@8bitscript/ui` | Reusable interface components, drawn on the character grid through the capability packages: one component per subpath (`@8bitscript/ui/menubar`), so a program links the ones it names. A component is portable code, not a capability — there is one menu bar, not one per machine — and it is written to what the grid really gives you: three of the nine targets have no per-cell colour, so the menu bar's highlight is a marker character first and a colour second, and a bar that will not fit a VIC-20's 22 columns reports it rather than overrunning the row |
-| `@8bitscript/input` | What the user just did, on whichever machine is being built: four directions, confirm, cancel, and a pointer where there is one — all edge-triggered, so a press is true on the one frame it begins. Every answer comes from that machine's own layer (`@8bitscript/c64/input` reads a key matrix, `@8bitscript/nes/input` a shift register, `@8bitscript/cx16/input` the KERNAL mouse), and a machine that cannot answer yet says so and costs nothing: the web's layer returns constants, which LLVM deletes entirely. `#fact(input.mouse)` decides while compiling whether a build carries pointer code at all; whether a mouse is really plugged in is the layer's answer each frame, except on the X16, whose KERNAL has no probe and whose `pointer()` is the fact. See `packages/input/AGENTS.md` for what each of the nine reads today |
+| `@8bitscript/input` | What the user just did, on whichever machine is being built: four directions, confirm, cancel, and a pointer where there is one — all edge-triggered, so a press is true on the one frame it begins. Every answer comes from that machine's own layer (`@8bitscript/c64/input` reads a key matrix, `@8bitscript/nes/input` a shift register, `@8bitscript/cx16/input` the KERNAL mouse), and a machine that cannot answer yet says so and costs nothing. The web's layer reads a snapshot byte the page writes into shared memory (arrow keys, Enter, Escape) and still returns false for the pointer. `#fact(input.mouse)` decides while compiling whether a build carries pointer code at all; whether a mouse is really plugged in is the layer's answer each frame, except on the X16, whose KERNAL has no probe and whose `pointer()` is the fact. See `packages/input/AGENTS.md` for what each of the nine reads today |
 | `@8bitscript/pointer` | The other half of `input`: an arrow the user can see, drawn with whatever the machine has to draw one with. `DRAWS` is a const, so a program lays itself out around whether this machine draws a cursor at all and the branch it does not take costs nothing; `begin()` claims the hardware and `update()`, once a frame right after `input.poll()`, moves the arrow to wherever the poll left the pointer. Two packages rather than one because reading and drawing are different jobs and a machine can do either without the other — the X16 has a pointer in its own firmware and an input layer that cannot read a key. Today the **C64** and the **C128** (sprite 0, a pixel at a time, on a build fitted with a 1351) and the **X16** (the KERNAL's own arrow on the stock machine) are the ones that draw. See `packages/pointer/AGENTS.md` and `examples/pointer` |
 | `@8bitscript/system` | The machine, by name and by fact: `System.C64`, `System.PET`, … to compare the compiler's `#system()` with, and the fact sheet — `Video.COLUMNS`, `Video.SPRITES`, `Audio.VOICES`, `Input.KEYBOARD`, `Storage.SAVE`, `Memory.RAM`, … — each one `#fact(...)` folded from the build's hardware. Every one is a compile-time constant, so a branch on another machine, or on hardware this build lacks, folds away — see [systems](systems.md#facts-what-a-build-knows-about-itself) |
-| `@8bitscript/vic20`, `@8bitscript/c64`, `@8bitscript/nes`, … `@8bitscript/web` | Target support, one per machine: the hardware underneath (registers, port protocols), plus that machine's `./screen` and `./text` subpaths, and any hardware-level subpath of its own (`@8bitscript/pet/keyboard`, `@8bitscript/pet/keys`; `@8bitscript/c64/sprites`, `/keyboard`, `/keys`, `/joystick`, `/sid`, `/video`, `/raster`, `/bitmap`, `/charset`, `/scroll`, `/mouse`, `/reu` — the REU probe, `reu.detect()`, and its transfers; `@8bitscript/atari8/joystick`, `/console` — START/SELECT/OPTION and the console speaker, `/keyboard`, `/keys`, `/pokey` — POKEY's four voices, `/random` — POKEY's hardware entropy, behind its own import; `@8bitscript/c128/vdc`, `/vdc80`; `@8bitscript/cx16/banks` — `banks.kib()`, `/mouse` — the KERNAL pointer; `@8bitscript/atari8/banks` — `banks.kib()`) that a portable capability does not cover yet |
+| `@8bitscript/random` | Deterministic pseudo-random generators, with no per-machine variance at all — the default (a 16-bit LCG, `seed()`/`next()`/`range(bound)`) at the bare import, and `@8bitscript/random/table` (same three calls, plus a stateless `at(index)`) at a subpath: a precomputed 256-byte table read by an index instead of computed by a multiply, for code where that multiply is the thing being budgeted against, at the cost of a 256-call period instead of the default's 65536. The root `AGENTS.md` rule is that a program's ordinary random numbers must be deterministic and explicitly seeded, never drawn from hardware entropy by default; both generators here are that default, and a machine's own entropy source (`@8bitscript/atari8/random`, `@8bitscript/c64/random`) stays a separate, explicitly optional import a program can feed into either one's `seed()` |
+| `@8bitscript/vic20`, `@8bitscript/c64`, `@8bitscript/nes`, … `@8bitscript/web` | Target support, one per machine: the hardware underneath (registers, port protocols), plus that machine's `./screen` and `./text` subpaths, and any hardware-level subpath of its own (`@8bitscript/pet/keyboard`, `@8bitscript/pet/keys`, `/blocks` — quadrant-block pseudo-pixels and the digit tiles built from them, with centered and inverted layouts for game tiles; `@8bitscript/c64/sprites`, `/keyboard`, `/keys`, `/joystick`, `/sid`, `/video`, `/raster`, `/bitmap`, `/charset`, `/scroll`, `/mouse`, `/reu` — the REU probe, `reu.detect()`, and its transfers, `/random` — SID voice 3's oscillator, noise-clocked and kept out of the audio mix, behind its own import; `@8bitscript/atari8/joystick`, `/console` — START/SELECT/OPTION and the console speaker, `/keyboard`, `/keys`, `/pokey` — POKEY's four voices, `/random` — POKEY's hardware entropy, behind its own import; `@8bitscript/c128/vdc`, `/vdc80`; `@8bitscript/cx16/banks` — `banks.kib()`, `/mouse` — the KERNAL pointer; `@8bitscript/atari8/banks` — `banks.kib()`) that a portable capability does not cover yet |
 
 The compiler, the language server, and the backends are internal:
 `@8bitscript/compiler`, `@8bitscript/language-server`,
@@ -495,7 +496,7 @@ package declares itself an **app** in its manifest:
 ```json
 {
   "name": "@8bitscript/studio",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "8bitscript": {
     "app": { "title": "Studio", "entry": "./src/main.8bs" }
   }
@@ -556,36 +557,21 @@ its own `LICENSE` file.
 
 ### Still to confirm
 
-Nothing is published under `@8bitscript/*` today — that much is confirmed. What
-cannot be checked without signing in is whether the **`8bitscript` organisation
-name itself** is still claimable on npm. Confirm it by trying to create the
-organisation at `npmjs.com/org/create` before depending on the scope.
+The `@8bitscript` organisation on npm is claimed as part of the 0.1.0
+release. Scoped packages still need `"publishConfig": { "access": "public" }`,
+which every publishable manifest sets.
 
-## The first real consumer test
+## Publishing
 
-Every manifest under `packages/` is `private: true` right now. Nothing is
-releasable, and that flag means an accidental `pnpm publish` refuses rather than
-putting an empty package on the registry under a name we care about.
+Every package under `packages/` is public and versioned lockstep at **0.1.0**.
+`scripts/release.mjs` copies the root `LICENSE` into each package and runs
+`pnpm -r publish --filter './packages/*' --access public` from the workspace.
+A git tag `v0.1.0` is what CI runs that script on.
 
-Before the first release, the check worth running is the same tarball flow used
-above, but end to end from a project outside this repository:
-
-```bash
-cd packages/cli
-pnpm pack
-```
-
-Then, from that other project:
+Install the toolchain from the registry:
 
 ```bash
-pnpm add -D ../8bitscript/packages/cli/8bitscript-cli-0.0.0.tgz
+pnpm add -D @8bitscript/cli@0.1.0
 ```
 
-That installs exactly the bytes an npm user would receive, which a `workspace:*`
-link does not: workspace links ignore the `files` field, so a package can depend
-on something that would never be published and nobody notices until release
-day. Swapping that path for `@8bitscript/cli` is then the only change the
-consuming project needs.
-
-This full version is deliberately deferred. One workspace example has to build
-before a second, separate project is worth maintaining.
+See [Install from npm](install.md).

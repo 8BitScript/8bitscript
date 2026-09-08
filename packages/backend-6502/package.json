@@ -1,7 +1,6 @@
 {
   "name": "@8bitscript/backend-6502",
-  "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Internal: lowers IR to generated C and drives LLVM-MOS to a .prg.",
   "license": "MIT",
   "type": "module",
@@ -21,5 +20,8 @@
   },
   "dependencies": {
     "@8bitscript/compiler": "workspace:*"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

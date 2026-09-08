@@ -18,8 +18,9 @@ const EDIT_BYTES: usmallint = 8192;
 
 export function main(): void {
     // Read-only unless the machine can both take the input an editor needs
-    // and hold one: no keyboard is the NES and the web (until its runtime
-    // reads keys), and too little RAM is the small VIC-20s and the 8K PET.
+    // and hold one: no keyboard is the NES; the web now reads keys but has
+    // nothing to edit (no redefinable glyphs, sprites, or voices), and too
+    // little RAM is the small VIC-20s and the 8K PET.
     let tier: utinyint = Tier.VIEWER;
     if (Input.KEYBOARD && Memory.RAM >= EDIT_BYTES) {
         // Then how much there is to edit, one fact per editor: a character

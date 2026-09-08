@@ -1,6 +1,6 @@
 {
   "name": "8bitscript",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "A statically compiled programming language for classic 8-bit computers and the web.",
   "license": "MIT",
@@ -11,9 +11,10 @@
     "pnpm": ">=12"
   },
   "scripts": {
-    "docs:build": "node site/build.mjs && pagefind --site dist/site",
+    "docs:build": "node site/build-all.mjs",
     "docs:dev": "pnpm run docs:build && wrangler dev",
     "docs:deploy": "pnpm run docs:build && wrangler deploy",
+    "release": "node scripts/release.mjs",
     "check": "8bs check",
     "test": "pnpm --recursive --if-present test",
     "doctor": "8bs doctor",

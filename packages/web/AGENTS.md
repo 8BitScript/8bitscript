@@ -34,13 +34,13 @@ emulates now. Do not let the two blur.
 
 Do not describe more than this as working:
 
-- `packages/web/src/index.8bs` exports one namespace, `WebRegisters`: four
+- `packages/web/src/index.8bs` exports one namespace, `WebRegisters`: five
   byte offsets into the program's wasm linear memory — `BORDER_OFFSET` 0,
-  `BACKGROUND_OFFSET` 1, `CHAR_BASE` 2, `COLOR_BASE` 1002. That is the
-  whole "hardware surface": an agreement between the package and the host
-  about where in the program's own memory the picture is, which the host
-  reads once per painted frame. There is no register map because there is
-  no chip.
+  `BACKGROUND_OFFSET` 1, `CHAR_BASE` 2, `COLOR_BASE` 1002, `INPUT_OFFSET`
+  2002. That is the whole "hardware surface": an agreement between the
+  package and the host about where in the program's own memory the picture
+  and a one-byte input snapshot live. There is no register map because
+  there is no chip.
 - `src/screen.8bs` (behind `@8bitscript/screen`, as `@8bitscript/web/screen`)
   masks border and background to `& 15` and writes them to bytes 0 and 1.
   `screen.blank()` writes the space code (32) to the 1000 character cells;
@@ -67,9 +67,10 @@ Do not describe more than this as working:
   one exported function; the page paints the shared memory onto a 368×248
   canvas every `requestAnimationFrame` and releases logical frames on a
   fixed timestep of `1000 / frameRate` ms; the worker's `waitFrame()` is
-  `Atomics.wait` on a shared counter. Double-click or `F` is fullscreen;
-  an FPS readout shows logical frames consumed per real second. Ctrl+C in
-  the terminal stops the server.
+  `Atomics.wait` on a shared counter. The page writes arrow keys, Enter
+  and Escape into `INPUT_OFFSET` in that shared memory. Double-click or
+  `F` is fullscreen; an FPS readout shows logical frames consumed per
+  real second. Ctrl+C in the terminal stops the server.
 - `8bs run web --screenshot <file.png>` (`screenshot.mjs`, `wasm-host.mjs`)
   runs the same `.wasm` in Node's own WebAssembly with a counting
   `waitFrame()` that throws after `--frames` calls (default 3 seconds' worth
@@ -77,20 +78,24 @@ Do not describe more than this as working:
   8×8 bitmap font (`font8x8.mjs`, ASCII 32–95 only) and writes the PNG
   itself (`png.mjs`). No browser, no emulator, frame-exact.
 - `8bs build --target web` names the output `dist/<stem>.wasm` — no
-  `-web`, no region, no profile, unlike every 6502 target — and prints the
-  memory line "as declared", not measured.
+  `-web`, no region, no profile, unlike every 6502 target — and also writes
+  a hostable `dist/web/` directory (`index.html`, `worker.js`, `program.wasm`,
+  `_headers` with COOP/COEP). The memory line is "as declared", not measured.
 
-There is no input of any kind (the page's `F` key and double-click never
-reach the worker), no sound, no sprites, no tiles, no bitmap, no
+There is no pointer, no sound, no sprites, no tiles, no bitmap, no
 redefinable character set, no block graphics, no scrolling, no storage,
 no palette beyond the borrowed sixteen, no `--profile`, no `--pal`
 (ignored), and no way for the program to reach the canvas as pixels.
+Arrow keys, swipe/tap, Enter and Escape reach the program through a snapshot
+byte at `INPUT_OFFSET` that the page writes and `@8bitscript/web/input`
+reads.
 Studio has one `main.8bs` for every machine, and it reads the tier from
 the build's facts rather than from `#system()`. The web's sheet says
-`input.keyboard` false, so the web takes the read-only **viewer** tier —
-and, with `audio.voices` 0 and `storage.save` false, it is the one viewer
+`input.keyboard` true, but `video.glyphs`, `video.sprites` and
+`audio.voices` are still zero, so the web stays the read-only **viewer**
+tier — and, with `storage.save` false, it is the one viewer
 that cannot even play or load: view only. The runtime growing a keyboard
-is what lifts it (item 1 below), and its 57344 bytes and the browser's
+is done; what still lifts the tier is something to edit (item 3 below), and its 57344 bytes and the browser's
 capacity are why the full tier is designed to be hosted here eventually.
 door renders correctly in the browser was not run while writing this
 file (*to verify*). `docs/compiler.md`
@@ -111,7 +116,7 @@ what to search for when they drift.
 
 | Fact | Where |
 | ---- | ----- |
-| The screen agreement is four offsets: border byte 0, background byte 1, 1000 character codes from byte 2, 1000 colour bytes from byte 1002 — two side-by-side regions, not interleaved. 1000 cells was picked as "the C64's shape, a safe superset of the VIC-20's 506". | `packages/web/src/index.8bs:26-37`, `WebRegisters` (read) |
+| The screen agreement is five offsets: border byte 0, background byte 1, 1000 character codes from byte 2, 1000 colour bytes from byte 1002, input snapshot at byte 2002 — two side-by-side screen regions, not interleaved. 1000 cells was picked as "the C64's shape, a safe superset of the VIC-20's 506". | `packages/web/src/index.8bs`, `WebRegisters` (read) |
 | Grid 40×25, cell 8×8 px, border 24 px on every side: canvas resolution 368×248, stretched to the window with `image-rendering: pixelated`. Characters are clipped to the inner 320×200 and cannot draw in the border. | `packages/cli/src/web-runtime.mjs:37-53`, `GRID_COLS`…`SCREEN_H`; `:238-241`, `paint()` clip (read); the headless PNG is 368×248 RGBA (ran) |
 | Palette: the C64's sixteen colours, in the C64's numbering, as CSS hex; the host masks every colour byte `& 15`; the package masks border/background `& 15` before writing. | `web-runtime.mjs:23-35`, `COLORS`; `:229, :231, :247` (read); `packages/web/src/screen.8bs:26-27, 48, 52` (read) |
 | A cell's colour is its own byte's low nibble (foreground only); there is no per-cell background. Colour bytes start at 0, so a cell written with `text.putChar` alone draws in colour 0 (black). `screen.blank()` clears characters, not colours. | `web-runtime.mjs:247` (read); `packages/web/src/text.8bs:39-56` (read); `screen.8bs:42-44` (read) |
@@ -132,7 +137,7 @@ what to search for when they drift.
 | Output is `dist/<stem>.wasm` beside its generated `dist/<stem>.ts`, no target/region/profile suffix; the memory line is the source's declared counts. | `build.mjs:215-225, 262-268`, `memoryLine` (read); `built …/dist/main.wasm`, `memory: 4 bytes of RAM for variables, 23 bytes of constant data (as declared)` (ran) |
 | The checker's portable string set is space, `0`–`9`, `A`–`Z`, `! , - . : ?` — a subset of what the host draws (32–95). `text.putChar` takes any `utinyint`; the host decides what shows. | `packages/compiler/src/checker/index.mjs:68` (read) |
 | The web is the last of nine machines the resolver knows; `@8bitscript/screen` and `@8bitscript/text` map it to this package's two subpaths. | `packages/compiler/src/resolver/index.mjs:42`; `packages/screen/package.json`, `packages/web/package.json:9-12` (read) |
-| The catalog's stock fact sheet: grid 40×25 of 8×8, 16 colours, 2 per cell (its own foreground, the global background), no redefinable glyphs, no block glyphs (only codes 32–95 draw), no bitmap, one layer, no scroll, no sprites; no sound, keyboard, ports, pads, mouse or paddles, and nowhere to save — every one `0` or `false`, honestly, until the runtime grows them (see the proposal below); 57344 bytes (`0x0000`–`0xDFFF`, under the data base), nothing banked. The absence of a keyboard is why Studio is a viewer here. | `src/text.8bs`; the grid, font, memory and `--memoryBase` rows above; `package.json` (read) |
+| The catalog's stock fact sheet: grid 40×25 of 8×8, 16 colours, 2 per cell (its own foreground, the global background), no redefinable glyphs, no block glyphs (only codes 32–95 draw), no bitmap, one layer, no scroll, no sprites; no sound, ports, pads, mouse or paddles, and nowhere to save; `input.keyboard` true — arrow keys, Enter and Escape through the snapshot at byte 2002. 57344 bytes (`0x0000`–`0xDFFF`, under the data base), nothing banked. Studio is a viewer here because there is nothing to edit, not because there is no keyboard. | `src/text.8bs`; the grid, font, memory and `--memoryBase` rows above; `package.json` (read) |
 
 ## The schema, as the runtime decides it today
 
@@ -159,7 +164,9 @@ web each answer is a line of code, cited above; this is the compact form.
 7. **Sprites** — none, and no software substitute in the package.
 8. **Pseudo-pixels** — none: only codes 32–95 draw, and they are text.
 9. **Audio** — none. No entropy source either.
-10. **Input** — none reaches the program.
+10. **Input** — arrow keys, Enter and Escape, through a one-byte snapshot
+    at `INPUT_OFFSET` that the page writes and `@8bitscript/web/input`
+    reads. No pointer, no gamepad.
 11. **Storage / persistence** — none.
 12. **Timing** — logical frames at `frameRate` (default 60) from a
     `requestAnimationFrame` accumulator, ≤ 2 owed, released through
@@ -255,10 +262,10 @@ web each answer is a line of code, cited above; this is the compact form.
 
 ### What is not here yet
 
-- No input, sound, sprites, tiles, storage, palette or scroll — for the
-  web or (mostly) any machine. `packages/studio/AGENTS.md` lists what
-  Studio needs in order; the web implementations of those capabilities
-  are the subject of the proposal below, and none of them exist.
+- No pointer, sound, sprites, tiles, storage, palette or scroll — for the
+  web or (mostly) any machine. Keyboard directions now reach the program.
+  `packages/studio/AGENTS.md` lists what Studio needs in order; the web
+  implementations of the rest are the subject of the proposal below.
 
 ## Traps
 
@@ -377,15 +384,15 @@ sources before a capability depends on it.
    and filter later, if a capability needs them. Entropy: none, unless a
    separate explicitly optional import wraps `crypto.getRandomValues`, per
    the root rule on randomness.
-10. **Input** — the page writes, the program reads, and the worker never
-    sees a DOM event: a key-state snapshot (one byte per key, or a
-    matrix-shaped bitset so the PET/C64 packages have a twin), a joystick
-    byte per port in the Commodore/Atari five-line shape (recalled, *to
-    verify* against `@8bitscript/c64/joystick`) from the Gamepad API,
-    and a pointer (x, y, buttons) from the mouse. The program samples them
-    right after `waitFrame()` — the PET's snapshot rule — and a
-    `@8bitscript/input` capability sits on top. This needs no new wasm
-    import; the shared memory is the port.
+10. **Input** — **directions, confirm and cancel are done**: the page
+    writes a one-byte snapshot at `INPUT_OFFSET`, the program reads it in
+    `poll()`, the worker never sees a DOM event. Still waiting: a
+    key-state snapshot (one byte per key, or a matrix-shaped bitset so the
+    PET/C64 packages have a twin), a joystick byte per port in the
+    Commodore/Atari five-line shape (recalled, *to verify* against
+    `@8bitscript/c64/joystick`) from the Gamepad API, and a pointer (x, y,
+    buttons) from the mouse. This needs no new wasm import; the shared
+    memory is the port.
 11. **Storage / persistence** — the page can hand the browser a file and
     take one dropped on it (`packages/studio/AGENTS.md` already assumes
     so; *to verify* what a capability wants of it). Shape: a byte region
@@ -411,13 +418,14 @@ sources before a capability depends on it.
 ## Where things live
 
 ```
-packages/web/src/index.8bs               target package: WebRegisters — the four offsets (0, 1, 2, 1002) the host reads
+packages/web/src/index.8bs               target package: WebRegisters — the five offsets (0, 1, 2, 1002, 2002) the host and the input layer share
 packages/web/src/screen.8bs              @8bitscript/web/screen: setColors/setBorder/setBackground (& 15), blank() over 1000 chars, sixteen names + KEEP
 packages/web/src/text.8bs                @8bitscript/web/text: ASCII straight into the page, setReverse (colour bit 7), COLUMNS 40, CELL_COUNT 1000, divide-based printNumber, eight TextColor names
-packages/web/package.json                "8bitscript".entry and the two subpaths ./screen, ./text
+packages/web/src/input.8bs               @8bitscript/web/input: poll() reads INPUT_OFFSET; arrows, Enter, Escape; pointer still false
+packages/web/package.json                "8bitscript".entry and the subpaths ./screen, ./text, ./input, ./pointer
 packages/backend-web/src/index.mjs       IR → AssemblyScript → asc: STRING_DATA_BASE 0xE000, one page, env.waitFrame import, @address/asm6502 refusals, the asc flags
 packages/backend-web/test/backend.test.mjs   u8 wrap, shared memory + host import, string data at 0xE000 clear of the screen
-packages/cli/src/web-runtime.mjs         the emulator: COLORS, GRID_COLS/ROWS, CHAR_W/H, BORDER_PX, CHAR_BASE/COLOR_BASE, the worker's Atomics.wait, the page's rAF clock, paint(), COOP/COEP
+packages/cli/src/web-runtime.mjs         the emulator: COLORS, GRID_COLS/ROWS, CHAR_W/H, BORDER_PX, CHAR_BASE/COLOR_BASE, INPUT_OFFSET, the worker's Atomics.wait, the page's rAF clock, paint(), key snapshot, COOP/COEP
 packages/cli/src/wasm-host.mjs           headless: instantiateProgram (one export, one import), boundedWaitFrame, runProgram
 packages/cli/src/font8x8.mjs             the 64-glyph 8×8 font (ASCII 32–95) the screenshot draws with
 packages/cli/src/png.mjs                 the PNG encoder the web target alone needs
@@ -428,7 +436,7 @@ packages/cli/src/config.mjs              resolveFrameRate: the one timing knob
 packages/cli/test/screenshot.test.mjs    web: --screenshot produces a PNG with no emulator at all
 packages/backend-6502/src/index.mjs      FRAME_SYNC's accumulator comment: this host is the reference the 6502 clock imitates
 packages/compiler/src/fold/index.mjs     SYSTEMS: #system() is 0 on a web build (System.WEB)
-packages/studio/src/main.8bs             the one Studio entry: no input.keyboard fact, so the web takes Tier.VIEWER
+packages/studio/src/main.8bs             the one Studio entry: input.keyboard is true, but glyphs/sprites/voices are zero, so the web takes Tier.VIEWER
 docs/compiler.md                         the web backend row, 0xE000 strings, the 8 KB static-data limit, memory.write on the web
 docs/setup/verify.md                     the web row of the --screenshot table
 docs/roadmap.md, docs/studio.md          "the web version can be much fancier"; the web is a viewer until its runtime reads keys

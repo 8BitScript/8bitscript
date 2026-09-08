@@ -76,7 +76,13 @@ if (!command || command === '--help' || command === '-h') {
 }
 
 if (command === '--version' || command === '-v') {
-  process.stdout.write('8bs 0.0.0\n');
+  const { readFileSync } = await import('node:fs');
+  const { dirname, join } = await import('node:path');
+  const { fileURLToPath } = await import('node:url');
+  const pkg = JSON.parse(
+    readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../package.json'), 'utf8'),
+  );
+  process.stdout.write(`8bs ${pkg.version}\n`);
   process.exit(0);
 }
 

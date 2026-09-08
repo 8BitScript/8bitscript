@@ -152,7 +152,7 @@ The extension lives at `editors/vscode/` in this repository. Link it in and
 reload the window:
 
 ```bash
-ln -s "$PWD/editors/vscode" ~/.cursor/extensions/8bitscript.8bitscript-lang-0.0.0
+ln -s "$PWD/editors/vscode" ~/.cursor/extensions/8bitscript.8bitscript-lang-0.1.0
 ```
 
 Use `~/.vscode/extensions/` for VS Code, and run it from the repository root

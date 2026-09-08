@@ -122,6 +122,121 @@ kbd {
   gap: 1rem;
 }
 
+.header-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.version-picker {
+  position: relative;
+  flex: none;
+}
+
+.version-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.65rem;
+  background: var(--bg-subtle);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.version-trigger:hover,
+.version-trigger[aria-expanded="true"] {
+  border-color: var(--border-strong);
+}
+
+.version-chevron {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+.version-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.4rem);
+  z-index: 30;
+  width: min(16rem, 80vw);
+  padding: 0.65rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+}
+
+.version-search-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.version-search {
+  width: 100%;
+  margin: 0 0 0.5rem;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.version-list {
+  max-height: 16rem;
+  overflow: auto;
+}
+
+.version-group {
+  margin: 0.4rem 0 0.15rem;
+  padding: 0.2rem 0.4rem;
+  font-size: 0.7rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.version-option {
+  display: block;
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.88rem;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.version-option:hover,
+.version-option:focus-visible {
+  background: var(--bg-subtle);
+}
+
+.version-option.is-current {
+  font-weight: 650;
+}
+
+.version-empty {
+  padding: 0.5rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
 .wordmark {
   display: inline-flex;
   align-items: center;

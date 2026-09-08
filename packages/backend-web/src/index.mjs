@@ -50,7 +50,7 @@ const stringName = (index) => `__8bs_str_${index}`;
 // Where asc places static data (`--memoryBase`): 0xE000, the top 8KB of
 // the 64KB page — where a Commodore's ROM sits — so constant data never
 // overlaps the character screen at the bottom (@8bitscript/web's
-// WebRegisters agreement ends at 2002) nor anything a program is likely to
+// WebRegisters agreement ends at 2003) nor anything a program is likely to
 // memory.write() itself.
 export const STRING_DATA_BASE = 0xE000;
 

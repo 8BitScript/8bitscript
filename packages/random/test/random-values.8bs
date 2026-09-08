@@ -1,0 +1,20 @@
+// A non-entry module so its globals can be exported: random-values-main.8bs
+// is the entry file (an entry module may export only its own `main`), and
+// calls run() from here. random.test.mjs reads r0..r3 back off the compiled
+// wasm and checks them against the LCG step worked out independently in
+// JavaScript, so this is what proves the generator does what
+// ../src/index.8bs documents, not just that it compiles.
+import { random } from "../src/index.8bs";
+
+export let r0: utinyint = 0;
+export let r1: utinyint = 0;
+export let r2: utinyint = 0;
+export let r3: utinyint = 0;
+
+export function run(): void {
+    random.seed(1);
+    r0 = random.next();
+    r1 = random.next();
+    r2 = random.next();
+    r3 = random.range(6);
+}

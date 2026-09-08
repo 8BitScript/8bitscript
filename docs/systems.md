@@ -204,10 +204,11 @@ and `Memory.RAM` above its editing budget, and then `Video.GLYPHS`,
 `Video.SPRITES` and `Audio.VOICES` say which editors have anything to
 edit — all three is the full tier, some the basic one, none the read-only
 viewer. Not a list of machine names, so a tenth machine gets the right
-tier without anyone editing Studio. It also moved the web to the viewer
-tier, honestly (the web runtime has no keyboard yet), put every PET there
+tier without anyone editing Studio. The web stays a viewer even though its
+runtime now reads keys, because it has nothing to edit (no redefinable
+glyphs, sprites, or voices). Every PET lands there too
 (its font is in ROM, it has no sprites, and its one voice has no volume —
-facts no memory expansion changes), and made the VIC-20's tier follow the
+facts no memory expansion changes). The VIC-20's tier follows the
 RAM its build was fitted with: `--profile 8k` is the difference between a
 viewer and an editor on the same machine.
 
@@ -847,7 +848,7 @@ profile can persist bytes. "Frame" is how a program waits for one.
 | NES | none | 2 pads | none | battery SRAM on MMC1/MMC3 profiles; none on NROM | NMI at vblank; writes only then |
 | X16 | PS/2 via KERNAL | SNES pads (count *to verify*) | PS/2 mouse, KERNAL cursor | SD card via DOS; 32 bytes RTC NVRAM | VERA VSYNC bit |
 | MEGA65 | matrix, direct matrix, ASCII queue | 2 ports | 1351 or Amiga mouse | SD card via Hyppo traps, floppy | poll `$D012`; frame counter `$D7FA`; interrupts are off |
-| web | none yet | none yet | none yet | none yet | `Atomics.wait` on the page's clock |
+| web | arrow keys, Enter, Escape | none yet | none yet | none yet | `Atomics.wait` on the page's clock |
 | Apple II | one-key ASCII latch | 2 analogue paddle pairs | AppleMouse card; IIc built in | ProDOS files on disk images | `$C019` on IIe; none on II/II+ |
 | Plus/4 | latch scan (`$FD30`/`$FF08`) | 2 mini-DIN ports | none | disk, tape | poll `$FF1C`/`$FF1D`; raster IRQ |
 | BBC Micro | MOS INKEY (matrix under it) | analogue port, 2 buttons | AMX (user port) | DFS/ADFS disks, tape; Master CMOS 50 bytes | OSBYTE `&13` (vsync) |

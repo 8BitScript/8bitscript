@@ -9,9 +9,8 @@
 #
 # Examples depend on the packages with `workspace:*`, so `pnpm install` links
 # them straight out of packages/ instead of fetching anything from the
-# registry. That is what lets an example be a genuine consumer of the toolchain
-# — resolving through node_modules exactly as an outside project will — with
-# nothing published yet.
+# registry. Outside this repository, programs install `@8bitscript/cli` from
+# npm at the same version the workspace publishes.
 packages:
   - packages/*
   - examples/*

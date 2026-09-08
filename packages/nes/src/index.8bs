@@ -49,13 +49,32 @@
 //      at the start of the next vertical blank — packages/backend-6502's
 //      frame runtime calls it right after every hardware frame edge
 //      (FRAME_SYNC.nes.frameHook), before waitFrame() returns. Delivery
-//      is a tight loop, about 15 cycles a byte, so a frame's worth of
-//      text fits with room to spare; a program prints whenever it likes
-//      and sees the result the next frame. The queue holds 128 bytes;
-//      more than that in one frame is delivered as it overflows, which
-//      may tear. screen.blank() switches rendering off and writes the
-//      nametable directly, delivering the queue first so nothing printed
-//      before the blank appears after it.
+//      is a tight loop, about 15 cycles a byte — but that number alone
+//      is what let this queue overrun the blank in the first place: it
+//      prices the data bytes and forgets each run's own header (a
+//      setVramAddress() call plus its two-write PPUADDR protocol), which
+//      is not free. A HUD of a few wide rows is nearly all data bytes and
+//      pays that header cost once or twice; a grid of many narrow fields
+//      (2048's 4-character tile cells, three text.print() runs per tile)
+//      pays it on almost every run. QUEUE_SIZE was 128 — "about four
+//      28-column rows," sized against the wide-row case — until 2048's
+//      16-tile board (packages/2048, one run per tile row, ~19 runs to
+//      fill one queue) proved by measurement that a full 128-byte queue
+//      of small runs delivers a few cycles past the 2270-cycle blank,
+//      corrupting whichever tile was mid-flight when the PPU's own
+//      rendering resumed under it (FCEUX, `8bs run nes --screenshot`,
+//      2026-09-07: 128 corrupted two tiles, every size 120 and under
+//      across both a two-tile and a full sixteen-tile board did not, 124
+//      did). 112 is the fixed value now: comfortable under the observed
+//      failure band, not the exact edge of it, since neither this
+//      project's timing model nor FCEUX's is being trusted to a single
+//      cycle. A future program with even smaller, more numerous runs
+//      than 2048's could still find a new floor; measure again with
+//      `--screenshot` before assuming this one holds. more than a full
+//      queue in one frame is delivered as it overflows, which may tear.
+//      screen.blank() switches rendering off and writes the nametable
+//      directly, delivering the queue first so nothing printed before
+//      the blank appears after it.
 //
 // Nametable and attribute contents are undefined at power-on (real
 // hardware: garbage; FCEUX: zeros, which is why a program that forgot to
@@ -99,7 +118,7 @@ export function resetScroll(): void {
 // count, and the bytes: `queueRun(address)` opens one, `queueByte(value)`
 // adds to it, and `nesVerticalBlank()` writes them all out in order and
 // resets the scroll. Rule 2 above says why.
-const QUEUE_SIZE: utinyint = 128;
+const QUEUE_SIZE: utinyint = 112;
 let queue: array<utinyint, QUEUE_SIZE>;
 let queueEnd: utinyint = 0;
 let runCount: utinyint = 0; // where the open run's count byte is

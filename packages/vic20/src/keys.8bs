@@ -1,0 +1,139 @@
+// @8bitscript/vic20/keys — the keyboard matrix, key by key.
+//
+// Named by "8bitscript".exports["./keys"] in this package's package.json, for
+//
+//     import { keyboard } from "@8bitscript/vic20/keyboard";
+//     import { Key } from "@8bitscript/vic20/keys";
+//
+//     if (keyboard.pressed(Key.SPACE)) { ... }
+//
+// Each value is `select * 8 + row` in VIA2's matrix (see ./keyboard.8bs):
+// `select` is which of VIA2 port B's eight column-select lines was driven
+// low to reach this key, `row` the bit of VIA2 port A that reads low —
+// ../AGENTS.md, "Keyboard: VIA2 port B selects columns (output), port A
+// reads rows against the selected columns" (verified there against
+// vic20via2.c `read_pra`: port B is the column mask, `rev_keyarr[column]`
+// the row bits). One matrix on every VIC-20 ever made, expanded or not.
+//
+// Source: the matrix diagram in VICE's own vic20/gtk3_pos.vkm (reproduced
+// below), checked here key for key against that file,
+// /opt/homebrew/share/vice/VIC20/gtk3_pos.vkm. Each line there is
+// `keysym row column shiftflag`: VICE's first number is the **row** (VIA2
+// port A bit), its second the **column** (VIA2 port B bit). `keyboard.scan()`
+// indexes `state[column]` with row bits, so a Key is `column * 8 + row`,
+// not `row * 8 + column`. The C64 table can use VICE's pair in file order
+// because that machine's gtk3_pos.vkm writes the *column* first; copying
+// that convention here looked up every key in the transposed cell
+// (2048 on xvic, 2026-09-07: host Right lit port-B column 2 / port-A bit 7
+// — Key 23 — while this table named that position 58).
+// packages/compiler/test/vic20-keys.test.mjs repeats the check when the
+// keymap is present.
+//
+//       +------+------+------+------+------+------+------+------+
+//       |sel. 0|sel. 1|sel. 2|sel. 3|sel. 4|sel. 5|sel. 6|sel. 7|
+// +-----+------+------+------+------+------+------+------+------+
+// |row 0| 1 !  |A_LEFT| CTRL | R/S  |SPACE |  C=  |  Q   | 2 "  |
+// +-----+------+------+------+------+------+------+------+------+
+// |row 1| 3 #  |  W   |  A   |S_LEFT|  Z   |  S   |  E   | 4 $  |
+// +-----+------+------+------+------+------+------+------+------+
+// |row 2| 5 %  |  R   |  D   |  X   |  C   |  F   |  T   | 6 &  |
+// +-----+------+------+------+------+------+------+------+------+
+// |row 3| 7 '  |  Y   |  G   |  V   |  B   |  H   |  U   | 8 (  |
+// +-----+------+------+------+------+------+------+------+------+
+// |row 4| 9 )  |  I   |  J   |  N   |  M   |  K   |  O   |  0   |
+// +-----+------+------+------+------+------+------+------+------+
+// |row 5|  +   |  P   |  L   | , <  | . >  | : [  |  @   |  -   |
+// +-----+------+------+------+------+------+------+------+------+
+// |row 6|POUND |  *   | ; ]  | / ?  |S_RGHT|  =   |A_UP  | HOME |
+// +-----+------+------+------+------+------+------+------+------+
+// |row 7| DEL  |RETURN|C_L/R |C_U/D |  F1  |  F3  |  F5  |  F7  |
+// +-----+------+------+------+------+------+------+------+------+
+//
+// Two keys are not in it: RESTORE is wired to the CPU's NMI line (VIA1's
+// CA1, ../AGENTS.md), and SHIFT LOCK is the left SHIFT key's own wire,
+// held down (VICE's `Caps_Lock` maps to the same position as `Shift_L`).
+//
+// A key that also exists on the C64 or PET has the same name here —
+// letters, `DIGIT_n`, SPACE, RETURN, HOME, DELETE, both shifts, the arrows
+// and the shared punctuation — so a program that sticks to those names
+// reads the same across the Commodores it runs on. `CURSOR_LEFT_RIGHT` and
+// `CURSOR_UP_DOWN` are named for what this keyboard actually has: one key
+// per pair, not four, with SHIFT reversing each — the same shape as the
+// C64's `CURSOR_RIGHT`/`CURSOR_DOWN`, under different names because they
+// are not the same two directions unshifted (this machine's un-shifted
+// pair is right and down, matching the C64's).
+
+export namespace Key {
+    // select 0 — VIA2 port B bit 0
+    const DIGIT_1: utinyint = 0;
+    const DIGIT_3: utinyint = 1;
+    const DIGIT_5: utinyint = 2;
+    const DIGIT_7: utinyint = 3;
+    const DIGIT_9: utinyint = 4;
+    const PLUS: utinyint = 5;
+    const POUND: utinyint = 6; // £
+    const DELETE: utinyint = 7; // INST/DEL
+    // select 1
+    const LEFT_ARROW: utinyint = 8; // the "<-" key left of DIGIT_1, not a cursor key
+    const W: utinyint = 9;
+    const R: utinyint = 10;
+    const Y: utinyint = 11;
+    const I: utinyint = 12;
+    const P: utinyint = 13;
+    const ASTERISK: utinyint = 14;
+    const RETURN: utinyint = 15;
+    // select 2
+    const CTRL: utinyint = 16;
+    const A: utinyint = 17;
+    const D: utinyint = 18;
+    const G: utinyint = 19;
+    const J: utinyint = 20;
+    const L: utinyint = 21;
+    const SEMICOLON: utinyint = 22;
+    const CURSOR_LEFT_RIGHT: utinyint = 23; // unshifted: right; shifted: left
+    // select 3
+    const RUN_STOP: utinyint = 24;
+    const SHIFT_LEFT: utinyint = 25; // also SHIFT LOCK
+    const X: utinyint = 26;
+    const V: utinyint = 27;
+    const N: utinyint = 28;
+    const COMMA: utinyint = 29;
+    const SLASH: utinyint = 30;
+    const CURSOR_UP_DOWN: utinyint = 31; // unshifted: down; shifted: up
+    // select 4
+    const SPACE: utinyint = 32;
+    const Z: utinyint = 33;
+    const C: utinyint = 34;
+    const B: utinyint = 35;
+    const M: utinyint = 36;
+    const PERIOD: utinyint = 37;
+    const SHIFT_RIGHT: utinyint = 38;
+    const F1: utinyint = 39; // shifted: F2
+    // select 5
+    const COMMODORE: utinyint = 40; // the C= key
+    const S: utinyint = 41;
+    const F: utinyint = 42;
+    const H: utinyint = 43;
+    const K: utinyint = 44;
+    const COLON: utinyint = 45;
+    const EQUALS: utinyint = 46;
+    const F3: utinyint = 47; // shifted: F4
+    // select 6
+    const Q: utinyint = 48;
+    const E: utinyint = 49;
+    const T: utinyint = 50;
+    const U: utinyint = 51;
+    const O: utinyint = 52;
+    const AT: utinyint = 53;
+    const UP_ARROW: utinyint = 54;
+    const F5: utinyint = 55; // shifted: F6
+    // select 7
+    const DIGIT_2: utinyint = 56;
+    const DIGIT_4: utinyint = 57;
+    const DIGIT_6: utinyint = 58;
+    const DIGIT_8: utinyint = 59;
+    const DIGIT_0: utinyint = 60;
+    const MINUS: utinyint = 61;
+    const HOME: utinyint = 62; // CLR/HOME
+    const F7: utinyint = 63; // shifted: F8
+}

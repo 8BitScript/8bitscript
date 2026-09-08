@@ -121,10 +121,14 @@ one of them shapes a component's design:
   What does not fit is the caller's problem to solve and the component's
   problem to *report* — never to silently overrun.
 - **A cell write is not free and not always immediate.** The NES queues
-  writes and delivers them in vertical blank, 128 bytes at a time; a
+  writes and delivers them in vertical blank, 112 bytes at a time; a
   component that draws more than that in one go costs the program frames
   (never the picture — the queue waits for the next blank). Draw once
-  before the loop where you can, as Studio does.
+  before the loop where you can, as Studio does. Many small writes cost
+  more of that budget than the same bytes as a few large ones — each run
+  pays its own address header — so a component of many narrow fields
+  (see `packages/nes/AGENTS.md`, 2048's tile grid) fills the queue faster
+  than its byte count alone suggests.
 
 ## The menu bar
 

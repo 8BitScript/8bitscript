@@ -226,9 +226,9 @@ export async function run(args) {
     // Every program runs the same way on the web: in the browser runtime's
     // worker (web-runtime.mjs), whether it loops on waitFrame(), returns, or
     // spins. Headless execution is `--screenshot`'s job, bounded by --frames.
-    const bytes = await readFile(outFile);
     const { runInBrowser } = await import('./web-runtime.mjs');
-    return runInBrowser(bytes, { open, frameRate });
+    const bytes = await readFile(outFile);
+    return runInBrowser(bytes, { open, frameRate, root: resolve('dist', 'web') });
   }
 
   const region = pal ? 'pal' : 'ntsc';

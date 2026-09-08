@@ -1,0 +1,80 @@
+// @8bitscript/vic20/keyboard — the VIC-20's keyboard matrix, one snapshot a
+// frame.
+//
+// Named by "8bitscript".exports["./keyboard"] in this package's package.json:
+//
+//     import { keyboard } from "@8bitscript/vic20/keyboard";
+//     import { Key } from "@8bitscript/vic20/keys";
+//
+// This is hardware-level, VIC-20-only surface — the layer the portable
+// input capability is built on: `@8bitscript/vic20/input` reads this file
+// and @8bitscript/input resolves to that, the way ./text.8bs is the layer
+// under @8bitscript/text. Importing it makes a program VIC-20-specific.
+// It keeps no key buffer and decodes no PETSCII; it answers "is this key
+// down now", which is what a game loop asks.
+//
+// ---- how the matrix works -----------------------------------------------
+//
+// Eight columns by eight rows, on VIA2 alone — ../index.8bs and
+// ../AGENTS.md (verified against VICE's `vic20via2.c`): port B selects a
+// column (DDRB $FF at boot, all eight lines outputs), port A reads that
+// column's eight keys (DDRA $00, inputs), a 0 bit where a key is down.
+// `scan()` writes both direction registers itself, so it does not depend
+// on what ran before, and drives every column exactly once — the KERNAL's
+// own IRQ scan (packages/vic20/AGENTS.md: a free-running ~60 Hz timer, not
+// locked to the frame) would otherwise land its own column select between
+// this scan's write and read, which is one reason the frame runtime
+// starts a VIC-20 program with interrupts held off.
+//
+// `scan()` reads all eight columns into `state`, once a frame, right after
+// waitFrame() returns; every question after that reads the snapshot. It
+// leaves port B at $FF — no column selected — which is the state
+// @8bitscript/vic20/input's joystick-right read needs: VIA2 port B bit 7
+// doubles as that line, and turning it around to an input reads correctly
+// only once the keyboard scan is no longer driving it low for some other
+// column. Call `keyboard.scan()` first and read the joystick second, both
+// once a frame.
+//
+// Ghosting is the same hazard it is on every unshifted matrix: three keys
+// down can read as four. Two keys are always safe.
+import { via2PortA, via2PortB, via2DirectionA, via2DirectionB } from "./index.8bs";
+
+// The last scan, one byte per column, a 1 bit where a key is down (the
+// port's active-low rows inverted once, here, so nothing else has to
+// think about it). All zero until the first scan.
+let state: array<utinyint, 8>;
+
+// The column-select byte for each column, and the row masks — indexed
+// rather than shifted, as `1 << n` with a variable n is a loop on the 6502.
+const COLUMN_SELECT: array<utinyint, 8> = [254, 253, 251, 247, 239, 223, 191, 127];
+const ROW_BIT: array<utinyint, 8> = [1, 2, 4, 8, 16, 32, 64, 128];
+
+export namespace keyboard {
+    const COLUMNS: utinyint = 8;
+    const ROWS: utinyint = 8;
+
+    // Read all eight columns into the snapshot. Once a frame, right after
+    // waitFrame(), before reading the joystick's right line.
+    function scan(): void {
+        via2DirectionB = 0xFF;
+        via2DirectionA = 0x00;
+        for (let select: utinyint = 0; select < 8; select++) {
+            via2PortB = COLUMN_SELECT[select];
+            state[select] = via2PortA ^ 0xFF;
+        }
+        via2PortB = 0xFF;
+    }
+
+    // Is this key down in the last scan? `key` is a `Key.*` value from
+    // @8bitscript/vic20/keys — `select * 8 + row` in the matrix.
+    function pressed(key: utinyint): bool {
+        return (state[key >> 3] & ROW_BIT[key & 7]) != 0;
+    }
+
+    // The last scan's eight rows of one column, a 1 bit per key down:
+    // for code that wants a whole column at once (an "any key" test over
+    // all eight, a ghosting check).
+    function column(index: utinyint): utinyint {
+        return state[index];
+    }
+}

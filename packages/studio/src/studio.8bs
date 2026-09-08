@@ -43,7 +43,7 @@ const ROW: usmallint = text.COLUMNS;
 // The library's version: Studio ships with the toolchain, and its version
 // is the toolchain's. test/studio.test.mjs checks this literal against
 // package.json, which in turn is the workspace's one version.
-const VERSION: string = "0.0.0";
+const VERSION: string = "0.1.0";
 
 // Studio's menu bar, across the top row on every machine, from
 // @8bitscript/ui — the first component Studio takes from the shared
@@ -169,8 +169,9 @@ export namespace studio {
         // compiles the one line that is true of it and none of the others:
         // the NES says PAD, the computers (including the X16, which has a
         // keyboard even though this layer does not read it yet) say KEYS,
-        // and the web — whose runtime does not deliver input yet — says
-        // NONE, which is also why its tier is a viewer.
+        // and the web reads arrow keys through the runtime's snapshot and
+        // says KEYS too — it is still a viewer because it has nothing to
+        // edit.
         text.print(cell, "INPUT ");
         if (Input.KEYBOARD) {
             text.print(cell + 6, "KEYS");

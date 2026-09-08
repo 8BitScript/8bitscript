@@ -293,20 +293,27 @@ The language server layers semantic information over it once it has a binder
 to draw on; until then, hover and completion (see above) are the only
 compiler-backed intelligence in the editor.
 
-## Installing it while developing
+## Installing it
+
+Install **8BitScript** from the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=8bitscript.8bitscript-lang)
+or from [Open VSX](https://open-vsx.org/extension/8bitscript/8bitscript-lang)
+(Cursor uses Open VSX). The extension talks to `8bs` in the project:
+`pnpm add -D @8bitscript/cli` so `node_modules/.bin/8bs` exists.
+
+## Installing it while developing the extension
 
 Link this directory into the editor's extensions folder, then reload the window.
 
 Cursor:
 
 ```bash
-ln -s "$PWD/editors/vscode" ~/.cursor/extensions/8bitscript.8bitscript-lang-0.0.0
+ln -s "$PWD/editors/vscode" ~/.cursor/extensions/8bitscript.8bitscript-lang-0.1.0
 ```
 
 VS Code:
 
 ```bash
-ln -s "$PWD/editors/vscode" ~/.vscode/extensions/8bitscript.8bitscript-lang-0.0.0
+ln -s "$PWD/editors/vscode" ~/.vscode/extensions/8bitscript.8bitscript-lang-0.1.0
 ```
 
 Run either from the repository root. Then **Developer: Reload Window** from the
@@ -322,8 +329,14 @@ with everything else. If the editor does not pick up the
 symlink, copy the directory instead of linking it — some builds scan for real
 directories. Remove it with `rm` on the link; nothing else is touched.
 
-## Publishing it later
+## Publishing
 
-Distribution is a `.vsix` built with `@vscode/vsce` and either uploaded to the
-marketplace or installed with `cursor --install-extension <file>.vsix`. That is
-not set up yet, and it is not worth setting up until the grammar has settled.
+A `.vsix` is built with `@vscode/vsce` and published to the Visual Studio
+Marketplace and to Open VSX. The tag workflow (`.github/workflows/release.yml`)
+runs both when `v*` is pushed. Locally, from `editors/vscode`:
+
+```bash
+npx @vscode/vsce package
+npx @vscode/vsce publish
+npx ovsx publish
+```

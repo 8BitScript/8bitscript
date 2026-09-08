@@ -6,6 +6,22 @@
 // framework would cost more than it buys.
 import { nav } from './nav.mjs';
 
+/** Empty string for the latest release at `/`; `/0.1.0` for a snapshot. */
+export let siteBase = '';
+export let siteVersion = '0.1.0';
+
+export function configureSite({ base = '', version = '0.1.0' } = {}) {
+  siteBase = String(base).replace(/\/$/, '');
+  siteVersion = version;
+}
+
+/** Prefix a root-absolute site path with the version base, if any. */
+export function withBase(path) {
+  if (!path.startsWith('/')) return path;
+  if (!siteBase) return path;
+  return path === '/' ? `${siteBase}/` : `${siteBase}${path}`;
+}
+
 const SITE_TITLE = '8BitScript';
 const SITE_DESCRIPTION =
   'A statically compiled programming language for classic 8-bit computers and ' +
@@ -46,7 +62,7 @@ function navLink(item, currentUrl) {
   const isCurrent = item.url === currentUrl;
   const className = `nav-link${isCurrent ? ' is-current' : ''}`;
   const ariaCurrent = isCurrent ? ' aria-current="page"' : '';
-  return `<a class="${className}" href="${escapeHtml(item.url)}"${ariaCurrent}>${escapeHtml(item.title)}</a>`;
+  return `<a class="${className}" href="${escapeHtml(withBase(item.url))}"${ariaCurrent}>${escapeHtml(item.title)}</a>`;
 }
 
 function renderNav(currentUrl) {
@@ -78,7 +94,7 @@ ${items}
 /** "Setup / VICE" above the title on a child page; nothing on a top-level one. */
 function renderBreadcrumb(entry) {
   if (!entry?.parent) return '';
-  return `<p class="breadcrumb"><a href="${escapeHtml(entry.parent.url)}">${escapeHtml(entry.parent.title)}</a> <span aria-hidden="true">/</span> ${escapeHtml(entry.title)}</p>`;
+  return `<p class="breadcrumb"><a href="${escapeHtml(withBase(entry.parent.url))}">${escapeHtml(entry.parent.title)}</a> <span aria-hidden="true">/</span> ${escapeHtml(entry.title)}</p>`;
 }
 
 /** The right-rail "On this page" list, built from that page's h2/h3s. */
@@ -107,10 +123,10 @@ function renderPrevNext(currentUrl) {
   if (!prev && !next) return '';
 
   const prevLink = prev
-    ? `<a class="pager-link pager-prev" href="${escapeHtml(prev.url)}"><span class="pager-label">Previous</span><span class="pager-title">${escapeHtml(prev.title)}</span></a>`
+    ? `<a class="pager-link pager-prev" href="${escapeHtml(withBase(prev.url))}"><span class="pager-label">Previous</span><span class="pager-title">${escapeHtml(prev.title)}</span></a>`
     : '<span class="pager-link pager-empty"></span>';
   const nextLink = next
-    ? `<a class="pager-link pager-next" href="${escapeHtml(next.url)}"><span class="pager-label">Next</span><span class="pager-title">${escapeHtml(next.title)}</span></a>`
+    ? `<a class="pager-link pager-next" href="${escapeHtml(withBase(next.url))}"><span class="pager-label">Next</span><span class="pager-title">${escapeHtml(next.title)}</span></a>`
     : '<span class="pager-link pager-empty"></span>';
 
   return `<nav class="page-pager" aria-label="Page navigation">
@@ -128,32 +144,48 @@ function renderPrevNext(currentUrl) {
 export function renderPage(page) {
   const entry = FLAT_NAV.find((item) => item.url === page.url);
   const toc = renderToc(page.headings);
+  const home = withBase('/');
+  const assets = withBase('/assets');
+  const pagefind = withBase('/pagefind');
 
   return `<!doctype html>
-<html lang="en-US">
+<html lang="en-US" data-docs-version="${escapeHtml(siteVersion)}" data-docs-base="${escapeHtml(siteBase)}">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>${escapeHtml(page.title)} · ${SITE_TITLE}</title>
     <meta name="description" content="${escapeHtml(SITE_DESCRIPTION)}">
-    <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
-    <link rel="stylesheet" href="/assets/css/main.css">
-    <link rel="stylesheet" href="/pagefind/pagefind-ui.css">
+    <link rel="icon" type="image/svg+xml" href="${assets}/favicon.svg">
+    <link rel="stylesheet" href="${assets}/css/main.css">
+    <link rel="stylesheet" href="${pagefind}/pagefind-ui.css">
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
 
     <header class="site-header">
       <div class="site-header-inner">
-        <a class="wordmark" href="/">
-          <img class="wordmark-icon" src="/assets/favicon.svg" alt="" width="22" height="22">
+        <a class="wordmark" href="${escapeHtml(home)}">
+          <img class="wordmark-icon" src="${assets}/favicon.svg" alt="" width="22" height="22">
           ${SITE_TITLE}
         </a>
-        <button type="button" class="search-trigger" id="search-trigger" aria-haspopup="dialog" aria-controls="search-dialog">
-          <svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M13.5 13.5 18 18M15.5 9a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>
-          <span>Search docs</span>
-          <kbd class="search-kbd">Ctrl K</kbd>
-        </button>
+        <div class="header-tools">
+          <div class="version-picker" id="version-picker">
+            <button type="button" class="version-trigger" id="version-trigger" aria-expanded="false" aria-haspopup="listbox" aria-controls="version-panel">
+              <span id="version-current">${escapeHtml(siteVersion)}</span>
+              <svg class="icon version-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 7.5 10 12.5 15 7.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <div class="version-panel" id="version-panel" hidden>
+              <label class="version-search-label" for="version-search">Find a version</label>
+              <input type="search" class="version-search" id="version-search" placeholder="Search versions" autocomplete="off">
+              <div class="version-list" id="version-list" role="listbox" aria-label="Documentation versions"></div>
+            </div>
+          </div>
+          <button type="button" class="search-trigger" id="search-trigger" aria-haspopup="dialog" aria-controls="search-dialog">
+            <svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M13.5 13.5 18 18M15.5 9a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>
+            <span>Search docs</span>
+            <kbd class="search-kbd">Ctrl K</kbd>
+          </button>
+        </div>
       </div>
     </header>
 
@@ -185,8 +217,8 @@ ${page.content.trimEnd()}
       </p>
     </footer>
 
-    <script src="/pagefind/pagefind-ui.js" defer></script>
-    <script type="module" src="/assets/js/site.js"></script>
+    <script src="${pagefind}/pagefind-ui.js" defer></script>
+    <script type="module" src="${assets}/js/site.js"></script>
   </body>
 </html>
 `;

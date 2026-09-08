@@ -1,0 +1,16 @@
+// A non-entry module so its globals can be exported — see random-values.8bs
+// for why this needs to be a separate file from its entry (table-values-main.8bs).
+import { table } from "../src/table.8bs";
+
+export let t0: utinyint = 0;
+export let t1: utinyint = 0;
+export let t2: utinyint = 0;
+export let t3: utinyint = 0; // table.at(0), read after seed() and two next() calls moved index
+
+export function run(): void {
+    table.seed(37);
+    t0 = table.next();
+    t1 = table.next();
+    t2 = table.range(6);
+    t3 = table.at(0);
+}

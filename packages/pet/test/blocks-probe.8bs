@@ -1,0 +1,58 @@
+// Every call @8bitscript/pet/blocks offers, linked the way a program built
+// from inside the package tests it: the import is relative because a
+// package does not resolve its own name; a consumer writes
+// `import { blocks, digits } from "@8bitscript/pet/blocks"`.
+import { screen } from "../src/screen.8bs";
+import { blocks, digits } from "../src/blocks.8bs";
+
+export function main(): void {
+    screen.blank();
+
+    // All ten digits in a row, left to right, so a screenshot can read the
+    // font off the screen. Each is digits.WIDTH cells wide.
+    let cell: usmallint = 0;
+    let value: utinyint = 0;
+    while (value < 10) {
+        digits.draw(cell, value);
+        cell = cell + digits.WIDTH;
+        value++;
+    }
+
+    // A multi-digit field, right-aligned and zero-padded, on the row below.
+    digits.print(40 * 5, 42, 3);
+
+    // The primitive on its own: every pattern a cell can show, so a probe
+    // can check quad() reaches screen codes draw() never uses directly.
+    blocks.put(40 * 10, true, false, false, true);
+    blocks.put(40 * 10 + 1, false, true, true, false);
+
+    // A game-tile scenario (a 2048-style board): a solid reverse-video
+    // square (blocks.put with every quadrant on) with a centered, inverted
+    // number cut into it — what digits.printCentered() and invert exist
+    // for. 8 cells wide, the width four tiles plus three 1-cell gaps need
+    // to fit a 40-column screen (4*8 + 3 = 35); 5 tall, one blank row above
+    // and below the 3-tall font. Two tiles, one digit and four, to show the
+    // number growing without a fixed field the way a tile's value does.
+    fillTile(40 * 12, 8, 5);
+    digits.printCentered(40 * 12 + 40, 8, 16, true);
+
+    fillTile(40 * 18, 8, 5);
+    digits.printCentered(40 * 18 + 40, 8, 2048, true);
+}
+
+// A solid tile the size a caller wants, filled with blocks.put() rather
+// than a screen-code constant, so the probe never depends on which code
+// "every quadrant on" happens to be.
+function fillTile(topLeft: usmallint, widthCells: utinyint, heightCells: utinyint): void {
+    let rowCell: usmallint = topLeft;
+    let row: utinyint = 0;
+    while (row < heightCells) {
+        let col: utinyint = 0;
+        while (col < widthCells) {
+            blocks.put(rowCell + col, true, true, true, true);
+            col++;
+        }
+        rowCell = rowCell + 40;
+        row++;
+    }
+}

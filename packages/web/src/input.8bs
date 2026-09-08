@@ -8,36 +8,30 @@
 //
 // and gets this file in a browser.
 //
-// ---- the one machine whose facts are decisions ---------------------------
+// ---- the page writes, the program reads ----------------------------------
 //
-// Every "hardware" fact about this target is something someone chose and
-// wrote down in the runtime's source (see ../AGENTS.md), and input is the
-// clearest case: the browser plainly has a keyboard and a mouse, and this
-// target's fact sheet says `input.keyboard` false — because the *runtime*
-// does not deliver either to a program yet, and a fact that describes the
-// browser rather than the runtime would make Studio offer an editor that
-// cannot be typed into.
+// The program runs in a worker and cannot see DOM events. The page listens
+// for keys and stores a snapshot at WebRegisters.INPUT_OFFSET in the
+// shared wasm memory; poll() reads that byte once a frame, the same shape
+// every other machine's layer uses — a held mask, last frame's mask, and
+// the bits that began this frame. No new wasm import: the agreement page
+// is the port.
 //
-// So everything here returns false, and it is false for a reason that has
-// nothing to do with the hardware:
+//   - **left / right / up / down** — ArrowLeft / ArrowRight / ArrowUp /
+//     ArrowDown.
+//   - **confirm** — Enter.
+//   - **cancel** — Escape.
 //
-//   - **The runtime does not listen.** `packages/cli/src/web-runtime.mjs`
-//     paces `waitFrame()` and owns the canvas; nothing attaches a
-//     `keydown` or `pointermove` handler, and there is no shared byte for
-//     a handler to write into.
-//   - **The worker cannot read the DOM.** The program runs in a worker
-//     with the main thread signalling frames through `Atomics`, so input
-//     would arrive the same way: the page's handlers write a small state
-//     block into the shared buffer, and this file reads it. That block is
-//     the design decision waiting to be made, and it is the same shape as
-//     every other machine's snapshot — a byte of directions, a cell for
-//     the pointer.
+// There is still no pointer. `pointer()` is a constant false; a mouse
+// belongs in the same snapshot when someone writes it, and
+// `input.mouse` stays false until then.
 //
-// When that lands, this becomes the *easiest* of the nine — a real
-// pointer, four real arrow keys, and an ALT key that actually exists — and
-// `input.keyboard` and `input.mouse` become true in the catalog in the
-// same commit. Until then this file says no, and Studio reads the fact and
-// makes the web a viewer.
+// ---- edges, not levels ---------------------------------------------------
+//
+// Every answer is **edge-triggered**: true on the one frame the press
+// begins, false while it is held. `poll()` must be called exactly once a
+// frame, right after waitFrame().
+import { WebRegisters } from "./index.8bs";
 
 namespace Edge {
     const LEFT: utinyint = 1;
@@ -54,16 +48,17 @@ let began: utinyint = 0;
 
 export namespace input {
 
-    // Nothing to set up until the runtime delivers something.
+    // Nothing to set up: the page owns the snapshot byte. Here so a
+    // program written for nine machines calls the same thing on all of
+    // them.
     function begin(): void {
     }
 
-    // Reads nothing yet — see the header. A real function rather than an
-    // absent one, so a program written for nine machines calls the same
-    // thing on all nine.
+    // Read the page's snapshot and work out what began this frame. Once
+    // a frame, right after waitFrame().
     function poll(): void {
         before = held;
-        held = 0;
+        held = memory.read(WebRegisters.INPUT_OFFSET);
         began = held & (before ^ 0xFF);
     }
 

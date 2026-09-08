@@ -2,9 +2,19 @@
   "name": "8bitscript-lang",
   "displayName": "8BitScript",
   "description": "Syntax highlighting, language server, and a project runner for 8BitScript (.8bs) source files.",
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "private": true,
   "publisher": "8bitscript",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/8BitScript/8bitscript.git",
+    "directory": "editors/vscode"
+  },
+  "homepage": "https://8bitscript.org/",
+  "bugs": {
+    "url": "https://github.com/8BitScript/8bitscript/issues"
+  },
   "engines": {
     "vscode": "^1.91.0"
   },
@@ -331,6 +341,7 @@
     "src",
     "media",
     "syntaxes",
+    "snippets",
     "language-configuration.json",
     "README.md"
   ]

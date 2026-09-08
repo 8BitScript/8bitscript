@@ -1,8 +1,7 @@
 {
   "name": "@8bitscript/compiler",
-  "version": "0.0.0",
-  "private": true,
-  "description": "Internal: the 8BitScript front end \u2014 lexer, checker, and diagnostics.",
+  "version": "0.1.0",
+  "description": "Internal: the 8BitScript front end — lexer, checker, and diagnostics.",
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -23,5 +22,8 @@
   "devDependencies": {
     "@8bitscript/text": "workspace:*",
     "@8bitscript/vic20": "workspace:*"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
