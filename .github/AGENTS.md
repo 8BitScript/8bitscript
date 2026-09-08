@@ -13,7 +13,7 @@ One number, four stores:
 | Store | How it publishes | 0.1.1 |
 | --- | --- | --- |
 | npm `@8bitscript/*` | `scripts/release.mjs` via Trusted Publishing | shipped |
-| Visual Studio Marketplace | `vsce publish` | often times out at `/_apis/gallery` |
+| Visual Studio Marketplace | `scripts/publish-marketplace.mjs` | vsce's client dies at 180s; we wait 10 minutes |
 | Open VSX | `ovsx publish` | same VSIX; must not wait on Marketplace |
 | GitHub Release | `gh release create vX.Y.Z` | waits on the jobs above |
 
@@ -32,9 +32,16 @@ language server and the compiler are **not** in the VSIX. Do not add
 spec and is why 0.1.1's first VSIX was a megabyte. Do not download
 code from npm at activation.
 
-A Marketplace timeout is the Azure gallery hanging for ~180 seconds,
-not the VSIX being "too big." Still minify. Still retry. Still
-`--skip-duplicate`.
+Do not use `vsce publish` in CI. Its Azure client gives up at 180
+seconds while the gallery is still processing a tiny VSIX. Package
+with `vsce package`, then `scripts/publish-marketplace.mjs`, which
+hits the same `/_apis/gallery` endpoints and waits ten minutes.
+
+Jobs already run the toolchain on Node 26 (`node-version: 26`). The
+"Node.js 20 is deprecated" annotation is GitHub's own actions
+(`checkout`, `setup-node`, `cache`) declaring their *action* runtime,
+not the version `pnpm` and tests use. Keep those actions on a Node 24
+major (`@v5`).
 
 ## Recovering a half-finished release
 
