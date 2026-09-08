@@ -2,8 +2,10 @@
 // Lockstep release: every packages/* version is the toolchain's version.
 // Copies the root LICENSE into each package (pnpm pack from a workspace
 // finds it; an isolated npm publish would not), then publishes with
-// public access. Run from the repository root after the version in every
-// package.json is the one you mean to ship.
+// public access. Packages already on npm at this version are skipped so
+// a failed release can be re-run without republishing. Run from the
+// repository root after the version in every package.json is the one
+// you mean to ship.
 import { cp, readFile, readdir } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -24,6 +26,17 @@ function run(cmd, args) {
   });
 }
 
+async function alreadyOnNpm(name, version) {
+  try {
+    const { stdout } = await exec('npm', ['view', `${name}@${version}`, 'version'], {
+      cwd: ROOT,
+    });
+    return stdout.trim() === version;
+  } catch {
+    return false;
+  }
+}
+
 const { stdout: status } = await exec('git', ['status', '--porcelain'], { cwd: ROOT });
 if (status.trim() && !process.argv.includes('--allow-dirty')) {
   process.stderr.write('Working tree is not clean. Commit, or pass --allow-dirty.\n');
@@ -37,6 +50,7 @@ const dirs = (await readdir(join(ROOT, 'packages'), { withFileTypes: true }))
   .map((e) => e.name);
 
 const expectedRepoUrl = 'https://github.com/8BitScript/8bitscript.git';
+const pending = [];
 
 for (const name of dirs) {
   const pkg = JSON.parse(await readFile(join(ROOT, 'packages', name, 'package.json'), 'utf8'));
@@ -55,9 +69,19 @@ for (const name of dirs) {
     );
     process.exit(1);
   }
+  if (await alreadyOnNpm(pkg.name, version)) {
+    process.stdout.write(`Already on npm: ${pkg.name}@${version}\n`);
+    continue;
+  }
   await cp(join(ROOT, 'LICENSE'), join(ROOT, 'packages', name, 'LICENSE'));
+  pending.push(name);
 }
 
-process.stdout.write(`Publishing @8bitscript/* ${version} from the workspace.\n`);
-await run('pnpm', ['-r', 'publish', '--filter', './packages/*', '--access', 'public', '--no-git-checks']);
-process.stdout.write(`Published ${version}.\n`);
+if (pending.length === 0) {
+  process.stdout.write(`All @8bitscript/* ${version} packages are already on npm.\n`);
+} else {
+  process.stdout.write(`Publishing ${pending.length} @8bitscript/* ${version} package(s) from the workspace.\n`);
+  const filters = pending.flatMap((name) => ['--filter', `./packages/${name}`]);
+  await run('pnpm', ['-r', 'publish', ...filters, '--access', 'public', '--no-git-checks']);
+  process.stdout.write(`Published ${version}.\n`);
+}

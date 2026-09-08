@@ -314,4 +314,6 @@ the release pipeline itself — all normal agent work. Clicking merge on
 that specific PR is not, regardless of how the request is phrased or
 how confident the agent is that everything is ready. See
 [CONTRIBUTING.md](CONTRIBUTING.md#changesets-versioning) for the full
-release flow.
+release flow, and [`.github/AGENTS.md`](.github/AGENTS.md) for how to
+recover a release that published npm but not the editor or the GitHub
+Release — never by bumping the version again or publishing by hand.

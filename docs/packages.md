@@ -565,8 +565,9 @@ which every publishable manifest sets.
 
 Every package under `packages/` is public and versioned lockstep at **0.1.0**.
 `scripts/release.mjs` copies the root `LICENSE` into each package and runs
-`pnpm -r publish --filter './packages/*' --access public` from the workspace.
-A git tag `v0.1.0` is what CI runs that script on.
+`pnpm -r publish --filter './packages/*' --access public` from the workspace,
+skipping any package already on npm at this version so a failed release
+can be re-run. A git tag `v*` is what CI runs that script on.
 
 Install the toolchain from the registry:
 
