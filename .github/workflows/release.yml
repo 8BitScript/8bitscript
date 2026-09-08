@@ -3,6 +3,13 @@ name: Release
 on:
   push:
     tags: ['v*']
+  # tag-release.yml pushes the tag with the default GITHUB_TOKEN, which
+  # doesn't fire the `push: tags` trigger above (GitHub suppresses
+  # workflow runs another workflow's GITHUB_TOKEN triggers, to prevent
+  # loops) — it dispatches this explicitly instead. Manual dispatch also
+  # works for recovering a failed release: `gh workflow run release.yml
+  # --ref vX.Y.Z`.
+  workflow_dispatch:
 
 permissions:
   contents: write
