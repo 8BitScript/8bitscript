@@ -334,6 +334,7 @@
   "scripts": {
     "test": "node --test",
     "bundle": "esbuild src/extension.cjs --bundle --minify --platform=node --format=cjs --external:vscode --outfile=dist/extension.cjs",
+    "package": "pnpm run bundle && vsce package --out dist/8bitscript-lang.vsix",
     "vscode:prepublish": "pnpm run bundle"
   },
   "devDependencies": {

@@ -361,10 +361,12 @@ Marketplace and to Open VSX. The release workflow
 (`.github/workflows/release.yml`) runs both. Locally, from `editors/vscode`:
 
 ```bash
-npx @vscode/vsce package
-npx @vscode/vsce publish
-npx ovsx publish
+pnpm package
 ```
+
+That writes `dist/8bitscript-lang.vsix` (gitignored, same as the
+minified bundle). CI publishes from `/tmp`; do not leave a `.vsix` in
+this directory.
 
 `vscode:prepublish` minifies the bundle. Diagnostics, hover, and completion
 come from `8bs lsp` over a small stdio JSON-RPC client in this package, not
