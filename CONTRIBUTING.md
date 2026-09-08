@@ -107,9 +107,25 @@ is actually deciding it's time to ship. See
 
 `scripts/release.mjs` is what the tag-triggered workflow actually runs:
 it checks every `packages/*` version matches, copies `LICENSE` into
-each package, and publishes `@8bitscript/*` publicly. Don't run it (or
-`git tag`) by hand unless you're recovering a failed release — the
-normal path is entirely "merge the Version Packages PR."
+each package, and publishes `@8bitscript/*` publicly. Packages already
+on npm at that version are skipped, so a failed release can be
+re-run without republishing. Don't run it (or `git tag`) by hand
+unless you're recovering a failed release — the normal path is
+entirely "merge the Version Packages PR."
+
+If npm already published but the Marketplace or Open VSX timed out,
+do **not** bump versions again and do **not** publish from your
+laptop. Merge any packaging fix to `trunk`, then:
+
+```bash
+gh workflow run release.yml --ref trunk
+```
+
+That checks out `trunk` (so a minify or retry fix is included), skips
+packages already on npm, publishes the extension, and creates the
+GitHub Release named from `packages/cli/package.json` (not from the
+git ref, which would be `trunk`). See
+[`.github/AGENTS.md`](.github/AGENTS.md) for the recovery checklist.
 
 npm publishing from CI uses [Trusted Publishing](https://docs.npmjs.com/trusted-publishers/)
 (OIDC) — no `NPM_TOKEN` needed for packages that already have a trust
