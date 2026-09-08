@@ -15,6 +15,11 @@
 const path = require('path');
 
 const vscode = require('vscode');
+// Microsoft's LSP client. The language *server* is `8bs lsp` (not shipped
+// here). This library is the editor-side JSON-RPC speaker — hover,
+// completion, diagnostics — and is why the VSIX is hundreds of KB, not
+// tens. It is bundled and minified at publish; leaving it in node_modules
+// for vsce to pack would ship the same code unminified, and larger.
 const { LanguageClient, TransportKind } = require('vscode-languageclient/node');
 
 const { BINARY, findToolchain } = require('./projects.cjs');

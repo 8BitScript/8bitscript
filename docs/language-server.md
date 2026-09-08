@@ -45,7 +45,11 @@ the project's own toolchain.
 
 The extension deliberately contains no language logic. Putting a checker there
 would mean two implementations of every rule and an editor that disagrees with
-CI.
+CI. What it *does* ship is Microsoft's `vscode-languageclient` — the JSON-RPC
+client that talks to `8bs lsp` — bundled and minified into
+`dist/extension.cjs`. That library is why the VSIX is hundreds of KB: a VSIX
+installs offline, so the client cannot be downloaded later, and leaving it in
+`node_modules` for vsce to pack would ship the same code larger and unminified.
 
 ## What works today
 

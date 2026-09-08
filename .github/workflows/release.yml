@@ -7,8 +7,10 @@ on:
   # doesn't fire the `push: tags` trigger above (GitHub suppresses
   # workflow runs another workflow's GITHUB_TOKEN triggers, to prevent
   # loops) — it dispatches this explicitly instead. Manual dispatch also
-  # works for recovering a failed release: `gh workflow run release.yml
-  # --ref vX.Y.Z`.
+  # works for recovering a failed release, including from trunk after a
+  # packaging fix: `gh workflow run release.yml --ref trunk`. npm skips
+  # versions already on the registry; the GitHub Release title comes from
+  # packages/cli/package.json, not the git ref name.
   workflow_dispatch:
 
 permissions:
@@ -49,29 +51,55 @@ jobs:
           node-version: 26
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # Both marketplaces' publish APIs are occasionally flaky (v0.1.1 hit
-      # a "Request timeout: /_apis/gallery" from vsce on a GitHub-hosted
-      # runner, not just from a home network) — retry a few times before
-      # giving up. --skip-duplicate covers the case where a "timed out"
-      # request actually succeeded server-side.
-      - if: ${{ env.VSCE_PAT != '' }}
+      # Package once so retries do not rebuild. Both marketplaces' publish
+      # APIs are flaky (v0.1.1 hit a 180s "Request timeout: /_apis/gallery"
+      # from vsce on a GitHub-hosted runner, not just from a home network).
+      # Publish each store independently so a Marketplace timeout does not
+      # skip Open VSX. --skip-duplicate covers a "timed out" request that
+      # actually succeeded server-side.
+      - name: Package VSIX
+        working-directory: editors/vscode
+        run: pnpm exec vsce package --out /tmp/8bitscript.vsix
+      - name: Publish to Visual Studio Marketplace
+        id: vsce
+        if: ${{ env.VSCE_PAT != '' }}
+        continue-on-error: true
+        working-directory: editors/vscode
         run: |
           for attempt in 1 2 3; do
-            pnpm exec vsce publish --skip-duplicate && break
+            pnpm exec vsce publish --packagePath /tmp/8bitscript.vsix --skip-duplicate && exit 0
             [ "$attempt" = 3 ] && exit 1
-            echo "vsce publish failed (attempt $attempt/3), retrying in 15s..."
-            sleep 15
+            echo "vsce publish failed (attempt $attempt/3), retrying in 30s..."
+            sleep 30
           done
+      - name: Publish to Open VSX
+        id: ovsx
+        if: ${{ env.OVSX_PAT != '' }}
+        continue-on-error: true
         working-directory: editors/vscode
-      - if: ${{ env.OVSX_PAT != '' }}
         run: |
           for attempt in 1 2 3; do
-            pnpm exec ovsx publish -p "$OVSX_PAT" --skip-duplicate && break
+            pnpm exec ovsx publish /tmp/8bitscript.vsix -p "$OVSX_PAT" --skip-duplicate && exit 0
             [ "$attempt" = 3 ] && exit 1
-            echo "ovsx publish failed (attempt $attempt/3), retrying in 15s..."
-            sleep 15
+            echo "ovsx publish failed (attempt $attempt/3), retrying in 30s..."
+            sleep 30
           done
-        working-directory: editors/vscode
+      - name: Fail if a marketplace publish failed
+        if: always()
+        env:
+          VSCE_OUTCOME: ${{ steps.vsce.outcome }}
+          OVSX_OUTCOME: ${{ steps.ovsx.outcome }}
+        run: |
+          failed=0
+          if [ -n "$VSCE_PAT" ] && [ "$VSCE_OUTCOME" != "success" ]; then
+            echo "Visual Studio Marketplace publish did not succeed ($VSCE_OUTCOME)"
+            failed=1
+          fi
+          if [ -n "$OVSX_PAT" ] && [ "$OVSX_OUTCOME" != "success" ]; then
+            echo "Open VSX publish did not succeed ($OVSX_OUTCOME)"
+            failed=1
+          fi
+          exit "$failed"
 
   docs:
     needs: npm
@@ -95,14 +123,25 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+      - id: ver
+        run: echo "tag=v$(node -p "require('./packages/cli/package.json').version")" >> "$GITHUB_OUTPUT"
       - name: Extract this version's changelog entry
         run: |
-          version="${GITHUB_REF_NAME#v}"
+          version="${TAG#v}"
           awk -v ver="## $version" '
             $0 == ver { found=1; next }
             found && /^## / { exit }
             found { print }
           ' packages/cli/CHANGELOG.md > /tmp/release-notes.md
-      - run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file /tmp/release-notes.md
+        env:
+          TAG: ${{ steps.ver.outputs.tag }}
+      - name: Create GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.ver.outputs.tag }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists"
+            exit 0
+          fi
+          gh release create "$TAG" --title "$TAG" --notes-file /tmp/release-notes.md

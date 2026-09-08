@@ -357,11 +357,18 @@ directories. Remove it with `rm` on the link; nothing else is touched.
 ## Publishing
 
 A `.vsix` is built with `@vscode/vsce` and published to the Visual Studio
-Marketplace and to Open VSX. The tag workflow (`.github/workflows/release.yml`)
-runs both when `v*` is pushed. Locally, from `editors/vscode`:
+Marketplace and to Open VSX. The release workflow
+(`.github/workflows/release.yml`) runs both. Locally, from `editors/vscode`:
 
 ```bash
 npx @vscode/vsce package
 npx @vscode/vsce publish
 npx ovsx publish
 ```
+
+`vscode:prepublish` minifies the bundle. The 8BitScript sources here are
+about 90 KB; the rest of `dist/extension.cjs` is Microsoft's
+`vscode-languageclient`, which is the editor-side LSP speaker for `8bs lsp`.
+A VSIX is a zip the editor installs offline — it cannot fetch that library
+later — and packing `node_modules` unminified is larger than bundling it.
+See [Editor support](../../docs/language-server.md).
