@@ -21,8 +21,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - uses: changesets/action@v1
         with:
-          version-script: pnpm changeset version && pnpm install --no-frozen-lockfile
-          commit-message: "chore: version packages"
-          pr-title: "Version Packages"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          version: pnpm changeset version && pnpm install --no-frozen-lockfile
+          commit: "chore: version packages"
+          title: "Version Packages"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
