@@ -217,6 +217,9 @@ test('raster.at writes the four bytes before it counts the entry and refuses a l
     assert.ok(found >= 0, `enable: ${step} after the previous step`);
     from = found;
   }
+  // waitFrame() must not sei while the list owns the IRQ: the poll is the
+  // visible frame, and I set for that whole wait is a solid-colour border.
+  assert.match(c, /static void __8bs_wait_frame\(void\) \{[\s\S]*if \(!interruptsOn\) \{ __asm__ volatile\("sei"/);
 });
 
 // ---- bitmap -------------------------------------------------------------------

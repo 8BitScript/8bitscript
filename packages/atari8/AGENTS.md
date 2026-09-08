@@ -560,8 +560,8 @@ packages/atari8/test/layers-probe.8bs   every input layer on one screen: the pol
 packages/atari8/test/layers.test.mjs    links the probe, rechecks keys.8bs against the SDK header, checks the port-count fold, runs it under atari800
 packages/atari8/package.json            "8bitscript".hardware: model (run flags + facts only), media (driver/defsym/output/load), mouse, stereo; a preset per model
 packages/backend-6502/src/index.mjs     DRIVER.atari8 (dos), driverFor()/outputExtension() reading the hardware's build block, FRAME_SYNC.atari8 (VCOUNT poll, no sei)
-packages/cli/src/run.mjs                atari800CleanDisplayConfig(), the launch: the catalog's flags, then -run or the value's load
-packages/cli/src/screenshot.mjs         atari8Screenshot(): macOS window capture, the same flags
+packages/cli/src/run.mjs                atari800CleanDisplayConfig() (per-process cfg copy), the launch: the catalog's flags, then -run or the value's load
+packages/cli/src/screenshot.mjs         atari8Screenshot(): one window at a time, macOS capture, the same flags
 packages/cli/src/mac-window-capture.mjs findWindowIdForPid()/captureWindow(), the capture route for any atari800 launch
 packages/cli/src/doctor.mjs             CLANG_DRIVERS rows for all four Atari drivers (dos, cart-std, cart-xegs, cart-megacart); the atari800 install plan
 packages/cli/test/emulator-smoke.test.mjs   atari800 -xl -ntsc -run boots a real build
