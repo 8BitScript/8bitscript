@@ -122,7 +122,9 @@ gh workflow run release.yml --ref trunk
 ```
 
 That checks out `trunk` (so a minify or retry fix is included), skips
-packages already on npm, publishes the extension, and creates the
+packages already on npm, publishes the extension (Marketplace via
+`scripts/publish-marketplace.mjs`, not `vsce publish` — vsce's client
+dies at 180s while the gallery is still thinking), and creates the
 GitHub Release named from `packages/cli/package.json` (not from the
 git ref, which would be `trunk`). See
 [`.github/AGENTS.md`](.github/AGENTS.md) for the recovery checklist.
