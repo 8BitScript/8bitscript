@@ -1,0 +1,29 @@
+name: Tag Release
+
+# Fires when the bot-maintained "Version Packages" PR (opened by
+# changesets.yml on branch changeset-release/trunk) is merged. Reads the
+# version changesets just bumped everything to and tags it, which is what
+# actually triggers release.yml's npm/extension/docs publish.
+on:
+  pull_request:
+    types: [closed]
+    branches: [trunk]
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    if: github.event.pull_request.merged == true && startsWith(github.head_ref, 'changeset-release/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: trunk
+      - id: version
+        run: echo "version=$(node -p "require('./packages/cli/package.json').version")" >> "$GITHUB_OUTPUT"
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "v${{ steps.version.outputs.version }}"
+          git push origin "v${{ steps.version.outputs.version }}"
