@@ -10,6 +10,9 @@ node_modules/
 dist/
 build/
 
+# lcov output from `pnpm run test:coverage` (scripts/test-coverage.mjs)
+coverage/
+
 # Compiled Commodore program images
 *.prg
 
