@@ -1,5 +1,20 @@
 # @8bitscript/studio
 
+## 0.1.3
+
+### Patch Changes
+
+- 7547105: The VS Code extension now ships a Marketplace icon (the pixel-8 mark from
+  the favicon, on the same purple/cream palette) instead of using the
+  Marketplace's generic default.
+- Updated dependencies [7547105]
+  - @8bitscript/input@0.1.3
+  - @8bitscript/pointer@0.1.3
+  - @8bitscript/screen@0.1.3
+  - @8bitscript/system@0.1.3
+  - @8bitscript/text@0.1.3
+  - @8bitscript/ui@0.1.3
+
 ## 0.1.2
 
 ### Patch Changes

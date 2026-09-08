@@ -2,7 +2,7 @@
   "name": "8bitscript-lang",
   "displayName": "8BitScript",
   "description": "Syntax highlighting, language server, and a project runner for 8BitScript (.8bs) source files.",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "publisher": "8bitscript",
   "icon": "media/8bitscript-icon.png",
