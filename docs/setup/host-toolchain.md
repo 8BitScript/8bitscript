@@ -101,9 +101,8 @@ still resolving an older install — see [Troubleshooting](#troubleshooting).
 pnpm 12 is the package manager and workspace runner for this repository. npm and
 yarn are not supported; the workspace layout and lockfile assume pnpm.
 
-Install it globally — **the version is not optional here**. pnpm 12 is published
-but npm's `latest` tag still points at the 11 line, so a bare
-`npm install --global pnpm` gets you 11:
+Install it globally — **the version is not optional here**. Pin the 12 line
+explicitly so a future `latest` tag cannot pull a different major:
 
 ```bash
 npm install --global pnpm@12
@@ -128,7 +127,7 @@ pnpm --version
 
 Expected output is `12.x.x`.
 
-If it reports `11.x.x`, you have the `latest` build. Re-run the install with the
+If it reports `11.x.x`, the install resolved an older major. Re-run with the
 explicit `@12`.
 
 ## Version pinning
@@ -139,7 +138,7 @@ contributor and every CI run uses the same versions:
 ```json
 {
   "engines": { "node": ">=26", "pnpm": ">=12" },
-  "packageManager": "pnpm@12.1.0"
+  "packageManager": "pnpm@12.3.4"
 }
 ```
 

@@ -1,5 +1,6 @@
 {
     "recommendations": [
-        "ms-vscode.hexeditor"
+        "ms-vscode.hexeditor",
+        "8bitscript.8bitscript-lang"
     ]
 }
