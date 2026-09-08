@@ -23,9 +23,9 @@ jobs:
   compile:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 26
           cache: pnpm
@@ -39,7 +39,7 @@ jobs:
       - name: Cache LLVM-MOS SDK
         if: ${{ inputs.targets != 'web' }}
         id: llvm-mos
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ runner.temp }}/llvm-mos
           key: llvm-mos-linux
@@ -68,7 +68,7 @@ jobs:
             fi
             pnpm exec 8bs build --target "$t"
           done
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: 8bs-dist
           path: dist/**
