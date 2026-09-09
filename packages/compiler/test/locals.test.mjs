@@ -36,8 +36,8 @@ test('a local lowers to a local statement; left uninitialised it starts at 0', (
   const { ir, diagnostics } = lowered('export function main(): void { let n: utinyint = 5; let m: usmallint; m = n; }');
   assert.deepEqual(diagnostics, []);
   const [n, m, assign] = ir.functions[0].body;
-  assert.deepEqual(n, { kind: 'local', name: 'n', type: 'utinyint', init: { kind: 'const', value: 5 }, start: 35, length: 1 });
-  assert.deepEqual(m.init, { kind: 'const', value: 0 });
+  assert.deepEqual(n, { kind: 'local', name: 'n', type: 'utinyint', init: { kind: 'const', value: 5, type: 'utinyint' }, start: 35, length: 1 });
+  assert.deepEqual(m.init, { kind: 'const', value: 0, type: 'usmallint' });
   assert.equal(assign.kind, 'assign');
 });
 
@@ -59,8 +59,8 @@ test('a local shadows a const, an array, or a global of the same name, and only 
   const { ir, diagnostics } = lowered(src);
   assert.deepEqual(diagnostics, [], 'assigning to the local MAX is not assigning to the const');
   const body = ir.functions[0].body;
-  assert.deepEqual(body[0].body[1].value.left, { kind: 'ref', name: 'MAX', start: src.indexOf('MAX + 1'), length: 3 });
-  assert.deepEqual(body[1].value, { kind: 'const', value: 4 }, 'outside the block, MAX is the const again');
+  assert.deepEqual(body[0].body[1].value.left, { kind: 'ref', name: 'MAX', type: 'utinyint', start: src.indexOf('MAX + 1'), length: 3 });
+  assert.deepEqual(body[1].value, { kind: 'const', value: 4, type: 'utinyint' }, 'outside the block, MAX is the const again');
   assert.equal(body[3].kind, 'storeIndex', 'outside the block, hp is the array again');
 });
 
@@ -100,7 +100,7 @@ test("the loop variable is scoped to the loop: after it, the name is the outer o
   const [loop, after] = ir.functions.find((f) => f.name === 'main').body;
   assert.equal(loop.kind, 'for');
   assert.equal(loop.init.name, 'i');
-  assert.deepEqual(loop.test.right, { kind: 'const', value: 2 });
+  assert.deepEqual(loop.test.right, { kind: 'const', value: 2, type: 'utinyint' });
   assert.equal(loop.body[0].target, 'g');
   assert.equal(loop.body[0].value.name, 'i');
   assert.equal(after.target, 'g');
@@ -126,7 +126,7 @@ test('a local shadows an import of the same name inside its block', async () => 
   assert.equal(block.body[1].target, 'g');
   assert.equal(block.body[1].value.name, 'hp');
   assert.equal(store.kind, 'storeIndex');
-  assert.deepEqual(assign.value, { kind: 'const', value: 4 });
+  assert.deepEqual(assign.value, { kind: 'const', type: null, value: 4 });
 });
 
 test('a for over an array length folds the bound, keeps continue, and writes the local', async () => {
@@ -137,7 +137,7 @@ test('a for over an array length folds the bound, keeps continue, and writes the
   assert.equal(sum.kind, 'local');
   assert.equal(sum.type, 'usmallint');
   assert.equal(loop.kind, 'for');
-  assert.deepEqual(loop.test.right, { kind: 'const', value: 4 });
+  assert.deepEqual(loop.test.right, { kind: 'const', value: 4, type: 'utinyint' });
   assert.equal(loop.body[0].then[0].kind, 'continue');
   assert.equal(loop.body[1].kind, 'assign');
   assert.equal(loop.body[1].value.operator, '+');

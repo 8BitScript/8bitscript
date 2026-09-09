@@ -128,8 +128,8 @@ export function main(): void {
   const { ir, diagnostics } = link(src, '/t/t.8bs', { machine: 'c64', facts: FACTS_C64 });
   assert.deepEqual(diagnostics, []);
   const tests = ir.functions.find((f) => f.name === 'main').body.filter((s) => s.kind === 'if').map((s) => s.test);
-  assert.deepEqual(tests[0], { kind: 'binop', operator: '==', left: { kind: 'const', value: 40 }, right: { kind: 'const', value: 40 } });
-  assert.deepEqual(tests[1], { kind: 'unop', operator: '!', argument: { kind: 'const', value: 1 } });
+  assert.deepEqual(tests[0], { kind: 'binop', operator: '==', left: { kind: 'const', type: 'utinyint', value: 40 }, right: { kind: 'const', value: 40, type: 'utinyint' }, type: 'bool' });
+  assert.deepEqual(tests[1], { kind: 'unop', operator: '!', argument: { kind: 'const', type: 'utinyint', value: 1 }, type: 'bool' });
 });
 
 test('hover explains #fact(...) and a key inside it, and nowhere else', () => {

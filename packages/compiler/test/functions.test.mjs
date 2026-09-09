@@ -108,7 +108,7 @@ test("an array parameter's .length is folded, not carried", () => {
   assert.deepEqual(diagnostics, []);
   // A constant in the IR: nothing about the length reaches the machine, and
   // no second argument travels with the call.
-  assert.deepEqual(ir.functions[0].body[0].value, { kind: 'const', value: 7 });
+  assert.deepEqual(ir.functions[0].body[0].value, { kind: 'const', value: 7, type: 'utinyint' });
   assert.equal(ir.functions[0].params.length, 1);
 });
 
@@ -169,8 +169,8 @@ test('memory.write lowers to a dedicated IR node with address and value', () => 
   assert.equal(diagnostics.length, 0);
   assert.deepEqual(ir.functions[0].body[0], {
     kind: 'memoryWrite',
-    address: { kind: 'const', value: 36879 },
-    value: { kind: 'const', value: 27 },
+    address: { kind: 'const', value: 36879, type: 'usmallint' },
+    value: { kind: 'const', value: 27, type: 'utinyint' },
     start: ir.functions[0].body[0].start,
     length: ir.functions[0].body[0].length,
   });
@@ -223,10 +223,10 @@ test('a function with params/return + memory.write lowers the call into the writ
   assert.equal(scaled.returnType, 'utinyint');
   const write = ir.functions.find((f) => f.name === 'main').body[0];
   assert.equal(write.kind, 'memoryWrite');
-  assert.deepEqual(write.address, { kind: 'const', value: 0x1100 });
+  assert.deepEqual(write.address, { kind: 'const', value: 0x1100, type: 'usmallint' });
   assert.equal(write.value.kind, 'call');
   assert.equal(write.value.name, 'scaled');
-  assert.deepEqual(write.value.args[0], { kind: 'const', value: 21 });
+  assert.deepEqual(write.value.args[0], { kind: 'const', value: 21, type: 'utinyint' });
 });
 
 test('a function with params/return + memory.write compiles and runs the same on both backends', { skip: NATIVE_BACKEND_PENDING }, async () => {

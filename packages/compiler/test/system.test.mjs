@@ -44,7 +44,7 @@ test('link: #system() folds per target through the whole pipeline, into the IR',
     const { ir, diagnostics } = link(src, '/p/main.8bs', { machine });
     assert.deepEqual(diagnostics, [], machine);
     const assign = ir.functions[0].body.find((s) => s.kind === 'assign');
-    assert.deepEqual(assign.value, { kind: 'const', value }, machine);
+    assert.deepEqual(assign.value, { kind: 'const', value, type: 'utinyint' }, machine);
   }
 });
 

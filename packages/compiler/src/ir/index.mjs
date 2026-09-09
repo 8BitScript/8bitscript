@@ -24,9 +24,10 @@
 // person has already been told about it.
 import { Codes, diagnostic } from '../diagnostics/index.mjs';
 import { NodeType } from '../ast/index.mjs';
-import { resolveIntegerType } from '../types/index.mjs';
+import { resolveIntegerType, narrowestIntegerType } from '../types/index.mjs';
 import {
   resolveScalarType, scanDeclaredTypes, parameterTypes, layoutTemplate, isTemplateCall, misplacedTemplate, resolveArrayType, typeForCount, MAX_STRING_LENGTH,
+  widerOf, COMPARISON_OPERATORS,
 } from '../templates/index.mjs';
 
 /**
@@ -72,6 +73,11 @@ class Lowering {
     // *imported* const is not in this map: only the linker knows the other
     // module, so those are resolved there.
     this.ownConsts = new Map();
+    // Milestone 0 (the typed-IR pass): each own const's type, canonical —
+    // its own declared annotation when it has a valid integer one, else the
+    // narrowest type its value fits. Always populated whenever ownConsts is,
+    // so a lookup here never needs its own fallback at every call site.
+    this.ownConstTypes = new Map();
     // What lowering can know about names without a binder: this module's
     // own globals' and functions' declared types (scanned in program())
     // and the current function's parameters — what sizes a `${...}` field
@@ -123,7 +129,11 @@ class Lowering {
       if (node.type !== NodeType.VariableDeclaration || node.kind !== 'const' || !node.name) continue;
       this.constNames.add(node.name.name);
       const value = this.constInitialiser(node.initializer);
-      if (value !== null) this.ownConsts.set(node.name.name, value);
+      if (value !== null) {
+        this.ownConsts.set(node.name.name, value);
+        const declared = node.typeAnnotation?.name && resolveIntegerType(node.typeAnnotation.name);
+        this.ownConstTypes.set(node.name.name, declared ? declared.canonicalName : narrowestIntegerType(value));
+      }
     }
     for (const node of ast.body) {
       switch (node.type) {
@@ -183,7 +193,7 @@ class Lowering {
       index = this.strings.length;
       this.strings.push({ text: value, bytes: [...value].map((ch) => ch.charCodeAt(0) & 0xFF) });
     }
-    return { kind: 'string', index, start: node.start, length: node.length };
+    return { kind: 'string', index, type: 'string', start: node.start, length: node.length };
   }
 
   /** Is `name` a string here: a `string` parameter, a string const, or a `string<N>` variable? */
@@ -195,9 +205,9 @@ class Lowering {
   /** The lowered expression for a string by name (see isStringParameter). */
   stringRef(node) {
     if (!this.currentParams.has(node.name) && this.ownStrings.has(node.name)) {
-      return { kind: 'string', index: this.ownStrings.get(node.name), start: node.start, length: node.length };
+      return { kind: 'string', index: this.ownStrings.get(node.name), type: 'string', start: node.start, length: node.length };
     }
-    return { kind: 'ref', name: node.name, start: node.start, length: node.length };
+    return { kind: 'ref', name: node.name, type: 'string', start: node.start, length: node.length };
   }
 
   /**
@@ -235,9 +245,13 @@ class Lowering {
     // references in place, and one node shared between calls would be
     // renamed twice.
     const cellAt = (offset) => {
-      if (cell.kind === 'const') return { kind: 'const', value: cell.value + offset };
+      if (cell.kind === 'const') {
+        const value = cell.value + offset;
+        return { kind: 'const', value, type: narrowestIntegerType(value) };
+      }
       if (offset === 0) return structuredClone(cell);
-      return { kind: 'binop', operator: '+', left: structuredClone(cell), right: { kind: 'const', value: offset } };
+      const right = { kind: 'const', value: offset, type: narrowestIntegerType(offset) };
+      return { kind: 'binop', operator: '+', left: structuredClone(cell), right, type: widerOf(cell.type, right.type) };
     };
     const call = (member, args) => ({
       kind: 'namespaceCall', namespace, member, args, start: node.start, length: node.length,
@@ -252,7 +266,7 @@ class Lowering {
       }
       const value = this.expression(piece.node.expression);
       if (!value) return null;
-      body.push(call('printNumber', [cellAt(piece.offset), value, { kind: 'const', value: piece.width }]));
+      body.push(call('printNumber', [cellAt(piece.offset), value, { kind: 'const', value: piece.width, type: narrowestIntegerType(piece.width) }]));
     }
     return body.length === 1 ? body[0] : { kind: 'block', body };
   }
@@ -760,7 +774,8 @@ class Lowering {
     if (!target) return null;
     const index = this.expression(node.index);
     if (!index || !this.indexInRange(node.index, index, target.array)) return null;
-    return { kind: 'index', array: target.ref, index, elementType: target.array?.type ?? null };
+    const elementType = target.array?.type ?? null;
+    return { kind: 'index', array: target.ref, index, elementType, type: elementType };
   }
 
   function(node, { mangledName } = {}) {
@@ -925,7 +940,9 @@ class Lowering {
     if (this.blockNames?.has(node.name.name)) {
       return this.fail(node.name, `'${node.name.name}' is already declared in this block`);
     }
-    const init = node.initializer ? this.expression(node.initializer) : { kind: 'const', value: 0 };
+    // Left off, a local starts at 0 typed as itself — usmallint's zero is
+    // not utinyint's, even though both are the same value.
+    const init = node.initializer ? this.expression(node.initializer) : { kind: 'const', value: 0, type };
     if (!init) return null;
     if (init.kind === 'string') {
       return this.fail(node.initializer, `a string cannot initialise a ${type}: a string lives in a string<N> or a const`);
@@ -1062,6 +1079,13 @@ class Lowering {
         namespace: callee.object.name,
         member: callee.property.name,
         args,
+        // Unknown here: which module callee.object.name resolves to is the
+        // linker's to see, and only it can say what that namespace's
+        // member returns. Left null rather than guessed; a future pass at
+        // link time is where this gets filled in, once a real caller needs
+        // it (a namespace call used as a sub-expression of typed
+        // arithmetic — no portable package does that today).
+        type: null,
         start: node.start,
         length: node.length,
       };
@@ -1102,6 +1126,7 @@ class Lowering {
       kind: 'call',
       name: callee.name,
       args,
+      type: this.functionTypes.get(callee.name) ?? null,
       start: callee.start,
       length: callee.length,
     };
@@ -1124,7 +1149,10 @@ class Lowering {
       }
       const address = this.memoryArgument(node.args[0], 'usmallint');
       if (!address) return null;
-      return { kind: 'memoryRead', address, start: node.start, length: node.length };
+      // Memory is byte-addressed: one read is always one byte, on every
+      // machine — the same fixed rule memory.write's own value argument
+      // already enforces (memoryArgument(..., 'utinyint') just below).
+      return { kind: 'memoryRead', address, type: 'utinyint', start: node.start, length: node.length };
     }
     return this.fail(node, `memory.${member} is not compilable yet: only read and write exist`);
   }
@@ -1192,11 +1220,13 @@ class Lowering {
     }
     if (node.operator !== '=') {
       // `x += e` is `x = x + e`; the operator minus its trailing `=`.
+      const targetType = this.currentParams.get(node.left.name) ?? this.globalTypes.get(node.left.name) ?? null;
       value = {
         kind: 'binop',
         operator: node.operator.slice(0, -1),
-        left: { kind: 'ref', name: node.left.name, start: node.left.start, length: node.left.length },
+        left: { kind: 'ref', name: node.left.name, type: targetType, start: node.left.start, length: node.left.length },
         right: value,
+        type: widerOf(targetType, value.type),
       };
     }
     return {
@@ -1228,19 +1258,17 @@ class Lowering {
     }
     const index = this.expression(left.index);
     if (!index || !this.indexInRange(left.index, index, target.array)) return null;
-    let value = right ? this.expression(right) : { kind: 'const', value: 1 };
+    let value = right ? this.expression(right) : { kind: 'const', value: 1, type: 'utinyint' };
     if (!value) return null;
+    const elementType = target.array?.type ?? null;
     if (operator) {
       // `a[i] += e` is `a[i] = a[i] + e`; the read gets its own copies of the
       // array and index nodes, since the linker renames in place.
-      value = {
-        kind: 'binop', operator,
-        left: { kind: 'index', array: structuredClone(target.ref), index: structuredClone(index), elementType: target.array?.type ?? null },
-        right: value,
-      };
+      const readBack = { kind: 'index', array: structuredClone(target.ref), index: structuredClone(index), elementType, type: elementType };
+      value = { kind: 'binop', operator, left: readBack, right: value, type: widerOf(elementType, value.type) };
     }
     return {
-      kind: 'storeIndex', array: target.ref, index, value, elementType: target.array?.type ?? null,
+      kind: 'storeIndex', array: target.ref, index, value, elementType,
       start: left.object.start, length: left.object.length,
     };
   }
@@ -1253,6 +1281,7 @@ class Lowering {
     if (node.argument.type !== NodeType.Identifier) {
       return this.fail(node.argument, `updating a ${node.argument.type} is not compilable yet`);
     }
+    const targetType = this.currentParams.get(node.argument.name) ?? this.globalTypes.get(node.argument.name) ?? null;
     return {
       kind: 'assign',
       target: node.argument.name,
@@ -1261,8 +1290,9 @@ class Lowering {
       value: {
         kind: 'binop',
         operator: node.operator === '++' ? '+' : '-',
-        left: { kind: 'ref', name: node.argument.name, start: node.argument.start, length: node.argument.length },
-        right: { kind: 'const', value: 1 },
+        left: { kind: 'ref', name: node.argument.name, type: targetType, start: node.argument.start, length: node.argument.length },
+        right: { kind: 'const', value: 1, type: 'utinyint' },
+        type: widerOf(targetType, 'utinyint'),
       },
     };
   }
@@ -1271,9 +1301,9 @@ class Lowering {
     if (!node?.type) return null; // a hole the parser already reported
     switch (node.type) {
       case NodeType.IntegerLiteral:
-        return { kind: 'const', value: node.value };
+        return { kind: 'const', value: node.value, type: narrowestIntegerType(node.value) };
       case NodeType.BooleanLiteral:
-        return { kind: 'const', value: node.value ? 1 : 0 };
+        return { kind: 'const', value: node.value ? 1 : 0, type: 'bool' };
       case NodeType.StringLiteral:
         return this.stringConstant(node, node.value);
       case NodeType.TemplateLiteral:
@@ -1285,7 +1315,7 @@ class Lowering {
         if (node.object?.type === NodeType.Identifier && this.isStringParameter(node.object.name)) {
           const index = this.expression(node.index);
           if (!index) return null;
-          return { kind: 'stringByte', string: this.stringRef(node.object), index };
+          return { kind: 'stringByte', string: this.stringRef(node.object), index, type: 'utinyint' };
         }
         return this.indexRead(node);
       }
@@ -1295,10 +1325,10 @@ class Lowering {
         // A const declared in this module is its value, here and now — but
         // a parameter of the same name shadows it, ordinary lexical scoping.
         if (!this.currentParams.has(node.name) && this.ownConsts.has(node.name)) {
-          return { kind: 'const', value: this.ownConsts.get(node.name) };
+          return { kind: 'const', value: this.ownConsts.get(node.name), type: this.ownConstTypes.get(node.name) };
         }
         if (!this.currentParams.has(node.name) && this.ownStrings.has(node.name)) {
-          return { kind: 'string', index: this.ownStrings.get(node.name), start: node.start, length: node.length };
+          return { kind: 'string', index: this.ownStrings.get(node.name), type: 'string', start: node.start, length: node.length };
         }
         // An array is used one element at a time; its bare name is not a
         // value (there is no array assignment or array argument yet).
@@ -1309,14 +1339,27 @@ class Lowering {
           return this.fail(node, `'${node.name}' is an array parameter: read an element (${node.name}[i]) or its .length`);
         }
         // The span rides along so the linker can point a diagnostic at the
-        // exact reference when a name resolves to nothing.
-        return { kind: 'ref', name: node.name, start: node.start, length: node.length };
+        // exact reference when a name resolves to nothing. Its type comes
+        // from wherever the name is actually declared — a parameter or
+        // local (currentParams, which carries both), or this module's own
+        // global; an imported name the linker alone can see stays
+        // untyped, same as its value already is until link time.
+        return {
+          kind: 'ref', name: node.name,
+          type: this.currentParams.get(node.name) ?? this.globalTypes.get(node.name) ?? null,
+          start: node.start, length: node.length,
+        };
       case NodeType.BinaryExpression: {
         const left = this.expression(node.left);
         const right = this.expression(node.right);
-        return left && right
-          ? { kind: 'binop', operator: node.operator, left, right }
-          : null;
+        if (!left || !right) return null;
+        // Comparisons and the logical operators always produce a bool,
+        // whatever the operands' own types are — the one case widerOf()
+        // does not apply to, mirrored here exactly as inferType() (the
+        // AST-level version of this same rule, in templates/index.mjs)
+        // already decides it for a template field's width.
+        const type = COMPARISON_OPERATORS.has(node.operator) ? 'bool' : widerOf(left.type, right.type);
+        return { kind: 'binop', operator: node.operator, left, right, type };
       }
       case NodeType.UnaryExpression: {
         const argument = this.expression(node.argument);
@@ -1326,9 +1369,16 @@ class Lowering {
         // hold could not initialise one. Only `-`/`+`, whose meaning on a
         // number needs no width to know; `~` and `!` are left to the target.
         if (argument.kind === 'const' && (node.operator === '-' || node.operator === '+')) {
-          return { kind: 'const', value: node.operator === '-' ? -argument.value : argument.value };
+          const value = node.operator === '-' ? -argument.value : argument.value;
+          // The value's own sign decides its type here, not argument.type:
+          // negating 200 (utinyint) gives -200, which no unsigned type
+          // holds at all — narrowestIntegerType looks at the result, not
+          // the operand, which inferType()'s equivalent AST-only case
+          // cannot do (see narrowestIntegerType's own comment).
+          return { kind: 'const', value, type: narrowestIntegerType(value) };
         }
-        return { kind: 'unop', operator: node.operator, argument };
+        const type = node.operator === '!' ? 'bool' : argument.type;
+        return { kind: 'unop', operator: node.operator, argument, type };
       }
       case NodeType.CallExpression: {
         const call = this.callExpression(node);
@@ -1350,7 +1400,7 @@ class Lowering {
           if (node.property.name !== 'length') {
             return this.fail(node, `a string has no '${node.property.name}'; it has .length and s[i]`);
           }
-          return { kind: 'stringLength', string: this.stringRef(node.object) };
+          return { kind: 'stringLength', string: this.stringRef(node.object), type: 'utinyint' };
         }
         // `t.length` on an array parameter: the length is part of the
         // parameter's type, so it is a constant here and nothing about it
@@ -1359,7 +1409,8 @@ class Lowering {
           if (node.property.name !== 'length') {
             return this.fail(node, `an array has no '${node.property.name}'; it has .length and a[i]`);
           }
-          return { kind: 'const', value: this.currentArrayParams.get(node.object.name).length };
+          const length = this.currentArrayParams.get(node.object.name).length;
+          return { kind: 'const', value: length, type: typeForCount(length) };
         }
         // `a.length` on this module's own array: a number, right here. On a
         // name this module does not declare it is left as a namespace const
@@ -1369,15 +1420,19 @@ class Lowering {
           if (node.property.name !== 'length') {
             return this.fail(node, `an array has no '${node.property.name}'; it has .length and a[i]`);
           }
-          return { kind: 'const', value: this.arrays.get(node.object.name).length };
+          const length = this.arrays.get(node.object.name).length;
+          return { kind: 'const', value: length, type: typeForCount(length) };
         }
         // `BorderColor.BLUE`: a namespace const used as a value, not a call.
-        // Resolved by the linker the same way a namespace-qualified call is —
-        // lowering only records which namespace and member were named.
+        // Resolved by the linker the same way a namespace-qualified call is
+        // — lowering only records which namespace and member were named,
+        // and (as with namespaceCall above) its type is the linker's to
+        // fill in once the real module is known.
         return {
           kind: 'namespaceConst',
           namespace: node.object.name,
           member: node.property.name,
+          type: null,
           start: node.start,
           length: node.length,
         };

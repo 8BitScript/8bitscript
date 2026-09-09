@@ -33,23 +33,23 @@ test('a screen and text consumer links for cx16 and drives VERA by its port addr
   const main = fn('main');
   assert.deepEqual(main.body[0].args.map((a) => a.value), [162, 84]);
   const setVram = fn('setVramAddress');
-  assert.deepEqual(setVram.body[0].address, { kind: 'const', value: 40736 });
+  assert.deepEqual(setVram.body[0].address, { kind: 'const', value: 40736, type: 'usmallint' });
   assert.equal(setVram.body[0].value.operator, '%');
-  assert.deepEqual(setVram.body[2].address, { kind: 'const', value: 40738 });
+  assert.deepEqual(setVram.body[2].address, { kind: 'const', value: 40738, type: 'usmallint' });
   assert.equal(fn('text_putChar').body[1].kind, 'memoryWrite');
-  assert.deepEqual(fn('text_putChar').body[1].address, { kind: 'const', value: 40739 });
+  assert.deepEqual(fn('text_putChar').body[1].address, { kind: 'const', value: 40739, type: 'usmallint' });
   const map = fn('locateTextMap');
-  assert.deepEqual(map.body[0].value.left.address, { kind: 'const', value: 40757 });
+  assert.deepEqual(map.body[0].value.left.address, { kind: 'const', value: 40757, type: 'usmallint' });
   assert.equal(map.body[0].value.operator, '/');
   assert.equal(map.body[1].value.operator, '%');
-  assert.deepEqual(map.body[2].value.right, { kind: 'const', value: 512 });
+  assert.deepEqual(map.body[2].value.right, { kind: 'const', value: 512, type: 'usmallint' });
   const locate = fn('locate');
   assert.equal(locate.body[1].name, 'high');
-  assert.deepEqual(locate.body[1].init.right, { kind: 'const', value: 256 });
+  assert.deepEqual(locate.body[1].init.right, { kind: 'const', value: 256, type: 'usmallint' });
   assert.equal(locate.body[2].name, 'x');
-  assert.deepEqual(locate.body[2].init.left.right, { kind: 'const', value: 28 });
+  assert.deepEqual(locate.body[2].init.left.right, { kind: 'const', value: 28, type: 'utinyint' });
   assert.equal(locate.body[3].name, 'row');
-  assert.deepEqual(locate.body[3].init.left.right, { kind: 'const', value: 3 });
+  assert.deepEqual(locate.body[3].init.left.right, { kind: 'const', value: 3, type: 'utinyint' });
   assert.equal(locate.body[4].name, 'col');
   const addrSel = locate.body.filter((s) => s.kind === 'memoryWrite' && s.address.value === 40741);
   assert.deepEqual(addrSel.map((s) => s.value.value), [1, 0]);
@@ -64,25 +64,25 @@ test('a screen and text consumer links for cx16 and drives VERA by its port addr
   });
   assert.equal(hardcodedMap, false, 'no hardcoded $1B000 anywhere');
   const putColor = fn('text_putColor').body[2];
-  assert.deepEqual(putColor.address, { kind: 'const', value: 40739 });
+  assert.deepEqual(putColor.address, { kind: 'const', value: 40739, type: 'usmallint' });
   assert.equal(putColor.value.operator, '|');
-  assert.deepEqual(putColor.value.left.left.address, { kind: 'const', value: 40740 });
+  assert.deepEqual(putColor.value.left.left.address, { kind: 'const', value: 40740, type: 'usmallint' });
   const inset = fn('insetPicture').body.filter((s) => s.kind === 'memoryWrite');
   assert.deepEqual(inset.slice(0, 6).map((s) => [s.address.value, s.value.value]), [
     [40741, 2], [40745, 4], [40746, 156], [40747, 8], [40748, 232], [40741, 0],
   ]);
   const setColors = fn('screen_setColors');
   assert.equal(setColors.body[0].name, 'insetPicture');
-  assert.deepEqual(setColors.body[1].address, { kind: 'const', value: 40741 });
-  assert.deepEqual(setColors.body[2].address, { kind: 'const', value: 40748 });
+  assert.deepEqual(setColors.body[1].address, { kind: 'const', value: 40741, type: 'usmallint' });
+  assert.deepEqual(setColors.body[2].address, { kind: 'const', value: 40748, type: 'usmallint' });
   const scroll = inset.filter((s) => s.address.value === 40761 || s.address.value === 40762);
   assert.deepEqual(scroll.map((s) => [s.address.value, s.value.value]), [[40761, 254], [40762, 1]]);
   const repaint = setColors.body.find((s) => s.kind === 'for');
-  assert.deepEqual(repaint.test.right, { kind: 'const', value: 64 });
+  assert.deepEqual(repaint.test.right, { kind: 'const', value: 64, type: 'utinyint' });
   const attr = repaint.body.find((s) => s.kind === 'for');
-  assert.deepEqual(attr.body[0].address, { kind: 'const', value: 40739 });
+  assert.deepEqual(attr.body[0].address, { kind: 'const', value: 40739, type: 'usmallint' });
   assert.equal(attr.body[0].value.operator, '+');
-  assert.deepEqual(attr.body[0].value.left.right, { kind: 'const', value: 16 });
+  assert.deepEqual(attr.body[0].value.left.right, { kind: 'const', value: 16, type: 'utinyint' });
 });
 
 // TODO: restore once a multi-target screen-and-text probe exists.

@@ -47,8 +47,8 @@ test('linker: a namespace const from an own const, and from another namespace\'s
   ].join('\n');
   const { ir, diagnostics } = link(src, 't.8bs');
   assert.deepEqual(diagnostics, []);
-  assert.deepEqual(mainOf(ir).body[0].value, { kind: 'const', value: 40 });
-  assert.deepEqual(mainOf(ir).body[1].value, { kind: 'const', value: 25 });
+  assert.deepEqual(mainOf(ir).body[0].value, { kind: 'const', type: 'utinyint', value: 40 });
+  assert.deepEqual(mainOf(ir).body[1].value, { kind: 'const', type: 'utinyint', value: 25 });
 });
 
 test('linker: a chain of pending namespace consts across modules resolves, and a cycle is reported once per member, not looped on', async () => {
@@ -70,10 +70,10 @@ test('linker: a chain of pending namespace consts across modules resolves, and a
     const { ir, diagnostics } = link(main, join(dir, 'main.8bs'));
     assert.deepEqual(diagnostics, []);
     const fill = ir.functions.find((f) => f.name === 'text_fill');
-    assert.deepEqual(fill.body[0].test.right, { kind: 'const', value: 2000 });
+    assert.deepEqual(fill.body[0].test.right, { kind: 'const', type: 'usmallint', value: 2000 });
     const write = mainOf(ir).body[1];
-    assert.deepEqual(write.address, { kind: 'binop', operator: '+', left: { kind: 'const', value: 32768 }, right: { kind: 'const', value: 80 } });
-    assert.deepEqual(write.value, { kind: 'const', value: 80 });
+    assert.deepEqual(write.address, { kind: 'binop', operator: '+', left: { kind: 'const', value: 32768, type: 'usmallint' }, right: { kind: 'const', type: 'utinyint', value: 80 }, type: 'usmallint' });
+    assert.deepEqual(write.value, { kind: 'const', type: 'utinyint', value: 80 });
 
     await writeFile(join(dir, 'a.8bs'), 'import { B } from "./b.8bs";\nexport namespace A { const X: utinyint = B.Y; }\n');
     await writeFile(join(dir, 'b.8bs'), 'import { A } from "./a.8bs";\nexport namespace B { const Y: utinyint = A.X; }\n');

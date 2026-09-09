@@ -77,15 +77,28 @@ export function digitsFor(typeName) {
   return String(type.max).length;
 }
 
-/** Widest of two integer types, for the result of arithmetic on them. */
-function widerOf(a, b) {
+/**
+ * Widest of two integer types, for the result of arithmetic on them — the
+ * one promotion rule, shared by inferType() below (template field sizing)
+ * and, since Milestone 0, the IR's own typed-expression pass
+ * (packages/compiler/src/ir), so 8bitscript's own arithmetic has one
+ * answer on every backend rather than each host language's rule leaking
+ * through (the old C-detour bug: the same byte sum widened to 402 via
+ * C's implicit int-promotion on 6502 and 146 under AssemblyScript's
+ * explicit widths on web). Ties (equal bit width) keep the left operand's
+ * type — arbitrary, but fixed, so a mixed signed/unsigned same-width
+ * expression's type does not depend on which side you happened to write
+ * first only when the two names actually differ in signedness.
+ */
+export function widerOf(a, b) {
   const ta = resolveIntegerType(a);
   const tb = resolveIntegerType(b);
   if (!ta || !tb) return null;
   return ta.bits >= tb.bits ? ta.canonicalName : tb.canonicalName;
 }
 
-const COMPARISON_OPERATORS = new Set(['==', '!=', '<', '>', '<=', '>=', '&&', '||']);
+/** Operators whose result is always bool, whatever their operands' types — shared with the IR's typed-expression pass. */
+export const COMPARISON_OPERATORS = new Set(['==', '!=', '<', '>', '<=', '>=', '&&', '||']);
 
 /**
  * The declared types of a module's top-level globals, consts, and

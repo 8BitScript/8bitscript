@@ -107,7 +107,7 @@ test('the Commodore packages map ASCII to screen codes and select the upper-case
     assert.ok(ascii, `${machine}: no ASCII-to-screen-code mapping`);
     assert.equal(ascii.body[0].kind, 'if');
     assert.equal(ascii.body[0].test.operator, '&&');
-    assert.deepEqual(ascii.body[0].then[0].value.right, { kind: 'const', value: 64 });
+    assert.deepEqual(ascii.body[0].then[0].value.right, { kind: 'const', value: 64, type: 'utinyint' });
     const g = ir.globals.find((x) => x.name === expect.global);
     assert.equal(g.address, expect.address, `${machine}: ${expect.global} address`);
     const prepare = ir.functions.find((f) => f.name === 'prepare');
@@ -131,15 +131,15 @@ test('the NES text grid is the 28x26 area inside the drawn frame', () => {
   assert.equal(text.consts.get('COLUMNS'), 28);
   const { ir: linked } = link(T_CONSUMER, CONSUMER, { machine: 'nes' });
   const locate = linked.functions.find((f) => f.name === 'locate');
-  assert.deepEqual(locate.body[0].init.right, { kind: 'const', value: 4 });
+  assert.deepEqual(locate.body[0].init.right, { kind: 'const', value: 4, type: 'utinyint' });
   assert.equal(locate.body[1].init.operator, '+');
-  assert.deepEqual(locate.body[1].init.left.right, { kind: 'const', value: 8 });
-  assert.deepEqual(locate.body[1].init.right.right, { kind: 'const', value: 64 });
+  assert.deepEqual(locate.body[1].init.left.right, { kind: 'const', value: 8, type: 'utinyint' });
+  assert.deepEqual(locate.body[1].init.right.right, { kind: 'const', value: 64, type: 'utinyint' });
   const col = locate.body.find((s) => s.kind === 'local' && s.name === 'col');
-  assert.deepEqual(col.init.left.right, { kind: 'const', value: 4 });
+  assert.deepEqual(col.init.left.right, { kind: 'const', value: 4, type: 'utinyint' });
   const run = locate.body.find((s) => s.kind === 'call' && s.name === 'queueRun');
-  assert.deepEqual(run.args[0].left.left, { kind: 'const', value: 8258 });
-  assert.deepEqual(run.args[0].left.right.right, { kind: 'const', value: 32 });
+  assert.deepEqual(run.args[0].left.left, { kind: 'const', value: 8258, type: 'usmallint' });
+  assert.deepEqual(run.args[0].left.right.right, { kind: 'const', value: 32, type: 'utinyint' });
 });
 
 // ---- a screen-only or text-only program links on every machine -----------

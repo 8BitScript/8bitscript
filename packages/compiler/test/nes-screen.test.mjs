@@ -60,7 +60,7 @@ test('a screen and text consumer links for nes with the font in ir.nativeSources
   assert.deepEqual(main.body[0].args.map((a) => a.value), [99, 84]);
   const setVram = ir.functions.find((f) => f.name === 'setVramAddress');
   assert.equal(setVram.body[1].kind, 'memoryWrite');
-  assert.deepEqual(setVram.body[1].address, { kind: 'const', value: 8198 });
+  assert.deepEqual(setVram.body[1].address, { kind: 'const', value: 8198, type: 'usmallint' });
   assert.equal(setVram.body[1].value.operator, '/');
   const reset = ir.functions.find((f) => f.name === 'resetScroll');
   assert.ok(reset.body.some((s) => s.kind === 'memoryWrite' && s.address.value === 8197 && s.value.value === 0));
@@ -82,16 +82,16 @@ test('a screen and text consumer links for nes with the font in ir.nativeSources
     'PPUDATA is written by the queue delivery, the frame/blank fill, the text palette in showPicture, and a palette write with the picture off');
   assert.ok(ir.functions.some((f) => f.name === 'nesVerticalBlank'));
   const deliver = ir.functions.find((f) => f.name === 'deliverAtVerticalBlank');
-  assert.deepEqual(deliver.body[0].address, { kind: 'const', value: 8194 });
+  assert.deepEqual(deliver.body[0].address, { kind: 'const', value: 8194, type: 'usmallint' });
   assert.equal(deliver.body[1].kind, 'while');
-  assert.deepEqual(deliver.body[1].test.left.address, { kind: 'const', value: 8194 });
+  assert.deepEqual(deliver.body[1].test.left.address, { kind: 'const', value: 8194, type: 'usmallint' });
   assert.equal(deliver.body[2].name, 'nesVerticalBlank');
   const setColors = ir.functions.find((f) => f.name === 'screen_setColors');
   assert.deepEqual(setColors.params.map((p) => p.name), ['border', 'background']);
   assert.equal(setColors.body[0].name, 'setPalette');
-  assert.deepEqual(setColors.body[0].args[0], { kind: 'const', value: 16128 });
+  assert.deepEqual(setColors.body[0].args[0], { kind: 'const', value: 16128, type: 'usmallint' });
   assert.equal(setColors.body[1].name, 'setPalette');
-  assert.deepEqual(setColors.body[1].args[0], { kind: 'const', value: 16130 });
+  assert.deepEqual(setColors.body[1].args[0], { kind: 'const', value: 16130, type: 'usmallint' });
   assert.equal(setColors.body[2].name, 'showPicture');
 });
 

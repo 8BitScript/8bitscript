@@ -35,6 +35,7 @@ export {
   INTEGER_RANGES,
   resolveIntegerType,
   storageBytes,
+  narrowestIntegerType,
 } from './src/types/index.mjs';
 export { getHoverInfo, getCompletions } from './src/intellisense/index.mjs';
 

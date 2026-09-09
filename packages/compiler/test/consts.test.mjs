@@ -41,7 +41,7 @@ test('lowering: a const initialised from #frames(...) is a literal by the time i
     'main.8bs': 'const HALF: utinyint = #frames(0.5, seconds);\nlet n: utinyint = 0;\nexport function main(): void { n = HALF; }\n',
   }, 'main.8bs', { frameRate: 50 });
   assert.deepEqual(diagnostics, []);
-  assert.deepEqual(ir.functions[0].body[0].value, { kind: 'const', value: 25 });
+  assert.deepEqual(ir.functions[0].body[0].value, { kind: 'const', value: 25, type: 'utinyint' });
 });
 
 test('lowering: a const needs a literal initialiser and cannot be volatile or @address', () => {
@@ -75,7 +75,7 @@ test('linker: every reference to a const is the value, and the name never become
   assert.deepEqual(diagnostics, []);
   assert.deepEqual(ir.globals.map((g) => g.name), ['option']);
   const main = ir.functions.find((f) => f.name === 'main');
-  assert.deepEqual(main.body[1].test.right, { kind: 'const', value: 4 });
+  assert.deepEqual(main.body[1].test.right, { kind: 'const', value: 4, type: 'utinyint' });
 });
 
 test('linker: an exported const is importable and inlines in the importer; assigning to it there is 8BS1031', async () => {
@@ -85,7 +85,7 @@ test('linker: an exported const is importable and inlines in the importer; assig
     'main.8bs': 'import { LIMIT as Max } from "./lib.8bs";\nlet n: utinyint = 0;\nexport function main(): void { n = Max; }\n',
   });
   assert.deepEqual(good.diagnostics, []);
-  assert.deepEqual(good.ir.functions.find((f) => f.name === 'main').body[0].value, { kind: 'const', value: 4 });
+  assert.deepEqual(good.ir.functions.find((f) => f.name === 'main').body[0].value, { kind: 'const', type: null, value: 4 });
 
   const bad = await linkWith({
     'lib.8bs': lib,
@@ -186,9 +186,12 @@ test('a const initialised from a namespace const or an imported const: the value
   assert.equal(good.ir.globals.find((g) => g.name === 'n').init, 2);
   const assign = good.ir.functions.find((f) => f.name === 'main').body[0];
   assert.deepEqual(assign.value, {
-    kind: 'binop', operator: '+',
-    left: { kind: 'binop', operator: '+', left: { kind: 'const', value: 7 }, right: { kind: 'const', value: 2 } },
-    right: { kind: 'const', value: 2 },
+    kind: 'binop', operator: '+', type: 'utinyint',
+    left: {
+      kind: 'binop', operator: '+', type: 'utinyint',
+      left: { kind: 'const', value: 7, type: 'utinyint' }, right: { kind: 'const', value: 2, type: 'utinyint' },
+    },
+    right: { kind: 'const', value: 2, type: 'utinyint' },
   });
 
   const bad = await linkWith({

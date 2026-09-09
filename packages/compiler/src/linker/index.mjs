@@ -35,7 +35,8 @@ import { foldCompileTime } from '../fold/index.mjs';
 import { lower } from '../ir/index.mjs';
 import { resolveSpecifier, nativeSourcesBeside } from '../resolver/index.mjs';
 import { Codes, diagnostic } from '../diagnostics/index.mjs';
-import { storageBytes, resolveIntegerType } from '../types/index.mjs';
+import { storageBytes, resolveIntegerType, narrowestIntegerType } from '../types/index.mjs';
+import { typeForCount, widerOf, COMPARISON_OPERATORS } from '../templates/index.mjs';
 import { checkHardwareHazards } from './hazards.mjs';
 
 /** The canonical identity of a file: two pnpm symlink routes, one module. */
@@ -527,6 +528,11 @@ function rewriteExpression(expr, scope, module, diagnostics) {
     case 'binop':
       rewriteExpression(expr.left, scope, module, diagnostics);
       rewriteExpression(expr.right, scope, module, diagnostics);
+      // Recomputed, not trusted from lowering: an operand that was a
+      // pending namespaceConst (an imported array's .length, say) had no
+      // type yet when lowering first guessed this binop's — only after
+      // both sides are rewritten, just above, can the real one be known.
+      expr.type = COMPARISON_OPERATORS.has(expr.operator) ? 'bool' : widerOf(expr.left.type, expr.right.type);
       return;
     case 'unop':
       rewriteExpression(expr.argument, scope, module, diagnostics);
@@ -620,6 +626,7 @@ function rewriteExpression(expr, scope, module, diagnostics) {
       if (stringConst && expr.member === 'length') {
         // `Label.length` on an imported string const: the literal's length byte.
         expr.kind = 'stringLength';
+        expr.type = 'utinyint';
         expr.string = constExpression(module.constValues.get(expr.namespace));
         delete expr.namespace;
         delete expr.member;
@@ -630,6 +637,7 @@ function rewriteExpression(expr, scope, module, diagnostics) {
         const ref = { kind: 'ref', name: expr.namespace, start: expr.start, length: expr.length };
         rewriteExpression(ref, scope, module, diagnostics);
         expr.kind = 'stringLength';
+        expr.type = 'utinyint';
         expr.string = ref;
         delete expr.namespace;
         delete expr.member;
@@ -638,9 +646,11 @@ function rewriteExpression(expr, scope, module, diagnostics) {
       if (array?.array && expr.member === 'length') {
         // `buffer.length` on an imported array: lowering could not tell it
         // from a namespace const, so it arrives as one. A number, like an
-        // own array's length is.
+        // own array's length is — same rule, same type (typeForCount),
+        // just resolved a pass later because the length itself was.
         expr.kind = 'const';
         expr.value = array.array;
+        expr.type = typeForCount(array.array);
         delete expr.namespace;
         delete expr.member;
         delete expr.start;
@@ -660,8 +670,15 @@ function rewriteExpression(expr, scope, module, diagnostics) {
           module.file, expr.start ?? 0, expr.length ?? 0,
         ));
       } else {
+        // A genuine namespace const (`BorderColor.BLUE`): inlined as a
+        // plain value, same as one of this module's own consts. Its
+        // declared type is not tracked across the import boundary (own
+        // consts aren't always either — see ownConstTypes in ir/index.mjs),
+        // so it gets the same narrowest-fit fallback an untracked own
+        // const would.
         expr.kind = 'const';
         expr.value = result.value;
+        expr.type = narrowestIntegerType(result.value);
         delete expr.namespace;
         delete expr.member;
         delete expr.start;
