@@ -45,7 +45,7 @@ import { existsSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 
 import {
-  MACHINES, isVariantPath, link, positionAt, variantOf,
+  MACHINES, RELEASE_MACHINES, isVariantPath, link, positionAt, variantOf,
   unmetRequirements,
 } from '@8bitscript/compiler';
 
@@ -146,6 +146,17 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   if (!TARGETS.has(target)) {
     process.stderr.write(
       `8bs build: unknown target '${target}'. Targets: ${[...TARGETS].join(', ')}\n`,
+    );
+    return { ok: false };
+  }
+  // A machine the language knows but this release does not build for. Its
+  // package is still in the workspace, its twin files still resolve, and
+  // `8bs check` still reads a program written for it; only producing a
+  // binary waits for its backend (see RELEASE_MACHINES in the compiler).
+  if (!RELEASE_MACHINES.includes(target)) {
+    process.stderr.write(
+      `8bs build: '${target}' is not a target in this release. 0.2.0 builds for ` +
+      `${RELEASE_MACHINES.join(' and ')} only; the ${target} returns in a later release.\n`,
     );
     return { ok: false };
   }
@@ -297,7 +308,8 @@ export async function build(args) {
 
   if (!target) {
     process.stderr.write(
-      'Usage: 8bs build --target <vic20|c64|pet|c128|atari8|nes|cx16|mega65|web>\n'
+      'Usage: 8bs build --target <pet|web>\n'
+      + '                 (vic20, c64, c128, atari8, nes, cx16, mega65 are parked until a later release)\n'
       + '                 [--pal]\n'
       + HARDWARE_USAGE
       + '                 [entry.8bs]\n',

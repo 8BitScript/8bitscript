@@ -8,11 +8,14 @@
 // extension itself have one, and none of them is a program to run.
 //
 // A project is one of three kinds, and the launcher keeps them apart in
-// its dropdown: the workspace's own programs; the examples under
-// examples/ in the 8bitscript repository, which exist to exercise the
-// toolchain; and the apps that ship with the toolchain — packages whose
-// package.json carries an `8bitscript.app` field, Studio being the first —
-// found beside the CLI package the toolchain came from.
+// its dropdown: the workspace's own programs; the examples that ship with
+// the toolchain — the projects `@8bitscript/examples` names in its
+// package.json's `8bitscript.examples` field; and the apps that ship with
+// it — packages whose package.json carries an `8bitscript.app` field,
+// Studio being the first. Both shipped kinds are found beside the CLI
+// package the toolchain came from, so a project that has installed
+// `@8bitscript/cli` has them whether or not it is a checkout of the
+// repository.
 //
 // This module is deliberately free of the `vscode` API so it can be tested
 // with plain `node --test`. runner.cjs does the file search with the
@@ -22,21 +25,29 @@ const path = require('path');
 
 const CONFIG_FILE = '8bs.config.ts';
 
-/** Every target the toolchain knows, in the order the launcher lists them. */
-const ALL_TARGETS = ['vic20', 'c64', 'pet', 'c128', 'atari8', 'nes', 'cx16', 'mega65', 'web'];
+/**
+ * Every target the launcher offers. 0.2.0 builds for the PET and the web
+ * only — RELEASE_MACHINES in the compiler's resolver is the toolchain's
+ * own version of this same list — so this is narrowed to match rather
+ * than showing seven machines nothing can be built for yet. The other
+ * seven (vic20, c64, c128, atari8, nes, cx16, mega65) come back here
+ * machine by machine as their native backends land.
+ */
+const ALL_TARGETS = ['pet', 'web'];
 
 /**
- * Targets that are a machine model with an NTSC/PAL choice. The PET is a
- * machine model but has no region: its refresh is the model's, chosen by
- * `--profile` (3032 ~60Hz, 4032/8032 50Hz), so `--pal` is never passed
- * for it — `8bs run pet --pal` would only print a note saying as much.
+ * Targets that are a machine model with an NTSC/PAL choice — none of
+ * ALL_TARGETS today. The PET is a machine model but has no region: its
+ * refresh is the model's, chosen by `--profile` (3032 ~60Hz, 4032/8032
+ * 50Hz), so `--pal` is never passed for it — `8bs run pet --pal` would
+ * only print a note saying as much. The web has no region either. This
+ * set is the parked machines that do have one (vic20, c64, c128, atari8,
+ * nes, mega65); it stays populated, unused for now, so the Region control
+ * comes back with no further change once one of them is un-parked.
  */
 const MACHINE_TARGETS = new Set(['vic20', 'c64', 'c128', 'atari8', 'nes', 'mega65']);
 
 const DEFAULT_ENTRY = 'src/main.8bs';
-
-/** The directory a repository checkout keeps its example programs in. */
-const EXAMPLES_DIR = 'examples';
 
 /** The three kinds of project, in the order the launcher groups them. */
 const KINDS = [
@@ -162,19 +173,27 @@ function appManifest(pkg) {
 }
 
 /**
- * Which kind of project a directory holds. An app declares itself in its
- * package.json; an example is placed — `examples/<name>` — so the
- * repository's own checkout and a consumer that found the same directory
- * through its toolchain agree on what it is.
+ * The `8bitscript.examples` manifest of a package — `{ [name]: { title,
+ * dir, description } }` — or null when the package ships no examples.
+ */
+function examplesManifest(pkg) {
+  const field = pkg && pkg['8bitscript'];
+  const examples = field && typeof field === 'object' ? field.examples : undefined;
+  return examples && typeof examples === 'object' && !Array.isArray(examples) ? examples : null;
+}
+
+/**
+ * Which kind of project a directory holds on its own: an app declares
+ * itself in its package.json; everything else is a project. An example is
+ * not decided here — it is whatever the examples package's manifest names,
+ * and loadExamples() marks it.
  *
  * @param {string} dir
  * @param {object | null} pkg
- * @returns {'project' | 'example' | 'app'}
+ * @returns {'project' | 'app'}
  */
 function kindOf(dir, pkg) {
-  if (appManifest(pkg)) return 'app';
-  if (path.basename(path.dirname(dir)) === EXAMPLES_DIR) return 'example';
-  return 'project';
+  return appManifest(pkg) ? 'app' : 'project';
 }
 
 /**
@@ -192,20 +211,30 @@ function isInstalled(dir, pkg) {
   return fs.existsSync(path.join(dir, 'node_modules'));
 }
 
+/** Each package manager's lockfile, in the order a directory is checked for them. */
+const LOCKFILES = [
+  ['pnpm-lock.yaml', 'pnpm'],
+  ['yarn.lock', 'yarn'],
+  ['package-lock.json', 'npm'],
+  ['bun.lock', 'bun'],
+  ['bun.lockb', 'bun'],
+];
+
 /**
  * The package manager that owns a project: the nearest lockfile going
  * upward decides, since in a workspace the lockfile lives at the root.
- * pnpm is the default because it is what this toolchain is built with.
+ * pnpm is the default because it is what this toolchain is built with;
+ * npm, yarn and bun are honoured when their lockfile is what is there.
  *
  * @param {string} startDir
- * @returns {'pnpm' | 'npm' | 'yarn'}
+ * @returns {'pnpm' | 'npm' | 'yarn' | 'bun'}
  */
 function packageManagerFor(startDir) {
   let dir = startDir;
   for (;;) {
-    if (fs.existsSync(path.join(dir, 'pnpm-lock.yaml'))) return 'pnpm';
-    if (fs.existsSync(path.join(dir, 'yarn.lock'))) return 'yarn';
-    if (fs.existsSync(path.join(dir, 'package-lock.json'))) return 'npm';
+    for (const [lockfile, manager] of LOCKFILES) {
+      if (fs.existsSync(path.join(dir, lockfile))) return manager;
+    }
     const parent = path.dirname(dir);
     if (parent === dir) return 'pnpm';
     dir = parent;
@@ -224,7 +253,7 @@ function packageManagerFor(startDir) {
  * @property {string[]} targets   systems it builds for, in ALL_TARGETS order
  * @property {string | null} toolchain absolute path of its `8bs`, if installed
  * @property {boolean} installed  its declared dependencies have a node_modules
- * @property {'pnpm' | 'npm' | 'yarn'} packageManager what `install` should run
+ * @property {'pnpm' | 'npm' | 'yarn' | 'bun'} packageManager what `install` should run
  * @property {boolean} [shipped]  found beside the toolchain rather than in the workspace
  */
 
@@ -232,9 +261,12 @@ function packageManagerFor(startDir) {
  * Build a Project from the path of its config file.
  *
  * @param {string} configPath
+ * @param {Partial<Project>} [overrides] what a shipping manifest says about
+ *   the project — its kind, title and description — when the directory's
+ *   own package.json (if any) is not the word on it
  * @returns {Project}
  */
-function loadProject(configPath) {
+function loadProject(configPath, overrides = {}) {
   const dir = path.dirname(configPath);
   let text = '';
   try {
@@ -258,6 +290,7 @@ function loadProject(configPath) {
     toolchain: findToolchain(dir),
     installed: isInstalled(dir, pkg),
     packageManager: packageManagerFor(dir),
+    ...overrides,
   };
 }
 
@@ -312,28 +345,6 @@ function cliPackageDir(toolchain) {
   return null;
 }
 
-/**
- * The example programs that ship with the toolchain, if it came from a
- * checkout of the 8bitscript repository: the repo keeps them at
- * examples/, two directories up from packages/cli. A published package
- * would not carry them; the `<cli>/examples` candidate is where they would
- * go if one ever did.
- *
- * @param {string | null} toolchain absolute path of a project's `8bs`
- * @returns {string | null} the examples directory, or null when there is none
- */
-function findExamplesDir(toolchain) {
-  const cliDir = cliPackageDir(toolchain);
-  if (!cliDir) return null;
-  for (const candidate of [
-    path.join(cliDir, EXAMPLES_DIR),
-    path.resolve(cliDir, '..', '..', EXAMPLES_DIR),
-  ]) {
-    if (listProjectConfigs(candidate).length > 0) return candidate;
-  }
-  return null;
-}
-
 /** Config paths of the projects directly under a directory. */
 function listProjectConfigs(dir) {
   let names;
@@ -349,35 +360,20 @@ function listProjectConfigs(dir) {
 }
 
 /**
- * Load the examples under a directory, marked as shipped so the launcher
- * can tell them apart from the workspace's own projects.
- *
- * @param {string} dir
- * @returns {Project[]}
- */
-function loadExamples(dir) {
-  return loadProjects(listProjectConfigs(dir)).map((project) => ({ ...project, shipped: true }));
-}
-
-/**
- * The apps that ship with the toolchain: every package with an
- * `8bitscript.app` field and an 8bs.config.ts, looked for in the two places
- * the CLI's dependencies live — its own node_modules/@8bitscript when it
- * was installed, and its sibling packages/ in a checkout. Both are searched
- * and the results de-duplicated through their real paths, since in a
- * checkout the first is a link to the second.
- *
- * An app is launched with the toolchain that found it: an installed app
- * sits inside pnpm's store, where walking upward for a `.bin/8bs` finds
- * nothing.
+ * The packages that ship with a toolchain, as real directories: everything
+ * in the two places the CLI's dependencies live — its own
+ * node_modules/@8bitscript when it was installed, and its sibling
+ * packages/ in a checkout. Both are searched and the results de-duplicated
+ * through their real paths, since in a checkout the first is a link to the
+ * second.
  *
  * @param {string | null} toolchain absolute path of a project's `8bs`
- * @returns {Project[]}
+ * @returns {{ dir: string, pkg: object }[]} sorted by directory
  */
-function loadApps(toolchain) {
+function shippedPackages(toolchain) {
   const cliDir = cliPackageDir(toolchain);
   if (!cliDir) return [];
-  const dirs = new Set();
+  const found = new Map();
   for (const parent of [path.join(cliDir, 'node_modules', '@8bitscript'), path.dirname(cliDir)]) {
     let names;
     try {
@@ -392,13 +388,84 @@ function loadApps(toolchain) {
       } catch {
         continue;
       }
-      if (appManifest(readPackage(dir)) && fs.existsSync(path.join(dir, CONFIG_FILE))) dirs.add(dir);
+      const pkg = readPackage(dir);
+      if (pkg && !found.has(dir)) found.set(dir, { dir, pkg });
     }
   }
-  return [...dirs].sort().map((dir) => {
-    const project = loadProject(path.join(dir, CONFIG_FILE));
-    return { ...project, shipped: true, toolchain: project.toolchain ?? toolchain };
-  });
+  return [...found.keys()].sort().map((dir) => found.get(dir));
+}
+
+/**
+ * The example programs that ship with the toolchain: every project an
+ * `8bitscript.examples` manifest names, in the package that carries it
+ * (`@8bitscript/examples`, which `@8bitscript/cli` depends on), found the
+ * same way the apps are. An example has no package.json of its own — it is
+ * a directory inside the examples package — so its name, title and
+ * description are the manifest's, and it runs with the toolchain that
+ * found it.
+ *
+ * @param {string | null} toolchain absolute path of a project's `8bs`
+ * @returns {Project[]}
+ */
+function loadExamples(toolchain) {
+  const examples = [];
+  for (const { dir: packageDir, pkg } of shippedPackages(toolchain)) {
+    const manifest = examplesManifest(pkg);
+    if (!manifest) continue;
+    for (const [name, entry] of Object.entries(manifest)) {
+      if (!entry || typeof entry !== 'object' || typeof entry.dir !== 'string') continue;
+      const dir = path.resolve(packageDir, entry.dir);
+      const configPath = path.join(dir, CONFIG_FILE);
+      if (!fs.existsSync(configPath)) continue;
+      const project = loadProject(configPath, {
+        name,
+        title: typeof entry.title === 'string' && entry.title ? entry.title : name,
+        kind: 'example',
+        description: typeof entry.description === 'string' ? entry.description : '',
+        shipped: true,
+      });
+      examples.push({
+        ...project,
+        toolchain: project.toolchain ?? toolchain,
+        // The examples package's dependencies are the example's; it has
+        // none of its own to be missing.
+        installed: true,
+      });
+    }
+  }
+  return examples;
+}
+
+/**
+ * The examples under one directory — the `8bitscript.examplesPath` setting,
+ * for someone keeping their own set: each subdirectory with an 8bs.config.ts
+ * is one, marked as shipped so the launcher groups it with the rest.
+ *
+ * @param {string} dir
+ * @returns {Project[]}
+ */
+function loadExamplesFrom(dir) {
+  return listProjectConfigs(dir).map((configPath) => loadProject(configPath, { kind: 'example', shipped: true }));
+}
+
+/**
+ * The apps that ship with the toolchain: every package with an
+ * `8bitscript.app` field and an 8bs.config.ts, found beside the CLI.
+ *
+ * An app is launched with the toolchain that found it: an installed app
+ * sits inside pnpm's store, where walking upward for a `.bin/8bs` finds
+ * nothing.
+ *
+ * @param {string | null} toolchain absolute path of a project's `8bs`
+ * @returns {Project[]}
+ */
+function loadApps(toolchain) {
+  return shippedPackages(toolchain)
+    .filter(({ dir, pkg }) => appManifest(pkg) && fs.existsSync(path.join(dir, CONFIG_FILE)))
+    .map(({ dir }) => {
+      const project = loadProject(path.join(dir, CONFIG_FILE));
+      return { ...project, shipped: true, toolchain: project.toolchain ?? toolchain };
+    });
 }
 
 /**
@@ -591,16 +658,16 @@ module.exports = {
   DEFAULT_ENTRY,
   MACHINE_TARGETS,
   KINDS,
-  EXAMPLES_DIR,
   byKind,
   cliPackageDir,
   commandArgs,
-  findExamplesDir,
+  examplesManifest,
   findToolchain,
   isInstalled,
   kindOf,
   loadApps,
   loadExamples,
+  loadExamplesFrom,
   insertSystem,
   ofKind,
   systemLine,

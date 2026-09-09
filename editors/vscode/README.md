@@ -19,8 +19,10 @@ to machine code and WebAssembly. Those backends do not yet emit anything
 target. A
 range-checked type like `u8` is a compile error on overflow
 (`300 does not fit in u8 (0..255)`) instead of a silent wrap, and one
-source targets nine machines through packages that resolve per target,
-instead of `#ifdef`.
+source resolves per target through packages instead of `#ifdef`. The
+language itself targets nine machines; **this extension's System list is
+limited to the two 0.2.0 builds for — the Commodore PET and the web** —
+until the rest come back with their native backends.
 
 Compiled size sits close to hand-written C for that same reason: the same
 screen built by hand in C came to 178 bytes on a C64, the equivalent
@@ -77,21 +79,21 @@ bar with one thing in it: a launcher.
 
   ┌──────────────────────────────────────────────┐
   │  ▶   Run Studio                              │
-  │      Commodore 64 · reu512 sid=8580 · NTSC   │
+  │      Commodore PET · 8032                    │
   └──────────────────────────────────────────────┘
 
   SYSTEM
-  [ c64 — Commodore 64                      ▾ ]
+  [ pet — Commodore PET                     ▾ ]
 
   PROJECT
   [ Studio  —  packages/studio              ▾ ] 🔧 📄
 
-  ▸ HARDWARE · REGION · FACTS   reu512 sid=8580
+  ▸ HARDWARE · FACTS   model=8032
 
   RUNNING
-    Studio         run · c64                  ⏹
+    Studio         run · pet                  ⏹
 
-  8bs run c64 --profile reu512 --hardware sid=8580
+  8bs run pet --profile 8032
 ```
 
 This used to be two views — a panel of dropdowns stacked on a tree of
@@ -129,29 +131,34 @@ builds.
   region and all — and a project with none keeps the current machine when
   it targets it.
 
-  **Shipped sample programs are not in the list by default**
-  (`8bitscript.showExamples`). This repository no longer carries an
-  `examples/` tree; the picker exists to reach *your* projects. The 📖 in
-  the title bar puts shipped samples back if a release brings any. **Launch
-  Example…** reaches them either way, and one that is already selected stays
-  in the list even with the toggle off, so hiding them never blanks the
-  picker.
+  **The examples that ship with the toolchain are in the list** under an
+  *Examples* heading of their own (`8bitscript.showExamples`, on by
+  default). They come from `@8bitscript/examples`, which `@8bitscript/cli`
+  depends on, so any project that has installed the CLI has them — today
+  that's `hello-world`, the program the 0.2.0 PET and web backends are
+  built against. The 📖 in the title bar hides or shows them. **Launch
+  Example…** reaches them either way, and one that is already selected
+  stays in the list even with the toggle off, so hiding them never blanks
+  the picker.
 - **System** — where the program runs. A project whose `8bs.config.ts`
   declares a
   [`systems` block](../../docs/systems.md#the-machines-a-project-is-set-up-for)
-  gets those first, in a group of their own, above the nine bare machines
+  gets those first, in a group of their own, above the bare machines
   (`8bitscript.system`); the list and the title beside each id come from
-  `8bs targets --json`.
+  `8bs targets --json`. **0.2.0 limits the bare-machine list to `pet` and
+  `web`** — `ALL_TARGETS` in `projects.cjs`, one array, is the whole of
+  that restriction, and it grows again as a parked machine's native
+  backend lands. A project's own `systems` block still shows whatever it
+  names, even a parked machine, since that path reads the config directly.
 
 ```
 SYSTEM
 [ ── This project ──────────────────── ]
-[  Commander X16          —  cx16      ]
-[  C64 with a mouse       —  c64 · port1=mouse1351 ]
-[  VIC-20, expanded to 8K —  vic20 · ram=8k        ]
+[  PET 8032               —  pet · profile=8032 ]
+[  The browser            —  web       ]
 [ ── Machines ───────────────────────── ]
-[  c64 — Commodore 64                   ]
-[  nes — Nintendo …        (not a target)]
+[  pet — Commodore PET                  ]
+[  web — Web                            ]
 ```
 
   A system marked **(too small)** is one the program cannot run on: the
@@ -193,17 +200,13 @@ palette as well — **8BitScript: Select Project**, **Select System**,
 ### What is behind the fold
 
 ```
-▾ HARDWARE · REGION · FACTS  reu512 sid=8580
-  REGION
-  [ NTSC — US/Japan, 60Hz          ▾ ]
+▾ HARDWARE · FACTS  model=8032
   FITTED WITH
-  [ reu512                         ▾ ]
-    RAM Expansion Unit  build · probe
-    [ REU, 512 KiB  [probe]        ▾ ]
-    SID
-    [ 8580 (the later SID)         ▾ ]
-    Control port 1
-    [ Commodore 1351 mouse         ▾ ]
+  [ 8032                           ▾ ]
+    Model
+    [ 8032: 80 columns, 32K, business keyboard, 50 Hz  ▾ ]
+    Disk drive
+    [ 2040/4040 (170K disk)              ▾ ]
     Back to stock
     ▸ What a program can rely on
 ```
@@ -211,24 +214,31 @@ palette as well — **8BitScript: Select Project**, **Select System**,
 - **Region** — NTSC (60Hz) or PAL (50Hz) for the machines that have one
   (`8bitscript.region`); greyed out while the system is `web`, which has no
   region, or `pet`, whose refresh rate is its model's (`8bs run pet
-  --profile 4032` for a 50Hz machine) rather than a region's.
+  --profile 4032` for a 50Hz machine) rather than a region's. Since 0.2.0's
+  System list is only these two, this control currently has nothing to
+  show — it comes back automatically once a machine with a region
+  (`vic20`, `c64`, `c128`, `atari8`, `mega65`) is un-parked, with no code
+  change needed for it.
 - **Fitted with** — a preset: *Stock machine*, then any profile this
   project composes in its `8bs.config.ts`, then the catalog presets
   (`reu512`, `8032`, `8k`, …).
 - Under it, **every catalog option is its own dropdown** — RAM expansion,
   PET/Atari model, VIC-20 memory, SID, control ports — each showing the
   value the preset (or stock) ends up with. Change one to override the
-  preset; those rows go bold. `[build]` marks a value that changes the
-  program, not only the emulator; `probe` marks a value the machine finds
-  at run time (a C64 REU, through `@8bitscript/c64/reu`), so one build
-  serves it and the stock machine alike. The selection is
+  preset; those rows go bold. The PET has two, `model` and `drive` — no
+  option of either machine 0.2.0 supports has a run-time probe today, so
+  neither shows a `probe` badge; a value that changes the program itself
+  (the PET's `model`, which sets `__ram_size`) is marked `[build]`, the
+  same as it would be on any machine with one. The selection is
   `8bitscript.hardware`, an object keyed by system, and it rides on every
   Run and Build as `--profile` and `--hardware`. *Back to stock* clears it
   (stock is the catalog's default, or the project's own
   `targets.<system>.hardware` when its config sets one).
 - **What a program can rely on** is the fact sheet that selection gives
-  `@8bitscript/system`'s consts — the grid, the sprites, the voices, the
-  RAM — with a run-time fact (a REU, a mouse) shown as *may use*.
+  `@8bitscript/system`'s consts — the grid, the RAM, storage — with a
+  run-time-detected fact shown as *may use* on the machines that have one
+  (a C64 REU is the example the catalog itself documents; neither the PET
+  nor the web has one today).
 
 The extension lists nothing of its own here: it asks the toolchain (`8bs
 targets --json`), so a new option, or a new fact, in a package appears with
@@ -246,14 +256,14 @@ maintain. A `package.json` on its own does not count — every package in a
 monorepo has one. The search covers every workspace folder, skips
 `node_modules`, `.git`, and `.claude/worktrees`, and the launcher refreshes
 itself when a config file is added, removed, or edited.
-`8bitscript.examplesPath` names a different examples directory if you have
-one.
+`8bitscript.examplesPath` names a directory of your own examples instead of
+the shipped ones, if you have one.
 
 **Launch Studio**, **Launch App…**, and **Launch Example…** start one of
 the shipped programs without making it the selected project: pick it (when
 there is a choice), pick where to open it — a program whose config
-declares systems offers those by name, so Studio is launched on *"VIC-20,
-expanded to 8K"* rather than on `vic20` — and it runs as an ordinary `8bs
+declares systems offers those by name, so Studio is launched on *"PET
+8032"* rather than on `pet` — and it runs as an ordinary `8bs
 run` task. The hardware that launch fits is the program's own; it does not
 disturb what you have fitted for your work. An app is run with the
 toolchain that found it, so an installed Studio launches even though its
@@ -270,9 +280,8 @@ lists them, and a favourite can be pinned in `.vscode/tasks.json`:
       "type": "8bs",
       "command": "run",
       "project": "packages/studio",
-      "target": "c64",
-      "pal": true,
-      "label": "Studio on a PAL C64"
+      "target": "pet",
+      "label": "Studio on the PET"
     }
   ]
 }

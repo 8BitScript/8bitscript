@@ -25,6 +25,7 @@
     "@8bitscript/c64": "workspace:*",
     "@8bitscript/compiler": "workspace:*",
     "@8bitscript/cx16": "workspace:*",
+    "@8bitscript/examples": "workspace:*",
     "@8bitscript/language-server": "workspace:*",
     "@8bitscript/mega65": "workspace:*",
     "@8bitscript/nes": "workspace:*",

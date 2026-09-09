@@ -1,5 +1,12 @@
 # Writing MEGA65 support for 8BitScript
 
+> **Parked in 0.2.0.** This machine is not a build target in the current
+> release: `8bs build` refuses it until its native backend lands
+> (`RELEASE_MACHINES` in `packages/compiler/src/resolver`). The package
+> stays in the workspace, its sources still link, and everything below is
+> still the guide for when it returns. The 0.2.0 work is the PET and the
+> web; see the "Hello, PET" roadmap.
+
 This file is for anyone — human or agent — touching `packages/mega65`,
 `packages/compiler/src/mos`'s `mega65` entries (`FRAME_SYNC.mega65`,
 `COMMODORE_KERNAL_MACHINES`), `packages/cli`'s `xmega65` handling

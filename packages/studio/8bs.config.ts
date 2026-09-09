@@ -38,31 +38,40 @@
 // the X16 is Studio's reference machine. The C64 and C128 each have a
 // mouse arrangement and a joystick one, matching the two ways the bar
 // moves on those machines.
+//
+// **0.2.0 lists the PET and the web only.** The other seven machines are
+// parked until their native backends land (RELEASE_MACHINES in the
+// compiler); their entries below are kept as comments so the arrangements
+// come back with one edit. Studio links clean for all nine, and its tests
+// still say so; it just cannot be built for the parked ones yet.
 export default {
   entry: 'src/main.8bs',
   targets: {
-    vic20: {},
-    c64: { hardware: { port1: 'mouse1351' } },
     pet: {},
-    c128: { hardware: { port1: 'mouse1351' } },
-    atari8: {},
-    nes: {},
-    cx16: {},
-    mega65: {},
     web: {},
+    // Parked until a later release:
+    // vic20: {},
+    // c64: { hardware: { port1: 'mouse1351' } },
+    // c128: { hardware: { port1: 'mouse1351' } },
+    // atari8: {},
+    // nes: {},
+    // cx16: {},
+    // mega65: {},
   },
   systems: {
-    'Commander X16': { target: 'cx16' },
-    'C64 with a mouse': { target: 'c64' },
-    'C64 with a joystick': { target: 'c64', hardware: { port1: 'joystick' } },
-    'C128 with a mouse': { target: 'c128' },
-    'C128 with a joystick': { target: 'c128', hardware: { port1: 'joystick' } },
-    'VIC-20, expanded to 8K': { target: 'vic20', profile: '8k' },
-    'VIC-20, stock': { target: 'vic20' },
+    'PET 3032': { target: 'pet' },
     'PET 8032': { target: 'pet', profile: '8032' },
-    'MEGA65': { target: 'mega65' },
-    'Atari 130XE': { target: 'atari8', profile: '130xe' },
-    'NES': { target: 'nes' },
     'The browser': { target: 'web' },
+    // Parked until a later release:
+    // 'Commander X16': { target: 'cx16' },
+    // 'C64 with a mouse': { target: 'c64' },
+    // 'C64 with a joystick': { target: 'c64', hardware: { port1: 'joystick' } },
+    // 'C128 with a mouse': { target: 'c128' },
+    // 'C128 with a joystick': { target: 'c128', hardware: { port1: 'joystick' } },
+    // 'VIC-20, expanded to 8K': { target: 'vic20', profile: '8k' },
+    // 'VIC-20, stock': { target: 'vic20' },
+    // 'MEGA65': { target: 'mega65' },
+    // 'Atari 130XE': { target: 'atari8', profile: '130xe' },
+    // 'NES': { target: 'nes' },
   },
 };

@@ -14,14 +14,29 @@ const ir = {};
 
 const hardware = { build: { defsym: {} }, facts: {} };
 
-test('build() is not implemented and writes nothing', async () => {
+test('build() for the PET is not implemented yet and writes nothing', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+  try {
+    const outFile = join(scratch, 'out.prg');
+    const result = await build(ir, { machine: 'pet', hardware, outFile, frameRate: 60 });
+    assert.equal(result.ok, false);
+    assert.match(result.ok ? '' : result.error, /not implemented/);
+    assert.match(result.ok ? '' : result.error, /PET/);
+    assert.equal(existsSync(outFile), false);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('build() for a parked machine says so, names the machine, and writes nothing', async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
   try {
     const outFile = join(scratch, 'out.prg');
     const result = await build(ir, { machine: 'c64', hardware, outFile, frameRate: 60 });
     assert.equal(result.ok, false);
-    assert.match(result.ok ? '' : result.error, /not implemented/);
+    assert.match(result.ok ? '' : result.error, /not a target in 0\.2\.0/);
     assert.match(result.ok ? '' : result.error, /c64/);
+    assert.doesNotMatch(result.ok ? '' : result.error, /not implemented/);
     assert.equal(existsSync(outFile), false);
   } finally {
     await rm(scratch, { recursive: true, force: true });

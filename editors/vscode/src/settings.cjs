@@ -63,14 +63,14 @@ const setRegion = (region) => update('region', region);
 const setSystem = (system) => update('system', system);
 
 /**
- * Whether the examples and proofs of concept that ship with the toolchain
- * are in the Project dropdown (the `showExamples` setting). Off by
- * default: in a checkout of the repository they outnumber the projects
- * someone is actually working on, and the point of the picker is to reach
- * *your* program. `Launch Example…` reaches them either way.
+ * Whether the examples that ship with the toolchain are in the Project
+ * dropdown (the `showExamples` setting). On by default: they are in a
+ * group of their own under the workspace's projects, and a new project's
+ * first run is usually one of them. `Launch Example…` reaches them either
+ * way.
  */
 function getShowExamples() {
-  return config().get('showExamples') === true;
+  return config().get('showExamples') !== false;
 }
 const setShowExamples = (show) => update('showExamples', show);
 

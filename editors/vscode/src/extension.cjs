@@ -59,7 +59,7 @@ function tryStart({ quiet } = {}) {
   for (const root of roots) output.appendLine(`  ${root}`);
   if (!quiet) {
     vscode.window.showWarningMessage(
-      '8BitScript compiler not found. Run: pnpm add -D @8bitscript/cli',
+      '8BitScript compiler not found. Run: pnpm add -D @8bitscript/cli (or npm/yarn/bun)',
     );
   }
 }
