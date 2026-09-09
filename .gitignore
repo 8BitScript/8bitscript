@@ -35,3 +35,7 @@ coverage/
 .claude/settings.local.json
 .cursor/rules/
 .cursor/cli.json
+
+# SonarLint local state. connectedMode.json is the shared Cloud binding.
+.sonarlint/*
+!.sonarlint/connectedMode.json
