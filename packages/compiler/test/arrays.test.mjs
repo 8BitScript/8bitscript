@@ -86,15 +86,15 @@ test('a[i], a[i] = v, a[i] += v, a[i]++ lower to index reads and stores with the
   const [store, add, inc] = ir.functions[0].body;
   assert.equal(store.kind, 'storeIndex');
   assert.equal(store.elementType, 'usmallint');
-  assert.deepEqual(store.value.left, { kind: 'index', array: { kind: 'ref', name: 'hp', start: 89, length: 2 }, index: { kind: 'const', value: 0 }, elementType: 'usmallint' });
+  assert.deepEqual(store.value.left, { kind: 'index', array: { kind: 'ref', name: 'hp', start: 89, length: 2 }, index: { kind: 'const', value: 0, type: 'utinyint' }, elementType: 'usmallint', type: 'usmallint' });
   assert.equal(add.value.operator, '+');
   assert.equal(add.value.left.kind, 'index');
-  assert.deepEqual(inc.value.right, { kind: 'const', value: 1 });
+  assert.deepEqual(inc.value.right, { kind: 'const', value: 1, type: 'utinyint' });
 });
 
 test('a.length is the number in the type, folded where it is read', () => {
   const { ir } = lowered('let hp: array<usmallint, 4>;\nlet n: utinyint = 0;\nexport function main(): void { n = hp.length; }');
-  assert.deepEqual(ir.functions[0].body[0].value, { kind: 'const', value: 4 });
+  assert.deepEqual(ir.functions[0].body[0].value, { kind: 'const', value: 4, type: 'utinyint' });
 });
 
 test('a literal index outside the array is 8BS1032, at the index', () => {
@@ -139,7 +139,7 @@ test('an imported array: reads, writes, .length, and the const and range rules, 
   assert.equal(store.elementType, 'usmallint');
   assert.equal(store.value.elementType, 'utinyint');
   assert.equal(add.value.left.elementType, 'usmallint');
-  assert.deepEqual(length.value, { kind: 'binop', operator: '+', left: { kind: 'const', value: 4 }, right: { kind: 'const', value: 3 } });
+  assert.deepEqual(length.value, { kind: 'binop', operator: '+', left: { kind: 'const', value: 4, type: 'utinyint' }, right: { kind: 'const', value: 3, type: 'utinyint' }, type: 'utinyint' });
 
   const bad = await linkWith({
     'lib.8bs': lib,

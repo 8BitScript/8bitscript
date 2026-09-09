@@ -73,7 +73,7 @@ test('a program importing subpaths links, and the subpath module reaches the pac
     const main = ir.functions.find((f) => f.name === 'main');
     assert.equal(main.body[0].kind, 'call');
     assert.equal(main.body[0].name, 'screen_setColors');
-    assert.deepEqual(main.body[1].value, { kind: 'const', value: 1000 }); // text.CELL_COUNT inlined
+    assert.deepEqual(main.body[1].value, { kind: 'const', type: 'usmallint', value: 1000 }); // text.CELL_COUNT inlined
   });
 });
 

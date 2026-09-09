@@ -40,7 +40,7 @@ test('a string const is a slot in the string table, inlined where it is read', (
   assert.deepEqual(ir.globals.map((g) => g.name), ['n']);
   assert.deepEqual(ir.consts, [{ name: 'LABEL', type: 'string', string: 0, exported: false, start: 6, length: 5 }]);
   const [print, assign] = ir.functions[2].body;
-  assert.deepEqual(print.args[1], { kind: 'string', index: 0, start: 261, length: 5 });
+  assert.deepEqual(print.args[1], { kind: 'string', index: 0, type: 'string', start: 261, length: 5 });
   assert.equal(assign.value.left.kind, 'stringLength');
   assert.equal(assign.value.left.string.kind, 'string');
   assert.equal(assign.value.right.kind, 'stringByte');
@@ -85,9 +85,9 @@ test('assigning a string<N> is a copy cut to N; a literal is checked at compile 
   const { ir, diagnostics } = lowered(src);
   assert.deepEqual(diagnostics, []);
   const [lit, konst, other] = ir.functions[1].body;
-  assert.deepEqual(lit, { kind: 'stringCopy', target: { kind: 'ref', name: 'a', start: src.indexOf('a = "HI"'), length: 1 }, source: { kind: 'string', index: 1, start: src.indexOf('"HI"'), length: 4 }, capacity: 4, start: src.indexOf('a = "HI"'), length: 1 });
+  assert.deepEqual(lit, { kind: 'stringCopy', target: { kind: 'ref', name: 'a', start: src.indexOf('a = "HI"'), length: 1 }, source: { kind: 'string', index: 1, type: 'string', start: src.indexOf('"HI"'), length: 4 }, capacity: 4, start: src.indexOf('a = "HI"'), length: 1 });
   assert.equal(konst.source.kind, 'string');
-  assert.deepEqual(other.source, { kind: 'ref', name: 'b', start: src.lastIndexOf('b;'), length: 1 });
+  assert.deepEqual(other.source, { kind: 'ref', name: 'b', type: 'string', start: src.lastIndexOf('b;'), length: 1 });
   assert.equal(ir.functions[0].body[0].source.name, 's', 'a string parameter is a source too');
 
   assert.deepEqual(messages('let a: string<4>;\nexport function main(): void { a = "TOO LONG"; }'), ['8BS1027 "TOO LONG" is 8 characters and does not fit in string<4>']);
@@ -101,7 +101,7 @@ test('name.length and name[i] read a string<N> at runtime, and a field sizes its
   const { ir, diagnostics } = lowered('let a: string<4> = "HI";\nlet n: utinyint = 0;\nexport function main(): void { n = a.length + a[1]; }');
   assert.deepEqual(diagnostics, []);
   const { left, right } = ir.functions[0].body[0].value;
-  assert.deepEqual(left, { kind: 'stringLength', string: { kind: 'ref', name: 'a', start: 81, length: 1 } });
+  assert.deepEqual(left, { kind: 'stringLength', string: { kind: 'ref', name: 'a', type: 'string', start: 81, length: 1 }, type: 'utinyint' });
   assert.equal(right.kind, 'stringByte');
   clean(`let a: string<4>;\n${TEXT}export function main(): void { text.print(0, \`LEN \${a.length}\`); text.print(6, a); }`);
 });

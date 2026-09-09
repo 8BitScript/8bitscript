@@ -129,7 +129,7 @@ test('the build\'s profile picks the table: Key.SPACE is 74 on a 3032 and 66 on 
   assert.equal(scan.body[0].body[0].target, 'pia1PortA');
   assert.equal(scan.body[0].body[1].value.operator, '^');
   assert.equal(scan.body[0].body[1].value.left.name, 'pia1PortB');
-  assert.deepEqual(scan.body[0].body[1].value.right, { kind: 'const', value: 255 });
+  assert.deepEqual(scan.body[0].body[1].value.right, { kind: 'const', value: 255, type: 'utinyint' });
 });
 
 test('a graphics-only key name is a link error on the 8032, not a silent wrong key', () => {

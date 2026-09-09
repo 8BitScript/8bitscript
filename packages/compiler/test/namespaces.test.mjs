@@ -99,7 +99,7 @@ test('a namespace const inlines to its literal value wherever it is used', () =>
   const { ir, diagnostics } = link(src, 't.8bs');
   assert.deepEqual(diagnostics, []);
   const main = ir.functions.find((f) => f.name === 'main');
-  assert.deepEqual(main.body[0].value, { kind: 'const', value: 6 });
+  assert.deepEqual(main.body[0].value, { kind: 'const', type: 'utinyint', value: 6 });
 });
 
 // ---- linking: unresolved namespaces and members are honest errors --------
@@ -166,21 +166,21 @@ test('an exported namespace works when imported from another module', () => {
     const entry = ir.functions.find((f) => f.name === 'main');
     assert.equal(entry.body[0].kind, 'call');
     assert.equal(entry.body[0].name, 'screen_setBorderColor');
-    assert.deepEqual(entry.body[0].args[0], { kind: 'const', value: 6 });
+    assert.deepEqual(entry.body[0].args[0], { kind: 'const', type: 'utinyint', value: 6 });
 
     const setBorder = ir.functions.find((f) => f.name === 'screen_setBorderColor');
     assert.deepEqual(setBorder.params, [{ name: 'color', type: 'utinyint' }]);
     const write = setBorder.body[0];
     assert.equal(write.kind, 'memoryWrite');
-    assert.deepEqual(write.address, { kind: 'const', value: 36879 });
+    assert.deepEqual(write.address, { kind: 'const', value: 36879, type: 'usmallint' });
     assert.equal(write.value.operator, '|');
     assert.equal(write.value.left.operator, '&');
     assert.equal(write.value.left.left.kind, 'memoryRead');
-    assert.deepEqual(write.value.left.left.address, { kind: 'const', value: 36879 });
-    assert.deepEqual(write.value.left.right, { kind: 'const', value: 248 });
+    assert.deepEqual(write.value.left.left.address, { kind: 'const', value: 36879, type: 'usmallint' });
+    assert.deepEqual(write.value.left.right, { kind: 'const', value: 248, type: 'utinyint' });
     assert.equal(write.value.right.operator, '&');
     assert.equal(write.value.right.left.name, 'color');
-    assert.deepEqual(write.value.right.right, { kind: 'const', value: 7 });
+    assert.deepEqual(write.value.right.right, { kind: 'const', value: 7, type: 'utinyint' });
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

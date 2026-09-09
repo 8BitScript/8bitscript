@@ -99,7 +99,7 @@ test('keyboard.scan() drives VIA2 port B then reads port A, and input.poll() run
   assert.equal(poll.body[0].name, 'keyboard_scan');
   const dirAssign = poll.body.find((s) => s.kind === 'assign' && s.target === 'via2DirectionB');
   assert.equal(dirAssign.value.operator, '&');
-  assert.deepEqual(dirAssign.value.right, { kind: 'const', value: 127 });
+  assert.deepEqual(dirAssign.value.right, { kind: 'const', value: 127, type: 'utinyint' });
   const scan = ir.functions.find((f) => f.name === 'keyboard_scan');
   const loop = scan.body.find((s) => s.kind === 'for');
   assert.equal(loop.body[0].target, 'via2PortB');
