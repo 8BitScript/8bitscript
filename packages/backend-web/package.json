@@ -1,6 +1,6 @@
 {
   "name": "@8bitscript/backend-web",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Internal: lowers IR to generated AssemblyScript and drives asc to a .wasm.",
   "license": "MIT",
   "repository": {

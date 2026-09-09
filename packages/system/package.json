@@ -1,6 +1,6 @@
 {
   "name": "@8bitscript/system",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "One name per machine, to compare #system() against: `if (#system() == System.C64)`. Both sides are compile-time numbers, so a program branches on the machine without a per-machine file.",
   "license": "MIT",
   "repository": {
