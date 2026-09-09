@@ -10,7 +10,7 @@ import { MACHINES } from '@8bitscript/compiler';
 
 import {
   loadCatalog, resolveHardware, parseHardwareArg, projectProfiles, projectRequires, projectSystems,
-  listedTargets, loadArgs, whatSatisfies,
+  listedTargets, loadArgs, whatSatisfies, hardwareArgs,
 } from '../src/hardware.mjs';
 
 const EMULATOR = {
@@ -218,6 +218,26 @@ test('parseHardwareArg and the config helpers', () => {
   assert.deepEqual(listedTargets(config), ['c64', 'web']);
   assert.deepEqual(listedTargets({ targets: ['vic20'] }), ['vic20']);
   assert.equal(listedTargets(null), null);
+});
+
+test('hardwareArgs collects --profile and repeating --hardware, and names a missing value', () => {
+  const ok = hardwareArgs(['--target', 'pet', '--profile', '8032', '--hardware', 'model=4032', 'src/main.8bs']);
+  assert.equal(ok.ok, true);
+  if (!ok.ok) return;
+  assert.equal(ok.profile, '8032');
+  assert.deepEqual(ok.overrides, { model: '4032' });
+  assert.deepEqual([...ok.consumed].sort((a, b) => a - b), [2, 3, 4, 5]);
+
+  const twice = hardwareArgs(['--hardware', 'ram=8k', '--hardware', 'port1=mouse1351']);
+  assert.equal(twice.ok, true);
+  if (!twice.ok) return;
+  assert.deepEqual(twice.overrides, { ram: '8k', port1: 'mouse1351' });
+
+  assert.equal(hardwareArgs(['--profile']).ok, false);
+  assert.match(hardwareArgs(['--profile']).ok ? '' : hardwareArgs(['--profile']).error, /--profile expects a name/);
+  assert.equal(hardwareArgs(['--hardware']).ok, false);
+  assert.match(hardwareArgs(['--hardware']).ok ? '' : hardwareArgs(['--hardware']).error, /--hardware expects option=value/);
+  assert.equal(hardwareArgs(['--hardware', 'ram']).ok, false);
 });
 
 // The `systems` block: whole machines a project has been set up for, each
