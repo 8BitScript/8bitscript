@@ -13,9 +13,10 @@ the split between the compiler, the language server, and this extension.
 
 It's a statically compiled language for 6502-based 8-bit machines and the
 web — closer to C than to BASIC or hand-written assembly. There's no
-interpreter and no garbage collector; the 6502 backend generates C and
-hands it to LLVM-MOS, the same toolchain a hand-written C program for these
-machines would use, so code quality is inherited rather than reinvented. A
+interpreter and no garbage collector; 8BitScript's own backends lower IR
+to machine code and WebAssembly. Those backends do not yet emit anything
+(the 0.2.0 Bare Metal milestone), so `8bs build` currently refuses every
+target. A
 range-checked type like `u8` is a compile error on overflow
 (`300 does not fit in u8 (0..255)`) instead of a silent wrap, and one
 source targets nine machines through packages that resolve per target,
@@ -291,16 +292,6 @@ as a task. Running such a project asks first, because otherwise the
 compiler fails on the first import it cannot resolve, with a message about
 the package rather than the install. A project whose toolchain is missing
 altogether cannot be run at all, and the panel says so.
-
-The Commodore targets need the LLVM-MOS SDK, which the CLI finds through
-`LLVM_MOS_HOME`. A task's shell is non-interactive and does not read
-`~/.zshrc`, so an `export` there is invisible to it and `8bs doctor` from the
-side bar reports the SDK missing while the terminal has it. The extension
-sets `LLVM_MOS_HOME` on every task it starts: from the `8bitscript.llvmMosHome`
-setting if given, else from the editor's own environment, else from the
-install location the setup guide uses (`~/.local/opt/llvm-mos`) when the SDK
-is there. The durable fix is to export the variable from `~/.zshenv` or
-`~/.profile` instead — see [the SDK setup](../../docs/setup/llvm-mos.md).
 
 ## The grammar is provisional
 
