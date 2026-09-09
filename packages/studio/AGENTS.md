@@ -91,8 +91,10 @@ Do not describe more than this as working:
   updating gets an arrow that never moves. On the other six machines
   `pointer.DRAWS` is false, the calls are empty, and the whole thing is
   deleted; see [`packages/pointer/AGENTS.md`](../pointer/AGENTS.md) for
-  why each of them draws nothing yet, and `examples/pointer` for the
-  same program without the rest of Studio around it.
+  why each of them draws nothing yet. The standalone example that once
+  showed the same program without the rest of Studio around it
+  (`examples/pointer`) was deleted with the rest of `examples/` ahead of
+  the native-backend rewrite; nothing replaces it yet.
 - **A click on the bar selects the item under the pointer**, on the builds
   fitted with a mouse. `menubar` hit-tests during a *run* of the bar and
   answers `pointed()` from that run, so `start()`'s loop calls
