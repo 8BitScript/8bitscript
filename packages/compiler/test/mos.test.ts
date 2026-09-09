@@ -12,7 +12,11 @@ import type { Machine, RatioPair } from '../src/mos/index.ts';
 
 const ir = {};
 
-const hardware = { build: { defsym: {} }, facts: {} };
+// Every real PET catalog entry carries defsym.__ram_size (see
+// packages/pet/package.json) — 32 here stands in for the roomy 3032, so
+// existing tests keep exercising the "plenty of RAM" path unchanged now
+// that build() routes through the linker.
+const hardware = { build: { defsym: { __ram_size: 32 } }, facts: {} };
 
 test('build() for the PET writes a 15-byte .prg for an empty program: load address + 12-byte stub + RTS', async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
@@ -36,6 +40,36 @@ test('build() for the PET writes a 15-byte .prg for an empty program: load addre
     assert.deepEqual(result.memory, { variables: 0, program: 15 });
     assert.equal(existsSync(outFile), true);
     assert.deepEqual([...await readFile(outFile)], [...result.bytes]);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('build() refuses a PET whose RAM cannot even hold the boot stub, measured by the linker, not declared', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+  try {
+    const outFile = join(scratch, 'out.prg');
+    const tooSmall = { build: { defsym: { __ram_size: 1 } }, facts: {} }; // 1024 bytes; code alone starts at $040D (1037)
+    const result = await build(ir, { machine: 'pet', hardware: tooSmall, outFile, frameRate: 60 });
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.match(result.error, /^code: program ends at \$040E, 14 byte\(s\) past the \$0400 RAM ceiling$/);
+    assert.equal(existsSync(outFile), false);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('build() refuses a PET hardware sheet with no defsym.__ram_size, naming what is missing', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+  try {
+    const outFile = join(scratch, 'out.prg');
+    const noRamSize = { build: { defsym: {} }, facts: {} };
+    const result = await build(ir, { machine: 'pet', hardware: noRamSize, outFile, frameRate: 60 });
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.match(result.error, /defsym\.__ram_size/);
+    assert.equal(existsSync(outFile), false);
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
