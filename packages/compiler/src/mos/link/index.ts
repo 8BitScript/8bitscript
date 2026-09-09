@@ -12,7 +12,7 @@
 // after another with no gaps, is exact on the first pass. `zp` lives in a
 // completely separate address range and is placed independently of the
 // other three.
-import { assemble } from '../asm/assemble.ts';
+import { assembleRelaxed } from '../asm/relax.ts';
 import type { Directive } from '../asm/assemble.ts';
 
 export type SectionContent =
@@ -69,7 +69,11 @@ function place(
   section: string,
 ): { ok: true; bytes: Uint8Array; symbols: Map<string, number> } | { ok: false; error: string } {
   if (content.kind === 'bytes') return { ok: true, bytes: content.bytes, symbols: new Map() };
-  const result = assemble(content.program, origin);
+  // assembleRelaxed, not assemble directly: milestone 6's control flow is
+  // the first source of branches this backend emits, and some of them
+  // (a loop body over 127 bytes) won't fit a plain relative branch. Every
+  // section that assembles gets the long-branch fixup for free from here.
+  const result = assembleRelaxed(content.program, origin);
   if (!result.ok) return { ok: false, error: `${section}: ${result.error}` };
   return { ok: true, bytes: result.bytes, symbols: result.labels };
 }

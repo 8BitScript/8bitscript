@@ -1,14 +1,16 @@
 // The 6502 backend: IR in, machine code out.
 //
-// `build()` for the PET now lowers the linked IR's entry function for
-// real (milestone 4's own instruction-selection rule, `memoryWrite` of a
-// literal to a literal address only — everything else still fails naming
-// the construct), assembles it alongside the epilogue, links it against
-// the machine's real RAM ceiling, and wraps it in the BASIC stub. This
-// file also holds the contract the CLI calls and the machine facts the
-// future code generator will need: the instruction-set variant of each
-// CPU, the file extension a build produces, and the frame-sync numbers
-// `waitFrame()` is paced against.
+// `build()` for the PET now lowers the linked IR's entry function for real:
+// memoryWrite of a literal (milestone 4), 8-bit arithmetic, control flow,
+// and locals (milestone 6) — everything else still fails naming the
+// construct. It assembles the result alongside the epilogue, links it
+// against the machine's real RAM ceiling (globals from milestone 5's
+// allocator, locals and expression temporaries from milestone 6's, stacked
+// in the same zero-page budget), and wraps it in the BASIC stub. This file
+// also holds the contract the CLI calls and the machine facts the future
+// code generator will need: the instruction-set variant of each CPU, the
+// file extension a build produces, and the frame-sync numbers `waitFrame()`
+// is paced against.
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
@@ -16,8 +18,9 @@ import { basicStub } from './basic-stub.ts';
 import { link } from './link/index.ts';
 import { lower } from './lower/index.ts';
 import type { IrFunction } from './lower/index.ts';
+import { LocalAllocator } from './lower/allocator.ts';
 import { prgBytes } from './prg.ts';
-import { epilogue } from './startup/commodore.ts';
+import { epilogue, prologue, usesDecimalSensitiveMath } from './startup/commodore.ts';
 import { allocate } from './zp/index.ts';
 import type { IrGlobal } from './zp/index.ts';
 
@@ -108,11 +111,19 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   const entryFn = ir.functions.find((fn) => fn.name === ir.entry);
   if (!entryFn) return { ok: false, error: `the linked entry point '${ir.entry}' names no function in ir.functions` };
 
-  const lowered = lower(entryFn.body);
-  if (!lowered.ok) return { ok: false, error: lowered.error };
-
+  // Globals first: milestone 6's locals and expression temporaries bump-
+  // allocate from whatever zero page globals didn't take, so lower() needs
+  // to know where that remainder starts before it can run.
   const zp = allocate(ir.globals, PET_ZP_BUDGET);
   if (!zp.ok) return { ok: false, error: zp.error };
+
+  const globalTypes = new Map(ir.globals.map((g) => [g.name, g.type]));
+  const globalBindings = new Map(zp.globals.map((g) => [g.name, { address: g.address, type: globalTypes.get(g.name)! }]));
+  const localsOrigin = PET_ZP_BUDGET.zpOrigin + zp.zpUsed;
+  const locals = new LocalAllocator(localsOrigin, PET_ZP_BUDGET.zpCeiling);
+
+  const lowered = lower(entryFn.body, { globals: globalBindings, locals });
+  if (!lowered.ok) return { ok: false, error: lowered.error };
 
   const loadAddress = LOAD_ADDRESS.pet!;
   const { bytes: stub, codeStart } = basicStub(loadAddress);
@@ -125,10 +136,14 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   const linked = link({
     codeOrigin: codeStart,
     ramCeiling: ramSizeKib * 1024,
-    code: { kind: 'assembly', program: [...lowered.program, ...epilogue()] },
+    code: { kind: 'assembly', program: [...prologue(usesDecimalSensitiveMath(lowered.program)), ...lowered.program, ...epilogue()] },
     zpOrigin: PET_ZP_BUDGET.zpOrigin,
     zpCeiling: PET_ZP_BUDGET.zpCeiling,
-    zp: zp.zpUsed,
+    // Globals (fixed, milestone 5) plus the most zero page locals and
+    // expression temporaries ever held live at once (milestone 6, LIFO —
+    // see LocalAllocator) — not the sum of every local ever declared,
+    // most of them share the same bytes at different points in the body.
+    zp: zp.zpUsed + locals.used,
   });
   if (!linked.ok) return { ok: false, error: linked.error };
 
