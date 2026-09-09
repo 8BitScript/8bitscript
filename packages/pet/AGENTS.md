@@ -306,6 +306,18 @@ character on row 1 and peek `$8000+40` vs `$8000+80` to learn the width;
 nothing in ROM is a reliable model ID across BASIC 1/2/4. Treat width as
 a build-time profile (below), not a runtime probe.
 
+**Board and chip inventory** (a secondary survey pasted into this file
+2026-09-09, not cross-checked against Fachat/PETdoc/VICE and not usable
+for hazard decisions — confirm any part number before depending on it):
+static-board 2001s used 2114 SRAM (or 6550 SRAM in some revisions) on
+assembly 320008-family boards; the 2001-N/3xxx dynamic boards (320349)
+used 4108/4116 DRAM; the "universal" 40/80-column board (8032029) is
+what the file elsewhere calls the 4032/8032 family. ROM part numbers
+cited across the line: 2316/6540 (early 2/4K BASIC and Kernal), 2332 and
+2364 (later masked ROMs), with 2716/2732/27128 EPROMs on some third-party
+or expansion boards. None of this changes any address already verified
+above — it's provenance trivia for whoever is staring at a real board.
+
 ## Corrections to the research notes
 
 The notes that prompted this file mix André Fachat's accurate material
@@ -358,6 +370,39 @@ unverified:
   this file: a CHROUT of PETSCII 14 is a KERNAL call, and a search
   of start-up for a `$E84C` write "proved" it did not exist. Check the linked
   binary, not the pieces.
+- **The same C64 memory map keeps coming back.** A later "PET models and
+  hacks" survey (pasted into this file 2026-09-09) puts screen RAM at
+  `$0400–$07FF` and I/O at `$D000–$DFFF` with BASIC/KERNAL split
+  `$A000`/`$E000`-ish — that is the C64's map again, not the PET's; see
+  the first correction above. Screen is `$8000`, I/O is `$E810–$E8FF`.
+  Any future source that puts the PET's screen or I/O anywhere else is
+  wrong by construction; don't re-derive it, just check this file.
+- **That survey's VICE config example** (`-RAMSIZE`, `-CRTC`,
+  `-VIDEOSIZE`, `-ROMMODULE9`, `-ROMMODULEA`) does not match real `xpet`
+  flags — `Ram9`/`RamA` are VICE resources, not those CLI switches, and
+  none of the others exist under those names. `xpet -help` and
+  `/opt/homebrew/share/vice/PET/*.vrs` (already cited above) are the only
+  authority for VICE flags; don't add flags from a paraphrase.
+- **Its 8096/8296 bank-switch example** (`LDA #$01 / STA $9F01`) is
+  invented. The real register is `$FFF0`, already documented in "8096 /
+  8296 banking" above with every bit's meaning; that section supersedes
+  any generic guess.
+- **Its "unrolled fast screen clear"** (`STX $8000,X` / `STX $8400,X` /
+  `STX $8800,X` / `DEX` / `BPL`, claimed to "clear 4096 bytes in one
+  iteration") is wrong on its own terms: an 8-bit `X` loop with three
+  stores per iteration clears 3×256 = 768 bytes over 256 iterations, not
+  4096 bytes in one. The cycle-cost math already in "The screen is the
+  only output" (8 cycles/byte unrolled, ~14 indexed) is the number to use.
+- **"Standard PET lacks NMI"**: unverified and likely a garble of NMOS
+  (the 6502 process) with NMI (the interrupt line); no PET source cited
+  here makes that claim. `FRAME_SYNC.pet` uses the CB1 IRQ path (verified
+  above) regardless of whether NMI exists on the expansion port.
+- **A JSON "profile builder" schema** (`model`/`ramSize`/`crtc`/...) for
+  driving VICE from a hypothetical VS Code extension: this project
+  already has that surface — `package.json`'s `"8bitscript".hardware`
+  catalog plus `8bs targets --json` (see `packages/studio/AGENTS.md` and
+  the hardware-catalog rules in the root `AGENTS.md`). Extending config
+  shape belongs there, not as a new parallel schema.
 
 ## Rules for this target
 
