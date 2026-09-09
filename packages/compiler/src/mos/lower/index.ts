@@ -58,7 +58,7 @@ export interface IrStatement {
   type?: string;
   init?: IrExpr | IrStatement | null;
   // if
-  test?: IrExpr;
+  test?: IrExpr | null;
   then?: IrStatement[];
   else?: IrStatement[] | null;
   // while / for / block
