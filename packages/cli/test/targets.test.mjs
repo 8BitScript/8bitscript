@@ -64,6 +64,9 @@ test('a systems block the config gets wrong costs the reader its systems and not
   const { stdout } = await run(process.execPath, [BIN, 'targets', '--json'], { cwd: dir, maxBuffer: 8 * 1024 * 1024 });
   const parsed = JSON.parse(stdout);
   assert.equal(parsed.targets.length, 9);
+  // Every machine is still listed, with its catalog; the release flag is
+  // what tells the editor which ones `8bs build` will take.
+  assert.deepEqual(parsed.targets.filter((t) => t.inRelease).map((t) => t.id), ['pet', 'web']);
   assert.deepEqual(parsed.systems, []);
   assert.match(parsed.systemsError, /system 'My NES': this project does not target nes/);
 

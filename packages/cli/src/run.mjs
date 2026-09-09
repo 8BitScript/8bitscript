@@ -192,7 +192,8 @@ export async function run(args) {
   const target = positionals[0];
   if (!target) {
     process.stderr.write(
-      'Usage: 8bs run <vic20|c64|pet|c128|atari8|nes|cx16|mega65|web>\n'
+      'Usage: 8bs run <pet|web>\n'
+      + '                (vic20, c64, c128, atari8, nes, cx16, mega65 are parked until a later release)\n'
       + '                [--pal]\n'
       + HARDWARE_USAGE
       + '                [--no-open] [entry.8bs]\n'

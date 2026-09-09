@@ -6,7 +6,7 @@
 // editor reads the JSON form to build its System and Hardware controls, so
 // a new machine or option in a package — or a new system in a project — is
 // a new row there with nothing to update by hand.
-import { FACTS, MACHINES } from '@8bitscript/compiler';
+import { FACTS, MACHINES, RELEASE_MACHINES } from '@8bitscript/compiler';
 
 import { loadConfig } from './config.mjs';
 import {
@@ -53,6 +53,11 @@ export function describeTargets(config) {
     return {
       id,
       title: TITLE[id],
+      // Whether this release builds for the machine. Every machine is
+      // listed so the editor can still show its catalog and a program
+      // written for it still checks; only `8bs build` refuses the parked
+      // ones (RELEASE_MACHINES in the compiler).
+      inRelease: RELEASE_MACHINES.includes(id),
       emulator: EMULATOR[id],
       region: REGION_MACHINES.has(id),
       options,
@@ -131,7 +136,7 @@ export async function targets(args) {
   for (const t of described) {
     const presets = Object.keys(t.presets);
     const profiles = Object.keys(t.profiles);
-    process.stdout.write(`${t.id.padEnd(8)} ${t.title} — ${t.emulator}${t.region ? ', --pal available' : ''}\n`);
+    process.stdout.write(`${t.id.padEnd(8)} ${t.title} — ${t.emulator}${t.region ? ', --pal available' : ''}${t.inRelease ? '' : '  (parked: not built in this release)'}\n`);
     for (const [optionId, option] of Object.entries(t.options)) {
       const values = Object.entries(option.values)
         .map(([value, entry]) => `${value}${value === option.default ? '*' : ''}${entry.affectsBuild ? ' (build)' : ''}`)

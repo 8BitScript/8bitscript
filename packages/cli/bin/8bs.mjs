@@ -15,25 +15,24 @@ const usage = () => `Usage: 8bs <command> [options]
 Implemented:
   build --target <t> [--pal] [--profile <name>]
     [--hardware option=value,...] [entry]
-                               Compile for a target: vic20, c64, pet, c128,
-                               atari8, nes, cx16, mega65, or web. vic20/c64/
-                               c128/mega65/atari8 default to NTSC (60Hz) at
-                               run time; --pal selects the PAL (50Hz)
-                               machine model (the pet has no region: its
-                               model is hardware). --profile names the
-                               hardware fitted — a preset from the machine's
-                               catalog (8032, 130xe, reu512) or a profile the
+                               Compile for a target. This release (0.2.0)
+                               builds for pet and web; vic20, c64, c128,
+                               atari8, nes, cx16 and mega65 are parked and
+                               refused until a later release. The pet has
+                               no region: its model is hardware. --profile
+                               names the hardware fitted — a preset from
+                               the machine's catalog (8032) or a profile the
                                project composes in 8bs.config.ts — and
                                --hardware sets single options on top
-                               (ram=8k, port1=mouse1351). "8bs targets"
-                               lists every option, value and preset.
+                               (model=4032). "8bs targets" lists every
+                               option, value and preset, and which machines
+                               this release builds for.
   run <target> [--pal] [--profile <name>]
     [--hardware option=value,...] [entry]
                                Build, then open that target's emulator
-                               (VICE for vic20/c64/pet/c128, atari800,
-                               fceux, x16emu, or Xemu for mega65) at the
-                               right machine model — or execute the .wasm
-                               and print its state (web)
+                               (VICE's xpet for the pet) at the right
+                               machine model — or execute the .wasm and
+                               print its state (web)
     [--screenshot <file.png>] Instead of an interactive window, capture one
     [--frames <n>]             screenshot through the target's own emulator
                                API (or, for atari8 only, a macOS window
