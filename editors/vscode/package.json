@@ -6,7 +6,6 @@
   "version": "0.1.3",
   "private": true,
   "publisher": "8bitscript",
-  "icon": "media/8bitscript-icon.png",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -100,12 +99,12 @@
       },
       {
         "command": "8bitscript.launchApp",
-        "title": "Launch App…",
+        "title": "Launch App\u2026",
         "category": "8BitScript"
       },
       {
         "command": "8bitscript.launchExample",
-        "title": "Launch Example…",
+        "title": "Launch Example\u2026",
         "category": "8BitScript"
       },
       {
@@ -116,7 +115,7 @@
       },
       {
         "command": "8bitscript.saveSystem",
-        "title": "Save as a System…",
+        "title": "Save as a System\u2026",
         "category": "8BitScript",
         "icon": "$(save)"
       },
@@ -150,7 +149,7 @@
       },
       {
         "command": "8bitscript.selectRegion",
-        "title": "Select Region (NTSC — US/Japan, PAL — Europe)",
+        "title": "Select Region (NTSC \u2014 US/Japan, PAL \u2014 Europe)",
         "category": "8BitScript"
       },
       {
@@ -218,27 +217,20 @@
             "pal"
           ],
           "enumDescriptions": [
-            "NTSC (US/Japan), 60Hz — the machine model 8bs run and 8bs build use by default.",
-            "PAL (Europe), 50Hz — passes --pal to 8bs run and 8bs build."
+            "NTSC (US/Japan), 60Hz \u2014 the machine model 8bs run and 8bs build use by default.",
+            "PAL (Europe), 50Hz \u2014 passes --pal to 8bs run and 8bs build."
           ],
           "default": "ntsc",
-          "description": "The machine region the launcher runs with: NTSC (US/Japan) or PAL (Europe). Passed as --pal for the machines that have a region, ignored for the ones that do not. Set from the Region dropdown under Hardware · Region · Facts in the 8BitScript side bar."
+          "description": "The machine region the launcher runs with: NTSC (US/Japan) or PAL (Europe). Passed as --pal for the machines that have a region, ignored for the ones that do not. Set from the Region dropdown under Hardware \u00b7 Region \u00b7 Facts in the 8BitScript side bar."
         },
         "8bitscript.system": {
           "type": "string",
           "enum": [
-            "vic20",
-            "c64",
             "pet",
-            "c128",
-            "atari8",
-            "nes",
-            "cx16",
-            "mega65",
             "web"
           ],
-          "default": "vic20",
-          "description": "The system the launcher's Run and Build buttons use. Set from the System dropdown in the 8BitScript side bar, or 8BitScript: Select System. The list is the one 8bs build --target accepts; a system the toolchain cannot build yet is still listed, and 8bs doctor from the title bar says why it fails."
+          "default": "pet",
+          "description": "The system the launcher's Run and Build buttons use. Set from the System dropdown in the 8BitScript side bar, or 8BitScript: Select System. 0.2.0 builds for the PET and the web only, so that is the list; the other seven machines return here once their native backends land."
         },
         "8bitscript.project": {
           "type": "string",
@@ -253,7 +245,7 @@
         "8bitscript.hardware": {
           "type": "object",
           "default": {},
-          "description": "The hardware fitted to each system when the launcher runs it: an object keyed by system, each `{ profile, options }` — a profile name (a preset from the machine's catalog, or one the project composes in its 8bs.config.ts) and option values set on top, passed as --profile and --hardware. Set under Hardware · Region · Facts in the 8BitScript side bar; `8bs targets` lists what each system can be fitted with.",
+          "description": "The hardware fitted to each system when the launcher runs it: an object keyed by system, each `{ profile, options }` \u2014 a profile name (a preset from the machine's catalog, or one the project composes in its 8bs.config.ts) and option values set on top, passed as --profile and --hardware. Set under Hardware \u00b7 Region \u00b7 Facts in the 8BitScript side bar; `8bs targets` lists what each system can be fitted with.",
           "additionalProperties": {
             "type": "object",
             "properties": {
@@ -275,7 +267,7 @@
         "8bitscript.showExamples": {
           "type": "boolean",
           "default": true,
-          "description": "List the examples that ship with the toolchain (@8bitscript/examples, installed with @8bitscript/cli) in the launcher's Project dropdown, in a group of their own under the workspace's projects and beside the toolchain's apps. On by default. Toggled with the book icon in the 8BitScript side bar's title bar, which is only offered when there are examples to show. Launch Example… reaches them either way."
+          "description": "List the examples that ship with the toolchain (@8bitscript/examples, installed with @8bitscript/cli) in the launcher's Project dropdown, in a group of their own under the workspace's projects and beside the toolchain's apps. On by default. Toggled with the book icon in the 8BitScript side bar's title bar, which is only offered when there are examples to show. Launch Example\u2026 reaches them either way."
         }
       }
     },
@@ -303,14 +295,7 @@
           "target": {
             "type": "string",
             "enum": [
-              "vic20",
-              "c64",
               "pet",
-              "c128",
-              "atari8",
-              "nes",
-              "cx16",
-              "mega65",
               "web"
             ],
             "description": "The system to build for or run on. Required for run and build."

@@ -51,15 +51,15 @@ function write(file, text) {
 test('parseConfig reads entry and targets from the documented shape', () => {
   const config = parseConfig(`export default {
   entry: 'src/main.8bs',
-  targets: ['vic20', 'c64'],
+  targets: ['pet', 'web'],
 };
 `);
-  assert.deepEqual(config, { entry: 'src/main.8bs', targets: ['vic20', 'c64'] });
+  assert.deepEqual(config, { entry: 'src/main.8bs', targets: ['pet', 'web'] });
 });
 
 test('parseConfig lists targets in the toolchain order, not the file order', () => {
-  const { targets } = parseConfig(`export default { targets: ["web", "vic20"] };`);
-  assert.deepEqual(targets, ['vic20', 'web']);
+  const { targets } = parseConfig(`export default { targets: ["web", "pet"] };`);
+  assert.deepEqual(targets, ['pet', 'web']);
 });
 
 test('parseConfig falls back to the CLI defaults when keys are absent', () => {
@@ -75,15 +75,18 @@ test('parseConfig ignores commented-out keys', () => {
 /* entry: 'old/main.8bs', */
 export default {
   entry: 'src/game.8bs',
-  targets: ['c64'],
+  targets: ['pet'],
 };`);
-  assert.deepEqual(config, { entry: 'src/game.8bs', targets: ['c64'] });
+  assert.deepEqual(config, { entry: 'src/game.8bs', targets: ['pet'] });
 });
 
-test('parseConfig drops target names the toolchain does not know', () => {
-  const { targets } = parseConfig(`export default { targets: ['atari', 'c64'] };`);
-  assert.deepEqual(targets, ['c64']);
-  // Only unknown names means every target, the same as no list at all.
+test('parseConfig drops target names the toolchain does not know — parked machines included', () => {
+  const { targets } = parseConfig(`export default { targets: ['atari', 'pet'] };`);
+  assert.deepEqual(targets, ['pet']);
+  // A parked machine (0.2.0 builds for pet and web only) is dropped the
+  // same way a made-up name is: neither is in ALL_TARGETS today.
+  assert.deepEqual(parseConfig(`export default { targets: ['c64', 'web'] };`).targets, ['web']);
+  // Only unknown/parked names means every target, the same as no list at all.
   assert.deepEqual(parseConfig(`export default { targets: ['atari'] };`).targets, ALL_TARGETS);
 });
 
@@ -109,19 +112,19 @@ test('findToolchain returns null when nothing is installed', (t) => {
 
 test('loadProject combines the config, package.json, and toolchain', (t) => {
   const root = scratch(t);
-  const dir = path.join(root, 'examples', 'border');
-  write(path.join(dir, '8bs.config.ts'), `export default { entry: 'src/main.8bs', targets: ['vic20', 'c64'] };`);
-  write(path.join(dir, 'package.json'), JSON.stringify({ name: 'border', description: 'Cycles colours.' }));
+  const dir = path.join(root, 'game');
+  write(path.join(dir, '8bs.config.ts'), `export default { entry: 'src/main.8bs', targets: ['pet', 'web'] };`);
+  write(path.join(dir, 'package.json'), JSON.stringify({ name: 'game', description: 'Cycles colours.' }));
   write(path.join(dir, 'node_modules', '.bin', BINARY), '');
 
   const project = loadProject(path.join(dir, '8bs.config.ts'));
-  assert.equal(project.name, 'border');
+  assert.equal(project.name, 'game');
   assert.equal(project.installed, true, 'no dependencies declared counts as installed');
   assert.equal(project.packageManager, 'pnpm');
   assert.equal(project.description, 'Cycles colours.');
   assert.equal(project.dir, dir);
   assert.equal(project.entry, path.join(dir, 'src', 'main.8bs'));
-  assert.deepEqual(project.targets, ['vic20', 'c64']);
+  assert.deepEqual(project.targets, ['pet', 'web']);
   assert.equal(project.toolchain, path.join(dir, 'node_modules', '.bin', BINARY));
 });
 
@@ -170,12 +173,11 @@ test('parseConfig reads the object form of targets — the machines composing pr
   const config = parseConfig(`export default {
   entry: 'src/main.8bs',
   targets: {
-    c64: { profiles: { loaded: { ram: 'reu512', port1: 'mouse1351' }, vic20: { ram: '8k' } } },
+    pet: { profiles: { wide: { model: '8032' }, nested: { model: '3032' } } },
     web: {},
-    "pet": { profiles: { wide: { model: '8032' } } },
   },
 };`);
-  assert.deepEqual(config.targets, ['c64', 'pet', 'web']);
+  assert.deepEqual(config.targets, ['pet', 'web']);
 });
 
 /**
@@ -305,7 +307,7 @@ test('loadApps finds the apps that ship with the toolchain, in a checkout and in
   const bin = linkedConsumer(root, repo, 'game');
   const apps = loadApps(bin);
   assert.deepEqual(apps.map((a) => [a.name, a.title, a.kind, a.shipped, a.targets]), [
-    ['@8bitscript/studio', 'Studio', 'app', true, ['pet', 'cx16']],
+    ['@8bitscript/studio', 'Studio', 'app', true, ['pet']],
   ]);
   // An app is launched with the toolchain that found it when it has none of its own.
   assert.equal(apps[0].toolchain, bin);

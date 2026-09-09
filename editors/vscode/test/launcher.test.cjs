@@ -132,7 +132,7 @@ test('every element the page script reaches for is on the page', () => {
   for (const id of ids) assert.match(view, new RegExp(`id="${id}"`), `no #${id} in the page`);
 });
 
-test('the 8bs task type offers every target the toolchain builds', () => {
+test('the 8bs task type offers every target this release builds for', () => {
   const { ALL_TARGETS } = require('../src/projects.cjs');
   const definition = MANIFEST.contributes.taskDefinitions.find((d) => d.type === '8bs');
   assert.deepEqual(definition.properties.target.enum, ALL_TARGETS);
