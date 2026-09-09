@@ -1,7 +1,7 @@
 {
   "name": "@8bitscript/examples",
   "version": "0.1.3",
-  "description": "The example programs that ship with the toolchain: small, complete 8BitScript projects the editor's launcher lists beside your own, starting with the two hello-world programs the 0.2.0 native backend is built to run.",
+  "description": "The example programs that ship with the toolchain: hello-world, the 0.2.0 goal program, listed in the editor's launcher beside your own projects.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -11,21 +11,15 @@
   "type": "module",
   "8bitscript": {
     "examples": {
-      "hello-raw": {
-        "title": "Hello, raw",
-        "dir": "./hello-raw",
-        "description": "Eleven stores straight into the PET's screen RAM. The first program the native backend builds: no text package, no strings, no function but main."
-      },
-      "hello": {
-        "title": "Hello, PET",
-        "dir": "./hello",
-        "description": "HELLO WORLD through the portable text package. The same four lines build for the PET and the web; this is the 0.2.0 goal program."
+      "hello-world": {
+        "title": "Hello, World",
+        "dir": "./hello-world",
+        "description": "text.print(0, \"HELLO WORLD\") through the portable text package. The 0.2.0 goal program, and the one this toolchain is built to run first — on the PET and in the browser."
       }
     }
   },
   "files": [
-    "hello-raw",
-    "hello",
+    "hello-world",
     "README.md"
   ],
   "scripts": {

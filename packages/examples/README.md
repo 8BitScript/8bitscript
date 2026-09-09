@@ -14,11 +14,10 @@ directory and an entry.
 
 | Example | What it is | Targets |
 | ------- | ---------- | ------- |
-| `hello-raw` | Eleven `memory.write` calls into the PET's screen RAM at `$8000`. The first program the native 6502 backend builds, and its acceptance test: the build must be exactly the seventy bytes listed in the "Hello, PET" roadmap. | pet |
-| `hello` | `text.print(0, "HELLO WORLD")` through the portable text package. The 0.2.0 goal program. | pet, web |
+| `hello-world` | `text.print(0, "HELLO WORLD")` through the portable text package. The 0.2.0 goal program — the same four lines build for the PET and the web. | pet, web |
 
 **Nothing builds yet.** 0.2.0 is the release in which 8BitScript grows its
-own backends, and these two programs are the milestones the PET backend is
-built against. Until then `8bs build` in either directory stops with a clear
-message. The tests in `test/` check that both programs link clean for each
-of their targets, which is what the front end can promise today.
+own backends, and this is the program the PET backend is built against.
+Until then `8bs build` in this directory stops with a clear message. The
+test in `test/` checks that the program links clean for each of its
+targets, which is what the front end can promise today.
