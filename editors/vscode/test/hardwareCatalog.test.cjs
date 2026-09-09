@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 
 const {
   effectiveFacts, effectiveOptions, hardwareArgs, matchesSystem, normalizeSelection, parseTargets,
-  selectionLabel,
+  selectionLabel, worstSelection,
 } = require('../src/hardwareCatalog.cjs');
 
 const SAMPLE = JSON.stringify({
@@ -23,6 +23,27 @@ const SAMPLE = JSON.stringify({
     profiles: { reu512: { ram: 'none', port1: 'mouse1351' } },
     hardware: {},
     facts: { 'video.sprites': 8, 'input.mouse': false, 'memory.banked': false, 'memory.bankedKib': 0 },
+  }, {
+    id: 'pet',
+    title: 'Commodore PET',
+    emulator: 'xpet',
+    region: false,
+    options: {
+      model: {
+        label: 'Model',
+        default: '3032',
+        values: {
+          3008: { label: '3008', affectsBuild: true, facts: { 'memory.ram': 7167 } },
+          3032: { label: '3032', affectsBuild: true, facts: { 'memory.ram': 31743 } },
+          8032: { label: '8032', affectsBuild: true, facts: { 'video.columns': 80, 'memory.ram': 31743 } },
+        },
+      },
+      drive: { label: 'Drive', default: 'none', values: { none: { label: 'None' }, dual: { label: 'Dual 8250', facts: { 'storage.save': true } } } },
+    },
+    presets: {},
+    profiles: {},
+    hardware: {},
+    facts: {},
   }],
   systems: [
     { name: 'C64 with a mouse', target: 'c64', profile: null, hardware: { port1: 'mouse1351' }, region: null, label: 'port1=mouse1351' },
@@ -38,7 +59,7 @@ const SAMPLE = JSON.stringify({
 
 test('parseTargets keys the CLI\'s list by id', () => {
   const targets = parseTargets(SAMPLE);
-  assert.deepEqual([...targets.keys()], ['c64']);
+  assert.deepEqual([...targets.keys()], ['c64', 'pet']);
   assert.equal(targets.get('c64').title, 'Commodore 64');
 });
 
@@ -123,4 +144,22 @@ test('a selection is recognised as one of the project\'s systems by what it fits
   // An entry that pins no region fits either.
   assert.equal(matchesSystem(mouse, target, { profile: null, options: { port1: 'mouse1351' } }, 'pal'), true);
   assert.equal(matchesSystem(mouse, undefined, { profile: null, options: {} }, 'ntsc'), false);
+});
+
+test('worstSelection picks the lowest memory.ram value, leaving other options at their default', () => {
+  const pet = parseTargets(SAMPLE).get('pet');
+  assert.deepEqual(worstSelection(pet), { profile: null, options: { model: '3008' } });
+  assert.equal(effectiveOptions(pet, worstSelection(pet)).model, '3008');
+  assert.equal(effectiveOptions(pet, worstSelection(pet)).drive, 'none', 'an option with no memory.ram values is untouched');
+  assert.equal(effectiveFacts(pet, worstSelection(pet))['memory.ram'], 7167);
+});
+
+test('worstSelection is a no-op on a machine with no memory.ram-varying option', () => {
+  const c64 = parseTargets(SAMPLE).get('c64');
+  assert.deepEqual(worstSelection(c64), { profile: null, options: {} });
+});
+
+test('worstSelection leaves an option alone when its lowest value is already the default', () => {
+  const target = { options: { model: { default: '3008', values: { 3008: { facts: { 'memory.ram': 7167 } }, 3032: { facts: { 'memory.ram': 31743 } } } } } };
+  assert.deepEqual(worstSelection(target), { profile: null, options: {} });
 });

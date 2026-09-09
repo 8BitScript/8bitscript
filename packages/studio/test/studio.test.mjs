@@ -120,8 +120,8 @@ test('a RAM expansion lifts the VIC-20 to the basic tier; nothing lifts the PET'
   assert.equal(tierOf('vic20', factsWith('vic20', '8k')), 'BASIC');          // 11775: characters and music edit
   assert.equal(tierOf('vic20', factsWith('vic20', '16k')), 'BASIC');
   assert.equal(tierOf('vic20', factsWith('vic20', '24k')), 'BASIC');
-  // Every PET model, from the 8K 3008 to the 32K 8032, is a viewer.
-  for (const model of ['3008', '3016', '3032', '4016', '4032', '8032']) {
+  // Every PET model, from the 4K 2001 to the 32K 8032, is a viewer.
+  for (const model of ['2001', '3008', '3016', '3032', '4016', '4032', '8032']) {
     assert.equal(tierOf('pet', factsWith('pet', model)), 'VIEWER', model);
   }
 });

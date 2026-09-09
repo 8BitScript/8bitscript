@@ -43,7 +43,7 @@ const {
 const { labelOf, whereLabel } = require('./runner.cjs');
 const settings = require('./settings.cjs');
 const {
-  effectiveFacts, effectiveOptions, matchesSystem, normalizeSelection, selectionLabel,
+  effectiveFacts, effectiveOptions, matchesSystem, selectionLabel,
 } = require('./hardwareCatalog.cjs');
 
 const VIEW_ID = '8bitscript.launcher';
@@ -210,7 +210,9 @@ class LauncherViewProvider {
     const targets = await this.projects.loadTargets(project?.dir);
     if (!this.view) return;
     const target = targets?.get(system) ?? null;
-    const selection = normalizeSelection(settings.getHardware(system));
+    // Nothing stored fits the machine's worst RAM config, not its catalog
+    // stock, so the panel shows the same machine a Run actually uses.
+    const selection = settings.getEffectiveHardware(system, target);
     const region = settings.getRegion();
     const machine = MACHINE_TARGETS.has(system);
     const runnable = Boolean(project?.targets.includes(system) && project.toolchain);

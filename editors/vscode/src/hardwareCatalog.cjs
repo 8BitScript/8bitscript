@@ -146,6 +146,42 @@ function selectionLabel(selection) {
   return parts.join(' ');
 }
 
+/**
+ * The machine's worst case rather than its stock config: for every option
+ * where at least one value declares `memory.ram`, the value with the
+ * least of it; every other option (a control port, a drive) is left at
+ * its catalog default. This is what a first run with nothing chosen
+ * should fit a program against — the smallest RAM the machine is meant to
+ * run on, not whichever value the catalog happens to name `default` (the
+ * PET's is the roomiest model, 3032's 32K, because that is the sensible
+ * *label* for "no --profile given" — not the sensible machine to test a
+ * program's RAM budget against).
+ *
+ * A machine with no RAM-varying option (the web, a C64 with only a
+ * control-port and REU-presence choice) resolves to `{}` here — the same
+ * stock config `normalizeSelection(undefined)` already means — so this is
+ * a no-op everywhere it has nothing useful to pick.
+ *
+ * @param {object} target one entry of parseTargets()
+ * @returns {{ profile: string|null, options: Record<string, string> }}
+ */
+function worstSelection(target) {
+  const options = {};
+  for (const [id, option] of Object.entries(target.options ?? {})) {
+    let worst = null;
+    let worstRam = Infinity;
+    for (const [value, entry] of Object.entries(option.values ?? {})) {
+      const ram = entry.facts?.['memory.ram'];
+      if (typeof ram === 'number' && ram < worstRam) {
+        worst = value;
+        worstRam = ram;
+      }
+    }
+    if (worst !== null && worst !== option.default) options[id] = worst;
+  }
+  return { profile: null, options };
+}
+
 module.exports = {
   matchesSystem,
   effectiveFacts,
@@ -154,4 +190,5 @@ module.exports = {
   normalizeSelection,
   parseTargets,
   selectionLabel,
+  worstSelection,
 };

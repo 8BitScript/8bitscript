@@ -59,7 +59,7 @@ test('the catalog defaults are the stock machine: no tags, no build values, and 
   assert.deepEqual(stock.hardware.build.defsym, { __memory_expansion: 0 });
   assert.equal(stock.hardware.label, 'stock');
   assert.deepEqual(Object.keys(loadCatalog('vic20').presets), ['unexpanded', '3k', '8k', '16k', '24k']);
-  assert.deepEqual(Object.keys(loadCatalog('pet').presets).sort(), ['3008', '3016', '3032', '4016', '4032', '8032']);
+  assert.deepEqual(Object.keys(loadCatalog('pet').presets).sort(), ['2001', '3008', '3016', '3032', '4016', '4032', '8032']);
   assert.deepEqual(Object.keys(loadCatalog('atari8').presets).sort(), ['1200xl', '130xe', '400', '65xe', '800', '800xl', 'xegs']);
   assert.ok(Object.keys(loadCatalog('c64').presets).includes('reu512'));
 });
@@ -87,6 +87,13 @@ test('the PET model is a build (RAM), a run flag, a tag, and facts', () => {
   const stock = resolveHardware(loadCatalog('pet')).hardware;
   assert.deepEqual(stock.run.xpet, ['-model', '3032']);
   assert.equal(stock.facts['video.columns'], 40);
+});
+
+test('the PET 2001 needs an explicit -ramsize alongside -model: unlike every other PET model name, "2001" alone does not tell VICE how much RAM to give it', () => {
+  const { hardware } = resolveHardware(loadCatalog('pet'), { profile: '2001' });
+  assert.deepEqual(hardware.run.xpet, ['-model', '2001', '-ramsize', '4']);
+  assert.deepEqual(hardware.build.defsym, { __ram_size: 4 });
+  assert.equal(hardware.facts['memory.ram'], 3071, 'measured under VICE: 4096 - $0401, confirmed on screen as "3071 BYTES FREE"');
 });
 
 test('the Atari splits the machine from the medium: `model` picks the atari800 model, `media` picks the startup, the ROM size and the cartridge type', () => {
