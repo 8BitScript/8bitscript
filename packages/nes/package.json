@@ -67,7 +67,7 @@
             "nrom": {
               "label": "NROM: 32K PRG, 8K CHR-ROM, no save",
               "build": {
-                "driver": "mos-nes-nrom-clang",
+                "startup": "nrom",
                 "output": "nes"
               },
               "facts": {

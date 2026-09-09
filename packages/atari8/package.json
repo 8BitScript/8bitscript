@@ -146,7 +146,7 @@
             "cart8": {
               "label": "8 KiB cartridge at $A000",
               "build": {
-                "driver": "mos-atari8-cart-std-clang",
+                "startup": "cart-std",
                 "output": "rom",
                 "defsym": {
                   "__cart_rom_size": 8
@@ -169,7 +169,7 @@
             "cart16": {
               "label": "16 KiB cartridge at $8000",
               "build": {
-                "driver": "mos-atari8-cart-std-clang",
+                "startup": "cart-std",
                 "output": "rom",
                 "defsym": {
                   "__cart_rom_size": 16
@@ -192,7 +192,7 @@
             "xegs32": {
               "label": "32 KiB XEGS cartridge",
               "build": {
-                "driver": "mos-atari8-cart-xegs-clang",
+                "startup": "cart-xegs",
                 "output": "rom",
                 "defsym": {
                   "__cart_rom_size": 32
@@ -215,7 +215,7 @@
             "xegs64": {
               "label": "64 KiB XEGS cartridge",
               "build": {
-                "driver": "mos-atari8-cart-xegs-clang",
+                "startup": "cart-xegs",
                 "output": "rom",
                 "defsym": {
                   "__cart_rom_size": 64
@@ -238,7 +238,7 @@
             "xegs128": {
               "label": "128 KiB XEGS cartridge",
               "build": {
-                "driver": "mos-atari8-cart-xegs-clang",
+                "startup": "cart-xegs",
                 "output": "rom",
                 "defsym": {
                   "__cart_rom_size": 128
@@ -261,7 +261,7 @@
             "xegs256": {
               "label": "256 KiB XEGS cartridge",
               "build": {
-                "driver": "mos-atari8-cart-xegs-clang",
+                "startup": "cart-xegs",
                 "output": "rom",
                 "defsym": {
                   "__cart_rom_size": 256
@@ -284,7 +284,7 @@
             "xegs512": {
               "label": "512 KiB XEGS cartridge",
               "build": {
-                "driver": "mos-atari8-cart-xegs-clang",
+                "startup": "cart-xegs",
                 "output": "rom",
                 "defsym": {
                   "__cart_rom_size": 512
@@ -307,7 +307,7 @@
             "mega16": {
               "label": "16 KiB MegaCart",
               "build": {
-                "driver": "mos-atari8-cart-megacart-clang",
+                "startup": "cart-megacart",
                 "output": "rom",
                 "defsym": {
                   "__cart_rom_size": 16
@@ -330,7 +330,7 @@
             "mega32": {
               "label": "32 KiB MegaCart",
               "build": {
-                "driver": "mos-atari8-cart-megacart-clang",
+                "startup": "cart-megacart",
                 "output": "rom",
                 "defsym": {
                   "__cart_rom_size": 32
@@ -353,7 +353,7 @@
             "mega64": {
               "label": "64 KiB MegaCart",
               "build": {
-                "driver": "mos-atari8-cart-megacart-clang",
+                "startup": "cart-megacart",
                 "output": "rom",
                 "defsym": {
                   "__cart_rom_size": 64
@@ -376,7 +376,7 @@
             "mega128": {
               "label": "128 KiB MegaCart",
               "build": {
-                "driver": "mos-atari8-cart-megacart-clang",
+                "startup": "cart-megacart",
                 "output": "rom",
                 "defsym": {
                   "__cart_rom_size": 128
@@ -399,7 +399,7 @@
             "mega256": {
               "label": "256 KiB MegaCart",
               "build": {
-                "driver": "mos-atari8-cart-megacart-clang",
+                "startup": "cart-megacart",
                 "output": "rom",
                 "defsym": {
                   "__cart_rom_size": 256
@@ -422,7 +422,7 @@
             "mega512": {
               "label": "512 KiB MegaCart",
               "build": {
-                "driver": "mos-atari8-cart-megacart-clang",
+                "startup": "cart-megacart",
                 "output": "rom",
                 "defsym": {
                   "__cart_rom_size": 512

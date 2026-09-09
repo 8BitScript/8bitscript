@@ -160,9 +160,9 @@ Facts to actively correct if you see them stated otherwise:
   shape for that: every machine package's `"8bitscript".hardware` catalog
   (`packages/cli/src/hardware.mjs` resolves it; `8bs targets` lists it).
   The NES's catalog has one option, `mapper`, with one value, `nrom`,
-  carrying `build.driver: mos-nes-nrom-clang` and `storage.save: false`.
-  Adding a mapper is adding a value there — its SDK driver
-  (`mos-nes-mmc1-clang` and the rest exist), whether the font's `.chr_rom`
+  carrying `build.startup: nrom` and `storage.save: false`.
+  Adding a mapper is adding a value there — its startup shape
+  (`mmc1` and the rest), whether the font's `.chr_rom`
   section still lands (unverified for any but NROM), its battery-SRAM
   fact — not a table in the backend.
 - **Budget sprites per scanline, not just per frame.** Any future sprite/
