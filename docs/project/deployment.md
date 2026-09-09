@@ -178,7 +178,7 @@ After the first deploy finishes, confirm each of these:
       `/assets/css/main.css` is being served.
 - [ ] `https://8bitscript.org/setup/` resolves to the setup guide, confirming
       directory `index.md` pages get directory URLs.
-- [ ] Cross-page links work: from the setup guide open **LLVM-MOS**, then follow
+- [ ] Cross-page links work: from the setup guide open **VICE**, then follow
       a link back to the index.
 - [ ] The navigation sidebar lists every page and marks the current one.
 - [ ] Search works: click **Search docs** (or press <kbd>Ctrl</kbd>+<kbd>K</kbd>),

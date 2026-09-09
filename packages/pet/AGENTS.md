@@ -2,7 +2,7 @@
 
 This file is for anyone — human or agent — touching `packages/pet`,
 this package's hardware catalog (`package.json`, `"8bitscript".hardware`:
-the `model` option), `packages/backend-6502`'s `FRAME_SYNC.pet`,
+the `model` option), `packages/compiler/src/mos`'s `FRAME_SYNC.pet`,
 `packages/cli`'s `xpet` handling (`PET_REGION_NOTE`, `PET_CLOCK_HZ`), the
 `pet` row of the linker's hardware-hazard table, or
 the PET rows of `docs/roadmap.md` and
@@ -22,7 +22,7 @@ behind windows and ports. The PET is a third case —
 > never as "a C64 without colour".**
 
 The machine's variety is in *models*, not features: RAM size (4K–32K, with
-64K/128K only via banking that the SDK's link script refuses), screen width
+64K/128K only via banking this target does not link), screen width
 (40 or 80 columns), whether a 6545 CRTC exists, which ROM set (BASIC 1, 2
 or 4) and which keyboard (graphics or business) it has, and whether it
 refreshes at 50 or 60 Hz. Those axes are only loosely correlated, and a
@@ -99,16 +99,15 @@ Do not describe more than this as working:
   `3032` (default), `3008`, `3016`, `4016`, `4032`, `8032` — the PET's own
   model numbers, which are also what `xpet -model` takes, with a preset
   per model so `--profile 8032` works. A model sets the
-  RAM the program is linked for (its `build.defsym`, `__ram_size` 8/16/32: the
-  SDK's `pet/lib/link.ld` asserts `8 <= __ram_size <= 32`, "8x96 and
-  SuperPETs are not supported by this target", places the program at
+  RAM the program is linked for (its `build.defsym`, `__ram_size` 8/16/32 —
+  8×96 and SuperPET boards are not a linked value). It places the program at
   `$0401` behind a BASIC `SYS` stub so the `.prg` autostarts with `RUN`,
   and puts the stack at the top of RAM — `$2000` on a 3008, `$8000` on a
-  32K machine), the screen width the package draws to (80 for the 8032,
+  32K machine — the screen width the package draws to (80 for the 8032,
   through the geometry twin, and the fact `video.columns`), and the model
   `8bs run pet` launches. A non-default model appears in the output name
   (`main-pet-8032.prg`).
-- `FRAME_SYNC.pet` (`packages/backend-6502`) is the only *edge* driver
+- `FRAME_SYNC.pet` (`packages/compiler/src/mos`) is the only *edge* driver
   that measures rather than assumes: PIA1's CB1 line carries vertical
   retrace, its flag is CRB bit 7 at `$E813`, and reading ORB (`$E812`)
   clears it. The driver runs under `sei` because the KERNAL's own IRQ
@@ -169,10 +168,10 @@ under xpet, not recalled.
 | ---- | ----- |
 | Scanning all ten keyboard rows (ten reads of `$E812`) right after `waitFrame()` returns loses no frames: 1000+ frame intervals timed with VIA T2 inside the program on the 3032 and the 8032, and the count of over-long intervals is identical with and without the scan (2 and 2 on the 3032 — the runtime's own double-waits for 60 logical frames on 60.1 Hz hardware — 0 and 0 on the 8032). Reading `$E812` between a retrace and the poll *would* eat that edge; the snapshot rule keeps the read where it is safe. | measured here, `scratch-lost` runs under xpet |
 | Both `Key` tables match VICE's positional keyboard maps key for key (graphics: `gtk3_grus_pos.vkm`; business: `gtk3_buuk_pos.vkm`, the UK layout xpet's 8032 loads). | `/opt/homebrew/share/vice/PET/`, `packages/compiler/test/pet-keys.test.mjs` |
-| Program load address `$0401`; usable RAM `$0401` to `__ram_size` KiB; stack grows down from the top of RAM; `__ram_size` must be 8, 16 or 32 — the link script asserts against 96K/128K machines. | `$LLVM_MOS_HOME/mos-platform/pet/lib/link.ld` |
+| Program load address `$0401`; usable RAM `$0401` to `__ram_size` KiB; stack grows down from the top of RAM; `__ram_size` must be 8, 16 or 32 — the link script asserts against 96K/128K machines. | PET link map (measured pre-0.2.0) |
 | The `.prg` starts with a one-line BASIC program whose `SYS` jumps to `_start`, so `RUN` after `LOAD` starts it. | `pet/lib/basic-header.o`, `commodore/lib/commodore.ld` |
-| PIA1 `$E810`, PIA2 `$E820`, VIA `$E840`, CRTC `$E880` (data at `$E881`); the SDK models the CRTC as a **6545** (`_6545.h`, "all models from 40xx and above"), and a 6551 ACIA at `$EFF0` as SuperPET-only. | `pet/include/pet.h` |
-| LLVM-MOS's Commodore libc *would* switch the PET to the **lower-case** set before `main()`: `char-conv.c`'s `.init.250` section does `lda #$0e / jsr $FFD2` (PETSCII 14 through the KERNAL's CHROUT), and the linker's speculative libcall pass drags that object into every build (`--why-extract`: abort → fputs → stdio-minimal → `__to_ascii`). `packages/backend-6502` now defines the object's two weak symbols itself so it is never linked (`commodoreCharsetGuard()`); a built PET program makes no CHROUT call and starts in whatever set the ROM booted. Consequence: libc's own stdio (an `asm6502` block calling `__putchar`/`printf`) would print unconverted ASCII — off the map here by design. | `llvm-objdump -d dist/main-pet.prg.elf`, before and after |
+| PIA1 `$E810`, PIA2 `$E820`, VIA `$E840`, CRTC `$E880` (data at `$E881`); the CRTC is a **6545** (all models from 40xx and above), and a 6551 ACIA at `$EFF0` is SuperPET-only. | PETdoc.txt; VICE `petmem.c` |
+| A PET program starts in whatever character set the ROM booted — graphics on the 3032/4032, text on the 8032 — and `text.8bs` writes `$0C` to the VIA PCR before each run so 1–26 render as capitals. A CHROUT of PETSCII 14 (`lda #$0e / jsr $FFD2`) would flip the machine to lower-case; 8BitScript does not emit that. | probe screenshots; `src/text.8bs` |
 | `xpet -model 3032` boots BASIC 2 in upper-case/graphics mode; `4032` boots BASIC 4 in upper-case; `8032` boots BASIC 4 in lower-case text mode (its business editor ROM's choice). All three report `31743 BYTES FREE`. | boot screenshots via `-limitcycles -exitscreenshot` |
 | A 40-column build's text appears at the top-left of an 8032's 80-column screen: screen RAM is `$8000` on the 80-column machine too. | borders `.prg` on `-model 8032` |
 | VICE's PET models: 2001, 3008, 3016, 3032, 3032B, 4016, 4032, 4032B, 8032, 8096, 8296, SuperPET. RAM sizes 4/8/16/32/96/128; `-videosize 0/40/80` (0 = from ROM); CRTC "all models from 40xx and above"; `-screen2001` mirrors the 1K screen through `$8FFF` ("otherwise mirrors, if any, only go up to `$87FF`"); `-eoiblank` is a "Model-2001-only quirk"; `CB2Lowpass` filters the emulated CB2 sound; `-petdww` (30xx) and `-pethre` (8296) are hi-res *add-on boards*; Colour PET (`$8800` colour RAM) and `-sidcart` are third-party extensions. | VICE 3.10 manual §7.7, `xpet -help` |
@@ -195,8 +194,8 @@ images `$8000`/`$8400` on later 40-column boards; one 2K image on
 `$B000–$BFFF` expansion ROM or the low 4K of BASIC 4; `$C000–$DFFF`
 BASIC; `$E000–$E7FF` editor ROM; `$E800–$EFFF` I/O (only `$E810`–`$E8FF`
 used — decoding is minimal, so most of `$E8xx` aliases the four chips);
-`$F000–$FFFF` KERNAL. Zero page `$0002–$008D` is BASIC's and the SDK
-reuses it for its imaginary registers; `$0200–$03FF` is OS workspace;
+`$F000–$FFFF` KERNAL. Zero page `$0002–$008D` is BASIC's;
+`$0200–$03FF` is OS workspace;
 the 40-column screen is `$8000–$83E7`, the 80-column screen `$8000–$87CF`.
 
 **PIA1 `$E810–$E813`** (progmod.html): `$E810` PA0–3 keyboard row select
@@ -300,7 +299,7 @@ half, code must copy vectors into expansion RAM (or keep I/O peek-through
 and never bank while an interrupt can arrive) before enabling it. BASIC
 still reports 31743 bytes; only machine code sees the rest. The 8296 is
 a redesigned board with 128K on it and jumpers to remove the ROMs
-entirely. **The SDK's PET link script cannot target either today.**
+entirely. **Neither the 8096 nor the 8296 is a linked model today.**
 
 **Model detection** (PETdoc.txt, lemon64): BASIC-era programs print a
 character on row 1 and peek `$8000+40` vs `$8000+80` to learn the width;
@@ -322,7 +321,7 @@ unverified:
   I/O is `$E810–$E8FF`; `$9000–$AFFF` are ROM sockets. The keyboard is on
   **PIA1** (`$E810`/`$E812`); the VIA has the user port, retrace input,
   timers and sound.
-- **"Motorola 6845 CRTC"**: it is a MOS 6545 (the SDK header and VICE both
+- **"Motorola 6845 CRTC"**: it is a MOS 6545 (PETdoc and VICE both
   say 6545; the two are near-relatives, but write 6545).
 - **"The video-on flag at VIA port B bit 5 (`$E840`) — BASIC halts output
   if high."** Right register, wrong sense: PB5 is the *retrace input*, and
@@ -353,11 +352,11 @@ unverified:
 - **"Later PETs booted in lower-case"** would also be wrong: only the
   business-keyboard editor ROMs (8032, 4032B, 3032B) start in text mode;
   the 3032 and 4032 boot in upper-case/graphics. An 8bitscript program
-  starts in whichever set the ROM left — the SDK's own switch to lower-case
-  is kept out of the link (verified above), and `text.8bs` selects the
+  starts in whichever set the ROM left — no CHROUT of PETSCII 14 is
+  emitted (verified above), and `text.8bs` selects the
   graphics set before every run of text regardless. A lesson from writing
-  this file: that SDK switch is a KERNAL call, and a search of the SDK
-  archives for a `$E84C` write "proved" it did not exist. Check the linked
+  this file: a CHROUT of PETSCII 14 is a KERNAL call, and a search
+  of start-up for a `$E84C` write "proved" it did not exist. Check the linked
   binary, not the pieces.
 
 ## Rules for this target
@@ -378,7 +377,7 @@ unverified:
   value's tag's version of one small file (`x.pet.8032.8bs`), read through
   a namespace const, never a copy of a surface — or, for a number, a
   `facts` entry on the value.
-- 96K/128K is not a RAM size, it is a banking model, and the SDK refuses
+- 96K/128K is not a RAM size, it is a banking model, and this target does not link
   it. If it ever arrives it follows the root rule for banked machines: a
   (block, offset) pair is not a pointer — and it is not a `model` value
   until the link script and the language can hold it.
@@ -496,13 +495,13 @@ packages/pet/src/keys.pet.8032.8bs   the 8032 tag's version: the business keyboa
 packages/pet/package.json            "8bitscript".exports names the four subpaths
 packages/compiler/test/pet-keys.test.mjs   both tables well formed, shared names, VICE .vkm cross-check, profile picks the table
 packages/pet/package.json            "8bitscript".hardware: the model option (__ram_size, -model, tag, columns and frame-rate facts), a preset per model
-packages/backend-6502/src/index.mjs  STOCK_DEFSYM.pet (32K when nothing is fitted), FRAME_SYNC.pet (CB1 retrace, T2 calibration), commodoreCharsetGuard()
+packages/compiler/src/mos/index.ts  FRAME_SYNC.pet (CB1 retrace, T2 calibration; the backend refuses to build)
 packages/compiler/src/linker/hazards.mjs   8BS3003: the $E842 killer-poke rule
 packages/cli/src/run.mjs             PET_REGION_NOTE, why no --pal and no 60 Hz editors; the model's flags come from the catalog
 packages/cli/src/screenshot.mjs      PET_CLOCK_HZ, --frames → cycles at the model's rate (the video.frameRate fact)
 packages/studio/src/main.8bs         Studio's entry; the PET's facts pick the viewer tier (glyphs/sprites/voices, not RAM)
 docs/setup/vice.md                   installing xpet with the other VICE emulators
 docs/roadmap.md                      Phase 2: why the PET is in the target list
-$LLVM_MOS_HOME/mos-platform/pet/     link.ld (__ram_size range, $0401), pet.h (chip bases), _6522.h/_pia.h/_6545.h
+Fachat PET index / PETdoc.txt       chip bases ($E810 PIA1, $E820 PIA2, $E840 VIA, $E880 CRTC), $0401 load
 /opt/homebrew/share/vice/PET/        ROM images and the *.vrs sets each xpet model loads
 ```

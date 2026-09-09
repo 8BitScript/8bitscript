@@ -44,7 +44,7 @@ export namespace screen {
         // Four quarters at once, indexed by one byte. Written as a single
         // `cell < CELL_COUNT` loop this is a sixteen-bit counter and a
         // sixteen-bit pointer walked a byte at a time with its own carry —
-        // what LLVM-MOS has to emit when an index does not fit a register.
+        // what a 6502 has to emit when an index does not fit a register.
         // Four constant offsets off one 8-bit index is the shape a 6502
         // wants: `sta $0400,x` and friends, a quarter of the iterations.
         for (let i: utinyint = 0; i < 250; i++) {

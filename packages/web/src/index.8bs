@@ -15,7 +15,7 @@
 // There is no $900F or $D020 here: the web target has no fixed hardware, so
 // "the screen" is a canvas the host paints from wasm's own linear memory
 // (the `--initialMemory 1` page every web build reserves, per
-// @8bitscript/backend-web). This package's hardware surface is therefore an
+// @8bitscript/compiler/wasm). This package's hardware surface is therefore an
 // AGREEMENT rather than a register map: a handful of fixed byte offsets in
 // that memory — two for the border and background colours, a virtual
 // character screen for everything `text` pokes, and one byte of input the

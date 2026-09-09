@@ -16,7 +16,7 @@
 // KERNAL's autostart, an NES cartridge's reset handler) costs before the
 // *program's* first real frame, not just the frames you want to see after
 // that. Each target's DEFAULT_FRAMES was chosen by testing against
-// examples/borders until the boot sequence had clearly cleared.
+// examples until the boot sequence had clearly cleared.
 import { spawn } from 'node:child_process';
 import {
   access, mkdir, mkdtemp, readFile, rm, writeFile,
@@ -157,7 +157,7 @@ const VICE_CLOCK_HZ = {
 const VICE_FPS = { ntsc: 60, pal: 50 };
 
 // -limitcycles values confirmed in this project's own testing to comfortably
-// clear -autostartprgmode's BASIC/KERNAL boot and land on examples/borders'
+// clear -autostartprgmode's BASIC/KERNAL boot and land on a program's
 // own steady state (not the boot banner), checked by eye against the
 // resulting PNG on each machine individually. These are not derived from a
 // shared formula across machines and shouldn't be compared to each other —
@@ -281,7 +281,7 @@ async function cx16Screenshot(outFile, screenshotPath, { frames, hardware = stoc
     // was built for instead of silently running on the emulator's defaults.
     // Keep `-capture`. Without it, x16emu reports the host cursor as off
     // the window and mouse_scan slams the KERNAL pointer to the last cell
-    // (examples/pointer printed CELL 04255); the sprite sits off-screen
+    // (a probe printed CELL 04255); the sprite sits off-screen
     // and packages/pointer's centre-arrow count is 0. An earlier x16emu
     // exited 13 combining `-capture` with a gif and no window; r50
     // ("next" 77f2bab3) records the gif with `-capture` and the arrow

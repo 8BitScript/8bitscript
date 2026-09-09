@@ -53,7 +53,7 @@ export let textColor: volatile<u8>;
 // over GTIA's colour registers ($D016-$D01A) on every single frame. So the
 // hardware register is not the durable place to put a colour while the OS is
 // running — the shadow is, and the OS then propagates it for us. This is not
-// theoretical: it is exactly why examples/borders rendered as a plain default
+// theoretical: it is exactly why a colour-cycling demo rendered as a plain default
 // screen on atari800 before the shadow writes were added. (It is also the
 // same class of problem packages/compiler/src/mos's FRAME_SYNC documents for the
 // PET, where the KERNAL's own IRQ handler wins a race for the vertical-

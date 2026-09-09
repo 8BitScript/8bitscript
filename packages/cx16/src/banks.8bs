@@ -16,7 +16,7 @@
 //
 // Banked RAM is 8 KiB pages seen through the window at `$A000`–`$BFFF`,
 // the page selected by a write to `$0000` (the X16 puts its two bank
-// registers in the zero page, which is why the SDK's own zero-page
+// registers in the zero page, which is why a program's own zero-page
 // allocation starts at `$0022`). A machine has a power of two of them, 8
 // pages (64 KiB) to 256 (2 MiB). So the count is found by asking about
 // pages 8, 16, 32, 64 and 128 in turn: the first one the machine does not

@@ -140,7 +140,7 @@ test('the Atari splits the machine from the medium: `model` picks the atari800 m
     assert.equal(h.build.output, 'rom', media);
     assert.deepEqual(h.build.defsym, { __cart_rom_size: size }, media);
     assert.deepEqual(loadArgs(h, 'atari800', '/x/m.rom', ['-run', '/x/m.rom']), ['-cart', '/x/m.rom', '-cart-type', type], media);
-    // A cartridge links against the SDK's $0700-$1FFF window and has no
+    // A cartridge links against the $0700-$1FFF window and has no
     // writable storage of its own.
     assert.equal(h.facts['memory.ram'], 6400, media);
     assert.equal(h.facts['storage.save'], false, media);

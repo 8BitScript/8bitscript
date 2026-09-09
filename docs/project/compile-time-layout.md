@@ -159,12 +159,10 @@ above.
 
 ## How to check any of this
 
-Build, then read the linked ELF beside the output:
-
-```
-llvm-nm --print-size --size-sort --radix=d dist/main-c64-ntsc.prg.elf
-llvm-objdump -d --disassemble-symbols=<function> dist/main-c64-ntsc.prg.elf
-```
+Build, then read the backend's own size report (`memory.program` and
+`memory.variables` from `build()`). Until that report exists, no new
+size claim can be made; the numbers already in this note stay as the
+reference.
 
 A size claim in this repository without a measurement is not a size claim.
 
@@ -176,7 +174,7 @@ Not layout, but the same rule, and worth more bytes than the menu bar's.
 the character ROM's 4K **copied into RAM at start-up** — because in banks 1
 and 3 the VIC has no character-ROM window, so a copy is the only way to have
 a character set at all. The reason for bank 3 is good and is set out at the
-top of `packages/c64/src/geometry.8bs`: the SDK links a program into
+top of `packages/c64/src/geometry.8bs`: the backend links a program into
 `$0801-$CFFF` and decides where every byte goes, so nothing the VIC needs can
 be promised a place inside that region, and `$D000-$FFFF` is the only RAM the
 linker never touches. Sprite shapes (7104 bytes) and a redefinable character

@@ -80,7 +80,7 @@ where "if C64 then 40 columns" is wrong on a C128 in 80-column mode.
   Where two machines can honestly agree, the layers are the same shape on
   purpose — `@8bitscript/atari8/joystick` has the C64's `scan()` and its
   `Joystick.UP`/`DOWN`/`LEFT`/`RIGHT`/`FIRE` values, because the Atari's own
-  masks in the SDK's `atari.h` happen to be bit for bit the same. Where they
+  masks happen to be bit for bit the same. Where they
   cannot, the layer says so rather than pretending: the Atari's keyboard
   reports one key and one "still held" bit, so `@8bitscript/atari8/keyboard`
   cannot answer "are these two keys both down" and does not offer to.
@@ -714,7 +714,7 @@ packages/<machine>/
 ```
 
 plus one entry per capability manifest, one `FRAME_SYNC` and one stock
-driver in `packages/backend-6502`, one emulator entry (its name and how it
+driver in `packages/compiler/src/mos`, one emulator entry (its name and how it
 takes a file) in `packages/cli/src/run.mjs`, and a
 `docs/setup/<machine>.md`. Nothing in the compiler, and nothing per
 option: what a RAM expansion or a mouse changes is the catalog's to say. That holds for every 6502-family machine on the

@@ -12,7 +12,7 @@
 // `scan()` once a frame into a snapshot, then `up`/`down`/`left`/`right`/
 // `fire` answering from it, and the same `Joystick.UP`/`DOWN`/`LEFT`/
 // `RIGHT`/`FIRE` bit values. That is not a coincidence to be tidied away
-// later: the Atari's own masks in the SDK's `atari.h` (`JOY_UP_MASK` $01,
+// later: the Atari's own masks (`JOY_UP_MASK` $01,
 // `JOY_DOWN_MASK` $02, `JOY_LEFT_MASK` $04, `JOY_RIGHT_MASK` $08,
 // `JOY_BTN_1_MASK` $10) are bit for bit the C64's, so the two machines'
 // layers agree without either one pretending.

@@ -16,8 +16,7 @@ pnpm add @8bitscript/screen @8bitscript/text @8bitscript/input @8bitscript/syste
 ```
 
 `8bs` is then at `node_modules/.bin/8bs`. `pnpm exec 8bs doctor` reports
-whether LLVM-MOS and each emulator are installed; the web target needs only
-Node.
+whether each emulator is installed; the web target needs only Node.
 
 Pin the version you mean. The first public release is **0.1.0**:
 
@@ -35,14 +34,14 @@ Pin the version you mean. The first public release is **0.1.0**:
 }
 ```
 
-The CLI depends on every machine package and both backends, so installing it
-is enough to `8bs build --target` for VIC-20, C64, PET, C128, Atari 8-bit,
-NES, Commander X16, MEGA65, and the web. Capability packages stay direct
-dependencies because that is how `import { text } from "@8bitscript/text"`
-resolves.
+The CLI depends on the compiler, including both backends (`mos` and `wasm`
+inside `@8bitscript/compiler`), so installing it is enough to name every
+target. Until 0.2.0, `8bs build --target` refuses all of them: nothing
+emits a `.prg`, `.xex`, `.nes`, `.rom`, or `.wasm`. Capability packages
+stay direct dependencies because that is how
+`import { text } from "@8bitscript/text"` resolves.
 
 The [host toolchain](setup/host-toolchain.md) page still covers Node 26 and
-pnpm 12. LLVM-MOS is required for every 6502 target; see
-[LLVM-MOS](setup/llvm-mos.md). To compile on GitHub instead of locally, see
+pnpm 12. To compile on GitHub instead of locally, see
 [Building on GitHub](github.md). To host the wasm build, see
 [Hosting the web target](web.md).

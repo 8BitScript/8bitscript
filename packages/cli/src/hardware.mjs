@@ -14,7 +14,7 @@
 //          name; the option's default value carries no tag unless it says)
 //   build  what the native linker needs: `defsym` symbols it defines
 //          before placing the image, a `startup` shape for the machine's
-//          crt0, and the `output` extension
+//          start-up stub, and the `output` extension
 //   run    the flags each emulator takes to fit the same thing, keyed by
 //          the emulator's name; `load` overrides how the built file is
 //          handed to it, with `{out}` standing for the file

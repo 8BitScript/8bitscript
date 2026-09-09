@@ -76,7 +76,7 @@ bar with one thing in it: a launcher.
 8BITSCRIPT                              📖  🚀  ♥  ⟳  …
 
   ┌──────────────────────────────────────────────┐
-  │  ▶   Run borders                             │
+  │  ▶   Run Studio                              │
   │      Commodore 64 · reu512 sid=8580 · NTSC   │
   └──────────────────────────────────────────────┘
 
@@ -84,12 +84,12 @@ bar with one thing in it: a launcher.
   [ c64 — Commodore 64                      ▾ ]
 
   PROJECT
-  [ borders  —  examples/borders            ▾ ] 🔧 📄
+  [ Studio  —  packages/studio              ▾ ] 🔧 📄
 
   ▸ HARDWARE · REGION · FACTS   reu512 sid=8580
 
   RUNNING
-    borders        run · c64                  ⏹
+    Studio         run · c64                  ⏹
 
   8bs run c64 --profile reu512 --hardware sid=8580
 ```
@@ -113,30 +113,29 @@ builds.
   The button names the project, and the line under it names the machine,
   the hardware fitted to it, and the region — nothing has to be read off a
   dropdown to know what pressing it means. It greys out when the selected
-  project does not target the selected system, or its toolchain is
-  missing, and says which in the line below.
+  project does not target the selected system, or its emulator is
+  missing, and says which in the line below. Until 0.2.0, Run and Build
+  refuse every target anyway: the backends exist and do not emit an image.
 - **Build** (🔧 on the Project row) — the same as Run, but `8bs build
   --target <system>`, which stops at the built file instead of starting an
   emulator.
 - **Project** — the project both buttons act on (`8bitscript.project`).
   Every directory in the workspace with an `8bs.config.ts` is in the list,
-  grouped with the **Examples** from the repository's `examples/` and the
-  **Apps** that ship with the toolchain — packages whose `package.json`
-  declares an `8bitscript.app`, [Studio](../../docs/studio.md) being the
-  first. The grouping appears only when the list holds more than one kind.
+  grouped with the **Apps** that ship with the toolchain — packages whose
+  `package.json` declares an `8bitscript.app`, [Studio](../../docs/studio.md)
+  being the first. The grouping appears only when the list holds more than one kind.
   The 📄 beside it opens the project's entry `.8bs` file. Picking a project
   loads what it is set up for — the first of its systems, hardware and
   region and all — and a project with none keeps the current machine when
   it targets it.
 
-  **The examples are not in the list by default** (`8bitscript.showExamples`).
-  In a checkout of the 8bitscript repository they outnumber the projects
-  you are working on, and the picker exists to reach *yours*. The 📖 in the
-  title bar puts them back, and is only offered when the toolchain brought
-  examples along at all — inside the repository they are ordinary workspace
-  projects and there is nothing to add. **Launch Example…** reaches them
-  either way, and one that is already selected stays in the list even with
-  the toggle off, so hiding them never blanks the picker.
+  **Shipped sample programs are not in the list by default**
+  (`8bitscript.showExamples`). This repository no longer carries an
+  `examples/` tree; the picker exists to reach *your* projects. The 📖 in
+  the title bar puts shipped samples back if a release brings any. **Launch
+  Example…** reaches them either way, and one that is already selected stays
+  in the list even with the toggle off, so hiding them never blanks the
+  picker.
 - **System** — where the program runs. A project whose `8bs.config.ts`
   declares a
   [`systems` block](../../docs/systems.md#the-machines-a-project-is-set-up-for)
@@ -270,10 +269,10 @@ lists them, and a favourite can be pinned in `.vscode/tasks.json`:
     {
       "type": "8bs",
       "command": "run",
-      "project": "examples/borders",
+      "project": "packages/studio",
       "target": "c64",
       "pal": true,
-      "label": "borders on a PAL C64"
+      "label": "Studio on a PAL C64"
     }
   ]
 }
@@ -285,13 +284,14 @@ is the way to keep a run the launcher's two dropdowns cannot express — a
 second system, the other region — one keystroke away.
 
 A project whose dependencies have never been installed — it declares some
-and has no `node_modules` of its own, which is how a freshly cloned example
-looks — gets a **Run `pnpm install`** button under the launch buttons (or
+and has no `node_modules` of its own, which is how a freshly cloned
+project looks — gets a **Run `pnpm install`** button under the launch buttons (or
 `npm`/`yarn`, whichever lockfile is nearest), which runs it in the project
 as a task. Running such a project asks first, because otherwise the
 compiler fails on the first import it cannot resolve, with a message about
-the package rather than the install. A project whose toolchain is missing
-altogether cannot be run at all, and the panel says so.
+the package rather than the install. A project whose emulator is missing
+altogether cannot be run at all, and the panel says so. Until 0.2.0 every
+target is refused regardless.
 
 ## The grammar is provisional
 

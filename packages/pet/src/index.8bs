@@ -17,8 +17,8 @@
 // register here to export; see screen.8bs for what that means for the
 // portable surface. What it does have is a character set to select.
 
-// $E84C, the VIA's peripheral control register (VIA at $E840 in
-// llvm-mos-sdk's pet.h, `pcr` at offset 12 in its _6522.h). Bit 1 chooses
+// $E84C, the VIA's peripheral control register (VIA at $E840, `pcr` at
+// offset 12 — confirmed against the 6522's own register map). Bit 1 chooses
 // the character set: $0C for graphics (upper case), $0E for text (lower
 // case) — the POKE 59468,12 / POKE 59468,14 every PET manual gives.
 @address(0xE84C)
@@ -35,7 +35,7 @@ export let viaPeripheralControl: volatile<u8>;
 // One thing to know before reading $E812 anywhere else: on a 6520, reading
 // the port B data register also clears the CB1 interrupt flag in CRB
 // ($E813 bit 7), and that flag is the vertical-retrace edge the frame
-// runtime waits for (FRAME_SYNC.pet in packages/backend-6502 polls it and
+// runtime waits for (FRAME_SYNC.pet in packages/compiler/src/mos polls it and
 // acknowledges it by reading this register). A read here between a retrace
 // and the next waitFrame() eats that frame. Scan once, right after
 // waitFrame() returns. $E811 (CRA / DDRA) and $E813 are not exported: CA2

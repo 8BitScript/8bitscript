@@ -7,8 +7,7 @@ nav_order: 8
 
 [Xemu](https://github.com/lgblgblgb/xemu) is the emulator suite this project
 targets for the MEGA65, via its `xmega65` core — `8bs build --target mega65`
-links against llvm-mos's `mega65` platform (see [LLVM-MOS](llvm-mos.md)),
-which reaches the machine through its VIC-II-compatible register view: same
+reaches the machine through its VIC-II-compatible register view: same
 registers, same colours, same numbers as the C64, on more capable silicon.
 
 There's no packaged build to install `xmega65` from, on any platform —
@@ -30,9 +29,7 @@ behalf, or commit to this repository (see
 This does everything short of what only you can legally provide — a full
 MEGA65 ROM:
 
-1. Checks `mos-mega65-clang` is on `LLVM_MOS_HOME` (see [LLVM-MOS](llvm-mos.md) —
-   `8bs setup` doesn't install the compiler toolchain itself).
-2. **macOS:** checks the Apple Command Line Tools with `xcode-select -p` and
+1. **macOS:** checks the Apple Command Line Tools with `xcode-select -p` and
    offers `xcode-select --install` only if they're absent; then requires
    Homebrew (found via `PATH`, never a hardcoded `/opt/homebrew`) and
    installs the build dependencies `sdl2 wget git` with `brew install` if
@@ -41,7 +38,7 @@ MEGA65 ROM:
    for you.
    **Linux:** installs `base-devel git pkgconf sdl2-compat gtk3 readline`
    with `pacman` if missing (asks first).
-3. Clones (or fast-forwards) [lgblgblgb/xemu](https://github.com/lgblgblgb/xemu)
+2. Clones (or fast-forwards) [lgblgblgb/xemu](https://github.com/lgblgblgb/xemu)
    into a cache directory — `~/.cache/8bitscript/setup/` (or
    `$XDG_CACHE_HOME`), never `~/Development` — and builds only
    `targets/mega65`, as your normal user. Harmless compiler warnings
@@ -49,22 +46,22 @@ MEGA65 ROM:
    pointer/sprite features, no `_mm_malloc()` on ARM, unused
    variables) are expected, not failures; only a non-zero `make` exit or a
    missing resulting binary is.
-4. Installs the result as `/opt/xemu/xmega65` (never named `xmega65.native`)
+3. Installs the result as `/opt/xemu/xmega65` (never named `xmega65.native`)
    with `sudo` only for that `mkdir`/`install` step, then puts a
    `/usr/local/bin/xmega65` symlink on `PATH` — unlike Commander X16's
    x16emu, a plain symlink works correctly for xmega65 on macOS too
    (confirmed on a real install), so there's no wrapper script here.
-5. Installs the ROM you provide with `--rom` (see
+4. Installs the ROM you provide with `--rom` (see
    [MEGA65 ROM handling](#mega65-rom-handling)) as
    `/opt/mega65/MEGA65.ROM`.
-6. Sets up Xemu's own per-user data directory if it doesn't exist yet —
+5. Sets up Xemu's own per-user data directory if it doesn't exist yet —
    `~/Library/Application Support/xemu-lgb/mega65/` on macOS,
    `~/.local/share/xemu-lgb/mega65/` on Linux — with the `~/.xemu-lgb`
    compatibility symlink Xemu itself would create on first launch, without
    ever running the emulator just to get that layout. An existing
    `~/.xemu-lgb` (Xemu's own, from a prior launch) is left completely
    alone.
-7. Links `~/.xemu-lgb/MEGA65.ROM` to the canonical install so Xemu finds it,
+6. Links `~/.xemu-lgb/MEGA65.ROM` to the canonical install so Xemu finds it,
    without ever overwriting an existing, unrelated file there.
 
 It's safe to re-run: every step checks what's already in place first and
@@ -212,8 +209,9 @@ These are four separate checks, not one:
   A ROM installed directly at the Xemu-local path (not linked to a
   canonical copy — say, a hand-placed file) is accepted and labelled as
   such rather than treated as a failure.
-- **MEGA65** — ready only when the compiler (`mos-mega65-clang`), `xmega65`,
-  the ROM, and the Xemu ROM link all pass.
+- **MEGA65** — ready only when `xmega65`,
+  the ROM, and the Xemu ROM link all pass. That is emulator readiness, not
+  a build: until 0.2.0, `8bs build --target mega65` still refuses.
 
 ## Manual reference — macOS
 

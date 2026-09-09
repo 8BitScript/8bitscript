@@ -7,6 +7,8 @@ nav_order: 9
 
 This is the last page of the setup guide. Everything here is a check, not an
 install — if a command fails, the fix lives on the page that installed the tool.
+`8bs doctor` confirms the host toolchain and the emulators. It does not mean
+a target can be built: until 0.2.0, `8bs build` refuses every target.
 
 The project now has more targets than are worth checking by hand one at a
 time — see [What each answer should look like](#what-each-answer-should-look-like)
@@ -22,12 +24,10 @@ pnpm --version
 git --version
 xvic --version
 x64sc --version
-"$LLVM_MOS_HOME/bin/mos-vic20-clang" --version
-"$LLVM_MOS_HOME/bin/mos-c64-clang" --version
 ```
 
-Seven commands, seven answers. If every one of them prints a version, the host
-toolchain and the retro toolchain are both in place.
+Five commands, five answers. If every one of them prints a version, the host
+toolchain and the Commodore emulators are both in place.
 
 ## What each answer should look like
 
@@ -38,16 +38,10 @@ toolchain and the retro toolchain are both in place.
 | `git --version` | 2.30 or newer | [Host toolchain](host-toolchain.md) |
 | `xvic --version` | VICE 3.10 | [VICE](vice.md) |
 | `x64sc --version` | VICE 3.10 | [VICE](vice.md) |
-| `"$LLVM_MOS_HOME/bin/mos-vic20-clang" --version` | A clang banner identifying an LLVM-MOS build | [LLVM-MOS SDK](llvm-mos.md) |
-| `"$LLVM_MOS_HOME/bin/mos-c64-clang" --version` | A clang banner identifying an LLVM-MOS build | [LLVM-MOS SDK](llvm-mos.md) |
 
-Two failure shapes are worth naming, because their cause is not in the error
-text. If both `mos-*-clang` commands fail with "no such file or directory", the
-problem is almost certainly `LLVM_MOS_HOME` rather than the SDK itself — check
-`echo "$LLVM_MOS_HOME"` and `ls "$LLVM_MOS_HOME/bin"`. And a passing
-`xvic --version` does not prove VICE works; on Debian and its derivatives the
-emulator can report a version and still be unable to boot for want of ROMs, so
-run the boot check on the [VICE](vice.md) page as well.
+A passing `xvic --version` does not prove VICE works; on Debian and its
+derivatives the emulator can report a version and still be unable to boot for
+want of ROMs, so run the boot check on the [VICE](vice.md) page as well.
 
 ## This checklist is automated
 
@@ -90,8 +84,8 @@ counts a different unit on every target, because what's actually being
 counted is genuinely different hardware (the same reasoning
 [`AGENTS.md`](https://github.com/8BitScript/8bitscript/blob/trunk/AGENTS.md) gives for why "8 sprites" doesn't mean one
 thing across machines). Omit it for a default this project tested against
-`examples/borders` until the machine's own boot sequence had clearly
-cleared:
+each machine's own boot sequence until the leftover banner had clearly
+cleared. Until 0.2.0, `8bs run` also refuses: there is no image to capture.
 
 | Target(s) | Mechanism | `--frames` counts | Default |
 | --------- | --------- | ------------------ | ------- |
