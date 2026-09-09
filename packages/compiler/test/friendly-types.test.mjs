@@ -6,8 +6,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { analyze, tokenize, parse, lower, check, foldCompileTime } from '../index.mjs';
-import { emitAssemblyScript } from '../../backend-web/src/index.mjs';
-import { emitC } from '../../backend-6502/src/index.mjs';
 
 const codes = (src) => analyze(src, 't.8bs').map((d) => d.code);
 const clean = (src) => assert.deepEqual(codes(src), []);
@@ -120,7 +118,7 @@ test('volatile<utinyint> lowers the same as volatile<u8>', () => {
 });
 
 // Positions differ because "utinyint" and "u8" are different lengths in the
-// source; everything that actually reaches the backends must not.
+// source; everything that actually reaches a backend must not.
 function stripSpans(value) {
   if (Array.isArray(value)) return value.map(stripSpans);
   if (value && typeof value === 'object') {
@@ -130,6 +128,8 @@ function stripSpans(value) {
   return value;
 }
 
+const irOf = (src) => lowered(src).ir;
+
 test('the utinyint milestone example lowers exactly like the u8 one', () => {
   const src = (t) => `let x: ${t} = 10;\nexport function main(): void { x = x + 1; }`;
   const canonical = lowered(src('utinyint'));
@@ -138,30 +138,12 @@ test('the utinyint milestone example lowers exactly like the u8 one', () => {
   assert.deepEqual(stripSpans(canonical.ir), stripSpans(legacy.ir));
 });
 
-// ---- both backends emit identically for canonical and legacy spellings --
-
-const irOf = (src) => lowered(src).ir;
-
-test('backend-6502 emits the same C for utinyint and u8', () => {
-  const canonical = emitC(irOf('let x: utinyint = 10;\nexport function main(): void { x = x + 1; }'));
-  const legacy = emitC(irOf('let x: u8 = 10;\nexport function main(): void { x = x + 1; }'));
-  assert.equal(canonical, legacy);
-  assert.match(canonical, /uint8_t x __attribute__/);
-  assert.match(canonical, /    x = 10;/);
-});
-
-test('backend-web emits the same AssemblyScript for utinyint and u8', () => {
-  const canonical = emitAssemblyScript(irOf('let x: utinyint = 10;\nexport function main(): void { x = x + 1; }'));
-  const legacy = emitAssemblyScript(irOf('let x: u8 = 10;\nexport function main(): void { x = x + 1; }'));
-  assert.equal(canonical.source, legacy.source);
-  assert.match(canonical.source, /export let x: u8 = 10;/);
-});
-
-test('@address + volatile<utinyint> emits the same hardware register as volatile<u8>', () => {
-  const canonical = emitC(irOf('@address(0xD020)\nlet border: volatile<utinyint>;'));
-  const legacy = emitC(irOf('@address(0xD020)\nlet border: volatile<u8>;'));
-  assert.equal(canonical, legacy);
-  assert.match(canonical, /#define border \(\*\(volatile uint8_t \*\)0xD020\)/);
+test('@address + volatile<utinyint> is the same hardware register as volatile<u8>', () => {
+  const canonical = irOf('@address(0xD020)\nlet border: volatile<utinyint>;');
+  const legacy = irOf('@address(0xD020)\nlet border: volatile<u8>;');
+  assert.deepEqual(stripSpans(canonical.globals[0]), stripSpans(legacy.globals[0]));
+  assert.equal(canonical.globals[0].address, 0xD020);
+  assert.equal(canonical.globals[0].volatile, true);
 });
 
 test('int and uint are 32-bit types, not 16-bit', () => {
@@ -169,7 +151,7 @@ test('int and uint are 32-bit types, not 16-bit', () => {
   assert.equal(ir32.globals[0].type, 'int');
   assert.equal(ir32.globals[1].type, 'uint');
 
-  const cOut = emitC(irOf('let x: int = 0;\nexport function main(): void { x = x + 1; }'));
-  assert.match(cOut, /int32_t x __attribute__/);
-  assert.match(cOut, /    x = 0;/);
+  const irOut = irOf('let x: int = 0;\nexport function main(): void { x = x + 1; }');
+  assert.equal(irOut.globals[0].type, 'int');
+  assert.equal(irOut.functions[0].body[0].value.operator, '+');
 });

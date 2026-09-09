@@ -2,10 +2,10 @@
 //
 // The VIC-II sees one 16K bank at a time, and everything it draws from —
 // the screen matrix, the character set, the sprite shapes, the eight
-// sprite pointers — has to be inside that one bank. The SDK links a
-// program into $0801-$CFFF (mos-platform/c64/lib/link.ld: `ram` is
-// ORIGIN $0801, LENGTH $C7FF, and the C stack grows down from $D000), and
-// it decides where every byte of code and data goes. Nothing the VIC
+// sprite pointers — has to be inside that one bank. A C64 program loads
+// at $0801-$CFFF (`ram` ORIGIN $0801, LENGTH $C7FF, and the stack grows
+// down from $D000; measured pre-0.2.0), and
+// the linker decides where every byte of code and data goes. Nothing the VIC
 // needs can be promised a place inside that region without a build-time
 // overlap check the toolchain does not have, so the picture lives in the
 // only RAM the linker never touches: $D000-$FFFF, the upper half of VIC

@@ -18,7 +18,7 @@
 // same as it already was for web. "NTSC (60Hz)" above is the emulator's real
 // hardware region, not the language's logical frame rate — that's a
 // separate, project-level setting (`frameRate` in 8bs.config.ts, default 60,
-// see packages/backend-6502's FRAME_SYNC and examples/borders/README.md),
+// see packages/compiler/src/mos FRAME_SYNC),
 // unaffected by --pal.
 //
 // --profile names the hardware the build is for: a preset from the
@@ -37,8 +37,7 @@
 // target actually starts from; see resolveEntryPath. Output lands in dist/, named
 // <name>-<machine>[-<hardware>...][-<region>].<ext> — .prg for the Commodore/
 // CX16/MEGA65 targets, .xex (or .rom for an XEGS cartridge) for Atari 8-bit,
-// .nes for the NES, .wasm for the web — with the generated C or
-// AssemblyScript beside it so what the compiler did is never a mystery.
+// .nes for the NES, .wasm for the web.
 // Only hardware that changes the *build* is in the name (a PET's model, a
 // VIC-20's RAM): a mouse or a REU makes the same program, so it is not.
 import { readFile } from 'node:fs/promises';
@@ -59,7 +58,7 @@ import {
 const TARGETS = new Set(MACHINES);
 
 // The targets whose frame-sync strategy has a real NTSC/PAL split, auto-
-// detected at runtime (packages/backend-6502's FRAME_SYNC 'level' machines)
+// detected at runtime (packages/compiler/src/mos FRAME_SYNC 'level' machines)
 // — the only ones where --pal changes the build or a region suffix on the
 // output filename. The PET has no region at all: its refresh is the
 // model's (a hardware option — see packages/pet/package.json's catalog),
@@ -229,9 +228,9 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   let stem = basename(entry, '.8bs');
   if (stem.endsWith(`.${target}`)) stem = stem.slice(0, -(target.length + 1));
   if (target === 'web') {
-    const { buildWasm } = await import('@8bitscript/backend-web');
+    const { build } = await import('@8bitscript/compiler/wasm');
     const outFile = resolve('dist', `${stem}.wasm`);
-    const result = await buildWasm(ir, { outFile });
+    const result = await build(ir, { outFile, frameRate });
     if (!result.ok) {
       process.stderr.write(`8bs build: ${result.error}\n`);
       return { ok: false };
@@ -239,13 +238,13 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
     const { writeWebBundle } = await import('./web-runtime.mjs');
     const webDir = resolve('dist', 'web');
     await writeWebBundle(webDir, await readFile(outFile), { frameRate });
-    process.stdout.write(`built ${outFile}\n(generated AssemblyScript: ${result.asFile})\n`);
+    process.stdout.write(`built ${outFile}\n`);
     process.stdout.write(`web bundle: ${webDir}/\n`);
     process.stdout.write(`${memoryLine(ir.memory)}\n`);
     return { ok: true, outFile, frameRate, hardware, webDir };
   }
 
-  const { buildPrg, outputExtension } = await import('@8bitscript/backend-6502');
+  const { build, outputExtension } = await import('@8bitscript/compiler/mos');
   // Hardware that changes the build is in the name (an 8032 PET, an
   // expanded VIC-20, an XEGS cartridge); hardware that only changes the
   // emulator is not, because the file is the same file.
@@ -253,23 +252,24 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   if (REGION_TARGETS.has(target)) nameParts.push(pal ? 'pal' : 'ntsc');
   const ext = outputExtension(target, hardware);
   const outFile = resolve('dist', `${nameParts.join('-')}.${ext}`);
-  const result = await buildPrg(ir, { machine: target, hardware, outFile, frameRate });
+  const result = await build(ir, { machine: target, hardware, outFile, frameRate });
   if (!result.ok) {
     process.stderr.write(`8bs build: ${result.error}\n`);
     return { ok: false };
   }
-  process.stdout.write(`built ${outFile}\n(generated C: ${result.cFile})\n`);
+  process.stdout.write(`built ${outFile}\n`);
   process.stdout.write(`${memoryLine(ir.memory, result.memory)}\n`);
   return { ok: true, outFile, frameRate, hardware };
 }
 
 /**
  * The memory line under "built": how much RAM the program's variables
- * take and how much constant data it carries. Measured from the linked
- * program when the backend could (the 6502 backend reads the ELF; a
- * variable LLVM dropped for being unread is not counted), else as
- * declared in the source. The machine's own limit is the toolchain's:
- * a program that does not fit does not build, and the build says so.
+ * take and how much constant data it carries. Measured from the
+ * backend's size report when the build returns one (`memory.variables`
+ * and `memory.program`), else as declared in the source. The machine's
+ * own limit is the backend's: a program that does not fit does not
+ * build, and the build says so. The native backends do not yet return
+ * a size report (Bare Metal, 0.2.0).
  */
 export function memoryLine(declared, measured = null) {
   if (measured) {

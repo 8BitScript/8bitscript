@@ -77,10 +77,10 @@ function toTile(code: utinyint): utinyint {
 
 // The nametable address of a cell — row `cell / 28`, column the rest — and
 // the column back, for a caller that walks on from there. Eight-bit
-// arithmetic only, and no division or multiplication: LLVM-MOS links a
-// 250-byte routine for a 16-bit divide, turns a counted-subtraction loop
-// into one, and calls a 300-cycle multiply for `x * 147` — none of which
-// fits the vertical blank this runs in. A quarter of the cell fits a byte
+// arithmetic only, and no division or multiplication: a 16-bit divide
+// was a 250-byte routine under the pre-0.2.0 toolchain, a counted-
+// subtraction loop became one, and `x * 147` called a 300-cycle multiply
+// — none of which fits the vertical blank this runs in. A quarter of the cell fits a byte
 // (below 728, q < 182); q / 8 + q / 64 is q / 7 or one or two short, and
 // what is left over says which. Verified for every cell. It opens a run
 // in the package's write queue at that address (see index.8bs: nothing

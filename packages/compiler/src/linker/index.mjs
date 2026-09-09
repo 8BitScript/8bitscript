@@ -935,8 +935,8 @@ export function link(entryText, entryFile, options = {}) {
   if (diagnostics.length > 0) return { ir: null, diagnostics, sources };
 
   // `nativeSources` is not IR the backends translate — it is the list of
-  // files a backend passes through to its toolchain untouched (the 6502
-  // backend hands them to LLVM-MOS beside the generated C; the web backend
+  // files a backend passes through untouched (the 6502 backend receives
+  // them as native sources and does not yet emit a binary; the web backend
   // has no use for 6502 assembly or CHR data and ignores it).
   const ir = {
     imports: [], globals: [], functions: [], strings: [], nativeSources,

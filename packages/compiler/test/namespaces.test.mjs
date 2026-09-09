@@ -11,8 +11,6 @@ import { join } from 'node:path';
 import {
   tokenize, parse, lower, link, NodeType,
 } from '../index.mjs';
-import { emitC } from '../../backend-6502/src/index.mjs';
-import { emitAssemblyScript } from '../../backend-web/src/index.mjs';
 
 const lowered = (src) => {
   const { tokens } = tokenize(src, 't');
@@ -170,22 +168,19 @@ test('an exported namespace works when imported from another module', () => {
     assert.equal(entry.body[0].name, 'screen_setBorderColor');
     assert.deepEqual(entry.body[0].args[0], { kind: 'const', value: 6 });
 
-    const c = emitC(ir);
-    assert.match(c, /void screen_setBorderColor\(uint8_t color\)/);
-    assert.match(c, /screen_setBorderColor\(6\);/); // main() calling with BorderColor.BLUE inlined
-    // Inside the function body: read-modify-write against the packed
-    // register, masking to preserve the bits `color` does not own.
-    assert.match(c, /\(\*\(volatile uint8_t \*\)36879\) & 248/);
-    assert.match(c, /color & 7/);
-    assert.match(c, /\*\(volatile uint8_t \*\)36879 = /);
-
-    const as = emitAssemblyScript(ir);
-    assert.ok(as.ok);
-    assert.match(as.source, /screen_setBorderColor\(color: u8\): void/);
-    assert.match(as.source, /screen_setBorderColor\(<u8>6\);/);
-    assert.match(as.source, /load<u8>\(36879\) & 248/);
-    assert.match(as.source, /color & 7/);
-    assert.match(as.source, /store<u8>\(36879, /);
+    const setBorder = ir.functions.find((f) => f.name === 'screen_setBorderColor');
+    assert.deepEqual(setBorder.params, [{ name: 'color', type: 'utinyint' }]);
+    const write = setBorder.body[0];
+    assert.equal(write.kind, 'memoryWrite');
+    assert.deepEqual(write.address, { kind: 'const', value: 36879 });
+    assert.equal(write.value.operator, '|');
+    assert.equal(write.value.left.operator, '&');
+    assert.equal(write.value.left.left.kind, 'memoryRead');
+    assert.deepEqual(write.value.left.left.address, { kind: 'const', value: 36879 });
+    assert.deepEqual(write.value.left.right, { kind: 'const', value: 248 });
+    assert.equal(write.value.right.operator, '&');
+    assert.equal(write.value.right.left.name, 'color');
+    assert.deepEqual(write.value.right.right, { kind: 'const', value: 7 });
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

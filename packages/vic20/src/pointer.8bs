@@ -21,7 +21,7 @@
 // cursor, it is a program that does not build for the VIC-20 — the machine
 // with the least room to spare, which is exactly why this file is
 // constants. `DRAWS` is a const and every function is empty, so a
-// program's `if (pointer.DRAWS)` folds away and LLVM deletes the calls.
+// program's `if (pointer.DRAWS)` folds away and the fold removes the calls.
 export namespace pointer {
 
     const DRAWS: bool = false;

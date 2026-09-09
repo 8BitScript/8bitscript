@@ -31,7 +31,7 @@
 // **`input.mouse` is true on this machine by default**, because the
 // hardware really does have one. `HAS_MOUSE` is that fact, so on a future
 // build that could take the mouse out the pointer half of this file is
-// `if (false)` and LLVM deletes it. Today there is no such catalog option;
+// `if (false)` and the fold removes it. Today there is no such catalog option;
 // the emulator's mouse is always there.
 //
 // **The pointer is reported in cells, not pixels.** `pointerCell()` is a

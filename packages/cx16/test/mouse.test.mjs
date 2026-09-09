@@ -1,7 +1,8 @@
 // @8bitscript/cx16/mouse — the X16's KERNAL mouse. Two layers: the probe
 // program links clean for the X16 with the stock sheet (no emulator
-// needed), and, when x16emu and the SDK are installed, it is run and the
-// border colour the screenshot shows is what mouse.present() answered.
+// needed), and, when x16emu and a working backend are installed, it is
+// run and the border colour the screenshot shows is what mouse.present()
+// answered.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -41,7 +42,7 @@ test('the probe program links clean for the X16, and mouse.begin() is a real fun
 function onPath(name) {
   return (process.env.PATH ?? '').split(delimiter).some((dir) => dir && existsSync(join(dir, name)));
 }
-const HAS_SDK = Boolean(process.env.LLVM_MOS_HOME);
+const NATIVE_BACKEND_PENDING = 'Bare Metal: waiting on the native backend';
 
 function runCli(args, { timeoutMs = 150_000 } = {}) {
   return new Promise((resolvePromise) => {
@@ -59,9 +60,7 @@ function runCli(args, { timeoutMs = 150_000 } = {}) {
 test(
   'under x16emu, mouse.present() is true on the stock machine',
   {
-    skip: (!HAS_SDK && 'LLVM_MOS_HOME not set')
-      || (!onPath('x16emu') && 'x16emu not on PATH')
-      || (!onPath('ffmpeg') && 'ffmpeg not on PATH (the x16emu screenshot route needs it)'),
+    skip: NATIVE_BACKEND_PENDING,
   },
   async () => {
     const scratch = await mkdtemp(join(tmpdir(), '8bs-cx16-mouse-'));

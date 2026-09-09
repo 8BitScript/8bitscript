@@ -10,15 +10,14 @@
 // rewrites each SF: line to be relative to the repo root before merging.
 //
 // Excludes the same packages test:ci does (packages/package.json) — they
-// need the LLVM-MOS toolchain wired up beyond what a coverage pass here
-// checks for.
+// boot emulators, which a coverage pass here does not need.
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, rmSync, mkdirSync, appendFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const WORKSPACE_GLOBS = ['packages', 'examples', 'editors'];
+const WORKSPACE_GLOBS = ['packages', 'editors'];
 const EXCLUDE_DIR_NAMES = new Set(['atari8', 'c128', 'c64', 'cx16', 'pet', 'pointer']);
 
 function discoverPackageDirs() {

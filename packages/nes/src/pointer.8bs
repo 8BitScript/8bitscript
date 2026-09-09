@@ -18,8 +18,8 @@
 // only then this file.
 //
 // It costs the NES nothing: `DRAWS` is a const and every function is
-// empty, so a program's `if (pointer.DRAWS)` folds away and LLVM deletes
-// the calls — which matters most here, where a program has 2 KiB of RAM
+// empty, so a program's `if (pointer.DRAWS)` folds away and the fold
+// removes the calls — which matters most here, where a program has 2 KiB of RAM
 // and every byte of the cartridge is budgeted.
 export namespace pointer {
 

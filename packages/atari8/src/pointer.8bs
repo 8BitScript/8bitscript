@@ -20,7 +20,7 @@
 //
 // It costs the machine nothing meanwhile: `DRAWS` is a const and every
 // function is empty, so a program's `if (pointer.DRAWS)` folds away and
-// LLVM deletes the calls.
+// the fold removes the calls.
 export namespace pointer {
 
     const DRAWS: bool = false;

@@ -213,7 +213,7 @@ them.
 
 Re-measured 2026-09-07 after the selected item became inverted rather than
 recoloured: `menubar_item` is 466 bytes on a C64 and 384 on the X16
-(`llvm-nm --print-size --radix=d` on Studio's `.prg.elf`). The extra
+(measured from Studio's linked image, pre-0.2.0). The extra
 against the 285-byte `item()` below is two padding `print`s per item — a
 reverse space is the filled end of the button — plus `text.setReverse`.
 `currentReverse` is one byte of BSS in every text package that implements
@@ -289,9 +289,9 @@ into wherever it was called. A routine built out of `putChar` pays that per
 cell; one built out of `print` pays once per string.
 
 **The second thing: do not hold state across a call.** Anything still live
-when `item()` calls `text.print` has to survive it, and LLVM-MOS pays for
-that by pushing zero-page registers to a soft stack on entry and popping
-them on exit. With the bookkeeping written after the drawing — the natural
+when `item()` calls `text.print` has to survive it, and a 6502 calling
+convention pays for that by pushing zero-page registers to a soft stack
+on entry and popping them on exit (measured pre-0.2.0). With the bookkeeping written after the drawing — the natural
 order — that prologue and epilogue was about 130 bytes and ran even on the
 clipped path. Moving every measurement and every cursor update *before* the
 first `print`, so only four values are still wanted by then, replaced it
@@ -340,9 +340,9 @@ decides where work happens". **Anything added to this component before then
 should be shaped so that folding it into constants later is a change of
 implementation, not of surface.**
 
-To re-measure: build Studio with and without, then
-`llvm-nm --print-size --size-sort --radix=d dist/main-c64-ntsc.prg.elf` and
-`llvm-objdump -d --disassemble-symbols=menubar_item` on the same file.
+To re-measure: build Studio with and without, then inspect the linked
+image's symbol sizes for `menubar_item`. The native backend does not yet
+emit that image. Pre-0.2.0 measurements used the linked `.prg.elf`.
 Update this table in the same commit rather than deleting it — and read the
 comment above the room check first, because the obvious simplification
 there (widen the sum to sixteen bits) does not behave the same on both
@@ -353,9 +353,10 @@ backends today.
 - **Every component links for all nine targets.** `test/ui.test.mjs` links
   `test/menubar-probe.8bs` — a program that calls every function the
   component offers — for each one. A component that works on eight is a bug.
-- **Show it running before you claim it works.** `examples/
-  menubar` builds on all nine, and `8bs run <target> --screenshot` is how
-  each layout in its README was checked on the machine itself. Check the
+- **Show it running before you claim it works.** Studio's front door
+  draws a bar, and `8bs run <target> --screenshot` is how
+  each layout was checked on the machine itself (pre-0.2.0). Until the
+  backends emit, link `test/menubar-probe.8bs` instead. Check the
   VIC-20 in particular: it is the machine where the bar does not fit, and
   the only one that proves clipping does what it says.
 - **State what a machine cannot do rather than papering over it.** The

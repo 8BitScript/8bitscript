@@ -1,7 +1,7 @@
 # Writing Commander X16 support for 8BitScript
 
 This file is for anyone — human or agent — touching `packages/cx16`,
-`packages/backend-6502`'s `cx16` entries, `packages/cli/src/setup/cx16.mjs`,
+`packages/compiler/src/mos`'s `cx16` entries, `packages/cli/src/setup/cx16.mjs`,
 or `docs/setup/cx16.md`. Read the root [`AGENTS.md`](../../AGENTS.md)
 first; the rules there apply to every target and are not repeated.
 [`packages/nes/AGENTS.md`](../nes/AGENTS.md) is the useful contrast: the
@@ -27,8 +27,8 @@ Do not describe more than this as working:
   the active area by 16 pixels on every side and that ring takes the
   colour. Its background is *painted*: there is no register for it, so
   every text cell's attribute byte is rewritten through VERA's data port.
-  `text.putChar(cell, code)` takes ASCII — LLVM-MOS's start-up puts the
-  KERNAL in ISO mode before `main()` — on the 76×56 grid the border inset
+  `text.putChar(cell, code)` takes ASCII — ISO mode is what makes tile
+  index equal the character code — on the 76×56 grid the border inset
   leaves visible (the map is 80×60; `text.COLUMNS` is 76 and
   `text.CELL_COUNT` 4256, so a program never addresses a cell it cannot
   see), whose map base is read from VERA's `L1_MAPBASE` at runtime, not
@@ -40,7 +40,7 @@ Do not describe more than this as working:
   reading each cell's old colour byte through port 1 so whatever
   background nibble the cell has is kept. `locate()` leaves ADDRSEL at 0,
   which `screen.8bs` assumes.
-- `waitFrame()` (`FRAME_SYNC.cx16` in `packages/backend-6502`) polls
+- `waitFrame()` (`FRAME_SYNC.cx16` in `packages/compiler/src/mos`) polls
   VERA's ISR VSYNC bit under `sei` — at the default `frameRate` of 60 that
   is exactly one VSYNC per `waitFrame()`, with no accumulator emitted at all.
 - `src/mouse.8bs` (behind `@8bitscript/cx16/mouse`), `src/input.8bs` and
@@ -50,7 +50,7 @@ Do not describe more than this as working:
   VERA sprite 0), `$FF71` mouse_scan has to be called from `poll()` because
   `waitFrame()` runs under `sei` and the KERNAL IRQ no longer scans, and
   `$FF6B` mouse_get copies position and buttons into `$80`–`$84` — past
-  the SDK's `__basic_zp_end`, so LLVM will not put a variable there.
+  BASIC's zero-page end, so a linker will not put a variable there.
   `present()` is `#fact(input.mouse)`, not a stored flag: an `asm6502`
   block is opaque, and a bool set before a KERNAL call and read after it
   was kept in a register the call trashed (measured: the arrow drawing at
@@ -98,11 +98,11 @@ Cite these freely; each was read in the source named, not recalled.
 | `$FF80` is the KERNAL revision byte — **negative** (two's complement) on prerelease builds, e.g. `$CE` for "R50 next". | `kernal/vectors.s` |
 | The KERNAL's own interrupt-time VERA users (mouse-cursor sprite, cursor blink) wrap their work in `screen_save_state`/`screen_restore_state`, which save VERA CTRL, the DCSEL=2 register (FX_CTRL) and ADDR0. So the default IRQ handler does not corrupt a program's VERA address state. | `ps2mouse.s`, `editor.s`, `screen.s` |
 | `memory_copy`/`memory_fill` detect the `$9F00` I/O page and do not increment through it — which is what lets them stream through a VERA data port. | `kernal/memory.s` |
-| LLVM-MOS's cx16 start-up prints `CHR$(15)` before `main()`. | `llvm-objdump` of a linked build |
+| Switching into ISO mode (`CHR$(15)` through CHROUT) before `main()` was verified on a linked build (pre-0.2.0). The native backend does not yet emit that start-up. | disassembly of a linked build (pre-0.2.0) |
 | With a nonzero VSTART, VERA's layer line 0 lands two lines above the active area's top edge (the layer line counter starts on the VSTART line through a two-line register-history pipeline). | `video.c` ~1029-1063, and on screen |
 | The catalog's stock fact sheet: grid 76×56 of 8×8 (the map's 80×60 less the border inset), 256 palette entries, 2 colours per cell, 256 glyphs in the text layer's tileset, 2×2 blocks (the PETSCII set in the ROM font), bitmap, 2 layers with fine scroll each; 128 sprites, up to 64×64, 255 colours at 8 bpp; 16 PSG + 8 FM + 1 PCM = 25 voices, envelopes on the FM side, noise on the PSG, a volume per voice, no filter or random source; keyboard and mouse through the KERNAL (`input.mouse` is true on the stock machine: the emulator's mouse is always there), 2 SNES pad ports (*to verify*: some boards carry 4), no joystick ports; the SD card to save to; 38655 bytes of low RAM (`$0801`–`$9EFF`), 512 KiB banked by default (the `ram` values change it). **`video.spritesPerLine` is 46**: the VERA reference gives a 798-cycle deadline per line and 13–17 cycles for the smallest sprite (8 px, 4 bpp), so 798 ÷ 17 = 46 of those is the worst case; the biggest (64 px, 8 bpp, 99–147 cycles) fits 5. The sheet states the small-sprite figure, and an actors package must say which size its own count assumes. | `src/text.8bs`; the `link.ld`, palette and sprite-budget rows above; VERA Programmer's Reference, "Sprite renderer / line buffer" (fetched 2026-09-05); `package.json` (read) |
 | `@8bitscript/cx16/banks` — `banks.kib()`: the count is the first page above a power of two that the machine does not really have. Two shapes, both tested: a mirror of page 1 (a board that keeps fewer than 8 bank bits wraps, and every page tested is one above a power of two, so a wrap lands on page 1), confirmed with a second marker; or nothing at all, caught by writing two different bytes and reading both back. **x16emu is the second shape**: with `-ram 64`, a byte written to page 200 read back as `$A0` (the window's own address high byte) and page 9 read `$3E` — writes to a page the machine does not have are dropped and reads float. Page 0 is never written (KERNAL workspace) and page 1 is left selected. Under x16emu the probe printed 64 / 512 / 2048 KiB for `ram=64`, `512`, `2048`. Cost: `test/banks-probe.8bs` is 1179 bytes of program with the probe and 1000 with the size written in — 179 bytes. | `src/banks.8bs`; three screenshots and one diagnostic build (ran); `test/banks.test.mjs` |
-| `@8bitscript/cx16/mouse` — `$FF68` mouse_config A=1, size from `$FF5F` screen_mode (carry set; 80×60 in KERNAL text), parks at (319, 239); `$FF71` mouse_scan is required because FRAME_SYNC.cx16's `sei` silences the KERNAL IRQ that would have scanned; `$FF6B` mouse_get into `$80`–`$84` (the SDK's program ZP ends at `$80`). Presence is the `input.mouse` fact, not a flag stored across an opaque `asm6502` call. After screen.8bs insets the display, the firmware sprite is on the screenshot at (335, 254); `pointerCell()` is `x>>3`, `y>>3` in that active-area space (an earlier draft subtracted the inset again and sat two cells off). Probe 1184 B / 25 B RAM, green border under x16emu when present(). | `src/mouse.8bs`; `test/mouse-probe.8bs` (ran); `packages/pointer/test/pointer.test.mjs` |
+| `@8bitscript/cx16/mouse` — `$FF68` mouse_config A=1, size from `$FF5F` screen_mode (carry set; 80×60 in KERNAL text), parks at (319, 239); `$FF71` mouse_scan is required because FRAME_SYNC.cx16's `sei` silences the KERNAL IRQ that would have scanned; `$FF6B` mouse_get into `$80`–`$84` (program ZP temps start at `$80`). Presence is the `input.mouse` fact, not a flag stored across an opaque `asm6502` call. After screen.8bs insets the display, the firmware sprite is on the screenshot at (335, 254); `pointerCell()` is `x>>3`, `y>>3` in that active-area space (an earlier draft subtracted the inset again and sat two cells off). Probe 1184 B / 25 B RAM, green border under x16emu when present(). | `src/mouse.8bs`; `test/mouse-probe.8bs` (ran); `packages/pointer/test/pointer.test.mjs` |
 
 ## Corrections to the research notes
 
@@ -127,8 +127,9 @@ Cite these freely; each was read in the source named, not recalled.
 - **256 sprites** is wrong; it is 128.
 - **`$FF80`** is not simply "the version number": prerelease builds store
   its negation. Compare against a documented value, don't assume positive.
-- **ISO mode is not the KERNAL's boot state** — it is LLVM-MOS's start-up
+- **ISO mode is not the KERNAL's boot state** — it is a start-up
   choice for this platform. A raw-assembly program would find PETSCII.
+  The native backend does not yet emit that start-up.
 - Everything in the notes about YM2151 write timing (~10 cycles after
   register select, ~150 busy cycles, writes during BUSY dropped), PCM
   rates, the composite/overscan guidance, RTC NVRAM (32 user bytes at
@@ -231,7 +232,7 @@ Cite these freely; each was read in the source named, not recalled.
   pair. Note both revisions in any comment that records a measurement.
 - `x16emu -gif file.gif -warp -sound none` plus `ffmpeg` frame extraction
   is this project's headless verification path; `-echo raw` shows KERNAL
-  output (the `^O` at the end of a run is LLVM-MOS's `CHR$(15)`).
+  output (a `^O` at the end of a run is `CHR$(15)`, ISO mode).
   `8bs run cx16 --screenshot <file.png>` already wraps this (needs `ffmpeg`
   on PATH) — see [`docs/setup/verify.md`](../../docs/setup/verify.md#screenshots)
   before reaching for the raw flags directly.
@@ -248,11 +249,10 @@ packages/cx16/src/input.8bs              @8bitscript/cx16/input: the pointer in 
 packages/cx16/src/pointer.8bs            @8bitscript/cx16/pointer: the firmware arrow; update() empty unless recovering from hide()
 packages/cx16/test/mouse-probe.8bs       run under x16emu: green border when present(); test/mouse.test.mjs reads it
 packages/cx16/src/text.8bs               @8bitscript/cx16/text: text.print/printNumber/setColor/setReverse/putChar/putColor, CELL_COUNT 4256, COLUMNS 76, TextColor
-packages/backend-6502/src/index.mjs      driver (mos-cx16-clang), FRAME_SYNC.cx16 (VERA ISR poll)
+packages/compiler/src/mos/index.ts       FRAME_SYNC.cx16 (VERA ISR poll; the backend refuses to build)
 packages/cli/src/setup/cx16.mjs          8bs setup cx16: emulator+ROM pair, macOS launcher wrapper
 packages/cli/src/run.mjs                 8bs run cx16: x16emu -prg <file> -run
-packages/compiler/test/cx16-screen.test.mjs   the package's generated C, by VERA address
-examples/borders/src/main.8bs            the working program (every target), ASCII readout at cell 0
+packages/compiler/test/cx16-screen.test.mjs   the package's VERA addresses
 docs/setup/cx16.md                       install, the wrapper trap, doctor, what the picture shows
 x16-emulator 77f2bab3, x16-rom fbe32a60   the upstream revisions every fact above was read in
                                          (wherever those two repositories are checked out)

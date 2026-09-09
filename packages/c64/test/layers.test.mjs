@@ -1,7 +1,7 @@
 // The C64's hardware layers, run for real under x64sc: the raster list,
 // bitmap mode, the region probe, and REU transfers. Each probe program
-// links clean for the C64 without an emulator; with x64sc and the SDK
-// installed it is run headless and its screenshot read at a few pixels —
+// links clean for the C64 without an emulator; with x64sc and a working
+// backend it is run headless and its screenshot read at a few pixels —
 // the probe encodes its answer in colours, as test/reu-probe.8bs does.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -43,8 +43,7 @@ for (const [name, [file, functions]] of Object.entries(PROBES)) {
 function onPath(name) {
   return (process.env.PATH ?? '').split(delimiter).some((dir) => dir && existsSync(join(dir, name)));
 }
-const HAS_SDK = Boolean(process.env.LLVM_MOS_HOME);
-const skip = (!HAS_SDK && 'LLVM_MOS_HOME not set') || (!onPath('x64sc') && 'x64sc not on PATH');
+const NATIVE_BACKEND_PENDING = 'Bare Metal: waiting on the native backend';
 
 function runCli(args, { timeoutMs = 90_000 } = {}) {
   return new Promise((resolvePromise) => {
@@ -73,7 +72,7 @@ const isBlue = ([r, g, b]) => b > r + 40 && b > g + 40;
 const isYellow = ([r, g, b]) => r > 200 && g > 200 && b < 200;
 const isWhite = ([r, g, b]) => r > 200 && g > 200 && b > 200;
 
-test('under VICE, the raster list changes the border colour at its lines, top to bottom', { skip }, async () => {
+test('under VICE, the raster list changes the border colour at its lines, top to bottom', { skip: NATIVE_BACKEND_PENDING }, async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-c64-layers-'));
   try {
     const png = await shoot(scratch, 'raster', 'raster-probe.8bs');
@@ -94,7 +93,7 @@ test('under VICE, the raster list changes the border colour at its lines, top to
   }
 });
 
-test('under VICE, bitmap mode draws a plotted rectangle on coloured cells and a sprite from a block under the I/O area', { skip }, async () => {
+test('under VICE, bitmap mode draws a plotted rectangle on coloured cells and a sprite from a block under the I/O area', { skip: NATIVE_BACKEND_PENDING }, async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-c64-layers-'));
   try {
     const png = await shoot(scratch, 'bitmap', 'bitmap-probe.8bs');
@@ -110,7 +109,7 @@ test('under VICE, bitmap mode draws a plotted rectangle on coloured cells and a 
   }
 });
 
-test('under VICE, detectRegion says NTSC under -model ntsc and PAL under -model c64', { skip }, async () => {
+test('under VICE, detectRegion says NTSC under -model ntsc and PAL under -model c64', { skip: NATIVE_BACKEND_PENDING }, async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-c64-layers-'));
   try {
     const ntsc = await shoot(scratch, 'ntsc', 'region-probe.8bs');
@@ -122,7 +121,7 @@ test('under VICE, detectRegion says NTSC under -model ntsc and PAL under -model 
   }
 });
 
-test('under VICE, REU transfers round-trip the screen through a 512 KiB unit, and a stock C64 tries none', { skip }, async () => {
+test('under VICE, REU transfers round-trip the screen through a 512 KiB unit, and a stock C64 tries none', { skip: NATIVE_BACKEND_PENDING }, async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-c64-layers-'));
   try {
     const reu = await shoot(scratch, 'reu512', 'reu-transfer-probe.8bs', ['--hardware', 'ram=reu512']);

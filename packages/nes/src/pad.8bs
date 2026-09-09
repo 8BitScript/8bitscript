@@ -55,7 +55,7 @@
 // screen under a controller** — `--screenshot` builds and captures a
 // frame but cannot press a button, so the button order below is the
 // documented one and not a measured one. Anyone who runs
-// examples/first-look/menubar under FCEUX with a pad should replace this
+// a pad-driven program under FCEUX should replace this
 // paragraph with what they saw.
 
 // The two ports. JOY2's *write* side is the APU's frame counter, which is

@@ -19,7 +19,7 @@ jobs:
           node-version: 26
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - uses: ./.github/actions/setup-llvm-mos
+      - run: pnpm typecheck
       - run: pnpm run test:ci
 
   # Skipped until SONAR_TOKEN is set on the repo (Settings → Secrets and
@@ -57,8 +57,6 @@ jobs:
           node-version: 26
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-        if: steps.sonar_check.outputs.enabled == 'true'
-      - uses: ./.github/actions/setup-llvm-mos
         if: steps.sonar_check.outputs.enabled == 'true'
       - name: Test with coverage
         if: steps.sonar_check.outputs.enabled == 'true'

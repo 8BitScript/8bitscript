@@ -1,3 +1,4 @@
+# Every target is built by 8BitScript's own backends; no external SDK is installed.
 name: Compile 8BitScript program
 
 on:
@@ -36,36 +37,13 @@ jobs:
           if [ ! -x node_modules/.bin/8bs ]; then
             pnpm add -D "@8bitscript/cli@${{ inputs.cli-version }}"
           fi
-      - name: Cache LLVM-MOS SDK
-        if: ${{ inputs.targets != 'web' }}
-        id: llvm-mos
-        uses: actions/cache@v5
-        with:
-          path: ${{ runner.temp }}/llvm-mos
-          key: llvm-mos-linux
-      - name: Install LLVM-MOS SDK
-        if: ${{ inputs.targets != 'web' && steps.llvm-mos.outputs.cache-hit != 'true' }}
-        run: |
-          set -euo pipefail
-          curl -sL https://github.com/llvm-mos/llvm-mos-sdk/releases/latest/download/llvm-mos-linux.tar.xz -o "$RUNNER_TEMP/llvm-mos.tar.xz"
-          mkdir -p "$RUNNER_TEMP/llvm-mos"
-          tar -xJf "$RUNNER_TEMP/llvm-mos.tar.xz" -C "$RUNNER_TEMP/llvm-mos" --strip-components=1
-      - name: Export LLVM_MOS_HOME
-        if: ${{ inputs.targets != 'web' }}
-        run: echo "LLVM_MOS_HOME=$RUNNER_TEMP/llvm-mos" >> "$GITHUB_ENV"
       - name: Build
-        env:
-          LLVM_MOS_HOME: ${{ env.LLVM_MOS_HOME }}
         run: |
           set -euo pipefail
           IFS=',' read -ra TARGETS <<< "${{ inputs.targets }}"
           for raw in "${TARGETS[@]}"; do
             t="$(echo "$raw" | xargs)"
             [ -n "$t" ] || continue
-            if [ "$t" != "web" ] && [ -z "${LLVM_MOS_HOME:-}" ]; then
-              echo "LLVM_MOS_HOME is not set; needed to build $t"
-              exit 1
-            fi
             pnpm exec 8bs build --target "$t"
           done
       - uses: actions/upload-artifact@v5

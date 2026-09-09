@@ -55,9 +55,10 @@ A handler written in 8bitscript that runs at an interrupt means:
   safe; anything wider is a hazard the language does not today express.
 - **The compiler owns zero page `$02`–`$8F`.** A handler that is a normal
   compiled function uses zero page for its own temporaries, and so does the
-  code it interrupted. `__attribute__((interrupt))` on llvm-mos saves and
-  restores what it uses, but the *soft stack* and imaginary registers are
-  shared; this needs verifying under VICE, not assuming.
+  code it interrupted. An interrupt prologue that saves and
+  restores what it uses still shares the *soft stack* and imaginary
+  registers with the interrupted code; this needs verifying under VICE, not
+  assuming.
 
 This is the design's center, not a footnote. **Recommendation:** the first
 version supports the model where a program installs one `@interrupt`
@@ -130,36 +131,30 @@ wait on the general one.
    be known to `resolveScalarType`, `scanDeclaredTypes` and `parameterTypes`
    in `packages/compiler/src/templates/index.mjs`, or `declares()` treats an
    `interrupt` global as an import across six IR sites and misbehaves
-   silently. Give it a storage size of 2 in `storageBytes` (`types/index.mjs`),
-   `C_TYPE`/`C_SIZE` (backend-6502), and the web `AS_TYPE` refusal path.
+   silently. Give it a two-byte storage size in `storageBytes`
+   (`types/index.mjs`), and a refusal on the web backend (an interrupt is
+   not a wasm concept).
 
 ## Code generation
 
-**6502** (`packages/backend-6502/src/index.mjs`):
+The native backends (`packages/compiler/src/mos`, `packages/compiler/src/wasm`)
+are not built yet (0.2.0). When they are, this feature needs:
 
-- `@interrupt` function → `__attribute__((interrupt))` on the signature
-  (the `section()` helper at ~:780 is the precedent for attaching
-  attributes). The handler must not be `static`-and-dead: nothing *calls*
-  it, so LLVM would delete it — mark it `__attribute__((used))` or give it
-  external linkage, the same problem `namedInAsm` already solves for
-  functions named in `asm6502`.
-- `interrupt`-typed `@address` global → the existing `#define name
-  (*(volatile uint16_t *)0xADDR)` form, with `C_TYPE.interrupt =
-  'uint16_t'`.
-- `irqVector = onRaster` → the assignment needs the right side to emit
-  `(uint16_t)(uintptr_t)onRaster`, a cast a bare `{kind:'ref'}` does not
-  produce. Either a new expression kind (`funcaddr`) or a flag on `ref`.
-  `cName` must be applied to a function ref too, or a handler named `main`
-  would emit `main` rather than `__8bs_main`.
-- Ordering: globals (including the `#define` vector) are emitted before
-  function prototypes, which are before bodies. A function address in a
-  *global initialiser* would be emitted before the prototype and fail to
-  compile; the vector is written in `main`, not at global scope, so this is
-  fine — but the checker must forbid an `interrupt` global with an
-  initialiser (like other `@address` globals already are).
+**6502** (`packages/compiler/src/mos`):
 
-**Web** (`packages/backend-web/src/index.mjs`): refuse via the
-`targetLimitation` pattern (the `asm` case at ~:160 is the template).
+- `@interrupt` function → a handler with the machine's IRQ calling
+  convention (save/restore what the handler uses; `rti` on exit). Nothing
+  *calls* it, so the linker must keep it because a vector names it, the
+  same problem `namedInAsm` already solves for functions named in
+  `asm6502`.
+- `interrupt`-typed `@address` global → a 16-bit vector slot at that
+  address.
+- `irqVector = onRaster` → write the handler's address into that slot.
+  The checker must forbid an `interrupt` global with an initialiser
+  (like other `@address` globals already are).
+
+**Web** (`packages/compiler/src/wasm`): refuse. An interrupt is not a
+wasm concept.
 
 ## Interaction with `@8bitscript/c64/raster`
 

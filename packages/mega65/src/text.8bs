@@ -39,9 +39,7 @@ import { memoryPointer, vicIIIControlA, VicIIIControl } from "./index.8bs";
 // leaves 32-63 alone. Whether 1-26 then LOOK like 'A'-'Z' or 'a'-'z' is
 // the character set's choice — the ROM's boot state, whatever ran before,
 // a user's SHIFT+C= — so this package owns the choice rather than
-// inheriting one (LLVM-MOS's libc used to flip the machine to lower-case
-// before main() with a hidden CHR$(14); packages/backend-6502's
-// commodoreCharsetGuard() keeps that out of the link). putChar() selects
+// inheriting one. putChar() selects
 // the upper-case set, every
 // call, through the memory pointer (see @8bitscript/mega65's
 // `memoryPointer` for the $24 it takes here): one register write, and

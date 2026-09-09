@@ -1,7 +1,7 @@
 # Writing web-target support for 8BitScript
 
 This file is for anyone — human or agent — touching `packages/web`,
-`packages/backend-web`, `packages/cli`'s web runtime (`src/web-runtime.mjs`,
+`packages/compiler/src/wasm`, `packages/cli`'s web runtime (`src/web-runtime.mjs`,
 `src/wasm-host.mjs`, `src/font8x8.mjs`, `src/png.mjs`, and the `web`
 branches of `src/build.mjs`, `src/run.mjs` and `src/screenshot.mjs`), or the
 web rows of `docs/setup/verify.md`, `docs/roadmap.md`, `docs/studio.md` and
@@ -54,13 +54,14 @@ Do not describe more than this as working:
   `text.setReverse` ORs 128 into that colour byte so the host can fill the
   cell and punch the glyph out. `printNumber` uses a real divide, since
   wasm has one. `TextColor` has the eight shared names only.
-- `packages/backend-web` lowers the IR to AssemblyScript and drives `asc`
-  (0.28.20) to a `.wasm`: one 64 KB page, static data (string literals,
-  `const` *and* `let` arrays, `string<N>` variables) from `0xE000`, and a
-  single host import, `env.waitFrame`, declared only when the program calls
-  `waitFrame()`. Such a program is built with shared memory. An `@address`
-  scalar is refused ("no such hardware on the web target"); an `asm6502`
-  block is refused; native sources are ignored.
+- `packages/compiler/src/wasm` is the native WebAssembly backend: IR in, `.wasm`
+  out. **It is not implemented** (Bare Metal, section 09) and refuses to
+  build. The host contract it must satisfy when it exists lives in
+  `packages/cli/src/wasm-host.mjs`: exactly one 64 KB wasm page, exported
+  memory and globals, one exported function (the entry), and at most one
+  import, `env.waitFrame`, declared only when the program calls
+  `waitFrame()`. An `@address` scalar is refused ("no such hardware on the
+  web target"); an `asm6502` block is refused; native sources are ignored.
 - `8bs run web` (`packages/cli/src/web-runtime.mjs`) serves the `.wasm`, a
   page and a worker on `127.0.0.1` and opens the OS browser (`--no-open`
   prints the URL only). The worker instantiates the program and calls its
@@ -107,8 +108,8 @@ header comment of `web-runtime.mjs` itself.
 
 Every row below is a design decision, not a hardware fact: each was chosen
 by whoever wrote the file in the *Where* column, and changing that file
-changes the "machine". Rows marked **ran** were observed by building
-`examples/borders` for the web and instantiating the
+changes the "machine". Rows marked **ran** were observed by building a colour-cycling program
+for the web and instantiating the
 result in Node while writing this file; rows marked **read** were read in
 the source named but not executed (the browser page was not driven by a
 script). Line numbers are as of this writing; the symbol beside each is
@@ -122,18 +123,18 @@ what to search for when they drift.
 | A cell's colour is its own byte's low nibble (foreground only); there is no per-cell background. Colour bytes start at 0, so a cell written with `text.putChar` alone draws in colour 0 (black). `screen.blank()` clears characters, not colours. | `web-runtime.mjs:247` (read); `packages/web/src/text.8bs:39-56` (read); `screen.8bs:42-44` (read) |
 | Only codes 32–95 draw (space, digits, upper-case letters, the ASCII punctuation between); 0 and everything else draws nothing, in both renderers. There are no block-graphics glyphs. | `web-runtime.mjs:181-184`, `decodeScreenCode`; `packages/cli/src/font8x8.mjs:23-27`, `glyphRows` (read); the font table is 64 glyphs, 512 bytes (ran) |
 | The browser draws cells with the system monospace font (`ui-monospace, Menlo, monospace`, ascent-corrected); the headless screenshot draws Hepper's `font8x8_basic`. The two pictures are not pixel-identical. | `web-runtime.mjs:213-223` (read); `screenshot.mjs:362-377`, `webScreenshot` (read) |
-| Memory: exactly one 64 KB wasm page (`--initialMemory 1`), `--maximumMemory 1` when the program uses `waitFrame()`; flat, unbanked; `memory.read`/`write` are `load<u8>`/`store<u8>` at any offset. | `packages/backend-web/src/index.mjs:321-335`, `buildWasm` asc flags; `:81-82, :128-129` (read); `memory.buffer.byteLength === 65536`, and a `SharedArrayBuffer` for a `waitFrame()` build (ran) |
-| Static data — string literals, `const` arrays, **`let` arrays**, `string<N>` variables — is laid out by asc from `--memoryBase 0xE000`; the 8192 bytes to the end of the page are the limit, and going past it is a build error phrased in those terms. | `index.mjs:45-50`, `STRING_DATA_BASE`; `:232-245`; `:343-351` (read); the borders program's two literals sit at `0xE000` as `[5,'T','I','C','K',' ', 8,' ','O','P',…]` and its highest non-zero byte is `0xE016` (ran) |
-| Scalar globals are wasm globals, exported by name, not bytes in linear memory: `memory.read` cannot see a variable. Arrays and strings *are* in memory. | `index.mjs:254-256` (read); exports of the built module are `BORDERS BACKGROUNDS framesUntilTick ticks option currentColor` (globals), `main` (function), `memory` (ran) |
-| `@address` on a scalar is refused for the web; `@address` on an *array* is accepted and becomes a raw offset into the page. | `index.mjs:247-252` vs `:241` (read) |
-| The `.wasm` imports at most `env.waitFrame` and exports exactly one function, found by kind, not by name; there is no crt0 — the worker and the headless host call the entry bare. | `index.mjs:205-213, 260-283` (read); `wasm-host.mjs:45-56`, `instantiateProgram` (read); imports `['env.waitFrame']` (ran); `web-runtime.mjs:102`, `wasm-host.mjs:70` (read) |
-| The page's clock: real elapsed time accumulates per `requestAnimationFrame`; each whole `1000 / frameRate` ms releases one logical frame by `Atomics.add`/`notify` on `ISSUED`, but only while fewer than two are owed; a stall is capped at ten steps. The worker's `waitFrame()` loops `Atomics.wait` on `ISSUED` until it exceeds `CONSUMED`, then increments `CONSUMED`. So one real frame satisfies 0, 1 or 2 `waitFrame()` calls — the same rule as the 6502 backend's accumulator, which names this host as its reference. | `web-runtime.mjs:257-300`, `tick()`; `:83-89`, worker `waitFrame` (read); `packages/backend-6502/src/index.mjs:236-250` (read) |
+| Memory: exactly one 64 KB wasm page; flat, unbanked. The host instantiates exported `memory` (`memory.buffer.byteLength === 65536`) and a `SharedArrayBuffer` for a `waitFrame()` build. Code generation is not built. | `packages/cli/src/wasm-host.mjs`, `instantiateProgram` (read); `packages/compiler/src/wasm/index.ts` (the contract, not a generator) |
+| Static data — string literals, `const` arrays, **`let` arrays**, `string<N>` variables — was laid out from `0xE000` under the pre-0.2.0 toolchain; the 8192 bytes to the end of the page are the limit. The native backend does not yet emit that layout. | `packages/compiler/src/wasm/index.ts` (the contract); the borders program's two literals sat at `0xE000` as `[5,'T','I','C','K',' ', 8,' ','O','P',…]` and its highest non-zero byte was `0xE016` (ran, pre-0.2.0) |
+| Scalar globals are wasm globals, exported by name, not bytes in linear memory: `memory.read` cannot see a variable. Arrays and strings *are* in memory. Observed pre-0.2.0 on a built module. Code generation is not built. | `packages/cli/src/wasm-host.mjs`; exports of a pre-0.2.0 module were `BORDERS BACKGROUNDS framesUntilTick ticks option currentColor` (globals), `main` (function), `memory` (ran, pre-0.2.0) |
+| `@address` on a scalar is refused for the web; `@address` on an *array* is accepted and becomes a raw offset into the page. | `packages/compiler/src/wasm/index.ts` (the contract; code generation is not built) |
+| The `.wasm` imports at most `env.waitFrame` and exports exactly one function, found by kind, not by name; there is no crt0 — the worker and the headless host call the entry bare. | `wasm-host.mjs:45-56`, `instantiateProgram` (read); imports `['env.waitFrame']` (ran, pre-0.2.0); `web-runtime.mjs:102`, `wasm-host.mjs:70` (read) |
+| The page's clock: real elapsed time accumulates per `requestAnimationFrame`; each whole `1000 / frameRate` ms releases one logical frame by `Atomics.add`/`notify` on `ISSUED`, but only while fewer than two are owed; a stall is capped at ten steps. The worker's `waitFrame()` loops `Atomics.wait` on `ISSUED` until it exceeds `CONSUMED`, then increments `CONSUMED`. So one real frame satisfies 0, 1 or 2 `waitFrame()` calls — the same rule as the 6502 backend's accumulator, which names this host as its reference. | `web-runtime.mjs:257-300`, `tick()`; `:83-89`, worker `waitFrame` (read); `packages/compiler/src/mos/index.ts` `FRAME_SYNC` (read) |
 | `frameRate` comes from `8bs.config.ts` (default 60, positive integer) and is threaded through `compile()` into `runInBrowser` and `webScreenshot`; `--pal` is ignored for the web. | `packages/cli/src/config.mjs:36-45`, `resolveFrameRate`; `run.mjs:223, 246`; `build.mjs:16-18` (read) |
 | The page paints the *live* shared memory every display refresh — no snapshot, no double buffer. A write is visible at whatever paint comes next, mid-frame included. | `web-runtime.mjs:225-255`, `paint(mem)`; `:298` (read) |
-| A program that never calls `waitFrame()` is built without shared memory, runs to completion in the worker, and its memory is posted to the page afterwards; a program that returns ends ("the program finished"); one that spins burns the worker, not the tab. | `web-runtime.mjs:97-108, 302-308` (read); `index.mjs:333-335` (read) |
+| A program that never calls `waitFrame()` is built without shared memory, runs to completion in the worker, and its memory is posted to the page afterwards; a program that returns ends ("the program finished"); one that spins burns the worker, not the tab. | `web-runtime.mjs:97-108, 302-308` (read); `wasm-host.mjs` (read) |
 | Shared memory needs cross-origin isolation, so every response carries `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`. | `web-runtime.mjs:323-330`, `ISOLATION_HEADERS` (read) |
 | Headless: `boundedWaitFrame(limit)` throws `FrameLimitReached` on call `limit + 1`, unwinding through the wasm frames; `--frames` counts `waitFrame()` calls exactly; the default is `3 × frameRate`. After 180 frames at 60 the borders program shows `TICK 6 OPTION 0`, border 6, background 3, cell-0 colour 7 — exactly 3 s of its 0.5 s tick. | `wasm-host.mjs:11-29, 67-75` (read); `screenshot.mjs:323, 344-350` (read); memory after the run (ran) |
-| Toolchain: `asc 0.28.20`, flags `-O3 --runtime stub --memoryBase 57344 --initialMemory 1` (+ `--maximumMemory 1 --sharedMemory --enable threads` for `waitFrame()` builds); Node ≥ 26. LLVM-MOS is not involved: the SDK's `bin/` has no web driver (only `wasm-ld`, LLVM's linker). | `packages/backend-web/package.json:8-12`; `index.mjs:318-336` (read); `ls ~/.local/opt/llvm-mos/bin` (ran); the borders `.wasm` is 747 bytes (ran) |
+| Code generation is not built. The host contract (one 64 KB page, `env.waitFrame`, exported memory) is `packages/cli/src/wasm-host.mjs`. Node ≥ 26. The borders `.wasm` was 747 bytes under the pre-0.2.0 toolchain. | `packages/compiler/src/wasm/index.ts`; `wasm-host.mjs` (read) |
 | Output is `dist/<stem>.wasm` beside its generated `dist/<stem>.ts`, no target/region/profile suffix; the memory line is the source's declared counts. | `build.mjs:215-225, 262-268`, `memoryLine` (read); `built …/dist/main.wasm`, `memory: 4 bytes of RAM for variables, 23 bytes of constant data (as declared)` (ran) |
 | The checker's portable string set is space, `0`–`9`, `A`–`Z`, `! , - . : ?` — a subset of what the host draws (32–95). `text.putChar` takes any `utinyint`; the host decides what shows. | `packages/compiler/src/checker/index.mjs:68` (read) |
 | The web is the last of nine machines the resolver knows; `@8bitscript/screen` and `@8bitscript/text` map it to this package's two subpaths. | `packages/compiler/src/resolver/index.mjs:42`; `packages/screen/package.json`, `packages/web/package.json:9-12` (read) |
@@ -144,11 +145,10 @@ what to search for when they drift.
 The brief every target is written against asks sixteen questions. For the
 web each answer is a line of code, cited above; this is the compact form.
 
-1. **CPU / clock** — none emulated. The program is wasm32 from
-   AssemblyScript; integer arithmetic widens to i32 and narrows at every
-   store, so `u8` wraps exactly as specified; 24-bit types widen to 32.
-   There is no cycle budget: a frame's work takes however long the host
-   takes. `asm6502` is refused.
+1. **CPU / clock** — none emulated. The program is wasm32 when a backend
+   exists; integer wrap at every store is the host contract, not something
+   generated today. There is no cycle budget: a frame's work takes however
+   long the host takes. `asm6502` is refused. Code generation is not built.
 2. **RAM and banking** — one flat 64 KB page, no banking. `0x0000`–`0x07D1`
    is the screen agreement, `0xE000`–`0xFFFF` is static data (8 KB, shared
    by literals and `let`/`const` arrays), everything between is free and
@@ -176,8 +176,9 @@ web each answer is a line of code, cited above; this is the compact form.
 14. **Emulator** — the runtime itself (`8bs run web`), a local HTTP server
     plus the OS browser; headless screenshot through Node + `font8x8` +
     a minimal PNG encoder; no host-filesystem route.
-15. **LLVM-MOS** — not used; `asc 0.28.20`, `--runtime stub`, one page,
-    `--memoryBase 0xE000`; no crt0; the entry is the one exported function.
+15. **Code generation** — not built. The host contract is one 64 KB page,
+    `env.waitFrame`, exported memory, no crt0; the entry is the one
+    exported function (`packages/cli/src/wasm-host.mjs`).
 16. **Traps** — see "Traps" below.
 
 ## Rules for this target
@@ -188,7 +189,7 @@ web each answer is a line of code, cited above; this is the compact form.
   sync by hand: `WebRegisters` in `index.8bs`, the constants at the top of
   `web-runtime.mjs` (which `screenshot.mjs` imports, so the headless
   renderer cannot drift from the browser's layout — only from its font),
-  and the asc flags in `backend-web`. Change one and the other two are
+  and the host contract in `packages/compiler/src/wasm` / `wasm-host.mjs`. Change one and the other two are
   wrong. There is no shared module the `.8bs` side and the JS host can
   both import; until there is, a change to the agreement is a three-file
   change and a test.
@@ -251,7 +252,7 @@ web each answer is a line of code, cited above; this is the compact form.
   reference, and the reference must stay a fixed timestep.
 - The ≤ 2-owed rule and the ten-step stall cap are the web's version of
   "a real machine never catches up a backlog". Keep them in step with
-  `FRAME_SYNC` in `backend-6502` if either side changes.
+  `FRAME_SYNC` in `packages/compiler/src/mos` if either side changes.
 - A `waitFrame()` build is a shared-memory build and needs COOP/COEP.
   Hosting the `.wasm` on any server other than `8bs run web`'s needs those
   two headers, or `SharedArrayBuffer` does not exist and the worker cannot
@@ -410,8 +411,8 @@ sources before a capability depends on it.
 14. **Emulator** — keep `8bs run web`; make the page and the headless
     path share one renderer (`font8x8` in both, drawn to the canvas as
     pixels, not text) so a screenshot is the tab, pixel for pixel.
-15. **LLVM-MOS** — stays out. `asc` stays; the `--memoryBase` and page
-    flags change only with item 2.
+15. **Code generation** — still not built. The `--memoryBase` and page
+    layout change only with item 2, when a backend exists to emit them.
 16. **Traps** — the "Traps" section above is what to keep true, or
     update, whichever way the proposal goes.
 
@@ -423,8 +424,8 @@ packages/web/src/screen.8bs              @8bitscript/web/screen: setColors/setBo
 packages/web/src/text.8bs                @8bitscript/web/text: ASCII straight into the page, setReverse (colour bit 7), COLUMNS 40, CELL_COUNT 1000, divide-based printNumber, eight TextColor names
 packages/web/src/input.8bs               @8bitscript/web/input: poll() reads INPUT_OFFSET; arrows, Enter, Escape; pointer still false
 packages/web/package.json                "8bitscript".entry and the subpaths ./screen, ./text, ./input, ./pointer
-packages/backend-web/src/index.mjs       IR → AssemblyScript → asc: STRING_DATA_BASE 0xE000, one page, env.waitFrame import, @address/asm6502 refusals, the asc flags
-packages/backend-web/test/backend.test.mjs   u8 wrap, shared memory + host import, string data at 0xE000 clear of the screen
+packages/compiler/src/wasm/index.ts        IR → .wasm: not implemented; records the host contract (one page, env.waitFrame, exported memory)
+packages/compiler/test/wasm.test.ts   u8 wrap, shared memory + host import, string data at 0xE000 clear of the screen
 packages/cli/src/web-runtime.mjs         the emulator: COLORS, GRID_COLS/ROWS, CHAR_W/H, BORDER_PX, CHAR_BASE/COLOR_BASE, INPUT_OFFSET, the worker's Atomics.wait, the page's rAF clock, paint(), key snapshot, COOP/COEP
 packages/cli/src/wasm-host.mjs           headless: instantiateProgram (one export, one import), boundedWaitFrame, runProgram
 packages/cli/src/font8x8.mjs             the 64-glyph 8×8 font (ASCII 32–95) the screenshot draws with
@@ -434,7 +435,7 @@ packages/cli/src/run.mjs                 8bs run web / --no-open → runInBrowse
 packages/cli/src/build.mjs               --target web → buildWasm, dist/<stem>.wasm, declared memory line; --pal ignored
 packages/cli/src/config.mjs              resolveFrameRate: the one timing knob
 packages/cli/test/screenshot.test.mjs    web: --screenshot produces a PNG with no emulator at all
-packages/backend-6502/src/index.mjs      FRAME_SYNC's accumulator comment: this host is the reference the 6502 clock imitates
+packages/compiler/src/mos/index.ts       FRAME_SYNC's accumulator comment: this host is the reference the 6502 clock imitates (the backend refuses to build)
 packages/compiler/src/fold/index.mjs     SYSTEMS: #system() is 0 on a web build (System.WEB)
 packages/studio/src/main.8bs             the one Studio entry: input.keyboard is true, but glyphs/sprites/voices are zero, so the web takes Tier.VIEWER
 docs/compiler.md                         the web backend row, 0xE000 strings, the 8 KB static-data limit, memory.write on the web

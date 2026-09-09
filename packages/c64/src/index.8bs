@@ -8,9 +8,9 @@
 //     import { reuStatus, reuCommand } from "@8bitscript/c64"; // --profile reu*
 //
 // The surface is the hardware, one register at a time — the VIC-II, the
-// SID, the two CIAs, the 6510's own port — under the names llvm-mos-sdk's
-// c64.h gives the chips (`VIC`, `SID`, `CIA1`, `CIA2`) and the fields its
-// _vic2.h/_sid.h/_6526.h give the registers. What a program usually wants
+// SID, the two CIAs, the 6510's own port — under the names the chips'
+// own documentation gives them (`VIC`, `SID`, `CIA1`, `CIA2`) and the
+// register fields of each. What a program usually wants
 // sits one layer up, in this package's own implementations of the portable
 // capability packages — `./src/screen.8bs` behind @8bitscript/screen and
 // `./src/text.8bs` behind @8bitscript/text, named by the "8bitscript".exports
@@ -31,8 +31,8 @@ import { Video } from "./geometry.8bs";
 //
 // $0001, the processor port. Bits 0-2 are LORAM, HIRAM and CHAREN: which of
 // BASIC ROM, KERNAL ROM and the I/O area / character ROM the CPU sees over
-// the RAM that is always underneath. The SDK's start-up (unmap-basic.o's
-// .init section: `ldx #$2f / stx $00 / ldx #$3e / stx $01`) leaves it at
+// the RAM that is always underneath. Start-up (pre-0.2.0: `ldx #$2f /
+// stx $00 / ldx #$3e / stx $01`) leaves it at
 // $3E — BASIC out, KERNAL in, I/O in — so $A000-$BFFF is program RAM. Bits
 // 3-5 are the cassette lines. Change it by reading, masking and writing
 // back, never with a literal: the three functions at the end of this file
@@ -41,7 +41,7 @@ import { Video } from "./geometry.8bs";
 // The low three bits, and what the CPU sees (c64-wiki, "Bank Switching"):
 //   %111 $37  BASIC, KERNAL, I/O            the machine's boot state
 //   %110      BASIC, KERNAL, character ROM
-//   %011 $3B  RAM at $A000, KERNAL, I/O     the SDK's state (as $3E)
+//   %011 $3B  RAM at $A000, KERNAL, I/O     start-up's state (as $3E)
 //   %010      RAM at $A000, KERNAL, character ROM   the copy below
 //   %101 $35  RAM at $A000 and $E000, I/O   this package's state (as $3D)
 //   %100, %00x  RAM everywhere, no I/O      writes under I/O (as $3C)
@@ -66,7 +66,7 @@ export let spriteXHigh: volatile<u8>;
 // $D011, control register 1 (`ctrl1`): bit 7 RST8 (bit 8 of the raster
 // line, read; of the raster compare, write), 6 ECM, 5 BMM, 4 DEN (display
 // enable), 3 RSEL (25 rows / 24), 0-2 YSCROLL. The frame runtime reads
-// bit 7 (FRAME_SYNC.c64 in packages/backend-6502).
+// bit 7 (FRAME_SYNC.c64 in packages/compiler/src/mos).
 @address(0xD011)
 export let control1: volatile<u8>;
 
@@ -323,7 +323,7 @@ export function copyCharacterRom(): void {
 //
 // PAL or NTSC is not a build fact: one .prg runs on both, and the frame
 // runtime finds out for itself at start-up (FRAME_SYNC.c64's probe,
-// packages/backend-6502) — but keeps the answer to itself. So this is the
+// packages/compiler/src/mos) — but keeps the answer to itself. So this is the
 // same probe, for a program that needs it: @8bitscript/c64/sid's note
 // tables (the SID's pitch is the CPU clock's), a program timing something
 // in raster lines. Sync to the top of a frame, then watch one whole frame
@@ -402,7 +402,7 @@ export function readUnderIo(address: usmallint): utinyint {
 // $DF00-$DF0A, the standard Commodore 1764/1750-compatible REU DMA
 // controller register map — confirmed against VICE's own `-reu`/`-reusize`
 // support (x64sc -help) and the register layout every REU-compatible
-// expansion since the 1700 has shared. These addresses exist in the SDK for
+// expansion since the 1700 has shared. These addresses exist in the map for
 // every c64 program (the same reasoning @8bitscript/pet's screen.8bs
 // documents for `setColors` on a machine without colour): they only do
 // something when the program is actually built and run against a `reu*`

@@ -11,7 +11,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { link, tokenize, parse, lower } from '../index.mjs';
-import { emitC } from '../../backend-6502/src/index.mjs';
 
 const lowered = (src) => {
   const { tokens } = tokenize(src, 't.8bs');
@@ -70,9 +69,11 @@ test('linker: a chain of pending namespace consts across modules resolves, and a
     await writeFile(join(dir, 'main.8bs'), main);
     const { ir, diagnostics } = link(main, join(dir, 'main.8bs'));
     assert.deepEqual(diagnostics, []);
-    const c = emitC(ir, { machine: 'pet' });
-    assert.match(c, /cell < 2000/);
-    assert.match(c, /\(32768 \+ 80\) = 80;/);
+    const fill = ir.functions.find((f) => f.name === 'text_fill');
+    assert.deepEqual(fill.body[0].test.right, { kind: 'const', value: 2000 });
+    const write = mainOf(ir).body[1];
+    assert.deepEqual(write.address, { kind: 'binop', operator: '+', left: { kind: 'const', value: 32768 }, right: { kind: 'const', value: 80 } });
+    assert.deepEqual(write.value, { kind: 'const', value: 80 });
 
     await writeFile(join(dir, 'a.8bs'), 'import { B } from "./b.8bs";\nexport namespace A { const X: utinyint = B.Y; }\n');
     await writeFile(join(dir, 'b.8bs'), 'import { A } from "./a.8bs";\nexport namespace B { const Y: utinyint = A.X; }\n');

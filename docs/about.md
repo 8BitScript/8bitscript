@@ -33,11 +33,11 @@ browsing the sources on GitHub.
 
 ## Target systems
 
-8BitScript targets the 6502 family of 8-bit machines — the processors LLVM-MOS
-compiles for — plus the browser. Machines are added in phases, and the phases
-are ordered so that each one forces the compiler to prove something new: first
-that the language is separate from the VIC-20's hardware, then that it is not
-a game language in disguise, then that it is not tied to Commodore at all.
+8BitScript targets the 6502 family of 8-bit machines, plus the browser.
+Machines are added in phases, and the phases are ordered so that each one
+forces the compiler to prove something new: first that the language is
+separate from the VIC-20's hardware, then that it is not a game language in
+disguise, then that it is not tied to Commodore at all.
 
 | Phase | Targets | Goal |
 | ----- | ------- | ---- |
@@ -51,36 +51,32 @@ a game language in disguise, then that it is not tied to Commodore at all.
 | 7 | Atari 2600 | Torture-test low-level control |
 | 8 | Game Boy + Z80 family | First non-6502 backends |
 
-Phase 1 is where the work is now: `web`, `vic20` and `c64` are the only
-targets that exist, and together they are 8BitScript 0.1. Each phase also
-names a native reference machine (C64, then C128, then Commander X16) on which
-8BitScript's own development tools are written and then ported forward. The
-full plan, with the reasoning behind each phase, is in
-[the roadmap](roadmap.md).
+Nine machine packages exist (`web`, `vic20`, `c64`, `pet`, `c128`, `atari8`,
+`nes`, `cx16`, `mega65`). **No target builds on trunk until the native
+backends land (0.2.0).** Each phase also names a native reference machine
+(C64, then C128, then Commander X16) on which 8BitScript's own development
+tools are written and then ported forward. The full plan, with the reasoning
+behind each phase, is in [the roadmap](roadmap.md).
+
 ## Architecture
 
 ```
 main.8bs
    |
    v
-parser  ->  binder  ->  checker  ->  HIR  ->  MIR
+parser  ->  binder  ->  checker  ->  IR  ->  linker
                                               |
                     +-------------------------+-------------------------+
                     |                                                   |
                     v                                                   v
-              web backend                                    LLVM-MOS backend
+              web backend                                      6502 backend
+         **Not built yet, 0.2.0**                         **Not built yet, 0.2.0**
                     |                                                   |
                     v                                                   v
-        generated AssemblyScript                                 generated C
-                    |                                                   |
-                    v                                                   v
-                   asc                             mos-vic20-clang / mos-c64-clang
-                    |                                                   |
-                    v                                                   v
-                  .wasm                                               .prg
-                    |                                                   |
-                    v                                                   v
-                 browser                                              VICE
+                  .wasm                                         machine code
+                                                                        |
+                                                                        v
+                                                          .prg / .xex / .nes / .rom
 ```
 
 ## How it compares
@@ -108,24 +104,21 @@ checking — nothing stops a two-byte pointer being treated as a one-byte
 counter. 8BitScript keeps `asm6502` blocks, `@address` decorators, and
 `memory.read`/`memory.write` as first-class language features, not
 bolted-on escape hatches, so hand assembly is available inline wherever a
-program actually needs it. What the compiler does *not* do is its own
-register allocation or instruction selection: it generates C and hands that
-to LLVM-MOS, which already does that job better than a first-generation
-backend would. What 8BitScript controls instead is where every global
-lives — `.rodata`, `.data`, `.noinit`, or `.zp.noinit` — decided by whether
-it is `const` or `let` and how it is initialised, not left to a C-style
-runtime initialiser.
+program actually needs it. 8BitScript is also its own assembler, linker,
+and register allocator: that work is the 0.2.0 milestone, and the backends
+that will do it exist today and refuse to emit. What the language already
+controls is where every global lives — `.rodata`, `.data`, `.noinit`, or
+`.zp.noinit` — decided by whether it is `const` or `let` and how it is
+initialised, not left to a C-style runtime initialiser.
 
-**C** is the closest relative: on the 6502 targets, 8BitScript's own
-ceiling is LLVM-MOS's C ceiling, because that toolchain compiles the
-generated C — `mos-vic20-clang`/`mos-c64-clang`. The differences are what
-8BitScript adds on top: range-checked, fixed-width integers caught at
-compile time (`let score: u8 = 300;` fails to build with `300 does not fit
-in u8 (0..255)` rather than silently wrapping), no `malloc` and no heap
-(arrays and strings are laid out at compile time), and portable APIs —
-`screen`, `text`, `input`, and so on — that resolve to each machine's own
-implementation, so the same source targets nine different machines without
-an `#ifdef` in sight.
+**C** is the closest relative on these machines: no garbage collector, no
+boxing, no hidden allocation. 8BitScript adds range-checked, fixed-width
+integers caught at compile time (`let score: u8 = 300;` fails to build with
+`300 does not fit in u8 (0..255)` rather than silently wrapping), no
+`malloc` and no heap (arrays and strings are laid out at compile time), and
+portable APIs — `screen`, `text`, `input`, and so on — that resolve to each
+machine's own implementation, so the same source targets nine different
+machines without an `#ifdef` in sight. It does not go through C.
 
 ### What to expect for compiled size
 
@@ -148,14 +141,18 @@ run time, because the machine and the labels aren't known until then. Full
 byte-by-byte accounting is in
 [compiler.md](compiler.md#what-a-call-costs-on-a-6502-measured).
 
-Absolute size is bounded by the machine, not the language: `8bs build`
-reports memory used after every build —
+Those byte counts were measured against the pre-0.2.0 toolchain and remain
+the absolute reference. Until the native backend's `build()` reports
+`memory.program` and `memory.variables`, no new size claim can be made.
+
+Absolute size is bounded by the machine, not the language. When the
+backends emit, `8bs build` will print memory used —
 
 ```
 memory: 3 bytes of RAM for variables, 771 bytes of program (code and data)
 ```
 
-— and refuses to link a program that doesn't fit, saying by how many bytes.
+— and refuse to link a program that doesn't fit, saying by how many bytes.
 The unexpanded VIC-20 — the machine 8BitScript targets first — has 3583
 bytes of usable RAM; the web target caps static data (arrays and string
 constants) at 8192 bytes.
@@ -169,17 +166,20 @@ constants) at 8192 bytes.
   to be written in 8BitScript to be usable from it.
 - **Not an interpreter.** There is no bytecode VM and no evaluation loop
   shipped with your program; everything is compiled ahead of time.
-- **Not a 6502 assembler/linker/register-allocator (LLVM-MOS does that).**
+- **It is a 6502 assembler, linker, and register allocator** — that work
+  is the 0.2.0 milestone; the backends exist and do not yet emit.
 - **Not a React framework.** It has no components, no virtual DOM, and no
   reactive rendering model. The web target is a compilation target, not a UI
   library.
 
 ## Status
 
-Nothing compiles yet. What does work is error reporting: the compiler has a
-lexer, one checker rule, and a diagnostics layer, and both `8bs check` and the
-language server run on them. So this reports a real error, in the terminal and
-under the cursor:
+**No target builds on trunk until the native backends land (0.2.0).** The
+front end through the linker exists. Two backends live in
+`@8bitscript/compiler` — `mos` and `wasm` — and both refuse: nothing
+generates 6502 opcodes or WebAssembly, so `8bs build` fails for every
+target. `8bs check` and the language server still run, so this reports a
+real error in the terminal and under the cursor:
 
 ```
 let score: u8 = 300;
@@ -193,20 +193,7 @@ Imports are checked too, against the package model: an uninstalled package or
 one that is not an 8BitScript package is reported rather than failing later in
 a strange way.
 
-The first milestone compiles and runs on both targets. `8bs build` takes a
-program through lexer, parser, checker, IR, linker, and a backend — generated
-C and LLVM-MOS for a VIC-20 or C64 `.prg`, generated AssemblyScript and asc
-for a `.wasm` — and `8bs run vic20` opens the result in VICE.
-`examples/borders` cycles the
-border colours on the VIC-20, the C64, *and* the web (`8bs run web` opens a
-real browser tab, and `waitFrame()` means the same thing there as on the
-6502 machines), importing its screen from `@8bitscript/screen` — a package whose entry
-resolves per target to that machine package's own implementation.
-[Studio](studio.md), the asset editor that ships with the toolchain as
-`@8bitscript/studio`, builds and runs on all nine too — today only its
-front door, which says what each machine's tier will open.
-
-Only a fixed subset compiles: globals and locals, arrays (`let` in RAM,
+The compiled subset lowers to IR: globals and locals, arrays (`let` in RAM,
 `const` as data), `const`s (inlined at compile time), functions with
 parameters and return values, arithmetic, `if`/`while`/`for`, hardware
 access, `asm6502`, namespaces, strings (literals as `string` parameters,
@@ -214,17 +201,19 @@ access, `asm6502`, namespaces, strings (literals as `string` parameters,
 `text.print(0, \`TICK ${ticks:1}\`)` — laid out at compile time), and
 imports, which the linker resolves across modules. Everything else —
 pointers and local arrays — fails with a diagnostic naming
-the construct rather than building without it. There is no binder yet, `8bs dev` is
-**planned and not yet implemented**, and breaking changes arrive without
-notice.
+the construct rather than lowering without it. There is no binder yet, `8bs
+dev` is **planned and not yet implemented**, and breaking changes arrive
+without notice.
+
+`@8bitscript/screen`, `@8bitscript/text`, and [Studio](studio.md) exist as
+packages. They do not produce an image until 0.2.0.
 
 ## Getting started
 
-Setup instructions for the host and retro toolchains live in the
-[setup guide](setup/index.md). Once that's done,
-[the getting started tutorial](tutorial.md) walks through cloning this
-repository and building and running `examples/borders` — the milestone subset
-of the language, working end to end today, on every target.
+Setup is emulators only — the [setup guide](setup/index.md). There is no
+external 6502 SDK. Until 0.2.0, `8bs build` refuses every target.
+[The getting started tutorial](tutorial.md) walks through the language
+subset the front end already accepts.
 
 ## File extensions
 
@@ -232,7 +221,7 @@ of the language, working end to end today, on every target.
 | -------------- | -------------------------------------------------------------- |
 | `.8bs`         | 8BitScript source                                               |
 | `.ts` / `.tsx` | TypeScript source for the compiler, tooling, and web runtime     |
-| `.s`           | 6502 assembly, hand-written or emitted by the LLVM-MOS backend   |
+| `.s`           | Hand-written 6502 assembly the compiler will include; the backend does not emit `.s` files yet |
 
 ## License
 

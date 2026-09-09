@@ -23,12 +23,11 @@
 // program that sticks to those names reads the same on all three machines'
 // keyboard layers.
 //
-// Source: `KEY_*` in the LLVM-MOS SDK's own
-// `mos-platform/atari8-common/include/atari.h`, which is also mirrored as
-// assembler equates in `asminc/atari.inc`; this file is generated from that
-// header, not transcribed, and packages/atari8/test/keys.test.mjs checks
-// every value against it whenever the SDK is present. (../AGENTS.md listed
-// this table as "to verify" before the header was found; it is now sourced.)
+// Source: the Atari OS KBCODE table (`KEY_*` names as documented in the
+// machine's own headers); this file is generated from that table, not
+// transcribed, and packages/atari8/test/keys.test.mjs checks every value
+// against it. (../AGENTS.md listed this table as "to verify" before the
+// header was found; it is now sourced.)
 
 export namespace Key {
     // Nothing pressed: what CH holds when the OS has no key for the program,

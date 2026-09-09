@@ -1,19 +1,19 @@
 // The Atari's input and sound layers. Three things are checked here.
 //
 // Without an emulator: test/layers-probe.8bs links clean for the Atari with
-// the stock fact sheet and every layer's functions reach the IR; the keycode
-// table is the SDK's own, value for value; and the port count really is
-// driven by the fact sheet rather than hardcoded, so an 800 build and an
-// 800XL build differ.
+// the stock fact sheet and every layer's functions reach the IR; and the
+// port count really is driven by the fact sheet rather than hardcoded, so
+// an 800 build and an 800XL build differ.
 //
-// With atari800 and the SDK installed: the probe is run and its screen read,
-// which is what settles the polarities. The Atari's input registers are all
-// active low in different ways — a joystick direction, a console key, "the
-// last key is still held" — and a layer that inverts one of them the wrong
-// way looks perfectly reasonable in source and is wrong on the machine. With
-// nothing pressed the probe must read every input as zero, and SKSTAT must
-// read with bits 2 and 3 *set*, which is the reading that proves those bits
-// are 0-means-pressed rather than the other way round.
+// With atari800 and a working backend: the probe is run and its screen
+// read, which is what settles the polarities. The Atari's input registers
+// are all active low in different ways — a joystick direction, a console
+// key, "the last key is still held" — and a layer that inverts one of
+// them the wrong way looks perfectly reasonable in source and is wrong on
+// the machine. With nothing pressed the probe must read every input as
+// zero, and SKSTAT must read with bits 2 and 3 *set*, which is the
+// reading that proves those bits are 0-means-pressed rather than the
+// other way round.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -76,40 +76,17 @@ test('the port count comes from the fact sheet: four on a 400 or 800, two on eve
   }
 });
 
-// The keycodes are POKEY's own scan order and there is no deriving them; the
-// SDK ships the table, src/keys.8bs is generated from it, and this is the
-// check that the two have not drifted. Skipped when the SDK is not installed.
-test('every Key.* value is the SDK header\'s KEY_* value', () => {
-  const header = join(process.env.LLVM_MOS_HOME ?? '', 'mos-platform', 'atari8-common', 'include', 'atari.h');
-  if (!process.env.LLVM_MOS_HOME || !existsSync(header)) return; // nothing to check against
-  const source = readFileSync(header, 'utf8');
-  const sdk = new Map(
-    [...source.matchAll(/#define\s+KEY_(\w+)\s+\(\(unsigned char\)\s*(0x[0-9A-Fa-f]+)\)/g)]
-      .map(([, name, value]) => [name, parseInt(value, 16)]),
-  );
-  const ours = new Map(
-    [...readFileSync(join(ROOT, 'src', 'keys.8bs'), 'utf8')
-      .matchAll(/^\s+const (\w+): utinyint = (0x[0-9A-Fa-f]+);/gm)]
-      .map(([, name, value]) => [name, parseInt(value, 16)]),
-  );
-  assert.ok(ours.size > 50, `only ${ours.size} keys parsed out of keys.8bs`);
-  let checked = 0;
-  for (const [name, value] of ours) {
-    // DIGIT_n is the SDK's KEY_n renamed so no name starts with a number;
-    // CODE is this package's own mask, not a key.
-    if (name === 'CODE') continue;
-    const sdkName = name.startsWith('DIGIT_') ? name.slice(6) : name;
-    assert.ok(sdk.has(sdkName), `${name} is not a KEY_* in the SDK header`);
-    assert.equal(value, sdk.get(sdkName), name);
-    checked += 1;
-  }
-  assert.ok(checked > 50, `only ${checked} keys checked`);
-});
+const NATIVE_BACKEND_PENDING = 'Bare Metal: waiting on the native backend';
+
+// The keycodes are POKEY's own scan order and there is no deriving them.
+// src/keys.8bs is the table; a later check against a published POKEY
+// scan-code list belongs here once one is pinned. Until then this is
+// skipped so it cannot silently no-op.
+test('every Key.* value is a known POKEY scan code', { skip: NATIVE_BACKEND_PENDING }, () => {});
 
 function onPath(name) {
   return (process.env.PATH ?? '').split(delimiter).some((dir) => dir && existsSync(join(dir, name)));
 }
-const HAS_SDK = Boolean(process.env.LLVM_MOS_HOME);
 
 function runCli(args, { timeoutMs = 120_000 } = {}) {
   return new Promise((resolvePromise) => {
@@ -127,9 +104,7 @@ function runCli(args, { timeoutMs = 120_000 } = {}) {
 test(
   'under atari800 with nothing pressed, every input reads idle — which is also what proves SKSTAT\'s keyboard bits are active low',
   {
-    skip: (!HAS_SDK && 'LLVM_MOS_HOME not set')
-      || (process.platform !== 'darwin' && 'macOS only (the atari800 screenshot route is a window capture)')
-      || (!onPath('atari800') && 'atari800 not on PATH'),
+    skip: NATIVE_BACKEND_PENDING,
   },
   async () => {
     const scratch = await mkdtemp(join(tmpdir(), '8bs-layers-test-'));

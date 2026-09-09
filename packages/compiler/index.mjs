@@ -1,4 +1,6 @@
 // @8bitscript/compiler — the public surface other packages consume.
+// The 6502 and WebAssembly backends live here too (`./mos`, `./wasm`);
+// they are not implemented yet and refuse every build.
 //
 // The dependency direction is one-way and load-bearing: the CLI and the
 // language server both depend on this package, and this package knows nothing

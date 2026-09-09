@@ -27,7 +27,7 @@
 // in at `$C000`–`$FFFF` and the screen at `$0400`, so the sprite pointers
 // live at `$07F8` and the shape cannot sit at C64 block 254. `$0E00`–`$0FFF`
 // is the area the KERNAL already reserved for sprite definitions, below
-// where the SDK links a program (`$1C01`).
+// where a native-mode program loads (`$1C01`).
 //
 // **The 80-column VDC has no sprites.** A program on `vdc80` still has no
 // arrow, and this file would still have to say so — today's builds draw

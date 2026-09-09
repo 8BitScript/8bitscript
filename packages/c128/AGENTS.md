@@ -4,8 +4,8 @@ This file is for anyone — human or agent — touching `packages/c128` (its
 `package.json` holds the [hardware catalog](#the-catalog); a new `detect`
 in it must also be added to the inventory `packages/cli/test/hardware.test.mjs`
 pins, or that test fails),
-`packages/backend-6502`'s `c128` entries (`DRIVER.c128`,
-`FRAME_SYNC.c128`), `packages/cli`'s `x128` handling
+`packages/compiler/src/mos`'s `c128` entries
+(`FRAME_SYNC.c128`), `packages/cli`'s `x128` handling
 (`VICE_EMULATOR_ARGS.c128`'s `-hidevdcwindow`, `VICE_MODEL_ARGS.c128`,
 `-exitscreenshotvicii` in `screenshot.mjs`), or the C128 rows of
 `docs/roadmap.md`, `docs/setup/vice.md` and `packages/studio/AGENTS.md`.
@@ -89,10 +89,10 @@ Do not describe more than this as working:
 - The hardware catalog in `package.json`: `ram`, `vdc`, `vdcrev`, `sid`,
   `cia`, `expansion`, `port1`, `port2`, and the presets `c128`, `c128d`,
   `c128dcr`, `vdc64`, `ram256`, `loaded`. See [The catalog](#the-catalog).
-- `FRAME_SYNC.c128` (`packages/backend-6502`) is the C64's level driver
+- `FRAME_SYNC.c128` (`packages/compiler/src/mos`) is the C64's level driver
   verbatim (`$D012` and `$D011` bit 7, the same NTSC 263 × 65 and PAL
-  312 × 63 figures at the same clocks), on the strength of the SDK's
-  `c128.h` mapping the VIC-IIe with the C64's `__vic2` struct — and
+  312 × 63 figures at the same clocks), because the VIC-IIe sits at the
+  C64's VIC-II addresses — and
   **without the C64's `presync`**: a C128 program keeps the KERNAL's IRQ
   alive. The jiffy clock, the keyboard scan and the `$0A2C` copy all run
   under a program that calls `waitFrame()`; that is why the shadow write
@@ -121,31 +121,31 @@ the map of that work; the rules below are what to hold it to.
 ## Facts verified here
 
 Cite these freely; each was read in the source named, or seen on screen
-under x128 (VICE 3.10, Homebrew) from a probe built with the installed
-`mos-c128-clang` and read through `-exitscreenshotvicii`/`-exitscreenshot`.
+under x128 (VICE 3.10, Homebrew) from a probe (pre-0.2.0)
+and read through `-exitscreenshotvicii`/`-exitscreenshot`.
 VICE *source* facts were read in the project's trunk on SourceForge
 (`vice/src/c128/`, `vice/src/vdc/`, `vice/src/vicii/`, `vice/src/joyport/`),
 a newer revision than the installed binary.
 
 | Fact | Where |
 | ---- | ----- |
-| The SDK links a C128 program into `ram` at `$1C01`, length `$A3FF` (to `$BFFF`, 41983 bytes), `__stack = 0xC000` (the C stack grows down from `$C000`, under the KERNAL ROM — the crt0's `__do_init_stack` is `lda #$00 / sta $0a / lda #$c0 / sta $0b`, static, unlike the VIC-20's MEMTOP call), imaginary registers from `$0A` (`__basic_zp_start = 0x000A`; `$02`–`$09` are the KERNAL's JMPFAR/JSRFAR parameters and left alone), zero page to `$8F` BASIC's. A `.prg` starts with a BASIC `SYS` line at `$1C01`. | `$LLVM_MOS_HOME/mos-platform/c128/lib/link.ld`, `commodore/lib/commodore.ld`, `llvm-objdump` of a linked build, `llvm-nm` (`__stack` = `0000c000`, `__rc0` = `0a`) |
-| `init-mmu.o` (`INPUT` by link.ld, `.init.010`, the first thing `_start` does) saves `$FF00` to `__mmusave` and writes `$0E`: I/O in (bit 0 = 0), BASIC-lo ROM out (bit 1 = 1 → RAM at `$4000`–`$7FFF`), mid ROM out (bits 2–3 = 11 → RAM at `$8000`–`$BFFF`), KERNAL/chargen in (bits 4–5 = 00 at `$C000`–`$FFFF`), **RAM bank 0** (bits 6–7 = 00). `.fini.990` restores it. So the program, its data, its stack and the VIC's screen all live in bank 0; bank 1 is untouched and unreachable without changing `$FF00`. | `c128/lib/init-mmu.o` disassembly; the SDK's `init-mmu.S` ("map $4000-$BFFF to RAM, $C000-$FFFF to KERNAL/chargen"), `c128.inc` `MMU_CFG_RAM0_KERNAL = %00001110` |
-| A plain SDK build prints PETSCII 14 before `main()` (`lda #$0e / jsr $FFD2` between `__do_zero_bss` and `main`) and the probe's text came up in lower case with `$D018` reading `$17` and `$0A2C` `$16`. `commodoreCharsetGuard()` keeps that out of an 8bitscript build. | `llvm-objdump -d` of the linked probe; probe screenshot |
+| A C128 program loads at `$1C01`, length `$A3FF` (to `$BFFF`, 41983 bytes), stack at `$C000` (grows down under the KERNAL ROM — start-up is `lda #$00 / sta $0a / lda #$c0 / sta $0b`, static, unlike the VIC-20's MEMTOP call), imaginary registers from `$0A` (`$02`–`$09` are the KERNAL's JMPFAR/JSRFAR parameters and left alone), zero page to `$8F` BASIC's. A `.prg` starts with a BASIC `SYS` line at `$1C01`. The native backend does not emit that start-up yet. | C128 link map (measured pre-0.2.0: `__stack` = `$C000`, `__rc0` = `$0A`) |
+| `init-mmu.o` (`INPUT` by link.ld, `.init.010`, the first thing `_start` does) saves `$FF00` to `__mmusave` and writes `$0E`: I/O in (bit 0 = 0), BASIC-lo ROM out (bit 1 = 1 → RAM at `$4000`–`$7FFF`), mid ROM out (bits 2–3 = 11 → RAM at `$8000`–`$BFFF`), KERNAL/chargen in (bits 4–5 = 00 at `$C000`–`$FFFF`), **RAM bank 0** (bits 6–7 = 00). `.fini.990` restores it. So the program, its data, its stack and the VIC's screen all live in bank 0; bank 1 is untouched and unreachable without changing `$FF00`. | `init-mmu` disassembly (pre-0.2.0: map `$4000-$BFFF` to RAM, `$C000-$FFFF` to KERNAL/chargen); `c128.inc` `MMU_CFG_RAM0_KERNAL = %00001110` |
+| A CHROUT of PETSCII 14 (`lda #$0e / jsr $FFD2`) would flip the machine to lower-case before `main` (`$D018` `$17`, `$0A2C` `$16` on a probe that did). 8BitScript does not emit that; `text.8bs` writes the shadow then `$D018`. | probe screenshot; `src/text.8bs` |
 | Boot state in native 40-column mode (`-model ntsc`, after `init-mmu`): `$FF00 = $0E`; `$D505 = $B7` (bit 0 = 8502, bit 6 clear = C128 mode, bit 7 set = 40/80 key up = 40 columns; `$D7 = $00`); `$D506 = $04` (1K common RAM at the bottom, VIC bank 0); page pointers `$D507/8 = $00/$F0`, `$D509/A = $01/$F0` (the high nybble reads as 1s); `$D50B = $20` (two 64K banks); `$D030 = $FC` (1 MHz; upper bits read as 1s); `$D02F = $F8`; `$00/$01 = $2F/$73`; `$D018 = $17`/`$0A2C = $16` (lower case, see above); `$0A03 = $00` (NTSC); `$D011 = $1B`, `$D016 = $C8`, `$DD00 = $C7` (VIC bank 0); `$0A2D = $78` (VM2, the KERNAL's bitmap layout: matrix `$1C00`, bitmap `$2000`). | probe screenshot `c128-probe-vic.png` |
 | `$01` bits 0 and 1 on the C128 are **not** LORAM/HIRAM: bit 0 picks which 1K half of the 2K colour RAM the CPU sees at `$D800`, bit 1 which half the VIC sees (`mem_color_ram_cpu`/`mem_color_ram_vicii`, `&mem_color_ram[0x400]` when clear). Both were set (`$73`) at boot, so CPU and VIC share half 0. Banking is the MMU's, not the port's. | `c128mem.c` lines 542–558; probe |
 | The MMU (`$D500`–`$D50B`, with `$FF00`–`$FF04` mirrors of registers 0–4 that stay visible in every configuration): CR bit 0 I/O, bit 1 BASIC-lo, bits 2–3 mid, bits 4–5 high, bits 6–7 RAM bank; MCR (`$D505`) bit 0 Z80/8502, bit 3 fast serial direction, bits 4–5 GAME/EXROM, bit 6 C64 mode (a 0→1 write switches), bit 7 the 40/80 key; RCR (`$D506`) bits 0–1 common size (VICE: 1K when 0, else `2048 << n` — 4K/8K/16K), bit 2 bottom, bit 3 top, bits 6–7 the VIC's RAM bank; `$D507`–`$D50A` page-0/page-1 relocation (latched, high byte commits on the low write); version `$D50B` reads `$20` ("always return 0x20 unless someone confirms 0x40"), even with `-c128fullbanks`. | `c128mmu.c` (`mmu_is_in_shared_ram`, `mmu_update_page01_pointers`, `mmu_is_c64config`, case 11) |
 | **The `$D018` shadow is real**: writing `$D018 = $14` alone read back `$15` and the screen went back to lower case before the screenshot; writing `$0A2C = $14` then `$D018 = $14` held upper case. (`$D018` bit 0 is unused and reads as 1 on every VIC-II, so `$14` reads `$15`.) | probe screenshots `c128p-noshadow.png`, `c128p-shadow.png` |
-| `$D030` bit 0 is the VIC-IIe's clock bit: writing 1 read back `$FD`, VICE sets `vicii.fastmode` and then steals no bad-line cycles (`vicii-fetch.c`: `if ((vicii.fastmode == 0) && …) dma_maincpu_steal_cycles`). **VICE 3.10 kept drawing a perfect 40-column picture in fast mode**; on a C64 `$D02F`/`$D030` are "(unused)" and read `$FF`. The SDK's `fast()` is `VIC.clock = 1` and its header says "This will disable video when in 40 column mode" — what the hardware's picture does at 2 MHz is *not* provable in this emulator (see below). | `vicii-mem.c` `d030_store`/`d02f_store`, `vicii-fetch.c`; probe `c128p-fast.png`; `c128/include/c128.h`, llvm-mos-sdk `c128.c` |
+| `$D030` bit 0 is the VIC-IIe's clock bit: writing 1 read back `$FD`, VICE sets `vicii.fastmode` and then steals no bad-line cycles (`vicii-fetch.c`: `if ((vicii.fastmode == 0) && …) dma_maincpu_steal_cycles`). **VICE 3.10 kept drawing a perfect 40-column picture in fast mode**; on a C64 `$D02F`/`$D030` are "(unused)" and read `$FF`. A `fast()` helper is `$D030` bit 0; documentation often says "This will disable video when in 40 column mode" — what the hardware's picture does at 2 MHz is *not* provable in this emulator (see below). | `vicii-mem.c` `d030_store`/`d02f_store`, `vicii-fetch.c`; probe `c128p-fast.png`; `c128/include/c128.h`, VICE `vicii-mem.c` |
 | `$D02F` is the VIC-IIe's extended-keyboard register: the low three bits drive three more column lines (`cia1_set_extended_keyboard_rows_mask`) for the numeric keypad and the extra keys; reads back `\| $F8`. | `vicii-mem.c` `d02f_store` |
 | The VDC is two ports: `$D600` write = register select (0–37), read = status (bit 7 ready, bit 6 light pen, bit 5 "VBLANK" — set while the display is *disabled, i.e. in the top or bottom border*, "nothing to do with vertical retrace … despite the name & what documentation says", bits 0–2 the revision); `$D601` = the selected register. Register 31 reads or writes VDC RAM at the address in R18/R19 and increments it; R30 fills (or copies, R24 bit 7) a block through R32/R33. Reads of R31 and writes of R18/19/31 make the chip busy (43 cycles in the active area, 4 in the border, in VICE's model) — wait for bit 7. | `vdc-mem.c` (`vdc_store`, `vdc_read`, `vdc_perform_fillcopy`) |
 | VDC state at boot (VICE NTSC C128, 40-column mode): status `$81` (ready, revision 1); R0 `$7E`, R1 `$50` (80 columns), R2 `$66`, R3 `$49`, R4 `$20`, R5 `$E0`, R6 `$19` (25 rows), R7 `$1D`, R9 `$E7` (8 lines per row), R12/13 `$0000` (screen), R20/21 `$0800` (attributes), R22 `$78` (8-pixel cells), R23 `$E8`, R24 `$20`, R25 `$47` (attributes on, text mode, hscroll 7), R26 `$F0` (foreground 15 on background 0), R27 `$00`, R28 `$2F` (characters at `$2000`; bit 4 clear — and it stays `$2F` under `-VDC64KB`: VICE's own FIXME says the bit "does *not* show how much ram is installed"). Five bytes written through R31 from `$0000` left R18/19 at `$0005`; the attribute bytes at `$0800` read `$07`, and **"HELLO" appeared on the VDC display while the KERNAL was in 40-column mode** — both screens are live at once, each with its own character set (the VDC's copy is in its own RAM at `$2000`; the VIC's is the ROM/`$D000` window). | probe screenshots `c128-probe-vic.png`, `c128-probe-vdc.png`, `c128-64k-vic.png` |
 | VDC constants VICE builds on: 16 MHz dot clock, no sprites (`VDC_NUM_SPRITES 0`), 16 colours, 64 register slots of which 38 (0–37) are decoded (`regmask[38]`, `update_reg < 38`), attribute bits `$10` flash, `$20` underline, `$40` reverse, `$80` alternate character set (bits 0–3 the colour), 16 or 32 bytes per character, text/bitmap/idle modes (R25 bit 7 bitmap, bit 6 attributes on, bit 5 semi-graphics, bit 4 double-pixel "unsupported"), address mask `$3FFF` (16K) or `$FFFF` (`-VDC64KB`); "the VDC produces exact PAL & NTSC line frequency of 64us & 63.5us respectively with default kernal values" — its frame is its own, driven by R0–R9, not the VIC's. The 16K/64K difference is real chips (4416 vs 4464) and VICE maps addresses between the two layouts either way. | `vdctypes.h`, `vdc.c`, `vdc-resources.c`, `vdc-mem.c` (`vdc_16k_to_64k_map`) |
 | x128 models: `c128` (flat: 6581, old CIA, VDC rev 1, 16K), `c128d` (same with a 1571), `c128dcr` (8580, new CIA, VDC rev 2, 64K, 1571CR), each PAL or NTSC; `-model` takes `c128`/`c128dcr`/`pal`/`ntsc`. Flags: `-40col`/`-80col` (the 40/80 key), `-go64` (C64 mode on reset), `-kernal64`/`-basic64`, `-c128fullbanks` (banks 2 and 3), `-VDC16KB`/`-VDC64KB`, `-VDCRevision 0..2`, `-machinetype 0..7` (keyboard/KERNAL nationality), `-controlport1device`/`-controlport2device` (1 Joystick, 2 Paddles, 3 Mouse (1351), 4 NEOS, 5 Amiga, 11–16 light pens on port 1, 10 Koala Pad, …), `-mouse` (host grab), `-fs8 <dir>`, `-8 <image>`, `-drive8type` (1541/1571/1581/…), `-reu`/`-reusize`, `-georam`, `-hidevdcwindow`, `-exitscreenshotvicii`. Timing: NTSC 65 × 263 at 1022730 Hz, PAL 63 × 312 at 985248. | `x128 -help`, `c128model.c`, `c128.h` |
 | The 1351: movement on the pot lines (`(counter & 0x7f) + 0x40` — 7-bit difference of two SID `$D419`/`$D41A` readings, with a 1-count confirm so rest 64/65 does not walk and slow host motion is not eaten; same filter as `@8bitscript/c64/mouse`), right button on UP, left button on FIRE; VICE's driver lists x128's native ports. The SmartMouse and Micromys are the same protocol with extras. | `mouse_1351.c` (port table, `mouse_get_1351_x`, `mouse_1351_button_*`); `src/input.8bs` |
-| The SDK's `c128.h`: VIC `$D000` (the C64's `__vic2`), SID `$D400`, VDC `$D600` (`ctrl`, `data`), CIA1 `$DC00`, CIA2 `$DD00`, `COLOR_RAM` `$D800`; `videomode(VIDEOMODE_40x25 / 80x25)` compares `$D7` and calls the KERNAL's SWAPPER; `c64mode()` is noreturn (KERNAL C64MODE); `fast()`/`slow()`/`isfast()` are `$D030` bit 0. `c128.inc` adds `PALFLAG $0A03`, `VM2 $0A2D`, `MODE $D7`, `MMU_CR $FF00` with the six `MMU_CFG_*` values, `VDC_INDEX/DATA`, `FETCH $02A2`/`STASH $02AF` (the KERNAL's cross-bank read/write stubs). | `c128/include/c128.h`, `c128/asminc/c128.inc`, llvm-mos-sdk `mos-platform/c128/c128.c` |
+| Chip bases: VIC `$D000`, SID `$D400`, VDC `$D600` (`ctrl`, `data`), CIA1 `$DC00`, CIA2 `$DD00`, colour RAM `$D800`. `videomode` compares `$D7` and calls the KERNAL's SWAPPER; `c64mode()` is noreturn (KERNAL C64MODE); `fast()`/`slow()`/`isfast()` are `$D030` bit 0. KERNAL symbols: `PALFLAG $0A03`, `VM2 $0A2D`, `MODE $D7`, `MMU_CR $FF00` with the six `MMU_CFG_*` values, `VDC_INDEX/DATA`, `FETCH $02A2`/`STASH $02AF` (cross-bank read/write stubs). | C128 PRG; `c128.inc` (KERNAL symbols); VICE `c128mmu.c` |
 | The catalog's stock fact sheet, for the native 40-column mode this target boots into: the C64's grid, colours, glyphs, blocks, bitmap, scroll and 8 sprites; the SID's 3 voices as on the C64; keyboard, two ports; disk; 41983 bytes (`$1C01`–`$BFFF`), and bank 1's 64 KiB as banked RAM this build may use (`memory.banked`, `memory.bankedKib` 64; the `ram=256k` value makes that 192). The VDC's 80 columns are not on the sheet until an 80-column text package exists. | `src/text.8bs`; the `link.ld` and MMU rows above; `package.json` (read) |
-| `@8bitscript/c128/banks` — `banks.kib()`: 64 on every C128, 192 with the 256 KiB modification. Selecting a bank changes the whole address space, instruction fetch included, so the probe first widens common RAM to 16 KiB (`$D506 = $07`, `$0000`–`$3FFF`) — which covers every program this toolchain builds, since the linker starts them at `$1C01` — writes a marker to `$8000` in bank 0, selects bank 2 through the `$FF00` mirror's top two bits, writes a different marker, comes back and reads bank 0's byte. On a 128 KiB machine banks 2 and 3 are 0 and 1 again, so the marker is gone. The KERNAL's interrupt runs throughout and is safe because its vectors, workspace and the stack are all inside the widened area. Disassembled and checked: between the two `$FF00` writes the code does `ldy #$c3`, `sty $8000`, `ldy $10` — an immediate, the probe's own byte, and one zero-page read, no soft stack (the soft stack is near `$BFFF`, outside common RAM, and `test/banks.test.mjs` asserts this on the built binary). Under x128 the probe printed 64 KiB stock and 192 with `ram=256k`. Cost: 639 bytes of program with the probe and 574 with the answer written in — 65 bytes. | `src/banks.8bs`; `llvm-objdump` of the linked build (ran); two screenshots (ran); `test/banks.test.mjs` |
+| `@8bitscript/c128/banks` — `banks.kib()`: 64 on every C128, 192 with the 256 KiB modification. Selecting a bank changes the whole address space, instruction fetch included, so the probe first widens common RAM to 16 KiB (`$D506 = $07`, `$0000`–`$3FFF`) — which covers every program this toolchain builds, since the linker starts them at `$1C01` — writes a marker to `$8000` in bank 0, selects bank 2 through the `$FF00` mirror's top two bits, writes a different marker, comes back and reads bank 0's byte. On a 128 KiB machine banks 2 and 3 are 0 and 1 again, so the marker is gone. The KERNAL's interrupt runs throughout and is safe because its vectors, workspace and the stack are all inside the widened area. Disassembled and checked: between the two `$FF00` writes the code does `ldy #$c3`, `sty $8000`, `ldy $10` — an immediate, the probe's own byte, and one zero-page read, no soft stack (the soft stack is near `$BFFF`, outside common RAM, and `test/banks.test.mjs` asserts this on the built binary). Under x128 the probe printed 64 KiB stock and 192 with `ram=256k`. Cost: 639 bytes of program with the probe and 574 with the answer written in — 65 bytes. | `src/banks.8bs`; disassembly of the linked build (pre-0.2.0); two screenshots (ran); `test/banks.test.mjs` |
 
 | **R28 bit 4 is a control, not a report.** It says which *kind* of DRAM the chip is wired to — clear for the 4416s of a 16 KiB VDC, set for the 4464s of a 64 KiB one — and it picks how the address is multiplexed onto them. With it clear a 64 KiB VDC reaches only its first 16 KiB. Verified the hard way: a probe that wrote past `$3FFF` without touching R28 reported 16 KiB on a C128DCR, which has 64. This is why the boot reading of `$2F` under `-VDC64KB` (the row above) says nothing about the RAM fitted — the bit was simply never set. | probe screenshots (ran, both ways); `vdc.c` `vdc_ram_store`/`vdc_ram_read` |
 | **A 16 KiB VDC in 64 KiB addressing loses A8 and A15** — and this is from Commodore, not inferred. The PRG prints the chip's DRAM row/column multiplex for both RAM types (`R28(4) 8563 RAM TYPE (4416/4164)`), and the 4416 row shows the column line that would carry A15 carrying **A8 a second time**. VICE's `vdc_64k_to_16k_map` is the same function (keep `$00FF`, slide `$7E00` down one). So `ramKib()` probes `$A000`/`$A100` — differing only in A8, one byte on a 16 KiB chip, two on a 64 KiB one — and those two fold onto `$1000`, the KERNAL's unused gap, so no byte of the 80-column display is ever written. **The widely circulated `$0000` versus `$4000` test is wrong**: A14 is not a bit a 16 KiB chip loses in this mode, and cc65's own VDC driver has the same defect (it probes pages `$02` and `$42`). That is the reported failure where a routine passes under emulation and misreports on real hardware. | *C128 PRG*, R28(4) mux table; `vice/src/vdc/vdc-mem.c` (read); [Lemon64](https://www.lemon64.com/forum/viewtopic.php?t=86461); `src/vdc.8bs`; `test/vdc.test.mjs` (ran, 16 KiB and 64 KiB) |
@@ -158,7 +158,7 @@ a newer revision than the installed binary.
 | **Both displays are live at once, from 8bitscript code**: the probe writes `HELLO` into 80-column screen RAM at VDC `$0000` through `setAddress`/`put` while the KERNAL is still driving the 40-column screen, and `-exitscreenshotvicii` and `-exitscreenshot` capture the two pictures side by side. The 40-column text and the 80-column text are both there. | `test/vdc-probe.8bs`, `test/vdc.test.mjs` (ran) |
 | A **C128DCR** reports VDC revision **2** in the status byte's low three bits and 64 KiB from the probe; a flat C128 reports revision 1 and 16 KiB. And the catalog's `c128dcr` preset — `-VDC64KB -VDCRevision 2 -sidmodel 1 -ciamodel 1` — produces the same two readings as `x128 -model c128dcr`, which is what lets the board be a preset over component flags instead of a `-model` that would clobber `-model ntsc\|pal`. | probe screenshots (ran): `-model c128dcr` and `--profile c128dcr` |
 | Hardware `run` flags are appended **after** `VICE_MODEL_ARGS` (`packages/cli/src/run.mjs`: emulator args, model args, then `hardware.run[emulator]`, then the file). So a catalog value that emitted `-model c128dcr` would override the region VICE was just given. No C128 option emits `-model`. | `packages/cli/src/run.mjs` (read) |
-| A `.8bs` identifier that is a **C keyword breaks the build**, with the error pointing at generated C rather than at the source: a parameter named `register` produced `static void vdc_write(uint8_t register, …)` and `error: expected expression`. `packages/backend-6502` does not rename identifiers, and no diagnostic catches it. Renamed to `index` (the SDK's own `VDC_INDEX`/`VDC_DATA` spelling); the general problem is unfixed. | clang output during this work |
+| A `.8bs` identifier that is a C keyword (`register`) broke a previous C-emitting backend (`static void vdc_write(uint8_t register, …)`). The native backend does not emit C. Renamed to `index` (KERNAL `VDC_INDEX`/`VDC_DATA` spelling). | compile error during this work (pre-0.2.0) |
 | `x128` has **no `-extfunc`** — it was replaced in VICE 3.7 by a C128 cartridge system (`-cartfrom`, `-cartgmod128`, `-cartmd128`, `-cartws128`, `-cartpartner128`, `-cartcomal128`); the internal socket is still `-intfunc <0-3>` (None/ROM/RAM/RTC) with `-intfrom <image>`. Also present and unused by this target: `-40col`/`-80col`, `-go64`, `-kernal64`/`-basic64`, `-machinetype 0..7` (0 International, 1 Finnish, 2 French, 3 German, 4 Italian, 5 Norwegian, 6 Swedish, 7 Swiss — VICE ships **no** national ROM images, so these fail without them), `-ciamodel 0\|1`, `-sidmodel 0\|1\|2` (2 is 8580 + digiboost), `-reu`/`-reusize 128..16384`, `-georam`/`-georamsize`, `-ramcart`, `-dqbb`, `-ramlink`, `-drive8type`, and the `-VDC*` display filters. | `x128 -help` (this machine's VICE 3.10); VICE trunk `c128/cart/c128cart.c`, `c128/functionrom.c` |
 | **`x128`'s resource defaults are a DCR, and only `-model` saves us**: `c128-resources.c` defaults `BoardType` to C128D and the CIAs to 6526A, and `vdc-resources.c` defaults `VDC64KB` 1 and `VDCRevision` 2. `8bs run c128` always passes `-model ntsc\|pal`, which selects the *flat* machine (old CIA, 6581, VDC revision 1, 16K) — confirmed by the probe reading revision 1 and 16 KiB. Anyone driving `x128` by hand without `-model` is testing a different machine from the one the catalog describes. | VICE `c128/c128-resources.c`, `vdc/vdc-resources.c`, `c128/c128model.c`; probe (ran) |
 | `-model` takes only `c128`, `c128dcr`, `pal`, `ntsc`. **The plastic C128D has no command-line name at all** (only VICE's GUI offers it), which is a second reason the boards are presets here rather than a `-model` option. VICE's own model table: flat and plastic-D are both old CIA / 6581 / VDC rev 1 / 16K, and only the DCR is new CIA / 8580 / rev 2 / 64K — which is exactly what the `c128dcr` preset spells out. | `c128model.c` |
@@ -176,9 +176,9 @@ Programmer's Reference Guide* and the 8563 datasheet are the primary
 references; Bauer's VIC-II text (cited in the C64 file) for the VIC-IIe's
 C64 half.
 
-**Memory map, native mode, bank 0 as the SDK leaves it.** `$0000`–`$00FF`
+**Memory map, native mode, bank 0 as start-up leaves it (pre-0.2.0).** `$0000`–`$00FF`
 zero page (`$00`/`$01` the 8502 port, `$02`–`$09` JMPFAR/JSRFAR, `$0A`–`$8F`
-BASIC — the SDK's registers); `$0100` stack; `$0200`–`$03FF` KERNAL/BASIC
+BASIC); `$0100` stack; `$0200`–`$03FF` KERNAL/BASIC
 workspace (vectors at `$0314`…, the `$02A2`/`$02AF` cross-bank stubs at
 `$02A2`–`$02FD`); `$0400`–`$07FF` the 40-column screen; `$0800`–`$09FF`
 BASIC input/tape buffers; `$0A00`–`$0BFF` KERNAL variables (`$0A03` PAL
@@ -189,7 +189,7 @@ variables (`$1210`/`$1212` MEMSIZ-like pointers); `$1300`–`$1BFF` unused
 (free for machine code, the traditional home); `$1C00`–`$3FFF` BASIC
 text (or, with BASIC's `GRAPHIC 1`, matrix at `$1C00` and bitmap at
 `$2000`–`$3FFF`, and BASIC text moves to `$4000`); `$4000`–`$BFFF` BASIC
-ROM (RAM underneath — what the SDK maps); `$C000`–`$FFFF` KERNAL ROM,
+ROM (RAM underneath — what start-up maps); `$C000`–`$FFFF` KERNAL ROM,
 with I/O at `$D000`–`$DFFF` (VIC `$D000`, SID `$D400`, MMU `$D500`, VDC
 `$D600`, colour RAM `$D800`, CIA1 `$DC00`, CIA2 `$DD00`, I/O1/2 `$DE00`/
 `$DF00`) and the character ROM under it when bit 0 of `$FF00` is set — the
@@ -367,7 +367,7 @@ loads the C64 KERNAL/BASIC (`-kernal64`/`-basic64` in VICE), and the
 machine is a C64 with three tells: `$D02F`/`$D030` still exist (the
 VIC-IIe's, "visible in 64 mode" per `c128.inc`), the MMU is gone (`$D500`
 reads `$FF`), and the 8502's `$01` bits 0–2 are LORAM/HIRAM/CHAREN again.
-A `mos-c64-clang` build runs there; a `mos-c128-clang` build does not (it
+A `c64` build runs there; a `c128` build does not (it
 loads at `$1C01` with a native-mode `SYS` line, and BASIC 2 starts at
 `$0801`). The reverse holds too. There is no way back to native mode
 except reset.
@@ -463,7 +463,7 @@ are recorded [below](#misreadings-in-the-research-notes). But everyone
 arrives here knowing the C64, and these are the C64 facts that are wrong
 on this machine:
 
-- **"The C128 has 128K the program can use."** The SDK gives a program
+- **"The C128 has 128K the program can use."** A C128 program gets
   bank 0, `$1C01`–`$BFFF`, ~41K — *less* than the C64's 51K, because the
   KERNAL stays in and BASIC's low RAM is reserved. The other 64K is a
   bank switch away and the language cannot express it yet.
@@ -483,7 +483,7 @@ on this machine:
   `SPRITE` commands; a program that owns the VIC bank chooses its own,
   and the C64 file's bank-3 layout does not apply either: the KERNAL ROM
   is *in* at `$C000`–`$FFFF` here and the VIC's bank 3 (`$C000`) shows
-  RAM under it to the VIC but is not where the SDK's program can put data
+  RAM under it to the VIC but is not where a C128 program can put data
   without banking the ROM out per access.
 
 ## Misreadings in the research notes
@@ -586,7 +586,7 @@ on the strength of this section either.
 
 ### The MMU is global state and the program lives in bank 0
 
-- `$FF00 = $0E` from `_start` to `exit`; the SDK restores the KERNAL's
+- `$FF00 = $0E` from `_start` to `exit`; exit restores the KERNAL's
   value on return. Nothing in a program changes `$FF00` casually: a far
   reference is a (bank, address) pair the language does not have yet, and
   when it does, a far read is `$FF00` (or the `$FF01`–`$FF04` preconfigs),
@@ -645,9 +645,9 @@ on the strength of this section either.
 
 ### Native mode is the target, and C64 mode is a different target
 
-- `mos-c128-clang` output runs only in native mode; `8bs run c128` never
+- A C128 program runs only in native mode; `8bs run c128` never
   passes `-go64`. A program that wants C64 mode is a `c64` build and runs
-  under `x64sc` (or `x128 -go64` by hand). `c64mode()` exists in the SDK
+  under `x64sc` (or `x128 -go64` by hand). KERNAL `C64MODE` (`$FF4D`) exists
   and is noreturn; do not wrap it.
 - The VIC-IIe's `$D02F`/`$D030` are visible in C64 mode; a `c64` build
   must never write `$D030` bit 0 "because it is unused on the C64" — on
@@ -807,14 +807,14 @@ packages/c128/src/input.8bs             @8bitscript/c128/input: CIA1 matrix and 
 packages/c128/src/pointer.8bs           @8bitscript/c128/pointer: sprite 0 from KERNAL block 56 at $0E00, on a 1351 build
 packages/c128/src/screen.8bs            @8bitscript/c128/screen: sixteen colours in both registers, blank() over 1000 cells at $0400
 packages/c128/src/text.8bs              @8bitscript/c128/text: ASCII → screen code, shadow-then-register, 40 × 25 at $0400/$D800
-packages/backend-6502/src/index.mjs     DRIVER.c128 (mos-c128-clang), FRAME_SYNC.c128 (the C64's level driver, no presync), commodoreCharsetGuard()
+packages/compiler/src/mos/index.ts     FRAME_SYNC.c128 (the C64's level driver, no presync; the backend refuses to build)
 packages/cli/src/run.mjs                VICE_EMULATOR_ARGS.c128 (-hidevdcwindow), VICE_MODEL_ARGS.c128 (-model ntsc/pal)
 packages/cli/src/screenshot.mjs         -exitscreenshotvicii, VICE_CLOCK_HZ.c128
 packages/c64/AGENTS.md                  the VIC-IIe/SID/CIA half of this machine, and the rules for it
 packages/studio/src/main.8bs            Studio's full tier — the default, the C128 has no branch of its own
 docs/setup/vice.md                      installing x128 with the other VICE emulators
 docs/roadmap.md                         Phase 2: "the first real test of the memory model"; the C128 as Studio's second reference machine
-$LLVM_MOS_HOME/mos-platform/c128/       link.ld ($1C01–$BFFF, __stack $C000), init-mmu.o ($FF00 = $0E), c128.h/_vdc.h/_vic2.h/_sid.h/_6526.h, asminc/c128.inc (MMU_CFG_*, VDC_*, shadows)
+C128 PRG / c128.inc                    $1C01–$BFFF, $FF00 = $0E, MMU_CFG_*, VDC ports, VIC/SID/CIA bases
 vice/src/c128/ (SourceForge trunk)      c128mmu.c (the MMU), c128mem.c ($01 and colour RAM), c128model.c, c128.h (timing)
 vice/src/vdc/                           vdc-mem.c (the port, status bits, fill/copy), vdctypes.h (attributes, sizes), vdc.c (its own frame), vdc-resources.c (16K/64K)
 vice/src/vicii/vicii-mem.c              d02f_store, d030_store (the VIC-IIe's two extra registers)

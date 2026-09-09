@@ -45,7 +45,7 @@ function makeWorld({
   });
   const io = {
     platform,
-    env: { LLVM_MOS_HOME: '/opt/llvm-mos', PATH: '/usr/local/bin:/usr/bin', ...env },
+    env: { PATH: '/usr/local/bin:/usr/bin', ...env },
     hasBinary: (name) => (name === 'brew' ? brew : false),
     canPromptInteractively: () => interactive,
     confirm: async (q) => { calls.confirms.push(q); return confirmAnswer; },
@@ -78,7 +78,6 @@ function makeWorld({
     },
     exec: async (cmd, args) => {
       calls.exec.push([cmd, args]);
-      if (cmd.endsWith('mos-mega65-clang')) return { code: 0, stdout: 'clang version 19', stderr: '', missing: false };
       if (cmd === 'xcode-select') return { code: xcode ? 0 : 2, stdout: '', stderr: '', missing: false };
       if (cmd === 'brew') {
         if (!brew) return { missing: true, code: null, stdout: '', stderr: '' };

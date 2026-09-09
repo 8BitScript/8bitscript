@@ -1,7 +1,6 @@
 // `8bs setup mega65` — get a macOS or Arch/Manjaro machine from nothing to a
-// working `8bs run mega65`: the mos-mega65-clang compiler (checked, not
-// installed — see docs/setup/llvm-mos.md), Xemu's MEGA65 core built from
-// source, and a legally-obtained MEGA65 ROM installed where both Xemu and
+// working `8bs run mega65`: Xemu's MEGA65 core built from source, and a
+// legally-obtained MEGA65 ROM installed where both Xemu and
 // `8bs doctor` expect it. Every step is idempotent — safe to re-run after a
 // partial failure, or just to confirm everything is still in place.
 //
@@ -99,15 +98,6 @@ const defaultIo = {
   buildXemu: buildXemuMega65,
   fetchImpl: (typeof fetch === 'function' ? fetch : undefined),
 };
-
-async function checkCompiler(io) {
-  const home = io.env.LLVM_MOS_HOME;
-  if (!home) return { ok: false, detail: 'LLVM_MOS_HOME is not set — docs/setup/llvm-mos.md' };
-  const driver = join(home, 'bin', 'mos-mega65-clang');
-  const r = await io.exec(driver, ['--version']);
-  if (r.missing) return { ok: false, detail: `mos-mega65-clang not found at ${driver} — docs/setup/llvm-mos.md` };
-  return { ok: true, detail: 'mos-mega65-clang' };
-}
 
 /** macOS host prerequisites: the Apple Command Line Tools (checked with
  * `xcode-select -p` before ever offering the installer), then Homebrew —
@@ -458,10 +448,6 @@ export async function setupMega65(options = {}, ioOverrides = {}) {
     reportStep('attn', 'platform', `no MEGA65 setup backend for '${io.platform}' — docs/setup/mega65.md`);
     return { ok: false };
   }
-
-  const compiler = await checkCompiler(io);
-  reportStep(compiler.ok ? 'ok' : 'attn', 'compiler', compiler.detail);
-  if (!compiler.ok) return { ok: false };
 
   if (io.platform === 'darwin') {
     const host = await ensureMacosPrerequisites(io);

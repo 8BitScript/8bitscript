@@ -116,17 +116,11 @@ second row.
 
 ## See it run
 
-[`examples/menubar`](../../examples/menubar)
-draws a four-item bar on all nine targets and steps the highlight along once
-a second:
-
-```bash
-cd examples/menubar
-pnpm start              # C64
-pnpm run start:vic20    # 22 columns: watch HELP get clipped
-```
-
-[8BitScript Studio](../studio) uses one across the top of its front door.
+[8BitScript Studio](../studio) uses a four-item bar across the top of its
+front door. Until 0.2.0, `8bs build` refuses every target, so that picture
+is the pre-0.2.0 layout, not something trunk emits today. The VIC-20 is the
+machine where `FILE EDIT VIEW HELP` does not fit a 22-column row: `HELP` is
+dropped and `clipped()` is true.
 
 ## Adding a component
 

@@ -258,7 +258,7 @@ function findPackageDir(fromDir, name) {
  * as @8bitscript/nes's CHR-ROM font, which no .8bs construct can express
  * yet. Paths are relative to the package and resolved here to absolute ones;
  * the linker collects them across the module graph and the 6502 backend
- * hands them to LLVM-MOS alongside the generated C. A package that ships
+ * receives them as native sources (it does not yet emit a binary). A package that ships
  * only .8bs simply has no such field. Every listed file must exist: a
  * package whose manifest names a file it does not ship is `8BS2008`,
  * reported at resolution time for the same reason a missing entry is —

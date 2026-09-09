@@ -22,20 +22,18 @@
 //
 // ---- what the program finds when main() runs ---------------------------
 //
-// LLVM-MOS's cx16 start-up code prints CHR$(15) through the KERNAL's CHROUT
-// immediately before calling main() — verified by disassembling a linked
-// build (`lda #$0f / jsr $ffd2 / jsr main`, in the SDK's start-up
-// sequence after `_start`; llvm-objdump labels the block with a local
-// symbol, `shift`). CHR$(15) switches the X16 KERNAL's screen editor into
-// ISO mode so that C's ASCII strings print as ASCII, and the KERNAL clears
-// the screen as part of that switch. Two consequences every program on this
-// target inherits, and the screen and text modules are written around:
+// The KERNAL boots in PETSCII. CHR$(15) through CHROUT switches the screen
+// editor into ISO mode so ASCII codes print as ASCII, and the KERNAL
+// clears the screen as part of that switch — verified by disassembly of a
+// linked build (pre-0.2.0: `lda #$0f / jsr $ffd2 / jsr main`). The native
+// backend does not yet emit that start-up. Two consequences the screen and
+// text modules are written around, for when a start-up does the switch:
 //
 //   1. The screen is blank when main() starts — the boot banner is gone —
 //      and it is the KERNAL's default blue (palette index 6) because that
 //      is the background nibble the KERNAL cleared every cell with. A
 //      program that sets a border and nothing else therefore appears to do
-//      nothing: examples/borders looked like exactly that, a solid blue
+//      nothing: a colour-cycling demo looked like exactly that, a solid blue
 //      screen, before screen.8bs painted anything itself.
 //
 //   2. The screen is in ISO mode: the character set VERA is drawing from
@@ -94,9 +92,8 @@ export let mapLow: usmallint = 0;
 export function locateTextMap(): void {
     mapBank = memory.read(0x9F35) / 128;
     // Two steps, not `(byte % 128) * 512`: the product can reach 65024,
-    // past a 16-bit signed int, and in the C this becomes that is
-    // undefined arithmetic on a promoted byte (LLVM-MOS happens to wrap;
-    // nothing promises it). Multiplying a usmallint keeps it unsigned.
+    // past a 16-bit signed int, and wrapping a promoted byte is not
+    // promised. Multiplying a usmallint keeps it unsigned.
     mapLow = memory.read(0x9F35) % 128;
     mapLow = mapLow * 512;
 }

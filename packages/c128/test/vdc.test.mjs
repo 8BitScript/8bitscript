@@ -2,8 +2,9 @@
 // much RAM it has. Three layers, as with ./banks: the probe program links
 // clean for the C128 with the stock sheet; the catalog names this subpath
 // as what finds the `vdc` option's value at run time; and, when x128 and
-// the SDK are installed, it is run on a 16 KiB machine and a 64 KiB one
-// and the border colour each screenshot shows is what vdc.ramKib() found.
+// a working backend are installed, it is run on a 16 KiB machine and a
+// 64 KiB one and the border colour each screenshot shows is what
+// vdc.ramKib() found.
 //
 // The last test is the one that says the chip is really being driven: it
 // captures the *VDC's* display (x128 draws two, and `8bs run --screenshot`
@@ -46,8 +47,7 @@ test('the probe program links clean for the C128, and vdc.ramKib() is a real fun
 function onPath(name) {
   return (process.env.PATH ?? '').split(delimiter).some((dir) => dir && existsSync(join(dir, name)));
 }
-const HAS_SDK = Boolean(process.env.LLVM_MOS_HOME);
-const SKIP = (!HAS_SDK && 'LLVM_MOS_HOME not set') || (!onPath('x128') && 'x128 not on PATH');
+const NATIVE_BACKEND_PENDING = 'Bare Metal: waiting on the native backend';
 
 function spawned(command, args, { timeoutMs = 120_000 } = {}) {
   return new Promise((resolvePromise) => {
@@ -66,7 +66,7 @@ const runCli = (args, options) => spawned(process.execPath, [CLI_BIN, ...args], 
 
 test(
   'under x128, vdc.ramKib() finds 16 KiB on a flat C128 and 64 with the bigger chip',
-  { skip: SKIP },
+  { skip: NATIVE_BACKEND_PENDING },
   async () => {
     const scratch = await mkdtemp(join(tmpdir(), '8bs-c128-vdc-'));
     try {
@@ -100,7 +100,7 @@ test(
 
 test(
   'the C128DCR is a 64 KiB VDC at revision 2, and the 80-column screen draws while the KERNAL runs the 40-column one',
-  { skip: SKIP },
+  { skip: NATIVE_BACKEND_PENDING },
   async () => {
     const scratch = await mkdtemp(join(tmpdir(), '8bs-c128-vdc2-'));
     try {

@@ -6,12 +6,13 @@ nav_order: 2
 # Host toolchain
 
 This page installs the general-purpose tooling every contributor needs before
-touching anything 6502-specific: Node.js, pnpm, git, and an editor. The
-retro-side toolchain — the compiler and linker that produce a `.prg` — is
-covered on the next page, [LLVM-MOS SDK](llvm-mos.md).
+touching a target emulator: Node.js, pnpm, git, and an editor. The
+Commodore emulators are covered on the next page, [VICE](vice.md).
 
 Everything here is a one-time setup. Nothing on this page builds or runs
-8BitScript code; there is nothing in the repository to build yet.
+8BitScript code. The compiler lives in this repository; the backends that
+would emit an image are not built yet (0.2.0). There is no external 6502
+SDK to install.
 
 ## Node.js 26
 
@@ -257,5 +258,5 @@ correctly and `pnpm` still does not, re-run `corepack prepare pnpm@12
 
 ## Next
 
-With Node, pnpm, git, and an editor in place, continue to the
-[LLVM-MOS SDK](llvm-mos.md).
+With Node, pnpm, git, and an editor in place, continue to
+[VICE](vice.md).

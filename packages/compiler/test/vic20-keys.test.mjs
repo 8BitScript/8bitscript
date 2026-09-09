@@ -9,7 +9,6 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { link } from '../index.mjs';
-import { emitC } from '../../backend-6502/src/index.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const VIC20_SRC = join(HERE, '..', '..', 'vic20', 'src');
@@ -85,8 +84,8 @@ test('the four directions and RETURN are the values @8bitscript/vic20/input reli
 // The scan is VIA2 alone: port B (columns) written, then port A (rows)
 // read, inverted once — and it runs before the joystick-right read so
 // that borrowed bit 7 sees a keyboard scan already finished for the
-// frame, not one still mid-column. Checked against real compiled output,
-// the way pet-keys.test.mjs checks PIA1's ports for the PET.
+// frame, not one still mid-column. Checked on the IR the way
+// pet-keys.test.mjs checks PIA1's ports for the PET.
 test('keyboard.scan() drives VIA2 port B then reads port A, and input.poll() runs it before reading joystick-right', () => {
   const src = [
     'import { input } from "./input.8bs";',
@@ -95,12 +94,17 @@ test('keyboard.scan() drives VIA2 port B then reads port A, and input.poll() run
   const entry = join(VIC20_SRC, 'phantom-entry.8bs'); // does not exist: only its directory resolves the relative imports
   const { ir, diagnostics } = link(src, entry, { machine: 'vic20' });
   assert.deepEqual(diagnostics, []);
-  const c = emitC(ir, { machine: 'vic20' });
-  assert.match(c, /via2PortB = COLUMN_SELECT\[select\];/);
-  assert.match(c, /state\w*\[select\] = \(via2PortA \^ 255\);/);
-  // keyboard_scan() is called before the joystick-right dance touches
-  // via2DirectionB — a textual order check, since both are in poll().
-  const scanAt = c.indexOf('keyboard_scan();');
-  const rightAt = c.indexOf('via2DirectionB & 127');
-  assert.ok(scanAt >= 0 && rightAt >= 0 && scanAt < rightAt, 'keyboard_scan() precedes the joystick-right read');
+  const poll = ir.functions.find((f) => f.name === 'input_poll');
+  assert.equal(poll.body[0].kind, 'call');
+  assert.equal(poll.body[0].name, 'keyboard_scan');
+  const dirAssign = poll.body.find((s) => s.kind === 'assign' && s.target === 'via2DirectionB');
+  assert.equal(dirAssign.value.operator, '&');
+  assert.deepEqual(dirAssign.value.right, { kind: 'const', value: 127 });
+  const scan = ir.functions.find((f) => f.name === 'keyboard_scan');
+  const loop = scan.body.find((s) => s.kind === 'for');
+  assert.equal(loop.body[0].target, 'via2PortB');
+  assert.equal(loop.body[0].value.array.name, 'COLUMN_SELECT');
+  assert.equal(loop.body[1].kind, 'storeIndex');
+  assert.equal(loop.body[1].value.operator, '^');
+  assert.equal(loop.body[1].value.left.name, 'via2PortA');
 });

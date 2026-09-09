@@ -32,9 +32,8 @@
 //
 // **Why the buffer lives at `$80`–`$84`.** mouse_get wants a zero-page
 // address in X and writes four consecutive bytes there (X lo/hi, Y lo/hi),
-// returning buttons in A. The SDK's cx16 link script gives the *program*
-// `$02`–`$7F` (`__basic_zp_end = $80`), and LLVM-MOS allocates that range
-// for imaginary registers and `.zp.noinit` variables. An earlier draft
+// returning buttons in A. The program's zero page is `$02`–`$7F`
+// (BASIC's zero page ends at `$80`). An earlier draft
 // parked this buffer at `$7B` and `sta $7B` for the buttons overwrote
 // `there` every poll — `present()` was false on a machine whose pointer
 // was drawing in the middle of the screen. `$80`–`$84` is the first byte
@@ -45,8 +44,8 @@
 // the SID's pots; the X16's KERNAL does not. `input.mouse` is true on the
 // stock sheet because the hardware has a mouse (the emulator's is always
 // there), and `present()` is that fact. A stored flag set before a KERNAL
-// call and read after it is not safe: `asm6502` is opaque, LLVM may keep
-// the flag in a register the call trashes — measured, with the pointer
+// call and read after it is not safe: `asm6502` is opaque, so the compiler
+// may keep the flag in a register the call trashes — measured, with the pointer
 // drawing at (319, 239) while `present()` was false. A board whose SMC
 // reports `BAT_FAIL` ($FC) leaves the mouse off and this file will still
 // say present. That case has not been seen under x16emu; *to verify* on a
@@ -132,8 +131,8 @@ export namespace mouse {
 
     // True on a build fitted with a mouse, which is every stock X16. This
     // is the fact, not a stored flag: an `asm6502` block is opaque to
-    // LLVM, so a bool set before a KERNAL call and read after it can be
-    // kept in a register the call trashes. Measured: `there = true` in
+    // the compiler, so a bool set before a KERNAL call and read after it
+    // can be kept in a register the call trashes. Measured: `there = true` in
     // begin() then mouse_get in poll() left present() false while the
     // pointer was drawing at (319, 239).
     function present(): bool {

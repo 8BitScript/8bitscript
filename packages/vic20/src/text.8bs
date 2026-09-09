@@ -23,7 +23,7 @@ import { Video } from "./geometry.8bs";
 // Where the 22x23 screen and its colour nybbles are depends on the RAM the
 // machine has — $1E00/$9600 unexpanded or with 3K, $1000/$9400 with 8K or
 // more — and that is the build's `--profile` to say (VIC20_PROFILES in
-// packages/backend-6502). It reaches this file as ./geometry.8bs's `Video`
+// packages/compiler/src/mos). It reaches this file as ./geometry.8bs's `Video`
 // namespace, whose 8k/16k/24k twins the profile selects; nothing here
 // names an address.
 //
@@ -39,10 +39,7 @@ import { Video } from "./geometry.8bs";
 //
 // Whether 1-26 then LOOK like 'A'-'Z' or 'a'-'z' is the character set's
 // choice — the ROM's boot state, whatever ran before, a user's SHIFT+C= —
-// so this package owns the choice rather than inheriting one (LLVM-MOS's
-// libc used to flip the machine to lower-case before main() with a hidden
-// CHR$(14); packages/backend-6502's commodoreCharsetGuard() keeps that out
-// of the link). putChar()
+// so this package owns the choice rather than inheriting one. putChar()
 // selects the upper-case set, every call, through the VIC's memory pointer
 // (see @8bitscript/vic20's `memoryPointer`): one register write — of the
 // value that also names this profile's screen base, since $9005 holds

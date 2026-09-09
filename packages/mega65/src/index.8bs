@@ -12,11 +12,12 @@
 // the "8bitscript".exports map in package.json — which import these
 // registers and are built on nothing else.
 //
-// A program built with mos-mega65-clang loads at $2001 and runs in MEGA65
-// mode: the VIC-IV I/O personality is live, the CPU is at 40.5 MHz, the
-// ROM's screen is 80 columns wide at $0800, and the SDK's start-up leaves
-// interrupts off (`sei`, `$01 = $3E`, `$D030 = $44`) until exit — all
-// measured under xmega65, see AGENTS.md. The registers below are the
+// A MEGA65 program loads at $2001 and runs in MEGA65 mode: the VIC-IV
+// I/O personality is live, the CPU is at 40.5 MHz, the ROM's screen is
+// 80 columns wide at $0800, and start-up leaves interrupts off (`sei`,
+// `$01 = $3E`, `$D030 = $44`) until exit — all measured under xmega65
+// (pre-0.2.0), see AGENTS.md. The native backend does not yet emit
+// that start-up. The registers below are the
 // VIC-II-compatible ones the VIC-IV still answers to at the C64's
 // addresses, which is enough for a border, a background, and a character
 // set; the MEGA65's own registers (SCRNPTR, the palettes, the DMAgic, the
@@ -41,18 +42,18 @@ export let backgroundColor: volatile<u8>;
 @address(0xD018)
 export let memoryPointer: volatile<u8>;
 
-// $D030, the VIC-III control register A. The SDK's start-up sets it to $44
+// $D030, the VIC-III control register A. Start-up (pre-0.2.0) sets it to $44
 // (PAL-RAM on, CROM9 on, no C65 ROM mapped, CRAM2K clear). Bit 0, CRAM2K,
 // maps the second kilobyte of colour RAM at $DC00-$DFFF in place of the
 // two CIAs — which the 80-column screen's cells 1024-1999 need, and which
 // text.8bs sets before every run of text (the frame runtime polls $D012,
 // not a CIA, so nothing here misses them). Writing anything but bit 0
-// re-maps ROM over the program: keep the other bits as the SDK left them.
+// re-maps ROM over the program: keep the other bits as start-up left them.
 @address(0xD030)
 export let vicIIIControlA: volatile<u8>;
 
 export namespace VicIIIControl {
-    const SDK_STARTUP: utinyint = 0x44;          // what .init.010 stores
+    const STARTUP: utinyint = 0x44;              // what .init.010 stores
     const COLOR_RAM_2K: utinyint = 0x45;         // the same, plus CRAM2K
 }
 

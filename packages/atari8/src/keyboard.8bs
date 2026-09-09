@@ -60,7 +60,7 @@ let held: bool = false;
 let shifted: bool = false;
 
 // SKSTAT's keyboard bits are active low: the bit is 0 while the thing is
-// true. (Atari Hardware Manual; the SDK's _pokey.h names them
+// true. (Atari Hardware Manual; `_pokey.h` names them
 // SKSTAT_LASTKEY_PRESSED and SKSTAT_SHIFTKEY_PRESSED without the polarity.
 // Checked here under atari800 with nothing pressed — both bits read 1 — by
 // test/layers-probe.8bs.)

@@ -14,7 +14,6 @@ import { join } from 'node:path';
 
 import { link } from '../index.mjs';
 import { variantOf, isVariantPath } from '../src/resolver/index.mjs';
-import { emitC } from '../../backend-6502/src/index.mjs';
 
 const codes = (diagnostics) => diagnostics.map((d) => d.code);
 
@@ -41,6 +40,14 @@ const LIB = [
   '}',
 ].join('\n');
 const MAIN = 'import { text } from "./lib.8bs";\nexport function main(): void { text.fill(); memory.write(0x8000, text.COLUMNS); }\n';
+const geometryOf = (ir) => {
+  const fill = ir.functions.find((f) => f.name === 'text_fill');
+  const main = ir.functions.find((f) => f.name === 'main');
+  return {
+    cells: fill.body[0].test.right.value,
+    columns: main.body[1].value.value,
+  };
+};
 
 test('a build for a machine and profile reads the profile\'s twin; the same machine on another profile, or no profile, reads the plain file', async () => {
   const dir = await mkdtemp(join(tmpdir(), '8bs-profile-variants-'));
@@ -53,15 +60,14 @@ test('a build for a machine and profile reads the profile\'s twin; the same mach
     const columns = (options) => {
       const { ir, diagnostics } = link(MAIN, entry, options);
       assert.deepEqual(diagnostics, [], JSON.stringify(options));
-      const c = emitC(ir, { machine: 'pet' });
-      return { c, cells: /cell < (\d+)/.exec(c)[1], columns: /32768\)? = (\d+);/.exec(c)[1] };
+      return geometryOf(ir);
     };
-    assert.deepEqual(columns({ machine: 'pet', profile: '8032' }).cells, '2000');
-    assert.deepEqual(columns({ machine: 'pet', profile: '8032' }).columns, '80');
-    assert.deepEqual(columns({ machine: 'pet', profile: '3032' }).cells, '1000');
-    assert.deepEqual(columns({ machine: 'pet' }).cells, '1000');
-    assert.deepEqual(columns({ machine: 'c64', profile: '8032' }).cells, '1000'); // another machine's profile of that name is not this one
-    assert.deepEqual(columns({}).cells, '1000');
+    assert.equal(columns({ machine: 'pet', profile: '8032' }).cells, 2000);
+    assert.equal(columns({ machine: 'pet', profile: '8032' }).columns, 80);
+    assert.equal(columns({ machine: 'pet', profile: '3032' }).cells, 1000);
+    assert.equal(columns({ machine: 'pet' }).cells, 1000);
+    assert.equal(columns({ machine: 'c64', profile: '8032' }).cells, 1000); // another machine's profile of that name is not this one
+    assert.equal(columns({}).cells, 1000);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -76,11 +82,11 @@ test('a machine\'s plain twin serves the profiles that have no twin of their own
     await writeFile(join(dir, 'lib.8bs'), LIB);
     await writeFile(join(dir, 'main.8bs'), MAIN);
     const entry = join(dir, 'main.8bs');
-    const columnsOf = (options) => /32768\)? = (\d+);/.exec(emitC(link(MAIN, entry, options).ir, { machine: 'pet' }))[1];
-    assert.equal(columnsOf({ machine: 'pet', profile: '8032' }), '80');
-    assert.equal(columnsOf({ machine: 'pet', profile: '3016' }), '40');
-    assert.equal(columnsOf({ machine: 'pet' }), '40');
-    assert.equal(columnsOf({ machine: 'vic20', profile: '16k' }), '22');
+    const columnsOf = (options) => geometryOf(link(MAIN, entry, options).ir).columns;
+    assert.equal(columnsOf({ machine: 'pet', profile: '8032' }), 80);
+    assert.equal(columnsOf({ machine: 'pet', profile: '3016' }), 40);
+    assert.equal(columnsOf({ machine: 'pet' }), 40);
+    assert.equal(columnsOf({ machine: 'vic20', profile: '16k' }), 22);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -122,7 +128,7 @@ test('an import that names a profile\'s twin outright gets exactly that file, on
     for (const options of [{ machine: 'pet', profile: '3032' }, { machine: 'c64' }, {}]) {
       const { ir, diagnostics } = link(MAIN, entry, options);
       assert.deepEqual(diagnostics, [], JSON.stringify(options));
-      assert.match(emitC(ir, { machine: 'pet' }), /cell < 2000/);
+      assert.equal(geometryOf(ir).cells, 2000);
     }
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -139,15 +145,15 @@ test('a build with several hardware tags reads the one tag\'s twin that exists; 
     await writeFile(join(dir, 'lib.8bs'), LIB);
     await writeFile(join(dir, 'geometry.8bs'), GEOMETRY_40);
     await writeFile(join(dir, 'geometry.pet.8032.8bs'), GEOMETRY_80);
-    const columnsOf = (options) => /32768\)? = (\d+);/.exec(emitC(link(MAIN, entry, options).ir, { machine: 'pet' }))[1];
+    const columnsOf = (options) => geometryOf(link(MAIN, entry, options).ir).columns;
     // Only one of the build's tags has a twin: that twin is the file.
-    assert.equal(columnsOf({ machine: 'pet', tags: ['8032', 'sidcart'] }), '80');
-    assert.equal(columnsOf({ machine: 'pet', tags: ['sidcart', '8032'] }), '80');
+    assert.equal(columnsOf({ machine: 'pet', tags: ['8032', 'sidcart'] }), 80);
+    assert.equal(columnsOf({ machine: 'pet', tags: ['sidcart', '8032'] }), 80);
     // None of them does: the plain file.
-    assert.equal(columnsOf({ machine: 'pet', tags: ['sidcart'] }), '40');
-    assert.equal(columnsOf({ machine: 'pet', tags: [] }), '40');
+    assert.equal(columnsOf({ machine: 'pet', tags: ['sidcart'] }), 40);
+    assert.equal(columnsOf({ machine: 'pet', tags: [] }), 40);
     // `profile` is the older spelling of one tag.
-    assert.equal(columnsOf({ machine: 'pet', profile: '8032' }), '80');
+    assert.equal(columnsOf({ machine: 'pet', profile: '8032' }), 80);
 
     // Two tags, two twins: the resolver will not pick between them.
     await writeFile(join(dir, 'geometry.pet.sidcart.8bs'), GEOMETRY_40);
@@ -155,8 +161,8 @@ test('a build with several hardware tags reads the one tag\'s twin that exists; 
     assert.deepEqual(codes(diagnostics), ['8BS3004']);
     assert.match(diagnostics[0].message, /'8032' and 'sidcart'/);
     // Either tag alone is unambiguous.
-    assert.equal(columnsOf({ machine: 'pet', tags: ['8032'] }), '80');
-    assert.equal(columnsOf({ machine: 'pet', tags: ['sidcart'] }), '40');
+    assert.equal(columnsOf({ machine: 'pet', tags: ['8032'] }), 80);
+    assert.equal(columnsOf({ machine: 'pet', tags: ['sidcart'] }), 40);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

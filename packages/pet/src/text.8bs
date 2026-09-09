@@ -16,7 +16,7 @@ import { Video } from "./geometry.8bs";
 // PET screen memory is at $8000 on every model: 1000 cells for the 40x25
 // display of the 2001/3xxx/4xxx machines, 2000 for the 80x25 of the 8032 —
 // which is the build's `--profile` to say (PET_PROFILES in
-// packages/backend-6502), and reaches this file as ./geometry.8bs's
+// packages/compiler/src/mos), and reaches this file as ./geometry.8bs's
 // `Video` namespace, whose 8032 version the profile selects. There is no
 // colour RAM to go with it — a character's screen code alone decides how it
 // looks — so `putColor` exists only so portable code written against every
@@ -36,10 +36,7 @@ import { Video } from "./geometry.8bs";
 // set. So putChar() selects the graphics set itself, every call, through
 // the VIA's peripheral control register (see @8bitscript/pet): one register
 // write, and "TICK" reads as TICK here on every model the way it does on
-// every other target. (LLVM-MOS's libc used to flip every Commodore machine
-// to lower-case before main() with a hidden CHR$(14) through the KERNAL;
-// packages/backend-6502's commodoreCharsetGuard() keeps that out of the
-// link. See packages/pet/AGENTS.md.)
+// every other target. (See packages/pet/AGENTS.md.)
 namespace CharacterSet {
     const GRAPHICS: utinyint = 0x0C;
 }

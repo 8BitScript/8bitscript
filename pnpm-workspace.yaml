@@ -1,19 +1,15 @@
 # The monorepo. Every publishable package lives in packages/ — the
 # toolchain, the machine and capability packages, and the apps that ship
-# with them — and every program that exists to exercise
-# them lives in examples/.
+# with them.
 #
 # Editor integrations live in editors/. They are workspace members because the
 # editor client has npm dependencies of its own; nothing there is published to
 # npm.
 #
-# Examples depend on the packages with `workspace:*`, so `pnpm install` links
-# them straight out of packages/ instead of fetching anything from the
-# registry. Outside this repository, programs install `@8bitscript/cli` from
-# npm at the same version the workspace publishes.
+# Outside this repository, programs install `@8bitscript/cli` from npm at the
+# same version the workspace publishes.
 packages:
   - packages/*
-  - examples/*
   - editors/*
 
 # pnpm blocks dependency install scripts unless they are approved here.

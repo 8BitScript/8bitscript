@@ -11,8 +11,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { analyze, link, tokenize, parse, lower } from '../index.mjs';
-import { emitC } from '../../backend-6502/src/index.mjs';
-import { emitAssemblyScript } from '../../backend-web/src/index.mjs';
 
 const codes = (src, options) => analyze(src, 't.8bs', options).map((d) => d.code);
 const lowered = (src) => {
@@ -70,19 +68,14 @@ test('checker: a const still gets the literal-fits-the-type rule', () => {
   assert.deepEqual(codes('const X: utinyint = 300;'), ['8BS1021']);
 });
 
-test('linker: every reference to a const is the value, in the generated code of both backends', async () => {
+test('linker: every reference to a const is the value, and the name never becomes storage', async () => {
   const { ir, diagnostics } = await linkWith({
     'main.8bs': 'const LIMIT: utinyint = 4;\nlet option: utinyint = 0;\nexport function main(): void { option = option + 1; if (option == LIMIT) { option = 0; } }\n',
   });
   assert.deepEqual(diagnostics, []);
   assert.deepEqual(ir.globals.map((g) => g.name), ['option']);
-  const c = emitC(ir);
-  assert.match(c, /if \(\(option == 4\)\)/);
-  assert.doesNotMatch(c, /LIMIT/);
-  const as = emitAssemblyScript(ir);
-  assert.ok(as.ok);
-  assert.match(as.source, /if \(\(option == 4\)\)/);
-  assert.doesNotMatch(as.source, /LIMIT/);
+  const main = ir.functions.find((f) => f.name === 'main');
+  assert.deepEqual(main.body[1].test.right, { kind: 'const', value: 4 });
 });
 
 test('linker: an exported const is importable and inlines in the importer; assigning to it there is 8BS1031', async () => {
@@ -131,7 +124,7 @@ test('a const names an address, and the linker never sees storage for it', () =>
   const { ir, diagnostics } = lowered('const BORDER_REGISTER: usmallint = 0xD020;\n@address(BORDER_REGISTER) let border: volatile<utinyint>;\nexport function main(): void { border = 1; }');
   assert.deepEqual(diagnostics, []);
   assert.equal(ir.globals[0].address, 0xD020);
-  assert.match(emitC({ ...ir, entry: 'main' }), /#define border \(\*\(volatile uint8_t \*\)0xD020\)/);
+  assert.equal(ir.globals[0].volatile, true);
 });
 
 test('an @address that is neither a literal nor an own const says so', () => {
@@ -191,7 +184,12 @@ test('a const initialised from a namespace const or an imported const: the value
   });
   assert.deepEqual(good.diagnostics, []);
   assert.equal(good.ir.globals.find((g) => g.name === 'n').init, 2);
-  assert.match(emitC(good.ir, { machine: 'c64' }), /n = \(\(7 \+ 2\) \+ 2\);/);
+  const assign = good.ir.functions.find((f) => f.name === 'main').body[0];
+  assert.deepEqual(assign.value, {
+    kind: 'binop', operator: '+',
+    left: { kind: 'binop', operator: '+', left: { kind: 'const', value: 7 }, right: { kind: 'const', value: 2 } },
+    right: { kind: 'const', value: 2 },
+  });
 
   const bad = await linkWith({
     'lib.8bs': 'export const BIG: usmallint = 300;\nexport let g: utinyint = 0;\nexport namespace C { const BLUE: utinyint = 6; }\n',

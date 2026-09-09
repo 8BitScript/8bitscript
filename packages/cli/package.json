@@ -21,8 +21,6 @@
   ],
   "dependencies": {
     "@8bitscript/atari8": "workspace:*",
-    "@8bitscript/backend-6502": "workspace:*",
-    "@8bitscript/backend-web": "workspace:*",
     "@8bitscript/c128": "workspace:*",
     "@8bitscript/c64": "workspace:*",
     "@8bitscript/compiler": "workspace:*",

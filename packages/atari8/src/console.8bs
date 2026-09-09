@@ -14,8 +14,8 @@
 // difficulty on SELECT — a cartridge with no DOS and no keyboard handler
 // still has these three.
 //
-// CONSOL is the register this project's own `examples/borders`
-// already reads for its OPTION readout; this file is that, named.
+// CONSOL is the register a colour-cycling demo already reads for its
+// OPTION readout; this file is that, named.
 //
 // ---- the fourth bit is an output ------------------------------------------
 //

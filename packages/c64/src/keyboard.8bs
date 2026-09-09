@@ -20,7 +20,7 @@
 // scan (SCNKEY, from its 60 Hz timer IRQ) drives the same two ports, and
 // would land its column select between this scan's write and read — which
 // is one reason the frame runtime starts a C64 program with `sei`
-// (FRAME_SYNC.c64 in packages/backend-6502): from the first waitFrame()
+// (FRAME_SYNC.c64 in packages/compiler/src/mos): from the first waitFrame()
 // on, only this program touches CIA1. `scan()` writes the two direction
 // registers itself (A out, B in — the KERNAL's setting, made sure of), so
 // it does not depend on what ran before.

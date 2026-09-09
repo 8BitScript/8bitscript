@@ -183,7 +183,7 @@ not something this surface can offer until at least one of them can answer.
 3. Add the target to this package's `"8bitscript".entry` and its
    `dependencies`.
 4. Build something that uses it for **every** target, not just yours —
-   `examples/menubar` is the one to use, and
+   Studio's front door is the one to use, and
    `packages/ui/test/ui.test.mjs` links the whole menu bar surface for all
    nine.
 5. Re-measure the input column in

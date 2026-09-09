@@ -1,6 +1,6 @@
 // The memory line `8bs build` prints under "built": measured from the
-// linked program when the backend could (the 6502 backend reads the ELF),
-// else what the source declares.
+// linked program when the backend reports sizes, else what the source
+// declares.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 

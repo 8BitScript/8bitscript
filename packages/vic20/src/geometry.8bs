@@ -5,8 +5,8 @@
 // the KERNAL puts the 22x23 screen matrix at $1E00 with its colour nybbles
 // at $9600, and BASIC starts at $1001. With 8K or more the KERNAL moves the
 // screen down to $1000 and colour RAM to $9400, so that $1200 upward is one
-// contiguous run of BASIC RAM — which is why the SDK loads an 8K+ program at
-// $1201 (mos-platform/vic20/lib/link.ld). This file is the unexpanded/3K
+// contiguous run of BASIC RAM — which is why an 8K+ program loads at
+// $1201. This file is the unexpanded/3K
 // geometry; `geometry.vic20.expanded.8bs` beside it is the 8K-and-up one,
 // read by a build whose hardware carries the `expanded` tag — the tag the
 // package's catalog gives the 8k, 16k and 24k values of its `ram` option

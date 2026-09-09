@@ -10,13 +10,17 @@ the toolchain does not build yet. Each page answers the same sixteen
 questions the target packages' `AGENTS.md` files answer for the nine
 machines that exist — CPU, memory and banking, the display's native unit,
 the text grid, modes and colour, layers, sprites, pseudo-pixels, audio,
-input, storage, timing, hardware variants, emulator, LLVM-MOS status, and
+input, storage, timing, hardware variants, emulator, backend status, and
 the traps — so that [the systems page](../../systems.md)'s matrix can
 compare a machine that exists with one that does not, row for row.
 
+These notes predate 0.2.0 and cite LLVM-MOS platform support; under the
+native backend the question is a CPU-variant row plus a crt0 and file
+writer per machine.
+
 These pages are research, not status. They were written a few hours
 before the hardware catalogs arrived, so where a page proposes an
-`<X>_PROFILES` table in `packages/backend-6502`, read it as the machine
+`<X>_PROFILES` table in a backend, read it as the machine
 package's `"8bitscript".hardware` catalog — options and values with what
 each changes, resolved by `packages/cli/src/hardware.mjs` — which is the
 one mechanism every existing target now uses (see

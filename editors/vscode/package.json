@@ -250,11 +250,6 @@
           "default": "",
           "description": "A directory of examples to list in the launcher's Project dropdown, instead of the one found beside the toolchain. Each subdirectory with an 8bs.config.ts is one."
         },
-        "8bitscript.llvmMosHome": {
-          "type": "string",
-          "default": "",
-          "description": "The LLVM-MOS SDK directory (the one containing bin/), passed to every 8bs task as LLVM_MOS_HOME. Leave empty to use the LLVM_MOS_HOME the editor was started with, or failing that the documented install location, ~/.local/opt/llvm-mos. Set this when 8bs doctor from the side bar says LLVM_MOS_HOME is not set but your terminal has it: a task’s shell does not read ~/.zshrc."
-        },
         "8bitscript.hardware": {
           "type": "object",
           "default": {},

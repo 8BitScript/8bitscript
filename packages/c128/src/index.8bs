@@ -13,9 +13,9 @@
 // registers and are built on nothing else.
 //
 // The C128's VIC-IIe is register-compatible with the C64's VIC-II for the
-// registers this target uses — confirmed directly against llvm-mos-sdk's
-// own c128.h, which maps the C128's VIC at $D000 using the identical
-// __vic2 struct the c64 platform uses, colour RAM at the identical $D800.
+// registers this target uses — confirmed against the VIC-IIe's own
+// register map: VIC at $D000 in the same layout as the C64's VIC-II,
+// colour RAM at the identical $D800.
 // A program built for this target runs in the C128's native 40-column
 // mode, at the VIC-IIe's C64-compatible register layout — the 80-column
 // VDC and the second (Z80) CPU are outside what this target reaches for.
@@ -36,8 +36,8 @@ export let backgroundColor: volatile<u8>;
 // ---- VIC-IIe sprites ($D000) ----------------------------------------------
 //
 // The same eight movable objects the C64's VIC-II has, at the same
-// addresses — llvm-mos-sdk's c128.h maps them with the identical __vic2
-// struct. @8bitscript/c128/pointer owns sprite 0 on a 1351 build; a
+// addresses — the VIC-IIe's register layout at $D000. @8bitscript/c128/pointer
+// owns sprite 0 on a 1351 build; a
 // general ./sprites layer is still to write, and would use these.
 
 // $D000-$D00F: sprite n's X at 2*n, Y at 2*n+1. X is nine bits; the

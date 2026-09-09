@@ -62,8 +62,8 @@ Three things about that surface are decisions:
 
 ## A layer that cannot draw still has to compile
 
-**Every one of the nine `entry` targets must exist.** Studio and
-`examples/pointer` link `@8bitscript/pointer`, so a missing layer is not a
+**Every one of the nine `entry` targets must exist.** Studio
+links `@8bitscript/pointer`, so a missing layer is not a
 program without a cursor, it is a program that does not build for that
 machine.
 
@@ -88,7 +88,7 @@ Those are different statements and the headers make both:
   that one or never drawing at all.
 
 It costs those machines nothing. `DRAWS` is a const and every body is
-empty, so `if (pointer.DRAWS)` folds away and LLVM deletes the calls —
+empty, so `if (pointer.DRAWS)` folds away and the fold removes the calls —
 `packages/pointer/test/pointer.test.mjs` asserts every layer's functions
 are bodiless in the IR on a machine with no pointer.
 
@@ -128,12 +128,12 @@ still prove almost everything, and the way it does is worth copying:
   C64 or C128 puts the arrow in the top-left corner of the screen and a
   build with the mouse taken out puts nothing there.** That is a difference
   a headless run can see, and `pointer.test.mjs` asserts it by counting
-  white pixels in the two blank rows `examples/pointer` keeps clear for the
+  white pixels in the two blank rows a probe program keeps clear for the
   purpose — 58 with a mouse, 0 without, under both x64sc and x128.
 - The **X16** parks at the *centre*: mouse_config with a nonzero size
   leaves the pointer at half the current screen_mode range, (319, 239) of
   the 640×480 the mode names. After `screen.8bs` insets the display by 16
-  pixels, that sprite is on the screenshot at (335, 254). The example's
+  pixels, that sprite is on the screenshot at (335, 254). A probe's
   top two rows are white text here, so a corner count would not prove an
   arrow; the test counts white pixels in that centre box instead — 43
   under x16emu r50 / ROM `fbe32a60`.
@@ -173,7 +173,7 @@ What a screenshot cannot answer, and what needs a human at the machine:
 3. Add the target to this package's `"8bitscript".entry` and its
    `dependencies`.
 4. Run `packages/pointer/test/pointer.test.mjs`: it links
-   `examples/pointer` for all nine and checks the surface is the same
+   a probe for all nine and checks the surface is the same
    everywhere. Add a pixel assertion for your machine's emulator if it
    draws anything.
 5. **Measure it, in bytes, and write the number down.** The C64's arrow is

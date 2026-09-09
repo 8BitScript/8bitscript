@@ -1,13 +1,14 @@
-// `8bs doctor` — is this machine able to build and run 8BitScript programs?
+// `8bs doctor` — is this machine able to run 8BitScript programs?
 //
-// Every target needs two things: an LLVM-MOS driver (or, for the web, the
-// AssemblyScript compiler) to build with, and an emulator to run against.
-// Every check reports against what the project actually requires, with a
-// pointer to the setup page that installs the tool, an inline brew/apt/
-// pacman command when one is known, and — for anything this machine's
-// platform can install with a single trusted command — an interactive
-// prompt to run that command right here, rather than making the reader
-// leave the terminal and come back.
+// The compiler is 8BitScript's own (native 6502 and WebAssembly backends;
+// they do not yet build any target — see the 0.2.0 roadmap). Every target
+// needs an emulator to run against, and some also need ROMs. Every check
+// reports against what the project actually requires, with a pointer to
+// the setup page that installs the tool, an inline brew/apt/pacman
+// command when one is known, and — for anything this machine's platform
+// can install with a single trusted command — an interactive prompt to
+// run that command right here, rather than making the reader leave the
+// terminal and come back.
 //
 // The VIC-20 and Commander X16 checks go further than versions: a VICE
 // build without ROMs prints a version and still cannot boot a machine, so
@@ -21,7 +22,6 @@
 // targets don't get that same depth yet — existence and, where the tool
 // supports it, a version — that's a known gap, not an oversight.
 import { spawn } from 'node:child_process';
-import { createRequire } from 'node:module';
 import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -165,100 +165,6 @@ async function checkHost() {
     await versionCheck('git', 'git', ['--version'], [2, 30], 'docs/setup/host-toolchain.md', '>=2.30'),
   ];
   return { title: 'Host', checks };
-}
-
-/**
- * Where the toolchain will actually run `asc` from: the web backend's own
- * dependencies. pnpm isolates each package's node_modules, so the binary lives
- * next to @8bitscript/backend-web rather than at the workspace root. The
- * user's own project is checked as a fallback, for a project that installs
- * assemblyscript itself.
- */
-function findAsc() {
-  try {
-    const require = createRequire(import.meta.url);
-    const backend = dirname(require.resolve('@8bitscript/backend-web/package.json'));
-    const local = findLocalBin(backend, 'asc');
-    if (local) return local;
-  } catch {
-    // The backend is not resolvable from here; fall through to the cwd walk.
-  }
-  return findLocalBin(process.cwd(), 'asc');
-}
-
-async function checkWeb() {
-  const asc = findAsc();
-  const checks = [];
-  if (!asc) {
-    checks.push(result(
-      FAIL, 'asc', 'not found',
-      'The AssemblyScript compiler ships with the toolchain — a missing asc\n' +
-      '      usually means an incomplete install. Run: pnpm install',
-    ));
-  } else {
-    const r = await run(asc, ['--version']);
-    const version = parseVersion(r.stdout + r.stderr);
-    checks.push(version
-      ? result(OK, 'asc', version.join('.'), null, { targets: ['web'] })
-      : result(WARN, 'asc', 'found, but the version was unreadable'));
-  }
-  return { title: 'Web target (.wasm)', checks };
-}
-
-// Every LLVM-MOS driver this project builds against, and which target(s) it
-// serves. Confirmed directly against llvm-mos-sdk's own mos-platform/ tree
-// (github.com/llvm-mos/llvm-mos-sdk) — one driver binary per platform, two
-// for Atari 8-bit because that target picks its output format (DOS-loader
-// .xex vs XEGS cartridge) via which driver runs, not a build flag.
-const CLANG_DRIVERS = [
-  { driver: 'mos-vic20-clang', targets: ['vic20'] },
-  { driver: 'mos-c64-clang', targets: ['c64'] },
-  { driver: 'mos-pet-clang', targets: ['pet'] },
-  { driver: 'mos-c128-clang', targets: ['c128'] },
-  { driver: 'mos-mega65-clang', targets: ['mega65'] },
-  { driver: 'mos-cx16-clang', targets: ['cx16'] },
-  { driver: 'mos-nes-nrom-clang', targets: ['nes'] },
-  { driver: 'mos-atari8-dos-clang', targets: ['atari8'] },
-  { driver: 'mos-atari8-cart-xegs-clang', targets: ['atari8'] },
-  { driver: 'mos-atari8-cart-std-clang', targets: ['atari8'] },
-  { driver: 'mos-atari8-cart-megacart-clang', targets: ['atari8'] },
-];
-
-async function checkMos() {
-  const checks = [];
-  const home = process.env.LLVM_MOS_HOME;
-  const allTargets = [...new Set(CLANG_DRIVERS.flatMap((d) => d.targets))];
-
-  if (!home) {
-    checks.push(result(FAIL, 'LLVM_MOS_HOME', 'not set', 'docs/setup/llvm-mos.md'));
-    for (const { driver, targets } of CLANG_DRIVERS) {
-      checks.push(result(SKIP, driver, 'skipped — LLVM_MOS_HOME is not set', null, { targets }));
-    }
-  } else if (!existsSync(join(home, 'bin'))) {
-    checks.push(result(
-      FAIL, 'LLVM_MOS_HOME', `set to ${home}, but ${join(home, 'bin')} does not exist`,
-      'It must point at the directory that directly contains bin/ — docs/setup/llvm-mos.md',
-    ));
-    for (const { driver, targets } of CLANG_DRIVERS) {
-      checks.push(result(SKIP, driver, 'skipped — LLVM_MOS_HOME is wrong', null, { targets }));
-    }
-  } else {
-    checks.push(result(OK, 'LLVM_MOS_HOME', home, null, { targets: allTargets }));
-    for (const { driver, targets } of CLANG_DRIVERS) {
-      const path = join(home, 'bin', driver);
-      const r = await run(path, ['--version']);
-      if (r.missing) {
-        checks.push(result(FAIL, driver, `not found at ${path}`, 'docs/setup/llvm-mos.md', { targets }));
-      } else if (/clang/i.test(r.stdout + r.stderr)) {
-        const version = parseVersion(r.stdout + r.stderr);
-        checks.push(result(OK, driver, version ? `clang ${version.join('.')}` : 'a clang', null, { targets }));
-      } else {
-        checks.push(result(WARN, driver, 'runs, but does not identify itself as clang', null, { targets }));
-      }
-    }
-  }
-
-  return { title: 'LLVM-MOS SDK (every 6502 target)', checks };
 }
 
 // ---- emulator installers ---------------------------------------------------
@@ -657,12 +563,10 @@ const ROM_STATE_WORDS = {
  *   boot           `x16emu -testbench` headless — the only probe that
  *                  actually loads the ROM through the launcher
  *
- * `compilerOk` is mos-cx16-clang's status from checkMos(), folded into the
- * summary line so "ready" means the whole toolchain, not just the emulator.
  * Every boundary is injectable for the unit tests; the defaults are real.
  */
 export async function checkCx16Target({
-  platform = process.platform, compilerOk = true, resolveBinary = resolveOnPath, exec = run,
+  platform = process.platform, resolveBinary = resolveOnPath, exec = run,
   realpathFn = realpath, fs = {},
 } = {}) {
   const installer = INSTALLERS.x16emu;
@@ -758,20 +662,20 @@ export async function checkCx16Target({
     }
   }
 
-  const firstFail = !compilerOk ? { label: 'mos-cx16-clang' } : checks.find((c) => c.status === FAIL);
+  const firstFail = checks.find((c) => c.status === FAIL);
   checks.push(firstFail
     ? result(SKIP, 'Commander X16', `not ready — ${firstFail.label} must pass first`, null, { targets })
     : result(OK, 'Commander X16', 'ready', null, { targets }));
   return checks;
 }
 
-async function checkOtherEmulators({ cx16CompilerOk }) {
+async function checkOtherEmulators() {
   const mega65EmulatorPath = resolveOnPath('xmega65');
   const checks = [
     await checkEmulator('atari800', { label: 'atari800 (Atari 8-bit)', targets: ['atari8'], installerKey: 'atari800' }),
     await checkEmulator('fceux', { label: 'fceux (NES)', targets: ['nes'], installerKey: 'fceux' }),
     // Commander X16 is five checks, not one — see checkCx16Target().
-    ...(await checkCx16Target({ compilerOk: cx16CompilerOk })),
+    ...(await checkCx16Target()),
     // MEGA65 is four checks, not one — see checkMega65Target().
     ...(await checkMega65Target({ hasEmulator: Boolean(mega65EmulatorPath), emulatorPath: mega65EmulatorPath })),
   ];
@@ -909,10 +813,10 @@ const ALL_TARGETS = ['web', 'vic20', 'c64', 'pet', 'c128', 'atari8', 'nes', 'cx1
  * doesn't block readiness (e.g. VICE's `--version` flag is broken upstream —
  * prints nothing parseable — even on a working install, and the VIC-20 boot
  * check is the real, authoritative signal for that one target) — only FAIL
- * does. For mega65 specifically, this is what turns four separate checks
- * (mos-mega65-clang, xmega65, MEGA65 ROM, Xemu ROM link) into one readiness
- * bit: all four carry `targets: ['mega65']`, so mega65 is ready only when
- * none of them FAIL.
+ * does. For mega65 specifically, this is what turns three separate checks
+ * (xmega65, MEGA65 ROM, Xemu ROM link) into one readiness bit: all three
+ * carry `targets: ['mega65']`, so mega65 is ready only when none of them
+ * FAIL.
  */
 export function readyTargets(checks, targets = ALL_TARGETS) {
   return targets.filter((target) => checks
@@ -923,15 +827,12 @@ export function readyTargets(checks, targets = ALL_TARGETS) {
 /** @returns {Promise<number>} process exit code */
 export async function doctor() {
   process.stdout.write('8bs doctor\n');
+  process.stdout.write('compiler: built in (native backends, not yet able to build; see the 0.2.0 roadmap)\n');
 
-  const mos = await checkMos();
-  const cx16CompilerOk = mos.checks.some((c) => c.label === 'mos-cx16-clang' && c.status === OK);
   const sections = [
     await checkHost(),
-    await checkWeb(),
-    mos,
     await checkVice(),
-    await checkOtherEmulators({ cx16CompilerOk }),
+    await checkOtherEmulators(),
     await checkScreenshotCapability(),
   ];
   const allChecks = sections.flatMap((s) => s.checks);
