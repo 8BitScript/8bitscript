@@ -97,15 +97,97 @@ test('build() for the PET lowers the eleven-store HELLO WORLD fixture to exactly
   }
 });
 
+// Milestone 6's own reframed gate (see the roadmap's own box): the literal
+// "a counter fills row 1 with 0 to 9" gate needs a *computed* address
+// (STA (zp),Y), which is milestone 8's — not reachable honestly within this
+// milestone's own scope. What milestone 6 can deliver instead, and what
+// this fixture actually proves: a real `for` loop, a local variable, 8-bit
+// `+`/`<` arithmetic, and a `memoryWrite` whose *value* (not address) is
+// computed — sum(0..9) = 45, written once to the literal address $8000.
+// This is not a synthetic shape: it is the exact IR a real
+// `let sum: utinyint = 0; for (let i: utinyint = 0; i < 10; i++) { sum =
+// sum + i; } memory.write(0x8000, sum);` links to (checked by hand against
+// ir/index.mjs's own construction for `local`/`for`/`assign`/`update`).
+//
+// Run for real, the same way milestone 4's fixture was: `8bs run pet
+// --hardware model=2001 --screenshot` on this exact program shows the
+// PET's boot-banner leading `*` replaced by `-` — screen code 45 — proving
+// the loop actually ran to completion and the sum landed correctly, not
+// just that it assembled. A second, richer scratch program (while+break,
+// if/else, `<` `==` `>=` `&&` `||` `!`) printed "HA" on row 0 exactly as
+// hand-predicted. Neither screenshot is committed (no earlier milestone's
+// PNG is either — see milestone 4's own note on this), but both bytes are
+// what this test's own assertions below lock in.
+const sumZeroToNineIr: IrProgram = {
+  entry: 'main',
+  functions: [{
+    name: 'main',
+    body: [
+      { kind: 'local', name: 'sum', type: 'utinyint', init: { kind: 'const', value: 0, type: 'utinyint' } },
+      {
+        kind: 'for',
+        init: { kind: 'local', name: 'i', type: 'utinyint', init: { kind: 'const', value: 0, type: 'utinyint' } },
+        test: {
+          kind: 'binop', operator: '<',
+          left: { kind: 'ref', name: 'i', type: 'utinyint' },
+          right: { kind: 'const', value: 10, type: 'utinyint' },
+          type: 'bool',
+        },
+        update: {
+          kind: 'assign', target: 'i',
+          value: {
+            kind: 'binop', operator: '+',
+            left: { kind: 'ref', name: 'i', type: 'utinyint' },
+            right: { kind: 'const', value: 1, type: 'utinyint' },
+            type: 'utinyint',
+          },
+        },
+        body: [{
+          kind: 'assign', target: 'sum',
+          value: {
+            kind: 'binop', operator: '+',
+            left: { kind: 'ref', name: 'sum', type: 'utinyint' },
+            right: { kind: 'ref', name: 'i', type: 'utinyint' },
+            type: 'utinyint',
+          },
+        }],
+      },
+      {
+        kind: 'memoryWrite',
+        address: { kind: 'const', value: 0x8000, type: 'usmallint' },
+        value: { kind: 'ref', name: 'sum', type: 'utinyint' },
+      },
+    ],
+  }],
+  globals: [],
+};
+
+test('build() for the PET lowers a real for-loop, local, and computed memoryWrite value (milestone 6 acceptance test) — measured against the real CLI/emulator run in the roadmap box above', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+  try {
+    const outFile = join(scratch, 'out.prg');
+    const result = await build(sumZeroToNineIr, { machine: 'pet', hardware, outFile, frameRate: 60 });
+    assert.equal(result.ok, true, result.ok ? '' : result.error);
+    if (!result.ok) return;
+    assert.deepEqual(result.memory, { variables: 3, program: 65 }); // sum + i (locals) + one CLC-through temp, at most live at once
+    assert.equal(result.bytes.length, 65);
+    assert.deepEqual([...await readFile(outFile)], [...result.bytes]);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
 test('build() names the construct when the linked entry function uses an IR kind with no lowering rule yet', async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
   try {
     const outFile = join(scratch, 'out.prg');
-    const noRule: IrProgram = { entry: 'main', functions: [{ name: 'main', body: [{ kind: 'if' }] }], globals: [] };
+    // 'if'/'while'/'for'/etc. all gained rules at milestone 6 — 'storeIndex'
+    // (indexed stores) is still genuinely unimplemented, milestone 8's job.
+    const noRule: IrProgram = { entry: 'main', functions: [{ name: 'main', body: [{ kind: 'storeIndex' }] }], globals: [] };
     const result = await build(noRule, { machine: 'pet', hardware, outFile, frameRate: 60 });
     assert.equal(result.ok, false);
     if (result.ok) return;
-    assert.match(result.error, /no instruction-selection rule yet for 'if'/);
+    assert.match(result.error, /no instruction-selection rule yet for the 'storeIndex' statement/);
     assert.equal(existsSync(outFile), false);
   } finally {
     await rm(scratch, { recursive: true, force: true });
