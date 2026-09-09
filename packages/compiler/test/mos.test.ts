@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -14,15 +14,28 @@ const ir = {};
 
 const hardware = { build: { defsym: {} }, facts: {} };
 
-test('build() for the PET is not implemented yet and writes nothing', async () => {
+test('build() for the PET writes a 15-byte .prg for an empty program: load address + 12-byte stub + RTS', async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
   try {
     const outFile = join(scratch, 'out.prg');
     const result = await build(ir, { machine: 'pet', hardware, outFile, frameRate: 60 });
-    assert.equal(result.ok, false);
-    assert.match(result.ok ? '' : result.error, /not implemented/);
-    assert.match(result.ok ? '' : result.error, /PET/);
-    assert.equal(existsSync(outFile), false);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.deepEqual(
+      [...result.bytes],
+      [
+        0x01, 0x04, // load address $0401, little-endian
+        0x0b, 0x04, // BASIC stub: link to $040B
+        0x00, 0x00, // line number 0
+        0x9e, 0x31, 0x30, 0x33, 0x37, 0x00, // SYS token, "1037", end of line
+        0x00, 0x00, // end of program
+        0x60, // startup routine: RTS
+      ],
+    );
+    assert.equal(result.bytes.length, 15);
+    assert.deepEqual(result.memory, { variables: 0, program: 15 });
+    assert.equal(existsSync(outFile), true);
+    assert.deepEqual([...await readFile(outFile)], [...result.bytes]);
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
