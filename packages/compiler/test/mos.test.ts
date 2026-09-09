@@ -8,9 +8,26 @@ import { join } from 'node:path';
 import {
   build, outputExtension, CPU, reduceRatio, frameRatio, FRAME_SYNC,
 } from '../src/mos/index.ts';
-import type { Machine, RatioPair } from '../src/mos/index.ts';
+import type { IrProgram, Machine, RatioPair } from '../src/mos/index.ts';
 
-const ir = {};
+const ir: IrProgram = { entry: 'main', functions: [{ name: 'main', body: [] }] };
+
+// H E L L O _ W O R L D, as PET screen codes (A-Z are 1-26, space is 32) —
+// the same eleven-store fixture the roadmap's TARGET section documents
+// byte for byte, written straight to screen RAM at $8000.
+const HELLO_WORLD_SCREEN_CODES = [8, 5, 12, 12, 15, 32, 23, 15, 18, 12, 4];
+
+const helloWorldIr: IrProgram = {
+  entry: 'main',
+  functions: [{
+    name: 'main',
+    body: HELLO_WORLD_SCREEN_CODES.map((code, i) => ({
+      kind: 'memoryWrite',
+      address: { kind: 'const', value: 0x8000 + i, type: 'usmallint' },
+      value: { kind: 'const', value: code, type: 'utinyint' },
+    })),
+  }],
+};
 
 // Every real PET catalog entry carries defsym.__ram_size (see
 // packages/pet/package.json) — 32 here stands in for the roomy 3032, so
@@ -40,6 +57,55 @@ test('build() for the PET writes a 15-byte .prg for an empty program: load addre
     assert.deepEqual(result.memory, { variables: 0, program: 15 });
     assert.equal(existsSync(outFile), true);
     assert.deepEqual([...await readFile(outFile)], [...result.bytes]);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('build() for the PET lowers the eleven-store HELLO WORLD fixture to exactly seventy bytes (milestone 4 acceptance test)', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+  try {
+    const outFile = join(scratch, 'out.prg');
+    const result = await build(helloWorldIr, { machine: 'pet', hardware, outFile, frameRate: 60 });
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.deepEqual(
+      [...result.bytes],
+      [
+        0x01, 0x04, // load address $0401, little-endian
+        0x0b, 0x04, 0x00, 0x00, 0x9e, 0x31, 0x30, 0x33, 0x37, 0x00, 0x00, 0x00, // the same 12-byte stub as an empty program: 0 SYS1037
+        0xa9, 0x08, 0x8d, 0x00, 0x80, // LDA #8  · STA $8000 · H
+        0xa9, 0x05, 0x8d, 0x01, 0x80, // LDA #5  · STA $8001 · E
+        0xa9, 0x0c, 0x8d, 0x02, 0x80, // LDA #12 · STA $8002 · L
+        0xa9, 0x0c, 0x8d, 0x03, 0x80, // LDA #12 · STA $8003 · L
+        0xa9, 0x0f, 0x8d, 0x04, 0x80, // LDA #15 · STA $8004 · O
+        0xa9, 0x20, 0x8d, 0x05, 0x80, // LDA #32 · STA $8005 · (space)
+        0xa9, 0x17, 0x8d, 0x06, 0x80, // LDA #23 · STA $8006 · W
+        0xa9, 0x0f, 0x8d, 0x07, 0x80, // LDA #15 · STA $8007 · O
+        0xa9, 0x12, 0x8d, 0x08, 0x80, // LDA #18 · STA $8008 · R
+        0xa9, 0x0c, 0x8d, 0x09, 0x80, // LDA #12 · STA $8009 · L
+        0xa9, 0x04, 0x8d, 0x0a, 0x80, // LDA #4  · STA $800A · D
+        0x60, // RTS: main returned, back to BASIC, which prints READY.
+      ],
+    );
+    assert.equal(result.bytes.length, 70);
+    assert.deepEqual(result.memory, { variables: 0, program: 70 });
+    assert.deepEqual([...await readFile(outFile)], [...result.bytes]);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('build() names the construct when the linked entry function uses an IR kind with no lowering rule yet', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+  try {
+    const outFile = join(scratch, 'out.prg');
+    const noRule: IrProgram = { entry: 'main', functions: [{ name: 'main', body: [{ kind: 'if' }] }] };
+    const result = await build(noRule, { machine: 'pet', hardware, outFile, frameRate: 60 });
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.match(result.error, /no instruction-selection rule yet for 'if'/);
+    assert.equal(existsSync(outFile), false);
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
