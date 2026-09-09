@@ -99,12 +99,12 @@ test('a machine with no arrow to draw pays nothing for the layer', () => {
 });
 
 test('the arrow is behind the mouse fact, and the fact is what the catalog says', () => {
-  // The fold itself happens below the IR — `if (HAS_MOUSE)` reaches the
-  // backend as `if (0)` and clang deletes it — so what is checkable here
-  // is that the layer is gated on the fact at all, and that the fact is
-  // false on a stock C64, true for a build fitted with a 1351, and true
-  // on the stock X16 (the emulator's mouse is always there). The bytes
-  // the fold saves are measured, not asserted: see AGENTS.md.
+  // The fold itself happens below the IR — `if (HAS_MOUSE)` is a constant
+  // on a given build — so what is checkable here is that the layer is
+  // gated on the fact at all, and that the fact is false on a stock C64,
+  // true for a build fitted with a 1351, and true on the stock X16 (the
+  // emulator's mouse is always there). The bytes the fold saves are
+  // measured, not asserted: see AGENTS.md.
   assert.equal(stockFacts('c64')['input.mouse'], false);
   const fitted = resolveHardware(loadCatalog('c64'), { overrides: { port1: 'mouse1351' } }).hardware;
   assert.equal(fitted.facts['input.mouse'], true);
@@ -146,7 +146,9 @@ test('the arrow is behind the mouse fact, and the fact is what the catalog says'
 // 1351 reads its zero until it is moved, so a fitted build has the arrow in
 // the top-left corner and a build with the mouse taken out has nothing
 // there. The example keeps its first two rows blank for exactly this.
-test('under VICE, the C64 draws an arrow in the corner, and a machine with no mouse draws none', { timeout: 180000 }, () => {
+const NATIVE_BACKEND_PENDING = 'Bare Metal: waiting on the native backend';
+
+test('under VICE, the C64 draws an arrow in the corner, and a machine with no mouse draws none', { timeout: 180000, skip: NATIVE_BACKEND_PENDING }, () => {
   const dir = mkdtempSync(join(tmpdir(), '8bs-pointer-'));
   try {
     const cornerWhite = (hardware) => {
@@ -182,7 +184,7 @@ test('under VICE, the C64 draws an arrow in the corner, and a machine with no mo
   }
 });
 
-test('under VICE, the C128 draws an arrow in the corner, and a machine with no mouse draws none', { timeout: 180000 }, () => {
+test('under VICE, the C128 draws an arrow in the corner, and a machine with no mouse draws none', { timeout: 180000, skip: NATIVE_BACKEND_PENDING }, () => {
   const dir = mkdtempSync(join(tmpdir(), '8bs-pointer-c128-'));
   try {
     const cornerWhite = (hardware) => {
@@ -230,9 +232,7 @@ test(
   'under x16emu, the X16 draws the KERNAL arrow at the centre',
   {
     timeout: 180000,
-    skip: (!process.env.LLVM_MOS_HOME && 'LLVM_MOS_HOME not set')
-      || (!onPath('x16emu') && 'x16emu not on PATH')
-      || (!onPath('ffmpeg') && 'ffmpeg not on PATH (the x16emu screenshot route needs it)'),
+    skip: NATIVE_BACKEND_PENDING,
   },
   () => {
     const dir = mkdtempSync(join(tmpdir(), '8bs-pointer-cx16-'));

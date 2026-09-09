@@ -460,7 +460,7 @@ test('the same entry resolves to the web implementation', () => {
 test('a machine the entry has no branch for is 8BS3002', () => {
   // Every real target (vic20, c64, pet, c128, atari8, nes, cx16, mega65,
   // web) has a branch — 'atari2600' stands in for the "not one of them"
-  // case this error exists for: a real llvm-mos platform (so it's not
+  // case this error exists for: a real 6502 platform (so it's not
   // implausible), just not one @8bitscript/screen's entry map has a branch
   // for. Both imports fail the same way.
   const { ir, diagnostics } = link(readFileSync(BORDER_ENTRY, 'utf8'), BORDER_ENTRY, { machine: 'atari2600' });

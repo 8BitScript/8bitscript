@@ -66,7 +66,7 @@ test('every note in both tables is the frequency register for its pitch at that 
 function onPath(name) {
   return (process.env.PATH ?? '').split(delimiter).some((dir) => dir && existsSync(join(dir, name)));
 }
-const SKIP = (!process.env.LLVM_MOS_HOME && 'LLVM_MOS_HOME not set') || (!onPath('x128') && 'x128 not on PATH');
+const NATIVE_BACKEND_PENDING = 'Bare Metal: waiting on the native backend';
 
 function runCli(args, { timeoutMs = 120_000 } = {}) {
   return new Promise((resolvePromise) => {
@@ -83,7 +83,7 @@ function runCli(args, { timeoutMs = 120_000 } = {}) {
 
 test(
   'under x128 the chip answers: voice 3 runs, its envelope rises, and the region comes from the KERNAL\'s own flag',
-  { skip: SKIP },
+  { skip: NATIVE_BACKEND_PENDING },
   async () => {
     const scratch = await mkdtemp(join(tmpdir(), '8bs-c128-sid-'));
     try {

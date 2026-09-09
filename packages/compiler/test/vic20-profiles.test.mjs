@@ -10,7 +10,6 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { link } from '../index.mjs';
-import { emitC } from '../../backend-6502/src/index.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BORDERS_MAIN = join(HERE, '..', '..', '..', 'examples', 'borders', 'src', 'main.8bs');
@@ -33,38 +32,43 @@ const linked = (ram) => {
   const src = readFileSync(BORDERS_MAIN, 'utf8');
   const { ir, diagnostics } = link(src, BORDERS_MAIN, { machine: 'vic20', tags: tagsFor(ram) });
   assert.deepEqual(diagnostics, [], String(ram));
-  return emitC(ir, { machine: 'vic20' });
+  const blank = ir.functions.find((f) => f.name === 'screen_blank');
+  const loop = blank.body.find((s) => s.kind === 'for');
+  const prepare = ir.functions.find((f) => f.name === 'prepare');
+  const putColor = ir.functions.find((f) => f.name === 'text_putColor');
+  return {
+    ir,
+    cells: loop.test.right.value,
+    screen: loop.body[0].address.left.value,
+    color: putColor.body[0].address.left.value,
+    pointer: prepare.body[0].value.value,
+  };
 };
 
-// The C the backend emits names the addresses in decimal: $1E00 is 7680,
-// $9600 is 38400, $1000 is 4096, $9400 is 37888; the $9005 values $F0 and
-// $C0 are 240 and 192.
-const UNEXPANDED = { screen: 7680, color: 38400, pointer: 240 };
-const EXPANDED = { screen: 4096, color: 37888, pointer: 192 };
-
-const expectGeometry = (c, where, label) => {
-  assert.match(c, new RegExp(`\\(${where.screen} \\+ `), `${label}: screen base`);
-  assert.match(c, new RegExp(`\\(${where.color} \\+ `), `${label}: colour RAM base`);
-  assert.match(c, new RegExp(` = ${where.pointer};`), `${label}: $9005 value`);
-};
+const UNEXPANDED = { screen: 0x1E00, color: 0x9600, pointer: 0xF0 };
+const EXPANDED = { screen: 0x1000, color: 0x9400, pointer: 0xC0 };
 
 test('unexpanded and 3k draw at $1E00/$9600 with $9005 = $F0; 8k, 16k and 24k at $1000/$9400 with $C0', () => {
   for (const profile of [undefined, 'none', '3k']) {
-    const c = linked(profile);
-    expectGeometry(c, UNEXPANDED, String(profile));
-    assert.doesNotMatch(c, /\(4096 \+ /, `${profile}: no expanded screen base`);
+    const geo = linked(profile);
+    assert.equal(geo.screen, UNEXPANDED.screen, `${profile}: screen base`);
+    assert.equal(geo.color, UNEXPANDED.color, `${profile}: colour RAM base`);
+    assert.equal(geo.pointer, UNEXPANDED.pointer, `${profile}: $9005 value`);
+    assert.notEqual(geo.screen, EXPANDED.screen, `${profile}: no expanded screen base`);
   }
   for (const profile of ['8k', '16k', '24k']) {
-    const c = linked(profile);
-    expectGeometry(c, EXPANDED, profile);
-    assert.doesNotMatch(c, /\(7680 \+ /, `${profile}: no unexpanded screen base`);
-    assert.doesNotMatch(c, /\(38400 \+ /, `${profile}: no unexpanded colour RAM`);
+    const geo = linked(profile);
+    assert.equal(geo.screen, EXPANDED.screen, `${profile}: screen base`);
+    assert.equal(geo.color, EXPANDED.color, `${profile}: colour RAM base`);
+    assert.equal(geo.pointer, EXPANDED.pointer, `${profile}: $9005 value`);
+    assert.notEqual(geo.screen, UNEXPANDED.screen, `${profile}: no unexpanded screen base`);
+    assert.notEqual(geo.color, UNEXPANDED.color, `${profile}: no unexpanded colour RAM`);
   }
 });
 
 test('the screen is still 22 x 23 on every profile: only where it is changes', () => {
   for (const profile of ['none', '8k']) {
-    assert.match(linked(profile), /cell < 506/, profile);
+    assert.equal(linked(profile).cells, 506, profile);
   }
 });
 

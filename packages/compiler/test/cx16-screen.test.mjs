@@ -1,8 +1,8 @@
 // The Commander X16 target package: a border through a VERA active-area
 // inset and a background painted into every cell's attribute byte
 // (src/screen.8bs), and a `text` namespace that speaks ASCII because
-// LLVM-MOS's start-up leaves the KERNAL in ISO mode (src/text.8bs), both
-// on the VERA port helpers src/index.8bs exports. See those files for the why.
+// start-up leaves the KERNAL in ISO mode (src/text.8bs), both on the VERA
+// port helpers src/index.8bs exports. See those files for the why.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -10,7 +10,6 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { link } from '../index.mjs';
-import { emitC } from '../../backend-6502/src/index.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BORDERS_SRC = join(HERE, '..', '..', '..', 'examples', 'borders', 'src');
@@ -31,44 +30,60 @@ test('a screen and text consumer links for cx16 and drives VERA by its port addr
   assert.deepEqual(diagnostics, []);
   assert.deepEqual(ir.nativeSources, []); // the X16 ships no native files
 
-  const c = emitC(ir, { machine: 'cx16' });
-  // ASCII in, unmapped: 'T' is written as 84.
-  assert.match(c, /text_putChar\(162, 84\);/);
-  // The VERA address port: $9F20 (40736) low, $9F21 (40737) high, $9F22
-  // (40738) bank 1 + step; DATA0 $9F23 (40739) carries the byte.
-  assert.match(c, /\*\(volatile uint8_t \*\)40736 = \(low % 256\);/);
-  assert.match(c, /\*\(volatile uint8_t \*\)40738 = \(bank \+ \(stepIndex \* 16\)\);/);
-  assert.match(c, /\*\(volatile uint8_t \*\)40739 = code;/);
-  // The map base is read from L1_MAPBASE ($9F35 = 40757), never assumed:
-  // bit 7 is VRAM bit 16, the rest is the address >> 9.
-  assert.match(c, /mapBank = \(\(\*\(volatile uint8_t \*\)40757\) \/ 128\);/);
-  assert.match(c, /mapLow = \(\(\*\(volatile uint8_t \*\)40757\) % 128\);\n\s+mapLow = \(mapLow \* 512\);/);
-  // Cell -> VRAM: base + row*256 + col*2 for the char byte, on the 76-wide
-  // grid the inset shows; the row by a reciprocal multiply on the cell's
-  // split bytes rather than a division (exact for every cell — see the
-  // package). Port 1 is parked on the colour byte stepping by two, port 0
-  // on the character byte stepping by one.
-  assert.match(c, /uint8_t high = \(cell \/ 256\);\n\s+uint16_t x = \(\(high \* 28\) \+ \(cell % 256\)\);\n\s+uint8_t row = \(\(high \* 3\) \+ \(\(\(x \/ 4\) \* 54\) \/ 1024\)\);\n\s+uint8_t col = \(cell - \(row \* 76\)\);\n\s+uint16_t at = \(\(mapLow \+ \(row \* 256\)\) \+ \(col \* 2\)\);/);
-  assert.match(c, /40741 = 1;\n\s+setVramAddress\(mapBank, \(at \+ 1\), 2\);\n\s+\*\(volatile uint8_t \*\)40741 = 0;\n\s+setVramAddress\(mapBank, at, 1\);/);
-  assert.doesNotMatch(c, /45056|0xB000|1B000/i); // no hardcoded $1B000 anywhere
-  // putColor keeps whatever background nibble the cell has: the colour
-  // byte is read through DATA1 ($9F24 = 40740) and written back through
-  // DATA0, not rewritten from a remembered background — text does not
-  // depend on screen.
-  assert.match(c, /40739 = \(\(\(\*\(volatile uint8_t \*\)40740\) & 240\) \| \(color & 15\)\);/);
-  // setColors: DCSEL=1 ($9F25 = 40741 := 2), the four edges, DCSEL=0,
-  // then the border register ($9F2C = 40748) — in that order, so the
-  // border write can never land on VSTOP.
-  assert.match(c, /40741 = 2;\n\s+\*\(volatile uint8_t \*\)40745 = 4;\n\s+\*\(volatile uint8_t \*\)40746 = 156;\n\s+\*\(volatile uint8_t \*\)40747 = 8;\n\s+\*\(volatile uint8_t \*\)40748 = 232;\n\s+\*\(volatile uint8_t \*\)40741 = 0;/);
-  assert.match(c, /insetPicture\(\);\n\s+\*\(volatile uint8_t \*\)40741 = 0;\n\s+\*\(volatile uint8_t \*\)40748 = border;/);
-  // Layer 1 vertical scroll 510 ($9F39 = 40761 := $FE, $9F3A = 40762 := 1):
-  // the two-line correction that puts cell (0,0) on the active area's
-  // first line under x16emu — see the package header.
-  assert.match(c, /40761 = 254;\n\s+\*\(volatile uint8_t \*\)40762 = 1;/);
-  // The attribute repaint covers all 64 map rows: background high nibble,
-  // white low; row 63's characters blanked.
-  assert.match(c, /for \(uint16_t row = 0; \(row < 64\); row = \(row \+ 1\)\)/);
-  assert.match(c, /40739 = \(\(background \* 16\) \+ 1\);/);
+  const fn = (name) => ir.functions.find((f) => f.name === name);
+  const main = fn('main');
+  assert.deepEqual(main.body[0].args.map((a) => a.value), [162, 84]);
+  const setVram = fn('setVramAddress');
+  assert.deepEqual(setVram.body[0].address, { kind: 'const', value: 40736 });
+  assert.equal(setVram.body[0].value.operator, '%');
+  assert.deepEqual(setVram.body[2].address, { kind: 'const', value: 40738 });
+  assert.equal(fn('text_putChar').body[1].kind, 'memoryWrite');
+  assert.deepEqual(fn('text_putChar').body[1].address, { kind: 'const', value: 40739 });
+  const map = fn('locateTextMap');
+  assert.deepEqual(map.body[0].value.left.address, { kind: 'const', value: 40757 });
+  assert.equal(map.body[0].value.operator, '/');
+  assert.equal(map.body[1].value.operator, '%');
+  assert.deepEqual(map.body[2].value.right, { kind: 'const', value: 512 });
+  const locate = fn('locate');
+  assert.equal(locate.body[1].name, 'high');
+  assert.deepEqual(locate.body[1].init.right, { kind: 'const', value: 256 });
+  assert.equal(locate.body[2].name, 'x');
+  assert.deepEqual(locate.body[2].init.left.right, { kind: 'const', value: 28 });
+  assert.equal(locate.body[3].name, 'row');
+  assert.deepEqual(locate.body[3].init.left.right, { kind: 'const', value: 3 });
+  assert.equal(locate.body[4].name, 'col');
+  const addrSel = locate.body.filter((s) => s.kind === 'memoryWrite' && s.address.value === 40741);
+  assert.deepEqual(addrSel.map((s) => s.value.value), [1, 0]);
+  const walk = (node, visit) => {
+    if (!node || typeof node !== 'object') return;
+    visit(node);
+    for (const v of Object.values(node)) walk(v, visit);
+  };
+  let hardcodedMap = false;
+  walk(ir, (n) => {
+    if (n.kind === 'const' && (n.value === 0x1B000 || n.value === 45056)) hardcodedMap = true;
+  });
+  assert.equal(hardcodedMap, false, 'no hardcoded $1B000 anywhere');
+  const putColor = fn('text_putColor').body[2];
+  assert.deepEqual(putColor.address, { kind: 'const', value: 40739 });
+  assert.equal(putColor.value.operator, '|');
+  assert.deepEqual(putColor.value.left.left.address, { kind: 'const', value: 40740 });
+  const inset = fn('insetPicture').body.filter((s) => s.kind === 'memoryWrite');
+  assert.deepEqual(inset.slice(0, 6).map((s) => [s.address.value, s.value.value]), [
+    [40741, 2], [40745, 4], [40746, 156], [40747, 8], [40748, 232], [40741, 0],
+  ]);
+  const setColors = fn('screen_setColors');
+  assert.equal(setColors.body[0].name, 'insetPicture');
+  assert.deepEqual(setColors.body[1].address, { kind: 'const', value: 40741 });
+  assert.deepEqual(setColors.body[2].address, { kind: 'const', value: 40748 });
+  const scroll = inset.filter((s) => s.address.value === 40761 || s.address.value === 40762);
+  assert.deepEqual(scroll.map((s) => [s.address.value, s.value.value]), [[40761, 254], [40762, 1]]);
+  const repaint = setColors.body.find((s) => s.kind === 'for');
+  assert.deepEqual(repaint.test.right, { kind: 'const', value: 64 });
+  const attr = repaint.body.find((s) => s.kind === 'for');
+  assert.deepEqual(attr.body[0].address, { kind: 'const', value: 40739 });
+  assert.equal(attr.body[0].value.operator, '+');
+  assert.deepEqual(attr.body[0].value.left.right, { kind: 'const', value: 16 });
 });
 
 test('examples/borders main.8bs links clean for cx16', () => {

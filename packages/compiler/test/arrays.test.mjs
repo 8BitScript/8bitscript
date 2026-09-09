@@ -4,7 +4,7 @@
 // const it is not inlined; `@address` is N cells of hardware. The length is
 // part of the type, so `a.length` is a number 8bitscript fills in, an
 // initialiser has exactly N elements, and a literal index past the end is a
-// diagnostic. Both backends emit the same program.
+// diagnostic.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
@@ -12,8 +12,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { analyze, link, tokenize, parse, lower } from '../index.mjs';
-import { emitC } from '../../backend-6502/src/index.mjs';
-import { emitAssemblyScript } from '../../backend-web/src/index.mjs';
 
 const diagnosticsOf = (src) => analyze(src, 't.8bs');
 const codes = (src) => diagnosticsOf(src).map((d) => d.code);
@@ -173,37 +171,26 @@ test('two modules may each have an array of the same name; the second is renamed
   assert.equal(ir.functions.find((f) => f.name === 'poke').body[0].array.name, 'hp_2');
 });
 
-// ---- both backends -----------------------------------------------------------------
-
-test('the 6502 backend: const arrays are static const tables, let arrays are RAM, @address arrays are pointers', async () => {
+test('a const array is constant data, a let array is RAM, and an @address array is hardware', async () => {
   const { ir } = await linkWith({
     'main.8bs': 'const TABLE: array<utinyint, 3> = [1, 2, 3];\nlet hp: array<usmallint, 4>;\nlet scores: array<utinyint, 2> = [10, 20];\n@address(0x0400) let screenRam: array<utinyint, 1000>;\nlet i: utinyint = 0;\nexport function main(): void { hp[i] = TABLE[2]; screenRam[i] = scores[1]; hp[0]++; }\n',
   });
-  const c = emitC(ir, { machine: 'c64' });
-  // Each names its section (see the backend): a const table is read-only
-  // program data, a zero array is RAM that main() zeroes, an array with
-  // values loads in place on a disk image.
-  assert.match(c, /static const uint8_t TABLE\[3\] __attribute__\(\(section\("\.rodata\.TABLE"\)\)\) = \{ 1, 2, 3 \};/);
-  assert.match(c, /^uint16_t hp\[4\] __attribute__\(\(section\("\.noinit\.hp"\)\)\);$/m);
-  assert.match(c, /for \(uint8_t i = 0; i < 4; i\+\+\) hp\[i\] = 0;/);
-  assert.match(c, /^uint8_t scores\[2\] __attribute__\(\(section\("\.data\.scores"\)\)\) = \{ 10, 20 \};$/m);
-  assert.match(c, /#define screenRam \(\(volatile uint8_t \*\)0x400\)/);
-  assert.match(c, /hp\[i\] = TABLE\[2\];/);
-  assert.match(c, /screenRam\[i\] = scores\[1\];/);
-  assert.match(c, /hp\[0\] = \(hp\[0\] \+ 1\);/);
-});
-
-test('the web backend: arrays are static linear memory, indexed by element size, stores narrowed to the element', async () => {
-  const { ir } = await linkWith({
-    'main.8bs': 'const TABLE: array<utinyint, 3> = [1, 2, 3];\nlet hp: array<usmallint, 4>;\n@address(0x0400) let screenRam: array<utinyint, 1000>;\nlet i: utinyint = 0;\nexport function main(): void { hp[i] = TABLE[2]; screenRam[i] = 1; }\n',
-  });
-  const as = emitAssemblyScript(ir);
-  assert.ok(as.ok, as.error);
-  assert.match(as.source, /export const TABLE: usize = memory\.data<u8>\(\[1, 2, 3\]\);/);
-  assert.match(as.source, /export const hp: usize = memory\.data\(8\);/);
-  assert.match(as.source, /export const screenRam: usize = 1024;/);
-  assert.match(as.source, /store<u16>\(<usize>\(hp \+ <usize>\(i\) \* 2\), <u16>load<u8>\(<usize>\(TABLE \+ <usize>\(2\)\)\)\);/);
-  assert.match(as.source, /store<u8>\(<usize>\(screenRam \+ <usize>\(i\)\), <u8>1\);/);
+  const global = (name) => ir.globals.find((g) => g.name === name);
+  assert.deepEqual({ type: global('TABLE').type, array: global('TABLE').array, constant: global('TABLE').constant, init: global('TABLE').init },
+    { type: 'utinyint', array: 3, constant: true, init: [1, 2, 3] });
+  assert.deepEqual({ type: global('hp').type, array: global('hp').array, constant: global('hp').constant, init: global('hp').init, address: global('hp').address },
+    { type: 'usmallint', array: 4, constant: false, init: null, address: null });
+  assert.deepEqual(global('scores').init, [10, 20]);
+  assert.equal(global('screenRam').address, 0x400);
+  const [storeHp, storeScreen, inc] = ir.functions.find((f) => f.name === 'main').body;
+  assert.equal(storeHp.kind, 'storeIndex');
+  assert.equal(storeHp.array.name, 'hp');
+  assert.equal(storeHp.value.kind, 'index');
+  assert.equal(storeHp.value.array.name, 'TABLE');
+  assert.equal(storeScreen.array.name, 'screenRam');
+  assert.equal(storeScreen.value.array.name, 'scores');
+  assert.equal(inc.kind, 'storeIndex');
+  assert.equal(inc.value.operator, '+');
 });
 
 // ---- what the program declares --------------------------------------------------
@@ -225,7 +212,7 @@ test('a namespace const or an imported const may be an array element or a global
   assert.deepEqual(good.diagnostics, []);
   assert.deepEqual(good.ir.globals.find((g) => g.name === 'BORDERS').init, [6, 2]);
   assert.equal(good.ir.globals.find((g) => g.name === 'current').init, 2);
-  assert.match(emitC(good.ir, { machine: 'c64' }), /static const uint8_t BORDERS\[2\] __attribute__\(\(section\("\.rodata\.BORDERS"\)\)\) = \{ 6, 2 \};/);
+  assert.equal(good.ir.globals.find((g) => g.name === 'BORDERS').constant, true);
 
   const bad = await linkWith({
     'lib.8bs': lib,

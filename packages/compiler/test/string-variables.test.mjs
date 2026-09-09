@@ -10,8 +10,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { analyze, link, tokenize, parse, lower } from '../index.mjs';
-import { emitC } from '../../backend-6502/src/index.mjs';
-import { emitAssemblyScript } from '../../backend-web/src/index.mjs';
 
 const diagnosticsOf = (src) => analyze(src, 't.8bs');
 const messages = (src) => diagnosticsOf(src).map((d) => `${d.code} ${d.message}`);
@@ -157,29 +155,25 @@ test('a string const cannot initialise a number global', async () => {
   assert.match(diagnostics[0].message, /'LABEL' is a string const; it cannot initialise a utinyint/);
 });
 
-// ---- both backends -----------------------------------------------------------------
+// ---- copies on the IR -----------------------------------------------------------------
 
-test('both backends emit a string<N> as bytes and a copy helper exactly when a program assigns one', async () => {
+test('a string assignment lowers to a stringCopy; a program that only reads one has none', async () => {
   const { ir } = await linkWith({
     'main.8bs': 'const L: string = "GO";\nlet a: string<4>;\nlet n: utinyint = 0;\nexport function main(): void { a = L; n = a.length + a[0]; }\n',
   });
-  const c = emitC(ir, { machine: 'c64' });
-  // An empty string<4> is five bytes with values (the length byte and four
-  // characters, all zero): loaded in place on a disk image, like any
-  // let array with values.
-  assert.match(c, /^uint8_t a\[5\] __attribute__\(\(section\("\.data\.a"\)\)\) = \{ 0, 0, 0, 0, 0 \};$/m);
-  assert.match(c, /static void __8bs_string_copy\(uint8_t \*dst, const uint8_t \*src, uint8_t capacity\)/);
-  assert.match(c, /__8bs_string_copy\(a, __8bs_str_0, 4\);/);
-  assert.match(c, /n = \(a\[0\] \+ a\[1 \+ 0\]\);/);
-  const as = emitAssemblyScript(ir);
-  assert.ok(as.ok, as.error);
-  assert.match(as.source, /export const a: usize = memory\.data<u8>\(\[0, 0, 0, 0, 0\]\);/);
-  assert.match(as.source, /function __8bs_string_copy\(dst: usize, src: usize, capacity: u8\): void/);
-  assert.match(as.source, /__8bs_string_copy\(a, __8bs_str_0, 4\);/);
+  const a = ir.globals.find((g) => g.name === 'a');
+  assert.deepEqual({ type: a.type, array: a.array, stringCapacity: a.stringCapacity, init: a.init },
+    { type: 'utinyint', array: 5, stringCapacity: 4, init: [0, 0, 0, 0, 0] });
+  const main = ir.functions.find((f) => f.name === 'main');
+  assert.equal(main.body[0].kind, 'stringCopy');
+  assert.equal(main.body[0].capacity, 4);
+  assert.equal(main.body[0].source.kind, 'string');
+  assert.equal(main.body[1].value.left.kind, 'stringLength');
+  assert.equal(main.body[1].value.right.kind, 'stringByte');
 
   const none = await linkWith({ 'main.8bs': 'let a: string<4> = "HI";\nlet n: utinyint = 0;\nexport function main(): void { n = a.length; }\n' });
-  assert.doesNotMatch(emitC(none.ir, { machine: 'c64' }), /__8bs_string_copy/);
-  assert.doesNotMatch(emitAssemblyScript(none.ir).source, /__8bs_string_copy/);
+  const noneMain = none.ir.functions.find((f) => f.name === 'main');
+  assert.ok(!noneMain.body.some((s) => s.kind === 'stringCopy'));
 });
 
 test('a string cannot be assigned to, or initialise, a number', () => {

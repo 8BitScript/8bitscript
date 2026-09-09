@@ -10,7 +10,6 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { link } from '../index.mjs';
-import { emitC } from '../../backend-6502/src/index.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PET_SRC = join(HERE, '..', '..', 'pet', 'src');
@@ -116,18 +115,21 @@ test('the build\'s profile picks the table: Key.SPACE is 74 on a 3032 and 66 on 
     'export function main(): void { while (true) { waitFrame(); keyboard.scan(); if (keyboard.pressed(Key.SPACE)) { memory.write(0x8000, 1); } } }',
   ].join('\n');
   const entry = join(PET_SRC, 'phantom-entry.8bs'); // does not exist: only its directory resolves the relative imports
-  const emitted = (profile) => {
+  const pressedSpace = (profile) => {
     const { ir, diagnostics } = link(src, entry, { machine: 'pet', profile });
     assert.deepEqual(diagnostics, [], profile);
-    return emitC(ir, { machine: 'pet' });
+    const call = ir.functions.find((f) => f.name === 'main').body[0].body[2].test;
+    return call.args[0].value;
   };
-  assert.match(emitted(undefined), /pressed\(74\)/);
-  assert.match(emitted('3032'), /pressed\(74\)/);
-  assert.match(emitted('8032'), /pressed\(66\)/);
-  // The scan is ten row selects and ten column reads, through PIA1's ports.
-  const c = emitted('3032');
-  assert.match(c, /pia1PortA = row;/);
-  assert.match(c, /\(pia1PortB \^ 255\)/); // inverted once, at the scan
+  assert.equal(pressedSpace(undefined), 74);
+  assert.equal(pressedSpace('3032'), 74);
+  assert.equal(pressedSpace('8032'), 66);
+  const { ir } = link(src, entry, { machine: 'pet', profile: '3032' });
+  const scan = ir.functions.find((f) => f.name === 'keyboard_scan');
+  assert.equal(scan.body[0].body[0].target, 'pia1PortA');
+  assert.equal(scan.body[0].body[1].value.operator, '^');
+  assert.equal(scan.body[0].body[1].value.left.name, 'pia1PortB');
+  assert.deepEqual(scan.body[0].body[1].value.right, { kind: 'const', value: 255 });
 });
 
 test('a graphics-only key name is a link error on the 8032, not a silent wrong key', () => {

@@ -1,16 +1,19 @@
-// One smoke test per target emulator: build examples/borders for real
-// through the actual `8bs` CLI (not the internal compile() function — this
-// is meant to exercise exactly what a user's `8bs run <target>` does), then
-// launch that target's real emulator headlessly and confirm it actually
-// boots and runs the program, rather than merely existing on PATH.
+// One smoke test per target emulator: build a real program through the
+// actual `8bs` CLI (not the internal compile() function — this is meant
+// to exercise exactly what a user's `8bs run <target>` does), then launch
+// that target's real emulator headlessly and confirm it actually boots
+// and runs the program, rather than merely existing on PATH.
 //
 // This closes, for every target, the same gap doctor.mjs's own "VIC-20
 // boot" check exists to close for one target (see its file header): a
 // version string is not proof a build is usable, and an emulator that
-// starts is not proof it loaded anything. Skipped, not failed, on a machine
-// missing the relevant emulator or SDK driver — `8bs doctor` is what
-// reports that gap; this suite is meant to run wherever doctor reports a
-// target ready, not to gate CI on hardware nobody installed.
+// starts is not proof it loaded anything. Skipped until the native
+// backend can produce an image; `8bs doctor` is what reports a missing
+// emulator. This suite is meant to run wherever doctor reports a target
+// ready, not to gate CI on hardware nobody installed.
+//
+// TODO: this suite needs a small multi-target probe program in place of
+// the deleted examples/borders. Until then every case stays skipped.
 //
 // Every emulator here is a real GUI program with no CI-style "assert and
 // exit" mode this project could find for atari800/xmega65/fceux (x16emu is
@@ -38,7 +41,9 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CLI_BIN = join(HERE, '..', 'bin', '8bs.mjs');
-const BORDERS_DIR = join(HERE, '..', '..', '..', 'examples', 'borders');
+// TODO: a probe project directory once a replacement for examples/borders exists.
+const PROJECT_DIR = HERE;
+const NATIVE_BACKEND_PENDING = 'Bare Metal: waiting on the native backend';
 
 function onPath(name) {
   const binary = process.platform === 'win32' ? `${name}.exe` : name;
@@ -47,10 +52,8 @@ function onPath(name) {
     .some((dir) => dir && existsSync(join(dir, binary)));
 }
 
-const HAS_SDK = Boolean(process.env.LLVM_MOS_HOME);
-
 /**
- * Build examples/borders for `target` through the real CLI, exactly the
+ * Build the probe project for `target` through the real CLI, exactly the
  * way `8bs build --target <target> [--profile <profile>]` would from that
  * project's own directory. Returns the built file's path, parsed from the
  * CLI's own "built <path>" line rather than reconstructed here, so this
@@ -59,7 +62,7 @@ const HAS_SDK = Boolean(process.env.LLVM_MOS_HOME);
 function build(target, { profile } = {}) {
   return new Promise((resolvePromise, rejectPromise) => {
     const args = ['build', '--target', target, ...(profile ? ['--profile', profile] : [])];
-    const child = spawn(process.execPath, [CLI_BIN, ...args], { cwd: BORDERS_DIR, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(process.execPath, [CLI_BIN, ...args], { cwd: PROJECT_DIR, stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '';
     let stderr = '';
     child.stdout.on('data', (d) => { stdout += d; });
@@ -129,7 +132,7 @@ function runEmulator(command, args, { timeoutMs = 4000 } = {}) {
 const VICE_EMULATOR = { vic20: 'xvic', c64: 'x64sc', pet: 'xpet', c128: 'x128' };
 
 for (const [target, emulator] of Object.entries(VICE_EMULATOR)) {
-  test(`${target}: ${emulator} boots and loads a real build`, { skip: !HAS_SDK && 'LLVM_MOS_HOME not set' }, async (t) => {
+  test(`${target}: ${emulator} boots and loads a real build`, { skip: NATIVE_BACKEND_PENDING }, async (t) => {
     if (!onPath(emulator)) {
       t.skip(`${emulator} not on PATH`);
       return;
@@ -169,7 +172,7 @@ for (const [target, emulator] of Object.entries(VICE_EMULATOR)) {
 // this project's own testing), and is still running — not crashed back to
 // a shell prompt — when the timeout kills it.
 
-test('atari8: atari800 boots and loads a real build', { skip: !HAS_SDK && 'LLVM_MOS_HOME not set' }, async (t) => {
+test('atari8: atari800 boots and loads a real build', { skip: NATIVE_BACKEND_PENDING }, async (t) => {
   if (!onPath('atari800')) { t.skip('atari800 not on PATH'); return; }
   const outFile = await build('atari8');
   const result = await runEmulator('atari800', ['-xl', '-ntsc', '-run', outFile], { timeoutMs: 4000 });
@@ -189,7 +192,7 @@ test('atari8: atari800 boots and loads a real build', { skip: !HAS_SDK && 'LLVM_
 // enough to prove the ROM/emulator pairing works and the program actually
 // loaded, without needing the testbench protocol.
 
-test('cx16: x16emu boots and loads a real build', { skip: !HAS_SDK && 'LLVM_MOS_HOME not set' }, async (t) => {
+test('cx16: x16emu boots and loads a real build', { skip: NATIVE_BACKEND_PENDING }, async (t) => {
   if (!onPath('x16emu')) { t.skip('x16emu not on PATH'); return; }
   const outFile = await build('cx16');
   const result = await runEmulator('x16emu', ['-prg', outFile, '-run', '-echo', 'raw'], { timeoutMs: 4000 });
@@ -209,7 +212,7 @@ test('cx16: x16emu boots and loads a real build', { skip: !HAS_SDK && 'LLVM_MOS_
 // reports actually firing that event once BASIC reaches READY. (observed
 // in this project's own testing to sometimes not happen within 6s, which
 // is why "registering" alone is accepted and "hit" isn't required).
-test('mega65: xmega65 boots and loads a real build', { skip: !HAS_SDK && 'LLVM_MOS_HOME not set' }, async (t) => {
+test('mega65: xmega65 boots and loads a real build', { skip: NATIVE_BACKEND_PENDING }, async (t) => {
   if (!onPath('xmega65')) { t.skip('xmega65 not on PATH'); return; }
   const outFile = await build('mega65');
   const result = await runEmulator('xmega65', ['-headless', '-prg', outFile], { timeoutMs: 8000 });
@@ -233,7 +236,7 @@ test('mega65: xmega65 boots and loads a real build', { skip: !HAS_SDK && 'LLVM_M
 // check for the NES build is the static iNES-header assertion below, which
 // needs no emulator at all.
 
-test('nes: the build is a well-formed iNES ROM (NROM: 32K PRG, 8K CHR)', { skip: !HAS_SDK && 'LLVM_MOS_HOME not set' }, async () => {
+test('nes: the build is a well-formed iNES ROM (NROM: 32K PRG, 8K CHR)', { skip: NATIVE_BACKEND_PENDING }, async () => {
   const outFile = await build('nes');
   const rom = readFileSync(outFile);
   assert.equal(rom.slice(0, 4).toString('latin1'), 'NES\x1a', 'missing the iNES magic number');
@@ -241,7 +244,7 @@ test('nes: the build is a well-formed iNES ROM (NROM: 32K PRG, 8K CHR)', { skip:
   assert.equal(rom[5], 1, 'expected 1 x 8K CHR-ROM bank');
 });
 
-test('nes: fceux launches against a real build without crashing', { skip: !HAS_SDK && 'LLVM_MOS_HOME not set' }, async (t) => {
+test('nes: fceux launches against a real build without crashing', { skip: NATIVE_BACKEND_PENDING }, async (t) => {
   if (!onPath('fceux')) { t.skip('fceux not on PATH'); return; }
   const outFile = await build('nes');
   const result = await runEmulator('fceux', [outFile], { timeoutMs: 3000 });
@@ -259,7 +262,7 @@ test('nes: fceux launches against a real build without crashing', { skip: !HAS_S
 // `ticks` global actually moved — the same observable behaviour every other
 // target's screen shows.
 
-test('web: the build runs in Node\'s WebAssembly runtime and waitFrame() paces it', async () => {
+test('web: the build runs in Node\'s WebAssembly runtime and waitFrame() paces it', { skip: NATIVE_BACKEND_PENDING }, async () => {
   const outFile = await build('web');
   const bytes = readFileSync(outFile);
   const { runProgram } = await import('../src/wasm-host.mjs');
