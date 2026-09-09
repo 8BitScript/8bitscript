@@ -22,8 +22,7 @@
     "test": "pnpm --recursive --if-present test",
     "test:ci": "pnpm --recursive --if-present --filter='!@8bitscript/atari8' --filter='!@8bitscript/c128' --filter='!@8bitscript/c64' --filter='!@8bitscript/cx16' --filter='!@8bitscript/pet' --filter='!@8bitscript/pointer' test",
     "test:coverage": "node scripts/test-coverage.mjs",
-    "doctor": "8bs doctor",
-    "examples": "node scripts/launch-example.mjs"
+    "doctor": "8bs doctor"
   },
   "devDependencies": {
     "@8bitscript/cli": "workspace:*",

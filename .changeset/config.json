@@ -33,6 +33,6 @@
   "access": "public",
   "baseBranch": "trunk",
   "updateInternalDependencies": "patch",
-  "ignore": ["borders", "menubar", "pointer"],
+  "ignore": [],
   "privatePackages": { "version": true, "tag": false }
 }

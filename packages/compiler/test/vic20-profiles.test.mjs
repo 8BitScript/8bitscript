@@ -2,7 +2,7 @@
 // text.8bs), one geometry file with an `expanded` twin beside it, and the
 // build's hardware tags — from the package's own catalog — deciding where
 // the screen is. The real package, through the real pnpm-linked
-// node_modules, the way the borders example resolves it.
+// node_modules.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -12,8 +12,13 @@ import { fileURLToPath } from 'node:url';
 import { link } from '../index.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const BORDERS_MAIN = join(HERE, '..', '..', '..', 'examples', 'borders', 'src', 'main.8bs');
 const VIC20_SRC = join(HERE, '..', '..', 'vic20', 'src');
+const CONSUMER = [
+  'import { screen } from "@8bitscript/screen";',
+  'import { text } from "@8bitscript/text";',
+  'export function main(): void { screen.blank(); text.putColor(0, 1); }',
+].join('\n');
+const ENTRY = join(HERE, '..', '..', 'studio', 'src', 'main.8bs');
 
 // The tags a `ram` value carries, read from the catalog the way the CLI
 // reads it (packages/cli/src/hardware.mjs): the value's `tag` if it names
@@ -29,8 +34,7 @@ const tagsFor = (ram) => {
 };
 
 const linked = (ram) => {
-  const src = readFileSync(BORDERS_MAIN, 'utf8');
-  const { ir, diagnostics } = link(src, BORDERS_MAIN, { machine: 'vic20', tags: tagsFor(ram) });
+  const { ir, diagnostics } = link(CONSUMER, ENTRY, { machine: 'vic20', tags: tagsFor(ram) });
   assert.deepEqual(diagnostics, [], String(ram));
   const blank = ir.functions.find((f) => f.name === 'screen_blank');
   const loop = blank.body.find((s) => s.kind === 'for');

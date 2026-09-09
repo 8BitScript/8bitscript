@@ -1,7 +1,7 @@
 // @8bitscript/pet across its profiles: one surface (screen.8bs, text.8bs),
 // one geometry file with an 8032 version beside it, and the build's
 // profile deciding which the surface reads. The real package, through the
-// real pnpm-linked node_modules, the way the borders example resolves it.
+// real pnpm-linked node_modules.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -11,12 +11,12 @@ import { fileURLToPath } from 'node:url';
 import { link } from '../index.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const BORDERS_MAIN = join(HERE, '..', '..', '..', 'examples', 'borders', 'src', 'main.8bs');
 const PET_SRC = join(HERE, '..', '..', 'pet', 'src');
+const CONSUMER = 'import { screen } from "@8bitscript/screen";\nexport function main(): void { screen.blank(); }';
+const ENTRY = join(HERE, '..', '..', 'studio', 'src', 'main.8bs');
 
 const linked = (profile) => {
-  const src = readFileSync(BORDERS_MAIN, 'utf8');
-  const { ir, diagnostics } = link(src, BORDERS_MAIN, { machine: 'pet', profile });
+  const { ir, diagnostics } = link(CONSUMER, ENTRY, { machine: 'pet', profile });
   assert.deepEqual(diagnostics, [], profile);
   const blank = ir.functions.find((f) => f.name === 'screen_blank');
   const loop = blank.body.find((s) => s.kind === 'for');

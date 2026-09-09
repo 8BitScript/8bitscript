@@ -140,60 +140,6 @@ importers:
         specifier: ^0.10.1
         version: 0.10.12(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)
 
-  examples/borders:
-    dependencies:
-      '@8bitscript/screen':
-        specifier: workspace:*
-        version: link:../../packages/screen
-      '@8bitscript/text':
-        specifier: workspace:*
-        version: link:../../packages/text
-    devDependencies:
-      '@8bitscript/cli':
-        specifier: workspace:*
-        version: link:../../packages/cli
-
-  examples/menubar:
-    dependencies:
-      '@8bitscript/input':
-        specifier: workspace:*
-        version: link:../../packages/input
-      '@8bitscript/screen':
-        specifier: workspace:*
-        version: link:../../packages/screen
-      '@8bitscript/system':
-        specifier: workspace:*
-        version: link:../../packages/system
-      '@8bitscript/text':
-        specifier: workspace:*
-        version: link:../../packages/text
-      '@8bitscript/ui':
-        specifier: workspace:*
-        version: link:../../packages/ui
-    devDependencies:
-      '@8bitscript/cli':
-        specifier: workspace:*
-        version: link:../../packages/cli
-
-  examples/pointer:
-    dependencies:
-      '@8bitscript/input':
-        specifier: workspace:*
-        version: link:../../packages/input
-      '@8bitscript/pointer':
-        specifier: workspace:*
-        version: link:../../packages/pointer
-      '@8bitscript/screen':
-        specifier: workspace:*
-        version: link:../../packages/screen
-      '@8bitscript/text':
-        specifier: workspace:*
-        version: link:../../packages/text
-    devDependencies:
-      '@8bitscript/cli':
-        specifier: workspace:*
-        version: link:../../packages/cli
-
   packages/atari8: {}
 
   packages/backend-6502:

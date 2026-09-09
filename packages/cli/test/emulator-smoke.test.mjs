@@ -12,8 +12,8 @@
 // emulator. This suite is meant to run wherever doctor reports a target
 // ready, not to gate CI on hardware nobody installed.
 //
-// TODO: this suite needs a small multi-target probe program in place of
-// the deleted examples/borders. Until then every case stays skipped.
+// TODO: this suite needs a small multi-target probe program. Until then
+// every case stays skipped.
 //
 // Every emulator here is a real GUI program with no CI-style "assert and
 // exit" mode this project could find for atari800/xmega65/fceux (x16emu is
@@ -41,7 +41,7 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CLI_BIN = join(HERE, '..', 'bin', '8bs.mjs');
-// TODO: a probe project directory once a replacement for examples/borders exists.
+// TODO: a probe project directory once a replacement program exists.
 const PROJECT_DIR = HERE;
 const NATIVE_BACKEND_PENDING = 'Bare Metal: waiting on the native backend';
 

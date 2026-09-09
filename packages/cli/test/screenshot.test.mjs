@@ -5,8 +5,8 @@
 // target's mechanism differs; see emulator-smoke.test.mjs for the same
 // skip convention this file follows.
 //
-// TODO: this suite needs a small multi-target probe program in place of
-// the deleted examples/borders. Until then every case stays skipped.
+// TODO: this suite needs a small multi-target probe program. Until then
+// every case stays skipped.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CLI_BIN = join(HERE, '..', 'bin', '8bs.mjs');
-// TODO: a probe project directory once a replacement for examples/borders exists.
+// TODO: a probe project directory once a replacement program exists.
 const PROJECT_DIR = HERE;
 const NATIVE_BACKEND_PENDING = 'Bare Metal: waiting on the native backend';
 

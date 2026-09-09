@@ -13,7 +13,6 @@ import { fileURLToPath } from 'node:url';
 import { link } from '../index.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const BORDERS_MAIN = join(HERE, '..', '..', '..', 'examples', 'borders', 'src', 'main.8bs');
 const C64_SRC = join(HERE, '..', '..', 'c64', 'src');
 const VICE_C64 = '/opt/homebrew/share/vice/C64';
 
@@ -141,9 +140,9 @@ test('index.8bs names the VIC-II, SID, CIA and processor-port registers at their
 
 // ---- the portable surface, through the bank ---------------------------------
 
-test('borders on the c64 draws at $E000 with colour at $D800, sets $D018 to $84', () => {
-  const src = readFileSync(BORDERS_MAIN, 'utf8');
-  const ir = linked(src, BORDERS_MAIN);
+test('the c64 screen draws at $E000 with colour at $D800, sets $D018 to $84', () => {
+  const src = 'import { screen } from "@8bitscript/screen";\nexport function main(): void { screen.blank(); }';
+  const ir = linked(src, join(HERE, '..', '..', 'studio', 'src', 'main.8bs'));
   assert.equal(ir.globals.find((g) => g.name === 'screenRam').address, 0xE000);
   assert.equal(ir.globals.find((g) => g.name === 'colorRam').address, 0xD800);
   const setup = fn(ir, 'setupVideo');

@@ -419,19 +419,19 @@ test('a call to a name that resolves to nothing is 8BS2007', () => {
   assert.deepEqual(diagnostics.map((d) => d.code), ['8BS2007']);
 });
 
-// ---- conditional package entries (the real borders example as fixture) ----
+// ---- conditional package entries ------------------------------------------
 //
-// The borders example's shared entry imports @8bitscript/screen and
-// @8bitscript/text, whose manifest entries are keyed by machine and
-// delegate to each target package's `./screen` and `./text` subpaths —
-// @8bitscript/vic20/screen, @8bitscript/c64/screen, and so on — through
-// real pnpm symlinks. This group is the proof the conditional resolution
-// actually switches implementations.
+// A consumer of @8bitscript/screen, resolved through Studio's node_modules
+// (the remaining in-repo program that depends on the capability packages).
+// Manifest entries are keyed by machine and delegate to each target
+// package's `./screen` subpath through real pnpm symlinks. This group is
+// the proof the conditional resolution actually switches implementations.
 
-const BORDER_ENTRY = join(HERE, '..', '..', '..', 'examples', 'borders', 'src', 'main.8bs');
+const STUDIO_ENTRY = join(HERE, '..', '..', 'studio', 'src', 'main.8bs');
+const SCREEN_CONSUMER = 'import { screen } from "@8bitscript/screen";\nexport function main(): void { screen.setColors(6, 0); }';
 
 test('a conditional entry resolves to the vic20 implementation', () => {
-  const { ir, diagnostics } = link(readFileSync(BORDER_ENTRY, 'utf8'), BORDER_ENTRY, { machine: 'vic20' });
+  const { ir, diagnostics } = link(SCREEN_CONSUMER, STUDIO_ENTRY, { machine: 'vic20' });
   assert.deepEqual(diagnostics, []);
   assert.equal(ir.globals.find((g) => g.name === 'vicColor').address, 0x900f);
   assert.ok(ir.functions.some((f) => f.name === 'screen_setColors'));
@@ -439,19 +439,14 @@ test('a conditional entry resolves to the vic20 implementation', () => {
 });
 
 test('the same entry resolves to the c64 implementation', () => {
-  const { ir, diagnostics } = link(readFileSync(BORDER_ENTRY, 'utf8'), BORDER_ENTRY, { machine: 'c64' });
+  const { ir, diagnostics } = link(SCREEN_CONSUMER, STUDIO_ENTRY, { machine: 'c64' });
   assert.deepEqual(diagnostics, []);
   assert.equal(ir.globals.find((g) => g.name === 'borderColor').address, 0xd020);
   assert.ok(!ir.globals.some((g) => g.name === 'vicColor'));
 });
 
 test('the same entry resolves to the web implementation', () => {
-  // main.8bs is a genuinely single file: it exports main(), and each
-  // target's own text namespace (real screen memory on the VIC-20/C64, a
-  // virtual character grid on the web — see @8bitscript/web's header
-  // comment) gives clearScreen()/drawHud() something to poke everywhere,
-  // so the same source links clean against all three.
-  const { ir, diagnostics } = link(readFileSync(BORDER_ENTRY, 'utf8'), BORDER_ENTRY, { machine: 'web' });
+  const { ir, diagnostics } = link(SCREEN_CONSUMER, STUDIO_ENTRY, { machine: 'web' });
   assert.deepEqual(diagnostics, []);
   assert.ok(ir.functions.some((f) => f.name === 'screen_setColors'));
   assert.ok(!ir.globals.some((g) => g.name === 'vicColor' || g.name === 'borderColor'));
@@ -462,17 +457,17 @@ test('a machine the entry has no branch for is 8BS3002', () => {
   // web) has a branch — 'atari2600' stands in for the "not one of them"
   // case this error exists for: a real 6502 platform (so it's not
   // implausible), just not one @8bitscript/screen's entry map has a branch
-  // for. Both imports fail the same way.
-  const { ir, diagnostics } = link(readFileSync(BORDER_ENTRY, 'utf8'), BORDER_ENTRY, { machine: 'atari2600' });
+  // for.
+  const { ir, diagnostics } = link(SCREEN_CONSUMER, STUDIO_ENTRY, { machine: 'atari2600' });
   assert.equal(ir, null);
-  assert.deepEqual(diagnostics.map((d) => d.code), ['8BS3002', '8BS3002']);
+  assert.deepEqual(diagnostics.map((d) => d.code), ['8BS3002']);
 });
 
 test('without a machine, every branch of a conditional entry is validated', () => {
   // analyze/`8bs check` resolve imports with no machine in hand: a sound
   // conditional entry is clean, not an error.
   assert.deepEqual(
-    codes('import { screen } from "@8bitscript/screen";', BORDER_ENTRY, { resolveImports: true }),
+    codes('import { screen } from "@8bitscript/screen";', STUDIO_ENTRY, { resolveImports: true }),
     [],
   );
 });
@@ -638,7 +633,7 @@ test('a package\'s string entry follows the same rule', () => {
 
 test('analyze, hover, and completion never throw on any prefix of a real program', () => {
   const files = [
-    join(HERE, '..', '..', '..', 'examples', 'borders', 'src', 'main.8bs'),
+    join(HERE, '..', '..', 'studio', 'src', 'main.8bs'),
     join(HERE, '..', '..', 'c64', 'src', 'text.8bs'),
     join(HERE, '..', '..', 'nes', 'src', 'screen.8bs'),
     // Arrays, a for loop with a local, and a ptr global that still does not lower.
