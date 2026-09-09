@@ -35,3 +35,13 @@ test('basicStub: the SYS argument has as many digits as codeStart actually does'
   // the rest is the fixed 6 bytes of link + line number + end-of-program.
   assert.equal(bytes.length, 6 + 1 + digits + 1);
 });
+
+test('basicStub: a load address whose stub would land on a power of ten grows the SYS argument by one digit', () => {
+  // loadAddress + 8 (stub overhead) = 9996, four digits; adding those four
+  // digits lands codeStart at 10000, five digits — the iteration the
+  // function's header comment describes, not the already-settled 0x2710 case.
+  const { bytes, codeStart } = basicStub(9988);
+  assert.equal(String(codeStart).length, 5);
+  assert.equal(9988 + bytes.length, codeStart);
+  assert.equal(codeStart, 10001);
+});

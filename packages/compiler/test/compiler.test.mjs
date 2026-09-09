@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 import {
-  analyze, tokenize, parse, check, foldCompileTime, getHoverInfo, getCompletions, NodeType,
+  analyze, tokenize, parse, check, foldCompileTime, getHoverInfo, getCompletions, NodeType, positionAt,
 } from '../index.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -689,4 +689,13 @@ test('analyze never throws on a statement caught mid-keystroke', () => {
       getCompletions(source, source.length);
     }, JSON.stringify(source));
   }
+});
+
+test('positionAt is 1-based line and column, counting every newline up to the offset', () => {
+  assert.deepEqual(positionAt('abc', 0), { line: 1, column: 1 });
+  assert.deepEqual(positionAt('abc', 2), { line: 1, column: 3 });
+  assert.deepEqual(positionAt('a\nb\nc', 0), { line: 1, column: 1 });
+  assert.deepEqual(positionAt('a\nb\nc', 2), { line: 2, column: 1 });
+  assert.deepEqual(positionAt('a\nb\nc', 4), { line: 3, column: 1 });
+  assert.deepEqual(positionAt('a\nb\nc', 5), { line: 3, column: 2 });
 });
