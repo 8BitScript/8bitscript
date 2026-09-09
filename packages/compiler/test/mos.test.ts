@@ -396,13 +396,20 @@ test('frameRatio: a rate the sixteen-bit form cannot hold accurately falls back 
 });
 
 test('FRAME_SYNC.pet.calibrate measures VIA1 T2 against vsync and scales the elapsed cycles by frameRate', () => {
-  const at60 = FRAME_SYNC.pet.calibrate(60);
+  // FrameSync is a union (LevelSync | EdgeSyncFixed | EdgeSyncCalibrated);
+  // the PET is the one machine that measures its own ratio rather than
+  // using a fixed one, so `calibrate` only exists on its branch — the `in`
+  // check is what narrows FRAME_SYNC.pet down to it for TypeScript.
+  const pet = FRAME_SYNC.pet;
+  assert.ok('calibrate' in pet, 'the PET has no fixed num/den ratio — it measures its own');
+  if (!('calibrate' in pet)) return;
+  const at60 = pet.calibrate(60);
   assert.match(at60, /0xE813/); // PIA1 CRB, the vsync latch
   assert.match(at60, /0xE848/); // VIA1 T2C-L
   assert.match(at60, /0xE849/); // VIA1 T2C-H
   assert.match(at60, /60u \*/);
   assert.match(at60, /1000000u/); // the PET's region-independent 1 MHz clock
-  const at50 = FRAME_SYNC.pet.calibrate(50);
+  const at50 = pet.calibrate(50);
   assert.match(at50, /50u \*/);
   assert.doesNotMatch(at50, /60u \*/);
 });

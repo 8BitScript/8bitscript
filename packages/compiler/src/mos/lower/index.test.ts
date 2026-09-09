@@ -361,7 +361,7 @@ test('>, <=, >=, and != as if-tests assemble; a bool local used as a condition i
   ]);
   for (const operator of ['>', '<=', '>=', '!=']) {
     const result = lower([{ kind: 'if', test: bool(operator, ref('a'), ref('b')), then: [write(0x8000, 1)], else: null }], env);
-    assert.equal(result.ok, true, result.ok ? `${operator}: ${result.error}` : result.error);
+    assert.equal(result.ok, true, result.ok ? '' : `${operator}: ${result.error}`);
     if (result.ok) assembles(result.program);
   }
   const onFlag = lower([{ kind: 'if', test: ref('flag', 'bool'), then: [write(0x8000, 1)], else: null }], env);
