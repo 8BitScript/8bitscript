@@ -41,7 +41,6 @@ export const nav = [
     url: '/setup/',
     children: [
       { title: 'Host toolchain', url: '/setup/host-toolchain' },
-      { title: 'LLVM-MOS', url: '/setup/llvm-mos' },
       { title: 'VICE', url: '/setup/vice' },
       { title: 'Verify your setup', url: '/setup/verify' },
     ],
