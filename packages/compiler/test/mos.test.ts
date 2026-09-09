@@ -394,3 +394,15 @@ test('frameRatio: a rate the sixteen-bit form cannot hold accurately falls back 
   assert.equal(type, 'uint32_t');
   assert.deepEqual(pairs.ntsc, { num: 1000 * 263 * 65 * 14, den: 14318181 });
 });
+
+test('FRAME_SYNC.pet.calibrate measures VIA1 T2 against vsync and scales the elapsed cycles by frameRate', () => {
+  const at60 = FRAME_SYNC.pet.calibrate(60);
+  assert.match(at60, /0xE813/); // PIA1 CRB, the vsync latch
+  assert.match(at60, /0xE848/); // VIA1 T2C-L
+  assert.match(at60, /0xE849/); // VIA1 T2C-H
+  assert.match(at60, /60u \*/);
+  assert.match(at60, /1000000u/); // the PET's region-independent 1 MHz clock
+  const at50 = FRAME_SYNC.pet.calibrate(50);
+  assert.match(at50, /50u \*/);
+  assert.doesNotMatch(at50, /60u \*/);
+});

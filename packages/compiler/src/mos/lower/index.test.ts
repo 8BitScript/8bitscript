@@ -274,3 +274,204 @@ test('an empty else ({}) is treated as no else at all — no dead JMP to a branc
   if (!withEmptyElse.ok || !withNoElse.ok) return;
   assert.equal(withEmptyElse.program.length, withNoElse.program.length);
 });
+
+const mnemonicsOf = (program: Directive[]) =>
+  program.filter((d) => d.kind === 'instruction').map((d) => (d as { mnemonic: string }).mnemonic);
+
+const bool = (operator: string, left: IrExpr, right: IrExpr): IrExpr => bin(operator, left, right, 'bool');
+const not = (argument: IrExpr): IrExpr => ({ kind: 'unop', operator: '!', argument, type: 'bool' });
+const unary = (operator: string, argument: IrExpr, type = 'utinyint'): IrExpr => ({ kind: 'unop', operator, argument, type });
+
+test('&& and || as values materialise to 0/1; as if-tests they short-circuit without that materialisation', () => {
+  const env = ctx([
+    ['a', { address: 0x10, type: 'utinyint' }],
+    ['b', { address: 0x11, type: 'utinyint' }],
+    ['flag', { address: 0x12, type: 'bool' }],
+  ]);
+  const asValue = lower([assign('flag', bool('&&', ref('a'), ref('b')))], env);
+  assert.equal(asValue.ok, true, asValue.ok ? '' : asValue.error);
+  if (!asValue.ok) return;
+  assembles(asValue.program);
+  assert.ok(mnemonicsOf(asValue.program).includes('LDA'));
+  assert.ok(mnemonicsOf(asValue.program).includes('JMP')); // the 0/1 materialisation
+
+  const orValue = lower([assign('flag', bool('||', ref('a'), ref('b')))], env);
+  assert.equal(orValue.ok, true, orValue.ok ? '' : orValue.error);
+  if (!orValue.ok) return;
+  assembles(orValue.program);
+
+  const andIf = lower([{ kind: 'if', test: bool('&&', ref('a'), ref('b')), then: [write(0x8000, 1)], else: null }], env);
+  assert.equal(andIf.ok, true, andIf.ok ? '' : andIf.error);
+  if (!andIf.ok) return;
+  assembles(andIf.program);
+  assert.ok(!mnemonicsOf(andIf.program).includes('JMP') || mnemonicsOf(andIf.program).filter((m) => m === 'LDA').length < mnemonicsOf(asValue.program).filter((m) => m === 'LDA').length);
+
+  const orIf = lower([{ kind: 'if', test: bool('||', ref('a'), ref('b')), then: [write(0x8000, 1)], else: [write(0x8000, 2)] }], env);
+  assert.equal(orIf.ok, true, orIf.ok ? '' : orIf.error);
+  if (!orIf.ok) return;
+  assembles(orIf.program);
+});
+
+test('unary !, ~, -, and + each lower; an unknown unary operator is refused by name', () => {
+  const env = ctx([
+    ['x', { address: 0x10, type: 'utinyint' }],
+    ['flag', { address: 0x12, type: 'bool' }],
+    ['out', { address: 0x13, type: 'utinyint' }],
+  ]);
+  const bang = lower([assign('flag', not(ref('x')))], env);
+  assert.equal(bang.ok, true, bang.ok ? '' : bang.error);
+  if (!bang.ok) return;
+  assembles(bang.program);
+
+  const ifNot = lower([{ kind: 'if', test: not(ref('x')), then: [write(0x8000, 1)], else: null }], env);
+  assert.equal(ifNot.ok, true, ifNot.ok ? '' : ifNot.error);
+  if (!ifNot.ok) return;
+  assembles(ifNot.program);
+
+  const bitNot = lower([assign('out', unary('~', ref('x')))], env);
+  assert.equal(bitNot.ok, true, bitNot.ok ? '' : bitNot.error);
+  if (!bitNot.ok) return;
+  assembles(bitNot.program);
+  assert.ok(mnemonicsOf(bitNot.program).includes('EOR'));
+
+  const neg = lower([assign('out', unary('-', ref('x')))], env);
+  assert.equal(neg.ok, true, neg.ok ? '' : neg.error);
+  if (!neg.ok) return;
+  assembles(neg.program);
+  assert.deepEqual(mnemonicsOf(neg.program).filter((m) => m === 'EOR' || m === 'ADC' || m === 'CLC'), ['EOR', 'CLC', 'ADC']);
+
+  const plus = lower([assign('out', unary('+', ref('x')))], env);
+  assert.equal(plus.ok, true, plus.ok ? '' : plus.error);
+  if (!plus.ok) return;
+  assembles(plus.program);
+  // Unary plus is the identity: load x, store out, no EOR/ADC.
+  assert.ok(!mnemonicsOf(plus.program).includes('EOR'));
+
+  const unknown = lower([assign('out', unary('@', ref('x')))], env);
+  assert.equal(unknown.ok, false);
+  if (unknown.ok) return;
+  assert.match(unknown.error, /unary '@' operator/);
+});
+
+test('>, <=, >=, and != as if-tests assemble; a bool local used as a condition is tested as zero/nonzero', () => {
+  const env = ctx([
+    ['a', { address: 0x10, type: 'utinyint' }],
+    ['b', { address: 0x11, type: 'utinyint' }],
+    ['flag', { address: 0x12, type: 'bool' }],
+  ]);
+  for (const operator of ['>', '<=', '>=', '!=']) {
+    const result = lower([{ kind: 'if', test: bool(operator, ref('a'), ref('b')), then: [write(0x8000, 1)], else: null }], env);
+    assert.equal(result.ok, true, result.ok ? `${operator}: ${result.error}` : result.error);
+    if (result.ok) assembles(result.program);
+  }
+  const onFlag = lower([{ kind: 'if', test: ref('flag', 'bool'), then: [write(0x8000, 1)], else: null }], env);
+  assert.equal(onFlag.ok, true, onFlag.ok ? '' : onFlag.error);
+  if (!onFlag.ok) return;
+  assembles(onFlag.program);
+  assert.ok(mnemonicsOf(onFlag.program).includes('BNE') || mnemonicsOf(onFlag.program).includes('BEQ'));
+});
+
+test('continue jumps to the loop\'s continue label — the top of a while, the update of a for', () => {
+  const env = ctx([['i', { address: 0x10, type: 'utinyint' }]]);
+  const whileCont = lower([
+    {
+      kind: 'while',
+      test: bool('<', ref('i'), u8(10)),
+      body: [
+        { kind: 'if', test: bool('==', ref('i'), u8(5)), then: [{ kind: 'continue' }], else: null },
+        assign('i', bin('+', ref('i'), u8(1))),
+      ],
+    },
+  ], env);
+  assert.equal(whileCont.ok, true, whileCont.ok ? '' : whileCont.error);
+  if (!whileCont.ok) return;
+  assembles(whileCont.program);
+  assert.ok(mnemonicsOf(whileCont.program).includes('JMP'));
+
+  const forCont = lower([
+    {
+      kind: 'for',
+      init: local('j', u8(0)),
+      test: bool('<', ref('j'), u8(9)),
+      update: assign('j', bin('+', ref('j'), u8(1))),
+      body: [{ kind: 'continue' }],
+    },
+  ], env);
+  assert.equal(forCont.ok, true, forCont.ok ? '' : forCont.error);
+  if (!forCont.ok) return;
+  assembles(forCont.program);
+});
+
+test('a for with no init, test, or update is an infinite loop; break is how it ends', () => {
+  const result = lower([{ kind: 'for', init: null, test: null, update: null, body: [{ kind: 'break' }] }], ctx());
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  assembles(result.program);
+  assert.ok(mnemonicsOf(result.program).includes('JMP'));
+});
+
+test('break and continue outside any loop fail as a checker bug, not a missing rule', () => {
+  const brk = lower([{ kind: 'break' }], ctx());
+  assert.equal(brk.ok, false);
+  if (!brk.ok) assert.match(brk.error, /break outside any loop/);
+  const cont = lower([{ kind: 'continue' }], ctx());
+  assert.equal(cont.ok, false);
+  if (!cont.ok) assert.match(cont.error, /continue outside any loop/);
+});
+
+test('a bitwise or shift operator is refused by name the same way * / % are', () => {
+  const result = lower([assign('out', bin('<<', u8(1), u8(1)))], ctx([['out', { address: 0x50, type: 'utinyint' }]]));
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /the '<<' operator/);
+});
+
+test('an expression kind with no rule yet fails naming it, not silently', () => {
+  const result = lower([assign('out', { kind: 'call', type: 'utinyint' })], ctx([['out', { address: 0x50, type: 'utinyint' }]]));
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /no instruction-selection rule yet for the 'call' expression/);
+});
+
+test('memoryWrite of a computed address is refused; a missing value is refused; a zeropage address uses STA zeropage', () => {
+  const computed = lower([{
+    kind: 'memoryWrite',
+    address: { kind: 'ref', name: 'p', type: 'usmallint' },
+    value: u8(1),
+  }], ctx([['p', { address: 0x10, type: 'usmallint' }]]));
+  assert.equal(computed.ok, false);
+  if (!computed.ok) assert.match(computed.error, /address must be a literal/);
+
+  const missing = lower([{ kind: 'memoryWrite', address: { kind: 'const', value: 0x8000, type: 'usmallint' }, value: null }], ctx());
+  assert.equal(missing.ok, false);
+  if (!missing.ok) assert.match(missing.error, /no value to write/);
+
+  const zp = lower([write(0x80, 7)], ctx());
+  assert.equal(zp.ok, true, zp.ok ? '' : zp.error);
+  if (!zp.ok) return;
+  assembles(zp.program);
+  const sta = zp.program.find((d) => d.kind === 'instruction' && (d as { mnemonic: string }).mnemonic === 'STA');
+  assert.ok(sta && sta.kind === 'instruction');
+  if (sta?.kind === 'instruction') assert.equal(sta.mode, 'zeropage');
+});
+
+test('a 16-bit assignment is refused, not truncated to a byte', () => {
+  const result = lower([assign('wide', u8(1))], ctx([['wide', { address: 0x10, type: 'usmallint' }]]));
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /assignment to 'wide' is 'usmallint'/);
+});
+
+test('a local with no type is refused rather than assumed 8-bit', () => {
+  const result = lower([{ kind: 'local', name: 'x', init: u8(1) }], ctx());
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /no type on this IR node/);
+});
+
+test('a lowering bug that is not a LowerError or a zp-budget error still throws', () => {
+  assert.throws(
+    () => lower([{ kind: 'local', name: 'x', type: 'utinyint', init: null }], ctx()),
+    (error: unknown) => error instanceof TypeError,
+  );
+});
