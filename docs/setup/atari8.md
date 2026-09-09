@@ -7,7 +7,8 @@ nav_order: 5
 
 [atari800](https://github.com/atari800/atari800) is the emulator 8BitScript
 targets for the Atari 8-bit family — the 400/800/XL/XE/XEGS lineage `8bs
-build --target atari8` compiles for. Which machine is the `model`
+build --target atari8` will compile for when the 6502 backend emits. Until
+0.2.0 that command refuses. Which machine is the `model`
 hardware option (`8bs targets` lists it, with a preset per model); one
 binary covers every model, since atari800's own flag picks the machine,
 not a separate install.
@@ -93,12 +94,12 @@ in the output filename. What it does change is the fact sheet: the 400 and
 `media` is the axis that changes the build — the driver, the link address,
 the RAM budget and the image — so its value names the output file:
 
-| `media` | Links with | Image | Loaded as |
-| ------- | ---------- | ----- | --------- |
-| `xex` (default) | `mos-atari8-dos-clang` | `.xex`, program at `$2000`–`$BFFF` | `-run <file.xex>` |
-| `cart8`, `cart16` | `mos-atari8-cart-std-clang` | 8 KiB at `$A000` / 16 KiB at `$8000` | `-cart-type 1` / `2` |
-| `xegs32` … `xegs512` | `mos-atari8-cart-xegs-clang` | 32–512 KiB, 8 KiB banks at `$8000` + a fixed bank at `$A000` | `-cart-type 12/13/14/23/24` |
-| `mega16` … `mega512` | `mos-atari8-cart-megacart-clang` | 16–512 KiB in 16 KiB banks over `$8000`–`$BFFF` | `-cart-type 26`–`31` |
+| `media` | Image | Loaded as |
+| ------- | ----- | --------- |
+| `xex` (default) | `.xex`, program at `$2000`–`$BFFF` | `-run <file.xex>` |
+| `cart8`, `cart16` | 8 KiB at `$A000` / 16 KiB at `$8000` | `-cart-type 1` / `2` |
+| `xegs32` … `xegs512` | 32–512 KiB, 8 KiB banks at `$8000` + a fixed bank at `$A000` | `-cart-type 12/13/14/23/24` |
+| `mega16` … `mega512` | 16–512 KiB in 16 KiB banks over `$8000`–`$BFFF` | `-cart-type 26`–`31` |
 
 Every cartridge medium passes `__cart_rom_size` as a link symbol — the
 standard-cartridge link script has no default for it and will not link

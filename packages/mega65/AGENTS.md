@@ -1,7 +1,7 @@
 # Writing MEGA65 support for 8BitScript
 
 This file is for anyone — human or agent — touching `packages/mega65`,
-`packages/backend-6502`'s `mega65` entries (`FRAME_SYNC.mega65`,
+`packages/compiler/src/mos`'s `mega65` entries (`FRAME_SYNC.mega65`,
 `COMMODORE_KERNAL_MACHINES`), `packages/cli`'s `xmega65` handling
 (`run.mjs`, `screenshot.mjs`, `setup/mega65.mjs`, `setup/mega65-rom.mjs`,
 `setup/xemu.mjs`), `docs/setup/mega65.md`, or the MEGA65 rows of
@@ -63,7 +63,7 @@ Do not describe more than this as working:
   the VIC-IV into 40 columns first (clear `$D031` bit 7 with hot
   registers on; the ROM restores nothing, so `_fini` would have to). Both
   are open; neither is done.
-- `waitFrame()` (`FRAME_SYNC.mega65` in `packages/backend-6502`) reuses
+- `waitFrame()` (`FRAME_SYNC.mega65` in `packages/compiler/src/mos`) reuses
   the C64 entry verbatim — a level poll of `$D012`/`$D011` bit 7 for the
   top half of the frame, with `palProbe` (raster ≥ 288) choosing the
   PAL/NTSC ratio at start-up. **Measured working** under xmega65 in both
@@ -96,26 +96,25 @@ Do not describe more than this as working:
 ## Facts verified here
 
 Cite these freely; each was read in the source named or seen on screen
-under xmega65 (xemu `40dfef0d`, ROM 920413), not recalled. Paths under
-`$LLVM_MOS_HOME` are the installed SDK (`~/.local/opt/llvm-mos`).
+under xmega65 (xemu `40dfef0d`, ROM 920413), not recalled.
 
 | Fact | Where |
 | ---- | ----- |
 | After `RUN` the program is in **MEGA65 mode with the VIC-IV I/O personality**: `$D054` reads `64` (`$40`: VFAST set, CHR16/FCLRLO/FCLRHI clear), `$D031` reads `224` (`$E0`: H640 + FAST + ATTR), `$D05D` reads `192` (HOTREG + RST_DELEN), `$D018` reads `36`, `$D016` `201`. Those are VIC-IV registers answering as themselves — in the VIC-II personality `$D031`/`$D054`/`$D058` would be mirrors of `$D011`/`$D014`/`$D018` (`$D018` reads 36, `$D058` reads 80). | probe program's screenshot under `8bs run mega65 --screenshot` (`regs-ntsc.png`), read back through `memory.read` |
 | **80 columns × 25 rows at `$0800`**: `LINESTEP` (`$D058/59`) = 80/0, `CHRCOUNT` (`$D05E`) = 80, `SCRNPTR` (`$D060–63`) = `$00 $08 $00 $00`, `COLPTR` (`$D064/65`) = 0, `DISP_ROWS` (`$D07B`) reads 24 with 25 rows visible, `CHRXSCL` 120, `CHRYSCL` 1. Text printed at cell 40 appears on row 0 column 40; cell 960 on row 12. | same probe; `shot-ntsc.png` |
 | **The CPU runs at full speed**: a `while (raster < 200 && n < 65000) n++` loop counted 9371 iterations over ~200 raster lines (≈12 600 ~1 MHz cycles) — impossible below tens of MHz. Xemu's fast clock is 40.50 MHz. | `shot-ntsc.png`; xemu boot log `SPEED: fast clock is set to 40.50MHz` |
-| `$00` reads `47` (`$2F`) and `$01` reads `62` (`$3E`) during the program — the SDK's values, bit 6 of `$01` clear — and the CPU is still fast: the speed came from the ROM's `$D054` VFAST, not from the port. `$D030` reads `68` (`$44`). | probe; `unmap-basic.o` bytes below |
+| `$00` reads `47` (`$2F`) and `$01` reads `62` (`$3E`) during the program — bit 6 of `$01` clear — and the CPU is still fast: the speed came from the ROM's `$D054` VFAST, not from the port. `$D030` reads `68` (`$44`). | probe; start-up bytes below (pre-0.2.0) |
 | `$D629` (model ID) reads `3` = MEGA65 R3, xemu's `-model` default. `$D06F` reads `128` under `-videostd 1` (NTSC) and `0` under `-videostd 0` (PAL). | probe (`regs-ntsc.png`, `regs-pal.png`); `xmega65 -h`; Book model table |
 | **Logical rasters**: the 9-bit `$D012`/`$D011.7` counter reaches **262 on NTSC, 311 on PAL** (263 / 312 lines), so the C64 `palProbe` (≥ 288) and top-half thresholds hold. `$D7FA` advances once per hardware frame: **59 per 60 `waitFrame()` on NTSC, 50 on PAL**. | `pace-ntsc.png`, `pace-pal.png` |
 | Xemu's frame model: PAL `PAL_FRAME_TIME 20000` µs, `PHYSICAL_RASTERS_PAL 624`, visible 576; NTSC `NTSC_FRAME_TIME 16683.35` µs, `PHYSICAL_RASTERS_NTSC 526`, visible 480; line rate 31250 / 31468.5 Hz; logical raster = physical ÷ 2. | xemu `targets/mega65/vic4.h` (WebFetch, verbatim constants); boot log `frame time is 16683usec, max raster is 526, visible area height is 480` |
 | Xemu's memory: **384K fast (chip) RAM, 8192K attic, 32K colour RAM, 8K font RAM**; 4 SIDs at 1 000 000 SID cycles/s and one OPL3; audio out 44 100 Hz. | xemu boot log (`MEM: memory decoder initialized …`, `AUDIO: reset for 4 SIDs … and 1 OPL3 chip`) |
-| The `.prg` loads at `$2001` behind a BASIC `SYS 8215` line; usable RAM `$2001–$CFFF` (`LENGTH = 0xafff`); soft stack top `$D000`. The script's own map: `$1.0000–$1.1FFF` CBM DOS, `$2000–$9FFF` free, `$A000–$BFFF` BASIC ROM "but we switch to ram", `$C000–$CFFF` free, `$D000` I/O, `$E000` KERNAL. | `$LLVM_MOS_HOME/mos-platform/mega65/lib/link.ld`; `xxd dist/main-mega65-ntsc.prg` (`01 20` header, `9e 20 38 32 31 35` = `SYS 8215`, and `_start` is `$2017` = 8215 in the ELF) |
-| `.init.010` is **`sei; ldx #$2F; stx $00; ldx #$3E; stx $01; ldx #$44; stx $D030`** and `.fini.990` is `ldx #$3F; stx $01; ldx #$64; stx $D030; cli`. So `$D030` = `$44` for the program (CRAM2K 0, PAL-RAM 1, no C65 ROM at `$8000/$A000/$C000/$E000`, CROM9 1), the ROM's own state is `$64` (ROMC set — C65 ROM at `$C000`), and **IRQs are disabled from `_start` until exit**. The C64 target's `unmap-basic.o` has no `sei` and no `$D030` write. | `llvm-objdump -s mega65/lib/unmap-basic.o` and `c64/lib/unmap-basic.o`; `llvm-objdump -d dist/main-mega65-ntsc.prg.elf` |
-| A raw `mos-mega65-clang` link still prints PETSCII 14 before `main` (`shift: lda #$0e; jsr $ffd2`); an 8bs build does not (no `$FFD2` call in the ELF) — `commodoreCharsetGuard()` covers this target. | `llvm-objdump -d` of `/tmp` test link vs `dist/main-mega65-ntsc.prg.elf` |
-| The driver is `mos-mega65-clang` with `-mcpu=mos45gs02`, `-mlto-zp=110`, `-D__MEGA65__`, and it also includes the **c64** platform headers. Generated code uses `stz`, `bra`, `inw` (65C02/65CE02-family opcodes the C64 build never emits); the same borders program is 775 bytes here vs 1034 on the C64. No `q`-register or `[zp],Z` instruction appeared in any build examined. | `$LLVM_MOS_HOME/bin/mos-mega65.cfg`; mnemonic tallies of both `.prg.elf`; `llvm-size` |
-| `mega65.h` maps `VICII` (a `__vic2`) and `VICIV` (a `__vic4`, `0x80` bytes) both at `$D000`, `PALETTE` at `$D100` (red/green/blue ×256), `SID1–4` at `$D400/$D420/$D440/$D460`, `SIDMODE` `$D63C`, `HYPERVISOR` `$D640` (64 traps), `ETHERNET` `$D6E0`, `DMA` `$D700` (`DMAgicController`, `0x60` bytes incl. 4 audio channels at `+0x20`), `MATHBUSY` `$D70F`, `MATH` `$D768` (32×32 multiply, divide, 64-bit `MULTOUT`), `CIA1/2` `$DC00/$DD00`, `DEFAULT_SCREEN` `$0800`; colours 0–15 are the C64's, 16–31 named extras. | `$LLVM_MOS_HOME/mos-platform/mega65/include/mega65.h`, `_vic4.h`, `_dmagic.h` |
+| The `.prg` loads at `$2001` behind a BASIC `SYS 8215` line; usable RAM `$2001–$CFFF` (`LENGTH = 0xafff`); soft stack top `$D000`. The script's own map: `$1.0000–$1.1FFF` CBM DOS, `$2000–$9FFF` free, `$A000–$BFFF` BASIC ROM "but we switch to ram", `$C000–$CFFF` free, `$D000` I/O, `$E000` KERNAL. | `xxd dist/main-mega65-ntsc.prg` (pre-0.2.0: `01 20` header, `9e 20 38 32 31 35` = `SYS 8215`, and `_start` is `$2017` = 8215) |
+| `.init.010` is **`sei; ldx #$2F; stx $00; ldx #$3E; stx $01; ldx #$44; stx $D030`** and `.fini.990` is `ldx #$3F; stx $01; ldx #$64; stx $D030; cli`. So `$D030` = `$44` for the program (CRAM2K 0, PAL-RAM 1, no C65 ROM at `$8000/$A000/$C000/$E000`, CROM9 1), the ROM's own state is `$64` (ROMC set — C65 ROM at `$C000`), and **IRQs are disabled from `_start` until exit**. The C64 target's start-up has no `sei` and no `$D030` write. | disassembly of start-up (pre-0.2.0); `dist/main-mega65-ntsc.prg` |
+| A CHROUT of PETSCII 14 (`lda #$0e; jsr $ffd2`) would flip the machine to lower-case before `main`; 8BitScript does not emit that. | disassembly of a linked build vs a libc start-up (pre-0.2.0) |
+| The 45GS02 has `stz`, `bra`, `inw` (65C02/65CE02-family opcodes the C64 never has); the same borders program was 775 bytes here vs 1034 on the C64 (pre-0.2.0). No `q`-register or `[zp],Z` instruction appeared in any build examined. The native backend refuses to build. | mnemonic tallies of both images (pre-0.2.0); `packages/compiler/src/mos/index.ts` `CPU.mega65` |
+| `mega65.h` maps `VICII` (a `__vic2`) and `VICIV` (a `__vic4`, `0x80` bytes) both at `$D000`, `PALETTE` at `$D100` (red/green/blue ×256), `SID1–4` at `$D400/$D420/$D440/$D460`, `SIDMODE` `$D63C`, `HYPERVISOR` `$D640` (64 traps), `ETHERNET` `$D6E0`, `DMA` `$D700` (`DMAgicController`, `0x60` bytes incl. 4 audio channels at `+0x20`), `MATHBUSY` `$D70F`, `MATH` `$D768` (32×32 multiply, divide, 64-bit `MULTOUT`), `CIA1/2` `$DC00/$DD00`, `DEFAULT_SCREEN` `$0800`; colours 0–15 are the C64's, 16–31 named extras. | MEGA65 Book / iomap.txt / `_vic4.h` register map |
 | `_dmagic.h`: DMA commands copy/fill (mix, swap "unimplemented"); addressing linear/modulo/hold/XYmod; bank-field flags HOLD 16, MODULO 32, DIRECTION 64, IO 128; enhanced options `$0A`/`$0B` (F018A 11-byte / F018B 12-byte list), `$80`/`$81` source/dest address bits 20–27, `$85` dest skip; audio channel struct: enable, 24-bit base, 24-bit freq, 16-bit top, volume, current, timer; `$D711` AUDEN bit 7. `dma.hpp` builds a fill/copy job and triggers it by writing `$D703`, `$D702`, `$D701`, then `$D705`. | `_dmagic.h`, `dma.hpp` |
-| The SDK's own MEGA65 examples (`dma_audio.c`, `viciv_test.c`, `mandelbrot_fcm.cc`, `simple_dma.cc`, …) drive audio DMA with `_BitInt(24)` fields — `freq = 0x001a88` for an 11 822 Hz 8-bit signed sample, `DMA_CHENABLE ^ DMA_CHSBITS_8 ^ DMA_CHLOOP`. | `$LLVM_MOS_HOME/examples/mega65/dma_audio.c` |
+| Audio DMA uses a 24-bit frequency field — `freq = 0x001a88` for an 11 822 Hz 8-bit signed sample, enable/8-bit/loop flags together. | MEGA65 Book DMA appendix; iomap.txt |
 | **A `c64`-target `.prg` autoloads in C64 mode** under `xmega65 -prg`: the borders C64 build shows its 40-column HUD, red border / purple background. Xemu picks the mode from the load address (`-prgmode 64/65` overrides). | `c64mode.png`; xemu log `INJECT: prepare for C64 mode, … $0801 load address`; `xmega65 -h` |
 | `xmega65` flags this project relies on or should know: `-prg`, `-prgmode`, `-videostd 0/1/-1`, `-screenshot <png>` ("on exit"; SIGTERM reaches it), `-besure`, `-model <id>`, `-fastclock <MHz>`, `-sidmask`, `-8`/`-9 <d81>`, `-sdimg`, `-virtsd` (a *directory* as the FAT32 card), `-hdosdir`, `-go64`, `-autoload`, `-fullborders`, `-showscanlines`, `-nosound`, `-dumpscreen <file>` (ASCII screen on exit), `-dumpmem`, `-headless`, `-sleepless`, `-prgexit`, `-lockvideostd`, `-allowmousegrab`. Xemu's config lives in `~/.xemu-lgb` (`mega65-default.cfg`, `mega65.img` 4 GB SD image, `hdos/`). | `xmega65 -h`; `ls ~/.xemu-lgb` |
 | SID stereo assignment: `$D400` "right SID #1", `$D420` "right SID #2", `$D440` "left SID #1", `$D460` "left SID #2"; `$D63C.0-3` SIDMODE 0 = 6581, 1 = 8580; `$D41B` OSC3 random; `$D419/$D41A` paddles. | `mega65-core/iomap.txt` (curl, master, 2026-09-05) |
@@ -140,8 +139,8 @@ Leads, each to confirm the first time code depends on it:
   no OPL register; the address (folklore says `$D0FE/$D0FF` in the C65
   personality) is *to verify* against mega65-core.
 - **Audio-DMA sample rate.** The 24-bit frequency field's formula is not
-  in any source read here. The SDK's example uses `0x001A88` for an
-  11 822 Hz sample; derive the constant from that and *measure* before
+  in any source read here. `0x001A88` is the constant for an
+  11 822 Hz sample; derive it from that and *measure* before
   publishing a "hertz" API.
 - **`$00`/`$01` bit 6 vs `$D054.6`.** The Book's `POKE0,65` ("to set the
   CPU to full speed") writes bit 6 of the *DDR*; the port-bit semantics
@@ -206,7 +205,7 @@ when the code is next touched (this file does not edit them):
   unmapped, `$A000–$CFFF` RAM, stack `$D000`). A C64-mode program is the
   **`c64` target** run under `xmega65` — verified — not a MEGA65 build
   with a flag. If C64 mode ever becomes a MEGA65 profile it is a
-  *driver* choice (`mos-c64-clang`, `$0801`) plus `-prgmode 64`, not a
+  *startup* choice (`c64`, `$0801`) plus `-prgmode 64`, not a
   runtime `GO64`.
 - PAL/NTSC (`$D06F.7`) and 40/80 columns (`$D031.7`) are register bits
   the program can set; `--pal` here only chooses xemu's `-videostd` and
@@ -339,15 +338,14 @@ when the code is next touched (this file does not edit them):
 packages/mega65/src/index.8bs            target package: borderColor ($D020), backgroundColor ($D021), memoryPointer ($D018)
 packages/mega65/src/screen.8bs           @8bitscript/mega65/screen: setColors/blank/setBorder/setBackground (4-bit mask, 1000 cells — see above)
 packages/mega65/src/text.8bs             @8bitscript/mega65/text: print/printNumber/setColor/setReverse/putChar/putColor, COLUMNS 80 / CELL_COUNT 2000
-packages/backend-6502/src/index.mjs      driver (mos-mega65-clang), FRAME_SYNC.mega65 (C64 entry reused), COMMODORE_KERNAL_MACHINES (charset guard)
+packages/compiler/src/mos/index.ts      FRAME_SYNC.mega65 (C64 entry reused; the backend refuses to build)
 packages/cli/src/run.mjs                 8bs run mega65: xmega65 -prg <file> -videostd 0|1
 packages/cli/src/screenshot.mjs          --screenshot: -besure -screenshot <png>, wall-clock --frames at 60, SIGTERM
 packages/cli/src/setup/mega65.mjs        8bs setup mega65: compiler check, deps, Xemu build/install, ROM install/link
 packages/cli/src/setup/mega65-rom.mjs    the --c64-forever/--rom-patch ROM generation flow (romdiff + 920413 patch)
 packages/cli/src/setup/xemu.mjs          building/installing xmega65, ~/.xemu-lgb layout
 docs/setup/mega65.md                     install, ROM licensing caveat, doctor, run
-$LLVM_MOS_HOME/mos-platform/mega65/      include/{mega65.h,_vic4.h,_vic3.h,_dmagic.h,_45E100.h,dma.hpp}, lib/{link.ld,unmap-basic.o,basic-header.o,libcrt0.a,libc.a}
-$LLVM_MOS_HOME/examples/mega65/          dma_audio.c, viciv_test.c, mandelbrot_fcm.cc, simple_dma.cc, vector_logo.cc, plasma.cc
+mega65-core iomap.txt / MEGA65 Book     VIC-IV, DMA, SID, Hyppo; load at $2001, $D030 start-up
 xemu 40dfef0d / Hyppo HEAD,20250618.10 / ROM 920413   the emulator, firmware and ROM every measurement above was made against
 mega65-core iomap.txt, mega65-user-guide (master, 2026-09-05)   the register map and the Book chapters cited above
 ```

@@ -41,9 +41,7 @@ import { Video, screenRam, colorRam } from "./geometry.8bs";
 // `memoryPointer`): one register write, of the value that also names this
 // screen's position in the bank, and "TICK" reads as TICK here the way it
 // does on the NES, the Atari, and the X16, none of which have a lower-case
-// set to fall into. (LLVM-MOS's libc used to flip every Commodore machine
-// to lower-case before main() with a hidden CHR$(14); packages/backend-6502
-// keeps that out of the link — see its commodoreCharsetGuard().)
+// set to fall into.
 
 function asciiToScreenCode(code: utinyint): utinyint {
     if (code >= 64 && code < 96) {

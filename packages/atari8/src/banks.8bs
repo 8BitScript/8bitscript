@@ -46,8 +46,8 @@
 // the program's own code and data end below `$4000` and its stack is
 // above `$7FFF` — true of anything this toolchain builds today (the
 // borders example ends at `$2332`, and the soft stack starts from MEMTOP,
-// around `$9C00`), and worth checking with `llvm-nm` for a program big
-// enough to reach `$4000`. See ../AGENTS.md.
+// around `$9C00`), and worth checking the linked image's symbol map for
+// a program big enough to reach `$4000`. See ../AGENTS.md.
 
 @address(0xD301) let portB: volatile<u8>;
 

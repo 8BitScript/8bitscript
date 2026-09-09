@@ -1,8 +1,8 @@
 // Local variables and `for` loops. A local is storage that exists while
 // its function runs (the target's own stack or registers); it is
-// block-scoped, as in C and AssemblyScript, and shadows a global, const,
-// or array of the same name. A `for` is emitted as the target's own `for`,
-// so `continue` still runs the update.
+// block-scoped, as in C, and shadows a global, const, or array of the
+// same name. A `for` keeps its initialiser, test, and update, so
+// `continue` still runs the update.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
@@ -10,8 +10,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { analyze, link, tokenize, parse, lower } from '../index.mjs';
-import { emitC } from '../../backend-6502/src/index.mjs';
-import { emitAssemblyScript } from '../../backend-web/src/index.mjs';
 
 const diagnosticsOf = (src) => analyze(src, 't.8bs');
 const codes = (src) => diagnosticsOf(src).map((d) => d.code);
@@ -99,8 +97,14 @@ test("the loop variable is scoped to the loop: after it, the name is the outer o
     'main.8bs': 'let i: utinyint = 7;\nlet g: utinyint = 0;\nexport function main(): void { for (let i: utinyint = 0; i < 2; i++) { g = i; } g = i; }\n',
   });
   assert.deepEqual(diagnostics, []);
-  const c = emitC(ir, { machine: 'c64' });
-  assert.match(c, /for \(uint8_t i = 0; \(i < 2\); i = \(i \+ 1\)\) \{\n\s+g = i;\n\s+\}\n\s+g = i;/);
+  const [loop, after] = ir.functions.find((f) => f.name === 'main').body;
+  assert.equal(loop.kind, 'for');
+  assert.equal(loop.init.name, 'i');
+  assert.deepEqual(loop.test.right, { kind: 'const', value: 2 });
+  assert.equal(loop.body[0].target, 'g');
+  assert.equal(loop.body[0].value.name, 'i');
+  assert.equal(after.target, 'g');
+  assert.equal(after.value.name, 'i');
 });
 
 test('a name declared only inside a block is not visible after it — the linker reports it', async () => {
@@ -116,37 +120,37 @@ test('a local shadows an import of the same name inside its block', async () => 
     'main.8bs': 'import { hp, MAX } from "./lib.8bs";\nlet g: utinyint = 0;\nexport function main(): void { { let hp: utinyint = 1; g = hp; } hp[0] = 1; g = MAX; }\n',
   });
   assert.deepEqual(diagnostics, []);
-  const c = emitC(ir, { machine: 'c64' });
-  assert.match(c, /uint8_t hp = 1;\n\s+g = hp;/);
-  assert.match(c, /hp\[0\] = 1;/);
-  assert.match(c, /g = 4;/);
+  const [block, store, assign] = ir.functions.find((f) => f.name === 'main').body;
+  assert.equal(block.body[0].kind, 'local');
+  assert.equal(block.body[0].name, 'hp');
+  assert.equal(block.body[1].target, 'g');
+  assert.equal(block.body[1].value.name, 'hp');
+  assert.equal(store.kind, 'storeIndex');
+  assert.deepEqual(assign.value, { kind: 'const', value: 4 });
 });
 
-// ---- both backends ---------------------------------------------------------------
-
-test('both backends emit a native for and typed locals; the web backend narrows a store to a local', async () => {
+test('a for over an array length folds the bound, keeps continue, and writes the local', async () => {
   const { ir } = await linkWith({
     'main.8bs': 'let hp: array<usmallint, 4>;\nlet total: usmallint = 0;\nexport function main(): void { let sum: usmallint = 0; for (let i: utinyint = 0; i < hp.length; i++) { if (i == 2) { continue; } sum += hp[i]; } total = sum; }\n',
   });
-  const c = emitC(ir, { machine: 'c64' });
-  assert.match(c, /uint16_t sum = 0;/);
-  assert.match(c, /for \(uint8_t i = 0; \(i < 4\); i = \(i \+ 1\)\) \{/);
-  assert.match(c, /continue;/);
-  assert.match(c, /sum = \(sum \+ hp\[i\]\);/);
-  const as = emitAssemblyScript(ir);
-  assert.ok(as.ok, as.error);
-  assert.match(as.source, /let sum: u16 = <u16>0;/);
-  assert.match(as.source, /for \(let i: u8 = <u8>0; \(i < 4\); i = <u8>\(i \+ 1\)\) \{/);
-  assert.match(as.source, /sum = <u16>\(sum \+ load<u16>\(<usize>\(hp \+ <usize>\(i\) \* 2\)\)\);/);
+  const [sum, loop, total] = ir.functions.find((f) => f.name === 'main').body;
+  assert.equal(sum.kind, 'local');
+  assert.equal(sum.type, 'usmallint');
+  assert.equal(loop.kind, 'for');
+  assert.deepEqual(loop.test.right, { kind: 'const', value: 4 });
+  assert.equal(loop.body[0].then[0].kind, 'continue');
+  assert.equal(loop.body[1].kind, 'assign');
+  assert.equal(loop.body[1].value.operator, '+');
+  assert.equal(total.target, 'total');
 });
 
-test('a waitFrame() inside a for is still found (the frame runtime is emitted)', async () => {
+test('a waitFrame() inside a for is still a waitFrame statement', async () => {
   const { ir } = await linkWith({
     'main.8bs': 'export function main(): void { for (let i: utinyint = 0; i < 4; i++) { waitFrame(); } }\n',
   });
-  assert.match(emitC(ir, { machine: 'c64' }), /__8bs_wait_frame\(\)/);
-  const as = emitAssemblyScript(ir);
-  assert.ok(as.ok && as.usesWaitFrame);
+  const loop = ir.functions.find((f) => f.name === 'main').body[0];
+  assert.equal(loop.kind, 'for');
+  assert.equal(loop.body[0].kind, 'waitFrame');
 });
 
 test('one declaration per name per block: a second let, or a let over a parameter, is a diagnostic here, not from the C compiler', () => {

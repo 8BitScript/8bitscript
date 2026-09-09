@@ -3,7 +3,7 @@
 This file is for anyone — human or agent — touching `packages/c64` (its
 `.8bs` sources and `native/6502/raster.s`),
 this package's hardware catalog (`package.json`, `"8bitscript".hardware`:
-the REU, the SID, the two control ports), `packages/backend-6502`'s
+the REU, the SID, the two control ports), `packages/compiler/src/mos`'s
 `FRAME_SYNC.c64`, `packages/cli`'s `x64sc` handling (`VICE_MODEL_ARGS.c64`),
 or the C64 rows of `docs/roadmap.md`, `docs/setup/vice.md`
 and `packages/studio/AGENTS.md`. Read the root [`AGENTS.md`](../../AGENTS.md)
@@ -43,8 +43,8 @@ Do not describe more than this as working:
   `setupVideo()` in `src/index.8bs` puts it there once — `sei`, copy the
   ROM in place (`copyCharacterRom()`: `$01` low bits `%010` for the copy,
   `%101` after), select the bank through CIA2 by masking, set `$D018` —
-  and every surface calls it before its first write. Why bank 3: the SDK
-  links the program into `$0801`–`$CFFF` and decides where every byte
+  and every surface calls it before its first write. Why bank 3: a linked
+  program occupies `$0801`–`$CFFF` and the linker decides where every byte
   goes; `$D000`–`$FFFF` is the only RAM the linker never touches, and the
   VIC sees RAM there (its ROM windows are in banks 0 and 2). The KERNAL's
   `$0400` screen is not used at all.
@@ -195,7 +195,7 @@ Do not describe more than this as working:
   build — it is eight registers at `$DF00` and a DMA engine — so none of
   these reaches the linker or the output name: each only fits x64sc the
   same thing, and sets a fact (`memory.banked`, `input.mouse`).
-- `FRAME_SYNC.c64` (`packages/backend-6502`): a *level* driver — top half
+- `FRAME_SYNC.c64` (`packages/compiler/src/mos`): a *level* driver — top half
   of the frame is `$D012 < 128` with `$D011` bit 7 clear (read in that
   order), the PAL probe is a raster line past 287 — and a `presync` of
   `sei`: **a program that calls `waitFrame()` runs with interrupts off
@@ -233,11 +233,11 @@ under x64sc (VICE 3.10, Homebrew), not recalled.
 
 | Fact | Where |
 | ---- | ----- |
-| The SDK links a C64 program into `ram` at `$0801`, length `$C7FF` (to `$CFFF`), C stack at `$D000` growing down, BASIC ROM unmapped: `unmap-basic.o`'s `.init.010` is `ldx #$2f / stx $00 / ldx #$3e / stx $01` (`$01 = $3E`: LORAM 0, HIRAM 1, CHAREN 1 — BASIC out, KERNAL and I/O in) and `.fini.990` restores `$3F`. `$A000`–`$BFFF` is program RAM. | `$LLVM_MOS_HOME/mos-platform/c64/lib/link.ld`, `commodore/lib/commodore.ld`, `llvm-objdump -d unmap-basic.o` |
+| A C64 program loads at `$0801`, usable RAM length `$C7FF` (to `$CFFF`), C stack at `$D000` growing down, BASIC ROM unmapped: start-up is `ldx #$2f / stx $00 / ldx #$3e / stx $01` (`$01 = $3E`: LORAM 0, HIRAM 1, CHAREN 1 — BASIC out, KERNAL and I/O in) and exit restores `$3F`. `$A000`–`$BFFF` is program RAM. The native backend does not emit that start-up yet. | C64 link map and start-up disassembly (measured pre-0.2.0) |
 | A `.prg` starts with a BASIC `SYS` line (`basic-header.o`), so `RUN` after `LOAD` starts it; x64sc's `-autostartprgmode 1` injects it and types `RUN`. | `commodore.ld`, first screenshot below |
 | Reading the character ROM with CHAREN clear and storing each byte back to the same address copies it into the RAM underneath; with the VIC in bank 3 and `$D018 = $84`, screen codes at `$E000` render from that copy (normal and reverse), and a 63-byte shape at `$E400` with pointer 144 draws as sprite 0 at (100, 100) in the sprite's colour. Both sets are in the copy: the same screen codes with `$D018 = $86` render as lower case. | scratch program, `8bs run c64 --screenshot`, once per pointer value (the layout in `geometry.8bs`) |
 | The same copy with the KERNAL IRQ alive hangs the machine on the BASIC screen: the IRQ handler acknowledges CIA1 by reading `$DC0D`, which with I/O banked out is the ROM, so the interrupt is never cleared and fires again on `rti`, forever. `sei` first, always. | the same scratch program, built before `presync` existed — the first screenshot showed `RUN` and nothing else |
-| `examples/borders` on the bank-3 layout: readout and colours correct, 1034 bytes of program (766 before: the ROM copy loop and the guard; 1056 since the KERNAL went out, see below). | `8bs run c64 --screenshot`, the build's memory line |
+| A colour-cycling demo on the bank-3 layout: readout and colours correct, 1034 bytes of program (766 before: the ROM copy loop and the guard; 1056 since the KERNAL went out, see below). | `8bs run c64 --screenshot`, the build's memory line (pre-0.2.0) |
 | A program using every subpath at once — three sprites (one at X 280 through the ninth bit, one double-size, one behind the background), text over them, `sid.play`, the two scans — builds to 1549 bytes and draws as written; sprite 0 at (24, 50) covers the first cell of the top row, i.e. (24, 50) is the screen's top-left pixel. | scratch program, screenshot |
 | The `Key` table matches VICE's positional C64 keymap at every host key whose C64 key is unambiguous (letters, digits, and ~30 others): the vkm's first number is the `$DC00` bit, its second the `$DC01` bit (`Return 0 1`, `space 7 4`, `Escape 7 7` = RUN/STOP, `Control_L 7 5` = the C= key, `Tab 7 2` = CTRL). | `/opt/homebrew/share/vice/C64/gtk3_pos.vkm`, `packages/compiler/test/c64-package.test.mjs` |
 | x64sc's models: `c64` (PAL, 6569, 6581, 6526, KERNAL rev 3), `c64c` (PAL, 8565, 8580, 6526A), `c64old` (PAL, 6569R1, rev 2), `ntsc` (6567R8, 6581), `newntsc` (8562, 8580, 6526A), `oldntsc` (6567R56A, 6581, KERNAL rev 1), `drean` (PAL-N, 6572), `jap` (NTSC, Japanese KERNAL/chargen), `c64gs` (PAL, 8580, GS KERNAL), `pet64` (4064 KERNAL), `ultimax` (no KERNAL); `-sidmodel` 0 6581 / 1 8580 / 2 8580 + digiboost; `-reusize` 128–16384 KiB; `-VICIImodel` 6569, 6569r1, 8565, 6567, 8562, 6567r56a, 6572. | `x64sc -help`, VICE's `c64/c64model.c` |
@@ -246,13 +246,13 @@ under x64sc (VICE 3.10, Homebrew), not recalled.
 | The catalog's stock fact sheet: grid 40×25 of 8×8, 16 colours, 2 per cell, 256 RAM glyphs, 2×2 blocks, bitmap, one layer with fine scroll, 8 sprites and 8 per line, 24×21, 3 colours (multicolour); 3 SID voices with ADSR, filter, samples through the volume register, a volume per voice, oscillator 3 as a random source; keyboard, two ports, no pads; disk; 51199 bytes (`$0801`–`$CFFF`), nothing banked until an `ram=reu*` value says so (`memory.banked`, `memory.bankedKib`), no mouse or paddles until a port value says so. | `src/geometry.8bs`; the `link.ld` and SID rows above; the VIC-II and SID sections of the research notes below; `package.json` (read) |
 | `@8bitscript/c64/reu` — `reu.detect()`: presence by a `$DF02` round trip ($55 then $AA), size by stashing a marker to the first byte of each 64 KiB bank and watching bank 0 for the wrap or the bank for silence. VICE's `reu.c`: the bank register's unused bits are `0xF8` on the 128/256/512 KiB units (`reg_bank_unused`, forced high on read, masked on write) and 0 above; the address wraps at `wrap_around` (`0x20000` for 128 KiB, `0x80000` for 256/512, the size for larger); `$DF02`–`$DF05` read back what was written; the status register's bit 4 is the 256K-chip flag. Under x64sc the probe printed 0 / 128 / 256 / 512 / 1024 / 16384 KiB for no REU, `ram=reu128`, `reu256`, `reu512`, `reu1m`, `reu16m` — the 3-bit bank register, the 256 KiB unit that aliases inside a 512 KiB wrap, the 8-bit register with the wrap at the unit's size, and the register wrapping to zero — and the border took the colour `test/reu-probe.8bs` encodes for each. Cost: `test/reu-probe.8bs` is 810 bytes of program with `reu.detect()` and 628 with the same code reading its answer from RAM instead — 182 bytes for the probe, most of it the bank loop (the first draft, one helper setting nine registers per transfer and inlined four times, was 459; autoload took it down). A program that does not import `./reu` carries none of it. | `src/reu.8bs`; VICE `src/c64/cart/reu.c` (fetched 2026-09-05); four screenshots (ran); `test/reu.test.mjs` |
 | `@8bitscript/c64/mouse` — a 1351's presence and movement. At rest, with `-controlport1device` at each of its four settings and the pot lines pointed at port 1 (`$DC00 = $40`), the SID's `$D419`/`$D41A` read: nothing **255**, joystick **255**, paddles **255**, 1351 **64** — which is `(0 & 0x7f) + 0x40`, the zero of VICE's `mouse_get_1351_x`. So a reading in 64..191 is what says a mouse, and `present()` is that test; a real paddle at mid-travel would read there too, so it means "consistent with a 1351", not proof. Movement is the signed 7-bit difference of two pot readings; buttons ride the joystick lines, left on FIRE and right on UP (`mouse_1351.c`). **Presence is decided once, in `poll()`, from the same reading movement comes from, and `present()` returns what that poll saw** — it used to re-read the registers, and because the SID's converter runs continuously, two reads in one frame disagreed: with a 1351 fitted in port 1, `@8bitscript/c64/input`'s `poll()` concluded *no pointer* in the same frame that a read a few instructions later found one, so `@8bitscript/c64/pointer`'s arrow was hidden and shown on alternate frames and never appeared. One reading a frame, shared by every caller. **Movement now is exercised, but only by hand** — `--screenshot` cannot move a host pointer, and moving one under x64sc was seen to move the reported cell. **Y runs opposite the screen**: applying the same sign as X moved the arrow up when the mouse moved down (Studio, 2026-09-07), so `poll()` swaps last and now on that axis and leaves rest at the top-left. **Bit 0 is SID ADC noise, not motion**: at rest under x64sc the pots sit in 64..65 (VICE's `makepotval` adds `rand(0, 1)` for a 1351), and a driver that stepped on all seven bits walked the pointer ±1 pixel a frame, including with the host mouse ungrabbed. Masking to bits 1–6 (`$7E`) and ignoring `|delta| < 3` while still updating `last` stopped the drift and also ate slow host motion — a trackpad step is often 1–2 counts a frame, so the pointer hung until the host jumped (Studio, 2026-09-07). `step()` now confirms a 1-count before tracking, then applies each further 1-count, and idles on a still frame. Cost: `test/mouse-probe.8bs` is 1275 bytes of program with the driver and 1027 with a bare pot read — 248 bytes. | `src/mouse.8bs`; VICE `src/joyport/mouse_1351.c` (fetched 2026-09-05); four screenshots (ran); `test/reu.test.mjs` |
-| With the KERNAL banked out (`$01` low bits `%101`) a program that writes the space code to `screenRam[100]` and prints what it reads back prints 32; the borders example (1056 bytes now, 1034 before) and the all-subpath program (1571 against 1549) build and draw as before — 22 bytes each: the vector stub, its `.init` section and the port switch. A program that never imports `./raster` links `__8bs_c64_rti` and nothing else from `raster.s` (`llvm-nm`); one that does links the install routine and the handler too. | scratch programs, `llvm-nm`, screenshots |
+| With the KERNAL banked out (`$01` low bits `%101`) a program that writes the space code to `screenRam[100]` and prints what it reads back prints 32; the borders example (1056 bytes now, 1034 before) and the all-subpath program (1571 against 1549) build and draw as before — 22 bytes each: the vector stub, its `.init` section and the port switch. A program that never imports `./raster` links `__8bs_c64_rti` and nothing else from `raster.s`; one that does links the install routine and the handler too. | scratch programs, linked-image symbol map (pre-0.2.0), screenshots |
 | **The raster list**: four `raster.at` entries (border red at 100, green at 150, yellow at 200, blue at 240) draw four bands down the border, top to bottom, while the frame loop keeps counting frames and printing (the frame driver's poll is unbothered by the interrupt). `.init.250` runs before `main()` (an `.init` section storing to `$D021` was seen to run first), per-routine sections let the linker drop the handler from a program that never names it, and `asm6502 { jsr __8bs_c64_raster_install }` reaches a native symbol by name. The emitted `__asm__` carries no clobbers, so the routine saves A and X itself. | `test/raster-probe.8bs` under `test/layers.test.mjs` (a pixel per band), the scratch programs |
 | **Bitmap mode** at `$E000` with the colour matrix at `$DC00` (`$D018 = $78`): a rectangle plotted at (40–119, 40–99) and a diagonal line draw white on blue cells; cell 0 given red-on-black draws black (no bit set); a sprite whose 63 bytes were written to block 96 under the I/O area, pointer written at `$DFF8` under the I/O area, draws yellow over the bitmap; `leave()` back to text needs no ROM copy (the upper-case set was untouched). | `test/bitmap-probe.8bs` under `test/layers.test.mjs`, scratch screenshot |
 | **Character set and scroll**: `charset.fill(1, 255)` and `charset.define(2, $FF, $81 × 6, $FF)` turn a row of A's into solid blocks and a row of B's into hollow boxes, including the A inside "CHARSET"; two `shiftRight` and one `shiftDown` move all three rows by two columns and one row; `setNarrow(true)` plus `setX(4)` show as the 38-column window. | scratch program, screenshot and pixel reads |
 | **REU transfers** against `ram=reu512`: the screen filled with code 160, stashed into bank 1 at `$1000`, blanked, `verify` false, fetched back, `verify` true, `fillReu` of 40 spaces then `fetch` blanks row 0 and `swap` blanks row 1 while rows 2–24 keep the glyph — green border, "REU 00512 KIB"; a stock C64 tries nothing (red). Length 0 as 65536 is from the register description, not run. | `test/reu-transfer-probe.8bs` under `test/layers.test.mjs` |
 | **The region probe**: `detectRegion()` returns NTSC under `-model ntsc` and PAL under `-model c64`, and `sid.frequencyOf(Note.A4)` is 7218 on the first and 7493 on the second: `round(440 × 2^24 / 1022727)` and `/ 985248`. | `test/region-probe.8bs` under `test/layers.test.mjs`, both models |
-| An `@address` global is emitted as a C `#define`, so its name is a macro across the whole translation unit: a global named `index` or `end` broke every function with a parameter of that name (`sprites.place(index, …)`). Names of `@address` globals in a package must be ones no parameter anywhere will use (`rasterList`, `rasterEnd`, `rasterIndex`). | a build of the first raster.8bs; `packages/backend-6502` emits them as `#define` |
+| An `@address` global is emitted as a C `#define`, so its name is a macro across the whole translation unit: a global named `index` or `end` broke every function with a parameter of that name (`sprites.place(index, …)`). Names of `@address` globals in a package must be ones no parameter anywhere will use (`rasterList`, `rasterEnd`, `rasterIndex`). | a build of the first raster.8bs; `packages/compiler/src/mos` emits them as `#define` |
 
 ## From the sources, not verified here
 
@@ -260,16 +260,16 @@ Leads to confirm the first time code depends on them. Christian Bauer's
 *The MOS 6567/6569 video controller (VIC-II) and its application in the
 Commodore 64* (`zimmers.net/cbmpics/cbm/c64/vic-ii.txt`) is the primary
 reference for the VIC-II; the 6581 datasheet and oxyron.de's register
-maps for the SID; llvm-mos-sdk's `_vic2.h`, `_sid.h`, `_6526.h` for the
+maps for the SID; the VIC-II, SID and CIA register maps for the
 chips' register order; c64-wiki.com for the rest.
 
-**Memory map.** `$0000`–`$00FF` zero page (`$02`–`$8F` BASIC's — the SDK's
-imaginary registers start at `$02` — `$90`–`$FF` the KERNAL's); `$0100`
+**Memory map.** `$0000`–`$00FF` zero page (`$02`–`$8F` BASIC's;
+`$90`–`$FF` the KERNAL's); `$0100`
 stack; `$0200`–`$03FF` KERNAL/BASIC workspace (`$0314`/`$0316`/`$0318`
 the IRQ/BRK/NMI vectors, `$033C`–`$03FB` the cassette buffer, `$02A7`–
 `$02FF` and `$0334`–`$033B` unused); `$0400`–`$07FF` the KERNAL's screen
 (pointers `$07F8`); `$0800`–`$9FFF` BASIC RAM (38911 bytes free to BASIC
-from `$0801`; the SDK's region is bigger because BASIC is out); `$A000`–
+from `$0801`; a linked program's region is bigger because BASIC is out); `$A000`–
 `$BFFF` BASIC ROM / RAM; `$C000`–`$CFFF` RAM; `$D000`–`$DFFF` I/O (VIC-II
 `$D000`–`$D3FF` mirrored every 64 bytes, SID `$D400`–`$D7FF` every 32,
 colour RAM `$D800`–`$DBFF`, CIA1 `$DC00`, CIA2 `$DD00`, I/O 1 `$DE00`,
@@ -282,7 +282,7 @@ Writes to a ROM address always go to the RAM underneath.
 set; all three clear is 64K RAM), bits 3–5 cassette write, sense, motor.
 With the cartridge lines GAME/EXROM there are 14 distinct configurations;
 without a cartridge, the eight from bits 0–2. `$3E` (LORAM clear) is what
-the SDK leaves: RAM at `$A000`, I/O at `$D000`, the KERNAL at `$E000`.
+start-up leaves (pre-0.2.0): RAM at `$A000`, I/O at `$D000`, the KERNAL at `$E000`.
 
 **VIC-II timing** (Bauer §3): 6569 (PAL) 312 lines × 63 cycles, 6567R8
 (NTSC) 263 × 65, 6567R56A (old NTSC) 262 × 64; the CPU clock is the
@@ -380,7 +380,7 @@ are wrong, misleading, or unverified:
 - **"1.0 MHz (PAL)."** 0.985 MHz PAL, 1.023 MHz NTSC; both matter for
   every timing figure and the SID's pitch.
 - **"$0800–$9FFF (39,711 bytes)"** beside "38,911 bytes free": 38911 is
-  BASIC's figure from `$0801`; the SDK's program region is `$0801`–
+  BASIC's figure from `$0801`; a linked program's region is `$0801`–
   `$CFFF`, 51K, because BASIC is unmapped. Neither is "39,711".
 - **"No graphics or buffers should be placed in [$1000–$1FFF and $9000–
   $9FFF] (the CPU can't see them when VIC is active)."** Backwards. The
@@ -613,7 +613,7 @@ packages/c64/package.json            "8bitscript".exports names the fourteen sub
 packages/compiler/test/c64-package.test.mjs   layout consistency, registers, borders through the bank, each subpath's emitted C, raster.s's shape, keys vs VICE, both note tables
 packages/compiler/test/borders-parity.test.mjs   the c64 row expects $D018 = 132
 packages/c64/package.json            "8bitscript".hardware: ram (REU), sid, port1, port2 — values, x64sc flags, facts, presets
-packages/backend-6502/src/index.mjs  FRAME_SYNC.c64 (level driver, presync sei unless interruptsOn, PAL probe)
+packages/compiler/src/mos/index.ts  FRAME_SYNC.c64 (level driver, presync sei unless interruptsOn, PAL probe; the backend refuses to build)
 packages/compiler/src/resolver/index.mjs   nativeSourcesBeside(): a package's native files ride with its own files, however imported
 packages/cli/src/run.mjs             x64sc, -model ntsc/c64, the catalog's flags appended
 packages/cli/src/hardware.mjs        how a build's hardware is resolved from the catalog

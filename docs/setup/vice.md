@@ -5,7 +5,9 @@ nav_order: 4
 
 # VICE
 
-VICE is the emulator 8BitScript targets for development. One suite covers
+VICE is the emulator 8BitScript targets for development. Until 0.2.0, `8bs
+build` and `8bs run` refuse every Commodore target — the commands below
+are the flags the CLI will pass once an image exists. One suite covers
 every Commodore machine that matters here: `xvic` emulates the VIC-20, `x64sc`
 emulates the C64, `xpet` emulates the PET, and `x128` emulates the C128 — a
 single install serves all four. Installing a separate emulator per machine
@@ -146,7 +148,7 @@ yourself and place them where that binary's `-help` output says it looks.
 ## VIC-20 memory
 
 The VIC-20's RAM expansion is a hardware option, `ram`, with the five
-values the SDK's link script and `xvic -memory` both know; the presets
+values `xvic -memory` knows and the hardware catalog names; the presets
 carry the same names, so `8bs build --target vic20 --profile 16k` and
 `--hardware ram=16k` are the same build. Unexpanded is the default.
 
@@ -186,7 +188,7 @@ model `xpet` launches. `3032` is the default.
 ```bash
 8bs run pet                    # a 3032: 40 columns, 32K, ~60Hz
 8bs run pet --profile 8032     # the 80-column business machine
-8bs run pet --profile 3008     # 8K: the smallest RAM the SDK links for
+8bs run pet --profile 3008     # 8K: the smallest RAM this target links for
 ```
 
 There is no `--pal` for the PET. Its refresh rate is the model's, not a
@@ -195,7 +197,7 @@ editors it ships make it refuse autostart) and the no-CRTC 3xxx at its own
 ~60.1 Hz, and every build measures the real frame period at start-up, so
 one `.prg` runs at the configured `frameRate` on either. `--pal` prints a
 note and changes nothing. The 96K/128K machines (8096, 8296) are banked, not
-bigger, and the SDK's PET link script refuses them; they are not values.
+bigger, and they are not values in the catalog.
 The keyboard is the model's too: `@8bitscript/pet/keys` names the keys of
 the graphics matrix, and of the business matrix for the `8032` tag.
 `packages/pet/AGENTS.md` has the hardware behind each column of the table.
@@ -256,12 +258,12 @@ for a program.
 cc65 is intentionally not part of this toolchain, as noted in the
 [setup overview](index.md). Running two independent 6502 toolchains would double
 the number of things that can break — two sets of build failures, two sets of
-platform quirks — and would not make a single additional program possible. All
-6502 code generation goes through LLVM-MOS.
+platform quirks — and would not make a single additional program possible. 6502
+code generation is the compiler's own backend.
 
 ## Next
 
-With the compiler and VICE both installed, the Commodore targets are ready.
+With VICE installed, the Commodore targets are ready to run.
 The rest of this project's targets each need their own emulator:
 [Atari 8-bit](atari8.md), [NES](nes.md), [Commander X16](cx16.md), and
 [MEGA65](mega65.md) — or skip straight to

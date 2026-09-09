@@ -12,32 +12,30 @@ principles, and architecture diagram, see [About 8BitScript](about.md). For
 the order in which target machines are being added, and why, see the
 [roadmap](roadmap.md).
 
-Everything here describes work in progress. `8bs check`, `8bs doctor`,
-`8bs build`, and `8bs run` work today for the first-milestone subset of the
-language — [the compiler](compiler.md) says exactly where the line is. `8bs dev`
-is **planned and not yet implemented**.
+Everything here describes work in progress. `8bs check` and `8bs doctor`
+work today. `8bs build` and `8bs run` refuse every target until the native
+backends emit (0.2.0) — [the compiler](compiler.md) says exactly where the
+line is. `8bs dev` is **planned and not yet implemented**.
 
 ## Setup
 
 Start with [Install from npm](install.md) if you are writing a program.
 Work on the compiler itself from the [setup guide](setup/index.md). It covers
-the host toolchain, the LLVM-MOS SDK, the VICE emulator, and how to verify
+the host toolchain, the emulators each target needs, and how to verify
 the result. Its first page, [Host toolchain](setup/host-toolchain.md),
 installs Node 26, pnpm 12, git, and an editor. The remaining pages, in order:
 
-- [LLVM-MOS SDK](setup/llvm-mos.md) — install the SDK and configure it for this
-  project, without adding its tools to the global `PATH`.
 - [VICE](setup/vice.md) — install VICE 3.10, point it at the VIC-20 ROMs, and
   verify the emulator starts.
-- [Verify](setup/verify.md) — confirm the host and retro toolchains are both
+- [Verify](setup/verify.md) — confirm the host toolchain and emulators are both
   working.
 
 ## Getting started
 
 Once setup is done, the [getting started tutorial](tutorial.md) walks through
-cloning the repository, building and running the `examples/borders` program,
-and where to look next. It is a work in progress, same as everything else
-here — it covers the one path that goes end to end today.
+the language subset the front end already accepts, and where to look next.
+Until 0.2.0, `8bs build` refuses every target, so there is no program to
+run end to end.
 
 ## Studio
 
@@ -51,9 +49,8 @@ it yet; the page says exactly what runs.
 
 [The package model](packages.md) describes how an 8BitScript project is laid
 out, how the compiler resolves an import out of `node_modules`, and how the
-toolchain is developed against the `examples/borders` project inside this
-repository. It is the specification the module resolver is being written
-against.
+capability packages (`@8bitscript/screen`, `@8bitscript/text`) resolve per
+target. It is the specification the module resolver is written against.
 
 ## Language reference
 
@@ -115,9 +112,9 @@ be plain ASCII inside a fenced code block, so they render identically everywhere
 regardless of the site's diagram support:
 
 ```
-main.8bs  ->  compiler  ->  HIR  ->  MIR  -+->  web backend
-                                           |
-                                           +->  LLVM-MOS backend
+main.8bs  ->  compiler  ->  IR  ->  linker  -+->  6502 backend (not built yet, 0.2.0)
+                                              |
+                                              +->  web backend (not built yet, 0.2.0)
 ```
 
 Mermaid is reserved for the root `README.md`, which GitHub renders directly.

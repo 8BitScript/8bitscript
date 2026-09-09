@@ -1,9 +1,9 @@
 // @8bitscript/cx16/banks — the X16's banked-RAM probe. Two layers: the
 // probe program links clean for the X16 with the stock sheet (no emulator
-// needed), and, when x16emu and the SDK are installed, it is run on a 64
-// KiB machine and a 2 MiB one and the border colour each screenshot shows
-// is what banks.kib() found. The border encodes the answer (see
-// banks-probe.8bs) so the test reads one pixel, not text.
+// needed), and, when x16emu and a working backend are installed, it is
+// run on a 64 KiB machine and a 2 MiB one and the border colour each
+// screenshot shows is what banks.kib() found. The border encodes the
+// answer (see banks-probe.8bs) so the test reads one pixel, not text.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -41,7 +41,7 @@ test('the probe program links clean for the X16, and banks.kib() is a real funct
 function onPath(name) {
   return (process.env.PATH ?? '').split(delimiter).some((dir) => dir && existsSync(join(dir, name)));
 }
-const HAS_SDK = Boolean(process.env.LLVM_MOS_HOME);
+const NATIVE_BACKEND_PENDING = 'Bare Metal: waiting on the native backend';
 
 function runCli(args, { timeoutMs = 120_000 } = {}) {
   return new Promise((resolvePromise) => {
@@ -59,9 +59,7 @@ function runCli(args, { timeoutMs = 120_000 } = {}) {
 test(
   'under x16emu, banks.kib() finds 64 KiB on the smallest machine and 2 MiB on the largest',
   {
-    skip: (!HAS_SDK && 'LLVM_MOS_HOME not set')
-      || (!onPath('x16emu') && 'x16emu not on PATH')
-      || (!onPath('ffmpeg') && 'ffmpeg not on PATH (the x16emu screenshot route needs it)'),
+    skip: NATIVE_BACKEND_PENDING,
   },
   async () => {
     const scratch = await mkdtemp(join(tmpdir(), '8bs-banks-test-'));

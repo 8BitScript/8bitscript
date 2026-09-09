@@ -28,7 +28,6 @@ const {
   loadProject,
   loadProjects,
   parseConfig,
-  resolveLlvmMosHome,
   runnableOn,
   withShipped,
 } = require('../src/projects.cjs');
@@ -341,30 +340,6 @@ test('runnableOn keeps the projects that can run on one system', () => {
   assert.deepEqual(runnableOn(projects, 'vic20').map((p) => p.name), ['a', 'c']);
   assert.deepEqual(runnableOn(projects, 'c64').map((p) => p.name), ['a']);
   assert.deepEqual(runnableOn(projects, 'nes'), []);
-});
-
-test('resolveLlvmMosHome prefers the setting, then the environment, then the default', (t) => {
-  const root = scratch(t);
-  const sdk = (name) => {
-    const dir = path.join(root, name);
-    fs.mkdirSync(path.join(dir, 'bin'), { recursive: true });
-    return dir;
-  };
-  const fromSetting = sdk('from-setting');
-  const fromEnv = sdk('from-env');
-  const fallback = sdk('fallback');
-  const missing = path.join(root, 'missing');
-
-  assert.equal(resolveLlvmMosHome({ setting: fromSetting, env: { LLVM_MOS_HOME: fromEnv }, defaultHome: fallback }), fromSetting);
-  assert.equal(resolveLlvmMosHome({ setting: '  ', env: { LLVM_MOS_HOME: fromEnv }, defaultHome: fallback }), fromEnv);
-  assert.equal(resolveLlvmMosHome({ env: {}, defaultHome: fallback }), fallback);
-  assert.equal(resolveLlvmMosHome({ env: {}, defaultHome: missing }), null, 'an absent SDK resolves to nothing');
-  // A wrong explicit setting survives, so doctor can complain about it by name.
-  assert.equal(resolveLlvmMosHome({ setting: missing, env: {}, defaultHome: fallback }), missing);
-  // A wrong environment value gives way to a default that actually has the SDK,
-  // and is kept only when nothing better exists.
-  assert.equal(resolveLlvmMosHome({ env: { LLVM_MOS_HOME: missing }, defaultHome: fallback }), fallback);
-  assert.equal(resolveLlvmMosHome({ env: { LLVM_MOS_HOME: missing }, defaultHome: path.join(root, 'nope') }), missing);
 });
 
 test('isInstalled wants a node_modules only when dependencies are declared', (t) => {

@@ -179,7 +179,7 @@ that view is a launcher: what to run, where to run it, and the button.
 8BITSCRIPT                    📖  🚀  ♥  ⟳  …
 
   ┌────────────────────────────────────────┐
-  │  ▶   Run borders                       │
+  │  ▶   Run Studio                        │
   │      Commodore 64 · stock · NTSC       │
   └────────────────────────────────────────┘
 
@@ -187,12 +187,12 @@ that view is a launcher: what to run, where to run it, and the button.
   [ c64 — Commodore 64                ▾ ]
 
   PROJECT
-  [ borders  —  examples/borders      ▾ ] 🔧 📄
+  [ Studio  —  packages/studio        ▾ ] 🔧 📄
 
   ▸ HARDWARE · REGION · FACTS   stock machine
 
   RUNNING
-    borders     run · c64               ⏹
+    Studio      run · c64               ⏹
 
   8bs run c64
 ```
@@ -200,9 +200,8 @@ that view is a launcher: what to run, where to run it, and the button.
 The **Project** dropdown lists every directory in the workspace that has an
 `8bs.config.ts` — the project manifest the CLI reads for the entry file and
 the target list — grouped with the **apps** that ship with the toolchain
-([Studio](studio.md)). The **examples** from `examples/` are left out
-unless the book in the title bar asks for them, since in a checkout of this
-repository they outnumber the projects someone is working on. The **System** dropdown offers the machines that project has been
+([Studio](studio.md)). Until 0.2.0, Run and Build still refuse every target:
+the backends exist and do not emit an image. The **System** dropdown offers the machines that project has been
 [set up for](systems.md#the-machines-a-project-is-set-up-for) — its
 config's `systems` block, each entry a machine with its hardware and
 region already fitted — above the nine bare targets; picking a project
@@ -234,10 +233,10 @@ written in `.vscode/tasks.json`:
     {
       "type": "8bs",
       "command": "run",
-      "project": "examples/borders",
+      "project": "packages/studio",
       "target": "c64",
       "pal": true,
-      "label": "borders on a PAL C64"
+      "label": "Studio on a PAL C64"
     }
   ]
 }

@@ -1,7 +1,7 @@
 # Writing NES support for 8BitScript
 
 This file is for anyone — human or agent — touching `packages/nes`,
-`packages/backend-6502`'s `nes` entries, `docs/setup/nes.md`, or the NES rows
+`packages/compiler/src/mos`'s `nes` entries, `docs/setup/nes.md`, or the NES rows
 of `docs/roadmap.md`. Read the root [`AGENTS.md`](../../AGENTS.md) first; the
 rules there ("abstract concepts, expose constraints") apply to every target
 and are not repeated here.
@@ -48,9 +48,10 @@ Do not describe more than this as working:
   picture. Delivering mid-frame would corrupt it: PPUADDR is the PPU's
   own fetch position while it draws.
   `locate()` finds a cell's row in eight-bit shifts and two corrections
-  (`q = cell / 4`, `q / 8 + q / 64`, then take off sevens) because LLVM-MOS
-  links a 248-byte routine for a 16-bit divide, turns a counted-subtraction
-  loop into one, and calls a 300-cycle `__mulhi3` for `x * 147` — the
+  (`q = cell / 4`, `q / 8 + q / 64`, then take off sevens) because a
+  16-bit divide was a 248-byte routine under the pre-0.2.0 toolchain,
+  a counted-subtraction loop became one, and `x * 147` called a 300-cycle
+  `__mulhi3` — the
   vertical blank is about 2270 cycles, and a HUD that overruns it writes
   into whatever the PPU is fetching; `print`/`printNumber` locate once and
   let PPUDATA's auto-increment carry the run, locating again only at a row
@@ -62,17 +63,20 @@ Do not describe more than this as working:
   ASCII (space, digits, A-Z, `! , - . : ?`; tile `$80` is the solid frame
   tile). It reaches the `.nes` image through the package's
   `"8bitscript".native` list — the resolver/linker/backend plumbing in
-  `docs/packages.md` — into the SDK's `.chr_rom` linker section. Reverse
+  `docs/packages.md`. The native backend does not yet place that CHR in
+  a `.nes` image. Reverse
   video of the portable set is the same tiles at ASCII+128 ($A0-$DF);
   tile $80 stays the solid frame.
-- `packages/backend-6502` hardcodes the NES driver to `mos-nes-nrom-clang` —
+- The NES catalog's `mapper` value is `nrom` (`build.startup: nrom`) —
   NROM, the plainest cartridge shape: 32K PRG-ROM, 8K CHR-ROM, no bank
-  switching. LLVM-MOS also ships `unrom`/`mmc1`/`mmc3`/`cnrom`/`gtrom`/
-  `action53`/`unrom-512` drivers; none of them are wired up.
-- Timing is NTSC-only (`FRAME_SYNC.nes` in `packages/backend-6502`); PAL NES
+  switching. Other mapper startups (`unrom`/`mmc1`/`mmc3`/`cnrom`/`gtrom`/
+  `action53`/`unrom-512`) are not wired up. The native backend refuses to
+  build.
+- Timing is NTSC-only (`FRAME_SYNC.nes` in `packages/compiler/src/mos`); PAL NES
   is not supported. FCEUX's default NTSC view hides the top and bottom 8
   lines (rows 0 and 29), which is why the frame is two tiles thick.
-  `examples/borders` puts its readout at row 2, column 2 — the first cell
+  The colour-cycling demo that first ran here put its readout at row 2,
+  column 2 — the first cell
   inside the frame, matching the cell-0 position every other target uses.
 - `docs/setup/nes.md` covers installing and running FCEUX, the emulator
   `8bs run nes` targets.
@@ -104,9 +108,9 @@ sprites, **8 per line**, 8×16, 3 colours; APU: two pulses, triangle,
 noise and DMC = 5 voices, hardware envelopes, samples on the DMC, a
 volume per pulse and noise, no filter or random source; no keyboard, two
 pad ports; nothing to save to on NROM (the `mapper` value's fact); 1536
-bytes of RAM for the program (`nes.ld`'s `ram`, `$0200`–`$07FF`, beside
+bytes of RAM for the program (`$0200`–`$07FF`, beside
 the zero page), nothing banked. Sources: `src/text.8bs`, the PPU and APU
-tables below, `$LLVM_MOS_HOME/mos-platform/nes/lib/nes.ld` (read).
+tables below (read). The native backend refuses to build.
 
 ## How the NES actually works (verify before you cite it)
 
@@ -132,9 +136,8 @@ Facts to actively correct if you see them stated otherwise:
   logical (`AND`/`ORA`/`EOR`) operations. The real constraint worth writing
   down is narrower: **no hardware multiply or divide**, so those deserve
   special treatment (shifts, lookup tables, strength reduction) in
-  frame-critical code — and check the generated C/assembly before
-  hand-optimizing, since LLVM-MOS already does loop and zero-page
-  optimization.
+  frame-critical code — and check the generated code before
+  hand-optimizing, when a backend exists to emit it.
 - **"8.8 fixed point gives 1/16-pixel motion."** Ordinary unsigned 8.8 has
   8 fractional bits, i.e. **1/256** resolution. 1/16-pixel steps are what you
   get if you *choose* to only use multiples of 16 in the fractional byte —
@@ -160,9 +163,9 @@ Facts to actively correct if you see them stated otherwise:
   shape for that: every machine package's `"8bitscript".hardware` catalog
   (`packages/cli/src/hardware.mjs` resolves it; `8bs targets` lists it).
   The NES's catalog has one option, `mapper`, with one value, `nrom`,
-  carrying `build.driver: mos-nes-nrom-clang` and `storage.save: false`.
-  Adding a mapper is adding a value there — its SDK driver
-  (`mos-nes-mmc1-clang` and the rest exist), whether the font's `.chr_rom`
+  carrying `build.startup: nrom` and `storage.save: false`.
+  Adding a mapper is adding a value there — its startup shape
+  (`mmc1` and the rest), whether the font's `.chr_rom`
   section still lands (unverified for any but NROM), its battery-SRAM
   fact — not a table in the backend.
 - **Budget sprites per scanline, not just per frame.** Any future sprite/
@@ -179,13 +182,11 @@ Facts to actively correct if you see them stated otherwise:
   (vblank). Raw PPU access (as `screen.setColors()` already does) stays available
   underneath for anyone who wants it; the portable layer should never be the
   *only* way in.
-- **The PPU warm-up is already handled — don't add a second one.** NESdev's
-  guidance is to wait two vblanks after reset before touching the PPU. The
-  SDK's NROM start-up does exactly that before `main()` (`__early_init` and
-  `__late_init` in `mos-platform/nes-nrom/lib/crt0.o`, confirmed by
-  disassembly, see `index.8bs`'s header). An earlier revision of this file
-  and of `index.8bs` called it a gap; it never was. If you're tempted to
-  add a wait to the frame driver, disassemble the crt0 first.
+- **The PPU warm-up is two vblanks after reset** (NESdev). A working NROM
+  start-up does that before `main()` (`__early_init` and `__late_init`,
+  confirmed by disassembly pre-0.2.0; see `index.8bs`'s header). The native
+  backend does not emit that start-up yet. Don't add a second wait in the
+  package, and don't describe the warm-up as already handled by a backend.
 - **Don't turn an NES number into a generic "8-bit" rule.** "8 sprites"
   means something completely different on NES (8 *of 64* selectable per
   scanline) than on C64 (8 hardware movable-object blocks, full stop — see
@@ -224,10 +225,9 @@ packages/nes/src/screen.8bs          @8bitscript/nes/screen: screen.blank()/setB
 packages/nes/src/text.8bs            @8bitscript/nes/text: text.print/printNumber/setColor/setReverse/putChar/putColor, CELL_COUNT 728, COLUMNS 28, TextColor (inert)
 packages/nes/native/6502/font.s      the CHR-ROM character set (tile index == ASCII; reverse at ASCII+128)
 packages/nes/package.json            "8bitscript".exports names the two subpaths; .native lists the font
-packages/backend-6502/src/index.mjs  driver selection (DRIVER.nes), NTSC frame timing, nativeSources
+packages/compiler/src/mos/index.ts   FRAME_SYNC.nes (NTSC frame timing; the backend refuses to build)
 packages/compiler/src/resolver/      "8bitscript".native → absolute paths (8BS2008 if missing)
 packages/compiler/test/nes-screen.test.mjs   the package and the native plumbing, end to end
-examples/borders/src/main.8bs        the working program (every target): readout, draw-then-setColors ordering
 docs/setup/nes.md                    install/run FCEUX, 8bs run nes, what the picture shows
 docs/roadmap.md                      Phase 3: why NES is here, the capability-system rationale
 ```

@@ -8,8 +8,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { analyze, tokenize, parse, lower, link } from '../index.mjs';
-import { emitAssemblyScript } from '../../backend-web/src/index.mjs';
-import { emitC } from '../../backend-6502/src/index.mjs';
+
+const NATIVE_BACKEND_PENDING = 'Bare Metal: waiting on the native backend';
 
 const codes = (src) => analyze(src, 't.8bs').map((d) => d.code);
 const clean = (src) => assert.deepEqual(codes(src), []);
@@ -119,20 +119,6 @@ test('an array parameter has no default', () => {
   );
 });
 
-test('both backends pass an array as an address, not a copy', () => {
-  const { ir } = lowered(
-    'const T: array<utinyint, 4> = [1, 7, 13, 19];\n'
-    + 'function pick(t: array<utinyint, 4>, i: utinyint): utinyint { return t[i]; }\n'
-    + 'export function main(): void { let x: utinyint = pick(T, 2); }',
-  );
-  const c = emitC(ir, { machine: 'c64', frameRate: 60 });
-  assert.match(c, /static uint8_t pick\(const uint8_t \* t, uint8_t i\)/);
-  assert.match(c, /pick\(T, 2\)/);
-  const as = emitAssemblyScript(ir, { frameRate: 60 });
-  assert.ok(as.ok, as.error);
-  assert.match(as.source, /function pick\(t: usize, i: u8\)/);
-});
-
 test('a call is now usable as an expression, not just a statement', () => {
   const { ir, diagnostics } = lowered(
     'let x: utinyint = 0;\nfunction one(): utinyint { return 1; }\nexport function main(): void { x = one() + one(); }',
@@ -220,69 +206,39 @@ test('memory.write range-checks literal arguments against usmallint/utinyint', (
   assert.deepEqual(loweredCodes('export function f(): void { memory.write(0, 0); }'), []);
 });
 
-// ---- both backends emit the new shapes -------------------------------------
+// ---- a params/return + memory.write program, on the IR and (later) native ----
 
 const irOf = (src) => lowered(src).ir;
 
-test('backend-6502 emits real C parameter lists and return statements', () => {
-  const c = emitC(irOf('function double(n: utinyint): utinyint { return n * 2; }\nexport function main(): void { double(3); }'));
-  assert.match(c, /uint8_t double\(uint8_t n\) \{/);
-  assert.match(c, /return \(n \* 2\);/);
-  assert.match(c, /double\(3\);/);
-});
-
-test('backend-6502 emits a volatile pointer dereference for memory.read/write', () => {
-  // Integer literals lower to their numeric value, not their source radix —
-  // 0x900F is 36879 by the time it reaches a backend, same as everywhere
-  // else in the compiler (an @address global's hex formatting is a one-off
-  // done for that one line, not a general property of literals).
-  const c = emitC(irOf('export function f(): void { memory.write(0x900F, 27); }'));
-  assert.match(c, /\*\(volatile uint8_t \*\)36879 = 27;/);
-
-  const c2 = emitC(irOf('let x: utinyint = 0;\nexport function f(): void { x = memory.read(0x900F); }'));
-  assert.match(c2, /x = \(\*\(volatile uint8_t \*\)36879\);/);
-});
-
-test('backend-web emits real AssemblyScript signatures and load/store intrinsics', () => {
-  const as = emitAssemblyScript(irOf('function double(n: utinyint): utinyint { return n * 2; }\nexport function main(): void { double(3); }'));
-  assert.ok(as.ok);
-  // Only the entry is a wasm export; a helper is a plain function.
-  assert.match(as.source, /^function double\(n: u8\): u8 \{/m);
-  assert.match(as.source, /return <u8>\(n \* 2\);/);
-
-  const mem = emitAssemblyScript(irOf('export function f(): void { memory.write(0x900F, 27); }'));
-  assert.match(mem.source, /store<u8>\(36879, 27\);/);
-
-  const read = emitAssemblyScript(irOf('let x: utinyint = 0;\nexport function f(): void { x = memory.read(0x900F); }'));
-  assert.match(read.source, /x = <u8>load<u8>\(36879\);/);
-});
-
-// ---- real compiles: parameters, return values, and memory access agree ----
-
-test('a function with params/return + memory.write compiles and runs the same on both backends', async () => {
+test('a function with params/return + memory.write lowers the call into the write', () => {
   const src = [
     'function scaled(n: utinyint): utinyint { return n * 2; }',
     'export function main(): void {',
     '    memory.write(0x1100, scaled(21));',
     '}',
   ].join('\n');
+  const ir = irOf(src);
+  const scaled = ir.functions.find((f) => f.name === 'scaled');
+  assert.deepEqual(scaled.params, [{ name: 'n', type: 'utinyint' }]);
+  assert.equal(scaled.returnType, 'utinyint');
+  const write = ir.functions.find((f) => f.name === 'main').body[0];
+  assert.equal(write.kind, 'memoryWrite');
+  assert.deepEqual(write.address, { kind: 'const', value: 0x1100 });
+  assert.equal(write.value.kind, 'call');
+  assert.equal(write.value.name, 'scaled');
+  assert.deepEqual(write.value.args[0], { kind: 'const', value: 21 });
+});
 
-  const c = emitC(irOf(src));
-  assert.match(c, /uint8_t scaled\(uint8_t n\)/);
-  assert.match(c, /\*\(volatile uint8_t \*\)4352 = scaled\(21\);/);
-
-  const emitted = emitAssemblyScript(irOf(src));
-  assert.ok(emitted.ok);
-  // The argument narrows to the parameter's declared width (AssemblyScript
-  // widens arithmetic to i32 and will not pass a widened value to a u8).
-  assert.match(emitted.source, /store<u8>\(4352, scaled\(<u8>21\)\);/);
-
-  const { buildWasm } = await import('../../backend-web/src/index.mjs');
+test('a function with params/return + memory.write compiles and runs the same on both backends', { skip: NATIVE_BACKEND_PENDING }, async () => {
+  const src = [
+    'function scaled(n: utinyint): utinyint { return n * 2; }',
+    'export function main(): void {',
+    '    memory.write(0x1100, scaled(21));',
+    '}',
+  ].join('\n');
   const dir = mkdtempSync(join(tmpdir(), '8bs-fn-test-'));
   try {
     const outFile = join(dir, 'm.wasm');
-    const result = await buildWasm(irOf(src), { outFile });
-    assert.ok(result.ok, result.error);
     const wasm = await import('node:fs/promises').then((fs) => fs.readFile(outFile));
     const { instance } = await WebAssembly.instantiate(wasm);
     instance.exports.main();

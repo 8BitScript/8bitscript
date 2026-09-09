@@ -89,13 +89,13 @@ test('the PET model is a build (RAM), a run flag, a tag, and facts', () => {
   assert.equal(stock.facts['video.columns'], 40);
 });
 
-test('the Atari splits the machine from the medium: `model` picks the atari800 model, `media` picks the driver, the ROM size and the cartridge type', () => {
+test('the Atari splits the machine from the medium: `model` picks the atari800 model, `media` picks the startup, the ROM size and the cartridge type', () => {
   const catalog = loadCatalog('atari8');
 
-  // Stock: an 800XL loading a .xex, which is the SDK's own dos driver and
+  // Stock: an 800XL loading a .xex, which is the stock DOS-style load and
   // needs no build block at all.
   const stock = resolveHardware(catalog).hardware;
-  assert.equal(stock.build.driver, undefined);
+  assert.equal(stock.build.startup, undefined);
   assert.deepEqual(stock.build.defsym, {});
   assert.deepEqual(loadArgs(stock, 'atari800', '/x/m.xex', ['-run', '/x/m.xex']), ['-run', '/x/m.xex']);
   assert.deepEqual(stock.run.atari800, ['-xl', '-mouse', 'off', '-mouseport', '1']);
@@ -108,39 +108,39 @@ test('the Atari splits the machine from the medium: `model` picks the atari800 m
   const { hardware } = resolveHardware(catalog, { profile: 'xegs' });
   assert.deepEqual(hardware.options.model, 'xegs');
   assert.deepEqual(hardware.options.media, 'xegs256');
-  assert.equal(hardware.build.driver, 'mos-atari8-cart-xegs-clang');
+  assert.equal(hardware.build.startup, 'cart-xegs');
   assert.equal(hardware.build.output, 'rom');
   assert.deepEqual(hardware.build.defsym, { __cart_rom_size: 256 });
   assert.deepEqual(loadArgs(hardware, 'atari800', '/x/m.rom', ['-run', '/x/m.rom']), ['-cart', '/x/m.rom', '-cart-type', '23']);
   assert.deepEqual(hardware.run.atari800, ['-xegs', '-mouse', 'off', '-mouseport', '1']);
 
-  // Every medium: the driver that links it, the __cart_rom_size its link
-  // script asserts on (the std cartridge script has no PROVIDE for it, so
-  // the defsym is not optional there), and the atari800 -cart-type that
-  // matches the image size — a raw cartridge image has no header, so
+  // Every medium: the startup shape that links it, the __cart_rom_size its
+  // link script asserts on (the std cartridge script has no PROVIDE for
+  // it, so the defsym is not optional there), and the atari800 -cart-type
+  // that matches the image size — a raw cartridge image has no header, so
   // without the type the emulator stops at its "Select Cartridge Type" menu.
   const MEDIA = {
-    cart8: ['mos-atari8-cart-std-clang', 8, '1'],
-    cart16: ['mos-atari8-cart-std-clang', 16, '2'],
-    xegs32: ['mos-atari8-cart-xegs-clang', 32, '12'],
-    xegs64: ['mos-atari8-cart-xegs-clang', 64, '13'],
-    xegs128: ['mos-atari8-cart-xegs-clang', 128, '14'],
-    xegs256: ['mos-atari8-cart-xegs-clang', 256, '23'],
-    xegs512: ['mos-atari8-cart-xegs-clang', 512, '24'],
-    mega16: ['mos-atari8-cart-megacart-clang', 16, '26'],
-    mega32: ['mos-atari8-cart-megacart-clang', 32, '27'],
-    mega64: ['mos-atari8-cart-megacart-clang', 64, '28'],
-    mega128: ['mos-atari8-cart-megacart-clang', 128, '29'],
-    mega256: ['mos-atari8-cart-megacart-clang', 256, '30'],
-    mega512: ['mos-atari8-cart-megacart-clang', 512, '31'],
+    cart8: ['cart-std', 8, '1'],
+    cart16: ['cart-std', 16, '2'],
+    xegs32: ['cart-xegs', 32, '12'],
+    xegs64: ['cart-xegs', 64, '13'],
+    xegs128: ['cart-xegs', 128, '14'],
+    xegs256: ['cart-xegs', 256, '23'],
+    xegs512: ['cart-xegs', 512, '24'],
+    mega16: ['cart-megacart', 16, '26'],
+    mega32: ['cart-megacart', 32, '27'],
+    mega64: ['cart-megacart', 64, '28'],
+    mega128: ['cart-megacart', 128, '29'],
+    mega256: ['cart-megacart', 256, '30'],
+    mega512: ['cart-megacart', 512, '31'],
   };
-  for (const [media, [driver, size, type]] of Object.entries(MEDIA)) {
+  for (const [media, [startup, size, type]] of Object.entries(MEDIA)) {
     const h = resolveHardware(catalog, { overrides: { media } }).hardware;
-    assert.equal(h.build.driver, driver, media);
+    assert.equal(h.build.startup, startup, media);
     assert.equal(h.build.output, 'rom', media);
     assert.deepEqual(h.build.defsym, { __cart_rom_size: size }, media);
     assert.deepEqual(loadArgs(h, 'atari800', '/x/m.rom', ['-run', '/x/m.rom']), ['-cart', '/x/m.rom', '-cart-type', type], media);
-    // A cartridge links against the SDK's $0700-$1FFF window and has no
+    // A cartridge links against the $0700-$1FFF window and has no
     // writable storage of its own.
     assert.equal(h.facts['memory.ram'], 6400, media);
     assert.equal(h.facts['storage.save'], false, media);
@@ -156,7 +156,7 @@ test('the Atari model axis is run-only: every model links the same .xex, and onl
   for (const [model, flag] of Object.entries(FLAG)) {
     const h = resolveHardware(catalog, { overrides: { model } }).hardware;
     assert.deepEqual(h.run.atari800, [flag, '-mouse', 'off', '-mouseport', '1'], model);
-    assert.equal(h.build.driver, undefined, `${model} still links the stock .xex driver`);
+    assert.equal(h.build.startup, undefined, `${model} still links the stock .xex`);
     assert.deepEqual(h.buildValues, [], `${model} changes nothing about the build, so it never names the output`);
     assert.equal(h.facts['input.joysticks'], model === '400' || model === '800' ? 4 : 2, model);
   }

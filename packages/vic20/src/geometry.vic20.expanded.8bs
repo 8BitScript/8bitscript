@@ -2,8 +2,8 @@
 //
 // The `expanded` version of geometry.8bs (see that file for the whole
 // story): with 8K or more the KERNAL moves the screen matrix to $1000 and
-// colour RAM to $9400 so BASIC RAM runs unbroken from $1200, and the SDK
-// loads the program at $1201. $9005's screen nybble becomes $C0 (POKE
+// colour RAM to $9400 so BASIC RAM runs unbroken from $1200, and the
+// program loads at $1201. $9005's screen nybble becomes $C0 (POKE
 // 36869,192). One file serves the 8k, 16k and 24k values of the `ram`
 // option because the catalog (package.json, "8bitscript".hardware) gives
 // all three the same `expanded` tag: where the screen is depends on

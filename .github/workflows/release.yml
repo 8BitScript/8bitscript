@@ -31,7 +31,6 @@ jobs:
           cache: pnpm
           registry-url: https://registry.npmjs.org
       - run: pnpm install --frozen-lockfile
-      - uses: ./.github/actions/setup-llvm-mos
       - run: pnpm run test:ci
       - run: node scripts/release.mjs --allow-dirty
         env:

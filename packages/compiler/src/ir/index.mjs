@@ -827,7 +827,7 @@ class Lowering {
       params.filter((q) => q.type === 'array').map((q) => [q.name, q]),
     );
     // A parameter is declared in the body's block: `let x` over a
-    // parameter x is a redeclaration, as it is in C and AssemblyScript.
+    // parameter x is a redeclaration, as it is in C.
     const outerBlock = this.blockNames;
     this.blockNames = new Set([...this.currentParams.keys(), ...this.currentArrayParams.keys()]);
     const body = this.functionBody(node.body);
@@ -881,7 +881,7 @@ class Lowering {
   /**
    * Run `fn` with a copy of the current names-in-scope, so a local declared
    * inside a block is not visible after it — block scoping, the same rule
-   * C and AssemblyScript apply to what the backends emit.
+   * C applies to block-scoped locals.
    */
   scoped(fn) {
     const outer = this.currentParams;
@@ -920,8 +920,8 @@ class Lowering {
     for (const decorator of node.decorators ?? []) {
       return this.fail(decorator, `@${decorator.name} maps hardware; it belongs on a top-level declaration`);
     }
-    // One declaration per name per block — the rule C and AssemblyScript
-    // both enforce on what the backends emit, reported here instead.
+    // One declaration per name per block — the same rule C enforces,
+    // reported here instead.
     if (this.blockNames?.has(node.name.name)) {
       return this.fail(node.name, `'${node.name.name}' is already declared in this block`);
     }

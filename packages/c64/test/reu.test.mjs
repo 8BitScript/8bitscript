@@ -1,9 +1,10 @@
 // @8bitscript/c64/reu — the first run-time hardware probe. Two layers:
 // the probe program links clean for the C64 with the stock sheet (no
-// emulator needed), and, when x64sc and the SDK are installed, it is run
-// under VICE with no REU and with a 512 KiB one, and the border colour
-// each screenshot shows is what reu.detect() found. The border encodes the
-// answer (see reu-probe.8bs) so the test reads one pixel, not text.
+// emulator needed), and, when x64sc and a working backend are installed,
+// it is run under VICE with no REU and with a 512 KiB one, and the border
+// colour each screenshot shows is what reu.detect() found. The border
+// encodes the answer (see reu-probe.8bs) so the test reads one pixel, not
+// text.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -44,7 +45,7 @@ test('the probe program links clean for the C64, and reu.detect() is a real func
 function onPath(name) {
   return (process.env.PATH ?? '').split(delimiter).some((dir) => dir && existsSync(join(dir, name)));
 }
-const HAS_SDK = Boolean(process.env.LLVM_MOS_HOME);
+const NATIVE_BACKEND_PENDING = 'Bare Metal: waiting on the native backend';
 
 function runCli(args, { timeoutMs = 60_000 } = {}) {
   return new Promise((resolvePromise) => {
@@ -61,7 +62,7 @@ function runCli(args, { timeoutMs = 60_000 } = {}) {
 
 test(
   'under VICE, reu.detect() finds no REU on the stock machine and 512 KiB on one fitted with it',
-  { skip: (!HAS_SDK && 'LLVM_MOS_HOME not set') || (!onPath('x64sc') && 'x64sc not on PATH') },
+  { skip: NATIVE_BACKEND_PENDING },
   async () => {
     const scratch = await mkdtemp(join(tmpdir(), '8bs-reu-test-'));
     try {
@@ -115,7 +116,7 @@ test('the mouse probe links clean for the C64, and its parts are real functions 
 
 test(
   'under VICE, mouse.present() is true only with a 1351 in the port',
-  { skip: (!HAS_SDK && 'LLVM_MOS_HOME not set') || (!onPath('x64sc') && 'x64sc not on PATH') },
+  { skip: NATIVE_BACKEND_PENDING },
   async () => {
     const scratch = await mkdtemp(join(tmpdir(), '8bs-mouse-test-'));
     try {

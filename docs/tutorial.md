@@ -5,25 +5,25 @@ nav_order: 5
 
 # Getting started
 
-This walks through building and running an 8BitScript program for the first
-time. It is a work in progress, same as the rest of the toolchain: it covers
-the one path that goes end to end today, and it grows as more of the language
-compiles. If a step here stops matching what the CLI actually does, the CLI is
-right and this page is stale — file that as a bug in the docs.
+This walks through the language subset the front end already accepts.
+Until 0.2.0, `8bs build` and `8bs run` refuse every target: the backends
+exist and do not emit an image. If a step here stops matching what the CLI
+actually does, the CLI is right and this page is stale — file that as a
+bug in the docs.
 
 ## Before you start
 
-You need the host toolchain, the LLVM-MOS SDK, and VICE installed. Work
+You need the host toolchain and VICE installed. Work
 through the [setup guide](setup/index.md) first if you have not already; its
 last page, [Verify your setup](setup/verify.md), gives you `pnpm run doctor`,
 which checks all of it in one command.
 
 Nothing here is published to npm yet — every package under `packages/` is
-private, and examples consume them with `workspace:*` so pnpm links them
+private, and a checkout consumes them with `workspace:*` so pnpm links them
 straight out of the monorepo (see [the package model](packages.md) for why).
 That means today's starting point is this repository, not a fresh directory
-with an `8bs` install in it. You write and run programs inside `examples/`
-until that changes.
+with an `8bs` install in it. You write programs as ordinary projects that
+depend on `@8bitscript/cli` until a public release carries that.
 
 ## Clone and install
 
@@ -39,64 +39,31 @@ Then confirm the toolchain is ready:
 pnpm run doctor
 ```
 
-Every row should say `ok`. If one doesn't, `pnpm run doctor` names the setup
-page that fixes it.
+Every row should say `ok` for the emulators you installed. If one doesn't,
+`pnpm run doctor` names the setup page that fixes it. Doctor does not mean
+a target can be built.
 
-## Run an example
+## A first program
 
-[`examples/borders`](https://github.com/8BitScript/8bitscript/tree/trunk/examples/borders)
-is the example that goes end to end today: it clears the leftover BASIC boot
-screen, labels a `TICK` counter and the current `OPTION` number, and steps
+This is the shape of a first program: it would clear the leftover BASIC boot
+screen, label a `TICK` counter and the current `OPTION` number, and step
 the border and background through four curated colour combinations — one
-program, one source file, on every target from the VIC-20 to the NES to
-the web. It is the
-classic first sign of life on real hardware, so it is the one worth seeing
-run before reading any code.
+source file, on every target from the VIC-20 to the NES to the web. It
+does not run today. `8bs check` will still report errors in a file like
+this; `8bs build` will refuse.
 
-```bash
-cd examples/borders
-pnpm start
-```
+When the backends emit, `8bs build --target vic20` will write a `.prg` and
+`8bs run vic20` will open it in `xvic`. Until then, read the source as
+the language, not as a demo.
 
-`8bs build`s the program for the unexpanded VIC-20 (`$1001`, no memory
-expansion — VICE's default), then opens it in `xvic`. You should see the
-BASIC banner and `READY.` prompt disappear, replaced by a single line reading
-`TICK` and `OPTION` near the top of the screen; the digit after `TICK` ticks
-over roughly twice a second — it counts *ticks*, not real display frames,
-which is why it's not called "FRAME": see [what the program
-does](#what-the-program-does) below for what a tick actually is. Every ten
-ticks the screen switches to the next of the four colour options, with the
-digit after `OPTION` changing alongside it. Close the emulator window when
-you're done.
-
-`pnpm run start:web` runs the *identical* file and shows the identical line
-drawn over the canvas instead — same wording, same layout, same cadence, so
-the two read as one program rather than two demos that happen to share a
-name. It also shows a second, clearly separate number in the corner, `FPS`:
-how many frames the program actually took — `waitFrame()` calls that
-returned — in the last real second, sampled once a second. It should read
-this project's `frameRate`
-(60 by default — see `8bs.config.ts`) no matter the display's actual
-refresh rate — that claim is checked below, not just made.
-
-`package.json` has one script per target:
-
-| Command | Machine | Region |
-| ------- | ------- | ------ |
-| `pnpm start` | VIC-20 | NTSC |
-| `pnpm run start:pal` | VIC-20 | PAL |
-| `pnpm run start:c64` | C64 | NTSC |
-| `pnpm run start:c64-pal` | C64 | PAL |
-| `pnpm run start:web` | Web | — (no PAL/NTSC on the web; see below) |
-
-`pnpm run build` (and its `:pal`, `:c64`, `:c64-pal`, `:web` variants)
-compiles without opening the emulator or browser; output lands in `dist/` as
-a `.prg` (VIC-20/C64) or a `.wasm` (web), with the C or AssemblyScript the
-backend generated alongside it, so what the compiler did is never a mystery.
+`8bs.config.ts` names the targets a project is set up for. Output will
+land in `dist/` as a `.prg` (VIC-20/C64) or a `.wasm` (web) once a
+backend emits one. Nothing beside the image is generated C or a third-party
+IR — the 6502 backend emits machine code, the web backend emits wasm.
 
 ## What the program does
 
-`examples/borders/src/main.8bs`:
+A file like `src/main.8bs`:
 
 ```
 import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";
@@ -207,7 +174,7 @@ export function main(): void {
   `frameRate` on a 50Hz PAL machine
   returns twice from one hardware frame every so often and the logical rate
   never drifts; no calibrated delay constant is involved (see
-  `packages/backend-6502`). On the web the program runs in a worker and
+  `packages/compiler/src/mos`). On the web the program runs in a worker and
   `waitFrame()` blocks on the page's frame clock, which releases frames on a
   fixed `1/frameRate` timestep regardless of the display's actual refresh
   rate — 60Hz, 120Hz, 144Hz, 50Hz, whatever it is (see
@@ -241,7 +208,7 @@ export function main(): void {
   ASCII on every machine, upper case only — `84` is `T` everywhere — and
   each package turns them into whatever its hardware wants (the Commodore
   machines also switch themselves to the upper-case character set, since
-  the runtime LLVM-MOS links in boots them into the lower-case one). Cell 0
+  start-up leaves them in the lower-case one). Cell 0
   is the top-left corner inside the border on every machine, so the labels
   land in the same place on all of them. None of that runs automatically:
   `screen.blank()` and `drawHud()` are this *program's* choice to call, not
@@ -305,24 +272,14 @@ export function main(): void {
 
 ## Make a change
 
-Edit `#frames(0.5, seconds)`'s first argument — the two places
-`framesUntilTick` uses it — to something larger or smaller, then rebuild and
-run again:
-
-```bash
-pnpm start
-```
-
-A larger duration slows the tick counter down; a smaller one speeds it up
-(try `#frames(0.1, seconds)` for a snappier five ticks a second). This still works
-out to the right frame count no matter what `frameRate` this project is
+Until 0.2.0 there is no rebuild to run. Edit `#frames(0.5, seconds)`'s first
+argument — the two places `framesUntilTick` uses it — on paper: a larger
+duration slows the tick counter down; a smaller one speeds it up
+(try `#frames(0.1, seconds)` for a snappier five ticks a second). This still
+works out to the right frame count no matter what `frameRate` a project is
 configured for — that's the whole point of writing a duration instead of a
-raw frame count. Try changing one of
-the colour pairs — `BACKGROUNDS[0]`, `BackgroundColor.CYAN`, say — to
-another name, or add a fifth entry to each table and make them
-`array<utinyint, 5>` — `BORDERS.length` becomes 5 at the one place it is
-read, and the tables stay data in the program, not RAM — and watch a new
-option join the rotation.
+raw frame count. The same goes for changing a colour pair or adding a fifth
+entry to each table.
 
 ## What doesn't compile yet
 
@@ -339,18 +296,20 @@ Anything past that — `ptr<T>`, a local array, an array as a function
 argument, member access that isn't a declared namespace — fails with a
 diagnostic naming the construct, rather than compiling into something
 silently wrong.
-[The compiler](compiler.md#the-first-milestone-achieved) has the exact
+[The compiler](compiler.md#the-first-milestone) has the exact
 boundary.
 
 ## Where to go next
 
 - [The package model](packages.md) — how imports resolve, and how a package
   like `@8bitscript/screen` targets more than one machine from one API.
-- [The compiler](compiler.md) — the pipeline from source to `.prg` or
-  `.wasm`, and the diagnostic codes you'll hit while writing something that
-  goes past the milestone subset.
+- [The compiler](compiler.md) — the pipeline from source through IR and the
+  linker; backends that do not yet emit `.prg` or `.wasm`; and the
+  diagnostic codes you'll hit while writing something that goes past the
+  milestone subset.
 - [Editor support](language-server.md) — diagnostics under the cursor while
   you write.
 
-This page will grow past "run the one example that works" as the binder
-lands — that is the whole reason it says work in progress at the top.
+This page will grow past "read the one program the front end accepts" as
+the backends land — that is the whole reason it says work in progress at
+the top.

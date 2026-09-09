@@ -12,8 +12,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { analyze, link, tokenize, parse, lower } from '../index.mjs';
-import { emitC } from '../../backend-6502/src/index.mjs';
-import { emitAssemblyScript } from '../../backend-web/src/index.mjs';
 
 const messages = (src) => analyze(src, 't.8bs').map((d) => `${d.code} ${d.message}`);
 const clean = (src) => assert.deepEqual(messages(src), []);
@@ -65,28 +63,28 @@ test('the linker fills in every argument left off, from its own module, an impor
     'main.8bs': 'import { screen, BorderColor, f } from "./lib.8bs";\nlet n: utinyint = 0;\nexport function main(): void { screen.blank(); screen.blank(BorderColor.KEEP); screen.blank(1, 2); n = f(1); n = f(1, 2, "YO"); }\n',
   });
   assert.deepEqual(diagnostics, []);
-  const c = emitC(ir, { machine: 'c64' });
-  assert.match(c, /screen_blank\(0, 2\);\n\s+screen_blank\(255, 2\);\n\s+screen_blank\(1, 2\);/);
+  const main = ir.functions.find((f) => f.name === 'main');
+  assert.deepEqual(main.body[0].args.map((a) => a.value), [0, 2]);
+  assert.deepEqual(main.body[1].args.map((a) => a.value), [255, 2]);
+  assert.deepEqual(main.body[2].args.map((a) => a.value), [1, 2]);
   // The entry module's strings come first in the program table: "YO" is
   // slot 0, the library's "HI" default is slot 1 — rebased by its own module.
-  assert.match(c, /n = f\(1, 7, __8bs_str_1\);/, 'the string default is the slot in the program table');
-  assert.match(c, /n = f\(1, 2, __8bs_str_0\);/);
-  const as = emitAssemblyScript(ir);
-  assert.ok(as.ok, as.error);
-  assert.match(as.source, /screen_blank\(<u8>0, <u8>2\);/);
+  assert.deepEqual(main.body[3].value.args.map((a) => [a.kind, a.value ?? a.index]), [
+    ['const', 1], ['const', 7], ['string', 1],
+  ]);
+  assert.deepEqual(main.body[4].value.args.map((a) => [a.kind, a.value ?? a.index]), [
+    ['const', 1], ['const', 2], ['string', 0],
+  ]);
 });
 
-test('a call to the module\'s own function is filled in too, so the C compiler sees a complete call', async () => {
+test('a call to the module\'s own function is filled in too, so the call is complete', async () => {
   const { ir, diagnostics } = await linkWith({
     'main.8bs': 'let n: utinyint = 0;\nfunction f(a: utinyint, b: utinyint = 7): utinyint { return a + b; }\nexport function main(): void { n = f(1); n = f(1, 2); }\n',
   });
   assert.deepEqual(diagnostics, []);
-  const c = emitC(ir, { machine: 'c64' });
-  assert.match(c, /n = f\(1, 7\);/, 'the default is filled in for a same-file call');
-  assert.match(c, /n = f\(1, 2\);/);
-  const as = emitAssemblyScript(ir);
-  assert.ok(as.ok, as.error);
-  assert.match(as.source, /f\(<u8>1, <u8>7\)/);
+  const main = ir.functions.find((f) => f.name === 'main');
+  assert.deepEqual(main.body[0].value.args.map((a) => a.value), [1, 7]);
+  assert.deepEqual(main.body[1].value.args.map((a) => a.value), [1, 2]);
 });
 
 test('the linker checks the count of a call across modules, and a default that does not fit', async () => {

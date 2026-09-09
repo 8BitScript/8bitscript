@@ -70,10 +70,11 @@ So, when adding anything:
 - **Prefer emitting data over emitting code.** A table the program indexes
   is almost always smaller than the code that would recompute it, and it
   lives in the program image rather than in RAM.
-- **Measure it, in bytes, and write the number down.** `llvm-nm
-  --print-size --size-sort` and `llvm-objdump -d --disassemble-symbols=`
-  on the `.prg.elf` beside any build say where a program's bytes went;
-  [the compiler](docs/compiler.md#what-a-call-costs-on-a-6502-measured)
+- **Measure it, in bytes, and write the number down.** The backend's own
+  size report (`memory.program`, `memory.variables` from `build()`) is the
+  measurement. Until that report exists, no new size claim can be made;
+  the numbers already recorded in this repository stay as the reference.
+  [The compiler](docs/compiler.md#what-a-call-costs-on-a-6502-measured)
   has worked examples. A size claim without a measurement is not a size
   claim. Where a package or a program records what it costs
   (`packages/ui/AGENTS.md`), re-measure and update the table in the same

@@ -11,10 +11,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { link } from '../index.mjs';
-import { emitC } from '../../backend-6502/src/index.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const BORDERS_MAIN = join(HERE, '..', '..', '..', 'examples', 'borders', 'src', 'main.8bs');
 const C64_SRC = join(HERE, '..', '..', 'c64', 'src');
 const VICE_C64 = '/opt/homebrew/share/vice/C64';
 
@@ -24,8 +22,42 @@ const ENTRY = join(C64_SRC, 'phantom-entry.8bs');
 const linked = (src, entry = ENTRY) => {
   const { ir, diagnostics } = link(src, entry, { machine: 'c64' });
   assert.deepEqual(diagnostics, []);
-  return { ir, c: emitC(ir, { machine: 'c64' }) };
+  return ir;
 };
+
+const fn = (ir, name) => {
+  const f = ir.functions.find((x) => x.name === name);
+  assert.ok(f, `${name} is defined`);
+  return f;
+};
+
+const walk = (node, visit) => {
+  if (!node || typeof node !== 'object') return;
+  visit(node);
+  for (const v of Object.values(node)) walk(v, visit);
+};
+
+const has = (node, pred) => {
+  let found = false;
+  walk(node, (n) => { if (pred(n)) found = true; });
+  return found;
+};
+
+const assignsTo = (node, name) => {
+  const found = [];
+  walk(node, (n) => { if (n.kind === 'assign' && n.target === name) found.push(n); });
+  return found;
+};
+
+const calls = (node, name) => {
+  const found = [];
+  walk(node, (n) => { if (n.kind === 'call' && n.name === name) found.push(n); });
+  return found;
+};
+
+const isAsm = (node, snippet) => node.kind === 'asm' && node.text.includes(snippet);
+
+const literalAssigns = (node, name) => assignsTo(node, name).filter((a) => a.value.kind === 'const');
 
 // The consts of a namespace in a package file, by name — a member that
 // names one of the file's own module-level consts (`SCREEN_ADDRESS`, which
@@ -43,14 +75,6 @@ const namespaceConsts = (file, name) => {
   }));
 };
 
-
-// Where a function's definition starts in the emitted C (a prototype ends
-// in `);`, the definition's signature in `) {`).
-const defAt = (c, name) => {
-  const at = c.search(new RegExp(`static \\w+ ${name}\\([^)]*\\) \\{`));
-  assert.ok(at >= 0, `${name} is defined`);
-  return at;
-};
 
 // ---- geometry: one bank, everything the VIC reads inside it ------------------
 
@@ -82,7 +106,7 @@ test('the screen, the character set, the sprite pointers and the shapes are all 
 });
 
 test('the arrays over the bank are declared at the addresses Video names, with the sizes the layout gives', () => {
-  const { ir } = linked('import { screenRam, colorRam, spritePointers, spriteShapes } from "./geometry.8bs";\nexport function main(): void { screenRam[0] = 1; colorRam[0] = 1; spritePointers[0] = 1; spriteShapes[0] = 1; }');
+  const ir = linked('import { screenRam, colorRam, spritePointers, spriteShapes } from "./geometry.8bs";\nexport function main(): void { screenRam[0] = 1; colorRam[0] = 1; spritePointers[0] = 1; spriteShapes[0] = 1; }');
   const global = (name) => ir.globals.find((g) => g.name === name);
   assert.deepEqual([global('screenRam').address, global('screenRam').array], [VIDEO.SCREEN, VIDEO.CELL_COUNT]);
   assert.deepEqual([global('colorRam').address, global('colorRam').array], [VIDEO.COLOR, VIDEO.CELL_COUNT]);
@@ -103,7 +127,7 @@ test('index.8bs names the VIC-II, SID, CIA and processor-port registers at their
     cia2PortA: 0xDD00, cia2DirectionA: 0xDD02, reuStatus: 0xDF00, reuAddressControl: 0xDF0A,
   };
   const program = `import { ${Object.keys(names).join(', ')} } from "./index.8bs";\nexport function main(): void { borderColor = 0; }`;
-  const { ir } = linked(program);
+  const ir = linked(program);
   for (const [name, address] of Object.entries(names)) {
     const g = ir.globals.find((x) => x.name === name);
     assert.ok(g, `${name} exists`);
@@ -116,46 +140,69 @@ test('index.8bs names the VIC-II, SID, CIA and processor-port registers at their
 
 // ---- the portable surface, through the bank ---------------------------------
 
-test('borders on the c64 draws at $E000 with colour at $D800, sets $D018 to $84, and runs under sei', () => {
-  const src = readFileSync(BORDERS_MAIN, 'utf8');
-  const { c } = linked(src, BORDERS_MAIN);
-  assert.match(c, /#define screenRam \(\(volatile uint8_t \*\)0xE000\)/);
-  assert.match(c, /#define colorRam \(\(volatile uint8_t \*\)0xD800\)/);
-  assert.match(c, /memoryPointer = 132;/);
-  // blank() clears all 1000 cells, as four quarters off one 8-bit index
-  // (packages/c64/src/screen.8bs says why): 250 iterations covering
-  // 0, 250, 500, 750 — still every cell, and still only this screen's.
-  assert.match(c, /i < 250/);
-  for (const q of [0, 250, 500, 750]) {
-    const at = q === 0 ? String.raw`screenRam\[i\]` : String.raw`screenRam\[\(i \+ ${q}\)\]`;
-    assert.match(c, new RegExp(`${at} = 32;`), `quarter at ${q} is not cleared`);
-  }
-  assert.doesNotMatch(c, /\(1024 \+ /, 'nothing writes the KERNAL\'s screen at $0400');
-  assert.match(c, /"sei"/, 'the frame prologue disables interrupts');
+test('the c64 screen draws at $E000 with colour at $D800, sets $D018 to $84', () => {
+  const src = 'import { screen } from "@8bitscript/screen";\nexport function main(): void { screen.blank(); }';
+  const ir = linked(src, join(HERE, '..', '..', 'studio', 'src', 'main.8bs'));
+  assert.equal(ir.globals.find((g) => g.name === 'screenRam').address, 0xE000);
+  assert.equal(ir.globals.find((g) => g.name === 'colorRam').address, 0xD800);
+  const setup = fn(ir, 'setupVideo');
+  assert.ok(assignsTo(setup.body, 'memoryPointer').some((a) => a.value.value === 132));
+  const blank = fn(ir, 'screen_blank');
+  const loop = blank.body.find((s) => s.kind === 'for');
+  assert.deepEqual(loop.test.right, { kind: 'const', value: 250 });
+  const offsets = loop.body.filter((s) => s.kind === 'storeIndex').map((s) => (
+    s.index.kind === 'ref' ? 0 : s.index.right.value
+  ));
+  assert.deepEqual(offsets, [0, 250, 500, 750]);
+  assert.ok(!has(ir, (n) => n.kind === 'storeIndex' && n.array?.name === 'screenRam' && n.index?.value === 1024));
 });
 
 test('setupVideo copies the character ROM in place with HIRAM set and CHAREN clear, banks the KERNAL out, selects bank 3 by masking, and runs once', () => {
-  const { c } = linked('import { setupVideo } from "./index.8bs";\nexport function main(): void { setupVideo(); setupVideo(); }');
-  const body = c.slice(defAt(c, 'setupVideo'), defAt(c, 'copyCharacterRom'));
-  assert.match(body, /if \(videoReady\)/);
-  assert.match(body, /__asm__ volatile\(\s*"sei/);
-  assert.match(body, /copyCharacterRom\(\);/);
-  assert.match(body, /cia2DirectionA = \(cia2DirectionA \| 3\);/);
-  assert.match(body, /cia2PortA = \(cia2PortA & 252\);/); // %00 = bank 3, serial-bus bits kept
-  assert.doesNotMatch(body, /cia2PortA = \d+;/, 'never a literal into $DD00');
-  const copy = c.slice(defAt(c, 'copyCharacterRom'), defAt(c, 'bankIoOut'));
-  assert.match(copy, /__asm__ volatile\(\s*"sei/);
-  assert.match(copy, /processorPort = \(\(processorPort & 248\) \| 2\);/); // %010: KERNAL in, character ROM readable
-  assert.match(copy, /i < 4096/);
-  assert.match(copy, /\*\(volatile uint8_t \*\)\(53248 \+ i\) = \(\*\(volatile uint8_t \*\)\(53248 \+ i\)\);/); // read the ROM at $D000+i, store to the RAM under it
-  assert.match(copy, /processorPort = \(\(processorPort & 248\) \| 5\);/); // %101: KERNAL out, I/O in
-  assert.match(copy, /if \(interruptsOn\)[\s\S]*"cli/);
-  assert.doesNotMatch(c, /processorPort = \d+;/, 'never a literal into $01');
-  // A window under the I/O area: interrupts off, CHAREN clear, back, cli only if the raster interrupt is on.
-  const out = c.slice(defAt(c, 'bankIoOut'), defAt(c, 'bankIoIn'));
-  assert.match(out, /"sei[\s\S]*processorPort = \(processorPort & 251\);/);
-  const back = c.slice(defAt(c, 'bankIoIn'));
-  assert.match(back, /processorPort = \(processorPort \| 4\);[\s\S]*if \(interruptsOn\)[\s\S]*"cli/);
+  const ir = linked('import { setupVideo } from "./index.8bs";\nexport function main(): void { setupVideo(); setupVideo(); }');
+  const setup = fn(ir, 'setupVideo');
+  assert.equal(setup.body[0].kind, 'if');
+  assert.equal(setup.body[0].test.name, 'videoReady');
+  assert.equal(setup.body[0].then[0].kind, 'return');
+  assert.deepEqual(assignsTo(setup.body, 'videoReady')[0].value, { kind: 'const', value: 1 });
+  assert.ok(setup.body.some((s) => isAsm(s, 'sei')));
+  assert.ok(calls(setup.body, 'copyCharacterRom').length === 1);
+  const cia2Dir = assignsTo(setup.body, 'cia2DirectionA')[0].value;
+  assert.equal(cia2Dir.operator, '|');
+  assert.deepEqual(cia2Dir.right, { kind: 'const', value: 3 });
+  const cia2Port = assignsTo(setup.body, 'cia2PortA')[0].value;
+  assert.equal(cia2Port.operator, '&');
+  assert.deepEqual(cia2Port.right, { kind: 'const', value: 252 });
+  assert.equal(literalAssigns(setup.body, 'cia2PortA').length, 0, 'never a literal into $DD00');
+  const copy = fn(ir, 'copyCharacterRom');
+  assert.ok(copy.body.some((s) => isAsm(s, 'sei')));
+  const portAssigns = assignsTo(copy.body, 'processorPort');
+  assert.equal(portAssigns[0].value.operator, '|');
+  assert.equal(portAssigns[0].value.left.operator, '&');
+  assert.deepEqual(portAssigns[0].value.left.right, { kind: 'const', value: 248 });
+  assert.deepEqual(portAssigns[0].value.right, { kind: 'const', value: 2 });
+  const loop = copy.body.find((s) => s.kind === 'for');
+  assert.deepEqual(loop.test.right, { kind: 'const', value: 4096 });
+  const write = loop.body.find((s) => s.kind === 'memoryWrite');
+  assert.deepEqual(write.address.left, { kind: 'const', value: 53248 });
+  assert.equal(write.value.kind, 'memoryRead');
+  assert.deepEqual(write.value.address.left, { kind: 'const', value: 53248 });
+  assert.equal(portAssigns[1].value.operator, '|');
+  assert.deepEqual(portAssigns[1].value.left.right, { kind: 'const', value: 248 });
+  assert.deepEqual(portAssigns[1].value.right, { kind: 'const', value: 5 });
+  const copyCli = copy.body.find((s) => s.kind === 'if' && s.test.name === 'interruptsOn');
+  assert.ok(copyCli.then.some((s) => isAsm(s, 'cli')));
+  assert.equal(literalAssigns(ir, 'processorPort').length, 0, 'never a literal into $01');
+  const out = fn(ir, 'bankIoOut');
+  assert.ok(out.body.some((s) => isAsm(s, 'sei')));
+  const outPort = assignsTo(out.body, 'processorPort')[0].value;
+  assert.equal(outPort.operator, '&');
+  assert.deepEqual(outPort.right, { kind: 'const', value: 251 });
+  const back = fn(ir, 'bankIoIn');
+  const backPort = assignsTo(back.body, 'processorPort')[0].value;
+  assert.equal(backPort.operator, '|');
+  assert.deepEqual(backPort.right, { kind: 'const', value: 4 });
+  const backCli = back.body.find((s) => s.kind === 'if' && s.test.name === 'interruptsOn');
+  assert.ok(backCli.then.some((s) => isAsm(s, 'cli')));
 });
 
 test('the package ships the vector stub as native assembly, and only the raster module names the handler', () => {
@@ -180,7 +227,7 @@ test('the package ships the vector stub as native assembly, and only the raster 
   // A relative import of a file inside the package carries the package's
   // native sources, as a subpath import does — the package's own probe
   // programs under test/ build with the vector stub this way.
-  const { ir } = linked('import { setupVideo } from "./index.8bs";\nexport function main(): void { setupVideo(); }');
+  const ir = linked('import { setupVideo } from "./index.8bs";\nexport function main(): void { setupVideo(); }');
   assert.equal(ir.nativeSources.length, 1);
   assert.match(ir.nativeSources[0], /native\/6502\/raster\.s$/);
 });
@@ -204,22 +251,44 @@ test('raster.at writes the four bytes before it counts the entry and refuses a l
     'import { raster, Register } from "./raster.8bs";',
     'export function main(): void { raster.clear(); raster.at(100, Register.BORDER, 2); raster.at(200, raster.spriteY(1), 60); raster.enable(); while (true) { waitFrame(); } }',
   ].join('\n');
-  const { c } = linked(src);
-  assert.match(c, /raster_at\(100, 53280, 2\)/);
-  const at = c.slice(defAt(c, 'raster_at'), defAt(c, 'raster_count'));
-  assert.match(at, /if \(\(\(offset >= 252\) \|\| \(line < lastLine\)\)\)/);
-  assert.match(at, /rasterList\[offset\] = line;[\s\S]*rasterList\[\(offset \+ 3\)\] = value;[\s\S]*rasterEnd = \(offset \+ 4\);/);
-  const enable = c.slice(defAt(c, 'raster_enable'), defAt(c, 'raster_disable'));
-  const order = ['setupVideo();', 'rasterIndex = 0;', 'control1 = (control1 & 127);', 'raster = rasterList[0];', 'cia1InterruptControl = 127;', 'cia2InterruptControl = 127;', 'interruptStatus = 15;', 'interruptMask = 1;', 'jsr __8bs_c64_raster_install', 'interruptsOn = 1;', '"cli'];
+  const ir = linked(src);
+  assert.ok(calls(fn(ir, 'main').body, 'raster_at').some((c) => (
+    c.args[0].value === 100 && c.args[1].value === 53280 && c.args[2].value === 2
+  )));
+  const at = fn(ir, 'raster_at');
+  const refuse = at.body.find((s) => s.kind === 'if');
+  assert.equal(refuse.test.operator, '||');
+  assert.equal(refuse.test.left.operator, '>=');
+  assert.deepEqual(refuse.test.left.right, { kind: 'const', value: 252 });
+  assert.equal(refuse.test.right.operator, '<');
+  assert.equal(refuse.test.right.right.name, 'lastLine');
+  const stores = at.body.filter((s) => s.kind === 'storeIndex');
+  assert.equal(stores[0].array.name, 'rasterList');
+  assert.equal(stores[0].value.name, 'line');
+  assert.equal(stores[3].index.right.value, 3);
+  assert.equal(stores[3].value.name, 'value');
+  assert.ok(assignsTo(at.body, 'rasterEnd').some((a) => a.value.operator === '+' && a.value.right.value === 4));
+  const enable = fn(ir, 'raster_enable').body;
+  const order = [
+    (s) => s.kind === 'call' && s.name === 'setupVideo',
+    (s) => s.kind === 'assign' && s.target === 'rasterIndex' && s.value.value === 0,
+    (s) => s.kind === 'assign' && s.target === 'control1' && s.value.operator === '&' && s.value.right.value === 127,
+    (s) => s.kind === 'assign' && s.target === 'raster' && s.value.array?.name === 'rasterList',
+    (s) => s.kind === 'assign' && s.target === 'cia1InterruptControl' && s.value.value === 127,
+    (s) => s.kind === 'assign' && s.target === 'cia2InterruptControl' && s.value.value === 127,
+    (s) => s.kind === 'assign' && s.target === 'interruptStatus' && s.value.value === 15,
+    (s) => s.kind === 'assign' && s.target === 'interruptMask' && s.value.value === 1,
+    (s) => isAsm(s, 'jsr __8bs_c64_raster_install'),
+    (s) => s.kind === 'assign' && s.target === 'interruptsOn' && s.value.value === 1,
+    (s) => isAsm(s, 'cli'),
+  ];
   let from = 0;
   for (const step of order) {
-    const found = enable.indexOf(step, from);
-    assert.ok(found >= 0, `enable: ${step} after the previous step`);
-    from = found;
+    const found = enable.findIndex((s, i) => i >= from && step(s));
+    assert.ok(found >= 0, `enable: step after index ${from}`);
+    from = found + 1;
   }
-  // waitFrame() must not sei while the list owns the IRQ: the poll is the
-  // visible frame, and I set for that whole wait is a solid-colour border.
-  assert.match(c, /static void __8bs_wait_frame\(void\) \{[\s\S]*if \(!interruptsOn\) \{ __asm__ volatile\("sei"/);
+  assert.ok(has(fn(ir, 'main').body, (n) => n.kind === 'waitFrame'));
 });
 
 // ---- bitmap -------------------------------------------------------------------
@@ -243,19 +312,57 @@ test('bitmap: enter sets BMM with the raster bit clear, plot computes the VIC la
     'import { sprites } from "./sprites.8bs";',
     'export function main(): void { bitmap.enter(true); bitmap.plot(319, 199); bitmap.plotColor(159, 199, 3); bitmap.setCellColors(0, 1, 2); bitmap.fillColors(1, 0); sprites.setShape(0, 96); sprites.setShapeByte(96, 0, 255); bitmap.leave(); }',
   ].join('\n');
-  const { c } = linked(src);
-  const enter = c.slice(defAt(c, 'bitmap_enter'), defAt(c, 'bitmap_leave'));
-  assert.match(enter, /videoMode = 1;/);
-  assert.match(enter, /control1 = \(\(control1 & 31\) \| 32\);/);
-  assert.match(enter, /memoryPointer = 120;/);
-  assert.match(c, /return \(\(ROW_OFFSET\[\(y >> 3\)\] \+ \(x & 504\)\) \+ \(y & 7\)\);/);
-  assert.match(c, /writeUnderIo\(\(56320 \+ cell\), \(\(foreground << 4\) \| \(background & 15\)\)\);/);
-  const fill = c.slice(defAt(c, 'bitmap_fillColors'), defAt(c, 'bitmap_setCellColor3'));
-  assert.match(fill, /bankIoOut\(\);[\s\S]*cell < 1000[\s\S]*\*\(volatile uint8_t \*\)\(56320 \+ cell\) = pair;[\s\S]*bankIoIn\(\);/);
-  const setShape = c.slice(defAt(c, 'sprites_setShape'), defAt(c, 'sprites_setShapeByte'));
-  assert.match(setShape, /if \(\(videoMode == 1\)\)[\s\S]*writeUnderIo\(\(57336 \+ index\), block\);[\s\S]*else[\s\S]*spritePointers\[index\] = block;/);
-  const leave = c.slice(defAt(c, 'bitmap_leave'), defAt(c, 'bitmap_clear'));
-  assert.match(leave, /control1 = \(control1 & 31\);[\s\S]*memoryPointer = 132;[\s\S]*videoMode = 0;/);
+  const ir = linked(src);
+  const enter = fn(ir, 'bitmap_enter');
+  assert.deepEqual(assignsTo(enter.body, 'videoMode')[0].value, { kind: 'const', value: 1 });
+  const control1 = assignsTo(enter.body, 'control1')[0].value;
+  assert.equal(control1.operator, '|');
+  assert.equal(control1.left.operator, '&');
+  assert.deepEqual(control1.left.right, { kind: 'const', value: 31 });
+  assert.deepEqual(control1.right, { kind: 'const', value: 32 });
+  assert.deepEqual(assignsTo(enter.body, 'memoryPointer')[0].value, { kind: 'const', value: 120 });
+  const offset = fn(ir, 'bitmap_offset').body[0].value;
+  assert.equal(offset.operator, '+');
+  assert.equal(offset.left.operator, '+');
+  assert.equal(offset.left.left.array.name, 'ROW_OFFSET');
+  assert.equal(offset.left.left.index.operator, '>>');
+  assert.deepEqual(offset.left.left.index.right, { kind: 'const', value: 3 });
+  assert.equal(offset.left.right.operator, '&');
+  assert.deepEqual(offset.left.right.right, { kind: 'const', value: 504 });
+  assert.equal(offset.right.operator, '&');
+  assert.deepEqual(offset.right.right, { kind: 'const', value: 7 });
+  const setColors = fn(ir, 'bitmap_setCellColors');
+  const underIo = calls(setColors.body, 'writeUnderIo')[0];
+  assert.equal(underIo.args[0].operator, '+');
+  assert.deepEqual(underIo.args[0].left, { kind: 'const', value: 56320 });
+  assert.equal(underIo.args[1].operator, '|');
+  assert.equal(underIo.args[1].left.operator, '<<');
+  assert.deepEqual(underIo.args[1].left.right, { kind: 'const', value: 4 });
+  assert.equal(underIo.args[1].right.operator, '&');
+  assert.deepEqual(underIo.args[1].right.right, { kind: 'const', value: 15 });
+  const fill = fn(ir, 'bitmap_fillColors');
+  assert.ok(calls(fill.body, 'bankIoOut').length === 1);
+  const fillLoop = fill.body.find((s) => s.kind === 'for');
+  assert.deepEqual(fillLoop.test.right, { kind: 'const', value: 1000 });
+  const fillWrite = fillLoop.body.find((s) => s.kind === 'memoryWrite');
+  assert.deepEqual(fillWrite.address.left, { kind: 'const', value: 56320 });
+  assert.equal(fillWrite.value.name, 'pair');
+  assert.ok(calls(fill.body, 'bankIoIn').length === 1);
+  const setShape = fn(ir, 'sprites_setShape');
+  const mode = setShape.body.find((s) => s.kind === 'if');
+  assert.equal(mode.test.operator, '==');
+  assert.equal(mode.test.left.name, 'videoMode');
+  assert.deepEqual(mode.test.right, { kind: 'const', value: 1 });
+  const bitmapPtr = calls(mode.then, 'writeUnderIo')[0];
+  assert.deepEqual(bitmapPtr.args[0].left, { kind: 'const', value: 57336 });
+  assert.equal(mode.else[0].kind, 'storeIndex');
+  assert.equal(mode.else[0].array.name, 'spritePointers');
+  const leave = fn(ir, 'bitmap_leave');
+  const leaveControl = assignsTo(leave.body, 'control1')[0].value;
+  assert.equal(leaveControl.operator, '&');
+  assert.deepEqual(leaveControl.right, { kind: 'const', value: 31 });
+  assert.deepEqual(assignsTo(leave.body, 'memoryPointer')[0].value, { kind: 'const', value: 132 });
+  assert.deepEqual(assignsTo(leave.body, 'videoMode')[0].value, { kind: 'const', value: 0 });
 });
 
 // ---- charset and scroll -----------------------------------------------------------
@@ -265,11 +372,21 @@ test('charset.define writes eight rows at $D000 + 8 * code in one window; restor
     'import { charset } from "./charset.8bs";',
     'export function main(): void { charset.define(1, 255, 129, 129, 129, 129, 129, 129, 255); charset.copy(2, 1); charset.restore(); }',
   ].join('\n');
-  const { c } = linked(src);
-  assert.match(c, /return \(53248 \+ \(code \* 8\)\);/);
-  const define = c.slice(defAt(c, 'charset_define'), defAt(c, 'charset_setRow'));
-  assert.match(define, /bankIoOut\(\);[\s\S]*\*\(volatile uint8_t \*\)at = row0;[\s\S]*\*\(volatile uint8_t \*\)\(at \+ 7\) = row7;[\s\S]*bankIoIn\(\);/);
-  assert.match(c, /static void charset_restore\(void\) \{[\s\S]*copyCharacterRom\(\);/);
+  const ir = linked(src);
+  const offset = fn(ir, 'charset_offset').body[0].value;
+  assert.equal(offset.operator, '+');
+  assert.deepEqual(offset.left, { kind: 'const', value: 53248 });
+  assert.equal(offset.right.operator, '*');
+  assert.deepEqual(offset.right.right, { kind: 'const', value: 8 });
+  const define = fn(ir, 'charset_define');
+  assert.ok(calls(define.body, 'bankIoOut').length === 1);
+  const writes = define.body.filter((s) => s.kind === 'memoryWrite');
+  assert.equal(writes[0].address.name, 'at');
+  assert.equal(writes[0].value.name, 'row0');
+  assert.equal(writes[7].address.right.value, 7);
+  assert.equal(writes[7].value.name, 'row7');
+  assert.ok(calls(define.body, 'bankIoIn').length === 1);
+  assert.ok(calls(fn(ir, 'charset_restore').body, 'copyCharacterRom').length === 1);
 });
 
 test('scroll: fine scroll masks the low three bits and keeps $D011 bit 7 clear; a coarse shift copies screen and colour RAM together', () => {
@@ -277,14 +394,39 @@ test('scroll: fine scroll masks the low three bits and keeps $D011 bit 7 clear; 
     'import { scroll } from "./scroll.8bs";',
     'export function main(): void { scroll.setX(5); scroll.setY(3); scroll.setNarrow(true); scroll.shiftLeft(32, 1); scroll.shiftUp(32, 1); }',
   ].join('\n');
-  const { c } = linked(src);
-  assert.match(c, /control2 = \(\(control2 & 248\) \| \(pixels & 7\)\);/);
-  assert.match(c, /control1 = \(\(control1 & 120\) \| \(pixels & 7\)\);/);
-  assert.match(c, /control2 = \(control2 & 247\);/);
-  const left = c.slice(defAt(c, 'scroll_shiftLeft'), defAt(c, 'scroll_shiftRight'));
-  assert.match(left, /screenRam\[cell\] = screenRam\[\(cell \+ 1\)\];[\s\S]*colorRam\[cell\] = colorRam\[\(cell \+ 1\)\];/);
-  const up = c.slice(defAt(c, 'scroll_shiftUp'), defAt(c, 'scroll_shiftDown'));
-  assert.match(up, /cell < 960[\s\S]*screenRam\[cell\] = screenRam\[\(cell \+ 40\)\];/);
+  const ir = linked(src);
+  const setX = assignsTo(fn(ir, 'scroll_setX').body, 'control2')[0].value;
+  assert.equal(setX.operator, '|');
+  assert.equal(setX.left.operator, '&');
+  assert.deepEqual(setX.left.right, { kind: 'const', value: 248 });
+  assert.equal(setX.right.operator, '&');
+  assert.deepEqual(setX.right.right, { kind: 'const', value: 7 });
+  const setY = assignsTo(fn(ir, 'scroll_setY').body, 'control1')[0].value;
+  assert.equal(setY.operator, '|');
+  assert.equal(setY.left.operator, '&');
+  assert.deepEqual(setY.left.right, { kind: 'const', value: 120 });
+  assert.equal(setY.right.operator, '&');
+  assert.deepEqual(setY.right.right, { kind: 'const', value: 7 });
+  const narrowThen = fn(ir, 'scroll_setNarrow').body.find((s) => s.kind === 'if').then;
+  const narrow = assignsTo(narrowThen, 'control2')[0].value;
+  assert.equal(narrow.operator, '&');
+  assert.deepEqual(narrow.right, { kind: 'const', value: 247 });
+  const left = fn(ir, 'scroll_shiftLeft');
+  assert.ok(has(left.body, (n) => (
+    n.kind === 'storeIndex' && n.array?.name === 'screenRam' && n.value?.array?.name === 'screenRam'
+    && n.value.index?.operator === '+' && n.value.index.right.value === 1
+  )));
+  assert.ok(has(left.body, (n) => (
+    n.kind === 'storeIndex' && n.array?.name === 'colorRam' && n.value?.array?.name === 'colorRam'
+    && n.value.index?.operator === '+' && n.value.index.right.value === 1
+  )));
+  const up = fn(ir, 'scroll_shiftUp');
+  const upLoop = up.body.find((s) => s.kind === 'for');
+  assert.deepEqual(upLoop.test.right, { kind: 'const', value: 960 });
+  assert.ok(has(upLoop.body, (n) => (
+    n.kind === 'storeIndex' && n.array?.name === 'screenRam'
+    && n.value.index?.operator === '+' && n.value.index.right.value === 40
+  )));
 });
 
 // ---- reu transfers -------------------------------------------------------------
@@ -295,26 +437,89 @@ test('reu transfers set every register then the command: $90 plus the direction,
     'let ok: bool = false;',
     'export function main(): void { reu.stash(0xE000, 1, 0x1000, 1000); reu.fetch(0xE000, 1, 0x1000, 1000); reu.swap(0xE000, 1, 0x1000, 0); ok = reu.verify(0xE000, 1, 0x1000, 1000); reu.fillReu(1, 0, 0, 32); }',
   ].join('\n');
-  const { c } = linked(src);
-  const transfer = c.slice(defAt(c, 'transfer'), defAt(c, 'reu_present'));
-  for (const step of ['reuC64AddressLow = (c64Address & 255);', 'reuC64AddressHigh = (c64Address >> 8);', 'reuAddressLow = (address & 255);', 'reuAddressHigh = (address >> 8);', 'reuBank = bank;', 'reuLengthLow = (length & 255);', 'reuLengthHigh = (length >> 8);', 'reuAddressControl = control;', 'reuCommand = (144 | direction);']) {
-    assert.ok(transfer.includes(step), step);
+  const ir = linked(src);
+  const transfer = fn(ir, 'transfer');
+  const steps = [
+    ['reuC64AddressLow', '&', 255],
+    ['reuC64AddressHigh', '>>', 8],
+    ['reuAddressLow', '&', 255],
+    ['reuAddressHigh', '>>', 8],
+  ];
+  for (const [target, op, n] of steps) {
+    const a = assignsTo(transfer.body, target)[0];
+    assert.equal(a.value.operator, op, target);
+    assert.deepEqual(a.value.right, { kind: 'const', value: n }, target);
   }
-  assert.match(c, /transfer\(0, 0, c64Address, bank, address, length\);/); // stash
-  assert.match(c, /transfer\(1, 0, c64Address, bank, address, length\);/); // fetch
-  assert.match(c, /transfer\(2, 0, c64Address, bank, address, length\);/); // swap
-  assert.match(c, /transfer\(3, 0, c64Address, bank, address, length\);[\s\S]*return \(\(reuStatus & 32\) == 0\);/); // verify
-  assert.match(c, /probe = value;[\s\S]*transfer\(0, 128, 828, bank, address, length\);/); // fillReu from $033C, fixed
+  assert.equal(assignsTo(transfer.body, 'reuBank')[0].value.name, 'bank');
+  const lengthLow = assignsTo(transfer.body, 'reuLengthLow')[0].value;
+  assert.equal(lengthLow.operator, '&');
+  assert.deepEqual(lengthLow.right, { kind: 'const', value: 255 });
+  const lengthHigh = assignsTo(transfer.body, 'reuLengthHigh')[0].value;
+  assert.equal(lengthHigh.operator, '>>');
+  assert.deepEqual(lengthHigh.right, { kind: 'const', value: 8 });
+  assert.equal(assignsTo(transfer.body, 'reuAddressControl')[0].value.name, 'control');
+  const command = assignsTo(transfer.body, 'reuCommand')[0].value;
+  assert.equal(command.operator, '|');
+  assert.deepEqual(command.left, { kind: 'const', value: 144 });
+  assert.equal(command.right.name, 'direction');
+  const dir = (name, n) => {
+    const call = calls(fn(ir, name).body, 'transfer')[0];
+    assert.deepEqual(call.args[0], { kind: 'const', value: n });
+    assert.deepEqual(call.args[1], { kind: 'const', value: 0 });
+  };
+  dir('reu_stash', 0);
+  dir('reu_fetch', 1);
+  dir('reu_swap', 2);
+  const verify = fn(ir, 'reu_verify');
+  const verifyCall = calls(verify.body, 'transfer')[0];
+  assert.deepEqual(verifyCall.args[0], { kind: 'const', value: 3 });
+  const ret = verify.body.find((s) => s.kind === 'return').value;
+  assert.equal(ret.operator, '==');
+  assert.equal(ret.left.operator, '&');
+  assert.equal(ret.left.left.name, 'reuStatus');
+  assert.deepEqual(ret.left.right, { kind: 'const', value: 32 });
+  assert.deepEqual(ret.right, { kind: 'const', value: 0 });
+  const fill = fn(ir, 'reu_fillReu');
+  assert.equal(assignsTo(fill.body, 'probe')[0].value.name, 'value');
+  const fillCall = calls(fill.body, 'transfer')[0];
+  assert.deepEqual(fillCall.args[0], { kind: 'const', value: 0 });
+  assert.deepEqual(fillCall.args[1], { kind: 'const', value: 128 });
+  assert.deepEqual(fillCall.args[2], { kind: 'const', value: 828 });
 });
 
 // ---- the region ------------------------------------------------------------------
 
 test('detectRegion is the frame driver\'s probe in 8bitscript: $D012 before $D011, a whole frame watched for line 288', () => {
-  const { c } = linked('import { detectRegion, Region } from "./index.8bs";\nlet r: u8 = 0;\nexport function main(): void { r = detectRegion(); if (r == Region.PAL) { memory.write(0xD020, 5); } }');
-  assert.match(c, /return \(\(raster < 128\) && \(\(control1 & 128\) == 0\)\);/);
-  const probe = c.slice(defAt(c, 'detectRegion'));
-  assert.match(probe, /while \(rasterInTopHalf\(\)\)[\s\S]*while \(\(!rasterInTopHalf\(\)\)\)[\s\S]*while \(rasterInTopHalf\(\)\)[\s\S]*while \(\(!rasterInTopHalf\(\)\)\) \{[\s\S]*\(\(control1 & 128\) != 0\) && \(raster >= 32\)/);
-  assert.match(c, /if \(\(r == 0\)\)/, 'Region.PAL is 0');
+  const ir = linked('import { detectRegion, Region } from "./index.8bs";\nlet r: u8 = 0;\nexport function main(): void { r = detectRegion(); if (r == Region.PAL) { memory.write(0xD020, 5); } }');
+  const top = fn(ir, 'rasterInTopHalf').body[0].value;
+  assert.equal(top.operator, '&&');
+  assert.equal(top.left.operator, '<');
+  assert.equal(top.left.left.name, 'raster');
+  assert.deepEqual(top.left.right, { kind: 'const', value: 128 });
+  assert.equal(top.right.operator, '==');
+  assert.equal(top.right.left.operator, '&');
+  assert.equal(top.right.left.left.name, 'control1');
+  assert.deepEqual(top.right.left.right, { kind: 'const', value: 128 });
+  const probe = fn(ir, 'detectRegion').body.filter((s) => s.kind === 'while');
+  assert.equal(probe.length, 4);
+  assert.equal(probe[0].test.kind, 'call');
+  assert.equal(probe[0].test.name, 'rasterInTopHalf');
+  assert.equal(probe[1].test.operator, '!');
+  assert.equal(probe[1].test.argument.name, 'rasterInTopHalf');
+  assert.equal(probe[2].test.name, 'rasterInTopHalf');
+  assert.equal(probe[3].test.operator, '!');
+  const watch = probe[3].body.find((s) => s.kind === 'if').test;
+  assert.equal(watch.operator, '&&');
+  assert.equal(watch.left.operator, '!=');
+  assert.equal(watch.left.left.operator, '&');
+  assert.equal(watch.left.left.left.name, 'control1');
+  assert.deepEqual(watch.left.left.right, { kind: 'const', value: 128 });
+  assert.equal(watch.right.operator, '>=');
+  assert.equal(watch.right.left.name, 'raster');
+  assert.deepEqual(watch.right.right, { kind: 'const', value: 32 });
+  const palCheck = fn(ir, 'main').body.find((s) => s.kind === 'if').test;
+  assert.equal(palCheck.operator, '==');
+  assert.deepEqual(palCheck.right, { kind: 'const', value: 0 }, 'Region.PAL is 0');
 });
 
 // ---- sprites ---------------------------------------------------------------
@@ -325,15 +530,32 @@ test('sprites: place splits a 9-bit X across $D000 and $D010; show sets the pict
     'let hits: u8 = 0;',
     'export function main(): void { sprites.setShape(0, sprites.FIRST_BLOCK); sprites.place(0, 300, 100); sprites.show(0); hits = sprites.collisions(); }',
   ].join('\n');
-  const { c } = linked(src);
-  assert.match(c, /sprites_setShape\(0, 144\)/);
-  const place = c.slice(defAt(c, 'sprites_place'));
-  assert.match(place, /spritePositions\[\(index \* 2\)\] = x;/);
-  assert.match(place, /spritePositions\[\(\(index \* 2\) \+ 1\)\] = y;/);
-  assert.match(place, /if \(\(x >= 256\)\)[\s\S]*spriteXHigh = \(spriteXHigh \| BIT\[index\]\)/);
-  const show = c.slice(defAt(c, 'sprites_show'));
-  assert.match(show, /setupVideo\(\);[\s\S]*spriteEnable = \(spriteEnable \| BIT\[index\]\)/);
-  assert.match(c, /return spriteCollision;/);
+  const ir = linked(src);
+  const setShape = calls(fn(ir, 'main').body, 'sprites_setShape')[0];
+  assert.deepEqual(setShape.args[0], { kind: 'const', value: 0 });
+  assert.deepEqual(setShape.args[1], { kind: 'const', value: 144 });
+  const place = fn(ir, 'sprites_place');
+  const stores = place.body.filter((s) => s.kind === 'storeIndex');
+  assert.equal(stores[0].array.name, 'spritePositions');
+  assert.equal(stores[0].index.operator, '*');
+  assert.deepEqual(stores[0].index.right, { kind: 'const', value: 2 });
+  assert.equal(stores[0].value.name, 'x');
+  assert.equal(stores[1].index.operator, '+');
+  assert.deepEqual(stores[1].index.right, { kind: 'const', value: 1 });
+  assert.equal(stores[1].value.name, 'y');
+  const high = place.body.find((s) => s.kind === 'if');
+  assert.equal(high.test.operator, '>=');
+  assert.equal(high.test.left.name, 'x');
+  assert.deepEqual(high.test.right, { kind: 'const', value: 256 });
+  const orBit = assignsTo(high.then, 'spriteXHigh')[0].value;
+  assert.equal(orBit.operator, '|');
+  assert.equal(orBit.right.array.name, 'BIT');
+  const show = fn(ir, 'sprites_show');
+  assert.ok(calls(show.body, 'setupVideo').length === 1);
+  const enable = assignsTo(show.body, 'spriteEnable')[0].value;
+  assert.equal(enable.operator, '|');
+  assert.equal(enable.right.array.name, 'BIT');
+  assert.equal(fn(ir, 'sprites_collisions').body[0].value.name, 'spriteCollision');
 });
 
 test('sprites: the namespace\'s numbers are the VIC-II\'s and the layout\'s', () => {
@@ -417,17 +639,32 @@ test('keyboard.scan drives the eight columns through CIA1, inverts once, and lea
     'import { joystick, Joystick } from "./joystick.8bs";',
     'export function main(): void { while (true) { waitFrame(); keyboard.scan(); joystick.scan(); if (keyboard.pressed(Key.SPACE) || joystick.fire(Joystick.PORT_2)) { memory.write(0xD020, 1); } } }',
   ].join('\n');
-  const { c } = linked(src);
-  assert.match(c, /keyboard_pressed\(60\)/);
-  const scan = c.slice(defAt(c, 'keyboard_scan'), defAt(c, 'keyboard_pressed'));
-  assert.match(scan, /cia1DirectionA = 255;/);
-  assert.match(scan, /cia1DirectionB = 0;/);
-  assert.match(scan, /cia1PortA = COLUMN_SELECT\[column\];/);
-  assert.match(scan, /state\[column\] = \(cia1PortB \^ 255\);/);
-  assert.match(scan, /cia1PortA = 255;\n\}/);
-  const joy = c.slice(defAt(c, 'joystick_scan'), defAt(c, 'joystick_bits'));
-  assert.match(joy, /cia1PortA = 255;[\s\S]*\(cia1PortB \^ 255\) & 31\)[\s\S]*\(cia1PortA \^ 255\) & 31\)/);
-  assert.match(c, /joystick_fire\(1\)/); // PORT_2 is index 1
+  const ir = linked(src);
+  const pressed = calls(fn(ir, 'main').body, 'keyboard_pressed')[0];
+  assert.deepEqual(pressed.args[0], { kind: 'const', value: 60 });
+  const scan = fn(ir, 'keyboard_scan');
+  assert.deepEqual(assignsTo(scan.body, 'cia1DirectionA')[0].value, { kind: 'const', value: 255 });
+  assert.deepEqual(assignsTo(scan.body, 'cia1DirectionB')[0].value, { kind: 'const', value: 0 });
+  const loop = scan.body.find((s) => s.kind === 'for');
+  const select = assignsTo(loop.body, 'cia1PortA')[0];
+  assert.equal(select.value.array.name, 'COLUMN_SELECT');
+  const store = loop.body.find((s) => s.kind === 'storeIndex');
+  assert.equal(store.array.name, 'state');
+  assert.equal(store.value.operator, '^');
+  assert.equal(store.value.left.name, 'cia1PortB');
+  assert.deepEqual(store.value.right, { kind: 'const', value: 255 });
+  const after = assignsTo(scan.body, 'cia1PortA').find((a) => a.value.kind === 'const');
+  assert.deepEqual(after.value, { kind: 'const', value: 255 });
+  const joy = fn(ir, 'joystick_scan');
+  assert.deepEqual(assignsTo(joy.body, 'cia1PortA')[0].value, { kind: 'const', value: 255 });
+  const joyStores = joy.body.filter((s) => s.kind === 'storeIndex');
+  assert.equal(joyStores[0].value.operator, '&');
+  assert.equal(joyStores[0].value.left.operator, '^');
+  assert.equal(joyStores[0].value.left.left.name, 'cia1PortB');
+  assert.deepEqual(joyStores[0].value.right, { kind: 'const', value: 31 });
+  assert.equal(joyStores[1].value.left.left.name, 'cia1PortA');
+  const fire = calls(fn(ir, 'main').body, 'joystick_fire')[0];
+  assert.deepEqual(fire.args[0], { kind: 'const', value: 1 });
 });
 
 // ---- sid ----------------------------------------------------------------------
@@ -469,15 +706,46 @@ test('sid: play sets both frequency bytes then gates on, keeping the waveform; t
     'import { sid, Waveform, Note } from "./sid.8bs";',
     'export function main(): void { sid.setWaveform(0, Waveform.PULSE); sid.play(0, Note.A4); sid.release(0); }',
   ].join('\n');
-  const { c } = linked(src);
-  assert.match(c, /sid_setWaveform\(0, 64\)/);
-  assert.match(c, /sid_play\(0, 57\)/);
-  // play reads the region's table: NTSC when told, PAL otherwise.
-  assert.match(c, /if \(\(region == 1\)\)[\s\S]*return NOTE_NTSC\[note\];[\s\S]*return NOTE_PAL\[note\];/);
-  assert.match(c, /sid_setFrequency\(voice, sid_frequencyOf\(note\)\);/);
-  assert.match(c, /sidRegisters\[VOICE_BASE\[voice\]\] = \(frequency & 255\);/);
-  assert.match(c, /sidRegisters\[\(VOICE_BASE\[voice\] \+ 1\)\] = \(frequency >> 8\);/);
-  assert.match(c, /control\[voice\] = \(control\[voice\] \| 1\);/);
-  assert.match(c, /control\[voice\] = \(control\[voice\] & 254\);/);
-  assert.match(c, /control\[voice\] = \(\(control\[voice\] & 1\) \| \(waveform & 246\)\);/);
+  const ir = linked(src);
+  const main = fn(ir, 'main');
+  const wave = calls(main.body, 'sid_setWaveform')[0];
+  assert.deepEqual(wave.args[0], { kind: 'const', value: 0 });
+  assert.deepEqual(wave.args[1], { kind: 'const', value: 64 });
+  const playCall = calls(main.body, 'sid_play')[0];
+  assert.deepEqual(playCall.args[0], { kind: 'const', value: 0 });
+  assert.deepEqual(playCall.args[1], { kind: 'const', value: 57 });
+  const freqOf = fn(ir, 'sid_frequencyOf');
+  const ntsc = freqOf.body.find((s) => s.kind === 'if');
+  assert.equal(ntsc.test.operator, '==');
+  assert.equal(ntsc.test.left.name, 'region');
+  assert.deepEqual(ntsc.test.right, { kind: 'const', value: 1 });
+  assert.equal(ntsc.then[0].value.array.name, 'NOTE_NTSC');
+  const pal = freqOf.body.find((s) => s.kind === 'return' && s.value.array?.name === 'NOTE_PAL');
+  assert.ok(pal);
+  const play = fn(ir, 'sid_play');
+  const setFreq = calls(play.body, 'sid_setFrequency')[0];
+  assert.equal(setFreq.args[1].kind, 'call');
+  assert.equal(setFreq.args[1].name, 'sid_frequencyOf');
+  assert.ok(calls(play.body, 'sid_gateOn').length === 1);
+  const freq = fn(ir, 'sid_setFrequency').body.filter((s) => s.kind === 'storeIndex');
+  assert.equal(freq[0].array.name, 'sidRegisters');
+  assert.equal(freq[0].index.array.name, 'VOICE_BASE');
+  assert.equal(freq[0].value.operator, '&');
+  assert.deepEqual(freq[0].value.right, { kind: 'const', value: 255 });
+  assert.equal(freq[1].index.operator, '+');
+  assert.deepEqual(freq[1].index.right, { kind: 'const', value: 1 });
+  assert.equal(freq[1].value.operator, '>>');
+  assert.deepEqual(freq[1].value.right, { kind: 'const', value: 8 });
+  const gate = fn(ir, 'sid_gateOn').body.find((s) => s.kind === 'storeIndex' && s.array?.name === 'control');
+  assert.equal(gate.value.operator, '|');
+  assert.deepEqual(gate.value.right, { kind: 'const', value: 1 });
+  const release = fn(ir, 'sid_release').body.find((s) => s.kind === 'storeIndex' && s.array?.name === 'control');
+  assert.equal(release.value.operator, '&');
+  assert.deepEqual(release.value.right, { kind: 'const', value: 254 });
+  const waveform = fn(ir, 'sid_setWaveform').body.find((s) => s.kind === 'storeIndex' && s.array?.name === 'control');
+  assert.equal(waveform.value.operator, '|');
+  assert.equal(waveform.value.left.operator, '&');
+  assert.deepEqual(waveform.value.left.right, { kind: 'const', value: 1 });
+  assert.equal(waveform.value.right.operator, '&');
+  assert.deepEqual(waveform.value.right.right, { kind: 'const', value: 246 });
 });

@@ -1,5 +1,4 @@
 // `8bs setup cx16` — get a machine from nothing to a working `8bs run cx16`:
-// the mos-cx16-clang compiler (checked, not installed — docs/setup/llvm-mos.md),
 // x16emu and makecart built from X16Community/x16-emulator, a *matching*
 // rom.bin built from X16Community/x16-rom (upstream is explicit that the
 // emulator expects a contemporary ROM, so both are always built together
@@ -253,15 +252,6 @@ const defaultIo = {
   validatePair: validateX16Pair,
 };
 
-async function checkCompiler(io) {
-  const home = io.env.LLVM_MOS_HOME;
-  if (!home) return { ok: false, detail: 'LLVM_MOS_HOME is not set — docs/setup/llvm-mos.md' };
-  const driver = join(home, 'bin', 'mos-cx16-clang');
-  const r = await io.exec(driver, ['--version']);
-  if (r.missing) return { ok: false, detail: `mos-cx16-clang not found at ${driver} — docs/setup/llvm-mos.md` };
-  return { ok: true, detail: 'mos-cx16-clang' };
-}
-
 /** macOS host prerequisites: the Apple Command Line Tools (checked with
  * `xcode-select -p` before ever offering the installer), then Homebrew —
  * required by this backend, found via PATH (never a hardcoded
@@ -450,10 +440,6 @@ export async function setupCx16(options = {}, ioOverrides = {}) {
     return { ok: false };
   }
   reportStep('ok', 'platform', `${platform.name} (x16emu launcher: ${platform.x16emuLauncher})`);
-
-  const compiler = await checkCompiler(io);
-  reportStep(compiler.ok ? 'ok' : 'attn', 'compiler', compiler.detail);
-  if (!compiler.ok) return { ok: false };
 
   const fs = { exists: io.exists, statFn: io.statFn, accessFn: io.accessFn, lstatFn: io.lstatFn, readlinkFn: io.readlinkFn, readFileFn: io.readFileFn };
   const state = await inspectCx16Installation({ platform: io.platform, emulatorSourceDir: io.emulatorSourceDir(), romSourceDir: io.romSourceDir() }, fs);

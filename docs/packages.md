@@ -12,11 +12,10 @@ git submodules anywhere in the model.
 
 This page began as pure design; most of it is now real. The resolver
 implements the resolution contract below, and the linker compiles a program
-from its whole import graph — `examples/borders` imports its screen from
-`@8bitscript/screen` and its character grid from `@8bitscript/text`, each of
-which resolves per target to that machine package's own implementation
-(`@8bitscript/vic20/screen`, `@8bitscript/c64/text`, and so on), through
-exactly this model. The namespace surfaces those packages export
+from its whole import graph — a program that imports `@8bitscript/screen`
+and `@8bitscript/text` resolves per target to that machine package's own
+implementation (`@8bitscript/vic20/screen`, `@8bitscript/c64/text`, and so
+on), through exactly this model. The namespace surfaces those packages export
 (`screen.setColors`, `text.putChar`) are real; a machine's own chip-level
 namespace (`vic`) still waits on declaration syntax.
 
@@ -245,13 +244,12 @@ namespace const may be initialised from another module's const
 surface reads a small geometry file and only that file has a hardware
 version — see [the compiler](compiler.md#namespace-what-a-poke-becomes-once-you-name-it).
 
-No example in this repository needs one yet. `examples/borders` builds
-for all nine targets from one `src/main.8bs`, because the machine packages
-absorb every difference it would otherwise have to spell out per machine —
-the same ASCII character codes, the same colour names, the same "cell 0 is
-the top-left corner inside the border" on every target. That is the
-preferred shape: a per-machine file is for a difference a package cannot
-absorb, not the first tool to reach for.
+No program in this repository needs a per-machine entry today. The machine
+packages absorb every difference a colour-cycling demo would otherwise have
+to spell out per machine — the same ASCII character codes, the same colour
+names, the same "cell 0 is the top-left corner inside the border" on every
+target. That is the preferred shape: a per-machine file is for a difference
+a package cannot absorb, not the first tool to reach for.
 
 ## Target-conditional entries
 
@@ -295,8 +293,8 @@ one alone), `setBorder(border)`, `setBackground(background)`, and
 whichever machine it is built for. `@8bitscript/text` is the same shape for
 the character grid (`text.print`/`printNumber`/`setColor`/`setReverse`/`putChar`/`putColor`,
 `CELL_COUNT`/`COLUMNS`, and the eight shared colour names in `TextColor`).
-`examples/borders` builds for all nine targets from one source file this
-way.
+A single source file builds for all nine targets this way — through the
+front end and the linker; no target produces an image until 0.2.0.
 
 `text` carries one more agreement, and it is a *compiler* one: a namespace
 that exports `print(cell, s: string)` and
@@ -333,9 +331,9 @@ program back once per frame rather than handing it the whole machine used
 to be such a case for `web`; the web runtime now hands the program its own
 worker thread, and `waitFrame()` means the same thing there as on the 6502
 machines, so a single file covers it.
-`examples/borders` briefly kept per-machine versions of its entry for the
-NES, Atari, and X16 too, for their screen codes and grids; those
-differences now live in the machine packages, and it is one file again.)
+Per-machine versions of an entry for the NES, Atari, and X16 used to exist
+for their screen codes and grids; those differences now live in the machine
+packages, and it is one file again.)
 
 `entry` may also be an object keyed by machine, the older spelling of the
 same idea, still honoured:
@@ -397,8 +395,8 @@ This is implemented. Importing the package — directly, or through a
 delegating entry such as `@8bitscript/text`'s, or a subpath such as
 `@8bitscript/nes/text`, or a relative import of one of its files from
 another — brings its native files into the build: the linker collects them once each across the module graph,
-and the 6502 backend hands them to the LLVM-MOS driver after the generated
-C, where a `.s` is assembled and linked like any other input. A listed file
+and the 6502 backend will consume them when it exists — a `.s` assembled
+and linked like any other input. It does not today. A listed file
 the package does not ship is `8BS2008`, reported where the package is
 imported. The web backend ignores the list, so a package that ships
 assembly still resolves for `web` — only the `.8bs` half of it is used
@@ -407,8 +405,8 @@ there.
 `@8bitscript/nes` is the first package to need this, and for data rather
 than code: the NES has no character ROM, so a cartridge that shows text
 carries its own 8×8 tile patterns, and `native/6502/font.s` is that
-character set — 8 KiB placed in the SDK's `.chr_rom` linker section so it
-lands in the `.nes` image's CHR bank. No `.8bs` construct can express a
+character set — 8 KiB placed so it will land in the `.nes` image's CHR
+bank. No `.8bs` construct can express a
 block of bytes bound for a linker section yet; when one can, the font may
 move, and this field stays for the assembly it was always meant for.
 
@@ -422,14 +420,15 @@ Only two kinds of package are meant for you:
 | `@8bitscript/screen`, `@8bitscript/text`, `@8bitscript/input`, `@8bitscript/pointer` | The portable standard library, one package per capability: each resolves per target to that machine package's own implementation |
 | `@8bitscript/ui` | Reusable interface components, drawn on the character grid through the capability packages: one component per subpath (`@8bitscript/ui/menubar`), so a program links the ones it names. A component is portable code, not a capability — there is one menu bar, not one per machine — and it is written to what the grid really gives you: three of the nine targets have no per-cell colour, so the menu bar's highlight is a marker character first and a colour second, and a bar that will not fit a VIC-20's 22 columns reports it rather than overrunning the row |
 | `@8bitscript/input` | What the user just did, on whichever machine is being built: four directions, confirm, cancel, and a pointer where there is one — all edge-triggered, so a press is true on the one frame it begins. Every answer comes from that machine's own layer (`@8bitscript/c64/input` reads a key matrix, `@8bitscript/nes/input` a shift register, `@8bitscript/cx16/input` the KERNAL mouse), and a machine that cannot answer yet says so and costs nothing. The web's layer reads a snapshot byte the page writes into shared memory (arrow keys, Enter, Escape) and still returns false for the pointer. `#fact(input.mouse)` decides while compiling whether a build carries pointer code at all; whether a mouse is really plugged in is the layer's answer each frame, except on the X16, whose KERNAL has no probe and whose `pointer()` is the fact. See `packages/input/AGENTS.md` for what each of the nine reads today |
-| `@8bitscript/pointer` | The other half of `input`: an arrow the user can see, drawn with whatever the machine has to draw one with. `DRAWS` is a const, so a program lays itself out around whether this machine draws a cursor at all and the branch it does not take costs nothing; `begin()` claims the hardware and `update()`, once a frame right after `input.poll()`, moves the arrow to wherever the poll left the pointer. Two packages rather than one because reading and drawing are different jobs and a machine can do either without the other — the X16 has a pointer in its own firmware and an input layer that cannot read a key. Today the **C64** and the **C128** (sprite 0, a pixel at a time, on a build fitted with a 1351) and the **X16** (the KERNAL's own arrow on the stock machine) are the ones that draw. See `packages/pointer/AGENTS.md` and `examples/pointer` |
+| `@8bitscript/pointer` | The other half of `input`: an arrow the user can see, drawn with whatever the machine has to draw one with. `DRAWS` is a const, so a program lays itself out around whether this machine draws a cursor at all and the branch it does not take costs nothing; `begin()` claims the hardware and `update()`, once a frame right after `input.poll()`, moves the arrow to wherever the poll left the pointer. Two packages rather than one because reading and drawing are different jobs and a machine can do either without the other — the X16 has a pointer in its own firmware and an input layer that cannot read a key. Today the **C64** and the **C128** (sprite 0, a pixel at a time, on a build fitted with a 1351) and the **X16** (the KERNAL's own arrow on the stock machine) are the ones that draw. See `packages/pointer/AGENTS.md` |
 | `@8bitscript/system` | The machine, by name and by fact: `System.C64`, `System.PET`, … to compare the compiler's `#system()` with, and the fact sheet — `Video.COLUMNS`, `Video.SPRITES`, `Audio.VOICES`, `Input.KEYBOARD`, `Storage.SAVE`, `Memory.RAM`, … — each one `#fact(...)` folded from the build's hardware. Every one is a compile-time constant, so a branch on another machine, or on hardware this build lacks, folds away — see [systems](systems.md#facts-what-a-build-knows-about-itself) |
 | `@8bitscript/random` | Deterministic pseudo-random generators, with no per-machine variance at all — the default (a 16-bit LCG, `seed()`/`next()`/`range(bound)`) at the bare import, and `@8bitscript/random/table` (same three calls, plus a stateless `at(index)`) at a subpath: a precomputed 256-byte table read by an index instead of computed by a multiply, for code where that multiply is the thing being budgeted against, at the cost of a 256-call period instead of the default's 65536. The root `AGENTS.md` rule is that a program's ordinary random numbers must be deterministic and explicitly seeded, never drawn from hardware entropy by default; both generators here are that default, and a machine's own entropy source (`@8bitscript/atari8/random`, `@8bitscript/c64/random`) stays a separate, explicitly optional import a program can feed into either one's `seed()` |
 | `@8bitscript/vic20`, `@8bitscript/c64`, `@8bitscript/nes`, … `@8bitscript/web` | Target support, one per machine: the hardware underneath (registers, port protocols), plus that machine's `./screen` and `./text` subpaths, and any hardware-level subpath of its own (`@8bitscript/pet/keyboard`, `@8bitscript/pet/keys`, `/blocks` — quadrant-block pseudo-pixels and the digit tiles built from them, with centered and inverted layouts for game tiles; `@8bitscript/c64/sprites`, `/keyboard`, `/keys`, `/joystick`, `/sid`, `/video`, `/raster`, `/bitmap`, `/charset`, `/scroll`, `/mouse`, `/reu` — the REU probe, `reu.detect()`, and its transfers, `/random` — SID voice 3's oscillator, noise-clocked and kept out of the audio mix, behind its own import; `@8bitscript/atari8/joystick`, `/console` — START/SELECT/OPTION and the console speaker, `/keyboard`, `/keys`, `/pokey` — POKEY's four voices, `/random` — POKEY's hardware entropy, behind its own import; `@8bitscript/c128/vdc`, `/vdc80`; `@8bitscript/cx16/banks` — `banks.kib()`, `/mouse` — the KERNAL pointer; `@8bitscript/atari8/banks` — `banks.kib()`) that a portable capability does not cover yet |
 
-The compiler, the language server, and the backends are internal:
-`@8bitscript/compiler`, `@8bitscript/language-server`,
-`@8bitscript/backend-web`, and `@8bitscript/backend-6502`. `@8bitscript/cli` depends on them and pulls them in;
+The compiler and the language server are internal:
+`@8bitscript/compiler` (front end, linker, and the 6502 and WebAssembly
+backends at `@8bitscript/compiler/mos` and `@8bitscript/compiler/wasm`) and
+`@8bitscript/language-server`. `@8bitscript/cli` depends on them and pulls them in;
 you never name them in your own `package.json`. Keeping that
 boundary means the internals can be reorganised without every project having to
 follow along.
@@ -447,44 +446,20 @@ This repository is a pnpm workspace:
 ```yaml
 packages:
   - packages/*
-  - examples/*
   - editors/*
 ```
 
 `packages/` holds the toolchain, the machine and capability packages, and
-the apps that ship with them. `examples/` holds programs
-that consume the toolchain, and they depend on it with `workspace:*`:
+the apps that ship with them. A program outside this repository installs
+`@8bitscript/cli` from npm at the same version the workspace publishes.
 
-```json
-{
-  "devDependencies": { "@8bitscript/cli": "workspace:*" },
-  "dependencies": {
-    "@8bitscript/screen": "workspace:*",
-    "@8bitscript/text": "workspace:*"
-  }
-}
-```
-
-`pnpm install` links those straight out of `packages/`. The example resolves
-them through its own `node_modules` exactly as an installed project would, so
-an example is a genuine consumer rather than a special case wired up by the
-build. Nothing has to be published for this to work.
-
-[`examples/borders`](https://github.com/8BitScript/8bitscript/tree/trunk/examples/borders)
-is the one that goes end to end: it imports `@8bitscript/screen` and
-`@8bitscript/text` and runs on all nine targets. The development loop is:
+The development loop is:
 
 ```
 edit the compiler
       |
       v
-edit examples/borders/src/main.8bs
-      |
-      v
-pnpm --filter borders start
-      |
-      v
-VICE opens
+pnpm test
 ```
 
 ## Apps

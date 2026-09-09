@@ -2,7 +2,7 @@
 
 This file is for anyone — human or agent — touching `packages/vic20`,
 this package's hardware catalog (`package.json`, `"8bitscript".hardware`:
-`ram`, `port1`), `packages/backend-6502`'s `FRAME_SYNC.vic20`,
+`ram`, `port1`), `packages/compiler/src/mos`'s `FRAME_SYNC.vic20`,
 `packages/cli`'s `xvic` handling (`VICE_MODEL_ARGS.vic20`, the `--screenshot`
 cycle counts), or the VIC-20 rows of `docs/roadmap.md`, `docs/setup/vice.md`
 and `packages/studio/AGENTS.md`. Read the root [`AGENTS.md`](../../AGENTS.md)
@@ -27,7 +27,7 @@ is; the VIC-20's changes where the *screen* is —
 The machine's variety is in *RAM expansion*, and that one axis moves the
 program's load address, the screen matrix, the colour RAM and the top of
 memory together: the `ram` option's five values are the five
-configurations the SDK's link script and VICE both accept, not a choice
+configurations VICE's `-memory` flag accepts (`none/3k/8k/16k/24k`), not a choice
 this project made.
 
 ## What exists today
@@ -56,8 +56,7 @@ Do not describe more than this as working:
   `text.COLUMNS` is 22 and `text.CELL_COUNT` 506 whatever RAM is fitted. Writes
   happen at any time; there is no vertical-blank queue and none is needed.
 - **Hardware** (the catalog in `package.json`): `ram` — `none` (default),
-  `3k`, `8k`, `16k`, `24k` — exactly the five `__memory_expansion` values
-  the SDK's `vic20/lib/link.ld` asserts on, and exactly what `xvic
+  `3k`, `8k`, `16k`, `24k` — exactly the five values `xvic
   -memory` takes (`none/3k/8k/16k/24k`); presets `unexpanded`, `3k`, `8k`,
   `16k`, `24k` keep the old `--profile` names. A value sets the link (its
   `build.defsym`, `__memory_expansion=N`), the geometry file the package
@@ -71,7 +70,7 @@ Do not describe more than this as working:
   (`main-vic20-8k-ntsc.prg`). `port1` — `joystick` (default), `none`,
   `paddles`, `mouse1351` (`-controlport1device`; the 1351 on a VIC-20 is
   *to verify* on hardware, below).
-- `FRAME_SYNC.vic20` (`packages/backend-6502`) is a *level* driver on the
+- `FRAME_SYNC.vic20` (`packages/compiler/src/mos`) is a *level* driver on the
   VIC's raster counter: `$9004` holds bits 8–1 of the line and changes every
   second line, the top half of the frame is `$9004 < 64`, and `$9004 >= 140`
   is a line only PAL has (NTSC tops out around 130). NTSC is 261 × 65
@@ -104,16 +103,16 @@ rules below are what to hold that work to when it comes.
 ## Facts verified here
 
 Cite these freely; each was read in the source named, or seen on screen
-under xvic (VICE 3.10, Homebrew) from a probe built with the installed
-`mos-vic20-clang` and read through `-exitscreenshot`. VICE *source* facts
+under xvic (VICE 3.10, Homebrew) from a probe (pre-0.2.0)
+and read through `-exitscreenshot`. VICE *source* facts
 were read in the project's trunk on SourceForge (`vice/src/vic20/`,
 `vice/src/joyport/`), which is a newer revision than the installed binary.
 
 | Fact | Where |
 | ---- | ----- |
-| The SDK's link script accepts `__memory_expansion` 0, 3, 8, 16, 24 only (`ASSERT`), defaults to 24, and lays the program out as: 0 → `$1001`, length `$DFF` (to `$1DFF`, 3583 bytes); 3 → `$0401`, length `$19FF` (to `$1DFF`, 6655); 8/16/24 → `$1201`, length `N×1024 + $DFF` (to `$3FFF`, `$5FFF`, `$7FFF`: 11775, 19967, 28159). Zero page `$00`–`$8F` is BASIC's and the imaginary registers start at `$00` (`__basic_zp_start = 0`). `__stack = 0x8000` is written there but is not what runs (next row). | `$LLVM_MOS_HOME/mos-platform/vic20/lib/link.ld`, `commodore/lib/commodore.ld` |
-| The soft stack is set at run time from the KERNAL, not from the link script: vic20's crt0 links `init-stack-memtop` (`sec / jsr MEMTOP / stx __rc0 / sty __rc1`), so the stack top is MEMSIZ — `$1E00` unexpanded, `$4000` with 8K, seen in `$00/$01` at `main()`. (The C128's crt0 uses the static `__stack` instead.) | `vic20/lib/libcrt0.a` → `init-stack-memtop.S.obj`, `llvm-objdump`; probe screenshots |
-| A plain SDK build prints PETSCII 14 before `main()`: the `.prg` contains `a9 0e 20 d2 ff` (`lda #$0e / jsr $FFD2`), and the probe's text came up in lower case with `$9005 = $F2`. `commodoreCharsetGuard()` in `packages/backend-6502` is what keeps that out of an 8bitscript build. | `xxd` of the probe `.prg`; probe screenshot |
+| Load address and usable RAM follow the expansion fitted: 0 → `$1001`, length `$DFF` (to `$1DFF`, 3583 bytes); 3 → `$0401`, length `$19FF` (to `$1DFF`, 6655); 8/16/24 → `$1201`, length `N×1024 + $DFF` (to `$3FFF`, `$5FFF`, `$7FFF`: 11775, 19967, 28159). Zero page `$00`–`$8F` is BASIC's. A static `__stack = 0x8000` in an old link map is not what runs (next row). | VIC-20 link map (measured pre-0.2.0) |
+| The soft stack is set at run time from the KERNAL, not from the link script: start-up (pre-0.2.0) calls `init-stack-memtop` (`sec / jsr MEMTOP / stx __rc0 / sty __rc1`), so the stack top is MEMSIZ — `$1E00` unexpanded, `$4000` with 8K, seen in `$00/$01` at `main()`. (The C128 uses the static `__stack` instead.) | `init-stack-memtop` disassembly (pre-0.2.0); probe screenshots |
+| A CHROUT of PETSCII 14 (`a9 0e 20 d2 ff` = `lda #$0e / jsr $FFD2`) would flip the machine to lower-case before `main` (`$9005 = $F2` on a probe that did). 8BitScript does not emit that. | `xxd` of a probe `.prg` (pre-0.2.0); probe screenshot |
 | Boot state per `-memory` (NTSC, `-model vic20ntsc`): `$9000/$9001 = $05/$19` (PAL: `$0C/$26`); `$9002 = $96` on `none` and `3k` (22 columns, screen address bit 9 set) and `$16` on `8k`/`24k`; `$9005` = `$F2`/`$C2` (would be `$F0`/`$C0` in upper case); `$9003 = $AE`/`$2E` (23 rows, bit 0 clear = 8×8); `$900E = $00`; `$900F = $1B` (white background, cyan border, normal video); BASIC start `$2B/$2C` = `$1001` / `$0401` (3k) / `$1201`; MEMSIZ `$37/$38` = `$1E00` / `$1E00` / `$4000` / `$8000`. So screen/colour is `$1E00`/`$9600` on none and 3k, `$1000`/`$9400` from 8K up — the package's geometry files. | probe screenshots `vic-none/3k/8k/24k/pal.png` |
 | VIA1 (`$9110`) port A at boot `$7E`, DDRA `$80`; VIA2 (`$9120`) port B `$F7`, DDRB `$FF` (all eight keyboard columns are outputs), DDRA `$00` (rows inputs). VIA2 Timer 1 latch `$4289` = 17033 cycles with ACR `$40` and IER `$C0` (NTSC KERNAL; the PAL KERNAL's value was not measured): the KERNAL IRQ is a free-running ~60.04 Hz timer, **not** locked to the 261 × 65 = 16965-cycle NTSC frame. | probe screenshot `vic2-none.png` |
 | `$9003` bit 0 selects 16-line character cells: VICE sets `char_height` 16 and the chargen fetch indexes `b * char_height`, so with the ROM charset each screen code shows two ROM glyphs stacked. Seen on screen. | `vic-mem.c` (`new_char_height = (value & 0x1) ? 16 : 8`), `vic-cycle.c` `VIC_FETCH_CHARGEN`; `vic-tall.png` |
@@ -125,8 +124,8 @@ were read in the project's trunk on SourceForge (`vice/src/vic20/`,
 | VICE timing: NTSC 65 cycles × 261 lines at 1022727 Hz (first line 32 cycles, last 33 — "32 + 260×65 + 33"); PAL 71 × 312 at 1108405 Hz. NTSC interlace (`$9000` bit 7) gives 263/262-line fields; PAL ignores the bit. | `vic20.h`, `vic-mem.c` `vic_read_rasterline`, `vic-cycle.c` |
 | `xvic -model`: `vic20`/`vic20pal`/`pal` (PAL, KERNAL rev 7), `vic20ntsc`/`ntsc` (NTSC, rev 6), `vic21` (NTSC with blocks 1+2 — the "SuperVIC"), `vic1001` (Japanese ROMs). `-memory` takes `none/3k/8k/16k/24k/all`, block numbers `0/1/2/3/5` or addresses `04/20/40/60/a0`: 3k = block 0 (`$0400`–`$0FFF`), 8k = block 1 (`$2000`), 16k = 1+2, 24k = 1+2+3 (to `$7FFF`), all adds block 5 (`$A000`–`$BFFF`). | `vic20model.c`, `vic20-cmdline-options.c`, `vic20mem.c` (the block map) |
 | xvic control-port devices include Joystick (1), Paddles (2), Mouse (1351) (3), Light Pen variants (11–16), Koala Pad (10); `-fs8 <dir>` mounts a host directory as device 8, `-8 <image>` a disk image, `-autostartprgmode 1` injects a `.prg`; cartridge ROMs: `-cart2/-cart4/-cart6` (4/8/16K at `$2000/$4000/$6000`), `-cartA` (`$A000`), `-cartB` (`$B000`), `-cartgeneric`, `-cartcrt`, `-cartmega`, `-cartfe` (Final Expansion), `-ultimem`, `-cartfp` (Vic Flash Plugin), `-cartbb`, `-cartse` (Super Expander). The 1351 driver says it works on xvic's native port. | `xvic -help`, `mouse_1351.c` |
-| The SDK has one VIC-20 driver, `mos-vic20-clang`, and it produces a `.prg` with a BASIC `SYS` line (`basic-header.o`); there is no cartridge link script for the VIC-20. | `ls $LLVM_MOS_HOME/bin`, `vic20/lib/`, `commodore.ld` |
-| `vic20.h` (the SDK) names the chips: VIC at `$9000` (`struct __vic`: `leftborder`, `upperborder`, `charsperline`, `linecount`, `rasterline`, `addr`, light-pen `strobe_x/y`, `analog_x/y`, `voice1..3`, `noise`, `volume_color`, `bg_border_color`), VIA1 `$9110`, VIA2 `$9120`, `COLOR_RAM` `$9600`; its `COLOR_*` table marks 8–15 "only the background and multi-color characters can have these colors". | `vic20/include/vic20.h`, `_vic.h`, `_6522.h` |
+| A VIC-20 program is a `.prg` with a BASIC `SYS` line; there is no cartridge link for this target. The native backend refuses to build. | BASIC header; VICE autostart |
+| VIC-20 headers name the chips: VIC at `$9000` (`struct __vic`: `leftborder`, `upperborder`, `charsperline`, `linecount`, `rasterline`, `addr`, light-pen `strobe_x/y`, `analog_x/y`, `voice1..3`, `noise`, `volume_color`, `bg_border_color`), VIA1 `$9110`, VIA2 `$9120`, `COLOR_RAM` `$9600`; its `COLOR_*` table marks 8–15 "only the background and multi-color characters can have these colors". | VIC-20 Programmer's Reference Guide; `_vic.h` / `_6522.h` |
 | The catalog's stock fact sheet (`"8bitscript".hardware.facts`, read by `Video.*` and the rest of `@8bitscript/system`): grid 22×23 of 8×8, 16 colours, 2 per cell (its own foreground, the shared background), 256 RAM glyphs, 2×2 PETSCII blocks, no bitmap, one layer, coarse scroll only, no sprites; 4 voices (three tones and noise), one shared volume, no envelope, filter, samples or random source; keyboard, one joystick port, no pads; disk to save to; 3583 bytes on the unexpanded machine (the `ram` values change it), nothing banked. A mouse or paddles is a `port1` value's fact. | `src/geometry.8bs`; the sound and `link.ld` rows above; `6561.txt` (the sound channels) and the research notes below for the rest; `package.json` (read) |
 
 ## From the sources, not verified here
@@ -256,7 +255,7 @@ facts, and these are the ones that are wrong on this machine:
 - **"The jiffy IRQ is the frame."** 17033 cycles (the NTSC KERNAL's;
   PAL not measured) against a 16965-cycle NTSC frame: it drifts a frame
   every ~4 seconds. Sync to `$9004`, never to the KERNAL's counter.
-- **"3583 bytes free"** is BASIC's figure and the unexpanded SDK region
+- **"3583 bytes free"** is BASIC's figure and the unexpanded program region
   exactly (`$1001`–`$1DFF`); "5K" is the RAM total. Neither is available
   for both code and a charset at once.
 - **"1 MHz."** 1.023 MHz NTSC, 1.108 MHz PAL — the PAL VIC-20 is the one
@@ -281,7 +280,7 @@ facts, and these are the ones that are wrong on this machine:
   a namespace const, never a copy of a surface — or, for a number, a
   `facts` entry on the value.
 - Block 5 (`$A000`) and `all` are not `ram` values: a program there is a
-  cartridge, which the SDK has no link script for. If cartridge output
+  cartridge, which this target has no link for. If cartridge output
   arrives it is a new option (media), not a RAM size.
 - The VIC's data — screen, colour, a RAM charset — lives only where the
   VIC can see it: the internal `$0000`–`$03FF` and `$1000`–`$1FFF`, and
@@ -399,13 +398,13 @@ packages/vic20/src/geometry.vic20.expanded.8bs    the `expanded` tag's version (
 packages/vic20/package.json             "8bitscript".hardware: ram (defsym, -memory, the expanded tag, memory.ram), port1; presets
 packages/vic20/src/screen.8bs           @8bitscript/vic20/screen: one packed register, BorderColor (8) and BackgroundColor (16)
 packages/vic20/src/text.8bs             @8bitscript/vic20/text: ASCII → screen code, colour nybble masked to 3 bits, 22 × 23
-packages/backend-6502/src/index.mjs     STOCK_DEFSYM.vic20 (unexpanded when nothing is fitted), FRAME_SYNC.vic20 ($9004 poll, no presync), commodoreCharsetGuard()
+packages/compiler/src/mos/index.ts     FRAME_SYNC.vic20 ($9004 poll, no presync; the backend refuses to build)
 packages/cli/src/run.mjs                VICE_MODEL_ARGS.vic20 (-model vic20ntsc/vic20pal); the catalog's -memory and port flags appended
 packages/cli/src/screenshot.mjs         VICE_CLOCK_HZ.vic20, the 14 000 000-cycle default
 packages/compiler/test/vic20-profiles.test.mjs   every ram value draws at its geometry; 8k/16k/24k share the expanded tag and one file
 packages/studio/src/main.8bs            Studio's tier from the facts: viewer unexpanded/3k, basic at 8k and up (memory.ram vs EDIT_BYTES)
 docs/setup/vice.md                      installing xvic; the ram option's table
 docs/roadmap.md                         Phase 1: the original hardware target
-$LLVM_MOS_HOME/mos-platform/vic20/      link.ld (__memory_expansion, the three regions), vic20.h/_vic.h/_6522.h, libcrt0.a (init-stack-memtop)
+VIC-20 Programmer's Reference Guide    memory map, VIC at $9000, VIA1/VIA2
 vice/src/vic20/ (SourceForge trunk)     vic-cycle.c (the 14-bit address fix-up), vic-draw.c (multicolour order), vic20sound.c, vic20via1.c/vic20via2.c, vic20model.c, vic20-cmdline-options.c
 ```

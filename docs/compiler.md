@@ -5,13 +5,17 @@ nav_order: 3
 
 # The compiler
 
-8BitScript is compiled, not interpreted. `8bs build --target vic20`
-produces a `.prg` containing real 6502 machine code; nothing of 8BitScript is
-present on the machine at run time. The compiler itself is an ordinary Node
+8BitScript is compiled, not interpreted. When the native backends land,
+`8bs build --target vic20` will produce a `.prg` containing real 6502
+machine code; nothing of 8BitScript will be present on the machine at run
+time. Those backends are not built yet (0.2.0). Today every `8bs build`
+refuses with a single error. The compiler itself is an ordinary Node
 program.
 
-This page is the build plan and the current state of it. Most of the pipeline
-does not exist yet, and this page says plainly which parts do.
+This page is the build plan and the current state of it. The front end
+through the linker exists. The backends live in `@8bitscript/compiler`
+(`mos` and `wasm`) and refuse to emit anything. This page says that
+plainly.
 
 ## The pipeline
 
@@ -29,16 +33,14 @@ main.8bs
                                   +---------------------------------+
                                   |                                 |
                                   v                                 v
-                             web backend                     6502 backend
+                             6502 backend                      web backend
+                          **Not built yet, 0.2.0**        **Not built yet, 0.2.0**
                                   |                                 |
                                   v                                 v
-                       generated AssemblyScript              generated C
-                                  |                                 |
-                                  v                                 v
-                                 asc                mos-vic20-clang / mos-c64-clang
-                                  |                                 |
-                                  v                                 v
-                               .wasm                              .prg
+                            machine code                          .wasm
+                                  |
+                                  v
+                    .prg / .xex / .nes / .rom
 ```
 
 The order matters. Lowering to an IR before either backend means the two
@@ -47,11 +49,10 @@ re-deriving the language from the AST.
 
 ## What 8bitscript resolves, and what runs on the machine
 
-The target toolchains never see a line of 8bitscript: LLVM-MOS gets
-generated C, asc gets generated AssemblyScript, and both are a one-to-one
-translation of the IR, not of the source. Every construct goes through the
-pipeline above. The generated code looks like the source only because the
-language is small and the backends are deliberately boring.
+The backends never see a line of 8bitscript: they receive IR. Every
+construct goes through the pipeline above. When the backends emit, the
+generated code should look like the source only because the language is
+small and the lowering is deliberately boring.
 
 A construct is resolved by 8bitscript, before any target tool runs, when
 and only when it is spelled one of three ways:
@@ -133,9 +134,9 @@ Strings are constant program data. A literal — `"TICK"` — lowers to a slot
 in a per-module string table (`ir.strings`, length-prefixed bytes, at most
 255 of them, holding only the portable character set the checker enforces:
 space, `0`-`9`, `A`-`Z`, `! , - . : ?`); the linker merges the tables and
-each backend emits them in its own spelling (a `static const` table the
-6502 toolchain puts in read-only data; a data segment at 0xE000 on the
-web, above the screen buffer). A `string` is a parameter type — `s.length`
+each backend will emit them in its own spelling when it exists (read-only
+program data on a 6502 target; a data segment at 0xE000 on the web, above
+the screen buffer). A `string` is a parameter type — `s.length`
 and `s[i]` — a `const LABEL: string = "..."` names one, and `let name:
 string<8>` is text that changes: 8 characters of RAM behind a length byte,
 the shape a literal has, so it goes wherever a `string` goes. `name =
@@ -149,22 +150,17 @@ functions gets, not a builtin — with each piece's cell computed from the
 text before it and a field's width from its `:width` or its expression's
 type. Nothing formats at runtime.
 
-Generating C for the 6502 rather than emitting assembly directly is a
-deliberate hand-off: LLVM-MOS already does register allocation, zero-page
-allocation, and instruction selection better than a first-generation backend
-would, and that leaves the effort here on the language.
+The 6502 backend will emit machine code itself. That work is the 0.2.0
+milestone; nothing is emitted today.
 
-What the backend does not hand off is where each byte lives. Every global
+What the language already decides is where each byte lives. Every global
 names its section: a `const` array or a string is `.rodata` (read in
 place, never RAM), a `let` array with values is `.data` (loaded where it
 lives on a disk or tape image; on a cartridge, a `.rodata` twin that
 `main()` copies), a zero array is `.noinit` RAM that `main()` zeroes, and
 a scalar is `.zp.noinit` — zero page while a 48-byte budget lasts, then
 `.noinit` — with `main()` storing its starting value. So no variable is
-left for the SDK's start-up code to copy or zero, and the `memcpy`,
-`memset`, and the routines that call them — about 130 bytes before
-`main()` — are never linked. (Without `-fno-builtin`, LLVM would turn
-`main()`'s zeroing loops back into the `memset` they replace.) The
+left for start-up code to copy or zero. The
 `waitFrame()` accumulator is sixteen bits for the same reason: the best
 `p/q` with `p + q <= 65535` sits within about 1e-9 of the true ratio at
 60Hz — under a hundredth of a frame a day — and a 16-bit add and compare
@@ -181,12 +177,11 @@ links no such function pays nothing.
 
 ## What a call costs on a 6502, measured
 
-The 6502 backend hands the whole program to LLVM-MOS as one C translation
-unit compiled with `-Os -fno-builtin`. A recurring question is what that
-costs at a call, and the measurements below are here so the next person
-answers it with numbers rather than intuition. All are `mos-c64-clang`,
-read with `llvm-nm --print-size` and `llvm-objdump -d` on the `.prg.elf`
-the build leaves beside the output.
+These measurements were taken against the pre-0.2.0 toolchain (IR lowered
+to C, then compiled). They stay as the absolute reference points the
+native backend is aimed at. Until `build()` reports `memory.program` and
+`memory.variables`, no new size claim can be made. The numbers below are
+not re-runnable today.
 
 ### What the abstraction costs, measured against hand-written C
 
@@ -201,7 +196,7 @@ VICE:
 | 8BitScript, `screen.blank` + four `text.print` calls | 482 |
 | 8BitScript, the same through `@8bitscript/ui/menubar` | 809 |
 
-Where the difference goes, from `llvm-nm` on the three ELFs:
+Where the difference goes, from the three pre-0.2.0 size reports:
 
 - **`text_print`, 172 bytes.** It takes ASCII, converts each character to a
   screen code as it goes, handles any length, and is the same call on nine
@@ -233,8 +228,8 @@ literals is the same problem, and a constant-folded bar would approach the
 178-byte version rather than the 809-byte one. Nothing like it is built or
 designed; this is the note saying it is possible and where the ceiling is.
 
-The C the first row was built from, for anyone re-running it — `mos-c64-clang
--Os -fno-builtin`:
+The C the first row was built from (historical; the native backend will
+not go through C):
 
 ```c
 #include <stdint.h>
@@ -268,11 +263,11 @@ ldx #hi / stx $5      ; __rc3
 jsr callee
 ```
 
-There is no cheaper way to put sixteen bits somewhere on this chip. LLVM-MOS
-also allocates zero page across the whole program and does interprocedural
-register allocation, so a callee's clobbers are known at each call site.
-None of this is a place where 8BitScript can do better by emitting different
-C — the generated C for such a call is already just `f(arg);`.
+There is no cheaper way to put sixteen bits somewhere on this chip. The
+pre-0.2.0 toolchain also allocated zero page across the whole program and
+did interprocedural register allocation, so a callee's clobbers were known
+at each call site. The native backend has to match that shape; the
+measurement is the target, not a claim that it already does.
 
 **What does cost, and it is not the convention: register pressure in a big
 caller.** When many functions inline into one, the allocator runs out of
@@ -285,29 +280,27 @@ eight-byte form and took 20 bytes off the program. 8BitScript has no way to
 say "do not inline this" today; if one is ever wanted, this is the evidence
 for it, and 20 bytes on this program is the size of the prize.
 
-**Anything still live across a call has to survive it**, and LLVM-MOS pays
-for that by pushing zero-page registers to a soft stack on entry and popping
-them on exit. A function holding a dozen values across a call had about 130
-bytes of prologue and epilogue, paid even on paths that returned early.
-Reordering it so the values are dead before the first call replaced that
-with a five-byte frame built after the early returns. This is the single
-largest lever a program has over its own size, and it is entirely in the
-source: **measure, then move work before the call.**
+**Anything still live across a call has to survive it**, and the pre-0.2.0
+toolchain paid for that by pushing zero-page registers to a soft stack on
+entry and popping them on exit. A function holding a dozen values across a
+call had about 130 bytes of prologue and epilogue, paid even on paths that
+returned early. Reordering it so the values are dead before the first call
+replaced that with a five-byte frame built after the early returns. This is
+the single largest lever a program has over its own size, and it is entirely
+in the source: **measure, then move work before the call.**
 
-**The build compiles at both of LLVM's size levels and keeps the smaller
-one.** Neither `-Os` nor `-Oz` wins everywhere: across 24 builds — Studio,
-and the `borders` and `menubar` examples, on all eight 6502
-targets — `-Oz` was smaller on eighteen and *larger* on six, by as much as
-56 bytes. Nothing in the source says which a given program will prefer, so
-the backend does not guess: it builds the program twice and keeps whichever
-came out smaller, measured off the linked ELF. Over those same 24 builds
-that is **669 bytes saved and not one build made worse**, the largest single
-saving being 78 bytes (`borders` on the Commander X16) and the largest
-proportional one 9% (`borders` on a VIC-20). The cost is one extra pass of a
-compiler that takes a fraction of a second, which is the right trade for a
-machine measured in kilobytes — see `AGENTS.md`, "the rule that decides
-where work happens". `-flto` changes nothing: the program is already one
-translation unit.
+**The pre-0.2.0 build compiled at two size levels and kept the smaller
+one.** Neither the size-for-speed pass nor the size-at-all-costs pass won
+everywhere: across 24 builds — Studio, and the programs that then lived as
+examples, on all eight 6502 targets — the smaller-code pass won on
+eighteen and lost on six, by as much as 56 bytes. Nothing in the source
+says which a given program will prefer, so that toolchain did not guess: it
+built the program twice and kept whichever came out smaller. Over those
+same 24 builds that is **669 bytes saved and not one build made worse**,
+the largest single saving being 78 bytes (Commander X16) and the largest
+proportional one 9% (VIC-20). Link-time optimisation changed nothing: the
+program was already one translation unit. The native backend is not that
+toolchain; the numbers stay as the reference it is aimed at.
 
 ### Array parameters
 
@@ -325,9 +318,8 @@ let cell: utinyint = pick(STARTS, 2);
 ```
 
 **Nothing is copied and nothing extra travels with the call.** The argument
-is the address of the array's first element — `const uint8_t *t` in the
-generated C, where C's own array-to-pointer decay makes `pick(STARTS, 2)`
-pass the name; a `usize` into linear memory on the web, which is how a
+is the address of the array's first element — a pointer the callee indexes;
+a `usize` into linear memory on the web, which is how a
 `string` parameter already works. **The length is part of the type**, so
 `t.length` is a constant folded during compilation rather than a second
 argument the caller pushes — in keeping with the repository's `AGENTS.md`,
@@ -358,11 +350,11 @@ on it.
 | Resolver | **Implemented.** Checks imports against the package contract |
 | IR + lowering | **Implemented** for the milestone subset; anything else errors |
 | Linker | **Implemented.** Loads the import graph, binds names across modules, merges IR |
-| 6502 backend | **Implemented.** IR → generated C → LLVM-MOS → `.prg` |
-| Web backend | **Implemented.** IR → generated AssemblyScript → asc → `.wasm` |
+| 6502 backend | **Not built yet, 0.2.0.** IR → machine code → `.prg` / `.xex` / `.nes` / `.rom`. Lives in `@8bitscript/compiler/mos`; refuses every target |
+| Web backend | **Not built yet, 0.2.0.** IR → `.wasm`. Lives in `@8bitscript/compiler/wasm`; refuses |
 | Binder | Not started |
 
-The compiled subset runs on both targets: globals with machine integer
+The compiled subset lowers to IR: globals with machine integer
 types, `array<T, N>` (`let` in RAM, `const` as data, `@address` over
 hardware, and passed to a function by name — see
 [array parameters](#array-parameters) below), `string<N>` variables and `string` consts, local variables
@@ -373,7 +365,8 @@ resolves across modules. **Lowering is exhaustive-with-error**: a construct
 without a compilation rule fails with a diagnostic naming it — a `ptr<T>`,
 a local array, member access that is not a
 namespace — never by silently dropping code. `8BS3001` is that diagnostic;
-a program using any of it does not build.
+a program using any of it does not lower. The backends do not emit an
+image from that IR today.
 
 ## Diagnostics first
 
@@ -603,12 +596,12 @@ files that are not 8BitScript but belong in the build — hand-written 6502
 assembly, or data no `.8bs` construct can express yet. The resolver turns
 each into an absolute path (a listed file that does not exist is `8BS2008`,
 reported at resolution time like a missing entry), the linker collects them
-across the module graph, once each, onto `ir.nativeSources`, and the 6502
-backend passes them to the LLVM-MOS driver after the generated C, untouched.
-The web backend ignores them. `@8bitscript/nes` is the working example: its
+across the module graph, once each, onto `ir.nativeSources`. The 6502
+backend will consume them when it exists; it does not today. The web
+backend ignores them. `@8bitscript/nes` is the working example: its
 `native/6502/font.s` is the 8 KiB CHR-ROM character set the NES has no ROM
-of its own for, placed in the SDK's `.chr_rom` linker section so it lands in
-the `.nes` image's CHR bank — see the package's `src/index.8bs` for why.
+of its own for, placed so it will land in the `.nes` image's CHR bank —
+see the package's `src/index.8bs` for why.
 
 ## Primitive integer types
 
@@ -728,24 +721,25 @@ Under `built <file>`, `8bs build` prints one line about memory:
 memory: 3 bytes of RAM for variables, 771 bytes of program (code and data)
 ```
 
-On a 6502 target the numbers are measured from the linked program (the
-SDK's `llvm-size` over the ELF the linker leaves beside the output), so a
-variable LLVM dropped for being unread is not counted, and the few bytes
-LLVM spills to zero page for its own use are; a `const` array or a string
+On a 6502 target the numbers will be measured from `build()`'s
+`memory.program` and `memory.variables` when the backend exists — a
+variable the allocator dropped for being unread is not counted, and bytes
+the backend keeps for its own use are; a `const` array or a string
 is program, never RAM. On the web they
-are what the source declares, since asc's data segment is the whole story
-there. The machine's limit is the toolchain's own: the SDK's linker script
-knows each machine's RAM, and a program that does not fit does not build —
-the build says how many bytes over it is, in the machine's terms, before
-the linker's text. The web target's limit is on static data: arrays,
+are what the source declares, since the data segment is the whole story
+there. Until that report exists, the figures elsewhere in this page are
+the pre-0.2.0 measurements and stay the absolute reference. The machine's
+limit is the backend's own: a program that does not fit does not build —
+the build says how many bytes over it is, in the machine's terms.
+The web target's limit is on static data: arrays,
 `string<N>` variables, and string constants share the 8192 bytes from
 0xE000 to the end of its one 64KB page, and a program past that does not
 build either, with the same kind of message.
 
-## The first milestone: achieved
+## The first milestone
 
 The milestone was never "implement TypeScript"; it was that this program
-compiles and runs:
+lowers to IR:
 
 ```
 let x: u8 = 10;
@@ -755,36 +749,28 @@ export function main(): void {
 }
 ```
 
-It does, on both targets: each backend's own tests build exactly this
-program (`packages/backend-6502/test` and `packages/backend-web/test`), and
-its `main()` returns at once and draws nothing — it exists to prove the
-pipeline, not to show a picture.
+The front end and the linker accept it. The backends refuse: nothing
+emits a `.prg` or a `.wasm` until 0.2.0. Each backend's own tests assert
+that refusal (`packages/compiler/test`). On the web, wrapping a `u8` is
+still the contract the runtime will honour when a module exists. The
+`.prg` targets the **unexpanded VIC-20**: load address `$1001` and 3583
+bytes of usable RAM, the machine as it was sold — fitting the small
+machine first is the point, and expanded configurations can become an
+option when a program actually needs one.
 
-On the web target the u8 genuinely wraps — the web backend's own test calls
-`main()` 251 times and finds `x` at 5, because 261 wrapped at 256. The `.prg` targets the **unexpanded VIC-20**:
-load address `$1001` and 3583 bytes of usable RAM, the machine as it was sold.
-The SDK's own default is a 24K-expanded machine, so the backend pins the
-linker's `__memory_expansion` symbol to 0 — fitting the small machine first is
-the point, and expanded configurations can become an option when a program
-actually needs one. `examples/borders` is the visible
-version: one source file whose `while` loop cycles the border colour through
-`screen.setColors()`, imported from `@8bitscript/screen` — which resolves per
-target to `@8bitscript/vic20/screen` or `@8bitscript/c64/screen` — so it is
-also the first program through the linker, and the first through a
-target-conditional entry.
+The earlier visible program that cycled border colours from one source
+file across every target was removed with the examples tree. The
+capability packages it used (`@8bitscript/screen`, `@8bitscript/text`)
+remain.
 
-The generated C and AssemblyScript are written next to each output in `dist/`,
-so what the compiler did is never a mystery.
-
-Function parameters, return values, and calls used as expressions compile now
+Function parameters, return values, and calls used as expressions lower
 too — a function can take scalar (integer/bool) parameters and return a
-scalar value, and `f() + g()` lowers exactly the way `f(); g();` always did.
-Arrays, local variables, `for` loops, and string variables compile too:
-`examples/borders` keeps its colour pairs in two `const` arrays, and the
-text packages print with a `for` over a local. Features still arrive one slice at a
-time: the binder that unlocks real type checking is next. Each slice
-extends the lowering; the exhaustive-with-error rule means a feature is
-either compilable or clearly reported, with no third state.
+scalar value, and `f() + g()` lowers exactly the way `f(); g();` always
+did. Arrays, local variables, `for` loops, and string variables lower
+too. Features still arrive one slice at a time: the binder that unlocks
+real type checking is next. Each slice extends the lowering; the
+exhaustive-with-error rule means a feature is either lowerable or clearly
+reported, with no third state.
 
 ## Hardware access is not an afterthought
 
@@ -832,7 +818,7 @@ is only known at runtime, so it might well be a hardware register, and the
 compiler has no way to tell; it gets the same protection an `@address` global
 gets. On the web target it addresses a 64KB buffer reserved for exactly this
 (one wasm page, matching the 6502's own 16-bit address space) via
-AssemblyScript's `load<u8>`/`store<u8>`. That buffer has no hardware behind
+byte loads and stores into that page. That buffer has no hardware behind
 it — writing to a "register" address on the web target changes a byte in a
 buffer nothing reads, which is a real target-semantics difference worth
 knowing about, not a bug either target hides. Both directions are honest
@@ -934,9 +920,9 @@ for (let cell: usmallint = 0; cell < Video.CELL_COUNT; cell++) {
 }
 ```
 
-— gives LLVM-MOS an index that does not fit a register, so it emits a
-sixteen-bit counter and a sixteen-bit pointer walked a byte at a time with
-its own carry (`sta ($04),y`, `inc $04`, `bne`, `inc $05`): about 34 bytes,
+— gives the backend an index that does not fit a register, so a sixteen-bit
+counter and a sixteen-bit pointer walked a byte at a time with
+its own carry is what the instruction set has to emit: about 34 bytes,
 1000 iterations. Four constant offsets off one 8-bit index is the shape the
 instruction set actually has:
 
@@ -965,13 +951,13 @@ only way to know whether an arrangement helped is to build it and look.**
 
 Worth stating because the instinct is a reasonable one — in JavaScript,
 names ship, so shortening them shrinks the download. **Here they do not
-ship.** An identifier exists in the generated C and in the linked ELF's
-symbol table, and neither is loaded onto the machine. What goes on the
+ship.** An identifier exists while compiling, and neither the IR nor a
+future image's symbol table is loaded onto the machine. What goes on the
 machine is the `.prg` (or `.xex`, `.nes`): instructions, and the data the
 program actually uses.
 
-Measured on `examples/menubar` for the C64, the same
-program built twice with every function, const and variable in `main.8bs`
+Measured on a C64 menu-bar program against the pre-0.2.0 toolchain, the same
+program built twice with every function, const and variable in the entry
 renamed to two letters:
 
 | | Bytes |
@@ -982,8 +968,8 @@ renamed to two letters:
 Byte for byte identical. And the only text inside the `.prg` at all is the
 labels the program prints — `FILE`, `EDIT`, `VIEW`, `HELP` — which are there
 because they are drawn on screen, not because of what they are called. The
-`.prg` is 1406 bytes; the ELF beside it, which carries the symbol table, is
-7420.
+`.prg` was 1406 bytes; the debug image beside it, which carried the symbol
+table, was 7420.
 
 So the naming style everywhere in this repository — long, explanatory names
 and comments that say why — is free at run time. Optimise the shape of the

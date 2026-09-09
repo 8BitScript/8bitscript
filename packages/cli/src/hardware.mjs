@@ -12,8 +12,9 @@
 //   tag    the word a `.<machine>.<tag>.8bs` file twin is named with, for
 //          code that differs on that hardware (default: the value's own
 //          name; the option's default value carries no tag unless it says)
-//   build  what the linker needs — `defsym` symbols for the SDK's link
-//          script, or a different `driver` and `output` extension
+//   build  what the native linker needs: `defsym` symbols it defines
+//          before placing the image, a `startup` shape for the machine's
+//          start-up stub, and the `output` extension
 //   run    the flags each emulator takes to fit the same thing, keyed by
 //          the emulator's name; `load` overrides how the built file is
 //          handed to it, with `{out}` standing for the file
@@ -322,7 +323,7 @@ export function projectSystems(config) {
  *
  * @typedef {{
  *   machine: string, profile: string|null, options: object, tags: string[],
- *   buildValues: string[], build: { defsym: object, driver?: string, output?: string },
+ *   buildValues: string[], build: { defsym: object, startup?: string, output?: string },
  *   run: object, load: object, facts: object, label: string,
  * }} Hardware
  *   `options` is every option's chosen value; `tags` the file-twin tags
@@ -378,7 +379,7 @@ export function resolveHardware(catalog, { profile, overrides = {}, profiles = {
     if (entry.build) {
       if (!isDefault) buildValues.push(value);
       Object.assign(build.defsym, entry.build.defsym ?? {});
-      if (entry.build.driver) build.driver = entry.build.driver;
+      if (entry.build.startup) build.startup = entry.build.startup;
       if (entry.build.output) build.output = entry.build.output;
     }
     for (const [emulator, args] of Object.entries(entry.run ?? {})) run[emulator] = [...(run[emulator] ?? []), ...args];

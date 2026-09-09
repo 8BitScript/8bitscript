@@ -46,7 +46,7 @@ test('the probe links clean for the C128, and the surface is real functions in t
 function onPath(name) {
   return (process.env.PATH ?? '').split(delimiter).some((dir) => dir && existsSync(join(dir, name)));
 }
-const SKIP = (!process.env.LLVM_MOS_HOME && 'LLVM_MOS_HOME not set') || (!onPath('x128') && 'x128 not on PATH');
+const NATIVE_BACKEND_PENDING = 'Bare Metal: waiting on the native backend';
 
 function spawned(command, args, { timeoutMs = 120_000 } = {}) {
   return new Promise((resolvePromise) => {
@@ -82,7 +82,7 @@ function litPixels(png, x0, x1, y0, y1, step = 4) {
 
 test(
   'the 80-column screen draws, and the block fill ends exactly on the last cell',
-  { skip: SKIP },
+  { skip: NATIVE_BACKEND_PENDING },
   async () => {
     const scratch = await mkdtemp(join(tmpdir(), '8bs-c128-vdc80-'));
     try {

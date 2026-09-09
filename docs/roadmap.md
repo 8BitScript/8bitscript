@@ -7,11 +7,27 @@ nav_order: 2
 
 This page is the order in which 8BitScript takes on target machines, and why
 that order. It is a plan, not a status report: for what compiles today, see
-[the compiler](compiler.md). Nine targets build today — `web`, `vic20`,
+[the compiler](compiler.md). Nine machine packages exist — `web`, `vic20`,
 `c64`, `pet`, `c128`, `atari8`, `nes`, `cx16`, and `mega65` — with the
-two portable capabilities the [package model](packages.md) describes; how
-they are told apart, and how the rest of the machines below will be, is
-[the systems page](systems.md).
+two portable capabilities the [package model](packages.md) describes. A
+program compiles through the front end and the linker for each. **No target
+produces an image until 0.2.0.** How they are told apart, and how the rest
+of the machines below will be, is [the systems page](systems.md).
+
+## 0.2.0: Bare Metal
+
+External toolchains are gone. Two backends live in `@8bitscript/compiler`
+— `mos` (`@8bitscript/compiler/mos`) for the 6502 family, C64 first, and
+`wasm` (`@8bitscript/compiler/wasm`) for the browser. They exist as
+modules and they refuse: nothing generates opcodes or wasm, and no target
+produces an image until those backends emit. The front end through the
+linker still runs. That is the whole of 0.2.0: make both backends build,
+starting with the C64.
+
+The phases below are why the nine machine packages were added in this
+order. The reason was never "a third-party SDK already had a driver." It
+was hardware difficulty: each phase forces the language to survive a
+constraint the previous machines did not have.
 
 ## The phases at a glance
 
@@ -37,9 +53,9 @@ Phase 3   #########
 Phase 4   ######
 ```
 
-Once that interface is stable, adding another machine that LLVM-MOS already
-supports should be a matter of writing a platform package, not touching the
-compiler. See [How a phase is judged](#how-a-phase-is-judged).
+Once that interface is stable, adding another 6502-family machine should be
+a platform package, a start-up stub, and a file writer — not a change to
+the compiler. See [How a phase is judged](#how-a-phase-is-judged).
 
 ## Phase 1: the founding three
 
@@ -48,9 +64,10 @@ Targets: `web`, `vic20`, `c64`. This is 8BitScript 0.1.
 The VIC-20 is the original hardware target. The C64 is close enough to it,
 CPU-wise, that adding it forces the compiler to separate *the language* from
 *the VIC-20's hardware* without throwing anything radically different at it.
-Both run in VICE, as `xvic` and `x64sc`, sharing one emulator infrastructure
-and one monitor for debugging. LLVM-MOS already provides `mos-vic20-clang` and
-`mos-c64-clang`.
+A VIC-20 unexpanded has a little over 5K total; a C64 has 64K of the same
+RAM the video chip reads. If the language were the VIC-20's hardware, the
+C64 would not compile. Both run in VICE, as `xvic` and `x64sc`, sharing one
+emulator infrastructure and one monitor for debugging.
 
 **Native tools.** The native 8BitScript development tools are
 [Studio](studio.md), the app that ships with the toolchain. Conceptually:
@@ -71,9 +88,9 @@ in 8BitScript, that have to work on the hardware.
 
 Add: `pet`, `c128`. That makes `web`, `vic20`, `pet`, `c64`, `c128`.
 
-LLVM-MOS provides first-class VIC-20, PET, C64 and C128 targets, and VICE
-covers all four. Neither the emulator stack nor the CPU family changes, which
-is what makes this phase cheap.
+VICE covers all four Commodore machines. Neither the emulator stack nor the
+CPU family changes, which is what makes this phase cheap — the difficulty
+is the machines, not a new toolchain.
 
 **Why the PET matters.** It is the least game-console-like machine in the
 list. It forces 8BitScript to prove it is a general 8-bit programming language
@@ -99,11 +116,10 @@ does not go away.
 Add: `atari8`, `nes`.
 
 `atari8` covers the Atari 400, 800, 1200XL, XL, XE and XEGS-style
-environments, chosen with the catalog's `model` option; all four of LLVM-MOS's
-Atari formats are wired up on a second, independent `media` axis — DOS
-executables plus standard, XEGS and MegaCart cartridges, fourteen values in
-all. Its NES support already includes several mapper targets, among them
-NROM, UNROM, MMC1 and MMC3, of which only NROM is wired up here.
+environments, chosen with the catalog's `model` option; a second,
+independent `media` axis covers DOS executables plus standard, XEGS and
+MegaCart cartridges, fourteen values in all. NES support is NROM only
+today — UNROM, MMC1 and MMC3 exist as hardware, not as wired-up builds.
 
 ```
              8BitScript
@@ -133,7 +149,7 @@ it the other way: cartridge hardware (NROM, UNROM, MMC1, MMC3, ...) changes
 how much CHR/PRG memory a program can address and how it's banked, which
 makes "the NES" a family of build profiles rather than one target — the
 same shape `--profile` already gives `atari8`, `vic20`, `c64`, and `pet` in
-`packages/backend-6502`, just not yet extended to `nes`, which is hardcoded
+`packages/compiler/src/mos`, just not yet extended to `nes`, which is hardcoded
 to the plainest cartridge shape (NROM) today. See `packages/nes/AGENTS.md`
 for the full set of NES-specific rules, and the root `AGENTS.md` for how
 this generalizes to every target.
@@ -180,11 +196,12 @@ stays in the machine's package, beside the registers it is built on, and
 
 Add: `commander-x16`, `mega65`.
 
-These are modern machines built in the classic 8-bit style, and LLVM-MOS
-supports both directly. The Commander X16 is especially attractive: a 65C02,
-modern storage, and substantially richer graphics and audio hardware. cc65 also
-has a mature X16 target with dedicated hardware access, graphics, joystick,
-mouse and extended-memory support, which is a useful reference.
+These are modern machines built in the classic 8-bit style. The Commander
+X16 is a 65C02 with modern storage and substantially richer graphics and
+audio hardware — and nearly all of it sits behind windows, ports, and
+firmware. The MEGA65 is a C64 in name only: 40.5 MHz, 80 columns, 384K,
+four SIDs. Modelling either as "a fast C64" is the trap this phase exists
+to refuse.
 
 The X16 is the mirror image of the NES trap in Phase 3. Where the NES has
 almost nothing and forces abstraction, the X16 has a great deal — 128 KiB
@@ -206,36 +223,30 @@ maps, and it is still written in 8BitScript.
 
 Add: `apple2`, `plus4` (also covering the C16 and C116), `bbc-micro`, `oric`.
 
-These machines are attractive but less frictionless on the LLVM-MOS path than
-the earlier phases. cc65 supports the Apple II, C16, Plus/4 and Oric Atmos
-with a C library each; for the BBC Micro it ships only an assembler
-configuration, no library. The research for each of the four is in
-[machines on the roadmap](project/machines/index.md).
-
-The Apple II is here rather than in Phase 2 or 3 for a technical reason, not a
-philosophical one. The LLVM-MOS SDK's Apple II ProDOS target was an open pull
-request for most of 2026 and merged upstream on 2 September 2026 as a minimal
-ProDOS 8 `SYS` target (load at `$2000`, Monitor-routine stdio, no hires, aux
-memory, or 80 columns); the SDK revision `8bs setup` installs predates it.
-The options are to move to an SDK that has it, contribute the missing video
-support, write our own platform layer, or eventually support a second native
-backend such as cc65. None of the other three Phase 5 machines has an
-LLVM-MOS target at all, so each needs a platform written for it. None of
+These four do not share a video chip, an I/O family, or a memory map with
+each other or with anything already in the toolchain. An Apple II is
+soft-switches and hires pages; a Plus/4 is a TED; a BBC Micro is a 6845
+and a MOS tube; an Oric is a 6502 with its own ULA. There is no shared
+Commodore-shaped platform to extend. Each needs a CPU-variant row, a
+start-up stub, and a file writer of its own. The research for each of the
+four is in [machines on the roadmap](project/machines/index.md). None of
 that needs to complicate 8BitScript 0.1.
 
 ## Phase 6: specialist consoles
 
 Add: `atari5200`, `lynx`, `pcengine`, `supervision`.
 
-LLVM-MOS has explicit targets for all four. Each stretches the language in a
-new direction:
+Each stretches the language in a new direction, still on a 6502-family
+CPU, with video and I/O that share no family with the machines already
+supported:
 
-- **Atari 5200.** Familiar 6502 and Atari heritage.
+- **Atari 5200.** Familiar 6502 and Atari heritage, in a console with no
+  keyboard and a different cartridge map.
 - **Lynx.** A 65SC02-style CPU with considerably more specialised graphics
   hardware.
 - **PC Engine / TurboGrafx-16.** The HuC6280, another 6502-family descendant,
-  but significantly more sophisticated. LLVM-MOS supports both the standard
-  PC Engine and PC Engine CD targets.
+  but significantly more sophisticated — HuCard and CD-ROM² are different
+  images.
 
 The PC Engine in particular is a test of whether the backend architecture
 scales.
@@ -244,9 +255,9 @@ scales.
 
 Add: `atari2600`.
 
-LLVM-MOS already supports it, and it is deliberately left late. Not because the
-CPU is hard: the 6507 is a close 6502 relative. Because the machine is
-gloriously deranged. Its programming model stresses:
+It is deliberately left late. Not because the CPU is hard: the 6507 is a
+close 6502 relative. Because the machine is the torture test — gloriously
+deranged. Its programming model stresses:
 
 - exact cycle timing
 - inline assembly
@@ -273,19 +284,19 @@ ZX Spectrum, MSX, Sega Master System, Game Gear, Amstrad CPC and ColecoVision.
 The Game Boy's LR35902 is closely related to the Intel 8080 and Z80 world but
 is its own beast.
 
-Either one requires a genuinely new backend:
+Either one requires a genuinely new backend — a second CPU, not a second
+file writer:
 
 ```
 8BitScript IR
     |
-    +-- MOS backend
-    |     +-- LLVM-MOS
+    +-- MOS backend (8BitScript's own, in @8bitscript/compiler/mos)
     |
     +-- Z80 / Game Boy backend
 ```
 
-This is exactly why LLVM-MOS concepts must not leak into the language's IR.
-The IR belongs to 8BitScript. LLVM-MOS is one backend.
+This is exactly why 6502-only concepts must not leak into the language's
+IR. The IR belongs to 8BitScript. The MOS backend is one lowering of it.
 
 ## How a phase is judged
 

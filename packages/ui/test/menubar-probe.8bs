@@ -3,8 +3,7 @@
 // proves the whole surface compiles there and not just the parts a
 // particular example happens to use. The import is relative because a
 // package does not resolve its own name; a consumer writes
-// `import { menubar } from "@8bitscript/ui/menubar"`, which
-// examples/menubar does.
+// `import { menubar } from "@8bitscript/ui/menubar"`.
 import { text, TextColor } from "@8bitscript/text";
 import { menubar } from "../src/menubar.8bs";
 

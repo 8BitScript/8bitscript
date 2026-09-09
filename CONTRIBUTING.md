@@ -1,9 +1,10 @@
 # Contributing to 8BitScript
 
-The compiler runs end to end for the milestone subset: lexer, parser,
-checker, linker, IR, and two backends, with `8bs build` and `8bs run`
-driving them. Imports, function calls, and locals compile. Contributions
-are documentation, compiler, package, and editor work.
+The compiler's front end and linker run for the milestone subset: lexer,
+parser, checker, IR, and two backends that exist and do not yet emit
+images. `8bs check` works; `8bs build` and `8bs run` refuse every target
+until 0.2.0. Contributions are documentation, compiler, package, and
+editor work.
 
 ## Workflow
 
@@ -52,7 +53,7 @@ those packages' tests hard-fail there with nothing wrong in the code.
 the emulators from [docs/setup](docs/setup/index.md) installed
 locally. `@8bitscript/cli`'s own emulator tests (`screenshot.test.mjs`,
 `emulator-smoke.test.mjs`) already skip rather than fail when a
-target's toolchain is missing, which is why `cli` stays in `test:ci`
+target's emulator is missing, which is why `cli` stays in `test:ci`
 while the six machine packages above do not.
 
 **Before merging a PR meant to ship soon, run the full suite locally:**

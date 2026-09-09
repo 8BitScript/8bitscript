@@ -29,7 +29,7 @@ function makeWorld({ platform = 'darwin', entries = {}, env = {}, xcode = true, 
   const hasBinary = (name) => (name === 'brew' ? brew : ['cc65', 'lzsa'].includes(name));
   const io = {
     platform,
-    env: { LLVM_MOS_HOME: '/opt/llvm-mos', PATH: '/usr/local/bin:/usr/bin', ...env },
+    env: { PATH: '/usr/local/bin:/usr/bin', ...env },
     hasBinary,
     canPromptInteractively: () => interactive,
     confirm: async (q) => { calls.confirms.push(q); return confirmAnswer; },
@@ -46,7 +46,6 @@ function makeWorld({ platform = 'darwin', entries = {}, env = {}, xcode = true, 
     workDir: () => '/home/u/.cache/8bitscript/setup/cx16-work',
     exec: async (cmd, args) => {
       calls.exec.push([cmd, args]);
-      if (cmd.endsWith('mos-cx16-clang')) return { code: 0, stdout: 'clang version 19', stderr: '', missing: false };
       if (cmd === 'xcode-select') return { code: xcode ? 0 : 2, stdout: '', stderr: '', missing: false };
       if (cmd === 'brew') {
         if (!brew) return { missing: true, code: null, stdout: '', stderr: '' };
@@ -363,14 +362,6 @@ test('unsupported platform: says so and does nothing', async () => {
   assert.equal(result.ok, false);
   assert.match(output, /no Commander X16 setup backend for 'win32'/);
   assert.deepEqual(calls.exec, []);
-});
-
-test('missing compiler: stops before touching anything', async () => {
-  const { io, calls } = makeWorld({ env: { LLVM_MOS_HOME: '' } });
-  const { result, output } = await runSetup(io);
-  assert.equal(result.ok, false);
-  assert.match(output, /LLVM_MOS_HOME is not set/);
-  assert.deepEqual(calls.build, []);
 });
 
 test('inspectCx16Installation: distinguishes each state separately', async () => {

@@ -45,7 +45,7 @@
 //
 // The tables are computed from POKEY's own clock, which is the machine clock
 // divided by 28: 1789790/28 = 63921 Hz on NTSC, 1773447/28 = 63337 Hz on PAL
-// (the machine clocks are the nominal ones packages/backend-6502's
+// (the machine clocks are the nominal ones packages/compiler/src/mos's
 // FRAME_SYNC.atari8 uses; see ../AGENTS.md on which figure is which). The
 // `clock / (2 * (AUDF + 1))` relation is the standard published one and is
 // derived here, not measured on screen — *to verify* against a tone before

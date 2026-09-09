@@ -22,7 +22,7 @@
 @address(0x900F)
 export let vicColor: volatile<u8>;
 
-// $9005, the VIC's memory pointer (`addr` in llvm-mos-sdk's _vic.h): bits
+// $9005, the VIC's memory pointer (the chip's `addr` register): bits
 // 4-7 the screen base, bits 0-3 the character set base. $F0 is screen $1E00
 // with the upper-case/graphics character ROM at $8000 — the power-on value
 // (POKE 36869,240 in the Programmer's Reference Guide), where $F2 is the

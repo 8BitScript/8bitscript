@@ -34,7 +34,6 @@ const {
   loadProjects,
   loadExamples,
   ofKind,
-  resolveLlvmMosHome,
   systemLine,
   withShipped,
 } = require('./projects.cjs');
@@ -145,18 +144,6 @@ class RunningTasks {
 }
 
 /**
- * Environment additions for every `8bs` task: the LLVM-MOS SDK location, when
- * it can be found, since a task's shell does not read the rc file that
- * usually exports it. See resolveLlvmMosHome in projects.cjs.
- */
-function taskEnv() {
-  const home = resolveLlvmMosHome({
-    setting: vscode.workspace.getConfiguration('8bitscript').get('llvmMosHome'),
-  });
-  return home ? { LLVM_MOS_HOME: home } : {};
-}
-
-/**
  * Build the task for one `8bs` invocation.
  *
  * The definition carries `projectDir` as an absolute path so running-state
@@ -192,7 +179,7 @@ function makeTask(project, action, target, region, hardware = settings.getHardwa
     new vscode.ShellExecution(
       { value: project.toolchain, quoting: vscode.ShellQuoting.Strong },
       args,
-      { cwd: project.dir, env: taskEnv() },
+      { cwd: project.dir },
     ),
   );
   task.detail = `8bs ${args.join(' ')}  (${definition.project})`;
@@ -280,7 +267,7 @@ class Projects {
       execFile(
         project.toolchain,
         ['targets', '--json'],
-        { cwd: project.dir, env: { ...process.env, ...taskEnv() }, maxBuffer: 4 * 1024 * 1024 },
+        { cwd: project.dir, maxBuffer: 4 * 1024 * 1024 },
         (error, stdout) => {
           if (error) {
             this.output?.appendLine(`8bs targets --json failed: ${error.message}`);
@@ -496,7 +483,7 @@ function registerRunner(context, output) {
       folderOf(project.dir) ?? vscode.TaskScope.Workspace,
       `${project.name}: install`,
       TASK_TYPE,
-      new vscode.ShellExecution(project.packageManager, ['install'], { cwd: project.dir, env: taskEnv() }),
+      new vscode.ShellExecution(project.packageManager, ['install'], { cwd: project.dir }),
     );
     task.detail = `${project.packageManager} install  (${relativeDir(project.dir)})`;
     task.presentationOptions = {
@@ -572,8 +559,8 @@ function registerRunner(context, output) {
     const chosen = selected();
     const project = chosen?.toolchain ? chosen : projects.all.find((p) => p.toolchain);
     // A workspace with no project can still have the CLI installed at its
-    // root, and doctor is the command that tells someone whether their VICE
-    // and LLVM-MOS installs are ready — worth finding it either way.
+    // root, and doctor is the command that tells someone whether their
+    // emulators are ready — worth finding it either way.
     const toolchain = project?.toolchain
       ?? (vscode.workspace.workspaceFolders ?? [])
         .map((folder) => findToolchain(folder.uri.fsPath))

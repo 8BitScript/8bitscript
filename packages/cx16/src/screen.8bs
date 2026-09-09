@@ -21,7 +21,7 @@ import { mapBank, mapLow, locateTextMap, setVramAddress } from "./index.8bs";
 // "active area" whose edges are DC_HSTART/HSTOP/VSTART/VSTOP, and the
 // KERNAL boots with that area set to the entire 640x480 output, so nothing
 // is left over for the border colour to fill. Setting the border alone is
-// invisible — the second reason examples/borders once showed only blue.
+// invisible — the second reason a colour-cycling demo once showed only blue.
 //
 // So setColors() shrinks the active area by 16 pixels on every side —
 // HSTART/HSTOP count in units of 4 pixels (0..160), VSTART/VSTOP in units
@@ -54,8 +54,8 @@ import { mapBank, mapLow, locateTextMap, setVramAddress } from "./index.8bs";
 //
 // The four DC_ registers live at $9F29-$9F2C under two views selected by
 // DCSEL (CTRL $9F25 bit 1): DCSEL=0 is VIDEO/HSCALE/VSCALE/BORDER, DCSEL=1
-// is HSTART/HSTOP/VSTART/VSTOP — confirmed against llvm-mos-sdk's cx16.h,
-// which lays out `struct __vera` exactly so. setColors() sets DCSEL
+// is HSTART/HSTOP/VSTART/VSTOP — confirmed against VERA's own register
+// map. setColors() sets DCSEL
 // itself both times and leaves it 0 (the KERNAL's default), so nothing
 // here assumes what a previous program left it at.
 //
@@ -78,7 +78,7 @@ import { mapBank, mapLow, locateTextMap, setVramAddress } from "./index.8bs";
 // Colours are VERA palette indices. The KERNAL's default palette starts
 // with the sixteen C64 colours in C64 order — 0 black, 1 white, 2 red,
 // 3 cyan, 4 purple, 5 green, 6 blue, 7 yellow, and so on — verified on
-// screen under x16emu for the values examples/borders uses, so the
+// screen under x16emu for the values a colour-cycling demo uses, so the
 // Commodore packages' colour numbers mean the same colours here.
 
 // The border exists once the active area is inset — 16 pixels in on

@@ -185,8 +185,7 @@ test('printCentered pads a short number and lets a long one run past the edge, m
 function onPath(name) {
   return (process.env.PATH ?? '').split(delimiter).some((dir) => dir && existsSync(join(dir, name)));
 }
-const HAS_SDK = Boolean(process.env.LLVM_MOS_HOME);
-const skip = (!HAS_SDK && 'LLVM_MOS_HOME not set') || (!onPath('xpet') && 'xpet not on PATH');
+const NATIVE_BACKEND_PENDING = 'Bare Metal: waiting on the native backend';
 const CLI_BIN = join(ROOT, '..', 'cli', 'bin', '8bs.mjs');
 
 function runCli(args, { timeoutMs = 90_000 } = {}) {
@@ -202,7 +201,7 @@ function runCli(args, { timeoutMs = 90_000 } = {}) {
   });
 }
 
-test('under xpet, the ten digits and the two blocks.put patterns render the pixels their tiles say they should', { skip }, async () => {
+test('under xpet, the ten digits and the two blocks.put patterns render the pixels their tiles say they should', { skip: NATIVE_BACKEND_PENDING }, async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-pet-blocks-'));
   try {
     const shot = join(scratch, 'blocks.png');

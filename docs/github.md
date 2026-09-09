@@ -6,8 +6,10 @@ nav_order: 12
 # Building on GitHub
 
 8BitScript publishes a reusable GitHub Actions workflow that installs the
-CLI, caches LLVM-MOS for 6502 targets, runs `8bs build` for each machine
-you name, and can attach the binaries to a GitHub Release.
+CLI and runs `8bs build` for each machine you name. Until 0.2.0 ships,
+**this workflow builds nothing**: every target is refused. There is no
+external SDK to cache. When the backends emit, the same file can attach
+the binaries to a GitHub Release.
 
 In your program's repository:
 
@@ -42,5 +44,5 @@ dist/web/program.wasm
 A pull-request workflow can call the same file with `attach-release: false`
 to fail the PR if a target no longer builds.
 
-The job runs on Ubuntu with Node 26. It skips the LLVM-MOS download when
-`targets` is exactly `web`.
+The job runs on Ubuntu with Node 26. Until 0.2.0, every `8bs build` in
+that loop fails.

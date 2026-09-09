@@ -363,8 +363,8 @@ export namespace menubar {
     // machine's screen is.
     function item(name: string): bool {
         // Everything this function still needs after the first `text.print`
-        // has to survive that call, and on a 6502 that means LLVM-MOS
-        // pushing it to a soft stack on entry and popping it on exit. So
+        // has to survive that call, and on a 6502 that means pushing it
+        // to a soft stack on entry and popping it on exit. So
         // the order here is deliberate: answer the highlight question,
         // measure the item, and move the bar's own cursor on — all before
         // printing anything. By the time the first call happens only
@@ -387,9 +387,9 @@ export namespace menubar {
         // name.length + padding` — is not the fix, and this is worth
         // knowing before someone tries it: the two backends do not agree
         // on it. With padding 200 and a 2-character label the 6502 build
-        // computes 402 (the generated C promotes both bytes to `int`) and
-        // the web build computes 146 (the generated AssemblyScript wraps
-        // at eight bits). Measured, both targets, 2026-09-06. Until that
+        // computes 402 (bytes promoted to sixteen bits) and
+        // the web build computes 146 (wraps at eight bits). Measured, both
+        // targets, 2026-09-06 (pre-0.2.0). Until that
         // is settled in the compiler, a component that must not overrun
         // does its arithmetic where a byte cannot carry.
         //
