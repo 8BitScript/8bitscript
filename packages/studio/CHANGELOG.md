@@ -1,5 +1,26 @@
 # @8bitscript/studio
 
+## 0.1.3
+
+### Patch Changes
+
+- 7547105: The VS Code extension now ships a Marketplace icon (the pixel-8 mark from
+  the favicon, on the same purple/cream palette) instead of using the
+  Marketplace's generic default.
+- 47eaff5: Pin the workspace's `packageManager` to pnpm 12.3.4 (up from 12.1.0) and
+  recommend the `8bitscript.8bitscript-lang` VS Code extension in this
+  repo's `.vscode/extensions.json`. The VS Code extension also gains a
+  Marketplace icon (the pixel-8 mark, on the same purple/cream palette as
+  `docs/assets/favicon.svg`) instead of falling back to the generic default.
+- Updated dependencies [7547105]
+- Updated dependencies [47eaff5]
+  - @8bitscript/input@0.1.3
+  - @8bitscript/pointer@0.1.3
+  - @8bitscript/screen@0.1.3
+  - @8bitscript/system@0.1.3
+  - @8bitscript/text@0.1.3
+  - @8bitscript/ui@0.1.3
+
 ## 0.1.2
 
 ### Patch Changes

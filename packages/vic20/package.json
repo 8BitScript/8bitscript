@@ -1,6 +1,6 @@
 {
   "name": "@8bitscript/vic20",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "VIC-20 target support for 8BitScript: the hardware underneath the portable APIs.",
   "license": "MIT",
   "repository": {
