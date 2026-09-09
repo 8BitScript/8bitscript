@@ -1,0 +1,9 @@
+// The portable hello world, and the program 0.2.0 exists to run. The text
+// package resolves per target — @8bitscript/pet/text on a PET build,
+// @8bitscript/web/text on a web build — and each one writes its own screen
+// the way that machine wants; this file does not know which.
+import { text } from "@8bitscript/text";
+
+export function main(): void {
+    text.print(0, "HELLO WORLD");
+}
