@@ -314,6 +314,49 @@ A useful check before you're done: grep the repository for the old spelling,
 the old diagnostic count, or the old argument shape — anything that was true
 before your change and isn't now — and fix every hit outside `node_modules`.
 
+## New code needs a test, or a named, deliberate exclusion
+
+> **Every behaviour-carrying line that lands on trunk needs a test in the
+> same commit. If something genuinely cannot be meaningfully tested, it gets
+> an explicit `sonar.coverage.exclusions` entry in
+> [`sonar-project.properties`](sonar-project.properties) — named, in the same
+> PR, with the reason visible in the commit — not silence that shows up later
+> as a red gate on a PR that isn't about the code that caused it.**
+
+SonarCloud's "Coverage on New Code" gate (`sonar.qualitygate.wait=true` in
+`.github/workflows/ci.yml`) exists to catch untested code the moment it's
+written, when the diff is still small enough to fix. It only works if the
+number is trustworthy: a PR that merges anyway despite a failed gate, or an
+exclusion added to make a stubborn file stop counting against the number,
+both teach the next person to stop reading the badge — which is how PR #46
+(`test/coverage-lift`, 2026-09-09) reached trunk still showing "0.8%
+Coverage on New Code (required ≥ 80%)" and the failure only became visible
+on an unrelated PR opened after it.
+
+- **Write the test with the code**, not as a follow-up — a PR that adds a
+  function, a branch, or a new `.mjs`/`.ts`/`.8bs` behaviour file and has no
+  matching test change is incomplete, the same way a core-language change
+  without its docs/IntelliSense/editor updates is incomplete (see above).
+- **An exclusion is a decision, not an escape hatch.** `sonar.exclusions`
+  and `sonar.coverage.exclusions` already carry `node_modules`, `dist`,
+  generated `.prg`/`.vsix` output, and (broadly) `scripts/**` and `site/**` —
+  legitimate because that code is either not source, or is exercised by the
+  emulator/screenshot tests instead of unit coverage. Extending either list
+  follows the same bar: name the specific file or glob, in the PR that adds
+  the code it covers, with the reason stated — never a wildcard reached for
+  because a number was red.
+- **"Hard to unit-test" is not a reason to skip testing** — it's a reason to
+  reach for the tool that fits: `8bs run <target> --screenshot` and the
+  per-target emulator tests (`packages/cli/test/*emulator*`,
+  `packages/*/test/*.test.mjs` that boot `xpet`/`x64`/etc.) are this
+  project's answer for code whose correctness is what a chip does with it,
+  not what a mock would report.
+- **Check the SonarCloud comment on your own PR before asking for review or
+  merging.** A red "Coverage on New Code" gate on a PR that only touches
+  code (not docs) means a test is missing right there — fix it before the
+  PR closes, the same way you would not leave a failing `pnpm run test:ci`
+  and call it done.
+
 ## Documentation and workflow
 
 For everything else — trunk-only workflow, running tests, adding a docs
