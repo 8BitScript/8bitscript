@@ -15,11 +15,18 @@ import { dirname } from 'node:path';
 import { basicStub } from './basic-stub.ts';
 import { link } from './link/index.ts';
 import { lower } from './lower/index.ts';
-import type { IrProgram } from './lower/index.ts';
+import type { IrFunction } from './lower/index.ts';
 import { prgBytes } from './prg.ts';
 import { epilogue } from './startup/commodore.ts';
+import { allocate } from './zp/index.ts';
+import type { IrGlobal } from './zp/index.ts';
 
-export type { IrProgram };
+/** The linked IR's top-level shape — the pieces `functions` (lower/index.ts) and `globals` (zp/index.ts) each read. */
+export interface IrProgram {
+  entry: string;
+  functions: IrFunction[];
+  globals: IrGlobal[];
+}
 
 export type Machine = 'vic20' | 'c64' | 'pet' | 'c128' | 'mega65' | 'cx16' | 'nes' | 'atari8';
 
@@ -71,6 +78,16 @@ const LOAD_ADDRESS: Partial<Record<Machine, number>> = {
   vic20: 0x1001,
 };
 
+// Milestone 5's own settled decision: every program shape this backend
+// builds today returns to BASIC (main() falling through to RTS lands back
+// in the SYS that called it — no "never returns" shape exists yet, that
+// waits on a real main-loop construct at milestone 10), so the safe zp
+// budget always leaves BASIC's own zero page alone rather than picking
+// between two shapes with only one actually buildable. packages/pet's own
+// AGENTS.md documents BASIC's range as $0002-$008D (from PETdoc.txt/
+// progmod.html); $8E-$FF is what is left before the CPU stack at $0100.
+const PET_ZP_BUDGET = { zpOrigin: 0x8e, zpCeiling: 0x100 };
+
 /** The file extension a build for this machine and hardware produces. */
 export function outputExtension(machine: Machine, hardware?: BuildOptions['hardware']): string {
   if (hardware?.build?.output) return hardware.build.output;
@@ -94,6 +111,9 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   const lowered = lower(entryFn.body);
   if (!lowered.ok) return { ok: false, error: lowered.error };
 
+  const zp = allocate(ir.globals, PET_ZP_BUDGET);
+  if (!zp.ok) return { ok: false, error: zp.error };
+
   const loadAddress = LOAD_ADDRESS.pet!;
   const { bytes: stub, codeStart } = basicStub(loadAddress);
 
@@ -106,6 +126,9 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
     codeOrigin: codeStart,
     ramCeiling: ramSizeKib * 1024,
     code: { kind: 'assembly', program: [...lowered.program, ...epilogue()] },
+    zpOrigin: PET_ZP_BUDGET.zpOrigin,
+    zpCeiling: PET_ZP_BUDGET.zpCeiling,
+    zp: zp.zpUsed,
   });
   if (!linked.ok) return { ok: false, error: linked.error };
 

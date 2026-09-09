@@ -33,11 +33,6 @@ export interface IrFunction {
   body: IrStatement[];
 }
 
-export interface IrProgram {
-  entry: string;
-  functions: IrFunction[];
-}
-
 export type LowerResult =
   | { ok: true; program: Directive[] }
   | { ok: false; error: string };

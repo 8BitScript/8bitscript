@@ -10,7 +10,7 @@ import {
 } from '../src/mos/index.ts';
 import type { IrProgram, Machine, RatioPair } from '../src/mos/index.ts';
 
-const ir: IrProgram = { entry: 'main', functions: [{ name: 'main', body: [] }] };
+const ir: IrProgram = { entry: 'main', functions: [{ name: 'main', body: [] }], globals: [] };
 
 // H E L L O _ W O R L D, as PET screen codes (A-Z are 1-26, space is 32) —
 // the same eleven-store fixture the roadmap's TARGET section documents
@@ -27,6 +27,7 @@ const helloWorldIr: IrProgram = {
       value: { kind: 'const', value: code, type: 'utinyint' },
     })),
   }],
+  globals: [],
 };
 
 // Every real PET catalog entry carries defsym.__ram_size (see
@@ -100,11 +101,55 @@ test('build() names the construct when the linked entry function uses an IR kind
   const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
   try {
     const outFile = join(scratch, 'out.prg');
-    const noRule: IrProgram = { entry: 'main', functions: [{ name: 'main', body: [{ kind: 'if' }] }] };
+    const noRule: IrProgram = { entry: 'main', functions: [{ name: 'main', body: [{ kind: 'if' }] }], globals: [] };
     const result = await build(noRule, { machine: 'pet', hardware, outFile, frameRate: 60 });
     assert.equal(result.ok, false);
     if (result.ok) return;
     assert.match(result.error, /no instruction-selection rule yet for 'if'/);
+    assert.equal(existsSync(outFile), false);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('build() allocates real PET globals (currentColor/currentReverse-shaped) to zero page and reports them as variables', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+  try {
+    const outFile = join(scratch, 'out.prg');
+    const withGlobals: IrProgram = {
+      entry: 'main',
+      functions: [{ name: 'main', body: [] }],
+      globals: [
+        { name: 'currentColor', type: 'utinyint', address: null },
+        { name: 'currentReverse', type: 'bool', address: null },
+      ],
+    };
+    const result = await build(withGlobals, { machine: 'pet', hardware, outFile, frameRate: 60 });
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    // Same 15 program bytes as an empty main() — these two globals took no
+    // code space, only zero-page addresses, which memory.variables reports.
+    assert.equal(result.bytes.length, 15);
+    assert.deepEqual(result.memory, { variables: 2, program: 15 });
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('build() refuses a PET program whose globals overflow the real zero-page budget, naming the variable', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+  try {
+    const outFile = join(scratch, 'out.prg');
+    // $8E..$FF is 114 bytes; 115 one-byte globals cannot fit.
+    const tooManyGlobals: IrProgram = {
+      entry: 'main',
+      functions: [{ name: 'main', body: [] }],
+      globals: Array.from({ length: 115 }, (_, i) => ({ name: `g${i}`, type: 'utinyint', address: null })),
+    };
+    const result = await build(tooManyGlobals, { machine: 'pet', hardware, outFile, frameRate: 60 });
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.match(result.error, /^global 'g114' needs 1 byte\(s\) of zero page but only 0 byte\(s\) remain/);
     assert.equal(existsSync(outFile), false);
   } finally {
     await rm(scratch, { recursive: true, force: true });
