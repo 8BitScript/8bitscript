@@ -17,10 +17,11 @@ import { dirname } from 'node:path';
 import { basicStub } from './basic-stub.ts';
 import { link } from './link/index.ts';
 import { lower } from './lower/index.ts';
-import type { IrFunction } from './lower/index.ts';
+import type { Directive, FunctionSite, IrFunction } from './lower/index.ts';
 import { LocalAllocator } from './lower/allocator.ts';
 import { prgBytes } from './prg.ts';
 import { epilogue, prologue, usesDecimalSensitiveMath } from './startup/commodore.ts';
+import { storageBytes } from '../types/index.mjs';
 import { allocate } from './zp/index.ts';
 import type { IrGlobal } from './zp/index.ts';
 
@@ -99,6 +100,74 @@ export function outputExtension(machine: Machine, hardware?: BuildOptions['hardw
   return 'prg';
 }
 
+// ---- milestone 7: functions and the calling convention --------------------
+// See mos/AGENTS.md for the design this implements: every parameter and
+// local gets a fixed zero-page slot the owning function never shares with
+// another, decided in two passes (parameters, which only need a param
+// count to size; then bodies, which need lowering to size their own locals)
+// so a call site's target address is always known regardless of lowering
+// order.
+
+/**
+ * Every name `node` (or anything nested under it — an IR statement/
+ * expression tree, at runtime a plain, loosely-typed object) calls,
+ * collected into `out`. Deliberately untyped and structural rather than a
+ * per-kind switch: the real IR carries far more fields than this file's own
+ * narrow interfaces name (see lower/index.ts's own header comment), and a
+ * generic walk never goes stale as new node kinds gain fields.
+ */
+function collectCallNames(node: unknown, out: Set<string>): void {
+  if (Array.isArray(node)) {
+    for (const item of node) collectCallNames(item, out);
+    return;
+  }
+  if (node && typeof node === 'object') {
+    const obj = node as Record<string, unknown>;
+    if (obj.kind === 'call' && typeof obj.name === 'string') out.add(obj.name);
+    for (const value of Object.values(obj)) collectCallNames(value, out);
+  }
+}
+
+/**
+ * The first call cycle found in `functions`' own call graph (a function
+ * that, directly or transitively, calls itself), as the chain of names
+ * involved — or null if the graph is a DAG. Reusing a fixed zero-page
+ * address across nested calls (mos/AGENTS.md) is only sound when a
+ * function's own frame is never live twice on the call stack at once, so
+ * this has to run, and refuse, before any zero page is assigned.
+ */
+function findCallCycle(functions: IrFunction[]): string[] | null {
+  const callees = new Map<string, Set<string>>();
+  for (const fn of functions) {
+    const out = new Set<string>();
+    collectCallNames(fn.body, out);
+    callees.set(fn.name, out);
+  }
+  const state = new Map<string, 'visiting' | 'done'>();
+  const stack: string[] = [];
+  function visit(name: string): string[] | null {
+    if (state.get(name) === 'done') return null;
+    if (state.get(name) === 'visiting') return stack.slice(stack.indexOf(name));
+    state.set(name, 'visiting');
+    stack.push(name);
+    for (const callee of callees.get(name) ?? []) {
+      if (!callees.has(callee)) continue; // not one of this program's own functions — not this check's job
+      const found = visit(callee);
+      if (found) return found;
+    }
+    stack.pop();
+    state.set(name, 'done');
+    return null;
+  }
+  for (const fn of functions) {
+    const found = visit(fn.name);
+    if (found) return found;
+  }
+  return null;
+}
+
+const RTS: Directive = { kind: 'instruction', mnemonic: 'RTS', mode: 'implied' };
+
 /** Lowers `ir` to machine code, writes `outFile`, and returns the bytes and a size report. */
 export async function build(ir: IrProgram, options: BuildOptions): Promise<BuildResult> {
   if (options.machine !== 'pet') {
@@ -111,19 +180,71 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   const entryFn = ir.functions.find((fn) => fn.name === ir.entry);
   if (!entryFn) return { ok: false, error: `the linked entry point '${ir.entry}' names no function in ir.functions` };
 
-  // Globals first: milestone 6's locals and expression temporaries bump-
-  // allocate from whatever zero page globals didn't take, so lower() needs
-  // to know where that remainder starts before it can run.
+  const cycle = findCallCycle(ir.functions);
+  if (cycle) return { ok: false, error: `recursion isn't lowered yet: ${cycle.join(' -> ')} -> ${cycle[0]} calls itself, directly or through another function` };
+
+  // Globals first: every function's own parameters, then every function's
+  // own locals and expression temporaries, bump-allocate from whatever zero
+  // page globals didn't take, so each pass below needs to know where the
+  // previous one's remainder starts before it can run.
   const zp = allocate(ir.globals, PET_ZP_BUDGET);
   if (!zp.ok) return { ok: false, error: zp.error };
 
   const globalTypes = new Map(ir.globals.map((g) => [g.name, g.type]));
   const globalBindings = new Map(zp.globals.map((g) => [g.name, { address: g.address, type: globalTypes.get(g.name)! }]));
-  const localsOrigin = PET_ZP_BUDGET.zpOrigin + zp.zpUsed;
-  const locals = new LocalAllocator(localsOrigin, PET_ZP_BUDGET.zpCeiling);
 
-  const lowered = lower(entryFn.body, { globals: globalBindings, locals });
-  if (!lowered.ok) return { ok: false, error: lowered.error };
+  // Parameter pass: every function's calling interface, fixed before any
+  // lowering runs — a call site needs its target's addresses regardless of
+  // which function gets lowered first (mos/AGENTS.md).
+  let paramCursor = PET_ZP_BUDGET.zpOrigin + zp.zpUsed;
+  const functionSites = new Map<string, FunctionSite>();
+  for (const fn of ir.functions) {
+    const paramAddresses: number[] = [];
+    for (const p of fn.params ?? []) {
+      if (p.type === 'array') return { ok: false, error: `'${fn.name}(${p.name})': array parameters aren't lowered yet` };
+      if (storageBytes(p.type) !== 1) {
+        return { ok: false, error: `'${fn.name}(${p.name})' is '${p.type}' (${storageBytes(p.type)} bytes): only 8-bit parameters are lowered yet — 16-bit lands at milestone 8` };
+      }
+      if (paramCursor + 1 > PET_ZP_BUDGET.zpCeiling) {
+        return { ok: false, error: `ran out of zero page assigning '${fn.name}(${p.name})' its parameter slot (${PET_ZP_BUDGET.zpCeiling - paramCursor} byte(s) left)` };
+      }
+      paramAddresses.push(paramCursor);
+      paramCursor += 1;
+    }
+    const returnType = fn.returnType ?? 'void';
+    if (returnType !== 'void' && storageBytes(returnType) !== 1) {
+      return { ok: false, error: `'${fn.name}' returns '${returnType}' (${storageBytes(returnType)} bytes): only an 8-bit or void return is lowered yet — 16-bit lands at milestone 8` };
+    }
+    functionSites.set(fn.name, { label: `__8bs_fn_${fn.name}`, paramAddresses, returnType });
+  }
+
+  // Body pass: each function against its own fresh, non-overlapping locals
+  // region, stacked after every function's own parameter region above.
+  let localsCursor = paramCursor;
+  const loweredFunctions: { name: string; label: string; program: Directive[]; isEntry: boolean }[] = [];
+  for (const fn of ir.functions) {
+    const site = functionSites.get(fn.name)!;
+    const params = (fn.params ?? []).map((p, i) => ({ name: p.name, type: p.type, address: site.paramAddresses[i] }));
+    const locals = new LocalAllocator(localsCursor, PET_ZP_BUDGET.zpCeiling);
+    const lowered = lower(fn.body, { globals: globalBindings, locals, params, functions: functionSites });
+    if (!lowered.ok) return { ok: false, error: `in '${fn.name}': ${lowered.error}` };
+    localsCursor += locals.used;
+    loweredFunctions.push({ name: fn.name, label: site.label, program: lowered.program, isEntry: fn.name === ir.entry });
+  }
+
+  // The entry runs first, falling straight through prologue -> body ->
+  // epilogue back to BASIC (unchanged since milestone 1) — every other
+  // function is a subroutine placed after it, never reached except by its
+  // own JSR, and returns with a plain RTS rather than BASIC's epilogue.
+  const entry = loweredFunctions.find((f) => f.isEntry)!;
+  const others = loweredFunctions.filter((f) => !f.isEntry);
+  const everyInstruction = loweredFunctions.flatMap((f) => f.program);
+  const combinedProgram: Directive[] = [
+    ...prologue(usesDecimalSensitiveMath(everyInstruction)),
+    ...entry.program,
+    ...epilogue(),
+    ...others.flatMap((f): Directive[] => [{ kind: 'label', name: f.label }, ...f.program, RTS]),
+  ];
 
   const loadAddress = LOAD_ADDRESS.pet!;
   const { bytes: stub, codeStart } = basicStub(loadAddress);
@@ -136,14 +257,15 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   const linked = link({
     codeOrigin: codeStart,
     ramCeiling: ramSizeKib * 1024,
-    code: { kind: 'assembly', program: [...prologue(usesDecimalSensitiveMath(lowered.program)), ...lowered.program, ...epilogue()] },
+    code: { kind: 'assembly', program: combinedProgram },
     zpOrigin: PET_ZP_BUDGET.zpOrigin,
     zpCeiling: PET_ZP_BUDGET.zpCeiling,
-    // Globals (fixed, milestone 5) plus the most zero page locals and
-    // expression temporaries ever held live at once (milestone 6, LIFO —
-    // see LocalAllocator) — not the sum of every local ever declared,
-    // most of them share the same bytes at different points in the body.
-    zp: zp.zpUsed + locals.used,
+    // Globals (milestone 5) plus every function's own parameter region plus
+    // the most zero page each function's own locals and expression
+    // temporaries ever held live at once (LIFO, per function) — not the sum
+    // of every local ever declared, and not shared across functions either
+    // (mos/AGENTS.md's known-conservative choice).
+    zp: localsCursor - PET_ZP_BUDGET.zpOrigin,
   });
   if (!linked.ok) return { ok: false, error: linked.error };
 
