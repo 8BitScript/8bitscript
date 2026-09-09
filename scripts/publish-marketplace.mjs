@@ -81,10 +81,14 @@ process.stdout.write(
     `The gallery often waits minutes after the upload; vsce would time out at 180s.\n`,
 );
 
+// No timeoutMs override: this GET hits the same gallery backend as the
+// publish call below, and it has gone silent for 30s+ in practice
+// (v0.1.3's release run: three straight AbortErrors here, upload never
+// even attempted) — a metadata read isn't cheaper for an unresponsive
+// server, so it gets the same WAIT_MS budget.
 const existing = await gallery(
   'GET',
   `/_apis/gallery/publishers/${publisher}/extensions/${name}?flags=1`,
-  { timeoutMs: 30_000 },
 );
 
 if (existing.status === 200) {
