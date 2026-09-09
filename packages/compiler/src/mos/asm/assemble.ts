@@ -26,7 +26,7 @@ export interface ListingLine {
 }
 
 export type AssembleResult =
-  | { ok: true; bytes: Uint8Array; listing: ListingLine[] }
+  | { ok: true; bytes: Uint8Array; listing: ListingLine[]; labels: Map<string, number> }
   | { ok: false; error: string };
 
 /** Where every label lands, or the first problem (a duplicate, or a size the address alone already knows). */
@@ -157,5 +157,5 @@ export function assemble(program: Directive[], origin: number): AssembleResult {
     address += 3;
   }
 
-  return { ok: true, bytes: new Uint8Array(bytes), listing };
+  return { ok: true, bytes: new Uint8Array(bytes), listing, labels };
 }

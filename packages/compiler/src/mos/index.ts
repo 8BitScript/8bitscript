@@ -12,6 +12,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 import { basicStub } from './basic-stub.ts';
+import { link } from './link/index.ts';
 import { prgBytes } from './prg.ts';
 import { startupBytes } from './startup/commodore.ts';
 
@@ -87,18 +88,34 @@ export async function build(_ir: IrProgram, options: BuildOptions): Promise<Buil
 
   // No instruction selection yet (milestone 4 on): the body is always just
   // the startup routine's RTS. `_ir` is unused until lowering exists to
-  // read it.
+  // read it. The linker still runs for real, though: it places that one
+  // section against the machine's real RAM ceiling, so a hardware sheet
+  // with too little RAM for even the boot stub already fails here, not
+  // silently once a real program is lowered on top of it.
   const loadAddress = LOAD_ADDRESS.pet!;
-  const { bytes: stub } = basicStub(loadAddress);
-  const body = new Uint8Array(stub.length + 1);
+  const { bytes: stub, codeStart } = basicStub(loadAddress);
+
+  const ramSizeKib = options.hardware.build.defsym.__ram_size;
+  if (typeof ramSizeKib !== 'number') {
+    return { ok: false, error: 'the pet hardware sheet is missing defsym.__ram_size, the RAM ceiling the linker needs' };
+  }
+
+  const linked = link({
+    codeOrigin: codeStart,
+    ramCeiling: ramSizeKib * 1024,
+    code: { kind: 'bytes', bytes: startupBytes() },
+  });
+  if (!linked.ok) return { ok: false, error: linked.error };
+
+  const body = new Uint8Array(stub.length + linked.bytes.length);
   body.set(stub, 0);
-  body.set(startupBytes(), stub.length);
+  body.set(linked.bytes, stub.length);
   const bytes = prgBytes(loadAddress, body);
 
   await mkdir(dirname(options.outFile), { recursive: true });
   await writeFile(options.outFile, bytes);
 
-  return { ok: true, bytes, memory: { variables: 0, program: bytes.length } };
+  return { ok: true, bytes, memory: { variables: linked.memory.variables, program: bytes.length } };
 }
 
 // ---- waitFrame() pacing ----------------------------------------------------
