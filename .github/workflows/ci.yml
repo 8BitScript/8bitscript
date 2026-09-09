@@ -19,6 +19,7 @@ jobs:
           node-version: 26
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
       - run: pnpm run test:ci
 
   # Skipped until SONAR_TOKEN is set on the repo (Settings → Secrets and
