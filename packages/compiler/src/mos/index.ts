@@ -1,23 +1,25 @@
 // The 6502 backend: IR in, machine code out.
 //
-// Instruction selection is not implemented yet (that starts at milestone
-// 4): `build()` for the PET writes the file format and the boot path only
-// — a BASIC stub that SYS's into a startup routine which is just RTS, no
-// lowered program body — which is milestone 1's whole job. This file also
-// holds the contract the CLI calls and the machine facts the future code
-// generator will need: the instruction-set variant of each CPU, the file
-// extension a build produces, and the frame-sync numbers `waitFrame()` is
-// paced against.
+// `build()` for the PET now lowers the linked IR's entry function for
+// real (milestone 4's own instruction-selection rule, `memoryWrite` of a
+// literal to a literal address only — everything else still fails naming
+// the construct), assembles it alongside the epilogue, links it against
+// the machine's real RAM ceiling, and wraps it in the BASIC stub. This
+// file also holds the contract the CLI calls and the machine facts the
+// future code generator will need: the instruction-set variant of each
+// CPU, the file extension a build produces, and the frame-sync numbers
+// `waitFrame()` is paced against.
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 import { basicStub } from './basic-stub.ts';
 import { link } from './link/index.ts';
+import { lower } from './lower/index.ts';
+import type { IrProgram } from './lower/index.ts';
 import { prgBytes } from './prg.ts';
-import { startupBytes } from './startup/commodore.ts';
+import { epilogue } from './startup/commodore.ts';
 
-/** The linked program. Untyped until the rest of this package grows declarations. */
-type IrProgram = unknown;
+export type { IrProgram };
 
 export type Machine = 'vic20' | 'c64' | 'pet' | 'c128' | 'mega65' | 'cx16' | 'nes' | 'atari8';
 
@@ -78,7 +80,7 @@ export function outputExtension(machine: Machine, hardware?: BuildOptions['hardw
 }
 
 /** Lowers `ir` to machine code, writes `outFile`, and returns the bytes and a size report. */
-export async function build(_ir: IrProgram, options: BuildOptions): Promise<BuildResult> {
+export async function build(ir: IrProgram, options: BuildOptions): Promise<BuildResult> {
   if (options.machine !== 'pet') {
     return {
       ok: false,
@@ -86,12 +88,12 @@ export async function build(_ir: IrProgram, options: BuildOptions): Promise<Buil
     };
   }
 
-  // No instruction selection yet (milestone 4 on): the body is always just
-  // the startup routine's RTS. `_ir` is unused until lowering exists to
-  // read it. The linker still runs for real, though: it places that one
-  // section against the machine's real RAM ceiling, so a hardware sheet
-  // with too little RAM for even the boot stub already fails here, not
-  // silently once a real program is lowered on top of it.
+  const entryFn = ir.functions.find((fn) => fn.name === ir.entry);
+  if (!entryFn) return { ok: false, error: `the linked entry point '${ir.entry}' names no function in ir.functions` };
+
+  const lowered = lower(entryFn.body);
+  if (!lowered.ok) return { ok: false, error: lowered.error };
+
   const loadAddress = LOAD_ADDRESS.pet!;
   const { bytes: stub, codeStart } = basicStub(loadAddress);
 
@@ -103,7 +105,7 @@ export async function build(_ir: IrProgram, options: BuildOptions): Promise<Buil
   const linked = link({
     codeOrigin: codeStart,
     ramCeiling: ramSizeKib * 1024,
-    code: { kind: 'bytes', bytes: startupBytes() },
+    code: { kind: 'assembly', program: [...lowered.program, ...epilogue()] },
   });
   if (!linked.ok) return { ok: false, error: linked.error };
 
