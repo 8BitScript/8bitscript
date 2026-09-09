@@ -1,6 +1,6 @@
 {
   "name": "@8bitscript/input",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "What the user just did, on whichever machine is being built: four directions, confirm, cancel, and a pointer where there is one. Resolves per target to that machine's own input implementation.",
   "license": "MIT",
   "repository": {
