@@ -245,3 +245,27 @@ test('a bare return jumps to the function-exit label, which the epilogue can sit
   assert.equal(last.kind, 'label');
   assembles(result.program);
 });
+
+test('a local that shadows a global is restored — not deleted — once its block ends, so a later reference reaches the global again', () => {
+  const options = ctx([['x', { address: 0x10, type: 'utinyint' }]]);
+  const program: IrStatement[] = [
+    { kind: 'block', body: [local('x', u8(99))] }, // shadows the global 'x' for this block only
+    assign('x', u8(1)), // back outside the block: must resolve to the global, not fail as "resolves to nothing"
+  ];
+  const result = lower(program, options);
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  assembles(result.program);
+  const lastSta = result.program.filter((d) => d.kind === 'instruction' && (d as { mnemonic: string }).mnemonic === 'STA').pop();
+  assert.ok(lastSta && lastSta.kind === 'instruction');
+  if (lastSta?.kind === 'instruction') assert.equal(lastSta.operand!.kind === 'value' ? lastSta.operand!.value : -1, 0x10); // the global's address, not the block's freed local slot
+});
+
+test('an empty else ({}) is treated as no else at all — no dead JMP to a branch that does nothing', () => {
+  const withEmptyElse = lower([{ kind: 'if', test: bin('==', ref('x'), u8(0), 'bool'), then: [write(0x8000, 1)], else: [] }], ctx([['x', { address: 0x10, type: 'utinyint' }]]));
+  const withNoElse = lower([{ kind: 'if', test: bin('==', ref('x'), u8(0), 'bool'), then: [write(0x8000, 1)], else: null }], ctx([['x', { address: 0x10, type: 'utinyint' }]]));
+  assert.equal(withEmptyElse.ok, true);
+  assert.equal(withNoElse.ok, true);
+  if (!withEmptyElse.ok || !withNoElse.ok) return;
+  assert.equal(withEmptyElse.program.length, withNoElse.program.length);
+});

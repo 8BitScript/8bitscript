@@ -20,7 +20,7 @@ import { lower } from './lower/index.ts';
 import type { IrFunction } from './lower/index.ts';
 import { LocalAllocator } from './lower/allocator.ts';
 import { prgBytes } from './prg.ts';
-import { epilogue } from './startup/commodore.ts';
+import { epilogue, prologue, usesDecimalSensitiveMath } from './startup/commodore.ts';
 import { allocate } from './zp/index.ts';
 import type { IrGlobal } from './zp/index.ts';
 
@@ -136,7 +136,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   const linked = link({
     codeOrigin: codeStart,
     ramCeiling: ramSizeKib * 1024,
-    code: { kind: 'assembly', program: [...lowered.program, ...epilogue()] },
+    code: { kind: 'assembly', program: [...prologue(usesDecimalSensitiveMath(lowered.program)), ...lowered.program, ...epilogue()] },
     zpOrigin: PET_ZP_BUDGET.zpOrigin,
     zpCeiling: PET_ZP_BUDGET.zpCeiling,
     // Globals (fixed, milestone 5) plus the most zero page locals and

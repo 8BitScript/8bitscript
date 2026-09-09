@@ -78,6 +78,12 @@ export interface Binding {
   type: string;
 }
 
+/** What a `local` statement did to `symbols`: bound `name` to a fresh slot, shadowing whatever `name` resolved to before (a global, an outer block's own local of the same name, or nothing). Lets the declaring scope put it back exactly the way it found it. */
+interface Declared {
+  name: string;
+  shadowed: Binding | undefined;
+}
+
 export interface LowerOptions {
   /** Every global this build's zero-page allocator (milestone 5) already placed, keyed by name. `ref`/`assign` read this first; `local` adds to a private copy as its own declarations come into scope. */
   globals: Map<string, Binding>;
@@ -362,17 +368,25 @@ class Lowerer {
 
   block(body: IrStatement[]): void {
     const mark = this.locals.mark();
-    const declared: string[] = [];
+    const declared: Declared[] = [];
     for (const statement of body) {
-      const name = this.statement(statement);
-      if (name) declared.push(name);
+      const result = this.statement(statement);
+      if (result) declared.push(result);
     }
-    for (const name of declared) this.symbols.delete(name);
+    this.unscope(declared);
     this.locals.release(mark);
   }
 
-  /** Lowers one statement, returning the name it declared (a `local`) if it declared one, so `block()` can un-scope it. */
-  statement(node: IrStatement): string | null {
+  /** Puts every name a block's own locals shadowed back the way it found them — a global (or an outer block's own local of the same name) reached again once the shadow's scope ends, never left permanently unresolvable. */
+  unscope(declared: Declared[]): void {
+    for (const { name, shadowed } of declared) {
+      if (shadowed) this.symbols.set(name, shadowed);
+      else this.symbols.delete(name);
+    }
+  }
+
+  /** Lowers one statement, returning what it declared (a `local` shadows whatever `name` resolved to before, possibly nothing) so the caller can restore that once this statement's scope ends. */
+  statement(node: IrStatement): Declared | null {
     switch (node.kind) {
       case 'memoryWrite':
         this.memoryWrite(node);
@@ -396,8 +410,9 @@ class Lowerer {
         this.expr(node.init as IrExpr);
         const address = this.alloc(`local '${node.name}'`);
         this.emit(staZp(address));
+        const shadowed = this.symbols.get(node.name!);
         this.symbols.set(node.name!, { address, type: node.type! });
-        return node.name!;
+        return { name: node.name!, shadowed };
       }
       case 'block':
         this.block(node.body!);
@@ -447,7 +462,11 @@ class Lowerer {
   }
 
   ifStatement(node: IrStatement): void {
-    if (node.else) {
+    // node.else is `[]` for a present-but-empty `else {}`, not just absent
+    // (null) — falling into the two-label form for that wastes a 3-byte
+    // JMP jumping to code that does nothing, so an empty else is treated
+    // the same as no else at all.
+    if (node.else?.length) {
       const elseLabel = freshLabel('else');
       const end = freshLabel('endif');
       this.branchIfFalse(node.test!, elseLabel);
@@ -476,7 +495,7 @@ class Lowerer {
 
   forStatement(node: IrStatement): void {
     const mark = this.locals.mark();
-    let declared: string | null = null;
+    let declared: Declared | null = null;
     if (node.init) declared = this.statement(node.init as IrStatement);
 
     const top = freshLabel('for');
@@ -491,7 +510,7 @@ class Lowerer {
     if (node.update) this.statement(node.update);
     this.emit(jmp(top), label(end));
 
-    if (declared) this.symbols.delete(declared);
+    if (declared) this.unscope([declared]);
     this.locals.release(mark);
   }
 }

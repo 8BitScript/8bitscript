@@ -9,6 +9,7 @@ import {
   build, outputExtension, CPU, reduceRatio, frameRatio, FRAME_SYNC,
 } from '../src/mos/index.ts';
 import type { IrProgram, Machine, RatioPair } from '../src/mos/index.ts';
+import type { IrStatement } from '../src/mos/lower/index.ts';
 
 const ir: IrProgram = { entry: 'main', functions: [{ name: 'main', body: [] }], globals: [] };
 
@@ -169,8 +170,72 @@ test('build() for the PET lowers a real for-loop, local, and computed memoryWrit
     const result = await build(sumZeroToNineIr, { machine: 'pet', hardware, outFile, frameRate: 60 });
     assert.equal(result.ok, true, result.ok ? '' : result.error);
     if (!result.ok) return;
-    assert.deepEqual(result.memory, { variables: 3, program: 65 }); // sum + i (locals) + one CLC-through temp, at most live at once
-    assert.equal(result.bytes.length, 65);
+    assert.deepEqual(result.memory, { variables: 3, program: 66 }); // sum + i (locals) + one CLC-through temp, at most live at once; the extra program byte is the one-time CLD this program's own ADC earns it
+    assert.equal(result.bytes.length, 66);
+    assert.deepEqual([...await readFile(outFile)], [...result.bytes]);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+// The roadmap's own milestone-6 test list names "a loop body larger than
+// 127 bytes" — relax.test.ts proves the relaxation mechanism in isolation
+// with synthetic NOPs, but not that build()'s real pipeline (lower() then
+// link()'s place(), which is what actually calls assembleRelaxed) reaches
+// it. A while loop's own forward branch (test-false jumps past the body,
+// to after it) is what goes out of range here: 30 literal memoryWrites at
+// 5 bytes each (LDA absolute-address immediate + STA absolute, since every
+// target is above $00FF) is 150 bytes of body, comfortably past the
+// ±127 a plain BEQ/BNE can reach on its own.
+const bigLoopBody: IrStatement[] = Array.from({ length: 30 }, (_, i) => ({
+  kind: 'memoryWrite',
+  address: { kind: 'const', value: 0x8100 + i, type: 'usmallint' },
+  value: { kind: 'const', value: 1, type: 'utinyint' },
+}));
+const longWhileIr: IrProgram = {
+  entry: 'main',
+  functions: [{
+    name: 'main',
+    body: [
+      { kind: 'local', name: 'i', type: 'utinyint', init: { kind: 'const', value: 0, type: 'utinyint' } },
+      {
+        kind: 'while',
+        test: {
+          kind: 'binop', operator: '<',
+          left: { kind: 'ref', name: 'i', type: 'utinyint' },
+          right: { kind: 'const', value: 1, type: 'utinyint' },
+          type: 'bool',
+        },
+        body: [
+          ...bigLoopBody,
+          {
+            kind: 'assign', target: 'i',
+            value: {
+              kind: 'binop', operator: '+',
+              left: { kind: 'ref', name: 'i', type: 'utinyint' },
+              right: { kind: 'const', value: 1, type: 'utinyint' },
+              type: 'utinyint',
+            },
+          },
+        ],
+      },
+    ],
+  }],
+  globals: [],
+};
+
+test('build() for a while loop whose body is over 127 bytes still assembles — the branch relaxer is reached through the real pipeline, not just exercised in isolation', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+  try {
+    const outFile = join(scratch, 'out.prg');
+    const result = await build(longWhileIr, { machine: 'pet', hardware, outFile, frameRate: 60 });
+    assert.equal(result.ok, true, result.ok ? '' : result.error);
+    if (!result.ok) return;
+    // 30 * 5 (literal memoryWrites) + ~13 (local init, loop test/branch,
+    // update, CLD/RTS/labels) would be an ordinary BNE/BEQ at 2 bytes; the
+    // relaxed form spends 5 (an inverted branch + a JMP) instead — the
+    // exact overhead the relaxer's own header comment describes.
+    assert.ok(result.bytes.length > 150, `expected a program over 150 bytes, got ${result.bytes.length}`);
     assert.deepEqual([...await readFile(outFile)], [...result.bytes]);
   } finally {
     await rm(scratch, { recursive: true, force: true });
