@@ -30,29 +30,30 @@ managed runtime that normally comes with it.
 ## Target systems
 
 8BitScript targets the 6502 family of 8-bit machines, plus the browser.
-Machines are added in phases, and the phases are ordered so that each one
-forces the compiler to prove something new: first that the language is
-separate from the VIC-20's hardware, then that it is not a game language in
-disguise, then that it is not tied to Commodore at all.
+**Version 0.2.0 builds for two of them: the Commodore PET and the web.**
+It is the release in which 8BitScript replaces the external toolchains it
+used to lean on with its own code generators, assembler, linker, and file
+writers, and the PET is the machine that work is brought up on: a stock
+6502, a screen that is plain RAM, no colour, no video chip to program. The
+web is the other half because its runtime is the reference every portable
+package is written against. The roadmap to the first program, `HELLO
+WORLD` on a PET, is the working document titled
+[Hello, PET](https://claude.ai/code/artifact/ada33539-fa98-46a7-a9a1-36532c8a2164).
 
-| Phase | Targets | Goal |
-| ----- | ------- | ---- |
-| 0 | Web + 6502 simulator | Prove the compiler |
-| 1 | VIC-20 + C64 + Web | Ship a usable 8BitScript (0.1) |
-| 2 | PET + C128 | The Commodore family |
-| 3 | Atari 8-bit + NES | Prove real portability |
-| 4 | Commander X16 + MEGA65 | Powerful 65xx systems |
-| 5 | Apple II + C16/Plus/4 + BBC Micro + Oric | Broaden the classics |
-| 6 | Atari 5200 + Lynx + PC Engine + Supervision | Specialist platforms |
-| 7 | Atari 2600 | Torture-test low-level control |
-| 8 | Game Boy + Z80 family | First non-6502 backends |
+| Machine | In 0.2.0 | Package |
+| ------- | -------- | ------- |
+| Commodore PET | **yes**, the first native target | `@8bitscript/pet` |
+| Web (WebAssembly) | **yes** | `@8bitscript/web` |
+| VIC-20, C64, C128 | parked: return with the shared `.prg` path once the PET boots | `@8bitscript/vic20` `@8bitscript/c64` `@8bitscript/c128` |
+| Atari 8-bit, NES, Commander X16, MEGA65 | parked: each needs its own startup, file writer, and CPU-variant row | `@8bitscript/atari8` `@8bitscript/nes` `@8bitscript/cx16` `@8bitscript/mega65` |
 
-Nine machine packages exist (`web`, `vic20`, `c64`, `pet`, `c128`, `atari8`,
-`nes`, `cx16`, `mega65`). **No target builds on trunk until the native
-backends land (0.2.0).** Each phase also names a native reference machine
-(C64, then C128, then Commander X16) on which 8BitScript's own development
-tools are written and then ported forward. The full plan, with the reasoning
-behind each phase, is in [the roadmap](docs/roadmap.md).
+A parked machine's package stays in the workspace, its sources still link,
+and a program written for it still passes `8bs check`; `8bs build` and `8bs
+run` refuse it with a message until its backend lands. The list of what this
+release builds for is `RELEASE_MACHINES` in the compiler's resolver, read by
+the CLI and the editor rather than kept twice. **No target builds on trunk
+until the native backends land**; every build stops with a clear message.
+The earlier phase-by-phase ordering of machines is on hold behind this.
 
 ## Architecture
 
