@@ -44,9 +44,14 @@ pnpm exec 8bs build --target web
 npx wrangler deploy
 ```
 
+Workers Builds (a Git-connected Worker) auto-runs `pnpm run build`, then
+`npx wrangler deploy`. That `build` script has to be `--target web`: a 6502
+target needs `LLVM_MOS_HOME`, which the build image does not have. Pin Node
+26 with `.nvmrc` — the CLI's `engines` field is `>=26`, and the image
+defaults to 24. `2048` ships this shape at `2048.8bitscript.com`.
+
 The first deploy against a custom domain needs that hostname's zone already
-in the same Cloudflare account. `2048` ships this shape at
-`2048.8bitscript.com`.
+in the same Cloudflare account.
 
 ## Touch
 
