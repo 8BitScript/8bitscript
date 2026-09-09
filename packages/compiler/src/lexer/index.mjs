@@ -111,6 +111,13 @@ function isOperandToken(tok) {
   }
 }
 
+/** Offset of the next newline at or after `j`, or `text.length` if there is none. Shared by every `;`/`//`-style comment scanner that just runs to end-of-line. */
+function skipToLineEnd(text, j) {
+  let k = j;
+  while (k < text.length && text[k] !== '\n') k += 1;
+  return k;
+}
+
 /**
  * Skips one `'`/`"`-quoted run starting at `text[j]`, stopping at the
  * closing quote, a newline, or end of file. Shared by `scanAsmBlock` (a
@@ -151,7 +158,7 @@ function scanAsmBlock(text, openBrace) {
   while (j < text.length) {
     const c = text[j];
     if (c === ';') {
-      while (j < text.length && text[j] !== '\n') j += 1;
+      j = skipToLineEnd(text, j);
       continue;
     }
     if (c === '"' || c === "'") {
@@ -263,13 +270,11 @@ export function tokenize(text, file = '<unknown>') {
     let depth = 1;
     while (i < text.length && text[i] !== '\n') {
       if (text[i] === '"' || text[i] === "'") {
-        const quote = text[i];
-        i += 1;
-        while (i < text.length && text[i] !== '\n') {
-          if (skipStringEscape()) continue;
-          if (text[i] === quote) { i += 1; break; }
-          i += 1;
-        }
+        // skipQuoted's own escape handling is exactly skipStringEscape's —
+        // both refuse to step over a newline — so it's safe to reuse here
+        // even though this quote sits inside a `${...}` field, not a
+        // top-level string.
+        i = skipQuoted(text, i);
         continue;
       }
       if (text[i] === '{') depth += 1;
@@ -451,6 +456,40 @@ export function tokenize(text, file = '<unknown>') {
     return true;
   };
 
+  // `%` is also the modulo operator, so `%101` is a binary literal only where
+  // a value is expected: after an identifier, a literal, or a closing bracket
+  // the `%` in `x%2` has to be modulo. `$` has no such conflict. Look past
+  // comments: `x/*c*/%2` is still modulo.
+  const startsNumber = () => {
+    const c = text[i];
+    if (isDigit(c)) return true;
+    if (c === '$') return /[0-9a-fA-F]/.test(text[i + 1] ?? '');
+    if (c === '%') return /[01]/.test(text[i + 1] ?? '') && !isOperandToken(lastSignificant(tokens));
+    return false;
+  };
+
+  // What starts here, and the scanner that reads it — checked top to
+  // bottom, first match wins. Kept as data rather than a chain of `if`s
+  // in the loop below so tokenize() itself stays a single dispatch step
+  // (find the entry, run its scanner) no matter how many token kinds
+  // exist; every kind's own matching logic still lives with its scanner,
+  // right above. Operator matching alone stays outside this table — its
+  // own OPERATORS.find() already doubles as an answer to "did anything
+  // match," so it's the fallback after the table instead of a redundant
+  // test/scan pair.
+  const DISPATCH = [
+    { starts: () => text[i] === '/' && text[i + 1] === '/', scan: scanLineComment },
+    { starts: () => text[i] === '/' && text[i + 1] === '*', scan: scanBlockComment },
+    { starts: () => text[i] === '"' || text[i] === "'", scan: scanString },
+    { starts: () => text[i] === '`', scan: scanTemplate },
+    { starts: startsNumber, scan: scanNumber },
+    { starts: () => text[i] === '#' && isIdentStart(text[i + 1] ?? ''), scan: () => scanSigilWord(TokenKind.CompileTime) },
+    { starts: () => text[i] === '@' && isIdentStart(text[i + 1] ?? ''), scan: () => scanSigilWord(TokenKind.Decorator) },
+    { starts: () => isIdentStart(text[i]), scan: scanIdentifier },
+    { starts: () => OPEN_BRACKETS.has(text[i]), scan: scanOpenBracket },
+    { starts: () => text[i] in BRACKET_PAIRS, scan: scanCloseBracket },
+  ];
+
   while (i < text.length) {
     const c = text[i];
 
@@ -459,30 +498,8 @@ export function tokenize(text, file = '<unknown>') {
       continue;
     }
 
-    if (c === '/' && text[i + 1] === '/') { scanLineComment(); continue; }
-    if (c === '/' && text[i + 1] === '*') { scanBlockComment(); continue; }
-
-    if (c === '"' || c === "'") { scanString(); continue; }
-
-    if (c === '`') { scanTemplate(); continue; }
-
-    // `%` is also the modulo operator, so `%101` is a binary literal only where
-    // a value is expected: after an identifier, a literal, or a closing bracket
-    // the `%` in `x%2` has to be modulo. `$` has no such conflict. Look past
-    // comments: `x/*c*/%2` is still modulo.
-    const prevIsOperand = isOperandToken(lastSignificant(tokens));
-    const startsBinaryLiteral = c === '%' && /[01]/.test(text[i + 1] ?? '') && !prevIsOperand;
-    const startsHexLiteral = c === '$' && /[0-9a-fA-F]/.test(text[i + 1] ?? '');
-    if (isDigit(c) || startsHexLiteral || startsBinaryLiteral) { scanNumber(); continue; }
-
-    if (c === '#' && isIdentStart(text[i + 1] ?? '')) { scanSigilWord(TokenKind.CompileTime); continue; }
-    if (c === '@' && isIdentStart(text[i + 1] ?? '')) { scanSigilWord(TokenKind.Decorator); continue; }
-
-    if (isIdentStart(c)) { scanIdentifier(); continue; }
-
-    if (OPEN_BRACKETS.has(c)) { scanOpenBracket(); continue; }
-    if (c in BRACKET_PAIRS) { scanCloseBracket(); continue; }
-
+    const entry = DISPATCH.find((d) => d.starts());
+    if (entry) { entry.scan(); continue; }
     if (scanOperator()) continue;
 
     diagnostics.push(
