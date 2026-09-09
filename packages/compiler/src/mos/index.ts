@@ -1,9 +1,20 @@
 // The 6502 backend: IR in, machine code out.
 //
-// Not implemented yet (Hello, PET, milestone 1). This file holds the
-// contract the CLI calls and the machine facts a future code generator will
-// need: the instruction-set variant of each CPU, the file extension a build
-// produces, and the frame-sync numbers `waitFrame()` is paced against.
+// Instruction selection is not implemented yet (that starts at milestone
+// 4): `build()` for the PET writes the file format and the boot path only
+// — a BASIC stub that SYS's into a startup routine which is just RTS, no
+// lowered program body — which is milestone 1's whole job. This file also
+// holds the contract the CLI calls and the machine facts the future code
+// generator will need: the instruction-set variant of each CPU, the file
+// extension a build produces, and the frame-sync numbers `waitFrame()` is
+// paced against.
+import { mkdir, writeFile } from 'node:fs/promises';
+import { dirname } from 'node:path';
+
+import { basicStub } from './basic-stub.ts';
+import { prgBytes } from './prg.ts';
+import { startupBytes } from './startup/commodore.ts';
+
 /** The linked program. Untyped until the rest of this package grows declarations. */
 type IrProgram = unknown;
 
@@ -45,6 +56,18 @@ export const CPU: Record<Machine, CpuVariant> = {
   atari8: { core: '6502', decimalMode: true, jmpIndirectPageBug: true, extraOpcodes: NONE, undocumentedOpcodes: true },
 };
 
+// Where BASIC's own program area starts, and so where a Commodore .prg's
+// load address and boot stub go — the same on every model of a machine
+// (a PET's --profile only changes RAM size and columns, never this).
+// Only the PET builds in 0.2.0; the other two entries are milestone 1's own
+// roadmap note that the C64 and VIC-20 need just this number to follow,
+// once RELEASE_MACHINES lets them.
+const LOAD_ADDRESS: Partial<Record<Machine, number>> = {
+  pet: 0x0401,
+  c64: 0x0801,
+  vic20: 0x1001,
+};
+
 /** The file extension a build for this machine and hardware produces. */
 export function outputExtension(machine: Machine, hardware?: BuildOptions['hardware']): string {
   if (hardware?.build?.output) return hardware.build.output;
@@ -61,10 +84,21 @@ export async function build(_ir: IrProgram, options: BuildOptions): Promise<Buil
       error: `the ${options.machine} is not a target in 0.2.0: the native 6502 backend is being brought up on the PET first (Hello, PET), and the other 6502 machines return in a later release`,
     };
   }
-  return {
-    ok: false,
-    error: 'the native 6502 backend is not implemented yet (Hello, PET, milestone 1): nothing can be built for the PET until it is',
-  };
+
+  // No instruction selection yet (milestone 4 on): the body is always just
+  // the startup routine's RTS. `_ir` is unused until lowering exists to
+  // read it.
+  const loadAddress = LOAD_ADDRESS.pet!;
+  const { bytes: stub } = basicStub(loadAddress);
+  const body = new Uint8Array(stub.length + 1);
+  body.set(stub, 0);
+  body.set(startupBytes(), stub.length);
+  const bytes = prgBytes(loadAddress, body);
+
+  await mkdir(dirname(options.outFile), { recursive: true });
+  await writeFile(options.outFile, bytes);
+
+  return { ok: true, bytes, memory: { variables: 0, program: bytes.length } };
 }
 
 // ---- waitFrame() pacing ----------------------------------------------------
