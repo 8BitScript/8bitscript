@@ -651,6 +651,37 @@ test('a bool is refused rather than zero-extended into a 16-bit target — the c
   assert.match(result.error, /'ref' is 'bool': can't widen a bool into a 16-bit value/);
 });
 
+test('a 16-bit expression kind with no rule yet fails naming it, not silently', () => {
+  const result = lower([local('x', { kind: 'call', name: 'f', args: [], type: 'usmallint' }, 'usmallint')], ctx());
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /no 16-bit instruction-selection rule yet for the 'call' expression/);
+});
+
+test('exprTo16 refuses a value with no type at all, rather than assuming a width', () => {
+  const result = lower([assign('wide', { kind: 'const', value: 5 })], ctx([['wide', { address: 0x10, type: 'usmallint' }]]));
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /'const': no type on this IR node/);
+});
+
+test('exprTo16 refuses a value wider than 8 bits and narrower than 16 — no widening rule for it', () => {
+  const result = lower([assign('wide', ref('n', 'int'))], ctx([['wide', { address: 0x10, type: 'usmallint' }], ['n', { address: 0x20, type: 'int' }]]));
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /'ref' is 'int' \(4 bytes\): only an 8-bit value can widen into 16 bits/);
+});
+
+test('a comparison on a type wider than 16 bits is refused, not silently truncated to a byte or a pair', () => {
+  const result = lower(
+    [ifNode(bin('==', ref('a', 'int'), ref('b', 'int'), 'bool'), [])],
+    ctx([['a', { address: 0x10, type: 'int' }], ['b', { address: 0x20, type: 'int' }]]),
+  );
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /the '==' comparison operates on a 4-byte type — only 1- and 2-byte comparisons are lowered yet/);
+});
+
 test('a 16-bit `ref` returns the binding\'s own address unchanged — no copy for a plain read', () => {
   const result = lower([local('out', ref('cell', 'usmallint'), 'usmallint')], ctx([['cell', { address: 0x10, type: 'usmallint' }]]));
   assert.equal(result.ok, true, result.ok ? '' : result.error);

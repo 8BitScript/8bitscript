@@ -580,6 +580,50 @@ test('an array parameter is refused by name — not lowered yet', async () => {
   }
 });
 
+test('a parameter wider than 16 bits is refused by name — only 8-bit and 16-bit parameters are lowered', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+  try {
+    const outFile = join(scratch, 'out.prg');
+    const wideParamIr: IrProgram = {
+      entry: 'main',
+      functions: [
+        { name: 'main', params: [], returnType: 'void', body: [] },
+        { name: 'f', params: [{ name: 'n', type: 'int' }], returnType: 'void', body: [] },
+      ],
+      globals: [],
+    };
+    const result = await build(wideParamIr, { machine: 'pet', hardware, outFile, frameRate: 60 });
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.match(result.error, /'f\(n\)' is 'int' \(4 bytes\): only 8-bit and 16-bit parameters are lowered yet/);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('a 16-bit parameter that only has one byte of zero page left is refused, naming both what is left and what is needed', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+  try {
+    const outFile = join(scratch, 'out.prg');
+    // 113 one-byte globals leave exactly 1 byte of the 114-byte budget —
+    // not enough for a usmallint parameter's own 2.
+    const almostFullIr: IrProgram = {
+      entry: 'main',
+      functions: [
+        { name: 'main', params: [], returnType: 'void', body: [] },
+        { name: 'place', params: [{ name: 'cell', type: 'usmallint' }], returnType: 'void', body: [] },
+      ],
+      globals: Array.from({ length: 113 }, (_, i) => ({ name: `g${i}`, type: 'utinyint', address: null })),
+    };
+    const result = await build(almostFullIr, { machine: 'pet', hardware, outFile, frameRate: 60 });
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.match(result.error, /ran out of zero page assigning 'place\(cell\)' its parameter slot \(1 byte\(s\) left, 2 needed\)/);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
 // Milestone 7's own gate: a hand-written putChar(cell, code), called once
 // per character of HELLO WORLD from main() — real parameters, a real
 // calling convention, JSR/RTS, argument order, all through the real
