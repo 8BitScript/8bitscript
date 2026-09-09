@@ -63,6 +63,27 @@
           "label": "Model",
           "default": "3032",
           "values": {
+            "2001": {
+              "label": "2001: 40 columns, 4K",
+              "build": {
+                "defsym": {
+                  "__ram_size": 4
+                }
+              },
+              "run": {
+                "xpet": [
+                  "-model",
+                  "2001",
+                  "-ramsize",
+                  "4"
+                ]
+              },
+              "facts": {
+                "video.columns": 40,
+                "memory.ram": 3071,
+                "video.frameRate": 60
+              }
+            },
             "3008": {
               "label": "3008: 40 columns, 8K",
               "build": {
@@ -219,6 +240,9 @@
         }
       },
       "presets": {
+        "2001": {
+          "model": "2001"
+        },
         "3008": {
           "model": "3008"
         },

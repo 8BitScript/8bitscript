@@ -13,7 +13,12 @@ test('the PET is not a region-keyed VICE model: the model option is the xpet -mo
   const catalog = loadCatalog('pet');
   for (const model of Object.keys(catalog.options.model.values)) {
     const { hardware } = resolveHardware(catalog, { overrides: { model } });
-    assert.deepEqual(hardware.run.xpet, ['-model', model]);
+    // Every model name but "2001" already encodes its RAM in the digits
+    // (30-08 is 8K, 40-32 is 32K, ...); "2001" alone is the one real PET
+    // that shipped with either 4K or 8K, so VICE's own -model 2001 preset
+    // does not imply a size and needs -ramsize spelled out beside it.
+    const expected = model === '2001' ? ['-model', '2001', '-ramsize', '4'] : ['-model', model];
+    assert.deepEqual(hardware.run.xpet, expected);
     const fps = hardware.facts['video.frameRate'];
     assert.ok(fps === 50 || fps === 60, model);
   }
