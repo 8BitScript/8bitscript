@@ -58,6 +58,30 @@ test('shipped bug: modulo is not a binary literal', () => {
   assert.equal(literal.value, 5);
 });
 
+test('shipped bug: comments do not turn modulo into a binary literal', () => {
+  const significant = (src) => tokenize(src, 't').tokens.filter((t) => t.kind !== 'comment');
+  for (const src of ['x/*c*/%2', 'true%2', 'false%2', 'i++%2']) {
+    const tokens = significant(src);
+    const percent = tokens.find((t) => t.text === '%');
+    assert.equal(percent?.kind, 'operator', `${src}: % should be modulo`);
+    const number = tokens.find((t) => t.kind === 'number');
+    assert.equal(number?.value, 2, `${src}: 2 is decimal`);
+    assert.equal(number?.radix, 10, `${src}: 2 is decimal`);
+  }
+});
+
+test('shipped bug: a backslash does not continue a string onto the next line', () => {
+  const { tokens, diagnostics } = tokenize('"hello\\\nworld"', 't');
+  assert.equal(diagnostics[0]?.code, '8BS1002');
+  assert.equal(tokens[0].kind, 'string');
+  assert.equal(tokens[0].unterminated, true);
+  assert.ok(!tokens[0].text.includes('world'), 'the next line is not inside the string');
+});
+
+test('shipped bug: asm6502 brace depth skips assembly comments', () => {
+  parsesClean('asm6502 {\n    lda #0 ; wait for { vsync\n    sta $900f\n}\n');
+});
+
 test('shipped bug: no token may carry NaN', () => {
   for (const src of ['let y: u8 = x%2;', 'let z: u8 = 0x;', 'a%b;']) {
     for (const t of tokenize(src, 't').tokens) {
