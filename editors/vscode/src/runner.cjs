@@ -543,8 +543,14 @@ function registerRunner(context, output) {
     const { project, target, hardware, region } = resolved;
     if (!requireToolchain(project)) return;
     if (!(await requireInstalled(project))) return;
+    // An explicit hardware selection (a project's own named system, from
+    // launch()) rides through untouched; otherwise nothing chosen means
+    // the machine's worst RAM config, not its catalog stock — see
+    // settings.getEffectiveHardware.
+    const effectiveHardware = hardware
+      ?? settings.getEffectiveHardware(target, (await projects.loadTargets(project.dir))?.get(target));
     await vscode.tasks.executeTask(
-      makeTask(project, action, target, region ?? settings.getRegion(), hardware),
+      makeTask(project, action, target, region ?? settings.getRegion(), effectiveHardware),
     );
   }
 
@@ -677,13 +683,17 @@ function registerRunner(context, output) {
       vscode.window.showWarningMessage(`${labelOf(project)} does not target ${target}, so it cannot be one of its systems.`);
       return;
     }
-    const hardware = settings.getHardware(target);
+    const catalogTarget = (await projects.loadTargets(project.dir))?.get(target);
+    // What the panel is actually fitted with — the stored selection, or
+    // the worst-RAM default it falls back to — not just what was stored,
+    // so Save writes down the machine a Run would really use.
+    const hardware = settings.getEffectiveHardware(target, catalogTarget);
     const region = settings.getRegion();
     // Whether this machine has a region at all is the toolchain's answer,
     // not this extension's: writing `region: 'pal'` for a machine the CLI
     // says has none would make a config it refuses, and the panel would
     // lose its systems over a Save it was asked to do.
-    const hasRegion = (await projects.loadTargets(project.dir))?.get(target)?.region ?? false;
+    const hasRegion = catalogTarget?.region ?? false;
     const entry = {
       target,
       profile: hardware.profile,

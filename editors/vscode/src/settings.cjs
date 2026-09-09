@@ -6,7 +6,7 @@
 const vscode = require('vscode');
 
 const { ALL_TARGETS } = require('./projects.cjs');
-const { normalizeSelection } = require('./hardwareCatalog.cjs');
+const { normalizeSelection, worstSelection } = require('./hardwareCatalog.cjs');
 
 const SECTION = '8bitscript';
 
@@ -93,6 +93,26 @@ function getHardware(system) {
   return normalizeSelection(all && typeof all === 'object' ? all[system] : undefined);
 }
 
+/**
+ * What a run actually fits the machine with: the stored selection, or —
+ * when nothing is stored — the machine's worst RAM config rather than its
+ * catalog stock, so a first run tests a program against the smallest
+ * machine it is meant to fit rather than the roomiest one the catalog
+ * happens to default to. `target` is the catalog entry from
+ * `parseTargets()` (`8bs targets --json`, already asked for whatever else
+ * a caller needs it for); with none available yet, this falls back to
+ * plain stock the same as `getHardware` alone would.
+ *
+ * @param {string} system
+ * @param {object|null|undefined} target
+ * @returns {{ profile: string|null, options: Record<string, string> }}
+ */
+function getEffectiveHardware(system, target) {
+  const stored = getHardware(system);
+  if (stored.profile !== null || Object.keys(stored.options).length > 0) return stored;
+  return target ? worstSelection(target) : stored;
+}
+
 /** Store one system's hardware selection, leaving the others as they are. */
 async function setHardware(system, selection) {
   const all = config().get('hardware');
@@ -118,6 +138,7 @@ function regionShort(region) {
 module.exports = {
   REGIONS,
   affectsAny,
+  getEffectiveHardware,
   getExamplesPath,
   getHardware,
   getProject,
