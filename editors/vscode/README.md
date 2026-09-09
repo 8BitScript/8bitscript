@@ -129,13 +129,14 @@ builds.
   region and all — and a project with none keeps the current machine when
   it targets it.
 
-  **Shipped sample programs are not in the list by default**
-  (`8bitscript.showExamples`). This repository no longer carries an
-  `examples/` tree; the picker exists to reach *your* projects. The 📖 in
-  the title bar puts shipped samples back if a release brings any. **Launch
-  Example…** reaches them either way, and one that is already selected stays
-  in the list even with the toggle off, so hiding them never blanks the
-  picker.
+  **The examples that ship with the toolchain are in the list** under an
+  *Examples* heading of their own (`8bitscript.showExamples`, on by
+  default). They come from `@8bitscript/examples`, which `@8bitscript/cli`
+  depends on, so any project that has installed the CLI has them — the
+  `hello-raw` and `hello` programs the 0.2.0 PET backend is built against
+  first. The 📖 in the title bar hides or shows them. **Launch Example…**
+  reaches them either way, and one that is already selected stays in the
+  list even with the toggle off, so hiding them never blanks the picker.
 - **System** — where the program runs. A project whose `8bs.config.ts`
   declares a
   [`systems` block](../../docs/systems.md#the-machines-a-project-is-set-up-for)
@@ -246,8 +247,8 @@ maintain. A `package.json` on its own does not count — every package in a
 monorepo has one. The search covers every workspace folder, skips
 `node_modules`, `.git`, and `.claude/worktrees`, and the launcher refreshes
 itself when a config file is added, removed, or edited.
-`8bitscript.examplesPath` names a different examples directory if you have
-one.
+`8bitscript.examplesPath` names a directory of your own examples instead of
+the shipped ones, if you have one.
 
 **Launch Studio**, **Launch App…**, and **Launch Example…** start one of
 the shipped programs without making it the selected project: pick it (when

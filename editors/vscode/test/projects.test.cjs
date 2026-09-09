@@ -11,16 +11,16 @@ const {
   ALL_TARGETS,
   BINARY,
   DEFAULT_ENTRY,
-  EXAMPLES_DIR,
   byKind,
   cliPackageDir,
   commandArgs,
-  findExamplesDir,
+  examplesManifest,
   findToolchain,
   isInstalled,
   kindOf,
   loadApps,
   loadExamples,
+  loadExamplesFrom,
   insertSystem,
   ofKind,
   systemLine,
@@ -179,8 +179,10 @@ test('parseConfig reads the object form of targets — the machines composing pr
 });
 
 /**
- * A checkout of the repository, as the tests see it: the CLI package, one
- * example, and one app — plus a note beside them that is neither.
+ * A checkout of the repository, as the tests see it: the CLI package, the
+ * examples package with one example that exists and one the manifest
+ * names but that is missing, and one app — plus a library beside them
+ * that is neither.
  */
 function checkout(root) {
   const repo = path.join(root, '8bitscript');
@@ -193,8 +195,17 @@ function checkout(root) {
   }));
   write(path.join(repo, 'packages', 'studio', '8bs.config.ts'), "export default { targets: ['cx16', 'pet'] };");
   write(path.join(repo, 'packages', 'text', 'package.json'), JSON.stringify({ name: '@8bitscript/text' }));
-  write(path.join(repo, EXAMPLES_DIR, 'border', '8bs.config.ts'), 'export default {};');
-  write(path.join(repo, EXAMPLES_DIR, 'notes.md'), '');
+  write(path.join(repo, 'packages', 'examples', 'package.json'), JSON.stringify({
+    name: '@8bitscript/examples',
+    '8bitscript': {
+      examples: {
+        hello: { title: 'Hello, PET', dir: './hello', description: 'HELLO WORLD through the text package.' },
+        missing: { title: 'Not there', dir: './missing' },
+      },
+    },
+  }));
+  write(path.join(repo, 'packages', 'examples', 'hello', '8bs.config.ts'), "export default { targets: { pet: {}, web: {} } };");
+  write(path.join(repo, 'packages', 'examples', 'notes.md'), '');
   return repo;
 }
 
@@ -232,37 +243,53 @@ test('cliPackageDir follows either kind of toolchain link back to the CLI packag
   assert.equal(cliPackageDir(stray), null);
 });
 
-test('findExamplesDir finds examples/ beside a repository checkout', (t) => {
+test('loadExamples finds the examples the shipped manifest names, through either kind of toolchain link', (t) => {
   const root = scratch(t);
   const repo = checkout(root);
-  const examples = path.join(repo, EXAMPLES_DIR);
-  assert.equal(findExamplesDir(linkedConsumer(root, repo, 'game')), examples);
-  assert.equal(findExamplesDir(shimmedConsumer(root, repo, 'shimmed')), examples);
-  assert.equal(findExamplesDir(null), null);
-
-  const loaded = loadExamples(examples);
-  assert.deepEqual(loaded.map((p) => [p.name, p.kind, p.shipped]), [['border', 'example', true]]);
+  for (const bin of [linkedConsumer(root, repo, 'game'), shimmedConsumer(root, repo, 'shimmed')]) {
+    const loaded = loadExamples(bin);
+    // The manifest's name, title and description; the directory inside the
+    // package; marked shipped; an entry whose directory is missing is skipped.
+    assert.deepEqual(loaded.map((p) => [p.name, p.title, p.kind, p.shipped, p.description, p.targets]), [
+      ['hello', 'Hello, PET', 'example', true, 'HELLO WORLD through the text package.', ['pet', 'web']],
+    ]);
+    assert.equal(loaded[0].dir, path.join(repo, 'packages', 'examples', 'hello'));
+    // An example runs with the toolchain that found it and has no install of its own to be missing.
+    assert.equal(loaded[0].toolchain, bin);
+    assert.equal(loaded[0].installed, true);
+  }
+  assert.deepEqual(loadExamples(null), []);
 });
 
-test('findExamplesDir returns null for a toolchain with no examples beside it', (t) => {
+test('loadExamples is empty for a toolchain that ships no examples package', (t) => {
   const root = scratch(t);
   const repo = path.join(root, 'bare');
   write(path.join(repo, 'packages', 'cli', 'package.json'), JSON.stringify({ name: '@8bitscript/cli' }));
   write(path.join(repo, 'packages', 'cli', 'bin', '8bs.mjs'), '');
-  assert.equal(findExamplesDir(linkedConsumer(root, repo, 'game')), null);
+  assert.deepEqual(loadExamples(linkedConsumer(root, repo, 'game')), []);
 });
 
-test('kindOf: an app declares itself, an example is placed, everything else is a project', () => {
+test('loadExamplesFrom lists the projects directly under a directory of your own examples', (t) => {
+  const root = scratch(t);
+  write(path.join(root, 'mine', 'border', '8bs.config.ts'), 'export default {};');
+  write(path.join(root, 'mine', 'notes.md'), '');
+  write(path.join(root, 'mine', 'deeper', 'nested', '8bs.config.ts'), 'export default {};');
+  assert.deepEqual(loadExamplesFrom(path.join(root, 'mine')).map((p) => [p.name, p.kind, p.shipped]), [['border', 'example', true]]);
+  assert.deepEqual(loadExamplesFrom(path.join(root, 'nowhere')), []);
+});
+
+test('examplesManifest reads the 8bitscript.examples field, an object keyed by name', () => {
+  assert.deepEqual(examplesManifest({ '8bitscript': { examples: { hello: { dir: './hello' } } } }), { hello: { dir: './hello' } });
+  assert.equal(examplesManifest({ '8bitscript': { examples: ['hello'] } }), null, 'an array is not the shape');
+  assert.equal(examplesManifest({ '8bitscript': { entry: './src/index.8bs' } }), null, 'a library ships none');
+  assert.equal(examplesManifest(null), null);
+});
+
+test('kindOf: an app declares itself, everything else is a project; examples are the manifest\'s to name', () => {
   const app = { name: '@8bitscript/studio', '8bitscript': { app: { title: 'Studio' } } };
   assert.equal(kindOf('/repo/packages/studio', app), 'app');
-  // Placed, not declared: anything directly under an `examples` directory
-  // is an example, with or without a package.json of its own.
-  assert.equal(kindOf('/repo/examples/borders', null), 'example');
-  assert.equal(kindOf('/repo/examples/borders', { name: 'borders' }), 'example');
-  // One level only. A directory nested deeper is a project the user
-  // happens to keep near the examples, not one of them.
-  assert.equal(kindOf('/repo/examples/group/borders', null), 'project', 'directly under examples/, not deeper');
-  assert.equal(kindOf('/repo/borders', null), 'project', 'and under examples/, not anywhere');
+  // Placement no longer makes an example: only the examples package's manifest does.
+  assert.equal(kindOf('/repo/examples/borders', null), 'project');
   assert.equal(kindOf('/repo/game', { '8bitscript': { entry: './src/index.8bs' } }), 'project', 'a library is not an app');
   assert.equal(kindOf('/repo/game', { '8bitscript': { app: true } }), 'project', 'the app field is an object');
 });
@@ -301,9 +328,12 @@ test('loadProject reads the kind and an app title from package.json', (t) => {
   assert.equal(studio.kind, 'app');
   assert.equal(studio.title, 'Studio');
   assert.equal(studio.name, '@8bitscript/studio');
-  const border = loadProject(path.join(repo, EXAMPLES_DIR, 'border', '8bs.config.ts'));
-  assert.equal(border.kind, 'example');
-  assert.equal(border.title, 'border', 'a project with no app manifest is titled by its name');
+  // The examples package's own directory is a project on its own terms —
+  // it declares no app manifest and nothing places it — the kind and
+  // title an example gets come from loadExamples()'s overrides instead.
+  const hello = loadProject(path.join(repo, 'packages', 'examples', 'hello', '8bs.config.ts'));
+  assert.equal(hello.kind, 'project');
+  assert.equal(hello.title, 'hello', 'a project with no app manifest is titled by its name');
 });
 
 test('withShipped skips shipped projects the workspace already lists', () => {
@@ -364,6 +394,13 @@ test('packageManagerFor follows the nearest lockfile upward, defaulting to pnpm'
   assert.equal(packageManagerFor(nested), 'npm');
   write(path.join(nested, 'yarn.lock'), '');
   assert.equal(packageManagerFor(nested), 'yarn', 'the closer lockfile wins');
+  const bunny = path.join(root, 'bunny');
+  fs.mkdirSync(bunny, { recursive: true });
+  write(path.join(bunny, 'bun.lock'), '');
+  assert.equal(packageManagerFor(bunny), 'bun');
+  fs.rmSync(path.join(bunny, 'bun.lock'));
+  write(path.join(bunny, 'bun.lockb'), '');
+  assert.equal(packageManagerFor(bunny), 'bun', 'the binary lockfile too');
 });
 
 // Writing a system into an 8bs.config.ts. The config is source, not a

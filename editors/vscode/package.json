@@ -248,7 +248,7 @@
         "8bitscript.examplesPath": {
           "type": "string",
           "default": "",
-          "description": "A directory of examples to list in the launcher's Project dropdown, instead of the one found beside the toolchain. Each subdirectory with an 8bs.config.ts is one."
+          "description": "A directory of your own examples to list in the launcher's Project dropdown, instead of the ones that ship with the toolchain (@8bitscript/examples). Each subdirectory with an 8bs.config.ts is one."
         },
         "8bitscript.hardware": {
           "type": "object",
@@ -274,8 +274,8 @@
         },
         "8bitscript.showExamples": {
           "type": "boolean",
-          "default": false,
-          "description": "List the examples and proofs of concept that ship with the toolchain in the launcher's Project dropdown, in a group of their own beside the workspace's projects and the toolchain's apps. Off by default: in a checkout of the 8bitscript repository they outnumber the projects you are working on. Toggled with the book icon in the 8BitScript side bar's title bar, which is only offered when there are examples to show. Launch Example… reaches them either way."
+          "default": true,
+          "description": "List the examples that ship with the toolchain (@8bitscript/examples, installed with @8bitscript/cli) in the launcher's Project dropdown, in a group of their own under the workspace's projects and beside the toolchain's apps. On by default. Toggled with the book icon in the 8BitScript side bar's title bar, which is only offered when there are examples to show. Launch Example… reaches them either way."
         }
       }
     },

@@ -46,13 +46,13 @@ test('the machine is under the button, and Build is on the project row', () => {
   assert.doesNotMatch(body, /class="wide[^"]*" id="build"/);
 });
 
-test('examples are hidden until asked for', () => {
+test('examples can be hidden, but ship visible by default', () => {
   const runner = fs.readFileSync(path.join(ROOT, 'src', 'runner.cjs'), 'utf8');
   assert.match(runner, /get visible\(\)/, 'what the picker offers');
   assert.match(runner, /getShowExamples\(\)/);
   assert.match(runner, /hasExamples\(\)/, 'and whether the toggle is worth offering');
   const props = MANIFEST.contributes.configuration.properties['8bitscript.showExamples'];
-  assert.equal(props.default, false);
+  assert.equal(props.default, true);
 });
 
 test('the panel launches, picks, and stops', () => {
