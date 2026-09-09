@@ -36,12 +36,14 @@ export type Directive = _AsmDirective;
 export interface IrExpr {
   kind: string;
   value?: number;
-  type?: string;
+  type?: string | null;
   name?: string;
   operator?: string;
   left?: IrExpr;
   right?: IrExpr;
   argument?: IrExpr;
+  // call
+  args?: IrExpr[];
 }
 
 export interface IrStatement {
@@ -55,7 +57,10 @@ export interface IrStatement {
   // a `local` or an `assign` — the same field name, `init`, on both real IR
   // node shapes, so this has to be the loose union rather than two fields).
   name?: string;
-  type?: string;
+  // call's own `type` (its return type) can be null the same way IrExpr's
+  // can (see IrExpr.type's own comment) — everywhere else on this
+  // interface (local, etc.) it's always a real string in practice.
+  type?: string | null;
   init?: IrExpr | IrStatement | null;
   // if
   test?: IrExpr | null;
@@ -65,11 +70,42 @@ export interface IrStatement {
   body?: IrStatement[];
   // for
   update?: IrStatement | null;
+  // call (a bare call statement is the same IR node as a call expression —
+  // see ir/index.mjs's statement(): a CallExpression's own lowered node is
+  // returned directly as the statement, never wrapped)
+  args?: IrExpr[];
+}
+
+export interface IrParam {
+  name: string;
+  type: string;
+  // array only (ir/index.mjs's function()) — refused by name in mos/index.ts's
+  // parameter pass; carried here only so a test fixture describing one
+  // typechecks against the real shape.
+  elementType?: string;
+  length?: number;
 }
 
 export interface IrFunction {
   name: string;
+  // Optional so existing synthetic test fixtures (mos.test.ts) that only
+  // ever cared about `body` don't all need updating for a milestone that
+  // doesn't touch what they're testing — real linked IR (ir/index.mjs's
+  // function()) always sets both. mos/index.ts treats a missing params as
+  // `[]` and a missing returnType as `'void'`.
+  params?: IrParam[];
+  returnType?: string;
   body: IrStatement[];
+}
+
+/** A function's calling interface, computed once (mos/index.ts, before any
+ * lowering — see mos/AGENTS.md) and shared by every call site and by the
+ * function's own body: where each parameter lives, and what label a `JSR`
+ * to it names. */
+export interface FunctionSite {
+  label: string;
+  paramAddresses: number[];
+  returnType: string;
 }
 
 /** One resolvable name: a global (seeded by the caller from zp/index.ts's own allocation) or a local this pass allocates as it lowers a `local` statement. Both live in zero page, so every load/store below uses the 2-byte `zeropage` form unconditionally — nothing here is ever placed past $00FF. */
@@ -87,8 +123,12 @@ interface Declared {
 export interface LowerOptions {
   /** Every global this build's zero-page allocator (milestone 5) already placed, keyed by name. `ref`/`assign` read this first; `local` adds to a private copy as its own declarations come into scope. */
   globals: Map<string, Binding>;
-  /** Zero page left over after globals (`PET_ZP_BUDGET` minus what milestone 5 already spent) — where locals and expression temporaries bump-allocate from, LIFO. Mutated by this call. */
+  /** Zero page left over after globals and every function's own parameter region (`PET_ZP_BUDGET` minus what those already spent) — where this one function's locals and expression temporaries bump-allocate from, LIFO. Mutated by this call. Starts wherever the previous function's own region ended (mos/index.ts), never shared with another function's. */
   locals: LocalAllocator;
+  /** This function's own parameters, already resolved to their fixed zero-page addresses (mos/index.ts's parameter pass — see mos/AGENTS.md) — bound into scope exactly like a `local`, just once, at the start, never released. */
+  params: { name: string; type: string; address: number }[];
+  /** Every function in the linked program, by name — a call site's only source for where to store its arguments and which label to `JSR`. Built once before any function is lowered, precisely so a callee's address is always known regardless of lowering order. */
+  functions: Map<string, FunctionSite>;
 }
 
 export type LowerResult =
@@ -118,8 +158,8 @@ const label = (name: string): Directive => ({ kind: 'label', name });
 // types exist in the language today (usmallint and up) but arithmetic on
 // them is milestone 8's job — a program that reaches for one here gets a
 // build error naming the type, not a truncated wrong answer.
-function require8Bit(type: string | undefined, what: string): void {
-  if (type === undefined) throw new LowerError(`${what}: no type on this IR node — the checker/linker should have set one`);
+function require8Bit(type: string | null | undefined, what: string): void {
+  if (type === undefined || type === null) throw new LowerError(`${what}: no type on this IR node — the checker/linker should have set one`);
   if (storageBytes(type) !== 1) {
     throw new LowerError(`${what} is '${type}' (${storageBytes(type)} bytes): only 8-bit arithmetic and locals are implemented yet (16-bit values land at milestone 8)`);
   }
@@ -168,12 +208,19 @@ class Lowerer {
   program: Directive[] = [];
   symbols: Map<string, Binding>;
   locals: LocalAllocator;
+  functions: Map<string, FunctionSite>;
   loops: { continueLabel: string; breakLabel: string }[] = [];
   exitLabel = freshLabel('exit');
 
   constructor(options: LowerOptions) {
     this.symbols = new Map(options.globals);
     this.locals = options.locals;
+    this.functions = options.functions;
+    // A parameter is bound exactly like a local — same Binding shape, same
+    // symbol table — except its address comes from mos/index.ts's own
+    // parameter pass (see mos/AGENTS.md), not this.locals.alloc(), and it
+    // is never released: it lives for the function's whole body.
+    for (const p of options.params) this.symbols.set(p.name, { address: p.address, type: p.type });
   }
 
   emit(...directives: Directive[]): void {
@@ -203,9 +250,42 @@ class Lowerer {
       case 'unop':
         this.unop(node);
         return;
+      case 'call':
+        this.callSite(node);
+        return;
       default:
         throw new LowerError(`no instruction-selection rule yet for the '${node.kind}' expression — it lands in a later milestone`);
     }
+  }
+
+  // ---- calls: every argument into the callee's own zp slot, then JSR ----
+  //
+  // Arguments evaluate left-to-right (the milestone 6 decision this backend
+  // already holds to) and each is stored into its parameter's address the
+  // instant it's evaluated — never held in a shared temporary — so calling
+  // the same function twice in one expression, or nesting a call inside an
+  // argument (`f(g(x), y)`), is always safe: every function's own
+  // parameters and locals live in zero page nothing else ever touches (see
+  // mos/AGENTS.md). The callee's return value comes back in A, exactly
+  // where every other value-producing rule already leaves its result — a
+  // call used as a statement just leaves it there, unread.
+  // Takes just the two fields a call site needs (not IrExpr's full shape,
+  // which conflicts with IrStatement's on `value`) so this one method
+  // serves both expr()'s 'call' case and statement()'s.
+  callSite(node: { name?: string; args?: IrExpr[] }): void {
+    const target = this.functions.get(node.name!);
+    if (!target) {
+      throw new LowerError(`call to '${node.name}' resolves to nothing this backend knows about — a linker bug, not a missing lowering rule`);
+    }
+    const args = node.args ?? [];
+    if (args.length !== target.paramAddresses.length) {
+      throw new LowerError(`call to '${node.name}': ${args.length} argument(s) but the function has ${target.paramAddresses.length} parameter(s) — the linker should already have matched these (completeCall)`);
+    }
+    for (let i = 0; i < args.length; i += 1) {
+      this.expr(args[i]);
+      this.emit(staZp(target.paramAddresses[i]));
+    }
+    this.emit(instr('JSR', 'absolute', undefined, target.label));
   }
 
   // Evaluates left into a fresh temporary, then right into A — always this
@@ -435,10 +515,20 @@ class Lowerer {
         this.emit(jmp(this.loops[this.loops.length - 1].continueLabel));
         return null;
       case 'return':
-        if (node.value !== null && node.value !== undefined) {
-          throw new LowerError(`'return' with a value isn't lowered yet — it needs a calling convention (milestone 7); a bare 'return;' works today`);
-        }
+        // A value evaluates into A — right where the caller of *this*
+        // function already expects its return value (see callSite) — then
+        // falls straight into the same exit jump a bare `return;` always
+        // used. Width is checked the same way every other value-producing
+        // node's is, inside expr() itself; nothing extra needed here.
+        if (node.value) this.expr(node.value);
         this.emit(jmp(this.exitLabel));
+        return null;
+      // A bare call statement (`place(cell, code);`, result discarded) —
+      // deliberately not routed through expr(), which gates on node.type
+      // being exactly 8-bit: a void-returning function's call is a
+      // perfectly good statement and has no value to width-check.
+      case 'call':
+        this.callSite(node);
         return null;
       default:
         throw new LowerError(`no instruction-selection rule yet for the '${node.kind}' statement — it lands in a later milestone`);

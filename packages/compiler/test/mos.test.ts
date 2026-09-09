@@ -348,6 +348,295 @@ test('build() for a parked machine says so, names the machine, and writes nothin
   }
 });
 
+// ---- milestone 7: functions and the calling convention ---------------
+//
+// See packages/compiler/src/mos/AGENTS.md for the design: every parameter
+// and local gets a fixed zero-page slot the owning function never shares,
+// assigned in two passes so a call site always knows its target's
+// addresses regardless of lowering order. What lower/index.test.ts already
+// proves in isolation (argument order, a void call as a statement, the
+// defensive checks) isn't repeated here — these are the properties only a
+// real, linkable, two-and-three-function program through build() can show.
+
+/** `utinyint x -> return x;` — the smallest possible non-trivial function: one parameter read straight back out. */
+function identityFn(name: string) {
+  return {
+    name,
+    params: [{ name: 'x', type: 'utinyint' }],
+    returnType: 'utinyint',
+    body: [{ kind: 'return', value: { kind: 'ref', name: 'x', type: 'utinyint' } }],
+  };
+}
+
+test('a function called from two sites gets one body, not two — byte count proves it, not just that it links', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+  try {
+    const outFile = join(scratch, 'out.prg');
+    const twoCallSitesIr: IrProgram = {
+      entry: 'main',
+      functions: [
+        identityFn('identity'),
+        {
+          name: 'main',
+          params: [],
+          returnType: 'void',
+          body: [
+            { kind: 'memoryWrite', address: { kind: 'const', value: 0x8000, type: 'usmallint' }, value: { kind: 'call', name: 'identity', args: [{ kind: 'const', value: 65, type: 'utinyint' }], type: 'utinyint' } },
+            { kind: 'memoryWrite', address: { kind: 'const', value: 0x8001, type: 'usmallint' }, value: { kind: 'call', name: 'identity', args: [{ kind: 'const', value: 66, type: 'utinyint' }], type: 'utinyint' } },
+          ],
+        },
+      ],
+      globals: [],
+    };
+    const result = await build(twoCallSitesIr, { machine: 'pet', hardware, outFile, frameRate: 60 });
+    assert.equal(result.ok, true, result.ok ? '' : result.error);
+    if (!result.ok) return;
+    // Two call sites (LDA#/STA-param/JSR/STA-abs each, 7+3=10 bytes) plus
+    // one shared body (LDA-param/JMP-exit = 5 bytes, then RTS = 1 byte) —
+    // 2*10 + 6 = 26 bytes of code, plus the 12-byte BASIC stub, the 2-byte
+    // load address, and main's own 1-byte epilogue RTS = 41. A backend
+    // that duplicated identity's body per call site would cost 6 more
+    // bytes (a second body) — this pins the smaller, correct number.
+    assert.equal(result.bytes.length, 41);
+    // Just 1 zp byte: identity's own parameter x. A call site stores its
+    // argument straight into that fixed address (no temp of its own —
+    // callSite() never touches the caller's LocalAllocator), and neither
+    // main's body nor identity's own ever declares a local.
+    assert.deepEqual(result.memory, { variables: 1, program: 41 });
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('a function that calls a function: main -> outer -> inner, a real two-level JSR chain, addresses resolved regardless of declaration order', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+  try {
+    const outFile = join(scratch, 'out.prg');
+    // outer is declared BEFORE inner, which it calls — proving the
+    // parameter pass (mos/AGENTS.md) really does resolve every function's
+    // address before any lowering runs, not just in declaration order.
+    const chainIr: IrProgram = {
+      entry: 'main',
+      functions: [
+        {
+          name: 'outer',
+          params: [{ name: 'x', type: 'utinyint' }],
+          returnType: 'utinyint',
+          body: [{
+            kind: 'return',
+            value: {
+              kind: 'binop', operator: '+', type: 'utinyint',
+              left: { kind: 'call', name: 'inner', args: [{ kind: 'ref', name: 'x', type: 'utinyint' }], type: 'utinyint' },
+              right: { kind: 'const', value: 1, type: 'utinyint' },
+            },
+          }],
+        },
+        {
+          name: 'inner',
+          params: [{ name: 'y', type: 'utinyint' }],
+          returnType: 'utinyint',
+          body: [{
+            kind: 'return',
+            value: { kind: 'binop', operator: '+', type: 'utinyint', left: { kind: 'ref', name: 'y', type: 'utinyint' }, right: { kind: 'const', value: 1, type: 'utinyint' } },
+          }],
+        },
+        {
+          name: 'main',
+          params: [],
+          returnType: 'void',
+          body: [{
+            kind: 'memoryWrite',
+            address: { kind: 'const', value: 0x8000, type: 'usmallint' },
+            value: { kind: 'call', name: 'outer', args: [{ kind: 'const', value: 5, type: 'utinyint' }], type: 'utinyint' },
+          }],
+        },
+      ],
+      globals: [],
+    };
+    const result = await build(chainIr, { machine: 'pet', hardware, outFile, frameRate: 60 });
+    // The point of this test is that it links at all: outer's own call to
+    // inner references inner's FunctionSite (label + parameter address),
+    // and inner is lowered *after* outer in ir.functions order — if the
+    // parameter pass didn't run to completion before any lowering, this
+    // would fail with an unresolved label instead of assembling clean.
+    assert.equal(result.ok, true, result.ok ? '' : result.error);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('a function that calls itself is refused, naming the cycle — not silently miscompiled', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+  try {
+    const outFile = join(scratch, 'out.prg');
+    const selfCallIr: IrProgram = {
+      entry: 'main',
+      functions: [
+        { name: 'main', params: [], returnType: 'void', body: [{ kind: 'call', name: 'loopy', args: [] }] },
+        { name: 'loopy', params: [], returnType: 'void', body: [{ kind: 'call', name: 'loopy', args: [] }] },
+      ],
+      globals: [],
+    };
+    const result = await build(selfCallIr, { machine: 'pet', hardware, outFile, frameRate: 60 });
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.match(result.error, /recursion isn't lowered yet/);
+    assert.match(result.error, /loopy -> loopy/);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('mutual recursion (a calls b, b calls a) is refused the same way direct self-recursion is', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+  try {
+    const outFile = join(scratch, 'out.prg');
+    const mutualIr: IrProgram = {
+      entry: 'main',
+      functions: [
+        { name: 'main', params: [], returnType: 'void', body: [{ kind: 'call', name: 'a', args: [] }] },
+        { name: 'a', params: [], returnType: 'void', body: [{ kind: 'call', name: 'b', args: [] }] },
+        { name: 'b', params: [], returnType: 'void', body: [{ kind: 'call', name: 'a', args: [] }] },
+      ],
+      globals: [],
+    };
+    const result = await build(mutualIr, { machine: 'pet', hardware, outFile, frameRate: 60 });
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.match(result.error, /recursion isn't lowered yet/);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('a 16-bit parameter is refused by name, not silently truncated — 16-bit lands at milestone 8', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+  try {
+    const outFile = join(scratch, 'out.prg');
+    const wideParamIr: IrProgram = {
+      entry: 'main',
+      functions: [
+        { name: 'main', params: [], returnType: 'void', body: [{ kind: 'call', name: 'place', args: [{ kind: 'const', value: 0, type: 'usmallint' }] }] },
+        { name: 'place', params: [{ name: 'cell', type: 'usmallint' }], returnType: 'void', body: [] },
+      ],
+      globals: [],
+    };
+    const result = await build(wideParamIr, { machine: 'pet', hardware, outFile, frameRate: 60 });
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.match(result.error, /'place\(cell\)' is 'usmallint' \(2 bytes\)/);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('a 16-bit return type is refused by name — the real text.putChar/place() wait for milestone 8, exactly as the roadmap now says', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+  try {
+    const outFile = join(scratch, 'out.prg');
+    const wideReturnIr: IrProgram = {
+      entry: 'main',
+      functions: [
+        { name: 'main', params: [], returnType: 'void', body: [] },
+        { name: 'address', params: [], returnType: 'usmallint', body: [{ kind: 'return', value: { kind: 'const', value: 0x8000, type: 'usmallint' } }] },
+      ],
+      globals: [],
+    };
+    const result = await build(wideReturnIr, { machine: 'pet', hardware, outFile, frameRate: 60 });
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.match(result.error, /'address' returns 'usmallint' \(2 bytes\)/);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('an array parameter is refused by name — not lowered yet', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+  try {
+    const outFile = join(scratch, 'out.prg');
+    const arrayParamIr: IrProgram = {
+      entry: 'main',
+      functions: [
+        { name: 'main', params: [], returnType: 'void', body: [] },
+        { name: 'sumOf', params: [{ name: 't', type: 'array', elementType: 'utinyint', length: 4 }], returnType: 'void', body: [] },
+      ],
+      globals: [],
+    };
+    const result = await build(arrayParamIr, { machine: 'pet', hardware, outFile, frameRate: 60 });
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.match(result.error, /'sumOf\(t\)': array parameters aren't lowered yet/);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+// Milestone 7's own gate: a hand-written putChar(cell, code), called once
+// per character of HELLO WORLD from main() — real parameters, a real
+// calling convention, JSR/RTS, argument order, all through the real
+// pipeline. `cell` stays a utinyint compared against eleven literal
+// addresses rather than computing $8000+cell at runtime — a computed
+// memoryWrite address is milestone 8's own job (indexed stores), not this
+// one's; that's also why this isn't the real @8bitscript/pet/text
+// putChar(cell: usmallint, ...) — see mos/AGENTS.md and the roadmap's
+// milestone 8 box for why that one still waits.
+//
+// Run for real: `8bs build --target pet --hardware model=2001` on this
+// exact program (packages/compiler's own IR below, reconstructed as
+// source) builds to 302 bytes; `8bs run pet --hardware model=2001
+// --screenshot` on the harshest real PET (2001, 4K, "3071 BYTES FREE")
+// shows HELLO WORLD on row 0, over the boot banner — the same signature
+// milestone 4's own gate produced, now reached through eleven real
+// function calls instead of eleven inline stores. Neither screenshot is
+// committed (no earlier milestone's is either); this test locks in the
+// byte count that screenshot was taken against.
+function putCharIfChain() {
+  return {
+    name: 'putChar',
+    params: [{ name: 'cell', type: 'utinyint' }, { name: 'code', type: 'utinyint' }],
+    returnType: 'void',
+    body: Array.from({ length: 11 }, (_, i) => ({
+      kind: 'if',
+      test: { kind: 'binop', operator: '==', type: 'bool', left: { kind: 'ref', name: 'cell', type: 'utinyint' }, right: { kind: 'const', value: i, type: 'utinyint' } },
+      then: [{ kind: 'memoryWrite', address: { kind: 'const', value: 0x8000 + i, type: 'usmallint' }, value: { kind: 'ref', name: 'code', type: 'utinyint' } }],
+      else: null,
+    })),
+  };
+}
+
+test('milestone 7 gate: HELLO WORLD through a real putChar(cell, code), called eleven times from main — 302 bytes, matching the real xpet screenshot', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+  try {
+    const outFile = join(scratch, 'out.prg');
+    const helloThroughPutCharIr: IrProgram = {
+      entry: 'main',
+      functions: [
+        putCharIfChain(),
+        {
+          name: 'main',
+          params: [],
+          returnType: 'void',
+          body: HELLO_WORLD_SCREEN_CODES.map((code, cell) => ({
+            kind: 'call', name: 'putChar', args: [{ kind: 'const', value: cell, type: 'utinyint' }, { kind: 'const', value: code, type: 'utinyint' }],
+          })),
+        },
+      ],
+      globals: [],
+    };
+    const result = await build(helloThroughPutCharIr, { machine: 'pet', hardware, outFile, frameRate: 60 });
+    assert.equal(result.ok, true, result.ok ? '' : result.error);
+    if (!result.ok) return;
+    assert.equal(result.bytes.length, 302);
+    // putChar's own cell + code (2), plus 1 temp its own `cell == N`
+    // comparison needs (comparisonBranch's emitOperands) — main declares
+    // no locals of its own.
+    assert.deepEqual(result.memory, { variables: 3, program: 302 });
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
 test('outputExtension: prg everywhere except NES (.nes) and Atari 8-bit (.xex, or hardware.output)', () => {
   assert.equal(outputExtension('vic20'), 'prg');
   assert.equal(outputExtension('nes'), 'nes');

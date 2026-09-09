@@ -2,15 +2,17 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { lower } from './index.ts';
-import type { IrStatement, IrExpr, LowerOptions } from './index.ts';
+import type { IrStatement, IrExpr, LowerOptions, FunctionSite } from './index.ts';
 import { LocalAllocator } from './allocator.ts';
 import { assemble } from '../asm/assemble.ts';
 import type { Directive } from '../asm/assemble.ts';
 
 // A fresh, generously-budgeted context for a test that doesn't care about
 // the zero-page ceiling — most of them. Tests that do care build their own.
-function ctx(globals: [string, { address: number; type: string }][] = []): LowerOptions {
-  return { globals: new Map(globals), locals: new LocalAllocator(0x90, 0x100) };
+// No parameters and no other functions unless a test says otherwise — most
+// of these predate milestone 7 and were never about calls.
+function ctx(globals: [string, { address: number; type: string }][] = [], functions: [string, FunctionSite][] = []): LowerOptions {
+  return { globals: new Map(globals), locals: new LocalAllocator(0x90, 0x100), params: [], functions: new Map(functions) };
 }
 
 const write = (address: number, value: number): IrStatement => ({
@@ -96,7 +98,7 @@ test('a local is declared once and read back through the same zero-page slot', (
 });
 
 test('a local out of zero page fails naming the variable and what is left', () => {
-  const tight: LowerOptions = { globals: new Map(), locals: new LocalAllocator(0xff, 0x100) };
+  const tight: LowerOptions = { globals: new Map(), locals: new LocalAllocator(0xff, 0x100), params: [], functions: new Map() };
   const result = lower([local('a', u8(1)), local('b', u8(2))], tight);
   assert.equal(result.ok, false);
   if (result.ok) return;
@@ -104,7 +106,7 @@ test('a local out of zero page fails naming the variable and what is left', () =
 });
 
 test('a block-scoped local is released once its block ends, so a later block can reuse the same byte', () => {
-  const tight: LowerOptions = { globals: new Map(), locals: new LocalAllocator(0x90, 0x91) }; // exactly one byte
+  const tight: LowerOptions = { globals: new Map(), locals: new LocalAllocator(0x90, 0x91), params: [], functions: new Map() }; // exactly one byte
   const result = lower(
     [
       { kind: 'block', body: [local('a', u8(1))] },
@@ -230,16 +232,25 @@ test('for with an init-local, test, and update lowers and assembles; the local i
       body: [],
     },
   ];
-  const tight: LowerOptions = { globals: new Map(), locals: new LocalAllocator(0x90, 0x92) }; // 2 bytes: room for one 'i' plus one temp, never two 'i's at once
+  const tight: LowerOptions = { globals: new Map(), locals: new LocalAllocator(0x90, 0x92), params: [], functions: new Map() }; // 2 bytes: room for one 'i' plus one temp, never two 'i's at once
   const result = lower(program, tight);
   assert.equal(result.ok, true, result.ok ? '' : result.error);
 });
 
-test('return with a value is refused: no calling convention yet', () => {
-  const result = lower([{ kind: 'return', value: u8(1) }], ctx());
+test('return with a value evaluates it into A, then jumps to the exit label — milestone 7', () => {
+  const result = lower([{ kind: 'return', value: u8(42) }], ctx());
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  assert.deepEqual(result.program[0], { kind: 'instruction', mnemonic: 'LDA', mode: 'immediate', operand: { kind: 'value', value: 42 } });
+  assert.equal(instruction(result.program[1]).mnemonic, 'JMP');
+  assembles(result.program);
+});
+
+test('return with a 16-bit value is refused by name — 16-bit lands at milestone 8', () => {
+  const result = lower([{ kind: 'return', value: { kind: 'const', value: 300, type: 'usmallint' } }], ctx());
   assert.equal(result.ok, false);
   if (result.ok) return;
-  assert.match(result.error, /'return' with a value isn't lowered yet/);
+  assert.match(result.error, /is 'usmallint' \(2 bytes\): only 8-bit/);
 });
 
 test('a bare return jumps to the function-exit label, which the epilogue can sit right after', () => {
@@ -427,10 +438,72 @@ test('a bitwise or shift operator is refused by name the same way * / % are', ()
 });
 
 test('an expression kind with no rule yet fails naming it, not silently', () => {
-  const result = lower([assign('out', { kind: 'call', type: 'utinyint' })], ctx([['out', { address: 0x50, type: 'utinyint' }]]));
+  const result = lower([assign('out', { kind: 'index', type: 'utinyint' })], ctx([['out', { address: 0x50, type: 'utinyint' }]]));
   assert.equal(result.ok, false);
   if (result.ok) return;
-  assert.match(result.error, /no instruction-selection rule yet for the 'call' expression/);
+  assert.match(result.error, /no instruction-selection rule yet for the 'index' expression/);
+});
+
+// ---- milestone 7: calling convention -------------------------------------
+//
+// callSite() itself, in isolation — mos.test.ts's own new suite covers the
+// real thing end to end (two call sites sharing one body, argument order,
+// a function calling a function, all through build() against a real
+// FunctionSite map assigned by mos/index.ts's own two passes). What these
+// prove is narrower and cheaper: given a FunctionSite, a call stores each
+// argument into the right address, in order, and emits JSR to the right
+// label — as a value, and as a statement.
+
+// A dedicated return type, not IrExpr: IrExpr's own `value?: number` (for
+// `const`) is incompatible with IrStatement's `value?: IrExpr | null` (for
+// `memoryWrite`), so a helper typed as either can't be used in the other's
+// array position (`lower(body: IrStatement[], ...)` vs. an expression
+// argument) — the same reason callSite() itself takes a narrow structural
+// type rather than IrExpr. A call node needs neither field.
+const call = (name: string, args: IrExpr[], type: string | null = 'utinyint') => ({ kind: 'call' as const, name, args, type });
+const site = (label: string, paramAddresses: number[], returnType = 'utinyint'): FunctionSite => ({ label, paramAddresses, returnType });
+
+test('a call used as a value stores each argument into the callee\'s own address, in order, then JSRs — the result is left in A like any other value', () => {
+  const result = lower(
+    [assign('out', call('place', [u8(1), u8(2)]))],
+    ctx([['out', { address: 0x60, type: 'utinyint' }]], [['place', site('__8bs_fn_place', [0x50, 0x51])]]),
+  );
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  // Not run through assembles(): the callee's own label ('__8bs_fn_place')
+  // is never defined in this isolated snippet — mos.test.ts's build()-level
+  // tests exercise the real, linkable, two-function program instead.
+  // LDA #1; STA $50; LDA #2; STA $51; JSR place; STA $60 (assign); label(exit)
+  assert.deepEqual(result.program.slice(0, 5).map((d) => instruction(d).mnemonic), ['LDA', 'STA', 'LDA', 'STA', 'JSR']);
+  const firstStore = instruction(result.program[1]);
+  assert.equal(firstStore.mode, 'zeropage');
+  assert.equal(firstStore.operand!.kind === 'value' ? firstStore.operand!.value : -1, 0x50);
+  const secondStore = instruction(result.program[3]);
+  assert.equal(secondStore.operand!.kind === 'value' ? secondStore.operand!.value : -1, 0x51);
+  const jsr = instruction(result.program[4]);
+  assert.equal(jsr.mode, 'absolute');
+  assert.equal(jsr.operand!.kind === 'label' ? jsr.operand!.name : '', '__8bs_fn_place');
+});
+
+test('a call used as a bare statement is not gated on its return type being 8-bit — a void call is a perfectly good statement', () => {
+  const result = lower([call('prepare', [], 'void')], ctx([], [['prepare', site('__8bs_fn_prepare', [], 'void')]]));
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  assert.equal(instruction(result.program[0]).mnemonic, 'JSR');
+});
+
+test('a call to a name with no FunctionSite fails naming it — a linker bug, not a missing lowering rule', () => {
+  const result = lower([call('ghost', [])], ctx());
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /call to 'ghost' resolves to nothing this backend knows about/);
+});
+
+test('an argument-count mismatch against the FunctionSite fails naming both counts, defensively — completeCall should already have matched these', () => {
+  const result = lower([call('place', [u8(1)])], ctx([], [['place', site('__8bs_fn_place', [0x50, 0x51])]]));
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /1 argument\(s\) but the function has 2 parameter\(s\)/);
 });
 
 test('memoryWrite of a computed address is refused; a missing value is refused; a zeropage address uses STA zeropage', () => {
