@@ -1,7 +1,7 @@
 {
   "name": "@8bitscript/c128",
   "version": "0.1.3",
-  "description": "C128 target support for 8BitScript: the hardware underneath the portable APIs.",
+  "description": "C128 target support for 8BitScript: the hardware underneath the portable APIs. Parked in 0.2.0: not a build target until its native backend lands.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -399,7 +399,7 @@
               "tag": null
             },
             "1571": {
-              "label": "1571 (340K disk) — built into the C128D",
+              "label": "1571 (340K disk) \u2014 built into the C128D",
               "facts": {
                 "storage.save": true,
                 "storage.kib": 329

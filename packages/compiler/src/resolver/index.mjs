@@ -43,6 +43,21 @@ export const MACHINES = Object.freeze([
 ]);
 
 /**
+ * The machines this release builds for. MACHINES is every machine the
+ * language knows: the names a `.<machine>.8bs` twin or a target-conditional
+ * entry may carry, which stay valid so a program written for a parked
+ * machine still parses and links. RELEASE_MACHINES is the subset `8bs
+ * build` and `8bs run` will actually produce a program for. 0.2.0 is the
+ * PET and the web, the two machines the native backends are being brought
+ * up on (the "Hello, PET" roadmap). A parked machine's package stays in the
+ * workspace unchanged and returns to this list when its backend lands.
+ */
+export const RELEASE_MACHINES = Object.freeze(['pet', 'web']);
+
+/** Whether a machine is one this release builds for. */
+export const isReleaseMachine = (machine) => RELEASE_MACHINES.includes(machine);
+
+/**
  * The system-specific twin of a `.8bs` path: `main.8bs` on the NES is
  * `main.nes.8bs`, the machine's name slotted in before the extension. The
  * portable file keeps the plain name; a machine that needs its own version

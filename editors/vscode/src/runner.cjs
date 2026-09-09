@@ -24,15 +24,14 @@ const {
   ALL_TARGETS,
   CONFIG_FILE,
   MACHINE_TARGETS,
-  EXAMPLES_DIR,
   commandArgs,
-  findExamplesDir,
   findToolchain,
   insertSystem,
   loadApps,
   loadProject,
   loadProjects,
   loadExamples,
+  loadExamplesFrom,
   ofKind,
   systemLine,
   withShipped,
@@ -68,19 +67,18 @@ function relativeDir(dir) {
 
 /**
  * Where a project lives, as the grey half of its name in the dropdown: a
- * workspace project's relative path, `examples/borders`, or an app's
- * package name.
+ * workspace project's relative path, a shipped example's place in its
+ * package (`examples/hello`), or an app's package name.
  */
 function whereLabel(project) {
   if (project.kind === 'app') return project.name;
-  if (project.kind === 'example') return path.join(EXAMPLES_DIR, path.basename(project.dir));
   if (!project.shipped) return relativeDir(project.dir);
   return path.join(path.basename(path.dirname(project.dir)), path.basename(project.dir));
 }
 
-/** The name a project is shown by: an app's title, otherwise the package name. */
+/** The name a project is shown by: a shipped app's or example's title, otherwise the package name. */
 function labelOf(project) {
-  return project.kind === 'app' ? project.title : project.name;
+  return project.kind === 'project' ? project.name : project.title;
 }
 
 /**
@@ -218,9 +216,9 @@ class Projects {
   /**
    * What the Project dropdown offers: the workspace's own projects, the
    * apps the toolchain ships (always — they are the point of shipping
-   * them), and its examples only when asked for. In a checkout of the
-   * repository the examples outnumber the projects someone is working on,
-   * and the picker exists to reach *your* program.
+   * them), and its examples unless hidden (`8bitscript.showExamples`).
+   * They sit in a group of their own, so the workspace's projects stay
+   * first and easy to reach.
    */
   get visible() {
     const shipped = settings.getShowExamples() ? [...this.examples, ...this.apps] : this.apps;
@@ -306,26 +304,25 @@ class Projects {
   }
 
   /**
-   * What ships with the toolchain in use: its apps, and its examples of
-   * concept. Both are looked for beside the first toolchain that has them —
-   * a project's own, or the workspace folder's. An explicit
-   * `8bitscript.examplesPath` names the examples directory instead.
+   * What ships with the toolchain in use: its apps, and the examples
+   * `@8bitscript/examples` names. Both are looked for beside the first
+   * toolchain that has them — a project's own, or the workspace folder's —
+   * so a workspace with one 8BitScript project that has installed the CLI
+   * has them. An explicit `8bitscript.examplesPath` names a directory of
+   * examples instead.
    *
    * @returns {{ examples: import('./projects.cjs').Project[], apps: import('./projects.cjs').Project[] }}
    */
   discoverShipped() {
     const explicit = settings.getExamplesPath();
-    let examples = explicit ? loadExamples(explicit) : [];
+    let examples = explicit ? loadExamplesFrom(explicit) : [];
     let apps = [];
     const toolchains = [
       ...this.projects.map((p) => p.toolchain),
       ...(vscode.workspace.workspaceFolders ?? []).map((f) => findToolchain(f.uri.fsPath)),
     ].filter(Boolean);
     for (const toolchain of toolchains) {
-      if (!explicit && examples.length === 0) {
-        const dir = findExamplesDir(toolchain);
-        if (dir) examples = loadExamples(dir);
-      }
+      if (!explicit && examples.length === 0) examples = loadExamples(toolchain);
       if (apps.length === 0) apps = loadApps(toolchain);
       if (examples.length > 0 && apps.length > 0) break;
     }
@@ -566,7 +563,7 @@ function registerRunner(context, output) {
         .map((folder) => findToolchain(folder.uri.fsPath))
         .find(Boolean);
     if (!toolchain) {
-      vscode.window.showErrorMessage('No 8bs toolchain found in this workspace. Run: pnpm add -D @8bitscript/cli');
+      vscode.window.showErrorMessage('No 8bs toolchain found in this workspace. Run: pnpm add -D @8bitscript/cli (or npm/yarn/bun)');
       return;
     }
     const dir = project?.dir ?? path.dirname(path.dirname(path.dirname(toolchain)));
@@ -624,7 +621,7 @@ function registerRunner(context, output) {
       vscode.window.showInformationMessage(
         kind === 'app'
           ? `No ${what} found. Apps ship with @8bitscript/cli: install it in a project, then refresh.`
-          : `No ${what} found. They live in the 8bitscript repository, under ${EXAMPLES_DIR}/.`,
+          : `No ${what} found. Examples ship with @8bitscript/cli: install it in a project, then refresh.`,
       );
       return;
     }

@@ -163,6 +163,9 @@ importers:
       '@8bitscript/cx16':
         specifier: workspace:*
         version: link:../cx16
+      '@8bitscript/examples':
+        specifier: workspace:*
+        version: link:../examples
       '@8bitscript/language-server':
         specifier: workspace:*
         version: link:../language-server
@@ -201,6 +204,18 @@ importers:
         version: 7.0.2
 
   packages/cx16: {}
+
+  packages/examples:
+    dependencies:
+      '@8bitscript/pet':
+        specifier: workspace:*
+        version: link:../pet
+      '@8bitscript/text':
+        specifier: workspace:*
+        version: link:../text
+      '@8bitscript/web':
+        specifier: workspace:*
+        version: link:../web
 
   packages/input:
     dependencies:

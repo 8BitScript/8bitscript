@@ -18,7 +18,7 @@ export type BuildResult =
   | { ok: false; error: string };
 
 const NOT_IMPLEMENTED =
-  'the native WebAssembly backend is not implemented yet (Bare Metal, section 09): nothing can be built for web until it is';
+  'the native WebAssembly backend is not implemented yet (Hello, PET, the web track): nothing can be built for web until it is';
 
 /** Lowers `ir` to WebAssembly, writes `outFile`, and returns the bytes. */
 export async function build(_ir: IrProgram, _options: BuildOptions): Promise<BuildResult> {

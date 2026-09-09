@@ -46,13 +46,13 @@ test('the machine is under the button, and Build is on the project row', () => {
   assert.doesNotMatch(body, /class="wide[^"]*" id="build"/);
 });
 
-test('examples are hidden until asked for', () => {
+test('examples can be hidden, but ship visible by default', () => {
   const runner = fs.readFileSync(path.join(ROOT, 'src', 'runner.cjs'), 'utf8');
   assert.match(runner, /get visible\(\)/, 'what the picker offers');
   assert.match(runner, /getShowExamples\(\)/);
   assert.match(runner, /hasExamples\(\)/, 'and whether the toggle is worth offering');
   const props = MANIFEST.contributes.configuration.properties['8bitscript.showExamples'];
-  assert.equal(props.default, false);
+  assert.equal(props.default, true);
 });
 
 test('the panel launches, picks, and stops', () => {
@@ -132,7 +132,7 @@ test('every element the page script reaches for is on the page', () => {
   for (const id of ids) assert.match(view, new RegExp(`id="${id}"`), `no #${id} in the page`);
 });
 
-test('the 8bs task type offers every target the toolchain builds', () => {
+test('the 8bs task type offers every target this release builds for', () => {
   const { ALL_TARGETS } = require('../src/projects.cjs');
   const definition = MANIFEST.contributes.taskDefinitions.find((d) => d.type === '8bs');
   assert.deepEqual(definition.properties.target.enum, ALL_TARGETS);

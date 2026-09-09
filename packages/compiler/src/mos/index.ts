@@ -1,6 +1,6 @@
 // The 6502 backend: IR in, machine code out.
 //
-// Not implemented yet (Bare Metal, section 07, step 1). This file holds the
+// Not implemented yet (Hello, PET, milestone 1). This file holds the
 // contract the CLI calls and the machine facts a future code generator will
 // need: the instruction-set variant of each CPU, the file extension a build
 // produces, and the frame-sync numbers `waitFrame()` is paced against.
@@ -55,9 +55,15 @@ export function outputExtension(machine: Machine, hardware?: BuildOptions['hardw
 
 /** Lowers `ir` to machine code, writes `outFile`, and returns the bytes and a size report. */
 export async function build(_ir: IrProgram, options: BuildOptions): Promise<BuildResult> {
+  if (options.machine !== 'pet') {
+    return {
+      ok: false,
+      error: `the ${options.machine} is not a target in 0.2.0: the native 6502 backend is being brought up on the PET first (Hello, PET), and the other 6502 machines return in a later release`,
+    };
+  }
   return {
     ok: false,
-    error: `the native 6502 backend is not implemented yet (Bare Metal, section 07, step 1): nothing can be built for ${options.machine} until it is`,
+    error: 'the native 6502 backend is not implemented yet (Hello, PET, milestone 1): nothing can be built for the PET until it is',
   };
 }
 

@@ -135,11 +135,17 @@ test('Studio has one entry file: no main.<target>.8bs variants', () => {
   for (const target of TARGETS) assert.ok(!existsSync(join(SRC, `main.${target}.8bs`)), target);
 });
 
-test('Studio is set up for a mouse on every machine that can have one', () => {
+test('Studio is set up for the machines this release builds for, and keeps the parked ones as comments', () => {
   const config = readFileSync(join(ROOT, '8bs.config.ts'), 'utf8');
-  assert.match(config, /c64: \{ hardware: \{ port1: 'mouse1351' \} \}/);
-  assert.match(config, /c128: \{ hardware: \{ port1: 'mouse1351' \} \}/);
-  assert.match(config, /'C64 with a mouse'/);
-  assert.match(config, /'C128 with a mouse'/);
-  assert.match(config, /'Commander X16'/);
+  // Live: the two machines 0.2.0 builds for, as bare machines and as systems.
+  assert.match(config, /^    pet: \{\},$/m);
+  assert.match(config, /^    web: \{\},$/m);
+  assert.match(config, /^    'PET 3032': \{ target: 'pet' \},$/m);
+  assert.match(config, /^    'PET 8032': \{ target: 'pet', profile: '8032' \},$/m);
+  assert.match(config, /^    'The browser': \{ target: 'web' \},$/m);
+  // Parked, not forgotten: the mouse arrangements wait as comments so they
+  // return with one edit when the C64 and C128 do.
+  assert.match(config, /^    \/\/ c64: \{ hardware: \{ port1: 'mouse1351' \} \},$/m);
+  assert.match(config, /^    \/\/ 'C64 with a mouse'/m);
+  assert.match(config, /^    \/\/ 'Commander X16'/m);
 });
