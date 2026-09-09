@@ -5,13 +5,13 @@ nav_order: 90
 
 # Machines on the roadmap
 
-Research notes for the machines [the roadmap](../../roadmap.md) names but
+Research notes for the machines the roadmap names but
 the toolchain does not build yet. Each page answers the same sixteen
 questions the target packages' `AGENTS.md` files answer for the nine
 machines that exist — CPU, memory and banking, the display's native unit,
 the text grid, modes and colour, layers, sprites, pseudo-pixels, audio,
 input, storage, timing, hardware variants, emulator, backend status, and
-the traps — so that [the systems page](../../systems.md)'s matrix can
+the traps — so that a systems matrix can
 compare a machine that exists with one that does not, row for row.
 
 These notes predate 0.2.0 and cite LLVM-MOS platform support; under the
@@ -23,8 +23,7 @@ before the hardware catalogs arrived, so where a page proposes an
 `<X>_PROFILES` table in a backend, read it as the machine
 package's `"8bitscript".hardware` catalog — options and values with what
 each changes, resolved by `packages/cli/src/hardware.mjs` — which is the
-one mechanism every existing target now uses (see
-[systems](../../systems.md#three-axes-not-one)); the *axes* each page
+one mechanism every existing target now uses ; the *axes* each page
 identifies (a model, a medium, a mapper) are what become its options. Nothing on them compiles; a claim
 read in a primary source names the source, and a claim the author could
 not confirm is marked *to verify*. When a machine's turn comes, its page
