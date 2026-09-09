@@ -18,7 +18,7 @@
 // same as it already was for web. "NTSC (60Hz)" above is the emulator's real
 // hardware region, not the language's logical frame rate — that's a
 // separate, project-level setting (`frameRate` in 8bs.config.ts, default 60,
-// see packages/backend-6502's FRAME_SYNC and examples/borders/README.md),
+// see packages/compiler/src/mos FRAME_SYNC),
 // unaffected by --pal.
 //
 // --profile names the hardware the build is for: a preset from the
@@ -58,7 +58,7 @@ import {
 const TARGETS = new Set(MACHINES);
 
 // The targets whose frame-sync strategy has a real NTSC/PAL split, auto-
-// detected at runtime (packages/backend-6502's FRAME_SYNC 'level' machines)
+// detected at runtime (packages/compiler/src/mos FRAME_SYNC 'level' machines)
 // — the only ones where --pal changes the build or a region suffix on the
 // output filename. The PET has no region at all: its refresh is the
 // model's (a hardware option — see packages/pet/package.json's catalog),
@@ -228,7 +228,7 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   let stem = basename(entry, '.8bs');
   if (stem.endsWith(`.${target}`)) stem = stem.slice(0, -(target.length + 1));
   if (target === 'web') {
-    const { build } = await import('@8bitscript/backend-web');
+    const { build } = await import('@8bitscript/compiler/wasm');
     const outFile = resolve('dist', `${stem}.wasm`);
     const result = await build(ir, { outFile, frameRate });
     if (!result.ok) {
@@ -244,7 +244,7 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
     return { ok: true, outFile, frameRate, hardware, webDir };
   }
 
-  const { build, outputExtension } = await import('@8bitscript/backend-6502');
+  const { build, outputExtension } = await import('@8bitscript/compiler/mos');
   // Hardware that changes the build is in the name (an 8032 PET, an
   // expanded VIC-20, an XEGS cartridge); hardware that only changes the
   // emulator is not, because the file is the same file.

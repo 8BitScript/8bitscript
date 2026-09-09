@@ -142,32 +142,6 @@ importers:
 
   packages/atari8: {}
 
-  packages/backend-6502:
-    dependencies:
-      '@8bitscript/compiler':
-        specifier: workspace:*
-        version: link:../compiler
-    devDependencies:
-      '@types/node':
-        specifier: ^26.5.0
-        version: 26.5.0
-      typescript:
-        specifier: ^7.0.2
-        version: 7.0.2
-
-  packages/backend-web:
-    dependencies:
-      '@8bitscript/compiler':
-        specifier: workspace:*
-        version: link:../compiler
-    devDependencies:
-      '@types/node':
-        specifier: ^26.5.0
-        version: 26.5.0
-      typescript:
-        specifier: ^7.0.2
-        version: 7.0.2
-
   packages/c128: {}
 
   packages/c64: {}
@@ -177,12 +151,6 @@ importers:
       '@8bitscript/atari8':
         specifier: workspace:*
         version: link:../atari8
-      '@8bitscript/backend-6502':
-        specifier: workspace:*
-        version: link:../backend-6502
-      '@8bitscript/backend-web':
-        specifier: workspace:*
-        version: link:../backend-web
       '@8bitscript/c128':
         specifier: workspace:*
         version: link:../c128
@@ -225,6 +193,12 @@ importers:
       '@8bitscript/vic20':
         specifier: workspace:*
         version: link:../vic20
+      '@types/node':
+        specifier: ^26.5.0
+        version: 26.5.0
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
 
   packages/cx16: {}
 

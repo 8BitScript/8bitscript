@@ -5,10 +5,9 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { IrProgram } from '@8bitscript/compiler';
-import { build } from '../src/index.ts';
+import { build } from '../src/wasm/index.ts';
 
-const ir = {} as IrProgram;
+const ir = {};
 
 test('build() is not implemented and writes nothing', async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-web-native-'));

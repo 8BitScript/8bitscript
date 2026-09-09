@@ -27,7 +27,7 @@ export async function loadConfig(dir, label = '8bs') {
 /**
  * The project's logical frame rate — what `waitFrame()` runs at, the same on every target,
  * independent of --pal (which only selects a real hardware/emulator
- * region, not the logical rate; see packages/backend-6502's FRAME_SYNC).
+ * region, not the logical rate; see packages/compiler/src/mos FRAME_SYNC).
  * Defaults to 60; `#frames(...)` durations and the waitFrame() runtime are
  * both built against whatever this resolves to.
  *

@@ -55,7 +55,7 @@ export let textColor: volatile<u8>;
 // running — the shadow is, and the OS then propagates it for us. This is not
 // theoretical: it is exactly why examples/borders rendered as a plain default
 // screen on atari800 before the shadow writes were added. (It is also the
-// same class of problem packages/backend-6502's FRAME_SYNC documents for the
+// same class of problem packages/compiler/src/mos's FRAME_SYNC documents for the
 // PET, where the KERNAL's own IRQ handler wins a race for the vertical-
 // retrace flag; here the OS wins a race for the colour registers, every
 // frame, forever.)

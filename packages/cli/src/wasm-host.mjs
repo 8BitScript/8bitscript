@@ -1,6 +1,6 @@
 // Running a web-target program outside a browser.
 //
-// A .wasm built by packages/backend-web exports exactly one function — the
+// A .wasm built by packages/compiler/src/wasm exports exactly one function — the
 // program (the entry module's one export) — plus its globals and memory, and
 // imports one thing at most: `env.waitFrame`, when the program calls
 // waitFrame(). The browser host (web-runtime.mjs) blocks that import on the

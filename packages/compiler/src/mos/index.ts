@@ -4,7 +4,8 @@
 // contract the CLI calls and the machine facts a future code generator will
 // need: the instruction-set variant of each CPU, the file extension a build
 // produces, and the frame-sync numbers `waitFrame()` is paced against.
-import type { IrProgram } from '@8bitscript/compiler';
+/** The linked program. Untyped until the rest of this package grows declarations. */
+type IrProgram = unknown;
 
 export type Machine = 'vic20' | 'c64' | 'pet' | 'c128' | 'mega65' | 'cx16' | 'nes' | 'atari8';
 

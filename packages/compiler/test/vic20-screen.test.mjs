@@ -99,7 +99,7 @@ test('referencing a colour name a namespace does not have is a compile error', (
 //
 // packages/vic20 itself cannot build for the web target — its index exports
 // vicColor, an `@address` hardware global, and the web backend correctly
-// refuses any module that maps hardware (see backend-web's own tests). So
+// refuses any module that maps hardware. So
 // this mirrors the exact expression setColors uses, against a plain scratch
 // address instead of the real $900F, and runs the compiled wasm for real —
 // proving the packing arithmetic itself, not just what the generated code

@@ -8,9 +8,9 @@
 //     import { reuStatus, reuCommand } from "@8bitscript/c64"; // --profile reu*
 //
 // The surface is the hardware, one register at a time — the VIC-II, the
-// SID, the two CIAs, the 6510's own port — under the names llvm-mos-sdk's
-// c64.h gives the chips (`VIC`, `SID`, `CIA1`, `CIA2`) and the fields its
-// _vic2.h/_sid.h/_6526.h give the registers. What a program usually wants
+// SID, the two CIAs, the 6510's own port — under the names the chips'
+// own documentation gives them (`VIC`, `SID`, `CIA1`, `CIA2`) and the
+// register fields of each. What a program usually wants
 // sits one layer up, in this package's own implementations of the portable
 // capability packages — `./src/screen.8bs` behind @8bitscript/screen and
 // `./src/text.8bs` behind @8bitscript/text, named by the "8bitscript".exports
@@ -66,7 +66,7 @@ export let spriteXHigh: volatile<u8>;
 // $D011, control register 1 (`ctrl1`): bit 7 RST8 (bit 8 of the raster
 // line, read; of the raster compare, write), 6 ECM, 5 BMM, 4 DEN (display
 // enable), 3 RSEL (25 rows / 24), 0-2 YSCROLL. The frame runtime reads
-// bit 7 (FRAME_SYNC.c64 in packages/backend-6502).
+// bit 7 (FRAME_SYNC.c64 in packages/compiler/src/mos).
 @address(0xD011)
 export let control1: volatile<u8>;
 
@@ -323,7 +323,7 @@ export function copyCharacterRom(): void {
 //
 // PAL or NTSC is not a build fact: one .prg runs on both, and the frame
 // runtime finds out for itself at start-up (FRAME_SYNC.c64's probe,
-// packages/backend-6502) — but keeps the answer to itself. So this is the
+// packages/compiler/src/mos) — but keeps the answer to itself. So this is the
 // same probe, for a program that needs it: @8bitscript/c64/sid's note
 // tables (the SID's pitch is the CPU clock's), a program timing something
 // in raster lines. Sync to the top of a frame, then watch one whole frame

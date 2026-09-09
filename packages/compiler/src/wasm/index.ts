@@ -5,7 +5,8 @@
 // exported function (the entry), exported memory and globals, and at most
 // one import, `env.waitFrame`. This file records that contract; it does
 // not implement it.
-import type { IrProgram } from '@8bitscript/compiler';
+/** The linked program. Untyped until the rest of this package grows declarations. */
+type IrProgram = unknown;
 
 export interface BuildOptions {
   outFile: string;

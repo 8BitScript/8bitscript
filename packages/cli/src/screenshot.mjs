@@ -145,7 +145,7 @@ function terminateAndWait(child, { graceMs = 2000 } = {}) {
 // target draws to.
 //
 // Real NTSC/PAL CPU clocks (Hz), taken from the same crystal/divisor
-// figures documented on packages/backend-6502's FRAME_SYNC (vic20/c64/c128
+// figures documented on packages/compiler/src/mos FRAME_SYNC (vic20/c64/c128
 // share the C64's clock derivation) — used only to convert an explicit
 // --frames into a cycle count; DEFAULT_CYCLES below is what a plain
 // `--screenshot` with no --frames uses.
@@ -166,7 +166,7 @@ const VICE_DEFAULT_CYCLES = {
   vic20: 14_000_000, c64: 5_000_000, pet: 8_000_000, c128: 8_000_000,
 };
 // The PET's CPU clock is a flat, region-independent 1MHz (FRAME_SYNC.pet
-// in backend-6502). Video refresh is the xpet model's — the catalog's
+// in packages/compiler/src/mos). Video refresh is the xpet model's — the catalog's
 // `video.frameRate` fact for the model fitted (the 3xxx ~60Hz, the CRTC
 // models 50Hz); these numbers only convert an explicit --frames into a
 // cycle count. The program still measures the actual period at startup.

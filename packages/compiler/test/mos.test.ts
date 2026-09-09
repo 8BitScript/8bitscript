@@ -5,13 +5,12 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { IrProgram } from '@8bitscript/compiler';
 import {
   build, outputExtension, CPU, reduceRatio, frameRatio, FRAME_SYNC,
-} from '../src/index.ts';
-import type { Machine, RatioPair } from '../src/index.ts';
+} from '../src/mos/index.ts';
+import type { Machine, RatioPair } from '../src/mos/index.ts';
 
-const ir = {} as IrProgram;
+const ir = {};
 
 const hardware = { build: { defsym: {} }, facts: {} };
 

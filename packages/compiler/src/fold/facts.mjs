@@ -36,7 +36,7 @@
 //
 // `program: false` keys are the CLI's, not a program's: `video.frameRate`
 // is what a screenshot's frame count is timed against, and it is not on
-// the sheet because the level machines (packages/backend-6502, FRAME_SYNC)
+// the sheet because the level machines (packages/compiler/src/mos, FRAME_SYNC)
 // detect NTSC or PAL at run time — one binary runs at both — so a
 // compile-time refresh rate would be a fact that is sometimes wrong.
 

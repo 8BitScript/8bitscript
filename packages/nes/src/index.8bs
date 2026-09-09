@@ -46,7 +46,7 @@
 //      the text and palette writes do not go to the PPU when a program
 //      makes them: they go into the queue below, as runs of bytes at a
 //      VRAM address, and `nesVerticalBlank()` delivers the whole queue
-//      at the start of the next vertical blank — packages/backend-6502's
+//      at the start of the next vertical blank — packages/compiler/src/mos's
 //      frame runtime calls it right after every hardware frame edge
 //      (FRAME_SYNC.nes.frameHook), before waitFrame() returns. Delivery
 //      is a tight loop, about 15 cycles a byte — but that number alone
@@ -85,14 +85,14 @@
 //
 // PPU warm-up: NESdev's guidance is to wait for two vertical blanks after
 // reset before writing the PPU at all, since the chip is not stable for
-// roughly the first 29,658 CPU cycles. LLVM-MOS's NROM start-up code does
-// exactly that before main() — verified by disassembling mos-platform/
-// nes-nrom/lib/crt0.o: __early_init writes $2000/$2001/$4010 = 0, clears
-// $2002, and spins on it until bit 7 sets; __late_init spins on it once
-// more after RAM is initialised — so by the time a program's main() runs
-// the PPU has seen two vblanks and is safe to write. (An earlier revision
-// of this comment recorded that wait as a gap this target still had; it
-// was never one.)
+// roughly the first 29,658 CPU cycles. NROM start-up does that wait
+// before main() — verified by disassembly (pre-0.2.0): __early_init
+// writes $2000/$2001/$4010 = 0, clears $2002, and spins on it until bit 7
+// sets; __late_init spins on it once more after RAM is initialised — so
+// by the time a program's main() runs the PPU has seen two vblanks and
+// is safe to write. (An earlier revision of this comment recorded that
+// wait as a gap this target still had; it was never one.) The native
+// backend does not yet emit that start-up.
 
 // PPUSTATUS read resets the PPUADDR/PPUSCROLL write toggle so the two
 // PPUADDR writes land as a fresh address rather than as a stray second
@@ -171,7 +171,8 @@ export function nesVerticalBlank(): void {
         let n: utinyint = queue[i + 2];
         i = i + 3;
         // Indexed straight off `i`, one byte at a time: an `i + k` index
-        // made LLVM-MOS walk a pointer at 23 cycles a byte; this is 15.
+        // walked a pointer at 23 cycles a byte (measured pre-0.2.0);
+        // this is 15.
         while (n > 0) {
             memory.write(0x2007, queue[i]);
             i++;

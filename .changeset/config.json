@@ -5,8 +5,6 @@
   "fixed": [
     [
       "@8bitscript/atari8",
-      "@8bitscript/backend-6502",
-      "@8bitscript/backend-web",
       "@8bitscript/c64",
       "@8bitscript/c128",
       "@8bitscript/cli",

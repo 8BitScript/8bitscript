@@ -12,5 +12,5 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["src", "test"]
+  "include": ["src/mos", "src/wasm", "test/mos.test.ts", "test/wasm.test.ts"]
 }
