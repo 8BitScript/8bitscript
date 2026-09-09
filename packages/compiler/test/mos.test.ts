@@ -509,28 +509,36 @@ test('mutual recursion (a calls b, b calls a) is refused the same way direct sel
   }
 });
 
-test('a 16-bit parameter is refused by name, not silently truncated — 16-bit lands at milestone 8', async () => {
+test('a 16-bit parameter gets its own 2-byte zp slot (milestone 8) — a call site copies both bytes in', async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
   try {
     const outFile = join(scratch, 'out.prg');
     const wideParamIr: IrProgram = {
       entry: 'main',
       functions: [
-        { name: 'main', params: [], returnType: 'void', body: [{ kind: 'call', name: 'place', args: [{ kind: 'const', value: 0, type: 'usmallint' }] }] },
+        { name: 'main', params: [], returnType: 'void', body: [{ kind: 'call', name: 'place', args: [{ kind: 'const', value: 999, type: 'usmallint' }] }] },
         { name: 'place', params: [{ name: 'cell', type: 'usmallint' }], returnType: 'void', body: [] },
       ],
       globals: [],
     };
     const result = await build(wideParamIr, { machine: 'pet', hardware, outFile, frameRate: 60 });
-    assert.equal(result.ok, false);
-    if (result.ok) return;
-    assert.match(result.error, /'place\(cell\)' is 'usmallint' \(2 bytes\)/);
+    assert.equal(result.ok, true, result.ok ? '' : result.error);
+    if (!result.ok) return;
+    assert.equal(result.bytes.length, 35);
+    // 4 zp bytes: place's own 2-byte `cell` parameter, plus 2 more that are
+    // main's own — a call site's 16-bit argument evaluates into a fresh
+    // temp pair (callSite in lower/index.ts) before being copied into the
+    // callee's param address, and that temp counts against main's own
+    // high-water mark even though it's released the moment the copy is
+    // done. Unlike the 8-bit case (milestone 7's own two-call-sites test),
+    // a 16-bit call site really does touch the caller's LocalAllocator.
+    assert.deepEqual(result.memory, { variables: 4, program: 35 });
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
 });
 
-test('a 16-bit return type is refused by name — the real text.putChar/place() wait for milestone 8, exactly as the roadmap now says', async () => {
+test('a 16-bit return type is still refused by name — milestone 8 widens parameters, locals, and assignment, not return values', async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
   try {
     const outFile = join(scratch, 'out.prg');
@@ -632,6 +640,136 @@ test('milestone 7 gate: HELLO WORLD through a real putChar(cell, code), called e
     // comparison needs (comparisonBranch's emitOperands) — main declares
     // no locals of its own.
     assert.deepEqual(result.memory, { variables: 3, program: 302 });
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+// ---- milestone 8: 16-bit values and a computed-address store -------------
+//
+// The real @8bitscript/pet/text package's own `place(cell: usmallint, code:
+// utinyint) { memory.write(0x8000 + cell, toScreen(code)); }` — the exact
+// function milestone 7's own AGENTS.md named as why that milestone's gate
+// couldn't be the real putChar/place() (see mos/AGENTS.md's "still out of
+// scope" list). `toScreen()` is left out here (an unrelated lookup, already
+// coverable on its own — nothing about it is 16-bit) so this exercises just
+// what milestone 8 adds: a 16-bit parameter, 16-bit addition, and a
+// computed memoryWrite address, called with cell=999 — past the 8-bit
+// boundary, so a backend that quietly truncated the index to one byte would
+// write to the wrong page instead of failing outright.
+function place16Fn() {
+  return {
+    name: 'place',
+    params: [{ name: 'cell', type: 'usmallint' }, { name: 'code', type: 'utinyint' }],
+    returnType: 'void',
+    body: [{
+      kind: 'memoryWrite',
+      address: {
+        kind: 'binop', operator: '+', type: 'usmallint',
+        left: { kind: 'const', value: 0x8000, type: 'usmallint' },
+        right: { kind: 'ref', name: 'cell', type: 'usmallint' },
+      },
+      value: { kind: 'ref', name: 'code', type: 'utinyint' },
+    }],
+  };
+}
+
+test('milestone 8 acceptance: place(cell: usmallint, code: utinyint) — a real 16-bit parameter, 16-bit addition, and a computed-address store through (zp),Y — 67 bytes', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+  try {
+    const outFile = join(scratch, 'out.prg');
+    const placeIr: IrProgram = {
+      entry: 'main',
+      functions: [
+        place16Fn(),
+        {
+          name: 'main',
+          params: [],
+          returnType: 'void',
+          body: [{ kind: 'call', name: 'place', args: [{ kind: 'const', value: 999, type: 'usmallint' }, { kind: 'const', value: 8, type: 'utinyint' }] }],
+        },
+      ],
+      globals: [],
+    };
+    const result = await build(placeIr, { machine: 'pet', hardware, outFile, frameRate: 60 });
+    assert.equal(result.ok, true, result.ok ? '' : result.error);
+    if (!result.ok) return;
+    assert.deepEqual(
+      [...result.bytes],
+      [
+        0x01, 0x04, // load address $0401, little-endian
+        0x0b, 0x04, 0x00, 0x00, 0x9e, 0x31, 0x30, 0x33, 0x37, 0x00, 0x00, 0x00, // the 12-byte BASIC stub: 0 SYS1037
+        0xd8, // CLD — the combined program uses ADC, and decimalMode:true means the D flag isn't assumed clear on SYS entry
+        // main: copy cell=999 ($03E7) into place's own param pair $8E/$8F...
+        0xa9, 0xe7, 0x85, 0x95, // LDA #$E7 · STA $95 (temp lo)
+        0xa9, 0x03, 0x85, 0x96, // LDA #$03 · STA $96 (temp hi)
+        0xa5, 0x95, 0x85, 0x8e, // LDA $95  · STA $8E (cell lo)
+        0xa5, 0x96, 0x85, 0x8f, // LDA $96  · STA $8F (cell hi)
+        // ...and code=8 into place's own param $90...
+        0xa9, 0x08, 0x85, 0x90, // LDA #$08 · STA $90 (code)
+        0x20, 0x26, 0x04, // JSR $0426 (place)
+        0x60, // RTS — main's own epilogue, back to BASIC
+        // place: $8000 + cell, into a fresh zp pointer pair $91/$92...
+        0xa9, 0x00, 0x85, 0x93, // LDA #$00 · STA $93 (0x8000's lo half, a temp)
+        0xa9, 0x80, 0x85, 0x94, // LDA #$80 · STA $94 (0x8000's hi half, a temp)
+        0x18, // CLC
+        0xa5, 0x93, 0x65, 0x8e, 0x85, 0x91, // LDA $93 · ADC $8E (cell lo) · STA $91 (pointer lo)
+        0xa5, 0x94, 0x65, 0x8f, 0x85, 0x92, // LDA $94 · ADC $8F (cell hi) · STA $92 (pointer hi)
+        // ...then the store itself, through the pointer, Y forced to 0.
+        0xa5, 0x90, // LDA $90 (code)
+        0xa0, 0x00, // LDY #$00
+        0x91, 0x91, // STA ($91),Y
+        0x60, // RTS — place's own return
+      ],
+    );
+    assert.equal(result.bytes.length, 67);
+    // 9 zp bytes: place's own cell (2) + code (1); main's own 2-byte temp
+    // for copying the 999 literal into cell (released after, but it's the
+    // high-water mark that counts — see the milestone 8 parameter test
+    // above); place's own pointer pair (2) and its own temp for the 0x8000
+    // half of the addition (2).
+    assert.deepEqual(result.memory, { variables: 9, program: 67 });
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+// Discovered building the milestone 8 gate for real: `place(999, 8)` above
+// builds fine because both literals already happen to be wide enough that
+// narrowestIntegerType() picks usmallint/utinyint to match place's own
+// declared parameter widths — but the front end never widens a narrower
+// literal to match a *wider* declared parameter (verified against
+// ir/index.mjs; see exprTo16's own comment in lower/index.ts), so the far
+// more ordinary `place(0, 65)` — cell 0 is exactly the shape a real
+// `text.putChar(0, ...)` call site would use — needed this test to catch
+// it failing before exprTo16 existed. Confirmed live: `8bs run pet
+// --hardware model=2001` on this exact program shows 'X' overwriting the
+// 'O' in the boot banner's "COMMODORE", at cell 5 (a sibling scratch run
+// with cell=5; not committed).
+test('a call widens an 8-bit literal argument into a 16-bit parameter — place(0, 65), same byte count as place(999, 8)', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+  try {
+    const outFile = join(scratch, 'out.prg');
+    const placeIr: IrProgram = {
+      entry: 'main',
+      functions: [
+        place16Fn(),
+        {
+          name: 'main',
+          params: [],
+          returnType: 'void',
+          body: [{ kind: 'call', name: 'place', args: [{ kind: 'const', value: 0, type: 'utinyint' }, { kind: 'const', value: 65, type: 'utinyint' }] }],
+        },
+      ],
+      globals: [],
+    };
+    const result = await build(placeIr, { machine: 'pet', hardware, outFile, frameRate: 60 });
+    assert.equal(result.ok, true, result.ok ? '' : result.error);
+    if (!result.ok) return;
+    // Same shape and byte count as the acceptance test above: zero-extending
+    // a literal costs the same two LDA/STA pairs a genuine 2-byte literal
+    // does (LDA #0/STA lo, LDA #0/STA hi, vs. LDA lo/STA, LDA hi/STA).
+    assert.deepEqual(result.memory, { variables: 9, program: 67 });
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
