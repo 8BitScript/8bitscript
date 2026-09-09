@@ -54,9 +54,14 @@ function parseFrontMatter(source, file) {
   const data = {};
   for (const line of match[1].split(/\r?\n/)) {
     if (line.trim() === '' || line.trimStart().startsWith('#')) continue;
-    const pair = /^([A-Za-z_][\w-]*):\s*(.*)$/.exec(line);
-    if (!pair) throw new Error(`${file}: cannot parse front-matter line: ${line}`);
-    data[pair[1]] = pair[2].trim().replace(/^["']|["']$/g, '');
+    const colon = line.indexOf(':');
+    const key = colon === -1 ? '' : line.slice(0, colon);
+    // Split on the first colon; a `/key: value/` regex backtracks on a line
+    // that never has one.
+    if (!/^[A-Za-z_][\w-]*$/.test(key)) {
+      throw new Error(`${file}: cannot parse front-matter line: ${line}`);
+    }
+    data[key] = line.slice(colon + 1).trim().replace(/^["']|["']$/g, '');
   }
 
   if (!data.title) throw new Error(`${file}: front matter has no \`title\`.`);
@@ -77,7 +82,7 @@ async function findPages(dir = DOCS_DIR) {
       found.push(relative(DOCS_DIR, full));
     }
   }
-  return found.sort();
+  return found.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
 
 /**
