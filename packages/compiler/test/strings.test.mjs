@@ -87,6 +87,15 @@ test('lexer: an unterminated template or field is a diagnostic on its own line',
   assert.deepEqual(tokenize('`TICK\n', 't').diagnostics.map((d) => d.code), ['8BS1002']);
 });
 
+test('lexer: braces inside a quoted field do not end the field early', () => {
+  const src = '`${ "{" }`';
+  const [token] = tokenize(src, 't').tokens;
+  assert.equal(token.kind, 'template');
+  assert.deepEqual(tokenize(src, 't').diagnostics, []);
+  assert.equal(token.parts.filter((p) => p.kind === 'field').length, 1);
+  assert.equal(src.slice(token.parts[0].sourceStart, token.parts[0].sourceEnd), ' "{" ');
+});
+
 test('lexer: string is a type name', () => {
   const [token] = tokenize('string', 't').tokens;
   assert.equal(token.kind, 'type');

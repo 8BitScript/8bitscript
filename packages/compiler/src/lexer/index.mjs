@@ -1,9 +1,11 @@
 // The lexer: raw text in, tokens out.
 //
-// First layer of the pipeline described in docs/compiler.md. It is deliberately
-// the only layer that exists today, because it is the one that pays off before
-// a parser does: it finds unterminated strings, stray characters, and unbalanced
-// brackets, which is already enough to put real errors under the cursor.
+// First layer of the pipeline described in docs/compiler.md. Hand-written,
+// never generated, never a regex over the file: the language is small, and
+// several tokens are context-sensitive (`%101` vs `x%2`, `asm6502 { ... }`).
+// It never throws — an editor asks for tokens on every keystroke, so
+// half-typed source is the normal input. Rules for changing it live in
+// AGENTS.md in this directory.
 //
 // Every token carries its offset and length. Diagnostics are built from those,
 // so a position is never recomputed by guesswork later.
@@ -69,6 +71,85 @@ const isIdentStart = (c) => /[A-Za-z_]/.test(c);
 const isIdentPart = (c) => /[A-Za-z0-9_]/.test(c);
 const isDigit = (c) => c >= '0' && c <= '9';
 
+/** Previous non-comment token. Comments are trivia for `%` vs binary. */
+function lastSignificant(tokens) {
+  for (let k = tokens.length - 1; k >= 0; k -= 1) {
+    if (tokens[k].kind !== TokenKind.Comment) return tokens[k];
+  }
+  return undefined;
+}
+
+/**
+ * Tokens that leave a value in place, so a following `%101` is modulo, not
+ * a binary literal. `true`/`false` are literals; postfix `++`/`--` leave
+ * their operand in place. The caller must already have skipped comments.
+ */
+function isOperandToken(tok) {
+  if (!tok) return false;
+  switch (tok.kind) {
+    case TokenKind.Identifier:
+    case TokenKind.Number:
+    case TokenKind.String:
+    case TokenKind.Template:
+    case TokenKind.Type:
+      return true;
+    case TokenKind.Keyword:
+      return tok.text === 'true' || tok.text === 'false';
+    case TokenKind.Punctuation:
+      return tok.text === ')' || tok.text === ']';
+    case TokenKind.Operator:
+      return tok.text === '++' || tok.text === '--';
+    default:
+      return false;
+  }
+}
+
+/**
+ * End offset of an `asm6502 { ... }` body. The body is 6502 assembly, so
+ * `{` / `}` inside `;` comments or quotes must not count toward depth.
+ *
+ * @param {string} text
+ * @param {number} openBrace  Offset of the opening `{`.
+ * @returns {{ end: number, depth: number }}
+ */
+function scanAsmBlock(text, openBrace) {
+  let j = openBrace;
+  let depth = 0;
+  while (j < text.length) {
+    const c = text[j];
+    if (c === ';') {
+      while (j < text.length && text[j] !== '\n') j += 1;
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      const quote = c;
+      j += 1;
+      while (j < text.length && text[j] !== '\n') {
+        if (text[j] === '\\' && j + 1 < text.length && text[j + 1] !== '\n') {
+          j += 2;
+          continue;
+        }
+        if (text[j] === quote) { j += 1; break; }
+        j += 1;
+      }
+      continue;
+    }
+    if (c === '{') {
+      depth += 1;
+      j += 1;
+      continue;
+    }
+    if (c === '}') {
+      depth -= 1;
+      j += 1;
+      if (depth === 0) return { end: j, depth: 0 };
+      continue;
+    }
+    j += 1;
+  }
+  return { end: j, depth };
+}
+
 /**
  * Tokenize a source file.
  *
@@ -88,6 +169,16 @@ export function tokenize(text, file = '<unknown>') {
 
   const push = (kind, start, end, extra = {}) =>
     tokens.push({ kind, start, length: end - start, text: text.slice(start, end), ...extra });
+
+  // A source newline always ends a string or template, even after `\`.
+  // Skipping the newline as an escaped character would swallow the next line.
+  const skipStringEscape = () => {
+    if (text[i] === '\\' && i + 1 < text.length && text[i + 1] !== '\n') {
+      i += 2;
+      return true;
+    }
+    return false;
+  };
 
   while (i < text.length) {
     const c = text[i];
@@ -132,7 +223,7 @@ export function tokenize(text, file = '<unknown>') {
       i += 1;
       let closed = false;
       while (i < text.length) {
-        if (text[i] === '\\') { i += 2; continue; }
+        if (skipStringEscape()) continue;
         if (text[i] === quote) { i += 1; closed = true; break; }
         if (text[i] === '\n') break;
         i += 1;
@@ -155,7 +246,8 @@ export function tokenize(text, file = '<unknown>') {
     // text and each `${...}` field's source span (the field's own tokens are
     // produced by the parser re-lexing that span, offsets intact). Braces
     // nest inside a field so a future `{`-bearing expression still ends at
-    // the right `}`. Single-line, like the other strings.
+    // the right `}`. Quoted text inside a field does not count. Single-line,
+    // like the other strings.
     if (c === '`') {
       const start = i;
       i += 1;
@@ -166,7 +258,7 @@ export function tokenize(text, file = '<unknown>') {
         if (end > textStart) parts.push({ kind: 'text', start: textStart, end });
       };
       while (i < text.length) {
-        if (text[i] === '\\') { i += 2; continue; }
+        if (skipStringEscape()) continue;
         if (text[i] === '`') { flushText(i); i += 1; closed = true; break; }
         if (text[i] === '\n') break;
         if (text[i] === '$' && text[i + 1] === '{') {
@@ -176,6 +268,16 @@ export function tokenize(text, file = '<unknown>') {
           const sourceStart = i;
           let depth = 1;
           while (i < text.length && text[i] !== '\n') {
+            if (text[i] === '"' || text[i] === "'") {
+              const quote = text[i];
+              i += 1;
+              while (i < text.length && text[i] !== '\n') {
+                if (skipStringEscape()) continue;
+                if (text[i] === quote) { i += 1; break; }
+                i += 1;
+              }
+              continue;
+            }
             if (text[i] === '{') depth += 1;
             else if (text[i] === '}') { depth -= 1; if (depth === 0) break; }
             i += 1;
@@ -212,16 +314,9 @@ export function tokenize(text, file = '<unknown>') {
     //
     // `%` is also the modulo operator, so `%101` is a binary literal only where
     // a value is expected: after an identifier, a literal, or a closing bracket
-    // the `%` in `x%2` has to be modulo. `$` has no such conflict.
-    const prev = tokens[tokens.length - 1];
-    const prevIsOperand = prev && (
-      prev.kind === TokenKind.Identifier ||
-      prev.kind === TokenKind.Number ||
-      prev.kind === TokenKind.String ||
-      prev.kind === TokenKind.Template ||
-      prev.kind === TokenKind.Type ||
-      [')', ']'].includes(prev.text)
-    );
+    // the `%` in `x%2` has to be modulo. `$` has no such conflict. Look past
+    // comments: `x/*c*/%2` is still modulo.
+    const prevIsOperand = isOperandToken(lastSignificant(tokens));
     const startsBinaryLiteral = c === '%' && /[01]/.test(text[i + 1] ?? '') && !prevIsOperand;
     const startsHexLiteral = c === '$' && /[0-9a-fA-F]/.test(text[i + 1] ?? '');
 
@@ -316,15 +411,7 @@ export function tokenize(text, file = '<unknown>') {
         while (j < text.length && /\s/.test(text[j])) j += 1;
         if (text[j] === '{') {
           const bodyStart = j;
-          let depth = 0;
-          while (j < text.length) {
-            if (text[j] === '{') depth += 1;
-            else if (text[j] === '}') {
-              depth -= 1;
-              if (depth === 0) { j += 1; break; }
-            }
-            j += 1;
-          }
+          const { end, depth } = scanAsmBlock(text, bodyStart);
           if (depth !== 0) {
             diagnostics.push(
               diagnostic(
@@ -334,8 +421,8 @@ export function tokenize(text, file = '<unknown>') {
               ),
             );
           }
-          push(TokenKind.AsmBlock, bodyStart, j);
-          i = j;
+          push(TokenKind.AsmBlock, bodyStart, end);
+          i = end;
         }
       }
       continue;

@@ -215,6 +215,12 @@ cost that machine zero.
 half in the same shape — what it takes to draw an arrow the user can see,
 why that is a separate package from reading where the pointer is, and why
 eight of the nine draw nothing today for four quite different reasons.
+[`packages/compiler/AGENTS.md`](packages/compiler/AGENTS.md) is the
+compiler's: the pipeline, and where each layer's rules live. The lexer's
+own file is
+[`packages/compiler/src/lexer/AGENTS.md`](packages/compiler/src/lexer/AGENTS.md)
+— a hand-written scanner that never throws, with the token-level rules
+next to the scanner.
 
 ## Seeing what a program actually does
 
@@ -235,6 +241,12 @@ for agents in the per-package `AGENTS.md` files. Those copies do not update
 themselves, and the tests that would catch the drift are only as complete as
 the last person made them — `docs/compiler.md`'s diagnostic-code table once
 fell six codes behind the compiler before anyone noticed.
+
+The lexer's own rules —
+never throw, maximal munch, `%` vs binary, opaque `asm6502` bodies — live
+in [`packages/compiler/src/lexer/AGENTS.md`](packages/compiler/src/lexer/AGENTS.md),
+not here. [`packages/compiler/AGENTS.md`](packages/compiler/AGENTS.md)
+is the rest of the front end in brief.
 
 So whenever you touch a core section — the lexer, parser, checker, fold pass,
 diagnostics, IR, a backend's view of a builtin, or a reserved name — finish
@@ -269,6 +281,10 @@ the change everywhere it is described, in the same commit:
   under `editors/` follows the same rule.
 - **Per-package `AGENTS.md` files** (`packages/<target>/AGENTS.md`) if the
   change alters what a target package is allowed or expected to do.
+  A lexer change also updates
+  [`packages/compiler/src/lexer/AGENTS.md`](packages/compiler/src/lexer/AGENTS.md);
+  a compiler-wide one updates
+  [`packages/compiler/AGENTS.md`](packages/compiler/AGENTS.md).
 
 ### Names say which side they are on
 
