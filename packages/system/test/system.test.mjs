@@ -58,8 +58,8 @@ test('on every target, #system() == System.<that target> is a comparison of two 
     const { ir, diagnostics } = link(program(target.toUpperCase()), PROBE, { machine: target, facts: stockFacts(target) });
     assert.deepEqual(diagnostics, [], target);
     const test = ir.functions.find((f) => f.name === 'main').body.find((s) => s.kind === 'if').test;
-    assert.deepEqual(test.left, { kind: 'const', value: SYSTEMS.get(target) }, `${target}: #system()`);
-    assert.deepEqual(test.right, { kind: 'const', value: names[target.toUpperCase()] }, `${target}: System.${target.toUpperCase()}`);
+    assert.deepEqual(test.left, { kind: 'const', value: SYSTEMS.get(target), type: 'utinyint' }, `${target}: #system()`);
+    assert.deepEqual(test.right, { kind: 'const', value: names[target.toUpperCase()], type: 'utinyint' }, `${target}: System.${target.toUpperCase()}`);
   }
 });
 

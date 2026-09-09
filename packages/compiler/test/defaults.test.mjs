@@ -35,8 +35,8 @@ test('a default parses and lowers as a compile-time value on the parameter', () 
   const { ir, diagnostics } = lowered('const SEVEN: utinyint = 7;\nfunction f(a: utinyint, b: utinyint = SEVEN, c: bool = true, s: string = "HI"): void { }\nexport function main(): void { }');
   assert.deepEqual(diagnostics, []);
   assert.deepEqual(ir.functions[0].params.map((p) => [p.name, p.default]), [
-    ['a', undefined], ['b', { kind: 'const', value: 7 }], ['c', { kind: 'const', value: 1 }],
-    ['s', { kind: 'string', index: 0, start: 100, length: 4 }],
+    ['a', undefined], ['b', { kind: 'const', value: 7, type: 'utinyint' }], ['c', { kind: 'const', value: 1, type: 'bool' }],
+    ['s', { kind: 'string', index: 0, type: 'string', start: 100, length: 4 }],
   ]);
 });
 

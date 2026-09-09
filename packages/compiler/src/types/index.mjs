@@ -114,3 +114,24 @@ export const INTEGER_RANGES = Object.fromEntries(
     return [name, [type.min, type.max]];
   }),
 );
+
+/**
+ * The narrowest primitive integer type a value fits in — unsigned from
+ * utinyint upward for a non-negative value, signed from tinyint upward
+ * for a negative one, in PRIMITIVE_INTEGER_TYPES' own narrowest-first
+ * order. This is the IR's rule for a literal's own type (Milestone 0,
+ * the typed-IR pass — packages/compiler/src/ir), and it is deliberately
+ * not the same function as templates/index.mjs's inferType(), whose
+ * literal case only ever sizes a template field's decimal width and so
+ * never needs to consider a negative value: `-100` there would recurse
+ * into the *unsigned* type of the magnitude 100, which is wrong once the
+ * answer feeds real codegen rather than a digit count.
+ *
+ * @param {number} value
+ * @returns {string} a canonical integer type name
+ */
+export function narrowestIntegerType(value) {
+  const tiers = PRIMITIVE_INTEGER_TYPES.filter((t) => t.signed === value < 0);
+  const fit = tiers.find((t) => value >= t.min && value <= t.max);
+  return fit ? fit.canonicalName : (value < 0 ? 'int' : 'uint');
+}
