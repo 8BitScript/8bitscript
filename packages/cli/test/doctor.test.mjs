@@ -19,7 +19,7 @@ test('parseVersion finds the first dotted version', () => {
   assert.deepEqual(parseVersion('v26.7.0'), [26, 7, 0]);
   assert.deepEqual(parseVersion('xvic (VICE 3.10)'), [3, 10, 0]);
   assert.deepEqual(parseVersion('git version 2.55.0'), [2, 55, 0]);
-  assert.deepEqual(parseVersion('clang version 19.0.0 (llvm-mos)'), [19, 0, 0]);
+  assert.deepEqual(parseVersion('version 19.0.0'), [19, 0, 0]);
   assert.equal(parseVersion('no digits here'), null);
   assert.equal(parseVersion(''), null);
   assert.equal(parseVersion(undefined), null);
@@ -188,11 +188,11 @@ test('findMega65Rom: a present-but-wrong ROM (e.g. an Open ROM) is found but fai
   assert.equal(found.validation.ok, false);
 });
 
-test('readyTargets: mega65 is only ready when compiler, emulator, and ROM checks all pass', () => {
+test('readyTargets: mega65 is only ready when emulator and ROM checks all pass', () => {
   const passing = [
-    { status: 'ok', targets: ['mega65'] }, // mos-mega65-clang
     { status: 'ok', targets: ['mega65'] }, // xmega65
     { status: 'ok', targets: ['mega65'] }, // MEGA65 ROM
+    { status: 'ok', targets: ['mega65'] }, // Xemu ROM link
   ];
   assert.deepEqual(readyTargets(passing, ['mega65']), ['mega65']);
 
@@ -316,8 +316,8 @@ test('findLocalBin walks upward and stops at the root', () => {
     const bin = join(scratch, 'node_modules', '.bin');
     mkdirSync(join(scratch, 'deep', 'nested'), { recursive: true });
     mkdirSync(bin, { recursive: true });
-    writeFileSync(join(bin, 'asc'), '', { mode: 0o755 });
-    assert.equal(findLocalBin(join(scratch, 'deep', 'nested'), 'asc'), join(bin, 'asc'));
+    writeFileSync(join(bin, 'tool'), '', { mode: 0o755 });
+    assert.equal(findLocalBin(join(scratch, 'deep', 'nested'), 'tool'), join(bin, 'tool'));
     assert.equal(findLocalBin(scratch, 'no-such-tool'), null);
   } finally {
     rmSync(scratch, { recursive: true, force: true });
@@ -335,7 +335,7 @@ const VERSION_LINE = '### Release 50 ("next") 77f2bab3\n';
 const BOOT_OK = 'Testbench mode...\nRDY\nExit testbench.\n';
 const WRAPPER = '#!/bin/sh\nexec /opt/commander-x16/x16emu -rom /opt/commander-x16/rom.bin "$@"\n';
 
-function cx16World({ platform = 'darwin', compilerOk = true, entries = {}, launcher = '/usr/local/bin/x16emu', bootOutput = BOOT_OK, bootCode = 0, versionOutput = VERSION_LINE, versionCode = 0 } = {}) {
+function cx16World({ platform = 'darwin', entries = {}, launcher = '/usr/local/bin/x16emu', bootOutput = BOOT_OK, bootCode = 0, versionOutput = VERSION_LINE, versionCode = 0 } = {}) {
   const missing = () => Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
   const stats = (e) => ({ isSymbolicLink: () => 'symlink' in e, isFile: () => 'file' in e, size: 'file' in e ? Buffer.byteLength(e.file) : 0 });
   const execCalls = [];
@@ -343,7 +343,6 @@ function cx16World({ platform = 'darwin', compilerOk = true, entries = {}, launc
     execCalls,
     opts: {
       platform,
-      compilerOk,
       resolveBinary: (name) => (name === 'x16emu' ? launcher : null),
       realpathFn: async (p) => (entries[p]?.symlink ?? p),
       exec: async (cmd, args) => {
@@ -469,13 +468,6 @@ test('checkCx16Target: a rom.bin beside an unmanaged x16emu (e.g. an official re
   assert.match(c['Commander X16 ROM'].detail, /beside x16emu/);
   assert.equal(c['Commander X16 launcher'].status, 'ok');
   assert.match(c['Commander X16 launcher'].detail, /not 8bs-managed/);
-});
-
-test('checkCx16Target: everything present but mos-cx16-clang missing — not ready', async () => {
-  const { opts } = cx16World({ compilerOk: false, entries: { '/usr/local/bin/x16emu': { file: WRAPPER }, '/opt/commander-x16/rom.bin': { file: 'rom' } } });
-  const c = byLabel(await checkCx16Target(opts));
-  assert.equal(c['Commander X16'].status, 'skip');
-  assert.match(c['Commander X16'].detail, /mos-cx16-clang must pass first/);
 });
 
 test('parseX16emuVersion / romLoadFailure / testbenchBooted: the real r50 output shapes', () => {
