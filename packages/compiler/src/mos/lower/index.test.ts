@@ -300,13 +300,13 @@ test('&& and || as values materialise to 0/1; as if-tests they short-circuit wit
   if (!orValue.ok) return;
   assembles(orValue.program);
 
-  const andIf = lower([{ kind: 'if', test: bool('&&', ref('a'), ref('b')), then: [write(0x8000, 1)], else: null }], env);
+  const andIf = lower([ifNode(bool('&&', ref('a'), ref('b')), [write(0x8000, 1)])], env);
   assert.equal(andIf.ok, true, andIf.ok ? '' : andIf.error);
   if (!andIf.ok) return;
   assembles(andIf.program);
   assert.ok(!mnemonicsOf(andIf.program).includes('JMP') || mnemonicsOf(andIf.program).filter((m) => m === 'LDA').length < mnemonicsOf(asValue.program).filter((m) => m === 'LDA').length);
 
-  const orIf = lower([{ kind: 'if', test: bool('||', ref('a'), ref('b')), then: [write(0x8000, 1)], else: [write(0x8000, 2)] }], env);
+  const orIf = lower([ifNode(bool('||', ref('a'), ref('b')), [write(0x8000, 1)], [write(0x8000, 2)])], env);
   assert.equal(orIf.ok, true, orIf.ok ? '' : orIf.error);
   if (!orIf.ok) return;
   assembles(orIf.program);
@@ -323,7 +323,7 @@ test('unary !, ~, -, and + each lower; an unknown unary operator is refused by n
   if (!bang.ok) return;
   assembles(bang.program);
 
-  const ifNot = lower([{ kind: 'if', test: not(ref('x')), then: [write(0x8000, 1)], else: null }], env);
+  const ifNot = lower([ifNode(not(ref('x')), [write(0x8000, 1)])], env);
   assert.equal(ifNot.ok, true, ifNot.ok ? '' : ifNot.error);
   if (!ifNot.ok) return;
   assembles(ifNot.program);
@@ -360,11 +360,11 @@ test('>, <=, >=, and != as if-tests assemble; a bool local used as a condition i
     ['flag', { address: 0x12, type: 'bool' }],
   ]);
   for (const operator of ['>', '<=', '>=', '!=']) {
-    const result = lower([{ kind: 'if', test: bool(operator, ref('a'), ref('b')), then: [write(0x8000, 1)], else: null }], env);
+    const result = lower([ifNode(bool(operator, ref('a'), ref('b')), [write(0x8000, 1)])], env);
     assert.equal(result.ok, true, result.ok ? '' : `${operator}: ${result.error}`);
     if (result.ok) assembles(result.program);
   }
-  const onFlag = lower([{ kind: 'if', test: ref('flag', 'bool'), then: [write(0x8000, 1)], else: null }], env);
+  const onFlag = lower([ifNode(ref('flag', 'bool'), [write(0x8000, 1)])], env);
   assert.equal(onFlag.ok, true, onFlag.ok ? '' : onFlag.error);
   if (!onFlag.ok) return;
   assembles(onFlag.program);
@@ -378,7 +378,7 @@ test('continue jumps to the loop\'s continue label — the top of a while, the u
       kind: 'while',
       test: bool('<', ref('i'), u8(10)),
       body: [
-        { kind: 'if', test: bool('==', ref('i'), u8(5)), then: [{ kind: 'continue' }], else: null },
+        ifNode(bool('==', ref('i'), u8(5)), [{ kind: 'continue' }]),
         assign('i', bin('+', ref('i'), u8(1))),
       ],
     },
