@@ -25,6 +25,16 @@ const bin = (operator: string, left: IrExpr, right: IrExpr, type = 'utinyint'): 
 const local = (name: string, init: IrExpr, type = 'utinyint'): IrStatement => ({ kind: 'local', name, type, init });
 const assign = (target: string, value: IrExpr): IrStatement => ({ kind: 'assign', target, value });
 
+// A plain `{ kind: 'if', ..., then, ... }` literal trips SonarCloud's
+// thenable-safety rule (S7739, "do not add `then` to an object") —
+// `then` here is the IR's real field name for the taken branch
+// (ir/index.mjs), always an array of statements, never a callable, so it
+// can never behave like a thenable. Centralised once so the one
+// necessary suppression lives in one place instead of at every call site.
+function ifNode(test: IrExpr, then: IrStatement[], elseBranch: IrStatement[] | null = null): IrStatement {
+  return { kind: 'if', test, then, else: elseBranch }; // NOSONAR: typescript:S7739 — 'then' is the IR's real field name, never a Promise
+}
+
 function instruction(directive: Directive) {
   assert.equal(directive.kind, 'instruction');
   if (directive.kind !== 'instruction') throw new Error('unreachable');
@@ -170,12 +180,7 @@ test('a bool value (a comparison used as a value, not a condition) assembles to 
 
 test('if/else with a bare return lowers and assembles cleanly, both branches present', () => {
   const program: IrStatement[] = [
-    {
-      kind: 'if',
-      test: bin('==', ref('x'), u8(0), 'bool'),
-      then: [write(0x8000, 1)],
-      else: [write(0x8000, 2)],
-    },
+    ifNode(bin('==', ref('x'), u8(0), 'bool'), [write(0x8000, 1)], [write(0x8000, 2)]),
   ];
   const result = lower(program, ctx([['x', { address: 0x10, type: 'utinyint' }]]));
   assert.equal(result.ok, true, result.ok ? '' : result.error);
@@ -191,7 +196,7 @@ test('while with break and continue lowers and assembles; the loop test sits at 
       kind: 'while',
       test: bin('<', ref('i'), u8(10), 'bool'),
       body: [
-        { kind: 'if', test: bin('==', ref('i'), u8(5), 'bool'), then: [{ kind: 'break' }], else: null },
+        ifNode(bin('==', ref('i'), u8(5), 'bool'), [{ kind: 'break' }]),
         assign('i', bin('+', ref('i'), u8(1))),
       ],
     },
@@ -238,7 +243,7 @@ test('return with a value is refused: no calling convention yet', () => {
 });
 
 test('a bare return jumps to the function-exit label, which the epilogue can sit right after', () => {
-  const result = lower([{ kind: 'if', test: bin('==', ref('x'), u8(0), 'bool'), then: [{ kind: 'return', value: null }], else: null }], ctx([['x', { address: 0x10, type: 'utinyint' }]]));
+  const result = lower([ifNode(bin('==', ref('x'), u8(0), 'bool'), [{ kind: 'return', value: null }])], ctx([['x', { address: 0x10, type: 'utinyint' }]]));
   assert.equal(result.ok, true, result.ok ? '' : result.error);
   if (!result.ok) return;
   const last = result.program[result.program.length - 1];
@@ -262,8 +267,8 @@ test('a local that shadows a global is restored — not deleted — once its blo
 });
 
 test('an empty else ({}) is treated as no else at all — no dead JMP to a branch that does nothing', () => {
-  const withEmptyElse = lower([{ kind: 'if', test: bin('==', ref('x'), u8(0), 'bool'), then: [write(0x8000, 1)], else: [] }], ctx([['x', { address: 0x10, type: 'utinyint' }]]));
-  const withNoElse = lower([{ kind: 'if', test: bin('==', ref('x'), u8(0), 'bool'), then: [write(0x8000, 1)], else: null }], ctx([['x', { address: 0x10, type: 'utinyint' }]]));
+  const withEmptyElse = lower([ifNode(bin('==', ref('x'), u8(0), 'bool'), [write(0x8000, 1)], [])], ctx([['x', { address: 0x10, type: 'utinyint' }]]));
+  const withNoElse = lower([ifNode(bin('==', ref('x'), u8(0), 'bool'), [write(0x8000, 1)])], ctx([['x', { address: 0x10, type: 'utinyint' }]]));
   assert.equal(withEmptyElse.ok, true);
   assert.equal(withNoElse.ok, true);
   if (!withEmptyElse.ok || !withNoElse.ok) return;
