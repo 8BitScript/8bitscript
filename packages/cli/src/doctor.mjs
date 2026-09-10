@@ -277,7 +277,7 @@ function installerHint(installer) {
 }
 
 /** Existence + best-effort version for an emulator binary that may hang on
- * an unrecognised flag (a GUI emulator opening a window instead of printing
+ * an unrecognized flag (a GUI emulator opening a window instead of printing
  * a version) — existence is the check that matters; the version probe only
  * ever upgrades a result, never fails one, so a slow/silent version flag
  * can't turn a real install into a false FAIL. `versionArgs` is there for
@@ -782,7 +782,7 @@ function spawnInstall(command, args) {
  * Offer to install one missing tool, right here. Only called for a FAIL
  * check that carries an `installer` this platform has a real plan for
  * (`pickInstallPlan` found a package manager on PATH) — a build-from-source
- * tool, or a platform/manager combination this doctor doesn't recognise,
+ * tool, or a platform/manager combination this doctor doesn't recognize,
  * only ever gets the printed hint, never a prompt.
  *
  * @returns {Promise<boolean>} whether an install ran (regardless of outcome)

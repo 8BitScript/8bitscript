@@ -33,7 +33,7 @@
 //      and it is the KERNAL's default blue (palette index 6) because that
 //      is the background nibble the KERNAL cleared every cell with. A
 //      program that sets a border and nothing else therefore appears to do
-//      nothing: a colour-cycling demo looked like exactly that, a solid blue
+//      nothing: a color-cycling demo looked like exactly that, a solid blue
 //      screen, before screen.8bs painted anything itself.
 //
 //   2. The screen is in ISO mode: the character set VERA is drawing from
@@ -46,10 +46,10 @@
 // ---- VRAM through VERA's port ---------------------------------------------
 //
 // The text layer (layer 1 in the KERNAL's boot configuration: 1bpp
-// 16-colour text, a tile map 128 tiles wide by 64 high, of which 80x60 are
+// 16-color text, a tile map 128 tiles wide by 64 high, of which 80x60 are
 // on screen at boot and 76x56 inside this package's border inset —
 // screen_init in the ROM's kernal/drivers/x16/screen.s) takes
-// each cell's colours from that cell's own attribute byte — high nibble
+// each cell's colors from that cell's own attribute byte — high nibble
 // background, low nibble foreground — stored in VRAM, which the CPU reaches
 // only through VERA's address/data port: write the 17-bit address into
 // $9F20 (bits 7:0), $9F21 (15:8) and $9F22 (bit 16, plus the auto-increment

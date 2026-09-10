@@ -70,7 +70,7 @@ test('a namespace member must be const, not let', () => {
   assert.deepEqual(diagnostics.map((d) => d.code), ['8BS3001']);
 });
 
-test('a namespace const needs a literal initialiser', () => {
+test('a namespace const needs a literal initializer', () => {
   const { diagnostics } = lowered('namespace X {\n    const y: utinyint = 1 + 1;\n}\n');
   assert.deepEqual(diagnostics.map((d) => d.code), ['8BS3001']);
 });

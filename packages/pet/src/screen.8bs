@@ -11,13 +11,13 @@
 // @8bitscript/screen and never name the hardware.
 //
 // The PET is a monochrome machine — green or white phosphor, whatever the
-// monitor is, with no colour hardware at all. `screen.setColors()` still
+// monitor is, with no color hardware at all. `screen.setColors()` still
 // exists and still links, because the point of the portable surface (see
 // @8bitscript/vic20 and @8bitscript/c64's screen.8bs) is that a single
 // portable program builds for every target without per-target branches in
 // user code — but here it is deliberately inert: there is no register to
 // write, so setColors() does nothing observable. A program that only ever
-// sets colours through the portable surface still builds and runs correctly
+// sets colors through the portable surface still builds and runs correctly
 // everywhere; it simply never shows a border or background tint on a PET,
 // because a PET cannot show one.
 //
@@ -32,10 +32,10 @@ export namespace screen {
         // Deliberately empty — see the file comment above.
     }
 
-    // `blank(border, background)`: every cell blank and both colours set —
+    // `blank(border, background)`: every cell blank and both colors set —
     // black when left off, or `BorderColor.KEEP` / `BackgroundColor.KEEP`
     // to leave one as it is. `setBorder` and `setBackground` are one
-    // colour each, `setColors` the pair; `text.setColor` owns what the
+    // color each, `setColors` the pair; `text.setColor` owns what the
     // next print looks like.
     function blank(border: utinyint = BorderColor.BLACK, background: utinyint = BackgroundColor.BLACK): void {
         if (border != BorderColor.KEEP) {
@@ -58,7 +58,7 @@ export namespace screen {
     }
 }
 
-// ---- colour names ----------------------------------------------------------
+// ---- color names ----------------------------------------------------------
 //
 // The same eight names every machine's screen.8bs exports, so a program that
 // says `screen.setColors(BorderColor.BLUE, BackgroundColor.BLACK)` through
@@ -74,7 +74,7 @@ export namespace BorderColor {
     const GREEN: utinyint = 5;
     const BLUE: utinyint = 6;
     const YELLOW: utinyint = 7;
-    // Not a colour: `blank(KEEP, ...)` leaves this one as it is. 255 is
+    // Not a color: `blank(KEEP, ...)` leaves this one as it is. 255 is
     // a value no register here takes.
     const KEEP: utinyint = 255;
 }
@@ -88,7 +88,7 @@ export namespace BackgroundColor {
     const GREEN: utinyint = 5;
     const BLUE: utinyint = 6;
     const YELLOW: utinyint = 7;
-    // Not a colour: `blank(KEEP, ...)` leaves this one as it is. 255 is
+    // Not a color: `blank(KEEP, ...)` leaves this one as it is. 255 is
     // a value no register here takes.
     const KEEP: utinyint = 255;
 }

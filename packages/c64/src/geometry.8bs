@@ -31,9 +31,9 @@
 //
 //   $E000-$FF3F  the 8000-byte bitmap (the second 8K of the bank: $D018
 //                bit 3 set), over the screen matrix and the shape blocks.
-//   $DC00-$DFE7  the colour matrix, one byte per cell — high nybble the
-//                colour of set bits, low nybble of clear bits (hi-res), or
-//                the %01 and %10 colours (multicolour) — in the RAM under
+//   $DC00-$DFE7  the color matrix, one byte per cell — high nybble the
+//                color of set bits, low nybble of clear bits (hi-res), or
+//                the %01 and %10 colors (multicolor) — in the RAM under
 //                the I/O area, where the CPU writes only with the area
 //                banked out (writeUnderIo in ./index.8bs). It is the second
 //                half of the lower-case set, which bitmap mode gives up;
@@ -43,12 +43,12 @@
 //   $D800-$DBFF  16 shape blocks (96-111) for sprites over a bitmap, under
 //                the I/O area too (the first half of the lower-case set).
 //
-// The colour matrix could not go anywhere the CPU reaches freely: every
+// The color matrix could not go anywhere the CPU reaches freely: every
 // 1K slot of the bank is either the program's ($C000-$CFFF), the bitmap's
 // ($E000-$FFFF), or under the I/O area.
 //
-// Colour RAM does not move with the bank: it is the 1K of nybbles at $D800
-// in the I/O area, wherever the screen is. So a cell's colour is written
+// Color RAM does not move with the bank: it is the 1K of nybbles at $D800
+// in the I/O area, wherever the screen is. So a cell's color is written
 // through I/O ($01 bit 2 set) while its character is written to RAM — the
 // normal state of the machine, and the state setupVideo() leaves it in.
 //
@@ -58,7 +58,7 @@
 
 // The addresses themselves, as this module's own consts: `@address` takes
 // a literal or a const declared beside it, so the arrays over the screen,
-// the colour RAM, the sprite pointers and the shape blocks are declared
+// the color RAM, the sprite pointers and the shape blocks are declared
 // here, where the numbers are, and `Video` names the same numbers for
 // everything else.
 const SCREEN_ADDRESS: usmallint = 0xE000;
@@ -70,7 +70,7 @@ const BITMAP_ADDRESS: usmallint = 0xE000;
 // The screen matrix: 1000 screen codes, cell 0 top-left.
 @address(SCREEN_ADDRESS)
 export let screenRam: array<u8, 1000>;
-// Colour RAM: the low nybble of each byte is that cell's colour.
+// Color RAM: the low nybble of each byte is that cell's color.
 @address(COLOR_ADDRESS)
 export let colorRam: array<u8, 1000>;
 // Sprite n's shape block: the VIC reads shape data from bank + 64 * pointer.
@@ -88,7 +88,7 @@ export let bitmapRam: array<u8, 8000>;
 export namespace Video {
     const BANK: usmallint = 0xC000; // VIC bank 3, selected through CIA2 port A bits 0-1 (= %00)
     const SCREEN: usmallint = SCREEN_ADDRESS; // screen matrix: one screen code per cell
-    const COLOR: usmallint = COLOR_ADDRESS; // colour RAM: one nybble per cell, same cell index, never moves
+    const COLOR: usmallint = COLOR_ADDRESS; // color RAM: one nybble per cell, same cell index, never moves
     const CHARSET: usmallint = 0xD000; // the character ROM's copy in RAM: upper-case set here, lower-case at +$0800
     const SPRITE_POINTERS: usmallint = SPRITE_POINTERS_ADDRESS; // eight bytes: shape block per sprite (address / 64 within the bank)
     const SHAPES: usmallint = SHAPES_ADDRESS; // first sprite shape block
@@ -107,7 +107,7 @@ export namespace Bitmap {
     const BYTES: usmallint = 8000;
     const WIDTH: usmallint = 320; // pixels, hi-res
     const HEIGHT: utinyint = 200;
-    const MATRIX: usmallint = 0xDC00; // the colour matrix, under the I/O area: bank + $1C00
+    const MATRIX: usmallint = 0xDC00; // the color matrix, under the I/O area: bank + $1C00
     const SPRITE_POINTERS: usmallint = 0xDFF8; // MATRIX + $3F8
     const SHAPES: usmallint = 0xD800; // 16 shape blocks under the I/O area
     const SHAPE_BLOCK_FIRST: utinyint = 96; // (SHAPES - BANK) / 64

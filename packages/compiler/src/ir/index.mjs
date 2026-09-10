@@ -69,7 +69,7 @@ class Lowering {
     // program() before anything is lowered. A reference to one becomes the
     // value right here — so it reaches the literal-only positions a number
     // is allowed in (an `@address`, a `memory.write` argument's range
-    // check, a global's initialiser) exactly as a literal would. An
+    // check, a global's initializer) exactly as a literal would. An
     // *imported* const is not in this map: only the linker knows the other
     // module, so those are resolved there.
     this.ownConsts = new Map();
@@ -164,7 +164,7 @@ class Lowering {
   }
 
   /**
-   * The value of a top-level const's initialiser: a literal, a negated
+   * The value of a top-level const's initializer: a literal, a negated
    * literal, or a const declared above it. Null for anything else — an
    * imported name (the linker's job) or an expression (not folded).
    */
@@ -309,7 +309,7 @@ class Lowering {
           this.fail(member, `a namespace const of type ${typeName ?? '(none)'} is not compilable yet`);
           continue;
         }
-        // The same initialisers a module-level const takes: a literal, or a
+        // The same initializers a module-level const takes: a literal, or a
         // const — this module's own (a value by now), or one only the
         // linker can see (an imported const, `Other.MEMBER`), recorded
         // pending for it to resolve, range-check, and inline. A name this
@@ -320,14 +320,14 @@ class Lowering {
           continue;
         }
         if (init?.kind === 'ref' && this.declares(init.name)) {
-          this.fail(member.initializer, `'${init.name}' is not a const, so it cannot initialise a namespace const: an initialiser is a literal or a const`);
+          this.fail(member.initializer, `'${init.name}' is not a const, so it cannot initialize a namespace const: an initializer is a literal or a const`);
           continue;
         }
         if (init?.kind === 'ref' || init?.kind === 'namespaceConst') {
           consts.set(member.name.name, { pending: init, type: resolved });
           continue;
         }
-        this.fail(member, 'a namespace const is initialised by a literal or a const');
+        this.fail(member, 'a namespace const is initialized by a literal or a const');
         continue;
       }
       this.fail(member, `a ${member.type} is not compilable inside a namespace yet`);
@@ -425,18 +425,18 @@ class Lowering {
         if (this.declares(init.name)) {
           return this.fail(
             node.initializer,
-            `'${init.name}' is not a const, so it cannot initialise a global: an initialiser is a literal or a const`,
+            `'${init.name}' is not a const, so it cannot initialize a global: an initializer is a literal or a const`,
           );
         }
       } else if (init && init.kind === 'namespaceConst') {
         // `BorderColor.BLUE`: a const the linker resolves; left pending
         // the same way an imported const is.
       } else if (init && init.kind !== 'const') {
-        return this.fail(node.initializer, 'a global initialiser must be a literal or a const to be compilable yet');
+        return this.fail(node.initializer, 'a global initializer must be a literal or a const to be compilable yet');
       }
     }
     if (address !== null && init) {
-      return this.fail(node, 'an @address global maps hardware and cannot have an initialiser');
+      return this.fail(node, 'an @address global maps hardware and cannot have an initializer');
     }
 
     // `const` is a compile-time constant — one of the three spellings that
@@ -450,7 +450,7 @@ class Lowering {
         return this.fail(node, 'a const is a compile-time value; it cannot be volatile or mapped with @address');
       }
       if (!init) {
-        return this.fail(node, 'a const needs a literal initialiser: it has no storage to assign later');
+        return this.fail(node, 'a const needs a literal initializer: it has no storage to assign later');
       }
       // `const HIGHLIGHT: utinyint = TextColor.YELLOW`, or `= Imported`: a
       // value only the linker can see, so this const is recorded pending
@@ -587,7 +587,7 @@ class Lowering {
    * let screenRam: array<utinyint, 1000>;` — N cells of hardware, a name
    * for a fixed location as a scalar `@address` is. The length is part of
    * the type and every element is a compile-time value, so the whole
-   * layout is decided here: `a.length` is a number, an initialiser has
+   * layout is decided here: `a.length` is a number, an initializer has
    * exactly N elements, and a literal index past the end is a diagnostic.
    *
    * Unlike a scalar `const`, a const array is not inlined — it has an
@@ -615,16 +615,16 @@ class Lowering {
     let init = null;
     if (node.initializer) {
       if (address !== null) {
-        return this.fail(node, 'an @address array maps hardware and cannot have an initialiser');
+        return this.fail(node, 'an @address array maps hardware and cannot have an initializer');
       }
       if (node.initializer.type !== NodeType.ArrayLiteral) {
-        return this.fail(node.initializer, 'an array initialiser is written [v, v, ...]: one compile-time value per element');
+        return this.fail(node.initializer, 'an array initializer is written [v, v, ...]: one compile-time value per element');
       }
       const { elements } = node.initializer;
       if (elements.length !== length) {
         this.diagnostics.push(diagnostic(
           Codes.ARRAY_SIZE_MISMATCH,
-          `'${node.name.name}' is an array<${type}, ${length}>, so its initialiser needs ${length} element${length === 1 ? '' : 's'}, not ${elements.length}`,
+          `'${node.name.name}' is an array<${type}, ${length}>, so its initializer needs ${length} element${length === 1 ? '' : 's'}, not ${elements.length}`,
           this.file, node.initializer.start, node.initializer.length,
         ));
         return null;
@@ -914,7 +914,7 @@ class Lowering {
   /**
    * `let i: utinyint = 0;` inside a function: a local, storage that exists
    * while the function runs — the target's own stack or registers, as its
-   * compiler sees fit. An initialiser is an expression (it runs); left off,
+   * compiler sees fit. An initializer is an expression (it runs); left off,
    * the local starts at 0 like a global does. A `const` here is refused:
    * a const is a compile-time value and lives at the top level.
    */
@@ -945,7 +945,7 @@ class Lowering {
     const init = node.initializer ? this.expression(node.initializer) : { kind: 'const', value: 0, type };
     if (!init) return null;
     if (init.kind === 'string') {
-      return this.fail(node.initializer, `a string cannot initialise a ${type}: a string lives in a string<N> or a const`);
+      return this.fail(node.initializer, `a string cannot initialize a ${type}: a string lives in a string<N> or a const`);
     }
     // In scope from here on: shadows a global, const, or array of the name.
     this.currentParams.set(node.name.name, type);
@@ -956,7 +956,7 @@ class Lowering {
   /**
    * `for (let i: u8 = 0; i < 4; i++) { ... }`. Emitted as the target's own
    * `for` — not unrolled into a `while` — so `continue` still runs the
-   * update, as it does everywhere else the syntax is used. The initialiser
+   * update, as it does everywhere else the syntax is used. The initializer
    * is a local declaration or a statement; the update a statement; any of
    * the three may be left off.
    */
@@ -966,7 +966,7 @@ class Lowering {
       if (node.init) {
         init = node.init.type === NodeType.VariableDeclaration
           ? this.local(node.init)
-          : this.expressionAsStatement(node.init, 'a for initialiser');
+          : this.expressionAsStatement(node.init, 'a for initializer');
         if (!init) return null;
       }
       const test = node.test ? this.expression(node.test) : null;
@@ -1320,7 +1320,7 @@ class Lowering {
         return this.indexRead(node);
       }
       case NodeType.ArrayLiteral:
-        return this.fail(node, 'an array literal only initialises an array<T, N> declaration');
+        return this.fail(node, 'an array literal only initializes an array<T, N> declaration');
       case NodeType.Identifier:
         // A const declared in this module is its value, here and now — but
         // a parameter of the same name shadows it, ordinary lexical scoping.
@@ -1366,7 +1366,7 @@ class Lowering {
         if (!argument) return null;
         // A signed literal is written `-128`, so a negated constant has to
         // *be* a constant — otherwise the narrowest thing a `tinyint` can
-        // hold could not initialise one. Only `-`/`+`, whose meaning on a
+        // hold could not initialize one. Only `-`/`+`, whose meaning on a
         // number needs no width to know; `~` and `!` are left to the target.
         if (argument.kind === 'const' && (node.operator === '-' || node.operator === '+')) {
           const value = node.operator === '-' ? -argument.value : argument.value;

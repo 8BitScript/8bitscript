@@ -10,7 +10,7 @@ import { pixelAt } from '../src/png.mjs';
 
 const hex = (s) => Buffer.from(s.replace(/\s+/g, ''), 'hex');
 
-// Writes border=2, background=0, screen-code 'A' at cell 0, colour 1.
+// Writes border=2, background=0, screen-code 'A' at cell 0, color 1.
 const PAINTS_A = hex(`
   00 61 73 6d 01 00 00 00
   01 04 01 60 00 00
@@ -48,9 +48,9 @@ test('captureScreenshot for web rasterizes wasm screen memory to a PNG of the sa
     await writeFile(wasmFile, PAINTS_A);
     await captureScreenshot('web', wasmFile, shot, { frames: 1 });
     const png = await readFile(shot);
-    // Border colour 2 is the C64 palette's '#883932'.
+    // Border color 2 is the C64 palette's '#883932'.
     assert.deepEqual(pixelAt(png, 0, 0), [0x88, 0x39, 0x32]);
-    // The inner background (colour 0) starts at BORDER_PX = 24.
+    // The inner background (color 0) starts at BORDER_PX = 24.
     assert.deepEqual(pixelAt(png, 24, 24), [0x00, 0x00, 0x00]);
   } finally {
     await rm(dir, { recursive: true, force: true });

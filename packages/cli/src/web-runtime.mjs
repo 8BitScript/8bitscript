@@ -24,7 +24,7 @@ import { createServer } from 'node:http';
 import { extname, join } from 'node:path';
 import { spawn } from 'node:child_process';
 
-// The C64's palette (0-15), reused so a colour number means the same thing
+// The C64's palette (0-15), reused so a color number means the same thing
 // in every 8BitScript example, on whichever machine it runs on. See the
 // header comment on @8bitscript/web/screen's setColors() for why the web target
 // borrows this rather than defining its own. Exported (with the layout
@@ -39,7 +39,7 @@ export const COLORS = [
 ];
 
 // The character grid is the C64's own 40×25 of 8×8 cells — 320×200, the
-// same shape @8bitscript/web's virtual screen uses. The coloured border sits
+// same shape @8bitscript/web's virtual screen uses. The colored border sits
 // around that grid, the way the VIC-II/VIC paint it, rather than eating into
 // it: characters then live entirely in the background, not clipped into the
 // border. This is the canvas's *resolution*, not its on-page size: the
@@ -56,7 +56,7 @@ const INNER_H = GRID_ROWS * CHAR_H;
 const SCREEN_W = INNER_W + BORDER_PX * 2;
 const SCREEN_H = INNER_H + BORDER_PX * 2;
 
-// Where the virtual screen's character codes and per-cell colours live in
+// Where the virtual screen's character codes and per-cell colors live in
 // the wasm's linear memory — @8bitscript/web's WebRegisters layout, mirrored
 // here by hand (there's no shared module the .8bs side and this JS host
 // could both import). Byte 0 is border, byte 1 is background.
@@ -64,7 +64,7 @@ export const CHAR_BASE = 2;
 export const COLOR_BASE = 1002;
 // Directions / confirm / cancel: the page writes this byte, @8bitscript/web/input
 // reads it. Same Edge bits as every other machine's input layer. First byte
-// after the 1000 colour cells at COLOR_BASE.
+// after the 1000 color cells at COLOR_BASE.
 export const INPUT_OFFSET = 2002;
 
 export const InputEdge = {
@@ -135,7 +135,7 @@ self.onmessage = async ({ data: { ctrl } }) => {
   // Block until the page has released a frame this program hasn't taken yet.
   // Returns at once when one is already owed — two logical frames per real
   // one on a slow display — otherwise sleeps until the page notifies. The
-  // same 0/1/2-frames-per-wait behaviour the 6502 backend's accumulator has.
+  // same 0/1/2-frames-per-wait behavior the 6502 backend's accumulator has.
   const waitFrame = () => {
     const next = Atomics.load(ctrl, CONSUMED) + 1;
     for (let issued; (issued = Atomics.load(ctrl, ISSUED)) < next;) {
@@ -227,7 +227,7 @@ const fpsEl = document.getElementById('fps');
 
 // @8bitscript/web's WebRegisters (CHAR_BASE/COLOR_BASE, exported above): a
 // virtual 40-column, 1000-cell character screen starting at byte offset 2,
-// its colour bytes starting at offset 1002. The cells hold ASCII — the
+// its color bytes starting at offset 1002. The cells hold ASCII — the
 // portable character codes every machine's text.putChar takes:
 // space, '0'-'9', 'A'-'Z', 'a'-'z', and a little punctuation, 32-122.
 // The Commodore packages turn those into screen codes for a character ROM;
@@ -309,8 +309,8 @@ function paint(mem) {
   // host doesn't know or care what any of it means, the same way a real
   // VIC-20/C64 doesn't know what a program's screen memory says. Blank
   // cells (never written, or written as a literal space) draw nothing,
-  // unless reverse video (colour bit 7) is set: then the cell fills with
-  // the foreground colour and the glyph is punched out in the background.
+  // unless reverse video (color bit 7) is set: then the cell fills with
+  // the foreground color and the glyph is punched out in the background.
   ctx.save();
   ctx.beginPath();
   ctx.rect(BORDER_PX, BORDER_PX, INNER_W, INNER_H);

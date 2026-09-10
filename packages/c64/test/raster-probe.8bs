@@ -1,4 +1,4 @@
-// The raster list, run for real: four border colours down one screen from
+// The raster list, run for real: four border colors down one screen from
 // a list applied by the interrupt handler in native/6502/raster.s, and a
 // screen read back (the KERNAL is out) printed as a check, and the
 // vectors the .init section wrote checked (green background). A screenshot

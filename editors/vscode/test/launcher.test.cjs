@@ -28,7 +28,7 @@ test('launcher stylesheet names the panel it lays out', () => {
   assert.match(CSS, /button\.icon\b/, 'Build and Open on the project row');
   assert.match(CSS, /details\.more\b/, 'the fold the rest lives in');
   assert.match(CSS, /\.run-row\b/, 'the Running rows');
-  assert.match(CSS, /--vscode-/, 'every colour is the editor theme’s');
+  assert.match(CSS, /--vscode-/, 'every color is the editor theme’s');
   // The Install button and the Running section are laid out with a
   // `display`, which outranks the user agent's rule for [hidden].
   assert.match(CSS, /\[hidden\]\s*\{\s*display:\s*none\s*!important/);

@@ -14,12 +14,12 @@ NES has almost nothing and forces abstraction; the X16 has a great deal
 behind windows and ports. The PET is a third case —
 
 > **The PET has *only* a CPU, RAM, a character ROM, and three I/O chips.
-> There is no video chip to program (on most models), no colour, no sound
+> There is no video chip to program (on most models), no color, no sound
 > chip, no sprites, no bitmap, and no joystick port. Everything the program
 > shows is a byte in screen RAM naming one of 128 fixed glyphs, possibly
 > inverted. Model it as a memory-mapped 40×25 (or 80×25) grid of glyph
 > indexes with a keyboard matrix, a 1 MHz clock, and one square-wave line —
-> never as "a C64 without colour".**
+> never as "a C64 without color".**
 
 The machine's variety is in *models*, not features: RAM size (4K–32K, with
 64K/128K only via banking this target does not link), screen width
@@ -42,7 +42,7 @@ Do not describe more than this as working:
   `src/text.8bs` (behind `@8bitscript/text`).
 - `screen.setColors()`, `setBorder()`, `setBackground()` and
   `text.putColor()`/`text.setColor()` all link and are all **deliberately
-  inert**: the PET has no colour hardware and no border. `screen.blank()`
+  inert**: the PET has no color hardware and no border. `screen.blank()`
   writes the space screen code (32) to 1000 cells from `$8000`.
 - `text.putChar(cell, code)` takes ASCII, converts it to a PET screen code
   (`A`–`Z` 65–90 → 1–26; 32–63 unchanged), and writes `$8000 + cell` —
@@ -56,7 +56,7 @@ Do not describe more than this as working:
   `geometry.pet.8032.8bs` twin (80 and 2000) a build whose hardware
   carries the `8032` tag reads instead — the hardware-tag file rule in
   `docs/packages.md`, and the reason namespace consts may now be
-  initialised from another module's const. `screen.blank()` clears
+  initialized from another module's const. `screen.blank()` clears
   `Video.CELL_COUNT` cells the same way. `locate()` is not needed here:
   the screen is a flat array and cell arithmetic is the address.
 - `src/blocks.8bs` (`@8bitscript/pet/blocks`, PET-only — no portable
@@ -216,10 +216,10 @@ under xpet, not recalled.
 | A PET program starts in whatever character set the ROM booted — graphics on the 3032/4032, text on the 8032 — and `text.8bs` writes `$0C` to the VIA PCR before each run so 1–26 render as capitals. A CHROUT of PETSCII 14 (`lda #$0e / jsr $FFD2`) would flip the machine to lower-case; 8BitScript does not emit that. | probe screenshots; `src/text.8bs` |
 | `xpet -model 3032` boots BASIC 2 in upper-case/graphics mode; `4032` boots BASIC 4 in upper-case; `8032` boots BASIC 4 in lower-case text mode (its business editor ROM's choice). All three report `31743 BYTES FREE`. | boot screenshots via `-limitcycles -exitscreenshot` |
 | A 40-column build's text appears at the top-left of an 8032's 80-column screen: screen RAM is `$8000` on the 80-column machine too. | borders `.prg` on `-model 8032` |
-| VICE's PET models: 2001, 3008, 3016, 3032, 3032B, 4016, 4032, 4032B, 8032, 8096, 8296, SuperPET. RAM sizes 4/8/16/32/96/128; `-videosize 0/40/80` (0 = from ROM); CRTC "all models from 40xx and above"; `-screen2001` mirrors the 1K screen through `$8FFF` ("otherwise mirrors, if any, only go up to `$87FF`"); `-eoiblank` is a "Model-2001-only quirk"; `CB2Lowpass` filters the emulated CB2 sound; `-petdww` (30xx) and `-pethre` (8296) are hi-res *add-on boards*; Colour PET (`$8800` colour RAM) and `-sidcart` are third-party extensions. | VICE 3.10 manual §7.7, `xpet -help` |
+| VICE's PET models: 2001, 3008, 3016, 3032, 3032B, 4016, 4032, 4032B, 8032, 8096, 8296, SuperPET. RAM sizes 4/8/16/32/96/128; `-videosize 0/40/80` (0 = from ROM); CRTC "all models from 40xx and above"; `-screen2001` mirrors the 1K screen through `$8FFF` ("otherwise mirrors, if any, only go up to `$87FF`"); `-eoiblank` is a "Model-2001-only quirk"; `CB2Lowpass` filters the emulated CB2 sound; `-petdww` (30xx) and `-pethre` (8296) are hi-res *add-on boards*; Color PET (`$8800` color RAM) and `-sidcart` are third-party extensions. | VICE 3.10 manual §7.7, `xpet -help` |
 | ROM sets: 3032 = kernal-2 + edit-2-**n** (graphics keyboard) + characters-2 (901447-10) + basic-2; 4032 = kernal-4 + edit-4-40-n-50Hz + characters-2 + basic-4; 8032 = kernal-4 + edit-4-80-**b**-50Hz + characters-2 + basic-4; 2001 = kernal-1 + edit-1-n + characters-1 (901447-**08**) + basic-1. | `/opt/homebrew/share/vice/PET/*.vrs` |
 | Measured frame period under VICE's 4032 (PAL): ~19992 cycles, 50.02 Hz. | `FRAME_SYNC.pet` comment (this project's earlier measurement) |
-| The catalog's stock fact sheet: grid 40×25 of 8×8 (80 on the 8032, its `model` value's fact), 2 colours, 2 per cell (normal and reverse), no redefinable glyphs, 2×2 PETSCII blocks, no bitmap, one layer, no scroll, no sprites; one CB2 voice with no volume, envelope, noise, samples or random source; keyboard, no joystick or pad ports; disk; RAM per model (`memory.ram` on each `model` value, from `__ram_size`), nothing banked, no mouse or paddles. | `src/geometry.8bs`, `src/geometry.pet.8032.8bs`; the `__ram_size` and sound rows above; `package.json` (read) |
+| The catalog's stock fact sheet: grid 40×25 of 8×8 (80 on the 8032, its `model` value's fact), 2 colors, 2 per cell (normal and reverse), no redefinable glyphs, 2×2 PETSCII blocks, no bitmap, one layer, no scroll, no sprites; one CB2 voice with no volume, envelope, noise, samples or random source; keyboard, no joystick or pad ports; disk; RAM per model (`memory.ram` on each `model` value, from `__ram_size`), nothing banked, no mouse or paddles. | `src/geometry.8bs`, `src/geometry.pet.8032.8bs`; the `__ram_size` and sound rows above; `package.json` (read) |
 | The sixteen quadrant-block screen codes: eight ROM glyphs at 96-127 (blank, a half, one quadrant alone, or the TL+BR diagonal), byte-identical whether the ROM address's charset-select bit is 0 or 1, and their reverse-video complements at 224-255 cover the remaining eight patterns (top half, the TR+BL diagonal, and every three-quarter pattern). | a script reading `characters-2.901447-10.bin` 8 bytes/glyph, `packages/pet/src/blocks.8bs`, `packages/pet/test/blocks.test.mjs`'s xpet screenshot check |
 | `xpet -drive8type` (both #8 and #9) takes exactly nine values: `0` no drive, `2031` CBM 2031, `2040` CBM 2040, `3040` CBM 3040, `4040` CBM 4040, `1001` CBM 1001 (the SFD-1001), `8050` CBM 8050, `8250` CBM 8250, `9000` CBM D9090/60 — one flag, no image format in it. Units run `-8`/`-9`/`-10`/`-11`; a dual drive's second mechanism is `-8d1` etc. Two tape ports exist (`-1`, `-2`, both "Attach \<name\> as a tape image"), matching PIA1's cassette #1 pins (above) and VIA's cassette #2 pins (below). | `xpet -help`, VICE 3.10, this host |
 | Real capacity per drive, measured rather than recalled: `c1541 -format` an image of each type and read its own directory's free-block count back (a block holds 254 usable data bytes — 256 minus the 2-byte next-track/sector link). D64 (2031, 4040, and 1541 — 2031/4040 named alongside the 1541 as D64-compatible; DOS 2) 664 blocks = 164 KiB; D67 (2040, 3040 — DOS 1) 670 blocks = 166 KiB; D80 (8050) 2052 blocks = 508 KiB; D82 (8250, and the SFD-1001's own single-drive `1001` type — same double-sided 77-track geometry, cross-checked against its documented 1,066,496-byte raw image size) 4133 blocks = 1025 KiB; D90 (`9000`) 29162 blocks = 7233 KiB. The 2040 and 3040 are the same DOS 1 drive, NTSC vs PAL — the 4040 is a different, later DOS (2.0), not a third region. | `c1541 -format` (d64/d67/d80/d82/d90), VICE 3.10, this host; lib1541img/lemon64 (2031+4040 named as D64); Computing History UK (SFD-1001 image size) |
@@ -516,8 +516,8 @@ unverified:
   never by pretending there are pixels. If a shape is not in ROM it is
   not drawable; document the chart, don't emulate around it.
 - **Reverse video is free** (bit 7) and the portable surface has no way to
-  ask for it. It is the PET's only "colour" and the obvious meaning for a
-  PET implementation of any future per-cell emphasis/colour intent —
+  ask for it. It is the PET's only "color" and the obvious meaning for a
+  PET implementation of any future per-cell emphasis/color intent —
   better than `putColor` doing nothing. Keep it a screen-code property, not
   a separate register.
 - The character set is **one global bit** (PCR bit 1) for the whole
@@ -638,7 +638,7 @@ that is how the 8032 row above was checked.
 packages/pet/src/index.8bs           target package: viaPeripheralControl ($E84C), the character-set bit
 packages/pet/src/geometry.8bs        Video.COLUMNS/ROWS/CELL_COUNT for the 40-column PETs (40, 25, 1000)
 packages/pet/src/geometry.pet.8032.8bs   the 8032 tag's version (80, 25, 2000), chosen by the model value
-packages/pet/src/screen.8bs          @8bitscript/pet/screen: inert colours, blank() over Video.CELL_COUNT cells at $8000
+packages/pet/src/screen.8bs          @8bitscript/pet/screen: inert colors, blank() over Video.CELL_COUNT cells at $8000
 packages/pet/src/text.8bs            @8bitscript/pet/text: ASCII → screen code, direct writes, COLUMNS/CELL_COUNT from Video
 packages/pet/src/keyboard.8bs        @8bitscript/pet/keyboard: scan() snapshot of the ten rows, pressed(key), row(n)
 packages/pet/src/keys.8bs            @8bitscript/pet/keys: Key.X = row * 8 + column, graphics keyboard

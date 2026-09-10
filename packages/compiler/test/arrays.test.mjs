@@ -3,7 +3,7 @@
 // data in the program, never in RAM — it has an address, so unlike a scalar
 // const it is not inlined; `@address` is N cells of hardware. The length is
 // part of the type, so `a.length` is a number 8bitscript fills in, an
-// initialiser has exactly N elements, and a literal index past the end is a
+// initializer has exactly N elements, and a literal index past the end is a
 // diagnostic.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -63,10 +63,10 @@ test('the length is a literal or a const in this module', () => {
   assert.match(diagnosticsOf(`let hp: array<string, 4>;\n${MAIN}`)[0].message, /integer or bool element type/);
 });
 
-test('an initialiser has exactly N elements, each a compile-time value that fits the element type', () => {
+test('an initializer has exactly N elements, each a compile-time value that fits the element type', () => {
   const short = diagnosticsOf(`let hp: array<utinyint, 4> = [1, 2];\n${MAIN}`);
   assert.deepEqual(short.map((d) => d.code), ['8BS1033']);
-  assert.match(short[0].message, /array<utinyint, 4>, so its initialiser needs 4 elements, not 2/);
+  assert.match(short[0].message, /array<utinyint, 4>, so its initializer needs 4 elements, not 2/);
   assert.deepEqual(codes(`let hp: array<utinyint, 2> = [1, 300];\n${MAIN}`), ['8BS1021']);
   assert.deepEqual(codes(`let n: utinyint = 1;\nlet hp: array<utinyint, 2> = [1, n];\n${MAIN}`), ['8BS3001']);
   assert.match(diagnosticsOf(`let hp: array<utinyint, 2> = 5;\n${MAIN}`)[0].message, /written \[v, v, \.\.\.\]/);
@@ -74,8 +74,8 @@ test('an initialiser has exactly N elements, each a compile-time value that fits
 
 test('a const array needs its values and cannot be @address; an @address array cannot have values', () => {
   assert.match(diagnosticsOf(`const T: array<utinyint, 2>;\n${MAIN}`)[0].message, /const NAME: array<T, N> = \[\.\.\.\]/);
-  assert.match(diagnosticsOf(`@address(0x0400) const T: array<utinyint, 2> = [1, 2];\n${MAIN}`)[0].message, /cannot have an initialiser/);
-  assert.match(diagnosticsOf(`@address(0x0400) let s: array<utinyint, 2> = [1, 2];\n${MAIN}`)[0].message, /maps hardware and cannot have an initialiser/);
+  assert.match(diagnosticsOf(`@address(0x0400) const T: array<utinyint, 2> = [1, 2];\n${MAIN}`)[0].message, /cannot have an initializer/);
+  assert.match(diagnosticsOf(`@address(0x0400) let s: array<utinyint, 2> = [1, 2];\n${MAIN}`)[0].message, /maps hardware and cannot have an initializer/);
 });
 
 // ---- reads and writes --------------------------------------------------------
@@ -119,7 +119,7 @@ test('an array is used one element at a time: neither assigned nor read as a who
   assert.match(diagnosticsOf(`let a: array<utinyint, 2>;\nlet n: utinyint = 0;\nexport function main(): void { n = a; }`)[0].message, /read an element \(a\[i\]\) or its \.length/);
   assert.match(diagnosticsOf(`let a: array<utinyint, 2>;\nlet n: utinyint = 0;\nexport function main(): void { n = a.size; }`)[0].message, /has no 'size'; it has \.length and a\[i\]/);
   assert.match(diagnosticsOf(`let n: utinyint = 0;\nexport function main(): void { n[0] = 1; }`)[0].message, /'n' is not an array/);
-  assert.match(diagnosticsOf(`let n: utinyint = 0;\nexport function main(): void { n = [1, 2]; }`)[0].message, /only initialises an array<T, N> declaration/);
+  assert.match(diagnosticsOf(`let n: utinyint = 0;\nexport function main(): void { n = [1, 2]; }`)[0].message, /only initializes an array<T, N> declaration/);
 });
 
 test('a template field sizes itself from an element type or a length', () => {
@@ -203,7 +203,7 @@ test('the linked program reports the RAM its variables declare and the constant 
   assert.deepEqual(ir.memory, { variables: 21, data: 6 });
 });
 
-test('a namespace const or an imported const may be an array element or a global initialiser; the linker fills it in', async () => {
+test('a namespace const or an imported const may be an array element or a global initializer; the linker fills it in', async () => {
   const lib = 'export namespace BorderColor { const BLUE: utinyint = 6; const RED: utinyint = 2; }\nexport const BIG: usmallint = 300;\nexport const TWO: utinyint = 2;\n';
   const good = await linkWith({
     'lib.8bs': lib,

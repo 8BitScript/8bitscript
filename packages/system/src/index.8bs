@@ -68,9 +68,9 @@ export namespace Video {
     const ROWS: utinyint = #fact(video.rows);                   // cells down
     const CELL_WIDTH: utinyint = #fact(video.cellWidth);        // pixels across one cell
     const CELL_HEIGHT: utinyint = #fact(video.cellHeight);      // pixels down one cell
-    const PALETTE: usmallint = #fact(video.palette);            // colours on screen at once
-    const CELL_COLORS: utinyint = #fact(video.cellColors);      // colours one cell can hold
-    const COLOR_PER_CELL: bool = #fact(video.colorPerCell);     // one cell's colour can be set without changing its neighbours'
+    const PALETTE: usmallint = #fact(video.palette);            // colors on screen at once
+    const CELL_COLORS: utinyint = #fact(video.cellColors);      // colors one cell can hold
+    const COLOR_PER_CELL: bool = #fact(video.colorPerCell);     // one cell's color can be set without changing its neighbors'
     const GLYPHS: usmallint = #fact(video.glyphs);              // characters redefinable at run time; 0 = fixed font
     const BLOCK_WIDTH: utinyint = #fact(video.blockWidth);      // pseudo-pixels across a cell from block glyphs; 0 = none
     const BLOCK_HEIGHT: utinyint = #fact(video.blockHeight);    // pseudo-pixels down a cell; 0 = none
@@ -81,7 +81,7 @@ export namespace Video {
     const SPRITES_PER_LINE: utinyint = #fact(video.spritesPerLine); // what one scanline can show
     const SPRITE_WIDTH: utinyint = #fact(video.spriteWidth);    // pixels across the largest sprite
     const SPRITE_HEIGHT: utinyint = #fact(video.spriteHeight);  // pixels down the largest sprite
-    const SPRITE_COLORS: utinyint = #fact(video.spriteColors);  // colours one sprite can hold
+    const SPRITE_COLORS: utinyint = #fact(video.spriteColors);  // colors one sprite can hold
 }
 
 // The sound hardware's shape.

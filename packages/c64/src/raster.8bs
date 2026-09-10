@@ -23,10 +23,10 @@
 // program code running in the interrupt at all. What it is not: a handler
 // of the program's own. 8bitscript has no function values, so nothing a
 // program writes can be named as the code to run at a line; a write list
-// covers colour splits, split scrolling, character-set and screen switches
+// covers color splits, split scrolling, character-set and screen switches
 // (any $D018 value), and sprite multiplexing (rewriting a sprite's Y, X,
-// pointer and colour at a line, as entries), and a computed effect —
-// a sine border, a per-line colour cycle — is a list a program rebuilds
+// pointer and color at a line, as entries), and a computed effect —
+// a sine border, a per-line color cycle — is a list a program rebuilds
 // each frame, up to the 63 entries the list holds.
 //
 // ---- rules ----------------------------------------------------------------
@@ -40,7 +40,7 @@
 // - The write lands a few cycles into the line — the handler's entry
 //   (about 30 cycles) plus the instruction the interrupt interrupted (up
 //   to 7), plus, on a bad line (every eighth, from 51 with the default
-//   scroll: the VIC takes 40 of the line's 63 cycles), that. So a colour
+//   scroll: the VIC takes 40 of the line's 63 cycles), that. So a color
 //   change at a line inside the picture shows a step partway across the
 //   line; put it on the line BEFORE the one that should look different,
 //   or in the border, or on a line the VIC is not fetching (not 51, 59,
@@ -57,7 +57,7 @@
 //   VIC has pending, points the IRQ vector at the handler and runs `cli`.
 //   From then on, `interruptsOn` in @8bitscript/c64 is true, and every
 //   window the package opens with the I/O area banked out (a write under
-//   it: the character set, the bitmap's colour matrix) is an interrupt-
+//   it: the character set, the bitmap's color matrix) is an interrupt-
 //   free window — the handler cannot acknowledge $D019 through RAM. A
 //   long window (bitmap.fillColors, charset.restore) delays that frame's
 //   entries by its length; do those before `enable()`, or between frames

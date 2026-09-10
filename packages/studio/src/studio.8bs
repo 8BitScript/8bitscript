@@ -140,11 +140,11 @@ export namespace studio {
     function start(tier: utinyint): void {
         screen.blank(BorderColor.BLUE, BackgroundColor.BLACK);
 
-        // The bar first, then the front door's own colour: drawing a bar
-        // leaves the text colour set to the bar's, because that is how the
-        // component gets its colours on without a second pass over every
+        // The bar first, then the front door's own color: drawing a bar
+        // leaves the text color set to the bar's, because that is how the
+        // component gets its colors on without a second pass over every
         // cell it just wrote (see packages/ui/AGENTS.md). A program that
-        // cares picks its colour after the bar, not before.
+        // cares picks its color after the bar, not before.
         menubar.setColors(TextColor.CYAN, TextColor.WHITE);
         drawMenu();
         text.setColor(TextColor.WHITE);
@@ -256,9 +256,9 @@ export namespace studio {
                 moved = true;
             }
             if (moved) {
-                // Redraw the bar and put the colour back the way the
+                // Redraw the bar and put the color back the way the
                 // opening sequence above does: a bar leaves the text
-                // colour set to its own.
+                // color set to its own.
                 // waitFrame() returns in the top half of the frame, while
                 // VIC-II is about to scan the bar. Rewrite it after that
                 // row has been drawn this frame.

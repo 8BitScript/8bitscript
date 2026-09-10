@@ -36,7 +36,7 @@ test('inspectLauncher: classifies every state', async () => {
   assert.equal(await states({ '/usr/local/bin/x16emu': { symlink: '/opt/homebrew/Cellar/x16/bin/x16emu' } }), 'foreign-symlink');
   assert.equal(await states({ '/usr/local/bin/x16emu': { file: wrapperScript(EXEC_LINE) } }), 'wrapper');
   // The exact two-line script from the tested manual install (no marker) is
-  // still recognised as ours: the exec line is what matters.
+  // still recognized as ours: the exec line is what matters.
   assert.equal(await states({ '/usr/local/bin/x16emu': { file: `#!/bin/sh\n${EXEC_LINE}\n` } }), 'wrapper');
   assert.equal(await states({ '/usr/local/bin/x16emu': { file: `#!/bin/sh\n${MANAGED_MARKER}\nexec /opt/commander-x16/x16emu "$@"\n` } }), 'stale-wrapper');
   assert.equal(await states({ '/usr/local/bin/x16emu': { file: '#!/bin/sh\nexec /somewhere/else/x16emu "$@"\n' } }), 'foreign-file');

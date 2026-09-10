@@ -81,15 +81,15 @@ export function encodePNG(width, height, rgba) {
 //
 // The machine packages' hardware probes are verified by running them under
 // a real emulator and screenshotting the result: the probe encodes its
-// answer as a border colour, and the test reads one pixel of the border
-// rather than trying to recognise text (see packages/c64/test/reu.test.mjs
+// answer as a border color, and the test reads one pixel of the border
+// rather than trying to recognize text (see packages/c64/test/reu.test.mjs
 // and packages/cx16/test/banks.test.mjs). This reads that pixel. It
 // handles what the emulators actually write — 8 bits a channel, RGB, RGBA
 // or palette, not interlaced — and throws on anything else rather than
 // guessing.
 
 /**
- * The colour at (x, y) of a PNG file, as `[r, g, b]`.
+ * The color at (x, y) of a PNG file, as `[r, g, b]`.
  *
  * @param {Buffer} buf  the file's bytes
  * @param {number} x
@@ -119,7 +119,7 @@ export function pixelAt(buf, x, y) {
   if (interlace !== 0) throw new Error('interlaced PNG');
   if (x >= width || y >= height) throw new Error(`(${x}, ${y}) is outside a ${width}x${height} image`);
   const channels = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 }[colorType];
-  if (!channels) throw new Error(`PNG colour type ${colorType}`);
+  if (!channels) throw new Error(`PNG color type ${colorType}`);
   const raw = inflateSync(Buffer.concat(idat));
   const stride = width * channels;
   // Every row's filter is relative to the row above, so rows up to y have

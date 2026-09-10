@@ -137,7 +137,7 @@ test('under VICE, the C64 draws an arrow in the corner, and a machine with no mo
       // Measured in this window: the top-left pixel of the screen is at
       // (33, 23) — the arrow's tip lands there with the mouse at its zero
       // — and the first text is row 2, at y 39. White is the arrow's
-      // colour and nothing else up here is white in either build.
+      // color and nothing else up here is white in either build.
       let count = 0;
       for (let y = 23; y < 39; y++) {
         for (let x = 32; x < 64; x++) {
@@ -197,13 +197,13 @@ function onPath(name) {
   return (process.env.PATH ?? '').split(delimiter).some((dir) => dir && existsSync(join(dir, name)));
 }
 
-// The X16's rest position is the centre, not the corner: mouse_config
+// The X16's rest position is the center, not the corner: mouse_config
 // parks there, and screen.8bs's 16-pixel inset puts the firmware sprite
 // on the screenshot at (335, 254) — (319, 239) plus that inset. The
 // example's top two rows are white text, so a corner count would not
 // prove an arrow. This box is where the KERNAL arrow actually is.
 test(
-  'under x16emu, the X16 draws the KERNAL arrow at the centre',
+  'under x16emu, the X16 draws the KERNAL arrow at the center',
   {
     timeout: 180000,
     skip: NATIVE_BACKEND_PENDING,
@@ -226,7 +226,7 @@ test(
           if (r > 200 && g > 200 && b > 200) count += 1;
         }
       }
-      assert.ok(count > 20, `the X16 should draw the KERNAL arrow at the centre, found only ${count} white pixels`);
+      assert.ok(count > 20, `the X16 should draw the KERNAL arrow at the center, found only ${count} white pixels`);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

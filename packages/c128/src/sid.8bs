@@ -16,7 +16,7 @@
 // The C128's sound chip is the C64's, at the C64's address, and this
 // surface is deliberately the same one @8bitscript/c64/sid offers: three
 // voices with four waveforms and a 12-bit pulse width, an ADSR envelope
-// each, ring modulation and hard sync between neighbours, one shared
+// each, ring modulation and hard sync between neighbors, one shared
 // filter, a master volume. Nothing here is a tracker or a driver; it is
 // the registers with their units named. It is a separate file rather than
 // a shared one for the reason packages/c128/AGENTS.md gives for the whole

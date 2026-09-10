@@ -10,8 +10,8 @@
 // describes) will sit on, the way ./text.8bs is the layer under
 // @8bitscript/text. Importing it makes a program C64-specific, and it
 // promises what the VIC-II has: eight movable objects, no more, each 24x21
-// pixels of one colour over a transparent background (or 12x21 double-
-// width pixels of three colours in multicolour), each drawn in front of
+// pixels of one color over a transparent background (or 12x21 double-
+// width pixels of three colors in multicolor), each drawn in front of
 // or behind the background by its own bit, and in a fixed order among
 // themselves — sprite 0 is always in front of sprite 1.
 //
@@ -114,7 +114,7 @@ export namespace sprites {
     // own window there. A shape copy loop can use this for either. Any
     // other block is refused: below 64 is the program's own RAM, 64-95
     // the upper-case character set, 112-143 the text screen (or the
-    // bitmap's colour matrix), 255 the CPU's vectors.
+    // bitmap's color matrix), 255 the CPU's vectors.
     function setShapeByte(block: utinyint, i: utinyint, value: utinyint): void {
         if (block >= Video.SHAPE_BLOCK_FIRST && block < Video.SHAPE_BLOCK_FIRST + Video.SHAPE_COUNT) {
             spriteShapes[sprites.blockOffset(block) + i] = value;
@@ -157,7 +157,7 @@ export namespace sprites {
     }
 
     // Behind the background's foreground pixels (text, a bitmap's set
-    // bits) rather than in front of them. Background colour always shows
+    // bits) rather than in front of them. Background color always shows
     // through a sprite's transparent pixels either way.
     function setBehindBackground(index: utinyint, behind: bool): void {
         if (behind) {
@@ -167,9 +167,9 @@ export namespace sprites {
         }
     }
 
-    // Multicolour: pixel pairs, %01 shared colour 0, %10 the sprite's own
-    // colour, %11 shared colour 1, %00 transparent. Half the horizontal
-    // resolution for two more colours; the shared pair is one for all.
+    // Multicolor: pixel pairs, %01 shared color 0, %10 the sprite's own
+    // color, %11 shared color 1, %00 transparent. Half the horizontal
+    // resolution for two more colors; the shared pair is one for all.
     function setMulticolor(index: utinyint, on: bool): void {
         if (on) {
             spriteMulticolor = spriteMulticolor | BIT[index];

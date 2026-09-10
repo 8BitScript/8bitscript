@@ -1,11 +1,11 @@
 // @8bitscript/c64/bitmap — the VIC-II's bitmap modes: 320x200 pixels, or
-// 160x200 in four colours.
+// 160x200 in four colors.
 //
 // Named by "8bitscript".exports["./bitmap"] in this package's package.json:
 //
 //     import { bitmap } from "@8bitscript/c64/bitmap";
 //
-//     bitmap.enter(false);            // hi-res: 320x200, two colours a cell
+//     bitmap.enter(false);            // hi-res: 320x200, two colors a cell
 //     bitmap.clear();
 //     bitmap.fillColors(1, 0);        // white on black, every cell
 //     for (let x: usmallint = 0; x < 320; x++) {
@@ -20,23 +20,23 @@
 // pixel row), 40 cells a row, 25 rows — so pixel (x, y) is bit `7 - x % 8`
 // of byte `(y / 8) * 320 + (x / 8) * 8 + y % 8`, which `offset` computes
 // with a row table and masks, no multiply. Where the picture is, and
-// why the colour matrix is under the I/O area, is ./geometry.8bs's story
+// why the color matrix is under the I/O area, is ./geometry.8bs's story
 // (the `Bitmap` namespace).
 //
-// ---- colours ----------------------------------------------------------------
+// ---- colors ----------------------------------------------------------------
 //
 // Hi-res: a set bit shows the cell's high nybble, a clear bit its low
-// nybble, both from the colour matrix — sixteen colours, two per 8x8
-// cell. Multicolour: pixels are pairs of bits, twice as wide (x 0-159),
+// nybble, both from the color matrix — sixteen colors, two per 8x8
+// cell. Multicolor: pixels are pairs of bits, twice as wide (x 0-159),
 // %00 the background register ($D021, screen.setBackground), %01 the
-// matrix's high nybble, %10 its low nybble, %11 the cell's colour RAM
-// nybble — four colours a cell, three of them per cell.
+// matrix's high nybble, %10 its low nybble, %11 the cell's color RAM
+// nybble — four colors a cell, three of them per cell.
 //
-// The colour matrix is RAM under the I/O area, so a matrix write is a
+// The color matrix is RAM under the I/O area, so a matrix write is a
 // window with I/O banked out (writeUnderIo in ./index.8bs): `setCellColors`
 // is one such window, `fillColors` is one window for all thousand cells —
 // about 15000 cycles, most of a frame — and with the raster interrupt on,
-// that frame's entries wait for it. Colour RAM is I/O and written freely.
+// that frame's entries wait for it. Color RAM is I/O and written freely.
 //
 // ---- sprites over a bitmap --------------------------------------------------
 //
@@ -67,8 +67,8 @@ const ROW_OFFSET: array<usmallint, 25> = [
 // Hi-res: the bit of pixel x % 8, left to right.
 const BIT: array<utinyint, 8> = [128, 64, 32, 16, 8, 4, 2, 1];
 const NOT_BIT: array<utinyint, 8> = [127, 191, 223, 239, 247, 251, 253, 254];
-// Multicolour: the two bits of pixel x % 4, and a colour 0-3 shifted into them
-// (index (x % 4) * 4 + colour).
+// Multicolor: the two bits of pixel x % 4, and a color 0-3 shifted into them
+// (index (x % 4) * 4 + color).
 const PAIR_MASK: array<utinyint, 4> = [0x3F, 0xCF, 0xF3, 0xFC];
 const PAIR_BITS: array<utinyint, 16> = [
     0x00, 0x40, 0x80, 0xC0,
@@ -81,10 +81,10 @@ const PAIR_SHIFT: array<utinyint, 4> = [6, 4, 2, 0];
 export namespace bitmap {
     const WIDTH: usmallint = 320; // hi-res pixels across
     const HEIGHT: utinyint = 200;
-    const MULTICOLOR_WIDTH: utinyint = 160; // multicolour pixels across
+    const MULTICOLOR_WIDTH: utinyint = 160; // multicolor pixels across
     const BYTES: usmallint = 8000;
 
-    // Bitmap mode on, hi-res or multicolour, over whatever the RAM holds.
+    // Bitmap mode on, hi-res or multicolor, over whatever the RAM holds.
     function enter(multicolor: bool): void {
         setupVideo();
         videoMode = VideoMode.BITMAP;
@@ -133,21 +133,21 @@ export namespace bitmap {
         return (bitmapRam[bitmap.offset(x, y)] & BIT[x & 7]) != 0;
     }
 
-    // Multicolour pixel (x 0-159, y) set to `color` 0-3 (see the header).
+    // Multicolor pixel (x 0-159, y) set to `color` 0-3 (see the header).
     function plotColor(x: utinyint, y: utinyint, color: utinyint): void {
         let at: usmallint = ROW_OFFSET[y >> 3] + ((x & 0xFC) << 1) + (y & 7);
         let pair: utinyint = x & 3;
         bitmapRam[at] = (bitmapRam[at] & PAIR_MASK[pair]) | PAIR_BITS[pair * 4 + (color & 3)];
     }
 
-    // The colour 0-3 of multicolour pixel (x, y).
+    // The color 0-3 of multicolor pixel (x, y).
     function pointColor(x: utinyint, y: utinyint): utinyint {
         let at: usmallint = ROW_OFFSET[y >> 3] + ((x & 0xFC) << 1) + (y & 7);
         return (bitmapRam[at] >> PAIR_SHIFT[x & 3]) & 3;
     }
 
-    // Cell `cell` (row * 40 + column): the colour of set bits and of clear
-    // bits (hi-res), or of %01 and %10 pixels (multicolour).
+    // Cell `cell` (row * 40 + column): the color of set bits and of clear
+    // bits (hi-res), or of %01 and %10 pixels (multicolor).
     function setCellColors(cell: usmallint, foreground: utinyint, background: utinyint): void {
         writeUnderIo(Bitmap.MATRIX + cell, (foreground << 4) | (background & 15));
     }
@@ -162,7 +162,7 @@ export namespace bitmap {
         bankIoIn();
     }
 
-    // Multicolour's third colour per cell (%11), from colour RAM.
+    // Multicolor's third color per cell (%11), from color RAM.
     function setCellColor3(cell: usmallint, color: utinyint): void {
         colorRam[cell] = color & 15;
     }

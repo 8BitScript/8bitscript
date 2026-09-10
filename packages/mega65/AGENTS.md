@@ -49,11 +49,11 @@ Do not describe more than this as working:
   target reaches for". **That is not what happens** — see the verified
   table: the program runs at 40.5 MHz with the VIC-IV I/O personality
   live; only the *register subset the package touches* is VIC-II-shaped.
-- `src/screen.8bs` (behind `@8bitscript/screen`) masks both colours to 4
+- `src/screen.8bs` (behind `@8bitscript/screen`) masks both colors to 4
   bits and `blank()` writes 1000 spaces from `$0800`. In MEGA65 mode
   `$D020`/`$D021` take **8-bit** palette indexes (`_vic4.h`
   `VIC4_BORDERCOL_MASK = 0b11111111`); the mask keeps the eight shared
-  names on the C64 colours (palette entries 0–15 are the C64 set,
+  names on the C64 colors (palette entries 0–15 are the C64 set,
   `mega65.h` `COLOR_*`), which is correct, but 1000 cells is **half the
   screen** (see next item).
 - `src/text.8bs` (behind `@8bitscript/text`) has `COLUMNS = 40` and
@@ -66,7 +66,7 @@ Do not describe more than this as working:
   why nothing has looked wrong so far. The package's "verified on screen"
   note verified cell 0. The fix is a package decision, not a runtime
   probe: either draw for 80×25 (`COLUMNS` 80, `CELL_COUNT` 2000, and a
-  colour path that reaches cells ≥ 1024 — see "Colour RAM" below) or put
+  color path that reaches cells ≥ 1024 — see "Color RAM" below) or put
   the VIC-IV into 40 columns first (clear `$D031` bit 7 with hot
   registers on; the ROM restores nothing, so `_fini` would have to). Both
   are open; neither is done.
@@ -114,12 +114,12 @@ under xmega65 (xemu `40dfef0d`, ROM 920413), not recalled.
 | `$D629` (model ID) reads `3` = MEGA65 R3, xemu's `-model` default. `$D06F` reads `128` under `-videostd 1` (NTSC) and `0` under `-videostd 0` (PAL). | probe (`regs-ntsc.png`, `regs-pal.png`); `xmega65 -h`; Book model table |
 | **Logical rasters**: the 9-bit `$D012`/`$D011.7` counter reaches **262 on NTSC, 311 on PAL** (263 / 312 lines), so the C64 `palProbe` (≥ 288) and top-half thresholds hold. `$D7FA` advances once per hardware frame: **59 per 60 `waitFrame()` on NTSC, 50 on PAL**. | `pace-ntsc.png`, `pace-pal.png` |
 | Xemu's frame model: PAL `PAL_FRAME_TIME 20000` µs, `PHYSICAL_RASTERS_PAL 624`, visible 576; NTSC `NTSC_FRAME_TIME 16683.35` µs, `PHYSICAL_RASTERS_NTSC 526`, visible 480; line rate 31250 / 31468.5 Hz; logical raster = physical ÷ 2. | xemu `targets/mega65/vic4.h` (WebFetch, verbatim constants); boot log `frame time is 16683usec, max raster is 526, visible area height is 480` |
-| Xemu's memory: **384K fast (chip) RAM, 8192K attic, 32K colour RAM, 8K font RAM**; 4 SIDs at 1 000 000 SID cycles/s and one OPL3; audio out 44 100 Hz. | xemu boot log (`MEM: memory decoder initialized …`, `AUDIO: reset for 4 SIDs … and 1 OPL3 chip`) |
+| Xemu's memory: **384K fast (chip) RAM, 8192K attic, 32K color RAM, 8K font RAM**; 4 SIDs at 1 000 000 SID cycles/s and one OPL3; audio out 44 100 Hz. | xemu boot log (`MEM: memory decoder initialized …`, `AUDIO: reset for 4 SIDs … and 1 OPL3 chip`) |
 | The `.prg` loads at `$2001` behind a BASIC `SYS 8215` line; usable RAM `$2001–$CFFF` (`LENGTH = 0xafff`); soft stack top `$D000`. The script's own map: `$1.0000–$1.1FFF` CBM DOS, `$2000–$9FFF` free, `$A000–$BFFF` BASIC ROM "but we switch to ram", `$C000–$CFFF` free, `$D000` I/O, `$E000` KERNAL. | `xxd dist/main-mega65-ntsc.prg` (pre-0.2.0: `01 20` header, `9e 20 38 32 31 35` = `SYS 8215`, and `_start` is `$2017` = 8215) |
 | `.init.010` is **`sei; ldx #$2F; stx $00; ldx #$3E; stx $01; ldx #$44; stx $D030`** and `.fini.990` is `ldx #$3F; stx $01; ldx #$64; stx $D030; cli`. So `$D030` = `$44` for the program (CRAM2K 0, PAL-RAM 1, no C65 ROM at `$8000/$A000/$C000/$E000`, CROM9 1), the ROM's own state is `$64` (ROMC set — C65 ROM at `$C000`), and **IRQs are disabled from `_start` until exit**. The C64 target's start-up has no `sei` and no `$D030` write. | disassembly of start-up (pre-0.2.0); `dist/main-mega65-ntsc.prg` |
 | A CHROUT of PETSCII 14 (`lda #$0e; jsr $ffd2`) would flip the machine to lower-case before `main`; 8BitScript does not emit that. | disassembly of a linked build vs a libc start-up (pre-0.2.0) |
 | The 45GS02 has `stz`, `bra`, `inw` (65C02/65CE02-family opcodes the C64 never has); the same borders program was 775 bytes here vs 1034 on the C64 (pre-0.2.0). No `q`-register or `[zp],Z` instruction appeared in any build examined. The native backend refuses to build. | mnemonic tallies of both images (pre-0.2.0); `packages/compiler/src/mos/index.ts` `CPU.mega65` |
-| `mega65.h` maps `VICII` (a `__vic2`) and `VICIV` (a `__vic4`, `0x80` bytes) both at `$D000`, `PALETTE` at `$D100` (red/green/blue ×256), `SID1–4` at `$D400/$D420/$D440/$D460`, `SIDMODE` `$D63C`, `HYPERVISOR` `$D640` (64 traps), `ETHERNET` `$D6E0`, `DMA` `$D700` (`DMAgicController`, `0x60` bytes incl. 4 audio channels at `+0x20`), `MATHBUSY` `$D70F`, `MATH` `$D768` (32×32 multiply, divide, 64-bit `MULTOUT`), `CIA1/2` `$DC00/$DD00`, `DEFAULT_SCREEN` `$0800`; colours 0–15 are the C64's, 16–31 named extras. | MEGA65 Book / iomap.txt / `_vic4.h` register map |
+| `mega65.h` maps `VICII` (a `__vic2`) and `VICIV` (a `__vic4`, `0x80` bytes) both at `$D000`, `PALETTE` at `$D100` (red/green/blue ×256), `SID1–4` at `$D400/$D420/$D440/$D460`, `SIDMODE` `$D63C`, `HYPERVISOR` `$D640` (64 traps), `ETHERNET` `$D6E0`, `DMA` `$D700` (`DMAgicController`, `0x60` bytes incl. 4 audio channels at `+0x20`), `MATHBUSY` `$D70F`, `MATH` `$D768` (32×32 multiply, divide, 64-bit `MULTOUT`), `CIA1/2` `$DC00/$DD00`, `DEFAULT_SCREEN` `$0800`; colors 0–15 are the C64's, 16–31 named extras. | MEGA65 Book / iomap.txt / `_vic4.h` register map |
 | `_dmagic.h`: DMA commands copy/fill (mix, swap "unimplemented"); addressing linear/modulo/hold/XYmod; bank-field flags HOLD 16, MODULO 32, DIRECTION 64, IO 128; enhanced options `$0A`/`$0B` (F018A 11-byte / F018B 12-byte list), `$80`/`$81` source/dest address bits 20–27, `$85` dest skip; audio channel struct: enable, 24-bit base, 24-bit freq, 16-bit top, volume, current, timer; `$D711` AUDEN bit 7. `dma.hpp` builds a fill/copy job and triggers it by writing `$D703`, `$D702`, `$D701`, then `$D705`. | `_dmagic.h`, `dma.hpp` |
 | Audio DMA uses a 24-bit frequency field — `freq = 0x001a88` for an 11 822 Hz 8-bit signed sample, enable/8-bit/loop flags together. | MEGA65 Book DMA appendix; iomap.txt |
 | **A `c64`-target `.prg` autoloads in C64 mode** under `xmega65 -prg`: the borders C64 build shows its 40-column HUD, red border / purple background. Xemu picks the mode from the load address (`-prgmode 64/65` overrides). | `c64mode.png`; xemu log `INJECT: prepare for C64 mode, … $0801 load address`; `xmega65 -h` |
@@ -130,13 +130,13 @@ under xmega65 (xemu `40dfef0d`, ROM 920413), not recalled.
 | Mouse/paddles: `$D620–$D623` read the four pot lines "without having to fiddle with SID/CIA settings"; `$D61B` bits 0–3 enable/assume **Amiga-mouse (1351 emulation)** per joystick port. Xemu emulates a 1351 through the SID pot registers when `-allowmousegrab`/grab is on, else pots read `$FF`. | `iomap.txt`; xemu `input_devices.c` (WebFetch) |
 | Storage: `$D080–$D08F` F011 floppy controller (drive 0 internal 3.5", 1 second on cable); `$D680–$D68F` SD controller (sector address, buffer select, disk-image control, F011 image address on card); Hyppo traps at `$D640` with the function in A then `CLV`: `getversion $00`, `getdefaultdrive $02`, `getcurrentdrive $04`, `selectdrive $06`, `chdir $0C`, `opendir $12`, `readdir $14`, `closedir $16`, `openfile $18`, `readfile $1A`, `writefile $1C`, `closefile $20`, `closeall $22`, `rmfile $26`, `setname $2E`, `findfirst $30`, `findnext $32`, `findfile $34`, `loadfile $36`, `geterrorcode $38`, `setup_transfer_area $3A`, `cdrootdir $3C`, `loadfile_attic $3E`, `attach $4A` (D81 to the virtual F011); `mkdir/mkfile/rename/seekfile/fstat/filedate` "Not implemented". | `iomap.txt`; Book `appendix-hypervisor-calls.tex` |
 | VIC-IV frame: "HDTV 576p 50Hz (PAL) and 480p 60Hz (NTSC) video modes"; PAL 63 cycles/raster, 312 logical rasters; NTSC 65 and 263; "exactly the same number of ~1MHz CPU cycles as on the VIC-II"; 27 MHz pixel clock, 720×576 / 720×480 visible, 640×400 usable inside the VIC-II/III border; a VGA 640×480 compatibility mode (`$D06F.6`) "runs at 63Hz"; `$D06F.7` is PALNTSC and is writable. No bad lines natively; `$D710.0` enables a 40-cycle bad-line emulation "ignored if the processor is running at full speed". The Book's table says **626** physical PAL rasters where xemu says 624 — treat the count as *to verify*. | Book `appendix-viciv-registers.tex` §Frame Timing |
-| Text/colour engine: `SCRNPTR $D060–$D063` (28-bit screen base), `CHARPTR $D068–$D06A`, `COLPTR $D064/65` (offset into colour RAM), `LINESTEP $D058/59`, `CHRCOUNT $D05E`, `CHRXSCL/CHRYSCL $D05A/$D05B`, `DISP_ROWS $D07B`, `TEXTXPOS/TEXTYPOS $D04C–$D04F`, borders `$D048–$D04B`, `SDBDRWD $D05C/5D`; `$D054.0` CHR16 (two screen bytes per character), `.1/.2` full-colour for char numbers ≤/>`$FF`, `.4` sprite H640, `.7` alpha; `$D05D.7` HOTREG. **FCM: 64 bytes per character, "each pixel … from the 256 colours of either the primary or alternate palette"**, address = 64 × char number regardless of `CHARPTR`, pixel `$FF` takes the colour-RAM colour; NCM: 4 bits per pixel, 16 px wide; SEAM (16-bit screen + 16-bit colour RAM per cell): 8 192 unique characters, GOTOX / raster-rewrite buffer ("hardware-generated pseudo-sprites … limited only by the raster time"), flips, Y offset, row mask; alpha blending needs `$D054.7` + CHR16 + FCM. BOLD+REVERSE together select the alternate palette. | `_vic4.h`; `iomap.txt`; Book VIC-IV appendix |
-| Palette: **four banks of 256 entries**, `$D070` bits 1–0 alternate-palette bank, 3–2 sprite bank, 5–4 text/bitmap bank, 7–6 which bank is mapped at `$D100–$D3FF`; the appendix says "23-bit colour depth (versus the VIC-III's 12-bit)", iomap says the `$D100/$D200/$D300` bytes are "red/green/blue palette values (reversed nybl order)". | `_vic4.h` masks; `iomap.txt`; Book VIC-IV appendix §Features |
-| Sprites: 8; VIC-II control unchanged; **64 px wide** with `SPRX64EN $D057` (16 px in 16-colour mode, "six pixels" without it); height 21 or a **shared** `SPRHGHT $D056` 0–255 per `SPRHGTEN $D055`; **16-colour mode `SPR16EN $D06B`** = 15 colours + transparent from the sprite palette bank at `sprite × 16 + nibble` (+128 with bitplane-modify); tile mode repeats a sprite "until the end of the raster line"; `SPRENV400 $D076` per-sprite vertical resolution, `$D054.4` horizontal; alpha `$D074/$D075`; pointers relocatable (`SPRPTRADR $D06C–$D06E`, 16-byte aligned) and 16-bit (`SPRPTR16`, image = 64 × pointer, "anywhere in the first 4MB"); "the VIC-IV uses ring-buffer for each sprites data … a sprite can be displayed multiple times per raster line, thus potentially allowing for horizontal multiplexing". There is **no 256-colour sprite mode**. | Book VIC-IV appendix §Sprites; `iomap.txt` |
-| Memory map (Book): 28-bit space; chip RAM `$000002–$05FFFF` "Fast chip RAM (40MHz)"; the ROM is **128 KB of that RAM at `$20000–$3FFFF`** (banks 2–3, write-protected; `$3E000` C65 KERNAL, `$32000` C65 BASIC, `$2E000` C64 KERNAL, `$2A000` C64 BASIC, `$20000` DOS); colour RAM `$FF80000–$FF87FFF` (32 KB); I/O `$FFD0000–$FFD3FFF` (four personalities); Hypervisor `$FFF8000` (16 KB); attic `$8000000–$87FFFFF` (8 MB, "all models apart from Nexys, presently"; "about ten times slower than accessing Chip RAM"; "cannot be used directly by the VIC chip for graphics data, nor … for audio sample playback"); cartridge/slow bus `$4000000–$7FFFFFF`. "The MAP register overrides all other banking mechanisms"; MAP moves 8 KB blocks by a 12-bit offset ×`$100`, the megabyte byte via a first MAP with `$0F` in X/Z; `[$zp],Z`, the "Base-Page Quad Indirect Z-Indexed Addressing Mode", "accesses a 28-bit address stored as four bytes on the base page" "without 16-bit address translation". `$D030` bits 3/4/5/7 map C65 ROM at `$8000/$A000/$C000/$E000`, bit 0 CRAM2K maps colour RAM's second KB at `$DC00–$DFFF`. DMA "40MB [fill] or copying 20MB per second"; "the processor stops trying to execute instructions until the DMA job has completed" (audio DMA keeps stealing cycles). | Book `appendix-memorymap.tex`, `memory.tex`, `appendix-dmagic.tex` (WebFetch); `_vic3.h` masks |
+| Text/color engine: `SCRNPTR $D060–$D063` (28-bit screen base), `CHARPTR $D068–$D06A`, `COLPTR $D064/65` (offset into color RAM), `LINESTEP $D058/59`, `CHRCOUNT $D05E`, `CHRXSCL/CHRYSCL $D05A/$D05B`, `DISP_ROWS $D07B`, `TEXTXPOS/TEXTYPOS $D04C–$D04F`, borders `$D048–$D04B`, `SDBDRWD $D05C/5D`; `$D054.0` CHR16 (two screen bytes per character), `.1/.2` full-color for char numbers ≤/>`$FF`, `.4` sprite H640, `.7` alpha; `$D05D.7` HOTREG. **FCM: 64 bytes per character, "each pixel … from the 256 colors of either the primary or alternate palette"**, address = 64 × char number regardless of `CHARPTR`, pixel `$FF` takes the color-RAM color; NCM: 4 bits per pixel, 16 px wide; SEAM (16-bit screen + 16-bit color RAM per cell): 8 192 unique characters, GOTOX / raster-rewrite buffer ("hardware-generated pseudo-sprites … limited only by the raster time"), flips, Y offset, row mask; alpha blending needs `$D054.7` + CHR16 + FCM. BOLD+REVERSE together select the alternate palette. | `_vic4.h`; `iomap.txt`; Book VIC-IV appendix |
+| Palette: **four banks of 256 entries**, `$D070` bits 1–0 alternate-palette bank, 3–2 sprite bank, 5–4 text/bitmap bank, 7–6 which bank is mapped at `$D100–$D3FF`; the appendix says "23-bit color depth (versus the VIC-III's 12-bit)", iomap says the `$D100/$D200/$D300` bytes are "red/green/blue palette values (reversed nybl order)". | `_vic4.h` masks; `iomap.txt`; Book VIC-IV appendix §Features |
+| Sprites: 8; VIC-II control unchanged; **64 px wide** with `SPRX64EN $D057` (16 px in 16-color mode, "six pixels" without it); height 21 or a **shared** `SPRHGHT $D056` 0–255 per `SPRHGTEN $D055`; **16-color mode `SPR16EN $D06B`** = 15 colors + transparent from the sprite palette bank at `sprite × 16 + nibble` (+128 with bitplane-modify); tile mode repeats a sprite "until the end of the raster line"; `SPRENV400 $D076` per-sprite vertical resolution, `$D054.4` horizontal; alpha `$D074/$D075`; pointers relocatable (`SPRPTRADR $D06C–$D06E`, 16-byte aligned) and 16-bit (`SPRPTR16`, image = 64 × pointer, "anywhere in the first 4MB"); "the VIC-IV uses ring-buffer for each sprites data … a sprite can be displayed multiple times per raster line, thus potentially allowing for horizontal multiplexing". There is **no 256-color sprite mode**. | Book VIC-IV appendix §Sprites; `iomap.txt` |
+| Memory map (Book): 28-bit space; chip RAM `$000002–$05FFFF` "Fast chip RAM (40MHz)"; the ROM is **128 KB of that RAM at `$20000–$3FFFF`** (banks 2–3, write-protected; `$3E000` C65 KERNAL, `$32000` C65 BASIC, `$2E000` C64 KERNAL, `$2A000` C64 BASIC, `$20000` DOS); color RAM `$FF80000–$FF87FFF` (32 KB); I/O `$FFD0000–$FFD3FFF` (four personalities); Hypervisor `$FFF8000` (16 KB); attic `$8000000–$87FFFFF` (8 MB, "all models apart from Nexys, presently"; "about ten times slower than accessing Chip RAM"; "cannot be used directly by the VIC chip for graphics data, nor … for audio sample playback"); cartridge/slow bus `$4000000–$7FFFFFF`. "The MAP register overrides all other banking mechanisms"; MAP moves 8 KB blocks by a 12-bit offset ×`$100`, the megabyte byte via a first MAP with `$0F` in X/Z; `[$zp],Z`, the "Base-Page Quad Indirect Z-Indexed Addressing Mode", "accesses a 28-bit address stored as four bytes on the base page" "without 16-bit address translation". `$D030` bits 3/4/5/7 map C65 ROM at `$8000/$A000/$C000/$E000`, bit 0 CRAM2K maps color RAM's second KB at `$DC00–$DFFF`. DMA "40MB [fill] or copying 20MB per second"; "the processor stops trying to execute instructions until the DMA job has completed" (audio DMA keeps stealing cycles). | Book `appendix-memorymap.tex`, `memory.tex`, `appendix-dmagic.tex` (WebFetch); `_vic3.h` masks |
 | Model IDs (`$D629`): `$01` R1, `$02` R2, `$03` R3, `$04` R4, `$05–$0F` R5–R15, `$21` MEGAphone R1, `$40` Nexys4 PSRAM, `$41` Nexys4DDR, `$42` Nexys4DDR + widget, `$FD` QMTECH Wukong A100T, `$FE` VHDL simulation. R4 "added a 64MiB SDRAM in addition to the 8MiB HyperRAM"; R2+ desktops have an RTC with NVRAM; R6 "electrically identical to R5". | Book `appendix-target-specific.tex` (WebFetch) |
 | CPU speed (Book): "~1MHz, ~2MHz, ~3.5MHz and 40MHz"; slow modes keep 6502 cycle counts per instruction but "timing may be incorrect by up to 7 micro-seconds"; at 40 MHz "branches … require fewer" cycles and `LDA/LDX/LDY/LDZ` "one additional cycle"; the hypervisor "always operates at full speed (40MHz)". `$D031.6` FAST (3.5 MHz), `$D054.6` VFAST ("48MHz" in iomap's stale text); the Book's RTC example says "If you first POKE0,65 to set the CPU to full speed" — `$01` bit 6 (the bit `POKE 0,65` sets in the *DDR*) is the recalled "force fast" bit, *to verify* below. | Book `appendix-45gs02-registers.tex`, `appendix-target-specific.tex`; `iomap.txt` |
-| The catalog's stock fact sheet, for the MEGA65 mode this target runs in: grid 80×25 of 8×8, 256 palette entries, 2 colours per cell in the text mode used, 256 glyphs, 2×2 PETSCII blocks, bitmap, one layer with fine scroll; 8 sprites and 8 per line, up to 64 wide and 255 tall, 15 colours; 4 SIDs' 12 voices + 4 DMA audio channels = 16, ADSR, filter, noise, samples by DMA, a volume per voice, oscillator 3 as a random source; keyboard, two ports, no pads or mouse on the stock sheet; the SD card to save to; 45055 bytes (`$2001`–`$CFFF`), and the 384 KiB of chip RAM beyond the 64 KiB window as 320 KiB banked. | `src/text.8bs`; the `link.ld`, memory and SID rows above; the VIC-IV sprite and audio notes below; `package.json` (read) |
+| The catalog's stock fact sheet, for the MEGA65 mode this target runs in: grid 80×25 of 8×8, 256 palette entries, 2 colors per cell in the text mode used, 256 glyphs, 2×2 PETSCII blocks, bitmap, one layer with fine scroll; 8 sprites and 8 per line, up to 64 wide and 255 tall, 15 colors; 4 SIDs' 12 voices + 4 DMA audio channels = 16, ADSR, filter, noise, samples by DMA, a volume per voice, oscillator 3 as a random source; keyboard, two ports, no pads or mouse on the stock sheet; the SD card to save to; 45055 bytes (`$2001`–`$CFFF`), and the 384 KiB of chip RAM beyond the 64 KiB window as 320 KiB banked. | `src/text.8bs`; the `link.ld`, memory and SID rows above; the VIC-IV sprite and audio notes below; `package.json` (read) |
 
 ## From the sources, not verified here
 
@@ -155,7 +155,7 @@ Leads, each to confirm the first time code depends on it:
   with `$00 = $2F`, `$01 = $3E` (both bit 6 clear) and VFAST set. Which
   wins on hardware is *to verify*.
 - **Extended-attribute nibble.** With `$D031.5` ATTR set (it is, at boot)
-  colour RAM's upper nibble is blink/reverse/bold/underline; the bit
+  color RAM's upper nibble is blink/reverse/bold/underline; the bit
   assignment (recalled: 4 blink, 5 reverse, 6 bold, 7 underline) is *to
   verify*. `text.8bs` masks to 4 bits, so it is safe today.
 - **Palette entry layout.** "23-bit" (appendix) versus "reversed nybl
@@ -186,8 +186,8 @@ when the code is next touched (this file does not edit them):
 - **`text.8bs`/`screen.8bs` used to draw for 40 columns, 1000 cells.**
   Fixed the same day: `COLUMNS` is 80, `CELL_COUNT` 2000, `blank()`
   clears 2000 cells, and `prepare()`/`putColor()` set `$D030`'s CRAM2K
-  bit (`VicIIIControl.COLOR_RAM_2K`, `$45`) so cells 1024–1999's colour
-  lands in colour RAM, not the CIAs. Studio's front door and the borders
+  bit (`VicIIIControl.COLOR_RAM_2K`, `$45`) so cells 1024–1999's color
+  lands in color RAM, not the CIAs. Studio's front door and the borders
   example were re-screenshotted under xmega65 after the change.
 - **`FRAME_SYNC.mega65` comment: "boots into that C64-compatible view and
   clock, so this reuses the C64 entry verbatim".** The polling works (the
@@ -197,9 +197,9 @@ when the code is next touched (this file does not edit them):
   A `{ num: 1, den: 50 }` / `{ num: 1001, den: 60000 }` entry would be
   exact under xemu; hardware *to verify*.
 - **`run.mjs` docstring and `docs/setup/mega65.md`: `-prg` "best-effort",
-  "not independently confirmed", "same registers, same colours, same
+  "not independently confirmed", "same registers, same colors, same
   numbers as the C64".** `-prg` is confirmed (both modes); the numbers are
-  not the C64's (80 columns, 8-bit colour registers, 40 MHz).
+  not the C64's (80 columns, 8-bit color registers, 40 MHz).
 - **`docs/roadmap.md`** lists the MEGA65 under "powerful 65xx systems"
   with no further description; when its row grows, the thesis above is
   the summary, not "C64-compatible".
@@ -242,24 +242,24 @@ when the code is next touched (this file does not edit them):
 - Attic RAM is slow and invisible to the VIC-IV and audio DMA: assets go
   through chip RAM. Never assume attic exists (Nexys boards).
 
-### Screen: 80 columns, 8-bit colours, hot registers
+### Screen: 80 columns, 8-bit colors, hot registers
 
 - Decide the geometry in the package and set it; don't inherit the
   ROM's. Whichever width `text.8bs` draws for, `COLUMNS`, `CELL_COUNT`,
-  `screen.blank()` and the colour path must agree, and the profile-file
+  `screen.blank()` and the color path must agree, and the profile-file
   rule (`geometry.<machine>.<profile>.8bs`) is the place for a 40/80
   choice if one is ever exposed — not a runtime read of `LINESTEP`.
 - `$D020/$D021` are 8-bit here. The shared eight names stay on 0–15;
-  a MEGA65-only colour surface can expose all 256 (and the four banks).
+  a MEGA65-only color surface can expose all 256 (and the four banks).
 - Hot registers are on: a write to `$D011/$D016/$D018/$D031` recomputes
   borders, `SCRNPTR`, `CHARPTR`, `CHRCOUNT`. Either keep using them (the
   C64 idiom) or clear HOTREG and program the VIC-IV registers directly —
   never mix, or a stray `$D018` write undoes a `SCRNPTR`.
-- **Colour RAM**: `$D800–$DBFF` is cells 0–1023. Cells 1024–1999 of an
+- **Color RAM**: `$D800–$DBFF` is cells 0–1023. Cells 1024–1999 of an
   80-column screen are at `$DC00–$DFCF` **only while `$D030.0` CRAM2K is
   set** — and the build clears it, so those addresses are CIA1/CIA2. A
   `putColor` past cell 1023 written the current way pokes the CIAs
-  (keyboard columns, VIC bank, serial bus). Reach the 32 KB colour RAM
+  (keyboard columns, VIC bank, serial bus). Reach the 32 KB color RAM
   through `$FF80000` (DMA or `[zp],Z`), or toggle CRAM2K around the
   write and back before any CIA read.
 - Screen RAM can be written at any time: the VIC-IV has its own bus, no
@@ -271,15 +271,15 @@ when the code is next touched (this file does not edit them):
 ### Sprites and the VIC-IV modes
 
 - Eight sprites, all eight on any line, plus ring-buffer horizontal
-  re-use. The real budget is width × colour depth per line (64 px mono,
-  16 px 16-colour), not a count — describe intent and let the package
-  pick mono/multicolour/16-colour and the palette bank.
+  re-use. The real budget is width × color depth per line (64 px mono,
+  16 px 16-color), not a count — describe intent and let the package
+  pick mono/multicolor/16-color and the palette bank.
 - `SPRHGHT` is one value for every sprite that opts in: a metasprite
   system must group by height or pad with transparency.
 - FCM needs 64 bytes per glyph and SEAM (16-bit cells) to address more
   than 256 of them; a full 80×25 FCM screen of unique characters is a
   128 KB framebuffer. Deduplicate at build time; prefer NCM (half the
-  bytes, 16 px wide) where 16 colours per cell suffice.
+  bytes, 16 px wide) where 16 colors per cell suffice.
 - The RRB/GOTOX is a per-scanline reposition of the character stream:
   layers, parallax and soft sprites — but "limited only by the raster
   time", which is not documented as a number. Measure on xemu *and*

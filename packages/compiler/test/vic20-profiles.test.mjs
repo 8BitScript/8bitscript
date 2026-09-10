@@ -56,17 +56,17 @@ test('unexpanded and 3k draw at $1E00/$9600 with $9005 = $F0; 8k, 16k and 24k at
   for (const profile of [undefined, 'none', '3k']) {
     const geo = linked(profile);
     assert.equal(geo.screen, UNEXPANDED.screen, `${profile}: screen base`);
-    assert.equal(geo.color, UNEXPANDED.color, `${profile}: colour RAM base`);
+    assert.equal(geo.color, UNEXPANDED.color, `${profile}: color RAM base`);
     assert.equal(geo.pointer, UNEXPANDED.pointer, `${profile}: $9005 value`);
     assert.notEqual(geo.screen, EXPANDED.screen, `${profile}: no expanded screen base`);
   }
   for (const profile of ['8k', '16k', '24k']) {
     const geo = linked(profile);
     assert.equal(geo.screen, EXPANDED.screen, `${profile}: screen base`);
-    assert.equal(geo.color, EXPANDED.color, `${profile}: colour RAM base`);
+    assert.equal(geo.color, EXPANDED.color, `${profile}: color RAM base`);
     assert.equal(geo.pointer, EXPANDED.pointer, `${profile}: $9005 value`);
     assert.notEqual(geo.screen, UNEXPANDED.screen, `${profile}: no unexpanded screen base`);
-    assert.notEqual(geo.color, UNEXPANDED.color, `${profile}: no unexpanded colour RAM`);
+    assert.notEqual(geo.color, UNEXPANDED.color, `${profile}: no unexpanded color RAM`);
   }
 });
 

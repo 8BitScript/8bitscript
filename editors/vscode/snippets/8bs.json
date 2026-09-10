@@ -4,7 +4,7 @@
     "'first milestone' section of docs/compiler.md. Nothing here expands to",
     "syntax the compiler would reject: a snippet that produces a diagnostic",
     "is worse than no snippet, and CONTRIBUTING.md's rule (never describe",
-    "behaviour that isn't implemented) applies to the editor as much as to",
+    "behavior that isn't implemented) applies to the editor as much as to",
     "prose. So there is no snippet for a pointer — it parses, it does not",
     "lower yet.",
     "Keep in step with packages/compiler: a construct entering or leaving the",

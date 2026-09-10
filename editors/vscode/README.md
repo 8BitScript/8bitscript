@@ -40,10 +40,10 @@ the project overview is in the [root README](../../README.md).
 ## What it does
 
 - Registers `.8bs` as the language **8BitScript**
-- Colours comments, strings and template strings (with their `${...}`
+- Colors comments, strings and template strings (with their `${...}`
   fields), numbers (including the `0.5` a `#frames(...)` duration takes),
   types, keywords, declarations, calls, the compile-time `#frames(...)`
-  and `#system()` (any `#name` colours as compile-time), the reserved `waitFrame()`, and
+  and `#system()` (any `#name` colors as compile-time), the reserved `waitFrame()`, and
   the `seconds` unit inside a `#frames(...)` call
 - **Snippets** for the constructs that compile — `program`, `loop`,
   `countdown`, `print`, `#frames`, `const`, `let`, `for`, `array`,
@@ -172,7 +172,7 @@ SYSTEM
   A named system is one choice that fits the machine, its hardware **and**
   its region together — it is a `8bs run` line the project wrote down.
   Picking one is the same as reaching that machine by hand, and reaching
-  it by hand is recognised as that system: the button names it either way,
+  it by hand is recognized as that system: the button names it either way,
   because the panel compares what the options resolve to rather than
   remembering what was clicked.
 
@@ -271,7 +271,7 @@ toolchain that found it, so an installed Studio launches even though its
 own directory sits inside `node_modules`.
 
 Every run and build is also a task of type `8bs`, so **Tasks: Run Task**
-lists them, and a favourite can be pinned in `.vscode/tasks.json`:
+lists them, and a favorite can be pinned in `.vscode/tasks.json`:
 
 ```json
 {
@@ -312,9 +312,9 @@ shows, the primitive integer types (both the friendly spelling — `utinyint`,
 escape hatches that already exist: `@address` decorators,
 `volatile`/`ptr`/`array`, and `asm6502` blocks. A keyword the language turns
 out not to have simply never matches, so a wrong guess costs a word that does
-not colour rather than a broken file.
+not color rather than a broken file.
 
-This is still only lexical colouring — it has no idea what a name refers to.
+This is still only lexical coloring — it has no idea what a name refers to.
 The language server layers semantic information over it once it has a binder
 to draw on; until then, hover and completion (see above) are the only
 compiler-backed intelligence in the editor.

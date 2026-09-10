@@ -17,7 +17,7 @@ The web target is a fourth case —
 > memory, its clock and its palette is a decision someone wrote into the
 > runtime, and the runtime *is* the emulator. Today it emulates a
 > C64-shaped 40×25 character grid inside a 24-pixel border, the C64's
-> sixteen colours, one flat 64 KB page, and a logical frame clock at the
+> sixteen colors, one flat 64 KB page, and a logical frame clock at the
 > project's `frameRate` — and nothing else. Treat it as a machine whose
 > specification lives in three files, never as "the target with no
 > constraints".**
@@ -44,14 +44,14 @@ Do not describe more than this as working:
 - `src/screen.8bs` (behind `@8bitscript/screen`, as `@8bitscript/web/screen`)
   masks border and background to `& 15` and writes them to bytes 0 and 1.
   `screen.blank()` writes the space code (32) to the 1000 character cells;
-  it does not touch the 1000 colour cells. `BorderColor` and
+  it does not touch the 1000 color cells. `BorderColor` and
   `BackgroundColor` carry all sixteen C64 names plus `KEEP` (255).
 - `src/text.8bs` (behind `@8bitscript/text`) is a 40-column, 1000-cell grid:
   `text.putChar(cell, code)` writes the ASCII code itself to `2 + cell`
   (no screen-code conversion — there is no character ROM to convert for),
   `text.putColor` writes `1002 + cell`, `text.print`/`printNumber` write
-  both, in the colour `text.setColor()` last set (white until then).
-  `text.setReverse` ORs 128 into that colour byte so the host can fill the
+  both, in the color `text.setColor()` last set (white until then).
+  `text.setReverse` ORs 128 into that color byte so the host can fill the
   cell and punch the glyph out. `printNumber` uses a real divide, since
   wasm has one. `TextColor` has the eight shared names only.
 - `packages/compiler/src/wasm` is the native WebAssembly backend: IR in, `.wasm`
@@ -108,7 +108,7 @@ header comment of `web-runtime.mjs` itself.
 
 Every row below is a design decision, not a hardware fact: each was chosen
 by whoever wrote the file in the *Where* column, and changing that file
-changes the "machine". Rows marked **ran** were observed by building a colour-cycling program
+changes the "machine". Rows marked **ran** were observed by building a color-cycling program
 for the web and instantiating the
 result in Node while writing this file; rows marked **read** were read in
 the source named but not executed (the browser page was not driven by a
@@ -117,10 +117,10 @@ what to search for when they drift.
 
 | Fact | Where |
 | ---- | ----- |
-| The screen agreement is five offsets: border byte 0, background byte 1, 1000 character codes from byte 2, 1000 colour bytes from byte 1002, input snapshot at byte 2002 — two side-by-side screen regions, not interleaved. 1000 cells was picked as "the C64's shape, a safe superset of the VIC-20's 506". | `packages/web/src/index.8bs`, `WebRegisters` (read) |
+| The screen agreement is five offsets: border byte 0, background byte 1, 1000 character codes from byte 2, 1000 color bytes from byte 1002, input snapshot at byte 2002 — two side-by-side screen regions, not interleaved. 1000 cells was picked as "the C64's shape, a safe superset of the VIC-20's 506". | `packages/web/src/index.8bs`, `WebRegisters` (read) |
 | Grid 40×25, cell 8×8 px, border 24 px on every side: canvas resolution 368×248, stretched to the window with `image-rendering: pixelated`. Characters are clipped to the inner 320×200 and cannot draw in the border. | `packages/cli/src/web-runtime.mjs:37-53`, `GRID_COLS`…`SCREEN_H`; `:238-241`, `paint()` clip (read); the headless PNG is 368×248 RGBA (ran) |
-| Palette: the C64's sixteen colours, in the C64's numbering, as CSS hex; the host masks every colour byte `& 15`; the package masks border/background `& 15` before writing. | `web-runtime.mjs:23-35`, `COLORS`; `:229, :231, :247` (read); `packages/web/src/screen.8bs:26-27, 48, 52` (read) |
-| A cell's colour is its own byte's low nibble (foreground only); there is no per-cell background. Colour bytes start at 0, so a cell written with `text.putChar` alone draws in colour 0 (black). `screen.blank()` clears characters, not colours. | `web-runtime.mjs:247` (read); `packages/web/src/text.8bs:39-56` (read); `screen.8bs:42-44` (read) |
+| Palette: the C64's sixteen colors, in the C64's numbering, as CSS hex; the host masks every color byte `& 15`; the package masks border/background `& 15` before writing. | `web-runtime.mjs:23-35`, `COLORS`; `:229, :231, :247` (read); `packages/web/src/screen.8bs:26-27, 48, 52` (read) |
+| A cell's color is its own byte's low nibble (foreground only); there is no per-cell background. Color bytes start at 0, so a cell written with `text.putChar` alone draws in color 0 (black). `screen.blank()` clears characters, not colors. | `web-runtime.mjs:247` (read); `packages/web/src/text.8bs:39-56` (read); `screen.8bs:42-44` (read) |
 | Only codes 32–95 draw (space, digits, upper-case letters, the ASCII punctuation between); 0 and everything else draws nothing, in both renderers. There are no block-graphics glyphs. | `web-runtime.mjs:181-184`, `decodeScreenCode`; `packages/cli/src/font8x8.mjs:23-27`, `glyphRows` (read); the font table is 64 glyphs, 512 bytes (ran) |
 | The browser draws cells with the system monospace font (`ui-monospace, Menlo, monospace`, ascent-corrected); the headless screenshot draws Hepper's `font8x8_basic`. The two pictures are not pixel-identical. | `web-runtime.mjs:213-223` (read); `screenshot.mjs:362-377`, `webScreenshot` (read) |
 | Memory: exactly one 64 KB wasm page; flat, unbanked. The host instantiates exported `memory` (`memory.buffer.byteLength === 65536`) and a `SharedArrayBuffer` for a `waitFrame()` build. Code generation is not built. | `packages/cli/src/wasm-host.mjs`, `instantiateProgram` (read); `packages/compiler/src/wasm/index.ts` (the contract, not a generator) |
@@ -133,12 +133,12 @@ what to search for when they drift.
 | The page paints the *live* shared memory every display refresh — no snapshot, no double buffer. A write is visible at whatever paint comes next, mid-frame included. | `web-runtime.mjs:225-255`, `paint(mem)`; `:298` (read) |
 | A program that never calls `waitFrame()` is built without shared memory, runs to completion in the worker, and its memory is posted to the page afterwards; a program that returns ends ("the program finished"); one that spins burns the worker, not the tab. | `web-runtime.mjs:97-108, 302-308` (read); `wasm-host.mjs` (read) |
 | Shared memory needs cross-origin isolation, so every response carries `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`. | `web-runtime.mjs:323-330`, `ISOLATION_HEADERS` (read) |
-| Headless: `boundedWaitFrame(limit)` throws `FrameLimitReached` on call `limit + 1`, unwinding through the wasm frames; `--frames` counts `waitFrame()` calls exactly; the default is `3 × frameRate`. After 180 frames at 60 the borders program shows `TICK 6 OPTION 0`, border 6, background 3, cell-0 colour 7 — exactly 3 s of its 0.5 s tick. | `wasm-host.mjs:11-29, 67-75` (read); `screenshot.mjs:323, 344-350` (read); memory after the run (ran) |
+| Headless: `boundedWaitFrame(limit)` throws `FrameLimitReached` on call `limit + 1`, unwinding through the wasm frames; `--frames` counts `waitFrame()` calls exactly; the default is `3 × frameRate`. After 180 frames at 60 the borders program shows `TICK 6 OPTION 0`, border 6, background 3, cell-0 color 7 — exactly 3 s of its 0.5 s tick. | `wasm-host.mjs:11-29, 67-75` (read); `screenshot.mjs:323, 344-350` (read); memory after the run (ran) |
 | Code generation is not built. The host contract (one 64 KB page, `env.waitFrame`, exported memory) is `packages/cli/src/wasm-host.mjs`. Node ≥ 26. The borders `.wasm` was 747 bytes under the pre-0.2.0 toolchain. | `packages/compiler/src/wasm/index.ts`; `wasm-host.mjs` (read) |
 | Output is `dist/<stem>.wasm` beside its generated `dist/<stem>.ts`, no target/region/profile suffix; the memory line is the source's declared counts. | `build.mjs:215-225, 262-268`, `memoryLine` (read); `built …/dist/main.wasm`, `memory: 4 bytes of RAM for variables, 23 bytes of constant data (as declared)` (ran) |
 | The checker's portable string set is space, `0`–`9`, `A`–`Z`, `! , - . : ?` — a subset of what the host draws (32–95). `text.putChar` takes any `utinyint`; the host decides what shows. | `packages/compiler/src/checker/index.mjs:68` (read) |
 | The web is the last of nine machines the resolver knows; `@8bitscript/screen` and `@8bitscript/text` map it to this package's two subpaths. | `packages/compiler/src/resolver/index.mjs:42`; `packages/screen/package.json`, `packages/web/package.json:9-12` (read) |
-| The catalog's stock fact sheet: grid 40×25 of 8×8, 16 colours, 2 per cell (its own foreground, the global background), no redefinable glyphs, no block glyphs (only codes 32–95 draw), no bitmap, one layer, no scroll, no sprites; no sound, ports, pads, mouse or paddles, and nowhere to save; `input.keyboard` true — arrow keys, Enter and Escape through the snapshot at byte 2002. 57344 bytes (`0x0000`–`0xDFFF`, under the data base), nothing banked. Studio is a viewer here because there is nothing to edit, not because there is no keyboard. | `src/text.8bs`; the grid, font, memory and `--memoryBase` rows above; `package.json` (read) |
+| The catalog's stock fact sheet: grid 40×25 of 8×8, 16 colors, 2 per cell (its own foreground, the global background), no redefinable glyphs, no block glyphs (only codes 32–95 draw), no bitmap, one layer, no scroll, no sprites; no sound, ports, pads, mouse or paddles, and nowhere to save; `input.keyboard` true — arrow keys, Enter and Escape through the snapshot at byte 2002. 57344 bytes (`0x0000`–`0xDFFF`, under the data base), nothing banked. Studio is a viewer here because there is nothing to edit, not because there is no keyboard. | `src/text.8bs`; the grid, font, memory and `--memoryBase` rows above; `package.json` (read) |
 
 ## The schema, as the runtime decides it today
 
@@ -155,12 +155,12 @@ web each answer is a line of code, cited above; this is the compact form.
    unprotected. Scalar variables are not in the page at all.
 3. **Native unit** — character cells drawn by the host from a font it
    owns; no framebuffer the program can reach; no tiles; no sprites.
-4. **Text grid** — 40×25 of 8×8 px inside a 24 px border whose colour is
+4. **Text grid** — 40×25 of 8×8 px inside a 24 px border whose color is
    byte 0; a character at `(x, y)` is `memory.write(2 + y * 40 + x, code)`.
-5. **Modes / colour** — one mode. Sixteen C64 colours; per-cell foreground
+5. **Modes / color** — one mode. Sixteen C64 colors; per-cell foreground
    (low nibble), one global background, one global border. No bitmap, no
-   multicolour, no per-cell background.
-6. **Layers** — one (the cell grid over the background colour). No scroll.
+   multicolor, no per-cell background.
+6. **Layers** — one (the cell grid over the background color). No scroll.
 7. **Sprites** — none, and no software substitute in the package.
 8. **Pseudo-pixels** — none: only codes 32–95 draw, and they are text.
 9. **Audio** — none. No entropy source either.
@@ -230,18 +230,18 @@ web each answer is a line of code, cited above; this is the compact form.
   rewrites the grid across several statements can be painted half-way.
   Today that is accepted; the proposal below fixes it. Do not add a
   vblank queue to this package to work around it.
-- Colour is a foreground nibble per cell and starts at black. A package
+- Color is a foreground nibble per cell and starts at black. A package
   or program that writes characters with `putChar` and never `putColor`
   gets invisible text on a black background and black text on any other.
   `print`/`printNumber` write both; prefer them.
-- Codes outside 32–95 are blank. Reverse video is colour bit 7: the host
-  fills the cell with the foreground colour and punches the glyph out in
+- Codes outside 32–95 are blank. Reverse video is color bit 7: the host
+  fills the cell with the foreground color and punches the glyph out in
   the screen background. There is no PETSCII, no block set, no lower case.
   A portable "block/pattern" helper cannot be implemented here today
   without a font change in *both* renderers.
 - The two renderers differ in font. When a screenshot and the tab
   disagree about glyph shape, that is expected; when they disagree about
-  which cell is which colour, that is a bug.
+  which cell is which color, that is a bug.
 
 ### Time is the page's, and only `waitFrame()` sees it
 
@@ -279,9 +279,9 @@ wrong web program, today:
   reads a page byte, never the wasm global the counter actually is.
   Arrays and strings are in the page — at `0xE000`, and `let` arrays
   count against the same 8 KB as the constants.
-- **Colour RAM starts black, and there is only a foreground nibble.**
-  `putChar` alone is invisible on black; reverse video is colour bit 7,
-  not a second nibble. No colours 16+, nothing above code 95.
+- **Color RAM starts black, and there is only a foreground nibble.**
+  `putChar` alone is invisible on black; reverse video is color bit 7,
+  not a second nibble. No colors 16+, nothing above code 95.
 - **There is no vblank — in both directions.** Writes are always safe and
   never lost, but the page may paint the middle of your redraw. And the
   tab's font is not the screenshot's font.
@@ -346,14 +346,14 @@ sources before a capability depends on it.
    grids but not of the X16's 76×56 or the 8032's 80×25; Studio's full
    tier is designed on the X16, so a `web-studio` profile at the X16's
    76×56 (or 80×50) may be what "the full editor, sized to the machine"
-   needs. Keep the border: it is where "the border colour" shows.
-5. **Modes / colour** — palette RAM of 256 RGB entries in the page with
-   entries 0–15 preloaded as the C64 palette, so every existing colour
+   needs. Keep the border: it is where "the border color" shows.
+5. **Modes / color** — palette RAM of 256 RGB entries in the page with
+   entries 0–15 preloaded as the C64 palette, so every existing color
    number keeps its meaning and `& 15` stays valid for the old surfaces.
    Per-cell foreground *and* background nibble (the X16 has both —
-   `packages/cx16/AGENTS.md`; the NES colours per attribute region —
+   `packages/cx16/AGENTS.md`; the NES colors per attribute region —
    `packages/nes/src/screen.8bs`; the PET has none — `packages/pet/AGENTS.md`;
-   the C64's foreground-only colour RAM is *to verify* in its package —
+   the C64's foreground-only color RAM is *to verify* in its package —
    each implements what it can). The portable API names intent (`TextColor.RED`); the web
    resolves it through the palette like everyone else.
 6. **Layers** — two tile layers with per-layer horizontal/vertical fine
@@ -421,7 +421,7 @@ sources before a capability depends on it.
 ```
 packages/web/src/index.8bs               target package: WebRegisters — the five offsets (0, 1, 2, 1002, 2002) the host and the input layer share
 packages/web/src/screen.8bs              @8bitscript/web/screen: setColors/setBorder/setBackground (& 15), blank() over 1000 chars, sixteen names + KEEP
-packages/web/src/text.8bs                @8bitscript/web/text: ASCII straight into the page, setReverse (colour bit 7), COLUMNS 40, CELL_COUNT 1000, divide-based printNumber, eight TextColor names
+packages/web/src/text.8bs                @8bitscript/web/text: ASCII straight into the page, setReverse (color bit 7), COLUMNS 40, CELL_COUNT 1000, divide-based printNumber, eight TextColor names
 packages/web/src/input.8bs               @8bitscript/web/input: poll() reads INPUT_OFFSET; arrows, Enter, Escape; pointer still false
 packages/web/package.json                "8bitscript".entry and the subpaths ./screen, ./text, ./input, ./pointer
 packages/compiler/src/wasm/index.ts        IR → .wasm: not implemented; records the host contract (one page, env.waitFrame, exported memory)

@@ -15,7 +15,7 @@
 // The C128's VIC-IIe is register-compatible with the C64's VIC-II for the
 // registers this target uses — confirmed against the VIC-IIe's own
 // register map: VIC at $D000 in the same layout as the C64's VIC-II,
-// colour RAM at the identical $D800.
+// color RAM at the identical $D800.
 // A program built for this target runs in the C128's native 40-column
 // mode, at the VIC-IIe's C64-compatible register layout — the 80-column
 // VDC and the second (Z80) CPU are outside what this target reaches for.
@@ -24,12 +24,12 @@
 // not in the portable @8bitscript/screen, which is the one picture every
 // machine has.)
 
-// $D020, the VIC-IIe border colour register — same address, same meaning
+// $D020, the VIC-IIe border color register — same address, same meaning
 // as the C64's.
 @address(0xD020)
 export let borderColor: volatile<u8>;
 
-// $D021, the VIC-IIe background colour register (background #0).
+// $D021, the VIC-IIe background color register (background #0).
 @address(0xD021)
 export let backgroundColor: volatile<u8>;
 
@@ -62,11 +62,11 @@ export let spriteExpandX: volatile<u8>;
 @address(0xD01B)
 export let spritePriority: volatile<u8>;
 
-// $D01C, one bit per sprite: multicolour.
+// $D01C, one bit per sprite: multicolor.
 @address(0xD01C)
 export let spriteMulticolor: volatile<u8>;
 
-// $D027-$D02E, each sprite's own colour. Low four bits.
+// $D027-$D02E, each sprite's own color. Low four bits.
 @address(0xD027)
 export let spriteColors: array<u8, 8>;
 
@@ -81,7 +81,7 @@ export let memoryPointer: volatile<u8>;
 // IRQ routine copies back over the register every interrupt while in text
 // mode — so writing the register alone lasts until the next IRQ, and a
 // caller writes the shadow first, the same class of problem
-// @8bitscript/atari8 documents for GTIA's colour registers.
+// @8bitscript/atari8 documents for GTIA's color registers.
 @address(0x0A2C)
 export let memoryPointerShadow: volatile<u8>;
 

@@ -15,17 +15,17 @@ import { borderColor, backgroundColor } from "./index.8bs";
 // ---- the screen: border and background --------------------------------------
 //
 // The VIC-IIe gives border and background their own registers, sixteen
-// colours each, same as the C64's VIC-II.
+// colors each, same as the C64's VIC-II.
 export namespace screen {
     function setColors(border: u8, background: u8): void {
         borderColor = border & 15;
         backgroundColor = background & 15;
     }
 
-    // `blank(border, background)`: every cell blank and both colours set —
+    // `blank(border, background)`: every cell blank and both colors set —
     // black when left off, or `BorderColor.KEEP` / `BackgroundColor.KEEP`
     // to leave one as it is. `setBorder` and `setBackground` are one
-    // colour each, `setColors` the pair; `text.setColor` owns what the
+    // color each, `setColors` the pair; `text.setColor` owns what the
     // next print looks like.
     function blank(border: utinyint = BorderColor.BLACK, background: utinyint = BackgroundColor.BLACK): void {
         if (border != BorderColor.KEEP) {
@@ -48,13 +48,13 @@ export namespace screen {
     }
 }
 
-// ---- colour names ----------------------------------------------------------
+// ---- color names ----------------------------------------------------------
 //
 // The same eight names every machine's screen.8bs exports — Black, White,
 // Red, Cyan, Purple, Green, Blue, Yellow — so a program can write
 // `screen.setColors(BorderColor.BLUE, BackgroundColor.BLACK)` through
 // @8bitscript/screen and get blue on every target; the values are this
-// machine's own. The VIC-IIe has the C64's sixteen colours in both
+// machine's own. The VIC-IIe has the C64's sixteen colors in both
 // registers, in the C64's numbering, so both namespaces carry all sixteen.
 
 export namespace BorderColor {
@@ -74,7 +74,7 @@ export namespace BorderColor {
     const LIGHT_GREEN: utinyint = 13;
     const LIGHT_BLUE: utinyint = 14;
     const LIGHT_GREY: utinyint = 15;
-    // Not a colour: `blank(KEEP, ...)` leaves this one as it is. 255 is
+    // Not a color: `blank(KEEP, ...)` leaves this one as it is. 255 is
     // a value no register here takes.
     const KEEP: utinyint = 255;
 }
@@ -96,7 +96,7 @@ export namespace BackgroundColor {
     const LIGHT_GREEN: utinyint = 13;
     const LIGHT_BLUE: utinyint = 14;
     const LIGHT_GREY: utinyint = 15;
-    // Not a colour: `blank(KEEP, ...)` leaves this one as it is. 255 is
+    // Not a color: `blank(KEEP, ...)` leaves this one as it is. 255 is
     // a value no register here takes.
     const KEEP: utinyint = 255;
 }

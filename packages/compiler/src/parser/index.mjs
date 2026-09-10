@@ -439,7 +439,7 @@ class Parser {
     return node(NodeType.ForStatement, start, end, { init, test, update, body });
   }
 
-  /** A `for` initialiser is either a declaration or a bare expression. */
+  /** A `for` initializer is either a declaration or a bare expression. */
   parseStatementLikeInit() {
     if (this.atKeyword('let') || this.atKeyword('const')) {
       const keyword = this.next();
@@ -756,7 +756,7 @@ class Parser {
       return inner;
     }
 
-    // `[1, 2, 3]`: an array initialiser. A trailing comma is allowed, as in
+    // `[1, 2, 3]`: an array initializer. A trailing comma is allowed, as in
     // TypeScript, so a table one value per line can end every line alike.
     if (token.text === '[') {
       this.next();

@@ -1,6 +1,6 @@
 // The REU probe, run for real: prints what reu.detect() found and sets the
-// border to a colour that encodes it, so a headless screenshot can be read
-// by a test without decoding text — red for no REU, then one colour per
+// border to a color that encodes it, so a headless screenshot can be read
+// by a test without decoding text — red for no REU, then one color per
 // size: purple 128 KiB, green 256, blue 512, yellow 1 MiB, orange 2, brown
 // 4, light red 8, dark grey 16. See test/reu.test.mjs.
 import { screen } from "../src/screen.8bs";

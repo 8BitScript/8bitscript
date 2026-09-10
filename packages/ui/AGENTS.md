@@ -87,27 +87,27 @@ it is not in this package's dependencies.
 Every claim here was checked against each machine's `text.8bs`, and every
 one of them shapes a component's design:
 
-- **Three of the nine targets have no per-cell colour.** `text.putColor` is
-  a deliberately empty function on the **PET** (no colour RAM at all), the
-  **Atari 8-bit** (GR.0 has none), and the **NES** (its colour lives in a
+- **Three of the nine targets have no per-cell color.** `text.putColor` is
+  a deliberately empty function on the **PET** (no color RAM at all), the
+  **Atari 8-bit** (GR.0 has none), and the **NES** (its color lives in a
   2x2-cell attribute block, which that text layer does not touch). So
-  **colour is never a component's only way of showing state.**
+  **color is never a component's only way of showing state.**
 
   **Ask `video.colorPerCell`, and ask it while compiling.** That fact
   exists for this: it is true on the six machines where a cell can be given
-  its own colour and false on those three, so a component picks its way of
+  its own color and false on those three, so a component picks its way of
   showing state before any target toolchain runs and compiles only that
   one. The menu bar inverts the selected item on every machine, so a
-  colour-only highlight is never the only way it shows state — reverse
+  color-only highlight is never the only way it shows state — reverse
   video is.
 
   Do **not** reach for `video.cellColors` to answer this. It is 2 on all
-  nine, PET included, because a PET cell really does hold two colours —
+  nine, PET included, because a PET cell really does hold two colors —
   they are simply not a program's to set. That near-miss is why
   `video.colorPerCell` was added rather than reused.
 - **Reverse video is a text mode, not a portable glyph.** `text.setReverse`
   inverts cells printed after it: a reverse space is a solid block in the
-  cell's colour, which is how a selected menu item becomes a filled bar.
+  cell's color, which is how a selected menu item becomes a filled bar.
   The portable character set still has no inverted copies of its own —
   invert is something each machine's text package does to the codes it
   writes. The NES ships inverted copies of $20-$5F at ASCII+128 in its font.
@@ -133,7 +133,7 @@ one of them shapes a component's design:
 ## The menu bar
 
 `src/menubar.8bs`. One row of items, the selected one inverted in the item
-colour — a filled bar of reverse video, including the padding spaces:
+color — a filled bar of reverse video, including the padding spaces:
 
 ```
  8  FILE                 FILE inverted: a filled bar, letters punched out
@@ -152,7 +152,7 @@ colour — a filled bar of reverse video, including the padding spaces:
 | `pointed()` | Which item it was over during the last run, or `NONE` |
 | `count()` | How many items the last run offered, drawn or not |
 | `clipped()` | Whether an item had to be dropped for want of room |
-| `setColors(item, highlight)` | Item colour; invert uses it, `highlight` is unused |
+| `setColors(item, highlight)` | Item color; invert uses it, `highlight` is unused |
 | `setPadding(cells)` | Space either side of each label; 1 by default |
 | `setMarker(s)` | Kept so the call shape stays; invert is the highlight |
 | `setIcon(s)` | The character `icon()` draws; `"8"` by default |
@@ -185,10 +185,10 @@ Seven things about it that are decisions, not accidents:
 - **An item with no room is not drawn, but still takes its index** and still
   answers for the highlight. Which item is selected must not depend on how
   wide the machine's screen is.
-- **The colour goes on with `setColor`, and invert with `setReverse`.**
+- **The color goes on with `setColor`, and invert with `setReverse`.**
   There is no `text.getColor` to put the caller's setting back with, so a
-  bar leaves the text colour set to the bar's and reverse off after each
-  item. A program that cares picks its colour on the line after the bar.
+  bar leaves the text color set to the bar's and reverse off after each
+  item. A program that cares picks its color on the line after the bar.
 
 ### What it costs
 
@@ -212,7 +212,7 @@ them.
 | MEGA65 | 1292 B | 889 | **+403** | 970 | **+322** |
 
 Re-measured 2026-09-07 after the selected item became inverted rather than
-recoloured: `menubar_item` is 466 bytes on a C64 and 384 on the X16
+recolored: `menubar_item` is 466 bytes on a C64 and 384 on the X16
 (measured from Studio's linked image, pre-0.2.0). The extra
 against the 285-byte `item()` below is two padding `print`s per item — a
 reverse space is the filled end of the button — plus `text.setReverse`.
@@ -260,7 +260,7 @@ verified pixel-identical in VICE:
 
 Read the last three rows together, because they are the whole argument.
 **446 is the floor** — what an 8BitScript program costs to print four
-labels at all, before any menu behaviour: `text_print` (172 bytes, ASCII in,
+labels at all, before any menu behavior: `text_print` (172 bytes, ASCII in,
 any length, nine machines), `setupVideo` (86), and the startup the linker
 adds. A component that laid its bar out at compile time would sit at 455,
 **nine bytes above that floor**, and still have a highlight that moves.
@@ -304,21 +304,21 @@ Five shapes of `item()`, all measured on a C64:
 | runs of `putChar`: padding, marker, label, marker, padding | 743 |
 | one loop over the item's cells, picking each character | 585 |
 | `print` for the label, a loop for the padding | 561 |
-| `print` for everything — label, marker, and the colour with it | 320 |
+| `print` for everything — label, marker, and the color with it | 320 |
 | **the same, with all bookkeeping moved before the first call** | **285** |
 
 Three smaller findings from the same measurements, each counter-intuitive
 enough to be worth writing down rather than rediscovering:
 
-- **A normal space shows the background whatever its colour cell says**,
-  on all nine. `blank()` therefore writes no colour. A *reverse* space is
-  a solid block in the text colour — that is the filled end of a selected
+- **A normal space shows the background whatever its color cell says**,
+  on all nine. `blank()` therefore writes no color. A *reverse* space is
+  a solid block in the text color — that is the filled end of a selected
   item, and it is why `item()` prints padding spaces rather than leaving
   them as blanks.
 - **The blanking loop is 16 bytes**, measured by removing it — not the
   ~150 it looks like. A `text.fill(cell, count, code)` primitive in
   `@8bitscript/text` was proposed here to remove it and would have been
-  nine files of work for 16 bytes. Measure before you optimise; this table
+  nine files of work for 16 bytes. Measure before you optimize; this table
   exists so the next person does not repeat that.
 - **The room check is 46 bytes.** It is not what makes a component big, and
   it is what stops a bar overrunning the row. Do not trade it away.

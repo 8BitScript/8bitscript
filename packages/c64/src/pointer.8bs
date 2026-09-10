@@ -69,7 +69,7 @@ import { mouse } from "./mouse.8bs";
 // Was this build fitted with a mouse? Folded while compiling.
 const HAS_MOUSE: bool = #fact(input.mouse);
 
-// The colour the arrow starts in, in the VIC's sixteen. White reads against
+// The color the arrow starts in, in the VIC's sixteen. White reads against
 // every background @8bitscript/screen offers, and `setColor` changes it.
 const WHITE: utinyint = 1;
 
@@ -144,8 +144,8 @@ export namespace pointer {
         }
     }
 
-    // The arrow's colour, in the VIC's sixteen — the same numbers
-    // @8bitscript/text's colours are.
+    // The arrow's color, in the VIC's sixteen — the same numbers
+    // @8bitscript/text's colors are.
     function setColor(color: utinyint): void {
         if (HAS_MOUSE) {
             sprites.setColor(pointer.SPRITE, color);

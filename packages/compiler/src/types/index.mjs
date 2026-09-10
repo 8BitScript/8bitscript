@@ -12,7 +12,7 @@
 // the audience this is for. `i8`, `u8`, and so on remain as low-level aliases
 // — the systems-programming spelling stays available, it just is not what the
 // language leads with. `bigint`/`ubigint` are reserved for a future 64-bit
-// type and deliberately not recognised anywhere yet.
+// type and deliberately not recognized anywhere yet.
 //
 // The canonical name IS the internal id: the IR and both backends key their
 // own data by `canonicalName` (`utinyint`, not `u8`). `utinyint` and `u8` are
@@ -104,7 +104,7 @@ export function resolveIntegerType(name) {
 }
 
 /**
- * Inclusive `[min, max]` ranges, keyed by every recognised spelling. Kept for
+ * Inclusive `[min, max]` ranges, keyed by every recognized spelling. Kept for
  * callers that only ever needed bounds — the checker's original shape, before
  * it had a reason to ask for anything else.
  */

@@ -98,7 +98,7 @@ test('the screen, the character set, the sprite pointers and the shapes are all 
   // Blocks 144-254: the last, under the CPU vectors at $FFFA, is left alone.
   assert.equal(VIDEO.SHAPE_BLOCK_FIRST + VIDEO.SHAPE_COUNT, 255);
   assert.equal(VIDEO.SHAPES + 64 * VIDEO.SHAPE_COUNT, 0xFFC0);
-  // The character ROM's copy and colour RAM are where the CPU sees the I/O area.
+  // The character ROM's copy and color RAM are where the CPU sees the I/O area.
   assert.equal(VIDEO.CHARSET, 0xD000);
   assert.equal(VIDEO.COLOR, 0xD800);
   assert.equal(VIDEO.CELL_COUNT, VIDEO.COLUMNS * VIDEO.ROWS);
@@ -140,7 +140,7 @@ test('index.8bs names the VIC-II, SID, CIA and processor-port registers at their
 
 // ---- the portable surface, through the bank ---------------------------------
 
-test('the c64 screen draws at $E000 with colour at $D800, sets $D018 to $84', () => {
+test('the c64 screen draws at $E000 with color at $D800, sets $D018 to $84', () => {
   const src = 'import { screen } from "@8bitscript/screen";\nexport function main(): void { screen.blank(); }';
   const ir = linked(src, join(HERE, '..', '..', 'studio', 'src', 'main.8bs'));
   assert.equal(ir.globals.find((g) => g.name === 'screenRam').address, 0xE000);
@@ -306,7 +306,7 @@ test('bitmap mode: the matrix under I/O at $DC00 leaves the upper-case set intac
   assert.deepEqual([B.BYTES, B.WIDTH, B.HEIGHT], [8000, 320, 200]);
 });
 
-test('bitmap: enter sets BMM with the raster bit clear, plot computes the VIC layout, colours go under I/O, and setShape routes by mode', () => {
+test('bitmap: enter sets BMM with the raster bit clear, plot computes the VIC layout, colors go under I/O, and setShape routes by mode', () => {
   const src = [
     'import { bitmap } from "./bitmap.8bs";',
     'import { sprites } from "./sprites.8bs";',
@@ -389,7 +389,7 @@ test('charset.define writes eight rows at $D000 + 8 * code in one window; restor
   assert.ok(calls(fn(ir, 'charset_restore').body, 'copyCharacterRom').length === 1);
 });
 
-test('scroll: fine scroll masks the low three bits and keeps $D011 bit 7 clear; a coarse shift copies screen and colour RAM together', () => {
+test('scroll: fine scroll masks the low three bits and keeps $D011 bit 7 clear; a coarse shift copies screen and color RAM together', () => {
   const src = [
     'import { scroll } from "./scroll.8bs";',
     'export function main(): void { scroll.setX(5); scroll.setY(3); scroll.setNarrow(true); scroll.shiftLeft(32, 1); scroll.shiftUp(32, 1); }',

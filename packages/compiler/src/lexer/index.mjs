@@ -61,7 +61,7 @@ const OPEN_BRACKETS = new Set(['(', '[', '{']);
 // Operators, longest first, matched by maximal munch against this list only.
 // Greedily globbing operator characters is how `x=-1` ends up lexed as the
 // non-operator `=-`; matching real operators cannot produce a token that no
-// rule of the language recognises.
+// rule of the language recognizes.
 const OPERATORS = [
   '<<=', '>>=',
   '==', '!=', '<=', '>=', '&&', '||', '<<', '>>', '++', '--',
@@ -353,7 +353,7 @@ export function tokenize(text, file = '<unknown>') {
     const digits = text.slice(digitsStart, i).replaceAll('_', '');
     if (digits === '') {
       // `0x` with nothing after it. Reported here so the value can never be
-      // a silent NaN travelling through the checker.
+      // a silent NaN traveling through the checker.
       diagnostics.push(
         diagnostic(Codes.INVALID_NUMBER, `invalid number literal '${text.slice(start, i)}'`, file, start, i - start),
       );
