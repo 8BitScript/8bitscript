@@ -135,6 +135,8 @@ export const Opcode = {
   br: 0x0c,
   brIf: 0x0d,
   return: 0x0f,
+  call: 0x10,
+  drop: 0x1a,
   localGet: 0x20,
   localSet: 0x21,
   i32Const: 0x41,
