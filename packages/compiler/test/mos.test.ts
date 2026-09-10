@@ -268,7 +268,17 @@ test('build() allocates real PET globals (currentColor/currentReverse-shaped) to
     const outFile = join(scratch, 'out.prg');
     const withGlobals: IrProgram = {
       entry: 'main',
-      functions: [{ name: 'main', body: [] }],
+      functions: [{
+        name: 'main',
+        // main reads both — an unreferenced global is exactly what
+        // linker/reachability.mjs now prunes, and a global this test's
+        // own fixture declares but nothing ever touches isn't the real
+        // currentColor/currentReverse shape it means to cover.
+        body: [
+          { kind: 'assign', target: 'currentColor', value: { kind: 'ref', name: 'currentColor', type: 'utinyint' } },
+          { kind: 'assign', target: 'currentReverse', value: { kind: 'ref', name: 'currentReverse', type: 'bool' } },
+        ],
+      }],
       globals: [
         { name: 'currentColor', type: 'utinyint', address: null },
         { name: 'currentReverse', type: 'bool', address: null },
@@ -277,17 +287,17 @@ test('build() allocates real PET globals (currentColor/currentReverse-shaped) to
     const result = await build(withGlobals, { machine: 'pet', hardware, outFile, frameRate: 60 });
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    // 15 program bytes as an empty main() has, plus 4 bytes each
+    // 15 program bytes as an empty main() would have, plus 4 bytes each
     // (LDA #init; STA zp) to write each global's own initial value before
     // main() runs — real RAM has no guaranteed content at power-on
     // (discovered building milestone 9's real gate: @8bitscript/pet/text's
     // own currentReverse read whatever boot-time garbage happened to be at
     // its address, on every build before this test's own fixture existed
-    // to catch it). The zero-page address these globals get is unaffected;
-    // only the program now actually sets what memory.variables always
-    // implied it would.
-    assert.equal(result.bytes.length, 23);
-    assert.deepEqual(result.memory, { variables: 2, program: 23 });
+    // to catch it) — plus 4 bytes each again for main's own read-back
+    // assign (LDA zp; STA zp), the reference this fixture now needs to
+    // survive pruning at all.
+    assert.equal(result.bytes.length, 31);
+    assert.deepEqual(result.memory, { variables: 2, program: 31 });
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
@@ -297,10 +307,18 @@ test('build() refuses a PET program whose globals overflow the real zero-page bu
   const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
   try {
     const outFile = join(scratch, 'out.prg');
-    // $8E..$FF is 114 bytes; 115 one-byte globals cannot fit.
+    // $8E..$FF is 114 bytes; 115 one-byte globals cannot fit. main
+    // references every one (an unreferenced global is exactly what
+    // linker/reachability.mjs now prunes) — allocation itself runs before
+    // any of main's own body lowers, so the overflow this test means to
+    // check is unaffected either way, but the globals have to survive
+    // pruning to be allocated at all.
     const tooManyGlobals: IrProgram = {
       entry: 'main',
-      functions: [{ name: 'main', body: [] }],
+      functions: [{
+        name: 'main',
+        body: Array.from({ length: 115 }, (_, i) => ({ kind: 'assign', target: `g${i}`, value: { kind: 'const', value: 0, type: 'utinyint' } })),
+      }],
       globals: Array.from({ length: 115 }, (_, i) => ({ name: `g${i}`, type: 'utinyint', address: null })),
     };
     const result = await build(tooManyGlobals, { machine: 'pet', hardware, outFile, frameRate: 60 });
@@ -555,7 +573,12 @@ test('a 16-bit return type is still refused by name — milestone 8 widens param
     const wideReturnIr: IrProgram = {
       entry: 'main',
       functions: [
-        { name: 'main', params: [], returnType: 'void', body: [] },
+        // main has to actually call address(): build() now prunes whatever
+        // the entry can't reach (linker/reachability.mjs), so an uncalled
+        // function's own unsupported construct would otherwise never be
+        // seen at all — correctly, since dead code never runs, but not what
+        // this test means to check.
+        { name: 'main', params: [], returnType: 'void', body: [{ kind: 'call', name: 'address', args: [] }] },
         { name: 'address', params: [], returnType: 'usmallint', body: [{ kind: 'return', value: { kind: 'const', value: 0x8000, type: 'usmallint' } }] },
       ],
       globals: [],
@@ -576,7 +599,9 @@ test('an array parameter is refused by name — not lowered yet', async () => {
     const arrayParamIr: IrProgram = {
       entry: 'main',
       functions: [
-        { name: 'main', params: [], returnType: 'void', body: [] },
+        // main has to actually call sumOf(): see the same note on the
+        // 16-bit-return test above.
+        { name: 'main', params: [], returnType: 'void', body: [{ kind: 'call', name: 'sumOf', args: [] }] },
         { name: 'sumOf', params: [{ name: 't', type: 'array', elementType: 'utinyint', length: 4 }], returnType: 'void', body: [] },
       ],
       globals: [],
@@ -597,7 +622,9 @@ test('a parameter wider than 16 bits is refused by name — only 8-bit and 16-bi
     const wideParamIr: IrProgram = {
       entry: 'main',
       functions: [
-        { name: 'main', params: [], returnType: 'void', body: [] },
+        // main has to actually call f(): see the same note on the
+        // 16-bit-return test above.
+        { name: 'main', params: [], returnType: 'void', body: [{ kind: 'call', name: 'f', args: [] }] },
         { name: 'f', params: [{ name: 'n', type: 'int' }], returnType: 'void', body: [] },
       ],
       globals: [],
@@ -616,11 +643,23 @@ test('a 16-bit parameter that only has one byte of zero page left is refused, na
   try {
     const outFile = join(scratch, 'out.prg');
     // 113 one-byte globals leave exactly 1 byte of the 114-byte budget —
-    // not enough for a usmallint parameter's own 2.
+    // not enough for a usmallint parameter's own 2. main has to actually
+    // reference every one of them (an unreferenced global is exactly what
+    // linker/reachability.mjs now prunes) and actually call place(), or
+    // build() would just drop all the filler this test exists to fill zp
+    // with, and the overflow this test means to check would never happen.
     const almostFullIr: IrProgram = {
       entry: 'main',
       functions: [
-        { name: 'main', params: [], returnType: 'void', body: [] },
+        {
+          name: 'main',
+          params: [],
+          returnType: 'void',
+          body: [
+            ...Array.from({ length: 113 }, (_, i) => ({ kind: 'assign', target: `g${i}`, value: { kind: 'const', value: 0, type: 'utinyint' } })),
+            { kind: 'call', name: 'place', args: [{ kind: 'const', value: 0, type: 'usmallint' }] },
+          ],
+        },
         { name: 'place', params: [{ name: 'cell', type: 'usmallint' }], returnType: 'void', body: [] },
       ],
       globals: Array.from({ length: 113 }, (_, i) => ({ name: `g${i}`, type: 'utinyint', address: null })),
@@ -989,8 +1028,15 @@ test('milestone 10: a build with waitFrame() overflowing what zero page remains 
   try {
     // 113 one-byte globals leave exactly 1 byte of the PET's real free zp
     // range ($8E..$FF, 114 bytes) — nowhere near the 12 waitFrame() needs.
+    // main references every one of them: an unreferenced global is exactly
+    // what linker/reachability.mjs now prunes, and this test needs them
+    // real, not dropped.
     const globals = Array.from({ length: 113 }, (_, i) => ({ name: `g${i}`, type: 'utinyint', address: null }));
-    const ir: IrProgram = { entry: 'main', functions: [{ name: 'main', body: [{ kind: 'waitFrame' }] }], globals };
+    const body = [
+      ...Array.from({ length: 113 }, (_, i) => ({ kind: 'assign', target: `g${i}`, value: { kind: 'const', value: 0, type: 'utinyint' } })),
+      { kind: 'waitFrame' },
+    ];
+    const ir: IrProgram = { entry: 'main', functions: [{ name: 'main', body }], globals };
     const result = await build(ir, { machine: 'pet', hardware, outFile: join(scratch, 'out.prg'), frameRate: 60 });
     assert.equal(result.ok, false);
     if (result.ok) return;
@@ -1101,6 +1147,41 @@ test('the real hello-world on the 2001 leaves BASIC 1 CHRGET ($C2-$D9) alone so 
   };
   const on3032 = await zpBytes('3032');
   const on2001 = await zpBytes('2001');
-  assert.equal(on3032, 77, 'BASIC 2 CHRGET is below $8E — no hole, 77 bytes of real slots');
-  assert.equal(on2001, on3032 + 24, 'the 2001 skips BASIC 1\'s 24-byte CHRGET window at $C2');
+  // 77/101 before linker/reachability.mjs: hello-world's own real zp cost
+  // used to include every unreached helper @8bitscript/text and
+  // @8bitscript/screen declare (printNumber's own locals chief among
+  // them). 49 is what the program actually, provably touches — and at 49
+  // bytes, allocation from $8E never reaches as far as the hole at $C2
+  // (that needs the 52nd byte), so the 2001 and the 3032 now allocate
+  // identically: the hole was there to skip, and this program is small
+  // enough not to run into it. The skip logic itself — given a program
+  // that actually does reach that far — is its own test, right below.
+  assert.equal(on3032, 49, 'BASIC 2 CHRGET is below $8E — no hole, 49 bytes of real slots');
+  assert.equal(on2001, on3032, 'pruned hello-world never allocates as far as $C2 — nothing to skip');
+});
+
+test('the BASIC 1 CHRGET hole ($C2-$D9) is still really skipped, once a program actually reaches that far', async () => {
+  // Every filler global is read by main, so linker/reachability.mjs's own
+  // pruning leaves all of them in place — see the same note on the
+  // zero-page-overflow fixtures above. 60 one-byte globals reach from $8E
+  // to $C9, past the hole's own start at $C2.
+  const globals = Array.from({ length: 60 }, (_, i) => ({ name: `g${i}`, type: 'utinyint', address: null }));
+  const body = Array.from({ length: 60 }, (_, i) => ({ kind: 'assign', target: `g${i}`, value: { kind: 'const', value: 0, type: 'utinyint' } }));
+  const ir: IrProgram = { entry: 'main', functions: [{ name: 'main', body }], globals };
+  const zpBytes = async (profile: string | undefined) => {
+    const resolved = resolveHardware(loadCatalog('pet'), { profile });
+    assert.ok(resolved.ok, resolved.ok ? '' : resolved.error);
+    const scratch = await mkdtemp(join(tmpdir(), '8bs-chrget-hole-'));
+    try {
+      const result = await build(ir, { machine: 'pet', hardware: resolved.hardware as unknown as BuildOptions['hardware'], outFile: join(scratch, 'out.prg'), frameRate: 60 });
+      assert.equal(result.ok, true, result.ok ? '' : result.error);
+      return result.ok ? result.memory.variables : 0;
+    } finally {
+      await rm(scratch, { recursive: true, force: true });
+    }
+  };
+  const on3032 = await zpBytes('3032');
+  const on2001 = await zpBytes('2001');
+  assert.equal(on3032, 60, 'BASIC 2 has no hole in this range — all 60 globals land back to back');
+  assert.equal(on2001, on3032 + 24, 'BASIC 1\'s own CHRGET hole forces the 24-byte skip once allocation reaches $C2');
 });

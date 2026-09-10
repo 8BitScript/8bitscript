@@ -407,12 +407,20 @@ test('milestone 3 acceptance: memory.write at a computed address — the exact p
   assert.deepEqual([...memory.slice(200, 205)], [65, 66, 67, 68, 69]);
 });
 
+// This group's three globals each need a real reference from main: build()
+// now prunes whatever the entry can't reach (linker/reachability.mjs), so
+// an unreferenced global's own unsupported shape would otherwise never be
+// seen at all — correctly (dead data costs nothing to leave out), but not
+// what these tests mean to check. The reference itself doesn't need to be
+// semantically sound — build() refuses the global's own bad shape in the
+// globals pass, before main's body is ever lowered.
 test('milestone 3: refuses a pinned global (@address(...)), by name', async () => {
   const globals: IrGlobal[] = [{ name: 'REG', type: 'utinyint', address: 0xe000, init: 0 }];
   const scratch = await mkdtemp(join(tmpdir(), '8bs-web-native-'));
   try {
     const outFile = join(scratch, 'out.wasm');
-    const result = await build({ entry: 'main', functions: [{ name: 'main', body: [] }], globals }, { outFile, frameRate: 60 });
+    const body = [{ kind: 'assign', target: 'REG', value: { kind: 'const', value: 0, type: 'utinyint' } }];
+    const result = await build({ entry: 'main', functions: [{ name: 'main', body }], globals }, { outFile, frameRate: 60 });
     assert.equal(result.ok, false);
     assert.match(result.ok ? '' : result.error, /'REG'.*pinned global/);
   } finally {
@@ -425,7 +433,8 @@ test('milestone 3: refuses a `let` array global, by name', async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-web-native-'));
   try {
     const outFile = join(scratch, 'out.wasm');
-    const result = await build({ entry: 'main', functions: [{ name: 'main', body: [] }], globals }, { outFile, frameRate: 60 });
+    const body = [{ kind: 'assign', target: 'arr', value: { kind: 'const', value: 0, type: 'utinyint' } }];
+    const result = await build({ entry: 'main', functions: [{ name: 'main', body }], globals }, { outFile, frameRate: 60 });
     assert.equal(result.ok, false);
     assert.match(result.ok ? '' : result.error, /'arr' is a `let` array/);
   } finally {
@@ -438,7 +447,8 @@ test('milestone 3: refuses a string<N> global, naming the web track\'s own miles
   const scratch = await mkdtemp(join(tmpdir(), '8bs-web-native-'));
   try {
     const outFile = join(scratch, 'out.wasm');
-    const result = await build({ entry: 'main', functions: [{ name: 'main', body: [] }], globals }, { outFile, frameRate: 60 });
+    const body = [{ kind: 'assign', target: 's', value: { kind: 'const', value: 0, type: 'utinyint' } }];
+    const result = await build({ entry: 'main', functions: [{ name: 'main', body }], globals }, { outFile, frameRate: 60 });
     assert.equal(result.ok, false);
     assert.match(result.ok ? '' : result.error, /'s' is a string<N>/);
     assert.match(result.ok ? '' : result.error, /milestone 5/);
@@ -578,7 +588,10 @@ test('milestone 4 acceptance: only the entry is exported, even with a helper fun
 test('milestone 4: refuses an array parameter, naming the web track\'s own milestone 5', async () => {
   const params: IrParam[] = [{ name: 't', type: 'array', elementType: 'utinyint' }];
   const helper: IrFunction = { name: 'helper', params, returnType: 'void', body: [] };
-  const main: IrFunction = { name: 'main', returnType: 'void', body: [] };
+  // main has to actually call helper(): build() now prunes whatever the
+  // entry can't reach (linker/reachability.mjs), so an uncalled function's
+  // own unsupported construct would otherwise never be seen at all.
+  const main: IrFunction = { name: 'main', returnType: 'void', body: [{ kind: 'call', name: 'helper', args: [{ kind: 'const', value: 0, type: 'utinyint' }] }] };
   const scratch = await mkdtemp(join(tmpdir(), '8bs-web-native-'));
   try {
     const outFile = join(scratch, 'out.wasm');
@@ -842,10 +855,14 @@ test('milestone 5: data past one page of memory grows the declared minimum, not 
 
 test('milestone 5: refuses a `let` array global, by name — const arrays are lowered, RAM ones are still a real gap', async () => {
   const globals: IrGlobal[] = [{ name: 'buf', type: 'utinyint', address: null, array: 4, constant: false, init: [0, 0, 0, 0] }];
+  // main has to actually reference buf: see the milestone-3 globals tests
+  // above for why (linker/reachability.mjs now prunes an unreferenced one
+  // before this refusal would ever see it).
+  const body = [{ kind: 'assign', target: 'buf', value: { kind: 'const', value: 0, type: 'utinyint' } }];
   const scratch = await mkdtemp(join(tmpdir(), '8bs-web-native-'));
   try {
     const outFile = join(scratch, 'out.wasm');
-    const result = await build({ entry: 'main', functions: [{ name: 'main', body: [] }], globals }, { outFile, frameRate: 60 });
+    const result = await build({ entry: 'main', functions: [{ name: 'main', body }], globals }, { outFile, frameRate: 60 });
     assert.equal(result.ok, false);
     assert.match(result.ok ? '' : result.error, /'buf' is a `let` array/);
   } finally {
