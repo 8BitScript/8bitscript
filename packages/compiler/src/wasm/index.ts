@@ -24,21 +24,38 @@
 // exported (wasm-host.mjs's own "exactly one exported function" contract).
 // Recursion is allowed, not refused for parity with mos's own cycle check:
 // wasm's call stack is real, not a shared frame a second call would
-// clobber, so there's nothing here that needs refusing. Still no strings,
-// no waitFrame() — every later milestone's own job is one more IR shape
-// this function stops refusing by name.
+// clobber, so there's nothing here that needs refusing.
+//
+// Milestone 5 ("strings and const data") adds a wasm data section: every
+// string literal and every `const` array gets its own fixed address,
+// starting at DATA_BASE below, laid out once before any function body is
+// lowered (the same two-pass shape as globals/functions). A `string` value
+// at runtime is just that address — a pointer to a one-byte length prefix
+// followed by the characters (ir/index.mjs's own string-table format) — so
+// a `string` parameter needed no lowering rule beyond the one every other
+// `i32`-valued parameter already has. A `let` (RAM) array, an `@address`
+// (hardware-pinned) array, and a `string<N>` variable (which needs its own
+// RAM buffer and a runtime copy loop for `stringCopy`, not just a fixed
+// address) are all still refused by name — real gaps, not milestone 5's
+// own scope, which @8bitscript/web's own real source never needs: neither
+// screen.8bs nor text.8bs declares a `let` array, an `@address` array, or
+// a `string<N>` anywhere (checked directly, not assumed). No waitFrame()
+// yet — milestone 6's own job.
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
-import { ExternalKind, Mutability, Opcode, SectionId, ValType, assembleModule, encodeName, funcType, limits, section, signedLEB128, unsignedLEB128, vector } from './encode.ts';
+import { storageBytes } from '../types/index.mjs';
+import { ExternalKind, Mutability, Opcode, SectionId, ValType, activeDataSegment, assembleModule, encodeName, funcType, limits, section, signedLEB128, unsignedLEB128, vector } from './encode.ts';
 import { lower } from './lower.ts';
 import type { IrStatement } from './lower.ts';
 
 export interface IrParam {
   name: string;
-  /** `'array'` or `'string'` here is a parameter shape not lowered yet —
-   * checked by name in `build()`, the same refusal-by-name every other
-   * unhandled shape in this backend gets rather than a guess. */
+  /** `'array'` here is a parameter shape not lowered yet — checked by name
+   * in `build()`, the same refusal-by-name every other unhandled shape in
+   * this backend gets rather than a guess. `'string'` is lowered as of
+   * milestone 5: a string parameter is just an `i32` pointer, the same as
+   * any other scalar parameter, so it needs no special case here at all. */
   type: string;
   /** An array parameter's own element type (ir/index.mjs's own
    * `function()`); irrelevant to every scalar parameter, and to the array
@@ -61,17 +78,34 @@ export interface IrGlobal {
   name: string;
   type: string;
   /** Non-null for an `@address(...)`-pinned global — a hardware register,
-   * not RAM this backend owns; not lowered yet (nothing in
+   * or, for an array, hardware-mapped memory (a screen RAM, say) — not
+   * owned by this backend either way; not lowered yet (nothing in
    * @8bitscript/web declares one today, per mos/index.ts's own precedent
    * this backend reads for the same field). */
   address: number | null;
-  /** A scalar global's own initial value, always a plain number by the
-   * time linked IR reaches a backend (linker/index.mjs resolves every
-   * initializer first) — never present (array's elements) or an IrExpr. */
-  init?: number | null;
-  /** Set for a const array; not lowered yet — the web track's own
-   * milestone 5. */
+  /** A scalar global's own initial value (always a plain number by the
+   * time linked IR reaches a backend — linker/index.mjs resolves every
+   * initializer first), or a const array's own element values in
+   * declaration order (ir/index.mjs's own arrayGlobal()) when `array` is
+   * set. Never an IrExpr. */
+  init?: number | number[] | null;
+  /** Set (to the array's own element count) for an array global — const
+   * (`constant: true`, lowered as of milestone 5, data-section bytes no
+   * code ever writes) or `let` (RAM, still refused by name: nothing in
+   * @8bitscript/web declares one). */
   array?: number;
+  /** True for `const NAME: array<T, N> = [...]`, false for `let`. Only
+   * meaningful alongside `array`. */
+  constant?: boolean;
+}
+
+/** One entry of the linked IR's own string table (ir/index.mjs's own
+ * `strings`, merged and deduplicated by the linker) — `ir.strings[i]` is
+ * this, and a `{ kind: 'string', index: i }` IR node names it by that same
+ * index. */
+export interface IrString {
+  text: string;
+  bytes: number[];
 }
 
 /** The linked IR's top-level shape this backend reads — the same real IR
@@ -81,7 +115,7 @@ export interface IrProgram {
   entry: string;
   functions: IrFunction[];
   globals?: IrGlobal[];
-  strings?: unknown[];
+  strings?: IrString[];
 }
 
 export interface BuildOptions {
@@ -93,14 +127,34 @@ export type BuildResult =
   | { ok: true; bytes: Uint8Array<ArrayBuffer> }
   | { ok: false; error: string };
 
-// One page (64 KiB) of linear memory — @8bitscript/web's own WebRegisters
-// layout (packages/web/src/index.8bs) uses under 2.5 KiB of it today, and
-// nothing in this milestone needs more than the module's own empty body.
-// Sized here rather than computed because nothing lowered yet has an
-// opinion on how much memory a program needs; a later milestone (data
-// section placement, "Hello, WASM"'s own open decision) may need to grow
-// this from the linked program's own const-data size.
+// One page (64 KiB) of linear memory, minimum — @8bitscript/web's own
+// WebRegisters layout (packages/web/src/index.8bs) uses under 2.5 KiB of
+// it today. Milestone 5 places string/const-array data starting at
+// DATA_BASE below and grows the memory section's own declared minimum
+// past one page only when a program's own data genuinely needs it
+// (buildDataLayout, in build()) — most programs still get exactly one
+// page, unchanged from milestone 1.
 const MEMORY_PAGES = 1;
+const PAGE_BYTES = 64 * 1024;
+
+// Where this backend's own data section starts. No formal contract exists
+// yet between this backend and a package's own `.8bs` source about which
+// low memory addresses are "taken" — @8bitscript/web's own WebRegisters
+// (packages/web/src/index.8bs) is just ordinary program code computing
+// ordinary literal addresses (0 through 2002 today), not something this
+// backend can see or reason about structurally the way it owns wasm
+// globals or its own const-array table. Placing data right after
+// WebRegisters' own current high-water mark would work today and break
+// silently the day that package adds one more byte. 8192 (0x2000) is a
+// deliberately generous, round, memorable boundary — four times what the
+// only real user of low memory needs today — chosen to survive that
+// growth without this backend needing to know about it. This is the
+// "Hello, WASM" roadmap's own "linear memory: shared vs. plain, sized how,
+// laid out how" decision, narrowed but not fully closed: a real
+// cross-package memory-map convention (every hardware-style package
+// declaring the range it needs, checked for overlap) is still better than
+// a guessed boundary, and isn't built yet.
+const DATA_BASE = 8192;
 
 // No import lands before milestone 6's own `env.waitFrame` — see the
 // function-index comment in `build()` for why this is a named constant
@@ -112,32 +166,71 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   const entryFn = ir.functions.find((fn) => fn.name === ir.entry);
   if (!entryFn) return { ok: false, error: `the linked entry point '${ir.entry}' names no function in ir.functions` };
 
-  if ((ir.strings ?? []).length > 0) {
-    return {
-      ok: false,
-      error: 'string literals are not lowered yet: this is the web track\'s own milestone 5 ("strings and const data")',
-    };
-  }
-
   // Every non-pinned scalar global gets a wasm global-section entry,
   // addressed by declaration order — no allocator, no budget, unlike the
   // mos backend's own zero page (see "Hello, WASM"'s own "globals need no
-  // allocator" note). A pinned or array global is refused by name instead
-  // of guessed at: nothing in @8bitscript/web declares either today.
+  // allocator" note). A const array gets a data-section entry instead (its
+  // own fixed address in linear memory, laid out below); a `let`
+  // (RAM) array, an `@address`-pinned global of any kind, and a
+  // `string<N>` variable are all still refused by name — real gaps, not
+  // this milestone's own scope (see the file header).
   const globalDefs: { name: string; init: number }[] = [];
+  const constArrays: { name: string; type: string; length: number; init: number[] }[] = [];
   for (const g of ir.globals ?? []) {
     if (g.address !== null && g.address !== undefined) {
       return { ok: false, error: `'${g.name}': a pinned global (@address(...)) is not lowered yet` };
     }
     if (g.array !== undefined) {
-      return { ok: false, error: `'${g.name}' is an array: not lowered yet — the web track's own milestone 5 ("strings and const data")` };
+      if (!g.constant) {
+        return { ok: false, error: `'${g.name}' is a \`let\` array: not lowered yet — it needs its own RAM address, a real gap milestone 5 left open` };
+      }
+      constArrays.push({ name: g.name, type: g.type, length: g.array, init: (g.init as number[] | null) ?? [] });
+      continue;
     }
     if (g.type === 'string') {
-      return { ok: false, error: `'${g.name}' is a string<N>: not lowered yet — the web track's own milestone 5 ("strings and const data")` };
+      return { ok: false, error: `'${g.name}' is a string<N>: not lowered yet — it needs its own RAM buffer and a runtime copy loop, a real gap milestone 5 left open` };
     }
     globalDefs.push({ name: g.name, init: typeof g.init === 'number' ? g.init : 0 });
   }
   const globalIndex = new Map(globalDefs.map((g, i) => [g.name, i]));
+
+  // Data layout: every string literal, then every const array, placed
+  // back to back starting at DATA_BASE — order between the two doesn't
+  // matter (nothing reads across the boundary), only that each gets a
+  // fixed address before any function body (which might reference it) is
+  // lowered. A const array wider than 1 byte per element is refused where
+  // it's actually read (lower.ts's own 'index' rule), not here: nothing in
+  // @8bitscript/web declares one today to have tested this against, and
+  // refusing by name at the read site keeps this loop from guessing at a
+  // 2-byte layout it can't verify.
+  let cursor = DATA_BASE;
+  const dataSegments: number[][] = [];
+  const stringAddrs: number[] = [];
+  for (const s of ir.strings ?? []) {
+    const address = cursor;
+    stringAddrs.push(address);
+    const bytes = [s.bytes.length, ...s.bytes];
+    dataSegments.push(activeDataSegment(address, bytes));
+    cursor += bytes.length;
+  }
+  const arrayIndex = new Map<string, { address: number; elementWidth: number }>();
+  for (const a of constArrays) {
+    const elementWidth = storageBytes(a.type);
+    const address = cursor;
+    arrayIndex.set(a.name, { address, elementWidth });
+    const bytes: number[] = [];
+    for (const value of a.init) {
+      bytes.push(value & 0xff);
+      if (elementWidth === 2) bytes.push((value >> 8) & 0xff);
+    }
+    dataSegments.push(activeDataSegment(address, bytes));
+    cursor += bytes.length;
+  }
+  // MEMORY_PAGES stays the floor; a program whose own data outgrows one
+  // page gets exactly as many more as its own layout needs, rounded up —
+  // most programs' data is nowhere close, and still get one page, same as
+  // every earlier milestone.
+  const memoryPages = Math.max(MEMORY_PAGES, Math.ceil(cursor / PAGE_BYTES));
 
   // Every function's own wasm function index, assigned once, up front, in
   // declaration order — before any body is lowered, so a call can reach a
@@ -163,11 +256,10 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   const loweredFns: { index: number; paramCount: number; returnsValue: boolean; localCount: number; code: number[] }[] = [];
   for (const fn of ir.functions) {
     for (const p of fn.params ?? []) {
-      if (p.type === 'array') return { ok: false, error: `'${fn.name}(${p.name})': an array parameter is not lowered yet — the web track's own milestone 5 ("strings and const data")` };
-      if (p.type === 'string') return { ok: false, error: `'${fn.name}(${p.name})': a string parameter is not lowered yet — the web track's own milestone 5 ("strings and const data")` };
+      if (p.type === 'array') return { ok: false, error: `'${fn.name}(${p.name})': an array parameter is not lowered yet — a real gap milestone 5 left open` };
     }
     const site = functionSites.get(fn.name)!;
-    const lowered = lower(fn.body, { params: fn.params ?? [], globals: globalIndex, functions: functionSites });
+    const lowered = lower(fn.body, { params: fn.params ?? [], globals: globalIndex, functions: functionSites, strings: stringAddrs, arrays: arrayIndex });
     if (!lowered.ok) return { ok: false, error: `'${fn.name}': ${lowered.error}` };
     loweredFns.push({ index: site.index, paramCount: site.paramCount, returnsValue: site.returnsValue, localCount: lowered.localCount, code: lowered.code });
   }
@@ -189,8 +281,9 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // type-section entry (before any of these), so `i` here will need to
   // become `IMPORT_FUNC_COUNT + i` too, not stay a bare position.
   const functionSection = section(SectionId.function, vector(loweredFns.map((_, i) => [i])));
-  // memory section: one memory, MEMORY_PAGES minimum, no declared maximum.
-  const memorySection = section(SectionId.memory, vector([limits(MEMORY_PAGES)]));
+  // memory section: one memory, memoryPages minimum (see above), no
+  // declared maximum.
+  const memorySection = section(SectionId.memory, vector([limits(memoryPages)]));
   // global section: one mutable i32 per non-pinned scalar `let`, initial
   // value its own declared init — wasm's global-init expression only
   // allows a constant, which every scalar global's `init` already is by
@@ -219,8 +312,13 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // `i32`s — nothing lowered yet needs any other value type), the lowered
   // instructions, then the `end` that closes the body.
   const codeSection = section(SectionId.code, vector(loweredFns.map((f) => encodeFunctionBody(functionBody(f)))));
+  // data section: every string literal and const array's own bytes, each
+  // its own active segment at its own fixed address (see the layout loop
+  // above) — omitted entirely when the program declares neither, the same
+  // "pay only for what you use" rule every earlier section follows.
+  const dataSection = dataSegments.length > 0 ? section(SectionId.data, vector(dataSegments)) : null;
 
-  const sections = [typeSection, functionSection, memorySection, globalSection, exportSection, codeSection]
+  const sections = [typeSection, functionSection, memorySection, globalSection, exportSection, codeSection, dataSection]
     .filter((s): s is number[] => s !== null);
   const bytes = assembleModule(sections);
 
