@@ -153,6 +153,8 @@ export const Opcode = {
   i32GeU: 0x4f,
   i32Add: 0x6a,
   i32Sub: 0x6b,
+  i32DivU: 0x6e,
+  i32RemU: 0x70,
   i32And: 0x71,
   i32Xor: 0x73,
   i32Load8U: 0x2d,
@@ -171,6 +173,19 @@ export const Opcode = {
  * address expression's own value is the whole address. */
 export function memarg(align: number, offset: number): number[] {
   return [...unsignedLEB128(align), ...unsignedLEB128(offset)];
+}
+
+/** One data-section entry: `bytes`, written into linear memory at `offset`
+ * the instant a module is instantiated — before the entry function ever
+ * runs. Flag `0x00` marks this as an "active" segment against memory
+ * index 0 (the only memory this backend ever declares), with a constant
+ * offset expression (every string and const array's own address is known
+ * at compile time — nothing here needs a global-relative or import-relative
+ * offset, the two other forms the format allows). This is wasm's own
+ * equivalent of mos's own `.byte` data directives (mos/data.ts) — the same
+ * job, a section instead of assembler bytes appended after the code. */
+export function activeDataSegment(offset: number, bytes: number[]): number[] {
+  return [0x00, Opcode.i32Const, ...signedLEB128(offset), Opcode.end, ...unsignedLEB128(bytes.length), ...bytes];
 }
 
 /** A global's mutability flag, the byte right after its value type in both
