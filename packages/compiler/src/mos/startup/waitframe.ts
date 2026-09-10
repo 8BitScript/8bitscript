@@ -32,9 +32,11 @@
 // it is on every other machine: `waitFrameSetup` measures real
 // cycles-per-frame once at start-up, using VIA1 Timer 2 ($E848/$E849) as a
 // one-shot countdown stopwatch between two retrace edges, then multiplies
-// by the configured `frameRate` (a compile-time constant — the CPU never
-// runs a multiply loop for it; every set bit of `frameRate` unrolls into a
-// fixed sequence of 32-bit adds and doublings at build time). `elapsed =
+// by the configured `frameRate` (a compile-time constant). When the rate
+// fits in a byte — every real project value — that multiply is a
+// Russian-peasant loop: the rate in X, eight shifts in Y, one 32-bit add
+// and one 32-bit shift in the body, reusing the accumulator as scratch.
+// A rate wider than a byte still unrolls. `elapsed =
 // 0xFFFF - timer` is computed as `EOR #$FF` on each byte rather than a
 // subtract-with-borrow: subtracting from an all-ones value is exactly a
 // bitwise complement, for any 16-bit `timer`.
@@ -49,8 +51,8 @@ import type { IrFunction } from '../lower/index.ts';
 
 export const WAIT_FRAME_LABEL = '__8bs_wait_frame';
 
-/** How much zero page waitFrame()'s own pacing state needs: a 4-byte accumulator, a 4-byte measured `num`, and a 4-byte scratch cell setup borrows and never needs again. */
-export const WAIT_FRAME_ZP_BYTES = 12;
+/** How much zero page waitFrame()'s own pacing state needs: a 4-byte accumulator and a 4-byte measured `num`. Setup measures elapsed into the accumulator, multiplies in place into `num`, then zeros the accumulator — no separate scratch cell. */
+export const WAIT_FRAME_ZP_BYTES = 8;
 
 const CB1_FLAG = 0xe813; // bit 7: the vertical-retrace edge, latched until PIA1 port B is read
 const PIA1_PORT_B = 0xe812; // reading it acknowledges the CB1 flag — see packages/pet/src/index.8bs
@@ -123,7 +125,7 @@ function shiftLeft32(addr: number): Directive[] {
  * accumulator. Emitted once, before the entry function's own body, only
  * when `usesWaitFrame` says the program calls waitFrame() anywhere.
  */
-export function waitFrameSetup(frameRate: number, acc: number, num: number, tmp: number): Directive[] {
+export function waitFrameSetup(frameRate: number, acc: number, num: number): Directive[] {
   const out: Directive[] = [];
   const waitEdge = (tag: string) => {
     const poll = `__8bs_wf_setup_${tag}`;
@@ -139,23 +141,34 @@ export function waitFrameSetup(frameRate: number, acc: number, num: number, tmp:
   waitEdge('end');
 
   // elapsed = 0xFFFF - timer == ~timer (see this file's header) — landed
-  // straight into tmp as a 16-bit value; tmp's own top two bytes start at 0
-  // so tmp is exactly `elapsed` widened to 32 bits.
-  out.push(ldaAbs(VIA1_T2_LO), instr('EOR', 'immediate', 0xff), staZp(tmp));
-  out.push(ldaAbs(VIA1_T2_HI), instr('EOR', 'immediate', 0xff), staZp(tmp + 1));
-  out.push(ldaImm(0), staZp(tmp + 2), staZp(tmp + 3));
-
-  // num = frameRate * elapsed. frameRate is a plain TypeScript number here
-  // (mos.config.ts's own configured rate, known when build() runs) — never
-  // a runtime value — so this is compile-time-unrolled: one 32-bit add per
-  // set bit of frameRate, one 32-bit doubling between them. A 6502 loop
-  // would cost more code and more zero page (a loop counter) for a value
-  // this backend already knows before it emits a single byte.
+  // in acc as a 16-bit value, top two bytes 0. Setup then multiplies that
+  // into num and zeros acc, so the running program never sees the sample.
+  out.push(ldaAbs(VIA1_T2_LO), instr('EOR', 'immediate', 0xff), staZp(acc));
+  out.push(ldaAbs(VIA1_T2_HI), instr('EOR', 'immediate', 0xff), staZp(acc + 1));
+  out.push(ldaImm(0), staZp(acc + 2), staZp(acc + 3));
   out.push(ldaImm(0), staZp(num), staZp(num + 1), staZp(num + 2), staZp(num + 3));
-  const bits = Math.max(1, Math.floor(Math.log2(Math.max(frameRate, 1))) + 1);
-  for (let bit = 0; bit < bits; bit++) {
-    if ((frameRate >>> bit) & 1) out.push(...add32(num, tmp));
-    if (bit + 1 < bits) out.push(...shiftLeft32(tmp));
+
+  const rate = Math.floor(frameRate);
+  if (rate > 0 && rate <= 255) {
+    // Russian peasant: X holds the remaining rate bits, Y counts 8 shifts.
+    // add32/shiftLeft32 clobber A only, so X and Y survive the body.
+    const loop = '__8bs_wf_mul';
+    const skip = '__8bs_wf_mul_skip';
+    out.push(instr('LDX', 'immediate', rate));
+    out.push(instr('LDY', 'immediate', 8));
+    out.push(label(loop));
+    out.push(instr('TXA', 'implied'), instr('LSR', 'accumulator'), instr('TAX', 'implied'));
+    out.push(branch('BCC', skip));
+    out.push(...add32(num, acc));
+    out.push(label(skip));
+    out.push(...shiftLeft32(acc));
+    out.push(instr('DEY', 'implied'), branch('BNE', loop));
+  } else if (rate > 255) {
+    const bits = Math.floor(Math.log2(rate)) + 1;
+    for (let bit = 0; bit < bits; bit++) {
+      if ((rate >>> bit) & 1) out.push(...add32(num, acc));
+      if (bit + 1 < bits) out.push(...shiftLeft32(acc));
+    }
   }
 
   out.push(ldaImm(0), staZp(acc), staZp(acc + 1), staZp(acc + 2), staZp(acc + 3));

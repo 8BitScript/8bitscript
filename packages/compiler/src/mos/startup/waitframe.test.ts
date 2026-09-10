@@ -8,7 +8,6 @@ import type { Directive } from '../asm/assemble.ts';
 
 const ACC = 0x8e;
 const NUM = 0x92;
-const TMP = 0x96;
 
 function fn(name: string, body: unknown[]): IrFunction {
   return { name, body: body as IrFunction['body'] };
@@ -41,12 +40,12 @@ test('usesWaitFrame: an empty function list uses nothing', () => {
 // ---- waitFrameSetup ----------------------------------------------------
 
 test('waitFrameSetup starts with SEI — presync owns the CB1 flag before the KERNAL\'s jiffy-clock IRQ can', () => {
-  const program = waitFrameSetup(60, ACC, NUM, TMP);
+  const program = waitFrameSetup(60, ACC, NUM);
   assert.deepEqual(program[0], { kind: 'instruction', mnemonic: 'SEI', mode: 'implied' });
 });
 
 test('waitFrameSetup ends by zeroing all four accumulator bytes — no logical-frame credit owed before the program runs', () => {
-  const program = waitFrameSetup(60, ACC, NUM, TMP);
+  const program = waitFrameSetup(60, ACC, NUM);
   const last5 = program.slice(-5);
   assert.deepEqual(last5[0], { kind: 'instruction', mnemonic: 'LDA', mode: 'immediate', operand: { kind: 'value', value: 0 } });
   for (let i = 0; i < 4; i++) {
@@ -54,39 +53,40 @@ test('waitFrameSetup ends by zeroing all four accumulator bytes — no logical-f
   }
 });
 
-test('waitFrameSetup never touches WF_ACC or WF_TMP before the multiply — the elapsed measurement lands in WF_TMP untouched by any earlier zeroing of WF_ACC', () => {
-  // Regression guard for a specific ordering bug: if setup ever zeroed
-  // WF_ACC before computing `num`, that would be harmless today (they're
-  // different cells) but the assertion below is really about there being
-  // no accidental STA to ACC anywhere before the final 4-byte zeroing block
-  // at the very end — i.e. exactly 4 stores to the ACC range in the whole
-  // program, not more.
-  const program = waitFrameSetup(60, ACC, NUM, TMP);
+test('waitFrameSetup measures elapsed into ACC, then zeros ACC at the end so the running program never sees the sample', () => {
+  const program = waitFrameSetup(60, ACC, NUM);
+  const last5 = program.slice(-5);
+  assert.deepEqual(last5[0], { kind: 'instruction', mnemonic: 'LDA', mode: 'immediate', operand: { kind: 'value', value: 0 } });
+  for (let i = 0; i < 4; i++) {
+    assert.deepEqual(last5[1 + i], { kind: 'instruction', mnemonic: 'STA', mode: 'zeropage', operand: { kind: 'value', value: ACC + i } });
+  }
   const storesToAcc = program.filter(
-    (d) => d.kind === 'instruction' && d.mnemonic === 'STA' && d.operand?.kind === 'value' && d.operand.value >= ACC && d.operand.value < ACC + 4,
+    (d) => d.kind === 'instruction' && d.mnemonic === 'STA' && d.operand?.kind === 'value' && d.operand.value === ACC,
   );
-  assert.equal(storesToAcc.length, 4);
+  assert.ok(storesToAcc.length >= 2, 'elapsed low byte and the final zero both STA ACC');
 });
 
 test('waitFrameSetup assembles as real, self-contained 6502 — every one of its own internal poll labels resolves, nothing references outside itself', () => {
-  const result = assemble(waitFrameSetup(60, ACC, NUM, TMP), 0x1000);
+  const result = assemble(waitFrameSetup(60, ACC, NUM), 0x1000);
   assert.equal(result.ok, true, result.ok ? '' : result.error);
 });
 
-test('waitFrameSetup(1, ...) — frameRate a power of two minus none, exactly one bit set — emits exactly one 32-bit add and no doubling', () => {
-  const program = waitFrameSetup(1, ACC, NUM, TMP);
+test('waitFrameSetup(60, ...) uses an 8-bit Russian-peasant loop — one add32 and one shift in the body, Y as the bit counter, no extra zp', () => {
+  const program = waitFrameSetup(60, ACC, NUM);
   const adcCount = program.filter((d) => d.kind === 'instruction' && d.mnemonic === 'ADC').length;
   const aslCount = program.filter((d) => d.kind === 'instruction' && d.mnemonic === 'ASL').length;
-  assert.equal(adcCount, 4, 'one 32-bit add is four ADCs, one per byte');
-  assert.equal(aslCount, 0, 'a single bit needs no doubling at all');
+  assert.equal(adcCount, 4, 'the loop body contains one 32-bit add, not one per set bit of 60');
+  assert.equal(aslCount, 1, 'one 32-bit shift in the loop body');
+  assert.ok(program.some((d) => d.kind === 'instruction' && d.mnemonic === 'LDY' && d.operand?.kind === 'value' && d.operand.value === 8));
+  assert.ok(program.some((d) => d.kind === 'instruction' && d.mnemonic === 'LSR' && d.mode === 'accumulator'));
 });
 
-test('waitFrameSetup(3, ...) — two bits set (0b11) — emits two 32-bit adds and exactly one doubling between them', () => {
-  const program = waitFrameSetup(3, ACC, NUM, TMP);
+test('waitFrameSetup(300, ...) — a rate that does not fit in a byte — still unrolls rather than truncating', () => {
+  const program = waitFrameSetup(300, ACC, NUM);
   const adcCount = program.filter((d) => d.kind === 'instruction' && d.mnemonic === 'ADC').length;
-  const aslCount = program.filter((d) => d.kind === 'instruction' && d.mnemonic === 'ASL').length;
-  assert.equal(adcCount, 8, 'two 32-bit adds is eight ADCs');
-  assert.equal(aslCount, 1, 'one doubling between the two set bits, none after the last');
+  // 300 = 0b100101100, four bits set → four 32-bit adds
+  assert.equal(adcCount, 16);
+  assert.equal(program.some((d) => d.kind === 'instruction' && d.mnemonic === 'LDY'), false);
 });
 
 // ---- waitFrameRoutine ----------------------------------------------------
@@ -132,6 +132,6 @@ test('waitFrameRoutine assembles as real, self-contained 6502 — every branch a
   assert.equal(result.ok, true, result.ok ? '' : result.error);
 });
 
-test('WAIT_FRAME_ZP_BYTES is 12 — a 4-byte accumulator, a 4-byte measured num, and setup\'s own 4-byte scratch cell', () => {
-  assert.equal(WAIT_FRAME_ZP_BYTES, 12);
+test('WAIT_FRAME_ZP_BYTES is 8 — a 4-byte accumulator and a 4-byte measured num; setup scratch reuses the accumulator', () => {
+  assert.equal(WAIT_FRAME_ZP_BYTES, 8);
 });

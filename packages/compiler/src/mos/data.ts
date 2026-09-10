@@ -47,16 +47,18 @@ function byteDirective(values: number[]): Directive {
 }
 
 /**
- * Every string literal and const array a linked program declares, laid out
- * as `label` / `.byte` pairs: a string is length-prefixed (one byte, 0..255
- * — ir/index.mjs's own format, and the checker's STRING_TOO_LONG already
- * refuses anything longer), a const array is its elements' raw bytes,
+ * String literals and const arrays, laid out as `label` / `.byte` pairs.
+ * A string is length-prefixed (one byte, 0..255 — ir/index.mjs's own
+ * format, and the checker's STRING_TOO_LONG already refuses anything
+ * longer). When `usedIndexes` is passed, a literal the optimizer already
+ * folded into stores is omitted. A const array is its elements' raw bytes,
  * little-endian for a 2-byte element type (the 6502 is little-endian
  * throughout this backend — see prg.ts, encode.ts's own operand encoding).
  */
-export function buildDataSection(strings: IrString[], arrays: ConstArrayGlobal[]): Directive[] {
+export function buildDataSection(strings: IrString[], arrays: ConstArrayGlobal[], usedIndexes?: Set<number>): Directive[] {
   const out: Directive[] = [];
   strings.forEach((s, index) => {
+    if (usedIndexes && !usedIndexes.has(index)) return;
     out.push({ kind: 'label', name: stringLabel(index) }, byteDirective([s.bytes.length, ...s.bytes]));
   });
   for (const array of arrays) {

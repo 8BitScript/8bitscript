@@ -93,8 +93,10 @@ export interface IrStatement {
   test?: IrExpr | null;
   then?: IrStatement[];
   else?: IrStatement[] | null;
-  // while / for / block
+  // while / for / block. `origin` names the callee an inlined block came
+  // from, so `--size` can still attribute those bytes after the call is gone.
   body?: IrStatement[];
+  origin?: string;
   // for
   update?: IrStatement | null;
   // call (a bare call statement is the same IR node as a call expression —
@@ -161,7 +163,7 @@ export interface LowerOptions {
 }
 
 export type LowerResult =
-  | { ok: true; program: Directive[] }
+  | { ok: true; program: Directive[]; parts: { origin: string | null; program: Directive[] }[] }
   | { ok: false; error: string };
 
 // ---- small helpers ----------------------------------------------------
@@ -274,6 +276,44 @@ const COMPARISON_OPERATORS = new Set([...ORDERING_OPERATORS, ...EQUALITY_OPERATO
 let labelCounter = 0;
 function freshLabel(tag: string): string {
   return `__8bs_${tag}_${labelCounter++}`;
+}
+
+function isConstNum(node: IrExpr | undefined | null, value?: number): node is IrExpr {
+  if (!node || node.kind !== 'const' || typeof node.value !== 'number') return false;
+  if (value !== undefined && node.value !== value) return false;
+  return true;
+}
+
+function isRefNamed(node: IrExpr | undefined | null, name: string): boolean {
+  return !!node && node.kind === 'ref' && node.name === name;
+}
+
+function matchConstFill(node: IrStatement): { base: number; count: number; value: number } | null {
+  const init = node.init as IrStatement | null | undefined;
+  if (!init || init.kind !== 'local' || !init.name) return null;
+  const name = init.name;
+  if (!isConstNum(init.init as IrExpr, 0)) return null;
+  const test = node.test;
+  if (!test || test.kind !== 'binop' || test.operator !== '<' || !isRefNamed(test.left, name) || !isConstNum(test.right)) return null;
+  const count = test.right.value!;
+  if (count <= 0 || count > 0x10000) return null;
+  const update = node.update;
+  if (!update || update.kind !== 'assign' || update.target !== name) return null;
+  const inc = update.value;
+  if (!inc || inc.kind !== 'binop' || inc.operator !== '+' || !isRefNamed(inc.left, name) || !isConstNum(inc.right, 1)) return null;
+  const body = node.body ?? [];
+  if (body.length !== 1 || body[0].kind !== 'memoryWrite') return null;
+  const write = body[0];
+  if (!isConstNum(write.value ?? undefined)) return null;
+  const fillValue = write.value!.value!;
+  if (fillValue < 0 || fillValue > 255) return null;
+  const address = write.address;
+  if (!address || address.kind !== 'binop' || address.operator !== '+') return null;
+  let base: number | null = null;
+  if (isConstNum(address.left) && isRefNamed(address.right, name)) base = address.left.value!;
+  else if (isConstNum(address.right) && isRefNamed(address.left, name)) base = address.right.value!;
+  if (base === null || base < 0 || base + count > 0x10000) return null;
+  return { base, count, value: fillValue };
 }
 
 // ---- the pass -----------------------------------------------------------
@@ -766,15 +806,22 @@ class Lowerer {
 
   // ---- statements -------------------------------------------------------
 
-  block(body: IrStatement[]): void {
+  block(body: IrStatement[]): { origin: string | null; program: Directive[] }[] {
     const mark = this.locals.mark();
     const declared: Declared[] = [];
+    const parts: { origin: string | null; program: Directive[] }[] = [];
     for (const statement of body) {
+      const start = this.program.length;
       const result = this.statement(statement);
       if (result) declared.push(result);
+      parts.push({
+        origin: typeof statement.origin === 'string' ? statement.origin : null,
+        program: this.program.slice(start),
+      });
     }
     this.unscope(declared);
     this.locals.release(mark);
+    return parts;
   }
 
   /** Puts every name a block's own locals shadowed back the way it found them — a global (or an outer block's own local of the same name) reached again once the shadow's scope ends, never left permanently unresolvable. */
@@ -940,6 +987,7 @@ class Lowerer {
   }
 
   forStatement(node: IrStatement): void {
+    if (this.emitConstFill(node)) return;
     const mark = this.locals.mark();
     let declared: Declared | null = null;
     if (node.init) declared = this.statement(node.init as IrStatement);
@@ -959,15 +1007,51 @@ class Lowerer {
     if (declared) this.unscope([declared]);
     this.locals.release(mark);
   }
+
+  /**
+   * `for (let i = 0; i < N; i++) memory.write(BASE + i, VALUE)` with N, BASE,
+   * and VALUE all compile-time constants — screen.blank()'s own loop. A
+   * 16-bit index and STA (zp),Y cost ~130 bytes for 1000 cells; page-sized
+   * STA abs,X loops are ~28 and use no zero page for the index.
+   */
+  emitConstFill(node: IrStatement): boolean {
+    const fill = matchConstFill(node);
+    if (!fill) return false;
+    const { base, count, value } = fill;
+    const pages = Math.floor(count / 256);
+    const rem = count % 256;
+    this.emit(ldaImm(value));
+    if (pages > 0 || rem > 0) this.emit(instr('LDX', 'immediate', 0));
+    for (let page = 0; page < pages; page++) {
+      const pageBase = base + page * 256;
+      const mode: AddressingMode = pageBase <= 0xff ? 'zeropage,x' : 'absolute,x';
+      const top = freshLabel('fill');
+      this.emit(label(top));
+      this.emit(instr('STA', mode, pageBase));
+      this.emit(instr('INX', 'implied'));
+      this.emit(branch('BNE', top));
+    }
+    if (rem > 0) {
+      const pageBase = base + pages * 256;
+      const mode: AddressingMode = pageBase <= 0xff ? 'zeropage,x' : 'absolute,x';
+      const top = freshLabel('fillrem');
+      this.emit(label(top));
+      this.emit(instr('STA', mode, pageBase));
+      this.emit(instr('INX', 'implied'));
+      this.emit(instr('CPX', 'immediate', rem));
+      this.emit(branch('BNE', top));
+    }
+    return true;
+  }
 }
 
 /** Lowers one function's body to a 6502 program. `options.globals`/`options.locals` come from the caller's own zero-page accounting (milestone 5's globals, this milestone's own locals budget beneath them). */
 export function lower(body: IrStatement[], options: LowerOptions): LowerResult {
   const lowerer = new Lowerer(options);
   try {
-    lowerer.block(body);
+    const parts = lowerer.block(body);
     lowerer.emit(label(lowerer.exitLabel));
-    return { ok: true, program: lowerer.program };
+    return { ok: true, program: lowerer.program, parts };
   } catch (error) {
     if (error instanceof LowerError || error instanceof ZpBudgetError) return { ok: false, error: error.message };
     throw error;

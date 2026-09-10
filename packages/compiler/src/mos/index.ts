@@ -18,7 +18,7 @@ import { basicStub } from './basic-stub.ts';
 import { buildDataSection } from './data.ts';
 import type { ConstArrayGlobal, IrString } from './data.ts';
 import { link } from './link/index.ts';
-import { pruneUnreachable } from '../linker/reachability.mjs';
+import { optimizeReachable } from '../linker/optimize.mjs';
 import { lower } from './lower/index.ts';
 import type { Directive, FunctionSite, IrFunction } from './lower/index.ts';
 import { instructionBytes } from './asm/encode.ts';
@@ -50,7 +50,7 @@ export interface BuildOptions {
   report?: boolean;
 }
 
-/** One named piece of the program `options.report` breaks a build's own size down into — a function, or a fixed-cost bucket (the wait-frame runtime, the BASIC stub, …) nothing a program writes changes the shape of. Sorted largest first; every entry's `bytes` sums to the real, linked `bytes.length`. */
+/** One named piece of the program `options.report` breaks a build's own size down into — a function, an inlined callee that now lives inside one, or a fixed-cost bucket (wait-frame setup vs the per-frame routine, the BASIC stub, …). Sorted largest first; every entry's `bytes` sums to the real, linked `bytes.length`. */
 export interface SizeReportEntry {
   name: string;
   bytes: number;
@@ -211,6 +211,30 @@ function directiveBytes(program: Directive[]): number {
   return total;
 }
 
+function functionSizeEntries(fn: { name: string; parts: { origin: string | null; program: Directive[] }[]; isEntry: boolean }): SizeReportEntry[] {
+  const merged = new Map<string, number>();
+  for (const part of fn.parts) {
+    const name = part.origin ?? fn.name;
+    merged.set(name, (merged.get(name) ?? 0) + directiveBytes(part.program));
+  }
+  // Non-entry functions append a one-byte RTS after the body; the entry's
+  // RTS lives in epilogue() and is counted with the stub.
+  if (!fn.isEntry) merged.set(fn.name, (merged.get(fn.name) ?? 0) + 1);
+  return [...merged].map(([name, bytes]) => ({ name, bytes }));
+}
+
+function collectStringIndexes(node: unknown, out: Set<number>): void {
+  if (Array.isArray(node)) {
+    for (const item of node) collectStringIndexes(item, out);
+    return;
+  }
+  if (node && typeof node === 'object') {
+    const obj = node as { kind?: string; index?: unknown };
+    if (obj.kind === 'string' && typeof obj.index === 'number') out.add(obj.index);
+    for (const value of Object.values(node)) collectStringIndexes(value, out);
+  }
+}
+
 /** Lowers `ir` to machine code, writes `outFile`, and returns the bytes and a size report. */
 export async function build(ir: IrProgram, options: BuildOptions): Promise<BuildResult> {
   if (options.machine !== 'pet') {
@@ -225,10 +249,9 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
 
   // Everything from here on compiles only what the entry can actually
   // reach — link() itself still returns every module's own functions and
-  // globals whether called/read or not (see linker/reachability.mjs's own
-  // header for the byte cost that turned out to have, even at hello-world's
-  // own scale).
-  const { functions, globals } = pruneUnreachable(ir);
+  // globals whether called/read or not (see linker/reachability.mjs).
+  // optimizeReachable prunes, folds compile-time work, then prunes again.
+  const { functions, globals } = optimizeReachable(ir);
 
   const cycle = findCallCycle(functions);
   if (cycle) return { ok: false, error: `recursion isn't lowered yet: ${cycle.join(' -> ')} -> ${cycle[0]} calls itself, directly or through another function` };
@@ -287,15 +310,14 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   }
   const arrays = new Map(constArrayGlobals.map((g) => [g.name, { elementType: g.type }]));
 
-  // waitFrame()'s own pacing state — an accumulator, a measured `num`, and
-  // setup's own scratch cell (mos/startup/waitframe.ts) — claims its zero
-  // page right after globals, the same way a function's parameters do below,
-  // and only when the linked program calls waitFrame() anywhere (entry or
-  // any function it can reach): a program that never does pays nothing for
-  // state it never needs.
+  // waitFrame()'s own pacing state — an accumulator and a measured `num`
+  // (mos/startup/waitframe.ts) — claims its zero page right after globals,
+  // the same way a function's parameters do below, and only when the linked
+  // program calls waitFrame() anywhere (entry or any function it can reach):
+  // a program that never does pays nothing for state it never needs.
   let paramCursor = PET_ZP_BUDGET.zpOrigin + zp.zpUsed;
   const needsWaitFrame = usesWaitFrame(functions);
-  let waitFrameAcc = 0, waitFrameNum = 0, waitFrameTmp = 0;
+  let waitFrameAcc = 0, waitFrameNum = 0;
   if (needsWaitFrame) {
     const placed = placeZp(paramCursor, WAIT_FRAME_ZP_BYTES, PET_ZP_BUDGET.zpCeiling, zpHoles);
     if (!placed.ok) {
@@ -303,7 +325,6 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
     }
     waitFrameAcc = placed.address;
     waitFrameNum = placed.address + 4;
-    waitFrameTmp = placed.address + 8;
     paramCursor = placed.next;
   }
 
@@ -336,7 +357,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // Body pass: each function against its own fresh, non-overlapping locals
   // region, stacked after every function's own parameter region above.
   let localsCursor = paramCursor;
-  const loweredFunctions: { name: string; label: string; program: Directive[]; isEntry: boolean }[] = [];
+  const loweredFunctions: { name: string; label: string; program: Directive[]; parts: { origin: string | null; program: Directive[] }[]; isEntry: boolean }[] = [];
   for (const fn of functions) {
     const site = functionSites.get(fn.name)!;
     const params = (fn.params ?? []).map((p, i) => ({ name: p.name, type: p.type, address: site.params[i].address }));
@@ -344,7 +365,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
     const lowered = lower(fn.body, { globals: globalBindings, locals, params, functions: functionSites, arrays });
     if (!lowered.ok) return { ok: false, error: `in '${fn.name}': ${lowered.error}` };
     localsCursor += locals.used;
-    loweredFunctions.push({ name: fn.name, label: site.label, program: lowered.program, isEntry: fn.name === ir.entry });
+    loweredFunctions.push({ name: fn.name, label: site.label, program: lowered.program, parts: lowered.parts, isEntry: fn.name === ir.entry });
   }
 
   // The entry runs first, falling straight through prologue -> body ->
@@ -360,14 +381,16 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // references these labels (a string literal's address, an index()'s own
   // array label), and link() assembles code and data as two independent
   // passes that never see each other's labels.
-  const dataSection = buildDataSection(ir.strings ?? [], constArrayGlobals);
+  const usedStrings = new Set<number>();
+  for (const fn of functions) collectStringIndexes(fn.body, usedStrings);
+  const dataSection = buildDataSection(ir.strings ?? [], constArrayGlobals, usedStrings);
   // The one-time calibration and the shared JSR target every waitFrame()
   // call site (lower/index.ts) resolves to — both empty when the program
   // never calls waitFrame() anywhere. Setup runs once, right after globals
   // are initialized and before the entry function's own body (which may
   // itself call waitFrame() first thing); the subroutine rides alongside
   // every other function's own body, after the entry falls through to BASIC.
-  const waitFrameSetupProgram = needsWaitFrame ? waitFrameSetup(options.frameRate, waitFrameAcc, waitFrameNum, waitFrameTmp) : [];
+  const waitFrameSetupProgram = needsWaitFrame ? waitFrameSetup(options.frameRate, waitFrameAcc, waitFrameNum) : [];
   const waitFrameRoutineProgram = needsWaitFrame ? waitFrameRoutine(waitFrameAcc, waitFrameNum) : [];
   const needsCld = usesDecimalSensitiveMath([...everyInstruction, ...waitFrameSetupProgram, ...waitFrameRoutineProgram]);
   const combinedProgram: Directive[] = [
@@ -414,14 +437,10 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
 
   let sizeReport: SizeReportEntry[] | undefined;
   if (options.report) {
-    const entries: SizeReportEntry[] = loweredFunctions.map((f) => ({
-      // The entry's own RTS lives in epilogue() below, not appended per
-      // function the way every other function's is (the combiner's own
-      // `others.flatMap` above) — see that line for the +1.
-      name: f.name, bytes: directiveBytes(f.program) + (f.isEntry ? 0 : 1),
-    }));
+    const entries: SizeReportEntry[] = loweredFunctions.flatMap(functionSizeEntries);
     entries.push(
-      { name: '(wait-frame setup + routine)', bytes: directiveBytes(waitFrameSetupProgram) + directiveBytes(waitFrameRoutineProgram) },
+      { name: '(wait-frame setup)', bytes: directiveBytes(waitFrameSetupProgram) },
+      { name: '(wait-frame routine)', bytes: directiveBytes(waitFrameRoutineProgram) },
       { name: '(global initializers)', bytes: directiveBytes(globalInitProgram) },
       { name: '(string/const-array data)', bytes: directiveBytes(dataSection) },
       // +2: the load address prgBytes() prepends ahead of `stub` itself —

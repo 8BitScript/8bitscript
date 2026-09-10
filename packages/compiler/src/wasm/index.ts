@@ -56,7 +56,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 import { storageBytes } from '../types/index.mjs';
-import { pruneUnreachable } from '../linker/reachability.mjs';
+import { optimizeReachable } from '../linker/optimize.mjs';
 import { ExternalKind, Mutability, Opcode, SectionId, ValType, activeDataSegment, assembleModule, encodeName, funcType, importFunc, limits, section, signedLEB128, unsignedLEB128, vector } from './encode.ts';
 import { lower } from './lower.ts';
 import type { IrStatement } from './lower.ts';
@@ -204,9 +204,10 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   if (!entryFn) return { ok: false, error: `the linked entry point '${ir.entry}' names no function in ir.functions` };
 
   // Everything from here on compiles only what the entry can actually
-  // reach — see linker/reachability.mjs's own header, and mos/index.ts's
-  // identical call right after its own equivalent check.
-  const { functions, globals } = pruneUnreachable(ir);
+  // reach — see linker/optimize.mjs's optimizeReachable (prune, fold,
+  // prune) and mos/index.ts's identical call right after its own
+  // equivalent check.
+  const { functions, globals } = optimizeReachable(ir);
 
   // Every non-pinned scalar global gets a wasm global-section entry,
   // addressed by declaration order — no allocator, no budget, unlike the

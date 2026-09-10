@@ -45,6 +45,13 @@ does.
 | checker | AST | type/range diagnostics |
 | IR / backends | AST | the image, once a backend emits one |
 
+The linker still returns every function and global an import declares.
+Each backend's `build()` then runs `optimizeReachable` (prune, fold
+constant `if`s and compile-time calls, prune) before lowering, so a
+`#fact` branch and a print of a string literal cost the unused side /
+the conversion loop nothing. `checkHardwareHazards` still sees the
+unpruned IR from `link()`.
+
 Two properties every front-end layer shares, because an editor runs
 them on every keystroke:
 

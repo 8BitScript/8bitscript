@@ -24,9 +24,10 @@ Implemented:
                                the machine's catalog (8032) or a profile the
                                project composes in 8bs.config.ts — and
                                --hardware sets single options on top
-                               (model=4032). --size prints a per-function
-                               breakdown of the built program, largest
-                               first, under the memory line. "8bs targets"
+                               (model=4032). --size prints a breakdown of
+                               the built program — functions, inlined
+                               callees, and runtime — largest first, under
+                               the memory line. "8bs targets"
                                lists every option, value and preset, and
                                which machines this release builds for.
   run <target> [--pal] [--profile <name>]

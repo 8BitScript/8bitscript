@@ -87,7 +87,7 @@ test('compile() for pet writes a .prg for a for-loop that sums 0..9', async () =
   }
 });
 
-test('build() --size prints a per-function breakdown under the memory line; without it, nothing extra prints', async () => {
+test('build() --size prints a breakdown under the memory line; without it, nothing extra prints', async () => {
   const dir = await mkdtemp(join(tmpdir(), '8bs-compile-'));
   const prev = process.cwd();
   try {
