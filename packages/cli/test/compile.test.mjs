@@ -87,6 +87,49 @@ test('compile() for pet writes a .prg for a for-loop that sums 0..9', async () =
   }
 });
 
+test('build() --size prints a per-function breakdown under the memory line; without it, nothing extra prints', async () => {
+  const dir = await mkdtemp(join(tmpdir(), '8bs-compile-'));
+  const prev = process.cwd();
+  try {
+    const entry = join(dir, 'main.8bs');
+    await writeFile(entry, SUM);
+    process.chdir(dir);
+
+    const plain = await capture(() => build(['--target', 'pet', entry]));
+    assert.equal(plain.result, 0, plain.stdout + plain.stderr);
+    assert.doesNotMatch(plain.stdout, /size breakdown/);
+
+    const sized = await capture(() => build(['--target', 'pet', '--size', entry]));
+    assert.equal(sized.result, 0, sized.stdout + sized.stderr);
+    assert.match(sized.stdout, /size breakdown:\n/);
+    assert.match(sized.stdout, /main/, 'the one function this program declares should be named in the breakdown');
+    // Every reported percentage really is out of the same total the memory
+    // line just printed, not some other number entirely.
+    const programBytes = Number(/(\d+) bytes of program/.exec(sized.stdout)[1]);
+    const reportedBytes = [...sized.stdout.matchAll(/^ *(\d+) *[\d.]+%/gm)].map((m) => Number(m[1]));
+    assert.equal(reportedBytes.reduce((a, b) => a + b, 0), programBytes);
+  } finally {
+    process.chdir(prev);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('build() --size works for web too, against the module\'s own real byte total', async () => {
+  const dir = await mkdtemp(join(tmpdir(), '8bs-compile-'));
+  const prev = process.cwd();
+  try {
+    const entry = join(dir, 'main.8bs');
+    await writeFile(entry, SUM);
+    process.chdir(dir);
+    const { result, stdout, stderr } = await capture(() => build(['--target', 'web', '--size', entry]));
+    assert.equal(result, 0, stdout + stderr);
+    assert.match(stdout, /size breakdown:\n/);
+  } finally {
+    process.chdir(prev);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test('compile() for web writes a .wasm for a for-loop that sums 0..9', async () => {
   // The wasm backend's own milestones 1-5 (packages/compiler/src/wasm)
   // made this a real build, not a refusal — see the "Hello, WASM" roadmap.

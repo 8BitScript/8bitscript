@@ -133,10 +133,18 @@ export interface IrProgram {
 export interface BuildOptions {
   outFile: string;
   frameRate: number;
+  /** Asks for `BuildResult`'s own `sizeReport` — the CLI's `--size` flag (packages/cli/src/build.mjs), same option mos/index.ts's own BuildOptions carries. */
+  report?: boolean;
+}
+
+/** One named piece of the module `options.report` breaks a build's own size down into — mirrors mos/index.ts's own SizeReportEntry. */
+export interface SizeReportEntry {
+  name: string;
+  bytes: number;
 }
 
 export type BuildResult =
-  | { ok: true; bytes: Uint8Array<ArrayBuffer> }
+  | { ok: true; bytes: Uint8Array<ArrayBuffer>; sizeReport?: SizeReportEntry[] }
   | { ok: false; error: string };
 
 // One page (64 KiB) of linear memory, minimum — @8bitscript/web's own
@@ -385,7 +393,26 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   await mkdir(dirname(options.outFile), { recursive: true });
   await writeFile(options.outFile, bytes);
 
-  return { ok: true, bytes };
+  let sizeReport: SizeReportEntry[] | undefined;
+  if (options.report) {
+    // Each function's own encoded body (locals declaration + instructions
+    // + closing end) — exactly what the code section's own vector holds
+    // for it, byte for byte. Everything else (every other section, the
+    // module preamble, and the code/data sections' own length-prefix
+    // framing) is one remainder bucket rather than decomposed section by
+    // section: wasm's LEB128-length-prefixed sections don't split into
+    // fixed-cost pieces as cleanly as mos's own fixed-address prologue/
+    // epilogue/stub do, and a remainder defined this way always sums to
+    // the real bytes.length exactly, by construction.
+    // functions and loweredFns were built in the same single pass above
+    // (one push per function, same order), so they line up index for index.
+    const functionEntries = functions.map((fn, i) => ({ name: fn.name, bytes: encodeFunctionBody(functionBody(loweredFns[i])).length }));
+    const functionTotal = functionEntries.reduce((a, e) => a + e.bytes, 0);
+    const entries = [...functionEntries, { name: '(module sections & framing: type/import/function/memory/global/export, data, preamble)', bytes: bytes.length - functionTotal }];
+    sizeReport = entries.filter((e) => e.bytes > 0).sort((a, b) => b.bytes - a.bytes);
+  }
+
+  return { ok: true, bytes, ...(sizeReport ? { sizeReport } : {}) };
 }
 
 /** One function's own locals declaration, its lowered instructions, and the

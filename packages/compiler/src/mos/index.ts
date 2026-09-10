@@ -21,6 +21,7 @@ import { link } from './link/index.ts';
 import { pruneUnreachable } from '../linker/reachability.mjs';
 import { lower } from './lower/index.ts';
 import type { Directive, FunctionSite, IrFunction } from './lower/index.ts';
+import { instructionBytes } from './asm/encode.ts';
 import { LocalAllocator } from './lower/allocator.ts';
 import { prgBytes } from './prg.ts';
 import { epilogue, prologue, usesDecimalSensitiveMath } from './startup/commodore.ts';
@@ -40,16 +41,23 @@ export interface IrProgram {
 
 export type Machine = 'vic20' | 'c64' | 'pet' | 'c128' | 'mega65' | 'cx16' | 'nes' | 'atari8';
 
-/** What the CLI hands a build. `hardware` is the resolved object from packages/cli/src/hardware.mjs. */
+/** What the CLI hands a build. `hardware` is the resolved object from packages/cli/src/hardware.mjs. `report`, when true, asks for `BuildResult`'s own `sizeReport` — the CLI's `--size` flag (packages/cli/src/build.mjs). */
 export interface BuildOptions {
   machine: Machine;
   hardware: { build: { defsym: Record<string, number>; startup?: string; output?: string }; facts: Record<string, unknown> };
   outFile: string;
   frameRate: number;
+  report?: boolean;
+}
+
+/** One named piece of the program `options.report` breaks a build's own size down into — a function, or a fixed-cost bucket (the wait-frame runtime, the BASIC stub, …) nothing a program writes changes the shape of. Sorted largest first; every entry's `bytes` sums to the real, linked `bytes.length`. */
+export interface SizeReportEntry {
+  name: string;
+  bytes: number;
 }
 
 export type BuildResult =
-  | { ok: true; bytes: Uint8Array; memory: { variables: number; program: number } }
+  | { ok: true; bytes: Uint8Array; memory: { variables: number; program: number }; sizeReport?: SizeReportEntry[] }
   | { ok: false; error: string };
 
 export interface CpuVariant {
@@ -191,6 +199,17 @@ function findCallCycle(functions: IrFunction[]): string[] | null {
 const RTS: Directive = { kind: 'instruction', mnemonic: 'RTS', mode: 'implied' };
 const ldaImm = (value: number): Directive => ({ kind: 'instruction', mnemonic: 'LDA', mode: 'immediate', operand: { kind: 'value', value } });
 const staZp = (address: number): Directive => ({ kind: 'instruction', mnemonic: 'STA', mode: 'zeropage', operand: { kind: 'value', value: address } });
+
+/** A `Directive[]`'s own byte length — instructionBytes() per instruction (the addressing mode alone decides it, asm/encode.ts's own header), a `byte` directive's own value count, nothing for a label. Used only for `options.report`'s size breakdown; the real bytes still come from `assembleRelaxed` via `link()`. */
+function directiveBytes(program: Directive[]): number {
+  let total = 0;
+  for (const d of program) {
+    if (d.kind === 'label') continue;
+    if (d.kind === 'byte') { total += d.values.length; continue; }
+    total += instructionBytes(d.mode);
+  }
+  return total;
+}
 
 /** Lowers `ir` to machine code, writes `outFile`, and returns the bytes and a size report. */
 export async function build(ir: IrProgram, options: BuildOptions): Promise<BuildResult> {
@@ -350,8 +369,9 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // every other function's own body, after the entry falls through to BASIC.
   const waitFrameSetupProgram = needsWaitFrame ? waitFrameSetup(options.frameRate, waitFrameAcc, waitFrameNum, waitFrameTmp) : [];
   const waitFrameRoutineProgram = needsWaitFrame ? waitFrameRoutine(waitFrameAcc, waitFrameNum) : [];
+  const needsCld = usesDecimalSensitiveMath([...everyInstruction, ...waitFrameSetupProgram, ...waitFrameRoutineProgram]);
   const combinedProgram: Directive[] = [
-    ...prologue(usesDecimalSensitiveMath([...everyInstruction, ...waitFrameSetupProgram, ...waitFrameRoutineProgram])),
+    ...prologue(needsCld),
     ...globalInitProgram,
     ...waitFrameSetupProgram,
     ...entry.program,
@@ -392,7 +412,26 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   await mkdir(dirname(options.outFile), { recursive: true });
   await writeFile(options.outFile, bytes);
 
-  return { ok: true, bytes, memory: { variables: linked.memory.variables, program: bytes.length } };
+  let sizeReport: SizeReportEntry[] | undefined;
+  if (options.report) {
+    const entries: SizeReportEntry[] = loweredFunctions.map((f) => ({
+      // The entry's own RTS lives in epilogue() below, not appended per
+      // function the way every other function's is (the combiner's own
+      // `others.flatMap` above) — see that line for the +1.
+      name: f.name, bytes: directiveBytes(f.program) + (f.isEntry ? 0 : 1),
+    }));
+    entries.push(
+      { name: '(wait-frame setup + routine)', bytes: directiveBytes(waitFrameSetupProgram) + directiveBytes(waitFrameRoutineProgram) },
+      { name: '(global initializers)', bytes: directiveBytes(globalInitProgram) },
+      { name: '(string/const-array data)', bytes: directiveBytes(dataSection) },
+      // +2: the load address prgBytes() prepends ahead of `stub` itself —
+      // every real .prg's first two bytes, not counted in stub.length.
+      { name: '(load address + BASIC stub + prologue/epilogue)', bytes: 2 + stub.length + directiveBytes(prologue(needsCld)) + directiveBytes(epilogue()) },
+    );
+    sizeReport = entries.filter((e) => e.bytes > 0).sort((a, b) => b.bytes - a.bytes);
+  }
+
+  return { ok: true, bytes, memory: { variables: linked.memory.variables, program: bytes.length }, ...(sizeReport ? { sizeReport } : {}) };
 }
 
 // ---- waitFrame() pacing ----------------------------------------------------
