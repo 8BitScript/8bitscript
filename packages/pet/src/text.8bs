@@ -24,28 +24,69 @@ import { Video } from "./geometry.8bs";
 // this package's `screen.setColors()` does nothing.
 //
 // `text.putChar` takes ASCII on every machine — space (32), '0'-'9'
-// (48-57), 'A'-'Z' (65-90) and the punctuation `! , - . : ?` — upper case
-// only: that is the portable set, the characters every target's character
-// set has (the NES ships its own font, and that is what it has). The PET
-// wants screen codes: codes 32-63 are those same ASCII values, and 'A'-'Z'
-// are 1-26, so asciiToScreenCode() moves 64-95 down by 64 and leaves 32-63
-// alone. Whether 1-26 then LOOK like 'A'-'Z' or 'a'-'z' is the character
-// set's choice, and on the PET that is the editor ROM's boot state: the
-// graphics-keyboard 3032/4032 boot in the upper-case ("graphics") set, the
-// business-keyboard 8032 (xpet's default model) in the lower-case ("text")
-// set. So putChar() selects the graphics set itself, every call, through
-// the VIA's peripheral control register (see @8bitscript/pet): one register
-// write, and "TICK" reads as TICK here on every model the way it does on
-// every other target. (See packages/pet/AGENTS.md.)
+// (48-57), 'A'-'Z' (65-90), 'a'-'z' (97-122) and the punctuation
+// `! , - . : ?` — that is the portable set, the characters every target's
+// character set has (the NES ships its own font, and that is what it has).
+// The PET's own character ROM turns out to hold both cases at once, just
+// not at the ASCII-shaped addresses: measured directly against the real
+// ROM (`characters-2.901447-10.bin`, 8 bytes/glyph, 128 glyphs per
+// character set, both sets in one 2048-byte file) rather than assumed —
+// screen codes 32-63 (space, digits, punctuation) render identically in
+// both sets; codes 1-26 render as 'A'-'Z' in the **graphics** set (0x0C)
+// but as 'a'-'z' in the **text** set (0x0E); codes 65-90 render as
+// graphics symbols in the graphics set but as 'A'-'Z' (shifted) in the
+// text set. So the text set alone already has everything: lower case at
+// 1-26, upper case at 65-90, the rest unchanged — no per-character
+// charset switch needed, since the PCR's charset bit is one register for
+// the whole screen, not a per-cell choice. asciiToScreenCode() picks
+// text-set addresses accordingly: 'A'-'Z' pass straight through (already
+// the text set's own uppercase range), 'a'-'z' drop by 96 to reach 1-26,
+// everything else is unchanged. This also settles the old graphics/text
+// boot-state mismatch the previous, uppercase-only version worked around
+// (3032/4032 boot into graphics, 8032 into text) the same way: putChar()
+// still selects one character set itself, every call, through the VIA's
+// peripheral control register (see @8bitscript/pet) — now the text set,
+// which is a strict superset of what the graphics set could show here.
+// (See packages/pet/AGENTS.md.)
+//
+// blocks.8bs's own quadrant-block glyphs (screen codes 96-127) still work
+// unchanged: measured directly alongside the letters above, those codes
+// are byte-identical between the two character sets (two exceptions in
+// the full 96-127 range, 105 and 122, are graphics-only codes blocks.8bs
+// never uses), so nothing that draws with them cares which set is active.
+//
+// One real wrinkle, also only found by measuring the ROM directly rather
+// than assuming one file speaks for the family: the original PET 2001's
+// own character ROM (901447-08, VICE's `characters-1.901447-08.bin`) has
+// the text set's two cases the other way round from every later model's
+// (901447-10, measured above) — upper case stays at 1-26 (unchanged from
+// the graphics set, not moved to 65-90) and lower case moves to 65-90
+// instead. `video.characterSetSwapped` (the PET catalog's `model` option,
+// `packages/compiler/src/fold/facts.mjs`) is this fact, `#fact()`-folded
+// at build time — true only for the 2001 today — so a `--profile 2001`
+// build gets the offsets its own real ROM needs, and no other build pays
+// for the branch it can't take.
 namespace CharacterSet {
-    const GRAPHICS: utinyint = 0x0C;
+    const TEXT: utinyint = 0x0E;
 }
 
 function asciiToScreenCode(code: utinyint): utinyint {
-    if (code >= 64 && code < 96) {
-        return code - 64;
+    if (#fact(video.characterSetSwapped)) {
+        if (code >= 65 && code < 91) {
+            return code - 64; // 'A'-'Z': the 2001's own text set keeps upper case at 1-26
+        }
+        if (code >= 97 && code < 123) {
+            return code - 32; // 'a'-'z': moved to 65-90 instead, on this ROM only
+        }
+        return code;
     }
-    return code;
+    if (code >= 65 && code < 91) {
+        return code; // 'A'-'Z': already the text set's own upper-case range
+    }
+    if (code >= 97 && code < 123) {
+        return code - 96; // 'a'-'z': the text set's lower case lives at 1-26
+    }
+    return code; // space, digits, punctuation: unchanged in either set
 }
 
 // ---- print: strings and number fields ------------------------------------
@@ -62,8 +103,8 @@ function asciiToScreenCode(code: utinyint): utinyint {
 // (see packages/compiler/src/ir).
 //
 // Under them: `place()` puts one character at one cell in the current
-// colour, and is all a run of text costs per character, with `prepare()` selecting the
-// graphics set once for the run.
+// colour, and is all a run of text costs per character, with `prepare()`
+// selecting the text character set once for the run.
 // `text.putChar` and `text.putColor` stay the one-cell pokes a caller can
 // build anything from.
 let currentColor: utinyint = 1; // white, until text.setColor() says otherwise
@@ -81,7 +122,7 @@ function toScreen(code: utinyint): utinyint {
 
 // What a run of text needs once, before its first character.
 function prepare(): void {
-    viaPeripheralControl = CharacterSet.GRAPHICS;
+    viaPeripheralControl = CharacterSet.TEXT;
 }
 
 function place(cell: usmallint, code: utinyint): void {

@@ -7,7 +7,7 @@
 // under the cursor.
 const [, , command, ...rest] = process.argv;
 
-const IMPLEMENTED = new Set(['check', 'lsp', 'doctor', 'build', 'run', 'setup', 'targets']);
+const IMPLEMENTED = new Set(['check', 'lsp', 'doctor', 'build', 'run', 'boot', 'setup', 'targets']);
 const PLANNED = ['dev'];
 
 const usage = () => `Usage: 8bs <command> [options]
@@ -40,6 +40,16 @@ Implemented:
                                --frames means a different unit per target
                                (cycles, wall-clock seconds, or exact
                                frame-advances); omit it for a tested default.
+  boot <target> [--pal] [--profile <name>]
+    [--hardware option=value,...]
+                               Opens that target's emulator fitted the same
+                               way 'run' would, but loads nothing into it —
+                               a stock (or fitted) machine booting to
+                               whatever it boots to on its own (BASIC's
+                               READY. on the Commodore/CX16 family). No
+                               build, no project, no entry file. The web
+                               target has none of this: there is no bare
+                               ROM without a program to run in its worker.
   targets [--json]             List every target and the hardware it can be
                                fitted with — options, values, presets, and
                                this project's own profiles; --json is what
@@ -103,6 +113,11 @@ if (command === 'build') {
 if (command === 'run') {
   const { run } = await import('../src/run.mjs');
   process.exit(await run(rest));
+}
+
+if (command === 'boot') {
+  const { boot } = await import('../src/run.mjs');
+  process.exit(await boot(rest));
 }
 
 if (command === 'targets') {

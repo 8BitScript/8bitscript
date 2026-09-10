@@ -210,6 +210,9 @@ importers:
       '@8bitscript/pet':
         specifier: workspace:*
         version: link:../pet
+      '@8bitscript/screen':
+        specifier: workspace:*
+        version: link:../screen
       '@8bitscript/text':
         specifier: workspace:*
         version: link:../text

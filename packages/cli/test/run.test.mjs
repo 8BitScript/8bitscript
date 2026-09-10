@@ -1,13 +1,13 @@
-// `run()`'s own logic — argument parsing failures, the atari800 display
-// config helper, and the screenshot-throws path — as opposed to the VICE
+// `run()`/`boot()`'s own logic — argument parsing failures, the atari800
+// display config helper, the screenshot-throws path, and `emulatorInvocation`
+// (the shared argv construction both share) — as opposed to the VICE model
 // flags themselves (run-model.test.mjs) or the real CLI path against actual
-// emulators (screenshot.test.mjs). The emulator-dispatch branches below
-// (VICE/atari8/nes/cx16/mega65's argv construction and the child_process
-// spawn) are currently unreachable: every one of those targets is parked in
-// this release (build.mjs's RELEASE_MACHINES), so compile() always refuses
-// before run() ever reaches them — see screenshot.test.mjs's parked-target
-// tests for that refusal. Nothing here fakes past that; it comes back once
-// a target un-parks for real.
+// emulators (screenshot.test.mjs, and this session's own manual `8bs boot
+// pet --profile 8032` check against a real xpet window). The PET is a
+// released target (build.mjs's RELEASE_MACHINES), so its own dispatch
+// branch is real and covered directly below; the other VICE/atari8/nes/
+// cx16/mega65 branches stay parked and untested here until they un-park —
+// nothing here fakes past that.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises';
@@ -15,7 +15,8 @@ import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { run, atari800CleanDisplayConfig } from '../src/run.mjs';
+import { run, boot, atari800CleanDisplayConfig, emulatorInvocation } from '../src/run.mjs';
+import { loadCatalog, resolveHardware } from '../src/hardware.mjs';
 
 function capture(fn) {
   const stdout = [];
@@ -75,6 +76,83 @@ test('run() --screenshot to an unwritable path reports the error and returns 1',
     process.chdir(prev);
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test('emulatorInvocation for the PET carries the model/ram/speaker/drive flags and, given an outFile, autostarts it', async () => {
+  const { hardware } = resolveHardware(loadCatalog('pet'), { profile: '8032' });
+  const invocation = await emulatorInvocation('pet', { pal: false, hardware, outFile: '/tmp/x.prg' });
+  assert.equal(invocation.ok, true);
+  assert.equal(invocation.emulator, 'xpet');
+  assert.deepEqual(invocation.emulatorArgs, [
+    '-autostartprgmode', '1',
+    '-model', '8032', '-ramsize', '32', '-sound', '-drive8type', '0',
+    '+confirmonexit',
+    '-autostart', '/tmp/x.prg',
+  ]);
+});
+
+test('emulatorInvocation for the PET with no outFile carries the same hardware flags and nothing to load', async () => {
+  const { hardware } = resolveHardware(loadCatalog('pet'), { profile: '8032' });
+  const invocation = await emulatorInvocation('pet', { pal: false, hardware });
+  assert.equal(invocation.ok, true);
+  assert.deepEqual(invocation.emulatorArgs, [
+    '-autostartprgmode', '1',
+    '-model', '8032', '-ramsize', '32', '-sound', '-drive8type', '0',
+    '+confirmonexit',
+  ]);
+});
+
+test('emulatorInvocation for the PET fitted with a real disk drive passes VICE its own -drive8type name', async () => {
+  const { hardware } = resolveHardware(loadCatalog('pet'), { overrides: { drive: '8050' } });
+  const invocation = await emulatorInvocation('pet', { pal: false, hardware });
+  assert.ok(invocation.emulatorArgs.includes('-drive8type'));
+  assert.equal(invocation.emulatorArgs[invocation.emulatorArgs.indexOf('-drive8type') + 1], '8050');
+});
+
+test('emulatorInvocation names a target with no emulator wired up', async () => {
+  const invocation = await emulatorInvocation('made-up', { pal: false, hardware: { run: {} } });
+  assert.equal(invocation.ok, false);
+  assert.match(invocation.error, /no emulator wired up for target 'made-up'/);
+});
+
+test('boot() returns 2 and writes the error when --hardware/--profile parsing fails', async () => {
+  const { result, stderr } = await capture(() => boot(['--profile']));
+  assert.equal(result, 2);
+  assert.match(stderr, /^8bs boot: --profile expects a name/);
+});
+
+test('boot() with no target prints usage and returns 2', async () => {
+  const { result, stdout, stderr } = await capture(() => boot(['--pal']));
+  assert.equal(result, 2);
+  assert.equal(stdout, '');
+  assert.match(stderr, /^Usage: 8bs boot <pet>/);
+});
+
+test('boot() refuses the web target by name — there is no bare emulator to boot without a program', async () => {
+  const { result, stderr } = await capture(() => boot(['web']));
+  assert.equal(result, 2);
+  assert.match(stderr, /^8bs boot: the web target has no bare emulator/);
+});
+
+test('boot() refuses an unknown target, naming every real one', async () => {
+  const { result, stderr } = await capture(() => boot(['not-a-machine']));
+  assert.equal(result, 2);
+  assert.match(stderr, /^8bs boot: unknown target 'not-a-machine'/);
+});
+
+test('boot() refuses a parked target by name, the same as build()/run() do', async () => {
+  const { result, stderr } = await capture(() => boot(['c64']));
+  assert.equal(result, 2);
+  assert.match(stderr, /^8bs boot: 'c64' is not a target in this release\. 0\.2\.0 builds for pet and web only/);
+});
+
+test('boot() prints the PET region note but still boots — its refresh is the model\'s, not a --pal/--ntsc flag', async () => {
+  const { stderr } = await capture(() => boot(['pet', '--pal', '--profile', 'made-up-nonexistent-preset']));
+  assert.match(stderr, /the PET has no --pal\/--ntsc/);
+  // The made-up preset is refused by resolveHardware right after — proof
+  // this ran past the region note and into real hardware resolution, not
+  // just an early return.
+  assert.match(stderr, /made-up-nonexistent-preset/);
 });
 
 test('atari800CleanDisplayConfig returns null when there is no ~/.atari800.cfg', async () => {

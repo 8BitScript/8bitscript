@@ -188,6 +188,16 @@ window.addEventListener('message', ({ data }) => {
     ?? [data.systemTitle, data.fitted, data.regionLabel].filter(Boolean).join(' · ');
   $('run').disabled = !data.runnable;
   $('build').disabled = !data.runnable;
+  // Boot only needs a real emulator to open — not a project that targets
+  // this system, since nothing of the project's own loads into it either
+  // way. `bootable` is not `machine` (that one's only about an NTSC/PAL
+  // choice, and excludes the PET on purpose) — every target but `web` has
+  // a bare emulator to open.
+  $('boot').disabled = !data.bootable;
+  $('boot-label').textContent = data.bootable ? 'Boot ' + (data.systemTitle ?? 'Machine') : 'Boot Machine';
+  $('boot').title = data.bootable
+    ? 'Boot ' + data.systemTitle + ' with nothing loaded — just the hardware'
+    : (data.systemTitle ?? 'this system') + ' has no bare emulator to boot without a program';
 
   const notice = $('notice');
   notice.hidden = !data.warning;
@@ -214,6 +224,7 @@ for (const key of ['system', 'region']) {
 $('profile').addEventListener('change', (e) => vscode.postMessage({ type: 'set', key: 'profile', value: e.target.value }));
 $('run').addEventListener('click', () => vscode.postMessage({ type: 'launch', action: 'run' }));
 $('build').addEventListener('click', () => vscode.postMessage({ type: 'launch', action: 'build' }));
+$('boot').addEventListener('click', () => vscode.postMessage({ type: 'launch', action: 'boot' }));
 $('open').addEventListener('click', () => vscode.postMessage({ type: 'command', id: '8bitscript.openEntry' }));
 $('install').addEventListener('click', () => vscode.postMessage({ type: 'command', id: '8bitscript.install' }));
 

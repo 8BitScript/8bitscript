@@ -74,7 +74,7 @@ const CONSTRUCT_DOCS = {
       '',
       'Text that lives in the program image — ROM on a cartridge, the `.prg` on a Commodore, a data segment on the web — written as a literal: `"TICK"`. A `string` parameter receives one; `s.length` is its byte count and `s[i]` its i-th character (ASCII), so a loop can put it on screen one cell at a time.',
       '',
-      'Only the portable character set is allowed — space, `0`-`9`, `A`-`Z`, and `! , - . : ?` (upper case only), the characters every target can show — and at most 255 of them. A backtick string with `${...}` fields, `\`TICK ${ticks:1}\``, is a template: `text.print(cell, ...)` lays it out at compile time into one `print` per run of text and one `printNumber(cell, value, width)` per field.',
+      'Only the portable character set is allowed — space, `0`-`9`, `A`-`Z`, `a`-`z`, and `! , - . : ?` — and at most 255 of them. A backtick string with `${...}` fields, `\`TICK ${ticks:1}\``, is a template: `text.print(cell, ...)` lays it out at compile time into one `print` per run of text and one `printNumber(cell, value, width)` per field.',
       '',
       '`const Label: string = "..."` names constant text. `let name: string<8>` is text that changes: 8 characters of RAM behind a length byte — the shape a literal has, so it goes wherever a `string` goes. `name = "..."` or `name = other` copies at runtime, cut to the capacity (a literal that does not fit is a diagnostic); `name.length` and `name[i]` read it. There is no concatenation.',
     ].join('\n'),

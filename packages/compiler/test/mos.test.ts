@@ -1,15 +1,18 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import {
   build, outputExtension, CPU, reduceRatio, frameRatio, FRAME_SYNC,
 } from '../src/mos/index.ts';
-import type { IrProgram, Machine, RatioPair } from '../src/mos/index.ts';
+import type { BuildOptions, IrProgram, Machine, RatioPair } from '../src/mos/index.ts';
 import type { IrStatement } from '../src/mos/lower/index.ts';
+import { link } from '../index.mjs';
+import { loadCatalog, resolveHardware } from '../../cli/src/hardware.mjs';
 
 const ir: IrProgram = { entry: 'main', functions: [{ name: 'main', body: [] }], globals: [] };
 
@@ -923,6 +926,80 @@ test('milestone 9 differential: changing one character of the string literal cha
   }
 });
 
+// ---- milestone 10: waitFrame() ---------------------------------------
+//
+// The real gate: packages/examples/hello-world/src/main.8bs now calls
+// waitFrame() before text.print(0, "HELLO WORLD") — built and run for real
+// (`8bs run pet --screenshot`, both the 2001 and 8032 profiles, milestone
+// 9's own established practice for a second, differently-clocked model) and
+// screenshotted; both show "HELLO WORLD" printing exactly as it did before
+// this milestone, proving the one-time calibration (SEI, the VIA1 Timer 2
+// measurement, the frameRate multiply) and one blocking wait-and-return
+// neither hang nor corrupt anything on either of the PET's two real
+// vertical-retrace rates (VICE's ~60.1Hz on the no-CRTC 2001, 50Hz on the
+// CRTC-driven 8032). This fixture reproduces that exact program shape —
+// helloWorldIr's own eleven-store body (above) with one waitFrame() call
+// prepended — the same "byte for byte from the real source" discipline
+// every earlier milestone's own gate already holds to.
+const waitFrameHelloIr: IrProgram = {
+  entry: 'main',
+  functions: [{ name: 'main', body: [{ kind: 'waitFrame' }, ...helloWorldIr.functions[0].body] }],
+  globals: [],
+};
+
+test('milestone 10 acceptance: waitFrame() before the real HELLO WORLD body builds, links, and reserves exactly its own 12 bytes of zero page', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+  try {
+    const outFile = join(scratch, 'out.prg');
+    const result = await build(waitFrameHelloIr, { machine: 'pet', hardware, outFile, frameRate: 60 });
+    assert.equal(result.ok, true, result.ok ? '' : result.error);
+    if (!result.ok) return;
+    // No globals and no parameters/locals anywhere in this program — the
+    // only zero page spent is waitFrame()'s own pacing state (mos/startup/
+    // waitframe.ts's WAIT_FRAME_ZP_BYTES), so this number is exact, not a
+    // lower bound.
+    assert.equal(result.memory.variables, 12);
+    assert.deepEqual([...await readFile(outFile)], [...result.bytes]);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+// A program that never calls waitFrame() pays nothing for it: no zero page
+// reserved, no calibration code, no shared subroutine appended — proven by
+// diffing against the exact same eleven-store fixture with the call
+// removed, the same differential discipline as milestone 9's own "811 vs
+// 555" and "I vs J" gates.
+test('milestone 10: a program with no waitFrame() call anywhere pays nothing for it — same bytes as the plain HELLO WORLD fixture', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+  try {
+    const outFile = join(scratch, 'out.prg');
+    const result = await build(helloWorldIr, { machine: 'pet', hardware, outFile, frameRate: 60 });
+    assert.equal(result.ok, true, result.ok ? '' : result.error);
+    if (!result.ok) return;
+    assert.equal(result.memory.variables, 0, 'no waitFrame() anywhere — no zero page reserved for its pacing state');
+    assert.equal(result.bytes.length, 70, 'unchanged from the milestone 4 gate — waitFrame() support cost this program nothing');
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('milestone 10: a build with waitFrame() overflowing what zero page remains is refused, not silently truncated', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+  try {
+    // 113 one-byte globals leave exactly 1 byte of the PET's real free zp
+    // range ($8E..$FF, 114 bytes) — nowhere near the 12 waitFrame() needs.
+    const globals = Array.from({ length: 113 }, (_, i) => ({ name: `g${i}`, type: 'utinyint', address: null }));
+    const ir: IrProgram = { entry: 'main', functions: [{ name: 'main', body: [{ kind: 'waitFrame' }] }], globals };
+    const result = await build(ir, { machine: 'pet', hardware, outFile: join(scratch, 'out.prg'), frameRate: 60 });
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.match(result.error, /^waitFrame\(\) needs 12 bytes of zero page for its own pacing state but only 1 byte\(s\) remain$/);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
 test('outputExtension: prg everywhere except NES (.nes) and Atari 8-bit (.xex, or hardware.output)', () => {
   assert.equal(outputExtension('vic20'), 'prg');
   assert.equal(outputExtension('nes'), 'nes');
@@ -987,4 +1064,43 @@ test('FRAME_SYNC.pet.calibrate measures VIA1 T2 against vsync and scales the ela
   const at50 = pet.calibrate(50);
   assert.match(at50, /50u \*/);
   assert.doesNotMatch(at50, /60u \*/);
+});
+
+test('the real hello-world on the 2001 leaves BASIC 1 CHRGET ($C2-$D9) alone so SYS can return', async () => {
+  const main = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'examples', 'hello-world', 'src', 'main.8bs');
+  const src = readFileSync(main, 'utf8');
+  const zpBytes = async (profile: string | undefined) => {
+    const resolved = resolveHardware(loadCatalog('pet'), { profile });
+    assert.ok(resolved.ok, resolved.ok ? '' : resolved.error);
+    // link()'s own return type is the loose `object | null` every caller
+    // gets (packages/compiler/src/linker/index.mjs's own JSDoc — nothing
+    // here narrows it further); an empty `diagnostics` is the real
+    // guarantee that `ir` is both non-null and a real IrProgram, the same
+    // way every other fixture in this file already types its own `ir`
+    // literal as one.
+    const { ir, diagnostics } = link(src, main, { machine: 'pet', facts: resolved.hardware.facts });
+    assert.deepEqual(diagnostics, []);
+    assert.ok(ir, 'link() returned no diagnostics but also no ir');
+    const linkedIr = ir as IrProgram;
+    // resolveHardware()'s own JSDoc types build.defsym loosely (`object`,
+    // packages/cli/src/hardware.mjs's own Hardware typedef) — every real
+    // catalog defsym is a linker symbol's numeric value (see mos/index.ts's
+    // own `options.hardware.build.defsym.__ram_size` read), the same
+    // guarantee this cast states explicitly rather than widening
+    // BuildOptions itself to match a JSDoc type that undersells its own
+    // real shape.
+    const hardware = resolved.hardware as unknown as BuildOptions['hardware'];
+    const scratch = await mkdtemp(join(tmpdir(), '8bs-chrget-'));
+    try {
+      const result = await build(linkedIr, { machine: 'pet', hardware, outFile: join(scratch, 'out.prg'), frameRate: 60 });
+      assert.equal(result.ok, true, result.ok ? '' : result.error);
+      return result.ok ? result.memory.variables : 0;
+    } finally {
+      await rm(scratch, { recursive: true, force: true });
+    }
+  };
+  const on3032 = await zpBytes('3032');
+  const on2001 = await zpBytes('2001');
+  assert.equal(on3032, 77, 'BASIC 2 CHRGET is below $8E — no hole, 77 bytes of real slots');
+  assert.equal(on2001, on3032 + 24, 'the 2001 skips BASIC 1\'s 24-byte CHRGET window at $C2');
 });

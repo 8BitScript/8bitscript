@@ -746,6 +746,7 @@ function registerRunner(context, output) {
   command('8bitscript.install', install);
   command('8bitscript.run', (node) => execute('run', node));
   command('8bitscript.build', (node) => execute('build', node));
+  command('8bitscript.boot', (node) => execute('boot', node));
   command('8bitscript.stop', (node) => {
     if (node?.dir) projects.running.stop(node.dir, node.target);
     else for (const execution of projects.running.executions) execution.terminate();

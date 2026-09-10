@@ -3,8 +3,13 @@
 // build — and each one writes its own screen the way that machine wants;
 // this file does not know which. See the "Hello, PET" roadmap for the
 // milestones between here and this actually building.
+import { screen } from "@8bitscript/screen";
 import { text } from "@8bitscript/text";
 
 export function main(): void {
-    text.print(0, "HELLO WORLD");
+    screen.blank();
+    text.print(0, "Hello World!");
+    while (true) {
+        waitFrame();
+    }
 }

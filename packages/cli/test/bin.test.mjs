@@ -101,6 +101,12 @@ test('run: dispatches to src/run.mjs', async () => {
   assert.match(stderr, /^Usage: 8bs run <pet\|web>/);
 });
 
+test('boot: dispatches to src/run.mjs\'s boot()', async () => {
+  const { code, stderr } = await runCli(['boot']);
+  assert.equal(code, 2);
+  assert.match(stderr, /^Usage: 8bs boot <pet>/);
+});
+
 test('targets: dispatches to src/targets.mjs', async () => {
   const { code, stdout } = await runCli(['targets', '--json']);
   assert.equal(code, 0);
