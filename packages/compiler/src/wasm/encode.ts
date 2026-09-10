@@ -126,6 +126,7 @@ export const BlockType = {
  * restricted to `i32` (see "Hello, WASM"'s own "one value type covers
  * every declared width" note — nothing here needs `i64`/`f32`/`f64` yet). */
 export const Opcode = {
+  unreachable: 0x00,
   end: 0x0b,
   block: 0x02,
   loop: 0x03,
