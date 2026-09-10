@@ -30,6 +30,29 @@ test('build() for an empty main() writes a real, WebAssembly.validate()-acceptin
   }
 });
 
+test('build() only returns a sizeReport when options.report asks for one, and it always sums to the real bytes.length', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-web-native-'));
+  try {
+    const outFile = join(scratch, 'out.wasm');
+    const plain = await build(emptyMain, { outFile, frameRate: 60 });
+    assert.equal(plain.ok, true);
+    if (!plain.ok) return;
+    assert.equal(plain.sizeReport, undefined, 'no --size, no report — the CLI never asked for one');
+
+    const reported = await build(emptyMain, { outFile, frameRate: 60, report: true });
+    assert.equal(reported.ok, true);
+    if (!reported.ok) return;
+    assert.ok(Array.isArray(reported.sizeReport) && reported.sizeReport.length > 0);
+    const sum = reported.sizeReport.reduce((total, e) => total + e.bytes, 0);
+    assert.equal(sum, reported.bytes.length, 'every named piece has to add up to the whole module, not just most of it');
+    for (let i = 1; i < reported.sizeReport.length; i++) {
+      assert.ok(reported.sizeReport[i - 1].bytes >= reported.sizeReport[i].bytes, 'not sorted largest first');
+    }
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
 test('milestone 1 acceptance: the built module instantiates, exports exactly one function under the entry\'s own name, and one page of memory', async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-web-native-'));
   try {
