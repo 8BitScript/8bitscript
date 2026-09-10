@@ -1,5 +1,24 @@
 # 8bitscript-lang
 
+## 0.2.1
+
+### Patch Changes
+
+- 09ae45f: Hover and completion now cover a named import's own namespace, not just
+  built-in syntax: hovering `screen.blank(...)` shows its signature and doc
+  comment, and typing `screen.bl` after `import { screen } from
+  "@8bitscript/screen"` offers `blank` in the completion list. This reads the
+  module the import actually resolves to — for a machine-conditional package
+  such as `@8bitscript/screen`, one release target's version (noted in the
+  hover text), since no single machine is known while editing.
+- 152a9f2: Resolved SonarQube findings in `editors/vscode/src/projects.cjs` (an
+  explicit sort compare function, a `.map()` callback no longer passed
+  a function with its own second parameter directly, two regexes with
+  quadratic worst-case behavior replaced with plain string methods, and
+  a hand-rolled scanner's loop rewritten so its own cursor isn't a
+  reassigned `for` variable) and `packages/compiler/src/mos/asm/relax.ts`
+  (`Number.parseInt` instead of the global). No behavior change.
+
 ## 0.2.0
 
 ### Minor Changes
