@@ -55,7 +55,9 @@ test('a string const needs a literal, has no capacity, and cannot be assigned (8
 });
 
 test('a string const keeps the portable-character and length rules a literal has', () => {
-  assert.deepEqual(diagnosticsOf('const L: string = "hi";\nexport function main(): void { }').map((d) => d.code), ['8BS1026']);
+  // Lower case is portable (packages/pet/src/text.8bs); '~' is not, on any target.
+  assert.deepEqual(diagnosticsOf('const L: string = "hi";\nexport function main(): void { }').map((d) => d.code), []);
+  assert.deepEqual(diagnosticsOf('const L: string = "h~";\nexport function main(): void { }').map((d) => d.code), ['8BS1026']);
 });
 
 // ---- string<N> variables --------------------------------------------------------

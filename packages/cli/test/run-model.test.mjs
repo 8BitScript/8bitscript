@@ -13,18 +13,21 @@ test('the PET is not a region-keyed VICE model: the model option is the xpet -mo
   const catalog = loadCatalog('pet');
   for (const model of Object.keys(catalog.options.model.values)) {
     const { hardware } = resolveHardware(catalog, { overrides: { model } });
-    // Every model name but "2001" already encodes its RAM in the digits
-    // (30-08 is 8K, 40-32 is 32K, ...); "2001" alone is the one real PET
-    // that shipped with either 4K or 8K, so VICE's own -model 2001 preset
-    // does not imply a size and needs -ramsize spelled out beside it.
-    const expected = model === '2001' ? ['-model', '2001', '-ramsize', '4'] : ['-model', model];
-    assert.deepEqual(hardware.run.xpet, expected);
+    // RAM is its own option now (a real on-board upgrade path, independent
+    // of which board is chosen — packages/pet/AGENTS.md), so every model
+    // needs -ramsize spelled out beside -model, not just the 2001: leaving
+    // `ram` unset here means it stays at its own default (4 KiB), `speaker`
+    // at its own default (none, +sound), and `drive` at its own default
+    // (none, -drive8type 0) — none of the three depends on which model
+    // this loop is overriding.
+    assert.deepEqual(hardware.run.xpet, ['-model', model, '-ramsize', '4', '+sound', '-drive8type', '0']);
     const fps = hardware.facts['video.frameRate'];
     assert.ok(fps === 50 || fps === 60, model);
   }
-  // The default is the one model VICE autostarts at ~60Hz; the CRTC models
-  // run their 50Hz editor ROMs.
-  assert.equal(catalog.options.model.default, '3032');
+  // The default is the smallest real PET (2001, 4K) — the harshest machine
+  // to test a program against, not the roomiest; the CRTC models run their
+  // 50Hz editor ROMs regardless of which one BASIC autostarts fastest on.
+  assert.equal(catalog.options.model.default, '2001');
   const fpsOf = (model) => resolveHardware(catalog, { overrides: { model } }).hardware.facts['video.frameRate'];
   assert.equal(fpsOf('3032'), 60);
   assert.equal(fpsOf('4032'), 50);

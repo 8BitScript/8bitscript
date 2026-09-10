@@ -49,6 +49,11 @@
 //                        Show" command), which no CLI can open unattended:
 //                        that command only exists inside the editor, with
 //                        no terminal-invokable equivalent
+//
+// `8bs boot <target>` (below `run`'s own exports) is the hardware-only
+// sibling: the same emulator, the same --pal/--profile/--hardware fitting,
+// but nothing loaded into it — a stock (or fitted) machine booting to
+// whatever it boots to on its own, no build and no project required.
 import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { readFile, writeFile } from 'node:fs/promises';
@@ -166,6 +171,114 @@ export async function atari800CleanDisplayConfig() {
   return outPath;
 }
 
+/**
+ * The emulator and its arguments for one target, hardware selection, and
+ * region — shared by `run()` (which passes `outFile` so something loads
+ * into it) and `boot()` (which leaves `outFile` out, so nothing does).
+ * Everything about *which* machine this is (model, RAM, a REU, a mouse, TV
+ * standard) comes from `hardware`/`pal` alone; whether anything gets
+ * loaded into it is entirely the caller's own choice.
+ *
+ * @param {string} target
+ * @param {{ pal: boolean, hardware: object, outFile?: string }} options
+ * @returns {Promise<{ ok: true, emulator: string, emulatorArgs: string[] } | { ok: false, error: string }>}
+ */
+export async function emulatorInvocation(target, { pal, hardware, outFile }) {
+  const region = pal ? 'pal' : 'ntsc';
+  // Nothing to load into: every load-args call below is skipped outright
+  // when there is no outFile, rather than asked to load nothing — each
+  // emulator's own DEFAULT_LOAD template calls `out.replaceAll(...)` (or
+  // similar) on its argument, which `undefined` cannot take.
+  const load = (emulator, fallback) => (outFile ? loadArgs(hardware, emulator, outFile, fallback(outFile)) : []);
+
+  // The emulator's own flags for the machine, then whatever the hardware
+  // fits (the catalog's `run` list for this emulator), then the file, if
+  // there is one to load.
+  if (target in VICE_EMULATOR) {
+    const emulator = VICE_EMULATOR[target];
+    return {
+      ok: true,
+      emulator,
+      emulatorArgs: [
+        ...(VICE_EMULATOR_ARGS[target] ?? []),
+        ...(VICE_MODEL_ARGS[target]?.[region] ?? []),
+        ...(hardware.run[emulator] ?? []),
+        // Skip the "really quit?" confirmation dialog — closing the
+        // emulator window during dev/test cycles should not need a click
+        // every time.
+        '+confirmonexit',
+        ...load(emulator, DEFAULT_LOAD[emulator]),
+      ],
+    };
+  }
+  if (target === 'atari8') {
+    // atari800's TV-area visible size (DOC/USAGE -horiz-area/-vert-area):
+    // 336 wide, 224 tall on NTSC and 240 tall on PAL. The emulator opens
+    // at 1x of that — a postage stamp on any modern display — and unlike
+    // VICE it has no larger default of its own. 3x is a window worth
+    // looking at on a 1080p screen and still an exact integer scale, which
+    // is what atari800's own default INTEGRAL stretch wants: a non-multiple
+    // just letterboxes the same small image inside a bigger window.
+    const tvHeight = pal ? 240 : 224;
+    const displayCfg = await atari800CleanDisplayConfig();
+    return {
+      ok: true,
+      emulator: 'atari800',
+      emulatorArgs: [
+        ...(displayCfg ? ['-config', displayCfg, '-no-autosave-config'] : []),
+        ...(hardware.run.atari800 ?? []),
+        pal ? '-pal' : '-ntsc',
+        '-horiz-area', 'tv',
+        '-vert-area', 'tv',
+        '-stretch', 'integral',
+        '-scanlines', '0',
+        '-win-width', String(336 * 3),
+        '-win-height', String(tvHeight * 3),
+        ...load('atari800', DEFAULT_LOAD.atari800),
+      ],
+    };
+  }
+  if (target === 'nes') {
+    return { ok: true, emulator: 'fceux', emulatorArgs: [...(hardware.run.fceux ?? []), ...load('fceux', DEFAULT_LOAD.fceux)] };
+  }
+  if (target === 'cx16') {
+    // Confirmed against the X16Community/x16-emulator README.
+    return { ok: true, emulator: 'x16emu', emulatorArgs: [...(hardware.run.x16emu ?? []), ...load('x16emu', DEFAULT_LOAD.x16emu)] };
+  }
+  if (target === 'mega65') {
+    // -videostd pins the video standard to match the region the .prg was
+    // built for (0=PAL, 1=NTSC); left unset, Xemu's Hyppo default is PAL
+    // regardless of which region this target compiled for, so an NTSC
+    // build gets PAL's ~100 extra scanlines of VIC-IV border/overscan — the
+    // exact off-geometry mismatch VICE_MODEL_ARGS above documents for
+    // -ntsc/-pal not implying a model.
+    return {
+      ok: true,
+      emulator: 'xmega65',
+      emulatorArgs: [...(hardware.run.xmega65 ?? []), ...load('xmega65', DEFAULT_LOAD.xmega65), '-videostd', pal ? '0' : '1'],
+    };
+  }
+  // Every caller already validated the target against the same set this
+  // function branches over (build()'s TARGETS via compile(), or boot()'s
+  // own check for the one target — web — that has no bare emulator at all),
+  // so this is unreachable.
+  return { ok: false, error: `no emulator wired up for target '${target}'` };
+}
+
+/** Spawns `emulator`, streaming its own stdio, and resolves once its window closes. */
+async function spawnEmulator(emulator, emulatorArgs) {
+  process.stdout.write(`starting ${emulator}; close the emulator window to finish.\n`);
+  const { spawn } = await import('node:child_process');
+  return new Promise((resolvePromise) => {
+    const child = spawn(emulator, emulatorArgs, { stdio: 'inherit' });
+    child.on('error', () => {
+      process.stderr.write(`cannot start ${emulator}. Run '8bs doctor' — docs/setup/index.md\n`);
+      resolvePromise(1);
+    });
+    child.on('close', (code) => resolvePromise(code === 0 ? 0 : 0));
+  });
+}
+
 /** @returns {Promise<number>} exit code */
 export async function run(args) {
   const pal = args.includes('--pal');
@@ -236,77 +349,86 @@ export async function run(args) {
     return runInBrowser(bytes, { open, frameRate, root: resolve('dist', 'web') });
   }
 
-  const region = pal ? 'pal' : 'ntsc';
+  const invocation = await emulatorInvocation(target, { pal, hardware, outFile });
+  if (!invocation.ok) {
+    process.stderr.write(`8bs run: ${invocation.error}\n`);
+    return 1;
+  }
+  return spawnEmulator(invocation.emulator, invocation.emulatorArgs);
+}
 
-  // The emulator's own flags for the machine, then whatever the hardware
-  // fits (the catalog's `run` list for this emulator), then the file.
-  let emulator;
-  let emulatorArgs;
-  if (target in VICE_EMULATOR) {
-    emulator = VICE_EMULATOR[target];
-    emulatorArgs = [
-      ...(VICE_EMULATOR_ARGS[target] ?? []),
-      ...(VICE_MODEL_ARGS[target]?.[region] ?? []),
-      ...(hardware.run[emulator] ?? []),
-      // Skip the "really quit?" confirmation dialog — closing the emulator
-      // window during dev/test cycles should not need a click every time.
-      '+confirmonexit',
-      ...loadArgs(hardware, emulator, outFile, DEFAULT_LOAD[emulator](outFile)),
-    ];
-  } else if (target === 'atari8') {
-    emulator = 'atari800';
-    // atari800's TV-area visible size (DOC/USAGE -horiz-area/-vert-area):
-    // 336 wide, 224 tall on NTSC and 240 tall on PAL. The emulator opens
-    // at 1x of that — a postage stamp on any modern display — and unlike
-    // VICE it has no larger default of its own. 3x is a window worth
-    // looking at on a 1080p screen and still an exact integer scale, which
-    // is what atari800's own default INTEGRAL stretch wants: a non-multiple
-    // just letterboxes the same small image inside a bigger window.
-    const tvHeight = pal ? 240 : 224;
-    const displayCfg = await atari800CleanDisplayConfig();
-    emulatorArgs = [
-      ...(displayCfg ? ['-config', displayCfg, '-no-autosave-config'] : []),
-      ...(hardware.run.atari800 ?? []),
-      pal ? '-pal' : '-ntsc',
-      '-horiz-area', 'tv',
-      '-vert-area', 'tv',
-      '-stretch', 'integral',
-      '-scanlines', '0',
-      '-win-width', String(336 * 3),
-      '-win-height', String(tvHeight * 3),
-      ...loadArgs(hardware, emulator, outFile, DEFAULT_LOAD.atari800(outFile)),
-    ];
-  } else if (target === 'nes') {
-    emulator = 'fceux';
-    emulatorArgs = [...(hardware.run.fceux ?? []), ...loadArgs(hardware, emulator, outFile, DEFAULT_LOAD.fceux(outFile))];
-  } else if (target === 'cx16') {
-    // Confirmed against the X16Community/x16-emulator README.
-    emulator = 'x16emu';
-    emulatorArgs = [...(hardware.run.x16emu ?? []), ...loadArgs(hardware, emulator, outFile, DEFAULT_LOAD.x16emu(outFile))];
-  } else if (target === 'mega65') {
-    // -videostd pins the video standard to match the region the .prg was
-    // built for (0=PAL, 1=NTSC); left unset, Xemu's Hyppo default is PAL
-    // regardless of which region this target compiled for, so an NTSC
-    // build gets PAL's ~100 extra scanlines of VIC-IV border/overscan — the
-    // exact off-geometry mismatch VICE_MODEL_ARGS above documents for
-    // -ntsc/-pal not implying a model.
-    emulator = 'xmega65';
-    emulatorArgs = [...(hardware.run.xmega65 ?? []), ...loadArgs(hardware, emulator, outFile, DEFAULT_LOAD.xmega65(outFile)), '-videostd', pal ? '0' : '1'];
-  } else {
-    // build() already validated the target against the same TARGETS set
-    // this function branches over, so this is unreachable.
-    process.stderr.write(`8bs run: no emulator wired up for target '${target}'\n`);
+/**
+ * `8bs boot <target>` — opens the target's own emulator fitted with
+ * whatever `--pal`/`--profile`/`--hardware` name, exactly as `8bs run`
+ * would fit it, but loads nothing into it: a stock (or fitted) machine
+ * booting to whatever it boots to on its own — BASIC's READY. prompt on
+ * the Commodore/CX16 family, DOS or a cartridge menu on the Atari, a blank
+ * NES/MEGA65 screen — with no program, no build, and no project required
+ * at all. What "just this hardware, nothing loaded" is for: checking a
+ * `--profile`/`--hardware` combination actually boots before spending a
+ * build on it, or simply looking at a real machine.
+ *
+ * The web target has no bare emulator to boot — there is no ROM without a
+ * program to run in its worker — so it is refused by name here rather
+ * than silently opening nothing.
+ *
+ * @returns {Promise<number>} exit code
+ */
+export async function boot(args) {
+  const pal = args.includes('--pal');
+  const hw = hardwareArgs(args);
+  if (!hw.ok) {
+    process.stderr.write(`8bs boot: ${hw.error}\n`);
+    return 2;
+  }
+  const positionals = args.filter((a, i) => !hw.consumed.has(i) && !a.startsWith('-'));
+  const target = positionals[0];
+  if (!target) {
+    process.stderr.write(
+      'Usage: 8bs boot <pet>\n'
+      + '                (vic20, c64, c128, atari8, nes, cx16, mega65 are parked until a later release;\n'
+      + '                web has no bare emulator to boot without a program)\n'
+      + '                [--pal]\n'
+      + HARDWARE_USAGE,
+    );
+    return 2;
+  }
+  if (target === 'web') {
+    process.stderr.write('8bs boot: the web target has no bare emulator — nothing to boot without a program. Use \'8bs run web\'.\n');
+    return 2;
+  }
+
+  const { MACHINES, RELEASE_MACHINES } = await import('@8bitscript/compiler');
+  if (!MACHINES.includes(target)) {
+    process.stderr.write(`8bs boot: unknown target '${target}'. Targets: ${MACHINES.join(', ')}\n`);
+    return 2;
+  }
+  if (!RELEASE_MACHINES.includes(target)) {
+    process.stderr.write(
+      `8bs boot: '${target}' is not a target in this release. 0.2.0 builds for ` +
+      `${RELEASE_MACHINES.join(' and ')} only; the ${target} returns in a later release.\n`,
+    );
+    return 2;
+  }
+
+  // Said once, before either route — the PET has no region (PET_REGION_NOTE).
+  if (target === 'pet' && pal) process.stderr.write(PET_REGION_NOTE);
+
+  const { loadConfig } = await import('./config.mjs');
+  const { loadCatalog, projectHardware, projectProfiles, resolveHardware } = await import('./hardware.mjs');
+  const config = await loadConfig(process.cwd(), '8bs boot');
+  const resolved = resolveHardware(loadCatalog(target), {
+    profile: hw.profile, overrides: hw.overrides, profiles: projectProfiles(config, target), defaults: projectHardware(config, target),
+  });
+  if (!resolved.ok) {
+    process.stderr.write(`8bs boot: ${resolved.error}\n`);
     return 1;
   }
 
-  process.stdout.write(`starting ${emulator}; close the emulator window to finish.\n`);
-  const { spawn } = await import('node:child_process');
-  return new Promise((resolvePromise) => {
-    const child = spawn(emulator, emulatorArgs, { stdio: 'inherit' });
-    child.on('error', () => {
-      process.stderr.write(`8bs run: cannot start ${emulator}. Run '8bs doctor' — docs/setup/index.md\n`);
-      resolvePromise(1);
-    });
-    child.on('close', (code) => resolvePromise(code === 0 ? 0 : 0));
-  });
+  const invocation = await emulatorInvocation(target, { pal, hardware: resolved.hardware });
+  if (!invocation.ok) {
+    process.stderr.write(`8bs boot: ${invocation.error}\n`);
+    return 1;
+  }
+  return spawnEmulator(invocation.emulator, invocation.emulatorArgs);
 }

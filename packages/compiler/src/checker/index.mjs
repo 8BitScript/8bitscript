@@ -48,13 +48,23 @@ const RESERVED_BUILTIN_NAMES = new Map([
   ['waitFrame', 'the built-in frame wait, waitFrame()'],
 ]);
 
-// What every target's character set can show: the NES ships its own font
-// (packages/nes/native/6502/font.s) with exactly these glyphs, and the
-// Commodore machines are switched to their upper-case set by putChar.
-// Anything else is a diagnostic here — not silently blanked on one machine
-// and shown on another. Import specifiers are StringLiteral nodes too and
-// are skipped: a module path is not screen text.
-const PORTABLE_CHARACTERS = /^[ 0-9A-Z!,\-.:?]*$/;
+// What every target's character set can show: the Commodore machines hold
+// both cases at once in their own text character set (measured directly
+// against the PET's ROM, packages/pet/src/text.8bs's own header — the
+// "Commodore machines are switched to their upper-case set" premise this
+// rule used to rest on was wrong, or at least stale, for at least the
+// PET). The NES ships its own font (packages/nes/native/6502/font.s) with
+// no lower-case glyphs drawn yet ("37 blank tiles (no lower-case yet)",
+// that file's own comment) — a real, currently-true gap, not enforced
+// here any more now that lower case is allowed: NES is a parked target
+// this release does not build for (RELEASE_MACHINES), and the checker
+// runs target-blind (one AST pass, not per-machine), so it has no way to
+// refuse lower case only for NES without refusing it everywhere. When NES
+// returns, its own font needs the missing glyphs before a lower-case
+// screen string reaches it — this is where to look, not a checker rule to
+// re-add blindly. Import specifiers are StringLiteral nodes too and are
+// skipped: a module path is not screen text.
+const PORTABLE_CHARACTERS = /^[ 0-9A-Za-z!,\-.:?]*$/;
 const MAX_STRING_LENGTH = 255;
 
 function checkScreenText(n, file, diagnostics) {
@@ -62,10 +72,9 @@ function checkScreenText(n, file, diagnostics) {
   const value = n.value ?? '';
   if (!PORTABLE_CHARACTERS.test(value)) {
     const bad = [...value].find((ch) => !PORTABLE_CHARACTERS.test(ch));
-    const hint = /[a-z]/.test(bad) ? ' — upper case only' : '';
     diagnostics.push(diagnostic(
       Codes.UNPORTABLE_CHARACTER,
-      `'${bad}' is not in the portable character set (space, 0-9, A-Z, and ! , - . : ?)${hint}`,
+      `'${bad}' is not in the portable character set (space, 0-9, A-Z, a-z, and ! , - . : ?)`,
       file, n.start, n.length,
     ));
     return;

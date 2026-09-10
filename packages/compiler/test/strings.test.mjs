@@ -140,11 +140,16 @@ test('parser: a field expression is reachable by walk() — #frames(...) inside 
 
 // ---- checker: the portable character set ----------------------------------
 
-test('checker: a string literal or template text outside the portable set is a diagnostic; import paths are not', () => {
+test('checker: a string literal or template text outside the portable set is a diagnostic; lower case is in it; import paths are not checked at all', () => {
   clean('let x: utinyint = 1; function f(s: string): void { } export function main(): void { f("TICK 0-9 !,-.:?"); }');
-  const lower = analyze('function f(s: string): void { } export function main(): void { f("tick"); }', 't.8bs');
+  // Lower case is portable — the Commodore text character set holds both
+  // cases at once (packages/pet/src/text.8bs); only a target with no
+  // lower-case glyphs at all (the NES's font today) would ever lose this,
+  // and the checker runs target-blind, so it no longer refuses it anywhere.
+  clean('function f(s: string): void { } export function main(): void { f("tick"); }');
+  const lower = analyze('function f(s: string): void { } export function main(): void { f("t~ck"); }', 't.8bs');
   assert.equal(lower[0].code, '8BS1026');
-  assert.match(lower[0].message, /'t' is not in the portable character set .* upper case only/);
+  assert.match(lower[0].message, /'~' is not in the portable character set/);
   assert.deepEqual(codes('export function main(): void { text.print(0, `héllo`); }'), ['8BS1026']);
   clean('import { text } from "./lower-case/path_with_underscores.8bs";\nexport function main(): void { }');
 });

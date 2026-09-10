@@ -47,6 +47,17 @@ const ALL_TARGETS = ['pet', 'web'];
  */
 const MACHINE_TARGETS = new Set(['vic20', 'c64', 'c128', 'atari8', 'nes', 'mega65']);
 
+/**
+ * Targets with no bare emulator to boot without a program — today just
+ * `web`, a WASM worker with nothing to run until a program is compiled
+ * into it (see `8bs boot`'s own refusal in packages/cli/src/run.mjs).
+ * Every other target, PET included, opens its real emulator with nothing
+ * loaded — this is deliberately not MACHINE_TARGETS, which answers a
+ * different question (does this target take --pal/--ntsc) and excludes
+ * the PET on purpose.
+ */
+const NO_BARE_EMULATOR = new Set(['web']);
+
 const DEFAULT_ENTRY = 'src/main.8bs';
 
 /** The three kinds of project, in the order the launcher groups them. */
@@ -635,8 +646,8 @@ function runnableOn(projects, system) {
 /**
  * The `8bs` arguments for one action, on one target where the action takes one.
  *
- * @param {'run' | 'build' | 'doctor'} action
- * @param {string} [target]        required for run and build
+ * @param {'run' | 'build' | 'boot' | 'doctor'} action
+ * @param {string} [target]        required for run, build and boot
  * @param {'ntsc' | 'pal'} [region] ignored for targets without a machine model
  * @param {{ profile?: string|null, options?: object }} [hardware] the
  *   hardware fitted (the side bar's selection for that system): `--profile`
@@ -644,8 +655,11 @@ function runnableOn(projects, system) {
  * @returns {string[]}
  */
 function commandArgs(action, target, region = 'ntsc', hardware = undefined) {
-  if (action !== 'run' && action !== 'build') return [action];
-  const args = action === 'build' ? ['build', '--target', target] : ['run', target];
+  if (action !== 'run' && action !== 'build' && action !== 'boot') return [action];
+  // boot takes no entry file at all — nothing is loaded into the machine —
+  // so it shares run's own `[action, target]` shape rather than needing one
+  // of its own.
+  const args = action === 'build' ? ['build', '--target', target] : [action, target];
   if (region === 'pal' && MACHINE_TARGETS.has(target)) args.push('--pal');
   if (hardware) args.push(...hardwareArgs(hardware));
   return args;
@@ -657,6 +671,7 @@ module.exports = {
   CONFIG_FILE,
   DEFAULT_ENTRY,
   MACHINE_TARGETS,
+  NO_BARE_EMULATOR,
   KINDS,
   byKind,
   cliPackageDir,

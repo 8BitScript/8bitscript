@@ -74,6 +74,8 @@ export const FACTS = new Map([
   ['video.spriteHeight', count('build', 'Pixels down the largest hardware sprite.')],
   ['video.spriteColors', count('build', 'Colours one hardware sprite can hold, not counting transparent.')],
   ['video.frameRate', count('build', 'Display refreshes a second, for timing a screenshot; not on the sheet, the machine may be NTSC or PAL at run time.', false)],
+  ['video.characterSetSwapped', flag('build', 'The two-set character ROM\'s upper/lower-case halves are the other way round from every other model (measured against the real ROM: the original PET 2001\'s 901447-08 only) — packages/pet/src/text.8bs\'s own asciiToScreenCode reads this, not a program.', false)],
+  ['memory.chrget', count('build', 'Zero-page address of BASIC\'s CHRGET routine (24 bytes): $70 on BASIC 2/4, $C2 on BASIC 1 (the original PET 2001). The native backend leaves that window alone so a SYS return still has an interpreter. Not on the program sheet.', false)],
   // Audio: the chip's shape.
   ['audio.voices', count('build', 'Voices the sound hardware plays at once.')],
   ['audio.noise', flag('build', 'A noise voice exists.')],

@@ -38,12 +38,12 @@ const path = require('path');
 const vscode = require('vscode');
 
 const {
-  ALL_TARGETS, MACHINE_TARGETS, byKind, commandArgs,
+  ALL_TARGETS, MACHINE_TARGETS, NO_BARE_EMULATOR, byKind, commandArgs,
 } = require('./projects.cjs');
 const { labelOf, whereLabel } = require('./runner.cjs');
 const settings = require('./settings.cjs');
 const {
-  effectiveFacts, effectiveOptions, matchesSystem, selectionLabel,
+  effectiveFacts, effectiveOptions, matchesSystem, presetBundle, selectionLabel,
 } = require('./hardwareCatalog.cjs');
 
 const VIEW_ID = '8bitscript.launcher';
@@ -99,10 +99,8 @@ class LauncherViewProvider {
       case 'launch': {
         const project = this.selectedProject();
         if (!project) return;
-        await vscode.commands.executeCommand(
-          message.action === 'build' ? '8bitscript.build' : '8bitscript.run',
-          { project, target: settings.getSystem() },
-        );
+        const commandId = { build: '8bitscript.build', boot: '8bitscript.boot' }[message.action] ?? '8bitscript.run';
+        await vscode.commands.executeCommand(commandId, { project, target: settings.getSystem() });
         return;
       }
       case 'stop':
@@ -172,9 +170,16 @@ class LauncherViewProvider {
         if (message.value === 'ntsc' || message.value === 'pal') await settings.setRegion(message.value);
         break;
       case 'profile': {
-        const system = settings.getSystem();
-        const current = settings.getHardware(system);
-        await settings.setHardware(system, { ...current, profile: message.value || null });
+        // A profile is picked as a clean slate, not layered onto whatever
+        // was clicked before it: effectiveOptions applies an explicit
+        // option *after* a profile's own values, so a stale model=8032
+        // from an earlier session would otherwise silently outrank every
+        // profile picked since — picking "2001" under Preset would set
+        // profile to 2001 while the Model dropdown kept showing 8032, with
+        // nothing on the page saying why. Dropping `options` here matches "Back to
+        // stock" below: picking a preset means exactly that preset's own
+        // bundle, until something is explicitly changed on top of it again.
+        await settings.setHardware(settings.getSystem(), { profile: message.value || null, options: {} });
         break;
       }
       case 'option': {
@@ -215,6 +220,10 @@ class LauncherViewProvider {
     const selection = settings.getEffectiveHardware(system, target);
     const region = settings.getRegion();
     const machine = MACHINE_TARGETS.has(system);
+    // Whether Boot has a real emulator to open — a different question
+    // from `machine` above (which is only about an NTSC/PAL choice, and
+    // excludes the PET on purpose): every target but `web` opens one.
+    const bootable = !NO_BARE_EMULATOR.has(system);
     const runnable = Boolean(project?.targets.includes(system) && project.toolchain);
     // The system the panel is *on*, when what is selected is exactly one
     // of the project's — then the button names it instead of spelling the
@@ -234,6 +243,7 @@ class LauncherViewProvider {
       region,
       regionLabel: machine ? settings.regionShort(region) : '',
       machine,
+      bootable,
       runnable,
       // Both, when both: a broken `systems` block does not stop a run,
       // and the reason a run is stopped is not the block.
@@ -361,14 +371,18 @@ function hardwareState(target, targets, selection) {
   if (!target) return null;
   const project = Object.keys(target.profiles ?? {});
   const catalog = Object.keys(target.presets ?? {}).filter((id) => !project.includes(id));
+  const label = (id) => {
+    const bundle = presetBundle(target, id);
+    return bundle ? `${id}  —  ${bundle}` : id;
+  };
   const profiles = [{ id: '', label: 'Stock machine' }];
   if (project.length > 0) {
     profiles.push({ group: 'This project' });
-    for (const id of project) profiles.push({ id, label: id });
+    for (const id of project) profiles.push({ id, label: label(id) });
   }
   if (catalog.length > 0) {
     profiles.push({ group: 'Catalog presets' });
-    for (const id of catalog) profiles.push({ id, label: id });
+    for (const id of catalog) profiles.push({ id, label: label(id) });
   }
   return {
     profiles,
@@ -398,6 +412,9 @@ const ICONS = {
   build: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M10 1a4 4 0 0 0-3.8 5.2L1.4 11a1.4 1.4 0 0 0 2 2l4.8-4.8A4 4 0 1 0 10 1zm0 1.5c.4 0 .8.1 1.1.3L9.3 4.6l1.1 1.1 1.8-1.8A2.5 2.5 0 0 1 10 7.5c-.4 0-.8-.1-1.1-.3l-.6-.3-5 5a.4.4 0 0 1-.5-.5l5-5-.3-.6A2.5 2.5 0 0 1 10 2.5z"/></svg>',
   file: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M9.5 1H3.8C3.4 1 3 1.4 3 1.9v12.2c0 .5.4.9.8.9h8.4c.4 0 .8-.4.8-.9V4.8L9.5 1zm0 1.6L11.9 5H9.5V2.6zM4 14V2h4.5v3.5c0 .3.2.5.5.5h3v8H4z"/></svg>',
   stop: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M4 4h8v8H4z"/></svg>',
+  // A bare chip: the body, and pins — the hardware with nothing running on
+  // it yet, as opposed to `build`'s wrench (turning source into bytes).
+  chip: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M5 1h1v2H5V1zm5 0h1v2h-1V1zM5 13h1v2H5v-2zm5 0h1v2h-1v-2zM1 5h2v1H1V5zm0 5h2v1H1v-1zm12-5h2v1h-2V5zm0 5h2v1h-2v-1zM4 4h8v8H4V4z"/></svg>',
 };
 
 function html(webview) {
@@ -449,11 +466,15 @@ function html(webview) {
       </select>
     </div>
     <div class="field">
-      <label class="field-label" for="profile">Fitted with</label>
+      <label class="field-label" for="profile">Preset</label>
       <select id="profile" title="A preset: stock, a catalog preset, or one this project composes in its 8bs.config.ts"></select>
     </div>
     <div id="options"></div>
   </details>
+
+  <button class="wide secondary" id="boot" title="Boot the selected system's emulator with nothing loaded — just the hardware">
+    ${ICONS.chip} <span id="boot-label">Boot Machine</span>
+  </button>
 
   <section class="running" id="running" hidden>
     <h2 class="section-label">Running</h2>

@@ -10,6 +10,9 @@
 // index.ts`'s own `allocate()` is right for globals — assigned once, never
 // reused — but wrong for this, which is why this is a new, small class
 // rather than a reuse of that one.)
+import { placeZp } from '../zp/index.ts';
+import type { ZpHole } from '../zp/index.ts';
+
 export class ZpBudgetError extends Error {}
 
 function hex(value: number): string {
@@ -19,12 +22,14 @@ function hex(value: number): string {
 export class LocalAllocator {
   private readonly origin: number;
   private readonly ceiling: number;
+  private readonly holes: ZpHole[];
   private next: number;
   private high: number;
 
-  constructor(origin: number, ceiling: number) {
+  constructor(origin: number, ceiling: number, holes: ZpHole[] = []) {
     this.origin = origin;
     this.ceiling = ceiling;
+    this.holes = holes;
     this.next = origin;
     this.high = origin;
   }
@@ -50,16 +55,15 @@ export class LocalAllocator {
   }
 
   private allocBytes(size: 1 | 2, what: string): number {
-    if (this.next + size > this.ceiling) {
-      const remaining = this.ceiling - this.next;
+    const placed = placeZp(this.next, size, this.ceiling, this.holes);
+    if (!placed.ok) {
       throw new ZpBudgetError(
-        `${what} needs ${size} byte${size === 1 ? '' : '(s)'} of zero page but only ${remaining} byte(s) remain (${hex(this.next)}..${hex(this.ceiling - 1)})`,
+        `${what} needs ${size} byte${size === 1 ? '' : '(s)'} of zero page but only ${placed.remaining} byte(s) remain (${hex(placed.cursor)}..${hex(this.ceiling - 1)})`,
       );
     }
-    const address = this.next;
-    this.next += size;
+    this.next = placed.next;
     this.high = Math.max(this.high, this.next);
-    return address;
+    return placed.address;
   }
 
   /** The most zero page ever live at once — what the linker needs to reserve, not just what's held at the end. */

@@ -6,7 +6,7 @@ export default {
   entry: 'src/main.8bs',
   targets: { pet: {}, web: {} },
   systems: {
-    'PET 3032': { target: 'pet' },
+    'PET 3032': { target: 'pet', profile: '3032' },
     'PET 8032': { target: 'pet', profile: '8032' },
     'The browser': { target: 'web' },
   },

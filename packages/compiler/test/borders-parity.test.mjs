@@ -14,6 +14,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { MACHINES, link, tokenize, parse, lower } from '../index.mjs';
+import { loadCatalog, resolveHardware, stockFacts } from '../../cli/src/hardware.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CONSUMER = join(HERE, '..', '..', 'studio', 'src', 'main.8bs');
@@ -74,7 +75,7 @@ for (const machine of MACHINES) {
     // the way a program reads them — inlined into a use.
     const src = 'import { text } from "@8bitscript/text";\n'
       + 'export function main(): void { memory.write(0, text.CELL_COUNT); memory.write(1, text.COLUMNS); }\n';
-    const { ir, diagnostics } = link(src, CONSUMER, { machine });
+    const { ir, diagnostics } = link(src, CONSUMER, { machine, facts: stockFacts(machine) });
     assert.deepEqual(diagnostics, []);
     const main = ir.functions.find((f) => f.name === 'main');
     const [cells, columns] = main.body.map((s) => s.value.value);
@@ -85,23 +86,25 @@ for (const machine of MACHINES) {
 
 // ---- the character codes are ASCII everywhere -----------------------------
 //
-// 'T' is 84 on every machine. The Commodore packages turn that into screen
-// code 20 on the way to screen memory and re-select the upper-case
+// 'T' is 84 on every machine. vic20/c64/c128/mega65 turn that into screen
+// code 20 on the way to screen memory and re-select the upper-case-only
 // character set as they do — through the register their index.8bs exports;
-// the NES, Atari, and X16 take 84 as it is.
+// the NES, Atari, and X16 take 84 as it is. The PET is different since its
+// own milestone-10-era mixed-case rework (below): its own text character
+// set holds both cases at once, so 'T' (already inside its own upper-case
+// range there) needs no offset at all — see the dedicated PET test below.
 
 const T_CONSUMER = 'import { text } from "@8bitscript/text";\nexport function main(): void { text.putChar(0, 84); }';
 
-test('the Commodore packages map ASCII to screen codes and select the upper-case set', () => {
+test('vic20/c64/c128/mega65 map ASCII to screen codes and select the upper-case-only set', () => {
   const charset = {
     vic20: { global: 'memoryPointer', address: 0x9005, value: 240 },
     c64: { global: 'memoryPointer', address: 0xD018, value: 132 },
     c128: { global: 'memoryPointerShadow', address: 0xA2C, value: 20, also: { global: 'memoryPointer', value: 20 } },
     mega65: { global: 'memoryPointer', address: 0xD018, value: 36 },
-    pet: { global: 'viaPeripheralControl', address: 0xE84C, value: 12 },
   };
   for (const [machine, expect] of Object.entries(charset)) {
-    const { ir, diagnostics } = link(T_CONSUMER, CONSUMER, { machine });
+    const { ir, diagnostics } = link(T_CONSUMER, CONSUMER, { machine, facts: stockFacts(machine) });
     assert.deepEqual(diagnostics, [], machine);
     const ascii = ir.functions.find((f) => f.name === 'asciiToScreenCode');
     assert.ok(ascii, `${machine}: no ASCII-to-screen-code mapping`);
@@ -122,6 +125,67 @@ test('the Commodore packages map ASCII to screen codes and select the upper-case
     assert.equal(main.body[0].name, 'text_putChar');
     assert.deepEqual(main.body[0].args.map((a) => a.value), [0, 84]);
   }
+});
+
+// The PET holds both cases at once in its own text character set
+// (measured directly against the ROM, packages/pet/src/text.8bs's own
+// header) — a real design divergence from the other four Commodore
+// packages above, not a bug: 'A'-'Z' (65-90) need no offset at all on
+// every model but the 2001 (already the text set's own upper-case range),
+// 'a'-'z' (97-122) drop by 96 to reach 1-26, and prepare() selects the
+// text set (0x0E), not the upper-case-only graphics set (0x0C) the others
+// still force. The 2001's own 901447-08 ROM has the two cases the other
+// way round (text.8bs's own header again) — #fact(video.characterSetSwapped),
+// true only there, picks the -64/-32 offsets instead; the fold pass folds
+// the fact to a literal but does not eliminate the untaken branch's own
+// statements from the IR, so asciiToScreenCode's body is one outer `if`
+// wrapping both shapes on every profile, not just the swapped one.
+test('the PET maps both ASCII cases to its own text character set, and selects it — the 2001 differently from every other model', () => {
+  const nonSwapped = resolveHardware(loadCatalog('pet'), { profile: '3032' }).hardware.facts;
+  const { ir, diagnostics } = link(T_CONSUMER, CONSUMER, { machine: 'pet', facts: nonSwapped });
+  assert.deepEqual(diagnostics, []);
+  const ascii = ir.functions.find((f) => f.name === 'asciiToScreenCode');
+  assert.ok(ascii, 'pet: no ASCII-to-screen-code mapping');
+  assert.equal(ascii.body[0].kind, 'if');
+  assert.deepEqual(ascii.body[0].test, { kind: 'const', value: 0, type: 'bool' }, 'video.characterSetSwapped folds to false on a non-2001 profile');
+  assert.equal(ascii.body[0].else, null, 'the swapped branch always returns — the normal mapping follows in source order, not in an else');
+  const normal = ascii.body.slice(1);
+  assert.equal(normal[0].kind, 'if');
+  assert.equal(normal[0].test.operator, '&&');
+  assert.deepEqual(normal[0].test.left.right, { kind: 'const', value: 65, type: 'utinyint' });
+  assert.deepEqual(normal[0].test.right.right, { kind: 'const', value: 91, type: 'utinyint' });
+  assert.equal(normal[0].then[0].value.kind, 'ref', 'A-Z passes through unchanged');
+  assert.equal(normal[0].then[0].value.name, 'code');
+  assert.equal(normal[1].kind, 'if');
+  assert.deepEqual(normal[1].test.left.right, { kind: 'const', value: 97, type: 'utinyint' });
+  assert.deepEqual(normal[1].test.right.right, { kind: 'const', value: 123, type: 'utinyint' });
+  assert.equal(normal[1].then[0].value.operator, '-');
+  assert.deepEqual(normal[1].then[0].value.right, { kind: 'const', value: 96, type: 'utinyint' }, 'a-z drops by 96 to reach 1-26');
+
+  const g = ir.globals.find((x) => x.name === 'viaPeripheralControl');
+  assert.equal(g.address, 0xE84C);
+  const prepare = ir.functions.find((f) => f.name === 'prepare');
+  const assign = prepare.body.find((s) => s.kind === 'assign' && s.target === 'viaPeripheralControl');
+  assert.equal(assign.value.value, 0x0E, 'pet: prepare() must select the text set, not the graphics/upper-case-only one');
+
+  const main = ir.functions.find((f) => f.name === 'main');
+  assert.equal(main.body[0].name, 'text_putChar');
+  assert.deepEqual(main.body[0].args.map((a) => a.value), [0, 84]);
+});
+
+test('the 2001\'s own 901447-08 ROM swaps the text set\'s two cases, and asciiToScreenCode picks the offsets that ROM needs', () => {
+  const swapped = resolveHardware(loadCatalog('pet'), { profile: '2001' }).hardware.facts;
+  const { ir, diagnostics } = link(T_CONSUMER, CONSUMER, { machine: 'pet', facts: swapped });
+  assert.deepEqual(diagnostics, []);
+  const ascii = ir.functions.find((f) => f.name === 'asciiToScreenCode');
+  assert.deepEqual(ascii.body[0].test, { kind: 'const', value: 1, type: 'bool' }, 'video.characterSetSwapped folds to true on the 2001');
+  const swappedBody = ascii.body[0].then;
+  assert.equal(swappedBody[0].kind, 'if');
+  assert.equal(swappedBody[0].then[0].value.operator, '-');
+  assert.deepEqual(swappedBody[0].then[0].value.right, { kind: 'const', value: 64, type: 'utinyint' }, 'A-Z drops by 64 — upper case stays at 1-26 on this ROM');
+  assert.equal(swappedBody[1].kind, 'if');
+  assert.equal(swappedBody[1].then[0].value.operator, '-');
+  assert.deepEqual(swappedBody[1].then[0].value.right, { kind: 'const', value: 32, type: 'utinyint' }, 'a-z drops by 32 — lower case moves to 65-90 on this ROM only');
 });
 
 test('the NES text grid is the 28x26 area inside the drawn frame', () => {
@@ -151,7 +215,7 @@ test('the NES text grid is the 28x26 area inside the drawn frame', () => {
 test('a program that imports only @8bitscript/screen links for every machine', () => {
   const src = 'import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";\nexport function main(): void { screen.setColors(BorderColor.BLUE, BackgroundColor.BLACK); }';
   for (const machine of MACHINES) {
-    const { ir, diagnostics } = link(src, CONSUMER, { machine });
+    const { ir, diagnostics } = link(src, CONSUMER, { machine, facts: stockFacts(machine) });
     assert.deepEqual(diagnostics, [], machine);
     assert.ok(!ir.functions.some((f) => f.name === 'text_putChar'), `${machine}: text was linked without being imported`);
   }
@@ -159,7 +223,7 @@ test('a program that imports only @8bitscript/screen links for every machine', (
 
 test('a program that imports only @8bitscript/text links for every machine', () => {
   for (const machine of MACHINES) {
-    const { ir, diagnostics } = link(T_CONSUMER, CONSUMER, { machine });
+    const { ir, diagnostics } = link(T_CONSUMER, CONSUMER, { machine, facts: stockFacts(machine) });
     assert.deepEqual(diagnostics, [], machine);
     assert.ok(!ir.functions.some((f) => f.name === 'screen_setColors'), `${machine}: screen was linked without being imported`);
   }

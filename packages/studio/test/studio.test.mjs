@@ -140,7 +140,7 @@ test('Studio is set up for the machines this release builds for, and keeps the p
   // Live: the two machines 0.2.0 builds for, as bare machines and as systems.
   assert.match(config, /^    pet: \{\},$/m);
   assert.match(config, /^    web: \{\},$/m);
-  assert.match(config, /^    'PET 3032': \{ target: 'pet' \},$/m);
+  assert.match(config, /^    'PET 3032': \{ target: 'pet', profile: '3032' \},$/m);
   assert.match(config, /^    'PET 8032': \{ target: 'pet', profile: '8032' \},$/m);
   assert.match(config, /^    'The browser': \{ target: 'web' \},$/m);
   // Parked, not forgotten: the mouse arrangements wait as comments so they

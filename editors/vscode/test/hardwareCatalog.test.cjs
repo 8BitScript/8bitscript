@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 
 const {
   effectiveFacts, effectiveOptions, hardwareArgs, matchesSystem, normalizeSelection, parseTargets,
-  selectionLabel, worstSelection,
+  presetBundle, selectionLabel, worstSelection,
 } = require('../src/hardwareCatalog.cjs');
 
 const SAMPLE = JSON.stringify({
@@ -162,4 +162,43 @@ test('worstSelection is a no-op on a machine with no memory.ram-varying option',
 test('worstSelection leaves an option alone when its lowest value is already the default', () => {
   const target = { options: { model: { default: '3008', values: { 3008: { facts: { 'memory.ram': 7167 } }, 3032: { facts: { 'memory.ram': 31743 } } } } } };
   assert.deepEqual(worstSelection(target), { profile: null, options: {} });
+});
+
+test('presetBundle names what a preset sets beyond its own name, so a dropdown label can show it before it is chosen', () => {
+  const target = {
+    options: {
+      ram: { default: 'none', values: { none: {}, '512kib': {} } },
+      port1: { default: 'none', values: { none: {}, mouse1351: {} } },
+    },
+    presets: { reu512: { ram: '512kib' } },
+    profiles: {},
+  };
+  assert.equal(presetBundle(target, 'reu512'), 'ram=512kib');
+});
+
+test('presetBundle is empty for a preset that only restates its own option\'s own catalog default — nothing to show beyond its name', () => {
+  const c64 = parseTargets(SAMPLE).get('c64');
+  assert.equal(presetBundle(c64, 'stock'), '');
+});
+
+test('presetBundle resolves a project profile the same way effectiveOptions does — a profile shadows a catalog preset of the same name', () => {
+  const c64 = parseTargets(SAMPLE).get('c64');
+  // reu512 exists as both a catalog preset (ram: 'reu512') and this
+  // fixture's own project profile (ram: 'none', port1: 'mouse1351') — the
+  // profile wins, the same shadowing effectiveOptions/resolveHardware
+  // already establish, so the label reflects what --profile reu512
+  // actually runs, not the catalog's own same-named preset underneath it.
+  assert.equal(presetBundle(c64, 'reu512'), 'port1=mouse1351');
+});
+
+test('presetBundle excludes an option whose resolved value equals the preset\'s own id — a preset named after a model does not repeat "model=itself" in its own bundle', () => {
+  const target = {
+    options: {
+      model: { default: '3032', values: { 3008: {}, 3032: {} } },
+      ram: { default: '4', values: { 4: {}, 16: {} } },
+    },
+    presets: { 3008: { model: '3008', ram: '16' } },
+    profiles: {},
+  };
+  assert.equal(presetBundle(target, '3008'), 'ram=16');
 });

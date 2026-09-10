@@ -167,6 +167,14 @@ test('commandArgs spells the same commands a person would type', () => {
   );
   assert.deepEqual(commandArgs('build', 'pet', 'pal', { profile: '8032', options: {} }), ['build', '--target', 'pet', '--profile', '8032']);
   assert.deepEqual(commandArgs('run', 'vic20', 'pal', { profile: null, options: {} }), ['run', 'vic20', '--pal']);
+  // boot shares run's own [action, target] shape — no entry file, ever —
+  // and fits the same hardware on top.
+  assert.deepEqual(commandArgs('boot', 'pet', 'ntsc'), ['boot', 'pet']);
+  assert.deepEqual(commandArgs('boot', 'pet', 'pal'), ['boot', 'pet'], 'the PET has no region here either');
+  assert.deepEqual(
+    commandArgs('boot', 'pet', 'ntsc', { profile: '8032', options: {} }),
+    ['boot', 'pet', '--profile', '8032'],
+  );
 });
 
 test('parseConfig reads the object form of targets — the machines composing profiles — at depth one only', () => {

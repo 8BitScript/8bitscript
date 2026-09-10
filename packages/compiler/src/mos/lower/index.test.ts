@@ -7,6 +7,7 @@ import { LocalAllocator } from './allocator.ts';
 import { assemble } from '../asm/assemble.ts';
 import type { Directive } from '../asm/assemble.ts';
 import { arrayLabel, stringLabel } from '../data.ts';
+import { WAIT_FRAME_LABEL } from '../startup/waitframe.ts';
 
 // A fresh, generously-budgeted context for a test that doesn't care about
 // the zero-page ceiling — most of them. Tests that do care build their own.
@@ -388,6 +389,51 @@ test('>, <=, >=, and != as if-tests assemble; a bool local used as a condition i
   if (!onFlag.ok) return;
   assembles(onFlag.program);
   assert.ok(mnemonicsOf(onFlag.program).includes('BNE') || mnemonicsOf(onFlag.program).includes('BEQ'));
+});
+
+// `>=` is A > B *or* A == B — an OR of two flag tests, unlike `<` (A > B
+// *and* not-equal, which the same-shaped AND template correctly handles —
+// see ORDER_BRANCH_IF_TRUE's own header comment). Reusing that AND-shaped
+// "skip one, take the other" template for `>=`'s OR condition is a
+// silent-wrong-answer bug, not a refusal: `code < 91` as the second half
+// of `code >= 65 && code < 91` (`comparisonBranch` reaches `>=` by
+// negating `<` for the "skip the whole if" case) used to return `true`
+// for every `code` from 91 up to 255, because one of the two branches
+// pointed at a label placed so falling through it landed on the "true"
+// path anyway — found building milestone 10's PET mixed-case text
+// (packages/pet/src/text.8bs), where it let 'h' (104) through the
+// "already upper case" branch of asciiToScreenCode unconverted.
+test('>= is an OR of two flag tests, not the AND-shaped template < uses: both branches land on the same target, no live path skips it', () => {
+  const env = ctx([['a', { address: 0x10, type: 'utinyint' }]]);
+  // Materialised as a value (wantTrue=true, operator >= used directly —
+  // the other way to reach the buggy path besides negating <).
+  const asValue = lower([local('ok', bool('>=', ref('a'), u8(91)), 'bool')], env);
+  assert.equal(asValue.ok, true, asValue.ok ? '' : asValue.error);
+  if (!asValue.ok) return;
+  assembles(asValue.program);
+  const branches = asValue.program.filter((d): d is Directive & { kind: 'instruction'; operand: { kind: 'label'; name: string } } =>
+    d.kind === 'instruction' && (d.mnemonic === 'BCC' || d.mnemonic === 'BEQ') && d.operand?.kind === 'label');
+  assert.equal(branches.length, 2, 'exactly one BCC and one BEQ implement the OR');
+  assert.equal(branches[0].operand.name, branches[1].operand.name, 'both branch straight to the same "true" target — no intermediate label for either to fall into "false" through');
+
+  // The real regression shape: `code >= 65 && code < 91` as an if-test
+  // with no else — `code < 91` reaches `comparisonBranch` as `>=`'s own
+  // negation (wantTrue=false, "skip the whole if" on a false clause).
+  const ifTest = lower(
+    [ifNode(bool('&&', bool('>=', ref('a'), u8(65)), bool('<', ref('a'), u8(91))), [write(0x8000, 1)])],
+    env,
+  );
+  assert.equal(ifTest.ok, true, ifTest.ok ? '' : ifTest.error);
+  if (!ifTest.ok) return;
+  assembles(ifTest.program);
+  // Simulating the actual compare by hand for a value like 104 ('h') —
+  // where the bug's own symptom was real (the "true"/then-body path taken
+  // on carry-clear alone, when it should not have been) — needs a 6502
+  // interpreter this repo does not have (mos/AGENTS.md). The structural
+  // check above (both branches landing on the same target) is the
+  // narrowest thing a unit test can assert directly; the real proof is
+  // packages/examples/hello-world's own screenshotted build, run for
+  // real against all seven PET models this milestone touches.
 });
 
 test('continue jumps to the loop\'s continue label — the top of a while, the update of a for', () => {
@@ -958,4 +1004,32 @@ test('a ref/assign to a global pinned above $00FF uses absolute mode, not zeropa
   assert.equal(write2.mode, 'absolute');
   assert.equal(write2.operand!.kind === 'value' ? write2.operand!.value : -1, 0xe84c);
   assembles(writeResult.program);
+});
+
+// ---- milestone 10: waitFrame() ---------------------------------------
+
+test('waitFrame() lowers to a single JSR to the shared runtime subroutine — no inline pacing code at the call site', () => {
+  const options = ctx();
+  const result = lower([{ kind: 'waitFrame' }], options);
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  const call = instruction(result.program[0]);
+  assert.equal(call.mnemonic, 'JSR');
+  assert.equal(call.mode, 'absolute');
+  assert.deepEqual(call.operand, { kind: 'label', name: WAIT_FRAME_LABEL });
+  // The label itself is defined by mos/startup/waitframe.ts's own
+  // waitFrameRoutine(), not by this lowering — supplied here only so this
+  // program is real, assemblable 6502 on its own.
+  assembles([...result.program, { kind: 'label', name: WAIT_FRAME_LABEL }]);
+});
+
+test('two waitFrame() calls in a row both JSR the same shared label — one runtime subroutine, not one per call site', () => {
+  const options = ctx();
+  const result = lower([{ kind: 'waitFrame' }, { kind: 'waitFrame' }], options);
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  const first = instruction(result.program[0]);
+  const second = instruction(result.program[1]);
+  assert.deepEqual(first.operand, second.operand);
+  assert.equal(first.operand!.kind === 'label' ? first.operand!.name : '', WAIT_FRAME_LABEL);
 });

@@ -71,3 +71,13 @@ test('alloc16 participates in mark/release like alloc does', () => {
   a.release(mark);
   assert.equal(a.alloc16('reused'), 0x90);
 });
+
+test('a hole is skipped, and a 2-byte alloc will not straddle it', () => {
+  const holes = [{ start: 0xc2, end: 0xda }];
+  const a = new LocalAllocator(0xc0, 0x100, holes);
+  assert.equal(a.alloc('before'), 0xc0);
+  assert.equal(a.alloc('lastBefore'), 0xc1);
+  assert.equal(a.alloc('after'), 0xda);
+  const b = new LocalAllocator(0xc1, 0x100, holes);
+  assert.equal(b.alloc16('pair'), 0xda, 'a 2-byte slot at $C1 would put the high byte in CHRGET');
+});

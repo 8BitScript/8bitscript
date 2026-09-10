@@ -40,7 +40,8 @@
         "video.spriteHeight": 0,
         "video.spriteColors": 0,
         "video.frameRate": 60,
-        "audio.voices": 1,
+        "video.characterSetSwapped": false,
+        "audio.voices": 0,
         "audio.noise": false,
         "audio.envelope": false,
         "audio.filter": false,
@@ -53,44 +54,36 @@
         "input.mouse": false,
         "input.paddles": false,
         "storage.save": true,
-        "memory.ram": 31743,
+        "memory.ram": 3071,
         "memory.banked": false,
         "memory.bankedKib": 0,
+        "memory.chrget": 112,
         "storage.kib": 166
       },
       "options": {
         "model": {
           "label": "Model",
-          "default": "3032",
+          "default": "2001",
           "values": {
             "2001": {
-              "label": "2001: 40 columns, 4K",
-              "build": {
-                "defsym": {
-                  "__ram_size": 4
-                }
-              },
+              "label": "2001: 40 columns, no CRTC, ~60 Hz",
+              "build": {},
               "run": {
                 "xpet": [
                   "-model",
-                  "2001",
-                  "-ramsize",
-                  "4"
+                  "2001"
                 ]
               },
               "facts": {
                 "video.columns": 40,
-                "memory.ram": 3071,
-                "video.frameRate": 60
+                "video.frameRate": 60,
+                "video.characterSetSwapped": true,
+                "memory.chrget": 194
               }
             },
             "3008": {
-              "label": "3008: 40 columns, 8K",
-              "build": {
-                "defsym": {
-                  "__ram_size": 8
-                }
-              },
+              "label": "3008: 40 columns, no CRTC, ~60 Hz",
+              "build": {},
               "run": {
                 "xpet": [
                   "-model",
@@ -99,17 +92,12 @@
               },
               "facts": {
                 "video.columns": 40,
-                "memory.ram": 7167,
                 "video.frameRate": 60
               }
             },
             "3016": {
-              "label": "3016: 40 columns, 16K",
-              "build": {
-                "defsym": {
-                  "__ram_size": 16
-                }
-              },
+              "label": "3016: 40 columns, no CRTC, ~60 Hz",
+              "build": {},
               "run": {
                 "xpet": [
                   "-model",
@@ -118,17 +106,12 @@
               },
               "facts": {
                 "video.columns": 40,
-                "memory.ram": 15359,
                 "video.frameRate": 60
               }
             },
             "3032": {
-              "label": "3032: 40 columns, 32K, no CRTC, ~60 Hz",
-              "build": {
-                "defsym": {
-                  "__ram_size": 32
-                }
-              },
+              "label": "3032: 40 columns, no CRTC, ~60 Hz",
+              "build": {},
               "run": {
                 "xpet": [
                   "-model",
@@ -137,17 +120,12 @@
               },
               "facts": {
                 "video.columns": 40,
-                "memory.ram": 31743,
                 "video.frameRate": 60
               }
             },
             "4016": {
-              "label": "4016: 40 columns, 16K, CRTC, 50 Hz",
-              "build": {
-                "defsym": {
-                  "__ram_size": 16
-                }
-              },
+              "label": "4016: 40 columns, CRTC, 50 Hz",
+              "build": {},
               "run": {
                 "xpet": [
                   "-model",
@@ -156,17 +134,12 @@
               },
               "facts": {
                 "video.columns": 40,
-                "memory.ram": 15359,
                 "video.frameRate": 50
               }
             },
             "4032": {
-              "label": "4032: 40 columns, 32K, CRTC, 50 Hz",
-              "build": {
-                "defsym": {
-                  "__ram_size": 32
-                }
-              },
+              "label": "4032: 40 columns, CRTC, 50 Hz",
+              "build": {},
               "run": {
                 "xpet": [
                   "-model",
@@ -175,17 +148,12 @@
               },
               "facts": {
                 "video.columns": 40,
-                "memory.ram": 31743,
                 "video.frameRate": 50
               }
             },
             "8032": {
-              "label": "8032: 80 columns, 32K, business keyboard, 50 Hz",
-              "build": {
-                "defsym": {
-                  "__ram_size": 32
-                }
-              },
+              "label": "8032: 80 columns, CRTC, business keyboard, 50 Hz",
+              "build": {},
               "run": {
                 "xpet": [
                   "-model",
@@ -194,26 +162,203 @@
               },
               "facts": {
                 "video.columns": 80,
-                "memory.ram": 31743,
                 "video.frameRate": 50
+              }
+            }
+          }
+        },
+        "ram": {
+          "label": "RAM",
+          "default": "4",
+          "values": {
+            "4": {
+              "label": "4 KiB — the 2001's own stock RAM, the smallest real PET",
+              "build": {
+                "defsym": {
+                  "__ram_size": 4
+                }
+              },
+              "run": {
+                "xpet": [
+                  "-ramsize",
+                  "4"
+                ]
+              },
+              "facts": {
+                "memory.ram": 3071
+              }
+            },
+            "8": {
+              "label": "8 KiB — the 3008's own stock RAM, and a common on-board 2001 upgrade",
+              "build": {
+                "defsym": {
+                  "__ram_size": 8
+                }
+              },
+              "run": {
+                "xpet": [
+                  "-ramsize",
+                  "8"
+                ]
+              },
+              "facts": {
+                "memory.ram": 7167
+              }
+            },
+            "16": {
+              "label": "16 KiB — the 3016/4016's own stock RAM",
+              "build": {
+                "defsym": {
+                  "__ram_size": 16
+                }
+              },
+              "run": {
+                "xpet": [
+                  "-ramsize",
+                  "16"
+                ]
+              },
+              "facts": {
+                "memory.ram": 15359
+              }
+            },
+            "32": {
+              "label": "32 KiB — the 3032/4032/8032's own stock RAM, and the on-board maximum for every board this catalog supports",
+              "build": {
+                "defsym": {
+                  "__ram_size": 32
+                }
+              },
+              "run": {
+                "xpet": [
+                  "-ramsize",
+                  "32"
+                ]
+              },
+              "facts": {
+                "memory.ram": 31743
+              }
+            }
+          }
+        },
+        "speaker": {
+          "label": "Speaker",
+          "default": "none",
+          "values": {
+            "none": {
+              "label": "None — stock on the non-CRTC 2001/3008/3016/3032, which have no speaker at all",
+              "build": {},
+              "run": {
+                "xpet": [
+                  "+sound"
+                ]
+              },
+              "facts": {
+                "audio.voices": 0
+              }
+            },
+            "attached": {
+              "label": "Attached — built in on the CRTC 4016/4032/8032, or wired to the user port's CB2 pin on a 2001/3008/3016/3032 (the real \"user port speaker hack\")",
+              "build": {},
+              "run": {
+                "xpet": [
+                  "-sound"
+                ]
+              },
+              "facts": {
+                "audio.voices": 1
               }
             }
           }
         },
         "drive": {
           "label": "Disk drive",
-          "default": "4040",
+          "default": "none",
           "values": {
-            "4040": {
-              "label": "2040/4040 (170K disk)",
+            "none": {
+              "label": "No drive (tape or nothing)",
+              "build": {},
+              "run": {
+                "xpet": [
+                  "-drive8type",
+                  "0"
+                ]
+              },
+              "facts": {
+                "storage.save": false,
+                "storage.kib": 0
+              },
+              "tag": null
+            },
+            "2031": {
+              "label": "2031: single 5.25\" drive, IEEE-488, DOS 2.6 (164K)",
+              "build": {},
+              "run": {
+                "xpet": [
+                  "-drive8type",
+                  "2031"
+                ]
+              },
+              "facts": {
+                "storage.save": true,
+                "storage.kib": 164
+              },
+              "tag": null
+            },
+            "2040": {
+              "label": "2040: dual 5.25\" drive, IEEE-488, DOS 1, NTSC (166K/side)",
+              "build": {},
+              "run": {
+                "xpet": [
+                  "-drive8type",
+                  "2040"
+                ]
+              },
               "facts": {
                 "storage.save": true,
                 "storage.kib": 166
               },
               "tag": null
             },
+            "3040": {
+              "label": "3040: dual 5.25\" drive, IEEE-488, DOS 1, PAL (166K/side)",
+              "build": {},
+              "run": {
+                "xpet": [
+                  "-drive8type",
+                  "3040"
+                ]
+              },
+              "facts": {
+                "storage.save": true,
+                "storage.kib": 166
+              },
+              "tag": null
+            },
+            "4040": {
+              "label": "4040: dual 5.25\" drive, IEEE-488, DOS 2 (164K/side)",
+              "build": {},
+              "run": {
+                "xpet": [
+                  "-drive8type",
+                  "4040"
+                ]
+              },
+              "facts": {
+                "storage.save": true,
+                "storage.kib": 164
+              },
+              "tag": null
+            },
             "8050": {
-              "label": "8050 (520K disk)",
+              "label": "8050: dual 5.25\" drive, IEEE-488, DOS 2.5, high density (508K/side)",
+              "build": {},
+              "run": {
+                "xpet": [
+                  "-drive8type",
+                  "8050"
+                ]
+              },
               "facts": {
                 "storage.save": true,
                 "storage.kib": 508
@@ -221,18 +366,47 @@
               "tag": null
             },
             "8250": {
-              "label": "8250 (1M disk)",
+              "label": "8250: dual 5.25\" drive, IEEE-488, DOS 2.7, double-sided (1025K/side)",
+              "build": {},
+              "run": {
+                "xpet": [
+                  "-drive8type",
+                  "8250"
+                ]
+              },
               "facts": {
                 "storage.save": true,
                 "storage.kib": 1025
               },
               "tag": null
             },
-            "none": {
-              "label": "No drive (tape or nothing)",
+            "1001": {
+              "label": "SFD-1001: single 5.25\" drive, IEEE-488, DOS 2.7, double-sided (1025K)",
+              "build": {},
+              "run": {
+                "xpet": [
+                  "-drive8type",
+                  "1001"
+                ]
+              },
               "facts": {
-                "storage.save": false,
-                "storage.kib": 0
+                "storage.save": true,
+                "storage.kib": 1025
+              },
+              "tag": null
+            },
+            "9000": {
+              "label": "D9060/D9090: IEEE-488 hard drive (VICE emulates D9090 geometry, ~7.1MB)",
+              "build": {},
+              "run": {
+                "xpet": [
+                  "-drive8type",
+                  "9000"
+                ]
+              },
+              "facts": {
+                "storage.save": true,
+                "storage.kib": 7233
               },
               "tag": null
             }
@@ -241,25 +415,35 @@
       },
       "presets": {
         "2001": {
-          "model": "2001"
+          "model": "2001",
+          "ram": "4"
         },
         "3008": {
-          "model": "3008"
+          "model": "3008",
+          "ram": "8"
         },
         "3016": {
-          "model": "3016"
+          "model": "3016",
+          "ram": "16"
         },
         "3032": {
-          "model": "3032"
+          "model": "3032",
+          "ram": "32"
         },
         "4016": {
-          "model": "4016"
+          "model": "4016",
+          "ram": "16",
+          "speaker": "attached"
         },
         "4032": {
-          "model": "4032"
+          "model": "4032",
+          "ram": "32",
+          "speaker": "attached"
         },
         "8032": {
-          "model": "8032"
+          "model": "8032",
+          "ram": "32",
+          "speaker": "attached"
         }
       }
     }

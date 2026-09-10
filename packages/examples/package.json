@@ -14,7 +14,7 @@
       "hello-world": {
         "title": "Hello, World",
         "dir": "./hello-world",
-        "description": "text.print(0, \"HELLO WORLD\") through the portable text package. The 0.2.0 goal program, and the one this toolchain is built to run first — on the PET and in the browser."
+        "description": "screen.blank() then text.print(0, \"HELLO WORLD\") through the portable screen and text packages. The 0.2.0 goal program, and the one this toolchain is built to run first — on the PET and in the browser."
       }
     }
   },
@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "@8bitscript/pet": "workspace:*",
+    "@8bitscript/screen": "workspace:*",
     "@8bitscript/text": "workspace:*",
     "@8bitscript/web": "workspace:*"
   },
