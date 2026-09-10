@@ -120,8 +120,11 @@ test('compile() for web still names a real, specific gap for a construct nothing
     // memory.write or a string literal, which each start passing the
     // moment their own milestone lands, this fixture stays unsupported
     // for the rail's whole run, so this test doesn't need updating every
-    // time another milestone lands.
-    await writeFile(entry, 'let buf: array<utinyint, 4>;\nexport function main(): void {}\n');
+    // time another milestone lands. main has to actually touch buf: the
+    // compiler now prunes whatever the entry can't reach
+    // (linker/reachability.mjs), so an unreferenced global's own
+    // unsupported shape would otherwise never be seen at all.
+    await writeFile(entry, 'let buf: array<utinyint, 4>;\nexport function main(): void { buf[0] = 1; }\n');
     process.chdir(dir);
     const { result, stderr } = await capture(() => compile('web', entry));
     assert.equal(result.ok, false);

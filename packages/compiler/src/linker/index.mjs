@@ -18,11 +18,17 @@
 // first. References are rewritten module by module, which is also what makes
 // `import { x as y }` aliasing work.
 //
-// Two deliberate absences, on record:
-//   - No reachability pruning. Every module's globals and functions are
-//     emitted whether used or not. Hardware registers are #defines and cost
-//     nothing; on a 3583-byte VIC-20 unused *code* will eventually matter, and
-//     pruning earns its place when a package ships more than registers.
+// link() itself still emits every module's globals and functions whether
+// the entry reaches them or not — checkHardwareHazards runs against that
+// full set below (dead code with a dangerous write should still be caught),
+// and every existing caller that inspects a linked ir.functions/ir.globals
+// directly (mostly this file's own test suite) keeps seeing exactly what it
+// always has. Compiling only what's reachable is each backend's own job now
+// — see reachability.mjs, called right before lowering, once real numbers
+// (measured on hello-world, of all programs) showed unreachable *code*
+// mattering well before a package ships more than #define-cost registers.
+//
+// One deliberate absence still on record:
 //   - asm6502 text is never rewritten. Inline assembly that names a symbol
 //     sees the symbol's final, possibly-suffixed name — packages that ship
 //     assembly should prefer names unlikely to collide.

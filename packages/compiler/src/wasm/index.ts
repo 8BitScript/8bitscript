@@ -56,6 +56,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 import { storageBytes } from '../types/index.mjs';
+import { pruneUnreachable } from '../linker/reachability.mjs';
 import { ExternalKind, Mutability, Opcode, SectionId, ValType, activeDataSegment, assembleModule, encodeName, funcType, importFunc, limits, section, signedLEB128, unsignedLEB128, vector } from './encode.ts';
 import { lower } from './lower.ts';
 import type { IrStatement } from './lower.ts';
@@ -194,6 +195,11 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   const entryFn = ir.functions.find((fn) => fn.name === ir.entry);
   if (!entryFn) return { ok: false, error: `the linked entry point '${ir.entry}' names no function in ir.functions` };
 
+  // Everything from here on compiles only what the entry can actually
+  // reach — see linker/reachability.mjs's own header, and mos/index.ts's
+  // identical call right after its own equivalent check.
+  const { functions, globals } = pruneUnreachable(ir);
+
   // Every non-pinned scalar global gets a wasm global-section entry,
   // addressed by declaration order — no allocator, no budget, unlike the
   // mos backend's own zero page (see "Hello, WASM"'s own "globals need no
@@ -204,7 +210,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // this milestone's own scope (see the file header).
   const globalDefs: { name: string; init: number }[] = [];
   const constArrays: { name: string; type: string; length: number; init: number[] }[] = [];
-  for (const g of ir.globals ?? []) {
+  for (const g of globals) {
     if (g.address !== null && g.address !== undefined) {
       return { ok: false, error: `'${g.name}': a pinned global (@address(...)) is not lowered yet` };
     }
@@ -264,7 +270,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // once, up front, from the whole program, the same two-pass shape as
   // globals/functions/data. `importFuncCount` is 0 or 1 only: this backend
   // never declares any import but this one.
-  const usesWaitFrame = ir.functions.some((fn) => containsWaitFrame(fn.body));
+  const usesWaitFrame = functions.some((fn) => containsWaitFrame(fn.body));
   const importFuncCount = usesWaitFrame ? 1 : 0;
 
   // Every function's own wasm function index, assigned once, up front, in
@@ -274,7 +280,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // `env.waitFrame` import, when declared: it occupies function index 0,
   // ahead of every defined function, which is why every defined function's
   // own index is computed from here rather than assumed to start at 0.
-  const functionSites = new Map(ir.functions.map((fn, i) => [
+  const functionSites = new Map(functions.map((fn, i) => [
     fn.name,
     {
       index: importFuncCount + i,
@@ -282,13 +288,13 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
       returnsValue: !!fn.returnType && fn.returnType !== 'void',
     },
   ]));
-  if (functionSites.size !== ir.functions.length) {
+  if (functionSites.size !== functions.length) {
     return { ok: false, error: 'two functions in ir.functions share the same name — a linker bug, not something this backend can guess a fix for' };
   }
   const waitFrameIndex = usesWaitFrame ? 0 : null;
 
   const loweredFns: { index: number; paramCount: number; returnsValue: boolean; localCount: number; code: number[] }[] = [];
-  for (const fn of ir.functions) {
+  for (const fn of functions) {
     for (const p of fn.params ?? []) {
       if (p.type === 'array') return { ok: false, error: `'${fn.name}(${p.name})': an array parameter is not lowered yet — a real gap milestone 5 left open` };
     }

@@ -18,6 +18,7 @@ import { basicStub } from './basic-stub.ts';
 import { buildDataSection } from './data.ts';
 import type { ConstArrayGlobal, IrString } from './data.ts';
 import { link } from './link/index.ts';
+import { pruneUnreachable } from '../linker/reachability.mjs';
 import { lower } from './lower/index.ts';
 import type { Directive, FunctionSite, IrFunction } from './lower/index.ts';
 import { LocalAllocator } from './lower/allocator.ts';
@@ -203,7 +204,14 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   const entryFn = ir.functions.find((fn) => fn.name === ir.entry);
   if (!entryFn) return { ok: false, error: `the linked entry point '${ir.entry}' names no function in ir.functions` };
 
-  const cycle = findCallCycle(ir.functions);
+  // Everything from here on compiles only what the entry can actually
+  // reach — link() itself still returns every module's own functions and
+  // globals whether called/read or not (see linker/reachability.mjs's own
+  // header for the byte cost that turned out to have, even at hello-world's
+  // own scale).
+  const { functions, globals } = pruneUnreachable(ir);
+
+  const cycle = findCallCycle(functions);
   if (cycle) return { ok: false, error: `recursion isn't lowered yet: ${cycle.join(' -> ')} -> ${cycle[0]} calls itself, directly or through another function` };
 
   // Globals first: every function's own parameters, then every function's
@@ -211,12 +219,12 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // page globals didn't take, so each pass below needs to know where the
   // previous one's remainder starts before it can run.
   const zpHoles = petZpHoles(options.hardware.facts);
-  const zp = allocate(ir.globals, { ...PET_ZP_BUDGET, holes: zpHoles });
+  const zp = allocate(globals, { ...PET_ZP_BUDGET, holes: zpHoles });
   if (!zp.ok) return { ok: false, error: zp.error };
 
-  const globalTypes = new Map(ir.globals.map((g) => [g.name, g.type]));
+  const globalTypes = new Map(globals.map((g) => [g.name, g.type]));
   const globalBindings = new Map(zp.globals.map((g) => [g.name, { address: g.address, type: globalTypes.get(g.name)! }]));
-  const globalInits = new Map(ir.globals.map((g) => [g.name, typeof g.init === 'number' ? g.init : 0]));
+  const globalInits = new Map(globals.map((g) => [g.name, typeof g.init === 'number' ? g.init : 0]));
 
   // Every zp-storage global's own initial value, written before the entry
   // function's own body runs — real RAM at power-on has no guaranteed
@@ -250,7 +258,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // lowered (index()/storeIndex()'s own width, mos/lower/index.ts): wider
   // ones are refused here, by name, rather than mis-encoded by data.ts.
   const constArrayGlobals: ConstArrayGlobal[] = [];
-  for (const g of ir.globals) {
+  for (const g of globals) {
     if (g.array === undefined) continue;
     const width = storageBytes(g.type);
     if (width !== 1 && width !== 2) {
@@ -267,7 +275,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // any function it can reach): a program that never does pays nothing for
   // state it never needs.
   let paramCursor = PET_ZP_BUDGET.zpOrigin + zp.zpUsed;
-  const needsWaitFrame = usesWaitFrame(ir.functions);
+  const needsWaitFrame = usesWaitFrame(functions);
   let waitFrameAcc = 0, waitFrameNum = 0, waitFrameTmp = 0;
   if (needsWaitFrame) {
     const placed = placeZp(paramCursor, WAIT_FRAME_ZP_BYTES, PET_ZP_BUDGET.zpCeiling, zpHoles);
@@ -284,7 +292,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // lowering runs — a call site needs its target's addresses regardless of
   // which function gets lowered first (mos/AGENTS.md).
   const functionSites = new Map<string, FunctionSite>();
-  for (const fn of ir.functions) {
+  for (const fn of functions) {
     const params: { address: number; width: 1 | 2 }[] = [];
     for (const p of fn.params ?? []) {
       if (p.type === 'array') return { ok: false, error: `'${fn.name}(${p.name})': array parameters aren't lowered yet` };
@@ -310,7 +318,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // region, stacked after every function's own parameter region above.
   let localsCursor = paramCursor;
   const loweredFunctions: { name: string; label: string; program: Directive[]; isEntry: boolean }[] = [];
-  for (const fn of ir.functions) {
+  for (const fn of functions) {
     const site = functionSites.get(fn.name)!;
     const params = (fn.params ?? []).map((p, i) => ({ name: p.name, type: p.type, address: site.params[i].address }));
     const locals = new LocalAllocator(localsCursor, PET_ZP_BUDGET.zpCeiling, zpHoles);
