@@ -3,6 +3,7 @@
 const vscode = require('vscode');
 
 const { LspClient } = require('./lspClient.cjs');
+const { COMPLETION_TRIGGER_CHARACTERS } = require('./completionTriggers.cjs');
 
 // LSP DiagnosticSeverity is 1-based; vscode.DiagnosticSeverity is 0-based.
 const DIAGNOSTIC_SEVERITY = {
@@ -190,9 +191,7 @@ function registerLanguageServer(context, output) {
           return items.map(toCompletion);
         },
       },
-      ':',
-      '<',
-      '.',
+      ...COMPLETION_TRIGGER_CHARACTERS,
     ),
   );
 

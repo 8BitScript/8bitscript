@@ -613,18 +613,13 @@ function hoverAt(tokens, offset, text, filePath) {
     return { start: token.start, length: token.length, markdown: CONSTRUCT_DOCS.address.markdown };
   }
 
-  if (token.kind === TokenKind.Identifier && (token.text === 'read' || token.text === 'write')) {
-    const dot = tokens[index - 1];
-    const object = tokens[index - 2];
-    if (dot?.text === '.' && object?.kind === TokenKind.Identifier && object.text === 'memory') {
-      return { start: token.start, length: token.length, markdown: MEMORY_DOCS[token.text] };
-    }
-  }
-
   // A member of a named import's own namespace — `screen.blank`,
   // `BorderColor.BLUE` — read from the module the import resolves to (see
-  // importedNamespace). `memory.read`/`memory.write` above is a compiler
-  // intrinsic, not something an import defines, so it is checked first.
+  // importedNamespace). Checked before the `memory.read`/`memory.write`
+  // intrinsic below: `memory` is not actually reserved (unlike `waitFrame`
+  // — see checker/index.mjs's RESERVED_BUILTIN_NAMES), so a program that
+  // imports its own `memory` namespace is rare but legal, and its own
+  // `read`/`write` should win over the builtin's docs.
   if (token.kind === TokenKind.Identifier) {
     const dot = tokens[index - 1];
     const object = tokens[index - 2];
@@ -638,6 +633,14 @@ function hoverAt(tokens, offset, text, filePath) {
           markdown: memberMarkdown(object.text, member, namespace.resolved),
         };
       }
+    }
+  }
+
+  if (token.kind === TokenKind.Identifier && (token.text === 'read' || token.text === 'write')) {
+    const dot = tokens[index - 1];
+    const object = tokens[index - 2];
+    if (dot?.text === '.' && object?.kind === TokenKind.Identifier && object.text === 'memory') {
+      return { start: token.start, length: token.length, markdown: MEMORY_DOCS[token.text] };
     }
   }
 

@@ -1,7 +1,7 @@
 ---
-"@8bitscript/compiler": minor
-"@8bitscript/language-server": minor
-"8bitscript-lang": minor
+"@8bitscript/compiler": patch
+"@8bitscript/language-server": patch
+"8bitscript-lang": patch
 ---
 
 Hover and completion now cover a named import's own namespace, not just
