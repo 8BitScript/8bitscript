@@ -36,24 +36,38 @@ used to lean on with its own code generators, assembler, linker, and file
 writers, and the PET is the machine that work is brought up on: a stock
 6502, a screen that is plain RAM, no colour, no video chip to program. The
 web is the other half because its runtime is the reference every portable
-package is written against. The roadmap to the first program, `HELLO
-WORLD` on a PET, is the working document titled
+package is written against. The roadmap to the first program, `Hello
+World!` on a PET and in a browser, is the working document titled
 [Hello, PET](https://claude.ai/code/artifact/ada33539-fa98-46a7-a9a1-36532c8a2164).
 
-| Machine | In 0.2.0 | Package |
-| ------- | -------- | ------- |
-| Commodore PET | **yes**, the first native target | `@8bitscript/pet` |
-| Web (WebAssembly) | **yes** | `@8bitscript/web` |
-| VIC-20, C64, C128 | parked: return with the shared `.prg` path once the PET boots | `@8bitscript/vic20` `@8bitscript/c64` `@8bitscript/c128` |
-| Atari 8-bit, NES, Commander X16, MEGA65 | parked: each needs its own startup, file writer, and CPU-variant row | `@8bitscript/atari8` `@8bitscript/nes` `@8bitscript/cx16` `@8bitscript/mega65` |
+| Phase | Machine | In 0.2.0 | Package |
+| ----- | ------- | -------- | ------- |
+| 1 | Web (WebAssembly) | **yes** | `@8bitscript/web` |
+| 1 | VIC-20, C64 | parked: return with the shared `.prg` path once the PET boots | `@8bitscript/vic20` `@8bitscript/c64` |
+| 2 | Commodore PET | **yes**, the first native target | `@8bitscript/pet` |
+| 2 | C128 | parked: return with the shared `.prg` path once the PET boots | `@8bitscript/c128` |
+| 3 | Atari 8-bit, NES | parked: each needs its own startup, file writer, and CPU-variant row | `@8bitscript/atari8` `@8bitscript/nes` |
+| 4 | Commander X16, MEGA65 | parked: each needs its own startup, file writer, and CPU-variant row | `@8bitscript/cx16` `@8bitscript/mega65` |
+
+The phases are the order these nine machines were added to the workspace,
+each one forcing the language to survive a hardware constraint the
+previous phase didn't have — Phase 1 is the founding three, Phase 2 the
+Commodore family, Phase 3 proves the language isn't CommodoreScript, Phase
+4 the super-6502 machines. Five more phases (Apple II and friends through
+a second CPU backend) are named but have no package yet; their research
+notes are [docs/project/machines/index.md](docs/project/machines/index.md).
 
 A parked machine's package stays in the workspace, its sources still link,
 and a program written for it still passes `8bs check`; `8bs build` and `8bs
 run` refuse it with a message until its backend lands. The list of what this
 release builds for is `RELEASE_MACHINES` in the compiler's resolver, read by
-the CLI and the editor rather than kept twice. **No target builds on trunk
-until the native backends land**; every build stops with a clear message.
-The earlier phase-by-phase ordering of machines is on hold behind this.
+the CLI and the editor rather than kept twice. **Both native backends build,
+run, and render the real `hello-world` example correctly** — `8bs build`
+and `8bs run` work end to end for `pet` and `web`; every other target still
+stops with a clear message. 0.2.0 brought the PET forward ahead of the rest
+of Phase 1 so the native backend proved itself on one screen-is-plain-RAM
+machine before the video-chip machines arrive; the phase order above still
+governs the order the parked machines return in.
 
 ## Architecture
 
@@ -64,8 +78,8 @@ flowchart TD
     BINDER --> CHECKER["checker"]
     CHECKER --> IR["IR"]
     IR --> LINKER["linker"]
-    LINKER --> MOS["6502 backend<br/>Not built yet, 0.2.0"]
-    LINKER --> WEB["web backend<br/>Not built yet, 0.2.0"]
+    LINKER --> MOS["6502 backend<br/>builds pet, 0.2.0"]
+    LINKER --> WEB["web backend<br/>builds web, 0.2.0"]
     MOS --> MC["machine code"]
     MC --> PRG[".prg / .xex / .nes / .rom"]
     WEB --> WASM[".wasm"]
@@ -97,8 +111,10 @@ counter. 8BitScript keeps `asm6502` blocks, `@address` decorators, and
 `memory.read`/`memory.write` as first-class language features, not
 bolted-on escape hatches, so hand assembly is available inline wherever a
 program actually needs it. 8BitScript is also its own assembler, linker,
-and register allocator: that work is the 0.2.0 milestone, and the backends
-that will do it exist today and refuse to emit. What the language already
+and register allocator: that work is the 0.2.0 milestone, and the two
+backends that ship in 0.2.0 (`mos` for the PET, `wasm` for the web) now do
+it — a real `.prg`/`.wasm`, not a stub. The seven parked machines' backends
+still don't exist yet. What the language already
 controls is where every global lives — `.rodata`, `.data`, `.noinit`, or
 `.zp.noinit` — decided by whether it is `const` or `let` and how it is
 initialised, not left to a C-style runtime initialiser.
@@ -134,20 +150,26 @@ byte-by-byte accounting is in
 [docs/compiler.md](docs/compiler.md#what-a-call-costs-on-a-6502-measured).
 
 Those byte counts were measured against the pre-0.2.0 toolchain and remain
-the absolute reference. Until the native backend's `build()` reports
-`memory.program` and `memory.variables`, no new size claim can be made.
+the reference for the C64, which is still parked — no new size claim for
+it can be made until its own backend lands.
 
-Absolute size is bounded by the machine, not the language. When the
-backends emit, `8bs build` will print memory used —
+Absolute size is bounded by the machine, not the language. `8bs build` now
+prints memory used for both shipping targets, for real —
 
 ```
-memory: 3 bytes of RAM for variables, 771 bytes of program (code and data)
+memory: 101 bytes of RAM for variables, 1132 bytes of program (code and data)
 ```
 
-— and refuse to link a program that doesn't fit, saying by how many bytes.
-The unexpanded VIC-20 — the machine 8BitScript targets first — has 3583
-bytes of usable RAM; the web target caps static data (arrays and string
-constants) at 8192 bytes.
+for `packages/examples/hello-world` on the PET, and
+
+```
+memory: 2 bytes of RAM for variables, 13 bytes of constant data (as declared)
+```
+
+on the web — and refuses to link a program that doesn't fit, saying by how
+many bytes. The unexpanded VIC-20 — the next machine in line once the PET's
+own backend proved itself — has 3583 bytes of usable RAM; the web target
+caps static data (arrays and string constants) at 8192 bytes.
 
 ## What 8BitScript is not
 
@@ -159,18 +181,26 @@ constants) at 8192 bytes.
 - **Not an interpreter.** There is no bytecode VM and no evaluation loop
   shipped with your program; everything is compiled ahead of time.
 - **It is a 6502 assembler, linker, and register allocator** — that work
-  is the 0.2.0 milestone; the backends exist and do not yet emit.
+  is the 0.2.0 milestone, and the PET and web backends now do it; the seven
+  parked machines' backends don't exist yet.
 - **Not a React framework.** It has no components, no virtual DOM, and no
   reactive rendering model. The web target is a compilation target, not a UI
   library.
 
 ## Status
 
-**No target builds on trunk until the native backends land (0.2.0).** The
+**The PET and the web both build, run, and render for real (0.2.0).** The
 front end through the linker exists. Two backends live in
-`@8bitscript/compiler` — `mos` and `wasm` — and both refuse: nothing
-generates 6502 opcodes or WebAssembly, so `8bs build` fails for every
-target. `8bs check` and the language server still run, so this reports a
+`@8bitscript/compiler` — `mos` and `wasm` — and both emit: `mos` generates
+real 6502 opcodes for the PET (a `.prg`), `wasm` generates a real
+WebAssembly module for the browser. `8bs build --target pet` and
+`8bs build --target web` both succeed, and `8bs run` boots the result —
+`packages/examples/hello-world`, unmodified, prints its own mixed-case
+"Hello World!" on a real PET screen (checked with the `xpet` emulator) and
+on a real browser canvas. Every other target still fails honestly:
+`RELEASE_MACHINES` in the compiler's resolver refuses the seven parked
+machines by name before `8bs build`/`8bs run` even try. `8bs check` and the
+language server run for every target, parked or not, so this reports a
 real error in the terminal and under the cursor:
 
 ```
@@ -202,7 +232,8 @@ without notice.
 `@8bitscript/screen`, `@8bitscript/text`, `@8bitscript/input`,
 `@8bitscript/ui/menubar`, and [Studio](docs/studio.md) exist as packages —
 portable surfaces that resolve per target to that machine's own
-implementation. They do not produce an image until 0.2.0.
+implementation. They produce a real image on the PET and the web now;
+the other seven targets still wait on their own backends.
 
 ## Getting started
 
@@ -214,11 +245,12 @@ pnpm add -D @8bitscript/cli@0.1.0
 
 Setup is emulators only — [docs/setup/index.md](docs/setup/index.md). There
 is no external 6502 SDK. [Install from npm](docs/install.md) is the page for
-a program outside this repository. Until 0.2.0, `8bs build` refuses every
-target. [Building on GitHub](docs/github.md) is the same: the reusable
-workflow installs the CLI and will build nothing until the backends emit.
-[Hosting the web target](docs/web.md) deploys `dist/web/` to Cloudflare once
-a web build exists.
+a program outside this repository. `8bs build --target pet` and
+`8bs build --target web` both work; every other target still refuses by
+name. [Building on GitHub](docs/github.md) is the same: the reusable
+workflow installs the CLI and builds `pet`/`web` for real.
+[Hosting the web target](docs/web.md) deploys `dist/web/` to Cloudflare —
+a real web build exists to deploy.
 
 ## Documentation
 

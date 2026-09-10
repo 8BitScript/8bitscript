@@ -14,7 +14,7 @@
       "hello-world": {
         "title": "Hello, World",
         "dir": "./hello-world",
-        "description": "screen.blank() then text.print(0, \"HELLO WORLD\") through the portable screen and text packages. The 0.2.0 goal program, and the one this toolchain is built to run first — on the PET and in the browser."
+        "description": "screen.blank() then text.print(0, \"Hello World!\") through the portable screen and text packages. The 0.2.0 goal program, and the one this toolchain is built to run first — on the PET and in the browser."
       }
     }
   },

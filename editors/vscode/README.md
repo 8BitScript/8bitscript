@@ -14,9 +14,9 @@ the split between the compiler, the language server, and this extension.
 It's a statically compiled language for 6502-based 8-bit machines and the
 web — closer to C than to BASIC or hand-written assembly. There's no
 interpreter and no garbage collector; 8BitScript's own backends lower IR
-to machine code and WebAssembly. Those backends do not yet emit anything
-(the 0.2.0 Bare Metal milestone), so `8bs build` currently refuses every
-target. A
+to machine code and WebAssembly, and the two that ship in 0.2.0 (the
+Commodore PET and the web) now emit for real — `8bs build` and `8bs run`
+work end to end for both, right from this extension's own launcher. A
 range-checked type like `u8` is a compile error on overflow
 (`300 does not fit in u8 (0..255)`) instead of a silent wrap, and one
 source resolves per target through packages instead of `#ifdef`. The
@@ -116,8 +116,9 @@ builds.
   the hardware fitted to it, and the region — nothing has to be read off a
   dropdown to know what pressing it means. It greys out when the selected
   project does not target the selected system, or its emulator is
-  missing, and says which in the line below. Until 0.2.0, Run and Build
-  refuse every target anyway: the backends exist and do not emit an image.
+  missing, and says which in the line below. Run and Build work for real on
+  `pet` and `web` — the two 0.2.0 targets; every other system still refuses,
+  since its own backend doesn't exist yet.
 - **Build** (🔧 on the Project row) — the same as Run, but `8bs build
   --target <system>`, which stops at the built file instead of starting an
   emulator.
@@ -299,8 +300,8 @@ project looks — gets a **Run `pnpm install`** button under the launch buttons 
 as a task. Running such a project asks first, because otherwise the
 compiler fails on the first import it cannot resolve, with a message about
 the package rather than the install. A project whose emulator is missing
-altogether cannot be run at all, and the panel says so. Until 0.2.0 every
-target is refused regardless.
+altogether cannot be run at all, and the panel says so. `pet` and `web`
+build and run for real; every other target is still refused.
 
 ## The grammar is provisional
 
