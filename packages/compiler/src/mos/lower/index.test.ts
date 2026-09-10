@@ -6,13 +6,18 @@ import type { IrStatement, IrExpr, LowerOptions, FunctionSite } from './index.ts
 import { LocalAllocator } from './allocator.ts';
 import { assemble } from '../asm/assemble.ts';
 import type { Directive } from '../asm/assemble.ts';
+import { arrayLabel, stringLabel } from '../data.ts';
 
 // A fresh, generously-budgeted context for a test that doesn't care about
 // the zero-page ceiling — most of them. Tests that do care build their own.
 // No parameters and no other functions unless a test says otherwise — most
 // of these predate milestone 7 and were never about calls.
-function ctx(globals: [string, { address: number; type: string }][] = [], functions: [string, FunctionSite][] = []): LowerOptions {
-  return { globals: new Map(globals), locals: new LocalAllocator(0x90, 0x100), params: [], functions: new Map(functions) };
+function ctx(
+  globals: [string, { address: number; type: string }][] = [],
+  functions: [string, FunctionSite][] = [],
+  arrays: [string, { elementType: string }][] = [],
+): LowerOptions {
+  return { globals: new Map(globals), locals: new LocalAllocator(0x90, 0x100), params: [], functions: new Map(functions), arrays: new Map(arrays) };
 }
 
 const write = (address: number, value: number): IrStatement => ({
@@ -101,7 +106,7 @@ test('a local is declared once and read back through the same zero-page slot', (
 });
 
 test('a local out of zero page fails naming the variable and what is left', () => {
-  const tight: LowerOptions = { globals: new Map(), locals: new LocalAllocator(0xff, 0x100), params: [], functions: new Map() };
+  const tight: LowerOptions = { globals: new Map(), locals: new LocalAllocator(0xff, 0x100), params: [], functions: new Map(), arrays: new Map() };
   const result = lower([local('a', u8(1)), local('b', u8(2))], tight);
   assert.equal(result.ok, false);
   if (result.ok) return;
@@ -109,7 +114,7 @@ test('a local out of zero page fails naming the variable and what is left', () =
 });
 
 test('a block-scoped local is released once its block ends, so a later block can reuse the same byte', () => {
-  const tight: LowerOptions = { globals: new Map(), locals: new LocalAllocator(0x90, 0x91), params: [], functions: new Map() }; // exactly one byte
+  const tight: LowerOptions = { globals: new Map(), locals: new LocalAllocator(0x90, 0x91), params: [], functions: new Map(), arrays: new Map() }; // exactly one byte
   const result = lower(
     [
       { kind: 'block', body: [local('a', u8(1))] },
@@ -235,7 +240,7 @@ test('for with an init-local, test, and update lowers and assembles; the local i
       body: [],
     },
   ];
-  const tight: LowerOptions = { globals: new Map(), locals: new LocalAllocator(0x90, 0x92), params: [], functions: new Map() }; // 2 bytes: room for one 'i' plus one temp, never two 'i's at once
+  const tight: LowerOptions = { globals: new Map(), locals: new LocalAllocator(0x90, 0x92), params: [], functions: new Map(), arrays: new Map() }; // 2 bytes: room for one 'i' plus one temp, never two 'i's at once
   const result = lower(program, tight);
   assert.equal(result.ok, true, result.ok ? '' : result.error);
 });
@@ -441,10 +446,10 @@ test('a bitwise or shift operator is refused by name the same way * / % are', ()
 });
 
 test('an expression kind with no rule yet fails naming it, not silently', () => {
-  const result = lower([assign('out', { kind: 'index', type: 'utinyint' })], ctx([['out', { address: 0x50, type: 'utinyint' }]]));
+  const result = lower([assign('out', { kind: 'namespaceConst', type: 'utinyint' })], ctx([['out', { address: 0x50, type: 'utinyint' }]]));
   assert.equal(result.ok, false);
   if (result.ok) return;
-  assert.match(result.error, /no instruction-selection rule yet for the 'index' expression/);
+  assert.match(result.error, /no instruction-selection rule yet for the 'namespaceConst' expression/);
 });
 
 // ---- milestone 7: calling convention -------------------------------------
@@ -608,6 +613,27 @@ test('16-bit `*` is refused by name, not lowered as if it were `+`', () => {
   assert.match(result.error, /no 16-bit instruction-selection rule yet for the '\*' operator/);
 });
 
+// @8bitscript/pet/text's own `place(cell + i, s[i])` inside text.print's
+// loop — cell: usmallint, i: utinyint — discovered building the real
+// milestone 9 gate: binop16 used to require both operands already 16-bit.
+test('16-bit `+` with one 8-bit operand widens it, rather than refusing a mixed-width binop', () => {
+  const result = lower(
+    [local('sum', bin('+', ref('cell', 'usmallint'), ref('i', 'utinyint'), 'usmallint'), 'usmallint')],
+    ctx([['cell', { address: 0x10, type: 'usmallint' }], ['i', { address: 0x20, type: 'utinyint' }]]),
+  );
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  assembles(result.program);
+  const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
+  // i (1 byte) zero-extends into a temp (LDA/STA/LDA #0/STA), cell (2
+  // bytes) reads straight from its own binding (no instructions — see the
+  // 16-bit `ref` test above), then CLC/ADC-chain/STA x2, then the copy
+  // into 'sum'.
+  assert.deepEqual(mnemonics.slice(0, 4), ['LDA', 'STA', 'LDA', 'STA']);
+  assert.ok(mnemonics.includes('CLC'));
+  assert.equal(mnemonics.filter((m) => m === 'ADC').length, 2);
+});
+
 test('a 16-bit assignment from a 16-bit value copies both bytes', () => {
   const result = lower([assign('wide', u16(0x1234))], ctx([['wide', { address: 0x10, type: 'usmallint' }]]));
   assert.equal(result.ok, true, result.ok ? '' : result.error);
@@ -768,4 +794,168 @@ test('a lowering bug that is not a LowerError or a zp-budget error still throws'
     () => lower([{ kind: 'local', name: 'x', type: 'utinyint', init: null }], ctx()),
     (error: unknown) => error instanceof TypeError,
   );
+});
+
+// ---- milestone 9: strings and const arrays --------------------------------
+//
+// The data section itself (the actual bytes a label points at) is
+// mos/data.ts's job, exercised in data.test.ts — a lower() unit test only
+// ever sees the label name, never the bytes behind it, exactly the way a
+// call site only ever sees a function's label (FunctionSite), never its
+// body. Where a test below needs a real assemble() to prove the emitted
+// operands resolve, it appends the same label mos/data.ts would define,
+// standing in for the data section a real build appends after every
+// function (mos/index.ts).
+
+const strLit = (index: number): IrExpr => ({ kind: 'string', index, type: 'string' });
+const strRef = (name: string): IrExpr => ({ kind: 'ref', name, type: 'string' });
+const strLen = (string: IrExpr): IrExpr => ({ kind: 'stringLength', string, type: 'utinyint' });
+const strByte = (string: IrExpr, index: IrExpr): IrExpr => ({ kind: 'stringByte', string, index, type: 'utinyint' });
+const idx = (array: string, index: IrExpr, elementType: string): IrExpr => ({ kind: 'index', array: { kind: 'ref', name: array }, index, elementType, type: elementType });
+
+test('a string literal materializes its data-section label\'s address into a fresh zp pair', () => {
+  const result = lower([local('s', strLit(0), 'string')], ctx());
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  // LDA #<label; STA lo; LDA #>label; STA hi — then the copy into 's'.
+  const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
+  assert.deepEqual(mnemonics.slice(0, 4), ['LDA', 'STA', 'LDA', 'STA']);
+  const loLoad = instruction(result.program[0]);
+  assert.deepEqual(loLoad.operand, { kind: 'label', name: stringLabel(0), byte: 'lo' });
+  const hiLoad = instruction(result.program[2]);
+  assert.deepEqual(hiLoad.operand, { kind: 'label', name: stringLabel(0), byte: 'hi' });
+  // Resolves for real against the label a data section would actually
+  // define for slot 0 — proves the operand shape assembles, not just that
+  // it looks right.
+  const data: Directive[] = [{ kind: 'label', name: stringLabel(0) }, { kind: 'byte', values: [5, 72, 73] }];
+  assembles([...result.program, ...data]);
+});
+
+test('two references to the same string table slot both name the same label — dedup is the linker\'s job (ir.strings), not re-derived here', () => {
+  const a = lower([local('s', strLit(3), 'string')], ctx());
+  const b = lower([local('s', strLit(3), 'string')], ctx());
+  assert.equal(a.ok, true);
+  assert.equal(b.ok, true);
+  if (!a.ok || !b.ok) return;
+  const label = (r: Directive[]) => (instruction(r[0]).operand as { name: string }).name;
+  assert.equal(label(a.program), label(b.program));
+  assert.equal(label(a.program), stringLabel(3));
+});
+
+test('stringLength on a string parameter reads byte 0 through its pointer — no copy, straight off the parameter\'s own zp pair', () => {
+  const options = ctx([], []);
+  options.params = [{ name: 's', type: 'string', address: 0x10 }];
+  const result = lower([{ kind: 'return', value: strLen(strRef('s')) }], options);
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
+  assert.deepEqual(mnemonics, ['LDY', 'LDA', 'JMP']);
+  const ldy = instruction(result.program[0]);
+  assert.equal(ldy.operand!.kind === 'value' ? ldy.operand!.value : -1, 0);
+  const lda = instruction(result.program[1]);
+  assert.equal(lda.mode, '(indirect),y');
+  assert.equal(lda.operand!.kind === 'value' ? lda.operand!.value : -1, 0x10);
+});
+
+test('stringByte reads index+1 — skipping the length prefix — after the string, evaluated first, then the index', () => {
+  const options = ctx([], []);
+  options.params = [{ name: 's', type: 'string', address: 0x10 }];
+  const result = lower([{ kind: 'return', value: strByte(strRef('s'), u8(4)) }], options);
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
+  // LDA #4 (the index); TAY; INY (skip the length byte); LDA (s),y; JMP exit.
+  assert.deepEqual(mnemonics, ['LDA', 'TAY', 'INY', 'LDA', 'JMP']);
+  const indexLoad = instruction(result.program[0]);
+  assert.equal(indexLoad.operand!.kind === 'value' ? indexLoad.operand!.value : -1, 4);
+  const finalLoad = instruction(result.program[3]);
+  assert.equal(finalLoad.mode, '(indirect),y');
+  assert.equal(finalLoad.operand!.kind === 'value' ? finalLoad.operand!.value : -1, 0x10);
+});
+
+// A 255-byte string's own highest valid index is 254 (one length byte
+// caps the format at 255 characters total — the checker's own
+// STRING_TOO_LONG limit), landing on Y = 254 + 1 = 255: the last real
+// character, not a wrap back onto the length byte at Y = 0. INY never
+// actually wraps for any in-bounds index.
+test('stringByte at the highest valid index (254, on a 255-byte string) lands on Y = 255 — the real last character, not a wrap to the length byte', () => {
+  const options = ctx([], []);
+  options.params = [{ name: 's', type: 'string', address: 0x10 }];
+  const result = lower([{ kind: 'return', value: strByte(strRef('s'), u8(254)) }], options);
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  const instructions = result.program.filter((d): d is Extract<Directive, { kind: 'instruction' }> => d.kind === 'instruction');
+  const iny = instructions.find((d) => d.mnemonic === 'INY');
+  assert.ok(iny, 'INY runs exactly once, taking Y from 254 to 255 — 6502 8-bit registers hold 255 without wrapping');
+  const load = instructions[instructions.length - 2]; // the (indirect),y read, right before the trailing JMP
+  assert.equal(load.mode, '(indirect),y');
+});
+
+test('a 1-byte-element index() reads Y-indexed off the array\'s own data-section label — no scaling', () => {
+  const result = lower(
+    [{ kind: 'return', value: idx('TABLE', u8(2), 'utinyint') }],
+    ctx([], [], [['TABLE', { elementType: 'utinyint' }]]),
+  );
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
+  assert.deepEqual(mnemonics, ['LDA', 'TAY', 'LDA', 'JMP']);
+  const read = instruction(result.program[2]);
+  assert.equal(read.mode, 'absolute,y');
+  assert.deepEqual(read.operand, { kind: 'label', name: arrayLabel('TABLE') });
+});
+
+// The real shape: DIGIT_PLACES, `const DIGIT_PLACES: array<usmallint, 5>`
+// (packages/pet/src/text.8bs) — a 2-byte element needs the index doubled
+// into a byte offset before either half is read.
+test('a 2-byte-element index() doubles the index (ASL) before reading low, then high, one byte further along', () => {
+  const result = lower(
+    [local('digit', idx('DIGIT_PLACES', u8(2), 'usmallint'), 'usmallint')],
+    ctx([], [], [['DIGIT_PLACES', { elementType: 'usmallint' }]]),
+  );
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
+  // LDA #2 (index); ASL; TAY; LDA lo; STA; INY; LDA hi; STA; — then the copy into 'digit'.
+  assert.deepEqual(mnemonics.slice(0, 8), ['LDA', 'ASL', 'TAY', 'LDA', 'STA', 'INY', 'LDA', 'STA']);
+  const loRead = instruction(result.program[3]);
+  const hiRead = instruction(result.program[6]);
+  assert.deepEqual(loRead.operand, { kind: 'label', name: arrayLabel('DIGIT_PLACES') });
+  assert.deepEqual(hiRead.operand, { kind: 'label', name: arrayLabel('DIGIT_PLACES') });
+  // Resolves for real against a 5-element array's own data-section label.
+  const data: Directive[] = [{ kind: 'label', name: arrayLabel('DIGIT_PLACES') }, { kind: 'byte', values: [16, 39, 232, 3, 100, 0, 10, 0, 1, 0] }];
+  assembles([...result.program, ...data]);
+});
+
+test('index() on a name this build never placed as a const array is refused, naming it — not a missing rule, a linker/checker bug', () => {
+  const result = lower([{ kind: 'return', value: idx('MYSTERY', u8(0), 'utinyint') }], ctx());
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /'MYSTERY' resolves to no const array this backend placed/);
+});
+
+// The bug an advisor review caught before any gate ever exercised prepare()
+// (packages/pet/src/text.8bs): `viaPeripheralControl = ...` writes a global
+// pinned above $00FF (@address(0xE84C), pet/src/index.8bs) — the same shape
+// as every other global's assignment, except zeropage mode can't encode an
+// address that high. ref/assign both pick the mode from the address now,
+// the same call memoryWrite's own literal-address case already made.
+test('a ref/assign to a global pinned above $00FF uses absolute mode, not zeropage', () => {
+  const options = ctx([['viaPeripheralControl', { address: 0xe84c, type: 'utinyint' }]]);
+  const readResult = lower([{ kind: 'return', value: ref('viaPeripheralControl') }], options);
+  assert.equal(readResult.ok, true, readResult.ok ? '' : readResult.error);
+  if (!readResult.ok) return;
+  const read = instruction(readResult.program[0]);
+  assert.equal(read.mnemonic, 'LDA');
+  assert.equal(read.mode, 'absolute');
+  assert.equal(read.operand!.kind === 'value' ? read.operand!.value : -1, 0xe84c);
+
+  const writeResult = lower([assign('viaPeripheralControl', u8(0x0c))], options);
+  assert.equal(writeResult.ok, true, writeResult.ok ? '' : writeResult.error);
+  if (!writeResult.ok) return;
+  const write2 = instruction(writeResult.program[1]);
+  assert.equal(write2.mnemonic, 'STA');
+  assert.equal(write2.mode, 'absolute');
+  assert.equal(write2.operand!.kind === 'value' ? write2.operand!.value : -1, 0xe84c);
+  assembles(writeResult.program);
 });

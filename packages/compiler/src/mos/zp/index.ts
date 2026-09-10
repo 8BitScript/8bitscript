@@ -14,13 +14,14 @@
 // (its `address` field is non-null) bypasses allocation entirely; that
 // syntax and mechanism already exist in the front end today.
 //
-// Arrays and strings are refused by name, not silently mis-sized: every
-// non-const array/string global in this repo today is a portable-UI
-// concern (packages/ui/menubar.8bs's two `string<1>` fields) nothing on
-// the PET's own critical path declares one, and string *storage* is
-// explicitly milestone 9's job (the IR's length-prefixed string table
-// becoming a data section) — allocating space for one here would be
-// guessing at a shape that milestone hasn't settled yet.
+// A const array never reaches this allocator at all as of milestone 9: it
+// is read-only program data (mos/data.ts, alongside the string table), not
+// a zero-page concern, so this function skips it rather than assigning it
+// an address it will never use. A non-const array/string<N> is still
+// refused by name — every one of those in this repo today is a portable-UI
+// concern (packages/ui/menubar.8bs's two `string<1>` fields), nothing on
+// the PET's own critical path declares one, and a mutable buffer needs a
+// RAM home this backend doesn't have a placement rule for yet.
 import { storageBytes } from '../../types/index.mjs';
 
 /** The parts of a real IR global (packages/compiler/src/ir/index.mjs) this allocator reads. */
@@ -29,6 +30,9 @@ export interface IrGlobal {
   type: string;
   address: number | null;
   array?: number;
+  constant?: boolean;
+  /** A scalar global's own initial value (always a plain number, defaulting to 0 when the source gave none — ir/index.mjs's own scalar-global lowering), or a const array's elements (also always plain numbers by the time this reaches a backend: linker/index.mjs resolves every initializer, namespaceConst references included, before handing globals over). mos/index.ts's own global-init pass and mos/data.ts are what actually read this; this allocator only reads `array`/`constant` to decide whether to skip a global entirely. */
+  init?: number | number[] | null;
 }
 
 export interface Budget {
@@ -66,10 +70,17 @@ export function allocate(globals: IrGlobal[], budget: Budget): AllocateResult {
     }
 
     if (global.array !== undefined) {
-      return { ok: false, error: `global '${global.name}': array storage isn't allocated yet` };
+      if (global.constant) continue; // placed in the data section (mos/index.ts + mos/data.ts), not zero page
+      return { ok: false, error: `global '${global.name}': a mutable array/string<N> isn't allocated yet — only a const array is placed today` };
     }
     if (global.type === 'string') {
-      return { ok: false, error: `global '${global.name}': string storage isn't allocated yet — it lands at milestone 9` };
+      // Never actually produced by the front end today (ir/index.mjs's
+      // stringGlobal() either inlines a const string via ir.consts, never
+      // reaching a global at all, or refuses a bare `let x: string;` for
+      // lacking a capacity) — kept as defense against a shape nothing here
+      // has a placement rule for, the same discipline as the unknown-type
+      // case just below.
+      return { ok: false, error: `global '${global.name}': a bare string global isn't allocated yet` };
     }
 
     const size = storageBytes(global.type);
