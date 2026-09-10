@@ -358,3 +358,113 @@ call-argument widening gap.
   same default an ordinary global gets, whether or not the source ever
   wrote `= ...`) would be a real side effect on hardware this backend has
   no business taking on without the program itself asking for it.
+
+## Milestone 10: waitFrame()
+
+The goal milestone: `waitFrame()` — a blocking statement, called from
+within a program's own loop, that pauses until the next *logical* frame is
+due, at whatever `frameRate` the project is configured for (default 60,
+`8bs.config.ts`). The real gate: `packages/examples/hello-world/src/
+main.8bs` now calls `waitFrame()` once before `text.print(0, "HELLO
+WORLD")` — built and run for real on both the 2001/4K (no CRTC, VICE's own
+~60.1Hz) and 8032 (CRTC, a real 50Hz editor ROM) profiles, the same second-
+profile discipline milestone 9's own gate established. Both screenshot
+`HELLO WORLD` exactly as before this milestone, proving the one-time
+calibration and the blocking wait neither hang nor corrupt anything on
+either of the PET's two real, differently-clocked vertical-retrace rates.
+
+**This is not `FRAME_SYNC`.** `mos/index.ts`'s own `FRAME_SYNC` table (just
+above this section in that file) and its `calibrate` field's C-pseudocode
+strings predate this backend — they were written for `packages/
+backend-6502`'s old, now-gutted design, where a program exported `frame()`
+and the compiler synthesized a driver `main()` that called it zero, one, or
+two times per hardware frame (`git log`: `42743be`, `7eee725`). The current
+language's `waitFrame()` is the opposite shape — a statement the program
+calls itself, from wherever its own loop is — so `mos/startup/
+waitframe.ts` is a fresh translation of the same underlying idea (an
+accumulator of logical frames owed, measured once against a real hardware
+clock) onto that different shape, not a port of `calibrate`'s own strings.
+`FRAME_SYNC.pet` stays exactly as documentation of the hardware facts
+(`$E813` bit 7, `$E812`'s ack side effect, VIA1 Timer 2, the PET's flat
+1MHz clock) — `waitframe.ts` reads the same facts, hand-translated into
+this backend's own `Directive`-based codegen, the same relationship
+`mos/lower/index.ts` already has to the language's own semantics.
+
+**Grounded in the real PET package, the same way `text.8bs` grounded
+milestone 9.** `packages/pet/src/index.8bs` and `keyboard.8bs` document the
+exact contract this had to honour: a program that calls `waitFrame()`
+anywhere runs with interrupts off from start-up, because the KERNAL's own
+jiffy-clock IRQ reads `$E812` every frame and would otherwise win the race
+for the CB1 retrace flag before this code ever saw it set; and reading
+`$E812` acknowledges that flag, so `keyboard.scan()`'s own contract is to
+read it exactly once a frame, right after `waitFrame()` returns, never
+earlier (an earlier read eats a frame the accumulator would otherwise
+count).
+
+**One shared subroutine, one JSR per call site.** Every `waitFrame()`
+statement lowers to a single `JSR __8bs_wait_frame`
+(`WAIT_FRAME_LABEL`, `mos/startup/waitframe.ts`) —
+`mos/lower/index.ts`'s own rule only has to know that name, not the pacing
+logic itself, the same "one body, N call sites" shape milestone 7's own
+calling convention already established for user functions. The subroutine
+and the one-time setup that primes it are hand-assembled `Directive[]`
+builders in `waitframe.ts`, not lowered from any IR — there's no user
+syntax for either one, so there's nothing for `lower/index.ts`'s own
+exhaustive-with-error rule table to have a case for.
+
+**Zero page: reserved only when the program actually uses it.**
+`usesWaitFrame()` walks the whole linked program the same generic,
+untyped, structural way `mos/index.ts`'s own `collectCallNames()` already
+walks the call graph — every function, not just the entry, since a
+`waitFrame()` call inside a helper function still needs the state primed
+before it can run. When it says yes, `mos/index.ts` claims
+`WAIT_FRAME_ZP_BYTES` (12) right after globals and before any function's
+own parameters: a 4-byte accumulator, a 4-byte measured `num`, and a
+4-byte scratch cell setup borrows once and never needs again. A program
+that never calls `waitFrame()` pays none of it — no zero page, no
+calibration code, no subroutine appended (`test/mos.test.ts`'s own "pays
+nothing for it" gate proves the byte-for-byte-identical output).
+
+**Calibration: measured once, multiplied by a compile-time constant, no
+6502 multiply loop.** The PET has no documented NTSC/PAL crystal split
+(`FRAME_SYNC.pet`'s own comment), so `num` isn't a build-time constant
+here the way it is on every other machine — `waitFrameSetup()` measures
+real cycles-per-frame once at start-up: `SEI`, wait for one retrace edge,
+load VIA1 Timer 2 with `$FFFF` (a one-shot countdown), wait for the next
+edge, read the timer back. `elapsed = 0xFFFF - timer` is computed as `EOR
+#$FF` on each byte rather than a subtract-with-borrow — subtracting from
+an all-ones value is exactly a bitwise complement, for any 16-bit value,
+no carry chain needed. `num = frameRate * elapsed` then unrolls at *build*
+time, not run time: `frameRate` is a plain TypeScript number when
+`build()` runs, never a runtime value, so this is one 32-bit add per set
+bit of `frameRate` and one 32-bit doubling between them — a fixed,
+straight-line instruction sequence, not a loop with a counter that would
+cost its own zero page for a value already known before a single byte is
+emitted. `den` is always exactly 1,000,000, the PET's own flat,
+region-independent 1MHz clock (documented, not measured) — it is never
+stored in zero page at all, only ever appearing as four immediate bytes in
+the subroutine's own compare and subtract.
+
+**The per-call subroutine: drain existing credit first, otherwise block on
+the next edge.** `waitFrameRoutine()`'s loop checks `acc >= den` *before*
+touching the hardware — a call site right after another that just
+over-drained (a hardware frame's `num` can exceed one logical frame's
+`den` when the measured rate runs faster than `frameRate`) shouldn't wait
+on an edge it doesn't need. When there's enough credit: subtract `den`,
+return. Otherwise: poll `$E813` bit 7, acknowledge by reading `$E812`, add
+`num`, loop. The 32-bit comparison is unrolled byte-by-byte, most
+significant first, with every branch target within a few bytes rather than
+routed through one shared label at the bottom of a ~90-byte routine — 6502
+conditional branches are relative with a signed 8-bit range, and this
+shape keeps every one of them inside it by construction, the same
+discipline `lower/index.ts`'s own comparison-chain code already follows
+for user-level `<`/`>=`/etc.
+
+**The CLD gate widened to cover this code too.** `usesDecimalSensitiveMath`
+(`startup/commodore.ts`) decides whether the prologue needs a `CLD` by
+scanning for any `ADC`/`SBC` in the assembled program — and `waitFrameSetup`
+and `waitFrameRoutine` both contain plenty of both, unconditionally,
+whenever they're emitted at all. `mos/index.ts` now includes both in that
+scan (`usesDecimalSensitiveMath([...everyInstruction, ...waitFrameSetupProgram,
+...waitFrameRoutineProgram])`) rather than adding a second, parallel
+"does *this* code need CLD" boolean next to it.

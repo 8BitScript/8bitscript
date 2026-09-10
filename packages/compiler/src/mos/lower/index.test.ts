@@ -7,6 +7,7 @@ import { LocalAllocator } from './allocator.ts';
 import { assemble } from '../asm/assemble.ts';
 import type { Directive } from '../asm/assemble.ts';
 import { arrayLabel, stringLabel } from '../data.ts';
+import { WAIT_FRAME_LABEL } from '../startup/waitframe.ts';
 
 // A fresh, generously-budgeted context for a test that doesn't care about
 // the zero-page ceiling — most of them. Tests that do care build their own.
@@ -958,4 +959,32 @@ test('a ref/assign to a global pinned above $00FF uses absolute mode, not zeropa
   assert.equal(write2.mode, 'absolute');
   assert.equal(write2.operand!.kind === 'value' ? write2.operand!.value : -1, 0xe84c);
   assembles(writeResult.program);
+});
+
+// ---- milestone 10: waitFrame() ---------------------------------------
+
+test('waitFrame() lowers to a single JSR to the shared runtime subroutine — no inline pacing code at the call site', () => {
+  const options = ctx();
+  const result = lower([{ kind: 'waitFrame' }], options);
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  const call = instruction(result.program[0]);
+  assert.equal(call.mnemonic, 'JSR');
+  assert.equal(call.mode, 'absolute');
+  assert.deepEqual(call.operand, { kind: 'label', name: WAIT_FRAME_LABEL });
+  // The label itself is defined by mos/startup/waitframe.ts's own
+  // waitFrameRoutine(), not by this lowering — supplied here only so this
+  // program is real, assemblable 6502 on its own.
+  assembles([...result.program, { kind: 'label', name: WAIT_FRAME_LABEL }]);
+});
+
+test('two waitFrame() calls in a row both JSR the same shared label — one runtime subroutine, not one per call site', () => {
+  const options = ctx();
+  const result = lower([{ kind: 'waitFrame' }, { kind: 'waitFrame' }], options);
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  const first = instruction(result.program[0]);
+  const second = instruction(result.program[1]);
+  assert.deepEqual(first.operand, second.operand);
+  assert.equal(first.operand!.kind === 'label' ? first.operand!.name : '', WAIT_FRAME_LABEL);
 });

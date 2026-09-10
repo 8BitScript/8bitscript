@@ -37,6 +37,7 @@ import type { AddressingMode } from '../asm/encode.ts';
 import { storageBytes, resolveIntegerType } from '../../types/index.mjs';
 import { LocalAllocator, ZpBudgetError } from './allocator.ts';
 import { arrayLabel, stringLabel } from '../data.ts';
+import { WAIT_FRAME_LABEL } from '../startup/waitframe.ts';
 
 export type Directive = _AsmDirective;
 
@@ -844,6 +845,13 @@ class Lowerer {
       // perfectly good statement and has no value to width-check.
       case 'call':
         this.callSite(node);
+        return null;
+      // Blocks until the next logical frame — the accumulator, the
+      // calibrated measurement, and the hardware edge poll/ack all live in
+      // the shared subroutine every call site JSRs to (mos/startup/
+      // waitframe.ts), not here: this rule only has to know its name.
+      case 'waitFrame':
+        this.emit(instr('JSR', 'absolute', undefined, WAIT_FRAME_LABEL));
         return null;
       default:
         throw new LowerError(`no instruction-selection rule yet for the '${node.kind}' statement — it lands in a later milestone`);

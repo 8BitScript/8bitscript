@@ -23,6 +23,7 @@ import type { Directive, FunctionSite, IrFunction } from './lower/index.ts';
 import { LocalAllocator } from './lower/allocator.ts';
 import { prgBytes } from './prg.ts';
 import { epilogue, prologue, usesDecimalSensitiveMath } from './startup/commodore.ts';
+import { WAIT_FRAME_ZP_BYTES, usesWaitFrame, waitFrameRoutine, waitFrameSetup } from './startup/waitframe.ts';
 import { storageBytes } from '../types/index.mjs';
 import { allocate } from './zp/index.ts';
 import type { IrGlobal } from './zp/index.ts';
@@ -242,10 +243,28 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   }
   const arrays = new Map(constArrayGlobals.map((g) => [g.name, { elementType: g.type }]));
 
+  // waitFrame()'s own pacing state — an accumulator, a measured `num`, and
+  // setup's own scratch cell (mos/startup/waitframe.ts) — claims its zero
+  // page right after globals, the same way a function's parameters do below,
+  // and only when the linked program calls waitFrame() anywhere (entry or
+  // any function it can reach): a program that never does pays nothing for
+  // state it never needs.
+  let paramCursor = PET_ZP_BUDGET.zpOrigin + zp.zpUsed;
+  const needsWaitFrame = usesWaitFrame(ir.functions);
+  let waitFrameAcc = 0, waitFrameNum = 0, waitFrameTmp = 0;
+  if (needsWaitFrame) {
+    if (paramCursor + WAIT_FRAME_ZP_BYTES > PET_ZP_BUDGET.zpCeiling) {
+      return { ok: false, error: `waitFrame() needs ${WAIT_FRAME_ZP_BYTES} bytes of zero page for its own pacing state but only ${PET_ZP_BUDGET.zpCeiling - paramCursor} byte(s) remain` };
+    }
+    waitFrameAcc = paramCursor;
+    waitFrameNum = paramCursor + 4;
+    waitFrameTmp = paramCursor + 8;
+    paramCursor += WAIT_FRAME_ZP_BYTES;
+  }
+
   // Parameter pass: every function's calling interface, fixed before any
   // lowering runs — a call site needs its target's addresses regardless of
   // which function gets lowered first (mos/AGENTS.md).
-  let paramCursor = PET_ZP_BUDGET.zpOrigin + zp.zpUsed;
   const functionSites = new Map<string, FunctionSite>();
   for (const fn of ir.functions) {
     const params: { address: number; width: 1 | 2 }[] = [];
@@ -296,12 +315,22 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // array label), and link() assembles code and data as two independent
   // passes that never see each other's labels.
   const dataSection = buildDataSection(ir.strings ?? [], constArrayGlobals);
+  // The one-time calibration and the shared JSR target every waitFrame()
+  // call site (lower/index.ts) resolves to — both empty when the program
+  // never calls waitFrame() anywhere. Setup runs once, right after globals
+  // are initialized and before the entry function's own body (which may
+  // itself call waitFrame() first thing); the subroutine rides alongside
+  // every other function's own body, after the entry falls through to BASIC.
+  const waitFrameSetupProgram = needsWaitFrame ? waitFrameSetup(options.frameRate, waitFrameAcc, waitFrameNum, waitFrameTmp) : [];
+  const waitFrameRoutineProgram = needsWaitFrame ? waitFrameRoutine(waitFrameAcc, waitFrameNum) : [];
   const combinedProgram: Directive[] = [
-    ...prologue(usesDecimalSensitiveMath(everyInstruction)),
+    ...prologue(usesDecimalSensitiveMath([...everyInstruction, ...waitFrameSetupProgram, ...waitFrameRoutineProgram])),
     ...globalInitProgram,
+    ...waitFrameSetupProgram,
     ...entry.program,
     ...epilogue(),
     ...others.flatMap((f): Directive[] => [{ kind: 'label', name: f.label }, ...f.program, RTS]),
+    ...waitFrameRoutineProgram,
     ...dataSection,
   ];
 

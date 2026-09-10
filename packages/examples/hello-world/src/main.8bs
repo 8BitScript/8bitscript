@@ -6,5 +6,6 @@
 import { text } from "@8bitscript/text";
 
 export function main(): void {
+    waitFrame();
     text.print(0, "HELLO WORLD");
 }
