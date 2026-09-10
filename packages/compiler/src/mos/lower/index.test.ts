@@ -66,6 +66,18 @@ test('an empty body lowers to just the trailing exit label, which costs 0 bytes'
   assembles(result.program); // a lone label assembles to zero bytes, not an error
 });
 
+test('an origin-tagged block is one size-report part — inlined callees keep their names after the call is gone', () => {
+  const result = lower([
+    { kind: 'block', origin: 'screen_blank', body: [write(0x8000, 32)] },
+    write(0x8001, 1),
+  ], ctx());
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.parts.length, 2);
+  assert.equal(result.parts[0].origin, 'screen_blank');
+  assert.equal(result.parts[1].origin, null);
+});
+
 test('memoryWrite still lowers exactly as milestone 4 left it', () => {
   const result = lower([write(0x8000, 8)], ctx());
   assert.equal(result.ok, true);
@@ -244,6 +256,32 @@ test('for with an init-local, test, and update lowers and assembles; the local i
   const tight: LowerOptions = { globals: new Map(), locals: new LocalAllocator(0x90, 0x92), params: [], functions: new Map(), arrays: new Map() }; // 2 bytes: room for one 'i' plus one temp, never two 'i's at once
   const result = lower(program, tight);
   assert.equal(result.ok, true, result.ok ? '' : result.error);
+});
+
+test('a constant fill loop (screen.blank\'s own shape) lowers to STA abs,X page loops, not STA (zp),Y', () => {
+  const cell = 'cell';
+  const program: IrStatement[] = [{
+    kind: 'for',
+    init: local(cell, u16(0), 'usmallint'),
+    test: bin('<', ref(cell, 'usmallint'), u16(1000), 'bool'),
+    update: assign(cell, bin('+', ref(cell, 'usmallint'), u8(1), 'usmallint')),
+    body: [{
+      kind: 'memoryWrite',
+      address: bin('+', u16(0x8000), ref(cell, 'usmallint'), 'usmallint'),
+      value: u8(32),
+    }],
+  }];
+  const options = ctx();
+  const result = lower(program, options);
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  assert.equal(options.locals.used, 0, 'the fill uses X, not a zp index');
+  const stas = result.program.filter((d) => d.kind === 'instruction' && d.mnemonic === 'STA') as Extract<Directive, { kind: 'instruction' }>[];
+  assert.ok(stas.every((d) => d.mode === 'absolute,x'));
+  assert.equal(stas.length, 4, '3 full pages at $8000/$8100/$8200 plus a remainder at $8300');
+  assert.equal(result.program.some((d) => d.kind === 'instruction' && d.mode === '(indirect),y'), false);
+  const assembled = assembles(result.program);
+  assert.ok(assembled.bytes.length < 40, `fill should be a handful of page loops, got ${assembled.bytes.length} bytes`);
 });
 
 test('return with a value evaluates it into A, then jumps to the exit label — milestone 7', () => {

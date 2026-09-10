@@ -954,7 +954,12 @@ test('milestone 9 acceptance: printString(cell, s) — a real string parameter, 
     const result = await build(printTwoCharsIr(73 /* 'I' */), { machine: 'pet', hardware, outFile, frameRate: 60 });
     assert.equal(result.ok, true, result.ok ? '' : result.error);
     if (!result.ok) return;
-    assert.ok(result.bytes.length > 67, 'a real loop, a string table, and a second function cost more than milestone 8\'s single-call place() gate');
+    // Two LDA #imm / STA abs pairs (10 bytes) plus the 15-byte stub. The
+    // loop, string table, and place() fold away: a 2-character literal is
+    // already-converted stores, smaller and faster than milestone 8's
+    // single place() call.
+    assert.equal(result.bytes.length, 25);
+    assert.equal(result.memory.variables, 0);
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
@@ -1011,7 +1016,7 @@ const waitFrameHelloIr: IrProgram = {
   globals: [],
 };
 
-test('milestone 10 acceptance: waitFrame() before the real HELLO WORLD body builds, links, and reserves exactly its own 12 bytes of zero page', async () => {
+test('milestone 10 acceptance: waitFrame() before the real HELLO WORLD body builds, links, and reserves exactly its own 8 bytes of zero page', async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
   try {
     const outFile = join(scratch, 'out.prg');
@@ -1022,7 +1027,7 @@ test('milestone 10 acceptance: waitFrame() before the real HELLO WORLD body buil
     // only zero page spent is waitFrame()'s own pacing state (mos/startup/
     // waitframe.ts's WAIT_FRAME_ZP_BYTES), so this number is exact, not a
     // lower bound.
-    assert.equal(result.memory.variables, 12);
+    assert.equal(result.memory.variables, 8);
     assert.deepEqual([...await readFile(outFile)], [...result.bytes]);
   } finally {
     await rm(scratch, { recursive: true, force: true });
@@ -1065,7 +1070,7 @@ test('milestone 10: a build with waitFrame() overflowing what zero page remains 
     const result = await build(ir, { machine: 'pet', hardware, outFile: join(scratch, 'out.prg'), frameRate: 60 });
     assert.equal(result.ok, false);
     if (result.ok) return;
-    assert.match(result.error, /^waitFrame\(\) needs 12 bytes of zero page for its own pacing state but only 1 byte\(s\) remain$/);
+    assert.match(result.error, /^waitFrame\(\) needs 8 bytes of zero page for its own pacing state but only 1 byte\(s\) remain$/);
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
@@ -1174,15 +1179,50 @@ test('the real hello-world on the 2001 leaves BASIC 1 CHRGET ($C2-$D9) alone so 
   const on2001 = await zpBytes('2001');
   // 77/101 before linker/reachability.mjs: hello-world's own real zp cost
   // used to include every unreached helper @8bitscript/text and
-  // @8bitscript/screen declare (printNumber's own locals chief among
-  // them). 49 is what the program actually, provably touches — and at 49
-  // bytes, allocation from $8E never reaches as far as the hole at $C2
-  // (that needs the 52nd byte), so the 2001 and the 3032 now allocate
-  // identically: the hole was there to skip, and this program is small
-  // enough not to run into it. The skip logic itself — given a program
-  // that actually does reach that far — is its own test, right below.
-  assert.equal(on3032, 49, 'BASIC 2 CHRGET is below $8E — no hole, 49 bytes of real slots');
+  // @8bitscript/screen declare. After folding print of a literal into
+  // stores, inlining PET blank (its color args are unused), a zp-free
+  // screen fill, and waitFrame's 8-byte window, 8 is what the program
+  // actually, provably touches — waitFrame's own state, nothing else —
+  // and at 8 bytes, allocation from $8E never reaches as far as the hole
+  // at $C2 (that needs the 52nd byte), so the 2001 and the 3032 now
+  // allocate identically: the hole was there to skip, and this program
+  // is small enough not to run into it. The skip logic itself — given a
+  // program that actually does reach that far — is its own test, right
+  // below.
+  assert.equal(on3032, 8, 'BASIC 2 CHRGET is below $8E — no hole, 8 bytes of real slots');
   assert.equal(on2001, on3032, 'pruned hello-world never allocates as far as $C2 — nothing to skip');
+});
+
+test('--size still names inlined callees and splits wait-frame setup from the per-frame routine', async () => {
+  const main = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'examples', 'hello-world', 'src', 'main.8bs');
+  const src = readFileSync(main, 'utf8');
+  const resolved = resolveHardware(loadCatalog('pet'), { profile: '3032' });
+  assert.ok(resolved.ok, resolved.ok ? '' : resolved.error);
+  const { ir, diagnostics } = link(src, main, { machine: 'pet', facts: resolved.hardware.facts });
+  assert.deepEqual(diagnostics, []);
+  assert.ok(ir);
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-size-report-'));
+  try {
+    const result = await build(ir as IrProgram, {
+      machine: 'pet',
+      hardware: resolved.hardware as unknown as BuildOptions['hardware'],
+      outFile: join(scratch, 'out.prg'),
+      frameRate: 60,
+      report: true,
+    });
+    assert.equal(result.ok, true, result.ok ? '' : result.error);
+    if (!result.ok) return;
+    const names = result.sizeReport!.map((e) => e.name);
+    assert.ok(names.includes('(wait-frame setup)'), names.join(', '));
+    assert.ok(names.includes('(wait-frame routine)'), names.join(', '));
+    assert.ok(names.includes('screen_blank'), names.join(', '));
+    assert.ok(names.includes('text_print'), names.join(', '));
+    assert.ok(names.includes('main'), names.join(', '));
+    assert.equal(names.includes('(wait-frame setup + routine)'), false);
+    assert.equal(result.sizeReport!.reduce((n, e) => n + e.bytes, 0), result.bytes.length);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
 });
 
 test('the BASIC 1 CHRGET hole ($C2-$D9) is still really skipped, once a program actually reaches that far', async () => {

@@ -242,11 +242,13 @@ buffer needs a RAM placement rule this milestone didn't need to invent.
 through an array index (`DIGIT_PLACES` is `const`, read-only).
 
 **The data section: one assembly pass, not `link()`'s own `data` input.**
-`mos/data.ts` lays out every string literal (`ir.strings`, length-prefixed —
-one byte, then the characters, `ir/index.mjs`'s own format) and every const
-array global as `label` / `.byte` pairs, and `mos/index.ts` appends the
-whole thing to the *end* of the one program it hands `link()` as `code`,
-after every function's own body. `link()`'s own `data` section looked like
+`mos/data.ts` lays out each string literal still referenced after
+`optimizeReachable` folds a print of a literal into stores (`ir.strings`,
+length-prefixed — one byte, then the characters, `ir/index.mjs`'s own
+format) and every const array global as `label` / `.byte` pairs, and
+`mos/index.ts` appends the whole thing to the *end* of the one program
+it hands `link()` as `code`, after every function's own body. `link()`'s
+own `data` section looked like
 the obvious place until it wasn't: `place()` assembles `code` and `data` as
 two *independent* passes (`assembleRelaxed(input.code.program, codeOrigin)`,
 then separately for `data`), each building its own label map from only its
@@ -430,32 +432,33 @@ untyped, structural way `mos/index.ts`'s own `collectCallNames()` already
 walks the call graph — every function, not just the entry, since a
 `waitFrame()` call inside a helper function still needs the state primed
 before it can run. When it says yes, `mos/index.ts` claims
-`WAIT_FRAME_ZP_BYTES` (12) right after globals and before any function's
-own parameters: a 4-byte accumulator, a 4-byte measured `num`, and a
-4-byte scratch cell setup borrows once and never needs again. A program
-that never calls `waitFrame()` pays none of it — no zero page, no
-calibration code, no subroutine appended (`test/mos.test.ts`'s own "pays
-nothing for it" gate proves the byte-for-byte-identical output).
+`WAIT_FRAME_ZP_BYTES` (8) right after globals and before any function's
+own parameters: a 4-byte accumulator and a 4-byte measured `num`. Setup
+measures elapsed into the accumulator, multiplies into `num`, then zeros
+the accumulator — no third scratch cell. A program that never calls
+`waitFrame()` pays none of it — no zero page, no calibration code, no
+subroutine appended (`test/mos.test.ts`'s own "pays nothing for it" gate
+proves the byte-for-byte-identical output).
 
-**Calibration: measured once, multiplied by a compile-time constant, no
-6502 multiply loop.** The PET has no documented NTSC/PAL crystal split
-(`FRAME_SYNC.pet`'s own comment), so `num` isn't a build-time constant
-here the way it is on every other machine — `waitFrameSetup()` measures
-real cycles-per-frame once at start-up: `SEI`, wait for one retrace edge,
-load VIA1 Timer 2 with `$FFFF` (a one-shot countdown), wait for the next
-edge, read the timer back. `elapsed = 0xFFFF - timer` is computed as `EOR
-#$FF` on each byte rather than a subtract-with-borrow — subtracting from
-an all-ones value is exactly a bitwise complement, for any 16-bit value,
-no carry chain needed. `num = frameRate * elapsed` then unrolls at *build*
-time, not run time: `frameRate` is a plain TypeScript number when
-`build()` runs, never a runtime value, so this is one 32-bit add per set
-bit of `frameRate` and one 32-bit doubling between them — a fixed,
-straight-line instruction sequence, not a loop with a counter that would
-cost its own zero page for a value already known before a single byte is
-emitted. `den` is always exactly 1,000,000, the PET's own flat,
-region-independent 1MHz clock (documented, not measured) — it is never
-stored in zero page at all, only ever appearing as four immediate bytes in
-the subroutine's own compare and subtract.
+**Calibration: measured once, multiplied by a compile-time constant.** The
+PET has no documented NTSC/PAL crystal split (`FRAME_SYNC.pet`'s own
+comment), so `num` isn't a build-time constant here the way it is on every
+other machine — `waitFrameSetup()` measures real cycles-per-frame once at
+start-up: `SEI`, wait for one retrace edge, load VIA1 Timer 2 with `$FFFF`
+(a one-shot countdown), wait for the next edge, read the timer back.
+`elapsed = 0xFFFF - timer` is computed as `EOR #$FF` on each byte rather
+than a subtract-with-borrow — subtracting from an all-ones value is exactly
+a bitwise complement, for any 16-bit value, no carry chain needed.
+`num = frameRate * elapsed` then runs as a Russian-peasant loop when
+`frameRate` fits in a byte (every real project value: 50 or 60): the rate
+in X, a bit count in Y, one 32-bit add and one 32-bit shift in the body.
+Hello-world's unrolled form of the same multiply was 211 bytes of setup;
+the loop is smaller and needs no extra zero page. A `frameRate` wider than
+a byte still unrolls, shifting elapsed in the accumulator cell. `den` is
+always exactly 1,000,000, the PET's own flat, region-independent 1MHz
+clock (documented, not measured) — it is never stored in zero page at all,
+only ever appearing as four immediate bytes in the subroutine's own compare
+and subtract.
 
 **The per-call subroutine: drain existing credit first, otherwise block on
 the next edge.** `waitFrameRoutine()`'s loop checks `acc >= den` *before*
