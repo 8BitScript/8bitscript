@@ -38,12 +38,11 @@ export namespace screen {
     // color each, `setColors` the pair; `text.setColor` owns what the
     // next print looks like.
     function blank(border: utinyint = BorderColor.BLACK, background: utinyint = BackgroundColor.BLACK): void {
-        if (border != BorderColor.KEEP) {
-            screen.setBorder(border);
-        }
-        if (background != BackgroundColor.KEEP) {
-            screen.setBackground(background);
-        }
+        // Color arguments are part of the portable signature and do
+        // nothing here: there is no border or background register to
+        // write, so KEEP vs BLACK vs BLUE is the same no-op. Calling the
+        // empty setBorder/setBackground stubs would still cost a compare
+        // and a JSR/RTS on every blank.
         for (let cell: usmallint = 0; cell < Video.CELL_COUNT; cell++) {
             memory.write(0x8000 + cell, 32); // 32: the space screen code
         }

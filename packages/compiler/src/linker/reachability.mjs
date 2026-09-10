@@ -9,8 +9,9 @@
 // has.
 //
 // This module is what changed instead: each backend's own build() calls
-// pruneUnreachable(ir) itself, right before lowering, and compiles only
-// what comes back. Measured on the real, unmodified hello-world example —
+// optimizeReachable() (prune, fold, prune — linker/optimize.mjs) right
+// before lowering, and compiles only what comes back. Measured on the
+// real, unmodified hello-world example —
 // one namespace import (@8bitscript/text) pulling in putChar, putColor,
 // setColor, setReverse and printNumber alongside the print() it actually
 // calls — the PET build was paying 280 of its 1130 program bytes (25%) for

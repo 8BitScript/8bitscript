@@ -89,3 +89,12 @@ test('the whole section assembles: every label lands where its own preceding byt
 test('no strings and no const arrays lays out to nothing', () => {
   assert.deepEqual(buildDataSection([], []), []);
 });
+
+test('an unused string index is omitted when the caller names the ones still referenced', () => {
+  const strings: IrString[] = [{ text: 'HI', bytes: [72, 73] }, { text: 'A', bytes: [65] }];
+  const section = buildDataSection(strings, [], new Set([1]));
+  assert.deepEqual(section, [
+    { kind: 'label', name: stringLabel(1) },
+    { kind: 'byte', values: [1, 65] },
+  ]);
+});

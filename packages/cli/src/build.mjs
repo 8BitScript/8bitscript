@@ -293,10 +293,12 @@ export function memoryLine(declared, measured = null) {
 /**
  * `--size`'s own breakdown, under the memory line: every function the
  * build actually compiled (dead ones are already gone — see
- * @8bitscript/compiler's own reachability pruning) plus each backend's
- * fixed-cost buckets (a runtime routine, a module's own section framing,
- * …), largest first, with a percentage of `total` so a big program's own
- * worst offender is obvious without doing the division by hand.
+ * @8bitscript/compiler's own reachability pruning), inlined callees that
+ * now live inside one of those, plus each backend's fixed-cost buckets
+ * (wait-frame setup vs the per-frame routine, a module's own section
+ * framing, …), largest first, with a percentage of `total` so a big
+ * program's own worst offender is obvious without doing the division by
+ * hand.
  */
 export function sizeReportLines(entries, total) {
   const width = Math.max(...entries.map((e) => String(e.bytes).length));
