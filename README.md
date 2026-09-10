@@ -24,8 +24,8 @@ managed runtime that normally comes with it.
   memory access, and platform-specific libraries are supported features of the
   language, not escape hatches bolted on the side.
 - **The web build preserves native semantics.** The browser target is not a
-  relaxed dialect: it honours the same memory model and the same arithmetic
-  behaviour as the native build.
+  relaxed dialect: it honors the same memory model and the same arithmetic
+  behavior as the native build.
 
 ## Target systems
 
@@ -34,7 +34,7 @@ managed runtime that normally comes with it.
 It is the release in which 8BitScript replaces the external toolchains it
 used to lean on with its own code generators, assembler, linker, and file
 writers, and the PET is the machine that work is brought up on: a stock
-6502, a screen that is plain RAM, no colour, no video chip to program. The
+6502, a screen that is plain RAM, no color, no video chip to program. The
 web is the other half because its runtime is the reference every portable
 package is written against. The roadmap to the first program, `Hello
 World!` on a PET and in a browser, is the working document titled
@@ -117,7 +117,7 @@ it — a real `.prg`/`.wasm`, not a stub. The seven parked machines' backends
 still don't exist yet. What the language already
 controls is where every global lives — `.rodata`, `.data`, `.noinit`, or
 `.zp.noinit` — decided by whether it is `const` or `let` and how it is
-initialised, not left to a C-style runtime initialiser.
+initialized, not left to a C-style runtime initializer.
 
 **C** is the closest relative on these machines: no garbage collector, no
 boxing, no hidden allocation. 8BitScript adds range-checked, fixed-width

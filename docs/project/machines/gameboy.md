@@ -19,7 +19,7 @@ make "port the NES package" the wrong plan. The Game Boy is a fourth case:
 > **The Game Boy is a tile machine whose CPU is *not* a 6502 and not a Z80
 > either: an 8080-shaped core with no I/O instructions, whose "ports" are
 > memory at `$FF00`, whose video memory is locked for most of every
-> scanline, whose sprite limit is ten *per line by Y*, and whose colour,
+> scanline, whose sprite limit is ten *per line by Y*, and whose color,
 > RAM, VRAM and speed all double on the Color model. Model it as tiles +
 > two 32×32 maps + 40 objects behind a per-scanline access schedule, with
 > the cartridge — not the console — deciding how much ROM, RAM and
@@ -56,7 +56,7 @@ emulator/toolchain source or manual named — not recalled.
 | Fact | Where |
 | ---- | ----- |
 | CPU: "8-bit 8080-like Sharp CPU (speculated to be a SM83 core)"; master clock 4.194304 MHz, system clock ¼ of it; CGB up to 8.388608 MHz; SGB1 clock derived from the SNES, SGB2 same as handhelds; DMG units run 50–70 ppm slow. | `Specifications.md` |
-| WRAM 8 KiB (CGB 32 KiB = 4 + 7×4); VRAM 8 KiB (CGB 2×8); 160×144; objects 8×8/8×16, max 40 per screen, **10 per line**; palettes DMG BG 1×4, OBJ 2×3; CGB BG 8×4, OBJ 8×3, 32768 colours; H-sync 9.198 kHz, V-sync 59.73 Hz; 4 sound channels, stereo. | `Specifications.md` |
+| WRAM 8 KiB (CGB 32 KiB = 4 + 7×4); VRAM 8 KiB (CGB 2×8); 160×144; objects 8×8/8×16, max 40 per screen, **10 per line**; palettes DMG BG 1×4, OBJ 2×3; CGB BG 8×4, OBJ 8×3, 32768 colors; H-sync 9.198 kHz, V-sync 59.73 Hz; 4 sound channels, stereo. | `Specifications.md` |
 | Memory map: `0000–3FFF` ROM bank 00; `4000–7FFF` ROM bank 01–NN via mapper; `8000–9FFF` VRAM (CGB bank 0/1); `A000–BFFF` external RAM; `C000–CFFF` WRAM; `D000–DFFF` WRAM (CGB bank 1–7); `E000–FDFF` echo (prohibited); `FE00–FE9F` OAM; `FEA0–FEFF` unusable; `FF00–FF7F` I/O; `FF80–FFFE` HRAM; `FFFF` IE. Vectors: RST `$00–$38`, interrupts `$40/$48/$50/$58/$60`; header `$0100–$014F`. | `Memory_Map.md` |
 | No IN/OUT: "I/O ports are accessed directly by normal LD instructions, or by new LD (FF00+n) opcodes". No IX/IY, no DD/FD/ED prefixes, no EXX/EX, no sign/parity flags; adds `LDI/LDD`, `SWAP`, `STOP`, `RETI`, `ADD SP,dd`, `LD HL,SP+dd`; "approximately as fast as a 4 MHz Z80"; all instruction times are multiples of 4 cycles; unused opcodes lock the CPU. | `CPU_Comparison_with_Z80.md` |
 | Tiles 8×8, 2 bpp, 16 B; 384 per bank (768 CGB) in three 128-tile blocks; objects always use `$8000` addressing; BG/Window use `$8000` (unsigned) or `$8800` (signed, base `$9000`) by LCDC.4; block 1 (`$8800–$8FFF`, ids 128–255) is shared. | `Tile_Data.md` |
@@ -66,7 +66,7 @@ emulator/toolchain source or manual named — not recalled.
 | PPU modes per line: 2 = OAM scan 80 dots (VRAM open), 3 = drawing 172–289 dots (nothing open), 0 = HBlank remainder (VRAM, OAM, CGB palettes open), 1 = VBlank 4560 dots = 10 lines; 154 lines per frame, 144 visible; a frame is ~16.74 ms, 0.45 % slower than 60 Hz; blocked writes are ignored, blocked reads return `$FF`. Mode 3 penalties: SCX%8, +6 for the Window, 6–11 per object. | `Rendering.md`, `Accessing_VRAM_and_OAM.md` (WebFetch) |
 | LCDC `$FF40`: 7 LCD on, 6 Window map, 5 Window on, 4 BG/Win tile data area, 3 BG map, 2 OBJ size, 1 OBJ on, 0 BG/Win enable (DMG) / master priority (CGB). "Stopping LCD operation … may be performed during VBlank ONLY … may damage the hardware". LCDC is never locked and may be changed mid-scanline (status-bar trick: toggle LCDC.1). | `LCDC.md` |
 | STAT `$FF41`: mode bits, LYC=LY, four interrupt selects; LY `$FF44` 0–153 (144–153 = VBlank); LYC `$FF45`. | `STAT.md` (WebFetch) |
-| DMG palettes: BGP `$FF47` (2 bits per index, 0 white … 3 black), OBP0/1 `$FF48/49` (index 0 transparent). CGB: 8 BG + 8 OBJ palettes, RGB555 little-endian in two 64-byte CRAMs via BCPS/BCPD `$FF68/69`, OCPS/OCPD `$FF6A/6B`; boot ROM initialises BG palettes white; GBA renders CGB colours darker (`GBA ≈ GBC×3/4 + $08`). | `Palettes.md` |
+| DMG palettes: BGP `$FF47` (2 bits per index, 0 white … 3 black), OBP0/1 `$FF48/49` (index 0 transparent). CGB: 8 BG + 8 OBJ palettes, RGB555 little-endian in two 64-byte CRAMs via BCPS/BCPD `$FF68/69`, OCPS/OCPD `$FF6A/6B`; boot ROM initializes BG palettes white; GBA renders CGB colors darker (`GBA ≈ GBC×3/4 + $08`). | `Palettes.md` |
 | CGB: A = `$11` at boot (B bit 0 set = GBA); KEY1 `$FF4D` + `stop` switches speed — CPU, timers, serial and OAM DMA double, PPU/HDMA/APU do not; VBK `$FF4F` bit 0; SVBK `$FF70` bits 0–2 (0 → bank 1); HDMA `$FF51–$FF55` general-purpose (halts CPU) or HBlank (16 B per HBlank) — "allows for a transfer of 2280 bytes during VBlank, which is up to 142.5 tiles"; OPRI `$FF6C`; IR `$FF56`; header `$0143` `$80` (dual) / `$C0` (CGB only). | `CGB_Registers.md` |
 | APU: CH1 pulse + sweep, CH2 pulse, CH3 wave (user-supplied), CH4 noise LFSR; envelopes on 1/2/4 ticked at 64 Hz; length timers at 256 Hz (64 or 256 steps); per-channel stereo mix and master volume; VIN cartridge input; APU timing unaffected by double speed. | `Audio.md` |
 | MBCs live in the cartridge, declared at `$0147`; only MBC5 is guaranteed for double speed; MBC3 = 2 MB (128 banks) + 32 KiB (4 banks) + RTC (`$08–$0C` select, latch); MBC5 = ROM banks `$000–$1FF`, RAM 8/32/128 KiB (`$00–$0F`), rumble on RAM-bank bit 3, "writing 0 will indeed give bank 0". | `MBCs.md`, `MBC3.md`, `MBC5.md` |
@@ -168,7 +168,7 @@ emulator/toolchain source or manual named — not recalled.
   X is offset by 7).
 - Palettes: DMG has one BG palette (4 shades) and two OBJ palettes
   (3 + transparent); CGB has 8 + 8 of RGB555, chosen per tile through the
-  bank-1 attribute map. A portable "colour" is therefore a palette
+  bank-1 attribute map. A portable "color" is therefore a palette
   *index* per tile, never an RGB value — and a DMG build has exactly four
   of them.
 - The BG addressing mode (LCDC.4) changes which tile index 0 means; pick

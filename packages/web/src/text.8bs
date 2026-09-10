@@ -27,24 +27,24 @@ import { WebRegisters } from "./index.8bs";
 // `text.print(cell, s)` writes a string's characters into consecutive
 // cells from `cell`, and `text.printNumber(cell, value, width)` writes
 // `value` as exactly `width` decimal digits, zero-padded and right-aligned,
-// so a field on a HUD never shifts columns. Both draw in the current colour —
+// so a field on a HUD never shifts columns. Both draw in the current color —
 // white until `text.setColor(TextColor.CYAN)` changes it, and that one
-// call then colours everything printed after it, on the machines that have
-// per-cell colour. They are also the two
+// call then colors everything printed after it, on the machines that have
+// per-cell color. They are also the two
 // functions the compiler's template layout targets: `text.print(0,
 // \`TICK ${ticks:1}\`)` is laid out at compile time into these same calls
 // (see packages/compiler/src/ir).
 //
 // Under them: `place()` puts one character at one cell in the current
-// colour, and is all a run of text costs per character.
+// color, and is all a run of text costs per character.
 // `text.putChar` and `text.putColor` stay the one-cell pokes a caller can
 // build anything from.
 let currentColor: utinyint = 1; // white, until text.setColor() says otherwise
 let currentReverse: bool = false; // until text.setReverse() says otherwise
 
-// Reverse rides in bit 7 of the colour byte: the host fills the cell with
-// the foreground colour and punches the glyph out in the screen background.
-// A reverse space is a solid block. The low four bits stay the colour.
+// Reverse rides in bit 7 of the color byte: the host fills the cell with
+// the foreground color and punches the glyph out in the screen background.
+// A reverse space is a solid block. The low four bits stay the color.
 function colorByte(): utinyint {
     if (currentReverse) {
         return currentColor + 128;
@@ -94,8 +94,8 @@ export namespace text {
     }
 }
 
-// The colours `text.setColor()` takes: the eight names every machine
-// shares, with this machine's colour-RAM values.
+// The colors `text.setColor()` takes: the eight names every machine
+// shares, with this machine's color-RAM values.
 export namespace TextColor {
     const BLACK: utinyint = 0;
     const WHITE: utinyint = 1;

@@ -19,7 +19,7 @@ less: the NES at least has a nametable. The 2600 is the case the whole
 
 > **The 2600 has no display memory of any kind. TIA holds one scanline's
 > worth of state — a 20-bit playfield pattern, two 8-bit player bitmaps,
-> two missiles, a ball, four colour registers — and the CPU rewrites those
+> two missiles, a ball, four color registers — and the CPU rewrites those
 > registers on every one of the 192 visible lines, 76 cycles each, while
 > the beam draws them. Everything else is small: 128 bytes of RAM shared
 > with the stack, 4K of ROM without a mapper, a 6507 with 13 address lines
@@ -84,17 +84,17 @@ under Stella when a runtime depends on it.
 
 **The frame.** 262 lines per NTSC frame: 3 lines of VSYNC, 37 of
 vertical blank, 192 of picture, 30 of overscan — all produced by the
-program; the TV only knows what the program strobes. A line is 228 colour
+program; the TV only knows what the program strobes. A line is 228 color
 clocks (3.58 MHz), 68 of horizontal blank and 160 visible; the CPU clock
-is one third of the colour clock, so **76 CPU cycles per line** and
+is one third of the color clock, so **76 CPU cycles per line** and
 `STA WSYNC` halts the CPU until the next line starts. PAL is 312 lines
 (the SDK's 45/250/36 split); the CPU clock differs slightly (*to verify*).
 
 **Playfield.** 20 bits per half-line from PF0 (4 bits, reversed), PF1 and
-PF2, each bit 4 colour clocks wide; the right half repeats or, with
+PF2, each bit 4 color clocks wide; the right half repeats or, with
 CTRLPF bit 0, reflects the left — so a full-width "pixel" grid is 40 × 192
 with every row needing the CPU to rewrite PF0-2 (twice per line for an
-asymmetric playfield). CTRLPF bit 1 (score mode) colours the halves with
+asymmetric playfield). CTRLPF bit 1 (score mode) colors the halves with
 COLUP0/COLUP1; bit 2 puts the playfield above the players.
 
 **Objects.** Two players 8 bits wide (GRP0/1), reflectable (REFPx), with
@@ -107,9 +107,9 @@ delay a write by one line for two-line kernels. Vertical position does
 not exist: an object appears on the lines where its graphics register is
 non-zero.
 
-**Colour.** COLUP0, COLUP1, COLUPF, COLUBK: 4 hue bits × 3 luminance bits
-(bit 0 unused) = 128 colours NTSC; PAL and SECAM palettes differ (SECAM
-has 8 colours, *to verify*). Colour is per *object* per *line*: change
+**Color.** COLUP0, COLUP1, COLUPF, COLUBK: 4 hue bits × 3 luminance bits
+(bit 0 unused) = 128 colors NTSC; PAL and SECAM palettes differ (SECAM
+has 8 colors, *to verify*). Color is per *object* per *line*: change
 the register mid-line and the change lands mid-line.
 
 **RAM and timers.** 128 bytes of RIOT RAM at `$80-$FF`, mirrored (the
@@ -119,7 +119,7 @@ down from TIM1T/TIM8T/TIM64T/T1024T at 1/8/64/1024 cycles per tick — the
 only clock the program has, and the SDK's frame loop is built on it.
 
 **Input.** SWCHA: two joysticks, 4 bits each, active low (SWACNT sets the
-direction, all input by default); SWCHB: RESET, SELECT, colour/B&W and
+direction, all input by default); SWCHB: RESET, SELECT, color/B&W and
 the two difficulty switches, active low; INPT4/INPT5 bit 7 = fire, latched
 if VBLANK bit 6 is set; INPT0-3 are the paddle pots, read by dumping the
 capacitors with VBLANK bit 7 and counting lines until the bit flips;

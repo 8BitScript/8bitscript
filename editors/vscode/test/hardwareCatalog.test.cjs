@@ -127,7 +127,7 @@ test('a systems block the config gets wrong is a message, not a missing panel', 
   assert.match(targets.systemsError, /does not target nes/);
 });
 
-test('a selection is recognised as one of the project\'s systems by what it fits, not by what was clicked', () => {
+test('a selection is recognized as one of the project\'s systems by what it fits, not by what was clicked', () => {
   const targets = parseTargets(SAMPLE);
   const target = targets.get('c64');
   const [mouse, reu] = targets.systems;

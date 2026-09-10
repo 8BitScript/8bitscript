@@ -100,7 +100,7 @@ let started: bool = false;
 let hold: array<utinyint, 2>;
 
 // Whether the reading the last poll() took was consistent with a 1351.
-// **Kept, rather than asked again**, and that is not an optimisation: the
+// **Kept, rather than asked again**, and that is not an optimization: the
 // SID's converter runs continuously, so two reads of `$D419` are two
 // different moments, and a program that asks twice in one frame can get
 // two different answers. Measured under x64sc with a 1351 fitted in port

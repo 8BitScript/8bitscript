@@ -13,12 +13,12 @@
 // registers and are built on nothing else. A project that imports THIS
 // package has declared itself VIC-20 specific.
 
-// $900F, the VIC chip's screen/colour register. Bits verified against the
+// $900F, the VIC chip's screen/color register. Bits verified against the
 // VIC-20's own hardware map, not inferred from a BASIC POKE example:
 //
-//   bits 4-7  background colour (16 values)
+//   bits 4-7  background color (16 values)
 //   bit  3    normal/inverted video (1 = normal)
-//   bits 0-2  border colour (8 values — the VIC only gives border 3 bits)
+//   bits 0-2  border color (8 values — the VIC only gives border 3 bits)
 @address(0x900F)
 export let vicColor: volatile<u8>;
 

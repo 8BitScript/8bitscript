@@ -110,7 +110,7 @@ const CONSTRUCT_DOCS = {
       '',
       '`let a: array<T, N>` is N values in RAM (zero until written, or `= [..]`); `const Table: array<T, N> = [..]` is N values of data in the program, never in RAM; `@address(0x0400) let screenRam: array<T, N>` is N cells of hardware. N is a literal or a `const`, and the size is part of the type, so memory usage is predictable — no hidden allocation or resizing.',
       '',
-      'A function takes one the same way — `function pick(t: array<u8, 4>, i: u8)` — and the call passes the array by name: the address of its first element, with nothing copied and no length travelling alongside it, since `t.length` is folded from the type. An array parameter is read-only and has no default.',
+      'A function takes one the same way — `function pick(t: array<u8, 4>, i: u8)` — and the call passes the array by name: the address of its first element, with nothing copied and no length traveling alongside it, since `t.length` is folded from the type. An array parameter is read-only and has no default.',
     ].join('\n'),
   },
   asm6502: {
@@ -212,7 +212,7 @@ const WAITFRAME_DOC = [
   'Takes no arguments and returns nothing. Reserved: a variable, function, parameter, or import named `waitFrame` is a compile error.',
 ].join('\n');
 
-/** `memory.read`/`memory.write`: the one namespace the compiler recognises itself. */
+/** `memory.read`/`memory.write`: the one namespace the compiler recognizes itself. */
 const MEMORY_DOCS = {
   write: [
     '**memory.write(address, value)**',
@@ -244,7 +244,7 @@ function tokenIndexAt(tokens, offset) {
 /**
  * Built-in hover information for the construct at `offset` in `text`.
  *
- * Recognises primitive integer types (canonical spellings like `utinyint` and
+ * Recognizes primitive integer types (canonical spellings like `utinyint` and
  * `int`, or their low-level `u8`/`i32`-style aliases),
  * `volatile`/`ptr`/`array`, `asm6502`, `@address`, the `memory.read`/
  * `memory.write` intrinsic, and the `#frames(...)` (with its `seconds` unit),
@@ -423,7 +423,7 @@ function compileTimePosition(tokens, offset, text) {
 /**
  * Is `offset` the unit argument of a compile-time clock call — the
  * `seconds` in `#frames(0.5, |)`? The same shape isDurationUnitSlot()
- * recognises for hover, one token earlier.
+ * recognizes for hover, one token earlier.
  */
 /**
  * Is `offset` the key argument of a `#fact(...)` call — `#fact(|)`, or a

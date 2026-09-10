@@ -25,7 +25,7 @@ Do not describe more than this as working:
   RAM `$3F00`, the universal backdrop. Its border is real but *drawn*: the
   NES has no border register (the picture fills the frame edge to edge), so
   the first `setColors()` lays a two-tile-thick ring of a solid tile around
-  the nametable and `border` is that tile's colour (`$3F02`).
+  the nametable and `border` is that tile's color (`$3F02`).
   `text.putChar(cell, code)` writes an ASCII code into the 28×26 grid
   inside that frame — into the package's write queue, which `waitFrame()`
   delivers through PPUADDR/PPUDATA at the start of vertical blank and then
@@ -82,7 +82,7 @@ Do not describe more than this as working:
 - Timing is NTSC-only (`FRAME_SYNC.nes` in `packages/compiler/src/mos`); PAL NES
   is not supported. FCEUX's default NTSC view hides the top and bottom 8
   lines (rows 0 and 29), which is why the frame is two tiles thick.
-  The colour-cycling demo that first ran here put its readout at row 2,
+  The color-cycling demo that first ran here put its readout at row 2,
   column 2 — the first cell
   inside the frame, matching the cell-0 position every other target uses.
 - `docs/setup/nes.md` covers installing and running FCEUX, the emulator
@@ -95,7 +95,7 @@ If you're implementing one of these, the rules below are what to hold it
 to; if you're just writing docs or comments, don't imply it already exists.
 
 Two PPU rules `index.8bs` documents, `screen.8bs`/`text.8bs` already
-honour, and any extension must keep: VRAM is free to write only while
+honor, and any extension must keep: VRAM is free to write only while
 rendering is off (before the first `screen.setColors()`) or during
 vertical blank (right after `waitFrame()`
 returns, which on the NES is vblank start) — never from setup code that
@@ -107,11 +107,11 @@ address register was left.
 **The catalog's stock fact sheet** (`"8bitscript".hardware.facts` in
 `package.json`, what `Video.*` and the rest of `@8bitscript/system` fold
 to): grid 28×26 of 8×8 (the nametable's 32×30 less the inset `text`
-draws inside), 25 colours at once (four background and four sprite
+draws inside), 25 colors at once (four background and four sprite
 palettes of three, plus the backdrop), 3 per cell (a 16×16 attribute
 block's palette), no redefinable glyphs on NROM's CHR-ROM, no block
 glyphs, no bitmap, one layer (two nametables) with fine scroll; 64
-sprites, **8 per line**, 8×16, 3 colours; APU: two pulses, triangle,
+sprites, **8 per line**, 8×16, 3 colors; APU: two pulses, triangle,
 noise and DMC = 5 voices, hardware envelopes, samples on the DMC, a
 volume per pulse and noise, no filter or random source; no keyboard, two
 pad ports; nothing to save to on NROM (the `mapper` value's fact); 1536
@@ -228,7 +228,7 @@ the other eight targets' own mechanisms.
 
 ```
 packages/nes/src/index.8bs           target package: the PPU port protocol (setVramAddress, resetScroll)
-packages/nes/src/screen.8bs          @8bitscript/nes/screen: screen.blank()/setBorder()/setBackground()/setColors(), the drawn frame, colour names
+packages/nes/src/screen.8bs          @8bitscript/nes/screen: screen.blank()/setBorder()/setBackground()/setColors(), the drawn frame, color names
 packages/nes/src/text.8bs            @8bitscript/nes/text: text.print/printNumber/setColor/setReverse/putChar/putColor, CELL_COUNT 728, COLUMNS 28, TextColor (inert)
 packages/nes/native/6502/font.s      the CHR-ROM character set (tile index == ASCII; reverse at ASCII+128)
 packages/nes/package.json            "8bitscript".exports names the two subpaths; .native lists the font

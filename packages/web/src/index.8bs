@@ -17,7 +17,7 @@
 // (the `--initialMemory 1` page every web build reserves, per
 // @8bitscript/compiler/wasm). This package's hardware surface is therefore an
 // AGREEMENT rather than a register map: a handful of fixed byte offsets in
-// that memory — two for the border and background colours, a virtual
+// that memory — two for the border and background colors, a virtual
 // character screen for everything `text` pokes, and one byte of input the
 // page writes and `@8bitscript/web/input` reads — which the host
 // (packages/cli's browser runtime, packages/cli/src/web-runtime.mjs) paints
@@ -37,6 +37,6 @@ export namespace WebRegisters {
     const COLOR_BASE: usmallint = 1002;
     // Directions, confirm and cancel as the same Edge bits every input
     // layer uses. The page writes this; poll() in ./input.8bs reads it.
-    // First byte after the 1000 colour cells at COLOR_BASE.
+    // First byte after the 1000 color cells at COLOR_BASE.
     const INPUT_OFFSET: usmallint = 2002;
 }

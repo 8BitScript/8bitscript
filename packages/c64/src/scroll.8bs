@@ -26,8 +26,8 @@
 // ($D011 bit 3, RSEL, clear) — the border grows over the outer half-cells.
 // Smooth scrolling is the two together: fine scroll one pixel a frame,
 // and every eighth frame shift the screen a cell and reset the fine scroll,
-// as the sketch above does. The shifts move screen codes and colour RAM
-// together and fill the column or row that opens with one code and colour;
+// as the sketch above does. The shifts move screen codes and color RAM
+// together and fill the column or row that opens with one code and color;
 // each is a thousand-cell copy, some 20000 cycles — a frame's worth of
 // CPU on the frame it happens.
 //

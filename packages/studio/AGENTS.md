@@ -55,7 +55,7 @@ Do not describe more than this as working:
   tabulated with where they go in
   [`packages/ui/AGENTS.md`](../ui/AGENTS.md#what-it-costs). Note the
   ordering in `start()`: the bar is drawn *before* `text.setColor`, because
-  drawing a bar leaves the text colour set to the bar's own.
+  drawing a bar leaves the text color set to the bar's own.
 - `src/main.8bs` is the one entry for every machine. It reads the
   machine's facts from `@8bitscript/system` — `Input.KEYBOARD`,
   `Memory.RAM`, `Video.GLYPHS`, `Video.SPRITES`, `Audio.VOICES`, each a
@@ -84,7 +84,7 @@ Do not describe more than this as working:
   `@8bitscript/pointer` arrived alongside this, and on a C64 or C128
   fitted with a 1351 Studio draws a real arrow with one of the VIC's
   sprites, moving a pixel at a time; on the X16 the KERNAL draws its own
-  arrow (VERA sprite 0), parked at the centre until it is moved.
+  arrow (VERA sprite 0), parked at the center until it is moved.
   `pointer.begin()` goes after `input.begin()` and `pointer.update()`
   right after `input.poll()`, once each a frame — that ordering is the
   contract between the two packages, and a program that polls without
@@ -272,7 +272,7 @@ editor on a hack that the capability would replace:
   in the character set's RAM copy), `@8bitscript/c64/bitmap` (320×200 or
   160×200 pixels), `@8bitscript/c64/scroll` and `@8bitscript/c64/raster`
   (register writes at raster lines: a status bar under a scrolling
-  playfield) over `@8bitscript/c64/video` (the screen, colour RAM, the
+  playfield) over `@8bitscript/c64/video` (the screen, color RAM, the
   bank's layout) — C64-only, the layer the capability sits on, not the
   capability.
 - **Sound** — a note-level API for the machines with a chip, and the

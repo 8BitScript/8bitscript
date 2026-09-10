@@ -308,7 +308,7 @@ function projectOptions(projects) {
  * project with no block gets the machine list it always had.
  *
  * A system's id is its name, which cannot collide with a machine id: the
- * CLI would have refused a target it did not recognise long before here.
+ * CLI would have refused a target it did not recognize long before here.
  */
 function systemOptions(targets, project) {
   const machines = ALL_TARGETS.map((id) => ({

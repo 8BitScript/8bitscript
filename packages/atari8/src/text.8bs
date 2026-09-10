@@ -22,7 +22,7 @@ import { cursorInhibit } from "./index.8bs";
 // ATASCII agrees with ASCII across that whole range, so no translation is
 // needed on the way in; putChar converts to the internal screen code ANTIC
 // actually fetches (space $20 -> $00, digits and letters $20-$5F minus
-// $20). There is no colour RAM: a character's luminance is the global
+// $20). There is no color RAM: a character's luminance is the global
 // COLPF1 that `screen.setColors()` writes, so putColor exists only so
 // portable code still compiles and does nothing, the same way
 // @8bitscript/pet's putColor does nothing. putChar also inhibits the OS
@@ -46,16 +46,16 @@ function atasciiToInternal(code: utinyint): utinyint {
 // `text.print(cell, s)` writes a string's characters into consecutive
 // cells from `cell`, and `text.printNumber(cell, value, width)` writes
 // `value` as exactly `width` decimal digits, zero-padded and right-aligned,
-// so a field on a HUD never shifts columns. Both draw in the current colour —
+// so a field on a HUD never shifts columns. Both draw in the current color —
 // white until `text.setColor(TextColor.CYAN)` changes it, and that one
-// call then colours everything printed after it, on the machines that have
-// per-cell colour. They are also the two
+// call then colors everything printed after it, on the machines that have
+// per-cell color. They are also the two
 // functions the compiler's template layout targets: `text.print(0,
 // \`TICK ${ticks:1}\`)` is laid out at compile time into these same calls
 // (see packages/compiler/src/ir).
 //
 // Under them: `place()` puts one character at one cell in the current
-// colour, and is all a run of text costs per character, with `prepare()` hiding the
+// color, and is all a run of text costs per character, with `prepare()` hiding the
 // cursor and reading where the OS put screen memory once for the run.
 // `text.putChar` and `text.putColor` stay the one-cell pokes a caller can
 // build anything from.
@@ -104,7 +104,7 @@ export namespace text {
     }
 
     function putColor(cell: usmallint, color: utinyint): void {
-        // Deliberately empty — GR.0 has no per-cell colour RAM.
+        // Deliberately empty — GR.0 has no per-cell color RAM.
     }
 
     function setColor(color: utinyint): void {
@@ -144,7 +144,7 @@ export namespace text {
     }
 }
 
-// The colours `text.setColor()` takes. GR.0 has no per-cell colour RAM, so the
+// The colors `text.setColor()` takes. GR.0 has no per-cell color RAM, so the
 // names are here for a program that compiles everywhere and their values
 // go nowhere.
 export namespace TextColor {

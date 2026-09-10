@@ -235,7 +235,7 @@ const LOCKFILES = [
  * The package manager that owns a project: the nearest lockfile going
  * upward decides, since in a workspace the lockfile lives at the root.
  * pnpm is the default because it is what this toolchain is built with;
- * npm, yarn and bun are honoured when their lockfile is what is there.
+ * npm, yarn and bun are honored when their lockfile is what is there.
  *
  * @param {string} startDir
  * @returns {'pnpm' | 'npm' | 'yarn' | 'bun'}
@@ -326,7 +326,7 @@ function loadProjects(configPaths) {
  * <repo>/packages/cli. The package link is followed rather than the bin,
  * because pnpm writes .bin/8bs as a shell shim rather than a symlink, so the
  * bin's real path says nothing about where the package lives; a real symlink
- * (npm, or a hand-made link) is honoured as a second route.
+ * (npm, or a hand-made link) is honored as a second route.
  *
  * @param {string | null} toolchain absolute path of a project's `8bs`
  * @returns {string | null}

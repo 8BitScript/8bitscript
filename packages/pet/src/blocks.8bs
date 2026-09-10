@@ -27,7 +27,7 @@
 // `printCentered()` for a number that grows and shrinks (a game tile: "2",
 // then "16", then "2048") centered in a box instead of padded to a fixed
 // width. Every one of them takes `invert`: drawn over a solid reverse-video
-// tile, an inverted digit reads as dark ink cut into the tile's colour
+// tile, an inverted digit reads as dark ink cut into the tile's color
 // rather than a fresh glyph punching a black rectangle through it.
 //
 // 2 cells is the font's size, not a preference: four side-by-side tiles on
@@ -214,7 +214,7 @@ export namespace digits {
     // the same bit reverse video always was) — the digit's ink and its gaps
     // trade places. Drawn over a solid reverse-video tile (a game board
     // square, say), an inverted digit reads as dark ink cut into the tile's
-    // colour instead of a fresh glyph punching a black rectangle through
+    // color instead of a fresh glyph punching a black rectangle through
     // it. QUAD's sixteen codes were chosen to be closed under this exact
     // flip (every pattern's complement is also in the table), so inverting
     // costs one add-or-subtract of 128 per cell, no second font.

@@ -6,7 +6,7 @@ import { join } from 'node:path';
 
 /** Where source checkouts/build trees for setup-built tools are cached,
  * rather than assuming ~/Development or dropping them in cwd. XDG_CACHE_HOME
- * is honoured for anyone who has set it; ~/.cache is the common default on
+ * is honored for anyone who has set it; ~/.cache is the common default on
  * Arch/Manjaro either way. */
 export function setupCacheDir() {
   const base = process.env.XDG_CACHE_HOME || join(homedir(), '.cache');

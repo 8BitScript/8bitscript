@@ -78,7 +78,7 @@ test('the primitive type rule knows string; the compile-time rule matches #frame
   assert.match('utinyint', new RegExp(primitive.match));
   const compileTime = all.filter((r) => (r.begin ?? r.match ?? '').includes('#'));
   assert.ok(compileTime.some((r) => new RegExp(r.begin ?? r.match).test('#frames(')), 'no rule opens on #frames(');
-  assert.ok(compileTime.some((r) => new RegExp(r.begin ?? r.match).test('#later')), 'no rule colours an unknown #name');
+  assert.ok(compileTime.some((r) => new RegExp(r.begin ?? r.match).test('#later')), 'no rule colors an unknown #name');
 });
 
 test('the language configuration auto-closes and surrounds backticks, like the other quotes', () => {

@@ -9,7 +9,7 @@ import { encodePNG, pixelAt } from '../src/png.mjs';
 
 const SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
-test('encodePNG round-trips a 2x1 RGBA image; pixelAt reads the same colours back', () => {
+test('encodePNG round-trips a 2x1 RGBA image; pixelAt reads the same colors back', () => {
   const rgba = Uint8Array.from([
     10, 20, 30, 255,
     40, 50, 60, 128,
@@ -34,7 +34,7 @@ test('pixelAt refuses a non-PNG, a pixel outside the image, and a non-8-bit imag
   assert.throws(() => pixelAt(png, 0, 1), /\(0, 1\) is outside a 1x1 image/);
 });
 
-// A 1x1 greyscale PNG (colour type 0, filter 0) so pixelAt's non-RGBA
+// A 1x1 greyscale PNG (color type 0, filter 0) so pixelAt's non-RGBA
 // path is not only reached by an emulator screenshot.
 function chunk(type, data) {
   const typeBuf = Buffer.from(type, 'ascii');

@@ -162,7 +162,7 @@ test('unspecified syntax is an honest error', () => {
 
 // ---- checker --------------------------------------------------------------
 
-test('frozen behaviour: 8BS1021 message and span', () => {
+test('frozen behavior: 8BS1021 message and span', () => {
   const d = analyze('let score: u8 = 300;', 't.8bs');
   assert.equal(d.length, 1);
   assert.equal(d[0].code, '8BS1021');

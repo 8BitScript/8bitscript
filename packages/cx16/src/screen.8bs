@@ -16,17 +16,17 @@ import { mapBank, mapLow, locateTextMap, setVramAddress } from "./index.8bs";
 
 // ---- where a border comes from --------------------------------------------
 //
-// VERA's border colour is a plain CPU-addressable register — but the
-// border it colours has no size by default. VERA draws layers inside an
+// VERA's border color is a plain CPU-addressable register — but the
+// border it colors has no size by default. VERA draws layers inside an
 // "active area" whose edges are DC_HSTART/HSTOP/VSTART/VSTOP, and the
 // KERNAL boots with that area set to the entire 640x480 output, so nothing
-// is left over for the border colour to fill. Setting the border alone is
-// invisible — the second reason a colour-cycling demo once showed only blue.
+// is left over for the border color to fill. Setting the border alone is
+// invisible — the second reason a color-cycling demo once showed only blue.
 //
 // So setColors() shrinks the active area by 16 pixels on every side —
 // HSTART/HSTOP count in units of 4 pixels (0..160), VSTART/VSTOP in units
 // of 2 (0..240), hence 4/156 and 8/232 — and VERA fills the 16-pixel ring
-// outside it with the border colour. The text layer is positioned relative
+// outside it with the border color. The text layer is positioned relative
 // to the active area, so cell (0,0) sits at the inset's top-left corner
 // and the map's rightmost 4 columns and bottom 4 rows fall outside the
 // active area: the grid a program sees is the 76x56 that is drawn
@@ -61,7 +61,7 @@ import { mapBank, mapLow, locateTextMap, setVramAddress } from "./index.8bs";
 //
 // ---- the background: painted, not set ---------------------------------------
 //
-// There is no screen-background register at all: each text cell's colours
+// There is no screen-background register at all: each text cell's colors
 // come from its own attribute byte in VRAM (see @8bitscript/cx16). So the
 // background is painted: setColors() writes every one of the 4800
 // on-screen cells' attribute bytes to `background` in the high nibble and
@@ -72,14 +72,14 @@ import { mapBank, mapLow, locateTextMap, setVramAddress } from "./index.8bs";
 // can tear for that one frame; it cannot corrupt anything, unlike the
 // NES's port), so this needs no vblank budget and setColors() is safe from
 // the frame loop as well as from setup. Its side effect is deliberate and
-// documented: any foreground colour a program set with text.putColor() is
+// documented: any foreground color a program set with text.putColor() is
 // reset to white by the next setColors().
 //
-// Colours are VERA palette indices. The KERNAL's default palette starts
-// with the sixteen C64 colours in C64 order — 0 black, 1 white, 2 red,
+// Colors are VERA palette indices. The KERNAL's default palette starts
+// with the sixteen C64 colors in C64 order — 0 black, 1 white, 2 red,
 // 3 cyan, 4 purple, 5 green, 6 blue, 7 yellow, and so on — verified on
-// screen under x16emu for the values a colour-cycling demo uses, so the
-// Commodore packages' colour numbers mean the same colours here.
+// screen under x16emu for the values a color-cycling demo uses, so the
+// Commodore packages' color numbers mean the same colors here.
 
 // The border exists once the active area is inset — 16 pixels in on
 // every side — and layer 1 is scrolled so cell (0,0) lands at its corner.
@@ -110,7 +110,7 @@ function insetPicture(): void {
 export namespace screen {
     function setColors(border: u8, background: u8): void {
         insetPicture();
-        // DCSEL=0 (and ADDRSEL=0): the border colour itself.
+        // DCSEL=0 (and ADDRSEL=0): the border color itself.
         memory.write(0x9F25, 0x00);
         memory.write(0x9F2C, border);
 
@@ -118,7 +118,7 @@ export namespace screen {
         // map rows, not just the 60 on screen — row 63 is what the
         // vertical-scroll correction above would expose if real hardware
         // lacks the offset it corrects (see the header), so it gets the
-        // same colours and, below, blank characters.
+        // same colors and, below, blank characters.
         locateTextMap();
         for (let row: usmallint = 0; row < 64; row++) {
             setVramAddress(mapBank, mapLow + 1 + row * 256, 2);
@@ -132,10 +132,10 @@ export namespace screen {
         }
     }
 
-    // `blank(border, background)`: every cell blank and both colours set —
+    // `blank(border, background)`: every cell blank and both colors set —
     // black when left off, or `BorderColor.KEEP` / `BackgroundColor.KEEP`
     // to leave one as it is. `setBorder` and `setBackground` are one
-    // colour each, `setColors` the pair; `text.setColor` owns what the
+    // color each, `setColors` the pair; `text.setColor` owns what the
     // next print looks like.
     function blank(border: utinyint = BorderColor.BLACK, background: utinyint = BackgroundColor.BLACK): void {
         if (border != BorderColor.KEEP) {
@@ -170,19 +170,19 @@ export namespace screen {
 
     function setBorder(border: u8): void {
         insetPicture();
-        memory.write(0x9F25, 0x00); // DCSEL=0: the border colour register
+        memory.write(0x9F25, 0x00); // DCSEL=0: the border color register
         memory.write(0x9F2C, border);
     }
 }
 
-// ---- colour names ----------------------------------------------------------
+// ---- color names ----------------------------------------------------------
 //
 // The same eight names every machine's screen.8bs exports — Black, White,
 // Red, Cyan, Purple, Green, Blue, Yellow — so a program can write
 // `screen.setColors(BorderColor.BLUE, BackgroundColor.BLACK)` through
 // @8bitscript/screen and get blue on every target. The values are the first
 // sixteen entries of VERA's default palette, which are the C64's sixteen
-// colours in the C64's numbering (see above), so both namespaces carry all
+// colors in the C64's numbering (see above), so both namespaces carry all
 // sixteen.
 
 export namespace BorderColor {
@@ -202,7 +202,7 @@ export namespace BorderColor {
     const LIGHT_GREEN: utinyint = 13;
     const LIGHT_BLUE: utinyint = 14;
     const LIGHT_GREY: utinyint = 15;
-    // Not a colour: `blank(KEEP, ...)` leaves this one as it is. 255 is
+    // Not a color: `blank(KEEP, ...)` leaves this one as it is. 255 is
     // a value no register here takes.
     const KEEP: utinyint = 255;
 }
@@ -224,7 +224,7 @@ export namespace BackgroundColor {
     const LIGHT_GREEN: utinyint = 13;
     const LIGHT_BLUE: utinyint = 14;
     const LIGHT_GREY: utinyint = 15;
-    // Not a colour: `blank(KEEP, ...)` leaves this one as it is. 255 is
+    // Not a color: `blank(KEEP, ...)` leaves this one as it is. 255 is
     // a value no register here takes.
     const KEEP: utinyint = 255;
 }

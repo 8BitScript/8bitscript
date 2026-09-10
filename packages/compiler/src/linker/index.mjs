@@ -72,7 +72,7 @@ function loadModule(file, text, diagnostics, { frameRate, machine, facts }) {
  * Discover and load every module reachable from the entry.
  *
  * Cycles are permitted: a module already loaded is bound to, not reloaded.
- * Globals initialise to literals only, so no initialisation-order problem
+ * Globals initialize to literals only, so no initialisation-order problem
  * exists for a cycle to cause.
  */
 function loadGraph(entryText, entryFile, diagnostics, sources, options) {
@@ -231,20 +231,20 @@ function rewriteArrayAccess(expr, scope, module, diagnostics, { store = false } 
 }
 
 /**
- * A pending initialiser — an imported const by name, or `Namespace.Member`
+ * A pending initializer — an imported const by name, or `Namespace.Member`
  * — as the number it stands for, range-checked against the global's type.
  * Anything else is reported and stands in as 0.
  */
 function resolveInitialiser(expr, g, scope, module, diagnostics) {
   const at = (code, message) => diagnostics.push(diagnostic(code, message, module.file, expr.start ?? 0, expr.length ?? 0));
   if (expr.kind === 'ref' && typeof module.constValues.get(expr.name) === 'object') {
-    at(Codes.NOT_COMPILABLE, `'${expr.name}' is a string const; it cannot initialise a ${g.type}`);
+    at(Codes.NOT_COMPILABLE, `'${expr.name}' is a string const; it cannot initialize a ${g.type}`);
     return 0;
   }
   if (expr.kind === 'ref' && !module.constValues.has(expr.name)) {
     at(scope.has(expr.name) ? Codes.NOT_COMPILABLE : Codes.UNRESOLVED_NAME,
       scope.has(expr.name)
-        ? `'${expr.name}' is not a const, so it cannot initialise a global: an initialiser is a literal or a const`
+        ? `'${expr.name}' is not a const, so it cannot initialize a global: an initializer is a literal or a const`
         : `cannot find name '${expr.name}'`);
     return 0;
   }
@@ -252,7 +252,7 @@ function resolveInitialiser(expr, g, scope, module, diagnostics) {
   rewriteExpression(expr, scope, module, diagnostics);
   if (diagnostics.length > before) return 0;
   if (expr.kind !== 'const') {
-    at(Codes.NOT_COMPILABLE, 'an initialiser is a literal or a const');
+    at(Codes.NOT_COMPILABLE, 'an initializer is a literal or a const');
     return 0;
   }
   const range = g.type === 'bool' ? { min: 0, max: 1 } : resolveIntegerType(g.type);
@@ -300,7 +300,7 @@ function constsOf(module) {
 }
 
 /**
- * A const whose initialiser only the linker can see — `const HIGHLIGHT:
+ * A const whose initializer only the linker can see — `const HIGHLIGHT:
  * utinyint = TextColor.YELLOW`, or `= Imported` — gets its value here,
  * before any module inlines it. A pending const may name another pending
  * const (in any module), so this repeats until nothing changes; what is
@@ -310,7 +310,7 @@ function resolvePendingConsts(modules, diagnostics) {
   // Every const slot the linker may still owe a value: the module's own
   // top-level consts, and the const members of each of its namespaces
   // (`namespace text { const COLUMNS: utinyint = Video.COLUMNS; }`), which
-  // take the same initialisers and resolve by the same rule.
+  // take the same initializers and resolve by the same rule.
   const pendingOf = (module) => [
     ...[...module.ownConsts].filter(([, v]) => v?.pending)
       .map(([name, v]) => ({ name, ...v, table: module.ownConsts })),
@@ -335,7 +335,7 @@ function resolvePendingConsts(modules, diagnostics) {
           if (other === undefined) {
             diagnostics.push(diagnostic(
               binding ? Codes.NOT_COMPILABLE : Codes.UNRESOLVED_NAME,
-              binding ? `'${expr.name}' is not a const, so it cannot initialise a const` : `cannot find name '${expr.name}'`,
+              binding ? `'${expr.name}' is not a const, so it cannot initialize a const` : `cannot find name '${expr.name}'`,
               module.file, expr.start ?? 0, expr.length ?? 0,
             ));
             settle(slot, 0);
@@ -808,13 +808,13 @@ function rewriteStatement(statement, scope, module, diagnostics) {
       if (statement.value) rewriteExpression(statement.value, scope, module, diagnostics);
       return;
     case 'local':
-      // The initialiser is evaluated before the name exists (`let x = x`
+      // The initializer is evaluated before the name exists (`let x = x`
       // reads the outer x, or nothing); then the local shadows.
       rewriteExpression(statement.init, scope, module, diagnostics);
       if (statement.init.kind === 'string') {
         diagnostics.push(diagnostic(
           Codes.NOT_COMPILABLE,
-          `a string cannot initialise a ${statement.type}: a string lives in a string<N> or a const`,
+          `a string cannot initialize a ${statement.type}: a string lives in a string<N> or a const`,
           module.file, statement.init.start ?? 0, statement.init.length ?? 0,
         ));
       }
@@ -835,7 +835,7 @@ function rewriteStatement(statement, scope, module, diagnostics) {
       return;
     }
     case 'for': {
-      // The initialiser's local is in scope for the test, the update, and
+      // The initializer's local is in scope for the test, the update, and
       // the body, and gone after the loop.
       const inner = childScope(scope);
       if (statement.init) rewriteStatement(statement.init, inner, module, diagnostics);
@@ -1010,9 +1010,9 @@ export function link(entryText, entryFile, options = {}) {
   for (const module of modules) {
     const { scope } = module;
     for (const g of module.ir.globals) {
-      // An initialiser lowering left pending is a bare name or a
+      // An initializer lowering left pending is a bare name or a
       // namespace const: an imported const or `BorderColor.BLUE` is its
-      // value, and anything else cannot initialise a global — there is no
+      // value, and anything else cannot initialize a global — there is no
       // code to run before the program starts. An array's pending
       // elements are resolved the same way, one at a time.
       if (Array.isArray(g.init)) {
@@ -1024,7 +1024,7 @@ export function link(entryText, entryFile, options = {}) {
         const { name, start, length } = g.init;
         if (typeof module.constValues.get(name) === 'object') {
           diagnostics.push(diagnostic(
-            Codes.NOT_COMPILABLE, `'${name}' is a string const; it cannot initialise a ${g.type}`,
+            Codes.NOT_COMPILABLE, `'${name}' is a string const; it cannot initialize a ${g.type}`,
             module.file, start ?? 0, length ?? 0,
           ));
           g.init = 0;
@@ -1034,7 +1034,7 @@ export function link(entryText, entryFile, options = {}) {
           diagnostics.push(diagnostic(
             scope.has(name) ? Codes.NOT_COMPILABLE : Codes.UNRESOLVED_NAME,
             scope.has(name)
-              ? `'${name}' is not a const, so it cannot initialise a global: an initialiser is a literal or a const`
+              ? `'${name}' is not a const, so it cannot initialize a global: an initializer is a literal or a const`
               : `cannot find name '${name}'`,
             module.file, start ?? 0, length ?? 0,
           ));

@@ -25,14 +25,14 @@ video chip reading one bank. The Atari is a fifth case —
 
 > **The Atari 8-bit has no screen. ANTIC is a DMA processor that runs a
 > *program* — the display list — out of the same RAM the 6502 uses, and
-> hands each scanline's bytes to GTIA, which colours them from nine colour
+> hands each scanline's bytes to GTIA, which colors them from nine color
 > registers and overlays four 8-bit-wide players and four 2-bit
 > missiles that are full-height vertical strips, not movable blocks. Text,
 > tiles and bitmaps are all just ANTIC modes. The OS supplies one display
 > list (40×24 text) and, every vertical blank, copies its own shadow
-> registers over the hardware. Model it as "a display list, colour
+> registers over the hardware. Model it as "a display list, color
 > registers, player/missile strips, and an OS in the loop until the program
-> takes the machine over" — never as "a C64 with a different colour
+> takes the machine over" — never as "a C64 with a different color
 > table".**
 
 The machine's variety runs on three axes, and the catalog now keeps all
@@ -58,8 +58,8 @@ Do not describe more than this as working:
   `$02C6` COLOR2, `$02C5` COLOR1), and `cursorInhibit` (`$02F0`, CRSINH).
   The file's own comment records why the shadows exist: the OS's
   vertical-blank routine copies `$02C4-$02C8` over `$D016-$D01A` every
-  frame, so a hardware-only colour write lasts one frame (seen on screen
-  by this project when a colour-cycling demo first ran). The
+  frame, so a hardware-only color write lasts one frame (seen on screen
+  by this project when a color-cycling demo first ran). The
   other nine are what the input and sound layers below are built on:
   `attract` (`$4D`), `chShadow` (`$02FC`, CH), `consolRead` and
   `consolWrite` (both `$D01F`), `kbcode` (`$D209` read), `skstat` (`$D20F`
@@ -71,9 +71,9 @@ Do not describe more than this as working:
   `@8bitscript/screen`): `setColors`/`setBorder`/`setBackground` write
   shadow then hardware, force COLPF1 to `$0E` so text stays readable, and
   set CRSINH; `blank()` writes internal code 0 to 960 cells starting at
-  wherever SAVMSC (`$58/$59`) points. The eight colour names are raw GTIA
+  wherever SAVMSC (`$58/$59`) points. The eight color names are raw GTIA
   bytes (hue in the high nybble, even luminance in the low); `KEEP` is 255,
-  which on this machine is a real colour (hue 15 at maximum luminance)
+  which on this machine is a real color (hue 15 at maximum luminance)
   given up for the sentinel.
 - `src/text.8bs` (`@8bitscript/atari8/text`, behind `@8bitscript/text`):
   `CELL_COUNT` 960, `COLUMNS` 40; `putChar` takes ASCII, converts to
@@ -81,7 +81,7 @@ Do not describe more than this as working:
   and writes `SAVMSC + cell`; `print`/`printNumber` read SAVMSC once per
   run (`prepare()`) and inhibit the cursor; `setReverse` sets bit 7 of the
   internal code; `putColor` and `setColor` are
-  inert because GR.0 has no per-cell colour. `printNumber` is the
+  inert because GR.0 has no per-cell color. `printNumber` is the
   subtraction routine, not a divide.
 - `src/joystick.8bs` (`@8bitscript/atari8/joystick`): `scan()` once a
   frame into a snapshot, then `bits`/`up`/`down`/`left`/`right`/`fire`, and
@@ -135,7 +135,7 @@ Do not describe more than this as working:
   is `main-atari8-<region>.xex`). A preset per model keeps `--profile
   130xe` working, and `--profile xegs` is now one value on each axis
   (`model: xegs, media: xegs256`), which is what it always meant.
-  `mouse` (labelled *Pointing device*) — `none`, `st`, `amiga`, `trak`,
+  `mouse` (labeled *Pointing device*) — `none`, `st`, `amiga`, `trak`,
   `paddles`, `touch`, `koala`, `pen`, `gun`, `joy`, one per atari800 `-mouse`
   kind, and the fact each sets follows what the device is actually wired to:
   a mouse or Trak-Ball is quadrature on a joystick port's direction bits
@@ -150,7 +150,7 @@ Do not describe more than this as working:
   `262 × 114 / 1789790`, PAL `312 × 114 / 1773447`. It has no `presync`:
   a built program contains **no `sei`** (checked in the linked ELF), so
   the OS's VBI keeps running — its jiffy clock, keyboard, joystick shadows
-  and colour-shadow copy all stay alive under an 8BitScript program.
+  and color-shadow copy all stay alive under an 8BitScript program.
 - `8bs run atari8` launches `atari800` with a copy of `~/.atari800.cfg`
   whose CRT-shader knobs are zeroed, the model's flag from the catalog
   (`-atari` for 800 and 400, `-xl` for 800xl and 65xe, `-xe` for 130xe,
@@ -199,16 +199,16 @@ and why.
 | `8bs run atari8 --screenshot` passes `'-run', outFile` unconditionally; with `--profile xegs` the captured window is the XL OS's blank blue screen with a cursor — the `.rom` was never inserted. | `packages/cli/src/screenshot.mjs` `atari8Screenshot()`, on screen |
 | The same GTIA bytes render differently by region under atari800: the borders program's `BackgroundColor.CYAN` (`$A8`) is teal on `-ntsc` and green on `-pal`; `BorderColor.BLUE` (`$84`) is a darker blue on PAL. Hue values vary with TV standard (NTSC vs PAL), tint, and emulator palette. | on screen; Altirra HRM ch.6 |
 | ANTIC (`$D400`): DMACTL, CHACTL, DLISTL/H, HSCROL, VSCROL, PMBASE, CHBASE, WSYNC, VCOUNT (read), PENH/PENV (read), NMIEN, NMIRES/NMIST. DMACTL boots as `$22` (DMA on, normal playfield, no P/M DMA, double-line P/M); playfield widths narrow/normal/wide are 32/40/48 bytes per line; bits 2/3 enable missile/player DMA, bit 4 single-line P/M, bit 5 display-list DMA. CHACTL `$02` at boot (inverse shown as reverse video; bit 2 flips characters upside down). NMIEN: `$80` DLI, `$40` VBI, `$20` RESET. | `_antic.h` |
-| ANTIC's fourteen playfield modes, their scan-line heights, byte costs, pixel counts and colour sources: the full table is in "The playfield" below, read from the Altirra manual and cross-checked against `_antic.h` and De Re Atari. Modifiers OR'd into a mode byte: `$10` HSCROL, `$20` VSCROL, `$40` LMS (two address bytes follow, low first), `$80` DLI. Non-mode instructions: `$00/$10/…/$70` = 1–8 blank lines, `$01` JMP, `$41` JVB (jump and wait for vertical blank); both jumps are three bytes and both cost a scan line. | `_antic.h`; Altirra HRM §4.4-4.6 |
+| ANTIC's fourteen playfield modes, their scan-line heights, byte costs, pixel counts and color sources: the full table is in "The playfield" below, read from the Altirra manual and cross-checked against `_antic.h` and De Re Atari. Modifiers OR'd into a mode byte: `$10` HSCROL, `$20` VSCROL, `$40` LMS (two address bytes follow, low first), `$80` DLI. Non-mode instructions: `$00/$10/…/$70` = 1–8 blank lines, `$01` JMP, `$41` JVB (jump and wait for vertical blank); both jumps are three bytes and both cost a scan line. | `_antic.h`; Altirra HRM §4.4-4.6 |
 | A display list may not cross a 1K boundary (only the low 10 bits of DLISTL/H increment); screen data wraps at a 4K boundary *within a scan line*, which an LMS cannot repair. A display list is valid over scan lines 8-248, 240 lines maximum — **the same on PAL**, whose extra 50 lines are all blank. | Altirra HRM §4.6 |
 | Character sets: 1K, 128 glyphs, 1K-aligned for ANTIC modes `$2`-`$5`; 512 bytes, 64 glyphs, 512-aligned for `$6`/`$7`. CHBASE gives address bits 10-15 (from its bits 2-7) or 9-15 (bits 1-7); the unused bit is latched and comes back if the other kind of mode starts. PMBASE has the same shape: 1K-aligned for two-line P/M, 2K for one-line, bit 2 ignored but latched. | Altirra HRM §4.4, §4.13 |
 | P/M area layout: eight sections of 128 bytes (two-line) or 256 (one-line); the **first three are unused by the hardware** and free for the program; missiles at `+$180`/`+$300`, players 0-3 at `+$200`/`+$400` and each section onwards. The strip index is the frame's vertical scan counter, so in one-line mode byte *n* is scan line *n*, and only 8-247 are ever fetched. | Altirra HRM §4.13; atari800 `antic.c` `pmg_dma()` |
 | P/M sizes are `%00` ×1, `%01` ×2, `%11` ×4 and `%10` ×1 again — the shift state machine is `state' = (state + 1) AND size`. SIZEM packs all four missiles two bits each, missile 0 in bits 0-1. | Altirra HRM §6.5; atari800 `gtia.c` `PM_Width[4] = {1, 2, 1, 4}` |
-| A colour register ignores bit 0: 16 hues × 8 luminances = **128** distinct colours, not 256. The 256 figure is reachable only in GTIA mode 9, which bypasses the registers. | Altirra HRM §6.3 |
+| A color register ignores bit 0: 16 hues × 8 luminances = **128** distinct colors, not 256. The 256 figure is reachable only in GTIA mode 9, which bypasses the registers. | Altirra HRM §6.3 |
 | POKEY's linked (16-bit) timers: AUDCTL bit 4 links 1+2, bit 3 links 3+4, the low channel's AUDF is the low byte — and the **high** channel (2 or 4) carries the combined period and is the one enabled for audio, the low one normally muted. Period is `(N+1)×28` on the 64 kHz clock, `(N+1)×114` on 15 kHz, `N+7` cycles on 1.79 MHz. | Altirra HRM §5.3 "Linked timers" |
 | POKEY's mixed output saturates: it is near-linear only while the summed volume of *actively outputting* channels is ≤ 15; the rest of the 16-60 range adds only about double the amplitude. A channel stuck at a constant 1 with non-zero volume distorts everything else; a channel stuck at 0 costs nothing whatever its volume. | Altirra HRM §5.3 "Volume control" |
 | With the high-pass filter off, channels 1 and 2 are digitally **inverted** relative to 3 and 4, so two identical pure tones on channels 1 and 2 add while the same on channels 1 and 3 cancel. Volume-only channels are exempt and always add. | Altirra HRM §5.3 "High-pass filter" |
-| GTIA (`$D000`) writes: HPOSP0-3, HPOSM0-3, SIZEP0-3, SIZEM (0 = 1 colour clock per pixel, 1 = 2, 3 = 4), GRAFP0-3, GRAFM (shape bytes used when P/M DMA is off), COLPM0-3, COLPF0-3, COLBK, PRIOR, VDELAY, GRACTL (bit 0 missiles, 1 players, 2 latch triggers), HITCLR, CONSOL. Reads: M0PF-M3PF, P0PF-P3PF, M0PL-M3PL, P0PL-P3PL (16 collision registers), TRIG0-3 (0 = pressed), PAL (`$D014`; header `1` PAL / `$E` NTSC, atari800 returns `$01`/`$0F`), CONSOL (bits 0/1/2 = START/SELECT/OPTION, active low). A colour byte is `hue << 4 | lum << 1`. PRIOR: `$01/$02/$04/$08` pick one of four player/playfield orderings (set exactly one — none means players and playfields mix, more than one turns overlaps black), `$10` makes the four missiles a fifth player in COLPF3, `$20` ORs the colours of overlapping **P0+P1, P2+P3, M0+M1 and M2+M3 only**, `$40/$80/$C0` = GTIA modes 9/10/11 (pixels 2 colour clocks wide, 80 per normal line: 16 luminances of COLBK's hue; 9 colours from COLPM0-3 + COLPF0-3 + COLBK; 16 hues at COLBK's luminance). | `_gtia.h`, upstream `gtia.c` |
+| GTIA (`$D000`) writes: HPOSP0-3, HPOSM0-3, SIZEP0-3, SIZEM (0 = 1 color clock per pixel, 1 = 2, 3 = 4), GRAFP0-3, GRAFM (shape bytes used when P/M DMA is off), COLPM0-3, COLPF0-3, COLBK, PRIOR, VDELAY, GRACTL (bit 0 missiles, 1 players, 2 latch triggers), HITCLR, CONSOL. Reads: M0PF-M3PF, P0PF-P3PF, M0PL-M3PL, P0PL-P3PL (16 collision registers), TRIG0-3 (0 = pressed), PAL (`$D014`; header `1` PAL / `$E` NTSC, atari800 returns `$01`/`$0F`), CONSOL (bits 0/1/2 = START/SELECT/OPTION, active low). A color byte is `hue << 4 | lum << 1`. PRIOR: `$01/$02/$04/$08` pick one of four player/playfield orderings (set exactly one — none means players and playfields mix, more than one turns overlaps black), `$10` makes the four missiles a fifth player in COLPF3, `$20` ORs the colors of overlapping **P0+P1, P2+P3, M0+M1 and M2+M3 only**, `$40/$80/$C0` = GTIA modes 9/10/11 (pixels 2 color clocks wide, 80 per normal line: 16 luminances of COLBK's hue; 9 colors from COLPM0-3 + COLPF0-3 + COLBK; 16 hues at COLBK's luminance). | `_gtia.h`, upstream `gtia.c` |
 | P/M DMA costs ANTIC 4 cycles per line for players plus 1 for missiles; CONSOL bit 3 drives the console speaker (`GTIA_speaker = !(byte & 0x08)`); GRACTL bit 2 clear re-arms the TRIG latches; HITCLR zeroes all 16 collision registers. | upstream `antic.c`, `gtia.c` |
 | POKEY (`$D200`) writes: AUDF1-4, AUDC1-4, AUDCTL, STIMER, SKREST, POTGO, SEROUT, IRQEN, SKCTL. AUDC high bits pick the distortion: `$00` 5+17-bit poly, `$20` 5-bit, `$40` 5+4-bit, `$80` 17-bit, `$A0` pure tone, `$C0` 4-bit poly; `$10` = volume-only (the sample-playback bit); low nybble = volume. AUDCTL: `$01` 15 kHz base instead of 64 kHz, `$02`/`$04` high-pass 2-by-4 / 1-by-2, `$08` join 3+4 and `$10` join 1+2 into 16-bit channels, `$20`/`$40` clock 3 / 1 at 1.79 MHz, `$80` 9-bit instead of 17-bit poly (also changes RANDOM). IRQEN: timers 1/2/4, serial ×3, `$40` other key, `$80` BREAK. SKCTL: `$01` debounce, `$02` keyboard scan, `$04` fast pot scan, `$08` two-tone, `$80` force break. Reads: POT0-7, ALLPOT, KBCODE, RANDOM, SERIN, IRQST, SKSTAT (bit 2 last key still pressed, bit 3 SHIFT down, bit 5 keyboard overrun). | `_pokey.h` |
 | atari800's RANDOM is a 17-bit (or 9-bit) poly-counter table indexed by a scanline counter plus the current cycle; its pot scan counts up over a frame (`pot_scanline` 0→228, `POTGO` restarts it; SKCTL bit 2 makes reads immediate). | upstream `pokey.c` |
@@ -217,8 +217,8 @@ and why.
 | Timing in atari800: 114 CPU cycles per scanline (`ANTIC_LINE_C`), `STA WSYNC` resumes at cycle 106, 9 refresh cycles per line (`ANTIC_DMAR`), NMIST set at cycle 6 and the NMI taken at 12; NTSC 262 lines, PAL 312; FPS `59.9227434` / `49.8607597`; lines 8–247 are on screen and the VBI (`NMIST = $5F`) fires at line 248; VCOUNT is `ypos >> 1`. (So a frame is 29868 / 35568 cycles, and the constants imply a CPU clock of ~1789772.5 Hz NTSC / ~1773447 Hz PAL; the backend's 1789790 is the usually-quoted nominal figure — cite whichever you mean.) | upstream `antic.h`, `antic.c`, `atari.h` |
 | The emulated CPU implements the unofficial 6502 opcodes (ASO/SLO, RLA, LAX, DCM/DCP, INS/ISC …) and the `JMP (addr)` page-wrap bug (a `CPU65C02` build define only removes the bug emulation). | upstream `cpu.c` |
 | `atari800 -help` (7.1.2): models `-atari -1200 -xl -xe -320xe -rambo -576xe -1088xe -xegs -5200`; `-pal/-ntsc`; `-run <file>` (COM/EXE/XEX/BAS/LST); `-cart <file>` + `-cart-type <num>` (0..160), `-cart2`; `-H1..-H4 <path>` host directories as `H1:`–`H4:`, `-Hpath`, `-hreadonly/-hreadwrite` (needs the OS patch; `-nopatchall` kills `H:`); `-tape/-boottape`; `-mouse off|pad|touch|koala|pen|gun|amiga|st|trak|joy`, `-mouseport 1-4`, `-cx85`, `-multijoy`; `-stereo` (two POKEYs); `-xep80/-af80/-bit3` 80-column boards; `-record/-playback` input; `-screenshots <pattern>` is only a filename pattern for the hotkey — there is no exit-and-screenshot flag; `-monitor`, `-bpc`, `-label-file`. With no Atari 5200 ROM configured, `-5200` boots on atari800's bundled Altirra 5200 kernel (seen); the same fallback for the XL/XE OS (`-xl-rev altirra`) is listed in `-help` but this host has the real XL ROM, so it is *to verify*. | `atari800 -help`; on screen (5200) |
-| Under `8bs run` the emulated 800XL, 130XE and 800 show the borders program at cell 0 in the top-left of the playfield, inside a border whose colour is COLBK; the OS text screen sits below 24 blank lines and inside a normal-width (40-byte) playfield. | on screen |
-| The catalog's stock fact sheet: grid 40×24 of 8×8 (ANTIC mode 2), 128 colours (GTIA's 16 hues × 8 luminances — a colour register ignores bit 0; the 256 this row used to claim is GTIA mode 9 only), 2 per cell (one hue, two luminances), 128 glyphs per charset, no full block set (`video.blockWidth`/`Height` 0: ATASCII's control-graphics range is not a quarter-block set), bitmap, one layer with fine scroll; 4 players as the sprites (missiles are not counted), 4 per line, 8 pixels wide and as tall as the display (192 lines of per-line data), one colour each; POKEY's 4 voices with a volume each, noise distortions, volume-only samples, no envelope or filter, `RANDOM` as a random source; keyboard, two ports on the XL/XE models, no pads; disk under DOS; 40960 bytes (`$2000`–`$BFFF`), nothing banked until `model=130xe`, no mouse until a `mouse` value. | `src/text.8bs`; the `.xex`/`link.ld`, ANTIC, GTIA and POKEY rows above; `package.json` (read) |
+| Under `8bs run` the emulated 800XL, 130XE and 800 show the borders program at cell 0 in the top-left of the playfield, inside a border whose color is COLBK; the OS text screen sits below 24 blank lines and inside a normal-width (40-byte) playfield. | on screen |
+| The catalog's stock fact sheet: grid 40×24 of 8×8 (ANTIC mode 2), 128 colors (GTIA's 16 hues × 8 luminances — a color register ignores bit 0; the 256 this row used to claim is GTIA mode 9 only), 2 per cell (one hue, two luminances), 128 glyphs per charset, no full block set (`video.blockWidth`/`Height` 0: ATASCII's control-graphics range is not a quarter-block set), bitmap, one layer with fine scroll; 4 players as the sprites (missiles are not counted), 4 per line, 8 pixels wide and as tall as the display (192 lines of per-line data), one color each; POKEY's 4 voices with a volume each, noise distortions, volume-only samples, no envelope or filter, `RANDOM` as a random source; keyboard, two ports on the XL/XE models, no pads; disk under DOS; 40960 bytes (`$2000`–`$BFFF`), nothing banked until `model=130xe`, no mouse until a `mouse` value. | `src/text.8bs`; the `.xex`/`link.ld`, ANTIC, GTIA and POKEY rows above; `package.json` (read) |
 | `@8bitscript/atari8/banks` — `banks.kib()`: a marker in base RAM at `$4000`, then a marker of its own into each of the four banks bits 2–3 name (bit 4 clear so only the CPU sees them, bit 5 left alone so ANTIC keeps drawing base RAM, bits 0/1/7 left alone so the OS ROM, BASIC and self-test stay put), then base RAM read again. Still its own marker means the writes went elsewhere and the machine has extended RAM; the last bank's marker means there was only ever one RAM. Each bank is then read back so a mirror is not counted. atari800's `MEMORY_HandlePORTB` computes the 128 KiB bank as `((byte & 0x0c) >> 2) + 1` and runs the same code to no effect on a 64 KiB machine, which is what makes this work. Under atari800 the probe printed 64 KiB for `model=130xe` and 0 for `800xl`, `65xe` and `800` — including the 800, where PORTB is joystick ports 3 and 4 and the writes are harmless. Cost: `test/banks-probe.8bs` is 682 bytes of program with the probe and 531 with the answer written in — 151 bytes. | `src/banks.8bs`; atari800 `src/memory.c` (fetched 2026-09-05); four screenshots (ran); `test/banks.test.mjs` |
 | The `.xex` link script's RAM region is a **literal** `ORIGIN = 0x2000, LENGTH = 0xa000` — there is no `PROVIDE` and no symbol to override, unlike the VIC-20's `__memory_expansion` or the PET's `__ram_size`. So a `400` or `800` value **cannot** cap the linked RAM with a `--defsym`, and the catalog does not pretend to: those values change the emulator's model and the joystick-port fact only. Capping RAM for a 16K 400 needs a link script this project supplies, which nothing does yet. | DOS `.xex` map (read, pre-0.2.0) |
 | `atari8-cart-std/lib/link.ld` has **no** `PROVIDE(__cart_rom_size)` — only `ASSERT(__cart_rom_size == 8 \|\| __cart_rom_size == 16, ...)`. The standard-cartridge driver therefore cannot link at all without the defsym, where the XEGS (`PROVIDE(... = 256)`) and MegaCart (`= 512`) scripts have defaults. Every cartridge value in the catalog passes it explicitly for that reason. | the three cartridge `link.ld`s (read) |
@@ -245,22 +245,22 @@ below is settled.
 
 ### The fourteen modes
 
-Widths are the three DMACTL settings, which share a centre: narrow is 128
-colour clocks, normal 160, wide 192 — of which only 178 are visible, ANTIC
-clipping 12 colour clocks off the left and horizontal blank taking two off
-the right. A colour clock is half a machine cycle, so a 228-colour-clock
+Widths are the three DMACTL settings, which share a center: narrow is 128
+color clocks, normal 160, wide 192 — of which only 178 are visible, ANTIC
+clipping 12 color clocks off the left and horizontal blank taking two off
+the right. A color clock is half a machine cycle, so a 228-color-clock
 scan line is the familiar 114 cycles. "Across" and the byte counts below
 are at **normal** width.
 
-| ANTIC | GR. | Kind | Scan lines | Bytes/line N/n/W | Across | Colours | Where the colour comes from |
+| ANTIC | GR. | Kind | Scan lines | Bytes/line N/n/W | Across | Colors | Where the color comes from |
 | ----- | --- | ---- | ---------- | ---------------- | ------ | ------- | --------------------------- |
 | `$2` | 0 | char | 8 | 32 / 40 / 48 | 40 chars | 1 hue, 2 lum | hi-res: the whole playfield is COLPF2's *hue*, and a 1 bit substitutes COLPF1's *luminance*. Bit 7 of the code is an attribute (inverse/blank) via CHACTL, not a ninth glyph bit |
 | `$3` | — | char | 10 | 32 / 40 / 48 | 40 chars | 1 hue, 2 lum | as `$2`. Codes `$60-$7F` display glyph rows 2-9 instead of 0-7 — that is where descenders come from, and their glyph data must be stored **out of order**, because rows 2-7 appear above rows 0-1. No OS support |
-| `$4` | 12 | char | 8 | 32 / 40 / 48 | 40 chars, 4 px each | **5** | bit pairs across a 4×8 glyph: 00 = COLBK, 01/10/11 = COLPF0/1/2 — *unless* bit 7 of the character code is set, when 11 gives COLPF3 instead. That bit is what makes it five colours, not four |
+| `$4` | 12 | char | 8 | 32 / 40 / 48 | 40 chars, 4 px each | **5** | bit pairs across a 4×8 glyph: 00 = COLBK, 01/10/11 = COLPF0/1/2 — *unless* bit 7 of the character code is set, when 11 gives COLPF3 instead. That bit is what makes it five colors, not four |
 | `$5` | 13 | char | 16 | 32 / 40 / 48 | 40 chars, 4 px each | 5 | as `$4` with every scan line doubled. Character *data* is still fetched on every line, so it costs what `$4` costs |
-| `$6` | 1 | char | 8 | 16 / 20 / 24 | 20 chars | 5 | **64 glyphs only**: the code's top two bits pick COLPF0-3 for that character's 1 bits; 0 bits are always COLBK. One colour per character, chosen from four |
+| `$6` | 1 | char | 8 | 16 / 20 / 24 | 20 chars | 5 | **64 glyphs only**: the code's top two bits pick COLPF0-3 for that character's 1 bits; 0 bits are always COLBK. One color per character, chosen from four |
 | `$7` | 2 | char | 16 | 16 / 20 / 24 | 20 chars | 5 | as `$6`, scan lines doubled, character data re-fetched every line |
-| `$8` | 3 | map | 8 | 8 / 10 / 12 | 40 px | 4 | bit pairs: 00 = COLBK, 01/10/11 = COLPF0/1/2. Each pixel is 4 colour clocks wide |
+| `$8` | 3 | map | 8 | 8 / 10 / 12 | 40 px | 4 | bit pairs: 00 = COLBK, 01/10/11 = COLPF0/1/2. Each pixel is 4 color clocks wide |
 | `$9` | 4 | map | 4 | 8 / 10 / 12 | 80 px | 2 | one bit: COLBK or COLPF0 |
 | `$A` | 5 | map | 4 | 16 / 20 / 24 | 80 px | 4 | bit pairs, as `$8` |
 | `$B` | 6 | map | 2 | 16 / 20 / 24 | 160 px | 2 | one bit, as `$9` |
@@ -270,7 +270,7 @@ are at **normal** width.
 | `$F` | 8 | map | 1 | 32 / 40 / 48 | 320 px | 1 hue, 2 lum | hi-res, exactly as `$2` but straight from bitmap data. The base for the three GTIA modes |
 
 Bit 7 of every playfield and glyph byte is the **leftmost** pixel, and in
-the multicolour modes a bit pair is ordered as in a CPU integer, so PF1 in
+the multicolor modes a bit pair is ordered as in a CPU integer, so PF1 in
 the second pixel of a byte is `xx10xxxx`.
 
 Full-screen cost, derived from the table for the OS's 192 scan lines at
@@ -292,15 +292,15 @@ through a GRAPHICS call to get them.
 
 Three things a portable layer has to know, none of them obvious:
 
-- **`$4`/`$5` are the four-colour *character* modes, and they are five
-  colours.** A colour-per-cell text surface on this machine means picking
+- **`$4`/`$5` are the four-color *character* modes, and they are five
+  colors.** A color-per-cell text surface on this machine means picking
   mode `$4` at build time. It is the closest thing the Atari has to the
-  C64's colour RAM, and it is not close: the colour varies per *pixel pair
-  inside the glyph*, and the fifth colour is a per-character attribute
+  C64's color RAM, and it is not close: the color varies per *pixel pair
+  inside the glyph*, and the fifth color is a per-character attribute
   bit, so "set cell 40 to red" is not an operation this hardware has.
-- **`$6`/`$7` do give one colour per character** — the top two bits of the
+- **`$6`/`$7` do give one color per character** — the top two bits of the
   code — at the cost of half the columns and three quarters of the
-  character set. A 20-column coloured text mode is a real option for a
+  character set. A 20-column colored text mode is a real option for a
   menu or a HUD, and costs 480 bytes.
 - **Modes `$3`, `$5` and `$7` are the expensive ones.** ANTIC's 48-byte
   line buffer holds character *names* only, so a double-height character
@@ -343,13 +343,13 @@ it must loop with a JVB (`$41`) or be restarted by the CPU.
 
 ### Scrolling, and what it costs
 
-- **HSCROL** (`$D404`, 0-15 colour clocks) shifts the lines whose
+- **HSCROL** (`$D404`, 0-15 color clocks) shifts the lines whose
   instruction carries bit 4. It is not free: enabling it **steps the fetch
   width up one level** — a narrow line fetches a normal line's bytes, a
   normal line fetches a wide line's — so the data must be laid out at the
   wider pitch, and the extra DMA cycles come out of the CPU. Wide lines do
   not step up. A hi-res mode can only be scrolled in *pairs* of pixels,
-  because HSCROL has colour-clock precision and a hi-res pixel is half of
+  because HSCROL has color-clock precision and a hi-res pixel is half of
   one.
 - **VSCROL** (`$D405`) sets the *starting* scan line of the first mode
   line whose instruction carries bit 5, and the *ending* scan line of the
@@ -390,22 +390,22 @@ and makes nonsense of mode `$3`'s descenders.
 ### The three GTIA modes
 
 Setting PRIOR bits 6-7 to something other than `00` reinterprets the
-playfield as two-colour-clock pixels of four bits each — 80 pixels across
+playfield as two-color-clock pixels of four bits each — 80 pixels across
 at normal width, 40 bytes a line, 7680 bytes for 192 lines: the same
 memory as mode `$F`, because it *is* mode `$F` underneath.
 
 | PRIOR[7:6] | GR. | What a 4-bit pixel means |
 | ---------- | --- | ------------------------ |
-| `$40` | 9 | 16 **luminances** of COLBK's hue. The one place the machine reaches 256 distinct colours, because it bypasses the colour registers and their ignored low bit. COLBK's luminance is normally 0 — it is OR'd into the pixel value and eats shades otherwise |
-| `$80` | 10 | 9 colours, and **not** a linear map: `0000`-`0011` are COLPM0-3, `x100`-`x111` are COLPF0-3, `10xx` is COLBK. The player registers are shared with the actual players |
+| `$40` | 9 | 16 **luminances** of COLBK's hue. The one place the machine reaches 256 distinct colors, because it bypasses the color registers and their ignored low bit. COLBK's luminance is normally 0 — it is OR'd into the pixel value and eats shades otherwise |
+| `$80` | 10 | 9 colors, and **not** a linear map: `0000`-`0011` are COLPM0-3, `x100`-`x111` are COLPF0-3, `10xx` is COLBK. The player registers are shared with the actual players |
 | `$C0` | 11 | 16 **hues** at COLBK's luminance, except pixel value `0000`, which is forced to luminance 0. COLBK's hue is normally 0 for the same OR'ing reason |
 
 - **They only work properly over the hi-res modes `$2`, `$3` and `$F`** —
-  which does include the two *character* modes, so a 9- or 16-colour
+  which does include the two *character* modes, so a 9- or 16-color
   **tiled** playfield is available and is not an OS mode. Over a low-res
   mode the ANx bus encoding differs and pixel values go missing (mode
   `$E` yields only 9 of the 16).
-- Mode 10 is displayed one colour clock late, pushing the right border of
+- Mode 10 is displayed one color clock late, pushing the right border of
   a narrow or normal playfield out by one; its border regions render as
   player 0 rather than background, so missiles and players 1-3 are
   normally invisible in the border.
@@ -414,10 +414,10 @@ memory as mode `$F`, because it *is* mode `$F` underneath.
   offset, so an odd value re-pairs the bits instead of shifting them.
 - **A CTIA machine has no GTIA modes at all** — PRIOR bits 6-7 are
   ignored and the screen shows plain mode `$F`. The difference in
-  playfield-collision behaviour is the documented way to tell the two
+  playfield-collision behavior is the documented way to tell the two
   chips apart at run time.
 - On PAL, alternating mode 9 and mode 11 lines blends chroma across scan
-  lines into a pseudo-256-colour display — a PAL-only artefact. On a
+  lines into a pseudo-256-color display — a PAL-only artefact. On a
   SECAM FGTIA, mode 9 loses its lowest luminance bit entirely.
 
 ## Players and missiles: eight objects, and none of them is a sprite
@@ -476,12 +476,12 @@ resolution chosen by DMACTL bit 4:
 ### Position and size
 
 - HPOSP0-3 (`$D000-$D003`) and HPOSM0-3 (`$D004-$D007`) hold the object's
-  **left edge in colour clocks**. A scan line is 228 colour clocks; the
-  visible window is `$22-$DD`, the centre is the `$7F`/`$80` boundary. A
+  **left edge in color clocks**. A scan line is 228 color clocks; the
+  visible window is `$22-$DD`, the center is the `$7F`/`$80` boundary. A
   normal-width playfield occupies `$30-$CF`, narrow `$40-$BF`, wide
   `$2C-$DD` — so **an object can be positioned outside even a wide
   playfield**, in `$22-$2B`, and still be seen.
-- Size is two bits per object: `%00` one colour clock per bit, `%01` two,
+- Size is two bits per object: `%00` one color clock per bit, `%01` two,
   `%11` four — and `%10` behaves as single width, because the shift state
   machine is literally `state' = (state + 1) AND size`. atari800 encodes
   the same thing as `PM_Width[4] = {1, 2, 1, 4}`. Objects grow to the
@@ -489,10 +489,10 @@ resolution chosen by DMACTL bit 4:
 - SIZEP0-3 are one register each; SIZEM (`$D00C`) packs all four missiles
   into one byte, two bits each, missile 0 in bits 0-1 up to missile 3 in
   bits 6-7.
-- One player bit at normal size is **one colour clock** — the same width
+- One player bit at normal size is **one color clock** — the same width
   as a pixel in the 160-across modes (`$B`-`$E`), and twice the width of a
   hi-res pixel in mode `$2`/`$F`. So a player is exactly as coarse as a
-  four-colour bitmap and half the resolution of the text mode it sits on.
+  four-color bitmap and half the resolution of the text mode it sits on.
   "Low resolution" is accurate, and it is a fixed property: there is no
   high-resolution player.
 - The shift registers run continuously, across horizontal and vertical
@@ -536,25 +536,25 @@ line, which is the whole point; in one-line resolution it merely halves
 the object's vertical resolution. It has no effect on CPU writes to the
 GRAF registers.
 
-### Colour, and the two ways to get more of it
+### Color, and the two ways to get more of it
 
-One colour register per player — COLPM0-3 (`$D012-$D015`) — and a missile
-takes its own player's colour. There are exactly two hardware routes past
-"one colour per object", and the user-facing folklore compresses both:
+One color register per player — COLPM0-3 (`$D012-$D015`) — and a missile
+takes its own player's color. There are exactly two hardware routes past
+"one color per object", and the user-facing folklore compresses both:
 
 - **PRIOR bit 4, the fifth player.** All four missiles switch to COLPF3
   and take PF3's priority. They keep independent positions and sizes —
   nothing groups them — so using them as one 8-bit object means moving
   four registers in step yourself. It does not change collisions at all,
   and each missile still reports its own. A program can also take the
-  colour change alone and leave the missiles scattered.
-- **PRIOR bit 5, multi-colour players.** The pairs that blend are
+  color change alone and leave the missiles scattered.
+- **PRIOR bit 5, multi-color players.** The pairs that blend are
   **P0+P1, P2+P3, M0+M1 and M2+M3 — and only those**. Where a blended pair
-  overlaps, the output is the bitwise OR of the two colour registers, so
-  the third colour is chosen by picking register values whose OR is the
-  colour wanted, not by setting it. Overlapping any *other* pair (P0 and
+  overlaps, the output is the bitwise OR of the two color registers, so
+  the third color is chosen by picking register values whose OR is the
+  color wanted, not by setting it. Overlapping any *other* pair (P0 and
   P2, say) produces **black**, not a blend. This is the mechanism behind
-  "overlay two sprites for a multicoloured sprite", and it is a two-object
+  "overlay two sprites for a multicolored sprite", and it is a two-object
   pairing, not a free-for-all.
 
 Priority itself is PRIOR bits 0-3, and exactly one of them should be set:
@@ -567,7 +567,7 @@ Priority itself is PRIOR bits 0-3, and exactly one of them should be set:
 | `1000` | PF0 PF1 · P0 P1 P2 P3 · PF2 PF3 · BAK |
 
 With **no** bit set, the cross-disable logic switches off and PF0/PF1 mix
-with P0/P1 and PF2/PF3 with P2/P3, ORing their colours. With **more than
+with P0/P1 and PF2/PF3 with P2/P3, ORing their colors. With **more than
 one** bit set, the logic disables more than it enables and many overlaps
 output **black — including over the background**. A layer that exposes
 priority must therefore take one of four values, not a bit mask.
@@ -591,14 +591,14 @@ What the hardware will not tell you:
   object over COLBK reads as clear.
 - **There is no missile-to-missile collision at all.**
 - In the hi-res modes (`$2`, `$3`, `$F`) a 1 bit counts as PF2 and the two
-  pixels of a colour clock are OR'd together; 0 bits register nothing,
-  even though they are drawn in a visible colour.
+  pixels of a color clock are OR'd together; 0 bits register nothing,
+  even though they are drawn in a visible color.
 - GTIA modes 9 and 11 register **no** playfield collisions; mode 10
   registers them for its PF-coded pixels only.
 - Detection happens where the beam is, so a collision is only true once
   that line has been drawn: **read the registers after the display and
   before HITCLR**, which in practice means at the top of the vertical
-  blank. Colour registers play no part — two objects in the same colour
+  blank. Color registers play no part — two objects in the same color
   still collide, which is how invisible trigger objects are built.
 
 Writing HITCLR (`$D01E`) clears all sixteen at once.
@@ -619,7 +619,7 @@ run here. *To verify* by booting DOS 2.0S under atari800 and reading the
 free-sector count off the directory.
 
 **Which HPOS values are visible.** *Resolved* — the visible window is
-`$22-$DD` of a 228-colour-clock line, and a normal-width playfield is
+`$22-$DD` of a 228-color-clock line, and a normal-width playfield is
 `$30-$CF`. See "Position and size" above. atari800's `$22`/`$BE` clipping
 is its own internal geometry and is not the number to hardcode.
 
@@ -645,7 +645,7 @@ measuring rather than assuming, and worth remembering that a narrow
 playfield is a real speed-up.
 
 **Attract mode.** ATRACT (`$4D`) counts up in the VBI and after roughly
-nine minutes without a key the OS starts cycling the colours through
+nine minutes without a key the OS starts cycling the colors through
 COLRSH/DRKMSK; a joystick-only game must zero ATRACT each frame. The
 duration is *to verify*; the flag's existence is in `_atarios.h`.
 
@@ -691,27 +691,27 @@ verify* in the ST/Trak-Ball documentation.
   `59.9227434 × 262 × 114 = 1789772.5` and `49.8607597 × 312 × 114 =
   1773447`; the NTSC figure differs from the backend's 1789790 by ten
   parts per million. Either is fine for pacing; cite the one you mean.
-- **`packages/atari8/src/screen.8bs`** says its colour names are "not
+- **`packages/atari8/src/screen.8bs`** says its color names are "not
   visually verified under atari800". They are now — on NTSC, `BLUE`
   border and `CYAN` background read as their names; on PAL the same
   `CYAN` byte is green. Keep the names, but never describe a GTIA byte as
-  a colour without saying which region.
+  a color without saying which region.
 - **`package.json`'s `video.palette` said 256.** It is **128**: GTIA
-  ignores bit 0 of every write to a colour register, so the palette is 16
+  ignores bit 0 of every write to a color register, so the palette is 16
   hues × 8 luminances. The 256 figure is real but belongs to GTIA mode 9
   alone, which bypasses the registers and feeds pixel data straight to the
   luminance output — and a SECAM FGTIA cannot even do that. Changed to
-  128. The fact's own definition is "colours the display can show at
+  128. The fact's own definition is "colors the display can show at
   once", and 128 is defensible for this machine only because a DLI can
   rewrite the registers every scan line; **without** per-scanline work the
   honest number is 9 — COLPM0-3, COLPF0-3 and COLBK — or 16 in GTIA modes
   9 and 11. No code reads this fact today; when something does, that gap
   is what it will have to reckon with.
-- **The old ANTIC-modes row called mode `$4` a four-colour mode.** It is
+- **The old ANTIC-modes row called mode `$4` a four-color mode.** It is
   five: bit 7 of a character code swaps COLPF3 in for COLPF2. Same row
-  described modes `$6`/`$7` as "2-colour-per-character", which understates
+  described modes `$6`/`$7` as "2-color-per-character", which understates
   them — the character code's top two bits choose among COLPF0-3, so the
-  mode has five colours and each character picks one. Both fixed in the
+  mode has five colors and each character picks one. Both fixed in the
   new table.
 
 ## What people say about this machine, and what is actually true
@@ -724,7 +724,7 @@ of these back to its popular form.
 
 - **"There are 8 sprites."** Four players and four missiles — 8 *objects*,
   not 8 of one thing. Players are 8 bits wide, missiles 2, and a missile
-  is not a small player: it has no colour register of its own, and the
+  is not a small player: it has no color register of its own, and the
   four of them share one shape register and one size register.
 - **"Sprites span the full height of the screen."** True, and it is the
   defining fact. See "Players and missiles" above: it makes objects-per-
@@ -736,24 +736,24 @@ of these back to its popular form.
   re-pointing it as a cheap substitute. The single exception is VDELAY,
   worth one scan line in two-line resolution.
 - **"They're low resolution and monochrome."** Right on both counts, and
-  worth being precise about: one bit is one colour clock — as coarse as a
+  worth being precise about: one bit is one color clock — as coarse as a
   160-wide bitmap pixel, twice as coarse as a mode `$2`/`$F` pixel — and
-  one colour register covers the whole object. SIZEP can widen a bit to
-  two or four colour clocks, but nothing makes it narrower.
+  one color register covers the whole object. SIZEP can widen a bit to
+  two or four color clocks, but nothing makes it narrower.
 - **"Players are 8px wide, missiles 2px."** 8 *bits* and 2 *bits*. At
-  default size those are 8 and 2 colour clocks; at quadruple size the same
-  player is 32 colour clocks wide, a fifth of a normal playfield, still
+  default size those are 8 and 2 color clocks; at quadruple size the same
+  player is 32 color clocks wide, a fifth of a normal playfield, still
   8 pixels of shape.
 - **"Or combine missiles with players."** The real mechanism is PRIOR bit
   4: all four missiles turn COLPF3 and become a "fifth player". They are
   not joined — each keeps its own position and size, and moving them as
   one object is four register writes you make yourself.
-- **"You can overlay more than one sprite to get multicoloured sprites."**
+- **"You can overlay more than one sprite to get multicolored sprites."**
   Real, but restricted, and this is the correction that most changes an
   API: PRIOR bit 5 blends **only** P0+P1, P2+P3, M0+M1 and M2+M3. The
-  third colour is the bitwise **OR** of the two colour registers — you
+  third color is the bitwise **OR** of the two color registers — you
   choose it by choosing register values, not by setting it. Overlap any
-  other pair and the result is **black**. So "a multicoloured sprite" is a
+  other pair and the result is **black**. So "a multicolored sprite" is a
   *specific pair* of players spending two of your four objects, and a
   program can afford at most two of them.
 - **"4-channel audio, square or noise."** Four channels, yes. But "square
@@ -809,10 +809,10 @@ of these back to its popular form.
 
 ### The OS is in the loop until the program takes the machine over
 
-- Every colour goes to the shadow *and* the hardware register while the
+- Every color goes to the shadow *and* the hardware register while the
   OS VBI is alive, as `screen.8bs` does; the same is true of DMACTL
   (SDMCTL), the display list pointer (SDLSTL/H), CHBASE (CHBAS), CHACTL
-  (CHACT), PRIOR (GPRIOR) and the P/M colours (PCOLR0-3). A hardware-only
+  (CHACT), PRIOR (GPRIOR) and the P/M colors (PCOLR0-3). A hardware-only
   write is a one-frame write.
 - `sei` does not stop the VBI or a DLI: both are NMIs. Taking over means
   either hooking VVBLKI/VVBLKD through SETVBV (and returning through
@@ -832,17 +832,17 @@ of these back to its popular form.
 
 - The 40×24 text grid is the OS's choice, not the machine's. A portable
   text surface is a mode-2 line set with a known SAVMSC; anything wider
-  (mode 6/7 double-width text, mode 4/5 four-colour characters, mixed
+  (mode 6/7 double-width text, mode 4/5 four-color characters, mixed
   mode lines, narrow/wide playfield) is a different display list that the
   package owns and describes.
-- There is no colour RAM. Colour granularity is per *playfield register*
+- There is no color RAM. Color granularity is per *playfield register*
   (five registers for the whole screen), per *scanline* through a DLI, or
   per *character* only in the 20-column modes (top two bits of the code
-  pick the register) and the five-colour character modes `$4`/`$5` (bit
+  pick the register) and the five-color character modes `$4`/`$5` (bit
   pairs inside the glyph, plus COLPF3 via bit 7 of the code).
-  `text.putColor` stays inert in mode `$2`; a colour-per-cell intent on
+  `text.putColor` stays inert in mode `$2`; a color-per-cell intent on
   this machine means choosing mode `$4` or `$6`/`$7` at build time, not
-  faking it — and only `$6`/`$7` give a colour *per cell* rather than per
+  faking it — and only `$6`/`$7` give a color *per cell* rather than per
   pixel-pair. The full table is in "The playfield" above; read it before
   designing any of this.
 - The character set is a 1K table on a 1K boundary named by CHBASE (512
@@ -852,15 +852,15 @@ of these back to its popular form.
   the ATASCII control range (`atari.h`: `CH_ULCORNER = $11`, `CH_HLINE =
   $12`, `CH_VLINE = $7C`). Bit 7 of a screen byte inverts the glyph in
   hardware (CHACTL bit 1), so reverse video is free.
-- Bitmaps are modes `$8`-`$F`: 320×192 in one colour + luminance (`$F`),
-  or 160×192 in four colours from COLPF0-2 + COLBK (`$E`), 7680 bytes each
+- Bitmaps are modes `$8`-`$F`: 320×192 in one color + luminance (`$F`),
+  or 160×192 in four colors from COLPF0-2 + COLBK (`$E`), 7680 bytes each
   at full height; GTIA modes 9/10/11 trade to 80 pixels across for 16
-  luminances, 9 colours, or 16 hues. Each is a mode line the display list
+  luminances, 9 colors, or 16 hues. Each is a mode line the display list
   names, and they mix with text lines on the same screen. Both 7680-byte
   modes cross a 4K boundary, which the screen buffer must be *positioned*
   to survive — see the display-list rules above; this is a placement
   problem before it is an API problem.
-- Hardware fine scroll is two registers (HSCROL 0–15 colour clocks, VSCROL
+- Hardware fine scroll is two registers (HSCROL 0–15 color clocks, VSCROL
   0–15 lines) applied to the display-list lines that carry the `$10`/`$20`
   bits, with LMS on each line to move the coarse position; the hardware
   scrolls the *playfield*, never the P/M strips. One layer, no priority
@@ -941,7 +941,7 @@ The reference is "Players and missiles" above — layout, offsets, sizes,
 priority and collisions, all verified. These are the rules an API built on
 it has to keep.
 
-- Four players, 8 bits wide (one colour clock each at size 0, two or four
+- Four players, 8 bits wide (one color clock each at size 0, two or four
   with SIZEP), and four 2-bit missiles, each a **full-height vertical
   strip** at one HPOS: a player's byte at row *y* is what shows on row
   *y*, so vertical movement is moving bytes inside the strip (or the whole
@@ -955,13 +955,13 @@ it has to keep.
   GRAFP0-3/GRAFM per scanline with DMA off — the "racing the beam" style
   Altirra / De Re Atari compare to the 2600. A runtime picks one and
   says so.
-- Colour is one register per player (COLPM0-3); missiles borrow their
-  player's colour unless PRIOR bit 4 makes them a fifth player in COLPF3.
-  PRIOR bit 5 gives a third colour where P0/P1 or P2/P3 overlap — and
-  **only** those pairs, the third colour being the OR of the two
+- Color is one register per player (COLPM0-3); missiles borrow their
+  player's color unless PRIOR bit 4 makes them a fifth player in COLPF3.
+  PRIOR bit 5 gives a third color where P0/P1 or P2/P3 overlap — and
+  **only** those pairs, the third color being the OR of the two
   registers, with any other overlap turning black. An API that offers
-  "multicolour sprites" must therefore allocate them in pairs and pick
-  register values by their OR; there is no third colour to set.
+  "multicolor sprites" must therefore allocate them in pairs and pick
+  register values by their OR; there is no third color to set.
 - Priority is one of four values, not a bit mask: setting no PRIOR bit
   makes playfields and players mix, and setting two makes overlaps black.
 - Collisions are hardware, 16 registers, latched until HITCLR: read them
@@ -1068,7 +1068,7 @@ here" when you do.
 
 ```
 packages/atari8/src/index.8bs           target package: COLBK/COLPF2/COLPF1 ($D01A/$D018/$D017), their OS shadows ($02C8/$02C6/$02C5), CRSINH ($02F0)
-packages/atari8/src/screen.8bs          @8bitscript/atari8/screen: shadow-then-hardware colours, blank() over 960 cells at SAVMSC, GTIA-byte colour names, KEEP = 255
+packages/atari8/src/screen.8bs          @8bitscript/atari8/screen: shadow-then-hardware colors, blank() over 960 cells at SAVMSC, GTIA-byte color names, KEEP = 255
 packages/atari8/src/text.8bs            @8bitscript/atari8/text: ASCII → internal code, SAVMSC read per run, inert putColor, CELL_COUNT 960 / COLUMNS 40
 packages/atari8/src/joystick.8bs        @8bitscript/atari8/joystick: STICK/STRIG shadows, ports from #fact(input.joysticks), ATRACT zeroed each scan
 packages/atari8/src/console.8bs         @8bitscript/atari8/console: CONSOL's three keys (read) and the speaker (write), one address twice
@@ -1093,6 +1093,6 @@ DOS .xex map (pre-0.2.0)                $2000 load, MEMLO survey, FF FF header
 XEGS / standard / MegaCart maps         fixed $A000 + 8K banks at $8000, $BFFA, RAM $0700-$1FFF; cart8/cart16; mega16..mega512
 Atari OS / DOS manuals                 start-up (MEMTOP stack, DOSVEC exit), cartridge vectors at $BFFA
 github.com/atari800/atari800 src/, DOC/cart.txt           antic.c/antic.h/atari.h (timing), gtia.c, pokey.c, pia.c, memory.c (PORTB), cartridge.c/ui.c (types, the menu), input.c (controllers)
-Altirra Hardware Reference Manual (Avery Lee, virtualdub.org)  ch.4 ANTIC (modes, display list, scrolling, P/M DMA), ch.5 POKEY, ch.6 CTIA/GTIA (P/M, collisions, priority, GTIA modes, colour); the source for "The playfield" and "Players and missiles" above
+Altirra Hardware Reference Manual (Avery Lee, virtualdub.org)  ch.4 ANTIC (modes, display list, scrolling, P/M DMA), ch.5 POKEY, ch.6 CTIA/GTIA (P/M, collisions, priority, GTIA modes, color); the source for "The playfield" and "Players and missiles" above
 atariarchives.org/dere/                 De Re Atari, ch.2 ANTIC and ch.4 P/M — the classic account; its glossary contradicts its own chapter 4 on P/M alignment, and chapter 4 is the one that is right
 ```

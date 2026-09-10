@@ -114,14 +114,14 @@ test('loadProject combines the config, package.json, and toolchain', (t) => {
   const root = scratch(t);
   const dir = path.join(root, 'game');
   write(path.join(dir, '8bs.config.ts'), `export default { entry: 'src/main.8bs', targets: ['pet', 'web'] };`);
-  write(path.join(dir, 'package.json'), JSON.stringify({ name: 'game', description: 'Cycles colours.' }));
+  write(path.join(dir, 'package.json'), JSON.stringify({ name: 'game', description: 'Cycles colors.' }));
   write(path.join(dir, 'node_modules', '.bin', BINARY), '');
 
   const project = loadProject(path.join(dir, '8bs.config.ts'));
   assert.equal(project.name, 'game');
   assert.equal(project.installed, true, 'no dependencies declared counts as installed');
   assert.equal(project.packageManager, 'pnpm');
-  assert.equal(project.description, 'Cycles colours.');
+  assert.equal(project.description, 'Cycles colors.');
   assert.equal(project.dir, dir);
   assert.equal(project.entry, path.join(dir, 'src', 'main.8bs'));
   assert.deepEqual(project.targets, ['pet', 'web']);

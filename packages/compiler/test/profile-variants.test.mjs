@@ -17,7 +17,7 @@ import { variantOf, isVariantPath } from '../src/resolver/index.mjs';
 
 const codes = (diagnostics) => diagnostics.map((d) => d.code);
 
-test('variantOf with a profile puts the profile after the machine; isVariantPath recognises both forms and no other', () => {
+test('variantOf with a profile puts the profile after the machine; isVariantPath recognizes both forms and no other', () => {
   assert.equal(variantOf('/p/geometry.8bs', 'pet'), '/p/geometry.pet.8bs');
   assert.equal(variantOf('/p/geometry.8bs', 'pet', '8032'), '/p/geometry.pet.8032.8bs');
   assert.equal(isVariantPath('/p/geometry.pet.8bs'), true);

@@ -15,7 +15,7 @@
 //                border is green only if both are right
 //   print()      streamed characters and a filled attribute run
 //   printNumber() the digit field, right-aligned
-//   setColor()   a different attribute colour on a later row
+//   setColor()   a different attribute color on a later row
 //   the corners  cell 0 and cell 1999 addressed directly, so the last
 //                cell of the last row is known to be reachable
 import { screen } from "../src/screen.8bs";

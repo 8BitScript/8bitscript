@@ -1,4 +1,4 @@
-// A namespace const takes the same initialisers a module-level const does:
+// A namespace const takes the same initializers a module-level const does:
 // a literal, or a const — its own module's, another namespace's member, or
 // an import — resolved by the linker, range-checked against the member's
 // type, and inlined wherever the member is used. This is what lets a

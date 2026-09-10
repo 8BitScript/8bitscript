@@ -230,17 +230,17 @@ a documentation page and carries no front matter.
   absolute site paths or bare URLs for internal links.
 - **Give macOS and Linux separate instructions wherever the commands differ.**
   Windows is not supported; do not add Windows instructions.
-- **Never present unimplemented behaviour as working.** `8bs check`,
+- **Never present unimplemented behavior as working.** `8bs check`,
   `8bs doctor`, `8bs build`, and `8bs run` work for the milestone subset.
   A feature the compiler cannot lower must be described as such, and any
-  mention of `8bs dev` must be labelled **planned and not yet implemented**.
+  mention of `8bs dev` must be labeled **planned and not yet implemented**.
 
 ## Site styling
 
 `docs/assets/css/main.css` is the whole of the site's styling, and it is
 deliberately plain — this is a library's documentation, not a design project.
 Keep it that way: a rule that is not earning its place in legibility or
-navigation does not belong in it. Any colour change must stay readable in both
+navigation does not belong in it. Any color change must stay readable in both
 the light and dark schemes.
 
 ## Licensing

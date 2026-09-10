@@ -19,9 +19,9 @@ right move is usually to call the OS rather than the chip —
 > to draw, sound, read keys and wait for a frame, and they keep a program
 > honest across Model B, B+, Master and a Tube second processor. Underneath
 > is a 6845 CRTC and a Video ULA producing eight modes that trade text
-> width, pixels and colours against 1K to 20K of the program's own RAM, a
+> width, pixels and colors against 1K to 20K of the program's own RAM, a
 > Teletext chip for the cheap mode, an SN76489 for sound, and 16 K sideways
-> ROM/RAM slots. Model it as "a mode is a memory budget and a colour
+> ROM/RAM slots. Model it as "a mode is a memory budget and a color
 > depth", never as "a C64 with a bitmap".**
 
 The family's variety is in *models*: Model A (16K) and B (32K) with
@@ -56,11 +56,11 @@ Nothing in this file was seen on screen — no BBC emulator is installed.
 
 | Fact | Where |
 | ---- | ----- |
-| Screen modes (Model B addresses; ULA control byte in parentheses): **0** 80×32 text, 640×256, 1 bpp, 20480 bytes `&3000-&7FFF` (`&9C`); **1** 40×32, 320×256, 2 bpp, 20480 bytes `&3000` (`&D8`); **2** 20×32, 160×256, 4 bpp (8 steady + 8 flashing), 20480 bytes `&3000` (`&F4`); **3** 80×25 text only, 8×10 cells with 2 blank lines, 16384 allocated / 16000 on screen `&4000-&7FFF` (`&9C`); **4** 40×32, 320×256, 1 bpp, 10240 bytes `&5800` (`&88`); **5** 20×32, 160×256, 2 bpp, 10240 bytes `&5800` (`&C4`); **6** 40×25 text only, 8×10 cells, 8192 allocated / 8000 on screen `&6000` (`&88`); **7** 40×25 Teletext, 1024 allocated / 1000 on screen `&7C00-&7FFF` (`&4B`). Cells are 8×8, user definable (VDU 23), pixels 1:2 tall in modes 0/3, 2:1 wide in 2/5. Default palettes: 2-colour modes black/white; 4-colour black/red/yellow/white; mode 2 logical = physical 0-15. CRTC register tables are in MOS 1.20 at `&C46E..&C4A9`. | BeebWiki `MODE_0` … `MODE_7` |
+| Screen modes (Model B addresses; ULA control byte in parentheses): **0** 80×32 text, 640×256, 1 bpp, 20480 bytes `&3000-&7FFF` (`&9C`); **1** 40×32, 320×256, 2 bpp, 20480 bytes `&3000` (`&D8`); **2** 20×32, 160×256, 4 bpp (8 steady + 8 flashing), 20480 bytes `&3000` (`&F4`); **3** 80×25 text only, 8×10 cells with 2 blank lines, 16384 allocated / 16000 on screen `&4000-&7FFF` (`&9C`); **4** 40×32, 320×256, 1 bpp, 10240 bytes `&5800` (`&88`); **5** 20×32, 160×256, 2 bpp, 10240 bytes `&5800` (`&C4`); **6** 40×25 text only, 8×10 cells, 8192 allocated / 8000 on screen `&6000` (`&88`); **7** 40×25 Teletext, 1024 allocated / 1000 on screen `&7C00-&7FFF` (`&4B`). Cells are 8×8, user definable (VDU 23), pixels 1:2 tall in modes 0/3, 2:1 wide in 2/5. Default palettes: 2-color modes black/white; 4-color black/red/yellow/white; mode 2 logical = physical 0-15. CRTC register tables are in MOS 1.20 at `&C46E..&C4A9`. | BeebWiki `MODE_0` … `MODE_7` |
 | Master 128 mode table (Acorn literature): modes 0-7 as above with "8 shadow modes providing the same displays without affecting user memory"; the Master has "64KB main RAM, 64KB sideways RAM consisting of four 16K pages", 128KB ROM (35K MOS, BASIC 4, Edit, View, ViewSheet, ADFS, 1770 DFS), 65C102 at 2 MHz, two cartridge slots (ROM numbers 0-3), Econet, RS-423, 1 MHz bus, Tube internal and external, RTC. | BeebWiki `Master_128` |
-| Mode 7: SAA5050 driven by ASCII-variant bytes in memory; text colour and graphics are switched "line-by-line, using control codes that occupy a character cell"; interlace forced on, rows 20 scanlines deep; the MOS's graphics calls, `COLOUR` and VDU 19 do nothing in mode 7; graphics codes need bit 7 set although the chip is 7-bit; the display is one cell right of mode 6; 24 bytes of the 1K are off screen and not usable; hardware scrolling wraps `&7FFF` → `&7C00`. Infobox: 40×25, "78 × 75 (block graphics, user generated)", 12×20 pixel characters interpolated from a 6×10 matrix. | BeebWiki `MODE_7` |
-| Teletext control codes: `&81-&87` alpha colours red…white, `&88/&89` flash on/off, `&8C/&8D` normal/double height, `&91-&97` graphics colours, `&98` conceal, `&99/&9A` contiguous/separated graphics, `&9C` black background, `&9D` new background, `&9E/&9F` hold/release graphics; `*` state at line start: white text, flash off, normal height, continuous graphics, black background, release. After a graphics colour, `%xx1xxxxx` bytes are sixels with bits 0,1 / 2,3 / 4,6 as the 2×3 blocks; `%xx0xxxxx` stay text. Control characters display as spaces unless held. `#`, `_`, `£` are stored as `&5F`, `&60`, `&23`. Double height: the lower row of a pair shows nothing that is not also double height. | mdfs.net `Info/Comp/Teletext/Controls` |
-| Video ULA: control `&FE20` (RAM copy `&248`) — bits 7-5 cursor segments, bit 4 clock 1/2 MHz, bits 3-2 columns (10/20/40/80), bit 1 Teletext, bit 0 flash; palette `&FE21` (RAM copy `&249`) — high nibble = logical colour, low nibble = physical colour, 16 entries; physical 0-7 steady, 8-15 flashing; bit 3 blue, 1 green, 0 red, 2 flash, values inverted before output. Both write-only. `&FE22/&FE23` are the Video NuLA extension's border and 24-bit palette registers, not stock hardware. | BeebWiki `Video_ULA`; mdfs.net `Hardware/SHEILAddrs` |
+| Mode 7: SAA5050 driven by ASCII-variant bytes in memory; text color and graphics are switched "line-by-line, using control codes that occupy a character cell"; interlace forced on, rows 20 scanlines deep; the MOS's graphics calls, `COLOUR` and VDU 19 do nothing in mode 7; graphics codes need bit 7 set although the chip is 7-bit; the display is one cell right of mode 6; 24 bytes of the 1K are off screen and not usable; hardware scrolling wraps `&7FFF` → `&7C00`. Infobox: 40×25, "78 × 75 (block graphics, user generated)", 12×20 pixel characters interpolated from a 6×10 matrix. | BeebWiki `MODE_7` |
+| Teletext control codes: `&81-&87` alpha colors red…white, `&88/&89` flash on/off, `&8C/&8D` normal/double height, `&91-&97` graphics colors, `&98` conceal, `&99/&9A` contiguous/separated graphics, `&9C` black background, `&9D` new background, `&9E/&9F` hold/release graphics; `*` state at line start: white text, flash off, normal height, continuous graphics, black background, release. After a graphics color, `%xx1xxxxx` bytes are sixels with bits 0,1 / 2,3 / 4,6 as the 2×3 blocks; `%xx0xxxxx` stay text. Control characters display as spaces unless held. `#`, `_`, `£` are stored as `&5F`, `&60`, `&23`. Double height: the lower row of a pair shows nothing that is not also double height. | mdfs.net `Info/Comp/Teletext/Controls` |
+| Video ULA: control `&FE20` (RAM copy `&248`) — bits 7-5 cursor segments, bit 4 clock 1/2 MHz, bits 3-2 columns (10/20/40/80), bit 1 Teletext, bit 0 flash; palette `&FE21` (RAM copy `&249`) — high nibble = logical color, low nibble = physical color, 16 entries; physical 0-7 steady, 8-15 flashing; bit 3 blue, 1 green, 0 red, 2 flash, values inverted before output. Both write-only. `&FE22/&FE23` are the Video NuLA extension's border and 24-bit palette registers, not stock hardware. | BeebWiki `Video_ULA`; mdfs.net `Hardware/SHEILAddrs` |
 | SHEILA (`&FE00-&FEFF`): `&FE00/01` 6845 CRTC address/data; `&FE08/09` 6850 ACIA; `&FE10` serial ULA; `&FE18` station ID (B) / ADC (Master); `&FE20/21` Video ULA; `&FE24-&FE2B` Master drive control + 1770; `&FE30` ROMSEL; `&FE34` ACCCON (B+/Master); `&FE40-&FE4F` System VIA; `&FE60-&FE6F` User VIA (port B = user port, port A = printer); `&FE80` 8271 (B) or 1770 (B/B+ with the later board); `&FEA0` 6854 ADLC Econet; `&FEC0` ADC (B/B+); `&FEE0` Tube. FRED `&FC00` and JIM `&FD00` are the 1 MHz bus pages. | mdfs.net `Hardware/SHEILAddrs`, `AllMem` |
 | Paged ("sideways") ROM: a 16K window `&8000-&BFFF`, one of 16 slots selected through ROMSEL `&FE30` with a RAM copy at `&F4`; the MOS manages it and has a service-call API; B+ 128K and Master 128 have 64K of sideways RAM (Master: slots 4-7); B+ shadow RAM is 20K at `&3000-&7FFF` with a 12K private block that appears at `&8000-&AFFF` when a value above 127 is written to ROMSEL. | BeebWiki `Paged_ROM`, `Sideways_RAM` (stub), `Shadow_RAM`; WebFetch summary of `Sideways_ROM` |
 | MOS calls: OSWRCH `&FFEE` (vector `&020E`) writes one byte to the VDU stream — VDU 19 palette, VDU 22 mode, VDU 23 user-defined characters and CRTC/ULA pokes, VDU 31 TAB x,y; OSBYTE `&FFF4` (A = call, X, Y): `&13` "wait for vertical retrace — returns after the next VSync interrupt a few microseconds after the start of a display field", `&80` ADVAL (0 = buttons + last channel, 1-4 analogue channels, 7-9 mouse, negative = buffer status), `&81` INKEY (positive XY = centisecond timeout; Y=`&FF`, X=`&80-&FF` = scan one key, returns `&FFFF` if down; X=0 = host type), `&00` host OS type (1 = BBC OS 1.20, 2 = B+, 3 = Master 128, 5 = Compact); OSWORD `&FFF1` `&07` SOUND (channel, volume/envelope, pitch, duration as four 16-bit words) and `&08` ENVELOPE; OSRDCH `&FFE0`, OSCLI `&FFF7`. | BeebWiki `OSWRCH`, `OSBYTE`, `OSBYTE_&13`, `OSBYTE_&80`, `OSBYTE_&81`, `OSWORD_&07`; mdfs.net `Osbyte00` |
@@ -166,21 +166,21 @@ Each is a lead to confirm the first time code depends on it.
 ### The screen
 
 - Modes 0-6 are bitmaps in cell-major order with a logical → physical
-  palette; text is drawn by the MOS from a definable 8×8 font. "Colour
-  per cell" does not exist: colour granularity is the pixel, at 1, 2 or
-  4 bits, and the palette maps logical colours to 8 hues + 8 flashing.
-  A per-cell colour API is a software convention here (draw the glyph in
-  a logical colour), not an attribute byte.
+  palette; text is drawn by the MOS from a definable 8×8 font. "Color
+  per cell" does not exist: color granularity is the pixel, at 1, 2 or
+  4 bits, and the palette maps logical colors to 8 hues + 8 flashing.
+  A per-cell color API is a software convention here (draw the glyph in
+  a logical color), not an attribute byte.
 - Mode 7 is the character-cell mode and the only one with per-line
-  attributes: a colour or graphics change costs a cell, sixels are
+  attributes: a color or graphics change costs a cell, sixels are
   2×3 per cell (78×75 effective), and the `*` defaults reset at each
-  line. It is also the only 40×25 mode with colour for 1K; the tier for
+  line. It is also the only 40×25 mode with color for 1K; the tier for
   "text and block graphics" is mode 7, and the trap is the cell the
   control code eats.
-- There is no border colour on a stock machine. The overscan is black
-  (or the physical colour of the ULA's off-screen state); `&FE22` is a
+- There is no border color on a stock machine. The overscan is black
+  (or the physical color of the ULA's off-screen state); `&FE22` is a
   NuLA extension. `screen.setBorder()` is inert; `setBackground()` is a
-  palette write of logical colour 0.
+  palette write of logical color 0.
 - Hardware scroll exists (CRTC R12/R13 with the IC32 wrap) but is coarse
   (8-byte units) and the MOS uses it for text scrolling; treat fine
   scrolling as software.
@@ -269,8 +269,8 @@ Each is a lead to confirm the first time code depends on it.
 2. **A mode costs RAM the program would otherwise have.** Mode 2 eats
    20K of 32K; mode 7 costs 1K. There is no "video RAM" apart from the
    program's.
-3. **Colour is per pixel through a palette, not per cell — except in
-   mode 7, where a colour change eats a cell.** Neither is a C64
+3. **Color is per pixel through a palette, not per cell — except in
+   mode 7, where a color change eats a cell.** Neither is a C64
    attribute byte.
 4. **No sprites, no border register, no fine scroll worth using.**
 5. **Sideways banks are ROM-image shaped and the MOS owns the bank

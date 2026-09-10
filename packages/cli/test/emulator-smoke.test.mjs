@@ -259,7 +259,7 @@ test('nes: fceux launches against a real build without crashing', { skip: NATIVE
 // exercises the .wasm build directly the way `8bs run web --screenshot`
 // does: run the program's one exported function with a bounded waitFrame()
 // (packages/cli/src/wasm-host.mjs) for a few frames and check the exported
-// `ticks` global actually moved — the same observable behaviour every other
+// `ticks` global actually moved — the same observable behavior every other
 // target's screen shows.
 
 test('web: the build runs in Node\'s WebAssembly runtime and waitFrame() paces it', { skip: NATIVE_BACKEND_PENDING }, async () => {

@@ -16,7 +16,7 @@
 // sound capability (packages/studio/AGENTS.md) will sit on. It is the
 // 6581/8580's three voices as they are: an oscillator with four waveforms
 // (triangle, sawtooth, pulse with a 12-bit width, noise), an ADSR envelope
-// per voice, ring modulation and hard sync between neighbours, one filter
+// per voice, ring modulation and hard sync between neighbors, one filter
 // shared by all three, and a master volume. Nothing here is a tracker, a
 // sequencer or a driver; it is the registers with their units named.
 //

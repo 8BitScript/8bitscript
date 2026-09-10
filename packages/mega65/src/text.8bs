@@ -14,7 +14,7 @@ import { memoryPointer, vicIIIControlA, VicIIIControl } from "./index.8bs";
 
 // The screen is addressed by flat cell index — a position is
 // `y * text.COLUMNS + x` — and these are the plainest things a text API
-// can be built from: poke one cell's character code, poke one cell's colour, and how many
+// can be built from: poke one cell's character code, poke one cell's color, and how many
 // cells the whole screen has. Whether a caller uses these to clear the
 // screen, lay out a label, or nothing at all is entirely up to the caller —
 // this package draws nothing on its own. mega65.h names the default screen
@@ -22,7 +22,7 @@ import { memoryPointer, vicIIIControlA, VicIIIControl } from "./index.8bs";
 // — and in the MEGA65 mode a build runs in, that screen is 80x25, 2000
 // cells (LINESTEP 80, CHRCOUNT 80, H640 set: measured under xmega65, see
 // AGENTS.md; an earlier version of this file drew for 40 columns and
-// wrapped every second row onto the right half of the one above). Colour
+// wrapped every second row onto the right half of the one above). Color
 // RAM is at $D800 for cells 0-1023, and for cells 1024-1999 at
 // $DC00-$DFCF only while $D030's CRAM2K bit is set — otherwise those
 // addresses are the two CIAs — so prepare() sets that bit before a run.
@@ -61,23 +61,23 @@ function asciiToScreenCode(code: utinyint): utinyint {
 // `text.print(cell, s)` writes a string's characters into consecutive
 // cells from `cell`, and `text.printNumber(cell, value, width)` writes
 // `value` as exactly `width` decimal digits, zero-padded and right-aligned,
-// so a field on a HUD never shifts columns. Both draw in the current colour —
+// so a field on a HUD never shifts columns. Both draw in the current color —
 // white until `text.setColor(TextColor.CYAN)` changes it, and that one
-// call then colours everything printed after it, on the machines that have
-// per-cell colour. They are also the two
+// call then colors everything printed after it, on the machines that have
+// per-cell color. They are also the two
 // functions the compiler's template layout targets: `text.print(0,
 // \`TICK ${ticks:1}\`)` is laid out at compile time into these same calls
 // (see packages/compiler/src/ir).
 //
 // Under them: `place()` puts one character at one cell in the current
-// colour, and is all a run of text costs per character, with `prepare()` selecting the
+// color, and is all a run of text costs per character, with `prepare()` selecting the
 // upper-case set once for the run.
 // `text.putChar` and `text.putColor` stay the one-cell pokes a caller can
 // build anything from.
 let currentColor: utinyint = 1; // white, until text.setColor() says otherwise
 let currentReverse: bool = false; // until text.setReverse() says otherwise
 
-// Reverse video is bit 7 of the screen code, as on the C64. Colour RAM's
+// Reverse video is bit 7 of the screen code, as on the C64. Color RAM's
 // upper nibble is also an attribute field (blink, reverse) — keep it
 // clear, and invert by the ROM copy instead.
 function toScreen(code: utinyint): utinyint {
@@ -159,8 +159,8 @@ export namespace text {
     }
 }
 
-// The colours `text.setColor()` takes: the eight names every machine
-// shares, with this machine's colour-RAM values.
+// The colors `text.setColor()` takes: the eight names every machine
+// shares, with this machine's color-RAM values.
 export namespace TextColor {
     const BLACK: utinyint = 0;
     const WHITE: utinyint = 1;
