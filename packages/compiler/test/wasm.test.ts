@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { build } from '../src/wasm/index.ts';
-import type { IrFunction, IrGlobal, IrProgram } from '../src/wasm/index.ts';
+import type { IrFunction, IrGlobal, IrParam, IrProgram } from '../src/wasm/index.ts';
 import type { IrExpr } from '../src/wasm/lower.ts';
 
 const emptyMain: IrProgram = {
@@ -73,20 +73,6 @@ test('build() names the linked entry point when it matches no function', async (
   }
 });
 
-test('build() refuses more than the entry function, naming the web track\'s own milestone 4', async () => {
-  const scratch = await mkdtemp(join(tmpdir(), '8bs-web-native-'));
-  try {
-    const outFile = join(scratch, 'out.wasm');
-    const ir: IrProgram = { entry: 'main', functions: [{ name: 'main', body: [] }, { name: 'helper', body: [] }] };
-    const result = await build(ir, { outFile, frameRate: 60 });
-    assert.equal(result.ok, false);
-    assert.match(result.ok ? '' : result.error, /milestone 4/);
-    assert.equal(existsSync(outFile), false);
-  } finally {
-    await rm(scratch, { recursive: true, force: true });
-  }
-});
-
 test('build() refuses a program with string literals, naming the web track\'s own milestone 5', async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-web-native-'));
   try {
@@ -105,11 +91,11 @@ test('build() refuses an IR statement kind lower.ts doesn\'t lower yet, naming t
   const scratch = await mkdtemp(join(tmpdir(), '8bs-web-native-'));
   try {
     const outFile = join(scratch, 'out.wasm');
-    const ir: IrProgram = { entry: 'main', functions: [{ name: 'main', body: [{ kind: 'call', name: 'helper' }] }] };
+    const ir: IrProgram = { entry: 'main', functions: [{ name: 'main', body: [{ kind: 'waitFrame' }] }] };
     const result = await build(ir, { outFile, frameRate: 60 });
     assert.equal(result.ok, false);
-    assert.match(result.ok ? '' : result.error, /'call' is not lowered yet/);
-    assert.match(result.ok ? '' : result.error, /milestone 4/);
+    assert.match(result.ok ? '' : result.error, /'waitFrame' is not lowered yet/);
+    assert.match(result.ok ? '' : result.error, /milestone 6/);
     assert.equal(existsSync(outFile), false);
   } finally {
     await rm(scratch, { recursive: true, force: true });
@@ -150,6 +136,26 @@ async function execute(fn: IrFunction, globals: IrGlobal[], scratchLabel: string
 /** Builds `fn`, instantiates it, calls the entry, and returns whatever it returns. */
 async function run(fn: IrFunction, scratchLabel: string): Promise<number> {
   return (await execute(fn, [], scratchLabel)).value;
+}
+
+/** Builds a whole `functions` array (milestone 4's own reason `execute()`
+ * above only takes one: a program calling another function needs more
+ * than one function in `ir.functions`), instantiates it, calls `entry`,
+ * and returns whatever it returns. */
+async function runProgram(functions: IrFunction[], entry: string, scratchLabel: string): Promise<number> {
+  const scratch = await mkdtemp(join(tmpdir(), scratchLabel));
+  try {
+    const outFile = join(scratch, 'out.wasm');
+    const ir: IrProgram = { entry, functions };
+    const result = await build(ir, { outFile, frameRate: 60 });
+    assert.equal(result.ok, true, result.ok ? '' : result.error);
+    if (!result.ok) throw new Error('unreachable');
+    const module = await WebAssembly.compile(result.bytes);
+    const instance = await WebAssembly.instantiate(module, {});
+    return (instance.exports[entry] as () => number)();
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
 }
 
 const ref = (name: string, type: string): IrExpr => ({ kind: 'ref', name, type });
@@ -450,6 +456,248 @@ test('milestone 3: refuses a string<N> global, naming the web track\'s own miles
     const result = await build({ entry: 'main', functions: [{ name: 'main', body: [] }], globals }, { outFile, frameRate: 60 });
     assert.equal(result.ok, false);
     assert.match(result.ok ? '' : result.error, /'s' is a string<N>/);
+    assert.match(result.ok ? '' : result.error, /milestone 5/);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+// ---- milestone 4: functions and calls --------------------------------------
+
+test('milestone 4 acceptance: main calls a helper with an argument, and returns the helper\'s own return value', async () => {
+  const double: IrFunction = {
+    name: 'double',
+    params: [{ name: 'x', type: 'usmallint' }],
+    returnType: 'usmallint',
+    body: [{ kind: 'return', value: add(ref('x', 'usmallint'), ref('x', 'usmallint'), 'usmallint') }],
+  };
+  const main: IrFunction = {
+    name: 'main',
+    returnType: 'usmallint',
+    body: [{ kind: 'return', value: { kind: 'call', name: 'double', args: [num(21, 'usmallint')], type: 'usmallint' } }],
+  };
+  assert.equal(await runProgram([main, double], 'main', '8bs-web-native-'), 42);
+});
+
+test('milestone 4: two parameters arrive in declaration order, not call order — sub(10, 3) is 7, not -7', async () => {
+  const sub: IrFunction = {
+    name: 'sub',
+    params: [{ name: 'a', type: 'usmallint' }, { name: 'b', type: 'usmallint' }],
+    returnType: 'usmallint',
+    body: [{ kind: 'return', value: { kind: 'binop', operator: '-', left: ref('a', 'usmallint'), right: ref('b', 'usmallint'), type: 'usmallint' } }],
+  };
+  const main: IrFunction = {
+    name: 'main',
+    returnType: 'usmallint',
+    body: [{ kind: 'return', value: { kind: 'call', name: 'sub', args: [num(10, 'usmallint'), num(3, 'usmallint')], type: 'usmallint' } }],
+  };
+  assert.equal(await runProgram([main, sub], 'main', '8bs-web-native-'), 7);
+});
+
+test('milestone 4: a void helper called as a statement needs no drop, and its side effect is visible after it returns', async () => {
+  const setFive: IrFunction = {
+    name: 'setFive',
+    returnType: 'void',
+    body: [{ kind: 'assign', target: 'counter', value: num(5, 'usmallint') }],
+  };
+  const main: IrFunction = {
+    name: 'main',
+    returnType: 'usmallint',
+    body: [
+      { kind: 'call', name: 'setFive', args: [] },
+      { kind: 'return', value: ref('counter', 'usmallint') },
+    ],
+  };
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-web-native-'));
+  try {
+    const outFile = join(scratch, 'out.wasm');
+    const globals: IrGlobal[] = [{ name: 'counter', type: 'usmallint', address: null, init: 0 }];
+    const ir: IrProgram = { entry: 'main', functions: [main, setFive], globals };
+    const result = await build(ir, { outFile, frameRate: 60 });
+    assert.equal(result.ok, true, result.ok ? '' : result.error);
+    if (!result.ok) return;
+    const module = await WebAssembly.compile(result.bytes);
+    const instance = await WebAssembly.instantiate(module, {});
+    assert.equal((instance.exports.main as () => number)(), 5);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('milestone 4: a non-void helper called as a statement drops its own result — the module still validates with the value unused', async () => {
+  // Without `Opcode.drop` after a discarded non-void call, the function
+  // type still declares one result, so this reaches the entry's own
+  // closing `end` with a value still on the stack the validator doesn't
+  // expect — WebAssembly.compile() refuses it the same way a missing
+  // `unreachable` did for milestone 2's own branch-return bug.
+  const helper: IrFunction = {
+    name: 'helper',
+    returnType: 'usmallint',
+    body: [{ kind: 'return', value: num(99, 'usmallint') }],
+  };
+  const main: IrFunction = {
+    name: 'main',
+    returnType: 'usmallint',
+    body: [
+      { kind: 'call', name: 'helper', args: [] },
+      { kind: 'return', value: num(1, 'usmallint') },
+    ],
+  };
+  assert.equal(await runProgram([main, helper], 'main', '8bs-web-native-'), 1);
+});
+
+test('milestone 4 acceptance: recursion — a recursive countdown, not refused for parity with mos', async () => {
+  // mos still refuses this by name (a shared zero-page frame a recursive
+  // call would clobber); wasm's own call stack is real, so nothing here
+  // needs the same refusal — see lower.ts's own Ctx.functions doc.
+  const countdown: IrFunction = {
+    name: 'countdown',
+    params: [{ name: 'n', type: 'usmallint' }],
+    returnType: 'usmallint',
+    body: [
+      {
+        kind: 'if',
+        test: { kind: 'binop', operator: '==', left: ref('n', 'usmallint'), right: num(0, 'usmallint'), type: 'bool' },
+        then: [{ kind: 'return', value: num(0, 'usmallint') }],
+        else: null,
+      },
+      {
+        kind: 'return',
+        value: { kind: 'call', name: 'countdown', args: [{ kind: 'binop', operator: '-', left: ref('n', 'usmallint'), right: num(1, 'usmallint'), type: 'usmallint' }], type: 'usmallint' },
+      },
+    ],
+  };
+  assert.equal(await runProgram([countdown], 'countdown', '8bs-web-native-'), 0);
+});
+
+test('milestone 4 acceptance: only the entry is exported, even with a helper function present', async () => {
+  const helper: IrFunction = { name: 'helper', returnType: 'usmallint', body: [{ kind: 'return', value: num(1, 'usmallint') }] };
+  const main: IrFunction = { name: 'main', returnType: 'usmallint', body: [{ kind: 'return', value: { kind: 'call', name: 'helper', args: [], type: 'usmallint' } }] };
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-web-native-'));
+  try {
+    const outFile = join(scratch, 'out.wasm');
+    const result = await build({ entry: 'main', functions: [helper, main] }, { outFile, frameRate: 60 });
+    assert.equal(result.ok, true, result.ok ? '' : result.error);
+    if (!result.ok) return;
+    const module = await WebAssembly.compile(result.bytes);
+    const instance = await WebAssembly.instantiate(module, {});
+    const functions = Object.entries(instance.exports).filter(([, v]) => typeof v === 'function');
+    assert.equal(functions.length, 1);
+    assert.equal(functions[0][0], 'main');
+    assert.equal((functions[0][1] as () => number)(), 1);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('milestone 4: refuses an array parameter, naming the web track\'s own milestone 5', async () => {
+  const params: IrParam[] = [{ name: 't', type: 'array', elementType: 'utinyint' }];
+  const helper: IrFunction = { name: 'helper', params, returnType: 'void', body: [] };
+  const main: IrFunction = { name: 'main', returnType: 'void', body: [] };
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-web-native-'));
+  try {
+    const outFile = join(scratch, 'out.wasm');
+    const result = await build({ entry: 'main', functions: [main, helper] }, { outFile, frameRate: 60 });
+    assert.equal(result.ok, false);
+    assert.match(result.ok ? '' : result.error, /'helper\(t\)': an array parameter/);
+    assert.match(result.ok ? '' : result.error, /milestone 5/);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('milestone 4: arguments evaluate left-to-right, not just land in the right slot — sub(bump(), bump()) sees 1 then 2, not 2 then 1', async () => {
+  // The "declaration order" test above proves args[0] becomes the first
+  // parameter regardless of order; it can't prove *evaluation* order,
+  // since both its arguments are side-effect-free constants. This one
+  // can: each `bump()` mutates a shared global and returns the new value,
+  // so which one runs first is directly observable in the result — the
+  // same left-to-right discipline mos's own callSite locks in by name (its
+  // own file header), just proven here by execution instead of by reading
+  // `args.flatMap`'s own emission order.
+  const bump: IrFunction = {
+    name: 'bump',
+    returnType: 'usmallint',
+    body: [
+      { kind: 'assign', target: 'counter', value: add(ref('counter', 'usmallint'), num(1, 'usmallint'), 'usmallint') },
+      { kind: 'return', value: ref('counter', 'usmallint') },
+    ],
+  };
+  const sub: IrFunction = {
+    name: 'sub',
+    params: [{ name: 'a', type: 'usmallint' }, { name: 'b', type: 'usmallint' }],
+    returnType: 'usmallint',
+    body: [{ kind: 'return', value: { kind: 'binop', operator: '-', left: ref('a', 'usmallint'), right: ref('b', 'usmallint'), type: 'usmallint' } }],
+  };
+  const main: IrFunction = {
+    name: 'main',
+    returnType: 'usmallint',
+    body: [{
+      kind: 'return',
+      value: {
+        kind: 'call', name: 'sub', type: 'usmallint',
+        args: [{ kind: 'call', name: 'bump', args: [], type: 'usmallint' }, { kind: 'call', name: 'bump', args: [], type: 'usmallint' }],
+      },
+    }],
+  };
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-web-native-'));
+  try {
+    const outFile = join(scratch, 'out.wasm');
+    const globals: IrGlobal[] = [{ name: 'counter', type: 'usmallint', address: null, init: 0 }];
+    const ir: IrProgram = { entry: 'main', functions: [main, sub, bump], globals };
+    const result = await build(ir, { outFile, frameRate: 60 });
+    assert.equal(result.ok, true, result.ok ? '' : result.error);
+    if (!result.ok) return;
+    const module = await WebAssembly.compile(result.bytes);
+    const instance = await WebAssembly.instantiate(module, {});
+    // Left-to-right: the first bump() runs first (counter 0 -> 1, a = 1),
+    // the second runs after it (counter 1 -> 2, b = 2). 1 - 2 wraps to
+    // 65535 as a usmallint. Evaluated the other way around, b would see 1
+    // and a would see 2, for a result of 1.
+    assert.equal((instance.exports.main as () => number)(), 65535);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('milestone 4: a discarded non-void call inside a while loop body still validates', async () => {
+  // The blocktype bug (&&/||) and the fallthru bug (a branch-return with
+  // no unreachable) both lived in exactly this structural neighborhood —
+  // a value-producing construct nested inside an open block/loop frame.
+  // `drop` after a discarded call is the same kind of stack-balancing
+  // instruction; this proves it validates once nested inside a loop body,
+  // not just at a function's own top level (the shape the "drops its own
+  // result" test above already covers).
+  const helper: IrFunction = { name: 'helper', returnType: 'usmallint', body: [{ kind: 'return', value: num(99, 'usmallint') }] };
+  const main: IrFunction = {
+    name: 'main',
+    returnType: 'utinyint',
+    body: [
+      { kind: 'local', name: 'i', type: 'utinyint', init: num(0, 'utinyint') },
+      {
+        kind: 'while',
+        test: { kind: 'binop', operator: '<', left: ref('i', 'utinyint'), right: num(3, 'utinyint'), type: 'bool' },
+        body: [
+          { kind: 'call', name: 'helper', args: [] },
+          { kind: 'assign', target: 'i', value: add(ref('i', 'utinyint'), num(1, 'utinyint'), 'utinyint') },
+        ],
+      },
+      { kind: 'return', value: ref('i', 'utinyint') },
+    ],
+  };
+  assert.equal(await runProgram([main, helper], 'main', '8bs-web-native-'), 3);
+});
+
+test('milestone 4: refuses a string parameter, naming the web track\'s own milestone 5', async () => {
+  const params: IrParam[] = [{ name: 's', type: 'string' }];
+  const helper: IrFunction = { name: 'helper', params, returnType: 'void', body: [] };
+  const main: IrFunction = { name: 'main', returnType: 'void', body: [] };
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-web-native-'));
+  try {
+    const outFile = join(scratch, 'out.wasm');
+    const result = await build({ entry: 'main', functions: [main, helper] }, { outFile, frameRate: 60 });
+    assert.equal(result.ok, false);
+    assert.match(result.ok ? '' : result.error, /'helper\(s\)': a string parameter/);
     assert.match(result.ok ? '' : result.error, /milestone 5/);
   } finally {
     await rm(scratch, { recursive: true, force: true });

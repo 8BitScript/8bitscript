@@ -34,6 +34,8 @@ export interface IrExpr {
   argument?: IrExpr;
   // memoryRead
   address?: IrExpr;
+  // call
+  args?: IrExpr[];
 }
 
 export interface IrStatement {
@@ -59,6 +61,10 @@ export interface IrStatement {
   body?: IrStatement[];
   // for
   update?: IrStatement | null;
+  // call, reached in statement position — the same node shape as an
+  // IrExpr's own 'call' (ir/index.mjs's own `statementExpression`: a call
+  // used as a statement is the same object, its result just never read).
+  args?: IrExpr[];
 }
 
 /** Thrown internally for any construct this milestone doesn't lower yet, and
@@ -94,6 +100,16 @@ interface Ctx {
    * entries (a bare `if`, or a loop's own middle `loop` construct) exist
    * purely so the depth count coming from deeper inside is correct. */
   controlStack: Array<'break' | 'continue' | 'plain'>;
+  /** Every function this module defines, name to its own wasm function
+   * index (assigned once, up front, by `build()` — before any body is
+   * lowered, so a call can resolve a function declared later in the file,
+   * or itself: nothing here refuses recursion the way the mos backend
+   * still does. Recursion is free on wasm — a real call stack, not a
+   * shared zero-page frame every recursive call would fight over — so
+   * this backend allows it rather than porting mos's own cycle check for
+   * target parity it doesn't structurally need; see "Hello, WASM"'s own
+   * "recursion" decision). */
+  functions: Map<string, { index: number; paramCount: number; returnsValue: boolean }>;
 }
 
 function i32Const(n: number): number[] {
@@ -188,6 +204,35 @@ function unop(node: IrExpr, ctx: Ctx): number[] {
   throw new LowerError(`'${operator}' is not lowered yet`);
 }
 
+/** `name`'s own entry in `ctx.functions`, or throws — a call the linker
+ * already resolved (a plain `call`, or a `namespaceCall` it rewrote into
+ * one) naming nothing this file's own function-index map knows about is a
+ * linker bug, not a missing lowering rule, the same distinction mos's own
+ * `callSite` draws. */
+function callTarget(ctx: Ctx, name: string): { index: number; paramCount: number; returnsValue: boolean } {
+  const target = ctx.functions.get(name);
+  if (!target) {
+    throw new LowerError(`call to '${name}' resolves to nothing this backend knows about — a linker bug, not a missing lowering rule`);
+  }
+  return target;
+}
+
+/** Every argument, left-to-right, straight onto the operand stack — no
+ * per-parameter storage step the way mos's own `callSite` needs (its
+ * arguments land in the callee's zero-page slots one at a time so a
+ * nested call inside an argument can't clobber a shared temporary): wasm's
+ * own `call` instruction already pops its arguments off the stack in the
+ * order the callee's function type declares them, so pushing them in
+ * source order is the whole calling convention. */
+function callSite(node: { name?: string; args?: IrExpr[] }, ctx: Ctx): number[] {
+  const target = callTarget(ctx, node.name!);
+  const args = node.args ?? [];
+  if (args.length !== target.paramCount) {
+    throw new LowerError(`call to '${node.name}': ${args.length} argument(s) but the function has ${target.paramCount} parameter(s) — the linker should already have matched these`);
+  }
+  return [...args.flatMap((a) => expr(a, ctx)), Opcode.call, ...unsignedLEB128(target.index)];
+}
+
 function expr(node: IrExpr, ctx: Ctx): number[] {
   if (node.kind === 'const') return i32Const(node.value!);
   if (node.kind === 'ref') {
@@ -202,12 +247,11 @@ function expr(node: IrExpr, ctx: Ctx): number[] {
     // exactly matching memoryRead's own fixed `utinyint` type.
     return [...expr(node.address!, ctx), Opcode.i32Load8U, ...memarg(0, 0)];
   }
+  if (node.kind === 'call') return callSite(node, ctx);
   throw new LowerError(unsupported(node.kind));
 }
 
 const MILESTONE_OF: Readonly<Record<string, string>> = {
-  call: 'milestone 4 ("functions and calls")',
-  namespaceCall: 'milestone 4 ("functions and calls")',
   string: 'milestone 5 ("strings and const data")',
   stringByte: 'milestone 5 ("strings and const data")',
   stringLength: 'milestone 5 ("strings and const data")',
@@ -330,6 +374,18 @@ function statement(node: IrStatement, ctx: Ctx): number[] {
   if (node.kind === 'break') return [Opcode.br, ...unsignedLEB128(loopDepth(ctx, 'break'))];
   if (node.kind === 'continue') return [Opcode.br, ...unsignedLEB128(loopDepth(ctx, 'continue'))];
   if (node.kind === 'return') return node.value ? [...expr(node.value, ctx), Opcode.return] : [Opcode.return];
+  if (node.kind === 'call') {
+    const code = callSite(node, ctx);
+    // Reached as a statement: the front end already type-checked this
+    // call as an expression-statement (its value, if any, discarded) —
+    // ir/index.mjs's own `statementExpression`. wasm's own type system
+    // doesn't discard for free the way a caller-ignores-A convention
+    // would on 6502: the callee's function type still pushes a result,
+    // and a value left on the stack at the end of a block the validator
+    // expects empty is a validation error, not a silent no-op. `drop`
+    // says explicitly what mos gets for nothing.
+    return callTarget(ctx, node.name!).returnsValue ? [...code, Opcode.drop] : code;
+  }
   throw new LowerError(unsupported(node.kind));
 }
 
@@ -350,27 +406,42 @@ export interface LowerFailure {
 }
 
 export interface LowerOptions {
-  /** Where this body's own locals start numbering from — wasm gives a
-   * function's parameters local indices `0..paramCount-1` automatically
-   * from its type, so a body with parameters (milestone 4) needs its own
-   * declared locals to start right after them. Defaults to 0: nothing
-   * lowered yet has any. */
-  paramCount?: number;
+  /** This body's own parameters, in declaration order. wasm gives a
+   * function's parameters local indices `0..params.length-1` automatically
+   * from its own type — so unlike every other local (declared by its own
+   * `local` statement, as `statement()` reaches it), a parameter needs its
+   * name seeded into `ctx.locals` before the body is lowered at all: the
+   * first `ref` to it has no declaration of its own to have done that.
+   * Defaults to `[]`: nothing lowered before milestone 4 has any. */
+  params?: { name: string; type: string }[];
   /** Every non-pinned scalar global already in scope, name to wasm
    * global-section index — `build()`'s own job to assign, in declaration
    * order, before any function body is lowered (mirroring the two-pass
    * shape mos/index.ts holds itself to for parameters: an address has to
    * be known before anything that might reference it is lowered). */
   globals?: Map<string, number>;
+  /** Every function this module defines, name to its own wasm function
+   * index and calling shape — `build()`'s own job to assign, once, up
+   * front, before any body is lowered (the same two-pass shape as
+   * `globals`, and the reason a call can reach a function declared later
+   * in the file, or itself). */
+  functions?: Map<string, { index: number; paramCount: number; returnsValue: boolean }>;
 }
 
 /** Lowers a function body to wasm instruction bytes. */
 export function lower(body: IrStatement[], options: LowerOptions = {}): LowerResult | LowerFailure {
-  const paramCount = options.paramCount ?? 0;
-  const ctx: Ctx = { locals: new Map(), nextLocal: paramCount, controlStack: [], globals: options.globals ?? new Map() };
+  const params = options.params ?? [];
+  const locals = new Map(params.map((p, i) => [p.name, i]));
+  const ctx: Ctx = {
+    locals,
+    nextLocal: params.length,
+    controlStack: [],
+    globals: options.globals ?? new Map(),
+    functions: options.functions ?? new Map(),
+  };
   try {
     const code = statements(body, ctx);
-    return { ok: true, code, localCount: ctx.nextLocal - paramCount };
+    return { ok: true, code, localCount: ctx.nextLocal - params.length };
   } catch (error) {
     if (error instanceof LowerError) return { ok: false, error: error.message };
     throw error;
