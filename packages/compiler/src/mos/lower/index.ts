@@ -1,23 +1,37 @@
 // Instruction selection: linked IR in, a straight-line-or-branching 6502
 // program out. Milestone 4 gave this file its one rule (`memoryWrite` of a
-// literal to a literal address); this milestone adds nine more —
+// literal to a literal address); milestone 6 added nine more —
 // `binop` `unop` `assign` `local` `ref` `if` `while` `for` `break`
-// `continue` `return` `block` — all restricted to 8-bit values. 16-bit
-// arithmetic, `*`/`/`/`%` (no hardware support to lower them onto yet), and
-// signed ordering comparisons are refused by name, the same
-// exhaustive-with-error contract every earlier milestone already holds
-// itself to: a construct with no rule fails the build naming exactly what
-// it doesn't support yet, never silently.
+// `continue` `return` `block` — all restricted to 8-bit values. `*`/`/`/`%`
+// (no hardware support to lower them onto yet) and signed ordering
+// comparisons are still refused by name, the same exhaustive-with-error
+// contract every earlier milestone already holds itself to: a construct
+// with no rule fails the build naming exactly what it doesn't support yet,
+// never silently.
 //
-// Every value-producing rule below leaves its result in the accumulator —
-// "tree-walk codegen with zero-page temporaries first," the roadmap's own
-// settled decision. Operands are always evaluated in source order, left
-// then right, even where the accumulator ends up holding the right operand
-// (`emitOperands` below) — not because the language defines an evaluation
-// order yet (nothing in M6 can have a side effect), but because getting
-// this backwards now would be a silent trap the day M7 adds calls: whup a
-// comparison's own left/right assembly trick can't safely swap which
-// operand is evaluated first once evaluating one can affect the other.
+// Every 8-bit value-producing rule below (`expr()`) leaves its result in
+// the accumulator — "tree-walk codegen with zero-page temporaries first,"
+// the roadmap's own settled decision. Operands are always evaluated in
+// source order, left then right, even where the accumulator ends up
+// holding the right operand (`emitOperands` below) — not because the
+// language defines an evaluation order yet (nothing in M6 can have a side
+// effect), but because getting this backwards now would be a silent trap
+// the day M7 adds calls: a comparison's own left/right assembly trick can't
+// safely swap which operand is evaluated first once evaluating one can
+// affect the other.
+//
+// Milestone 8 adds a second, parallel value-producing path, `expr16()`, for
+// exactly-2-byte values (`usmallint`/`smallint`): the accumulator is 8
+// bits, so a 16-bit value can't live where `expr()`'s results do. Rather
+// than rewrite every existing rule to return a location descriptor,
+// `expr16()` leaves its result at a zero-page address it returns — either
+// an existing binding's address (a `ref`, copied nowhere) or a fresh
+// zp-pair temporary it allocates and fills (a `const` or a `binop`),
+// exactly mirroring how `emitOperands` already copies an 8-bit left operand
+// out of the accumulator into a temp before evaluating the right one. See
+// mos/AGENTS.md for why this shape won over widening `expr()` itself.
+// `expr()` stays 8-bit-only; callers that might see either width check
+// `storageBytes(node.type)` themselves and call the right one.
 import type { Directive as _AsmDirective } from '../asm/assemble.ts';
 import type { AddressingMode } from '../asm/encode.ts';
 import { storageBytes, resolveIntegerType } from '../../types/index.mjs';
@@ -100,11 +114,11 @@ export interface IrFunction {
 
 /** A function's calling interface, computed once (mos/index.ts, before any
  * lowering — see mos/AGENTS.md) and shared by every call site and by the
- * function's own body: where each parameter lives, and what label a `JSR`
- * to it names. */
+ * function's own body: where each parameter lives, how wide it is (1 byte
+ * or, since milestone 8, 2), and what label a `JSR` to it names. */
 export interface FunctionSite {
   label: string;
-  paramAddresses: number[];
+  params: { address: number; width: 1 | 2 }[];
   returnType: string;
 }
 
@@ -153,15 +167,25 @@ const jmp = (label: string): Directive => instr('JMP', 'absolute', undefined, la
 const branch = (mnemonic: string, label: string): Directive => instr(mnemonic, 'relative', undefined, label);
 const label = (name: string): Directive => ({ kind: 'label', name });
 
-// Every ordinary integer type this milestone can touch is exactly one byte:
-// utinyint, tinyint, and bool (storageBytes special-cases bool to 1). Wider
-// types exist in the language today (usmallint and up) but arithmetic on
-// them is milestone 8's job — a program that reaches for one here gets a
-// build error naming the type, not a truncated wrong answer.
+// utinyint, tinyint, and bool (storageBytes special-cases bool to 1) take
+// the 8-bit path (`expr()` and everything built on it); a program that
+// reaches for a wider type there gets a build error naming the type, not a
+// truncated wrong answer — expr16() below is the path for exactly 2 bytes.
 function require8Bit(type: string | null | undefined, what: string): void {
   if (type === undefined || type === null) throw new LowerError(`${what}: no type on this IR node — the checker/linker should have set one`);
   if (storageBytes(type) !== 1) {
-    throw new LowerError(`${what} is '${type}' (${storageBytes(type)} bytes): only 8-bit arithmetic and locals are implemented yet (16-bit values land at milestone 8)`);
+    throw new LowerError(`${what} is '${type}' (${storageBytes(type)} bytes): this path only lowers 8-bit values — 16-bit values have their own (parameters, +/-, comparisons, and a computed memoryWrite address; locals, assignment, and return values are still 8-bit only)`);
+  }
+}
+
+// The milestone 8 counterpart: exactly 2 bytes (usmallint, smallint).
+// Anything else reaching expr16() — an 8-bit value, or a width this backend
+// has no rule for at all (mediumint/int, 4 bytes) — is refused by name
+// rather than silently truncated or zero-extended.
+function require16Bit(type: string | null | undefined, what: string): void {
+  if (type === undefined || type === null) throw new LowerError(`${what}: no type on this IR node — the checker/linker should have set one`);
+  if (storageBytes(type) !== 2) {
+    throw new LowerError(`${what} is '${type}' (${storageBytes(type)} bytes): only 16-bit values take this path — mixed-width arithmetic and anything wider than 16 bits isn't lowered yet`);
   }
 }
 
@@ -258,6 +282,100 @@ class Lowerer {
     }
   }
 
+  // ---- 16-bit expressions: every path below leaves its result at a zp
+  // address it returns (see the file header for why this is a separate
+  // path rather than a widened expr()). A `ref` returns an existing
+  // binding's own address unchanged; a `const` or `binop` allocates a
+  // fresh zp-pair temp, fills it, and returns that — the caller decides
+  // when it's safe to release (mark/release, exactly the 8-bit rules'
+  // discipline).
+  expr16(node: IrExpr): number {
+    if (node.type) require16Bit(node.type, `'${node.kind}'`);
+    switch (node.kind) {
+      case 'const': {
+        const address = this.alloc16(`a 16-bit literal`);
+        const value = node.value! & 0xffff;
+        this.emit(ldaImm(value & 0xff), staZp(address), ldaImm((value >> 8) & 0xff), staZp(address + 1));
+        return address;
+      }
+      case 'ref':
+        return this.binding(node.name!).address;
+      case 'binop':
+        return this.binop16(node);
+      default:
+        throw new LowerError(`no 16-bit instruction-selection rule yet for the '${node.kind}' expression — it lands in a later milestone`);
+    }
+  }
+
+  // A 16-bit destination's own value, accepting either width: the front end
+  // never widens a narrower literal or value to match a wider declared
+  // target (verified against ir/index.mjs — a call argument, a local's
+  // initializer, and a plain assignment's right-hand side all keep
+  // whatever narrowestIntegerType()/the source's own declared type gave
+  // them, with no coercion node inserted anywhere), so if this backend
+  // didn't widen here, ordinary code like `text.putChar(0, 65)` — cell 0
+  // is a perfectly good utinyint-shaped literal, but putChar's own `cell`
+  // is usmallint — would fail to build. Zero-extension is exact for every
+  // unsigned type this backend lowers (a utinyint's whole range already
+  // fits a usmallint), so this widens rather than refuses; a *signed*
+  // narrow source is refused by name instead — sign-extension is a
+  // different instruction sequence (replicate the sign bit into the high
+  // byte, not just clear it) and nothing on the PET's own critical path
+  // needs it yet.
+  exprTo16(node: IrExpr): number {
+    if (node.type === undefined || node.type === null) {
+      throw new LowerError(`'${node.kind}': no type on this IR node — the checker/linker should have set one`);
+    }
+    const width = storageBytes(node.type);
+    if (width === 2) return this.expr16(node);
+    if (width === 1 && node.type === 'bool') {
+      // A bool assigned/passed to a usmallint target is a type error the
+      // checker already refuses before this backend ever sees it — refused
+      // here too, rather than quietly zero-extending true/false into 1/0,
+      // which would compile a program the checker should have rejected.
+      throw new LowerError(`'${node.kind}' is 'bool': can't widen a bool into a 16-bit value`);
+    }
+    if (width === 1 && isSigned(node.type)) {
+      throw new LowerError(`'${node.kind}' is '${node.type}': a signed value narrower than 16 bits can't widen into one yet — sign-extension isn't lowered`);
+    }
+    if (width === 1) {
+      this.expr(node);
+      const address = this.alloc16(`a zero-extended 16-bit value`);
+      this.emit(staZp(address), ldaImm(0), staZp(address + 1));
+      return address;
+    }
+    throw new LowerError(`'${node.kind}' is '${node.type}' (${width} bytes): only an 8-bit value can widen into 16 bits`);
+  }
+
+  // Addition/subtraction on two 16-bit operands, byte-by-byte with carry
+  // chained from the low half into the high half — the standard 6502
+  // multi-byte idiom. The result temp is allocated *before* the mark that
+  // guards left/right's own temporaries: left and right may themselves
+  // recurse into binop16 and allocate (and release) further temps above
+  // that mark, but the result has to outlive this call, so it can't be
+  // something release(mark) would free.
+  binop16(node: IrExpr): number {
+    const { operator, left, right } = node;
+    if (operator !== '+' && operator !== '-') {
+      throw new LowerError(`no 16-bit instruction-selection rule yet for the '${operator}' operator — only + and - are lowered at 16 bits`);
+    }
+    const result = this.alloc16(`a temporary for 16-bit '${operator}'`);
+    const mark = this.locals.mark();
+    const leftAddr = this.expr16(left!);
+    const rightAddr = this.expr16(right!);
+    if (operator === '+') {
+      this.emit(instr('CLC', 'implied'));
+      this.emit(ldaZp(leftAddr), instr('ADC', 'zeropage', rightAddr), staZp(result));
+      this.emit(ldaZp(leftAddr + 1), instr('ADC', 'zeropage', rightAddr + 1), staZp(result + 1));
+    } else {
+      this.emit(instr('SEC', 'implied'));
+      this.emit(ldaZp(leftAddr), instr('SBC', 'zeropage', rightAddr), staZp(result));
+      this.emit(ldaZp(leftAddr + 1), instr('SBC', 'zeropage', rightAddr + 1), staZp(result + 1));
+    }
+    this.locals.release(mark);
+    return result;
+  }
+
   // ---- calls: every argument into the callee's own zp slot, then JSR ----
   //
   // Arguments evaluate left-to-right (the milestone 6 decision this backend
@@ -278,12 +396,20 @@ class Lowerer {
       throw new LowerError(`call to '${node.name}' resolves to nothing this backend knows about — a linker bug, not a missing lowering rule`);
     }
     const args = node.args ?? [];
-    if (args.length !== target.paramAddresses.length) {
-      throw new LowerError(`call to '${node.name}': ${args.length} argument(s) but the function has ${target.paramAddresses.length} parameter(s) — the linker should already have matched these (completeCall)`);
+    if (args.length !== target.params.length) {
+      throw new LowerError(`call to '${node.name}': ${args.length} argument(s) but the function has ${target.params.length} parameter(s) — the linker should already have matched these (completeCall)`);
     }
     for (let i = 0; i < args.length; i += 1) {
-      this.expr(args[i]);
-      this.emit(staZp(target.paramAddresses[i]));
+      const param = target.params[i];
+      if (param.width === 2) {
+        const mark = this.locals.mark();
+        const addr = this.exprTo16(args[i]);
+        this.emit(ldaZp(addr), staZp(param.address), ldaZp(addr + 1), staZp(param.address + 1));
+        this.locals.release(mark);
+      } else {
+        this.expr(args[i]);
+        this.emit(staZp(param.address));
+      }
     }
     this.emit(instr('JSR', 'absolute', undefined, target.label));
   }
@@ -426,9 +552,27 @@ class Lowerer {
     if (ORDERING_OPERATORS.has(operator) && (isSigned(node.left!.type!) || isSigned(node.right!.type!))) {
       throw new LowerError(`the '${node.operator}' comparison on a signed type isn't lowered yet — only unsigned ordering comparisons are implemented (equality/inequality work on either); this needs the N/V-flag branch tree, a separate design not settled yet`);
     }
+    const leftWidth = storageBytes(node.left!.type!);
+    const rightWidth = storageBytes(node.right!.type!);
+    if (leftWidth !== rightWidth) {
+      throw new LowerError(`the '${node.operator}' comparison needs both sides the same width — got ${leftWidth} and ${rightWidth} byte(s); mixed-width comparison isn't lowered yet`);
+    }
     const mark = this.locals.mark();
-    const temp = this.emitOperands(node.left!, node.right!, `'${node.operator}'`);
-    this.emit(cmpZp(temp));
+    if (leftWidth === 2) {
+      // Same convention as the 8-bit path below: left evaluates first (into
+      // its own zp pair), right second, and the flags end up describing
+      // (right - left) — CMP's carry becomes SBC's own borrow-in directly,
+      // chaining the low byte's borrow into the high byte's subtraction,
+      // the standard 6502 multi-byte compare idiom.
+      const leftAddr = this.expr16(node.left!);
+      const rightAddr = this.expr16(node.right!);
+      this.emit(ldaZp(rightAddr), cmpZp(leftAddr), ldaZp(rightAddr + 1), instr('SBC', 'zeropage', leftAddr + 1));
+    } else if (leftWidth === 1) {
+      const temp = this.emitOperands(node.left!, node.right!, `'${node.operator}'`);
+      this.emit(cmpZp(temp));
+    } else {
+      throw new LowerError(`the '${node.operator}' comparison operates on a ${leftWidth}-byte type — only 1- and 2-byte comparisons are lowered yet`);
+    }
     const plan = ORDER_BRANCH_IF_TRUE[operator];
     if ('mnemonic' in plan) {
       this.emit(branch(plan.mnemonic, target));
@@ -442,6 +586,10 @@ class Lowerer {
 
   alloc(what: string): number {
     return this.locals.alloc(what);
+  }
+
+  alloc16(what: string): number {
+    return this.locals.alloc16(what);
   }
 
   // ---- statements -------------------------------------------------------
@@ -473,19 +621,36 @@ class Lowerer {
         return null;
       case 'assign': {
         // The target's own width matters here, not just the value's: `x =
-        // e` never widens or coerces (the front end doesn't emit that), so
-        // a 16-bit target would otherwise silently take only e's low byte.
+        // e` never widens or coerces (the front end doesn't emit that —
+        // verified against ir/index.mjs, see exprTo16's own comment) —
+        // this backend does, at the boundary, via exprTo16, rather than
+        // refuse code as ordinary as `x = 5;` for a usmallint `x`.
         // widerOf() only ever widens on `+=`-style compound assignment
         // (already folded into a binop by the time this IR exists), so
         // this is the one place plain assignment's own width has to be
-        // checked explicitly.
+        // handled explicitly.
         const binding = this.binding(node.target!);
-        require8Bit(binding.type, `assignment to '${node.target}'`);
-        this.expr(node.value!);
-        this.emit(staZp(binding.address));
+        const width = storageBytes(binding.type);
+        if (width === 2) {
+          const addr = this.exprTo16(node.value!);
+          this.emit(ldaZp(addr), staZp(binding.address), ldaZp(addr + 1), staZp(binding.address + 1));
+        } else {
+          require8Bit(binding.type, `assignment to '${node.target}'`);
+          this.expr(node.value!);
+          this.emit(staZp(binding.address));
+        }
         return null;
       }
       case 'local': {
+        const width = storageBytes(node.type!);
+        if (width === 2) {
+          const addr = this.exprTo16(node.init as IrExpr);
+          const address = this.alloc16(`local '${node.name}'`);
+          this.emit(ldaZp(addr), staZp(address), ldaZp(addr + 1), staZp(address + 1));
+          const shadowed = this.symbols.get(node.name!);
+          this.symbols.set(node.name!, { address, type: node.type! });
+          return { name: node.name!, shadowed };
+        }
         require8Bit(node.type, `local '${node.name}'`);
         this.expr(node.init as IrExpr);
         const address = this.alloc(`local '${node.name}'`);
@@ -537,18 +702,30 @@ class Lowerer {
 
   memoryWrite(statement: IrStatement): void {
     const { address, value } = statement;
-    if (!address || address.kind !== 'const') {
-      throw new LowerError(`memoryWrite: the address must be a literal for now (got '${address?.kind ?? 'nothing'}') — a computed address needs indexed stores, milestone 8's job`);
-    }
+    if (!address) throw new LowerError('memoryWrite: no address to write to');
     if (!value) throw new LowerError('memoryWrite: no value to write');
-    // The value no longer has to be a literal (milestone 4's own
-    // restriction) — a sum computed through a real loop and written once
-    // to a fixed screen cell is exactly what this milestone's own gate
-    // asks for. Only the *address* stays a literal until milestone 8.
+    if (address.kind === 'const') {
+      this.expr(value);
+      const target = address.value!;
+      const mode = target <= 0xff ? 'zeropage' : 'absolute';
+      this.emit(instr('STA', mode, target));
+      return;
+    }
+    // A computed address (milestone 8): the full 16-bit value lands in a
+    // zp pair, then STA (zp),Y stores through it — Y fixed at 0, since
+    // nothing here needs an offset beyond the pointer's own value. Y is
+    // scratch this store owns outright: nothing else in this backend reads
+    // or holds Y live across a JSR (mos/AGENTS.md). The address is
+    // computed *before* the value so the value's own temps (allocated
+    // after, from wherever the allocator's cursor already sits) can never
+    // land inside the address's zp pair.
+    require16Bit(address.type, 'memoryWrite: a computed address');
+    const mark = this.locals.mark();
+    const pointer = this.expr16(address);
     this.expr(value);
-    const target = address.value!;
-    const mode = target <= 0xff ? 'zeropage' : 'absolute';
-    this.emit(instr('STA', mode, target));
+    this.emit(instr('LDY', 'immediate', 0));
+    this.emit(instr('STA', '(indirect),y', pointer));
+    this.locals.release(mark);
   }
 
   ifStatement(node: IrStatement): void {

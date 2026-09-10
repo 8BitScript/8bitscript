@@ -41,14 +41,23 @@ export class LocalAllocator {
 
   /** One byte, live until the caller releases back to a mark taken before this call. Throws ZpBudgetError, naming what didn't fit and what's left, when the budget is exhausted. */
   alloc(what: string): number {
-    if (this.next + 1 > this.ceiling) {
+    return this.allocBytes(1, what);
+  }
+
+  /** Two adjacent bytes (little-endian: `address` is the low byte, `address + 1` the high byte) for a 16-bit value — a `(zp),Y` pointer or any other 2-byte value needs this guarantee, not two separate `alloc()` calls whose adjacency would only ever be true by accident of this being a bump allocator. Throws ZpBudgetError, naming what didn't fit and what's left, when fewer than 2 bytes remain. */
+  alloc16(what: string): number {
+    return this.allocBytes(2, what);
+  }
+
+  private allocBytes(size: 1 | 2, what: string): number {
+    if (this.next + size > this.ceiling) {
       const remaining = this.ceiling - this.next;
       throw new ZpBudgetError(
-        `${what} needs 1 byte of zero page but only ${remaining} byte(s) remain (${hex(this.next)}..${hex(this.ceiling - 1)})`,
+        `${what} needs ${size} byte${size === 1 ? '' : '(s)'} of zero page but only ${remaining} byte(s) remain (${hex(this.next)}..${hex(this.ceiling - 1)})`,
       );
     }
     const address = this.next;
-    this.next += 1;
+    this.next += size;
     this.high = Math.max(this.high, this.next);
     return address;
   }

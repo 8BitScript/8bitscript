@@ -199,23 +199,24 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   let paramCursor = PET_ZP_BUDGET.zpOrigin + zp.zpUsed;
   const functionSites = new Map<string, FunctionSite>();
   for (const fn of ir.functions) {
-    const paramAddresses: number[] = [];
+    const params: { address: number; width: 1 | 2 }[] = [];
     for (const p of fn.params ?? []) {
       if (p.type === 'array') return { ok: false, error: `'${fn.name}(${p.name})': array parameters aren't lowered yet` };
-      if (storageBytes(p.type) !== 1) {
-        return { ok: false, error: `'${fn.name}(${p.name})' is '${p.type}' (${storageBytes(p.type)} bytes): only 8-bit parameters are lowered yet — 16-bit lands at milestone 8` };
+      const width = storageBytes(p.type);
+      if (width !== 1 && width !== 2) {
+        return { ok: false, error: `'${fn.name}(${p.name})' is '${p.type}' (${width} bytes): only 8-bit and 16-bit parameters are lowered yet` };
       }
-      if (paramCursor + 1 > PET_ZP_BUDGET.zpCeiling) {
-        return { ok: false, error: `ran out of zero page assigning '${fn.name}(${p.name})' its parameter slot (${PET_ZP_BUDGET.zpCeiling - paramCursor} byte(s) left)` };
+      if (paramCursor + width > PET_ZP_BUDGET.zpCeiling) {
+        return { ok: false, error: `ran out of zero page assigning '${fn.name}(${p.name})' its parameter slot (${PET_ZP_BUDGET.zpCeiling - paramCursor} byte(s) left, ${width} needed)` };
       }
-      paramAddresses.push(paramCursor);
-      paramCursor += 1;
+      params.push({ address: paramCursor, width });
+      paramCursor += width;
     }
     const returnType = fn.returnType ?? 'void';
     if (returnType !== 'void' && storageBytes(returnType) !== 1) {
-      return { ok: false, error: `'${fn.name}' returns '${returnType}' (${storageBytes(returnType)} bytes): only an 8-bit or void return is lowered yet — 16-bit lands at milestone 8` };
+      return { ok: false, error: `'${fn.name}' returns '${returnType}' (${storageBytes(returnType)} bytes): only an 8-bit or void return is lowered yet — 16-bit returns aren't lowered yet` };
     }
-    functionSites.set(fn.name, { label: `__8bs_fn_${fn.name}`, paramAddresses, returnType });
+    functionSites.set(fn.name, { label: `__8bs_fn_${fn.name}`, params, returnType });
   }
 
   // Body pass: each function against its own fresh, non-overlapping locals
@@ -224,7 +225,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   const loweredFunctions: { name: string; label: string; program: Directive[]; isEntry: boolean }[] = [];
   for (const fn of ir.functions) {
     const site = functionSites.get(fn.name)!;
-    const params = (fn.params ?? []).map((p, i) => ({ name: p.name, type: p.type, address: site.paramAddresses[i] }));
+    const params = (fn.params ?? []).map((p, i) => ({ name: p.name, type: p.type, address: site.params[i].address }));
     const locals = new LocalAllocator(localsCursor, PET_ZP_BUDGET.zpCeiling);
     const lowered = lower(fn.body, { globals: globalBindings, locals, params, functions: functionSites });
     if (!lowered.ok) return { ok: false, error: `in '${fn.name}': ${lowered.error}` };
