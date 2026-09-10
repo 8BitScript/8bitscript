@@ -159,6 +159,9 @@ export namespace text {
         currentReverse = on;
     }
 
+    // Writes `s`'s characters into consecutive cells starting at `cell`, in
+    // the current color — `text.setColor(...)` changes what gets printed
+    // after it, not what is already on screen.
     function print(cell: usmallint, s: string): void {
         prepare();
         for (let i: utinyint = 0; i < s.length; i++) {
@@ -166,6 +169,9 @@ export namespace text {
         }
     }
 
+    // Writes `value` as exactly `width` decimal digits, zero-padded and
+    // right-aligned, starting at `cell` — a field on a HUD never shifts
+    // columns as the number changes.
     function printNumber(cell: usmallint, value: usmallint, width: utinyint): void {
         prepare();
         let k: utinyint = width;

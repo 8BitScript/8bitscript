@@ -7,15 +7,27 @@
 // `memory.write`, `string`, `#frames(...)`, its `seconds` unit, `waitFrame()` — because the compiler
 // already knows all of it statically, independent of any particular program.
 //
+// One more thing can be answered honestly without a binder: what a *named
+// import* itself exports. `import { screen } from "@8bitscript/screen"`
+// names a module the resolver can already find (see resolveModuleFile
+// below); reading that module's own namespace/function/const declarations —
+// token-level, the same way this module answers everything else — is enough
+// to hover `screen.blank` or complete `screen.bl|` without needing to know
+// what a *user's* declarations mean. That stays true right up to the edge of
+// a binder: this module still cannot tell you what `let x = ...` holds.
+//
 // This module is that answer, expressed as a small position-based API
 // (`getHoverInfo`, `getCompletions`) that an editor-protocol layer can call
 // without knowing anything about 8BitScript itself. When a binder exists, the
 // same two functions grow to cover user-defined names; nothing about this
 // shape is a dead end.
+import { readFileSync } from 'node:fs';
+
 import { tokenize, TokenKind } from '../lexer/index.mjs';
 import { PRIMITIVE_INTEGER_TYPES, resolveIntegerType } from '../types/index.mjs';
 import { DURATION_CLOCKS, DURATION_UNITS, SYSTEMS } from '../fold/index.mjs';
 import { FACTS } from '../fold/facts.mjs';
+import { resolveSpecifier, RELEASE_MACHINES } from '../resolver/index.mjs';
 
 /** Insert thousands separators without touching locale/ICU: `-8388608` -> `-8,388,608`. */
 function formatNumber(n) {
@@ -241,6 +253,304 @@ function tokenIndexAt(tokens, offset) {
   return tokens.findIndex((t) => offset >= t.start && offset <= t.start + t.length);
 }
 
+// ---- member hover/completion for a named import's exports -----------------
+//
+// The pieces below let `screen.blank(...)` hover and `screen.bl|` complete,
+// for exactly the shape that makes it possible without a binder: a name
+// bound by `import { X } from "specifier"` in *this* file, where `specifier`
+// resolves (see resolveModuleFile) to a real `.8bs` file on disk whose own
+// declarations can be read the same token-level way the rest of this module
+// already reads the current file.
+
+/**
+ * Every `import { a, b as c } from "specifier"` binding in `tokens`, as
+ * `{ imported, local, specifier }`. Token-level and tolerant, like
+ * resolver/index.mjs's findImports — a syntax error elsewhere in the file
+ * must not stop an import earlier in it from being understood. A bare
+ * `import "specifier"` binds no names, so it contributes nothing here.
+ */
+function findImportBindings(tokens) {
+  const bindings = [];
+  for (let i = 0; i < tokens.length; i += 1) {
+    if (tokens[i].kind !== TokenKind.Keyword || tokens[i].text !== 'import') continue;
+    if (tokens[i + 1]?.text !== '{') continue;
+
+    const names = [];
+    let j = i + 2;
+    while (j < tokens.length && tokens[j].text !== '}') {
+      if (tokens[j].kind === TokenKind.Identifier) {
+        const imported = tokens[j].text;
+        let local = imported;
+        if (tokens[j + 1]?.kind === TokenKind.Keyword && tokens[j + 1].text === 'as' && tokens[j + 2]?.kind === TokenKind.Identifier) {
+          local = tokens[j + 2].text;
+          j += 2;
+        }
+        names.push({ imported, local });
+      }
+      j += 1;
+    }
+    while (j < tokens.length && tokens[j].text !== 'from' && tokens[j].text !== ';') j += 1;
+    const source = tokens[j]?.text === 'from' ? tokens[j + 1] : null;
+    if (source?.kind === TokenKind.String) {
+      const specifier = source.text.slice(1, -1);
+      for (const name of names) bindings.push({ ...name, specifier });
+    }
+  }
+  return bindings;
+}
+
+/**
+ * The file a named import's specifier resolves to, from `fromFile` — or
+ * `null` when it does not resolve to exactly one file.
+ *
+ * A plain resolution (a relative `.8bs` path, or a package with a single
+ * entry) is used as-is. A machine-conditional package entry — `@8bitscript/
+ * screen` and every other hardware API, keyed per target — resolves to
+ * `{ path: null }` with no machine in hand (see resolveConditionalEntry):
+ * valid, but target-dependent, the same answer `#system()`'s hover already
+ * gives honestly rather than guessing a machine. Hover and completion pick
+ * one anyway here, because the alternative is no docs at all for exactly the
+ * APIs (`screen`, `text`, `input`, ...) this feature exists for — so this is
+ * the one place in this module that *does* guess, and says so
+ * (`conditional: true`) so the caller can caveat it. RELEASE_MACHINES,
+ * first-to-resolve, rather than "first key in the manifest": the machines
+ * this release actually builds for, in a fixed order, so the choice is
+ * deterministic rather than an artifact of object key order.
+ */
+function resolveModuleFile(specifier, fromFile) {
+  if (!fromFile) return null;
+  const plain = resolveSpecifier(specifier, fromFile);
+  if (plain?.code) return null;
+  if (plain?.path) return { path: plain.path, conditional: false };
+  if (plain?.path !== null) return null;
+
+  for (const machine of RELEASE_MACHINES) {
+    const branch = resolveSpecifier(specifier, fromFile, { machine });
+    if (branch?.path) return { path: branch.path, conditional: true, machine };
+  }
+  return null;
+}
+
+/** One `//` or `/* *\/` comment token's text, without its delimiters. */
+function commentText(token) {
+  const raw = token.text;
+  if (raw.startsWith('//')) return raw.slice(2).trim();
+  return raw.slice(2, -2).split('\n').map((line) => line.replace(/^\s*\*?\s?/, '')).join(' ').trim();
+}
+
+/**
+ * The doc comment immediately before `declIndex` (an optional leading
+ * `export` skipped over first, so a comment above `export function` still
+ * attaches) — every contiguous `//`/`/* *\/` token with no blank line
+ * between it and the declaration, or between it and the next comment up.
+ * `null` when nothing is that tightly bound: a comment separated by a blank
+ * line is prose about something else, not this declaration's doc.
+ */
+function leadingDoc(tokens, declIndex, text) {
+  let anchor = declIndex;
+  if (tokens[anchor - 1]?.kind === TokenKind.Keyword && tokens[anchor - 1].text === 'export') anchor -= 1;
+
+  let cursor = tokens[anchor].start;
+  let k = anchor - 1;
+  const lines = [];
+  while (k >= 0 && tokens[k].kind === TokenKind.Comment) {
+    const comment = tokens[k];
+    const gap = text.slice(comment.start + comment.length, cursor);
+    if ((gap.match(/\n/g) ?? []).length > 1) break;
+    lines.unshift(commentText(comment));
+    cursor = comment.start;
+    k -= 1;
+  }
+  return lines.length > 0 ? lines.join(' ') : null;
+}
+
+/** A comment on the same line right after the token at `index`, if any — `const X: u8 = 1; // like this`. */
+function trailingDoc(tokens, index, text) {
+  const comment = tokens[index + 1];
+  if (comment?.kind !== TokenKind.Comment) return null;
+  const gap = text.slice(tokens[index].start + tokens[index].length, comment.start);
+  return gap.includes('\n') ? null : commentText(comment);
+}
+
+/**
+ * `function name(params): ReturnType { ...` starting at `tokens[i]` (the
+ * `function` keyword) — its name, rendered signature, and the index of its
+ * own opening `{` (left unconsumed: the caller's generic brace tracking
+ * walks the body, so nothing inside it is mistaken for another member).
+ * `null` if `tokens[i]` is not actually shaped like a function declaration.
+ */
+function readFunctionSignature(tokens, i, text) {
+  const nameToken = tokens[i + 1];
+  const openParen = tokens[i + 2];
+  if (nameToken?.kind !== TokenKind.Identifier || openParen?.text !== '(') return null;
+
+  let depth = 1;
+  let j = i + 3;
+  while (j < tokens.length && depth > 0) {
+    if (tokens[j].text === '(') depth += 1;
+    else if (tokens[j].text === ')') { depth -= 1; if (depth === 0) break; }
+    j += 1;
+  }
+  const closeParen = tokens[j];
+  if (!closeParen) return null;
+  const params = text.slice(openParen.start + 1, closeParen.start).replace(/\s+/g, ' ').trim();
+
+  let k = j + 1;
+  let returnType = 'void';
+  if (tokens[k]?.text === ':') {
+    const typeStart = tokens[k + 1]?.start;
+    k += 1;
+    while (tokens[k] && tokens[k].text !== '{') k += 1;
+    const last = tokens[k - 1];
+    returnType = last ? text.slice(typeStart, last.start + last.length).replace(/\s+/g, ' ').trim() : returnType;
+  } else {
+    while (tokens[k] && tokens[k].text !== '{') k += 1;
+  }
+  if (tokens[k]?.text !== '{') return null;
+
+  return {
+    kind: 'function',
+    name: nameToken.text,
+    signature: `${nameToken.text}(${params}): ${returnType}`,
+    bodyIndex: k,
+  };
+}
+
+/**
+ * `const name: Type = value;` starting at `tokens[i]` (the `const` keyword)
+ * — its name, rendered signature, value (for a short hover-worthy default
+ * like `6` or `#fact(video.columns)`), and the index of its terminating
+ * `;`. `null` if `tokens[i]` is not shaped like a const declaration.
+ */
+function readConstSignature(tokens, i, text) {
+  const nameToken = tokens[i + 1];
+  if (nameToken?.kind !== TokenKind.Identifier || tokens[i + 2]?.text !== ':') return null;
+
+  let j = i + 3;
+  const typeStart = tokens[j]?.start;
+  while (tokens[j] && tokens[j].text !== '=' && tokens[j].text !== ';') j += 1;
+  const typeEnd = tokens[j - 1];
+  if (!typeEnd) return null;
+  const type = text.slice(typeStart, typeEnd.start + typeEnd.length).replace(/\s+/g, ' ').trim();
+
+  let value = null;
+  if (tokens[j]?.text === '=') {
+    const valueStart = tokens[j + 1]?.start;
+    j += 1;
+    while (tokens[j] && tokens[j].text !== ';') j += 1;
+    const valueEnd = tokens[j - 1];
+    if (valueEnd) value = text.slice(valueStart, valueEnd.start + valueEnd.length).replace(/\s+/g, ' ').trim();
+  }
+  if (tokens[j]?.text !== ';') return null;
+
+  return { kind: 'constant', name: nameToken.text, signature: `${nameToken.text}: ${type}`, value, endIndex: j };
+}
+
+/**
+ * Every top-level `namespace` that `text` (a whole module file, one hop
+ * away through an import, not the document being edited) declares, as
+ * `Map<namespaceName, Map<memberName, MemberInfo>>`.
+ *
+ * Only namespaces, because that is the only shape a hardware API's module
+ * exports today — `export namespace screen { ... }`, never a bare top-level
+ * `export function`/`export const` (every package's src/ follows this; see
+ * the intellisense tests) — and a bare `import { x } from "..."` binding an
+ * unrecognized name already falls through to "no member info" honestly, the
+ * same as any other name this module cannot explain.
+ *
+ * One generic pass tracking brace depth, rather than a real parse: this
+ * reads an *already-resolved* module, one hop away from the file being
+ * edited, so — unlike the document under the cursor — it is never mid-edit
+ * and does not need to tolerate a broken parse. Namespaces do not nest here,
+ * so one `container` (rather than a stack) is enough to track "the
+ * namespace body we are directly inside, if any"; a member is only
+ * recognized at the depth immediately inside its namespace's braces, so a
+ * `let`/`const` local to a member function's body is never mistaken for
+ * another member.
+ */
+function scanModule(text) {
+  const { tokens } = tokenize(text);
+  const namespaces = new Map();
+  let container = null;
+  let depth = 0;
+  let i = 0;
+
+  while (i < tokens.length) {
+    const token = tokens[i];
+
+    if (!container && depth === 0 && token.kind === TokenKind.Keyword && token.text === 'namespace') {
+      const nameToken = tokens[i + 1];
+      if (nameToken?.kind === TokenKind.Identifier && tokens[i + 2]?.text === '{') {
+        const members = new Map();
+        namespaces.set(nameToken.text, members);
+        container = { depth: 1, members };
+        depth = 1;
+        i += 3;
+        continue;
+      }
+    }
+
+    if (container && depth === container.depth && token.kind === TokenKind.Keyword && token.text === 'function') {
+      const info = readFunctionSignature(tokens, i, text);
+      if (info) {
+        info.doc = leadingDoc(tokens, i, text);
+        container.members.set(info.name, info);
+        i = info.bodyIndex;
+        continue;
+      }
+    }
+
+    if (container && depth === container.depth && token.kind === TokenKind.Keyword && token.text === 'const') {
+      const info = readConstSignature(tokens, i, text);
+      if (info) {
+        info.doc = trailingDoc(tokens, info.endIndex, text) ?? leadingDoc(tokens, i, text);
+        container.members.set(info.name, info);
+        i = info.endIndex + 1;
+        continue;
+      }
+    }
+
+    if (token.text === '{') { depth += 1; i += 1; continue; }
+    if (token.text === '}') {
+      if (container && depth === container.depth) container = null;
+      depth -= 1;
+      i += 1;
+      continue;
+    }
+    i += 1;
+  }
+
+  return namespaces;
+}
+
+/** Markdown for one namespace member — `screen.blank`, `BorderColor.BLUE`. */
+function memberMarkdown(objectName, member, resolved) {
+  const heading = member.kind === 'function'
+    ? `**${objectName}.${member.signature}**`
+    : `**${objectName}.${member.signature}**${member.value ? ` = ${member.value}` : ''}`;
+  const lines = [heading, ''];
+  if (member.doc) lines.push(member.doc, '');
+  if (resolved.conditional) {
+    lines.push(`Shown as implemented for the \`${resolved.machine}\` target — another target's version may differ.`);
+  }
+  return lines.join('\n').trimEnd();
+}
+
+/**
+ * The namespace a `local` import binding names, resolved from `fromFile` —
+ * or `null` when `local` is not a known import, its specifier does not
+ * resolve, or the exported name it binds is not a namespace (a plain
+ * imported function/const has no members to look up).
+ */
+function importedNamespace(tokens, local, fromFile) {
+  const binding = findImportBindings(tokens).find((b) => b.local === local);
+  if (!binding) return null;
+  const resolved = resolveModuleFile(binding.specifier, fromFile);
+  if (!resolved) return null;
+  const members = scanModule(readFileSync(resolved.path, 'utf8')).get(binding.imported);
+  return members ? { members, resolved } : null;
+}
+
 /**
  * Built-in hover information for the construct at `offset` in `text`.
  *
@@ -248,20 +558,27 @@ function tokenIndexAt(tokens, offset) {
  * `int`, or their low-level `u8`/`i32`-style aliases),
  * `volatile`/`ptr`/`array`, `asm6502`, `@address`, the `memory.read`/
  * `memory.write` intrinsic, and the `#frames(...)` (with its `seconds` unit),
- * `#system()`, and `waitFrame()` builtins — every built-in this milestone documents. Anything else,
- * including a user's own identifiers or namespace, returns `null`: there is
- * no binder yet to say what they mean.
+ * `#system()`, and `waitFrame()` builtins — every built-in this milestone documents — plus,
+ * given `options.path`, a member of a named import's own namespace
+ * (`screen.blank`, `BorderColor.BLUE`; see importedNamespace). Anything
+ * else, including a user's own variables or functions, returns `null`:
+ * there is no binder yet to say what they mean.
  *
  * @param {string} text
  * @param {number} offset
+ * @param {{ path?: string }} [options] `path`: absolute path of `text`'s
+ *   file, needed to resolve a named import to the module it names — see
+ *   resolveModuleFile. Without it, member hover is unavailable, the same
+ *   way import-resolution diagnostics are unavailable for a document with
+ *   no path on disk (packages/language-server/src/server.mjs's `validate`).
  * @returns {{ start: number, length: number, markdown: string } | null}
  */
-export function getHoverInfo(text, offset) {
+export function getHoverInfo(text, offset, options = {}) {
   const { tokens } = tokenize(text);
-  return hoverAt(tokens, offset, text);
+  return hoverAt(tokens, offset, text, options.path);
 }
 
-function hoverAt(tokens, offset, text) {
+function hoverAt(tokens, offset, text, filePath) {
   const index = tokenIndexAt(tokens, offset);
   if (index === -1) return null;
   const token = tokens[index];
@@ -275,7 +592,7 @@ function hoverAt(tokens, offset, text) {
     if (!field) return null;
     const inner = tokenize(text.slice(field.sourceStart, field.sourceEnd)).tokens;
     for (const t of inner) t.start += field.sourceStart;
-    return hoverAt(inner, offset, text);
+    return hoverAt(inner, offset, text, filePath);
   }
 
   if (token.kind === TokenKind.Type) {
@@ -294,6 +611,29 @@ function hoverAt(tokens, offset, text) {
 
   if (token.kind === TokenKind.Decorator && token.text.slice(1) === 'address') {
     return { start: token.start, length: token.length, markdown: CONSTRUCT_DOCS.address.markdown };
+  }
+
+  // A member of a named import's own namespace — `screen.blank`,
+  // `BorderColor.BLUE` — read from the module the import resolves to (see
+  // importedNamespace). Checked before the `memory.read`/`memory.write`
+  // intrinsic below: `memory` is not actually reserved (unlike `waitFrame`
+  // — see checker/index.mjs's RESERVED_BUILTIN_NAMES), so a program that
+  // imports its own `memory` namespace is rare but legal, and its own
+  // `read`/`write` should win over the builtin's docs.
+  if (token.kind === TokenKind.Identifier) {
+    const dot = tokens[index - 1];
+    const object = tokens[index - 2];
+    if (dot?.text === '.' && object?.kind === TokenKind.Identifier) {
+      const namespace = importedNamespace(tokens, object.text, filePath);
+      const member = namespace?.members.get(token.text);
+      if (member) {
+        return {
+          start: token.start,
+          length: token.length,
+          markdown: memberMarkdown(object.text, member, namespace.resolved),
+        };
+      }
+    }
   }
 
   if (token.kind === TokenKind.Identifier && (token.text === 'read' || token.text === 'write')) {
@@ -454,26 +794,44 @@ function isDurationUnitPosition(tokens, offset) {
 }
 
 /**
+ * The object name right before the cursor, when the cursor sits right after
+ * its `.` — `screen.|` or `screen.bl|` — both `null` and `object` come back
+ * `undefined`/absent when it does not, e.g. `#fact(video.col|)`, which
+ * isFactKeyPosition already claims first in completionsAt so this is never
+ * reached for it.
+ */
+function memberPosition(tokens, offset) {
+  const { before, i } = contextIndex(tokens, offset);
+  const dot = before[i];
+  const object = before[i - 1];
+  return dot?.text === '.' && object?.kind === TokenKind.Identifier ? object.text : null;
+}
+
+/**
  * Built-in completion items available at `offset` in `text`.
  *
- * Built-ins only — the type names where a type can appear, the compile-time
- * functions after a `#`, and the unit words inside a `#frames(...)` call.
- * No project-wide or member completion: that needs the binder this
- * milestone deliberately does not add. Inside a template string, a
+ * Built-ins — the type names where a type can appear, the compile-time
+ * functions after a `#`, and the unit words inside a `#frames(...)` call —
+ * plus, given `options.path`, the members of a named import's own namespace
+ * right after `object.` (`screen.bl|` -> `blank`; see importedNamespace).
+ * No project-wide completion, and no member completion for a local variable
+ * or a namespace not reached through a named import: that needs the binder
+ * this milestone deliberately does not add. Inside a template string, a
  * `${...}` field is ordinary source and gets the same answers it would
  * outside one.
  *
  * @param {string} text
  * @param {number} offset
+ * @param {{ path?: string }} [options] See getHoverInfo's `options.path`.
  * @returns {{ label: string, kind: 'type'|'function'|'constant', sortRank: number,
  *   detail: string, documentation: string, insertText?: string }[]}
  */
-export function getCompletions(text, offset) {
+export function getCompletions(text, offset, options = {}) {
   const { tokens } = tokenize(text);
-  return completionsAt(tokens, offset, text);
+  return completionsAt(tokens, offset, text, options.path);
 }
 
-function completionsAt(tokens, offset, text) {
+function completionsAt(tokens, offset, text, filePath) {
   const index = tokenIndexAt(tokens, offset);
   const token = tokens[index];
   if (token?.kind === TokenKind.Template) {
@@ -482,7 +840,7 @@ function completionsAt(tokens, offset, text) {
     if (!field) return [];
     const inner = tokenize(text.slice(field.sourceStart, field.sourceEnd)).tokens;
     for (const t of inner) t.start += field.sourceStart;
-    return completionsAt(inner, offset, text);
+    return completionsAt(inner, offset, text, filePath);
   }
 
   const compileTime = compileTimePosition(tokens, offset, text);
@@ -519,6 +877,19 @@ function completionsAt(tokens, offset, text) {
       sortRank: 0,
       detail: 'A unit a #frames(...) duration can be written in.',
       documentation: UNIT_DOCS[name],
+    }));
+  }
+
+  const object = memberPosition(tokens, offset);
+  if (object) {
+    const namespace = importedNamespace(tokens, object, filePath);
+    if (!namespace) return [];
+    return [...namespace.members.values()].map((member) => ({
+      label: member.name,
+      kind: member.kind,
+      sortRank: 0,
+      detail: `${object}.${member.signature}`,
+      documentation: memberMarkdown(object, member, namespace.resolved),
     }));
   }
 
