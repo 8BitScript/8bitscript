@@ -39,8 +39,9 @@ test('milestone 1 acceptance: the built module instantiates, exports exactly one
     if (!result.ok) return;
 
     const module = await WebAssembly.compile(result.bytes);
-    // No imports: an empty program calls nothing outside itself yet — the
-    // env.waitFrame import is milestone 6's own job.
+    // No imports: a program only gets the env.waitFrame import when it
+    // actually calls waitFrame() somewhere (milestone 6's own
+    // containsWaitFrame scan) — an empty body never does.
     assert.deepEqual(WebAssembly.Module.imports(module), []);
     const instance = await WebAssembly.instantiate(module, {});
 
@@ -73,15 +74,14 @@ test('build() names the linked entry point when it matches no function', async (
   }
 });
 
-test('build() refuses an IR statement kind lower.ts doesn\'t lower yet, naming the construct and the milestone that adds it', async () => {
+test('build() refuses an IR statement kind lower.ts has never heard of, with a plain message — every real construct is lowered as of milestone 6', async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-web-native-'));
   try {
     const outFile = join(scratch, 'out.wasm');
-    const ir: IrProgram = { entry: 'main', functions: [{ name: 'main', body: [{ kind: 'waitFrame' }] }] };
+    const ir: IrProgram = { entry: 'main', functions: [{ name: 'main', body: [{ kind: 'notARealStatementKind' }] }] };
     const result = await build(ir, { outFile, frameRate: 60 });
     assert.equal(result.ok, false);
-    assert.match(result.ok ? '' : result.error, /'waitFrame' is not lowered yet/);
-    assert.match(result.ok ? '' : result.error, /milestone 6/);
+    assert.match(result.ok ? '' : result.error, /'notARealStatementKind' is not lowered yet/);
     assert.equal(existsSync(outFile), false);
   } finally {
     await rm(scratch, { recursive: true, force: true });
@@ -890,5 +890,155 @@ test('milestone 5: refuses / and % on a signed operand, by name — the same gap
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
+});
+
+// ---- milestone 6: waitFrame(), and the real Hello World --------------------
+//
+// A self-contained, local stand-in for packages/cli/src/wasm-host.mjs's own
+// boundedWaitFrame()/FrameLimitReached — deliberately not imported from
+// there: this test file exercises this backend's own output against the
+// real wasm host contract (the import object shape, "the entry throws once
+// the frame bound is hit"), and duplicating that one small piece here keeps
+// the compiler package's own tests from taking on a dependency on the cli
+// package, which already depends on this one.
+
+class FrameLimitReached extends Error {}
+
+/** Returns `limit` times, then throws — the same "let a while(true) loop
+ * run for exactly N frames, then unwind it" trick wasm-host.mjs's own
+ * boundedWaitFrame() uses, matched here so a test can run a real
+ * `while (true) { ...; waitFrame(); }` program to completion. */
+function boundedWaitFrame(limit: number): () => void {
+  let frames = 0;
+  return () => {
+    frames += 1;
+    if (frames > limit) throw new FrameLimitReached();
+  };
+}
+
+/** Builds `functions`, instantiates it with a host-supplied `waitFrame`
+ * (the real `env.waitFrame` import contract wasm-host.mjs and
+ * web-runtime.mjs both offer), calls `entry`, and returns the instance,
+ * its exported memory, and the module's own declared imports — so a test
+ * can check the import was (or wasn't) actually declared, not just that
+ * the program ran. A `FrameLimitReached` from a bounded `waitFrame` is
+ * swallowed, the same way wasm-host.mjs's own runProgram() does — it's
+ * how a `while (true)` program is meant to end here, not a real error. */
+async function runWithWaitFrame(
+  functions: IrFunction[], entry: string, globals: IrGlobal[], waitFrame: () => void, scratchLabel: string,
+): Promise<{ instance: WebAssembly.Instance; memory: Uint8Array; imports: WebAssembly.ModuleImportDescriptor[] }> {
+  const scratch = await mkdtemp(join(tmpdir(), scratchLabel));
+  try {
+    const outFile = join(scratch, 'out.wasm');
+    const result = await build({ entry, functions, globals }, { outFile, frameRate: 60 });
+    assert.equal(result.ok, true, result.ok ? '' : result.error);
+    if (!result.ok) throw new Error('unreachable');
+    const module = await WebAssembly.compile(result.bytes);
+    const imports = WebAssembly.Module.imports(module);
+    const instance = await WebAssembly.instantiate(module, { env: { waitFrame } });
+    try {
+      (instance.exports[entry] as () => void)();
+    } catch (error) {
+      if (!(error instanceof FrameLimitReached)) throw error;
+    }
+    const memory = new Uint8Array((instance.exports.memory as WebAssembly.Memory).buffer);
+    return { instance, memory, imports };
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+}
+
+test('milestone 6 acceptance: the exact hello-world gate shape — a write, then while (true) { ...; waitFrame(); } — runs for exactly N frames and stops', async () => {
+  const main: IrFunction = {
+    name: 'main',
+    returnType: 'void',
+    body: [
+      { kind: 'memoryWrite', address: num(0, 'usmallint'), value: num(42, 'utinyint') },
+      {
+        kind: 'while',
+        test: num(1, 'bool'),
+        body: [
+          { kind: 'assign', target: 'frame', value: add(ref('frame', 'utinyint'), num(1, 'utinyint'), 'utinyint') },
+          { kind: 'memoryWrite', address: num(1, 'usmallint'), value: ref('frame', 'utinyint') },
+          { kind: 'waitFrame' },
+        ],
+      },
+    ],
+  };
+  const globals: IrGlobal[] = [{ name: 'frame', type: 'utinyint', address: null, init: 0 }];
+  const { memory, imports } = await runWithWaitFrame([main], 'main', globals, boundedWaitFrame(10), '8bs-web-native-');
+  assert.deepEqual(imports, [{ module: 'env', name: 'waitFrame', kind: 'function' }]);
+  assert.equal(memory[0], 42); // written once, before the loop
+  // boundedWaitFrame(10) lets waitFrame() return 10 times, then throws on
+  // the 11th call — the loop body (increment, write, wait) has already run
+  // an 11th time by then (its own write already landed before that throw),
+  // so 11 is the correct count here, not 10.
+  assert.equal(memory[1], 11);
+});
+
+test('milestone 6: a program that never calls waitFrame() still gets plain, unshared memory and no import — unchanged from every earlier milestone', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-web-native-'));
+  try {
+    const outFile = join(scratch, 'out.wasm');
+    const result = await build({ entry: 'main', functions: [{ name: 'main', body: [] }] }, { outFile, frameRate: 60 });
+    assert.equal(result.ok, true, result.ok ? '' : result.error);
+    if (!result.ok) return;
+    const module = await WebAssembly.compile(result.bytes);
+    assert.deepEqual(WebAssembly.Module.imports(module), []);
+    const instance = await WebAssembly.instantiate(module, {});
+    const memory = instance.exports.memory as WebAssembly.Memory;
+    assert.equal(memory.buffer instanceof SharedArrayBuffer, false);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('milestone 6: a program that calls waitFrame() gets shared memory, with a declared max equal to its own min', async () => {
+  const main: IrFunction = { name: 'main', returnType: 'void', body: [{ kind: 'waitFrame' }] };
+  const { instance } = await runWithWaitFrame([main], 'main', [], boundedWaitFrame(1), '8bs-web-native-');
+  const memory = instance.exports.memory as WebAssembly.Memory;
+  assert.equal(memory.buffer instanceof SharedArrayBuffer, true);
+  // One page (64 KiB), same as every waitFrame-free program gets as its
+  // own floor — this program declares no globals and no data, so nothing
+  // grows it past that.
+  assert.equal(memory.buffer.byteLength, 64 * 1024);
+});
+
+test('milestone 6: waitFrame() nested inside an if, inside a helper function (not main itself), is still found and still gets the import declared', async () => {
+  // containsWaitFrame has to walk every function's own body, and recurse
+  // into `if`/`while`/`for`/`block` — not just look at main's own
+  // top-level statements. This is also the function-index interaction the
+  // "Hello, WASM" roadmap flagged as a real risk landing milestone 4: the
+  // import (when declared) takes function index 0 and type index 0, ahead
+  // of every defined function — helper here has to land at index 1, main
+  // at index 2, or its own `call` to helper would reach the wrong body.
+  const helper: IrFunction = {
+    name: 'helper',
+    returnType: 'void',
+    body: [{ kind: 'if', test: num(1, 'bool'), then: [{ kind: 'waitFrame' }], else: null }],
+  };
+  const main: IrFunction = {
+    name: 'main',
+    returnType: 'void',
+    body: [
+      { kind: 'call', name: 'helper', args: [] },
+      { kind: 'memoryWrite', address: num(0, 'usmallint'), value: num(7, 'utinyint') },
+    ],
+  };
+  const { memory, imports } = await runWithWaitFrame([main, helper], 'main', [], boundedWaitFrame(1), '8bs-web-native-');
+  assert.deepEqual(imports, [{ module: 'env', name: 'waitFrame', kind: 'function' }]);
+  assert.equal(memory[0], 7); // main ran after helper returned, not garbled by a wrong call target
+});
+
+test('build() refuses a waitFrame() reached with no import declared, naming it a build() bug', async () => {
+  // Not reachable through a real build() (the whole-program scan always
+  // runs first) — this exercises lower.ts's own defensive check directly,
+  // the same way the "refuses an unknown IR statement kind" test above
+  // exercises unsupported()'s own fallback branch: by calling lower()
+  // without ever having told it a waitFrame import exists.
+  const { lower } = await import('../src/wasm/lower.ts');
+  const result = lower([{ kind: 'waitFrame' }]);
+  assert.equal(result.ok, false);
+  assert.match(result.ok ? '' : result.error, /no import declared/);
 });
 
