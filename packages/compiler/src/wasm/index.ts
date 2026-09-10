@@ -7,19 +7,29 @@
 // that contract (the "Hello, WASM" roadmap's own STATUS section) — nothing
 // in this file changes either of them.
 //
-// Milestone 1 ("a module that validates"): a hand-written binary encoder
-// (./encode.ts) and just enough of build() to emit the smallest legal
-// module for an entry function with an empty body — no globals, no other
-// functions, no strings, no waitFrame() yet. Every later milestone's own
-// job is one more IR shape this function stops refusing by name.
+// Milestone 1 ("a module that validates") got just enough of build() to emit
+// the smallest legal module for an entry function with an empty body.
+// Milestone 2 ("arithmetic and control flow") adds real instruction
+// selection (./lower.ts) for that body: binop/unop/if/while/for/break/
+// continue/return, all `i32`, masked to their declared width. Still no
+// globals, no other functions, no strings, no waitFrame() — every later
+// milestone's own job is one more IR shape this function stops refusing by
+// name.
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
-import { ExternalKind, Opcode, SectionId, assembleModule, encodeName, funcType, limits, section, unsignedLEB128, vector } from './encode.ts';
+import { ExternalKind, Opcode, SectionId, ValType, assembleModule, encodeName, funcType, limits, section, unsignedLEB128, vector } from './encode.ts';
+import { lower } from './lower.ts';
+import type { IrStatement } from './lower.ts';
 
 export interface IrFunction {
   name: string;
-  body: unknown[];
+  body: IrStatement[];
+  /** `fn.returnType ?? 'void'`, the same convention mos/index.ts holds
+   * itself to — wasm has no narrower-than-i32 value type, so any non-void
+   * numeric return type becomes a single `i32` result; a narrower type's
+   * own width is a `lower.ts` masking concern, not a function-type one. */
+  returnType?: string | null;
 }
 
 export interface IrGlobal {
@@ -77,16 +87,17 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
       error: 'string literals are not lowered yet: this is the web track\'s own milestone 5 ("strings and const data")',
     };
   }
-  if (entryFn.body.length > 0) {
-    return {
-      ok: false,
-      error: `'${entryFn.name}': no IR statement kind is lowered yet — only an empty body builds (the web track's own milestone 2, "arithmetic and control flow", is next)`,
-    };
-  }
+  const lowered = lower(entryFn.body);
+  if (!lowered.ok) return { ok: false, error: `'${entryFn.name}': ${lowered.error}` };
 
-  // type section: one type, () -> (), for the entry — the only function
-  // this milestone ever emits.
-  const typeSection = section(SectionId.type, vector([funcType([], [])]));
+  // No parameters yet (milestone 4) — a non-void return is the only way
+  // this milestone's own gate (a for-loop sum) can produce an
+  // externally-observable result without memoryWrite (milestone 3).
+  const results = !entryFn.returnType || entryFn.returnType === 'void' ? [] : [ValType.i32];
+
+  // type section: one type for the entry — the only function this
+  // milestone ever emits.
+  const typeSection = section(SectionId.type, vector([funcType([], results)]));
   // function section: the entry uses type index 0.
   const functionSection = section(SectionId.function, vector([[0]]));
   // memory section: one memory, MEMORY_PAGES minimum, no declared maximum.
@@ -102,9 +113,22 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
       [...encodeName(ir.entry), ExternalKind.func, 0],
     ]),
   );
-  // code section: the entry's one function body — no locals declared, no
-  // instructions, just the `end` that closes every function body.
-  const entryBody = [0x00 /* zero local-declaration groups */, Opcode.end];
+  // code section: the entry's one function body — every local `lower()`
+  // declared, as one group of `i32`s (nothing lowered yet needs any other
+  // value type), then the lowered instructions, then the `end` that closes
+  // every function body.
+  const localsDecl = lowered.localCount > 0 ? [[...unsignedLEB128(lowered.localCount), ValType.i32]] : [];
+  // A non-void function whose every path returns from inside a branch (an
+  // `if`/`else` with no code after it, say) reaches this closing `end` with
+  // an empty stack once the branch's own `if` frame pops — but the type
+  // section declared one result, so the validator refuses it: "expected 1
+  // elements on the stack for fallthru, found 0." `unreachable` before the
+  // `end` fixes this for every shape, not just this one: it never actually
+  // runs when a real `return` already left the function first (dead code,
+  // one byte), and it satisfies validation without this file trying to
+  // prove the body provably returns on every path.
+  const trailer = results.length > 0 ? [Opcode.unreachable, Opcode.end] : [Opcode.end];
+  const entryBody = [...vector(localsDecl), ...lowered.code, ...trailer];
   const codeSection = section(SectionId.code, vector([encodeFunctionBody(entryBody)]));
 
   const bytes = assembleModule([typeSection, functionSection, memorySection, exportSection, codeSection]);
