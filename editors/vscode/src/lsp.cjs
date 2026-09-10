@@ -192,6 +192,7 @@ function registerLanguageServer(context, output) {
       },
       ':',
       '<',
+      '.',
     ),
   );
 

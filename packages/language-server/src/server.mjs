@@ -82,6 +82,23 @@ async function frameRateFor(filePath) {
   }
 }
 
+/**
+ * A document's absolute path on disk, or `null` for an `untitled:` buffer or
+ * a URI that fails to parse as one. Shared by every handler below that needs
+ * a real path — diagnostics' import resolution, and hover/completion's
+ * member lookup (getHoverInfo/getCompletions's `options.path`) — so an
+ * untitled buffer degrades the same honest way everywhere: the feature that
+ * needs a path on disk is simply unavailable, not guessed at.
+ */
+function filePathOf(uri) {
+  if (!uri.startsWith('file://')) return null;
+  try {
+    return fileURLToPath(uri);
+  } catch {
+    return null;
+  }
+}
+
 export function start() {
   const connection = createConnection(ProposedFeatures.all);
   const documents = new TextDocuments(TextDocument);
@@ -92,7 +109,11 @@ export function start() {
       // nothing until the compiler can reuse a previous parse.
       textDocumentSync: TextDocumentSyncKind.Full,
       hoverProvider: true,
-      completionProvider: { triggerCharacters: [':', '<'] },
+      // `.` triggers member completion (screen.bl| -> blank) on a named
+      // import's own namespace; getCompletions checks isFactKeyPosition
+      // first, so `#fact(video.|)` still completes fact keys rather than
+      // being hijacked by a coincidentally-named import binding.
+      completionProvider: { triggerCharacters: [':', '<', '.'] },
     },
     serverInfo: { name: '8BitScript Language Server', version: '0.1.0' },
   }));
@@ -107,14 +128,7 @@ export function start() {
   const validate = async (document) => {
     const text = document.getText();
     const { version } = document;
-    let path = null;
-    if (document.uri.startsWith('file://')) {
-      try {
-        path = fileURLToPath(document.uri);
-      } catch {
-        path = null;
-      }
-    }
+    const path = filePathOf(document.uri);
     const frameRate = path ? await frameRateFor(path) : 60;
     // Two things can happen while frameRateFor() awaits the filesystem: a
     // newer edit can land (the TextDocument is mutated in place, not
@@ -152,7 +166,8 @@ export function start() {
     if (!document) return null;
 
     const offset = document.offsetAt(params.position);
-    const info = getHoverInfo(document.getText(), offset);
+    const path = filePathOf(document.uri);
+    const info = getHoverInfo(document.getText(), offset, { path });
     if (!info) return null;
 
     return {
@@ -169,7 +184,8 @@ export function start() {
     if (!document) return [];
 
     const offset = document.offsetAt(params.position);
-    return getCompletions(document.getText(), offset).map((item) => ({
+    const path = filePathOf(document.uri);
+    return getCompletions(document.getText(), offset, { path }).map((item) => ({
       label: item.label,
       kind: COMPLETION_KIND[item.kind] ?? CompletionItemKind.TypeParameter,
       detail: item.detail,
