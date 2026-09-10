@@ -77,23 +77,37 @@ test('a preset resolves to its values: the VIC-20 8k, 16k and 24k all carry the 
   assert.deepEqual(three.tags, ['3k']);
 });
 
-test('the PET model is a build (RAM), a run flag, a tag, and facts', () => {
+test('the PET model, RAM and speaker are three independent options, not one bundled "model" — RAM is a real on-board upgrade path, not tied to which board is chosen', () => {
   const { hardware } = resolveHardware(loadCatalog('pet'), { profile: '8032' });
-  assert.deepEqual(hardware.tags, ['8032']);
+  // Every option that differs from its own catalog default contributes its
+  // own tag/buildValue — model ("8032"), ram ("32"), and speaker ("attached")
+  // all differ from their defaults (2001/4/none) here, and each carries a
+  // `build` marker (RAM's own defsym; model's and speaker's are empty but
+  // still real — video.columns/frameRate and audio.voices are #fact()-
+  // foldable, so a build can genuinely differ by model or speaker alone,
+  // even though only RAM's own value touches the linker's defsym).
+  assert.deepEqual(hardware.tags, ['8032', '32', 'attached']);
+  assert.deepEqual(hardware.buildValues, ['8032', '32', 'attached']);
   assert.deepEqual(hardware.build.defsym, { __ram_size: 32 });
-  assert.deepEqual(hardware.run.xpet, ['-model', '8032']);
+  // drive stays at its own default (none) either way, so -drive8type 0
+  // rides along on every one of these regardless of model/ram/speaker.
+  assert.deepEqual(hardware.run.xpet, ['-model', '8032', '-ramsize', '32', '-sound', '-drive8type', '0']);
   assert.equal(hardware.facts['video.columns'], 80);
   assert.equal(hardware.facts['video.frameRate'], 50);
+  assert.equal(hardware.facts['audio.voices'], 1, 'the 8032 has a built-in piezo on CB2 — packages/pet/AGENTS.md');
   const stock = resolveHardware(loadCatalog('pet')).hardware;
-  assert.deepEqual(stock.run.xpet, ['-model', '3032']);
+  assert.deepEqual(stock.run.xpet, ['-model', '2001', '-ramsize', '4', '+sound', '-drive8type', '0']);
   assert.equal(stock.facts['video.columns'], 40);
+  assert.equal(stock.facts['audio.voices'], 0, 'a stock 2001 has no speaker at all — needs the "attached" speaker option, a real user-port CB2 hack');
+  assert.equal(stock.facts['memory.chrget'], 194, 'BASIC 1 copies CHRGET to $C2, not $70');
 });
 
-test('the PET 2001 needs an explicit -ramsize alongside -model: unlike every other PET model name, "2001" alone does not tell VICE how much RAM to give it', () => {
+test('the PET RAM option always needs its own explicit -ramsize: `model` alone never tells VICE how much RAM to give it, for any model, not just the 2001', () => {
   const { hardware } = resolveHardware(loadCatalog('pet'), { profile: '2001' });
-  assert.deepEqual(hardware.run.xpet, ['-model', '2001', '-ramsize', '4']);
+  assert.deepEqual(hardware.run.xpet, ['-model', '2001', '-ramsize', '4', '+sound', '-drive8type', '0']);
   assert.deepEqual(hardware.build.defsym, { __ram_size: 4 });
   assert.equal(hardware.facts['memory.ram'], 3071, 'measured under VICE: 4096 - $0401, confirmed on screen as "3071 BYTES FREE"');
+  assert.equal(resolveHardware(loadCatalog('pet'), { profile: '3032' }).hardware.facts['memory.chrget'], 112);
 });
 
 test('the Atari splits the machine from the medium: `model` picks the atari800 model, `media` picks the startup, the ROM size and the cartridge type', () => {
@@ -469,9 +483,14 @@ test('the Commodore drives are a hardware axis, and each says what it holds', ()
   assert.equal(usable('c64', '1541'), 164, '664 blocks = 168656 bytes');
   assert.equal(usable('c64', '1571'), 329, '1328 blocks = 337312 bytes');
   assert.equal(usable('c64', '1581'), 783, '3160 blocks = 802640 bytes');
-  assert.equal(usable('pet', '4040'), 166, '670 blocks = 170180 bytes');
+  assert.equal(usable('pet', '2031'), 164, '664 blocks = 168656 bytes, same D64 layout as the 1541');
+  assert.equal(usable('pet', '2040'), 166, '670 blocks = 170180 bytes, DOS 1\'s D67 layout');
+  assert.equal(usable('pet', '3040'), 166, 'same D67 layout as the 2040 — same DOS, PAL region');
+  assert.equal(usable('pet', '4040'), 164, '664 blocks = 168656 bytes — DOS 2 is the D64 layout, not D67');
   assert.equal(usable('pet', '8050'), 508, '2052 blocks = 521208 bytes');
   assert.equal(usable('pet', '8250'), 1025, '4133 blocks = 1049782 bytes');
+  assert.equal(usable('pet', '1001'), 1025, 'the SFD-1001 is one drive at the 8250\'s own D82 geometry');
+  assert.equal(usable('pet', '9000'), 7233, '29162 blocks = 7407148 bytes — VICE\'s D90 image is the larger D9090, not the D9060');
   assert.equal(usable('c128', '1571'), 329);
 
   // No drive is nowhere to save, and both facts say so together.
@@ -479,11 +498,37 @@ test('the Commodore drives are a hardware axis, and each says what it holds', ()
   assert.equal(none['storage.save'], false);
   assert.equal(none['storage.kib'], 0);
 
-  // A drive is not linked in and is not an emulator flag — it is what the
-  // program may assume — so it carries no tag and no build values.
+  // On the C64, a drive is not linked in and is not an emulator flag at
+  // all — it is only what the program may assume — so it carries no tag
+  // and no build value regardless.
   const fitted = resolveHardware(loadCatalog('c64'), { overrides: { drive: '1581' } }).hardware;
   assert.deepEqual(fitted.tags, []);
   assert.deepEqual(fitted.buildValues, []);
+});
+
+// The PET's own drive is different: real IEEE-488 hardware VICE can
+// actually attach (xpet -drive8type), verified against `xpet -help`'s own
+// enum (0/2031/2040/3040/4040/1001/8050/8250/9000) before wiring any of it
+// — packages/pet/AGENTS.md's own rule for VICE flags.
+test('the PET\'s drive option passes VICE its own -drive8type name, one per real IEEE-488 drive this catalog offers', () => {
+  const catalog = loadCatalog('pet');
+  const drive8type = (drive) => {
+    const args = resolveHardware(catalog, { overrides: { drive } }).hardware.run.xpet;
+    return args[args.indexOf('-drive8type') + 1];
+  };
+  assert.equal(drive8type('none'), '0');
+  assert.equal(drive8type('2031'), '2031');
+  assert.equal(drive8type('2040'), '2040');
+  assert.equal(drive8type('3040'), '3040');
+  assert.equal(drive8type('4040'), '4040');
+  assert.equal(drive8type('8050'), '8050');
+  assert.equal(drive8type('8250'), '8250');
+  assert.equal(drive8type('1001'), '1001');
+  assert.equal(drive8type('9000'), '9000');
+  // The default is no drive at all — the smallest real PET (2001) shipped
+  // with none, matching the same "test against the harshest constraint"
+  // default every other PET option (model/ram/speaker) already settled on.
+  assert.equal(catalog.options.drive.default, 'none');
 });
 
 test('storage.save and storage.kib agree on every machine and every value', () => {

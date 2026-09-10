@@ -86,6 +86,12 @@
         "icon": "$(tools)"
       },
       {
+        "command": "8bitscript.boot",
+        "title": "Boot (no program loaded)",
+        "category": "8BitScript",
+        "icon": "$(chip)"
+      },
+      {
         "command": "8bitscript.stop",
         "title": "Stop",
         "category": "8BitScript",

@@ -1,15 +1,18 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import {
   build, outputExtension, CPU, reduceRatio, frameRatio, FRAME_SYNC,
 } from '../src/mos/index.ts';
 import type { IrProgram, Machine, RatioPair } from '../src/mos/index.ts';
 import type { IrStatement } from '../src/mos/lower/index.ts';
+import { link } from '../index.mjs';
+import { loadCatalog, resolveHardware } from '../../cli/src/hardware.mjs';
 
 const ir: IrProgram = { entry: 'main', functions: [{ name: 'main', body: [] }], globals: [] };
 
@@ -1061,4 +1064,27 @@ test('FRAME_SYNC.pet.calibrate measures VIA1 T2 against vsync and scales the ela
   const at50 = pet.calibrate(50);
   assert.match(at50, /50u \*/);
   assert.doesNotMatch(at50, /60u \*/);
+});
+
+test('the real hello-world on the 2001 leaves BASIC 1 CHRGET ($C2-$D9) alone so SYS can return', async () => {
+  const main = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'examples', 'hello-world', 'src', 'main.8bs');
+  const src = readFileSync(main, 'utf8');
+  const zpBytes = async (profile: string | undefined) => {
+    const resolved = resolveHardware(loadCatalog('pet'), { profile });
+    assert.ok(resolved.ok, resolved.ok ? '' : resolved.error);
+    const { ir, diagnostics } = link(src, main, { machine: 'pet', facts: resolved.hardware.facts });
+    assert.deepEqual(diagnostics, []);
+    const scratch = await mkdtemp(join(tmpdir(), '8bs-chrget-'));
+    try {
+      const result = await build(ir, { machine: 'pet', hardware: resolved.hardware, outFile: join(scratch, 'out.prg'), frameRate: 60 });
+      assert.equal(result.ok, true, result.ok ? '' : result.error);
+      return result.ok ? result.memory.variables : 0;
+    } finally {
+      await rm(scratch, { recursive: true, force: true });
+    }
+  };
+  const on3032 = await zpBytes('3032');
+  const on2001 = await zpBytes('2001');
+  assert.equal(on3032, 77, 'BASIC 2 CHRGET is below $8E — no hole, 77 bytes of real slots');
+  assert.equal(on2001, on3032 + 24, 'the 2001 skips BASIC 1\'s 24-byte CHRGET window at $C2');
 });

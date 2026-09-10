@@ -147,6 +147,30 @@ function selectionLabel(selection) {
 }
 
 /**
+ * What picking `presetId` sets beyond its own name: every option whose
+ * resolved value differs from that option's own catalog default, as
+ * `id=value` pairs — the same shape `selectionLabel` already uses for a
+ * *chosen* selection, computed here for a preset still sitting in a
+ * dropdown list, before it is chosen. A preset named after one of its own
+ * option's values (the PET's `3016` naming `model: '3016'`) would
+ * otherwise read as if it only touched that one option — this is what
+ * makes `--profile 3016` setting `ram: '16'` too, not just `model`,
+ * visible in the preset's own label, not just after picking it and
+ * checking every other dropdown by hand.
+ *
+ * @param {object} target one entry of parseTargets()
+ * @param {string} presetId a key of target.presets or target.profiles
+ * @returns {string}
+ */
+function presetBundle(target, presetId) {
+  const resolved = effectiveOptions(target, { profile: presetId, options: {} });
+  return Object.entries(resolved)
+    .filter(([id, value]) => value !== target.options?.[id]?.default && value !== presetId)
+    .map(([id, value]) => `${id}=${value}`)
+    .join(' ');
+}
+
+/**
  * The machine's worst case rather than its stock config: for every option
  * where at least one value declares `memory.ram`, the value with the
  * least of it; every other option (a control port, a drive) is left at
@@ -189,6 +213,7 @@ module.exports = {
   hardwareArgs,
   normalizeSelection,
   parseTargets,
+  presetBundle,
   selectionLabel,
   worstSelection,
 };

@@ -237,7 +237,19 @@ function isSigned(type: string): boolean {
 // picked for each operator below is not just "the obvious 6502 mnemonic
 // for that symbol." Worked out once, in the header comment; NEGATE lets
 // emitBranchIfFalse reuse this same table instead of needing its own.
-type BranchPlan = { mnemonic: string } | { double: [string, string] };
+// `double` is an AND-shaped pair: reach `target` only when the `skip`
+// branch is NOT taken (its condition is false) AND the `take` branch IS
+// taken — see comparisonBranch's own emission (`skip; take; label(skip)`).
+// `either` is the OR-shaped counterpart a single skip/take pair cannot
+// express at all: reach `target` when *either* mnemonic's own condition
+// holds, so both branch straight to `target`, no intermediate label —
+// found missing here (not a design choice, a bug: `>=` used to reuse the
+// AND-shaped `double` template for what is actually an OR condition,
+// which silently returned true for values well outside the intended
+// range — caught building milestone 10's PET mixed-case text, where
+// `code < 91` failing for code=104 ('h') by way of `>=`'s own negation
+// let 'h' through the "already upper case" branch unconverted).
+type BranchPlan = { mnemonic: string } | { double: [string, string] } | { either: [string, string] };
 const ORDER_BRANCH_IF_TRUE: Readonly<Record<string, BranchPlan>> = {
   '==': { mnemonic: 'BEQ' },
   '!=': { mnemonic: 'BNE' },
@@ -250,8 +262,9 @@ const ORDER_BRANCH_IF_TRUE: Readonly<Record<string, BranchPlan>> = {
   // single flag/branch pair does that, so: skip the "it's true" branch
   // when equal, otherwise take it when carry is set.
   '<': { double: ['BEQ', 'BCS'] },
-  // A >= B is the complement: true when carry is clear OR zero is set.
-  '>=': { double: ['BCC', 'BEQ'] },
+  // A >= B is the complement of A < B, not of A <= B: true when carry is
+  // clear OR zero is set — an OR, so `either`, not `double`.
+  '>=': { either: ['BCC', 'BEQ'] },
 };
 const NEGATE: Readonly<Record<string, string>> = { '==': '!=', '!=': '==', '<': '>=', '>=': '<', '>': '<=', '<=': '>' };
 const ORDERING_OPERATORS = new Set(['<', '>', '<=', '>=']);
@@ -727,10 +740,18 @@ class Lowerer {
     const plan = ORDER_BRANCH_IF_TRUE[operator];
     if ('mnemonic' in plan) {
       this.emit(branch(plan.mnemonic, target));
-    } else {
+    } else if ('double' in plan) {
+      // AND-shaped: reach `target` only when `skip`'s own condition is
+      // false (so it does not fire) and `take`'s own condition is true.
       const [skipMnemonic, takeMnemonic] = plan.double;
       const skip = freshLabel('cmp_skip');
       this.emit(branch(skipMnemonic, skip), branch(takeMnemonic, target), label(skip));
+    } else {
+      // OR-shaped: reach `target` when either mnemonic's own condition is
+      // true — both branch straight to it, no intermediate label to skip
+      // past the second one.
+      const [firstMnemonic, secondMnemonic] = plan.either;
+      this.emit(branch(firstMnemonic, target), branch(secondMnemonic, target));
     }
     this.locals.release(mark);
   }

@@ -468,3 +468,43 @@ whenever they're emitted at all. `mos/index.ts` now includes both in that
 scan (`usesDecimalSensitiveMath([...everyInstruction, ...waitFrameSetupProgram,
 ...waitFrameRoutineProgram])`) rather than adding a second, parallel
 "does *this* code need CLD" boolean next to it.
+
+## A real `>=` bug, found building the PET's own mixed-case text
+
+Not a milestone — a correctness bug in `comparisonBranch`
+(`lower/index.ts`), live since milestone 6, found only because
+`packages/pet/src/text.8bs`'s own `asciiToScreenCode` needed `code >= 65
+&& code < 91` as a real, in-order condition and the actual screenshot came
+out wrong. `ORDER_BRANCH_IF_TRUE`'s `'>=': { double: ['BCC', 'BEQ'] }`
+reused the exact same skip/take emission `'<'` uses (`branch(skip, skip);
+branch(take, target); label(skip);`) — correct for `<`, whose own true
+condition is an AND (carry set *and* not equal), but wrong for `>=`, whose
+true condition is an OR (carry clear *or* zero set): the "skip" branch
+(`BCC`) jumped *away* from `target` on carry-clear, precisely the case
+that should have reached it. The practical effect: any `>=` used directly,
+or any `<` reached through `comparisonBranch`'s own negation (the second
+half of an `&&`, most commonly — see NEGATE), silently returned `true` far
+outside its real range. For `asciiToScreenCode`, that meant `code < 91`
+answered `true` for every `code` from 91 up to 255, so `'h'` (104) fell
+through the "already upper case, leave it alone" branch unconverted and
+came out on screen as whatever screen code 104 happens to be — visible
+immediately as garbled text once a real lower-case string was screenshotted,
+invisible in every earlier milestone's own gate because every one of them
+only ever exercised `>=`/`<` as a bare `if` condition with no `else`
+(`condition()`'s own `wantTrue=false` for a bare if negates `>=` down to
+`<`'s own already-correct AND path, and negates `<` down to the buggy
+`>=` path only when something reaches it with `wantTrue=false` — an `&&`'s
+second clause, not a lone `if`).
+
+The fix: `ORDER_BRANCH_IF_TRUE` now distinguishes `double` (AND-shaped:
+`skip`/`take`, one intermediate label — `<`'s own shape, unchanged) from
+`either` (OR-shaped: both mnemonics branch straight to `target`, no
+intermediate label at all — `>='`s real shape). `comparisonBranch` picks
+the emission strategy from which one the plan names, rather than assuming
+every double-mnemonic plan wants the same skip/take template. Regression
+test: `lower/index.test.ts`'s own `'>= is an OR of two flag tests...'`,
+checking both a materialised bool value and the real `code >= 65 && code
+< 91` if-test shape; the actual end-to-end proof is
+`packages/examples/hello-world`'s own screenshotted build, `text.print(0,
+"Hello World!")`, run for real against every one of the PET's seven
+catalog models.

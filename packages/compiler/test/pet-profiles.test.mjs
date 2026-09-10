@@ -9,14 +9,26 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { link } from '../index.mjs';
+import { loadCatalog, resolveHardware } from '../../cli/src/hardware.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PET_SRC = join(HERE, '..', '..', 'pet', 'src');
 const CONSUMER = 'import { screen } from "@8bitscript/screen";\nexport function main(): void { screen.blank(); }';
 const ENTRY = join(HERE, '..', '..', 'studio', 'src', 'main.8bs');
 
+// Per-profile facts, not just the stock sheet: text.8bs's own
+// asciiToScreenCode reads #fact(video.characterSetSwapped), which the
+// 2001 sets and every other profile leaves at the catalog default, so a
+// link() has needed real, profile-resolved facts (not none) since that
+// fact was added — the same way any other #fact() read already did.
+const petFacts = (profile) => {
+  const resolved = resolveHardware(loadCatalog('pet'), { profile });
+  assert.ok(resolved.ok, resolved.ok ? '' : resolved.error);
+  return resolved.hardware.facts;
+};
+
 const linked = (profile) => {
-  const { ir, diagnostics } = link(CONSUMER, ENTRY, { machine: 'pet', profile });
+  const { ir, diagnostics } = link(CONSUMER, ENTRY, { machine: 'pet', profile, facts: petFacts(profile) });
   assert.deepEqual(diagnostics, [], profile);
   const blank = ir.functions.find((f) => f.name === 'screen_blank');
   const loop = blank.body.find((s) => s.kind === 'for');
@@ -38,7 +50,7 @@ test('text.COLUMNS and text.CELL_COUNT are the geometry\'s, per profile', () => 
   ].join('\n');
   const entry = join(HERE, 'fixtures', 'pet-columns.8bs'); // does not need to exist: only its directory resolves packages
   const folded = (profile) => {
-    const { ir, diagnostics } = link(src, entry, { machine: 'pet', profile });
+    const { ir, diagnostics } = link(src, entry, { machine: 'pet', profile, facts: petFacts(profile) });
     assert.deepEqual(diagnostics, [], profile);
     const [columns, cells] = ir.functions.find((f) => f.name === 'main').body;
     return { columns: columns.value.value, cells: cells.address.right.value };

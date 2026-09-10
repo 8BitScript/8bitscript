@@ -35,10 +35,43 @@ export interface IrGlobal {
   init?: number | number[] | null;
 }
 
+export interface ZpHole {
+  /** Inclusive. */
+  start: number;
+  /** Exclusive. */
+  end: number;
+}
+
 export interface Budget {
   zpOrigin: number;
   /** Exclusive: the first address no longer in budget. */
   zpCeiling: number;
+  /** Inclusive-exclusive ranges this allocator must not occupy (BASIC 1's CHRGET at $C2-$D9 on the original PET 2001). */
+  holes?: ZpHole[];
+}
+
+export type PlaceZpResult =
+  | { ok: true; address: number; next: number }
+  | { ok: false; remaining: number; cursor: number };
+
+/**
+ * Next free address of `size` bytes that does not overlap any hole.
+ * Skips a hole entirely rather than straddling it (a 16-bit slot at $C1
+ * would put its high byte inside BASIC 1's CHRGET).
+ */
+export function placeZp(cursor: number, size: number, ceiling: number, holes: ZpHole[] = []): PlaceZpResult {
+  let addr = cursor;
+  for (;;) {
+    const hole = holes.find((h) => addr < h.end && addr + size > h.start);
+    if (hole) {
+      addr = hole.end;
+      continue;
+    }
+    if (addr + size > ceiling) {
+      return { ok: false, remaining: Math.max(0, ceiling - addr), cursor: addr };
+    }
+    return { ok: true, address: addr, next: addr + size };
+  }
 }
 
 export type Storage = 'zp' | 'pinned';
@@ -88,16 +121,16 @@ export function allocate(globals: IrGlobal[], budget: Budget): AllocateResult {
       return { ok: false, error: `global '${global.name}': unknown type '${global.type}', can't size it` };
     }
 
-    if (zpNext + size > budget.zpCeiling) {
-      const remaining = budget.zpCeiling - zpNext;
+    const placed = placeZp(zpNext, size, budget.zpCeiling, budget.holes);
+    if (!placed.ok) {
       return {
         ok: false,
-        error: `global '${global.name}' needs ${size} byte(s) of zero page but only ${remaining} byte(s) remain ($${hex(zpNext)}..$${hex(budget.zpCeiling - 1)})`,
+        error: `global '${global.name}' needs ${size} byte(s) of zero page but only ${placed.remaining} byte(s) remain ($${hex(placed.cursor)}..$${hex(budget.zpCeiling - 1)})`,
       };
     }
 
-    allocated.push({ name: global.name, address: zpNext, storage: 'zp', size });
-    zpNext += size;
+    allocated.push({ name: global.name, address: placed.address, storage: 'zp', size });
+    zpNext = placed.next;
   }
 
   return { ok: true, globals: allocated, zpUsed: zpNext - budget.zpOrigin };

@@ -319,7 +319,10 @@ test('diagnostics: a string outside the portable character set reaches the edito
     await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
     client.notify('initialized', {});
 
-    const text = 'function f(s: string): void { }\nexport function main(): void { f("tick"); }\n';
+    // '~' is outside the portable set on every target; lower case ('tick'
+    // unchanged) is not — packages/pet/src/text.8bs's own text character
+    // set holds both cases at once.
+    const text = 'function f(s: string): void { }\nexport function main(): void { f("t~ck"); }\n';
     client.notify('textDocument/didOpen', {
       textDocument: { uri: URI, languageId: '8bitscript', version: 1, text },
     });
@@ -329,7 +332,7 @@ test('diagnostics: a string outside the portable character set reaches the edito
     assert.equal(d.code, '8BS1026');
     assert.equal(d.range.start.line, 1);
     assert.equal(d.range.start.character, 'export function main(): void { f('.length);
-    assert.match(d.message, /upper case only/);
+    assert.match(d.message, /portable character set/);
   });
 });
 

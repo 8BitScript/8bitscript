@@ -95,18 +95,60 @@ Do not describe more than this as working:
   the graphics or text set, and their reverse-video complements (224-255)
   cover the other eight patterns, so unlike `text.8bs` this module never
   touches `viaPeripheralControl`.
-- **Hardware** (the catalog in `package.json`): one option, `model` —
-  `3032` (default), `3008`, `3016`, `4016`, `4032`, `8032` — the PET's own
-  model numbers, which are also what `xpet -model` takes, with a preset
-  per model so `--profile 8032` works. A model sets the
-  RAM the program is linked for (its `build.defsym`, `__ram_size` 8/16/32 —
-  8×96 and SuperPET boards are not a linked value). It places the program at
-  `$0401` behind a BASIC `SYS` stub so the `.prg` autostarts with `RUN`,
-  and puts the stack at the top of RAM — `$2000` on a 3008, `$8000` on a
-  32K machine — the screen width the package draws to (80 for the 8032,
-  through the geometry twin, and the fact `video.columns`), and the model
-  `8bs run pet` launches. A non-default model appears in the output name
-  (`main-pet-8032.prg`).
+- **Hardware** (the catalog in `package.json`): three independent options —
+  `model`, `ram`, and `speaker` — where one bundled `model` option used to
+  carry all of it (milestone-10-era rework, prompted by a direct request to
+  represent real owner RAM upgrades and the real user-port speaker hack, not
+  just the seven stock configurations Commodore actually sold).
+  - `model` — `2001` (default), `3008`, `3016`, `4016`, `4032`, `8032` — the
+    PET's own model numbers, which are also what `xpet -model` takes, with a
+    preset per model so `--profile 8032` works. It fixes the **screen
+    width** (80 for the 8032, through the geometry twin, and the fact
+    `video.columns`), the **keyboard matrix** (graphics on 3xxx/4xxx,
+    business on the 8032: `keys.8bs` and its `keys.pet.8032.8bs` twin), the
+    **refresh rate fact** (`video.frameRate`, 60 for the non-CRTC boards,
+    50 for the CRTC 4xxx/8xxx — `FRAME_SYNC.pet` measures the real period
+    regardless, so this fact is documentation, not a build input), and
+    which model `8bs run pet` launches. It carries an empty `build: {}`
+    marker of its own — no `defsym`, but `video.columns`/`video.frameRate`
+    are real `#fact()`-foldable values a program's own compile-time layout
+    logic can read, so two builds that differ only by `model` can still
+    differ in bytes, and the output filename has to account for that (see
+    below) even though the linker's own RAM ceiling doesn't move.
+  - `ram` — `4` (default, KiB), `8`, `16`, `32` — independent of which board
+    is chosen, because it genuinely is on real hardware: "RAM expansion was
+    external only" is one of this file's own corrected claims below — the
+    2001-N/3xxx/4xxx boards take 32K **on board**, a real owner upgrade
+    path, not a different machine. It places the program at `$0401` behind
+    a BASIC `SYS` stub so the `.prg` autostarts with `RUN`, puts the stack
+    at the top of RAM (`$2000` on 8K, `$8000` on 32K), and is the one option
+    that sets the link script's ceiling (`build.defsym.__ram_size`, and
+    `-ramsize` beside `-model` for every `xpet` launch, not just the
+    2001's — 96K/128K stay out of range entirely; see "The model is the
+    hardware" below).
+  - `speaker` — `none` (default) or `attached`. The PET's own real sound
+    hardware, however it gets there, is a single square wave on PIA1's CB2
+    pin — see "Sound" below — and only the **CRTC boards (4016/4032/8032)
+    have a built-in piezo speaker on it**; a 2001/3008/3016/3032 has none at
+    all and needs one wired to the pin as it's exposed on the user port —
+    the real "user port speaker hack." `xpet` always computes CB2's own
+    audio waveform once VICE's master `-sound` is on — there is no VICE
+    resource for "is a speaker physically present" — so `attached` is
+    `-sound` (and `audio.voices: 1`) and `none` is `+sound` (and
+    `audio.voices: 0`): what changes is whether there is anything to hear
+    and whether a program compiling against `#fact(audio.voices)` should
+    bother emitting CB2 tones at all, not anything about the emulated
+    electrical signal itself. It carries the same kind of empty `build: {}`
+    marker as `model`, for the same `#fact()`-folding reason.
+  - Every catalog preset (`--profile <model>`) pins its own real stock `ram`
+    (and, for the CRTC boards, `speaker: 'attached'`) alongside `model`, so
+    `--profile 8032` still means exactly what it always has — 32K, business
+    keyboard, its own built-in speaker — even though those are now three
+    separate option choices under the hood, not one. A selection that
+    differs from EVERY option's own catalog default appears in the output
+    name (`main-pet-8032-32-attached.prg`); one that only differs in `ram`
+    does too (`main-pet-16.prg`, e.g. a 2001 upgraded to 16K) — the name
+    disambiguates by option, not by preset.
 - `FRAME_SYNC.pet` (`packages/compiler/src/mos`) is the only *edge* driver
   that measures rather than assumes: PIA1's CB1 line carries vertical
   retrace, its flag is CRB bit 7 at `$E813`, and reading ORB (`$E812`)
@@ -168,7 +210,7 @@ under xpet, not recalled.
 | ---- | ----- |
 | Scanning all ten keyboard rows (ten reads of `$E812`) right after `waitFrame()` returns loses no frames: 1000+ frame intervals timed with VIA T2 inside the program on the 3032 and the 8032, and the count of over-long intervals is identical with and without the scan (2 and 2 on the 3032 — the runtime's own double-waits for 60 logical frames on 60.1 Hz hardware — 0 and 0 on the 8032). Reading `$E812` between a retrace and the poll *would* eat that edge; the snapshot rule keeps the read where it is safe. | measured here, `scratch-lost` runs under xpet |
 | Both `Key` tables match VICE's positional keyboard maps key for key (graphics: `gtk3_grus_pos.vkm`; business: `gtk3_buuk_pos.vkm`, the UK layout xpet's 8032 loads). | `/opt/homebrew/share/vice/PET/`, `packages/compiler/test/pet-keys.test.mjs` |
-| Program load address `$0401`; usable RAM `$0401` to `__ram_size` KiB; stack grows down from the top of RAM; `__ram_size` must be 8, 16 or 32 — the link script asserts against 96K/128K machines. | PET link map (measured pre-0.2.0) |
+| Program load address `$0401`; usable RAM `$0401` to `__ram_size` KiB; stack grows down from the top of RAM; `__ram_size` must be 8, 16 or 32 — the link script asserts against 96K/128K machines. Zero page `$0002–$008D` is BASIC 2/4's; **BASIC 1 (the 2001) copies CHRGET to `$C2–$D9`** (the same 24-byte routine BASIC 2/4 puts at `$70–$87`). The native backend's zp budget is `$8E–$FF` with that BASIC 1 window left unused (`memory.chrget`, `packages/compiler/src/mos`), so a `SYS` return still has an interpreter — occupying it was `?SYNTAX ERROR IN 0` on hello-world. | PET link map (measured pre-0.2.0); BASIC 1 CHRGET at `$C2` measured against the ROM and retrocomputing.SE / *Machine Language for Beginners* Appendix G; the 2001 hello-world screenshot |
 | The `.prg` starts with a one-line BASIC program whose `SYS` jumps to `_start`, so `RUN` after `LOAD` starts it. | `pet/lib/basic-header.o`, `commodore/lib/commodore.ld` |
 | PIA1 `$E810`, PIA2 `$E820`, VIA `$E840`, CRTC `$E880` (data at `$E881`); the CRTC is a **6545** (all models from 40xx and above), and a 6551 ACIA at `$EFF0` is SuperPET-only. | PETdoc.txt; VICE `petmem.c` |
 | A PET program starts in whatever character set the ROM booted — graphics on the 3032/4032, text on the 8032 — and `text.8bs` writes `$0C` to the VIA PCR before each run so 1–26 render as capitals. A CHROUT of PETSCII 14 (`lda #$0e / jsr $FFD2`) would flip the machine to lower-case; 8BitScript does not emit that. | probe screenshots; `src/text.8bs` |
@@ -179,6 +221,10 @@ under xpet, not recalled.
 | Measured frame period under VICE's 4032 (PAL): ~19992 cycles, 50.02 Hz. | `FRAME_SYNC.pet` comment (this project's earlier measurement) |
 | The catalog's stock fact sheet: grid 40×25 of 8×8 (80 on the 8032, its `model` value's fact), 2 colours, 2 per cell (normal and reverse), no redefinable glyphs, 2×2 PETSCII blocks, no bitmap, one layer, no scroll, no sprites; one CB2 voice with no volume, envelope, noise, samples or random source; keyboard, no joystick or pad ports; disk; RAM per model (`memory.ram` on each `model` value, from `__ram_size`), nothing banked, no mouse or paddles. | `src/geometry.8bs`, `src/geometry.pet.8032.8bs`; the `__ram_size` and sound rows above; `package.json` (read) |
 | The sixteen quadrant-block screen codes: eight ROM glyphs at 96-127 (blank, a half, one quadrant alone, or the TL+BR diagonal), byte-identical whether the ROM address's charset-select bit is 0 or 1, and their reverse-video complements at 224-255 cover the remaining eight patterns (top half, the TR+BL diagonal, and every three-quarter pattern). | a script reading `characters-2.901447-10.bin` 8 bytes/glyph, `packages/pet/src/blocks.8bs`, `packages/pet/test/blocks.test.mjs`'s xpet screenshot check |
+| `xpet -drive8type` (both #8 and #9) takes exactly nine values: `0` no drive, `2031` CBM 2031, `2040` CBM 2040, `3040` CBM 3040, `4040` CBM 4040, `1001` CBM 1001 (the SFD-1001), `8050` CBM 8050, `8250` CBM 8250, `9000` CBM D9090/60 — one flag, no image format in it. Units run `-8`/`-9`/`-10`/`-11`; a dual drive's second mechanism is `-8d1` etc. Two tape ports exist (`-1`, `-2`, both "Attach \<name\> as a tape image"), matching PIA1's cassette #1 pins (above) and VIA's cassette #2 pins (below). | `xpet -help`, VICE 3.10, this host |
+| Real capacity per drive, measured rather than recalled: `c1541 -format` an image of each type and read its own directory's free-block count back (a block holds 254 usable data bytes — 256 minus the 2-byte next-track/sector link). D64 (2031, 4040, and 1541 — 2031/4040 named alongside the 1541 as D64-compatible; DOS 2) 664 blocks = 164 KiB; D67 (2040, 3040 — DOS 1) 670 blocks = 166 KiB; D80 (8050) 2052 blocks = 508 KiB; D82 (8250, and the SFD-1001's own single-drive `1001` type — same double-sided 77-track geometry, cross-checked against its documented 1,066,496-byte raw image size) 4133 blocks = 1025 KiB; D90 (`9000`) 29162 blocks = 7233 KiB. The 2040 and 3040 are the same DOS 1 drive, NTSC vs PAL — the 4040 is a different, later DOS (2.0), not a third region. | `c1541 -format` (d64/d67/d80/d82/d90), VICE 3.10, this host; lib1541img/lemon64 (2031+4040 named as D64); Computing History UK (SFD-1001 image size) |
+| `c1541 -format t,01 d90` (the only image format VICE's tools offer for the `9000` drive type) produces a 152-track image, 29162 blocks free — the larger D9090's geometry (7.5 MB nominal), not the smaller D9060's (5 MB). VICE has one `-drive8type` for both real products; this only establishes what the D90 *image format* is sized for, not that `xpet` itself defaults every `9000` drive to D9090 internals. | measured here (`c1541`, not `xpet`); a community report independently gives the same 29162-block count for a D9090 |
+| **The SFD-1001 was Commodore's own product** (1984, made for Commodore in Asia, distributed for a time through Progressive Peripherals & Software) — not a third-party drive. It is electronically one 8250 mechanism (same DOS 2.7, same D82 geometry) in a single-drive case. | Computing History UK; The Silicon Underground; c64-wiki SFD-1001 |
 
 ## From the sources, not verified here
 
@@ -264,6 +310,11 @@ and without interrupts. The **CRTC boards (#3, #4: Fat 40, 8032, 8296)
 have a built-in piezo** on CB2 (through a gate with the diagnostic pin);
 2001/3xxx have no speaker at all and need one on the user port's CB2.
 VICE emulates the line (`CB2Lowpass`), so `xpet` can prove a sound API.
+The catalog's own `speaker` option (above) is this fact made selectable:
+`attached` on a CRTC preset (built in) or chosen explicitly on a non-CRTC
+one (the user-port hack); `xpet -help` has no separate "speaker present"
+resource, so the option's only real levers are VICE's master `-sound`/
+`+sound` and this package's own `audio.voices` fact.
 
 **Character set** (masswerk *PETSCII Revealed*, pagetable): 128 glyphs
 per set, 8 bytes each; screen-code bit 7 inverts the glyph in hardware
@@ -364,9 +415,11 @@ unverified:
 - **"Later PETs booted in lower-case"** would also be wrong: only the
   business-keyboard editor ROMs (8032, 4032B, 3032B) start in text mode;
   the 3032 and 4032 boot in upper-case/graphics. An 8bitscript program
-  starts in whichever set the ROM left — no CHROUT of PETSCII 14 is
-  emitted (verified above), and `text.8bs` selects the
-  graphics set before every run of text regardless. A lesson from writing
+  starts in whichever set the ROM left until its first `text.8bs` call —
+  no CHROUT of PETSCII 14 is emitted (verified above); `text.8bs` selects
+  the text set itself before every run (the graphics set, before the
+  mixed-case rework this file's own "one global bit" correction above
+  documents). A lesson from writing
   this file: a CHROUT of PETSCII 14 is a KERNAL call, and a search
   of start-up for a `$E84C` write "proved" it did not exist. Check the linked
   binary, not the pieces.
@@ -403,34 +456,57 @@ unverified:
   catalog plus `8bs targets --json` (see `packages/studio/AGENTS.md` and
   the hardware-catalog rules in the root `AGENTS.md`). Extending config
   shape belongs there, not as a new parallel schema.
+- **A storage-devices survey** (pasted into this file 2026-09-09, "PET Disk
+  & Storage Devices") is mostly right on the model list but wrong or
+  unsourced on: **"SFD-1001 … third-party 'Super Floppy' by Mikro-Partner
+  (Bern)"** — it was Commodore's own drive, see the corrected row above;
+  **capacities given as raw image size or a round number** ("170K",
+  "500K", "1M", "5-7.5MB") rather than the DOS's actual free space, which
+  this file now gives measured (see above); **no mention of VICE's `1001`
+  type at all**, a real gap this file's catalog change closed (the
+  catalog itself, separately, had folded 2040 and 3040 into one entry
+  before this pass — not the survey's error, but fixed alongside it since
+  VICE names them as two separate `-drive8type` values); **8″ drives
+  (8060/8061/8062/8280)** — `xpet -help`'s `-drive8type` enum is
+  exhaustive and has no 8″ entry, so don't add them as buildable options
+  even as documentation; and **a years/prices/"Executive Summary" framing**
+  that doesn't belong in a
+  research-notes file built to be cited, not read as prose.
 
 ## Rules for this target
 
 ### The model is the hardware, and width is not derivable from RAM
 
 - The catalog's `model` option has a value per model number, and a value
-  fixes **RAM size** (`__ram_size` 8/16/32 — the link
-  script's whole range), **screen width** (40 or 80 — `text.COLUMNS`,
-  `text.CELL_COUNT`, `screen.blank()`'s extent, through the geometry
-  file's tag twin — and which xpet model `8bs run` picks) and
-  **keyboard matrix** (graphics on 3xxx/4xxx, business on the 8032:
-  `keys.8bs` and its `keys.pet.8032.8bs` twin). All three are
-  compile-time, the way Studio's tier is; a program must never probe the
-  screen width at run time. `cell = y * text.COLUMNS + x` with a
-  40-column constant on an 80-column screen is not "narrow" — row 1 lands
-  in the middle of row 0. New per-model facts go the same way: the
-  value's tag's version of one small file (`x.pet.8032.8bs`), read through
-  a namespace const, never a copy of a surface — or, for a number, a
-  `facts` entry on the value.
+  fixes **screen width** (40 or 80 — `text.COLUMNS`, `text.CELL_COUNT`,
+  `screen.blank()`'s extent, through the geometry file's tag twin — and
+  which xpet model `8bs run` picks) and **keyboard matrix** (graphics on
+  3xxx/4xxx, business on the 8032: `keys.8bs` and its `keys.pet.8032.8bs`
+  twin). RAM size is the separate `ram` option's job now (milestone-10-era
+  rework, above) — a real owner could, and on the dynamic boards did,
+  upgrade RAM without changing anything about the screen or keyboard, so
+  the catalog no longer ties the two together. Both are still compile-time,
+  the way Studio's tier is; a program must never probe the screen width at
+  run time. `cell = y * text.COLUMNS + x` with a 40-column constant on an
+  80-column screen is not "narrow" — row 1 lands in the middle of row 0.
+  New per-model facts go the same way: the value's tag's version of one
+  small file (`x.pet.8032.8bs`), read through a namespace const, never a
+  copy of a surface — or, for a number, a `facts` entry on the value.
 - 96K/128K is not a RAM size, it is a banking model, and this target does not link
-  it. If it ever arrives it follows the root rule for banked machines: a
-  (block, offset) pair is not a pointer — and it is not a `model` value
-  until the link script and the language can hold it.
+  it — the `ram` option's own values stop at 32, the on-board maximum for
+  every model this catalog supports. If banked RAM ever arrives it follows
+  the root rule for banked machines: a (block, offset) pair is not a
+  pointer — and it is not a `ram` value until the link script and the
+  language can hold it.
 - The 60 Hz BASIC 4 editor ROMs break VICE autostart; that is an emulator
   fact, not a hardware one, and it is why the 4xxx/8xxx profiles run at
-  50 Hz here and the default is the 3032. A 60 Hz CRTC PET needs another
-  launch route (a disk image, or `-limitcycles` plus the monitor); the
-  program itself would not care, since it measures the period.
+  50 Hz here. The catalog's own default `model` is the 2001 — the smallest,
+  harshest real PET, not the easiest one to autostart — so a bare `8bs run
+  pet` tests a program against the machine most likely to expose a real
+  constraint, the same reasoning the zero-page budget and every milestone's
+  own gate already use. A 60 Hz CRTC PET needs another launch route (a disk
+  image, or `-limitcycles` plus the monitor); the program itself would not
+  care, since it measures the period.
 
 ### The screen is the only output, and it is bytes
 
@@ -445,10 +521,40 @@ unverified:
   better than `putColor` doing nothing. Keep it a screen-code property, not
   a separate register.
 - The character set is **one global bit** (PCR bit 1) for the whole
-  screen: the program cannot mix upper/lower-case text with the full
-  graphics set. `text.8bs` selects graphics before each run because some
-  ROMs boot in text mode; anything that wants lower-case must own that bit
-  deliberately and knows it loses half the graphics.
+  screen — the program cannot show the graphics set's own non-letter
+  symbols (hearts, lines, card suits — the ones outside `blocks.8bs`'s own
+  quadrant range) at the same time as real upper/lower-case text. It
+  turned out to be wrong that mixing cases costs that trade at all: the
+  **text** set alone already holds both cases at once (measured against
+  `characters-2.901447-10.bin` — 'A'-'Z' at screen codes 65-90, 'a'-'z' at
+  1-26, `packages/pet/src/text.8bs`'s own header), so `text.8bs` now
+  selects the text set, not the graphics set, every run — and gets real
+  mixed-case text for free, not by "owning the bit deliberately." What it
+  does still lose, in the text set, is the graphics-mode-only symbols
+  outside `blocks.8bs`'s own quadrant range (verified unaffected — see
+  that file's header); a program that wants those and mixed-case text on
+  screen at the same instant genuinely cannot, since it is one bit for the
+  whole screen either way.
+- **The original 2001's own character ROM is not the same file as every
+  later model's**, and gets the two cases backwards from it. VICE's own
+  romset files name two different chargen ROMs (`characters-1.901447-08.bin`
+  for the 2001's `rom1g`, `characters-2.901447-10.bin` for every other
+  catalog model's `rom2g`/`rom2b`/`rom4g40`/`rom4b40`/`rom4b80` — confirmed
+  by which `.vrs` file each `-model` name loads, `/opt/homebrew/share/vice/
+  PET/*.vrs`, not assumed from the filenames alone) — measured both
+  directly, not read off a datasheet: on 901447-10, the text set's screen
+  code 1 is 'a' and code 65 is 'A'; on 901447-08, code 1 is *still* 'A'
+  (unchanged from the graphics set) and code 65 is 'a'. Building milestone
+  10's real mixed-case `hello-world` against the *default* profile (2001,
+  the smallest real PET — see the CLI/AGENTS notes on why that is the
+  default) is what surfaced this: the offsets that render correctly on
+  every other model produced exactly this swap's own symptom on a 2001
+  screenshot, upper and lower case both present but exchanged. The fix is
+  `video.characterSetSwapped` (`packages/compiler/src/fold/facts.mjs`,
+  `program: false` — this is `asciiToScreenCode`'s own business, not a
+  program's), true only on the `2001` catalog value, `#fact()`-folded into
+  `packages/pet/src/text.8bs`'s own offset choice at build time. Screenshot-
+  verified on all seven catalog models, not assumed to generalize from one.
 - Writes may happen at any time on every supported model (no snow, no
   queue, no blank budget). Do not import the NES's vblank queue here. The
   only reason to sync to retrace is tearing, and `waitFrame()` already
@@ -539,7 +645,7 @@ packages/pet/src/keys.8bs            @8bitscript/pet/keys: Key.X = row * 8 + col
 packages/pet/src/keys.pet.8032.8bs   the 8032 tag's version: the business keyboard
 packages/pet/package.json            "8bitscript".exports names the four subpaths
 packages/compiler/test/pet-keys.test.mjs   both tables well formed, shared names, VICE .vkm cross-check, profile picks the table
-packages/pet/package.json            "8bitscript".hardware: the model option (__ram_size, -model, tag, columns and frame-rate facts), a preset per model
+packages/pet/package.json            "8bitscript".hardware: model (__ram_size, -model, tag, columns and frame-rate facts), ram, speaker, drive (all nine real -drive8type values, measured storage.kib), a preset per model
 packages/compiler/src/mos/index.ts  FRAME_SYNC.pet (CB1 retrace, T2 calibration; the backend refuses to build)
 packages/compiler/src/linker/hazards.mjs   8BS3003: the $E842 killer-poke rule
 packages/cli/src/run.mjs             PET_REGION_NOTE, why no --pal and no 60 Hz editors; the model's flags come from the catalog

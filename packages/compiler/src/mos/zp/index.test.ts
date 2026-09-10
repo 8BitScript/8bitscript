@@ -94,3 +94,18 @@ test('an unrecognized type is refused, naming it, rather than guessed at 0 or 1 
 test('an empty globals list allocates nothing and spends no budget', () => {
   assert.deepEqual(allocate([], BUDGET), { ok: true, globals: [], zpUsed: 0 });
 });
+
+test('a hole is skipped rather than occupied, including a 2-byte slot that would straddle it', () => {
+  const holes = [{ start: 0xc2, end: 0xda }];
+  const budget = { zpOrigin: 0x8e, zpCeiling: 0x100, holes };
+  const globals = [
+    ...Array.from({ length: 0xc2 - 0x8e }, (_, i) => scalar(`g${i}`, 'utinyint')),
+    scalar('afterHole', 'usmallint'),
+  ];
+  const result = allocate(globals, budget);
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  const after = result.globals.find((g) => g.name === 'afterHole');
+  assert.equal(after?.address, 0xda, 'the usmallint must not put its high byte inside the hole');
+  assert.ok(result.globals.every((g) => g.address + g.size <= 0xc2 || g.address >= 0xda));
+});
