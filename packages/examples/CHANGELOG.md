@@ -1,10 +1,9 @@
-# @8bitscript/random
+# @8bitscript/examples
 
 ## 0.2.0
 
 ### Minor Changes
 
-- 7e4c24e: Bare Metal: external code-generation toolchains are removed. 8BitScript now carries its own 6502 and WebAssembly backends in `@8bitscript/compiler` (`mos` and `wasm`), which do not yet build any target. The catalog key `build.driver` is renamed `build.startup`. `examples/` is removed.
 - d7c558f: 0.2.0 is scoped to the Commodore PET and the web. `8bs build` and `8bs
   run` now refuse the other seven machines (vic20, c64, c128, atari8,
   nes, cx16, mega65) by name; their packages are unchanged and stay in
@@ -54,32 +53,12 @@
   constant (`BorderColor.GREY`, `BackgroundColor.GREY`) and its prose
   mentions are left alone — that one's a real public API surface, a
   separate decision from a text-only pass like this.
-
-## 0.1.3
-
-### Patch Changes
-
-- 7547105: The VS Code extension now ships a Marketplace icon (the pixel-8 mark from
-  the favicon, on the same purple/cream palette) instead of using the
-  Marketplace's generic default.
-- 47eaff5: Pin the workspace's `packageManager` to pnpm 12.3.4 (up from 12.1.0) and
-  recommend the `8bitscript.8bitscript-lang` VS Code extension in this
-  repo's `.vscode/extensions.json`. The VS Code extension also gains a
-  Marketplace icon (the pixel-8 mark, on the same purple/cream palette as
-  `docs/assets/favicon.svg`) instead of falling back to the generic default.
-
-## 0.1.2
-
-### Patch Changes
-
-- b9aea09: The editor talks to `8bs lsp` with a thin stdio client instead of
-  `vscode-languageclient`, so the VSIX is tens of kilobytes. Marketplace
-  publish no longer uses vsce's 180-second gallery timeout.
-
-## 0.1.1
-
-### Patch Changes
-
-- d56d494: Added a "How it compares" section to the root README, docs/about, and
-  the VS Code extension's README, positioning 8BitScript against BASIC,
-  hand-written assembly, and C with measured compiled-size numbers.
+- Updated dependencies [7e4c24e]
+- Updated dependencies [d7c558f]
+- Updated dependencies [16e92f4]
+- Updated dependencies [a4aa759]
+- Updated dependencies [57c262f]
+  - @8bitscript/pet@0.2.0
+  - @8bitscript/screen@0.2.0
+  - @8bitscript/text@0.2.0
+  - @8bitscript/web@0.2.0
