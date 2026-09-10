@@ -515,8 +515,8 @@ function applyImmutable(functions, globals) {
  * Fold constant control flow, inline never-assigned globals, and turn
  * compile-time calls into their results. Returns a new IR object.
  *
- * @template {{ name: string, body: unknown[], params?: { name: string }[], returnType?: string }} F
- * @template {{ name: string, type?: string, address?: number | null, array?: number, init?: unknown }} G
+ * @template {{ name: string, body: unknown, params?: { name: string, type?: string }[], returnType?: string | null }} F
+ * @template {{ name: string, type?: string, address?: number | null, array?: number, init?: unknown, constant?: boolean }} G
  * @param {{ entry: string, functions: F[], globals?: G[], strings?: { bytes: number[] }[] }} ir
  * @returns {{ entry: string, functions: F[], globals: G[], strings?: { bytes: number[] }[] }}
  */
@@ -542,8 +542,8 @@ export function optimizeIr(ir) {
  * turns the leftover reads into constants, the second prune drops the
  * global itself.
  *
- * @template {{ name: string, body: unknown[], params?: { name: string }[], returnType?: string }} F
- * @template {{ name: string, type?: string, address?: number | null, array?: number, init?: unknown }} G
+ * @template {{ name: string, body: unknown, params?: { name: string, type?: string }[], returnType?: string | null }} F
+ * @template {{ name: string, type?: string, address?: number | null, array?: number, init?: unknown, constant?: boolean }} G
  * @param {{ entry: string, functions: F[], globals?: G[] }} ir
  * @returns {{ functions: F[], globals: G[] }}
  */
