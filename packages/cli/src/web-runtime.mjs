@@ -229,7 +229,7 @@ const fpsEl = document.getElementById('fps');
 // virtual 40-column, 1000-cell character screen starting at byte offset 2,
 // its colour bytes starting at offset 1002. The cells hold ASCII — the
 // portable character codes every machine's text.putChar takes:
-// space, '0'-'9', 'A'-'Z' and a little punctuation, upper case only, 32-95.
+// space, '0'-'9', 'A'-'Z', 'a'-'z', and a little punctuation, 32-122.
 // The Commodore packages turn those into screen codes for a character ROM;
 // this host has no ROM, so it draws them as the text they already are.
 const CHAR_BASE = ${CHAR_BASE};
@@ -247,7 +247,15 @@ function swipeEdge(dx, dy) {
 }
 
 function decodeScreenCode(code) {
-  if (code >= 32 && code <= 95) return String.fromCharCode(code);
+  // 32-122 covers the checker's own PORTABLE_CHARACTERS in one contiguous
+  // range (space, !,-.:? punctuation, 0-9, A-Z, a-z — packages/compiler/
+  // src/checker/index.mjs), the same range font8x8.mjs's glyphRows() draws
+  // for --screenshot. A real system font (ctx.fillText below) has no
+  // character-ROM limit of its own; the old 32-95 split silently rendered
+  // every upper-case screen program correctly and every lower-case one
+  // blank, which is what @8bitscript/pet's own asciiToScreenCode already
+  // gets right — this was the web target's own gap, not a wasm one.
+  if (code >= 32 && code <= 122) return String.fromCharCode(code);
   return null; // 0 (never written) and everything outside the portable set
 }
 
