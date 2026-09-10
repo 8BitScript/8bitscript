@@ -107,11 +107,52 @@ export function encodeName(name: string): number[] {
   return [...unsignedLEB128(bytes.length), ...bytes];
 }
 
-/** Instruction opcodes. Grows alongside instruction selection (milestone 2
- * onward); `end` is the one every function body needs regardless — it
- * closes the body itself, not just a nested `block`/`loop`/`if`. */
+/** A block/loop/if's own result shape. `empty` is by far the common case —
+ * a statement-level construct produces no value on the stack. A single
+ * value type (e.g. `ValType.i32`) is also legal here directly, with no
+ * separate encoding needed: this was part of the binary format from the
+ * start (not the later multi-value proposal, which only adds the
+ * more-than-one-result/param case, `binop`'s own `&&`/`||` short-circuit
+ * lowering doesn't need). */
+export const BlockType = {
+  empty: 0x40,
+} as const;
+
+/** Instruction opcodes. Grows alongside instruction selection; `end` is the
+ * one every function body needs regardless — it closes the body itself,
+ * not just a nested `block`/`loop`/`if`. Milestone 2 ("arithmetic and
+ * control flow") is everything below `end` here — every opcode a `binop`/
+ * `unop`/`if`/`while`/`for`/`break`/`continue`/`return` can lower to,
+ * restricted to `i32` (see "Hello, WASM"'s own "one value type covers
+ * every declared width" note — nothing here needs `i64`/`f32`/`f64` yet). */
 export const Opcode = {
+  unreachable: 0x00,
   end: 0x0b,
+  block: 0x02,
+  loop: 0x03,
+  if: 0x04,
+  else: 0x05,
+  br: 0x0c,
+  brIf: 0x0d,
+  return: 0x0f,
+  localGet: 0x20,
+  localSet: 0x21,
+  i32Const: 0x41,
+  i32Eqz: 0x45,
+  i32Eq: 0x46,
+  i32Ne: 0x47,
+  i32LtS: 0x48,
+  i32LtU: 0x49,
+  i32GtS: 0x4a,
+  i32GtU: 0x4b,
+  i32LeS: 0x4c,
+  i32LeU: 0x4d,
+  i32GeS: 0x4e,
+  i32GeU: 0x4f,
+  i32Add: 0x6a,
+  i32Sub: 0x6b,
+  i32And: 0x71,
+  i32Xor: 0x73,
 } as const;
 
 /** One function type: `0x60`, the param vector, the result vector. */
