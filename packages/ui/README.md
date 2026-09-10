@@ -117,8 +117,9 @@ second row.
 ## See it run
 
 [8BitScript Studio](../studio) uses a four-item bar across the top of its
-front door. Until 0.2.0, `8bs build` refuses every target, so that picture
-is the pre-0.2.0 layout, not something trunk emits today. The VIC-20 is the
+front door. The VIC-20 is parked — `8bs build --target vic20` still
+refuses, since that machine's own backend doesn't exist yet — so that
+picture is the pre-0.2.0 layout, not something trunk emits today. It's the
 machine where `FILE EDIT VIEW HELP` does not fit a 22-column row: `HELP` is
 dropped and `clipped()` is true.
 
