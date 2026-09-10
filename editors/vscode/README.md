@@ -57,12 +57,17 @@ the project overview is in the [root README](../../README.md).
   - **Diagnostics** — lexical, syntax, and range errors, as you type
   - **Hover** — documentation for built-in types (`utinyint`, `int`, ...),
     constructs (`string`, `volatile`, `ptr`, `array`, `asm6502`,
-    `@address`, `memory.read`/`memory.write`), and the builtins
-    `#frames(...)`, its `seconds` unit, and `waitFrame()`
+    `@address`, `memory.read`/`memory.write`), the builtins
+    `#frames(...)`, its `seconds` unit, and `waitFrame()`, and a member of
+    a named import's own namespace — `screen.blank(...)` shows its
+    signature and doc comment, read from whichever module the import
+    actually resolves to
   - **Completion** — built-in type names in type position (after `:` or
     inside `ptr<...>`/`array<...>`/`volatile<...>`), the compile-time
-    functions after a `#`, and the unit words inside a `#frames(...)`
-    call — inside a template's `${...}` field as much as outside one
+    functions after a `#`, the unit words inside a `#frames(...)` call, and
+    — right after `object.` — the members a named import brings in
+    (`screen.bl` offers `blank`) — inside a template's `${...}` field as
+    much as outside one
 
 If no toolchain is found, the extension says so and falls back to syntax
 highlighting alone — see "Installing it while developing" below.

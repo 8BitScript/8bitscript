@@ -77,12 +77,19 @@ export namespace text {
         currentReverse = on;
     }
 
+    // Writes `s`'s characters into consecutive cells starting at `cell`, in
+    // the current color — `text.setColor(...)` changes what gets printed
+    // after it, not what is already on screen.
     function print(cell: usmallint, s: string): void {
         for (let i: utinyint = 0; i < s.length; i++) {
             place(cell + i, s[i]);
         }
     }
 
+    // Writes `value` as exactly `width` decimal digits, zero-padded and
+    // right-aligned, starting at `cell` — a field on a HUD never shifts
+    // columns as the number changes.
+    //
     // Least significant digit first, from the right-hand end of the field.
     // Division, unlike on the 6502 machines: wasm has a divide instruction,
     // and the subtraction they use to avoid one is more code here.

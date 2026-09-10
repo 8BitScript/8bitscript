@@ -120,6 +120,10 @@ test('initialize advertises hover and completion support', async () => {
     const response = await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
     assert.equal(response.result.capabilities.hoverProvider, true);
     assert.ok(response.result.capabilities.completionProvider);
+    assert.ok(
+      response.result.capabilities.completionProvider.triggerCharacters.includes('.'),
+      '. must trigger completion for member access, e.g. screen.bl|',
+    );
   });
 });
 
@@ -592,6 +596,97 @@ test('diagnostics: a package subpath the package does not export reaches the edi
       assert.equal(d.code, '8BS2011');
       assert.equal(d.range.start.line, 1);
       assert.match(d.message, /'@t\/p' does not export '\.\/sprites' \(exports: \.\/screen\)/);
+    });
+  } finally {
+    await rm(projectDir, { recursive: true, force: true });
+  }
+});
+
+// screen.blank() — the shape every hardware API import has: hover and
+// completion for a namespace a named import brings in, read from the module
+// it resolves to on disk (packages/compiler/src/intellisense's
+// importedNamespace/scanModule). A machine-conditional package like the
+// real @8bitscript/screen needs a pnpm-style node_modules layout the
+// compiler test suite already covers (subpaths.test.mjs); this fixture
+// keeps it to a plain relative import, which resolves the same way without
+// needing a package.json at all.
+test('textDocument/hover explains a named import\'s own namespace member', async () => {
+  const projectDir = await mkdtemp(join(tmpdir(), '8bs-lsp-member-'));
+  try {
+    await writeFile(
+      join(projectDir, 'screen.8bs'),
+      [
+        'export namespace screen {',
+        '    // Every cell blank, both colors black.',
+        '    function blank(border: u8 = 0, background: u8 = 0): void { }',
+        '}',
+      ].join('\n'),
+    );
+    const filePath = join(projectDir, 'main.8bs');
+    const text = 'import { screen } from "./screen.8bs";\nexport function main(): void {\n    screen.blank();\n}\n';
+    await writeFile(filePath, text);
+    const uri = pathToFileURL(filePath).href;
+
+    await withServer(async (client) => {
+      await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
+      client.notify('initialized', {});
+
+      client.notify('textDocument/didOpen', {
+        textDocument: { uri, languageId: '8bitscript', version: 1, text },
+      });
+      await client.waitForNotification('textDocument/publishDiagnostics');
+
+      const response = await client.request('textDocument/hover', {
+        textDocument: { uri },
+        position: positionAt(text, text.indexOf('blank(') + 2),
+      });
+
+      assert.ok(response.result);
+      assert.match(response.result.contents.value, /\*\*screen\.blank\(border: u8 = 0, background: u8 = 0\): void\*\*/);
+      assert.match(response.result.contents.value, /Every cell blank, both colors black\./);
+    });
+  } finally {
+    await rm(projectDir, { recursive: true, force: true });
+  }
+});
+
+test('textDocument/completion offers a named import\'s members after a dot', async () => {
+  const projectDir = await mkdtemp(join(tmpdir(), '8bs-lsp-member-completion-'));
+  try {
+    await writeFile(
+      join(projectDir, 'screen.8bs'),
+      [
+        'export namespace screen {',
+        '    function blank(): void { }',
+        '    function setBorder(border: u8): void { }',
+        '}',
+      ].join('\n'),
+    );
+    const filePath = join(projectDir, 'main.8bs');
+    const text = 'import { screen } from "./screen.8bs";\nexport function main(): void {\n    screen.bl\n}\n';
+    await writeFile(filePath, text);
+    const uri = pathToFileURL(filePath).href;
+
+    await withServer(async (client) => {
+      await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
+      client.notify('initialized', {});
+
+      client.notify('textDocument/didOpen', {
+        textDocument: { uri, languageId: '8bitscript', version: 1, text },
+      });
+      await client.waitForNotification('textDocument/publishDiagnostics');
+
+      const response = await client.request('textDocument/completion', {
+        textDocument: { uri },
+        position: positionAt(text, text.indexOf('screen.bl') + 'screen.bl'.length),
+      });
+
+      const labels = response.result.map((item) => item.label);
+      assert.deepEqual(labels.sort(), ['blank', 'setBorder']);
+      const blank = response.result.find((item) => item.label === 'blank');
+      assert.equal(blank.kind, LSP_COMPLETION_KIND.Function);
+      assert.equal(blank.documentation.kind, 'markdown');
+      assert.match(blank.documentation.value, /\*\*screen\.blank\(\): void\*\*/);
     });
   } finally {
     await rm(projectDir, { recursive: true, force: true });
