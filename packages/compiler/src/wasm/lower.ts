@@ -36,6 +36,17 @@ export interface IrExpr {
   address?: IrExpr;
   // call
   args?: IrExpr[];
+  // string, stringByte, stringLength
+  index?: number | IrExpr;
+  string?: IrExpr;
+  // index (array read): the array itself, by name (a `ref` with no type
+  // of its own — this file looks it up in `ctx.arrays`, not `ctx.locals`/
+  // `ctx.globals`, since an array isn't a scalar binding)
+  array?: IrExpr;
+  // index's own elementType (ir/index.mjs's own field, carried here for a
+  // faithful real-shape fixture) — unread: `ctx.arrays` already knows an
+  // array's own element width from the global that declared it.
+  elementType?: string | null;
 }
 
 export interface IrStatement {
@@ -110,6 +121,21 @@ interface Ctx {
    * target parity it doesn't structurally need; see "Hello, WASM"'s own
    * "recursion" decision). */
   functions: Map<string, { index: number; paramCount: number; returnsValue: boolean }>;
+  /** Every string literal's own linear-memory address, by its index in
+   * `ir.strings` — `build()`'s own job to lay out, once, before any body
+   * is lowered (the same two-pass shape as `globals`/`functions`). A
+   * `string` value at runtime is just this address: a pointer to its own
+   * one-byte length prefix followed by its characters (ir/index.mjs's own
+   * string-table format), so a `string` parameter needs no lowering rule
+   * of its own beyond the one every other `i32`-valued parameter already
+   * gets. */
+  strings: number[];
+  /** Every const array this module declares, name to its own linear-memory
+   * address and element width — `build()`'s own job to assign, same two-
+   * pass shape. Only 1-byte elements are lowered yet (utinyint/bool); a
+   * 2-byte element type is refused by name where it's read, not guessed
+   * at here. */
+  arrays: Map<string, { address: number; elementWidth: number }>;
 }
 
 function i32Const(n: number): number[] {
@@ -191,6 +217,20 @@ function binop(node: IrExpr, ctx: Ctx): number[] {
     const code = [...expr(left, ctx), ...expr(right, ctx), operator === '+' ? Opcode.i32Add : Opcode.i32Sub];
     return maskToType(code, node.type);
   }
+  if (operator === '/' || operator === '%') {
+    // Real hardware for this, unlike the mos backend (which subtracts to
+    // avoid needing a divide routine — see "Hello, WASM"'s own WHY
+    // section): `i32.div_u`/`i32.rem_u` is the whole lowering. Only
+    // unsigned so far, the same restriction every other width-sensitive
+    // operator here carries — `printNumber`'s own `value % 10` and
+    // `value / 10` (packages/web/src/text.8bs) are both unsigned, and
+    // nothing has tested a signed divide against this backend yet.
+    if (operandIsSigned(left) || operandIsSigned(right)) {
+      throw new LowerError(`'${operator}' on a signed value is not lowered yet — only unsigned '/'/'%' are`);
+    }
+    const code = [...expr(left, ctx), ...expr(right, ctx), operator === '/' ? Opcode.i32DivU : Opcode.i32RemU];
+    return maskToType(code, node.type);
+  }
   throw new LowerError(`'${operator}' is not lowered yet`);
 }
 
@@ -248,17 +288,42 @@ function expr(node: IrExpr, ctx: Ctx): number[] {
     return [...expr(node.address!, ctx), Opcode.i32Load8U, ...memarg(0, 0)];
   }
   if (node.kind === 'call') return callSite(node, ctx);
+  if (node.kind === 'string') {
+    const slot = node.index as number;
+    const address = ctx.strings[slot];
+    if (address === undefined) throw new LowerError(`string literal #${slot} resolves to nothing this backend knows about — a linker bug, not a missing lowering rule`);
+    return i32Const(address);
+  }
+  if (node.kind === 'stringLength') {
+    // Byte 0 of the string's own data, through whatever expression names
+    // it — a literal's own fixed address, or a parameter's own local
+    // (which holds that same kind of address, passed in).
+    return [...expr(node.string!, ctx), Opcode.i32Load8U, ...memarg(0, 0)];
+  }
+  if (node.kind === 'stringByte') {
+    // Byte `index + 1` — skipping the one-byte length prefix, the same
+    // "index+1" mos's own stringByte reads (see its own lower/index.ts
+    // comment). Both the string's own address and the index can be
+    // dynamic, so unlike a const array's own fixed-address read below,
+    // this can't fold into memarg's own constant offset alone — only the
+    // "+1" for the length prefix does.
+    return [...expr(node.string!, ctx), ...expr(node.index as IrExpr, ctx), Opcode.i32Add, Opcode.i32Load8U, ...memarg(0, 1)];
+  }
+  if (node.kind === 'index') {
+    const name = node.array!.name!;
+    const array = ctx.arrays.get(name);
+    if (!array) throw new LowerError(`'${name}' is not a lowered const array — reading an array element only works on this module's own const array today`);
+    if (array.elementWidth !== 1) throw new LowerError(`'${name}': a ${array.elementWidth}-byte array element is not lowered yet — only 1-byte (utinyint/bool) array elements are`);
+    // The array's own base address is already a compile-time constant, so
+    // it folds straight into the load's own memarg offset — no runtime
+    // add needed, the same trick `stringLength` and a literal-address
+    // `memoryRead` both get for free from wasm's own instruction shape.
+    return [...expr(node.index as IrExpr, ctx), Opcode.i32Load8U, ...memarg(0, array.address)];
+  }
   throw new LowerError(unsupported(node.kind));
 }
 
 const MILESTONE_OF: Readonly<Record<string, string>> = {
-  string: 'milestone 5 ("strings and const data")',
-  stringByte: 'milestone 5 ("strings and const data")',
-  stringLength: 'milestone 5 ("strings and const data")',
-  stringCopy: 'milestone 5 ("strings and const data")',
-  namespaceConst: 'milestone 5 ("strings and const data")',
-  index: 'milestone 5 ("strings and const data")',
-  storeIndex: 'milestone 5 ("strings and const data")',
   waitFrame: 'milestone 6 ("waitFrame(), and the real Hello World")',
 };
 
@@ -266,6 +331,8 @@ function unsupported(kind: string): string {
   const milestone = MILESTONE_OF[kind];
   if (milestone) return `'${kind}' is not lowered yet — the web track's own ${milestone}`;
   if (kind === 'asm') return "'asm' blocks are 6502-specific machine code and are never lowered on the web target";
+  if (kind === 'stringCopy') return "'stringCopy' (a string<N> assignment) is not lowered yet — it needs a RAM buffer address for the target, a real gap milestone 5 left open";
+  if (kind === 'storeIndex') return "'storeIndex' (writing an array element) is not lowered yet for a RAM (`let`) or hardware (`@address`) array — only reading a `const` array is, milestone 5's own scope";
   return `'${kind}' is not lowered yet`;
 }
 
@@ -426,6 +493,13 @@ export interface LowerOptions {
    * `globals`, and the reason a call can reach a function declared later
    * in the file, or itself). */
   functions?: Map<string, { index: number; paramCount: number; returnsValue: boolean }>;
+  /** Every string literal's own linear-memory address, by its own index in
+   * `ir.strings` — `build()`'s own job to lay out, once, up front. */
+  strings?: number[];
+  /** Every const array this module declares, name to its own linear-memory
+   * address and element width — `build()`'s own job to assign, once, up
+   * front. */
+  arrays?: Map<string, { address: number; elementWidth: number }>;
 }
 
 /** Lowers a function body to wasm instruction bytes. */
@@ -438,6 +512,8 @@ export function lower(body: IrStatement[], options: LowerOptions = {}): LowerRes
     controlStack: [],
     globals: options.globals ?? new Map(),
     functions: options.functions ?? new Map(),
+    strings: options.strings ?? [],
+    arrays: options.arrays ?? new Map(),
   };
   try {
     const code = statements(body, ctx);

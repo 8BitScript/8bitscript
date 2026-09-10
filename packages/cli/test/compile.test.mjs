@@ -1,7 +1,6 @@
 // `8bs build` through compile() and build(): the parked-target refusals,
-// a real PET .prg for a for-loop (milestone 6), and the web backend's
-// own real, narrow milestone-1 capability (an empty program only — see
-// packages/compiler/src/wasm). No emulator.
+// a real PET .prg for a for-loop (milestone 6), and a real web .wasm for
+// the same program. No emulator.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -88,12 +87,14 @@ test('compile() for pet writes a .prg for a for-loop that sums 0..9', async () =
   }
 });
 
-test('compile() for web writes a real .wasm for an empty program — milestone 1\'s own narrow capability', async () => {
+test('compile() for web writes a .wasm for a for-loop that sums 0..9', async () => {
+  // The wasm backend's own milestones 1-5 (packages/compiler/src/wasm)
+  // made this a real build, not a refusal — see the "Hello, WASM" roadmap.
   const dir = await mkdtemp(join(tmpdir(), '8bs-compile-'));
   const prev = process.cwd();
   try {
     const entry = join(dir, 'main.8bs');
-    await writeFile(entry, 'export function main(): void {}\n');
+    await writeFile(entry, SUM);
     process.chdir(dir);
     const { result, stdout, stderr } = await capture(() => compile('web', entry));
     assert.equal(result.ok, true, stdout + stderr);
