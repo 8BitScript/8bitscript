@@ -200,10 +200,32 @@ export function funcType(params: ValType[], results: ValType[]): number[] {
   return [FUNC_TYPE_TAG, ...vector(params.map((p) => [p])), ...vector(results.map((r) => [r]))];
 }
 
-/** `limits`: a memory or table's size — `min` pages, and `max` if given (the flag byte records which). */
-export function limits(min: number, max?: number): number[] {
+/** One import-section entry for a function import: the module name (`env`,
+ * always, in this backend — there is only ever one possible import), the
+ * field name (`waitFrame`, always, today), the `func` external kind, then
+ * the type index it imports as. An imported function occupies the function
+ * index space ahead of every function this module defines, and a type-
+ * section entry of its own — `build()`'s own job to account for in both. */
+export function importFunc(moduleName: string, fieldName: string, typeIndex: number): number[] {
+  return [...encodeName(moduleName), ...encodeName(fieldName), ExternalKind.func, ...unsignedLEB128(typeIndex)];
+}
+
+/** `limits`: a memory or table's size — `min` pages, `max` if given, and
+ * `shared` (the flag byte records which combination). A shared memory is
+ * backed by a `SharedArrayBuffer` rather than a plain `ArrayBuffer` — the
+ * only way `web-runtime.mjs`'s worker can hand the page a *live* view of a
+ * program's memory instead of a one-time snapshot copy, which is what a
+ * `waitFrame()`-calling program needs so the page can paint mid-run rather
+ * than after the program finishes (milestone 6's own reason to set this).
+ * The format requires a declared `max` whenever `shared` is set — there is
+ * no "shared, unbounded" combination — so this throws rather than silently
+ * dropping the flag when a caller asks for one without the other. */
+export function limits(min: number, max?: number, shared?: boolean): number[] {
+  if (shared && max === undefined) {
+    throw new RangeError('limits: a shared memory needs a declared max — the binary format has no shared+unbounded combination');
+  }
   if (max === undefined) return [0x00, ...unsignedLEB128(min)];
-  return [0x01, ...unsignedLEB128(min), ...unsignedLEB128(max)];
+  return [shared ? 0x03 : 0x01, ...unsignedLEB128(min), ...unsignedLEB128(max)];
 }
 
 /** One section: its id byte, the encoded byte length of `content`, then `content` itself. Omitted entirely by the caller when `content` would be empty — an empty section is legal but pointless. */
