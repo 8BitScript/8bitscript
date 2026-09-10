@@ -274,10 +274,17 @@ test('build() allocates real PET globals (currentColor/currentReverse-shaped) to
     const result = await build(withGlobals, { machine: 'pet', hardware, outFile, frameRate: 60 });
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    // Same 15 program bytes as an empty main() — these two globals took no
-    // code space, only zero-page addresses, which memory.variables reports.
-    assert.equal(result.bytes.length, 15);
-    assert.deepEqual(result.memory, { variables: 2, program: 15 });
+    // 15 program bytes as an empty main() has, plus 4 bytes each
+    // (LDA #init; STA zp) to write each global's own initial value before
+    // main() runs — real RAM has no guaranteed content at power-on
+    // (discovered building milestone 9's real gate: @8bitscript/pet/text's
+    // own currentReverse read whatever boot-time garbage happened to be at
+    // its address, on every build before this test's own fixture existed
+    // to catch it). The zero-page address these globals get is unaffected;
+    // only the program now actually sets what memory.variables always
+    // implied it would.
+    assert.equal(result.bytes.length, 23);
+    assert.deepEqual(result.memory, { variables: 2, program: 23 });
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
@@ -816,6 +823,103 @@ test('a call widens an 8-bit literal argument into a 16-bit parameter — place(
     assert.deepEqual(result.memory, { variables: 9, program: 67 });
   } finally {
     await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+// ---- milestone 9: strings and const arrays --------------------------------
+//
+// The real @8bitscript/pet/text's own print(): a string parameter, its
+// `.length`, indexing a byte out of it, and cell + i — a mixed-width 16-bit
+// addition (milestone 9's own binop16 widening). place16Fn() (above) is the
+// real place(); this reproduces print()'s loop around it, the same "byte
+// for byte from the real source" discipline milestones 3/6/7/8 already
+// hold to.
+function printStringFn() {
+  return {
+    name: 'printString',
+    params: [{ name: 'cell', type: 'usmallint' }, { name: 's', type: 'string' }],
+    returnType: 'void',
+    body: [{
+      kind: 'for',
+      init: { kind: 'local', name: 'i', type: 'utinyint', init: { kind: 'const', value: 0, type: 'utinyint' } },
+      test: {
+        kind: 'binop', operator: '<', type: 'bool',
+        left: { kind: 'ref', name: 'i', type: 'utinyint' },
+        right: { kind: 'stringLength', string: { kind: 'ref', name: 's', type: 'string' }, type: 'utinyint' },
+      },
+      update: {
+        kind: 'assign', target: 'i',
+        value: { kind: 'binop', operator: '+', type: 'utinyint', left: { kind: 'ref', name: 'i', type: 'utinyint' }, right: { kind: 'const', value: 1, type: 'utinyint' } },
+      },
+      body: [{
+        kind: 'call', name: 'place',
+        args: [
+          { kind: 'binop', operator: '+', type: 'usmallint', left: { kind: 'ref', name: 'cell', type: 'usmallint' }, right: { kind: 'ref', name: 'i', type: 'utinyint' } },
+          { kind: 'stringByte', string: { kind: 'ref', name: 's', type: 'string' }, index: { kind: 'ref', name: 'i', type: 'utinyint' }, type: 'utinyint' },
+        ],
+      }],
+    }],
+  };
+}
+
+function printTwoCharsIr(second: number): IrProgram {
+  return {
+    entry: 'main',
+    functions: [
+      place16Fn(),
+      printStringFn(),
+      {
+        name: 'main',
+        params: [],
+        returnType: 'void',
+        body: [{ kind: 'call', name: 'printString', args: [{ kind: 'const', value: 0, type: 'usmallint' }, { kind: 'string', index: 0, type: 'string' }] }],
+      },
+    ],
+    globals: [],
+    strings: [{ text: `H${String.fromCharCode(second)}`, bytes: [72, second] }],
+  };
+}
+
+test('milestone 9 acceptance: printString(cell, s) — a real string parameter, s.length, s[i], and cell + i (mixed-width 16-bit addition) — builds and links', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+  try {
+    const outFile = join(scratch, 'out.prg');
+    const result = await build(printTwoCharsIr(73 /* 'I' */), { machine: 'pet', hardware, outFile, frameRate: 60 });
+    assert.equal(result.ok, true, result.ok ? '' : result.error);
+    if (!result.ok) return;
+    assert.ok(result.bytes.length > 67, 'a real loop, a string table, and a second function cost more than milestone 8\'s single-call place() gate');
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+// The differential proof milestones 8/9's own "811 vs 555" and "cell 999"
+// gates already trust more than any mnemonic-sequence assertion: the *only*
+// source difference between two builds is one byte of one string literal
+// ('I' vs 'J', ir.strings[0].bytes[1]), so the two .prg files should differ
+// in exactly one byte — the one place.ts and mos/data.ts actually wrote
+// that character — not in their length, their code, or anywhere else the
+// string's own address might have shifted a label.
+test('milestone 9 differential: changing one character of the string literal changes exactly one byte of the built .prg, and nothing else', async () => {
+  const scratchA = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+  const scratchB = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+  try {
+    const resultI = await build(printTwoCharsIr(73 /* 'I' */), { machine: 'pet', hardware, outFile: join(scratchA, 'out.prg'), frameRate: 60 });
+    const resultJ = await build(printTwoCharsIr(74 /* 'J' */), { machine: 'pet', hardware, outFile: join(scratchB, 'out.prg'), frameRate: 60 });
+    assert.equal(resultI.ok, true, resultI.ok ? '' : resultI.error);
+    assert.equal(resultJ.ok, true, resultJ.ok ? '' : resultJ.error);
+    if (!resultI.ok || !resultJ.ok) return;
+    assert.equal(resultI.bytes.length, resultJ.bytes.length, 'same program shape, same length — only one byte of data changed');
+    const diffs: number[] = [];
+    for (let i = 0; i < resultI.bytes.length; i += 1) {
+      if (resultI.bytes[i] !== resultJ.bytes[i]) diffs.push(i);
+    }
+    assert.deepEqual(diffs.length, 1, `expected exactly one differing byte, found ${diffs.length} at offsets ${diffs.join(', ')}`);
+    assert.equal(resultI.bytes[diffs[0]], 73);
+    assert.equal(resultJ.bytes[diffs[0]], 74);
+  } finally {
+    await rm(scratchA, { recursive: true, force: true });
+    await rm(scratchB, { recursive: true, force: true });
   }
 });
 

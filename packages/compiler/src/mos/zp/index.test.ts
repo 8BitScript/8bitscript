@@ -59,18 +59,29 @@ test('exceeding the zp budget is a build error naming the variable and the exact
   assert.match(result.error, /^global 'tooWide' needs 2 byte\(s\) of zero page but only 1 byte\(s\) remain \(\$00FF\.\.\$00FF\)$/);
 });
 
-test('an array global is refused, naming it — array storage is not allocated yet', () => {
-  const result = allocate([{ name: 'table', type: 'utinyint', address: null, array: 16 }], BUDGET);
+test('a mutable array global is refused, naming it — only a const array is placed today', () => {
+  const result = allocate([{ name: 'table', type: 'utinyint', address: null, array: 16, constant: false }], BUDGET);
   assert.equal(result.ok, false);
   if (result.ok) return;
-  assert.match(result.error, /^global 'table': array storage isn't allocated yet$/);
+  assert.match(result.error, /^global 'table': a mutable array\/string<N> isn't allocated yet — only a const array is placed today$/);
 });
 
-test('a string global is refused, naming it and pointing at milestone 9', () => {
+test('a const array global is skipped entirely: no zp spent, no address assigned, later scalars unaffected', () => {
+  const result = allocate([
+    { name: 'DIGIT_PLACES', type: 'usmallint', address: null, array: 5, constant: true },
+    scalar('after', 'utinyint'),
+  ], BUDGET);
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.deepEqual(result.globals, [{ name: 'after', address: 0x8e, storage: 'zp', size: 1 }]);
+  assert.equal(result.zpUsed, 1, 'the const array never touched the zp budget');
+});
+
+test('a string global is refused, naming it', () => {
   const result = allocate([scalar('label', 'string')], BUDGET);
   assert.equal(result.ok, false);
   if (result.ok) return;
-  assert.match(result.error, /^global 'label': string storage isn't allocated yet — it lands at milestone 9$/);
+  assert.match(result.error, /^global 'label': a bare string global isn't allocated yet$/);
 });
 
 test('an unrecognized type is refused, naming it, rather than guessed at 0 or 1 byte', () => {

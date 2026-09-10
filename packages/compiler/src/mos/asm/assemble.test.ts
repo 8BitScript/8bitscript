@@ -116,6 +116,18 @@ test('a .byte value outside 0..255 is refused, naming the address', () => {
   assert.match(result.ok ? '' : result.error, /\.byte 256 at \$0400 does not fit in one byte/);
 });
 
+test('a label operand with a byte selector resolves to its address\'s low or high half', () => {
+  const result = assemble([
+    inst('LDA', 'immediate', { kind: 'label', name: 'data', byte: 'lo' }),
+    inst('LDA', 'immediate', { kind: 'label', name: 'data', byte: 'hi' }),
+    byte(0xff), // pushes 'data' to $0405, so its low/high halves are both interesting
+    label('data'),
+  ], 0x0400);
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.deepEqual([...result.bytes], [0xa9, 0x05, 0xa9, 0x04, 0xff]);
+});
+
 test('accumulator mode disassembles as "A"; implied as the bare mnemonic', () => {
   const result = assemble([inst('ASL', 'accumulator'), inst('RTS', 'implied')], 0x0400);
   assert.equal(result.ok, true);
