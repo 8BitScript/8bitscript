@@ -10,18 +10,23 @@
 // wraparound-for-free: a `utinyint`'s value is always already in 0-255 by
 // the time anything downstream reads it.
 //
-// Scope, refused by name below: `*` and every bitwise/shift operator (`&`
-// `|` `^` `<<` `>>`) — wasm has real hardware for all of these, but nothing
-// built so far needs them, and adding them un-asked-for is scope nothing
-// asked this file to carry. `/`/`%` are lowered (milestone 5, unsigned
-// only — `i32.div_u`/`i32.rem_u`), added when linking `@8bitscript/text`
-// turned out to always pull in `printNumber`'s own body, which uses both,
-// whether a program calls it or not (the linker links every function a
-// namespace import declares — no reachability pruning). Ordering
-// comparisons (`<` `>` `<=` `>=`) on a signed operand, and any arithmetic
-// whose result type is signed and narrower than 32 bits, are refused the
-// same way the mos backend still refuses them — a real, unresolved gap on
-// both backends, not something to guess a masking rule for here.
+// Scope, refused by name below: `*` — wasm has real hardware for this too
+// (`i32.mul`), but nothing built so far needs it. `/`/`%` are lowered
+// (milestone 5, unsigned only — `i32.div_u`/`i32.rem_u`), added when
+// linking `@8bitscript/text` turned out to always pull in `printNumber`'s
+// own body, which uses both, whether a program calls it or not (the linker
+// links every function a namespace import declares — no reachability
+// pruning). `&`/`|`/`^`/`<<`/unsigned `>>` are lowered too (`i32.and`/
+// `i32.or`/`i32.xor`/`i32.shl`/`i32.shr_u`), added when
+// `@8bitscript/web/screen.8bs`'s own `setColors` turned out to mask every
+// colour byte with `& 15` — the first real caller, after every earlier
+// milestone deliberately deferred these as "real hardware exists, nothing
+// needs it yet." Ordering comparisons (`<` `>` `<=` `>=`) on a signed
+// operand, signed `>>` (arithmetic vs. logical shift are different
+// instructions here), and any arithmetic whose result type is signed and
+// narrower than 32 bits, are refused the same way the mos backend still
+// refuses them — a real, unresolved gap on both backends, not something to
+// guess a masking rule for here.
 //
 // `waitFrame()` (milestone 6) is the one statement kind that isn't really
 // "instruction selection" at all: it always lowers to the same one
@@ -244,6 +249,33 @@ function binop(node: IrExpr, ctx: Ctx): number[] {
       throw new LowerError(`'${operator}' on a signed value is not lowered yet — only unsigned '/'/'%' are`);
     }
     const code = [...expr(left, ctx), ...expr(right, ctx), operator === '/' ? Opcode.i32DivU : Opcode.i32RemU];
+    return maskToType(code, node.type);
+  }
+  if (operator === '&' || operator === '|' || operator === '^') {
+    // Real hardware for these too, and none of the signed-vs-unsigned
+    // trouble '/'/'%'/orderings carry: a bitwise op reads the same two's-
+    // complement bits regardless of which type they're declared as, so
+    // there's nothing here to refuse by sign — only the usual post-op
+    // width mask, the same as '+'/'-'. This was scope nothing built so
+    // far needed until screen.blank() (@8bitscript/web/screen.8bs's own
+    // setColors, masking a colour byte with `& 15`) became the first real
+    // caller — see "Hello, WASM"'s own note on why this waited.
+    const opcode = operator === '&' ? Opcode.i32And : operator === '|' ? Opcode.i32Or : Opcode.i32Xor;
+    const code = [...expr(left, ctx), ...expr(right, ctx), opcode];
+    return maskToType(code, node.type);
+  }
+  if (operator === '<<' || operator === '>>') {
+    // `<<` doesn't care how its own left operand is declared — the same
+    // bits shift out either way — but `>>` does: wasm's `i32.shr_s` and
+    // `i32.shr_u` are different instructions (arithmetic vs. logical
+    // shift), and only the unsigned one is wired up so far, the same
+    // "refuse the signed case by name" rule every other width-sensitive
+    // operator here already follows.
+    if (operator === '>>' && operandIsSigned(left)) {
+      throw new LowerError("'>>' on a signed value is not lowered yet — only unsigned '>>' is");
+    }
+    const opcode = operator === '<<' ? Opcode.i32Shl : Opcode.i32ShrU;
+    const code = [...expr(left, ctx), ...expr(right, ctx), opcode];
     return maskToType(code, node.type);
   }
   throw new LowerError(`'${operator}' is not lowered yet`);
