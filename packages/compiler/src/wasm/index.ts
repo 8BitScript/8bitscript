@@ -9,16 +9,19 @@
 //
 // Milestone 1 ("a module that validates") got just enough of build() to emit
 // the smallest legal module for an entry function with an empty body.
-// Milestone 2 ("arithmetic and control flow") adds real instruction
-// selection (./lower.ts) for that body: binop/unop/if/while/for/break/
-// continue/return, all `i32`, masked to their declared width. Still no
-// globals, no other functions, no strings, no waitFrame() — every later
-// milestone's own job is one more IR shape this function stops refusing by
-// name.
+// Milestone 2 ("arithmetic and control flow") added real instruction
+// selection (./lower.ts): binop/unop/if/while/for/break/continue/return,
+// all `i32`, masked to their declared width. Milestone 3 ("globals and
+// memory") adds memoryRead/memoryWrite (always byte-granular — there's no
+// 16-bit variant at the language level, ir/index.mjs's own
+// memoryIntrinsic()) and a wasm global-section entry for every non-pinned
+// scalar `let`, no allocator needed. Still no other functions, no strings,
+// no waitFrame() — every later milestone's own job is one more IR shape
+// this function stops refusing by name.
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
-import { ExternalKind, Opcode, SectionId, ValType, assembleModule, encodeName, funcType, limits, section, unsignedLEB128, vector } from './encode.ts';
+import { ExternalKind, Mutability, Opcode, SectionId, ValType, assembleModule, encodeName, funcType, limits, section, signedLEB128, unsignedLEB128, vector } from './encode.ts';
 import { lower } from './lower.ts';
 import type { IrStatement } from './lower.ts';
 
@@ -34,6 +37,19 @@ export interface IrFunction {
 
 export interface IrGlobal {
   name: string;
+  type: string;
+  /** Non-null for an `@address(...)`-pinned global — a hardware register,
+   * not RAM this backend owns; not lowered yet (nothing in
+   * @8bitscript/web declares one today, per mos/index.ts's own precedent
+   * this backend reads for the same field). */
+  address: number | null;
+  /** A scalar global's own initial value, always a plain number by the
+   * time linked IR reaches a backend (linker/index.mjs resolves every
+   * initializer first) — never present (array's elements) or an IrExpr. */
+  init?: number | null;
+  /** Set for a const array; not lowered yet — the web track's own
+   * milestone 5. */
+  array?: number;
 }
 
 /** The linked IR's top-level shape this backend reads — the same real IR
@@ -75,24 +91,36 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
       error: 'only the entry function is lowered yet: calling another function is the web track\'s own milestone 4 ("functions and calls")',
     };
   }
-  if ((ir.globals ?? []).length > 0) {
-    return {
-      ok: false,
-      error: 'globals are not lowered yet: this is the web track\'s own milestone 3 ("globals and memory")',
-    };
-  }
   if ((ir.strings ?? []).length > 0) {
     return {
       ok: false,
       error: 'string literals are not lowered yet: this is the web track\'s own milestone 5 ("strings and const data")',
     };
   }
-  const lowered = lower(entryFn.body);
+
+  // Every non-pinned scalar global gets a wasm global-section entry,
+  // addressed by declaration order — no allocator, no budget, unlike the
+  // mos backend's own zero page (see "Hello, WASM"'s own "globals need no
+  // allocator" note). A pinned or array global is refused by name instead
+  // of guessed at: nothing in @8bitscript/web declares either today.
+  const globalDefs: { name: string; init: number }[] = [];
+  for (const g of ir.globals ?? []) {
+    if (g.address !== null && g.address !== undefined) {
+      return { ok: false, error: `'${g.name}': a pinned global (@address(...)) is not lowered yet` };
+    }
+    if (g.array !== undefined) {
+      return { ok: false, error: `'${g.name}' is an array: not lowered yet — the web track's own milestone 5 ("strings and const data")` };
+    }
+    if (g.type === 'string') {
+      return { ok: false, error: `'${g.name}' is a string<N>: not lowered yet — the web track's own milestone 5 ("strings and const data")` };
+    }
+    globalDefs.push({ name: g.name, init: typeof g.init === 'number' ? g.init : 0 });
+  }
+  const globalIndex = new Map(globalDefs.map((g, i) => [g.name, i]));
+
+  const lowered = lower(entryFn.body, { globals: globalIndex });
   if (!lowered.ok) return { ok: false, error: `'${entryFn.name}': ${lowered.error}` };
 
-  // No parameters yet (milestone 4) — a non-void return is the only way
-  // this milestone's own gate (a for-loop sum) can produce an
-  // externally-observable result without memoryWrite (milestone 3).
   const results = !entryFn.returnType || entryFn.returnType === 'void' ? [] : [ValType.i32];
 
   // type section: one type for the entry — the only function this
@@ -102,6 +130,15 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   const functionSection = section(SectionId.function, vector([[0]]));
   // memory section: one memory, MEMORY_PAGES minimum, no declared maximum.
   const memorySection = section(SectionId.memory, vector([limits(MEMORY_PAGES)]));
+  // global section: one mutable i32 per non-pinned scalar `let`, initial
+  // value its own declared init — wasm's global-init expression only
+  // allows a constant, which every scalar global's `init` already is by
+  // the time linked IR reaches a backend. Omitted entirely when the
+  // program declares none, the same "pay only for what you use" rule
+  // every earlier section already follows.
+  const globalSection = globalDefs.length > 0
+    ? section(SectionId.global, vector(globalDefs.map((g) => [ValType.i32, Mutability.var, Opcode.i32Const, ...signedLEB128(g.init), Opcode.end])))
+    : null;
   // export section: the memory (every host reads screen state through it)
   // and the entry function, under its own linked name — wasm-host.mjs finds
   // the entry by "the one exported function," not by name, so this can stay
@@ -131,7 +168,9 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   const entryBody = [...vector(localsDecl), ...lowered.code, ...trailer];
   const codeSection = section(SectionId.code, vector([encodeFunctionBody(entryBody)]));
 
-  const bytes = assembleModule([typeSection, functionSection, memorySection, exportSection, codeSection]);
+  const sections = [typeSection, functionSection, memorySection, globalSection, exportSection, codeSection]
+    .filter((s): s is number[] => s !== null);
+  const bytes = assembleModule(sections);
 
   await mkdir(dirname(options.outFile), { recursive: true });
   await writeFile(options.outFile, bytes);

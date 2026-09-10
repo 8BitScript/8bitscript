@@ -108,21 +108,26 @@ test('compile() for web writes a real .wasm for an empty program — milestone 1
   }
 });
 
-test('compile() for web still names the milestone a real program body needs, not a generic "not implemented"', async () => {
+test('compile() for web still names a real, specific gap for a construct nothing on this rail lowers, not a generic "not implemented"', async () => {
   const dir = await mkdtemp(join(tmpdir(), '8bs-compile-'));
   const prev = process.cwd();
   try {
     const entry = join(dir, 'main.8bs');
-    await writeFile(entry, 'export function main(): void { memory.write(0x8000, 1); }\n');
+    // A `let` (RAM) array: refused by name from milestone 3 onward and
+    // still a real, open gap after milestone 6 (it needs its own RAM
+    // address, which nothing on this rail assigns yet) — unlike
+    // memory.write or a string literal, which each start passing the
+    // moment their own milestone lands, this fixture stays unsupported
+    // for the rail's whole run, so this test doesn't need updating every
+    // time another milestone lands.
+    await writeFile(entry, 'let buf: array<utinyint, 4>;\nexport function main(): void {}\n');
     process.chdir(dir);
     const { result, stderr } = await capture(() => compile('web', entry));
     assert.equal(result.ok, false);
-    // Deliberately not pinned to one milestone number: memory.write is
-    // milestone 3's own job, not milestone 2's — this assertion's whole
-    // point is that *some* real, specific milestone gets named (never a
-    // generic "not implemented"), which stays true regardless of which
-    // milestone the web track is on when this runs.
-    assert.match(stderr, /milestone \d/);
+    // The exact wording shifts (milestone 3 refuses any array uniformly,
+    // pointing at milestone 5; milestone 5 onward distinguishes `let`
+    // from `const`) — "array" is the one word every phrasing keeps.
+    assert.match(stderr, /array/);
   } finally {
     process.chdir(prev);
     await rm(dir, { recursive: true, force: true });
