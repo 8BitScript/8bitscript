@@ -1,6 +1,7 @@
 // `8bs build` through compile() and build(): the parked-target refusals,
 // a real PET .prg for a for-loop (milestone 6), and the web backend's
-// not-implemented path. No emulator.
+// own real, narrow milestone-1 capability (an empty program only — see
+// packages/compiler/src/wasm). No emulator.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -87,7 +88,27 @@ test('compile() for pet writes a .prg for a for-loop that sums 0..9', async () =
   }
 });
 
-test('compile() for web reaches the wasm backend and reports it is not implemented', async () => {
+test('compile() for web writes a real .wasm for an empty program — milestone 1\'s own narrow capability', async () => {
+  const dir = await mkdtemp(join(tmpdir(), '8bs-compile-'));
+  const prev = process.cwd();
+  try {
+    const entry = join(dir, 'main.8bs');
+    await writeFile(entry, 'export function main(): void {}\n');
+    process.chdir(dir);
+    const { result, stdout, stderr } = await capture(() => compile('web', entry));
+    assert.equal(result.ok, true, stdout + stderr);
+    assert.ok(result.outFile.endsWith('main.wasm'), result.outFile);
+    assert.equal(existsSync(result.outFile), true);
+    const bytes = await readFile(result.outFile);
+    assert.deepEqual([...bytes.slice(0, 4)], [0x00, 0x61, 0x73, 0x6d]); // the wasm magic number
+    assert.equal(result.frameRate, 60);
+  } finally {
+    process.chdir(prev);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('compile() for web still names the milestone a real program body needs, not a generic "not implemented"', async () => {
   const dir = await mkdtemp(join(tmpdir(), '8bs-compile-'));
   const prev = process.cwd();
   try {
@@ -96,7 +117,7 @@ test('compile() for web reaches the wasm backend and reports it is not implement
     process.chdir(dir);
     const { result, stderr } = await capture(() => compile('web', entry));
     assert.equal(result.ok, false);
-    assert.match(stderr, /not implemented/);
+    assert.match(stderr, /milestone 2/);
   } finally {
     process.chdir(prev);
     await rm(dir, { recursive: true, force: true });
