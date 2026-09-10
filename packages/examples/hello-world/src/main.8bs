@@ -7,7 +7,6 @@ import { screen } from "@8bitscript/screen";
 import { text } from "@8bitscript/text";
 
 export function main(): void {
-    waitFrame();
     screen.blank();
     text.print(0, "Hello World!");
     while (true) {

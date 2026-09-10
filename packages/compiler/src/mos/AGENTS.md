@@ -365,13 +365,25 @@ The goal milestone: `waitFrame()` — a blocking statement, called from
 within a program's own loop, that pauses until the next *logical* frame is
 due, at whatever `frameRate` the project is configured for (default 60,
 `8bs.config.ts`). The real gate: `packages/examples/hello-world/src/
-main.8bs` now calls `waitFrame()` once before `text.print(0, "HELLO
-WORLD")` — built and run for real on both the 2001/4K (no CRTC, VICE's own
-~60.1Hz) and 8032 (CRTC, a real 50Hz editor ROM) profiles, the same second-
-profile discipline milestone 9's own gate established. Both screenshot
-`HELLO WORLD` exactly as before this milestone, proving the one-time
-calibration and the blocking wait neither hang nor corrupt anything on
-either of the PET's two real, differently-clocked vertical-retrace rates.
+main.8bs`'s `while (true) { waitFrame(); }` loop — built and run for real
+on both the 2001/4K (no CRTC, VICE's own ~60.1Hz) and 8032 (CRTC, a real
+50Hz editor ROM) profiles, the same second-profile discipline milestone
+9's own gate established. Both screenshot `Hello World!` exactly as
+before this milestone, proving the one-time calibration and the blocking
+wait neither hang nor corrupt anything on either of the PET's two real,
+differently-clocked vertical-retrace rates.
+
+An earlier draft of this example also called `waitFrame()` once before
+`text.print(...)`, on the theory that a program should sync to a frame
+boundary before its first draw. That call did nothing on this backend —
+no crt0 or `setupVideo` on any target waits for vblank or any other
+frame boundary at startup, so `screen.blank()`/`text.print(...)` draw
+immediately regardless. It was removed rather than kept as a
+just-in-case: nothing here demonstrated it doing anything, and the
+compiler should not start inserting a wait like that on its own either —
+if a program's first frame actually needs to be synced on some target,
+that's a real requirement to design for deliberately, not a default to
+paper over with an unexplained call.
 
 **This is not `FRAME_SYNC`.** `mos/index.ts`'s own `FRAME_SYNC` table (just
 above this section in that file) and its `calibrate` field's C-pseudocode
