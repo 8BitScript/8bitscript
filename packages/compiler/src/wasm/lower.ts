@@ -21,7 +21,7 @@
 // unresolved gap on both backends, not something to guess a masking rule
 // for here.
 import { resolveIntegerType } from '../types/index.mjs';
-import { BlockType, Opcode, ValType, signedLEB128, unsignedLEB128 } from './encode.ts';
+import { BlockType, Opcode, ValType, memarg, signedLEB128, unsignedLEB128 } from './encode.ts';
 
 export interface IrExpr {
   kind: string;
@@ -32,13 +32,18 @@ export interface IrExpr {
   left?: IrExpr;
   right?: IrExpr;
   argument?: IrExpr;
+  // memoryRead
+  address?: IrExpr;
 }
 
 export interface IrStatement {
   kind: string;
-  // assign
+  // assign; memoryWrite's own value (ir/index.mjs: memory.write's second
+  // argument) — the same field name on both real IR node shapes.
   target?: string;
   value?: IrExpr | null;
+  // memoryWrite
+  address?: IrExpr;
   // local's own initializer (IrExpr) and for's own init clause (IrStatement,
   // a `local` or an `assign`) — the same field name on both real IR node
   // shapes (ir/index.mjs), so this has to be the loose union rather than
@@ -73,6 +78,14 @@ interface Ctx {
   /** The next unused local index — monotonic across the whole function,
    * unlike `locals` itself. */
   nextLocal: number;
+  /** Every non-pinned scalar global, to its wasm global-section index —
+   * fixed once by `build()` before this file ever runs, in declaration
+   * order, never reallocated (see "Hello, WASM"'s own "globals need no
+   * allocator" note: a wasm global index isn't carved from a scarce
+   * range the way a 6502 zero-page address is). Checked only when a name
+   * isn't in `locals` — a `local` is free to shadow a global of the same
+   * name, the same precedence the front end itself already allows. */
+  globals: Map<string, number>;
   /** One entry per currently-open `if`, or per currently-open loop's own
    * three wasm constructs (its outer `block`, the `loop` itself, and the
    * inner `block` wrapping its body) — every entry a `br`/`br_if` might
@@ -85,6 +98,18 @@ interface Ctx {
 
 function i32Const(n: number): number[] {
   return [Opcode.i32Const, ...signedLEB128(n)];
+}
+
+/** `name`'s own get/set instruction pair — `local.get`/`local.set` when
+ * it's currently a local (checked first, so a `local` can shadow a
+ * global), `global.get`/`global.set` when it's a global; throws naming
+ * the parameter/global gap this milestone doesn't cover yet otherwise. */
+function binding(ctx: Ctx, name: string): { get: number; set: number; index: number } {
+  const local = ctx.locals.get(name);
+  if (local !== undefined) return { get: Opcode.localGet, set: Opcode.localSet, index: local };
+  const global = ctx.globals.get(name);
+  if (global !== undefined) return { get: Opcode.globalGet, set: Opcode.globalSet, index: global };
+  throw new LowerError(`'${name}' is not a lowered local or global — parameters aren't lowered yet`);
 }
 
 /** Masks a just-computed `i32` result down to `type`'s own declared width —
@@ -166,18 +191,21 @@ function unop(node: IrExpr, ctx: Ctx): number[] {
 function expr(node: IrExpr, ctx: Ctx): number[] {
   if (node.kind === 'const') return i32Const(node.value!);
   if (node.kind === 'ref') {
-    const index = ctx.locals.get(node.name!);
-    if (index === undefined) throw new LowerError(`'${node.name}' is not a lowered local — globals and parameters aren't lowered yet`);
-    return [Opcode.localGet, ...unsignedLEB128(index)];
+    const b = binding(ctx, node.name!);
+    return [b.get, ...unsignedLEB128(b.index)];
   }
   if (node.kind === 'binop') return binop(node, ctx);
   if (node.kind === 'unop') return unop(node, ctx);
+  if (node.kind === 'memoryRead') {
+    // memory.read is byte-only at the language level (ir/index.mjs's own
+    // memoryIntrinsic()) — i32.load8_u zero-extends the one byte to i32,
+    // exactly matching memoryRead's own fixed `utinyint` type.
+    return [...expr(node.address!, ctx), Opcode.i32Load8U, ...memarg(0, 0)];
+  }
   throw new LowerError(unsupported(node.kind));
 }
 
 const MILESTONE_OF: Readonly<Record<string, string>> = {
-  memoryRead: 'milestone 3 ("globals and memory")',
-  memoryWrite: 'milestone 3 ("globals and memory")',
   call: 'milestone 4 ("functions and calls")',
   namespaceCall: 'milestone 4 ("functions and calls")',
   string: 'milestone 5 ("strings and const data")',
@@ -266,9 +294,15 @@ function statement(node: IrStatement, ctx: Ctx): number[] {
     return [...expr(node.init as IrExpr, ctx), Opcode.localSet, ...unsignedLEB128(index)];
   }
   if (node.kind === 'assign') {
-    const index = ctx.locals.get(node.target!);
-    if (index === undefined) throw new LowerError(`'${node.target}' is not a lowered local — globals aren't lowered yet`);
-    return [...expr(node.value!, ctx), Opcode.localSet, ...unsignedLEB128(index)];
+    const b = binding(ctx, node.target!);
+    return [...expr(node.value!, ctx), b.set, ...unsignedLEB128(b.index)];
+  }
+  if (node.kind === 'memoryWrite') {
+    // Address, then value, matching store8's own stack order — and no
+    // masking on the value: i32.store8 already writes only the low byte,
+    // and memory.write's own value argument is always utinyint (byte-only
+    // at the language level) regardless.
+    return [...expr(node.address!, ctx), ...expr(node.value!, ctx), Opcode.i32Store8, ...memarg(0, 0)];
   }
   if (node.kind === 'block') return scoped(node.body ?? [], ctx);
   if (node.kind === 'if') {
@@ -315,13 +349,25 @@ export interface LowerFailure {
   error: string;
 }
 
-/** Lowers a function body to wasm instruction bytes. `paramCount` is where
- * this body's own locals start numbering from — wasm gives a function's
- * parameters local indices `0..paramCount-1` automatically from its type,
- * so a body with parameters (milestone 4) needs its own declared locals to
- * start right after them. Defaults to 0: nothing lowered yet has any. */
-export function lower(body: IrStatement[], paramCount = 0): LowerResult | LowerFailure {
-  const ctx: Ctx = { locals: new Map(), nextLocal: paramCount, controlStack: [] };
+export interface LowerOptions {
+  /** Where this body's own locals start numbering from — wasm gives a
+   * function's parameters local indices `0..paramCount-1` automatically
+   * from its type, so a body with parameters (milestone 4) needs its own
+   * declared locals to start right after them. Defaults to 0: nothing
+   * lowered yet has any. */
+  paramCount?: number;
+  /** Every non-pinned scalar global already in scope, name to wasm
+   * global-section index — `build()`'s own job to assign, in declaration
+   * order, before any function body is lowered (mirroring the two-pass
+   * shape mos/index.ts holds itself to for parameters: an address has to
+   * be known before anything that might reference it is lowered). */
+  globals?: Map<string, number>;
+}
+
+/** Lowers a function body to wasm instruction bytes. */
+export function lower(body: IrStatement[], options: LowerOptions = {}): LowerResult | LowerFailure {
+  const paramCount = options.paramCount ?? 0;
+  const ctx: Ctx = { locals: new Map(), nextLocal: paramCount, controlStack: [], globals: options.globals ?? new Map() };
   try {
     const code = statements(body, ctx);
     return { ok: true, code, localCount: ctx.nextLocal - paramCount };
