@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import {
   build, outputExtension, CPU, reduceRatio, frameRatio, FRAME_SYNC,
 } from '../src/mos/index.ts';
-import type { IrProgram, Machine, RatioPair } from '../src/mos/index.ts';
+import type { BuildOptions, IrProgram, Machine, RatioPair } from '../src/mos/index.ts';
 import type { IrStatement } from '../src/mos/lower/index.ts';
 import { link } from '../index.mjs';
 import { loadCatalog, resolveHardware } from '../../cli/src/hardware.mjs';
@@ -1072,11 +1072,27 @@ test('the real hello-world on the 2001 leaves BASIC 1 CHRGET ($C2-$D9) alone so 
   const zpBytes = async (profile: string | undefined) => {
     const resolved = resolveHardware(loadCatalog('pet'), { profile });
     assert.ok(resolved.ok, resolved.ok ? '' : resolved.error);
+    // link()'s own return type is the loose `object | null` every caller
+    // gets (packages/compiler/src/linker/index.mjs's own JSDoc — nothing
+    // here narrows it further); an empty `diagnostics` is the real
+    // guarantee that `ir` is both non-null and a real IrProgram, the same
+    // way every other fixture in this file already types its own `ir`
+    // literal as one.
     const { ir, diagnostics } = link(src, main, { machine: 'pet', facts: resolved.hardware.facts });
     assert.deepEqual(diagnostics, []);
+    assert.ok(ir, 'link() returned no diagnostics but also no ir');
+    const linkedIr = ir as IrProgram;
+    // resolveHardware()'s own JSDoc types build.defsym loosely (`object`,
+    // packages/cli/src/hardware.mjs's own Hardware typedef) — every real
+    // catalog defsym is a linker symbol's numeric value (see mos/index.ts's
+    // own `options.hardware.build.defsym.__ram_size` read), the same
+    // guarantee this cast states explicitly rather than widening
+    // BuildOptions itself to match a JSDoc type that undersells its own
+    // real shape.
+    const hardware = resolved.hardware as unknown as BuildOptions['hardware'];
     const scratch = await mkdtemp(join(tmpdir(), '8bs-chrget-'));
     try {
-      const result = await build(ir, { machine: 'pet', hardware: resolved.hardware, outFile: join(scratch, 'out.prg'), frameRate: 60 });
+      const result = await build(linkedIr, { machine: 'pet', hardware, outFile: join(scratch, 'out.prg'), frameRate: 60 });
       assert.equal(result.ok, true, result.ok ? '' : result.error);
       return result.ok ? result.memory.variables : 0;
     } finally {
