@@ -168,7 +168,7 @@ test('compile() names unknown hardware and a program the PET backend cannot lowe
     await writeFile(entry, 'let hp: array<utinyint, 4>;\nexport function main(): void { hp[0] = 1; }\n');
     const noRule = await capture(() => compile('pet', entry));
     assert.equal(noRule.result.ok, false);
-    assert.match(noRule.stdout + noRule.stderr, /array storage isn't allocated yet/);
+    assert.match(noRule.stdout + noRule.stderr, /a mutable array\/string<N> isn't allocated yet/);
   } finally {
     process.chdir(prev);
     await rm(dir, { recursive: true, force: true });

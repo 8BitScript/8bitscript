@@ -36,6 +36,7 @@ import type { Directive as _AsmDirective } from '../asm/assemble.ts';
 import type { AddressingMode } from '../asm/encode.ts';
 import { storageBytes, resolveIntegerType } from '../../types/index.mjs';
 import { LocalAllocator, ZpBudgetError } from './allocator.ts';
+import { arrayLabel, stringLabel } from '../data.ts';
 
 export type Directive = _AsmDirective;
 
@@ -58,6 +59,17 @@ export interface IrExpr {
   argument?: IrExpr;
   // call
   args?: IrExpr[];
+  // 'string': which slot of ir.strings this literal is (a number, the
+  // table index) — not to be confused with 'stringByte's own `index`
+  // field just below, an IrExpr (the byte position), same field name on a
+  // different node kind (ir/index.mjs's own shapes, not this file's).
+  index?: number | IrExpr;
+  // 'stringByte' / 'stringLength': the string-typed value being read —
+  // itself a 'string' literal or a 'ref' to a string parameter/local.
+  string?: IrExpr;
+  // 'index': which array this reads, and its element type/width.
+  array?: IrExpr;
+  elementType?: string | null;
 }
 
 export interface IrStatement {
@@ -143,6 +155,8 @@ export interface LowerOptions {
   params: { name: string; type: string; address: number }[];
   /** Every function in the linked program, by name — a call site's only source for where to store its arguments and which label to `JSR`. Built once before any function is lowered, precisely so a callee's address is always known regardless of lowering order. */
   functions: Map<string, FunctionSite>;
+  /** Every const array global this build's data section (mos/data.ts) will place, by name — an `index` node's only source for its element width and its data-section label (mos/data.ts's arrayLabel(name)). A name absent here — a mutable array, or no array at all — is refused by name rather than guessed at; zp/index.ts already refuses a mutable one before this map is even built, so reaching that refusal here would mean the linker or checker let something through this backend never should have seen. */
+  arrays: Map<string, { elementType: string }>;
 }
 
 export type LowerResult =
@@ -166,6 +180,28 @@ const cmpZp = (address: number): Directive => instr('CMP', 'zeropage', address);
 const jmp = (label: string): Directive => instr('JMP', 'absolute', undefined, label);
 const branch = (mnemonic: string, label: string): Directive => instr(mnemonic, 'relative', undefined, label);
 const label = (name: string): Directive => ({ kind: 'label', name });
+
+// A binding's own address is always zp *except* a pinned global outside it
+// (@address(0xE84C), a hardware register — see mos/AGENTS.md's calling
+// convention doc for why every other binding is guaranteed zp by
+// construction: globals, parameters, and locals are all allocated from
+// budgets that never cross $00FF). memoryWrite's literal-address case
+// already made exactly this call; ref/assign share it now instead of
+// hardcoding zeropage the way milestones 4-8 could, because nothing on
+// their own critical path had ever been pinned above $FF.
+function addrMode(address: number): AddressingMode {
+  return address <= 0xff ? 'zeropage' : 'absolute';
+}
+const ldaAddr = (address: number): Directive => instr('LDA', addrMode(address), address);
+const staAddr = (address: number): Directive => instr('STA', addrMode(address), address);
+
+// A label's address, split into its immediate low/high bytes — the
+// traditional 6502 assembler's `LDA #<label` / `LDA #>label` — for
+// materializing a string literal's (or, in principle, any other data-
+// section label's) address into a zp pointer pair. See asm/assemble.ts's
+// own Operand.byte for where the split actually happens.
+const ldaImmLo = (labelName: string): Directive => ({ kind: 'instruction', mnemonic: 'LDA', mode: 'immediate', operand: { kind: 'label', name: labelName, byte: 'lo' } });
+const ldaImmHi = (labelName: string): Directive => ({ kind: 'instruction', mnemonic: 'LDA', mode: 'immediate', operand: { kind: 'label', name: labelName, byte: 'hi' } });
 
 // utinyint, tinyint, and bool (storageBytes special-cases bool to 1) take
 // the 8-bit path (`expr()` and everything built on it); a program that
@@ -233,6 +269,7 @@ class Lowerer {
   symbols: Map<string, Binding>;
   locals: LocalAllocator;
   functions: Map<string, FunctionSite>;
+  arrays: Map<string, { elementType: string }>;
   loops: { continueLabel: string; breakLabel: string }[] = [];
   exitLabel = freshLabel('exit');
 
@@ -240,6 +277,7 @@ class Lowerer {
     this.symbols = new Map(options.globals);
     this.locals = options.locals;
     this.functions = options.functions;
+    this.arrays = options.arrays;
     // A parameter is bound exactly like a local — same Binding shape, same
     // symbol table — except its address comes from mos/index.ts's own
     // parameter pass (see mos/AGENTS.md), not this.locals.alloc(), and it
@@ -266,7 +304,7 @@ class Lowerer {
         this.emit(ldaImm(node.value! & 0xff));
         return;
       case 'ref':
-        this.emit(ldaZp(this.binding(node.name!).address));
+        this.emit(ldaAddr(this.binding(node.name!).address));
         return;
       case 'binop':
         this.binop(node);
@@ -276,6 +314,15 @@ class Lowerer {
         return;
       case 'call':
         this.callSite(node);
+        return;
+      case 'stringLength':
+        this.stringLength(node);
+        return;
+      case 'stringByte':
+        this.stringByte(node);
+        return;
+      case 'index':
+        this.indexRead(node);
         return;
       default:
         throw new LowerError(`no instruction-selection rule yet for the '${node.kind}' expression — it lands in a later milestone`);
@@ -302,6 +349,23 @@ class Lowerer {
         return this.binding(node.name!).address;
       case 'binop':
         return this.binop16(node);
+      case 'string': {
+        // A string literal's own value, everywhere it isn't immediately
+        // consumed by stringLength/stringByte (which take the address
+        // straight from this same case, via expr16 — see those methods):
+        // its data-section label's address, split into immediate low/high
+        // bytes and copied into a fresh zp pointer pair. Every other
+        // expr16 case fills a temp from a runtime-computed value; this one
+        // fills it from an assemble-time constant (the label), the same
+        // shape as 'const' just above, with the label taking the numeric
+        // literal's place.
+        const address = this.alloc16(`a string literal's address`);
+        const target = stringLabel(node.index as number);
+        this.emit(ldaImmLo(target), staZp(address), ldaImmHi(target), staZp(address + 1));
+        return address;
+      }
+      case 'index':
+        return this.indexRead16(node);
       default:
         throw new LowerError(`no 16-bit instruction-selection rule yet for the '${node.kind}' expression — it lands in a later milestone`);
     }
@@ -354,6 +418,17 @@ class Lowerer {
   // recurse into binop16 and allocate (and release) further temps above
   // that mark, but the result has to outlive this call, so it can't be
   // something release(mark) would free.
+  //
+  // left/right go through exprTo16(), not expr16(): the node's own `type`
+  // (what routed it here) is widerOf(left.type, right.type) — the front
+  // end never inserts a widening node on the narrower side (ir/index.mjs's
+  // binop lowering, verified the same way exprTo16's own header comment
+  // already verified it for locals/assignment/call arguments), so `cell +
+  // i` with cell: usmallint and i: utinyint (exactly @8bitscript/pet/text's
+  // own `place(cell + i, s[i])`, discovered building milestone 9's real
+  // gate) reaches this method with a 1-byte right operand. Refusing that
+  // would refuse code no more exotic than the call-argument widening this
+  // backend already does; exprTo16 is the same rule, applied here too.
   binop16(node: IrExpr): number {
     const { operator, left, right } = node;
     if (operator !== '+' && operator !== '-') {
@@ -361,8 +436,8 @@ class Lowerer {
     }
     const result = this.alloc16(`a temporary for 16-bit '${operator}'`);
     const mark = this.locals.mark();
-    const leftAddr = this.expr16(left!);
-    const rightAddr = this.expr16(right!);
+    const leftAddr = this.exprTo16(left!);
+    const rightAddr = this.exprTo16(right!);
     if (operator === '+') {
       this.emit(instr('CLC', 'implied'));
       this.emit(ldaZp(leftAddr), instr('ADC', 'zeropage', rightAddr), staZp(result));
@@ -373,6 +448,81 @@ class Lowerer {
       this.emit(ldaZp(leftAddr + 1), instr('SBC', 'zeropage', rightAddr + 1), staZp(result + 1));
     }
     this.locals.release(mark);
+    return result;
+  }
+
+  // ---- strings and const arrays: milestone 9 -----------------------------
+  //
+  // A string value — a literal's data-section address, or an existing
+  // string-typed binding's own zp pair (a parameter or local already
+  // holding some string's address) — is always materialized as a pointer
+  // via expr16() first, uniformly, whichever of the two it is: the 'string'
+  // case above fills a fresh temp from a literal's label, the 'ref' case
+  // returns an existing binding's address unchanged. stringLength/
+  // stringByte below never need to know which one they got.
+  //
+  // The data itself is length-prefixed — one byte, then the characters,
+  // ir/index.mjs's own format (mos/data.ts lays it out the same way).
+  // stringLength reads byte 0 through the pointer; stringByte reads byte
+  // (index+1), skipping the length byte the same way.
+
+  stringLength(node: IrExpr): void {
+    const mark = this.locals.mark();
+    const pointer = this.expr16(node.string!);
+    this.emit(instr('LDY', 'immediate', 0));
+    this.emit(instr('LDA', '(indirect),y', pointer));
+    this.locals.release(mark);
+  }
+
+  stringByte(node: IrExpr): void {
+    const mark = this.locals.mark();
+    // Left (the string) evaluates first, right (the index) second — the
+    // same operand order every other binary-shaped rule in this file holds
+    // to (emitOperands' own header comment). The pointer's own temp, if
+    // expr16() allocated one (a literal does; a ref allocates none), has
+    // to survive the index's own evaluation, which is why it's computed
+    // first and released only once both are done with it.
+    const pointer = this.expr16(node.string!);
+    this.expr(node.index as IrExpr);
+    this.emit(instr('TAY', 'implied'), instr('INY', 'implied'));
+    this.emit(instr('LDA', '(indirect),y', pointer));
+    this.locals.release(mark);
+  }
+
+  /** The data-section label an `index` node's own array resolves to — the only array shape this backend places is a const global (mos/index.ts's parameter pass already refuses an array parameter, and zp/index.ts's allocator already refuses a mutable one, both before `options.arrays` is even built), so a name missing here is a linker or checker bug, not a missing lowering rule. */
+  arrayTarget(node: IrExpr): string {
+    const name = node.array!.name!;
+    if (!this.arrays.has(name)) {
+      throw new LowerError(`'${name}' resolves to no const array this backend placed — an array parameter or a mutable array/string<N> isn't lowered yet, and reaching this any other way is a linker or checker bug, not a missing lowering rule`);
+    }
+    return arrayLabel(name);
+  }
+
+  // A 1-byte element: the index (0..255, already 8-bit by node.index's own
+  // type) is the byte offset outright.
+  indexRead(node: IrExpr): void {
+    const target = this.arrayTarget(node);
+    this.expr(node.index as IrExpr);
+    this.emit(instr('TAY', 'implied'));
+    this.emit(instr('LDA', 'absolute,y', undefined, target));
+  }
+
+  // A 2-byte element: the index has to be doubled into a byte *offset*
+  // first (ASL — a plain shift left, exact as long as index*2 fits in Y's
+  // 8 bits), then read low byte, then high byte one further along. Y stays
+  // an 8-bit index throughout (the 6502 has no wider index register), so
+  // this is only exact while index*2 <= 255 — every const array this
+  // backend has ever placed (DIGIT_PLACES, length 5) is nowhere close. A
+  // 2-byte-element array past 127 elements isn't refused by name yet;
+  // nothing on the PET's own critical path is anywhere near that size.
+  indexRead16(node: IrExpr): number {
+    const target = this.arrayTarget(node);
+    this.expr(node.index as IrExpr);
+    this.emit(instr('ASL', 'accumulator'), instr('TAY', 'implied'));
+    const result = this.alloc16(`a temporary for reading '${node.array!.name}'`);
+    this.emit(instr('LDA', 'absolute,y', undefined, target), staZp(result));
+    this.emit(instr('INY', 'implied'));
+    this.emit(instr('LDA', 'absolute,y', undefined, target), staZp(result + 1));
     return result;
   }
 
@@ -633,11 +783,11 @@ class Lowerer {
         const width = storageBytes(binding.type);
         if (width === 2) {
           const addr = this.exprTo16(node.value!);
-          this.emit(ldaZp(addr), staZp(binding.address), ldaZp(addr + 1), staZp(binding.address + 1));
+          this.emit(ldaZp(addr), staAddr(binding.address), ldaZp(addr + 1), staAddr(binding.address + 1));
         } else {
           require8Bit(binding.type, `assignment to '${node.target}'`);
           this.expr(node.value!);
-          this.emit(staZp(binding.address));
+          this.emit(staAddr(binding.address));
         }
         return null;
       }

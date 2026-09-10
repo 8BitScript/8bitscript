@@ -12,7 +12,12 @@ import type { AddressingMode } from './encode.ts';
 
 export type Operand =
   | { kind: 'value'; value: number }
-  | { kind: 'label'; name: string };
+  // `byte` is milestone 9's own addition: a label's address is 16 bits, but
+  // materializing one into a zp pointer (a string literal's address, e.g.)
+  // needs it as two separate immediate bytes — `LDA #<label` / `LDA #>label`
+  // in traditional 6502 assembler spelling. Omitted, the label resolves to
+  // its full 16-bit value, unchanged from before this milestone.
+  | { kind: 'label'; name: string; byte?: 'lo' | 'hi' };
 
 export type Directive =
   | { kind: 'label'; name: string }
@@ -51,6 +56,8 @@ function resolve(operand: Operand | undefined, labels: Map<string, number>, cont
   if (operand.kind === 'value') return { ok: true, value: operand.value };
   const value = labels.get(operand.name);
   if (value === undefined) return { ok: false, error: `${context}: undefined label '${operand.name}'` };
+  if (operand.byte === 'lo') return { ok: true, value: value & 0xff };
+  if (operand.byte === 'hi') return { ok: true, value: (value >> 8) & 0xff };
   return { ok: true, value };
 }
 

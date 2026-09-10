@@ -15,6 +15,8 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 import { basicStub } from './basic-stub.ts';
+import { buildDataSection } from './data.ts';
+import type { ConstArrayGlobal, IrString } from './data.ts';
 import { link } from './link/index.ts';
 import { lower } from './lower/index.ts';
 import type { Directive, FunctionSite, IrFunction } from './lower/index.ts';
@@ -25,11 +27,13 @@ import { storageBytes } from '../types/index.mjs';
 import { allocate } from './zp/index.ts';
 import type { IrGlobal } from './zp/index.ts';
 
-/** The linked IR's top-level shape — the pieces `functions` (lower/index.ts) and `globals` (zp/index.ts) each read. */
+/** The linked IR's top-level shape — the pieces `functions` (lower/index.ts), `globals` (zp/index.ts), and `strings` (mos/data.ts's own string-table half) each read. */
 export interface IrProgram {
   entry: string;
   functions: IrFunction[];
   globals: IrGlobal[];
+  /** ir.strings (ir/index.mjs) — every string literal the linked program declares, merged and deduplicated by the linker. Optional only so existing synthetic test fixtures that predate milestone 9 don't all need updating; real linked IR always sets it (possibly `[]`). */
+  strings?: IrString[];
 }
 
 export type Machine = 'vic20' | 'c64' | 'pet' | 'c128' | 'mega65' | 'cx16' | 'nes' | 'atari8';
@@ -167,6 +171,8 @@ function findCallCycle(functions: IrFunction[]): string[] | null {
 }
 
 const RTS: Directive = { kind: 'instruction', mnemonic: 'RTS', mode: 'implied' };
+const ldaImm = (value: number): Directive => ({ kind: 'instruction', mnemonic: 'LDA', mode: 'immediate', operand: { kind: 'value', value } });
+const staZp = (address: number): Directive => ({ kind: 'instruction', mnemonic: 'STA', mode: 'zeropage', operand: { kind: 'value', value: address } });
 
 /** Lowers `ir` to machine code, writes `outFile`, and returns the bytes and a size report. */
 export async function build(ir: IrProgram, options: BuildOptions): Promise<BuildResult> {
@@ -192,6 +198,49 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
 
   const globalTypes = new Map(ir.globals.map((g) => [g.name, g.type]));
   const globalBindings = new Map(zp.globals.map((g) => [g.name, { address: g.address, type: globalTypes.get(g.name)! }]));
+  const globalInits = new Map(ir.globals.map((g) => [g.name, typeof g.init === 'number' ? g.init : 0]));
+
+  // Every zp-storage global's own initial value, written before the entry
+  // function's own body runs — real RAM at power-on has no guaranteed
+  // content (VICE does not zero-fill it, matching real hardware), so a
+  // global this backend never explicitly writes an initializer for reads
+  // whatever was already there. @8bitscript/pet/text's own `currentReverse:
+  // bool = false` is exactly this: never written by anything print() calls
+  // (only setReverse() does, which text.print's own gate never reaches),
+  // so every character came out however that zp byte's boot-time content
+  // happened to read — reverse video on an 8032 profile, plain on a 2001,
+  // same program, same build, two different screenshots (discovered
+  // building milestone 9's real gate). A pinned global (storage 'pinned')
+  // is deliberately excluded: it names a hardware register, not RAM, and
+  // writing its own `init` (defaulted to 0 by ir/index.mjs the same way
+  // an ordinary global's is, whether or not the source ever wrote `= ...`)
+  // would be a real, possibly harmful side effect this backend has no
+  // business taking on a register nothing here declared an intent for.
+  const globalInitProgram: Directive[] = [];
+  for (const g of zp.globals) {
+    if (g.storage !== 'zp') continue;
+    const init = globalInits.get(g.name) ?? 0;
+    const width = storageBytes(globalTypes.get(g.name)!);
+    globalInitProgram.push(ldaImm(init & 0xff), staZp(g.address));
+    if (width === 2) globalInitProgram.push(ldaImm((init >> 8) & 0xff), staZp(g.address + 1));
+  }
+
+  // Every const array global (zp/index.ts's own allocate() already refused
+  // a mutable one and skipped a const one without erroring, so anything
+  // with `.array` set here is guaranteed constant) — placed in the data
+  // section below, never in zero page. Only a 1- or 2-byte element is
+  // lowered (index()/storeIndex()'s own width, mos/lower/index.ts): wider
+  // ones are refused here, by name, rather than mis-encoded by data.ts.
+  const constArrayGlobals: ConstArrayGlobal[] = [];
+  for (const g of ir.globals) {
+    if (g.array === undefined) continue;
+    const width = storageBytes(g.type);
+    if (width !== 1 && width !== 2) {
+      return { ok: false, error: `'${g.name}' is an array<${g.type}, ${g.array}>: only a 1- or 2-byte element is lowered yet` };
+    }
+    constArrayGlobals.push({ name: g.name, type: g.type, array: g.array, init: (g.init as number[] | null) ?? [] });
+  }
+  const arrays = new Map(constArrayGlobals.map((g) => [g.name, { elementType: g.type }]));
 
   // Parameter pass: every function's calling interface, fixed before any
   // lowering runs — a call site needs its target's addresses regardless of
@@ -227,7 +276,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
     const site = functionSites.get(fn.name)!;
     const params = (fn.params ?? []).map((p, i) => ({ name: p.name, type: p.type, address: site.params[i].address }));
     const locals = new LocalAllocator(localsCursor, PET_ZP_BUDGET.zpCeiling);
-    const lowered = lower(fn.body, { globals: globalBindings, locals, params, functions: functionSites });
+    const lowered = lower(fn.body, { globals: globalBindings, locals, params, functions: functionSites, arrays });
     if (!lowered.ok) return { ok: false, error: `in '${fn.name}': ${lowered.error}` };
     localsCursor += locals.used;
     loweredFunctions.push({ name: fn.name, label: site.label, program: lowered.program, isEntry: fn.name === ir.entry });
@@ -240,11 +289,20 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   const entry = loweredFunctions.find((f) => f.isEntry)!;
   const others = loweredFunctions.filter((f) => !f.isEntry);
   const everyInstruction = loweredFunctions.flatMap((f) => f.program);
+  // The string table and every const array, last: mos/data.ts's own header
+  // explains why this rides inside the one program link() assembles as
+  // `code` rather than its separate `data` section — code above already
+  // references these labels (a string literal's address, an index()'s own
+  // array label), and link() assembles code and data as two independent
+  // passes that never see each other's labels.
+  const dataSection = buildDataSection(ir.strings ?? [], constArrayGlobals);
   const combinedProgram: Directive[] = [
     ...prologue(usesDecimalSensitiveMath(everyInstruction)),
+    ...globalInitProgram,
     ...entry.program,
     ...epilogue(),
     ...others.flatMap((f): Directive[] => [{ kind: 'label', name: f.label }, ...f.program, RTS]),
+    ...dataSection,
   ];
 
   const loadAddress = LOAD_ADDRESS.pet!;

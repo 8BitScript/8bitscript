@@ -162,11 +162,13 @@ rather than clearing it, a different instruction sequence, and nothing on
 the PET's own critical path needs one yet. `bool` is refused the same way
 — the checker should already rule out assigning a bool to a `usmallint`
 before this backend ever sees it, so this is a defensive refusal, not a
-construct expected to actually occur. These three callers use
-`exprTo16()`; `memoryWrite`'s address and a comparison's operands still use
-plain `expr16()` and stay exact-width-or-refuse (see the comparison
-paragraph below) — a computed address or a comparison operand isn't a
-"destination" a narrower source could sensibly widen into.
+construct expected to actually occur. These three callers use `exprTo16()`,
+and `binop16`'s own left/right operands joined them at milestone 9 (below);
+`memoryWrite`'s address and a comparison's operands still use plain
+`expr16()` and stay exact-width-or-refuse (see the comparison paragraph
+below) — a computed address or a comparison operand isn't a "destination" a
+narrower source could sensibly widen into, the same way a binop's own two
+operands are, each against the other.
 
 **16-bit `+`/`-`.** The standard multi-byte 6502 idiom: one `CLC`/`SEC`,
 then `ADC`/`SBC` low byte, then `ADC`/`SBC` high byte — the carry (or
@@ -178,11 +180,18 @@ because `CLC`/`SEC` only runs once. Comparisons reuse the exact same
 `SBC`'s borrow-in directly — so the table built for the 8-bit case (whose
 own header comment already documents "CMP's flags end up describing
 `right - left`, not `left - right`") applies unchanged at 16 bits too. A
-mixed-width comparison (one side 8-bit, the other 16) is refused by name,
-not zero-extended — nothing on the PET's own critical path needs one yet,
-and silently widening the narrower side is a guess about which representation
-(zero-extend? sign-extend, once signed 16-bit values exist?) the language
-should pick, not this backend's call to make alone.
+mixed-width **comparison** (one side 8-bit, the other 16) is refused by
+name, not zero-extended — nothing on the PET's own critical path needs one
+yet, and silently widening the narrower side is a guess about which
+representation (zero-extend? sign-extend, once signed 16-bit values exist?)
+the language should pick, not this backend's call to make alone. Mixed-width
+**arithmetic** is a different story as of milestone 9 (see below):
+`binop16`'s own operands go through `exprTo16()`, not `expr16()`, so
+`cell + i` widens the narrower side exactly like a call argument does —
+`@8bitscript/pet/text`'s own `place(cell + i, s[i])` inside `print()`'s loop
+is exactly this shape, and refusing it would refuse `text.print` itself.
+Comparisons stayed exact-width-or-refuse because nothing on the critical
+path needed otherwise; arithmetic couldn't, because something did.
 
 **A computed `memoryWrite`.** The address evaluates through `expr16()`
 into a zp pointer pair *before* the value evaluates — so the value's own
@@ -218,3 +227,134 @@ differential run (`a: usmallint = 511; b: usmallint = 300; place(a + b,
 and the sum a dropped carry would produce (555) land at visibly different
 cells, and the character lands at 811's. Neither screenshot is committed
 (no earlier milestone's is either).
+
+## Milestone 9: strings and const arrays
+
+The goal milestone: the real `hello-world` example (`text.print(0, "HELLO
+WORLD")`, through the real `@8bitscript/pet/text`, no reproduced fixture)
+builds and shows `HELLO WORLD` on a real PET, at both the 2001/4K and 8032
+profiles. `string`, `stringLength`, `stringByte`, and `index` all lower now;
+`stringCopy` and a mutable `string<N>` global stay refused by name — nothing
+on the PET's own critical path declares one (only `packages/ui/menubar.8bs`
+does, a portable-UI concern this backend doesn't link), and a mutable
+buffer needs a RAM placement rule this milestone didn't need to invent.
+`storeIndex` stays refused too: nothing reachable from `hello-world` writes
+through an array index (`DIGIT_PLACES` is `const`, read-only).
+
+**The data section: one assembly pass, not `link()`'s own `data` input.**
+`mos/data.ts` lays out every string literal (`ir.strings`, length-prefixed —
+one byte, then the characters, `ir/index.mjs`'s own format) and every const
+array global as `label` / `.byte` pairs, and `mos/index.ts` appends the
+whole thing to the *end* of the one program it hands `link()` as `code`,
+after every function's own body. `link()`'s own `data` section looked like
+the obvious place until it wasn't: `place()` assembles `code` and `data` as
+two *independent* passes (`assembleRelaxed(input.code.program, codeOrigin)`,
+then separately for `data`), each building its own label map from only its
+own program, merging the two maps only after both finish. A `LDA #<label`
+in code, where `label` names a string in the data section, would resolve
+against a label map that doesn't have it yet and fail "undefined label" —
+discovered before it ever shipped, by reading `link/index.ts` rather than
+by a failing build. One program, one assembly pass, sees every label
+regardless of which half defines it and which half references it; the
+`data` field of `LinkInput` stays unused by this backend, cosmetic layout
+reporting the only thing it would have added.
+
+**Materializing a string value: a label's address, split into two
+immediate bytes.** A `string`-typed value is always a 16-bit pointer
+(`storageBytes('string') === 2` — `types/index.mjs`), so it takes the
+`expr16()` path like any other 2-byte value. A `ref` (a parameter or local
+already holding some string's address) returns its own zp pair unchanged,
+same as every other `expr16()` ref. A `string` literal is new: its
+data-section label's address doesn't exist as a runtime value anywhere yet,
+so `expr16()` materializes it — `LDA #<label` / `STA` / `LDA #>label` /
+`STA`, into a fresh zp pair — the traditional 6502 assembler idiom for
+"the low byte of this address" / "the high byte of this address."
+`asm/assemble.ts`'s `Operand` grew a `byte?: 'lo' | 'hi'` field for exactly
+this: `resolve()` masks the label's resolved value by whichever half is
+asked for, instead of refusing (or worse, silently truncating) a label
+whose address doesn't fit in an immediate's one byte on its own.
+
+**`stringLength` and `stringByte`: read through the pointer, uniformly.**
+Both take the string-typed operand through `expr16()` first — a literal or
+a ref, it doesn't matter which, by design — then read through the
+resulting zp pointer via `(indirect),y`: `stringLength` is `LDY #0; LDA
+(ptr),y` (the length byte lives at the pointer's own address); `stringByte`
+is index-then-`INY`-then-`LDA (ptr),y` (index 0 is the byte *after* the
+length prefix, so the index is always one past where it looks — `Y` never
+wraps for a valid index: a string's own length tops out at 255 (one length
+byte, the checker's own `STRING_TOO_LONG` limit), so its highest valid
+index is 254, landing on `Y = 255`, not `Y = 0` — the last legitimate
+character, not a wrap back onto the length byte. An index this backend
+never checks against the string's own length at run time — same as
+`index()`'s own array bound below — would wrap and silently read the
+length byte as if it were character 255; nothing in this language checks a
+*runtime*-computed array or string index against its bound anywhere yet,
+so this isn't a gap specific to strings). The string
+evaluates before the index, the same left-then-right order every binary-
+shaped rule in this file already holds to — the pointer's own temp (if
+`expr16()` allocated one; a literal does, a ref doesn't) has to survive the
+index's own evaluation, so it's computed first and released only once both
+are done with it.
+
+**`index()`: a 1-byte element needs no scaling; a 2-byte one needs `ASL`
+first.** The only array shape this backend places is a `const` global —
+`mos/index.ts`'s parameter pass already refuses an array parameter, and
+`zp/index.ts`'s allocator already refuses a mutable one, both before
+`LowerOptions.arrays` (the array-name → element-type map `index()` reads)
+is even built, so a name missing from it is a linker or checker bug, not a
+missing lowering rule. A 1-byte element's own index is the byte offset
+outright: `TAY; LDA label,y`. A 2-byte element (`DIGIT_PLACES: array
+<usmallint, 5>`, `printNumber`'s own digit-place table) needs the index
+doubled into a byte offset first — `ASL` (a plain shift left, exact only
+while `index * 2 <= 255`, since `Y` is an 8-bit register with no wider
+sibling; every const array this backend has ever placed is nowhere close)
+— then low byte, then `INY`, then high byte, matching `binop16`'s own
+"low byte, then high byte, one further along" shape.
+
+**Const arrays reuse the data section; `zp/index.ts` skips them
+entirely.** `allocate()` used to refuse *every* array global by name,
+const or not. A const array never needed zero page at all — it's read-only
+program data, placed by `mos/data.ts` alongside the string table — so
+`allocate()` now skips one outright (no address assigned, no zp budget
+spent, no error) rather than special-casing "allocate it, but not in zp."
+A *mutable* array (or a `string<N>`, the same shape under the hood) is
+still refused, by name, exactly as before — only the message changed, to
+say so precisely instead of a blanket "array storage isn't allocated yet."
+
+**Two bugs the real gate found that have nothing to do with strings.**
+Both are correctness bugs any future milestone could have tripped over;
+building `hello-world` for real — not a reproduced fixture — is what
+actually found them, the same way milestone 8's own gate found the
+call-argument widening gap.
+
+- `prepare()` (`text.8bs`) writes `viaPeripheralControl`, a global pinned
+  at `@address(0xE84C)` — above `$00FF`. `ref`/`assign` hardcoded
+  `zeropage` mode for every binding's own address, unconditionally, since
+  milestone 4; nothing before this milestone's own gate ever exercised a
+  pinned global outside zero page, so nothing caught it. Both now pick the
+  mode from the address the same way `memoryWrite`'s own literal-address
+  case already did (`addrMode()`, `<= 0xFF` → `zeropage`, else `absolute`)
+  — a computed 16-bit pointer's own zp-pair reads/writes weren't touched,
+  because nothing on the PET's own critical path pins a 16-bit global
+  above zero page yet.
+- No global's own declared initial value was ever written anywhere.
+  `zp/index.ts`'s allocator only ever assigned an *address*; nothing wrote
+  a global's `init` (always a plain number by the time a backend sees it —
+  `0` when the source gave none, `ir/index.mjs`'s own default) into that
+  address before `main()` ran. Real RAM has no guaranteed content at
+  power-on (VICE does not zero-fill it, matching real hardware), so a
+  global this backend never explicitly initialized read whatever was
+  already there. `text.8bs`'s own `currentReverse: bool = false` is
+  exactly this shape — read by `toScreen()`, written only by
+  `setReverse()`, which `text.print`'s own call path never reaches — and
+  the visible symptom was real: the *same* build, run on two different PET
+  profiles, showed `HELLO WORLD` in reverse video on the 8032 and plain on
+  the 2001, because the two profiles' boot sequences happened to leave
+  different garbage at that zp address. `mos/index.ts` now writes every
+  zp-storage global's own `init` (`LDA #value; STA` — two bytes for a
+  16-bit global) right after the prologue, before the entry function's own
+  body runs. A *pinned* global is deliberately excluded: it names a
+  hardware register, not RAM, and writing its defaulted-to-0 `init` (the
+  same default an ordinary global gets, whether or not the source ever
+  wrote `= ...`) would be a real side effect on hardware this backend has
+  no business taking on without the program itself asking for it.
