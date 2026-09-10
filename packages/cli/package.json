@@ -1,6 +1,6 @@
 {
   "name": "@8bitscript/cli",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "The 8bs command line interface: builds, runs, and diagnoses 8BitScript projects.",
   "license": "MIT",
   "repository": {
