@@ -4,7 +4,7 @@
 // safe (nothing between the two bank switches may touch memory outside
 // the common area the probe widens); and, when x128 and a working
 // backend are installed, it is run on a stock machine and a modified one
-// and the border colour each screenshot shows is what banks.kib() found.
+// and the border color each screenshot shows is what banks.kib() found.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';

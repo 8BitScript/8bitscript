@@ -404,7 +404,7 @@ this backend's own `Directive`-based codegen, the same relationship
 
 **Grounded in the real PET package, the same way `text.8bs` grounded
 milestone 9.** `packages/pet/src/index.8bs` and `keyboard.8bs` document the
-exact contract this had to honour: a program that calls `waitFrame()`
+exact contract this had to honor: a program that calls `waitFrame()`
 anywhere runs with interrupts off from start-up, because the KERNAL's own
 jiffy-clock IRQ reads `$E812` every frame and would otherwise win the race
 for the CB1 retrace flag before this code ever saw it set; and reading

@@ -62,7 +62,7 @@ all), and every run after that differs.
 
 **Not cryptographic, on any target.** Public, fixed steps over small state
 are exactly as guessable as they sound, table included. This is for game
-boards, shuffles, and enemy behaviour — nothing a program needs to keep
+boards, shuffles, and enemy behavior — nothing a program needs to keep
 secret from the person playing it.
 
 See [`src/index.8bs`](src/index.8bs) and [`src/table.8bs`](src/table.8bs)

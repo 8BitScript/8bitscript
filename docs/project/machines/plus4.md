@@ -14,13 +14,13 @@ are not repeated. `packages/c64/AGENTS.md` is the useful contrast: the 264
 series shares the C64's KERNAL calls, PETSCII, screen codes and IEC bus, and
 nothing else that matters —
 
-> **The Plus/4 is not a C64 with more colours. Its one chip, TED, is video,
+> **The Plus/4 is not a C64 with more colors. Its one chip, TED, is video,
 > sound, timers, keyboard latch and ROM banking at once; it has no sprites,
 > two square-wave voices, a CPU whose speed changes with what the display is
-> doing, colour memory that holds luminance as well as hue, a 2K screen
+> doing, color memory that holds luminance as well as hue, a 2K screen
 > block at `$0800` that is attribute-then-character, and 64K of RAM that is
 > only reachable by banking the ROMs out. Model it as a memory-mapped
-> 40×25 text/bitmap machine with 121 colours per cell and a bankable top
+> 40×25 text/bitmap machine with 121 colors per cell and a bankable top
 > half, never by translating VIC-II register numbers.**
 
 The family's variety is in *models*: RAM (16K on the C16 and C116, 64K on
@@ -64,10 +64,10 @@ under `xplus4`, not recalled.
 | `xplus4 -model plus4` boots "COMMODORE BASIC V3.5 60671 BYTES FREE / 3-PLUS-1 ON KEY F1"; `-model c16` boots "COMMODORE BASIC V3.5 12277 BYTES FREE". Default screen at boot: a light-purple border, white background, black text. `-model c16` expands to `-ramsize 16 -functionlo "" -functionhi "" +acia`; `-model plus4ntsc` to `-ntsc -kernal kernal-318005-05.bin`. PAL exit screenshot is 384×288, NTSC 384×242. `-limitcycles N -exitscreenshot f.png +sound -warp` works headless. | `xplus4 -model plus4/c16/plus4ntsc -limitcycles 8000000 -exitscreenshot`, VICE 3.10, seen on screen and in the log |
 | `xplus4` model flags: `-model c16/c16pal/c16ntsc, plus4/plus4pal/plus4ntsc, v364/cv364, c232`; `-ramsize 16/32/64`; `-memoryexphack 0 none / 1 CSORY 256KiB / 2 HANNES 256KiB / 3 HANNES 1MiB`; `-acia`, `-digiblaster`, `-sidcart` (`-sidcartaddress 0xFD40/0xFE80`), `-speech` (v364); cartridges `-cart`, `-cartcrt`, `-cartjacint`, `-cartmagic`, `-cartmulti`, `-cartspeedy`, `-c1lo/-c1hi/-c2lo/-c2hi`, `-functionlo/-functionhi`; `-fs8 <dir>` host directory as device 8; `-autostartprgmode 0/1/2`; `-drive8type` up to CMD HD; `-joydev1/2`; `-mouse`; `-pal/-ntsc`. | `xplus4 -help` |
 | VICE ROM set: `kernal-318004-01.bin`, `kernal-318004-05.bin` (PAL), `kernal-318005-05.bin` (NTSC), `basic-318006-01.bin`, `3plus1-317053-01.bin`/`317054-01.bin`, `kernal-364.bin`, `c2lo-364.bin`; palettes `colodore_ted.vpl`, `yape-pal.vpl`, `yape-ntsc.vpl`; keymaps `gtk3_pos.vkm`, `gtk3_c16_pos_it.vkm`, `gtk3_c116_pos_it.vkm`. | `/opt/homebrew/share/vice/PLUS4/` |
-| TED register block is `$FF00-$FF3F`: timers `$FF00-$FF05` (T1 counts down and reloads; T2/T3 run down then free-run from `$FFFF`), `$FF06` CR1 (TEST, ECM, BMM, DEN, RSEL, YSCROLL; default `$1B`), `$FF07` CR2 (RVSDIS, NTSC/PAL, TEDOFF, MCM, CSEL, XSCROLL; default `$08` PAL / `$48` NTSC), `$FF08` keyboard latch, `$FF09` IRQ flags (bit 7 IRQ, 6 T3, 4 T2, 3 T1, 1 raster; write 1s to clear), `$FF0A` IRQ enable + raster bit 8, `$FF0B` raster compare, `$FF0C/0D` cursor, `$FF0E/0F/10` voice frequencies, `$FF11` sound control, `$FF12` bitmap base (bits 5-3 = A15-A13) + charset-from-ROM bit 2 + voice 1 freq hi, `$FF13` charset base (bits 7-2 = A15-A10) + SINGLECLK bit 1 + read-only ROM/RAM bit 0, `$FF14` screen base (bits 7-3 = A15-A11, 2K granularity), `$FF15-$FF19` colours (background, colour 1, 2, 3, border), `$FF1A/1B` bitmap character-row reload, `$FF1C/1D` raster line (readable **and writable**), `$FF1E` horizontal position, `$FF1F` flash counter + sub-line, `$FF3E` ROM in, `$FF3F` RAM in. Unused bits read back as 1. | plus4world Plus/4 Encyclopedia, *TED Registers* (500024); cc65 `include/_ted.h` field order; oxyron `registers_ted.html` |
-| Colour byte format everywhere (colour registers and attribute memory): bits 0-3 chroma, bits 4-6 luma, bit 7 blink (attribute memory) / unused (registers). 121 colours = 15 chromas × 8 lumas + black (all lumas of chroma 0 are the same black). "White" is `$71`, a very light grey. | plus4world *TED Registers* palette section; cc65 `include/cbm264.h` (`CATTR_LUMA0..7 = 0x00..0x70`, `CATTR_BLINK 0x80`, `BCOLOR_*`, `COLOR_WHITE = BCOLOR_WHITE \| CATTR_LUMA7`) |
-| Screen memory is one 2K block, positioned by `$FF14`: first 1K is the attribute (colour+luma) memory, second 1K the character codes; the KERNAL's is `$0800` attributes and `$0C00` characters (`COLOR_RAM ((unsigned char*)0x0800)`). TED reads 40 + 40 bytes for each of the two "DMA lines" of a character row and stops the CPU while it does. | plus4world *TED Registers* "Video modes"; cc65 `cbm264.h`, `plus4.html` |
-| Modes (ECM `$FF06` b6, BMM `$FF06` b5, MCM `$FF07` b4, RVSDIS `$FF07` b7): hires character 128 chars + reverse bit (default) or 256 chars (RVSDIS=1); ECM 64 chars with four background colours; multicolour character; hires bitmap 320×200; multicolour bitmap 160×200; ECM+MCM or ECM+BMM is an illegal (black) mode. In character modes bit 7 of a code inverts the glyph unless RVSDIS. | plus4world *TED Registers* "Configurations for the modes"; oxyron TED video-mode table |
+| TED register block is `$FF00-$FF3F`: timers `$FF00-$FF05` (T1 counts down and reloads; T2/T3 run down then free-run from `$FFFF`), `$FF06` CR1 (TEST, ECM, BMM, DEN, RSEL, YSCROLL; default `$1B`), `$FF07` CR2 (RVSDIS, NTSC/PAL, TEDOFF, MCM, CSEL, XSCROLL; default `$08` PAL / `$48` NTSC), `$FF08` keyboard latch, `$FF09` IRQ flags (bit 7 IRQ, 6 T3, 4 T2, 3 T1, 1 raster; write 1s to clear), `$FF0A` IRQ enable + raster bit 8, `$FF0B` raster compare, `$FF0C/0D` cursor, `$FF0E/0F/10` voice frequencies, `$FF11` sound control, `$FF12` bitmap base (bits 5-3 = A15-A13) + charset-from-ROM bit 2 + voice 1 freq hi, `$FF13` charset base (bits 7-2 = A15-A10) + SINGLECLK bit 1 + read-only ROM/RAM bit 0, `$FF14` screen base (bits 7-3 = A15-A11, 2K granularity), `$FF15-$FF19` colors (background, color 1, 2, 3, border), `$FF1A/1B` bitmap character-row reload, `$FF1C/1D` raster line (readable **and writable**), `$FF1E` horizontal position, `$FF1F` flash counter + sub-line, `$FF3E` ROM in, `$FF3F` RAM in. Unused bits read back as 1. | plus4world Plus/4 Encyclopedia, *TED Registers* (500024); cc65 `include/_ted.h` field order; oxyron `registers_ted.html` |
+| Color byte format everywhere (color registers and attribute memory): bits 0-3 chroma, bits 4-6 luma, bit 7 blink (attribute memory) / unused (registers). 121 colors = 15 chromas × 8 lumas + black (all lumas of chroma 0 are the same black). "White" is `$71`, a very light grey. | plus4world *TED Registers* palette section; cc65 `include/cbm264.h` (`CATTR_LUMA0..7 = 0x00..0x70`, `CATTR_BLINK 0x80`, `BCOLOR_*`, `COLOR_WHITE = BCOLOR_WHITE \| CATTR_LUMA7`) |
+| Screen memory is one 2K block, positioned by `$FF14`: first 1K is the attribute (color+luma) memory, second 1K the character codes; the KERNAL's is `$0800` attributes and `$0C00` characters (`COLOR_RAM ((unsigned char*)0x0800)`). TED reads 40 + 40 bytes for each of the two "DMA lines" of a character row and stops the CPU while it does. | plus4world *TED Registers* "Video modes"; cc65 `cbm264.h`, `plus4.html` |
+| Modes (ECM `$FF06` b6, BMM `$FF06` b5, MCM `$FF07` b4, RVSDIS `$FF07` b7): hires character 128 chars + reverse bit (default) or 256 chars (RVSDIS=1); ECM 64 chars with four background colors; multicolor character; hires bitmap 320×200; multicolor bitmap 160×200; ECM+MCM or ECM+BMM is an illegal (black) mode. In character modes bit 7 of a code inverts the glyph unless RVSDIS. | plus4world *TED Registers* "Configurations for the modes"; oxyron TED video-mode table |
 | Sound: `$FF0E` + `$FF12` bits 1-0 = voice 1 (10-bit), `$FF0F` + `$FF10` bits 1-0 = voice 2; `$FF11` = bit 7 D/A mode, bit 6 voice 2 noise, bit 5 voice 2 square, bit 4 voice 1 on, bits 3-0 volume 0-8. Setting both voice-2 bits gives square. `reg = 1023 - (110840.46875 / Hz)` PAL, `1023 - (111860.78125 / Hz)` NTSC; `$3FF` is the lowest tone and `$3FE` locks the channel. | plus4world *TED Registers* `$FF0E-$FF12` |
 | Clock is not one number. PAL, screen on, double clock: CPU ≈ 1,147,196 Hz; single clock forced (`$FF13` bit 1): 886,724; screen off (`$FF06` DEN=0): 1,695,665 (TED 1,773,448, 49.86 fps). NTSC: 1,052,124 / 894,886 / 1,711,274 (TED 1,789,773, 59.92 fps). TED has three schedules: CPU at double clock when it needs no memory, single clock while it fetches bitmap data, stopped on the two DMA lines per character row. Screen off gains "about 10000 clock cycles" a frame. | plus4world *CPU Speed* (500248) and *TED Registers* "Video modes" |
 | Keyboard and joysticks: write a column-select value to **both** `$FD30` (6529 keyboard latch) and `$FF08` (TED, joystick latch), then read `$FF08`; a 0 bit in the answer is a pressed key. Selector bit 1 (`$FD`) reads joystick port 2, bit 2 (`$FB`) port 1: answer bits 0-3 up/down/left/right, bit 6 joy 1 fire, bit 7 joy 2 fire. Write `$FF` to the latch you are not interested in to keep keys and joysticks apart. | plus4world *Plus/4 Keyboard/Joystick Matrix* (500012); cc65 `libsrc/plus4/joy/plus4-stdjoy.s` (`sty TED_KBD / lda TED_KBD` with `#%11111011` / `#%11111101`, "and some keys — it's unavoidable") |
@@ -87,9 +87,9 @@ under `xplus4`, not recalled.
   a `FRAME_SYNC.plus4` can be a 'level' driver like the C64's; measure the
   period under `xplus4` before writing a constant, or measure it at start-up
   with a TED timer as `FRAME_SYNC.pet` does.
-- Which chroma nibble of the character byte is the "0" pixel colour versus
-  the "1" pixel colour in hires bitmap mode, and the bit-pair → register
-  mapping in multicolour bitmap mode, are *to verify* against
+- Which chroma nibble of the character byte is the "0" pixel color versus
+  the "1" pixel color in hires bitmap mode, and the bit-pair → register
+  mapping in multicolor bitmap mode, are *to verify* against
   plus4world's TED page (it continues past the point read here) or the
   cc65 driver's `SETPIXEL`.
 - Whether VICE's `-autostartprgmode 1` (RAM inject) starts a `$1001` PRG
@@ -98,14 +98,14 @@ under `xplus4`, not recalled.
 - Hannes/CSORY expansion register semantics (`$FD16`/`$FD15`) are *to
   verify*; VICE calls them a "memory expansion hack" and they are not part
   of any shipped machine.
-- The exact `$FF07` bit 6 behaviour on a real machine: plus4world says
+- The exact `$FF07` bit 6 behavior on a real machine: plus4world says
   flipping PAL/NTSC "will not change the machine to the other video
   standard" because the crystal does not change; the CPU-speed table lists
   the four crystal/bit combinations. Treat the bit as read-mostly.
 
 ## Corrections to the brief and the roadmap
 
-- **"121 colours (16 hues × 8 luma)"**: it is 15 chromas × 8 lumas + one
+- **"121 colors (16 hues × 8 luma)"**: it is 15 chromas × 8 lumas + one
   black; the 8 lumas of chroma 0 are identical (plus4world). The number is
   right, the arithmetic is not.
 - The brief's "2 voices square + noise" is right but needs the asymmetry:
@@ -153,12 +153,12 @@ under `xplus4`, not recalled.
 ### The screen
 
 - A cell is two bytes in two different kilobytes: character at
-  `$0C00 + cell`, colour+luma at `$0800 + cell`. `putColor` here is real and
+  `$0C00 + cell`, color+luma at `$0800 + cell`. `putColor` here is real and
   richer than the C64's: the attribute byte carries hue, brightness and
-  blink. A portable colour name must resolve to a chroma *and* a luma
+  blink. A portable color name must resolve to a chroma *and* a luma
   (cc65's `COLOR_*` table is a good default mapping); expose luma as the
   Plus/4's own extension, not as a portable concept.
-- The border colour is `$FF19`, the background `$FF15`; both are the same
+- The border color is `$FF19`, the background `$FF15`; both are the same
   chroma/luma byte format. `screen.setColors()` maps directly.
 - There is no reverse-video bit in hardware unless RVSDIS is clear: with
   the default 128-glyph set, bit 7 of a code inverts. Enabling 256
@@ -238,7 +238,7 @@ under `xplus4`, not recalled.
 2. **The CPU has no fixed speed.** It stops on DMA lines, halves while
    fetching, and doubles when the screen is off; a C64 cycle budget is
    wrong in both directions. Measure with the screen on.
-3. **Colour RAM is not a nibble at `$D800`.** It is a full byte at `$0800`
+3. **Color RAM is not a nibble at `$D800`.** It is a full byte at `$0800`
    with hue, luma and blink, and it sits *below* the character codes at
    `$0C00` in one 2K block that `$FF14` moves as a unit.
 4. **The keyboard is not `$DC00/$DC01`.** Two latches (`$FD30`, `$FF08`),

@@ -39,8 +39,8 @@ and nothing else — there is no `import ... from "@8bitscript/ui"`.
 ## The menu bar
 
 `@8bitscript/ui/menubar` draws one row of items with the selected one
-inverted — reverse video in the item colour, a filled bar rather than a
-recoloured word.
+inverted — reverse video in the item color, a filled bar rather than a
+recolored word.
 
 | Call | What it does |
 | --- | --- |
@@ -50,7 +50,7 @@ recoloured word.
 | `select(i)` / `selected()` | Which item is highlighted; 0 is the first |
 | `count()` | How many items the last run offered, drawn or not |
 | `clipped()` | Whether an item had to be dropped for want of room |
-| `setColors(item, highlight)` | Item colour; invert uses it, `highlight` is unused |
+| `setColors(item, highlight)` | Item color; invert uses it, `highlight` is unused |
 | `setPadding(cells)` | Space either side of each label; 1 by default |
 | `setMarker(s)` | The bracket, a one-character string; `"-"` by default, `""` for none |
 | `HEIGHT` | Rows a bar occupies, so a program can lay out under it |
@@ -68,15 +68,15 @@ program.
 if (menubar.item("FILE")) { drawFileMenu(); }
 ```
 
-is how a program hangs behaviour off the selection. Nothing moves the
+is how a program hangs behavior off the selection. Nothing moves the
 highlight on its own: this component never reads input, so a program
 calls `select()`, `next()`, `previous()` or `deselect()` itself, driving
 them from `@8bitscript/input` or from anything else it likes.
 
-**The selected item is inverted, not recoloured.** Reverse video fills the
-label and its padding in the item colour; a reverse space is a solid
+**The selected item is inverted, not recolored.** Reverse video fills the
+label and its padding in the item color; a reverse space is a solid
 block, so the item reads as a button. That works on all nine, including
-the three with no per-cell colour: the NES ships inverted copies of its
+the three with no per-cell color: the NES ships inverted copies of its
 font at ASCII+128, and the PET and Atari invert with bit 7 of the screen
 code.
 
@@ -96,9 +96,9 @@ on a C64 and 396 on a VIC-20;
 four shapes measured on the way, and the `@8bitscript/text` primitive that
 would take another bite out of it.
 
-**Drawing a bar leaves the text colour set to the bar's.** That is how the
-colour gets on without a second pass, and there is no `text.getColor` to put
-your setting back with. Draw the bar, *then* set your own colour:
+**Drawing a bar leaves the text color set to the bar's.** That is how the
+color gets on without a second pass, and there is no `text.getColor` to put
+your setting back with. Draw the bar, *then* set your own color:
 
 ```
 menubar.setColors(TextColor.CYAN, TextColor.WHITE);

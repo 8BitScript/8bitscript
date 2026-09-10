@@ -18,7 +18,7 @@ import { Video } from "./geometry.8bs";
 // which is the build's `--profile` to say (PET_PROFILES in
 // packages/compiler/src/mos), and reaches this file as ./geometry.8bs's
 // `Video` namespace, whose 8032 version the profile selects. There is no
-// colour RAM to go with it — a character's screen code alone decides how it
+// color RAM to go with it — a character's screen code alone decides how it
 // looks — so `putColor` exists only so portable code written against every
 // machine's `text` namespace still compiles; it does nothing, the same way
 // this package's `screen.setColors()` does nothing.
@@ -94,16 +94,16 @@ function asciiToScreenCode(code: utinyint): utinyint {
 // `text.print(cell, s)` writes a string's characters into consecutive
 // cells from `cell`, and `text.printNumber(cell, value, width)` writes
 // `value` as exactly `width` decimal digits, zero-padded and right-aligned,
-// so a field on a HUD never shifts columns. Both draw in the current colour —
+// so a field on a HUD never shifts columns. Both draw in the current color —
 // white until `text.setColor(TextColor.CYAN)` changes it, and that one
-// call then colours everything printed after it, on the machines that have
-// per-cell colour. They are also the two
+// call then colors everything printed after it, on the machines that have
+// per-cell color. They are also the two
 // functions the compiler's template layout targets: `text.print(0,
 // \`TICK ${ticks:1}\`)` is laid out at compile time into these same calls
 // (see packages/compiler/src/ir).
 //
 // Under them: `place()` puts one character at one cell in the current
-// colour, and is all a run of text costs per character, with `prepare()`
+// color, and is all a run of text costs per character, with `prepare()`
 // selecting the text character set once for the run.
 // `text.putChar` and `text.putColor` stay the one-cell pokes a caller can
 // build anything from.
@@ -148,7 +148,7 @@ export namespace text {
     }
 
     function putColor(cell: usmallint, color: utinyint): void {
-        // Deliberately empty — the PET has no colour RAM.
+        // Deliberately empty — the PET has no color RAM.
     }
 
     function setColor(color: utinyint): void {
@@ -188,7 +188,7 @@ export namespace text {
     }
 }
 
-// The colours `text.setColor()` takes. The PET has no colour RAM, so the
+// The colors `text.setColor()` takes. The PET has no color RAM, so the
 // names are here for a program that compiles everywhere and their values
 // go nowhere.
 export namespace TextColor {

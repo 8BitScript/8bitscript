@@ -16,11 +16,11 @@ import { Video, screenRam, colorRam } from "./geometry.8bs";
 // The screen is addressed by flat cell index — a position is
 // `y * text.COLUMNS + x` — and these are the plainest things a text API
 // can be built from: poke one cell's character code, poke one cell's
-// colour, and how many cells the whole screen has. Whether a caller uses
+// color, and how many cells the whole screen has. Whether a caller uses
 // these to clear the screen, lay out a label, or nothing at all is entirely
 // up to the caller — this package draws nothing on its own. Where the
 // 40x25 screen is (VIC bank 3, $E000 — ./geometry.8bs says why it is not
-// the KERNAL's $0400) reaches this file as `Video`; colour RAM is the
+// the KERNAL's $0400) reaches this file as `Video`; color RAM is the
 // fixed 1K of nybbles at $D800 wherever the screen is.
 //
 // ---- character codes: ASCII in, screen codes out ----------------------------
@@ -55,16 +55,16 @@ function asciiToScreenCode(code: utinyint): utinyint {
 // `text.print(cell, s)` writes a string's characters into consecutive
 // cells from `cell`, and `text.printNumber(cell, value, width)` writes
 // `value` as exactly `width` decimal digits, zero-padded and right-aligned,
-// so a field on a HUD never shifts columns. Both draw in the current colour —
+// so a field on a HUD never shifts columns. Both draw in the current color —
 // white until `text.setColor(TextColor.CYAN)` changes it, and that one
-// call then colours everything printed after it, on the machines that have
-// per-cell colour. They are also the two
+// call then colors everything printed after it, on the machines that have
+// per-cell color. They are also the two
 // functions the compiler's template layout targets: `text.print(0,
 // \`TICK ${ticks:1}\`)` is laid out at compile time into these same calls
 // (see packages/compiler/src/ir).
 //
 // Under them: `place()` puts one character at one cell in the current
-// colour, and is all a run of text costs per character, with `prepare()`
+// color, and is all a run of text costs per character, with `prepare()`
 // making sure the picture is set up and selecting the upper-case set once
 // for the run. `text.putChar` and `text.putColor` stay the one-cell pokes
 // a caller can build anything from.
@@ -73,7 +73,7 @@ let currentReverse: bool = false; // until text.setReverse() says otherwise
 
 // Reverse video is bit 7 of the screen code: 128-255 are the ROM's
 // inverted copies of 0-127. A reverse space is a solid block in the
-// cell's colour, which is how a selected menu item becomes a filled bar.
+// cell's color, which is how a selected menu item becomes a filled bar.
 function toScreen(code: utinyint): utinyint {
     let screen: utinyint = asciiToScreenCode(code);
     if (currentReverse) {
@@ -92,7 +92,7 @@ function prepare(): void {
 
 function place(cell: usmallint, code: utinyint): void {
     screenRam[cell] = toScreen(code);
-    colorRam[cell] = currentColor; // colour RAM is four bits wide; the VIC-II ignores the rest
+    colorRam[cell] = currentColor; // color RAM is four bits wide; the VIC-II ignores the rest
 }
 
 // ---- digits -------------------------------------------------------------
@@ -122,7 +122,7 @@ export namespace text {
     }
 
     // Invert glyphs printed after this: the character pixels take the
-    // background colour and the rest of the cell takes the text colour.
+    // background color and the rest of the cell takes the text color.
     function setReverse(on: bool): void {
         currentReverse = on;
     }
@@ -156,9 +156,9 @@ export namespace text {
     }
 }
 
-// The colours `text.setColor()` takes: the eight names every machine
-// shares, with this machine's colour-RAM values. Colour RAM takes all
-// sixteen VIC-II colours; the other eight are numbers 8-15, the ones
+// The colors `text.setColor()` takes: the eight names every machine
+// shares, with this machine's color-RAM values. Color RAM takes all
+// sixteen VIC-II colors; the other eight are numbers 8-15, the ones
 // `BorderColor`/`BackgroundColor` in ./screen.8bs name.
 export namespace TextColor {
     const BLACK: utinyint = 0;

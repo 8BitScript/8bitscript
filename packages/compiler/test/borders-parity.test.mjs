@@ -1,6 +1,6 @@
 // Every machine package implements the same two portable surfaces —
 // `./screen` (a `screen` namespace with setColors(border, background) and
-// the eight shared colour names in `BorderColor` and `BackgroundColor`) and
+// the eight shared color names in `BorderColor` and `BackgroundColor`) and
 // `./text` (a `text` namespace with ASCII character codes and a cell 0 at
 // the top-left inside the border) — which @8bitscript/screen and
 // @8bitscript/text delegate to per machine. A package that drops any of it
@@ -35,7 +35,7 @@ for (const machine of MACHINES) {
   // TODO: restore once a multi-target screen-and-text probe exists.
   test(`a shared screen-and-text program links clean for ${machine}`, { skip: NATIVE_BACKEND_PENDING }, () => {});
 
-  test(`@8bitscript/${machine}/screen exports blank, setBackground, setBorder, setColors, and the eight shared colour names`, () => {
+  test(`@8bitscript/${machine}/screen exports blank, setBackground, setBorder, setColors, and the eight shared color names`, () => {
     const ir = moduleIr(machine, 'screen');
     const screen = ir.namespaces.find((n) => n.name === 'screen');
     assert.ok(screen && screen.exported, `${machine} has no exported screen namespace`);
@@ -45,8 +45,8 @@ for (const machine of MACHINES) {
       const ns = ir.namespaces.find((n) => n.name === name);
       assert.ok(ns, `${machine} has no ${name} namespace`);
       assert.ok(ns.exported, `${machine}'s ${name} is not exported`);
-      for (const colour of SHARED_COLORS) {
-        assert.ok(ns.consts.has(colour), `${machine}'s ${name} has no ${colour}`);
+      for (const color of SHARED_COLORS) {
+        assert.ok(ns.consts.has(color), `${machine}'s ${name} has no ${color}`);
       }
       assert.equal(ns.consts.get('KEEP'), 255, `${machine}'s ${name}.KEEP is not the value blank() tests for`);
     }

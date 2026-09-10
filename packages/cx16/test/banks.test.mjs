@@ -1,7 +1,7 @@
 // @8bitscript/cx16/banks — the X16's banked-RAM probe. Two layers: the
 // probe program links clean for the X16 with the stock sheet (no emulator
 // needed), and, when x16emu and a working backend are installed, it is
-// run on a 64 KiB machine and a 2 MiB one and the border colour each
+// run on a 64 KiB machine and a 2 MiB one and the border color each
 // screenshot shows is what banks.kib() found. The border encodes the
 // answer (see banks-probe.8bs) so the test reads one pixel, not text.
 import { test } from 'node:test';
@@ -74,7 +74,7 @@ test(
         assert.equal(code, 0, `8bs run cx16 --hardware ram=${ram} --screenshot failed:\n${stdout}${stderr}`);
         shots[ram] = pixelAt(readFileSync(shot), 4, 4); // well inside the border
       }
-      // banks-probe.8bs paints one colour per size from 64 KiB up: the
+      // banks-probe.8bs paints one color per size from 64 KiB up: the
       // smallest machine is red, the largest yellow.
       const [r64, g64, b64] = shots['64'];
       assert.ok(r64 > g64 + 60 && r64 > b64 + 60, `64 KiB: a red border, got rgb(${shots['64']})`);

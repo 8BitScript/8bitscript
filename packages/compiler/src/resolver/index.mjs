@@ -90,7 +90,7 @@ export function tagsOf(options = {}) {
 /**
  * Whether a path already names one machine's version — `x.nes.8bs` — or
  * one hardware tag's: `x.pet.8032.8bs`. A tag is one word (letters,
- * digits, `_`, `-`), so `x.pet.8032.8bs` is recognised and `x.data.8bs` is
+ * digits, `_`, `-`), so `x.pet.8032.8bs` is recognized and `x.data.8bs` is
  * not: `data` is no machine.
  */
 export function isVariantPath(path) {

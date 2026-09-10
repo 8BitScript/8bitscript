@@ -23,11 +23,11 @@
 // set; the MEGA65's own registers (SCRNPTR, the palettes, the DMAgic, the
 // four SIDs) are not exported yet, and AGENTS.md is where their rules are.
 
-// $D020, the VIC-II(-compatible) border colour register.
+// $D020, the VIC-II(-compatible) border color register.
 @address(0xD020)
 export let borderColor: volatile<u8>;
 
-// $D021, the VIC-II(-compatible) background colour register (background #0).
+// $D021, the VIC-II(-compatible) background color register (background #0).
 @address(0xD021)
 export let backgroundColor: volatile<u8>;
 
@@ -44,7 +44,7 @@ export let memoryPointer: volatile<u8>;
 
 // $D030, the VIC-III control register A. Start-up (pre-0.2.0) sets it to $44
 // (PAL-RAM on, CROM9 on, no C65 ROM mapped, CRAM2K clear). Bit 0, CRAM2K,
-// maps the second kilobyte of colour RAM at $DC00-$DFFF in place of the
+// maps the second kilobyte of color RAM at $DC00-$DFFF in place of the
 // two CIAs — which the 80-column screen's cells 1024-1999 need, and which
 // text.8bs sets before every run of text (the frame runtime polls $D012,
 // not a CIA, so nothing here misses them). Writing anything but bit 0

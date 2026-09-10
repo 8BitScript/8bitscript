@@ -45,7 +45,7 @@ Do not describe more than this as working:
   namespace and the arrays over it): screen matrix `$E000`, sprite
   pointers `$E3F8`, 111 sprite shape blocks `$E400`–`$FFBF` (blocks
   144–254), and the character ROM's 4K copied into the RAM under the I/O
-  area at `$D000`. Colour RAM is the fixed `$D800`. `$D018` is `$84`
+  area at `$D000`. Color RAM is the fixed `$D800`. `$D018` is `$84`
   (`Video.MEMORY_POINTER_UPPERCASE`; `$86` for the lower-case set).
   `setupVideo()` in `src/index.8bs` puts it there once — `sei`, copy the
   ROM in place (`copyCharacterRom()`: `$01` low bits `%010` for the copy,
@@ -141,15 +141,15 @@ Do not describe more than this as working:
     install routine that moves `$FFFE` to the handler, sets
     `interruptsOn`, and `cli`s. 8bitscript has no function values, so a
     program cannot name code to run at a line; what the list covers is
-    colour splits, split scrolling, character-set and screen switches,
+    color splits, split scrolling, character-set and screen switches,
     sprite multiplexing by rewriting a sprite's registers at a line, and
     computed effects as a list rebuilt each frame.
   - `@8bitscript/c64/bitmap` (`src/bitmap.8bs`): `bitmap.enter(multicolor)`
     / `leave()`, `clear(bits)`, `plot`/`unplot`/`point(x, y)` (320×200),
-    `plotColor`/`pointColor(x, y, c)` (160×200, four colours),
+    `plotColor`/`pointColor(x, y, c)` (160×200, four colors),
     `offset(x, y)`, `setCellColors(cell, fg, bg)` and `fillColors` (the
-    colour matrix at `$DC00`, under I/O — one window per call),
-    `setCellColor3`/`fillColor3` (colour RAM, multicolour's `%11`). The
+    color matrix at `$DC00`, under I/O — one window per call),
+    `setCellColor3`/`fillColor3` (color RAM, multicolor's `%11`). The
     bitmap is `$E000`–`$FF3F`, `$D018 = $78`; the matrix sits in the
     lower-case set's second half so the upper-case set survives and
     `leave()` is a register change. Sprites over a bitmap draw from blocks
@@ -162,7 +162,7 @@ Do not describe more than this as working:
   - `@8bitscript/c64/scroll` (`src/scroll.8bs`): `scroll.setX(0-7)`,
     `setY(0-7)` (bit 7 of `$D011` kept clear), `setNarrow(on)` (38
     columns), `setShort(on)` (24 rows), `shiftLeft/Right/Up/Down(code,
-    color)` — screen and colour RAM together, the opened column or row
+    color)` — screen and color RAM together, the opened column or row
     filled; a thousand-cell copy each, about a frame of CPU.
   - `@8bitscript/c64/keyboard` + `/keys` (`src/keyboard.8bs`,
     `src/keys.8bs`): `keyboard.scan()` once a frame after `waitFrame()`,
@@ -229,7 +229,7 @@ There is no portable input, sprite, sound, canvas or banked-memory
 capability yet (these are the C64's hardware layers, not
 `@8bitscript/input`/`actors`/`sound`/`bitmap`), no interrupt handler a
 program writes (a language feature — function values — this package's
-raster list works around), no extended-colour text mode, no
+raster list works around), no extended-color text mode, no
 `.d64`/`.crt` output, no KERNAL calls of any kind (loading a file), and no
 model detection. The rules below are what to hold that work to.
 
@@ -242,20 +242,20 @@ under x64sc (VICE 3.10, Homebrew), not recalled.
 | ---- | ----- |
 | A C64 program loads at `$0801`, usable RAM length `$C7FF` (to `$CFFF`), C stack at `$D000` growing down, BASIC ROM unmapped: start-up is `ldx #$2f / stx $00 / ldx #$3e / stx $01` (`$01 = $3E`: LORAM 0, HIRAM 1, CHAREN 1 — BASIC out, KERNAL and I/O in) and exit restores `$3F`. `$A000`–`$BFFF` is program RAM. The native backend does not emit that start-up yet. | C64 link map and start-up disassembly (measured pre-0.2.0) |
 | A `.prg` starts with a BASIC `SYS` line (`basic-header.o`), so `RUN` after `LOAD` starts it; x64sc's `-autostartprgmode 1` injects it and types `RUN`. | `commodore.ld`, first screenshot below |
-| Reading the character ROM with CHAREN clear and storing each byte back to the same address copies it into the RAM underneath; with the VIC in bank 3 and `$D018 = $84`, screen codes at `$E000` render from that copy (normal and reverse), and a 63-byte shape at `$E400` with pointer 144 draws as sprite 0 at (100, 100) in the sprite's colour. Both sets are in the copy: the same screen codes with `$D018 = $86` render as lower case. | scratch program, `8bs run c64 --screenshot`, once per pointer value (the layout in `geometry.8bs`) |
+| Reading the character ROM with CHAREN clear and storing each byte back to the same address copies it into the RAM underneath; with the VIC in bank 3 and `$D018 = $84`, screen codes at `$E000` render from that copy (normal and reverse), and a 63-byte shape at `$E400` with pointer 144 draws as sprite 0 at (100, 100) in the sprite's color. Both sets are in the copy: the same screen codes with `$D018 = $86` render as lower case. | scratch program, `8bs run c64 --screenshot`, once per pointer value (the layout in `geometry.8bs`) |
 | The same copy with the KERNAL IRQ alive hangs the machine on the BASIC screen: the IRQ handler acknowledges CIA1 by reading `$DC0D`, which with I/O banked out is the ROM, so the interrupt is never cleared and fires again on `rti`, forever. `sei` first, always. | the same scratch program, built before `presync` existed — the first screenshot showed `RUN` and nothing else |
-| A colour-cycling demo on the bank-3 layout: readout and colours correct, 1034 bytes of program (766 before: the ROM copy loop and the guard; 1056 since the KERNAL went out, see below). | `8bs run c64 --screenshot`, the build's memory line (pre-0.2.0) |
+| A color-cycling demo on the bank-3 layout: readout and colors correct, 1034 bytes of program (766 before: the ROM copy loop and the guard; 1056 since the KERNAL went out, see below). | `8bs run c64 --screenshot`, the build's memory line (pre-0.2.0) |
 | A program using every subpath at once — three sprites (one at X 280 through the ninth bit, one double-size, one behind the background), text over them, `sid.play`, the two scans — builds to 1549 bytes and draws as written; sprite 0 at (24, 50) covers the first cell of the top row, i.e. (24, 50) is the screen's top-left pixel. | scratch program, screenshot |
 | The `Key` table matches VICE's positional C64 keymap at every host key whose C64 key is unambiguous (letters, digits, and ~30 others): the vkm's first number is the `$DC00` bit, its second the `$DC01` bit (`Return 0 1`, `space 7 4`, `Escape 7 7` = RUN/STOP, `Control_L 7 5` = the C= key, `Tab 7 2` = CTRL). | `/opt/homebrew/share/vice/C64/gtk3_pos.vkm`, `packages/compiler/test/c64-package.test.mjs` |
 | x64sc's models: `c64` (PAL, 6569, 6581, 6526, KERNAL rev 3), `c64c` (PAL, 8565, 8580, 6526A), `c64old` (PAL, 6569R1, rev 2), `ntsc` (6567R8, 6581), `newntsc` (8562, 8580, 6526A), `oldntsc` (6567R56A, 6581, KERNAL rev 1), `drean` (PAL-N, 6572), `jap` (NTSC, Japanese KERNAL/chargen), `c64gs` (PAL, 8580, GS KERNAL), `pet64` (4064 KERNAL), `ultimax` (no KERNAL); `-sidmodel` 0 6581 / 1 8580 / 2 8580 + digiboost; `-reusize` 128–16384 KiB; `-VICIImodel` 6569, 6569r1, 8565, 6567, 8562, 6567r56a, 6572. | `x64sc -help`, VICE's `c64/c64model.c` |
 | The SID frequency formula `f = Fn × clock / 2^24` gives `Fn = 7493` for A4 on PAL, 440.02 Hz back; the table's last entry, B6, is 33640. B7 would overflow 16 bits on PAL (the ceiling is about 3848 Hz); C7–A#7 would fit, and the table stops at the last complete octave by choice. | the 6581 datasheet formula, `c64-package.test.mjs` recomputes the table |
 | `-ntsc`/`-pal` alone only change VICE's sync factor and leave the model's geometry; `-model` switches ROMs, VIC-II and timing together, which is why `8bs run` uses `-model`. An earlier at-line-0 frame check fired twice a frame because `$D012` wraps at 256 on a 263/312-line frame. | `packages/cli/src/run.mjs`, `FRAME_SYNC.c64`'s comment (measured under VICE) |
-| The catalog's stock fact sheet: grid 40×25 of 8×8, 16 colours, 2 per cell, 256 RAM glyphs, 2×2 blocks, bitmap, one layer with fine scroll, 8 sprites and 8 per line, 24×21, 3 colours (multicolour); 3 SID voices with ADSR, filter, samples through the volume register, a volume per voice, oscillator 3 as a random source; keyboard, two ports, no pads; disk; 51199 bytes (`$0801`–`$CFFF`), nothing banked until an `ram=reu*` value says so (`memory.banked`, `memory.bankedKib`), no mouse or paddles until a port value says so. | `src/geometry.8bs`; the `link.ld` and SID rows above; the VIC-II and SID sections of the research notes below; `package.json` (read) |
-| `@8bitscript/c64/reu` — `reu.detect()`: presence by a `$DF02` round trip ($55 then $AA), size by stashing a marker to the first byte of each 64 KiB bank and watching bank 0 for the wrap or the bank for silence. VICE's `reu.c`: the bank register's unused bits are `0xF8` on the 128/256/512 KiB units (`reg_bank_unused`, forced high on read, masked on write) and 0 above; the address wraps at `wrap_around` (`0x20000` for 128 KiB, `0x80000` for 256/512, the size for larger); `$DF02`–`$DF05` read back what was written; the status register's bit 4 is the 256K-chip flag. Under x64sc the probe printed 0 / 128 / 256 / 512 / 1024 / 16384 KiB for no REU, `ram=reu128`, `reu256`, `reu512`, `reu1m`, `reu16m` — the 3-bit bank register, the 256 KiB unit that aliases inside a 512 KiB wrap, the 8-bit register with the wrap at the unit's size, and the register wrapping to zero — and the border took the colour `test/reu-probe.8bs` encodes for each. Cost: `test/reu-probe.8bs` is 810 bytes of program with `reu.detect()` and 628 with the same code reading its answer from RAM instead — 182 bytes for the probe, most of it the bank loop (the first draft, one helper setting nine registers per transfer and inlined four times, was 459; autoload took it down). A program that does not import `./reu` carries none of it. | `src/reu.8bs`; VICE `src/c64/cart/reu.c` (fetched 2026-09-05); four screenshots (ran); `test/reu.test.mjs` |
+| The catalog's stock fact sheet: grid 40×25 of 8×8, 16 colors, 2 per cell, 256 RAM glyphs, 2×2 blocks, bitmap, one layer with fine scroll, 8 sprites and 8 per line, 24×21, 3 colors (multicolor); 3 SID voices with ADSR, filter, samples through the volume register, a volume per voice, oscillator 3 as a random source; keyboard, two ports, no pads; disk; 51199 bytes (`$0801`–`$CFFF`), nothing banked until an `ram=reu*` value says so (`memory.banked`, `memory.bankedKib`), no mouse or paddles until a port value says so. | `src/geometry.8bs`; the `link.ld` and SID rows above; the VIC-II and SID sections of the research notes below; `package.json` (read) |
+| `@8bitscript/c64/reu` — `reu.detect()`: presence by a `$DF02` round trip ($55 then $AA), size by stashing a marker to the first byte of each 64 KiB bank and watching bank 0 for the wrap or the bank for silence. VICE's `reu.c`: the bank register's unused bits are `0xF8` on the 128/256/512 KiB units (`reg_bank_unused`, forced high on read, masked on write) and 0 above; the address wraps at `wrap_around` (`0x20000` for 128 KiB, `0x80000` for 256/512, the size for larger); `$DF02`–`$DF05` read back what was written; the status register's bit 4 is the 256K-chip flag. Under x64sc the probe printed 0 / 128 / 256 / 512 / 1024 / 16384 KiB for no REU, `ram=reu128`, `reu256`, `reu512`, `reu1m`, `reu16m` — the 3-bit bank register, the 256 KiB unit that aliases inside a 512 KiB wrap, the 8-bit register with the wrap at the unit's size, and the register wrapping to zero — and the border took the color `test/reu-probe.8bs` encodes for each. Cost: `test/reu-probe.8bs` is 810 bytes of program with `reu.detect()` and 628 with the same code reading its answer from RAM instead — 182 bytes for the probe, most of it the bank loop (the first draft, one helper setting nine registers per transfer and inlined four times, was 459; autoload took it down). A program that does not import `./reu` carries none of it. | `src/reu.8bs`; VICE `src/c64/cart/reu.c` (fetched 2026-09-05); four screenshots (ran); `test/reu.test.mjs` |
 | `@8bitscript/c64/mouse` — a 1351's presence and movement. At rest, with `-controlport1device` at each of its four settings and the pot lines pointed at port 1 (`$DC00 = $40`), the SID's `$D419`/`$D41A` read: nothing **255**, joystick **255**, paddles **255**, 1351 **64** — which is `(0 & 0x7f) + 0x40`, the zero of VICE's `mouse_get_1351_x`. So a reading in 64..191 is what says a mouse, and `present()` is that test; a real paddle at mid-travel would read there too, so it means "consistent with a 1351", not proof. Movement is the signed 7-bit difference of two pot readings; buttons ride the joystick lines, left on FIRE and right on UP (`mouse_1351.c`). **Presence is decided once, in `poll()`, from the same reading movement comes from, and `present()` returns what that poll saw** — it used to re-read the registers, and because the SID's converter runs continuously, two reads in one frame disagreed: with a 1351 fitted in port 1, `@8bitscript/c64/input`'s `poll()` concluded *no pointer* in the same frame that a read a few instructions later found one, so `@8bitscript/c64/pointer`'s arrow was hidden and shown on alternate frames and never appeared. One reading a frame, shared by every caller. **Movement now is exercised, but only by hand** — `--screenshot` cannot move a host pointer, and moving one under x64sc was seen to move the reported cell. **Y runs opposite the screen**: applying the same sign as X moved the arrow up when the mouse moved down (Studio, 2026-09-07), so `poll()` swaps last and now on that axis and leaves rest at the top-left. **Bit 0 is SID ADC noise, not motion**: at rest under x64sc the pots sit in 64..65 (VICE's `makepotval` adds `rand(0, 1)` for a 1351), and a driver that stepped on all seven bits walked the pointer ±1 pixel a frame, including with the host mouse ungrabbed. Masking to bits 1–6 (`$7E`) and ignoring `|delta| < 3` while still updating `last` stopped the drift and also ate slow host motion — a trackpad step is often 1–2 counts a frame, so the pointer hung until the host jumped (Studio, 2026-09-07). `step()` now confirms a 1-count before tracking, then applies each further 1-count, and idles on a still frame. Cost: `test/mouse-probe.8bs` is 1275 bytes of program with the driver and 1027 with a bare pot read — 248 bytes. | `src/mouse.8bs`; VICE `src/joyport/mouse_1351.c` (fetched 2026-09-05); four screenshots (ran); `test/reu.test.mjs` |
 | With the KERNAL banked out (`$01` low bits `%101`) a program that writes the space code to `screenRam[100]` and prints what it reads back prints 32; the borders example (1056 bytes now, 1034 before) and the all-subpath program (1571 against 1549) build and draw as before — 22 bytes each: the vector stub, its `.init` section and the port switch. A program that never imports `./raster` links `__8bs_c64_rti` and nothing else from `raster.s`; one that does links the install routine and the handler too. | scratch programs, linked-image symbol map (pre-0.2.0), screenshots |
 | **The raster list**: four `raster.at` entries (border red at 100, green at 150, yellow at 200, blue at 240) draw four bands down the border, top to bottom, while the frame loop keeps counting frames and printing (the frame driver's poll is unbothered by the interrupt). `.init.250` runs before `main()` (an `.init` section storing to `$D021` was seen to run first), per-routine sections let the linker drop the handler from a program that never names it, and `asm6502 { jsr __8bs_c64_raster_install }` reaches a native symbol by name. The emitted `__asm__` carries no clobbers, so the routine saves A and X itself. | `test/raster-probe.8bs` under `test/layers.test.mjs` (a pixel per band), the scratch programs |
-| **Bitmap mode** at `$E000` with the colour matrix at `$DC00` (`$D018 = $78`): a rectangle plotted at (40–119, 40–99) and a diagonal line draw white on blue cells; cell 0 given red-on-black draws black (no bit set); a sprite whose 63 bytes were written to block 96 under the I/O area, pointer written at `$DFF8` under the I/O area, draws yellow over the bitmap; `leave()` back to text needs no ROM copy (the upper-case set was untouched). | `test/bitmap-probe.8bs` under `test/layers.test.mjs`, scratch screenshot |
+| **Bitmap mode** at `$E000` with the color matrix at `$DC00` (`$D018 = $78`): a rectangle plotted at (40–119, 40–99) and a diagonal line draw white on blue cells; cell 0 given red-on-black draws black (no bit set); a sprite whose 63 bytes were written to block 96 under the I/O area, pointer written at `$DFF8` under the I/O area, draws yellow over the bitmap; `leave()` back to text needs no ROM copy (the upper-case set was untouched). | `test/bitmap-probe.8bs` under `test/layers.test.mjs`, scratch screenshot |
 | **Character set and scroll**: `charset.fill(1, 255)` and `charset.define(2, $FF, $81 × 6, $FF)` turn a row of A's into solid blocks and a row of B's into hollow boxes, including the A inside "CHARSET"; two `shiftRight` and one `shiftDown` move all three rows by two columns and one row; `setNarrow(true)` plus `setX(4)` show as the 38-column window. | scratch program, screenshot and pixel reads |
 | **REU transfers** against `ram=reu512`: the screen filled with code 160, stashed into bank 1 at `$1000`, blanked, `verify` false, fetched back, `verify` true, `fillReu` of 40 spaces then `fetch` blanks row 0 and `swap` blanks row 1 while rows 2–24 keep the glyph — green border, "REU 00512 KIB"; a stock C64 tries nothing (red). Length 0 as 65536 is from the register description, not run. | `test/reu-transfer-probe.8bs` under `test/layers.test.mjs` |
 | **The region probe**: `detectRegion()` returns NTSC under `-model ntsc` and PAL under `-model c64`, and `sid.frequencyOf(Note.A4)` is 7218 on the first and 7493 on the second: `round(440 × 2^24 / 1022727)` and `/ 985248`. | `test/region-probe.8bs` under `test/layers.test.mjs`, both models |
@@ -279,7 +279,7 @@ the IRQ/BRK/NMI vectors, `$033C`–`$03FB` the cassette buffer, `$02A7`–
 from `$0801`; a linked program's region is bigger because BASIC is out); `$A000`–
 `$BFFF` BASIC ROM / RAM; `$C000`–`$CFFF` RAM; `$D000`–`$DFFF` I/O (VIC-II
 `$D000`–`$D3FF` mirrored every 64 bytes, SID `$D400`–`$D7FF` every 32,
-colour RAM `$D800`–`$DBFF`, CIA1 `$DC00`, CIA2 `$DD00`, I/O 1 `$DE00`,
+color RAM `$D800`–`$DBFF`, CIA1 `$DC00`, CIA2 `$DD00`, I/O 1 `$DE00`,
 I/O 2 `$DF00`) or the 4K character ROM; `$E000`–`$FFFF` KERNAL ROM / RAM.
 Writes to a ROM address always go to the RAM underneath.
 
@@ -293,13 +293,13 @@ start-up leaves (pre-0.2.0): RAM at `$A000`, I/O at `$D000`, the KERNAL at `$E00
 
 **VIC-II timing** (Bauer §3): 6569 (PAL) 312 lines × 63 cycles, 6567R8
 (NTSC) 263 × 65, 6567R56A (old NTSC) 262 × 64; the CPU clock is the
-colour crystal ÷ 18 (PAL 17734472 Hz → 985248) or ÷ 14 (NTSC 14318181 →
+color crystal ÷ 18 (PAL 17734472 Hz → 985248) or ÷ 14 (NTSC 14318181 →
 1022727). The Drean 6572 (PAL-N) is 312 × 65, at a clock near NTSC's
 (the exact figure is not in a source read here). **Bad lines**:
 on every raster line in `$30`–`$F7` whose low three bits equal YSCROLL
 (one line in eight with the default scroll, 25 of them a frame) the VIC
 takes the bus for 40–43 cycles to fetch the next row's 40 screen codes
-and colours — the CPU gets about 20 of 63 cycles on those lines. Sprites:
+and colors — the CPU gets about 20 of 63 cycles on those lines. Sprites:
 each active sprite costs its 3 fetches per line it covers (about 2 CPU
 cycles, plus the bus takeover). Overall the CPU keeps roughly 90–95% of
 the cycles with nothing but text on; the user's notes' "half" is wrong.
@@ -311,15 +311,15 @@ the cycles with nothing but text on; the user's notes' "half" is wrong.
 XSCROLL), `$D017` Y-expand, `$D018` (VM13–VM10 screen in 1K steps, CB13–
 CB11 charset in 2K steps — bitmap uses CB13 only), `$D019`/`$D01A`
 interrupt status/enable (raster, sprite-background, sprite-sprite, light
-pen), `$D01B` sprite-behind-background, `$D01C` sprite multicolour, `$D01D`
+pen), `$D01B` sprite-behind-background, `$D01C` sprite multicolor, `$D01D`
 X-expand, `$D01E`/`$D01F` collisions (cleared by reading), `$D020` border,
-`$D021`–`$D024` backgrounds 0–3, `$D025`/`$D026` shared sprite colours,
-`$D027`–`$D02E` sprite colours. Text modes: standard (2 colours a cell:
-colour RAM + background 0), multicolour (MCM: cells with colour-RAM bit 3
-set are 4×8 double-width pixels in background 0/1/2 + the colour's low
-three bits), extended colour (ECM: 64 characters, the code's top two bits
-pick background 0–3). Bitmap modes: hi-res (8K, 2 colours a cell from
-screen RAM's two nybbles) and multicolour (4 a cell). The sixteen colours
+`$D021`–`$D024` backgrounds 0–3, `$D025`/`$D026` shared sprite colors,
+`$D027`–`$D02E` sprite colors. Text modes: standard (2 colors a cell:
+color RAM + background 0), multicolor (MCM: cells with color-RAM bit 3
+set are 4×8 double-width pixels in background 0/1/2 + the color's low
+three bits), extended color (ECM: 64 characters, the code's top two bits
+pick background 0–3). Bitmap modes: hi-res (8K, 2 colors a cell from
+screen RAM's two nybbles) and multicolor (4 a cell). The sixteen colors
 are fixed; the palette is not "8 base + 8 bright".
 
 **Sprites** (Bauer §3.8): 24×21, 63 bytes in a 64-byte block, pointer =
@@ -330,8 +330,8 @@ when its Y equals the raster line's low byte, so Y 250+ is under the
 bottom border and X 344+ (to 487) in the right border/blanking. Priority
 among sprites is fixed by number; `$D01B` decides each sprite's priority
 against the background's *foreground* pixels (background 0 always shows
-through transparent pixels). Multicolour sprites: 12×21, pixel pairs `01`
-shared colour 0 (`$D025`), `10` own colour, `11` shared colour 1
+through transparent pixels). Multicolor sprites: 12×21, pixel pairs `01`
+shared color 0 (`$D025`), `10` own color, `11` shared color 1
 (`$D026`). Expansion doubles the size, not the data. Eight sprites per
 raster line is the whole limit — there is no "8 of 64" as on the NES —
 and more objects means multiplexing across raster lines, which is
@@ -401,7 +401,7 @@ are wrong, misleading, or unverified:
   the background)."** `$D01B` puts any sprite behind the background's
   foreground per sprite; only sprite-to-sprite order is fixed.
 - **"Each has its own colr mode … single-color (plus common background)."**
-  Each sprite chooses hi-res (one colour) or multicolour (its colour plus
+  Each sprite chooses hi-res (one color) or multicolor (its color plus
   the two shared) individually.
 - **"The palette has 16 fixed colors (8 base + 8 bright variants)."** The
   sixteen are fixed, but they are not eight pairs; orange, brown, and the
@@ -441,13 +441,13 @@ are wrong, misleading, or unverified:
 ### The picture is in bank 3, and the reasons are structural
 
 - The VIC's data — screen, charset, sprite shapes, sprite pointers, the
-  bitmap and its colour matrix — lives in `$D000`–`$FFFF` and nowhere
+  bitmap and its color matrix — lives in `$D000`–`$FFFF` and nowhere
   else. Never put VIC data inside `$0801`–`$CFFF`: the linker owns it and
   nothing checks for an overlap. A custom character set is written into
   the RAM copy at `$D000`–`$D7FF` through the windows in `index.8bs`; the
   bitmap takes `$E000`–`$FF3F` and evicts the shape blocks and the text
   screen — a mode change `bitmap.enter()`/`leave()` own, with `videoMode`
-  telling the sprite layer and text where things are. The colour matrix
+  telling the sprite layer and text where things are. The color matrix
   is under the I/O area because every other 1K slot in the bank is the
   program's or the bitmap's; the price is a window per matrix write, and
   the alternative — a link script ending the program at `$BFFF` to free
@@ -465,7 +465,7 @@ are wrong, misleading, or unverified:
   `interruptsOn`). Verified above what happens otherwise.
 - An `@address` global's name is a C macro for the whole program: give it
   a name no parameter will ever have.
-- Colour RAM never moves: `$D800` + cell, written through I/O.
+- Color RAM never moves: `$D800` + cell, written through I/O.
 - `Video` in `geometry.8bs` is the single source for every address; a
   surface reads `Video.X`, never a number. The arrays over the bank are
   declared *there* because `@address` takes only a literal or a
@@ -485,7 +485,7 @@ are wrong, misleading, or unverified:
   masked and the raster list disabled, and that is a design to make on
   purpose.
 - The raster list is a *list*: entries in ascending line order, rebuilt
-  between frames, applied by the shipped handler. A colour change inside
+  between frames, applied by the shipped handler. A color change inside
   the picture lands a few cycles into its line (more on a bad line); put
   it on the line before, or in the border. The window rule above is what
   keeps the handler alive: a window under I/O with the interrupt live
@@ -512,7 +512,7 @@ are wrong, misleading, or unverified:
 - Eight per line is the limit, and eight per frame is this package's
   promise. Multiplexing (more objects by rewriting sprite registers at a
   raster line) is raster-list entries — `raster.at(line,
-  raster.spriteY(n), y)` and the sprite's X, pointer and colour beside it,
+  raster.spriteY(n), y)` and the sprite's X, pointer and color beside it,
   four or five entries per reuse out of the list's 63 — and a sprite
   reused below line L must have finished drawing above it. Budget per
   raster line, as the NES file says for its own reason.
@@ -601,20 +601,20 @@ register documentation, not by pressing keys under `-limitcycles`.
 packages/c64/src/geometry.8bs        Video: bank 3, $E000 screen, $D000 charset copy, $E3F8 pointers, $E400 shapes, $D018 = $84; Bitmap: $E000 bitmap, $DC00 matrix, $DFF8 pointers, $D800 blocks 96-111, $D018 = $78; the arrays over them
 packages/c64/src/index.8bs           target package: every register by name, videoMode/interruptsOn, setupVideo() (sei, ROM copy, bank, pointer, KERNAL out), copyCharacterRom(), the windows under I/O, detectRegion(), the REU registers
 packages/c64/native/6502/raster.s    .init.250 (NMI and IRQ vectors → rti, every program), __8bs_c64_raster_install, the raster-list handler
-packages/c64/src/screen.8bs          @8bitscript/c64/screen: blank() over Video.CELL_COUNT cells, sixteen colour names
+packages/c64/src/screen.8bs          @8bitscript/c64/screen: blank() over Video.CELL_COUNT cells, sixteen color names
 packages/c64/src/text.8bs            @8bitscript/c64/text: ASCII → screen code, direct writes, COLUMNS/CELL_COUNT from Video; $D018 only in text mode
-packages/c64/src/sprites.8bs         @8bitscript/c64/sprites: place/setShape (by videoMode)/setShapeByte/setColor/show/hide/expand/priority/multicolour/collisions
+packages/c64/src/sprites.8bs         @8bitscript/c64/sprites: place/setShape (by videoMode)/setShapeByte/setColor/show/hide/expand/priority/multicolor/collisions
 packages/c64/src/raster.8bs          @8bitscript/c64/raster: the write list at $0200 — clear/at/count/enable/disable, Register.*, spriteX/Y/Color/Pointer(n)
 packages/c64/src/bitmap.8bs          @8bitscript/c64/bitmap: enter/leave, clear, plot/unplot/point, plotColor/pointColor, setCellColors/fillColors (under I/O), setCellColor3/fillColor3
-packages/c64/src/charset.8bs         @8bitscript/c64/charset: define/setRow/readRow/copy/fill/restore, multicolour text, upper/lower case
-packages/c64/src/scroll.8bs          @8bitscript/c64/scroll: setX/setY, setNarrow/setShort, shiftLeft/Right/Up/Down over screen and colour RAM
+packages/c64/src/charset.8bs         @8bitscript/c64/charset: define/setRow/readRow/copy/fill/restore, multicolor text, upper/lower case
+packages/c64/src/scroll.8bs          @8bitscript/c64/scroll: setX/setY, setNarrow/setShort, shiftLeft/Right/Up/Down over screen and color RAM
 packages/c64/src/keyboard.8bs        @8bitscript/c64/keyboard: scan() snapshot of the eight columns, pressed(key), column(n)
 packages/c64/src/keys.8bs            @8bitscript/c64/keys: Key.X = column * 8 + row, the one C64 matrix
 packages/c64/src/joystick.8bs        @8bitscript/c64/joystick: scan() both ports, up/down/left/right/fire(port), bits(port)
 packages/c64/src/sid.8bs             @8bitscript/c64/sid: voices, envelopes, filter, Note.C0-B6 over the PAL and NTSC tables, setRegion/detectRegion
 packages/c64/src/reu.8bs             @8bitscript/c64/reu: reu.detect() (the first probe), stash/fetch/swap/verify/fillReu
 packages/c64/src/mouse.8bs           @8bitscript/c64/mouse: a 1351 in a port — present(), poll(), x/y, buttons (a probe and its driver in one)
-packages/c64/test/reu-probe.8bs      the probe run for real: prints the KiB, border colour encodes it; test/reu.test.mjs reads it under x64sc
+packages/c64/test/reu-probe.8bs      the probe run for real: prints the KiB, border color encodes it; test/reu.test.mjs reads it under x64sc
 packages/c64/test/layers.test.mjs    raster-probe, bitmap-probe, region-probe, reu-transfer-probe: linked clean, then run under x64sc and read by pixel
 packages/c64/package.json            "8bitscript".exports names the fourteen subpaths (screen, text, video, sprites, keyboard, keys, joystick, sid, reu, mouse, raster, bitmap, charset, scroll); "8bitscript".native ships raster.s
 packages/compiler/test/c64-package.test.mjs   layout consistency, registers, borders through the bank, each subpath's emitted C, raster.s's shape, keys vs VICE, both note tables

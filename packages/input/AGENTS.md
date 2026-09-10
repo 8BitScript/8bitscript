@@ -85,7 +85,7 @@ are the next calls, not a gap the file hides. Measured on Studio, the X16
 pointer costs **318 bytes of program and 5 of RAM** (1253 B without the
 layer, 1571 with it); the unanswered half still costs zero
 ([`packages/ui/AGENTS.md`](../ui/AGENTS.md) has the table). **A capability a
-machine cannot honour should cost that machine nothing**, and a layer of
+machine cannot honor should cost that machine nothing**, and a layer of
 honest constants achieves that where a missing file would not compile and a
 half-working one would mislead.
 
@@ -112,7 +112,7 @@ where it shows most clearly.
   it.
 - **Whether a mouse is actually plugged in is not knowable while
   compiling**, and folding that away would be a wrong program, not an
-  optimisation — on a machine with a probe. `pointer()` answers it every
+  optimization — on a machine with a probe. `pointer()` answers it every
   frame from that probe. The X16's KERNAL has none, so `pointer()` is the
   `input.mouse` fact; a board whose SMC reports `BAT_FAIL` will still say
   present. That case has not been seen under x16emu.
@@ -125,7 +125,7 @@ where it shows most clearly.
   one answer flickered against the cell hit-tested from the other. Read
   it in `poll()`, keep it, and let everything in the frame share it.
 
-A global initialiser must be a literal or a const (`8BS3001`), so
+A global initializer must be a literal or a const (`8BS3001`), so
 `const X: bool = !#fact(...)` does not compile. Write the negation at the
 use site — `if (!COLOR_PER_CELL)` — which folds the same way.
 

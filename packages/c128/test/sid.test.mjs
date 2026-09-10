@@ -2,7 +2,7 @@
 //
 // A sound chip is awkward to test from a screenshot, so the probe asks the
 // chip the only two questions it answers — voice 3's oscillator and its
-// envelope — and reports the answers as colours. The other half of this
+// envelope — and reports the answers as colors. The other half of this
 // file needs no emulator: the note tables are arithmetic, and arithmetic
 // can be checked against the formula it came from.
 import { test } from 'node:test';

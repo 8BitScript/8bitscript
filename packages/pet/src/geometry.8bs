@@ -3,7 +3,7 @@
 // The one thing about the PET's display that changes between models is how
 // wide it is: 40 columns on the 2001/3xxx/4xxx machines, 80 on the 8xxx
 // business machines. Everything else this package does with the screen —
-// screen RAM at $8000, one byte per cell, 25 rows, no colour — is the same
+// screen RAM at $8000, one byte per cell, 25 rows, no color — is the same
 // on every PET ever made, so it is written once, in screen.8bs and text.8bs,
 // against these three numbers. This file is the 40-column version, and
 // what every PET profile reads except the 8032, which has its own

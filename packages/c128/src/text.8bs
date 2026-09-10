@@ -14,13 +14,13 @@ import { memoryPointer, memoryPointerShadow } from "./index.8bs";
 
 // The screen is addressed by flat cell index — a position is
 // `y * text.COLUMNS + x` — and these are the plainest things a text API
-// can be built from: poke one cell's character code, poke one cell's colour, and how many
+// can be built from: poke one cell's character code, poke one cell's color, and how many
 // cells the whole screen has. Whether a caller uses these to clear the
 // screen, lay out a label, or nothing at all is entirely up to the caller —
 // this package draws nothing on its own. In the C128's native 40-column
 // mode the default screen RAM is $0400 (40x25, 1000 cells — same as the
 // C64's, for the same backward-compatibility reasons the KERNAL keeps the
-// C64's screen editor conventions), colour RAM fixed at $D800.
+// C64's screen editor conventions), color RAM fixed at $D800.
 //
 // ---- character codes: ASCII in, screen codes out ----------------------------
 //
@@ -57,16 +57,16 @@ function asciiToScreenCode(code: utinyint): utinyint {
 // `text.print(cell, s)` writes a string's characters into consecutive
 // cells from `cell`, and `text.printNumber(cell, value, width)` writes
 // `value` as exactly `width` decimal digits, zero-padded and right-aligned,
-// so a field on a HUD never shifts columns. Both draw in the current colour —
+// so a field on a HUD never shifts columns. Both draw in the current color —
 // white until `text.setColor(TextColor.CYAN)` changes it, and that one
-// call then colours everything printed after it, on the machines that have
-// per-cell colour. They are also the two
+// call then colors everything printed after it, on the machines that have
+// per-cell color. They are also the two
 // functions the compiler's template layout targets: `text.print(0,
 // \`TICK ${ticks:1}\`)` is laid out at compile time into these same calls
 // (see packages/compiler/src/ir).
 //
 // Under them: `place()` puts one character at one cell in the current
-// colour, and is all a run of text costs per character, with `prepare()` selecting the
+// color, and is all a run of text costs per character, with `prepare()` selecting the
 // upper-case set once for the run.
 // `text.putChar` and `text.putColor` stay the one-cell pokes a caller can
 // build anything from.
@@ -90,7 +90,7 @@ function prepare(): void {
 
 function place(cell: usmallint, code: utinyint): void {
     memory.write(0x0400 + cell, toScreen(code));
-    memory.write(0xD800 + cell, currentColor); // colour RAM is four bits wide; the VIC-II ignores the rest
+    memory.write(0xD800 + cell, currentColor); // color RAM is four bits wide; the VIC-II ignores the rest
 }
 
 // ---- digits -------------------------------------------------------------
@@ -152,8 +152,8 @@ export namespace text {
     }
 }
 
-// The colours `text.setColor()` takes: the eight names every machine
-// shares, with this machine's colour-RAM values.
+// The colors `text.setColor()` takes: the eight names every machine
+// shares, with this machine's color-RAM values.
 export namespace TextColor {
     const BLACK: utinyint = 0;
     const WHITE: utinyint = 1;

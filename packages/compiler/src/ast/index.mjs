@@ -48,7 +48,7 @@ export const NodeType = {
   // `${expression}` or `${expression:width}` — `width` an IntegerLiteral or
   // null when the field left it to the expression's type.
   TemplateField: 'TemplateField',
-  // `[1, 2, 3]`: the initialiser of an `array<T, N>`. Elements are
+  // `[1, 2, 3]`: the initializer of an `array<T, N>`. Elements are
   // expressions in the tree (so hover and the fold pass reach them), but
   // lowering only accepts compile-time values there — the data is laid
   // out before the program runs.

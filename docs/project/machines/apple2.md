@@ -13,16 +13,16 @@ a `FRAME_SYNC.apple2` driver, an Apple II emulator entry in
 first; the rules there apply to every target and are not repeated.
 `packages/pet/AGENTS.md` is the closest existing contrast: like the PET,
 the Apple II has no video chip to program and no sound chip; unlike the
-PET it has a bitmap, sixteen (artifact) colours, and an operating system
+PET it has a bitmap, sixteen (artifact) colors, and an operating system
 that expects to own memory —
 
 > **The Apple II is a 1 MHz 6502 with soft switches instead of registers:
-> a text page and a hires page whose rows are interleaved, whose colours
+> a text page and a hires page whose rows are interleaved, whose colors
 > are an NTSC artifact of pixel position, and whose "screen holes" belong
 > to firmware; a keyboard that latches one key; a speaker that is a
 > toggle; and no sprites, no scroll, no vblank flag on the II/II+. Model it
 > as a 40×24 text grid plus a 280×192 bitmap with position-dependent
-> colour, under ProDOS, and let every extra — 80 columns, aux memory,
+> color, under ProDOS, and let every extra — 80 columns, aux memory,
 > double hires, MouseText, Mockingboard, mouse card, 65C02 — be a profile
 > or an optional capability.**
 
@@ -76,13 +76,13 @@ in this file was seen on screen — no Apple II emulator is installed.
 | Upstream README: "produces ProDOS 8 system-program (`SYS`, file type `$ff`) binaries. ProDOS loads them at `$2000`; copy the linked output to a ProDOS volume with a filename ending in `.SYSTEM`… targets a 64 KiB Apple II running ProDOS and uses the Monitor ROM for 40-column text input and output. It is also suitable for an Apple IIe in 40-column mode. It does not use hi-res graphics or auxiliary memory." Tested "in MAME under ProDOS 8". `platform(apple2 COMPLETE HOSTED PARENT common)`. | `mos-platform/apple2/README.md`, `CMakeLists.txt`, PR #444 |
 | Memory map: `$0000-$00FF` zero page, `$0100` stack, `$0200-$02FF` GETLN buffer, `$0300-$03CF` free, `$03D0-$03FF` DOS/ProDOS/interrupt vectors, `$0400-$07FF` text page 1 + peripheral screen holes, `$0800-$0BFF` text page 2, `$2000-$3FFF` hires page 1, `$4000-$5FFF` hires page 2, ProDOS: `$9600-$99FF` BASIC.SYSTEM buffers, `$9A00-$BEFF` "currently running SYS file", `$BF00-$BFFF` ProDOS global page; `$C000-$C0FF` soft switches, `$C100-$C7FF` slot ROMs, `$C800-$CFFF` expansion ROM of the selected card; `$D000-$FFFF` ROM (Applesoft `$D000-$F7FF`, Monitor `$F800`), bank-switched RAM under it: two banks at `$D000-$DFFF`, one at `$E000-$FFFF` (language card). | kreativekorp `a2info/memorymap.shtml` |
 | Screen holes: the 8 bytes after every 120-byte group of three rows in the text page (`$0478-$047F`, `$04F8-$04FF`, `$0578`, `$05F8`, `$0678`, `$06F8`, `$0778`, `$07F8`, one byte per slot `n`) belong to firmware: `$0478` = slot of the card owning `$C800`; 80-column card cursor position at `$0578+n`/`$05F8+n`; mouse card X/Y at `$0478+n`/`$04F8+n`/`$0578+n`/`$05F8+n`, status `$0778+n`, mode `$07F8+n`. ProDOS refuses to load a file straight into `$0400-$07FF` for this reason. | kreativekorp `screenholes.shtml`; Wikipedia *Apple II graphics* |
-| Soft switches (read/write behaviour per model): `$C000` KBD (read: last key + 128) / 80STOREOFF (write), `$C001` 80STOREON, `$C002-$C005` RDMAIN/RDCARD/WRMAIN/WRCARD aux memory (IIe/IIc/IIgs), `$C006/7` slot vs internal `$Cx00` ROM, `$C008/9` main/aux zero page+stack, `$C00C/D` 40/80 columns, `$C00E/F` primary/alternate character set (MouseText), `$C010` keyboard strobe, `$C011-$C01F` status reads (RDLCBNK2, RDLCRAM, RDRAMRD, RDRAMWRT, RDCXROM, RDALTZP, RDC3ROM, RD80STORE, **`$C019` RDVBL "E:1=drawing G:0=drawing"**, RDTEXT, RDMIXED, RDPAGE2, RDHIRES, RDALTCHAR, RD80VID), `$C020` cassette out, **`$C030` SPKR toggle**, `$C040` game strobe, `$C050/1` graphics/text, `$C052/3` full/mixed, `$C054/5` page 1/2 (page 2 = aux display memory when 80STORE is on), `$C056/7` lores/hires, `$C058-$C05F` annunciators 0-3 (`$C05E/F` = DHIRES on/off in 80-column mode), `$C060` cassette in, `$C061/2/3` buttons 0/1/2 (Open Apple, Solid Apple, shift on IIe), `$C064-$C067` paddles 0-3 (bit 7 read), `$C070` paddle trigger, `$C080-$C08F` language card bank/read/write selects, `$C090-$C0FF` slot 1-7 I/O. IIc-only: `$C019` RSTVBL, `$C041` RDVBLMSK, `$C05A/B` DISVBL/ENVBL, `$C07E/F` IOUDIS, `$C066/7` mouse X/Y, `$C063` mouse button. IIgs-only: `$C034` border colour, `$C022` text/background colour, `$C029` NEWVIDEO, `$C036` speed. | kreativekorp `iomemory.shtml`; cc65 `asminc/apple2.inc` (same names) |
-| Hires byte layout: 40 bytes per line, 7 pixels per byte (bits 0-6, bit 0 leftmost on screen), bit 7 = colour group ("0 = Black, White, Magenta, or Green; 1 = Black, White, Orange, or Blue"); a colour is a pixel pair on the NTSC colour-burst axis, so 01/10 pairs give the four hues and 11 gives white; pairs that straddle bytes with different group bits give "weird colours". Only odd-X pixels can be green/orange and only even-X purple/blue; two adjacent lit pixels are white. Pages at `$2000` and `$4000`; the "64:1 interleave factor" gives the Venetian-blind load; holes exist in hires too. | kreativekorp `stdhires.shtml`; Wikipedia *Apple II graphics* |
-| Lores is the text page (`$400-$7FF`) with two 4-bit pixels per byte, one above the other, 40×48 (40×40 mixed), 16 colours of which 5 and 10 are the same grey; three text rows per 128-byte block plus 8 hole bytes. Double lores is 80×48 (IIe with 80-column card: `PR#3`, `POKE 49246,0` = `$C05E`, `GR`). Double hires is 560×192, 16 colours, from aux memory, enabled by annunciator 3 with 80-column video on. IIe Revision B motherboards were needed for the double modes. | Wikipedia *Apple II graphics* |
+| Soft switches (read/write behavior per model): `$C000` KBD (read: last key + 128) / 80STOREOFF (write), `$C001` 80STOREON, `$C002-$C005` RDMAIN/RDCARD/WRMAIN/WRCARD aux memory (IIe/IIc/IIgs), `$C006/7` slot vs internal `$Cx00` ROM, `$C008/9` main/aux zero page+stack, `$C00C/D` 40/80 columns, `$C00E/F` primary/alternate character set (MouseText), `$C010` keyboard strobe, `$C011-$C01F` status reads (RDLCBNK2, RDLCRAM, RDRAMRD, RDRAMWRT, RDCXROM, RDALTZP, RDC3ROM, RD80STORE, **`$C019` RDVBL "E:1=drawing G:0=drawing"**, RDTEXT, RDMIXED, RDPAGE2, RDHIRES, RDALTCHAR, RD80VID), `$C020` cassette out, **`$C030` SPKR toggle**, `$C040` game strobe, `$C050/1` graphics/text, `$C052/3` full/mixed, `$C054/5` page 1/2 (page 2 = aux display memory when 80STORE is on), `$C056/7` lores/hires, `$C058-$C05F` annunciators 0-3 (`$C05E/F` = DHIRES on/off in 80-column mode), `$C060` cassette in, `$C061/2/3` buttons 0/1/2 (Open Apple, Solid Apple, shift on IIe), `$C064-$C067` paddles 0-3 (bit 7 read), `$C070` paddle trigger, `$C080-$C08F` language card bank/read/write selects, `$C090-$C0FF` slot 1-7 I/O. IIc-only: `$C019` RSTVBL, `$C041` RDVBLMSK, `$C05A/B` DISVBL/ENVBL, `$C07E/F` IOUDIS, `$C066/7` mouse X/Y, `$C063` mouse button. IIgs-only: `$C034` border color, `$C022` text/background color, `$C029` NEWVIDEO, `$C036` speed. | kreativekorp `iomemory.shtml`; cc65 `asminc/apple2.inc` (same names) |
+| Hires byte layout: 40 bytes per line, 7 pixels per byte (bits 0-6, bit 0 leftmost on screen), bit 7 = color group ("0 = Black, White, Magenta, or Green; 1 = Black, White, Orange, or Blue"); a color is a pixel pair on the NTSC color-burst axis, so 01/10 pairs give the four hues and 11 gives white; pairs that straddle bytes with different group bits give "weird colors". Only odd-X pixels can be green/orange and only even-X purple/blue; two adjacent lit pixels are white. Pages at `$2000` and `$4000`; the "64:1 interleave factor" gives the Venetian-blind load; holes exist in hires too. | kreativekorp `stdhires.shtml`; Wikipedia *Apple II graphics* |
+| Lores is the text page (`$400-$7FF`) with two 4-bit pixels per byte, one above the other, 40×48 (40×40 mixed), 16 colors of which 5 and 10 are the same grey; three text rows per 128-byte block plus 8 hole bytes. Double lores is 80×48 (IIe with 80-column card: `PR#3`, `POKE 49246,0` = `$C05E`, `GR`). Double hires is 560×192, 16 colors, from aux memory, enabled by annunciator 3 with 80-column video on. IIe Revision B motherboards were needed for the double modes. | Wikipedia *Apple II graphics* |
 | cc65 vblank: II/II+ have no VBL flag — `waitvsync` "silently fail[s]" unless `machinetype` says IIe; IIe: wait `RDVBLBAR` bit 7 set then clear; **IIgs is inverted** (wait clear then set); IIc: `IOUDISOFF`, `ENVBL`, hit `PTRIG` to reset the VBL flag, poll `RDVBLBAR`, restore. Frame length used to detect PAL/NTSC: **17030 cycles NTSC, 20280 cycles PAL** (`get_tv.s`). | cc65 `libsrc/apple2/waitvsync.s`, `get_tv.s` |
 | cc65 model detection is Apple II Miscellaneous TechNote #7: `$FE1F` with carry set (IIgs returns C clear), then ROM bytes `$FBB3`, `$FB1E`, `$FBC0`, `$FBDD`, `$FBBF`; codes `APPLE_II 0x10`, `IIPLUS 0x11`, `IIE 0x30`, `IIEENH 0x31`, `IIC 0x40`, `IIGS 0x80`. | cc65 `libsrc/apple2/get_ostype.s`, `include/apple2.h` |
 | cc65 joystick: two analog joysticks are four paddles read as a timed loop after `PTRIG` (`$C070`), both axes sampled in the same 7-cycle loop up to a threshold, buttons at `BUTN0/1` (`$C061/2`); the IIc has one joystick; the IIgs is slowed to 1 MHz first (`CYAREG` bit 7). Masks `JOY_UP 0x10, DOWN 0x20, LEFT 0x04, RIGHT 0x08, BTN_1 0x40, BTN_2 0x80`. | cc65 `libsrc/apple2/joy/a2.stdjoy.s`, `include/apple2.h` |
-| cc65 layout: default program `$0803-$95FF` ("35.5 KB"), stack at HIMEM `$9600`, language-card segment at `$D400` size `$C00` "behind quit code"; `apple2-system.cfg` loads at `$2000` up to `$BEFF`; `apple2-hgr.cfg` reserves a hires page (`-S $4000` or `$6000`); AppleSingle header by default; `_filetype`/`_auxtype` set the ProDOS type; no colour text (`textcolor()` etc. are no-ops); DOS 3.3 has no file I/O and no interruptors; `a2.stdmou.mou` = AppleMouse II card, bounding box `[0..279, 0..191]`, text-mode callbacks only on `apple2enh`; `a2.auxmem.emd` = 47.5 KB of aux RAM as extended memory; `a2.ssc.ser` = Super Serial Card; `apple2enh` "requires a 65C02 or 65816" and adds MouseText line drawing; `beep()` calls Monitor `BELL` (`$FF3A`) with ROM banked in via `$C082`, then `$C080` back. | cc65 `doc/apple2.html`, `doc/apple2enh.html`, `cfg/apple2.cfg`, `libsrc/apple2/beep.s` |
+| cc65 layout: default program `$0803-$95FF` ("35.5 KB"), stack at HIMEM `$9600`, language-card segment at `$D400` size `$C00` "behind quit code"; `apple2-system.cfg` loads at `$2000` up to `$BEFF`; `apple2-hgr.cfg` reserves a hires page (`-S $4000` or `$6000`); AppleSingle header by default; `_filetype`/`_auxtype` set the ProDOS type; no color text (`textcolor()` etc. are no-ops); DOS 3.3 has no file I/O and no interruptors; `a2.stdmou.mou` = AppleMouse II card, bounding box `[0..279, 0..191]`, text-mode callbacks only on `apple2enh`; `a2.auxmem.emd` = 47.5 KB of aux RAM as extended memory; `a2.ssc.ser` = Super Serial Card; `apple2enh` "requires a 65C02 or 65816" and adds MouseText line drawing; `beep()` calls Monitor `BELL` (`$FF3A`) with ROM banked in via `$C082`, then `$C080` back. | cc65 `doc/apple2.html`, `doc/apple2enh.html`, `cfg/apple2.cfg`, `libsrc/apple2/beep.s` |
 | Zero page and vectors used by the firmware: `$20-$25` text window and cursor (`WNDLFT/WNDWDTH/WNDTOP/WNDBTM/CH/CV`), `$28/$29` BASL/BASH (text base of the current row), `$32` INVFLG, `$4E/$4F` RNDL/RNDH (Monitor random counter), `$73` HIMEM; `$03D0` DOS warm start, `$03F0` BRK, `$03F2` SOFTEV, `$03F4` PWREDUP; 80-column cursor at `$057B`/`$05FB`. | cc65 `asminc/apple2.inc` |
 | IIe: 6502 at 1.023 MHz, 65C02 on the Enhanced IIe; 64K, 128K with the Extended 80-Column Text Card; 40/80 columns × 24 lines; lores 40×48/16, hires 280×192/6, double variants; MouseText on the enhanced model; auxiliary slot; DE-9 joystick connector. | Wikipedia *Apple IIe* |
 | Emulators: AppleWin is Windows-only (its README: "Apple II emulator for Windows"; ports: Linux `audetto/AppleWin`, macOS `sh95014/AppleWin`); models `-model apple2|apple2p|apple2jp|apple2e|apple2ee`; media `-d1/-d2` (Disk II slot 6), `-h1/-h2` (HDC slot 7), `-s5d1`, `-s7h1..8`; `-aux empty|std80|ext80|rw3`, `-r <banks>` RamWorks; `-conf <ini>`, `-load-state`, `-clock-multiplier`, `-f/-full-screen`, Mockingboard/Phasor sockets `-s<N> socket0/1=ssi263`; no IIc/IIgs support. No screenshot or headless flag was found in the portion of `CommandLine.html` read (first ~7 KB). | AppleWin `README.md`, `help/CommandLine.html` |
@@ -106,7 +106,7 @@ Each is a lead to confirm the first time code depends on it.
   per-line figure is *to verify*.
 - The exact NTSC hires hue names per pixel parity and group bit (Apple's
   "violet/purple" vs "magenta" naming) — kreativekorp itself calls its
-  colour tables inconsistent; treat hires colour as 6 nominal colours with
+  color tables inconsistent; treat hires color as 6 nominal colors with
   position rules, never as a palette index.
 - Mockingboard: two 6522 VIAs at `$Cn00`/`$Cn80` driving two AY-3-8910s,
   usually slot 4 — *to verify* against the Mockingboard docs; AppleWin's
@@ -149,7 +149,7 @@ Each is a lead to confirm the first time code depends on it.
 ### Models and cards are profiles and capabilities
 
 - An `APPLE2_PROFILES` table needs at least: `iiplus` (6502, no VBL flag,
-  40 columns, hires colour only), `iie` (64K, `$C019` VBL), `iie-128k`
+  40 columns, hires color only), `iie` (64K, `$C019` VBL), `iie-128k`
   (Extended 80-Column card: aux memory, 80 columns, double lores/hires),
   `iie-enhanced` (65C02, MouseText), `iic` (65C02, 128K, IOU VBL and mouse),
   `iigs` (inverted VBL, border register). The LLVM-MOS platform today
@@ -160,8 +160,8 @@ Each is a lead to confirm the first time code depends on it.
   says nothing about any of them; detect the card by its `$Cn00` signature
   bytes at run time or declare it in the profile.
 - Region (NTSC/PAL) is measurable at start-up (cc65 does: count 92-cycle
-  loops between VBL edges, 17030 vs 20280) and matters for colour: PAL
-  machines lose artifact colour unless a colour card is fitted (Wikipedia).
+  loops between VBL edges, 17030 vs 20280) and matters for color: PAL
+  machines lose artifact color unless a color card is fitted (Wikipedia).
 
 ### Memory
 
@@ -193,19 +193,19 @@ Each is a lead to confirm the first time code depends on it.
   row table; a `locate()` here is a 24-entry base table, not a multiply.
   Character codes (*to verify*): bit 7 set = normal on the II/II+ (bit 7 clear = inverse
   / flashing); the IIe's alternate set (`$C00F`) gives normal/inverse
-  lower case and MouseText. There is no colour in text mode on any model
+  lower case and MouseText. There is no color in text mode on any model
   but the IIgs. Text writes may happen at any time (no snow).
 - 80 columns interleaves main and aux memory column by column through
   the 80STORE/PAGE2 switches, and needs the 80-column firmware or your
   own routine; make it a profile (`iie-128k`) and a separate text package
   file, never a runtime probe.
-- Hires colour is positional: a pixel's hue depends on its X parity and
+- Hires color is positional: a pixel's hue depends on its X parity and
   the byte's bit 7, and adjacent lit pixels merge to white. A portable
-  "draw a coloured pixel" must be expressed as *pairs* at even X with a
-  chosen group bit (effective 140×192 in colour, 280×192 mono), and the
+  "draw a colored pixel" must be expressed as *pairs* at even X with a
+  chosen group bit (effective 140×192 in color, 280×192 mono), and the
   package must own the rule "don't put green next to blue in one byte".
-  Do not model this as a 6-colour palette.
-- Lores (40×48 blocks, 16 colours) is the honest "pseudo-pixel" surface:
+  Do not model this as a 6-color palette.
+- Lores (40×48 blocks, 16 colors) is the honest "pseudo-pixel" surface:
   two nibbles per text-page byte, no artifacts to reason about, and it
   shares the text page. Double lores/hires are IIe-128K capabilities.
 - Two pages exist for both text and hires; page flipping is `$C054/5`.
@@ -281,11 +281,11 @@ Each is a lead to confirm the first time code depends on it.
 
 ## Traps for someone who knows the C64
 
-1. **No sprites, no scroll, no colour RAM, no video registers.** Every
+1. **No sprites, no scroll, no color RAM, no video registers.** Every
    pixel is a byte the program writes, through a switch bank that is
    toggled by *accessing* an address (reads and writes both do it).
-2. **Hires colour is where the pixel is, not what you wrote.** Even X is
-   purple/blue, odd X is green/orange, neighbours merge to white, and
+2. **Hires color is where the pixel is, not what you wrote.** Even X is
+   purple/blue, odd X is green/orange, neighbors merge to white, and
    bit 7 of the byte flips the hue for all seven pixels in it.
 3. **Rows are interleaved and the gaps are not yours.** `row * 40` is
    wrong on both the text page and the hires page, and the 8 bytes after

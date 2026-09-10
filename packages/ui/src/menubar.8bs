@@ -44,16 +44,16 @@
 //
 //     ` FILE  EDIT  HELP `
 //
-// The selected item is inverted — reverse video in the item colour, padding
-// spaces included, so it reads as a filled button rather than a recoloured
+// The selected item is inverted — reverse video in the item color, padding
+// spaces included, so it reads as a filled button rather than a recolored
 // word. `text.setReverse` is a text mode, not a portable glyph: each
 // machine's text package decides how invert reaches the screen (a ROM copy
 // at ASCII+128 on the Commodores and the NES, swapped attribute nibbles on
-// the X16, colour bit 7 on the web). A reverse space is a solid block on
+// the X16, color bit 7 on the web). A reverse space is a solid block on
 // every one of them.
 //
-// `setColors()` still takes a highlight colour so the call shape stays;
-// invert uses the item colour.
+// `setColors()` still takes a highlight color so the call shape stays;
+// invert uses the item color.
 //
 // ---- what does not fit ----------------------------------------------------
 //
@@ -136,10 +136,10 @@ let iconLabel: string<1> = "8";
 
 // Blank `count` cells from `at`: the bed the whole bar is laid on, and the
 // one place in this component that puts a character rather than printing a
-// string. No colour goes with it, and that is not an oversight — a space
-// shows the screen's background colour whatever its colour cell says, so
-// colouring a blank achieves nothing on any of the nine. Each item sets the
-// colour it prints in.
+// string. No color goes with it, and that is not an oversight — a space
+// shows the screen's background color whatever its color cell says, so
+// coloring a blank achieves nothing on any of the nine. Each item sets the
+// color it prints in.
 function blank(at: usmallint, count: utinyint): void {
     for (let i: utinyint = 0; i < count; i++) {
         text.putChar(at + i, SPACE);
@@ -154,19 +154,19 @@ export namespace menubar {
 
     // ---- style, before begin() --------------------------------------------
 
-    // The colour every item is drawn in. The selected one is inverted in
-    // that same colour rather than recoloured; `highlight` is kept so the
+    // The color every item is drawn in. The selected one is inverted in
+    // that same color rather than recolored; `highlight` is kept so the
     // call shape stays, and is unused while reverse video does the job.
     // The eight names in `TextColor` are the portable ones.
     //
-    // **Drawing a bar leaves the text colour set to the bar's, and reverse
-    // off.** The component colours its text by calling `text.setColor`
+    // **Drawing a bar leaves the text color set to the bar's, and reverse
+    // off.** The component colors its text by calling `text.setColor`
     // before each `print`, rather than walking back over the cells with
     // `putColor` afterwards, and there is no `text.getColor` to put the
     // caller's setting back with. Paying a second pass over every cell to
     // avoid this cost about 200 bytes on a C64, which is a bad trade for a
-    // program that can pick its own colour on the line after the bar. So:
-    // draw the bar, then set your colour. Reverse is turned off after
+    // program that can pick its own color on the line after the bar. So:
+    // draw the bar, then set your color. Reverse is turned off after
     // each item, so a later `text.setColor` cannot leave inverted glyphs.
     function setColors(item: utinyint, highlight: utinyint): void {
         itemColor = item;
@@ -463,7 +463,7 @@ export namespace menubar {
         // sixteen-bit pointer build for every cell, inlined into the call
         // site. So everything here is a string: the label, and a padding
         // space either side of it (a reverse space is the filled end of a
-        // button). Reverse is a mode, not a colour: turn it on for the
+        // button). Reverse is a mode, not a color: turn it on for the
         // selected item, print, then turn it off so the next print — this
         // bar's or the program's — is not inverted. Unselected items print
         // the same padding spaces with reverse off, which is what clears a

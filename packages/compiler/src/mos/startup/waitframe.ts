@@ -15,7 +15,7 @@
 // ---- the design, grounded in the real PET package -------------------------
 //
 // packages/pet/src/index.8bs and keyboard.8bs document the real contract
-// this has to honour: PIA1's CB1 edge flag ($E813 bit 7) latches once per
+// this has to honor: PIA1's CB1 edge flag ($E813 bit 7) latches once per
 // vertical retrace and is acknowledged by reading port B ($E812); a program
 // that calls waitFrame() anywhere runs with interrupts off from start-up
 // (`presync`, a SEI first thing), because the KERNAL's own jiffy-clock IRQ

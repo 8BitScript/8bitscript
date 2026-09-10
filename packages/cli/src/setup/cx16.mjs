@@ -5,7 +5,7 @@
 // from current source), all installed under /opt/commander-x16 with
 // launchers in /usr/local/bin.
 //
-// Every step is idempotent. A complete installation is recognised up front
+// Every step is idempotent. A complete installation is recognized up front
 // and skips the dependency/build/install stages entirely; a broken launcher
 // is repaired without rebuilding anything; `--update` forces a fresh
 // pull+build+install of the pair.

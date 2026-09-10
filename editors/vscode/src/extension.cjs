@@ -5,7 +5,7 @@
 // All the intelligence — diagnostics now, and hover, completion, and
 // go-to-definition later — comes from `8bs lsp`, which is part of the toolchain
 // rather than part of this extension. That is what lets other editors get the
-// same behaviour by running the same command. The side bar's launcher
+// same behavior by running the same command. The side bar's launcher
 // (launcherView.cjs, over runner.cjs) follows the same rule for building and
 // running: it only ever starts the `8bs run`/`8bs build` commands a person
 // would type.

@@ -89,7 +89,7 @@ export const Codes = {
   // length. Only a literal (or a const) can be checked at compile time; a
   // runtime index is the program's own responsibility, as on the machine.
   INDEX_OUT_OF_RANGE: '8BS1032',
-  // `[1, 2, 3]` for an `array<T, 4>`: an array initialiser has exactly as
+  // `[1, 2, 3]` for an `array<T, 4>`: an array initializer has exactly as
   // many elements as the type says — the length is part of the type, and
   // the data is laid out at compile time, so nothing can pad or truncate.
   ARRAY_SIZE_MISMATCH: '8BS1033',

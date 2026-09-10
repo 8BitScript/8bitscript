@@ -27,7 +27,7 @@ media type. The PC Engine is —
 > RAM* on a HuCard. The VDC has 64 KB of VRAM behind an index/data port,
 > one 8×8-tile background of up to 128×64 tiles, and 64 sprites of 16×16
 > to 32×64 with a hard limit of 16 per scanline; the VCE holds 512
-> 9-bit colours as 16 background + 16 sprite palettes of 16. Model the
+> 9-bit colors as 16 background + 16 sprite palettes of 16. Model the
 > media — HuCard, CD-ROM², Super CD-ROM², Arcade Card, SuperGrafx — as
 > profiles that change RAM from 8K to 2 MB and video from one VDC to two;
 > never as one machine.**
@@ -63,10 +63,10 @@ Cite these freely; each was read in the file named.
 | Start-up (`_early_start`, 35 bytes at `$FFD3`, asserted by the link script): `sei`, **`csh`** (high-speed mode — the CPU boots slow), MPR0 ← `$FF` (I/O page at `$0000`–`$1FFF`), stack `$FF`, MPR1 ← `$F8` (RAM at `$2000`–`$3FFF`), MPR2–6 ← link-computed start banks (0 in an 8K build), `jmp _start`. Then `.init.50`: `$07` → `$1402` (**all three IRQ sources masked**), `__pce_vdc_init` (CR ← 0, BXR/BYR ← 0, all 512 VCE palette entries ← 0), `__pce_psg_init` (6 channels: volume 0, control 0, noise 0, LFO 0). So at `main()` the display is *off* and black, interrupts are off. | `mos-platform/pce/lib/crt0.o` (objdump), `llvm-objdump -d p.pce.elf` |
 | Vectors at `$FFF6`: IRQ2 (`irq_ext`), IRQ1 (`irq_vdc`), timer (`irq_timer`), NMI, reset (`_early_start`). Default handlers ack by reading VDC status `$0000` / `$1403`. Hook sections `.irq_vdc`, `.irq_timer`, `.irq_ext` (KEEP'd, init-priority sorted). | `pce/lib/link.ld`, `rom-sections.ld`, objdump |
 | Memory the C code gets on a HuCard: zero page is **physical `$2000`–`$20FF`** (bank `$F8`; `__rc0 = 0xf82000`), stack page `$2100`, C RAM `$2200`–`$3FFF` (`ram ORIGIN = 0xf82200, LENGTH = __ram_bank_size - 0x200`), soft stack from `$2000 + __ram_bank_size`. `__ram_bank_size` defaults to `$2000` (8K); `PCE_SGX_RAM(n)` raises it (SuperGrafx: "up to 24KB with all SuperGrafx RAM fixed"). ROM bank 0 at `$E000`; fixed ROM may extend down through MPR6..2 (`__rom_bank0_size` up to 48K); 128 banks × 8K = **1 MB** maximum (`__rom_size`). | `pce/lib/link.ld`, `pce-common/lib/pce-imag-regs.ld`, `pce/lib/_rom-banked-sections.ld`, `pce/include/pce/config.h` |
-| I/O page layout: VDC `$0000` (status/index `$0000`, data `$0002`/`$0003`), VCE `$0400` (control), `$0402` colour index, `$0404` colour data; PSG `$0800`–`$0809`; timer `$0C00`/`$0C01`; joypad `$1000`; IRQ control `$1402`, status/ack `$1403`; CD unit `$1800`–`$180F` (SCSI, BRAM unlock `$1807`, ADPCM `$1808`–`$180E`, fader `$180F`); Super System Card `$18C5`–`$18C7`; Arcade Card `$1A00`–`$1AFF` (ID `$1AFF` = `$51`); SuperGrafx VDC2 `$0010`, VPC `$0008`–`$000F`. | `pce-common/include/pce/hardware.h` |
+| I/O page layout: VDC `$0000` (status/index `$0000`, data `$0002`/`$0003`), VCE `$0400` (control), `$0402` color index, `$0404` color data; PSG `$0800`–`$0809`; timer `$0C00`/`$0C01`; joypad `$1000`; IRQ control `$1402`, status/ack `$1403`; CD unit `$1800`–`$180F` (SCSI, BRAM unlock `$1807`, ADPCM `$1808`–`$180E`, fader `$180F`); Super System Card `$18C5`–`$18C7`; Arcade Card `$1A00`–`$1AFF` (ID `$1AFF` = `$51`); SuperGrafx VDC2 `$0010`, VPC `$0008`–`$000F`. | `pce-common/include/pce/hardware.h` |
 | VDC registers: 0 MAWR, 1 MARR, 2 VWR/VRR, 5 CR (IRQ enables, sprite/BG enable, VRAM auto-increment 1/32/64/128), 6 RCR, 7 BXR, 8 BYR, 9 MWR (VRAM/sprite cycle slots, **BG size 32/64/128 × 32/64**), 10–14 HSR/HDR/VPR/VDW/VCR, 15 DCR, 16–18 SOUR/DESR/LENR, 19 SATB. Status: collide `$01`, **overflow `$02`**, scanline `$04`, SATB DMA done `$08`, DMA done `$10`, **vblank `$20`**. | `hardware.h` |
 | Sprite attribute word: palette bits 3–0, FG/BG priority bit 7, width 16/32 bit 8, height 16/32/64 bits 13–12, flip X bit 11, flip Y bit 15; SATB entry = `{y, x, pattern, attr}` (4 words). | `pce-common/include/pce/vdc.h` |
-| VCE: control bits pixel clock 5/7/10 MHz, field even (262 lines)/odd (263), colour burst off; `VCE_COLOR(r,g,b) = b | r<<3 | g<<6` (3-3-3, **GRB** bit order); `VCE_COLOR_INDEX(palette, colour) = palette<<4 + colour`. | `hardware.h`, `vce.h` |
+| VCE: control bits pixel clock 5/7/10 MHz, field even (262 lines)/odd (263), color burst off; `VCE_COLOR(r,g,b) = b | r<<3 | g<<6` (3-3-3, **GRB** bit order); `VCE_COLOR_INDEX(palette, color) = palette<<4 + color`. | `hardware.h`, `vce.h` |
 | The SDK's 256×240 recipe (`pce_vdc_set_resolution(256, 240, 0)`): VCE control ← 0, HSR ← `$0202`, HDR ← `$041F` (HDW = 32 tiles − 1 = `$1F`, HDE `$04`), MWR bits for the width, VPR ← `$0F02`, VDW ← `$00EF` (240 − 1), VCR ← `$000C`. | `llvm-objdump -d p.pce.elf` (main) |
 | Joypad protocol as linked: `pce_joypad_read` writes SEL (`$01`), delay, reads, writes SEL|CLR (`$03`), delay, reads (multitap reset), then `pce_joypad_next`: SEL=1, four `sxy` delays, read → high nibble (directions); SEL=0, delay, read low nibble (Run/Select/II/I); returns the two nibbles combined **without inversion** — the header says "buttons currently pressed" with `KEY_LEFT $80 … KEY_1 $01`; whether a set bit means pressed on hardware (active-low port) is *to verify* against the SDK's `joypad.c`. `$1000` bit 6 = COUNTRY (clear = Japan), bit 7 = ADDON (clear = CD unit attached). | objdump, `pce/joypad.h`, `hardware.h` |
 | PSG per channel (select `$0800`): `$0802/3` 12-bit frequency, `$0804` control (on `$80`, **DDA `$40`**, volume), `$0805` L/R volume nibbles, `$0806` waveform sample (32 writes fill the table), `$0807` noise (on `$80`, freq), `$0808/9` LFO freq/control. | `hardware.h` |
@@ -111,11 +111,11 @@ heights 224/240; 262/263 lines NTSC — ~59.94 Hz *(to verify)*; there is
 no PAL machine (the French model is NTSC at 50 Hz? *to verify*).
 
 **VCE.** 512 entries × 9-bit GRB: `$000`–`$0FF` the 16 background
-palettes, `$100`–`$1FF` the 16 sprite palettes. Colour 0 of every sprite
-palette is transparent; **the overscan/border colour is `$100`** (sprite
-palette 0 colour 0 — the SDK's own `color-cycle.c` cycles index `0x100`
-to colour the empty screen) and background palette entry `$000` is the BG
-layer's colour 0 *(the exact rule for which of `$000`/`$100` shows through
+palettes, `$100`–`$1FF` the 16 sprite palettes. Color 0 of every sprite
+palette is transparent; **the overscan/border color is `$100`** (sprite
+palette 0 color 0 — the SDK's own `color-cycle.c` cycles index `0x100`
+to color the empty screen) and background palette entry `$000` is the BG
+layer's color 0 *(the exact rule for which of `$000`/`$100` shows through
 a transparent tile pixel: to verify)*.
 
 **PSG.** 6 channels; each plays a 32-sample 5-bit wavetable at a 12-bit
@@ -218,7 +218,7 @@ modules emulate it (`port1` = `mouse`). No keyboard.
   lines 4–235 by default: keep row 0 and row 29 out of anything that
   must be seen.
 - `screen.setBorder()` = VCE `$100`; `setBackground()` = BG palette 0
-  colour 0 (`$000`) *(rule to verify)*. Both are real registers.
+  color 0 (`$000`) *(rule to verify)*. Both are real registers.
 - Vblank is where SATB DMA and VRAM→VRAM DMA run; the SATB the program
   edits is in VRAM and reaches the hardware one frame later — the NES's
   OAM-DMA shape exactly.
@@ -229,7 +229,7 @@ modules emulate it (`port1` = `mouse`). No keyboard.
   not 64. Reuse the NES tooling's per-line counter; metasprites of 32×64
   parts eat the line budget fast.
 - Sprite priority vs background is per sprite (bit 7); between sprites,
-  lower SATB index wins *(to verify)*. Sprite colour 0 is transparent.
+  lower SATB index wins *(to verify)*. Sprite color 0 is transparent.
 - Collision: the VDC flags sprite-0 overlap only *(to verify: "collide"
   status bit semantics)*; software AABB is the portable primitive.
 

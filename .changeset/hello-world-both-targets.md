@@ -32,7 +32,7 @@ against a real `--screenshot` run and the browser runtime's own
 generated page script). The `wasm` backend gained `&`, `|`, `^`, `<<`,
 and unsigned `>>` as real lowered operators (wasm's native
 `i32.and`/`i32.or`/`i32.xor`/`i32.shl`/`i32.shr_u`), needed once
-`@8bitscript/web/screen`'s own colour masking (`value & 15`) became the
+`@8bitscript/web/screen`'s own color masking (`value & 15`) became the
 first real caller. The web target's own text rendering (both the real
 browser canvas and the `--screenshot` bitmap font) now covers lower
 case too, matching what the checker's portable character set and the

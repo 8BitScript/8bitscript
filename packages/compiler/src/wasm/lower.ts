@@ -19,7 +19,7 @@
 // pruning). `&`/`|`/`^`/`<<`/unsigned `>>` are lowered too (`i32.and`/
 // `i32.or`/`i32.xor`/`i32.shl`/`i32.shr_u`), added when
 // `@8bitscript/web/screen.8bs`'s own `setColors` turned out to mask every
-// colour byte with `& 15` — the first real caller, after every earlier
+// color byte with `& 15` — the first real caller, after every earlier
 // milestone deliberately deferred these as "real hardware exists, nothing
 // needs it yet." Ordering comparisons (`<` `>` `<=` `>=`) on a signed
 // operand, signed `>>` (arithmetic vs. logical shift are different
@@ -258,7 +258,7 @@ function binop(node: IrExpr, ctx: Ctx): number[] {
     // there's nothing here to refuse by sign — only the usual post-op
     // width mask, the same as '+'/'-'. This was scope nothing built so
     // far needed until screen.blank() (@8bitscript/web/screen.8bs's own
-    // setColors, masking a colour byte with `& 15`) became the first real
+    // setColors, masking a color byte with `& 15`) became the first real
     // caller — see "Hello, WASM"'s own note on why this waited.
     const opcode = operator === '&' ? Opcode.i32And : operator === '|' ? Opcode.i32Or : Opcode.i32Xor;
     const code = [...expr(left, ctx), ...expr(right, ctx), opcode];

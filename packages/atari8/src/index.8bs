@@ -16,13 +16,13 @@
 // Border and background are two genuinely different GTIA registers here —
 // verified on screen under atari800, not inferred: in ANTIC's standard text
 // mode (the mode the OS boots into, and the one a .XEX inherits), COLBK
-// ($D01A) colours the BORDER around the playfield, while the area behind
+// ($D01A) colors the BORDER around the playfield, while the area behind
 // the characters is COLPF2 ($D018). An earlier version of this package had
 // these the wrong way round: it mapped the background to COLBK and left the
 // border inert, so setting the background visibly painted the *border* and
 // setting the border did nothing at all.
 //
-// Every colour write goes through the OS SHADOW registers as well as the
+// Every color write goes through the OS SHADOW registers as well as the
 // hardware ones — see backgroundColorShadow below for why that is not
 // optional.
 
@@ -30,7 +30,7 @@
 @address(0xD01A)
 export let borderColor: volatile<u8>;
 
-// $D018, GTIA's COLPF2 — playfield 2, the colour behind the characters in
+// $D018, GTIA's COLPF2 — playfield 2, the color behind the characters in
 // ANTIC's standard text mode.
 @address(0xD018)
 export let backgroundColor: volatile<u8>;
@@ -50,14 +50,14 @@ export let textColor: volatile<u8>;
 // a second and then silently undoes itself: an Atari program loaded the
 // ordinary way runs with the OS's interrupts live, and the OS's stage-2
 // vertical-blank routine copies its shadow registers in RAM ($02C4-$02C8)
-// over GTIA's colour registers ($D016-$D01A) on every single frame. So the
-// hardware register is not the durable place to put a colour while the OS is
+// over GTIA's color registers ($D016-$D01A) on every single frame. So the
+// hardware register is not the durable place to put a color while the OS is
 // running — the shadow is, and the OS then propagates it for us. This is not
-// theoretical: it is exactly why a colour-cycling demo rendered as a plain default
+// theoretical: it is exactly why a color-cycling demo rendered as a plain default
 // screen on atari800 before the shadow writes were added. (It is also the
 // same class of problem packages/compiler/src/mos's FRAME_SYNC documents for the
 // PET, where the KERNAL's own IRQ handler wins a race for the vertical-
-// retrace flag; here the OS wins a race for the colour registers, every
+// retrace flag; here the OS wins a race for the color registers, every
 // frame, forever.)
 //
 // A program that takes the machine over completely — disabling the OS VBI —
@@ -95,7 +95,7 @@ export let cursorInhibit: volatile<u8>;
 
 // $004D, ATRACT — the OS's attract-mode counter. Its VBI counts this up and,
 // once it passes a threshold (roughly nine minutes), starts cycling the
-// playfield colours to spare the phosphor. The OS zeroes it on a keypress, so
+// playfield colors to spare the phosphor. The OS zeroes it on a keypress, so
 // only a program read with a joystick has to; @8bitscript/atari8/joystick's
 // scan() does, every frame.
 @address(0x004D)

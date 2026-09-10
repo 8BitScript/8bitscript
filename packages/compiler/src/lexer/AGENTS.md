@@ -22,7 +22,7 @@ Scan one character at a time. Match operators by **maximal munch against
 the `OPERATORS` list**, longest first — never by greedily eating a run of
 operator characters. Greed is how `x=-1` became the non-operator `=-`
 (`compiler.test.mjs`, "operators lex by maximal munch, not greed").
-Matching only spellings the language recognises cannot produce a token
+Matching only spellings the language recognizes cannot produce a token
 the parser has no rule for.
 
 ## Never throw
@@ -30,7 +30,7 @@ the parser has no rule for.
 `tokenize()` always returns `{ tokens, diagnostics }`. Half-typed source
 is the normal input, not an exceptional one. An unterminated string, an
 unclosed `{`, a `0x` with no digits: record a diagnostic, emit the token
-anyway (so the rest of the file still colourises and still parses), and
+anyway (so the rest of the file still colorizes and still parses), and
 keep going. Recovery that drops the rest of the file is a bug.
 
 The one exception that *does* stop is an unterminated `/*` comment: there
@@ -74,7 +74,7 @@ After an operand, `%` is modulo. That lookbehind:
 
 `$` and `%` in value position, `0x` / `0b`, and decimal digits all share
 one number scanner. An empty digit run (`0x`) is `8BS1008` with `value: 0`,
-never a NaN travelling through the checker. Decimal fractions (`0.5`) are
+never a NaN traveling through the checker. Decimal fractions (`0.5`) are
 radix 10 only, only when a digit follows the `.` (`1.` is `1` then `.`),
 and are stored as an exact `numerator`/`denominator` pair — `value` on
 those tokens is cosmetic; the `#frames(...)` fold is what reads the pair.

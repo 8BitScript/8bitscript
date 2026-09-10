@@ -51,7 +51,7 @@
 // say present. That case has not been seen under x16emu; *to verify* on a
 // machine with the mouse unplugged.
 //
-// **The rest position is the centre**, not the corner. mouse_config with
+// **The rest position is the center**, not the corner. mouse_config with
 // a nonzero size (this file asks screen_mode, $FF5F, carry set, for the
 // current 8-pixel size — 80×60 in the KERNAL's text mode) parks the
 // pointer at half that range. Under x16emu that is pixel (319, 239) of
@@ -85,7 +85,7 @@ export namespace mouse {
 
     // Once, at start-up, before the first poll(). Turns the KERNAL mouse
     // on at the current screen's 8-pixel size, which also loads the default
-    // pointer into sprite 0 and parks it at the centre. Harmless to call
+    // pointer into sprite 0 and parks it at the center. Harmless to call
     // twice: the second call is skipped, so input.begin() and pointer.begin()
     // can both name it without re-centering.
     function begin(): void {
@@ -143,7 +143,7 @@ export namespace mouse {
     // origin cell (0, 0) has after screen.8bs insets the display. The
     // KERNAL parks a freshly configured mouse at half the current
     // screen_mode range; under x16emu that is (319, 239), which is the
-    // centre of the 640×480 the mode names, not of the inset picture.
+    // center of the 640×480 the mode names, not of the inset picture.
     function x(): usmallint {
         return atX;
     }

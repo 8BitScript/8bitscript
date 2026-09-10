@@ -38,7 +38,7 @@
 // flat cell index, the same number `text.print()` takes. The KERNAL's
 // position is a pixel from the top-left of the *active area* — the same
 // origin cell (0, 0) has after screen.8bs insets the display so VERA's
-// border colour has somewhere to show. An earlier draft subtracted that
+// border color has somewhere to show. An earlier draft subtracted that
 // 16-pixel inset again, and the arrow sat two cells down-right of the
 // cell `pointerCell()` named: mouse_get said (319, 239) and the sprite
 // was on screen at (335, 254), which is (319, 239) plus the inset, so

@@ -1,7 +1,7 @@
 // @8bitscript/cx16/mouse — the X16's KERNAL mouse. Two layers: the probe
 // program links clean for the X16 with the stock sheet (no emulator
 // needed), and, when x16emu and a working backend are installed, it is
-// run and the border colour the screenshot shows is what mouse.present()
+// run and the border color the screenshot shows is what mouse.present()
 // answered.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

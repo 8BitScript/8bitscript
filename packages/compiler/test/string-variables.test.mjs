@@ -148,13 +148,13 @@ test('the linker applies the same rules to an imported string<N>: fits, is a str
   // literal does; only a parameter or another string<N> is cut at runtime.
 });
 
-test('a string const cannot initialise a number global', async () => {
+test('a string const cannot initialize a number global', async () => {
   const { diagnostics } = await linkWith({
     'lib.8bs': 'export const LABEL: string = "HI";\n',
     'main.8bs': 'import { LABEL } from "./lib.8bs";\nlet n: utinyint = LABEL;\nexport function main(): void { }\n',
   });
   assert.deepEqual(diagnostics.map((d) => d.code), ['8BS3001']);
-  assert.match(diagnostics[0].message, /'LABEL' is a string const; it cannot initialise a utinyint/);
+  assert.match(diagnostics[0].message, /'LABEL' is a string const; it cannot initialize a utinyint/);
 });
 
 // ---- copies on the IR -----------------------------------------------------------------
@@ -178,11 +178,11 @@ test('a string assignment lowers to a stringCopy; a program that only reads one 
   assert.ok(!noneMain.body.some((s) => s.kind === 'stringCopy'));
 });
 
-test('a string cannot be assigned to, or initialise, a number', () => {
+test('a string cannot be assigned to, or initialize, a number', () => {
   assert.deepEqual(messages('const L: string = "HI";\nlet n: utinyint = 0;\nexport function main(): void { n = "A"; n = L; let m: utinyint = L; }'), [
     "8BS3001 'n' is not a string: a string is assigned to a string<N>",
     "8BS3001 'n' is not a string: a string is assigned to a string<N>",
-    '8BS3001 a string cannot initialise a utinyint: a string lives in a string<N> or a const',
+    '8BS3001 a string cannot initialize a utinyint: a string lives in a string<N> or a const',
   ]);
 });
 
@@ -193,6 +193,6 @@ test('an imported string const into a number global or local is refused by the l
   });
   assert.deepEqual(diagnostics.map((d) => `${d.code} ${d.message}`), [
     "8BS3001 'n' is not a string: a string is assigned to a string<N>",
-    '8BS3001 a string cannot initialise a utinyint: a string lives in a string<N> or a const',
+    '8BS3001 a string cannot initialize a utinyint: a string lives in a string<N> or a const',
   ]);
 });

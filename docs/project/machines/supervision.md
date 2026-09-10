@@ -23,12 +23,12 @@ Supervision is —
 > four-grey LCD, a DMA engine whose main job is copying into that VRAM,
 > two hard-panned square-wave channels, one noise channel, one 4-bit
 > sample DMA channel, an 8-button pad, and a 16K bank window over a
-> cartridge of at most 128K. No colour, no tiles, no sprites, no text
+> cartridge of at most 128K. No color, no tiles, no sprites, no text
 > mode, no vertical-blank flag, no persistence. Model it as a Game Boy
 > without the tile engine — a Lynx without Suzy.**
 
 The machine's variety is the cartridge size (32K flat, 64K or 128K
-banked) and, in emulators, the LCD refresh/NMI behaviour of the original
+banked) and, in emulators, the LCD refresh/NMI behavior of the original
 vs later boards *(to verify)*.
 
 ## What exists today
@@ -54,7 +54,7 @@ Cite these freely; each was read in the file named.
 | ---- | ----- |
 | `-mcpu=mos65c02`, `-D__SUPERVISION__`, `-mlto-zp=224`. `SV_SYSTEM_CLOCK_HZ 4000000`, `SV_LCD_WIDTH/HEIGHT 160`. | `~/.local/opt/llvm-mos/bin/mos-supervision.cfg`, `mos-platform/supervision/include/supervision.h` |
 | Memory: zero page from `$0020`, RAM `$0200`–`$1FFF` (8K work RAM at `$0000`), soft stack from `$2000` down; `SV_RAM $0000`, `SV_VRAM $4000`, `SV_ROM $8000` (bank window), `SV_ROM_FIXED $C000`. Cartridge: `__cart_rom_size` 32 (default), 64 or 128 KB, power of two, asserted; 32K → one flat `rom_fixed` at `$8000`–`$FFF9`; ≥64K → 16K banks `.rom_0`…`.rom_6` at `$8000` and a fixed 16K at `$C000` (`.rom_7`/`.rom_fixed`); vectors NMI/reset/IRQ at `$FFFA`. Output = the banks then the fixed bank, whole image. | `mos-platform/supervision/lib/link.ld` |
-| VRAM geometry as the SDK models it: **192 × 170 pixels at 48 bytes per line** (`SV_VRAM_WIDTH 192`, `SV_VRAM_HEIGHT 170`, `SV_VRAM_PITCH 48`, `SV_VRAM_ROW(y) = $4000 + y*48`) = 8160 bytes; 2 bits per pixel; colours `SV_COLOR_WHITE 0`, `LIGHT_GREY 1`, `DARK_GREY 2`, `BLACK 3`. | `supervision.h` |
+| VRAM geometry as the SDK models it: **192 × 170 pixels at 48 bytes per line** (`SV_VRAM_WIDTH 192`, `SV_VRAM_HEIGHT 170`, `SV_VRAM_PITCH 48`, `SV_VRAM_ROW(y) = $4000 + y*48`) = 8160 bytes; 2 bits per pixel; colors `SV_COLOR_WHITE 0`, `LIGHT_GREY 1`, `DARK_GREY 2`, `BLACK 3`. | `supervision.h` |
 | LCD registers `$2000` width, `$2001` height, `$2002` x, `$2003` y (`struct __sv_lcd`); `sv_lcd_init()` writes 160/160/0/0; `sv_lcd_clear()` = `memset($4000, 0, 48*170)`. | `supervision.h`, objdump of `sv.bin.elf`, SDK `supervision.c` (fetched) |
 | Video DMA `$2008`: CPU-side pointer (2 bytes), VRAM address (2 bytes), length (**in 16-byte units**: `length = len >> 4`), trigger (`$80` start, `$00` stop). The linked `sv_dma_to_vram($4000, $0300, 256)` writes `$2008/9 ← $0300`, `$200A/B ← $4000`, `$200C ← $10`, `$200D ← $80` then `$00`; the linked `sv_dma_from_vram($0300, $4000, 16)` writes the *same* `$200A/B ← $4000` with `$200C ← $01` — see Conflicts. | `supervision.h`, objdump, `supervision.c` |
 | Audio: tone R at `$2010` and tone L at `$2014` (`divider` 16-bit, `control`: duty `$00/$10/$20/$30` = 12.5/25/50/75 %, repeat `$40`, volume low nibble; `length`); noise at `$2028` (`voldiv`: divider `$00`–`$0D` = ÷8…÷65536, volume; `length`; `control`: enable `$10`, left `$08`, right `$04`, repeat `$02`, tap 15/7 `$01/$00`); audio DMA at `$2018` (`src` pointer, `length`, `control`: bank `n<<4`, left `$08`, right `$04`, rate ÷256/512/1024/2048 `$00`–`$03`; `trigger`). | `supervision.h` |
@@ -107,7 +107,7 @@ and clipped at `$0F`. No envelope, no filter, no entropy register.
 
 **Input.** One 8-button pad at `$2020` (active low per the notes). Link
 port: 4-bit bidirectional, two players. No keyboard, no mouse. The
-"TV Link" accessory shows the four greys as four colours on a TV.
+"TV Link" accessory shows the four greys as four colors on a TV.
 
 **Emulators.**
 - *MAME*: the `svision` driver (variants `svisions`, `svisionp`,
@@ -161,13 +161,13 @@ port: 4-bit bidirectional, two players. No keyboard, no mouse. The
 
 ### Video: a 2-bpp bitmap and a window
 
-- Everything is bytes in VRAM: 4 pixels per byte, 4 greys, no colour.
+- Everything is bytes in VRAM: 4 pixels per byte, 4 greys, no color.
   `screen.setBackground()` is a fill (DMA a 16-byte pattern or `memset`);
   `setBorder()` is inert — the LCD is the whole 160×160 window.
 - No text mode: `text.print` renders a font into the bitmap — 20×20
   cells at 8×8 (40 bytes per glyph row at 2 bpp) or 26×26 at 6×6; the
   package chooses and `text.COLUMNS` says which. Reverse video is free
-  (invert the 2-bit value); "colour" is one of four greys per pixel.
+  (invert the 2-bit value); "color" is one of four greys per pixel.
 - Two scroll registers (`$2002`/`$2003`) and a VRAM wider than the LCD
   (192 vs 160 per the SDK) give a *hardware window*: coarse scrolling by
   moving the window over a larger drawing, the way the Lynx uses HOFF/

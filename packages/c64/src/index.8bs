@@ -24,7 +24,7 @@
 // under x64sc; packages/c64/AGENTS.md says which, and holds what was not
 // checked. Where the VIC-20's VIC packs border, background, and video mode
 // into one register, the C64's VIC-II gives each its own; both take the low
-// four bits, and the VIC-II has sixteen colours everywhere.
+// four bits, and the VIC-II has sixteen colors everywhere.
 import { Video } from "./geometry.8bs";
 
 // ---- the 6510's port: what the CPU sees at $A000, $D000, $E000 -------------
@@ -78,7 +78,7 @@ export let raster: volatile<u8>;
 @address(0xD015)
 export let spriteEnable: volatile<u8>;
 
-// $D016, control register 2 (`ctrl2`): bit 4 MCM (multicolour text/bitmap),
+// $D016, control register 2 (`ctrl2`): bit 4 MCM (multicolor text/bitmap),
 // 3 CSEL (40 columns / 38), 0-2 XSCROLL.
 @address(0xD016)
 export let control2: volatile<u8>;
@@ -116,8 +116,8 @@ export let interruptMask: volatile<u8>;
 @address(0xD01B)
 export let spritePriority: volatile<u8>;
 
-// $D01C, one bit per sprite: multicolour (12x21 double-width pixels, three
-// colours plus transparent: the sprite's own and the two shared ones).
+// $D01C, one bit per sprite: multicolor (12x21 double-width pixels, three
+// colors plus transparent: the sprite's own and the two shared ones).
 @address(0xD01C)
 export let spriteMulticolor: volatile<u8>;
 
@@ -129,10 +129,10 @@ export let spriteCollision: volatile<u8>;
 @address(0xD01F)
 export let spriteBackgroundCollision: volatile<u8>;
 
-// $D020, the border colour; $D021-$D024, background colours 0-3 (only 0
-// shows in the standard text mode; 1-3 are for extended-colour and
-// multicolour modes); $D025 / $D026, the two colours every multicolour
-// sprite shares; $D027-$D02E, each sprite's own colour. Low four bits.
+// $D020, the border color; $D021-$D024, background colors 0-3 (only 0
+// shows in the standard text mode; 1-3 are for extended-color and
+// multicolor modes); $D025 / $D026, the two colors every multicolor
+// sprite shares; $D027-$D02E, each sprite's own color. Low four bits.
 @address(0xD020)
 export let borderColor: volatile<u8>;
 @address(0xD021)
@@ -229,7 +229,7 @@ export let cia2InterruptControl: volatile<u8>;
 // What the VIC is showing — `VideoMode.TEXT` (the screen at $E000 over the
 // character set at $D000, the state setupVideo() leaves) or
 // `VideoMode.BITMAP` (@8bitscript/c64/bitmap: the bitmap at $E000, its
-// colour matrix under the I/O area). The sprite layer reads it, because
+// color matrix under the I/O area). The sprite layer reads it, because
 // the sprite pointers move with the screen matrix; text's prepare() reads
 // it, because its $D018 write is the text mode's.
 export namespace VideoMode {
@@ -360,7 +360,7 @@ export function detectRegion(): utinyint {
 // ---- writes under the I/O area --------------------------------------------
 //
 // $D000-$DFFF is RAM the VIC reads (the character set, and in bitmap mode
-// the colour matrix and the sprite pointers) that the CPU can only reach
+// the color matrix and the sprite pointers) that the CPU can only reach
 // with the I/O area banked out — so every write there is a window: `sei`,
 // CHAREN clear (%100 from %101: RAM everywhere), the writes, I/O back,
 // `cli` if the raster interrupt is on. Nothing between bankIoOut() and
@@ -404,7 +404,7 @@ export function readUnderIo(address: usmallint): utinyint {
 // support (x64sc -help) and the register layout every REU-compatible
 // expansion since the 1700 has shared. These addresses exist in the map for
 // every c64 program (the same reasoning @8bitscript/pet's screen.8bs
-// documents for `setColors` on a machine without colour): they only do
+// documents for `setColors` on a machine without color): they only do
 // something when the program is actually built and run against a `reu*`
 // hardware profile (--profile in packages/cli/src/build.mjs and run.mjs's
 // `-reu -reusize`) — on the stock C64 these are ordinary, if unusual,

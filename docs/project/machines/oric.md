@@ -12,19 +12,19 @@ or the Oric rows of `docs/roadmap.md` (Phase 5) and
 `packages/studio/AGENTS.md`. Read the root `AGENTS.md` first; the rules
 there apply to every target and are not repeated. `packages/pet/AGENTS.md`
 is the nearest contrast: one CPU, RAM, a ROM, a 6522 VIA and a keyboard
-matrix — plus, here, an ULA that draws colour from *serial attributes*
+matrix — plus, here, an ULA that draws color from *serial attributes*
 inside the screen bytes and an AY sound chip hung off the VIA —
 
 > **The Oric is a 1 MHz 6502 with a video ULA that reads screen memory
 > like Teletext: a byte with bits 6 and 5 clear is not a character but an
 > attribute (ink, paper, charset/height/blink, or the video mode itself)
 > that occupies its cell, shows as paper, and applies to the rest of the
-> line. There are 8 colours, 40×28 text cells of 6×8 pixels, a 240×200
+> line. There are 8 colors, 40×28 text cells of 6×8 pixels, a 240×200
 > hires bitmap with the same attribute rule per 6-pixel byte, an
 > AY-3-8912 reached through the VIA, a keyboard matrix scanned through
 > the same VIA and AY, and no vertical-sync signal the CPU can see. Model
 > it as a 40-column serial-attribute display with a 6-pixel byte, never
-> as "a Spectrum" or "a PET with colour".**
+> as "a Spectrum" or "a PET with color".**
 
 The family's variety is in *models and add-ons*: Oric-1 (ROM 1.0) versus
 Atmos (ROM 1.1, better keyboard), 16K versus 48K RAM, whether a Microdisc
@@ -59,14 +59,14 @@ Nothing in this file was seen on screen — no Oric emulator is installed.
 
 | Fact | Where |
 | ---- | ----- |
-| Memory map (BASIC, text mode): `$0000` zero page (`$00-$0B`, `$BB-$BC`, `$F3-$F9` unused by BASIC), `$0100` stack, `$0200` page 2, `$0300-$03FF` I/O, `$0400-$04FF` Sedoric code, `$0500-$B3FF` BASIC program RAM, `$A000-$BFDF` HIRES screen, `$B400-$B4FF` spare, `$B500-$B7FF` standard character set, `$B800-$B8FF` spare, `$B900-$BB7F` alternate character set, **`$BB80-$BF3F` TEXT screen**, `$BF40-$BF67` spare, `$BF68-$BFDF` TEXT bottom screen (the 3 lines under hires), `$BFE0-$BFFF` spare, `$C000-$FFFF` ROM / overlay RAM. | Defence Force wiki `oric:software:memory_maps` |
+| Memory map (BASIC, text mode): `$0000` zero page (`$00-$0B`, `$BB-$BC`, `$F3-$F9` unused by BASIC), `$0100` stack, `$0200` page 2, `$0300-$03FF` I/O, `$0400-$04FF` Sedoric code, `$0500-$B3FF` BASIC program RAM, `$A000-$BFDF` HIRES screen, `$B400-$B4FF` spare, `$B500-$B7FF` standard character set, `$B800-$B8FF` spare, `$B900-$BB7F` alternate character set, **`$BB80-$BF3F` TEXT screen**, `$BF40-$BF67` spare, `$BF68-$BFDF` TEXT bottom screen (the 3 lines under hires), `$BFE0-$BFFF` spare, `$C000-$FFFF` ROM / overlay RAM. | Defense Force wiki `oric:software:memory_maps` |
 | I/O page 3: `$0300-$030F` internal 6522 VIA; `$0310-$0313` Microdisc WD1793 (+ `$0314-$031B` its registers); `$0310`/`$0320` DK'tronics joystick ports; `$031C-$031F` internal 6551 ACIA (Telestrat); `$0320-$032F` second VIA (Telestrat) / RS232 extension (Atmos); `$0360-$0371` ICM7170 RTC; `$03E0-$03E1` lightpen; `$03F4-$03FF` Jasmin WD1773. CPU vectors `$FFFA/$FFFC/$FFFE`. | same page |
-| ULA attribute decoding: a screen byte with bits 6 and 5 both clear (`(c & 0x60) == 0`) is a serial attribute; it is rendered as an empty block in the current colours (inverted if bit 7) and then decoded by `attr & 0x18`: `0x00` ink = bits 0-2; `0x08` text attributes bits 0-2 (bit 0 alternate charset, bit 1 double height — the row's scanline becomes `(y>>1)&7`, bit 2 blink); `0x10` paper = bits 0-2; `0x18` video mode bits 0-2 (bit 2 hires, bit 1 60 Hz/50 Hz, the emulator's `vid_freq`), switching the screen base and charset base at once. Line start resets ink 7, paper 0, no text attributes. Power-up default is attribute `$1A` (text, 50 Hz). Non-attribute bytes: in text mode bits 0-6 index the 8-byte glyph, in hires bits 0-5 are six pixels; bit 7 inverts either. | Oricutron `ula.c` `ula_decode_attr`, `ula_raster_default`, `ula_powerup_default`, render loop |
-| Oricutron's frame model: 64 CPU cycles per raster line; PAL 312 lines (308 + 4 vsync; "T1 period 19966"), NTSC 264 (260 + 4; "T1 period 16894"); 224 visible lines centred; vsync as seen on VIA CB1 is a 260 µs negative pulse 12 µs after the RGB vsync. `--vsynchack` wires that pulse to CB1. | Oricutron `ula.c` frame timing block |
-| Keyboard: 8×8 matrix; column selected through AY register `$0E` (port A) with a 0 bit (`$FE…$7F`), row through VIA port B bits 0-2, result on VIA port B bit 3. Row contents (column order as the wiki lists them; some rows have an empty column the text scrape did not preserve — rebuild a `Key` table from the wiki page itself, not from this cell): row 7: 8 L 0 / RShift RET =; row 6: Y H G E AltGr A S W; row 5: U I O P Funct DEL ] [; row 4: Space , . Up LShift Left Down Right; row 3: K 9 ; - # \ '; row 2: M 6 B 4 LCtrl Z 2 C; row 1: J T R F ESC Q D; row 0: 7 N 5 V RCtrl 1 X 3. Funct is Atmos/Telestrat only; AltGr, # and RCtrl exist only under the Euphoric emulator. | Defence Force wiki `oric:hardware:oric_keyboard` |
-| VIA ↔ AY wiring: port A carries the AY data bus; CA2 drives BC1 and CB2 drives BDIR (Oricutron: `via_main_w_ca2ext` → `ay_set_bc1`, `w_cb2ext` → `ay_set_bdir`; the Telestrat's second VIA has CA2 not connected and CB2 to MIDI); port B bit 6 = tape motor (`orb & ddrb & 0x40`); joystick masks are rebuilt on port writes. AY-3-8912 at 1 MHz; 16 registers: three 12-bit tone periods, 5-bit noise, mixer R7, volumes R8-R10 with envelope bit, envelope period R11/R12 and shape R13, R14 port A (keyboard). | Oricutron `via.c`; Defence Force wiki `oric:hardware:sound` (WebFetch summary) |
+| ULA attribute decoding: a screen byte with bits 6 and 5 both clear (`(c & 0x60) == 0`) is a serial attribute; it is rendered as an empty block in the current colors (inverted if bit 7) and then decoded by `attr & 0x18`: `0x00` ink = bits 0-2; `0x08` text attributes bits 0-2 (bit 0 alternate charset, bit 1 double height — the row's scanline becomes `(y>>1)&7`, bit 2 blink); `0x10` paper = bits 0-2; `0x18` video mode bits 0-2 (bit 2 hires, bit 1 60 Hz/50 Hz, the emulator's `vid_freq`), switching the screen base and charset base at once. Line start resets ink 7, paper 0, no text attributes. Power-up default is attribute `$1A` (text, 50 Hz). Non-attribute bytes: in text mode bits 0-6 index the 8-byte glyph, in hires bits 0-5 are six pixels; bit 7 inverts either. | Oricutron `ula.c` `ula_decode_attr`, `ula_raster_default`, `ula_powerup_default`, render loop |
+| Oricutron's frame model: 64 CPU cycles per raster line; PAL 312 lines (308 + 4 vsync; "T1 period 19966"), NTSC 264 (260 + 4; "T1 period 16894"); 224 visible lines centered; vsync as seen on VIA CB1 is a 260 µs negative pulse 12 µs after the RGB vsync. `--vsynchack` wires that pulse to CB1. | Oricutron `ula.c` frame timing block |
+| Keyboard: 8×8 matrix; column selected through AY register `$0E` (port A) with a 0 bit (`$FE…$7F`), row through VIA port B bits 0-2, result on VIA port B bit 3. Row contents (column order as the wiki lists them; some rows have an empty column the text scrape did not preserve — rebuild a `Key` table from the wiki page itself, not from this cell): row 7: 8 L 0 / RShift RET =; row 6: Y H G E AltGr A S W; row 5: U I O P Funct DEL ] [; row 4: Space , . Up LShift Left Down Right; row 3: K 9 ; - # \ '; row 2: M 6 B 4 LCtrl Z 2 C; row 1: J T R F ESC Q D; row 0: 7 N 5 V RCtrl 1 X 3. Funct is Atmos/Telestrat only; AltGr, # and RCtrl exist only under the Euphoric emulator. | Defense Force wiki `oric:hardware:oric_keyboard` |
+| VIA ↔ AY wiring: port A carries the AY data bus; CA2 drives BC1 and CB2 drives BDIR (Oricutron: `via_main_w_ca2ext` → `ay_set_bc1`, `w_cb2ext` → `ay_set_bdir`; the Telestrat's second VIA has CA2 not connected and CB2 to MIDI); port B bit 6 = tape motor (`orb & ddrb & 0x40`); joystick masks are rebuilt on port writes. AY-3-8912 at 1 MHz; 16 registers: three 12-bit tone periods, 5-bit noise, mixer R7, volumes R8-R10 with envelope bit, envelope period R11/R12 and shape R13, R14 port A (keyboard). | Oricutron `via.c`; Defense Force wiki `oric:hardware:sound` (WebFetch summary) |
 | cc65 `atmos.cfg`: 24-byte tape header (`TAPEHDR`, `$1F` bytes incl. the sacrificial one), BASIC stub at `$0501` (13 bytes) then code, RAM end `$9800` (`$B400` with `-D __GRAB__=1`, which takes the hires area), zero page `$E2-$FB` (26 bytes), 2K stack, `__AUTORUN__=$C7` to auto-run, `__PROGFLAG__` `$00` BASIC / `$80` machine code. `atmos.inc`: 40×28 screen, `SCREEN := $BB80`, `KEYBUF := $02DF` (bit 7 = new key), `MODEKEY := $0209`, `CAPSLOCK $020C`, `STATUS $026A`, `BACKGRND/FOREGRND $026B/$026C`, `IRQVec $0245`, `PARAM1-3 $02E1-$02E6`; ROM entries `TEXT $EC21`, `HIRES $EC33`, `CURSET $F0C8`, `DRAW $F110`, `CHAR $F12D`, `POINT $F1C8`, `PAPER $F204`, `INK $F210`, sound effects `PING $FA9F`, `SHOOT $FAB5`, `EXPLODE $FACB`, `ZAP $FAE1`, `TICK $FB14`, `TOCK $FB2A`. crt0 clears STATUS bit 5 to "unprotect screen columns 0 and 1 (where each line's color codes would sit)". | cc65 `cfg/atmos.cfg`, `asminc/atmos.inc`, `libsrc/atmos/crt0.s`, `doc/atmos.html` |
-| cc65 `waitvsync` "requires VSync hack": spins while VIA port A (no handshake, `$030F`) bit 4 is set. `kbhit`/`cgetc` read `KEYBUF` bit 7 from the ROM IRQ's buffer and `MODEKEY == $A5` for Funct. TGI: `atmos-240-200-2` (default, 2 colours) and `atmos-228-200-3` (228×200, "two colors from eight" + XOR, 6×8 system font — the 12 pixels lost are presumably two attribute cells per line, *to verify*); joystick drivers: IJK (select left/right with VIA port A bits 7/6 as outputs, read 5 bits back; printer strobe forced output) and PASE (port A bits 7/6 select, read inverted); masks UP `$10`, DOWN `$08`, LEFT `$01`, RIGHT `$02`, FIRE `$20`. Colours `COLOR_BLACK 0 … WHITE 7` in the order black, red, green, yellow, blue, magenta, cyan, white. `atmos_load/atmos_save` are tape; no disk I/O; no mouse. | cc65 `libsrc/atmos/waitvsync.s`, `kbhit.s`, `cgetc.s`, `tgi/atmos-228-200-3.s`, `joy/atmos-ijk.s`, `joy/atmos-pase.s`, `include/atmos.h`, `doc/atmos.html` |
+| cc65 `waitvsync` "requires VSync hack": spins while VIA port A (no handshake, `$030F`) bit 4 is set. `kbhit`/`cgetc` read `KEYBUF` bit 7 from the ROM IRQ's buffer and `MODEKEY == $A5` for Funct. TGI: `atmos-240-200-2` (default, 2 colors) and `atmos-228-200-3` (228×200, "two colors from eight" + XOR, 6×8 system font — the 12 pixels lost are presumably two attribute cells per line, *to verify*); joystick drivers: IJK (select left/right with VIA port A bits 7/6 as outputs, read 5 bits back; printer strobe forced output) and PASE (port A bits 7/6 select, read inverted); masks UP `$10`, DOWN `$08`, LEFT `$01`, RIGHT `$02`, FIRE `$20`. Colors `COLOR_BLACK 0 … WHITE 7` in the order black, red, green, yellow, blue, magenta, cyan, white. `atmos_load/atmos_save` are tape; no disk I/O; no mouse. | cc65 `libsrc/atmos/waitvsync.s`, `kbhit.s`, `cgetc.s`, `tgi/atmos-228-200-3.s`, `joy/atmos-ijk.s`, `joy/atmos-pase.s`, `include/atmos.h`, `doc/atmos.html` |
 | Wikipedia: Oric-1 (1982) 6502A at 1 MHz, 16K or 48K (48K boards carry 64K, top 16K under the ROM; the disc unit can page the ROM out to use it), 16K ROM, HCS 10017 ULA, AY-3-8912, 40×28 text with 80 user-definable characters and serial attributes that "take up one character position" and last to end of line or the next attribute, a parallel inverse attribute per cell, "a fixed black border", 240×200 hires plus 3 text lines, tape at 300/2400 baud, Centronics printer port, PAL UHF and RGB out; Atmos (1984) = ROM 1.1 + keyboard; Stratos/Telestrat 64K. | Wikipedia *Oric (computer)* |
 | Oricutron (ReadMe 1.2): `-m oric1 | o16k | atmos | telestrat | pravetz`, `-d disk.dsk`, `-t tape.tap` (`.tap`, `.ort`, `.wav`), `-k microdisc | jasmin | bd500 | pravetz`, `-s symbols`, `-f/-w`, `-R soft|opengl`, `-b` debugger, `-r` breakpoints, `--turbotape`, `--lightpen`, `--vsynchack on|off`, `--scanlines`, `--serial none|loopback|modem|com`; keys F1 menu, F2 monitor, F3 NMI reset, F4 hard reset, F6 warp, F7 save disks, F9 save tape, F10 AVI capture, **PrtSc save screen as BMP**; monitor has `ns/nl` snapshots, breakpoints, symbols; a CH376 (USB/SD FAT32 chip) emulation reads the host `usbdrive/` folder; ports for Windows, macOS, Linux, Amiga, BeOS; "Video: 100% done, VIA 95%, AY 99%, Tape 99%, Disk 90%". | `pete-gordon/oricutron` `ReadMe.txt` |
 | MAME drivers `oric1`, `orica` (Atmos), `telstrat` exist. | MAME `mame.lst` |
@@ -110,12 +110,12 @@ Each is a lead to confirm the first time code depends on it.
 
 - The sound chip is the **AY-3-8912** (the one-port variant; pin count *to verify*), not the
   8910; the register map is the same and port A is the keyboard column
-  select (Wikipedia, Defence Force wiki, cc65).
+  select (Wikipedia, Defense Force wiki, cc65).
 - "40×28 text" is right; add that the cell is 6 pixels wide, so "40
   columns" is 240 pixels and a hires byte is one text cell wide.
-- "8 colours" is right, but an attribute changes *ink or paper*, one at a
+- "8 colors" is right, but an attribute changes *ink or paper*, one at a
   time, and each change costs a cell; two attributes (ink and paper) cost
-  two cells. A line can show any colours but only through those cells.
+  two cells. A line can show any colors but only through those cells.
 
 ## Rules for this target
 
@@ -141,10 +141,10 @@ Each is a lead to confirm the first time code depends on it.
   columns; BASIC keeps them) and a 38-column text area. A richer model
   lets a program place attributes anywhere and pays a cell each time —
   expose that as the Oric's own extension, not as `putColor`.
-- `putColor(cell, colour)` for one cell is impossible without spending a
-  neighbouring cell; a per-cell colour intent maps to "inverse video"
+- `putColor(cell, color)` for one cell is impossible without spending a
+  neighboring cell; a per-cell color intent maps to "inverse video"
   (bit 7, free) or to a two-cell ink change. Document which.
-- There is no border colour (fixed black), no background register:
+- There is no border color (fixed black), no background register:
   `setBorder()` is inert; `setBackground()` is a paper attribute at the
   start of every line (28 cells, or 200 + 3 lines in hires).
 - Double height, blink and the alternate charset are attributes too, and
@@ -228,12 +228,12 @@ Each is a lead to confirm the first time code depends on it.
 
 ## Traps for someone who knows the C64
 
-1. **Colour is a byte in the row, not a cell attribute.** Change ink and
+1. **Color is a byte in the row, not a cell attribute.** Change ink and
    you lose the cell you wrote it in; it shows as paper. Two changes cost
    two cells. Nothing is per-cell but inverse.
 2. **A screen byte with bits 6 and 5 clear is a command.** Writing a
    character code below `$20` or a hires byte without bit 6 set does not
-   draw — it re-colours the line, or worse, switches to hires.
+   draw — it re-colors the line, or worse, switches to hires.
 3. **Six pixels per byte, 40 bytes per line.** Not 8; 240 across, and
    a text cell is 6 wide.
 4. **No vsync for the CPU.** `waitFrame()` is a timer unless the machine

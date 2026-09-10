@@ -34,7 +34,7 @@ Four calls and one const, the same on every machine:
 | --- | --- |
 | `DRAWS` | **A const**: does this machine draw an arrow at all? |
 | `begin()` | Once, at start-up, after `input.begin()` |
-| `setColor(c)` | The arrow's colour, in the same numbers `text.setColor` takes |
+| `setColor(c)` | The arrow's color, in the same numbers `text.setColor` takes |
 | `update()` | Once a frame, after `input.poll()` |
 | `hide()` | Off the screen until the next `update()` |
 
@@ -130,12 +130,12 @@ still prove almost everything, and the way it does is worth copying:
   a headless run can see, and `pointer.test.mjs` asserts it by counting
   white pixels in the two blank rows a probe program keeps clear for the
   purpose — 58 with a mouse, 0 without, under both x64sc and x128.
-- The **X16** parks at the *centre*: mouse_config with a nonzero size
+- The **X16** parks at the *center*: mouse_config with a nonzero size
   leaves the pointer at half the current screen_mode range, (319, 239) of
   the 640×480 the mode names. After `screen.8bs` insets the display by 16
   pixels, that sprite is on the screenshot at (335, 254). A probe's
   top two rows are white text here, so a corner count would not prove an
-  arrow; the test counts white pixels in that centre box instead — 43
+  arrow; the test counts white pixels in that center box instead — 43
   under x16emu r50 / ROM `fbe32a60`.
 
 What a screenshot cannot answer, and what needs a human at the machine:

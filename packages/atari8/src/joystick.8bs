@@ -101,11 +101,11 @@ export namespace joystick {
     //
     // It also zeroes ATRACT ($4D), and that is not a side errand. The OS
     // counts that byte up in its VBI and, after roughly nine minutes with
-    // no key pressed, starts cycling the playfield colours to save the
+    // no key pressed, starts cycling the playfield colors to save the
     // phosphor — which a keyboard game never sees, because the OS clears
     // ATRACT on a keypress, and a joystick-only game always does, because
     // a joystick is not a key. Left alone it turns a working game's screen
-    // into slowly rolling colours partway through a long session. Three
+    // into slowly rolling colors partway through a long session. Three
     // bytes here is the whole fix, and this is the one function a
     // joystick-only game is certain to call every frame.
     function scan(): void {

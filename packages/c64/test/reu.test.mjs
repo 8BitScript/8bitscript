@@ -2,7 +2,7 @@
 // the probe program links clean for the C64 with the stock sheet (no
 // emulator needed), and, when x64sc and a working backend are installed,
 // it is run under VICE with no REU and with a 512 KiB one, and the border
-// colour each screenshot shows is what reu.detect() found. The border
+// color each screenshot shows is what reu.detect() found. The border
 // encodes the answer (see reu-probe.8bs) so the test reads one pixel, not
 // text.
 import { test } from 'node:test';
@@ -133,7 +133,7 @@ test(
         const green = g > r + 30 && g > b + 30;
         const red = r > g + 30 && r > b + 30;
         assert.equal(green, expected, `${device}: expected ${expected ? 'a mouse' : 'no mouse'}, got rgb(${[r, g, b]})`);
-        assert.equal(red, !expected, `${device}: the other colour, got rgb(${[r, g, b]})`);
+        assert.equal(red, !expected, `${device}: the other color, got rgb(${[r, g, b]})`);
       }
     } finally {
       await rm(scratch, { recursive: true, force: true });

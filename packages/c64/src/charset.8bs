@@ -27,10 +27,10 @@
 // second ROM copy (about four frames of window) — do it before
 // raster.enable(), or accept the frame.
 //
-// Multicolour text ($D016 bit 4, `charset.setMulticolor`): in a cell whose
-// colour RAM nybble has bit 3 set, pixels are pairs — %00 the background,
-// %01 $D022, %10 $D023, %11 the low three bits of the cell's colour — and
-// a cell without bit 3 is drawn hi-res in that colour, so one screen mixes
+// Multicolor text ($D016 bit 4, `charset.setMulticolor`): in a cell whose
+// color RAM nybble has bit 3 set, pixels are pairs — %00 the background,
+// %01 $D022, %10 $D023, %11 the low three bits of the cell's color — and
+// a cell without bit 3 is drawn hi-res in that color, so one screen mixes
 // both. `useLowercase` selects the ROM's other set at $D800 for a program
 // that wants it; @8bitscript/text's next print selects upper-case again.
 import {
@@ -102,14 +102,14 @@ export namespace charset {
     }
 
     // The ROM's glyphs again, both sets — all 4K under the I/O area, so
-    // in bitmap mode this also overwrites the colour matrix and the shape
+    // in bitmap mode this also overwrites the color matrix and the shape
     // blocks that live there: leave bitmap mode first.
     function restore(): void {
         setupVideo();
         copyCharacterRom();
     }
 
-    // Multicolour text mode on or off (see the header).
+    // Multicolor text mode on or off (see the header).
     function setMulticolor(on: bool): void {
         if (on) {
             control2 = control2 | 0x10;
@@ -118,7 +118,7 @@ export namespace charset {
         }
     }
 
-    // The two shared multicolour text colours ($D022, $D023).
+    // The two shared multicolor text colors ($D022, $D023).
     function setSharedColors(color1: utinyint, color2: utinyint): void {
         backgroundColor1 = color1 & 15;
         backgroundColor2 = color2 & 15;

@@ -29,7 +29,7 @@
 // write PPUADDR ($2006) twice (high byte, then low) to latch a VRAM address,
 // then write PPUDATA ($2007), which stores through it and auto-increments.
 // Two rules that protocol brings, both of which the screen and text
-// modules honour so callers need not:
+// modules honor so callers need not:
 //
 //   1. Writing PPUADDR moves the PPU's internal address register, which is
 //      also what it scrolls from when rendering resumes — leave it pointing
@@ -88,7 +88,7 @@
 // roughly the first 29,658 CPU cycles. NROM start-up does that wait
 // before main() — verified by disassembly (pre-0.2.0): __early_init
 // writes $2000/$2001/$4010 = 0, clears $2002, and spins on it until bit 7
-// sets; __late_init spins on it once more after RAM is initialised — so
+// sets; __late_init spins on it once more after RAM is initialized — so
 // by the time a program's main() runs the PPU has seen two vblanks and
 // is safe to write. (An earlier revision of this comment recorded that
 // wait as a gap this target still had; it was never one.) The native

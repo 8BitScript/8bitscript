@@ -3,7 +3,7 @@
 // clean for the C128 with the stock sheet; the catalog names this subpath
 // as what finds the `vdc` option's value at run time; and, when x128 and
 // a working backend are installed, it is run on a 16 KiB machine and a
-// 64 KiB one and the border colour each screenshot shows is what
+// 64 KiB one and the border color each screenshot shows is what
 // vdc.ramKib() found.
 //
 // The last test is the one that says the chip is really being driven: it

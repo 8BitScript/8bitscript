@@ -1,7 +1,7 @@
 /*
  * The launcher panel.
  *
- * Every colour is one of the editor's own theme variables, so the panel is
+ * Every color is one of the editor's own theme variables, so the panel is
  * whatever theme the window is wearing and never a light card in a dark
  * window. Sizes follow the side bar's: 22px rows, 11px uppercase section
  * labels, 2px corners — a webview that invents its own is the thing that

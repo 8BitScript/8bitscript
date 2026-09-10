@@ -19,14 +19,14 @@ import {
 
 // ---- the screen: border and background --------------------------------------
 //
-// GTIA colours are 8-bit (4 bits hue, 4 bits luminance) but this package
+// GTIA colors are 8-bit (4 bits hue, 4 bits luminance) but this package
 // doesn't interpret them — a caller passes raw GTIA bytes, the same
 // "portable values are whatever the hardware wants" contract memory.write
 // already has everywhere else.
 //
 // Shadow first, then hardware, for two different reasons: the shadow so the
-// colour survives the OS's next vertical blank (see @8bitscript/atari8 —
-// without this, the colour lasts one frame), the hardware register so it
+// color survives the OS's next vertical blank (see @8bitscript/atari8 —
+// without this, the color lasts one frame), the hardware register so it
 // appears now rather than at that next blank.
 //
 // COLPF1 is forced to $0E (max luminance, hue ignored in GR.0) so
@@ -45,10 +45,10 @@ export namespace screen {
         cursorInhibit = 1;
     }
 
-    // `blank(border, background)`: every cell blank and both colours set —
+    // `blank(border, background)`: every cell blank and both colors set —
     // black when left off, or `BorderColor.KEEP` / `BackgroundColor.KEEP`
     // to leave one as it is. `setBorder` and `setBackground` are one
-    // colour each, `setColors` the pair; `text.setColor` owns what the
+    // color each, `setColors` the pair; `text.setColor` owns what the
     // next print looks like.
     function blank(border: utinyint = BorderColor.BLACK, background: utinyint = BackgroundColor.BLACK): void {
         if (border != BorderColor.KEEP) {
@@ -83,7 +83,7 @@ export namespace screen {
     }
 }
 
-// ---- colour names ----------------------------------------------------------
+// ---- color names ----------------------------------------------------------
 //
 // The same eight names every machine's screen.8bs exports — Black, White,
 // Red, Cyan, Purple, Green, Blue, Yellow — so a program can write
@@ -94,7 +94,7 @@ export namespace screen {
 // Reference Manual — 0 grey, 1 gold, 3 red-orange, 5 purple, 8 blue, 10
 // turquoise, 12 green — with luminances picked so that each reads as its
 // name and stays darker than the $0E text luminance setColors() writes. A
-// program that wants a colour not named here passes its own GTIA byte to
+// program that wants a color not named here passes its own GTIA byte to
 // setColors() directly. Not visually verified under atari800 by this
 // project; the hue table is the manual's, the luminances a judgement.
 
@@ -107,9 +107,9 @@ export namespace BorderColor {
     const GREEN: utinyint = 0xC6;
     const BLUE: utinyint = 0x84;
     const YELLOW: utinyint = 0x1C;
-    // Not a colour: `blank(KEEP, ...)` leaves this one as it is. 255 is
+    // Not a color: `blank(KEEP, ...)` leaves this one as it is. 255 is
     // a value no register here takes — except on this machine, where
-    // every byte is a colour: hue 15 at its brightest is given up for it.
+    // every byte is a color: hue 15 at its brightest is given up for it.
     const KEEP: utinyint = 255;
 }
 
@@ -122,8 +122,8 @@ export namespace BackgroundColor {
     const GREEN: utinyint = 0xC6;
     const BLUE: utinyint = 0x84;
     const YELLOW: utinyint = 0x1C;
-    // Not a colour: `blank(KEEP, ...)` leaves this one as it is. 255 is
+    // Not a color: `blank(KEEP, ...)` leaves this one as it is. 255 is
     // a value no register here takes — except on this machine, where
-    // every byte is a colour: hue 15 at its brightest is given up for it.
+    // every byte is a color: hue 15 at its brightest is given up for it.
     const KEEP: utinyint = 255;
 }

@@ -1,7 +1,7 @@
 // Local variables and `for` loops. A local is storage that exists while
 // its function runs (the target's own stack or registers); it is
 // block-scoped, as in C, and shadows a global, const, or array of the
-// same name. A `for` keeps its initialiser, test, and update, so
+// same name. A `for` keeps its initializer, test, and update, so
 // `continue` still runs the update.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -32,7 +32,7 @@ async function linkWith(files, entry = 'main.8bs') {
 
 // ---- locals -------------------------------------------------------------------
 
-test('a local lowers to a local statement; left uninitialised it starts at 0', () => {
+test('a local lowers to a local statement; left uninitialized it starts at 0', () => {
   const { ir, diagnostics } = lowered('export function main(): void { let n: utinyint = 5; let m: usmallint; m = n; }');
   assert.deepEqual(diagnostics, []);
   const [n, m, assign] = ir.functions[0].body;
@@ -41,7 +41,7 @@ test('a local lowers to a local statement; left uninitialised it starts at 0', (
   assert.equal(assign.kind, 'assign');
 });
 
-test('a local initialiser is any expression, and its literal gets the range rule', () => {
+test('a local initializer is any expression, and its literal gets the range rule', () => {
   clean('let g: utinyint = 1;\nexport function main(): void { let n: utinyint = g + 1; }');
   assert.deepEqual(codes('export function main(): void { let n: utinyint = 300; }'), ['8BS1021']);
 });
@@ -74,7 +74,7 @@ test('a template field sizes itself from a local', () => {
 
 // ---- for ------------------------------------------------------------------------
 
-test('for lowers to a for with an initialiser, test, and update; each may be left off', () => {
+test('for lowers to a for with an initializer, test, and update; each may be left off', () => {
   const { ir, diagnostics } = lowered('let g: utinyint = 0;\nexport function main(): void { for (let i: utinyint = 0; i < 4; i++) { g = i; } for (g = 0; g < 2; g += 1) { } for (;;) { break; } }');
   assert.deepEqual(diagnostics, []);
   const [a, b, c] = ir.functions[0].body;
@@ -87,8 +87,8 @@ test('for lowers to a for with an initialiser, test, and update; each may be lef
   assert.deepEqual([c.init, c.test, c.update], [null, null, null]);
 });
 
-test('a for initialiser or update is an assignment, ++/--, or a call', () => {
-  assert.match(diagnosticsOf('export function main(): void { for (1; ; ) { } }')[0].message, /a for initialiser is an assignment, \+\+\/--, or a call/);
+test('a for initializer or update is an assignment, ++/--, or a call', () => {
+  assert.match(diagnosticsOf('export function main(): void { for (1; ; ) { } }')[0].message, /a for initializer is an assignment, \+\+\/--, or a call/);
   assert.match(diagnosticsOf('let g: utinyint = 0;\nexport function main(): void { for (; ; g) { } }')[0].message, /a for update is an assignment/);
 });
 

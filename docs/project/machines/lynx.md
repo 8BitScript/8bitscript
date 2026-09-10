@@ -65,7 +65,7 @@ Cite these freely; each was read in the file named.
 | Suzy at `$FC00`: sprite engine registers `$FC00`–`$FC2F` (TMPADR, TILTACC, HOFF `$FC04`, VOFF `$FC06`, SPRBASE, **COLBASE `$FC0A`**, **VIDADR `$FC0C`**, COLADR, **SCBNEXT `$FC10`**, …); hardware math `$FC52`–`$FC6F` (FACTOR_A/B, PRODUCT 32-bit at `$FC60`, DIVIDEND/DIVISOR/QUOTIENT/REMAINDER); SPRCTL0 `$FC80`, SPRCTL1 `$FC81`, SPRCOLL `$FC82`, SPRINIT `$FC83`; SUZYHREV `$FC88`; SUZYBUSEN `$FC90`, **SPRGO `$FC91`**, **SPRSYS `$FC92`**; **JOYSTICK `$FCB0`**, **SWITCHES `$FCB1`**, **CART0 `$FCB2`**, CART1 `$FCB3`; LEDS `$FCC0`, parallel port `$FCC2`/`$FCC3`. | `mos-platform/lynx/include/_suzy.h` (`struct __suzy`) |
 | Joypad bits at `$FCB0`: RIGHT `$10`, LEFT `$20`, DOWN `$40`, UP `$80`, OPTION1 `$08`, OPTION2 `$04`, INNER `$02` (B), OUTER `$01` (A). `$FCB1` bit 0 = PAUSE. Polarity is not stated in the header. | `_suzy.h` `JOYPAD_*`, `BUTTON_*`; `lynx.h` `JOY_*_MASK` |
 | SPRCTL0: bits 7–6 bpp (`BPP_1 $00`, `BPP_2 $40`, `BPP_3 $80`, `BPP_4 $C0`), HFLIP `$20`, VFLIP `$10`, bits 2–0 sprite type: BACKGROUND 0, BACKNONCOLL 1, BSHADOW 2, BOUNDARY 3, NORMAL 4, NONCOLL 5, XOR 6, SHADOW 7. SPRCTL1: LITERAL `$80` vs PACKED `$00`, ALGO3 `$40`, reload bits RENONE/REHV/REHVS/REHVST (`$00/$10/$20/$30` — which of hsize/vsize/stretch/tilt the SCB carries), REUSEPAL `$08`, SKIP `$04`, DRAWUP `$02`, DRAWLEFT `$01`. | `_suzy.h` |
-| SCB layout (the "REHVST_PAL" form): `sprctl0, sprctl1, sprcoll, next (ptr), data (ptr), hpos (int), vpos (int), hsize (uint), vsize (uint), stretch (uint), tilt (uint), penpal[8]` — 8 bytes of pen palette = 16 nibbles mapping sprite pen → framebuffer colour index; smaller SCB forms drop fields from the end (`SCB_RENONE` is 11 bytes). `PENPAL_1/2/3/4` are 1/2/4/8 bytes. | `_suzy.h` typedefs |
+| SCB layout (the "REHVST_PAL" form): `sprctl0, sprctl1, sprcoll, next (ptr), data (ptr), hpos (int), vpos (int), hsize (uint), vsize (uint), stretch (uint), tilt (uint), penpal[8]` — 8 bytes of pen palette = 16 nibbles mapping sprite pen → framebuffer color index; smaller SCB forms drop fields from the end (`SCB_RENONE` is 11 bytes). `PENPAL_1/2/3/4` are 1/2/4/8 bytes. | `_suzy.h` typedefs |
 | SPRGO: `SPRITE_GO $01`, `EVER_ON $04`. SPRSYS write: SIGNMATH `$80`, ACCUMULATE `$40`, NO_COLLIDE `$20`, VSTRETCH `$10`, LEFTHAND `$08`, CLR_UNSAFE `$04`, SPRITESTOP `$02`; read: MATHWORKING `$80`, MATHWARNING, MATHCARRY, VSTRETCHING, LEFTHANDED, UNSAFE_ACCESS, SPRITETOSTOP `$02`, **SPRITEWORKING `$01`**. | `_suzy.h` |
 | MAPCTL `$FFF9` bits: HIGHSPEED `$80`, VECTORSPACE `$08`, ROMSPACE `$04`, MIKEYSPACE `$02`, SUZYSPACE `$01`. The header names the bits; it does not say which sense unmaps the chip. | `_suzy.h` |
 | Mikey at `$FD00`: 8 timers × 4 bytes (`reload, control, count, control2`) at `$FD00`–`$FD1F`; **timer 0 = HBL (`_HBL_TIMER $FD00`), timer 2 = VBL (`_VBL_TIMER $FD08`)**; the header's `_UART_TIMER` macro points at `$FD14` while its comment says "timer4 (UART)" — `$FD14` is the *fifth* 4-byte slot (timer 5); timer 4 is `$FD10`. Which slot clocks the UART is *to verify*; 4 audio channels × 8 bytes at `$FD20/$FD28/$FD30/$FD38` (`volume, feedback, dac, shiftlo, reload, control, count, other`); ATTENA–D `$FD40`–`$FD43`, PANNING `$FD44` (header: "?? not yet allocated?"), MSTEREO `$FD50`; INTRST `$FD80`, INTSET `$FD81`; AUDIN `$FD86`; SYSCTL1 `$FD87`; MIKEYREV `$FD88`; IODIR `$FD8A`, IODAT `$FD8B`; SERCTL `$FD8C`, SERDAT `$FD8D`; SDONEACK `$FD90`, CPUSLEEP `$FD91`, **DISPCTL `$FD92`** ("video bus request enable, viddma"), PKBKUP `$FD93` ("magic 'P' count"), **SCRBASE `$FD94`** (display base pointer); **palette 32 bytes at `$FDA0`–`$FDBF`**. | `mos-platform/lynx/include/_mikey.h`, `lynx.h` |
@@ -111,14 +111,14 @@ pointer can point at. EEPROM (93C46-family, on the cartridge, bit-banged
 through Mikey's I/O lines) exists on later carts *(to verify: which lines;
 cc65 has `lynx-eeprom.s`)*.
 
-**Display.** 160×102, 4 bpp, 16 colours per scanline from a 12-bit
+**Display.** 160×102, 4 bpp, 16 colors per scanline from a 12-bit
 (4096) palette: 16 entries at `$FDA0`–`$FDBF`, green nibble in the first
 16 bytes, blue/red byte in the second 16 (Mednafen `mikie.cpp`). DISPCTL
-`$FD92` bits: DMAEnable, Flip, FourColour, Colour (`mikie.h`, bits 0–3 in
-that order *to verify*); cc65 writes `$0D` (colour, 4-bit, DMA on, no
+`$FD92` bits: DMAEnable, Flip, FourColour, Color (`mikie.h`, bits 0–3 in
+that order *to verify*); cc65 writes `$0D` (color, 4-bit, DMA on, no
 flip). SCRBASE/DISPADR `$FD94` is the buffer the DMA reads — swapping it
 is the page flip. The palette can be rewritten from the HBL interrupt for
-more than 16 colours per frame. Rotation (left/right-handed, the
+more than 16 colors per frame. Rotation (left/right-handed, the
 `LEFTHAND` SPRSYS bit and DISPCTL Flip) is a hardware feature; the `.lnx`
 header records which way a game expects to be held and Mednafen's
 `lynx.rotateinput` follows it.
@@ -198,7 +198,7 @@ timer 4 as the baud clock, up to 62500 baud, up to 8 units).
   diary). Both are right about different things: the crystal division is
   exact, the CPU loses bus cycles to Suzy and the display DMA. Do not
   hardcode a cycle count per frame; measure or use the timers.
-- "16 simultaneous colours" (Wikipedia) vs "16 per scanline" (developer
+- "16 simultaneous colors" (Wikipedia) vs "16 per scanline" (developer
   diary, Handy): the palette is 16 entries, rewritable per line.
 - The header calls `$FD44` "panning ?? not yet allocated?" and `$FD50`
   "stereo control bits"; Mednafen implements pan/attenuation. Treat the
@@ -227,7 +227,7 @@ timer 4 as the baud clock, up to 62500 baud, up to 8 units).
 
 ### Video: the frame is *built*, not *shown*
 
-- There is no text mode, no charset, no tile map, no colour RAM. A
+- There is no text mode, no charset, no tile map, no color RAM. A
   portable `text.print` on the Lynx is a Suzy sprite (or a run of them)
   per glyph from a font stored as sprite data, blitted into the back
   buffer — 20×12 cells at 8×8, 26×17 at 6×6, whatever the font is. The
@@ -235,14 +235,14 @@ timer 4 as the baud clock, up to 62500 baud, up to 8 units).
   property of the font the package chose.
 - `screen.setBackground()` is the framebuffer fill (a full-screen
   BACKGROUND-type sprite is the fast way); there is no border and no
-  border colour — the LCD *is* the 160×102 area. `setBorder()` is inert,
+  border color — the LCD *is* the 160×102 area. `setBorder()` is inert,
   the PET's answer.
 - Draw into the back buffer, flip SCRBASE on the VBL interrupt (timer 2).
   Never draw into the buffer being displayed and never import the NES
   "queue writes for vblank" model: the vblank is 3 lines and the blitter
   runs during the visible frame by design.
-- Colour is a 16-entry palette per frame (per line with an HBL handler).
-  A portable colour name maps to a palette index the package assigns, and
+- Color is a 16-entry palette per frame (per line with an HBL handler).
+  A portable color name maps to a palette index the package assigns, and
   a 4-bpp sprite's pen palette maps pens to those indexes. Keep "palette
   index" and "pen" as two types.
 - Hardware multiply/divide exists (Suzy math). The root rule "the 6502

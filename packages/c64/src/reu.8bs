@@ -23,7 +23,7 @@
 // `fillReu` writes one byte across a REU range. A length of 0 means 65536.
 // The C64 side goes through the CPU's memory map as $01 has it (./index.8bs):
 // $E000-$FFFF is the screen's RAM (KERNAL out), $D000-$DFFF the I/O area,
-// so a transfer touching the character set or a bitmap's colour matrix
+// so a transfer touching the character set or a bitmap's color matrix
 // needs the I/O area banked out around it (bankIoOut/bankIoIn) — and
 // nothing here does that for a caller. Every transfer sets every register,
 // so the REU's own address stepping after a transfer never matters. The

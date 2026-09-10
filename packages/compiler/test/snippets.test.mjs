@@ -55,7 +55,7 @@ function wrap(text) {
     return `${trimmed}\nexport function __entry(): void { }`;
   }
   // An expression is assigned to a global rather than declared into one: a
-  // global's initialiser must be a compile-time value, and a snippet like
+  // global's initializer must be a compile-time value, and a snippet like
   // `memory.read(...)` is deliberately a runtime one.
   const statement = /[;{]/.test(trimmed) ? trimmed : `__value = ${trimmed};`;
   return [

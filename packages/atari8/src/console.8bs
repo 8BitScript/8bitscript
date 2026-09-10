@@ -14,7 +14,7 @@
 // difficulty on SELECT — a cartridge with no DOS and no keyboard handler
 // still has these three.
 //
-// CONSOL is the register a colour-cycling demo already reads for its
+// CONSOL is the register a color-cycling demo already reads for its
 // OPTION readout; this file is that, named.
 //
 // ---- the fourth bit is an output ------------------------------------------
@@ -25,7 +25,7 @@
 // toggling it in a timed loop and a "click" means toggling it twice. POKEY
 // is where sound lives (./pokey.8bs); this is here because it is the same
 // register and would otherwise be a trap — a program that writes CONSOL to
-// clear something and leaves bit 3 low holds the speaker cone out of centre.
+// clear something and leaves bit 3 low holds the speaker cone out of center.
 // `scan()` never writes CONSOL, and `click()` puts the bit back.
 //
 // Reading CONSOL returns the keys; writing it drives the speaker. They are

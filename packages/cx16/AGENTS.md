@@ -29,10 +29,10 @@ Do not describe more than this as working:
   fills — that the package's two portable surfaces are built on:
   `src/screen.8bs` (behind `@8bitscript/screen`, as `@8bitscript/cx16/screen`)
   and `src/text.8bs` (behind `@8bitscript/text`). `screen.setColors()`'s
-  border is real but *made*: VERA's border colour has nowhere to show by
+  border is real but *made*: VERA's border color has nowhere to show by
   default (the active display area fills the 640×480 output), so it insets
   the active area by 16 pixels on every side and that ring takes the
-  colour. Its background is *painted*: there is no register for it, so
+  color. Its background is *painted*: there is no register for it, so
   every text cell's attribute byte is rewritten through VERA's data port.
   `text.putChar(cell, code)` takes ASCII — ISO mode is what makes tile
   index equal the character code — on the 76×56 grid the border inset
@@ -42,9 +42,9 @@ Do not describe more than this as working:
   assumed. `locate()` finds a cell's row by a reciprocal multiply on the
   cell's split bytes (see the package), not a divide, and parks both VERA
   address ports: port 0 on the character byte stepping by one, port 1 on
-  the colour byte stepping by two. `putColor` is real (per-cell foreground
-  nibble): a run of text writes character then colour through port 0,
-  reading each cell's old colour byte through port 1 so whatever
+  the color byte stepping by two. `putColor` is real (per-cell foreground
+  nibble): a run of text writes character then color through port 0,
+  reading each cell's old color byte through port 1 so whatever
   background nibble the cell has is kept. `locate()` leaves ADDRSEL at 0,
   which `screen.8bs` assumes.
 - `waitFrame()` (`FRAME_SYNC.cx16` in `packages/compiler/src/mos`) polls
@@ -62,7 +62,7 @@ Do not describe more than this as working:
   block is opaque, and a bool set before a KERNAL call and read after it
   was kept in a register the call trashed (measured: the arrow drawing at
   (319, 239) while `present()` was false). The rest position is the
-  centre of the 640×480 the current screen_mode names; after
+  center of the 640×480 the current screen_mode names; after
   `screen.8bs` insets the display, the sprite is on screen at (335, 254).
   Keyboard (`$FFE4` GETIN) and pads (`$FF56` joystick_get) are still
   unanswered. `test/mouse-probe.8bs` is 1184 bytes of program and 25 of
@@ -107,7 +107,7 @@ Cite these freely; each was read in the source named, not recalled.
 | `memory_copy`/`memory_fill` detect the `$9F00` I/O page and do not increment through it — which is what lets them stream through a VERA data port. | `kernal/memory.s` |
 | Switching into ISO mode (`CHR$(15)` through CHROUT) before `main()` was verified on a linked build (pre-0.2.0). The native backend does not yet emit that start-up. | disassembly of a linked build (pre-0.2.0) |
 | With a nonzero VSTART, VERA's layer line 0 lands two lines above the active area's top edge (the layer line counter starts on the VSTART line through a two-line register-history pipeline). | `video.c` ~1029-1063, and on screen |
-| The catalog's stock fact sheet: grid 76×56 of 8×8 (the map's 80×60 less the border inset), 256 palette entries, 2 colours per cell, 256 glyphs in the text layer's tileset, 2×2 blocks (the PETSCII set in the ROM font), bitmap, 2 layers with fine scroll each; 128 sprites, up to 64×64, 255 colours at 8 bpp; 16 PSG + 8 FM + 1 PCM = 25 voices, envelopes on the FM side, noise on the PSG, a volume per voice, no filter or random source; keyboard and mouse through the KERNAL (`input.mouse` is true on the stock machine: the emulator's mouse is always there), 2 SNES pad ports (*to verify*: some boards carry 4), no joystick ports; the SD card to save to; 38655 bytes of low RAM (`$0801`–`$9EFF`), 512 KiB banked by default (the `ram` values change it). **`video.spritesPerLine` is 46**: the VERA reference gives a 798-cycle deadline per line and 13–17 cycles for the smallest sprite (8 px, 4 bpp), so 798 ÷ 17 = 46 of those is the worst case; the biggest (64 px, 8 bpp, 99–147 cycles) fits 5. The sheet states the small-sprite figure, and an actors package must say which size its own count assumes. | `src/text.8bs`; the `link.ld`, palette and sprite-budget rows above; VERA Programmer's Reference, "Sprite renderer / line buffer" (fetched 2026-09-05); `package.json` (read) |
+| The catalog's stock fact sheet: grid 76×56 of 8×8 (the map's 80×60 less the border inset), 256 palette entries, 2 colors per cell, 256 glyphs in the text layer's tileset, 2×2 blocks (the PETSCII set in the ROM font), bitmap, 2 layers with fine scroll each; 128 sprites, up to 64×64, 255 colors at 8 bpp; 16 PSG + 8 FM + 1 PCM = 25 voices, envelopes on the FM side, noise on the PSG, a volume per voice, no filter or random source; keyboard and mouse through the KERNAL (`input.mouse` is true on the stock machine: the emulator's mouse is always there), 2 SNES pad ports (*to verify*: some boards carry 4), no joystick ports; the SD card to save to; 38655 bytes of low RAM (`$0801`–`$9EFF`), 512 KiB banked by default (the `ram` values change it). **`video.spritesPerLine` is 46**: the VERA reference gives a 798-cycle deadline per line and 13–17 cycles for the smallest sprite (8 px, 4 bpp), so 798 ÷ 17 = 46 of those is the worst case; the biggest (64 px, 8 bpp, 99–147 cycles) fits 5. The sheet states the small-sprite figure, and an actors package must say which size its own count assumes. | `src/text.8bs`; the `link.ld`, palette and sprite-budget rows above; VERA Programmer's Reference, "Sprite renderer / line buffer" (fetched 2026-09-05); `package.json` (read) |
 | `@8bitscript/cx16/banks` — `banks.kib()`: the count is the first page above a power of two that the machine does not really have. Two shapes, both tested: a mirror of page 1 (a board that keeps fewer than 8 bank bits wraps, and every page tested is one above a power of two, so a wrap lands on page 1), confirmed with a second marker; or nothing at all, caught by writing two different bytes and reading both back. **x16emu is the second shape**: with `-ram 64`, a byte written to page 200 read back as `$A0` (the window's own address high byte) and page 9 read `$3E` — writes to a page the machine does not have are dropped and reads float. Page 0 is never written (KERNAL workspace) and page 1 is left selected. Under x16emu the probe printed 64 / 512 / 2048 KiB for `ram=64`, `512`, `2048`. Cost: `test/banks-probe.8bs` is 1179 bytes of program with the probe and 1000 with the size written in — 179 bytes. | `src/banks.8bs`; three screenshots and one diagnostic build (ran); `test/banks.test.mjs` |
 | `@8bitscript/cx16/mouse` — `$FF68` mouse_config A=1, size from `$FF5F` screen_mode (carry set; 80×60 in KERNAL text), parks at (319, 239); `$FF71` mouse_scan is required because FRAME_SYNC.cx16's `sei` silences the KERNAL IRQ that would have scanned; `$FF6B` mouse_get into `$80`–`$84` (program ZP temps start at `$80`). Presence is the `input.mouse` fact, not a flag stored across an opaque `asm6502` call. After screen.8bs insets the display, the firmware sprite is on the screenshot at (335, 254); `pointerCell()` is `x>>3`, `y>>3` in that active-area space (an earlier draft subtracted the inset again and sat two cells off). Probe 1184 B / 25 B RAM, green border under x16emu when present(). | `src/mouse.8bs`; `test/mouse-probe.8bs` (ran); `packages/pointer/test/pointer.test.mjs` |
 
@@ -130,7 +130,7 @@ Cite these freely; each was read in the source named, not recalled.
 - The slow bus also covers the **YM2151's window** (`$9F40-$9F5F`), which
   the notes leave out. "2 MHz" is how the notes describe it; what this
   project has verified is the emulator's model — 3 extra cycles per access
-  — not the hardware's exact wait-state behaviour.
+  — not the hardware's exact wait-state behavior.
 - **256 sprites** is wrong; it is 128.
 - **`$FF80`** is not simply "the version number": prerelease builds store
   its negation. Compare against a documented value, don't assume positive.
@@ -166,7 +166,7 @@ Cite these freely; each was read in the source named, not recalled.
   vectors (`$0314-$0333`). Never call into a ROM bank by offset, and never
   depend on KERNAL zero-page or `$0200+` layout — the ROM's own docs say
   they may change.
-- Gate version-sensitive behaviour on `$FF80`, remembering its sign.
+- Gate version-sensitive behavior on `$FF80`, remembering its sign.
 - Prefer `memory_copy`/`memory_fill`/LZSA2 for bulk moves, especially
   RAM→VRAM through a data port, over hand loops.
 
@@ -187,7 +187,7 @@ Cite these freely; each was read in the source named, not recalled.
   sprite attributes, palette, and PSG state; never read-modify-write them.
 - Don't hardcode the KERNAL's VRAM layout. `index.8bs` reads
   `L1_MAPBASE`; a full-screen program that takes VRAM over should get an
-  allocator that honours the alignments (map base 512-byte, tile base
+  allocator that honors the alignments (map base 512-byte, tile base
   2048-byte, sprite data 32-byte).
 - Any nonzero VSTART needs the two-line layer correction `index.8bs`
   applies (layer-1 vertical scroll 510); re-measure with `x16emu -gif`
@@ -229,7 +229,7 @@ Cite these freely; each was read in the source named, not recalled.
 
 ### Storage, input, expansion, testing
 
-- The emulator's HostFS is not cycle-accurate; test storage behaviour
+- The emulator's HostFS is not cycle-accurate; test storage behavior
   against a FAT32 SD image and, finally, hardware.
 - RTC NVRAM gives 32 user bytes — settings and a high score, not saves.
 - Expansion cards, extra VERAs, extra controllers, cartridge NVRAM,
@@ -250,7 +250,7 @@ Cite these freely; each was read in the source named, not recalled.
 packages/cx16/src/index.8bs              target package: the VERA port helpers (setVramAddress, locateTextMap)
 packages/cx16/src/screen.8bs             @8bitscript/cx16/screen: screen.blank()/setBorder()/setBackground()/setColors(), the inset border, the painted background
 packages/cx16/src/banks.8bs              @8bitscript/cx16/banks: banks.kib() — banked RAM found at run time, 64..2048 KiB
-packages/cx16/test/banks-probe.8bs       the probe run for real: prints the KiB, border colour encodes it; test/banks.test.mjs reads it under x16emu
+packages/cx16/test/banks-probe.8bs       the probe run for real: prints the KiB, border color encodes it; test/banks.test.mjs reads it under x16emu
 packages/cx16/src/mouse.8bs              @8bitscript/cx16/mouse: mouse.begin/poll/present/x/y/left/hide/show, through the KERNAL
 packages/cx16/src/input.8bs              @8bitscript/cx16/input: the pointer in cells; directions still false
 packages/cx16/src/pointer.8bs            @8bitscript/cx16/pointer: the firmware arrow; update() empty unless recovering from hide()

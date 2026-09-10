@@ -282,10 +282,10 @@ async function cx16Screenshot(outFile, screenshotPath, { frames, hardware = stoc
     // Keep `-capture`. Without it, x16emu reports the host cursor as off
     // the window and mouse_scan slams the KERNAL pointer to the last cell
     // (a probe printed CELL 04255); the sprite sits off-screen
-    // and packages/pointer's centre-arrow count is 0. An earlier x16emu
+    // and packages/pointer's center-arrow count is 0. An earlier x16emu
     // exited 13 combining `-capture` with a gif and no window; r50
     // ("next" 77f2bab3) records the gif with `-capture` and the arrow
-    // is in the still (measured: 43 white pixels in the 24×24 centre box,
+    // is in the still (measured: 43 white pixels in the 24×24 center box,
     // 0 without `-capture`).
     const args = [
       ...(hardware.run.x16emu ?? []),

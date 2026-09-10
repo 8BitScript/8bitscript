@@ -7,7 +7,7 @@
 // Two kinds of thing are on it, and both have already been the answer once.
 //
 // **The sprite registers**, because `setupVideo()` sets none of them: a
-// sprite's multicolour, expand and priority bits are whatever the RAM held
+// sprite's multicolor, expand and priority bits are whatever the RAM held
 // when the program started, and any of the three can hide a correctly
 // placed arrow without anything looking wrong in the source.
 //

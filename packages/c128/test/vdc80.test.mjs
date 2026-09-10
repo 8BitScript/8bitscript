@@ -8,7 +8,7 @@
 // part of the probe's 'Q' pre-fill on screen, while one byte long spills
 // into $07D0 — an unused gap where nothing would ever show. So the probe
 // leaves a sentinel there and reads back both it and the last cell, and
-// reports the verdict as the 40-column border colour.
+// reports the verdict as the 40-column border color.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';

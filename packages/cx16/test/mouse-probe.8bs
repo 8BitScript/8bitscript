@@ -2,7 +2,7 @@
 // handful of frames for mouse_config to finish drawing it, then paints the
 // border green so a screenshot can be read without decoding text. The
 // pointer itself is asserted in pixels by packages/pointer/test/pointer.test.mjs
-// (the firmware parks it at the centre, not the corner). See test/mouse.test.mjs.
+// (the firmware parks it at the center, not the corner). See test/mouse.test.mjs.
 import { screen } from "../src/screen.8bs";
 import { text } from "../src/text.8bs";
 import { mouse } from "../src/mouse.8bs";

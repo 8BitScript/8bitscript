@@ -10,7 +10,7 @@
     "(waitFrame()) the checker keeps a program from redefining, and string and",
     "template literals (`TICK ${ticks:1}`) with their ${...} fields. Constructs",
     "that are still undecided are simply absent — an unmatched keyword costs a",
-    "word that does not colour, not a broken file. The language server layers",
+    "word that does not color, not a broken file. The language server layers",
     "semantic tokens over this once it reports them. Keep this in step with",
     "packages/compiler: a new keyword, type, literal form, or reserved builtin",
     "there belongs here too (see the repository's AGENTS.md)."
@@ -94,7 +94,7 @@
     "strings": {
       "patterns": [
         {
-          "comment": "A template string: `TICK ${ticks % 10:1} OPTION ${option}`. Each ${...} field holds an ordinary expression (coloured as source, via the same rules as the file) and an optional :width — see packages/compiler/src/ir's template layout.",
+          "comment": "A template string: `TICK ${ticks % 10:1} OPTION ${option}`. Each ${...} field holds an ordinary expression (colored as source, via the same rules as the file) and an optional :width — see packages/compiler/src/ir's template layout.",
           "name": "string.template.8bs",
           "begin": "`",
           "end": "`",
@@ -258,7 +258,7 @@
     "builtins": {
       "patterns": [
         {
-          "comment": "#frames(...), the compile-time duration function (packages/compiler/src/fold) — the `#` is the spelling for anything 8bitscript evaluates before the target sees it — as a region so its unit word can be coloured only where it *is* a unit: `seconds` is not a reserved name, it is the required second argument — #frames(0.5, seconds) — and anywhere else it is an ordinary identifier.",
+          "comment": "#frames(...), the compile-time duration function (packages/compiler/src/fold) — the `#` is the spelling for anything 8bitscript evaluates before the target sees it — as a region so its unit word can be colored only where it *is* a unit: `seconds` is not a reserved name, it is the required second argument — #frames(0.5, seconds) — and anywhere else it is an ordinary identifier.",
           "begin": "(#frames)\\s*(\\()",
           "beginCaptures": {
             "1": {
@@ -303,7 +303,7 @@
           }
         },
         {
-          "comment": "Any other #name: the compile-time spelling, coloured as such so a reader sees it is not a runtime call (the compiler reports one it does not know).",
+          "comment": "Any other #name: the compile-time spelling, colored as such so a reader sees it is not a runtime call (the compiler reports one it does not know).",
           "name": "support.function.compile-time.8bs",
           "match": "#[A-Za-z_][A-Za-z0-9_]*"
         },

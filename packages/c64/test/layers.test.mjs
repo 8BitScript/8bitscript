@@ -2,7 +2,7 @@
 // bitmap mode, the region probe, and REU transfers. Each probe program
 // links clean for the C64 without an emulator; with x64sc and a working
 // backend it is run headless and its screenshot read at a few pixels —
-// the probe encodes its answer in colours, as test/reu-probe.8bs does.
+// the probe encodes its answer in colors, as test/reu-probe.8bs does.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -72,7 +72,7 @@ const isBlue = ([r, g, b]) => b > r + 40 && b > g + 40;
 const isYellow = ([r, g, b]) => r > 200 && g > 200 && b < 200;
 const isWhite = ([r, g, b]) => r > 200 && g > 200 && b > 200;
 
-test('under VICE, the raster list changes the border colour at its lines, top to bottom', { skip: NATIVE_BACKEND_PENDING }, async () => {
+test('under VICE, the raster list changes the border color at its lines, top to bottom', { skip: NATIVE_BACKEND_PENDING }, async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-c64-layers-'));
   try {
     const png = await shoot(scratch, 'raster', 'raster-probe.8bs');
@@ -93,7 +93,7 @@ test('under VICE, the raster list changes the border colour at its lines, top to
   }
 });
 
-test('under VICE, bitmap mode draws a plotted rectangle on coloured cells and a sprite from a block under the I/O area', { skip: NATIVE_BACKEND_PENDING }, async () => {
+test('under VICE, bitmap mode draws a plotted rectangle on colored cells and a sprite from a block under the I/O area', { skip: NATIVE_BACKEND_PENDING }, async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-c64-layers-'));
   try {
     const png = await shoot(scratch, 'bitmap', 'bitmap-probe.8bs');

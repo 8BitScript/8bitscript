@@ -11,7 +11,7 @@
 // **This is not @8bitscript/text.** The portable text surface is the
 // 40-column VIC-IIe picture every Commodore has, and it stays that way:
 // this is the C128's second display, 80 columns wide, drawn by a different
-// chip out of memory the CPU cannot address, in its own sixteen colours,
+// chip out of memory the CPU cannot address, in its own sixteen colors,
 // on its own frame clock. A program that wants it names it. Both screens
 // are live at once, so a program may use this *and* @8bitscript/text and
 // get two pictures.
@@ -39,7 +39,7 @@ namespace Screen {
     const SPACE: utinyint = 32;
 }
 
-// R26 holds the screen's own two colours for the area outside the
+// R26 holds the screen's own two colors for the area outside the
 // characters. Its nybbles are the opposite way round from a bitmap
 // attribute byte: **foreground in the high nybble, background in the
 // low** — a trap worth naming, because the same chip spells the same idea
@@ -49,10 +49,10 @@ namespace Register {
     const BACKGROUND: utinyint = 0x0F;
 }
 
-// The attribute byte is a colour in bits 0-3 and four switches above it:
+// The attribute byte is a color in bits 0-3 and four switches above it:
 // bit 4 flash, bit 5 underline, bit 6 reverse, bit 7 the alternate
 // character set. This surface keeps all four clear, which is what makes a
-// colour and an attribute byte the same number here — and keeps the
+// color and an attribute byte the same number here — and keeps the
 // character set on the upper-case/graphics half, matching what
 // @8bitscript/text draws on the VIC's screen.
 let currentColor: utinyint = 15; // white, until vdc80.setColor() says otherwise
@@ -83,7 +83,7 @@ export namespace vdc80 {
         vdc.fill(Screen.ATTRIBUTES, currentColor, vdc80.CELL_COUNT);
     }
 
-    // The colour behind every character, from R26's low nybble.
+    // The color behind every character, from R26's low nybble.
     function setBackground(background: utinyint): void {
         let colors: utinyint = vdc.read(Register.COLORS);
         vdc.write(Register.COLORS, (colors & 0xF0) | (background & Register.BACKGROUND));
@@ -106,7 +106,7 @@ export namespace vdc80 {
 
     // A string into consecutive cells. Two streamed runs: the update
     // address advances itself after every byte, so a run of characters
-    // costs one address set and then one transfer each, and the colours
+    // costs one address set and then one transfer each, and the colors
     // are a block fill over the same span.
     function print(cell: usmallint, s: string): void {
         vdc.setAddress(Screen.MATRIX + cell);
@@ -149,9 +149,9 @@ export namespace vdc80 {
     }
 }
 
-// The VDC's sixteen colours are RGBI, one nybble: bit 3 red, bit 2 green,
+// The VDC's sixteen colors are RGBI, one nybble: bit 3 red, bit 2 green,
 // bit 1 blue, bit 0 intensity — a different set and a different order from
-// the VIC's sixteen, so a colour number carried over from the 40-column
+// the VIC's sixteen, so a color number carried over from the 40-column
 // screen means something else here. The eight names every machine's text
 // surface shares are given their intensity-set values, because on an
 // 80-column display the bright half is the legible one; the dark halves

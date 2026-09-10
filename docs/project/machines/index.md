@@ -9,7 +9,7 @@ Research notes for the machines the roadmap names but
 the toolchain does not build yet. Each page answers the same sixteen
 questions the target packages' `AGENTS.md` files answer for the nine
 machines that exist — CPU, memory and banking, the display's native unit,
-the text grid, modes and colour, layers, sprites, pseudo-pixels, audio,
+the text grid, modes and color, layers, sprites, pseudo-pixels, audio,
 input, storage, timing, hardware variants, emulator, backend status, and
 the traps — so that a systems matrix can
 compare a machine that exists with one that does not, row for row.

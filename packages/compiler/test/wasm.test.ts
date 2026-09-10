@@ -1047,7 +1047,7 @@ test('build() refuses a waitFrame() reached with no import declared, naming it a
 // Not a numbered roadmap milestone — a real, blocking gap found the first
 // time the actual, unmodified hello-world example was built for web after
 // milestones 1-6 landed: @8bitscript/web/screen.8bs's own setColors masks
-// every colour byte with `& 15`, and this backend had deferred every
+// every color byte with `& 15`, and this backend had deferred every
 // bitwise/shift operator at every earlier milestone as "real hardware
 // exists, nothing built so far needs it." This is that need.
 
@@ -1080,8 +1080,8 @@ test('bitwise acceptance: the exact screen.setColors shape — masking a compute
     if (!result.ok) return;
     const module = await WebAssembly.compile(result.bytes);
     const instance = await WebAssembly.instantiate(module, {});
-    // 200 & 15 = 8 — a real out-of-range colour value (the exact shape a
-    // caller passing a bad border colour produces), masked into 0-15 the
+    // 200 & 15 = 8 — a real out-of-range color value (the exact shape a
+    // caller passing a bad border color produces), masked into 0-15 the
     // same way setColors's own `border & 15` does against a live wasm
     // call, not a hand-checked constant.
     assert.equal((instance.exports.main as (n: number) => number)(200), 8);

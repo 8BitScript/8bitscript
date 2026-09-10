@@ -36,7 +36,7 @@ test('lowering: a const is recorded, not stored — no global, one const', () =>
   assert.deepEqual(ir.consts, [{ name: 'HALF', type: 'utinyint', value: 30, exported: false, start: 6, length: 4 }]);
 });
 
-test('lowering: a const initialised from #frames(...) is a literal by the time it is recorded', async () => {
+test('lowering: a const initialized from #frames(...) is a literal by the time it is recorded', async () => {
   const { ir, diagnostics } = await linkWith({
     'main.8bs': 'const HALF: utinyint = #frames(0.5, seconds);\nlet n: utinyint = 0;\nexport function main(): void { n = HALF; }\n',
   }, 'main.8bs', { frameRate: 50 });
@@ -44,7 +44,7 @@ test('lowering: a const initialised from #frames(...) is a literal by the time i
   assert.deepEqual(ir.functions[0].body[0].value, { kind: 'const', value: 25, type: 'utinyint' });
 });
 
-test('lowering: a const needs a literal initialiser and cannot be volatile or @address', () => {
+test('lowering: a const needs a literal initializer and cannot be volatile or @address', () => {
   for (const src of [
     'const X: utinyint;',
     'const X: volatile<utinyint> = 1;',
@@ -133,7 +133,7 @@ test('an @address that is neither a literal nor an own const says so', () => {
   assert.match(diagnostics[0].message, /one integer literal, or a const declared in this module/);
 });
 
-test('a const initialises a global, its own module and an imported one', async () => {
+test('a const initializes a global, its own module and an imported one', async () => {
   const own = await linkWith({
     'main.8bs': 'const START: usmallint = 1024;\nlet cursor: usmallint = START;\nexport function main(): void { }\n',
   });
@@ -148,12 +148,12 @@ test('a const initialises a global, its own module and an imported one', async (
   assert.equal(imported.ir.globals.find((g) => g.name === 'cursor').init, 1024);
 });
 
-test('a global initialised from something that is not a const says which it is', async () => {
+test('a global initialized from something that is not a const says which it is', async () => {
   const notConst = await linkWith({
     'main.8bs': 'let a: utinyint = 1;\nlet b: utinyint = a;\nexport function main(): void { }\n',
   });
   assert.deepEqual(notConst.diagnostics.map((d) => d.code), ['8BS3001']);
-  assert.match(notConst.diagnostics[0].message, /'a' is not a const, so it cannot initialise a global/);
+  assert.match(notConst.diagnostics[0].message, /'a' is not a const, so it cannot initialize a global/);
 
   const unknown = await linkWith({
     'main.8bs': 'let b: utinyint = nope;\nexport function main(): void { }\n',
@@ -177,7 +177,7 @@ test('a const may be written in terms of one above it', () => {
 
 // ---- a const the linker has to finish -------------------------------------
 
-test('a const initialised from a namespace const or an imported const: the value, inlined, and range-checked', async () => {
+test('a const initialized from a namespace const or an imported const: the value, inlined, and range-checked', async () => {
   const good = await linkWith({
     'lib.8bs': 'export namespace TextColor { const YELLOW: utinyint = 7; }\nexport const TWO: utinyint = 2;\n',
     'main.8bs': 'import { TextColor, TWO } from "./lib.8bs";\nconst HIGHLIGHT: utinyint = TextColor.YELLOW;\nconst PAIR: utinyint = TWO;\nconst AGAIN: utinyint = PAIR;\nlet n: utinyint = AGAIN;\nexport function main(): void { n = HIGHLIGHT + PAIR + AGAIN; }\n',
@@ -200,7 +200,7 @@ test('a const initialised from a namespace const or an imported const: the value
   });
   assert.deepEqual(bad.diagnostics.map((d) => `${d.code} ${d.message}`), [
     '8BS1021 300 does not fit in utinyint (0..255)',
-    "8BS3001 'g' is not a const, so it cannot initialise a const",
+    "8BS3001 'g' is not a const, so it cannot initialize a const",
     "8BS2007 cannot find name 'nope'",
     "8BS2005 'Nope' is not a const in namespace 'C'",
   ]);

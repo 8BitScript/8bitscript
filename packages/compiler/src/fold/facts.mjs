@@ -59,9 +59,9 @@ export const FACTS = new Map([
   ['video.rows', count('build', 'Cells down the text grid.')],
   ['video.cellWidth', count('build', 'Pixels across one cell.')],
   ['video.cellHeight', count('build', 'Pixels down one cell.')],
-  ['video.palette', count('build', 'Colours the display can show at once.')],
-  ['video.cellColors', count('build', 'Colours one cell can hold in the text mode the grid uses.')],
-  ['video.colorPerCell', flag('build', 'A program can set one cell\'s colour without changing its neighbours\'.')],
+  ['video.palette', count('build', 'Colors the display can show at once.')],
+  ['video.cellColors', count('build', 'Colors one cell can hold in the text mode the grid uses.')],
+  ['video.colorPerCell', flag('build', 'A program can set one cell\'s color without changing its neighbors\'.')],
   ['video.glyphs', count('build', 'Characters a program can redefine at run time; 0 where the font is fixed.')],
   ['video.blockWidth', count('build', 'Pseudo-pixels across one cell from the fixed font\'s block glyphs; 0 where there are none.')],
   ['video.blockHeight', count('build', 'Pseudo-pixels down one cell from the block glyphs; 0 where there are none.')],
@@ -72,7 +72,7 @@ export const FACTS = new Map([
   ['video.spritesPerLine', count('build', 'Hardware sprites one scanline can show — the number that decides whether a scene works.')],
   ['video.spriteWidth', count('build', 'Pixels across the largest hardware sprite.')],
   ['video.spriteHeight', count('build', 'Pixels down the largest hardware sprite.')],
-  ['video.spriteColors', count('build', 'Colours one hardware sprite can hold, not counting transparent.')],
+  ['video.spriteColors', count('build', 'Colors one hardware sprite can hold, not counting transparent.')],
   ['video.frameRate', count('build', 'Display refreshes a second, for timing a screenshot; not on the sheet, the machine may be NTSC or PAL at run time.', false)],
   ['video.characterSetSwapped', flag('build', 'The two-set character ROM\'s upper/lower-case halves are the other way round from every other model (measured against the real ROM: the original PET 2001\'s 901447-08 only) — packages/pet/src/text.8bs\'s own asciiToScreenCode reads this, not a program.', false)],
   ['memory.chrget', count('build', 'Zero-page address of BASIC\'s CHRGET routine (24 bytes): $70 on BASIC 2/4, $C2 on BASIC 1 (the original PET 2001). The native backend leaves that window alone so a SYS return still has an interpreter. Not on the program sheet.', false)],
@@ -105,7 +105,7 @@ export const PROGRAM_FACTS = [...FACTS].filter(([, fact]) => fact.program).map((
 /**
  * The name `@8bitscript/system` gives a key: `video.spritesPerLine` is
  * `Video.SPRITES_PER_LINE`. The namespace is the key's first word
- * capitalised; the const is the rest in upper snake case.
+ * capitalized; the const is the rest in upper snake case.
  *
  * @param {string} key
  * @returns {{ namespace: string, name: string }}

@@ -21,7 +21,7 @@ The compiler is the single source of truth for what the language is:
 lexer, parser, fold, checker, IR, linker, and the native 6502 and
 WebAssembly backends. `8bs check` / `8bs build` / `8bs run` call it;
 the language server forwards its diagnostics, hover, and completion;
-the VS Code extension colours names this package owns.
+the VS Code extension colors names this package owns.
 
 It is not the only place the language is *described*. The root
 `AGENTS.md` section "Changing a core part of the language" is the

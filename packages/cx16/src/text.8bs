@@ -19,7 +19,7 @@ import { mapBank, mapLow, locateTextMap, setVramAddress } from "./index.8bs";
 // inset shows 76x56 of it, and that is the grid); codes are ASCII, as on every machine, and
 // here that is also what the hardware wants (ISO mode — see
 // @8bitscript/cx16). Each cell is two bytes in the map — the character,
-// then its attribute byte: background colour in the high nibble,
+// then its attribute byte: background color in the high nibble,
 // foreground in the low.
 //
 // putColor is real here, unlike on the NES and Atari: it sets a cell's
@@ -28,17 +28,17 @@ import { mapBank, mapLow, locateTextMap, setVramAddress } from "./index.8bs";
 // 0 so the read and the write land on one byte (VERA fetches the byte when
 // the address is set, so DATA0 reads it back without moving). Whose
 // background that nibble holds is not this module's business: the KERNAL's
-// blue before screen.setColors() has painted, the painted colour after.
+// blue before screen.setColors() has painted, the painted color after.
 
 // ---- print: strings and number fields ------------------------------------
 //
 // `text.print(cell, s)` writes a string's characters into consecutive
 // cells from `cell`, and `text.printNumber(cell, value, width)` writes
 // `value` as exactly `width` decimal digits, zero-padded and right-aligned,
-// so a field on a HUD never shifts columns. Both draw in the current colour —
+// so a field on a HUD never shifts columns. Both draw in the current color —
 // white until `text.setColor(TextColor.CYAN)` changes it, and that one
-// call then colours everything printed after it, on the machines that have
-// per-cell colour. They are also the two
+// call then colors everything printed after it, on the machines that have
+// per-cell color. They are also the two
 // functions the compiler's template layout targets: `text.print(0,
 // \`TICK ${ticks:1}\`)` is laid out at compile time into these same calls
 // (see packages/compiler/src/ir).
@@ -52,9 +52,9 @@ let currentColor: utinyint = 1; // white, until text.setColor() says otherwise
 let currentReverse: bool = false; // until text.setReverse() says otherwise
 
 // ISO mode has no reverse copies of the glyphs, so invert is a swap of
-// the attribute nibbles: the cell fills with the text colour and the
+// the attribute nibbles: the cell fills with the text color and the
 // glyph pixels take whatever background `screen.setColors` left. Port 1
-// is already sitting on this cell's colour byte after locate().
+// is already sitting on this cell's color byte after locate().
 function attributeByte(): utinyint {
     let attr: utinyint = memory.read(0x9F24);
     if (currentReverse) {
@@ -65,13 +65,13 @@ function attributeByte(): utinyint {
 
 // Point VERA at a cell, and hand back its column for a caller that walks
 // on from there. Rows are 256 bytes apart in the map, cells two bytes —
-// character, then colour (background in the high nibble, text in the low).
+// character, then color (background in the high nibble, text in the low).
 // No division: with 76 cells to a row and 256 = 3 * 76 + 28, a cell's row
 // is three per 256 plus (28 * high byte + low byte) / 76, and that last
 // quotient, on a number below 704, is ((x / 4) * 54) / 1024 exactly —
-// checked for every cell. Two address ports: port 0 walks character, colour,
+// checked for every cell. Two address ports: port 0 walks character, color,
 // character... stepping by one, and is what gets written; port 1 walks the
-// colour bytes stepping by two, and is read for each cell's background
+// color bytes stepping by two, and is read for each cell's background
 // nibble so a print keeps whatever `screen.setBackground` put there.
 // Leaves ADDRSEL at 0, which screen.8bs assumes.
 function locate(cell: usmallint): utinyint {
@@ -159,8 +159,8 @@ export namespace text {
     }
 }
 
-// The colours `text.setColor()` takes: the eight names every machine
-// shares, with this machine's colour-RAM values.
+// The colors `text.setColor()` takes: the eight names every machine
+// shares, with this machine's color-RAM values.
 export namespace TextColor {
     const BLACK: utinyint = 0;
     const WHITE: utinyint = 1;

@@ -13,13 +13,13 @@
 //
 // This used to pattern-match a fixed token shape because there was no tree to
 // walk. It now runs on the AST, which is what the parser bought: the rule finds
-// declarations anywhere — inside a function body, inside a `for` initialiser,
+// declarations anywhere — inside a function body, inside a `for` initializer,
 // on an exported declaration — rather than only at the one shape a token scan
-// could recognise. The diagnostic code, the message, and the span are
+// could recognize. The diagnostic code, the message, and the span are
 // unchanged, because a rule moving to a better home should not look different
 // to the person reading the error.
 //
-// Still deliberately narrow: the initialiser must be a literal, optionally
+// Still deliberately narrow: the initializer must be a literal, optionally
 // negated. `let x: u8 = 200 + 100` is not folded, because constant folding
 // belongs after a binder that knows what names mean.
 import { Codes, diagnostic } from '../diagnostics/index.mjs';
@@ -42,7 +42,7 @@ import {
 // no reservation: their `#` spelling is its own token, so `let frames`
 // never collides. Nor does the unit word (`seconds` in
 // `#frames(0.5, seconds)`): that argument slot can never hold a variable,
-// so the fold recognises the word by spelling in place and
+// so the fold recognizes the word by spelling in place and
 // `let seconds: uint` anywhere else stays an ordinary declaration.
 const RESERVED_BUILTIN_NAMES = new Map([
   ['waitFrame', 'the built-in frame wait, waitFrame()'],
@@ -97,7 +97,7 @@ function reservedNameDiagnostic(nameNode, file) {
 }
 
 /**
- * The constant value of an initialiser, or null when it is not a plain literal.
+ * The constant value of an initializer, or null when it is not a plain literal.
  *
  * @returns {{ value: number, node: object } | null}
  */
@@ -154,7 +154,7 @@ function checkNameCase(n, file, diagnostics) {
  * second argument of a `namespace.print` call in statement position, and
  * each of its fields must have a width the layout can determine — a field
  * expression is typed in the scope of the parameters around it, and a
- * template outside any function (a global initialiser) has nowhere to be
+ * template outside any function (a global initializer) has nowhere to be
  * laid out at all. Consts: this module's top-level `const`s are never
  * assigned to or `++`/`--`ed, unless a parameter of the same name shadows
  * one, which is ordinary lexical scoping.

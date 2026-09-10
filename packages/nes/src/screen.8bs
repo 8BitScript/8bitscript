@@ -15,10 +15,10 @@ import { setVramAddress, resetScroll, queueRun, queueByte, nesVerticalBlank } fr
 
 // ---- what "border" means on a machine that has none --------------------
 //
-// The NES has no border-colour register. There is no separate border area
-// for one to colour: the PPU's 256x240 picture IS the whole frame, edge to
+// The NES has no border-color register. There is no separate border area
+// for one to color: the PPU's 256x240 picture IS the whole frame, edge to
 // edge, and every one of those pixels comes from a background tile or a
-// sprite (or, where neither covers it, the universal backdrop colour). VIC,
+// sprite (or, where neither covers it, the universal backdrop color). VIC,
 // VIC-II and GTIA all draw a picture smaller than the raster and paint the
 // margin around it from a dedicated register; the PPU simply has no
 // margin. So the border cannot be a register write here, the way it is on
@@ -27,7 +27,7 @@ import { setVramAddress, resetScroll, queueRun, queueByte, nesVerticalBlank } fr
 // It is real anyway. This module DRAWS a border: on the first setColors()
 // call it lays a two-tile-thick frame of a solid tile around the edge of
 // the nametable (rows 0-1 and 28-29, columns 0-1 and 30-31), and `border`
-// is the palette entry that solid tile takes its colour from. Two tiles
+// is the palette entry that solid tile takes its color from. Two tiles
 // thick, not one, because NTSC televisions — and FCEUX, whose default NTSC
 // view drops the top and bottom 8 lines — overscan the outer tile row
 // away; the inner row survives. The text grid a program draws on (see
@@ -38,14 +38,14 @@ import { setVramAddress, resetScroll, queueRun, queueByte, nesVerticalBlank } fr
 // exist. The four values setColors() writes are, in the PPU's own terms:
 //
 //     $3F00  universal backdrop     `background`
-//     $3F01  colour index 1         $30 (white) — every glyph in the font
-//     $3F02  colour index 2         `border` — the solid frame tile
-//     $3F03  colour index 3         unused
+//     $3F01  color index 1         $30 (white) — every glyph in the font
+//     $3F02  color index 2         `border` — the solid frame tile
+//     $3F03  color index 3         unused
 //
 // all in background palette 0, which every tile on screen uses (the
 // attribute table is zeroed by the same first call, so no 32x32-pixel block
-// picks another palette). Both colours are NES palette indices — $00-$3F,
-// the 2C02's own colour numbers; $0F is black, $30 white, row $0x dark
+// picks another palette). Both colors are NES palette indices — $00-$3F,
+// the 2C02's own color numbers; $0F is black, $30 white, row $0x dark
 // through row $3x pale — not RGB and not the Commodore/Atari values.
 //
 // The CPU cannot read the PPU's mask register back, so `renderingEnabled`
@@ -65,7 +65,7 @@ function fillRun(address: usmallint, count: usmallint, value: utinyint): void {
 }
 
 // The drawn border: rows 0-1 and 28-29 in full, columns 0-1 and 30-31 of
-// every row between, all tile $80 (solid colour index 2 — see font.s).
+// every row between, all tile $80 (solid color index 2 — see font.s).
 // Then the 64-byte attribute table at $23C0, zeroed: palette 0 everywhere.
 function layFrame(): void {
     fillRun(0x2000, 64, 0x80);
@@ -96,7 +96,7 @@ function showPicture(): void {
     renderingEnabled = 1;
     // PPUMASK: bit 3 shows the background, bit 1 shows it in the leftmost
     // 8 pixels too — otherwise column 0, the outer edge of the frame, would
-    // be clipped to the backdrop colour. Sprites stay off.
+    // be clipped to the backdrop color. Sprites stay off.
     memory.write(0x2001, 0x0A);
 }
 
@@ -121,10 +121,10 @@ export namespace screen {
         showPicture();
     }
 
-    // `blank(border, background)`: every cell blank and both colours set —
+    // `blank(border, background)`: every cell blank and both colors set —
     // black when left off, or `BorderColor.KEEP` / `BackgroundColor.KEEP`
     // to leave one as it is. `setBorder` and `setBackground` are one
-    // colour each, `setColors` the pair; `text.setColor` owns what the
+    // color each, `setColors` the pair; `text.setColor` owns what the
     // next print looks like.
     function blank(border: utinyint = BorderColor.BLACK, background: utinyint = BackgroundColor.BLACK): void {
         // The nametable can only be filled in bulk with the picture off.
@@ -170,7 +170,7 @@ export namespace screen {
     }
 }
 
-// ---- colour names ----------------------------------------------------------
+// ---- color names ----------------------------------------------------------
 //
 // The same eight names every machine's screen.8bs exports — Black, White,
 // Red, Cyan, Purple, Green, Blue, Yellow — so a program can write
@@ -180,7 +180,7 @@ export namespace screen {
 // $x4 purple, $x6 red, $x8 yellow, $xA green, $xC cyan; $0F black, $30
 // white), at the mid-brightness row $1x where the hue is unmistakable,
 // except cyan and yellow, whose $1x entries are too dark to read as their
-// names and so come from row $2x. A program that wants a colour not named
+// names and so come from row $2x. A program that wants a color not named
 // here passes its own index to setColors() directly. Not visually verified
 // under FCEUX by this project; the chart is NESdev's.
 
@@ -193,7 +193,7 @@ export namespace BorderColor {
     const GREEN: utinyint = 0x1A;
     const BLUE: utinyint = 0x12;
     const YELLOW: utinyint = 0x28;
-    // Not a colour: `blank(KEEP, ...)` leaves this one as it is. 255 is
+    // Not a color: `blank(KEEP, ...)` leaves this one as it is. 255 is
     // a value no register here takes.
     const KEEP: utinyint = 255;
 }
@@ -207,7 +207,7 @@ export namespace BackgroundColor {
     const GREEN: utinyint = 0x1A;
     const BLUE: utinyint = 0x12;
     const YELLOW: utinyint = 0x28;
-    // Not a colour: `blank(KEEP, ...)` leaves this one as it is. 255 is
+    // Not a color: `blank(KEEP, ...)` leaves this one as it is. 255 is
     // a value no register here takes.
     const KEEP: utinyint = 255;
 }

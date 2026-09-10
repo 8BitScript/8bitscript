@@ -23,11 +23,11 @@
 // that never moves, the same contract as on the C64.
 //
 // `DRAWS` is `#fact(input.mouse)`, true on the stock machine. The rest
-// position is the *centre* of the 640×480 output, not the corner: that is
+// position is the *center* of the 640×480 output, not the corner: that is
 // where mouse_config parks it, verified in ps2mouse.s (x16-rom fbe32a60).
 //
 // `setColor` does nothing. The firmware pointer is 1bpp black and white,
-// not a VIC-style sprite colour this layer can poke without fighting the
+// not a VIC-style sprite color this layer can poke without fighting the
 // KERNAL's sprite_set_image. Studio asks for white, which is already what
 // the arrow's fill is.
 //

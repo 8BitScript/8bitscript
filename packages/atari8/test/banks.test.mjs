@@ -1,7 +1,7 @@
 // @8bitscript/atari8/banks — the probe for a 130XE's extra 64 KiB. Two
 // layers: the probe program links clean for the Atari with the stock
 // sheet (no emulator needed), and, when atari800 and a working backend
-// are installed, it is run on an 800XL and a 130XE and the border colour
+// are installed, it is run on an 800XL and a 130XE and the border color
 // each screenshot shows is what banks.kib() found. The border encodes the
 // answer (see banks-probe.8bs) so the test reads one pixel, not text.
 import { test } from 'node:test';

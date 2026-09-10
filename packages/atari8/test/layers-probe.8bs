@@ -6,7 +6,7 @@
 // START. See test/layers.test.mjs.
 //
 // The border is the machine-readable part, the way test/banks-probe.8bs
-// encodes its answer in a colour: **green if every input reads idle**, red if
+// encodes its answer in a color: **green if every input reads idle**, red if
 // any does not. Idle means all five joystick bits clear, all three console
 // keys clear, no key code, `keyboard.pressed()` false, `keyboard.down()`
 // false, and SKSTAT's bits 2 and 3 both *set* — that last one being the

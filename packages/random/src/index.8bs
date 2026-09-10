@@ -26,7 +26,7 @@ let state: usmallint = 1;
 export namespace random {
     // Replaces the generator's whole state. A program that never calls this
     // gets the same sequence on every run, starting from `state`'s own
-    // initialiser above — a deterministic default, not a random one nobody
+    // initializer above — a deterministic default, not a random one nobody
     // asked for. 0 is a valid seed: the additive constant below means the
     // next `next()` still moves state away from it, unlike a generator
     // built on multiplication or XOR alone, where an all-zero state is a

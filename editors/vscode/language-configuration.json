@@ -24,7 +24,7 @@
   ],
   "_autoCloseBefore": "Autoclose a quote or bracket only before whitespace or a closing bracket — typing `\"` in front of an identifier is nearly always a wrap, not a new string. The default set has no backtick reason to differ.",
   "autoCloseBefore": ";:.,=}])>` \n\t",
-  "_onEnterRules": "Continue a /* */ block on Enter, and close it when the cursor sits between the delimiters — the same behaviour C-family languages have, which this grammar's comments are.",
+  "_onEnterRules": "Continue a /* */ block on Enter, and close it when the cursor sits between the delimiters — the same behavior C-family languages have, which this grammar's comments are.",
   "onEnterRules": [
     {
       "beforeText": "^\\s*/\\*\\*(?!/)([^*]|\\*(?!/))*$",

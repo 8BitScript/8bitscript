@@ -14,7 +14,7 @@
 // The VDC (8563, or the 8568 in a C128DCR) draws an entirely separate
 // 80-column display, on a different connector, out of its own 16 or 64 KiB
 // of RAM that the CPU cannot address — it has its own character set, its
-// own sixteen RGBI colours in a different order from the VIC's, its own
+// own sixteen RGBI colors in a different order from the VIC's, its own
 // attribute model, and its own frame clock. Both screens are live at once:
 // this file's probe writes to the VDC while the KERNAL is still driving the
 // 40-column screen, and both pictures come out.

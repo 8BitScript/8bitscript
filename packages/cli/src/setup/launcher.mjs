@@ -13,7 +13,7 @@
 // /usr/local/bin/rom.bin and die with "Cannot open /usr/local/bin/rom.bin!".
 // On Linux the same symlink resolves fine. See setup/cx16.mjs for the
 // per-platform choice, and inspectLauncher() below for how a launcher that
-// exists but wasn't installed by this project is recognised and left alone
+// exists but wasn't installed by this project is recognized and left alone
 // until the user says otherwise.
 import { lstat, readlink, readFile, mkdir, writeFile } from 'node:fs/promises';
 import { join, basename } from 'node:path';

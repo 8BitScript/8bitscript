@@ -1,4 +1,4 @@
-// The VIC-20 screen colour abstraction in packages/vic20/src/screen.8bs: the
+// The VIC-20 screen color abstraction in packages/vic20/src/screen.8bs: the
 // first proof of "friendly API -> library code -> a named register" this
 // milestone establishes. See docs/compiler.md and the package source itself
 // for the register bit layout this is built on.
@@ -30,7 +30,7 @@ const vic20ScreenIr = () => {
   return lower(ast, VIC20_SCREEN_FILE).ir;
 };
 
-test('BorderColor has exactly the 8 colours the border field can hold, plus KEEP', () => {
+test('BorderColor has exactly the 8 colors the border field can hold, plus KEEP', () => {
   const ir = vic20ScreenIr();
   const border = ir.namespaces.find((ns) => ns.name === 'BorderColor');
   assert.equal(border.consts.size, 9);
@@ -40,7 +40,7 @@ test('BorderColor has exactly the 8 colours the border field can hold, plus KEEP
   assert.deepEqual([...border.consts.values()], [0, 1, 2, 3, 4, 5, 6, 7, 255]);
 });
 
-test('BackgroundColor has all 16 colours the background field can hold, plus KEEP', () => {
+test('BackgroundColor has all 16 colors the background field can hold, plus KEEP', () => {
   const ir = vic20ScreenIr();
   const background = ir.namespaces.find((ns) => ns.name === 'BackgroundColor');
   assert.equal(background.consts.size, 17);
@@ -80,9 +80,9 @@ test('a program using screen.setColors links against the real vic20 package', ()
   assert.equal(setColors.body[0].value.operator, '|');
 });
 
-test('referencing a colour name a namespace does not have is a compile error', () => {
+test('referencing a color name a namespace does not have is a compile error', () => {
   // BorderColor has no Orange member — only BackgroundColor does, because
-  // the border field is only 3 bits wide. The 8 real border colours are the
+  // the border field is only 3 bits wide. The 8 real border colors are the
   // only names BorderColor exposes, which is what makes a value like this
   // unrepresentable at all rather than merely unwise.
   const consumer = [
@@ -156,7 +156,7 @@ async function runPackingProgram() {
   }
 }
 
-test('every border colour (0..7) lands in exactly its own 3 bits, with normal video kept', { skip: NATIVE_BACKEND_PENDING }, async () => {
+test('every border color (0..7) lands in exactly its own 3 bits, with normal video kept', { skip: NATIVE_BACKEND_PENDING }, async () => {
   const mem = await runPackingProgram();
   for (let color = 0; color <= 7; color += 1) {
     const register = mem[0x1110 + color];
@@ -166,7 +166,7 @@ test('every border colour (0..7) lands in exactly its own 3 bits, with normal vi
   }
 });
 
-test('every background colour (0..15) lands in exactly its own 4 bits', { skip: NATIVE_BACKEND_PENDING }, async () => {
+test('every background color (0..15) lands in exactly its own 4 bits', { skip: NATIVE_BACKEND_PENDING }, async () => {
   const mem = await runPackingProgram();
   for (let color = 0; color <= 15; color += 1) {
     const register = mem[0x1120 + color];
@@ -175,7 +175,7 @@ test('every background colour (0..15) lands in exactly its own 4 bits', { skip: 
   }
 });
 
-test('a border colour past the 3-bit field wraps: 14 shows as 6', { skip: NATIVE_BACKEND_PENDING }, async () => {
+test('a border color past the 3-bit field wraps: 14 shows as 6', { skip: NATIVE_BACKEND_PENDING }, async () => {
   // The border field is 3 bits wide, so a value past 7 wraps — the packing
   // rule the vic20 package's screen.8bs documents, checked for real here.
   const mem = await runPackingProgram();

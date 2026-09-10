@@ -84,7 +84,7 @@ The one thing this rule does not license is breaking the rule above it: a
 compile-time answer must be the *right* answer on the machine being built
 for. Folding away a branch is correct because the fact it tested is a
 property of the build; folding away something a program can only discover
-at run time — whether a REU is really plugged in — is not an optimisation,
+at run time — whether a REU is really plugged in — is not an optimization,
 it is a wrong program.
 
 ## Rules that apply to every target
@@ -192,7 +192,7 @@ with the RAM fitted, and a video chip that cannot see any of that RAM),
 two independent video chips — one the C64's, one an 80-column display
 behind a two-byte port), [`packages/atari8/AGENTS.md`](packages/atari8/AGENTS.md)
 (a display list instead of a screen, players and missiles instead of
-sprites, and an OS that rewrites the colour registers every frame),
+sprites, and an OS that rewrites the color registers every frame),
 [`packages/mega65/AGENTS.md`](packages/mega65/AGENTS.md) (a C64 in name only:
 40.5 MHz, 80 columns, 384K, four SIDs, and a start-up that leaves interrupts
 off), and [`packages/web/AGENTS.md`](packages/web/AGENTS.md) (a machine whose
@@ -257,7 +257,7 @@ the change everywhere it is described, in the same commit:
   and diagnostics cover), `docs/tutorial.md`, and any
   example `README.md` that shows the construct. Keep
   [`CONTRIBUTING.md`](CONTRIBUTING.md)'s rule in mind: never describe
-  behaviour that isn't implemented.
+  behavior that isn't implemented.
 - **IntelliSense in the compiler.** Hover and completion live in
   `packages/compiler/src/intellisense/index.mjs`, not in the editor: a new or
   changed builtin needs its hover text there, with a test in
@@ -269,7 +269,7 @@ the change everywhere it is described, in the same commit:
   (`packages/language-server/test/server.test.mjs`) are the proof that a new
   diagnostic or hover actually reaches an editor over the wire. Add one.
 - **The editor plugin(s).** `editors/vscode/syntaxes/8bs.tmLanguage.json`
-  colours keywords, types, literal forms, and builtins by name, so a new one
+  colors keywords, types, literal forms, and builtins by name, so a new one
   is invisible there until you add it; `editors/vscode/snippets/8bs.json`
   offers the constructs that compile, and is checked against the compiler by
   `packages/compiler/test/snippets.test.mjs`, so a construct entering or
@@ -293,7 +293,7 @@ A `const` is `UPPER_SNAKE` (`OPTION_COUNT`, `BorderColor.BLUE`,
 and parameters are `camelCase`; namespaces and types are `PascalCase`. The
 checker enforces the first two (`8BS1034`), so every `.8bs` file in this
 repository — packages, examples, and the programs inside tests and docs —
-follows them. A capitalised name is a compile-time value, and that is the
+follows them. A capitalized name is a compile-time value, and that is the
 whole point of the rule.
 
 ### A new construct picks a side, and its spelling says which
@@ -316,7 +316,7 @@ before your change and isn't now — and fix every hit outside `node_modules`.
 
 ## New code needs a test, or a named, deliberate exclusion
 
-> **Every behaviour-carrying line that lands on trunk needs a test in the
+> **Every behavior-carrying line that lands on trunk needs a test in the
 > same commit. If something genuinely cannot be meaningfully tested, it gets
 > an explicit `sonar.coverage.exclusions` entry in
 > [`sonar-project.properties`](sonar-project.properties) — named, in the same
@@ -334,7 +334,7 @@ Coverage on New Code (required ≥ 80%)" and the failure only became visible
 on an unrelated PR opened after it.
 
 - **Write the test with the code**, not as a follow-up — a PR that adds a
-  function, a branch, or a new `.mjs`/`.ts`/`.8bs` behaviour file and has no
+  function, a branch, or a new `.mjs`/`.ts`/`.8bs` behavior file and has no
   matching test change is incomplete, the same way a core-language change
   without its docs/IntelliSense/editor updates is incomplete (see above).
 - **An exclusion is a decision, not an escape hatch.** `sonar.exclusions`
@@ -361,7 +361,7 @@ on an unrelated PR opened after it.
 
 For everything else — trunk-only workflow, running tests, adding a docs
 page, front-matter and linking conventions, not presenting unimplemented
-behaviour as working — see [`CONTRIBUTING.md`](CONTRIBUTING.md).
+behavior as working — see [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Version bumps are a human decision
 

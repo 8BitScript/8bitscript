@@ -53,8 +53,8 @@ Do not describe more than this as working:
 - `src/screen.8bs` (behind `@8bitscript/screen`, as
   `@8bitscript/c128/screen`) and `src/text.8bs` (behind `@8bitscript/text`)
   are the portable surfaces, and both are hard-wired to the KERNAL's
-  40-column screen: screen RAM `$0400` (40 × 25, 1000 cells), colour RAM
-  `$D800`, both colour registers sixteen colours in the C64's numbering.
+  40-column screen: screen RAM `$0400` (40 × 25, 1000 cells), color RAM
+  `$D800`, both color registers sixteen colors in the C64's numbering.
   `text.putChar` takes ASCII, converts to a screen code, writes `$0400 +
   cell` at any time, and before every run of text writes `$14` to the
   shadow and then the register — the shadow first, or the IRQ undoes it.
@@ -140,23 +140,23 @@ a newer revision than the installed binary.
 | `init-mmu.o` (`INPUT` by link.ld, `.init.010`, the first thing `_start` does) saves `$FF00` to `__mmusave` and writes `$0E`: I/O in (bit 0 = 0), BASIC-lo ROM out (bit 1 = 1 → RAM at `$4000`–`$7FFF`), mid ROM out (bits 2–3 = 11 → RAM at `$8000`–`$BFFF`), KERNAL/chargen in (bits 4–5 = 00 at `$C000`–`$FFFF`), **RAM bank 0** (bits 6–7 = 00). `.fini.990` restores it. So the program, its data, its stack and the VIC's screen all live in bank 0; bank 1 is untouched and unreachable without changing `$FF00`. | `init-mmu` disassembly (pre-0.2.0: map `$4000-$BFFF` to RAM, `$C000-$FFFF` to KERNAL/chargen); `c128.inc` `MMU_CFG_RAM0_KERNAL = %00001110` |
 | A CHROUT of PETSCII 14 (`lda #$0e / jsr $FFD2`) would flip the machine to lower-case before `main` (`$D018` `$17`, `$0A2C` `$16` on a probe that did). 8BitScript does not emit that; `text.8bs` writes the shadow then `$D018`. | probe screenshot; `src/text.8bs` |
 | Boot state in native 40-column mode (`-model ntsc`, after `init-mmu`): `$FF00 = $0E`; `$D505 = $B7` (bit 0 = 8502, bit 6 clear = C128 mode, bit 7 set = 40/80 key up = 40 columns; `$D7 = $00`); `$D506 = $04` (1K common RAM at the bottom, VIC bank 0); page pointers `$D507/8 = $00/$F0`, `$D509/A = $01/$F0` (the high nybble reads as 1s); `$D50B = $20` (two 64K banks); `$D030 = $FC` (1 MHz; upper bits read as 1s); `$D02F = $F8`; `$00/$01 = $2F/$73`; `$D018 = $17`/`$0A2C = $16` (lower case, see above); `$0A03 = $00` (NTSC); `$D011 = $1B`, `$D016 = $C8`, `$DD00 = $C7` (VIC bank 0); `$0A2D = $78` (VM2, the KERNAL's bitmap layout: matrix `$1C00`, bitmap `$2000`). | probe screenshot `c128-probe-vic.png` |
-| `$01` bits 0 and 1 on the C128 are **not** LORAM/HIRAM: bit 0 picks which 1K half of the 2K colour RAM the CPU sees at `$D800`, bit 1 which half the VIC sees (`mem_color_ram_cpu`/`mem_color_ram_vicii`, `&mem_color_ram[0x400]` when clear). Both were set (`$73`) at boot, so CPU and VIC share half 0. Banking is the MMU's, not the port's. | `c128mem.c` lines 542–558; probe |
+| `$01` bits 0 and 1 on the C128 are **not** LORAM/HIRAM: bit 0 picks which 1K half of the 2K color RAM the CPU sees at `$D800`, bit 1 which half the VIC sees (`mem_color_ram_cpu`/`mem_color_ram_vicii`, `&mem_color_ram[0x400]` when clear). Both were set (`$73`) at boot, so CPU and VIC share half 0. Banking is the MMU's, not the port's. | `c128mem.c` lines 542–558; probe |
 | The MMU (`$D500`–`$D50B`, with `$FF00`–`$FF04` mirrors of registers 0–4 that stay visible in every configuration): CR bit 0 I/O, bit 1 BASIC-lo, bits 2–3 mid, bits 4–5 high, bits 6–7 RAM bank; MCR (`$D505`) bit 0 Z80/8502, bit 3 fast serial direction, bits 4–5 GAME/EXROM, bit 6 C64 mode (a 0→1 write switches), bit 7 the 40/80 key; RCR (`$D506`) bits 0–1 common size (VICE: 1K when 0, else `2048 << n` — 4K/8K/16K), bit 2 bottom, bit 3 top, bits 6–7 the VIC's RAM bank; `$D507`–`$D50A` page-0/page-1 relocation (latched, high byte commits on the low write); version `$D50B` reads `$20` ("always return 0x20 unless someone confirms 0x40"), even with `-c128fullbanks`. | `c128mmu.c` (`mmu_is_in_shared_ram`, `mmu_update_page01_pointers`, `mmu_is_c64config`, case 11) |
 | **The `$D018` shadow is real**: writing `$D018 = $14` alone read back `$15` and the screen went back to lower case before the screenshot; writing `$0A2C = $14` then `$D018 = $14` held upper case. (`$D018` bit 0 is unused and reads as 1 on every VIC-II, so `$14` reads `$15`.) | probe screenshots `c128p-noshadow.png`, `c128p-shadow.png` |
 | `$D030` bit 0 is the VIC-IIe's clock bit: writing 1 read back `$FD`, VICE sets `vicii.fastmode` and then steals no bad-line cycles (`vicii-fetch.c`: `if ((vicii.fastmode == 0) && …) dma_maincpu_steal_cycles`). **VICE 3.10 kept drawing a perfect 40-column picture in fast mode**; on a C64 `$D02F`/`$D030` are "(unused)" and read `$FF`. A `fast()` helper is `$D030` bit 0; documentation often says "This will disable video when in 40 column mode" — what the hardware's picture does at 2 MHz is *not* provable in this emulator (see below). | `vicii-mem.c` `d030_store`/`d02f_store`, `vicii-fetch.c`; probe `c128p-fast.png`; `c128/include/c128.h`, VICE `vicii-mem.c` |
 | `$D02F` is the VIC-IIe's extended-keyboard register: the low three bits drive three more column lines (`cia1_set_extended_keyboard_rows_mask`) for the numeric keypad and the extra keys; reads back `\| $F8`. | `vicii-mem.c` `d02f_store` |
 | The VDC is two ports: `$D600` write = register select (0–37), read = status (bit 7 ready, bit 6 light pen, bit 5 "VBLANK" — set while the display is *disabled, i.e. in the top or bottom border*, "nothing to do with vertical retrace … despite the name & what documentation says", bits 0–2 the revision); `$D601` = the selected register. Register 31 reads or writes VDC RAM at the address in R18/R19 and increments it; R30 fills (or copies, R24 bit 7) a block through R32/R33. Reads of R31 and writes of R18/19/31 make the chip busy (43 cycles in the active area, 4 in the border, in VICE's model) — wait for bit 7. | `vdc-mem.c` (`vdc_store`, `vdc_read`, `vdc_perform_fillcopy`) |
 | VDC state at boot (VICE NTSC C128, 40-column mode): status `$81` (ready, revision 1); R0 `$7E`, R1 `$50` (80 columns), R2 `$66`, R3 `$49`, R4 `$20`, R5 `$E0`, R6 `$19` (25 rows), R7 `$1D`, R9 `$E7` (8 lines per row), R12/13 `$0000` (screen), R20/21 `$0800` (attributes), R22 `$78` (8-pixel cells), R23 `$E8`, R24 `$20`, R25 `$47` (attributes on, text mode, hscroll 7), R26 `$F0` (foreground 15 on background 0), R27 `$00`, R28 `$2F` (characters at `$2000`; bit 4 clear — and it stays `$2F` under `-VDC64KB`: VICE's own FIXME says the bit "does *not* show how much ram is installed"). Five bytes written through R31 from `$0000` left R18/19 at `$0005`; the attribute bytes at `$0800` read `$07`, and **"HELLO" appeared on the VDC display while the KERNAL was in 40-column mode** — both screens are live at once, each with its own character set (the VDC's copy is in its own RAM at `$2000`; the VIC's is the ROM/`$D000` window). | probe screenshots `c128-probe-vic.png`, `c128-probe-vdc.png`, `c128-64k-vic.png` |
-| VDC constants VICE builds on: 16 MHz dot clock, no sprites (`VDC_NUM_SPRITES 0`), 16 colours, 64 register slots of which 38 (0–37) are decoded (`regmask[38]`, `update_reg < 38`), attribute bits `$10` flash, `$20` underline, `$40` reverse, `$80` alternate character set (bits 0–3 the colour), 16 or 32 bytes per character, text/bitmap/idle modes (R25 bit 7 bitmap, bit 6 attributes on, bit 5 semi-graphics, bit 4 double-pixel "unsupported"), address mask `$3FFF` (16K) or `$FFFF` (`-VDC64KB`); "the VDC produces exact PAL & NTSC line frequency of 64us & 63.5us respectively with default kernal values" — its frame is its own, driven by R0–R9, not the VIC's. The 16K/64K difference is real chips (4416 vs 4464) and VICE maps addresses between the two layouts either way. | `vdctypes.h`, `vdc.c`, `vdc-resources.c`, `vdc-mem.c` (`vdc_16k_to_64k_map`) |
+| VDC constants VICE builds on: 16 MHz dot clock, no sprites (`VDC_NUM_SPRITES 0`), 16 colors, 64 register slots of which 38 (0–37) are decoded (`regmask[38]`, `update_reg < 38`), attribute bits `$10` flash, `$20` underline, `$40` reverse, `$80` alternate character set (bits 0–3 the color), 16 or 32 bytes per character, text/bitmap/idle modes (R25 bit 7 bitmap, bit 6 attributes on, bit 5 semi-graphics, bit 4 double-pixel "unsupported"), address mask `$3FFF` (16K) or `$FFFF` (`-VDC64KB`); "the VDC produces exact PAL & NTSC line frequency of 64us & 63.5us respectively with default kernal values" — its frame is its own, driven by R0–R9, not the VIC's. The 16K/64K difference is real chips (4416 vs 4464) and VICE maps addresses between the two layouts either way. | `vdctypes.h`, `vdc.c`, `vdc-resources.c`, `vdc-mem.c` (`vdc_16k_to_64k_map`) |
 | x128 models: `c128` (flat: 6581, old CIA, VDC rev 1, 16K), `c128d` (same with a 1571), `c128dcr` (8580, new CIA, VDC rev 2, 64K, 1571CR), each PAL or NTSC; `-model` takes `c128`/`c128dcr`/`pal`/`ntsc`. Flags: `-40col`/`-80col` (the 40/80 key), `-go64` (C64 mode on reset), `-kernal64`/`-basic64`, `-c128fullbanks` (banks 2 and 3), `-VDC16KB`/`-VDC64KB`, `-VDCRevision 0..2`, `-machinetype 0..7` (keyboard/KERNAL nationality), `-controlport1device`/`-controlport2device` (1 Joystick, 2 Paddles, 3 Mouse (1351), 4 NEOS, 5 Amiga, 11–16 light pens on port 1, 10 Koala Pad, …), `-mouse` (host grab), `-fs8 <dir>`, `-8 <image>`, `-drive8type` (1541/1571/1581/…), `-reu`/`-reusize`, `-georam`, `-hidevdcwindow`, `-exitscreenshotvicii`. Timing: NTSC 65 × 263 at 1022730 Hz, PAL 63 × 312 at 985248. | `x128 -help`, `c128model.c`, `c128.h` |
 | The 1351: movement on the pot lines (`(counter & 0x7f) + 0x40` — 7-bit difference of two SID `$D419`/`$D41A` readings, with a 1-count confirm so rest 64/65 does not walk and slow host motion is not eaten; same filter as `@8bitscript/c64/mouse`), right button on UP, left button on FIRE; VICE's driver lists x128's native ports. The SmartMouse and Micromys are the same protocol with extras. | `mouse_1351.c` (port table, `mouse_get_1351_x`, `mouse_1351_button_*`); `src/input.8bs` |
-| Chip bases: VIC `$D000`, SID `$D400`, VDC `$D600` (`ctrl`, `data`), CIA1 `$DC00`, CIA2 `$DD00`, colour RAM `$D800`. `videomode` compares `$D7` and calls the KERNAL's SWAPPER; `c64mode()` is noreturn (KERNAL C64MODE); `fast()`/`slow()`/`isfast()` are `$D030` bit 0. KERNAL symbols: `PALFLAG $0A03`, `VM2 $0A2D`, `MODE $D7`, `MMU_CR $FF00` with the six `MMU_CFG_*` values, `VDC_INDEX/DATA`, `FETCH $02A2`/`STASH $02AF` (cross-bank read/write stubs). | C128 PRG; `c128.inc` (KERNAL symbols); VICE `c128mmu.c` |
-| The catalog's stock fact sheet, for the native 40-column mode this target boots into: the C64's grid, colours, glyphs, blocks, bitmap, scroll and 8 sprites; the SID's 3 voices as on the C64; keyboard, two ports; disk; 41983 bytes (`$1C01`–`$BFFF`), and bank 1's 64 KiB as banked RAM this build may use (`memory.banked`, `memory.bankedKib` 64; the `ram=256k` value makes that 192). The VDC's 80 columns are not on the sheet until an 80-column text package exists. | `src/text.8bs`; the `link.ld` and MMU rows above; `package.json` (read) |
+| Chip bases: VIC `$D000`, SID `$D400`, VDC `$D600` (`ctrl`, `data`), CIA1 `$DC00`, CIA2 `$DD00`, color RAM `$D800`. `videomode` compares `$D7` and calls the KERNAL's SWAPPER; `c64mode()` is noreturn (KERNAL C64MODE); `fast()`/`slow()`/`isfast()` are `$D030` bit 0. KERNAL symbols: `PALFLAG $0A03`, `VM2 $0A2D`, `MODE $D7`, `MMU_CR $FF00` with the six `MMU_CFG_*` values, `VDC_INDEX/DATA`, `FETCH $02A2`/`STASH $02AF` (cross-bank read/write stubs). | C128 PRG; `c128.inc` (KERNAL symbols); VICE `c128mmu.c` |
+| The catalog's stock fact sheet, for the native 40-column mode this target boots into: the C64's grid, colors, glyphs, blocks, bitmap, scroll and 8 sprites; the SID's 3 voices as on the C64; keyboard, two ports; disk; 41983 bytes (`$1C01`–`$BFFF`), and bank 1's 64 KiB as banked RAM this build may use (`memory.banked`, `memory.bankedKib` 64; the `ram=256k` value makes that 192). The VDC's 80 columns are not on the sheet until an 80-column text package exists. | `src/text.8bs`; the `link.ld` and MMU rows above; `package.json` (read) |
 | `@8bitscript/c128/banks` — `banks.kib()`: 64 on every C128, 192 with the 256 KiB modification. Selecting a bank changes the whole address space, instruction fetch included, so the probe first widens common RAM to 16 KiB (`$D506 = $07`, `$0000`–`$3FFF`) — which covers every program this toolchain builds, since the linker starts them at `$1C01` — writes a marker to `$8000` in bank 0, selects bank 2 through the `$FF00` mirror's top two bits, writes a different marker, comes back and reads bank 0's byte. On a 128 KiB machine banks 2 and 3 are 0 and 1 again, so the marker is gone. The KERNAL's interrupt runs throughout and is safe because its vectors, workspace and the stack are all inside the widened area. Disassembled and checked: between the two `$FF00` writes the code does `ldy #$c3`, `sty $8000`, `ldy $10` — an immediate, the probe's own byte, and one zero-page read, no soft stack (the soft stack is near `$BFFF`, outside common RAM, and `test/banks.test.mjs` asserts this on the built binary). Under x128 the probe printed 64 KiB stock and 192 with `ram=256k`. Cost: 639 bytes of program with the probe and 574 with the answer written in — 65 bytes. | `src/banks.8bs`; disassembly of the linked build (pre-0.2.0); two screenshots (ran); `test/banks.test.mjs` |
 
 | **R28 bit 4 is a control, not a report.** It says which *kind* of DRAM the chip is wired to — clear for the 4416s of a 16 KiB VDC, set for the 4464s of a 64 KiB one — and it picks how the address is multiplexed onto them. With it clear a 64 KiB VDC reaches only its first 16 KiB. Verified the hard way: a probe that wrote past `$3FFF` without touching R28 reported 16 KiB on a C128DCR, which has 64. This is why the boot reading of `$2F` under `-VDC64KB` (the row above) says nothing about the RAM fitted — the bit was simply never set. | probe screenshots (ran, both ways); `vdc.c` `vdc_ram_store`/`vdc_ram_read` |
 | **A 16 KiB VDC in 64 KiB addressing loses A8 and A15** — and this is from Commodore, not inferred. The PRG prints the chip's DRAM row/column multiplex for both RAM types (`R28(4) 8563 RAM TYPE (4416/4164)`), and the 4416 row shows the column line that would carry A15 carrying **A8 a second time**. VICE's `vdc_64k_to_16k_map` is the same function (keep `$00FF`, slide `$7E00` down one). So `ramKib()` probes `$A000`/`$A100` — differing only in A8, one byte on a 16 KiB chip, two on a 64 KiB one — and those two fold onto `$1000`, the KERNAL's unused gap, so no byte of the 80-column display is ever written. **The widely circulated `$0000` versus `$4000` test is wrong**: A14 is not a bit a 16 KiB chip loses in this mode, and cc65's own VDC driver has the same defect (it probes pages `$02` and `$42`). That is the reported failure where a routine passes under emulation and misreports on real hardware. | *C128 PRG*, R28(4) mux table; `vice/src/vdc/vdc-mem.c` (read); [Lemon64](https://www.lemon64.com/forum/viewtopic.php?t=86461); `src/vdc.8bs`; `test/vdc.test.mjs` (ran, 16 KiB and 64 KiB) |
-| **The KERNAL's interrupt never touches `$D600`/`$D601`, in either screen mode** — on US ROMs. The editor's IRQ scans the keyboard and calls `blink`, and `blink` opens with `bit mode / bmi` so it returns immediately in 80-column mode (the VDC blinks its own cursor in hardware) and otherwise only writes VIC screen and colour RAM. Commodore's own editor source is the citation. **The exception is a national ROM**: the German `318077-01` redirects `scnkey` through a DIN patch containing an ungated `JSR $CE0C` (the charset upload into VDC RAM), reachable from the interrupt — though only on a CAPS-LOCK/translation change, not every frame. This is what the probe's surviving `HELLO` was evidence of, now with a mechanism. | `mist64/cbmsrc` `EDITOR_C128/ed1.src`, `ed3.src`; disassembly of `318020-03`/`-05` and `318077-01` |
+| **The KERNAL's interrupt never touches `$D600`/`$D601`, in either screen mode** — on US ROMs. The editor's IRQ scans the keyboard and calls `blink`, and `blink` opens with `bit mode / bmi` so it returns immediately in 80-column mode (the VDC blinks its own cursor in hardware) and otherwise only writes VIC screen and color RAM. Commodore's own editor source is the citation. **The exception is a national ROM**: the German `318077-01` redirects `scnkey` through a DIN patch containing an ungated `JSR $CE0C` (the charset upload into VDC RAM), reachable from the interrupt — though only on a CAPS-LOCK/translation change, not every frame. This is what the probe's surviving `HELLO` was evidence of, now with a mechanism. | `mist64/cbmsrc` `EDITOR_C128/ed1.src`, `ed3.src`; disassembly of `318020-03`/`-05` and `318077-01` |
 | The KERNAL's own VDC primitives are at **`$CDCC` (write: `X` = register, `A` = data)** and **`$CDDA` (read: `X` = register)**, with `$CDCF`/`$CDDD` entering below the register-select to move the *next sequential* byte — the fast path for bulk VDC RAM. Both poll the ready bit. They are **not** in any jump table (only `CINT $FF81`, `SWAPPER $FF5F` and `DLCHR $FF62` are vectored), so their addresses are unofficial — but they are byte-identical across US `318020-03`, `-05` and German `318077-01`. The PRG itself has readers POKE private copies rather than call them, which is the precedent this package follows by owning the sequence in `vdc.8bs`. | `mist64/cbmsrc` `EDITOR_C128/routines.src`; PRG |
 | **The KERNAL does not poll the ready bit for setup registers**: its init writer is a bare `STY $D600 / STA $D601`. The poll is required for R18, R19 and R31 — the registers that touch VDC RAM — and the PRG says exactly those three. `vdc.8bs` polls on every access anyway, which is correct and a little slower than it needs to be. | PRG "PROGRAMMING THE 80-COLUMN (8563) CHIP"; `KERNAL_C128_06/init.src` |
 | **Block fill and block copy do not take the same count.** The PRG: after the initial write of data to R31, "one write cycle will follow", so **R30 must be one less** than the number of bytes to fill — while the block-copy description carries no such note and R30 is the exact count. VICE reproduces the asymmetry. (`R30 = 0` meaning 256 is in VICE and ACME but *not* in the PRG.) This is the off-by-one the fill wrapper was left out for. | PRG R24(7)/R30 and R32/R33; `vdc-mem.c` |
@@ -198,7 +198,7 @@ text (or, with BASIC's `GRAPHIC 1`, matrix at `$1C00` and bitmap at
 `$2000`–`$3FFF`, and BASIC text moves to `$4000`); `$4000`–`$BFFF` BASIC
 ROM (RAM underneath — what start-up maps); `$C000`–`$FFFF` KERNAL ROM,
 with I/O at `$D000`–`$DFFF` (VIC `$D000`, SID `$D400`, MMU `$D500`, VDC
-`$D600`, colour RAM `$D800`, CIA1 `$DC00`, CIA2 `$DD00`, I/O1/2 `$DE00`/
+`$D600`, color RAM `$D800`, CIA1 `$DC00`, CIA2 `$DD00`, I/O1/2 `$DE00`/
 `$DF00`) and the character ROM under it when bit 0 of `$FF00` is set — the
 KERNAL's own routines bank it in through the MMU to read glyphs. **Common
 RAM** (`$D506`): the low 1K (default) is always bank 0's, whatever bank the
@@ -270,7 +270,7 @@ R22 character width (high nybble total, low displayed); R23 displayed
 character height; R24 vertical smooth scroll (bits 0–4), blink rate (5),
 reverse screen (6), copy/fill select (7); R25 horizontal smooth scroll
 (0–3), double pixel (4), semi-graphics (5), attributes enable (6), bitmap
-(7); R26 foreground (high nybble)/background colour when attributes are
+(7); R26 foreground (high nybble)/background color when attributes are
 off, and the background in text mode; R27 address increment per row (a
 virtual screen wider than 80); R28 character base (bits 5–7, 8K steps —
 `$2000` is `$20`) and RAM type (bit 4); R29 underline row; R30 word count;
@@ -280,14 +280,14 @@ cycles). RAM layout as the KERNAL leaves it: `$0000`–`$07FF` screen,
 `$0800`–`$0FFF` attributes, `$2000`–`$3FFF` characters (two sets of 256 ×
 16 bytes: upper/graphics then lower; only the first 8 of 16 bytes of each
 are shown at 8 lines per row — R9 + 1 lines are; at R9 ≥ 15 all 16, and
-`bytes_per_char` becomes 32 above that). Colours are RGBI, one nybble:
+`bytes_per_char` becomes 32 above that). Colors are RGBI, one nybble:
 bit 3 R, bit 2 G, bit 1 B, bit 0 intensity — 0 black, 1 dark grey, 2
 blue, 3 light blue, 4 green, 5 light green, 6 cyan, 7 light cyan (the
 `$07` attribute above did show as cyan), 8 red, 9 light red, 10 purple,
 11 light purple, 12 brown/dark yellow, 13 yellow, 14 light grey, 15
 white — a different order and a different set from the VIC's sixteen.
 Text mode: 80 × 25 (or anything R1/R6 allow — 100 columns is VICE's
-`MAX_TEXTCOLS`), one attribute byte per cell (colour + flash/underline/
+`MAX_TEXTCOLS`), one attribute byte per cell (color + flash/underline/
 reverse/alternate set), background from R26, 8 × 8 cells of 8 × 16 data.
 Bitmap mode: 640 × 200 (R1 × 8 by R6 × (R9 + 1)), one bit per pixel,
 16000 bytes; with attributes on, each 8 × (R9 + 1) cell takes its
@@ -296,10 +296,10 @@ confirmed in the PRG ("Bits 3-0 are foreground R, G, B and I… Bits 7-4
 are background"), and note that this is **the opposite way round from
 R26**, whose high nybble is the foreground. Three byte layouts that must
 not be confused: a *text* attribute is ALT/RVS/UL/FLASH in the high
-nybble and the foreground colour in the low; a *bitmap* attribute is
+nybble and the foreground color in the low; a *bitmap* attribute is
 background high, foreground low; R26 is foreground high, background low.
 Within a nybble the order is R, G, B with **intensity in the low bit**.
-With attributes off the whole picture is R26's two colours.
+With attributes off the whole picture is R26's two colors.
 
 640 × 400 needs interlace and 32000 bytes — 64K VDC only in practice;
 640 × 480 (38400 bytes) and 80 × 50 text are both real and documented,
@@ -475,8 +475,8 @@ on this machine:
   KERNAL stays in and BASIC's low RAM is reserved. The other 64K is a
   bank switch away and the language cannot express it yet.
 - **"`$01` banks the ROMs as on the C64."** Not in native mode: the MMU
-  does, and `$01` bits 0–1 pick colour-RAM halves. Writing a C64 `$01`
-  value here changes which colour RAM the VIC shows.
+  does, and `$01` bits 0–1 pick color-RAM halves. Writing a C64 `$01`
+  value here changes which color RAM the VIC shows.
 - **"80 columns is a mode of the same screen."** It is a second chip with
   its own RAM, palette, character set, attribute model and frame clock.
   `@8bitscript/screen` and `/text` are the VIC's; the VDC will be this
@@ -508,8 +508,8 @@ recollection is a lead to verify, never a citation.
   configuration. `$FFFD` is the top half of the 6502 reset vector.
 - **"`$00`/`$01` bits control RAM vs ROM as in the C64, plus the special
   register."** No. In native mode `$01` bits 0-1 pick which half of the
-  2 KiB colour RAM the CPU and the VIC each see. A C64 `$35`/`$36`/`$37`
-  written here changes the colour RAM, not the memory map.
+  2 KiB color RAM the CPU and the VIC each see. A C64 `$35`/`$36`/`$37`
+  written here changes the color RAM, not the memory map.
 - **"Only one chip drives the monitor at a time."** No — both drive their
   own outputs simultaneously, and this session's probe put text on both at
   once from one program. The 40/80 key (`$D505` bit 7) says which one the
@@ -519,8 +519,8 @@ recollection is a lead to verify, never a citation.
   bitmap bit, documented, one of 38 decoded registers. The example
   assembly in the notes selects a register index twice and then writes
   R10, the cursor register — it does not enable bitmap mode.
-- **"The VDC's palette is 16 colours plus 16 intensities."** It is 16
-  RGBI colours, one nybble: bit 3 red, bit 2 green, bit 1 blue, bit 0
+- **"The VDC's palette is 16 colors plus 16 intensities."** It is 16
+  RGBI colors, one nybble: bit 3 red, bit 2 green, bit 1 blue, bit 0
   intensity. Sixteen in total, in a different order from the VIC's.
 - **"There is no native audio in 80-column mode."** The SID is on its own
   clock and does not know or care which display is being used.
@@ -548,9 +548,9 @@ on the strength of this section either.
   picture, at the KERNAL's `$0400`/`$D800`, and stay so: that is the one
   picture every Commodore target has. The VDC is this package's own
   export (`@8bitscript/c128/vdc`, when it comes), with its own text
-  surface (80 × 25, an attribute byte per cell, RGBI colours, an
+  surface (80 × 25, an attribute byte per cell, RGBI colors, an
   alternate-set bit), never a `text.COLUMNS = 80` profile of the VIC's
-  surface — the two do not share memory, colours or a frame.
+  surface — the two do not share memory, colors or a frame.
 - Every VDC access is register-select, wait-for-ready, data. Write it
   once (`select(r)`, `write(r, v)`, `read(r)`, `setAddress(a)`, then a
   stream through R31 using the auto-increment and R30's fill for runs)
@@ -606,7 +606,7 @@ on the strength of this section either.
   the picture in bank 1 and the program in bank 0 is a legitimate layout,
   and it is a decision `Video` makes once, in writing — the C64 file's
   rule about who owns which RAM applies with a second dimension.
-- `$01` is read, masked, written; bits 0–1 are colour-RAM selection and a
+- `$01` is read, masked, written; bits 0–1 are color-RAM selection and a
   C64 constant (`$35`, `$36`, `$37`) is meaningless here.
 - `$D500`–`$D50B` are reachable only with I/O in; `$FF00`–`$FF04` always.
   Write the mirrors.
@@ -629,7 +629,7 @@ on the strength of this section either.
 ### The C64 half is the C64's
 
 - VIC-IIe registers, sprites (8, 24 × 21, per-line limit 8), SID, CIAs,
-  colour RAM, the `$DD00` 16K window, bad lines: every rule in
+  color RAM, the `$DD00` 16K window, bad lines: every rule in
   `packages/c64/AGENTS.md` holds, at the same addresses. When the C64's
   `sprites`/`sid`/`keyboard`/`joystick` layers are made available here
   they are *this package's* exports over the same registers — not a
@@ -737,7 +737,7 @@ that is *not* the same code. What differs, and roughly in what order:
 | `mouse` | **built** (inlined in `./input`) | identical protocol to the C64's; `poll()` holds `sei` across the pot read because the KERNAL IRQ owns CIA1 here. `@8bitscript/c128/pointer` draws sprite 0 from `$0E00` |
 | `charset`, `bitmap`, `scroll`, `sprites` | VIC-IIe, C64 registers | **who owns which RAM is a two-dimensional question here**: the VIC's bank is `$D506` bits 6-7 (the MMU's), not just `$DD00`, and the C64 file's bank-3 layout does not carry over — the KERNAL ROM is *in* at `$C000`-`$FFFF`. The pointer uses the KERNAL's sprite area at `$0E00` rather than waiting on this layer. The KERNAL shadows `$D018` (`$0A2C`) and the bitmap layout (`$0A2D`); which control registers it shadows in graphic modes is *to verify* before any of these are written |
 | `raster` | VIC-IIe raster IRQ | the C64's layer takes the machine over with `sei`; here that means taking the keyboard, the jiffy clock and the shadow copies over too. A deliberate decision, not a detail |
-| `vdc80` text | **built** (`./vdc80`) | 80 × 25, an attribute byte per cell, RGBI colours, the KERNAL's layout adopted. What is *not* built: a bitmap mode (640 × 200, and 18000 bytes with attributes so a 64 KiB chip), R24/R25 smooth scroll, R12/R13 whole-screen scroll, block *copy*, a character set of the program's own in VDC RAM, and the 80 × 50 / interlaced modes |
+| `vdc80` text | **built** (`./vdc80`) | 80 × 25, an attribute byte per cell, RGBI colors, the KERNAL's layout adopted. What is *not* built: a bitmap mode (640 × 200, and 18000 bytes with attributes so a 64 KiB chip), R24/R25 smooth scroll, R12/R13 whole-screen scroll, block *copy*, a character set of the program's own in VDC RAM, and the 80 × 50 / interlaced modes |
 | `reu` | `$DF00`, as the C64's | the DMA's RAM bank is `$D506` bits 6-7 — the *VIC's* bank — so a transfer into bank 1 moves the display's bank with it; and a write to `$FF00` fires an armed transfer, which every MMU access here also is |
 | far memory / bank 1 | the MMU | there is no language for it yet on any target. The C128 is where the question is forced |
 | 2 MHz | `$D030` bit 0 | a mode, not a speed-up — see the rule below |
@@ -770,7 +770,7 @@ can be and the sheet has no way to say:
 
 - **A second display.** Every key on the sheet is singular —
   `video.columns` is *the* grid. The C128 has two grids at once, of
-  different widths, colours and frame clocks, and so (differently) does
+  different widths, colors and frame clocks, and so (differently) does
   the X16 with its layers. Any key added for this has to mean something on
   the other eight machines, which is the hard part and the reason it is
   not being invented here.
@@ -802,7 +802,7 @@ a fact here is doubted.
 
 ```
 packages/c128/package.json              the hardware catalog: ram, vdc, vdcrev, sid, cia, expansion, port1, port2; presets c128/c128d/c128dcr/vdc64/ram256/loaded
-packages/c128/src/index.8bs             target package: VIC-IIe colour and sprite registers, $D018 and its $0A2C shadow
+packages/c128/src/index.8bs             target package: VIC-IIe color and sprite registers, $D018 and its $0A2C shadow
 packages/c128/src/vdc.8bs               @8bitscript/c128/vdc: the $D600/$D601 access layer, block fill, and ramKib(), the 16/64 KiB probe
 packages/c128/src/vdc80.8bs             @8bitscript/c128/vdc80: text on the 80-column screen (not @8bitscript/text, which stays the VIC's 40)
 packages/c128/src/sid.8bs               @8bitscript/c128/sid: the SID's three voices, and the note tables for both clocks
@@ -812,7 +812,7 @@ packages/c128/test/vdc80.test.mjs       the 80-column text surface, and the bloc
 packages/c128/test/sid.test.mjs         the SID answering on both regions, and every note table entry against the formula
 packages/c128/src/input.8bs             @8bitscript/c128/input: CIA1 matrix and sticks; a 1351 inlined (sei across the pots)
 packages/c128/src/pointer.8bs           @8bitscript/c128/pointer: sprite 0 from KERNAL block 56 at $0E00, on a 1351 build
-packages/c128/src/screen.8bs            @8bitscript/c128/screen: sixteen colours in both registers, blank() over 1000 cells at $0400
+packages/c128/src/screen.8bs            @8bitscript/c128/screen: sixteen colors in both registers, blank() over 1000 cells at $0400
 packages/c128/src/text.8bs              @8bitscript/c128/text: ASCII → screen code, shadow-then-register, 40 × 25 at $0400/$D800
 packages/compiler/src/mos/index.ts     FRAME_SYNC.c128 (the C64's level driver, no presync; the backend refuses to build)
 packages/cli/src/run.mjs                VICE_EMULATOR_ARGS.c128 (-hidevdcwindow), VICE_MODEL_ARGS.c128 (-model ntsc/pal)
@@ -822,7 +822,7 @@ packages/studio/src/main.8bs            Studio's full tier — the default, the 
 docs/setup/vice.md                      installing x128 with the other VICE emulators
 docs/roadmap.md                         Phase 2: "the first real test of the memory model"; the C128 as Studio's second reference machine
 C128 PRG / c128.inc                    $1C01–$BFFF, $FF00 = $0E, MMU_CFG_*, VDC ports, VIC/SID/CIA bases
-vice/src/c128/ (SourceForge trunk)      c128mmu.c (the MMU), c128mem.c ($01 and colour RAM), c128model.c, c128.h (timing)
+vice/src/c128/ (SourceForge trunk)      c128mmu.c (the MMU), c128mem.c ($01 and color RAM), c128model.c, c128.h (timing)
 vice/src/vdc/                           vdc-mem.c (the port, status bits, fill/copy), vdctypes.h (attributes, sizes), vdc.c (its own frame), vdc-resources.c (16K/64K)
 vice/src/vicii/vicii-mem.c              d02f_store, d030_store (the VIC-IIe's two extra registers)
 ```

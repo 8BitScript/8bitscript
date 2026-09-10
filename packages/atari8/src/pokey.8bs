@@ -23,7 +23,7 @@
 // in the high). There is no envelope generator — an Atari envelope is the
 // program writing AUDC every frame — no filter beyond two high-pass links,
 // and no waveform choice: a "waveform" here is which polynomial counter
-// gates the square wave, which is why five of the six settings are flavours
+// gates the square wave, which is why five of the six settings are flavors
 // of noise and only `Distortion.TONE` is a clean pitch.
 //
 // ---- the pitch you can actually ask for ------------------------------------

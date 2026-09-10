@@ -62,7 +62,7 @@ export function xmega65LauncherSpec() {
 /**
  * What's at Xemu's `~/.xemu-lgb` compatibility path right now: `'missing'`
  * (nothing there yet), `'symlink'` (resolved to its real target — Xemu's
- * own first-run behaviour, or a prior run of this function), or `'other'`
+ * own first-run behavior, or a prior run of this function), or `'other'`
  * (a real directory, or anything else Xemu itself put there — left alone
  * either way).
  */

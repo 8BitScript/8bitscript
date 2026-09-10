@@ -5,7 +5,7 @@ nav_order: 0
 
 # 8BitScript
 
-8BitScript is a statically compiled, TypeScript-flavoured language for
+8BitScript is a statically compiled, TypeScript-flavored language for
 classic 8-bit computers and the web.
 
 **The PET and the web both build, run, and render for real.** Version 0.2.0

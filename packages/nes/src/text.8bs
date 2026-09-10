@@ -38,9 +38,9 @@ import { queueRun, queueByte } from "./index.8bs";
 // $2000 + (2 + n / 28) * 32 + 2 + n % 28. Nothing shows until
 // screen.setColors() has switched rendering on; until then, writes here
 // are free of any vblank budget (rule 2 in @8bitscript/nes), which is why
-// a program clears and labels first and sets colours last. putColor exists
+// a program clears and labels first and sets colors last. putColor exists
 // so portable code still compiles and does nothing: the PPU has no
-// per-cell colour — the nearest thing, the attribute table, chooses a
+// per-cell color — the nearest thing, the attribute table, chooses a
 // palette per 32x32-pixel block, and every block here is palette 0.
 
 // ---- print: strings and number fields ------------------------------------
@@ -48,10 +48,10 @@ import { queueRun, queueByte } from "./index.8bs";
 // `text.print(cell, s)` writes a string's characters into consecutive
 // cells from `cell`, and `text.printNumber(cell, value, width)` writes
 // `value` as exactly `width` decimal digits, zero-padded and right-aligned,
-// so a field on a HUD never shifts columns. Both draw in the current colour —
+// so a field on a HUD never shifts columns. Both draw in the current color —
 // white until `text.setColor(TextColor.CYAN)` changes it, and that one
-// call then colours everything printed after it, on the machines that have
-// per-cell colour. They are also the two
+// call then colors everything printed after it, on the machines that have
+// per-cell color. They are also the two
 // functions the compiler's template layout targets: `text.print(0,
 // \`TICK ${ticks:1}\`)` is laid out at compile time into these same calls
 // (see packages/compiler/src/ir).
@@ -67,7 +67,7 @@ let currentReverse: bool = false; // until text.setReverse() says otherwise
 // Reverse video is ASCII+128: the font ships inverted copies of $20-$5F
 // at $A0-$DF. Tile $80 is the drawn border and is not a reverse copy, so
 // the +128 of a portable character never lands on it. A reverse space is
-// a solid block in the text colour.
+// a solid block in the text color.
 function toTile(code: utinyint): utinyint {
     if (currentReverse) {
         return code + 128;
@@ -170,7 +170,7 @@ export namespace text {
     }
 }
 
-// The colours `text.setColor()` takes. The NES text grid has no per-cell colour, so the
+// The colors `text.setColor()` takes. The NES text grid has no per-cell color, so the
 // names are here for a program that compiles everywhere and their values
 // go nowhere.
 export namespace TextColor {

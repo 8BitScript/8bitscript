@@ -13,7 +13,7 @@
 // registers and are built on nothing else.
 //
 // The PET is a monochrome machine — green or white phosphor, whatever the
-// monitor is, with no colour hardware at all — so there is no colour
+// monitor is, with no color hardware at all — so there is no color
 // register here to export; see screen.8bs for what that means for the
 // portable surface. What it does have is a character set to select.
 

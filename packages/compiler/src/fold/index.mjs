@@ -59,7 +59,7 @@ import { FACTS, factPlaceholder } from './facts.mjs';
  * every clock below is defined against.
  *
  * Adding a unit means adding an entry here and writing it a hover in
- * intellisense/index.mjs. Nothing is reserved: the word is only recognised
+ * intellisense/index.mjs. Nothing is reserved: the word is only recognized
  * in that one argument slot.
  */
 export const DURATION_UNITS = new Map([

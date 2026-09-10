@@ -16,20 +16,20 @@ import { Video } from "./geometry.8bs";
 // ---- the screen: border and background --------------------------------------
 //
 // One packed register on the VIC: border in bits 0-2 (the VIC has eight
-// border colours, so the value is masked to them), background in bits 4-7,
-// bit 3 held at 1 for normal video. Both colours in one call because they
+// border colors, so the value is masked to them), background in bits 4-7,
+// bit 3 held at 1 for normal video. Both colors in one call because they
 // are one write here — and because on the NES and the X16 the two are
 // genuinely one operation (see those packages), so the portable surface is
-// the one every machine can honour.
+// the one every machine can honor.
 export namespace screen {
     function setColors(border: u8, background: u8): void {
         vicColor = (8 | (border & 7)) | (background << 4);
     }
 
-    // `blank(border, background)`: every cell blank and both colours set —
+    // `blank(border, background)`: every cell blank and both colors set —
     // black when left off, or `BorderColor.KEEP` / `BackgroundColor.KEEP`
     // to leave one as it is. `setBorder` and `setBackground` are one
-    // colour each, `setColors` the pair; `text.setColor` owns what the
+    // color each, `setColors` the pair; `text.setColor` owns what the
     // next print looks like.
     function blank(border: utinyint = BorderColor.BLACK, background: utinyint = BackgroundColor.BLACK): void {
         if (border != BorderColor.KEEP) {
@@ -52,12 +52,12 @@ export namespace screen {
     }
 }
 
-// ---- colour names ----------------------------------------------------------
+// ---- color names ----------------------------------------------------------
 //
 // The border field only has 3 bits, so it can only reach the first 8 of the
-// VIC's 16 colours — `BorderColor` and `BackgroundColor` are two namespaces,
+// VIC's 16 colors — `BorderColor` and `BackgroundColor` are two namespaces,
 // not one shared `Color`, because the hardware itself draws that line, not
-// an API design preference. Values and names match the VIC-20's own colour
+// an API design preference. Values and names match the VIC-20's own color
 // numbering (POKE 36879 in the Programmer's Reference Guide). Those first
 // eight names — Black, White, Red, Cyan, Purple, Green, Blue, Yellow — are
 // the ones every machine's screen.8bs exports in both namespaces, each with
@@ -73,7 +73,7 @@ export namespace BorderColor {
     const GREEN: utinyint = 5;
     const BLUE: utinyint = 6;
     const YELLOW: utinyint = 7;
-    // Not a colour: `blank(KEEP, ...)` leaves this one as it is. 255 is
+    // Not a color: `blank(KEEP, ...)` leaves this one as it is. 255 is
     // a value no register here takes.
     const KEEP: utinyint = 255;
 }
@@ -95,7 +95,7 @@ export namespace BackgroundColor {
     const LIGHT_GREEN: utinyint = 13;
     const LIGHT_BLUE: utinyint = 14;
     const LIGHT_YELLOW: utinyint = 15;
-    // Not a colour: `blank(KEEP, ...)` leaves this one as it is. 255 is
+    // Not a color: `blank(KEEP, ...)` leaves this one as it is. 255 is
     // a value no register here takes.
     const KEEP: utinyint = 255;
 }

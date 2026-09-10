@@ -15,12 +15,12 @@ import { Video } from "./geometry.8bs";
 
 // The screen is addressed by flat cell index — a position is
 // `y * text.COLUMNS + x` — and these are the plainest things a text API
-// can be built from: poke one cell's character code, poke one cell's colour, and how many
+// can be built from: poke one cell's character code, poke one cell's color, and how many
 // cells the whole screen has. Whether a caller uses these to clear the
 // screen, lay out a label, or nothing at all is entirely up to the caller —
 // this package draws nothing on its own.
 //
-// Where the 22x23 screen and its colour nybbles are depends on the RAM the
+// Where the 22x23 screen and its color nybbles are depends on the RAM the
 // machine has — $1E00/$9600 unexpanded or with 3K, $1000/$9400 with 8K or
 // more — and that is the build's `--profile` to say (VIC20_PROFILES in
 // packages/compiler/src/mos). It reaches this file as ./geometry.8bs's `Video`
@@ -58,16 +58,16 @@ function asciiToScreenCode(code: utinyint): utinyint {
 // `text.print(cell, s)` writes a string's characters into consecutive
 // cells from `cell`, and `text.printNumber(cell, value, width)` writes
 // `value` as exactly `width` decimal digits, zero-padded and right-aligned,
-// so a field on a HUD never shifts columns. Both draw in the current colour —
+// so a field on a HUD never shifts columns. Both draw in the current color —
 // white until `text.setColor(TextColor.CYAN)` changes it, and that one
-// call then colours everything printed after it, on the machines that have
-// per-cell colour. They are also the two
+// call then colors everything printed after it, on the machines that have
+// per-cell color. They are also the two
 // functions the compiler's template layout targets: `text.print(0,
 // \`TICK ${ticks:1}\`)` is laid out at compile time into these same calls
 // (see packages/compiler/src/ir).
 //
 // Under them: `place()` puts one character at one cell in the current
-// colour, and is all a run of text costs per character, with `prepare()` selecting the
+// color, and is all a run of text costs per character, with `prepare()` selecting the
 // upper-case set once for the run.
 // `text.putChar` and `text.putColor` stay the one-cell pokes a caller can
 // build anything from.
@@ -90,7 +90,7 @@ function prepare(): void {
 
 function place(cell: usmallint, code: utinyint): void {
     memory.write(Video.SCREEN + cell, toScreen(code));
-    memory.write(Video.COLOR + cell, currentColor & 0x07); // bit 3 would make the cell multicolour
+    memory.write(Video.COLOR + cell, currentColor & 0x07); // bit 3 would make the cell multicolor
 }
 
 // ---- digits -------------------------------------------------------------
@@ -152,8 +152,8 @@ export namespace text {
     }
 }
 
-// The colours `text.setColor()` takes: the eight names every machine
-// shares, with this machine's colour-RAM values.
+// The colors `text.setColor()` takes: the eight names every machine
+// shares, with this machine's color-RAM values.
 export namespace TextColor {
     const BLACK: utinyint = 0;
     const WHITE: utinyint = 1;

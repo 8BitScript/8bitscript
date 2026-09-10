@@ -29,7 +29,7 @@
 // 29780-cycle frame.
 //
 // `scan()` shifts each read into the top of a byte and shifts the byte
-// down, so after eight rounds the first button read (A) has travelled to
+// down, so after eight rounds the first button read (A) has traveled to
 // bit 0 and the last (RIGHT) sits at bit 7 — which is the `Pad.*` layout
 // below, and why there is no bit table here the way the C64's keyboard
 // needs one.
@@ -40,7 +40,7 @@
 // sample channel fetches a byte it can steal a cycle from a controller
 // read and drop or double-clock a bit — the reason commercial games read
 // the pad twice and keep the reading that agrees. Nothing in 8BitScript
-// drives the DMC channel today, so the defence would cost every program
+// drives the DMC channel today, so the defense would cost every program
 // cycles to guard against a channel no program can turn on. **When sample
 // playback arrives on this target, this is the file that has to grow the
 // double read**, and that is the note to find here when it does.
