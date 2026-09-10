@@ -39,13 +39,24 @@
 // address) are all still refused by name — real gaps, not milestone 5's
 // own scope, which @8bitscript/web's own real source never needs: neither
 // screen.8bs nor text.8bs declares a `let` array, an `@address` array, or
-// a `string<N>` anywhere (checked directly, not assumed). No waitFrame()
-// yet — milestone 6's own job.
+// a `string<N>` anywhere (checked directly, not assumed).
+//
+// Milestone 6 ("waitFrame(), and the real Hello World") wires the
+// `env.waitFrame` import: a whole-program scan (containsWaitFrame, below)
+// decides once, up front, whether any function anywhere calls waitFrame()
+// — if so, the import gets a type-section entry (index 0, ahead of every
+// defined function's own type — see importFuncCount below) and an
+// import-section entry, and the declared memory becomes shared (limits'
+// own `shared` flag, with a max equal to its min — nothing here ever grows
+// it) so web-runtime.mjs's worker can hand the page a live view of it
+// instead of a one-time snapshot copy. A program that never calls
+// waitFrame() gets none of this — plain, unshared memory and no import
+// section, unchanged from every earlier milestone.
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 import { storageBytes } from '../types/index.mjs';
-import { ExternalKind, Mutability, Opcode, SectionId, ValType, activeDataSegment, assembleModule, encodeName, funcType, limits, section, signedLEB128, unsignedLEB128, vector } from './encode.ts';
+import { ExternalKind, Mutability, Opcode, SectionId, ValType, activeDataSegment, assembleModule, encodeName, funcType, importFunc, limits, section, signedLEB128, unsignedLEB128, vector } from './encode.ts';
 import { lower } from './lower.ts';
 import type { IrStatement } from './lower.ts';
 
@@ -156,10 +167,27 @@ const PAGE_BYTES = 64 * 1024;
 // a guessed boundary, and isn't built yet.
 const DATA_BASE = 8192;
 
-// No import lands before milestone 6's own `env.waitFrame` — see the
-// function-index comment in `build()` for why this is a named constant
-// rather than every call/export site assuming the entry is index 0.
-const IMPORT_FUNC_COUNT = 0;
+/** Whether any function in the whole program calls waitFrame() anywhere —
+ * `build()`'s own one whole-program pass, before any function body is
+ * lowered, to decide whether the module needs the `env.waitFrame` import
+ * at all (see the file header). `waitFrame` has no expression form
+ * (ir/index.mjs refuses it outside statement position), so this only ever
+ * needs to walk statement lists — no expression tree to descend into.
+ * `for`'s own `init`/`update` don't need a recursive call of their own:
+ * they're always a single `local` or `assign` statement (ir/index.mjs's
+ * own grammar), never a kind that itself holds a nested statement list, so
+ * the top of this loop already checks them everywhere they can appear
+ * (`for`'s own `body` — where the actual loop contents live — is covered
+ * by the `s.body` branch below like every other loop). */
+function containsWaitFrame(statements: IrStatement[]): boolean {
+  for (const s of statements) {
+    if (s.kind === 'waitFrame') return true;
+    if (s.then && containsWaitFrame(s.then)) return true;
+    if (s.else && containsWaitFrame(s.else)) return true;
+    if (s.body && containsWaitFrame(s.body)) return true;
+  }
+  return false;
+}
 
 /** Lowers `ir` to WebAssembly, writes `outFile`, and returns the bytes. */
 export async function build(ir: IrProgram, options: BuildOptions): Promise<BuildResult> {
@@ -232,19 +260,24 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // every earlier milestone.
   const memoryPages = Math.max(MEMORY_PAGES, Math.ceil(cursor / PAGE_BYTES));
 
+  // Whether the module needs the `env.waitFrame` import at all — decided
+  // once, up front, from the whole program, the same two-pass shape as
+  // globals/functions/data. `importFuncCount` is 0 or 1 only: this backend
+  // never declares any import but this one.
+  const usesWaitFrame = ir.functions.some((fn) => containsWaitFrame(fn.body));
+  const importFuncCount = usesWaitFrame ? 1 : 0;
+
   // Every function's own wasm function index, assigned once, up front, in
   // declaration order — before any body is lowered, so a call can reach a
   // function declared later in this array, or itself (recursion; see
-  // lower.ts's own Ctx.functions doc). No import lands before these yet
-  // (IMPORT_FUNC_COUNT is milestone 6's own `env.waitFrame` reservation:
-  // once that import exists, it takes index 0 and every defined function's
-  // own index shifts by one — computed from here, not hardcoded, so that
-  // milestone's own change is this one constant, not an audit of every
-  // `call`/export site that assumed index 0 was the entry).
+  // lower.ts's own Ctx.functions doc). `importFuncCount` accounts for the
+  // `env.waitFrame` import, when declared: it occupies function index 0,
+  // ahead of every defined function, which is why every defined function's
+  // own index is computed from here rather than assumed to start at 0.
   const functionSites = new Map(ir.functions.map((fn, i) => [
     fn.name,
     {
-      index: IMPORT_FUNC_COUNT + i,
+      index: importFuncCount + i,
       paramCount: (fn.params ?? []).length,
       returnsValue: !!fn.returnType && fn.returnType !== 'void',
     },
@@ -252,6 +285,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   if (functionSites.size !== ir.functions.length) {
     return { ok: false, error: 'two functions in ir.functions share the same name — a linker bug, not something this backend can guess a fix for' };
   }
+  const waitFrameIndex = usesWaitFrame ? 0 : null;
 
   const loweredFns: { index: number; paramCount: number; returnsValue: boolean; localCount: number; code: number[] }[] = [];
   for (const fn of ir.functions) {
@@ -259,31 +293,51 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
       if (p.type === 'array') return { ok: false, error: `'${fn.name}(${p.name})': an array parameter is not lowered yet — a real gap milestone 5 left open` };
     }
     const site = functionSites.get(fn.name)!;
-    const lowered = lower(fn.body, { params: fn.params ?? [], globals: globalIndex, functions: functionSites, strings: stringAddrs, arrays: arrayIndex });
+    const lowered = lower(fn.body, { params: fn.params ?? [], globals: globalIndex, functions: functionSites, strings: stringAddrs, arrays: arrayIndex, waitFrameIndex });
     if (!lowered.ok) return { ok: false, error: `'${fn.name}': ${lowered.error}` };
     loweredFns.push({ index: site.index, paramCount: site.paramCount, returnsValue: site.returnsValue, localCount: lowered.localCount, code: lowered.code });
   }
   const entryIndex = functionSites.get(ir.entry)!.index;
 
-  // type section: one type per function, in the same order — deduplicating
-  // identical signatures is a real optimization (two functions that both
-  // take one utinyint and return void share nothing here today) but not a
-  // correctness requirement, so it's left for whenever a program's own
-  // type section size is worth spending on.
+  // type section: the `env.waitFrame` import's own type first, when
+  // declared (type index 0 — it always occupies the function index space
+  // ahead of every defined function, so its type has to lead the type
+  // section the same way), then one type per defined function, in the
+  // same order. Deduplicating identical signatures between two defined
+  // functions is a real optimization but not a correctness requirement,
+  // so it's left for whenever a program's own type section size is worth
+  // spending on.
+  const waitFrameType = usesWaitFrame ? [funcType([], [])] : [];
   const typeSection = section(
     SectionId.type,
-    vector(loweredFns.map((f) => funcType(Array(f.paramCount).fill(ValType.i32), f.returnsValue ? [ValType.i32] : []))),
+    vector([
+      ...waitFrameType,
+      ...loweredFns.map((f) => funcType(Array(f.paramCount).fill(ValType.i32), f.returnsValue ? [ValType.i32] : [])),
+    ]),
   );
-  // function section: function index `IMPORT_FUNC_COUNT + i` uses type
-  // index `i` — one type per function, declared in the same order, so the
-  // two indices already agree without a lookup. This stops being true once
-  // milestone 6 adds an import: an imported function also occupies a
-  // type-section entry (before any of these), so `i` here will need to
-  // become `IMPORT_FUNC_COUNT + i` too, not stay a bare position.
-  const functionSection = section(SectionId.function, vector(loweredFns.map((_, i) => [i])));
-  // memory section: one memory, memoryPages minimum (see above), no
-  // declared maximum.
-  const memorySection = section(SectionId.memory, vector([limits(memoryPages)]));
+  // import section: `env.waitFrame`, importing type index 0 — omitted
+  // entirely when the program never calls waitFrame(), the same
+  // "pay only for what you use" rule every other section follows.
+  const importSection = usesWaitFrame
+    ? section(SectionId.import, vector([importFunc('env', 'waitFrame', 0)]))
+    : null;
+  // function section: defined function `i` uses type index
+  // `importFuncCount + i` — the import (if any) took type index 0 ahead
+  // of these, in the type section built above, so the two indices still
+  // agree without a lookup.
+  const functionSection = section(SectionId.function, vector(loweredFns.map((_, i) => [importFuncCount + i])));
+  // memory section: memoryPages minimum. A waitFrame()-calling program
+  // declares its memory shared, with a max equal to its own min (nothing
+  // here ever grows it) — see the file header on why: it's the only way
+  // web-runtime.mjs's worker can hand the page a live view instead of a
+  // one-time snapshot. Every other program keeps the plain, unbounded
+  // memory every earlier milestone already had — shared memory that
+  // nothing ever paints mid-run would only cost validation surface for
+  // nothing gained.
+  const memorySection = section(
+    SectionId.memory,
+    vector([usesWaitFrame ? limits(memoryPages, memoryPages, true) : limits(memoryPages)]),
+  );
   // global section: one mutable i32 per non-pinned scalar `let`, initial
   // value its own declared init — wasm's global-init expression only
   // allows a constant, which every scalar global's `init` already is by
@@ -318,7 +372,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // "pay only for what you use" rule every earlier section follows.
   const dataSection = dataSegments.length > 0 ? section(SectionId.data, vector(dataSegments)) : null;
 
-  const sections = [typeSection, functionSection, memorySection, globalSection, exportSection, codeSection, dataSection]
+  const sections = [typeSection, importSection, functionSection, memorySection, globalSection, exportSection, codeSection, dataSection]
     .filter((s): s is number[] => s !== null);
   const bytes = assembleModule(sections);
 

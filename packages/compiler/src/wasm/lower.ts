@@ -10,16 +10,23 @@
 // wraparound-for-free: a `utinyint`'s value is always already in 0-255 by
 // the time anything downstream reads it.
 //
-// Scope, refused by name below: `*`/`/`/`%` and every bitwise/shift operator
-// (`&` `|` `^` `<<` `>>`) — wasm has real hardware for all of these (a
-// genuine advantage over the 6502, which only lacks `*`/`/`/`%`), but
-// nothing in this milestone's own gate (a for-loop sum) needs them, and
-// adding them un-asked-for is scope this milestone doesn't need to carry.
-// Ordering comparisons (`<` `>` `<=` `>=`) on a signed operand, and any
-// arithmetic whose result type is signed and narrower than 32 bits, are
-// refused the same way the mos backend still refuses them — a real,
-// unresolved gap on both backends, not something to guess a masking rule
-// for here.
+// Scope, refused by name below: `*` and every bitwise/shift operator (`&`
+// `|` `^` `<<` `>>`) — wasm has real hardware for all of these, but nothing
+// built so far needs them, and adding them un-asked-for is scope nothing
+// asked this file to carry. `/`/`%` are lowered (milestone 5, unsigned
+// only — `i32.div_u`/`i32.rem_u`), added when linking `@8bitscript/text`
+// turned out to always pull in `printNumber`'s own body, which uses both,
+// whether a program calls it or not (the linker links every function a
+// namespace import declares — no reachability pruning). Ordering
+// comparisons (`<` `>` `<=` `>=`) on a signed operand, and any arithmetic
+// whose result type is signed and narrower than 32 bits, are refused the
+// same way the mos backend still refuses them — a real, unresolved gap on
+// both backends, not something to guess a masking rule for here.
+//
+// `waitFrame()` (milestone 6) is the one statement kind that isn't really
+// "instruction selection" at all: it always lowers to the same one
+// instruction, a `call` to whatever function index `build()` assigned the
+// `env.waitFrame` import — see `Ctx.waitFrameIndex`.
 import { resolveIntegerType } from '../types/index.mjs';
 import { BlockType, Opcode, ValType, memarg, signedLEB128, unsignedLEB128 } from './encode.ts';
 
@@ -136,6 +143,14 @@ interface Ctx {
    * 2-byte element type is refused by name where it's read, not guessed
    * at here. */
   arrays: Map<string, { address: number; elementWidth: number }>;
+  /** The imported `env.waitFrame`'s own wasm function index — always 0
+   * when set, since it's the only import this backend ever declares and
+   * an import always occupies the function index space ahead of every
+   * function the module defines. `null` when the program never calls
+   * waitFrame() at all: `build()` only declares the import when a scan of
+   * the whole program finds a `waitFrame` node, the same "pay only for
+   * what you use" rule every other section already follows. */
+  waitFrameIndex: number | null;
 }
 
 function i32Const(n: number): number[] {
@@ -323,13 +338,14 @@ function expr(node: IrExpr, ctx: Ctx): number[] {
   throw new LowerError(unsupported(node.kind));
 }
 
-const MILESTONE_OF: Readonly<Record<string, string>> = {
-  waitFrame: 'milestone 6 ("waitFrame(), and the real Hello World")',
-};
-
+/** Every IR statement/expression kind the real front end can produce is
+ * handled somewhere above as of milestone 6 — `asm`/`stringCopy`/
+ * `storeIndex` are real, named, permanent-or-still-open gaps (not
+ * milestone numbers to catch up to), and anything else reaching here is
+ * either a genuinely unknown kind (a fixture, or a future front-end
+ * addition this file hasn't caught up to yet) or a linker bug
+ * (`namespaceCall` never survives linking — see `callTarget`'s own doc). */
 function unsupported(kind: string): string {
-  const milestone = MILESTONE_OF[kind];
-  if (milestone) return `'${kind}' is not lowered yet — the web track's own ${milestone}`;
   if (kind === 'asm') return "'asm' blocks are 6502-specific machine code and are never lowered on the web target";
   if (kind === 'stringCopy') return "'stringCopy' (a string<N> assignment) is not lowered yet — it needs a RAM buffer address for the target, a real gap milestone 5 left open";
   if (kind === 'storeIndex') return "'storeIndex' (writing an array element) is not lowered yet for a RAM (`let`) or hardware (`@address`) array — only reading a `const` array is, milestone 5's own scope";
@@ -453,6 +469,16 @@ function statement(node: IrStatement, ctx: Ctx): number[] {
     // says explicitly what mos gets for nothing.
     return callTarget(ctx, node.name!).returnsValue ? [...code, Opcode.drop] : code;
   }
+  if (node.kind === 'waitFrame') {
+    // `waitFrame()` has no IR fields of its own (ir/index.mjs's own
+    // `{ kind: 'waitFrame' }`) and always lowers to a call with no
+    // arguments — build() already scanned the whole program for this
+    // kind before lowering anything, so `waitFrameIndex` being unset here
+    // would be that scan disagreeing with what's actually in the tree, a
+    // build() bug rather than a missing lowering rule.
+    if (ctx.waitFrameIndex === null) throw new LowerError("'waitFrame' reached lowering with no import declared — a build() bug, not a missing lowering rule");
+    return [Opcode.call, ...unsignedLEB128(ctx.waitFrameIndex)];
+  }
   throw new LowerError(unsupported(node.kind));
 }
 
@@ -500,6 +526,12 @@ export interface LowerOptions {
    * address and element width — `build()`'s own job to assign, once, up
    * front. */
   arrays?: Map<string, { address: number; elementWidth: number }>;
+  /** The imported `env.waitFrame`'s own wasm function index — `build()`'s
+   * own job to assign (always 0, when assigned at all) once, up front,
+   * from the same whole-program scan that decides whether to declare the
+   * import section entry in the first place. `null` (the default) when
+   * the program never calls waitFrame() anywhere. */
+  waitFrameIndex?: number | null;
 }
 
 /** Lowers a function body to wasm instruction bytes. */
@@ -514,6 +546,7 @@ export function lower(body: IrStatement[], options: LowerOptions = {}): LowerRes
     functions: options.functions ?? new Map(),
     strings: options.strings ?? [],
     arrays: options.arrays ?? new Map(),
+    waitFrameIndex: options.waitFrameIndex ?? null,
   };
   try {
     const code = statements(body, ctx);
