@@ -119,7 +119,7 @@ export function resolveEntryPath(config, target, entryArg) {
  *   `hardware` is the resolved hardware the program was built for, for
  *   whoever runs it next.
  */
-export async function compile(target, entryArg, { pal = false, profile, hardware: overrides = {} } = {}) {
+export async function compile(target, entryArg, { pal = false, profile, hardware: overrides = {}, report = false } = {}) {
   const config = await loadConfig(process.cwd(), '8bs build');
 
   const frameRateResult = resolveFrameRate(config);
@@ -241,7 +241,7 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   if (target === 'web') {
     const { build } = await import('@8bitscript/compiler/wasm');
     const outFile = resolve('dist', `${stem}.wasm`);
-    const result = await build(ir, { outFile, frameRate });
+    const result = await build(ir, { outFile, frameRate, report });
     if (!result.ok) {
       process.stderr.write(`8bs build: ${result.error}\n`);
       return { ok: false };
@@ -252,6 +252,7 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
     process.stdout.write(`built ${outFile}\n`);
     process.stdout.write(`web bundle: ${webDir}/\n`);
     process.stdout.write(`${memoryLine(ir.memory)}\n`);
+    if (result.sizeReport) process.stdout.write(sizeReportLines(result.sizeReport, result.bytes.length));
     return { ok: true, outFile, frameRate, hardware, webDir };
   }
 
@@ -263,13 +264,14 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   if (REGION_TARGETS.has(target)) nameParts.push(pal ? 'pal' : 'ntsc');
   const ext = outputExtension(target, hardware);
   const outFile = resolve('dist', `${nameParts.join('-')}.${ext}`);
-  const result = await build(ir, { machine: target, hardware, outFile, frameRate });
+  const result = await build(ir, { machine: target, hardware, outFile, frameRate, report });
   if (!result.ok) {
     process.stderr.write(`8bs build: ${result.error}\n`);
     return { ok: false };
   }
   process.stdout.write(`built ${outFile}\n`);
   process.stdout.write(`${memoryLine(ir.memory, result.memory)}\n`);
+  if (result.sizeReport) process.stdout.write(sizeReportLines(result.sizeReport, result.memory.program));
   return { ok: true, outFile, frameRate, hardware };
 }
 
@@ -279,8 +281,7 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
  * backend's size report when the build returns one (`memory.variables`
  * and `memory.program`), else as declared in the source. The machine's
  * own limit is the backend's: a program that does not fit does not
- * build, and the build says so. The native backends do not yet return
- * a size report (Bare Metal, 0.2.0).
+ * build, and the build says so.
  */
 export function memoryLine(declared, measured = null) {
   if (measured) {
@@ -289,9 +290,27 @@ export function memoryLine(declared, measured = null) {
   return `memory: ${declared.variables} bytes of RAM for variables, ${declared.data} bytes of constant data (as declared)`;
 }
 
+/**
+ * `--size`'s own breakdown, under the memory line: every function the
+ * build actually compiled (dead ones are already gone — see
+ * @8bitscript/compiler's own reachability pruning) plus each backend's
+ * fixed-cost buckets (a runtime routine, a module's own section framing,
+ * …), largest first, with a percentage of `total` so a big program's own
+ * worst offender is obvious without doing the division by hand.
+ */
+export function sizeReportLines(entries, total) {
+  const width = Math.max(...entries.map((e) => String(e.bytes).length));
+  const lines = entries.map((e) => {
+    const pct = total > 0 ? ((e.bytes / total) * 100).toFixed(1) : '0.0';
+    return `  ${String(e.bytes).padStart(width)}  ${pct.padStart(5)}%  ${e.name}`;
+  });
+  return `size breakdown:\n${lines.join('\n')}\n`;
+}
+
 /** @returns {Promise<number>} exit code */
 export async function build(args) {
   const pal = args.includes('--pal');
+  const report = args.includes('--size');
   const targetIndex = args.indexOf('--target');
   const hw = hardwareArgs(args);
   if (!hw.ok) {
@@ -310,12 +329,12 @@ export async function build(args) {
     process.stderr.write(
       'Usage: 8bs build --target <pet|web>\n'
       + '                 (vic20, c64, c128, atari8, nes, cx16, mega65 are parked until a later release)\n'
-      + '                 [--pal]\n'
+      + '                 [--pal] [--size]\n'
       + HARDWARE_USAGE
       + '                 [entry.8bs]\n',
     );
     return 2;
   }
-  const { ok } = await compile(target, entry, { pal, profile: hw.profile, hardware: hw.overrides });
+  const { ok } = await compile(target, entry, { pal, profile: hw.profile, hardware: hw.overrides, report });
   return ok ? 0 : 1;
 }

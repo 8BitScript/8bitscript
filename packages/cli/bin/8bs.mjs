@@ -13,7 +13,7 @@ const PLANNED = ['dev'];
 const usage = () => `Usage: 8bs <command> [options]
 
 Implemented:
-  build --target <t> [--pal] [--profile <name>]
+  build --target <t> [--pal] [--size] [--profile <name>]
     [--hardware option=value,...] [entry]
                                Compile for a target. This release (0.2.0)
                                builds for pet and web; vic20, c64, c128,
@@ -24,9 +24,11 @@ Implemented:
                                the machine's catalog (8032) or a profile the
                                project composes in 8bs.config.ts — and
                                --hardware sets single options on top
-                               (model=4032). "8bs targets" lists every
-                               option, value and preset, and which machines
-                               this release builds for.
+                               (model=4032). --size prints a per-function
+                               breakdown of the built program, largest
+                               first, under the memory line. "8bs targets"
+                               lists every option, value and preset, and
+                               which machines this release builds for.
   run <target> [--pal] [--profile <name>]
     [--hardware option=value,...] [entry]
                                Build, then open that target's emulator

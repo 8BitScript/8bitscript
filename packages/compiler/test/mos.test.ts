@@ -67,6 +67,31 @@ test('build() for the PET writes a 15-byte .prg for an empty program: load addre
   }
 });
 
+test('build() only returns a sizeReport when options.report asks for one, and it always sums to the real bytes.length', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+  try {
+    const outFile = join(scratch, 'out.prg');
+    const plain = await build(ir, { machine: 'pet', hardware, outFile, frameRate: 60 });
+    assert.equal(plain.ok, true);
+    if (!plain.ok) return;
+    assert.equal(plain.sizeReport, undefined, 'no --size, no report — the CLI never asked for one');
+
+    const reported = await build(ir, { machine: 'pet', hardware, outFile, frameRate: 60, report: true });
+    assert.equal(reported.ok, true);
+    if (!reported.ok) return;
+    assert.ok(Array.isArray(reported.sizeReport) && reported.sizeReport.length > 0);
+    const sum = reported.sizeReport.reduce((total, e) => total + e.bytes, 0);
+    assert.equal(sum, reported.bytes.length, 'every named piece has to add up to the whole program, not just most of it');
+    // Largest first — an empty main() still has a real biggest piece (the
+    // BASIC stub), not a report in declaration or insertion order.
+    for (let i = 1; i < reported.sizeReport.length; i++) {
+      assert.ok(reported.sizeReport[i - 1].bytes >= reported.sizeReport[i].bytes, 'not sorted largest first');
+    }
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
 test('build() for the PET lowers the eleven-store HELLO WORLD fixture to exactly seventy bytes (milestone 4 acceptance test)', async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
   try {
