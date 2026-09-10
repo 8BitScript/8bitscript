@@ -200,6 +200,32 @@ test('milestone 2: while (true) { ...; break; } — the exact shape hello-world\
   assert.equal(await run(main, '8bs-web-native-'), 5);
 });
 
+test('milestone 2: a function that returns from inside every branch of an if/else, with nothing after it, still validates', async () => {
+  // Every path through this body returns from inside the `if`/`else`
+  // itself, so the function's own closing `end` is reached with the `if`
+  // frame already popped and an empty stack — but the type section
+  // declares one result. Without an `unreachable` before that `end`,
+  // WebAssembly.compile() correctly refuses this exact shape ("expected 1
+  // elements on the stack for fallthru, found 0"), the same class of bug
+  // the `&&`/`||` blocktype fix above caught, just found one level up (the
+  // function body itself, not one of its own sub-expressions). This is
+  // also `asciiToScreenCode`'s own real shape in the PET text package
+  // (packages/pet/src/text.8bs) — milestone 5's own gate links it for
+  // real, so this has to hold before that milestone can.
+  const branch = (cond: number): IrFunction => ({
+    name: 'main',
+    returnType: 'utinyint',
+    body: [{
+      kind: 'if',
+      test: num(cond, 'bool'),
+      then: [{ kind: 'return', value: num(1, 'utinyint') }],
+      else: [{ kind: 'return', value: num(2, 'utinyint') }],
+    }],
+  });
+  assert.equal(await run(branch(1), '8bs-web-native-'), 1);
+  assert.equal(await run(branch(0), '8bs-web-native-'), 2);
+});
+
 test('milestone 2: continue still runs a for loop\'s own update, not just while\'s', async () => {
   // Sums 0..9 except 5 (45 - 5 = 40) by continuing straight past it. This
   // is also the test that would actually hang, not just miscount, if

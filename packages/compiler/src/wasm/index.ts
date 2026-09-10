@@ -118,7 +118,17 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // value type), then the lowered instructions, then the `end` that closes
   // every function body.
   const localsDecl = lowered.localCount > 0 ? [[...unsignedLEB128(lowered.localCount), ValType.i32]] : [];
-  const entryBody = [...vector(localsDecl), ...lowered.code, Opcode.end];
+  // A non-void function whose every path returns from inside a branch (an
+  // `if`/`else` with no code after it, say) reaches this closing `end` with
+  // an empty stack once the branch's own `if` frame pops — but the type
+  // section declared one result, so the validator refuses it: "expected 1
+  // elements on the stack for fallthru, found 0." `unreachable` before the
+  // `end` fixes this for every shape, not just this one: it never actually
+  // runs when a real `return` already left the function first (dead code,
+  // one byte), and it satisfies validation without this file trying to
+  // prove the body provably returns on every path.
+  const trailer = results.length > 0 ? [Opcode.unreachable, Opcode.end] : [Opcode.end];
+  const entryBody = [...vector(localsDecl), ...lowered.code, ...trailer];
   const codeSection = section(SectionId.code, vector([encodeFunctionBody(entryBody)]));
 
   const bytes = assembleModule([typeSection, functionSection, memorySection, exportSection, codeSection]);
