@@ -73,6 +73,49 @@ Check the stores before calling it done: `npm view @8bitscript/cli version`,
 the Marketplace item `8bitscript.8bitscript-lang`, and
 `https://open-vsx.org/api/8bitscript/8bitscript-lang`.
 
+## A brand-new package's first publish
+
+0.2.0 added `@8bitscript/examples` — the first new package since 0.1.0.
+`release.mjs` (already dependency-ordered) reached it 15 packages into
+the batch and both auth paths refused it:
+
+```
+[WARN] Skipped OIDC: ERR_PNPM_AUTH_TOKEN_EXCHANGE: Failed token exchange
+request with body message: Unknown error (status code 404)
+Error: Failed to publish package @8bitscript/examples@0.2.0
+(status 404 Not Found): {"error":"Not found"}
+```
+
+Both failures have the same root cause: npm Trusted Publishing and the
+`NODE_AUTH_TOKEN` fallback both assume the package already exists —
+Trusted Publishing has no trust relationship to attach to a name
+nothing has ever claimed, and the token's own publish grant appears to
+cover updating an existing package, not creating a new one. Everything
+downstream of the new package in the dependency graph never got
+attempted, and `docs`/`extension`/`github-release` (`needs: npm`) were
+skipped.
+
+`release.mjs` now checks for this before publishing anything (a bare
+`npm view <name>`, not `<name>@<version>` — existence, not this
+version) and, if it finds one, publishes just the new package(s) first,
+in their own isolated `pnpm -r publish`, before touching the other 20.
+A first-publish failure is now immediate and cheap, not discovered
+partway through a full batch — but it still needs the same manual fix,
+since only an npm account can bootstrap a name that's never existed:
+
+1. `npm login` as an `@8bitscript` org owner or member with publish
+   rights (`npm org ls 8bitscript` shows your role).
+2. `git pull` — the working tree needs the same version `release.mjs`
+   was running with, or the manual publish and the automated one
+   disagree on what "this version" means.
+3. `cd packages/<name> && npm publish --access public` — a one-time
+   bootstrap, the same way every other package's first publish, long
+   before Trusted Publishing existed, must have happened once too.
+4. Re-dispatch: `gh workflow run release.yml --ref trunk` (see
+   "Recovering a half-finished release" above). `alreadyOnNpm()` skips
+   the package you just published by hand and picks up wherever the
+   batch actually stopped.
+
 ## Open VSX namespace
 
 `publisher` in `editors/vscode/package.json` is the Open VSX namespace

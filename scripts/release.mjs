@@ -37,6 +37,23 @@ async function alreadyOnNpm(name, version) {
   }
 }
 
+// A package npm has never seen at any version, not just missing this one —
+// the real 0.2.0 release hit this for real: @8bitscript/examples 404'd on
+// both OIDC Trusted Publishing (ERR_PNPM_AUTH_TOKEN_EXCHANGE — no trust
+// relationship exists for a package with nothing to attach it to) and the
+// NODE_AUTH_TOKEN fallback (ERR_PNPM_FAILED_TO_PUBLISH, plain 404 — the
+// token can publish to a package that exists, not create one), 15 packages
+// into the batch, stranding everything after it. `npm view <name>` (no
+// version) is a clean existence check either way.
+async function isNewToNpm(name) {
+  try {
+    await exec('npm', ['view', name], { cwd: ROOT });
+    return false;
+  } catch {
+    return true;
+  }
+}
+
 const { stdout: status } = await exec('git', ['status', '--porcelain'], { cwd: ROOT });
 if (status.trim() && !process.argv.includes('--allow-dirty')) {
   process.stderr.write('Working tree is not clean. Commit, or pass --allow-dirty.\n');
@@ -80,8 +97,38 @@ for (const name of dirs) {
 if (pending.length === 0) {
   process.stdout.write(`All @8bitscript/* ${version} packages are already on npm.\n`);
 } else {
-  process.stdout.write(`Publishing ${pending.length} @8bitscript/* ${version} package(s) from the workspace.\n`);
-  const filters = pending.flatMap((name) => ['--filter', `./packages/${name}`]);
-  await run('pnpm', ['-r', 'publish', ...filters, '--access', 'public', '--no-git-checks']);
+  // A brand-new package publishes on its own, first, before anything else
+  // in this run is touched — so a failure there (npm Trusted Publishing
+  // has no trust relationship to attach to a package that's never
+  // existed; a classic token often can't create one either, only publish
+  // to one that already exists) is cheap and immediate, not discovered
+  // partway through a 21-package batch with everything after it stranded.
+  // See .github/AGENTS.md's "A brand-new package's first publish" section
+  // for the manual recovery this can still need — npm ownership and
+  // trusted-publisher configuration are account-side, not something this
+  // script can fix itself.
+  const newPackages = [];
+  for (const name of pending) {
+    const pkg = JSON.parse(await readFile(join(ROOT, 'packages', name, 'package.json'), 'utf8'));
+    if (await isNewToNpm(pkg.name)) newPackages.push(name);
+  }
+  if (newPackages.length > 0) {
+    process.stdout.write(
+      `\n⚠ ${newPackages.length} package(s) have never been published: ${newPackages.map((n) => `@8bitscript/${n}`).join(', ')}.\n` +
+        'Publishing these first, in isolation — if this fails, see .github/AGENTS.md ' +
+        '("A brand-new package\'s first publish"): npm login as an org owner/member with ' +
+        'publish rights, `cd packages/<name> && npm publish --access public` once, then ' +
+        're-dispatch this workflow. Nothing else in this run is touched until this succeeds.\n\n',
+    );
+    const newFilters = newPackages.flatMap((name) => ['--filter', `./packages/${name}`]);
+    await run('pnpm', ['-r', 'publish', ...newFilters, '--access', 'public', '--no-git-checks']);
+    process.stdout.write(`Published the new package(s). Continuing with the rest.\n\n`);
+  }
+  const rest = pending.filter((name) => !newPackages.includes(name));
+  if (rest.length > 0) {
+    process.stdout.write(`Publishing ${rest.length} @8bitscript/* ${version} package(s) from the workspace.\n`);
+    const filters = rest.flatMap((name) => ['--filter', `./packages/${name}`]);
+    await run('pnpm', ['-r', 'publish', ...filters, '--access', 'public', '--no-git-checks']);
+  }
   process.stdout.write(`Published ${version}.\n`);
 }
