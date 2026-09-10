@@ -1042,3 +1042,95 @@ test('build() refuses a waitFrame() reached with no import declared, naming it a
   assert.match(result.ok ? '' : result.error, /no import declared/);
 });
 
+// ---- bitwise and shift operators --------------------------------------
+//
+// Not a numbered roadmap milestone — a real, blocking gap found the first
+// time the actual, unmodified hello-world example was built for web after
+// milestones 1-6 landed: @8bitscript/web/screen.8bs's own setColors masks
+// every colour byte with `& 15`, and this backend had deferred every
+// bitwise/shift operator at every earlier milestone as "real hardware
+// exists, nothing built so far needs it." This is that need.
+
+const bitop = (operator: string, left: IrExpr, right: IrExpr, type: string): IrExpr => ({ kind: 'binop', operator, left, right, type });
+
+test('bitwise acceptance: & | ^ compute the real bit patterns, not just something', async () => {
+  const main: IrFunction = {
+    name: 'main',
+    returnType: 'utinyint',
+    body: [
+      { kind: 'return', value: bitop('^', bitop('&', num(0xff, 'utinyint'), num(0x0f, 'utinyint'), 'utinyint'), bitop('|', num(0xf0, 'utinyint'), num(0x0f, 'utinyint'), 'utinyint'), 'utinyint') },
+    ],
+  };
+  // (0xff & 0x0f) ^ (0xf0 | 0x0f) = 0x0f ^ 0xff = 0xf0
+  assert.equal(await run(main, '8bs-web-native-'), 0xf0);
+});
+
+test('bitwise acceptance: the exact screen.setColors shape — masking a computed, out-of-range parameter with & 15', async () => {
+  const main: IrFunction = {
+    name: 'main',
+    params: [{ name: 'border', type: 'utinyint' }],
+    returnType: 'utinyint',
+    body: [{ kind: 'return', value: bitop('&', ref('border', 'utinyint'), num(15, 'utinyint'), 'utinyint') }],
+  };
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-web-native-'));
+  try {
+    const outFile = join(scratch, 'out.wasm');
+    const result = await build({ entry: 'main', functions: [main] }, { outFile, frameRate: 60 });
+    assert.equal(result.ok, true, result.ok ? '' : result.error);
+    if (!result.ok) return;
+    const module = await WebAssembly.compile(result.bytes);
+    const instance = await WebAssembly.instantiate(module, {});
+    // 200 & 15 = 8 — a real out-of-range colour value (the exact shape a
+    // caller passing a bad border colour produces), masked into 0-15 the
+    // same way setColors's own `border & 15` does against a live wasm
+    // call, not a hand-checked constant.
+    assert.equal((instance.exports.main as (n: number) => number)(200), 8);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('shift acceptance: << and unsigned >> compute the real result, masked to the declared width', async () => {
+  const main: IrFunction = {
+    name: 'main',
+    returnType: 'utinyint',
+    body: [
+      // 0xff << 4 = 0xff0, masked to utinyint (8 bits) is 0xf0 — proves
+      // the post-shift mask actually runs, not just that shl exists.
+      { kind: 'local', name: 'shifted', type: 'utinyint', init: bitop('<<', num(0xff, 'utinyint'), num(4, 'utinyint'), 'utinyint') },
+      { kind: 'return', value: bitop('>>', ref('shifted', 'utinyint'), num(4, 'utinyint'), 'utinyint') },
+    ],
+  };
+  // (0xff << 4) masked to 0xf0, then 0xf0 >> 4 = 0x0f
+  assert.equal(await run(main, '8bs-web-native-'), 0x0f);
+});
+
+test('bitwise/shift: refuses >> on a signed value, by name — the same gap every other width-sensitive operator here carries', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-web-native-'));
+  try {
+    const outFile = join(scratch, 'out.wasm');
+    const main: IrFunction = {
+      name: 'main',
+      returnType: 'int',
+      body: [{ kind: 'return', value: bitop('>>', num(-16, 'int'), num(2, 'int'), 'int') }],
+    };
+    const result = await build({ entry: 'main', functions: [main] }, { outFile, frameRate: 60 });
+    assert.equal(result.ok, false);
+    assert.match(result.ok ? '' : result.error, /'>>' on a signed value/);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('bitwise/shift: << needs no sign refusal — the same bits shift out regardless of how the operand is declared', async () => {
+  const main: IrFunction = {
+    name: 'main',
+    returnType: 'int',
+    body: [{ kind: 'return', value: bitop('<<', num(-1, 'int'), num(1, 'int'), 'int') }],
+  };
+  // -1 as a 32-bit two's-complement pattern (all ones) shifted left by 1
+  // is -2 — no refusal, and the real arithmetic result, not just "didn't
+  // throw."
+  assert.equal(await run(main, '8bs-web-native-'), -2);
+});
+
