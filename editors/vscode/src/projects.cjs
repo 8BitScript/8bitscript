@@ -314,7 +314,7 @@ function loadProject(configPath, overrides = {}) {
  */
 function loadProjects(configPaths) {
   const unique = [...new Set(configPaths.map((p) => path.resolve(p)))];
-  return unique.sort().map(loadProject);
+  return unique.sort((a, b) => a.localeCompare(b)).map((p) => loadProject(p));
 }
 
 /**
@@ -403,7 +403,7 @@ function shippedPackages(toolchain) {
       if (pkg && !found.has(dir)) found.set(dir, { dir, pkg });
     }
   }
-  return [...found.keys()].sort().map((dir) => found.get(dir));
+  return [...found.keys()].sort((a, b) => a.localeCompare(b)).map((dir) => found.get(dir));
 }
 
 /**
@@ -513,6 +513,13 @@ function byKind(projects) {
   return groups.length > 1 ? groups : null;
 }
 
+/** `text`, trailing whitespace and one trailing comma (if either is there) trimmed, then a single comma and newline put back — plain string methods rather than a trailing `,?\s*$` regex, which SonarQube flags for its own quadratic worst case on a long run of trailing whitespace. */
+function withTrailingComma(text) {
+  const trimmed = text.trimEnd();
+  const bare = trimmed.endsWith(',') ? trimmed.slice(0, -1) : trimmed;
+  return `${bare},\n`;
+}
+
 /**
  * Write one system into an 8bs.config.ts's `systems` block, and give back
  * the whole file.
@@ -541,9 +548,7 @@ function insertSystem(text, name, entry) {
   if (block) {
     const indent = `${block.indent}  `;
     const without = removeKey(text.slice(block.start, block.end), name);
-    const existing = without.trim() === ''
-      ? ''
-      : without.replace(/^\n*/, '').replace(/,?\s*$/, ',\n');
+    const existing = without.trim() === '' ? '' : withTrailingComma(without.replace(/^\n*/, ''));
     return text.slice(0, block.start)
       + `\n${existing}${indent}${quoteKey(name)}: ${body},\n${block.indent}`
       + text.slice(block.end);
@@ -552,7 +557,7 @@ function insertSystem(text, name, entry) {
   const root = objectBody(text, /export\s+default\s*\{/);
   if (!root) return null;
   const indent = `${root.indent}  `;
-  const before = text.slice(root.start, root.end).replace(/\s*$/, '');
+  const before = text.slice(root.start, root.end).trimEnd();
   return text.slice(0, root.start)
     + `${before.endsWith(',') || before === '' ? before : `${before},`}\n`
     + `${indent}systems: {\n${indent}  ${quoteKey(name)}: ${body},\n${indent}},\n${root.indent}`
@@ -599,12 +604,34 @@ function objectBody(text, pattern) {
   const line = text.lastIndexOf('\n', match.index + 1) + 1;
   const indent = /^[ \t]*/.exec(text.slice(line))[0];
   let depth = 1;
-  for (let i = start; i < text.length; i += 1) {
+  // A while loop, not a for: skipping past a comment or a string literal
+  // means jumping the cursor ahead by more than one character, which a
+  // for loop's own control variable being reassigned in its body is a
+  // SonarQube smell (S2310) even though it is exactly the right tool for
+  // a hand-rolled scanner — a while loop's own cursor is expected to move
+  // however the body needs it to.
+  let i = start;
+  while (i < text.length) {
     const c = text[i];
-    if (c === '/' && text[i + 1] === '/') { i = text.indexOf('\n', i); if (i < 0) return null; continue; }
-    if (c === '/' && text[i + 1] === '*') { i = text.indexOf('*/', i); if (i < 0) return null; i += 1; continue; }
+    if (c === '/' && text[i + 1] === '/') {
+      const next = text.indexOf('\n', i);
+      if (next < 0) return null;
+      i = next + 1;
+      continue;
+    }
+    if (c === '/' && text[i + 1] === '*') {
+      const end = text.indexOf('*/', i);
+      if (end < 0) return null;
+      i = end + 2;
+      continue;
+    }
     if (c === "'" || c === '"' || c === '`') {
-      for (i += 1; i < text.length && text[i] !== c; i += 1) if (text[i] === '\\') i += 1;
+      i += 1;
+      while (i < text.length && text[i] !== c) {
+        if (text[i] === '\\') i += 1;
+        i += 1;
+      }
+      i += 1;
       continue;
     }
     if (c === '{' || c === '[' || c === '(') depth += 1;
@@ -612,6 +639,7 @@ function objectBody(text, pattern) {
       depth -= 1;
       if (depth === 0) return { start, end: i, indent };
     }
+    i += 1;
   }
   return null;
 }

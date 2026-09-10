@@ -80,7 +80,7 @@ export function assembleRelaxed(program: Directive[], origin: number): AssembleR
     const inverse = INVERSE[mnemonic];
     if (!inverse) return result; // every relative mnemonic this backend emits is in INVERSE; an unknown one is a real bug, not ours to paper over
 
-    const relaxed = relaxOne(current, origin, parseInt(atHex, 16), inverse);
+    const relaxed = relaxOne(current, origin, Number.parseInt(atHex, 16), inverse);
     if (!relaxed) return result;
     current = relaxed;
   }
