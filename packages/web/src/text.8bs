@@ -14,11 +14,14 @@
 // most targets and a wasm-memory offset on this one.
 import { WebRegisters } from "./index.8bs";
 
-// Codes are ASCII, as they are everywhere (space, '0'-'9', 'A'-'Z' and a
-// little punctuation, upper case only); this buffer holds them as they
+// Codes are ASCII, as they are everywhere (space, '0'-'9', 'A'-'Z', 'a'-'z',
+// and a little punctuation — the checker's own portable character set,
+// packages/compiler/src/checker/index.mjs); this buffer holds them as they
 // come, and the host (packages/cli/src/web-runtime.mjs) draws whatever
 // isn't blank as the text it is, once per painted frame — there is no
-// character ROM here to need screen codes for.
+// character ROM here to need screen codes for, and no upper-case-only
+// limit either: a real system font draws lower case the same way it draws
+// upper case, matching @8bitscript/pet's own asciiToScreenCode.
 // ---- print: strings and number fields ------------------------------------
 //
 // `text.print(cell, s)` writes a string's characters into consecutive
