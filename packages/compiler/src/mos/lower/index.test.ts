@@ -22,6 +22,7 @@ const write = (address: number, value: number): IrStatement => ({
 });
 
 const u8 = (value: number): IrExpr => ({ kind: 'const', value, type: 'utinyint' });
+const u16 = (value: number): IrExpr => ({ kind: 'const', value, type: 'usmallint' });
 const ref = (name: string, type = 'utinyint'): IrExpr => ({ kind: 'ref', name, type });
 const bin = (operator: string, left: IrExpr, right: IrExpr, type = 'utinyint'): IrExpr => ({ kind: 'binop', operator, left, right, type });
 const local = (name: string, init: IrExpr, type = 'utinyint'): IrStatement => ({ kind: 'local', name, type, init });
@@ -76,11 +77,13 @@ test('a statement kind with no rule yet fails naming it, not silently', () => {
   assert.match(result.error, /no instruction-selection rule yet for the 'storeIndex' statement/);
 });
 
-test('a 16-bit local is refused by name, not truncated', () => {
+test('a 16-bit local is lowered (milestone 8), not refused — both bytes of the initializer land in a fresh zp pair', () => {
   const result = lower([local('x', { kind: 'const', value: 300, type: 'usmallint' }, 'usmallint')], ctx());
-  assert.equal(result.ok, false);
-  if (result.ok) return;
-  assert.match(result.error, /local 'x' is 'usmallint' \(2 bytes\): only 8-bit/);
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  assembles(result.program);
+  const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
+  assert.deepEqual(mnemonics, ['LDA', 'STA', 'LDA', 'STA', 'LDA', 'STA', 'LDA', 'STA']);
 });
 
 test('a local is declared once and read back through the same zero-page slot', () => {
@@ -246,11 +249,11 @@ test('return with a value evaluates it into A, then jumps to the exit label — 
   assembles(result.program);
 });
 
-test('return with a 16-bit value is refused by name — 16-bit lands at milestone 8', () => {
+test('return with a 16-bit value is still refused by name — milestone 8 doesn\'t widen return values', () => {
   const result = lower([{ kind: 'return', value: { kind: 'const', value: 300, type: 'usmallint' } }], ctx());
   assert.equal(result.ok, false);
   if (result.ok) return;
-  assert.match(result.error, /is 'usmallint' \(2 bytes\): only 8-bit/);
+  assert.match(result.error, /is 'usmallint' \(2 bytes\): this path only lowers 8-bit values/);
 });
 
 test('a bare return jumps to the function-exit label, which the epilogue can sit right after', () => {
@@ -461,7 +464,13 @@ test('an expression kind with no rule yet fails naming it, not silently', () => 
 // argument) — the same reason callSite() itself takes a narrow structural
 // type rather than IrExpr. A call node needs neither field.
 const call = (name: string, args: IrExpr[], type: string | null = 'utinyint') => ({ kind: 'call' as const, name, args, type });
-const site = (label: string, paramAddresses: number[], returnType = 'utinyint'): FunctionSite => ({ label, paramAddresses, returnType });
+// `widths` defaults every parameter to 1 byte — every pre-milestone-8 test
+// using this only ever described 8-bit calling interfaces.
+const site = (label: string, paramAddresses: number[], returnType = 'utinyint', widths?: (1 | 2)[]): FunctionSite => ({
+  label,
+  params: paramAddresses.map((address, i) => ({ address, width: widths?.[i] ?? 1 })),
+  returnType,
+});
 
 test('a call used as a value stores each argument into the callee\'s own address, in order, then JSRs — the result is left in A like any other value', () => {
   const result = lower(
@@ -506,15 +515,7 @@ test('an argument-count mismatch against the FunctionSite fails naming both coun
   assert.match(result.error, /1 argument\(s\) but the function has 2 parameter\(s\)/);
 });
 
-test('memoryWrite of a computed address is refused; a missing value is refused; a zeropage address uses STA zeropage', () => {
-  const computed = lower([{
-    kind: 'memoryWrite',
-    address: { kind: 'ref', name: 'p', type: 'usmallint' },
-    value: u8(1),
-  }], ctx([['p', { address: 0x10, type: 'usmallint' }]]));
-  assert.equal(computed.ok, false);
-  if (!computed.ok) assert.match(computed.error, /address must be a literal/);
-
+test('a missing value is refused; a literal address uses STA zeropage', () => {
   const missing = lower([{ kind: 'memoryWrite', address: { kind: 'const', value: 0x8000, type: 'usmallint' }, value: null }], ctx());
   assert.equal(missing.ok, false);
   if (!missing.ok) assert.match(missing.error, /no value to write/);
@@ -528,11 +529,231 @@ test('memoryWrite of a computed address is refused; a missing value is refused; 
   if (sta?.kind === 'instruction') assert.equal(sta.mode, 'zeropage');
 });
 
-test('a 16-bit assignment is refused, not truncated to a byte', () => {
-  const result = lower([assign('wide', u8(1))], ctx([['wide', { address: 0x10, type: 'usmallint' }]]));
+// ---- milestone 8: 16-bit values ------------------------------------------
+//
+// `expr16()` leaves its result at a zp address it returns rather than in
+// the accumulator (see the file header) — these tests read the emitted
+// instructions to confirm the *shape* each rule produces (the carry/borrow
+// actually chains from the low byte into the high byte, the right
+// addressing mode is used); the milestone's own gate — a real PET build,
+// run, and screenshot of `text.putChar` printing past cell 255 — is what
+// proves the arithmetic is correct on real hardware, not these.
+
+test('memoryWrite to a computed address evaluates the pointer, then the value, then stores through (zp),Y with Y forced to 0', () => {
+  const result = lower([{
+    kind: 'memoryWrite',
+    address: bin('+', u16(0x8000), ref('cell', 'usmallint'), 'usmallint'),
+    value: u8(7),
+  }], ctx([['cell', { address: 0x10, type: 'usmallint' }]]));
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  assembles(result.program);
+  const instructions = result.program.filter((d): d is Extract<Directive, { kind: 'instruction' }> => d.kind === 'instruction');
+  const mnemonics = instructions.map((d) => d.mnemonic);
+  // ...16-bit add (CLC/ADC/ADC) for the pointer, LDA #7 for the value, then
+  // LDY #0 and an indirect-indexed STA — never STA absolute/zeropage, which
+  // would silently write to whatever the *pointer's own* zp address is
+  // instead of through it.
+  assert.deepEqual(mnemonics.slice(-3), ['LDA', 'LDY', 'STA']);
+  const ldy = instructions[instructions.length - 2];
+  assert.equal(ldy.mode, 'immediate');
+  assert.equal(ldy.operand!.kind === 'value' ? ldy.operand!.value : -1, 0);
+  const sta = instructions[instructions.length - 1];
+  assert.equal(sta.mode, '(indirect),y');
+});
+
+test('memoryWrite to a computed address refuses an 8-bit address rather than guessing which byte is meant', () => {
+  const result = lower([{
+    kind: 'memoryWrite',
+    address: ref('cell', 'utinyint'),
+    value: u8(1),
+  }], ctx([['cell', { address: 0x10, type: 'utinyint' }]]));
   assert.equal(result.ok, false);
   if (result.ok) return;
-  assert.match(result.error, /assignment to 'wide' is 'usmallint'/);
+  assert.match(result.error, /memoryWrite: a computed address is 'utinyint'/);
+});
+
+test('16-bit addition chains carry from the low byte into the high byte: CLC once, then ADC low, ADC high', () => {
+  const result = lower([local('sum', bin('+', u16(0x00ff), u16(0x0001), 'usmallint'), 'usmallint')], ctx());
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  assembles(result.program);
+  const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
+  // Two 16-bit consts (4 LDA/STA pairs = 8) then CLC, LDA, ADC, STA, LDA,
+  // ADC, STA (the addition itself), then the 2-byte copy into the local.
+  const clcIndex = mnemonics.indexOf('CLC');
+  assert.ok(clcIndex >= 0, 'no CLC before the 16-bit addition');
+  assert.deepEqual(mnemonics.slice(clcIndex, clcIndex + 7), ['CLC', 'LDA', 'ADC', 'STA', 'LDA', 'ADC', 'STA']);
+  // Only one CLC for the whole 16-bit add — the high byte's ADC relies on
+  // the low byte's own carry out, never re-cleared in between.
+  assert.equal(mnemonics.filter((m) => m === 'CLC').length, 1);
+});
+
+test('16-bit subtraction chains borrow the same way: SEC once, then SBC low, SBC high', () => {
+  const result = lower([local('diff', bin('-', u16(0x0100), u16(0x0001), 'usmallint'), 'usmallint')], ctx());
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  assembles(result.program);
+  const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
+  const secIndex = mnemonics.indexOf('SEC');
+  assert.ok(secIndex >= 0, 'no SEC before the 16-bit subtraction');
+  assert.deepEqual(mnemonics.slice(secIndex, secIndex + 7), ['SEC', 'LDA', 'SBC', 'STA', 'LDA', 'SBC', 'STA']);
+  assert.equal(mnemonics.filter((m) => m === 'SEC').length, 1);
+});
+
+test('16-bit `*` is refused by name, not lowered as if it were `+`', () => {
+  const result = lower([local('x', bin('*', u16(2), u16(3), 'usmallint'), 'usmallint')], ctx());
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /no 16-bit instruction-selection rule yet for the '\*' operator/);
+});
+
+test('a 16-bit assignment from a 16-bit value copies both bytes', () => {
+  const result = lower([assign('wide', u16(0x1234))], ctx([['wide', { address: 0x10, type: 'usmallint' }]]));
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  assembles(result.program);
+  const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
+  assert.deepEqual(mnemonics.slice(-4), ['LDA', 'STA', 'LDA', 'STA']);
+});
+
+// The front end never widens a narrower value to match a wider declared
+// target (verified against ir/index.mjs — see exprTo16's own comment in
+// lower/index.ts): `text.putChar(0, 65)` is exactly this shape (`0` is a
+// perfectly good utinyint literal; putChar's own `cell` is usmallint), so
+// this backend widens at the boundary instead of refusing code that's
+// this ordinary.
+test('an 8-bit unsigned value assigned to a 16-bit target is zero-extended, not refused', () => {
+  const result = lower([assign('wide', u8(200))], ctx([['wide', { address: 0x10, type: 'usmallint' }]]));
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  assembles(result.program);
+  const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
+  // LDA #200 (the 8-bit value), STA temp-lo, LDA #0, STA temp-hi (the
+  // zero-extension), then LDA temp-lo/STA wide, LDA temp-hi/STA wide+1
+  // (the copy into the target).
+  assert.deepEqual(mnemonics, ['LDA', 'STA', 'LDA', 'STA', 'LDA', 'STA', 'LDA', 'STA']);
+  const secondLoad = instruction(result.program[2]);
+  assert.equal(secondLoad.operand!.kind === 'value' ? secondLoad.operand!.value : -1, 0);
+});
+
+test('a signed value narrower than 16 bits is refused rather than sign-extended', () => {
+  const result = lower([assign('wide', ref('n', 'tinyint'))], ctx([['wide', { address: 0x10, type: 'usmallint' }], ['n', { address: 0x20, type: 'tinyint' }]]));
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /'ref' is 'tinyint': a signed value narrower than 16 bits can't widen into one yet/);
+});
+
+test('a bool is refused rather than zero-extended into a 16-bit target — the checker should already rule this out', () => {
+  const result = lower([assign('wide', ref('flag', 'bool'))], ctx([['wide', { address: 0x10, type: 'usmallint' }], ['flag', { address: 0x20, type: 'bool' }]]));
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /'ref' is 'bool': can't widen a bool into a 16-bit value/);
+});
+
+test('a 16-bit expression kind with no rule yet fails naming it, not silently', () => {
+  const result = lower([local('x', { kind: 'call', name: 'f', args: [], type: 'usmallint' }, 'usmallint')], ctx());
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /no 16-bit instruction-selection rule yet for the 'call' expression/);
+});
+
+test('exprTo16 refuses a value with no type at all, rather than assuming a width', () => {
+  const result = lower([assign('wide', { kind: 'const', value: 5 })], ctx([['wide', { address: 0x10, type: 'usmallint' }]]));
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /'const': no type on this IR node/);
+});
+
+test('exprTo16 refuses a value wider than 8 bits and narrower than 16 — no widening rule for it', () => {
+  const result = lower([assign('wide', ref('n', 'int'))], ctx([['wide', { address: 0x10, type: 'usmallint' }], ['n', { address: 0x20, type: 'int' }]]));
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /'ref' is 'int' \(4 bytes\): only an 8-bit value can widen into 16 bits/);
+});
+
+test('a comparison on a type wider than 16 bits is refused, not silently truncated to a byte or a pair', () => {
+  const result = lower(
+    [ifNode(bin('==', ref('a', 'int'), ref('b', 'int'), 'bool'), [])],
+    ctx([['a', { address: 0x10, type: 'int' }], ['b', { address: 0x20, type: 'int' }]]),
+  );
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /the '==' comparison operates on a 4-byte type — only 1- and 2-byte comparisons are lowered yet/);
+});
+
+test('a 16-bit `ref` returns the binding\'s own address unchanged — no copy for a plain read', () => {
+  const result = lower([local('out', ref('cell', 'usmallint'), 'usmallint')], ctx([['cell', { address: 0x10, type: 'usmallint' }]]));
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  assembles(result.program);
+  // LDA $10, STA out, LDA $11, STA out+1 — read straight from cell's own
+  // address, no intermediate temp copy.
+  const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
+  assert.deepEqual(mnemonics, ['LDA', 'STA', 'LDA', 'STA']);
+  const firstLoad = instruction(result.program[0]);
+  assert.equal(firstLoad.operand!.kind === 'value' ? firstLoad.operand!.value : -1, 0x10);
+});
+
+test('an unsigned 16-bit ordering comparison evaluates right - left the same way the 8-bit path does, chaining CMP into SBC', () => {
+  const result = lower(
+    [ifNode(bin('<', ref('cell', 'usmallint'), u16(1000), 'bool'), [])],
+    ctx([['cell', { address: 0x10, type: 'usmallint' }]]),
+  );
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  assembles(result.program);
+  const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
+  const cmpIndex = mnemonics.indexOf('CMP');
+  assert.ok(cmpIndex >= 0);
+  assert.deepEqual(mnemonics.slice(cmpIndex - 1, cmpIndex + 3), ['LDA', 'CMP', 'LDA', 'SBC']);
+});
+
+test('a mixed-width comparison (8-bit vs. 16-bit) is refused, not silently zero-extended', () => {
+  const result = lower(
+    [ifNode(bin('==', ref('cell', 'usmallint'), u8(1), 'bool'), [])],
+    ctx([['cell', { address: 0x10, type: 'usmallint' }]]),
+  );
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /needs both sides the same width — got 2 and 1 byte\(s\)/);
+});
+
+test('a call passes a 16-bit argument as two bytes into the callee\'s param pair', () => {
+  const result = lower(
+    [call('place', [u16(999), u8(1)])],
+    ctx([], [['place', site('__8bs_fn_place', [0x50, 0x52], 'void', [2, 1])]]),
+  );
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
+  // The 16-bit arg: LDA/STA/LDA/STA (const into a temp) then LDA/STA/LDA/STA
+  // (temp copied into the param pair) — then the 8-bit arg's own LDA/STA —
+  // then JSR.
+  assert.deepEqual(mnemonics.slice(-3), ['LDA', 'STA', 'JSR']);
+  assert.equal(mnemonics.filter((m) => m === 'JSR').length, 1);
+  const instructions = result.program.filter((d): d is Extract<Directive, { kind: 'instruction' }> => d.kind === 'instruction');
+  const jsr = instructions[instructions.length - 1];
+  assert.equal(jsr.operand!.kind === 'label' ? jsr.operand!.name : '', '__8bs_fn_place');
+});
+
+// The exact shape a real call site hits: `text.putChar(0, 65)` — a small,
+// perfectly ordinary utinyint-shaped literal argument against putChar's
+// own `cell: usmallint`. Without exprTo16's widening this fails to build
+// (discovered building the real milestone 8 gate program).
+test('a call widens an 8-bit literal argument into a 16-bit parameter rather than refusing it', () => {
+  const result = lower(
+    [call('place', [u8(0), u8(65)])],
+    ctx([], [['place', site('__8bs_fn_place', [0x50, 0x52], 'void', [2, 1])]]),
+  );
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
+  // LDA #0/STA/LDA #0/STA is the zero-extension of the first argument
+  // (value, then the high byte forced to 0), then the copy into the
+  // param pair, then the 8-bit arg, then JSR.
+  assert.deepEqual(mnemonics.slice(0, 4), ['LDA', 'STA', 'LDA', 'STA']);
+  assert.deepEqual(mnemonics.slice(-3), ['LDA', 'STA', 'JSR']);
 });
 
 test('a local with no type is refused rather than assumed 8-bit', () => {

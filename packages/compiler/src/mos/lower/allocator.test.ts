@@ -47,3 +47,27 @@ test('exhausting the budget throws ZpBudgetError naming what did not fit and wha
     return true;
   });
 });
+
+test('alloc16 hands out two adjacent bytes, low then high', () => {
+  const a = new LocalAllocator(0x90, 0x100);
+  assert.equal(a.alloc16('pair'), 0x90); // pair occupies $90 (lo) and $91 (hi)
+  assert.equal(a.used, 2);
+  assert.equal(a.alloc('next'), 0x92); // the bump cursor moved past both bytes
+});
+
+test('alloc16 refuses when only one byte remains, naming the 2-byte need', () => {
+  const a = new LocalAllocator(0xff, 0x100); // exactly one byte of room
+  assert.throws(() => a.alloc16("local 'cell'"), (error: unknown) => {
+    assert.ok(error instanceof ZpBudgetError);
+    assert.match((error as Error).message, /local 'cell' needs 2 byte\(s\) of zero page but only 1 byte\(s\) remain/);
+    return true;
+  });
+});
+
+test('alloc16 participates in mark/release like alloc does', () => {
+  const a = new LocalAllocator(0x90, 0x100);
+  const mark = a.mark();
+  a.alloc16('pair');
+  a.release(mark);
+  assert.equal(a.alloc16('reused'), 0x90);
+});
