@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { build } from '../src/wasm/index.ts';
-import type { IrFunction, IrProgram } from '../src/wasm/index.ts';
+import type { IrFunction, IrGlobal, IrProgram } from '../src/wasm/index.ts';
 import type { IrExpr } from '../src/wasm/lower.ts';
 
 const emptyMain: IrProgram = {
@@ -87,20 +87,6 @@ test('build() refuses more than the entry function, naming the web track\'s own 
   }
 });
 
-test('build() refuses a program with globals, naming the web track\'s own milestone 3', async () => {
-  const scratch = await mkdtemp(join(tmpdir(), '8bs-web-native-'));
-  try {
-    const outFile = join(scratch, 'out.wasm');
-    const ir: IrProgram = { entry: 'main', functions: [{ name: 'main', body: [] }], globals: [{ name: 'x' }] };
-    const result = await build(ir, { outFile, frameRate: 60 });
-    assert.equal(result.ok, false);
-    assert.match(result.ok ? '' : result.error, /milestone 3/);
-    assert.equal(existsSync(outFile), false);
-  } finally {
-    await rm(scratch, { recursive: true, force: true });
-  }
-});
-
 test('build() refuses a program with string literals, naming the web track\'s own milestone 5', async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-web-native-'));
   try {
@@ -119,11 +105,11 @@ test('build() refuses an IR statement kind lower.ts doesn\'t lower yet, naming t
   const scratch = await mkdtemp(join(tmpdir(), '8bs-web-native-'));
   try {
     const outFile = join(scratch, 'out.wasm');
-    const ir: IrProgram = { entry: 'main', functions: [{ name: 'main', body: [{ kind: 'memoryWrite' }] }] };
+    const ir: IrProgram = { entry: 'main', functions: [{ name: 'main', body: [{ kind: 'call', name: 'helper' }] }] };
     const result = await build(ir, { outFile, frameRate: 60 });
     assert.equal(result.ok, false);
-    assert.match(result.ok ? '' : result.error, /'memoryWrite' is not lowered yet/);
-    assert.match(result.ok ? '' : result.error, /milestone 3/);
+    assert.match(result.ok ? '' : result.error, /'call' is not lowered yet/);
+    assert.match(result.ok ? '' : result.error, /milestone 4/);
     assert.equal(existsSync(outFile), false);
   } finally {
     await rm(scratch, { recursive: true, force: true });
@@ -138,23 +124,32 @@ test('build() refuses an IR statement kind lower.ts doesn\'t lower yet, naming t
 // equivalent of the mos rail's own "run it for real" screenshots, since a
 // wasm function's return value is directly observable without a screen.
 
-/** Builds `fn`, instantiates it (no imports — nothing here calls
- * waitFrame()), calls the entry, and returns whatever it returns. */
-async function run(fn: IrFunction, scratchLabel: string): Promise<number> {
+/** Builds `fn` (with `globals`, if any), instantiates it (no imports —
+ * nothing here calls waitFrame()), calls the entry, and returns whatever
+ * it returns alongside the instantiated memory — so a test can inspect
+ * what memoryWrite actually left there, not just trust a returned value. */
+async function execute(fn: IrFunction, globals: IrGlobal[], scratchLabel: string): Promise<{ value: number; memory: Uint8Array }> {
   const scratch = await mkdtemp(join(tmpdir(), scratchLabel));
   try {
     const outFile = join(scratch, 'out.wasm');
-    const ir: IrProgram = { entry: fn.name, functions: [fn] };
+    const ir: IrProgram = { entry: fn.name, functions: [fn], globals };
     const result = await build(ir, { outFile, frameRate: 60 });
     assert.equal(result.ok, true, result.ok ? '' : result.error);
     if (!result.ok) throw new Error('unreachable');
     const module = await WebAssembly.compile(result.bytes);
     const instance = await WebAssembly.instantiate(module, {});
     const entry = instance.exports[fn.name] as () => number;
-    return entry();
+    const value = entry();
+    const memory = new Uint8Array((instance.exports.memory as WebAssembly.Memory).buffer);
+    return { value, memory };
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
+}
+
+/** Builds `fn`, instantiates it, calls the entry, and returns whatever it returns. */
+async function run(fn: IrFunction, scratchLabel: string): Promise<number> {
+  return (await execute(fn, [], scratchLabel)).value;
 }
 
 const ref = (name: string, type: string): IrExpr => ({ kind: 'ref', name, type });
@@ -349,6 +344,113 @@ test('milestone 2: refuses arithmetic whose result is a signed type narrower tha
     const result = await build({ entry: 'main', functions: [main] }, { outFile, frameRate: 60 });
     assert.equal(result.ok, false);
     assert.match(result.ok ? '' : result.error, /signed 'tinyint'/);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+// ---- milestone 3: globals and memory ---------------------------------------
+
+test('milestone 3 acceptance: a global\'s own init value, mutated and read back through global.get/global.set', async () => {
+  const globals: IrGlobal[] = [{ name: 'counter', type: 'usmallint', address: null, init: 10 }];
+  const main: IrFunction = {
+    name: 'main',
+    returnType: 'usmallint',
+    body: [
+      { kind: 'assign', target: 'counter', value: add(ref('counter', 'usmallint'), num(5, 'usmallint'), 'usmallint') },
+      { kind: 'return', value: ref('counter', 'usmallint') },
+    ],
+  };
+  assert.equal((await execute(main, globals, '8bs-web-native-')).value, 15);
+});
+
+test('milestone 3: a local shadows a global of the same name, exactly like the front end already allows', async () => {
+  const globals: IrGlobal[] = [{ name: 'x', type: 'utinyint', address: null, init: 100 }];
+  const main: IrFunction = {
+    name: 'main',
+    returnType: 'utinyint',
+    body: [
+      { kind: 'local', name: 'x', type: 'utinyint', init: num(7, 'utinyint') },
+      { kind: 'return', value: ref('x', 'utinyint') },
+    ],
+  };
+  assert.equal((await execute(main, globals, '8bs-web-native-')).value, 7);
+});
+
+test('milestone 3 acceptance: memory.write then memory.read at a literal address round-trips, and the byte actually lands in the exported memory', async () => {
+  const main: IrFunction = {
+    name: 'main',
+    returnType: 'utinyint',
+    body: [
+      { kind: 'memoryWrite', address: num(100, 'usmallint'), value: num(42, 'utinyint') },
+      { kind: 'return', value: { kind: 'memoryRead', address: num(100, 'usmallint'), type: 'utinyint' } },
+    ],
+  };
+  const { value, memory } = await execute(main, [], '8bs-web-native-');
+  assert.equal(value, 42);
+  assert.equal(memory[100], 42);
+});
+
+test('milestone 3 acceptance: memory.write at a computed address — the exact place() shape @8bitscript/web/text.8bs uses (base + cell)', async () => {
+  // Writes 'A'+i to offsets 200..204, the same "base + loop variable"
+  // address computation text.8bs's own place() does (WebRegisters.CHAR_BASE
+  // + cell) — proving a non-literal address works, not just a constant one.
+  const main: IrFunction = {
+    name: 'main',
+    body: [
+      {
+        kind: 'for',
+        init: { kind: 'local', name: 'i', type: 'utinyint', init: num(0, 'utinyint') },
+        test: { kind: 'binop', operator: '<', left: ref('i', 'utinyint'), right: num(5, 'utinyint'), type: 'bool' },
+        update: { kind: 'assign', target: 'i', value: add(ref('i', 'utinyint'), num(1, 'utinyint'), 'utinyint') },
+        body: [{
+          kind: 'memoryWrite',
+          address: add(num(200, 'usmallint'), ref('i', 'utinyint'), 'usmallint'),
+          value: add(ref('i', 'utinyint'), num(65, 'utinyint'), 'utinyint'),
+        }],
+      },
+    ],
+  };
+  const { memory } = await execute(main, [], '8bs-web-native-');
+  assert.deepEqual([...memory.slice(200, 205)], [65, 66, 67, 68, 69]);
+});
+
+test('milestone 3: refuses a pinned global (@address(...)), by name', async () => {
+  const globals: IrGlobal[] = [{ name: 'REG', type: 'utinyint', address: 0xe000, init: 0 }];
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-web-native-'));
+  try {
+    const outFile = join(scratch, 'out.wasm');
+    const result = await build({ entry: 'main', functions: [{ name: 'main', body: [] }], globals }, { outFile, frameRate: 60 });
+    assert.equal(result.ok, false);
+    assert.match(result.ok ? '' : result.error, /'REG'.*pinned global/);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('milestone 3: refuses an array global, naming the web track\'s own milestone 5', async () => {
+  const globals: IrGlobal[] = [{ name: 'arr', type: 'utinyint', address: null, array: 4, init: 0 }];
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-web-native-'));
+  try {
+    const outFile = join(scratch, 'out.wasm');
+    const result = await build({ entry: 'main', functions: [{ name: 'main', body: [] }], globals }, { outFile, frameRate: 60 });
+    assert.equal(result.ok, false);
+    assert.match(result.ok ? '' : result.error, /'arr' is an array/);
+    assert.match(result.ok ? '' : result.error, /milestone 5/);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('milestone 3: refuses a string<N> global, naming the web track\'s own milestone 5', async () => {
+  const globals: IrGlobal[] = [{ name: 's', type: 'string', address: null, init: 0 }];
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-web-native-'));
+  try {
+    const outFile = join(scratch, 'out.wasm');
+    const result = await build({ entry: 'main', functions: [{ name: 'main', body: [] }], globals }, { outFile, frameRate: 60 });
+    assert.equal(result.ok, false);
+    assert.match(result.ok ? '' : result.error, /'s' is a string<N>/);
+    assert.match(result.ok ? '' : result.error, /milestone 5/);
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }

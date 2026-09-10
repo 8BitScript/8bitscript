@@ -153,6 +153,29 @@ export const Opcode = {
   i32Sub: 0x6b,
   i32And: 0x71,
   i32Xor: 0x73,
+  i32Load8U: 0x2d,
+  i32Store8: 0x3a,
+  globalGet: 0x23,
+  globalSet: 0x24,
+} as const;
+
+/** A load/store instruction's own immediate: alignment (a hint, log2 of the
+ * expected natural alignment — 0 is always valid, "no particular
+ * alignment") and a constant byte offset added to the dynamic address on
+ * the stack. `memory.write`/`memory.read` are byte-only at the language
+ * level (ir/index.mjs's own `memoryIntrinsic()` — there's no 16-bit
+ * variant to fold a second byte's offset into yet), so every load/store
+ * this backend emits today uses `memarg(0, 0)`: no alignment claim, the
+ * address expression's own value is the whole address. */
+export function memarg(align: number, offset: number): number[] {
+  return [...unsignedLEB128(align), ...unsignedLEB128(offset)];
+}
+
+/** A global's mutability flag, the byte right after its value type in both
+ * the global section's own entry and an import's global type. */
+export const Mutability = {
+  const: 0x00,
+  var: 0x01,
 } as const;
 
 /** One function type: `0x60`, the param vector, the result vector. */
