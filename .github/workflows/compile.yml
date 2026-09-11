@@ -5,15 +5,26 @@ on:
   workflow_call:
     inputs:
       targets:
-        description: Comma-separated 8bs build targets (vic20,c64,web,…).
+        description: >-
+          Comma-separated 8bs build targets (vic20,c64,web,…), each
+          optionally @profile and :option=value,... on top (pet@2001:ram=4).
+          Leave empty to build every artifact the project's own
+          8bitscript.config.ts declares for a release instead (8bs build
+          --release) — the config is then the one place the release matrix
+          lives, not duplicated here.
         type: string
-        required: true
+        required: false
+        default: ''
       cli-version:
         description: '@8bitscript/cli version to install if the project has none.'
         type: string
         default: '0.1.0'
       attach-release:
-        description: Upload dist/* to the GitHub Release that triggered this run.
+        description: >-
+          Upload dist/* to the GitHub Release this run is for — the one
+          that triggered it (a `release` event), or the tag it was pushed
+          or dispatched against otherwise. Either way the release must
+          already exist; this step only uploads to it.
         type: boolean
         default: false
     secrets:
@@ -40,20 +51,39 @@ jobs:
       - name: Build
         run: |
           set -euo pipefail
+          if [ -z "${{ inputs.targets }}" ]; then
+            pnpm exec 8bs build --release
+            exit 0
+          fi
           IFS=',' read -ra TARGETS <<< "${{ inputs.targets }}"
           for raw in "${TARGETS[@]}"; do
-            t="$(echo "$raw" | xargs)"
-            [ -n "$t" ] || continue
-            pnpm exec 8bs build --target "$t"
+            entry="$(echo "$raw" | xargs)"
+            [ -n "$entry" ] || continue
+            # target[@profile][:hardware=opts,...] — @/: split it apart; a
+            # plain "pet" (no @, no :) is just --target pet, same as always.
+            target="${entry%%[@:]*}"
+            args=(--target "$target")
+            rest="${entry#"$target"}"
+            if [[ "$rest" == @* ]]; then
+              rest="${rest#@}"
+              profile="${rest%%:*}"
+              args+=(--profile "$profile")
+              rest="${rest#"$profile"}"
+            fi
+            if [[ "$rest" == :* ]]; then
+              args+=(--hardware "${rest#:}")
+            fi
+            pnpm exec 8bs build "${args[@]}"
           done
       - uses: actions/upload-artifact@v5
         with:
           name: 8bs-dist
           path: dist/**
       - name: Attach to GitHub Release
-        if: inputs.attach-release && github.event_name == 'release'
+        if: inputs.attach-release && (github.event_name == 'release' || github.ref_type == 'tag')
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name || github.ref_name }}
         run: |
           set -euo pipefail
           shopt -s nullglob globstar
@@ -63,5 +93,5 @@ jobs:
             if [ -f "$f" ]; then upload+=("$f"); fi
           done
           if [ ${#upload[@]} -gt 0 ]; then
-            gh release upload "${{ github.event.release.tag_name }}" "${upload[@]}" --clobber
+            gh release upload "$TAG" "${upload[@]}" --clobber
           fi

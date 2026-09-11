@@ -130,6 +130,73 @@ test('build() --size works for web too, against the module\'s own real byte tota
   }
 });
 
+test('build() --release builds every target listed, once per name in its own release array', async () => {
+  const dir = await mkdtemp(join(tmpdir(), '8bs-compile-'));
+  const prev = process.cwd();
+  try {
+    await writeFile(join(dir, 'main.8bs'), SUM);
+    await writeFile(join(dir, '8bitscript.config.ts'), [
+      'export default {',
+      '  entry: "main.8bs",',
+      '  targets: {',
+      // '2001' is a catalog preset (the stock 4K PET); {} is not a preset at
+      // all — it falls back to this target's own default hardware, the same
+      // build `8bs build --target pet` already produces. That distinction
+      // matters: the '4032' catalog preset also sets a speaker option this
+      // project's own default hardware does not, which would build a
+      // different (if equally valid) program under a different name.
+      '    pet: { hardware: { model: "4032", ram: "32" }, release: ["2001", {}] },',
+      '    web: {},',
+      '  },',
+      '};',
+      '',
+    ].join('\n'));
+    process.chdir(dir);
+    const { result, stdout, stderr } = await capture(() => build(['--release']));
+    assert.equal(result, 0, stdout + stderr);
+    assert.equal(existsSync(join(dir, 'dist', 'main-pet.prg')), true, '2001 (stock) should build unsuffixed');
+    assert.equal(existsSync(join(dir, 'dist', 'main-pet-4032-32.prg')), true, "the target's own default hardware should build under its own name");
+    assert.equal(existsSync(join(dir, 'dist', 'main.wasm')), true);
+  } finally {
+    process.chdir(prev);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('build() --release skips a target 8bitscript.config.ts lists that this release does not build for', async () => {
+  const dir = await mkdtemp(join(tmpdir(), '8bs-compile-'));
+  const prev = process.cwd();
+  try {
+    await writeFile(join(dir, 'main.8bs'), SUM);
+    await writeFile(
+      join(dir, '8bitscript.config.ts'),
+      'export default { entry: "main.8bs", targets: { c64: {}, web: {} } };\n',
+    );
+    process.chdir(dir);
+    const { result, stdout, stderr } = await capture(() => build(['--release']));
+    assert.equal(result, 0, stdout + stderr);
+    assert.equal(existsSync(join(dir, 'dist', 'main.wasm')), true);
+  } finally {
+    process.chdir(prev);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('build() --release fails clearly when the config lists no release-ready target', async () => {
+  const dir = await mkdtemp(join(tmpdir(), '8bs-compile-'));
+  const prev = process.cwd();
+  try {
+    await writeFile(join(dir, '8bitscript.config.ts'), 'export default { targets: { c64: {} } };\n');
+    process.chdir(dir);
+    const { result, stderr } = await capture(() => build(['--release']));
+    assert.equal(result, 1);
+    assert.match(stderr, /lists no target this release builds for/);
+  } finally {
+    process.chdir(prev);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test('compile() for web writes a .wasm for a for-loop that sums 0..9', async () => {
   // The wasm backend's own milestones 1-5 (packages/compiler/src/wasm)
   // made this a real build, not a refusal — see the "Hello, WASM" roadmap.

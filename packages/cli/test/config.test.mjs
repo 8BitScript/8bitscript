@@ -50,3 +50,25 @@ test('loadConfig writes a load error and returns null when 8bs.config.ts does no
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test('loadConfig prefers 8bitscript.config.ts, the current name, over the old 8bs.config.ts', async () => {
+  const dir = await mkdtemp(join(tmpdir(), '8bs-config-'));
+  try {
+    await writeFile(join(dir, '8bitscript.config.ts'), 'export default { frameRate: 30 };\n');
+    const config = await loadConfig(dir);
+    assert.deepEqual(config, { frameRate: 30 });
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('loadConfig still finds 8bs.config.ts, the pre-0.4.0 name, when there is no 8bitscript.config.ts', async () => {
+  const dir = await mkdtemp(join(tmpdir(), '8bs-config-'));
+  try {
+    await writeFile(join(dir, '8bs.config.ts'), 'export default { frameRate: 50 };\n');
+    const config = await loadConfig(dir);
+    assert.deepEqual(config, { frameRate: 50 });
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

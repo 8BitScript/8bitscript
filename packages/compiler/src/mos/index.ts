@@ -583,7 +583,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
 // waitFrame() 1:1 to vblank drifts a target away from that reference
 // forever, so every machine below runs the same fixed-point scheme: an
 // accumulator of *logical* frames owed — at whatever rate the project is
-// configured for (`frameRate`, default 60; see 8bs.config.ts), the same rate
+// configured for (`frameRate`, default 60; see 8bitscript.config.ts), the same rate
 // on every target.
 //
 // What differs between machines is how a hardware frame boundary is

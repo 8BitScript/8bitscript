@@ -7,7 +7,7 @@
 // program's screen memory (shared with the worker) every display refresh,
 // writes a one-byte input snapshot into that memory for @8bitscript/web/input
 // to read, and releases one logical frame at a time on a fixed timestep at the
-// project's configured `frameRate` (8bs.config.ts, default 60) — the same
+// project's configured `frameRate` (8bitscript.config.ts, default 60) — the same
 // rate on every target, whatever the display actually refreshes at (60Hz,
 // 120Hz, 144Hz, 50Hz). waitFrame() in the worker is a wasm import that blocks
 // on `Atomics.wait` until the page releases a frame: one build runs correctly

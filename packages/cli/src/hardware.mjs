@@ -32,7 +32,7 @@
 // for a build is the opt-in: it compiles the probe's caller in and sets
 // the fact to "may use", and the probe confirms it on the machine.
 //
-// A project's 8bs.config.ts may add named profiles of its own under
+// A project's 8bitscript.config.ts may add named profiles of its own under
 // `targets.<machine>.profiles`, each a set of option values; `--profile`
 // names one of those or a catalog preset — a project's name shadows a
 // preset's — and `--hardware ram=8k,port1=mouse1351` sets options on top
@@ -100,7 +100,7 @@ export function parseHardwareArg(text) {
 }
 
 /**
- * The project's own profiles for a machine, from an 8bs.config.ts whose
+ * The project's own profiles for a machine, from an 8bitscript.config.ts whose
  * `targets` is the object form: `{ c64: { profiles: { loaded: { ram:
  * 'reu512' } } } }`. The array form has none.
  *
@@ -144,7 +144,7 @@ export function listedTargets(config) {
 }
 
 /**
- * The floor a program sets: `requires` in its 8bs.config.ts, a fact key to
+ * The floor a program sets: `requires` in its 8bitscript.config.ts, a fact key to
  * the least of it the program needs.
  *
  *     requires: { 'memory.ram': 8192, 'storage.save': true }
@@ -162,11 +162,11 @@ export function projectRequires(config) {
   const requires = config?.requires;
   if (requires === undefined) return { ok: true, requires: {} };
   if (requires === null || typeof requires !== 'object' || Array.isArray(requires)) {
-    return { ok: false, error: "8bs.config.ts's `requires` must be an object of fact → the least of it the program needs" };
+    return { ok: false, error: "8bitscript.config.ts's `requires` must be an object of fact → the least of it the program needs" };
   }
   const problems = requiresProblems(requires);
   if (problems.length > 0) {
-    return { ok: false, error: `8bs.config.ts's \`requires\`: ${problems.join('; ')}` };
+    return { ok: false, error: `8bitscript.config.ts's \`requires\`: ${problems.join('; ')}` };
   }
   return { ok: true, requires };
 }
@@ -246,7 +246,7 @@ export function projectSystems(config) {
   const declared = config?.systems;
   if (declared === undefined) return { ok: true, systems: [] };
   if (declared === null || typeof declared !== 'object' || Array.isArray(declared)) {
-    return { ok: false, error: "8bs.config.ts's `systems` must be an object of name → { target, ... }" };
+    return { ok: false, error: "8bitscript.config.ts's `systems` must be an object of name → { target, ... }" };
   }
   const listed = listedTargets(config);
   // The floor, but only once it is a floor: an unchecked `requires` would
@@ -258,7 +258,7 @@ export function projectSystems(config) {
   const floor = required.ok ? required.requires : {};
   const systems = [];
   for (const [name, entry] of Object.entries(declared)) {
-    const where = `8bs.config.ts: system '${name}'`;
+    const where = `8bitscript.config.ts: system '${name}'`;
     if (!entry || typeof entry !== 'object') {
       return { ok: false, error: `${where} must be an object with a target` };
     }

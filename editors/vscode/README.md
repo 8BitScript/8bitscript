@@ -136,7 +136,7 @@ builds.
   --target <system> --size`, which stops at the built file instead of
   starting an emulator.
 - **Project** — the project both buttons act on (`8bitscript.project`).
-  Every directory in the workspace with an `8bs.config.ts` is in the list,
+  Every directory in the workspace with an `8bitscript.config.ts` is in the list,
   grouped with the **Apps** that ship with the toolchain — packages whose
   `package.json` declares an `8bitscript.app`, [Studio](../../docs/studio.md)
   being the first. The grouping appears only when the list holds more than one kind.
@@ -154,7 +154,7 @@ builds.
   Example…** reaches them either way, and one that is already selected
   stays in the list even with the toggle off, so hiding them never blanks
   the picker.
-- **System** — where the program runs. A project whose `8bs.config.ts`
+- **System** — where the program runs. A project whose `8bitscript.config.ts`
   declares a
   [`systems` block](../../docs/systems.md#the-machines-a-project-is-set-up-for)
   gets those first, in a group of their own, above the bare machines
@@ -191,7 +191,7 @@ SYSTEM
 
   **Save as a System…** in the title bar's overflow menu goes the other
   way: name what the panel is set to and it is written into the project's
-  `8bs.config.ts` as an entry in that block, so the arrangement is one
+  `8bitscript.config.ts` as an entry in that block, so the arrangement is one
   choice from then on, for everyone who has the repository. The write is
   an ordinary editor edit — it lands in the undo stack, and a config this
   cannot safely rewrite (one that computes its targets rather than writing
@@ -215,7 +215,7 @@ The view's title bar has 📖 **Show or Hide Examples**, 🚀 **Launch Studio**,
 Example…**, and **Save as a System…**. Those, and every choice the panel makes, are on the command
 palette as well — **8BitScript: Select Project**, **Select System**,
 **Select Region**, **Run**, **Build**, **Stop**, **Open Entry File**,
-**Open 8bs.config.ts**.
+**Open 8bitscript.config.ts**.
 
 ### What is behind the fold
 
@@ -240,7 +240,7 @@ palette as well — **8BitScript: Select Project**, **Select System**,
   (`vic20`, `c64`, `c128`, `atari8`, `mega65`) is un-parked, with no code
   change needed for it.
 - **Fitted with** — a preset: *Stock machine*, then any profile this
-  project composes in its `8bs.config.ts`, then the catalog presets
+  project composes in its `8bitscript.config.ts`, then the catalog presets
   (`reu512`, `8032`, `8k`, …).
 - Under it, **every catalog option is its own dropdown** — RAM expansion,
   PET/Atari model, VIC-20 memory, SID, control ports — each showing the
@@ -269,7 +269,7 @@ is open, so it also appears in the Settings editor and survives a restart.
 
 ### Projects, tasks, and what is missing
 
-A project is any directory containing an `8bs.config.ts`; that file is
+A project is any directory containing an `8bitscript.config.ts`; that file is
 already the manifest the CLI reads for the entry file and the target list,
 so the launcher uses it as the marker rather than a second list to
 maintain. A `package.json` on its own does not count — every package in a

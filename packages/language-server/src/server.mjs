@@ -38,16 +38,24 @@ const SEVERITY = {
   warning: DiagnosticSeverity.Warning,
 };
 
+// 8bitscript.config.ts is the current name; 8bs.config.ts (every project
+// through 0.3.0) still loads — see packages/cli/src/config.mjs's
+// CONFIG_FILENAMES, which this mirrors for the same reason it duplicates
+// resolveFrameRate rather than importing it.
+const CONFIG_FILENAMES = ['8bitscript.config.ts', '8bs.config.ts'];
+
 /**
- * Walk upward from `dir` looking for 8bs.config.ts, so a document opened
- * from src/ (or deeper) still finds its project's config. Stops at the
- * filesystem root.
+ * Walk upward from `dir` looking for 8bitscript.config.ts (or the older
+ * 8bs.config.ts), so a document opened from src/ (or deeper) still finds
+ * its project's config. Stops at the filesystem root.
  */
 function findConfigPath(dir) {
   let current = dir;
   for (;;) {
-    const candidate = join(current, '8bs.config.ts');
-    if (existsSync(candidate)) return candidate;
+    for (const filename of CONFIG_FILENAMES) {
+      const candidate = join(current, filename);
+      if (existsSync(candidate)) return candidate;
+    }
     const parent = dirname(current);
     if (parent === current) return null;
     current = parent;
@@ -55,7 +63,7 @@ function findConfigPath(dir) {
 }
 
 /**
- * The project's `frameRate` (8bs.config.ts, default 60) for the document at
+ * The project's `frameRate` (8bitscript.config.ts, default 60) for the document at
  * `filePath` — so `#frames(...)` diagnostics in the editor agree with what
  * `8bs build`/`8bs check` would actually report, the same invariant this
  * file's header comment already promises for every other diagnostic.
@@ -66,7 +74,7 @@ function findConfigPath(dir) {
  *
  * The `?t=<mtime>` on the dynamic import is a cache-buster: Node's ESM
  * loader otherwise caches a resolved file URL for the life of the process,
- * so an edited 8bs.config.ts would need a server restart to take effect
+ * so an edited 8bitscript.config.ts would need a server restart to take effect
  * without it.
  */
 async function frameRateFor(filePath) {

@@ -23,7 +23,7 @@ version and Studio's `package.json` carries it, checked by
 
 Studio is the first of the **apps**: programs that ship with the toolchain
 rather than being written against it. An app is any package whose
-`package.json` carries an `8bitscript.app` field and an `8bs.config.ts` —
+`package.json` carries an `8bitscript.app` field and an `8bitscript.config.ts` —
 see [the package model](../../docs/packages.md#apps). The VS Code
 extension lists apps in a section of their own, separate from the
 workspace's projects and from the examples, and *Launch Studio*
@@ -112,7 +112,7 @@ Do not describe more than this as working:
   bytes, measured 2026-09-07.
 - **Studio fits its own mouse**, which is why `8bs run c64`,
   `8bs run c128` and `8bs run cx16` start it with one and no flags.
-  `8bs.config.ts` uses the object form of `targets` and asks for
+  `8bitscript.config.ts` uses the object form of `targets` and asks for
   `port1: mouse1351` on the C64 and the C128 — the two Commodores whose
   input layer has a pointer — and lists the X16 with no hardware of its
   own, because `input.mouse` is already true on the stock sheet.
@@ -178,7 +178,7 @@ What each row means, and what it still has to prove:
   four voices, and no hardware sprites, so the sprite editor stays a
   viewer while the other two edit. Which VIC-20 a build is for is chosen
   at build time — `8bs build vic20 --profile 8k`, or `targets.vic20.hardware`
-  in a project's `8bs.config.ts` — and the fact sheet the tier is read
+  in a project's `8bitscript.config.ts` — and the fact sheet the tier is read
   from follows it. This is the one place where fitting hardware changes
   what Studio *is*, and it is worth keeping true as more expandable
   machines arrive.
