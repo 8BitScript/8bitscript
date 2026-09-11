@@ -39,9 +39,13 @@
 //      when it takes no parameters, or when its parameters are unused
 //      and it has a single call site (PET `blank`'s color args). A
 //      `for (i = 0; i < N; i++)` unrolls only when the body is a string
-//      copy and N is small. Empty callees stay as calls: several
-//      calling-convention fixtures stub a body as `[]`, and deleting
-//      those would drop the argument shuffle the fixture exists to measure.
+//      copy and N is small.
+//   7. A void call whose callee is empty (PET/NES/Atari `text.setColor`,
+//      `text.putColor`) is deleted, arguments and all, so a program that
+//      colors a cell pays nothing on a machine that cannot. Arguments with
+//      side effects keep the call so they still run. Calling-convention
+//      fixtures that need the argument shuffle to survive must give the
+//      stub a side-effecting body (a store), not `[]` or a bare `return`.
 //
 // Does not mutate `ir`.
 
@@ -141,6 +145,16 @@ function isNumericConst(node) {
 function isCompileTimeArg(node) {
   if (isNumericConst(node)) return true;
   return !!node && node.kind === 'string' && typeof node.index === 'number';
+}
+
+/** Expression kinds with no stores, calls, or hardware reads. */
+const PURE_EXPR = new Set(['const', 'ref', 'binop', 'unop', 'index', 'string', 'stringByte', 'stringLength', 'namespaceConst']);
+
+function isSideEffectFree(node) {
+  if (Array.isArray(node)) return node.every(isSideEffectFree);
+  if (!node || typeof node !== 'object') return true;
+  if (!PURE_EXPR.has(node.kind)) return false;
+  return Object.values(node).every(isSideEffectFree);
 }
 
 function clone(node) {
@@ -449,7 +463,10 @@ function inlineVoidCall(statement, ctx) {
   if (!ctx?.functionsByName || typeof statement.name !== 'string') return null;
   const fn = ctx.functionsByName.get(statement.name);
   if (!fn) return null;
-  if ((fn.body ?? []).length === 0) return null;
+  if ((fn.body ?? []).length === 0) {
+    if ((statement.args ?? []).some((arg) => !isSideEffectFree(arg))) return null;
+    return [];
+  }
   if (fn.returnType && fn.returnType !== 'void') return null;
   if (ctx.inlining.has(statement.name)) return null;
   // A `return` inside the body would stop meaning "leave this callee" once

@@ -229,7 +229,7 @@ the other eight targets' own mechanisms.
 ```
 packages/nes/src/index.8bs           target package: the PPU port protocol (setVramAddress, resetScroll)
 packages/nes/src/screen.8bs          @8bitscript/nes/screen: screen.blank()/setBorder()/setBackground()/setColors(), the drawn frame, color names
-packages/nes/src/text.8bs            @8bitscript/nes/text: text.print/printNumber/setColor/setReverse/putChar/putColor, CELL_COUNT 728, COLUMNS 28, TextColor (inert)
+packages/nes/src/text.8bs            @8bitscript/nes/text: text.print/printNumber/setColor/setReverse/putChar/putColor, CELL_COUNT 728, COLUMNS 28, TextColor (empty setColor/putColor)
 packages/nes/native/6502/font.s      the CHR-ROM character set (tile index == ASCII; reverse at ASCII+128)
 packages/nes/package.json            "8bitscript".exports names the two subpaths; .native lists the font
 packages/compiler/src/mos/index.ts   FRAME_SYNC.nes (NTSC frame timing; the backend refuses to build)

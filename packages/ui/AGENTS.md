@@ -87,11 +87,13 @@ it is not in this package's dependencies.
 Every claim here was checked against each machine's `text.8bs`, and every
 one of them shapes a component's design:
 
-- **Three of the nine targets have no per-cell color.** `text.putColor` is
-  a deliberately empty function on the **PET** (no color RAM at all), the
-  **Atari 8-bit** (GR.0 has none), and the **NES** (its color lives in a
-  2x2-cell attribute block, which that text layer does not touch). So
-  **color is never a component's only way of showing state.**
+- **Three of the nine targets have no per-cell color.** `text.putColor`
+  and `text.setColor` are deliberately empty functions on the **PET** (no
+  color RAM at all), the **Atari 8-bit** (GR.0 has none), and the **NES**
+  (its color lives in a 2x2-cell attribute block, which that text layer
+  does not touch). The compiler deletes a call to either, so a program
+  that colors its text pays those three nothing. Color is never a
+  component's only way of showing state.
 
   **Ask `video.colorPerCell`, and ask it while compiling.** That fact
   exists for this: it is true on the six machines where a cell can be given

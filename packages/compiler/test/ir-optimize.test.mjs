@@ -179,18 +179,61 @@ test('asciiToScreenCode of a constant is the mapped byte — no runtime conversi
   assert.deepEqual(out.functions[0].body, [ret(constNum(5))]);
 });
 
-test('an empty void function is not inlined — calling-convention fixtures still shuffle their arguments', () => {
+test('a call to an empty void function is dropped, so a no-op capability costs nothing', () => {
   const ir = {
     entry: 'main',
     functions: [
-      { name: 'main', body: [call('place', [{ kind: 'const', value: 999, type: 'usmallint' }])] },
-      { name: 'place', params: [{ name: 'cell', type: 'usmallint' }], returnType: 'void', body: [] },
+      { name: 'main', body: [call('setColor', [constNum(1)])] },
+      { name: 'setColor', params: [{ name: 'color', type: 'utinyint' }], returnType: 'void', body: [] },
+    ],
+    globals: [],
+  };
+  const out = optimizeReachable(ir);
+  assert.deepEqual(out.functions.map((f) => f.name), ['main']);
+  assert.deepEqual(out.functions[0].body, []);
+});
+
+test('dropping an empty setColor also drops the color table it indexed', () => {
+  const ir = {
+    entry: 'main',
+    functions: [
+      {
+        name: 'main',
+        body: [call('setColor', [{
+          kind: 'index',
+          array: ref('TILE_COLOR'),
+          index: constNum(0),
+          type: 'utinyint',
+        }])],
+      },
+      { name: 'setColor', params: [{ name: 'color', type: 'utinyint' }], returnType: 'void', body: [] },
+    ],
+    globals: [{ name: 'TILE_COLOR', type: 'utinyint', array: 12, constant: true, init: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1] }],
+  };
+  const out = optimizeReachable(ir);
+  assert.deepEqual(out.functions.map((f) => f.name), ['main']);
+  assert.deepEqual(out.globals, []);
+});
+
+test('an empty void call with a side-effecting argument stays, so the argument still runs', () => {
+  const ir = {
+    entry: 'main',
+    functions: [
+      {
+        name: 'main',
+        body: [call('setColor', [{
+          kind: 'memoryRead',
+          address: constNum(0, 'usmallint'),
+          type: 'utinyint',
+        }])],
+      },
+      { name: 'setColor', params: [{ name: 'color', type: 'utinyint' }], returnType: 'void', body: [] },
     ],
     globals: [],
   };
   const out = optimizeIr(ir);
   assert.equal(out.functions[0].body[0].kind, 'call');
-  assert.equal(out.functions[0].body[0].name, 'place');
+  assert.equal(out.functions[0].body[0].name, 'setColor');
 });
 
 test('print of a string literal at a constant cell becomes stores of converted bytes', () => {

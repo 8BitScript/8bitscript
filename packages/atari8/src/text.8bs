@@ -23,9 +23,10 @@ import { cursorInhibit } from "./index.8bs";
 // needed on the way in; putChar converts to the internal screen code ANTIC
 // actually fetches (space $20 -> $00, digits and letters $20-$5F minus
 // $20). There is no color RAM: a character's luminance is the global
-// COLPF1 that `screen.setColors()` writes, so putColor exists only so
-// portable code still compiles and does nothing, the same way
-// @8bitscript/pet's putColor does nothing. putChar also inhibits the OS
+// COLPF1 that `screen.setColors()` writes, so putColor and setColor exist
+// only so portable code still compiles; they do nothing, the same way
+// @8bitscript/pet's putColor does nothing. A call to either is deleted
+// before the machine ever sees it. putChar also inhibits the OS
 // cursor (see @8bitscript/atari8's `cursorInhibit`), so a program that
 // draws before its first setColors() — which is the order every program
 // should use, for the NES's sake — does not get its first cell inverted by
@@ -59,7 +60,6 @@ function atasciiToInternal(code: utinyint): utinyint {
 // cursor and reading where the OS put screen memory once for the run.
 // `text.putChar` and `text.putColor` stay the one-cell pokes a caller can
 // build anything from.
-let currentColor: utinyint = 1; // white, until text.setColor() says otherwise
 let currentReverse: bool = false; // until text.setReverse() says otherwise
 
 // Where the OS put screen memory (SAVMSC, $58/$59), read by prepare().
@@ -108,7 +108,7 @@ export namespace text {
     }
 
     function setColor(color: utinyint): void {
-        currentColor = color;
+        // Deliberately empty — GR.0 has no per-cell color RAM.
     }
 
     function setReverse(on: bool): void {

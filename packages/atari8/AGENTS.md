@@ -81,7 +81,8 @@ Do not describe more than this as working:
   and writes `SAVMSC + cell`; `print`/`printNumber` read SAVMSC once per
   run (`prepare()`) and inhibit the cursor; `setReverse` sets bit 7 of the
   internal code; `putColor` and `setColor` are
-  inert because GR.0 has no per-cell color. `printNumber` is the
+  empty because GR.0 has no per-cell color — a call to either is deleted
+  before lowering. `printNumber` is the
   subtraction routine, not a divide.
 - `src/joystick.8bs` (`@8bitscript/atari8/joystick`): `scan()` once a
   frame into a snapshot, then `bits`/`up`/`down`/`left`/`right`/`fire`, and
@@ -1069,7 +1070,7 @@ here" when you do.
 ```
 packages/atari8/src/index.8bs           target package: COLBK/COLPF2/COLPF1 ($D01A/$D018/$D017), their OS shadows ($02C8/$02C6/$02C5), CRSINH ($02F0)
 packages/atari8/src/screen.8bs          @8bitscript/atari8/screen: shadow-then-hardware colors, blank() over 960 cells at SAVMSC, GTIA-byte color names, KEEP = 255
-packages/atari8/src/text.8bs            @8bitscript/atari8/text: ASCII → internal code, SAVMSC read per run, inert putColor, CELL_COUNT 960 / COLUMNS 40
+packages/atari8/src/text.8bs            @8bitscript/atari8/text: ASCII → internal code, SAVMSC read per run, empty putColor/setColor, CELL_COUNT 960 / COLUMNS 40
 packages/atari8/src/joystick.8bs        @8bitscript/atari8/joystick: STICK/STRIG shadows, ports from #fact(input.joysticks), ATRACT zeroed each scan
 packages/atari8/src/console.8bs         @8bitscript/atari8/console: CONSOL's three keys (read) and the speaker (write), one address twice
 packages/atari8/src/keyboard.8bs        @8bitscript/atari8/keyboard: CH consumed per frame, SKSTAT for held/SHIFT, no chords on this machine

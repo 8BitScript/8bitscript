@@ -19,9 +19,10 @@ import { Video } from "./geometry.8bs";
 // packages/compiler/src/mos), and reaches this file as ./geometry.8bs's
 // `Video` namespace, whose 8032 version the profile selects. There is no
 // color RAM to go with it — a character's screen code alone decides how it
-// looks — so `putColor` exists only so portable code written against every
-// machine's `text` namespace still compiles; it does nothing, the same way
-// this package's `screen.setColors()` does nothing.
+// looks — so `putColor` and `setColor` exist only so portable code written
+// against every machine's `text` namespace still compiles; they do nothing,
+// the same way this package's `screen.setColors()` does nothing. A call
+// to either is deleted before the PET ever sees it (linker/optimize.mjs).
 //
 // `text.putChar` takes ASCII on every machine — space (32), '0'-'9'
 // (48-57), 'A'-'Z' (65-90), 'a'-'z' (97-122) and the punctuation
@@ -107,7 +108,6 @@ function asciiToScreenCode(code: utinyint): utinyint {
 // selecting the text character set once for the run.
 // `text.putChar` and `text.putColor` stay the one-cell pokes a caller can
 // build anything from.
-let currentColor: utinyint = 1; // white, until text.setColor() says otherwise
 let currentReverse: bool = false; // until text.setReverse() says otherwise
 
 // Reverse video is bit 7 of the screen code: 128-255 are the ROM's
@@ -152,7 +152,7 @@ export namespace text {
     }
 
     function setColor(color: utinyint): void {
-        currentColor = color;
+        // Deliberately empty — the PET has no color RAM.
     }
 
     function setReverse(on: bool): void {

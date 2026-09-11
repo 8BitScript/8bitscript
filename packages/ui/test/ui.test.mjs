@@ -113,7 +113,8 @@ test('the highlight is invert on every machine, and colorPerCell is still the fa
   // Invert does not need per-cell color, so the bar no longer branches
   // on `video.colorPerCell`. The fact is still the split the PET, Atari
   // and NES make against the other six — the three whose `text.putColor`
-  // is a deliberately empty function — and a later component that *does*
+  // and `text.setColor` are deliberately empty functions — and a later
+  // component that *does*
   // need a color per cell should still ask it.
   const noCellColor = ['pet', 'atari8', 'nes'];
   for (const target of TARGETS) {
