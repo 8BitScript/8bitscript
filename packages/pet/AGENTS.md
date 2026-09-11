@@ -140,7 +140,12 @@ Do not describe more than this as working:
     `audio.voices: 0`): what changes is whether there is anything to hear
     and whether a program compiling against `#fact(audio.voices)` should
     bother emitting CB2 tones at all, not anything about the emulated
-    electrical signal itself. It carries the same kind of empty `build: {}`
+    electrical signal itself. Interactive `8bs run` still opens a muted
+    VICE sound device after that `+sound` — GTK3 with no audio clock
+    paces from vsync alone and stutters on Linux/Wayland (measured
+    2026-09-11: 4032 `speaker=none` was laggy, 3016 `speaker=attached`
+    was not, and swapping the flags swapped the feel). Screenshots keep
+    `+sound -warp`. It carries the same kind of empty `build: {}`
     marker as `model`, for the same `#fact()`-folding reason.
   - Every catalog preset (`--profile <model>`) pins its own real stock `ram`
     (and, for the CRTC boards, `speaker: 'attached'`) alongside `model`, so
