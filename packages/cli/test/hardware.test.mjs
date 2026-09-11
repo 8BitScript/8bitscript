@@ -354,6 +354,8 @@ test('stockFacts is the catalog\'s sheet with each default value\'s facts merged
   assert.equal(stockFacts('pet')['video.columns'], 40);
   assert.equal(stockFacts('nes')['input.keyboard'], false);
   assert.equal(stockFacts('web')['input.keyboard'], true);
+  assert.equal(stockFacts('web')['video.blockWidth'], 2);
+  assert.equal(stockFacts('web')['video.blockHeight'], 2);
   assert.equal(stockFacts('vic20')['memory.ram'], 3583, 'the unexpanded VIC-20');
   assert.equal(resolveHardware(loadCatalog('vic20'), { profile: '8k' }).hardware.facts['memory.ram'], 11775);
 });

@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { mkdtemp, writeFile, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -27,6 +28,9 @@ test('writeWebBundle writes index.html, worker.js, program.wasm, and COOP/COEP h
     await writeWebBundle(dir, PAINTS_A, { frameRate: 50 });
     const html = await readFile(join(dir, 'index.html'), 'utf8');
     assert.match(html, /LOGICAL_STEP_MS = 1000 \/ 50/);
+    assert.match(html, /const GLYPHS = \{/);
+    assert.match(html, /function paintGlyph/);
+    assert.doesNotMatch(html, /ctx\.fillText/);
     const worker = await readFile(join(dir, 'worker.js'), 'utf8');
     assert.match(worker, /waitFrame/);
     assert.match(worker, /Atomics\.wait/);
@@ -62,4 +66,9 @@ test('captureScreenshot names a target with no screenshot method', async () => {
     () => captureScreenshot('unknown', '/dev/null', '/tmp/nope.png'),
     /no screenshot method wired up for target 'unknown'/,
   );
+});
+
+test('8bs run web does not serve dist/web as the page — that file can be from another CLI', () => {
+  const src = readFileSync(new URL('../src/run.mjs', import.meta.url), 'utf8');
+  assert.doesNotMatch(src, /root:\s*resolve\('dist',\s*'web'\)/);
 });

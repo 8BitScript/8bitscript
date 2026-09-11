@@ -361,10 +361,16 @@ export async function run(args) {
     // Every program runs the same way on the web: in the browser runtime's
     // worker (web-runtime.mjs), whether it loops on waitFrame(), returns, or
     // spins. Headless execution is `--screenshot`'s job, bounded by --frames.
+    //
+    // The page and worker come from *this* CLI (in memory), not dist/web/.
+    // compile() still writes that directory for `8bs build` / deploy, but
+    // serving it from `8bs run` would pair a newly compiled .wasm with a
+    // page a different CLI version left behind — block-glyph codes 128-143
+    // then fill as solid reverse-video cells and the digits vanish.
     const { runInBrowser } = await import('./web-runtime.mjs');
     const bytes = await readFile(outFile);
     return runInBrowser(bytes, {
-      open, frameRate, root: resolve('dist', 'web'), lastRunTarget: 'web',
+      open, frameRate, lastRunTarget: 'web',
     });
   }
 
