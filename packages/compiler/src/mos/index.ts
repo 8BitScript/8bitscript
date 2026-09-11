@@ -307,13 +307,27 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // an ordinary global's is, whether or not the source ever wrote `= ...`)
   // would be a real, possibly harmful side effect this backend has no
   // business taking on a register nothing here declared an intent for.
-  const globalInitProgram: Directive[] = [];
+  // Grouped by byte value — most globals start at 0, and one LDA #0
+  // serving every one of their STAs is strictly smaller (and faster) than
+  // reloading the same immediate per global. Store order among plain RAM
+  // bytes that nothing has read yet is unobservable.
+  const initStores = new Map<number, number[]>();
+  const initStore = (value: number, address: number): void => {
+    const list = initStores.get(value) ?? [];
+    list.push(address);
+    initStores.set(value, list);
+  };
   for (const g of zp.globals) {
     if (g.storage !== 'zp') continue;
     const init = globalInits.get(g.name) ?? 0;
     const width = storageBytes(globalTypes.get(g.name)!);
-    globalInitProgram.push(ldaImm(init & 0xff), staZp(g.address));
-    if (width === 2) globalInitProgram.push(ldaImm((init >> 8) & 0xff), staZp(g.address + 1));
+    initStore(init & 0xff, g.address);
+    if (width === 2) initStore((init >> 8) & 0xff, g.address + 1);
+  }
+  const globalInitProgram: Directive[] = [];
+  for (const [value, addresses] of initStores) {
+    globalInitProgram.push(ldaImm(value));
+    for (const address of addresses) globalInitProgram.push(staZp(address));
   }
 
   // Every array global — const data and, as of 0.2.2, mutable `let`
