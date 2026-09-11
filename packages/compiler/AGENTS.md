@@ -93,3 +93,18 @@ file for the token kinds.
 package. Most cases are bugs that actually shipped, kept so they cannot
 ship twice. A front-end fix that does not land its reproduction in the
 same change is a fix that can ship twice.
+
+## Publishing: the backends are TypeScript here, JavaScript on npm
+
+`./mos` and `./wasm` are `.ts`, run in the workspace via Node's type
+stripping. That mechanism is refused under `node_modules`
+(`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`), so the published package
+cannot ship them as-is — every 0.2.x release before 0.2.5 did, and every
+npm consumer's `8bs build` crashed on import. prepack
+(`tsc -p tsconfig.publish.json`, `--noCheck`: the main tsconfig already
+typechecks) emits stripped `.js` beside each `.ts` with relative `.ts`
+specifiers rewritten to `.js`, and `publishConfig.exports` points the
+published manifest at those. The emitted `.js` is gitignored; everything
+handwritten in `src/` is `.mjs`, so `.js` there is always generated.
+`test/published-package.test.mjs` packs the real tarball and imports the
+backends out of it, so this cannot regress silently.
