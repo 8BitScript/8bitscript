@@ -1,5 +1,29 @@
 # @8bitscript/cli
 
+## 0.2.2
+
+### Patch Changes
+
+- ee330ca: The launcher's Running section is now a Running machines tree. Run and
+  build pass `--size`, so the per-function breakdown prints in the terminal
+  before the emulator starts, and the same numbers — plus live FPS on the
+  web — show in an expandable tree next to Stop. VICE has no live CPU
+  readout: its monitor pauses the machine on any command.
+- Updated dependencies [ee330ca]
+  - @8bitscript/compiler@0.2.2
+  - @8bitscript/language-server@0.2.2
+  - @8bitscript/atari8@0.2.2
+  - @8bitscript/c128@0.2.2
+  - @8bitscript/c64@0.2.2
+  - @8bitscript/cx16@0.2.2
+  - @8bitscript/examples@0.2.2
+  - @8bitscript/mega65@0.2.2
+  - @8bitscript/nes@0.2.2
+  - @8bitscript/pet@0.2.2
+  - @8bitscript/studio@0.2.2
+  - @8bitscript/vic20@0.2.2
+  - @8bitscript/web@0.2.2
+
 ## 0.2.1
 
 ### Patch Changes
