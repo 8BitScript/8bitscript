@@ -1,6 +1,6 @@
 {
   "name": "@8bitscript/pet",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Commodore PET target support for 8BitScript: the hardware underneath the portable APIs.",
   "license": "MIT",
   "repository": {
