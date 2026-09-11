@@ -43,7 +43,7 @@ const ROW: usmallint = text.COLUMNS;
 // The library's version: Studio ships with the toolchain, and its version
 // is the toolchain's. test/studio.test.mjs checks this literal against
 // package.json, which in turn is the workspace's one version.
-const VERSION: string = "0.2.6";
+const VERSION: string = "0.3.0";
 
 // Studio's menu bar, across the top row on every machine, from
 // @8bitscript/ui — the first component Studio takes from the shared

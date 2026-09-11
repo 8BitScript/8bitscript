@@ -1,5 +1,11 @@
 # @8bitscript/web
 
+## 0.3.0
+
+### Minor Changes
+
+- 001c7e7: The web host draws the character grid from the same 8×8 bitmap font the screenshot path uses, and adds 2×2 block glyphs at codes 128–143 so a program can stamp PET-style digits.
+
 ## 0.2.6
 
 No changes in this release.
