@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "noCheck": true,
+    "allowJs": false,
+    "declaration": false,
+    "rewriteRelativeImportExtensions": true
+  },
+  "include": ["src/mos", "src/wasm"],
+  "exclude": ["src/**/*.test.ts"]
+}

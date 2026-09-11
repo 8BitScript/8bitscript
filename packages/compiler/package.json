@@ -24,6 +24,7 @@
     "src"
   ],
   "scripts": {
+    "prepack": "tsc -p tsconfig.publish.json",
     "test": "node --test",
     "typecheck": "tsc --noEmit -p ."
   },
@@ -34,6 +35,12 @@
     "typescript": "^7.0.2"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "exports": {
+      ".": "./index.mjs",
+      "./mos": "./src/mos/index.js",
+      "./wasm": "./src/wasm/index.js",
+      "./package.json": "./package.json"
+    }
   }
 }

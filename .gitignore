@@ -16,6 +16,12 @@ coverage/
 # Compiled Commodore program images
 *.prg
 
+# prepack output: type-stripped backend JS emitted next to its .ts source
+# (packages/compiler/tsconfig.publish.json) — the published package runs
+# these; the workspace runs the .ts directly. Everything handwritten under
+# the compiler's src is .mjs, so *.js there is always generated.
+packages/compiler/src/**/*.js
+
 # Packaged VS Code extension (local `pnpm package` writes
 # editors/vscode/dist/8bitscript-lang.vsix)
 *.vsix
