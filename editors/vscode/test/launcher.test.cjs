@@ -28,6 +28,7 @@ test('launcher stylesheet names the panel it lays out', () => {
   assert.match(CSS, /button\.icon\b/, 'Build and Open on the project row');
   assert.match(CSS, /details\.more\b/, 'the fold the rest lives in');
   assert.match(CSS, /\.run-row\b/, 'the Running rows');
+  assert.match(CSS, /\.run-machine\b/, 'a running machine is an expandable tree');
   assert.match(CSS, /--vscode-/, 'every color is the editor theme’s');
   // The Install button and the Running section are laid out with a
   // `display`, which outranks the user agent's rule for [hidden].
@@ -46,6 +47,14 @@ test('the machine is under the button, and Build is on the project row', () => {
   assert.doesNotMatch(body, /class="wide[^"]*" id="build"/);
 });
 
+test('Running machines is an expandable tree, not a one-line list', () => {
+  const view = fs.readFileSync(path.join(ROOT, 'src', 'launcherView.cjs'), 'utf8');
+  assert.match(view, /Running machines/);
+  assert.match(view, /machineTree/);
+  assert.match(JS, /function renderMachineTree/);
+  assert.match(JS, /FPS /);
+});
+
 test('examples can be hidden, but ship visible by default', () => {
   const runner = fs.readFileSync(path.join(ROOT, 'src', 'runner.cjs'), 'utf8');
   assert.match(runner, /get visible\(\)/, 'what the picker offers');
@@ -60,6 +69,8 @@ test('the panel launches, picks, and stops', () => {
   assert.match(JS, /type: 'launch', action: 'build'/);
   assert.match(JS, /key: 'project'/, 'the project is a dropdown, not a tree');
   assert.match(JS, /type: 'stop', dir: entry\.dir/, 'a Running row can end its own task');
+  assert.match(JS, /run-machine/, 'a run is an expandable machine, not a one-line row');
+  assert.match(JS, /entry\.machine/, 'size, hardware, and live data ride on the row');
 });
 
 test('the primary button says what it will do', () => {

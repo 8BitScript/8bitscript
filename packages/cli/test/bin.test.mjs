@@ -37,6 +37,7 @@ test('no command: usage on stdout, exit 1', async () => {
   assert.equal(code, 1);
   assert.match(stdout, /^Usage: 8bs <command> \[options\]/);
   assert.match(stdout, /Planned, not implemented:\n {2}dev/);
+  assert.match(stdout, /\[--size\]/, 'run --size is documented on the main usage');
 });
 
 test('--help and -h: the same usage, exit 0', async () => {

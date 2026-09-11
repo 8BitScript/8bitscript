@@ -152,23 +152,23 @@ test('loadProjects sorts by directory and drops duplicates', (t) => {
 });
 
 test('commandArgs spells the same commands a person would type', () => {
-  assert.deepEqual(commandArgs('run', 'vic20', 'ntsc'), ['run', 'vic20']);
-  assert.deepEqual(commandArgs('run', 'vic20', 'pal'), ['run', 'vic20', '--pal']);
-  assert.deepEqual(commandArgs('build', 'c64', 'pal'), ['build', '--target', 'c64', '--pal']);
-  assert.deepEqual(commandArgs('run', 'pet', 'ntsc'), ['run', 'pet']);
-  assert.deepEqual(commandArgs('run', 'pet', 'pal'), ['run', 'pet'], 'the PET has no region: its refresh is the model\'s (--profile)');
-  assert.deepEqual(commandArgs('build', 'web', 'pal'), ['build', '--target', 'web'], 'web has no region');
-  assert.deepEqual(commandArgs('run', 'web', 'pal'), ['run', 'web']);
+  assert.deepEqual(commandArgs('run', 'vic20', 'ntsc'), ['run', 'vic20', '--size']);
+  assert.deepEqual(commandArgs('run', 'vic20', 'pal'), ['run', 'vic20', '--pal', '--size']);
+  assert.deepEqual(commandArgs('build', 'c64', 'pal'), ['build', '--target', 'c64', '--pal', '--size']);
+  assert.deepEqual(commandArgs('run', 'pet', 'ntsc'), ['run', 'pet', '--size']);
+  assert.deepEqual(commandArgs('run', 'pet', 'pal'), ['run', 'pet', '--size'], 'the PET has no region: its refresh is the model\'s (--profile)');
+  assert.deepEqual(commandArgs('build', 'web', 'pal'), ['build', '--target', 'web', '--size'], 'web has no region');
+  assert.deepEqual(commandArgs('run', 'web', 'pal'), ['run', 'web', '--size']);
   assert.deepEqual(commandArgs('doctor'), ['doctor']);
   // The hardware fitted rides along as a person would type it.
   assert.deepEqual(
     commandArgs('run', 'c64', 'ntsc', { profile: 'reu512', options: { port1: 'mouse1351', sid: '8580' } }),
-    ['run', 'c64', '--profile', 'reu512', '--hardware', 'port1=mouse1351,sid=8580'],
+    ['run', 'c64', '--profile', 'reu512', '--hardware', 'port1=mouse1351,sid=8580', '--size'],
   );
-  assert.deepEqual(commandArgs('build', 'pet', 'pal', { profile: '8032', options: {} }), ['build', '--target', 'pet', '--profile', '8032']);
-  assert.deepEqual(commandArgs('run', 'vic20', 'pal', { profile: null, options: {} }), ['run', 'vic20', '--pal']);
+  assert.deepEqual(commandArgs('build', 'pet', 'pal', { profile: '8032', options: {} }), ['build', '--target', 'pet', '--profile', '8032', '--size']);
+  assert.deepEqual(commandArgs('run', 'vic20', 'pal', { profile: null, options: {} }), ['run', 'vic20', '--pal', '--size']);
   // boot shares run's own [action, target] shape — no entry file, ever —
-  // and fits the same hardware on top.
+  // and fits the same hardware on top. It has no program, so no --size.
   assert.deepEqual(commandArgs('boot', 'pet', 'ntsc'), ['boot', 'pet']);
   assert.deepEqual(commandArgs('boot', 'pet', 'pal'), ['boot', 'pet'], 'the PET has no region here either');
   assert.deepEqual(

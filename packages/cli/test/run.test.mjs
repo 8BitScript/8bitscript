@@ -59,6 +59,7 @@ test('run() with no target prints usage and returns 2', async () => {
   assert.equal(result, 2);
   assert.equal(stdout, '');
   assert.match(stderr, /^Usage: 8bs run <pet\|web>/);
+  assert.match(stderr, /\[--size\]/, 'run --size is the breakdown before the emulator starts');
 });
 
 test('run() --screenshot to an unwritable path reports the error and returns 1', async () => {
@@ -188,6 +189,29 @@ test('atari800CleanDisplayConfig zeroes the CRT knobs, replacing existing keys a
     await rm(outPath, { force: true });
   } finally {
     process.env.HOME = prevHome;
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('run() --size prints the breakdown before the emulator path, and writes it into last-run', async () => {
+  const { lastRunPath } = await import('../src/last-run.mjs');
+  const dir = await mkdtemp(join(tmpdir(), '8bs-run-size-'));
+  const prev = process.cwd();
+  try {
+    await writeFile(join(dir, 'main.8bs'), SUM);
+    process.chdir(dir);
+    const badPath = join(dir, 'does-not-exist', 'out.png');
+    const { result, stdout, stderr } = await capture(() => run([
+      'pet', 'main.8bs', '--size', '--screenshot', badPath, '--no-open',
+    ]));
+    assert.equal(result, 1);
+    assert.match(stdout, /size breakdown:/);
+    assert.match(stdout, /^built /, 'the breakdown is under the memory line, before screenshot/emulator');
+    const report = JSON.parse(await readFile(lastRunPath('pet', dir), 'utf8'));
+    assert.ok(report.size.length > 0);
+    assert.ok(stderr.length > 0, 'screenshot still fails after the report is written');
+  } finally {
+    process.chdir(prev);
     await rm(dir, { recursive: true, force: true });
   }
 });

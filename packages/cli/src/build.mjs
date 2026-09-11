@@ -54,6 +54,7 @@ import {
   HARDWARE_USAGE, REGION_MACHINES, hardwareArgs, listedTargets, loadCatalog, projectHardware,
   projectProfiles, projectRequires, projectSystems, resolveHardware, whatSatisfies,
 } from './hardware.mjs';
+import { compileReport, writeLastRun } from './last-run.mjs';
 
 const TARGETS = new Set(MACHINES);
 
@@ -109,15 +110,18 @@ export function resolveEntryPath(config, target, entryArg) {
  *
  * @param {'vic20'|'c64'|'pet'|'c128'|'atari8'|'nes'|'cx16'|'mega65'|'web'} target
  * @param {string} [entryArg]
- * @param {{ pal?: boolean, profile?: string, hardware?: object }} [options] `pal` selects the
+ * @param {{ pal?: boolean, profile?: string, hardware?: object, report?: boolean }} [options] `pal` selects the
  *   real hardware/emulator region (NTSC unless true; ignored outside
  *   REGION_TARGETS) — it does not affect the logical frame rate, which is
  *   read from 8bs.config.ts's `frameRate` instead (default 60). `profile`
  *   names a project profile or a catalog preset, `hardware` is option
- *   values set on top (`--hardware`); see hardware.mjs.
- * @returns {Promise<{ ok: boolean, outFile?: string, frameRate?: number, hardware?: object }>}
+ *   values set on top (`--hardware`); see hardware.mjs. `report` is
+ *   `--size`: print the per-function breakdown and include it in the
+ *   last-run JSON the editor's Running machines tree reads.
+ * @returns {Promise<{ ok: boolean, outFile?: string, frameRate?: number, hardware?: object, memory?: object, sizeReport?: object[] }>}
  *   `hardware` is the resolved hardware the program was built for, for
- *   whoever runs it next.
+ *   whoever runs it next. `memory` / `sizeReport` are what the last-run
+ *   file and `--size` print; they are absent when the compile failed.
  */
 export async function compile(target, entryArg, { pal = false, profile, hardware: overrides = {}, report = false } = {}) {
   const config = await loadConfig(process.cwd(), '8bs build');
@@ -253,7 +257,11 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
     process.stdout.write(`web bundle: ${webDir}/\n`);
     process.stdout.write(`${memoryLine(ir.memory)}\n`);
     if (result.sizeReport) process.stdout.write(sizeReportLines(result.sizeReport, result.bytes.length));
-    return { ok: true, outFile, frameRate, hardware, webDir };
+    const memory = { variables: ir.memory.variables, program: result.bytes.length, data: ir.memory.data };
+    await writeLastRun(target, compileReport(target, {
+      outFile, hardware, memory, sizeReport: result.sizeReport, frameRate,
+    }));
+    return { ok: true, outFile, frameRate, hardware, webDir, memory, sizeReport: result.sizeReport };
   }
 
   const { build, outputExtension } = await import('@8bitscript/compiler/mos');
@@ -272,7 +280,10 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   process.stdout.write(`built ${outFile}\n`);
   process.stdout.write(`${memoryLine(ir.memory, result.memory)}\n`);
   if (result.sizeReport) process.stdout.write(sizeReportLines(result.sizeReport, result.memory.program));
-  return { ok: true, outFile, frameRate, hardware };
+  await writeLastRun(target, compileReport(target, {
+    outFile, hardware, memory: result.memory, sizeReport: result.sizeReport, frameRate,
+  }));
+  return { ok: true, outFile, frameRate, hardware, memory: result.memory, sizeReport: result.sizeReport };
 }
 
 /**

@@ -31,11 +31,13 @@ Implemented:
                                lists every option, value and preset, and
                                which machines this release builds for.
   run <target> [--pal] [--profile <name>]
-    [--hardware option=value,...] [entry]
+    [--hardware option=value,...] [--size] [entry]
                                Build, then open that target's emulator
                                (VICE's xpet for the pet) at the right
                                machine model — or execute the .wasm and
-                               print its state (web)
+                               print its state (web). --size prints the
+                               same per-function breakdown 8bs build --size
+                               does, before the emulator starts.
     [--screenshot <file.png>] Instead of an interactive window, capture one
     [--frames <n>]             screenshot through the target's own emulator
                                API (or, for atari8 only, a macOS window

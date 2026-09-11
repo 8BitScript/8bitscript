@@ -59,11 +59,15 @@ test('exceeding the zp budget is a build error naming the variable and the exact
   assert.match(result.error, /^global 'tooWide' needs 2 byte\(s\) of zero page but only 1 byte\(s\) remain \(\$00FF\.\.\$00FF\)$/);
 });
 
-test('a mutable array global is refused, naming it — only a const array is placed today', () => {
-  const result = allocate([{ name: 'table', type: 'utinyint', address: null, array: 16, constant: false }], BUDGET);
-  assert.equal(result.ok, false);
-  if (result.ok) return;
-  assert.match(result.error, /^global 'table': a mutable array\/string<N> isn't allocated yet — only a const array is placed today$/);
+test('a mutable array global is skipped like a const one — its bytes ride in the data section, not zero page (0.2.2)', () => {
+  const result = allocate([
+    { name: 'table', type: 'utinyint', address: null, array: 16, constant: false },
+    scalar('after', 'utinyint'),
+  ], BUDGET);
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.deepEqual(result.globals, [{ name: 'after', address: 0x8e, storage: 'zp', size: 1 }]);
+  assert.equal(result.zpUsed, 1, 'the mutable array never touched the zp budget');
 });
 
 test('a const array global is skipped entirely: no zp spent, no address assigned, later scalars unaffected', () => {

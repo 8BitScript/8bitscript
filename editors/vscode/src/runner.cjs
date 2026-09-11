@@ -14,7 +14,9 @@
 // through the editor's task system rather than a hidden child process so
 // that output lands in a terminal, a running emulator can be stopped from
 // the panel, and the same invocation can be written down in tasks.json
-// under the `8bs` task type declared in package.json.
+// under the `8bs` task type declared in package.json. Run and build pass
+// `--size` so the per-function breakdown prints before the emulator starts;
+// the Running machines tree reads the same numbers from dist/.8bs-last-<target>.json.
 const path = require('path');
 const { execFile } = require('child_process');
 
@@ -38,6 +40,7 @@ const {
 } = require('./projects.cjs');
 const settings = require('./settings.cjs');
 const { selectionLabel, parseTargets } = require('./hardwareCatalog.cjs');
+const { fetchStatus, livePollPlan, readLastRun, rowKey } = require('./runningMachines.cjs');
 
 const { regionShort } = settings;
 
@@ -89,6 +92,7 @@ function labelOf(project) {
 class RunningTasks {
   constructor(onChange) {
     this.executions = new Set();
+    this.startedAt = new WeakMap();
     this.onChange = onChange;
   }
 
@@ -105,15 +109,16 @@ class RunningTasks {
   track(execution) {
     if (execution.task.definition.type !== TASK_TYPE) return;
     this.executions.add(execution);
+    if (!this.startedAt.has(execution)) this.startedAt.set(execution, Date.now());
     this.onChange();
   }
 
   /**
-   * What is running, for the panel's Running section. `command` is left in
-   * so an `install` or a `doctor` is not mistaken for a program on a
+   * What is running, for the panel's Running machines section. `command` is
+   * left in so an `install` or a `doctor` is not mistaken for a program on a
    * machine; the panel labels it accordingly.
    *
-   * @returns {{ dir: string, target: string|undefined, command: string, name: string }[]}
+   * @returns {{ dir: string, target: string|undefined, command: string, name: string, startedAt: number }[]}
    */
   list() {
     return [...this.executions].map((execution) => {
@@ -123,6 +128,7 @@ class RunningTasks {
         target: definition.target,
         command: definition.command,
         name: execution.task.name,
+        startedAt: this.startedAt.get(execution) ?? Date.now(),
       };
     });
   }
@@ -208,6 +214,8 @@ class Projects {
     this.changed = new vscode.EventEmitter();
     this.onDidChange = this.changed.event;
     this.running = new RunningTasks(() => this.changed.fire());
+    // Live FPS/frames from a web run's GET /status, keyed by project+target.
+    this.live = new Map();
     // `8bs targets --json` per project directory: a project's own hardware
     // and profiles come from its config, so the answer is not shared.
     this.targetsPromises = new Map();
@@ -761,7 +769,59 @@ function registerRunner(context, output) {
   });
 
   projects.refresh();
+  startLivePoll(projects, context);
   return projects;
+}
+
+/**
+ * While a run or boot is in flight, reread dist/.8bs-last-<target>.json
+ * (compile writes it before the emulator starts) and, when the report
+ * names a web URL, poll GET /status for FPS. VICE's binary monitor pauses
+ * the machine on any command, so a PET run shows elapsed time and the
+ * compile report rather than live registers.
+ *
+ * @param {Projects} projects
+ * @param {vscode.ExtensionContext} context
+ */
+function startLivePoll(projects, context) {
+  let lastStamp = '';
+  const tick = async () => {
+    const rows = projects.running.list().filter((row) => row.command === 'run' || row.command === 'boot');
+    if (rows.length === 0) {
+      if (projects.live.size > 0) {
+        projects.live.clear();
+        projects.changed.fire();
+      }
+      return;
+    }
+    let changed = false;
+    const reports = new Map();
+    for (const row of rows) {
+      reports.set(rowKey(row.dir, row.target), readLastRun(row.dir, row.target));
+    }
+    const plan = livePollPlan(rows, reports);
+    for (const { key, url } of plan.fetches) {
+      const status = await fetchStatus(url);
+      const prev = projects.live.get(key);
+      if (status && JSON.stringify(status) !== JSON.stringify(prev)) {
+        projects.live.set(key, status);
+        changed = true;
+      }
+    }
+    for (const key of [...projects.live.keys()]) {
+      if (!plan.seen.has(key)) {
+        projects.live.delete(key);
+        changed = true;
+      }
+    }
+    if (plan.stamp !== lastStamp) {
+      lastStamp = plan.stamp;
+      changed = true;
+    }
+    if (changed) projects.changed.fire();
+  };
+  const timer = setInterval(() => { tick().catch(() => {}); }, 1000);
+  context.subscriptions.push({ dispose() { clearInterval(timer); } });
 }
 
 module.exports = { Projects, RunningTasks, labelOf, makeTask, registerRunner, whereLabel };

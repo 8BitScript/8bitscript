@@ -38,6 +38,7 @@ import { storageBytes, resolveIntegerType } from '../../types/index.mjs';
 import { LocalAllocator, ZpBudgetError } from './allocator.ts';
 import { arrayLabel, stringLabel } from '../data.ts';
 import { WAIT_FRAME_LABEL } from '../startup/waitframe.ts';
+import { MULTIPLY_LABEL } from '../startup/multiply.ts';
 
 export type Directive = _AsmDirective;
 
@@ -103,6 +104,12 @@ export interface IrStatement {
   // see ir/index.mjs's statement(): a CallExpression's own lowered node is
   // returned directly as the statement, never wrapped)
   args?: IrExpr[];
+  // storeIndex (ir/index.mjs's indexAssignment): which array is written,
+  // at which index — `value` above is the stored value, shared with
+  // memoryWrite/assign the same way `init` is shared.
+  array?: IrExpr;
+  index?: IrExpr;
+  elementType?: string | null;
 }
 
 export interface IrParam {
@@ -130,11 +137,18 @@ export interface IrFunction {
 /** A function's calling interface, computed once (mos/index.ts, before any
  * lowering — see mos/AGENTS.md) and shared by every call site and by the
  * function's own body: where each parameter lives, how wide it is (1 byte
- * or, since milestone 8, 2), and what label a `JSR` to it names. */
+ * or, since milestone 8, 2), and what label a `JSR` to it names.
+ * `returnPair` is the fixed zero-page pair a 16-bit-returning function
+ * (0.2.2 — A is one byte, so a wide result needs a home the same way a
+ * wide parameter does) writes its result into before its RTS; the call
+ * site copies it out to a fresh temporary immediately, so `f() + f()`
+ * can't clobber its own left operand. Unset for an 8-bit or void return,
+ * which keep the accumulator convention unchanged. */
 export interface FunctionSite {
   label: string;
   params: { address: number; width: 1 | 2 }[];
   returnType: string;
+  returnPair?: number;
 }
 
 /** One resolvable name: a global (seeded by the caller from zp/index.ts's own allocation) or a local this pass allocates as it lowers a `local` statement. Both live in zero page, so every load/store below uses the 2-byte `zeropage` form unconditionally — nothing here is ever placed past $00FF. */
@@ -158,8 +172,12 @@ export interface LowerOptions {
   params: { name: string; type: string; address: number }[];
   /** Every function in the linked program, by name — a call site's only source for where to store its arguments and which label to `JSR`. Built once before any function is lowered, precisely so a callee's address is always known regardless of lowering order. */
   functions: Map<string, FunctionSite>;
-  /** Every const array global this build's data section (mos/data.ts) will place, by name — an `index` node's only source for its element width and its data-section label (mos/data.ts's arrayLabel(name)). A name absent here — a mutable array, or no array at all — is refused by name rather than guessed at; zp/index.ts already refuses a mutable one before this map is even built, so reaching that refusal here would mean the linker or checker let something through this backend never should have seen. */
-  arrays: Map<string, { elementType: string }>;
+  /** Every array global this build's data section (mos/data.ts) will place — const data and mutable `let` arrays alike as of 0.2.2, string<N> buffers included — by name: an `index`/`storeIndex` node's only source for its element width, its mutability, and its data-section label (mos/data.ts's arrayLabel(name)). A name absent here (an array parameter, or no array at all) is refused by name rather than guessed at. */
+  arrays: Map<string, { elementType: string; mutable?: boolean }>;
+  /** The shared 16-bit multiply routine's operand/result cells (mos/startup/multiply.ts), placed by mos/index.ts exactly when a runtime `*` survives the optimizer's strength reduction anywhere in the program — null (or absent) otherwise, and a `*` reaching this pass with no cells is the placement scan disagreeing with the tree, a build() bug rather than a missing rule. */
+  multiply?: { a: number; b: number; result: number } | null;
+  /** This function's own 16-bit return pair (its FunctionSite.returnPair), when it has one — where its `return <value>` statements store the result. Absent for an 8-bit or void function, whose `return` keeps the accumulator convention. */
+  returnPair?: number;
 }
 
 export type LowerResult =
@@ -323,7 +341,9 @@ class Lowerer {
   symbols: Map<string, Binding>;
   locals: LocalAllocator;
   functions: Map<string, FunctionSite>;
-  arrays: Map<string, { elementType: string }>;
+  arrays: Map<string, { elementType: string; mutable?: boolean }>;
+  multiply: { a: number; b: number; result: number } | null;
+  returnPair: number | null;
   loops: { continueLabel: string; breakLabel: string }[] = [];
   exitLabel = freshLabel('exit');
 
@@ -332,6 +352,8 @@ class Lowerer {
     this.locals = options.locals;
     this.functions = options.functions;
     this.arrays = options.arrays;
+    this.multiply = options.multiply ?? null;
+    this.returnPair = options.returnPair ?? null;
     // A parameter is bound exactly like a local — same Binding shape, same
     // symbol table — except its address comes from mos/index.ts's own
     // parameter pass (see mos/AGENTS.md), not this.locals.alloc(), and it
@@ -420,6 +442,21 @@ class Lowerer {
       }
       case 'index':
         return this.indexRead16(node);
+      case 'call': {
+        // The callee left its result in its own return pair (see
+        // FunctionSite.returnPair); copy it out to a fresh temporary
+        // right away — the pair is the callee's, and the very next call
+        // to the same function (`f() + f()`) would overwrite it.
+        const target = this.functions.get(node.name!);
+        if (!target) throw new LowerError(`call to '${node.name}' resolves to nothing this backend knows about — a linker bug, not a missing lowering rule`);
+        if (target.returnPair === undefined) {
+          throw new LowerError(`call to '${node.name}' used as a 16-bit value, but it returns '${target.returnType}' — a checker or linker bug, not a missing lowering rule`);
+        }
+        this.callSite(node);
+        const result = this.alloc16(`a temporary for '${node.name}'s return value`);
+        this.emit(ldaZp(target.returnPair), staZp(result), ldaZp(target.returnPair + 1), staZp(result + 1));
+        return result;
+      }
       default:
         throw new LowerError(`no 16-bit instruction-selection rule yet for the '${node.kind}' expression — it lands in a later milestone`);
     }
@@ -485,8 +522,22 @@ class Lowerer {
   // backend already does; exprTo16 is the same rule, applied here too.
   binop16(node: IrExpr): number {
     const { operator, left, right } = node;
+    if (operator === '*') {
+      // The same shared routine the 8-bit path uses (see binop's own '*'
+      // case) — here the whole 16-bit product is copied out to a fresh
+      // pair, immediately, so a nested multiply can't clobber it in the
+      // routine's own cells.
+      this.multiplyInto(node);
+      const cells = this.requireMultiply();
+      const result = this.alloc16(`a temporary for 16-bit '*'`);
+      this.emit(ldaZp(cells.result), staZp(result), ldaZp(cells.result + 1), staZp(result + 1));
+      return result;
+    }
+    if (operator === '<<' || operator === '>>') {
+      return this.shift16(node);
+    }
     if (operator !== '+' && operator !== '-') {
-      throw new LowerError(`no 16-bit instruction-selection rule yet for the '${operator}' operator — only + and - are lowered at 16 bits`);
+      throw new LowerError(`no 16-bit instruction-selection rule yet for the '${operator}' operator — only +, -, *, and constant-amount shifts are lowered at 16 bits`);
     }
     const result = this.alloc16(`a temporary for 16-bit '${operator}'`);
     const mark = this.locals.mark();
@@ -502,6 +553,44 @@ class Lowerer {
       this.emit(ldaZp(leftAddr + 1), instr('SBC', 'zeropage', rightAddr + 1), staZp(result + 1));
     }
     this.locals.release(mark);
+    return result;
+  }
+
+  // A 16-bit shift by a compile-time amount, into a fresh pair the shift
+  // then works on in place. A whole byte of shift is a byte move (the
+  // spare byte zeroed), the remainder the standard ASL/ROL (<<) or
+  // LSR/ROR (>>) pair per step — `state >> 8` (@8bitscript/random's own
+  // high-byte read) is the move alone, zero shift instructions.
+  shift16(node: IrExpr): number {
+    if (!isConstNum(node.right)) {
+      throw new LowerError(`the '${node.operator}' operator needs a compile-time shift amount — a runtime amount isn't lowered (index a table of masks instead)`);
+    }
+    const amount = node.right.value!;
+    const result = this.alloc16(`a temporary for 16-bit '${node.operator}'`);
+    const mark = this.locals.mark();
+    const src = this.exprTo16(node.left!);
+    this.emit(ldaZp(src), staZp(result), ldaZp(src + 1), staZp(result + 1));
+    this.locals.release(mark);
+    if (amount >= 16) {
+      this.emit(ldaImm(0), staZp(result), staZp(result + 1));
+      return result;
+    }
+    let remaining = amount;
+    if (remaining >= 8) {
+      if (node.operator === '>>') {
+        this.emit(ldaZp(result + 1), staZp(result), ldaImm(0), staZp(result + 1));
+      } else {
+        this.emit(ldaZp(result), staZp(result + 1), ldaImm(0), staZp(result));
+      }
+      remaining -= 8;
+    }
+    for (let i = 0; i < remaining; i++) {
+      if (node.operator === '>>') {
+        this.emit(instr('LSR', 'zeropage', result + 1), instr('ROR', 'zeropage', result));
+      } else {
+        this.emit(instr('ASL', 'zeropage', result), instr('ROL', 'zeropage', result + 1));
+      }
+    }
     return result;
   }
 
@@ -543,20 +632,65 @@ class Lowerer {
     this.locals.release(mark);
   }
 
-  /** The data-section label an `index` node's own array resolves to — the only array shape this backend places is a const global (mos/index.ts's parameter pass already refuses an array parameter, and zp/index.ts's allocator already refuses a mutable one, both before `options.arrays` is even built), so a name missing here is a linker or checker bug, not a missing lowering rule. */
+  /** The data-section label an `index`/`storeIndex` node's own array resolves to — every array global, const data and mutable RAM alike, is placed there as of 0.2.2 (mos/index.ts's own collection; mos/index.ts's parameter pass still refuses an array parameter before `options.arrays` is even built), so a name missing here is a linker or checker bug, not a missing lowering rule. */
   arrayTarget(node: IrExpr): string {
     const name = node.array!.name!;
     if (!this.arrays.has(name)) {
-      throw new LowerError(`'${name}' resolves to no const array this backend placed — an array parameter or a mutable array/string<N> isn't lowered yet, and reaching this any other way is a linker or checker bug, not a missing lowering rule`);
+      throw new LowerError(`'${name}' resolves to no array this backend placed — an array parameter isn't lowered yet, and reaching this any other way is a linker or checker bug, not a missing lowering rule`);
     }
     return arrayLabel(name);
   }
 
-  // A 1-byte element: the index (0..255, already 8-bit by node.index's own
-  // type) is the byte offset outright.
+  // `name[index] = value`, 1-byte elements: the index parks in a temp
+  // while the value evaluates (the value's own expression may use A and Y
+  // freely), then Y picks the cell and one absolute,y store writes it —
+  // the mirror of indexRead's own LDA absolute,y. A 2-byte element store
+  // is refused by name: nothing real writes one yet, and its read
+  // counterpart's own ASL-into-Y shape would need deciding against a
+  // second byte's ordering here.
+  storeIndex(node: IrStatement): void {
+    const name = node.array!.name!;
+    const entry = this.arrays.get(name);
+    if (!entry) {
+      throw new LowerError(`'${name}' resolves to no array this backend placed — an array parameter isn't lowered yet, and anything else reaching this is a linker or checker bug`);
+    }
+    if (!entry.mutable) {
+      throw new LowerError(`'${name}' is a const array — data in the program, not RAM — and the checker should already have refused writing it`);
+    }
+    if (storageBytes(entry.elementType) !== 1) {
+      throw new LowerError(`storing into '${name}': a 2-byte array element isn't written yet — only 1-byte (utinyint/bool) elements are`);
+    }
+    const mark = this.locals.mark();
+    this.indexValue(node.index!);
+    const index = this.alloc(`a temporary for '${name}[...]'s own index`);
+    this.emit(staZp(index));
+    this.expr(node.value! as IrExpr);
+    this.emit(instr('LDY', 'zeropage', index));
+    this.emit(instr('STA', 'absolute,y', undefined, arrayLabel(name)));
+    this.locals.release(mark);
+  }
+
+  // An index expression, either width, into A. An array holds at most 256
+  // elements (one byte of index space — the whole reason Y can address
+  // every element), so a 16-bit-*typed* index (`TILES[base + col]`, where
+  // base is a usmallint) is still a one-byte *value* in any in-range
+  // program, and its low byte is exact.
+  indexValue(node: IrExpr): void {
+    const width = node.type ? storageBytes(node.type) : 1;
+    if (width === 2) {
+      const mark = this.locals.mark();
+      const addr = this.expr16(node);
+      this.emit(ldaZp(addr));
+      this.locals.release(mark);
+      return;
+    }
+    this.expr(node);
+  }
+
+  // A 1-byte element: the index is the byte offset outright.
   indexRead(node: IrExpr): void {
     const target = this.arrayTarget(node);
-    this.expr(node.index as IrExpr);
+    this.indexValue(node.index as IrExpr);
     this.emit(instr('TAY', 'implied'));
     this.emit(instr('LDA', 'absolute,y', undefined, target));
   }
@@ -571,7 +705,7 @@ class Lowerer {
   // nothing on the PET's own critical path is anywhere near that size.
   indexRead16(node: IrExpr): number {
     const target = this.arrayTarget(node);
-    this.expr(node.index as IrExpr);
+    this.indexValue(node.index as IrExpr);
     this.emit(instr('ASL', 'accumulator'), instr('TAY', 'implied'));
     const result = this.alloc16(`a temporary for reading '${node.array!.name}'`);
     this.emit(instr('LDA', 'absolute,y', undefined, target), staZp(result));
@@ -643,8 +777,31 @@ class Lowerer {
       this.materializeBool(node);
       return;
     }
-    if (operator === '*' || operator === '/' || operator === '%') {
-      throw new LowerError(`the '${operator}' operator isn't lowered yet — the 6502 has no hardware multiply or divide, and this backend doesn't have a software routine for one yet`);
+    if (operator === '*') {
+      // The shared shift-and-add routine (mos/startup/multiply.ts) serves
+      // both widths: 8-bit operands zero-extend in, and an 8-bit product
+      // is the result's low byte — the same wrap `utinyint` arithmetic
+      // always has. Multiplies the compiler could do cheaper (a power of
+      // two, a two-set-bit constant) never reach here: linker/optimize.mjs
+      // already turned them into shifts.
+      this.multiplyInto(node);
+      this.emit(ldaZp(this.requireMultiply().result));
+      return;
+    }
+    if (operator === '%') {
+      this.modulo8(node);
+      return;
+    }
+    if (operator === '/') {
+      throw new LowerError(`the '/' operator isn't lowered yet — the 6502 has no hardware divide, and nothing on this backend's critical path needs one ('%' subtracts instead)`);
+    }
+    if (operator === '&' || operator === '|' || operator === '^') {
+      this.bitwise8(node);
+      return;
+    }
+    if (operator === '<<' || operator === '>>') {
+      this.shift8(node);
+      return;
     }
     if (operator !== '+' && operator !== '-') {
       throw new LowerError(`no instruction-selection rule yet for the '${operator}' operator`);
@@ -660,6 +817,90 @@ class Lowerer {
       this.emit(staZp(rightTemp), ldaZp(temp), instr('SEC', 'implied'), instr('SBC', 'zeropage', rightTemp));
     }
     this.locals.release(mark);
+  }
+
+  requireMultiply(): { a: number; b: number; result: number } {
+    if (!this.multiply) {
+      throw new LowerError("a '*' reached instruction selection with no multiply routine placed — the placement scan (mos/startup/multiply.ts's usesMultiply) disagrees with the tree, a build() bug rather than a missing rule");
+    }
+    return this.multiply;
+  }
+
+  /** Both operands into the shared routine's own cells (widened the same way a 16-bit call argument is), then JSR — the 16-bit product lands in the routine's result pair. The caller reads it out immediately, before any enclosing expression can multiply again. */
+  multiplyInto(node: IrExpr): void {
+    const cells = this.requireMultiply();
+    const mark = this.locals.mark();
+    const leftAddr = this.exprTo16(node.left!);
+    const rightAddr = this.exprTo16(node.right!);
+    this.emit(ldaZp(leftAddr), staZp(cells.a), ldaZp(leftAddr + 1), staZp(cells.a + 1));
+    this.emit(ldaZp(rightAddr), staZp(cells.b), ldaZp(rightAddr + 1), staZp(cells.b + 1));
+    this.emit(instr('JSR', 'absolute', undefined, MULTIPLY_LABEL));
+    this.locals.release(mark);
+  }
+
+  // `value % bound`, both 8-bit, by repeated subtraction: CMP leaves the
+  // carry set exactly when A >= bound, which is both the loop's own
+  // continue condition and the borrow-in SBC needs, so the loop is three
+  // instructions. Iterations are value/bound — a die roll or a board cell,
+  // never a division this backend would owe a real routine for. `bound`
+  // must be at least 1, the same contract every caller already documents
+  // (@8bitscript/random's own range()): a zero bound loops forever here
+  // exactly as `i32.rem_u`'s own trap ends the program on the web target.
+  modulo8(node: IrExpr): void {
+    const mark = this.locals.mark();
+    this.expr(node.left!);
+    const value = this.alloc(`a temporary for the left side of '%'`);
+    this.emit(staZp(value));
+    this.expr(node.right!);
+    const bound = this.alloc(`a temporary for the right side of '%'`);
+    this.emit(staZp(bound));
+    const loop = freshLabel('mod');
+    const done = freshLabel('mod_done');
+    this.emit(ldaZp(value), label(loop), cmpZp(bound), branch('BCC', done));
+    this.emit(instr('SBC', 'zeropage', bound), jmp(loop), label(done));
+    this.locals.release(mark);
+  }
+
+  // `&`/`|`/`^`, all three commutative, so a constant on either side is an
+  // immediate-mode operand and the temp is only paid for when both sides
+  // are runtime values.
+  bitwise8(node: IrExpr): void {
+    const mnemonic = node.operator === '&' ? 'AND' : node.operator === '|' ? 'ORA' : 'EOR';
+    if (isConstNum(node.right)) {
+      this.expr(node.left!);
+      this.emit(instr(mnemonic, 'immediate', node.right.value! & 0xff));
+      return;
+    }
+    if (isConstNum(node.left)) {
+      this.expr(node.right!);
+      this.emit(instr(mnemonic, 'immediate', node.left.value! & 0xff));
+      return;
+    }
+    const mark = this.locals.mark();
+    const temp = this.emitOperands(node.left!, node.right!, `'${node.operator}'`);
+    this.emit(instr(mnemonic, 'zeropage', temp));
+    this.locals.release(mark);
+  }
+
+  // A shift by a compile-time amount unrolls into ASL/LSR on the
+  // accumulator — the only shape anything real needs (`key >> 3`,
+  // `(width - used) >> 1`, the optimizer's own strength-reduced
+  // multiplies). A runtime amount would be a loop, and is refused by name
+  // until something actually needs one — @8bitscript/pet's own keyboard
+  // table (`COLUMN_BIT`, "a table lookup is one indexed load") is the
+  // documented idiom instead.
+  shift8(node: IrExpr): void {
+    if (!isConstNum(node.right)) {
+      throw new LowerError(`the '${node.operator}' operator needs a compile-time shift amount — a runtime amount isn't lowered (index a table of masks instead)`);
+    }
+    const amount = node.right.value!;
+    this.expr(node.left!);
+    if (amount >= 8) {
+      this.emit(ldaImm(0));
+      return;
+    }
+    const mnemonic = node.operator === '<<' ? 'ASL' : 'LSR';
+    for (let i = 0; i < amount; i++) this.emit(instr(mnemonic, 'accumulator'));
   }
 
   unop(node: IrExpr): void {
@@ -758,25 +999,48 @@ class Lowerer {
     }
     const leftWidth = storageBytes(node.left!.type!);
     const rightWidth = storageBytes(node.right!.type!);
-    if (leftWidth !== rightWidth) {
-      throw new LowerError(`the '${node.operator}' comparison needs both sides the same width — got ${leftWidth} and ${rightWidth} byte(s); mixed-width comparison isn't lowered yet`);
-    }
+    const width = Math.max(leftWidth, rightWidth);
     const mark = this.locals.mark();
-    if (leftWidth === 2) {
-      // Same convention as the 8-bit path below: left evaluates first (into
-      // its own zp pair), right second, and the flags end up describing
-      // (right - left) — CMP's carry becomes SBC's own borrow-in directly,
-      // chaining the low byte's borrow into the high byte's subtraction,
-      // the standard 6502 multi-byte compare idiom.
-      const leftAddr = this.expr16(node.left!);
-      const rightAddr = this.expr16(node.right!);
-      this.emit(ldaZp(rightAddr), cmpZp(leftAddr), ldaZp(rightAddr + 1), instr('SBC', 'zeropage', leftAddr + 1));
-    } else if (leftWidth === 1) {
-      const temp = this.emitOperands(node.left!, node.right!, `'${node.operator}'`);
-      this.emit(cmpZp(temp));
-    } else {
-      throw new LowerError(`the '${node.operator}' comparison operates on a ${leftWidth}-byte type — only 1- and 2-byte comparisons are lowered yet`);
+    if (width === 2) {
+      // The 16-bit path CANNOT reuse the 8-bit branch table below: after
+      // `CMP low / SBC high`, only the CARRY describes the whole 16-bit
+      // subtraction — Z is the HIGH byte's alone, so any plan that reads
+      // BEQ/BNE off this sequence answers wrong whenever the difference
+      // fits in the low byte (found running the first real 16-bit `>=`
+      // ever executed, @8bitscript/pet/text's own printNumber, 2026-09-10:
+      // `34 >= 100` read as "equal" and the digit loop subtracted
+      // forever). So: equality compares byte-by-byte and skips the high
+      // compare when the low already differs, leaving Z exact; ordering
+      // subtracts in whichever direction makes the carry alone the
+      // answer. Both sides go through exprTo16 — a mixed-width pair
+      // (`value != 0`) zero-extends its narrower unsigned side, exactly
+      // binop16's own operand rule (0.2.2).
+      const leftAddr = this.exprTo16(node.left!);
+      const rightAddr = this.exprTo16(node.right!);
+      if (operator === '==' || operator === '!=') {
+        const skipHigh = freshLabel('cmp16_hi');
+        this.emit(ldaZp(leftAddr), cmpZp(rightAddr), branch('BNE', skipHigh));
+        this.emit(ldaZp(leftAddr + 1), cmpZp(rightAddr + 1), label(skipHigh));
+        this.emit(branch(operator === '==' ? 'BEQ' : 'BNE', target));
+      } else {
+        // left-right leaves C = (left >= right); right-left leaves
+        // C = (right >= left). Pick the direction whose carry IS the
+        // operator, and no Z is ever consulted.
+        const [lo, hi, other, mnemonic] = operator === '<' ? [leftAddr, leftAddr + 1, rightAddr, 'BCC']
+          : operator === '>=' ? [leftAddr, leftAddr + 1, rightAddr, 'BCS']
+            : operator === '>' ? [rightAddr, rightAddr + 1, leftAddr, 'BCC']
+              : [rightAddr, rightAddr + 1, leftAddr, 'BCS'];
+        this.emit(ldaZp(lo), cmpZp(other), ldaZp(hi), instr('SBC', 'zeropage', other + 1));
+        this.emit(branch(mnemonic, target));
+      }
+      this.locals.release(mark);
+      return;
     }
+    if (width !== 1) {
+      throw new LowerError(`the '${node.operator}' comparison operates on a ${width}-byte type — only 1- and 2-byte comparisons are lowered yet`);
+    }
+    const temp = this.emitOperands(node.left!, node.right!, `'${node.operator}'`);
+    this.emit(cmpZp(temp));
     const plan = ORDER_BRANCH_IF_TRUE[operator];
     if ('mnemonic' in plan) {
       this.emit(branch(plan.mnemonic, target));
@@ -898,15 +1162,40 @@ class Lowerer {
         if (this.loops.length === 0) throw new LowerError('continue outside any loop — a checker bug, not a missing lowering rule');
         this.emit(jmp(this.loops[this.loops.length - 1].continueLabel));
         return null;
-      case 'return':
+      case 'return': {
         // A value evaluates into A — right where the caller of *this*
         // function already expects its return value (see callSite) — then
         // falls straight into the same exit jump a bare `return;` always
-        // used. Width is checked the same way every other value-producing
-        // node's is, inside expr() itself; nothing extra needed here.
-        if (node.value) this.expr(node.value);
+        // used. A 16-bit value returns its low byte: this backend only
+        // lowers 8-bit returns (mos/index.ts refuses a 16-bit return
+        // *type* by name), so a wider value here is the language's own
+        // wrap-at-declared-width narrowing — `return state >> 8;` into a
+        // utinyint (@8bitscript/random's own next()) is exactly this, and
+        // the shift already put the wanted byte low. If 16-bit return
+        // types ever land, this case is where the truncation stops being
+        // the whole story.
+        if (node.value && this.returnPair !== null) {
+          // A 16-bit-returning function: the value lands in the
+          // function's own fixed return pair (FunctionSite.returnPair),
+          // widened from 8 bits the same way a wide call argument is.
+          const mark = this.locals.mark();
+          const addr = this.exprTo16(node.value);
+          this.emit(ldaZp(addr), staZp(this.returnPair), ldaZp(addr + 1), staZp(this.returnPair + 1));
+          this.locals.release(mark);
+        } else if (node.value) {
+          const width = node.value.type ? storageBytes(node.value.type) : 1;
+          if (width === 2) {
+            const mark = this.locals.mark();
+            const addr = this.expr16(node.value);
+            this.emit(ldaZp(addr));
+            this.locals.release(mark);
+          } else {
+            this.expr(node.value);
+          }
+        }
         this.emit(jmp(this.exitLabel));
         return null;
+      }
       // A bare call statement (`place(cell, code);`, result discarded) —
       // deliberately not routed through expr(), which gates on node.type
       // being exactly 8-bit: a void-returning function's call is a
@@ -920,6 +1209,9 @@ class Lowerer {
       // waitframe.ts), not here: this rule only has to know its name.
       case 'waitFrame':
         this.emit(instr('JSR', 'absolute', undefined, WAIT_FRAME_LABEL));
+        return null;
+      case 'storeIndex':
+        this.storeIndex(node);
         return null;
       default:
         throw new LowerError(`no instruction-selection rule yet for the '${node.kind}' statement — it lands in a later milestone`);

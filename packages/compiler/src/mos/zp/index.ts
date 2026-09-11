@@ -14,14 +14,13 @@
 // (its `address` field is non-null) bypasses allocation entirely; that
 // syntax and mechanism already exist in the front end today.
 //
-// A const array never reaches this allocator at all as of milestone 9: it
-// is read-only program data (mos/data.ts, alongside the string table), not
-// a zero-page concern, so this function skips it rather than assigning it
-// an address it will never use. A non-const array/string<N> is still
-// refused by name — every one of those in this repo today is a portable-UI
-// concern (packages/ui/menubar.8bs's two `string<1>` fields), nothing on
-// the PET's own critical path declares one, and a mutable buffer needs a
-// RAM home this backend doesn't have a placement rule for yet.
+// No array ever reaches this allocator as of 0.2.2: a const array is
+// read-only program data (mos/data.ts, alongside the string table), and a
+// mutable array/string<N> buffer now rides in that same data section too —
+// a loaded .prg's image is ordinary RAM on these machines, so the array's
+// bytes sit inside the program, initialized by the load itself. Neither is
+// a zero-page concern, so this function skips both rather than assigning
+// an address nothing will use.
 import { storageBytes } from '../../types/index.mjs';
 
 /** The parts of a real IR global (packages/compiler/src/ir/index.mjs) this allocator reads. */
@@ -103,8 +102,14 @@ export function allocate(globals: IrGlobal[], budget: Budget): AllocateResult {
     }
 
     if (global.array !== undefined) {
-      if (global.constant) continue; // placed in the data section (mos/index.ts + mos/data.ts), not zero page
-      return { ok: false, error: `global '${global.name}': a mutable array/string<N> isn't allocated yet — only a const array is placed today` };
+      // Const AND mutable arrays alike (string<N> buffers included — they
+      // arrive as mutable utinyint arrays, ir/index.mjs's stringGlobal)
+      // live in the data section (mos/index.ts + mos/data.ts), never zero
+      // page: a loaded .prg's own image IS RAM on these machines, so a
+      // mutable array's bytes ride inside it, initialized by the load
+      // itself (0.2.2 — closing the "isn't allocated yet" refusal that
+      // stood here through 0.2.1).
+      continue;
     }
     if (global.type === 'string') {
       // Never actually produced by the front end today (ir/index.mjs's

@@ -523,3 +523,86 @@ checking both a materialised bool value and the real `code >= 65 && code
 `packages/examples/hello-world`'s own screenshotted build, `text.print(0,
 "Hello World!")`, run for real against every one of the PET's seven
 catalog models.
+
+## 0.2.2: what 2048 forced
+
+The first real game (the sibling `2048` project — one portable source, the
+PET's own tile.pet.8bs twin) is the gate everything below was built
+against: built, screenshotted, and its scripted 40-move game verified
+byte-identical against both an independent JS reference of the rules and
+the same program's own web build.
+
+**Mutable arrays live in the program image.** A loaded `.prg` IS RAM on
+these machines, so a `let` array (and a `string<N>` buffer, the same shape
+under the hood — ir/index.mjs's stringGlobal) rides in the data section
+alongside the const arrays: the load itself is the initializer, an
+initializer-less array is its declared zeros, and `zp/index.ts` skips
+both kinds. `storeIndex` (1-byte elements) parks its index in a temp,
+evaluates the value into A, and stores `STA absolute,y` — the mirror of
+`indexRead`. Worth remembering the day a ROM-cartridge target (NES)
+returns: this placement rule is exactly what a ROM target CANNOT use, and
+mutable arrays there need the RAM home this backend didn't have to invent.
+
+**`*` is one shared routine; everything cheaper never reaches it.**
+`linker/optimize.mjs` folds every new operator between constants and
+strength-reduces a constant multiplier (a power of two always; two set
+bits when the other side is a bare ref) into shifts, so what's left for
+`mos/startup/multiply.ts`'s 16-passes shift-and-add subroutine is the
+genuinely-runtime residue — @8bitscript/random's `state * 25173` above
+all. Its six zero-page cells and ~40 bytes are claimed exactly when a
+runtime `*` survives the optimizer (usesMultiply, run on the same
+optimized IR the lowerer sees), the same pay-only-if-used shape
+waitFrame() set. `%` is the classic three-instruction CMP/BCC/SBC
+subtraction loop, inline — a bound of zero loops forever, exactly as
+`i32.rem_u`'s own trap ends the web build. `/` stays refused by name.
+
+**Zero-page frames overlay by call depth (mos/zp/frames.ts).** The
+"naive, obviously-correct" never-shared layout above hit its documented
+replacement condition: 2048's ~30 functions outgrew the whole $8E-$FF
+budget on parameters alone. Each function's parameters + 16-bit return
+slot + measured locals high-water mark form one contiguous frame, and a
+frame starts where its deepest live parent's ends — sound because
+recursion is already refused, PLUS one subtlety the naive layout never
+had: a call site stores each argument the moment it's evaluated, so any
+call nested in arguments 2..n of a call to `f` runs while `f`'s early
+parameter slots are live, and counts as called BY `f` for layout. (The
+one legal shape this refuses that separate frames allowed: `f(a, f(b))`,
+reported as a cycle.) Frame sizes need the body lowered, and lowering
+needs callee addresses — so every body is lowered twice, once at
+provisional addresses purely to measure, then at the real ones; lowering
+is a pure function of IR and addresses, so the passes agree.
+
+**A waitFrame() program owns zero page too.** The frames still didn't fit
+$8E-$FF for a real game — and didn't need to: a program that calls
+waitFrame() anywhere already runs with interrupts off and can never
+return to BASIC (this file's own milestone 10 notes), so BASIC's and the
+KERNAL's zero page below $8E belongs to no one else. `PET_OWNED_ZP_BUDGET`
+($02-$FF, no CHRGET hole) applies exactly to that shape, with an SEI
+emitted ahead of the global initializers so the KERNAL's jiffy-clock IRQ
+can't clobber a claimed byte before waitFrameSetup's own SEI would have
+run. A program with no waitFrame() keeps the polite budget and still
+lands back in READY.
+
+**16-bit return values ride a fixed pair, not A.** A 16-bit-returning
+function's FunctionSite carries a `returnPair` inside its own frame;
+`return <value>` stores into it (widening an 8-bit value the same way a
+wide call argument widens) and the call site copies it to a fresh
+temporary immediately — the pair is the callee's, and `f() + f()` would
+otherwise clobber its own left operand. A 16-bit value returned from an
+8-BIT function truncates to its low byte — the declared width's own wrap,
+and exactly what `return state >> 8;` into a utinyint wants.
+
+**The 16-bit comparison Z-flag bug.** Same genre as the `>=` bug above,
+one level up: the 16-bit path reused the 8-bit branch table off a
+`CMP low / SBC high` chain, but after that sequence only the CARRY
+describes the whole subtraction — Z is the high byte's alone. Every plan
+that read BEQ/BNE answered wrong whenever the difference fit in the low
+byte: found live as `34 >= 100` reading "equal", which sent printNumber's
+digit loop subtracting past zero forever (the first real 16-bit `>=` ever
+executed — every earlier gate's 16-bit comparisons sat in code paths
+like screen.blank's const-fill that never emit one). Equality now
+compares byte-by-byte, skipping the high compare when the low already
+differs so Z ends exact; orderings subtract in whichever direction makes
+the carry alone the answer (`left-right` for `<`/`>=`, `right-left` for
+`>`/`<=`) and never consult Z. Mixed widths zero-extend the narrower
+unsigned side through exprTo16, the same rule binop16's operands follow.

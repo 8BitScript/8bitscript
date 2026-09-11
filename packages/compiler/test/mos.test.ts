@@ -274,13 +274,13 @@ test('build() names the construct when the linked entry function uses an IR kind
   const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
   try {
     const outFile = join(scratch, 'out.prg');
-    // 'if'/'while'/'for'/etc. all gained rules at milestone 6 — 'storeIndex'
-    // (indexed stores) is still genuinely unimplemented, milestone 8's job.
-    const noRule: IrProgram = { entry: 'main', functions: [{ name: 'main', body: [{ kind: 'storeIndex' }] }], globals: [] };
+    // 'if'/'while'/'for'/etc. gained rules at milestone 6, 'storeIndex' at
+    // 0.2.2 — an invented kind stands in for whatever's genuinely next.
+    const noRule: IrProgram = { entry: 'main', functions: [{ name: 'main', body: [{ kind: 'mystery' }] }], globals: [] };
     const result = await build(noRule, { machine: 'pet', hardware, outFile, frameRate: 60 });
     assert.equal(result.ok, false);
     if (result.ok) return;
-    assert.match(result.error, /no instruction-selection rule yet for the 'storeIndex' statement/);
+    assert.match(result.error, /no instruction-selection rule yet for the 'mystery' statement/);
     assert.equal(existsSync(outFile), false);
   } finally {
     await rm(scratch, { recursive: true, force: true });
@@ -591,27 +591,32 @@ test('a 16-bit parameter gets its own 2-byte zp slot (milestone 8) — a call si
   }
 });
 
-test('a 16-bit return type is still refused by name — milestone 8 widens parameters, locals, and assignment, not return values', async () => {
+test('a 16-bit return type gets its own zero-page pair, written by the callee and read back at the call site (0.2.2)', async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
   try {
     const outFile = join(scratch, 'out.prg');
     const wideReturnIr: IrProgram = {
       entry: 'main',
       functions: [
-        // main has to actually call address(): build() now prunes whatever
-        // the entry can't reach (linker/reachability.mjs), so an uncalled
-        // function's own unsupported construct would otherwise never be
-        // seen at all — correctly, since dead code never runs, but not what
-        // this test means to check.
-        { name: 'main', params: [], returnType: 'void', body: [{ kind: 'call', name: 'address', args: [] }] },
+        // main has to actually call address() AND consume its value:
+        // build() prunes whatever the entry can't reach, and a bare call
+        // statement never takes the 16-bit-value path this test is about.
+        {
+          name: 'main',
+          params: [],
+          returnType: 'void',
+          body: [{
+            kind: 'memoryWrite',
+            address: { kind: 'call', name: 'address', args: [], type: 'usmallint' },
+            value: { kind: 'const', value: 1, type: 'utinyint' },
+          }],
+        },
         { name: 'address', params: [], returnType: 'usmallint', body: [{ kind: 'return', value: { kind: 'const', value: 0x8000, type: 'usmallint' } }] },
       ],
       globals: [],
     };
     const result = await build(wideReturnIr, { machine: 'pet', hardware, outFile, frameRate: 60 });
-    assert.equal(result.ok, false);
-    if (result.ok) return;
-    assert.match(result.error, /'address' returns 'usmallint' \(2 bytes\)/);
+    assert.equal(result.ok, true, result.ok ? '' : result.error);
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
@@ -692,7 +697,10 @@ test('a 16-bit parameter that only has one byte of zero page left is refused, na
     const result = await build(almostFullIr, { machine: 'pet', hardware, outFile, frameRate: 60 });
     assert.equal(result.ok, false);
     if (result.ok) return;
-    assert.match(result.error, /ran out of zero page assigning 'place\(cell\)' its parameter slot \(1 byte\(s\) left, 2 needed\)/);
+    // The frame layout (0.2.2, mos/zp/frames.ts) is what runs out now:
+    // main's own frame — the 2-byte temporary that widens the literal
+    // argument — is the first thing that no longer fits in the 1 byte left.
+    assert.match(result.error, /out of zero page: 'main's frame needs 2 byte\(s\)/);
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
@@ -818,34 +826,36 @@ test('milestone 8 acceptance: place(cell: usmallint, code: utinyint) — a real 
         0x01, 0x04, // load address $0401, little-endian
         0x0b, 0x04, 0x00, 0x00, 0x9e, 0x31, 0x30, 0x33, 0x37, 0x00, 0x00, 0x00, // the 12-byte BASIC stub: 0 SYS1037
         0xd8, // CLD — the combined program uses ADC, and decimalMode:true means the D flag isn't assumed clear on SYS entry
-        // main: copy cell=999 ($03E7) into place's own param pair $8E/$8F...
-        0xa9, 0xe7, 0x85, 0x95, // LDA #$E7 · STA $95 (temp lo)
-        0xa9, 0x03, 0x85, 0x96, // LDA #$03 · STA $96 (temp hi)
-        0xa5, 0x95, 0x85, 0x8e, // LDA $95  · STA $8E (cell lo)
-        0xa5, 0x96, 0x85, 0x8f, // LDA $96  · STA $8F (cell hi)
-        // ...and code=8 into place's own param $90...
-        0xa9, 0x08, 0x85, 0x90, // LDA #$08 · STA $90 (code)
+        // The 0.2.2 frame layout (mos/zp/frames.ts): main's frame is its
+        // one 2-byte temp at $8E/$8F; place's frame starts where main's
+        // ends — cell $90/$91, code $92, then its own temporaries.
+        // main: 999 ($03E7) through the widening temp into place's cell...
+        0xa9, 0xe7, 0x85, 0x8e, // LDA #$E7 · STA $8E (temp lo)
+        0xa9, 0x03, 0x85, 0x8f, // LDA #$03 · STA $8F (temp hi)
+        0xa5, 0x8e, 0x85, 0x90, // LDA $8E  · STA $90 (cell lo)
+        0xa5, 0x8f, 0x85, 0x91, // LDA $8F  · STA $91 (cell hi)
+        // ...and code=8 into place's own param $92...
+        0xa9, 0x08, 0x85, 0x92, // LDA #$08 · STA $92 (code)
         0x20, 0x26, 0x04, // JSR $0426 (place)
         0x60, // RTS — main's own epilogue, back to BASIC
-        // place: $8000 + cell, into a fresh zp pointer pair $91/$92...
-        0xa9, 0x00, 0x85, 0x93, // LDA #$00 · STA $93 (0x8000's lo half, a temp)
-        0xa9, 0x80, 0x85, 0x94, // LDA #$80 · STA $94 (0x8000's hi half, a temp)
+        // place: $8000 + cell — the sum's own pair $93/$94 is allocated
+        // first, the 0x8000 literal's temp $95/$96 after (and released).
+        0xa9, 0x00, 0x85, 0x95, // LDA #$00 · STA $95 (0x8000's lo half, a temp)
+        0xa9, 0x80, 0x85, 0x96, // LDA #$80 · STA $96 (0x8000's hi half, a temp)
         0x18, // CLC
-        0xa5, 0x93, 0x65, 0x8e, 0x85, 0x91, // LDA $93 · ADC $8E (cell lo) · STA $91 (pointer lo)
-        0xa5, 0x94, 0x65, 0x8f, 0x85, 0x92, // LDA $94 · ADC $8F (cell hi) · STA $92 (pointer hi)
+        0xa5, 0x95, 0x65, 0x90, 0x85, 0x93, // LDA $95 · ADC $90 (cell lo) · STA $93 (pointer lo)
+        0xa5, 0x96, 0x65, 0x91, 0x85, 0x94, // LDA $96 · ADC $91 (cell hi) · STA $94 (pointer hi)
         // ...then the store itself, through the pointer, Y forced to 0.
-        0xa5, 0x90, // LDA $90 (code)
+        0xa5, 0x92, // LDA $92 (code)
         0xa0, 0x00, // LDY #$00
-        0x91, 0x91, // STA ($91),Y
+        0x91, 0x93, // STA ($93),Y
         0x60, // RTS — place's own return
       ],
     );
     assert.equal(result.bytes.length, 67);
-    // 9 zp bytes: place's own cell (2) + code (1); main's own 2-byte temp
-    // for copying the 999 literal into cell (released after, but it's the
-    // high-water mark that counts — see the milestone 8 parameter test
-    // above); place's own pointer pair (2) and its own temp for the 0x8000
-    // half of the addition (2).
+    // 9 zp bytes: main's frame (the 2-byte widening temp) + place's frame
+    // (cell 2 + code 1 + the sum pair 2 + the 0x8000 temp 2), overlaid by
+    // call depth — main's 2 below place's 7.
     assert.deepEqual(result.memory, { variables: 9, program: 67 });
   } finally {
     await rm(scratch, { recursive: true, force: true });
@@ -1053,14 +1063,13 @@ test('milestone 10: a program with no waitFrame() call anywhere pays nothing for
   }
 });
 
-test('milestone 10: a build with waitFrame() overflowing what zero page remains is refused, not silently truncated', async () => {
+test('a waitFrame() program owns the machine and gets the whole $02-$FF budget — 113 globals plus pacing state fit with room to spare (0.2.2)', async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
   try {
-    // 113 one-byte globals leave exactly 1 byte of the PET's real free zp
-    // range ($8E..$FF, 114 bytes) — nowhere near the 12 waitFrame() needs.
-    // main references every one of them: an unreferenced global is exactly
-    // what linker/reachability.mjs now prunes, and this test needs them
-    // real, not dropped.
+    // Under the polite $8E-$FF budget these 113 one-byte globals left a
+    // single byte — the old shape of this test. A waitFrame() program's
+    // widened budget (PET_OWNED_ZP_BUDGET) holds them all AND the 8-byte
+    // pacing state, which is exactly what let a real program (2048) build.
     const globals = Array.from({ length: 113 }, (_, i) => ({ name: `g${i}`, type: 'utinyint', address: null }));
     const body = [
       ...Array.from({ length: 113 }, (_, i) => ({ kind: 'assign', target: `g${i}`, value: { kind: 'const', value: 0, type: 'utinyint' } })),
@@ -1068,9 +1077,29 @@ test('milestone 10: a build with waitFrame() overflowing what zero page remains 
     ];
     const ir: IrProgram = { entry: 'main', functions: [{ name: 'main', body }], globals };
     const result = await build(ir, { machine: 'pet', hardware, outFile: join(scratch, 'out.prg'), frameRate: 60 });
+    assert.equal(result.ok, true, result.ok ? '' : result.error);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('milestone 10: a build with waitFrame() overflowing even the owned budget is refused, not silently truncated', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+  try {
+    // The owned budget is $02-$FF — 254 bytes. 250 one-byte globals leave
+    // 4, nowhere near the 8 the pacing state needs. main references every
+    // one of them: an unreferenced global is exactly what
+    // linker/reachability.mjs prunes, and this test needs them real.
+    const globals = Array.from({ length: 250 }, (_, i) => ({ name: `g${i}`, type: 'utinyint', address: null }));
+    const body = [
+      ...Array.from({ length: 250 }, (_, i) => ({ kind: 'assign', target: `g${i}`, value: { kind: 'const', value: 0, type: 'utinyint' } })),
+      { kind: 'waitFrame' },
+    ];
+    const ir: IrProgram = { entry: 'main', functions: [{ name: 'main', body }], globals };
+    const result = await build(ir, { machine: 'pet', hardware, outFile: join(scratch, 'out.prg'), frameRate: 60 });
     assert.equal(result.ok, false);
     if (result.ok) return;
-    assert.match(result.error, /^waitFrame\(\) needs 8 bytes of zero page for its own pacing state but only 1 byte\(s\) remain$/);
+    assert.match(result.error, /^waitFrame\(\) needs 8 bytes of zero page for its own pacing state but only 4 byte\(s\) remain$/);
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
@@ -1249,4 +1278,76 @@ test('the BASIC 1 CHRGET hole ($C2-$D9) is still really skipped, once a program 
   const on2001 = await zpBytes('2001');
   assert.equal(on3032, 60, 'BASIC 2 has no hole in this range — all 60 globals land back to back');
   assert.equal(on2001, on3032 + 24, 'BASIC 1\'s own CHRGET hole forces the 24-byte skip once allocation reaches $C2');
+});
+
+type IrExprFixture = IrProgram['functions'][number]['body'][number]['value'];
+
+// ---- 0.2.2: mutable arrays ride in the program image, and `*` pays for
+// its routine only when a runtime multiply survives the optimizer ------------
+
+test('a `let` array lands in the data section — its init bytes in the image, zeros when it has none — and storeIndex writes through it (0.2.2)', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+  try {
+    const outFile = join(scratch, 'out.prg');
+    const arrays: IrProgram = {
+      entry: 'main',
+      functions: [{
+        name: 'main',
+        body: [
+          { kind: 'storeIndex', array: { kind: 'ref', name: 'board' }, index: { kind: 'const', value: 2, type: 'utinyint' }, value: { kind: 'index', array: { kind: 'ref', name: 'seeded' }, index: { kind: 'const', value: 0, type: 'utinyint' }, elementType: 'utinyint', type: 'utinyint' }, elementType: 'utinyint' },
+        ],
+      }],
+      globals: [
+        { name: 'board', type: 'utinyint', address: null, array: 4, constant: false, init: null },
+        { name: 'seeded', type: 'utinyint', address: null, array: 3, constant: false, init: [9, 8, 7] },
+      ],
+      strings: [],
+    };
+    const result = await build(arrays, { machine: 'pet', hardware, outFile, frameRate: 60 });
+    assert.equal(result.ok, true, result.ok ? '' : result.error);
+    if (!result.ok) return;
+    const bytes = [...result.bytes];
+    // The data section is last: board's four zeros then seeded's 9,8,7 —
+    // the load itself is the initializer, since a loaded .prg IS RAM.
+    assert.deepEqual(bytes.slice(-7), [0, 0, 0, 0, 9, 8, 7]);
+    // Neither array cost zero page: only code and data grew.
+    assert.equal(result.memory.variables, 1, "only storeIndex's own index temp");
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('the multiply routine and its six zero-page cells appear only in a program that still multiplies at run time (0.2.2)', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+  try {
+    const multiplies = (value: IrExprFixture): IrProgram => ({
+      entry: 'main',
+      functions: [{
+        name: 'main',
+        body: [
+          { kind: 'local', name: 'x', type: 'utinyint', init: { kind: 'const', value: 3, type: 'utinyint' } },
+          { kind: 'assign', target: 'x', value },
+        ],
+      }],
+      globals: [],
+      strings: [],
+    });
+    const runtime = await build(
+      multiplies({ kind: 'binop', operator: '*', left: { kind: 'ref', name: 'x', type: 'utinyint' }, right: { kind: 'ref', name: 'x', type: 'utinyint' }, type: 'utinyint' }),
+      { machine: 'pet', hardware, outFile: join(scratch, 'a.prg'), frameRate: 60 },
+    );
+    assert.equal(runtime.ok, true, runtime.ok ? '' : runtime.error);
+    // A power-of-two constant multiplier strength-reduces to a shift in
+    // the optimizer, so the routine never gets emitted for it.
+    const reduced = await build(
+      multiplies({ kind: 'binop', operator: '*', left: { kind: 'ref', name: 'x', type: 'utinyint' }, right: { kind: 'const', value: 4, type: 'utinyint' }, type: 'utinyint' }),
+      { machine: 'pet', hardware, outFile: join(scratch, 'b.prg'), frameRate: 60 },
+    );
+    assert.equal(reduced.ok, true, reduced.ok ? '' : reduced.error);
+    if (!runtime.ok || !reduced.ok) return;
+    assert.ok(runtime.bytes.length > reduced.bytes.length + 30, `the routine's own bytes: ${runtime.bytes.length} vs ${reduced.bytes.length}`);
+    assert.ok(runtime.memory.variables >= reduced.memory.variables + 6, 'the routine claims its six cells only when emitted');
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
 });

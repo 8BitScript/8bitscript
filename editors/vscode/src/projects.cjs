@@ -690,6 +690,10 @@ function commandArgs(action, target, region = 'ntsc', hardware = undefined) {
   const args = action === 'build' ? ['build', '--target', target] : [action, target];
   if (region === 'pal' && MACHINE_TARGETS.has(target)) args.push('--pal');
   if (hardware) args.push(...hardwareArgs(hardware));
+  // Run and build print the size breakdown before the emulator starts (run)
+  // or instead of launching one (build). The launcher's Running machines
+  // tree reads the same numbers from dist/.8bs-last-<target>.json.
+  if (action === 'run' || action === 'build') args.push('--size');
   return args;
 }
 

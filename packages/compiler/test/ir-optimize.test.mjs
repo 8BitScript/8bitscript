@@ -301,3 +301,125 @@ test('a single-site void call whose parameters are unused is the body — PET bl
   assert.equal(out.functions[0].body[0].body[0].kind, 'memoryWrite');
   assert.equal(out.functions[0].body[0].body[0].value.value, 32);
 });
+
+// ---- 0.2.2: the new operators fold, constant multiplies reduce to shifts,
+// and a body with a `return` never inlines ------------------------------------
+
+test('the 0.2.2 operators fold between constants, wrapping at the declared width', () => {
+  const cases = [
+    ['*', 6, 7, 42],
+    ['/', 42, 5, 8],
+    ['%', 42, 5, 2],
+    ['&', 0xc5, 0x1f, 0x05],
+    ['|', 0xc0, 0x0f, 0xcf],
+    ['^', 0xff, 0x0f, 0xf0],
+    ['<<', 3, 2, 12],
+    ['>>', 40, 3, 5],
+  ];
+  for (const [operator, left, right, expected] of cases) {
+    const ir = {
+      entry: 'main',
+      functions: [{ name: 'main', body: [assign('out', bin(operator, constNum(left), constNum(right), 'utinyint'))] }],
+      globals: [],
+    };
+    const out = optimizeIr(ir);
+    assert.deepEqual(out.functions[0].body[0].value, constNum(expected), `${left} ${operator} ${right}`);
+  }
+  // The wrap: 20 * 20 as a utinyint is 144, the same answer the backends produce.
+  const wrapped = optimizeIr({
+    entry: 'main',
+    functions: [{ name: 'main', body: [assign('out', bin('*', constNum(20), constNum(20), 'utinyint'))] }],
+    globals: [],
+  });
+  assert.deepEqual(wrapped.functions[0].body[0].value, constNum(144));
+});
+
+test('dividing or reducing modulo zero never folds — the runtime shape stays the backend\'s own call', () => {
+  for (const operator of ['/', '%']) {
+    const ir = {
+      entry: 'main',
+      functions: [{ name: 'main', body: [assign('out', bin(operator, constNum(4), constNum(0), 'utinyint'))] }],
+      globals: [],
+    };
+    const out = optimizeIr(ir);
+    assert.equal(out.functions[0].body[0].value.kind, 'binop');
+  }
+});
+
+test('a multiply by a power of two becomes one shift; a two-set-bit constant with a ref becomes two shifts and an add', () => {
+  const pow2 = optimizeIr({
+    entry: 'main',
+    functions: [{ name: 'main', body: [assign('out', bin('*', ref('row'), constNum(4), 'utinyint'))] }],
+    globals: [],
+  });
+  const shifted = pow2.functions[0].body[0].value;
+  assert.equal(shifted.operator, '<<');
+  assert.deepEqual(shifted.right, constNum(2));
+
+  const twoBits = optimizeIr({
+    entry: 'main',
+    functions: [{ name: 'main', body: [assign('out', bin('*', ref('y', 'usmallint'), constNum(40, 'usmallint'), 'usmallint'))] }],
+    globals: [],
+  });
+  const sum = twoBits.functions[0].body[0].value; // 40 = 32 + 8: (y << 5) + (y << 3)
+  assert.equal(sum.operator, '+');
+  assert.equal(sum.left.operator, '<<');
+  assert.deepEqual(sum.left.right, constNum(5));
+  assert.deepEqual(sum.right.right, constNum(3));
+
+  // A two-set-bit constant over anything with work in it stays a multiply:
+  // the rewrite duplicates its operand.
+  const notARef = optimizeIr({
+    entry: 'main',
+    functions: [{ name: 'main', body: [assign('out', bin('*', bin('+', ref('a'), ref('b'), 'utinyint'), constNum(6), 'utinyint'))] }],
+    globals: [],
+  });
+  assert.equal(notARef.functions[0].body[0].value.operator, '*');
+});
+
+test('x * 1 is x; x * 0 folds only for a bare ref, never over a call whose work would vanish', () => {
+  const one = optimizeIr({
+    entry: 'main',
+    functions: [{ name: 'main', body: [assign('out', bin('*', ref('x'), constNum(1), 'utinyint'))] }],
+    globals: [],
+  });
+  assert.deepEqual(one.functions[0].body[0].value, ref('x'));
+
+  const zeroRef = optimizeIr({
+    entry: 'main',
+    functions: [{ name: 'main', body: [assign('out', bin('*', ref('x'), constNum(0), 'utinyint'))] }],
+    globals: [],
+  });
+  assert.deepEqual(zeroRef.functions[0].body[0].value, constNum(0, 'utinyint'));
+
+  const zeroCall = optimizeIr({
+    entry: 'main',
+    functions: [
+      { name: 'main', body: [assign('out', bin('*', { kind: 'call', name: 'roll', args: [], type: 'utinyint' }, constNum(0), 'utinyint'))] },
+      { name: 'roll', params: [], returnType: 'utinyint', body: [assign('g', constNum(1)), ret(constNum(0))] },
+    ],
+    globals: [{ name: 'g', type: 'utinyint', address: null, init: 0 }],
+  });
+  assert.equal(zeroCall.functions[0].body[0].value.operator, '*');
+});
+
+test('a void callee with a return anywhere in its body is never inlined — the pasted return would leave the CALLER (2048\'s own spawnTile)', () => {
+  const ir = {
+    entry: 'main',
+    functions: [
+      { name: 'main', body: [call('spawn'), assign('after', constNum(1))] },
+      {
+        name: 'spawn',
+        params: [],
+        returnType: 'void',
+        body: [
+          ifNode(bin('==', ref('g'), constNum(0)), [ret()]),
+          assign('g', constNum(9)),
+        ],
+      },
+    ],
+    globals: [{ name: 'g', type: 'utinyint', address: null, init: 0 }],
+  };
+  const out = optimizeIr(ir);
+  assert.deepEqual(out.functions[0].body[0], call('spawn'), 'the call survives as a call');
+});
