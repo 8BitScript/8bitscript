@@ -1,5 +1,12 @@
 # @8bitscript/language-server
 
+## 0.2.2
+
+### Patch Changes
+
+- Updated dependencies [ee330ca]
+  - @8bitscript/compiler@0.2.2
+
 ## 0.2.1
 
 ### Patch Changes

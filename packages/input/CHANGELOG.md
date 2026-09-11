@@ -1,5 +1,19 @@
 # @8bitscript/input
 
+## 0.2.2
+
+### Patch Changes
+
+- @8bitscript/atari8@0.2.2
+  - @8bitscript/c128@0.2.2
+  - @8bitscript/c64@0.2.2
+  - @8bitscript/cx16@0.2.2
+  - @8bitscript/mega65@0.2.2
+  - @8bitscript/nes@0.2.2
+  - @8bitscript/pet@0.2.2
+  - @8bitscript/vic20@0.2.2
+  - @8bitscript/web@0.2.2
+
 ## 0.2.1
 
 ### Patch Changes
