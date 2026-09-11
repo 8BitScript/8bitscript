@@ -1,6 +1,6 @@
 {
   "name": "@8bitscript/mega65",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "MEGA65 target support for 8BitScript: the hardware underneath the portable APIs. Parked in 0.2.0: not a build target until its native backend lands.",
   "license": "MIT",
   "repository": {

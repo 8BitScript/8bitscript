@@ -1,5 +1,11 @@
 # @8bitscript/ui
 
+## 0.4.1
+
+### Patch Changes
+
+- @8bitscript/text@0.4.1
+
 ## 0.4.0
 
 ### Patch Changes
