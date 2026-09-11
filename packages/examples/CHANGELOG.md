@@ -1,5 +1,14 @@
 # @8bitscript/examples
 
+## 0.2.6
+
+### Patch Changes
+
+- @8bitscript/pet@0.2.6
+  - @8bitscript/screen@0.2.6
+  - @8bitscript/text@0.2.6
+  - @8bitscript/web@0.2.6
+
 ## 0.2.5
 
 ### Patch Changes
