@@ -1,5 +1,24 @@
 # @8bitscript/cli
 
+## 0.4.1
+
+### Patch Changes
+
+- efabcfd: The web target's generated page now declares `viewport-fit=cover` and safe-area padding (no more drawing under a notch or the home-indicator strip), the `apple-mobile-web-app-capable` meta trio so Add to Home Screen launches full-screen with no browser chrome, and `resize()` now prefers `visualViewport` over `window.innerWidth`/`innerHeight` for the area actually visible. A best-effort, harmless-when-it-does-nothing nudge (`nudgeChromeCollapsed`) also tries to collapse a mobile browser's own toolbar on load and on rotation — there is no API that can guarantee this in an ordinary browser tab, only Add to Home Screen can.
+- @8bitscript/atari8@0.4.1
+  - @8bitscript/c128@0.4.1
+  - @8bitscript/c64@0.4.1
+  - @8bitscript/compiler@0.4.1
+  - @8bitscript/cx16@0.4.1
+  - @8bitscript/examples@0.4.1
+  - @8bitscript/language-server@0.4.1
+  - @8bitscript/mega65@0.4.1
+  - @8bitscript/nes@0.4.1
+  - @8bitscript/pet@0.4.1
+  - @8bitscript/studio@0.4.1
+  - @8bitscript/vic20@0.4.1
+  - @8bitscript/web@0.4.1
+
 ## 0.4.0
 
 ### Minor Changes
