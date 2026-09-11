@@ -64,7 +64,7 @@ export { getHoverInfo, getCompletions } from './src/intellisense/index.mjs';
  *   `#fact(...)` fold to placeholders and are valid-but-target-dependent,
  *   as a `.<machine>.8bs` import is. `facts` is the machine's hardware
  *   fact sheet, wanted whenever `machine` is given and a fact is read. `frameRate` (default 60) is the project's logical frame rate — see
- *   8bs.config.ts — that every `#frames(...)` call folds against, mirroring
+ *   8bitscript.config.ts — that every `#frames(...)` call folds against, mirroring
  *   link()'s option of the same name so `8bs check`/the editor and a real
  *   build agree on what a duration means.
  * @returns {object[]} diagnostics, in source order

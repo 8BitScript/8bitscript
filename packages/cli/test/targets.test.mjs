@@ -75,7 +75,7 @@ test('a systems block the config gets wrong costs the reader its systems and not
     run(process.execPath, [BIN, 'targets'], { cwd: dir, maxBuffer: 8 * 1024 * 1024 }),
     (error) => {
       assert.equal(error.code, 1);
-      assert.match(error.stderr, /8bs targets: 8bs\.config\.ts: system 'My NES'/);
+      assert.match(error.stderr, /8bs targets: 8bitscript\.config\.ts: system 'My NES'/);
       return true;
     },
   );

@@ -15,21 +15,28 @@ const usage = () => `Usage: 8bs <command> [options]
 Implemented:
   build --target <t> [--pal] [--size] [--profile <name>]
     [--hardware option=value,...] [entry]
-                               Compile for a target. This release (0.2.0)
+                               Compile for a target. This release (0.3.0)
                                builds for pet and web; vic20, c64, c128,
                                atari8, nes, cx16 and mega65 are parked and
                                refused until a later release. The pet has
                                no region: its model is hardware. --profile
                                names the hardware fitted — a preset from
                                the machine's catalog (8032) or a profile the
-                               project composes in 8bs.config.ts — and
-                               --hardware sets single options on top
+                               project composes in 8bitscript.config.ts —
+                               and --hardware sets single options on top
                                (model=4032). --size prints a breakdown of
                                the built program — functions, inlined
                                callees, and runtime — largest first, under
                                the memory line. "8bs targets"
                                lists every option, value and preset, and
                                which machines this release builds for.
+  build --release              Every artifact this project declares for a
+                               release: each target 8bitscript.config.ts
+                               lists, once per name in that target's own
+                               release array (or once, with its default
+                               hardware, when it has none). What a GitHub
+                               Release's assets are built from — see the
+                               reusable compile.yml workflow.
   run <target> [--pal] [--profile <name>]
     [--hardware option=value,...] [--size] [entry]
                                Build, then open that target's emulator

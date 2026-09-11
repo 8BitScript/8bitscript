@@ -366,7 +366,7 @@ call-argument widening gap.
 The goal milestone: `waitFrame()` — a blocking statement, called from
 within a program's own loop, that pauses until the next *logical* frame is
 due, at whatever `frameRate` the project is configured for (default 60,
-`8bs.config.ts`). The real gate: `packages/examples/hello-world/src/
+`8bitscript.config.ts`). The real gate: `packages/examples/hello-world/src/
 main.8bs`'s `while (true) { waitFrame(); }` loop — built and run for real
 on both the 2001/4K (no CRTC, VICE's own ~60.1Hz) and 8032 (CRTC, a real
 50Hz editor ROM) profiles, the same second-profile discipline milestone

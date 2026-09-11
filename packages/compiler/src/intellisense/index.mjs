@@ -153,7 +153,7 @@ const FRAMES_DOC = [
   '',
   'Compile-time duration, as a frame count. `n` is an integer or decimal literal — `#frames(1, seconds)`, `#frames(0.5, seconds)` — never a variable or expression. `unit` says what `n` is measured in and is required; the only unit so far is `seconds`.',
   '',
-  'Folds at compile time to however many frames — `waitFrame()` calls — that much time takes at this project\'s configured `frameRate` (`8bs.config.ts`, default 60) — `#frames(0.5, seconds)` becomes `30` at the default rate, `25` at a configured 50. Always a plain integer once compiled: no runtime division, no floating point.',
+  'Folds at compile time to however many frames — `waitFrame()` calls — that much time takes at this project\'s configured `frameRate` (`8bitscript.config.ts`, default 60) — `#frames(0.5, seconds)` becomes `30` at the default rate, `25` at a configured 50. Always a plain integer once compiled: no runtime division, no floating point.',
   '',
   'The `#` says 8bitscript evaluates this before any target toolchain runs; a plain `name(...)` always runs on the machine. Nothing is reserved: `#frames` is its own token, and the unit word is only a unit in this argument position.',
 ].join('\n');
@@ -208,7 +208,7 @@ const UNIT_DOCS = {};
 UNIT_DOCS.seconds = [
   '**seconds**',
   '',
-  'A unit for `#frames(...)`: `#frames(0.5, seconds)` is half a second, counted in logical frames — `waitFrame()` calls — at this project\'s configured `frameRate` (`8bs.config.ts`, default 60). The unit is required, so the call always says what its literal is measured in.',
+  'A unit for `#frames(...)`: `#frames(0.5, seconds)` is half a second, counted in logical frames — `waitFrame()` calls — at this project\'s configured `frameRate` (`8bitscript.config.ts`, default 60). The unit is required, so the call always says what its literal is measured in.',
   '',
   'Only a unit in the second argument to `#frames(...)`; anywhere else, `seconds` is an ordinary name a program is free to declare.',
 ].join('\n');
@@ -219,7 +219,7 @@ const WAITFRAME_DOC = [
   '',
   'Blocks until the next logical frame, then returns. Call it once per pass through your main loop — `while (true) { waitFrame(); ... }` — the way an 8-bit program waits for vertical blank (cc65\'s `waitvsync()`).',
   '',
-  'Frames arrive at this project\'s configured `frameRate` (`8bs.config.ts`, default 60) on every target, whatever the real hardware refreshes at — on the 6502 machines it waits on the video chip\'s own vertical blank, on the web it waits on the page\'s frame clock. Pair it with `#frames(...)` to count time: `#frames(0.5, seconds)` is how many `waitFrame()` calls make half a second.',
+  'Frames arrive at this project\'s configured `frameRate` (`8bitscript.config.ts`, default 60) on every target, whatever the real hardware refreshes at — on the 6502 machines it waits on the video chip\'s own vertical blank, on the web it waits on the page\'s frame clock. Pair it with `#frames(...)` to count time: `#frames(0.5, seconds)` is how many `waitFrame()` calls make half a second.',
   '',
   'Takes no arguments and returns nothing. Reserved: a variable, function, parameter, or import named `waitFrame` is a compile error.',
 ].join('\n');
