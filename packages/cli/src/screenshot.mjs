@@ -380,8 +380,8 @@ async function nesScreenshot(outFile, screenshotPath, { frames, hardware = stock
 // until it returns), then rasterizes the exact same virtual screen web-runtime.mjs's
 // browser canvas draws — imported from there directly (COLORS, the grid/
 // border layout, CHAR_BASE/COLOR_BASE) so there's exactly one place that
-// describes this layout, not two hand-synced copies — using an 8x8 bitmap
-// font instead of a browser's own text renderer, and writes the result out
+// describes this layout, not two hand-synced copies — using the same 8x8
+// bitmap font the browser canvas stamps, and writes the result out
 // with png.mjs.
 const WEB_DEFAULT_FRAME_SECONDS = 3;
 
