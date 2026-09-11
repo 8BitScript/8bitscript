@@ -1,5 +1,27 @@
 # @8bitscript/cli
 
+## 0.2.6
+
+### Patch Changes
+
+- 75cb131: `8bs run` keeps a muted VICE sound device open when the catalog said
+  `+sound` (no speaker). GTK3 with no audio clock paces from vsync alone
+  and stutters on Linux/Wayland; Pulse as a silent host clock does not.
+  Screenshots still pass `+sound -warp`.
+- @8bitscript/atari8@0.2.6
+  - @8bitscript/c128@0.2.6
+  - @8bitscript/c64@0.2.6
+  - @8bitscript/compiler@0.2.6
+  - @8bitscript/cx16@0.2.6
+  - @8bitscript/examples@0.2.6
+  - @8bitscript/language-server@0.2.6
+  - @8bitscript/mega65@0.2.6
+  - @8bitscript/nes@0.2.6
+  - @8bitscript/pet@0.2.6
+  - @8bitscript/studio@0.2.6
+  - @8bitscript/vic20@0.2.6
+  - @8bitscript/web@0.2.6
+
 ## 0.2.5
 
 ### Patch Changes
