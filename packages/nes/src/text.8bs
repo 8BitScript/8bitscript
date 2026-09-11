@@ -38,10 +38,11 @@ import { queueRun, queueByte } from "./index.8bs";
 // $2000 + (2 + n / 28) * 32 + 2 + n % 28. Nothing shows until
 // screen.setColors() has switched rendering on; until then, writes here
 // are free of any vblank budget (rule 2 in @8bitscript/nes), which is why
-// a program clears and labels first and sets colors last. putColor exists
-// so portable code still compiles and does nothing: the PPU has no
-// per-cell color — the nearest thing, the attribute table, chooses a
-// palette per 32x32-pixel block, and every block here is palette 0.
+// a program clears and labels first and sets colors last. putColor and
+// setColor exist so portable code still compiles; they do nothing: the
+// PPU has no per-cell color — the nearest thing, the attribute table,
+// chooses a palette per 32x32-pixel block, and every block here is
+// palette 0. A call to either is deleted before the NES ever sees it.
 
 // ---- print: strings and number fields ------------------------------------
 //
@@ -61,7 +62,6 @@ import { queueRun, queueByte } from "./index.8bs";
 // the address itself.
 // `text.putChar` and `text.putColor` stay the one-cell pokes a caller can
 // build anything from.
-let currentColor: utinyint = 1; // white, until text.setColor() says otherwise
 let currentReverse: bool = false; // until text.setReverse() says otherwise
 
 // Reverse video is ASCII+128: the font ships inverted copies of $20-$5F
@@ -126,7 +126,7 @@ export namespace text {
     }
 
     function setColor(color: utinyint): void {
-        currentColor = color;
+        // Deliberately empty — see above.
     }
 
     function setReverse(on: bool): void {

@@ -620,7 +620,16 @@ test('milestone 4 acceptance: only the entry is exported, even with a helper fun
 
 test('milestone 4: refuses an array parameter, naming the web track\'s own milestone 5', async () => {
   const params: IrParam[] = [{ name: 't', type: 'array', elementType: 'utinyint' }];
-  const helper: IrFunction = { name: 'helper', params, returnType: 'void', body: [] };
+  const helper: IrFunction = {
+    name: 'helper',
+    params,
+    returnType: 'void',
+    body: [{
+      kind: 'memoryWrite',
+      address: { kind: 'const', value: 0, type: 'usmallint' },
+      value: { kind: 'ref', name: 't', type: 'utinyint' },
+    }],
+  };
   // main has to actually call helper(): build() now prunes whatever the
   // entry can't reach (linker/reachability.mjs), so an uncalled function's
   // own unsupported construct would otherwise never be seen at all.

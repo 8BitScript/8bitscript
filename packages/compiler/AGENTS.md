@@ -48,9 +48,10 @@ does.
 The linker still returns every function and global an import declares.
 Each backend's `build()` then runs `optimizeReachable` (prune, fold
 constant `if`s and compile-time calls, prune) before lowering, so a
-`#fact` branch and a print of a string literal cost the unused side /
-the conversion loop nothing. `checkHardwareHazards` still sees the
-unpruned IR from `link()`.
+`#fact` branch, a print of a string literal, and a call to an empty
+void function (`text.setColor` on the PET) cost the unused side / the
+conversion loop / the no-op nothing. `checkHardwareHazards` still
+sees the unpruned IR from `link()`.
 
 Two properties every front-end layer shares, because an editor runs
 them on every keystroke:

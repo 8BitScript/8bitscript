@@ -42,7 +42,9 @@ Do not describe more than this as working:
   `src/text.8bs` (behind `@8bitscript/text`).
 - `screen.setColors()`, `setBorder()`, `setBackground()` and
   `text.putColor()`/`text.setColor()` all link and are all **deliberately
-  inert**: the PET has no color hardware and no border. `screen.blank()`
+  empty**: the PET has no color hardware and no border. A call to
+  `setColor` or `putColor` is deleted before lowering, so a portable
+  program that colors its text pays the PET nothing. `screen.blank()`
   writes the space screen code (32) to 1000 cells from `$8000`.
 - `text.putChar(cell, code)` takes ASCII, converts it to a PET screen code
   (`A`–`Z` 65–90 → 1–26; 32–63 unchanged), and writes `$8000 + cell` —

@@ -15,6 +15,14 @@ import { link } from '../index.mjs';
 import { loadCatalog, resolveHardware } from '../../cli/src/hardware.mjs';
 
 const ir: IrProgram = { entry: 'main', functions: [{ name: 'main', body: [] }], globals: [] };
+/** A stub that uses `name`, so empty-callee deletion and unused-param inlining cannot drop the call the fixture exists to measure. */
+function stayAsCall(name: string) {
+  return [{
+    kind: 'memoryWrite',
+    address: { kind: 'const', value: 0x8000, type: 'usmallint' },
+    value: { kind: 'ref', name, type: 'utinyint' },
+  }];
+}
 
 // H E L L O _ W O R L D, as PET screen codes (A-Z are 1-26, space is 32) —
 // the same eleven-store fixture the roadmap's TARGET section documents
@@ -570,14 +578,14 @@ test('a 16-bit parameter gets its own 2-byte zp slot (milestone 8) — a call si
       entry: 'main',
       functions: [
         { name: 'main', params: [], returnType: 'void', body: [{ kind: 'call', name: 'place', args: [{ kind: 'const', value: 999, type: 'usmallint' }] }] },
-        { name: 'place', params: [{ name: 'cell', type: 'usmallint' }], returnType: 'void', body: [] },
+        { name: 'place', params: [{ name: 'cell', type: 'usmallint' }], returnType: 'void', body: stayAsCall('cell') },
       ],
       globals: [],
     };
     const result = await build(wideParamIr, { machine: 'pet', hardware, outFile, frameRate: 60 });
     assert.equal(result.ok, true, result.ok ? '' : result.error);
     if (!result.ok) return;
-    assert.equal(result.bytes.length, 35);
+    assert.equal(result.bytes.length, 40);
     // 4 zp bytes: place's own 2-byte `cell` parameter, plus 2 more that are
     // main's own — a call site's 16-bit argument evaluates into a fresh
     // temp pair (callSite in lower/index.ts) before being copied into the
@@ -585,7 +593,10 @@ test('a 16-bit parameter gets its own 2-byte zp slot (milestone 8) — a call si
     // high-water mark even though it's released the moment the copy is
     // done. Unlike the 8-bit case (milestone 7's own two-call-sites test),
     // a 16-bit call site really does touch the caller's LocalAllocator.
-    assert.deepEqual(result.memory, { variables: 4, program: 35 });
+    // The callee is a one-store stub (so empty-callee deletion cannot drop
+    // the call); that store is why this is 40 bytes rather than the 35
+    // an empty body used to measure.
+    assert.deepEqual(result.memory, { variables: 4, program: 40 });
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
@@ -632,7 +643,7 @@ test('an array parameter is refused by name — not lowered yet', async () => {
         // main has to actually call sumOf(): see the same note on the
         // 16-bit-return test above.
         { name: 'main', params: [], returnType: 'void', body: [{ kind: 'call', name: 'sumOf', args: [] }] },
-        { name: 'sumOf', params: [{ name: 't', type: 'array', elementType: 'utinyint', length: 4 }], returnType: 'void', body: [] },
+        { name: 'sumOf', params: [{ name: 't', type: 'array', elementType: 'utinyint', length: 4 }], returnType: 'void', body: stayAsCall('t') },
       ],
       globals: [],
     };
@@ -655,7 +666,7 @@ test('a parameter wider than 16 bits is refused by name — only 8-bit and 16-bi
         // main has to actually call f(): see the same note on the
         // 16-bit-return test above.
         { name: 'main', params: [], returnType: 'void', body: [{ kind: 'call', name: 'f', args: [] }] },
-        { name: 'f', params: [{ name: 'n', type: 'int' }], returnType: 'void', body: [] },
+        { name: 'f', params: [{ name: 'n', type: 'int' }], returnType: 'void', body: stayAsCall('n') },
       ],
       globals: [],
     };
@@ -690,7 +701,7 @@ test('a 16-bit parameter that only has one byte of zero page left is refused, na
             { kind: 'call', name: 'place', args: [{ kind: 'const', value: 0, type: 'usmallint' }] },
           ],
         },
-        { name: 'place', params: [{ name: 'cell', type: 'usmallint' }], returnType: 'void', body: [] },
+        { name: 'place', params: [{ name: 'cell', type: 'usmallint' }], returnType: 'void', body: stayAsCall('cell') },
       ],
       globals: Array.from({ length: 113 }, (_, i) => ({ name: `g${i}`, type: 'utinyint', address: null })),
     };
