@@ -100,7 +100,7 @@ test('build() only returns a sizeReport when options.report asks for one, and it
   }
 });
 
-test('build() for the PET lowers the eleven-store HELLO WORLD fixture to exactly seventy bytes (milestone 4 acceptance test)', async () => {
+test('build() for the PET lowers the eleven-store HELLO WORLD fixture to exactly sixty-eight bytes (milestone 4 acceptance test; 70 before 0.2.3 dropped the double-L reload)', async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
   try {
     const outFile = join(scratch, 'out.prg');
@@ -115,7 +115,7 @@ test('build() for the PET lowers the eleven-store HELLO WORLD fixture to exactly
         0xa9, 0x08, 0x8d, 0x00, 0x80, // LDA #8  · STA $8000 · H
         0xa9, 0x05, 0x8d, 0x01, 0x80, // LDA #5  · STA $8001 · E
         0xa9, 0x0c, 0x8d, 0x02, 0x80, // LDA #12 · STA $8002 · L
-        0xa9, 0x0c, 0x8d, 0x03, 0x80, // LDA #12 · STA $8003 · L
+        0x8d, 0x03, 0x80, // STA $8003 · L — A still holds #12, so the reload folds away (0.2.3)
         0xa9, 0x0f, 0x8d, 0x04, 0x80, // LDA #15 · STA $8004 · O
         0xa9, 0x20, 0x8d, 0x05, 0x80, // LDA #32 · STA $8005 · (space)
         0xa9, 0x17, 0x8d, 0x06, 0x80, // LDA #23 · STA $8006 · W
@@ -126,8 +126,8 @@ test('build() for the PET lowers the eleven-store HELLO WORLD fixture to exactly
         0x60, // RTS: main returned, back to BASIC, which prints READY.
       ],
     );
-    assert.equal(result.bytes.length, 70);
-    assert.deepEqual(result.memory, { variables: 0, program: 70 });
+    assert.equal(result.bytes.length, 68);
+    assert.deepEqual(result.memory, { variables: 0, program: 68 });
     assert.deepEqual([...await readFile(outFile)], [...result.bytes]);
   } finally {
     await rm(scratch, { recursive: true, force: true });
@@ -206,8 +206,8 @@ test('build() for the PET lowers a real for-loop, local, and computed memoryWrit
     const result = await build(sumZeroToNineIr, { machine: 'pet', hardware, outFile, frameRate: 60 });
     assert.equal(result.ok, true, result.ok ? '' : result.error);
     if (!result.ok) return;
-    assert.deepEqual(result.memory, { variables: 3, program: 66 }); // sum + i (locals) + one CLC-through temp, at most live at once; the extra program byte is the one-time CLD this program's own ADC earns it
-    assert.equal(result.bytes.length, 66);
+    assert.deepEqual(result.memory, { variables: 2, program: 45 }); // sum + i (locals) — `sum + i` reads i straight at the ADC, `i = i + 1` is an INC, and i's own `= 0` reuses the #0 still in A from sum's, so no temp is ever live; the extra program byte is the one-time CLD this program's own ADC earns it
+    assert.equal(result.bytes.length, 45);
     assert.deepEqual([...await readFile(outFile)], [...result.bytes]);
   } finally {
     await rm(scratch, { recursive: true, force: true });
@@ -226,7 +226,9 @@ test('build() for the PET lowers a real for-loop, local, and computed memoryWrit
 const bigLoopBody: IrStatement[] = Array.from({ length: 30 }, (_, i) => ({
   kind: 'memoryWrite',
   address: { kind: 'const', value: 0x8100 + i, type: 'usmallint' },
-  value: { kind: 'const', value: 1, type: 'utinyint' },
+  // A different value per store, so the redundant-reload peephole (0.2.3)
+  // can't fold any of the LDAs away and the body really stays past ±127.
+  value: { kind: 'const', value: (i % 32) + 1, type: 'utinyint' },
 }));
 const longWhileIr: IrProgram = {
   entry: 'main',
@@ -320,17 +322,18 @@ test('build() allocates real PET globals (currentColor/currentReverse-shaped) to
     const result = await build(withGlobals, { machine: 'pet', hardware, outFile, frameRate: 60 });
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    // 15 program bytes as an empty main() would have, plus 4 bytes each
-    // (LDA #init; STA zp) to write each global's own initial value before
-    // main() runs — real RAM has no guaranteed content at power-on
-    // (discovered building milestone 9's real gate: @8bitscript/pet/text's
-    // own currentReverse read whatever boot-time garbage happened to be at
-    // its address, on every build before this test's own fixture existed
-    // to catch it) — plus 4 bytes each again for main's own read-back
-    // assign (LDA zp; STA zp), the reference this fixture now needs to
-    // survive pruning at all.
-    assert.equal(result.bytes.length, 31);
-    assert.deepEqual(result.memory, { variables: 2, program: 31 });
+    // 15 program bytes as an empty main() would have, plus one shared
+    // LDA #0 and an STA zp per global (both initialize to 0, and the
+    // initializers group by value — 0.2.3) to write each global's own
+    // initial value before main() runs — real RAM has no guaranteed
+    // content at power-on (discovered building milestone 9's real gate:
+    // @8bitscript/pet/text's own currentReverse read whatever boot-time
+    // garbage happened to be at its address, on every build before this
+    // test's own fixture existed to catch it) — plus 4 bytes each for
+    // main's own read-back assign (LDA zp; STA zp), the reference this
+    // fixture now needs to survive pruning at all.
+    assert.equal(result.bytes.length, 29);
+    assert.deepEqual(result.memory, { variables: 2, program: 29 });
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
@@ -453,17 +456,18 @@ test('a function called from two sites gets one body, not two — byte count pro
     assert.equal(result.ok, true, result.ok ? '' : result.error);
     if (!result.ok) return;
     // Two call sites (LDA#/STA-param/JSR/STA-abs each, 7+3=10 bytes) plus
-    // one shared body (LDA-param/JMP-exit = 5 bytes, then RTS = 1 byte) —
-    // 2*10 + 6 = 26 bytes of code, plus the 12-byte BASIC stub, the 2-byte
-    // load address, and main's own 1-byte epilogue RTS = 41. A backend
-    // that duplicated identity's body per call site would cost 6 more
-    // bytes (a second body) — this pins the smaller, correct number.
-    assert.equal(result.bytes.length, 41);
+    // one shared body (LDA-param = 2 bytes — the return's jump to the very
+    // next label folds away (0.2.3) — then RTS = 1 byte) — 2*10 + 3 = 23
+    // bytes of code, plus the 12-byte BASIC stub, the 2-byte load address,
+    // and main's own 1-byte epilogue RTS = 38. A backend that duplicated
+    // identity's body per call site would cost 3 more bytes (a second
+    // body) — this pins the smaller, correct number.
+    assert.equal(result.bytes.length, 38);
     // Just 1 zp byte: identity's own parameter x. A call site stores its
     // argument straight into that fixed address (no temp of its own —
     // callSite() never touches the caller's LocalAllocator), and neither
     // main's body nor identity's own ever declares a local.
-    assert.deepEqual(result.memory, { variables: 1, program: 41 });
+    assert.deepEqual(result.memory, { variables: 1, program: 38 });
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
@@ -585,18 +589,13 @@ test('a 16-bit parameter gets its own 2-byte zp slot (milestone 8) — a call si
     const result = await build(wideParamIr, { machine: 'pet', hardware, outFile, frameRate: 60 });
     assert.equal(result.ok, true, result.ok ? '' : result.error);
     if (!result.ok) return;
-    assert.equal(result.bytes.length, 40);
-    // 4 zp bytes: place's own 2-byte `cell` parameter, plus 2 more that are
-    // main's own — a call site's 16-bit argument evaluates into a fresh
-    // temp pair (callSite in lower/index.ts) before being copied into the
-    // callee's param address, and that temp counts against main's own
-    // high-water mark even though it's released the moment the copy is
-    // done. Unlike the 8-bit case (milestone 7's own two-call-sites test),
-    // a 16-bit call site really does touch the caller's LocalAllocator.
-    // The callee is a one-store stub (so empty-callee deletion cannot drop
-    // the call); that store is why this is 40 bytes rather than the 35
-    // an empty body used to measure.
-    assert.deepEqual(result.memory, { variables: 4, program: 40 });
+    assert.equal(result.bytes.length, 32);
+    // 2 zp bytes: place's own 2-byte `cell` parameter, and nothing of
+    // main's — a constant 16-bit argument stores its two immediate bytes
+    // straight into the callee's param pair (store16Into, 0.2.3), no temp
+    // pair in the caller's frame at all. The callee is a one-store stub
+    // (so empty-callee deletion cannot drop the call).
+    assert.deepEqual(result.memory, { variables: 2, program: 32 });
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
@@ -709,9 +708,10 @@ test('a 16-bit parameter that only has one byte of zero page left is refused, na
     assert.equal(result.ok, false);
     if (result.ok) return;
     // The frame layout (0.2.2, mos/zp/frames.ts) is what runs out now:
-    // main's own frame — the 2-byte temporary that widens the literal
-    // argument — is the first thing that no longer fits in the 1 byte left.
-    assert.match(result.error, /out of zero page: 'main's frame needs 2 byte\(s\)/);
+    // place's own frame — its 2-byte parameter (a constant argument no
+    // longer needs a caller-side temp as of 0.2.3, so main's frame is
+    // empty) — is the first thing that no longer fits in the 1 byte left.
+    assert.match(result.error, /out of zero page: 'place's frame needs 2 byte\(s\)/);
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
@@ -750,7 +750,7 @@ function putCharIfChain() {
   };
 }
 
-test('milestone 7 gate: HELLO WORLD through a real putChar(cell, code), called eleven times from main — 302 bytes, matching the real xpet screenshot', async () => {
+test('milestone 7 gate: HELLO WORLD through a real putChar(cell, code), called eleven times from main — 256 bytes (302 before the 0.2.3 direct-CMP comparisons), matching the real xpet screenshot', async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
   try {
     const outFile = join(scratch, 'out.prg');
@@ -772,11 +772,11 @@ test('milestone 7 gate: HELLO WORLD through a real putChar(cell, code), called e
     const result = await build(helloThroughPutCharIr, { machine: 'pet', hardware, outFile, frameRate: 60 });
     assert.equal(result.ok, true, result.ok ? '' : result.error);
     if (!result.ok) return;
-    assert.equal(result.bytes.length, 302);
-    // putChar's own cell + code (2), plus 1 temp its own `cell == N`
-    // comparison needs (comparisonBranch's emitOperands) — main declares
-    // no locals of its own.
-    assert.deepEqual(result.memory, { variables: 3, program: 302 });
+    assert.equal(result.bytes.length, 256);
+    // putChar's own cell + code (2) and nothing else — its `cell == N`
+    // comparisons CMP the constant directly (0.2.3), no temp — and main
+    // declares no locals of its own.
+    assert.deepEqual(result.memory, { variables: 2, program: 256 });
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
@@ -811,7 +811,7 @@ function place16Fn() {
   };
 }
 
-test('milestone 8 acceptance: place(cell: usmallint, code: utinyint) — a real 16-bit parameter, 16-bit addition, and a computed-address store through (zp),Y — 67 bytes', async () => {
+test('milestone 8 acceptance: place(cell: usmallint, code: utinyint) — a real 16-bit parameter, 16-bit addition, and a computed-address store through (zp),Y — 51 bytes (67 before 0.2.3\'s temp-free constants)', async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
   try {
     const outFile = join(scratch, 'out.prg');
@@ -837,37 +837,35 @@ test('milestone 8 acceptance: place(cell: usmallint, code: utinyint) — a real 
         0x01, 0x04, // load address $0401, little-endian
         0x0b, 0x04, 0x00, 0x00, 0x9e, 0x31, 0x30, 0x33, 0x37, 0x00, 0x00, 0x00, // the 12-byte BASIC stub: 0 SYS1037
         0xd8, // CLD — the combined program uses ADC, and decimalMode:true means the D flag isn't assumed clear on SYS entry
-        // The 0.2.2 frame layout (mos/zp/frames.ts): main's frame is its
-        // one 2-byte temp at $8E/$8F; place's frame starts where main's
-        // ends — cell $90/$91, code $92, then its own temporaries.
-        // main: 999 ($03E7) through the widening temp into place's cell...
-        0xa9, 0xe7, 0x85, 0x8e, // LDA #$E7 · STA $8E (temp lo)
-        0xa9, 0x03, 0x85, 0x8f, // LDA #$03 · STA $8F (temp hi)
-        0xa5, 0x8e, 0x85, 0x90, // LDA $8E  · STA $90 (cell lo)
-        0xa5, 0x8f, 0x85, 0x91, // LDA $8F  · STA $91 (cell hi)
-        // ...and code=8 into place's own param $92...
-        0xa9, 0x08, 0x85, 0x92, // LDA #$08 · STA $92 (code)
-        0x20, 0x26, 0x04, // JSR $0426 (place)
+        // The frame layout (mos/zp/frames.ts): main's frame is EMPTY —
+        // a constant argument stores its immediate bytes straight into the
+        // callee's param pair (store16Into, 0.2.3), no caller-side temp —
+        // so place's frame starts at $8E: cell $8E/$8F, code $90, then
+        // its own temporaries.
+        // main: 999 ($03E7) straight into place's cell...
+        0xa9, 0xe7, 0x85, 0x8e, // LDA #$E7 · STA $8E (cell lo)
+        0xa9, 0x03, 0x85, 0x8f, // LDA #$03 · STA $8F (cell hi)
+        // ...and code=8 into place's own param $90...
+        0xa9, 0x08, 0x85, 0x90, // LDA #$08 · STA $90 (code)
+        0x20, 0x1e, 0x04, // JSR $041E (place)
         0x60, // RTS — main's own epilogue, back to BASIC
-        // place: $8000 + cell — the sum's own pair $93/$94 is allocated
-        // first, the 0x8000 literal's temp $95/$96 after (and released).
-        0xa9, 0x00, 0x85, 0x95, // LDA #$00 · STA $95 (0x8000's lo half, a temp)
-        0xa9, 0x80, 0x85, 0x96, // LDA #$80 · STA $96 (0x8000's hi half, a temp)
+        // place: $8000 + cell — the constant left side is two immediate
+        // ADC operands (binop16's const shortcut, 0.2.3): no pair for the
+        // literal at all, only the sum's own pair $91/$92.
         0x18, // CLC
-        0xa5, 0x95, 0x65, 0x90, 0x85, 0x93, // LDA $95 · ADC $90 (cell lo) · STA $93 (pointer lo)
-        0xa5, 0x96, 0x65, 0x91, 0x85, 0x94, // LDA $96 · ADC $91 (cell hi) · STA $94 (pointer hi)
+        0xa5, 0x8e, 0x69, 0x00, 0x85, 0x91, // LDA $8E (cell lo) · ADC #$00 · STA $91 (pointer lo)
+        0xa5, 0x8f, 0x69, 0x80, 0x85, 0x92, // LDA $8F (cell hi) · ADC #$80 · STA $92 (pointer hi)
         // ...then the store itself, through the pointer, Y forced to 0.
-        0xa5, 0x92, // LDA $92 (code)
+        0xa5, 0x90, // LDA $90 (code)
         0xa0, 0x00, // LDY #$00
-        0x91, 0x93, // STA ($93),Y
+        0x91, 0x91, // STA ($91),Y
         0x60, // RTS — place's own return
       ],
     );
-    assert.equal(result.bytes.length, 67);
-    // 9 zp bytes: main's frame (the 2-byte widening temp) + place's frame
-    // (cell 2 + code 1 + the sum pair 2 + the 0x8000 temp 2), overlaid by
-    // call depth — main's 2 below place's 7.
-    assert.deepEqual(result.memory, { variables: 9, program: 67 });
+    assert.equal(result.bytes.length, 51);
+    // 5 zp bytes: place's frame alone (cell 2 + code 1 + the sum pair 2)
+    // — main's frame is empty, so the two overlay trivially.
+    assert.deepEqual(result.memory, { variables: 5, program: 51 });
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
@@ -885,7 +883,7 @@ test('milestone 8 acceptance: place(cell: usmallint, code: utinyint) — a real 
 // --hardware model=2001` on this exact program shows 'X' overwriting the
 // 'O' in the boot banner's "COMMODORE", at cell 5 (a sibling scratch run
 // with cell=5; not committed).
-test('a call widens an 8-bit literal argument into a 16-bit parameter — place(0, 65), same byte count as place(999, 8)', async () => {
+test('a call widens an 8-bit literal argument into a 16-bit parameter — place(0, 65), two bytes under place(999, 8)', async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
   try {
     const outFile = join(scratch, 'out.prg');
@@ -905,10 +903,11 @@ test('a call widens an 8-bit literal argument into a 16-bit parameter — place(
     const result = await build(placeIr, { machine: 'pet', hardware, outFile, frameRate: 60 });
     assert.equal(result.ok, true, result.ok ? '' : result.error);
     if (!result.ok) return;
-    // Same shape and byte count as the acceptance test above: zero-extending
-    // a literal costs the same two LDA/STA pairs a genuine 2-byte literal
-    // does (LDA #0/STA lo, LDA #0/STA hi, vs. LDA lo/STA, LDA hi/STA).
-    assert.deepEqual(result.memory, { variables: 9, program: 67 });
+    // Two bytes SMALLER than the acceptance test above: widening the
+    // constant 0 lands as one LDA #0 serving both STAs of the param pair
+    // (store16Into skips reloading an immediate its two bytes share),
+    // where 999's two distinct bytes each need their own LDA.
+    assert.deepEqual(result.memory, { variables: 5, program: 49 });
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
@@ -1068,7 +1067,7 @@ test('milestone 10: a program with no waitFrame() call anywhere pays nothing for
     assert.equal(result.ok, true, result.ok ? '' : result.error);
     if (!result.ok) return;
     assert.equal(result.memory.variables, 0, 'no waitFrame() anywhere — no zero page reserved for its pacing state');
-    assert.equal(result.bytes.length, 70, 'unchanged from the milestone 4 gate — waitFrame() support cost this program nothing');
+    assert.equal(result.bytes.length, 68, 'unchanged from the milestone 4 gate — waitFrame() support cost this program nothing');
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
@@ -1321,8 +1320,9 @@ test('a `let` array lands in the data section — its init bytes in the image, z
     // The data section is last: board's four zeros then seeded's 9,8,7 —
     // the load itself is the initializer, since a loaded .prg IS RAM.
     assert.deepEqual(bytes.slice(-7), [0, 0, 0, 0, 9, 8, 7]);
-    // Neither array cost zero page: only code and data grew.
-    assert.equal(result.memory.variables, 1, "only storeIndex's own index temp");
+    // Neither array cost zero page: only code and data grew. A constant
+    // index needs no temp either (0.2.3) — Y takes it directly.
+    assert.equal(result.memory.variables, 0, 'no zero page at all');
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
