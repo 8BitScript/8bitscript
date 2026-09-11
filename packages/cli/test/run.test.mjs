@@ -92,6 +92,19 @@ test('emulatorInvocation for the PET carries the model/ram/speaker/drive flags a
   ]);
 });
 
+test('emulatorInvocation re-opens a muted VICE sound device when the catalog said +sound — host pacing, not a speaker', async () => {
+  const { hardware } = resolveHardware(loadCatalog('pet'), { profile: '2001' });
+  assert.ok(hardware.run.xpet.includes('+sound'), 'stock 2001 catalog names no speaker');
+  const invocation = await emulatorInvocation('pet', { pal: false, hardware });
+  assert.equal(invocation.ok, true);
+  const args = invocation.emulatorArgs;
+  const plus = args.indexOf('+sound');
+  const dash = args.lastIndexOf('-sound');
+  assert.ok(plus >= 0, 'catalog +sound stays so a speaker-less PET is still named');
+  assert.ok(dash > plus, 'a later -sound opens the host audio clock');
+  assert.deepEqual(args.slice(dash, dash + 3), ['-sound', '-soundvolume', '0']);
+});
+
 test('emulatorInvocation for the PET with no outFile carries the same hardware flags and nothing to load', async () => {
   const { hardware } = resolveHardware(loadCatalog('pet'), { profile: '8032' });
   const invocation = await emulatorInvocation('pet', { pal: false, hardware });

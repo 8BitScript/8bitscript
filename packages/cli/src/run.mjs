@@ -138,6 +138,18 @@ export const DEFAULT_LOAD = {
   xmega65: (out) => ['-prg', out],
 };
 
+// VICE with the catalog's `+sound` (no speaker) closes the audio device.
+// Interactive GTK3 then paces only from vsync, which on Linux/Wayland
+// stutters the whole emulator — measured 2026-09-11 against 2048: a 4032
+// with speaker=none was laggy and a 3016 with speaker=attached was smooth,
+// and swapping those two flags swapped the feel. Last-wins: `-sound`
+// after `+sound` opens Pulse again; volume 0 keeps a speaker-less PET
+// silent. Screenshots pass `+sound -warp` themselves and never use this.
+export function viceInteractiveSoundClock(hwArgs) {
+  if (!hwArgs.includes('+sound')) return [];
+  return ['-sound', '-soundvolume', '0'];
+}
+
 // atari800's SDL2 OpenGL shader (atari800-shader.frag) defaults
 // CRT_BEAM_SHAPE=10, which spreads each emulated pixel with a Gaussian
 // falloff — visible as dark vertical stripes across the whole frame,
@@ -204,6 +216,7 @@ export async function emulatorInvocation(target, { pal, hardware, outFile }) {
         ...(VICE_EMULATOR_ARGS[target] ?? []),
         ...(VICE_MODEL_ARGS[target]?.[region] ?? []),
         ...(hardware.run[emulator] ?? []),
+        ...viceInteractiveSoundClock(hardware.run[emulator] ?? []),
         // Skip the "really quit?" confirmation dialog — closing the
         // emulator window during dev/test cycles should not need a click
         // every time.
