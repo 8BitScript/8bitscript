@@ -939,7 +939,7 @@ function checkEntryExports(module) {
  *   expanded VIC-20): a `.<machine>.<tag>.8bs` twin is taken before the
  *   machine's own, and two tags each with a twin is `8BS3004`. The older
  *   `profile` is accepted as one tag. `frameRate` (default 60) is the
- *   project's logical frame rate — see 8bs.config.ts — that every
+ *   project's logical frame rate — see 8bitscript.config.ts — that every
  *   `#frames(...)` call in the graph folds against; `machine` is also what
  *   every `#system()` call folds to. `facts` is the build's hardware fact
  *   sheet (the merged `facts` of packages/cli/src/hardware.mjs's

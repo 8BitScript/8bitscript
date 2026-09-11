@@ -5,7 +5,7 @@
 // `#frames(x, unit)` — x an integer or decimal literal, `unit` the word
 // saying what x is measured in — folds to a plain IntegerLiteral holding
 // however many frames — waitFrame() calls — that much time is at the
-// project's configured `frameRate` (8bs.config.ts, default 60; see
+// project's configured `frameRate` (8bitscript.config.ts, default 60; see
 // packages/compiler/src/mos FRAME_SYNC and packages/cli/src/web-runtime.mjs,
 // which both pace waitFrame() at that same rate). `#frames(0.5, seconds)`
 // is 30 at the default rate, 25 at a configured 50.

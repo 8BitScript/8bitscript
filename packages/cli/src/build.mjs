@@ -7,6 +7,9 @@
 //     8bs build --target vic20 --profile 16k    [entry.8bs]
 //     8bs build --target c64 --profile reu512   [entry.8bs]
 //     8bs build --target pet --profile 8032     [entry.8bs]   80 columns, 32K
+//     8bs build --release                       Every artifact 8bitscript.config.ts
+//                                                declares for a release — see
+//                                                buildRelease below.
 //
 // The system (vic20/c64/pet/c128/atari8/nes/cx16/mega65/web) is the target;
 // NTSC/PAL is a --pal/--ntsc option on top of it, not a separate flavor of
@@ -17,22 +20,23 @@
 // (see REGION_TARGETS below); it's silently ignored everywhere else, the
 // same as it already was for web. "NTSC (60Hz)" above is the emulator's real
 // hardware region, not the language's logical frame rate — that's a
-// separate, project-level setting (`frameRate` in 8bs.config.ts, default 60,
+// separate, project-level setting (`frameRate` in 8bitscript.config.ts, default 60,
 // see packages/compiler/src/mos FRAME_SYNC),
 // unaffected by --pal.
 //
 // --profile names the hardware the build is for: a preset from the
 // machine package's catalog (`8032`, `130xe`, `reu512` — the community's
 // names for whole configurations) or a profile the project composes in
-// its 8bs.config.ts (`targets: { c64: { profiles: { loaded: { ram:
+// its 8bitscript.config.ts (`targets: { c64: { profiles: { loaded: { ram:
 // 'reu512', port1: 'mouse1351' } } } }`). --hardware option=value,...
 // sets single options on top of either. What each option changes — a
 // link symbol, a driver, an emulator flag, a fact a program can read — is
 // the catalog's to say; see packages/cli/src/hardware.mjs and
 // docs/systems.md. `8bs targets` lists every option and preset.
 //
-// The entry defaults to src/main.8bs, or to the `entry` in 8bs.config.ts when
-// the project has one — and whichever file that names, a `.<target>.8bs`
+// The entry defaults to src/main.8bs, or to the `entry` in
+// 8bitscript.config.ts when the project has one — and whichever file that
+// names, a `.<target>.8bs`
 // twin beside it (main.nes.8bs next to main.8bs) is what a build for that
 // target actually starts from; see resolveEntryPath. Output lands in dist/, named
 // <name>-<machine>[-<hardware>...][-<region>].<ext> — .prg for the Commodore/
@@ -82,7 +86,7 @@ function printDiagnostics(diagnostics, sources) {
 // rather than failing with a bare "unknown target".
 const RETIRED_TARGET = /^(vic20|c64)-(ntsc|pal)$/;
 
-// `entry` in 8bs.config.ts is one path, shared by every target, and the
+// `entry` in 8bitscript.config.ts is one path, shared by every target, and the
 // filename rule does the rest: a project whose entry point genuinely has to
 // differ on one machine — its execution model, its screen codes, its grid
 // — puts that machine's version beside the shared file as
@@ -113,7 +117,7 @@ export function resolveEntryPath(config, target, entryArg) {
  * @param {{ pal?: boolean, profile?: string, hardware?: object, report?: boolean }} [options] `pal` selects the
  *   real hardware/emulator region (NTSC unless true; ignored outside
  *   REGION_TARGETS) — it does not affect the logical frame rate, which is
- *   read from 8bs.config.ts's `frameRate` instead (default 60). `profile`
+ *   read from 8bitscript.config.ts's `frameRate` instead (default 60). `profile`
  *   names a project profile or a catalog preset, `hardware` is option
  *   values set on top (`--hardware`); see hardware.mjs. `report` is
  *   `--size`: print the per-function breakdown and include it in the
@@ -167,7 +171,7 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   const listed = listedTargets(config);
   if (listed && !listed.includes(target)) {
     process.stderr.write(
-      `8bs build: this project's 8bs.config.ts does not list '${target}' ` +
+      `8bs build: this project's 8bitscript.config.ts does not list '${target}' ` +
       `(targets: ${listed.join(', ')})\n`,
     );
     return { ok: false };
@@ -207,7 +211,7 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
         profile, overrides, profiles: projectProfiles(config, target), defaults: projectHardware(config, target),
       });
       process.stderr.write(fits.length > 0
-        ? `    fit one of: ${fits.join(', ')}  (--hardware, or a system in 8bs.config.ts)\n`
+        ? `    fit one of: ${fits.join(', ')}  (--hardware, or a system in 8bitscript.config.ts)\n`
         : `    no ${target} can be fitted with that; this program is not for this machine\n`);
     }
     return { ok: false };
@@ -320,8 +324,65 @@ export function sizeReportLines(entries, total) {
   return `size breakdown:\n${lines.join('\n')}\n`;
 }
 
+/**
+ * `8bs build --release` — every artifact this project's config declares for
+ * a release, in one command, instead of one CI step per artifact.
+ *
+ * The targets built are whatever `targets` in 8bitscript.config.ts lists
+ * (or, with no `targets` block, every RELEASE_MACHINES target — pet and
+ * web today), filtered to the ones this release actually builds for; a
+ * parked machine listed there is silently skipped rather than failing the
+ * whole release, the same way `8bs targets` marks it "parked" rather than
+ * erroring.
+ *
+ * Each target builds once per entry in its own `release` array —
+ * `targets.pet.release: ['2001', {}]`. A string names a preset or
+ * project profile, resolved exactly like `--profile` (a catalog preset —
+ * see `8bs targets` — or a name under `targets.pet.profiles`), so a name
+ * that's wrong or unknown fails the same way `--profile` would. `{}` (or
+ * a target with no `release` array at all) builds once with the target's
+ * own default hardware (`targets.pet.hardware`) instead of a preset —
+ * not the same thing: the '4032' catalog preset, for one, sets a speaker
+ * option this project's own default hardware for that model may not.
+ * `{ profile, hardware }` composes a preset/profile with `--hardware`-style
+ * overrides on top, the same as passing both flags would.
+ *
+ * The output filenames don't collide: build.mjs already names hardware
+ * that changes the build into the filename, so `2001` and this target's
+ * own default land as two distinct .prg files without anything extra here.
+ *
+ * @param {{ report?: boolean }} [options]
+ * @returns {Promise<number>} exit code
+ */
+async function buildRelease({ report = false } = {}) {
+  const config = await loadConfig(process.cwd(), '8bs build');
+  const listed = listedTargets(config);
+  const machines = (listed ?? RELEASE_MACHINES).filter((m) => RELEASE_MACHINES.includes(m));
+  if (machines.length === 0) {
+    process.stderr.write(
+      "8bs build --release: this project's 8bitscript.config.ts lists no target this release "
+      + `builds for (${RELEASE_MACHINES.join(', ')})\n`,
+    );
+    return 1;
+  }
+  let ok = true;
+  for (const target of machines) {
+    const variants = Array.isArray(config?.targets?.[target]?.release)
+      ? config.targets[target].release
+      : [null];
+    for (const variant of variants) {
+      const profile = typeof variant === 'string' ? variant : variant?.profile;
+      const hardware = (variant && typeof variant === 'object') ? (variant.hardware ?? {}) : {};
+      const result = await compile(target, undefined, { profile, hardware, report });
+      if (!result.ok) ok = false;
+    }
+  }
+  return ok ? 0 : 1;
+}
+
 /** @returns {Promise<number>} exit code */
 export async function build(args) {
+  if (args.includes('--release')) return buildRelease({ report: args.includes('--size') });
   const pal = args.includes('--pal');
   const report = args.includes('--size');
   const targetIndex = args.indexOf('--target');

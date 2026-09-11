@@ -135,7 +135,7 @@ test('hover explains #frames(...)', () => {
   assert.match(info.markdown, /Compile-time duration/);
   assert.match(info.markdown, /#frames\(0\.5, seconds\)/);
   assert.match(info.markdown, /frameRate/);
-  assert.match(info.markdown, /8bs\.config\.ts/);
+  assert.match(info.markdown, /8bitscript\.config\.ts/);
   assert.match(info.markdown, /Nothing is reserved/);
 });
 

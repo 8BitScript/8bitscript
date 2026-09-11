@@ -1,27 +1,38 @@
-// Shared 8bs.config.ts loading, used by both `8bs build` and `8bs check` (and,
-// through them, anything else that needs a project's config without
-// duplicating the loader).
+// Shared 8bitscript.config.ts loading, used by both `8bs build` and `8bs
+// check` (and, through them, anything else that needs a project's config
+// without duplicating the loader).
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+// 8bitscript.config.ts is the current name; 8bs.config.ts (every project
+// through 0.3.0, including this repo's own examples) still loads so
+// existing projects don't break on upgrade. Checked in this order — a
+// project with both gets the new name silently, not a conflict, since
+// there's nothing to reconcile: whichever loads first wins.
+const CONFIG_FILENAMES = ['8bitscript.config.ts', '8bs.config.ts'];
+
 /**
- * The project's 8bs.config.ts, if present. Node 26 imports TypeScript with
- * type stripping, so the config is an ordinary module, not a parsed format.
+ * The project's 8bitscript.config.ts (or the older 8bs.config.ts), if
+ * present. Node 26 imports TypeScript with type stripping, so the config is
+ * an ordinary module, not a parsed format.
  *
  * @param {string} dir
  * @param {string} [label] Prefixes a load error, e.g. "8bs build".
  */
 export async function loadConfig(dir, label = '8bs') {
-  const path = join(dir, '8bs.config.ts');
-  if (!existsSync(path)) return null;
-  try {
-    const module = await import(pathToFileURL(path).href);
-    return module.default ?? null;
-  } catch (error) {
-    process.stderr.write(`${label}: cannot load 8bs.config.ts: ${error.message}\n`);
-    return null;
+  for (const filename of CONFIG_FILENAMES) {
+    const path = join(dir, filename);
+    if (!existsSync(path)) continue;
+    try {
+      const module = await import(pathToFileURL(path).href);
+      return module.default ?? null;
+    } catch (error) {
+      process.stderr.write(`${label}: cannot load ${filename}: ${error.message}\n`);
+      return null;
+    }
   }
+  return null;
 }
 
 /**
@@ -39,7 +50,7 @@ export function resolveFrameRate(config) {
   if (!Number.isInteger(frameRate) || frameRate <= 0) {
     return {
       ok: false,
-      error: `8bs.config.ts's frameRate must be a positive integer, got ${JSON.stringify(config?.frameRate)}`,
+      error: `8bitscript.config.ts's frameRate must be a positive integer, got ${JSON.stringify(config?.frameRate)}`,
     };
   }
   return { ok: true, frameRate };

@@ -1,7 +1,7 @@
 // `8bs targets [--json]` — every machine the toolchain builds for, and the
 // hardware each can be fitted with: the catalog every machine package
 // declares (packages/cli/src/hardware.mjs), plus the profiles the project
-// in the current directory composes in its 8bs.config.ts, and the whole
+// in the current directory composes in its 8bitscript.config.ts, and the whole
 // machines that config has been set up for in its `systems` block. The
 // editor reads the JSON form to build its System and Hardware controls, so
 // a new machine or option in a package — or a new system in a project — is
@@ -27,7 +27,7 @@ const TITLE = {
  * One entry per target: what the editor's dropdowns and hardware panel
  * are built from.
  *
- * @param {object|null} config the project's 8bs.config.ts, if any
+ * @param {object|null} config the project's 8bitscript.config.ts, if any
  */
 export function describeTargets(config) {
   return MACHINES.map((id) => {
