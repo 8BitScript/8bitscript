@@ -1,6 +1,6 @@
 {
   "name": "@8bitscript/compiler",
-  "version": "0.2.6",
+  "version": "0.3.0",
   "description": "Internal: the 8BitScript compiler — front end, linker, and the native 6502 and WebAssembly backends.",
   "license": "MIT",
   "repository": {

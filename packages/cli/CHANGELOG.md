@@ -1,5 +1,28 @@
 # @8bitscript/cli
 
+## 0.3.0
+
+### Minor Changes
+
+- 001c7e7: The web host draws the character grid from the same 8×8 bitmap font the screenshot path uses, and adds 2×2 block glyphs at codes 128–143 so a program can stamp PET-style digits.
+
+### Patch Changes
+
+- Updated dependencies [001c7e7]
+  - @8bitscript/web@0.3.0
+  - @8bitscript/examples@0.3.0
+  - @8bitscript/studio@0.3.0
+  - @8bitscript/compiler@0.3.0
+  - @8bitscript/atari8@0.3.0
+  - @8bitscript/c128@0.3.0
+  - @8bitscript/c64@0.3.0
+  - @8bitscript/cx16@0.3.0
+  - @8bitscript/language-server@0.3.0
+  - @8bitscript/mega65@0.3.0
+  - @8bitscript/nes@0.3.0
+  - @8bitscript/pet@0.3.0
+  - @8bitscript/vic20@0.3.0
+
 ## 0.2.6
 
 ### Patch Changes
