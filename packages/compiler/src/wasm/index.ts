@@ -33,13 +33,14 @@
 // at runtime is just that address — a pointer to a one-byte length prefix
 // followed by the characters (ir/index.mjs's own string-table format) — so
 // a `string` parameter needed no lowering rule beyond the one every other
-// `i32`-valued parameter already has. A `let` (RAM) array, an `@address`
-// (hardware-pinned) array, and a `string<N>` variable (which needs its own
-// RAM buffer and a runtime copy loop for `stringCopy`, not just a fixed
-// address) are all still refused by name — real gaps, not milestone 5's
-// own scope, which @8bitscript/web's own real source never needs: neither
-// screen.8bs nor text.8bs declares a `let` array, an `@address` array, or
-// a `string<N>` anywhere (checked directly, not assumed).
+// `i32`-valued parameter already has. As of 0.2.2 a `let` (RAM) array and
+// a `string<N>` buffer get linear-memory homes of their own too (zeroed
+// by default — wasm memory's own starting state — a data segment only
+// when initialized), with `storeIndex`, `stringCopy`, and 2-byte element
+// reads lowered to match: milestone 5's two named gaps, closed by the
+// first real program that needed them (2048). An `@address`
+// (hardware-pinned) global of any kind stays refused by name — hardware
+// another machine would map, nothing the web target owns.
 //
 // Milestone 6 ("waitFrame(), and the real Hello World") wires the
 // `env.waitFrame` import: a whole-program scan (containsWaitFrame, below)
@@ -218,20 +219,26 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // `string<N>` variable are all still refused by name — real gaps, not
   // this milestone's own scope (see the file header).
   const globalDefs: { name: string; init: number }[] = [];
-  const constArrays: { name: string; type: string; length: number; init: number[] }[] = [];
+  const arrayGlobals: { name: string; type: string; length: number; init: number[] | null; mutable: boolean }[] = [];
   for (const g of globals) {
     if (g.address !== null && g.address !== undefined) {
       return { ok: false, error: `'${g.name}': a pinned global (@address(...)) is not lowered yet` };
     }
     if (g.array !== undefined) {
-      if (!g.constant) {
-        return { ok: false, error: `'${g.name}' is a \`let\` array: not lowered yet — it needs its own RAM address, a real gap milestone 5 left open` };
-      }
-      constArrays.push({ name: g.name, type: g.type, length: g.array, init: (g.init as number[] | null) ?? [] });
+      // Const and `let` arrays alike get a fixed linear-memory address
+      // (0.2.2 — the `let` case was milestone 5's named gap). A mutable
+      // array with no initializer needs no data segment at all: wasm
+      // linear memory starts zeroed, which is exactly the language's own
+      // "zero unless written `= [..]`" rule (ir/index.mjs's arrayGlobal).
+      // A `string<N>` variable arrives here as this same shape — a
+      // mutable utinyint array of capacity+1 bytes, its init already
+      // length-prefixed (ir/index.mjs's stringGlobal) — so its buffer
+      // needs nothing extra beyond what any other `let` array gets.
+      arrayGlobals.push({ name: g.name, type: g.type, length: g.array, init: g.init as number[] | null, mutable: !g.constant });
       continue;
     }
     if (g.type === 'string') {
-      return { ok: false, error: `'${g.name}' is a string<N>: not lowered yet — it needs its own RAM buffer and a runtime copy loop, a real gap milestone 5 left open` };
+      return { ok: false, error: `'${g.name}' is a bare string global: never produced by the front end (ir/index.mjs refuses a capacity-less string variable) — kept refused as defense, same as the mos backend` };
     }
     globalDefs.push({ name: g.name, init: typeof g.init === 'number' ? g.init : 0 });
   }
@@ -256,18 +263,25 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
     dataSegments.push(activeDataSegment(address, bytes));
     cursor += bytes.length;
   }
-  const arrayIndex = new Map<string, { address: number; elementWidth: number }>();
-  for (const a of constArrays) {
+  const arrayIndex = new Map<string, { address: number; elementWidth: number; mutable: boolean }>();
+  for (const a of arrayGlobals) {
     const elementWidth = storageBytes(a.type);
-    const address = cursor;
-    arrayIndex.set(a.name, { address, elementWidth });
-    const bytes: number[] = [];
-    for (const value of a.init) {
-      bytes.push(value & 0xff);
-      if (elementWidth === 2) bytes.push((value >> 8) & 0xff);
+    if (elementWidth !== 1 && elementWidth !== 2) {
+      return { ok: false, error: `'${a.name}' is an array<${a.type}, ${a.length}>: only a 1- or 2-byte element is lowered yet` };
     }
-    dataSegments.push(activeDataSegment(address, bytes));
-    cursor += bytes.length;
+    const address = cursor;
+    arrayIndex.set(a.name, { address, elementWidth, mutable: a.mutable });
+    if (a.init) {
+      const bytes: number[] = [];
+      for (const value of a.init) {
+        bytes.push(value & 0xff);
+        if (elementWidth === 2) bytes.push((value >> 8) & 0xff);
+      }
+      dataSegments.push(activeDataSegment(address, bytes));
+    }
+    // An initializer-less `let` array emits no segment: linear memory is
+    // already zero, which is its declared starting state.
+    cursor += a.length * elementWidth;
   }
   // MEMORY_PAGES stays the floor; a program whose own data outgrows one
   // page gets exactly as many more as its own layout needs, rounded up —

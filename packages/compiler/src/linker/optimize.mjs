@@ -111,6 +111,13 @@ function containsJump(node) {
   return Object.values(node).some(containsJump);
 }
 
+function containsReturn(node) {
+  if (Array.isArray(node)) return node.some(containsReturn);
+  if (!node || typeof node !== 'object') return false;
+  if (node.kind === 'return') return true;
+  return Object.values(node).some(containsReturn);
+}
+
 function referencesNames(node, names) {
   if (names.size === 0) return false;
   if (Array.isArray(node)) return node.some((item) => referencesNames(item, names));
@@ -172,8 +179,59 @@ function constValue(node) {
       const wrapped = wrapUnsigned(node.operator === '+' ? left + right : left - right, node.type);
       return wrapped;
     }
+    // The same wrapping-unsigned rule as '+'/'-' (rewrite 3 in the file
+    // header), extended to the operators 0.2.2's backends lower: a game's
+    // `TILE_H + ROW_GAP` was already 6 at compile time, and `1 * 40` or
+    // `5 >> 1` deserve the same. '/'/'%' of zero stay unfolded so the
+    // backends keep their own say about a divide-by-zero's runtime shape.
+    case '*': return wrapUnsigned(left * right, node.type);
+    case '/': return right === 0 ? null : wrapUnsigned(Math.floor(left / right), node.type);
+    case '%': return right === 0 ? null : wrapUnsigned(left % right, node.type);
+    case '&': return wrapUnsigned(left & right, node.type);
+    case '|': return wrapUnsigned(left | right, node.type);
+    case '^': return wrapUnsigned(left ^ right, node.type);
+    case '<<': return wrapUnsigned(left * 2 ** right, node.type);
+    case '>>': return wrapUnsigned(Math.floor(left / 2 ** right), node.type);
     default: return null;
   }
+}
+
+/**
+ * `x * C` with one side a compile-time constant, rewritten into the shifts
+ * and adds the backends lower more cheaply than a general multiply — the
+ * root AGENTS.md rule ("if the compiler can do it, the compiler does it")
+ * applied to the one operator the 6502 has no hardware for. `x * 0` is 0,
+ * `x * 1` is x, a power of two is one shift, and a constant with exactly
+ * two set bits is two shifts and an add — but only when `x` is a plain
+ * `ref`, because that shape duplicates `x`, and duplicating anything with
+ * work (or, one day, side effects) in it would run that work twice.
+ * Everything else stays a real multiply for the backend's own routine.
+ *
+ * @returns {object | null}
+ */
+function reduceMultiply(node) {
+  const type = node.type;
+  let value = null;
+  let other = null;
+  if (isNumericConst(node.left)) { value = node.left.value; other = node.right; }
+  else if (isNumericConst(node.right)) { value = node.right.value; other = node.left; }
+  if (value === null || value < 0 || !Number.isInteger(value)) return null;
+  // `x * 0` only folds away a bare ref: anything with a call in it would
+  // lose that call's own work, and a multiply by literal zero of anything
+  // else is not a shape worth optimizing for.
+  if (value === 0) return other.kind === 'ref' ? { kind: 'const', value: 0, type } : null;
+  if (value === 1) return other;
+  const shift = (amount) => ({
+    kind: 'binop', operator: '<<', type,
+    left: clone(other), right: { kind: 'const', value: amount, type: 'utinyint' },
+  });
+  const bits = [];
+  for (let b = 0; 2 ** b <= value; b++) if (value & (2 ** b)) bits.push(b);
+  if (bits.length === 1) return shift(bits[0]);
+  if (bits.length === 2 && other.kind === 'ref') {
+    return { kind: 'binop', operator: '+', type, left: shift(bits[1]), right: shift(bits[0]) };
+  }
+  return null;
 }
 
 function stringBytes(node, ctx) {
@@ -213,6 +271,10 @@ function foldExpr(node, ctx) {
   if (out.kind === 'call') {
     const evaluated = constEvalCall(out, ctx);
     if (evaluated !== null) return { kind: 'const', value: evaluated, type: out.type ?? 'utinyint' };
+  }
+  if (out.kind === 'binop' && out.operator === '*') {
+    const reduced = reduceMultiply(out);
+    if (reduced) return reduced;
   }
   const value = constValue(out);
   if (value !== null && out.kind !== 'const') {
@@ -390,6 +452,13 @@ function inlineVoidCall(statement, ctx) {
   if ((fn.body ?? []).length === 0) return null;
   if (fn.returnType && fn.returnType !== 'void') return null;
   if (ctx.inlining.has(statement.name)) return null;
+  // A `return` inside the body would stop meaning "leave this callee" once
+  // the body is pasted into the caller — it would leave the *caller* (and
+  // through a chain of inlines, the whole program: 2048's own spawnTile(),
+  // a no-parameter void helper with an early return, silently ended main()
+  // from inside resetGame(), found 2026-09-10). There's no block-exit IR
+  // to rewrite it into, so a body with a return anywhere stays a real call.
+  if (containsReturn(fn.body)) return null;
   const params = fn.params ?? [];
   const args = statement.args ?? [];
   if (params.length !== args.length) return null;

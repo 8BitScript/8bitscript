@@ -16,7 +16,7 @@ import { WAIT_FRAME_LABEL } from '../startup/waitframe.ts';
 function ctx(
   globals: [string, { address: number; type: string }][] = [],
   functions: [string, FunctionSite][] = [],
-  arrays: [string, { elementType: string }][] = [],
+  arrays: [string, { elementType: string; mutable?: boolean }][] = [],
 ): LowerOptions {
   return { globals: new Map(globals), locals: new LocalAllocator(0x90, 0x100), params: [], functions: new Map(functions), arrays: new Map(arrays) };
 }
@@ -89,10 +89,10 @@ test('memoryWrite still lowers exactly as milestone 4 left it', () => {
 });
 
 test('a statement kind with no rule yet fails naming it, not silently', () => {
-  const result = lower([{ kind: 'storeIndex' }], ctx());
+  const result = lower([{ kind: 'mystery' }], ctx());
   assert.equal(result.ok, false);
   if (result.ok) return;
-  assert.match(result.error, /no instruction-selection rule yet for the 'storeIndex' statement/);
+  assert.match(result.error, /no instruction-selection rule yet for the 'mystery' statement/);
 });
 
 test('a 16-bit local is lowered (milestone 8), not refused — both bytes of the initializer land in a fresh zp pair', () => {
@@ -167,13 +167,58 @@ test('- computes left minus right: left is reloaded and right is subtracted back
   assert.equal(values[1] && (values[1] as { operand: { value: number } }).operand.value, 3); // right, loaded second
 });
 
-test('* / % are refused by name: no hardware multiply or divide to lower them onto', () => {
-  for (const operator of ['*', '/', '%']) {
-    const result = lower([assign('out', bin(operator, u8(4), u8(2)))], ctx([['out', { address: 0x50, type: 'utinyint' }]]));
-    assert.equal(result.ok, false);
-    if (result.ok) continue;
-    assert.match(result.error, new RegExp(`the '\\${operator}' operator isn't lowered yet`));
-  }
+test("'/' is refused by name: no hardware divide, and nothing on the critical path needs one", () => {
+  const result = lower([assign('out', bin('/', u8(4), u8(2)))], ctx([['out', { address: 0x50, type: 'utinyint' }]]));
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /the '\/' operator isn't lowered yet/);
+});
+
+test("'%' lowers to the CMP/BCC/SBC subtraction loop, and its two temps release", () => {
+  const result = lower([assign('out', bin('%', ref('v'), ref('b')))], ctx([
+    ['out', { address: 0x50, type: 'utinyint' }],
+    ['v', { address: 0x51, type: 'utinyint' }],
+    ['b', { address: 0x52, type: 'utinyint' }],
+  ]));
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  assembles(result.program);
+  const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
+  // value parks, bound parks, then the loop: LDA value; CMP bound; BCC done; SBC bound; JMP loop
+  assert.deepEqual(mnemonics, ['LDA', 'STA', 'LDA', 'STA', 'LDA', 'CMP', 'BCC', 'SBC', 'JMP', 'STA']);
+});
+
+test("'*' routes both operands through the shared multiply routine's cells and reads the low result byte back", () => {
+  const cells = { a: 0x20, b: 0x22, result: 0x24 };
+  const result = lower([assign('out', bin('*', ref('x'), ref('y')))], {
+    ...ctx([
+      ['out', { address: 0x50, type: 'utinyint' }],
+      ['x', { address: 0x51, type: 'utinyint' }],
+      ['y', { address: 0x52, type: 'utinyint' }],
+    ]),
+    multiply: cells,
+  });
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  const jsr = result.program.find((d) => d.kind === 'instruction' && d.mnemonic === 'JSR');
+  assert.ok(jsr, 'a JSR to the multiply routine');
+  const stores = result.program
+    .filter((d) => d.kind === 'instruction' && d.mnemonic === 'STA' && d.operand?.kind === 'value')
+    .map((d) => (instruction(d).operand as { value: number }).value);
+  // Both 16-bit operand pairs land in the routine's own cells before the JSR.
+  for (const address of [cells.a, cells.a + 1, cells.b, cells.b + 1]) assert.ok(stores.includes(address), `operand byte $${address.toString(16)}`);
+  const lastLda = [...result.program].reverse().find((d) => d.kind === 'instruction' && d.mnemonic === 'LDA');
+  assert.equal((instruction(lastLda!).operand as { value: number }).value, cells.result);
+});
+
+test("a '*' reaching lowering with no multiply routine placed is a build() bug, said so by name", () => {
+  const result = lower([assign('out', bin('*', u8(4), ref('y')))], ctx([
+    ['out', { address: 0x50, type: 'utinyint' }],
+    ['y', { address: 0x52, type: 'utinyint' }],
+  ]));
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /no multiply routine placed/);
 });
 
 test('an ordering comparison on a signed type is refused; equality is not', () => {
@@ -293,11 +338,27 @@ test('return with a value evaluates it into A, then jumps to the exit label — 
   assembles(result.program);
 });
 
-test('return with a 16-bit value is still refused by name — milestone 8 doesn\'t widen return values', () => {
+test('return with a 16-bit value in an 8-bit function returns the low byte — the declared width\'s own wrap (0.2.2)', () => {
   const result = lower([{ kind: 'return', value: { kind: 'const', value: 300, type: 'usmallint' } }], ctx());
-  assert.equal(result.ok, false);
-  if (result.ok) return;
-  assert.match(result.error, /is 'usmallint' \(2 bytes\): this path only lowers 8-bit values/);
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  assembles(result.program);
+  // The pair fills (LDA/STA x2), then the LOW byte reloads into A for the caller.
+  const instructions = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d));
+  const lastLda = [...instructions].reverse().find((d) => d.mnemonic === 'LDA')!;
+  const firstSta = instructions.find((d) => d.mnemonic === 'STA')!;
+  assert.equal((lastLda.operand as { value: number }).value, (firstSta.operand as { value: number }).value);
+});
+
+test('return in a 16-bit-returning function stores the value into its own return pair, widening an 8-bit value on the way (0.2.2)', () => {
+  const result = lower([{ kind: 'return', value: u8(7) }], { ...ctx(), returnPair: 0x40 });
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  assembles(result.program);
+  const stores = result.program
+    .filter((d) => d.kind === 'instruction' && d.mnemonic === 'STA' && d.operand?.kind === 'value')
+    .map((d) => (instruction(d).operand as { value: number }).value);
+  assert.ok(stores.includes(0x40) && stores.includes(0x41), 'both return-pair bytes written');
 });
 
 test('a bare return jumps to the function-exit label, which the epilogue can sit right after', () => {
@@ -522,11 +583,49 @@ test('break and continue outside any loop fail as a checker bug, not a missing r
   if (!cont.ok) assert.match(cont.error, /continue outside any loop/);
 });
 
-test('a bitwise or shift operator is refused by name the same way * / % are', () => {
-  const result = lower([assign('out', bin('<<', u8(1), u8(1)))], ctx([['out', { address: 0x50, type: 'utinyint' }]]));
-  assert.equal(result.ok, false);
-  if (result.ok) return;
-  assert.match(result.error, /the '<<' operator/);
+test("8-bit '&'/'|'/'^' lower to AND/ORA/EOR — immediate when a side is a constant, a temp only when both are runtime", () => {
+  for (const [operator, mnemonic] of [['&', 'AND'], ['|', 'ORA'], ['^', 'EOR']] as const) {
+    const immediate = lower([assign('out', bin(operator, ref('x'), u8(7)))], ctx([
+      ['out', { address: 0x50, type: 'utinyint' }], ['x', { address: 0x51, type: 'utinyint' }],
+    ]));
+    assert.equal(immediate.ok, true, immediate.ok ? '' : immediate.error);
+    if (!immediate.ok) continue;
+    const op = immediate.program.find((d) => d.kind === 'instruction' && d.mnemonic === mnemonic)!;
+    assert.equal(instruction(op).mode, 'immediate');
+
+    const runtime = lower([assign('out', bin(operator, ref('x'), ref('y')))], ctx([
+      ['out', { address: 0x50, type: 'utinyint' }], ['x', { address: 0x51, type: 'utinyint' }], ['y', { address: 0x52, type: 'utinyint' }],
+    ]));
+    assert.equal(runtime.ok, true, runtime.ok ? '' : runtime.error);
+    if (!runtime.ok) continue;
+    const zpOp = runtime.program.find((d) => d.kind === 'instruction' && d.mnemonic === mnemonic)!;
+    assert.equal(instruction(zpOp).mode, 'zeropage');
+  }
+});
+
+test("8-bit shifts by a constant unroll into ASL/LSR; eight or more is a plain zero; a runtime amount is refused by name", () => {
+  const left = lower([assign('out', bin('<<', ref('x'), u8(2)))], ctx([
+    ['out', { address: 0x50, type: 'utinyint' }], ['x', { address: 0x51, type: 'utinyint' }],
+  ]));
+  assert.equal(left.ok, true, left.ok ? '' : left.error);
+  if (left.ok) {
+    const mnemonics = left.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
+    assert.deepEqual(mnemonics, ['LDA', 'ASL', 'ASL', 'STA']);
+  }
+  const wide = lower([assign('out', bin('>>', ref('x'), u8(8)))], ctx([
+    ['out', { address: 0x50, type: 'utinyint' }], ['x', { address: 0x51, type: 'utinyint' }],
+  ]));
+  assert.equal(wide.ok, true, wide.ok ? '' : wide.error);
+  if (wide.ok) {
+    const lastLda = [...wide.program].reverse().find((d) => d.kind === 'instruction' && d.mnemonic === 'LDA')!;
+    assert.equal(instruction(lastLda).mode, 'immediate');
+    assert.equal((instruction(lastLda).operand as { value: number }).value, 0);
+  }
+  const runtime = lower([assign('out', bin('>>', ref('x'), ref('n')))], ctx([
+    ['out', { address: 0x50, type: 'utinyint' }], ['x', { address: 0x51, type: 'utinyint' }], ['n', { address: 0x52, type: 'utinyint' }],
+  ]));
+  assert.equal(runtime.ok, false);
+  if (!runtime.ok) assert.match(runtime.error, /needs a compile-time shift amount/);
 });
 
 test('an expression kind with no rule yet fails naming it, not silently', () => {
@@ -690,11 +789,32 @@ test('16-bit subtraction chains borrow the same way: SEC once, then SBC low, SBC
   assert.equal(mnemonics.filter((m) => m === 'SEC').length, 1);
 });
 
-test('16-bit `*` is refused by name, not lowered as if it were `+`', () => {
-  const result = lower([local('x', bin('*', u16(2), u16(3), 'usmallint'), 'usmallint')], ctx());
-  assert.equal(result.ok, false);
-  if (result.ok) return;
-  assert.match(result.error, /no 16-bit instruction-selection rule yet for the '\*' operator/);
+test('16-bit `*` copies the whole product out of the routine\'s result pair into a fresh temporary (0.2.2)', () => {
+  const cells = { a: 0x20, b: 0x22, result: 0x24 };
+  const result = lower([local('x', bin('*', u16(2), u16(3), 'usmallint'), 'usmallint')], { ...ctx(), multiply: cells });
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  // The JSR's own target label lives in the routine mos/index.ts appends —
+  // stand a bare label in for it so the program still assembles here.
+  assembles([...result.program, { kind: 'label', name: '__8bs_mul16' }]);
+  const loads = result.program
+    .filter((d) => d.kind === 'instruction' && d.mnemonic === 'LDA' && d.operand?.kind === 'value' && d.mode === 'zeropage')
+    .map((d) => (instruction(d).operand as { value: number }).value);
+  assert.ok(loads.includes(cells.result) && loads.includes(cells.result + 1), 'both result bytes read back');
+});
+
+test('a 16-bit shift by a whole byte is a byte move, with the remainder as LSR/ROR or ASL/ROL pairs (0.2.2)', () => {
+  const result = lower(
+    [local('x', bin('>>', ref('wide', 'usmallint'), u8(9), 'usmallint'), 'usmallint')],
+    ctx([['wide', { address: 0x10, type: 'usmallint' }]]),
+  );
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  assembles(result.program);
+  const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
+  // >>9 = move high to low + zero high, then exactly one LSR (no ROR needed
+  // by count: 9-8=1, applied as one LSR/ROR pair on the pair).
+  assert.equal(mnemonics.filter((m) => m === 'LSR').length, 1);
 });
 
 // @8bitscript/pet/text's own `place(cell + i, s[i])` inside text.print's
@@ -762,10 +882,23 @@ test('a bool is refused rather than zero-extended into a 16-bit target — the c
 });
 
 test('a 16-bit expression kind with no rule yet fails naming it, not silently', () => {
-  const result = lower([local('x', { kind: 'call', name: 'f', args: [], type: 'usmallint' }, 'usmallint')], ctx());
+  const result = lower([local('x', { kind: 'mystery', type: 'usmallint' }, 'usmallint')], ctx());
   assert.equal(result.ok, false);
   if (result.ok) return;
-  assert.match(result.error, /no 16-bit instruction-selection rule yet for the 'call' expression/);
+  assert.match(result.error, /no 16-bit instruction-selection rule yet for the 'mystery' expression/);
+});
+
+test('a 16-bit call copies the callee\'s return pair into a fresh temporary at the call site (0.2.2)', () => {
+  const result = lower(
+    [local('x', { kind: 'call', name: 'f', args: [], type: 'usmallint' }, 'usmallint')],
+    ctx([], [['f', { label: '__8bs_fn_f', params: [], returnType: 'usmallint', returnPair: 0x60 }]]),
+  );
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  const loads = result.program
+    .filter((d) => d.kind === 'instruction' && d.mnemonic === 'LDA' && d.operand?.kind === 'value')
+    .map((d) => (instruction(d).operand as { value: number }).value);
+  assert.ok(loads.includes(0x60) && loads.includes(0x61), 'both return-pair bytes copied out');
 });
 
 test('exprTo16 refuses a value with no type at all, rather than assuming a width', () => {
@@ -819,14 +952,50 @@ test('an unsigned 16-bit ordering comparison evaluates right - left the same way
   assert.deepEqual(mnemonics.slice(cmpIndex - 1, cmpIndex + 3), ['LDA', 'CMP', 'LDA', 'SBC']);
 });
 
-test('a mixed-width comparison (8-bit vs. 16-bit) is refused, not silently zero-extended', () => {
+test('a mixed-width comparison (8-bit vs. 16-bit) zero-extends the narrower unsigned side, exactly like a binop operand (0.2.2)', () => {
   const result = lower(
-    [ifNode(bin('==', ref('cell', 'usmallint'), u8(1), 'bool'), [])],
+    [ifNode(bin('==', ref('cell', 'usmallint'), u8(1), 'bool'), [write(0x8000, 1)])],
     ctx([['cell', { address: 0x10, type: 'usmallint' }]]),
   );
-  assert.equal(result.ok, false);
-  if (result.ok) return;
-  assert.match(result.error, /needs both sides the same width — got 2 and 1 byte\(s\)/);
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  assembles(result.program);
+});
+
+// The bug that shipped silently through 0.2.1 and surfaced running the
+// first real 16-bit `>=` (printNumber's digit loop, 2026-09-10): after
+// `CMP low / SBC high` only the CARRY describes the 16-bit subtraction —
+// Z is the high byte's alone — so any branch plan reading BEQ/BNE off
+// that sequence answers wrong whenever the difference fits in the low
+// byte. These pin the corrected shapes.
+test('16-bit equality compares byte-by-byte, skipping the high compare when the low already differs', () => {
+  const result = lower(
+    [ifNode(bin('==', ref('a', 'usmallint'), ref('b', 'usmallint'), 'bool'), [write(0x8000, 1)])],
+    ctx([['a', { address: 0x10, type: 'usmallint' }], ['b', { address: 0x12, type: 'usmallint' }]]),
+  );
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  assembles(result.program);
+  const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
+  assert.deepEqual(mnemonics.slice(0, 6), ['LDA', 'CMP', 'BNE', 'LDA', 'CMP', 'BNE']);
+  assert.ok(!mnemonics.includes('SBC'), 'no SBC: equality never consults a subtraction chain');
+});
+
+test('a 16-bit ordering comparison reads only the carry — no BEQ/BNE ever follows its CMP/SBC chain', () => {
+  for (const operator of ['<', '>=', '>', '<='] as const) {
+    const result = lower(
+      [ifNode(bin(operator, ref('a', 'usmallint'), ref('b', 'usmallint'), 'bool'), [write(0x8000, 1)])],
+      ctx([['a', { address: 0x10, type: 'usmallint' }], ['b', { address: 0x12, type: 'usmallint' }]]),
+    );
+    assert.equal(result.ok, true, result.ok ? '' : result.error);
+    if (!result.ok) continue;
+    assembles(result.program);
+    const instructions = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d));
+    const sbcIndex = instructions.findIndex((d) => d.mnemonic === 'SBC');
+    assert.ok(sbcIndex >= 0);
+    const follow = instructions[sbcIndex + 1].mnemonic;
+    assert.ok(follow === 'BCC' || follow === 'BCS', `'${operator}' branches on carry, got ${follow}`);
+  }
 });
 
 test('a call passes a 16-bit argument as two bytes into the callee\'s param pair', () => {
@@ -1011,11 +1180,48 @@ test('a 2-byte-element index() doubles the index (ASL) before reading low, then 
   assembles([...result.program, ...data]);
 });
 
-test('index() on a name this build never placed as a const array is refused, naming it — not a missing rule, a linker/checker bug', () => {
+test('index() on a name this build never placed as an array is refused, naming it — not a missing rule, a linker/checker bug', () => {
   const result = lower([{ kind: 'return', value: idx('MYSTERY', u8(0), 'utinyint') }], ctx());
   assert.equal(result.ok, false);
   if (result.ok) return;
-  assert.match(result.error, /'MYSTERY' resolves to no const array this backend placed/);
+  assert.match(result.error, /'MYSTERY' resolves to no array this backend placed/);
+});
+
+// ---- 0.2.2: mutable arrays — storeIndex, the write half of milestone 9 ----
+
+test('storeIndex parks the index, evaluates the value into A, and stores through Y at the array label', () => {
+  const result = lower(
+    [{ kind: 'storeIndex', array: { kind: 'ref', name: 'board' }, index: u8(3), value: u8(7), elementType: 'utinyint' }],
+    ctx([], [], [['board', { elementType: 'utinyint', mutable: true }]]),
+  );
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  const data: Directive[] = [{ kind: 'label', name: arrayLabel('board') }, { kind: 'byte', values: new Array(16).fill(0) }];
+  assembles([...result.program, ...data]);
+  const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
+  assert.deepEqual(mnemonics, ['LDA', 'STA', 'LDA', 'LDY', 'STA']);
+  const sta = instruction(result.program.filter((d) => d.kind === 'instruction')[4]);
+  assert.equal(sta.mode, 'absolute,y');
+});
+
+test('storeIndex into a const array is refused — the checker should already have said so', () => {
+  const result = lower(
+    [{ kind: 'storeIndex', array: { kind: 'ref', name: 'TABLE' }, index: u8(0), value: u8(1), elementType: 'utinyint' }],
+    ctx([], [], [['TABLE', { elementType: 'utinyint' }]]),
+  );
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /'TABLE' is a const array/);
+});
+
+test('storeIndex into a 2-byte element is refused by name — only 1-byte elements are written yet', () => {
+  const result = lower(
+    [{ kind: 'storeIndex', array: { kind: 'ref', name: 'wide' }, index: u8(0), value: u8(1), elementType: 'usmallint' }],
+    ctx([], [], [['wide', { elementType: 'usmallint', mutable: true }]]),
+  );
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /a 2-byte array element isn't written yet/);
 });
 
 // The bug an advisor review caught before any gate ever exercised prepare()

@@ -18,9 +18,9 @@
 //
 // Studio, Doctor and Refresh are icons in the view's title bar rather than
 // buttons in the page, which is where an editor puts a view's actions; the
-// palette has them too. What is running is a section at the bottom with a
-// Stop on each row — a launcher that cannot stop what it launched is only
-// half of one.
+// palette has them too. What is running is a Running machines tree at the
+// bottom: a run expands to the compile's own size breakdown and the
+// hardware it launched, with a Stop on each row.
 //
 // The panel holds no state. Every choice is written straight to the
 // extension's settings (settings.cjs) and read back, so what the page
@@ -45,6 +45,7 @@ const settings = require('./settings.cjs');
 const {
   effectiveFacts, effectiveOptions, matchesSystem, presetBundle, selectionLabel,
 } = require('./hardwareCatalog.cjs');
+const { machineTree, readLastRun, rowKey } = require('./runningMachines.cjs');
 
 const VIEW_ID = '8bitscript.launcher';
 const CSS = fs.readFileSync(path.join(__dirname, '..', 'media', 'launcher.css'), 'utf8');
@@ -268,11 +269,15 @@ class LauncherViewProvider {
   runningRows(all) {
     return this.projects.running.list().map((row) => {
       const project = all.find((p) => p.dir === row.dir);
+      const report = row.target ? readLastRun(row.dir, row.target) : null;
+      const live = this.projects.live.get(rowKey(row.dir, row.target)) ?? null;
       return {
         dir: row.dir,
         target: row.target,
+        command: row.command,
         label: project ? labelOf(project) : path.basename(row.dir || '8bs'),
         detail: row.target ? `${row.command} · ${row.target}` : row.command,
+        machine: machineTree(row, report, live),
       };
     });
   }
@@ -477,7 +482,7 @@ function html(webview) {
   </button>
 
   <section class="running" id="running" hidden>
-    <h2 class="section-label">Running</h2>
+    <h2 class="section-label">Running machines</h2>
     <div id="running-rows"></div>
   </section>
 

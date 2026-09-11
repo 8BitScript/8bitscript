@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { arrayLabel, buildDataSection, stringLabel } from './data.ts';
-import type { ConstArrayGlobal, IrString } from './data.ts';
+import type { DataArrayGlobal, IrString } from './data.ts';
 import { assemble } from './asm/assemble.ts';
 
 test('stringLabel and arrayLabel are deterministic and distinct from each other', () => {
@@ -41,7 +41,7 @@ test('a 255-byte string lowers to exactly 256 bytes: the length, then every char
 });
 
 test('a 1-byte-element const array lays out its elements verbatim, under its own label', () => {
-  const arrays: ConstArrayGlobal[] = [{ name: 'TABLE', type: 'utinyint', array: 3, init: [10, 20, 30] }];
+  const arrays: DataArrayGlobal[] = [{ name: 'TABLE', type: 'utinyint', array: 3, init: [10, 20, 30] }];
   const section = buildDataSection([], arrays);
   assert.deepEqual(section, [
     { kind: 'label', name: arrayLabel('TABLE') },
@@ -51,7 +51,7 @@ test('a 1-byte-element const array lays out its elements verbatim, under its own
 
 // DIGIT_PLACES itself (packages/pet/src/text.8bs): const DIGIT_PLACES: array<usmallint, 5> = [10000, 1000, 100, 10, 1];
 test('a 2-byte-element const array lays out each element little-endian, low byte first', () => {
-  const arrays: ConstArrayGlobal[] = [{ name: 'DIGIT_PLACES', type: 'usmallint', array: 5, init: [10000, 1000, 100, 10, 1] }];
+  const arrays: DataArrayGlobal[] = [{ name: 'DIGIT_PLACES', type: 'usmallint', array: 5, init: [10000, 1000, 100, 10, 1] }];
   const section = buildDataSection([], arrays);
   const bytes = section.find((d) => d.kind === 'byte') as { values: number[] };
   assert.deepEqual(bytes.values, [
@@ -65,7 +65,7 @@ test('a 2-byte-element const array lays out each element little-endian, low byte
 
 test('strings come before const arrays, in ir.strings/globals order — a deterministic layout, same input every time', () => {
   const strings: IrString[] = [{ text: 'HI', bytes: [72, 73] }];
-  const arrays: ConstArrayGlobal[] = [{ name: 'TABLE', type: 'utinyint', array: 1, init: [1] }];
+  const arrays: DataArrayGlobal[] = [{ name: 'TABLE', type: 'utinyint', array: 1, init: [1] }];
   const a = buildDataSection(strings, arrays);
   const b = buildDataSection(strings, arrays);
   assert.deepEqual(a, b);
@@ -74,7 +74,7 @@ test('strings come before const arrays, in ir.strings/globals order — a determ
 
 test('the whole section assembles: every label lands where its own preceding byte count says it should', () => {
   const strings: IrString[] = [{ text: 'HI', bytes: [72, 73] }, { text: 'A', bytes: [65] }];
-  const arrays: ConstArrayGlobal[] = [{ name: 'PAIR', type: 'usmallint', array: 1, init: [300] }];
+  const arrays: DataArrayGlobal[] = [{ name: 'PAIR', type: 'usmallint', array: 1, init: [300] }];
   const section = buildDataSection(strings, arrays);
   const result = assemble(section, 0x2000);
   assert.equal(result.ok, true, result.ok ? '' : result.error);

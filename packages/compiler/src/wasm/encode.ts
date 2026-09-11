@@ -153,6 +153,7 @@ export const Opcode = {
   i32GeU: 0x4f,
   i32Add: 0x6a,
   i32Sub: 0x6b,
+  i32Mul: 0x6c,
   i32DivU: 0x6e,
   i32RemU: 0x70,
   i32And: 0x71,
@@ -161,10 +162,24 @@ export const Opcode = {
   i32Shl: 0x74,
   i32ShrU: 0x76,
   i32Load8U: 0x2d,
+  i32Load16U: 0x2f,
   i32Store8: 0x3a,
+  i32Store16: 0x3b,
+  select: 0x1b,
   globalGet: 0x23,
   globalSet: 0x24,
 } as const;
+
+/** `memory.copy` (bulk-memory, standardized 2020 — every engine the web
+ * target runs on has it): pops `len`, `src`, `dest` (pushed in
+ * dest/src/len order) and copies `len` bytes. The two trailing zeros are
+ * the destination and source memory indices — always memory 0, the only
+ * memory any module this backend emits declares. Encoded as the 0xFC
+ * prefix plus LEB128 sub-opcode 10, not a one-byte opcode, which is why
+ * it's a helper here rather than an `Opcode` entry. */
+export function memoryCopy(): number[] {
+  return [0xfc, ...unsignedLEB128(10), 0x00, 0x00];
+}
 
 /** A load/store instruction's own immediate: alignment (a hint, log2 of the
  * expected natural alignment — 0 is always valid, "no particular

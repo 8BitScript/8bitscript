@@ -95,10 +95,17 @@ bar with one thing in it: a launcher.
 
   ▸ HARDWARE · FACTS   model=8032
 
-  RUNNING
-    Studio         run · pet                  ⏹
+  RUNNING MACHINES
+    ▾ Studio         run · pet · 12s        ⏹
+        Emulator   xpet
+        Image      dist/studio-pet.prg
+        Memory     8 bytes RAM · 331 bytes program
+        ▸ Size
+            120  36.3%  wait_frame
+             80  24.2%  main
+        ▸ Facts
 
-  8bs run pet --profile 8032
+  8bs run pet --profile 8032 --size
 ```
 
 This used to be two views — a panel of dropdowns stacked on a tree of
@@ -114,19 +121,20 @@ the same program; the **project** under that, because it changes less; and
 button — it is the occasional action, and it belongs beside the thing it
 builds.
 
-- **Run** — starts `8bs run <system>` for the selected project as a task in
+- **Run** — starts `8bs run <system> --size` for the selected project as a task in
   its own terminal, from the project's directory with the project's own
   `node_modules/.bin/8bs`, so what you see is exactly what the CLI prints.
-  The button names the project, and the line under it names the machine,
-  the hardware fitted to it, and the region — nothing has to be read off a
-  dropdown to know what pressing it means. It greys out when the selected
-  project does not target the selected system, or its emulator is
-  missing, and says which in the line below. Run and Build work for real on
-  `pet` and `web` — the two 0.2.0 targets; every other system still refuses,
-  since its own backend doesn't exist yet.
+  `--size` is the per-function breakdown under the memory line; it prints
+  before the emulator window opens. The button names the project, and the
+  line under it names the machine, the hardware fitted to it, and the
+  region — nothing has to be read off a dropdown to know what pressing it
+  means. It greys out when the selected project does not target the selected
+  system, or its emulator is missing, and says which in the line below. Run
+  and Build work for real on `pet` and `web` — the two 0.2.0 targets; every
+  other system still refuses, since its own backend doesn't exist yet.
 - **Build** (🔧 on the Project row) — the same as Run, but `8bs build
-  --target <system>`, which stops at the built file instead of starting an
-  emulator.
+  --target <system> --size`, which stops at the built file instead of
+  starting an emulator.
 - **Project** — the project both buttons act on (`8bitscript.project`).
   Every directory in the workspace with an `8bs.config.ts` is in the list,
   grouped with the **Apps** that ship with the toolchain — packages whose
@@ -191,9 +199,15 @@ SYSTEM
 - **Hardware · Region · Facts** — one disclosure holding everything a run
   usually does not care about, with the current fitting beside its name so
   a run that does not care never opens it.
-- **Running** — a row per `8bs` task in flight, each with its own **Stop**,
-  which ends the task and the emulator with it. The section is not there
-  when nothing is running.
+- **Running machines** — a tree per `8bs` task in flight. A run or boot
+  expands to the machine that launched: the emulator, the built image,
+  RAM and program bytes, the `--size` breakdown (largest function first),
+  the hardware fitted to it, and — on the web — live FPS and frame count
+  from the page. Each row has its own **Stop**, which ends the task and
+  the emulator with it. The section is not there when nothing is running.
+  VICE (xpet on the PET) has no live CPU readout here: its binary monitor
+  pauses the machine on any command, so a PET run shows the compile
+  report and elapsed time rather than registers.
 - The last line is the exact `8bs` command the Run button will start.
 
 The view's title bar has 📖 **Show or Hide Examples**, 🚀 **Launch Studio**,
