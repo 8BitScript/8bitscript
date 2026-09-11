@@ -45,9 +45,22 @@ Four things about that surface are decisions:
 - **Everything is edge-triggered.** `right()` is true on the one frame the
   press begins and false while it is held. A menu wants "did they just
   press right", not "is right down" — a level-triggered answer races a
-  highlight across a bar in a third of a second. Each layer keeps `held`,
-  `before` and `began`, and `began` is `held & (before ^ 0xFF)`; the
-  language has no `~`, which is why the XOR.
+  highlight across a bar in a third of a second. Each layer keeps a
+  held-level snapshot, the previous frame's copy, and `began` — new bits
+  are `held & (before ^ 0xFF)`; the language has no `~`, which is why the
+  XOR. **The edge must be detected on a PHYSICAL input, never on a
+  composed one.** The PET's left is SHIFT plus the right-cursor key, and
+  its layer edge-detects the cursor key itself, sampling SHIFT only to
+  decide what that edge means — because nobody releases SHIFT and the key
+  on the same frame, so an edge detected on the composed "left" bit reads
+  every release's one or two frames of bare cursor key as a brand-new
+  RIGHT press (measured under xpet with skewed synthetic releases,
+  2026-09-11: every LEFT move in 2048 was chased by a phantom RIGHT move
+  that slid the board straight back). The parked Commodore layers —
+  c64, c128, vic20, mega65 — still edge-detect their shift-composed
+  cursor directions the old way and need the same physical-key treatment
+  when those targets return; their joystick bits are already physical and
+  already right.
 - **`poll()` exactly once a frame** follows from that. Poll twice and every
   press is seen once and then swallowed by the second call. It is the one
   rule a program using this package has to hold to, and every layer's

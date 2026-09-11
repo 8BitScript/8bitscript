@@ -28,11 +28,23 @@
 //   - **confirm** — RETURN.
 //   - **cancel** — RUN/STOP.
 //
-// ---- edges, not levels ---------------------------------------------------
+// ---- edges, not levels — and on the PHYSICAL key, not the direction ------
 //
 // Every answer is **edge-triggered**: true on the one frame the press
 // begins, false while it is held. `poll()` must be called exactly once a
 // frame, right after waitFrame().
+//
+// The edge is detected on the physical cursor key, and SHIFT is sampled
+// at that instant to decide which direction the edge means. Detecting
+// edges on the *direction* instead — "LEFT began" as a bit of
+// shift-AND-cursor — is the obvious spelling and it is wrong on real
+// fingers: nobody releases SHIFT and the cursor key on the same frame,
+// so every left/up release leaves one or two frames of bare cursor key,
+// which reads as a brand-new RIGHT/DOWN press. Measured before this was
+// fixed (VICE, synthetic keys with a 120ms release skew, the 2048 game):
+// every left move was followed by a phantom right move that slid the
+// board straight back — "my keypress did nothing." A key that is DOWN
+// can't begin again, whatever SHIFT does around it.
 //
 // One thing worth knowing about this keyboard specifically: the PET's
 // matrix is read a row at a time and has the same ghosting every
@@ -50,8 +62,15 @@ namespace Edge {
     const CANCEL: utinyint = 32;
 }
 
-let held: utinyint = 0;
-let before: utinyint = 0;
+// The physical keys, one bit each — what edge detection actually runs on.
+namespace Held {
+    const CURSOR_RIGHT: utinyint = 1;
+    const CURSOR_DOWN: utinyint = 2;
+    const RETURN: utinyint = 4;
+    const STOP: utinyint = 8;
+}
+
+let keysBefore: utinyint = 0;
 let began: utinyint = 0;
 
 export namespace input {
@@ -63,36 +82,50 @@ export namespace input {
     }
 
     // Snapshot the matrix and work out what began this frame. Once a
-    // frame, right after waitFrame().
+    // frame, right after waitFrame(). Edges come from the physical keys;
+    // SHIFT only decides what a cursor key's own edge means (see the
+    // header for why the other order reads releases as phantom presses).
     function poll(): void {
         keyboard.scan();
 
-        before = held;
-        held = 0;
-
-        let shifted: bool = keyboard.pressed(Key.SHIFT_LEFT) || keyboard.pressed(Key.SHIFT_RIGHT);
+        let keys: utinyint = 0;
         if (keyboard.pressed(Key.CURSOR_RIGHT)) {
-            if (shifted) {
-                held = held | Edge.LEFT;
-            } else {
-                held = held | Edge.RIGHT;
-            }
+            keys = keys | Held.CURSOR_RIGHT;
         }
         if (keyboard.pressed(Key.CURSOR_DOWN)) {
-            if (shifted) {
-                held = held | Edge.UP;
-            } else {
-                held = held | Edge.DOWN;
-            }
+            keys = keys | Held.CURSOR_DOWN;
         }
         if (keyboard.pressed(Key.RETURN)) {
-            held = held | Edge.CONFIRM;
+            keys = keys | Held.RETURN;
         }
         if (keyboard.pressed(Key.STOP)) {
-            held = held | Edge.CANCEL;
+            keys = keys | Held.STOP;
         }
+        let newKeys: utinyint = keys & (keysBefore ^ 0xFF);
+        keysBefore = keys;
 
-        began = held & (before ^ 0xFF);
+        let shifted: bool = keyboard.pressed(Key.SHIFT_LEFT) || keyboard.pressed(Key.SHIFT_RIGHT);
+        began = 0;
+        if ((newKeys & Held.CURSOR_RIGHT) != 0) {
+            if (shifted) {
+                began = began | Edge.LEFT;
+            } else {
+                began = began | Edge.RIGHT;
+            }
+        }
+        if ((newKeys & Held.CURSOR_DOWN) != 0) {
+            if (shifted) {
+                began = began | Edge.UP;
+            } else {
+                began = began | Edge.DOWN;
+            }
+        }
+        if ((newKeys & Held.RETURN) != 0) {
+            began = began | Edge.CONFIRM;
+        }
+        if ((newKeys & Held.STOP) != 0) {
+            began = began | Edge.CANCEL;
+        }
     }
 
     function left(): bool {
