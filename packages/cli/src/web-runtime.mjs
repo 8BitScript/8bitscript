@@ -262,11 +262,32 @@ function renderHtml(frameRate) {
 <html>
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>8BitScript</title>
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #000; touch-action: none; }
-  body { display: flex; align-items: center; justify-content: center; }
+  /* 100% first for a browser with neither unit; 100dvh (the visible area,
+     shrinking and growing with mobile Safari's own toolbar) overrides it
+     on anything that understands it. Real height still comes from resize()
+     below reading visualViewport — this only keeps the black background
+     from leaving a gap the size of a hidden toolbar.
+     html is NOT overflow: hidden, on purpose — nudgeChromeCollapsed()
+     below needs an actual pixel of overflow to scroll into, since that is
+     the one thing that sometimes still collapses mobile Safari's own
+     toolbar. touch-action: none on both stops every user-driven scroll
+     gesture from ever reaching it, so this costs nothing when it doesn't
+     work — see nudgeChromeCollapsed. */
+  html { margin: 0; height: 100%; height: 100dvh; background: #000; touch-action: none; }
+  body {
+    margin: 0; min-height: calc(100% + 1px); min-height: calc(100dvh + 1px);
+    display: flex; align-items: center; justify-content: center;
+    background: #000; touch-action: none;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    box-sizing: border-box;
+  }
   canvas { image-rendering: pixelated; display: block; touch-action: none; }
   #hint {
     position: fixed;
@@ -355,13 +376,23 @@ function paintGlyph(x, y, rows, color) {
 // The canvas's on-page size, not its pixel grid: as large as fits the
 // window while keeping the screen's own aspect ratio, so it reads as one
 // screen filling the tab rather than a fixed-size box floating in it.
+// visualViewport, where it exists, is the area actually visible right
+// now — window.innerHeight on mobile Safari can still count space a
+// collapsed toolbar has given back, or not yet given back, depending on
+// iOS version, so this reads whichever is authoritative.
+function viewportSize() {
+  if (window.visualViewport) return [window.visualViewport.width, window.visualViewport.height];
+  return [window.innerWidth, window.innerHeight];
+}
 function resize() {
-  const scale = Math.min(window.innerWidth / SCREEN_W, window.innerHeight / SCREEN_H);
+  const [vw, vh] = viewportSize();
+  const scale = Math.min(vw / SCREEN_W, vh / SCREEN_H);
   canvas.style.width = Math.floor(SCREEN_W * scale) + 'px';
   canvas.style.height = Math.floor(SCREEN_H * scale) + 'px';
 }
 window.addEventListener('resize', resize);
 document.addEventListener('fullscreenchange', resize);
+if (window.visualViewport) window.visualViewport.addEventListener('resize', resize);
 resize();
 
 function toggleFullscreen() {
@@ -369,6 +400,22 @@ function toggleFullscreen() {
   else document.body.requestFullscreen().catch(() => {});
 }
 canvas.addEventListener('dblclick', toggleFullscreen);
+
+// Best-effort only — there is no API that hides a mobile browser's own
+// toolbar on request, and Apple has changed how/whether scrolling
+// collapses it across iOS versions. touch-action: none above already
+// stops every user-driven scroll gesture, so this fakes the one thing
+// that sometimes still triggers a collapse: the page itself scrolling by
+// a pixel. Harmless where it does nothing.
+function nudgeChromeCollapsed() {
+  if (document.documentElement.scrollHeight <= window.innerHeight) return;
+  window.scrollTo(0, 1);
+}
+window.addEventListener('load', nudgeChromeCollapsed);
+window.addEventListener('orientationchange', () => setTimeout(nudgeChromeCollapsed, 300));
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', () => setTimeout(nudgeChromeCollapsed, 300));
+}
 let hintTimer = setTimeout(() => hint.classList.add('hidden'), 3000);
 function say(text) {
   clearTimeout(hintTimer);

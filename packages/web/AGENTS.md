@@ -88,6 +88,22 @@ Do not describe more than this as working:
   `-web`, no region, no profile, unlike every 6502 target — and also writes
   a hostable `dist/web/` directory (`index.html`, `worker.js`, `program.wasm`,
   `_headers` with COOP/COEP). The memory line is "as declared", not measured.
+- The page (`renderHtml`) declares `viewport-fit=cover` and safe-area
+  padding so it draws edge to edge on a notched phone, and the
+  `apple-mobile-web-app-capable` meta trio so Add to Home Screen launches
+  with no browser chrome at all — the only *dependable* way to get a
+  mobile browser's own toolbar out of the way; there is no API that hides
+  it in an ordinary tab. `resize()` prefers `visualViewport` over
+  `window.innerWidth/Height`, which can lag behind what's actually
+  visible while mobile Safari's toolbar animates. `nudgeChromeCollapsed()`
+  is the unreliable, best-effort half: `html` deliberately is not
+  `overflow: hidden`, giving the page exactly one pixel to scroll into
+  (`body`'s `min-height: calc(100dvh + 1px)`), since some iOS Safari
+  versions still collapse their toolbar on a scroll and none of them do
+  with nothing to scroll — `touch-action: none` still stops a real user
+  gesture from ever using that pixel. No device has confirmed this
+  actually collapses the toolbar; it is provably harmless where it does
+  not.
 
 There is no pointer, no sound, no sprites, no tiles, no bitmap, no
 redefinable character set, no scrolling, no storage,

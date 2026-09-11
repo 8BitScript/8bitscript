@@ -44,6 +44,39 @@ test('writeWebBundle writes index.html, worker.js, program.wasm, and COOP/COEP h
   }
 });
 
+test('writeWebBundle: mobile Safari gets viewport-fit, a home-screen-capable page, and a best-effort toolbar nudge', async () => {
+  const dir = await mkdtemp(join(tmpdir(), '8bs-web-bundle-'));
+  try {
+    await writeWebBundle(dir, PAINTS_A, { frameRate: 60 });
+    const html = await readFile(join(dir, 'index.html'), 'utf8');
+    // viewport-fit=cover + safe-area padding: the canvas doesn't draw under
+    // a notch or the home-indicator strip once the page runs edge to edge.
+    assert.match(html, /viewport-fit=cover/);
+    assert.match(html, /env\(safe-area-inset-top\)/);
+    // apple-mobile-web-app-capable (+ friends): the real, dependable
+    // full-screen path — Add to Home Screen launches with no browser
+    // chrome at all — which nothing here can trigger on its own.
+    assert.match(html, /name="apple-mobile-web-app-capable" content="yes"/);
+    assert.match(html, /name="apple-mobile-web-app-status-bar-style"/);
+    // html must NOT be overflow: hidden, or nudgeChromeCollapsed has no
+    // pixel of scroll to move into and the whole trick is inert.
+    assert.doesNotMatch(html, /html\s*\{[^}]*overflow:\s*hidden/);
+    assert.match(html, /min-height: calc\(100dvh \+ 1px\)/);
+    // The nudge itself: best-effort, and explicitly a no-op when there is
+    // nothing to scroll (guards against forcing a scroll on a desktop
+    // browser where the page never overflows in the first place).
+    assert.match(html, /function nudgeChromeCollapsed/);
+    assert.match(html, /window\.scrollTo\(0, 1\)/);
+    assert.match(html, /addEventListener\('orientationchange'/);
+    // resize() prefers visualViewport, the actually-visible area, over
+    // window.innerHeight, which mobile Safari can report before or after
+    // its own toolbar has actually finished collapsing.
+    assert.match(html, /window\.visualViewport/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test('captureScreenshot for web rasterizes wasm screen memory to a PNG of the same layout the canvas draws', async () => {
   const dir = await mkdtemp(join(tmpdir(), '8bs-web-shot-'));
   try {
