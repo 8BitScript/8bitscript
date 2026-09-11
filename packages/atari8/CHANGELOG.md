@@ -1,5 +1,9 @@
 # @8bitscript/atari8
 
+## 0.2.4
+
+No changes in this release.
+
 ## 0.2.3
 
 ### Patch Changes

@@ -3,7 +3,7 @@
   "displayName": "8BitScript",
   "description": "Syntax highlighting, language server, and a project runner for 8BitScript (.8bs) source files.",
   "icon": "media/8bitscript-icon.png",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "private": true,
   "publisher": "8bitscript",
   "license": "MIT",
