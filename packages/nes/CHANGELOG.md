@@ -1,5 +1,14 @@
 # @8bitscript/nes
 
+## 0.2.3
+
+### Patch Changes
+
+- d58bf12: `text.setColor` on a machine with no per-cell color is now an empty
+  function, and the compiler deletes the call — so a program that colors
+  its text pays the PET, Atari 8-bit, and NES nothing, without wrapping the
+  call in `Video.COLOR_PER_CELL`.
+
 ## 0.2.2
 
 No changes in this release.
