@@ -1,6 +1,6 @@
 {
   "name": "@8bitscript/studio",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "8BitScript Studio: the asset editor that ships with the toolchain and runs on the machines themselves \u2014 characters, sprites, and music, with the full editor on the Commander X16, a smaller one on an expanded VIC-20, and a read-only viewer on the PET and the NES.",
   "license": "MIT",
   "repository": {
