@@ -23,6 +23,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { extname, join } from 'node:path';
 import { spawn } from 'node:child_process';
+import { glyphTableLiteral } from './font8x8.mjs';
 
 // The C64's palette (0-15), reused so a color number means the same thing
 // in every 8BitScript example, on whichever machine it runs on. See the
@@ -317,17 +318,17 @@ const fpsEl = document.getElementById('fps');
 
 // @8bitscript/web's WebRegisters (CHAR_BASE/COLOR_BASE, exported above): a
 // virtual 40-column, 1000-cell character screen starting at byte offset 2,
-// its color bytes starting at offset 1002. The cells hold ASCII — the
-// portable character codes every machine's text.putChar takes:
-// space, '0'-'9', 'A'-'Z', 'a'-'z', and a little punctuation, 32-122.
-// The Commodore packages turn those into screen codes for a character ROM;
-// this host has no ROM, so it draws them as the text they already are.
+// its color bytes starting at offset 1002. The cells hold ASCII 32-122
+// (the portable set) and 2×2 block patterns at 128-143 — the same codes
+// font8x8.mjs's glyphRows() draws for --screenshot. Both renderers stamp
+// those 8×8 bits into the cell; there is no system font in the picture.
 const CHAR_BASE = ${CHAR_BASE};
 const COLOR_BASE = ${COLOR_BASE};
 const INPUT_OFFSET = ${INPUT_OFFSET};
 const KEY_TO_EDGE = ${JSON.stringify(KEY_TO_EDGE)};
 const SWIPE_THRESHOLD = ${SWIPE_THRESHOLD};
 const InputEdgeConfirm = ${InputEdge.CONFIRM};
+const GLYPHS = ${glyphTableLiteral()};
 function swipeEdge(dx, dy) {
   const ax = Math.abs(dx);
   const ay = Math.abs(dy);
@@ -336,17 +337,19 @@ function swipeEdge(dx, dy) {
   return dy < 0 ? ${InputEdge.UP} : ${InputEdge.DOWN};
 }
 
-function decodeScreenCode(code) {
-  // 32-122 covers the checker's own PORTABLE_CHARACTERS in one contiguous
-  // range (space, !,-.:? punctuation, 0-9, A-Z, a-z — packages/compiler/
-  // src/checker/index.mjs), the same range font8x8.mjs's glyphRows() draws
-  // for --screenshot. A real system font (ctx.fillText below) has no
-  // character-ROM limit of its own; the old 32-95 split silently rendered
-  // every upper-case screen program correctly and every lower-case one
-  // blank, which is what @8bitscript/pet's own asciiToScreenCode already
-  // gets right — this was the web target's own gap, not a wasm one.
-  if (code >= 32 && code <= 122) return String.fromCharCode(code);
-  return null; // 0 (never written) and everything outside the portable set
+function glyphRows(code) {
+  const rows = GLYPHS[code];
+  return rows || null;
+}
+
+function paintGlyph(x, y, rows, color) {
+  ctx.fillStyle = color;
+  for (let gy = 0; gy < 8; gy += 1) {
+    const bits = rows[gy];
+    for (let gx = 0; gx < 8; gx += 1) {
+      if ((bits >> gx) & 1) ctx.fillRect(x + gx, y + gy, 1, 1);
+    }
+  }
 }
 
 // The canvas's on-page size, not its pixel grid: as large as fits the
@@ -373,17 +376,9 @@ function say(text) {
   hint.classList.remove('hidden');
 }
 
-// A real character ROM's 8×8 bits sit entirely inside the cell. System
-// fonts do not: with textBaseline 'top', glyphs still paint a fraction of
-// a pixel above y, which (scaled up, pixelated) is the top of "TICK"
-// clipping into the border. Shift by that overflow so row 0 stays on
-// the background. Clip to the inner rectangle as well — on the VIC-20/C64
-// characters cannot draw in the border, and a font that overflows a cell
-// should not either.
-ctx.font = CHAR_H + 'px ui-monospace, Menlo, monospace';
-ctx.textBaseline = 'top';
-ctx.textAlign = 'left';
-const glyphY = Math.ceil(ctx.measureText('M').actualBoundingBoxAscent || 0);
+// Cells are 8×8 bits from GLYPHS, the same table --screenshot rasterizes.
+// Clip to the inner rectangle — on the VIC-20/C64 characters cannot draw
+// in the border, and a glyph that overflowed a cell should not either.
 
 function paint(mem) {
   // Byte 0 is border, byte 1 is background — the same two offsets
@@ -408,8 +403,9 @@ function paint(mem) {
   for (let cell = 0; cell < GRID_COLS * GRID_ROWS; cell += 1) {
     const colorByte = mem[COLOR_BASE + cell];
     const reverse = (colorByte & 128) !== 0;
-    const glyph = decodeScreenCode(mem[CHAR_BASE + cell]);
-    if (glyph === null && !reverse) continue;
+    const code = mem[CHAR_BASE + cell];
+    const rows = glyphRows(code);
+    if (rows === null && !reverse) continue;
     const col = cell % GRID_COLS;
     const row = (cell - col) / GRID_COLS;
     const x = BORDER_PX + col * CHAR_W;
@@ -418,13 +414,9 @@ function paint(mem) {
     if (reverse) {
       ctx.fillStyle = fg;
       ctx.fillRect(x, y, CHAR_W, CHAR_H);
-      if (glyph !== null && glyph !== ' ') {
-        ctx.fillStyle = background;
-        ctx.fillText(glyph, x, y + glyphY);
-      }
-    } else if (glyph !== null) {
-      ctx.fillStyle = fg;
-      ctx.fillText(glyph, x, y + glyphY);
+      if (rows !== null) paintGlyph(x, y, rows, background);
+    } else if (rows !== null) {
+      paintGlyph(x, y, rows, fg);
     }
   }
   ctx.restore();
