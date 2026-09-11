@@ -1,6 +1,6 @@
 {
   "name": "@8bitscript/examples",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "The example programs that ship with the toolchain: hello-world, the 0.2.0 goal program, listed in the editor's launcher beside your own projects.",
   "license": "MIT",
   "repository": {

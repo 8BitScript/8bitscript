@@ -1,5 +1,11 @@
 # @8bitscript/language-server
 
+## 0.4.1
+
+### Patch Changes
+
+- @8bitscript/compiler@0.4.1
+
 ## 0.4.0
 
 ### Patch Changes
