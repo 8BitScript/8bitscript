@@ -157,24 +157,18 @@ test('compile() for web still names a real, specific gap for a construct nothing
   const prev = process.cwd();
   try {
     const entry = join(dir, 'main.8bs');
-    // A `let` (RAM) array: refused by name from milestone 3 onward and
-    // still a real, open gap after milestone 6 (it needs its own RAM
-    // address, which nothing on this rail assigns yet) — unlike
-    // memory.write or a string literal, which each start passing the
-    // moment their own milestone lands, this fixture stays unsupported
-    // for the rail's whole run, so this test doesn't need updating every
-    // time another milestone lands. main has to actually touch buf: the
-    // compiler now prunes whatever the entry can't reach
+    // An `@address`-pinned global: hardware another machine would map,
+    // nothing the web target owns — refused by name for the rail's whole
+    // run (a `let` array, this fixture's previous shape, gained its
+    // linear-memory home in 0.2.2). main has to actually touch it: the
+    // compiler prunes whatever the entry can't reach
     // (linker/reachability.mjs), so an unreferenced global's own
     // unsupported shape would otherwise never be seen at all.
-    await writeFile(entry, 'let buf: array<utinyint, 4>;\nexport function main(): void { buf[0] = 1; }\n');
+    await writeFile(entry, '@address(0xD020)\nlet border: utinyint;\nexport function main(): void { border = 1; }\n');
     process.chdir(dir);
     const { result, stderr } = await capture(() => compile('web', entry));
     assert.equal(result.ok, false);
-    // The exact wording shifts (milestone 3 refuses any array uniformly,
-    // pointing at milestone 5; milestone 5 onward distinguishes `let`
-    // from `const`) — "array" is the one word every phrasing keeps.
-    assert.match(stderr, /array/);
+    assert.match(stderr, /pinned global/);
   } finally {
     process.chdir(prev);
     await rm(dir, { recursive: true, force: true });
@@ -243,10 +237,41 @@ test('compile() names unknown hardware and a program the PET backend cannot lowe
     assert.equal(unknownHw.result.ok, false);
     assert.match(unknownHw.stderr, /nope/);
 
-    await writeFile(entry, 'let hp: array<utinyint, 4>;\nexport function main(): void { hp[0] = 1; }\n');
+    // A mutable array builds now (0.2.2); a runtime divide is a shape the
+    // PET backend still genuinely refuses by name, and stays the fixture.
+    await writeFile(entry, 'export function main(): void {\n    let a: utinyint = 9;\n    let b: utinyint = 3;\n    memory.write(0x8000, a / b);\n}\n');
     const noRule = await capture(() => compile('pet', entry));
     assert.equal(noRule.result.ok, false);
-    assert.match(noRule.stdout + noRule.stderr, /a mutable array\/string<N> isn't allocated yet/);
+    assert.match(noRule.stdout + noRule.stderr, /the '\/' operator isn't lowered yet/);
+  } finally {
+    process.chdir(prev);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('compile() always writes dist/.8bs-last-<target>.json; --size fills in the breakdown', async () => {
+  const { lastRunPath } = await import('../src/last-run.mjs');
+  const dir = await mkdtemp(join(tmpdir(), '8bs-compile-'));
+  const prev = process.cwd();
+  try {
+    const entry = join(dir, 'main.8bs');
+    await writeFile(entry, SUM);
+    process.chdir(dir);
+
+    const plain = await capture(() => compile('pet', entry));
+    assert.equal(plain.result.ok, true, plain.stdout + plain.stderr);
+    const report = JSON.parse(await readFile(lastRunPath('pet', dir), 'utf8'));
+    assert.equal(report.target, 'pet');
+    assert.ok(report.memory.program > 0);
+    assert.deepEqual(report.size, [], 'no --size, no breakdown in the file');
+    assert.equal(report.hardware.machine, 'pet');
+
+    const sized = await capture(() => compile('pet', entry, { report: true }));
+    assert.equal(sized.result.ok, true, sized.stdout + sized.stderr);
+    assert.match(sized.stdout, /size breakdown:/);
+    const withSize = JSON.parse(await readFile(lastRunPath('pet', dir), 'utf8'));
+    assert.ok(withSize.size.length > 0);
+    assert.ok(withSize.size.every((e) => typeof e.name === 'string' && e.bytes > 0));
   } finally {
     process.chdir(prev);
     await rm(dir, { recursive: true, force: true });

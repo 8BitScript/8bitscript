@@ -110,6 +110,96 @@ export const ISOLATION_HEADERS = {
   'Cross-Origin-Embedder-Policy': 'require-corp',
 };
 
+const STATUS_JSON = { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' };
+
+/**
+ * Live status the browser page posts once a second, and that GET /status
+ * returns for the editor's Running machines tree. `fps` is null until
+ * the first sample; `frames` is how many logical frames the program has
+ * taken. Exported so the store is tested without standing up a server.
+ *
+ * @param {number} [frameRate]
+ */
+export function createStatusStore(frameRate = 60) {
+  let current = { fps: null, frames: 0, done: false, error: null, frameRate };
+  return {
+    get() {
+      return { ...current };
+    },
+    post(body) {
+      if (!body || typeof body !== 'object') return current;
+      if (typeof body.fps === 'number' && Number.isFinite(body.fps)) current.fps = body.fps;
+      if (typeof body.frames === 'number' && Number.isFinite(body.frames)) current.frames = body.frames;
+      if (body.done === true) current.done = true;
+      if (typeof body.error === 'string') current.error = body.error;
+      return current;
+    },
+  };
+}
+
+/**
+ * Read a small JSON body, or null when it is missing, too large, or not JSON.
+ *
+ * @param {import('node:http').IncomingMessage} req
+ * @param {number} [limit]
+ */
+export function readJsonBody(req, limit = 4096) {
+  return new Promise((resolvePromise) => {
+    const chunks = [];
+    let n = 0;
+    let done = false;
+    const finish = (value) => {
+      if (done) return;
+      done = true;
+      resolvePromise(value);
+    };
+    req.on('data', (chunk) => {
+      n += chunk.length;
+      if (n > limit) {
+        req.destroy();
+        finish(null);
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on('end', () => {
+      try {
+        finish(JSON.parse(Buffer.concat(chunks).toString()));
+      } catch {
+        finish(null);
+      }
+    });
+    req.on('error', () => finish(null));
+  });
+}
+
+/**
+ * Handle GET/POST /status. Returns true when the request was for /status
+ * (even a 405), so the file server does not try to open a file of that name.
+ *
+ * @param {import('node:http').IncomingMessage} req
+ * @param {import('node:http').ServerResponse} res
+ * @param {string} pathname
+ * @param {ReturnType<typeof createStatusStore>} store
+ */
+export async function handleStatusRequest(req, res, pathname, store) {
+  if (pathname !== '/status') return false;
+  if (req.method === 'GET') {
+    res.writeHead(200, { ...STATUS_JSON, ...ISOLATION_HEADERS });
+    res.end(JSON.stringify(store.get()));
+    return true;
+  }
+  if (req.method === 'POST') {
+    store.post(await readJsonBody(req));
+    res.writeHead(204, ISOLATION_HEADERS);
+    res.end();
+    return true;
+  }
+  res.writeHead(405, ISOLATION_HEADERS);
+  res.end();
+  return true;
+}
+
 const HEADERS_FILE = `/*
   Cross-Origin-Opener-Policy: same-origin
   Cross-Origin-Embedder-Policy: require-corp
@@ -432,9 +522,15 @@ function tick(now) {
   if (fpsWindowStart === null) fpsWindowStart = now;
   if (now - fpsWindowStart >= 1000) {
     const consumed = Atomics.load(ctrl, CONSUMED);
-    fpsEl.textContent = 'FPS ' + (consumed - fpsConsumedAtWindowStart);
+    const fps = consumed - fpsConsumedAtWindowStart;
+    fpsEl.textContent = 'FPS ' + fps;
     fpsConsumedAtWindowStart = consumed;
     fpsWindowStart = now;
+    fetch('/status', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ fps: fps, frames: consumed }),
+    }).catch(function () {});
   }
   if (mem) paint(mem);
   requestAnimationFrame(tick);
@@ -446,8 +542,22 @@ worker.onmessage = ({ data }) => {
     mem = new Uint8Array(data.memory);
     writeInput();
   }
-  if (data.done) say('the program finished');
-  if (data.error) say('the program failed: ' + data.error);
+  if (data.done) {
+    say('the program finished');
+    fetch('/status', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ done: true }),
+    }).catch(function () {});
+  }
+  if (data.error) {
+    say('the program failed: ' + data.error);
+    fetch('/status', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ error: String(data.error) }),
+    }).catch(function () {});
+  }
 };
 worker.onerror = (e) => say('the program failed: ' + e.message);
 worker.postMessage({ ctrl });
@@ -499,15 +609,23 @@ export async function writeWebBundle(dir, wasmBytes, { frameRate = 60 } = {}) {
  * in memory so `8bs run web` still works without a prior build.
  *
  * @param {Buffer} wasmBytes
- * @param {{ open?: boolean, frameRate?: number, root?: string }} [options]
+ * @param {{ open?: boolean, frameRate?: number, root?: string, lastRunTarget?: string }} [options]
  * @returns {Promise<number>} exit code
  */
-export async function runInBrowser(wasmBytes, { open = true, frameRate = 60, root } = {}) {
+export async function runInBrowser(wasmBytes, { open = true, frameRate = 60, root, lastRunTarget } = {}) {
   const html = root ? null : renderHtml(frameRate);
   const worker = root ? null : renderWorker();
+  const status = createStatusStore(frameRate);
   const server = createServer((req, res) => {
     const url = new URL(req.url ?? '/', 'http://127.0.0.1');
     let pathname = url.pathname === '/' ? '/index.html' : url.pathname;
+    handleStatusRequest(req, res, pathname, status).then((handled) => {
+      if (handled) return;
+      serveProgram(req, res, pathname);
+    });
+  });
+
+  function serveProgram(req, res, pathname) {
     if (root) {
       if (pathname.includes('..')) {
         res.writeHead(404, ISOLATION_HEADERS);
@@ -544,7 +662,7 @@ export async function runInBrowser(wasmBytes, { open = true, frameRate = 60, roo
     }
     res.writeHead(404, ISOLATION_HEADERS);
     res.end();
-  });
+  }
 
   await new Promise((resolveListen) => server.listen(0, '127.0.0.1', resolveListen));
   const { port } = server.address();
@@ -554,6 +672,10 @@ export async function runInBrowser(wasmBytes, { open = true, frameRate = 60, roo
     'in VS Code or Cursor: Cmd/Ctrl+Shift+P -> "Simple Browser: Show" -> paste that URL, ' +
     'to view it inside the editor.\n',
   );
+  if (lastRunTarget) {
+    const { writeLastRun } = await import('./last-run.mjs');
+    await writeLastRun(lastRunTarget, { emulator: 'browser', url });
+  }
   if (open) openBrowser(url);
   process.stdout.write('press Ctrl+C to stop. (in the page: swipe or arrows to move; F for fullscreen)\n');
 

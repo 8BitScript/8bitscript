@@ -451,21 +451,32 @@ test('milestone 3: refuses a pinned global (@address(...)), by name', async () =
   }
 });
 
-test('milestone 3: refuses a `let` array global, by name', async () => {
-  const globals: IrGlobal[] = [{ name: 'arr', type: 'utinyint', address: null, array: 4, constant: false, init: [0, 0, 0, 0] }];
-  const scratch = await mkdtemp(join(tmpdir(), '8bs-web-native-'));
-  try {
-    const outFile = join(scratch, 'out.wasm');
-    const body = [{ kind: 'assign', target: 'arr', value: { kind: 'const', value: 0, type: 'utinyint' } }];
-    const result = await build({ entry: 'main', functions: [{ name: 'main', body }], globals }, { outFile, frameRate: 60 });
-    assert.equal(result.ok, false);
-    assert.match(result.ok ? '' : result.error, /'arr' is a `let` array/);
-  } finally {
-    await rm(scratch, { recursive: true, force: true });
-  }
+test('a `let` array global round-trips through storeIndex and index at its own linear-memory home (0.2.2)', async () => {
+  const globals: IrGlobal[] = [{ name: 'arr', type: 'utinyint', address: null, array: 4, constant: false, init: null }];
+  const main: IrFunction = {
+    name: 'main',
+    returnType: 'utinyint',
+    body: [
+      { kind: 'storeIndex', array: { kind: 'ref', name: 'arr' }, index: num(2, 'utinyint'), value: num(42, 'utinyint'), elementType: 'utinyint' },
+      { kind: 'return', value: { kind: 'index', array: { kind: 'ref', name: 'arr' }, index: num(2, 'utinyint'), elementType: 'utinyint', type: 'utinyint' } },
+    ],
+  };
+  assert.equal((await execute(main, globals, '8bs-web-native-')).value, 42);
 });
 
-test('milestone 3: refuses a string<N> global, naming the web track\'s own milestone 5', async () => {
+test('an initializer-less `let` array starts all zero — linear memory\'s own zero, no data segment spent on it (0.2.2)', async () => {
+  const globals: IrGlobal[] = [{ name: 'arr', type: 'utinyint', address: null, array: 4, constant: false, init: null }];
+  const main: IrFunction = {
+    name: 'main',
+    returnType: 'utinyint',
+    body: [
+      { kind: 'return', value: { kind: 'index', array: { kind: 'ref', name: 'arr' }, index: num(3, 'utinyint'), elementType: 'utinyint', type: 'utinyint' } },
+    ],
+  };
+  assert.equal((await execute(main, globals, '8bs-web-native-')).value, 0);
+});
+
+test('a bare string global (no capacity) stays refused as defense — the front end never produces one', async () => {
   const globals: IrGlobal[] = [{ name: 's', type: 'string', address: null, init: 0 }];
   const scratch = await mkdtemp(join(tmpdir(), '8bs-web-native-'));
   try {
@@ -473,8 +484,7 @@ test('milestone 3: refuses a string<N> global, naming the web track\'s own miles
     const body = [{ kind: 'assign', target: 's', value: { kind: 'const', value: 0, type: 'utinyint' } }];
     const result = await build({ entry: 'main', functions: [{ name: 'main', body }], globals }, { outFile, frameRate: 60 });
     assert.equal(result.ok, false);
-    assert.match(result.ok ? '' : result.error, /'s' is a string<N>/);
-    assert.match(result.ok ? '' : result.error, /milestone 5/);
+    assert.match(result.ok ? '' : result.error, /'s' is a bare string global/);
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
@@ -826,13 +836,16 @@ test('milestone 5 acceptance: a const array read by a computed index, its own da
   }
 });
 
-test('milestone 5: refuses a 2-byte-element const array, by name — only 1-byte elements are lowered', async () => {
+test('a 2-byte-element const array reads both bytes at once — index doubled, i32.load16_u, little-endian (0.2.2)', async () => {
+  // POW2's own shape in 2048: usmallint face values behind utinyint
+  // exponents, the first real 2-byte-element reader.
   const main: IrFunction = {
     name: 'main',
+    params: [{ name: 'i', type: 'utinyint' }],
     returnType: 'usmallint',
     body: [{
       kind: 'return',
-      value: { kind: 'index', array: { kind: 'ref', name: 'WIDE' }, index: num(0, 'utinyint'), elementType: 'usmallint', type: 'usmallint' },
+      value: { kind: 'index', array: { kind: 'ref', name: 'WIDE' }, index: ref('i', 'utinyint'), elementType: 'usmallint', type: 'usmallint' },
     }],
   };
   const scratch = await mkdtemp(join(tmpdir(), '8bs-web-native-'));
@@ -841,8 +854,13 @@ test('milestone 5: refuses a 2-byte-element const array, by name — only 1-byte
     const globals: IrGlobal[] = [{ name: 'WIDE', type: 'usmallint', address: null, array: 2, constant: true, init: [1000, 2000] }];
     const ir: IrProgram = { entry: 'main', functions: [main], globals };
     const result = await build(ir, { outFile, frameRate: 60 });
-    assert.equal(result.ok, false);
-    assert.match(result.ok ? '' : result.error, /'WIDE'.*2-byte array element/);
+    assert.equal(result.ok, true, result.ok ? '' : result.error);
+    if (!result.ok) return;
+    const module = await WebAssembly.compile(result.bytes);
+    const instance = await WebAssembly.instantiate(module, {});
+    const entry = instance.exports.main as (i: number) => number;
+    assert.equal(entry(0), 1000);
+    assert.equal(entry(1), 2000);
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
@@ -876,18 +894,40 @@ test('milestone 5: data past one page of memory grows the declared minimum, not 
   }
 });
 
-test('milestone 5: refuses a `let` array global, by name — const arrays are lowered, RAM ones are still a real gap', async () => {
-  const globals: IrGlobal[] = [{ name: 'buf', type: 'utinyint', address: null, array: 4, constant: false, init: [0, 0, 0, 0] }];
-  // main has to actually reference buf: see the milestone-3 globals tests
-  // above for why (linker/reachability.mjs now prunes an unreferenced one
-  // before this refusal would ever see it).
-  const body = [{ kind: 'assign', target: 'buf', value: { kind: 'const', value: 0, type: 'utinyint' } }];
+test('a string<N> buffer accepts a stringCopy — the length byte clamped to capacity, the characters via memory.copy (0.2.2)', async () => {
+  // The exact shape ir/index.mjs's stringGlobal + stringAssignment
+  // produce for `let s: string<4> = "hi"; s = "world";` — "world" is 5
+  // characters, one past the capacity, so the copy cuts it to "worl".
+  const globals: IrGlobal[] = [{ name: 's', type: 'utinyint', address: null, array: 5, constant: false, init: [2, 104, 105, 0, 0] }];
+  const main: IrFunction = {
+    name: 'main',
+    returnType: 'utinyint',
+    body: [
+      {
+        kind: 'stringCopy',
+        target: { kind: 'ref', name: 's' },
+        source: { kind: 'string', index: 0, type: 'string' },
+        capacity: 4,
+      },
+      { kind: 'return', value: { kind: 'stringLength', string: { kind: 'ref', name: 's', type: 'string' }, type: 'utinyint' } },
+    ],
+  };
   const scratch = await mkdtemp(join(tmpdir(), '8bs-web-native-'));
   try {
     const outFile = join(scratch, 'out.wasm');
-    const result = await build({ entry: 'main', functions: [{ name: 'main', body }], globals }, { outFile, frameRate: 60 });
-    assert.equal(result.ok, false);
-    assert.match(result.ok ? '' : result.error, /'buf' is a `let` array/);
+    const ir: IrProgram = {
+      entry: 'main',
+      functions: [main],
+      globals,
+      strings: [{ text: 'world', bytes: [119, 111, 114, 108, 100] }],
+    };
+    const result = await build(ir, { outFile, frameRate: 60 });
+    assert.equal(result.ok, true, result.ok ? '' : result.error);
+    if (!result.ok) return;
+    const module = await WebAssembly.compile(result.bytes);
+    const instance = await WebAssembly.instantiate(module, {});
+    const length = (instance.exports.main as () => number)();
+    assert.equal(length, 4, 'the length byte was clamped to the capacity');
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }

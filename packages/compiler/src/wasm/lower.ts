@@ -10,30 +10,28 @@
 // wraparound-for-free: a `utinyint`'s value is always already in 0-255 by
 // the time anything downstream reads it.
 //
-// Scope, refused by name below: `*` — wasm has real hardware for this too
-// (`i32.mul`), but nothing built so far needs it. `/`/`%` are lowered
-// (milestone 5, unsigned only — `i32.div_u`/`i32.rem_u`), added when
-// linking `@8bitscript/text` turned out to always pull in `printNumber`'s
-// own body, which uses both, whether a program calls it or not (the linker
-// links every function a namespace import declares — no reachability
-// pruning). `&`/`|`/`^`/`<<`/unsigned `>>` are lowered too (`i32.and`/
-// `i32.or`/`i32.xor`/`i32.shl`/`i32.shr_u`), added when
-// `@8bitscript/web/screen.8bs`'s own `setColors` turned out to mask every
-// color byte with `& 15` — the first real caller, after every earlier
-// milestone deliberately deferred these as "real hardware exists, nothing
-// needs it yet." Ordering comparisons (`<` `>` `<=` `>=`) on a signed
-// operand, signed `>>` (arithmetic vs. logical shift are different
-// instructions here), and any arithmetic whose result type is signed and
-// narrower than 32 bits, are refused the same way the mos backend still
-// refuses them — a real, unresolved gap on both backends, not something to
-// guess a masking rule for here.
+// Scope: `*` is lowered as of 0.2.2 (`i32.mul` — 2048's board arithmetic
+// and @8bitscript/random's LCG step were the first real callers, after
+// every earlier milestone deferred it as "real hardware exists, nothing
+// needs it yet"). `/`/`%` are lowered (milestone 5, unsigned only —
+// `i32.div_u`/`i32.rem_u`), added when linking `@8bitscript/text` turned
+// out to always pull in `printNumber`'s own body, which uses both,
+// whether a program calls it or not. `&`/`|`/`^`/`<<`/unsigned `>>` are
+// lowered too (`i32.and`/`i32.or`/`i32.xor`/`i32.shl`/`i32.shr_u`), added
+// when `@8bitscript/web/screen.8bs`'s own `setColors` turned out to mask
+// every color byte with `& 15`. Ordering comparisons (`<` `>` `<=` `>=`)
+// on a signed operand, signed `>>` (arithmetic vs. logical shift are
+// different instructions here), and any arithmetic whose result type is
+// signed and narrower than 32 bits, are refused the same way the mos
+// backend still refuses them — a real, unresolved gap on both backends,
+// not something to guess a masking rule for here.
 //
 // `waitFrame()` (milestone 6) is the one statement kind that isn't really
 // "instruction selection" at all: it always lowers to the same one
 // instruction, a `call` to whatever function index `build()` assigned the
 // `env.waitFrame` import — see `Ctx.waitFrameIndex`.
 import { resolveIntegerType } from '../types/index.mjs';
-import { BlockType, Opcode, ValType, memarg, signedLEB128, unsignedLEB128 } from './encode.ts';
+import { BlockType, Opcode, ValType, memarg, memoryCopy, signedLEB128, unsignedLEB128 } from './encode.ts';
 
 export interface IrExpr {
   kind: string;
@@ -63,9 +61,18 @@ export interface IrExpr {
 
 export interface IrStatement {
   kind: string;
-  // assign; memoryWrite's own value (ir/index.mjs: memory.write's second
-  // argument) — the same field name on both real IR node shapes.
-  target?: string;
+  // assign (a plain name) and stringCopy (a ref node — ir/index.mjs's own
+  // stringAssignment): the same field name on two real IR node shapes,
+  // hence the union. memoryWrite's own value (memory.write's second
+  // argument) shares `value` the same way.
+  target?: string | IrExpr;
+  // storeIndex: which array is written, at which index; stringCopy: the
+  // source string expression and the target's own capacity.
+  array?: IrExpr;
+  index?: IrExpr;
+  elementType?: string | null;
+  source?: IrExpr;
+  capacity?: number;
   value?: IrExpr | null;
   // memoryWrite
   address?: IrExpr;
@@ -142,12 +149,12 @@ interface Ctx {
    * of its own beyond the one every other `i32`-valued parameter already
    * gets. */
   strings: number[];
-  /** Every const array this module declares, name to its own linear-memory
-   * address and element width — `build()`'s own job to assign, same two-
-   * pass shape. Only 1-byte elements are lowered yet (utinyint/bool); a
-   * 2-byte element type is refused by name where it's read, not guessed
-   * at here. */
-  arrays: Map<string, { address: number; elementWidth: number }>;
+  /** Every array this module declares — const data and `let` (RAM) alike
+   * as of 0.2.2, `string<N>` buffers included (they arrive as mutable
+   * utinyint arrays, ir/index.mjs's stringGlobal) — name to its own
+   * linear-memory address, element width (1 or 2 bytes, both lowered),
+   * and whether code may write it. */
+  arrays: Map<string, { address: number; elementWidth: number; mutable: boolean }>;
   /** The imported `env.waitFrame`'s own wasm function index — always 0
    * when set, since it's the only import this backend ever declares and
    * an import always occupies the function index space ahead of every
@@ -237,6 +244,15 @@ function binop(node: IrExpr, ctx: Ctx): number[] {
     const code = [...expr(left, ctx), ...expr(right, ctx), operator === '+' ? Opcode.i32Add : Opcode.i32Sub];
     return maskToType(code, node.type);
   }
+  if (operator === '*') {
+    // Real hardware for this too (`i32.mul`), waiting only for a first
+    // real caller — 2048's own board arithmetic and @8bitscript/random's
+    // LCG step (0.2.2) are it. Signedness needs no special case: the low
+    // 32 bits of a product are the same for signed and unsigned operands,
+    // and the usual post-op mask narrows the result to its declared width.
+    const code = [...expr(left, ctx), ...expr(right, ctx), Opcode.i32Mul];
+    return maskToType(code, node.type);
+  }
   if (operator === '/' || operator === '%') {
     // Real hardware for this, unlike the mos backend (which subtracts to
     // avoid needing a divide routine — see "Hello, WASM"'s own WHY
@@ -323,7 +339,16 @@ function callSite(node: { name?: string; args?: IrExpr[] }, ctx: Ctx): number[] 
 function expr(node: IrExpr, ctx: Ctx): number[] {
   if (node.kind === 'const') return i32Const(node.value!);
   if (node.kind === 'ref') {
-    const b = binding(ctx, node.name!);
+    // A scalar reads its wasm local/global; a `string<N>` variable read as
+    // a value (passed to `text.print`, assigned onward) is its buffer's
+    // own fixed address — a string value is always a pointer to a length
+    // prefix (ir/index.mjs's string-table format), and the buffer's
+    // address is a compile-time constant here the same way a literal's is.
+    const name = node.name!;
+    if (!ctx.locals.has(name) && !ctx.globals.has(name) && ctx.arrays.has(name)) {
+      return i32Const(ctx.arrays.get(name)!.address);
+    }
+    const b = binding(ctx, name);
     return [b.get, ...unsignedLEB128(b.index)];
   }
   if (node.kind === 'binop') return binop(node, ctx);
@@ -357,30 +382,41 @@ function expr(node: IrExpr, ctx: Ctx): number[] {
     return [...expr(node.string!, ctx), ...expr(node.index as IrExpr, ctx), Opcode.i32Add, Opcode.i32Load8U, ...memarg(0, 1)];
   }
   if (node.kind === 'index') {
-    const name = node.array!.name!;
-    const array = ctx.arrays.get(name);
-    if (!array) throw new LowerError(`'${name}' is not a lowered const array — reading an array element only works on this module's own const array today`);
-    if (array.elementWidth !== 1) throw new LowerError(`'${name}': a ${array.elementWidth}-byte array element is not lowered yet — only 1-byte (utinyint/bool) array elements are`);
+    const array = arrayEntry(ctx, node.array!.name!);
     // The array's own base address is already a compile-time constant, so
     // it folds straight into the load's own memarg offset — no runtime
     // add needed, the same trick `stringLength` and a literal-address
     // `memoryRead` both get for free from wasm's own instruction shape.
+    // A 2-byte element (0.2.2 — POW2's own usmallint face values are the
+    // first real caller) doubles the index into a byte offset first, then
+    // reads both bytes at once: i32.load16_u is little-endian, the same
+    // layout build() wrote the data segment in.
+    if (array.elementWidth === 2) {
+      return [...expr(node.index as IrExpr, ctx), ...i32Const(1), Opcode.i32Shl, Opcode.i32Load16U, ...memarg(0, array.address)];
+    }
     return [...expr(node.index as IrExpr, ctx), Opcode.i32Load8U, ...memarg(0, array.address)];
   }
   throw new LowerError(unsupported(node.kind));
 }
 
+/** `name`'s own entry in `ctx.arrays`, or throws naming what's missing —
+ * shared by every rule that reads or writes an array (`index`,
+ * `storeIndex`, `stringCopy`, and a `ref` to a `string<N>` buffer). */
+function arrayEntry(ctx: Ctx, name: string): { address: number; elementWidth: number; mutable: boolean } {
+  const array = ctx.arrays.get(name);
+  if (!array) throw new LowerError(`'${name}' is not an array this module placed — an array parameter isn't lowered yet, and anything else reaching this is a linker or checker bug`);
+  return array;
+}
+
 /** Every IR statement/expression kind the real front end can produce is
- * handled somewhere above as of milestone 6 — `asm`/`stringCopy`/
- * `storeIndex` are real, named, permanent-or-still-open gaps (not
- * milestone numbers to catch up to), and anything else reaching here is
- * either a genuinely unknown kind (a fixture, or a future front-end
- * addition this file hasn't caught up to yet) or a linker bug
- * (`namespaceCall` never survives linking — see `callTarget`'s own doc). */
+ * handled somewhere above as of 0.2.2 (`storeIndex` and `stringCopy`
+ * closed milestone 5's two named gaps) — `asm` is the one permanent
+ * refusal, and anything else reaching here is either a genuinely unknown
+ * kind (a fixture, or a future front-end addition this file hasn't caught
+ * up to yet) or a linker bug (`namespaceCall` never survives linking —
+ * see `callTarget`'s own doc). */
 function unsupported(kind: string): string {
   if (kind === 'asm') return "'asm' blocks are 6502-specific machine code and are never lowered on the web target";
-  if (kind === 'stringCopy') return "'stringCopy' (a string<N> assignment) is not lowered yet — it needs a RAM buffer address for the target, a real gap milestone 5 left open";
-  if (kind === 'storeIndex') return "'storeIndex' (writing an array element) is not lowered yet for a RAM (`let`) or hardware (`@address`) array — only reading a `const` array is, milestone 5's own scope";
   return `'${kind}' is not lowered yet`;
 }
 
@@ -453,7 +489,7 @@ function statement(node: IrStatement, ctx: Ctx): number[] {
     return [...expr(node.init as IrExpr, ctx), Opcode.localSet, ...unsignedLEB128(index)];
   }
   if (node.kind === 'assign') {
-    const b = binding(ctx, node.target!);
+    const b = binding(ctx, node.target! as string);
     return [...expr(node.value!, ctx), b.set, ...unsignedLEB128(b.index)];
   }
   if (node.kind === 'memoryWrite') {
@@ -462,6 +498,48 @@ function statement(node: IrStatement, ctx: Ctx): number[] {
     // and memory.write's own value argument is always utinyint (byte-only
     // at the language level) regardless.
     return [...expr(node.address!, ctx), ...expr(node.value!, ctx), Opcode.i32Store8, ...memarg(0, 0)];
+  }
+  if (node.kind === 'storeIndex') {
+    // The mirror of the `index` read above (0.2.2 — milestone 5's own
+    // named gap): index (doubled for a 2-byte element), then value, then
+    // the store, with the array's fixed base address folded into the
+    // memarg offset. i32.store8/16 write only the low byte(s), so the
+    // value needs no mask of its own.
+    const array = arrayEntry(ctx, node.array!.name!);
+    if (!array.mutable) throw new LowerError(`'${node.array!.name}' is a const array — data, not RAM — and the checker should already have refused writing it`);
+    const index = node.index!;
+    if (array.elementWidth === 2) {
+      return [...expr(index, ctx), ...i32Const(1), Opcode.i32Shl, ...expr(node.value!, ctx), Opcode.i32Store16, ...memarg(0, array.address)];
+    }
+    return [...expr(index, ctx), ...expr(node.value!, ctx), Opcode.i32Store8, ...memarg(0, array.address)];
+  }
+  if (node.kind === 'stringCopy') {
+    // `s = "..."` / `s = other` on a `string<N>` (0.2.2 — milestone 5's
+    // other named gap): copy the source's length byte (cut to the
+    // target's capacity) and then that many characters, via bulk-memory
+    // `memory.copy`. Two scratch locals hold the source pointer and the
+    // clamped length — the source is an arbitrary expression, evaluated
+    // exactly once.
+    const target = arrayEntry(ctx, (node.target as IrExpr).name!);
+    const capacity = node.capacity!;
+    const src = ctx.nextLocal++;
+    const len = ctx.nextLocal++;
+    return [
+      // src := <source expression>
+      ...expr(node.source!, ctx), Opcode.localSet, ...unsignedLEB128(src),
+      // len := min(load8(src), capacity)
+      Opcode.localGet, ...unsignedLEB128(src), Opcode.i32Load8U, ...memarg(0, 0), Opcode.localSet, ...unsignedLEB128(len),
+      Opcode.localGet, ...unsignedLEB128(len), ...i32Const(capacity),
+      Opcode.localGet, ...unsignedLEB128(len), ...i32Const(capacity), Opcode.i32LtU, Opcode.select,
+      Opcode.localSet, ...unsignedLEB128(len),
+      // target[0] := len
+      ...i32Const(target.address), Opcode.localGet, ...unsignedLEB128(len), Opcode.i32Store8, ...memarg(0, 0),
+      // memory.copy(target + 1, src + 1, len)
+      ...i32Const(target.address + 1),
+      Opcode.localGet, ...unsignedLEB128(src), ...i32Const(1), Opcode.i32Add,
+      Opcode.localGet, ...unsignedLEB128(len),
+      ...memoryCopy(),
+    ];
   }
   if (node.kind === 'block') return scoped(node.body ?? [], ctx);
   if (node.kind === 'if') {
@@ -554,10 +632,11 @@ export interface LowerOptions {
   /** Every string literal's own linear-memory address, by its own index in
    * `ir.strings` — `build()`'s own job to lay out, once, up front. */
   strings?: number[];
-  /** Every const array this module declares, name to its own linear-memory
-   * address and element width — `build()`'s own job to assign, once, up
+  /** Every array this module declares (const and `let` alike, `string<N>`
+   * buffers included), name to its own linear-memory address, element
+   * width, and mutability — `build()`'s own job to assign, once, up
    * front. */
-  arrays?: Map<string, { address: number; elementWidth: number }>;
+  arrays?: Map<string, { address: number; elementWidth: number; mutable: boolean }>;
   /** The imported `env.waitFrame`'s own wasm function index — `build()`'s
    * own job to assign (always 0, when assigned at all) once, up front,
    * from the same whole-program scan that decides whether to declare the

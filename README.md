@@ -67,7 +67,12 @@ and `8bs run` work end to end for `pet` and `web`; every other target still
 stops with a clear message. 0.2.0 brought the PET forward ahead of the rest
 of Phase 1 so the native backend proved itself on one screen-is-plain-RAM
 machine before the video-chip machines arrive; the phase order above still
-governs the order the parked machines return in.
+governs the order the parked machines return in. 0.2.2 is the release a
+real game fits in: the sibling [2048](https://github.com/8BitScript/2048)
+project builds, runs, and plays on both targets, and the language work it
+forced — mutable arrays and `string<N>` storage, `*`/`%`/bitwise/shifts
+on the 6502, 16-bit return values, and call-graph-aware zero-page frames
+— is in (see the changelog).
 
 ## Architecture
 

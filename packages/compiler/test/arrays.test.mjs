@@ -224,3 +224,59 @@ test('a namespace const or an imported const may be an array element or a global
     "8BS2005 'Nope' is not a const in namespace 'BorderColor'",
   ]);
 });
+
+// ---- 0.2.2: cross-module types reach the backends ---------------------------
+//
+// A module's own lowering can't type a ref to an imported global, an
+// imported array's element read, or a call to an imported function — the
+// linker fills all three in after every body is rewritten
+// (fillCrossModuleTypes), because a backend that sizes values by type
+// (the 6502's 8-vs-16-bit split) must never meet a typeless node.
+
+test('a ref to an imported global, an imported array element read, and a call across modules all carry real types after linking', async () => {
+  const { ir, diagnostics } = await linkWith({
+    'main.8bs': [
+      'import { top, POW2, pick } from "./board.8bs";',
+      'let cell: usmallint = 0;',
+      'export function main(): void {',
+      '    cell = top + POW2[pick()];',
+      '}',
+    ].join('\n'),
+    'board.8bs': [
+      'export let top: usmallint = 40;',
+      'export const POW2: array<usmallint, 3> = [1, 2, 4];',
+      'export function pick(): utinyint {',
+      '    return 2;',
+      '}',
+    ].join('\n'),
+  });
+  assert.deepEqual(diagnostics, []);
+  const main = ir.functions.find((f) => f.name === 'main');
+  const sum = main.body[0].value;
+  assert.equal(sum.kind, 'binop');
+  assert.equal(sum.type, 'usmallint', "the binop's own type is computable once both sides have one");
+  assert.equal(sum.left.kind, 'ref');
+  assert.equal(sum.left.type, 'usmallint', "the imported global's declared type");
+  assert.equal(sum.right.kind, 'index');
+  assert.equal(sum.right.type, 'usmallint', "the imported array's element type");
+  assert.equal(sum.right.index.kind, 'call');
+  assert.equal(sum.right.index.type, 'utinyint', "the imported function's return type");
+});
+
+test('a ref to an imported string<N> variable types as a string — a pointer to its own buffer', async () => {
+  const { ir, diagnostics } = await linkWith({
+    'main.8bs': [
+      'import { label } from "./strings.8bs";',
+      'export function main(): void {',
+      '    let length: utinyint = label.length;',
+      '}',
+    ].join('\n'),
+    'strings.8bs': 'export let label: string<5> = "HI";',
+  });
+  assert.deepEqual(diagnostics, []);
+  const main = ir.functions.find((f) => f.name === 'main');
+  const init = main.body[0].init;
+  assert.equal(init.kind, 'stringLength');
+  assert.equal(init.string.kind, 'ref');
+  assert.equal(init.string.type, 'string');
+});

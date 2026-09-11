@@ -291,6 +291,11 @@ function completeCall(call, module, diagnostics) {
     return;
   }
   for (let i = call.args.length; i < max; i += 1) call.args.push(structuredClone(fn.params[i].default));
+  // An imported callee's return type is only knowable here — the module
+  // that lowered the call couldn't see across the import, so its IR left
+  // `type: null` (unlike a same-module call). A backend that sizes values
+  // by their type (the 6502's own 8-vs-16-bit split) needs the real one.
+  if (call.type == null && fn.returnType && fn.returnType !== 'void') call.type = fn.returnType;
 }
 
 /**
@@ -1064,6 +1069,13 @@ export function link(entryText, entryFile, options = {}) {
   }
 
   if (diagnostics.length > 0) return { ir: null, diagnostics, sources };
+  // A module's own lowering types what it can see; a ref to an imported
+  // global, an imported array's element read, and every binop over either
+  // stayed `type: null` until this point, because only the linked program
+  // knows the other module's declaration. Filled in here, bottom-up, so a
+  // backend that sizes values by type (the 6502's own 8-vs-16-bit split)
+  // never meets a typeless node.
+  fillCrossModuleTypes(ir);
   // After every body is rewritten — consts inlined, globals under their
   // output names — the writes the target refuses are visible as what they
   // are, whichever module spelled them and however it named the address.
@@ -1071,6 +1083,47 @@ export function link(entryText, entryFile, options = {}) {
   if (diagnostics.length > 0) return { ir: null, diagnostics, sources };
   ir.memory = memoryOf(ir);
   return { ir, diagnostics, sources };
+}
+
+/** See link()'s own call: types every `ref` to a global, every `index` read, and recomputes the binop/unop types those feed, bottom-up, wherever module-level lowering left null. */
+function fillCrossModuleTypes(ir) {
+  const globalTypes = new Map(ir.globals.map((g) => [g.name, g]));
+  const functionReturns = new Map(ir.functions.map((fn) => [fn.name, fn.returnType ?? 'void']));
+  const visit = (node) => {
+    if (Array.isArray(node)) {
+      for (const item of node) visit(item);
+      return;
+    }
+    if (!node || typeof node !== 'object') return;
+    for (const value of Object.values(node)) visit(value);
+    if (node.type != null) return;
+    if (node.kind === 'ref' && globalTypes.has(node.name)) {
+      const g = globalTypes.get(node.name);
+      // A string<N> variable read as a value is a string (a pointer to
+      // its own length-prefixed buffer); a plain array has no scalar
+      // value of its own and only ever appears under an index node.
+      if (g.stringCapacity !== undefined) node.type = 'string';
+      else if (g.array === undefined) node.type = g.type;
+      return;
+    }
+    if (node.kind === 'index' && node.elementType) {
+      node.type = node.elementType;
+      return;
+    }
+    if (node.kind === 'call' && functionReturns.has(node.name)) {
+      const returns = functionReturns.get(node.name);
+      if (returns !== 'void') node.type = returns;
+      return;
+    }
+    if (node.kind === 'binop' && node.left?.type && node.right?.type) {
+      node.type = COMPARISON_OPERATORS.has(node.operator) ? 'bool' : widerOf(node.left.type, node.right.type);
+      return;
+    }
+    if (node.kind === 'unop' && node.argument?.type) {
+      node.type = node.operator === '!' ? 'bool' : node.argument.type;
+    }
+  };
+  for (const fn of ir.functions) visit(fn.body);
 }
 
 /**

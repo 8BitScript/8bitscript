@@ -139,30 +139,130 @@ function renderFacts(root, facts) {
   root.appendChild(details);
 }
 
-/** The Running section: one row per `8bs` task, each with its own Stop. */
+/** The Running machines section: one expandable tree per `8bs run`/`boot`. */
+const openMachines = new Map();
+
+function machineKey(entry) {
+  return (entry.dir || '') + '\0' + (entry.target ?? '') + '\0' + entry.command;
+}
+
+function kv(label, value) {
+  if (value === null || value === undefined || value === '') return null;
+  const row = document.createElement('div');
+  row.className = 'kv';
+  const k = document.createElement('span');
+  k.className = 'k';
+  k.textContent = label;
+  const v = document.createElement('span');
+  v.className = 'v';
+  v.textContent = String(value);
+  row.append(k, v);
+  return row;
+}
+
+function branch(title, children) {
+  if (!children || children.length === 0) return null;
+  const details = document.createElement('details');
+  details.className = 'branch';
+  details.open = true;
+  const summary = document.createElement('summary');
+  summary.textContent = title;
+  details.append(summary, ...children);
+  return details;
+}
+
+function renderMachineTree(machine) {
+  const tree = document.createElement('div');
+  tree.className = 'tree';
+  const rows = [
+    kv('Elapsed', machine.elapsed),
+    kv('Emulator', machine.emulator),
+    kv('Image', machine.outFile),
+    kv('Hardware', machine.fitted),
+    kv('Memory', machine.memory?.line),
+  ].filter(Boolean);
+  tree.append(...rows);
+  if (machine.url) tree.append(kv('URL', machine.url));
+  if (machine.live) {
+    if (machine.live.error) tree.append(kv('Live', machine.live.error));
+    else if (machine.live.done) tree.append(kv('Live', 'finished'));
+    else if (machine.live.fps !== null) {
+      tree.append(kv('Live', 'FPS ' + machine.live.fps + (machine.live.frames != null ? ' · ' + machine.live.frames + ' frames' : '')));
+    } else {
+      tree.append(kv('Live', 'waiting for the page…'));
+    }
+  }
+  if (machine.size.length > 0) {
+    const table = document.createElement('table');
+    table.className = 'size';
+    for (const entry of machine.size) {
+      const tr = document.createElement('tr');
+      const n = document.createElement('td');
+      n.className = 'n';
+      n.textContent = String(entry.bytes);
+      const pct = document.createElement('td');
+      pct.className = 'pct';
+      pct.textContent = entry.pct + '%';
+      const name = document.createElement('td');
+      name.textContent = entry.name;
+      tr.append(n, pct, name);
+      table.appendChild(tr);
+    }
+    const sizeBranch = branch('Size', [table]);
+    if (sizeBranch) tree.appendChild(sizeBranch);
+  }
+  const optionRows = machine.options.map((o) => kv(o.key, o.value)).filter(Boolean);
+  const optionsBranch = branch('Fitted options', optionRows);
+  if (optionsBranch) tree.appendChild(optionsBranch);
+  const factRows = machine.facts.map((f) => kv(f.key, f.value)).filter(Boolean);
+  const factsBranch = branch('Facts', factRows);
+  if (factsBranch) tree.appendChild(factsBranch);
+  return tree;
+}
+
 function renderRunning(running) {
   const section = $('running');
   const rows = $('running-rows');
   rows.textContent = '';
   section.hidden = running.length === 0;
   for (const entry of running) {
-    const row = document.createElement('div');
-    row.className = 'run-row';
-    const name = document.createElement('span');
-    name.className = 'name';
-    name.textContent = entry.label;
-    const detail = document.createElement('span');
-    detail.className = 'detail';
-    detail.textContent = entry.detail;
     const stop = document.createElement('button');
     stop.className = 'icon';
     stop.title = 'Stop ' + entry.label;
     stop.innerHTML = ICON_STOP;
-    stop.addEventListener('click', () => vscode.postMessage({
-      type: 'stop', dir: entry.dir, target: entry.target,
-    }));
-    row.append(name, detail, stop);
-    rows.appendChild(row);
+    stop.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      vscode.postMessage({ type: 'stop', dir: entry.dir, target: entry.target });
+    });
+    if (entry.machine) {
+      const wrap = document.createElement('details');
+      wrap.className = 'run-machine';
+      const key = machineKey(entry);
+      wrap.open = openMachines.get(key) ?? true;
+      wrap.addEventListener('toggle', () => openMachines.set(key, wrap.open));
+      const summary = document.createElement('summary');
+      const name = document.createElement('span');
+      name.className = 'name';
+      name.textContent = entry.label;
+      const detail = document.createElement('span');
+      detail.className = 'detail';
+      detail.textContent = entry.detail + (entry.machine.elapsed ? ' · ' + entry.machine.elapsed : '');
+      summary.append(name, detail, stop);
+      wrap.append(summary, renderMachineTree(entry.machine));
+      rows.appendChild(wrap);
+    } else {
+      const row = document.createElement('div');
+      row.className = 'run-row';
+      const name = document.createElement('span');
+      name.className = 'name';
+      name.textContent = entry.label;
+      const detail = document.createElement('span');
+      detail.className = 'detail';
+      detail.textContent = entry.detail;
+      row.append(name, detail, stop);
+      rows.appendChild(row);
+    }
   }
 }
 

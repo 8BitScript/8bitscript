@@ -25,7 +25,7 @@ export interface IrString {
 }
 
 /** A const array global (packages/compiler/src/ir/index.mjs's arrayGlobal()) with everything the data section needs to lay it out: its element type (for width), its element count, and its fully-resolved initializer (every element a plain number by the time the linker hands this to a backend — see linker/index.mjs's own global-init resolution). */
-export interface ConstArrayGlobal {
+export interface DataArrayGlobal {
   name: string;
   type: string;
   array: number;
@@ -55,7 +55,7 @@ function byteDirective(values: number[]): Directive {
  * little-endian for a 2-byte element type (the 6502 is little-endian
  * throughout this backend — see prg.ts, encode.ts's own operand encoding).
  */
-export function buildDataSection(strings: IrString[], arrays: ConstArrayGlobal[], usedIndexes?: Set<number>): Directive[] {
+export function buildDataSection(strings: IrString[], arrays: DataArrayGlobal[], usedIndexes?: Set<number>): Directive[] {
   const out: Directive[] = [];
   strings.forEach((s, index) => {
     if (usedIndexes && !usedIndexes.has(index)) return;

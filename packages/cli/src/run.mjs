@@ -60,6 +60,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 
 import { compile } from './build.mjs';
 import { HARDWARE_USAGE, hardwareArgs, loadArgs } from './hardware.mjs';
+import { hardwareSnapshot, writeLastRun } from './last-run.mjs';
 
 // The VICE family (vic20/c64/pet/c128): one emulator suite, one invocation
 // shape — -autostart injects the built file straight into RAM. Exported so
@@ -283,6 +284,7 @@ async function spawnEmulator(emulator, emulatorArgs) {
 export async function run(args) {
   const pal = args.includes('--pal');
   const open = !args.includes('--no-open');
+  const report = args.includes('--size');
   const hw = hardwareArgs(args);
   if (!hw.ok) {
     process.stderr.write(`8bs run: ${hw.error}\n`);
@@ -309,7 +311,7 @@ export async function run(args) {
       + '                (vic20, c64, c128, atari8, nes, cx16, mega65 are parked until a later release)\n'
       + '                [--pal]\n'
       + HARDWARE_USAGE
-      + '                [--no-open] [entry.8bs]\n'
+      + '                [--size] [--no-open] [entry.8bs]\n'
       + '                [--screenshot <file.png>] [--frames <n>]\n'
       + '                  capture one screenshot through the target\'s own\n'
       + '                  emulator API instead of opening an interactive\n'
@@ -323,7 +325,9 @@ export async function run(args) {
   // Said once, before either route — the PET has no region (PET_REGION_NOTE).
   if (target === 'pet' && pal) process.stderr.write(PET_REGION_NOTE);
 
-  const { ok, outFile, frameRate, hardware } = await compile(target, entry, { pal, profile: hw.profile, hardware: hw.overrides });
+  const { ok, outFile, frameRate, hardware } = await compile(target, entry, {
+    pal, profile: hw.profile, hardware: hw.overrides, report,
+  });
   if (!ok) return 1;
 
   if (screenshotPath) {
@@ -346,7 +350,9 @@ export async function run(args) {
     // spins. Headless execution is `--screenshot`'s job, bounded by --frames.
     const { runInBrowser } = await import('./web-runtime.mjs');
     const bytes = await readFile(outFile);
-    return runInBrowser(bytes, { open, frameRate, root: resolve('dist', 'web') });
+    return runInBrowser(bytes, {
+      open, frameRate, root: resolve('dist', 'web'), lastRunTarget: 'web',
+    });
   }
 
   const invocation = await emulatorInvocation(target, { pal, hardware, outFile });
@@ -354,6 +360,7 @@ export async function run(args) {
     process.stderr.write(`8bs run: ${invocation.error}\n`);
     return 1;
   }
+  await writeLastRun(target, { emulator: invocation.emulator });
   return spawnEmulator(invocation.emulator, invocation.emulatorArgs);
 }
 
@@ -430,5 +437,12 @@ export async function boot(args) {
     process.stderr.write(`8bs boot: ${invocation.error}\n`);
     return 1;
   }
+  await writeLastRun(target, {
+    hardware: hardwareSnapshot(resolved.hardware),
+    emulator: invocation.emulator,
+    size: [],
+    memory: null,
+    outFile: null,
+  });
   return spawnEmulator(invocation.emulator, invocation.emulatorArgs);
 }

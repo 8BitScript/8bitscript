@@ -16,7 +16,7 @@ import { dirname } from 'node:path';
 
 import { basicStub } from './basic-stub.ts';
 import { buildDataSection } from './data.ts';
-import type { ConstArrayGlobal, IrString } from './data.ts';
+import type { DataArrayGlobal, IrString } from './data.ts';
 import { link } from './link/index.ts';
 import { optimizeReachable } from '../linker/optimize.mjs';
 import { lower } from './lower/index.ts';
@@ -26,9 +26,12 @@ import { LocalAllocator } from './lower/allocator.ts';
 import { prgBytes } from './prg.ts';
 import { epilogue, prologue, usesDecimalSensitiveMath } from './startup/commodore.ts';
 import { WAIT_FRAME_ZP_BYTES, usesWaitFrame, waitFrameRoutine, waitFrameSetup } from './startup/waitframe.ts';
+import { MULTIPLY_ZP_BYTES, multiplyCells, multiplyRoutine, usesMultiply } from './startup/multiply.ts';
+import type { MultiplyCells } from './startup/multiply.ts';
 import { storageBytes } from '../types/index.mjs';
 import { allocate, placeZp } from './zp/index.ts';
 import type { IrGlobal, ZpHole } from './zp/index.ts';
+import { layoutFrames } from './zp/frames.ts';
 
 /** The linked IR's top-level shape — the pieces `functions` (lower/index.ts), `globals` (zp/index.ts), and `strings` (mos/data.ts's own string-table half) each read. */
 export interface IrProgram {
@@ -113,12 +116,24 @@ const LOAD_ADDRESS: Partial<Record<Machine, number>> = {
 const PET_ZP_BUDGET = { zpOrigin: 0x8e, zpCeiling: 0x100 };
 const CHRGET_BYTES = 24;
 
-function petZpHoles(facts: Record<string, unknown>): ZpHole[] {
+// A program that calls waitFrame() anywhere owns the machine outright —
+// interrupts off from before its first store (the SEI build() now emits
+// ahead of the global initializers), the KERNAL's keyboard and jiffy
+// clock dead, and returning to BASIC already documented as off the map
+// (packages/pet/AGENTS.md, FRAME_SYNC.pet's own presync) — so BASIC's and
+// the KERNAL's zero page is no longer anyone else's: the budget widens to
+// $02-$FF, no CHRGET hole (nothing will ever run CHRGET again), which is
+// what lets a real program's call-graph frames (mos/zp/frames.ts) fit. A
+// program with no waitFrame() still returns to BASIC's READY. and keeps
+// the polite $8E-$FF budget above, CHRGET hole included.
+const PET_OWNED_ZP_BUDGET = { zpOrigin: 0x02, zpCeiling: 0x100 };
+
+function petZpHoles(facts: Record<string, unknown>, budget: { zpOrigin: number; zpCeiling: number }): ZpHole[] {
   const chrget = facts['memory.chrget'];
   if (typeof chrget !== 'number') return [];
   const start = chrget;
   const end = chrget + CHRGET_BYTES;
-  if (end <= PET_ZP_BUDGET.zpOrigin || start >= PET_ZP_BUDGET.zpCeiling) return [];
+  if (end <= budget.zpOrigin || start >= budget.zpCeiling) return [];
   return [{ start, end }];
 }
 
@@ -256,12 +271,20 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   const cycle = findCallCycle(functions);
   if (cycle) return { ok: false, error: `recursion isn't lowered yet: ${cycle.join(' -> ')} -> ${cycle[0]} calls itself, directly or through another function` };
 
+  // The zero-page budget depends on which of the two program shapes this
+  // is (see PET_OWNED_ZP_BUDGET above): a waitFrame() program owns the
+  // whole machine and gets $02-$FF hole-free, anything else stays polite
+  // and returns to BASIC. Decided before anything is placed, because
+  // everything below places into it.
+  const needsWaitFrame = usesWaitFrame(functions);
+  const zpBudget = needsWaitFrame ? PET_OWNED_ZP_BUDGET : PET_ZP_BUDGET;
+
   // Globals first: every function's own parameters, then every function's
   // own locals and expression temporaries, bump-allocate from whatever zero
   // page globals didn't take, so each pass below needs to know where the
   // previous one's remainder starts before it can run.
-  const zpHoles = petZpHoles(options.hardware.facts);
-  const zp = allocate(globals, { ...PET_ZP_BUDGET, holes: zpHoles });
+  const zpHoles = needsWaitFrame ? [] : petZpHoles(options.hardware.facts, zpBudget);
+  const zp = allocate(globals, { ...zpBudget, holes: zpHoles });
   if (!zp.ok) return { ok: false, error: zp.error };
 
   const globalTypes = new Map(globals.map((g) => [g.name, g.type]));
@@ -293,33 +316,40 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
     if (width === 2) globalInitProgram.push(ldaImm((init >> 8) & 0xff), staZp(g.address + 1));
   }
 
-  // Every const array global (zp/index.ts's own allocate() already refused
-  // a mutable one and skipped a const one without erroring, so anything
-  // with `.array` set here is guaranteed constant) — placed in the data
-  // section below, never in zero page. Only a 1- or 2-byte element is
-  // lowered (index()/storeIndex()'s own width, mos/lower/index.ts): wider
-  // ones are refused here, by name, rather than mis-encoded by data.ts.
-  const constArrayGlobals: ConstArrayGlobal[] = [];
+  // Every array global — const data and, as of 0.2.2, mutable `let`
+  // arrays and string<N> buffers too — placed in the data section below,
+  // never in zero page: a loaded .prg's image is ordinary RAM on these
+  // machines, so a mutable array's bytes ride inside the program and the
+  // load itself is the initializer (an initializer-less `let` array gets
+  // its declared all-zero start the same way). An `@address` array maps
+  // hardware, not program bytes, and is refused by name. Only a 1- or
+  // 2-byte element is lowered (index()/storeIndex()'s own width,
+  // mos/lower/index.ts): wider ones are refused here, by name, rather
+  // than mis-encoded by data.ts.
+  const dataArrayGlobals: DataArrayGlobal[] = [];
+  const arrays = new Map<string, { elementType: string; mutable: boolean }>();
   for (const g of globals) {
     if (g.array === undefined) continue;
+    if (g.address !== null) {
+      return { ok: false, error: `'${g.name}' is an @address array: hardware-mapped arrays aren't lowered yet` };
+    }
     const width = storageBytes(g.type);
     if (width !== 1 && width !== 2) {
       return { ok: false, error: `'${g.name}' is an array<${g.type}, ${g.array}>: only a 1- or 2-byte element is lowered yet` };
     }
-    constArrayGlobals.push({ name: g.name, type: g.type, array: g.array, init: (g.init as number[] | null) ?? [] });
+    dataArrayGlobals.push({ name: g.name, type: g.type, array: g.array, init: (g.init as number[] | null) ?? new Array<number>(g.array).fill(0) });
+    arrays.set(g.name, { elementType: g.type, mutable: !g.constant });
   }
-  const arrays = new Map(constArrayGlobals.map((g) => [g.name, { elementType: g.type }]));
 
   // waitFrame()'s own pacing state — an accumulator and a measured `num`
   // (mos/startup/waitframe.ts) — claims its zero page right after globals,
   // the same way a function's parameters do below, and only when the linked
   // program calls waitFrame() anywhere (entry or any function it can reach):
   // a program that never does pays nothing for state it never needs.
-  let paramCursor = PET_ZP_BUDGET.zpOrigin + zp.zpUsed;
-  const needsWaitFrame = usesWaitFrame(functions);
+  let paramCursor = zpBudget.zpOrigin + zp.zpUsed;
   let waitFrameAcc = 0, waitFrameNum = 0;
   if (needsWaitFrame) {
-    const placed = placeZp(paramCursor, WAIT_FRAME_ZP_BYTES, PET_ZP_BUDGET.zpCeiling, zpHoles);
+    const placed = placeZp(paramCursor, WAIT_FRAME_ZP_BYTES, zpBudget.zpCeiling, zpHoles);
     if (!placed.ok) {
       return { ok: false, error: `waitFrame() needs ${WAIT_FRAME_ZP_BYTES} bytes of zero page for its own pacing state but only ${placed.remaining} byte(s) remain` };
     }
@@ -328,45 +358,113 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
     paramCursor = placed.next;
   }
 
-  // Parameter pass: every function's calling interface, fixed before any
-  // lowering runs — a call site needs its target's addresses regardless of
-  // which function gets lowered first (mos/AGENTS.md).
-  const functionSites = new Map<string, FunctionSite>();
+  // `*`'s shared routine claims its operand/result cells the same way —
+  // and only when a runtime multiply survived the optimizer's own strength
+  // reduction anywhere in the program (mos/startup/multiply.ts).
+  const needsMultiply = usesMultiply(functions);
+  let multiply: MultiplyCells | null = null;
+  if (needsMultiply) {
+    const placed = placeZp(paramCursor, MULTIPLY_ZP_BYTES, zpBudget.zpCeiling, zpHoles);
+    if (!placed.ok) {
+      return { ok: false, error: `the '*' routine needs ${MULTIPLY_ZP_BYTES} bytes of zero page for its operands but only ${placed.remaining} byte(s) remain` };
+    }
+    multiply = multiplyCells(placed.address);
+    paramCursor = placed.next;
+  }
+
+  // ---- zero-page frames: measure, lay out, then lower for real ----------
+  //
+  // Every function's parameters, 16-bit return slot, and locals form one
+  // contiguous FRAME, and frames overlay by call depth (mos/zp/frames.ts:
+  // two functions never live at once share the same bytes). A frame's
+  // size includes its locals' high-water mark, which is only knowable by
+  // lowering the body — and lowering needs every callee's own addresses —
+  // so the body is lowered twice: once at provisional addresses purely to
+  // measure, then again at the real ones. Lowering is a pure function of
+  // the IR and the addresses, so the second pass is the first with only
+  // the numbers changed.
+  const frameOrigin = paramCursor;
+
+  interface FrameShape { paramWidths: (1 | 2)[]; returnWidth: 0 | 2; }
+  const shapes = new Map<string, FrameShape>();
+  const provisionalSites = new Map<string, FunctionSite>();
   for (const fn of functions) {
-    const params: { address: number; width: 1 | 2 }[] = [];
+    const widths: (1 | 2)[] = [];
     for (const p of fn.params ?? []) {
       if (p.type === 'array') return { ok: false, error: `'${fn.name}(${p.name})': array parameters aren't lowered yet` };
       const width = storageBytes(p.type);
       if (width !== 1 && width !== 2) {
         return { ok: false, error: `'${fn.name}(${p.name})' is '${p.type}' (${width} bytes): only 8-bit and 16-bit parameters are lowered yet` };
       }
-      const placed = placeZp(paramCursor, width, PET_ZP_BUDGET.zpCeiling, zpHoles);
-      if (!placed.ok) {
-        return { ok: false, error: `ran out of zero page assigning '${fn.name}(${p.name})' its parameter slot (${placed.remaining} byte(s) left, ${width} needed)` };
-      }
-      params.push({ address: placed.address, width });
-      paramCursor = placed.next;
+      widths.push(width);
     }
     const returnType = fn.returnType ?? 'void';
-    if (returnType !== 'void' && storageBytes(returnType) !== 1) {
-      return { ok: false, error: `'${fn.name}' returns '${returnType}' (${storageBytes(returnType)} bytes): only an 8-bit or void return is lowered yet — 16-bit returns aren't lowered yet` };
+    const returnBytes = returnType === 'void' ? 0 : storageBytes(returnType);
+    if (returnBytes > 2) {
+      return { ok: false, error: `'${fn.name}' returns '${returnType}' (${returnBytes} bytes): only an 8-bit, 16-bit, or void return is lowered yet` };
     }
-    functionSites.set(fn.name, { label: `__8bs_fn_${fn.name}`, params, returnType });
+    // A 16-bit return value can't ride in A (one byte), so it gets a
+    // fixed zero-page pair inside the frame, right after the parameters —
+    // the callee's `return` writes it, the call site copies it out
+    // (lower/index.ts's expr16 'call' case).
+    shapes.set(fn.name, { paramWidths: widths, returnWidth: returnBytes === 2 ? 2 : 0 });
+    let cursor = frameOrigin;
+    const params: { address: number; width: 1 | 2 }[] = widths.map((width) => {
+      const address = cursor;
+      cursor += width;
+      return { address, width };
+    });
+    const returnPair = returnBytes === 2 ? cursor : undefined;
+    provisionalSites.set(fn.name, { label: `__8bs_fn_${fn.name}`, params, returnType, ...(returnPair !== undefined ? { returnPair } : {}) });
   }
 
-  // Body pass: each function against its own fresh, non-overlapping locals
-  // region, stacked after every function's own parameter region above.
-  let localsCursor = paramCursor;
+  // Measurement pass: provisional addresses (every frame at frameOrigin,
+  // overlapping — the output is discarded), an effectively unlimited
+  // ceiling so only real lowering errors surface, and no holes, so the
+  // measured high-water mark is the frame's true contiguous need.
+  const frameNeeds = new Map<string, { bytes: number }>();
+  for (const fn of functions) {
+    const site = provisionalSites.get(fn.name)!;
+    const params = (fn.params ?? []).map((p, i) => ({ name: p.name, type: p.type, address: site.params[i].address }));
+    const scratchBase = frameOrigin + site.params.reduce((a, p) => a + p.width, 0) + (site.returnPair !== undefined ? 2 : 0);
+    const locals = new LocalAllocator(scratchBase, 0x10000);
+    const lowered = lower(fn.body, { globals: globalBindings, locals, params, functions: provisionalSites, arrays, multiply, returnPair: site.returnPair });
+    if (!lowered.ok) return { ok: false, error: `in '${fn.name}': ${lowered.error}` };
+    frameNeeds.set(fn.name, { bytes: scratchBase - frameOrigin + locals.used });
+  }
+
+  const layout = layoutFrames(functions, ir.entry, frameNeeds, frameOrigin, zpBudget.zpCeiling, zpHoles);
+  if (!layout.ok) return { ok: false, error: layout.error };
+
+  // Real sites from the laid-out frame starts, then the real body pass.
+  const functionSites = new Map<string, FunctionSite>();
+  for (const fn of functions) {
+    const shape = shapes.get(fn.name)!;
+    let cursor = layout.starts.get(fn.name)!;
+    const params: { address: number; width: 1 | 2 }[] = shape.paramWidths.map((width) => {
+      const address = cursor;
+      cursor += width;
+      return { address, width };
+    });
+    const returnPair = shape.returnWidth === 2 ? cursor : undefined;
+    functionSites.set(fn.name, { label: `__8bs_fn_${fn.name}`, params, returnType: fn.returnType ?? 'void', ...(returnPair !== undefined ? { returnPair } : {}) });
+  }
+
   const loweredFunctions: { name: string; label: string; program: Directive[]; parts: { origin: string | null; program: Directive[] }[]; isEntry: boolean }[] = [];
   for (const fn of functions) {
     const site = functionSites.get(fn.name)!;
+    const shape = shapes.get(fn.name)!;
     const params = (fn.params ?? []).map((p, i) => ({ name: p.name, type: p.type, address: site.params[i].address }));
-    const locals = new LocalAllocator(localsCursor, PET_ZP_BUDGET.zpCeiling, zpHoles);
-    const lowered = lower(fn.body, { globals: globalBindings, locals, params, functions: functionSites, arrays });
+    const scratchBase = site.params.reduce((a, p) => a + p.width, layout.starts.get(fn.name)!) + shape.returnWidth;
+    // The frame is hole-free by construction (layoutFrames bumps a frame
+    // wholly past any hole), so the allocator needs no holes here and
+    // uses exactly the bytes the measurement pass observed.
+    const locals = new LocalAllocator(scratchBase, layout.starts.get(fn.name)! + frameNeeds.get(fn.name)!.bytes);
+    const lowered = lower(fn.body, { globals: globalBindings, locals, params, functions: functionSites, arrays, multiply, returnPair: site.returnPair });
     if (!lowered.ok) return { ok: false, error: `in '${fn.name}': ${lowered.error}` };
-    localsCursor += locals.used;
     loweredFunctions.push({ name: fn.name, label: site.label, program: lowered.program, parts: lowered.parts, isEntry: fn.name === ir.entry });
   }
+  const localsCursor = layout.floor;
 
   // The entry runs first, falling straight through prologue -> body ->
   // epilogue back to BASIC (unchanged since milestone 1) — every other
@@ -383,7 +481,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // passes that never see each other's labels.
   const usedStrings = new Set<number>();
   for (const fn of functions) collectStringIndexes(fn.body, usedStrings);
-  const dataSection = buildDataSection(ir.strings ?? [], constArrayGlobals, usedStrings);
+  const dataSection = buildDataSection(ir.strings ?? [], dataArrayGlobals, usedStrings);
   // The one-time calibration and the shared JSR target every waitFrame()
   // call site (lower/index.ts) resolves to — both empty when the program
   // never calls waitFrame() anywhere. Setup runs once, right after globals
@@ -392,15 +490,24 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // every other function's own body, after the entry falls through to BASIC.
   const waitFrameSetupProgram = needsWaitFrame ? waitFrameSetup(options.frameRate, waitFrameAcc, waitFrameNum) : [];
   const waitFrameRoutineProgram = needsWaitFrame ? waitFrameRoutine(waitFrameAcc, waitFrameNum) : [];
-  const needsCld = usesDecimalSensitiveMath([...everyInstruction, ...waitFrameSetupProgram, ...waitFrameRoutineProgram]);
+  const multiplyProgram = multiply ? multiplyRoutine(multiply) : [];
+  const needsCld = usesDecimalSensitiveMath([...everyInstruction, ...waitFrameSetupProgram, ...waitFrameRoutineProgram, ...multiplyProgram]);
+  // A waitFrame() program's zero-page budget includes bytes the KERNAL's
+  // own IRQ handler still updates (the jiffy clock) until interrupts go
+  // off — so off they go before the first global initializer's store,
+  // not merely inside waitFrameSetup (whose own SEI stays, harmlessly,
+  // for the setup's documented flag-race reason).
+  const ownMachineProgram: Directive[] = needsWaitFrame ? [{ kind: 'instruction', mnemonic: 'SEI', mode: 'implied' }] : [];
   const combinedProgram: Directive[] = [
     ...prologue(needsCld),
+    ...ownMachineProgram,
     ...globalInitProgram,
     ...waitFrameSetupProgram,
     ...entry.program,
     ...epilogue(),
     ...others.flatMap((f): Directive[] => [{ kind: 'label', name: f.label }, ...f.program, RTS]),
     ...waitFrameRoutineProgram,
+    ...multiplyProgram,
     ...dataSection,
   ];
 
@@ -416,14 +523,14 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
     codeOrigin: codeStart,
     ramCeiling: ramSizeKib * 1024,
     code: { kind: 'assembly', program: combinedProgram },
-    zpOrigin: PET_ZP_BUDGET.zpOrigin,
-    zpCeiling: PET_ZP_BUDGET.zpCeiling,
+    zpOrigin: zpBudget.zpOrigin,
+    zpCeiling: zpBudget.zpCeiling,
     // Globals (milestone 5) plus every function's own parameter region plus
     // the most zero page each function's own locals and expression
     // temporaries ever held live at once (LIFO, per function) — not the sum
     // of every local ever declared, and not shared across functions either
     // (mos/AGENTS.md's known-conservative choice).
-    zp: localsCursor - PET_ZP_BUDGET.zpOrigin,
+    zp: localsCursor - zpBudget.zpOrigin,
   });
   if (!linked.ok) return { ok: false, error: linked.error };
 
@@ -441,11 +548,12 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
     entries.push(
       { name: '(wait-frame setup)', bytes: directiveBytes(waitFrameSetupProgram) },
       { name: '(wait-frame routine)', bytes: directiveBytes(waitFrameRoutineProgram) },
+      { name: '(multiply routine)', bytes: directiveBytes(multiplyProgram) },
       { name: '(global initializers)', bytes: directiveBytes(globalInitProgram) },
       { name: '(string/const-array data)', bytes: directiveBytes(dataSection) },
       // +2: the load address prgBytes() prepends ahead of `stub` itself —
       // every real .prg's first two bytes, not counted in stub.length.
-      { name: '(load address + BASIC stub + prologue/epilogue)', bytes: 2 + stub.length + directiveBytes(prologue(needsCld)) + directiveBytes(epilogue()) },
+      { name: '(load address + BASIC stub + prologue/epilogue)', bytes: 2 + stub.length + directiveBytes(prologue(needsCld)) + directiveBytes(ownMachineProgram) + directiveBytes(epilogue()) },
     );
     sizeReport = entries.filter((e) => e.bytes > 0).sort((a, b) => b.bytes - a.bytes);
   }
