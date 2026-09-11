@@ -95,13 +95,15 @@ test('a statement kind with no rule yet fails naming it, not silently', () => {
   assert.match(result.error, /no instruction-selection rule yet for the 'mystery' statement/);
 });
 
-test('a 16-bit local is lowered (milestone 8), not refused — both bytes of the initializer land in a fresh zp pair', () => {
+test('a 16-bit local is lowered (milestone 8), not refused — both bytes of the initializer land straight in the local\'s own pair, no temp', () => {
   const result = lower([local('x', { kind: 'const', value: 300, type: 'usmallint' }, 'usmallint')], ctx());
   assert.equal(result.ok, true, result.ok ? '' : result.error);
   if (!result.ok) return;
   assembles(result.program);
   const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
-  assert.deepEqual(mnemonics, ['LDA', 'STA', 'LDA', 'STA', 'LDA', 'STA', 'LDA', 'STA']);
+  // LDA #<300; STA x; LDA #>300; STA x+1 — store16Into's const shape, no
+  // intermediate pair (the pre-0.2.3 emission bounced through one).
+  assert.deepEqual(mnemonics, ['LDA', 'STA', 'LDA', 'STA']);
 });
 
 test('a local is declared once and read back through the same zero-page slot', () => {
@@ -109,13 +111,14 @@ test('a local is declared once and read back through the same zero-page slot', (
   assert.equal(result.ok, true);
   if (!result.ok) return;
   assembles(result.program);
-  // LDA #5; STA slot(local x); ... LDA slot(local x); STA temp; LDA #1; CLC; ADC temp; STA slot(local x); label(exit)
+  // LDA #5; STA slot(local x); INC slot(local x); label(exit) — `x = x + 1`
+  // is the INC special case (0.2.3), and both touch the same slot.
   const declareSta = instruction(result.program[1]);
   assert.equal(declareSta.mnemonic, 'STA');
   const slot = declareSta.operand!.kind === 'value' ? declareSta.operand!.value : -1;
-  const finalSta = instruction(result.program[result.program.length - 2]);
-  assert.equal(finalSta.mnemonic, 'STA');
-  assert.equal(finalSta.operand!.kind === 'value' ? finalSta.operand!.value : -1, slot);
+  const inc = instruction(result.program[result.program.length - 2]);
+  assert.equal(inc.mnemonic, 'INC');
+  assert.equal(inc.operand!.kind === 'value' ? inc.operand!.value : -1, slot);
 });
 
 test('a local out of zero page fails naming the variable and what is left', () => {
@@ -138,7 +141,7 @@ test('a block-scoped local is released once its block ends, so a later block can
   assert.equal(result.ok, true, result.ok ? '' : result.error);
 });
 
-test('+ evaluates left then right, in that order, and adds them', () => {
+test('+ evaluates left into A and reads a plain-binding right directly — no temp for a simple operand', () => {
   const result = lower([{ kind: 'assign', target: 'out', value: bin('+', ref('x'), ref('y')) }], ctx([
     ['x', { address: 0x10, type: 'utinyint' }],
     ['y', { address: 0x11, type: 'utinyint' }],
@@ -148,23 +151,57 @@ test('+ evaluates left then right, in that order, and adds them', () => {
   if (!result.ok) return;
   assembles(result.program);
   const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => (d as { mnemonic: string }).mnemonic);
-  // LDA x (left, first); STA temp; LDA y (right, second); CLC; ADC temp; STA out
-  assert.deepEqual(mnemonics, ['LDA', 'STA', 'LDA', 'CLC', 'ADC', 'STA']);
+  // LDA x (left, first); CLC; ADC y (right read at the ADC itself); STA out
+  assert.deepEqual(mnemonics, ['LDA', 'CLC', 'ADC', 'STA']);
   const firstLoad = instruction(result.program[0]);
   assert.equal(firstLoad.operand!.kind === 'value' ? firstLoad.operand!.value : -1, 0x10); // x, evaluated first
+  const adc = instruction(result.program[2]);
+  assert.equal(adc.operand!.kind === 'value' ? adc.operand!.value : -1, 0x11); // y, read directly
 });
 
-test('- computes left minus right: left is reloaded and right is subtracted back out, not the other way around', () => {
+test('+ with two non-simple operands still evaluates left then right through a temp', () => {
+  const nonSimple = (address: number): IrExpr => bin('&', ref('m', 'utinyint'), { kind: 'ref', name: address === 0x10 ? 'x' : 'y', type: 'utinyint' });
+  const result = lower([{ kind: 'assign', target: 'out', value: bin('+', nonSimple(0x10), nonSimple(0x11)) }], ctx([
+    ['x', { address: 0x10, type: 'utinyint' }],
+    ['y', { address: 0x11, type: 'utinyint' }],
+    ['m', { address: 0x13, type: 'utinyint' }],
+    ['out', { address: 0x12, type: 'utinyint' }],
+  ]));
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  assembles(result.program);
+  const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => (d as { mnemonic: string }).mnemonic);
+  // LDA m; AND x (left); STA temp; LDA m; AND y (right); CLC; ADC temp; STA out
+  assert.deepEqual(mnemonics, ['LDA', 'AND', 'STA', 'LDA', 'AND', 'CLC', 'ADC', 'STA']);
+});
+
+test('- computes left minus right: a constant right subtracts as an immediate, left loaded first', () => {
   const result = lower([assign('out', bin('-', u8(10), u8(3)))], ctx([['out', { address: 0x50, type: 'utinyint' }]]));
   assert.equal(result.ok, true);
   if (!result.ok) return;
   assembles(result.program);
-  // LDA #10 (left); STA tempLeft; LDA #3 (right); STA tempRight; LDA tempLeft; SEC; SBC tempRight; STA out.
+  // LDA #10 (left); SEC; SBC #3 (right, immediate); STA out.
   const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => (d as { mnemonic: string }).mnemonic);
-  assert.deepEqual(mnemonics, ['LDA', 'STA', 'LDA', 'STA', 'LDA', 'SEC', 'SBC', 'STA']);
-  const values = result.program.filter((d) => d.kind === 'instruction' && (d as { mnemonic: string }).mnemonic === 'LDA' && (d as { mode: string }).mode === 'immediate');
-  assert.equal(values[0] && (values[0] as { operand: { value: number } }).operand.value, 10); // left, loaded first
-  assert.equal(values[1] && (values[1] as { operand: { value: number } }).operand.value, 3); // right, loaded second
+  assert.deepEqual(mnemonics, ['LDA', 'SEC', 'SBC', 'STA']);
+  const load = instruction(result.program[0]);
+  assert.equal(load.operand!.kind === 'value' ? load.operand!.value : -1, 10); // left in A
+  const sbc = instruction(result.program[2]);
+  assert.equal(sbc.mode, 'immediate');
+  assert.equal(sbc.operand!.kind === 'value' ? sbc.operand!.value : -1, 3); // right subtracted out
+});
+
+test('- with a call on the right still parks both operands: left is reloaded and right subtracted back out', () => {
+  const f = { kind: 'call', name: 'f', args: [], type: 'utinyint' } as IrExpr;
+  const result = lower([assign('out', bin('-', ref('x'), f))], {
+    ...ctx([['x', { address: 0x10, type: 'utinyint' }], ['out', { address: 0x50, type: 'utinyint' }]]),
+    functions: new Map([['f', { label: '__8bs_fn_f', params: [], returnType: 'utinyint' }]]),
+  });
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  assembles([...result.program, { kind: 'label', name: '__8bs_fn_f' }]); // the callee's label, so the JSR resolves
+  // LDA x; STA tempLeft; JSR f; STA tempRight; LDA tempLeft; SEC; SBC tempRight; STA out.
+  const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => (d as { mnemonic: string }).mnemonic);
+  assert.deepEqual(mnemonics, ['LDA', 'STA', 'JSR', 'STA', 'LDA', 'SEC', 'SBC', 'STA']);
 });
 
 test("'/' is refused by name: no hardware divide, and nothing on the critical path needs one", () => {
@@ -329,13 +366,27 @@ test('a constant fill loop (screen.blank\'s own shape) lowers to STA abs,X page 
   assert.ok(assembled.bytes.length < 40, `fill should be a handful of page loops, got ${assembled.bytes.length} bytes`);
 });
 
-test('return with a value evaluates it into A, then jumps to the exit label — milestone 7', () => {
+test('return with a value evaluates it into A, then reaches the exit label — a final return falls through, no jump to the very next address', () => {
   const result = lower([{ kind: 'return', value: u8(42) }], ctx());
   assert.equal(result.ok, true, result.ok ? '' : result.error);
   if (!result.ok) return;
   assert.deepEqual(result.program[0], { kind: 'instruction', mnemonic: 'LDA', mode: 'immediate', operand: { kind: 'value', value: 42 } });
-  assert.equal(instruction(result.program[1]).mnemonic, 'JMP');
+  // The jump a `return` emits lands immediately after itself here, so the
+  // peephole deletes it: the value in A falls straight into the exit label.
+  assert.equal(result.program[1].kind, 'label');
   assembles(result.program);
+});
+
+test('a return that is NOT last still jumps to the exit label', () => {
+  const result = lower(
+    [ifNode(bin('==', ref('x'), u8(3), 'bool'), [{ kind: 'return', value: u8(1) }]), { kind: 'return', value: u8(2) }],
+    ctx([['x', { address: 0x10, type: 'utinyint' }]]),
+  );
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  assembles(result.program);
+  const jmps = result.program.filter((d) => d.kind === 'instruction' && d.mnemonic === 'JMP');
+  assert.equal(jmps.length, 1, 'the early return keeps its jump; only the final one folds away');
 });
 
 test('return with a 16-bit value in an 8-bit function returns the low byte — the declared width\'s own wrap (0.2.2)', () => {
@@ -472,6 +523,121 @@ test('unary !, ~, -, and + each lower; an unknown unary operator is refused by n
   assert.match(unknown.error, /unary '@' operator/);
 });
 
+// ---- 0.2.3: the direct-CMP comparison shortcuts ---------------------------
+
+test('a comparison against a constant CMPs the immediate — no temp — and the branch table is read through the mirrored operator', () => {
+  // `a < 91` as an if-test with no else: branchIfFalse negates it to
+  // `a >= 91`, whose mirrored plan (flags describe left - right after
+  // LDA a / CMP #91) is a single BCS.
+  const result = lower(
+    [ifNode(bool('<', ref('a'), u8(91)), [write(0x8000, 1)])],
+    ctx([['a', { address: 0x10, type: 'utinyint' }]]),
+  );
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  assembles(result.program);
+  const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
+  assert.deepEqual(mnemonics, ['LDA', 'CMP', 'BCS', 'LDA', 'STA']);
+  const cmp = instruction(result.program[1]);
+  assert.equal(cmp.mode, 'immediate');
+  assert.equal(cmp.operand!.kind === 'value' ? cmp.operand!.value : -1, 91);
+});
+
+test('x != 0 branches straight off the load\'s own Z flag — no CMP at all when the last instruction set flags from A', () => {
+  const result = lower(
+    [ifNode(bool('!=', ref('a'), u8(0)), [write(0x8000, 1)])],
+    ctx([['a', { address: 0x10, type: 'utinyint' }]]),
+  );
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
+  // branchIfFalse negates != to ==: LDA a; BEQ endif — Z already describes A.
+  assert.deepEqual(mnemonics, ['LDA', 'BEQ', 'LDA', 'STA']);
+});
+
+test('x % 3 == 0 still spends the CMP #0 — the \'%\' loop ends on its own CMP, whose Z does NOT describe A', () => {
+  // The subtraction loop's exit flags describe (A - bound) from its last
+  // CMP, not A itself: x=6, bound=3 exits with A=0 but Z clear. Branching
+  // straight off Z there would answer "6 % 3 != 0". lastSetsFlagsFromA
+  // sees the loop's trailing label and refuses the shortcut.
+  const result = lower(
+    [ifNode(bool('==', bin('%', ref('a'), u8(3)), u8(0)), [write(0x8000, 1)])],
+    ctx([['a', { address: 0x10, type: 'utinyint' }]]),
+  );
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
+  const cmpZero = result.program.filter((d) => d.kind === 'instruction' && d.mnemonic === 'CMP' && d.mode === 'immediate' && d.operand?.kind === 'value' && d.operand.value === 0);
+  assert.equal(cmpZero.length, 1, `an explicit CMP #0 guards the test: ${mnemonics.join(' ')}`);
+});
+
+test('a call\'s result compared to 0 also spends the CMP #0 — a JSR\'s flags are not trusted to describe A', () => {
+  const result = lower(
+    [ifNode(bool('==', { kind: 'call', name: 'f', args: [], type: 'utinyint' }, u8(0)), [write(0x8000, 1)])],
+    { ...ctx(), functions: new Map([['f', { label: '__8bs_fn_f', params: [], returnType: 'utinyint' }]]) },
+  );
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
+  assert.deepEqual(mnemonics, ['JSR', 'CMP', 'BNE', 'LDA', 'STA']);
+});
+
+test('while (true) emits no test at all — a constant condition is a jump or nothing', () => {
+  const result = lower(
+    [{ kind: 'while', test: { kind: 'const', value: 1, type: 'bool' }, body: [{ kind: 'break' }] }],
+    ctx(),
+  );
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  assembles(result.program);
+  const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
+  // Just the break's own jump and the loop's back-jump — no LDA #1/BNE.
+  assert.deepEqual(mnemonics, ['JMP', 'JMP']);
+});
+
+test('x = x - 1 and x = x + 2 are DEC and INC INC — the same wrap the load/add/store had', () => {
+  const result = lower(
+    [assign('x', bin('-', ref('x'), u8(1))), assign('x', bin('+', ref('x'), u8(2)))],
+    ctx([['x', { address: 0x10, type: 'utinyint' }]]),
+  );
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
+  assert.deepEqual(mnemonics, ['DEC', 'INC', 'INC']);
+});
+
+test('a 16-bit sum assigned to a global computes straight into the destination pair — score = score + x has no temp copy', () => {
+  const result = lower(
+    [assign('score', bin('+', ref('score', 'usmallint'), ref('x', 'usmallint'), 'usmallint'))],
+    ctx([['score', { address: 0x10, type: 'usmallint' }], ['x', { address: 0x20, type: 'usmallint' }]]),
+  );
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  assembles(result.program);
+  const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
+  // CLC; LDA score; ADC x; STA score; LDA score+1; ADC x+1; STA score+1 —
+  // the low store lands before the high bytes are read, which is exactly
+  // why in-place is safe (addSub16Into's own comment).
+  assert.deepEqual(mnemonics, ['CLC', 'LDA', 'ADC', 'STA', 'LDA', 'ADC', 'STA']);
+  const stores = result.program.filter((d) => d.kind === 'instruction' && d.mnemonic === 'STA').map((d) => (instruction(d).operand as { value: number }).value);
+  assert.deepEqual(stores, [0x10, 0x11]);
+});
+
+test('a string literal argument stores its label\'s two immediate bytes straight into the callee\'s param pair — no temp', () => {
+  const result = lower(
+    [call('print', [strLit(0)], null)],
+    ctx([], [['print', { label: '__8bs_fn_print', params: [{ address: 0x50, width: 2 }], returnType: 'void' }]]),
+  );
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
+  assert.deepEqual(mnemonics, ['LDA', 'STA', 'LDA', 'STA', 'JSR']);
+  const loLoad = instruction(result.program[0]);
+  assert.deepEqual(loLoad.operand, { kind: 'label', name: stringLabel(0), byte: 'lo' });
+  const hiLoad = instruction(result.program[2]);
+  assert.deepEqual(hiLoad.operand, { kind: 'label', name: stringLabel(0), byte: 'hi' });
+});
+
 test('>, <=, >=, and != as if-tests assemble; a bool local used as a condition is tested as zero/nonzero', () => {
   const env = ctx([
     ['a', { address: 0x10, type: 'utinyint' }],
@@ -503,10 +669,13 @@ test('>, <=, >=, and != as if-tests assemble; a bool local used as a condition i
 // (packages/pet/src/text.8bs), where it let 'h' (104) through the
 // "already upper case" branch of asciiToScreenCode unconverted.
 test('>= is an OR of two flag tests, not the AND-shaped template < uses: both branches land on the same target, no live path skips it', () => {
-  const env = ctx([['a', { address: 0x10, type: 'utinyint' }]]);
+  const env = ctx([['a', { address: 0x10, type: 'utinyint' }], ['b', { address: 0x11, type: 'utinyint' }]]);
   // Materialised as a value (wantTrue=true, operator >= used directly —
-  // the other way to reach the buggy path besides negating <).
-  const asValue = lower([local('ok', bool('>=', ref('a'), u8(91)), 'bool')], env);
+  // the other way to reach the buggy path besides negating <). The right
+  // side is deliberately NOT a bare constant or ref: those take the 0.2.3
+  // direct-CMP shortcut, whose mirrored `>=` is a single BCS — this test
+  // is about the OR-shaped `either` plan the temp path uses.
+  const asValue = lower([local('ok', bool('>=', ref('a'), bin('&', ref('b'), u8(0x7f))), 'bool')], env);
   assert.equal(asValue.ok, true, asValue.ok ? '' : asValue.error);
   if (!asValue.ok) return;
   assembles(asValue.program);
@@ -859,10 +1028,10 @@ test('an 8-bit unsigned value assigned to a 16-bit target is zero-extended, not 
   if (!result.ok) return;
   assembles(result.program);
   const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
-  // LDA #200 (the 8-bit value), STA temp-lo, LDA #0, STA temp-hi (the
-  // zero-extension), then LDA temp-lo/STA wide, LDA temp-hi/STA wide+1
-  // (the copy into the target).
-  assert.deepEqual(mnemonics, ['LDA', 'STA', 'LDA', 'STA', 'LDA', 'STA', 'LDA', 'STA']);
+  // LDA #200 (the 8-bit value), STA wide, LDA #0, STA wide+1 — the
+  // zero-extension lands straight in the target pair (store16Into),
+  // no intermediate temp.
+  assert.deepEqual(mnemonics, ['LDA', 'STA', 'LDA', 'STA']);
   const secondLoad = instruction(result.program[2]);
   assert.equal(secondLoad.operand!.kind === 'value' ? secondLoad.operand!.value : -1, 0);
 });
@@ -1028,11 +1197,14 @@ test('a call widens an 8-bit literal argument into a 16-bit parameter rather tha
   assert.equal(result.ok, true, result.ok ? '' : result.error);
   if (!result.ok) return;
   const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
-  // LDA #0/STA/LDA #0/STA is the zero-extension of the first argument
-  // (value, then the high byte forced to 0), then the copy into the
-  // param pair, then the 8-bit arg, then JSR.
-  assert.deepEqual(mnemonics.slice(0, 4), ['LDA', 'STA', 'LDA', 'STA']);
-  assert.deepEqual(mnemonics.slice(-3), ['LDA', 'STA', 'JSR']);
+  // LDA #0/STA/STA is the widened constant landing straight in the param
+  // pair — one LDA serves both bytes when they agree (store16Into) —
+  // then the 8-bit arg, then JSR.
+  assert.deepEqual(mnemonics, ['LDA', 'STA', 'STA', 'LDA', 'STA', 'JSR']);
+  const stores = result.program
+    .filter((d) => d.kind === 'instruction' && d.mnemonic === 'STA' && d.operand?.kind === 'value')
+    .map((d) => (instruction(d).operand as { value: number }).value);
+  assert.ok(stores.includes(0x50) && stores.includes(0x51), 'both param-pair bytes written');
 });
 
 test('a local with no type is refused rather than assumed 8-bit', () => {
@@ -1102,7 +1274,7 @@ test('stringLength on a string parameter reads byte 0 through its pointer — no
   assert.equal(result.ok, true, result.ok ? '' : result.error);
   if (!result.ok) return;
   const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
-  assert.deepEqual(mnemonics, ['LDY', 'LDA', 'JMP']);
+  assert.deepEqual(mnemonics, ['LDY', 'LDA']);
   const ldy = instruction(result.program[0]);
   assert.equal(ldy.operand!.kind === 'value' ? ldy.operand!.value : -1, 0);
   const lda = instruction(result.program[1]);
@@ -1117,8 +1289,9 @@ test('stringByte reads index+1 — skipping the length prefix — after the stri
   assert.equal(result.ok, true, result.ok ? '' : result.error);
   if (!result.ok) return;
   const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
-  // LDA #4 (the index); TAY; INY (skip the length byte); LDA (s),y; JMP exit.
-  assert.deepEqual(mnemonics, ['LDA', 'TAY', 'INY', 'LDA', 'JMP']);
+  // LDA #4 (the index); TAY; INY (skip the length byte); LDA (s),y — the
+  // final return's own jump to the very next label folds away.
+  assert.deepEqual(mnemonics, ['LDA', 'TAY', 'INY', 'LDA']);
   const indexLoad = instruction(result.program[0]);
   assert.equal(indexLoad.operand!.kind === 'value' ? indexLoad.operand!.value : -1, 4);
   const finalLoad = instruction(result.program[3]);
@@ -1140,11 +1313,11 @@ test('stringByte at the highest valid index (254, on a 255-byte string) lands on
   const instructions = result.program.filter((d): d is Extract<Directive, { kind: 'instruction' }> => d.kind === 'instruction');
   const iny = instructions.find((d) => d.mnemonic === 'INY');
   assert.ok(iny, 'INY runs exactly once, taking Y from 254 to 255 — 6502 8-bit registers hold 255 without wrapping');
-  const load = instructions[instructions.length - 2]; // the (indirect),y read, right before the trailing JMP
+  const load = instructions[instructions.length - 1]; // the (indirect),y read is the last instruction — the trailing jump folded away
   assert.equal(load.mode, '(indirect),y');
 });
 
-test('a 1-byte-element index() reads Y-indexed off the array\'s own data-section label — no scaling', () => {
+test('a 1-byte-element index() reads Y-indexed off the array\'s own data-section label — no scaling, and a constant index is an LDY immediate', () => {
   const result = lower(
     [{ kind: 'return', value: idx('TABLE', u8(2), 'utinyint') }],
     ctx([], [], [['TABLE', { elementType: 'utinyint' }]]),
@@ -1152,10 +1325,27 @@ test('a 1-byte-element index() reads Y-indexed off the array\'s own data-section
   assert.equal(result.ok, true, result.ok ? '' : result.error);
   if (!result.ok) return;
   const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
-  assert.deepEqual(mnemonics, ['LDA', 'TAY', 'LDA', 'JMP']);
-  const read = instruction(result.program[2]);
+  assert.deepEqual(mnemonics, ['LDY', 'LDA']);
+  const ldy = instruction(result.program[0]);
+  assert.equal(ldy.mode, 'immediate');
+  assert.equal(ldy.operand!.kind === 'value' ? ldy.operand!.value : -1, 2);
+  const read = instruction(result.program[1]);
   assert.equal(read.mode, 'absolute,y');
   assert.deepEqual(read.operand, { kind: 'label', name: arrayLabel('TABLE') });
+});
+
+test('a 1-byte-element index() with a plain-ref index loads Y straight from its slot — no LDA/TAY', () => {
+  const result = lower(
+    [{ kind: 'return', value: idx('TABLE', ref('i'), 'utinyint') }],
+    ctx([['i', { address: 0x10, type: 'utinyint' }]], [], [['TABLE', { elementType: 'utinyint' }]]),
+  );
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
+  assert.deepEqual(mnemonics, ['LDY', 'LDA']);
+  const ldy = instruction(result.program[0]);
+  assert.equal(ldy.mode, 'zeropage');
+  assert.equal(ldy.operand!.kind === 'value' ? ldy.operand!.value : -1, 0x10);
 });
 
 // The real shape: DIGIT_PLACES, `const DIGIT_PLACES: array<usmallint, 5>`
@@ -1169,10 +1359,14 @@ test('a 2-byte-element index() doubles the index (ASL) before reading low, then 
   assert.equal(result.ok, true, result.ok ? '' : result.error);
   if (!result.ok) return;
   const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
-  // LDA #2 (index); ASL; TAY; LDA lo; STA; INY; LDA hi; STA; — then the copy into 'digit'.
-  assert.deepEqual(mnemonics.slice(0, 8), ['LDA', 'ASL', 'TAY', 'LDA', 'STA', 'INY', 'LDA', 'STA']);
-  const loRead = instruction(result.program[3]);
-  const hiRead = instruction(result.program[6]);
+  // LDY #4 (a constant index doubles at compile time); LDA lo; STA; INY;
+  // LDA hi; STA — then the copy into 'digit'. A runtime index would be
+  // LDA; ASL; TAY instead of the LDY (the next test's own shape).
+  assert.deepEqual(mnemonics.slice(0, 6), ['LDY', 'LDA', 'STA', 'INY', 'LDA', 'STA']);
+  const ldy = instruction(result.program[0]);
+  assert.equal(ldy.operand!.kind === 'value' ? ldy.operand!.value : -1, 4);
+  const loRead = instruction(result.program[1]);
+  const hiRead = instruction(result.program[4]);
   assert.deepEqual(loRead.operand, { kind: 'label', name: arrayLabel('DIGIT_PLACES') });
   assert.deepEqual(hiRead.operand, { kind: 'label', name: arrayLabel('DIGIT_PLACES') });
   // Resolves for real against a 5-element array's own data-section label.
@@ -1189,7 +1383,7 @@ test('index() on a name this build never placed as an array is refused, naming i
 
 // ---- 0.2.2: mutable arrays — storeIndex, the write half of milestone 9 ----
 
-test('storeIndex parks the index, evaluates the value into A, and stores through Y at the array label', () => {
+test('storeIndex with a simple index evaluates the value into A, sets Y directly, and stores at the array label — no temp', () => {
   const result = lower(
     [{ kind: 'storeIndex', array: { kind: 'ref', name: 'board' }, index: u8(3), value: u8(7), elementType: 'utinyint' }],
     ctx([], [], [['board', { elementType: 'utinyint', mutable: true }]]),
@@ -1199,9 +1393,21 @@ test('storeIndex parks the index, evaluates the value into A, and stores through
   const data: Directive[] = [{ kind: 'label', name: arrayLabel('board') }, { kind: 'byte', values: new Array(16).fill(0) }];
   assembles([...result.program, ...data]);
   const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
-  assert.deepEqual(mnemonics, ['LDA', 'STA', 'LDA', 'LDY', 'STA']);
-  const sta = instruction(result.program.filter((d) => d.kind === 'instruction')[4]);
+  assert.deepEqual(mnemonics, ['LDA', 'LDY', 'STA']);
+  const sta = instruction(result.program.filter((d) => d.kind === 'instruction')[2]);
   assert.equal(sta.mode, 'absolute,y');
+});
+
+test('storeIndex still parks a non-simple index in a temp when the value is a call that could change it', () => {
+  const result = lower(
+    [{ kind: 'storeIndex', array: { kind: 'ref', name: 'board' }, index: ref('i'), value: { kind: 'call', name: 'f', args: [], type: 'utinyint' }, elementType: 'utinyint' }],
+    { ...ctx([['i', { address: 0x10, type: 'utinyint' }]], [], [['board', { elementType: 'utinyint', mutable: true }]]), functions: new Map([['f', { label: '__8bs_fn_f', params: [], returnType: 'utinyint' }]]) },
+  );
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
+  // LDA i; STA temp (the index, read BEFORE the call); JSR f; LDY temp; STA board,y.
+  assert.deepEqual(mnemonics, ['LDA', 'STA', 'JSR', 'LDY', 'STA']);
 });
 
 test('storeIndex into a const array is refused — the checker should already have said so', () => {

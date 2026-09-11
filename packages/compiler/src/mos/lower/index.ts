@@ -287,6 +287,22 @@ const ORDER_BRANCH_IF_TRUE: Readonly<Record<string, BranchPlan>> = {
   '>=': { either: ['BCC', 'BEQ'] },
 };
 const NEGATE: Readonly<Record<string, string>> = { '==': '!=', '!=': '==', '<': '>=', '>=': '<', '>': '<=', '<=': '>' };
+// ORDER_BRANCH_IF_TRUE assumes A holds the RIGHT operand and CMP names the
+// left, so the flags describe (right - left). When an operand is a constant
+// or a plain zero-page binding, the cheaper emission is the other way
+// around — left in A, `CMP #right` / `CMP right` — and the flags then
+// describe (left - right), which is exactly the same table read through the
+// mirrored operator: left < right under (left - right) branches the way
+// right > left does under (right - left).
+const MIRROR: Readonly<Record<string, string>> = { '==': '==', '!=': '!=', '<': '>', '>': '<', '<=': '>=', '>=': '<=' };
+
+// The mnemonics whose result *is* the accumulator, flags included — after
+// any of these, Z/N describe A exactly. `x == 0`'s no-CMP shortcut
+// (comparisonBranch) may only branch straight off the flags when the last
+// instruction the operand emitted is one of these; anything else (a JSR, a
+// '%' loop ending on its own CMP, a label) gets an explicit CMP #0 instead
+// of a guess about what the flags happen to describe.
+const SETS_FLAGS_FROM_A = new Set(['LDA', 'ADC', 'SBC', 'AND', 'ORA', 'EOR', 'TXA', 'TYA', 'PLA']);
 const ORDERING_OPERATORS = new Set(['<', '>', '<=', '>=']);
 const EQUALITY_OPERATORS = new Set(['==', '!=']);
 const COMPARISON_OPERATORS = new Set([...ORDERING_OPERATORS, ...EQUALITY_OPERATORS]);
@@ -296,7 +312,10 @@ function freshLabel(tag: string): string {
   return `__8bs_${tag}_${labelCounter++}`;
 }
 
-function isConstNum(node: IrExpr | undefined | null, value?: number): node is IrExpr {
+// The predicate names the 'const' subtype, not IrExpr itself: narrowing a
+// non-union type to the whole type would turn every negative branch (`the
+// operand is NOT a constant, so...`) into `never`.
+function isConstNum(node: IrExpr | undefined | null, value?: number): node is IrExpr & { kind: 'const'; value: number } {
   if (!node || node.kind !== 'const' || typeof node.value !== 'number') return false;
   if (value !== undefined && node.value !== value) return false;
   return true;
@@ -304,6 +323,35 @@ function isConstNum(node: IrExpr | undefined | null, value?: number): node is Ir
 
 function isRefNamed(node: IrExpr | undefined | null, name: string): boolean {
   return !!node && node.kind === 'ref' && node.name === name;
+}
+
+// Whether evaluating `node` can change any binding's value — the guard on
+// every operand-reordering shortcut below. Reading left's own zero-page
+// byte at the ADC/CMP itself, *after* right has evaluated, is only the
+// same program as the temp-copy emission when nothing in right could have
+// written left in between; a call can (any global, any array), so a call
+// anywhere inside makes the answer false. Everything else this backend
+// lowers as an expression only reads.
+function isPure(node: IrExpr | undefined | null): boolean {
+  if (!node) return false;
+  switch (node.kind) {
+    case 'const':
+    case 'ref':
+    case 'string':
+      return true;
+    case 'binop':
+      return isPure(node.left) && isPure(node.right);
+    case 'unop':
+      return isPure(node.argument);
+    case 'index':
+      return isPure(node.index as IrExpr);
+    case 'stringLength':
+      return isPure(node.string);
+    case 'stringByte':
+      return isPure(node.string) && isPure(node.index as IrExpr);
+    default:
+      return false; // a call, or any kind this predicate doesn't know — assume it writes
+  }
 }
 
 function matchConstFill(node: IrStatement): { base: number; count: number; value: number } | null {
@@ -502,6 +550,74 @@ class Lowerer {
     throw new LowerError(`'${node.kind}' is '${node.type}' (${width} bytes): only an 8-bit value can widen into 16 bits`);
   }
 
+  /**
+   * A 16-bit value stored straight into the pair at `address`/`address+1`
+   * (staAddr: the pair may be a global above zero page). The temp-free
+   * shapes exprTo16 can't express: a constant is four (or three, when its
+   * two bytes agree) instructions with no pair allocated at all; a 16-bit
+   * ref copies byte-by-byte; an 8-bit unsigned value zero-extends in
+   * place. Everything else — and the narrow-signed/bool sources exprTo16
+   * refuses by name — evaluates through exprTo16 and copies out, exactly
+   * the emission every caller of this used to spell inline.
+   */
+  store16Into(node: IrExpr, address: number): void {
+    // An untyped node falls through to exprTo16, which refuses it by name
+    // — same defensive contract as before this shortcut existed.
+    const typed = node.type !== undefined && node.type !== null;
+    const narrowSigned = typed && storageBytes(node.type!) === 1 && (node.type === 'bool' || isSigned(node.type!));
+    if (isConstNum(node) && typed && !narrowSigned) {
+      const value = node.value! & 0xffff;
+      const lo = value & 0xff;
+      const hi = (value >> 8) & 0xff;
+      this.emit(ldaImm(lo), staAddr(address));
+      if (hi !== lo) this.emit(ldaImm(hi));
+      this.emit(staAddr(address + 1));
+      return;
+    }
+    if (node.kind === 'ref' && node.type && storageBytes(node.type) === 2) {
+      const src = this.binding(node.name!).address;
+      this.emit(ldaAddr(src), staAddr(address), ldaAddr(src + 1), staAddr(address + 1));
+      return;
+    }
+    if (node.kind === 'string') {
+      // A string literal's label address, straight into the pair — the
+      // same two immediate loads expr16's own 'string' case fills a temp
+      // with, minus the temp and the copy out of it.
+      const target = stringLabel(node.index as number);
+      this.emit(ldaImmLo(target), staAddr(address), ldaImmHi(target), staAddr(address + 1));
+      return;
+    }
+    if (node.kind === 'binop' && (node.operator === '+' || node.operator === '-') && node.type && storageBytes(node.type) === 2) {
+      // A 16-bit sum computes straight into the destination pair — see
+      // addSub16Into for why writing the target mid-chain can't corrupt
+      // an operand, even `score = score + x`'s own left side.
+      this.addSub16Into(node, address);
+      return;
+    }
+    if (node.type && storageBytes(node.type) === 1 && !narrowSigned) {
+      this.expr(node);
+      this.emit(staAddr(address), ldaImm(0), staAddr(address + 1));
+      return;
+    }
+    const mark = this.locals.mark();
+    const src = this.exprTo16(node);
+    this.emit(ldaZp(src), staAddr(address), ldaZp(src + 1), staAddr(address + 1));
+    this.locals.release(mark);
+  }
+
+  /** `x = x + 1` (and +2, -1, -2; either operand order for the commutative '+') as INC/DEC — strictly smaller and never slower than the load/add/store it replaces, with exactly the declared width's own wrap at the byte boundary. Only for a zero-page target: on a pinned hardware register a read-modify-write is not the same bus traffic as a load and a store. */
+  emitIncDec(target: string, binding: Binding, value: IrExpr): boolean {
+    if (binding.address > 0xff) return false;
+    if (value.kind !== 'binop' || (value.operator !== '+' && value.operator !== '-')) return false;
+    let amount: number | null = null;
+    if (isRefNamed(value.left, target) && isConstNum(value.right)) amount = value.right.value! & 0xff;
+    else if (value.operator === '+' && isConstNum(value.left) && isRefNamed(value.right, target)) amount = value.left.value! & 0xff;
+    if (amount === null || amount < 1 || amount > 2) return false;
+    const mnemonic = value.operator === '+' ? 'INC' : 'DEC';
+    for (let i = 0; i < amount; i++) this.emit(instr(mnemonic, 'zeropage', binding.address));
+    return true;
+  }
+
   // Addition/subtraction on two 16-bit operands, byte-by-byte with carry
   // chained from the low half into the high half — the standard 6502
   // multi-byte idiom. The result temp is allocated *before* the mark that
@@ -540,20 +656,51 @@ class Lowerer {
       throw new LowerError(`no 16-bit instruction-selection rule yet for the '${operator}' operator — only +, -, *, and constant-amount shifts are lowered at 16 bits`);
     }
     const result = this.alloc16(`a temporary for 16-bit '${operator}'`);
+    this.addSub16Into(node, result);
+    return result;
+  }
+
+  /**
+   * `left + right` / `left - right` at 16 bits, computed straight into the
+   * pair at `target` — a fresh temp (binop16) or a real destination
+   * (store16Into): the low store lands between reading the operands' low
+   * bytes and their HIGH bytes, which is safe even when `target` IS an
+   * operand (`score = score + x`): the pairs either coincide exactly or
+   * don't overlap at all (every pair is its own allocation), so the low
+   * write never touches a high byte still to be read.
+   */
+  addSub16Into(node: IrExpr, target: number): void {
+    const { operator, left, right } = node;
     const mark = this.locals.mark();
-    const leftAddr = this.exprTo16(left!);
-    const rightAddr = this.exprTo16(right!);
-    if (operator === '+') {
-      this.emit(instr('CLC', 'implied'));
-      this.emit(ldaZp(leftAddr), instr('ADC', 'zeropage', rightAddr), staZp(result));
-      this.emit(ldaZp(leftAddr + 1), instr('ADC', 'zeropage', rightAddr + 1), staZp(result + 1));
+    const carry = operator === '+' ? instr('CLC', 'implied') : instr('SEC', 'implied');
+    const mnemonic = operator === '+' ? 'ADC' : 'SBC';
+    // A constant side needs no pair of its own: ADC/SBC read its two bytes
+    // as immediates. (Two constant sides never reach here — the optimizer
+    // folds those.) The masked value is exact for a narrower constant of
+    // either signedness: & 0xffff zero-extends an unsigned byte and
+    // two's-complements a negative one, which is precisely what a 16-bit
+    // add/subtract of it means. A constant LEFT only helps '+' — SBC wants
+    // the left operand in A, and a subtrahend can't swap sides.
+    if (isConstNum(right)) {
+      const value = right.value! & 0xffff;
+      const leftAddr = this.exprTo16(left!);
+      this.emit(carry);
+      this.emit(ldaZp(leftAddr), instr(mnemonic, 'immediate', value & 0xff), staAddr(target));
+      this.emit(ldaZp(leftAddr + 1), instr(mnemonic, 'immediate', (value >> 8) & 0xff), staAddr(target + 1));
+    } else if (operator === '+' && isConstNum(left)) {
+      const value = left.value! & 0xffff;
+      const rightAddr = this.exprTo16(right!);
+      this.emit(carry);
+      this.emit(ldaZp(rightAddr), instr(mnemonic, 'immediate', value & 0xff), staAddr(target));
+      this.emit(ldaZp(rightAddr + 1), instr(mnemonic, 'immediate', (value >> 8) & 0xff), staAddr(target + 1));
     } else {
-      this.emit(instr('SEC', 'implied'));
-      this.emit(ldaZp(leftAddr), instr('SBC', 'zeropage', rightAddr), staZp(result));
-      this.emit(ldaZp(leftAddr + 1), instr('SBC', 'zeropage', rightAddr + 1), staZp(result + 1));
+      const leftAddr = this.exprTo16(left!);
+      const rightAddr = this.exprTo16(right!);
+      this.emit(carry);
+      this.emit(ldaZp(leftAddr), instr(mnemonic, 'zeropage', rightAddr), staAddr(target));
+      this.emit(ldaZp(leftAddr + 1), instr(mnemonic, 'zeropage', rightAddr + 1), staAddr(target + 1));
     }
     this.locals.release(mark);
-    return result;
   }
 
   // A 16-bit shift by a compile-time amount, into a fresh pair the shift
@@ -660,14 +807,44 @@ class Lowerer {
     if (storageBytes(entry.elementType) !== 1) {
       throw new LowerError(`storing into '${name}': a 2-byte array element isn't written yet — only 1-byte (utinyint/bool) elements are`);
     }
+    // A constant index — or a plain-ref index against a value that can't
+    // write it (isPure) — needs no temp: the value evaluates into A and Y
+    // takes the index directly afterward. That reorders the index READ
+    // after the value's evaluation, which is only the same program when
+    // the value can't have changed the index in between — hence the
+    // purity gate on the ref shape (a constant can't change at all).
+    const index = node.index!;
+    if (isConstNum(index) || (index.kind === 'ref' && index.type && storageBytes(index.type) === 1 && this.binding(index.name!).address <= 0xff && isPure(node.value as IrExpr))) {
+      this.expr(node.value! as IrExpr);
+      this.indexIntoY(index);
+      this.emit(instr('STA', 'absolute,y', undefined, arrayLabel(name)));
+      return;
+    }
     const mark = this.locals.mark();
     this.indexValue(node.index!);
-    const index = this.alloc(`a temporary for '${name}[...]'s own index`);
-    this.emit(staZp(index));
+    const temp = this.alloc(`a temporary for '${name}[...]'s own index`);
+    this.emit(staZp(temp));
     this.expr(node.value! as IrExpr);
-    this.emit(instr('LDY', 'zeropage', index));
+    this.emit(instr('LDY', 'zeropage', temp));
     this.emit(instr('STA', 'absolute,y', undefined, arrayLabel(name)));
     this.locals.release(mark);
+  }
+
+  /** The index straight into Y — LDY #const / LDY zp for the simple shapes, sparing A and the TAY; everything else evaluates into A and transfers. */
+  indexIntoY(node: IrExpr): void {
+    if (isConstNum(node)) {
+      this.emit(instr('LDY', 'immediate', node.value! & 0xff));
+      return;
+    }
+    if (node.kind === 'ref' && node.type && storageBytes(node.type) === 1) {
+      const address = this.binding(node.name!).address;
+      if (address <= 0xff) {
+        this.emit(instr('LDY', 'zeropage', address));
+        return;
+      }
+    }
+    this.indexValue(node);
+    this.emit(instr('TAY', 'implied'));
   }
 
   // An index expression, either width, into A. An array holds at most 256
@@ -690,8 +867,7 @@ class Lowerer {
   // A 1-byte element: the index is the byte offset outright.
   indexRead(node: IrExpr): void {
     const target = this.arrayTarget(node);
-    this.indexValue(node.index as IrExpr);
-    this.emit(instr('TAY', 'implied'));
+    this.indexIntoY(node.index as IrExpr);
     this.emit(instr('LDA', 'absolute,y', undefined, target));
   }
 
@@ -705,8 +881,13 @@ class Lowerer {
   // nothing on the PET's own critical path is anywhere near that size.
   indexRead16(node: IrExpr): number {
     const target = this.arrayTarget(node);
-    this.indexValue(node.index as IrExpr);
-    this.emit(instr('ASL', 'accumulator'), instr('TAY', 'implied'));
+    if (isConstNum(node.index as IrExpr)) {
+      // A constant index doubles at compile time; Y takes it directly.
+      this.emit(instr('LDY', 'immediate', ((node.index as IrExpr).value! * 2) & 0xff));
+    } else {
+      this.indexValue(node.index as IrExpr);
+      this.emit(instr('ASL', 'accumulator'), instr('TAY', 'implied'));
+    }
     const result = this.alloc16(`a temporary for reading '${node.array!.name}'`);
     this.emit(instr('LDA', 'absolute,y', undefined, target), staZp(result));
     this.emit(instr('INY', 'implied'));
@@ -741,8 +922,7 @@ class Lowerer {
       const param = target.params[i];
       if (param.width === 2) {
         const mark = this.locals.mark();
-        const addr = this.exprTo16(args[i]);
-        this.emit(ldaZp(addr), staZp(param.address), ldaZp(addr + 1), staZp(param.address + 1));
+        this.store16Into(args[i], param.address);
         this.locals.release(mark);
       } else {
         this.expr(args[i]);
@@ -806,6 +986,29 @@ class Lowerer {
     if (operator !== '+' && operator !== '-') {
       throw new LowerError(`no instruction-selection rule yet for the '${operator}' operator`);
     }
+    // A constant or plain-binding operand needs no temp at all: evaluate
+    // the other side into A and let ADC/SBC read the simple side directly.
+    // A simple RIGHT side always preserves left-then-right order (right is
+    // only *read*, at the ADC/SBC itself, after left evaluated). A simple
+    // LEFT side means evaluating right first, which is only the same
+    // program when right can't write left in between — a const can't be
+    // written at all, a ref demands a pure right (isPure's own contract).
+    const carry = operator === '+' ? instr('CLC', 'implied') : instr('SEC', 'implied');
+    const mnemonic = operator === '+' ? 'ADC' : 'SBC';
+    const rightSimple = this.simpleOperand(right!);
+    if (rightSimple) {
+      this.expr(left!);
+      this.emit(carry, instr(mnemonic, rightSimple.mode, rightSimple.value));
+      return;
+    }
+    if (operator === '+') {
+      const leftSimple = this.simpleOperand(left!);
+      if (leftSimple && (left!.kind === 'const' || isPure(right))) {
+        this.expr(right!);
+        this.emit(carry, instr(mnemonic, leftSimple.mode, leftSimple.value));
+        return;
+      }
+    }
     const mark = this.locals.mark();
     const temp = this.emitOperands(left!, right!, `'${operator}'`);
     if (operator === '+') {
@@ -817,6 +1020,26 @@ class Lowerer {
       this.emit(staZp(rightTemp), ldaZp(temp), instr('SEC', 'implied'), instr('SBC', 'zeropage', rightTemp));
     }
     this.locals.release(mark);
+  }
+
+  /** Whether the last instruction emitted left Z/N describing A — the gate on branching off a load's own flags instead of spending a CMP #0 (see SETS_FLAGS_FROM_A). A shift ends in accumulator mode; everything else consults the mnemonic set. */
+  lastSetsFlagsFromA(): boolean {
+    const d = this.program[this.program.length - 1];
+    // A trailing label is a branch target: another path may arrive with
+    // flags from an entirely different instruction, so nothing is known.
+    if (!d || d.kind !== 'instruction') return false;
+    if (d.mode === 'accumulator') return true; // ASL/LSR/ROL/ROR A
+    return SETS_FLAGS_FROM_A.has(d.mnemonic);
+  }
+
+  /** An 8-bit operand ADC/SBC/CMP/AND/ORA/EOR can read directly — a constant (immediate mode) or a plain binding (its own address) — or null when only a real evaluation into A will do. */
+  simpleOperand(node: IrExpr): { mode: AddressingMode; value: number } | null {
+    if (isConstNum(node)) return { mode: 'immediate', value: node.value! & 0xff };
+    if (node.kind === 'ref') {
+      const address = this.binding(node.name!).address;
+      return { mode: addrMode(address), value: address };
+    }
+    return null;
   }
 
   requireMultiply(): { a: number; b: number; result: number } {
@@ -866,14 +1089,16 @@ class Lowerer {
   // are runtime values.
   bitwise8(node: IrExpr): void {
     const mnemonic = node.operator === '&' ? 'AND' : node.operator === '|' ? 'ORA' : 'EOR';
-    if (isConstNum(node.right)) {
+    const rightSimple = this.simpleOperand(node.right!);
+    if (rightSimple) {
       this.expr(node.left!);
-      this.emit(instr(mnemonic, 'immediate', node.right.value! & 0xff));
+      this.emit(instr(mnemonic, rightSimple.mode, rightSimple.value));
       return;
     }
-    if (isConstNum(node.left)) {
+    const leftSimple = this.simpleOperand(node.left!);
+    if (leftSimple && (node.left!.kind === 'const' || isPure(node.right))) {
       this.expr(node.right!);
-      this.emit(instr(mnemonic, 'immediate', node.left.value! & 0xff));
+      this.emit(instr(mnemonic, leftSimple.mode, leftSimple.value));
       return;
     }
     const mark = this.locals.mark();
@@ -943,6 +1168,13 @@ class Lowerer {
 
   condition(node: IrExpr, target: string, wantTrue: boolean): void {
     if (node.type) require8Bit(node.type, `'${node.kind}'`);
+    if (isConstNum(node)) {
+      // A compile-time condition is a jump or nothing — `while (true)`'s
+      // own test, most commonly. The linker's optimizer folds constant
+      // `if`s away entirely; this catches the loop shapes it keeps.
+      if (((node.value! & 0xff) !== 0) === wantTrue) this.emit(jmp(target));
+      return;
+    }
     if (node.kind === 'unop' && node.operator === '!') {
       this.condition(node.argument!, target, !wantTrue);
       return;
@@ -1039,9 +1271,41 @@ class Lowerer {
     if (width !== 1) {
       throw new LowerError(`the '${node.operator}' comparison operates on a ${width}-byte type — only 1- and 2-byte comparisons are lowered yet`);
     }
-    const temp = this.emitOperands(node.left!, node.right!, `'${node.operator}'`);
-    this.emit(cmpZp(temp));
-    const plan = ORDER_BRANCH_IF_TRUE[operator];
+    // A constant or plain-binding operand: no temp, CMP reads it directly.
+    // With LEFT in A the flags describe (left - right) — the table read
+    // through MIRROR (see its own comment). With RIGHT in A — the simple
+    // side is the left one — the flags describe (right - left), which is
+    // ORDER_BRANCH_IF_TRUE's own native orientation. Reordering rules are
+    // binop's: a simple right always preserves left-then-right, a simple
+    // left needs a const (unwritable) or a pure right.
+    const rightSimple = this.simpleOperand(node.right!);
+    const leftSimple = this.simpleOperand(node.left!);
+    let plan: BranchPlan;
+    if (rightSimple) {
+      this.expr(node.left!);
+      if (rightSimple.mode === 'immediate' && rightSimple.value === 0 && EQUALITY_OPERATORS.has(operator) && this.lastSetsFlagsFromA()) {
+        // `x == 0` / `x != 0`, and whatever produced x left Z describing
+        // A already — branch straight off it, no CMP at all.
+        this.emit(branch(operator === '==' ? 'BEQ' : 'BNE', target));
+        this.locals.release(mark);
+        return;
+      }
+      this.emit(instr('CMP', rightSimple.mode, rightSimple.value));
+      plan = ORDER_BRANCH_IF_TRUE[MIRROR[operator]];
+    } else if (leftSimple && (node.left!.kind === 'const' || isPure(node.right))) {
+      this.expr(node.right!);
+      if (leftSimple.mode === 'immediate' && leftSimple.value === 0 && EQUALITY_OPERATORS.has(operator) && this.lastSetsFlagsFromA()) {
+        this.emit(branch(operator === '==' ? 'BEQ' : 'BNE', target));
+        this.locals.release(mark);
+        return;
+      }
+      this.emit(instr('CMP', leftSimple.mode, leftSimple.value));
+      plan = ORDER_BRANCH_IF_TRUE[operator];
+    } else {
+      const temp = this.emitOperands(node.left!, node.right!, `'${node.operator}'`);
+      this.emit(cmpZp(temp));
+      plan = ORDER_BRANCH_IF_TRUE[operator];
+    }
     if ('mnemonic' in plan) {
       this.emit(branch(plan.mnemonic, target));
     } else if ('double' in plan) {
@@ -1070,22 +1334,27 @@ class Lowerer {
 
   // ---- statements -------------------------------------------------------
 
-  block(body: IrStatement[]): { origin: string | null; program: Directive[] }[] {
+  // Ranges (indexes into this.program), not slices: lower() runs a
+  // peephole over the finished program before it materializes the parts,
+  // and an index range survives that where an eagerly-taken copy would
+  // silently disagree with the program's real bytes.
+  block(body: IrStatement[]): { origin: string | null; start: number; end: number }[] {
     const mark = this.locals.mark();
     const declared: Declared[] = [];
-    const parts: { origin: string | null; program: Directive[] }[] = [];
+    const ranges: { origin: string | null; start: number; end: number }[] = [];
     for (const statement of body) {
       const start = this.program.length;
       const result = this.statement(statement);
       if (result) declared.push(result);
-      parts.push({
+      ranges.push({
         origin: typeof statement.origin === 'string' ? statement.origin : null,
-        program: this.program.slice(start),
+        start,
+        end: this.program.length,
       });
     }
     this.unscope(declared);
     this.locals.release(mark);
-    return parts;
+    return ranges;
   }
 
   /** Puts every name a block's own locals shadowed back the way it found them — a global (or an outer block's own local of the same name) reached again once the shadow's scope ends, never left permanently unresolvable. */
@@ -1115,21 +1384,28 @@ class Lowerer {
         const binding = this.binding(node.target!);
         const width = storageBytes(binding.type);
         if (width === 2) {
-          const addr = this.exprTo16(node.value!);
-          this.emit(ldaZp(addr), staAddr(binding.address), ldaZp(addr + 1), staAddr(binding.address + 1));
+          const mark = this.locals.mark();
+          this.store16Into(node.value!, binding.address);
+          this.locals.release(mark);
         } else {
           require8Bit(binding.type, `assignment to '${node.target}'`);
-          this.expr(node.value!);
-          this.emit(staAddr(binding.address));
+          if (!this.emitIncDec(node.target!, binding, node.value!)) {
+            this.expr(node.value!);
+            this.emit(staAddr(binding.address));
+          }
         }
         return null;
       }
       case 'local': {
         const width = storageBytes(node.type!);
         if (width === 2) {
-          const addr = this.exprTo16(node.init as IrExpr);
+          // The local's own pair first, the initializer's temporaries above
+          // it — so they release cleanly (LIFO) instead of the temp sitting
+          // stranded beneath the local for the function's whole life.
           const address = this.alloc16(`local '${node.name}'`);
-          this.emit(ldaZp(addr), staZp(address), ldaZp(addr + 1), staZp(address + 1));
+          const mark = this.locals.mark();
+          this.store16Into(node.init as IrExpr, address);
+          this.locals.release(mark);
           const shadowed = this.symbols.get(node.name!);
           this.symbols.set(node.name!, { address, type: node.type! });
           return { name: node.name!, shadowed };
@@ -1179,8 +1455,7 @@ class Lowerer {
           // function's own fixed return pair (FunctionSite.returnPair),
           // widened from 8 bits the same way a wide call argument is.
           const mark = this.locals.mark();
-          const addr = this.exprTo16(node.value);
-          this.emit(ldaZp(addr), staZp(this.returnPair), ldaZp(addr + 1), staZp(this.returnPair + 1));
+          this.store16Into(node.value, this.returnPair);
           this.locals.release(mark);
         } else if (node.value) {
           const width = node.value.type ? storageBytes(node.value.type) : 1;
@@ -1337,13 +1612,100 @@ class Lowerer {
   }
 }
 
+/**
+ * The indexes of every JMP or conditional branch whose target label is the
+ * very next placed directive — a jump to where execution falls anyway,
+ * three (or two) bytes buying nothing. The common source is a `return` as
+ * a function's last statement: its jump to the exit label lands
+ * immediately after itself. Deleting one such jump can expose another
+ * (`JMP exit` just before an `endif:` that itself precedes `exit:`), so
+ * this iterates to a fixed point.
+ */
+function jumpsToNextLabel(program: Directive[]): Set<number> {
+  const removed = new Set<number>();
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (let i = 0; i < program.length; i++) {
+      if (removed.has(i)) continue;
+      const d = program[i];
+      if (d.kind !== 'instruction') continue;
+      const isJmp = d.mnemonic === 'JMP' && d.mode === 'absolute';
+      if (!isJmp && d.mode !== 'relative') continue;
+      if (!d.operand || d.operand.kind !== 'label') continue;
+      const target = d.operand.name;
+      for (let j = i + 1; j < program.length; j++) {
+        if (removed.has(j)) continue;
+        const next = program[j];
+        if (next.kind !== 'label') break;
+        if (next.name === target) {
+          removed.add(i);
+          changed = true;
+          break;
+        }
+      }
+    }
+  }
+  return removed;
+}
+
+/**
+ * Marks every `LDA` that provably reloads what the accumulator already
+ * holds: scanning backward over nothing but STA instructions (which change
+ * neither A nor the flags), the run is anchored by either the same LDA
+ * again, or by any flags-from-A instruction when one of those STAs wrote
+ * the very address being reloaded. Both cases leave A *and* the flags
+ * byte-for-byte identical without the reload, so downstream code that
+ * branches straight off a load's own flags (comparisonBranch's `== 0`
+ * shortcut) still sees exactly what it saw. Only immediate and zeropage
+ * operands qualify — an absolute LDA can be a hardware register whose READ
+ * is a side effect (the PET's own $E812 acknowledges the retrace flag),
+ * and every allocator-owned binding is zero page by construction.
+ */
+function redundantReloads(program: Directive[], removed: Set<number>): void {
+  type Instr = Extract<Directive, { kind: 'instruction' }>;
+  const sameOperand = (a: Instr, b: Instr): boolean =>
+    a.mode === b.mode && JSON.stringify(a.operand ?? null) === JSON.stringify(b.operand ?? null);
+  for (let i = 0; i < program.length; i++) {
+    if (removed.has(i)) continue;
+    const d = program[i];
+    if (d.kind !== 'instruction' || d.mnemonic !== 'LDA') continue;
+    if (d.mode !== 'immediate' && d.mode !== 'zeropage') continue;
+    let sawStaSame = false;
+    let anchor: Directive | null = null;
+    for (let j = i - 1; j >= 0; j--) {
+      if (removed.has(j)) continue;
+      const p = program[j];
+      // A label is a branch target: another path may arrive with any A.
+      if (p.kind !== 'instruction') break;
+      if (p.mnemonic === 'STA') {
+        if (d.mode === 'zeropage' && p.mode === 'zeropage' && sameOperand(p, d)) sawStaSame = true;
+        continue;
+      }
+      anchor = p;
+      break;
+    }
+    if (!anchor || anchor.kind !== 'instruction') continue;
+    const anchorFlagsFromA = anchor.mode === 'accumulator' || SETS_FLAGS_FROM_A.has(anchor.mnemonic);
+    if (!anchorFlagsFromA) continue;
+    if ((anchor.mnemonic === 'LDA' && sameOperand(anchor, d)) || sawStaSame) removed.add(i);
+  }
+}
+
 /** Lowers one function's body to a 6502 program. `options.globals`/`options.locals` come from the caller's own zero-page accounting (milestone 5's globals, this milestone's own locals budget beneath them). */
 export function lower(body: IrStatement[], options: LowerOptions): LowerResult {
   const lowerer = new Lowerer(options);
   try {
-    const parts = lowerer.block(body);
+    const ranges = lowerer.block(body);
     lowerer.emit(label(lowerer.exitLabel));
-    return { ok: true, program: lowerer.program, parts };
+    const removed = jumpsToNextLabel(lowerer.program);
+    redundantReloads(lowerer.program, removed);
+    const program = lowerer.program.filter((_, i) => !removed.has(i));
+    const parts = ranges.map(({ origin, start, end }) => ({
+      origin,
+      program: lowerer.program.slice(start, end).filter((_, offset) => !removed.has(start + offset)),
+    }));
+    return { ok: true, program, parts };
   } catch (error) {
     if (error instanceof LowerError || error instanceof ZpBudgetError) return { ok: false, error: error.message };
     throw error;

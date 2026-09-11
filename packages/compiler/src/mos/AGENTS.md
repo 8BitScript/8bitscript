@@ -606,3 +606,67 @@ differs so Z ends exact; orderings subtract in whichever direction makes
 the carry alone the answer (`left-right` for `<`/`>=`, `right-left` for
 `>`/`<=`) and never consult Z. Mixed widths zero-extend the narrower
 unsigned side through exprTo16, the same rule binop16's operands follow.
+
+## 0.2.3: what fitting 2048 on a 4K PET forced
+
+The 2001's 4K profile is 3071 bytes of program space above the BASIC
+stub, and the 2048 game measured 4005 — 943 bytes over. The naive
+tree-walk emission was the whole gap: every operand bounced through a
+zero-page temp even when ADC/CMP could have read it directly. The fixes
+below took the same game to 2930 bytes; every one of them is strictly
+fewer bytes AND fewer cycles, so none is a size/speed trade.
+
+**Simple operands read directly (`simpleOperand`).** A constant or a
+plain binding on the right of `+`/`-`/`&`/`|`/`^` or a comparison is an
+immediate/zero-page operand of the one instruction that consumes it —
+no temp, no copy. A simple RIGHT side always preserves left-then-right
+evaluation order (the right side is only *read*, at the consuming
+instruction itself). A simple LEFT side means evaluating right first,
+allowed only when left is a const (unwritable) or right is pure
+(`isPure`: no call anywhere inside — a call can write any global). The
+comparison table's orientation flips with the operand order: left in A
+means the flags describe (left - right), which is the same
+`ORDER_BRANCH_IF_TRUE` read through `MIRROR` (`<` ↔ `>`, `<=` ↔ `>=`).
+
+**`x == 0` branches off the load's own flags — when provable.** Z
+already describes A after LDA/ADC/AND/… (`SETS_FLAGS_FROM_A`), so the
+CMP #0 is dead — but only when the operand's LAST emitted instruction
+is one of those. A JSR is not trusted; `%`'s subtraction loop ends on
+its own CMP whose Z describes (A - bound), not A — x=6 exits `% 3`
+with A=0 and Z *clear*, so branching off Z there would answer
+"6 % 3 != 0" (caught in design, locked in by a test). A trailing label
+is also refused: a branch target's flags can arrive from anywhere.
+
+**Destinations are written directly, not through temps.**
+`store16Into` puts a 16-bit constant (two immediates, one LDA when the
+bytes agree), a string label's address, a widened 8-bit value, or a
+16-bit `+`/`-` chain (`addSub16Into`) straight into the target pair —
+an assignment, a call argument, a local's init, a 16-bit return. In-
+place `score = score + x` is sound because the low-byte store lands
+between the low reads and the HIGH reads, and two pairs either coincide
+exactly or don't overlap at all. A 16-bit local now allocates its own
+pair FIRST so its initializer's temps release above it (LIFO) instead
+of stranding a pair beneath it for the function's life.
+
+**Two peepholes run in `lower()` before parts are sliced.**
+`jumpsToNextLabel` deletes a JMP/branch whose target label immediately
+follows (a function's final `return`, mostly), iterated to a fixed
+point. `redundantReloads` deletes an LDA that provably reloads what A
+still holds: backward over nothing but STAs (which preserve A and
+flags), anchored by the same LDA again or by any flags-from-A
+instruction when one of those STAs wrote the reloaded address — so
+both A and the flags are byte-identical without it, and the `== 0`
+shortcut above stays sound. Only immediate/zeropage LDAs qualify: an
+absolute LDA can be a hardware register whose read is a side effect
+($E812 acknowledges the PET's retrace flag). `block()` returns index
+RANGES rather than eager slices precisely so the size report's parts
+are taken after deletion and still sum to the real bytes.
+
+**The rest.** `i = i + 1`/`- 1`/`± 2` on an 8-bit zp binding is
+INC/DEC (a pinned register is excluded: RMW is different bus traffic).
+A constant condition emits a jump or nothing — `while (true)` pays
+zero per iteration. Array indexes that are consts or plain bindings
+load Y directly (LDY #n / LDY zp), a const index on a 2-byte-element
+array doubles at compile time, and `storeIndex` skips its index temp
+when the index is a const or the value is pure. Global initializers
+group by value — one LDA #0 serves every zeroed global's STA.
