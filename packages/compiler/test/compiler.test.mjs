@@ -318,6 +318,8 @@ test('imports lower to records for the linker, not to failures', () => {
 // ---- linker (each case materialises a real module graph on disk) ----------
 
 import { link } from '../index.mjs';
+import { optimizeReachable } from '../src/linker/optimize.mjs';
+import { stockFacts } from '../../cli/src/hardware.mjs';
 import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 
@@ -453,6 +455,7 @@ test('a call to a name that resolves to nothing is 8BS2007', () => {
 
 const STUDIO_ENTRY = join(HERE, '..', '..', 'studio', 'src', 'main.8bs');
 const SCREEN_CONSUMER = 'import { screen } from "@8bitscript/screen";\nexport function main(): void { screen.setColors(6, 0); }';
+const SETCOLOR_CONSUMER = 'import { text, TextColor } from "@8bitscript/text";\nexport function main(): void {\n    text.setColor(TextColor.WHITE);\n    text.print(0, "HI");\n}';
 
 test('a conditional entry resolves to the vic20 implementation', () => {
   const { ir, diagnostics } = link(SCREEN_CONSUMER, STUDIO_ENTRY, { machine: 'vic20' });
@@ -474,6 +477,19 @@ test('the same entry resolves to the web implementation', () => {
   assert.deepEqual(diagnostics, []);
   assert.ok(ir.functions.some((f) => f.name === 'screen_setColors'));
   assert.ok(!ir.globals.some((g) => g.name === 'vicColor' || g.name === 'borderColor'));
+});
+
+test('text.setColor is dropped on a machine with no per-cell color, and kept where color RAM exists', () => {
+  const pet = link(SETCOLOR_CONSUMER, STUDIO_ENTRY, { machine: 'pet', facts: stockFacts('pet') });
+  assert.deepEqual(pet.diagnostics, []);
+  const petOut = optimizeReachable(pet.ir);
+  assert.ok(!petOut.functions.some((f) => f.name === 'text_setColor'), 'PET must not keep setColor');
+  assert.ok(!petOut.globals.some((g) => g.name === 'currentColor'), 'PET must not keep currentColor');
+
+  const c64 = link(SETCOLOR_CONSUMER, STUDIO_ENTRY, { machine: 'c64', facts: stockFacts('c64') });
+  assert.deepEqual(c64.diagnostics, []);
+  const c64Out = optimizeReachable(c64.ir);
+  assert.ok(c64Out.functions.some((f) => f.name === 'text_setColor'), 'C64 must keep setColor');
 });
 
 test('a machine the entry has no branch for is 8BS3002', () => {
