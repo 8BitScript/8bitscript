@@ -1,7 +1,7 @@
 {
   "name": "@8bitscript/examples",
   "version": "0.5.0",
-  "description": "The example programs that ship with the toolchain: hello-world, the 0.2.0 goal program, listed in the editor's launcher beside your own projects.",
+  "description": "The example programs that ship with the toolchain: hello-world, the 0.2.0 goal program, and joystick, the controller test app — listed in the editor's launcher beside your own projects.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -15,19 +15,27 @@
         "title": "Hello, World",
         "dir": "./hello-world",
         "description": "screen.blank() then text.print(0, \"Hello World!\") through the portable screen and text packages. The 0.2.0 goal program, and the one this toolchain is built to run first — on the PET and in the browser."
+      },
+      "joystick": {
+        "title": "Joystick",
+        "dir": "./joystick",
+        "description": "The controller test app: a labelled map of everything @8bitscript/input exposes — UP, DOWN, LEFT, RIGHT, CONFIRM, CANCEL — with a lamp on each that flashes when that control is pressed, a running count of every press seen, and a frame counter that says the loop is live. Run it first on a machine whose input layer is new or suspect."
       }
     }
   },
   "files": [
     "hello-world",
+    "joystick",
     "README.md"
   ],
   "scripts": {
     "test": "node --test"
   },
   "dependencies": {
+    "@8bitscript/input": "workspace:*",
     "@8bitscript/pet": "workspace:*",
     "@8bitscript/screen": "workspace:*",
+    "@8bitscript/system": "workspace:*",
     "@8bitscript/text": "workspace:*",
     "@8bitscript/web": "workspace:*"
   },

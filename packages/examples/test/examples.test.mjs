@@ -48,8 +48,8 @@ const targetsOf = (dir) => {
   return [...body.matchAll(/(\w+):\s*\{/g)].map((m) => m[1]);
 };
 
-test('the manifest lists hello-world, a directory with a real project in it', () => {
-  assert.deepEqual(Object.keys(examples), ['hello-world']);
+test('the manifest lists every example, each a directory with a real project in it', () => {
+  assert.deepEqual(Object.keys(examples), ['hello-world', 'joystick']);
   for (const [name, entry] of Object.entries(examples)) {
     assert.equal(typeof entry.title, 'string', `${name}: title`);
     assert.equal(typeof entry.description, 'string', `${name}: description`);
@@ -65,15 +65,51 @@ test('the CLI depends on the examples, so they ship with the toolchain', () => {
   assert.equal(pkg.version, cli.version, 'one version across the workspace');
 });
 
-test('hello-world targets every machine this release builds for', () => {
-  assert.deepEqual(targetsOf(resolve(ROOT, examples['hello-world'].dir)), ['pet', 'c64', 'vic20', 'c128', 'cx16', 'mega65', 'atari8', 'nes', 'web']);
+// Every machine this release builds for, in the order the configs list
+// them. Both examples target all nine and both link for all nine — the
+// earlier seven-target loop here predated atari8 and nes having native
+// backends and was never widened; checked 2026-09-12 by linking
+// hello-world for those two by hand before adding them.
+const TARGETS = ['pet', 'c64', 'vic20', 'c128', 'cx16', 'mega65', 'atari8', 'nes', 'web'];
+
+for (const name of Object.keys(examples)) {
+  test(`${name} targets every machine this release builds for`, () => {
+    assert.deepEqual(targetsOf(resolve(ROOT, examples[name].dir)), TARGETS);
+  });
+
+  for (const target of TARGETS) {
+    test(`${name} links clean for ${target}`, () => {
+      const main = join(resolve(ROOT, examples[name].dir), 'src', 'main.8bs');
+      const { ir, diagnostics } = link(readFileSync(main, 'utf8'), main, { machine: target, facts: stockFacts(target) });
+      assert.deepEqual(diagnostics, []);
+      assert.equal(ir.entry, 'main');
+    });
+  }
+}
+
+// joystick is the controller test app, and the two machines it has to fit
+// are the ones with no room to spare: the stock 4K PET 2001 and the
+// unexpanded VIC-20. `link` does not lay out an image, so this is not a
+// size check — it is the guard that those two budgets stay written down
+// where someone changing the example will see them, next to the measured
+// sizes in its own header (2298 bytes on the PET, 2414 on the VIC-20 as
+// of 2026-09-12). A change that pushes either past its fact fails at
+// `8bs build`, not here.
+test('the tightest machines joystick claims still declare the budgets it was measured against', () => {
+  assert.equal(stockFacts('pet')['memory.ram'], 3071, 'the stock PET 2001 is 4K, minus what BASIC keeps');
+  assert.equal(stockFacts('vic20')['memory.ram'], 3583, 'the unexpanded VIC-20');
 });
 
-for (const target of ['pet', 'c64', 'vic20', 'c128', 'cx16', 'mega65', 'web']) {
-  test(`hello-world links clean for ${target}`, () => {
-    const main = join(ROOT, 'hello-world', 'src', 'main.8bs');
-    const { ir, diagnostics } = link(readFileSync(main, 'utf8'), main, { machine: target, facts: stockFacts(target) });
-    assert.deepEqual(diagnostics, []);
-    assert.equal(ir.entry, 'main');
-  });
-}
+// The lamps are reverse video, never colour, because three of the nine
+// targets have no per-cell colour at all (PET, Atari 8-bit, NES — see
+// packages/ui/AGENTS.md). A future edit that moves the highlight into
+// text.setColor would still build and still link, and would simply show
+// nothing on those three; this is what notices.
+test('joystick highlights with reverse video, not colour alone', () => {
+  const main = readFileSync(join(ROOT, 'joystick', 'src', 'main.8bs'), 'utf8');
+  assert.match(main, /text\.setReverse\(true\)/, 'a lit lamp is a reverse-video bar');
+  const colourless = ['pet', 'atari8', 'nes'];
+  for (const target of colourless) {
+    assert.equal(stockFacts(target)['video.colorPerCell'], false, `${target} has no per-cell colour`);
+  }
+});
