@@ -463,15 +463,15 @@ test('build() for a parked machine says so, names the machine, and writes nothin
   const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
   try {
     const outFile = join(scratch, 'out.prg');
-    // The C64 is no longer one — it has a zero-page budget on the sheet
-    // now — so this asks about a machine that still is. Refused BY NAME,
-    // and naming the machines that do build, rather than a bare "not
-    // implemented" a reader has to go looking to understand.
-    const result = await build(ir, { machine: 'c128', hardware, outFile, frameRate: 60 });
+    // The Commodores are no longer parked — they have zero-page budgets on
+    // the sheet now — so this asks about a machine that still is. Refused
+    // BY NAME, and naming the machines that do build, rather than a bare
+    // "not implemented" a reader has to go looking to understand.
+    const result = await build(ir, { machine: 'mega65', hardware, outFile, frameRate: 60 });
     assert.equal(result.ok, false);
-    assert.match(result.ok ? '' : result.error, /c128/);
+    assert.match(result.ok ? '' : result.error, /mega65/);
     assert.match(result.ok ? '' : result.error, /zero-page budget/);
-    assert.match(result.ok ? '' : result.error, /pet, c64/);
+    assert.match(result.ok ? '' : result.error, /pet, c64, vic20, c128/);
     assert.doesNotMatch(result.ok ? '' : result.error, /not implemented/);
     assert.equal(existsSync(outFile), false);
   } finally {
