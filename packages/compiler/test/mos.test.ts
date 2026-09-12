@@ -1116,6 +1116,12 @@ for (const [machine, registers] of [
   // LDA $9004 / CMP #64 — the VIC-I counts in twos and never approaches a
   // wrap, so one byte decides the half.
   ['vic20', { poll: [0xad, 0x04, 0x90], second: [0xc9, 0x40] }],
+  // The C128's VIC-IIe answers the same two registers the C64's VIC-II
+  // does, and FRAME_SYNC records their ratios identically — so this case
+  // is here to prove that sameness is real rather than assumed, and that
+  // the C128 really does get a raster runtime of its own rather than
+  // falling through to the PET's timer.
+  ['c128', { poll: [0xad, 0x12, 0xd0], second: [0x0d, 0x11, 0xd0] }],
 ] as const) {
   test(`waitFrame() on the ${machine} polls its own raster and carries both regions' per-frame credit`, async () => {
     const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
