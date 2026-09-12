@@ -6,10 +6,12 @@
 import { screen } from "@8bitscript/screen";
 import { text } from "@8bitscript/text";
 
+// Prints, then returns. There is no holding loop: main() falling off its
+// end lands back in the BASIC SYS that started it, which prints READY. —
+// the greeting stays on screen above the prompt, and the machine is given
+// back in the character set it was launched in (`restoreOnExit`, on by
+// default; see 8bitscript.config.ts).
 export function main(): void {
     screen.blank();
     text.print(0, "Hello World!");
-    while (true) {
-        waitFrame();
-    }
 }

@@ -4,7 +4,18 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { loadConfig, resolveFrameRate } from '../src/config.mjs';
+import { loadConfig, resolveFrameRate, resolveRestoreOnExit } from '../src/config.mjs';
+
+test('resolveRestoreOnExit defaults to true, takes a boolean, and names anything else', () => {
+  assert.deepEqual(resolveRestoreOnExit(null), { ok: true, restoreOnExit: true });
+  assert.deepEqual(resolveRestoreOnExit({}), { ok: true, restoreOnExit: true }, 'a project that never mentions it gets the polite behavior');
+  assert.deepEqual(resolveRestoreOnExit({ restoreOnExit: false }), { ok: true, restoreOnExit: false });
+  assert.deepEqual(resolveRestoreOnExit({ restoreOnExit: true }), { ok: true, restoreOnExit: true });
+  const bad = resolveRestoreOnExit({ restoreOnExit: 'yes' });
+  assert.equal(bad.ok, false);
+  if (bad.ok) return;
+  assert.match(bad.error, /must be true or false, got "yes"/);
+});
 
 test('resolveFrameRate defaults to 60, accepts a positive integer, and names anything else', () => {
   assert.deepEqual(resolveFrameRate(null), { ok: true, frameRate: 60 });

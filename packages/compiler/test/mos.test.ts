@@ -75,6 +75,68 @@ test('build() for the PET writes a 15-byte .prg for an empty program: load addre
   }
 });
 
+// A program that selects a character set, the way @8bitscript/pet/text's
+// own prepare() does: one store of $0E to the VIA PCR at $E84C.
+const selectsTextSetIr: IrProgram = {
+  entry: 'main',
+  functions: [{
+    name: 'main',
+    body: [{
+      kind: 'memoryWrite',
+      address: { kind: 'const', value: 0xe84c, type: 'usmallint' },
+      value: { kind: 'const', value: 0x0e, type: 'utinyint' },
+    }],
+  }],
+  globals: [],
+};
+
+test('build() gives the character set back: a program that writes $E84C is wrapped in a save/restore, and pays eight bytes for it', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+  try {
+    const restored = await build(selectsTextSetIr, { machine: 'pet', hardware, outFile: join(scratch, 'on.prg'), frameRate: 60 });
+    const left = await build(selectsTextSetIr, { machine: 'pet', hardware, outFile: join(scratch, 'off.prg'), frameRate: 60, restoreOnExit: false });
+    assert.equal(restored.ok, true);
+    assert.equal(left.ok, true);
+    if (!restored.ok || !left.ok) return;
+
+    // LDA $E84C / PHA before the body, PLA / STA $E84C before the RTS:
+    // four bytes each side, and no RAM cell at all — the saved byte rides
+    // the CPU stack (mos/startup/commodore.ts).
+    assert.equal(restored.bytes.length - left.bytes.length, 8);
+    assert.equal(restored.memory.variables, left.memory.variables, 'the saved byte costs no RAM');
+
+    const code = [...restored.bytes];
+    const save = [0xad, 0x4c, 0xe8, 0x48]; // LDA $E84C ; PHA
+    const give = [0x68, 0x8d, 0x4c, 0xe8, 0x60]; // PLA ; STA $E84C ; RTS
+    const at = (needle: number[]) => code.findIndex((_, i) => needle.every((b, j) => code[i + j] === b));
+    assert.ok(at(save) >= 0, 'the prologue takes a copy of the register');
+    assert.ok(at(give) > at(save), 'and the epilogue writes it back, immediately before returning to BASIC');
+
+    // Default is on: a build that never mentions restoreOnExit restores.
+    assert.notDeepEqual([...left.bytes], code);
+    assert.equal(at.call(null, save) >= 0, true);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('build() charges nothing for restoring a character set the program never selects', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+  try {
+    const on = await build(helloWorldIr, { machine: 'pet', hardware, outFile: join(scratch, 'on.prg'), frameRate: 60 });
+    const off = await build(helloWorldIr, { machine: 'pet', hardware, outFile: join(scratch, 'off.prg'), frameRate: 60, restoreOnExit: false });
+    assert.equal(on.ok, true);
+    assert.equal(off.ok, true);
+    if (!on.ok || !off.ok) return;
+    // The fixture writes screen RAM directly and never touches $E84C, so
+    // the two builds are byte-identical: the setting only reaches a
+    // program that actually changes the character set.
+    assert.deepEqual([...on.bytes], [...off.bytes]);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
 test('build() only returns a sizeReport when options.report asks for one, and it always sums to the real bytes.length', async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
   try {
@@ -1219,22 +1281,39 @@ test('the real hello-world on the 2001 leaves BASIC 1 CHRGET ($C2-$D9) alone so 
   // 77/101 before linker/reachability.mjs: hello-world's own real zp cost
   // used to include every unreached helper @8bitscript/text and
   // @8bitscript/screen declare. After folding print of a literal into
-  // stores, inlining PET blank (its color args are unused), a zp-free
-  // screen fill, and waitFrame's 8-byte window, 8 is what the program
-  // actually, provably touches — waitFrame's own state, nothing else —
-  // and at 8 bytes, allocation from $8E never reaches as far as the hole
-  // at $C2 (that needs the 52nd byte), so the 2001 and the 3032 now
-  // allocate identically: the hole was there to skip, and this program
-  // is small enough not to run into it. The skip logic itself — given a
-  // program that actually does reach that far — is its own test, right
-  // below.
-  assert.equal(on3032, 8, 'BASIC 2 CHRGET is below $8E — no hole, 8 bytes of real slots');
+  // stores, inlining PET blank (its color args are unused) and a zp-free
+  // screen fill, what the program provably touches is nothing at all —
+  // 8 until it stopped ending in a `while (true) waitFrame()` holding
+  // loop, which was the only owner of zero page it had. Either way the
+  // point of this test holds the same way: allocation from $8E never
+  // reaches the hole at $C2 (that needs the 52nd byte), so the 2001 and
+  // the 3032 allocate identically — the hole is there to skip, and this
+  // program is small enough not to run into it. The skip logic itself —
+  // given a program that actually does reach that far — is its own test,
+  // right below.
+  assert.equal(on3032, 0, 'a print-and-return hello-world owns no zero page at all');
   assert.equal(on2001, on3032, 'pruned hello-world never allocates as far as $C2 — nothing to skip');
 });
 
 test('--size still names inlined callees and splits wait-frame setup from the per-frame routine', async () => {
+  // Deliberately its own source rather than the shipped hello-world: the
+  // two buckets this test exists to tell apart only exist in a program
+  // that calls waitFrame(), and an example is a sample program whose shape
+  // is free to change (it stopped holding the machine in a loop in 0.4.2).
+  // The path is still a real file in the examples package so the import
+  // specifiers below resolve exactly the way they do for a real project.
   const main = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'examples', 'hello-world', 'src', 'main.8bs');
-  const src = readFileSync(main, 'utf8');
+  const src = `import { screen } from "@8bitscript/screen";
+import { text } from "@8bitscript/text";
+
+export function main(): void {
+    screen.blank();
+    text.print(0, "Hello World!");
+    while (true) {
+        waitFrame();
+    }
+}
+`;
   const resolved = resolveHardware(loadCatalog('pet'), { profile: '3032' });
   assert.ok(resolved.ok, resolved.ok ? '' : resolved.error);
   const { ir, diagnostics } = link(src, main, { machine: 'pet', facts: resolved.hardware.facts });
