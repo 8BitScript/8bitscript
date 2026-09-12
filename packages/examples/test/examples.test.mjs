@@ -65,11 +65,11 @@ test('the CLI depends on the examples, so they ship with the toolchain', () => {
   assert.equal(pkg.version, cli.version, 'one version across the workspace');
 });
 
-test('hello-world targets the PET and the web', () => {
-  assert.deepEqual(targetsOf(resolve(ROOT, examples['hello-world'].dir)), ['pet', 'web']);
+test('hello-world targets every machine this release builds for', () => {
+  assert.deepEqual(targetsOf(resolve(ROOT, examples['hello-world'].dir)), ['pet', 'c64', 'vic20', 'web']);
 });
 
-for (const target of ['pet', 'web']) {
+for (const target of ['pet', 'c64', 'vic20', 'web']) {
   test(`hello-world links clean for ${target}`, () => {
     const main = join(ROOT, 'hello-world', 'src', 'main.8bs');
     const { ir, diagnostics } = link(readFileSync(main, 'utf8'), main, { machine: target, facts: stockFacts(target) });

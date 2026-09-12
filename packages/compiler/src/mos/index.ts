@@ -331,7 +331,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // exact fraction of a known crystal (FRAME_SYNC below). Until that is
   // written, a program that calls waitFrame() on one of those machines is
   // refused by name rather than built against the wrong chip.
-  if (needsWaitFrame && options.machine !== 'pet') {
+  if (needsWaitFrame && options.machine !== 'pet' && options.machine !== 'c64' && options.machine !== 'vic20') {
     return {
       ok: false,
       error: `waitFrame() has no runtime on the ${options.machine} yet: its frame sync is the PET's VIA retrace flag, and the ${options.machine}'s own raster poll is not written. A program that draws once and returns builds today; one that paces itself does not`,
@@ -574,8 +574,8 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // are initialized and before the entry function's own body (which may
   // itself call waitFrame() first thing); the subroutine rides alongside
   // every other function's own body, after the entry falls through to BASIC.
-  const waitFrameSetupProgram = needsWaitFrame ? waitFrameSetup(options.frameRate, waitFrameAcc, waitFrameNum) : [];
-  const waitFrameRoutineProgram = needsWaitFrame ? waitFrameRoutine(waitFrameAcc, waitFrameNum) : [];
+  const waitFrameSetupProgram = needsWaitFrame ? waitFrameSetup(options.frameRate, waitFrameAcc, waitFrameNum, options.machine) : [];
+  const waitFrameRoutineProgram = needsWaitFrame ? waitFrameRoutine(waitFrameAcc, waitFrameNum, options.machine) : [];
   const multiplyProgram = multiply ? multiplyRoutine(multiply) : [];
   const needsCld = usesDecimalSensitiveMath([...everyInstruction, ...waitFrameSetupProgram, ...waitFrameRoutineProgram, ...multiplyProgram]);
   // A waitFrame() program's zero-page budget includes bytes the KERNAL's

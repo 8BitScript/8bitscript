@@ -1,21 +1,25 @@
-// Hello, World: the 0.2.0 goal program, and the only example that ships
-// today. One source file, built for both machines this release supports —
-// @8bitscript/text resolves to the PET's own text package on a PET build
-// and to the web's on a web build, so nothing here names either machine.
+// Hello, World: the goal program, and the only example that ships today.
+// One source file, built for every machine this release supports —
+// @8bitscript/text resolves to the PET's own text package on a PET build,
+// the C64's on a C64 build, the web's on a web build, so nothing here names
+// any of them.
 export default {
   entry: 'src/main.8bs',
   // The greeting is written `"Hello World!"` and reaches the screen as
-  // exactly that: @8bitscript/pet/text draws in the PET's text character
-  // set, the only one that holds both cases of the alphabet, and selects
-  // it on the models that boot into the graphics set instead. Nothing
-  // selects it back on the way out — that bit is retroactive, so putting
-  // it back re-renders the greeting it was switched for. A 3032 therefore
-  // ends at a lower-case `ready.`; a 2001 and an 8032 end exactly as they
-  // started. See packages/pet/src/text.8bs.
-  targets: { pet: {}, web: {} },
+  // exactly that on every one of these. Each Commodore's text package draws
+  // in the machine's mixed-case character set — the only set that holds
+  // both cases of the alphabet, so the only one that can — and selects it
+  // where the machine did not boot into it. Nothing selects it back on the
+  // way out: that bit is retroactive, so putting it back would re-render
+  // the greeting it was switched for. A PET 3032 and a VIC-20 therefore end
+  // at a lower-case `ready.`; a PET 2001 and an 8032 end exactly as they
+  // started. See packages/pet/src/text.8bs for the long version.
+  targets: { pet: {}, c64: {}, vic20: {}, web: {} },
   systems: {
     'PET 3032': { target: 'pet', profile: '3032' },
     'PET 8032': { target: 'pet', profile: '8032' },
+    'Commodore 64': { target: 'c64' },
+    'VIC-20': { target: 'vic20' },
     'The browser': { target: 'web' },
   },
 };

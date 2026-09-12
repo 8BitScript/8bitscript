@@ -5,8 +5,8 @@
 // target's mechanism differs; see emulator-smoke.test.mjs for the same
 // skip convention this file follows.
 //
-// Only pet actually builds in this release (0.2.0 builds for pet and web
-// only, per RELEASE_MACHINES in build.mjs); the other seven targets are
+// pet, c64 and vic20 actually build in this release, alongside web (per
+// RELEASE_MACHINES in build.mjs); the remaining five targets are
 // "parked" and refuse before ever touching an emulator, so their cases here
 // assert that refusal — deterministic, no emulator required, and real
 // coverage of run.mjs's parked-target branch — rather than skip. web is a
@@ -77,7 +77,7 @@ async function withProbe(fn) {
   }
 }
 
-const PARKED_TARGETS = ['vic20', 'c64', 'c128', 'atari8', 'nes', 'cx16', 'mega65'];
+const PARKED_TARGETS = ['c128', 'atari8', 'nes', 'cx16', 'mega65'];
 
 for (const target of PARKED_TARGETS) {
   test(`${target}: --screenshot refuses to build — parked until a later release`, async () => {
@@ -87,10 +87,23 @@ for (const target of PARKED_TARGETS) {
       assert.notEqual(code, 0, `expected ${target} to refuse:\n${stdout}${stderr}`);
       assert.match(
         stderr,
-        /is not a target in this release\. 0\.2\.0 builds for pet and web only/,
+        /is not a target in this release\. This release builds for pet, c64, vic20 and web/,
         `unexpected refusal message for ${target}:\n${stderr}`,
       );
       assert.equal(existsSync(shot), false, `${target} should not have written a screenshot`);
+    });
+  });
+}
+
+for (const [target, emulator] of [['c64', 'x64sc'], ['vic20', 'xvic']]) {
+  test(`${target}: --screenshot produces a PNG via ${emulator}`, async (t) => {
+    if (!onPath(emulator)) { t.skip(`${emulator} not on PATH`); return; }
+    await withProbe(async (scratch, entry) => {
+      const shot = join(scratch, 'out.png');
+      const { code, stdout, stderr } = await runCli(['run', target, entry, '--screenshot', shot], { timeoutMs: 120_000 });
+      assert.equal(code, 0, `8bs run ${target} --screenshot failed:\n${stdout}${stderr}`);
+      assert.ok(existsSync(shot), `no screenshot written:\n${stdout}${stderr}`);
+      assert.ok(isPng(shot), 'output is not a valid PNG');
     });
   });
 }
