@@ -20,7 +20,8 @@ export { NodeType, walk } from './src/ast/index.mjs';
 export { check } from './src/checker/index.mjs';
 export { foldCompileTime, DURATION_CLOCKS, DURATION_UNITS, SYSTEMS } from './src/fold/index.mjs';
 export {
-  FACTS, PROGRAM_FACTS, factConstName, factPlaceholder, factProblems,
+  FACTS, PROGRAM_FACTS, LOGICAL_CONTROLS, CONTROLLER_KINDS, controllerKind,
+  factConstName, factPlaceholder, factProblems,
   requiresProblems, unmetRequirements,
 } from './src/fold/facts.mjs';
 export { lower, entryOf } from './src/ir/index.mjs';

@@ -115,6 +115,27 @@ test('targets: dispatches to src/targets.mjs', async () => {
   assert.ok(Array.isArray(parsed.targets) && parsed.targets.length > 0);
 });
 
+test('a command that prints more than a pipe holds is not cut off at 64KB', async () => {
+  // `process.exit()` abandons a pending write, and a pipe stops accepting
+  // at 65536 bytes. The catalogs grew past that, so `8bs targets --json`
+  // started handing its readers — the editor among them — JSON that ended
+  // mid-string, with an exit code of 0 to say all was well. bin/8bs.mjs
+  // drains stdout before it exits; this is the assertion that it still
+  // does, and it is written against the size rather than against targets
+  // because any command that outgrows a pipe has the same problem.
+  const { code, stdout } = await runCli(['targets', '--json']);
+  assert.equal(code, 0);
+  assert.ok(stdout.length > 65536, `the output is only ${stdout.length} bytes; this no longer tests a truncation`);
+  assert.doesNotThrow(() => JSON.parse(stdout), 'stdout was cut short');
+});
+
+test('controller: dispatches to src/controller.mjs', async () => {
+  // --list is the branch that touches no port and opens no browser.
+  const { code, stdout } = await runCli(['controller', '--list']);
+  assert.equal(code, 0);
+  assert.match(stdout, /nothing here can see a pad/);
+});
+
 test('setup: dispatches to src/setup.mjs', async () => {
   const { code, stderr } = await runCli(['setup']);
   assert.equal(code, 2);

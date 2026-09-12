@@ -339,7 +339,8 @@ test('the machines with a region are one set, and a system may only pin one for 
 // can read (a fact is never missing), every fact anywhere in a catalog is
 // a key the compiler knows with a value of its type, and the CLI's stock
 // sheet is the catalog's own merged for its defaults.
-import { FACTS, PROGRAM_FACTS, factProblems } from '@8bitscript/compiler';
+import { FACTS, PROGRAM_FACTS, LOGICAL_CONTROLS, controllerKind, factProblems } from '@8bitscript/compiler';
+import { CONTROLS } from '../src/controllers.mjs';
 import { projectHardware, stockFacts } from '../src/hardware.mjs';
 
 test('every catalog declares every program fact for the stock machine, and only known facts anywhere', () => {
@@ -561,6 +562,136 @@ test('storage.save and storage.kib agree on every machine and every value', () =
     for (const [id, option] of Object.entries(catalog.options)) {
       for (const [value, entry] of Object.entries(option.values)) {
         check(entry.facts ?? {}, `${machine} ${id}=${value}`);
+      }
+    }
+  }
+});
+
+// ---- what a control port actually carries --------------------------------
+//
+// `input.joysticks` and `input.pads` count ports; `input.controls` is what
+// the thing in one of them carries, which is what makes a count
+// projectable. Before it existed the editor's Controller Setup panel kept
+// its own table of two machines' pads and said so for a third; these are
+// the assertions that replaced it.
+
+test('every machine declares what its controller carries, and the kind falls out of the list', () => {
+  // A machine's *kind* is never in a catalog: it is derived from the one
+  // list, here and in the editor, by exact set equality against the
+  // toolchain's CONTROLLER_KINDS. Two statements about one shape, one of
+  // them uncheckable, is the thing this avoids.
+  //
+  // Every claim below is the repo's own research, not recall:
+  //
+  // - The Commodores' and the Atari's ports are the same nine-pin
+  //   standard: four direction switches and one fire button.
+  //   `packages/c64/src/joystick.8bs` declares UP/DOWN/LEFT/RIGHT/FIRE;
+  //   `packages/vic20/AGENTS.md` traces the VIC-20's five lines across two
+  //   VIAs; `packages/atari8/AGENTS.md` records the Atari's own masks as
+  //   bit-for-bit the C64's with JOY_BTN_1_MASK the only button;
+  //   `packages/c128/AGENTS.md` and `packages/mega65/AGENTS.md` both say
+  //   CIA1 as the C64's. The one button is `a` because it is the only one
+  //   the machine has and `a` is what every wider shape has in common.
+  // - `packages/nes/src/pad.8bs` names the shift register's fixed order —
+  //   A, B, SELECT, START, UP, DOWN, LEFT, RIGHT — and the list is written
+  //   in that order for that reason.
+  // - `packages/cx16/AGENTS.md` establishes two SNES pad ports (and that
+  //   the KERNAL's reader for them is confusingly called `joystick_get`).
+  //   The twelve is the SNES pad's own set; what this repo has *not*
+  //   established is the bit layout `joystick_get` returns, and nothing
+  //   here claims one — `packages/cx16/src/input.8bs` is still an honest
+  //   stub.
+  // - The PET has no control ports at all and the web target's own sheet
+  //   says `pads: 0`, which docs/project/input.md calls "wrong in spirit"
+  //   and leaves as its own work. Both declare nothing, out loud.
+  const expected = {
+    pet: null, web: null,
+    vic20: 'atari-stick', c64: 'atari-stick', c128: 'atari-stick',
+    atari8: 'atari-stick', mega65: 'atari-stick',
+    nes: 'nes-pad', cx16: 'snes-pad',
+  };
+  const derived = Object.fromEntries(MACHINES.map((machine) => [
+    machine, controllerKind(stockFacts(machine)['input.controls']),
+  ]));
+  assert.deepEqual(derived, expected);
+
+  for (const machine of MACHINES) {
+    const catalog = loadCatalog(machine);
+    assert.ok(Object.hasOwn(catalog.facts, 'input.controls'),
+      `${machine}: declare it, empty if the machine has nowhere to plug a controller in`);
+    // The invariant is one-directional, and deliberately so: a machine
+    // with nowhere to plug a controller in carries no controls, but a
+    // machine *with* ports may still resolve to none — a C64 with
+    // `port1=none,port2=none` has two ports and nothing in either, which
+    // is the case the next test asserts is legitimate and the editor's
+    // projection note exists to describe. So: no ports, no controls.
+    const ports = catalog.facts['input.joysticks'] + catalog.facts['input.pads'];
+    const stock = stockFacts(machine)['input.controls'];
+    if (ports === 0) {
+      assert.deepEqual(stock, [], `${machine}: nowhere to plug a controller in, so nothing to carry`);
+    } else {
+      // With ports, the controls are declared somewhere — on the machine
+      // (a pad port has no option behind it) or on a port value (a
+      // Commodore's, where what is in the port is a choice).
+      const anywhere = [catalog.facts, ...Object.values(catalog.options)
+        .flatMap((option) => Object.values(option.values))
+        .map((entry) => entry.facts ?? {})];
+      assert.ok(anywhere.some((facts) => (facts['input.controls'] ?? []).length > 0),
+        `${machine} has ${ports} port(s) and nothing anywhere says what goes in one`);
+    }
+  }
+});
+
+test('a control port carries its controls on the value that is a controller, so unplugging one empties it', () => {
+  // The list sits on `port1`/`port2`'s `joystick` value, not on the
+  // machine, because on a Commodore what is in the port is a choice. It is
+  // deliberately *absent* from `none`, `paddles` and `mouse1351` rather
+  // than empty on them: options merge in catalog order, so a `[]` on
+  // port2's `none` would erase the stick port1 really has. Paddles and a
+  // 1351 already have their own facts (`input.paddles`, `input.mouse`) and
+  // are not controllers in this sense.
+  const stick = ['up', 'down', 'left', 'right', 'a'];
+  for (const machine of ['vic20', 'c64', 'c128']) {
+    const catalog = loadCatalog(machine);
+    for (const id of Object.keys(catalog.options).filter((name) => name.startsWith('port'))) {
+      for (const [value, entry] of Object.entries(catalog.options[id].values)) {
+        const declared = entry.facts?.['input.controls'];
+        if (value === 'joystick') assert.deepEqual(declared, stick, `${machine}.${id}=joystick`);
+        else assert.equal(declared, undefined, `${machine}.${id}=${value} stays silent, or it would erase the other port's`);
+      }
+    }
+  }
+  // Either port holding a stick answers for the machine; both empty is no
+  // controller at all, which is the truth and is what the editor's panel
+  // says out loud rather than drawing an empty five-control row.
+  const port = (overrides) => resolveHardware(loadCatalog('c64'), { overrides }).hardware.facts['input.controls'];
+  assert.deepEqual(port({}), stick, 'stock: port 2 has the stick, which is where a C64 game reads it');
+  assert.deepEqual(port({ port1: 'joystick', port2: 'none' }), stick);
+  assert.deepEqual(port({ port1: 'mouse1351' }), stick, 'a mouse in port 1 leaves port 2 a stick');
+  assert.deepEqual(port({ port1: 'none', port2: 'none' }), []);
+  // The VIC-20 has one port and it holds a stick by default.
+  assert.deepEqual(resolveHardware(loadCatalog('vic20')).hardware.facts['input.controls'], stick);
+  assert.deepEqual(
+    resolveHardware(loadCatalog('vic20'), { overrides: { port1: 'paddles' } }).hardware.facts['input.controls'],
+    [],
+  );
+});
+
+test('the control names are the compiler\'s, and every other copy of the list agrees with it', () => {
+  // Three files spell these eighteen names: the compiler (which validates
+  // a catalog against them), this CLI (which turns them into emulator
+  // flags), and the editor's panel (which stores them). The editor has no
+  // dependencies at all and can only ever see them as JSON, so its copy is
+  // held to this one by its own test; the CLI's is held here.
+  assert.deepEqual(CONTROLS, LOGICAL_CONTROLS);
+  for (const machine of MACHINES) {
+    const catalog = loadCatalog(machine);
+    const declared = [catalog.facts, ...Object.values(catalog.options)
+      .flatMap((option) => Object.values(option.values))
+      .map((entry) => entry.facts ?? {})];
+    for (const facts of declared) {
+      for (const control of facts['input.controls'] ?? []) {
+        assert.ok(LOGICAL_CONTROLS.includes(control), `${machine} declares '${control}', which is not a control`);
       }
     }
   }

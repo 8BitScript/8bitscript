@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 
 import {
   analyze, link, tokenize, parse, foldCompileTime, NodeType, FACTS, PROGRAM_FACTS,
+  CONTROLLER_KINDS, LOGICAL_CONTROLS, controllerKind,
   factConstName, factPlaceholder, factProblems, requiresProblems, unmetRequirements,
   getHoverInfo, getCompletions,
 } from '../index.mjs';
@@ -23,10 +24,10 @@ const folded = (src, options) => {
 
 const FACTS_C64 = { 'video.columns': 40, 'video.bitmap': true, 'memory.ram': 51199 };
 
-test('FACTS: every key is group.name, typed count or flag, settled at build or run, with a doc line', () => {
+test('FACTS: every key is group.name, typed count, flag or list, settled at build or run, with a doc line', () => {
   for (const [key, fact] of FACTS) {
     assert.match(key, /^[a-z]+\.[a-zA-Z]+$/, key);
-    assert.ok(['count', 'flag'].includes(fact.type), key);
+    assert.ok(['count', 'flag', 'list'].includes(fact.type), key);
     assert.ok(['build', 'run'].includes(fact.when), key);
     assert.equal(typeof fact.program, 'boolean', key);
     assert.ok(fact.doc.length > 10, key);
@@ -37,6 +38,71 @@ test('FACTS: every key is group.name, typed count or flag, settled at build or r
   assert.deepEqual(factConstName('memory.ram'), { namespace: 'Memory', name: 'RAM' });
   assert.equal(factPlaceholder('video.bitmap'), false);
   assert.equal(factPlaceholder('video.columns'), 0);
+  // A machine whose sheet says nothing about its controls carries none:
+  // the same "nothing, said out loud" the 0 and the false are.
+  assert.deepEqual(factPlaceholder('input.controls'), []);
+  // The one list key, and it is the CLI's and the editor's, never a
+  // program's — there is no literal for `#fact()` to fold it into.
+  const lists = [...FACTS].filter(([, fact]) => fact.type === 'list').map(([key]) => key);
+  assert.deepEqual(lists, ['input.controls']);
+  assert.equal(FACTS.get('input.controls').program, false);
+  assert.ok(!PROGRAM_FACTS.includes('input.controls'));
+});
+
+test('the controller shapes that have a name, and a kind derived from a list rather than declared beside it', () => {
+  // The whole point of deriving: a machine package says what its
+  // controller *carries* and the name falls out. Nothing in a catalog
+  // spells `nes-pad`, so a name and the shape it names cannot disagree.
+  assert.deepEqual(CONTROLLER_KINDS.map((entry) => entry.kind),
+    ['atari-stick', 'nes-pad', 'snes-pad', 'xbox-style']);
+  for (const { kind, controls } of CONTROLLER_KINDS) {
+    for (const control of controls) assert.ok(LOGICAL_CONTROLS.includes(control), `${kind}: ${control}`);
+    assert.deepEqual([...new Set(controls)], controls, `${kind} names each control once`);
+    assert.equal(controllerKind(controls), kind, `${kind} round-trips`);
+  }
+  assert.equal(LOGICAL_CONTROLS.length, 18);
+  // The shapes the nine machines actually declare, as their catalogs do:
+  // an Atari-standard stick is four switches and one fire button
+  // (packages/c64/src/joystick.8bs's Joystick.UP/DOWN/LEFT/RIGHT/FIRE, and
+  // packages/atari8/AGENTS.md records the Atari's masks as bit-for-bit the
+  // same); an NES pad is the eight bits its shift register clocks out
+  // (packages/nes/src/pad.8bs).
+  assert.equal(controllerKind(['up', 'down', 'left', 'right', 'a']), 'atari-stick');
+  assert.equal(controllerKind(['a', 'b', 'select', 'start', 'up', 'down', 'left', 'right']), 'nes-pad',
+    'the order a catalog lists them in is the hardware documentation\'s, not a different device');
+  // Exact set equality, not a subset ladder: a two-button stick clears the
+  // bar for `a` and `b` and is still not an NES pad.
+  assert.equal(controllerKind(['up', 'down', 'left', 'right', 'a', 'b']), null);
+  assert.equal(controllerKind([]), null);
+  assert.equal(controllerKind(undefined), null);
+});
+
+test('factProblems checks a list of control names, and names the wrong one', () => {
+  assert.deepEqual(factProblems({ 'input.controls': ['up', 'down', 'left', 'right', 'a'] }), []);
+  assert.deepEqual(factProblems({ 'input.controls': [] }), [], 'a machine with no ports carries nothing');
+  const notAList = factProblems({ 'input.controls': 5 });
+  assert.equal(notAList.length, 1);
+  assert.match(notAList[0], /is a list of control names: an array, not 5/);
+  // A typo is a control that silently never projects, which is the whole
+  // reason the compiler owns the names: it is caught here, by name.
+  const typo = factProblems({ 'input.controls': ['up', 'fire'] });
+  assert.equal(typo.length, 1);
+  assert.match(typo[0], /holds "fire", which is not a control/);
+});
+
+test('#fact() refuses a list fact by name rather than folding an array into a literal', () => {
+  // `replaceWithFact` would hand the IR an array where an integer goes.
+  // The refusal is before the machine is looked at, because the answer is
+  // the same on every machine: this is not a fact a program reads.
+  const refused = folded(program('#fact(input.controls)'), {
+    machine: 'c64',
+    facts: { ...FACTS_C64, 'input.controls': ['up', 'down', 'left', 'right', 'a'] },
+  });
+  assert.equal(refused.diagnostics.length, 1);
+  assert.match(refused.diagnostics[0].message, /is a list of control names, not a number or a flag/);
+  // And it is refused with no machine in hand too — the editor's `8bs
+  // check`, where every other fact is its placeholder.
+  assert.equal(folded(program('#fact(input.controls)'), {}).diagnostics.length, 1);
 });
 
 test('factProblems: unknown keys and wrongly typed values, in words', () => {

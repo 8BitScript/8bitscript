@@ -47,6 +47,7 @@
         "input.keyboard": true,
         "input.joysticks": 0,
         "input.pads": 0,
+        "input.controls": [],
         "input.mouse": false,
         "input.paddles": false,
         "storage.save": false,

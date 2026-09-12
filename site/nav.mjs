@@ -24,4 +24,8 @@ export const nav = [
     title: 'Machines on the roadmap',
     url: '/project/machines/',
   },
+  {
+    title: 'Controllers, across nine machines',
+    url: '/project/input',
+  },
 ];

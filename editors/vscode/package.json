@@ -120,6 +120,12 @@
         "icon": "$(pulse)"
       },
       {
+        "command": "8bitscript.controllerSetup",
+        "title": "Controller Setup",
+        "category": "8BitScript",
+        "icon": "$(game)"
+      },
+      {
         "command": "8bitscript.saveSystem",
         "title": "Save as a System\u2026",
         "category": "8BitScript",
@@ -210,6 +216,11 @@
           "command": "8bitscript.saveSystem",
           "when": "view == 8bitscript.launcher",
           "group": "2_system@0"
+        },
+        {
+          "command": "8bitscript.controllerSetup",
+          "when": "view == 8bitscript.launcher",
+          "group": "2_system@1"
         }
       ]
     },

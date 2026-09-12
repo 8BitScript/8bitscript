@@ -59,6 +59,16 @@
         "input.keyboard": false,
         "input.joysticks": 0,
         "input.pads": 2,
+        "input.controls": [
+          "up",
+          "down",
+          "left",
+          "right",
+          "a",
+          "b",
+          "select",
+          "start"
+        ],
         "input.mouse": false,
         "input.paddles": false,
         "storage.save": false,
@@ -68,6 +78,27 @@
         "storage.kib": 0
       },
       "options": {
+        "expansion": {
+          "label": "Expansion port",
+          "default": "none",
+          "values": {
+            "none": {
+              "label": "Nothing in the expansion port"
+            },
+            "familykeyboard": {
+              "label": "Family BASIC Keyboard (HVC-007)",
+              "run": {
+                "fceux": [
+                  "--input3",
+                  "familykeyboard"
+                ]
+              },
+              "facts": {
+                "input.keyboard": true
+              }
+            }
+          }
+        },
         "mapper": {
           "label": "Cartridge board",
           "default": "nrom",

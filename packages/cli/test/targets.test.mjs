@@ -10,7 +10,9 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
-import { describeTargets } from '../src/targets.mjs';
+import { CONTROLLER_KINDS, controllerKind } from '@8bitscript/compiler';
+
+import { describeFacts, describeTargets } from '../src/targets.mjs';
 
 const run = promisify(execFile);
 const BIN = fileURLToPath(new URL('../bin/8bs.mjs', import.meta.url));
@@ -79,4 +81,57 @@ test('a systems block the config gets wrong costs the reader its systems and not
       return true;
     },
   );
+});
+
+test('the JSON says what each machine\'s controller carries, and names the shapes that have a name', () => {
+  // This is what the editor's Controller Setup panel used to keep two
+  // tables of its own for — one saying what each kind of port device
+  // carries, one saying which pad each machine takes. Both are gone; the
+  // machine's answer rides on its fact sheet and the vocabulary rides on
+  // the fact's own description, the same way `primaryPort` came across.
+  const described = describeTargets(null);
+  const controls = Object.fromEntries(described.map((t) => [t.id, t.facts['input.controls']]));
+  assert.deepEqual(controls.nes, ['up', 'down', 'left', 'right', 'a', 'b', 'select', 'start']);
+  assert.deepEqual(controls.c64, ['up', 'down', 'left', 'right', 'a'], 'the stock C64 has a stick in port 2');
+  assert.deepEqual(controls.pet, [], 'no ports, and it says so rather than staying quiet');
+  // A machine's kind is never published as a second field: it is derived
+  // from the list, by whoever is reading, against this one table.
+  assert.deepEqual(Object.fromEntries(described.map((t) => [t.id, controllerKind(t.facts['input.controls'])])), {
+    vic20: 'atari-stick', c64: 'atari-stick', pet: null, c128: 'atari-stick', atari8: 'atari-stick',
+    nes: 'nes-pad', cx16: 'snes-pad', mega65: 'atari-stick', web: null,
+  });
+  for (const target of described) {
+    assert.ok(!Object.hasOwn(target, 'controllerKind'), `${target.id}: a kind is derived, never published twice`);
+  }
+
+  // And the shapes, on the `input.controls` fact's own description, where
+  // the editor finds them: `facts.find((f) => f.key === 'input.controls')`.
+  const fact = describeFacts().find((entry) => entry.key === 'input.controls');
+  assert.equal(fact.type, 'list');
+  assert.equal(fact.program, false, 'not on a program\'s sheet: there is no literal to fold it into');
+  assert.deepEqual(fact.kinds, CONTROLLER_KINDS);
+  assert.deepEqual(fact.kinds.map((entry) => entry.kind), ['atari-stick', 'nes-pad', 'snes-pad', 'xbox-style']);
+  // It survives the JSON, which is the only way the editor ever sees it.
+  assert.deepEqual(JSON.parse(JSON.stringify(fact)).kinds, CONTROLLER_KINDS);
+});
+
+test('a control port that is empty says so through the sheet the editor resolves', async (t) => {
+  // The panel resolves facts per target with the hardware each machine is
+  // fitted with, so unplugging the stick really does change what it draws
+  // — which is why the list lives on the port value and not on the
+  // machine. Asserted end to end through the JSON the editor parses.
+  const dir = project(t, `export default {
+  entry: 'src/main.8bs',
+  targets: { c64: {} },
+  systems: { 'Bare C64': { target: 'c64', hardware: { port1: 'none', port2: 'none' } } },
+};
+`);
+  const { stdout } = await run(process.execPath, [BIN, 'targets', '--json'], { cwd: dir, maxBuffer: 8 * 1024 * 1024 });
+  const parsed = JSON.parse(stdout);
+  const c64 = parsed.targets.find((t2) => t2.id === 'c64');
+  assert.deepEqual(c64.facts['input.controls'], ['up', 'down', 'left', 'right', 'a'], 'stock');
+  assert.deepEqual(c64.options.port2.values.joystick.facts['input.controls'], ['up', 'down', 'left', 'right', 'a']);
+  assert.equal(c64.options.port2.values.none.facts['input.controls'], undefined,
+    'an empty port stays silent rather than erasing what the other port holds');
+  assert.equal(parsed.systemsError, null, 'and a C64 with nothing in either port is still a machine');
 });

@@ -212,9 +212,9 @@ SYSTEM
 
 The view's title bar has 📖 **Show or Hide Examples**, 🚀 **Launch Studio**,
 ♥ **Doctor** (`8bs doctor`), and ⟳ **Refresh**; its overflow menu adds **Launch App…**, **Launch
-Example…**, and **Save as a System…**. Those, and every choice the panel makes, are on the command
-palette as well — **8BitScript: Select Project**, **Select System**,
-**Select Region**, **Run**, **Build**, **Stop**, **Open Entry File**,
+Example…**, **Save as a System…**, and **Controller Setup**. Those, and every choice the panel makes,
+are on the command palette as well — **8BitScript: Select Project**, **Select System**,
+**Select Region**, **Run**, **Build**, **Stop**, **Controller Setup**, **Open Entry File**,
 **Open 8bitscript.config.ts**.
 
 ### What is behind the fold
@@ -266,6 +266,93 @@ no extension update.
 
 Each choice is an ordinary setting, written at workspace level when a folder
 is open, so it also appears in the Settings editor and survives a restart.
+
+### Controller Setup
+
+**8BitScript: Controller Setup** opens a panel — an editor tab, not a side
+bar view, because a gamepad silhouette does not fit in 300px — that finds
+the pads plugged into this machine and writes down what their buttons are
+called.
+
+It detects them with the browser's Gamepad API, polled on an animation
+frame inside the webview: the extension host is Node and has no HID, so the
+page is the only part of the extension that can see a controller at all. A
+browser hides a pad until it has been used once, so a connected-but-untouched
+controller really is invisible until a button is pressed — the panel says so
+rather than showing an empty list.
+
+Each controller assigns to **Unassigned** or **Player 1-4**. Under that,
+**Live input** lights every raw button and draws every axis as it moves,
+which is how you confirm the device is talking before worrying about what
+anything is called. The mapper above it is a pad you can click: click a
+control, press it on the device, and it is bound; or run the **Guided
+setup**, which asks for every control in turn. Each step waits for you to
+let go of everything first, because the previous step's button is usually
+still down.
+
+Bindings are stored in 8BitScript's own names, never an emulator's or a
+driver's:
+
+```
+up down left right  a b x y  l r  start select
+leftStickX leftStickY rightStickX rightStickY  lt rt
+```
+
+That set is what lets one profile serve every machine. **How this maps onto
+each machine** projects it: a VIC-20 has one control port carrying four
+directions and a fire button, an NES two pads carrying eight bits each, the
+X16 two SNES pads carrying twelve — and those counts are the toolchain's
+answer (`8bs targets --json`, the `input.joysticks` and `input.pads` facts
+each machine package publishes), resolved with the hardware that machine is
+actually fitted with, not a list kept here. A profile that binds only the
+left stick still steers a joystick port: each direction falls back to the
+matching half of the stick.
+
+The result is a JSON file beside the config:
+
+```json
+{
+  "version": 1,
+  "controllers": {
+    "devices": [
+      {
+        "id": "8bitdo-sn30-pro-vendor-2dc8-product-6001",
+        "name": "8BitDo SN30 Pro (Vendor: 2dc8 Product: 6001)",
+        "player": 1,
+        "mode": "standard",
+        "mapping": { "up": "button:12", "a": "button:0", "leftStickX": "axis:0" }
+      }
+    ]
+  }
+}
+```
+
+`8bitscript.controllers.json` rather than a block in `8bitscript.config.ts`:
+the config is TypeScript source that a person reads and that **Save as a
+System…** edits through the editor's own undo stack, and eighteen
+machine-generated bindings per device rewritten on every button press are
+not that. A binding is `button:N`, `axis:N` (whole and signed, for a stick),
+`axis:N+` / `axis:N-` (one half, for a direction or a trigger), or
+`key:ArrowLeft` — a keyboard key by DOM `KeyboardEvent.code`. `mode` is
+`standard` when the browser vouched for the pad's layout and `custom` once
+anything has been bound by hand. Anything in the file this cannot read is
+simply unbound — a file you broke by hand costs you the profile, never the
+panel. It is checked in on purpose: a mapping is the team's, the way a
+`systems` block is.
+
+**A keyboard key is a real binding here**, and on one machine it is the
+only one there is: atari800 has no per-button controller mapping at all —
+`-kbdjoy0`/`-kbdjoy1` turn the *keyboard* into stick 0 or 1 and
+`SDL2_JOY_<n>_*` says which keys, while a pad's own buttons reach nothing.
+So during any binding step you can press a key instead of a button, and it
+lights the same shapes and fills the same meters as a button does. Escape
+is the one key you cannot bind by pressing, because it is what cancels the
+step; write `key:Escape` in the file if you really want it.
+
+`8bs run` reads this file directly — there is nothing to paste anywhere.
+The host joystick number is the player number minus one, so plug the pads
+in in player order. What each emulator can actually take a mapping in
+differs a lot, and the CLI names by name anything it has nowhere to put.
 
 ### Projects, tasks, and what is missing
 
