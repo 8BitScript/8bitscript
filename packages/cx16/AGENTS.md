@@ -109,7 +109,7 @@ Cite these freely; each was read in the source named, not recalled.
 | With a nonzero VSTART, VERA's layer line 0 lands two lines above the active area's top edge (the layer line counter starts on the VSTART line through a two-line register-history pipeline). | `video.c` ~1029-1063, and on screen |
 | The catalog's stock fact sheet: grid 76×56 of 8×8 (the map's 80×60 less the border inset), 256 palette entries, 2 colors per cell, 256 glyphs in the text layer's tileset, 2×2 blocks (the PETSCII set in the ROM font), bitmap, 2 layers with fine scroll each; 128 sprites, up to 64×64, 255 colors at 8 bpp; 16 PSG + 8 FM + 1 PCM = 25 voices, envelopes on the FM side, noise on the PSG, a volume per voice, no filter or random source; keyboard and mouse through the KERNAL (`input.mouse` is true on the stock machine: the emulator's mouse is always there), 2 SNES pad ports (*to verify*: some boards carry 4), no joystick ports; the SD card to save to; 38655 bytes of low RAM (`$0801`–`$9EFF`), 512 KiB banked by default (the `ram` values change it). **`video.spritesPerLine` is 46**: the VERA reference gives a 798-cycle deadline per line and 13–17 cycles for the smallest sprite (8 px, 4 bpp), so 798 ÷ 17 = 46 of those is the worst case; the biggest (64 px, 8 bpp, 99–147 cycles) fits 5. The sheet states the small-sprite figure, and an actors package must say which size its own count assumes. | `src/text.8bs`; the `link.ld`, palette and sprite-budget rows above; VERA Programmer's Reference, "Sprite renderer / line buffer" (fetched 2026-09-05); `package.json` (read) |
 | `@8bitscript/cx16/banks` — `banks.kib()`: the count is the first page above a power of two that the machine does not really have. Two shapes, both tested: a mirror of page 1 (a board that keeps fewer than 8 bank bits wraps, and every page tested is one above a power of two, so a wrap lands on page 1), confirmed with a second marker; or nothing at all, caught by writing two different bytes and reading both back. **x16emu is the second shape**: with `-ram 64`, a byte written to page 200 read back as `$A0` (the window's own address high byte) and page 9 read `$3E` — writes to a page the machine does not have are dropped and reads float. Page 0 is never written (KERNAL workspace) and page 1 is left selected. Under x16emu the probe printed 64 / 512 / 2048 KiB for `ram=64`, `512`, `2048`. Cost: `test/banks-probe.8bs` is 1179 bytes of program with the probe and 1000 with the size written in — 179 bytes. | `src/banks.8bs`; three screenshots and one diagnostic build (ran); `test/banks.test.mjs` |
-| `@8bitscript/cx16/mouse` — `$FF68` mouse_config A=1, size from `$FF5F` screen_mode (carry set; 80×60 in KERNAL text), parks at (319, 239); `$FF71` mouse_scan is required because FRAME_SYNC.cx16's `sei` silences the KERNAL IRQ that would have scanned; `$FF6B` mouse_get into `$80`–`$84` (program ZP temps start at `$80`). Presence is the `input.mouse` fact, not a flag stored across an opaque `asm6502` call. After screen.8bs insets the display, the firmware sprite is on the screenshot at (335, 254); `pointerCell()` is `x>>3`, `y>>3` in that active-area space (an earlier draft subtracted the inset again and sat two cells off). Probe 1184 B / 25 B RAM, green border under x16emu when present(). | `src/mouse.8bs`; `test/mouse-probe.8bs` (ran); `packages/pointer/test/pointer.test.mjs` |
+| `@8bitscript/cx16/mouse` — `$FF68` mouse_config A=1, size from `$FF5F` screen_mode (carry set; 80×60 in KERNAL text), parks at (319, 239); `$FF71` mouse_scan is required because FRAME_SYNC.cx16's `sei` silences the KERNAL IRQ that would have scanned; `$FF6B` mouse_get into `$80`–`$84` — which is **inside ZPKERNAL** (`$80`–`$90`, on top of `tmp2` at `$80`–`$81` and PRIMM's `imparm` at `$82`–`$83`), not unclaimed space, and not "past BASIC's zero page": BASIC's own is `$D4`–`$FE`, *above* it. It is safe anyway, for a reason worth writing down rather than rediscovering: `_mouse_get` writes only `0,x`..`3,x` and touches no zero page of its own, `mouse_get` holds `php`/`sei`, `poll()` holds `sei` across the whole block, and no other KERNAL call intervenes between the call and the copy-out. The buffer address is this package's free choice (`mouse_get` takes it in X), so moving it into the program's own `$22`–`$7F` window would make it safe by construction instead. Presence is the `input.mouse` fact, not a flag stored across an opaque `asm6502` call. After screen.8bs insets the display, the firmware sprite is on the screenshot at (335, 254); `pointerCell()` is `x>>3`, `y>>3` in that active-area space (an earlier draft subtracted the inset again and sat two cells off). Probe 1184 B / 25 B RAM, green border under x16emu when present(). | `src/mouse.8bs`; `test/mouse-probe.8bs` (ran); `packages/pointer/test/pointer.test.mjs` |
 
 ## Corrections to the research notes
 
@@ -144,6 +144,51 @@ Cite these freely; each was read in the source named, not recalled.
   the R48 `memory_crc` bug is **from the official documentation as cited
   there, not verified in this project**. Treat it as a lead to verify the
   first time code depends on it.
+
+## Zero page, from the ROM's own linker configuration
+
+The docs' memory-map table is a summary; `cfg/x16.cfginc` in x16-rom is the
+definition every ROM bank is linked against, and it is what settles which
+bytes a program may take:
+
+```
+/*        start = $0000, size = $0080; # available to the user */
+ZPKERNAL: start = $0080, size = $0011; # KERNAL
+ZPDOS:    start = $0091, size = $000B; # DOS
+ZPAUDIO:  start = $00A7, size = $0002; # AUDIO
+ZPMATH:   start = $00A9, size = $002B; # MATH
+ZPBASIC:  start = $00D4, size = $002B; # BASIC (last byte used: $FE)
+```
+
+Read against `cfg/kernal-x16.cfgtpl`, where every one of the KERNAL bank's
+zero-page segments (`ZPKERNAL`, `ZPCHANNEL`, `ZPKBD`, `ZPFONTS`) loads into
+`ZPKERNAL` and no other bank's cfgtpl declares zero page at all, this is a
+proof rather than an inference: **no KERNAL routine can touch `$A9`–`$FF`,
+because the KERNAL bank is not linked with any zero page there.** `$A9`–`$D3`
+is reachable only by the Math library and `$D4`–`$FE` only by BASIC, neither
+of which this toolchain calls — and the reference manual releases both to
+machine code outright ("Machine code applications are free to reuse the
+BASIC area, and if they don't use the Math library, also that area").
+
+So the windows are: `$22`–`$7F` always, plus `$A9`–`$FF` for a program that
+is not handing BASIC back. What stays out, and why, since each looks
+tempting in isolation:
+
+- `$02`–`$21` are `r0`–`r15`, the KERNAL API's caller-supplied 16-bit
+  argument registers (`inc/regs.inc`) — live scratch for any routine taking
+  16-bit arguments (`extapi` → `mouse_sprite_offset` does `MoveW r0, ...`),
+  and *not* a fact readable off the finished instruction stream, because
+  the calls sit inside opaque `asm6502` blocks.
+- `$80`–`$9B` is ZPKERNAL and ZPDOS: the scratch of the very routines this
+  package calls every frame.
+- `$9C`–`$A6` is the cfginc's own commented "reserved for DOS or BASIC
+  growth" — unused today, explicitly earmarked.
+- `$A7`–`$A8` is ZPAUDIO, which a future `@8bitscript/cx16/audio` will want.
+
+One byte of trivia the two sources disagree on, in our favour: the docs
+table gives BASIC `$00D4-$00FF`, while the cfginc gives ZPBASIC
+`$D4`–`$FE` and annotates "last byte used: `$FE`". `$FF` is in no segment
+at all.
 
 ## Rules for this target
 
