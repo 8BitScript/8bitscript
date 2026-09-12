@@ -1,6 +1,6 @@
 {
   "name": "@8bitscript/pointer",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "A pointer the user can see: an arrow drawn where @8bitscript/input says the pointer is, with whatever the machine has to draw one with. Resolves per target to that machine's own implementation.",
   "license": "MIT",
   "repository": {

@@ -1,5 +1,35 @@
 # @8bitscript/cli
 
+## 0.5.0
+
+### Minor Changes
+
+- 5666fe1: A program that changes the machine's character set now hands it back the way it found it. `8bitscript.config.ts` gains `restoreOnExit`, on by default: the prologue copies the PET's VIA PCR to the CPU stack and the epilogue writes it back, so a machine is returned in whichever mode it was launched in rather than a fixed one. It costs eight bytes and no RAM, and only a program whose finished code actually stores to `$E84C` pays them — which, since `@8bitscript/pet/text` no longer selects a character set at all (see that package's own note), means most programs pay nothing. `restoreOnExit: false` turns it off.
+  
+  One thing it deliberately does not try to do: un-draw. The PET's character-set bit is a single switch for the whole screen and it is retroactive, so a program that means to both return the machine and leave a readable screen has to blank the screen before it returns.
+  
+  The `hello-world` example no longer ends in a `while (true) waitFrame()` holding loop — it prints and returns, landing back in the BASIC `SYS` that started it. Its project file is also now named `8bitscript.config.ts`, the name the toolchain has preferred since 0.4.0.
+
+### Patch Changes
+
+- c8bd6c0: A release's assets are now one file per thing you can actually run. The attach step uploaded `dist/**/*` flattened, which scattered the web bundle's own internals across the release listing: `index.html`, `worker.js`, a Cloudflare `_headers` file, and a `program.wasm` that was a byte-for-byte copy of the `main.wasm` listed above it. The machine artifacts now upload as themselves and the web bundle uploads as a single `web-bundle.zip`, which is the only form it works in — its four files are one deployable unit, useless apart. The loose `.wasm` is left out for the same reason: it is already in the bundle, and alone it has no runtime to load it.
+  
+  `8bs build` also now says when an artifact's name is longer than the medium it is meant for can hold. CBM DOS gives a directory entry exactly sixteen characters for a filename and truncates anything longer with no error at all (measured with `c1541` on a real D64: a twenty-character name came back sixteen), so two builds whose names differ only past the sixteenth character are one file once they reach a floppy. It is a note rather than a refusal — every part of a generated name is there because it can change the bytes, so the build is valid, just awkward to carry to a disk.
+- Updated dependencies [5754df7]
+  - @8bitscript/pet@0.5.0
+  - @8bitscript/examples@0.5.0
+  - @8bitscript/studio@0.5.0
+  - @8bitscript/compiler@0.5.0
+  - @8bitscript/atari8@0.5.0
+  - @8bitscript/c128@0.5.0
+  - @8bitscript/c64@0.5.0
+  - @8bitscript/cx16@0.5.0
+  - @8bitscript/language-server@0.5.0
+  - @8bitscript/mega65@0.5.0
+  - @8bitscript/nes@0.5.0
+  - @8bitscript/vic20@0.5.0
+  - @8bitscript/web@0.5.0
+
 ## 0.4.1
 
 ### Patch Changes

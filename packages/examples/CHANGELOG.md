@@ -1,5 +1,15 @@
 # @8bitscript/examples
 
+## 0.5.0
+
+### Patch Changes
+
+- Updated dependencies [5754df7]
+  - @8bitscript/pet@0.5.0
+  - @8bitscript/screen@0.5.0
+  - @8bitscript/text@0.5.0
+  - @8bitscript/web@0.5.0
+
 ## 0.4.1
 
 ### Patch Changes
