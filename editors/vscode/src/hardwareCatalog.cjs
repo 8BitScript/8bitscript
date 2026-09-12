@@ -106,7 +106,7 @@ function effectiveOptions(target, selection) {
   const { profile, options } = normalizeSelection(selection);
   const result = {};
   for (const [id, option] of Object.entries(target.options ?? {})) result[id] = option.default;
-  // The project's own default hardware for this machine (8bs.config.ts,
+  // The project's own default hardware for this machine (8bitscript.config.ts,
   // `targets.<machine>.hardware`) is its stock.
   for (const [id, value] of Object.entries(target.hardware ?? {})) if (id in result) result[id] = String(value);
   const named = profile ? (target.profiles?.[profile] ?? target.presets?.[profile] ?? {}) : {};
