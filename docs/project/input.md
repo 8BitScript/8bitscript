@@ -39,7 +39,7 @@ carries these, and `#fact(...)` resolves them to constants during compilation:
 | C128 | 2 | 0 | yes |
 | Atari 8-bit | 2 | 0 | yes |
 | MEGA65 | 2 | 0 | yes |
-| NES | 0 | 2 | **no** |
+| NES | 0 | 2 | no (Famicom: yes, with the keyboard fitted) |
 | Commander X16 | 0 | 2 | yes |
 | web | 0 | 0 | yes |
 
@@ -95,17 +95,56 @@ controller work:
   was an aftermarket user-port affair. If it is ever added it belongs as a
   catalog option — a hardware profile choice, exactly like the PET's existing
   `model`/`ram`/`speaker`/`drive` axes — so the sheet keeps telling the truth.
-- **NES** is the only machine with no keyboard (`input.keyboard: false`). Any
-  design that quietly assumes a keyboard fallback breaks there.
+- **NES vs Famicom** is a real distinction and the catalog now carries it. An
+  American NES has no keyboard — none was ever released, though a US
+  keyboard and Data Recorder were planned — so stock `nes` declares
+  `input.keyboard: false`, and any design that quietly assumes a keyboard
+  fallback breaks there. The **Japanese Famicom did**: Nintendo sold the
+  Family BASIC Keyboard (HVC-007) in 1984, a 72-key matrix on the expansion
+  port, scanned by driving `$4016` and reading `$4017`, with a Data Recorder
+  (HVC-008) for cassette storage beside it. Family BASIC turned the machine
+  into a small home computer, which makes the Famicom considerably more
+  interesting for non-game software than the NES is.
+
+  This is a hardware axis, not a second machine, so it is an option value:
+  `--hardware expansion=familykeyboard` sets `input.keyboard: true`, passes
+  `--input3 familykeyboard` to fceux (which lists `familykeyboard` among its
+  famicom expansion devices), and contributes a `familykeyboard` tag a
+  `.familykeyboard.8bs` variant file can key off. The fact and the emulator
+  flag move together, which is the whole point of the catalog: a program
+  asking `#fact(input.keyboard)` gets the truth for the machine it is
+  actually being built for.
+
+  What is *not* there yet is the driver. `packages/nes/src/` has `pad.8bs`
+  and no `keyboard.8bs`; reading the HVC-007 matrix is the work that makes
+  the fact mean something.
 - **C128** reads CIA1 for input, and its text package maps colour RAM over
   `$DC00`-`$DFFF` when it needs the 80-column screen's high cells. Getting that
   wrong made `poll()` read the keyboard matrix *through colour RAM* and invent
   keypresses — a phantom LEFT that moved the board in 2048 before anyone
   touched a control. Controller code on this machine is close to a hardware
   window that other code moves.
-- **CX16** reaches its mouse through KERNAL calls that live inside opaque
-  `asm6502` blocks, which is why the compiler cannot see them and why the X16's
-  zero-page budget has to be conservative about the KERNAL's scratch.
+- **CX16 has no joystick ports — its two ports are SNES-style pads**, which
+  is why its sheet reads `joysticks: 0, pads: 2`. The confusion is worth
+  naming because the machine invites it: the KERNAL's own API for reading
+  those pads is called **`joystick_get` (`$FF56`)**, so X16 documentation says
+  "joystick" while meaning a pad. This machine is precisely why counting
+  `joysticks` and `pads` separately is right rather than pedantic — one number
+  would have to lie about either the VIC-20 or the X16. (The repo's own sheet
+  also flags *to verify: some boards carry 4* pad ports, so the count may yet
+  change; the model does not.)
+
+  **The X16 does not read them yet.** `packages/cx16/src/input.8bs` says so
+  in as many words: the pads and the keyboard both need `asm6502` blocks that
+  care about what the KERNAL expects to still be true when they are called,
+  so `left()`/`right()`/`confirm()`/`cancel()` return false and a program
+  still links. That is an honest stub, not a hidden gap — but it means 2048
+  draws on the X16 and cannot be played on it. Wiring `joystick_get` is the
+  single highest-value piece of input work outstanding.
+
+  Its mouse *is* wired, through KERNAL calls inside opaque `asm6502` blocks —
+  which is why the compiler cannot see them, and why the X16's zero-page
+  budget has to stay conservative about the KERNAL's scratch.
 - **web** reports `joysticks: 0, pads: 0`, which is wrong in spirit: it is the
   one target that can see a whole modern gamepad. Its sheet should say so once
   the model is widened, or the facts will mislead exactly the target with the

@@ -68,6 +68,27 @@
         "storage.kib": 0
       },
       "options": {
+        "expansion": {
+          "label": "Expansion port",
+          "default": "none",
+          "values": {
+            "none": {
+              "label": "Nothing in the expansion port"
+            },
+            "familykeyboard": {
+              "label": "Family BASIC Keyboard (HVC-007)",
+              "run": {
+                "fceux": [
+                  "--input3",
+                  "familykeyboard"
+                ]
+              },
+              "facts": {
+                "input.keyboard": true
+              }
+            }
+          }
+        },
         "mapper": {
           "label": "Cartridge board",
           "default": "nrom",
