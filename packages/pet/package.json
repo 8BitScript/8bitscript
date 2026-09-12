@@ -41,6 +41,7 @@
         "video.spriteColors": 0,
         "video.frameRate": 60,
         "video.characterSetSwapped": false,
+        "video.bootsInTextMode": false,
         "audio.voices": 0,
         "audio.noise": false,
         "audio.envelope": false,
@@ -162,7 +163,8 @@
               },
               "facts": {
                 "video.columns": 80,
-                "video.frameRate": 50
+                "video.frameRate": 50,
+                "video.bootsInTextMode": true
               }
             }
           }
@@ -172,7 +174,7 @@
           "default": "4",
           "values": {
             "4": {
-              "label": "4 KiB — the 2001's own stock RAM, the smallest real PET",
+              "label": "4 KiB \u2014 the 2001's own stock RAM, the smallest real PET",
               "build": {
                 "defsym": {
                   "__ram_size": 4
@@ -189,7 +191,7 @@
               }
             },
             "8": {
-              "label": "8 KiB — the 3008's own stock RAM, and a common on-board 2001 upgrade",
+              "label": "8 KiB \u2014 the 3008's own stock RAM, and a common on-board 2001 upgrade",
               "build": {
                 "defsym": {
                   "__ram_size": 8
@@ -206,7 +208,7 @@
               }
             },
             "16": {
-              "label": "16 KiB — the 3016/4016's own stock RAM",
+              "label": "16 KiB \u2014 the 3016/4016's own stock RAM",
               "build": {
                 "defsym": {
                   "__ram_size": 16
@@ -223,7 +225,7 @@
               }
             },
             "32": {
-              "label": "32 KiB — the 3032/4032/8032's own stock RAM, and the on-board maximum for every board this catalog supports",
+              "label": "32 KiB \u2014 the 3032/4032/8032's own stock RAM, and the on-board maximum for every board this catalog supports",
               "build": {
                 "defsym": {
                   "__ram_size": 32
@@ -246,7 +248,7 @@
           "default": "none",
           "values": {
             "none": {
-              "label": "None — stock on the non-CRTC 2001/3008/3016/3032, which have no speaker at all",
+              "label": "None \u2014 stock on the non-CRTC 2001/3008/3016/3032, which have no speaker at all",
               "build": {},
               "run": {
                 "xpet": [
@@ -258,7 +260,7 @@
               }
             },
             "attached": {
-              "label": "Attached — built in on the CRTC 4016/4032/8032, or wired to the user port's CB2 pin on a 2001/3008/3016/3032 (the real \"user port speaker hack\")",
+              "label": "Attached \u2014 built in on the CRTC 4016/4032/8032, or wired to the user port's CB2 pin on a 2001/3008/3016/3032 (the real \"user port speaker hack\")",
               "build": {},
               "run": {
                 "xpet": [

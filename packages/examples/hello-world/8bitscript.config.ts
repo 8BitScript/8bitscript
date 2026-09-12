@@ -4,19 +4,12 @@
 // and to the web's on a web build, so nothing here names either machine.
 export default {
   entry: 'src/main.8bs',
-  // `restoreOnExit` is left at its default, true: main() prints and
-  // returns, and the machine goes back to BASIC in the character set it
-  // was launched in rather than the text set printing selected. Setting it
-  // false buys back eight bytes on the PET (and no RAM — the saved byte
-  // rides the CPU stack) for a program that would rather keep them.
-  //
-  // Worth knowing before turning it on for a program of your own: the
-  // PET's charset bit is one global switch for the whole screen, so
-  // putting it back also re-renders text still on screen through the other
-  // ROM. On a machine that boots in graphics/upper-case — the 3032 and
-  // 4032 do — a greeting left up at exit comes back as graphics glyphs. A
-  // program that wants both the machine back and a readable screen blanks
-  // the screen before it returns.
+  // Nothing here turns `restoreOnExit` off, and nothing needs to: this
+  // program never changes the machine's character set, so there is nothing
+  // to put back. @8bitscript/pet/text draws for whichever set the model
+  // booted into, which is why the greeting is readable and the BASIC
+  // prompt underneath it is still in the mode its owner started in — caps
+  // on a 3032, mixed case on an 8032.
   targets: { pet: {}, web: {} },
   systems: {
     'PET 3032': { target: 'pet', profile: '3032' },
