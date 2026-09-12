@@ -14,6 +14,7 @@ export namespace Video {
     const SCREEN: usmallint = 0x1000; // screen matrix: one screen code per cell
     const COLOR: usmallint = 0x9400; // color RAM: one nybble per cell, same cell index
     const MEMORY_POINTER_UPPERCASE: utinyint = 0xC0; // $9005: this screen, upper-case ROM
+    const MEMORY_POINTER_LOWERCASE: utinyint = 0xC2; // the same screen, the mixed-case ROM at $8800 (bits 0-3 = 2)
     const COLUMNS: utinyint = 22;
     const ROWS: utinyint = 23;
     const CELL_COUNT: usmallint = 506; // COLUMNS * ROWS

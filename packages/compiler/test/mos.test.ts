@@ -1428,6 +1428,55 @@ type IrExprFixture = IrProgram['functions'][number]['body'][number]['value'];
 // ---- 0.2.2: mutable arrays ride in the program image, and `*` pays for
 // its routine only when a runtime multiply survives the optimizer ------------
 
+test('a constant added to an index folds into the address, instead of wrapping in eight bits', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+  try {
+    const outFile = join(scratch, 'out.prg');
+    // `screenRam[i + 250] = 32`, the second quarter of the C64 and VIC-20
+    // screen-clearing loops. Computing `i + 250` in a register and indexing
+    // with the result is a miscompile: the sum wraps at 255, so every
+    // iteration from i=6 on writes back over the first quarter and the rest
+    // of the screen is never cleared. The 6502's answer is the other
+    // association — base+250 indexed by i — which is exact for every i.
+    const program: IrProgram = {
+      entry: 'main',
+      functions: [{
+        name: 'main',
+        body: [{
+          // Read from hardware first, so `i` is a real runtime value the
+          // optimizer cannot fold the index away through.
+          kind: 'assign', target: 'i',
+          value: { kind: 'memoryRead', address: { kind: 'const', value: 0xd000, type: 'usmallint' }, type: 'utinyint' },
+        }, {
+          kind: 'storeIndex',
+          array: { kind: 'ref', name: 'screenRam' },
+          index: {
+            kind: 'binop', operator: '+', type: 'utinyint',
+            left: { kind: 'ref', name: 'i', type: 'utinyint' },
+            right: { kind: 'const', value: 250, type: 'utinyint' },
+          },
+          value: { kind: 'const', value: 32, type: 'utinyint' },
+          elementType: 'utinyint',
+        }],
+      }],
+      globals: [
+        { name: 'screenRam', type: 'utinyint', address: 0xe000, array: 1000, constant: false, init: null },
+        { name: 'i', type: 'utinyint', address: null, array: undefined, constant: false, init: 0 },
+      ],
+    };
+    const result = await build(program, { machine: 'pet', hardware, outFile, frameRate: 60 });
+    assert.equal(result.ok, true, result.ok ? '' : result.error);
+    if (!result.ok) return;
+    const code = [...result.bytes];
+    const at = (needle: number[]) => code.findIndex((_, i) => needle.every((b, j) => code[i + j] === b));
+    // STA $E0FA,Y — the base plus 250, indexed by i alone.
+    assert.ok(at([0x99, 0xfa, 0xe0]) >= 0, 'the constant is in the address');
+    assert.equal(at([0x69, 0xfa]), -1, 'and nothing adds 250 at run time (ADC #$FA)');
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
 test('an asm6502 block and memory.read() lower into the same instruction stream as everything else', async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
   try {

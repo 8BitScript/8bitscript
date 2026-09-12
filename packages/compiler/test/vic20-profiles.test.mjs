@@ -49,10 +49,14 @@ const linked = (ram) => {
   };
 };
 
-const UNEXPANDED = { screen: 0x1E00, color: 0x9600, pointer: 0xF0 };
-const EXPANDED = { screen: 0x1000, color: 0x9400, pointer: 0xC0 };
+// The pointer's low nybble is the character ROM block: 2 is the mixed-case
+// one at $8800, which is what text.8bs selects so a string draws as it was
+// written (see that file's header). The high nybble is the screen base, and
+// that is what differs between the two profiles.
+const UNEXPANDED = { screen: 0x1E00, color: 0x9600, pointer: 0xF2 };
+const EXPANDED = { screen: 0x1000, color: 0x9400, pointer: 0xC2 };
 
-test('unexpanded and 3k draw at $1E00/$9600 with $9005 = $F0; 8k, 16k and 24k at $1000/$9400 with $C0', () => {
+test('unexpanded and 3k draw at $1E00/$9600 with $9005 = $F2; 8k, 16k and 24k at $1000/$9400 with $C2', () => {
   for (const profile of [undefined, 'none', '3k']) {
     const geo = linked(profile);
     assert.equal(geo.screen, UNEXPANDED.screen, `${profile}: screen base`);

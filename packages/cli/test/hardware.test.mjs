@@ -56,7 +56,10 @@ test('the catalog defaults are the stock machine: no tags, no build values, and 
   assert.ok(stock.ok);
   assert.deepEqual(stock.hardware.tags, []);
   assert.deepEqual(stock.hardware.buildValues, []);
-  assert.deepEqual(stock.hardware.build.defsym, { __memory_expansion: 0 });
+  // The load address and the RAM ceiling ride here too, because on this
+  // machine a RAM expansion moves both: unexpanded, BASIC's program area is
+  // $1001 up to the screen at $1E00.
+  assert.deepEqual(stock.hardware.build.defsym, { __memory_expansion: 0, __load_address: 0x1001, __ram_ceiling: 0x1E00 });
   assert.equal(stock.hardware.label, 'stock');
   assert.deepEqual(Object.keys(loadCatalog('vic20').presets), ['unexpanded', '3k', '8k', '16k', '24k']);
   assert.deepEqual(Object.keys(loadCatalog('pet').presets).sort(), ['2001', '3008', '3016', '3032', '4016', '4032', '8032']);
@@ -70,7 +73,10 @@ test('a preset resolves to its values: the VIC-20 8k, 16k and 24k all carry the 
     assert.ok(ok);
     assert.deepEqual(hardware.tags, ['expanded'], preset);
     assert.deepEqual(hardware.buildValues, [preset]);
-    assert.deepEqual(hardware.build.defsym, { __memory_expansion: kb });
+    // 8K and up move BASIC's start to $1201 (the screen drops to $1000),
+    // and each size has its own ceiling.
+    const ceiling = { 8: 0x4000, 16: 0x6000, 24: 0x8000 }[kb];
+    assert.deepEqual(hardware.build.defsym, { __memory_expansion: kb, __load_address: 0x1201, __ram_ceiling: ceiling });
     assert.deepEqual(hardware.run.xvic, ['-memory', preset, '-controlport1device', '1']);
   }
   const three = resolveHardware(loadCatalog('vic20'), { profile: '3k' }).hardware;

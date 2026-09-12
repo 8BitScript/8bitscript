@@ -323,6 +323,36 @@ function freshLabel(tag: string): string {
 // The predicate names the 'const' subtype, not IrExpr itself: narrowing a
 // non-union type to the whole type would turn every negative branch (`the
 // operand is NOT a constant, so...`) into `never`.
+/**
+ * `array[i + 250]` split into the part that belongs in the *address* and
+ * the part that belongs in Y.
+ *
+ * A 6502 indexes with an 8-bit register, so an index written as `i + 250`
+ * cannot be computed and then used: the sum wraps at 255 and the store
+ * lands back at the start of the array. What the machine actually offers is
+ * the other association — `STA base+250,Y` — which is exact for every `i`
+ * Y can hold, costs nothing at run time, and is precisely what the screen
+ * clearing loops in the C64 and VIC-20 packages are written in terms of
+ * ("four constant offsets off one 8-bit index is the shape a 6502 wants",
+ * packages/c64/src/screen.8bs). So the constant folds into the address.
+ *
+ * Only when what is left is 8-bit: a wider index has its own path, and Y
+ * could not hold it anyway.
+ */
+function splitIndexOffset(node: IrExpr | undefined | null): { index: IrExpr; offset: number } | null {
+  if (!node || node.kind !== 'binop' || node.operator !== '+') return null;
+  const fits = (side: IrExpr | undefined) => side?.type !== undefined && side.type !== null && storageBytes(side.type) === 1;
+  if (isConstNum(node.right) && node.right.value >= 0 && fits(node.left)) return { index: node.left!, offset: node.right.value };
+  if (isConstNum(node.left) && node.left.value >= 0 && fits(node.right)) return { index: node.right!, offset: node.left.value };
+  return null;
+}
+
+/** `STA base+offset,Y` and friends — the offset omitted when it is zero, so nothing changes shape for the arrays that never needed one. */
+function indexed(mnemonic: string, label: string, offset: number): Directive {
+  const operand = offset === 0 ? { kind: 'label' as const, name: label } : { kind: 'label' as const, name: label, offset };
+  return { kind: 'instruction', mnemonic, mode: 'absolute,y', operand };
+}
+
 function isConstNum(node: IrExpr | undefined | null, value?: number): node is IrExpr & { kind: 'const'; value: number } {
   if (!node || node.kind !== 'const' || typeof node.value !== 'number') return false;
   if (value !== undefined && node.value !== value) return false;
@@ -828,20 +858,22 @@ class Lowerer {
     // after the value's evaluation, which is only the same program when
     // the value can't have changed the index in between — hence the
     // purity gate on the ref shape (a constant can't change at all).
-    const index = node.index!;
+    const split = splitIndexOffset(node.index);
+    const index = split ? split.index : node.index!;
+    const offset = split ? split.offset : 0;
     if (isConstNum(index) || (index.kind === 'ref' && index.type && storageBytes(index.type) === 1 && this.binding(index.name!).address <= 0xff && isPure(node.value as IrExpr))) {
       this.expr(node.value! as IrExpr);
       this.indexIntoY(index);
-      this.emit(instr('STA', 'absolute,y', undefined, arrayLabel(name)));
+      this.emit(indexed('STA', arrayLabel(name), offset));
       return;
     }
     const mark = this.locals.mark();
-    this.indexValue(node.index!);
+    this.indexValue(index);
     const temp = this.alloc(`a temporary for '${name}[...]'s own index`);
     this.emit(staZp(temp));
     this.expr(node.value! as IrExpr);
     this.emit(instr('LDY', 'zeropage', temp));
-    this.emit(instr('STA', 'absolute,y', undefined, arrayLabel(name)));
+    this.emit(indexed('STA', arrayLabel(name), offset));
     this.locals.release(mark);
   }
 
@@ -882,8 +914,9 @@ class Lowerer {
   // A 1-byte element: the index is the byte offset outright.
   indexRead(node: IrExpr): void {
     const target = this.arrayTarget(node);
-    this.indexIntoY(node.index as IrExpr);
-    this.emit(instr('LDA', 'absolute,y', undefined, target));
+    const split = splitIndexOffset(node.index as IrExpr);
+    this.indexIntoY((split ? split.index : node.index) as IrExpr);
+    this.emit(indexed('LDA', target, split ? split.offset : 0));
   }
 
   // A 2-byte element: the index has to be doubled into a byte *offset*
