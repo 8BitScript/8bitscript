@@ -211,7 +211,7 @@ class LauncherViewProvider {
     const offered = this.projects.visible;
     const listed = project && !offered.includes(project) ? [...offered, project] : offered;
     // Asked in the selected project's directory: the hardware it fits its
-    // targets with is in its own 8bs.config.ts, not the toolchain's
+    // targets with is in its own 8bitscript.config.ts, not the toolchain's
     // catalog, so the panel's stock machine is that project's.
     const targets = await this.projects.loadTargets(project?.dir);
     if (!this.view) return;
@@ -365,7 +365,7 @@ function shortfall(targets, target, selection) {
 
 /** Why Run is greyed out, in the words the panel shows instead of the command line. */
 function warningFor(project, system) {
-  if (!project) return 'No project here yet. A project is a directory with an 8bs.config.ts in it.';
+  if (!project) return 'No project here yet. A project is a directory with an 8bitscript.config.ts in it.';
   if (!project.targets.includes(system)) return `${labelOf(project)} does not target ${system}.`;
   if (!project.toolchain) return `No 8bs toolchain for ${labelOf(project)}. Run ${project.packageManager} install.`;
   return null;
@@ -472,7 +472,7 @@ function html(webview) {
     </div>
     <div class="field">
       <label class="field-label" for="profile">Preset</label>
-      <select id="profile" title="A preset: stock, a catalog preset, or one this project composes in its 8bs.config.ts"></select>
+      <select id="profile" title="A preset: stock, a catalog preset, or one this project composes in its 8bitscript.config.ts"></select>
     </div>
     <div id="options"></div>
   </details>

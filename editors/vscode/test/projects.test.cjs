@@ -15,6 +15,7 @@ const {
   cliPackageDir,
   commandArgs,
   examplesManifest,
+  findConfig,
   findToolchain,
   isInstalled,
   kindOf,
@@ -151,6 +152,41 @@ test('loadProjects sorts by directory and drops duplicates', (t) => {
   assert.deepEqual(projects.map((p) => p.name), ['a', 'b']);
 });
 
+test('findConfig prefers 8bitscript.config.ts, still honors 8bs.config.ts, like the CLI', (t) => {
+  const root = scratch(t);
+  const dir = path.join(root, 'game');
+  write(path.join(dir, '8bs.config.ts'), 'export default {};');
+  assert.equal(findConfig(dir), path.join(dir, '8bs.config.ts'), 'a 0.3.0-era project still marks one');
+  write(path.join(dir, '8bitscript.config.ts'), 'export default {};');
+  assert.equal(findConfig(dir), path.join(dir, '8bitscript.config.ts'), 'the new name wins when both are there');
+  assert.equal(findConfig(path.join(root, 'empty')), null);
+});
+
+test('loadProjects reads either config name, and a directory with both is one project under the new one', (t) => {
+  const root = scratch(t);
+  const renamed = path.join(root, 'renamed');
+  write(path.join(renamed, '8bitscript.config.ts'), "export default { entry: 'src/new.8bs' };");
+  const legacy = path.join(root, 'legacy');
+  write(path.join(legacy, '8bs.config.ts'), 'export default {};');
+  const both = path.join(root, 'both');
+  write(path.join(both, '8bitscript.config.ts'), "export default { entry: 'src/new.8bs' };");
+  write(path.join(both, '8bs.config.ts'), "export default { entry: 'src/old.8bs' };");
+
+  // The glob search hands back every match, both names included.
+  const projects = loadProjects([
+    path.join(renamed, '8bitscript.config.ts'),
+    path.join(legacy, '8bs.config.ts'),
+    path.join(both, '8bs.config.ts'),
+    path.join(both, '8bitscript.config.ts'),
+  ]);
+  assert.deepEqual(projects.map((p) => [p.name, path.basename(p.configPath)]), [
+    ['both', '8bitscript.config.ts'],
+    ['legacy', '8bs.config.ts'],
+    ['renamed', '8bitscript.config.ts'],
+  ]);
+  assert.equal(projects[0].entry, path.join(both, 'src', 'new.8bs'), "the new name's config is the one read");
+});
+
 test('commandArgs spells the same commands a person would type', () => {
   assert.deepEqual(commandArgs('run', 'vic20', 'ntsc'), ['run', 'vic20', '--size']);
   assert.deepEqual(commandArgs('run', 'vic20', 'pal'), ['run', 'vic20', '--pal', '--size']);
@@ -282,9 +318,10 @@ test('loadExamples is empty for a toolchain that ships no examples package', (t)
 test('loadExamplesFrom lists the projects directly under a directory of your own examples', (t) => {
   const root = scratch(t);
   write(path.join(root, 'mine', 'border', '8bs.config.ts'), 'export default {};');
+  write(path.join(root, 'mine', 'raster', '8bitscript.config.ts'), 'export default {};');
   write(path.join(root, 'mine', 'notes.md'), '');
   write(path.join(root, 'mine', 'deeper', 'nested', '8bs.config.ts'), 'export default {};');
-  assert.deepEqual(loadExamplesFrom(path.join(root, 'mine')).map((p) => [p.name, p.kind, p.shipped]), [['border', 'example', true]]);
+  assert.deepEqual(loadExamplesFrom(path.join(root, 'mine')).map((p) => [p.name, p.kind, p.shipped]), [['border', 'example', true], ['raster', 'example', true]]);
   assert.deepEqual(loadExamplesFrom(path.join(root, 'nowhere')), []);
 });
 

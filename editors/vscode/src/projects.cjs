@@ -1,11 +1,12 @@
 // Project discovery for the side bar.
 //
-// An 8BitScript project is a directory with an `8bs.config.ts` in it. That
-// file is the manifest: the CLI already reads it for the entry file and the
-// list of systems the program builds for, so the editor uses the same marker
-// rather than a second list that would have to be kept in step with it. A
-// package.json alone is not enough — every package in packages/ and this
-// extension itself have one, and none of them is a program to run.
+// An 8BitScript project is a directory with an `8bitscript.config.ts` (or
+// the older `8bs.config.ts`) in it. That file is the manifest: the CLI
+// already reads it for the entry file and the list of systems the program
+// builds for, so the editor uses the same marker rather than a second list
+// that would have to be kept in step with it. A package.json alone is not
+// enough — every package in packages/ and this extension itself have one,
+// and none of them is a program to run.
 //
 // A project is one of three kinds, and the launcher keeps them apart in
 // its dropdown: the workspace's own programs; the examples that ship with
@@ -23,7 +24,30 @@
 const fs = require('fs');
 const path = require('path');
 
-const CONFIG_FILE = '8bs.config.ts';
+// 8bitscript.config.ts is the current name; 8bs.config.ts (every project
+// through 0.3.0) still marks a project so existing ones keep working.
+// Checked in this order — the same order as the CLI's own loader
+// (packages/cli/src/config.mjs), so a directory with both is one project
+// under the new name, never two.
+const CONFIG_FILENAMES = ['8bitscript.config.ts', '8bs.config.ts'];
+
+// The canonical name, for messages that talk about the file in the abstract.
+const CONFIG_FILE = CONFIG_FILENAMES[0];
+
+/**
+ * The config file that marks `dir` as a project, in CONFIG_FILENAMES
+ * order, or null when neither name is there.
+ *
+ * @param {string} dir
+ * @returns {string | null}
+ */
+function findConfig(dir) {
+  for (const name of CONFIG_FILENAMES) {
+    const candidate = path.join(dir, name);
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  return null;
+}
 
 /**
  * Every target the launcher offers. 0.2.0 builds for the PET and the web
@@ -83,7 +107,7 @@ function quotedStrings(text) {
 }
 
 /**
- * Read `entry` and `targets` out of an 8bs.config.ts.
+ * Read `entry` and `targets` out of an 8bitscript.config.ts.
  *
  * The config is a TypeScript module, which the editor host cannot import; but
  * its documented shape is two literal keys, so a textual read is enough and
@@ -259,7 +283,7 @@ function packageManagerFor(startDir) {
  * @property {'project' | 'example' | 'app'} kind what the project is to the view
  * @property {string} description package.json description, or ''
  * @property {string} dir         absolute project directory
- * @property {string} configPath  absolute path of its 8bs.config.ts
+ * @property {string} configPath  absolute path of its config file (either name)
  * @property {string} entry       absolute path of the entry .8bs file
  * @property {string[]} targets   systems it builds for, in ALL_TARGETS order
  * @property {string | null} toolchain absolute path of its `8bs`, if installed
@@ -308,13 +332,23 @@ function loadProject(configPath, overrides = {}) {
 /**
  * Load every project from a list of config paths, sorted by directory so the
  * order is stable between refreshes regardless of what the search returned.
+ * A directory that came back under both names is one project, under the
+ * name earliest in CONFIG_FILENAMES.
  *
  * @param {string[]} configPaths
  * @returns {Project[]}
  */
 function loadProjects(configPaths) {
-  const unique = [...new Set(configPaths.map((p) => path.resolve(p)))];
-  return unique.sort((a, b) => a.localeCompare(b)).map((p) => loadProject(p));
+  const byDir = new Map();
+  for (const p of configPaths.map((p) => path.resolve(p))) {
+    const dir = path.dirname(p);
+    const existing = byDir.get(dir);
+    if (existing === undefined
+      || CONFIG_FILENAMES.indexOf(path.basename(p)) < CONFIG_FILENAMES.indexOf(path.basename(existing))) {
+      byDir.set(dir, p);
+    }
+  }
+  return [...byDir.values()].sort((a, b) => a.localeCompare(b)).map((p) => loadProject(p));
 }
 
 /**
@@ -366,8 +400,8 @@ function listProjectConfigs(dir) {
   }
   return names
     .sort()
-    .map((name) => path.join(dir, name, CONFIG_FILE))
-    .filter((config) => fs.existsSync(config));
+    .map((name) => findConfig(path.join(dir, name)))
+    .filter((config) => config !== null);
 }
 
 /**
@@ -426,8 +460,8 @@ function loadExamples(toolchain) {
     for (const [name, entry] of Object.entries(manifest)) {
       if (!entry || typeof entry !== 'object' || typeof entry.dir !== 'string') continue;
       const dir = path.resolve(packageDir, entry.dir);
-      const configPath = path.join(dir, CONFIG_FILE);
-      if (!fs.existsSync(configPath)) continue;
+      const configPath = findConfig(dir);
+      if (!configPath) continue;
       const project = loadProject(configPath, {
         name,
         title: typeof entry.title === 'string' && entry.title ? entry.title : name,
@@ -449,8 +483,9 @@ function loadExamples(toolchain) {
 
 /**
  * The examples under one directory — the `8bitscript.examplesPath` setting,
- * for someone keeping their own set: each subdirectory with an 8bs.config.ts
- * is one, marked as shipped so the launcher groups it with the rest.
+ * for someone keeping their own set: each subdirectory with an
+ * 8bitscript.config.ts (or 8bs.config.ts) is one, marked as shipped so the
+ * launcher groups it with the rest.
  *
  * @param {string} dir
  * @returns {Project[]}
@@ -461,7 +496,7 @@ function loadExamplesFrom(dir) {
 
 /**
  * The apps that ship with the toolchain: every package with an
- * `8bitscript.app` field and an 8bs.config.ts, found beside the CLI.
+ * `8bitscript.app` field and a config file, found beside the CLI.
  *
  * An app is launched with the toolchain that found it: an installed app
  * sits inside pnpm's store, where walking upward for a `.bin/8bs` finds
@@ -472,9 +507,9 @@ function loadExamplesFrom(dir) {
  */
 function loadApps(toolchain) {
   return shippedPackages(toolchain)
-    .filter(({ dir, pkg }) => appManifest(pkg) && fs.existsSync(path.join(dir, CONFIG_FILE)))
+    .filter(({ dir, pkg }) => appManifest(pkg) && findConfig(dir))
     .map(({ dir }) => {
-      const project = loadProject(path.join(dir, CONFIG_FILE));
+      const project = loadProject(findConfig(dir));
       return { ...project, shipped: true, toolchain: project.toolchain ?? toolchain };
     });
 }
@@ -521,7 +556,7 @@ function withTrailingComma(text) {
 }
 
 /**
- * Write one system into an 8bs.config.ts's `systems` block, and give back
+ * Write one system into a config file's `systems` block, and give back
  * the whole file.
  *
  * The config is a TypeScript module, so this is a text edit rather than a
@@ -535,7 +570,7 @@ function withTrailingComma(text) {
  * A name already in the block is replaced, so saving twice under one name
  * updates it rather than writing a duplicate key.
  *
- * @param {string} text the current 8bs.config.ts
+ * @param {string} text the current config file
  * @param {string} name what to call the system
  * @param {{ target: string, profile?: string|null, hardware?: object, region?: string|null }} entry
  * @returns {string|null} the new file, or null when the shape is not one to edit
@@ -701,7 +736,9 @@ module.exports = {
   ALL_TARGETS,
   BINARY,
   CONFIG_FILE,
+  CONFIG_FILENAMES,
   DEFAULT_ENTRY,
+  findConfig,
   MACHINE_TARGETS,
   NO_BARE_EMULATOR,
   KINDS,
