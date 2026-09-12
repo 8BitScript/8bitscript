@@ -66,7 +66,7 @@ test('the CLI depends on the examples, so they ship with the toolchain', () => {
 });
 
 test('hello-world targets every machine this release builds for', () => {
-  assert.deepEqual(targetsOf(resolve(ROOT, examples['hello-world'].dir)), ['pet', 'c64', 'vic20', 'c128', 'cx16', 'mega65', 'web']);
+  assert.deepEqual(targetsOf(resolve(ROOT, examples['hello-world'].dir)), ['pet', 'c64', 'vic20', 'c128', 'cx16', 'mega65', 'atari8', 'nes', 'web']);
 });
 
 for (const target of ['pet', 'c64', 'vic20', 'c128', 'cx16', 'mega65', 'web']) {

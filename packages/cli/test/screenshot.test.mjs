@@ -77,7 +77,7 @@ async function withProbe(fn) {
   }
 }
 
-const PARKED_TARGETS = ['atari8', 'nes'];
+const PARKED_TARGETS = [];
 
 for (const target of PARKED_TARGETS) {
   test(`${target}: --screenshot refuses to build — parked until a later release`, async () => {
@@ -87,7 +87,7 @@ for (const target of PARKED_TARGETS) {
       assert.notEqual(code, 0, `expected ${target} to refuse:\n${stdout}${stderr}`);
       assert.match(
         stderr,
-        /is not a target in this release\. This release builds for pet, c64, vic20, c128, cx16, mega65 and web/,
+        /is not a target in this release\. This release builds for pet, c64, vic20, c128, cx16, mega65, atari8 and web/,
         `unexpected refusal message for ${target}:\n${stderr}`,
       );
       assert.equal(existsSync(shot), false, `${target} should not have written a screenshot`);

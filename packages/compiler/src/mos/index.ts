@@ -178,6 +178,34 @@ const C128_ZP_BUDGET = { zpOrigin: 0x0a, zpCeiling: 0x100 };
 // anyone to get them.
 const CX16_ZP_BUDGET = { zpOrigin: 0x22, zpCeiling: 0x80 };
 
+// And what a program that is never handing BASIC back may take on top: 87
+// more bytes at $A9-$FF, which is the Math library's and BASIC's.
+//
+// This is a proof rather than an inference, and it comes from the ROM's own
+// ld65 configuration rather than from the docs' summary table. cfg/x16.cfginc
+// declares ZPKERNAL at $80 size $11, ZPDOS at $91, ZPAUDIO at $A7, ZPMATH at
+// $A9 and ZPBASIC at $D4 — and cfg/kernal-x16.cfgtpl loads every one of the
+// KERNAL bank's four zero-page segments into ZPKERNAL, while no other bank's
+// cfgtpl declares zero page at all. So no KERNAL routine can reach $A9-$FF,
+// whatever it is asked to do. The reference manual says the same in prose:
+// "Machine code applications are free to reuse the BASIC area, and if they
+// don't use the Math library, also that area."
+//
+// The hole is $80-$A9: ZPKERNAL and ZPDOS, whose routines this package calls
+// every frame; the cfginc's own commented "reserved for DOS or BASIC growth"
+// at $9C-$A6; and ZPAUDIO, which a future audio package will want.
+//
+// $02-$21 stays out under both budgets even though 2048 would fit inside the
+// existing ceiling if it were taken: those are r0-r15, the KERNAL API's
+// caller-supplied 16-bit argument registers (inc/regs.inc), live scratch for
+// any routine taking 16-bit arguments — extapi's mouse_sprite_offset does
+// `MoveW r0, ...` and this package calls extapi. Worse, "does this program
+// call such a routine" is not a fact readable off the finished instruction
+// stream the way usesWaitFrame is, because the calls sit inside opaque
+// asm6502 blocks. $A9-$FF is provably untouchable; $02-$21 is provably
+// touched. (packages/cx16/AGENTS.md records all of this.)
+const CX16_OWNED_ZP_BUDGET = { zpOrigin: 0x22, zpCeiling: 0x100, holes: [{ start: 0x80, end: 0xa9 }] };
+
 // The MEGA65's own start-up (packages/mega65/AGENTS.md's start-up row)
 // disables interrupts at _start and keeps them off until exit, so a
 // program here already owns the machine while it runs. $00/$01 are the
@@ -266,12 +294,14 @@ const NES_ZP_BUDGET = { zpOrigin: 0x00, zpCeiling: 0x100 };
 /** The machines with a waitFrame() runtime of their own (mos/startup/waitframe.ts: a raster poll, the X16's VSYNC flag, or the NES's PPUSTATUS vertical-blank bit). */
 const RASTER_MACHINES = new Set<Machine>(['c64', 'vic20', 'c128', 'cx16', 'mega65', 'nes', 'atari8']);
 
-const ZP_BUDGETS: Partial<Record<Machine, { polite: { zpOrigin: number; zpCeiling: number }; owned: { zpOrigin: number; zpCeiling: number } }>> = {
+type ZpBudget = { zpOrigin: number; zpCeiling: number; holes?: ZpHole[] };
+
+const ZP_BUDGETS: Partial<Record<Machine, { polite: ZpBudget; owned: ZpBudget }>> = {
   pet: { polite: PET_ZP_BUDGET, owned: PET_OWNED_ZP_BUDGET },
   c64: { polite: C64_ZP_BUDGET, owned: C64_ZP_BUDGET },
   vic20: { polite: VIC20_ZP_BUDGET, owned: PET_OWNED_ZP_BUDGET },
   c128: { polite: C128_ZP_BUDGET, owned: C128_ZP_BUDGET },
-  cx16: { polite: CX16_ZP_BUDGET, owned: CX16_ZP_BUDGET },
+  cx16: { polite: CX16_ZP_BUDGET, owned: CX16_OWNED_ZP_BUDGET },
   mega65: { polite: MEGA65_ZP_BUDGET, owned: MEGA65_ZP_BUDGET },
   atari8: { polite: ATARI8_ZP_BUDGET, owned: ATARI8_ZP_BUDGET },
   nes: { polite: NES_ZP_BUDGET, owned: NES_ZP_BUDGET },
@@ -561,7 +591,15 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // own locals and expression temporaries, bump-allocate from whatever zero
   // page globals didn't take, so each pass below needs to know where the
   // previous one's remainder starts before it can run.
-  const zpHoles = needsWaitFrame ? [] : chrgetZpHoles(options.hardware.facts, zpBudget);
+  // A budget may carry holes of its own — bytes inside its range that
+  // belong to someone else whatever the program does (the X16's KERNAL and
+  // DOS window). Those survive into every program. The PET's CHRGET hole is
+  // the other kind: it exists only because a returning program leaves
+  // BASIC's interpreter running, so a program that never returns drops it.
+  const zpHoles = [
+    ...(zpBudget.holes ?? []),
+    ...(needsWaitFrame ? [] : chrgetZpHoles(options.hardware.facts, zpBudget)),
+  ];
   const zp = allocate(globals, { ...zpBudget, holes: zpHoles });
   if (!zp.ok) return { ok: false, error: zp.error };
 

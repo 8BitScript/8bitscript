@@ -81,13 +81,13 @@ export default {
   assert.deepEqual(config, { entry: 'src/game.8bs', targets: ['pet'] });
 });
 
-test('parseConfig drops target names the toolchain does not know — parked machines included', () => {
+test('parseConfig drops target names the toolchain does not know', () => {
   const { targets } = parseConfig(`export default { targets: ['atari', 'pet'] };`);
   assert.deepEqual(targets, ['pet']);
-  // A parked machine is dropped the same way a made-up name is: neither is
-  // in ALL_TARGETS today. (The C64, VIC-20, C128, X16 and MEGA65 have each
-  // stood here in turn and each now builds, so this asks about the nes.)
-  assert.deepEqual(parseConfig(`export default { targets: ['nes', 'web'] };`).targets, ['web']);
+  // There are no parked machines left to stand here — every target the
+  // toolchain knows now builds — so this is a made-up name, which is the
+  // case that will always exist.
+  assert.deepEqual(parseConfig(`export default { targets: ['zx81', 'web'] };`).targets, ['web']);
   // Only unknown/parked names means every target, the same as no list at all.
   assert.deepEqual(parseConfig(`export default { targets: ['atari'] };`).targets, ALL_TARGETS);
 });
@@ -240,9 +240,10 @@ function checkout(root) {
     version: '0.0.0',
     '8bitscript': { app: { title: 'Studio', entry: './src/main.8bs' } },
   }));
-  // 'nes' is here to be dropped: the fixture proves parked names are
-  // filtered out, so it has to name one that still is parked.
-  write(path.join(repo, 'packages', 'studio', '8bs.config.ts'), "export default { targets: ['nes', 'pet'] };");
+  // 'zx81' is here to be dropped: the fixture proves names the toolchain
+  // does not know are filtered out. It used to name a parked machine, but
+  // every machine ships now.
+  write(path.join(repo, 'packages', 'studio', '8bs.config.ts'), "export default { targets: ['zx81', 'pet'] };");
   write(path.join(repo, 'packages', 'text', 'package.json'), JSON.stringify({ name: '@8bitscript/text' }));
   write(path.join(repo, 'packages', 'examples', 'package.json'), JSON.stringify({
     name: '@8bitscript/examples',
