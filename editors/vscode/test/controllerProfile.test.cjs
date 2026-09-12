@@ -11,13 +11,34 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
-  CANCEL_KEY, CONTROL_KINDS, CONTROL_LABELS, DEADZONE, DEVICE_CONTROLS, LOGICAL_CONTROLS, MAX_PLAYERS,
-  PAD_KINDS, PRESS_THRESHOLD, PRIMARY_PORT, STANDARD_MAPPING, WALKTHROUGH,
-  activeInputs, capture, deviceFromDetected, deviceKey, deviceKeys, emptyProfile, formatBinding,
-  isKeyBinding,
-  normalizeDevice, normalizeProfile, parseBinding, pressed, project, readBinding,
+  CANCEL_KEY, CONTROL_KINDS, CONTROL_LABELS, DEADZONE, LOGICAL_CONTROLS, MAX_PLAYERS,
+  PRESS_THRESHOLD, PRIMARY_PORT, STANDARD_MAPPING, WALKTHROUGH,
+  activeInputs, capture, controllerKind, deviceFromDetected, deviceKey, deviceKeys, emptyProfile,
+  formatBinding, isKeyBinding,
+  normalizeDevice, normalizeProfile, parseBinding, pressed, project: projectWith, readBinding,
   resolveDirection, withDevice, withoutDevice,
 } = require('../src/controllerProfile.cjs');
+
+// The controller shapes that have a name, taken from the toolchain itself
+// rather than copied here. `8bs targets --json` publishes this table on the
+// `input.controls` fact's description (packages/compiler/src/fold/facts.mjs,
+// CONTROLLER_KINDS) and controllerView.cjs hands it to `project()`; a copy
+// in this file would pass while the editor and the toolchain disagreed,
+// which is the exact failure the two deleted tables used to be.
+//
+// This is the one place a test in this extension reaches across the
+// monorepo, and it is a deliberate one: it is a *cross-check*, not a
+// dependency — the extension itself imports nothing (its package.json has
+// no `dependencies` at all) and only ever sees this table as JSON.
+const { CONTROLLER_KINDS } = require('../../../packages/compiler/index.mjs');
+
+/** As controllerView.cjs calls it: the toolchain's kinds always in hand. */
+const project = (target, facts, mapping, catalog = {}) => projectWith(
+  target,
+  facts,
+  mapping,
+  { kinds: JSON.parse(JSON.stringify(CONTROLLER_KINDS)), ...catalog },
+);
 
 /** The reference pad: an 8BitDo SN30 Pro in X-input mode, at rest. */
 const rest = () => ({ buttons: new Array(17).fill(0), axes: [0, 0, 0, 0] });
@@ -278,30 +299,41 @@ test('assigning a player takes it off whoever had it, and keeps the list still',
 // `8bs targets --json`); the sheets below are those values, so a test that
 // passes here is a statement about the real catalog.
 
-const VIC20 = { 'input.keyboard': true, 'input.joysticks': 1, 'input.pads': 0 };
-const C64 = { 'input.keyboard': true, 'input.joysticks': 2, 'input.pads': 0 };
-const NES = { 'input.keyboard': false, 'input.joysticks': 0, 'input.pads': 2 };
-const CX16 = { 'input.keyboard': true, 'input.joysticks': 0, 'input.pads': 2 };
-const PET = { 'input.keyboard': true, 'input.joysticks': 0, 'input.pads': 0 };
+const STICK = ['up', 'down', 'left', 'right', 'a'];
+const VIC20 = { 'input.keyboard': true, 'input.joysticks': 1, 'input.pads': 0, 'input.controls': STICK };
+const C64 = { 'input.keyboard': true, 'input.joysticks': 2, 'input.pads': 0, 'input.controls': STICK };
+const NES = {
+  'input.keyboard': false,
+  'input.joysticks': 0,
+  'input.pads': 2,
+  'input.controls': ['up', 'down', 'left', 'right', 'a', 'b', 'select', 'start'],
+};
+const CX16 = {
+  'input.keyboard': true,
+  'input.joysticks': 0,
+  'input.pads': 2,
+  'input.controls': ['up', 'down', 'left', 'right', 'a', 'b', 'x', 'y', 'l', 'r', 'start', 'select'],
+};
+const PET = { 'input.keyboard': true, 'input.joysticks': 0, 'input.pads': 0, 'input.controls': [] };
 
 /** A fully bound reference pad. */
 const FULL = deviceFromDetected({ id: 'SN30', mapping: 'standard', buttons: 17, axes: 4 }).mapping;
 
 test('the same profile projects onto a VIC-20, an NES and an X16', () => {
   const vic20 = project('vic20', VIC20, FULL);
-  assert.equal(vic20.kind, 'joystick');
+  assert.equal(vic20.kind, 'atari-stick');
   assert.equal(vic20.ports, 1);
   assert.deepEqual(vic20.controls, ['up', 'down', 'left', 'right', 'a'], 'four switches and fire');
   assert.deepEqual(vic20.missing, [], 'the reference pad answers all five');
   assert.ok(vic20.unused.includes('y') && vic20.unused.includes('rt'));
 
   const nes = project('nes', NES, FULL);
-  assert.equal(nes.kind, 'pad.nes');
+  assert.equal(nes.kind, 'nes-pad');
   assert.equal(nes.ports, 2);
   assert.deepEqual(nes.controls, ['up', 'down', 'left', 'right', 'a', 'b', 'start', 'select']);
 
   const cx16 = project('cx16', CX16, FULL);
-  assert.equal(cx16.kind, 'pad.snes');
+  assert.equal(cx16.kind, 'snes-pad');
   assert.ok(cx16.controls.includes('x') && cx16.controls.includes('l'));
   assert.deepEqual(cx16.missing, []);
   // Nothing in the catalog projects a stick or a trigger today, so they
@@ -346,27 +378,60 @@ test('a fitted option changes the projection, because the fact sheet does', () =
   // packages/atari8/package.json raises input.joysticks to 4 under its
   // multiplexer values; the preview is computed from the resolved sheet,
   // so four ports is what it must show.
-  const stock = project('atari8', { 'input.joysticks': 2, 'input.pads': 0 }, FULL);
-  const multiplexed = project('atari8', { 'input.joysticks': 4, 'input.pads': 0 }, FULL);
+  const stock = project('atari8', { 'input.joysticks': 2, 'input.pads': 0, 'input.controls': STICK }, FULL);
+  const multiplexed = project('atari8', { 'input.joysticks': 4, 'input.pads': 0, 'input.controls': STICK }, FULL);
   assert.equal(stock.ports, 2);
   assert.equal(multiplexed.ports, 4);
 });
 
-test('a pad port whose shape the toolchain has not said is not guessed at', () => {
-  // The count is the toolchain's; what a pad *carries* is the one thing
-  // this editor still has to know, and it knows it for exactly the two
-  // machines that publish a pad today. A third says so rather than
-  // projecting an NES pad onto it.
-  assert.deepEqual(Object.keys(PAD_KINDS).sort(), ['cx16', 'nes']);
+test('a port whose contents the toolchain has not said is not guessed at', () => {
+  // This editor used to carry the answer itself, for exactly the two
+  // machines that publish a pad; a third was named as unknown rather than
+  // guessed at. The catalogs answer now, and the rule survives the move: a
+  // machine with ports and no `input.controls` gets a sentence, not an
+  // invented pad. That covers both an older `@8bitscript/cli` and a
+  // Commodore with nothing plugged into either port.
   const invented = project('somefuturemachine', { 'input.pads': 2 }, FULL);
   assert.equal(invented.kind, null);
   assert.deepEqual(invented.controls, []);
-  assert.match(invented.note, /not what pad they take/);
-  for (const controls of Object.values(DEVICE_CONTROLS)) {
+  assert.match(invented.note, /nothing about what is in them/);
+
+  // A machine whose ports are empty because they were emptied. The C64's
+  // catalog puts the stick on the `joystick` value of a control port, so
+  // `--hardware port1=none,port2=none` really does resolve to no controls.
+  const unplugged = project('c64', { ...C64, 'input.controls': [] }, FULL);
+  assert.equal(unplugged.kind, null);
+  assert.match(unplugged.note, /nothing about what is in them/);
+
+  // And a toolchain too old to publish the shapes: the controls are still
+  // the machine's, so the row is still right — only the *name* for the
+  // shape is missing, and it is missing rather than guessed.
+  const noKinds = projectWith('c64', C64, FULL, { primaryPort: 2 });
+  assert.equal(noKinds.kind, null);
+  assert.deepEqual(noKinds.controls, STICK, 'the controls do not depend on the shape having a name');
+});
+
+test('a kind is derived from the controls, and an unnamed shape has no name', () => {
+  // The point of deriving: a machine gets its kind by listing what its
+  // controller carries, and a device that matches a shape already in the
+  // table is recognised without a line of code changing at either end.
+  const kinds = CONTROLLER_KINDS;
+  assert.deepEqual(kinds.map((entry) => entry.kind), ['atari-stick', 'nes-pad', 'snes-pad', 'xbox-style']);
+  for (const { controls } of kinds) {
     for (const control of controls) {
       assert.ok(LOGICAL_CONTROLS.includes(control), `${control} is not a logical control`);
     }
+    assert.deepEqual([...new Set(controls)], controls, 'a shape names each control once');
   }
+  // Order is a readability choice in a catalog (an NES pad is listed in
+  // its shift register's order), never a different device.
+  assert.equal(controllerKind(['a', 'right', 'left', 'down', 'up'], kinds), 'atari-stick');
+  assert.equal(controllerKind(LOGICAL_CONTROLS, kinds), 'xbox-style');
+  // Exact set equality, not "has at least these": a two-button stick is
+  // not an NES pad just because it clears the bar for `a` and `b`.
+  assert.equal(controllerKind(['up', 'down', 'left', 'right', 'a', 'b'], kinds), null);
+  assert.equal(controllerKind([], kinds), null);
+  assert.equal(controllerKind(STICK, undefined), null, 'no table, no name');
 });
 
 test('four players, because that is as many as a pad ever has', () => {
@@ -429,7 +494,7 @@ test('a keyboard stick survives a save, and reads as bound everywhere', () => {
   // And the machine it was written for sees a complete stick rather than
   // four red gaps — which is what the panel showed while `key:` was held
   // at arm's length from parseBinding.
-  const atari8 = project('atari8', { 'input.joysticks': 2, 'input.pads': 0 }, atari);
+  const atari8 = project('atari8', { 'input.joysticks': 2, 'input.pads': 0, 'input.controls': STICK }, atari);
   assert.deepEqual(atari8.missing, [], 'the Atari reads all five');
   assert.deepEqual(atari8.bound, ['up', 'down', 'left', 'right', 'a']);
   assert.deepEqual(project('vic20', VIC20, atari).missing, [], 'and so does a VIC-20');

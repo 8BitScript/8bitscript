@@ -219,6 +219,23 @@ function foldFactCall(n, file, machine, facts, diagnostics) {
     replaceWithFact(n, key ?? '?', 0);
     return;
   }
+  // A list fact is a shape, not a quantity: `input.controls` is what a
+  // machine's controller carries, and there is no literal to fold it into
+  // — `replaceWithFact` below would hand the IR an array where an integer
+  // goes, which is a miscompile rather than an error. The repo's standing
+  // rule is that what cannot be done is refused *by name*, so it is
+  // refused here, before the machine is even looked at: the answer is the
+  // same on every machine.
+  if (FACTS.get(key).type === 'list') {
+    diagnostics.push(diagnostic(
+      Codes.UNKNOWN_FACT,
+      `'${key}' is a list of control names, not a number or a flag, so #fact() cannot fold it into a constant — `
+      + 'the editor and `8bs targets --json` read it, a program asks its input layer',
+      file, n.start, n.length,
+    ));
+    replaceWithFact(n, key, 0);
+    return;
+  }
   if (machine === undefined) {
     replaceWithFact(n, key, factPlaceholder(key));
     return;

@@ -358,59 +358,59 @@ function resolveDirection(mapping, direction) {
 //
 // Everything below this line that is *counted* comes from the toolchain:
 // `8bs targets --json` publishes each machine's fact sheet, and
-// `input.joysticks`, `input.pads`, `input.keyboard`, `input.mouse` and
-// `input.paddles` (packages/compiler/src/fold/facts.mjs) are what say how
-// many ports of what sort a machine has — including where a fitted option
-// changes the answer, which is why `project()` takes a *resolved* sheet
+// `input.joysticks`, `input.pads`, `input.controls`, `input.keyboard`,
+// `input.mouse` and `input.paddles` (packages/compiler/src/fold/facts.mjs)
+// are what say how many ports of what sort a machine has and what the
+// thing in one of them carries — including where a fitted option changes
+// the answer, which is why `project()` takes a *resolved* sheet
 // (hardwareCatalog.cjs's `effectiveFacts`) rather than a machine's stock
 // one: `packages/atari8/package.json` raises `input.joysticks` to 4 for a
-// multiplexer, and the C64's port options flip `input.mouse`.
+// multiplexer, and the C64's port options both flip `input.mouse` and
+// decide whether there is a stick to read at all.
 //
-// What the toolchain does *not* publish is what a port's device carries —
-// that an Atari-standard joystick is four switches and one button, that an
-// NES pad is eight bits, that the X16 takes a twelve-button SNES pad. That
-// is the one table below, in one named place, and closing that gap is the
-// first thing this panel needs from the CLI. See the report in
-// `.changeset/controller-setup.md`.
+// This module used to carry two tables of its own here, named in the
+// branch report as the thing to delete: one saying what each kind of port
+// device carries ("a joystick is four switches and a fire button"), one
+// saying which pad each machine's controller ports take. They existed
+// because the toolchain published port *counts* and nothing about what was
+// in a port. It does now: every machine package's catalog declares
+// `input.controls`, the logical controls its controller actually carries,
+// and the shapes that have a name ride beside that fact's own description
+// in `8bs targets --json`'s `facts` array. So both tables are gone, and
+// this file is back to the rule hardwareCatalog.cjs states next door — it
+// asks the toolchain and shows the answer.
 
 /**
- * The logical controls each kind of port device carries.
+ * The name for a shape of controller, from the table the toolchain
+ * publishes: `atari-stick`, `nes-pad`, `snes-pad`, `xbox-style`.
  *
- * Sourced from this repository's own hardware layers rather than recalled:
+ * The kind is *derived*, here and in the CLI, from the one list the
+ * machine declares — never stored beside it, because a name and the shape
+ * it names are two statements that can disagree, and only one of them can
+ * be checked. Matching is exact set equality, so a machine added tomorrow
+ * whose controller happens to be an Atari stick is recognised as one with
+ * nothing changed at either end, and a shape matching nothing is `null`
+ * rather than the nearest guess.
  *
- * - `joystick` — `packages/c64/src/joystick.8bs` declares `Joystick.UP`,
- *   `DOWN`, `LEFT`, `RIGHT`, `FIRE`: five switches to ground. The VIC-20's
- *   and the Atari's ports are the same nine-pin standard.
- * - `pad.nes` — `packages/nes/src/pad.8bs` names the shift register's
- *   fixed order: A, B, SELECT, START, UP, DOWN, LEFT, RIGHT.
- * - `pad.snes` — the X16's controller ports take SNES pads, which add
- *   X, Y and the two shoulders to that eight.
+ * `kinds` is `facts.find((f) => f.key === 'input.controls').kinds` out of
+ * `8bs targets --json` — controllerView.cjs hands it in. It is not on a
+ * machine's sheet because it is not about a machine: it is the vocabulary,
+ * the same for all nine. A toolchain too old to publish it yields `null`,
+ * and `projectionNote` below says what is missing rather than drawing a
+ * machine with ports and no controls on it.
  *
- * The fire button is `a`, not `b`: it is the one button the machine has,
- * and `a` is the one control every projection below has in common.
+ * @param {string[]} controls
+ * @param {{ kind: string, controls: string[] }[]} [kinds]
+ * @returns {string|null}
  */
-const DEVICE_CONTROLS = {
-  joystick: ['up', 'down', 'left', 'right', 'a'],
-  'pad.nes': ['up', 'down', 'left', 'right', 'a', 'b', 'start', 'select'],
-  'pad.snes': ['up', 'down', 'left', 'right', 'a', 'b', 'x', 'y', 'l', 'r', 'start', 'select'],
-};
-
-/**
- * Which pad a machine's `input.pads` ports take, where the fact's bare
- * count does not say.
- *
- * Two machines in the catalog publish a non-zero `input.pads` today — the
- * NES and the X16 — and they take different pads, so the count alone
- * cannot be projected. This is the whole of the editor's machine
- * knowledge, and it exists only until the CLI answers it; a machine not
- * named here projects nothing rather than guessing, which is the same rule
- * `packages/input/AGENTS.md` holds its own layers to ("a recalled matrix
- * that is wrong in two places is worse than a documented gap").
- */
-const PAD_KINDS = {
-  nes: 'pad.nes',
-  cx16: 'pad.snes',
-};
+function controllerKind(controls, kinds) {
+  if (!Array.isArray(controls) || controls.length === 0 || !Array.isArray(kinds)) return null;
+  const have = new Set(controls);
+  const match = kinds.find((entry) => Array.isArray(entry?.controls)
+    && entry.controls.length === have.size
+    && entry.controls.every((control) => have.has(control)));
+  return match?.kind ?? null;
+}
 
 /**
  * Which numbered port a machine's first player is read from, for a
@@ -444,9 +444,12 @@ const PRIMARY_PORT = {
  *   hardwareCatalog.cjs's `effectiveFacts(target, selection)`, so the
  *   answer is for the machine as it is fitted, not as it ships
  * @param {Record<string, string>} mapping one device's `mapping`
- * @param {{ primaryPort?: number|null }} [catalog] what the toolchain says
- *   about this machine beyond its facts — today just which port the first
- *   player is read from, published by `8bs targets --json`
+ * @param {{ primaryPort?: number|null, kinds?: object[] }} [catalog] what
+ *   the toolchain says beyond this machine's facts, out of
+ *   `8bs targets --json`: which port the first player is read from, and
+ *   the controller shapes that have a name — the `input.controls` fact's
+ *   own `kinds` table, which is the vocabulary rather than a machine's
+ *   answer and so is not on any machine's sheet
  * @returns {{
  *   target: string,
  *   kind: string|null,
@@ -465,9 +468,14 @@ function project(target, facts, mapping, catalog = {}) {
   // A machine with both would be a machine with two different shapes of
   // port; none in the catalog has, and pads are the richer of the two, so
   // they win and the note says what was set aside.
-  const kind = pads > 0 ? (PAD_KINDS[target] ?? null) : (joysticks > 0 ? 'joystick' : null);
   const ports = pads > 0 ? pads : joysticks;
-  const controls = kind ? DEVICE_CONTROLS[kind] ?? [] : [];
+  // What the thing in the port carries, straight off the resolved sheet.
+  // A Commodore declares this on the `joystick` *value* of a control port
+  // rather than on the machine, so unplugging the stick really does empty
+  // it — which is the truth about that machine as fitted, and is why the
+  // preview resolves facts per target instead of reading a stock sheet.
+  const controls = Array.isArray(facts?.['input.controls']) ? facts['input.controls'] : [];
+  const kind = controllerKind(controls, catalog?.kinds);
   const ordered = LOGICAL_CONTROLS.filter((control) => controls.includes(control));
   const bound = ordered.filter((control) => answered(mapping, control));
   const missing = ordered.filter((control) => !answered(mapping, control));
@@ -487,14 +495,20 @@ function project(target, facts, mapping, catalog = {}) {
     bound,
     missing,
     unused,
-    note: projectionNote(target, kind, ports, pads, joysticks, facts),
+    note: projectionNote(target, controls, ports, pads, joysticks, facts),
   };
 }
 
 /** Why a machine shows nothing, or shows less than its ports suggest. */
-function projectionNote(target, kind, ports, pads, joysticks, facts) {
-  if (pads > 0 && kind === null) {
-    return `The toolchain says ${target} has ${pads} controller port(s), but not what pad they take, so nothing can be projected onto them yet.`;
+function projectionNote(target, controls, ports, pads, joysticks, facts) {
+  // Ports, and nothing said about what is in them. Either every port is
+  // genuinely empty — on a Commodore that is one `--hardware port1=none`
+  // away, and the panel should say so rather than draw a machine with no
+  // controls — or the catalog does not declare `input.controls` at all,
+  // which is an older `@8bitscript/cli` in this project. One sentence
+  // covers both, because from here they are the same silence.
+  if (ports > 0 && controls.length === 0) {
+    return `The toolchain says ${target} has ${ports} control port(s) but nothing about what is in them, so nothing can be projected onto them.`;
   }
   if (ports === 0) {
     return facts?.['input.keyboard']
@@ -936,11 +950,9 @@ module.exports = {
   CONTROL_KINDS,
   CONTROL_LABELS,
   DEADZONE,
-  DEVICE_CONTROLS,
   LOGICAL_CONTROLS,
   MAX_PLAYERS,
   MODES,
-  PAD_KINDS,
   PRESS_THRESHOLD,
   PRIMARY_PORT,
   PROFILE_VERSION,
@@ -948,6 +960,7 @@ module.exports = {
   WALKTHROUGH,
   activeInputs,
   capture,
+  controllerKind,
   deviceFromDetected,
   deviceKey,
   deviceKeys,

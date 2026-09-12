@@ -60,6 +60,13 @@
         "input.keyboard": true,
         "input.joysticks": 2,
         "input.pads": 0,
+        "input.controls": [
+          "up",
+          "down",
+          "left",
+          "right",
+          "a"
+        ],
         "input.mouse": false,
         "input.paddles": false,
         "storage.save": true,

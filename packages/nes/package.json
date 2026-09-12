@@ -59,6 +59,16 @@
         "input.keyboard": false,
         "input.joysticks": 0,
         "input.pads": 2,
+        "input.controls": [
+          "up",
+          "down",
+          "left",
+          "right",
+          "a",
+          "b",
+          "select",
+          "start"
+        ],
         "input.mouse": false,
         "input.paddles": false,
         "storage.save": false,

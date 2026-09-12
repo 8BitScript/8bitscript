@@ -1,8 +1,13 @@
 // The fact sheet's keys: what a build knows about the machine it is for.
 //
-// A fact is a number or a flag with one meaning on every machine, keyed the
-// way the machine packages' hardware catalogs spell it (`video.columns`,
-// `memory.banked` — see docs/packages.md, "the hardware catalog"). The
+// A fact is a number, a flag, or a list of names, with one meaning on every
+// machine, keyed the way the machine packages' hardware catalogs spell it
+// (`video.columns`, `memory.banked` — see docs/packages.md, "the hardware
+// catalog"). A list is the odd one out and earns its place in one case:
+// `input.controls`, the controls a machine's controller actually carries,
+// which is a *shape* rather than a quantity — see its entry below. A list
+// cannot fold into a literal, so `#fact()` refuses it by name and the key
+// is `program: false`. The
 // compiler owns the *keys* and their types; the machine packages own the
 // *values*: each catalog's top-level `facts` is the stock machine's sheet
 // and each hardware value's `facts` is what choosing it changes, and the
@@ -51,6 +56,105 @@
 
 const count = (when, doc, program = true) => ({ type: 'count', when, program, doc });
 const flag = (when, doc, program = true) => ({ type: 'flag', when, program, doc });
+const list = (when, doc, extra = {}) => ({ type: 'list', when, program: false, doc, ...extra });
+
+/**
+ * 8BitScript's logical controls: what a controller's switches, buttons and
+ * sticks are called once they stop being one machine's or one host pad's.
+ *
+ * The same eighteen names, in the same order, as `docs/project/input.md`,
+ * `packages/cli/src/controllers.mjs` (`DIGITAL_CONTROLS`/`ANALOG_CONTROLS`)
+ * and the editor's Controller Setup panel
+ * (`editors/vscode/src/controllerProfile.cjs`, `LOGICAL_CONTROLS`). They
+ * are here because `input.controls` is spelled in them: a machine package
+ * writes these names in its catalog, so the compiler has to know which
+ * names are real before it can say a catalog is wrong. The CLI's own copy
+ * is held equal to this one by `packages/cli/test/hardware.test.mjs`, and
+ * the editor's by `editors/vscode/test/controllerProfile.test.cjs` — the
+ * editor has no dependencies at all (see its package.json) and reaches
+ * this list only as JSON, through `8bs targets --json`.
+ *
+ * The twelve digital ones first, then the six analogue ones: that is the
+ * order a panel shows them in, and nothing is ever stored by index.
+ */
+export const LOGICAL_CONTROLS = [
+  'up', 'down', 'left', 'right',
+  'a', 'b', 'x', 'y',
+  'l', 'r',
+  'start', 'select',
+  'leftStickX', 'leftStickY', 'rightStickX', 'rightStickY',
+  'lt', 'rt',
+];
+
+/**
+ * The controller shapes that have a name, and the exact set of controls
+ * each one is.
+ *
+ * **A kind is derived, never declared.** A machine package says what its
+ * controller *carries* — `input.controls` — and the kind falls out of that
+ * list by matching it against this table. Nothing in a catalog spells
+ * `nes-pad`, because a name stored beside the shape it names is two
+ * statements that can disagree, and the one that can be checked would lose
+ * to the one that cannot. It also means a machine added tomorrow whose
+ * controller happens to be an Atari stick is recognised as one without a
+ * line of code changing here, which is the whole point.
+ *
+ * Matched by **exact set equality**, not by "has at least these". The four
+ * sets are nested by eye — every NES pad control is on a SNES pad — and a
+ * subset ladder would call a hypothetical two-button stick an `nes-pad`
+ * because it happens to clear the bar for `a` and `b`. A shape that
+ * matches nothing gets `null` and the caller says so, which is the same
+ * rule `packages/input/AGENTS.md` holds its own layers to: a documented
+ * gap beats a wrong answer.
+ *
+ * The four:
+ *
+ * - `atari-stick` — the nine-pin Atari/Commodore standard: four direction
+ *   switches and one fire button, all shorting to ground. The one button
+ *   is `a`, because it is the only one the machine has and `a` is what
+ *   every wider shape below has in common.
+ * - `nes-pad` — that, plus B, Select and Start: the eight bits an NES
+ *   controller's shift register clocks out.
+ * - `snes-pad` — that, plus X, Y and the two shoulders: twelve.
+ * - `xbox-style` — all eighteen, which is a SNES pad plus two analogue
+ *   sticks and two analogue triggers. **No machine in this catalog carries
+ *   one**, and the name is here because it is the shape of the *host* pad
+ *   this project develops against (docs/project/input.md's development
+ *   standard: an 8BitDo SN30 Pro in X-input mode). It is the superset the
+ *   other three are projected out of, so naming it costs nothing and
+ *   leaves the ladder complete.
+ *
+ * @type {{ kind: string, controls: string[] }[]}
+ */
+export const CONTROLLER_KINDS = [
+  { kind: 'atari-stick', controls: ['up', 'down', 'left', 'right', 'a'] },
+  { kind: 'nes-pad', controls: ['up', 'down', 'left', 'right', 'a', 'b', 'select', 'start'] },
+  {
+    kind: 'snes-pad',
+    controls: ['up', 'down', 'left', 'right', 'a', 'b', 'x', 'y', 'l', 'r', 'start', 'select'],
+  },
+  { kind: 'xbox-style', controls: [...LOGICAL_CONTROLS] },
+];
+
+/**
+ * The name for a list of controls, or null for a shape with no name.
+ *
+ * Order and repetition do not matter — a catalog lists its controls the
+ * way the hardware's own documentation does (an NES pad's shift-register
+ * order, a control port's pin order), and that is a readability choice,
+ * not a different device.
+ *
+ * @param {string[]} controls
+ * @returns {string|null}
+ */
+export function controllerKind(controls) {
+  if (!Array.isArray(controls) || controls.length === 0) return null;
+  const have = new Set(controls);
+  const match = CONTROLLER_KINDS.find(
+    ({ controls: want }) => want.length === have.size && want.every((control) => have.has(control)),
+  );
+  return match?.kind ?? null;
+}
 
 /** Every fact key, in the order the sheet lists them. @type {Map<string, Fact>} */
 export const FACTS = new Map([
@@ -89,6 +193,7 @@ export const FACTS = new Map([
   ['input.keyboard', flag('build', 'A keyboard the program can read.')],
   ['input.joysticks', count('build', 'Joystick ports.')],
   ['input.pads', count('build', 'Console-style controller ports.')],
+  ['input.controls', list('build', 'The logical controls the controller on this machine\'s ports actually carries — four directions and a fire button for an Atari-standard stick, eight bits for an NES pad, twelve for a SNES one. What the port *counts* cannot say: `input.pads: 2` is not projectable without knowing which pad. The kind (`atari-stick`, `nes-pad`, `snes-pad`, `xbox-style`) is derived from this list by controllerKind(), never declared beside it. A list, so it folds into nothing and is not on a program\'s sheet: the editor\'s Controller Setup panel and `8bs targets --json` read it, a program asks its input layer.', { kinds: CONTROLLER_KINDS })],
   ['input.mouse', flag('run', 'A mouse this build may use; whether one is plugged in is the capability\'s answer at run time.')],
   ['input.paddles', flag('run', 'Paddles this build may use; whether they are plugged in is the capability\'s answer at run time.')],
   // Storage.
@@ -128,7 +233,12 @@ export function factConstName(key) {
  * @param {string} key
  */
 export function factPlaceholder(key) {
-  return FACTS.get(key)?.type === 'flag' ? false : 0;
+  const type = FACTS.get(key)?.type;
+  if (type === 'flag') return false;
+  // A machine whose sheet says nothing about its controls carries none —
+  // the same "nothing, said out loud" the 0 and the false are.
+  if (type === 'list') return [];
+  return 0;
 }
 
 /**
@@ -207,6 +317,20 @@ export function factProblems(facts) {
     }
     if (fact.type === 'flag' && typeof value !== 'boolean') problems.push(`'${key}' is a flag: true or false, not ${JSON.stringify(value)}`);
     if (fact.type === 'count' && !(Number.isInteger(value) && value >= 0)) problems.push(`'${key}' is a count: a whole number, not ${JSON.stringify(value)}`);
+    if (fact.type === 'list') {
+      if (!Array.isArray(value)) {
+        problems.push(`'${key}' is a list of control names: an array, not ${JSON.stringify(value)}`);
+        continue;
+      }
+      // Named one by one rather than as "some name is wrong": a typo in a
+      // catalog is a control that silently never projects, and the whole
+      // reason the compiler owns the key names is to catch it here.
+      for (const name of value) {
+        if (!LOGICAL_CONTROLS.includes(name)) {
+          problems.push(`'${key}' holds ${JSON.stringify(name)}, which is not a control — the controls are ${LOGICAL_CONTROLS.join(', ')}`);
+        }
+      }
+    }
   }
   return problems;
 }

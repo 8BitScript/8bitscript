@@ -318,7 +318,7 @@ class ControllerPanel {
         // so rather than inventing a title.
         title: target?.title ?? id,
         known: facts !== null,
-        ...onMachine(id, facts, device, target),
+        ...onMachine(id, facts, device, target, targets),
       };
     });
   }
@@ -330,7 +330,7 @@ class ControllerPanel {
  * because `project` is what a *directory with a config in it* is called
  * everywhere else in this extension, and one word cannot be both.
  */
-function onMachine(id, facts, device, target) {
+function onMachine(id, facts, device, target, targets) {
   if (!facts) {
     return {
       target: id, kind: null, ports: 0, firstPort: 1, controls: [], bound: [], missing: [], unused: [],
@@ -338,8 +338,16 @@ function onMachine(id, facts, device, target) {
     };
   }
   // `primaryPort` is the toolchain's — `8bs targets --json` publishes it
-  // per machine precisely so this editor stops keeping its own table.
-  return projectOnto(id, facts, device?.mapping ?? {}, { primaryPort: target?.primaryPort ?? null });
+  // per machine precisely so this editor stops keeping its own table. So
+  // are the controller shapes that have a name: they hang off the
+  // `input.controls` fact's own description rather than off a machine,
+  // because which shapes exist is the vocabulary and is the same for all
+  // nine, while *which one a machine has* is the fact itself.
+  const kinds = (targets?.facts ?? []).find((fact) => fact.key === 'input.controls')?.kinds ?? null;
+  return projectOnto(id, facts, device?.mapping ?? {}, {
+    primaryPort: target?.primaryPort ?? null,
+    kinds,
+  });
 }
 
 const ICONS = {
