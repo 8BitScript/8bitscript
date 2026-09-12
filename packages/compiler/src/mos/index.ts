@@ -116,12 +116,20 @@ const PET_ZP_BUDGET = { zpOrigin: 0x8e, zpCeiling: 0x100 };
 // The C64's own polite range, and it is a much smaller one: BASIC owns
 // $02-$8F and the KERNAL $90-$FF (packages/c64/AGENTS.md's memory map), so
 // there is no wide run to take the way the PET has above its interpreter.
-// $FB-$FE is the block neither uses and every C64 program has borrowed
-// since 1982 — four bytes, which is enough for a program that prints and
-// returns and nothing like enough for one with real state. A program that
-// needs more takes the owned budget below by calling waitFrame(), which is
-// the same trade the PET makes.
-const C64_ZP_BUDGET = { zpOrigin: 0xfb, zpCeiling: 0xff };
+// Eight bytes, $F7-$FE, in two halves with different reasons:
+//
+//   $FB-$FE  Used by neither BASIC nor the KERNAL. The four bytes every
+//            C64 program has borrowed since 1982.
+//   $F7-$FA  The RS-232 buffer pointers. Free for as long as nothing opens
+//            a serial channel — which nothing this backend emits does, and
+//            BASIC only does on an explicit OPEN to device 2.
+//
+// $FF is left out: BASIC's float-to-string routine works there. Four bytes
+// was the first cut and it was not enough for `screen.blank()`'s own frame
+// alone (seven), which is a fair measure of how tight this is. A program
+// that needs more than eight takes the owned budget below by never
+// returning — the same trade the PET makes, for the same reason.
+const C64_ZP_BUDGET = { zpOrigin: 0xf7, zpCeiling: 0xff };
 const CHRGET_BYTES = 24;
 
 // A program that calls waitFrame() anywhere owns the machine outright —

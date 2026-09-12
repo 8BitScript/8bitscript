@@ -39,6 +39,7 @@ import { LocalAllocator, ZpBudgetError } from './allocator.ts';
 import { arrayLabel, stringLabel } from '../data.ts';
 import { WAIT_FRAME_LABEL } from '../startup/waitframe.ts';
 import { MULTIPLY_LABEL } from '../startup/multiply.ts';
+import { parseAsm } from '../asm/parse.ts';
 
 export type Directive = _AsmDirective;
 
@@ -59,6 +60,9 @@ export interface IrExpr {
   left?: IrExpr;
   right?: IrExpr;
   argument?: IrExpr;
+  // memoryRead: the address to read, constant or computed — the same shape
+  // memoryWrite's own `address` takes on IrStatement.
+  address?: IrExpr;
   // call
   args?: IrExpr[];
   // 'string': which slot of ir.strings this literal is (a number, the
@@ -81,6 +85,10 @@ export interface IrStatement {
   value?: IrExpr | null;
   // assign
   target?: string;
+  // asm: the source text between an `asm6502` block's braces, exactly as
+  // written (packages/compiler/src/ir/index.mjs keeps it unparsed, since
+  // nothing before the 6502 backend has any reason to read assembly).
+  text?: string;
   // local's own initializer (IrExpr) and for's own init clause (IrStatement,
   // a `local` or an `assign` — the same field name, `init`, on both real IR
   // node shapes, so this has to be the loose union rather than two fields).
@@ -447,6 +455,13 @@ class Lowerer {
         return;
       case 'index':
         this.indexRead(node);
+        return;
+      // `memory.read(addr)` — memoryWrite's counterpart, and the same two
+      // shapes: a constant address is one LDA, a computed one goes through
+      // a zp pointer with Y at 0. The value lands in A, where every other
+      // 8-bit expression rule leaves its result.
+      case 'memoryRead':
+        this.memoryRead(node);
         return;
       default:
         throw new LowerError(`no instruction-selection rule yet for the '${node.kind}' expression — it lands in a later milestone`);
@@ -1488,9 +1503,39 @@ class Lowerer {
       case 'storeIndex':
         this.storeIndex(node);
         return null;
+      // `asm6502 { ... }`: the block's own text, read into the same
+      // Directives everything else here emits (mos/asm/parse.ts), so the
+      // assembler, the branch relaxer and the linker cannot tell which
+      // instructions a human wrote. The block gets a fresh id so its local
+      // labels are its own — `1:` in two blocks is two places.
+      case 'asm': {
+        const parsed = parseAsm(node.text ?? '', freshLabel('asm').slice('__8bs_'.length));
+        if (!parsed.ok) throw new LowerError(parsed.error);
+        this.emit(...parsed.directives);
+        return null;
+      }
       default:
         throw new LowerError(`no instruction-selection rule yet for the '${node.kind}' statement — it lands in a later milestone`);
     }
+  }
+
+  memoryRead(node: IrExpr): void {
+    const address = node.address;
+    if (!address) throw new LowerError('memoryRead: no address to read from');
+    if (address.kind === 'const') {
+      const target = address.value!;
+      this.emit(instr('LDA', target <= 0xff ? 'zeropage' : 'absolute', target));
+      return;
+    }
+    // Same pointer discipline as memoryWrite's computed case below: the
+    // address into a zp pair, Y held at 0, and the temporaries released
+    // once the byte is in A.
+    require16Bit(address.type, 'memoryRead: a computed address');
+    const mark = this.locals.mark();
+    const pointer = this.expr16(address);
+    this.emit(instr('LDY', 'immediate', 0));
+    this.emit(instr('LDA', '(indirect),y', pointer));
+    this.locals.release(mark);
   }
 
   memoryWrite(statement: IrStatement): void {
