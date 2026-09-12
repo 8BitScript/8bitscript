@@ -19,10 +19,20 @@ const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 const cli = JSON.parse(readFileSync(join(ROOT, '..', 'cli', 'package.json'), 'utf8'));
 const examples = pkg['8bitscript'].examples;
 
-// Which machines the example's 8bs.config.ts lists: the keys of its
-// `targets` object. Read the same way the editor reads it, as text.
+// 8bitscript.config.ts is the current name and 8bs.config.ts the older
+// one, in the same precedence the CLI's own loader uses
+// (packages/cli/src/config.mjs) — an example may be written either way.
+const CONFIG_FILENAMES = ['8bitscript.config.ts', '8bs.config.ts'];
+const configPathOf = (dir) => {
+  const found = CONFIG_FILENAMES.map((name) => join(dir, name)).find((path) => existsSync(path));
+  assert.ok(found, `${dir}: no ${CONFIG_FILENAMES.join(' or ')}`);
+  return found;
+};
+
+// Which machines the example's config lists: the keys of its `targets`
+// object. Read the same way the editor reads it, as text.
 const targetsOf = (dir) => {
-  const config = readFileSync(join(dir, '8bs.config.ts'), 'utf8').replace(/\/\/[^\n]*/g, '');
+  const config = readFileSync(configPathOf(dir), 'utf8').replace(/\/\/[^\n]*/g, '');
   const start = config.indexOf('targets:');
   assert.ok(start >= 0, `${dir}: no targets block`);
   // Balance braces from the opening one, since a target's own value (`{}`)
@@ -44,7 +54,8 @@ test('the manifest lists hello-world, a directory with a real project in it', ()
     assert.equal(typeof entry.title, 'string', `${name}: title`);
     assert.equal(typeof entry.description, 'string', `${name}: description`);
     const dir = resolve(ROOT, entry.dir);
-    assert.ok(existsSync(join(dir, '8bs.config.ts')), `${name}: 8bs.config.ts`);
+    configPathOf(dir); // asserts the project has a config under either name
+
     assert.ok(existsSync(join(dir, 'src', 'main.8bs')), `${name}: src/main.8bs`);
   }
 });

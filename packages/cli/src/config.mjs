@@ -36,6 +36,35 @@ export async function loadConfig(dir, label = '8bs') {
 }
 
 /**
+ * Whether a program hands the machine back in the state it was given.
+ *
+ * Today that is one thing: the character set it was launched in. A program
+ * that prints selects the text set itself, so without this a run on a PET
+ * that booted in graphics/upper-case (the 3032 and 4032 both do) leaves its
+ * owner at a lower-case BASIC prompt they never asked for. The program
+ * exits in whichever mode it entered — not a fixed mode, so a machine
+ * launched in lower case (the 8032) is given back in lower case too.
+ *
+ * Defaults to true. `restoreOnExit: false` buys the bytes back (on the PET:
+ * four in the prologue, four in the epilogue, and no RAM at all — the saved
+ * byte rides the CPU stack) for a program that would rather keep them, or
+ * one that deliberately means to leave the machine as it left it.
+ *
+ * @param {object|null} config
+ * @returns {{ ok: true, restoreOnExit: boolean } | { ok: false, error: string }}
+ */
+export function resolveRestoreOnExit(config) {
+  const restoreOnExit = config?.restoreOnExit ?? true;
+  if (typeof restoreOnExit !== 'boolean') {
+    return {
+      ok: false,
+      error: `8bitscript.config.ts's restoreOnExit must be true or false, got ${JSON.stringify(config?.restoreOnExit)}`,
+    };
+  }
+  return { ok: true, restoreOnExit };
+}
+
+/**
  * The project's logical frame rate — what `waitFrame()` runs at, the same on every target,
  * independent of --pal (which only selects a real hardware/emulator
  * region, not the logical rate; see packages/compiler/src/mos FRAME_SYNC).
