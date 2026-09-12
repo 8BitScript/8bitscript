@@ -37,18 +37,30 @@ import { Video } from "./geometry.8bs";
 // those same ASCII values, and 'A'-'Z' are 1-26, so asciiToScreenCode()
 // moves 64-95 down by 64 and leaves 32-63 alone.
 //
-// Whether 1-26 then LOOK like 'A'-'Z' or 'a'-'z' is the character set's
-// choice — the ROM's boot state, whatever ran before, a user's SHIFT+C= —
-// so this package owns the choice rather than inheriting one. putChar()
-// selects the upper-case set, every call, through the VIC's memory pointer
-// (see @8bitscript/vic20's `memoryPointer`): one register write — of the
-// value that also names this profile's screen base, since $9005 holds
-// both — and "TICK" reads as TICK here the way it does on the NES, the
-// Atari, and the X16, none of which have a lower-case set to fall into.
+// Which of the character ROM's blocks is live is not something to inherit
+// — the ROM's boot state, whatever ran before, a user's SHIFT+C= would each
+// give a different answer — so this package owns the choice. putChar()
+// selects the **mixed-case** block, every call, through the VIC's memory
+// pointer (see @8bitscript/vic20's `memoryPointer`): one register write, of
+// the value that also names this profile's screen base, since $9005 holds
+// both.
+//
+// Mixed-case rather than upper-case/graphics, for the reason
+// packages/pet/src/text.8bs gives at length and every Commodore here
+// repeats: it is the only block holding both cases of the alphabet, so it
+// is the only one that can draw `"Hello World"` as it was written rather
+// than flattened to `HELLO WORLD`. The upper-case block costs nothing to
+// reach for a program that wants it — MEMORY_POINTER_UPPERCASE is still
+// there in `Video`.
 
 function asciiToScreenCode(code: utinyint): utinyint {
-    if (code >= 64 && code < 96) {
-        return code - 64;
+    // The mixed-case block keeps lower case at 1-26 and upper case at its
+    // own ASCII values, 65-90 — measured against the real ROM
+    // (`chargen-901460-03.bin`, four 128-glyph sets in one 4K file): in set
+    // 2, code 8 is 'h' and code 72 is 'H'. 'A'-'Z', space, the digits and
+    // the punctuation all pass through untouched; only lower case moves.
+    if (code >= 97 && code < 123) {
+        return code - 96; // 'a'-'z'
     }
     return code;
 }
@@ -85,7 +97,7 @@ function toScreen(code: utinyint): utinyint {
 
 // What a run of text needs once, before its first character.
 function prepare(): void {
-    memoryPointer = Video.MEMORY_POINTER_UPPERCASE;
+    memoryPointer = Video.MEMORY_POINTER_LOWERCASE;
 }
 
 function place(cell: usmallint, code: utinyint): void {
