@@ -53,7 +53,7 @@ import {
   unmetRequirements,
 } from '@8bitscript/compiler';
 
-import { loadConfig, resolveFrameRate } from './config.mjs';
+import { loadConfig, resolveFrameRate, resolveRestoreOnExit } from './config.mjs';
 import {
   HARDWARE_USAGE, REGION_MACHINES, hardwareArgs, listedTargets, loadCatalog, projectHardware,
   projectProfiles, projectRequires, projectSystems, resolveHardware, whatSatisfies,
@@ -136,6 +136,13 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
     return { ok: false };
   }
   const { frameRate } = frameRateResult;
+
+  const restoreOnExitResult = resolveRestoreOnExit(config);
+  if (!restoreOnExitResult.ok) {
+    process.stderr.write(`8bs build: ${restoreOnExitResult.error}\n`);
+    return { ok: false };
+  }
+  const { restoreOnExit } = restoreOnExitResult;
 
   // Nothing in a build reads the `systems` block, but a typo in one should
   // not wait for someone to open the editor to be noticed. Said once, and
@@ -276,7 +283,7 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   if (REGION_TARGETS.has(target)) nameParts.push(pal ? 'pal' : 'ntsc');
   const ext = outputExtension(target, hardware);
   const outFile = resolve('dist', `${nameParts.join('-')}.${ext}`);
-  const result = await build(ir, { machine: target, hardware, outFile, frameRate, report });
+  const result = await build(ir, { machine: target, hardware, outFile, frameRate, restoreOnExit, report });
   if (!result.ok) {
     process.stderr.write(`8bs build: ${result.error}\n`);
     return { ok: false };

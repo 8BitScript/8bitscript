@@ -220,7 +220,8 @@ under xpet, not recalled.
 | Program load address `$0401`; usable RAM `$0401` to `__ram_size` KiB; stack grows down from the top of RAM; `__ram_size` must be 8, 16 or 32 — the link script asserts against 96K/128K machines. Zero page `$0002–$008D` is BASIC 2/4's; **BASIC 1 (the 2001) copies CHRGET to `$C2–$D9`** (the same 24-byte routine BASIC 2/4 puts at `$70–$87`). The native backend's zp budget is `$8E–$FF` with that BASIC 1 window left unused (`memory.chrget`, `packages/compiler/src/mos`), so a `SYS` return still has an interpreter — occupying it was `?SYNTAX ERROR IN 0` on hello-world. | PET link map (measured pre-0.2.0); BASIC 1 CHRGET at `$C2` measured against the ROM and retrocomputing.SE / *Machine Language for Beginners* Appendix G; the 2001 hello-world screenshot |
 | The `.prg` starts with a one-line BASIC program whose `SYS` jumps to `_start`, so `RUN` after `LOAD` starts it. | `pet/lib/basic-header.o`, `commodore/lib/commodore.ld` |
 | PIA1 `$E810`, PIA2 `$E820`, VIA `$E840`, CRTC `$E880` (data at `$E881`); the CRTC is a **6545** (all models from 40xx and above), and a 6551 ACIA at `$EFF0` is SuperPET-only. | PETdoc.txt; VICE `petmem.c` |
-| A PET program starts in whatever character set the ROM booted — graphics on the 3032/4032, text on the 8032 — and `text.8bs` writes `$0C` to the VIA PCR before each run so 1–26 render as capitals. A CHROUT of PETSCII 14 (`lda #$0e / jsr $FFD2`) would flip the machine to lower-case; 8BitScript does not emit that. | probe screenshots; `src/text.8bs` |
+| A PET program starts in whatever character set the ROM booted — graphics on the 3032/4032, text on the 8032 — and `text.8bs`'s `prepare()` writes `$0E` (**text**, not the `$0C` an earlier version of this row recorded) to the VIA PCR before each run of text, because the text set is the one its encoding is written against: lower case at 1–26, capitals in the text set's own upper range. A CHROUT of PETSCII 14 (`lda #$0e / jsr $FFD2`) would do the same through the ROM; 8BitScript pokes the register instead. | probe screenshots; `src/text.8bs` |
+| **The charset bit is global and retroactive**: it selects the ROM the video hardware reads *now*, for every cell already on screen, so flipping it back at exit re-renders text that is still up. Measured on a 3032 (boots graphics) running hello-world: without a restore the greeting reads `Hello World!` and BASIC's prompt comes back as lower-case `ready.`; with the restore the prompt is the boot's `READY.` and the greeting has become `\|ELLO OORLD!` — the 1–26 lower-case codes render as capitals in the graphics set, and the text set's own capitals land on graphics glyphs. On an 8032 (boots text) the restore is invisible, because the set it puts back is the one the text was drawn for. A program that means to both return the machine and leave a readable screen has to blank the screen itself; no charset choice can do both. | `restoreOnExit` screenshots, 3032 and 8032, 2026-09-11 |
 | `xpet -model 3032` boots BASIC 2 in upper-case/graphics mode; `4032` boots BASIC 4 in upper-case; `8032` boots BASIC 4 in lower-case text mode (its business editor ROM's choice). All three report `31743 BYTES FREE`. | boot screenshots via `-limitcycles -exitscreenshot` |
 | A 40-column build's text appears at the top-left of an 8032's 80-column screen: screen RAM is `$8000` on the 80-column machine too. | borders `.prg` on `-model 8032` |
 | VICE's PET models: 2001, 3008, 3016, 3032, 3032B, 4016, 4032, 4032B, 8032, 8096, 8296, SuperPET. RAM sizes 4/8/16/32/96/128; `-videosize 0/40/80` (0 = from ROM); CRTC "all models from 40xx and above"; `-screen2001` mirrors the 1K screen through `$8FFF` ("otherwise mirrors, if any, only go up to `$87FF`"); `-eoiblank` is a "Model-2001-only quirk"; `CB2Lowpass` filters the emulated CB2 sound; `-petdww` (30xx) and `-pethre` (8296) are hi-res *add-on boards*; Color PET (`$8800` color RAM) and `-sidcart` are third-party extensions. | VICE 3.10 manual §7.7, `xpet -help` |
@@ -499,6 +500,25 @@ unverified:
   New per-model facts go the same way: the value's tag's version of one
   small file (`x.pet.8032.8bs`), read through a namespace const, never a
   copy of a surface — or, for a number, a `facts` entry on the value.
+### The machine is given back the way it was handed over
+
+- A program that selects a character set gets a save/restore pair around it
+  (`restoreOnExit`, on by default; `mos/startup/commodore.ts`): the PCR is
+  copied to the CPU stack in the prologue and written back in the epilogue,
+  eight bytes and no RAM cell, and only when the finished instruction
+  stream actually stores to `$E84C`. It restores the **mode the machine was
+  launched in**, not a fixed mode, so an 8032 that booted in text is given
+  back in text and a 3032 that booted in graphics is given back in
+  graphics.
+- What it cannot do is un-draw. The charset bit is retroactive (see the
+  fact table above), so a restore re-renders whatever the program left on
+  screen. That is the trade the project setting exists for, and neither
+  side of it is a bug: `restoreOnExit: false` keeps the screen the program
+  drew and leaves the machine in the program's set. A program that wants
+  both blanks the screen before it returns.
+- New restore-me-on-exit state goes the same way: decided from the emitted
+  stream, paid for only by programs that touch it, and off in one place.
+
 - 96K/128K is not a RAM size, it is a banking model, and this target does not link
   it — the `ram` option's own values stop at 32, the on-board maximum for
   every model this catalog supports. If banked RAM ever arrives it follows

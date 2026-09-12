@@ -24,7 +24,7 @@ import type { Directive, FunctionSite, IrFunction } from './lower/index.ts';
 import { instructionBytes } from './asm/encode.ts';
 import { LocalAllocator } from './lower/allocator.ts';
 import { prgBytes } from './prg.ts';
-import { epilogue, prologue, usesDecimalSensitiveMath } from './startup/commodore.ts';
+import { epilogue, prologue, usesCharacterSet, usesDecimalSensitiveMath } from './startup/commodore.ts';
 import { WAIT_FRAME_ZP_BYTES, usesWaitFrame, waitFrameRoutine, waitFrameSetup } from './startup/waitframe.ts';
 import { MULTIPLY_ZP_BYTES, multiplyCells, multiplyRoutine, usesMultiply } from './startup/multiply.ts';
 import type { MultiplyCells } from './startup/multiply.ts';
@@ -51,6 +51,14 @@ export interface BuildOptions {
   outFile: string;
   frameRate: number;
   report?: boolean;
+  /**
+   * Whether the program hands the machine back in the state it was given —
+   * today that means the character set it was launched in
+   * (8bitscript.config.ts's `restoreOnExit`, default true). Optional, and
+   * absent means true: a build that never passes it gets the polite
+   * behavior, and a program has to ask to keep the machine changed.
+   */
+  restoreOnExit?: boolean;
 }
 
 /** One named piece of the program `options.report` breaks a build's own size down into — a function, an inlined callee that now lives inside one, or a fixed-cost bucket (wait-frame setup vs the per-frame routine, the BASIC stub, …). Sorted largest first; every entry's `bytes` sums to the real, linked `bytes.length`. */
@@ -506,6 +514,13 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   const waitFrameRoutineProgram = needsWaitFrame ? waitFrameRoutine(waitFrameAcc, waitFrameNum) : [];
   const multiplyProgram = multiply ? multiplyRoutine(multiply) : [];
   const needsCld = usesDecimalSensitiveMath([...everyInstruction, ...waitFrameSetupProgram, ...waitFrameRoutineProgram, ...multiplyProgram]);
+  // Give the machine back the character set it was launched in: a program
+  // that prints selects the text set itself (@8bitscript/pet/text), and
+  // without this a run on a machine that booted in graphics/upper-case —
+  // the 3032 and 4032 both do — drops back to a BASIC prompt in lower
+  // case. Only when the program actually writes the register, and only
+  // when the project hasn't turned it off to buy the bytes back.
+  const restoresCharacterSet = options.restoreOnExit !== false && usesCharacterSet(everyInstruction);
   // A waitFrame() program's zero-page budget includes bytes the KERNAL's
   // own IRQ handler still updates (the jiffy clock) until interrupts go
   // off — so off they go before the first global initializer's store,
@@ -513,12 +528,12 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // for the setup's documented flag-race reason).
   const ownMachineProgram: Directive[] = needsWaitFrame ? [{ kind: 'instruction', mnemonic: 'SEI', mode: 'implied' }] : [];
   const combinedProgram: Directive[] = [
-    ...prologue(needsCld),
+    ...prologue(needsCld, restoresCharacterSet),
     ...ownMachineProgram,
     ...globalInitProgram,
     ...waitFrameSetupProgram,
     ...entry.program,
-    ...epilogue(),
+    ...epilogue(restoresCharacterSet),
     ...others.flatMap((f): Directive[] => [{ kind: 'label', name: f.label }, ...f.program, RTS]),
     ...waitFrameRoutineProgram,
     ...multiplyProgram,
@@ -567,7 +582,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
       { name: '(string/const-array data)', bytes: directiveBytes(dataSection) },
       // +2: the load address prgBytes() prepends ahead of `stub` itself —
       // every real .prg's first two bytes, not counted in stub.length.
-      { name: '(load address + BASIC stub + prologue/epilogue)', bytes: 2 + stub.length + directiveBytes(prologue(needsCld)) + directiveBytes(ownMachineProgram) + directiveBytes(epilogue()) },
+      { name: '(load address + BASIC stub + prologue/epilogue)', bytes: 2 + stub.length + directiveBytes(prologue(needsCld, restoresCharacterSet)) + directiveBytes(ownMachineProgram) + directiveBytes(epilogue(restoresCharacterSet)) },
     );
     sizeReport = entries.filter((e) => e.bytes > 0).sort((a, b) => b.bytes - a.bytes);
   }
