@@ -4,15 +4,25 @@
 // in docs/assets/js/site.js. There is no component framework — this is one
 // template function for a documentation site with a few dozen pages, and a
 // framework would cost more than it buys.
-import { nav } from './nav.mjs';
+import { nav as currentNav } from './nav.mjs';
 
 /** Empty string for the latest release at `/`; `/0.1.0` for a snapshot. */
 export let siteBase = '';
 export let siteVersion = '0.1.0';
 
-export function configureSite({ base = '', version = '0.1.0' } = {}) {
+// The sidebar a version snapshot renders has to be that version's sidebar: a
+// 0.1.x tree holds pages this one's nav.mjs has never heard of, and rendering
+// it against the current three-entry nav would publish those pages with no way
+// to reach them. build-all.mjs passes the nav it extracted alongside the tag's
+// docs/; everything else keeps using the one imported above.
+let siteNav = currentNav;
+let flatNav = flattenNav(siteNav);
+
+export function configureSite({ base = '', version = '0.1.0', nav = currentNav } = {}) {
   siteBase = String(base).replace(/\/$/, '');
   siteVersion = version;
+  siteNav = nav;
+  flatNav = flattenNav(siteNav);
 }
 
 /** Prefix a root-absolute site path with the version base, if any. */
@@ -44,7 +54,7 @@ function escapeHtml(value) {
  * children immediately after it. Used for breadcrumbs and prev/next — both
  * need "where does this page sit in the sidebar", not the tree shape.
  */
-function flattenNav() {
+function flattenNav(nav) {
   const flat = [];
   for (const item of nav) {
     flat.push({ title: item.title, url: item.url, parent: null });
@@ -55,8 +65,6 @@ function flattenNav() {
   return flat;
 }
 
-const FLAT_NAV = flattenNav();
-
 /** One `<a>` in the sidebar, marked as current when it is the page being built. */
 function navLink(item, currentUrl) {
   const isCurrent = item.url === currentUrl;
@@ -66,7 +74,7 @@ function navLink(item, currentUrl) {
 }
 
 function renderNav(currentUrl) {
-  const items = nav
+  const items = siteNav
     .map((item) => {
       const sublist = item.children
         ? `\n          <ul class="nav-sublist">\n${item.children
@@ -116,10 +124,10 @@ ${items}
 
 /** Prev/next links from the page's position in the flattened nav order. */
 function renderPrevNext(currentUrl) {
-  const index = FLAT_NAV.findIndex((entry) => entry.url === currentUrl);
+  const index = flatNav.findIndex((entry) => entry.url === currentUrl);
   if (index === -1) return '';
-  const prev = index > 0 ? FLAT_NAV[index - 1] : null;
-  const next = index < FLAT_NAV.length - 1 ? FLAT_NAV[index + 1] : null;
+  const prev = index > 0 ? flatNav[index - 1] : null;
+  const next = index < flatNav.length - 1 ? flatNav[index + 1] : null;
   if (!prev && !next) return '';
 
   const prevLink = prev
@@ -142,7 +150,7 @@ function renderPrevNext(currentUrl) {
  * @returns {string}
  */
 export function renderPage(page) {
-  const entry = FLAT_NAV.find((item) => item.url === page.url);
+  const entry = flatNav.find((item) => item.url === page.url);
   const toc = renderToc(page.headings);
   const home = withBase('/');
   const assets = withBase('/assets');
