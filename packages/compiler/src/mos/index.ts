@@ -113,23 +113,6 @@ export const CPU: Record<Machine, CpuVariant> = {
 // nothing.
 const PET_ZP_BUDGET = { zpOrigin: 0x8e, zpCeiling: 0x100 };
 
-// The C64's own polite range, and it is a much smaller one: BASIC owns
-// $02-$8F and the KERNAL $90-$FF (packages/c64/AGENTS.md's memory map), so
-// there is no wide run to take the way the PET has above its interpreter.
-// Eight bytes, $F7-$FE, in two halves with different reasons:
-//
-//   $FB-$FE  Used by neither BASIC nor the KERNAL. The four bytes every
-//            C64 program has borrowed since 1982.
-//   $F7-$FA  The RS-232 buffer pointers. Free for as long as nothing opens
-//            a serial channel — which nothing this backend emits does, and
-//            BASIC only does on an explicit OPEN to device 2.
-//
-// $FF is left out: BASIC's float-to-string routine works there. Four bytes
-// was the first cut and it was not enough for `screen.blank()`'s own frame
-// alone (seven), which is a fair measure of how tight this is. A program
-// that needs more than eight takes the owned budget below by never
-// returning — the same trade the PET makes, for the same reason.
-const C64_ZP_BUDGET = { zpOrigin: 0xf7, zpCeiling: 0xff };
 const CHRGET_BYTES = 24;
 
 // A program that calls waitFrame() anywhere owns the machine outright —
@@ -144,13 +127,44 @@ const CHRGET_BYTES = 24;
 // the polite $8E-$FF budget above, CHRGET hole included.
 const PET_OWNED_ZP_BUDGET = { zpOrigin: 0x02, zpCeiling: 0x100 };
 
+// The C64 has no polite budget, and that is a fact about the machine
+// rather than a decision taken here.
+//
+// BASIC owns $02-$8F and the KERNAL $90-$FF (packages/c64/AGENTS.md's
+// memory map), leaving $F7-$FE — the four bytes neither uses, plus the four
+// RS-232 buffer pointers — which is eight, against the seven
+// `screen.blank()`'s own frame alone wants and the fourteen hello-world's
+// full call chain wants. So the polite budget cannot carry a real program.
+//
+// It does not need to. @8bitscript/c64's own `setupVideo()` banks the
+// KERNAL out ($01 = %101) and keeps it out, because the screen it sets up
+// lives at $E000 under the KERNAL ROM (packages/c64/src/index.8bs says so
+// at length). A C64 program that draws anything has therefore already
+// taken the machine: BASIC's `READY.` is printed by a KERNAL that is no
+// longer mapped, and there is nothing left to be polite to. Taking the
+// whole page is the honest description of what such a program already is.
+//
+// The shape this does not distinguish yet is a C64 program that returns to
+// BASIC *without ever drawing* — it would be safe on the eight bytes, and
+// it is not a shape anything in this workspace has. When one exists, the
+// trigger is the same kind of fact `usesWaitFrame` already is: a store to
+// $01, read off the finished instruction stream.
+const C64_ZP_BUDGET = PET_OWNED_ZP_BUDGET;
+
+// The VIC-20 keeps the same KERNAL zero-page map as the C64 and, unlike the
+// C64, its package never banks anything out — a VIC-20 program really does
+// return to a working BASIC — so the polite shape is real here and worth
+// keeping. It is still only $FB-$FE plus the RS-232 pointers.
+const VIC20_ZP_BUDGET = { zpOrigin: 0xf7, zpCeiling: 0xff };
+
 // Per machine: the budget a program that returns to BASIC may take, and
 // the one a program that never does may take. The second is the whole page
 // on every Commodore here, for the same reason each time — interrupts off,
 // the interpreter never resumed — so only the polite one really differs.
 const ZP_BUDGETS: Partial<Record<Machine, { polite: { zpOrigin: number; zpCeiling: number }; owned: { zpOrigin: number; zpCeiling: number } }>> = {
   pet: { polite: PET_ZP_BUDGET, owned: PET_OWNED_ZP_BUDGET },
-  c64: { polite: C64_ZP_BUDGET, owned: PET_OWNED_ZP_BUDGET },
+  c64: { polite: C64_ZP_BUDGET, owned: C64_ZP_BUDGET },
+  vic20: { polite: VIC20_ZP_BUDGET, owned: PET_OWNED_ZP_BUDGET },
 };
 
 function chrgetZpHoles(facts: Record<string, unknown>, budget: { zpOrigin: number; zpCeiling: number }): ZpHole[] {
@@ -587,14 +601,21 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
 
   const { bytes: stub, codeStart } = basicStub(loadAddress);
 
+  // The ceiling the linker measures against, in one of two spellings. A
+  // machine whose usable RAM ends on a whole number of KiB says so with
+  // `__ram_size` and always has (the PET's screen sits exactly there); a
+  // machine whose does not says `__ram_ceiling` outright. The VIC-20 is the
+  // second kind and is why the second spelling exists: unexpanded, BASIC's
+  // program area ends at $1E00, where the screen starts, which is 7.5 KiB.
+  const ramCeilingBytes = options.hardware.build.defsym.__ram_ceiling;
   const ramSizeKib = options.hardware.build.defsym.__ram_size;
-  if (typeof ramSizeKib !== 'number') {
-    return { ok: false, error: 'the pet hardware sheet is missing defsym.__ram_size, the RAM ceiling the linker needs' };
+  if (typeof ramCeilingBytes !== 'number' && typeof ramSizeKib !== 'number') {
+    return { ok: false, error: `the ${options.machine} hardware sheet is missing defsym.__ram_ceiling (or defsym.__ram_size), the RAM ceiling the linker needs` };
   }
 
   const linked = link({
     codeOrigin: codeStart,
-    ramCeiling: ramSizeKib * 1024,
+    ramCeiling: typeof ramCeilingBytes === 'number' ? ramCeilingBytes : ramSizeKib * 1024,
     code: { kind: 'assembly', program: combinedProgram },
     zpOrigin: zpBudget.zpOrigin,
     zpCeiling: zpBudget.zpCeiling,

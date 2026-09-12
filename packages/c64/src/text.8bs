@@ -31,21 +31,33 @@ import { Video, screenRam, colorRam } from "./geometry.8bs";
 // set has (the NES ships its own font, and that is what it has). The
 // hardware wants screen codes: in every Commodore character ROM, codes
 // 32-63 are those same ASCII values (space, digits, that punctuation), and
-// 'A'-'Z' are 1-26, so asciiToScreenCode() moves 64-95 down by 64 and
-// leaves 32-63 alone. Whether 1-26 then LOOK like 'A'-'Z' or 'a'-'z' is
-// the character set's choice — the ROM's boot state, whatever a program
-// ran before, or a user's SHIFT+C= — so this package owns the choice
-// rather than inheriting one: prepare() selects the upper-case set, every
-// run in text mode (in bitmap mode $D018 is the bitmap's, and left alone),
-// through the VIC-II's memory pointer (see @8bitscript/c64's
-// `memoryPointer`): one register write, of the value that also names this
-// screen's position in the bank, and "TICK" reads as TICK here the way it
-// does on the NES, the Atari, and the X16, none of which have a lower-case
-// set to fall into.
+// Which of the character ROM's two sets is live is not something to
+// inherit — the ROM's boot state, whatever a program ran before, or a
+// user's SHIFT+C= would each give a different answer — so this package owns
+// the choice: prepare() selects the **mixed-case** set, every run in text
+// mode (in bitmap mode $D018 is the bitmap's, and left alone), through the
+// VIC-II's memory pointer (see @8bitscript/c64's `memoryPointer`): one
+// register write, of the value that also names this screen's position in
+// the bank.
+//
+// Mixed-case rather than upper-case/graphics, for the reason
+// packages/pet/src/text.8bs gives at length and this machine repeats: it
+// is the only one of the two sets holding both cases of the alphabet, so
+// it is the only one that can draw `"Hello World"` as it was written
+// rather than flattened to `HELLO WORLD`. A text package that silently
+// changes the text is answering a different question than the one its
+// caller asked. The upper-case set costs nothing to reach for a program
+// that wants it — MEMORY_POINTER_UPPERCASE is right there in `Video`.
 
 function asciiToScreenCode(code: utinyint): utinyint {
-    if (code >= 64 && code < 96) {
-        return code - 64;
+    // The mixed-case set keeps lower case at 1-26 and upper case at its own
+    // ASCII values, 65-90 — measured against the real ROM
+    // (`chargen-901225-01.bin`, 8 bytes/glyph, the two sets in one 4K file):
+    // in the lower half, code 8 is 'h' and code 72 is 'H'. So 'A'-'Z',
+    // space, the digits and the punctuation all pass through untouched, and
+    // only lower case moves.
+    if (code >= 97 && code < 123) {
+        return code - 96; // 'a'-'z'
     }
     return code;
 }
@@ -86,7 +98,7 @@ function toScreen(code: utinyint): utinyint {
 function prepare(): void {
     setupVideo();
     if (videoMode == VideoMode.TEXT) {
-        memoryPointer = Video.MEMORY_POINTER_UPPERCASE;
+        memoryPointer = Video.MEMORY_POINTER_LOWERCASE;
     }
 }
 

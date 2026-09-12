@@ -96,12 +96,20 @@ for (const machine of MACHINES) {
 
 const T_CONSUMER = 'import { text } from "@8bitscript/text";\nexport function main(): void { text.putChar(0, 84); }';
 
-test('vic20/c64/c128/mega65 map ASCII to screen codes and select the upper-case-only set', () => {
+test('every Commodore selects a character set rather than inheriting one, and the two that ship draw in the mixed-case one', () => {
+  // Selecting is the shared decision: the ROM's boot state, whatever ran
+  // before, and a user's SHIFT+C= would each give a different answer, so a
+  // text package picks. WHICH set differs, and deliberately. The machines
+  // that actually build draw in the mixed-case set, because it is the only
+  // one holding both cases of the alphabet and so the only one that can
+  // draw a string as it was written (packages/pet/src/text.8bs argues it at
+  // length). The parked two still select the upper-case set; they change
+  // when their own backends land and a screenshot can prove it.
   const charset = {
-    vic20: { global: 'memoryPointer', address: 0x9005, value: 240 },
-    c64: { global: 'memoryPointer', address: 0xD018, value: 132 },
-    c128: { global: 'memoryPointerShadow', address: 0xA2C, value: 20, also: { global: 'memoryPointer', value: 20 } },
-    mega65: { global: 'memoryPointer', address: 0xD018, value: 36 },
+    vic20: { global: 'memoryPointer', address: 0x9005, value: 0xF2, lowerCaseAt: 96 },
+    c64: { global: 'memoryPointer', address: 0xD018, value: 0x86, lowerCaseAt: 96 },
+    c128: { global: 'memoryPointerShadow', address: 0xA2C, value: 20, also: { global: 'memoryPointer', value: 20 }, lowerCaseAt: null },
+    mega65: { global: 'memoryPointer', address: 0xD018, value: 36, lowerCaseAt: null },
   };
   for (const [machine, expect] of Object.entries(charset)) {
     const { ir, diagnostics } = link(T_CONSUMER, CONSUMER, { machine, facts: stockFacts(machine) });
@@ -110,13 +118,23 @@ test('vic20/c64/c128/mega65 map ASCII to screen codes and select the upper-case-
     assert.ok(ascii, `${machine}: no ASCII-to-screen-code mapping`);
     assert.equal(ascii.body[0].kind, 'if');
     assert.equal(ascii.body[0].test.operator, '&&');
-    assert.deepEqual(ascii.body[0].then[0].value.right, { kind: 'const', value: 64, type: 'utinyint' });
+    if (expect.lowerCaseAt === null) {
+      // Upper-case set: 'A'-'Z' drop by 64 onto 1-26.
+      assert.deepEqual(ascii.body[0].then[0].value.right, { kind: 'const', value: 64, type: 'utinyint' }, machine);
+    } else {
+      // Mixed-case set: 'a'-'z' drop by 96 onto 1-26, and 'A'-'Z' pass
+      // through at their own 65-90.
+      assert.deepEqual(ascii.body[0].test.left.right, { kind: 'const', value: 97, type: 'utinyint' }, machine);
+      assert.deepEqual(ascii.body[0].then[0].value.right, { kind: 'const', value: expect.lowerCaseAt, type: 'utinyint' }, machine);
+      assert.equal(ascii.body[1].kind, 'return', `${machine}: everything else passes through`);
+      assert.equal(ascii.body[1].value.kind, 'ref', machine);
+    }
     const g = ir.globals.find((x) => x.name === expect.global);
     assert.equal(g.address, expect.address, `${machine}: ${expect.global} address`);
     const prepare = ir.functions.find((f) => f.name === 'prepare');
     const assign = prepare.body.find((s) => s.kind === 'assign' && s.target === expect.global)
       ?? prepare.body.find((s) => s.kind === 'if')?.then.find((s) => s.kind === 'assign' && s.target === expect.global);
-    assert.equal(assign.value.value, expect.value, `${machine}: no upper-case character set selection`);
+    assert.equal(assign.value.value, expect.value, `${machine}: no character set selection`);
     if (expect.also) {
       const other = prepare.body.find((s) => s.kind === 'assign' && s.target === expect.also.global);
       assert.equal(other.value.value, expect.also.value, `${machine}: memoryPointer follows the shadow`);

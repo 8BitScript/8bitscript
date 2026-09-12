@@ -17,7 +17,14 @@ export type Operand =
   // needs it as two separate immediate bytes — `LDA #<label` / `LDA #>label`
   // in traditional 6502 assembler spelling. Omitted, the label resolves to
   // its full 16-bit value, unchanged from before this milestone.
-  | { kind: 'label'; name: string; byte?: 'lo' | 'hi' };
+  // `offset` folds a constant into the label's own address at assembly
+  // time: `array[i + 250]` is the cell 250 past the array's base indexed by
+  // i, not the cell at `(i + 250) & 255` — which is what computing the sum
+  // in an 8-bit register would give, and what the screen-clearing loops in
+  // the C64 and VIC-20 packages are written in terms of ("four constant
+  // offsets off one 8-bit index is the shape a 6502 wants",
+  // packages/c64/src/screen.8bs).
+  | { kind: 'label'; name: string; byte?: 'lo' | 'hi'; offset?: number };
 
 export type Directive =
   | { kind: 'label'; name: string }
@@ -66,8 +73,12 @@ function placeLabels(program: Directive[], origin: number): { ok: true; labels: 
 function resolve(operand: Operand | undefined, labels: Map<string, number>, context: string): { ok: true; value: number } | { ok: false; error: string } {
   if (!operand) return { ok: false, error: `${context} needs an operand` };
   if (operand.kind === 'value') return { ok: true, value: operand.value };
-  const value = labels.get(operand.name);
-  if (value === undefined) return { ok: false, error: `${context}: undefined label '${operand.name}'` };
+  const found = labels.get(operand.name);
+  if (found === undefined) return { ok: false, error: `${context}: undefined label '${operand.name}'` };
+  const value = found + (operand.offset ?? 0);
+  if (value < 0 || value > 0xffff) {
+    return { ok: false, error: `${context}: '${operand.name}' + ${operand.offset} is outside the address space` };
+  }
   if (operand.byte === 'lo') return { ok: true, value: value & 0xff };
   if (operand.byte === 'hi') return { ok: true, value: (value >> 8) & 0xff };
   return { ok: true, value };
