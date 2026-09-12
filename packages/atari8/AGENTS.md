@@ -1,11 +1,15 @@
 # Writing Atari 8-bit support for 8BitScript
 
-> **Parked in 0.2.0.** This machine is not a build target in the current
-> release: `8bs build` refuses it until its native backend lands
-> (`RELEASE_MACHINES` in `packages/compiler/src/resolver`). The package
-> stays in the workspace, its sources still link, and everything below is
-> still the guide for when it returns. The 0.2.0 work is the PET and the
-> web; see the "Hello, PET" roadmap.
+> **The native backend builds this machine.** `build()` in
+> `packages/compiler/src/mos` produces a real `.xex` for the atari8: the
+> hardware sheet carries `__load_address`/`__ram_ceiling`, `ZP_BUDGETS`
+> carries its zero page, `mos/image-atari8.ts` is its container, and
+> `RASTER` in `mos/startup/waitframe.ts` is its `waitFrame()`. Verified
+> under atari800 7.1.2 (NTSC, `-xl`): `packages/examples/hello-world`
+> shows its greeting, and 2048 runs, paces and takes input. Whether
+> `8bs build --target atari8` is *allowed* is a separate, release-level
+> switch (`RELEASE_MACHINES` in `packages/compiler/src/resolver`) and is
+> not this file's to flip.
 
 This file is for anyone — human or agent — touching `packages/atari8`,
 this package's hardware catalog (`package.json`, `"8bitscript".hardware`:
@@ -152,6 +156,23 @@ Do not describe more than this as working:
   a built program contains **no `sei`** (checked in the linked ELF), so
   the OS's VBI keeps running — its jiffy clock, keyboard, joystick shadows
   and color-shadow copy all stay alive under an 8BitScript program.
+  The native backend keeps that promise with `RasterSync.keepsInterrupts`
+  in `mos/startup/waitframe.ts`, which is true for this machine and no
+  other: it suppresses both the `SEI` `rasterSetup()` emits and the one
+  `build()` puts ahead of the global initializers. `src/joystick.8bs`'s
+  own header depends on it in so many words, and
+  `mos/image-atari8.test.ts` asserts it on the emitted directives (not on
+  the bytes — `$78` in a built `.xex` is just as likely to be the low byte
+  of STICK0, `$0278`).
+
+### What the backend builds, and the two numbers it needs
+
+| Fact | Where |
+| ---- | ----- |
+| The hardware sheet's `build.defsym` is `__load_address` `$2000` (8192) and `__ram_ceiling` `$C000` (49152). The difference is 40960, which is the `memory.ram` fact this catalog already published and the `LENGTH = 0xa000` the pre-0.2.0 link script already had — three independent statements of the same region, which is what makes the pair right rather than plausible. **It is an over-claim by about 993 bytes at the top**: the OS's own text screen and display list sit *inside* $2000-$BFFF (unlike the PET, whose `__ram_size` stops below its screen), so a program that actually reached the ceiling would be writing over the screen it is drawing on. Stated, not enforced — the same shape of promise `src/banks.8bs` makes about its `$4000` buffer. | `packages/atari8/package.json`; `mos/image-atari8.test.ts` (checks the arithmetic against the catalog) |
+| **Zero page is `$80-$FF`, 128 bytes, and there is no wider "owned" budget to escalate to.** Every page-zero location this file records as the OS's is below `$80` (RTCLOK `$12-$14`, ATRACT `$4D`, SAVMSC `$58`, RAMTOP `$6A`); everything else it lists is `$0200` and up. The pre-0.2.0 DOS link map put a compiled program's imaginary registers at `$80-$9F` and its variables from `$A0`, so this is where this project's own Atari builds already lived. The window is the user's only while BASIC is out of the map (Atari BASIC's variables are `$80-$FF`), which is the configuration a `.xex` is loaded in. Unlike every Commodore, the `polite` and `owned` budgets are the *same* object: a program here cannot take the machine, because `src/text.8bs` and `src/screen.8bs` read SAVMSC on every run of text and the OS's VBI is what copies the color shadows down. Measured headroom: hello-world spends 19 bytes, 2048 spends 98. | `ZP_BUDGETS.atari8` in `mos/index.ts`; the "OS locations" and DOS-link-map rows above |
+| A built program **halts** at the end of `main()` (`JMP` to itself, 3 bytes) rather than `RTS`-ing. Not because the RTS would crash — DOS enters through a `JSR` into `JMP (RUNAD)`, so `entryIsVectored` is honestly **false** — but because of where it lands. Measured under atari800 7.1.2: the instant hello-world returns, the screen goes blue, a `READY` of the machine's own appears, and everything drawn is gone; the OS color shadows are back at their defaults. Byte-identical PNGs with `-basic`, with `-nobasic` and with the stock config, so it is not BASIC restarting on a smashed zero page. The same program with a `while (true) {}` holds its greeting indefinitely. Real DOS 2.5 does the same thing for its own reason — the RTS reloads DUP.SYS, which redraws the menu. `MachineImage.endsByHalting` is the flag; the NES reaches the same halt from the opposite premise. | `mos/image-atari8.ts`; screenshots under atari800 7.1.2 |
+| The thirteen cartridge media values are **refused by name**. Each carries `build.startup: 'cart-*'`, and the backend has no cartridge start-up: a cartridge is ROM at `$A000`/`$8000` with its vector at `$BFFA` and RAM at `$0700-$1FFF`, none of which the `.xex` numbers above describe. Without the refusal the build would wrap cartridge bytes in a `.xex` container and write them out under the `.rom` extension `build.output` asks for. | `build()` in `mos/index.ts`; `mos/image-atari8.test.ts` |
 - `8bs run atari8` launches `atari800` with a copy of `~/.atari800.cfg`
   whose CRT-shader knobs are zeroed, the model's flag from the catalog
   (`-atari` for 800 and 400, `-xl` for 800xl and 65xe, `-xe` for 130xe,
@@ -1081,7 +1102,10 @@ packages/atari8/src/banks.8bs           @8bitscript/atari8/banks: the 130XE prob
 packages/atari8/test/layers-probe.8bs   every input layer on one screen: the polarity check, and what settled SKSTAT
 packages/atari8/test/layers.test.mjs    links the probe, rechecks keys.8bs against the KBCODE table, checks the port-count fold, runs it under atari800
 packages/atari8/package.json            "8bitscript".hardware: model (run flags + facts only), media (driver/defsym/output/load), mouse, stereo; a preset per model
-packages/compiler/src/mos/index.ts     FRAME_SYNC.atari8 (VCOUNT poll, no sei; the backend refuses to build); outputExtension()
+packages/compiler/src/mos/index.ts     FRAME_SYNC.atari8 (VCOUNT poll, no sei); ZP_BUDGETS.atari8 ($80-$FF, one budget); RASTER_MACHINES; the cart-* refusal; outputExtension()
+packages/compiler/src/mos/image-atari8.ts   the .xex container (FF FF, RUN segment, code segment), entryIsVectored false, endsByHalting true
+packages/compiler/src/mos/image-atari8.test.ts  the recorded xxd, the sheet arithmetic, the VCOUNT poll, the no-SEI proof, the cartridge refusal
+packages/compiler/src/mos/startup/waitframe.ts  RASTER.atari8 (VCOUNT) and keepsInterrupts, the flag that keeps the OS alive
 packages/cli/src/run.mjs                atari800CleanDisplayConfig() (per-process cfg copy), the launch: the catalog's flags, then -run or the value's load
 packages/cli/src/screenshot.mjs         atari8Screenshot(): one window at a time, macOS capture, the same flags
 packages/cli/src/mac-window-capture.mjs findWindowIdForPid()/captureWindow(), the capture route for any atari800 launch

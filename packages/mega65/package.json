@@ -17,6 +17,12 @@
       "./pointer": "./src/pointer.8bs"
     },
     "hardware": {
+      "build": {
+        "defsym": {
+          "__load_address": 8193,
+          "__ram_ceiling": 53248
+        }
+      },
       "facts": {
         "video.columns": 80,
         "video.rows": 25,

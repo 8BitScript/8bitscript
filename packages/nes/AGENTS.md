@@ -1,11 +1,14 @@
 # Writing NES support for 8BitScript
 
-> **Parked in 0.2.0.** This machine is not a build target in the current
-> release: `8bs build` refuses it until its native backend lands
-> (`RELEASE_MACHINES` in `packages/compiler/src/resolver`). The package
-> stays in the workspace, its sources still link, and everything below is
-> still the guide for when it returns. The 0.2.0 work is the PET and the
-> web; see the "Hello, PET" roadmap.
+> **The native backend builds this machine now.** `packages/compiler/src/mos`
+> produces a real `.nes` — iNES header, 32K of NROM PRG-ROM, the reset
+> handler, the 6502's vectors, and the package's own CHR-ROM character set
+> — and `Hello World!` and 2048 have both been seen on screen under FCEUX
+> (2026-09-12; see "What exists today" and "Seeing the screen" below). It
+> is still outside `RELEASE_MACHINES` (`packages/compiler/src/resolver`),
+> so `8bs build --target nes` refuses until that list is widened; that is
+> a release decision, not a missing capability. Everything below is the
+> guide for extending it.
 
 This file is for anyone — human or agent — touching `packages/nes`,
 `packages/compiler/src/mos`'s `nes` entries, `docs/setup/nes.md`, or the NES rows
@@ -31,29 +34,40 @@ Do not describe more than this as working:
   delivers through PPUADDR/PPUDATA at the start of vertical blank and then
   resets the scroll (`nesVerticalBlank()` in `index.8bs`, called by the
   backend's frame runtime via `FRAME_SYNC.nes.frameHook`); a program
-  prints whenever it likes and never sees the blank's budget. The queue
-  holds 112 bytes; delivery costs 15 cycles a byte, plus a header per run
-  that the byte cost alone does not price in. That distinction is worth
-  keeping straight: a HUD of a few wide rows is nearly all data bytes, but
-  a grid of many narrow fields (`packages/2048`'s 4-character tile cells,
-  three `text.print()` runs per tile) pays a run header on almost every
-  write. QUEUE_SIZE was 128 — "about four 28-column rows," a number sized
-  against the wide-row case, empties in about 2000 of the blank's 2273
-  cycles — until 2048's 16-tile board (~19 runs to fill one queue) proved
-  by measurement that a full 128-byte queue of small runs delivers a few
-  cycles past the blank, corrupting whichever tile was mid-flight when
-  rendering resumed under it (FCEUX, `8bs run nes --screenshot`,
-  2026-09-07: 128 corrupted two tiles; 120 and under, light or full board,
-  did not; 124 did again). 112 was fixed as comfortably under that
-  observed failure band rather than at its edge, since neither this
-  project's cycle estimates nor FCEUX's timing are trusted to the single
-  cycle this boundary lives at. A future program with smaller or more
-  numerous runs than 2048's could still find a new floor — measure with
-  `--screenshot` before assuming 112 holds for it. When the queue fills
-  before the frame is over the package waits for the next blank,
-  delivers, and carries on — a bigger HUD costs frames, never the
-  picture. Delivering mid-frame would corrupt it: PPUADDR is the PPU's
-  own fetch position while it draws.
+  prints whenever it likes and never sees the blank's budget. **The queue
+  holds 48 bytes, and that number is a measurement, not an estimate.**
+  Delivery costs a per-byte price plus a header per run that the byte cost
+  alone does not price in, and the run headers are what actually decide it:
+  a HUD of a few wide rows is nearly all data bytes, but a grid of many
+  narrow fields (`packages/2048`'s 4-character tile cells, three
+  `text.print()` runs per tile) pays a run header on almost every write.
+  The history is worth keeping, because the same mistake is easy to make
+  twice:
+
+  - QUEUE_SIZE was 128 — "about four 28-column rows," sized against the
+    wide-row case at 15 cycles a byte — until 2048's 16-tile board proved
+    a full queue of small runs delivers past the blank, corrupting
+    whichever tile was mid-flight when rendering resumed under it (FCEUX,
+    2026-09-07: 128 corrupted two tiles; 120 and under did not; 124 did).
+    112 was fixed then.
+  - 112 was a number about the PRE-0.2.0 toolchain's delivery loop. The
+    native 6502 backend generates a slower one, so the ceiling moved and
+    had to be re-measured rather than inherited (FCEUX, 2026-09-12, same
+    program, both a two-tile board and a full sixteen where every tile
+    also pays a `printNumber` run: 56 corrupted a tile on both boards; 52,
+    48, 40 and 32 did not). **48** is fixed now, comfortably under that
+    observed failure band rather than at its edge.
+
+  Neither this project's cycle estimates nor FCEUX's timing is trusted to
+  the single cycle this boundary lives at, which is why the value always
+  sits below the last size that failed rather than at the last that
+  passed. Make the delivery loop faster and the number can go back up —
+  the way to find out is another sweep with `--screenshot`, not a
+  calculation. A program with smaller or more numerous runs than 2048's
+  could still find a new floor. When the queue fills before the frame is
+  over the package waits for the next blank, delivers, and carries on — a
+  bigger HUD costs frames, never the picture. Delivering mid-frame would
+  corrupt it: PPUADDR is the PPU's own fetch position while it draws.
   `locate()` finds a cell's row in eight-bit shifts and two corrections
   (`q = cell / 4`, `q / 8 + q / 64`, then take off sevens) because a
   16-bit divide was a 248-byte routine under the pre-0.2.0 toolchain,
@@ -65,20 +79,61 @@ Do not describe more than this as working:
   wrap; each run goes into the queue, and delivery is the cheap part.
   `putColor` is a documented no-op (attribute-table granularity); text is
   white (`$3F01 = $30`).
+
+  One thing in `locate()` is not an optimization and must not be "tidied":
+  the row is widened to `usmallint` before it is multiplied by 32.
+  8BitScript evaluates an expression at its operands' own width, so
+  `row * 32` with a `utinyint` row is an eight-bit multiply that wraps —
+  right for the first eight rows of the grid and silently wrong for every
+  row below them. Measured 2026-09-12: 2048's status line, printed at row
+  21, landed on row 5, and its board drew four rows too high. The
+  pre-0.2.0 toolchain hid this because C promoted both operands to `int`
+  for free.
 - `packages/nes/native/6502/font.s` is the CHR-ROM character set — the NES
   has no character ROM, so the package ships one, laid out so tile index ==
-  ASCII (space, digits, A-Z, `! , - . : ?`; tile `$80` is the solid frame
-  tile). It reaches the `.nes` image through the package's
+  ASCII (space, digits, A-Z, a-z, `! , - . : ?`; tile `$80` is the solid
+  frame tile). It reaches the `.nes` image through the package's
   `"8bitscript".native` list — the resolver/linker/backend plumbing in
-  `docs/packages.md`. The native backend does not yet place that CHR in
-  a `.nes` image. Reverse
-  video of the portable set is the same tiles at ASCII+128 ($A0-$DF);
-  tile $80 stays the solid frame.
+  `docs/packages.md`. `mos/chr-nes.ts` reads that file's data-only slice of
+  GNU-as syntax (`.macro`/`.rept`/`.byte`/`.space` and integer expressions
+  — it is deliberately not rewritten into this backend's own `asm6502`
+  syntax, which has no macros and no expressions) and `mos/image-nes.ts`
+  lays the result into the image as the 8 KiB CHR-ROM the iNES header
+  declares. Reverse video of the portable set is the same tiles at
+  ASCII+128 ($A0-$DF, and $E1-$FA for the lowercase range); tile $80 stays
+  the solid frame.
+
+  Lowercase ($61-$7A and its reverse copies) was added 2026-09-12. Its
+  absence was invisible until there was a picture: the first `.nes` this
+  backend produced drew `Hello World!` as `H   W  !` — the three characters
+  of it that had glyphs — with nothing else in the toolchain wrong. Every
+  other target's character ROM carries both cases, so this font was the one
+  thing holding the portable text API's character set to upper case.
 - The NES catalog's `mapper` value is `nrom` (`build.startup: nrom`) —
   NROM, the plainest cartridge shape: 32K PRG-ROM, 8K CHR-ROM, no bank
   switching. Other mapper startups (`unrom`/`mmc1`/`mmc3`/`cnrom`/`gtrom`/
-  `action53`/`unrom-512`) are not wired up. The native backend refuses to
-  build.
+  `action53`/`unrom-512`) are not wired up: `mos/image-nes.ts` builds the
+  NROM shape and nothing else, and adding a mapper means a value in that
+  catalog plus an image shape for it, never a table in the backend.
+- **The hardware sheet** (`"8bitscript".hardware.build.defsym` in
+  `package.json`) is four numbers, and each one is checkable against a fact
+  this file already records:
+
+  | defsym | Value | Why that number |
+  | --- | --- | --- |
+  | `__load_address` | `$8000` | Where NROM maps PRG-ROM. Not a policy: the code is assembled there because the cartridge appears there. |
+  | `__ram_ceiling` | `$FFF9` | `$FFF9 - $8000 = 32761 = 32768 - 6 - 1` — the 32K PRG-ROM above, less the 6502's three vectors at `$FFFA-$FFFF` and the one `RTI` byte the two unused ones point at. Code and data are refused BY NAME at this line, which is the only thing between a too-big program and a cartridge whose reset vector is its own last instruction. |
+  | `__bss_origin` | `$0200` | The work RAM above the zero page and the stack. |
+  | `__bss_ceiling` | `$0800` | `$0800 - $0200 = 1536`, exactly the `memory.ram` fact in the same file and the `$0200`-`$07FF` this document already described. |
+
+  The last pair exists because this is the first target whose image is a
+  ROM. A mutable array cannot ride inside a cartridge the way it rides
+  inside a loaded `.prg` — a store into it does nothing, and does it
+  silently — so `build()` bump-allocates mutable arrays into that window,
+  clears it at start-up (a cartridge's RAM holds garbage at power-on), and
+  copies any real initializer down out of the ROM.
+  `MachineImage.writableImage` in `mos/image.ts` is the switch, and the
+  mechanism is machine-independent: any future ROM target gets it.
 - Timing is NTSC-only (`FRAME_SYNC.nes` in `packages/compiler/src/mos`); PAL NES
   is not supported. FCEUX's default NTSC view hides the top and bottom 8
   lines (rows 0 and 29), which is why the frame is two tiles thick.
@@ -117,7 +172,7 @@ volume per pulse and noise, no filter or random source; no keyboard, two
 pad ports; nothing to save to on NROM (the `mapper` value's fact); 1536
 bytes of RAM for the program (`$0200`–`$07FF`, beside
 the zero page), nothing banked. Sources: `src/text.8bs`, the PPU and APU
-tables below (read). The native backend refuses to build.
+tables below (read).
 
 ## How the NES actually works (verify before you cite it)
 
@@ -192,8 +247,12 @@ Facts to actively correct if you see them stated otherwise:
 - **The PPU warm-up is two vblanks after reset** (NESdev). A working NROM
   start-up does that before `main()` (`__early_init` and `__late_init`,
   confirmed by disassembly pre-0.2.0; see `index.8bs`'s header). The native
-  backend does not emit that start-up yet. Don't add a second wait in the
-  package, and don't describe the warm-up as already handled by a backend.
+  backend emits it now, in `mos/startup/nes.ts`, together with the stack
+  pointer the 6502's reset does not set and the two APU IRQ sources nothing
+  else silences. Don't add a second wait in the package. What getting this
+  wrong costs is recorded in that file's header: without the two waits, a
+  correct program's final `PPUMASK` write landed inside the interval the
+  PPU ignores writes in, and the screenshot was black.
 - **Don't turn an NES number into a generic "8-bit" rule.** "8 sprites"
   means something completely different on NES (8 *of 64* selectable per
   scanline) than on C64 (8 hardware movable-object blocks, full stop — see
@@ -224,6 +283,20 @@ small FCEUX Lua script (`emu.frameadvance()` in a loop, then
 `--frames` (it means exact emulated frames here, not wall-clock time) and
 the other eight targets' own mechanisms.
 
+While this target is outside `RELEASE_MACHINES` the CLI refuses to build
+it, so that path is not available and the same thing has to be done by
+hand: call `link()` and `build()` directly from a scratch script, then run
+`fceux --no-config 1 --loadlua <script.lua> <rom.nes>` with the same
+five-line Lua the CLI writes. Two more Lua one-liners earned their keep
+bringing this target up and are worth knowing about: `joypad.set(1,
+{right=true})` inside the frame loop drives the pad, which is how 2048 was
+verified to actually play rather than merely draw; and a loop over
+`ppu.readbyte(0x2000 + row * 32 + col)` writing to a file dumps the
+nametable as text, which is how "the board is four rows too high" became
+"`row * 32` wrapped at eight bits" in one step instead of by guesswork.
+Everything on this machine goes through the PPU's ports, so a screenshot
+shows you that something is wrong and a nametable dump shows you what.
+
 ## Where things live
 
 ```
@@ -232,7 +305,11 @@ packages/nes/src/screen.8bs          @8bitscript/nes/screen: screen.blank()/setB
 packages/nes/src/text.8bs            @8bitscript/nes/text: text.print/printNumber/setColor/setReverse/putChar/putColor, CELL_COUNT 728, COLUMNS 28, TextColor (empty setColor/putColor)
 packages/nes/native/6502/font.s      the CHR-ROM character set (tile index == ASCII; reverse at ASCII+128)
 packages/nes/package.json            "8bitscript".exports names the two subpaths; .native lists the font
-packages/compiler/src/mos/index.ts   FRAME_SYNC.nes (NTSC frame timing; the backend refuses to build)
+packages/compiler/src/mos/index.ts   FRAME_SYNC.nes (NTSC frame timing, and the frameHook that delivers the write queue)
+packages/compiler/src/mos/image-nes.ts       the .nes file: iNES header, PRG-ROM, the 6502's vectors, CHR-ROM
+packages/compiler/src/mos/chr-nes.ts         font.s -> the 8 KiB of CHR-ROM (the data-only gas subset that file uses)
+packages/compiler/src/mos/startup/nes.ts     the reset handler: IRQ sources, stack pointer, the two PPU warm-up vblanks
+packages/compiler/test/mos-nes.test.ts       all four of the above, end to end
 packages/compiler/src/resolver/      "8bitscript".native → absolute paths (8BS2008 if missing)
 packages/compiler/test/nes-screen.test.mjs   the package and the native plumbing, end to end
 docs/setup/nes.md                    install/run FCEUX, 8bs run nes, what the picture shows

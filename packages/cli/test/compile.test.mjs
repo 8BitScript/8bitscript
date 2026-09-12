@@ -47,13 +47,12 @@ test('build() names a missing --profile value rather than treating the next flag
   assert.match(stderr, /--profile expects a name/);
 });
 
-test('compile() refuses a parked machine, a retired name, and an unknown target', async () => {
-  // mega65 stands in for "parked" now that the C64, the VIC-20 and the
-  // C128 all build.
-  const parked = await capture(() => compile('mega65'));
-  assert.equal(parked.result.ok, false);
-  assert.match(parked.stderr, /not a target in this release/);
-  assert.match(parked.stderr, /mega65/);
+test('compile() refuses a retired name and an unknown target', async () => {
+  // The "parked machine" case used to be checked here with a real machine
+  // name. Every machine the toolchain knows now builds, so there is none
+  // left to name — and naming one that ships would compile it rather than
+  // refuse it. The parked branch itself is still covered where it is
+  // decided, in packages/compiler (mos.test.ts's own parked-machine test).
 
   const retired = await capture(() => compile('c64-pal'));
   assert.equal(retired.result.ok, false);
@@ -188,7 +187,10 @@ test('build() --release fails clearly when the config lists no release-ready tar
   const dir = await mkdtemp(join(tmpdir(), '8bs-compile-'));
   const prev = process.cwd();
   try {
-    await writeFile(join(dir, '8bitscript.config.ts'), 'export default { targets: { mega65: {} } };\n');
+    // A name the toolchain does not know at all, now that every machine it
+    // does know is release-ready: the config still lists no target this
+    // release builds for, which is what the message is about.
+    await writeFile(join(dir, '8bitscript.config.ts'), 'export default { targets: { zx81: {} } };\n');
     process.chdir(dir);
     const { result, stderr } = await capture(() => build(['--release']));
     assert.equal(result, 1);

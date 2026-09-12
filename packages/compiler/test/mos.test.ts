@@ -459,19 +459,25 @@ test('build() refuses a PET hardware sheet with no defsym.__ram_size, naming wha
   }
 });
 
-test('build() for a parked machine says so, names the machine, and writes nothing', async () => {
+test('build() for a machine with no zero-page budget says so, names the machine, and writes nothing', async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
   try {
     const outFile = join(scratch, 'out.prg');
-    // The Commodores are no longer parked — they have zero-page budgets on
-    // the sheet now — so this asks about a machine that still is. Refused
-    // BY NAME, and naming the machines that do build, rather than a bare
-    // "not implemented" a reader has to go looking to understand.
-    const result = await build(ir, { machine: 'mega65', hardware, outFile, frameRate: 60 });
+    // This used to ask about the NES, then about whichever target was
+    // still parked. Every machine in MACHINES has a zero-page budget of
+    // its own now, so there is no real machine left to ask — and a test
+    // that keeps moving to the next un-brought-up target is a test that
+    // breaks on the day the last one lands, which is exactly when this
+    // refusal still needs to work. So it asks about a machine that does
+    // not exist, and asserts the SHAPE of the answer rather than the list
+    // of machines that do build: that list grows with every target, and
+    // pinning it makes every future bring-up edit this line.
+    const result = await build(ir, { machine: 'zx81' as Machine, hardware, outFile, frameRate: 60 });
     assert.equal(result.ok, false);
-    assert.match(result.ok ? '' : result.error, /mega65/);
+    assert.match(result.ok ? '' : result.error, /zx81/);
     assert.match(result.ok ? '' : result.error, /zero-page budget/);
-    assert.match(result.ok ? '' : result.error, /pet, c64, vic20, c128/);
+    // It still names somewhere to go next, rather than a bare "no".
+    assert.match(result.ok ? '' : result.error, /pet/);
     assert.doesNotMatch(result.ok ? '' : result.error, /not implemented/);
     assert.equal(existsSync(outFile), false);
   } finally {

@@ -21,6 +21,14 @@
       "./native/6502/font.s"
     ],
     "hardware": {
+      "build": {
+        "defsym": {
+          "__load_address": 32768,
+          "__ram_ceiling": 65529,
+          "__bss_origin": 512,
+          "__bss_ceiling": 2048
+        }
+      },
       "facts": {
         "video.columns": 28,
         "video.rows": 26,

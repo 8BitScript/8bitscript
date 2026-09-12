@@ -65,12 +65,26 @@
 //      rendering resumed under it (FCEUX, `8bs run nes --screenshot`,
 //      2026-09-07: 128 corrupted two tiles, every size 120 and under
 //      across both a two-tile and a full sixteen-tile board did not, 124
-//      did). 112 is the fixed value now: comfortable under the observed
-//      failure band, not the exact edge of it, since neither this
-//      project's timing model nor FCEUX's is being trusted to a single
-//      cycle. A future program with even smaller, more numerous runs
-//      than 2048's could still find a new floor; measure again with
-//      `--screenshot` before assuming this one holds. more than a full
+//      did).
+//
+//      That measurement was of the PRE-0.2.0 toolchain's delivery loop,
+//      and "15 cycles a byte" was its number. The native 6502 backend
+//      (packages/compiler/src/mos) generates a slower one, so the ceiling
+//      moved and had to be measured again rather than inherited: re-run
+//      on 2026-09-12 against the same program, both a two-tile board and
+//      a full sixteen (every tile a different value, so each also pays a
+//      printNumber run), 56 corrupted a tile on both and 52, 48, 40 and
+//      32 did not. So the floor this backend actually has is about half
+//      what the old one did. 48 is the fixed value now, for the same
+//      reason 112 was: comfortably under the observed failure band rather
+//      than at its edge, since neither this project's timing model nor
+//      FCEUX's is being trusted to a single cycle. The cost of a smaller
+//      queue is frames, never the picture — a board that no longer fits
+//      one queue is delivered over two vertical blanks instead of one.
+//      Make the delivery loop faster and this number can go back up; the
+//      way to find out is another sweep with `--screenshot`, not a
+//      calculation. A future program with even smaller, more numerous
+//      runs than 2048's could still find a new floor. More than a full
 //      queue in one frame is delivered as it overflows, which may tear.
 //      screen.blank() switches rendering off and writes the nametable
 //      directly, delivering the queue first so nothing printed before
@@ -92,7 +106,10 @@
 // by the time a program's main() runs the PPU has seen two vblanks and
 // is safe to write. (An earlier revision of this comment recorded that
 // wait as a gap this target still had; it was never one.) The native
-// backend does not yet emit that start-up.
+// backend emits it too, as of 0.5.1 — packages/compiler/src/mos/startup/
+// nes.ts, which also sets the stack pointer and silences the APU's two
+// IRQ sources, and whose header records what the first .nes built without
+// the wait looked like on screen.
 
 // PPUSTATUS read resets the PPUADDR/PPUSCROLL write toggle so the two
 // PPUADDR writes land as a fresh address rather than as a stray second
@@ -118,7 +135,7 @@ export function resetScroll(): void {
 // count, and the bytes: `queueRun(address)` opens one, `queueByte(value)`
 // adds to it, and `nesVerticalBlank()` writes them all out in order and
 // resets the scroll. Rule 2 above says why.
-const QUEUE_SIZE: utinyint = 112;
+const QUEUE_SIZE: utinyint = 48;
 let queue: array<utinyint, QUEUE_SIZE>;
 let queueEnd: utinyint = 0;
 let runCount: utinyint = 0; // where the open run's count byte is
@@ -183,4 +200,18 @@ export function nesVerticalBlank(): void {
         queueEnd = 0;
         resetScroll();
     }
+    // Not dead code: this `return` is what keeps this function a real,
+    // callable subroutine. A no-parameter void function with no `return`
+    // anywhere in it is inlined into every one of its call sites and then
+    // pruned (packages/compiler/src/linker/optimize.mjs's inlineVoidCall —
+    // packages/2048's own helpers carry the same one-line comment for the
+    // same reason), and this one has a caller the IR cannot see: the
+    // backend's frame runtime JSRs it by name after every hardware frame
+    // edge, and again in the halt loop a finished program ends in
+    // (FRAME_SYNC.nes.frameHook). Inlined away, a program would queue its
+    // screen writes and never deliver them — a black screen, with correct
+    // bytes sitting in RAM. The backend refuses by name if this function
+    // stops being callable, so removing this line fails the build rather
+    // than the picture; it is still cheaper to leave it here.
+    return;
 }
