@@ -14,6 +14,7 @@ const {
   CONTROL_KINDS, CONTROL_LABELS, DEADZONE, DEVICE_CONTROLS, LOGICAL_CONTROLS, MAX_PLAYERS,
   PAD_KINDS, PRESS_THRESHOLD, PRIMARY_PORT, STANDARD_MAPPING, WALKTHROUGH,
   activeInputs, capture, deviceFromDetected, deviceKey, deviceKeys, emptyProfile, formatBinding,
+  isKeyBinding,
   normalizeDevice, normalizeProfile, parseBinding, pressed, project, readBinding,
   resolveDirection, toCliBinding, toCliPlayers, toConfigBlock, withDevice, withoutDevice,
 } = require('../src/controllerProfile.cjs');
@@ -434,4 +435,35 @@ test('the config block is TypeScript somebody can paste', () => {
   // A profile with nobody assigned still produces something valid rather
   // than nothing, so pasting it is never a syntax error.
   assert.equal(toConfigBlock(emptyProfile(), {}), '  controllers: { players: [] },');
+});
+
+test('a keyboard binding survives a save it did not come from', () => {
+  // atari800 has no per-button mapping at all: `-kbdjoy0/1` binding an
+  // emulated stick to emulated keys is the only shape it takes, so the CLI
+  // reads `key:` bindings that this panel cannot capture. normalizeDevice
+  // rebuilds `mapping` from what it recognises and the panel saves on every
+  // change, so before isKeyBinding existed a hand-written Atari stick
+  // survived until someone opened the panel and pressed one button.
+  const stored = {
+    id: 'pad', name: 'pad', player: 1, mode: 'custom',
+    mapping: { up: 'key:ArrowUp', down: 'key:ArrowDown', a: 'button:0', b: 'nonsense:7' },
+  };
+  const device = normalizeDevice(stored);
+  assert.equal(device.mapping.up, 'key:ArrowUp', 'a key binding is kept');
+  assert.equal(device.mapping.down, 'key:ArrowDown');
+  assert.equal(device.mapping.a, 'button:0', 'and so is a real pad binding beside it');
+  assert.equal(device.mapping.b, undefined, 'while nonsense is still dropped');
+});
+
+test('isKeyBinding takes a DOM key code and nothing else', () => {
+  assert.equal(isKeyBinding('key:ArrowLeft'), true);
+  assert.equal(isKeyBinding('key:KeyZ'), true);
+  assert.equal(isKeyBinding(' key:Enter '), true, 'trimmed, as parseBinding is');
+  assert.equal(isKeyBinding('key:'), false);
+  assert.equal(isKeyBinding('key:Arrow Left'), false, 'a code has no spaces');
+  assert.equal(isKeyBinding('button:0'), false, 'a pad binding is not a key binding');
+  assert.equal(isKeyBinding(null), false);
+  // parseBinding still refuses it: its answer is "what does this address on
+  // the pad", and a key has no answer to that.
+  assert.equal(parseBinding('key:ArrowLeft'), null);
 });

@@ -170,6 +170,34 @@ function parseBinding(binding) {
   };
 }
 
+/**
+ * Whether a binding names a keyboard key rather than anything on a gamepad.
+ *
+ * `key:ArrowLeft` is not a shape this panel can capture — a keyboard is not
+ * a Gamepad — but it is the ONLY shape atari800 accepts a joystick mapping
+ * in: it has no per-button mapping at all, only `-kbdjoy0/1` binding an
+ * emulated stick to emulated keys. So the CLI reads `key:` bindings and the
+ * panel must not destroy one it did not write.
+ *
+ * That is not hypothetical. `normalizeDevice` rebuilds `mapping` from the
+ * bindings it recognises and drops the rest, and the panel saves on every
+ * change — so before this existed, a hand-written Atari keyboard stick
+ * survived exactly until someone opened this panel and pressed a button,
+ * then vanished with no error. Recognised here, it round-trips untouched.
+ *
+ * Deliberately not merged into `parseBinding`: that function answers "what
+ * does this address on the connected pad", and every one of its callers
+ * reads live gamepad state with the answer. A key binding has no answer to
+ * that question, and pretending otherwise would put a `source: 'key'` case
+ * into eight call sites that would each have to ignore it.
+ *
+ * @param {unknown} binding
+ * @returns {boolean}
+ */
+function isKeyBinding(binding) {
+  return typeof binding === 'string' && /^key:[A-Za-z0-9_]+$/.test(binding.trim());
+}
+
 /** The string form of what `parseBinding` returns — the two are inverses. */
 function formatBinding({ source, index, half = null }) {
   return `${source}:${index}${source === 'axis' && half ? half : ''}`;
@@ -577,7 +605,7 @@ function normalizeDevice(stored) {
     // controllers file shows what changed rather than what moved.
     for (const control of LOGICAL_CONTROLS) {
       const binding = stored.mapping[control];
-      if (parseBinding(binding)) mapping[control] = binding.trim();
+      if (parseBinding(binding) || isKeyBinding(binding)) mapping[control] = binding.trim();
     }
   }
   return {
@@ -945,6 +973,7 @@ module.exports = {
   deviceKeys,
   emptyProfile,
   formatBinding,
+  isKeyBinding,
   normalizeDevice,
   normalizeProfile,
   parseBinding,
