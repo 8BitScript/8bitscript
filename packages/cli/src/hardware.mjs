@@ -67,6 +67,13 @@ export function loadCatalog(machine) {
     options: hardware.options ?? {},
     presets: hardware.presets ?? {},
     facts: hardware.facts ?? {},
+    // The machine's own build symbols, before any option value's. Where a
+    // number is a fact about the machine rather than about one of its
+    // options — the C64's load address is $0801 whatever is plugged into
+    // it — this is where it lives; an option value that genuinely moves it
+    // (a VIC-20's RAM expansion moves both the load address and the
+    // ceiling) overrides it from `values[...].build.defsym`.
+    build: hardware.build ?? {},
     run: hardware.run ?? {},
   };
 }
@@ -366,7 +373,7 @@ export function resolveHardware(catalog, { profile, overrides = {}, profiles = {
 
   const tags = [];
   const buildValues = [];
-  const build = { defsym: {} };
+  const build = { defsym: { ...(catalog.build?.defsym ?? {}) } };
   const run = {};
   const load = {};
   const facts = { ...catalog.facts };

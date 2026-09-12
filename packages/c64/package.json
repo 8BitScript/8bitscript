@@ -33,6 +33,12 @@
       "./random": "./src/random.8bs"
     },
     "hardware": {
+      "build": {
+        "defsym": {
+          "__ram_size": 40,
+          "__load_address": 2049
+        }
+      },
       "facts": {
         "video.columns": 40,
         "video.rows": 25,

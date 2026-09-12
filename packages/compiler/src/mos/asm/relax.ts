@@ -35,7 +35,7 @@ const MAX_PASSES = 64;
 
 /** How many bytes a directive occupies once placed — mirrors assemble.ts's own placeLabels() walk, the only other place this arithmetic lives. */
 function directiveBytes(directive: Directive): number {
-  if (directive.kind === 'label') return 0;
+  if (directive.kind === 'label' || directive.kind === 'equate') return 0;
   if (directive.kind === 'byte') return directive.values.length;
   return 1 + operandBytes(directive.mode);
 }

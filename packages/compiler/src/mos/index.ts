@@ -15,7 +15,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 import { basicStub } from './basic-stub.ts';
-import { buildDataSection } from './data.ts';
+import { arrayLabel, buildDataSection } from './data.ts';
 import type { DataArrayGlobal, IrString } from './data.ts';
 import { link } from './link/index.ts';
 import { optimizeReachable } from '../linker/optimize.mjs';
@@ -87,17 +87,15 @@ export const CPU: Record<Machine, CpuVariant> = {
   atari8: { core: '6502', decimalMode: true, jmpIndirectPageBug: true, extraOpcodes: NONE, undocumentedOpcodes: true },
 };
 
-// Where BASIC's own program area starts, and so where a Commodore .prg's
-// load address and boot stub go — the same on every model of a machine
-// (a PET's --profile only changes RAM size and columns, never this).
-// Only the PET builds in 0.2.0; the other two entries are milestone 1's own
-// roadmap note that the C64 and VIC-20 need just this number to follow,
-// once RELEASE_MACHINES lets them.
-const LOAD_ADDRESS: Partial<Record<Machine, number>> = {
-  pet: 0x0401,
-  c64: 0x0801,
-  vic20: 0x1001,
-};
+// Where a Commodore .prg's load address and boot stub go used to be a
+// table here, one number per machine. It is a fact about the *hardware*,
+// not about the backend — and on the VIC-20 it is not even constant per
+// machine, since a RAM expansion moves BASIC's program area from $1001 to
+// $1201 — so it comes in on the hardware sheet now, as
+// `build.defsym.__load_address` (packages/<machine>/package.json's own
+// "8bitscript".hardware.build, merged by packages/cli/src/hardware.mjs the
+// same way `__ram_size` already was). A machine whose sheet does not carry
+// one is refused by name below rather than silently assumed.
 
 // Milestone 5's own settled decision: every program shape this backend
 // builds today returns to BASIC (main() falling through to RTS lands back
@@ -114,6 +112,16 @@ const LOAD_ADDRESS: Partial<Record<Machine, number>> = {
 // value opens that hole; BASIC 2/4's CHRGET sits below $8E and costs
 // nothing.
 const PET_ZP_BUDGET = { zpOrigin: 0x8e, zpCeiling: 0x100 };
+
+// The C64's own polite range, and it is a much smaller one: BASIC owns
+// $02-$8F and the KERNAL $90-$FF (packages/c64/AGENTS.md's memory map), so
+// there is no wide run to take the way the PET has above its interpreter.
+// $FB-$FE is the block neither uses and every C64 program has borrowed
+// since 1982 — four bytes, which is enough for a program that prints and
+// returns and nothing like enough for one with real state. A program that
+// needs more takes the owned budget below by calling waitFrame(), which is
+// the same trade the PET makes.
+const C64_ZP_BUDGET = { zpOrigin: 0xfb, zpCeiling: 0xff };
 const CHRGET_BYTES = 24;
 
 // A program that calls waitFrame() anywhere owns the machine outright —
@@ -128,7 +136,16 @@ const CHRGET_BYTES = 24;
 // the polite $8E-$FF budget above, CHRGET hole included.
 const PET_OWNED_ZP_BUDGET = { zpOrigin: 0x02, zpCeiling: 0x100 };
 
-function petZpHoles(facts: Record<string, unknown>, budget: { zpOrigin: number; zpCeiling: number }): ZpHole[] {
+// Per machine: the budget a program that returns to BASIC may take, and
+// the one a program that never does may take. The second is the whole page
+// on every Commodore here, for the same reason each time — interrupts off,
+// the interpreter never resumed — so only the polite one really differs.
+const ZP_BUDGETS: Partial<Record<Machine, { polite: { zpOrigin: number; zpCeiling: number }; owned: { zpOrigin: number; zpCeiling: number } }>> = {
+  pet: { polite: PET_ZP_BUDGET, owned: PET_OWNED_ZP_BUDGET },
+  c64: { polite: C64_ZP_BUDGET, owned: PET_OWNED_ZP_BUDGET },
+};
+
+function chrgetZpHoles(facts: Record<string, unknown>, budget: { zpOrigin: number; zpCeiling: number }): ZpHole[] {
   const chrget = facts['memory.chrget'];
   if (typeof chrget !== 'number') return [];
   const start = chrget;
@@ -219,7 +236,7 @@ const staZp = (address: number): Directive => ({ kind: 'instruction', mnemonic: 
 function directiveBytes(program: Directive[]): number {
   let total = 0;
   for (const d of program) {
-    if (d.kind === 'label') continue;
+    if (d.kind === 'label' || d.kind === 'equate') continue;
     if (d.kind === 'byte') { total += d.values.length; continue; }
     total += instructionBytes(d.mode);
   }
@@ -252,10 +269,18 @@ function collectStringIndexes(node: unknown, out: Set<number>): void {
 
 /** Lowers `ir` to machine code, writes `outFile`, and returns the bytes and a size report. */
 export async function build(ir: IrProgram, options: BuildOptions): Promise<BuildResult> {
-  if (options.machine !== 'pet') {
+  const budgets = ZP_BUDGETS[options.machine];
+  if (!budgets) {
     return {
       ok: false,
-      error: `the ${options.machine} is not a target in 0.2.0: the native 6502 backend is being brought up on the PET first (Hello, PET), and the other 6502 machines return in a later release`,
+      error: `the ${options.machine} is not a target this backend builds yet: it has no zero-page budget on the sheet, so there is nowhere to put a program's globals. The native 6502 backend is being brought up one machine at a time — ${Object.keys(ZP_BUDGETS).join(', ')} so far`,
+    };
+  }
+  const loadAddress = options.hardware.build.defsym.__load_address;
+  if (typeof loadAddress !== 'number') {
+    return {
+      ok: false,
+      error: `the ${options.machine} hardware sheet is missing defsym.__load_address, the address its .prg loads at and the BASIC stub's SYS jumps into`,
     };
   }
 
@@ -277,13 +302,26 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // and returns to BASIC. Decided before anything is placed, because
   // everything below places into it.
   const needsWaitFrame = usesWaitFrame(functions);
-  const zpBudget = needsWaitFrame ? PET_OWNED_ZP_BUDGET : PET_ZP_BUDGET;
+  // waitFrame()'s runtime is the PET's VIA/PIA one (mos/startup/waitframe.ts):
+  // a retrace flag to poll and a Timer 2 stopwatch to calibrate against.
+  // Every other machine here needs its own — the C64 polls VIC-II's raster
+  // ($D012 plus $D011 bit 7) and needs no calibration, since its frame is an
+  // exact fraction of a known crystal (FRAME_SYNC below). Until that is
+  // written, a program that calls waitFrame() on one of those machines is
+  // refused by name rather than built against the wrong chip.
+  if (needsWaitFrame && options.machine !== 'pet') {
+    return {
+      ok: false,
+      error: `waitFrame() has no runtime on the ${options.machine} yet: its frame sync is the PET's VIA retrace flag, and the ${options.machine}'s own raster poll is not written. A program that draws once and returns builds today; one that paces itself does not`,
+    };
+  }
+  const zpBudget = needsWaitFrame ? budgets.owned : budgets.polite;
 
   // Globals first: every function's own parameters, then every function's
   // own locals and expression temporaries, bump-allocate from whatever zero
   // page globals didn't take, so each pass below needs to know where the
   // previous one's remainder starts before it can run.
-  const zpHoles = needsWaitFrame ? [] : petZpHoles(options.hardware.facts, zpBudget);
+  const zpHoles = needsWaitFrame ? [] : chrgetZpHoles(options.hardware.facts, zpBudget);
   const zp = allocate(globals, { ...zpBudget, holes: zpHoles });
   if (!zp.ok) return { ok: false, error: zp.error };
 
@@ -341,15 +379,27 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // mos/lower/index.ts): wider ones are refused here, by name, rather
   // than mis-encoded by data.ts.
   const dataArrayGlobals: DataArrayGlobal[] = [];
+  const pinnedArrays: Directive[] = [];
   const arrays = new Map<string, { elementType: string; mutable: boolean }>();
   for (const g of globals) {
     if (g.array === undefined) continue;
-    if (g.address !== null) {
-      return { ok: false, error: `'${g.name}' is an @address array: hardware-mapped arrays aren't lowered yet` };
-    }
     const width = storageBytes(g.type);
     if (width !== 1 && width !== 2) {
       return { ok: false, error: `'${g.name}' is an array<${g.type}, ${g.array}>: only a 1- or 2-byte element is lowered yet` };
+    }
+    if (g.address !== null) {
+      // An `@address` array maps hardware — the C64's `screenRam` over the
+      // VIC's 1000 cells, a chip's register block — so it has no bytes in
+      // the program image and no initializer: the machine already is the
+      // storage. It still goes through index()/storeIndex() exactly as a
+      // data-section array does, because the only thing those need is a
+      // label to address from; this binds that label to the pinned address
+      // instead of to a position in the data section (mos/asm/assemble.ts's
+      // `equate`). An initializer would be a lie about hardware, and the
+      // checker does not allow one.
+      pinnedArrays.push({ kind: 'equate', name: arrayLabel(g.name), value: g.address });
+      arrays.set(g.name, { elementType: g.type, mutable: !g.constant });
+      continue;
     }
     dataArrayGlobals.push({ name: g.name, type: g.type, array: g.array, init: (g.init as number[] | null) ?? new Array<number>(g.array).fill(0) });
     arrays.set(g.name, { elementType: g.type, mutable: !g.constant });
@@ -522,10 +572,11 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
     ...others.flatMap((f): Directive[] => [{ kind: 'label', name: f.label }, ...f.program, RTS]),
     ...waitFrameRoutineProgram,
     ...multiplyProgram,
+    ...pinnedArrays,
     ...dataSection,
   ];
 
-  const loadAddress = LOAD_ADDRESS.pet!;
+
   const { bytes: stub, codeStart } = basicStub(loadAddress);
 
   const ramSizeKib = options.hardware.build.defsym.__ram_size;
