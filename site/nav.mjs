@@ -17,6 +17,10 @@ export const nav = [
     url: '/',
   },
   {
+    title: 'Putting a program in a web page',
+    url: '/web-embedding',
+  },
+  {
     title: 'Machines on the roadmap',
     url: '/project/machines/',
   },
