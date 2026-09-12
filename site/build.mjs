@@ -13,7 +13,7 @@
 // extensionless URL (`/setup/vice`).
 import { readdir, readFile, mkdir, writeFile, rm, cp, stat } from 'node:fs/promises';
 import { dirname, join, posix, relative, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js/lib/core';
 import bash from 'highlight.js/lib/languages/bash';
@@ -27,8 +27,18 @@ hljs.registerLanguage('json', json);
 hljs.registerLanguage('yaml', yaml);
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const DOCS_DIR = join(ROOT, 'docs');
-const ASSETS_DIR = join(DOCS_DIR, 'assets');
+
+/**
+ * The Markdown tree to render, resolved per build rather than at import.
+ *
+ * `/` is built from the working tree's docs/. A version snapshot is built from
+ * that tag's docs/, which build-all.mjs extracts to a scratch directory and
+ * names here — that extraction is what makes a snapshot a snapshot instead of
+ * today's pages under an older number.
+ */
+function resolveDocsDir() {
+  return process.env.DOCS_SRC ? resolve(ROOT, process.env.DOCS_SRC) : join(ROOT, 'docs');
+}
 
 function resolveOutDir() {
   return process.env.DOCS_OUT
@@ -69,17 +79,17 @@ function parseFrontMatter(source, file) {
   return { data, body: source.slice(match[0].length) };
 }
 
-/** Every `.md` file under docs/, as paths relative to docs/. */
-async function findPages(dir = DOCS_DIR) {
+/** Every `.md` file under the docs tree, as paths relative to its root. */
+async function findPages(docsDir, dir = docsDir) {
   const entries = await readdir(dir, { withFileTypes: true });
   const found = [];
   for (const entry of entries) {
     const full = join(dir, entry.name);
     if (entry.isDirectory()) {
       if (entry.name === 'assets') continue;
-      found.push(...(await findPages(full)));
+      found.push(...(await findPages(docsDir, full)));
     } else if (entry.name.endsWith('.md')) {
-      found.push(relative(DOCS_DIR, full));
+      found.push(relative(docsDir, full));
     }
   }
   return found.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
@@ -163,15 +173,36 @@ function highlight(code, lang) {
   return hljs.highlight(code, { language: lang }).value;
 }
 
+/**
+ * The sidebar for this build: the tag's own nav.mjs when build-all.mjs names
+ * one, otherwise the current one that layout.mjs imports. A tag whose nav.mjs
+ * cannot be loaded falls back rather than failing the build — an unreachable
+ * page still beats no page.
+ */
+async function loadNav() {
+  if (!process.env.DOCS_NAV) return undefined;
+  const path = resolve(ROOT, process.env.DOCS_NAV);
+  try {
+    const { nav } = await import(pathToFileURL(path).href);
+    if (Array.isArray(nav)) return nav;
+    console.warn(`Warning: ${relative(ROOT, path)} exports no \`nav\` array; using the current sidebar.`);
+  } catch (error) {
+    console.warn(`Warning: cannot load ${relative(ROOT, path)} (${error.message}); using the current sidebar.`);
+  }
+  return undefined;
+}
+
 async function build() {
   const OUT_DIR = resolveOutDir();
+  const DOCS_DIR = resolveDocsDir();
+  const ASSETS_DIR = join(DOCS_DIR, 'assets');
   const version = process.env.DOCS_VERSION ?? '0.1.0';
   const base = process.env.DOCS_BASE ?? '';
-  configureSite({ base, version });
+  configureSite({ base, version, nav: await loadNav() });
 
   const md = new MarkdownIt({ html: true, linkify: false, typographer: false, highlight });
 
-  const sources = await findPages();
+  const sources = await findPages(DOCS_DIR);
   const pages = [];
   for (const source of sources) {
     const raw = await readFile(join(DOCS_DIR, source), 'utf8');
@@ -264,7 +295,7 @@ const isMain =
   process.argv[1] &&
   fileURLToPath(import.meta.url) === resolve(process.argv[1]);
 if (isMain) {
-  await stat(DOCS_DIR).catch(() => {
+  await stat(resolveDocsDir()).catch(() => {
     throw new Error('docs/ not found — run this from the repository root.');
   });
   await build();
