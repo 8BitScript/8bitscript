@@ -61,6 +61,12 @@ import {
 import { compileReport, writeLastRun } from './last-run.mjs';
 import { checkArtifactName } from './artifact-name.mjs';
 
+/** `a, b and c` — the machines this release builds for, said the way a sentence says them. */
+function listOf(names) {
+  if (names.length <= 1) return names.join('');
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
 const TARGETS = new Set(MACHINES);
 
 // The targets whose frame-sync strategy has a real NTSC/PAL split, auto-
@@ -170,8 +176,8 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   // binary waits for its backend (see RELEASE_MACHINES in the compiler).
   if (!RELEASE_MACHINES.includes(target)) {
     process.stderr.write(
-      `8bs build: '${target}' is not a target in this release. 0.2.0 builds for ` +
-      `${RELEASE_MACHINES.join(' and ')} only; the ${target} returns in a later release.\n`,
+      `8bs build: '${target}' is not a target in this release. This release builds for ` +
+      `${listOf(RELEASE_MACHINES)}; the ${target} returns in a later one.\n`,
     );
     return { ok: false };
   }

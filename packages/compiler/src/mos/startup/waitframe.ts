@@ -48,6 +48,7 @@
 import type { Directive } from '../asm/assemble.ts';
 import type { AddressingMode } from '../asm/encode.ts';
 import type { IrFunction } from '../lower/index.ts';
+import type { Machine } from '../index.ts';
 
 export const WAIT_FRAME_LABEL = '__8bs_wait_frame';
 
@@ -59,6 +60,8 @@ const PIA1_PORT_B = 0xe812; // reading it acknowledges the CB1 flag — see pack
 const VIA1_T2_LO = 0xe848;
 const VIA1_T2_HI = 0xe849; // writing it loads T2 from T2C-L and starts the one-shot countdown
 const DEN = 1_000_000; // the PET's own real, region-independent 1MHz CPU clock
+
+
 
 /**
  * True if any function in `functions` — the whole linked program, not just
@@ -125,7 +128,133 @@ function shiftLeft32(addr: number): Directive[] {
  * accumulator. Emitted once, before the entry function's own body, only
  * when `usesWaitFrame` says the program calls waitFrame() anywhere.
  */
-export function waitFrameSetup(frameRate: number, acc: number, num: number): Directive[] {
+// ---- the machines that poll a raster instead of an edge -------------------
+//
+// The PET has a retrace flag to wait on and no documented crystal, so it
+// measures. Every other Commodore here has the opposite pair of facts: no
+// flag, but a raster counter readable as a plain byte, and a frame that is
+// an exact fraction of a known crystal. So the shape differs in two places
+// and nowhere else — how a hardware frame is waited for, and how `num` is
+// arrived at — while the accumulator, DEN, and the whole compare/subtract
+// body below stay exactly as they are.
+//
+// Waiting: a frame is detected by watching the raster leave the top half of
+// the frame and come back to it. Not by waiting for line 0 — mos/index.ts's
+// FRAME_SYNC comment records why at length, with the measurement: a narrow
+// at-line-0 window is missed whenever an interrupt handler happens to be
+// running as it passes, and a half-frame window (thousands of cycles) never
+// can be.
+//
+// The region: one .prg runs on a PAL machine and an NTSC one, so which it
+// is cannot be a build flag. It is probed once at start-up by sampling the
+// raster over a window comfortably longer than a frame and watching for a
+// line only one of the two regions ever reaches.
+interface RasterSync {
+  /** Leaves "the raster is in the top half of the frame" in a flag. */
+  topHalf: Directive[];
+  /** The branch taken when that test says top half, and the one when it says not. */
+  whenTop: string;
+  whenNotTop: string;
+  /** Samples the raster once and branches to `target` if this sample proves the machine is PAL. */
+  palProbe: (target: string) => Directive[];
+  /** Seconds per frame, exactly, as the integer fraction mos/index.ts's FRAME_SYNC records. */
+  pal: { num: number; den: number };
+  ntsc: { num: number; den: number };
+}
+
+const RASTER: Partial<Record<Machine, RasterSync>> = {
+  c64: {
+    // $D012 is the raster's low 8 bits and $D011 bit 7 is its 9th, and the
+    // C64 has more than 256 lines, so both are needed: ORing them together
+    // and testing bit 7 says "under 128 and not past 255" in one go. $D012
+    // is read FIRST — reading $D011 first opens the race FRAME_SYNC
+    // describes, where bit 7 is still clear at line 255 and $D012 has
+    // already wrapped to 0 at line 256.
+    topHalf: [ldaAbs(0xd012), instr('ORA', 'absolute', 0xd011), instr('AND', 'immediate', 0x80)],
+    whenTop: 'BEQ',
+    whenNotTop: 'BNE',
+    // An NTSC C64 never shows $D012 >= 32 while bit 7 is set (it tops out
+    // at line 262, $D012 == 6); a PAL one reaches line 311, $D012 == 55.
+    palProbe: (target: string) => {
+      const skip = `${target}_skip`;
+      return [
+        ldaAbs(0xd011), instr('AND', 'immediate', 0x80), branch('BEQ', skip),
+        ldaAbs(0xd012), instr('CMP', 'immediate', 32), branch('BCS', target),
+        label(skip),
+      ];
+    },
+    pal: { num: 312 * 63 * 18, den: 17734472 },
+    ntsc: { num: 263 * 65 * 14, den: 14318181 },
+  },
+  vic20: {
+    // The VIC-I's own layout, which is not the VIC-II's: $9004 holds bits
+    // 8-1 of a 9-bit counter, so it changes every second line and its range
+    // tops out around 130 (NTSC) or 155 (PAL) — nowhere near a wrap, so one
+    // byte decides the half on its own.
+    topHalf: [ldaAbs(0x9004), instr('CMP', 'immediate', 64)],
+    whenTop: 'BCC',
+    whenNotTop: 'BCS',
+    // Those bottom lines only exist on PAL.
+    palProbe: (target: string) => [ldaAbs(0x9004), instr('CMP', 'immediate', 140), branch('BCS', target)],
+    pal: { num: 312 * 71 * 4, den: 4433618 },
+    ntsc: { num: 261 * 65 * 14, den: 14318181 },
+  },
+};
+
+/** Logical frames owed per hardware frame, scaled by DEN — `frameRate` seconds-per-frame, as an integer. */
+function frameCredit(frameRate: number, ratio: { num: number; den: number }): number {
+  return Math.round((frameRate * ratio.num * DEN) / ratio.den);
+}
+
+/** Stores a 32-bit constant into the four `num` cells. */
+function storeNum(num: number, value: number): Directive[] {
+  const out: Directive[] = [];
+  for (let i = 0; i < 4; i++) out.push(ldaImm(byteOf(value, i)), staZp(num + i));
+  return out;
+}
+
+/**
+ * Zero the accumulator, find out which region this machine is, and take
+ * that region's per-frame credit. The sample window is 16 * 256 reads —
+ * comfortably longer than a frame on either region and on either machine,
+ * so a line only PAL reaches cannot be missed.
+ */
+function rasterSetup(frameRate: number, acc: number, num: number, sync: RasterSync): Directive[] {
+  const out: Directive[] = [];
+  const outer = '__8bs_wf_probe_outer';
+  const inner = '__8bs_wf_probe_inner';
+  const isPal = '__8bs_wf_probe_pal';
+  const done = '__8bs_wf_probe_done';
+
+  out.push(instr('SEI', 'implied'));
+  out.push(ldaImm(0), staZp(acc), staZp(acc + 1), staZp(acc + 2), staZp(acc + 3));
+
+  out.push(instr('LDY', 'immediate', 16), label(outer), instr('LDX', 'immediate', 0), label(inner));
+  out.push(...sync.palProbe(isPal));
+  out.push(instr('DEX', 'implied'), branch('BNE', inner));
+  out.push(instr('DEY', 'implied'), branch('BNE', outer));
+
+  out.push(...storeNum(num, frameCredit(frameRate, sync.ntsc)));
+  out.push(jmp(done));
+  out.push(label(isPal));
+  out.push(...storeNum(num, frameCredit(frameRate, sync.pal)));
+  out.push(label(done));
+  return out;
+}
+
+/** Blocks until the raster leaves the top half of the frame and comes back to it. */
+function rasterWait(sync: RasterSync): Directive[] {
+  const leaving = `${WAIT_FRAME_LABEL}_leaving`;
+  const returning = `${WAIT_FRAME_LABEL}_returning`;
+  return [
+    label(leaving), ...sync.topHalf, branch(sync.whenTop, leaving),
+    label(returning), ...sync.topHalf, branch(sync.whenNotTop, returning),
+  ];
+}
+
+export function waitFrameSetup(frameRate: number, acc: number, num: number, machine: Machine = 'pet'): Directive[] {
+  const sync = RASTER[machine];
+  if (sync) return rasterSetup(frameRate, acc, num, sync);
   const out: Directive[] = [];
   const waitEdge = (tag: string) => {
     const poll = `__8bs_wf_setup_${tag}`;
@@ -191,7 +320,8 @@ export function waitFrameSetup(frameRate: number, acc: number, num: number): Dir
  * relative with a signed 8-bit range, and this shape keeps every one of
  * them well inside it by construction, not by measuring after the fact.
  */
-export function waitFrameRoutine(acc: number, num: number): Directive[] {
+export function waitFrameRoutine(acc: number, num: number, machine: Machine = 'pet'): Directive[] {
+  const sync = RASTER[machine];
   const out: Directive[] = [];
   const GE = `${WAIT_FRAME_LABEL}_ge`;
   const WAIT = `${WAIT_FRAME_LABEL}_wait`;
@@ -215,9 +345,14 @@ export function waitFrameRoutine(acc: number, num: number): Directive[] {
   for (let i = 0; i < 4; i++) out.push(ldaZp(acc + i), instr('SBC', 'immediate', byteOf(DEN, i)), staZp(acc + i));
   out.push(instr('RTS', 'implied'));
 
-  out.push(label(WAIT), label(POLL));
-  out.push(ldaAbs(CB1_FLAG), instr('AND', 'immediate', 0x80), branch('BEQ', POLL));
-  out.push(ldaAbs(PIA1_PORT_B)); // ack — packages/pet/src/index.8bs's own documented side effect
+  out.push(label(WAIT));
+  if (sync) {
+    out.push(...rasterWait(sync));
+  } else {
+    out.push(label(POLL));
+    out.push(ldaAbs(CB1_FLAG), instr('AND', 'immediate', 0x80), branch('BEQ', POLL));
+    out.push(ldaAbs(PIA1_PORT_B)); // ack — packages/pet/src/index.8bs's own documented side effect
+  }
   out.push(...add32(acc, num));
   out.push(jmp(LOOP));
 

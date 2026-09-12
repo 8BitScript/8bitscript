@@ -48,10 +48,11 @@ test('build() names a missing --profile value rather than treating the next flag
 });
 
 test('compile() refuses a parked machine, a retired name, and an unknown target', async () => {
-  const parked = await capture(() => compile('c64'));
+  // c128 stands in for "parked" now that the C64 and the VIC-20 build.
+  const parked = await capture(() => compile('c128'));
   assert.equal(parked.result.ok, false);
   assert.match(parked.stderr, /not a target in this release/);
-  assert.match(parked.stderr, /c64/);
+  assert.match(parked.stderr, /c128/);
 
   const retired = await capture(() => compile('c64-pal'));
   assert.equal(retired.result.ok, false);
@@ -186,7 +187,7 @@ test('build() --release fails clearly when the config lists no release-ready tar
   const dir = await mkdtemp(join(tmpdir(), '8bs-compile-'));
   const prev = process.cwd();
   try {
-    await writeFile(join(dir, '8bitscript.config.ts'), 'export default { targets: { c64: {} } };\n');
+    await writeFile(join(dir, '8bitscript.config.ts'), 'export default { targets: { c128: {} } };\n');
     process.chdir(dir);
     const { result, stderr } = await capture(() => build(['--release']));
     assert.equal(result, 1);

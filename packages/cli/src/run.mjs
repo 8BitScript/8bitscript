@@ -62,6 +62,12 @@ import { compile } from './build.mjs';
 import { HARDWARE_USAGE, hardwareArgs, loadArgs } from './hardware.mjs';
 import { hardwareSnapshot, writeLastRun } from './last-run.mjs';
 
+/** `a, b and c` — the machines this release builds for, said the way a sentence says them. */
+function listOf(names) {
+  if (names.length <= 1) return names.join('');
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
 // The VICE family (vic20/c64/pet/c128): one emulator suite, one invocation
 // shape — -autostart injects the built file straight into RAM. Exported so
 // screenshot.mjs's --screenshot path (8bs run <target> --screenshot <file>)
@@ -431,8 +437,8 @@ export async function boot(args) {
   }
   if (!RELEASE_MACHINES.includes(target)) {
     process.stderr.write(
-      `8bs boot: '${target}' is not a target in this release. 0.2.0 builds for ` +
-      `${RELEASE_MACHINES.join(' and ')} only; the ${target} returns in a later release.\n`,
+      `8bs boot: '${target}' is not a target in this release. This release builds for ` +
+      `${listOf(RELEASE_MACHINES)}; the ${target} returns in a later one.\n`,
     );
     return 2;
   }
