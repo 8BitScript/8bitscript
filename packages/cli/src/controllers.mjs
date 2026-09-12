@@ -197,36 +197,6 @@ export function bindingDevice(binding) {
   return binding.kind === 'key' ? 'keyboard' : 'pad';
 }
 
-/**
- * The warning a `key:` binding earns, or nothing.
- *
- * `key:` is this end's extension and the panel's own `parseBinding` does
- * not accept it — which would be a documented gap, except that
- * `normalizeProfile` *rewrites the file* on every save and drops every
- * binding it cannot read. So a hand-written keyboard stick works until
- * the next time somebody opens the panel and presses a button, and then
- * it is gone, with nothing said. That is the silent drop this repo does
- * not allow, and a launch is the last moment anyone is looking, so the
- * launch is where it gets said.
- *
- * The fix is two characters of the panel's own regex; until it lands,
- * this is the warning.
- *
- * @param {Player[]} players
- * @returns {string[]} zero or one note
- */
-export function keyBindingWarning(players) {
-  const owners = players
-    .filter((player) => Object.values(player.controls).some((binding) => binding.kind === 'key'))
-    .map((player) => `player ${player.player} ('${player.name}')`);
-  if (owners.length === 0) return [];
-  return [
-    `${CONTROLLERS_FILE}: ${listOf(owners)} ${owners.length === 1 ? 'has' : 'have'} \`key:\` bindings, which the `
-    + 'editor\'s Controller Setup panel does not yet read — it rewrites this file on save and will drop them. '
-    + 'Keep a copy until its parseBinding accepts key: alongside button: and axis:',
-  ];
-}
-
 /** The file the editor's Controller Setup panel writes, beside 8bitscript.config.ts. */
 export const CONTROLLERS_FILE = '8bitscript.controllers.json';
 
@@ -997,5 +967,5 @@ export function controllerInvocation(machine, players, context) {
   if (!result.ok) return result;
   // Said whatever the machine made of them, because it is about the file
   // rather than about this launch.
-  return { ...result, notes: [...keyBindingWarning(players), ...result.notes] };
+  return result;
 }

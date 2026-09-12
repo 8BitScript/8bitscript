@@ -516,23 +516,32 @@ test('controllerInvocation with no players adds nothing at all, on every machine
   }
 });
 
-test('a `key:` binding is warned about, because the panel will silently strip it on its next save', () => {
+test('a `key:` binding rides through to the emulator without complaint', () => {
+  // It used to earn a warning, because the panel rewrote the file on save
+  // and dropped every binding it could not read — so a hand-written Atari
+  // keyboard stick worked until somebody opened Controller Setup and
+  // pressed a button. The panel's parseBinding takes `key:` as a first-class
+  // shape now and can capture one, so the warning described a trap that no
+  // longer exists and said so at every launch. A launch is quiet again.
   const result = controllerInvocation('atari8', [player({ a: 'key:Space' })], {
     emulator: 'atari800', hardware: hardwareFor('atari8'), configPath: '/tmp/a.cfg', baseConfig: '',
   });
   assert.equal(result.ok, true);
-  assert.match(
-    result.notes.join('\n'),
-    /player 1 \('SN30 Pro'\) has `key:` bindings, which the editor's Controller Setup panel does not yet read/,
+  // The binding reaches atari800, which is the whole point: it takes a
+  // joystick mapping in no other shape than emulated keys.
+  assert.ok(
+    result.files.some((file) => /SDL2_JOY_0_/.test(file.contents)),
+    'the key reaches the config atari800 reads',
   );
-  // The point is the data loss, not the flag: it works today and stops
-  // working the next time somebody opens the panel.
-  assert.match(result.notes.join('\n'), /rewrites this file on save and will drop them/);
+  assert.ok(
+    !result.notes.join('\n').includes('key:'),
+    'and nothing is said about it — the panel reads and writes this shape now',
+  );
 
   const pads = controllerInvocation('atari8', [player(SN30_PRO)], {
     emulator: 'atari800', hardware: hardwareFor('atari8'), configPath: '/tmp/a.cfg', baseConfig: '',
   });
-  assert.ok(!pads.notes.join('\n').includes('`key:`'), 'nothing to warn about when the panel wrote the file');
+  assert.ok(!pads.notes.join('\n').includes('key:'), 'nor when the panel wrote the file');
 });
 
 test('a C64 has two control ports, so players 3 and 4 are refused by count rather than aimed at an adapter', () => {
