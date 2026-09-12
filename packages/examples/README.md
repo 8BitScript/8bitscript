@@ -14,10 +14,22 @@ directory and an entry.
 
 | Example | What it is | Targets |
 | ------- | ---------- | ------- |
-| `hello-world` | `text.print(0, "HELLO WORLD")` through the portable text package. The 0.2.0 goal program — the same four lines build for the PET and the web. | pet, web |
+| `hello-world` | `screen.blank()` then `text.print(0, "Hello World!")` through the portable screen and text packages — the same few lines build for the PET and the web. | pet, web |
 
-**Nothing builds yet.** 0.2.0 is the release in which 8BitScript grows its
-own backends, and this is the program the PET backend is built against.
-Until then `8bs build` in this directory stops with a clear message. The
-test in `test/` checks that the program links clean for each of its
-targets, which is what the front end can promise today.
+Both targets build and run. From inside `hello-world/`:
+
+```
+8bs run pet              # the default 2001, in VICE
+8bs run pet --profile 8032   # 80 columns, mixed case
+8bs run web              # the browser
+```
+
+The program prints and returns, landing back at the BASIC `READY.` prompt
+the way any program that falls off its own end does. On a PET that boots
+into the upper-case/graphics character set — every model but the 8032 —
+the greeting draws in capitals, because that set holds one case of the
+alphabet; the 8032 shows real mixed case. See `@8bitscript/pet`'s own
+notes for why nothing switches between them.
+
+The test in `test/` checks that the manifest names a real project and that
+the program links clean for each of its targets.
