@@ -24,13 +24,20 @@ import { queueRun, queueByte } from "./index.8bs";
 // (it rides along with every import of this package, its entry or any of
 // its subpaths) — laid out so that tile index == ASCII code.
 // `putChar(cell, 65)` therefore draws an 'A' with no translation table.
-// Space, digits, A-Z and `! , - . : ?` have glyphs; other codes in $20-$5F
-// are blank tiles. Reverse video of that range lives at ASCII+128 ($A0-$DF)
-// so `text.setReverse` is the same `code + 128` as on the Commodores. Tile
-// $80 is the solid frame, not a reverse copy, and +128 of a portable
-// character never lands on it. That set — upper case only — is what every
-// machine's putChar takes, precisely because it is what this font has: the
-// portable character set is the smallest one any target can show.
+// Space, digits, A-Z, a-z and `! , - . : ?` have glyphs; other codes in
+// $20-$7F are blank tiles. Reverse video of that range lives at ASCII+128
+// ($A0-$FA) so `text.setReverse` is the same `code + 128` as on the
+// Commodores. Tile $80 is the solid frame, not a reverse copy, and +128 of
+// a portable character never lands on it (the reverse alphabet skips it:
+// $A0-$DF mirrors $20-$5F and $E1-$FA mirrors $61-$7A).
+//
+// Lowercase was not always here. Through 0.5.0 the font stopped at $5A and
+// this comment said the portable set was upper case only "precisely
+// because it is what this font has" — which was true, and was the NES
+// alone holding the portable API down: every other target's character ROM
+// has both cases. The first .nes the native backend produced drew
+// `Hello World!` as `H   W  !`, three glyphs out of twelve, and the font
+// grew the other case rather than the API losing it (see native/6502/font.s).
 //
 // The grid is the area inside the frame screen.8bs draws (see there):
 // 28 columns by 26 rows, 728 cells, cell 0 at nametable row 2, column 2,
@@ -64,10 +71,10 @@ import { queueRun, queueByte } from "./index.8bs";
 // build anything from.
 let currentReverse: bool = false; // until text.setReverse() says otherwise
 
-// Reverse video is ASCII+128: the font ships inverted copies of $20-$5F
-// at $A0-$DF. Tile $80 is the drawn border and is not a reverse copy, so
-// the +128 of a portable character never lands on it. A reverse space is
-// a solid block in the text color.
+// Reverse video is ASCII+128: the font ships inverted copies of $20-$5F at
+// $A0-$DF and of $61-$7A at $E1-$FA. Tile $80 is the drawn border and is
+// not a reverse copy, so the +128 of a portable character never lands on
+// it. A reverse space is a solid block in the text color.
 function toTile(code: utinyint): utinyint {
     if (currentReverse) {
         return code + 128;
@@ -99,7 +106,20 @@ function locate(cell: usmallint): utinyint {
         row++;
     }
     let col: utinyint = rest * 4 + cell % 4;
-    queueRun(0x2042 + row * 32 + col);
+    // `row` is widened to sixteen bits BEFORE it is multiplied, and that is
+    // not a style choice. 8BitScript evaluates an expression at its
+    // operands' own width (packages/compiler/src/templates' widerOf: the
+    // wider of the two, and a literal is as wide as its value needs), so
+    // `row * 32` with a utinyint `row` is an eight-bit multiply that wraps
+    // — correct for row 0-7 of the grid and silently wrong for every row
+    // above it, since 8 * 32 is already 256. Measured: with `row` left
+    // eight-bit, a print at the 21st row landed on the 5th (FCEUX,
+    // 2026-09-12 — `row * 32` came out 672 & 255 = 160, so the address
+    // lost $200 and stayed inside the first eight rows). The pre-0.2.0
+    // toolchain never showed it, because C promoted both operands to int
+    // for free; this backend does exactly what the language says instead.
+    let rowBase: usmallint = row;
+    queueRun(0x2042 + rowBase * 32 + col);
     return col;
 }
 

@@ -14,7 +14,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
-import { basicStub } from './basic-stub.ts';
+import { imageFor } from './image.ts';
 import { arrayLabel, buildDataSection } from './data.ts';
 import type { DataArrayGlobal, IrString } from './data.ts';
 import { link } from './link/index.ts';
@@ -23,9 +23,9 @@ import { lower } from './lower/index.ts';
 import type { Directive, FunctionSite, IrFunction } from './lower/index.ts';
 import { instructionBytes } from './asm/encode.ts';
 import { LocalAllocator } from './lower/allocator.ts';
-import { prgBytes } from './prg.ts';
 import { epilogue, prologue, usesDecimalSensitiveMath } from './startup/commodore.ts';
-import { WAIT_FRAME_ZP_BYTES, usesWaitFrame, waitFrameRoutine, waitFrameSetup } from './startup/waitframe.ts';
+import { nesResetInit } from './startup/nes.ts';
+import { WAIT_FRAME_ZP_BYTES, frameEdgeWait, usesWaitFrame, waitFrameKeepsInterrupts, waitFrameRoutine, waitFrameSetup } from './startup/waitframe.ts';
 import { MULTIPLY_ZP_BYTES, multiplyCells, multiplyRoutine, usesMultiply } from './startup/multiply.ts';
 import type { MultiplyCells } from './startup/multiply.ts';
 import { storageBytes } from '../types/index.mjs';
@@ -40,6 +40,8 @@ export interface IrProgram {
   globals: IrGlobal[];
   /** ir.strings (ir/index.mjs) — every string literal the linked program declares, merged and deduplicated by the linker. Optional only so existing synthetic test fixtures that predate milestone 9 don't all need updating; real linked IR always sets it (possibly `[]`). */
   strings?: IrString[];
+  /** ir.nativeSources (linker/index.mjs) — the absolute paths of every `"8bitscript".native` file the linked packages ship. Not IR: bytes a backend passes through to its own image untouched, which on the NES is the CHR-ROM character set (mos/image-nes.ts) and on every other machine here is nothing. */
+  nativeSources?: string[];
 }
 
 export type Machine = 'vic20' | 'c64' | 'pet' | 'c128' | 'mega65' | 'cx16' | 'nes' | 'atari8';
@@ -167,18 +169,142 @@ const VIC20_ZP_BUDGET = { zpOrigin: 0xf7, zpCeiling: 0xff };
 // same row of AGENTS.md records it.
 const C128_ZP_BUDGET = { zpOrigin: 0x0a, zpCeiling: 0x100 };
 
+// The X16 is the one machine here with a zero-page window meant for a
+// program rather than borrowed from a ROM: $00-$21 is the KERNAL's and
+// BASIC's, $22-$7F is the user's, and $80 up is the KERNAL's again — which
+// is why packages/cx16/AGENTS.md can say of the mouse KERNAL's $80-$84
+// that it is "past BASIC's zero-page end, so a linker will not put a
+// variable there". Ninety-four bytes, and nothing has to be taken from
+// anyone to get them.
+const CX16_ZP_BUDGET = { zpOrigin: 0x22, zpCeiling: 0x80 };
+
+// And what a program that is never handing BASIC back may take on top: 87
+// more bytes at $A9-$FF, which is the Math library's and BASIC's.
+//
+// This is a proof rather than an inference, and it comes from the ROM's own
+// ld65 configuration rather than from the docs' summary table. cfg/x16.cfginc
+// declares ZPKERNAL at $80 size $11, ZPDOS at $91, ZPAUDIO at $A7, ZPMATH at
+// $A9 and ZPBASIC at $D4 — and cfg/kernal-x16.cfgtpl loads every one of the
+// KERNAL bank's four zero-page segments into ZPKERNAL, while no other bank's
+// cfgtpl declares zero page at all. So no KERNAL routine can reach $A9-$FF,
+// whatever it is asked to do. The reference manual says the same in prose:
+// "Machine code applications are free to reuse the BASIC area, and if they
+// don't use the Math library, also that area."
+//
+// The hole is $80-$A9: ZPKERNAL and ZPDOS, whose routines this package calls
+// every frame; the cfginc's own commented "reserved for DOS or BASIC growth"
+// at $9C-$A6; and ZPAUDIO, which a future audio package will want.
+//
+// $02-$21 stays out under both budgets even though 2048 would fit inside the
+// existing ceiling if it were taken: those are r0-r15, the KERNAL API's
+// caller-supplied 16-bit argument registers (inc/regs.inc), live scratch for
+// any routine taking 16-bit arguments — extapi's mouse_sprite_offset does
+// `MoveW r0, ...` and this package calls extapi. Worse, "does this program
+// call such a routine" is not a fact readable off the finished instruction
+// stream the way usesWaitFrame is, because the calls sit inside opaque
+// asm6502 blocks. $A9-$FF is provably untouchable; $02-$21 is provably
+// touched. (packages/cx16/AGENTS.md records all of this.)
+const CX16_OWNED_ZP_BUDGET = { zpOrigin: 0x22, zpCeiling: 0x100, holes: [{ start: 0x80, end: 0xa9 }] };
+
+// The MEGA65's own start-up (packages/mega65/AGENTS.md's start-up row)
+// disables interrupts at _start and keeps them off until exit, so a
+// program here already owns the machine while it runs. $00/$01 are the
+// port; everything above is the program's. Nothing in the workspace
+// documents a free window inside BASIC 10's own zero page the way the
+// X16's is documented, so this does not pretend to one.
+const MEGA65_ZP_BUDGET = { zpOrigin: 0x02, zpCeiling: 0x100 };
+
+// The Atari 8-bit is the first machine here whose two budgets are
+// deliberately the SAME object, because it is the first whose program
+// cannot take the machine at all.
+//
+// packages/atari8/AGENTS.md records no zero-page budget of its own — that
+// was checked, and the negative result is why the rest of this comment
+// argues from the facts it does record rather than citing a row. Two of
+// them decide it:
+//
+//   - Every page-zero location that file names as the OS's is below $80:
+//     RTCLOK $12-$14, ATRACT $4D, SAVMSC $58, RAMTOP $6A (its "OS
+//     locations" row). Everything else it lists there — the vectors, the
+//     shadow registers, RUNAD, MEMTOP/MEMLO — lives from $0200 up, not in
+//     page zero at all. $80 and above is named by nothing the OS owns.
+//   - This project's own pre-0.2.0 `.xex` link map put a compiled
+//     program's imaginary registers at $80-$9F and its zero-page variables
+//     from $A0 (the same row's neighbour, measured from a real DOS link
+//     map). So $80-$FF is not general knowledge applied hopefully: it is
+//     where this repo's own Atari builds already lived.
+//
+//   That window is the user area only while BASIC is out of the map —
+//   Atari BASIC's own variables are $80-$FF. A `.xex` is loaded by DOS
+//   with BASIC held off (atari800's own DISABLE_BASIC, and the OPTION key
+//   on real XL/XE hardware), which is the configuration this target
+//   builds for and the one `8bs run atari8` launches.
+//
+// 128 bytes, and no wider shape to escalate to. On every Commodore above,
+// `owned` widens past the polite budget on the strength of a waitFrame()
+// program having switched interrupts off and abandoned the interpreter.
+// That trade is not available here, and taking it would break the program
+// rather than free anything:
+//
+//   - @8bitscript/atari8/text and /screen both find screen memory by
+//     reading SAVMSC ($58/$59) on every run of text — the Atari has no
+//     fixed screen address, only wherever the OS's display list points
+//     (packages/atari8/src/text.8bs says so at length). Overwriting $58
+//     would point every subsequent draw at nothing.
+//   - screen.8bs writes each color to its OS shadow *and* to the hardware
+//     register, precisely so the color survives the OS's next vertical
+//     blank — it is the OS's VBI that copies the shadows down. A program
+//     that silences the OS to claim its zero page also silences the thing
+//     keeping its own colors on screen.
+//
+// So the Atari's program is a guest of a live OS for as long as it runs,
+// and both budgets are the guest's budget. See waitframe.ts's own
+// `keepsInterrupts` for the other half of the same decision.
+const ATARI8_ZP_BUDGET = { zpOrigin: 0x80, zpCeiling: 0x100 };
+
+// The NES is the opposite of the Atari above: its two budgets are the same
+// object because there is nobody to be polite TO. Three facts, each
+// checked rather than assumed:
+//
+//   - There is no loader and no OS. A cartridge boots straight into the
+//     program through the 6502's own reset vector (mos/image-nes.ts, and
+//     packages/nes/AGENTS.md's start-up row), so there is no interpreter
+//     whose zero page has to survive and no READY. to come back to —
+//     main() ending halts the machine rather than returning to anything.
+//   - There is no CPU port at $00/$01. That pair is the 6510's and 8502's
+//     on-chip I/O register, which is why every Commodore budget above
+//     starts at $02; the 2A03 (CPU.nes's own `core`) has no such register,
+//     and on this machine $00 and $01 are two ordinary bytes of the 2 KiB
+//     of internal RAM that the zero page is merely the first page of.
+//   - Nothing else claims a cell of it. @8bitscript/nes reaches the PPU
+//     through its ports at $2000-$2007 and the pads at $4016/$4017 and
+//     never through a fixed zero-page location, and NROM has no mapper
+//     registers at all (packages/nes/AGENTS.md's mapper row).
+//
+// So the whole page is the program's, $00-$FF. The CPU stack still lives
+// at $0100-$01FF and mutable arrays at $0200 up (the sheet's
+// __bss_origin) — both outside this page, and neither this budget's
+// business.
+const NES_ZP_BUDGET = { zpOrigin: 0x00, zpCeiling: 0x100 };
+
 // Per machine: the budget a program that returns to BASIC may take, and
 // the one a program that never does may take. The second is the whole page
 // on every Commodore here, for the same reason each time — interrupts off,
 // the interpreter never resumed — so only the polite one really differs.
-/** The machines whose waitFrame() polls a raster (mos/startup/waitframe.ts's own RASTER). */
-const RASTER_MACHINES = new Set<Machine>(['c64', 'vic20', 'c128']);
+/** The machines with a waitFrame() runtime of their own (mos/startup/waitframe.ts: a raster poll, the X16's VSYNC flag, or the NES's PPUSTATUS vertical-blank bit). */
+const RASTER_MACHINES = new Set<Machine>(['c64', 'vic20', 'c128', 'cx16', 'mega65', 'nes', 'atari8']);
 
-const ZP_BUDGETS: Partial<Record<Machine, { polite: { zpOrigin: number; zpCeiling: number }; owned: { zpOrigin: number; zpCeiling: number } }>> = {
+type ZpBudget = { zpOrigin: number; zpCeiling: number; holes?: ZpHole[] };
+
+const ZP_BUDGETS: Partial<Record<Machine, { polite: ZpBudget; owned: ZpBudget }>> = {
   pet: { polite: PET_ZP_BUDGET, owned: PET_OWNED_ZP_BUDGET },
   c64: { polite: C64_ZP_BUDGET, owned: C64_ZP_BUDGET },
   vic20: { polite: VIC20_ZP_BUDGET, owned: PET_OWNED_ZP_BUDGET },
   c128: { polite: C128_ZP_BUDGET, owned: C128_ZP_BUDGET },
+  cx16: { polite: CX16_ZP_BUDGET, owned: CX16_OWNED_ZP_BUDGET },
+  mega65: { polite: MEGA65_ZP_BUDGET, owned: MEGA65_ZP_BUDGET },
+  atari8: { polite: ATARI8_ZP_BUDGET, owned: ATARI8_ZP_BUDGET },
+  nes: { polite: NES_ZP_BUDGET, owned: NES_ZP_BUDGET },
 };
 
 function chrgetZpHoles(facts: Record<string, unknown>, budget: { zpOrigin: number; zpCeiling: number }): ZpHole[] {
@@ -264,6 +390,90 @@ function findCallCycle(functions: IrFunction[]): string[] | null {
   return null;
 }
 
+/**
+ * Zeroes `[origin, end)`, the RAM window mutable arrays were placed in on
+ * a machine whose image is a ROM (see build()'s own comment on that
+ * window). A .prg needs nothing like this — its arrays' bytes arrive with
+ * the load — but a cartridge's RAM at power-on holds whatever it holds,
+ * and the same class of bug that produced two different PET screenshots
+ * from one build (mos/index.ts's global-initializer comment) is waiting
+ * here on a much bigger scale: @8bitscript/nes's own write queue reading
+ * back garbage would deliver garbage to the PPU.
+ *
+ * Whole pages first, each an `STA base,X` walked by an X that wraps back to
+ * zero on its own — 256 stores for seven bytes of code — and then whatever
+ * is left over, counted down so the loop's exit test is free. The window is
+ * contiguous by construction (one bump allocator, no holes), so the two
+ * loops together are exactly the bytes that were handed out and not one
+ * more: this never writes past the ceiling the sheet named.
+ */
+function clearRam(origin: number, end: number): Directive[] {
+  const size = end - origin;
+  if (size <= 0) return [];
+  const out: Directive[] = [ldaImm(0)];
+  const pages = Math.floor(size / 256);
+  for (let page = 0; page < pages; page++) {
+    const loop = `__8bs_ram_clear_${page}`;
+    out.push(
+      { kind: 'instruction', mnemonic: 'LDX', mode: 'immediate', operand: { kind: 'value', value: 0 } },
+      { kind: 'label', name: loop },
+      { kind: 'instruction', mnemonic: 'STA', mode: 'absolute,x', operand: { kind: 'value', value: origin + page * 256 } },
+      { kind: 'instruction', mnemonic: 'INX', mode: 'implied' },
+      { kind: 'instruction', mnemonic: 'BNE', mode: 'relative', operand: { kind: 'label', name: loop } },
+    );
+  }
+  const tail = size - pages * 256;
+  if (tail > 0) {
+    // X counts down from `tail`, so the store at offset 0 is the last one
+    // and the BNE that follows it is the one that falls through — no
+    // separate compare, and no 257th store.
+    const loop = '__8bs_ram_clear_tail';
+    out.push(
+      { kind: 'instruction', mnemonic: 'LDX', mode: 'immediate', operand: { kind: 'value', value: tail } },
+      { kind: 'label', name: loop },
+      { kind: 'instruction', mnemonic: 'DEX', mode: 'implied' },
+      { kind: 'instruction', mnemonic: 'STA', mode: 'absolute,x', operand: { kind: 'value', value: origin + pages * 256 } },
+      { kind: 'instruction', mnemonic: 'BNE', mode: 'relative', operand: { kind: 'label', name: loop } },
+    );
+  }
+  return out;
+}
+
+/**
+ * Copies `size` bytes from the label `from` into RAM at `to` — the
+ * start-up half of a mutable array that has a real initializer and lives on
+ * a machine whose image is a ROM. The bytes themselves stay in the image,
+ * once, and this is what puts a working copy somewhere the program can
+ * write to; on every loaded machine the two are the same bytes and none of
+ * this exists.
+ *
+ * Whole pages first (X wraps to zero on its own), then a counted tail.
+ * `LDA` clobbers the flags `DEX` would have set, so the tail counts UP and
+ * ends on a `CPX` rather than counting down — two bytes more than
+ * clearRam's tail loop, and the reason the two are not one function.
+ */
+function copyToRam(from: string, to: number, size: number, tag: string): Directive[] {
+  const out: Directive[] = [];
+  const pages = Math.floor(size / 256);
+  const move = (loop: string, offset: number, end: Directive[]): void => {
+    out.push(
+      { kind: 'instruction', mnemonic: 'LDX', mode: 'immediate', operand: { kind: 'value', value: 0 } },
+      { kind: 'label', name: loop },
+      { kind: 'instruction', mnemonic: 'LDA', mode: 'absolute,x', operand: { kind: 'label', name: from, offset } },
+      { kind: 'instruction', mnemonic: 'STA', mode: 'absolute,x', operand: { kind: 'value', value: to + offset } },
+      { kind: 'instruction', mnemonic: 'INX', mode: 'implied' },
+      ...end,
+      { kind: 'instruction', mnemonic: 'BNE', mode: 'relative', operand: { kind: 'label', name: loop } },
+    );
+  };
+  for (let page = 0; page < pages; page++) move(`${tag}_${page}`, page * 256, []);
+  const tail = size - pages * 256;
+  if (tail > 0) {
+    move(`${tag}_tail`, pages * 256, [{ kind: 'instruction', mnemonic: 'CPX', mode: 'immediate', operand: { kind: 'value', value: tail } }]);
+  }
+  return out;
+}
+
 const RTS: Directive = { kind: 'instruction', mnemonic: 'RTS', mode: 'implied' };
 const ldaImm = (value: number): Directive => ({ kind: 'instruction', mnemonic: 'LDA', mode: 'immediate', operand: { kind: 'value', value } });
 const staZp = (address: number): Directive => ({ kind: 'instruction', mnemonic: 'STA', mode: 'zeropage', operand: { kind: 'value', value: address } });
@@ -320,6 +530,30 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
     };
   }
 
+  // A catalog value may ask for a start-up driver instead of the machine's
+  // default one, and the Atari 8-bit's thirteen cartridge media values all
+  // do: `build.startup` is 'cart-std', 'cart-xegs' or 'cart-megacart' in
+  // packages/atari8's own hardware sheet, and each names a completely
+  // different image — ROM at $A000 or $8000 with the cartridge vector at
+  // $BFFA, a bank-select write to $D5xx, and RAM for the program at
+  // $0700-$1FFF instead of the $2000-$BFFF this backend's `__load_address`
+  // and `__ram_ceiling` describe. None of that is written, so such a build
+  // is REFUSED BY NAME here rather than reaching imageFor(), which would
+  // wrap the bytes in a `.xex` container exactly as if they were a disk
+  // executable, write the result under the `.rom` extension
+  // `build.output` asks for, and produce a file no emulator can load. The
+  // `cart-` prefix is the test rather than the machine, because that prefix
+  // is what a cartridge driver is named in every catalog that has one; a
+  // machine whose ONLY shape is a cartridge (the NES's 'nrom') is not this
+  // case and passes through.
+  const startupDriver = options.hardware.build.startup;
+  if (typeof startupDriver === 'string' && startupDriver.startsWith('cart-')) {
+    return {
+      ok: false,
+      error: `this ${options.machine} build asks for the '${startupDriver}' cartridge start-up driver, and the native 6502 backend has none: it builds the one shape the machine's disk media has, loaded at $${loadAddress.toString(16).toUpperCase()}. Pick a media value that loads rather than one that plugs in`,
+    };
+  }
+
   const entryFn = ir.functions.find((fn) => fn.name === ir.entry);
   if (!entryFn) return { ok: false, error: `the linked entry point '${ir.entry}' names no function in ir.functions` };
 
@@ -357,7 +591,15 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // own locals and expression temporaries, bump-allocate from whatever zero
   // page globals didn't take, so each pass below needs to know where the
   // previous one's remainder starts before it can run.
-  const zpHoles = needsWaitFrame ? [] : chrgetZpHoles(options.hardware.facts, zpBudget);
+  // A budget may carry holes of its own — bytes inside its range that
+  // belong to someone else whatever the program does (the X16's KERNAL and
+  // DOS window). Those survive into every program. The PET's CHRGET hole is
+  // the other kind: it exists only because a returning program leaves
+  // BASIC's interpreter running, so a program that never returns drops it.
+  const zpHoles = [
+    ...(zpBudget.holes ?? []),
+    ...(needsWaitFrame ? [] : chrgetZpHoles(options.hardware.facts, zpBudget)),
+  ];
   const zp = allocate(globals, { ...zpBudget, holes: zpHoles });
   if (!zp.ok) return { ok: false, error: zp.error };
 
@@ -404,6 +646,49 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
     for (const address of addresses) globalInitProgram.push(staZp(address));
   }
 
+  // How this machine's programs look as a FILE (mos/image.ts). Read here
+  // rather than at the link step below because two things that come first
+  // depend on it: whether a mutable array may live inside the image, and
+  // whether main() ending has anywhere to return to.
+  const image = imageFor(options.machine);
+
+  // ---- mutable arrays on a machine whose image is a ROM -------------------
+  //
+  // "A mutable array's bytes ride inside the program and the load itself is
+  // the initializer" (the paragraph just below, and mos/zp/index.ts's own
+  // note) is true of every machine this backend has built for so far, and
+  // for one reason: a .prg is COPIED INTO RAM before it runs, so the image
+  // and the program's memory are the same bytes. A cartridge is not. On the
+  // NES the image is PRG-ROM at $8000, and an `STA` into an array that
+  // lives there does not fail — it does nothing, silently, and the array
+  // reads back its initializer forever. @8bitscript/nes's own 112-byte
+  // write queue is exactly such an array, so this is not a corner case: it
+  // is the difference between the NES printing and the NES printing
+  // nothing.
+  //
+  // So an image that says `writableImage: false` gets its mutable arrays in
+  // real RAM instead, bump-allocated from the window the hardware sheet
+  // names with `__bss_origin`/`__bss_ceiling` (the NES's is $0200-$07FF —
+  // the 1536 bytes beside the zero page and the stack that
+  // packages/nes/package.json's own `memory.ram` fact reports). The
+  // mechanism is one that already exists: an `@address` array is bound to
+  // an absolute address with an `equate` and reaches index()/storeIndex()
+  // through exactly the same label a data-section array does, so a
+  // RAM-placed array is an `@address` array whose address this allocator
+  // picked. Const arrays and the string table stay in ROM, where they
+  // belong and cost no RAM.
+  //
+  // Two things this deliberately does not do yet, both refused by name
+  // below rather than half-done: a mutable array with a non-zero
+  // initializer (which would need a ROM-to-RAM copy at start-up, and no
+  // program in this workspace has one), and a RAM window the sheet does
+  // not describe.
+  const bssOrigin = options.hardware.build.defsym.__bss_origin;
+  const bssCeiling = options.hardware.build.defsym.__bss_ceiling;
+  let bssCursor = typeof bssOrigin === 'number' ? bssOrigin : 0;
+  /** The initializers of RAM-placed arrays that have one: the bytes stay in the image under `label`, and start-up copies them down. */
+  const ramInits: { label: string; address: number; values: number[] }[] = [];
+
   // Every array global — const data and, as of 0.2.2, mutable `let`
   // arrays and string<N> buffers too — placed in the data section below,
   // never in zero page: a loaded .prg's image is ordinary RAM on these
@@ -437,9 +722,55 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
       arrays.set(g.name, { elementType: g.type, mutable: !g.constant });
       continue;
     }
-    dataArrayGlobals.push({ name: g.name, type: g.type, array: g.array, init: (g.init as number[] | null) ?? new Array<number>(g.array).fill(0) });
+    const init = (g.init as number[] | null) ?? new Array<number>(g.array).fill(0);
+    if (image.writableImage === false && !g.constant) {
+      // See the RAM-window comment above the loop: on a ROM image this
+      // array cannot live in the program's own bytes.
+      if (typeof bssOrigin !== 'number' || typeof bssCeiling !== 'number') {
+        return { ok: false, error: `'${g.name}' is a mutable array and the ${options.machine}'s image is a ROM, so it needs real RAM — but the hardware sheet names no RAM window (defsym.__bss_origin/__bss_ceiling)` };
+      }
+      const size = width * g.array;
+      if (bssCursor + size > bssCeiling) {
+        return { ok: false, error: `'${g.name}' needs ${size} byte(s) of the ${options.machine}'s RAM but only ${Math.max(0, bssCeiling - bssCursor)} byte(s) remain ($${bssCursor.toString(16).toUpperCase()}..$${(bssCeiling - 1).toString(16).toUpperCase()})` };
+      }
+      pinnedArrays.push({ kind: 'equate', name: arrayLabel(g.name), value: bssCursor });
+      if (init.some((value) => value !== 0)) {
+        // A real initializer: its bytes ride in the image the way a const
+        // array's do, under a label of their own, and start-up copies them
+        // into the RAM this array was just given. 2048's `let blank:
+        // string<5> = "     "` is the one in this workspace — a buffer the
+        // program rewrites (`blank = "    "` on a narrow screen) whose
+        // starting content still matters.
+        const values: number[] = [];
+        for (const element of init) {
+          values.push(element & 0xff);
+          if (width === 2) values.push((element >> 8) & 0xff);
+        }
+        ramInits.push({ label: `__8bs_rominit_${g.name}`, address: bssCursor, values });
+      }
+      bssCursor += size;
+      arrays.set(g.name, { elementType: g.type, mutable: true });
+      continue;
+    }
+    dataArrayGlobals.push({ name: g.name, type: g.type, array: g.array, init });
     arrays.set(g.name, { elementType: g.type, mutable: !g.constant });
   }
+
+  // The RAM those arrays were just placed in, zeroed before anything runs.
+  // Empty on every machine whose image is its own RAM, where the load did
+  // this already; empty too on a ROM machine whose program declared no
+  // mutable array.
+  const ramClearProgram: Directive[] = typeof bssOrigin === 'number'
+    ? [
+      ...clearRam(bssOrigin, bssCursor),
+      // After the clear, never before: the clear covers the whole window in
+      // one sweep, including the bytes about to be overwritten here, which
+      // is smaller than clearing around them.
+      ...ramInits.flatMap((init, i) => copyToRam(init.label, init.address, init.values.length, `__8bs_ram_init_${i}`)),
+    ]
+    : [];
+  /** Those initializers' own bytes, appended to the image beside the string table. */
+  const ramInitData: Directive[] = ramInits.flatMap((init): Directive[] => [{ kind: 'label', name: init.label }, { kind: 'byte', values: init.values }]);
 
   // waitFrame()'s own pacing state — an accumulator and a measured `num`
   // (mos/startup/waitframe.ts) — claims its zero page right after globals,
@@ -588,8 +919,38 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // are initialized and before the entry function's own body (which may
   // itself call waitFrame() first thing); the subroutine rides alongside
   // every other function's own body, after the entry falls through to BASIC.
+  // The work this machine's own package can only do inside the hardware
+  // frame edge waitFrame() just waited for — FRAME_SYNC's `frameHook`,
+  // resolved from a function NAME (which is a fact about the machine, and
+  // so belongs in that table) to the LABEL the linked program gave it
+  // (which is a fact about this build). Null unless the linked program
+  // really defines that function: the NES's hook is nesVerticalBlank(),
+  // which arrives only by importing @8bitscript/nes or one of the portable
+  // surfaces built on it, and a program that imports neither pays nothing.
+  // `loweredFunctions` is post-optimizeReachable, so a hook the program
+  // cannot reach is correctly absent rather than pinned alive.
+  const sync = FRAME_SYNC[options.machine];
+  const frameHookName = sync.kind === 'edge' && 'frameHook' in sync ? sync.frameHook : undefined;
+  const frameHookLabel = frameHookName
+    ? loweredFunctions.find((f) => f.name === frameHookName && !f.isEntry)?.label ?? null
+    : null;
+  // It is not enough for the hook to be in the linked IR: it has to have
+  // survived as a CALLABLE function. A no-parameter void function with no
+  // `return` in it is inlined into all of its call sites and then pruned
+  // (linker/optimize.mjs's inlineVoidCall), which is exactly right for an
+  // ordinary helper and exactly wrong for this one, whose most important
+  // caller is this backend and therefore invisible to that pass. The
+  // failure it produces is silent and total — the queue fills and is never
+  // delivered, so a correct program shows a blank screen with the right
+  // bytes sitting in RAM — so it is refused here by name instead.
+  if (frameHookName && !frameHookLabel && ir.functions.some((fn) => fn.name === frameHookName)) {
+    return {
+      ok: false,
+      error: `the ${options.machine}'s frame runtime calls ${frameHookName}() after every hardware frame, but the linked program no longer has it as a callable function — it was inlined into its call sites and pruned. A void function the backend calls has to end with an explicit 'return;' to stay one (see packages/nes/src/index.8bs)`,
+    };
+  }
   const waitFrameSetupProgram = needsWaitFrame ? waitFrameSetup(options.frameRate, waitFrameAcc, waitFrameNum, options.machine) : [];
-  const waitFrameRoutineProgram = needsWaitFrame ? waitFrameRoutine(waitFrameAcc, waitFrameNum, options.machine) : [];
+  const waitFrameRoutineProgram = needsWaitFrame ? waitFrameRoutine(waitFrameAcc, waitFrameNum, options.machine, frameHookLabel) : [];
   const multiplyProgram = multiply ? multiplyRoutine(multiply) : [];
   const needsCld = usesDecimalSensitiveMath([...everyInstruction, ...waitFrameSetupProgram, ...waitFrameRoutineProgram, ...multiplyProgram]);
   // A waitFrame() program's zero-page budget includes bytes the KERNAL's
@@ -597,23 +958,110 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // off — so off they go before the first global initializer's store,
   // not merely inside waitFrameSetup (whose own SEI stays, harmlessly,
   // for the setup's documented flag-race reason).
-  const ownMachineProgram: Directive[] = needsWaitFrame ? [{ kind: 'instruction', mnemonic: 'SEI', mode: 'implied' }] : [];
+  // ...except where the OS is not someone else's any more but this
+  // program's own dependency. The Atari 8-bit has no KERNAL-shaped bargain
+  // to break: its OS's vertical-blank routine is what copies the color
+  // shadows @8bitscript/atari8/screen writes down onto GTIA, and its OS is
+  // what maintains SAVMSC, the pointer every run of text on that machine
+  // reads to find screen memory. Its zero-page budget is the same $80-$FF
+  // either way (ATARI8_ZP_BUDGET above) precisely because there is nothing
+  // to be bought by silencing it. waitframe.ts's own rasterSetup() skips
+  // its SEI for the same machine and the same reason; asking it keeps the
+  // two decisions from drifting apart.
+  const ownMachineProgram: Directive[] = needsWaitFrame && !waitFrameKeepsInterrupts(options.machine)
+    ? [{ kind: 'instruction', mnemonic: 'SEI', mode: 'implied' }]
+    : [];
+
+  // The X16 boots its screen editor in PETSCII, where a tile index is a
+  // PETSCII screen code and 'A' is 1. @8bitscript/cx16/text writes ASCII
+  // straight through to VERA instead — `text.putChar` takes ASCII on every
+  // machine, and on this one the hardware can take it directly — which is
+  // true only in ISO mode, where the tile index IS the character code.
+  // CHR$(15) through CHROUT is what switches it, and the KERNAL clears the
+  // screen as part of the switch, so it has to happen before anything is
+  // drawn. packages/cx16/src/index.8bs describes both consequences at
+  // length and notes that the native backend did not emit this yet; this is
+  // it. Two instructions, and only on the machine that needs them.
+  const isoModeProgram: Directive[] = options.machine === 'cx16'
+    ? [
+      { kind: 'instruction', mnemonic: 'LDA', mode: 'immediate', operand: { kind: 'value', value: 0x0f } },
+      { kind: 'instruction', mnemonic: 'JSR', mode: 'absolute', operand: { kind: 'value', value: 0xffd2 } },
+    ]
+    : [];
+
+  // main() ending, on a machine that has nowhere to end TO.
+  //
+  // Every machine this backend built for before the NES is started by a
+  // loader: BASIC's `SYS` pushed a return address, epilogue()'s RTS pops
+  // it, and `READY.` comes back. `entryIsVectored` (mos/image.ts) names
+  // exactly the machines where that is false — the hardware jumped to the
+  // entry through a reset vector and pushed nothing — so an RTS there
+  // returns to whatever two bytes the stack pointer happens to be sitting
+  // on at power-on and executes them. main() ending has to STOP instead,
+  // and "stop" on a 6502 with no HLT is a branch to itself.
+  //
+  // It is not quite nothing, though, on a machine whose picture is
+  // assembled by a frame runtime. @8bitscript/nes does not write the PPU
+  // when a program prints — it queues the bytes, because VRAM belongs to
+  // the PPU at every moment outside vertical blank (that package's own
+  // rule 2), and the frame hook above is what delivers them. A program
+  // that draws once and ends, which is exactly what hello-world is, still
+  // has its greeting sitting in that queue when main() returns. So where
+  // there is both a frame edge to wait for and a hook to call, the halt is
+  // that pair, forever: the program is over, the picture is not. Without
+  // either, it is the bare two-byte spin.
+  const haltLabel = '__8bs_halt';
+  const haltEdge = image.entryIsVectored && frameHookLabel ? frameEdgeWait(options.machine, haltLabel) : null;
+  // `endsByHalting` is the second way to arrive here, and it is the Atari
+  // 8-bit's: DOS really did JSR through RUNAD, so an RTS is safe — it just
+  // lands in an environment that resets the OS color shadows and clears the
+  // screen before anyone can look at what the program drew (measured under
+  // atari800 7.1.2: identical result with `-basic`, with `-nobasic`, and
+  // with the stock config, and the same greeting stays up indefinitely when
+  // the program does not return). Halting is three bytes and is the only
+  // way a program that draws once and ends shows what it drew.
+  const endProgram: Directive[] = image.entryIsVectored || image.endsByHalting
+    ? [
+      { kind: 'label', name: haltLabel },
+      ...(haltEdge ?? []),
+      ...(haltEdge && frameHookLabel ? [{ kind: 'instruction', mnemonic: 'JSR', mode: 'absolute', operand: { kind: 'label', name: frameHookLabel } } as Directive] : []),
+      { kind: 'instruction', mnemonic: 'JMP', mode: 'absolute', operand: { kind: 'label', name: haltLabel } },
+    ]
+    : epilogue();
+
+  // The NES is the only machine here that boots from nothing: no loader has
+  // set a stack pointer, silenced an interrupt source or waited out the
+  // PPU's power-on interval before this code runs, so its reset handler has
+  // to do all of that itself before a single byte of the program's own work
+  // (mos/startup/nes.ts, where each line's reason is written down). It goes
+  // FIRST — ahead of even the CLD prologue — because one of the things it
+  // establishes is the stack every JSR below depends on.
+  const machineStartupProgram: Directive[] = options.machine === 'nes' ? nesResetInit() : [];
+
   const combinedProgram: Directive[] = [
+    ...machineStartupProgram,
     ...prologue(needsCld),
+    ...isoModeProgram,
     ...ownMachineProgram,
+    ...ramClearProgram,
     ...globalInitProgram,
     ...waitFrameSetupProgram,
     ...entry.program,
-    ...epilogue(),
+    ...endProgram,
     ...others.flatMap((f): Directive[] => [{ kind: 'label', name: f.label }, ...f.program, RTS]),
     ...waitFrameRoutineProgram,
     ...multiplyProgram,
     ...pinnedArrays,
+    ...ramInitData,
     ...dataSection,
   ];
 
 
-  const { bytes: stub, codeStart } = basicStub(loadAddress);
+  // How this machine's programs look as a file — a Commodore .prg with a
+  // BASIC stub, or whatever else the machine boots (mos/image.ts). `image`
+  // itself was read far above: what a mutable array may do and what main()
+  // ending does both depend on it.
+  const { bytes: stub, codeStart } = image.prelude(loadAddress);
 
   // The ceiling the linker measures against, in one of two spellings. A
   // machine whose usable RAM ends on a whole number of KiB says so with
@@ -645,7 +1093,19 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   const body = new Uint8Array(stub.length + linked.bytes.length);
   body.set(stub, 0);
   body.set(linked.bytes, stub.length);
-  const bytes = prgBytes(loadAddress, body);
+  // A format that has to assemble something of its own out of the
+  // program's native sources — the NES's CHR-ROM is the only one today,
+  // and the NES is also the only machine that cannot show a single
+  // character without it — raises what it cannot do as an exception rather
+  // than by returning bytes, because there are no bytes to return. Turned
+  // back into this backend's ordinary refuse-by-name here, so a caller sees
+  // one shape of failure however far down it happened.
+  let bytes: Uint8Array;
+  try {
+    bytes = image.file(loadAddress, body, codeStart, { nativeSources: ir.nativeSources ?? [] });
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
 
   await mkdir(dirname(options.outFile), { recursive: true });
   await writeFile(options.outFile, bytes);
@@ -659,9 +1119,19 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
       { name: '(multiply routine)', bytes: directiveBytes(multiplyProgram) },
       { name: '(global initializers)', bytes: directiveBytes(globalInitProgram) },
       { name: '(string/const-array data)', bytes: directiveBytes(dataSection) },
-      // +2: the load address prgBytes() prepends ahead of `stub` itself —
-      // every real .prg's first two bytes, not counted in stub.length.
-      { name: '(load address + BASIC stub + prologue/epilogue)', bytes: 2 + stub.length + directiveBytes(prologue(needsCld)) + directiveBytes(ownMachineProgram) + directiveBytes(epilogue()) },
+      // Everything in the FILE that is not linked code: whatever prelude
+      // the image puts in front of it plus whatever header, trailer or
+      // padding image.file() wraps around it. Derived as the difference
+      // rather than spelled out, because spelling it out means knowing the
+      // format — this used to read `2 + stub.length`, which is exactly a
+      // `.prg`'s load-address word and its BASIC stub and nothing else, and
+      // was silently wrong for every format that is not a `.prg`: 10 bytes
+      // short on an Atari `.xex` (a $FFFF marker and two four-byte segment
+      // headers against a prelude of none) and short by the iNES header
+      // plus the ROM padding on a `.nes`. The difference is right for all
+      // three by construction, which is what SizeReportEntry's own JSDoc
+      // promises: every entry sums to the real bytes.length.
+      { name: '(image header + prologue/epilogue)', bytes: (bytes.length - linked.bytes.length) + directiveBytes(prologue(needsCld)) + directiveBytes(isoModeProgram) + directiveBytes(machineStartupProgram) + directiveBytes(ownMachineProgram) + directiveBytes(ramClearProgram) + directiveBytes(endProgram) },
     );
     sizeReport = entries.filter((e) => e.bytes > 0).sort((a, b) => b.bytes - a.bytes);
   }
@@ -930,15 +1400,27 @@ export const FRAME_SYNC: Record<Machine, FrameSync> = {
   // the well-known 21.477272MHz master / 12), and one NTSC frame is exactly
   // 89341.5 PPU cycles on average across the well-known odd/even
   // frame-length alternation (one dot is skipped every other frame) — over
-  // two frames that's exactly 178803 PPU cycles, or 59601 CPU cycles (PPU
+  // two frames that's exactly 178683 PPU cycles, or 59561 CPU cycles (PPU
   // runs 3x CPU), an exact integer. PAL NES runs a visibly different PPU
   // (extra idle scanlines most homebrew code doesn't target) and isn't
   // supported by this target yet.
+  //
+  // Those two numbers read 178803 and 59601 until the native backend
+  // actually needed them (2026-09-12). They were wrong, by a transposed
+  // pair of digits rather than by a wrong model: 341 dots x 261 lines +
+  // 340.5 for the pre-render line that is a dot shorter on odd frames is
+  // 89341.5, and twice that is 178683, not 178803. The giveaway is that
+  // the ratio has a published value to check against — 1789773 / 29780.5 =
+  // 60.0985Hz, NESdev's own "60.0988 Hz" for NTSC
+  // (nesdev.org/wiki/Cycle_reference_chart, re-read 2026-09-12), where
+  // 59601 gives 60.0585Hz. 0.067% is invisible in a screenshot and is
+  // about 58 logical frames of drift a day against the web host's real
+  // 60Hz, which is what this whole accumulator exists to prevent.
   nes: {
     kind: 'edge',
     pollFlag: '(*(volatile uint8_t *)0x2002) & 0x80',
     ack: '',
-    num: 59601,
+    num: 59561,
     den: 2 * 1789773,
     // The NES package queues its screen writes (VRAM is the PPU's outside
     // vertical blank — see packages/nes/src/index.8bs) and this function,

@@ -126,7 +126,10 @@ test('the Atari splits the machine from the medium: `model` picks the atari800 m
   // needs no build block at all.
   const stock = resolveHardware(catalog).hardware;
   assert.equal(stock.build.startup, undefined);
-  assert.deepEqual(stock.build.defsym, {});
+  // The machine-level symbols: where a .xex loads and where its RAM ends.
+  // $C000 - $2000 = 40960, which is exactly the `memory.ram` fact asserted
+  // below and the pre-0.2.0 link script's own LENGTH.
+  assert.deepEqual(stock.build.defsym, { __load_address: 0x2000, __ram_ceiling: 0xC000 });
   assert.deepEqual(loadArgs(stock, 'atari800', '/x/m.xex', ['-run', '/x/m.xex']), ['-run', '/x/m.xex']);
   assert.deepEqual(stock.run.atari800, ['-xl', '-mouse', 'off', '-mouseport', '1']);
   assert.equal(stock.facts['storage.save'], true, 'a .xex under a DOS can save through CIO');
@@ -140,7 +143,9 @@ test('the Atari splits the machine from the medium: `model` picks the atari800 m
   assert.deepEqual(hardware.options.media, 'xegs256');
   assert.equal(hardware.build.startup, 'cart-xegs');
   assert.equal(hardware.build.output, 'rom');
-  assert.deepEqual(hardware.build.defsym, { __cart_rom_size: 256 });
+  // The machine's own two symbols ride under every medium's; only
+  // __cart_rom_size is the medium's to choose.
+  assert.deepEqual(hardware.build.defsym, { __load_address: 0x2000, __ram_ceiling: 0xC000, __cart_rom_size: 256 });
   assert.deepEqual(loadArgs(hardware, 'atari800', '/x/m.rom', ['-run', '/x/m.rom']), ['-cart', '/x/m.rom', '-cart-type', '23']);
   assert.deepEqual(hardware.run.atari800, ['-xegs', '-mouse', 'off', '-mouseport', '1']);
 
@@ -168,7 +173,7 @@ test('the Atari splits the machine from the medium: `model` picks the atari800 m
     const h = resolveHardware(catalog, { overrides: { media } }).hardware;
     assert.equal(h.build.startup, startup, media);
     assert.equal(h.build.output, 'rom', media);
-    assert.deepEqual(h.build.defsym, { __cart_rom_size: size }, media);
+    assert.deepEqual(h.build.defsym, { __load_address: 0x2000, __ram_ceiling: 0xC000, __cart_rom_size: size }, media);
     assert.deepEqual(loadArgs(h, 'atari800', '/x/m.rom', ['-run', '/x/m.rom']), ['-cart', '/x/m.rom', '-cart-type', type], media);
     // A cartridge links against the $0700-$1FFF window and has no
     // writable storage of its own.

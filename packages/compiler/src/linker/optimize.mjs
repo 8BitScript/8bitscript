@@ -248,6 +248,58 @@ function reduceMultiply(node) {
   return null;
 }
 
+/**
+ * `x / 256` → `x >> 8`, and every other power-of-two divisor.
+ *
+ * The 6502 has no divide, so the backend refuses `/` by name rather than
+ * linking a routine for it — but a divisor that is a power of two is not
+ * really a divide: it is a shift, exactly, and the machine has those. The
+ * X16 package is written in these terms throughout (`memory.read(0x9F35) /
+ * 128`, `low / 256`, `attr / 16`), which is what a program reads best; this
+ * is the pass that agrees with it.
+ *
+ * Unsigned only. `>>` on a signed value floors toward negative infinity
+ * where `/` truncates toward zero, so the two disagree on negatives, and
+ * this would quietly change what a program means.
+ */
+function reduceDivide(node) {
+  const type = node.type;
+  const desc = resolveIntegerType(type);
+  if (!desc || desc.signed) return null;
+  if (!isNumericConst(node.right)) return null;
+  const divisor = node.right.value;
+  if (!Number.isInteger(divisor) || divisor < 1) return null;
+  if (divisor === 1) return node.left;
+  const bit = Math.log2(divisor);
+  if (!Number.isInteger(bit)) return null;
+  return {
+    kind: 'binop', operator: '>>', type,
+    left: clone(node.left), right: { kind: 'const', value: bit, type: 'utinyint' },
+  };
+}
+
+/**
+ * `x % 256` → `x & 255`, and every other power-of-two modulus.
+ *
+ * The same trade reduceDivide makes, for the other half of the same
+ * operation: a modulus that is a power of two is a mask, exactly, and the
+ * machine has masks. Unsigned only, for the same reason.
+ */
+function reduceModulo(node) {
+  const type = node.type;
+  const desc = resolveIntegerType(type);
+  if (!desc || desc.signed) return null;
+  if (!isNumericConst(node.right)) return null;
+  const modulus = node.right.value;
+  if (!Number.isInteger(modulus) || modulus < 1) return null;
+  if (modulus === 1) return { kind: 'const', value: 0, type };
+  if (!Number.isInteger(Math.log2(modulus))) return null;
+  return {
+    kind: 'binop', operator: '&', type,
+    left: clone(node.left), right: { kind: 'const', value: modulus - 1, type },
+  };
+}
+
 function stringBytes(node, ctx) {
   if (!node || !ctx?.strings) return null;
   if (node.kind !== 'string' || typeof node.index !== 'number') return null;
@@ -288,6 +340,14 @@ function foldExpr(node, ctx) {
   }
   if (out.kind === 'binop' && out.operator === '*') {
     const reduced = reduceMultiply(out);
+    if (reduced) return reduced;
+  }
+  if (out.kind === 'binop' && out.operator === '/') {
+    const reduced = reduceDivide(out);
+    if (reduced) return reduced;
+  }
+  if (out.kind === 'binop' && out.operator === '%') {
+    const reduced = reduceModulo(out);
     if (reduced) return reduced;
   }
   const value = constValue(out);

@@ -5,8 +5,8 @@
 // target's mechanism differs; see emulator-smoke.test.mjs for the same
 // skip convention this file follows.
 //
-// pet, c64, vic20 and c128 actually build in this release, alongside web
-// (per RELEASE_MACHINES in build.mjs); the remaining four targets are
+// pet, c64, vic20, c128, cx16 and mega65 actually build in this release,
+// alongside web (per RELEASE_MACHINES in build.mjs); the remaining two are
 // "parked" and refuse before ever touching an emulator, so their cases here
 // assert that refusal — deterministic, no emulator required, and real
 // coverage of run.mjs's parked-target branch — rather than skip. web is a
@@ -77,7 +77,7 @@ async function withProbe(fn) {
   }
 }
 
-const PARKED_TARGETS = ['atari8', 'nes', 'cx16', 'mega65'];
+const PARKED_TARGETS = [];
 
 for (const target of PARKED_TARGETS) {
   test(`${target}: --screenshot refuses to build — parked until a later release`, async () => {
@@ -87,7 +87,7 @@ for (const target of PARKED_TARGETS) {
       assert.notEqual(code, 0, `expected ${target} to refuse:\n${stdout}${stderr}`);
       assert.match(
         stderr,
-        /is not a target in this release\. This release builds for pet, c64, vic20, c128 and web/,
+        /is not a target in this release\. This release builds for pet, c64, vic20, c128, cx16, mega65, atari8 and web/,
         `unexpected refusal message for ${target}:\n${stderr}`,
       );
       assert.equal(existsSync(shot), false, `${target} should not have written a screenshot`);
