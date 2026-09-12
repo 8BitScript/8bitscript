@@ -135,3 +135,37 @@ test('accumulator mode disassembles as "A"; implied as the bare mnemonic', () =>
   assert.equal(result.listing[0].text, 'ASL A');
   assert.equal(result.listing[1].text, 'RTS');
 });
+
+test('an equate binds a name to an address the program does not contain, and occupies no space', () => {
+  // What an `@address` array needs: the C64's screen is at $0400 whether or
+  // not a single byte of the program lives there, so the name has to resolve
+  // without a position to resolve from. Placed BEFORE the code here on
+  // purpose — an equate that shifted what follows it would be a bug the
+  // byte count catches.
+  const result = assemble([
+    { kind: 'equate', name: 'screen', value: 0x0400 },
+    inst('LDA', 'immediate', { kind: 'value', value: 32 }),
+    inst('STA', 'absolute,x', { kind: 'label', name: 'screen' }),
+  ], 0xc000);
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.deepEqual([...result.bytes], [0xa9, 0x20, 0x9d, 0x00, 0x04], 'STA $0400,X — the pinned address, not a position in the program');
+  assert.equal(result.labels.get('screen'), 0x0400);
+});
+
+test('an equate collides with a label of the same name, and says so', () => {
+  const result = assemble([
+    { kind: 'equate', name: 'screen', value: 0x0400 },
+    label('screen'),
+  ], 0xc000);
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /'screen' is defined more than once/);
+});
+
+test('an equate outside the 16-bit address space is refused, not truncated', () => {
+  const result = assemble([{ kind: 'equate', name: 'nowhere', value: 0x10000 }], 0xc000);
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /is not an address/);
+});

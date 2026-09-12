@@ -88,7 +88,10 @@ test('the PET model, RAM and speaker are three independent options, not one bund
   // even though only RAM's own value touches the linker's defsym).
   assert.deepEqual(hardware.tags, ['8032', '32', 'attached']);
   assert.deepEqual(hardware.buildValues, ['8032', '32', 'attached']);
-  assert.deepEqual(hardware.build.defsym, { __ram_size: 32 });
+  // __load_address is the machine's own, from the catalog's top-level
+  // hardware.build rather than from any option value: the PET loads at
+  // $0401 whichever board, RAM and speaker are chosen.
+  assert.deepEqual(hardware.build.defsym, { __load_address: 0x0401, __ram_size: 32 });
   // drive stays at its own default (none) either way, so -drive8type 0
   // rides along on every one of these regardless of model/ram/speaker.
   assert.deepEqual(hardware.run.xpet, ['-model', '8032', '-ramsize', '32', '-sound', '-drive8type', '0']);
@@ -105,7 +108,7 @@ test('the PET model, RAM and speaker are three independent options, not one bund
 test('the PET RAM option always needs its own explicit -ramsize: `model` alone never tells VICE how much RAM to give it, for any model, not just the 2001', () => {
   const { hardware } = resolveHardware(loadCatalog('pet'), { profile: '2001' });
   assert.deepEqual(hardware.run.xpet, ['-model', '2001', '-ramsize', '4', '+sound', '-drive8type', '0']);
-  assert.deepEqual(hardware.build.defsym, { __ram_size: 4 });
+  assert.deepEqual(hardware.build.defsym, { __load_address: 0x0401, __ram_size: 4 });
   assert.equal(hardware.facts['memory.ram'], 3071, 'measured under VICE: 4096 - $0401, confirmed on screen as "3071 BYTES FREE"');
   assert.equal(resolveHardware(loadCatalog('pet'), { profile: '3032' }).hardware.facts['memory.chrget'], 112);
 });
