@@ -294,11 +294,8 @@ test('resolveController is empty without the panel\'s file, and reads one when i
     const resolved = await resolveController('c64', { hardware, dir });
     assert.equal(resolved.ok, true);
     assert.deepEqual(resolved.args, ['-joydev2', '4'], 'player 1 is port 2 on a C64, driven by host joystick 0');
-    assert.equal(resolved.leadingArgs[0], '-config', 'VICE reads -config only when it leads the line');
-    assert.equal(resolved.files.length, 2, 'a joystick map and the vicerc that names it');
-    assert.ok(resolved.files[0].path.endsWith('.vjm'));
-    assert.ok(resolved.files[0].path.includes(String(process.pid)), 'pid-named: pnpm test runs these in parallel');
-    assert.match(resolved.files[1].contents, /^\[C64SC\]$/m);
+    assert.deepEqual(resolved.leadingArgs, [], 'Gamepad API buttons are not VICE/SDL indices, so no .vjm');
+    assert.deepEqual(resolved.files, []);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

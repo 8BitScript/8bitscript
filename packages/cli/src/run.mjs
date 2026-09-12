@@ -234,16 +234,21 @@ const NO_CONTROLLER = { ok: true, args: [], leadingArgs: [], files: [], notes: [
  * The controller flags and files for one launch, if this project has a
  * profile at all.
  *
- * The profile is `8bitscript.controllers.json` in the project directory —
- * the file the editor's Controller Setup panel writes. A project without
- * one, which is every project written before this release, gets
- * NO_CONTROLLER back and a launch byte-identical to what it always was:
- * no arguments added, no files written. That is the regression this shape
- * exists to prevent, and the run.test.mjs PET argument vectors are what
- * prove it. An unreadable or unparseable file is named and refused rather
- * than treated as "no controllers" — the panel can afford to degrade to
- * an empty panel, but a launch that silently ignores the mapping someone
- * just recorded is the failure this whole file is against.
+ * The profile is `8bitscript.controllers.json`. The panel writes it to
+ * `~/.config/8bitscript/` (personal hardware, not a game's source). A
+ * copy still sitting in the project directory is honoured first when
+ * present — tests, a cabinet that ships with a stick. `8bs run` /
+ * `8bs boot` pass `personal: true` so the XDG file is the fallback;
+ * tests leave it off so an empty temp directory stays empty even when
+ * the developer has a pad mapped. A project with neither file, which is
+ * every project written before this release, gets NO_CONTROLLER back
+ * and a launch byte-identical to what it always was: no arguments added,
+ * no files written. That is the regression this shape exists to prevent,
+ * and the run.test.mjs PET argument vectors are what prove it. An
+ * unreadable or unparseable file is named and refused rather than treated
+ * as "no controllers" — the panel can afford to degrade to an empty
+ * panel, but a launch that silently ignores the mapping someone just
+ * recorded is the failure this whole file is against.
  *
  * Every file the adapters need as a *base* is read here rather than in
  * them: `-config` on both VICE and atari800 replaces the user's own
@@ -254,22 +259,31 @@ const NO_CONTROLLER = { ok: true, args: [], leadingArgs: [], files: [], notes: [
  * assert on an argument vector instead of opening a window.
  *
  * @param {string} target
- * @param {{ hardware: object, dir?: string }} options
+ * @param {{ hardware: object, dir?: string, personal?: boolean }} options
  */
-export async function resolveController(target, { hardware, dir = process.cwd() }) {
+export async function resolveController(target, { hardware, dir = process.cwd(), personal = false }) {
+  const candidates = [join(dir, CONTROLLERS_FILE)];
+  // Personal hardware lives in ~/.config/8bitscript, not in the repo. Tests
+  // leave this off so an empty temp directory stays empty even when the
+  // developer has a pad mapped. `8bs run` / `8bs boot` pass personal: true.
+  if (personal) candidates.push(join(homedir(), '.config', '8bitscript', CONTROLLERS_FILE));
   let stored;
-  try {
-    stored = JSON.parse(await readFile(join(dir, CONTROLLERS_FILE), 'utf8'));
-  } catch (error) {
-    if (error.code === 'ENOENT') return NO_CONTROLLER;
-    return { ok: false, error: `cannot read ${CONTROLLERS_FILE}: ${error.message}` };
+  for (const file of candidates) {
+    try {
+      stored = JSON.parse(await readFile(file, 'utf8'));
+      break;
+    } catch (error) {
+      if (error.code === 'ENOENT') continue;
+      return { ok: false, error: `cannot read ${CONTROLLERS_FILE}: ${error.message}` };
+    }
   }
+  if (stored === undefined) return NO_CONTROLLER;
   const declared = controllerPlayers(stored);
   if (!declared.ok) return { ok: false, error: declared.error };
   if (declared.players.length === 0) return NO_CONTROLLER;
 
   const emulator = TARGET_EMULATOR[target] ?? target;
-  return controllerInvocation(target, declared.players, {
+  const invocation = controllerInvocation(target, declared.players, {
     emulator,
     hardware,
     // VICE: a joystick map and the vicerc that names it (JoyMapFile has
@@ -281,6 +295,7 @@ export async function resolveController(target, { hardware, dir = process.cwd() 
     configPath: atari800ConfigPath(),
     baseConfig: target === 'atari8' ? await atari800ConfigBase() : '',
   });
+  return invocation;
 }
 
 /**
@@ -515,7 +530,7 @@ export async function run(args) {
   // fails here, before a window opens — the point of naming a refusal is
   // that someone reads it, and nobody reads a line that scrolled past
   // while an emulator was starting.
-  const controller = await resolveController(target, { hardware });
+  const controller = await resolveController(target, { hardware, personal: true });
   if (!controller.ok) {
     process.stderr.write(`8bs run: ${controller.error}\n`);
     return 1;
@@ -617,12 +632,12 @@ export async function boot(args) {
     return 1;
   }
 
-  // A bare machine still gets the project's controllers. `8bs boot` is
+  // A bare machine still gets the personal controllers file. `8bs boot` is
   // for looking at hardware, and "does the stick in port 2 actually
   // move the BASIC cursor" is exactly the kind of thing it is for —
   // checking a profile without spending a build on it, the same way it
   // already checks a --profile/--hardware combination.
-  const controller = await resolveController(target, { hardware: resolved.hardware });
+  const controller = await resolveController(target, { hardware: resolved.hardware, personal: true });
   if (!controller.ok) {
     process.stderr.write(`8bs boot: ${controller.error}\n`);
     return 1;

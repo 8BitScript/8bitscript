@@ -1,6 +1,6 @@
 // The Controller Setup panel: find the pads plugged into this machine, say
 // what each one's buttons are called in 8BitScript's terms, and write that
-// down in the project.
+// down in ~/.config/8bitscript — this machine's pads, not the project's.
 //
 // It is a `createWebviewPanel` rather than a second view in the side bar,
 // and that is the point of it being separate from launcherView.cjs: the
@@ -50,7 +50,10 @@ const {
   STANDARD_MAPPING, WALKTHROUGH,
   deviceFromDetected, deviceKeys, project: projectOnto, withDevice, withoutDevice,
 } = require('./controllerProfile.cjs');
-const { CONTROLLERS_FILE, controllersPath, readProfile, writeProfile } = require('./controllerStore.cjs');
+const {
+  CONTROLLERS_FILE, userControllersDir, userControllersPath,
+  readProfile, writeProfile, hydrateUserProfile,
+} = require('./controllerStore.cjs');
 const { PAD_SVG } = require('./controllerPad.cjs');
 
 const CSS = fs.readFileSync(path.join(__dirname, '..', 'media', 'controller.css'), 'utf8');
@@ -65,9 +68,15 @@ const JS = fs.readFileSync(path.join(__dirname, '..', 'media', 'controller.js'),
  * profile *means*. Two copies of those numbers would be two profiles.
  *
  * So there is one module and both ends load it: Node `require`s it, and
- * the page is handed the same source behind a three-line CommonJS shim.
- * It is written to be loadable that way — no `require`, no `process`,
- * nothing but arithmetic — and test/controller.test.cjs holds it to that.
+ * the page is handed the same source behind a CommonJS shim wrapped in an
+ * IIFE. The wrap is load-bearing: a classic `<script>` shares the page's
+ * global scope, `controllerProfile.cjs` declares `function heldKeys`, and
+ * the page declares `const heldKeys` for the keyboard. Unwrapped, the
+ * second script dies with "heldKeys has already been declared" and the
+ * panel is a heading with nothing under it. The IIFE keeps the helper
+ * inside; only `Profile` is exported. The module itself is still nothing
+ * but arithmetic — no `require`, no `process` — and
+ * test/controller.test.cjs holds it to that.
  */
 const PROFILE_JS = fs.readFileSync(path.join(__dirname, 'controllerProfile.cjs'), 'utf8');
 
@@ -184,10 +193,8 @@ class ControllerPanel {
         });
         return;
       case 'forget': {
-        const project = this.selectedProject();
-        if (!project) return;
-        const { profile } = readProfile(project.dir);
-        writeProfile(project.dir, withoutDevice(profile, message.id));
+        const { profile } = readProfile(userControllersDir());
+        writeProfile(userControllersDir(), withoutDevice(profile, message.id));
         if (this.selected === message.id) this.selected = null;
         await this.post();
         return;
@@ -215,14 +222,12 @@ class ControllerPanel {
         terminal.show();
         // Quoted: a project path may have spaces, and this is a shell line
         // rather than an argv the way runner.cjs's own tasks are.
-        terminal.sendText(`"${bin}" controller --dir "${project.dir}"`);
+        terminal.sendText(`"${bin}" controller --dir "${userControllersDir()}"`);
         return;
       }
       case 'open': {
-        const project = this.selectedProject();
-        if (!project) return;
-        const file = controllersPath(project.dir);
-        if (!fs.existsSync(file)) writeProfile(project.dir, readProfile(project.dir).profile);
+        const file = userControllersPath();
+        if (!fs.existsSync(file)) writeProfile(userControllersDir(), readProfile(userControllersDir()).profile);
         await vscode.window.showTextDocument(vscode.Uri.file(file), { preview: false });
         return;
       }
@@ -239,12 +244,11 @@ class ControllerPanel {
    * worse than reading a small JSON file once per button press.
    */
   async edit(id, change) {
-    const project = this.selectedProject();
-    if (!project || typeof id !== 'string') return;
-    const { profile } = readProfile(project.dir);
+    if (typeof id !== 'string') return;
+    const { profile } = readProfile(userControllersDir());
     const device = profile.controllers.devices.find((entry) => entry.id === id);
     if (!device) return;
-    writeProfile(project.dir, withDevice(profile, change(device)));
+    writeProfile(userControllersDir(), withDevice(profile, change(device)));
     await this.post();
   }
 
@@ -252,20 +256,20 @@ class ControllerPanel {
    * Add any pad the page has just seen for the first time.
    *
    * A device is written down as soon as it is detected, unassigned, rather
-   * than waiting for somebody to assign it: the list of pads this project
+   * than waiting for somebody to assign it: the list of pads this machine
    * has ever seen is what the panel is a view of, and a pad that vanishes
    * from the list when it is unplugged takes its mapping with it.
    */
   async remember() {
-    const project = this.selectedProject();
-    if (!project || this.detected.length === 0) return;
-    const { profile } = readProfile(project.dir);
+    if (this.detected.length === 0) return;
+    hydrateUserProfile(this.selectedProject()?.dir);
+    const { profile } = readProfile(userControllersDir());
     let next = profile;
     for (const entry of this.keyed()) {
       if (next.controllers.devices.some((device) => device.id === entry.key)) continue;
       next = withDevice(next, deviceFromDetected(entry));
     }
-    if (next !== profile) writeProfile(project.dir, next);
+    if (next !== profile) writeProfile(userControllersDir(), next);
     // Nothing selected yet, and exactly one pad to look at: select it.
     // Two pads is a choice and the panel should not make it.
     if (this.selected === null && this.detected.length === 1) {
@@ -276,9 +280,8 @@ class ControllerPanel {
   /** Push the whole panel to the page; it keeps no copy of its own. */
   async post() {
     const project = this.selectedProject();
-    const { profile, exists, error } = project
-      ? readProfile(project.dir)
-      : { profile: { controllers: { devices: [] } }, exists: false, error: null };
+    hydrateUserProfile(project?.dir);
+    const { profile, exists, error } = readProfile(userControllersDir());
     const live = new Map(this.keyed().map((entry) => [entry.key, entry]));
     const devices = profile.controllers.devices.map((device) => ({
       ...device,
@@ -295,7 +298,7 @@ class ControllerPanel {
       type: 'state',
       project: project?.dir ?? '',
       projectLabel: project ? labelOf(project) : '',
-      file: project ? controllersPath(project.dir) : '',
+      file: userControllersPath(),
       fileName: CONTROLLERS_FILE,
       exists,
       error,
@@ -404,6 +407,7 @@ function html(webview) {
     <h2 class="section-label">Controllers <span class="summary-value" id="device-count"></span></h2>
     <div id="device-rows"></div>
     <p class="none" id="no-devices" hidden></p>
+    <button class="wide secondary" id="scan">Look again</button>
   </section>
 
   <section class="block" id="mapper" hidden>
@@ -433,9 +437,11 @@ function html(webview) {
     <button class="link" id="open">${ICONS.file} Open it</button>
     <button class="link" id="terminal" hidden>${ICONS.file} Map it from a terminal instead</button>
   </div>
-  <script nonce="${nonce}">var module = { exports: {} };
+  <script nonce="${nonce}">var Profile = (function () {
+  var module = { exports: {} };
 ${PROFILE_JS}
-var Profile = module.exports;</script>
+  return module.exports;
+})();</script>
   <script nonce="${nonce}">${JS}</script>
 </body>
 </html>`;
@@ -463,7 +469,6 @@ function registerControllerView(context, projects) {
         { enableScripts: true, retainContextWhenHidden: true },
       );
       const view = new ControllerPanel(panel, projects);
-      panel.webview.html = html(panel.webview);
       const subscriptions = [
         panel.webview.onDidReceiveMessage((message) => view.apply(message)),
         projects.onDidChange(() => view.post()),
@@ -474,6 +479,7 @@ function registerControllerView(context, projects) {
           if (settings.affectsAny(event)) view.post();
         }),
       ];
+      panel.webview.html = html(panel.webview);
       panel.onDidDispose(() => {
         for (const subscription of subscriptions) subscription.dispose();
         open = null;

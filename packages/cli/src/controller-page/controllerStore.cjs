@@ -38,10 +38,13 @@
 //    it is the same choice `8bs` already makes for the run reports it
 //    leaves in `dist/.8bs-last-<target>.json`.
 //
-// The cost is a second file in the project root, and it is checked in on
-// purpose: a mapping is the team's, the way a `systems` block is, not this
-// editor's private setting.
+// The cost is a second file, and it is *this machine's* pads, not the
+// project's: an 8BitDo plugged into one desk is not a `systems` block.
+// The panel and `8bs run` write `~/.config/8bitscript/8bitscript.controllers.json`.
+// A copy sitting in the project directory is still honoured if present
+// (tests, a cabinet that ships with a stick) and otherwise ignored.
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
 const { emptyProfile, normalizeProfile } = require('./controllerProfile.cjs');
@@ -58,6 +61,16 @@ const { emptyProfile, normalizeProfile } = require('./controllerProfile.cjs');
  */
 const CONTROLLERS_FILE = '8bitscript.controllers.json';
 
+/** ~/.config/8bitscript — same XDG-shaped home VICE already uses on this OS. */
+function userControllersDir() {
+  return path.join(os.homedir(), '.config', '8bitscript');
+}
+
+/** The personal controllers file, whether or not it exists yet. */
+function userControllersPath() {
+  return path.join(userControllersDir(), CONTROLLERS_FILE);
+}
+
 /** Where a project's controllers file is, whether or not it exists yet. */
 function controllersPath(dir) {
   return path.join(dir, CONTROLLERS_FILE);
@@ -72,7 +85,7 @@ function controllersPath(dir) {
  * it already renders. The reason is handed back separately so a caller
  * that has somewhere to log it can, without the panel having to care.
  *
- * @param {string} dir the project directory
+ * @param {string} dir the directory that holds the file (user config or a project)
  * @returns {{ profile: object, exists: boolean, error: string|null }}
  */
 function readProfile(dir) {
@@ -107,20 +120,46 @@ function readProfile(dir) {
  * repository is formatted as, and what a `git diff` of one changed binding
  * should show as one changed line.
  *
- * @param {string} dir the project directory
+ * @param {string} dir the directory that holds the file (user config or a project)
  * @param {object} profile
  * @returns {{ path: string, text: string }}
  */
 function writeProfile(dir, profile) {
+  fs.mkdirSync(dir, { recursive: true });
   const file = controllersPath(dir);
   const text = `${JSON.stringify(normalizeProfile(profile), null, 2)}\n`;
   fs.writeFileSync(file, text, 'utf8');
   return { path: file, text };
 }
 
+/**
+ * If the user has no personal profile yet but this project still has one
+ * (the location the panel used to write), copy it to ~/.config/8bitscript.
+ * The project file is left in place — deleting it is a git concern, and a
+ * cabinet that ships with a stick still wants the copy in the project.
+ *
+ * @param {string|null|undefined} projectDir
+ * @param {{ userDir?: string }} [options]
+ * @returns {{ copied: boolean, from?: string, to?: string, error?: string }}
+ */
+function hydrateUserProfile(projectDir, { userDir = userControllersDir() } = {}) {
+  if (!projectDir) return { copied: false };
+  const userFile = controllersPath(userDir);
+  if (fs.existsSync(userFile)) return { copied: false };
+  const projectFile = controllersPath(projectDir);
+  if (!fs.existsSync(projectFile)) return { copied: false };
+  const { profile, error } = readProfile(projectDir);
+  if (error) return { copied: false, error };
+  writeProfile(userDir, profile);
+  return { copied: true, from: projectFile, to: userFile };
+}
+
 module.exports = {
   CONTROLLERS_FILE,
   controllersPath,
+  userControllersDir,
+  userControllersPath,
+  hydrateUserProfile,
   readProfile,
   writeProfile,
 };

@@ -308,7 +308,8 @@ actually fitted with, not a list kept here. A profile that binds only the
 left stick still steers a joystick port: each direction falls back to the
 matching half of the stick.
 
-The result is a JSON file beside the config:
+The result is a JSON file in `~/.config/8bitscript/` — this machine's pads,
+not the project's source:
 
 ```json
 {
@@ -337,8 +338,10 @@ not that. A binding is `button:N`, `axis:N` (whole and signed, for a stick),
 `standard` when the browser vouched for the pad's layout and `custom` once
 anything has been bound by hand. Anything in the file this cannot read is
 simply unbound — a file you broke by hand costs you the profile, never the
-panel. It is checked in on purpose: a mapping is the team's, the way a
-`systems` block is.
+panel. It is personal hardware, the way VICE's own `~/.config/vice/vicerc`
+is: an 8BitDo at one desk is not a `systems` block. A copy sitting in the
+project directory is still honoured if present (tests, a cabinet that ships
+with a stick).
 
 **A keyboard key is a real binding here**, and on one machine it is the
 only one there is: atari800 has no per-button controller mapping at all —
