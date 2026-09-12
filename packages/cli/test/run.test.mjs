@@ -15,7 +15,9 @@ import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { run, boot, atari800CleanDisplayConfig, emulatorInvocation } from '../src/run.mjs';
+import {
+  run, boot, atari800CleanDisplayConfig, atari800CleanDisplayText, emulatorInvocation, resolveController,
+} from '../src/run.mjs';
 import { loadCatalog, resolveHardware } from '../src/hardware.mjs';
 
 function capture(fn) {
@@ -234,5 +236,157 @@ test('run() --size prints the breakdown before the emulator path, and writes it 
   } finally {
     process.chdir(prev);
     await rm(dir, { recursive: true, force: true });
+  }
+});
+
+// The controller profile's own path through run.mjs: resolveController()
+// reading the project's config, and emulatorInvocation() placing the
+// adapter's flags. Argument vectors only — controllers.test.mjs covers
+// what each adapter decides, and nothing on either side starts an
+// emulator.
+
+test('emulatorInvocation is byte-identical when the project has no controller profile', async () => {
+  const { hardware } = resolveHardware(loadCatalog('pet'), { profile: '8032' });
+  const without = await emulatorInvocation('pet', { pal: false, hardware, outFile: '/tmp/x.prg' });
+  const empty = await emulatorInvocation('pet', {
+    pal: false, hardware, outFile: '/tmp/x.prg', controller: { args: [], files: [], notes: [] },
+  });
+  assert.deepEqual(empty.emulatorArgs, without.emulatorArgs, 'the default and an empty profile are the same launch');
+});
+
+test('emulatorInvocation puts the controller flags after the catalog\'s own, before the file', async () => {
+  const { hardware } = resolveHardware(loadCatalog('c64'), {});
+  const invocation = await emulatorInvocation('c64', {
+    pal: false,
+    hardware,
+    outFile: '/tmp/x.prg',
+    controller: { args: ['-joydev2', '4'], leadingArgs: ['-config', '/tmp/j.vicerc'], files: [], notes: [] },
+  });
+  assert.equal(invocation.ok, true);
+  const args = invocation.emulatorArgs;
+  // The catalog says what is *in* the port (-controlport2device 1); the
+  // adapter says what drives it (-joydev2 4). The catalog's comes first,
+  // so the more specific thing is said last.
+  assert.deepEqual(args.slice(0, 2), ['-config', '/tmp/j.vicerc'], 'VICE reads -config only as the first argument');
+  const catalogPort = args.indexOf('-controlport2device');
+  const joydev = args.indexOf('-joydev2');
+  assert.ok(catalogPort >= 0, 'packages/c64\'s port2 option is still the one naming the device');
+  assert.ok(joydev > catalogPort, 'controller flags follow hardware.run[emulator]');
+  assert.ok(args.indexOf('-autostart') > joydev, 'and the file is still last');
+});
+
+test('resolveController is empty without the panel\'s file, and reads one when it is there', async () => {
+  const { hardware } = resolveHardware(loadCatalog('c64'), {});
+  const dir = await mkdtemp(join(tmpdir(), '8bs-controllers-test-'));
+  try {
+    assert.deepEqual(
+      await resolveController('c64', { hardware, dir }),
+      { ok: true, args: [], leadingArgs: [], files: [], notes: [] },
+      'no 8bitscript.controllers.json is every project written before this release',
+    );
+
+    await writeFile(join(dir, '8bitscript.controllers.json'), JSON.stringify({
+      version: 1,
+      controllers: {
+        devices: [{ id: 'pad-a', name: 'SN30 Pro', player: 1, mode: 'standard', mapping: { a: 'button:0' } }],
+      },
+    }));
+    const resolved = await resolveController('c64', { hardware, dir });
+    assert.equal(resolved.ok, true);
+    assert.deepEqual(resolved.args, ['-joydev2', '4'], 'player 1 is port 2 on a C64, driven by host joystick 0');
+    assert.equal(resolved.leadingArgs[0], '-config', 'VICE reads -config only when it leads the line');
+    assert.equal(resolved.files.length, 2, 'a joystick map and the vicerc that names it');
+    assert.ok(resolved.files[0].path.endsWith('.vjm'));
+    assert.ok(resolved.files[0].path.includes(String(process.pid)), 'pid-named: pnpm test runs these in parallel');
+    assert.match(resolved.files[1].contents, /^\[C64SC\]$/m);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('resolveController reports a profile this machine cannot honour instead of launching it', async () => {
+  const { hardware } = resolveHardware(loadCatalog('c64'), {});
+  const dir = await mkdtemp(join(tmpdir(), '8bs-controllers-test-'));
+  try {
+    // Player 2 lands in port 1, which a stock C64 has nothing in.
+    await writeFile(join(dir, '8bitscript.controllers.json'), JSON.stringify({
+      controllers: {
+        devices: [
+          { id: 'a', name: 'One', player: 1, mapping: { a: 'button:0' } },
+          { id: 'b', name: 'Two', player: 2, mapping: { a: 'button:0' } },
+        ],
+      },
+    }));
+    const resolved = await resolveController('c64', { hardware, dir });
+    assert.equal(resolved.ok, false);
+    assert.match(resolved.error, /Add --hardware port1=joystick/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('resolveController names an unreadable controllers file rather than launching without it', async () => {
+  const { hardware } = resolveHardware(loadCatalog('c64'), {});
+  const dir = await mkdtemp(join(tmpdir(), '8bs-controllers-test-'));
+  try {
+    await writeFile(join(dir, '8bitscript.controllers.json'), '{ not json');
+    const resolved = await resolveController('c64', { hardware, dir });
+    assert.equal(resolved.ok, false);
+    assert.match(resolved.error, /cannot read 8bitscript\.controllers\.json/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('atari800\'s controller config replaces the display one rather than passing -config twice', async () => {
+  const { hardware } = resolveHardware(loadCatalog('atari8'), {});
+  const invocation = await emulatorInvocation('atari8', {
+    pal: false,
+    hardware,
+    controller: {
+      args: ['-kbdjoy0'],
+      leadingArgs: ['-config', '/tmp/a.cfg', '-no-autosave-config'],
+      files: [{ path: '/tmp/a.cfg', contents: '' }],
+      notes: [],
+    },
+  });
+  assert.equal(invocation.ok, true);
+  assert.equal(
+    invocation.emulatorArgs.filter((arg) => arg === '-config').length,
+    1,
+    'atari800 takes one -config, and the controller\'s file already holds the cleaned display keys',
+  );
+  const args = invocation.emulatorArgs;
+  assert.deepEqual(args.slice(0, 3), ['-config', '/tmp/a.cfg', '-no-autosave-config'], 'the config leads');
+  // The catalog's own atari800 flags (the model, the mouse) still come
+  // before the controller's ordinary flags.
+  assert.ok(args.indexOf('-kbdjoy0') > args.indexOf('-xl'), 'controller flags follow hardware.run.atari800');
+});
+
+test('atari800CleanDisplayText is the display half on its own, for the file the controller adapter extends', () => {
+  const cleaned = atari800CleanDisplayText('ROM_OS_B=/roms/os.rom\nCRT_BEAM_SHAPE=10\n');
+  assert.match(cleaned, /^ROM_OS_B=\/roms\/os\.rom$/m);
+  assert.match(cleaned, /^CRT_BEAM_SHAPE=0$/m);
+  assert.match(cleaned, /^SCANLINES_PERCENTAGE=0$/m);
+});
+
+test('a pad-only atari800 profile writes no config, so the display-only one is still the file passed', async () => {
+  const { hardware } = resolveHardware(loadCatalog('atari8'), {});
+  // What atari800Controller returns for a pad: flags, and nothing to
+  // write, because the only keys it has are for a keyboard stick. The
+  // CRT-knob config must still be the one atari800 is pointed at.
+  const invocation = await emulatorInvocation('atari8', {
+    pal: false,
+    hardware,
+    controller: { args: ['-no-kbdjoy0'], leadingArgs: [], files: [], notes: [] },
+  });
+  assert.equal(invocation.ok, true);
+  const args = invocation.emulatorArgs;
+  assert.ok(args.includes('-no-kbdjoy0'));
+  const configs = args.filter((arg) => arg === '-config');
+  assert.equal(configs.length, existsSync(join(process.env.HOME ?? '', '.atari800.cfg')) ? 1 : 0,
+    'exactly the display config when the user has one, and none when they do not');
+  if (configs.length === 1) {
+    assert.ok(args.indexOf('-config') < args.indexOf('-no-kbdjoy0'), 'the display config still leads');
   }
 });

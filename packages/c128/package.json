@@ -57,6 +57,7 @@
         "input.keyboard": true,
         "input.joysticks": 2,
         "input.pads": 0,
+        "input.controls": [],
         "input.mouse": false,
         "input.paddles": false,
         "storage.save": true,
@@ -309,6 +310,15 @@
             },
             "joystick": {
               "label": "Joystick",
+              "facts": {
+                "input.controls": [
+                  "up",
+                  "down",
+                  "left",
+                  "right",
+                  "a"
+                ]
+              },
               "run": {
                 "x128": [
                   "-controlport1device",
@@ -358,6 +368,15 @@
             },
             "joystick": {
               "label": "Joystick",
+              "facts": {
+                "input.controls": [
+                  "up",
+                  "down",
+                  "left",
+                  "right",
+                  "a"
+                ]
+              },
               "run": {
                 "x128": [
                   "-controlport2device",

@@ -1,0 +1,393 @@
+// Joystick — the controller test app. A labelled map of the controls
+// @8bitscript/input exposes, with a lamp on each one that flashes when
+// that control is pressed, so a human sitting in front of a machine can
+// see at a glance whether its input layer answers at all.
+//
+// This is the program to run first on a machine whose input layer is new
+// or suspect. It is deliberately the whole of what the portable surface
+// can say and nothing else: six controls, two counters and a line of
+// capability facts. If a lamp never lights, that machine's layer does not
+// answer that control — which is a fact about the layer, not about this
+// program.
+//
+// ---- what a lamp actually means -------------------------------------------
+//
+// **A lamp is a press that was seen, not a control that is held.** That
+// distinction is the whole reason this file is shaped the way it is, and
+// it is worth being blunt about because the obvious reading of a
+// controller map is the wrong one here.
+//
+// @8bitscript/input is edge-triggered by design: `up()` is true on the one
+// frame the press begins and false for every frame it is held (see
+// packages/input/AGENTS.md — a level-triggered answer races a menu
+// highlight across a bar in a third of a second, so the surface does not
+// offer one). There is no `held()` or `down()` on the surface at all. The
+// only level-triggered call on it is `pointer()`, which this program does
+// not use.
+//
+// So "light it up while it is pressed" is not a question this API can
+// answer, and pretending otherwise would be a screen that implies more
+// than the code does. What this program does instead is latch: the edge
+// sets a per-lamp countdown to LAMP_FRAMES, every frame decrements it, and
+// the lamp is lit while the countdown is running. A single press therefore
+// flashes for about a quarter of a second — long enough to see, and
+// honestly labelled on screen as a flash rather than drawn as a held
+// state. Hold a direction down and the lamp flashes once and goes out,
+// because that is exactly what the API reported.
+//
+// ---- why reverse video, and not colour ------------------------------------
+//
+// Three of the nine targets have no per-cell colour at all (the PET has no
+// colour RAM, the Atari 8-bit's GR.0 has none, and the NES's colour lives
+// in a 2x2 attribute block its text layer does not touch — see
+// packages/ui/AGENTS.md). `text.setReverse` works on all nine, so the lamp
+// *is* reverse video and colour only ever rides on top of it. The colour
+// calls below are made unconditionally rather than behind
+// `if (Video.COLOR_PER_CELL)`: `text.setColor` is a deliberately empty
+// function on those three machines and the compiler deletes the call, so
+// they pay nothing for it and this file never has to ask.
+//
+// Every label carries its own leading and trailing space — " UP " rather
+// than "UP" — so a lit lamp is a solid bar with the word knocked out of
+// it rather than two inverted letters, which at 8x8 is the difference
+// between reading across the room and squinting.
+//
+// ---- reading the idle screen ----------------------------------------------
+//
+// `--screenshot` cannot press anything, so a headless capture only ever
+// shows the idle state. That state is still worth capturing, because it
+// asserts two things:
+//
+//   - **SEEN must read 00000.** It counts every edge this program has ever
+//     been handed and never decays. A machine left completely alone whose
+//     counter is climbing is reporting phantom presses — which is a real
+//     bug shape on this hardware, not a hypothetical: a layer that
+//     edge-detects a *composed* direction (SHIFT plus a cursor key) sees
+//     every release's stray frame of bare cursor key as a fresh press.
+//     packages/input/AGENTS.md records that measured under xpet, and
+//     records that the C64, C128, VIC-20 and MEGA65 layers still compose
+//     their cursor directions the old way.
+//   - **FRAME must be climbing.** It is bumped once per trip round the
+//     loop, so a frozen program and an idle one look different — and two
+//     captures at different `--frames` counts show it even in stills,
+//     which a moving spinner would not. On a machine where waitFrame()
+//     is not really pacing, it also says so: 600 frames of capture that
+//     leave FRAME in the tens of thousands means the wait returned
+//     instantly, which is exactly the shape of the PET bug where a
+//     skipped input.poll() leaves the retrace flag stuck set.
+//
+// Neither of those is evidence that input *works*. Only a human with a
+// controller in their hands can say that.
+//
+// One thing an idle run already found: **the MEGA65 reads SEEN 00001, and
+// the press it counts is CONFIRM.** Measured under xmega65, 2026-09-12, at
+// 300, 600, 1200 and 2400 frames — the count is 1 at every one of them, so
+// it happens once at start-up and never repeats.
+//
+// The cause was measured too, not guessed, because this layer's confirm is
+// an OR of two different things (RETURN, or joystick 2's fire) and the two
+// want opposite fixes. A scratch build read CIA1 itself on the first frame,
+// before input.poll(): column 0 of the matrix and then port A, the same two
+// reads @8bitscript/mega65/input makes. **RETURN read down and the stick
+// read all-clear** (`002` and `000`), and the identical probe on a C64 and
+// a C128 — same CIA, same addresses, same autostart — read `000` and `000`
+// with SEEN at 00000. So it is the emulator's own `RUN` still holding
+// RETURN when the program reaches its first poll on this machine and not on
+// those two, not a stuck port bit and not this layer's joystick read.
+//
+// Which makes it a fact about the surface rather than about the MEGA65:
+// every layer starts its edge detector with `before = 0`, so **anything
+// already held when the first `poll()` runs reads as a press that just
+// began.** A real machine does the same thing to a player holding fire as
+// the program loads. Priming the snapshot with one read in `begin()` would
+// close it everywhere at once; nothing here works around it, because the
+// workaround belongs in @8bitscript/input and not in a program.
+//
+// ---- the PORTS line, and why it is on screen ------------------------------
+//
+// The bottom line reports `#fact(input.keyboard)`, `#fact(input.joysticks)`
+// and `#fact(input.pads)` for the machine this build was made for, as
+// KEY/JOY/PAD. It is there to separate two failures that look identical
+// from the lamps alone:
+//
+//   - **the machine has nothing to press** — a PET reads KEY 1 JOY 0
+//     PAD 0, so a dark LEFT lamp there means nobody pressed the cursor
+//     keys, and there is no stick to blame; and
+//   - **the layer does not read what the machine has** — a Commander X16
+//     reads KEY 1 JOY 0 PAD 2 and still lights nothing ever, because
+//     @8bitscript/cx16/input answers false to every direction, confirm
+//     and cancel: its SNES pads (KERNAL joystick_get, $FF56) and its
+//     keyboard (GETIN, $FFE4) are not read yet, and its header says so.
+//     A dark map there is the layer's coverage, not the machine's.
+//
+// These are facts, so all three numbers are settled while compiling and
+// the line costs nothing to work out at run time.
+//
+// ---- what it costs -------------------------------------------------------
+//
+// Measured 2026-09-12, stock hardware for every target, program bytes then
+// RAM for variables:
+//
+//   pet    2298 / 62   of a stock 4K 2001's 3071   — the tightest fit
+//   vic20  2414 / 70   of an unexpanded 3583
+//   c128   2412 / 63      mega65 2436 / 63      c64    2571 / 64
+//   atari8 2633 / 73      cx16   3258 / 156     nes    40976 / 94 (fixed ROM)
+//   web     117 bytes of constant data / 41
+//
+// The two that matter are the first two: this app has to fit the smallest
+// machine it claims to run on or it is not a test app for that machine,
+// and it clears the 4K PET by 773 bytes and the unexpanded VIC-20 by
+// 1169. The X16 is the heaviest of the eight real machines, and
+// `8bs build cx16 --size` says why: not this program, but VERA
+// addressing under it — `locate` alone is 363 bytes, the three
+// `locateTextMap` copies another 153, and the screen inset and its
+// `cellOn` clamp 123 more, because a 76-column map is not a shift away
+// from a cell index the way a 40-column one is. Its KERNAL mouse
+// (`mouse_begin`, 48 bytes) is compiled in because `#fact(input.mouse)`
+// is true there and the hardware really has one; this program never
+// calls the pointer half of the surface and pays only that.
+import { screen } from "@8bitscript/screen";
+import { text, TextColor } from "@8bitscript/text";
+import { input } from "@8bitscript/input";
+import { Input } from "@8bitscript/system";
+
+// This machine's row width, so cell = y * ROW + x. A bare const name is
+// the only thing besides a literal that a global initializer may be, so
+// everything derived from it is worked out at run time in computeLayout()
+// rather than written as a const expression here.
+const ROW: usmallint = text.COLUMNS;
+
+// The map is drawn 22 columns wide and 18 rows tall, because 22 is the
+// VIC-20's whole screen — the narrowest of the nine — and 23 rows is its
+// whole height, which is also what the 18 has to clear (a blank row
+// between the cross's arms is what makes it read as a cross rather than
+// a paragraph, and that spacing is the whole of the height budget).
+// Everything wider (40 on most, 76 on an X16, 80 on a MEGA65 or a PET
+// 8032) gets the same map centred in it, so the app looks deliberate
+// rather than jammed into a corner on the big machines.
+const MAP_WIDTH: utinyint = 22;
+const MAP_TOP: utinyint = 1; // one blank row above; not worth bytes to centre vertically
+
+// How long one press stays lit, in frames. 15 is a quarter of a second at
+// 60Hz and three tenths at 50: long enough to catch out of the corner of
+// an eye, short enough that two deliberate taps read as two flashes. It
+// has not been checked against a fast repeat by hand — nothing in a
+// headless run can press a key — so if a human finds a double-tap fusing
+// into one flash, this is the number to lower.
+const LAMP_FRAMES: utinyint = 15;
+
+// The six lamps, in the order they are indexed below. Named as consts so
+// the update and the paint cannot drift apart.
+const UP: utinyint = 0;
+const DOWN: utinyint = 1;
+const LEFT: utinyint = 2;
+const RIGHT: utinyint = 3;
+const CONFIRM: utinyint = 4;
+const CANCEL: utinyint = 5;
+const LAMPS: utinyint = 6;
+
+// Where each lamp's label starts, worked out once in computeLayout().
+// Six separate `let`s rather than an `array<usmallint, 6>` because a
+// two-byte array element cannot be *written* yet — only read, the way
+// 2048's POW2 table is read — so the array that would obviously hold
+// these is not one the compiler will store into today.
+let cellUp: usmallint = 0;
+let cellDown: usmallint = 0;
+let cellLeft: usmallint = 0;
+let cellRight: usmallint = 0;
+let cellConfirm: usmallint = 0;
+let cellCancel: usmallint = 0;
+
+// Frames left on each lamp's flash, and what is actually on screen for it
+// (0 dark, 1 lit) so a lamp that did not change is not redrawn. That
+// dirty check is not cosmetic: the NES delivers cell writes in vertical
+// blank 112 bytes at a time, and repainting six labels every frame would
+// spend most of that budget on writes that change nothing.
+let lampTimer: array<utinyint, 6>;
+let lampShown: array<utinyint, 6>;
+
+// Every edge this program has ever been handed, and what is on screen for
+// it. Never decays — see the header on why 00000 is the assertion an idle
+// screenshot makes.
+let seen: usmallint = 0;
+let seenShown: usmallint = 65535; // not a count: forces the first paint
+let seenCell: usmallint = 0;
+
+// Trips round the main loop, wrapping at 65535 — the liveness signal.
+// Repainted every frame without a dirty check, because it changes every
+// frame by definition: five cells a frame, well inside even the NES's
+// 112-byte vertical-blank budget.
+//
+// This started as a reverse-video block walking an 8-cell track, which is
+// a better "it is alive" signal at a glance, and it was replaced after a
+// screenshot: **on the Commander X16 a cell that has been printed in
+// reverse cannot be printed back to normal.** @8bitscript/cx16/text
+// implements reverse as a swap of VERA's attribute nibbles, and its
+// non-reverse path keeps the cell's existing background nibble on purpose
+// (`(attr & 0xF0) | currentColor`) so a print does not undo
+// `screen.setBackground` — but a reverse print has already written the
+// text colour *into* that background nibble, so the cell stays filled.
+// Measured under x16emu, 2026-09-12: the walking block left its whole
+// 8-cell track lit behind it as one solid bar. On the other eight targets
+// reverse is a flip of the character code and reverses cleanly, which is
+// why this only showed up on one machine. The lamps below still use
+// reverse, because reverse is the only highlight all nine share; the X16
+// is the one machine where a lamp that lit could not go dark again, and
+// it is also the one machine where no lamp can ever light, so the two
+// cancel out until its input layer answers. There is no portable
+// workaround and this program does not attempt one.
+let frames: usmallint = 0;
+let frameCell: usmallint = 0;
+
+// The map's top-left cell. computeLayout() works it out and drawMap()
+// reads it, rather than each deriving it: the multiply and the centring
+// are ~40 bytes and there is no reason to link two copies.
+let mapOrigin: usmallint = 0;
+
+// Every cell address on the map, from this machine's own row width. Run
+// time, not compile time: `const` folds a literal or another const's bare
+// name and nothing else, so there is no way to write these as consts.
+function computeLayout(): void {
+    // Centre the 22-wide map in however many columns this machine has.
+    let indent: utinyint = 0;
+    if (text.COLUMNS > MAP_WIDTH) {
+        indent = (text.COLUMNS - MAP_WIDTH) >> 1;
+    }
+    let origin: usmallint = MAP_TOP;
+    origin = origin * ROW + indent;
+    mapOrigin = origin;
+
+    // The cross: UP on its own row, LEFT and RIGHT either side of the row
+    // below it, DOWN under the gap between them. The columns are chosen so
+    // " UP " (4 wide) and " DOWN " (6 wide) both centre on the 7-cell gap
+    // that " LEFT " (6) and " RIGHT " (7) leave between them.
+    cellUp = origin + 2 * ROW + 9;
+    cellLeft = origin + 4 * ROW + 1;
+    cellRight = origin + 4 * ROW + 14;
+    cellDown = origin + 6 * ROW + 8;
+
+    // The two decisions, on their own row under the cross, because they
+    // are not directions and should not read as part of the d-pad.
+    cellConfirm = origin + 8 * ROW + 1;
+    cellCancel = origin + 8 * ROW + 12;
+
+    seenCell = origin + 10 * ROW + 6; // after "SEEN "
+    frameCell = origin + 11 * ROW + 7; // after "FRAME "
+    return;
+}
+
+// The static half of the screen, drawn once before the loop starts.
+// Everything the loop touches after this is the six labels and the two
+// five-digit counters — nothing else on screen ever changes.
+function drawMap(): void {
+    let origin: usmallint = mapOrigin;
+
+    text.print(origin + 3, "CONTROLLER TEST");
+    text.print(origin + 10 * ROW + 1, "SEEN");
+    text.print(origin + 11 * ROW + 1, "FRAME");
+    // The one line that keeps the map honest: the lamps are edges, not
+    // held state, and a person reading a controller map will assume held
+    // unless told. See this file's header.
+    text.print(origin + 13 * ROW + 1, "LAMP FLASHES ON");
+    text.print(origin + 14 * ROW + 1, "EACH PRESS SEEN");
+
+    // What the machine itself declares it has — see this file's header.
+    // `Input.KEYBOARD` is a bool and printNumber takes a number, so it is
+    // widened here; both sides of the `if` are compile-time constants, so
+    // this is one literal by the time the backend sees it.
+    let keyboards: utinyint = 0;
+    if (Input.KEYBOARD) {
+        keyboards = 1;
+    }
+    text.print(origin + 16 * ROW + 1, "KEY");
+    text.printNumber(origin + 16 * ROW + 5, keyboards, 1);
+    text.print(origin + 16 * ROW + 7, "JOY");
+    text.printNumber(origin + 16 * ROW + 11, Input.JOYSTICKS, 1);
+    text.print(origin + 16 * ROW + 13, "PAD");
+    text.printNumber(origin + 16 * ROW + 17, Input.PADS, 1);
+    return;
+}
+
+// One frame of one lamp's state: an edge relights it and is counted, and
+// anything already lit burns down toward dark.
+function tick(lamp: utinyint, began: bool): void {
+    if (began) {
+        lampTimer[lamp] = LAMP_FRAMES;
+        seen++;
+        return;
+    }
+    if (lampTimer[lamp] != 0) {
+        lampTimer[lamp]--;
+    }
+    return;
+}
+
+// Draw a lamp, but only if what it should look like is not already what
+// is on screen. The label carries its own padding spaces so the lit form
+// is a solid bar rather than inverted letters.
+function paint(lamp: utinyint, cell: usmallint, label: string): void {
+    let want: utinyint = 0;
+    if (lampTimer[lamp] != 0) {
+        want = 1;
+    }
+    if (want == lampShown[lamp]) {
+        return;
+    }
+    lampShown[lamp] = want;
+    if (want != 0) {
+        text.setColor(TextColor.YELLOW);
+        text.setReverse(true);
+    } else {
+        text.setColor(TextColor.WHITE);
+    }
+    text.print(cell, label);
+    text.setReverse(false);
+    return;
+}
+
+export function main(): void {
+    screen.blank();
+    computeLayout();
+    drawMap();
+    input.begin();
+
+    // Force every lamp to paint once, dark, so the map is complete before
+    // the first press rather than appearing a control at a time.
+    for (let i: utinyint = 0; i < LAMPS; i++) {
+        lampShown[i] = 255; // not a lamp state: guarantees the first paint
+    }
+
+    while (true) {
+        waitFrame();
+        // Exactly one poll() per waitFrame(), never twice: every layer's
+        // header says so, and on the PET reading the matrix is also what
+        // clears the vertical-retrace flag, so a skipped poll stops the
+        // next waitFrame() from pacing at all.
+        input.poll();
+
+        tick(UP, input.up());
+        tick(DOWN, input.down());
+        tick(LEFT, input.left());
+        tick(RIGHT, input.right());
+        tick(CONFIRM, input.confirm());
+        tick(CANCEL, input.cancel());
+
+        paint(UP, cellUp, " UP ");
+        paint(DOWN, cellDown, " DOWN ");
+        paint(LEFT, cellLeft, " LEFT ");
+        paint(RIGHT, cellRight, " RIGHT ");
+        paint(CONFIRM, cellConfirm, " CONFIRM ");
+        paint(CANCEL, cellCancel, " CANCEL ");
+
+        if (seen != seenShown) {
+            seenShown = seen;
+            text.printNumber(seenCell, seen, 5);
+        }
+
+        // The liveness signal, every frame. Nothing else on screen moves
+        // while the machine is idle, so this is what separates a program
+        // that is waiting from one that has stopped.
+        frames++;
+        text.printNumber(frameCell, frames, 5);
+    }
+}
