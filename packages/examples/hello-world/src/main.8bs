@@ -1,16 +1,17 @@
-// The program 0.2.0 exists to run. The text package resolves per target —
-// @8bitscript/pet/text on a PET build, @8bitscript/web/text on a web
-// build — and each one writes its own screen the way that machine wants;
-// this file does not know which. See the "Hello, PET" roadmap for the
-// milestones between here and this actually building.
+// The smallest whole program: blank the screen, print, return. The screen
+// and text packages resolve per target — @8bitscript/pet/text on a PET
+// build, @8bitscript/web/text on a web build — and each writes its own
+// screen the way that machine wants; this file does not know which, which
+// is the point of it.
 import { screen } from "@8bitscript/screen";
 import { text } from "@8bitscript/text";
 
-// Prints, then returns. There is no holding loop: main() falling off its
-// end lands back in the BASIC SYS that started it, which prints READY. —
-// the greeting stays on screen above the prompt, and the machine is given
-// back in the character set it was launched in (`restoreOnExit`, on by
-// default; see 8bitscript.config.ts).
+// There is no holding loop: main() falling off its end lands back in the
+// BASIC SYS that started it, which prints READY. — so the greeting stays
+// on screen above the prompt, and the machine is left exactly as it was
+// found. On a PET that boots into the upper-case/graphics character set
+// (every model but the 8032) this draws in capitals, because that set has
+// one case of the alphabet; nothing switches sets to force the other one.
 export function main(): void {
     screen.blank();
     text.print(0, "Hello World!");
