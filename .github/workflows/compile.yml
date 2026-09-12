@@ -86,12 +86,35 @@ jobs:
           TAG: ${{ github.event.release.tag_name || github.ref_name }}
         run: |
           set -euo pipefail
-          shopt -s nullglob globstar
-          files=(dist/**/*)
+          shopt -s nullglob
+          # What someone downloading a release actually wants is one file
+          # per thing they can run. `dist/**/*` was not that: it flattened
+          # the web bundle's own internals into loose assets beside the
+          # machine artifacts, so a release listed index.html, worker.js,
+          # _headers, and a program.wasm that was a byte-for-byte copy of
+          # the main.wasm already listed above it.
+          #
+          # So: the machine artifacts (dist/*.prg, .xex, .nes, …) upload as
+          # themselves, and the web bundle uploads as the single archive it
+          # has to be unpacked from to work at all — index.html, worker.js,
+          # program.wasm and the COOP/COEP _headers file are one deployable
+          # unit, useless apart. The loose dist/*.wasm is left out of the
+          # listing for the same reason: it is already inside the bundle,
+          # and on its own it has no runtime to load it.
           upload=()
-          for f in "${files[@]}"; do
-            if [ -f "$f" ]; then upload+=("$f"); fi
+          for f in dist/*; do
+            [ -f "$f" ] || continue
+            case "$f" in
+              *.wasm) continue ;;
+            esac
+            upload+=("$f")
           done
+          if [ -d dist/web ]; then
+            (cd dist && zip -qr web-bundle.zip web)
+            upload+=(dist/web-bundle.zip)
+          fi
           if [ ${#upload[@]} -gt 0 ]; then
+            printf 'uploading:\n'
+            printf '  %s\n' "${upload[@]}"
             gh release upload "$TAG" "${upload[@]}" --clobber
           fi
