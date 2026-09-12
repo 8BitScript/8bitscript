@@ -127,103 +127,91 @@ test('vic20/c64/c128/mega65 map ASCII to screen codes and select the upper-case-
   }
 });
 
-// The PET draws for the character set the machine is already in and never
-// selects one — a real design divergence from the other four Commodore
-// packages above, not a bug. The charset bit is one register for the whole
-// screen and it is retroactive (it picks the ROM the video hardware reads
-// *now*, for cells already drawn), so a package that switched it could not
-// put it back without re-rendering the text it had just written. Which set
-// the ROM booted into is a per-model constant instead —
-// #fact(video.bootsInTextMode), true only for the business-keyboard editor
-// ROMs — so asciiToScreenCode() addresses whichever set is already live.
-// The fold pass folds the fact to a literal but does not eliminate the
-// untaken branch's statements from the IR, so the body is one outer `if`
-// wrapping both shapes on every profile.
+// The PET draws in its *text* character set and selects it when the
+// machine is not already there — the one set on this machine that holds
+// both cases of the alphabet, and so the only one that can draw a string
+// as it was written rather than flattened to capitals. Which set the model
+// boots into is still a per-model constant (#fact(video.bootsInTextMode),
+// true only for the business-keyboard editor ROMs), but it now decides
+// only whether the selecting write is needed at all, not how a character
+// is encoded. Nothing puts the old set back: the bit is retroactive, so
+// restoring it re-rendered the text the program had just drawn — see
+// packages/pet/AGENTS.md and mos/startup/commodore.ts.
 //
-// Graphics set (every model here but the 8032): one case of the alphabet,
-// at 1-26, so 'A'-'Z' drop by 64 and 'a'-'z' by 96 onto the same glyphs.
-// Text set (the 8032): 'a'-'z' at 1-26, 'A'-'Z' already at 65-90.
-test('the PET draws for the set the machine booted into, and selects none — graphics on a 3032', () => {
+// The fold pass folds a fact to a literal but does not eliminate the
+// untaken branch's statements from the IR, so the body is one outer `if`
+// wrapping both mappings on every profile.
+//
+// Text set, every ROM but the 2001's: 'a'-'z' at 1-26, 'A'-'Z' already at
+// 65-90. The 2001's own 901447-08 swaps those halves (below).
+test('the PET encodes for the text set — a 3032 uses the later ROM\'s mapping', () => {
   const graphicsBoot = resolveHardware(loadCatalog('pet'), { profile: '3032' }).hardware.facts;
   const { ir, diagnostics } = link(T_CONSUMER, CONSUMER, { machine: 'pet', facts: graphicsBoot });
   assert.deepEqual(diagnostics, []);
   const ascii = ir.functions.find((f) => f.name === 'asciiToScreenCode');
   assert.ok(ascii, 'pet: no ASCII-to-screen-code mapping');
   assert.equal(ascii.body[0].kind, 'if');
-  assert.deepEqual(ascii.body[0].test, { kind: 'const', value: 0, type: 'bool' }, 'video.bootsInTextMode folds to false on a 3032');
-  assert.equal(ascii.body[0].else, null, 'the text-set branch always returns — the graphics mapping follows in source order, not in an else');
-  const graphics = ascii.body.slice(1);
-  assert.equal(graphics[0].kind, 'if');
-  assert.equal(graphics[0].test.operator, '&&');
-  assert.deepEqual(graphics[0].test.left.right, { kind: 'const', value: 65, type: 'utinyint' });
-  assert.deepEqual(graphics[0].test.right.right, { kind: 'const', value: 91, type: 'utinyint' });
-  assert.equal(graphics[0].then[0].value.operator, '-');
-  assert.deepEqual(graphics[0].then[0].value.right, { kind: 'const', value: 64, type: 'utinyint' }, 'A-Z drops by 64 to reach the graphics set\'s 1-26');
-  assert.equal(graphics[1].kind, 'if');
-  assert.deepEqual(graphics[1].test.left.right, { kind: 'const', value: 97, type: 'utinyint' });
-  assert.deepEqual(graphics[1].test.right.right, { kind: 'const', value: 123, type: 'utinyint' });
-  assert.equal(graphics[1].then[0].value.operator, '-');
-  assert.deepEqual(graphics[1].then[0].value.right, { kind: 'const', value: 96, type: 'utinyint' }, 'a-z lands on the same glyphs — the graphics set has one case');
+  assert.deepEqual(ascii.body[0].test, { kind: 'const', value: 0, type: 'bool' }, 'video.characterSetSwapped folds to false on a 3032');
+  assert.equal(ascii.body[0].else, null, 'the swapped branch always returns — the later ROM\'s mapping follows in source order, not in an else');
+  const later = ascii.body.slice(1);
+  assert.equal(later[0].kind, 'if');
+  assert.equal(later[0].test.operator, '&&');
+  assert.deepEqual(later[0].test.left.right, { kind: 'const', value: 97, type: 'utinyint' });
+  assert.deepEqual(later[0].test.right.right, { kind: 'const', value: 123, type: 'utinyint' });
+  assert.equal(later[0].then[0].value.operator, '-');
+  assert.deepEqual(later[0].then[0].value.right, { kind: 'const', value: 96, type: 'utinyint' }, 'a-z drops by 96 — the text set keeps lower case at 1-26');
+  assert.equal(later[1].kind, 'return');
+  assert.equal(later[1].value.kind, 'ref', 'A-Z passes through: the text set already holds it at 65-90');
 
   const main = ir.functions.find((f) => f.name === 'main');
   assert.equal(main.body[0].name, 'text_putChar');
   assert.deepEqual(main.body[0].args.map((a) => a.value), [0, 84]);
 });
 
-// The point of the rework, and the thing that keeps a program from
-// re-rendering BASIC's own screen out from under it: no route through this
-// package writes $E84C at all any more. Asserted over every function in
-// the linked program rather than over the one that used to do it, so
-// putting the write back anywhere fails here.
-test('nothing in a linked PET program writes the character-set register, on any model', () => {
+// The selecting write, and the one model that does not need it. A program
+// that prints on a 2001 or a 3032 has to move the machine to the text set
+// first; the 8032 powers on in it, so its guard folds to an early return
+// and the store is dead before the backend ever sees it. Asserted on the
+// fold rather than the emitted bytes, which packages/pet/test covers.
+test('a PET program selects the text set, except on the model that boots in it', () => {
   for (const profile of ['2001', '3032', '8032']) {
     const facts = resolveHardware(loadCatalog('pet'), { profile }).hardware.facts;
     const { ir, diagnostics } = link(T_CONSUMER, CONSUMER, { machine: 'pet', facts });
     assert.deepEqual(diagnostics, []);
-    assert.equal(ir.functions.find((f) => f.name === 'prepare'), undefined, `${profile}: prepare() is gone, not merely empty`);
-    const writesPcr = (node) => {
-      if (Array.isArray(node)) return node.some(writesPcr);
-      if (node && typeof node === 'object') {
-        if (node.kind === 'assign' && node.target === 'viaPeripheralControl') return true;
-        if (node.kind === 'memoryWrite' && node.address?.value === 0xe84c) return true;
-        return Object.values(node).some(writesPcr);
-      }
-      return false;
-    };
-    assert.equal(writesPcr(ir.functions), false, `${profile}: something still selects a character set`);
+    const prepare = ir.functions.find((f) => f.name === 'prepare');
+    assert.ok(prepare, `${profile}: prepare() is gone`);
+    const [guard, select] = prepare.body;
+    assert.equal(guard.kind, 'if');
+    assert.equal(select.kind, 'assign');
+    assert.equal(select.target, 'viaPeripheralControl');
+    assert.deepEqual(select.value, { kind: 'const', type: 'utinyint', value: 0x0e }, `${profile}: selects the text set, $0E`);
+    const bootsInTextSet = facts['video.bootsInTextMode'];
+    assert.equal(guard.test.value, bootsInTextSet ? 1 : 0, `${profile}: the guard folds to video.bootsInTextMode`);
+    assert.equal(guard.then[0].kind, 'return', `${profile}: and a machine already in the text set returns before the store`);
   }
 });
 
-test('the 8032 boots into the text set, so its own mapping is the one that folds in', () => {
-  const textBoot = resolveHardware(loadCatalog('pet'), { profile: '8032' }).hardware.facts;
-  const { ir, diagnostics } = link(T_CONSUMER, CONSUMER, { machine: 'pet', facts: textBoot });
-  assert.deepEqual(diagnostics, []);
-  const ascii = ir.functions.find((f) => f.name === 'asciiToScreenCode');
-  assert.deepEqual(ascii.body[0].test, { kind: 'const', value: 1, type: 'bool' }, 'video.bootsInTextMode folds to true on the 8032');
-  const textSet = ascii.body[0].then;
-  assert.equal(textSet[0].kind, 'if');
-  assert.deepEqual(textSet[0].test.left.right, { kind: 'const', value: 97, type: 'utinyint' });
-  assert.equal(textSet[0].then[0].value.operator, '-');
-  assert.deepEqual(textSet[0].then[0].value.right, { kind: 'const', value: 96, type: 'utinyint' }, 'a-z drops by 96 — the text set keeps lower case at 1-26');
-  assert.equal(textSet[1].value.kind, 'ref', 'A-Z passes through: the text set already holds it at 65-90');
-});
-
 // The 2001's 901447-08 ROM swaps the *text* set's two cases relative to
-// every later model's -10 (packages/pet/src/text.8bs's header). It boots
-// into graphics, though, so this package never addresses its text set and
-// the swap cannot reach the mapping — the 2001 and the 3032 produce the
-// same offsets. video.characterSetSwapped stays on the sheet because it is
-// true of the hardware; it is simply not what decides this.
-test('the 2001 maps exactly as a 3032 does: it boots into graphics, where its ROM does not differ', () => {
-  const offsetsFor = (profile) => {
+// every later model's -10: upper case stays at 1-26 and lower case moves
+// to 65-90 (verified glyph by glyph against the ROM — code 8 is 'H' there
+// and 'h' everywhere else). Now that this package addresses the text set
+// on every model, that fact reaches the mapping, where it used not to.
+test('the 2001\'s swapped ROM gets its own mapping, and the 3032 does not', () => {
+  const linkFor = (profile) => {
     const facts = resolveHardware(loadCatalog('pet'), { profile }).hardware.facts;
     const { ir } = link(T_CONSUMER, CONSUMER, { machine: 'pet', facts });
-    const ascii = ir.functions.find((f) => f.name === 'asciiToScreenCode');
-    return ascii.body.slice(1).filter((s) => s.kind === 'if').map((s) => s.then[0].value.right?.value);
+    return ir.functions.find((f) => f.name === 'asciiToScreenCode');
   };
   assert.equal(resolveHardware(loadCatalog('pet'), { profile: '2001' }).hardware.facts['video.characterSetSwapped'], true, 'the 2001 really is the swapped ROM');
-  assert.deepEqual(offsetsFor('2001'), [64, 96]);
-  assert.deepEqual(offsetsFor('2001'), offsetsFor('3032'), 'the swap is in the text set, which a graphics-booting model never reaches');
+
+  const swapped = linkFor('2001');
+  assert.deepEqual(swapped.body[0].test, { kind: 'const', value: 1, type: 'bool' }, 'video.characterSetSwapped folds to true on the 2001');
+  const offsets = (statements) => statements.filter((s) => s.kind === 'if').map((s) => s.then[0].value.right?.value);
+  assert.deepEqual(offsets(swapped.body[0].then), [64, 32], 'A-Z drops by 64 to 1-26; a-z drops by 32 to 65-90');
+
+  const later = linkFor('3032');
+  assert.deepEqual(offsets(later.body.slice(1)), [96], 'the later ROM moves lower case instead, and leaves upper case alone');
+  assert.notDeepEqual(offsets(swapped.body[0].then), offsets(later.body.slice(1)), 'the swap has to reach the mapping — the text set is what it swaps');
 });
 
 test('the NES text grid is the 28x26 area inside the drawn frame', () => {
