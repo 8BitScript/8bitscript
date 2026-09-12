@@ -463,15 +463,15 @@ test('build() for a parked machine says so, names the machine, and writes nothin
   const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
   try {
     const outFile = join(scratch, 'out.prg');
-    // The C64 is no longer one — it has a zero-page budget on the sheet
-    // now — so this asks about a machine that still is. Refused BY NAME,
-    // and naming the machines that do build, rather than a bare "not
-    // implemented" a reader has to go looking to understand.
-    const result = await build(ir, { machine: 'c128', hardware, outFile, frameRate: 60 });
+    // The Commodores are no longer parked — they have zero-page budgets on
+    // the sheet now — so this asks about a machine that still is. Refused
+    // BY NAME, and naming the machines that do build, rather than a bare
+    // "not implemented" a reader has to go looking to understand.
+    const result = await build(ir, { machine: 'mega65', hardware, outFile, frameRate: 60 });
     assert.equal(result.ok, false);
-    assert.match(result.ok ? '' : result.error, /c128/);
+    assert.match(result.ok ? '' : result.error, /mega65/);
     assert.match(result.ok ? '' : result.error, /zero-page budget/);
-    assert.match(result.ok ? '' : result.error, /pet, c64/);
+    assert.match(result.ok ? '' : result.error, /pet, c64, vic20, c128/);
     assert.doesNotMatch(result.ok ? '' : result.error, /not implemented/);
     assert.equal(existsSync(outFile), false);
   } finally {
@@ -1116,6 +1116,12 @@ for (const [machine, registers] of [
   // LDA $9004 / CMP #64 — the VIC-I counts in twos and never approaches a
   // wrap, so one byte decides the half.
   ['vic20', { poll: [0xad, 0x04, 0x90], second: [0xc9, 0x40] }],
+  // The C128's VIC-IIe answers the same two registers the C64's VIC-II
+  // does, and FRAME_SYNC records their ratios identically — so this case
+  // is here to prove that sameness is real rather than assumed, and that
+  // the C128 really does get a raster runtime of its own rather than
+  // falling through to the PET's timer.
+  ['c128', { poll: [0xad, 0x12, 0xd0], second: [0x0d, 0x11, 0xd0] }],
 ] as const) {
   test(`waitFrame() on the ${machine} polls its own raster and carries both regions' per-frame credit`, async () => {
     const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));

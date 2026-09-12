@@ -49,13 +49,13 @@ export const MACHINES = Object.freeze([
  * machine still parses and links. RELEASE_MACHINES is the subset `8bs
  * build` and `8bs run` will actually produce a program for. The native
  * 6502 backend is being brought up one machine at a time — the PET first
- * (the "Hello, PET" roadmap), then the C64 and the VIC-20 — beside the
+ * (the "Hello, PET" roadmap), then the C64, the VIC-20 and the C128 — beside the
  * web's own. A machine joins this list when it can actually build and run
  * a program, not when work on it starts: a package's own emulator tests
  * switch on from here, so listing it early runs them against a machine
  * that cannot boot what they load.
  */
-export const RELEASE_MACHINES = Object.freeze(['pet', 'c64', 'vic20', 'web']);
+export const RELEASE_MACHINES = Object.freeze(['pet', 'c64', 'vic20', 'c128', 'web']);
 
 /** Whether a machine is one this release builds for. */
 export const isReleaseMachine = (machine) => RELEASE_MACHINES.includes(machine);

@@ -233,10 +233,13 @@
           "type": "string",
           "enum": [
             "pet",
+            "c64",
+            "vic20",
+            "c128",
             "web"
           ],
           "default": "pet",
-          "description": "The system the launcher's Run and Build buttons use. Set from the System dropdown in the 8BitScript side bar, or 8BitScript: Select System. 0.2.0 builds for the PET and the web only, so that is the list; the other seven machines return here once their native backends land."
+          "description": "The system the launcher's Run and Build buttons use. Set from the System dropdown in the 8BitScript side bar, or 8BitScript: Select System. This release builds for the PET, the C64, the VIC-20, the C128 and the web, so that is the list; the remaining machines return here once their native backends land."
         },
         "8bitscript.project": {
           "type": "string",
@@ -302,6 +305,9 @@
             "type": "string",
             "enum": [
               "pet",
+              "c64",
+              "vic20",
+              "c128",
               "web"
             ],
             "description": "The system to build for or run on. Required for run and build."
