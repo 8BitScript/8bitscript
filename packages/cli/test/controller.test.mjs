@@ -88,6 +88,9 @@ test('--dir takes the project directory, and says so when it is missing', () => 
   assert.match(parseControllerArgs(['--dir']).error, /--dir expects a directory/);
   // A flag after --dir is a forgotten path, not a directory called --list.
   assert.match(parseControllerArgs(['--dir', '--list']).error, /--dir expects a directory/);
+  // An empty --dir is a shell variable that expanded to nothing, not the
+  // current directory: it is refused the same way a missing one is.
+  assert.match(parseControllerArgs(['--dir', '']).error, /--dir expects a directory/);
 });
 
 test('an unknown option is refused by name rather than ignored', () => {

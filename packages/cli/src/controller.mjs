@@ -638,7 +638,11 @@ export function parseControllerArgs(args) {
     else if (arg === '--no-open') out.open = false;
     else if (arg === '--dir') {
       const value = args[index + 1];
-      if (value === undefined || value.startsWith('-')) {
+      // `!value` rather than `=== undefined`: `args` is typed string[], so a
+      // comparison against undefined reads as always-false even though the
+      // index really can run off the end. An empty --dir is no more a
+      // directory than a missing one, so both take this branch.
+      if (!value || value.startsWith('-')) {
         out.error = '--dir expects a directory';
         return out;
       }

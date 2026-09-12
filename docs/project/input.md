@@ -1,3 +1,8 @@
+---
+title: Controllers, across nine machines
+nav_order: 80
+---
+
 # Controllers, across nine machines
 
 Design direction for 8BitScript's controller layer, written against what the
