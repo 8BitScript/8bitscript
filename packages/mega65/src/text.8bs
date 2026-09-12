@@ -65,9 +65,6 @@ function asciiToScreenCode(code: utinyint): utinyint {
     if (code >= 97 && code < 123) {
         return code - 96; // 'a'-'z'
     }
-    if (code >= 64 && code < 65) {
-        return code - 64; // '@'
-    }
     return code;
 }
 
