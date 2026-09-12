@@ -14,7 +14,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
-import { basicStub } from './basic-stub.ts';
+import { imageFor } from './image.ts';
 import { arrayLabel, buildDataSection } from './data.ts';
 import type { DataArrayGlobal, IrString } from './data.ts';
 import { link } from './link/index.ts';
@@ -23,7 +23,6 @@ import { lower } from './lower/index.ts';
 import type { Directive, FunctionSite, IrFunction } from './lower/index.ts';
 import { instructionBytes } from './asm/encode.ts';
 import { LocalAllocator } from './lower/allocator.ts';
-import { prgBytes } from './prg.ts';
 import { epilogue, prologue, usesDecimalSensitiveMath } from './startup/commodore.ts';
 import { WAIT_FRAME_ZP_BYTES, usesWaitFrame, waitFrameRoutine, waitFrameSetup } from './startup/waitframe.ts';
 import { MULTIPLY_ZP_BYTES, multiplyCells, multiplyRoutine, usesMultiply } from './startup/multiply.ts';
@@ -650,7 +649,10 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   ];
 
 
-  const { bytes: stub, codeStart } = basicStub(loadAddress);
+  // How this machine's programs look as a file — a Commodore .prg with a
+  // BASIC stub, or whatever else the machine boots (mos/image.ts).
+  const image = imageFor(options.machine);
+  const { bytes: stub, codeStart } = image.prelude(loadAddress);
 
   // The ceiling the linker measures against, in one of two spellings. A
   // machine whose usable RAM ends on a whole number of KiB says so with
@@ -682,7 +684,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   const body = new Uint8Array(stub.length + linked.bytes.length);
   body.set(stub, 0);
   body.set(linked.bytes, stub.length);
-  const bytes = prgBytes(loadAddress, body);
+  const bytes = image.file(loadAddress, body, codeStart);
 
   await mkdir(dirname(options.outFile), { recursive: true });
   await writeFile(options.outFile, bytes);
