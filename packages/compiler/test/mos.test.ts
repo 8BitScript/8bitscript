@@ -1103,6 +1103,73 @@ const waitFrameHelloIr: IrProgram = {
   globals: [],
 };
 
+// The raster machines' own frame runtime. The PET measures its frame at
+// start-up against a timer; these two poll a raster counter and pick a
+// per-frame credit from a region probe, so almost none of the PET's own
+// path above is exercised by building for them — and none of theirs by
+// building for it.
+for (const [machine, registers] of [
+  // LDA $D012 then ORA $D011: the 9th raster bit matters on a machine with
+  // more than 256 lines, and $D012 is read first on purpose (FRAME_SYNC's
+  // own note: reading $D011 first opens a race at the wrap).
+  ['c64', { poll: [0xad, 0x12, 0xd0], second: [0x0d, 0x11, 0xd0] }],
+  // LDA $9004 / CMP #64 — the VIC-I counts in twos and never approaches a
+  // wrap, so one byte decides the half.
+  ['vic20', { poll: [0xad, 0x04, 0x90], second: [0xc9, 0x40] }],
+] as const) {
+  test(`waitFrame() on the ${machine} polls its own raster and carries both regions' per-frame credit`, async () => {
+    const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+    try {
+      const resolved = resolveHardware(loadCatalog(machine), {});
+      assert.ok(resolved.ok, resolved.ok ? '' : resolved.error);
+      const sheet = resolved.hardware as unknown as BuildOptions['hardware'];
+      const result = await build(waitFrameHelloIr, { machine, hardware: sheet, outFile: join(scratch, 'out.prg'), frameRate: 60 });
+      assert.equal(result.ok, true, result.ok ? '' : result.error);
+      if (!result.ok) return;
+
+      const code = [...result.bytes];
+      const has = (needle: number[]) => code.some((_, i) => needle.every((b, j) => code[i + j] === b));
+
+      assert.ok(has([...registers.poll]), `${machine}: the raster register is polled`);
+      assert.ok(has([...registers.second]), `${machine}: and the rest of the half-frame test is there`);
+      // Nothing of the PET's: its retrace flag ($E813), the port read that
+      // acknowledges it ($E812), and its Timer 2 calibration ($E848) all
+      // belong to a machine this is not.
+      for (const petOnly of [[0xad, 0x13, 0xe8], [0xad, 0x12, 0xe8], [0x8d, 0x48, 0xe8]]) {
+        assert.equal(has(petOnly), false, `${machine}: nothing of the PET's own frame hardware`);
+      }
+
+      // One .prg runs on a PAL machine and an NTSC one, so both credits are
+      // in the image and the probe picks between them at start-up. Checked
+      // against FRAME_SYNC's own ratios rather than against numbers copied
+      // out of the runtime: those are two tables of the same facts, and
+      // this is what notices if they ever drift apart.
+      const sync = FRAME_SYNC[machine];
+      assert.equal(sync.kind, 'level', `${machine}: FRAME_SYNC says it polls a level`);
+      if (sync.kind !== 'level') return;
+      const credit = (ratio: RatioPair) => Math.round((60 * ratio.num * 1_000_000) / ratio.den);
+      const bytesOf = (n: number) => [n & 0xff, (n >> 8) & 0xff, (n >> 16) & 0xff, (n >>> 24) & 0xff];
+      const pal = credit(sync.pal);
+      const ntsc = credit(sync.ntsc);
+      assert.notEqual(pal, ntsc, `${machine}: the two regions really do differ`);
+      // Each credit reaches its four zero-page cells as four immediates, so
+      // every byte of it is in the image even where a byte is shared.
+      for (const [region, value] of [['PAL', pal], ['NTSC', ntsc]] as const) {
+        for (const byte of bytesOf(value)) {
+          assert.ok(code.includes(byte), `${machine}: ${region} credit byte $${byte.toString(16)}`);
+        }
+        assert.ok(has([0xa9, bytesOf(value)[0]]), `${machine}: ${region} credit is loaded as an immediate`);
+      }
+
+      // The pacing state is the same eight bytes the PET spends: the
+      // accumulator and the credit are shared, only the hardware differs.
+      assert.equal(result.memory.variables, 8, `${machine}: waitFrame()'s own zero page`);
+    } finally {
+      await rm(scratch, { recursive: true, force: true });
+    }
+  });
+}
+
 test('milestone 10 acceptance: waitFrame() before the real HELLO WORLD body builds, links, and reserves exactly its own 8 bytes of zero page', async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
   try {
