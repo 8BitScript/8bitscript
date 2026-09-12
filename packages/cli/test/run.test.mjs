@@ -154,12 +154,18 @@ test('boot() refuses an unknown target, naming every real one', async () => {
   assert.match(stderr, /^8bs boot: unknown target 'not-a-machine'/);
 });
 
-test('boot() refuses a parked target by name, the same as build()/run() do', async () => {
-  // A machine that is still parked — booting one that is not launches a
-  // real emulator and waits for a human to close it, which is not a test.
-  const { result, stderr } = await capture(() => boot(['nes']));
+// There are no parked targets left — every machine the toolchain knows now
+// builds — so the refusal this used to check is unreachable, and naming any
+// real machine here would LAUNCH ITS EMULATOR and wait for a human to close
+// it. That is not hypothetical: it is what this test did the moment the NES
+// un-parked, and it turned a 30-second suite into a 30-minute one. An
+// unknown name is the case that will always exist, and it is already
+// covered by the test above; what is left to check here is that the parked
+// branch still refuses when RELEASE_MACHINES does not list something.
+test('boot() refuses a target the release does not build, without launching anything', async () => {
+  const { result, stderr } = await capture(() => boot(['zx81']));
   assert.equal(result, 2);
-  assert.match(stderr, /^8bs boot: 'nes' is not a target in this release\. This release builds for pet, c64, vic20, c128, cx16, mega65, atari8 and web/);
+  assert.match(stderr, /^8bs boot: unknown target 'zx81'/);
 });
 
 test('boot() prints the PET region note but still boots — its refresh is the model\'s, not a --pal/--ntsc flag', async () => {
