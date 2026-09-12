@@ -200,6 +200,14 @@ export namespace input {
         if (HAS_MOUSE) {
             cia1PortA = MOUSE_PORT_1;
         }
+        // One poll before the program's first, so the edge detector starts
+        // from what is actually held rather than from nothing. `before` is
+        // zero until something fills it, and an edge is "held now, not held
+        // before" — so without this, anything already down when a program
+        // starts reads as a fresh press on frame one. Measured on the
+        // MEGA65, whose RETURN key is down at start-up: the joystick example
+        // counted a confirm() nobody pressed until begin() primed this.
+        input.poll();
     }
 
     // Once a frame, right after waitFrame(), and never twice. The order is
