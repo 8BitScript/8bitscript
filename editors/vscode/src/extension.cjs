@@ -23,6 +23,7 @@ const vscode = require('vscode');
 const { BINARY, findToolchain } = require('./projects.cjs');
 const { registerRunner } = require('./runner.cjs');
 const { registerLauncherView } = require('./launcherView.cjs');
+const { registerControllerView } = require('./controllerView.cjs');
 const { registerLanguageServer } = require('./lsp.cjs');
 
 let server;
@@ -84,7 +85,12 @@ function activate(context) {
     }),
   );
 
-  registerLauncherView(context, registerRunner(context, output));
+  const projects = registerRunner(context, output);
+  registerLauncherView(context, projects);
+  // The Controller Setup panel shares the launcher's view of the world —
+  // which project is selected, and what the toolchain says each machine
+  // has — so it is handed the same Projects rather than building its own.
+  registerControllerView(context, projects);
 
   tryStart();
 }

@@ -1,0 +1,371 @@
+/*
+ * The Controller Setup panel.
+ *
+ * Same rules as launcher.css: every color is one of the editor's own theme
+ * variables, so the page is whatever theme the window is wearing and never
+ * a light card in a dark window; 11px uppercase section labels and 2px
+ * corners, because a webview that invents its own sizes is the thing that
+ * reads as bolted on.
+ *
+ * It is wider than the launcher because it is an editor tab rather than a
+ * side bar, so the page is centred in a column rather than stretched: a
+ * gamepad and a table of eighteen bindings across a 2000px monitor is not
+ * a layout, it is a hazard.
+ */
+/* A `display` of our own outranks the user agent's [hidden] rule, and most
+ * of the blocks on this page are laid out with one. */
+[hidden] { display: none !important; }
+
+body {
+  margin: 0 auto;
+  padding: 16px 20px 28px;
+  max-width: 920px;
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  color: var(--vscode-foreground);
+}
+
+.page-head h1 {
+  margin: 0;
+  font-size: 1.35em;
+  font-weight: 600;
+}
+.lede {
+  margin: 4px 0 0;
+  opacity: 0.8;
+}
+
+.section-label {
+  display: block;
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground));
+  opacity: 0.8;
+}
+h2.section-label { margin-top: 0; }
+.summary-value {
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  opacity: 0.75;
+}
+
+.block {
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid var(--vscode-panel-border, var(--vscode-editorWidget-border, transparent));
+}
+
+/* The thing that has gone wrong, said where it happened. */
+.notice {
+  margin: 14px 0 0;
+  padding: 8px 10px;
+  border-radius: 2px;
+  color: var(--vscode-inputValidation-warningForeground, var(--vscode-foreground));
+  background: var(--vscode-inputValidation-warningBackground, var(--vscode-editorWidget-background));
+  border: 1px solid var(--vscode-inputValidation-warningBorder, transparent);
+}
+.none {
+  margin: 6px 0 0;
+  opacity: 0.7;
+}
+
+/* ---- the detected controllers ------------------------------------------ */
+
+.device {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.device:hover { background: var(--vscode-list-hoverBackground); }
+.device.selected {
+  background: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground);
+  border-color: var(--vscode-focusBorder);
+}
+.device .name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.device .detail {
+  font-size: 11px;
+  opacity: 0.75;
+}
+/* A pad the page can see right now, against one only remembered from the file. */
+.dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--vscode-charts-green, var(--vscode-testing-iconPassed, currentColor));
+}
+.dot.away {
+  background: none;
+  border: 1px solid currentColor;
+  opacity: 0.5;
+}
+
+select {
+  box-sizing: border-box;
+  padding: 3px 6px;
+  font: inherit;
+  color: var(--vscode-dropdown-foreground);
+  background: var(--vscode-dropdown-background);
+  border: 1px solid var(--vscode-dropdown-border, transparent);
+  border-radius: 2px;
+}
+select:focus { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+select:disabled { opacity: 0.5; }
+
+button.wide, button.small {
+  font: inherit;
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+  padding: 4px 12px;
+}
+button.small { padding: 2px 8px; font-size: 11px; }
+button.secondary {
+  color: var(--vscode-button-secondaryForeground);
+  background: var(--vscode-button-secondaryBackground);
+}
+button.secondary:hover { background: var(--vscode-button-secondaryHoverBackground); }
+button.wide:focus-visible,
+button.small:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; }
+button.wide:disabled, button.small:disabled { opacity: 0.45; cursor: default; }
+button.link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  font: inherit;
+  color: var(--vscode-textLink-foreground);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+button.link:hover { color: var(--vscode-textLink-activeForeground); text-decoration: underline; }
+
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0;
+}
+
+/* ---- the pad ------------------------------------------------------------ */
+
+.pad-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 6px 0 2px;
+}
+#pad {
+  width: 100%;
+  max-width: 420px;
+  height: auto;
+}
+#pad .body {
+  fill: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  stroke: var(--vscode-panel-border, var(--vscode-foreground));
+  stroke-width: 1.5;
+  opacity: 0.95;
+}
+#pad .hit {
+  fill: var(--vscode-button-secondaryBackground, var(--vscode-editor-background));
+  stroke: var(--vscode-foreground);
+  stroke-width: 1;
+  opacity: 0.75;
+  cursor: pointer;
+}
+#pad .hit:hover { opacity: 1; stroke: var(--vscode-focusBorder); }
+#pad .dpad-centre {
+  fill: var(--vscode-button-secondaryBackground, var(--vscode-editor-background));
+  stroke: var(--vscode-foreground);
+  stroke-width: 1;
+  opacity: 0.75;
+}
+/* Lit: this physical control is being pressed right now. */
+#pad .hit.on {
+  fill: var(--vscode-charts-green, var(--vscode-button-background));
+  stroke: var(--vscode-charts-green, var(--vscode-button-background));
+  opacity: 1;
+}
+/* Bound to something, so it has a name — a quieter state than lit. */
+#pad .hit.bound { stroke: var(--vscode-charts-blue, var(--vscode-focusBorder)); stroke-width: 1.75; }
+/* Waiting for this one to be pressed, in a walkthrough or a click-to-bind. */
+#pad .hit.asking {
+  fill: var(--vscode-button-background);
+  stroke: var(--vscode-focusBorder);
+  stroke-width: 2;
+  opacity: 1;
+}
+#pad .knob {
+  fill: var(--vscode-foreground);
+  opacity: 0.55;
+  pointer-events: none;
+}
+#pad .cap, #pad .micro {
+  fill: var(--vscode-foreground);
+  text-anchor: middle;
+  pointer-events: none;
+  font-family: var(--vscode-font-family);
+}
+#pad .cap { font-size: 13px; font-weight: 600; }
+#pad .micro { font-size: 7px; letter-spacing: 0.08em; opacity: 0.7; }
+
+.prompt {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-radius: 2px;
+  text-align: center;
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
+}
+
+/* ---- the binding table -------------------------------------------------- */
+
+table.bindings {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+table.bindings tr.group td {
+  padding-top: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+table.bindings td {
+  padding: 2px 6px 2px 0;
+  vertical-align: middle;
+}
+table.bindings tr.asking { background: var(--vscode-list-activeSelectionBackground); }
+table.bindings td.binding {
+  font-family: var(--vscode-editor-font-family, monospace);
+  opacity: 0.85;
+}
+table.bindings td.binding.unbound { opacity: 0.5; font-style: italic; }
+/* The bar that shows what a binding is reading this frame. */
+.meter {
+  position: relative;
+  width: 72px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  border: 1px solid var(--vscode-panel-border, transparent);
+  overflow: hidden;
+}
+.meter > span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--vscode-charts-green, var(--vscode-button-background));
+}
+
+/* ---- the live view ------------------------------------------------------ */
+
+.live { display: flex; flex-wrap: wrap; gap: 14px; }
+.live .group { min-width: 200px; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.chip {
+  padding: 1px 6px;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 11px;
+  border-radius: 2px;
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  border: 1px solid var(--vscode-panel-border, transparent);
+  opacity: 0.6;
+}
+.chip.on {
+  opacity: 1;
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-charts-green, var(--vscode-button-background));
+  border-color: transparent;
+}
+.axis-row { display: flex; align-items: center; gap: 6px; margin-top: 3px; font-size: 11px; }
+.axis-row .n { width: 3.5em; font-family: var(--vscode-editor-font-family, monospace); opacity: 0.8; }
+/* A signed axis draws from the centre out, so a resting stick is a dot. */
+.axis-bar {
+  position: relative;
+  flex: 1;
+  max-width: 220px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  border: 1px solid var(--vscode-panel-border, transparent);
+  overflow: hidden;
+}
+.axis-bar > span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--vscode-charts-blue, var(--vscode-button-background));
+}
+
+/* ---- the per-machine preview -------------------------------------------- */
+
+details.preview > summary { cursor: pointer; list-style: revert; }
+details.preview > summary .section-label { display: inline; }
+table.preview {
+  width: 100%;
+  margin-top: 8px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+table.preview th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.7;
+  padding: 2px 8px 4px 0;
+}
+table.preview td {
+  padding: 3px 8px 3px 0;
+  vertical-align: top;
+  border-top: 1px solid var(--vscode-panel-border, transparent);
+}
+table.preview td.machine { white-space: nowrap; font-weight: 600; }
+table.preview td.ports { white-space: nowrap; opacity: 0.8; }
+table.preview .ok { color: var(--vscode-charts-green, var(--vscode-foreground)); }
+table.preview .gap { color: var(--vscode-charts-red, var(--vscode-errorForeground)); }
+table.preview .note { opacity: 0.7; font-style: italic; }
+
+/* The config block, offered to paste. */
+#config-block {
+  margin: 8px 0;
+  padding: 8px 10px;
+  overflow-x: auto;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 12px;
+  line-height: 1.45;
+  border-radius: 2px;
+  background: var(--vscode-textCodeBlock-background, var(--vscode-editorWidget-background));
+  border: 1px solid var(--vscode-panel-border, transparent);
+}
+
+.hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 24px;
+  font-size: 11px;
+  opacity: 0.8;
+}
+.hint code {
+  font-family: var(--vscode-editor-font-family, monospace);
+}
