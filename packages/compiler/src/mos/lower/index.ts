@@ -1652,6 +1652,23 @@ class Lowerer {
       case 'call':
         this.callSite(node);
         return null;
+      // `memory.read(addr);` as a statement, with the byte thrown away.
+      // The natural reading of that is dead code; on these machines it is
+      // the opposite, because a read of a hardware register IS an action
+      // and the value is not what the program wanted. Two in this
+      // workspace, both load-bearing: @8bitscript/nes's setVramAddress()
+      // reads PPUSTATUS ($2002) because that read is what resets the PPU's
+      // shared address/scroll write toggle, so the two PPUADDR writes that
+      // follow land as a fresh address instead of as the second half of
+      // whatever came before; and the PET's own retrace flag is
+      // acknowledged by reading PIA1 port B (mos/startup/waitframe.ts
+      // emits that one directly, but packages/pet/src/index.8bs documents
+      // the same protocol for a program to use). So this lowers to exactly
+      // the load memoryRead's expression form emits — leaving the byte in
+      // A for nobody — and is never elided.
+      case 'memoryRead':
+        this.memoryRead(node as IrExpr);
+        return null;
       // Blocks until the next logical frame — the accumulator, the
       // calibrated measurement, and the hardware edge poll/ack all live in
       // the shared subroutine every call site JSRs to (mos/startup/

@@ -160,6 +160,22 @@ interface RasterSync {
   /** Seconds per frame, exactly, as the integer fraction mos/index.ts's FRAME_SYNC records. */
   pal: { num: number; den: number };
   ntsc: { num: number; den: number };
+  /**
+   * True on a machine whose OS must stay alive underneath the program, so
+   * setup must NOT disable interrupts. Every Commodore here does the
+   * opposite — a waitFrame() program has already taken the machine, and
+   * the SEI is what makes the widened zero-page budget safe — which is why
+   * the flag is named for the exception rather than for the rule. The
+   * Atari 8-bit is that exception: its OS's vertical-blank routine is what
+   * copies the color shadows @8bitscript/atari8/screen writes onto the
+   * hardware, and it is the OS that maintains SAVMSC, which every run of
+   * text on that machine reads to find screen memory. Silencing it would
+   * break the picture the pacing exists to serve. Polling is unaffected:
+   * the half-frame window (thousands of cycles, mos/index.ts's FRAME_SYNC
+   * comment) is far too wide for an interrupt handler to hide a wrap
+   * inside.
+   */
+  keepsInterrupts?: boolean;
 }
 
 const RASTER: Partial<Record<Machine, RasterSync>> = {
@@ -235,7 +251,50 @@ const RASTER: Partial<Record<Machine, RasterSync>> = {
     pal: { num: 312 * 71 * 4, den: 4433618 },
     ntsc: { num: 261 * 65 * 14, den: 14318181 },
   },
+  // ANTIC's VCOUNT ($D40B) is the VIC-I's $9004 in every way this runtime
+  // cares about, which is why this entry is the VIC-20's with two numbers
+  // changed and one flag added. It is a live half-line counter — `ypos >> 1`,
+  // per packages/atari8/AGENTS.md's atari800-timing row — so it steps once
+  // per two scan lines and tops out near 131 (262 NTSC lines) or 156 (312
+  // PAL). Both are far below a byte's wrap, so one unsynchronized read
+  // decides the half with no 9th bit to fetch and no read-order race to
+  // avoid, and the VIC-20's own thresholds carry over exactly: < 64 is the
+  // top half on either region, and >= 140 is a line only a PAL frame ever
+  // reaches. mos/index.ts's FRAME_SYNC.atari8 states the same two numbers;
+  // this is the assembly of that entry, and image-atari8.test.ts checks
+  // the two tables against each other rather than trusting either alone.
+  //
+  // The alternative was RTCLOK ($12-$14), the OS's own vertical-blank frame
+  // counter. VCOUNT wins for two reasons that are facts rather than taste:
+  // RTCLOK is only maintained while the OS's VBI runs, which makes the
+  // runtime depend on an OS service where this one depends on a chip; and
+  // it is a 24-bit counter whose low byte ($14) rolls over every 256
+  // frames, so a naive poll of one byte has an edge case that a live line
+  // counter simply does not have.
+  atari8: {
+    topHalf: [ldaAbs(0xd40b), instr('CMP', 'immediate', 64)],
+    whenTop: 'BCC',
+    whenNotTop: 'BCS',
+    palProbe: (target: string) => [ldaAbs(0xd40b), instr('CMP', 'immediate', 140), branch('BCS', target)],
+    // FRAME_SYNC.atari8's own pair: ANTIC's fixed 114 CPU cycles per scan
+    // line times the region's line count, over the nominal Atari CPU clock.
+    // Documented nominal figures, not crystal-derived the way the
+    // Commodore ratios above are — FRAME_SYNC says so in its own comment.
+    pal: { num: 312 * 114, den: 1773447 },
+    ntsc: { num: 262 * 114, den: 1789790 },
+    keepsInterrupts: true,
+  },
 };
+
+/**
+ * True when this machine's frame runtime must leave interrupts ENABLED —
+ * the Atari 8-bit's live OS (see RasterSync.keepsInterrupts). mos/index.ts
+ * asks, because it emits its own SEI ahead of the global initializers for
+ * the same reason rasterSetup() emits one, and the two have to agree.
+ */
+export function waitFrameKeepsInterrupts(machine: Machine): boolean {
+  return RASTER[machine]?.keepsInterrupts === true;
+}
 
 // ---- the machine that polls a flag instead of a raster --------------------
 //
@@ -248,24 +307,47 @@ const RASTER: Partial<Record<Machine, RasterSync>> = {
 // is exactly DEN, so one VSYNC is one logical frame and the accumulator
 // never carries anything between frames (packages/cx16/AGENTS.md says the
 // same about this runtime).
+// The NES is the second, and the same shape for a different reason: it has
+// no live raster counter a program can read either (the PPU exposes its
+// position to nothing but itself), but PPUSTATUS bit 7 rises at the start
+// of every vertical blank. It needs no calibration because its clock is
+// documented exactly and no region split is supported here (FRAME_SYNC.nes),
+// and it needs no separate acknowledgement at all, because READING
+// PPUSTATUS is what clears the bit — the poll is its own ack, which is why
+// FRAME_SYNC.nes's `ack` is the empty string.
 interface FlagSync {
-  /** Polls until the flag is set, then acknowledges it. */
-  wait: Directive[];
+  /**
+   * Polls until the flag is set, then acknowledges it. A function of a
+   * `tag` rather than a fixed array: the labels have to be unique, and
+   * this wait is emitted in two places on the NES — inside waitFrame()'s
+   * own routine, and again in the halt loop main() ends in (mos/index.ts),
+   * where the queue still has to be delivered after the program is over.
+   */
+  wait: (tag: string) => Directive[];
   /** Seconds per frame, exactly. */
   ratio: { num: number; den: number };
 }
 
 const VERA_ISR = 0x9f27;
+const PPU_STATUS = 0x2002; // bit 7: in vertical blank. Cleared by this very read.
 
 const FLAG: Partial<Record<Machine, FlagSync>> = {
   cx16: {
-    wait: [],           // filled in below, where the label helper is in scope
+    wait: veraVsyncWait,
     ratio: { num: 1, den: 60 },
+  },
+  nes: {
+    wait: ppuVerticalBlankWait,
+    // FRAME_SYNC.nes's own pair: 59561 CPU cycles per two frames against
+    // twice the documented 1789773Hz clock — 60.0985Hz, NESdev's NTSC
+    // figure. Kept as the same fraction rather than reduced so the two
+    // tables can be read against each other.
+    ratio: { num: 59561, den: 2 * 1789773 },
   },
 };
 
-function flagWait(): Directive[] {
-  const poll = `${WAIT_FRAME_LABEL}_vsync`;
+function veraVsyncWait(tag: string): Directive[] {
+  const poll = `${tag}_vsync`;
   return [
     label(poll),
     ldaAbs(VERA_ISR), instr('AND', 'immediate', 0x01), branch('BEQ', poll),
@@ -273,6 +355,35 @@ function flagWait(): Directive[] {
     // left alone, which is why this writes $01 rather than the byte it read.
     ldaImm(0x01), staAbs(VERA_ISR),
   ];
+}
+
+function ppuVerticalBlankWait(tag: string): Directive[] {
+  const poll = `${tag}_vblank`;
+  return [
+    // One read, tested through the N flag the load itself set from bit 7 —
+    // no AND, and no separate acknowledgement afterwards: the read cleared
+    // the flag, so the next call to this waits for the next real edge and
+    // not for a flag still standing from the last one.
+    label(poll),
+    ldaAbs(PPU_STATUS), branch('BPL', poll),
+  ];
+}
+
+/**
+ * The instructions that block until `machine`'s once-a-frame hardware
+ * edge, acknowledged — or null for a machine that has no such flag to
+ * poll (the raster machines watch a counter instead, and the PET's PIA
+ * edge is waitFrameRoutine's own business). `tag` names the labels, so the
+ * same wait can be emitted more than once in one program.
+ *
+ * Exported for mos/index.ts's halt loop: on a machine the hardware starts
+ * (mos/image.ts's `entryIsVectored`) main() ending cannot return anywhere,
+ * and on the NES it must not simply spin either — the picture is delivered
+ * at vertical blank by a hook that has to keep being called.
+ */
+export function frameEdgeWait(machine: Machine, tag: string): Directive[] | null {
+  const flag = FLAG[machine];
+  return flag ? flag.wait(tag) : null;
 }
 
 /** Logical frames owed per hardware frame, scaled by DEN — `frameRate` seconds-per-frame, as an integer. */
@@ -300,7 +411,11 @@ function rasterSetup(frameRate: number, acc: number, num: number, sync: RasterSy
   const isPal = '__8bs_wf_probe_pal';
   const done = '__8bs_wf_probe_done';
 
-  out.push(instr('SEI', 'implied'));
+  // Interrupts off while the region is probed and for the rest of the
+  // program — except on a machine whose OS has to survive it (see
+  // RasterSync.keepsInterrupts, and mos/index.ts's own matching gate on
+  // the SEI it emits ahead of the global initializers).
+  if (!sync.keepsInterrupts) out.push(instr('SEI', 'implied'));
   out.push(ldaImm(0), staZp(acc), staZp(acc + 1), staZp(acc + 2), staZp(acc + 3));
 
   out.push(instr('LDY', 'immediate', 16), label(outer), instr('LDX', 'immediate', 0), label(inner));
@@ -404,7 +519,7 @@ export function waitFrameSetup(frameRate: number, acc: number, num: number, mach
  * relative with a signed 8-bit range, and this shape keeps every one of
  * them well inside it by construction, not by measuring after the fact.
  */
-export function waitFrameRoutine(acc: number, num: number, machine: Machine = 'pet'): Directive[] {
+export function waitFrameRoutine(acc: number, num: number, machine: Machine = 'pet', frameHookLabel: string | null = null): Directive[] {
   const sync = RASTER[machine];
   const flag = FLAG[machine];
   const out: Directive[] = [];
@@ -434,12 +549,23 @@ export function waitFrameRoutine(acc: number, num: number, machine: Machine = 'p
   if (sync) {
     out.push(...rasterWait(sync));
   } else if (flag) {
-    out.push(...flagWait());
+    out.push(...flag.wait(WAIT_FRAME_LABEL));
   } else {
     out.push(label(POLL));
     out.push(ldaAbs(CB1_FLAG), instr('AND', 'immediate', 0x80), branch('BEQ', POLL));
     out.push(ldaAbs(PIA1_PORT_B)); // ack — packages/pet/src/index.8bs's own documented side effect
   }
+  // The frame hook, if this machine's package defines one (FRAME_SYNC's own
+  // `frameHook` field, and mos/index.ts is what resolves the name to a
+  // label): work the machine can only do in the few thousand cycles
+  // between the edge just seen and the picture resuming. The NES is the
+  // one machine here that has such a hook — its VRAM belongs to the PPU at
+  // every other moment, so @8bitscript/nes queues a program's screen
+  // writes and `nesVerticalBlank()` is what actually performs them. It runs
+  // FIRST, before the accumulator is touched, because its budget is the
+  // blank it is standing in and every instruction spent before it is a
+  // byte of the queue that may not fit.
+  if (frameHookLabel) out.push(instr('JSR', 'absolute', undefined, frameHookLabel));
   out.push(...add32(acc, num));
   out.push(jmp(LOOP));
 

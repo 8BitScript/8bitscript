@@ -32,7 +32,21 @@
 // that ships today wants and what the tests measure byte for byte.
 import { basicStub } from './basic-stub.ts';
 import { prgBytes } from './prg.ts';
+import { ATARI8 } from './image-atari8.ts';
+import { NES } from './image-nes.ts';
 import type { Machine } from './index.ts';
+
+/**
+ * Everything a format may need that is neither the code nor an address.
+ * One field so far: the `"8bitscript".native` files the linked program's
+ * own packages contributed (linker/index.mjs's `nativeSources`), which a
+ * `.prg` ignores and a `.nes` cannot be built without — the NES has no
+ * character ROM, so the tile patterns @8bitscript/nes ships as
+ * `native/6502/font.s` are part of the FILE rather than part of the code.
+ */
+export interface ImageExtras {
+  nativeSources: string[];
+}
 
 export interface MachineImage {
   /**
@@ -46,9 +60,32 @@ export interface MachineImage {
    * joined; `codeStart` is where the code sits, which a format whose
    * hardware jumps to an address needs and a `.prg` ignores.
    */
-  file(loadAddress: number, body: Uint8Array, codeStart: number): Uint8Array;
+  file(loadAddress: number, body: Uint8Array, codeStart: number, extras: ImageExtras): Uint8Array;
   /** True when the machine starts the program itself, so there is no loader to return to. */
   entryIsVectored: boolean;
+  /**
+   * Whether the image's own bytes ARE the program's RAM once it is
+   * running. True (the default, and every loaded format's answer) means a
+   * mutable array can ride inside the image and be initialized by the load
+   * itself — mos/zp/index.ts's own note on why no array reaches the
+   * zero-page allocator. False means the image is a ROM: writing an array
+   * that lives in it does nothing at all, silently, so build() places
+   * mutable arrays in the RAM window the sheet names with
+   * `__bss_origin`/`__bss_ceiling` instead, and clears them at start-up.
+   */
+  writableImage?: boolean;
+  /**
+   * Whether `main()` ending must STOP the 6502 rather than RTS. Implied by
+   * `entryIsVectored` — a machine that vectored into the entry pushed no
+   * return address, so there is nothing to RTS to — but not the same
+   * question, which is why it is its own field: the Atari 8-bit's DOS loader
+   * really does JSR through RUNAD, so its RTS is safe and lands somewhere
+   * real. It is where it lands that is the problem (see image-atari8.ts),
+   * and that is a fact about the machine's software, not about how it was
+   * entered. Default (undefined) is "no": every Commodore here returns to
+   * BASIC's `READY.` with its picture still on the screen.
+   */
+  endsByHalting?: boolean;
 }
 
 /** Load address, BASIC stub, `SYS` — every Commodore this backend builds. */
@@ -64,11 +101,14 @@ export const COMMODORE: MachineImage = {
 };
 
 /**
- * Per machine, where it differs from COMMODORE. Empty until a machine that
- * is not a Commodore builds — the NES and the Atari 8-bit are what this is
- * for, and each is its own entry rather than a branch inside build().
+ * Per machine, where it differs from COMMODORE. One entry per machine that
+ * is not a Commodore — the NES and the Atari 8-bit are what this is for,
+ * and each is its own entry rather than a branch inside build().
  */
-export const IMAGE: Partial<Record<Machine, MachineImage>> = {};
+export const IMAGE: Partial<Record<Machine, MachineImage>> = {
+  atari8: ATARI8,
+  nes: NES,
+};
 
 /** The image a machine is built as — COMMODORE unless it says otherwise. */
 export function imageFor(machine: Machine): MachineImage {
