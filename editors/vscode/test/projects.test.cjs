@@ -240,7 +240,9 @@ function checkout(root) {
     version: '0.0.0',
     '8bitscript': { app: { title: 'Studio', entry: './src/main.8bs' } },
   }));
-  write(path.join(repo, 'packages', 'studio', '8bs.config.ts'), "export default { targets: ['cx16', 'pet'] };");
+  // 'nes' is here to be dropped: the fixture proves parked names are
+  // filtered out, so it has to name one that still is parked.
+  write(path.join(repo, 'packages', 'studio', '8bs.config.ts'), "export default { targets: ['nes', 'pet'] };");
   write(path.join(repo, 'packages', 'text', 'package.json'), JSON.stringify({ name: '@8bitscript/text' }));
   write(path.join(repo, 'packages', 'examples', 'package.json'), JSON.stringify({
     name: '@8bitscript/examples',

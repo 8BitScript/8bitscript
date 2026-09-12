@@ -186,6 +186,23 @@ const RASTER: Partial<Record<Machine, RasterSync>> = {
     pal: { num: 312 * 63 * 18, den: 17734472 },
     ntsc: { num: 263 * 65 * 14, den: 14318181 },
   },
+  // The MEGA65's VIC-IV answers $D011/$D012 the same way for this purpose,
+  // and FRAME_SYNC records its ratios identically to the C64's.
+  mega65: {
+    topHalf: [ldaAbs(0xd012), instr('ORA', 'absolute', 0xd011), instr('AND', 'immediate', 0x80)],
+    whenTop: 'BEQ',
+    whenNotTop: 'BNE',
+    palProbe: (target: string) => {
+      const skip = `${target}_skip`;
+      return [
+        ldaAbs(0xd011), instr('AND', 'immediate', 0x80), branch('BEQ', skip),
+        ldaAbs(0xd012), instr('CMP', 'immediate', 32), branch('BCS', target),
+        label(skip),
+      ];
+    },
+    pal: { num: 312 * 63 * 18, den: 17734472 },
+    ntsc: { num: 263 * 65 * 14, den: 14318181 },
+  },
   // The C128's VIC-IIe, in the 40-column mode this target boots into, is
   // the C64's VIC-II for this purpose: the same two registers, the same
   // 9-bit raster, and the same frame as an exact fraction of the same
@@ -219,6 +236,44 @@ const RASTER: Partial<Record<Machine, RasterSync>> = {
     ntsc: { num: 261 * 65 * 14, den: 14318181 },
   },
 };
+
+// ---- the machine that polls a flag instead of a raster --------------------
+//
+// The X16 has neither the PET's problem nor the raster machines'. VERA
+// raises a VSYNC bit in its ISR at the top of every frame and the bit is
+// acknowledged by writing it back, which is an edge the way the PET's
+// retrace flag is an edge — but unlike the PET it needs no calibration,
+// because the X16's frame is exactly 1/60th of a second on every machine
+// there is. No region probe, and at the default frameRate of 60 the credit
+// is exactly DEN, so one VSYNC is one logical frame and the accumulator
+// never carries anything between frames (packages/cx16/AGENTS.md says the
+// same about this runtime).
+interface FlagSync {
+  /** Polls until the flag is set, then acknowledges it. */
+  wait: Directive[];
+  /** Seconds per frame, exactly. */
+  ratio: { num: number; den: number };
+}
+
+const VERA_ISR = 0x9f27;
+
+const FLAG: Partial<Record<Machine, FlagSync>> = {
+  cx16: {
+    wait: [],           // filled in below, where the label helper is in scope
+    ratio: { num: 1, den: 60 },
+  },
+};
+
+function flagWait(): Directive[] {
+  const poll = `${WAIT_FRAME_LABEL}_vsync`;
+  return [
+    label(poll),
+    ldaAbs(VERA_ISR), instr('AND', 'immediate', 0x01), branch('BEQ', poll),
+    // Writing the bit back is what clears it; anything else in the ISR is
+    // left alone, which is why this writes $01 rather than the byte it read.
+    ldaImm(0x01), staAbs(VERA_ISR),
+  ];
+}
 
 /** Logical frames owed per hardware frame, scaled by DEN — `frameRate` seconds-per-frame, as an integer. */
 function frameCredit(frameRate: number, ratio: { num: number; den: number }): number {
@@ -261,6 +316,14 @@ function rasterSetup(frameRate: number, acc: number, num: number, sync: RasterSy
   return out;
 }
 
+/** Zero the accumulator and take this machine's fixed per-frame credit — there is no region to find out about. */
+function flagSetup(frameRate: number, acc: number, num: number, sync: FlagSync): Directive[] {
+  const out: Directive[] = [instr('SEI', 'implied')];
+  out.push(ldaImm(0), staZp(acc), staZp(acc + 1), staZp(acc + 2), staZp(acc + 3));
+  out.push(...storeNum(num, frameCredit(frameRate, sync.ratio)));
+  return out;
+}
+
 /** Blocks until the raster leaves the top half of the frame and comes back to it. */
 function rasterWait(sync: RasterSync): Directive[] {
   const leaving = `${WAIT_FRAME_LABEL}_leaving`;
@@ -274,6 +337,8 @@ function rasterWait(sync: RasterSync): Directive[] {
 export function waitFrameSetup(frameRate: number, acc: number, num: number, machine: Machine = 'pet'): Directive[] {
   const sync = RASTER[machine];
   if (sync) return rasterSetup(frameRate, acc, num, sync);
+  const flag = FLAG[machine];
+  if (flag) return flagSetup(frameRate, acc, num, flag);
   const out: Directive[] = [];
   const waitEdge = (tag: string) => {
     const poll = `__8bs_wf_setup_${tag}`;
@@ -341,6 +406,7 @@ export function waitFrameSetup(frameRate: number, acc: number, num: number, mach
  */
 export function waitFrameRoutine(acc: number, num: number, machine: Machine = 'pet'): Directive[] {
   const sync = RASTER[machine];
+  const flag = FLAG[machine];
   const out: Directive[] = [];
   const GE = `${WAIT_FRAME_LABEL}_ge`;
   const WAIT = `${WAIT_FRAME_LABEL}_wait`;
@@ -367,6 +433,8 @@ export function waitFrameRoutine(acc: number, num: number, machine: Machine = 'p
   out.push(label(WAIT));
   if (sync) {
     out.push(...rasterWait(sync));
+  } else if (flag) {
+    out.push(...flagWait());
   } else {
     out.push(label(POLL));
     out.push(ldaAbs(CB1_FLAG), instr('AND', 'immediate', 0x80), branch('BEQ', POLL));

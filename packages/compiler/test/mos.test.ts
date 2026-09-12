@@ -467,11 +467,11 @@ test('build() for a parked machine says so, names the machine, and writes nothin
     // the sheet now — so this asks about a machine that still is. Refused
     // BY NAME, and naming the machines that do build, rather than a bare
     // "not implemented" a reader has to go looking to understand.
-    const result = await build(ir, { machine: 'mega65', hardware, outFile, frameRate: 60 });
+    const result = await build(ir, { machine: 'nes', hardware, outFile, frameRate: 60 });
     assert.equal(result.ok, false);
-    assert.match(result.ok ? '' : result.error, /mega65/);
+    assert.match(result.ok ? '' : result.error, /nes/);
     assert.match(result.ok ? '' : result.error, /zero-page budget/);
-    assert.match(result.ok ? '' : result.error, /pet, c64, vic20, c128/);
+    assert.match(result.ok ? '' : result.error, /pet, c64, vic20, c128, cx16, mega65/);
     assert.doesNotMatch(result.ok ? '' : result.error, /not implemented/);
     assert.equal(existsSync(outFile), false);
   } finally {

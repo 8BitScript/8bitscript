@@ -167,18 +167,37 @@ const VIC20_ZP_BUDGET = { zpOrigin: 0xf7, zpCeiling: 0xff };
 // same row of AGENTS.md records it.
 const C128_ZP_BUDGET = { zpOrigin: 0x0a, zpCeiling: 0x100 };
 
+// The X16 is the one machine here with a zero-page window meant for a
+// program rather than borrowed from a ROM: $00-$21 is the KERNAL's and
+// BASIC's, $22-$7F is the user's, and $80 up is the KERNAL's again — which
+// is why packages/cx16/AGENTS.md can say of the mouse KERNAL's $80-$84
+// that it is "past BASIC's zero-page end, so a linker will not put a
+// variable there". Ninety-four bytes, and nothing has to be taken from
+// anyone to get them.
+const CX16_ZP_BUDGET = { zpOrigin: 0x22, zpCeiling: 0x80 };
+
+// The MEGA65's own start-up (packages/mega65/AGENTS.md's start-up row)
+// disables interrupts at _start and keeps them off until exit, so a
+// program here already owns the machine while it runs. $00/$01 are the
+// port; everything above is the program's. Nothing in the workspace
+// documents a free window inside BASIC 10's own zero page the way the
+// X16's is documented, so this does not pretend to one.
+const MEGA65_ZP_BUDGET = { zpOrigin: 0x02, zpCeiling: 0x100 };
+
 // Per machine: the budget a program that returns to BASIC may take, and
 // the one a program that never does may take. The second is the whole page
 // on every Commodore here, for the same reason each time — interrupts off,
 // the interpreter never resumed — so only the polite one really differs.
-/** The machines whose waitFrame() polls a raster (mos/startup/waitframe.ts's own RASTER). */
-const RASTER_MACHINES = new Set<Machine>(['c64', 'vic20', 'c128']);
+/** The machines with a waitFrame() runtime of their own (mos/startup/waitframe.ts: a raster poll, or the X16's VSYNC flag). */
+const RASTER_MACHINES = new Set<Machine>(['c64', 'vic20', 'c128', 'cx16', 'mega65']);
 
 const ZP_BUDGETS: Partial<Record<Machine, { polite: { zpOrigin: number; zpCeiling: number }; owned: { zpOrigin: number; zpCeiling: number } }>> = {
   pet: { polite: PET_ZP_BUDGET, owned: PET_OWNED_ZP_BUDGET },
   c64: { polite: C64_ZP_BUDGET, owned: C64_ZP_BUDGET },
   vic20: { polite: VIC20_ZP_BUDGET, owned: PET_OWNED_ZP_BUDGET },
   c128: { polite: C128_ZP_BUDGET, owned: C128_ZP_BUDGET },
+  cx16: { polite: CX16_ZP_BUDGET, owned: CX16_ZP_BUDGET },
+  mega65: { polite: MEGA65_ZP_BUDGET, owned: MEGA65_ZP_BUDGET },
 };
 
 function chrgetZpHoles(facts: Record<string, unknown>, budget: { zpOrigin: number; zpCeiling: number }): ZpHole[] {
@@ -598,8 +617,26 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // not merely inside waitFrameSetup (whose own SEI stays, harmlessly,
   // for the setup's documented flag-race reason).
   const ownMachineProgram: Directive[] = needsWaitFrame ? [{ kind: 'instruction', mnemonic: 'SEI', mode: 'implied' }] : [];
+
+  // The X16 boots its screen editor in PETSCII, where a tile index is a
+  // PETSCII screen code and 'A' is 1. @8bitscript/cx16/text writes ASCII
+  // straight through to VERA instead — `text.putChar` takes ASCII on every
+  // machine, and on this one the hardware can take it directly — which is
+  // true only in ISO mode, where the tile index IS the character code.
+  // CHR$(15) through CHROUT is what switches it, and the KERNAL clears the
+  // screen as part of the switch, so it has to happen before anything is
+  // drawn. packages/cx16/src/index.8bs describes both consequences at
+  // length and notes that the native backend did not emit this yet; this is
+  // it. Two instructions, and only on the machine that needs them.
+  const isoModeProgram: Directive[] = options.machine === 'cx16'
+    ? [
+      { kind: 'instruction', mnemonic: 'LDA', mode: 'immediate', operand: { kind: 'value', value: 0x0f } },
+      { kind: 'instruction', mnemonic: 'JSR', mode: 'absolute', operand: { kind: 'value', value: 0xffd2 } },
+    ]
+    : [];
   const combinedProgram: Directive[] = [
     ...prologue(needsCld),
+    ...isoModeProgram,
     ...ownMachineProgram,
     ...globalInitProgram,
     ...waitFrameSetupProgram,
@@ -661,7 +698,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
       { name: '(string/const-array data)', bytes: directiveBytes(dataSection) },
       // +2: the load address prgBytes() prepends ahead of `stub` itself —
       // every real .prg's first two bytes, not counted in stub.length.
-      { name: '(load address + BASIC stub + prologue/epilogue)', bytes: 2 + stub.length + directiveBytes(prologue(needsCld)) + directiveBytes(ownMachineProgram) + directiveBytes(epilogue()) },
+      { name: '(load address + BASIC stub + prologue/epilogue)', bytes: 2 + stub.length + directiveBytes(prologue(needsCld)) + directiveBytes(isoModeProgram) + directiveBytes(ownMachineProgram) + directiveBytes(epilogue()) },
     );
     sizeReport = entries.filter((e) => e.bytes > 0).sort((a, b) => b.bytes - a.bytes);
   }

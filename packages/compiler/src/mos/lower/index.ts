@@ -751,11 +751,45 @@ class Lowerer {
     if (operator === '<<' || operator === '>>') {
       return this.shift16(node);
     }
+    if (operator === '&' || operator === '|' || operator === '^') {
+      return this.bitwise16(node);
+    }
     if (operator !== '+' && operator !== '-') {
-      throw new LowerError(`no 16-bit instruction-selection rule yet for the '${operator}' operator — only +, -, *, and constant-amount shifts are lowered at 16 bits`);
+      throw new LowerError(`no 16-bit instruction-selection rule yet for the '${operator}' operator — only +, -, *, bitwise &/|/^, and constant-amount shifts are lowered at 16 bits`);
     }
     const result = this.alloc16(`a temporary for 16-bit '${operator}'`);
     this.addSub16Into(node, result);
+    return result;
+  }
+
+  /**
+   * `&`, `|` and `^` at 16 bits: a byte at a time, which is all a bitwise
+   * operation ever is — there is no carry between the halves the way an
+   * add has one, so the low and high bytes are independent and neither
+   * order nor overlap can go wrong.
+   *
+   * A constant side reads as two immediates, the same saving
+   * addSub16Into's own constant case makes. `cell % 256` arrives here as
+   * `cell & 255` (the optimizer's own reduceModulo) and lowers to one AND
+   * of each half, which is what taking a low byte costs.
+   */
+  bitwise16(node: IrExpr): number {
+    const { operator, left, right } = node;
+    const mnemonic = operator === '&' ? 'AND' : operator === '|' ? 'ORA' : 'EOR';
+    const result = this.alloc16(`a temporary for 16-bit '${operator}'`);
+    const mark = this.locals.mark();
+    if (isConstNum(right)) {
+      const value = right.value! & 0xffff;
+      const leftAddr = this.exprTo16(left!);
+      this.emit(ldaZp(leftAddr), instr(mnemonic, 'immediate', value & 0xff), staAddr(result));
+      this.emit(ldaZp(leftAddr + 1), instr(mnemonic, 'immediate', (value >> 8) & 0xff), staAddr(result + 1));
+    } else {
+      const leftAddr = this.exprTo16(left!);
+      const rightAddr = this.exprTo16(right!);
+      this.emit(ldaZp(leftAddr), instr(mnemonic, 'zeropage', rightAddr), staAddr(result));
+      this.emit(ldaZp(leftAddr + 1), instr(mnemonic, 'zeropage', rightAddr + 1), staAddr(result + 1));
+    }
+    this.locals.release(mark);
     return result;
   }
 
@@ -937,14 +971,14 @@ class Lowerer {
     if (index.type !== undefined && index.type !== null && storageBytes(index.type) === 2 && !isConstNum(index)) {
       const mark = this.locals.mark();
       const pointer = this.arrayPointer(arrayLabel(name), index, offset);
-      this.expr(node.value! as IrExpr);
+      this.expr8(node.value! as IrExpr);
       this.emit(instr('LDY', 'immediate', 0));
       this.emit(instr('STA', '(indirect),y', pointer));
       this.locals.release(mark);
       return;
     }
     if (isConstNum(index) || (index.kind === 'ref' && index.type && storageBytes(index.type) === 1 && this.binding(index.name!).address <= 0xff && isPure(node.value as IrExpr))) {
-      this.expr(node.value! as IrExpr);
+      this.expr8(node.value! as IrExpr);
       this.indexIntoY(index);
       this.emit(indexed('STA', arrayLabel(name), offset));
       return;
@@ -953,7 +987,7 @@ class Lowerer {
     this.indexValue(index);
     const temp = this.alloc(`a temporary for '${name}[...]'s own index`);
     this.emit(staZp(temp));
-    this.expr(node.value! as IrExpr);
+    this.expr8(node.value! as IrExpr);
     this.emit(instr('LDY', 'zeropage', temp));
     this.emit(indexed('STA', arrayLabel(name), offset));
     this.locals.release(mark);
@@ -1065,7 +1099,7 @@ class Lowerer {
         this.store16Into(args[i], param.address);
         this.locals.release(mark);
       } else {
-        this.expr(args[i]);
+        this.expr8(args[i]);
         this.emit(staZp(param.address));
       }
     }
@@ -1708,7 +1742,7 @@ class Lowerer {
     if (!address) throw new LowerError('memoryWrite: no address to write to');
     if (!value) throw new LowerError('memoryWrite: no value to write');
     if (address.kind === 'const') {
-      this.expr(value);
+      this.expr8(value);
       const target = address.value!;
       const mode = target <= 0xff ? 'zeropage' : 'absolute';
       this.emit(instr('STA', mode, target));
@@ -1725,7 +1759,7 @@ class Lowerer {
     require16Bit(address.type, 'memoryWrite: a computed address');
     const mark = this.locals.mark();
     const pointer = this.expr16(address);
-    this.expr(value);
+    this.expr8(value);
     this.emit(instr('LDY', 'immediate', 0));
     this.emit(instr('STA', '(indirect),y', pointer));
     this.locals.release(mark);
