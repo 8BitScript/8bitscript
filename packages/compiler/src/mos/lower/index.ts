@@ -89,6 +89,10 @@ export interface IrStatement {
   // written (packages/compiler/src/ir/index.mjs keeps it unparsed, since
   // nothing before the 6502 backend has any reason to read assembly).
   text?: string;
+  // stringCopy: the string being copied in, and the capacity of the buffer
+  // it is going into (`target` above is that buffer).
+  source?: IrExpr;
+  capacity?: number;
   // local's own initializer (IrExpr) and for's own init clause (IrStatement,
   // a `local` or an `assign` — the same field name, `init`, on both real IR
   // node shapes, so this has to be the loose union rather than two fields).
@@ -347,6 +351,14 @@ function splitIndexOffset(node: IrExpr | undefined | null): { index: IrExpr; off
   return null;
 }
 
+/** A label's low or high byte as an immediate, with a constant folded in. */
+function immByte(name: string, half: 'lo' | 'hi', offset: number): Directive {
+  const operand = offset === 0
+    ? { kind: 'label' as const, name, byte: half }
+    : { kind: 'label' as const, name, byte: half, offset };
+  return { kind: 'instruction', mnemonic: 'LDA', mode: 'immediate', operand };
+}
+
 /** `STA base+offset,Y` and friends — the offset omitted when it is zero, so nothing changes shape for the arrays that never needed one. */
 function indexed(mnemonic: string, label: string, offset: number): Directive {
   const operand = offset === 0 ? { kind: 'label' as const, name: label } : { kind: 'label' as const, name: label, offset };
@@ -505,6 +517,28 @@ class Lowerer {
   // fresh zp-pair temp, fills it, and returns that — the caller decides
   // when it's safe to release (mark/release, exactly the 8-bit rules'
   // discipline).
+  /**
+   * An 8-bit value from an expression that may be wider than 8 bits.
+   *
+   * `let offset: utinyint = (cellWidth - width) >> 1` is ordinary code: the
+   * subtraction is 16-bit because one side is, and the answer is then kept
+   * in a byte. Narrowing means the low byte — it is what every assignment
+   * of a wider value to a narrower one has always meant here — so the wide
+   * expression is evaluated as itself and its low byte taken, rather than
+   * the whole statement being refused for a width the program never asked
+   * anything unusual of.
+   */
+  expr8(node: IrExpr): void {
+    if (node.type !== undefined && node.type !== null && storageBytes(node.type) === 2) {
+      const mark = this.locals.mark();
+      const pair = this.expr16(node);
+      this.emit(ldaZp(pair));
+      this.locals.release(mark);
+      return;
+    }
+    this.expr(node);
+  }
+
   expr16(node: IrExpr): number {
     if (node.type) require16Bit(node.type, `'${node.kind}'`);
     switch (node.kind) {
@@ -514,8 +548,20 @@ class Lowerer {
         this.emit(ldaImm(value & 0xff), staZp(address), ldaImm((value >> 8) & 0xff), staZp(address + 1));
         return address;
       }
-      case 'ref':
+      case 'ref': {
+        // A `string<N>` buffer lives in the data section, not zero page —
+        // it is an array of its own bytes, length first (mos/index.ts
+        // places it beside the string literals). So its name means its
+        // address, exactly as a literal's does in the case below, rather
+        // than a zero-page binding it does not have.
+        if (node.type === 'string' && this.arrays.has(node.name!)) {
+          const address = this.alloc16(`'${node.name}'s own address`);
+          const target = arrayLabel(node.name!);
+          this.emit(ldaImmLo(target), staZp(address), ldaImmHi(target), staZp(address + 1));
+          return address;
+        }
         return this.binding(node.name!).address;
+      }
       case 'binop':
         return this.binop16(node);
       case 'string': {
@@ -617,6 +663,14 @@ class Lowerer {
       this.emit(ldaImm(lo), staAddr(address));
       if (hi !== lo) this.emit(ldaImm(hi));
       this.emit(staAddr(address + 1));
+      return;
+    }
+    if (node.kind === 'ref' && node.type === 'string' && this.arrays.has(node.name!)) {
+      // A `string<N>` buffer passed by name: its address is its
+      // data-section label's, the same two immediate loads a literal's is,
+      // and not a zero-page binding — it has none (see expr16's own 'ref').
+      const target = arrayLabel(node.name!);
+      this.emit(ldaImmLo(target), staAddr(address), ldaImmHi(target), staAddr(address + 1));
       return;
     }
     if (node.kind === 'ref' && node.type && storageBytes(node.type) === 2) {
@@ -840,6 +894,25 @@ class Lowerer {
   // is refused by name: nothing real writes one yet, and its read
   // counterpart's own ASL-into-Y shape would need deciding against a
   // second byte's ordering here.
+  /**
+   * `base + index` in a zero-page pointer, for an index too wide for Y.
+   *
+   * Y is eight bits, so `screenRam[cell]` with a cell past 255 cannot be
+   * indexed with it — truncating would write 1000 cells into the first 256,
+   * which on a 40-column screen is the whole display collapsed into its top
+   * six rows (measured: that is exactly what a C64 2048 drew). The address
+   * is computed instead, the same way a computed `memory.write` address is,
+   * and the store goes through `(pointer),y` with Y at 0.
+   */
+  arrayPointer(label: string, index: IrExpr, offset: number): number {
+    const pointer = this.alloc16(`'${label}'s own address plus a 16-bit index`);
+    const wide = this.expr16(index);
+    this.emit(instr('CLC', 'implied'));
+    this.emit(immByte(label, 'lo', offset), instr('ADC', 'zeropage', wide), staZp(pointer));
+    this.emit(immByte(label, 'hi', offset), instr('ADC', 'zeropage', wide + 1), staZp(pointer + 1));
+    return pointer;
+  }
+
   storeIndex(node: IrStatement): void {
     const name = node.array!.name!;
     const entry = this.arrays.get(name);
@@ -861,6 +934,15 @@ class Lowerer {
     const split = splitIndexOffset(node.index);
     const index = split ? split.index : node.index!;
     const offset = split ? split.offset : 0;
+    if (index.type !== undefined && index.type !== null && storageBytes(index.type) === 2 && !isConstNum(index)) {
+      const mark = this.locals.mark();
+      const pointer = this.arrayPointer(arrayLabel(name), index, offset);
+      this.expr(node.value! as IrExpr);
+      this.emit(instr('LDY', 'immediate', 0));
+      this.emit(instr('STA', '(indirect),y', pointer));
+      this.locals.release(mark);
+      return;
+    }
     if (isConstNum(index) || (index.kind === 'ref' && index.type && storageBytes(index.type) === 1 && this.binding(index.name!).address <= 0xff && isPure(node.value as IrExpr))) {
       this.expr(node.value! as IrExpr);
       this.indexIntoY(index);
@@ -915,8 +997,18 @@ class Lowerer {
   indexRead(node: IrExpr): void {
     const target = this.arrayTarget(node);
     const split = splitIndexOffset(node.index as IrExpr);
-    this.indexIntoY((split ? split.index : node.index) as IrExpr);
-    this.emit(indexed('LDA', target, split ? split.offset : 0));
+    const index = (split ? split.index : node.index) as IrExpr;
+    const offset = split ? split.offset : 0;
+    if (index.type !== undefined && index.type !== null && storageBytes(index.type) === 2 && !isConstNum(index)) {
+      const mark = this.locals.mark();
+      const pointer = this.arrayPointer(target, index, offset);
+      this.emit(instr('LDY', 'immediate', 0));
+      this.emit(instr('LDA', '(indirect),y', pointer));
+      this.locals.release(mark);
+      return;
+    }
+    this.indexIntoY(index);
+    this.emit(indexed('LDA', target, offset));
   }
 
   // A 2-byte element: the index has to be doubled into a byte *offset*
@@ -1438,7 +1530,7 @@ class Lowerer {
         } else {
           require8Bit(binding.type, `assignment to '${node.target}'`);
           if (!this.emitIncDec(node.target!, binding, node.value!)) {
-            this.expr(node.value!);
+            this.expr8(node.value!);
             this.emit(staAddr(binding.address));
           }
         }
@@ -1459,7 +1551,7 @@ class Lowerer {
           return { name: node.name!, shadowed };
         }
         require8Bit(node.type, `local '${node.name}'`);
-        this.expr(node.init as IrExpr);
+        this.expr8(node.init as IrExpr);
         const address = this.alloc(`local '${node.name}'`);
         this.emit(staZp(address));
         const shadowed = this.symbols.get(node.name!);
@@ -1536,6 +1628,11 @@ class Lowerer {
       case 'storeIndex':
         this.storeIndex(node);
         return null;
+      // `blank = "    "` — one `string<N>` buffer's bytes replaced by
+      // another string's, length byte included.
+      case 'stringCopy':
+        this.stringCopy(node);
+        return null;
       // `asm6502 { ... }`: the block's own text, read into the same
       // Directives everything else here emits (mos/asm/parse.ts), so the
       // assembler, the branch relaxer and the linker cannot tell which
@@ -1550,6 +1647,41 @@ class Lowerer {
       default:
         throw new LowerError(`no instruction-selection rule yet for the '${node.kind}' statement — it lands in a later milestone`);
     }
+  }
+
+  /**
+   * Copies a string into a `string<N>` buffer: the length byte, then that
+   * many characters, through two zero-page pointers.
+   *
+   * Both operands are addresses of data-section bytes (a literal's label or
+   * a buffer's), so this is one loop over `(source),y` into `(target),y`
+   * with Y counting from 0 — the length byte at 0 doubles as the counter.
+   * Nothing clamps to the capacity here: the checker settles whether a
+   * string fits its buffer before this sees it, and a copy that silently
+   * truncated would be the wrong answer to give anyway.
+   */
+  stringCopy(node: IrStatement): void {
+    const source = node.source as IrExpr | undefined;
+    const target = node.target as unknown as IrExpr | undefined;
+    if (!source || !target) throw new LowerError('stringCopy: needs both a source and a target');
+    const mark = this.locals.mark();
+    const to = this.expr16(target);
+    const from = this.expr16(source);
+    const loop = freshLabel('strcpy');
+    const done = freshLabel('strcpy_done');
+    this.emit(instr('LDY', 'immediate', 0));
+    this.emit(instr('LDA', '(indirect),y', from));
+    this.emit(instr('STA', '(indirect),y', to));
+    this.emit(instr('TAX', 'implied'));
+    this.emit(branch('BEQ', done));
+    this.emit(label(loop));
+    this.emit(instr('INY', 'implied'));
+    this.emit(instr('LDA', '(indirect),y', from));
+    this.emit(instr('STA', '(indirect),y', to));
+    this.emit(instr('DEX', 'implied'));
+    this.emit(branch('BNE', loop));
+    this.emit(label(done));
+    this.locals.release(mark);
   }
 
   memoryRead(node: IrExpr): void {

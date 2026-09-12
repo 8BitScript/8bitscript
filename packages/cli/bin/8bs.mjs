@@ -15,10 +15,10 @@ const usage = () => `Usage: 8bs <command> [options]
 Implemented:
   build --target <t> [--pal] [--size] [--profile <name>]
     [--hardware option=value,...] [entry]
-                               Compile for a target. This release (0.3.0)
-                               builds for pet and web; vic20, c64, c128,
-                               atari8, nes, cx16 and mega65 are parked and
-                               refused until a later release. The pet has
+                               Compile for a target. This release builds
+                               for pet, c64, vic20 and web; c128, atari8,
+                               nes, cx16 and mega65 are parked and refused
+                               until a later release. The pet has
                                no region: its model is hardware. --profile
                                names the hardware fitted — a preset from
                                the machine's catalog (8032) or a profile the
