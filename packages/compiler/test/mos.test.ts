@@ -45,8 +45,11 @@ const helloWorldIr: IrProgram = {
 // Every real PET catalog entry carries defsym.__ram_size (see
 // packages/pet/package.json) — 32 here stands in for the roomy 3032, so
 // existing tests keep exercising the "plenty of RAM" path unchanged now
-// that build() routes through the linker.
-const hardware = { build: { defsym: { __ram_size: 32 } }, facts: {} };
+// that build() routes through the linker. __load_address joined it when
+// the backend stopped keeping a per-machine table of its own: it is a fact
+// about the hardware, and on a VIC-20 a RAM expansion moves it, so the
+// sheet is the only place that can honestly know it.
+const hardware = { build: { defsym: { __ram_size: 32, __load_address: 0x0401 } }, facts: {} };
 
 test('build() for the PET writes a 15-byte .prg for an empty program: load address + 12-byte stub + RTS', async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
@@ -411,7 +414,7 @@ test('build() refuses a PET whose RAM cannot even hold the boot stub, measured b
   const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
   try {
     const outFile = join(scratch, 'out.prg');
-    const tooSmall = { build: { defsym: { __ram_size: 1 } }, facts: {} }; // 1024 bytes; code alone starts at $040D (1037)
+    const tooSmall = { build: { defsym: { __ram_size: 1, __load_address: 0x0401 } }, facts: {} }; // 1024 bytes; code alone starts at $040D (1037)
     const result = await build(ir, { machine: 'pet', hardware: tooSmall, outFile, frameRate: 60 });
     assert.equal(result.ok, false);
     if (result.ok) return;
@@ -422,11 +425,30 @@ test('build() refuses a PET whose RAM cannot even hold the boot stub, measured b
   }
 });
 
+test('build() refuses a hardware sheet with no defsym.__load_address, naming what is missing', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+  try {
+    const outFile = join(scratch, 'out.prg');
+    // The address a .prg loads at is the machine's to say, not the
+    // backend's: it used to be a per-machine constant here, which the
+    // VIC-20 disproves — a RAM expansion moves BASIC's program area from
+    // $1001 to $1201, so the same machine has two.
+    const noLoadAddress = { build: { defsym: { __ram_size: 32 } }, facts: {} };
+    const result = await build(ir, { machine: 'pet', hardware: noLoadAddress, outFile, frameRate: 60 });
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.match(result.error, /defsym\.__load_address/);
+    assert.equal(existsSync(outFile), false);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
 test('build() refuses a PET hardware sheet with no defsym.__ram_size, naming what is missing', async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
   try {
     const outFile = join(scratch, 'out.prg');
-    const noRamSize = { build: { defsym: {} }, facts: {} };
+    const noRamSize = { build: { defsym: { __load_address: 0x0401 } }, facts: {} };
     const result = await build(ir, { machine: 'pet', hardware: noRamSize, outFile, frameRate: 60 });
     assert.equal(result.ok, false);
     if (result.ok) return;
@@ -441,10 +463,15 @@ test('build() for a parked machine says so, names the machine, and writes nothin
   const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
   try {
     const outFile = join(scratch, 'out.prg');
-    const result = await build(ir, { machine: 'c64', hardware, outFile, frameRate: 60 });
+    // The C64 is no longer one — it has a zero-page budget on the sheet
+    // now — so this asks about a machine that still is. Refused BY NAME,
+    // and naming the machines that do build, rather than a bare "not
+    // implemented" a reader has to go looking to understand.
+    const result = await build(ir, { machine: 'c128', hardware, outFile, frameRate: 60 });
     assert.equal(result.ok, false);
-    assert.match(result.ok ? '' : result.error, /not a target in 0\.2\.0/);
-    assert.match(result.ok ? '' : result.error, /c64/);
+    assert.match(result.ok ? '' : result.error, /c128/);
+    assert.match(result.ok ? '' : result.error, /zero-page budget/);
+    assert.match(result.ok ? '' : result.error, /pet, c64/);
     assert.doesNotMatch(result.ok ? '' : result.error, /not implemented/);
     assert.equal(existsSync(outFile), false);
   } finally {
@@ -1400,6 +1427,46 @@ type IrExprFixture = IrProgram['functions'][number]['body'][number]['value'];
 
 // ---- 0.2.2: mutable arrays ride in the program image, and `*` pays for
 // its routine only when a runtime multiply survives the optimizer ------------
+
+test('an @address array maps hardware: no bytes in the image, and stores land on the pinned address', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+  try {
+    const outFile = join(scratch, 'out.prg');
+    // The C64's `screenRam` shape (packages/c64/src/geometry.8bs): 1000
+    // cells over the VIC's screen at $0400. It is the machine's storage,
+    // not the program's, so nothing may be emitted for it — and an index
+    // into it has to reach $0400 even though no part of the program lives
+    // there. That is what mos/asm/assemble.ts's `equate` is for.
+    const pinned: IrProgram = {
+      entry: 'main',
+      functions: [{
+        name: 'main',
+        body: [
+          { kind: 'storeIndex', array: { kind: 'ref', name: 'screenRam' }, index: { kind: 'const', value: 1, type: 'utinyint' }, value: { kind: 'const', value: 32, type: 'utinyint' }, elementType: 'utinyint' },
+        ],
+      }],
+      globals: [
+        { name: 'screenRam', type: 'utinyint', address: 0x0400, array: 1000, constant: false, init: null },
+      ],
+    };
+    const result = await build(pinned, { machine: 'pet', hardware, outFile, frameRate: 60 });
+    assert.equal(result.ok, true, result.ok ? '' : result.error);
+    if (!result.ok) return;
+
+    const code = [...result.bytes];
+    const at = (needle: number[]) => code.findIndex((_, i) => needle.every((b, j) => code[i + j] === b));
+    // $0401 — the pinned base plus the constant index, folded.
+    assert.ok(at([0xa9, 0x20]) >= 0, 'the space screen code is loaded');
+    assert.ok(code.some((b, i) => b === 0x01 && code[i + 1] === 0x04), 'and stored at $0401, the array\'s own address');
+    // 1000 cells of hardware must not become 1000 bytes of .prg: the whole
+    // program is a two-byte load address, a BASIC stub, this store and an
+    // RTS — nowhere near the size an emitted array would make it.
+    assert.ok(result.bytes.length < 100, `an @address array emitted data: ${result.bytes.length} bytes`);
+    assert.equal(result.memory.variables, 0, 'and it takes no zero page either — it is not the program\'s storage');
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
 
 test('a `let` array lands in the data section — its init bytes in the image, zeros when it has none — and storeIndex writes through it (0.2.2)', async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));

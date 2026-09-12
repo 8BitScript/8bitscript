@@ -22,7 +22,13 @@ export type Operand =
 export type Directive =
   | { kind: 'label'; name: string }
   | { kind: 'instruction'; mnemonic: string; mode: AddressingMode; operand?: Operand }
-  | { kind: 'byte'; values: number[] };
+  | { kind: 'byte'; values: number[] }
+  // A name bound to an address the program does not contain: the screen at
+  // $0400, a chip register block, anything an `@address` array maps. It
+  // occupies no space and may sit anywhere in the program, so a label
+  // operand can reach hardware through exactly the same path it reaches a
+  // data-section array by (mos/data.ts's arrayLabel).
+  | { kind: 'equate'; name: string; value: number };
 
 export interface ListingLine {
   address: number;
@@ -42,6 +48,12 @@ function placeLabels(program: Directive[], origin: number): { ok: true; labels: 
     if (directive.kind === 'label') {
       if (labels.has(directive.name)) return { ok: false, error: `label '${directive.name}' is defined more than once` };
       labels.set(directive.name, address);
+    } else if (directive.kind === 'equate') {
+      if (labels.has(directive.name)) return { ok: false, error: `label '${directive.name}' is defined more than once` };
+      if (directive.value < 0 || directive.value > 0xffff) {
+        return { ok: false, error: `equate '${directive.name}' = ${directive.value} is not an address` };
+      }
+      labels.set(directive.name, directive.value);
     } else if (directive.kind === 'instruction') {
       address += 1 + operandBytes(directive.mode);
     } else {
@@ -95,7 +107,7 @@ export function assemble(program: Directive[], origin: number): AssembleResult {
   let address = origin;
 
   for (const directive of program) {
-    if (directive.kind === 'label') continue;
+    if (directive.kind === 'label' || directive.kind === 'equate') continue;
 
     if (directive.kind === 'byte') {
       for (const value of directive.values) {

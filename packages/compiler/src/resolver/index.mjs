@@ -47,10 +47,13 @@ export const MACHINES = Object.freeze([
  * language knows: the names a `.<machine>.8bs` twin or a target-conditional
  * entry may carry, which stay valid so a program written for a parked
  * machine still parses and links. RELEASE_MACHINES is the subset `8bs
- * build` and `8bs run` will actually produce a program for. 0.2.0 is the
- * PET and the web, the two machines the native backends are being brought
- * up on (the "Hello, PET" roadmap). A parked machine's package stays in the
- * workspace unchanged and returns to this list when its backend lands.
+ * build` and `8bs run` will actually produce a program for. The native
+ * 6502 backend is being brought up one machine at a time — the PET first
+ * (the "Hello, PET" roadmap), the C64 next — beside the web's own. A
+ * machine joins this list when it can actually build a program, not when
+ * work on it starts: a package's own emulator tests switch on from here,
+ * so listing it early runs them against a machine that cannot boot what
+ * they load.
  */
 export const RELEASE_MACHINES = Object.freeze(['pet', 'web']);
 

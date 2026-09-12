@@ -20,6 +20,11 @@
       "./pointer": "./src/pointer.8bs"
     },
     "hardware": {
+      "build": {
+        "defsym": {
+          "__load_address": 1025
+        }
+      },
       "facts": {
         "video.columns": 40,
         "video.rows": 25,
