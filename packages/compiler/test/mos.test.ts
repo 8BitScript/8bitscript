@@ -1428,6 +1428,64 @@ type IrExprFixture = IrProgram['functions'][number]['body'][number]['value'];
 // ---- 0.2.2: mutable arrays ride in the program image, and `*` pays for
 // its routine only when a runtime multiply survives the optimizer ------------
 
+test('an asm6502 block and memory.read() lower into the same instruction stream as everything else', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+  try {
+    const outFile = join(scratch, 'out.prg');
+    // The two rules @8bitscript/c64's own setupVideo()/copyCharacterRom()
+    // need: a hand-written `sei`, and reading a byte back out of the
+    // character ROM to write it into the RAM underneath.
+    const program: IrProgram = {
+      entry: 'main',
+      functions: [{
+        name: 'main',
+        body: [
+          { kind: 'asm', text: '\n        sei\n    ' },
+          {
+            kind: 'memoryWrite',
+            address: { kind: 'const', value: 0x8000, type: 'usmallint' },
+            value: { kind: 'memoryRead', address: { kind: 'const', value: 0xd000, type: 'usmallint' }, type: 'utinyint' },
+          },
+        ],
+      }],
+      globals: [],
+    };
+    const result = await build(program, { machine: 'pet', hardware, outFile, frameRate: 60 });
+    assert.equal(result.ok, true, result.ok ? '' : result.error);
+    if (!result.ok) return;
+    const code = [...result.bytes];
+    const at = (needle: number[]) => code.findIndex((_, i) => needle.every((b, j) => code[i + j] === b));
+    // SEI, then LDA $D000 / STA $8000 — the asm block's own byte sits in
+    // the stream ahead of the rules the selector chose, in source order.
+    const sei = at([0x78]);
+    const copy = at([0xad, 0x00, 0xd0, 0x8d, 0x00, 0x80]);
+    assert.ok(sei >= 0, 'the hand-written SEI is in the program');
+    assert.ok(copy > sei, 'and memory.read()/memory.write() lowered after it, in order');
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('an asm6502 block that does not assemble is refused by name, with its own line', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
+  try {
+    const outFile = join(scratch, 'out.prg');
+    const program: IrProgram = {
+      entry: 'main',
+      functions: [{ name: 'main', body: [{ kind: 'asm', text: 'sei\nfrobnicate' }] }],
+      globals: [],
+    };
+    const result = await build(program, { machine: 'pet', hardware, outFile, frameRate: 60 });
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.match(result.error, /'frobnicate' is not a 6502 instruction/);
+    assert.match(result.error, /line 2/);
+    assert.equal(existsSync(outFile), false);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
 test('an @address array maps hardware: no bytes in the image, and stores land on the pinned address', async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
   try {
