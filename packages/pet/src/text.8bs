@@ -10,7 +10,6 @@
 // namespace — the same names, the same shapes, ASCII codes, and a cell 0
 // at the top-left corner of the screen — so a program that imports it from
 // @8bitscript/text draws the same thing on every target.
-import { viaPeripheralControl } from "./index.8bs";
 import { Video } from "./geometry.8bs";
 
 // PET screen memory is at $8000 on every model: 1000 cells for the 40x25
@@ -36,18 +35,30 @@ import { Video } from "./geometry.8bs";
 // both sets; codes 1-26 render as 'A'-'Z' in the **graphics** set (0x0C)
 // but as 'a'-'z' in the **text** set (0x0E); codes 65-90 render as
 // graphics symbols in the graphics set but as 'A'-'Z' (shifted) in the
-// text set. So the text set alone already has everything: lower case at
-// 1-26, upper case at 65-90, the rest unchanged — no per-character
-// charset switch needed, since the PCR's charset bit is one register for
-// the whole screen, not a per-cell choice. asciiToScreenCode() picks
-// text-set addresses accordingly: 'A'-'Z' pass straight through (already
-// the text set's own uppercase range), 'a'-'z' drop by 96 to reach 1-26,
-// everything else is unchanged. This also settles the old graphics/text
-// boot-state mismatch the previous, uppercase-only version worked around
-// (3032/4032 boot into graphics, 8032 into text) the same way: putChar()
-// still selects one character set itself, every call, through the VIA's
-// peripheral control register (see @8bitscript/pet) — now the text set,
-// which is a strict superset of what the graphics set could show here.
+// text set.
+//
+// **This file draws for the set the machine is already in, and never
+// changes it.** The character-set bit is one register for the whole
+// screen, not a per-cell choice, and it is *retroactive*: it selects the
+// ROM the video hardware reads right now, so flipping it re-renders every
+// cell already drawn, including BASIC's. A version of this file that
+// selected the text set before each run of text therefore could not be
+// undone — putting the machine back the way it was found turned the text
+// it had just drawn into graphics glyphs, and leaving it switched handed
+// the owner of a 3032 a lower-case `ready.` prompt they never chose. Both
+// were real, both were measured, and neither is necessary: which set the
+// ROM booted into is a per-model constant, so `video.bootsInTextMode`
+// (the PET catalog's `model` option, `packages/compiler/src/fold/facts.mjs`)
+// folds at build time and asciiToScreenCode() simply addresses whichever
+// set is already live. Nothing writes `$E84C`, so nothing has to be
+// restored, and the eight bytes the compiler would have spent saving it
+// (`restoreOnExit`, mos/startup/commodore.ts) are never spent.
+//
+// The cost of that is honest rather than hidden: the graphics set holds
+// one case of the alphabet, so on a machine that boots into it — every
+// model here except the 8032 — mixed-case text draws in capitals. That is
+// what a PET in its power-on set has always looked like, and it is the
+// same text either way, not a mangled version of it.
 // (See packages/pet/AGENTS.md.)
 //
 // blocks.8bs's own quadrant-block glyphs (screen codes 96-127) still work
@@ -62,30 +73,36 @@ import { Video } from "./geometry.8bs";
 // the text set's two cases the other way round from every later model's
 // (901447-10, measured above) — upper case stays at 1-26 (unchanged from
 // the graphics set, not moved to 65-90) and lower case moves to 65-90
-// instead. `video.characterSetSwapped` (the PET catalog's `model` option,
-// `packages/compiler/src/fold/facts.mjs`) is this fact, `#fact()`-folded
-// at build time — true only for the 2001 today — so a `--profile 2001`
-// build gets the offsets its own real ROM needs, and no other build pays
-// for the branch it can't take.
-namespace CharacterSet {
-    const TEXT: utinyint = 0x0E;
-}
-
+// instead. `video.characterSetSwapped` (the PET catalog's `model` option)
+// is that fact. It no longer reaches asciiToScreenCode(): the swap is in
+// the *text* set only, and the 2001 boots into graphics, so this file
+// addresses its graphics set — identical on both ROMs — and never its
+// text set. The fact stays on the sheet because it is true of the
+// hardware, and anything that does address that ROM's text set will need
+// it.
 function asciiToScreenCode(code: utinyint): utinyint {
-    if (#fact(video.characterSetSwapped)) {
-        if (code >= 65 && code < 91) {
-            return code - 64; // 'A'-'Z': the 2001's own text set keeps upper case at 1-26
-        }
+    if (#fact(video.bootsInTextMode)) {
+        // The text set: lower case at 1-26, upper case already at 65-90.
+        // `video.characterSetSwapped` does not appear here on purpose —
+        // the one ROM that swaps the text set's halves is the 2001's
+        // 901447-08, and the 2001 boots in graphics, so it takes the
+        // branch below and its text set is never addressed at all.
         if (code >= 97 && code < 123) {
-            return code - 32; // 'a'-'z': moved to 65-90 instead, on this ROM only
+            return code - 96; // 'a'-'z'
         }
-        return code;
+        return code; // 'A'-'Z', space, digits, punctuation
     }
+    // The graphics set, which is what every other model boots into. It
+    // holds exactly one case of the alphabet, at 1-26, so both cases of a
+    // letter map to it and text comes out in capitals — what a PET in its
+    // power-on set has always looked like. These offsets are the same on
+    // both character ROMs: 901447-08 and -10 differ only in the *text*
+    // set's arrangement (see the file header), never the graphics set's.
     if (code >= 65 && code < 91) {
-        return code; // 'A'-'Z': already the text set's own upper-case range
+        return code - 64; // 'A'-'Z'
     }
     if (code >= 97 && code < 123) {
-        return code - 96; // 'a'-'z': the text set's lower case lives at 1-26
+        return code - 96; // 'a'-'z', drawn with the same glyph
     }
     return code; // space, digits, punctuation: unchanged in either set
 }
@@ -104,10 +121,10 @@ function asciiToScreenCode(code: utinyint): utinyint {
 // (see packages/compiler/src/ir).
 //
 // Under them: `place()` puts one character at one cell in the current
-// color, and is all a run of text costs per character, with `prepare()`
-// selecting the text character set once for the run.
-// `text.putChar` and `text.putColor` stay the one-cell pokes a caller can
-// build anything from.
+// color, and is all a run of text costs per character — there is no
+// per-run setup left to do, since nothing selects a character set any
+// more. `text.putChar` and `text.putColor` stay the one-cell pokes a
+// caller can build anything from.
 let currentReverse: bool = false; // until text.setReverse() says otherwise
 
 // Reverse video is bit 7 of the screen code: 128-255 are the ROM's
@@ -118,11 +135,6 @@ function toScreen(code: utinyint): utinyint {
         screen = screen + 128;
     }
     return screen;
-}
-
-// What a run of text needs once, before its first character.
-function prepare(): void {
-    viaPeripheralControl = CharacterSet.TEXT;
 }
 
 function place(cell: usmallint, code: utinyint): void {
@@ -143,7 +155,6 @@ export namespace text {
     const COLUMNS: utinyint = Video.COLUMNS; // cells per row, so cell = y * text.COLUMNS + x
 
     function putChar(cell: usmallint, code: utinyint): void {
-        prepare();
         memory.write(0x8000 + cell, toScreen(code));
     }
 
@@ -163,7 +174,6 @@ export namespace text {
     // the current color — `text.setColor(...)` changes what gets printed
     // after it, not what is already on screen.
     function print(cell: usmallint, s: string): void {
-        prepare();
         for (let i: utinyint = 0; i < s.length; i++) {
             place(cell + i, s[i]);
         }
@@ -173,7 +183,6 @@ export namespace text {
     // right-aligned, starting at `cell` — a field on a HUD never shifts
     // columns as the number changes.
     function printNumber(cell: usmallint, value: usmallint, width: utinyint): void {
-        prepare();
         let k: utinyint = width;
         if (k < DIGIT_PLACES.length) {
             k = DIGIT_PLACES.length;
