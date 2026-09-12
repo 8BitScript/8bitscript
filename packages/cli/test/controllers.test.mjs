@@ -515,3 +515,31 @@ test('controllerInvocation with no players adds nothing at all, on every machine
     );
   }
 });
+
+test('a `key:` binding is warned about, because the panel will silently strip it on its next save', () => {
+  const result = controllerInvocation('atari8', [player({ a: 'key:Space' })], {
+    emulator: 'atari800', hardware: hardwareFor('atari8'), configPath: '/tmp/a.cfg', baseConfig: '',
+  });
+  assert.equal(result.ok, true);
+  assert.match(
+    result.notes.join('\n'),
+    /player 1 \('SN30 Pro'\) has `key:` bindings, which the editor's Controller Setup panel does not yet read/,
+  );
+  // The point is the data loss, not the flag: it works today and stops
+  // working the next time somebody opens the panel.
+  assert.match(result.notes.join('\n'), /rewrites this file on save and will drop them/);
+
+  const pads = controllerInvocation('atari8', [player(SN30_PRO)], {
+    emulator: 'atari800', hardware: hardwareFor('atari8'), configPath: '/tmp/a.cfg', baseConfig: '',
+  });
+  assert.ok(!pads.notes.join('\n').includes('`key:`'), 'nothing to warn about when the panel wrote the file');
+});
+
+test('a C64 has two control ports, so players 3 and 4 are refused by count rather than aimed at an adapter', () => {
+  // -controlport3device and up are VICE's joystick-*adapter* ports, which
+  // no catalog fits; -joydev only reaches the two real ones.
+  assert.equal(defaultPort('c64', 3), 3);
+  const result = viceController('c64', [player(SN30_PRO, { number: 3 })], VICE_CONTEXT);
+  assert.equal(result.ok, false);
+  assert.match(result.error, /the c64 has 2 control ports, so there is nowhere for player 3 \('SN30 Pro'\) to plug in/);
+});

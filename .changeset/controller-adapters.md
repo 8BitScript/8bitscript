@@ -35,4 +35,6 @@ What each emulator actually does, measured against the binaries rather than reme
 
 Nothing here emits a `-controlport<n>device` flag: which device is *in* a port is the machine catalog's sentence, and the adapters' flags go after it. A port fitted with nothing (a stock C64's port 1, where player 2 lands) is refused with the `--hardware port1=joystick` that fixes it, rather than pointing `-joydev1` at an empty port and looking broken.
 
+A hand-written `key:<KeyboardEvent.code>` binding is read — it is the only shape atari800 takes a mapping in at all — but the panel's own `parseBinding` does not accept it yet, and `normalizeProfile` rewrites the file on save. A launch that finds one says so by name, because otherwise it works until somebody opens the panel and presses a button, and then it is gone with nothing said. Two characters of the panel's regex close it.
+
 A project with no `8bitscript.controllers.json` launches byte-identically to before.

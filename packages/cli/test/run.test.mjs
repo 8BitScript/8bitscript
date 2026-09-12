@@ -369,3 +369,24 @@ test('atari800CleanDisplayText is the display half on its own, for the file the 
   assert.match(cleaned, /^CRT_BEAM_SHAPE=0$/m);
   assert.match(cleaned, /^SCANLINES_PERCENTAGE=0$/m);
 });
+
+test('a pad-only atari800 profile writes no config, so the display-only one is still the file passed', async () => {
+  const { hardware } = resolveHardware(loadCatalog('atari8'), {});
+  // What atari800Controller returns for a pad: flags, and nothing to
+  // write, because the only keys it has are for a keyboard stick. The
+  // CRT-knob config must still be the one atari800 is pointed at.
+  const invocation = await emulatorInvocation('atari8', {
+    pal: false,
+    hardware,
+    controller: { args: ['-no-kbdjoy0'], leadingArgs: [], files: [], notes: [] },
+  });
+  assert.equal(invocation.ok, true);
+  const args = invocation.emulatorArgs;
+  assert.ok(args.includes('-no-kbdjoy0'));
+  const configs = args.filter((arg) => arg === '-config');
+  assert.equal(configs.length, existsSync(join(process.env.HOME ?? '', '.atari800.cfg')) ? 1 : 0,
+    'exactly the display config when the user has one, and none when they do not');
+  if (configs.length === 1) {
+    assert.ok(args.indexOf('-config') < args.indexOf('-no-kbdjoy0'), 'the display config still leads');
+  }
+});
