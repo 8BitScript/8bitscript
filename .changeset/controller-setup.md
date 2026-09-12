@@ -29,13 +29,11 @@ It is in `parseBinding` rather than beside it because three of that function's c
 
 An earlier version of this panel emitted a `controllers.players` block for `8bitscript.config.ts`, because that is where the CLI first read a profile from. That is gone with the reader: offering somebody a snippet to paste into a config nothing consults would be exactly the kind of quiet trap this branch has spent its time closing.
 
-## What this still needs from the CLI
+## What this needed from the CLI
 
-One thing the editor has to know and the toolchain does not say, in one named place — `DEVICE_CONTROLS` and `PAD_KINDS` at the bottom of `editors/vscode/src/controllerProfile.cjs` — so closing it deletes code rather than finding it.
+Everything this panel asked of the toolchain has since been answered, and the asks are recorded only so the trail is complete.
 
-**What a port's device carries.** The catalog says how many ports and, for the Commodores, what can go in one (`port1: none | joystick | paddles | mouse1351`). It never says that an Atari-standard joystick is four switches and one button, that an NES pad is eight bits, or that the X16 takes a twelve-button SNES pad — so `input.pads: 2` cannot be projected without knowing *which* pad. A `controls` array on each port option value, plus a machine-level one for pad ports (which have no option behind them), would remove both tables. Today the editor knows two machines' pads and says so for a third rather than guessing.
-
-Two earlier asks have already been answered and are recorded only so the trail is complete. **Which port the first player drives**: `8bs targets --json` now publishes `primaryPort` per machine and the preview takes it; `PRIMARY_PORT` here is down to the two machines `packages/c64/src/joystick.8bs` documents and answers only for a toolchain too old to say. **How a profile reaches a launch**: the CLI reads this file directly.
+**What a port's device carries**, which was the last of them. The catalog said how many ports and, for the Commodores, what could go in one (`port1: none | joystick | paddles | mouse1351`), and never that an Atari-standard joystick is four switches and one button, that an NES pad is eight bits, or that the X16 takes a twelve-button SNES pad — so `input.pads: 2` could not be projected without knowing *which* pad, and `DEVICE_CONTROLS` and `PAD_KINDS` at the bottom of `editors/vscode/src/controllerProfile.cjs` were where the editor kept the answer for two machines and a documented gap for a third. Every machine package now declares `input.controls` and `8bs targets --json` publishes it, along with the shapes that have a name; both tables are deleted. See `.changeset/controller-catalog.md`. **Which port the first player drives**: `8bs targets --json` now publishes `primaryPort` per machine and the preview takes it; `PRIMARY_PORT` here is down to the two machines `packages/c64/src/joystick.8bs` documents and answers only for a toolchain too old to say. **How a profile reaches a launch**: the CLI reads this file directly.
 
 ## Known limitation, unverified against a live window
 

@@ -66,6 +66,7 @@ import { fileURLToPath } from 'node:url';
 
 import { loadConfig } from './config.mjs';
 import { CONTROLLERS_FILE, controllerPlayers } from './controllers.mjs';
+import { describeFacts } from './targets.mjs';
 // The two things a command that serves a page in a browser needs, from the
 // command that already serves a page in a browser.
 import { openBrowser, readJsonBody } from './web-runtime.mjs';
@@ -554,6 +555,12 @@ function preview(targets, device) {
     known: true,
     ...Profile.project(target.id, target.facts ?? {}, device?.mapping ?? {}, {
       primaryPort: target.primaryPort ?? null,
+      // The shapes a control list can be, so project() can name the kind
+      // rather than answering null for every machine. They ride out on the
+      // `input.controls` fact descriptor, which is the same route the
+      // editor's own call site reads them by (controllerView.cjs) --
+      // describeFacts() is where the catalog publishes them.
+      kinds: describeFacts().find((fact) => fact.key === 'input.controls')?.kinds ?? null,
     }),
   }));
 }
