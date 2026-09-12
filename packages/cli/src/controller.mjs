@@ -271,6 +271,12 @@ export function renderPage(token) {
   <div class="hint">
     <span id="hint-file"></span>
     <button class="link" id="open">Print its path in the terminal</button>
+    <!-- The page is shared with the editor's panel, whose script offers a
+         way out when a webview sandbox refuses the Gamepad API: run this
+         very command. Here that escape hatch is already the road taken, so
+         the button exists for the shared script to find and stays hidden:
+         a real browser is never blocked or silenced. -->
+    <button class="link" id="terminal" hidden></button>
   </div>
   <script>window.__8BS_TOKEN = ${JSON.stringify(token)};</script>
   <script src="/host.js"></script>

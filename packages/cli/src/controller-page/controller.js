@@ -274,6 +274,7 @@ function render() {
     ? `${data.exists ? 'Saved in' : 'Will be saved in'} ${data.file}`
     : '';
   $('open').hidden = !data.file;
+  $('terminal').hidden = !(data.blocked || data.silenced);
 }
 
 /** Whatever is stopping this from working, said once, in the right order. */
@@ -715,6 +716,12 @@ $('clear').addEventListener('click', () => vscode.postMessage({
   type: 'preset', id: data?.selected, preset: 'none',
 }));
 $('open').addEventListener('click', () => vscode.postMessage({ type: 'open' }));
+// Shown only when the window is refusing or silencing the Gamepad API,
+// because that is the only time it is the answer rather than a detour:
+// `8bs controller` serves this same page to a real browser and writes the
+// same file, so a sandbox that cannot be argued with stops being the end
+// of the road.
+$('terminal').addEventListener('click', () => vscode.postMessage({ type: 'terminal' }));
 $('prompt').addEventListener('click', stopAsking);
 window.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') {

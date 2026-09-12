@@ -192,6 +192,32 @@ class ControllerPanel {
         await this.post();
         return;
       }
+      // The way out of a sandbox this extension cannot argue with. The
+      // panel detects pads with navigator.getGamepads() inside a webview,
+      // and Chromium gates that behind a `gamepad` permission policy that
+      // has to be named in the `allow` attribute of the iframe the EDITOR
+      // creates -- so if the host does not list it, no amount of extension
+      // code makes a pad visible here. `8bs controller` serves the very
+      // same page to a real browser, which has no such gate, and writes the
+      // same file this panel writes. Offering it is the difference between
+      // telling somebody what is wrong and handing them the way around it.
+      case 'terminal': {
+        const project = this.selectedProject();
+        if (!project) return;
+        const bin = project.toolchain;
+        if (!bin) {
+          vscode.window.showErrorMessage(
+            'No 8bs toolchain found for this project, so there is nothing to run. Install @8bitscript/cli in it.',
+          );
+          return;
+        }
+        const terminal = vscode.window.createTerminal({ name: '8BitScript controller', cwd: project.dir });
+        terminal.show();
+        // Quoted: a project path may have spaces, and this is a shell line
+        // rather than an argv the way runner.cjs's own tasks are.
+        terminal.sendText(`"${bin}" controller --dir "${project.dir}"`);
+        return;
+      }
       case 'open': {
         const project = this.selectedProject();
         if (!project) return;
@@ -405,6 +431,7 @@ function html(webview) {
   <div class="hint">
     <span id="hint-file"></span>
     <button class="link" id="open">${ICONS.file} Open it</button>
+    <button class="link" id="terminal" hidden>${ICONS.file} Map it from a terminal instead</button>
   </div>
   <script nonce="${nonce}">var module = { exports: {} };
 ${PROFILE_JS}
