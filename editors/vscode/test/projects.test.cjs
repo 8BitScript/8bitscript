@@ -84,9 +84,10 @@ export default {
 test('parseConfig drops target names the toolchain does not know — parked machines included', () => {
   const { targets } = parseConfig(`export default { targets: ['atari', 'pet'] };`);
   assert.deepEqual(targets, ['pet']);
-  // A parked machine (0.2.0 builds for pet and web only) is dropped the
-  // same way a made-up name is: neither is in ALL_TARGETS today.
-  assert.deepEqual(parseConfig(`export default { targets: ['c64', 'web'] };`).targets, ['web']);
+  // A parked machine is dropped the same way a made-up name is: neither is
+  // in ALL_TARGETS today. (The C64 and the VIC-20 used to stand here; they
+  // build now, so this asks about one that still does not.)
+  assert.deepEqual(parseConfig(`export default { targets: ['mega65', 'web'] };`).targets, ['web']);
   // Only unknown/parked names means every target, the same as no list at all.
   assert.deepEqual(parseConfig(`export default { targets: ['atari'] };`).targets, ALL_TARGETS);
 });

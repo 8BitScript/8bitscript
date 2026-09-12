@@ -50,24 +50,26 @@ function findConfig(dir) {
 }
 
 /**
- * Every target the launcher offers. 0.2.0 builds for the PET and the web
- * only — RELEASE_MACHINES in the compiler's resolver is the toolchain's
- * own version of this same list — so this is narrowed to match rather
- * than showing seven machines nothing can be built for yet. The other
- * seven (vic20, c64, c128, atari8, nes, cx16, mega65) come back here
- * machine by machine as their native backends land.
+ * Every target the launcher offers. RELEASE_MACHINES in the compiler's
+ * resolver is the toolchain's own version of this same list, and this is
+ * narrowed to match rather than showing machines nothing can be built for
+ * yet. The parked ones (atari8, nes, cx16, mega65) come back here machine
+ * by machine as their native backends land.
+ *
+ * What each machine OFFERS is never listed here: every option, value and
+ * preset comes from `8bs targets --json` (see hardwareCatalog.cjs), so a
+ * C64's REU sizes and a VIC-20's RAM expansions arrive on their own the
+ * moment the machine is on this list.
  */
-const ALL_TARGETS = ['pet', 'web'];
+const ALL_TARGETS = ['pet', 'c64', 'vic20', 'c128', 'web'];
 
 /**
- * Targets that are a machine model with an NTSC/PAL choice — none of
- * ALL_TARGETS today. The PET is a machine model but has no region: its
- * refresh is the model's, chosen by `--profile` (3032 ~60Hz, 4032/8032
- * 50Hz), so `--pal` is never passed for it — `8bs run pet --pal` would
- * only print a note saying as much. The web has no region either. This
- * set is the parked machines that do have one (vic20, c64, c128, atari8,
- * nes, mega65); it stays populated, unused for now, so the Region control
- * comes back with no further change once one of them is un-parked.
+ * Targets that are a machine model with an NTSC/PAL choice. The PET is a
+ * machine model but has no region: its refresh is the model's, chosen by
+ * `--profile` (3032 ~60Hz, 4032/8032 50Hz), so `--pal` is never passed for
+ * it — `8bs run pet --pal` would only print a note saying as much. The web
+ * has no region either. The C64, VIC-20 and C128 do, and one `.prg` runs
+ * on both regions, so the Region control is theirs.
  */
 const MACHINE_TARGETS = new Set(['vic20', 'c64', 'c128', 'atari8', 'nes', 'mega65']);
 

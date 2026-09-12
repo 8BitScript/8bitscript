@@ -157,14 +157,28 @@ const C64_ZP_BUDGET = PET_OWNED_ZP_BUDGET;
 // keeping. It is still only $FB-$FE plus the RS-232 pointers.
 const VIC20_ZP_BUDGET = { zpOrigin: 0xf7, zpCeiling: 0xff };
 
+// The C128's zero page is the C64's shape again — $0A-$8F BASIC's, $90-$FF
+// the KERNAL's (packages/c128/AGENTS.md's memory map) — with one machine
+// of its own at the bottom: $00/$01 are the 8502's port and $02-$09 are the
+// KERNAL's JMPFAR/JSRFAR parameters, which its own cross-bank calls use, so
+// those nine bytes stay the machine's. Everything above them is this
+// program's. That is not a new decision: this project's own pre-0.2.0 C128
+// link map put the compiler's registers at $0A for the same reason, and the
+// same row of AGENTS.md records it.
+const C128_ZP_BUDGET = { zpOrigin: 0x0a, zpCeiling: 0x100 };
+
 // Per machine: the budget a program that returns to BASIC may take, and
 // the one a program that never does may take. The second is the whole page
 // on every Commodore here, for the same reason each time — interrupts off,
 // the interpreter never resumed — so only the polite one really differs.
+/** The machines whose waitFrame() polls a raster (mos/startup/waitframe.ts's own RASTER). */
+const RASTER_MACHINES = new Set<Machine>(['c64', 'vic20', 'c128']);
+
 const ZP_BUDGETS: Partial<Record<Machine, { polite: { zpOrigin: number; zpCeiling: number }; owned: { zpOrigin: number; zpCeiling: number } }>> = {
   pet: { polite: PET_ZP_BUDGET, owned: PET_OWNED_ZP_BUDGET },
   c64: { polite: C64_ZP_BUDGET, owned: C64_ZP_BUDGET },
   vic20: { polite: VIC20_ZP_BUDGET, owned: PET_OWNED_ZP_BUDGET },
+  c128: { polite: C128_ZP_BUDGET, owned: C128_ZP_BUDGET },
 };
 
 function chrgetZpHoles(facts: Record<string, unknown>, budget: { zpOrigin: number; zpCeiling: number }): ZpHole[] {
@@ -331,7 +345,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // exact fraction of a known crystal (FRAME_SYNC below). Until that is
   // written, a program that calls waitFrame() on one of those machines is
   // refused by name rather than built against the wrong chip.
-  if (needsWaitFrame && options.machine !== 'pet' && options.machine !== 'c64' && options.machine !== 'vic20') {
+  if (needsWaitFrame && !RASTER_MACHINES.has(options.machine) && options.machine !== 'pet') {
     return {
       ok: false,
       error: `waitFrame() has no runtime on the ${options.machine} yet: its frame sync is the PET's VIA retrace flag, and the ${options.machine}'s own raster poll is not written. A program that draws once and returns builds today; one that paces itself does not`,

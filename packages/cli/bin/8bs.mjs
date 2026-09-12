@@ -16,7 +16,7 @@ Implemented:
   build --target <t> [--pal] [--size] [--profile <name>]
     [--hardware option=value,...] [entry]
                                Compile for a target. This release builds
-                               for pet, c64, vic20 and web; c128, atari8,
+                               for pet, c64, vic20, c128 and web; atari8,
                                nes, cx16 and mega65 are parked and refused
                                until a later release. The pet has
                                no region: its model is hardware. --profile

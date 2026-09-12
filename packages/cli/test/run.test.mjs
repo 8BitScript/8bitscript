@@ -157,9 +157,9 @@ test('boot() refuses an unknown target, naming every real one', async () => {
 test('boot() refuses a parked target by name, the same as build()/run() do', async () => {
   // A machine that is still parked — booting one that is not launches a
   // real emulator and waits for a human to close it, which is not a test.
-  const { result, stderr } = await capture(() => boot(['c128']));
+  const { result, stderr } = await capture(() => boot(['mega65']));
   assert.equal(result, 2);
-  assert.match(stderr, /^8bs boot: 'c128' is not a target in this release\. This release builds for pet, c64, vic20 and web/);
+  assert.match(stderr, /^8bs boot: 'mega65' is not a target in this release\. This release builds for pet, c64, vic20, c128 and web/);
 });
 
 test('boot() prints the PET region note but still boots — its refresh is the model\'s, not a --pal/--ntsc flag', async () => {

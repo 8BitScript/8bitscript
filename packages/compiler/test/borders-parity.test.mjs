@@ -96,19 +96,20 @@ for (const machine of MACHINES) {
 
 const T_CONSUMER = 'import { text } from "@8bitscript/text";\nexport function main(): void { text.putChar(0, 84); }';
 
-test('every Commodore selects a character set rather than inheriting one, and the two that ship draw in the mixed-case one', () => {
+test('every Commodore selects a character set rather than inheriting one, and the three that ship draw in the mixed-case one', () => {
   // Selecting is the shared decision: the ROM's boot state, whatever ran
   // before, and a user's SHIFT+C= would each give a different answer, so a
   // text package picks. WHICH set differs, and deliberately. The machines
   // that actually build draw in the mixed-case set, because it is the only
   // one holding both cases of the alphabet and so the only one that can
   // draw a string as it was written (packages/pet/src/text.8bs argues it at
-  // length). The parked two still select the upper-case set; they change
-  // when their own backends land and a screenshot can prove it.
+  // length). The mega65 is still parked and still selects the upper-case
+  // set; it changes when its own backend lands and a screenshot can prove
+  // it.
   const charset = {
     vic20: { global: 'memoryPointer', address: 0x9005, value: 0xF2, lowerCaseAt: 96 },
     c64: { global: 'memoryPointer', address: 0xD018, value: 0x86, lowerCaseAt: 96 },
-    c128: { global: 'memoryPointerShadow', address: 0xA2C, value: 20, also: { global: 'memoryPointer', value: 20 }, lowerCaseAt: null },
+    c128: { global: 'memoryPointerShadow', address: 0xA2C, value: 0x16, also: { global: 'memoryPointer', value: 0x16 }, lowerCaseAt: 96 },
     mega65: { global: 'memoryPointer', address: 0xD018, value: 36, lowerCaseAt: null },
   };
   for (const [machine, expect] of Object.entries(charset)) {

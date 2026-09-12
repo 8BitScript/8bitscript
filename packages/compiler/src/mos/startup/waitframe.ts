@@ -186,6 +186,25 @@ const RASTER: Partial<Record<Machine, RasterSync>> = {
     pal: { num: 312 * 63 * 18, den: 17734472 },
     ntsc: { num: 263 * 65 * 14, den: 14318181 },
   },
+  // The C128's VIC-IIe, in the 40-column mode this target boots into, is
+  // the C64's VIC-II for this purpose: the same two registers, the same
+  // 9-bit raster, and the same frame as an exact fraction of the same
+  // crystal (mos/index.ts's FRAME_SYNC records the two entries identically).
+  c128: {
+    topHalf: [ldaAbs(0xd012), instr('ORA', 'absolute', 0xd011), instr('AND', 'immediate', 0x80)],
+    whenTop: 'BEQ',
+    whenNotTop: 'BNE',
+    palProbe: (target: string) => {
+      const skip = `${target}_skip`;
+      return [
+        ldaAbs(0xd011), instr('AND', 'immediate', 0x80), branch('BEQ', skip),
+        ldaAbs(0xd012), instr('CMP', 'immediate', 32), branch('BCS', target),
+        label(skip),
+      ];
+    },
+    pal: { num: 312 * 63 * 18, den: 17734472 },
+    ntsc: { num: 263 * 65 * 14, den: 14318181 },
+  },
   vic20: {
     // The VIC-I's own layout, which is not the VIC-II's: $9004 holds bits
     // 8-1 of a 9-bit counter, so it changes every second line and its range
