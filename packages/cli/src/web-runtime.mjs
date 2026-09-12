@@ -1,5 +1,13 @@
 // The web target's real runtime: a browser tab, a canvas, and a worker.
 //
+// This module is the *build and dev-server* half. The half that runs in a
+// browser lives in web-loader.mjs, which generates 8bitscript.js — a loader
+// anybody can include in a page of their own — and the worker it drives. The
+// index.html written here is a shell that calls that loader exactly the way
+// an embedder would, so there is no private code path that can drift away
+// from the public one. web-layout.mjs holds the facts both halves and the
+// headless --screenshot rasterizer have to agree on.
+//
 // The program — the .wasm's one exported function — runs in a Web Worker,
 // exactly as it would run on a real machine: it owns its thread, loops
 // forever if it wants to, and calls waitFrame() to wait for the next frame.
@@ -23,88 +31,23 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { extname, join } from 'node:path';
 import { spawn } from 'node:child_process';
-import { glyphTableLiteral } from './font8x8.mjs';
+import { ELEMENT_NAME, renderCoiServiceWorker, renderLoader, renderWorker } from './web-loader.mjs';
 
-// The C64's palette (0-15), reused so a color number means the same thing
-// in every 8BitScript example, on whichever machine it runs on. See the
-// header comment on @8bitscript/web/screen's setColors() for why the web target
-// borrows this rather than defining its own. Exported (with the layout
-// constants below) so screenshot.mjs's --screenshot path can rasterize the
-// exact same virtual screen this browser canvas draws, without a second,
-// hand-copied version of these numbers to keep in sync by hand.
-export const COLORS = [
-  '#000000', '#ffffff', '#883932', '#67b6bd',
-  '#8b3f96', '#55a049', '#40318d', '#bfce72',
-  '#8b5429', '#574200', '#b86962', '#505050',
-  '#787878', '#94e089', '#7869c4', '#9f9f9f',
-];
+// The screen layout, palette and input mapping, re-exported from the one
+// module that defines them. screenshot.mjs and the web tests import these
+// from here, which is why they stay on this path rather than moving wholesale.
+export {
+  BORDER_PX, BORDER_HAIRLINE_PX, CHAR_BASE, CHAR_H, CHAR_W, COLOR_BASE, COLORS,
+  GRID_COLS, GRID_ROWS, INNER_H, INNER_W, INPUT_OFFSET, InputEdge, KEY_TO_EDGE,
+  SWIPE_THRESHOLD, borderFor, inputBitForKey, screenSize, swipeEdge,
+} from './web-layout.mjs';
 
-// The character grid is the C64's own 40×25 of 8×8 cells — 320×200, the
-// same shape @8bitscript/web's virtual screen uses. The colored border sits
-// around that grid, the way the VIC-II/VIC paint it, rather than eating into
-// it: characters then live entirely in the background, not clipped into the
-// border. This is the canvas's *resolution*, not its on-page size: the
-// page stretches it to fill the window (see resize() in the page script
-// below) while image-rendering: pixelated keeps every scaled-up pixel a
-// hard square instead of a blurred one.
-export const GRID_COLS = 40;
-export const GRID_ROWS = 25;
-export const CHAR_W = 8;
-export const CHAR_H = 8;
-export const BORDER_PX = 24;
+import { BORDER_PX, GRID_COLS, GRID_ROWS, CHAR_W, CHAR_H } from './web-layout.mjs';
+
 const INNER_W = GRID_COLS * CHAR_W;
 const INNER_H = GRID_ROWS * CHAR_H;
 const SCREEN_W = INNER_W + BORDER_PX * 2;
 const SCREEN_H = INNER_H + BORDER_PX * 2;
-
-// Where the virtual screen's character codes and per-cell colors live in
-// the wasm's linear memory — @8bitscript/web's WebRegisters layout, mirrored
-// here by hand (there's no shared module the .8bs side and this JS host
-// could both import). Byte 0 is border, byte 1 is background.
-export const CHAR_BASE = 2;
-export const COLOR_BASE = 1002;
-// Directions / confirm / cancel: the page writes this byte, @8bitscript/web/input
-// reads it. Same Edge bits as every other machine's input layer. First byte
-// after the 1000 color cells at COLOR_BASE.
-export const INPUT_OFFSET = 2002;
-
-export const InputEdge = {
-  LEFT: 1,
-  RIGHT: 2,
-  UP: 4,
-  DOWN: 8,
-  CONFIRM: 16,
-  CANCEL: 32,
-};
-
-const KEY_TO_EDGE = {
-  ArrowLeft: InputEdge.LEFT,
-  ArrowRight: InputEdge.RIGHT,
-  ArrowUp: InputEdge.UP,
-  ArrowDown: InputEdge.DOWN,
-  Enter: InputEdge.CONFIRM,
-  Escape: InputEdge.CANCEL,
-};
-
-/** Bit in the INPUT_OFFSET snapshot for a DOM `KeyboardEvent.key`, or 0. */
-export function inputBitForKey(key) {
-  return KEY_TO_EDGE[key] ?? 0;
-}
-
-// A swipe shorter than this (in CSS pixels on the canvas) is a tap, which
-// the page writes as confirm — the same edge as Enter. A longer gesture
-// takes the dominant axis. Exported so the mapping is tested, not inferred
-// from the inlined page script.
-export const SWIPE_THRESHOLD = 28;
-
-/** Direction or confirm bit for a pointer gesture, or 0 if it did not move enough to count. */
-export function swipeEdge(dx, dy) {
-  const ax = Math.abs(dx);
-  const ay = Math.abs(dy);
-  if (ax < SWIPE_THRESHOLD && ay < SWIPE_THRESHOLD) return 0;
-  if (ax > ay) return dx < 0 ? InputEdge.LEFT : InputEdge.RIGHT;
-  return dy < 0 ? InputEdge.UP : InputEdge.DOWN;
-}
 
 export const ISOLATION_HEADERS = {
   'Cross-Origin-Opener-Policy': 'same-origin',
@@ -137,7 +80,6 @@ export function createStatusStore(frameRate = 60) {
     },
   };
 }
-
 /**
  * Read a small JSON body, or null when it is missing, too large, or not JSON.
  *
@@ -201,63 +143,28 @@ export async function handleStatusRequest(req, res, pathname, store) {
   return true;
 }
 
+// Cloudflare Pages / Netlify read this file. The two headers are what make
+// SharedArrayBuffer — and therefore the page-paints-the-worker's-memory
+// arrangement this target is built on — legal at all. See web-loader.mjs's
+// header comment for what was measured without them, and
+// docs/web-embedding.md for the Apache/nginx/Vercel equivalents.
 const HEADERS_FILE = `/*
   Cross-Origin-Opener-Policy: same-origin
   Cross-Origin-Embedder-Policy: require-corp
 `;
 
-// The two words the page and the worker share, in a SharedArrayBuffer beside
-// the program's memory: how many logical frames the page has released, and
-// how many the program has taken. Their difference is how far behind the
-// program is.
-const ISSUED = 0;
-const CONSUMED = 1;
-
-// The worker: the machine the program runs on. It instantiates the program
-// with the one import a program can have — waitFrame(), blocking on the
-// page's frame clock — hands the page its memory to paint, and calls the
-// program's one exported function.
-function renderWorker() {
-  return `
-const ISSUED = ${ISSUED};
-const CONSUMED = ${CONSUMED};
-
-self.onmessage = async ({ data: { ctrl } }) => {
-  // Block until the page has released a frame this program hasn't taken yet.
-  // Returns at once when one is already owed — two logical frames per real
-  // one on a slow display — otherwise sleeps until the page notifies. The
-  // same 0/1/2-frames-per-wait behavior the 6502 backend's accumulator has.
-  const waitFrame = () => {
-    const next = Atomics.load(ctrl, CONSUMED) + 1;
-    for (let issued; (issued = Atomics.load(ctrl, ISSUED)) < next;) {
-      Atomics.wait(ctrl, ISSUED, issued);
-    }
-    Atomics.store(ctrl, CONSUMED, next);
-  };
-
-  const response = await fetch(new URL('program.wasm', self.location.href));
-  const module = await WebAssembly.compile(await response.arrayBuffer());
-  const shared = WebAssembly.Module.imports(module).some((i) => i.module === 'env' && i.name === 'waitFrame');
-  const instance = await WebAssembly.instantiate(module, { env: { waitFrame } });
-  const entry = Object.values(instance.exports).find((v) => typeof v === 'function');
-
-  // A waitFrame() program's memory is shared, so the page can paint it while
-  // the program runs. One that never waits has ordinary memory: it runs to
-  // completion first, and the page gets a copy of the result to paint.
-  if (shared) self.postMessage({ memory: instance.exports.memory.buffer });
-  try {
-    entry();
-    if (!shared) self.postMessage({ memory: instance.exports.memory.buffer });
-    self.postMessage({ done: true });
-  } catch (error) {
-    if (!shared) self.postMessage({ memory: instance.exports.memory.buffer });
-    self.postMessage({ error: String(error) });
-  }
-};
-`;
-}
-
-function renderHtml(frameRate) {
+/**
+ * index.html: the shell around the loader.
+ *
+ * Everything specific to *this page being the whole tab* lives here — the
+ * viewport meta tags, the black body, the mobile-Safari toolbar nudge — and
+ * everything about running a program lives in 8bitscript.js. The page is a
+ * consumer of the loader like any other, which is the point: if embedding
+ * breaks, this breaks too, and it is the page we look at every day.
+ *
+ * @param {number} frameRate
+ */
+export function renderHtml(frameRate) {
   return `<!doctype html>
 <html>
 <head>
@@ -271,9 +178,9 @@ function renderHtml(frameRate) {
 <style>
   /* 100% first for a browser with neither unit; 100dvh (the visible area,
      shrinking and growing with mobile Safari's own toolbar) overrides it
-     on anything that understands it. Real height still comes from resize()
-     below reading visualViewport — this only keeps the black background
-     from leaving a gap the size of a hidden toolbar.
+     on anything that understands it. Real height still comes from the
+     loader's resize() reading visualViewport — this only keeps the black
+     background from leaving a gap the size of a hidden toolbar.
      html is NOT overflow: hidden, on purpose — nudgeChromeCollapsed()
      below needs an actual pixel of overflow to scroll into, since that is
      the one thing that sometimes still collapses mobile Safari's own
@@ -288,118 +195,35 @@ function renderHtml(frameRate) {
     padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
     box-sizing: border-box;
   }
-  canvas { image-rendering: pixelated; display: block; touch-action: none; }
-  #hint {
-    position: fixed;
-    left: 50%;
-    bottom: 18px;
-    transform: translateX(-50%);
-    font: 12px/1.4 ui-monospace, Menlo, monospace;
-    color: rgba(255, 255, 255, 0.55);
-    background: rgba(0, 0, 0, 0.35);
-    padding: 5px 10px;
-    border-radius: 6px;
-    pointer-events: none;
-    transition: opacity 0.6s ease;
-  }
-  #hint.hidden { opacity: 0; }
-  #fps {
-    position: fixed;
-    top: 10px;
-    right: 14px;
-    font: 11px/1.4 ui-monospace, Menlo, monospace;
-    color: rgba(255, 255, 255, 0.4);
-    pointer-events: none;
-  }
 </style>
 </head>
 <body>
-<canvas id="screen" width="${SCREEN_W}" height="${SCREEN_H}"></canvas>
-<div id="hint">arrows or swipe to move · double-click or F for fullscreen</div>
-<div id="fps">FPS --</div>
+<script src="8bitscript.js"></script>
 <script>
-const COLORS = ${JSON.stringify(COLORS)};
-const LOGICAL_STEP_MS = 1000 / ${frameRate};
-const BORDER_PX = ${BORDER_PX};
-const GRID_COLS = ${GRID_COLS};
-const GRID_ROWS = ${GRID_ROWS};
-const CHAR_W = ${CHAR_W};
-const CHAR_H = ${CHAR_H};
-const INNER_W = ${INNER_W};
-const INNER_H = ${INNER_H};
-const SCREEN_W = ${SCREEN_W};
-const SCREEN_H = ${SCREEN_H};
-const ISSUED = ${ISSUED};
-const CONSUMED = ${CONSUMED};
-
-const canvas = document.getElementById('screen');
-const ctx = canvas.getContext('2d');
-const hint = document.getElementById('hint');
-const fpsEl = document.getElementById('fps');
-
-// @8bitscript/web's WebRegisters (CHAR_BASE/COLOR_BASE, exported above): a
-// virtual 40-column, 1000-cell character screen starting at byte offset 2,
-// its color bytes starting at offset 1002. The cells hold ASCII 32-122
-// (the portable set) and 2×2 block patterns at 128-143 — the same codes
-// font8x8.mjs's glyphRows() draws for --screenshot. Both renderers stamp
-// those 8×8 bits into the cell; there is no system font in the picture.
-const CHAR_BASE = ${CHAR_BASE};
-const COLOR_BASE = ${COLOR_BASE};
-const INPUT_OFFSET = ${INPUT_OFFSET};
-const KEY_TO_EDGE = ${JSON.stringify(KEY_TO_EDGE)};
-const SWIPE_THRESHOLD = ${SWIPE_THRESHOLD};
-const InputEdgeConfirm = ${InputEdge.CONFIRM};
-const GLYPHS = ${glyphTableLiteral()};
-function swipeEdge(dx, dy) {
-  const ax = Math.abs(dx);
-  const ay = Math.abs(dy);
-  if (ax < SWIPE_THRESHOLD && ay < SWIPE_THRESHOLD) return 0;
-  if (ax > ay) return dx < 0 ? ${InputEdge.LEFT} : ${InputEdge.RIGHT};
-  return dy < 0 ? ${InputEdge.UP} : ${InputEdge.DOWN};
+// The dev server (8bs run web) reads this to drive the editor's Running
+// machines tree. Only ever posted back to a loopback origin: a deployed copy
+// of this page has no /status endpoint, and shouldn't be asking a stranger's
+// server for one either.
+var LOCAL = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname === '[::1]';
+function postStatus(body) {
+  if (!LOCAL) return;
+  fetch('/status', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  }).catch(function () {});
 }
 
-function glyphRows(code) {
-  const rows = GLYPHS[code];
-  return rows || null;
-}
-
-function paintGlyph(x, y, rows, color) {
-  ctx.fillStyle = color;
-  for (let gy = 0; gy < 8; gy += 1) {
-    const bits = rows[gy];
-    for (let gx = 0; gx < 8; gx += 1) {
-      if ((bits >> gx) & 1) ctx.fillRect(x + gx, y + gy, 1, 1);
-    }
-  }
-}
-
-// The canvas's on-page size, not its pixel grid: as large as fits the
-// window while keeping the screen's own aspect ratio, so it reads as one
-// screen filling the tab rather than a fixed-size box floating in it.
-// visualViewport, where it exists, is the area actually visible right
-// now — window.innerHeight on mobile Safari can still count space a
-// collapsed toolbar has given back, or not yet given back, depending on
-// iOS version, so this reads whichever is authoritative.
-function viewportSize() {
-  if (window.visualViewport) return [window.visualViewport.width, window.visualViewport.height];
-  return [window.innerWidth, window.innerHeight];
-}
-function resize() {
-  const [vw, vh] = viewportSize();
-  const scale = Math.min(vw / SCREEN_W, vh / SCREEN_H);
-  canvas.style.width = Math.floor(SCREEN_W * scale) + 'px';
-  canvas.style.height = Math.floor(SCREEN_H * scale) + 'px';
-}
-window.addEventListener('resize', resize);
-document.addEventListener('fullscreenchange', resize);
-if (window.visualViewport) window.visualViewport.addEventListener('resize', resize);
-resize();
-
-function toggleFullscreen() {
-  if (document.fullscreenElement) document.exitFullscreen();
-  else document.body.requestFullscreen().catch(() => {});
-}
-canvas.addEventListener('dblclick', toggleFullscreen);
+var screen = EightBitScript.mount(document.body, {
+  src: 'program.wasm',
+  frameRate: ${frameRate},
+  fullPage: true,
+  hud: true,
+  hint: 'arrows or swipe to move \\u00b7 double-click or F for fullscreen',
+  onSample: postStatus,
+  onDone: function () { postStatus({ done: true }); },
+  onError: function (error) { postStatus({ error: String(error) }); },
+});
 
 // Best-effort only — there is no API that hides a mobile browser's own
 // toolbar on request, and Apple has changed how/whether scrolling
@@ -412,196 +236,62 @@ function nudgeChromeCollapsed() {
   window.scrollTo(0, 1);
 }
 window.addEventListener('load', nudgeChromeCollapsed);
-window.addEventListener('orientationchange', () => setTimeout(nudgeChromeCollapsed, 300));
+window.addEventListener('orientationchange', function () { setTimeout(nudgeChromeCollapsed, 300); });
 if (window.visualViewport) {
-  window.visualViewport.addEventListener('resize', () => setTimeout(nudgeChromeCollapsed, 300));
+  window.visualViewport.addEventListener('resize', function () { setTimeout(nudgeChromeCollapsed, 300); });
 }
-let hintTimer = setTimeout(() => hint.classList.add('hidden'), 3000);
-function say(text) {
-  clearTimeout(hintTimer);
-  hint.textContent = text;
-  hint.classList.remove('hidden');
-}
-
-// Cells are 8×8 bits from GLYPHS, the same table --screenshot rasterizes.
-// Clip to the inner rectangle — on the VIC-20/C64 characters cannot draw
-// in the border, and a glyph that overflowed a cell should not either.
-
-function paint(mem) {
-  // Byte 0 is border, byte 1 is background — the same two offsets
-  // @8bitscript/web's screen.setColors() writes, agreed on in that
-  // package's WebRegisters.
-  ctx.fillStyle = COLORS[mem[0] & 15];
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = COLORS[mem[1] & 15];
-  ctx.fillRect(BORDER_PX, BORDER_PX, INNER_W, INNER_H);
-  const background = COLORS[mem[1] & 15];
-
-  // Whatever the program poked into the virtual character screen — this
-  // host doesn't know or care what any of it means, the same way a real
-  // VIC-20/C64 doesn't know what a program's screen memory says. Blank
-  // cells (never written, or written as a literal space) draw nothing,
-  // unless reverse video (color bit 7) is set: then the cell fills with
-  // the foreground color and the glyph is punched out in the background.
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(BORDER_PX, BORDER_PX, INNER_W, INNER_H);
-  ctx.clip();
-  for (let cell = 0; cell < GRID_COLS * GRID_ROWS; cell += 1) {
-    const colorByte = mem[COLOR_BASE + cell];
-    const reverse = (colorByte & 128) !== 0;
-    const code = mem[CHAR_BASE + cell];
-    const rows = glyphRows(code);
-    if (rows === null && !reverse) continue;
-    const col = cell % GRID_COLS;
-    const row = (cell - col) / GRID_COLS;
-    const x = BORDER_PX + col * CHAR_W;
-    const y = BORDER_PX + row * CHAR_H;
-    const fg = COLORS[colorByte & 15];
-    if (reverse) {
-      ctx.fillStyle = fg;
-      ctx.fillRect(x, y, CHAR_W, CHAR_H);
-      if (rows !== null) paintGlyph(x, y, rows, background);
-    } else if (rows !== null) {
-      paintGlyph(x, y, rows, fg);
-    }
-  }
-  ctx.restore();
-}
-
-// The frame clock. Real elapsed time accumulates and is released to the
-// program in fixed logical steps — on a display refreshing at exactly
-// frameRate that is one frame per callback, on a faster one fewer, on a
-// slower one sometimes two. The program is *behind* by however many
-// released frames it hasn't taken yet; when that reaches two, a step is
-// dropped rather than banked — the same rule the 6502 backend's accumulator
-// has, where at most about two frames can ever be owed and the rest are
-// lost. Without it, a program that lagged for a while would race through a
-// backlog at full speed afterwards, which no real machine does.
-const ctrl = new Int32Array(new SharedArrayBuffer(8));
-let mem = null;
-let keysHeld = 0;
-function writeInput() {
-  if (mem) mem[INPUT_OFFSET] = keysHeld;
-}
-function setInputBit(bit, down) {
-  if (!bit) return;
-  if (down) keysHeld |= bit;
-  else keysHeld &= ~bit;
-  writeInput();
-}
-window.addEventListener('keydown', (e) => {
-  const bit = KEY_TO_EDGE[e.key] || 0;
-  if (bit) {
-    e.preventDefault();
-    setInputBit(bit, true);
-  }
-  if (e.key === 'f' || e.key === 'F') toggleFullscreen();
-});
-window.addEventListener('keyup', (e) => {
-  const bit = KEY_TO_EDGE[e.key] || 0;
-  if (bit) {
-    e.preventDefault();
-    setInputBit(bit, false);
-  }
-});
-window.addEventListener('blur', () => {
-  keysHeld = 0;
-  writeInput();
-});
-let pulseTimer = 0;
-function pulseBit(bit) {
-  if (!bit) return;
-  setInputBit(bit, true);
-  clearTimeout(pulseTimer);
-  pulseTimer = setTimeout(() => setInputBit(bit, false), 80);
-}
-let pointerStart = null;
-function onPointerDown(e) {
-  if (e.pointerType === 'mouse' && e.button !== 0) return;
-  pointerStart = { x: e.clientX, y: e.clientY };
-  e.preventDefault();
-}
-function onPointerUp(e) {
-  if (!pointerStart) return;
-  const dx = e.clientX - pointerStart.x;
-  const dy = e.clientY - pointerStart.y;
-  pointerStart = null;
-  e.preventDefault();
-  const swipe = swipeEdge(dx, dy);
-  pulseBit(swipe || InputEdgeConfirm);
-}
-canvas.addEventListener('pointerdown', onPointerDown);
-canvas.addEventListener('pointerup', onPointerUp);
-canvas.addEventListener('pointercancel', () => { pointerStart = null; });
-canvas.addEventListener('contextmenu', (e) => e.preventDefault());
-let acc = 0;
-let last = null;
-let fpsWindowStart = null;
-let fpsConsumedAtWindowStart = 0;
-function tick(now) {
-  if (last === null) last = now;
-  acc += now - last;
-  last = now;
-  // A backgrounded/stalled tab shouldn't spin through a huge backlog of
-  // logical frames the instant it regains focus.
-  if (acc > LOGICAL_STEP_MS * 10) acc = LOGICAL_STEP_MS * 10;
-  while (acc >= LOGICAL_STEP_MS) {
-    acc -= LOGICAL_STEP_MS;
-    if (Atomics.load(ctrl, ISSUED) - Atomics.load(ctrl, CONSUMED) < 2) {
-      Atomics.add(ctrl, ISSUED, 1);
-      Atomics.notify(ctrl, ISSUED);
-    }
-  }
-  // How many frames the program actually took in the last real second —
-  // the number that answers "is it really running at frameRate," whatever
-  // Hz the display refreshes at. Sampled once a second so the digits don't
-  // flicker. This host's own diagnostic, drawn outside the canvas: not
-  // something the program can see or control.
-  if (fpsWindowStart === null) fpsWindowStart = now;
-  if (now - fpsWindowStart >= 1000) {
-    const consumed = Atomics.load(ctrl, CONSUMED);
-    const fps = consumed - fpsConsumedAtWindowStart;
-    fpsEl.textContent = 'FPS ' + fps;
-    fpsConsumedAtWindowStart = consumed;
-    fpsWindowStart = now;
-    fetch('/status', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ fps: fps, frames: consumed }),
-    }).catch(function () {});
-  }
-  if (mem) paint(mem);
-  requestAnimationFrame(tick);
-}
-
-const worker = new Worker('worker.js');
-worker.onmessage = ({ data }) => {
-  if (data.memory) {
-    mem = new Uint8Array(data.memory);
-    writeInput();
-  }
-  if (data.done) {
-    say('the program finished');
-    fetch('/status', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ done: true }),
-    }).catch(function () {});
-  }
-  if (data.error) {
-    say('the program failed: ' + data.error);
-    fetch('/status', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ error: String(data.error) }),
-    }).catch(function () {});
-  }
-};
-worker.onerror = (e) => say('the program failed: ' + e.message);
-worker.postMessage({ ctrl });
-requestAnimationFrame(tick);
 </script>
+</body>
+</html>
+`;
+}
+
+/**
+ * embed.html: a worked example, in the bundle, of the thing the bundle is for.
+ *
+ * Deliberately a page that is mostly *not* the game — text above and below a
+ * screen sitting in an article column — because that is the case index.html
+ * cannot demonstrate and the case that actually goes wrong.
+ */
+export function renderEmbedExample() {
+  return `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Embedding an 8BitScript program</title>
+<style>
+  body { margin: 0 auto; padding: 2rem 1rem 4rem; max-width: 42rem; background: #14161a; color: #d7dae0;
+         font: 16px/1.65 ui-sans-serif, system-ui, sans-serif; }
+  h1 { font-size: 1.4rem; }
+  code, pre { font-family: ui-monospace, Menlo, monospace; }
+  pre { background: #0b0d10; border: 1px solid #262b33; border-radius: 8px; padding: 1rem; overflow-x: auto; font-size: 13px; }
+  ${ELEMENT_NAME} { border-radius: 10px; overflow: hidden; }
+</style>
+<script src="8bitscript.js"></script>
+</head>
+<body>
+<h1>Embedding an 8BitScript program</h1>
+<p>
+  Everything below the heading is an ordinary page. The screen is one custom
+  element, sized by the column it sits in — narrow the window and the border
+  disappears on its own, because at that size the picture is worth more than
+  the frame.
+</p>
+
+<${ELEMENT_NAME} src="program.wasm" hint="swipe or tap to play"></${ELEMENT_NAME}>
+
+<p>That is this, in full:</p>
+<pre>&lt;script src="8bitscript.js"&gt;&lt;/script&gt;
+&lt;${ELEMENT_NAME} src="program.wasm"&gt;&lt;/${ELEMENT_NAME}&gt;</pre>
+
+<p>
+  Copy <code>8bitscript.js</code>, <code>program.wasm</code> and (if your host
+  will not send COOP/COEP headers) <code>coi.js</code> next to your page. The
+  <code>_headers</code> file in this bundle is the Cloudflare Pages and Netlify
+  form of those headers; <code>docs/web-embedding.md</code> has Apache, nginx
+  and Vercel.
+</p>
 </body>
 </html>
 `;
@@ -621,10 +311,18 @@ const MIME = {
 };
 
 /**
- * Write the hostable web bundle: index.html, worker.js, program.wasm, and
- * a Cloudflare `_headers` file with the COOP/COEP isolation headers
- * SharedArrayBuffer needs. `8bs build --target web` writes this to
+ * Write the hostable web bundle. `8bs build --target web` writes this to
  * dist/web/; wrangler (or any static host) serves the same directory.
+ *
+ *   index.html      the game, full tab
+ *   embed.html      the same program in somebody else's page, as an example
+ *   8bitscript.js   the loader: mount() and <eightbit-screen>
+ *   worker.js       the same worker the loader inlines, for pages whose CSP
+ *                   forbids blob: workers
+ *   coi.js          opt-in cross-origin-isolation shim for hosts that cannot
+ *                   send headers
+ *   program.wasm    the compiled program
+ *   _headers        COOP/COEP for Cloudflare Pages and Netlify
  *
  * @param {string} dir
  * @param {Buffer} wasmBytes
@@ -633,7 +331,10 @@ const MIME = {
 export async function writeWebBundle(dir, wasmBytes, { frameRate = 60 } = {}) {
   await mkdir(dir, { recursive: true });
   await writeFile(join(dir, 'index.html'), renderHtml(frameRate));
+  await writeFile(join(dir, 'embed.html'), renderEmbedExample());
+  await writeFile(join(dir, '8bitscript.js'), renderLoader({ frameRate }));
   await writeFile(join(dir, 'worker.js'), renderWorker());
+  await writeFile(join(dir, 'coi.js'), renderCoiServiceWorker());
   await writeFile(join(dir, 'program.wasm'), wasmBytes);
   await writeFile(join(dir, '_headers'), HEADERS_FILE);
 }
@@ -652,8 +353,15 @@ export async function writeWebBundle(dir, wasmBytes, { frameRate = 60 } = {}) {
  * @returns {Promise<number>} exit code
  */
 export async function runInBrowser(wasmBytes, { open = true, frameRate = 60, root, lastRunTarget } = {}) {
-  const html = root ? null : renderHtml(frameRate);
-  const worker = root ? null : renderWorker();
+  // Generated once up front, not per request: `8bs run web` without a prior
+  // build serves exactly the bytes `8bs build --target web` would have written.
+  const generated = root ? null : new Map([
+    ['/index.html', [renderHtml(frameRate), MIME['.html']]],
+    ['/embed.html', [renderEmbedExample(), MIME['.html']]],
+    ['/8bitscript.js', [renderLoader({ frameRate }), MIME['.js']]],
+    ['/worker.js', [renderWorker(), MIME['.js']]],
+    ['/coi.js', [renderCoiServiceWorker(), MIME['.js']]],
+  ]);
   const status = createStatusStore(frameRate);
   const server = createServer((req, res) => {
     const url = new URL(req.url ?? '/', 'http://127.0.0.1');
@@ -684,14 +392,10 @@ export async function runInBrowser(wasmBytes, { open = true, frameRate = 60, roo
       });
       return;
     }
-    if (pathname === '/index.html') {
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', ...ISOLATION_HEADERS });
-      res.end(html);
-      return;
-    }
-    if (pathname === '/worker.js') {
-      res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', ...ISOLATION_HEADERS });
-      res.end(worker);
+    const hit = generated.get(pathname);
+    if (hit) {
+      res.writeHead(200, { 'Content-Type': hit[1], ...ISOLATION_HEADERS });
+      res.end(hit[0]);
       return;
     }
     if (pathname === '/program.wasm') {

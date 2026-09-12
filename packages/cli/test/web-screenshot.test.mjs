@@ -22,18 +22,46 @@ const PAINTS_A = hex(`
      41 02 41 41 3a 00 00 41 ea 07 41 01 3a 00 00 0b
 `);
 
-test('writeWebBundle writes index.html, worker.js, program.wasm, and COOP/COEP headers', async () => {
+test('writeWebBundle writes a bundle somebody can host, embed from, and isolate', async () => {
   const dir = await mkdtemp(join(tmpdir(), '8bs-web-bundle-'));
   try {
     await writeWebBundle(dir, PAINTS_A, { frameRate: 50 });
+
+    // index.html is a consumer of the loader, not a second copy of it: the
+    // page we ship takes the same path an embedder takes.
     const html = await readFile(join(dir, 'index.html'), 'utf8');
-    assert.match(html, /LOGICAL_STEP_MS = 1000 \/ 50/);
-    assert.match(html, /const GLYPHS = \{/);
-    assert.match(html, /function paintGlyph/);
-    assert.doesNotMatch(html, /ctx\.fillText/);
+    assert.match(html, /<script src="8bitscript\.js"><\/script>/);
+    assert.match(html, /EightBitScript\.mount\(document\.body, \{/);
+    assert.match(html, /frameRate: 50,/);
+    assert.match(html, /fullPage: true,/);
+    assert.doesNotMatch(html, /const GLYPHS = \{/);
+
+    // The renderer and the frame clock live in the loader.
+    const loader = await readFile(join(dir, '8bitscript.js'), 'utf8');
+    assert.match(loader, /var DEFAULT_FRAME_RATE = 50;/);
+    assert.match(loader, /var GLYPHS = \{/);
+    assert.match(loader, /function paintGlyph/);
+    assert.doesNotMatch(loader, /ctx\.fillText/);
+
     const worker = await readFile(join(dir, 'worker.js'), 'utf8');
     assert.match(worker, /waitFrame/);
     assert.match(worker, /Atomics\.wait/);
+
+    // embed.html is the worked example of the case index.html cannot show:
+    // a screen inside a page that is mostly not the screen.
+    const embed = await readFile(join(dir, 'embed.html'), 'utf8');
+    assert.match(embed, /<eightbit-screen src="program\.wasm"/);
+    // ...and it has to actually load the loader, not just print the tag that
+    // does. A worked example that doesn't work is worse than none.
+    assert.match(embed, /<script src="8bitscript\.js"><\/script>/);
+
+    // coi.js is shipped but never loaded on its own — index.html must not
+    // quietly flip the embedder's whole origin to require-corp.
+    const coi = await readFile(join(dir, 'coi.js'), 'utf8');
+    assert.match(coi, /Cross-Origin-Embedder-Policy/);
+    assert.match(coi, /navigator\.serviceWorker\.register/);
+    assert.doesNotMatch(html, /coi\.js/);
+
     const wasm = await readFile(join(dir, 'program.wasm'));
     assert.deepEqual([...wasm], [...PAINTS_A]);
     const headers = await readFile(join(dir, '_headers'), 'utf8');
