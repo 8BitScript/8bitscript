@@ -220,8 +220,8 @@ under xpet, not recalled.
 | Program load address `$0401`; usable RAM `$0401` to `__ram_size` KiB; stack grows down from the top of RAM; `__ram_size` must be 8, 16 or 32 — the link script asserts against 96K/128K machines. Zero page `$0002–$008D` is BASIC 2/4's; **BASIC 1 (the 2001) copies CHRGET to `$C2–$D9`** (the same 24-byte routine BASIC 2/4 puts at `$70–$87`). The native backend's zp budget is `$8E–$FF` with that BASIC 1 window left unused (`memory.chrget`, `packages/compiler/src/mos`), so a `SYS` return still has an interpreter — occupying it was `?SYNTAX ERROR IN 0` on hello-world. | PET link map (measured pre-0.2.0); BASIC 1 CHRGET at `$C2` measured against the ROM and retrocomputing.SE / *Machine Language for Beginners* Appendix G; the 2001 hello-world screenshot |
 | The `.prg` starts with a one-line BASIC program whose `SYS` jumps to `_start`, so `RUN` after `LOAD` starts it. | `pet/lib/basic-header.o`, `commodore/lib/commodore.ld` |
 | PIA1 `$E810`, PIA2 `$E820`, VIA `$E840`, CRTC `$E880` (data at `$E881`); the CRTC is a **6545** (all models from 40xx and above), and a 6551 ACIA at `$EFF0` is SuperPET-only. | PETdoc.txt; VICE `petmem.c` |
-| A PET program starts in whatever character set the ROM booted — graphics on the 2001/3032/4032, text on the 8032 — and **stays there**: `text.8bs` encodes for whichever set `#fact(video.bootsInTextMode)` names and never writes the VIA PCR at all. Earlier versions wrote `$0C` (graphics), then `$0E` (text) before each run of text; both are gone. | probe screenshots; `src/text.8bs` |
-| **The charset bit is global and retroactive**: it selects the ROM the video hardware reads *now*, for every cell already on screen, so flipping it re-renders text that is already up — including BASIC's. This is why nothing selects a set any more. Measured on a 3032 (boots graphics) running hello-world back when `text.8bs` did: leaving the text set selected gave a readable `Hello World!` over a lower-case `ready.` prompt its owner never chose, and restoring the boot set at exit gave the right `READY.` over a greeting that had become `\|ELLO OORLD!`. No charset choice could have both, because the screen was drawn for a set the machine was not going to be left in. Encoding for the booted set removes the choice: measured after the rework, the 2001, 3032 and 8032 each show a readable greeting over their own boot prompt. | `restoreOnExit` screenshots 2026-09-11; `bootsInTextMode` screenshots (2001/3032/8032) 2026-09-12 |
+| A PET program draws in the **text** set (`$0E`) and is left there. It is the only set holding both cases of the alphabet, so it is the only one that can draw a string as it was written rather than flattened to capitals. `text.8bs` selects it once per run of text, except on a model that boots in it already (`#fact(video.bootsInTextMode)`, the 8032), where the write folds away and nothing reaches the binary. Nothing selects a set back — see the next row. | xpet screenshots 2026-09-12 (2001/3032/8032); `src/text.8bs`; `packages/compiler/test/mos.test.ts` byte check |
+| **The charset bit is global and retroactive**: it selects the ROM the video hardware reads *now*, for every cell already on screen, so flipping it re-renders text that is already up — including BASIC's. This is why nothing puts it back. Measured on a 3032 (boots graphics) running hello-world: leaving the text set selected gives a readable `Hello World!` over a lower-case `ready.` prompt its owner never chose, and restoring the boot set at exit gives the right `READY.` over a greeting that has become `\|ELLO OORLD!`. No program that leaves text on screen can have both, because the screen was drawn for a set the machine would not be left in. The text is what was asked for, so the text wins: a program exits in the set it selected. The 2001 pays nothing for that anyway (its two sets agree on codes 1-26, where BASIC's own prompt lives, so `READY.` still reads upper-case) and the 8032 never leaves its own set; only a 3032/4032 owner is handed a lower-case `ready.`. | `restoreOnExit` screenshots 2026-09-11; `bootsInTextMode` screenshots 2026-09-12; text-set screenshots (2001/3032/8032) 2026-09-12 |
 | `xpet -model 3032` boots BASIC 2 in upper-case/graphics mode; `4032` boots BASIC 4 in upper-case; `8032` boots BASIC 4 in lower-case text mode (its business editor ROM's choice). All three report `31743 BYTES FREE`. | boot screenshots via `-limitcycles -exitscreenshot` |
 | A 40-column build's text appears at the top-left of an 8032's 80-column screen: screen RAM is `$8000` on the 80-column machine too. | borders `.prg` on `-model 8032` |
 | VICE's PET models: 2001, 3008, 3016, 3032, 3032B, 4016, 4032, 4032B, 8032, 8096, 8296, SuperPET. RAM sizes 4/8/16/32/96/128; `-videosize 0/40/80` (0 = from ROM); CRTC "all models from 40xx and above"; `-screen2001` mirrors the 1K screen through `$8FFF` ("otherwise mirrors, if any, only go up to `$87FF`"); `-eoiblank` is a "Model-2001-only quirk"; `CB2Lowpass` filters the emulated CB2 sound; `-petdww` (30xx) and `-pethre` (8296) are hi-res *add-on boards*; Color PET (`$8800` color RAM) and `-sidcart` are third-party extensions. | VICE 3.10 manual §7.7, `xpet -help` |
@@ -423,11 +423,11 @@ unverified:
 - **"Later PETs booted in lower-case"** would also be wrong: only the
   business-keyboard editor ROMs (8032, 4032B, 3032B) start in text mode;
   the 3032 and 4032 boot in upper-case/graphics. That per-model fact is
-  now `video.bootsInTextMode`, and an 8bitscript program stays in whichever
-  set the ROM left for its whole run: no CHROUT of PETSCII 14 is emitted
-  (verified above) and `text.8bs` no longer writes `$E84C` either — it did
-  select the graphics set, then the text set, before both were removed.
-  A lesson from writing
+  now `video.bootsInTextMode`, and it decides one thing: whether
+  `text.8bs` has to select the text set before it draws. On the 8032 it
+  does not, and no `$E84C` write reaches the binary at all. No CHROUT of
+  PETSCII 14 is emitted on any model (verified above) — the register is
+  written directly. A lesson from writing
   this file: a CHROUT of PETSCII 14 is a KERNAL call, and a search
   of start-up for a `$E84C` write "proved" it did not exist. Check the linked
   binary, not the pieces.
@@ -500,7 +500,7 @@ unverified:
   New per-model facts go the same way: the value's tag's version of one
   small file (`x.pet.8032.8bs`), read through a namespace const, never a
   copy of a surface — or, for a number, a `facts` entry on the value.
-### The machine is given back the way it was handed over
+### The machine is left in the set the program drew in
 
 - **The first answer here was to put the register back, and it was the
   wrong one.** A save/restore pair around the program (`restoreOnExit`,
@@ -510,19 +510,38 @@ unverified:
   left on screen. On the 2001, which already exited correctly, it was a
   pure regression. The lesson generalises: **restoring a register that
   decides how existing screen content is interpreted is not a restore.**
-  Prefer not changing it.
-- So `text.8bs` does not. It encodes for the set the ROM booted into
-  (`video.bootsInTextMode`, a per-model constant folded at build time) and
-  writes no character-set register at all, which makes the save/restore
-  machinery dormant rather than merely cheap — `usesCharacterSet` never
-  fires, and hello-world got *smaller* (103 bytes, against 108 before any
-  of this and 116 with the restore).
-- `restoreOnExit` stays, on by default, for a program that pokes
-  `viaPeripheralControl` itself: it is still the right thing for a program
-  that genuinely means to change the machine, and it costs nothing when
-  nothing changes it. New restore-me-on-exit state goes the same way —
-  decided from the emitted stream, paid for only by programs that touch
-  it, and off in one place.
+- **The second answer was to stop switching**, encoding for whichever set
+  the ROM booted into. Nothing was re-rendered and every model kept its
+  own prompt — but the graphics set holds one case of the alphabet, so
+  `"Hello World"` reached the screen as `HELLO WORLD`. That is not the
+  string the program asked for. A text package that silently changes the
+  text is answering a different question than the one it was given.
+- **So: draw in the text set, select it where needed, and leave it.** It
+  is the only set on this machine with both cases, so it is the only one
+  that can print what a caller wrote. `restoreOnExit` is gone entirely
+  (the config key is named as retired by `8bs build`, not silently
+  ignored — `packages/cli/src/config.mjs`'s `RETIRED_OPTIONS`), and with
+  it `usesCharacterSet`, the prologue's `LDA $E84C`/`PHA` and the
+  epilogue's `PLA`/`STA $E84C`. hello-world measures 108 bytes on a 3032
+  now, against 116 while the restore was still being paid for (both built
+  here); the encode-for-the-booted-set version that could not spell the
+  greeting is recorded at 103 in #97's own commit message.
+- **What each model actually costs**, measured under xpet rather than
+  argued: the 8032 spends nothing (boots in the text set, so the write
+  folds out) and shows `Hello World!` over its own `ready.`; the 2001
+  spends the write but nothing visible, because its ROM's two sets agree
+  on codes 1-26 and BASIC's `READY.` is drawn from that range; a 3032 or
+  4032 owner gets the correct greeting and a lower-case `ready.`
+  underneath it. That last one is the whole price, and it is paid in the
+  prompt rather than in the program's own output — which is the right way
+  round.
+- A program that minds can still have it both ways by clearing what it
+  drew before it returns (`screen.blank()`) and writing `$0C` to
+  `viaPeripheralControl` itself: the register is exported, and with
+  nothing left on screen there is nothing for the retroactive bit to
+  re-render. That is a program's decision to make, not the text package's,
+  because only the program knows whether its output is meant to outlive
+  it.
 
 - 96K/128K is not a RAM size, it is a banking model, and this target does not link
   it — the `ram` option's own values stop at 32, the on-board maximum for

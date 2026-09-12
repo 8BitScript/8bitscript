@@ -4,17 +4,20 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { loadConfig, resolveFrameRate, resolveRestoreOnExit } from '../src/config.mjs';
+import { loadConfig, resolveFrameRate, retiredOptionWarnings } from '../src/config.mjs';
 
-test('resolveRestoreOnExit defaults to true, takes a boolean, and names anything else', () => {
-  assert.deepEqual(resolveRestoreOnExit(null), { ok: true, restoreOnExit: true });
-  assert.deepEqual(resolveRestoreOnExit({}), { ok: true, restoreOnExit: true }, 'a project that never mentions it gets the polite behavior');
-  assert.deepEqual(resolveRestoreOnExit({ restoreOnExit: false }), { ok: true, restoreOnExit: false });
-  assert.deepEqual(resolveRestoreOnExit({ restoreOnExit: true }), { ok: true, restoreOnExit: true });
-  const bad = resolveRestoreOnExit({ restoreOnExit: 'yes' });
-  assert.equal(bad.ok, false);
-  if (bad.ok) return;
-  assert.match(bad.error, /must be true or false, got "yes"/);
+test('retiredOptionWarnings names an option that no longer does anything, and stays quiet otherwise', () => {
+  assert.deepEqual(retiredOptionWarnings(null), []);
+  assert.deepEqual(retiredOptionWarnings({}), [], 'a project that never set it hears nothing');
+  assert.deepEqual(retiredOptionWarnings({ frameRate: 50 }), [], 'options that still work are not retired');
+  // Both spellings are reported: the option is gone, so the value it was
+  // given no longer changes anything and staying silent about `false`
+  // would be the one case where a project thinks it is still in control.
+  for (const value of [true, false]) {
+    const warnings = retiredOptionWarnings({ restoreOnExit: value });
+    assert.equal(warnings.length, 1, String(value));
+    assert.match(warnings[0], /restoreOnExit no longer does anything/);
+  }
 });
 
 test('resolveFrameRate defaults to 60, accepts a positive integer, and names anything else', () => {
