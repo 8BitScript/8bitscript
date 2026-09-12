@@ -53,7 +53,7 @@ import {
   unmetRequirements,
 } from '@8bitscript/compiler';
 
-import { loadConfig, resolveFrameRate, resolveRestoreOnExit } from './config.mjs';
+import { loadConfig, resolveFrameRate, retiredOptionWarnings } from './config.mjs';
 import {
   HARDWARE_USAGE, REGION_MACHINES, hardwareArgs, listedTargets, loadCatalog, projectHardware,
   projectProfiles, projectRequires, projectSystems, resolveHardware, whatSatisfies,
@@ -138,12 +138,11 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   }
   const { frameRate } = frameRateResult;
 
-  const restoreOnExitResult = resolveRestoreOnExit(config);
-  if (!restoreOnExitResult.ok) {
-    process.stderr.write(`8bs build: ${restoreOnExitResult.error}\n`);
-    return { ok: false };
+  // Said once, not fatal: an option that stopped meaning anything should
+  // not stop a build, but it should not pass unmentioned either.
+  for (const warning of retiredOptionWarnings(config)) {
+    process.stderr.write(`8bs build: ${warning}\n`);
   }
-  const { restoreOnExit } = restoreOnExitResult;
 
   // Nothing in a build reads the `systems` block, but a typo in one should
   // not wait for someone to open the editor to be noticed. Said once, and
@@ -295,7 +294,7 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   const nameOk = checkArtifactName(artifactStem, target);
   if (!nameOk.ok) process.stderr.write(`8bs build: note: ${nameOk.error}\n`);
   const outFile = resolve('dist', `${artifactStem}.${ext}`);
-  const result = await build(ir, { machine: target, hardware, outFile, frameRate, restoreOnExit, report });
+  const result = await build(ir, { machine: target, hardware, outFile, frameRate, report });
   if (!result.ok) {
     process.stderr.write(`8bs build: ${result.error}\n`);
     return { ok: false };

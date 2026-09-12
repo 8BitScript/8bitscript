@@ -90,48 +90,26 @@ const selectsTextSetIr: IrProgram = {
   globals: [],
 };
 
-test('build() gives the character set back: a program that writes $E84C is wrapped in a save/restore, and pays eight bytes for it', async () => {
+test('build() leaves the character set where the program put it — no save, no restore, no bytes', async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
   try {
-    const restored = await build(selectsTextSetIr, { machine: 'pet', hardware, outFile: join(scratch, 'on.prg'), frameRate: 60 });
-    const left = await build(selectsTextSetIr, { machine: 'pet', hardware, outFile: join(scratch, 'off.prg'), frameRate: 60, restoreOnExit: false });
-    assert.equal(restored.ok, true);
-    assert.equal(left.ok, true);
-    if (!restored.ok || !left.ok) return;
+    const built = await build(selectsTextSetIr, { machine: 'pet', hardware, outFile: join(scratch, 'on.prg'), frameRate: 60 });
+    assert.equal(built.ok, true);
+    if (!built.ok) return;
 
-    // LDA $E84C / PHA before the body, PLA / STA $E84C before the RTS:
-    // four bytes each side, and no RAM cell at all — the saved byte rides
-    // the CPU stack (mos/startup/commodore.ts).
-    assert.equal(restored.bytes.length - left.bytes.length, 8);
-    assert.equal(restored.memory.variables, left.memory.variables, 'the saved byte costs no RAM');
-
-    const code = [...restored.bytes];
-    const save = [0xad, 0x4c, 0xe8, 0x48]; // LDA $E84C ; PHA
-    const give = [0x68, 0x8d, 0x4c, 0xe8, 0x60]; // PLA ; STA $E84C ; RTS
+    const code = [...built.bytes];
     const at = (needle: number[]) => code.findIndex((_, i) => needle.every((b, j) => code[i + j] === b));
-    assert.ok(at(save) >= 0, 'the prologue takes a copy of the register');
-    assert.ok(at(give) > at(save), 'and the epilogue writes it back, immediately before returning to BASIC');
 
-    // Default is on: a build that never mentions restoreOnExit restores.
-    assert.notDeepEqual([...left.bytes], code);
-    assert.equal(at.call(null, save) >= 0, true);
-  } finally {
-    await rm(scratch, { recursive: true, force: true });
-  }
-});
-
-test('build() charges nothing for restoring a character set the program never selects', async () => {
-  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
-  try {
-    const on = await build(helloWorldIr, { machine: 'pet', hardware, outFile: join(scratch, 'on.prg'), frameRate: 60 });
-    const off = await build(helloWorldIr, { machine: 'pet', hardware, outFile: join(scratch, 'off.prg'), frameRate: 60, restoreOnExit: false });
-    assert.equal(on.ok, true);
-    assert.equal(off.ok, true);
-    if (!on.ok || !off.ok) return;
-    // The fixture writes screen RAM directly and never touches $E84C, so
-    // the two builds are byte-identical: the setting only reaches a
-    // program that actually changes the character set.
-    assert.deepEqual([...on.bytes], [...off.bytes]);
+    // The program's own store is there and is the only one: a build once
+    // wrapped this in LDA $E84C / PHA ... PLA / STA $E84C so a 3032 would
+    // return to the upper-case prompt it booted with. The bit is
+    // retroactive, so writing the old value back re-rendered the text the
+    // program had just drawn — the restore undid the reason for the
+    // switch. A program now exits in the set it selected.
+    assert.ok(at([0x8d, 0x4c, 0xe8]) >= 0, 'the program keeps its own store to $E84C');
+    assert.equal(at([0xad, 0x4c, 0xe8, 0x48]), -1, 'nothing takes a copy of the register on the way in');
+    assert.equal(at([0x68, 0x8d, 0x4c, 0xe8]), -1, 'and nothing writes one back on the way out');
+    assert.equal(code.filter((b, i) => b === 0x8d && code[i + 1] === 0x4c && code[i + 2] === 0xe8).length, 1, 'exactly one store to the register: the program\'s');
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
@@ -1241,6 +1219,55 @@ test('FRAME_SYNC.pet.calibrate measures VIA1 T2 against vsync and scales the ela
   const at50 = pet.calibrate(50);
   assert.match(at50, /50u \*/);
   assert.doesNotMatch(at50, /60u \*/);
+});
+
+test('the real hello-world selects the text set once per model that needs it, and never puts one back', async () => {
+  const main = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'examples', 'hello-world', 'src', 'main.8bs');
+  const src = readFileSync(main, 'utf8');
+  const bytesFor = async (profile: string) => {
+    const resolved = resolveHardware(loadCatalog('pet'), { profile });
+    assert.ok(resolved.ok, resolved.ok ? '' : resolved.error);
+    const { ir, diagnostics } = link(src, main, { machine: 'pet', facts: resolved.hardware.facts });
+    assert.deepEqual(diagnostics, []);
+    assert.ok(ir, 'link() returned no diagnostics but also no ir');
+    const hardware = resolved.hardware as unknown as BuildOptions['hardware'];
+    const scratch = await mkdtemp(join(tmpdir(), '8bs-charset-'));
+    try {
+      const result = await build(ir as IrProgram, { machine: 'pet', hardware, outFile: join(scratch, 'out.prg'), frameRate: 60 });
+      assert.equal(result.ok, true, result.ok ? '' : result.error);
+      return result.ok ? [...result.bytes] : [];
+    } finally {
+      await rm(scratch, { recursive: true, force: true });
+    }
+  };
+  const count = (code: number[], needle: number[]) => code.filter((_, i) => needle.every((b, j) => code[i + j] === b)).length;
+  const STA_PCR = [0x8d, 0x4c, 0xe8];
+  const LDA_PCR = [0xad, 0x4c, 0xe8];
+
+  // $0E is the text set, the only one holding both cases of the alphabet,
+  // so printing `Hello World!` as written means selecting it — once, on
+  // the models that boot in the other one.
+  for (const profile of ['2001', '3032']) {
+    const code = await bytesFor(profile);
+    assert.equal(count(code, STA_PCR), 1, `${profile}: one store to $E84C`);
+    assert.equal(count(code, [0xa9, 0x0e, ...STA_PCR]), 1, `${profile}: and it selects the text set`);
+  }
+
+  // The 8032's editor ROM powers on in the text set, so its guard folds
+  // and the store never reaches the binary — asserted on the bytes rather
+  // than the IR, since a dead store surviving into the image is exactly
+  // what the fold is there to prevent.
+  assert.equal(count(await bytesFor('8032'), STA_PCR), 0, '8032: nothing to select, so nothing is emitted');
+
+  // And on no model does anything read the register back. This used to
+  // save it on the way in and restore it on the way out; the bit is
+  // retroactive, so the restore re-rendered `Hello World!` into
+  // `|ELLO OORLD!` through the set it had just switched away from.
+  for (const profile of ['2001', '3032', '8032']) {
+    const code = await bytesFor(profile);
+    assert.equal(count(code, LDA_PCR), 0, `${profile}: nothing takes a copy of the character set`);
+    assert.equal(count(code, [0x68, ...STA_PCR]), 0, `${profile}: and nothing writes one back before returning`);
+  }
 });
 
 test('the real hello-world on the 2001 leaves BASIC 1 CHRGET ($C2-$D9) alone so SYS can return', async () => {

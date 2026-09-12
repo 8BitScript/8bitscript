@@ -8,10 +8,15 @@ import { text } from "@8bitscript/text";
 
 // There is no holding loop: main() falling off its end lands back in the
 // BASIC SYS that started it, which prints READY. — so the greeting stays
-// on screen above the prompt, and the machine is left exactly as it was
-// found. On a PET that boots into the upper-case/graphics character set
-// (every model but the 8032) this draws in capitals, because that set has
-// one case of the alphabet; nothing switches sets to force the other one.
+// on screen above the prompt, the same as any BASIC program that ends.
+//
+// `"Hello World!"` is drawn as it is written, on every machine. On a PET
+// that takes selecting the text character set, the only one holding both
+// cases of the alphabet; the models that boot into the graphics set
+// (every one but the 8032) are moved there and left there, because the
+// bit is retroactive and putting it back would re-render the greeting it
+// was switched for. See packages/pet/src/text.8bs for what each model
+// ends up looking like.
 export function main(): void {
     screen.blank();
     text.print(0, "Hello World!");

@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { epilogue, prologue, usesCharacterSet, usesDecimalSensitiveMath } from './commodore.ts';
+import { epilogue, prologue, usesDecimalSensitiveMath } from './commodore.ts';
 import type { Directive } from '../asm/assemble.ts';
 
-const staPcr: Directive = { kind: 'instruction', mnemonic: 'STA', mode: 'absolute', operand: { kind: 'value', value: 0xe84c } };
+const VIA_PCR = 0xe84c; // the PET's character-set register: nothing here may touch it
 
 test('epilogue: RTS, and nothing else', () => {
   assert.deepEqual(epilogue(), [{ kind: 'instruction', mnemonic: 'RTS', mode: 'implied' }]);
@@ -30,38 +30,16 @@ test('prologue(true) is CLD; prologue(false) is empty — a program with no +/- 
   assert.deepEqual(prologue(false), []);
 });
 
-test('usesCharacterSet: false for a program that never writes $E84C', () => {
-  const program: Directive[] = [
-    { kind: 'instruction', mnemonic: 'LDA', mode: 'absolute', operand: { kind: 'value', value: 0xe84c } },
-    { kind: 'instruction', mnemonic: 'STA', mode: 'absolute', operand: { kind: 'value', value: 0x8000 } },
-  ];
-  assert.equal(usesCharacterSet(program), false, 'reading the register, or writing the screen, is not selecting a character set');
-});
-
-test('usesCharacterSet: true for any store to $E84C, whichever register it came from', () => {
-  assert.equal(usesCharacterSet([staPcr]), true);
-  for (const mnemonic of ['STX', 'STY']) {
-    assert.equal(usesCharacterSet([{ kind: 'instruction', mnemonic, mode: 'absolute', operand: { kind: 'value', value: 0xe84c } }]), true, mnemonic);
+test('neither end of a program touches the character-set register', () => {
+  // A program exits in whatever set it selected. This used to save $E84C
+  // on the way in and put it back on the way out, and could not work: the
+  // bit is retroactive, so restoring it re-rendered the text the program
+  // had already drawn through the set it had switched away from to draw
+  // it. Asserted rather than assumed, because the failure is invisible in
+  // a unit test and shows up as mangled glyphs on a real 3032.
+  const touchesPcr = (d: Directive) => d.kind === 'instruction' && d.operand?.kind === 'value' && d.operand.value === VIA_PCR;
+  for (const needsCld of [true, false]) {
+    assert.equal(prologue(needsCld).some(touchesPcr), false, `prologue(${needsCld})`);
   }
-});
-
-test('the character set is saved on the stack and given back — four bytes each side, no RAM cell', () => {
-  assert.deepEqual(prologue(false, true), [
-    { kind: 'instruction', mnemonic: 'LDA', mode: 'absolute', operand: { kind: 'value', value: 0xe84c } },
-    { kind: 'instruction', mnemonic: 'PHA', mode: 'implied' },
-  ]);
-  assert.deepEqual(epilogue(true), [
-    { kind: 'instruction', mnemonic: 'PLA', mode: 'implied' },
-    staPcr,
-    { kind: 'instruction', mnemonic: 'RTS', mode: 'implied' },
-  ]);
-});
-
-test('CLD comes before the character-set save, so the copy is taken with the flag already known-clear', () => {
-  assert.deepEqual(prologue(true, true).map((d) => (d.kind === 'instruction' ? d.mnemonic : d.kind)), ['CLD', 'LDA', 'PHA']);
-});
-
-test('a program that never selects a character set pays nothing for restoring one', () => {
-  assert.deepEqual(prologue(false, false), []);
-  assert.deepEqual(epilogue(false), [{ kind: 'instruction', mnemonic: 'RTS', mode: 'implied' }]);
+  assert.equal(epilogue().some(touchesPcr), false, 'epilogue');
 });

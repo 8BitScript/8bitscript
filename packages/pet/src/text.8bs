@@ -10,6 +10,7 @@
 // namespace — the same names, the same shapes, ASCII codes, and a cell 0
 // at the top-left corner of the screen — so a program that imports it from
 // @8bitscript/text draws the same thing on every target.
+import { viaPeripheralControl } from "./index.8bs";
 import { Video } from "./geometry.8bs";
 
 // PET screen memory is at $8000 on every model: 1000 cells for the 40x25
@@ -37,35 +38,54 @@ import { Video } from "./geometry.8bs";
 // graphics symbols in the graphics set but as 'A'-'Z' (shifted) in the
 // text set.
 //
-// **This file draws for the set the machine is already in, and never
-// changes it.** The character-set bit is one register for the whole
-// screen, not a per-cell choice, and it is *retroactive*: it selects the
-// ROM the video hardware reads right now, so flipping it re-renders every
-// cell already drawn, including BASIC's. A version of this file that
-// selected the text set before each run of text therefore could not be
-// undone — putting the machine back the way it was found turned the text
-// it had just drawn into graphics glyphs, and leaving it switched handed
-// the owner of a 3032 a lower-case `ready.` prompt they never chose. Both
-// were real, both were measured, and neither is necessary: which set the
-// ROM booted into is a per-model constant, so `video.bootsInTextMode`
-// (the PET catalog's `model` option, `packages/compiler/src/fold/facts.mjs`)
-// folds at build time and asciiToScreenCode() simply addresses whichever
-// set is already live. Nothing writes `$E84C`, so nothing has to be
-// restored, and the eight bytes the compiler would have spent saving it
-// (`restoreOnExit`, mos/startup/commodore.ts) are never spent.
+// **This file draws in the text set, and selects it when the machine is
+// not already there.** That is not a preference: the graphics set holds
+// exactly one case of the alphabet, so it cannot draw `"Hello World"` as
+// written — only a flattened `HELLO WORLD`, which is a different string
+// than the one the program asked for. The text set holds both cases, so
+// it is the only set on this machine that can draw what a caller wrote.
+// A string reaches the screen as itself here, whichever model it is.
 //
-// The cost of that is honest rather than hidden: the graphics set holds
-// one case of the alphabet, so on a machine that boots into it — every
-// model here except the 8032 — mixed-case text draws in capitals. That is
-// what a PET in its power-on set has always looked like, and it is the
-// same text either way, not a mangled version of it.
-// (See packages/pet/AGENTS.md.)
+// Nothing puts the old set back, and that is the deliberate part. The
+// compiler used to save `$E84C` in a program's prologue and restore it in
+// the epilogue, so a 3032 that booted in graphics/upper case would return
+// to an upper-case `READY.` rather than the lower-case `ready.` its owner
+// never chose. It cannot work. The bit is screen-wide and *retroactive* —
+// it selects the ROM the video hardware reads right now, for every cell
+// already drawn — so writing the old value back re-renders the text the
+// program just drew, through the very set it switched away from in order
+// to draw it. Measured on a 3032: `Hello World!` came back as
+// `|ELLO OORLD!` above a correct prompt. The restore undid the only reason
+// to switch, so it is gone (mos/startup/commodore.ts); a program exits in
+// whatever set it selected, which is the one state where what it drew
+// still reads as what it wrote.
+//
+// What that costs, per model, measured under xpet rather than reasoned
+// about:
+//
+//   8032   Boots in the text set, so `prepare()` folds away to nothing and
+//          this file never writes the register at all. `Hello World!` over
+//          its own `ready.`, and not one byte spent.
+//   2001   Its ROM's two sets agree on codes 1-26 (upper case in both —
+//          see the swap below), and BASIC prints its own prompt from that
+//          range, so leaving the text set selected still shows an
+//          upper-case `READY.`. Nothing an owner can see has changed.
+//   3032   The real cost, and the whole of it: the greeting is correct and
+//   4032   the prompt underneath comes back lower-case, because on these
+//          ROMs the text set is where lower case lives. A program that
+//          minds can blank what it drew and is then free to write $0C
+//          itself on the way out — the register is exported, and a
+//          program that draws nothing after it has nothing left to
+//          re-render.
 //
 // blocks.8bs's own quadrant-block glyphs (screen codes 96-127) still work
 // unchanged: measured directly alongside the letters above, those codes
-// are byte-identical between the two character sets (two exceptions in
-// the full 96-127 range, 105 and 122, are graphics-only codes blocks.8bs
-// never uses), so nothing that draws with them cares which set is active.
+// are byte-identical between the two character sets — on *both* character
+// ROMs, re-checked when this file started selecting a set: exactly two
+// codes in the full 96-127 range differ (105 and 122), and blocks.8bs
+// draws with neither. Nothing that uses them cares which set is active,
+// which is why selecting the text set here does not disturb a screen
+// already drawn in blocks.
 //
 // One real wrinkle, also only found by measuring the ROM directly rather
 // than assuming one file speaks for the family: the original PET 2001's
@@ -74,37 +94,49 @@ import { Video } from "./geometry.8bs";
 // (901447-10, measured above) — upper case stays at 1-26 (unchanged from
 // the graphics set, not moved to 65-90) and lower case moves to 65-90
 // instead. `video.characterSetSwapped` (the PET catalog's `model` option)
-// is that fact. It no longer reaches asciiToScreenCode(): the swap is in
-// the *text* set only, and the 2001 boots into graphics, so this file
-// addresses its graphics set — identical on both ROMs — and never its
-// text set. The fact stays on the sheet because it is true of the
-// hardware, and anything that does address that ROM's text set will need
-// it.
+// is that fact, and because this file addresses the text set on every
+// model, the mapping below reads it: on a 2001 `"Hello World"` needs the
+// swapped halves, and encoding it the later ROM's way would draw the
+// mirror of what was asked for.
+namespace CharacterSet {
+    // $0E, the text set: both cases of the alphabet. $0C is the
+    // graphics set, which is what most models power on into.
+    const TEXT: utinyint = 0x0E;
+}
+
 function asciiToScreenCode(code: utinyint): utinyint {
-    if (#fact(video.bootsInTextMode)) {
-        // The text set: lower case at 1-26, upper case already at 65-90.
-        // `video.characterSetSwapped` does not appear here on purpose —
-        // the one ROM that swaps the text set's halves is the 2001's
-        // 901447-08, and the 2001 boots in graphics, so it takes the
-        // branch below and its text set is never addressed at all.
-        if (code >= 97 && code < 123) {
-            return code - 96; // 'a'-'z'
+    if (#fact(video.characterSetSwapped)) {
+        // The original 2001's text set: upper case stayed at 1-26 and
+        // lower case moved to 65-90. Verified glyph by glyph against
+        // characters-1.901447-08.bin — code 8 is 'H' on this ROM where it
+        // is 'h' on every later one.
+        if (code >= 65 && code < 91) {
+            return code - 64; // 'A'-'Z': this ROM keeps upper case at 1-26
         }
-        return code; // 'A'-'Z', space, digits, punctuation
+        if (code >= 97 && code < 123) {
+            return code - 32; // 'a'-'z': moved to 65-90 instead, on this ROM only
+        }
+        return code; // space, digits, punctuation: unchanged in either set
     }
-    // The graphics set, which is what every other model boots into. It
-    // holds exactly one case of the alphabet, at 1-26, so both cases of a
-    // letter map to it and text comes out in capitals — what a PET in its
-    // power-on set has always looked like. These offsets are the same on
-    // both character ROMs: 901447-08 and -10 differ only in the *text*
-    // set's arrangement (see the file header), never the graphics set's.
-    if (code >= 65 && code < 91) {
-        return code - 64; // 'A'-'Z'
-    }
+    // Every later model's text set (901447-10): lower case at 1-26, upper
+    // case already sitting at its own ASCII values, 65-90.
     if (code >= 97 && code < 123) {
-        return code - 96; // 'a'-'z', drawn with the same glyph
+        return code - 96; // 'a'-'z': the text set's lower case lives at 1-26
     }
-    return code; // space, digits, punctuation: unchanged in either set
+    return code; // 'A'-'Z' already, plus space, digits and punctuation
+}
+
+// Selects the text set, which is the set this file's screen codes are
+// written against. Gated on the model: the 8032's business-keyboard editor
+// ROM powers on in the text set already (`video.bootsInTextMode`, which
+// folds at build time), so on that machine this writes nothing — and with
+// no store to $E84C anywhere in the finished program, `usesCharacterSet`
+// stays false and the 8032 pays for neither the select nor the restore.
+function prepare(): void {
+    if (#fact(video.bootsInTextMode)) {
+        return;
+    }
+    viaPeripheralControl = CharacterSet.TEXT;
 }
 
 // ---- print: strings and number fields ------------------------------------
@@ -121,10 +153,10 @@ function asciiToScreenCode(code: utinyint): utinyint {
 // (see packages/compiler/src/ir).
 //
 // Under them: `place()` puts one character at one cell in the current
-// color, and is all a run of text costs per character — there is no
-// per-run setup left to do, since nothing selects a character set any
-// more. `text.putChar` and `text.putColor` stay the one-cell pokes a
-// caller can build anything from.
+// color, and is all a run of text costs per character, with `prepare()`
+// selecting the text character set once for the run.
+// `text.putChar` and `text.putColor` stay the one-cell pokes a caller can
+// build anything from.
 let currentReverse: bool = false; // until text.setReverse() says otherwise
 
 // Reverse video is bit 7 of the screen code: 128-255 are the ROM's
@@ -155,6 +187,7 @@ export namespace text {
     const COLUMNS: utinyint = Video.COLUMNS; // cells per row, so cell = y * text.COLUMNS + x
 
     function putChar(cell: usmallint, code: utinyint): void {
+        prepare();
         memory.write(0x8000 + cell, toScreen(code));
     }
 
@@ -174,6 +207,7 @@ export namespace text {
     // the current color — `text.setColor(...)` changes what gets printed
     // after it, not what is already on screen.
     function print(cell: usmallint, s: string): void {
+        prepare();
         for (let i: utinyint = 0; i < s.length; i++) {
             place(cell + i, s[i]);
         }
@@ -183,6 +217,7 @@ export namespace text {
     // right-aligned, starting at `cell` — a field on a HUD never shifts
     // columns as the number changes.
     function printNumber(cell: usmallint, value: usmallint, width: utinyint): void {
+        prepare();
         let k: utinyint = width;
         if (k < DIGIT_PLACES.length) {
             k = DIGIT_PLACES.length;

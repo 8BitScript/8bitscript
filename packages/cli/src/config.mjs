@@ -36,32 +36,36 @@ export async function loadConfig(dir, label = '8bs') {
 }
 
 /**
- * Whether a program hands the machine back in the state it was given.
+ * Options a project may still carry in its 8bitscript.config.ts that no
+ * longer do anything. A build names them rather than ignoring them: a knob
+ * that silently stopped working is worse than one that says so, and the
+ * project can delete the line knowing what it bought.
  *
- * Today that is one thing: the character set it was launched in. A program
- * that prints selects the text set itself, so without this a run on a PET
- * that booted in graphics/upper-case (the 3032 and 4032 both do) leaves its
- * owner at a lower-case BASIC prompt they never asked for. The program
- * exits in whichever mode it entered — not a fixed mode, so a machine
- * launched in lower case (the 8032) is given back in lower case too.
- *
- * Defaults to true. `restoreOnExit: false` buys the bytes back (on the PET:
- * four in the prologue, four in the epilogue, and no RAM at all — the saved
- * byte rides the CPU stack) for a program that would rather keep them, or
- * one that deliberately means to leave the machine as it left it.
+ * `restoreOnExit` saved the PET's character-set register on the way in and
+ * put it back on the way out, so a machine that booted in graphics/upper
+ * case returned to an upper-case `READY.`. The bit is retroactive — it
+ * selects the ROM the video hardware reads for every cell already on
+ * screen — so restoring it re-rendered the text the program had just
+ * drawn, through the set it had switched away from to draw it. It undid
+ * the reason it existed. See packages/pet/AGENTS.md.
+ */
+export const RETIRED_OPTIONS = new Map([
+  ['restoreOnExit', 'a program now exits in whatever character set it selected; putting the old one back re-rendered the text it had just drawn'],
+]);
+
+/**
+ * One message per retired option `config` still sets — empty for the
+ * projects that never did, which is all of them but the ones written
+ * against 0.5.0.
  *
  * @param {object|null} config
- * @returns {{ ok: true, restoreOnExit: boolean } | { ok: false, error: string }}
+ * @returns {string[]}
  */
-export function resolveRestoreOnExit(config) {
-  const restoreOnExit = config?.restoreOnExit ?? true;
-  if (typeof restoreOnExit !== 'boolean') {
-    return {
-      ok: false,
-      error: `8bitscript.config.ts's restoreOnExit must be true or false, got ${JSON.stringify(config?.restoreOnExit)}`,
-    };
-  }
-  return { ok: true, restoreOnExit };
+export function retiredOptionWarnings(config) {
+  if (!config || typeof config !== 'object') return [];
+  return [...RETIRED_OPTIONS]
+    .filter(([name]) => name in config)
+    .map(([name, why]) => `8bitscript.config.ts's ${name} no longer does anything: ${why}`);
 }
 
 /**
