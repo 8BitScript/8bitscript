@@ -25,8 +25,10 @@ const vscode = require('vscode');
 const {
   ALL_TARGETS,
   CONFIG_FILE,
+  CONFIG_FILENAMES,
   MACHINE_TARGETS,
   commandArgs,
+  findConfig,
   findToolchain,
   insertSystem,
   loadApps,
@@ -253,7 +255,7 @@ class Projects {
    * cached per directory until the next refresh. Which directory matters:
    * the machine catalogs are the toolchain's, but the `hardware` and
    * `profiles` a project fits its targets with are that project's
-   * `8bs.config.ts` (Studio asks for a 1351 on a C64), so asking in the
+   * `8bitscript.config.ts` (Studio asks for a 1351 on a C64), so asking in the
    * wrong directory shows the panel someone else's stock machine. Falls
    * back to the first project with a toolchain when `dir` names none, and
    * null when no toolchain can be found or the command fails — the
@@ -294,7 +296,7 @@ class Projects {
   }
 
   async refresh() {
-    const found = await vscode.workspace.findFiles(`**/${CONFIG_FILE}`, SEARCH_EXCLUDE);
+    const found = await vscode.workspace.findFiles(`**/{${CONFIG_FILENAMES.join(',')}}`, SEARCH_EXCLUDE);
     this.projects = loadProjects(found.map((uri) => uri.fsPath));
     this.targetsPromises.clear();
     const shipped = this.discoverShipped();
@@ -369,7 +371,7 @@ class TaskProvider {
     const dir = definition.projectDir
       ?? path.resolve(folder?.uri.fsPath ?? process.cwd(), definition.project ?? '.');
     const project = this.projects.all.find((p) => p.dir === dir)
-      ?? loadProject(path.join(dir, CONFIG_FILE));
+      ?? loadProject(findConfig(dir) ?? path.join(dir, CONFIG_FILE));
     if (!project.toolchain) return undefined;
 
     const resolved = makeTask(
@@ -407,7 +409,7 @@ function registerRunner(context, output) {
     vscode.tasks.registerTaskProvider(TASK_TYPE, new TaskProvider(projects)),
   );
 
-  const watcher = vscode.workspace.createFileSystemWatcher(`**/${CONFIG_FILE}`);
+  const watcher = vscode.workspace.createFileSystemWatcher(`**/{${CONFIG_FILENAMES.join(',')}}`);
   context.subscriptions.push(
     watcher,
     watcher.onDidCreate(() => projects.refresh()),
@@ -727,7 +729,7 @@ function registerRunner(context, output) {
       const line = systemLine(name.trim(), entry);
       await editor.edit((builder) => builder.insert(editor.selection.active, `systems: {\n  ${line}\n},\n`));
       vscode.window.showInformationMessage(
-        `${CONFIG_FILE} is not a plain "export default { … }", so the system was not written for you — it is at your cursor to place.`,
+        `${path.basename(project.configPath)} is not a plain "export default { … }", so the system was not written for you — it is at your cursor to place.`,
       );
       return;
     }
