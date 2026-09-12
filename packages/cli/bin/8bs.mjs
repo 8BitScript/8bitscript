@@ -7,7 +7,28 @@
 // under the cursor.
 const [, , command, ...rest] = process.argv;
 
-const IMPLEMENTED = new Set(['check', 'lsp', 'doctor', 'build', 'run', 'boot', 'setup', 'targets']);
+/**
+ * Exit with `code`, but not before what has been printed has left this
+ * process.
+ *
+ * `process.exit()` does not wait for a pending write, and a pipe stops
+ * accepting at 64KB — so the moment the machine catalogs grew past that,
+ * `8bs targets --json | ...` began handing its reader JSON that simply
+ * stopped mid-string at byte 65536. Silently: the exit code was still 0.
+ * Writing an empty chunk and waiting for its callback drains whatever is
+ * queued ahead of it, which is the only thing standing between a command
+ * that prints a lot and a consumer that parses what it prints.
+ *
+ * @param {number} code
+ */
+async function finish(code) {
+  for (const stream of [process.stdout, process.stderr]) {
+    if (stream.writableLength > 0) await new Promise((done) => stream.write('', done));
+  }
+  process.exit(code);
+}
+
+const IMPLEMENTED = new Set(['check', 'lsp', 'doctor', 'build', 'run', 'boot', 'setup', 'targets', 'controller']);
 const PLANNED = ['dev'];
 
 const usage = () => `Usage: 8bs <command> [options]
@@ -66,6 +87,20 @@ Implemented:
                                fitted with — options, values, presets, and
                                this project's own profiles; --json is what
                                the editor reads
+  controller [--no-open]       Map a game controller: serves a page on
+    [--list] [--print]         loopback and opens it in your browser, which
+    [--dir <path>]             is the only thing here that can see a pad —
+                               the Gamepad API belongs to a browsing
+                               context, and this process has no HID.
+                               Assign pads to players, bind the controls,
+                               and 8bitscript.controllers.json is written
+                               beside 8bitscript.config.ts as you go; 'run'
+                               reads it to aim each emulator's joystick
+                               ports. --no-open prints the URL and waits.
+                               --list prints the controllers the project
+                               has on record (not what is plugged in:
+                               nothing outside a browser can know that) and
+                               --print dumps the file
   check <files...>             Report diagnostics for 8BitScript source files
   doctor                       Verify the toolchains every target needs
   setup <target>               Install/configure what a target needs beyond
@@ -93,7 +128,7 @@ blocks. Constructs beyond that fail with a message. See docs/compiler.md.
 
 if (!command || command === '--help' || command === '-h') {
   process.stdout.write(usage());
-  process.exit(command ? 0 : 1);
+  await finish(command ? 0 : 1);
 }
 
 if (command === '--version' || command === '-v') {
@@ -104,42 +139,47 @@ if (command === '--version' || command === '-v') {
     readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../package.json'), 'utf8'),
   );
   process.stdout.write(`8bs ${pkg.version}\n`);
-  process.exit(0);
+  await finish(0);
 }
 
 if (command === 'check') {
   const { check } = await import('../src/check.mjs');
-  process.exit(await check(rest.filter((a) => !a.startsWith('-'))));
+  await finish(await check(rest.filter((a) => !a.startsWith('-'))));
 }
 
 if (command === 'doctor') {
   const { doctor } = await import('../src/doctor.mjs');
-  process.exit(await doctor());
+  await finish(await doctor());
 }
 
 if (command === 'build') {
   const { build } = await import('../src/build.mjs');
-  process.exit(await build(rest));
+  await finish(await build(rest));
 }
 
 if (command === 'run') {
   const { run } = await import('../src/run.mjs');
-  process.exit(await run(rest));
+  await finish(await run(rest));
 }
 
 if (command === 'boot') {
   const { boot } = await import('../src/run.mjs');
-  process.exit(await boot(rest));
+  await finish(await boot(rest));
+}
+
+if (command === 'controller') {
+  const { controller } = await import('../src/controller.mjs');
+  await finish(await controller(rest));
 }
 
 if (command === 'targets') {
   const { targets } = await import('../src/targets.mjs');
-  process.exit(await targets(rest));
+  await finish(await targets(rest));
 }
 
 if (command === 'setup') {
   const { setup } = await import('../src/setup.mjs');
-  process.exit(await setup(rest));
+  await finish(await setup(rest));
 }
 
 if (command === 'lsp') {
@@ -154,5 +194,5 @@ if (command === 'lsp') {
       ? `8bs ${command}: not implemented yet.\nThe compiler has no parser or backend yet, so there is nothing to ${command}.\n`
       : `8bs: unknown command '${command}'\n\n${usage()}`,
   );
-  process.exit(1);
+  await finish(1);
 }

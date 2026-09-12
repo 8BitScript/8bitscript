@@ -297,7 +297,15 @@ export function renderEmbedExample() {
 `;
 }
 
-function openBrowser(url) {
+/**
+ * Open a URL in whatever the system considers the default browser.
+ *
+ * Exported because `8bs controller` opens one for the same reason `8bs run
+ * web` does — the browser is the only thing on the machine that can do the
+ * job, here because it is the only thing that can see a gamepad — and two
+ * copies of a three-way platform switch is two things to get wrong.
+ */
+export function openBrowser(url) {
   if (process.platform === 'darwin') return spawn('open', [url], { stdio: 'ignore' });
   if (process.platform === 'win32') return spawn('cmd', ['/c', 'start', '""', url], { stdio: 'ignore' });
   return spawn('xdg-open', [url], { stdio: 'ignore' });
