@@ -9,6 +9,7 @@
 import { FACTS, MACHINES, RELEASE_MACHINES } from '@8bitscript/compiler';
 
 import { loadConfig } from './config.mjs';
+import { defaultPort } from './controllers.mjs';
 import {
   REGION_MACHINES, loadCatalog, projectHardware, projectProfiles, projectRequires, projectSystems,
   stockFacts,
@@ -60,6 +61,15 @@ export function describeTargets(config) {
       inRelease: RELEASE_MACHINES.includes(id),
       emulator: EMULATOR[id],
       region: REGION_MACHINES.has(id),
+      // The control port player 1 is read from. Not cosmetic and not the
+      // port number: a C64 or C128 game reads port *2*, because port 1
+      // shares its lines with the keyboard matrix and a stick left there
+      // types. Published here because the editor's Controller Setup panel
+      // needs it and had started keeping its own copy of the table
+      // (controllerProfile.cjs's PRIMARY_PORT, whose own comment says it
+      // should not have to) — machine knowledge belongs to the machine
+      // packages and reaches an editor through this JSON.
+      primaryPort: defaultPort(id, 1),
       options,
       presets: catalog.presets,
       profiles: projectProfiles(config, id),

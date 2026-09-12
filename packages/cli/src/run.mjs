@@ -59,6 +59,7 @@ import { join, resolve } from 'node:path';
 import { readFile, writeFile } from 'node:fs/promises';
 
 import { compile } from './build.mjs';
+import { CONTROLLERS_FILE, controllerInvocation, controllerPlayers, setConfigKey } from './controllers.mjs';
 import { HARDWARE_USAGE, hardwareArgs, loadArgs } from './hardware.mjs';
 import { hardwareSnapshot, writeLastRun } from './last-run.mjs';
 
@@ -130,6 +131,18 @@ export const VICE_MODEL_ARGS = {
 export const PET_REGION_NOTE = '8bs run: the PET has no --pal/--ntsc — its refresh rate is the model\'s. '
   + 'Pick a model with --profile (3032 is ~60Hz; 4016, 4032 and 8032 are 50Hz).\n';
 
+// The emulator each target is launched with, in one place, because the
+// controller adapters (controllers.mjs) are keyed by the emulator's own
+// name and need it before emulatorInvocation() has built anything. The
+// VICE half is VICE_EMULATOR above rather than a second copy of it.
+export const TARGET_EMULATOR = {
+  ...VICE_EMULATOR,
+  atari8: 'atari800',
+  nes: 'fceux',
+  cx16: 'x16emu',
+  mega65: 'xmega65',
+};
+
 // How each emulator is handed the built file when the hardware does not
 // say otherwise (a catalog value's `load` — the Atari XEGS cartridge —
 // overrides this; see hardware.mjs's loadArgs).
@@ -169,6 +182,21 @@ export function viceInteractiveSoundClock(hwArgs) {
 // time): a shared `8bs-atari800.cfg` is two writers and two atari800s
 // reading one file. ROM paths stay whatever the user already configured;
 // without those the emulator boots to black.
+export function atari800CleanDisplayText(cfg) {
+  let text = cfg;
+  text = setConfigKey(text, 'CRT_BEAM_SHAPE', '0');
+  text = setConfigKey(text, 'CRT_PHOSPHOR_GLOW', '0');
+  text = setConfigKey(text, 'SCANLINES_PERCENTAGE', '0');
+  text = setConfigKey(text, 'INTERPOLATE_SCANLINES', '0');
+  return text;
+}
+
+// The one file atari800 is pointed at. Both the CRT knobs above and a
+// controller profile's joystick keys go in it, because `-config` takes
+// one file and a second one would silently win or lose depending on
+// order. The pid is in the name for the parallel-test reason above.
+export const atari800ConfigPath = () => join(tmpdir(), `8bs-atari800-${process.pid}.cfg`);
+
 export async function atari800CleanDisplayConfig() {
   let cfg;
   try {
@@ -176,18 +204,83 @@ export async function atari800CleanDisplayConfig() {
   } catch {
     return null;
   }
-  const setKey = (text, key, value) => {
-    const re = new RegExp(`^${key}=.*$`, 'm');
-    if (re.test(text)) return text.replace(re, `${key}=${value}`);
-    return `${text.trimEnd()}\n${key}=${value}\n`;
-  };
-  cfg = setKey(cfg, 'CRT_BEAM_SHAPE', '0');
-  cfg = setKey(cfg, 'CRT_PHOSPHOR_GLOW', '0');
-  cfg = setKey(cfg, 'SCANLINES_PERCENTAGE', '0');
-  cfg = setKey(cfg, 'INTERPOLATE_SCANLINES', '0');
-  const outPath = join(tmpdir(), `8bs-atari800-${process.pid}.cfg`);
-  await writeFile(outPath, cfg);
+  const outPath = atari800ConfigPath();
+  await writeFile(outPath, atari800CleanDisplayText(cfg));
   return outPath;
+}
+
+/** The user's own ~/.atari800.cfg with the CRT knobs zeroed, or '' when they have none. */
+async function atari800ConfigBase() {
+  try {
+    return atari800CleanDisplayText(await readFile(join(homedir(), '.atari800.cfg'), 'utf8'));
+  } catch {
+    return atari800CleanDisplayText('');
+  }
+}
+
+/** The user's own vicerc, or '' — `-config` replaces it rather than adding to it, so it is copied. */
+async function viceConfigBase() {
+  try {
+    return await readFile(join(homedir(), '.config', 'vice', 'vicerc'), 'utf8');
+  } catch {
+    return '';
+  }
+}
+
+/** Nothing asked for and nothing to do — what every project without a `controllers` block gets. */
+const NO_CONTROLLER = { ok: true, args: [], leadingArgs: [], files: [], notes: [] };
+
+/**
+ * The controller flags and files for one launch, if this project has a
+ * profile at all.
+ *
+ * The profile is `8bitscript.controllers.json` in the project directory —
+ * the file the editor's Controller Setup panel writes. A project without
+ * one, which is every project written before this release, gets
+ * NO_CONTROLLER back and a launch byte-identical to what it always was:
+ * no arguments added, no files written. That is the regression this shape
+ * exists to prevent, and the run.test.mjs PET argument vectors are what
+ * prove it. An unreadable or unparseable file is named and refused rather
+ * than treated as "no controllers" — the panel can afford to degrade to
+ * an empty panel, but a launch that silently ignores the mapping someone
+ * just recorded is the failure this whole file is against.
+ *
+ * Every file the adapters need as a *base* is read here rather than in
+ * them: `-config` on both VICE and atari800 replaces the user's own
+ * settings rather than adding to them, so both temp files start as a copy
+ * of what the user already had. The adapters themselves stay pure —
+ * given the same profile and the same base text they return the same
+ * arguments and the same file contents, which is what lets the tests
+ * assert on an argument vector instead of opening a window.
+ *
+ * @param {string} target
+ * @param {{ hardware: object, dir?: string }} options
+ */
+export async function resolveController(target, { hardware, dir = process.cwd() }) {
+  let stored;
+  try {
+    stored = JSON.parse(await readFile(join(dir, CONTROLLERS_FILE), 'utf8'));
+  } catch (error) {
+    if (error.code === 'ENOENT') return NO_CONTROLLER;
+    return { ok: false, error: `cannot read ${CONTROLLERS_FILE}: ${error.message}` };
+  }
+  const declared = controllerPlayers(stored);
+  if (!declared.ok) return { ok: false, error: declared.error };
+  if (declared.players.length === 0) return NO_CONTROLLER;
+
+  const emulator = TARGET_EMULATOR[target] ?? target;
+  return controllerInvocation(target, declared.players, {
+    emulator,
+    hardware,
+    // VICE: a joystick map and the vicerc that names it (JoyMapFile has
+    // no command-line form; -config is how it is reached).
+    joymapPath: join(tmpdir(), `8bs-${emulator}-${process.pid}.vjm`),
+    vicercPath: join(tmpdir(), `8bs-${emulator}-${process.pid}.vicerc`),
+    baseVicerc: target in VICE_EMULATOR ? await viceConfigBase() : '',
+    // atari800: the same file the CRT knobs are written into.
+    configPath: atari800ConfigPath(),
+    baseConfig: target === 'atari8' ? await atari800ConfigBase() : '',
+  });
 }
 
 /**
@@ -198,11 +291,21 @@ export async function atari800CleanDisplayConfig() {
  * standard) comes from `hardware`/`pal` alone; whether anything gets
  * loaded into it is entirely the caller's own choice.
  *
+ * `controller` is what resolveController() made of this project's
+ * profile, and it defaults to nothing: a caller that does not pass one —
+ * screenshot.mjs, which drives these emulators headless and has no human
+ * holding a pad — gets exactly the arguments it got before this existed.
+ * Its flags go *after* `hardware.run[emulator]` for the same reason the
+ * catalog's own flags go after the machine's: the more specific thing
+ * said last wins, and the catalog is the one that decides what is
+ * plugged into a port.
+ *
  * @param {string} target
- * @param {{ pal: boolean, hardware: object, outFile?: string }} options
+ * @param {{ pal: boolean, hardware: object, outFile?: string,
+ *           controller?: { args: string[], files: object[] } }} options
  * @returns {Promise<{ ok: true, emulator: string, emulatorArgs: string[] } | { ok: false, error: string }>}
  */
-export async function emulatorInvocation(target, { pal, hardware, outFile }) {
+export async function emulatorInvocation(target, { pal, hardware, outFile, controller = NO_CONTROLLER }) {
   const region = pal ? 'pal' : 'ntsc';
   // Nothing to load into: every load-args call below is skipped outright
   // when there is no outFile, rather than asked to load nothing — each
@@ -219,10 +322,15 @@ export async function emulatorInvocation(target, { pal, hardware, outFile }) {
       ok: true,
       emulator,
       emulatorArgs: [
+        // -config first or not at all: VICE reads a configuration file
+        // only when the flag leads the line. See controllers.mjs's
+        // viceController() for the two bounded runs that measured it.
+        ...(controller.leadingArgs ?? []),
         ...(VICE_EMULATOR_ARGS[target] ?? []),
         ...(VICE_MODEL_ARGS[target]?.[region] ?? []),
         ...(hardware.run[emulator] ?? []),
         ...viceInteractiveSoundClock(hardware.run[emulator] ?? []),
+        ...controller.args,
         // Skip the "really quit?" confirmation dialog — closing the
         // emulator window during dev/test cycles should not need a click
         // every time.
@@ -240,13 +348,25 @@ export async function emulatorInvocation(target, { pal, hardware, outFile }) {
     // is what atari800's own default INTEGRAL stretch wants: a non-multiple
     // just letterboxes the same small image inside a bigger window.
     const tvHeight = pal ? 240 : 224;
-    const displayCfg = await atari800CleanDisplayConfig();
+    // atari800 takes one -config, so the controller profile's joystick
+    // keys and the CRT knobs above share a file. When a profile wrote
+    // one, that file already *is* the cleaned display config with the
+    // keys added — resolveController() hands the adapter the same cleaned
+    // text as its base — and its own `-config` is in controller.args
+    // below. With no profile there are no files and this is the line it
+    // always was.
+    const displayCfg = (controller.files ?? []).length > 0 ? null : await atari800CleanDisplayConfig();
     return {
       ok: true,
       emulator: 'atari800',
       emulatorArgs: [
+        // The controller profile's config, or the display-only one, but
+        // never both — and leading, where atari800's -config has always
+        // been.
+        ...(controller.leadingArgs ?? []),
         ...(displayCfg ? ['-config', displayCfg, '-no-autosave-config'] : []),
         ...(hardware.run.atari800 ?? []),
+        ...controller.args,
         pal ? '-pal' : '-ntsc',
         '-horiz-area', 'tv',
         '-vert-area', 'tv',
@@ -259,11 +379,19 @@ export async function emulatorInvocation(target, { pal, hardware, outFile }) {
     };
   }
   if (target === 'nes') {
-    return { ok: true, emulator: 'fceux', emulatorArgs: [...(hardware.run.fceux ?? []), ...load('fceux', DEFAULT_LOAD.fceux)] };
+    return {
+      ok: true,
+      emulator: 'fceux',
+      emulatorArgs: [...(hardware.run.fceux ?? []), ...controller.args, ...load('fceux', DEFAULT_LOAD.fceux)],
+    };
   }
   if (target === 'cx16') {
     // Confirmed against the X16Community/x16-emulator README.
-    return { ok: true, emulator: 'x16emu', emulatorArgs: [...(hardware.run.x16emu ?? []), ...load('x16emu', DEFAULT_LOAD.x16emu)] };
+    return {
+      ok: true,
+      emulator: 'x16emu',
+      emulatorArgs: [...(hardware.run.x16emu ?? []), ...controller.args, ...load('x16emu', DEFAULT_LOAD.x16emu)],
+    };
   }
   if (target === 'mega65') {
     // -videostd pins the video standard to match the region the .prg was
@@ -275,7 +403,12 @@ export async function emulatorInvocation(target, { pal, hardware, outFile }) {
     return {
       ok: true,
       emulator: 'xmega65',
-      emulatorArgs: [...(hardware.run.xmega65 ?? []), ...load('xmega65', DEFAULT_LOAD.xmega65), '-videostd', pal ? '0' : '1'],
+      emulatorArgs: [
+        ...(hardware.run.xmega65 ?? []),
+        ...controller.args,
+        ...load('xmega65', DEFAULT_LOAD.xmega65),
+        '-videostd', pal ? '0' : '1',
+      ],
     };
   }
   // Every caller already validated the target against the same set this
@@ -283,6 +416,17 @@ export async function emulatorInvocation(target, { pal, hardware, outFile }) {
   // own check for the one target — web — that has no bare emulator at all),
   // so this is unreachable.
   return { ok: false, error: `no emulator wired up for target '${target}'` };
+}
+
+/**
+ * Writes whatever files a controller profile implied — a VICE joystick
+ * map and the vicerc naming it, or an atari800 config — immediately
+ * before the emulator is spawned. The adapters built the contents; the
+ * only thing that happens here is the write, which is what keeps them
+ * testable without a filesystem.
+ */
+async function writeControllerFiles(controller) {
+  for (const file of controller.files ?? []) await writeFile(file.path, file.contents);
 }
 
 /** Spawns `emulator`, streaming its own stdio, and resolves once its window closes. */
@@ -363,6 +507,21 @@ export async function run(args) {
     return 0;
   }
 
+  // The project's controller profile, if it has one. Resolved after the
+  // screenshot branch because a headless capture has nobody holding a pad
+  // and wants none of these flags, and before the web branch because the
+  // web target still has something to say about a profile (it has nowhere
+  // to put one yet, and says so). A profile this machine cannot honour
+  // fails here, before a window opens — the point of naming a refusal is
+  // that someone reads it, and nobody reads a line that scrolled past
+  // while an emulator was starting.
+  const controller = await resolveController(target, { hardware });
+  if (!controller.ok) {
+    process.stderr.write(`8bs run: ${controller.error}\n`);
+    return 1;
+  }
+  for (const note of controller.notes) process.stderr.write(`8bs run: ${note}\n`);
+
   if (target === 'web') {
     // Every program runs the same way on the web: in the browser runtime's
     // worker (web-runtime.mjs), whether it loops on waitFrame(), returns, or
@@ -380,7 +539,8 @@ export async function run(args) {
     });
   }
 
-  const invocation = await emulatorInvocation(target, { pal, hardware, outFile });
+  await writeControllerFiles(controller);
+  const invocation = await emulatorInvocation(target, { pal, hardware, outFile, controller });
   if (!invocation.ok) {
     process.stderr.write(`8bs run: ${invocation.error}\n`);
     return 1;
@@ -457,7 +617,20 @@ export async function boot(args) {
     return 1;
   }
 
-  const invocation = await emulatorInvocation(target, { pal, hardware: resolved.hardware });
+  // A bare machine still gets the project's controllers. `8bs boot` is
+  // for looking at hardware, and "does the stick in port 2 actually
+  // move the BASIC cursor" is exactly the kind of thing it is for —
+  // checking a profile without spending a build on it, the same way it
+  // already checks a --profile/--hardware combination.
+  const controller = await resolveController(target, { hardware: resolved.hardware });
+  if (!controller.ok) {
+    process.stderr.write(`8bs boot: ${controller.error}\n`);
+    return 1;
+  }
+  for (const note of controller.notes) process.stderr.write(`8bs boot: ${note}\n`);
+  await writeControllerFiles(controller);
+
+  const invocation = await emulatorInvocation(target, { pal, hardware: resolved.hardware, controller });
   if (!invocation.ok) {
     process.stderr.write(`8bs boot: ${invocation.error}\n`);
     return 1;
