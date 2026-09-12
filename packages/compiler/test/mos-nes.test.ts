@@ -44,7 +44,8 @@ const FONT_SHAPED = [
   '.rept 3',
   '    inv 0b00001111',
   '.endr',
-  '.byte (1 + 2) * 4',
+  '.byte (1 + 2) * 4, 9 / 2, 0x0F & 0x3C, 0x30 | 0x0C, -1',
+  '.skip 1',
 ].join('\n');
 
 test('the CHR reader reads font.s\'s own gas subset: macros with \\arg substitution, .rept, .space with arithmetic, and xor', () => {
@@ -57,10 +58,14 @@ test('the CHR reader reads font.s\'s own gas subset: macros with \\arg substitut
       0x03, 0x0c, 0x00, 0x00, // tile 0b11, $0C — the macro's two arguments, then its own two literal zeros
       0x00, 0x00, 0x00, 0x00, // .space 2 * 2 — the expression is evaluated, not read as "2"
       0xf0, 0xf0, 0xf0, // .rept 3 of `inv 0b00001111` — 0xff ^ 0x0f
-      12, // (1 + 2) * 4 — parentheses and precedence
+      // One of each operator the grammar has: parentheses and precedence,
+      // integer division, and the three bitwise operators. `-1` is the
+      // unary minus, masked to a byte the way every .byte value is.
+      12, 4, 0x0c, 0x3c, 0xff,
+      0x00, // .skip, gas's own alias for .space
     ],
   );
-  assert.equal(chr.defined, 12);
+  assert.equal(chr.defined, 17);
   assert.equal(chr.bytes.length, 32, 'padded to the requested size: the rest of the character set is blank tiles');
 });
 
@@ -261,6 +266,37 @@ test('build() for the NES ends main() in a halt, never an RTS — the hardware v
   }
 });
 
+test('the halt a drawing program ends in keeps delivering the picture: a vertical-blank wait and the frame hook, forever', async () => {
+  // What hello-world really is on this machine: it prints, main() ends,
+  // and the characters are still sitting in @8bitscript/nes's queue. The
+  // bare spin the test above measures would show a blank screen.
+  const drawsThenStops: IrProgram = {
+    entry: 'main',
+    functions: [
+      { name: 'main', body: [{ kind: 'call', name: 'nesVerticalBlank', args: [] }] },
+      // The explicit `return` is what keeps it a callable function rather
+      // than something inlined into its one call site — the package's own
+      // nesVerticalBlank() carries the same line for the same reason.
+      { name: 'nesVerticalBlank', body: [...oneStore(0x2007, 0x20), { kind: 'return' }] },
+    ],
+    globals: [],
+    nativeSources: [FONT_PATH],
+  };
+  const { result, cleanup } = await buildNes(drawsThenStops);
+  try {
+    assert.equal(result.ok, true, result.ok ? '' : result.error);
+    if (!result.ok) return;
+    const prg = [...result.bytes.subarray(16, 16 + 128)];
+    // LDA $2002 / BPL -3 / JSR hook / JMP back to the LDA.
+    const halt = prg.findIndex((_, i) => prg[i] === 0xad && prg[i + 1] === 0x02 && prg[i + 2] === 0x20
+      && prg[i + 3] === 0x10 && prg[i + 4] === 0xfb && prg[i + 5] === 0x20 && prg[i + 8] === 0x4c);
+    assert.ok(halt > 0, 'the halt waits for vertical blank and calls the frame hook');
+    assert.equal(prg[halt + 9] | (prg[halt + 10] << 8), 0x8000 + halt, 'and loops back to the wait, not past it');
+  } finally {
+    await cleanup();
+  }
+});
+
 // ---- mutable arrays on a ROM image -----------------------------------------
 
 const arrayIr = (init: number[] | null): IrProgram => ({
@@ -315,6 +351,47 @@ test('a mutable array with a real initializer keeps its bytes in the ROM and cop
         && head[i + 6] === 0xe8 && head[i + 7] === 0xe0 && head[i + 8] === 0x04),
       'and a loop that copies them into the RAM the array was given',
     );
+  } finally {
+    await cleanup();
+  }
+});
+
+test('a RAM window bigger than a page is cleared, and copied into, a page at a time', async () => {
+  // 300 bytes: one whole page plus a 44-byte remainder, so both halves of
+  // both loops run. The page loop is an X that wraps to zero on its own;
+  // the remainder is counted, and counted in opposite directions by the
+  // two loops because LDA clobbers the flags DEX would have set.
+  const big = new Array<number>(300).fill(0).map((_, i) => (i % 251) + 1);
+  const wide: IrProgram = {
+    ...arrayIr(null),
+    globals: [{ name: 'wide', type: 'utinyint', address: null, array: 300, init: big, constant: false }],
+    functions: [{
+      name: 'main',
+      body: [{
+        kind: 'storeIndex',
+        array: { kind: 'ref', name: 'wide', type: 'utinyint' },
+        index: { kind: 'const', value: 0, type: 'utinyint' },
+        value: { kind: 'const', value: 7, type: 'utinyint' },
+        elementType: 'utinyint',
+      }],
+    }],
+  };
+  const { result, cleanup } = await buildNes(wide);
+  try {
+    assert.equal(result.ok, true, result.ok ? '' : result.error);
+    if (!result.ok) return;
+    const prg = [...result.bytes.subarray(16, 16 + 160)];
+    const has = (needle: number[]) => prg.some((_, i) => needle.every((b, j) => prg[i + j] === b));
+    // Clear, page 0: LDX #0 / STA $0200,X / INX / BNE — 256 stores, seven bytes.
+    assert.ok(has([0xa2, 0x00, 0x9d, 0x00, 0x02, 0xe8, 0xd0, 0xfa]), 'the first page is cleared by a wrapping X');
+    // Clear, remainder: LDX #44 / DEX / STA $0300,X / BNE.
+    assert.ok(has([0xa2, 0x2c, 0xca, 0x9d, 0x00, 0x03, 0xd0, 0xfa]), 'and the 44 bytes over it are counted down');
+    // Copy, page 0: LDX #0 / LDA rom,X / STA $0200,X / INX / BNE.
+    assert.ok(prg.some((_, i) => prg[i] === 0xa2 && prg[i + 1] === 0x00 && prg[i + 2] === 0xbd
+      && prg[i + 5] === 0x9d && prg[i + 6] === 0x00 && prg[i + 7] === 0x02 && prg[i + 8] === 0xe8 && prg[i + 9] === 0xd0));
+    // Copy, remainder: ends on CPX #44 rather than on the load's own flags.
+    assert.ok(prg.some((_, i) => prg[i] === 0xbd && prg[i + 3] === 0x9d && prg[i + 4] === 0x00 && prg[i + 5] === 0x03
+      && prg[i + 6] === 0xe8 && prg[i + 7] === 0xe0 && prg[i + 8] === 0x2c && prg[i + 9] === 0xd0));
   } finally {
     await cleanup();
   }

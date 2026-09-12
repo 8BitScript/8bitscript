@@ -48,12 +48,11 @@ test('build() names a missing --profile value rather than treating the next flag
 });
 
 test('compile() refuses a parked machine, a retired name, and an unknown target', async () => {
-  // mega65 stands in for "parked" now that the C64, the VIC-20 and the
-  // C128 all build.
-  const parked = await capture(() => compile('mega65'));
+  // The nes stands in for "parked": every Commodore and the X16 build now.
+  const parked = await capture(() => compile('nes'));
   assert.equal(parked.result.ok, false);
   assert.match(parked.stderr, /not a target in this release/);
-  assert.match(parked.stderr, /mega65/);
+  assert.match(parked.stderr, /nes/);
 
   const retired = await capture(() => compile('c64-pal'));
   assert.equal(retired.result.ok, false);
@@ -188,7 +187,7 @@ test('build() --release fails clearly when the config lists no release-ready tar
   const dir = await mkdtemp(join(tmpdir(), '8bs-compile-'));
   const prev = process.cwd();
   try {
-    await writeFile(join(dir, '8bitscript.config.ts'), 'export default { targets: { mega65: {} } };\n');
+    await writeFile(join(dir, '8bitscript.config.ts'), 'export default { targets: { nes: {} } };\n');
     process.chdir(dir);
     const { result, stderr } = await capture(() => build(['--release']));
     assert.equal(result, 1);

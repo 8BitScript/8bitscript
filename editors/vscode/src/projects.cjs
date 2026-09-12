@@ -54,14 +54,14 @@ function findConfig(dir) {
  * resolver is the toolchain's own version of this same list, and this is
  * narrowed to match rather than showing machines nothing can be built for
  * yet. The parked ones (atari8, nes, cx16, mega65) come back here machine
- * by machine as their native backends land (atari8, nes, mega65).
+ * by machine as their native backends land (atari8, nes).
  *
  * What each machine OFFERS is never listed here: every option, value and
  * preset comes from `8bs targets --json` (see hardwareCatalog.cjs), so a
  * C64's REU sizes and a VIC-20's RAM expansions arrive on their own the
  * moment the machine is on this list.
  */
-const ALL_TARGETS = ['pet', 'c64', 'vic20', 'c128', 'cx16', 'web'];
+const ALL_TARGETS = ['pet', 'c64', 'vic20', 'c128', 'cx16', 'mega65', 'web'];
 
 /**
  * Targets that are a machine model with an NTSC/PAL choice. The PET is a

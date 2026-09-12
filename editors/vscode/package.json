@@ -237,6 +237,7 @@
             "vic20",
             "c128",
             "cx16",
+            "mega65",
             "web"
           ],
           "default": "pet",
@@ -310,6 +311,7 @@
               "vic20",
               "c128",
               "cx16",
+              "mega65",
               "web"
             ],
             "description": "The system to build for or run on. Required for run and build."

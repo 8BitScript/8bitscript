@@ -66,10 +66,10 @@ test('the CLI depends on the examples, so they ship with the toolchain', () => {
 });
 
 test('hello-world targets every machine this release builds for', () => {
-  assert.deepEqual(targetsOf(resolve(ROOT, examples['hello-world'].dir)), ['pet', 'c64', 'vic20', 'c128', 'cx16', 'web']);
+  assert.deepEqual(targetsOf(resolve(ROOT, examples['hello-world'].dir)), ['pet', 'c64', 'vic20', 'c128', 'cx16', 'mega65', 'web']);
 });
 
-for (const target of ['pet', 'c64', 'vic20', 'c128', 'cx16', 'web']) {
+for (const target of ['pet', 'c64', 'vic20', 'c128', 'cx16', 'mega65', 'web']) {
   test(`hello-world links clean for ${target}`, () => {
     const main = join(ROOT, 'hello-world', 'src', 'main.8bs');
     const { ir, diagnostics } = link(readFileSync(main, 'utf8'), main, { machine: target, facts: stockFacts(target) });
