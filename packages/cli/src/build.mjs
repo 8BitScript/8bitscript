@@ -59,6 +59,7 @@ import {
   projectProfiles, projectRequires, projectSystems, resolveHardware, whatSatisfies,
 } from './hardware.mjs';
 import { compileReport, writeLastRun } from './last-run.mjs';
+import { checkArtifactName } from './artifact-name.mjs';
 
 const TARGETS = new Set(MACHINES);
 
@@ -282,7 +283,18 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   const nameParts = [stem, target, ...hardware.buildValues];
   if (REGION_TARGETS.has(target)) nameParts.push(pal ? 'pal' : 'ntsc');
   const ext = outputExtension(target, hardware);
-  const outFile = resolve('dist', `${nameParts.join('-')}.${ext}`);
+  // The name has to survive the filesystem it will be loaded from, not just
+  // this one. Said, not enforced: a name too long for the medium is still a
+  // perfectly good build, and every part of it is there because it can
+  // change the bytes (a PET's `speaker` moves `audio.voices`, which a
+  // program folds on). What it is not is a name a CBM directory can hold,
+  // and CBM DOS truncates to sixteen characters without saying so — so this
+  // says so instead, once, at the point the name is chosen. See
+  // artifact-name.mjs for the measurement behind the number.
+  const artifactStem = nameParts.join('-');
+  const nameOk = checkArtifactName(artifactStem, target);
+  if (!nameOk.ok) process.stderr.write(`8bs build: note: ${nameOk.error}\n`);
+  const outFile = resolve('dist', `${artifactStem}.${ext}`);
   const result = await build(ir, { machine: target, hardware, outFile, frameRate, restoreOnExit, report });
   if (!result.ok) {
     process.stderr.write(`8bs build: ${result.error}\n`);
