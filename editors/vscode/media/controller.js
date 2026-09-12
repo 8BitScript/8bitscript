@@ -56,15 +56,22 @@ let armed = false;
 let blocked = false;
 
 /**
- * Whether a `gamepadconnected` event has ever fired here.
+ * Whether a `gamepadconnected` event has fired and nothing has ever been
+ * listable since.
  *
  * The third state, and the one that cannot be read off the API. A
  * permissions policy that *throws* is caught in `pads()`; a policy — or an
  * editor sandbox — that instead lets the call succeed and quietly yields
  * nothing is indistinguishable from an unplugged pad, which is exactly the
  * confusion this panel exists to prevent. The event is the contradiction
- * that gives it away: the window saw a controller connect, and the same
- * window reports no controllers. Nothing but a block explains that pair.
+ * that gives it away: the window announced a controller, and the same
+ * window cannot list one. Nothing but a block explains that pair.
+ *
+ * "And nothing has ever been listable since" is the whole of it, and the
+ * reason it is cleared in two places. Set it on connect and leave it set
+ * and the most ordinary thing anyone does — plug a pad in, use it, unplug
+ * it — ends with the panel announcing a sandbox refusal at somebody who
+ * pulled a USB cable.
  */
 let sawConnect = false;
 
@@ -148,8 +155,11 @@ function tick() {
   const connected = list ?? [];
 
   // Tell the extension when the set of pads changes, and only then.
-  // A window that announced a controller and then reports none is a
-  // window that is refusing to answer, however quietly it does it.
+  // Listing even one pad resolves the contradiction: this window can
+  // answer, so whatever it says later about an empty list is the truth.
+  if (connected.length > 0) sawConnect = false;
+  // A window that announced a controller and has never once been able to
+  // list one is a window refusing to answer, however quietly it does it.
   const silenced = sawConnect && connected.length === 0;
   const signature = (blocked ? 'blocked' : '') + (silenced ? 'silenced' : '')
     + connected.map((pad) => `${pad.id}#${pad.buttons.length}/${pad.axes.length}`).join('|');
@@ -162,9 +172,12 @@ function tick() {
 
   if (document.hidden) return;
 
-  const selected = data?.selected
-    ? connected.find((pad) => Profile.deviceKey(pad.id) === data.selected)
-    : null;
+  // Keyed with `deviceKeys` rather than `deviceKey`, on the same ordered
+  // list the extension keys, because two identical pads — the ordinary
+  // two-player setup — report identical `id` strings.
+  const keys = Profile.deviceKeys(connected.map((pad) => pad.id));
+  const at = data?.selected ? keys.indexOf(data.selected) : -1;
+  const selected = at === -1 ? null : connected[at];
   frame = selected ? flatten(selected) : { buttons: [], axes: [] };
   advance();
   paint();
@@ -493,9 +506,21 @@ function paint() {
   if (asking !== null) {
     const label = data.controls.find((entry) => entry.id === asking)?.label ?? asking;
     const step = queue.length > 1 ? ` (${queue.length - 1} more after this)` : '';
-    prompt.textContent = armed
-      ? `Press ${label} on the controller now${step} — Esc to stop.`
-      : `Let go of everything, then press ${label}${step} — Esc to stop.`;
+    if (armed) {
+      prompt.textContent = `Press ${label} on the controller now${step} — Esc to stop.`;
+    } else {
+      // Naming what is still down turns a prompt that seems stuck into a
+      // diagnosis: a pad that rests an axis away from centre — a trigger
+      // sharing an axis is the usual cause — never goes quiet on its own,
+      // and without this the step simply hangs with nothing to look at.
+      const active = Profile.activeInputs(frame);
+      const holding = [
+        ...active.buttons.map((index) => `button ${index}`),
+        ...active.axes.map((axis) => `axis ${axis.index}`),
+      ];
+      prompt.textContent = `Let go of everything, then press ${label}${step} — Esc to stop.`
+        + (holding.length > 0 ? `  Still reading: ${holding.join(', ')}.` : '');
+    }
   }
 
   for (const shape of document.querySelectorAll('#pad [data-control]')) {
@@ -666,7 +691,9 @@ window.addEventListener('keydown', (event) => {
 // the moment that changes — poll immediately rather than a frame later, so
 // the "press a button" notice clears the instant somebody does.
 window.addEventListener('gamepadconnected', () => { sawConnect = true; reported = ''; });
-window.addEventListener('gamepaddisconnected', () => { reported = ''; });
+// An unplug is a pad leaving, not a window refusing: the contradiction is
+// over, and the list going empty from here means exactly what it says.
+window.addEventListener('gamepaddisconnected', () => { sawConnect = false; reported = ''; });
 
 requestAnimationFrame(tick);
 vscode.postMessage({ type: 'ready' });

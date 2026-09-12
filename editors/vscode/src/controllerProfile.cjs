@@ -519,6 +519,39 @@ function deviceKey(rawId) {
 }
 
 /**
+ * Keys for a whole connected list, with identical pads told apart.
+ *
+ * Two 8BitDo SN30 Pros report byte-identical `id` strings — which is the
+ * ordinary two-player setup, not an edge case — so `deviceKey` alone
+ * would give them one key, one profile and one player between them. The
+ * second and later get `#2`, `#3` … by their position in the list.
+ *
+ * The honest cost, and it is worth saying out loud: which of two identical
+ * pads is `#1` depends on the order the browser enumerates them, which is
+ * roughly the order they were plugged in. Swap the cables and the two
+ * profiles swap with them. There is nothing better available — the Gamepad
+ * API exposes no serial number, and `Gamepad.index` is the same
+ * plug-ordered number wearing a different hat — and mapping only one of
+ * two identical pads is worse than a profile that can be swapped back by
+ * changing one `player` in the file.
+ *
+ * Both ends must agree, so both call this on the same ordered list: the
+ * page to find the device it has selected, the extension to store it.
+ *
+ * @param {string[]} ids the connected pads' `Gamepad.id` strings, in order
+ * @returns {string[]} one key each, in the same order
+ */
+function deviceKeys(ids) {
+  const seen = new Map();
+  return (ids ?? []).map((raw) => {
+    const base = deviceKey(raw);
+    const nth = (seen.get(base) ?? 0) + 1;
+    seen.set(base, nth);
+    return nth === 1 ? base : `${base}#${nth}`;
+  });
+}
+
+/**
  * One device entry, with everything unrecognizable dropped rather than
  * carried.
  *
@@ -644,9 +677,17 @@ function withoutDevice(profile, id) {
  */
 function deviceFromDetected(detected) {
   const standard = detected?.mapping === 'standard';
+  // `key` when the caller disambiguated a list (deviceKeys), the bare key
+  // otherwise — a caller with one pad in hand has nothing to disambiguate
+  // against.
+  const key = typeof detected?.key === 'string' && detected.key !== ''
+    ? detected.key
+    : deviceKey(detected?.id);
+  const nth = /#(\d+)$/.exec(key);
   return normalizeDevice({
-    id: deviceKey(detected?.id),
-    name: String(detected?.id ?? 'Unknown controller'),
+    id: key,
+    // Named so two of the same pad are not two identical rows.
+    name: `${String(detected?.id ?? 'Unknown controller')}${nth ? ` #${nth[1]}` : ''}`,
     player: 0,
     mode: standard ? 'standard' : 'custom',
     // Only the controls this device actually has: a standard-mapping pad
@@ -901,6 +942,7 @@ module.exports = {
   capture,
   deviceFromDetected,
   deviceKey,
+  deviceKeys,
   emptyProfile,
   formatBinding,
   normalizeDevice,

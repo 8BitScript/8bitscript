@@ -118,6 +118,22 @@ test('the page can tell a refused permission from an empty controller list', () 
   assert.match(JS, /sawConnect && connected\.length === 0/);
   assert.match(JS, /saw a controller connect and then reported no controllers/);
   assert.match(VIEW, /silenced: this\.silenced/, 'and the host passes it back down');
+  // It has to be cleared in both places, or the most ordinary thing
+  // anybody does — plug a pad in, use it, unplug it — ends with the panel
+  // announcing a sandbox refusal at somebody who pulled a USB cable.
+  assert.match(JS, /if \(connected\.length > 0\) sawConnect = false;/);
+  assert.match(JS, /gamepaddisconnected', \(\) => \{ sawConnect = false;/);
+});
+
+test('two identical controllers are told apart by the same rule at both ends', () => {
+  // Two of the same pad report the same `Gamepad.id`, which is the
+  // ordinary two-player setup; `deviceKeys` on the same ordered list is
+  // the one rule that separates them, and the page and the extension both
+  // have to use it or they disagree about which pad is selected.
+  assert.match(JS, /Profile\.deviceKeys\(connected\.map/);
+  assert.doesNotMatch(JS, /Profile\.deviceKey\(/, 'the page never keys one pad on its own');
+  assert.match(VIEW, /keyed\(\)/, 'and the extension keys the list, not an entry');
+  assert.doesNotMatch(VIEW, /[^s]deviceKey\(/, 'no bare deviceKey survives on the host either');
 });
 
 test('the stylesheet is the editor’s theme, and lays out what it hides', () => {

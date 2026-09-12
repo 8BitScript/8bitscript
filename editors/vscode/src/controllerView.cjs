@@ -48,7 +48,7 @@ const { effectiveFacts } = require('./hardwareCatalog.cjs');
 const {
   CONTROL_KINDS, CONTROL_LABELS, DEADZONE, LOGICAL_CONTROLS, MAX_PLAYERS, PRESS_THRESHOLD,
   STANDARD_MAPPING, WALKTHROUGH,
-  deviceFromDetected, deviceKey, project: projectOnto, toConfigBlock, withDevice, withoutDevice,
+  deviceFromDetected, deviceKeys, project: projectOnto, toConfigBlock, withDevice, withoutDevice,
 } = require('./controllerProfile.cjs');
 const { CONTROLLERS_FILE, controllersPath, readProfile, writeProfile } = require('./controllerStore.cjs');
 const { PAD_SVG } = require('./controllerPad.cjs');
@@ -107,6 +107,19 @@ class ControllerPanel {
     this.silenced = false;
   }
 
+  /**
+   * The pads the page can see, each with the key it is stored under.
+   *
+   * Keyed here rather than in the page because two identical pads — the
+   * ordinary two-player setup — report identical `id` strings, and
+   * `deviceKeys` is the one rule that tells them apart. Both ends call it
+   * on the same ordered list so both reach the same answer.
+   */
+  keyed() {
+    const keys = deviceKeys(this.detected.map((entry) => entry.id));
+    return this.detected.map((entry, index) => ({ ...entry, key: keys[index] }));
+  }
+
   /** The project the panel writes into: the launcher's, or the first there is. */
   selectedProject() {
     const all = this.projects.all;
@@ -162,9 +175,11 @@ class ControllerPanel {
       case 'preset':
         // Back to what the browser's standard layout says, or to nothing.
         await this.edit(message.id, (device) => {
-          const seen = this.detected.find((entry) => deviceKey(entry.id) === device.id);
+          const seen = this.keyed().find((entry) => entry.key === device.id);
           if (message.preset !== 'standard') return { ...device, mode: 'custom', mapping: {} };
-          const fresh = deviceFromDetected({ ...seen, id: seen?.id ?? device.name, mapping: 'standard' });
+          const fresh = deviceFromDetected({
+            ...seen, id: seen?.id ?? device.name, key: device.id, mapping: 'standard',
+          });
           return { ...device, mode: 'standard', mapping: fresh.mapping };
         });
         return;
@@ -232,16 +247,15 @@ class ControllerPanel {
     if (!project || this.detected.length === 0) return;
     const { profile } = readProfile(project.dir);
     let next = profile;
-    for (const entry of this.detected) {
-      const id = deviceKey(entry.id);
-      if (next.controllers.devices.some((device) => device.id === id)) continue;
+    for (const entry of this.keyed()) {
+      if (next.controllers.devices.some((device) => device.id === entry.key)) continue;
       next = withDevice(next, deviceFromDetected(entry));
     }
     if (next !== profile) writeProfile(project.dir, next);
     // Nothing selected yet, and exactly one pad to look at: select it.
     // Two pads is a choice and the panel should not make it.
     if (this.selected === null && this.detected.length === 1) {
-      this.selected = deviceKey(this.detected[0].id);
+      this.selected = this.keyed()[0].key;
     }
   }
 
@@ -255,7 +269,7 @@ class ControllerPanel {
    */
   configBlock() {
     const padIndex = {};
-    this.detected.forEach((entry, index) => { padIndex[deviceKey(entry.id)] = index; });
+    this.keyed().forEach((entry, index) => { padIndex[entry.key] = index; });
     const project = this.selectedProject();
     const { profile } = project ? readProfile(project.dir) : { profile: null };
     return toConfigBlock(profile ?? {}, padIndex);
@@ -267,7 +281,7 @@ class ControllerPanel {
     const { profile, exists, error } = project
       ? readProfile(project.dir)
       : { profile: { controllers: { devices: [] } }, exists: false, error: null };
-    const live = new Map(this.detected.map((entry) => [deviceKey(entry.id), entry]));
+    const live = new Map(this.keyed().map((entry) => [entry.key, entry]));
     const devices = profile.controllers.devices.map((device) => ({
       ...device,
       // Present means the page can see it right now; buttons and axes are

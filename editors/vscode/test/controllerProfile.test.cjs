@@ -13,7 +13,7 @@ const assert = require('node:assert/strict');
 const {
   CONTROL_KINDS, CONTROL_LABELS, DEADZONE, DEVICE_CONTROLS, LOGICAL_CONTROLS, MAX_PLAYERS,
   PAD_KINDS, PRESS_THRESHOLD, PRIMARY_PORT, STANDARD_MAPPING, WALKTHROUGH,
-  activeInputs, capture, deviceFromDetected, deviceKey, emptyProfile, formatBinding,
+  activeInputs, capture, deviceFromDetected, deviceKey, deviceKeys, emptyProfile, formatBinding,
   normalizeDevice, normalizeProfile, parseBinding, pressed, project, readBinding,
   resolveDirection, toCliBinding, toCliPlayers, toConfigBlock, withDevice, withoutDevice,
 } = require('../src/controllerProfile.cjs');
@@ -129,6 +129,36 @@ test('a device is keyed by the only thing about a pad that survives unplugging i
   assert.equal(deviceKey(''), 'unknown-device');
   assert.equal(deviceKey(undefined), 'unknown-device');
   assert.ok(!deviceKey('///').includes('/'), 'a key goes in a JSON object and is read by a person');
+});
+
+test('two of the same controller are two controllers', () => {
+  // Two 8BitDo SN30 Pros report byte-identical id strings, and that is the
+  // ordinary Player 1 + Player 2 setup rather than an edge case. Keying on
+  // the id alone would give them one profile between them and silently
+  // drop the second.
+  const id = '8BitDo SN30 Pro (Vendor: 2dc8 Product: 6001)';
+  const keys = deviceKeys([id, id, 'Some Arcade Stick', id]);
+  assert.deepEqual(keys, [
+    '8bitdo-sn30-pro-vendor-2dc8-product-6001',
+    '8bitdo-sn30-pro-vendor-2dc8-product-6001#2',
+    'some-arcade-stick',
+    '8bitdo-sn30-pro-vendor-2dc8-product-6001#3',
+  ]);
+  assert.deepEqual(deviceKeys([]), []);
+  assert.deepEqual(deviceKeys(undefined), []);
+  // And the rows are not two identical lines in a list.
+  const second = deviceFromDetected({ id, key: keys[1], mapping: 'standard', buttons: 17, axes: 4 });
+  assert.equal(second.id, keys[1]);
+  assert.match(second.name, /#2$/);
+  // Both can be stored, and both can be players.
+  let profile = emptyProfile();
+  profile = withDevice(profile, { ...deviceFromDetected({ id, key: keys[0], mapping: 'standard', buttons: 17, axes: 4 }), player: 1 });
+  profile = withDevice(profile, { ...second, player: 2 });
+  assert.equal(profile.controllers.devices.length, 2);
+  const { players } = toCliPlayers(profile, { [keys[0]]: 0, [keys[1]]: 1 });
+  assert.equal(players.length, 2, 'two identical pads are two players');
+  assert.equal(players[0].controls.a, 'pad0.button0');
+  assert.equal(players[1].controls.a, 'pad1.button0');
 });
 
 test('a standard-mapping pad starts bound, and an unknown one starts empty', () => {
