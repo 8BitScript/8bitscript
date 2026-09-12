@@ -336,7 +336,7 @@ class ControllerPanel {
         // so rather than inventing a title.
         title: target?.title ?? id,
         known: facts !== null,
-        ...onMachine(id, facts, device),
+        ...onMachine(id, facts, device, target),
       };
     });
   }
@@ -348,14 +348,16 @@ class ControllerPanel {
  * because `project` is what a *directory with a config in it* is called
  * everywhere else in this extension, and one word cannot be both.
  */
-function onMachine(id, facts, device) {
+function onMachine(id, facts, device, target) {
   if (!facts) {
     return {
       target: id, kind: null, ports: 0, firstPort: 1, controls: [], bound: [], missing: [], unused: [],
       note: 'No toolchain found to ask what this machine has.',
     };
   }
-  return projectOnto(id, facts, device?.mapping ?? {});
+  // `primaryPort` is the toolchain's — `8bs targets --json` publishes it
+  // per machine precisely so this editor stops keeping its own table.
+  return projectOnto(id, facts, device?.mapping ?? {}, { primaryPort: target?.primaryPort ?? null });
 }
 
 const ICONS = {

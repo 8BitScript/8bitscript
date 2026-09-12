@@ -330,28 +330,27 @@ const PAD_KINDS = {
 };
 
 /**
- * Which numbered port a machine's first player is read from.
+ * Which numbered port a machine's first player is read from, for a
+ * toolchain too old to say.
  *
  * Not cosmetic: `packages/c64/src/joystick.8bs` records that "port 2 is
  * where a game reads its player, and where every C64 game asked for the
  * stick", because port 1 shares wires with the keyboard's rows and a stick
- * there types. A panel that assigned Player 1 to port 1 on a C64 would
- * produce a profile that is wrong on the one machine the convention is
- * strongest on. A machine not named here starts at port 1.
+ * there types. A panel that assigned Player 1 to port 1 on a C64 would be
+ * wrong on the one machine the convention is strongest on.
  *
- * The MEGA65 is here on the strength of `packages/mega65/AGENTS.md`:
- * "Joysticks are CIA1 ports as on the C64 (`$DC00/$DC01` low bits, with
- * `$D612.5` able to swap them)" — the same wiring, so the same answer. The
- * swap bit means a program can change it at run time, which is one more
- * reason this does not belong in an editor.
- *
- * This is machine knowledge in the editor and should not be — it is the
- * second thing this panel needs from the CLI.
+ * **The toolchain is the authority.** `8bs targets --json` publishes
+ * `primaryPort` per machine, and `project()` below takes it and prefers
+ * it; this table answers only when the answer is missing, which is an
+ * older `@8bitscript/cli` in the project. It is deliberately the two
+ * machines the convention is documented for and no more: the MEGA65 is
+ * wired as the C64 is (`packages/mega65/AGENTS.md`) but has a `$D612.5`
+ * swap bit a program can flip at run time, and a guess here that
+ * disagreed with the toolchain would be worse than no guess.
  */
 const PRIMARY_PORT = {
   c64: 2,
   c128: 2,
-  mega65: 2,
 };
 
 /**
@@ -362,6 +361,9 @@ const PRIMARY_PORT = {
  *   hardwareCatalog.cjs's `effectiveFacts(target, selection)`, so the
  *   answer is for the machine as it is fitted, not as it ships
  * @param {Record<string, string>} mapping one device's `mapping`
+ * @param {{ primaryPort?: number|null }} [catalog] what the toolchain says
+ *   about this machine beyond its facts — today just which port the first
+ *   player is read from, published by `8bs targets --json`
  * @returns {{
  *   target: string,
  *   kind: string|null,
@@ -374,7 +376,7 @@ const PRIMARY_PORT = {
  *   note: string|null,
  * }}
  */
-function project(target, facts, mapping) {
+function project(target, facts, mapping, catalog = {}) {
   const joysticks = countFact(facts, 'input.joysticks');
   const pads = countFact(facts, 'input.pads');
   // A machine with both would be a machine with two different shapes of
@@ -395,7 +397,9 @@ function project(target, facts, mapping) {
     target,
     kind,
     ports,
-    firstPort: PRIMARY_PORT[target] ?? 1,
+    // The toolchain's answer wins; the table is only for a toolchain that
+    // does not publish one yet.
+    firstPort: catalog?.primaryPort ?? PRIMARY_PORT[target] ?? 1,
     controls: ordered,
     bound,
     missing,

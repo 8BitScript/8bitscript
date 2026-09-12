@@ -283,11 +283,16 @@ test('a stick-only profile still steers a joystick port', () => {
   assert.deepEqual(buttonsOnly.bound, ['a']);
 });
 
-test('player one is read from the port the machine’s own games used', () => {
-  // packages/c64/src/joystick.8bs: "port 2 is where a game reads its
-  // player, and where every C64 game asked for the stick".
+test('player one is read from the port the toolchain names', () => {
+  // `8bs targets --json` publishes `primaryPort` per machine, and it wins.
+  assert.equal(project('vic20', VIC20, FULL, { primaryPort: 2 }).firstPort, 2);
+  // Only a toolchain too old to say falls back to the table here, which is
+  // the two machines packages/c64/src/joystick.8bs documents: "port 2 is
+  // where a game reads its player, and where every C64 game asked for the
+  // stick".
   assert.equal(project('c64', C64, FULL).firstPort, 2);
   assert.equal(PRIMARY_PORT.c128, 2);
+  assert.deepEqual(Object.keys(PRIMARY_PORT).sort(), ['c128', 'c64'], 'and no machine it is a guess for');
   assert.equal(project('vic20', VIC20, FULL).firstPort, 1, 'the VIC-20 has only the one');
 });
 

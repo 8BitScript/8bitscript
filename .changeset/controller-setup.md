@@ -36,7 +36,7 @@ One thing the editor has to know and the toolchain does not say, in one named pl
 
 **What a port's device carries.** The catalog says how many ports and, for the Commodores, what can go in one (`port1: none | joystick | paddles | mouse1351`). It never says that an Atari-standard joystick is four switches and one button, that an NES pad is eight bits, or that the X16 takes a twelve-button SNES pad — so `input.pads: 2` cannot be projected without knowing *which* pad. A `controls` array on each port option value, plus a machine-level one for pad ports (which have no option behind them), would remove both tables. Today the editor knows two machines' pads and says so for a third rather than guessing.
 
-Two earlier asks are already answered by `controllers.mjs` and are recorded here only so the trail is complete: which port the first player drives (`defaultPort` — the editor keeps `PRIMARY_PORT` for the preview's own labels and emits no port at all), and how a profile reaches a launch.
+Two earlier asks have already been answered and are recorded only so the trail is complete. **Which port the first player drives**: `8bs targets --json` now publishes `primaryPort` per machine, and the preview takes it; `PRIMARY_PORT` here is down to the two machines `packages/c64/src/joystick.8bs` documents and answers only for a toolchain too old to say. **How a profile reaches a launch**: `defaultPort` in `controllers.mjs`, which is why the emitted block names no port at all.
 
 ## Known limitation, unverified against a live window
 
