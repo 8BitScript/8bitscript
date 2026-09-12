@@ -168,16 +168,37 @@ test('the preview asks the toolchain what each machine has', () => {
   assert.equal(ALL_TARGETS.length, 9);
 });
 
-test('the profile is offered to the toolchain in the shape it reads', () => {
-  // packages/cli/src/controllers.mjs parses `controllers.players` out of
-  // 8bitscript.config.ts. The panel emits that block rather than writing
-  // it, which is the line runner.cjs's saveSystem already draws.
-  assert.match(VIEW, /toConfigBlock/);
-  assert.match(VIEW, /configBlock: this\.configBlock\(\)/);
-  assert.match(VIEW, /vscode\.env\.clipboard\.writeText/);
-  assert.match(VIEW, /id="config-block"/);
-  assert.match(JS, /type: 'copy'/);
-  assert.doesNotMatch(VIEW, /applyEdit|WorkspaceEdit/, 'the config is not rewritten from here');
+test('the toolchain reads the file itself, so nothing is offered to paste', () => {
+  // packages/cli/src/controllers.mjs's `controllerPlayers` takes the very
+  // object controllerStore.cjs writes. An earlier version of this panel
+  // emitted a `controllers.players` block for 8bitscript.config.ts,
+  // because that is where the CLI first read a profile from; offering
+  // somebody a snippet to paste into a config nothing consults would now
+  // be its own quiet trap.
+  for (const gone of ['toConfigBlock', 'configBlock', 'config-block', 'copy-config']) {
+    assert.ok(!VIEW.includes(gone), `${gone} outlived the config block`);
+    assert.ok(!JS.includes(gone), `${gone} outlived the config block in the page`);
+  }
+  assert.doesNotMatch(VIEW, /applyEdit|WorkspaceEdit/, 'and the config is still not rewritten from here');
+});
+
+test('a keyboard key is a binding the panel can read and capture', () => {
+  // atari800 takes a joystick mapping in no other shape, so on that
+  // machine a key *is* the controller. The CLI has always read `key:`;
+  // this end used to drop one on the next save.
+  assert.match(PROFILE, /\^key:\(\[A-Za-z0-9_\]\+\)\$/, 'parseBinding takes the fourth shape');
+  assert.match(JS, /heldKeys/, 'and the page knows which keys are down');
+  assert.match(JS, /window\.addEventListener\('keyup'/);
+  // A key held while the window loses focus never sends its keyup here,
+  // and a phantom held key would bind itself to the next control asked
+  // for.
+  assert.match(JS, /addEventListener\('blur', \(\) => heldKeys\.clear\(\)\)/);
+  assert.match(JS, /visibilitychange', \(\) => heldKeys\.clear\(\)/);
+  assert.match(JS, /frame\.keys = \[\.\.\.heldKeys\]/, 'keys ride on the same frame as the buttons');
+  // The one key that cannot be captured is the one that cancels, and the
+  // refusal lives with `capture` rather than being a second opinion here.
+  assert.match(PROFILE, /const CANCEL_KEY = 'Escape';/);
+  assert.match(JS, /the only mapping the Atari takes/, 'and the prompt says a key is allowed');
 });
 
 test('the command is contributed, and reachable from the side bar', () => {

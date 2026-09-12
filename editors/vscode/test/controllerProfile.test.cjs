@@ -11,12 +11,12 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
-  CONTROL_KINDS, CONTROL_LABELS, DEADZONE, DEVICE_CONTROLS, LOGICAL_CONTROLS, MAX_PLAYERS,
+  CANCEL_KEY, CONTROL_KINDS, CONTROL_LABELS, DEADZONE, DEVICE_CONTROLS, LOGICAL_CONTROLS, MAX_PLAYERS,
   PAD_KINDS, PRESS_THRESHOLD, PRIMARY_PORT, STANDARD_MAPPING, WALKTHROUGH,
   activeInputs, capture, deviceFromDetected, deviceKey, deviceKeys, emptyProfile, formatBinding,
   isKeyBinding,
   normalizeDevice, normalizeProfile, parseBinding, pressed, project, readBinding,
-  resolveDirection, toCliBinding, toCliPlayers, toConfigBlock, withDevice, withoutDevice,
+  resolveDirection, withDevice, withoutDevice,
 } = require('../src/controllerProfile.cjs');
 
 /** The reference pad: an 8BitDo SN30 Pro in X-input mode, at rest. */
@@ -38,17 +38,25 @@ test('the control set is declared once, and everything agrees with it', () => {
   assert.ok(!LOGICAL_CONTROLS.includes('r3'));
 });
 
-test('parseBinding takes the three shapes there are, and nothing else', () => {
-  assert.deepEqual(parseBinding('button:0'), { source: 'button', index: 0, half: null });
-  assert.deepEqual(parseBinding('axis:1'), { source: 'axis', index: 1, half: null });
-  assert.deepEqual(parseBinding('axis:1+'), { source: 'axis', index: 1, half: '+' });
-  assert.deepEqual(parseBinding('axis:1-'), { source: 'axis', index: 1, half: '-' });
+test('parseBinding takes the four shapes there are, and nothing else', () => {
+  assert.deepEqual(parseBinding('button:0'), { source: 'button', index: 0, half: null, key: null });
+  assert.deepEqual(parseBinding('axis:1'), { source: 'axis', index: 1, half: null, key: null });
+  assert.deepEqual(parseBinding('axis:1+'), { source: 'axis', index: 1, half: '+', key: null });
+  assert.deepEqual(parseBinding('axis:1-'), { source: 'axis', index: 1, half: '-', key: null });
+  // The fourth shape, and the only one atari800 can take a mapping in at
+  // all — its `-kbdjoy0/1` binds an emulated stick to emulated keys, and a
+  // real pad's buttons reach nothing. Same character class as the CLI's
+  // own parser, so a name one end writes the other reads.
+  assert.deepEqual(parseBinding('key:ArrowLeft'), { source: 'key', index: null, half: null, key: 'ArrowLeft' });
+  assert.deepEqual(parseBinding(' key:Enter '), { source: 'key', index: null, half: null, key: 'Enter' });
+  assert.equal(parseBinding('key:'), null);
+  assert.equal(parseBinding('key:Arrow Left'), null, 'a DOM key code has no spaces');
   // A button has no halves; reading `button:3-` as `button:3` would hide a typo.
   assert.equal(parseBinding('button:3-'), null);
   for (const junk of ['', 'a', 'button:', 'button:-1', 'axis:x', 'trigger:0', null, 7, {}]) {
     assert.equal(parseBinding(junk), null, `${JSON.stringify(junk)} should not parse`);
   }
-  for (const binding of ['button:0', 'axis:1', 'axis:1+', 'axis:1-']) {
+  for (const binding of ['button:0', 'axis:1', 'axis:1+', 'axis:1-', 'key:ArrowLeft']) {
     assert.equal(formatBinding(parseBinding(binding)), binding, 'parse and format are inverses');
   }
 });
@@ -112,12 +120,18 @@ test('capture takes the loudest input, and a button over an axis at a tie', () =
 });
 
 test('activeInputs is what the live view lights, on the same thresholds', () => {
-  const state = { buttons: [0, 1, 0.2, 0.9], axes: [0.05, -0.8] };
+  const state = { buttons: [0, 1, 0.2, 0.9], axes: [0.05, -0.8], keys: ['KeyZ'] };
   assert.deepEqual(activeInputs(state), {
     buttons: [1, 3],
     axes: [{ index: 1, value: -0.8 }],
+    // Held keys ride along: a `key:` binding is a real binding, so a live
+    // view that left them out would show a control lighting with nothing
+    // on the page to explain why.
+    keys: ['KeyZ'],
   });
-  assert.deepEqual(activeInputs(rest()), { buttons: [], axes: [] });
+  assert.deepEqual(activeInputs(rest()), { buttons: [], axes: [], keys: [] });
+  // A Set is what the page keeps; an array is what a test writes.
+  assert.deepEqual(activeInputs({ keys: new Set(['KeyA']) }).keys, ['KeyA']);
 });
 
 test('a device is keyed by the only thing about a pad that survives unplugging it', () => {
@@ -156,10 +170,11 @@ test('two of the same controller are two controllers', () => {
   profile = withDevice(profile, { ...deviceFromDetected({ id, key: keys[0], mapping: 'standard', buttons: 17, axes: 4 }), player: 1 });
   profile = withDevice(profile, { ...second, player: 2 });
   assert.equal(profile.controllers.devices.length, 2);
-  const { players } = toCliPlayers(profile, { [keys[0]]: 0, [keys[1]]: 1 });
-  assert.equal(players.length, 2, 'two identical pads are two players');
-  assert.equal(players[0].controls.a, 'pad0.button0');
-  assert.equal(players[1].controls.a, 'pad1.button0');
+  assert.deepEqual(profile.controllers.devices.map((d) => d.player), [1, 2]);
+  // The CLI takes the host joystick number from the player number minus
+  // one (packages/cli/src/controllers.mjs's controllerPlayers), so two
+  // distinct players is the whole of what this end has to get right.
+  assert.notEqual(profile.controllers.devices[0].id, profile.controllers.devices[1].id);
 });
 
 test('a standard-mapping pad starts bound, and an unknown one starts empty', () => {
@@ -358,112 +373,64 @@ test('four players, because that is as many as a pad ever has', () => {
   assert.equal(MAX_PLAYERS, 4);
 });
 
-// ---- handing it to the toolchain -----------------------------------------
+// ---- a keyboard key is a first-class binding -----------------------------
 //
-// `packages/cli/src/controllers.mjs` reads a `controllers.players` block
-// out of 8bitscript.config.ts and turns it into emulator flags. Its
-// `parseBinding` takes `pad0.button3`, `pad0.axis1`, `pad0.axis1-`,
-// `pad0.hat0.up` and `key.ArrowLeft`; this end emits the first three,
-// because the Gamepad API reports a hat as buttons or as an axis and never
-// as a hat, and because a panel that watches a pad has no key to offer.
-//
-// The grammar is asserted against a copy of that regex rather than by
-// importing the CLI: these tests are the editor's and must run with no
-// toolchain installed. The copy is cited so the two can be compared.
-const CLI_BINDING = /^pad(\d+)\.(button(\d+)|axis(\d+)[+-]?)$/;
+// Not a special case bolted on. It is the only shape atari800 takes a
+// joystick mapping in, so on that machine it is *the* binding, and the
+// three questions that are not "what is the pad doing" have to see it:
+// is this control answered at all, is this direction bound, and does the
+// table say a name or say "not bound".
 
-test('a binding crosses to the CLI grammar as the same shape, pad named', () => {
-  assert.equal(toCliBinding('button:3', 0), 'pad0.button3');
-  assert.equal(toCliBinding('axis:1', 2), 'pad2.axis1');
-  assert.equal(toCliBinding('axis:1-', 0), 'pad0.axis1-');
-  assert.equal(toCliBinding('axis:1+', 1), 'pad1.axis1+');
-  assert.equal(toCliBinding('nonsense', 0), null);
+test('a key binding is read, pressed, and captured like any other', () => {
+  const holding = { buttons: [0, 0], axes: [0, 0], keys: ['ArrowUp', 'KeyZ'] };
+  assert.equal(readBinding('key:ArrowUp', holding), 1);
+  assert.equal(readBinding('key:KeyQ', holding), 0);
+  assert.equal(readBinding('key:ArrowUp', { keys: new Set(['ArrowUp']) }), 1, 'a Set reads too');
+  assert.equal(pressed('key:ArrowUp', holding), true);
+  assert.equal(pressed('key:KeyQ', holding), false);
+  assert.equal(pressed('key:ArrowUp', rest()), false);
+
+  assert.equal(capture(holding), 'key:ArrowUp', 'a held key can be bound');
+  // A pad a person is holding wins over a key they are leaning on.
+  assert.equal(capture({ buttons: [1], axes: [], keys: ['KeyZ'] }), 'button:0');
+  // No key and no button is a push, so an axis step takes neither.
+  assert.equal(capture(holding, { wantsAxis: true }), null);
+  // Escape is what cancels a walkthrough; one that bound its own way out
+  // would be unusable. It can still be hand-written into the file.
+  assert.equal(capture({ buttons: [], axes: [], keys: [CANCEL_KEY] }), null);
+  assert.equal(CANCEL_KEY, 'Escape');
+  assert.ok(parseBinding(`key:${CANCEL_KEY}`), 'and it round-trips when it is');
 });
 
-test('the config block is what 8bs run reads, and only for pads it can see', () => {
-  let profile = emptyProfile();
-  profile = withDevice(profile, {
-    id: 'one', name: 'One', player: 1, mode: 'standard',
-    // Only a stick and a fire button: the four directions have to come off
-    // the stick, or the block would reach the CLI with nothing to steer.
-    mapping: { leftStickX: 'axis:0', leftStickY: 'axis:1', a: 'button:0' },
-  });
-  profile = withDevice(profile, {
-    id: 'two', name: 'Two', player: 2, mode: 'custom', mapping: { a: 'button:1' },
-  });
-  profile = withDevice(profile, {
-    id: 'spare', name: 'Spare', player: 0, mode: 'custom', mapping: { a: 'button:2' },
-  });
-
-  const { players } = toCliPlayers(profile, { one: 0, two: 1, spare: 2 });
-  assert.equal(players.length, 2, 'an unassigned device is not a player');
-  assert.deepEqual(players[0].controls, {
-    up: 'pad0.axis1-',
-    down: 'pad0.axis1+',
-    left: 'pad0.axis0-',
-    right: 'pad0.axis0+',
-    a: 'pad0.button0',
-    leftStickX: 'pad0.axis0',
-    leftStickY: 'pad0.axis1',
-  });
-  assert.deepEqual(players[1].controls, { a: 'pad1.button1' });
-  for (const player of players) {
-    for (const binding of Object.values(player.controls)) {
-      assert.match(binding, CLI_BINDING, `${binding} is not a binding the CLI parses`);
-    }
-  }
-  // Players come out in player order however the file is ordered.
-  const reversed = toCliPlayers(
-    withDevice(profile, { id: 'two', name: 'Two', player: 1, mapping: { a: 'button:1' } }),
-    { one: 0, two: 1 },
-  );
-  assert.equal(reversed.players[0].controls.a, 'pad1.button1', 'whoever holds Player 1 is first');
-
-  // A device nothing can see has no host pad index, and an invented one
-  // would aim an emulator at a port with nothing in it.
-  assert.deepEqual(toCliPlayers(profile, {}).players, []);
-});
-
-test('the config block is TypeScript somebody can paste', () => {
-  const profile = withDevice(emptyProfile(), {
-    id: 'one', name: 'One', player: 1, mapping: { a: 'button:0', up: 'button:12' },
-  });
-  const block = toConfigBlock(profile, { one: 0 });
-  assert.match(block, /^ {2}controllers: \{\n {4}players: \[\n/);
-  assert.match(block, /^ {10}up: 'pad0\.button12',$/m, 'one binding a line, single-quoted');
-  assert.match(block, /\n {2}\},$/, 'and it ends as a trailing-comma property');
-  // A profile with nobody assigned still produces something valid rather
-  // than nothing, so pasting it is never a syntax error.
-  assert.equal(toConfigBlock(emptyProfile(), {}), '  controllers: { players: [] },');
-});
-
-test('a keyboard binding survives a save it did not come from', () => {
-  // atari800 has no per-button mapping at all: `-kbdjoy0/1` binding an
-  // emulated stick to emulated keys is the only shape it takes, so the CLI
-  // reads `key:` bindings that this panel cannot capture. normalizeDevice
-  // rebuilds `mapping` from what it recognises and the panel saves on every
-  // change, so before isKeyBinding existed a hand-written Atari stick
-  // survived until someone opened the panel and pressed one button.
-  const stored = {
-    id: 'pad', name: 'pad', player: 1, mode: 'custom',
-    mapping: { up: 'key:ArrowUp', down: 'key:ArrowDown', a: 'button:0', b: 'nonsense:7' },
+test('a keyboard stick survives a save, and reads as bound everywhere', () => {
+  // The trap this closes: `normalizeDevice` rebuilds `mapping` from the
+  // bindings it recognises, and the panel saves on every change — so a
+  // hand-written Atari stick used to last exactly until somebody opened
+  // the panel and pressed one button.
+  const atari = {
+    up: 'key:ArrowUp',
+    down: 'key:ArrowDown',
+    left: 'key:ArrowLeft',
+    right: 'key:ArrowRight',
+    a: 'key:ControlLeft',
   };
-  const device = normalizeDevice(stored);
-  assert.equal(device.mapping.up, 'key:ArrowUp', 'a key binding is kept');
-  assert.equal(device.mapping.down, 'key:ArrowDown');
-  assert.equal(device.mapping.a, 'button:0', 'and so is a real pad binding beside it');
-  assert.equal(device.mapping.b, undefined, 'while nonsense is still dropped');
-});
+  const device = normalizeDevice({ id: 'kbd', name: 'Keyboard', player: 1, mapping: atari });
+  assert.deepEqual(device.mapping, atari, 'every key survives the rewrite');
+  const round = normalizeProfile({ controllers: { devices: [device] } });
+  assert.deepEqual(round.controllers.devices[0].mapping, atari);
 
-test('isKeyBinding takes a DOM key code and nothing else', () => {
-  assert.equal(isKeyBinding('key:ArrowLeft'), true);
-  assert.equal(isKeyBinding('key:KeyZ'), true);
-  assert.equal(isKeyBinding(' key:Enter '), true, 'trimmed, as parseBinding is');
-  assert.equal(isKeyBinding('key:'), false);
-  assert.equal(isKeyBinding('key:Arrow Left'), false, 'a code has no spaces');
-  assert.equal(isKeyBinding('button:0'), false, 'a pad binding is not a key binding');
-  assert.equal(isKeyBinding(null), false);
-  // parseBinding still refuses it: its answer is "what does this address on
-  // the pad", and a key has no answer to that.
-  assert.equal(parseBinding('key:ArrowLeft'), null);
+  // A direction bound to a key is bound *explicitly*, and must not read as
+  // having come from a stick that is also bound.
+  assert.deepEqual(
+    resolveDirection({ ...atari, leftStickY: 'axis:1' }, 'up'),
+    { binding: 'key:ArrowUp', from: 'explicit' },
+  );
+
+  // And the machine it was written for sees a complete stick rather than
+  // four red gaps — which is what the panel showed while `key:` was held
+  // at arm's length from parseBinding.
+  const atari8 = project('atari8', { 'input.joysticks': 2, 'input.pads': 0 }, atari);
+  assert.deepEqual(atari8.missing, [], 'the Atari reads all five');
+  assert.deepEqual(atari8.bound, ['up', 'down', 'left', 'right', 'a']);
+  assert.deepEqual(project('vic20', VIC20, atari).missing, [], 'and so does a VIC-20');
 });

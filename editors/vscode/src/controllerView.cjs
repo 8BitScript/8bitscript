@@ -48,7 +48,7 @@ const { effectiveFacts } = require('./hardwareCatalog.cjs');
 const {
   CONTROL_KINDS, CONTROL_LABELS, DEADZONE, LOGICAL_CONTROLS, MAX_PLAYERS, PRESS_THRESHOLD,
   STANDARD_MAPPING, WALKTHROUGH,
-  deviceFromDetected, deviceKeys, project: projectOnto, toConfigBlock, withDevice, withoutDevice,
+  deviceFromDetected, deviceKeys, project: projectOnto, withDevice, withoutDevice,
 } = require('./controllerProfile.cjs');
 const { CONTROLLERS_FILE, controllersPath, readProfile, writeProfile } = require('./controllerStore.cjs');
 const { PAD_SVG } = require('./controllerPad.cjs');
@@ -192,18 +192,6 @@ class ControllerPanel {
         await this.post();
         return;
       }
-      case 'copy': {
-        // Offered to paste rather than written in. The config is
-        // TypeScript source, and runner.cjs's `saveSystem` already draws
-        // that line: a shape it cannot safely rewrite is opened with the
-        // entry to paste, never guessed at. A controllers block is a good
-        // deal more than one line, so this panel does not write it at all.
-        await vscode.env.clipboard.writeText(this.configBlock());
-        vscode.window.showInformationMessage(
-          'Controller block copied. Paste it into 8bitscript.config.ts, beside `targets`.',
-        );
-        return;
-      }
       case 'open': {
         const project = this.selectedProject();
         if (!project) return;
@@ -259,22 +247,6 @@ class ControllerPanel {
     }
   }
 
-  /**
-   * The `controllers.players` block `8bs run` reads, for this profile.
-   *
-   * The host pad index is a device's position among the ones the page can
-   * see right now, counted from 0 — which is what `pad0` means at the
-   * other end, and which is why this is computed when it is asked for
-   * rather than stored: it is a property of this session, not of the pad.
-   */
-  configBlock() {
-    const padIndex = {};
-    this.keyed().forEach((entry, index) => { padIndex[entry.key] = index; });
-    const project = this.selectedProject();
-    const { profile } = project ? readProfile(project.dir) : { profile: null };
-    return toConfigBlock(profile ?? {}, padIndex);
-  }
-
   /** Push the whole panel to the page; it keeps no copy of its own. */
   async post() {
     const project = this.selectedProject();
@@ -317,10 +289,6 @@ class ControllerPanel {
       devices,
       selected: selected?.id ?? null,
       preview: await this.preview(project, selected),
-      // What the toolchain will read, from what is mapped here: the
-      // `controllers.players` block packages/cli/src/controllers.mjs
-      // parses out of 8bitscript.config.ts, in its binding grammar.
-      configBlock: this.configBlock(),
     });
   }
 
@@ -424,15 +392,6 @@ function html(webview) {
   <details class="block preview" id="preview-fold" open>
     <summary><span class="section-label">How this maps onto each machine</span></summary>
     <div id="preview"></div>
-  </details>
-
-  <details class="block preview" id="config-fold">
-    <summary><span class="section-label">What the toolchain reads</span></summary>
-    <p class="none">Paste this into <code>8bitscript.config.ts</code>, beside <code>targets</code>. It is
-    offered rather than written in because that file is source you own — the same reason
-    <em>Save as a System…</em> hands you a line to paste when it cannot safely edit it.</p>
-    <pre id="config-block"></pre>
-    <button class="wide secondary" id="copy-config">Copy the block</button>
   </details>
 
   <div class="hint">

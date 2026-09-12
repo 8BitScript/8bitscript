@@ -295,6 +295,16 @@ table.bindings td.binding.unbound { opacity: 0.5; font-style: italic; }
   background: var(--vscode-charts-green, var(--vscode-button-background));
   border-color: transparent;
 }
+/* The keyboard, which is not part of any pad's shape — a line that is
+ * there only while a key is down. */
+.live-keys {
+  flex-basis: 100%;
+  margin-top: 6px;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 11px;
+  color: var(--vscode-charts-blue, var(--vscode-foreground));
+}
+
 .axis-row { display: flex; align-items: center; gap: 6px; margin-top: 3px; font-size: 11px; }
 .axis-row .n { width: 3.5em; font-family: var(--vscode-editor-font-family, monospace); opacity: 0.8; }
 /* A signed axis draws from the centre out, so a resting stick is a dot. */
@@ -344,19 +354,6 @@ table.preview td.ports { white-space: nowrap; opacity: 0.8; }
 table.preview .ok { color: var(--vscode-charts-green, var(--vscode-foreground)); }
 table.preview .gap { color: var(--vscode-charts-red, var(--vscode-errorForeground)); }
 table.preview .note { opacity: 0.7; font-style: italic; }
-
-/* The config block, offered to paste. */
-#config-block {
-  margin: 8px 0;
-  padding: 8px 10px;
-  overflow-x: auto;
-  font-family: var(--vscode-editor-font-family, monospace);
-  font-size: 12px;
-  line-height: 1.45;
-  border-radius: 2px;
-  background: var(--vscode-textCodeBlock-background, var(--vscode-editorWidget-background));
-  border: 1px solid var(--vscode-panel-border, transparent);
-}
 
 .hint {
   display: flex;

@@ -332,23 +332,27 @@ the config is TypeScript source that a person reads and that **Save as a
 System…** edits through the editor's own undo stack, and eighteen
 machine-generated bindings per device rewritten on every button press are
 not that. A binding is `button:N`, `axis:N` (whole and signed, for a stick),
-or `axis:N+` / `axis:N-` (one half, for a direction or a trigger). `mode` is
+`axis:N+` / `axis:N-` (one half, for a direction or a trigger), or
+`key:ArrowLeft` — a keyboard key by DOM `KeyboardEvent.code`. `mode` is
 `standard` when the browser vouched for the pad's layout and `custom` once
 anything has been bound by hand. Anything in the file this cannot read is
 simply unbound — a file you broke by hand costs you the profile, never the
 panel. It is checked in on purpose: a mapping is the team's, the way a
 `systems` block is.
 
-**What the toolchain reads** at the bottom of the panel is the same profile
-in the shape `8bs run` takes — a `controllers.players` block for
-`8bitscript.config.ts`, with the host pad's index in each binding
-(`pad0.button3`). It is offered with a Copy button rather than written in,
-for the reason **Save as a System…** hands you a line to paste when it
-cannot safely edit that file: the config is source you own. The port is
-left out of each entry on purpose — the CLI already knows a C64 reads
-player one from port 2 and a block written for a C64 has to stay right on
-an NES. A profile that binds only the left stick emits four real direction
-bindings, so it steers a joystick port without a D-pad ever being bound.
+**A keyboard key is a real binding here**, and on one machine it is the
+only one there is: atari800 has no per-button controller mapping at all —
+`-kbdjoy0`/`-kbdjoy1` turn the *keyboard* into stick 0 or 1 and
+`SDL2_JOY_<n>_*` says which keys, while a pad's own buttons reach nothing.
+So during any binding step you can press a key instead of a button, and it
+lights the same shapes and fills the same meters as a button does. Escape
+is the one key you cannot bind by pressing, because it is what cancels the
+step; write `key:Escape` in the file if you really want it.
+
+`8bs run` reads this file directly — there is nothing to paste anywhere.
+The host joystick number is the player number minus one, so plug the pads
+in in player order. What each emulator can actually take a mapping in
+differs a lot, and the CLI names by name anything it has nowhere to put.
 
 ### Projects, tasks, and what is missing
 

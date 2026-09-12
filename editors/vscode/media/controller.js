@@ -32,7 +32,23 @@ let data = null;
  * a snapshot that browsers may or may not keep updating in place, and
  * because plain numbers are what a test can hand the same function.
  */
-let frame = { buttons: [], axes: [] };
+let frame = { buttons: [], axes: [], keys: [] };
+
+/**
+ * The keyboard keys held right now, as `KeyboardEvent.code`.
+ *
+ * A keyboard is in a *controller* panel because on one machine it is the
+ * only controller there is: atari800 takes a joystick mapping in no shape
+ * but keys (`-kbdjoy0/1` plus `SDL2_JOY_<n>_*`), so an Atari stick is a
+ * keyboard stick. The CLI has always read `key:` bindings; this is the end
+ * that can now capture one, which is what turns a hand-edited file into
+ * something the walkthrough can produce.
+ *
+ * Cleared whenever the page stops being looked at: a key held while the
+ * window loses focus never sends its `keyup` here, and a phantom held key
+ * would bind itself to the next control anybody asked for.
+ */
+const heldKeys = new Set();
 
 /**
  * What the page is waiting to be pressed: a queue of logical control ids.
@@ -91,6 +107,8 @@ const rows = new Map();
  */
 let liveButtons = null;
 let liveAxes = null;
+/** The keyboard line under them, which is on the page rather than built per pad. */
+const liveKeys = document.createElement('div');
 
 // ---- reading the pads ----------------------------------------------------
 
@@ -179,6 +197,10 @@ function tick() {
   const at = data?.selected ? keys.indexOf(data.selected) : -1;
   const selected = at === -1 ? null : connected[at];
   frame = selected ? flatten(selected) : { buttons: [], axes: [] };
+  // Keys ride on the same frame as the pad's buttons, so everything
+  // downstream — lighting a shape, filling a meter, capturing a binding —
+  // treats a key exactly as it treats a button.
+  frame.keys = [...heldKeys];
   advance();
   paint();
 }
@@ -247,11 +269,6 @@ function render() {
   renderDevices();
   renderBindings();
   renderPreview();
-
-  // What `8bs run` will read, from what is mapped here — offered to paste
-  // rather than written into the config, which is source somebody owns.
-  $('config-block').textContent = data.configBlock ?? '';
-  $('copy-config').disabled = !data.configBlock;
 
   $('hint-file').textContent = data.file
     ? `${data.exists ? 'Saved in' : 'Will be saved in'} ${data.file}`
@@ -506,8 +523,16 @@ function paint() {
   if (asking !== null) {
     const label = data.controls.find((entry) => entry.id === asking)?.label ?? asking;
     const step = queue.length > 1 ? ` (${queue.length - 1} more after this)` : '';
+    const kind = data.controls.find((entry) => entry.id === asking)?.kind;
     if (armed) {
-      prompt.textContent = `Press ${label} on the controller now${step} — Esc to stop.`;
+      // Naming the keyboard here rather than in a paragraph nobody reads:
+      // this is the moment somebody mapping an Atari stick needs to know
+      // that a key is a legal answer.
+      prompt.textContent = kind === 'axis'
+        // A whole axis is a push, and no key and no button is one.
+        ? `Push ${label} on the controller now${step} — Esc to stop.`
+        : `Press ${label} on the controller now${step}`
+          + ' — or a keyboard key, which is the only mapping the Atari takes. Esc to stop.';
     } else {
       // Naming what is still down turns a prompt that seems stuck into a
       // diagnosis: a pad that rests an axis away from centre — a trigger
@@ -642,10 +667,18 @@ function renderLive(device) {
       list.appendChild(row);
     }
     axisGroup.append(axisLabel, list);
-    root.append(buttonGroup, axisGroup);
+    liveKeys.className = 'live-keys';
+    root.append(buttonGroup, axisGroup, liveKeys);
   }
 
   const active = Profile.activeInputs(frame);
+  // The keyboard is not part of the pad's shape, so it is a line of its
+  // own that appears only while something is held rather than a hundred
+  // chips that are always there.
+  liveKeys.textContent = active.keys.length > 0
+    ? `Keyboard: ${active.keys.join(', ')}`
+    : '';
+  liveKeys.hidden = active.keys.length === 0;
   const pressedSet = new Set(active.buttons);
   const chips = liveButtons;
   for (let index = 0; index < chips.children.length; index += 1) {
@@ -682,11 +715,26 @@ $('clear').addEventListener('click', () => vscode.postMessage({
   type: 'preset', id: data?.selected, preset: 'none',
 }));
 $('open').addEventListener('click', () => vscode.postMessage({ type: 'open' }));
-$('copy-config').addEventListener('click', () => vscode.postMessage({ type: 'copy' }));
 $('prompt').addEventListener('click', stopAsking);
 window.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape') stopAsking();
+  if (event.key === 'Escape') {
+    heldKeys.clear();
+    stopAsking();
+    return;
+  }
+  heldKeys.add(event.code);
+  // While a step is waiting, the key is the answer and not a keystroke for
+  // the page: without this, binding Space scrolls and binding Tab walks
+  // the focus out of the panel mid-walkthrough.
+  if (queue.length > 0) event.preventDefault();
 });
+window.addEventListener('keyup', (event) => heldKeys.delete(event.code));
+// A key held while the window loses focus never sends its keyup here, and
+// a phantom held key would bind itself to the next control anybody asked
+// for — so anything that means "the page stopped being looked at" drops
+// the lot.
+window.addEventListener('blur', () => heldKeys.clear());
+document.addEventListener('visibilitychange', () => heldKeys.clear());
 // A browser does not report a pad until it has been used, and the event is
 // the moment that changes — poll immediately rather than a frame later, so
 // the "press a button" notice clears the instant somebody does.

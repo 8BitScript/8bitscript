@@ -138,68 +138,106 @@ const DEADZONE = 0.5;
 const PRESS_THRESHOLD = 0.5;
 
 /**
+ * The key that cancels a binding step, and therefore the one key that can
+ * never be bound by pressing it.
+ *
+ * Named here rather than in the page because `capture` is what has to
+ * refuse it, and a page that refused it separately would be a second
+ * opinion about the same key.
+ */
+const CANCEL_KEY = 'Escape';
+
+/**
  * Parse a binding string into what it addresses.
  *
- * The grammar is three shapes and nothing else, because anything richer
+ * The grammar is four shapes and nothing else, because anything richer
  * would be a thing a person could get wrong in a file they are allowed to
  * hand-edit:
  *
- *     button:6      button index 6
- *     axis:1        axis index 1, whole, signed
- *     axis:1+       axis index 1's positive half
- *     axis:1-       axis index 1's negative half
+ *     button:6       button index 6
+ *     axis:1         axis index 1, whole, signed
+ *     axis:1+        axis index 1's positive half
+ *     axis:1-        axis index 1's negative half
+ *     key:ArrowLeft  a keyboard key, by DOM `KeyboardEvent.code`
  *
  * Indices are the ones the Gamepad API reports for that device, which is
  * why they are only ever meaningful next to the device id they were
  * captured on — see `normalizeDevice`.
  *
+ * ---- why a keyboard key is in a *controller* profile ---------------------
+ *
+ * Because on one machine it is the only shape a mapping can take at all.
+ * `packages/cli/src/controllers.mjs` measured it: atari800 has no
+ * per-button controller mapping — `-kbdjoy0`/`-kbdjoy1` turn the
+ * *keyboard* into stick 0 or 1 and `SDL2_JOY_<n>_UP` and friends say which
+ * keys, while a real pad's buttons only reach emulated keyboard keys. An
+ * Atari stick is a keyboard stick or it is nothing.
+ *
+ * It lives in `parseBinding` rather than beside it because the question
+ * this function answers is not "what does this address on the pad" — it is
+ * "what does this control read from", and a key is an answer to that. Three
+ * of the callers ask exactly that and nothing more: `answered` (does this
+ * control have an answer at all, for the per-machine preview),
+ * `resolveDirection` (is this direction bound, or does it fall back to the
+ * stick), and the page's binding table (does this row say a name or say
+ * *not bound*). A key binding held at arm's length from `parseBinding` is
+ * invisible to all three, so a fully bound Atari keyboard stick showed
+ * every direction as *missing* on the machine it was written for.
+ *
+ * The rest of the callers read live state, and they have an answer too: a
+ * webview has `keydown` and `keyup`, so `readBinding` reads a held key the
+ * same way it reads a held button, the silhouette lights, and `capture`
+ * can bind one.
+ *
+ * The names are `KeyboardEvent.code` — physical positions, not the letters
+ * a layout prints — which is what the page captures and what the CLI's
+ * `sdlKeycode` turns into the numbers atari800 stores. Same character
+ * class as the CLI's own parser, so a name one end writes the other reads.
+ *
  * @param {unknown} binding
- * @returns {{ source: 'button'|'axis', index: number, half: '+'|'-'|null }|null} null for anything unparseable
+ * @returns {{ source: 'button'|'axis'|'key', index: number|null, half: '+'|'-'|null, key: string|null }|null}
+ *   null for anything unparseable
  */
 function parseBinding(binding) {
   if (typeof binding !== 'string') return null;
-  const match = /^(button|axis):(\d+)([+-]?)$/.exec(binding.trim());
+  const trimmed = binding.trim();
+  const key = /^key:([A-Za-z0-9_]+)$/.exec(trimmed);
+  if (key) return { source: 'key', index: null, half: null, key: key[1] };
+  const match = /^(button|axis):(\d+)([+-]?)$/.exec(trimmed);
   if (!match) return null;
   // A button has no halves: `button:3-` is not a tighter way of saying
   // something, it is a typo, and reading it as `button:3` would hide it.
+  // The CLI's parser makes the same call, deliberately.
   if (match[1] === 'button' && match[3] !== '') return null;
   return {
     source: match[1] === 'button' ? 'button' : 'axis',
     index: Number(match[2]),
     half: match[3] === '' ? null : /** @type {'+'|'-'} */ (match[3]),
+    key: null,
   };
 }
 
 /**
  * Whether a binding names a keyboard key rather than anything on a gamepad.
  *
- * `key:ArrowLeft` is not a shape this panel can capture — a keyboard is not
- * a Gamepad — but it is the ONLY shape atari800 accepts a joystick mapping
- * in: it has no per-button mapping at all, only `-kbdjoy0/1` binding an
- * emulated stick to emulated keys. So the CLI reads `key:` bindings and the
- * panel must not destroy one it did not write.
- *
- * That is not hypothetical. `normalizeDevice` rebuilds `mapping` from the
- * bindings it recognises and drops the rest, and the panel saves on every
- * change — so before this existed, a hand-written Atari keyboard stick
- * survived exactly until someone opened this panel and pressed a button,
- * then vanished with no error. Recognised here, it round-trips untouched.
- *
- * Deliberately not merged into `parseBinding`: that function answers "what
- * does this address on the connected pad", and every one of its callers
- * reads live gamepad state with the answer. A key binding has no answer to
- * that question, and pretending otherwise would put a `source: 'key'` case
- * into eight call sites that would each have to ignore it.
+ * A view of `parseBinding`, not a second parser: the two disagreeing about
+ * what `key:Arrow Left` is would be the kind of bug that only shows up in
+ * a file somebody hand-edited. Kept as a name of its own because "is this
+ * the keyboard" is a question three places ask — the live view groups keys
+ * apart from pad inputs, the mapper says which it is about to bind, and
+ * the per-machine preview notes that a keyboard stick reaches exactly one
+ * of the nine emulators.
  *
  * @param {unknown} binding
  * @returns {boolean}
  */
 function isKeyBinding(binding) {
-  return typeof binding === 'string' && /^key:[A-Za-z0-9_]+$/.test(binding.trim());
+  return parseBinding(binding)?.source === 'key';
 }
 
 /** The string form of what `parseBinding` returns — the two are inverses. */
-function formatBinding({ source, index, half = null }) {
+function formatBinding({ source, index, half = null, key = null }) {
+  if (source === 'key') return `key:${key}`;
   return `${source}:${index}${source === 'axis' && half ? half : ''}`;
 }
 
@@ -220,13 +258,20 @@ function formatBinding({ source, index, half = null }) {
  * mapping, and as axes under some other drivers, and a profile should not
  * have to know which.
  *
+ * A key reads from `state.keys`, the codes the page currently has held —
+ * a webview gets `keydown` and `keyup`, so a `key:` binding is as live as
+ * any other and lights the same shapes. Accepted as a Set or as an array,
+ * because a Set is what the page keeps and an array is what a test writes.
+ *
  * @param {string} binding
- * @param {{ buttons?: Array<number|{value?: number, pressed?: boolean}>, axes?: number[] }} state
+ * @param {{ buttons?: Array<number|{value?: number, pressed?: boolean}>, axes?: number[],
+ *           keys?: Set<string>|string[] }} state
  * @returns {number} 0 when the binding addresses something this device does not have
  */
 function readBinding(binding, state) {
   const parsed = parseBinding(binding);
   if (!parsed) return 0;
+  if (parsed.source === 'key') return heldKeys(state).includes(parsed.key) ? 1 : 0;
   if (parsed.source === 'button') {
     const raw = state?.buttons?.[parsed.index];
     if (raw === undefined || raw === null) return 0;
@@ -240,6 +285,13 @@ function readBinding(binding, state) {
   // A half-axis is the travel in one direction and nothing in the other,
   // so pushing left never reads as a smaller push right.
   return parsed.half === '+' ? clamp01(value) : clamp01(-value);
+}
+
+/** The keys a state says are held, however the caller spells them. */
+function heldKeys(state) {
+  const keys = state?.keys;
+  if (!keys) return [];
+  return Array.isArray(keys) ? keys : [...keys];
 }
 
 function clamp01(value) {
@@ -260,6 +312,9 @@ function pressed(binding, state) {
   if (!parsed) return false;
   if (parsed.source === 'axis' && parsed.half === null) return false;
   const value = readBinding(binding, state);
+  // A key is down or it is not; a button may be analogue; a half-axis is
+  // travel, and travel is measured against the stick's own deadzone.
+  if (parsed.source === 'key') return value === 1;
   return value >= (parsed.source === 'button' ? PRESS_THRESHOLD : DEADZONE);
 }
 
@@ -605,7 +660,7 @@ function normalizeDevice(stored) {
     // controllers file shows what changed rather than what moved.
     for (const control of LOGICAL_CONTROLS) {
       const binding = stored.mapping[control];
-      if (parseBinding(binding) || isKeyBinding(binding)) mapping[control] = binding.trim();
+      if (parseBinding(binding)) mapping[control] = binding.trim();
     }
   }
   return {
@@ -734,6 +789,10 @@ function withinDevice(mapping, detected) {
   for (const [control, binding] of Object.entries(mapping)) {
     const parsed = parseBinding(binding);
     if (!parsed) continue;
+    // A key is not on the device, so there is no count to be within. The
+    // standard layout has none today; this is here so it stays true if one
+    // is ever added rather than silently dropping it on an index compare.
+    if (parsed.source === 'key') { result[control] = binding; continue; }
     if (parsed.index < (parsed.source === 'button' ? buttons : axes)) result[control] = binding;
   }
   return result;
@@ -747,8 +806,8 @@ function withinDevice(mapping, detected) {
  * used a different figure would show an axis as still while a binding on
  * it was firing.
  *
- * @param {{ buttons?: Array<number|object>, axes?: number[] }} state
- * @returns {{ buttons: number[], axes: Array<{ index: number, value: number }> }}
+ * @param {{ buttons?: Array<number|object>, axes?: number[], keys?: Set<string>|string[] }} state
+ * @returns {{ buttons: number[], axes: Array<{ index: number, value: number }>, keys: string[] }}
  */
 function activeInputs(state) {
   const buttons = [];
@@ -760,7 +819,10 @@ function activeInputs(state) {
     const value = readBinding(`axis:${index}`, state);
     if (Math.abs(value) >= DEADZONE) axes.push({ index, value });
   }
-  return { buttons, axes };
+  // Held keys ride along: a `key:` binding is a real binding here, so a
+  // live view that left them out would show a control lighting with
+  // nothing on the page to explain why.
+  return { buttons, axes, keys: heldKeys(state) };
 }
 
 /**
@@ -775,9 +837,18 @@ function activeInputs(state) {
  *
  * `wantsAxis` asks for a whole axis instead of a half — what binding
  * `leftStickX` means, where the press is a *push* and the control is the
- * whole travel.
+ * whole travel. Buttons and keys are both excluded then: binding
+ * `leftStickX` to a shoulder or to `KeyA` would give a stick with two
+ * positions.
  *
- * @param {{ buttons?: Array<number|object>, axes?: number[] }} state
+ * A held key can be captured, which is what makes an Atari keyboard stick
+ * reachable from the panel rather than only by hand — atari800 takes a
+ * mapping in no other shape. Escape is never captured: it is what cancels
+ * the walkthrough, and a walkthrough that bound its own way out would be
+ * unusable. Somebody who really wants Escape can write `key:Escape` in the
+ * file, which now round-trips.
+ *
+ * @param {{ buttons?: Array<number|object>, axes?: number[], keys?: Set<string>|string[] }} state
  * @param {{ wantsAxis?: boolean }} [options]
  * @returns {string|null} a binding string, or null when nothing is being pressed
  */
@@ -790,6 +861,15 @@ function capture(state, { wantsAxis = false } = {}) {
       if (value >= PRESS_THRESHOLD && value > strength) {
         best = `button:${index}`;
         strength = value;
+      }
+    }
+    // After the buttons, so a pad a person is holding wins over a key they
+    // happen to be leaning on; both read 1, and the tie rule below is
+    // "strictly greater".
+    for (const code of heldKeys(state)) {
+      if (code !== CANCEL_KEY && strength < 1) {
+        best = `key:${code}`;
+        strength = 1;
       }
     }
   }
@@ -826,133 +906,33 @@ const WALKTHROUGH = [
 
 // ---- handing the profile to the toolchain --------------------------------
 //
-// `packages/cli/src/controllers.mjs` is the other end of this: it turns a
-// profile into whatever each emulator takes at launch — `-joydev` and a
-// generated `.vjm` for VICE, `SDL2_JOY_<n>_*` keys in an atari800 config,
-// `-joy1..4` for x16emu, and a named refusal for the two that take
-// nothing. It reads the profile out of the project's **8bitscript.config.ts**,
-// as a `controllers.players` block, and it spells a binding with the host
-// pad's index in it:
+// Nothing to do, and that is the finished state rather than a gap.
 //
-//     controllers: {
-//       players: [
-//         { port: 2, controls: { up: 'pad0.hat0.up', a: 'pad0.button0' } },
-//       ],
-//     }
+// `packages/cli/src/controllers.mjs` reads `8bitscript.controllers.json`
+// itself — `controllerPlayers()` takes the very object `controllerStore.cjs`
+// writes, keeps the same eighteen control names, and parses the same four
+// binding shapes (its own `parseBinding` rejects `button:3-` as a typo for
+// the same reason this one does). From there it is that file's business to
+// turn a player into `-joydev`, a `.vjm`, an `SDL2_JOY_<n>_UP` or a named
+// refusal.
 //
-// This editor stores something different on purpose, and the two are not
-// in competition — they answer different questions:
+// The host joystick number is **the player number minus one**, and it is
+// deliberately not in this file: a device is identified here by its
+// Gamepad API id string, which is a browser's name for it and has no
+// relationship to the index SDL hands an emulator. They are different
+// subsystems enumerating the same USB devices, and matching them by name
+// would be a guess that fails silently. So player order is the contract,
+// and the pads should be plugged in in player order.
 //
-//   * The CLI's block is **per player**: which emulated port, driven by
-//     which host input. That is what a launch needs.
-//   * This panel's file is **per device**: which physical pad, identified
-//     by the one string about it that survives being unplugged, and what
-//     its own buttons are called. That is what a mapper needs — a pad's
-//     index is the slot the browser happened to give it this session, and
-//     a mapping keyed on it would be wrong the next time somebody plugs
-//     the mouse in first.
-//
-// So the panel keeps the device file and *emits* the CLI's block from it,
-// resolving the pad index at the moment somebody asks. The block is
-// offered to paste rather than written into the config by this extension,
-// which is exactly what runner.cjs's `saveSystem` already falls back to
-// for a config it cannot safely rewrite: the config is source, and source
-// a person reads is edited by a person or by the editor's own undo stack,
-// never by a panel spraying JSON into TypeScript.
-
-/**
- * One of this profile's bindings, in the CLI's grammar.
- *
- * The two grammars are the same shapes with the pad named: what is
- * `button:3` against a device here is `pad0.button3` there, because the
- * CLI's block has no device identity of its own and has to carry the host
- * index in the string. The hat form (`pad0.hat0.up`) has no counterpart
- * here — the Gamepad API reports a hat as buttons or as an axis, never as
- * a hat, so this end never has one to emit.
- *
- * @param {string} binding
- * @param {number} pad the host pad index, counted from 0
- * @returns {string|null}
- */
-function toCliBinding(binding, pad) {
-  const parsed = parseBinding(binding);
-  if (!parsed) return null;
-  if (parsed.source === 'button') return `pad${pad}.button${parsed.index}`;
-  return `pad${pad}.axis${parsed.index}${parsed.half ?? ''}`;
-}
-
-/**
- * The `controllers.players` block this profile means, for the CLI.
- *
- * Players in order, one entry each, unassigned devices left out. `port` is
- * omitted rather than computed: `packages/cli/src/controllers.mjs`'s
- * `defaultPort` already knows that a C64 or C128 reads player one from
- * port 2 and everything else counts players and ports together, and the
- * machine it is being launched on is not known here — a block written for
- * a C64 must still be right when the same project is run on an NES.
- *
- * The four directions go through `resolveDirection`, so a profile that
- * binds only the left stick emits four real direction bindings rather than
- * an empty `controls` map the CLI would have nothing to do with.
- *
- * @param {object} profile
- * @param {Record<string, number>} padIndex device id → the host pad index
- * @returns {{ players: Array<{ controls: Record<string, string> }> }}
- */
-function toCliPlayers(profile, padIndex = {}) {
-  const devices = normalizeProfile(profile).controllers.devices
-    .filter((device) => device.player !== 0)
-    .sort((a, b) => a.player - b.player);
-  const players = [];
-  for (const device of devices) {
-    const pad = padIndex[device.id];
-    // A device nobody can see has no host index, and an invented one would
-    // aim an emulator at a port with nothing in it. It is left out, and
-    // the panel says which.
-    if (!Number.isInteger(pad)) continue;
-    const controls = {};
-    for (const control of LOGICAL_CONTROLS) {
-      const resolved = control === 'up' || control === 'down' || control === 'left' || control === 'right'
-        ? resolveDirection(device.mapping, control)
-        : (parseBinding(device.mapping[control]) ? { binding: device.mapping[control] } : null);
-      const binding = resolved ? toCliBinding(resolved.binding, pad) : null;
-      if (binding) controls[control] = binding;
-    }
-    players.push({ controls });
-  }
-  return { players };
-}
-
-/**
- * That block as the TypeScript somebody pastes into 8bitscript.config.ts.
- *
- * Two-space indent and single quotes, which is how every config in this
- * repository is written and what runner.cjs's `systemLine` already emits
- * for a saved system.
- *
- * @param {object} profile
- * @param {Record<string, number>} padIndex
- * @param {{ indent?: string }} [options]
- */
-function toConfigBlock(profile, padIndex = {}, { indent = '  ' } = {}) {
-  const { players } = toCliPlayers(profile, padIndex);
-  if (players.length === 0) return `${indent}controllers: { players: [] },`;
-  const lines = [`${indent}controllers: {`, `${indent}  players: [`];
-  for (const player of players) {
-    // One binding a line rather than one player a line: eighteen of them
-    // on one line is a diff nobody can read, and this is source somebody
-    // is about to paste into a file they own.
-    lines.push(`${indent}    {`, `${indent}      controls: {`);
-    for (const [control, binding] of Object.entries(player.controls)) {
-      lines.push(`${indent}        ${control}: '${binding}',`);
-    }
-    lines.push(`${indent}      },`, `${indent}    },`);
-  }
-  lines.push(`${indent}  ],`, `${indent}},`);
-  return lines.join('\n');
-}
+// An earlier version of this module emitted a `controllers.players` block
+// for 8bitscript.config.ts, because that is where the CLI first read a
+// profile from. It reads this file now, so that block is gone: a panel
+// offering somebody a snippet to paste into a config nothing consults
+// would be exactly the kind of quiet trap the two ends have spent this
+// branch closing.
 
 module.exports = {
+  CANCEL_KEY,
   CONTROL_KINDS,
   CONTROL_LABELS,
   DEADZONE,
@@ -981,9 +961,6 @@ module.exports = {
   project,
   readBinding,
   resolveDirection,
-  toCliBinding,
-  toCliPlayers,
-  toConfigBlock,
   withDevice,
   withoutDevice,
 };
