@@ -47,9 +47,37 @@ Jobs already run the toolchain on Node 26 (`node-version: 26`). The
 not the version `pnpm` and tests use. Keep those actions on a Node 24
 major (`@v5`).
 
+## The `release` branch
+
+The `pin-release` job (`scripts/release.mjs --pin-release`)
+fast-forwards `release` to the tagged commit **after** npm has that
+version. It is a different job from publish on purpose: v0.6.2's first
+run 403'd the git push inside the npm job and skipped Marketplace,
+docs, and the GitHub Release; the trunk re-run (34766752093) then
+failed npm because a depth-1 checkout of `trunk` has no tags. Publish
+staying green is what lets the other stores run.
+
+The tag is written when Version Packages merges; this branch is the
+answer to "what is actually downloadable," which a tag alone is not
+(v0.6.0 was tagged and never published).
+
+Two settings have to stay true or the pin 403s as
+`github-actions[bot]`:
+
+1. The **pin-release job** needs `contents: write`. The npm job stays
+   `contents: read` plus `id-token: write`.
+2. Branch protection on `release` must **not** "Restrict who can push"
+   to a human. `GITHUB_TOKEN` authenticates as `github-actions[bot]`,
+   which cannot be added to that allow list. Linear history and no
+   force-push are the protections that still belong there.
+
+`--pin-release` fetches `refs/tags/vX.Y.Z` if the clone does not have
+it. Do not rely on `actions/checkout` to have brought tags along.
+
 ## Recovering a half-finished release
 
-If npm is already at this version and a marketplace timed out:
+If npm is already at this version and a marketplace timed out
+(or `release` was not fast-forwarded):
 
 1. Do **not** add a changeset or merge Version Packages.
 2. Do **not** run `vsce` / `ovsx` / `scripts/release.mjs` on a laptop.
