@@ -9,7 +9,8 @@ import { runInNewContext } from 'node:vm';
 import { renderCoiServiceWorker, renderLoader, renderWorker } from '../src/web-loader.mjs';
 import {
   ANY_BORDER_SCALE, BORDER_HAIRLINE_PX, BORDER_MIN_PX, BORDER_PX, FULL_BORDER_SCALE, HOST_OFFSET,
-  INNER_H, INNER_W, INPUT_OFFSET, agreementFor, borderFor, swipeEdge,
+  INNER_H, INNER_W, INPUT_OFFSET, MIN_COLUMNS, MAX_COLUMNS, MIN_ROWS, MAX_ROWS,
+  agreementFor, borderFor, gridFor, swipeEdge,
 } from '../src/web-layout.mjs';
 
 /** Evaluate the generated loader with no DOM at all and hand back its public object. */
@@ -150,9 +151,80 @@ test('the loader stays inside its own element when embedded', () => {
 
 // Assigning canvas.width/height clears the canvas and resets the 2D context,
 // so it must happen only when the border actually changed, never per frame.
-test('the canvas is only re-dimensioned when the border changes', () => {
+// Assigning canvas.width/height clears the canvas and resets every bit of 2D
+// context state, so it happens only when the picture actually changed shape:
+// a new border, or — on the Modern host — a new grid under it.
+test('the canvas is only re-dimensioned when the border or the grid changes', () => {
   const source = renderLoader({ frameRate: 60 });
-  assert.match(source, /if \(next !== border\) \{\s*\n\s*border = next;\s*\n\s*canvas\.width = INNER_W \+ border \* 2;/);
+  assert.match(source, /if \(next !== border \|\| regridded\) \{\s*\n\s*border = next;\s*\n\s*canvas\.width = INNER_W \+ border \* 2;/);
+});
+
+// The grid rule, like borderFor, exists twice — here and in web-layout.mjs —
+// and a rule that lives only inside a template string is a rule nothing can
+// test.
+test("the loader's gridFor agrees with web-layout.mjs on every shape", () => {
+  const { gridFor: inLoader } = loadLoader({ frameRate: 60 });
+  for (const box of [
+    { width: 1920, height: 1080 },
+    { width: 1080, height: 1920 },
+    { width: 1024, height: 768 },
+    { width: 2560, height: 1080 },
+    { width: 390, height: 844 },
+    { width: 844, height: 390 },
+    { width: 0, height: 0 },
+    undefined,
+  ]) {
+    // Field by field: the loader is evaluated in its own realm, so its object
+    // does not share a prototype with ours.
+    const mine = gridFor(box);
+    const theirs = inLoader(box);
+    assert.equal(theirs.cols, mine.cols, `gridFor(${JSON.stringify(box)}).cols`);
+    assert.equal(theirs.rows, mine.rows, `gridFor(${JSON.stringify(box)}).rows`);
+  }
+});
+
+// 16:9 is the shape this host has always had, and it must keep answering with
+// the grid every existing build and screenshot was made against.
+test('a 16:9 window still gets exactly 48x27', () => {
+  assert.equal(gridFor({ width: 1920, height: 1080 }).cols, 48);
+  assert.equal(gridFor({ width: 1920, height: 1080 }).rows, 27);
+  assert.equal(gridFor({ width: 384, height: 216 }).cols, 48);
+  assert.equal(gridFor({ width: 384, height: 216 }).rows, 27);
+});
+
+// A grid too small to lay anything out on is not a better answer than one that
+// letterboxes, so the shape follows the window only between the bounds.
+test('an extreme window is clamped, not followed', () => {
+  const sliver = gridFor({ width: 200, height: 2000 });
+  assert.ok(sliver.cols >= MIN_COLUMNS && sliver.cols <= MAX_COLUMNS);
+  assert.ok(sliver.rows >= MIN_ROWS && sliver.rows <= MAX_ROWS);
+  const strip = gridFor({ width: 4000, height: 300 });
+  assert.ok(strip.cols >= MIN_COLUMNS && strip.cols <= MAX_COLUMNS);
+  assert.ok(strip.rows >= MIN_ROWS && strip.rows <= MAX_ROWS);
+});
+
+// The Modern host's map is sized for the biggest grid it will ever hand out,
+// so an offset never moves when the window turns. These numbers are also
+// written down in packages/web/src/geometry.8bs, which has to agree.
+test('a resizable agreement is mapped for the maximum grid, a fixed one is packed', () => {
+  const modern = agreementFor({ resizable: true });
+  assert.equal(modern.charBase, 4);
+  assert.equal(modern.colorBase, 4100);
+  assert.equal(modern.inputOffset, 8196);
+  assert.equal(modern.hostOffset, 8197);
+  for (const [cols, rows] of [[27, 48], [42, 31], [64, 20]]) {
+    const turned = agreementFor({ cols, rows, resizable: true });
+    assert.equal(turned.charBase, modern.charBase);
+    assert.equal(turned.colorBase, modern.colorBase);
+    assert.equal(turned.inputOffset, modern.inputOffset);
+    assert.equal(turned.hostOffset, modern.hostOffset);
+  }
+  // A machine skin is unchanged: a C64 is 40x25 and packed right behind it.
+  const c64 = agreementFor({ cols: 40, rows: 25 });
+  assert.equal(c64.charBase, 2);
+  assert.equal(c64.colorBase, 1002);
+  assert.equal(c64.inputOffset, 2002);
+  assert.equal(c64.hostOffset, 2003);
 });
 
 test('the loader writes HOST_OFFSET from maxTouchPoints and pointer:coarse, and loads a sidecar', () => {

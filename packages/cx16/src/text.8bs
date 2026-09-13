@@ -100,6 +100,21 @@ const DIGIT_PLACES: array<usmallint, 5> = [10000, 1000, 100, 10, 1];
 export namespace text {
     const CELL_COUNT: usmallint = 4256; // 76 columns x 56 rows, inside the inset
     const COLUMNS: utinyint = 76; // cells per row, so cell = y * text.COLUMNS + x
+    const ROWS: utinyint = 56;
+
+    // The live grid. Fixed on this machine — its screen is the size its video
+    // chip makes it — so both fold to the constants above and cost nothing.
+    // Here so a program that lays itself out from the grid it is actually on
+    // runs unchanged on every target; see the web target's Modern host, the
+    // one grid that does change.
+    function columns(): utinyint {
+        return text.COLUMNS;
+    }
+
+    function rows(): utinyint {
+        return text.ROWS;
+    }
+
 
     function putChar(cell: usmallint, code: utinyint): void {
         locate(cell);

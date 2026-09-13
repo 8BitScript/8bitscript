@@ -22,6 +22,11 @@ import { Video } from "./geometry.8bs";
 // numbers meaning the same thing across every 8BitScript example. The host
 // reads the two bytes once per painted frame, so the picture changes at
 // the next paint.
+// What resized() compares against. Zero until the first call, which is what
+// makes that first call report a change.
+let lastColumns: utinyint = 0;
+let lastRows: utinyint = 0;
+
 export namespace screen {
     function setColors(border: u8, background: u8): void {
         memory.write(WebRegisters.BORDER_OFFSET, border & 15);
@@ -40,9 +45,42 @@ export namespace screen {
         if (background != BackgroundColor.KEEP) {
             screen.setBackground(background);
         }
-        for (let cell: usmallint = 0; cell < Video.CELL_COUNT; cell++) {
+        // The live grid, not the map's maximum: the two screen regions are
+        // sized for the largest grid this host hands out (see ./geometry.8bs),
+        // so clearing CELL_COUNT here would walk three times the visible
+        // screen on a window that is showing less than all of it.
+        //
+        // Both regions, not just the characters. Reverse video rides in bit 7
+        // of the color byte on this target, and the host paints a reverse cell
+        // as a solid block whether or not the character is a space — so a
+        // "blank" screen that kept its color bytes would keep every reverse
+        // block that was on it. Leaving the color behind is invisible on a
+        // machine whose reverse is a character code; here it is the whole
+        // picture.
+        let count: usmallint = Video.cells();
+        for (let cell: usmallint = 0; cell < count; cell++) {
             memory.write(WebRegisters.CHAR_BASE + cell, 32);
+            memory.write(WebRegisters.COLOR_BASE + cell, 0);
         }
+    }
+
+    // Whether this machine's grid can change under a running program. A
+    // build-time constant everywhere, so `if (screen.RESIZABLE)` folds the
+    // whole branch away on every machine whose grid cannot.
+    const RESIZABLE: bool = Video.RESIZABLE;
+
+    // True on the one call after the grid changed shape — including the first
+    // call of all, so a program lays itself out once without a special case
+    // for start-up. Ask once a frame and rebuild the layout when it says so.
+    function resized(): bool {
+        let nowColumns: utinyint = Video.columns();
+        let nowRows: utinyint = Video.rows();
+        if (nowColumns != lastColumns || nowRows != lastRows) {
+            lastColumns = nowColumns;
+            lastRows = nowRows;
+            return true;
+        }
+        return false;
     }
 
     function setBackground(background: u8): void {

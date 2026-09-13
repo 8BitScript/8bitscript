@@ -55,6 +55,8 @@ import {
   GRID_COLS, GRID_ROWS, HOST_OFFSET, HostStatus,
   INNER_H, INNER_W, INPUT_OFFSET, InputEdge, KEY_TO_EDGE, SWIPE_THRESHOLD,
   ANY_BORDER_SCALE, BORDER_HAIRLINE_PX, BORDER_MIN_PX, FULL_BORDER_SCALE,
+  COLUMNS_OFFSET, ROWS_OFFSET, MAX_COLUMNS, MAX_ROWS, MIN_COLUMNS, MIN_ROWS,
+  TARGET_CELLS,
 } from './web-layout.mjs';
 
 // The two words the page and the worker share, in a SharedArrayBuffer beside
@@ -251,6 +253,16 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
   var HOST_TOUCH = ${HostStatus.TOUCH};
   var COLOR_PER_CELL = ${layout.colorPerCell !== false};
   var ASPECT = ${JSON.stringify(layout.aspect ?? '16/9')};
+  // Modern only: the grid follows the window. Every machine skin is fixed,
+  // because a skin is a machine. See packages/cli/src/web-layout.mjs.
+  var RESIZABLE = ${layout.resizable === true};
+  var COLUMNS_OFFSET = ${COLUMNS_OFFSET};
+  var ROWS_OFFSET = ${ROWS_OFFSET};
+  var MIN_COLUMNS = ${MIN_COLUMNS};
+  var MAX_COLUMNS = ${MAX_COLUMNS};
+  var MIN_ROWS = ${MIN_ROWS};
+  var MAX_ROWS = ${MAX_ROWS};
+  var TARGET_CELLS = ${TARGET_CELLS};
   var KEY_TO_EDGE = ${JSON.stringify(KEY_TO_EDGE)};
   var SWIPE_THRESHOLD = ${SWIPE_THRESHOLD};
   var CONFIRM = ${InputEdge.CONFIRM};
@@ -274,6 +286,21 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     if (ax < SWIPE_THRESHOLD && ay < SWIPE_THRESHOLD) return 0;
     if (ax > ay) return dx < 0 ? ${InputEdge.LEFT} : ${InputEdge.RIGHT};
     return dy < 0 ? ${InputEdge.UP} : ${InputEdge.DOWN};
+  }
+
+  // Hold the cell count roughly constant and let the window pick the shape,
+  // so text stays the same fraction of the screen at any size. 16:9 gives back
+  // exactly the 48x27 this host has always had. Shared with the build; both
+  // copies are checked against each other in web-loader.test.mjs.
+  function gridFor(box) {
+    var width = box && box.width;
+    var height = box && box.height;
+    if (!(width > 0) || !(height > 0)) return { cols: 48, rows: 27 };
+    var cols = Math.round(Math.sqrt(TARGET_CELLS * (width / height)));
+    cols = Math.min(MAX_COLUMNS, Math.max(MIN_COLUMNS, cols));
+    var rows = Math.round(TARGET_CELLS / cols);
+    rows = Math.min(MAX_ROWS, Math.max(MIN_ROWS, rows));
+    return { cols: cols, rows: rows };
   }
 
   // The border is decoration, and on a small screen decoration is the first
@@ -472,6 +499,34 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     // Embedded reads the host element — "small screen" there means a narrow
     // column in somebody's article, which visualViewport knows nothing about.
     var border = -1;
+    var gridCols = GRID_COLS;
+    var gridRows = GRID_ROWS;
+
+    // The grid the window asks for, written where the program reads it. Only
+    // the Modern host does this; a machine skin's grid is its machine's, and
+    // applyGrid() is a no-op there. Returns whether anything moved, because
+    // the canvas has to be re-dimensioned when it did even if the border
+    // happens to come out the same.
+    function applyGrid(measured) {
+      if (!RESIZABLE) return false;
+      var grid = gridFor(measured);
+      if (grid.cols === gridCols && grid.rows === gridRows) return false;
+      gridCols = grid.cols;
+      gridRows = grid.rows;
+      GRID_COLS = gridCols;
+      GRID_ROWS = gridRows;
+      INNER_W = gridCols * CHAR_W;
+      INNER_H = gridRows * CHAR_H;
+      writeGrid();
+      return true;
+    }
+
+    function writeGrid() {
+      if (!RESIZABLE || !mem) return;
+      mem[COLUMNS_OFFSET] = gridCols;
+      mem[ROWS_OFFSET] = gridRows;
+    }
+
     function box() {
       if (fullPage) {
         var vv = global.visualViewport;
@@ -486,12 +541,14 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     }
     function resize() {
       var measured = box();
+      var regridded = applyGrid(measured);
       var next = fixedBorder === null
         ? borderFor({ width: measured.width, height: measured.height, coarse: coarsePointer() })
         : fixedBorder;
       // Assigning canvas.width/height clears the canvas and resets every bit
-      // of 2D context state, so only do it when the border actually changed.
-      if (next !== border) {
+      // of 2D context state, so only do it when the picture actually changed
+      // shape — a new border, or a new grid under it.
+      if (next !== border || regridded) {
         border = next;
         canvas.width = INNER_W + border * 2;
         canvas.height = INNER_H + border * 2;
@@ -662,6 +719,10 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
           mem = new Uint8Array(data.memory);
           writeInput();
           writeHost();
+          // The program may already be running, so tell it the grid before it
+          // asks. Until this lands, text.columns() answers with the compiled
+          // default rather than with zero — see packages/web/src/geometry.8bs.
+          writeGrid();
         }
         if (data.done) {
           say('the program finished');
@@ -764,6 +825,7 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
   global.EightBitScript = {
     mount: mount,
     borderFor: borderFor,
+    gridFor: gridFor,
     swipeEdge: swipeEdge,
     defaultFrameRate: DEFAULT_FRAME_RATE,
     elementName: ELEMENT_NAME,
@@ -778,6 +840,7 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
       inputOffset: INPUT_OFFSET,
       hostOffset: HOST_OFFSET,
       aspect: ASPECT,
+      resizable: RESIZABLE,
       fullBorder: BORDER_PX,
     },
   };

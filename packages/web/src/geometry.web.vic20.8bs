@@ -10,4 +10,21 @@ export namespace Video {
     const COLOR_BASE: usmallint = 508;
     const INPUT_OFFSET: usmallint = 1014;
     const HOST_OFFSET: usmallint = 1015;
+
+    // The same three questions the Modern host answers at run time, answered
+    // here from constants: this skin is a machine, and a machine's grid does
+    // not change. Both fold, so a program that asks costs nothing for asking.
+    const RESIZABLE: bool = false;
+
+    function columns(): utinyint {
+        return Video.COLUMNS;
+    }
+
+    function rows(): utinyint {
+        return Video.ROWS;
+    }
+
+    function cells(): usmallint {
+        return Video.CELL_COUNT;
+    }
 }
