@@ -172,6 +172,17 @@ export namespace text {
         release();
     }
 
+    // Writes `code` into `count` consecutive cells from `cell`, in the current
+    // color. The run print() would write if a string of that width could be
+    // built at run time — it cannot, so a layout whose width is only known
+    // while the program runs (a responsive tile, a panel being cleared) needs
+    // this instead of a string constant per possible width.
+    function fill(cell: usmallint, count: usmallint, code: utinyint): void {
+        for (let i: usmallint = 0; i < count; i++) {
+            place(cell + i, code);
+        }
+    }
+
     function printNumber(cell: usmallint, value: usmallint, width: utinyint): void {
         prepare();
         let k: utinyint = width;
