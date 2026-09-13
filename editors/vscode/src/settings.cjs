@@ -95,10 +95,13 @@ function getHardware(system) {
 
 /**
  * What a run actually fits the machine with: the stored selection, or —
- * when nothing is stored — the machine's worst RAM config rather than its
- * catalog stock, so a first run tests a program against the smallest
- * machine it is meant to fit rather than the roomiest one the catalog
- * happens to default to. `target` is the catalog entry from
+ * when nothing is stored — the machine's worst RAM-size config rather
+ * than its catalog stock, so a first run tests a program against the
+ * smallest RAM the machine is meant to fit (a PET's `ram`, a VIC-20's
+ * memory) rather than the roomiest one the catalog happens to default
+ * to. A different program shape that happens to publish a smaller
+ * `memory.ram` — an Atari cartridge — is not a RAM-size option and is
+ * left at catalog stock. `target` is the catalog entry from
  * `parseTargets()` (`8bs targets --json`, already asked for whatever else
  * a caller needs it for); with none available yet, this falls back to
  * plain stock the same as `getHardware` alone would.
