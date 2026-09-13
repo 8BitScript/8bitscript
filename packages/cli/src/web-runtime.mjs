@@ -28,21 +28,23 @@
 // machine with a program stuck in a loop.
 import { createReadStream } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { createServer } from 'node:http';
 import { extname, join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { ELEMENT_NAME, renderCoiServiceWorker, renderLoader, renderWorker } from './web-loader.mjs';
+import { listenWebDev, serveBanner, DEFAULT_WEB_PORT } from './web-lan.mjs';
 
 // The screen layout, palette and input mapping, re-exported from the one
 // module that defines them. screenshot.mjs and the web tests import these
 // from here, which is why they stay on this path rather than moving wholesale.
 export {
   BORDER_PX, BORDER_HAIRLINE_PX, CHAR_BASE, CHAR_H, CHAR_W, COLOR_BASE, COLORS,
-  GRID_COLS, GRID_ROWS, INNER_H, INNER_W, INPUT_OFFSET, InputEdge, KEY_TO_EDGE,
-  SWIPE_THRESHOLD, borderFor, inputBitForKey, screenSize, swipeEdge,
+  DEFAULT_LAYOUT, GRID_COLS, GRID_ROWS, HOST_OFFSET, HostStatus, INNER_H, INNER_W,
+  INPUT_OFFSET, InputEdge, KEY_TO_EDGE, SWIPE_THRESHOLD,
+  agreementFor, borderFor, hostIsTouch, inputBitForKey, layoutFromHardware,
+  screenSize, sidecarJson, swipeEdge,
 } from './web-layout.mjs';
 
-import { BORDER_PX, GRID_COLS, GRID_ROWS, CHAR_W, CHAR_H } from './web-layout.mjs';
+import { BORDER_PX, DEFAULT_LAYOUT, GRID_COLS, GRID_ROWS, CHAR_W, CHAR_H, sidecarJson } from './web-layout.mjs';
 
 const INNER_W = GRID_COLS * CHAR_W;
 const INNER_H = GRID_ROWS * CHAR_H;
@@ -218,7 +220,7 @@ var screen = EightBitScript.mount(document.body, {
   src: 'program.wasm',
   frameRate: ${frameRate},
   fullPage: true,
-  hud: true,
+  hud: false,
   hint: 'arrows or swipe to move \\u00b7 double-click or F for fullscreen',
   onSample: postStatus,
   onDone: function () { postStatus({ done: true }); },
@@ -314,6 +316,7 @@ export function openBrowser(url) {
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
   '.wasm': 'application/wasm',
   '.txt': 'text/plain; charset=utf-8',
 };
@@ -330,21 +333,27 @@ const MIME = {
  *   coi.js          opt-in cross-origin-isolation shim for hosts that cannot
  *                   send headers
  *   program.wasm    the compiled program
+ *   program.json    layout sidecar (cols, palette, aspect) the loader reads
  *   _headers        COOP/COEP for Cloudflare Pages and Netlify
  *
  * @param {string} dir
  * @param {Buffer} wasmBytes
- * @param {{ frameRate?: number }} [options]
+ * @param {{ frameRate?: number, layout?: object, wasmName?: string, shell?: boolean }} [options]
  */
-export async function writeWebBundle(dir, wasmBytes, { frameRate = 60 } = {}) {
+export async function writeWebBundle(dir, wasmBytes, {
+  frameRate = 60, layout = DEFAULT_LAYOUT, wasmName = 'program', shell = true,
+} = {}) {
   await mkdir(dir, { recursive: true });
-  await writeFile(join(dir, 'index.html'), renderHtml(frameRate));
-  await writeFile(join(dir, 'embed.html'), renderEmbedExample());
-  await writeFile(join(dir, '8bitscript.js'), renderLoader({ frameRate }));
-  await writeFile(join(dir, 'worker.js'), renderWorker());
-  await writeFile(join(dir, 'coi.js'), renderCoiServiceWorker());
-  await writeFile(join(dir, 'program.wasm'), wasmBytes);
-  await writeFile(join(dir, '_headers'), HEADERS_FILE);
+  if (shell) {
+    await writeFile(join(dir, 'index.html'), renderHtml(frameRate));
+    await writeFile(join(dir, 'embed.html'), renderEmbedExample());
+    await writeFile(join(dir, '8bitscript.js'), renderLoader({ frameRate, layout }));
+    await writeFile(join(dir, 'worker.js'), renderWorker());
+    await writeFile(join(dir, 'coi.js'), renderCoiServiceWorker());
+    await writeFile(join(dir, '_headers'), HEADERS_FILE);
+  }
+  await writeFile(join(dir, `${wasmName}.wasm`), wasmBytes);
+  await writeFile(join(dir, `${wasmName}.json`), `${JSON.stringify(sidecarJson(layout), null, 2)}\n`);
 }
 
 /**
@@ -357,28 +366,24 @@ export async function writeWebBundle(dir, wasmBytes, { frameRate = 60 } = {}) {
  * in memory so `8bs run web` still works without a prior build.
  *
  * @param {Buffer} wasmBytes
- * @param {{ open?: boolean, frameRate?: number, root?: string, lastRunTarget?: string }} [options]
+ * @param {{ open?: boolean, frameRate?: number, root?: string, lastRunTarget?: string, layout?: object, lan?: boolean, port?: number }} [options]
+ *   `lan` defaults on: HTTPS on the LAN plus HTTP on loopback. `--local` passes false.
+ *   `port` defaults to 8008 (`--port 0` is ephemeral). HTTPS is port + 1.
  * @returns {Promise<number>} exit code
  */
-export async function runInBrowser(wasmBytes, { open = true, frameRate = 60, root, lastRunTarget } = {}) {
+export async function runInBrowser(wasmBytes, { open = true, frameRate = 60, root, lastRunTarget, layout = DEFAULT_LAYOUT, lan = true, port = DEFAULT_WEB_PORT } = {}) {
   // Generated once up front, not per request: `8bs run web` without a prior
   // build serves exactly the bytes `8bs build --target web` would have written.
+  const sidecar = `${JSON.stringify(sidecarJson(layout), null, 2)}\n`;
   const generated = root ? null : new Map([
     ['/index.html', [renderHtml(frameRate), MIME['.html']]],
     ['/embed.html', [renderEmbedExample(), MIME['.html']]],
-    ['/8bitscript.js', [renderLoader({ frameRate }), MIME['.js']]],
+    ['/8bitscript.js', [renderLoader({ frameRate, layout }), MIME['.js']]],
     ['/worker.js', [renderWorker(), MIME['.js']]],
     ['/coi.js', [renderCoiServiceWorker(), MIME['.js']]],
+    ['/program.json', [sidecar, MIME['.json']]],
   ]);
   const status = createStatusStore(frameRate);
-  const server = createServer((req, res) => {
-    const url = new URL(req.url ?? '/', 'http://127.0.0.1');
-    let pathname = url.pathname === '/' ? '/index.html' : url.pathname;
-    handleStatusRequest(req, res, pathname, status).then((handled) => {
-      if (handled) return;
-      serveProgram(req, res, pathname);
-    });
-  });
 
   function serveProgram(req, res, pathname) {
     if (root) {
@@ -415,14 +420,22 @@ export async function runInBrowser(wasmBytes, { open = true, frameRate = 60, roo
     res.end();
   }
 
-  await new Promise((resolveListen) => server.listen(0, '127.0.0.1', resolveListen));
-  const { port } = server.address();
-  const url = `http://127.0.0.1:${port}/`;
-  process.stdout.write(`serving ${url}\n`);
-  process.stdout.write(
-    'in VS Code or Cursor: Cmd/Ctrl+Shift+P -> "Simple Browser: Show" -> paste that URL, ' +
-    'to view it inside the editor.\n',
-  );
+  const listening = await listenWebDev((req, res) => {
+    const url = new URL(req.url ?? '/', 'http://127.0.0.1');
+    let pathname = url.pathname === '/' ? '/index.html' : url.pathname;
+    handleStatusRequest(req, res, pathname, status).then((handled) => {
+      if (handled) return;
+      serveProgram(req, res, pathname);
+    });
+  }, { lan, port });
+  if (listening.error) {
+    process.stderr.write(`8bs run: ${listening.error}\n`);
+    return 1;
+  }
+  // The editor's Running machines tree polls this loopback URL; a phone
+  // uses the HTTPS LAN line serveBanner prints, not this one.
+  const url = listening.local;
+  process.stdout.write(serveBanner(listening));
   if (lastRunTarget) {
     const { writeLastRun } = await import('./last-run.mjs');
     await writeLastRun(lastRunTarget, { emulator: 'browser', url });
@@ -432,7 +445,7 @@ export async function runInBrowser(wasmBytes, { open = true, frameRate = 60, roo
 
   return new Promise((resolvePromise) => {
     process.on('SIGINT', () => {
-      server.close(() => resolvePromise(0));
+      listening.close().then(() => resolvePromise(0));
     });
   });
 }

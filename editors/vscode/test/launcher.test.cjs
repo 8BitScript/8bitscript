@@ -64,6 +64,19 @@ test('examples can be hidden, but ship visible by default', () => {
   assert.equal(props.default, true);
 });
 
+test('a web run from the launcher listens on the LAN by default', () => {
+  const runner = fs.readFileSync(path.join(ROOT, 'src', 'runner.cjs'), 'utf8');
+  assert.match(runner, /getWebLan\(\)/);
+  assert.match(runner, /args\.push\('--local'\)/);
+  const settings = fs.readFileSync(path.join(ROOT, 'src', 'settings.cjs'), 'utf8');
+  assert.match(settings, /function getWebLan/);
+  const view = fs.readFileSync(path.join(ROOT, 'src', 'launcherView.cjs'), 'utf8');
+  assert.match(view, /--local/);
+  const props = MANIFEST.contributes.configuration.properties['8bitscript.webLan'];
+  assert.equal(props.default, true);
+  assert.equal(props.type, 'boolean');
+});
+
 test('the panel launches, picks, and stops', () => {
   assert.match(JS, /type: 'launch', action: 'run'/);
   assert.match(JS, /type: 'launch', action: 'build'/);

@@ -163,6 +163,7 @@ class RunningTasks {
  */
 function makeTask(project, action, target, region, hardware = settings.getHardware(target)) {
   const args = commandArgs(action, target, region, hardware);
+  if (action === 'run' && target === 'web' && !settings.getWebLan()) args.push('--local');
   const pal = region === 'pal' && MACHINE_TARGETS.has(target);
   const definition = {
     type: TASK_TYPE,

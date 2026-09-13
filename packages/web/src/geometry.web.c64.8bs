@@ -1,0 +1,14 @@
+// @8bitscript/web — 40×25 C64-shaped skin. Picked up when the build's
+// hardware tag is `c64` (`--hardware machine=c64`). Facts come from
+// @8bitscript/c64's catalog (grid, 16 colors, per-cell color); the wasm
+// host is still the web backend. See geometry.8bs.
+
+export namespace Video {
+    const COLUMNS: utinyint = 40;
+    const ROWS: utinyint = 25;
+    const CELL_COUNT: usmallint = 1000;
+    const CHAR_BASE: usmallint = 2;
+    const COLOR_BASE: usmallint = 1002;
+    const INPUT_OFFSET: usmallint = 2002;
+    const HOST_OFFSET: usmallint = 2003;
+}

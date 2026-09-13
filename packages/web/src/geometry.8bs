@@ -1,0 +1,24 @@
+// @8bitscript/web — the screen's geometry, for the default 16:9 host.
+//
+// The web target has no chip to be faithful to, so the grid is a decision:
+// 48×27 cells of 8×8 is 384×216, exactly 16:9. Machine skins (a PET 2001,
+// a C64, a VIC-20) are hardware tags, each with a twin beside this file
+// (`geometry.web.pet-2001.8bs`, …) so `text.COLUMNS`, `text.CELL_COUNT`,
+// and the agreement offsets fold to that skin's numbers with no runtime
+// probe. See packages/web/AGENTS.md and docs/packages.md ("System-specific
+// files").
+//
+// Offsets in the wasm page: byte 0 border, byte 1 background, then
+// CELL_COUNT character codes from CHAR_BASE 2, CELL_COUNT color bytes from
+// COLOR_BASE, then INPUT_OFFSET, then HOST_OFFSET. Two side-by-side screen
+// regions, not interleaved.
+
+export namespace Video {
+    const COLUMNS: utinyint = 48;
+    const ROWS: utinyint = 27;
+    const CELL_COUNT: usmallint = 1296; // COLUMNS * ROWS
+    const CHAR_BASE: usmallint = 2;
+    const COLOR_BASE: usmallint = 1298; // CHAR_BASE + CELL_COUNT
+    const INPUT_OFFSET: usmallint = 2594; // COLOR_BASE + CELL_COUNT
+    const HOST_OFFSET: usmallint = 2595; // first byte after the input snapshot
+}

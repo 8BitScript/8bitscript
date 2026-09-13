@@ -125,7 +125,11 @@ builds.
   its own terminal, from the project's directory with the project's own
   `node_modules/.bin/8bs`, so what you see is exactly what the CLI prints.
   `--size` is the per-function breakdown under the memory line; it prints
-  before the emulator window opens. The button names the project, and the
+  before the emulator window opens. On **web**, Run listens on the LAN
+  (`8bitscript.webLan`, on by default) so the terminal prints an
+  `https://<lan-ip>:<port>/` URL a phone on the same Wi-Fi can open —
+  Safari will warn once; tap Advanced, then Proceed. Turn the setting off
+  (`--local`) on an untrusted network. The button names the project, and the
   line under it names the machine, the hardware fitted to it, and the
   region — nothing has to be read off a dropdown to know what pressing it
   means. It greys out when the selected project does not target the selected

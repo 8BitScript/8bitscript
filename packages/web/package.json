@@ -18,8 +18,8 @@
     },
     "hardware": {
       "facts": {
-        "video.columns": 40,
-        "video.rows": 25,
+        "video.columns": 48,
+        "video.rows": 27,
         "video.cellWidth": 8,
         "video.cellHeight": 8,
         "video.palette": 16,
@@ -56,8 +56,74 @@
         "memory.bankedKib": 0,
         "storage.kib": 0
       },
-      "options": {},
-      "presets": {}
+      "options": {
+        "machine": {
+          "label": "Machine",
+          "default": "hifi",
+          "values": {
+            "hifi": {
+              "label": "16:9 high-fidelity host (48\u00d727)",
+              "tag": null,
+              "build": {},
+              "facts": {
+                "video.columns": 48,
+                "video.rows": 27,
+                "video.palette": 16,
+                "video.colorPerCell": true
+              }
+            },
+            "pet-2001": {
+              "label": "PET 2001 \u2014 40\u00d725 green phosphor, 4:3",
+              "build": {},
+              "facts": {
+                "video.columns": 40,
+                "video.rows": 25,
+                "video.palette": 2,
+                "video.cellColors": 2,
+                "video.colorPerCell": false,
+                "video.glyphs": 0,
+                "video.frameRate": 60,
+                "video.characterSetSwapped": true
+              }
+            },
+            "c64": {
+              "label": "Commodore 64 \u2014 40\u00d725, 16 colors, 4:3",
+              "build": {},
+              "facts": {
+                "video.columns": 40,
+                "video.rows": 25,
+                "video.palette": 16,
+                "video.cellColors": 2,
+                "video.colorPerCell": true,
+                "video.frameRate": 60
+              }
+            },
+            "vic20": {
+              "label": "VIC-20 \u2014 22\u00d723, 16 colors, 4:3",
+              "build": {},
+              "facts": {
+                "video.columns": 22,
+                "video.rows": 23,
+                "video.palette": 16,
+                "video.cellColors": 2,
+                "video.colorPerCell": true,
+                "video.frameRate": 60
+              }
+            }
+          }
+        }
+      },
+      "presets": {
+        "c64": {
+          "machine": "c64"
+        },
+        "pet-2001": {
+          "machine": "pet-2001"
+        },
+        "vic20": {
+          "machine": "vic20"
+        }
+      }
     }
   },
   "files": [

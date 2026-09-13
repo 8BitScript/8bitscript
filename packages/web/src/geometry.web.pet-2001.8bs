@@ -1,0 +1,13 @@
+// @8bitscript/web — 40×25 PET 2001 skin. Picked up when the build's
+// hardware tag is `pet-2001`. Facts come from @8bitscript/pet (40×25, no
+// per-cell color); the host paints green-on-black. See geometry.8bs.
+
+export namespace Video {
+    const COLUMNS: utinyint = 40;
+    const ROWS: utinyint = 25;
+    const CELL_COUNT: usmallint = 1000;
+    const CHAR_BASE: usmallint = 2;
+    const COLOR_BASE: usmallint = 1002;
+    const INPUT_OFFSET: usmallint = 2002;
+    const HOST_OFFSET: usmallint = 2003;
+}

@@ -292,6 +292,11 @@
           "type": "boolean",
           "default": true,
           "description": "List the examples that ship with the toolchain (@8bitscript/examples, installed with @8bitscript/cli) in the launcher's Project dropdown, in a group of their own under the workspace's projects and beside the toolchain's apps. On by default. Toggled with the book icon in the 8BitScript side bar's title bar, which is only offered when there are examples to show. Launch Example\u2026 reaches them either way."
+        },
+        "8bitscript.webLan": {
+          "type": "boolean",
+          "default": true,
+          "description": "When running the web target, listen on the LAN so a phone on the same Wi-Fi can open the printed HTTPS URL. On by default (`8bs run web`). Turn this off to pass --local (loopback only) on an untrusted network."
         }
       }
     },
