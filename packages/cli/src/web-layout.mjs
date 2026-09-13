@@ -212,21 +212,31 @@ export function hostIsTouch({ maxTouchPoints = 0, coarse = false, userAgent = ''
 }
 
 // How much of the box the picture gets to keep before the border is worth
-// drawing at all. The border is decoration: on a real VIC-20 it is overscan
-// the picture tube needed, and on a desktop it reads as the machine's own
-// frame around the screen. It is also a slice of the canvas spent on nothing.
+// drawing at all. The border is decoration: on a real VIC-20/C64 it is
+// overscan the picture tube needed, and on a desktop it reads as the machine's
+// own frame around the screen. It is also a slice of the canvas spent on
+// nothing.
 //
-// On a phone that trade is plainly wrong in either orientation. An iPhone
-// held upright gives the picture about 1.2 device-independent pixels per
-// screen pixel; turned sideways, under 2. There is no room there to spend
-// a fifth of the height on a frame, so this drops it entirely and the game
-// runs edge to edge. A tablet, or a mid-sized embed in an article, gets a
-// hairline — enough to read as a screen with an edge, not enough to cost
-// anything. Only a box big enough to render the picture at 3× or better
+// On a phone that trade is mostly wrong in either orientation. An iPhone held
+// upright gives the picture about 1.2 device-independent pixels per screen
+// pixel; turned sideways, under 2. There is no room there to spend a fifth of
+// the height on a frame, so a small screen drops it to a hairline and the game
+// runs very nearly edge to edge. A tablet, or a mid-sized embed in an article,
+// gets a thin one. Only a box big enough to render the picture at 3x or better
 // gets the full 24-pixel border a desktop has always had.
+//
+// What it never drops to is nothing. The border is not only decoration: it is
+// a color a program can set (screen.setBorder), and programs use it to say
+// something about the whole screen at once — 2048 turns it red on game over.
+// A border of zero silently deletes that channel on exactly the devices most
+// people play on. BORDER_MIN_PX is small enough to cost nothing (3 of 216
+// picture rows, under 3% of the height across both edges) and large enough
+// that a color change is unmistakable.
 export const BORDER_HAIRLINE_PX = 8;
+// The thinnest border there is: still a border, still a color, still visible.
+export const BORDER_MIN_PX = 3;
 // Render the picture at 3x or better and there is room for the full border;
-// below 2x there is no room for any of it.
+// below 2x there is only room for the thinnest one.
 export const FULL_BORDER_SCALE = 3;
 export const ANY_BORDER_SCALE = 2;
 
@@ -239,7 +249,7 @@ export const ANY_BORDER_SCALE = 2;
  *
  * A zero or missing box is not a small screen, it is a box that has not been
  * measured yet — that gets the full border, so a container which is styled
- * after mount doesn't flash through a borderless frame first.
+ * after mount doesn't flash through a thin frame first.
  *
  * `innerWidth` / `innerHeight` default to the 16:9 host; a 4:3 skin passes
  * its own picture size so the 2×/3× bars are in that skin's pixels.
@@ -252,7 +262,7 @@ export function borderFor({
 } = {}) {
   if (!(width > 0) || !(height > 0)) return BORDER_PX;
   const scale = Math.min(width / innerWidth, height / innerHeight);
-  if (scale < ANY_BORDER_SCALE) return 0;
+  if (scale < ANY_BORDER_SCALE) return BORDER_MIN_PX;
   if (coarse || scale < FULL_BORDER_SCALE) return BORDER_HAIRLINE_PX;
   return BORDER_PX;
 }
