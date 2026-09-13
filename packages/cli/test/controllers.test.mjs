@@ -172,38 +172,26 @@ const VICE_CONTEXT = {
   baseVicerc: '',
 };
 
-test('x64sc: a pad on the stock C64 drives port 2 through -joydev2 and a generated joystick map', () => {
+test('x64sc: a pad on the stock C64 drives port 2 through -joydev2 and leaves VICE\'s default map', () => {
   const result = viceController('c64', [player(SN30_PRO)], VICE_CONTEXT);
   assert.equal(result.ok, true);
   // "4: Analog joystick 0", from `x64sc -help`. The -controlport2device
   // that says a joystick is *in* the port is the catalog's, and is not
   // repeated here.
   assert.deepEqual(result.args, ['-joydev2', '4']);
-  // -config is not an ordinary flag: VICE honours it only as the first
-  // argument on the line, so it travels separately and leads the vector.
-  assert.deepEqual(result.leadingArgs, ['-config', '/tmp/j.vicerc']);
-  assert.ok(!result.args.includes('-controlport2device'), 'the catalog says what is plugged in, not this');
-
-  const joymap = result.files.find((file) => file.path === '/tmp/j.vjm');
-  const lines = joymap.contents.split('\n').filter((line) => line && !line.startsWith('#'));
-  // `joynum inputtype inputindex action [params]`: inputtype 1 is a
-  // button, and action `1 <pin>` with 1/2/4/8 = u/d/l/r and 16/32 =
-  // fire/fire2. The D-pad is buttons 12-15 because that is what the
-  // Gamepad API's standard mapping calls it — VICE's hat type is
-  // unreachable from a profile, by construction.
-  assert.deepEqual(lines, [
-    '!CLEAR',
-    '0 1 12 1 1',
-    '0 1 13 1 2',
-    '0 1 14 1 4',
-    '0 1 15 1 8',
-    '0 1 0 1 16',
-    '0 1 1 1 32',
-  ]);
+  // Gamepad API button indices are not VICE/SDL's. Writing them into a
+  // .vjm after `!CLEAR` is how a working 8BitDo map becomes a dead D-pad,
+  // so a button-only (or standard) pad gets host selection and nothing else.
+  assert.deepEqual(result.leadingArgs, []);
+  assert.deepEqual(result.files, []);
+  assert.match(
+    result.notes.join('\n'),
+    /Gamepad API button numbers are not VICE\/SDL indices/,
+  );
 });
 
 test('x64sc: the vicerc that reaches JoyMapFile puts it under the emulator\'s own section', () => {
-  const result = viceController('c64', [player({ a: 'button:0' })], VICE_CONTEXT);
+  const result = viceController('c64', [player({ left: 'axis:0-', right: 'axis:0+' })], VICE_CONTEXT);
   const vicerc = result.files.find((file) => file.path === '/tmp/j.vicerc');
   // Probed 2026-09-12: section-less, VICE never sees the resource and goes
   // on looking for ~/.config/vice/gtk3-joymap-C64SC.vjm; under [C64SC] it
@@ -261,8 +249,15 @@ test('x64sc: controls a Commodore port has no pin for are named, not dropped', (
   assert.match(notes, /four directions and its fire pins/);
 });
 
-test('x64sc: fire2/fire3 are mapped but named — a one-button Commodore stick reads fire only', () => {
+test('x64sc: Gamepad API buttons are not written into a .vjm', () => {
   const result = viceController('c64', [player({ a: 'button:0', b: 'button:1' })], VICE_CONTEXT);
+  assert.deepEqual(result.files, []);
+  assert.deepEqual(result.leadingArgs, []);
+  assert.match(result.notes.join('\n'), /Gamepad API button numbers are not VICE\/SDL indices/);
+});
+
+test('x64sc: fire2/fire3 from an axis half are mapped but named — a one-button Commodore stick reads fire only', () => {
+  const result = viceController('c64', [player({ a: 'axis:0+', b: 'axis:1+' })], VICE_CONTEXT);
   assert.match(result.notes.join('\n'), /player 1's b is mapped to pin fire2\/fire3, which a plain Joystick in port 2 does not read/);
 });
 
@@ -296,7 +291,7 @@ test('xvic: the VIC-20 has one port, and asking for a second is refused by count
   const ok = viceController('vic20', [player(SN30_PRO)], context);
   assert.equal(ok.ok, true);
   assert.deepEqual(ok.args, ['-joydev1', '4'], 'the VIC-20\'s one port is port 1');
-  assert.equal(ok.files.find((file) => file.path === '/tmp/j.vicerc').contents, '[VIC20]\nJoyMapFile="/tmp/j.vjm"\n');
+  assert.deepEqual(ok.files, [], 'a standard pad keeps VICE\'s default map');
 
   const tooMany = viceController('vic20', [player(SN30_PRO, { number: 2 })], context);
   assert.equal(tooMany.ok, false);
@@ -306,13 +301,16 @@ test('xvic: the VIC-20 has one port, and asking for a second is refused by count
 test('x128: two players reach both ports, each with its own -joydev and one shared map', () => {
   const result = viceController(
     'c128',
-    [player(SN30_PRO, { number: 1 }), player({ a: 'button:0' }, { number: 2 })],
+    [
+      player({ left: 'axis:0-', right: 'axis:0+' }, { number: 1 }),
+      player({ left: 'axis:0-', right: 'axis:0+' }, { number: 2 }),
+    ],
     { ...VICE_CONTEXT, emulator: 'x128', hardware: hardwareFor('c128', { overrides: { port1: 'joystick' } }) },
   );
   assert.equal(result.ok, true);
   assert.deepEqual(result.args, ['-joydev2', '4', '-joydev1', '5']);
   assert.deepEqual(result.leadingArgs, ['-config', '/tmp/j.vicerc']);
-  assert.match(result.files[0].contents, /^1 1 0 1 16$/m, 'player 2 is host joystick 1');
+  assert.match(result.files[0].contents, /^1 0 1 1 4$/m, 'player 2 is host joystick 1');
   assert.equal(result.files[1].contents, '[C128]\nJoyMapFile="/tmp/j.vjm"\n');
 });
 
@@ -438,17 +436,19 @@ test('setConfigKey replaces a key in place and appends a missing one, on an empt
 // fceux, x16emu, xmega65, web — the ones that take little or nothing
 // ---------------------------------------------------------------------
 
-test('fceux: the port device is all it takes, and the mapping is refused by name', () => {
+test('fceux: --inputN takes GamePad.<n>, not the help text\'s gamepad', () => {
   const result = fceuxController('nes', [player(SN30_PRO)], { emulator: 'fceux', hardware: hardwareFor('nes') });
   assert.equal(result.ok, true);
-  assert.deepEqual(result.args, ['--input1', 'gamepad']);
+  // FCEUX UpdateInput() does device.find("GamePad"); lowercase `gamepad`
+  // is SI_NONE — an empty NES port — and is what `--input1 gamepad` wrote
+  // into ~/.fceux/fceux.cfg.
+  assert.deepEqual(result.args, ['--input1', 'GamePad.0']);
   assert.deepEqual(result.files, []);
   assert.match(
     result.notes.join('\n'),
     /the button mapping cannot be passed on the command line at all/,
   );
-  assert.match(result.notes.join('\n'), /~\/\.fceux\/fceux\.cfg as SDL\.Input\.GamePad/);
-  assert.match(result.notes.join('\n'), /there is no -config <file>, only --no-config/);
+  assert.match(result.notes.join('\n'), /lowercase gamepad is SI_NONE/);
 });
 
 test('fceux: two pads are two --input flags; a third port is refused, expansion slot and all', () => {
@@ -457,7 +457,7 @@ test('fceux: two pads are two --input flags; a third port is refused, expansion 
     [player({ a: 'button:0' }, { number: 1 }), player({ a: 'button:0' }, { number: 2 })],
     { emulator: 'fceux', hardware: hardwareFor('nes') },
   );
-  assert.deepEqual(two.args, ['--input1', 'gamepad', '--input2', 'gamepad']);
+  assert.deepEqual(two.args, ['--input1', 'GamePad.0', '--input2', 'GamePad.1']);
 
   const three = fceuxController('nes', [player({ a: 'button:0' }, { number: 3 })], { emulator: 'fceux', hardware: hardwareFor('nes') });
   assert.equal(three.ok, false);

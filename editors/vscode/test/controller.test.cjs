@@ -59,7 +59,27 @@ test('the profile module loads in the page under a bare CommonJS shim', () => {
   assert.doesNotMatch(PROFILE, /\brequire\(/, 'a require() would not resolve in the page');
   assert.doesNotMatch(PROFILE, /\bprocess\./, 'process does not exist in the page');
   assert.match(VIEW, /var module = \{ exports: \{\} \};/, 'the shim the page is handed');
-  assert.match(VIEW, /var Profile = module\.exports;/);
+  assert.match(VIEW, /var Profile = \(function/);
+  assert.match(VIEW, /return module\.exports;/);
+  assert.doesNotMatch(VIEW, /var Profile = module\.exports;/);
+});
+
+test('the profile shim does not leak heldKeys into the page', () => {
+  // A classic <script> is one global scope. controllerProfile.cjs names a
+  // helper heldKeys, and the page declares const heldKeys for the keyboard.
+  // Unwrapped, the second script dies with "heldKeys has already been
+  // declared" and the panel is a Controllers heading with nothing under it.
+  const shim = `var Profile = (function () {
+  var module = { exports: {} };
+${PROFILE}
+  return module.exports;
+})();`;
+  const context = {};
+  vm.createContext(context);
+  new vm.Script(shim, { filename: 'profile-shim.js' }).runInContext(context);
+  assert.equal(typeof context.Profile.parseBinding, 'function');
+  assert.equal(context.heldKeys, undefined, 'the helper must not become a page global');
+  new vm.Script('const heldKeys = new Set();', { filename: 'page.js' }).runInContext(context);
 });
 
 test('the page reads bindings through the shared module and invents no thresholds', () => {
@@ -112,6 +132,11 @@ test('the page can tell a refused permission from an empty controller list', () 
   assert.match(JS, /catch \(error\) \{\s*return null;/);
   assert.match(JS, /permissions policy/);
   assert.match(JS, /press a button on it/, 'and the other case says why an idle pad is invisible');
+  // Chromium will not list a pad until it has been used in this page, so
+  // Look again is a focused re-poll rather than a way around that gate.
+  assert.match(VIEW, /id="scan"/);
+  assert.match(JS, /\$\('scan'\)\.addEventListener\('click'/);
+  assert.match(JS, /Look again|reported = ''/);
   // The third state, which the API itself cannot report: a policy that
   // answers the call with nothing instead of refusing it. The only tell is
   // a `gamepadconnected` event from a window that then lists no pads.
@@ -220,10 +245,11 @@ test('the profile is stored as a file of its own, not written into the config', 
   // A `systems` entry goes through a WorkspaceEdit because the config is
   // source somebody reads (runner.cjs's saveSystem). Eighteen bindings per
   // device, rewritten on every button press, are not that — so they are
-  // JSON beside it, which is also what anything that is not this editor
-  // can read.
+  // JSON in ~/.config/8bitscript, which is also what anything that is not
+  // this editor can read. A copy in the project directory is still honoured.
   const store = fs.readFileSync(path.join(ROOT, 'src', 'controllerStore.cjs'), 'utf8');
   assert.match(store, /8bitscript\.controllers\.json/);
+  assert.match(store, /\.config\/8bitscript/);
   assert.doesNotMatch(VIEW, /8bitscript\.config\.ts'/, 'the config is not touched');
   assert.doesNotMatch(store, /require\('vscode'\)/, 'so it is testable without a window');
   assert.doesNotMatch(PROFILE, /require\('vscode'\)/);
