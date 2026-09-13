@@ -1,5 +1,11 @@
 # 8bitscript-lang
 
+## 0.6.2
+
+### Patch Changes
+
+- 8e3a326: `8bs run web` serves on port 8008 (HTTPS 8009) and on the LAN by default so a phone on the same Wi-Fi can reopen the same URL (`--local` is loopback only, `--port` picks another). The editor setting `8bitscript.webLan` turns LAN off.
+
 ## 0.6.1
 
 No changes in this release.
