@@ -164,6 +164,33 @@ test('worstSelection leaves an option alone when its lowest value is already the
   assert.deepEqual(worstSelection(target), { profile: null, options: {} });
 });
 
+test('worstSelection does not treat a cartridge medium as a smaller RAM fit of the same program', () => {
+  // The Atari's media option: stock is a disk .xex at $2000 with 40960
+  // bytes (the catalog's top-level fact, not a value-level one). Every
+  // cartridge value publishes memory.ram 6400 because that is the RAM
+  // window a cart gets — a different image, which the native backend
+  // refuses. A first run that picked cart8 for "smallest RAM" is how
+  // 2048 failed to launch on atari8.
+  const atari8 = {
+    options: {
+      model: {
+        default: '800xl',
+        values: { '800xl': {}, '400': { facts: { 'input.joysticks': 4 } } },
+      },
+      media: {
+        default: 'xex',
+        values: {
+          xex: { label: 'Atari DOS executable' },
+          cart8: { label: '8 KiB cartridge', affectsBuild: true, facts: { 'memory.ram': 6400 } },
+          cart16: { label: '16 KiB cartridge', affectsBuild: true, facts: { 'memory.ram': 6400 } },
+        },
+      },
+    },
+  };
+  assert.deepEqual(worstSelection(atari8), { profile: null, options: {} });
+  assert.equal(effectiveOptions(atari8, worstSelection(atari8)).media, 'xex');
+});
+
 test('presetBundle names what a preset sets beyond its own name, so a dropdown label can show it before it is chosen', () => {
   const target = {
     options: {

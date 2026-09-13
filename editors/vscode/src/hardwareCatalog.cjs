@@ -171,20 +171,30 @@ function presetBundle(target, presetId) {
 }
 
 /**
- * The machine's worst case rather than its stock config: for every option
- * where at least one value declares `memory.ram`, the value with the
- * least of it; every other option (a control port, a drive) is left at
- * its catalog default. This is what a first run with nothing chosen
- * should fit a program against — the smallest RAM the machine is meant to
- * run on, not whichever value the catalog happens to name `default` (the
- * PET's is the roomiest model, 3032's 32K, because that is the sensible
- * *label* for "no --profile given" — not the sensible machine to test a
- * program's RAM budget against).
+ * The machine's worst case rather than its stock config: for every
+ * RAM-size option — every value of it declares `memory.ram` — the value
+ * with the least of it; every other option (a control port, a drive, a
+ * medium) is left at its catalog default. This is what a first run with
+ * nothing chosen should fit a program against — the smallest RAM the
+ * machine is meant to run on, not whichever value the catalog happens to
+ * name `default` (the PET's `ram` option defaults to 4K, and when a
+ * catalog still named the roomiest model as stock this is what picked
+ * the 4K board instead).
  *
- * A machine with no RAM-varying option (the web, a C64 with only a
- * control-port and REU-presence choice) resolves to `{}` here — the same
- * stock config `normalizeSelection(undefined)` already means — so this is
- * a no-op everywhere it has nothing useful to pick.
+ * The "every value declares it" test is the whole point of calling this
+ * a RAM-size option. An Atari cartridge value publishes `memory.ram`
+ * 6400 because that is the RAM window a cart gets — a different program
+ * shape, loaded at `$A000`, which the native backend cannot even build
+ * — not "a tighter fit of the same `.xex`". Treating that 6400 as the
+ * machine's worst RAM made a first `8bs run atari8` pass
+ * `--hardware media=cart8` and die. A C64 REU, a mouse, a drive, same
+ * rule: they are not RAM ladders.
+ *
+ * A machine with no RAM-size option (the web, a C64 with only a
+ * control-port and REU-presence choice, the Atari whose `media` is not
+ * one) resolves to `{}` here — the same stock config
+ * `normalizeSelection(undefined)` already means — so this is a no-op
+ * everywhere it has nothing useful to pick.
  *
  * @param {object} target one entry of parseTargets()
  * @returns {{ profile: string|null, options: Record<string, string> }}
@@ -192,11 +202,18 @@ function presetBundle(target, presetId) {
 function worstSelection(target) {
   const options = {};
   for (const [id, option] of Object.entries(target.options ?? {})) {
+    const values = Object.entries(option.values ?? {});
+    if (values.length === 0) continue;
+    // A RAM ladder states memory.ram on every value, including the
+    // default. One or two values publishing a smaller window (an Atari
+    // cart vs a disk `.xex` that inherits stock 40960) is a different
+    // shape, not a smaller fit of the same program.
+    if (!values.every(([, entry]) => typeof entry.facts?.['memory.ram'] === 'number')) continue;
     let worst = null;
     let worstRam = Infinity;
-    for (const [value, entry] of Object.entries(option.values ?? {})) {
-      const ram = entry.facts?.['memory.ram'];
-      if (typeof ram === 'number' && ram < worstRam) {
+    for (const [value, entry] of values) {
+      const ram = entry.facts['memory.ram'];
+      if (ram < worstRam) {
         worst = value;
         worstRam = ram;
       }
