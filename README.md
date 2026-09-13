@@ -290,5 +290,6 @@ MIT. See [LICENSE](LICENSE).
 ## Branching
 
 `trunk` is the default branch. New work lands through a short-lived pull
-request. Releases are git tags `v0.1.0`, `v0.2.0`, … — there are no
-long-lived release branches.
+request. Releases are git tags `v0.1.0`, `v0.2.0`, …. The `release`
+branch is fast-forwarded to the tagged commit only after npm has that
+version, so it names what is actually downloadable.
