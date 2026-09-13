@@ -6,6 +6,15 @@
 // a failed release can be re-run without republishing. Run from the
 // repository root after the version in every package.json is the one
 // you mean to ship.
+//
+// Once every package is on npm, `release` is fast-forwarded to the
+// commit that was published. That branch answers one question — what
+// is actually downloadable right now — which a tag alone does not: a
+// tag is written when the Version Packages PR merges, and publishing
+// happens here, afterwards, by hand. v0.6.0 was tagged and never
+// published, and nothing in the repository said so. `release` moves
+// last, only after npm has the packages, so it cannot make that claim
+// early.
 import { cp, readFile, readdir } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -131,4 +140,40 @@ if (pending.length === 0) {
     await run('pnpm', ['-r', 'publish', ...filters, '--access', 'public', '--no-git-checks']);
   }
   process.stdout.write(`Published ${version}.\n`);
+}
+
+// Everything above is on npm at `version` — either it already was, or this
+// run put it there. Only now does `release` move.
+//
+// It is pushed to the commit the tag names rather than to HEAD: a release is
+// built from the tag, so pointing the branch anywhere else would describe a
+// different tree than the one that shipped. Refuse rather than guess if the
+// tag is missing — that means this ran somewhere tag-release.yml never
+// reached, and moving `release` on a hunch is how it starts lying.
+const tag = `v${version}`;
+try {
+  await exec('git', ['rev-parse', '--verify', `refs/tags/${tag}`], { cwd: ROOT });
+} catch {
+  process.stderr.write(
+    `Published, but ${tag} does not exist here, so \`release\` was not moved. ` +
+      'Fetch tags (`git fetch --tags`) and re-run; publishing is already done and will be skipped.\n',
+  );
+  process.exit(1);
+}
+const { stdout: tagged } = await exec('git', ['rev-list', '-n', '1', tag], { cwd: ROOT });
+const sha = tagged.trim();
+
+// No --force: git refuses a push that is not a fast-forward, which is the
+// check we want rather than something to work around. `release` trailing
+// trunk is normal; `release` holding something trunk does not is a problem
+// worth stopping for.
+try {
+  await run('git', ['push', 'origin', `${sha}:refs/heads/release`]);
+  process.stdout.write(`release -> ${sha.slice(0, 8)} (${tag}).\n`);
+} catch {
+  process.stderr.write(
+    `Published, but \`release\` could not be fast-forwarded to ${tag}. ` +
+      'It is behind or has diverged — inspect it; npm is unaffected.\n',
+  );
+  process.exit(1);
 }
