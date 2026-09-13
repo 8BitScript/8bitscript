@@ -1,5 +1,17 @@
 # @8bitscript/studio
 
+## 0.7.0
+
+### Patch Changes
+
+- Updated dependencies [ea88a5d]
+  - @8bitscript/text@0.7.0
+  - @8bitscript/screen@0.7.0
+  - @8bitscript/input@0.7.0
+  - @8bitscript/pointer@0.7.0
+  - @8bitscript/ui@0.7.0
+  - @8bitscript/system@0.7.0
+
 ## 0.6.2
 
 ### Patch Changes
