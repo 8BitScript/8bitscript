@@ -36,6 +36,27 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+  # Separate from npm: a trunk recovery checkout has no tags (v0.6.2,
+  # run 34766752093), and a 403 on this push used to fail npm and skip
+  # every store that `needs: npm`. Pinning after publish keeps those
+  # independent. fetch-tags is required on a depth-1 clone; the script
+  # also fetches the one tag it needs if checkout did not.
+  pin-release:
+    needs: npm
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 26
+          registry-url: https://registry.npmjs.org
+      - run: node scripts/release.mjs --pin-release
+
   extension:
     needs: npm
     runs-on: ubuntu-latest

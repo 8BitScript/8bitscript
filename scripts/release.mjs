@@ -7,14 +7,16 @@
 // repository root after the version in every package.json is the one
 // you mean to ship.
 //
-// Once every package is on npm, `release` is fast-forwarded to the
-// commit that was published. That branch answers one question — what
-// is actually downloadable right now — which a tag alone does not: a
-// tag is written when the Version Packages PR merges, and publishing
-// happens here, afterwards, by hand. v0.6.0 was tagged and never
-// published, and nothing in the repository said so. `release` moves
-// last, only after npm has the packages, so it cannot make that claim
-// early.
+// Once every package is on npm, a separate `pin-release` job
+// (`--pin-release`) fast-forwards `release` to the commit the tag
+// names. That branch answers one question — what is actually
+// downloadable right now — which a tag alone does not: a tag is
+// written when the Version Packages PR merges, and publishing happens
+// in this script, afterwards. v0.6.0 was tagged and never published.
+// v0.6.2 published and then failed the git pin in the same job, which
+// skipped Marketplace, docs, and the GitHub Release. Publishing and
+// pinning are different jobs so a missing tag or a 403 cannot take
+// the other stores down with it.
 import { cp, readFile, readdir } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -76,6 +78,7 @@ const dirs = (await readdir(join(ROOT, 'packages'), { withFileTypes: true }))
   .map((e) => e.name);
 
 const expectedRepoUrl = 'https://github.com/8BitScript/8bitscript.git';
+const pinOnly = process.argv.includes('--pin-release');
 const pending = [];
 
 for (const name of dirs) {
@@ -96,15 +99,21 @@ for (const name of dirs) {
     process.exit(1);
   }
   if (await alreadyOnNpm(pkg.name, version)) {
-    process.stdout.write(`Already on npm: ${pkg.name}@${version}\n`);
+    if (!pinOnly) process.stdout.write(`Already on npm: ${pkg.name}@${version}\n`);
     continue;
+  }
+  if (pinOnly) {
+    process.stderr.write(
+      `Cannot pin \`release\` to v${version}: ${pkg.name}@${version} is not on npm.\n`,
+    );
+    process.exit(1);
   }
   await cp(join(ROOT, 'LICENSE'), join(ROOT, 'packages', name, 'LICENSE'));
   pending.push(name);
 }
 
 if (pending.length === 0) {
-  process.stdout.write(`All @8bitscript/* ${version} packages are already on npm.\n`);
+  if (!pinOnly) process.stdout.write(`All @8bitscript/* ${version} packages are already on npm.\n`);
 } else {
   // A brand-new package publishes on its own, first, before anything else
   // in this run is touched — so a failure there (npm Trusted Publishing
@@ -142,38 +151,69 @@ if (pending.length === 0) {
   process.stdout.write(`Published ${version}.\n`);
 }
 
-// Everything above is on npm at `version` — either it already was, or this
-// run put it there. Only now does `release` move.
-//
-// It is pushed to the commit the tag names rather than to HEAD: a release is
-// built from the tag, so pointing the branch anywhere else would describe a
-// different tree than the one that shipped. Refuse rather than guess if the
-// tag is missing — that means this ran somewhere tag-release.yml never
-// reached, and moving `release` on a hunch is how it starts lying.
+if (!pinOnly) process.exit(0);
+
+// `--pin-release` is its own CI job, after npm. It is pushed to the commit
+// the tag names rather than to HEAD: a release is built from the tag, so
+// pointing the branch anywhere else would describe a different tree than
+// the one that shipped. A trunk recovery clone has no tags (v0.6.2 run
+// 34766752093), so fetch the one tag we need rather than refusing.
 const tag = `v${version}`;
+let hadTag = true;
 try {
   await exec('git', ['rev-parse', '--verify', `refs/tags/${tag}`], { cwd: ROOT });
 } catch {
-  process.stderr.write(
-    `Published, but ${tag} does not exist here, so \`release\` was not moved. ` +
-      'Fetch tags (`git fetch --tags`) and re-run; publishing is already done and will be skipped.\n',
-  );
-  process.exit(1);
+  hadTag = false;
+}
+// #region agent log
+fetch('http://127.0.0.1:7654/ingest/0e8448a8-aa1d-4d7c-8c13-fd00a086b724',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'49f08b'},body:JSON.stringify({sessionId:'49f08b',runId:process.env.GITHUB_RUN_ID||'local',hypothesisId:'F',location:'scripts/release.mjs:pin-tag',message:'pin-release tag check',data:{tag,hadTag,ref:process.env.GITHUB_REF||null,sha:process.env.GITHUB_SHA||null,actor:process.env.GITHUB_ACTOR||null},timestamp:Date.now()})}).catch(()=>{});
+// #endregion
+if (!hadTag) {
+  try {
+    await exec('git', ['fetch', 'origin', `refs/tags/${tag}:refs/tags/${tag}`], { cwd: ROOT });
+  } catch (err) {
+    const detail = [err.stderr, err.stdout, err.message].filter(Boolean).join('\n').trim();
+    process.stderr.write(
+      `Cannot pin \`release\`: ${tag} is not in this clone and fetching it from origin failed.\n${detail}\n`,
+    );
+    process.exit(1);
+  }
 }
 const { stdout: tagged } = await exec('git', ['rev-list', '-n', '1', tag], { cwd: ROOT });
 const sha = tagged.trim();
+process.stdout.write(`Pinning release to ${sha.slice(0, 8)} (${tag})${hadTag ? '' : ', fetched tag'}.\n`);
 
 // No --force: git refuses a push that is not a fast-forward, which is the
 // check we want rather than something to work around. `release` trailing
 // trunk is normal; `release` holding something trunk does not is a problem
-// worth stopping for.
+// worth stopping for. A 403 is not that: it is the token or the branch
+// protection refusing the actor, and the message has to say so — v0.6.2
+// printed "diverged" over `Permission denied to github-actions[bot]`.
 try {
-  await run('git', ['push', 'origin', `${sha}:refs/heads/release`]);
+  // #region agent log
+  fetch('http://127.0.0.1:7654/ingest/0e8448a8-aa1d-4d7c-8c13-fd00a086b724',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'49f08b'},body:JSON.stringify({sessionId:'49f08b',runId:process.env.GITHUB_RUN_ID||'local',hypothesisId:'A',location:'scripts/release.mjs:push',message:'about to push release',data:{tag,sha,hadTag,actor:process.env.GITHUB_ACTOR||null,hasGithubToken:Boolean(process.env.GITHUB_TOKEN),event:process.env.GITHUB_EVENT_NAME||null,ref:process.env.GITHUB_REF||null},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
+  await exec('git', ['push', 'origin', `${sha}:refs/heads/release`], { cwd: ROOT });
   process.stdout.write(`release -> ${sha.slice(0, 8)} (${tag}).\n`);
-} catch {
-  process.stderr.write(
-    `Published, but \`release\` could not be fast-forwarded to ${tag}. ` +
-      'It is behind or has diverged — inspect it; npm is unaffected.\n',
-  );
+} catch (err) {
+  const detail = [err.stderr, err.stdout, err.message].filter(Boolean).join('\n').trim();
+  const denied = /403|Permission .* denied/i.test(detail);
+  // #region agent log
+  fetch('http://127.0.0.1:7654/ingest/0e8448a8-aa1d-4d7c-8c13-fd00a086b724',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'49f08b'},body:JSON.stringify({sessionId:'49f08b',runId:process.env.GITHUB_RUN_ID||'local',hypothesisId:denied?'A':'C',location:'scripts/release.mjs:push-catch',message:'git push origin sha:refs/heads/release failed',data:{tag,sha,denied,detail:detail.slice(0,500),actor:process.env.GITHUB_ACTOR||null},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
+  if (denied) {
+    process.stderr.write(
+      `Pushing \`release\` to ${tag} (${sha.slice(0, 8)}) was denied. ` +
+        'The pin-release job needs contents: write, and `release` must not restrict pushes to a human — ' +
+        'GITHUB_TOKEN authenticates as github-actions[bot]. npm is unaffected.\n' +
+        `${detail}\n`,
+    );
+  } else {
+    process.stderr.write(
+      `\`release\` could not be fast-forwarded to ${tag}. ` +
+        'It is behind or has diverged — inspect it; npm is unaffected.\n' +
+        `${detail}\n`,
+    );
+  }
   process.exit(1);
 }

@@ -12,7 +12,9 @@ editor work.
 repo admins — can push to it directly. Every change, however small,
 goes through a pull request. No approval is required to merge (so this
 doesn't block solo work), but the PR itself is mandatory. There are no
-long-lived feature branches and no release branches.
+long-lived feature branches. `release` is not a development branch: it
+is fast-forwarded to the published tag after npm succeeds (see
+[`.github/AGENTS.md`](.github/AGENTS.md#the-release-branch)).
 
 If you've never opened a pull request before, here's the whole loop:
 
@@ -110,9 +112,13 @@ is actually deciding it's time to ship. See
 it checks every `packages/*` version matches, copies `LICENSE` into
 each package, and publishes `@8bitscript/*` publicly. Packages already
 on npm at that version are skipped, so a failed release can be
-re-run without republishing. Don't run it (or `git tag`) by hand
-unless you're recovering a failed release — the normal path is
-entirely "merge the Version Packages PR."
+re-run without republishing. A separate `pin-release` job then
+fast-forwards the `release` branch to the tagged commit
+(`--pin-release`); that push must not live in the npm job — a missing
+tag or a 403 there used to skip Marketplace, docs, and the GitHub
+Release. Don't run the script (or `git tag`) by hand unless you're
+recovering a failed release — the normal path is entirely "merge the
+Version Packages PR."
 
 If npm already published but the Marketplace or Open VSX timed out,
 do **not** bump versions again and do **not** publish from your
