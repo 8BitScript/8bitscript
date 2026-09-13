@@ -407,12 +407,20 @@ async function webScreenshot(outFile, screenshotPath, { frames, frameRate = 60, 
 
   const layout = hardware ? layoutFromHardware(hardware) : DEFAULT_LAYOUT;
   const mem = new Uint8Array(memory.buffer);
-  const gridCols = layout.cols;
-  const gridRows = layout.rows;
+  // On a resizable host the grid is whatever the host last wrote, and a
+  // screenshot has no viewport to write one from — so these stay zero and the
+  // program lays itself out against the compiled default (see columns() in
+  // packages/web/src/geometry.8bs). Read them anyway: if anything ever does
+  // write a grid before the capture, the picture follows it rather than
+  // rasterizing one shape while the program drew another.
+  const liveCols = layout.resizable ? mem[layout.columnsOffset] : 0;
+  const liveRows = layout.resizable ? mem[layout.rowsOffset] : 0;
+  const gridCols = liveCols > 0 ? liveCols : layout.cols;
+  const gridRows = liveRows > 0 ? liveRows : layout.rows;
   const charBase = layout.charBase;
   const colorBase = layout.colorBase;
-  const innerW = layout.innerWidth;
-  const innerH = layout.innerHeight;
+  const innerW = gridCols * CHAR_W;
+  const innerH = gridRows * CHAR_H;
   const palette = layout.palette;
   const rgb = palette.map((hex) => [
     Number.parseInt(hex.slice(1, 3), 16),
