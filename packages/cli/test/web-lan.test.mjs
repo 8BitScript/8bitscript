@@ -8,6 +8,7 @@ import { request as httpsRequest } from 'node:https';
 import {
   createLanCertificate,
   DEFAULT_WEB_PORT,
+  defaultOpensslPath,
   isLoopbackAddress,
   lanIPv4,
   listenWebDev,
@@ -38,6 +39,26 @@ test('isLoopbackAddress names IPv4, IPv6, and IPv4-mapped loopback', () => {
   assert.equal(isLoopbackAddress('::ffff:127.0.0.1'), true);
   assert.equal(isLoopbackAddress('192.168.1.20'), false);
   assert.equal(isLoopbackAddress(undefined), false);
+});
+
+test('isLoopbackAddress takes the whole of 127.0.0.0/8, mapped or not', () => {
+  assert.equal(isLoopbackAddress('127.0.0.2'), true);
+  assert.equal(isLoopbackAddress('127.1.2.3'), true);
+  assert.equal(isLoopbackAddress('::ffff:127.0.0.5'), true);
+  // The mapped form of a LAN peer is still a LAN peer.
+  assert.equal(isLoopbackAddress('::ffff:192.168.1.20'), false);
+});
+
+test('defaultOpensslPath picks an absolute path, present or not', () => {
+  assert.equal(
+    defaultOpensslPath(['/no/such/openssl', '/usr/bin/openssl']),
+    '/usr/bin/openssl',
+    'the first candidate that exists wins',
+  );
+  // Nothing installed still yields an absolute path: spawnSync reports
+  // ENOENT on it and the caller falls back to HTTP with a warning.
+  assert.equal(defaultOpensslPath(['/no/such/openssl', '/also/missing']), '/also/missing');
+  assert.ok(defaultOpensslPath().startsWith('/'), 'never a bare name resolved through PATH');
 });
 
 test('parseListenPort defaults to 8008, accepts 0, and refuses junk', () => {

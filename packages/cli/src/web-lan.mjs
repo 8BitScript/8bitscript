@@ -64,7 +64,9 @@ export function lanIPv4(nics = networkInterfaces()) {
   for (const [name, addrs] of Object.entries(nics)) {
     if (SKIP_IFACE.test(name)) continue;
     for (const addr of addrs ?? []) {
-      const v4 = addr.family === 'IPv4' || addr.family === 4;
+      // family is the string 'IPv4' — Node briefly returned the number 4
+      // in 18.0-18.3 and went back, and this package needs node >= 26.
+      const v4 = addr.family === 'IPv4';
       if (!v4 || addr.internal) continue;
       if (addr.address.startsWith('169.254.')) continue;
       ips.push(addr.address);
@@ -73,13 +75,20 @@ export function lanIPv4(nics = networkInterfaces()) {
   return ips.sort((a, b) => lanRank(a) - lanRank(b) || a.localeCompare(b));
 }
 
+/** How a dual-stack socket writes an IPv4 peer: ::ffff: then the dotted quad. */
+const V4_MAPPED_PREFIX = '::ffff:';
+
 /**
  * @param {string | undefined} remote
  * @returns {boolean}
  */
 export function isLoopbackAddress(remote) {
   if (!remote) return false;
-  return remote === '127.0.0.1' || remote === '::1' || remote === '::ffff:127.0.0.1';
+  // A dual-stack listener reports an IPv4 peer in the mapped form
+  // ::ffff:a.b.c.d, so unwrap that before judging the address. The whole
+  // of 127.0.0.0/8 is loopback, not just .1.
+  const addr = remote.startsWith(V4_MAPPED_PREFIX) ? remote.slice(V4_MAPPED_PREFIX.length) : remote;
+  return addr === '::1' || addr.startsWith('127.');
 }
 
 function opensslConfig(subjectAltName) {
@@ -96,13 +105,30 @@ subjectAltName = ${subjectAltName}
 `;
 }
 
+/** Where openssl actually lives, most specific first. */
+const OPENSSL_PATHS = ['/opt/homebrew/bin/openssl', '/usr/local/bin/openssl', '/usr/bin/openssl'];
+
+/**
+ * openssl as an absolute path rather than a PATH lookup. This cert is what
+ * the browser is asked to trust for the session, so which binary mints it
+ * should not depend on what sits in front of /usr/bin on this shell's PATH.
+ * Nothing installed is not an error here: spawnSync reports ENOENT on the
+ * last candidate and the caller falls back to HTTP with a warning.
+ *
+ * @param {string[]} [paths]
+ * @returns {string}
+ */
+export function defaultOpensslPath(paths = OPENSSL_PATHS) {
+  return paths.find((candidate) => existsSync(candidate)) ?? paths[paths.length - 1];
+}
+
 /**
  * Mint (or reuse) a self-signed cert covering localhost and the given LAN IPs.
  *
  * @param {{ addresses: string[], dir?: string, openssl?: string }} options
  * @returns {{ ok: true, cert: Buffer, key: Buffer } | { ok: false, error: string }}
  */
-export function createLanCertificate({ addresses, dir = defaultCertDir(), openssl = 'openssl' }) {
+export function createLanCertificate({ addresses, dir = defaultCertDir(), openssl = defaultOpensslPath() }) {
   const subjectAltName = ['DNS:localhost', 'IP:127.0.0.1', ...addresses.map((ip) => `IP:${ip}`)].join(',');
   mkdirSync(dir, { recursive: true });
   const certPath = join(dir, 'cert.pem');
