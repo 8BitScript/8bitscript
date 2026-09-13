@@ -466,3 +466,64 @@ test('a void callee with a return anywhere in its body is never inlined — the 
   const out = optimizeIr(ir);
   assert.deepEqual(out.functions[0].body[0], call('spawn'), 'the call survives as a call');
 });
+
+// ---- a body more than one place calls is not written out once per call ------
+
+// Eleven nodes or so: past INLINE_DUPLICATE_NODE_LIMIT without being large.
+const wideBody = () => [
+  assign('a', bin('+', ref('a'), constNum(1), 'utinyint')),
+  assign('b', bin('+', ref('b'), constNum(2), 'utinyint')),
+  assign('c', bin('+', ref('c'), constNum(3), 'utinyint')),
+];
+
+test('a parameterless void body stays a call when more than one place calls it — four copies of poll() is what this costs', () => {
+  const ir = optimizeIr({
+    entry: 'main',
+    functions: [
+      { name: 'main', body: [call('poll'), call('poll')] },
+      { name: 'poll', body: wideBody() },
+    ],
+    globals: [],
+  });
+  const body = ir.functions.find((fn) => fn.name === 'main').body;
+  assert.deepEqual(
+    body.map((statement) => statement.kind),
+    ['call', 'call'],
+    'both call sites stay calls rather than each carrying a copy of the body',
+  );
+  assert.ok(
+    ir.functions.some((fn) => fn.name === 'poll'),
+    'the callee survives for those calls to reach',
+  );
+});
+
+test('one call site still inlines a body of any size — nothing is duplicated, so there is nothing to weigh', () => {
+  const ir = optimizeIr({
+    entry: 'main',
+    functions: [
+      { name: 'main', body: [call('once')] },
+      { name: 'once', body: wideBody() },
+    ],
+    globals: [],
+  });
+  const body = ir.functions.find((fn) => fn.name === 'main').body;
+  assert.equal(body[0].kind, 'block', 'the single call is replaced by the body');
+  assert.equal(body[0].origin, 'once');
+});
+
+test('a small body still inlines at several call sites — it is cheaper than the call it replaces', () => {
+  const ir = optimizeIr({
+    entry: 'main',
+    functions: [
+      { name: 'main', body: [call('tick'), call('tick')] },
+      { name: 'tick', body: [assign('a', constNum(1))] },
+    ],
+    globals: [],
+  });
+  const body = ir.functions.find((fn) => fn.name === 'main').body;
+  assert.deepEqual(
+    body.map((statement) => statement.kind),
+    ['block', 'block'],
+    'both sites take the body',
+  );
+});
