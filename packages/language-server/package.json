@@ -1,6 +1,6 @@
 {
   "name": "@8bitscript/language-server",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Internal: the 8BitScript language server, served to editors over LSP.",
   "license": "MIT",
   "repository": {
