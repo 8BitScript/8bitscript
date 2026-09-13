@@ -262,7 +262,7 @@ class LauncherViewProvider {
         : null,
       hardware: hardwareState(target, targets, selection),
       running: this.runningRows(all),
-      command: `8bs ${commandArgs('run', system, region, selection).join(' ')}`,
+      command: `8bs ${commandArgs('run', system, region, selection).concat(system === 'web' && !settings.getWebLan() ? ['--local'] : []).join(' ')}`,
     });
   }
 

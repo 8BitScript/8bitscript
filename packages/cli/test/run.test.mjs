@@ -50,6 +50,12 @@ test('run() returns 2 and writes the error when --hardware/--profile parsing fai
   assert.match(stderr, /^8bs run: --profile expects a name/);
 });
 
+test('run() returns 2 and writes the error when --port is not a number', async () => {
+  const { result, stderr } = await capture(() => run(['--port', 'soon']));
+  assert.equal(result, 2);
+  assert.match(stderr, /^8bs run: --port expects a number, got 'soon'/);
+});
+
 test('run() returns 2 and writes the error when --frames is not a number', async () => {
   const { result, stderr } = await capture(() => run(['--frames', 'soon']));
   assert.equal(result, 2);
@@ -62,6 +68,9 @@ test('run() with no target prints usage and returns 2', async () => {
   assert.equal(stdout, '');
   assert.match(stderr, /^Usage: 8bs run <pet\|web>/);
   assert.match(stderr, /\[--size\]/, 'run --size is the breakdown before the emulator starts');
+  assert.match(stderr, /\[--lan\]/, 'run --lan is the web LAN HTTPS listener');
+  assert.match(stderr, /\[--local\]/, 'run --local is loopback-only');
+  assert.match(stderr, /\[--port <n>\]/, 'run --port is the web listen port');
 });
 
 test('run() --screenshot to an unwritable path reports the error and returns 1', async () => {

@@ -74,6 +74,14 @@ function getShowExamples() {
 }
 const setShowExamples = (show) => update('showExamples', show);
 
+/**
+ * Whether a web run also listens on the LAN. On by default, matching
+ * `8bs run web`. Off passes `--local` so the server stays on loopback.
+ */
+function getWebLan() {
+  return config().get('webLan') !== false;
+}
+
 /** An explicit directory of examples, when the `examplesPath` setting names one. */
 function getExamplesPath() {
   const value = config().get('examplesPath');
@@ -128,7 +136,7 @@ async function setHardware(system, selection) {
 
 /** True when a change event touches any of the run settings. */
 function affectsAny(event) {
-  return ['region', 'system', 'project', 'hardware'].some((key) =>
+  return ['region', 'system', 'project', 'hardware', 'webLan'].some((key) =>
     event.affectsConfiguration(`${SECTION}.${key}`),
   );
 }
@@ -148,6 +156,7 @@ module.exports = {
   getRegion,
   getShowExamples,
   getSystem,
+  getWebLan,
   regionShort,
   setHardware,
   setProject,

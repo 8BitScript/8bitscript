@@ -60,12 +60,19 @@ Implemented:
                                reusable compile.yml workflow.
   run <target> [--pal] [--profile <name>]
     [--hardware option=value,...] [--size] [entry]
+    [--no-open] [--lan] [--local] [--port <n>]
                                Build, then open that target's emulator
                                (VICE's xpet for the pet) at the right
                                machine model — or execute the .wasm and
                                print its state (web). --size prints the
                                same per-function breakdown 8bs build --size
-                               does, before the emulator starts.
+                               does, before the emulator starts. --no-open
+                               prints the URL and waits. --lan (web, the
+                               default) also serves HTTPS on the LAN so a
+                               phone on the same Wi-Fi can open the printed
+                               URL; --local is loopback only. --port (web)
+                               is 8008 by default, HTTPS on the next port;
+                               --port 0 picks an ephemeral port.
     [--screenshot <file.png>] Instead of an interactive window, capture one
     [--frames <n>]             screenshot through the target's own emulator
                                API (or, for atari8 only, a macOS window
