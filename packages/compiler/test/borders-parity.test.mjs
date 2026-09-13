@@ -35,12 +35,16 @@ for (const machine of MACHINES) {
   // TODO: restore once a multi-target screen-and-text probe exists.
   test(`a shared screen-and-text program links clean for ${machine}`, { skip: NATIVE_BACKEND_PENDING }, () => {});
 
-  test(`@8bitscript/${machine}/screen exports blank, setBackground, setBorder, setColors, and the eight shared color names`, () => {
+  test(`@8bitscript/${machine}/screen exports blank, resized, setBackground, setBorder, setColors, RESIZABLE, and the eight shared color names`, () => {
     const ir = moduleIr(machine, 'screen');
     const screen = ir.namespaces.find((n) => n.name === 'screen');
     assert.ok(screen && screen.exported, `${machine} has no exported screen namespace`);
-    assert.deepEqual([...screen.functions.keys()].sort(), ['blank', 'setBackground', 'setBorder', 'setColors'], `${machine}'s screen surface drifted`);
-    assert.equal(screen.consts.size, 0);
+    assert.deepEqual([...screen.functions.keys()].sort(), ['blank', 'resized', 'setBackground', 'setBorder', 'setColors'], `${machine}'s screen surface drifted`);
+    // RESIZABLE and resized() are on every machine so a program written
+    // against a grid that can change compiles and runs unchanged on the ones
+    // whose grid cannot — where both fold to constants and cost nothing. Only
+    // the web target's Modern host ever answers true.
+    assert.deepEqual([...screen.consts.keys()], ['RESIZABLE'], `${machine}'s screen consts drifted`);
     for (const name of ['BorderColor', 'BackgroundColor']) {
       const ns = ir.namespaces.find((n) => n.name === name);
       assert.ok(ns, `${machine} has no ${name} namespace`);
@@ -56,8 +60,8 @@ for (const machine of MACHINES) {
     const ir = moduleIr(machine, 'text');
     const text = ir.namespaces.find((n) => n.name === 'text');
     assert.ok(text && text.exported, `${machine} has no exported text namespace`);
-    assert.deepEqual([...text.functions.keys()].sort(), ['fill', 'print', 'printNumber', 'putChar', 'putColor', 'setColor', 'setReverse'], `${machine}'s text surface drifted`);
-    assert.deepEqual([...text.consts.keys()], ['CELL_COUNT', 'COLUMNS'], `${machine}'s text consts drifted`);
+    assert.deepEqual([...text.functions.keys()].sort(), ['columns', 'fill', 'print', 'printNumber', 'putChar', 'putColor', 'rows', 'setColor', 'setReverse'], `${machine}'s text surface drifted`);
+    assert.deepEqual([...text.consts.keys()], ['CELL_COUNT', 'COLUMNS', 'ROWS'], `${machine}'s text consts drifted`);
     const colors = ir.namespaces.find((n) => n.name === 'TextColor');
     assert.ok(colors && colors.exported, `${machine} has no exported TextColor namespace`);
     assert.deepEqual([...colors.consts.keys()], ['BLACK', 'WHITE', 'RED', 'CYAN', 'PURPLE', 'GREEN', 'BLUE', 'YELLOW'], `${machine}'s TextColor drifted`);

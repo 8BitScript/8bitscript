@@ -119,7 +119,7 @@ const DIGIT_PLACES: array<usmallint, 5> = [10000, 1000, 100, 10, 1];
 export namespace text {
     const CELL_COUNT: usmallint = Video.CELL_COUNT; // 40 columns x 25 rows
     const COLUMNS: utinyint = Video.COLUMNS; // cells per row, so cell = y * text.COLUMNS + x
-    const ROWS: utinyint = #fact(video.rows);
+    const ROWS: utinyint = Video.ROWS;
 
     // The live grid. Fixed on this machine — its screen is the size its video
     // chip makes it — so both fold to the constants above and cost nothing.

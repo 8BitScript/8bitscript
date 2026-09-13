@@ -21,15 +21,15 @@ in a landscape window, 27×48 in a portrait one, 42×31 at 4:3, from one .wasm
 and without restarting the program. Every machine skin is untouched: a C64 is
 40×25 because a C64 is 40×25.
 
-Three new pieces of portable API, all of which fold to constants on a machine
+Two new pieces of portable API, both of which fold to constants on a machine
 whose grid cannot change — a PET 2001 image built against them is byte-for-byte
 identical to one written the old way:
 
   - `text.columns()` / `text.rows()` — the live grid
   - `screen.RESIZABLE` / `screen.resized()` — whether it can change, and
     whether it just did
-  - `text.fill(cell, count, code)` — the run `print()` cannot write, because a
-    string's width is fixed when the program is compiled
+
+(`text.fill()`, which a derived layout also needs, ships separately.)
 
 Two bugs found while building it, both in the web target:
 
