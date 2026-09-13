@@ -36,7 +36,7 @@ import { encodePNG } from './png.mjs';
 import { runProgram } from './wasm-host.mjs';
 import { glyphRows } from './font8x8.mjs';
 import {
-  BORDER_PX, CHAR_BASE, CHAR_H, CHAR_W, COLOR_BASE, COLORS, GRID_COLS, GRID_ROWS,
+  BORDER_PX, CHAR_H, CHAR_W, DEFAULT_LAYOUT, layoutFromHardware,
 } from './web-runtime.mjs';
 
 function run(command, args) {
@@ -385,14 +385,6 @@ async function nesScreenshot(outFile, screenshotPath, { frames, hardware = stock
 // with png.mjs.
 const WEB_DEFAULT_FRAME_SECONDS = 3;
 
-// COLORS is a list of CSS hex strings (a canvas fillStyle); the PNG
-// rasterizer below needs RGB triples instead.
-const RGB_COLORS = COLORS.map((hex) => [
-  Number.parseInt(hex.slice(1, 3), 16),
-  Number.parseInt(hex.slice(3, 5), 16),
-  Number.parseInt(hex.slice(5, 7), 16),
-]);
-
 function setPixel(rgba, width, x, y, [r, g, b]) {
   const i = (y * width + x) * 4;
   rgba[i] = r; rgba[i + 1] = g; rgba[i + 2] = b; rgba[i + 3] = 255;
@@ -404,34 +396,48 @@ function fillRect(rgba, width, x0, y0, w, h, color) {
   }
 }
 
-async function webScreenshot(outFile, screenshotPath, { frames, frameRate = 60 }) {
+async function webScreenshot(outFile, screenshotPath, { frames, frameRate = 60, hardware }) {
   const bytes = await readFile(outFile);
   // The program runs until it returns or has taken --frames waitFrame()s
   // (3 logical seconds' worth by default), whichever comes first; a program
   // that never calls waitFrame() and never returns cannot be bounded and
-  // would spin here, exactly as it would on a real machine.
+  // would spin here, exactly as it would on a real machine. HOST_OFFSET is
+  // left at 0: a screenshot has no viewport, so TOUCH stays clear.
   const { memory } = await runProgram(bytes, { frames: frames ?? frameRate * WEB_DEFAULT_FRAME_SECONDS });
 
+  const layout = hardware ? layoutFromHardware(hardware) : DEFAULT_LAYOUT;
   const mem = new Uint8Array(memory.buffer);
-  const innerW = GRID_COLS * CHAR_W;
-  const innerH = GRID_ROWS * CHAR_H;
+  const gridCols = layout.cols;
+  const gridRows = layout.rows;
+  const charBase = layout.charBase;
+  const colorBase = layout.colorBase;
+  const innerW = layout.innerWidth;
+  const innerH = layout.innerHeight;
+  const palette = layout.palette;
+  const rgb = palette.map((hex) => [
+    Number.parseInt(hex.slice(1, 3), 16),
+    Number.parseInt(hex.slice(3, 5), 16),
+    Number.parseInt(hex.slice(5, 7), 16),
+  ]);
   const width = innerW + BORDER_PX * 2;
   const height = innerH + BORDER_PX * 2;
   const rgba = new Uint8Array(width * height * 4);
+  const colorPerCell = layout.colorPerCell !== false;
 
-  fillRect(rgba, width, 0, 0, width, height, RGB_COLORS[mem[0] & 15]);
-  fillRect(rgba, width, BORDER_PX, BORDER_PX, innerW, innerH, RGB_COLORS[mem[1] & 15]);
-  const background = RGB_COLORS[mem[1] & 15];
+  const borderInk = colorPerCell ? rgb[mem[0] & 15] : rgb[0];
+  const background = colorPerCell ? rgb[mem[1] & 15] : rgb[0];
+  fillRect(rgba, width, 0, 0, width, height, borderInk);
+  fillRect(rgba, width, BORDER_PX, BORDER_PX, innerW, innerH, background);
 
-  for (let cell = 0; cell < GRID_COLS * GRID_ROWS; cell += 1) {
-    const code = mem[CHAR_BASE + cell];
-    const colorByte = mem[COLOR_BASE + cell];
+  for (let cell = 0; cell < gridCols * gridRows; cell += 1) {
+    const code = mem[charBase + cell];
+    const colorByte = mem[colorBase + cell];
     const reverse = (colorByte & 128) !== 0;
     const rows = glyphRows(code);
     if (rows === null && !reverse) continue;
-    const col = cell % GRID_COLS;
-    const row = (cell - col) / GRID_COLS;
-    const color = RGB_COLORS[colorByte & 15];
+    const col = cell % gridCols;
+    const row = (cell - col) / gridCols;
+    const color = colorPerCell ? rgb[colorByte & 15] : rgb[1];
     const x0 = BORDER_PX + col * CHAR_W;
     const y0 = BORDER_PX + row * CHAR_H;
     if (reverse) {

@@ -8,8 +8,8 @@ import { runInNewContext } from 'node:vm';
 
 import { renderCoiServiceWorker, renderLoader, renderWorker } from '../src/web-loader.mjs';
 import {
-  ANY_BORDER_SCALE, BORDER_HAIRLINE_PX, BORDER_PX, FULL_BORDER_SCALE, INNER_H, INNER_W,
-  borderFor, swipeEdge,
+  ANY_BORDER_SCALE, BORDER_HAIRLINE_PX, BORDER_PX, FULL_BORDER_SCALE, HOST_OFFSET,
+  INNER_H, INNER_W, INPUT_OFFSET, agreementFor, borderFor, swipeEdge,
 } from '../src/web-layout.mjs';
 
 /** Evaluate the generated loader with no DOM at all and hand back its public object. */
@@ -26,7 +26,28 @@ test('the generated loader evaluates with no DOM and exposes mount() and the ele
   assert.equal(api.defaultFrameRate, 60);
   assert.equal(api.layout.innerWidth, INNER_W);
   assert.equal(api.layout.innerHeight, INNER_H);
+  assert.equal(api.layout.cols, 48);
+  assert.equal(api.layout.rows, 27);
+  assert.equal(api.layout.inputOffset, INPUT_OFFSET);
+  assert.equal(api.layout.hostOffset, HOST_OFFSET);
+  assert.equal(api.layout.aspect, '16/9');
   assert.equal(api.layout.fullBorder, BORDER_PX);
+});
+
+test('agreementFor places color RAM, input, and host status after the character grid', () => {
+  const hi = agreementFor({ cols: 48, rows: 27 });
+  assert.equal(hi.colorBase, 2 + 48 * 27);
+  assert.equal(hi.inputOffset, hi.colorBase + 48 * 27);
+  assert.equal(hi.hostOffset, hi.inputOffset + 1);
+  assert.equal(hi.innerWidth, 384);
+  assert.equal(hi.innerHeight, 216);
+  const pet = agreementFor({ cols: 40, rows: 25, aspect: '4/3' });
+  assert.equal(pet.inputOffset, 2002);
+  assert.equal(pet.hostOffset, 2003);
+  assert.equal(pet.aspect, '4/3');
+  const vic = agreementFor({ cols: 22, rows: 23 });
+  assert.equal(vic.colorBase, 508);
+  assert.equal(vic.hostOffset, 1015);
 });
 
 // The two copies of borderFor — the one the build uses and the one that ships
@@ -116,6 +137,17 @@ test('the loader stays inside its own element when embedded', () => {
 test('the canvas is only re-dimensioned when the border changes', () => {
   const source = renderLoader({ frameRate: 60 });
   assert.match(source, /if \(next !== border\) \{\s*\n\s*border = next;\s*\n\s*canvas\.width = INNER_W \+ border \* 2;/);
+});
+
+test('the loader writes HOST_OFFSET from maxTouchPoints and pointer:coarse, and loads a sidecar', () => {
+  const source = renderLoader({ frameRate: 60 });
+  assert.match(source, /HOST_OFFSET/);
+  assert.match(source, /function hostIsTouch/);
+  assert.match(source, /maxTouchPoints/);
+  assert.match(source, /pointer: coarse/);
+  assert.match(source, /\.json/);
+  assert.match(source, /applyLayout/);
+  assert.doesNotMatch(source, /mem\[HOST_OFFSET\] = 1/);
 });
 
 test('the loader says what is wrong when the page is not cross-origin isolated', () => {

@@ -162,7 +162,8 @@ const PAGE_BYTES = 64 * 1024;
 // yet between this backend and a package's own `.8bs` source about which
 // low memory addresses are "taken" — @8bitscript/web's own WebRegisters
 // (packages/web/src/index.8bs) is just ordinary program code computing
-// ordinary literal addresses (0 through 2002 today), not something this
+// ordinary literal addresses (0 through HOST_OFFSET on the current
+// geometry — 2595 on the default 48×27 host), not something this
 // backend can see or reason about structurally the way it owns wasm
 // globals or its own const-array table. Placing data right after
 // WebRegisters' own current high-water mark would work today and break

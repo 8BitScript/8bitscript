@@ -26,11 +26,16 @@
 // belongs in the same snapshot when someone writes it, and
 // `input.mouse` stays false until then.
 //
+// `touch()` is a **level**, not an edge: it is a property of the host
+// (maxTouchPoints and `pointer: coarse`), written at HOST_OFFSET, not a
+// press. A screenshot leaves that bit clear so CI PNGs stay the desktop
+// layout.
+//
 // ---- edges, not levels ---------------------------------------------------
 //
-// Every answer is **edge-triggered**: true on the one frame the press
-// begins, false while it is held. `poll()` must be called exactly once a
-// frame, right after waitFrame().
+// Every direction/confirm/cancel answer is **edge-triggered**: true on the
+// one frame the press begins, false while it is held. `poll()` must be
+// called exactly once a frame, right after waitFrame().
 import { WebRegisters } from "./index.8bs";
 
 namespace Edge {
@@ -40,6 +45,10 @@ namespace Edge {
     const DOWN: utinyint = 8;
     const CONFIRM: utinyint = 16;
     const CANCEL: utinyint = 32;
+}
+
+namespace HostStatus {
+    const TOUCH: utinyint = 1;
 }
 
 let held: utinyint = 0;
@@ -92,6 +101,12 @@ export namespace input {
 
     function cancel(): bool {
         return (began & Edge.CANCEL) != 0;
+    }
+
+    // A device property, not a press: true while the page has marked this
+    // host as a touchscreen. Not edge-triggered; does not need poll().
+    function touch(): bool {
+        return (memory.read(WebRegisters.HOST_OFFSET) & HostStatus.TOUCH) != 0;
     }
 
     function pointer(): bool {

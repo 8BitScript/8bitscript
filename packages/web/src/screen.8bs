@@ -12,6 +12,7 @@
 // exports this same surface, which is what lets a program import it from
 // @8bitscript/screen and never name the hardware — or, here, the host.
 import { WebRegisters } from "./index.8bs";
+import { Video } from "./geometry.8bs";
 
 // ---- the screen: border and background --------------------------------------
 //
@@ -39,7 +40,7 @@ export namespace screen {
         if (background != BackgroundColor.KEEP) {
             screen.setBackground(background);
         }
-        for (let cell: usmallint = 0; cell < 1000; cell++) {
+        for (let cell: usmallint = 0; cell < Video.CELL_COUNT; cell++) {
             memory.write(WebRegisters.CHAR_BASE + cell, 32);
         }
     }

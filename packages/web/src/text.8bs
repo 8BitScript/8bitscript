@@ -13,6 +13,7 @@
 // it doesn't know or care that "screen memory" is a real 6502 address on
 // most targets and a wasm-memory offset on this one.
 import { WebRegisters } from "./index.8bs";
+import { Video } from "./geometry.8bs";
 
 // Codes are ASCII, as they are everywhere (space, '0'-'9', 'A'-'Z', 'a'-'z',
 // and a little punctuation — the checker's own portable character set,
@@ -60,8 +61,8 @@ function place(cell: usmallint, code: utinyint): void {
 }
 
 export namespace text {
-    const CELL_COUNT: usmallint = 1000; // 40 columns x 25 rows
-    const COLUMNS: utinyint = 40; // cells per row, so cell = y * text.COLUMNS + x
+    const CELL_COUNT: usmallint = Video.CELL_COUNT;
+    const COLUMNS: utinyint = Video.COLUMNS; // cells per row, so cell = y * text.COLUMNS + x
 
     function putChar(cell: usmallint, code: utinyint): void {
         memory.write(WebRegisters.CHAR_BASE + cell, code);

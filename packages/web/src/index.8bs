@@ -18,25 +18,29 @@
 // @8bitscript/compiler/wasm). This package's hardware surface is therefore an
 // AGREEMENT rather than a register map: a handful of fixed byte offsets in
 // that memory — two for the border and background colors, a virtual
-// character screen for everything `text` pokes, and one byte of input the
-// page writes and `@8bitscript/web/input` reads — which the host
+// character screen for everything `text` pokes, one byte of input the page
+// writes, and one host-status byte (`HOST_OFFSET`) — which the host
 // (packages/cli's browser runtime, packages/cli/src/web-runtime.mjs) paints
 // from once per display refresh. It is the same deferred-apply contract a
 // VIC-II register has, aimed at a buffer instead.
 //
-// The character screen is 1000 cells, 40 wide — the C64's own screen shape
-// (see @8bitscript/c64) — picked as a safe superset of the VIC-20's smaller
-// 506-cell one so the same program's cell numbers never run off the end of
-// this buffer either. Two side-by-side regions, not interleaved, so a
-// caller that only ever touches a handful of cells leaves most of both
-// untouched.
+// The character screen's size is a property of the build: 48×27 on the
+// default 16:9 host, or a machine skin's grid via geometry.8bs twins. Two
+// side-by-side regions, not interleaved, so a caller that only ever
+// touches a handful of cells leaves most of both untouched.
+import { Video } from "./geometry.8bs";
+
 export namespace WebRegisters {
     const BORDER_OFFSET: usmallint = 0;
     const BACKGROUND_OFFSET: usmallint = 1;
-    const CHAR_BASE: usmallint = 2;
-    const COLOR_BASE: usmallint = 1002;
+    const CHAR_BASE: usmallint = Video.CHAR_BASE;
+    const COLOR_BASE: usmallint = Video.COLOR_BASE;
     // Directions, confirm and cancel as the same Edge bits every input
     // layer uses. The page writes this; poll() in ./input.8bs reads it.
-    // First byte after the 1000 color cells at COLOR_BASE.
-    const INPUT_OFFSET: usmallint = 2002;
+    // First byte after the color cells at COLOR_BASE.
+    const INPUT_OFFSET: usmallint = Video.INPUT_OFFSET;
+    // Device properties the page sets, not keys. Bit 0 is TOUCH: this
+    // host is a touchscreen. A screenshot has no viewport, so that bit
+    // stays clear there.
+    const HOST_OFFSET: usmallint = Video.HOST_OFFSET;
 }
