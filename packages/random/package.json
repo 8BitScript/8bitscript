@@ -1,6 +1,6 @@
 {
   "name": "@8bitscript/random",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Deterministic pseudo-random generators, explicitly seeded, the same code on every target: a 16-bit LCG at the bare import, a precomputed lookup table at ./table. Hardware entropy stays behind its own machine-specific import (@8bitscript/atari8/random, @8bitscript/c64/random).",
   "license": "MIT",
   "repository": {
