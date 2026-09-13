@@ -1,5 +1,12 @@
 # @8bitscript/language-server
 
+## 0.6.1
+
+### Patch Changes
+
+- Updated dependencies [f278212]
+  - @8bitscript/compiler@0.6.1
+
 ## 0.6.0
 
 ### Patch Changes

@@ -1,5 +1,19 @@
 # @8bitscript/screen
 
+## 0.6.1
+
+### Patch Changes
+
+- @8bitscript/atari8@0.6.1
+  - @8bitscript/c128@0.6.1
+  - @8bitscript/c64@0.6.1
+  - @8bitscript/cx16@0.6.1
+  - @8bitscript/mega65@0.6.1
+  - @8bitscript/nes@0.6.1
+  - @8bitscript/pet@0.6.1
+  - @8bitscript/vic20@0.6.1
+  - @8bitscript/web@0.6.1
+
 ## 0.6.0
 
 ### Patch Changes
