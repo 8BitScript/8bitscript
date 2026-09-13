@@ -1,5 +1,30 @@
 # @8bitscript/input
 
+## 0.6.0
+
+### Patch Changes
+
+- Updated dependencies [57ccce1]
+- Updated dependencies [fc0af15]
+- Updated dependencies [cc04ede]
+- Updated dependencies [188cd63]
+- Updated dependencies [57ccce1]
+- Updated dependencies [57ccce1]
+- Updated dependencies [188cd63]
+- Updated dependencies [6e1056b]
+- Updated dependencies [57ccce1]
+- Updated dependencies [57ccce1]
+- Updated dependencies [b390ef3]
+  - @8bitscript/atari8@0.6.0
+  - @8bitscript/c128@0.6.0
+  - @8bitscript/c64@0.6.0
+  - @8bitscript/vic20@0.6.0
+  - @8bitscript/pet@0.6.0
+  - @8bitscript/mega65@0.6.0
+  - @8bitscript/nes@0.6.0
+  - @8bitscript/cx16@0.6.0
+  - @8bitscript/web@0.6.0
+
 ## 0.5.0
 
 ### Patch Changes

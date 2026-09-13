@@ -1,6 +1,6 @@
 {
   "name": "@8bitscript/examples",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "The example programs that ship with the toolchain: hello-world, the 0.2.0 goal program, and joystick, the controller test app — listed in the editor's launcher beside your own projects.",
   "license": "MIT",
   "repository": {
