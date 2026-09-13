@@ -180,7 +180,9 @@ planned `2048`):
 
 The documentation site is built from `docs/` by `site/build-all.mjs`.
 Production `/` is the latest tagged version; `/0.1.0/` is that version's
-frozen snapshot. Preview locally before you merge:
+frozen snapshot. Cloudflare Workers Builds clones without tags; the builder
+fetches them before snapshotting, so a tagless CI clone still publishes
+history. Preview locally before you merge:
 
 ```bash
 pnpm run docs:dev
