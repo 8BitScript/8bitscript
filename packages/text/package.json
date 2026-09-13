@@ -1,6 +1,6 @@
 {
   "name": "@8bitscript/text",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "The character grid, on whichever machine is being built: ASCII in, one cell at a time, the same on every target. Resolves per target to that machine's own text implementation.",
   "license": "MIT",
   "repository": {
