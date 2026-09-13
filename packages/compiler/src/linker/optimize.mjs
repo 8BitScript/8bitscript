@@ -92,6 +92,34 @@ function containsStringByte(node) {
   return Object.values(node).some(containsStringByte);
 }
 
+/**
+ * How many IR nodes a body is made of — a proxy for how much code it will
+ * become, used only to decide whether duplicating it at several call sites
+ * is cheaper than calling it. Measured on the 6502 backend, a body runs
+ * about 1.6 bytes per node (@8bitscript/pet's input.poll(): 117 nodes,
+ * 182 bytes).
+ */
+// Bodies at or under this many IR nodes still inline at several call
+// sites: about 13 bytes at the ratio above, which is the neighbourhood
+// where a duplicated body and the call it replaces cost the same.
+const INLINE_DUPLICATE_NODE_LIMIT = 8;
+
+function nodeCount(node) {
+  let n = 0;
+  const walk = (value) => {
+    if (Array.isArray(value)) {
+      for (const item of value) walk(item);
+      return;
+    }
+    if (value && typeof value === 'object') {
+      n += 1;
+      for (const inner of Object.values(value)) walk(inner);
+    }
+  };
+  walk(node);
+  return n;
+}
+
 function countCalls(functionsByName, name) {
   let n = 0;
   const walk = (node) => {
@@ -545,6 +573,26 @@ function inlineVoidCall(statement, ctx) {
   const stringCopy = containsStringByte(fn.body) || ctx.unrollingStringCopy;
   if (params.length > 0 && !stringCopy && !unusedParams) return null;
   if (unusedParams && countCalls(ctx.functionsByName, statement.name) > 1) return null;
+  // Inlining a body that more than one place calls writes that body out
+  // once per call site. That is a win only while the body is smaller than
+  // the call it replaces — on the 6502 a call is 3 bytes at each site plus
+  // one RTS, so duplicating anything past a few bytes costs more than it
+  // saves, and every extra call site costs again.
+  //
+  // A parameterless void function used to skip this question entirely: the
+  // guards above only reject on parameters, so a no-argument helper was
+  // inlined everywhere it appeared no matter how large. @8bitscript/input's
+  // poll() is 117 nodes, and 2048 reaches it from four places — once from
+  // begin() (which primes the edge detector) and once per read in the game
+  // loop — so the game carried four copies of it. Refusing those four and
+  // paying for calls instead is 204 bytes on a 4K PET, 541 on a C64, 675 on
+  // an Atari, and leaves hello-world byte-for-byte identical.
+  if (
+    nodeCount(fn.body) > INLINE_DUPLICATE_NODE_LIMIT &&
+    countCalls(ctx.functionsByName, statement.name) > 1
+  ) {
+    return null;
+  }
   const bindings = new Map();
   for (let i = 0; i < params.length; i++) bindings.set(params[i].name, args[i]);
   ctx.inlining.add(statement.name);
