@@ -382,6 +382,11 @@ test('the served profile module loads as a browser gets it: a `Profile` global',
   assert.equal(typeof sandbox.Profile.parseBinding, 'function');
   assert.equal(typeof sandbox.Profile.DEADZONE, 'number');
   assert.equal(sandbox.Profile.LOGICAL_CONTROLS.length, 18);
+  // Same trap as the editor's panel: a classic script that is not wrapped
+  // leaks `function heldKeys` and the page's `const heldKeys` then fails
+  // to parse. The IIFE is what makes this a Profile global and nothing else.
+  assert.equal(sandbox.heldKeys, undefined);
+  runInContext('const heldKeys = new Set();', sandbox);
 });
 
 test('the host shim turns the page\'s postMessage into a token-carrying POST', async () => {

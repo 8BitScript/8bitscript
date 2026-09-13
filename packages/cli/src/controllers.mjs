@@ -9,9 +9,11 @@
 // docs/project/input.md calls "width"), so the editor's Controller Setup
 // panel writes one thing and nine machines read it.
 //
-// The file is `8bitscript.controllers.json`, written by that panel
-// (editors/vscode/src/controllerStore.cjs) and read by controllerPlayers()
-// below. The binding grammar — `button:0`, `axis:1-` — is the panel's, and
+// The file is `8bitscript.controllers.json`, written by that panel into
+// `~/.config/8bitscript/` (editors/vscode/src/controllerStore.cjs) and
+// read by controllerPlayers() below. A copy in the project directory is
+// still honoured if present. The binding grammar — `button:0`, `axis:1-`
+// — is the panel's, and
 // its parseBinding and this one are deliberately inverses: two spellings
 // of the same mapping is how a binding comes to mean one thing at one end
 // and another at the other.
@@ -90,19 +92,27 @@
 //   And an Atari stick has exactly one trigger, so every named button
 //   past `a` is a named refusal rather than a mapping.
 //
-// fceux — nothing. This is the honest answer, not a gap in the research.
+// fceux — which NES device is in the port, not a host mapping.
 //   `fceux --help` offers `--input(1,2) <device>` (gamepad, zapper,
 //   powerpad.0/1, arkanoid), `--input(3,4)` for Famicom expansion
 //   devices, and `--fourscore {0|1}`. That is which *device* is in each
 //   port and nothing about which button is which. Every actual binding
-//   lives in ~/.fceux/fceux.cfg as `SDL.Input.GamePad.<n>.*` (182
-//   SDL.Input lines in this machine's own config) plus named profiles
-//   under ~/.fceux/input/, both chosen from the Qt GUI. There is no
-//   `-config <file>`; the only config flag is `--no-config {0|1}`, which
-//   suppresses saving. FCEUX_HOME exists in the binary's strings and
-//   would move the whole ~/.fceux tree, which is a different and much
-//   larger thing than passing a mapping. So: fceux gets its port devices
-//   and a note naming what it cannot take.
+//   lives in ~/.fceux/fceux.cfg as `SDL.Input.GamePad.<n>.*` plus named
+//   profiles under ~/.fceux/input/, both chosen from the Qt GUI.
+//
+//   The help text's `gamepad` is the wrong string to pass. FCEUX's
+//   UpdateInput() (src/drivers/Qt/input.cpp) does
+//   `device.find("GamePad")` — capital G and P — and anything else,
+//   including the help text's own `gamepad`, falls through to SI_NONE:
+//   an empty NES port. `--input1 gamepad` also writes that lowercase
+//   value into ~/.fceux/fceux.cfg, so the next launch with no flag is
+//   still dead. The value FCEUX's own config.cpp defaults to, and the
+//   one find("GamePad") accepts, is `GamePad.0` / `GamePad.1`.
+//
+//   There is no `-config <file>`; the only config flag is
+//   `--no-config {0|1}`, which suppresses saving. So: fceux gets
+//   `--inputN GamePad.<n-1>` and a note that the button map itself
+//   cannot be passed.
 //
 // x16emu — `-joy1`..`-joy4` "Enable binding a gamepad to SNES controller
 //   port N", and that is all. No remapping; the pad's buttons are bound
@@ -197,7 +207,7 @@ export function bindingDevice(binding) {
   return binding.kind === 'key' ? 'keyboard' : 'pad';
 }
 
-/** The file the editor's Controller Setup panel writes, beside 8bitscript.config.ts. */
+/** The file the editor's Controller Setup panel writes (`~/.config/8bitscript/` by default). */
 export const CONTROLLERS_FILE = '8bitscript.controllers.json';
 
 /** VICE reaches six host gamepads and fceux four pads; four players is the panel's own ceiling. */
@@ -439,10 +449,13 @@ const VICE_JOYDEV_PORTS = { vic20: 1, c64: 2, c128: 2, pet: 0 };
  *   axes     "axis 0 has inputindex 0,1 respectively for positive and
  *            negative, axis 1 has 2,3 etc."
  *
- * VICE's third input type, the hat, has no branch because no binding can
- * ask for one: the Gamepad API's standard mapping reports a D-pad as
- * buttons 12-15, so that is what the panel captures and what arrives here.
- * (The format's own hat indices stride by five — "hat 0 has inputindex
+ * VICE's third input type, the hat, has no branch because a Gamepad API
+ * binding cannot ask for one: the standard mapping reports a D-pad as
+ * buttons 12-15. Those numbers are not written into the .vjm — they are
+ * the browser's indices, not SDL's, and `!CLEAR` plus button 12 is how a
+ * working 8BitDo map becomes a dead D-pad. Host joystick selection
+ * (`-joydev`) still happens; VICE's default map keeps the hat. (The
+ * format's own hat indices stride by five — "hat 0 has inputindex
  * 0,1,2,3 ... Hat 1 has 5,6,7,8 etc." — which is noted because it is
  * exactly the sort of thing a later hat branch would assume wrongly.)
  *
@@ -540,6 +553,7 @@ export function viceController(machine, players, { emulator, hardware, joymapPat
     args.push(`-joydev${port}`, String(VICE_JOYDEV_ANALOG_0 + pad));
 
     const unmapped = [];
+    let skippedButtons = false;
     for (const [control, binding] of bound) {
       const pin = VICE_PIN[control];
       if (pin === undefined) {
@@ -559,6 +573,17 @@ export function viceController(machine, players, { emulator, hardware, joymapPat
         unmapped.push(control);
         continue;
       }
+      // Gamepad API button indices are not VICE/SDL button indices. The
+      // browser's standard mapping reports a D-pad as buttons 12-15; SDL
+      // sees a hat. Writing those numbers into a .vjm after `!CLEAR` is
+      // how a pad that already worked under VICE's default map stops
+      // working the moment 8bitscript.controllers.json appears. Axis
+      // halves are the same namespace on both sides (axis 0 is axis 0),
+      // so those still reach the file.
+      if (binding.kind === 'button') {
+        skippedButtons = true;
+        continue;
+      }
       const line = vjmLine(pad, binding, pin);
       if (line === null) {
         // A whole axis with no sign: analog, and a Commodore port has no
@@ -568,13 +593,23 @@ export function viceController(machine, players, { emulator, hardware, joymapPat
       }
       lines.push(line);
     }
+    if (skippedButtons) {
+      notes.push(
+        `${emulator}: Gamepad API button numbers are not VICE/SDL indices, so host joystick ${pad} keeps `
+        + `VICE's default map via -joydev${port} rather than a generated .vjm`,
+      );
+    }
     notes.push(...unmappedNote(
       emulator, player.player, unmapped,
       'a Commodore control port has four directions and its fire pins, and nothing else',
     ));
     // fire2/fire3 are real pins, but only the multi-button joyport
-    // devices read them; the catalog fits a plain `Joystick`.
-    const extraFire = bound.filter(([control]) => control === 'b' || control === 'x').map(([control]) => control);
+    // devices read them; the catalog fits a plain `Joystick`. Named only
+    // when those bindings actually reached the .vjm — Gamepad API buttons
+    // are not written there (see skippedButtons above).
+    const extraFire = bound
+      .filter(([control, binding]) => (control === 'b' || control === 'x') && binding.kind !== 'button')
+      .map(([control]) => control);
     if (extraFire.length > 0) {
       notes.push(
         `${emulator}: player ${player.player}'s ${listOf(extraFire)} ${extraFire.length === 1 ? 'is' : 'are'} mapped to `
@@ -818,14 +853,20 @@ export function fceuxController(machine, players, { emulator, hardware }) {
           + 'Score adapter (--fourscore), which no catalog fits yet',
       };
     }
-    args.push(`--input${port}`, 'gamepad');
+    // FCEUX's UpdateInput() matches `GamePad` (capital G and P) and
+    // treats anything else — including the help text's `gamepad` — as
+    // SI_NONE, an empty NES port. `--input1 gamepad` also persists that
+    // lowercase value into ~/.fceux/fceux.cfg. The string config.cpp
+    // itself defaults to is `GamePad.0`.
+    args.push(`--input${port}`, `GamePad.${port - 1}`);
   }
   if (players.some((player) => Object.keys(player.controls).length > 0)) {
     notes.push(
       `${emulator}: the button mapping cannot be passed on the command line at all — \`fceux --help\` offers `
       + '--input1/--input2 (which device is in the port) and --fourscore, and nothing else. FCEUX keeps its bindings '
       + 'in ~/.fceux/fceux.cfg as SDL.Input.GamePad.<n>.* plus named profiles under ~/.fceux/input/, both set from its '
-      + 'own Qt input dialog; there is no -config <file>, only --no-config. Map the pad once in FCEUX and it sticks',
+      + 'own Qt input dialog; there is no -config <file>, only --no-config. `--inputN gamepad` (the help text) is not '
+      + 'the string UpdateInput() matches — that is GamePad.<n>, and lowercase gamepad is SI_NONE',
     );
   }
   return { ok: true, args, leadingArgs: [], files: [], notes };

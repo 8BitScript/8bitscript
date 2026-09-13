@@ -94,13 +94,13 @@ Implemented:
                                context, and this process has no HID.
                                Assign pads to players, bind the controls,
                                and 8bitscript.controllers.json is written
-                               beside 8bitscript.config.ts as you go; 'run'
+                               in ~/.config/8bitscript as you go; 'run'
                                reads it to aim each emulator's joystick
                                ports. --no-open prints the URL and waits.
-                               --list prints the controllers the project
-                               has on record (not what is plugged in:
-                               nothing outside a browser can know that) and
-                               --print dumps the file
+                               --list prints the controllers on record
+                               (not what is plugged in: nothing outside a
+                               browser can know that) and --print dumps
+                               the file. --dir names a project copy.
   check <files...>             Report diagnostics for 8BitScript source files
   doctor                       Verify the toolchains every target needs
   setup <target>               Install/configure what a target needs beyond

@@ -28,9 +28,10 @@
 // needs a permission it cannot ask for; it can shell out to this.
 //
 // It also makes the mapping a terminal thing, which it should have been
-// anyway: `8bs run` reads `8bitscript.controllers.json` (controllers.mjs's
-// `controllerPlayers`) to aim an emulator's joystick ports, and everything
-// else that file touches is already a command.
+// anyway: `8bs run` reads `8bitscript.controllers.json` from
+// `~/.config/8bitscript/` (controllers.mjs's `controllerPlayers`) to aim
+// an emulator's joystick ports, and everything else that file touches is
+// already a command.
 //
 // ---- why the page is a copy, and what keeps it honest --------------------
 //
@@ -38,7 +39,7 @@
 // stylesheet, the silhouette in `src/controllerPad.cjs`, and — the one
 // that matters — `src/controllerProfile.cjs`, which is what a binding
 // means. The panel already goes out of its way to hand that same module to
-// its webview behind a three-line CommonJS shim rather than copy it,
+// its webview behind an IIFE CommonJS shim rather than copy it,
 // because a second deadzone constant would be a second profile. Two
 // mapping UIs would be a worse version of the same bug.
 //
@@ -211,9 +212,10 @@ const TOOLBAR_CSS = `.cli-bar {
  * every id the mirrored script asks for.
  *
  * `Profile` arrives the way the panel gives it to its webview: the module
- * source between a two-line CommonJS shim. It is written to be loadable
- * that way (no `require`, no `process`) and the extension's own test keeps
- * it that way.
+ * source inside an IIFE CommonJS shim, so `function heldKeys` in the
+ * module does not collide with `const heldKeys` in the page. It is written
+ * to be loadable that way (no `require`, no `process`) and the extension's
+ * own test keeps it that way.
  *
  * @param {string} token the POST token; see `respond`
  */
@@ -244,6 +246,7 @@ export function renderPage(token) {
     <h2 class="section-label">Controllers <span class="summary-value" id="device-count"></span></h2>
     <div id="device-rows"></div>
     <p class="none" id="no-devices" hidden></p>
+    <button class="wide secondary" id="scan">Look again</button>
   </section>
 
   <section class="block" id="mapper" hidden>
@@ -347,11 +350,17 @@ export function pageAssets(token) {
   return new Map([
     ['/', { type: 'text/html; charset=utf-8', body: renderPage(token) }],
     ['/host.js', { type: 'text/javascript; charset=utf-8', body: HOST_JS }],
-    // The same two-line shim the panel wraps this module in, so one file
-    // is both a CommonJS module here and a `Profile` global there.
+    // The same IIFE shim the panel wraps this module in, so one file
+    // is both a CommonJS module here and a `Profile` global there. The
+    // wrap is what stops `function heldKeys` in the module colliding with
+    // `const heldKeys` in the page — a classic script is one global scope.
     ['/profile.js', {
       type: 'text/javascript; charset=utf-8',
-      body: `var module = { exports: {} };\n${PROFILE_JS}\nvar Profile = module.exports;`,
+      body: `var Profile = (function () {
+  var module = { exports: {} };
+${PROFILE_JS}
+  return module.exports;
+})();`,
     }],
     ['/controller.js', { type: 'text/javascript; charset=utf-8', body: PAGE_JS }],
     ['/controller.css', { type: 'text/css; charset=utf-8', body: PAGE_CSS }],
@@ -459,8 +468,8 @@ export function createSession(dir, { targets = [] } = {}) {
     /**
      * Change one device and write the file back.
      *
-     * Read-modify-write per edit, as the panel does: the file is checked
-     * into the project and somebody may have it open in an editor, and
+     * Read-modify-write per edit, as the panel does: the file lives in
+     * ~/.config/8bitscript and somebody may have it open in an editor, and
      * losing a hand-typed line is worse than reading a small JSON file
      * once per button press.
      */
@@ -664,11 +673,13 @@ const USAGE = `Usage: 8bs controller [--list] [--print] [--no-open] [--dir <path
                 browser is where the detection happens because the Gamepad
                 API is a browsing context's — this process has no HID.
   --no-open     Print the URL and wait, rather than spawning a window.
-  --list        List the controllers this project has on record, with what
-                each one is bound to. It cannot list what is *plugged in*:
-                only a browser can see that, which is what the page is for.
+  --list        List the controllers on record, with what each one is
+                bound to. It cannot list what is *plugged in*: only a
+                browser can see that, which is what the page is for.
   --print       Print ${CONTROLLERS_FILE} to stdout.
-  --dir <path>  The project directory; defaults to the current one.
+  --dir <path>  Where to write the profile; defaults to
+                ~/.config/8bitscript. Pass a project directory to keep a
+                copy there (tests, a cabinet that ships with a stick).
 `;
 
 /**
@@ -676,7 +687,7 @@ const USAGE = `Usage: 8bs controller [--list] [--print] [--no-open] [--dir <path
  *
  * "On record" and not "connected", and the difference is the whole reason
  * this command exists: this process cannot see a pad. What it can say is
- * what the project has written down, which is what a launch will use.
+ * what has been written down, which is what a launch will use.
  *
  * @param {object} profile a normalized profile
  * @returns {string[]}
@@ -733,7 +744,7 @@ export async function controller(args) {
     process.stderr.write(`8bs controller: ${parsed.error}\n\n${USAGE}`);
     return 2;
   }
-  const dir = resolve(parsed.dir ?? process.cwd());
+  const dir = resolve(parsed.dir ?? Store.userControllersDir());
 
   if (parsed.mode === 'print') {
     const { profile, exists, error } = Store.readProfile(dir);
@@ -758,7 +769,7 @@ export async function controller(args) {
     // nothing about whether one is plugged in — and somebody reading it
     // with a controller in their hands deserves to be told why.
     process.stdout.write(
-      '\nthis lists what the project has on record; nothing here can see a pad — '
+      '\nthis lists what is on record; nothing here can see a pad — '
       + "run '8bs controller' to let a browser do that.\n",
     );
     return 0;

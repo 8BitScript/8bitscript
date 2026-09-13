@@ -11,7 +11,8 @@ const os = require('node:os');
 const path = require('node:path');
 
 const {
-  CONTROLLERS_FILE, controllersPath, readProfile, writeProfile,
+  CONTROLLERS_FILE, controllersPath, userControllersDir, userControllersPath,
+  readProfile, writeProfile, hydrateUserProfile,
 } = require('../src/controllerStore.cjs');
 const { emptyProfile, withDevice } = require('../src/controllerProfile.cjs');
 
@@ -22,11 +23,14 @@ function project(t) {
   return dir;
 }
 
-test('the file sits beside the config, named so it sorts with it', () => {
+test('the file is named so it sorts with the config, and the default home is XDG', () => {
   assert.equal(CONTROLLERS_FILE, '8bitscript.controllers.json');
   assert.equal(controllersPath('/somewhere'), path.join('/somewhere', CONTROLLERS_FILE));
-  // Not hidden and not under dist/: it is checked in, the way a `systems`
-  // block in 8bitscript.config.ts is, because a mapping is the team's.
+  assert.equal(userControllersPath(), path.join(userControllersDir(), CONTROLLERS_FILE));
+  assert.ok(userControllersDir().endsWith(path.join('.config', '8bitscript')));
+  // Not hidden: it is something a person is allowed to open. It is not
+  // checked into the project — an 8BitDo at one desk is not a `systems`
+  // block.
   assert.ok(!CONTROLLERS_FILE.startsWith('.'));
 });
 
@@ -74,6 +78,29 @@ test('a file somebody broke costs them the profile, never the panel', (t) => {
   assert.deepEqual(read.profile, emptyProfile(), 'unreadable is the same as unset');
   assert.equal(read.exists, true, 'but the file is still there, so Open finds it');
   assert.match(read.error, /8bitscript\.controllers\.json/, 'and the reason names the file');
+});
+
+test('writeProfile creates the directory, which is how ~/.config/8bitscript appears', (t) => {
+  const parent = project(t);
+  const dir = path.join(parent, 'nested', '8bitscript');
+  writeProfile(dir, emptyProfile());
+  assert.equal(readProfile(dir).exists, true);
+});
+
+test('hydrateUserProfile copies a leftover project file once, then leaves both alone', (t) => {
+  const dir = project(t);
+  const userDir = project(t);
+  writeProfile(dir, withDevice(emptyProfile(), {
+    id: 'sn30', name: '8BitDo SN30 Pro', player: 1, mode: 'standard', mapping: { a: 'button:0' },
+  }));
+  const first = hydrateUserProfile(dir, { userDir });
+  assert.equal(first.copied, true);
+  assert.equal(first.from, controllersPath(dir));
+  assert.equal(first.to, controllersPath(userDir));
+  assert.equal(readProfile(userDir).profile.controllers.devices[0].id, 'sn30');
+  // A second call must not overwrite a profile the user has since edited.
+  const second = hydrateUserProfile(dir, { userDir });
+  assert.equal(second.copied, false);
 });
 
 test('a binding the reader cannot understand never survives a write', (t) => {

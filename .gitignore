@@ -29,6 +29,9 @@ packages/compiler/src/**/*.js
 # Wrangler local state and cache
 .wrangler/
 
+# Personal hardware — lives in ~/.config/8bitscript/, not the repo
+8bitscript.controllers.json
+
 # Logs
 *.log
 

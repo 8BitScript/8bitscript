@@ -716,6 +716,9 @@ $('clear').addEventListener('click', () => vscode.postMessage({
   type: 'preset', id: data?.selected, preset: 'none',
 }));
 $('open').addEventListener('click', () => vscode.postMessage({ type: 'open' }));
+$('scan').addEventListener('click', () => {
+  reported = '';
+});
 // Shown only when the window is refusing or silencing the Gamepad API,
 // because that is the only time it is the answer rather than a detour:
 // `8bs controller` serves this same page to a real browser and writes the
