@@ -54,7 +54,7 @@ import {
   BORDER_PX, CHAR_BASE, CHAR_H, CHAR_W, COLOR_BASE, COLORS, DEFAULT_LAYOUT,
   GRID_COLS, GRID_ROWS, HOST_OFFSET, HostStatus,
   INNER_H, INNER_W, INPUT_OFFSET, InputEdge, KEY_TO_EDGE, SWIPE_THRESHOLD,
-  ANY_BORDER_SCALE, BORDER_HAIRLINE_PX, FULL_BORDER_SCALE,
+  ANY_BORDER_SCALE, BORDER_HAIRLINE_PX, BORDER_MIN_PX, FULL_BORDER_SCALE,
 } from './web-layout.mjs';
 
 // The two words the page and the worker share, in a SharedArrayBuffer beside
@@ -278,15 +278,17 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
 
   // The border is decoration, and on a small screen decoration is the first
   // thing that has to go: 48 of every 432 horizontal pixels (the default
-  // 16:9 host) is a slice of the canvas spent on nothing. A phone
-  // renders the picture at barely 1-2x in either orientation, so it gets no
-  // border at all and the game runs edge to edge. See web-layout.mjs.
+  // 16:9 host) is a slice of the canvas spent on nothing. A phone renders the
+  // picture at barely 1-2x in either orientation, so it gets the thinnest
+  // border there is and the game runs very nearly edge to edge — but never
+  // *no* border, because the border is a color a program sets to say
+  // something about the whole screen. See web-layout.mjs.
   function borderFor(box) {
     var width = box && box.width;
     var height = box && box.height;
     if (!(width > 0) || !(height > 0)) return BORDER_PX;
     var scale = Math.min(width / INNER_W, height / INNER_H);
-    if (scale < ${ANY_BORDER_SCALE}) return 0;
+    if (scale < ${ANY_BORDER_SCALE}) return ${BORDER_MIN_PX};
     if ((box && box.coarse) || scale < ${FULL_BORDER_SCALE}) return ${BORDER_HAIRLINE_PX};
     return BORDER_PX;
   }
