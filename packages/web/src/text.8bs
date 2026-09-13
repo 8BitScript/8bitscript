@@ -63,6 +63,20 @@ function place(cell: usmallint, code: utinyint): void {
 export namespace text {
     const CELL_COUNT: usmallint = Video.CELL_COUNT;
     const COLUMNS: utinyint = Video.COLUMNS; // cells per row, so cell = y * text.COLUMNS + x
+    const ROWS: utinyint = Video.ROWS;
+
+    // The live grid, for a layout that responds to the window it is in. On
+    // this target's Modern host these read what the page last wrote; on a
+    // machine skin — and on every other machine 8BitScript builds for — they
+    // fold to the constants above, so a portable program can ask on all of
+    // them and only pay where the answer can actually change.
+    function columns(): utinyint {
+        return Video.columns();
+    }
+
+    function rows(): utinyint {
+        return Video.rows();
+    }
 
     function putChar(cell: usmallint, code: utinyint): void {
         memory.write(WebRegisters.CHAR_BASE + cell, code);

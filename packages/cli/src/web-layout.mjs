@@ -53,11 +53,61 @@ export const CHAR_W = 8;
 export const CHAR_H = 8;
 export const CHAR_BASE = 2;
 
+// ---- the Modern host's moving grid ----------------------------------------
+//
+// Modern is the one grid on this target that changes shape while a program
+// runs, so its map is sized for the largest grid it will ever hand out rather
+// than for the current one — see packages/web/src/geometry.8bs, which has to
+// agree with every number here.
+export const MAX_COLUMNS = 64;
+export const MAX_ROWS = 64;
+export const MAX_CELLS = MAX_COLUMNS * MAX_ROWS;
+export const RESIZABLE_CHAR_BASE = 4;
+export const COLUMNS_OFFSET = 2;
+export const ROWS_OFFSET = 3;
+
+// A grid small enough that 2048's four-tile board cannot be laid out at all is
+// not a better answer than one that letterboxes, so the shape follows the
+// window only between these.
+export const MIN_COLUMNS = 24;
+export const MIN_ROWS = 18;
+
+// Hold the cell COUNT roughly constant and let the window decide the shape.
+// Text then stays the same fraction of the screen whatever the screen is: a
+// phone and a 4K monitor showing the same shape get the same grid, so a
+// layout does not get denser as the display gets bigger.
+export const TARGET_CELLS = 1296;
+
+function clamp(value, low, high) {
+  return Math.min(high, Math.max(low, value));
+}
+
+/**
+ * The grid for a box of `width`x`height`. 16:9 gives back exactly 48x27 —
+ * the grid this host has always had — so nothing about a landscape desktop
+ * changes; 9:16 gives 27x48, and 4:3 gives 42x31.
+ *
+ * An unmeasured box is not a shape, it is a box that has not been laid out
+ * yet: that gets the default grid rather than a guess.
+ *
+ * @param {{ width?: number, height?: number }} [box]
+ */
+export function gridFor({ width, height } = {}) {
+  if (!(width > 0) || !(height > 0)) return { cols: 48, rows: 27 };
+  const cols = clamp(Math.round(Math.sqrt(TARGET_CELLS * (width / height))), MIN_COLUMNS, MAX_COLUMNS);
+  const rows = clamp(Math.round(TARGET_CELLS / cols), MIN_ROWS, MAX_ROWS);
+  return { cols, rows };
+}
+
 /**
  * Memory-map and canvas facts for one grid. `COLOR_BASE = 2 + cols*rows`,
  * then color RAM of the same length, then INPUT_OFFSET, then HOST_OFFSET.
  *
- * @param {{ cols?: number, rows?: number, palette?: string[], aspect?: string, colorPerCell?: boolean, font?: string }} [options]
+ * A `resizable` host is mapped for MAX_CELLS instead, with the live grid in
+ * two bytes ahead of the character region: the offsets then stay put when the
+ * grid changes, and `cols` is the only thing that moves.
+ *
+ * @param {{ cols?: number, rows?: number, palette?: string[], aspect?: string, colorPerCell?: boolean, font?: string, resizable?: boolean }} [options]
  */
 export function agreementFor({
   cols = 48,
@@ -66,22 +116,30 @@ export function agreementFor({
   aspect = '16/9',
   colorPerCell = true,
   font = 'font8x8',
+  resizable = false,
 } = {}) {
   const cells = cols * rows;
-  const colorBase = CHAR_BASE + cells;
-  const inputOffset = colorBase + cells;
+  const charBase = resizable ? RESIZABLE_CHAR_BASE : CHAR_BASE;
+  const region = resizable ? MAX_CELLS : cells;
+  const colorBase = charBase + region;
+  const inputOffset = colorBase + region;
   const hostOffset = inputOffset + 1;
   return {
     cols,
     rows,
+    resizable,
     charWidth: CHAR_W,
     charHeight: CHAR_H,
     innerWidth: cols * CHAR_W,
     innerHeight: rows * CHAR_H,
-    charBase: CHAR_BASE,
+    charBase,
     colorBase,
     inputOffset,
     hostOffset,
+    columnsOffset: COLUMNS_OFFSET,
+    rowsOffset: ROWS_OFFSET,
+    maxCols: MAX_COLUMNS,
+    maxRows: MAX_ROWS,
     palette: [...palette],
     aspect,
     colorPerCell,
@@ -110,7 +168,9 @@ export const HostStatus = {
  * only what the canvas needs that `#fact` does not name.
  */
 export const MACHINE_HOST = {
-  hifi: { aspect: '16/9', font: 'font8x8', palette: C64_PALETTE },
+  // Modern is the only one that resizes. A skin is a machine, and a machine's
+  // screen is the size its video chip makes it.
+  hifi: { aspect: '16/9', font: 'font8x8', palette: C64_PALETTE, resizable: true },
   'pet-2001': { aspect: '4/3', font: 'pet', palette: PET_PALETTE },
   c64: { aspect: '4/3', font: 'font8x8', palette: C64_PALETTE },
   vic20: { aspect: '4/3', font: 'font8x8', palette: VIC20_PALETTE },
@@ -132,6 +192,7 @@ export function layoutFromHardware(hardwareOrFacts = {}) {
     aspect: host.aspect,
     colorPerCell: facts['video.colorPerCell'] !== false,
     font: host.font,
+    resizable: host.resizable === true,
   });
 }
 
@@ -140,6 +201,11 @@ export function sidecarJson(layout = DEFAULT_LAYOUT) {
   return {
     cols: layout.cols,
     rows: layout.rows,
+    resizable: layout.resizable === true,
+    columnsOffset: layout.columnsOffset,
+    rowsOffset: layout.rowsOffset,
+    maxCols: layout.maxCols,
+    maxRows: layout.maxRows,
     charWidth: layout.charWidth,
     charHeight: layout.charHeight,
     charBase: layout.charBase,

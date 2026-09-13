@@ -62,6 +62,18 @@ export namespace screen {
     function setBorder(border: u8): void {
         borderColor = border & 15;
     }
+
+    // Whether this machine's grid can change under a running program. It
+    // cannot: this is a machine, and its screen is the size its video chip
+    // makes it. Here so a program that lays itself out from the live grid —
+    // see the web target's Modern host — compiles and runs unchanged on
+    // every other machine, where both of these fold and the branch that asks
+    // disappears with them.
+    const RESIZABLE: bool = false;
+
+    function resized(): bool {
+        return false;
+    }
 }
 
 // ---- color names ----------------------------------------------------------

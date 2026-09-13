@@ -1,24 +1,87 @@
-// @8bitscript/web — the screen's geometry, for the default 16:9 host.
+// @8bitscript/web — the screen's geometry for the Modern host, the one grid
+// on this target that changes shape while a program runs.
 //
-// The web target has no chip to be faithful to, so the grid is a decision:
-// 48×27 cells of 8×8 is 384×216, exactly 16:9. Machine skins (a PET 2001,
-// a C64, a VIC-20) are hardware tags, each with a twin beside this file
-// (`geometry.web.pet-2001.8bs`, …) so `text.COLUMNS`, `text.CELL_COUNT`,
-// and the agreement offsets fold to that skin's numbers with no runtime
-// probe. See packages/web/AGENTS.md and docs/packages.md ("System-specific
-// files").
+// Every other machine 8BitScript builds for has a chip to be faithful to, and
+// a C64 is 40×25 because a C64 is 40×25. The web target has no such chip, so
+// the grid is a decision — and a decision can be revisited when the window
+// it is being shown in turns sideways. Machine skins (a PET 2001, a C64, a
+// VIC-20) are hardware tags with a twin beside this file
+// (`geometry.web.pet-2001.8bs`, …) whose numbers fold at compile time with no
+// runtime probe, exactly as they did before: picking "Commodore" means
+// picking a machine, and a machine is what it is.
 //
-// Offsets in the wasm page: byte 0 border, byte 1 background, then
-// CELL_COUNT character codes from CHAR_BASE 2, CELL_COUNT color bytes from
-// COLOR_BASE, then INPUT_OFFSET, then HOST_OFFSET. Two side-by-side screen
-// regions, not interleaved.
+// ---- a fixed map for a moving grid ---------------------------------------
+//
+// The offsets below are sized for the LARGEST grid this host will ever hand
+// out, not for the current one. If COLOR_BASE were CHAR_BASE + columns×rows,
+// every offset in the program would move the moment the window turned, and
+// the program and the host would disagree for exactly as long as it took
+// both to notice. Sizing the two regions for MAX_CELLS costs 8K of the
+// wasm page and nothing else, and leaves `columns` as the only thing that
+// varies: a cell is still `row * columns + col`.
+//
+//   0      border color
+//   1      background color
+//   2      live columns      (the host writes these two; see columns() below)
+//   3      live rows
+//   4      CHAR_BASE         MAX_CELLS character codes
+//   4100   COLOR_BASE        MAX_CELLS color bytes
+//   8196   INPUT_OFFSET
+//   8197   HOST_OFFSET
 
 export namespace Video {
+    // The largest grid the host will hand out, and what the map is sized for.
+    const MAX_COLUMNS: utinyint = 64;
+    const MAX_ROWS: utinyint = 64;
+    const MAX_CELLS: usmallint = 4096;
+
+    // The grid a 16:9 window gets, and the one this host has always had.
+    // It is what columns()/rows() answer before the host has written
+    // anything — see below — not a limit on what they can answer.
     const COLUMNS: utinyint = 48;
     const ROWS: utinyint = 27;
-    const CELL_COUNT: usmallint = 1296; // COLUMNS * ROWS
-    const CHAR_BASE: usmallint = 2;
-    const COLOR_BASE: usmallint = 1298; // CHAR_BASE + CELL_COUNT
-    const INPUT_OFFSET: usmallint = 2594; // COLOR_BASE + CELL_COUNT
-    const HOST_OFFSET: usmallint = 2595; // first byte after the input snapshot
+    const CELL_COUNT: usmallint = 1296;
+
+    const COLUMNS_OFFSET: usmallint = 2;
+    const ROWS_OFFSET: usmallint = 3;
+    const CHAR_BASE: usmallint = 4;
+    const COLOR_BASE: usmallint = 4100;
+    const INPUT_OFFSET: usmallint = 8196;
+    const HOST_OFFSET: usmallint = 8197;
+
+    // True where the grid can change under a running program. A build-time
+    // fact, so `if (screen.RESIZABLE)` folds away entirely on every machine
+    // that cannot — see ./screen.8bs.
+    const RESIZABLE: bool = true;
+
+    // The live grid. Zero means the host has not written yet: the program
+    // starts the instant the worker has its memory, and the page writes these
+    // when it first sees that memory, so there is a frame in which a program
+    // that asks would otherwise get nothing. Answering with the compiled
+    // default makes that frame lay out like a 16:9 window rather than like a
+    // zero-column screen, and the next resized() corrects it.
+    function columns(): utinyint {
+        let live: utinyint = memory.read(Video.COLUMNS_OFFSET);
+        if (live == 0) {
+            return Video.COLUMNS;
+        }
+        return live;
+    }
+
+    function rows(): utinyint {
+        let live: utinyint = memory.read(Video.ROWS_OFFSET);
+        if (live == 0) {
+            return Video.ROWS;
+        }
+        return live;
+    }
+
+    // Widened before the multiply, not after: columns() and rows() are both
+    // utinyint, and 27 x 48 is 1296 — a product that does not fit in the type
+    // its operands have. Every cell index on this host has the same hazard,
+    // which is why a derived layout computes them in usmallint throughout.
+    function cells(): usmallint {
+        let wide: usmallint = Video.columns();
+        return wide * Video.rows();
+    }
 }
