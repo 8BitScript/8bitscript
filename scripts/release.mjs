@@ -165,9 +165,6 @@ try {
 } catch {
   hadTag = false;
 }
-// #region agent log
-fetch('http://127.0.0.1:7654/ingest/0e8448a8-aa1d-4d7c-8c13-fd00a086b724',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'49f08b'},body:JSON.stringify({sessionId:'49f08b',runId:process.env.GITHUB_RUN_ID||'local',hypothesisId:'F',location:'scripts/release.mjs:pin-tag',message:'pin-release tag check',data:{tag,hadTag,ref:process.env.GITHUB_REF||null,sha:process.env.GITHUB_SHA||null,actor:process.env.GITHUB_ACTOR||null},timestamp:Date.now()})}).catch(()=>{});
-// #endregion
 if (!hadTag) {
   try {
     await exec('git', ['fetch', 'origin', `refs/tags/${tag}:refs/tags/${tag}`], { cwd: ROOT });
@@ -190,17 +187,11 @@ process.stdout.write(`Pinning release to ${sha.slice(0, 8)} (${tag})${hadTag ? '
 // protection refusing the actor, and the message has to say so — v0.6.2
 // printed "diverged" over `Permission denied to github-actions[bot]`.
 try {
-  // #region agent log
-  fetch('http://127.0.0.1:7654/ingest/0e8448a8-aa1d-4d7c-8c13-fd00a086b724',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'49f08b'},body:JSON.stringify({sessionId:'49f08b',runId:process.env.GITHUB_RUN_ID||'local',hypothesisId:'A',location:'scripts/release.mjs:push',message:'about to push release',data:{tag,sha,hadTag,actor:process.env.GITHUB_ACTOR||null,hasGithubToken:Boolean(process.env.GITHUB_TOKEN),event:process.env.GITHUB_EVENT_NAME||null,ref:process.env.GITHUB_REF||null},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   await exec('git', ['push', 'origin', `${sha}:refs/heads/release`], { cwd: ROOT });
   process.stdout.write(`release -> ${sha.slice(0, 8)} (${tag}).\n`);
 } catch (err) {
   const detail = [err.stderr, err.stdout, err.message].filter(Boolean).join('\n').trim();
   const denied = /403|Permission .* denied/i.test(detail);
-  // #region agent log
-  fetch('http://127.0.0.1:7654/ingest/0e8448a8-aa1d-4d7c-8c13-fd00a086b724',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'49f08b'},body:JSON.stringify({sessionId:'49f08b',runId:process.env.GITHUB_RUN_ID||'local',hypothesisId:denied?'A':'C',location:'scripts/release.mjs:push-catch',message:'git push origin sha:refs/heads/release failed',data:{tag,sha,denied,detail:detail.slice(0,500),actor:process.env.GITHUB_ACTOR||null},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   if (denied) {
     process.stderr.write(
       `Pushing \`release\` to ${tag} (${sha.slice(0, 8)}) was denied. ` +
