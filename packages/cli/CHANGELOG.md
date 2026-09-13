@@ -1,5 +1,41 @@
 # @8bitscript/cli
 
+## 0.6.2
+
+### Patch Changes
+
+- 8e3a326: The web target gets a screen of its own, and machine skins beside it.
+  
+  Its stock grid was 40×25 — the C64's, inherited because every other machine had one and the web had to say something. Nothing on the web is 40×25. The default is now **48×27 cells of 8×8: 384×216, exactly 16:9**, so a browser canvas scales to it without pillarboxing.
+  
+  The old shapes did not go away, they became choices. `--hardware machine=<hifi|pet-2001|c64|vic20>` picks the skin the wasm build is compiled for, with `c64`, `pet-2001` and `vic20` also available as presets:
+  
+  | machine | grid | palette | notes |
+  | --- | --- | --- | --- |
+  | `hifi` (default) | 48×27 | 16 | 16:9, per-cell color |
+  | `pet-2001` | 40×25 | 2 | green phosphor, swapped character set |
+  | `c64` | 40×25 | 16 | per-cell color |
+  | `vic20` | 22×23 | 16 | per-cell color |
+  
+  Each skin is a geometry twin next to `geometry.8bs` — `geometry.web.c64.8bs` and friends — resolved by the same system-specific-file mechanism every machine package already uses. So `text.COLUMNS`, `text.CELL_COUNT`, and the offsets the host and the program agree on fold to that skin's constants at build time; nothing probes the grid at runtime.
+  
+  A tagged build writes `program-<tag>.wasm` beside a `program.json` layout sidecar carrying grid, palette and aspect, which the web loader reads to size the canvas instead of assuming one shape. `8bs screenshot` reads the same layout, so a skinned build screenshots at its own grid rather than the default one.
+- 8e3a326: `8bs run web` serves on port 8008 (HTTPS 8009) and on the LAN by default so a phone on the same Wi-Fi can reopen the same URL (`--local` is loopback only, `--port` picks another). The editor setting `8bitscript.webLan` turns LAN off.
+- Updated dependencies [8e3a326]
+  - @8bitscript/web@0.6.2
+  - @8bitscript/examples@0.6.2
+  - @8bitscript/studio@0.6.2
+  - @8bitscript/compiler@0.6.2
+  - @8bitscript/atari8@0.6.2
+  - @8bitscript/c128@0.6.2
+  - @8bitscript/c64@0.6.2
+  - @8bitscript/cx16@0.6.2
+  - @8bitscript/language-server@0.6.2
+  - @8bitscript/mega65@0.6.2
+  - @8bitscript/nes@0.6.2
+  - @8bitscript/pet@0.6.2
+  - @8bitscript/vic20@0.6.2
+
 ## 0.6.1
 
 ### Patch Changes

@@ -1,5 +1,20 @@
 # @8bitscript/screen
 
+## 0.6.2
+
+### Patch Changes
+
+- Updated dependencies [8e3a326]
+  - @8bitscript/web@0.6.2
+  - @8bitscript/atari8@0.6.2
+  - @8bitscript/c128@0.6.2
+  - @8bitscript/c64@0.6.2
+  - @8bitscript/cx16@0.6.2
+  - @8bitscript/mega65@0.6.2
+  - @8bitscript/nes@0.6.2
+  - @8bitscript/pet@0.6.2
+  - @8bitscript/vic20@0.6.2
+
 ## 0.6.1
 
 ### Patch Changes
