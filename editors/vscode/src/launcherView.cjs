@@ -216,8 +216,9 @@ class LauncherViewProvider {
     const targets = await this.projects.loadTargets(project?.dir);
     if (!this.view) return;
     const target = targets?.get(system) ?? null;
-    // Nothing stored fits the machine's worst RAM config, not its catalog
-    // stock, so the panel shows the same machine a Run actually uses.
+    // Nothing stored fits the machine's worst RAM-size config, not its
+    // catalog stock, so the panel shows the same machine a Run actually
+    // uses. A cartridge medium is not a RAM-size option.
     const selection = settings.getEffectiveHardware(system, target);
     const region = settings.getRegion();
     const machine = MACHINE_TARGETS.has(system);

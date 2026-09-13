@@ -555,7 +555,7 @@ function registerRunner(context, output) {
     if (!(await requireInstalled(project))) return;
     // An explicit hardware selection (a project's own named system, from
     // launch()) rides through untouched; otherwise nothing chosen means
-    // the machine's worst RAM config, not its catalog stock — see
+    // the machine's worst RAM-size config, not its catalog stock — see
     // settings.getEffectiveHardware.
     const effectiveHardware = hardware
       ?? settings.getEffectiveHardware(target, (await projects.loadTargets(project.dir))?.get(target));
