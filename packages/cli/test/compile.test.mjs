@@ -223,6 +223,27 @@ test('compile() for web writes a .wasm for a for-loop that sums 0..9', async () 
   }
 });
 
+test('compile() for web --hardware machine=c64 writes a tagged wasm and a 40×25 sidecar', async () => {
+  const dir = await mkdtemp(join(tmpdir(), '8bs-compile-'));
+  const prev = process.cwd();
+  try {
+    const entry = join(dir, 'main.8bs');
+    await writeFile(entry, SUM);
+    process.chdir(dir);
+    const { result, stdout, stderr } = await capture(() => compile('web', entry, { hardware: { machine: 'c64' } }));
+    assert.equal(result.ok, true, stdout + stderr);
+    assert.ok(result.outFile.endsWith('main-c64.wasm'), result.outFile);
+    const sidecar = JSON.parse(await readFile(join(dir, 'dist', 'web', 'program-c64.json'), 'utf8'));
+    assert.equal(sidecar.cols, 40);
+    assert.equal(sidecar.rows, 25);
+    assert.equal(sidecar.aspect, '4/3');
+    assert.equal(sidecar.hostOffset, 2003);
+  } finally {
+    process.chdir(prev);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test('compile() for web still names a real, specific gap for a construct nothing on this rail lowers, not a generic "not implemented"', async () => {
   const dir = await mkdtemp(join(tmpdir(), '8bs-compile-'));
   const prev = process.cwd();

@@ -19,6 +19,7 @@ dist/web/
   worker.js       the machine, as a file (the loader also carries a copy)
   coi.js          opt-in cross-origin isolation, for hosts that cannot send headers
   program.wasm    your compiled program
+  program.json    layout sidecar (grid, palette, aspect) the loader reads
   _headers        COOP/COEP, in the form Cloudflare Pages and Netlify read
 ```
 
@@ -150,9 +151,8 @@ This is why it is never loaded for you.
 ## Borders
 
 The border is the frame around the picture — overscan on a real VIC-20, and on
-a desktop it reads as the machine's own edge. It is also 48 of every 368
-horizontal pixels and 48 of every 248 vertical ones: a fifth of the height
-spent on decoration.
+a desktop it reads as the machine's own edge. On the default 16:9 host it is
+48 of every 432 horizontal pixels and 48 of every 264 vertical ones.
 
 On a phone that trade is wrong in either orientation, so the loader drops it:
 
@@ -200,6 +200,12 @@ Attributes on `<eightbit-screen>`, or keys passed to `mount()`:
 - **Serving `program.wasm` from another origin** needs CORS on that response,
   plus `Cross-Origin-Resource-Policy: cross-origin` — under `require-corp`,
   a cross-origin subresource without it is blocked.
+- **Trying the page on a phone** is `8bs run web` (LAN HTTPS is the default;
+  `--local` is loopback only). The editor setting `8bitscript.webLan` turns
+  that off. HTTP is port **8008** (HTTPS 8009) so the URL stays put across
+  runs; `--port n` picks another. The loopback URL stays HTTP; the printed
+  `https://<lan-ip>:<port>/` URL is HTTPS, because SharedArrayBuffer is not
+  legal on plain `http://192.168.x.x`. Safari will warn once.
 - **`.wasm` must be served as `application/wasm`.** Most hosts do; a few old
   Apache configs do not, and `WebAssembly.compile` will complain if yours
   doesn't.

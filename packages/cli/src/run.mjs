@@ -49,6 +49,13 @@
 //                        Show" command), which no CLI can open unattended:
 //                        that command only exists inside the editor, with
 //                        no terminal-invokable equivalent
+//   8bs run web --lan    the default: also serves HTTPS on the LAN so a
+//                        phone on the same Wi-Fi can open the printed URL.
+//                        Loopback stays HTTP: SharedArrayBuffer is legal
+//                        there, and not on plain http://192.168.x.x.
+//   8bs run web --local  loopback only, no LAN listener.
+//   8bs run web --port n HTTP on n (default 8008), HTTPS on n+1. --port 0
+//                        is an ephemeral port, the old listen(0) behaviour.
 //
 // `8bs boot <target>` (below `run`'s own exports) is the hardware-only
 // sibling: the same emulator, the same --pal/--profile/--hardware fitting,
@@ -62,6 +69,7 @@ import { compile } from './build.mjs';
 import { CONTROLLERS_FILE, controllerInvocation, controllerPlayers, setConfigKey } from './controllers.mjs';
 import { HARDWARE_USAGE, hardwareArgs, loadArgs } from './hardware.mjs';
 import { hardwareSnapshot, writeLastRun } from './last-run.mjs';
+import { parseListenPort } from './web-lan.mjs';
 
 /** `a, b and c` — the machines this release builds for, said the way a sentence says them. */
 function listOf(names) {
@@ -462,6 +470,7 @@ async function spawnEmulator(emulator, emulatorArgs) {
 export async function run(args) {
   const pal = args.includes('--pal');
   const open = !args.includes('--no-open');
+  const lan = !args.includes('--local');
   const report = args.includes('--size');
   const hw = hardwareArgs(args);
   if (!hw.ok) {
@@ -477,9 +486,20 @@ export async function run(args) {
     process.stderr.write(`8bs run: --frames expects a number, got '${framesArg}'\n`);
     return 2;
   }
+  const portIndex = args.indexOf('--port');
+  const portArg = portIndex >= 0 ? args[portIndex + 1] : undefined;
+  if (portIndex >= 0 && (portArg === undefined || String(portArg).startsWith('-'))) {
+    process.stderr.write('8bs run: --port expects a number\n');
+    return 2;
+  }
+  const listenPort = parseListenPort(portArg);
+  if (!listenPort.ok) {
+    process.stderr.write(`8bs run: ${listenPort.error}\n`);
+    return 2;
+  }
   const consumed = new Set([
     ...hw.consumed,
-    ...[screenshotIndex, framesIndex].flatMap((i) => (i >= 0 ? [i, i + 1] : [])),
+    ...[screenshotIndex, framesIndex, portIndex].flatMap((i) => (i >= 0 ? [i, i + 1] : [])),
   ]);
   const positionals = args.filter((a, i) => !consumed.has(i) && !a.startsWith('-'));
   const target = positionals[0];
@@ -489,7 +509,7 @@ export async function run(args) {
       + '                (vic20, c64, c128, atari8, nes, cx16, mega65 are parked until a later release)\n'
       + '                [--pal]\n'
       + HARDWARE_USAGE
-      + '                [--size] [--no-open] [entry.8bs]\n'
+      + '                [--size] [--no-open] [--lan] [--local] [--port <n>] [entry.8bs]\n'
       + '                [--screenshot <file.png>] [--frames <n>]\n'
       + '                  capture one screenshot through the target\'s own\n'
       + '                  emulator API instead of opening an interactive\n'
@@ -548,9 +568,11 @@ export async function run(args) {
     // page a different CLI version left behind — block-glyph codes 128-143
     // then fill as solid reverse-video cells and the digits vanish.
     const { runInBrowser } = await import('./web-runtime.mjs');
+    const { layoutFromHardware } = await import('./web-layout.mjs');
     const bytes = await readFile(outFile);
     return runInBrowser(bytes, {
-      open, frameRate, lastRunTarget: 'web',
+      open, frameRate, lastRunTarget: 'web', layout: layoutFromHardware(hardware), lan,
+      port: listenPort.port,
     });
   }
 

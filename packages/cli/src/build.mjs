@@ -261,15 +261,19 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   if (stem.endsWith(`.${target}`)) stem = stem.slice(0, -(target.length + 1));
   if (target === 'web') {
     const { build } = await import('@8bitscript/compiler/wasm');
-    const outFile = resolve('dist', `${stem}.wasm`);
+    const { writeWebBundle } = await import('./web-runtime.mjs');
+    const { layoutFromHardware } = await import('./web-layout.mjs');
+    const layout = layoutFromHardware(hardware);
+    const tag = hardware.tags[0];
+    const wasmName = tag ? `program-${tag}` : 'program';
+    const outFile = resolve('dist', tag ? `${stem}-${tag}.wasm` : `${stem}.wasm`);
     const result = await build(ir, { outFile, frameRate, report });
     if (!result.ok) {
       process.stderr.write(`8bs build: ${result.error}\n`);
       return { ok: false };
     }
-    const { writeWebBundle } = await import('./web-runtime.mjs');
     const webDir = resolve('dist', 'web');
-    await writeWebBundle(webDir, await readFile(outFile), { frameRate });
+    await writeWebBundle(webDir, await readFile(outFile), { frameRate, layout, wasmName });
     process.stdout.write(`built ${outFile}\n`);
     process.stdout.write(`web bundle: ${webDir}/\n`);
     process.stdout.write(`${memoryLine(ir.memory)}\n`);

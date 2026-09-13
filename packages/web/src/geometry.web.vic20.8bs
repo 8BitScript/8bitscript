@@ -1,0 +1,13 @@
+// @8bitscript/web — 22×23 VIC-20-shaped skin. Picked up when the build's
+// hardware tag is `vic20`. Facts come from @8bitscript/vic20 (22×23, 16
+// colors, per-cell color). See geometry.8bs.
+
+export namespace Video {
+    const COLUMNS: utinyint = 22;
+    const ROWS: utinyint = 23;
+    const CELL_COUNT: usmallint = 506;
+    const CHAR_BASE: usmallint = 2;
+    const COLOR_BASE: usmallint = 508;
+    const INPUT_OFFSET: usmallint = 1014;
+    const HOST_OFFSET: usmallint = 1015;
+}

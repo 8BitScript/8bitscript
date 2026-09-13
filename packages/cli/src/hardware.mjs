@@ -53,7 +53,7 @@ const require = createRequire(import.meta.url);
 
 /**
  * The catalog a machine package declares, or an empty one for a machine
- * with nothing to fit (web).
+ * with nothing to fit.
  *
  * @param {string} machine
  * @returns {{ machine: string, options: object, presets: object, facts: object, run: object }}

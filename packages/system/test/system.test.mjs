@@ -142,6 +142,9 @@ export function main(): void {
 test('Video.COLUMNS and ROWS are text.COLUMNS and CELL_COUNT on every machine, and on the 8032 PET', () => {
   const builds = TARGETS.map((target) => [target, resolveHardware(loadCatalog(target), {}).hardware]);
   builds.push(['pet', resolveHardware(loadCatalog('pet'), { profile: '8032' }).hardware]);
+  builds.push(['web', resolveHardware(loadCatalog('web'), { overrides: { machine: 'c64' } }).hardware]);
+  builds.push(['web', resolveHardware(loadCatalog('web'), { overrides: { machine: 'pet-2001' } }).hardware]);
+  builds.push(['web', resolveHardware(loadCatalog('web'), { overrides: { machine: 'vic20' } }).hardware]);
   for (const [target, hardware] of builds) {
     const { ir, diagnostics } = link(GRID_PROBE, PROBE, { machine: target, tags: hardware.tags, facts: hardware.facts });
     assert.deepEqual(diagnostics, [], `${target} ${hardware.label}`);
@@ -152,4 +155,6 @@ test('Video.COLUMNS and ROWS are text.COLUMNS and CELL_COUNT on every machine, a
   }
   assert.equal(resolveHardware(loadCatalog('pet'), { profile: '8032' }).hardware.facts['video.columns'], 80);
   assert.equal(stockFacts('pet')['video.columns'], 40);
+  assert.equal(stockFacts('web')['video.columns'], 48);
+  assert.equal(stockFacts('web')['video.rows'], 27);
 });

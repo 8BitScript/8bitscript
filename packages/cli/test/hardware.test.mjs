@@ -233,7 +233,7 @@ test('a project profile shadows a catalog preset of the same name, and unknown n
   const badValue = resolveHardware(catalog, { overrides: { ram: '32k' } });
   assert.match(badValue.error, /'32k' is not a value the vic20's 'ram' option takes/);
   const none = resolveHardware(loadCatalog('web'), { profile: 'x' });
-  assert.match(none.error, /has no profiles to choose from/);
+  assert.match(none.error, /unknown web profile 'x'\. Profiles: c64, pet-2001, vic20/);
 });
 
 test('parseHardwareArg and the config helpers', () => {
@@ -246,6 +246,28 @@ test('parseHardwareArg and the config helpers', () => {
   assert.deepEqual(listedTargets(config), ['c64', 'web']);
   assert.deepEqual(listedTargets({ targets: ['vic20'] }), ['vic20']);
   assert.equal(listedTargets(null), null);
+});
+
+test('the web machine option copies video facts from the real catalogs, and the default is 48×27', () => {
+  const stock = resolveHardware(loadCatalog('web')).hardware;
+  assert.equal(stock.facts['video.columns'], 48);
+  assert.equal(stock.facts['video.rows'], 27);
+  assert.equal(stock.facts['video.colorPerCell'], true);
+  assert.deepEqual(stock.tags, []);
+  const c64 = resolveHardware(loadCatalog('web'), { overrides: { machine: 'c64' } }).hardware;
+  assert.deepEqual(c64.tags, ['c64']);
+  assert.equal(c64.facts['video.columns'], 40);
+  assert.equal(c64.facts['video.rows'], 25);
+  assert.equal(c64.facts['video.colorPerCell'], true);
+  const pet = resolveHardware(loadCatalog('web'), { profile: 'pet-2001' }).hardware;
+  assert.deepEqual(pet.tags, ['pet-2001']);
+  assert.equal(pet.facts['video.columns'], 40);
+  assert.equal(pet.facts['video.colorPerCell'], false);
+  assert.equal(pet.facts['video.palette'], 2);
+  const vic = resolveHardware(loadCatalog('web'), { overrides: { machine: 'vic20' } }).hardware;
+  assert.deepEqual(vic.tags, ['vic20']);
+  assert.equal(vic.facts['video.columns'], 22);
+  assert.equal(vic.facts['video.rows'], 23);
 });
 
 test('hardwareArgs collects --profile and repeating --hardware, and names a missing value', () => {

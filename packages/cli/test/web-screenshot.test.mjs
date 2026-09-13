@@ -34,6 +34,7 @@ test('writeWebBundle writes a bundle somebody can host, embed from, and isolate'
     assert.match(html, /EightBitScript\.mount\(document\.body, \{/);
     assert.match(html, /frameRate: 50,/);
     assert.match(html, /fullPage: true,/);
+    assert.match(html, /hud: false,/);
     assert.doesNotMatch(html, /const GLYPHS = \{/);
 
     // The renderer and the frame clock live in the loader.
@@ -64,6 +65,13 @@ test('writeWebBundle writes a bundle somebody can host, embed from, and isolate'
 
     const wasm = await readFile(join(dir, 'program.wasm'));
     assert.deepEqual([...wasm], [...PAINTS_A]);
+    const sidecar = JSON.parse(await readFile(join(dir, 'program.json'), 'utf8'));
+    assert.equal(sidecar.cols, 48);
+    assert.equal(sidecar.rows, 27);
+    assert.equal(sidecar.inputOffset, 2594);
+    assert.equal(sidecar.hostOffset, 2595);
+    assert.equal(sidecar.aspect, '16/9');
+    assert.equal(sidecar.colorPerCell, true);
     const headers = await readFile(join(dir, '_headers'), 'utf8');
     assert.match(headers, /Cross-Origin-Opener-Policy/);
     assert.equal(ISOLATION_HEADERS['Cross-Origin-Embedder-Policy'], 'require-corp');
