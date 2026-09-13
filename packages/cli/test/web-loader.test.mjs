@@ -8,7 +8,7 @@ import { runInNewContext } from 'node:vm';
 
 import { renderCoiServiceWorker, renderLoader, renderWorker } from '../src/web-loader.mjs';
 import {
-  ANY_BORDER_SCALE, BORDER_HAIRLINE_PX, BORDER_PX, FULL_BORDER_SCALE, HOST_OFFSET,
+  ANY_BORDER_SCALE, BORDER_HAIRLINE_PX, BORDER_MIN_PX, BORDER_PX, FULL_BORDER_SCALE, HOST_OFFSET,
   INNER_H, INNER_W, INPUT_OFFSET, agreementFor, borderFor, swipeEdge,
 } from '../src/web-layout.mjs';
 
@@ -81,10 +81,26 @@ test('the loader\'s swipeEdge agrees with web-layout.mjs', () => {
 
 // The stated ask this rule exists for: a phone gets the picture, not a frame,
 // in either orientation.
-test('a phone gets no border in either orientation, and a desktop keeps the full one', () => {
-  assert.equal(borderFor({ width: 393, height: 852, coarse: true }), 0);
-  assert.equal(borderFor({ width: 852, height: 393, coarse: true }), 0);
+test('a phone gets the thinnest border in either orientation, and a desktop keeps the full one', () => {
+  assert.equal(borderFor({ width: 393, height: 852, coarse: true }), BORDER_MIN_PX);
+  assert.equal(borderFor({ width: 852, height: 393, coarse: true }), BORDER_MIN_PX);
   assert.equal(borderFor({ width: 1920, height: 1080 }), BORDER_PX);
+});
+
+// The border is a channel, not just a frame: screen.setBorder() is how a
+// program says something about the whole screen at once, and 2048 turns it red
+// on game over. A border of zero would delete that on exactly the devices most
+// people play on, so no box — however small — ever gets one.
+test('no box ever gets a zero border', () => {
+  for (const box of [
+    { width: 393, height: 852, coarse: true },
+    { width: 852, height: 393, coarse: true },
+    { width: 320, height: 180 },
+    { width: 1, height: 1 },
+    { width: INNER_W, height: INNER_H },
+  ]) {
+    assert.ok(borderFor(box) > 0, `borderFor(${JSON.stringify(box)}) must be > 0`);
+  }
 });
 
 test('a touch screen big enough for a border still only gets the hairline', () => {
