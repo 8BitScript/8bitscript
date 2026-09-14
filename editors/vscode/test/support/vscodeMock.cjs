@@ -147,6 +147,7 @@ function createVscodeMock() {
   const uriFor = (fsPath) => ({ fsPath, toString: () => `file://${fsPath}` });
 
   const vscode = {
+    env: { appName: 'Visual Studio Code' },
     EventEmitter,
     Task,
     ShellExecution,
@@ -290,6 +291,7 @@ function createVscodeMock() {
         vscode.workspace.workspaceFolders = undefined;
         vscode.workspace.openTextDocument = defaultOpenTextDocument;
         vscode.tasks.taskExecutions = [];
+        vscode.env.appName = 'Visual Studio Code';
       },
     },
   };

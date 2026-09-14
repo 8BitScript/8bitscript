@@ -33,6 +33,24 @@ function editorsToLink(args, home, exists = fs.existsSync) {
 }
 
 /**
+ * Remove every `prefix*` entry under `dir`, refusing to remove
+ * `protect` (the source tree a caller is about to link in, if any).
+ * Shared by linkLocal (protects the tree it is about to symlink) and
+ * unlinkLocal (protects nothing — it is just clearing the way for a
+ * fresh Marketplace install).
+ */
+function removeInstalled(dir, prefix, protect, { readdirSync, rmSync }) {
+  for (const name of readdirSync(dir)) {
+    if (!name.startsWith(prefix)) continue;
+    const full = path.join(dir, name);
+    if (protect && path.resolve(full) === protect) {
+      throw new Error(`${full} is this source tree; refusing to remove it`);
+    }
+    rmSync(full, { recursive: true, force: true });
+  }
+}
+
+/**
  * Remove every `publisher.name-*` install for this extension under
  * `editor`'s extensions folder, then symlink `extensionRoot` in as the
  * current version. Returns the destination path.
@@ -65,17 +83,38 @@ function linkLocal({
   const dest = path.join(dir, extensionDirName(pkg));
   const resolvedRoot = path.resolve(extensionRoot);
 
-  for (const name of readdirSync(dir)) {
-    if (!name.startsWith(prefix)) continue;
-    const full = path.join(dir, name);
-    if (path.resolve(full) === resolvedRoot) {
-      throw new Error(`${full} is this source tree; refusing to remove it`);
-    }
-    rmSync(full, { recursive: true, force: true });
-  }
+  removeInstalled(dir, prefix, resolvedRoot, { readdirSync, rmSync });
 
   symlinkSync(resolvedRoot, dest);
   return dest;
 }
 
-module.exports = { editorsToLink, extensionDirName, extensionsRoot, linkLocal };
+/**
+ * The other direction of linkLocal: remove a `publisher.name-*` install
+ * (the dev symlink, most often) under `editor`'s extensions folder and
+ * leave nothing in its place — the caller installs the Marketplace/Open
+ * VSX build afterward, through the editor's own install command rather
+ * than this script fetching or extracting anything itself.
+ */
+function unlinkLocal({
+  home,
+  editor = 'cursor',
+  publisher,
+  name,
+  existsSync = fs.existsSync,
+  readdirSync = fs.readdirSync,
+  rmSync = fs.rmSync,
+} = {}) {
+  if (!home) throw new Error('home is required');
+  if (!publisher || !name) throw new Error('publisher and name are required');
+  if (editor !== 'cursor' && editor !== 'vscode') {
+    throw new Error(`editor must be cursor or vscode, not ${editor}`);
+  }
+  const dir = extensionsRoot(home, editor);
+  if (!existsSync(dir)) return;
+  removeInstalled(dir, `${publisher}.${name}-`, null, { readdirSync, rmSync });
+}
+
+module.exports = {
+  editorsToLink, extensionDirName, extensionsRoot, linkLocal, unlinkLocal,
+};
