@@ -310,6 +310,25 @@ test('resolveController is empty without the panel\'s file, and reads one when i
   }
 });
 
+test('resolveController on the PET with a pad mapping does not refuse the launch', async () => {
+  const { hardware } = resolveHardware(loadCatalog('pet'), { profile: '2001' });
+  const dir = await mkdtemp(join(tmpdir(), '8bs-controllers-test-'));
+  try {
+    await writeFile(join(dir, '8bitscript.controllers.json'), JSON.stringify({
+      version: 1,
+      controllers: {
+        devices: [{ id: 'pad-a', name: 'SN30 Pro', player: 1, mode: 'standard', mapping: { a: 'button:0' } }],
+      },
+    }));
+    const resolved = await resolveController('pet', { hardware, dir });
+    assert.equal(resolved.ok, true);
+    assert.deepEqual(resolved.args, []);
+    assert.match(resolved.notes[0], /keyboard still runs/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test('resolveController reports a profile this machine cannot honour instead of launching it', async () => {
   const { hardware } = resolveHardware(loadCatalog('c64'), {});
   const dir = await mkdtemp(join(tmpdir(), '8bs-controllers-test-'));
