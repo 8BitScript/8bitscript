@@ -37,7 +37,7 @@ function run(cmd, args) {
   });
 }
 
-async function alreadyOnNpm(name, version) {
+async function onNpmOnce(name, version) {
   try {
     const { stdout } = await exec('npm', ['view', `${name}@${version}`, 'version'], {
       cwd: ROOT,
@@ -45,6 +45,38 @@ async function alreadyOnNpm(name, version) {
     return stdout.trim() === version;
   } catch {
     return false;
+  }
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// How hard the PIN asks before it believes a "no". Named once so the message
+// it prints on giving up cannot drift from what it actually did.
+const PIN_RETRY = { attempts: 6, delayMs: 10000 };
+
+// The registry does not answer for a version the instant it is published.
+// `npm view` goes to a read replica, and for the first seconds after a
+// publish that replica can still 404 — which `onNpmOnce` cannot tell apart
+// from "never published", because npm exits non-zero either way.
+//
+// While publishing that is harmless: a false "not there" just means we try,
+// and a republish of the same version fails loudly. While PINNING it is the
+// whole job. v0.7.0 published all twenty packages and then failed to pin
+// `release` because @8bitscript/atari8 had not surfaced yet; every package
+// was readable a minute later. So the pin asks again before it believes a
+// "no".
+//
+// Retrying costs nothing when the answer is already yes (one call), and when
+// a package genuinely was not published it delays a failure that is still a
+// failure. There is no case where waiting gives a wrong answer.
+async function alreadyOnNpm(name, version, { attempts = 1, delayMs = 5000 } = {}) {
+  for (let attempt = 1; ; attempt += 1) {
+    if (await onNpmOnce(name, version)) return true;
+    if (attempt >= attempts) return false;
+    process.stdout.write(
+      `${name}@${version} not visible yet (attempt ${attempt}/${attempts}); waiting ${delayMs}ms\n`,
+    );
+    await sleep(delayMs);
   }
 }
 
@@ -98,13 +130,17 @@ for (const name of dirs) {
     );
     process.exit(1);
   }
-  if (await alreadyOnNpm(pkg.name, version)) {
+  // Pinning runs right after publishing, so it is the one that races the
+  // registry; publishing wants the fast answer.
+  if (await alreadyOnNpm(pkg.name, version, pinOnly ? PIN_RETRY : {})) {
     if (!pinOnly) process.stdout.write(`Already on npm: ${pkg.name}@${version}\n`);
     continue;
   }
   if (pinOnly) {
     process.stderr.write(
-      `Cannot pin \`release\` to v${version}: ${pkg.name}@${version} is not on npm.\n`,
+      `Cannot pin \`release\` to v${version}: ${pkg.name}@${version} is not on npm, ` +
+        `after ${PIN_RETRY.attempts} tries over ` +
+        `${((PIN_RETRY.attempts - 1) * PIN_RETRY.delayMs) / 1000}s.\n`,
     );
     process.exit(1);
   }
