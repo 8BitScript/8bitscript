@@ -1,5 +1,29 @@
 # @8bitscript/cli
 
+## 0.8.0
+
+### Minor Changes
+
+- 2026d01: Named systems live in three layers — advertised in 8bitscript.config.ts, this clone's .8bitscript/systems.json, and ~/.config/8bitscript/systems.json — and `8bs run --system` / `build` / `boot` resolve through that merge. `--checkout` (or EIGHTBITSCRIPT_CHECKOUT / toolchain.json) points a consumer at a local 8BitScript tree without rewriting its package.json. The editor's side bar has one Update/Install for that tree (workspace repo, or a clone under the extension's global storage) plus named-system quick launch; Configure System and Show Project are editor tabs.
+
+### Patch Changes
+
+- 2026d01: `8bs run web` binds an ephemeral port by default so two runs can coexist (`--port n` still pins one). The launcher shows a QR of the LAN HTTPS URL on a web run so a phone on the same Wi-Fi can open it without typing the address.
+- Updated dependencies [2026d01]
+  - @8bitscript/compiler@0.8.0
+  - @8bitscript/language-server@0.8.0
+  - @8bitscript/atari8@0.8.0
+  - @8bitscript/c128@0.8.0
+  - @8bitscript/c64@0.8.0
+  - @8bitscript/cx16@0.8.0
+  - @8bitscript/examples@0.8.0
+  - @8bitscript/mega65@0.8.0
+  - @8bitscript/nes@0.8.0
+  - @8bitscript/pet@0.8.0
+  - @8bitscript/studio@0.8.0
+  - @8bitscript/vic20@0.8.0
+  - @8bitscript/web@0.8.0
+
 ## 0.7.1
 
 ### Patch Changes
