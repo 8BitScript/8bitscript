@@ -1,5 +1,23 @@
 # @8bitscript/cli
 
+## 0.9.0
+
+### Patch Changes
+
+- @8bitscript/atari8@0.9.0
+  - @8bitscript/c128@0.9.0
+  - @8bitscript/c64@0.9.0
+  - @8bitscript/compiler@0.9.0
+  - @8bitscript/cx16@0.9.0
+  - @8bitscript/examples@0.9.0
+  - @8bitscript/language-server@0.9.0
+  - @8bitscript/mega65@0.9.0
+  - @8bitscript/nes@0.9.0
+  - @8bitscript/pet@0.9.0
+  - @8bitscript/studio@0.9.0
+  - @8bitscript/vic20@0.9.0
+  - @8bitscript/web@0.9.0
+
 ## 0.8.0
 
 ### Minor Changes
