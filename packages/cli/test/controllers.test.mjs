@@ -326,13 +326,17 @@ test('x64sc: VICE reaches six host gamepads, and a seventh is refused by name', 
   assert.match(result.error, /reaches six host gamepads .*Analog joystick 0" to "5"\); player 1 would be host joystick 6/);
 });
 
-test('the PET is refused by name — it has no control ports, and its sheet says so', () => {
+test('the PET with a pad mapping launches on the keyboard — it has no control ports to drive', () => {
   assert.equal(hardwareFor('pet').facts['input.joysticks'], 0);
   const result = controllerInvocation('pet', [player(SN30_PRO)], { emulator: 'xpet', hardware: hardwareFor('pet') });
-  assert.equal(result.ok, false);
-  assert.match(result.error, /the pet has no control ports/);
-  assert.match(result.error, /userport joystick adapter/, 'what xpet does offer, so the refusal is informative');
-  assert.match(result.error, /belongs in packages\/pet's catalog as an option/);
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.args, [], 'no adapter flags — xpet would take a userport joystick the catalog does not fit');
+  assert.deepEqual(result.leadingArgs, []);
+  assert.deepEqual(result.files, []);
+  assert.match(result.notes[0], /no control ports/);
+  assert.match(result.notes[0], /keyboard still runs/);
+  assert.match(result.notes[0], /userport joystick adapter/, 'what xpet does offer, so the note is informative');
+  assert.match(result.notes[0], /belongs in packages\/pet's catalog as an option/);
 });
 
 // ---------------------------------------------------------------------

@@ -546,10 +546,8 @@ export async function run(args) {
   // screenshot branch because a headless capture has nobody holding a pad
   // and wants none of these flags, and before the web branch because the
   // web target still has something to say about a profile (it has nowhere
-  // to put one yet, and says so). A profile this machine cannot honour
-  // fails here, before a window opens — the point of naming a refusal is
-  // that someone reads it, and nobody reads a line that scrolled past
-  // while an emulator was starting.
+  // to put one yet, and says so). A machine with no control ports takes a
+  // note instead of a failed launch; a port fitted with nothing still refuses.
   const controller = await resolveController(target, { hardware, personal: true });
   if (!controller.ok) {
     process.stderr.write(`8bs run: ${controller.error}\n`);
