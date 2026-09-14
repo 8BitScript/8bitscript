@@ -82,96 +82,98 @@ bar with one thing in it: a launcher.
 ```
 8BITSCRIPT                              📖  🚀  ♥  ⟳  …
 
+  8BITSCRIPT
+    8BitScript     this workspace · pnpm    Update
+    2048           0.7.1 · pnpm             Update
+
+  QUICK LAUNCH
+    PROGRAM  [ 2048  —  ../2048                 ▾ ] 📄
+    SYSTEM   [ PET 2001 (8K)                    ▾ ]
+    fitted as Commodore PET · ram=8 · NTSC
+
   ┌──────────────────────────────────────────────┐
-  │  ▶   Run Studio                              │
-  │      Commodore PET · 8032                    │
+  │  ▶   Run 2048                                │
+  │      PET 2001 (8K) · ram=8                   │
   └──────────────────────────────────────────────┘
 
-  SYSTEM
-  [ pet — Commodore PET                     ▾ ]
-
-  PROJECT
-  [ Studio  —  packages/studio              ▾ ] 🔧 📄
-
-  ▸ HARDWARE · FACTS   model=8032
-
   RUNNING MACHINES
-    ▾ Studio         run · pet · 12s        ⏹
+    ▾ 2048           run · pet · 12s        ⏹
         Emulator   xpet
-        Image      dist/studio-pet.prg
+        Image      dist/2048-pet.prg
         Memory     8 bytes RAM · 331 bytes program
-        ▸ Size
-            120  36.3%  wait_frame
-             80  24.2%  main
-        ▸ Facts
 
-  8bs run pet --profile 8032 --size
+  8bs run --system 'PET 2001 (8K)' --checkout /src/8bitscript --size
 ```
 
-This used to be two views — a panel of dropdowns stacked on a tree of
-projects that could lay itself out three different ways. Between them they
-answered a question nobody asks a side bar. The question people do ask is
-*run this*, so that is what the side bar is now: **one loud button** that
-says what it is about to do, and everything else folded away.
+The side bar is **the 8BitScript tree, each workspace program, and
+named-system quick launch**. **Update** on **8BitScript** refreshes the
+toolchain: `pnpm install` at this workspace if it is the 8BitScript repo,
+`git pull` plus install for a clone the editor keeps under its global
+storage, or **Install** clones `https://github.com/8BitScript/8bitscript.git`
+(`trunk`) into that storage when nothing is there yet. A second row
+appears for each **program** in the workspace — 2048, not hello-world,
+not Studio — with its own Update. Examples and apps are in the Program
+dropdown, not as install buttons. Hardware fitting and project details
+live in editor tabs — **Configure System** and **Show Project** — the
+same pattern as Controller Setup. The hardware matrix is not in the
+side bar.
 
-The order down the panel is how often a thing is touched. The **system** is
-directly under the button, because that is what changes between two runs of
-the same program; the **project** under that, because it changes less; and
-**Build** is an icon on the project's own row rather than a second big
-button — it is the occasional action, and it belongs beside the thing it
-builds.
-
-- **Run** — starts `8bs run <system> --size` for the selected project as a task in
-  its own terminal, from the project's directory with the project's own
-  `node_modules/.bin/8bs`, so what you see is exactly what the CLI prints.
+- **Run** — starts `8bs run --system '<name>' --size` (or `8bs run <machine>`) for the selected project as a task in
+  its own terminal, from the project's directory. A **Use local 8BitScript**
+  toggle runs this checkout's CLI (`--checkout`) instead of
+  `node_modules/.bin/8bs`, so a consumer app can keep published versions in
+  `package.json`. What you see is exactly what the CLI prints.
   `--size` is the per-function breakdown under the memory line; it prints
-  before the emulator window opens. On **web**, Run listens on the LAN
-  (`8bitscript.webLan`, on by default) so the terminal prints an
-  `https://<lan-ip>:<port>/` URL a phone on the same Wi-Fi can open —
-  Safari will warn once; tap Advanced, then Proceed. Turn the setting off
-  (`--local`) on an untrusted network. The button names the project, and the
+  before the emulator window opens. On **web**, Run binds an ephemeral
+  port (`--port 0`) so two web runs can listen at once, and listens on the
+  LAN (`8bitscript.webLan`, on by default) so a phone on the same Wi-Fi can
+  open it. The Running machines tree shows a QR of the
+  `https://<lan-ip>:<port>/` URL — Safari will warn once; tap Advanced, then
+  Proceed. Turn the setting off (`--local`) on an untrusted network. `--port
+  n` on the CLI still pins HTTP to n (HTTPS on n+1) when you want a
+  stable address. The button names the project, and the
   line under it names the machine, the hardware fitted to it, and the
   region — nothing has to be read off a dropdown to know what pressing it
   means. It greys out when the selected project does not target the selected
   system, or its emulator is missing, and says which in the line below. Run
   and Build work for real on `pet` and `web` — the two 0.2.0 targets; every
   other system still refuses, since its own backend doesn't exist yet.
-- **Build** (🔧 on the Project row) — the same as Run, but `8bs build
-  --target <system> --size`, which stops at the built file instead of
+- **Build** — the same as Run, but `8bs build --system '<name>' --size` (or
+  `--target <machine>`), which stops at the built file instead of
   starting an emulator.
-- **Project** — the project both buttons act on (`8bitscript.project`).
+- **Program** — the program both buttons act on (`8bitscript.project`).
   Every directory in the workspace with an `8bitscript.config.ts` is in the list,
-  grouped with the **Apps** that ship with the toolchain — packages whose
+  grouped as **Programs**, **Examples**, and **Apps**. Apps are packages whose
   `package.json` declares an `8bitscript.app`, [Studio](../../docs/studio.md)
-  being the first. The grouping appears only when the list holds more than one kind.
-  The 📄 beside it opens the project's entry `.8bs` file. Picking a project
-  loads what it is set up for — the first of its systems, hardware and
-  region and all — and a project with none keeps the current machine when
-  it targets it.
+  being the first. The 📄 beside it opens the program's entry `.8bs` file.
+  Picking a program loads what it is set up for — the first of its systems,
+  hardware and region and all — and a program with none keeps the current
+  machine when it targets it.
 
-  **The examples that ship with the toolchain are in the list** under an
-  *Examples* heading of their own (`8bitscript.showExamples`, on by
-  default). They come from `@8bitscript/examples`, which `@8bitscript/cli`
+  **The examples that ship with the toolchain are in the list** under
+  *Examples* (`8bitscript.showExamples`, on by default), not under Programs —
+  including when this repo is open and they are ordinary workspace folders.
+  They come from `@8bitscript/examples`, which `@8bitscript/cli`
   depends on, so any project that has installed the CLI has them — today
   that's `hello-world`, the program the 0.2.0 PET and web backends are
   built against. The 📖 in the title bar hides or shows them. **Launch
   Example…** reaches them either way, and one that is already selected
   stays in the list even with the toggle off, so hiding them never blanks
   the picker.
-- **System** — where the program runs. A project whose `8bitscript.config.ts`
-  declares a
-  [`systems` block](../../docs/systems.md#the-machines-a-project-is-set-up-for)
-  gets those first, in a group of their own, above the bare machines
-  (`8bitscript.system`); the list and the title beside each id come from
-  `8bs targets --json`. **0.2.0 limits the bare-machine list to `pet` and
-  `web`** — `ALL_TARGETS` in `projects.cjs`, one array, is the whole of
-  that restriction, and it grows again as a parked machine's native
-  backend lands. A project's own `systems` block still shows whatever it
-  names, even a parked machine, since that path reads the config directly.
+- **System** — a **named system** from [project config](../../docs/config.md)
+  (advertised in `8bitscript.config.ts`, this clone's
+  `.8bitscript/systems.json`, or `~/.config/8bitscript/systems.json`), or a
+  bare machine under them. The list comes from `8bs targets --json`, tagged
+  with `origin`. **Configure System** is the tab that fits a machine and
+  saves it to one of those three layers. The **fitted as …** line opens
+  that tab. `8bitscript.namedSystem` is the selected name;
+  `8bitscript.system` is the machine when no name is selected.
 
 ```
 SYSTEM
-[ ── This project ──────────────────── ]
+[ ── This clone ────────────────────── ]
+[ ── This machine ──────────────────── ]
+[ ── Advertised ────────────────────── ]
 [  PET 8032               —  pet · profile=8032 ]
 [  The browser            —  web       ]
 [ ── Machines ───────────────────────── ]
@@ -181,7 +183,7 @@ SYSTEM
 
   A system marked **(too small)** is one the program cannot run on: the
   project's config sets a
-  [floor](../../docs/systems.md#the-floor-a-program-sets) in its `requires`
+  [floor](../../docs/config.md) in its `requires`
   block — so much RAM, so much disk — and that machine, fitted that way,
   gives less. It is still listed and still runnable; the notice line says
   what is short, and `8bs build` is the authority that refuses.
@@ -193,20 +195,11 @@ SYSTEM
   because the panel compares what the options resolve to rather than
   remembering what was clicked.
 
-  **Save as a System…** in the title bar's overflow menu goes the other
-  way: name what the panel is set to and it is written into the project's
-  `8bitscript.config.ts` as an entry in that block, so the arrangement is one
-  choice from then on, for everyone who has the repository. The write is
-  an ordinary editor edit — it lands in the undo stack, and a config this
-  cannot safely rewrite (one that computes its targets rather than writing
-  them out) is opened with the entry at your cursor to place.
-- **Hardware · Region · Facts** — one disclosure holding everything a run
-  usually does not care about, with the current fitting beside its name so
-  a run that does not care never opens it.
 - **Running machines** — a tree per `8bs` task in flight. A run or boot
   expands to the machine that launched: the emulator, the built image,
   RAM and program bytes, the `--size` breakdown (largest function first),
-  the hardware fitted to it, and — on the web — live FPS and frame count
+  the hardware fitted to it, and — on the web — a QR of the LAN HTTPS URL
+  a phone on the same Wi-Fi can scan, plus live FPS and frame count
   from the page. Each row has its own **Stop**, which ends the task and
   the emulator with it. The section is not there when nothing is running.
   VICE (xpet on the PET) has no live CPU readout here: its binary monitor
@@ -216,57 +209,33 @@ SYSTEM
 
 The view's title bar has 📖 **Show or Hide Examples**, 🚀 **Launch Studio**,
 ♥ **Doctor** (`8bs doctor`), and ⟳ **Refresh**; its overflow menu adds **Launch App…**, **Launch
-Example…**, **Save as a System…**, and **Controller Setup**. Those, and every choice the panel makes,
+Example…**, **Configure System**, **Show Project**, **Save as a System…**, and **Controller Setup**. Those, and every choice the panel makes,
 are on the command palette as well — **8BitScript: Select Project**, **Select System**,
-**Select Region**, **Run**, **Build**, **Stop**, **Controller Setup**, **Open Entry File**,
+**Select Region**, **Run**, **Build**, **Stop**, **Configure System**, **Show Project**,
+**Use Local 8BitScript**, **Use Published Packages**, **Controller Setup**, **Open Entry File**,
 **Open 8bitscript.config.ts**.
 
-### What is behind the fold
+### Configure System
 
-```
-▾ HARDWARE · FACTS  model=8032
-  FITTED WITH
-  [ 8032                           ▾ ]
-    Model
-    [ 8032: 80 columns, 32K, business keyboard, 50 Hz  ▾ ]
-    Disk drive
-    [ 2040/4040 (170K disk)              ▾ ]
-    Back to stock
-    ▸ What a program can rely on
-```
-
-- **Region** — NTSC (60Hz) or PAL (50Hz) for the machines that have one
-  (`8bitscript.region`); greyed out while the system is `web`, which has no
-  region, or `pet`, whose refresh rate is its model's (`8bs run pet
-  --profile 4032` for a 50Hz machine) rather than a region's. Since 0.2.0's
-  System list is only these two, this control currently has nothing to
-  show — it comes back automatically once a machine with a region
-  (`vic20`, `c64`, `c128`, `atari8`, `mega65`) is un-parked, with no code
-  change needed for it.
-- **Fitted with** — a preset: *Stock machine*, then any profile this
-  project composes in its `8bitscript.config.ts`, then the catalog presets
-  (`reu512`, `8032`, `8k`, …).
-- Under it, **every catalog option is its own dropdown** — RAM expansion,
-  PET/Atari model, VIC-20 memory, SID, control ports — each showing the
-  value the preset (or stock) ends up with. Change one to override the
-  preset; those rows go bold. The PET has two, `model` and `drive` — no
-  option of either machine 0.2.0 supports has a run-time probe today, so
-  neither shows a `probe` badge; a value that changes the program itself
-  (the PET's `model`, which sets `__ram_size`) is marked `[build]`, the
-  same as it would be on any machine with one. The selection is
-  `8bitscript.hardware`, an object keyed by system, and it rides on every
-  Run and Build as `--profile` and `--hardware`. *Back to stock* clears it
-  (stock is the catalog's default, or the project's own
-  `targets.<system>.hardware` when its config sets one).
-- **What a program can rely on** is the fact sheet that selection gives
-  `@8bitscript/system`'s consts — the grid, the RAM, storage — with a
-  run-time-detected fact shown as *may use* on the machines that have one
-  (a C64 REU is the example the catalog itself documents; neither the PET
-  nor the web has one today).
+**8BitScript: Configure System** opens an editor tab — Machine, Hardware,
+Region, Facts, Save — and writes the same `{ target, profile?, hardware?,
+region? }` object the CLI already validates. Save destination is explicit:
+advertise into `8bitscript.config.ts`, this clone (`.8bitscript/systems.json`,
+gitignored), or this user (`~/.config/8bitscript/systems.json`).
 
 The extension lists nothing of its own here: it asks the toolchain (`8bs
 targets --json`), so a new option, or a new fact, in a package appears with
 no extension update.
+
+### Show Project
+
+**8BitScript: Show Project** opens a tab for the selected project: path,
+config, entry, targets, advertised vs personal systems, package manager and
+lockfile, `@8bitscript/*` versions, and the toolchain source. **Install** /
+**Refresh** run the detected package manager (`pnpm`, `npm`, `yarn`, or
+`bun`). **Use local 8BitScript** / **Use published packages** persist the
+choice in workspace settings and `.8bitscript/toolchain.json` — they do
+not rewrite `package.json`.
 
 Each choice is an ordinary setting, written at workspace level when a folder
 is open, so it also appears in the Settings editor and survives a restart.
@@ -439,34 +408,51 @@ or from [Open VSX](https://open-vsx.org/extension/8bitscript/8bitscript-lang)
 (Cursor uses Open VSX). The extension talks to `8bs` in the project:
 `pnpm add -D @8bitscript/cli` so `node_modules/.bin/8bs` exists.
 
+A `.vsix` installed by hand does **not** auto-update. The editor treats that
+copy as pinned, so it will sit there while a newer version is `latest` on the
+gallery. Uninstall it and install from the gallery, or use the source-checkout
+link below.
+
 ## Installing it while developing the extension
 
-Link this directory into the editor's extensions folder, then reload the window.
+Link this directory into the editor's extensions folder so the window runs
+the checkout, not a frozen VSIX.
 
-Cursor:
-
-```bash
-ln -s "$PWD/editors/vscode" ~/.cursor/extensions/8bitscript.8bitscript-lang-0.1.0
-```
-
-VS Code:
+From the repository root, after `pnpm install`:
 
 ```bash
-ln -s "$PWD/editors/vscode" ~/.vscode/extensions/8bitscript.8bitscript-lang-0.1.0
+pnpm --filter 8bitscript-lang run link-local
 ```
 
-Run either from the repository root. Then **Developer: Reload Window** from the
-command palette, open a `.8bs` file, and check that the language indicator in
-the status bar reads *8BitScript*.
+That removes any previous `8bitscript.8bitscript-lang-*` in
+`~/.cursor/extensions` (including a VSIX copy) and symlinks this directory
+under the current version. Pass `--vscode` for VS Code, or `--also-vscode`
+to link both. Then **Developer: Reload Window**.
 
-A symlink is used rather than a copy so that editing the grammar and reloading
-the window is the whole development loop. There is a `node --test` suite for
-the parts that do not need the editor — config reading, toolchain lookup, the
-command each button runs, and the shape of the launcher page and the manifest
+The entry is a tiny loader (`bootstrap.cjs`): if `src/` is present and newer
+than `dist/`, it rebuilds the bundle before the editor loads it, so a window
+reload cannot pick up yesterday's bundle by accident. While the window is
+open it watches `src/`, `media/`, `syntaxes/`, and `snippets/`. A change does
+not rebuild in the background — the launcher shows **Rebuild the local
+extension**. While that runs it shows status, and only after the rebuild
+finishes does **Reload this window** appear. Grammar and media changes follow
+the same two-step flow so a half-written bundle is never the thing a reload
+loads. If the editor does not pick up the symlink, copy the directory instead
+of linking it — some builds scan for real directories.
+
+Cursor's built-in npm task detector opens every `package.json` it finds and
+toasts **Npm task detection: failed to parse the file** when that open
+fails — the JSON is fine. A linked checkout makes that likely for
+`editors/vscode` and the `packages/*` manifests. Exclude them with
+`npm.exclude` (the detector matches the *directory* of the file). Root
+scripts still show; those packages are run with `pnpm` from the repo root.
+
+There is a `node --test` suite for the parts that do not need the editor —
+config reading, toolchain lookup, the command each button runs, the
+source-checkout rebuild, and the shape of the launcher page and the manifest
 behind it — under `test/`; `pnpm test` from the repository root runs it along
-with everything else. If the editor does not pick up the
-symlink, copy the directory instead of linking it — some builds scan for real
-directories. Remove it with `rm` on the link; nothing else is touched.
+with everything else. Remove the link with `rm` on the symlink; the checkout
+is not touched.
 
 ## Publishing
 

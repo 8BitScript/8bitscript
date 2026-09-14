@@ -126,6 +126,28 @@
         "icon": "$(game)"
       },
       {
+        "command": "8bitscript.configureSystem",
+        "title": "Configure System",
+        "category": "8BitScript",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "8bitscript.showProject",
+        "title": "Show Project",
+        "category": "8BitScript",
+        "icon": "$(info)"
+      },
+      {
+        "command": "8bitscript.useLocal",
+        "title": "Use Local 8BitScript",
+        "category": "8BitScript"
+      },
+      {
+        "command": "8bitscript.usePublished",
+        "title": "Use Published Packages",
+        "category": "8BitScript"
+      },
+      {
         "command": "8bitscript.saveSystem",
         "title": "Save as a System\u2026",
         "category": "8BitScript",
@@ -178,9 +200,29 @@
         "command": "8bitscript.restartServer",
         "title": "Restart Language Server",
         "category": "8BitScript"
+      },
+      {
+        "command": "8bitscript.rebuildExtension",
+        "title": "Rebuild Local Extension",
+        "category": "8BitScript"
+      },
+      {
+        "command": "8bitscript.reloadWindow",
+        "title": "Reload Window",
+        "category": "8BitScript"
       }
     ],
     "menus": {
+      "commandPalette": [
+        {
+          "command": "8bitscript.rebuildExtension",
+          "when": "8bitscript.localRebuildNeeded"
+        },
+        {
+          "command": "8bitscript.reloadWindow",
+          "when": "8bitscript.localReloadPending"
+        }
+      ],
       "view/title": [
         {
           "command": "8bitscript.toggleExamples",
@@ -213,14 +255,24 @@
           "group": "1_launch@1"
         },
         {
-          "command": "8bitscript.saveSystem",
+          "command": "8bitscript.configureSystem",
           "when": "view == 8bitscript.launcher",
           "group": "2_system@0"
         },
         {
-          "command": "8bitscript.controllerSetup",
+          "command": "8bitscript.showProject",
           "when": "view == 8bitscript.launcher",
           "group": "2_system@1"
+        },
+        {
+          "command": "8bitscript.saveSystem",
+          "when": "view == 8bitscript.launcher",
+          "group": "2_system@2"
+        },
+        {
+          "command": "8bitscript.controllerSetup",
+          "when": "view == 8bitscript.launcher",
+          "group": "2_system@3"
         }
       ]
     },
@@ -254,7 +306,17 @@
             "web"
           ],
           "default": "pet",
-          "description": "The system the launcher's Run and Build buttons use. Set from the System dropdown in the 8BitScript side bar, or 8BitScript: Select System. This release builds for the PET, the C64, the VIC-20, the C128 and the web, so that is the list; the remaining machines return here once their native backends land."
+          "description": "The machine the launcher's Run and Build buttons use when no named system is selected. Set from the System dropdown in the 8BitScript side bar, or 8BitScript: Select System. Named systems live in 8bitscript.namedSystem."
+        },
+        "8bitscript.namedSystem": {
+          "type": "string",
+          "default": "",
+          "description": "The named system the launcher's Run and Build buttons use (`8bs run --system`). Empty means a bare machine id from 8bitscript.system. Named systems come from 8bitscript.config.ts, .8bitscript/systems.json, or ~/.config/8bitscript/systems.json."
+        },
+        "8bitscript.checkout": {
+          "type": "string",
+          "default": "",
+          "description": "Absolute path of a local 8BitScript monorepo to run instead of the published @8bitscript/* packages in node_modules. Empty means published. The same path is written to .8bitscript/toolchain.json so a terminal in that clone sees it too. Does not rewrite package.json."
         },
         "8bitscript.project": {
           "type": "string",
@@ -269,7 +331,7 @@
         "8bitscript.hardware": {
           "type": "object",
           "default": {},
-          "description": "The hardware fitted to each system when the launcher runs it: an object keyed by system, each `{ profile, options }` \u2014 a profile name (a preset from the machine's catalog, or one the project composes in its 8bitscript.config.ts) and option values set on top, passed as --profile and --hardware. Set under Hardware \u00b7 Region \u00b7 Facts in the 8BitScript side bar; `8bs targets` lists what each system can be fitted with.",
+          "description": "The hardware fitted to each machine when a bare machine (not a named system) is launched: an object keyed by machine, each `{ profile, options }`. Set in Configure System; `8bs targets` lists what each machine can be fitted with.",
           "additionalProperties": {
             "type": "object",
             "properties": {
@@ -296,7 +358,7 @@
         "8bitscript.webLan": {
           "type": "boolean",
           "default": true,
-          "description": "When running the web target, listen on the LAN so a phone on the same Wi-Fi can open the printed HTTPS URL. On by default (`8bs run web`). Turn this off to pass --local (loopback only) on an untrusted network."
+          "description": "When running the web target, listen on the LAN so a phone on the same Wi-Fi can open the printed HTTPS URL. On by default (`8bs run web`). The launcher shows a QR of that URL. Turn this off to pass --local (loopback only) on an untrusted network."
         }
       }
     },
@@ -344,7 +406,7 @@
       }
     ]
   },
-  "main": "./dist/extension.cjs",
+  "main": "./bootstrap.cjs",
   "activationEvents": [
     "workspaceContains:**/*.8bs",
     "workspaceContains:**/8bitscript.config.ts",
@@ -352,7 +414,8 @@
   ],
   "scripts": {
     "test": "node --test",
-    "bundle": "esbuild src/extension.cjs --bundle --minify --platform=node --format=cjs --external:vscode --outfile=dist/extension.cjs",
+    "bundle": "esbuild src/extension.cjs --bundle --minify --platform=node --format=cjs --external:vscode --outfile=dist/extension.cjs && node -e \"require('./src/devReload.cjs').copyRuntimeFiles(process.cwd())\"",
+    "link-local": "node scripts/link-local.cjs",
     "package": "pnpm run bundle && vsce package --out dist/8bitscript-lang.vsix",
     "vscode:prepublish": "pnpm run bundle"
   },
@@ -362,6 +425,7 @@
     "ovsx": "^0.10.1"
   },
   "files": [
+    "bootstrap.cjs",
     "dist",
     "media",
     "syntaxes",

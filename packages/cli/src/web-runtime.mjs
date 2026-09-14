@@ -368,7 +368,8 @@ export async function writeWebBundle(dir, wasmBytes, {
  * @param {Buffer} wasmBytes
  * @param {{ open?: boolean, frameRate?: number, root?: string, lastRunTarget?: string, layout?: object, lan?: boolean, port?: number }} [options]
  *   `lan` defaults on: HTTPS on the LAN plus HTTP on loopback. `--local` passes false.
- *   `port` defaults to 8008 (`--port 0` is ephemeral). HTTPS is port + 1.
+ *   `port` defaults to 0 (ephemeral) so two runs can coexist. `--port n`
+ *   pins HTTP to n and HTTPS to n + 1.
  * @returns {Promise<number>} exit code
  */
 export async function runInBrowser(wasmBytes, { open = true, frameRate = 60, root, lastRunTarget, layout = DEFAULT_LAYOUT, lan = true, port = DEFAULT_WEB_PORT } = {}) {
@@ -433,12 +434,17 @@ export async function runInBrowser(wasmBytes, { open = true, frameRate = 60, roo
     return 1;
   }
   // The editor's Running machines tree polls this loopback URL; a phone
-  // uses the HTTPS LAN line serveBanner prints, not this one.
+  // uses the HTTPS LAN line (last-run `lanUrls`, and the QR the launcher
+  // draws from it), not this one.
   const url = listening.local;
   process.stdout.write(serveBanner(listening));
   if (lastRunTarget) {
     const { writeLastRun } = await import('./last-run.mjs');
-    await writeLastRun(lastRunTarget, { emulator: 'browser', url });
+    await writeLastRun(lastRunTarget, {
+      emulator: 'browser',
+      url,
+      lanUrls: listening.lanUrls,
+    });
   }
   if (open) openBrowser(url);
   process.stdout.write('press Ctrl+C to stop. (in the page: swipe or arrows to move; F for fullscreen)\n');

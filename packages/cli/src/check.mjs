@@ -12,9 +12,10 @@ import { loadConfig, resolveFrameRate } from './config.mjs';
 
 /**
  * @param {string[]} files
+ * @param {{ checkout?: string|null }} [options]
  * @returns {Promise<number>} process exit code
  */
-export async function check(files) {
+export async function check(files, { checkout } = {}) {
   if (files.length === 0) {
     process.stderr.write('8bs check: no files given\n\nUsage: 8bs check <file.8bs> [...]\n');
     return 2;
@@ -49,7 +50,7 @@ export async function check(files) {
 
     const display = relative(process.cwd(), path) || file;
     // Resolution needs the real path; the display path is only for printing.
-    for (const d of analyze(text, path, { resolveImports: true, frameRate })) {
+    for (const d of analyze(text, path, { resolveImports: true, frameRate, checkout })) {
       const { line, column } = positionAt(text, d.start);
       process.stdout.write(`${display}:${line}:${column}\n`);
       process.stdout.write(`${d.severity} ${d.code}: ${d.message}\n\n`);

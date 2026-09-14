@@ -107,7 +107,12 @@ function filePathOf(uri) {
   }
 }
 
-export function start() {
+/**
+ * @param {{ checkout?: string|null }} [options]
+ *   A local 8BitScript tree whose packages win over node_modules for
+ *   `@8bitscript/*` — the same root `8bs lsp --checkout` names.
+ */
+export function start({ checkout } = {}) {
   const connection = createConnection(ProposedFeatures.all);
   const documents = new TextDocuments(TextDocument);
 
@@ -148,6 +153,7 @@ export function start() {
     const diagnostics = analyze(text, path ?? document.uri, {
       resolveImports: path !== null,
       frameRate,
+      checkout,
     }).map((d) => ({
       severity: SEVERITY[d.severity] ?? DiagnosticSeverity.Error,
       range: {
@@ -175,7 +181,7 @@ export function start() {
 
     const offset = document.offsetAt(params.position);
     const path = filePathOf(document.uri);
-    const info = getHoverInfo(document.getText(), offset, { path });
+    const info = getHoverInfo(document.getText(), offset, { path, checkout });
     if (!info) return null;
 
     return {
@@ -193,7 +199,7 @@ export function start() {
 
     const offset = document.offsetAt(params.position);
     const path = filePathOf(document.uri);
-    return getCompletions(document.getText(), offset, { path }).map((item) => ({
+    return getCompletions(document.getText(), offset, { path, checkout }).map((item) => ({
       label: item.label,
       kind: COMPLETION_KIND[item.kind] ?? CompletionItemKind.TypeParameter,
       detail: item.detail,

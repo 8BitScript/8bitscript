@@ -17,6 +17,7 @@
 // under the `8bs` task type declared in package.json. Run and build pass
 // `--size` so the per-function breakdown prints before the emulator starts;
 // the Running machines tree reads the same numbers from dist/.8bs-last-<target>.json.
+const fs = require('fs');
 const path = require('path');
 const { execFile } = require('child_process');
 
@@ -27,6 +28,7 @@ const {
   CONFIG_FILE,
   CONFIG_FILENAMES,
   MACHINE_TARGETS,
+  cliCommand,
   commandArgs,
   findConfig,
   findToolchain,
@@ -37,12 +39,17 @@ const {
   loadExamples,
   loadExamplesFrom,
   ofKind,
+  packageManagerFor,
+  packageManagerPath,
+  resolvePackageManager,
   systemLine,
   withShipped,
 } = require('./projects.cjs');
 const settings = require('./settings.cjs');
 const { selectionLabel, parseTargets } = require('./hardwareCatalog.cjs');
 const { fetchStatus, livePollPlan, readLastRun, rowKey } = require('./runningMachines.cjs');
+const { toolchainStatus } = require('./projectInfo.cjs');
+const { checkoutCli, isCheckout, managedCheckoutDir, managedUpdateCommand, resolveCheckoutRoot, runCheckout, writeToolchainFile } = require('./checkout.cjs');
 
 const { regionShort } = settings;
 
@@ -161,9 +168,12 @@ class RunningTasks {
  * app on one of the systems *its* config declares should not rewrite the
  * hardware someone has fitted for their own work.
  */
-function makeTask(project, action, target, region, hardware = settings.getHardware(target)) {
-  const args = commandArgs(action, target, region, hardware);
-  if (action === 'run' && target === 'web' && !settings.getWebLan()) args.push('--local');
+function makeTask(project, action, target, region, hardware = settings.getHardware(target), extras = {}) {
+  const args = commandArgs(action, target, region, extras.system ? undefined : hardware, extras);
+  if (action === 'run' && target === 'web') {
+    args.push('--port', '0');
+    if (!settings.getWebLan()) args.push('--local');
+  }
   const pal = region === 'pal' && MACHINE_TARGETS.has(target);
   const definition = {
     type: TASK_TYPE,
@@ -173,19 +183,22 @@ function makeTask(project, action, target, region, hardware = settings.getHardwa
     ...(target ? { target } : {}),
     ...(pal ? { pal: true } : {}),
   };
-  const fitted = selectionLabel(hardware);
-  const suffix = target
-    ? ` ${target}${MACHINE_TARGETS.has(target) ? ` (${regionShort(region)})` : ''}${fitted ? ` ${fitted}` : ''}`
-    : '';
+  const fitted = extras.system ? extras.system : selectionLabel(hardware);
+  const suffix = extras.system
+    ? ` ${extras.system}`
+    : (target
+      ? ` ${target}${MACHINE_TARGETS.has(target) ? ` (${regionShort(region)})` : ''}${fitted ? ` ${fitted}` : ''}`
+      : '');
   const name = `${project.name}: ${action}${suffix}`;
+  const invocation = cliCommand(project.toolchain) ?? { command: project.toolchain, args: [] };
   const task = new vscode.Task(
     definition,
     folderOf(project.dir) ?? vscode.TaskScope.Workspace,
     name,
     TASK_TYPE,
     new vscode.ShellExecution(
-      { value: project.toolchain, quoting: vscode.ShellQuoting.Strong },
-      args,
+      { value: invocation.command, quoting: vscode.ShellQuoting.Strong },
+      [...invocation.args, ...args],
       { cwd: project.dir },
     ),
   );
@@ -206,8 +219,9 @@ function makeTask(project, action, target, region, hardware = settings.getHardwa
  * fitted with, and what is running.
  */
 class Projects {
-  constructor(output) {
+  constructor(output, managedDir) {
     this.output = output;
+    this.managedDir = managedDir ?? null;
     /** @type {import('./projects.cjs').Project[]} */
     this.projects = [];
     /** @type {import('./projects.cjs').Project[]} the toolchain's examples */
@@ -252,6 +266,16 @@ class Projects {
   }
 
   /**
+   * `--checkout` for this workspace: the open monorepo if it is a folder,
+   * else an explicit Use local setting. The editor-owned clone is not
+   * injected — it only becomes `--checkout` after the user points at it.
+   */
+  checkoutFlag() {
+    const folders = (vscode.workspace.workspaceFolders ?? []).map((folder) => folder.uri.fsPath);
+    return runCheckout({ folders, setting: settings.getCheckout() || null });
+  }
+
+  /**
    * What `8bs targets --json` says, **asked in one project's directory**,
    * cached per directory until the next refresh. Which directory matters:
    * the machine catalogs are the toolchain's, but the `hardware` and
@@ -272,10 +296,17 @@ class Projects {
     if (!project) return null;
     const cached = this.targetsPromises.get(project.dir);
     if (cached) return cached;
+    const invocation = cliCommand(project.toolchain);
+    if (!invocation) return null;
+    const checkout = this.checkoutFlag();
     const pending = new Promise((resolvePromise) => {
       execFile(
-        project.toolchain,
-        ['targets', '--json'],
+        invocation.command,
+        [
+          ...invocation.args,
+          'targets', '--json',
+          ...(checkout ? ['--checkout', checkout] : []),
+        ],
         { cwd: project.dir, maxBuffer: 4 * 1024 * 1024 },
         (error, stdout) => {
           if (error) {
@@ -298,11 +329,16 @@ class Projects {
 
   async refresh() {
     const found = await vscode.workspace.findFiles(`**/{${CONFIG_FILENAMES.join(',')}}`, SEARCH_EXCLUDE);
-    this.projects = loadProjects(found.map((uri) => uri.fsPath));
+    const checkout = this.checkoutFlag();
+    this.projects = loadProjects(found.map((uri) => uri.fsPath), { checkout });
     this.targetsPromises.clear();
     const shipped = this.discoverShipped();
-    this.examples = shipped.examples;
-    this.apps = shipped.apps;
+    const withCli = (list) => list.map((project) => ({
+      ...project,
+      toolchain: findToolchain(project.dir, checkout) ?? project.toolchain,
+    }));
+    this.examples = withCli(shipped.examples);
+    this.apps = withCli(shipped.apps);
     this.output.appendLine(
       `Projects: ${this.projects.length === 0 ? 'none found' : this.projects.map((p) => p.name).join(', ')}` +
         (this.examples.length > 0 ? `; examples: ${this.examples.map((p) => p.name).join(', ')}` : '') +
@@ -330,7 +366,9 @@ class Projects {
     let apps = [];
     const toolchains = [
       ...this.projects.map((p) => p.toolchain),
-      ...(vscode.workspace.workspaceFolders ?? []).map((f) => findToolchain(f.uri.fsPath)),
+      ...(vscode.workspace.workspaceFolders ?? []).map((f) => findToolchain(f.uri.fsPath, this.checkoutFlag())),
+      checkoutCli(this.managedDir),
+      settings.getCheckout() ? checkoutCli(settings.getCheckout()) : null,
     ].filter(Boolean);
     for (const toolchain of toolchains) {
       if (!explicit && examples.length === 0) examples = loadExamples(toolchain);
@@ -402,7 +440,8 @@ class TaskProvider {
  * @returns {Projects}
  */
 function registerRunner(context, output) {
-  const projects = new Projects(output);
+  const managedDir = managedCheckoutDir(context.globalStorageUri.fsPath);
+  const projects = new Projects(output, managedDir);
   projects.running.listen(context.subscriptions);
   context.subscriptions.push(projects.changed);
 
@@ -418,8 +457,9 @@ function registerRunner(context, output) {
     watcher.onDidChange(() => projects.refresh()),
     vscode.workspace.onDidChangeWorkspaceFolders(() => projects.refresh()),
     vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration('8bitscript.examplesPath')) projects.refresh();
-      else if (e.affectsConfiguration('8bitscript.showExamples')) projects.changed.fire();
+      if (e.affectsConfiguration('8bitscript.examplesPath') || e.affectsConfiguration('8bitscript.checkout')) {
+        projects.refresh();
+      } else if (e.affectsConfiguration('8bitscript.showExamples')) projects.changed.fire();
     }),
   );
 
@@ -438,12 +478,26 @@ function registerRunner(context, output) {
    * palette invocation passes nothing and is asked.
    */
   async function targetOf(node, action) {
-    if (node?.project && node?.target) return node;
+    if (node?.project && (node?.target || node?.system)) return node;
     const project = node?.project ?? selected() ?? (await pickProject(action, projects.all));
     if (!project) return undefined;
-    const system = settings.getSystem();
+    const named = node?.system ?? settings.getNamedSystem();
+    if (named && !node?.target) {
+      const systems = (await projects.loadTargets(project.dir))?.systems ?? [];
+      const system = systems.find((entry) => entry.name === named);
+      if (system) {
+        return {
+          project,
+          target: system.target,
+          system: named,
+          region: system.region ?? settings.getRegion(),
+          hardware: { profile: system.profile, options: system.hardware },
+        };
+      }
+    }
+    const machine = settings.getSystem();
     const target = node?.target
-      ?? (project.targets.includes(system) ? system : await pickTarget(project, action));
+      ?? (project.targets.includes(machine) ? machine : await pickTarget(project, action));
     return target ? { project, target } : undefined;
   }
 
@@ -484,16 +538,34 @@ function registerRunner(context, output) {
     return picked?.target;
   }
 
-  /** `<package manager> install` in the project, as a task in its terminal. */
-  function installTask(project) {
+  /** `<package manager> install` in a directory, as a task in its terminal. */
+  function installTask(target) {
+    const dir = target.dir;
+    const name = target.name ?? path.basename(dir);
+    const manager = target.packageManager ?? packageManagerFor(dir);
+    const pathEnv = packageManagerPath();
+    const bin = resolvePackageManager(manager);
+    if (!path.isAbsolute(bin)) {
+      vscode.window.showErrorMessage(
+        `${manager} was not found. A GUI-launched editor does not read .zshrc; `
+        + (manager === 'pnpm'
+          ? 'the installer puts pnpm in ~/.local/share/pnpm/bin.'
+          : `put ${manager} on PATH for non-login shells.`),
+      );
+      return null;
+    }
     const task = new vscode.Task(
-      { type: TASK_TYPE, command: 'install', project: relativeDir(project.dir), projectDir: project.dir },
-      folderOf(project.dir) ?? vscode.TaskScope.Workspace,
-      `${project.name}: install`,
+      { type: TASK_TYPE, command: 'install', project: relativeDir(dir), projectDir: dir },
+      folderOf(dir) ?? vscode.TaskScope.Workspace,
+      `${name}: install`,
       TASK_TYPE,
-      new vscode.ShellExecution(project.packageManager, ['install'], { cwd: project.dir }),
+      new vscode.ShellExecution(
+        { value: bin, quoting: vscode.ShellQuoting.Strong },
+        ['install'],
+        { cwd: dir, env: { PATH: pathEnv } },
+      ),
     );
-    task.detail = `${project.packageManager} install  (${relativeDir(project.dir)})`;
+    task.detail = `${manager} install  (${relativeDir(dir)})`;
     task.presentationOptions = {
       reveal: vscode.TaskRevealKind.Always,
       panel: vscode.TaskPanelKind.Dedicated,
@@ -503,11 +575,106 @@ function registerRunner(context, output) {
     return task;
   }
 
+  function shellTask(name, commandLine, cwd) {
+    const task = new vscode.Task(
+      { type: TASK_TYPE, command: 'install' },
+      vscode.TaskScope.Workspace,
+      name,
+      TASK_TYPE,
+      new vscode.ShellExecution(commandLine, { cwd, env: { PATH: packageManagerPath() } }),
+    );
+    task.detail = commandLine;
+    task.presentationOptions = {
+      reveal: vscode.TaskRevealKind.Always,
+      panel: vscode.TaskPanelKind.Dedicated,
+      clear: true,
+      showReuseMessage: false,
+    };
+    return task;
+  }
+
+  function afterTask(execution, onOk) {
+    const done = vscode.tasks.onDidEndTaskProcess((e) => {
+      if (e.execution !== execution) return;
+      done.dispose();
+      if (e.exitCode === 0) onOk();
+    });
+    context.subscriptions.push(done);
+  }
+
+  function needGitAndPnpm() {
+    const git = resolvePackageManager('git');
+    const pnpm = resolvePackageManager('pnpm');
+    if (!path.isAbsolute(git)) {
+      vscode.window.showErrorMessage('git was not found. Install git so the editor can clone 8BitScript.');
+      return null;
+    }
+    if (!path.isAbsolute(pnpm)) {
+      vscode.window.showErrorMessage(
+        'pnpm was not found. A GUI-launched editor does not read .zshrc; the installer puts pnpm in ~/.local/share/pnpm/bin.',
+      );
+      return null;
+    }
+    return { git, pnpm };
+  }
+
+  /** One install for the whole 8BitScript tree — never each example or app. */
+  async function updateToolchain() {
+    const folders = (vscode.workspace.workspaceFolders ?? []).map((folder) => folder.uri.fsPath);
+    const status = toolchainStatus({
+      folders,
+      setting: settings.getCheckout() || null,
+      managed: managedDir,
+    });
+
+    if (status.clone || status.origin === 'managed') {
+      if (!managedDir) {
+        vscode.window.showErrorMessage('The editor has no global storage path to clone 8BitScript into.');
+        return;
+      }
+      const bins = needGitAndPnpm();
+      if (!bins) return;
+      fs.mkdirSync(path.dirname(managedDir), { recursive: true });
+      const have = isCheckout(managedDir);
+      if (fs.existsSync(managedDir) && !have) {
+        fs.rmSync(managedDir, { recursive: true, force: true });
+      }
+      const { cwd, line, pull } = managedUpdateCommand({
+        git: bins.git,
+        pnpm: bins.pnpm,
+        dest: managedDir,
+        have: have || (status.origin === 'managed' && isCheckout(status.dir)),
+      });
+      const execution = await vscode.tasks.executeTask(
+        shellTask(pull ? '8BitScript: update' : '8BitScript: install', line, cwd),
+      );
+      afterTask(execution, async () => {
+        await projects.refresh();
+        await vscode.commands.executeCommand('8bitscript.restartServer');
+      });
+      return;
+    }
+
+    if (!status.dir) return;
+    await install({
+      dir: status.dir,
+      name: '8BitScript',
+      packageManager: status.packageManager,
+    });
+  }
+
   async function install(node) {
-    const project = node?.project ?? selected() ?? (await pickProject('install', projects.all));
-    if (!project) return;
-    const execution = await vscode.tasks.executeTask(installTask(project));
-    // Rescan once the install finishes, so the warning clears on its own.
+    if (node?.toolchain) {
+      await updateToolchain();
+      return;
+    }
+    const target = node?.dir
+      ? { dir: node.dir, name: node.name, packageManager: node.packageManager }
+      : (node?.project ?? selected() ?? (await pickProject('install', projects.all)));
+    if (!target) return;
+    const task = installTask(target);
+    if (!task) return;
+    const execution = await vscode.tasks.executeTask(task);
     const done = vscode.tasks.onDidEndTask((e) => {
       if (e.execution === execution) {
         done.dispose();
@@ -551,7 +718,7 @@ function registerRunner(context, output) {
   async function execute(action, node) {
     const resolved = await targetOf(node, action);
     if (!resolved) return;
-    const { project, target, hardware, region } = resolved;
+    const { project, target, hardware, region, system } = resolved;
     if (!requireToolchain(project)) return;
     if (!(await requireInstalled(project))) return;
     // An explicit hardware selection (a project's own named system, from
@@ -560,8 +727,12 @@ function registerRunner(context, output) {
     // settings.getEffectiveHardware.
     const effectiveHardware = hardware
       ?? settings.getEffectiveHardware(target, (await projects.loadTargets(project.dir))?.get(target));
+    const extras = {
+      system: system || undefined,
+      checkout: projects.checkoutFlag() || undefined,
+    };
     await vscode.tasks.executeTask(
-      makeTask(project, action, target, region ?? settings.getRegion(), effectiveHardware),
+      makeTask(project, action, target, region ?? settings.getRegion(), effectiveHardware, extras),
     );
   }
 
@@ -577,8 +748,9 @@ function registerRunner(context, output) {
     // emulators are ready — worth finding it either way.
     const toolchain = project?.toolchain
       ?? (vscode.workspace.workspaceFolders ?? [])
-        .map((folder) => findToolchain(folder.uri.fsPath))
-        .find(Boolean);
+        .map((folder) => findToolchain(folder.uri.fsPath, projects.checkoutFlag()))
+        .find(Boolean)
+      ?? checkoutCli(managedDir);
     if (!toolchain) {
       vscode.window.showErrorMessage('No 8bs toolchain found in this workspace. Run: pnpm add -D @8bitscript/cli (or npm/yarn/bun)');
       return;
@@ -597,19 +769,81 @@ function registerRunner(context, output) {
     if (project) await settings.setProject(project.dir);
   }
 
+  function availableCheckout() {
+    const folders = (vscode.workspace.workspaceFolders ?? []).map((folder) => folder.uri.fsPath);
+    return resolveCheckoutRoot({
+      folders,
+      setting: settings.getCheckout() || null,
+      managed: managedDir,
+    })?.dir ?? null;
+  }
+
+  async function useLocal(node) {
+    let dir = availableCheckout();
+    if (!dir) {
+      const picked = await vscode.window.showOpenDialog({
+        canSelectFiles: false,
+        canSelectFolders: true,
+        canSelectMany: false,
+        title: '8BitScript checkout',
+        openLabel: 'Use this checkout',
+      });
+      if (!picked?.[0]) return;
+      dir = picked[0].fsPath;
+    }
+    if (!isCheckout(dir)) {
+      vscode.window.showErrorMessage(
+        `'${dir}' is not an 8BitScript checkout (need pnpm-workspace.yaml listing packages/* and packages/cli/bin/8bs.mjs).`,
+      );
+      return;
+    }
+    await settings.setCheckout(dir);
+    const project = node?.project ?? selected();
+    if (project && !isCheckout(project.dir)) writeToolchainFile(project.dir, dir);
+    await projects.refresh();
+    await vscode.commands.executeCommand('8bitscript.restartServer');
+  }
+
+  async function usePublished(node) {
+    await settings.setCheckout('');
+    const project = node?.project ?? selected();
+    if (project && !isCheckout(project.dir)) writeToolchainFile(project.dir, null);
+    await projects.refresh();
+    await vscode.commands.executeCommand('8bitscript.restartServer');
+  }
+
   async function chooseSystem() {
+    const currentNamed = settings.getNamedSystem();
     const current = settings.getSystem();
     const targets = await projects.loadTargets(selected()?.dir);
-    const picked = await vscode.window.showQuickPick(
-      ALL_TARGETS.map((target) => ({
-        label: target,
-        detail: targets?.get(target)?.title,
-        description: target === current ? 'current' : undefined,
-        target,
-      })),
-      { placeHolder: 'Which system should Run and Build use?' },
-    );
-    if (picked) await settings.setSystem(picked.target);
+    const systems = (targets?.systems ?? []).map((system) => ({
+      label: system.name,
+      description: system.origin === 'advertised' ? 'advertised' : system.origin,
+      detail: system.label === 'stock' ? system.target : `${system.target} · ${system.label}`,
+      named: system.name,
+      target: system.target,
+    }));
+    const machines = ALL_TARGETS.map((target) => ({
+      label: target,
+      detail: targets?.get(target)?.title,
+      description: target === current && !currentNamed ? 'current' : undefined,
+      named: '',
+      target,
+    }));
+    const items = systems.length > 0
+      ? [
+        { label: 'Named systems', kind: vscode.QuickPickItemKind.Separator },
+        ...systems,
+        { label: 'Machines', kind: vscode.QuickPickItemKind.Separator },
+        ...machines,
+      ]
+      : machines;
+    const picked = await vscode.window.showQuickPick(items, {
+      placeHolder: 'Which system should Run and Build use?',
+    });
+    if (!picked || picked.kind === vscode.QuickPickItemKind.Separator) return;
+    await settings.setNamedSystem(picked.named);
+    await settings.setSystem(picked.target);
   }
 
   async function chooseRegion() {
@@ -636,9 +870,7 @@ function registerRunner(context, output) {
     const candidates = ofKind(projects.all, kind).filter(filter);
     if (candidates.length === 0) {
       vscode.window.showInformationMessage(
-        kind === 'app'
-          ? `No ${what} found. Apps ship with @8bitscript/cli: install it in a project, then refresh.`
-          : `No ${what} found. Examples ship with @8bitscript/cli: install it in a project, then refresh.`,
+        `No ${what} found. Install 8BitScript from the side bar, or install @8bitscript/cli in a project.`,
       );
       return;
     }
@@ -663,6 +895,7 @@ function registerRunner(context, output) {
       await execute('run', {
         project,
         target: system.target,
+        system: system.name,
         region: system.region ?? settings.getRegion(),
         hardware: { profile: system.profile, options: system.hardware },
       });
@@ -755,6 +988,8 @@ function registerRunner(context, output) {
   command('8bitscript.launchExample', () => launch('example', 'examples'));
   command('8bitscript.doctor', doctor);
   command('8bitscript.install', install);
+  command('8bitscript.useLocal', useLocal);
+  command('8bitscript.usePublished', usePublished);
   command('8bitscript.run', (node) => execute('run', node));
   command('8bitscript.build', (node) => execute('build', node));
   command('8bitscript.boot', (node) => execute('boot', node));

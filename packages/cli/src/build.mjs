@@ -53,11 +53,13 @@ import {
   unmetRequirements,
 } from '@8bitscript/compiler';
 
+import { applyCheckoutFromArgs, setActiveCheckout } from './checkout.mjs';
 import { loadConfig, resolveFrameRate, retiredOptionWarnings } from './config.mjs';
 import {
   HARDWARE_USAGE, REGION_MACHINES, hardwareArgs, listedTargets, loadCatalog, projectHardware,
-  projectProfiles, projectRequires, projectSystems, resolveHardware, whatSatisfies,
+  projectProfiles, projectRequires, resolveHardware, whatSatisfies,
 } from './hardware.mjs';
+import { loadMergedSystems, resolveNamedLaunch } from './systems.mjs';
 import { compileReport, writeLastRun } from './last-run.mjs';
 import { checkArtifactName } from './artifact-name.mjs';
 
@@ -121,7 +123,7 @@ export function resolveEntryPath(config, target, entryArg) {
  *
  * @param {'vic20'|'c64'|'pet'|'c128'|'atari8'|'nes'|'cx16'|'mega65'|'web'} target
  * @param {string} [entryArg]
- * @param {{ pal?: boolean, profile?: string, hardware?: object, report?: boolean }} [options] `pal` selects the
+ * @param {{ pal?: boolean, profile?: string, hardware?: object, report?: boolean, checkout?: string|null }} [options] `pal` selects the
  *   real hardware/emulator region (NTSC unless true; ignored outside
  *   REGION_TARGETS) — it does not affect the logical frame rate, which is
  *   read from 8bitscript.config.ts's `frameRate` instead (default 60). `profile`
@@ -134,7 +136,8 @@ export function resolveEntryPath(config, target, entryArg) {
  *   whoever runs it next. `memory` / `sizeReport` are what the last-run
  *   file and `--size` print; they are absent when the compile failed.
  */
-export async function compile(target, entryArg, { pal = false, profile, hardware: overrides = {}, report = false } = {}) {
+export async function compile(target, entryArg, { pal = false, profile, hardware: overrides = {}, report = false, checkout = undefined } = {}) {
+  if (checkout !== undefined) setActiveCheckout(checkout);
   const config = await loadConfig(process.cwd(), '8bs build');
 
   const frameRateResult = resolveFrameRate(config);
@@ -153,7 +156,7 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   // Nothing in a build reads the `systems` block, but a typo in one should
   // not wait for someone to open the editor to be noticed. Said once, and
   // not fatal: the build asked for is still the build to make.
-  const systems = projectSystems(config);
+  const systems = loadMergedSystems({ config });
   if (!systems.ok) process.stderr.write(`8bs build: ${systems.error}\n`);
 
   const retired = RETIRED_TARGET.exec(target ?? '');
@@ -246,7 +249,9 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   // declares — folds to this build's value, and the
   // hardware's tags so a file with a `.<machine>.<tag>.8bs` twin resolves
   // to that.
-  const { ir, diagnostics, sources } = link(text, entry, { machine: target, tags: hardware.tags, facts: hardware.facts, frameRate });
+  const { ir, diagnostics, sources } = link(text, entry, {
+    machine: target, tags: hardware.tags, facts: hardware.facts, frameRate, checkout,
+  });
   if (diagnostics.length > 0) {
     printDiagnostics(diagnostics, sources);
     process.stdout.write(`${diagnostics.length} problem(s); not building.\n`);
@@ -411,21 +416,42 @@ async function buildRelease({ report = false } = {}) {
 /** @returns {Promise<number>} exit code */
 export async function build(args) {
   if (args.includes('--release')) return buildRelease({ report: args.includes('--size') });
-  const pal = args.includes('--pal');
   const report = args.includes('--size');
   const targetIndex = args.indexOf('--target');
+  const checkout = applyCheckoutFromArgs(args);
+  if (!checkout.ok) {
+    process.stderr.write(`8bs build: ${checkout.error}\n`);
+    return 2;
+  }
   const hw = hardwareArgs(args);
   if (!hw.ok) {
     process.stderr.write(`8bs build: ${hw.error}\n`);
     return 2;
   }
+  const config = await loadConfig(process.cwd(), '8bs build');
+  const launch = resolveNamedLaunch(hw, { config });
+  if (!launch.ok) {
+    process.stderr.write(`8bs build: ${launch.error}\n`);
+    return 2;
+  }
+  const consumed = new Set([...hw.consumed, ...checkout.consumed]);
   const positionals = args.filter((a, i) => {
     if (targetIndex >= 0 && (i === targetIndex || i === targetIndex + 1)) return false;
-    if (hw.consumed.has(i)) return false;
+    if (consumed.has(i)) return false;
     return !a.startsWith('-');
   });
-  const target = targetIndex >= 0 ? args[targetIndex + 1] : positionals[0];
-  const entry = targetIndex >= 0 ? positionals[0] : positionals[1];
+  const named = targetIndex >= 0
+    ? args[targetIndex + 1]
+    : (TARGETS.has(positionals[0]) ? positionals[0] : undefined);
+  if (launch.target && named && named !== launch.target) {
+    process.stderr.write(`8bs build: --system '${hw.system}' is a ${launch.target} machine; got '${named}'\n`);
+    return 2;
+  }
+  const target = launch.target ?? named;
+  const entry = targetIndex >= 0
+    ? positionals[0]
+    : (named ? positionals[1] : positionals[0]);
+  const pal = args.includes('--pal') || launch.pal;
 
   if (!target) {
     process.stderr.write(
@@ -437,6 +463,8 @@ export async function build(args) {
     );
     return 2;
   }
-  const { ok } = await compile(target, entry, { pal, profile: hw.profile, hardware: hw.overrides, report });
+  const { ok } = await compile(target, entry, {
+    pal, profile: launch.profile, hardware: launch.overrides, report, checkout: checkout.checkout,
+  });
   return ok ? 0 : 1;
 }

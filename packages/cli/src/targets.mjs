@@ -11,9 +11,11 @@ import { FACTS, MACHINES, RELEASE_MACHINES } from '@8bitscript/compiler';
 import { loadConfig } from './config.mjs';
 import { defaultPort } from './controllers.mjs';
 import {
-  REGION_MACHINES, loadCatalog, projectHardware, projectProfiles, projectRequires, projectSystems,
+  REGION_MACHINES, loadCatalog, projectHardware, projectProfiles, projectRequires,
   stockFacts,
 } from './hardware.mjs';
+import { applyCheckoutFromArgs } from './checkout.mjs';
+import { loadMergedSystems } from './systems.mjs';
 import { VICE_EMULATOR } from './run.mjs';
 
 const EMULATOR = {
@@ -98,7 +100,8 @@ function printSystems(systems) {
         && `--hardware ${Object.entries(system.hardware).map(([k, v]) => `${k}=${v}`).join(',')}`,
       system.region === 'pal' && '--pal',
     ].filter(Boolean);
-    process.stdout.write(`  ${system.name.padEnd(24)} 8bs run ${system.target}${parts.length > 0 ? ` ${parts.join(' ')}` : ''}\n`);
+    const origin = system.origin && system.origin !== 'advertised' ? `  (${system.origin})` : '';
+    process.stdout.write(`  ${system.name.padEnd(24)} 8bs run --system ${JSON.stringify(system.name)}   8bs run ${system.target}${parts.length > 0 ? ` ${parts.join(' ')}` : ''}${origin}\n`);
     for (const { key, need, have } of system.unmet ?? []) {
       process.stdout.write(`  ${' '.repeat(24)} short: ${key} needs ${need === true ? 'it' : need}, has ${have === true ? 'it' : have}\n`);
     }
@@ -117,9 +120,14 @@ function printRequires(requires) {
 
 /** @returns {Promise<number>} exit code */
 export async function targets(args) {
+  const checkout = applyCheckoutFromArgs(args);
+  if (!checkout.ok) {
+    process.stderr.write(`8bs targets: ${checkout.error}\n`);
+    return 1;
+  }
   const config = await loadConfig(process.cwd(), '8bs targets');
   const required = projectRequires(config);
-  const systems = projectSystems(config);
+  const systems = loadMergedSystems({ config });
   const described = describeTargets(config);
   if (args.includes('--json')) {
     // A `systems` block the config gets wrong costs the reader its

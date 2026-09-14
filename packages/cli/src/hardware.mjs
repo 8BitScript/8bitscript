@@ -45,9 +45,13 @@
 // order of *values* — facts merge per option, and `buildValues` only ever
 // holds values that carry a `build` — but a list printed from one is not
 // in the order the package.json writes it, and that is why.
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { join } from 'node:path';
 
 import { MACHINES, requiresProblems, unmetRequirements } from '@8bitscript/compiler';
+
+import { getActiveCheckout, packageDirInCheckout } from './checkout.mjs';
 
 const require = createRequire(import.meta.url);
 
@@ -60,7 +64,11 @@ const require = createRequire(import.meta.url);
  */
 export function loadCatalog(machine) {
   if (!MACHINES.includes(machine)) throw new Error(`no such machine '${machine}'`);
-  const pkg = require(`@8bitscript/${machine}/package.json`);
+  const checkout = getActiveCheckout();
+  const local = checkout ? packageDirInCheckout(checkout, `@8bitscript/${machine}`) : null;
+  const pkg = local
+    ? JSON.parse(readFileSync(join(local, 'package.json'), 'utf8'))
+    : require(`@8bitscript/${machine}/package.json`);
   const hardware = pkg['8bitscript']?.hardware ?? {};
   return {
     machine,
@@ -247,13 +255,28 @@ export const REGION_MACHINES = new Set(['vic20', 'c64', 'c128', 'mega65', 'atari
  * @typedef {{
  *   name: string, target: string, profile: string|null,
  *   hardware: object, region: 'ntsc'|'pal'|null, label: string,
+ *   origin: 'advertised'|'project'|'user',
  * }} SystemSetup
  */
-export function projectSystems(config) {
+export function projectSystems(config, {
+  where = '8bitscript.config.ts',
+  origin = 'advertised',
+  enforceTargets = true,
+} = {}) {
   const declared = config?.systems;
   if (declared === undefined) return { ok: true, systems: [] };
+  return parseSystemsMap(declared, { where, config, origin, enforceTargets });
+}
+
+/**
+ * One systems map checked the way the advertised block is checked.
+ *
+ * @param {object|null} declared
+ * @param {{ where: string, config?: object|null, origin: SystemSetup['origin'], enforceTargets?: boolean }} options
+ */
+export function parseSystemsMap(declared, { where, config = null, origin, enforceTargets = true }) {
   if (declared === null || typeof declared !== 'object' || Array.isArray(declared)) {
-    return { ok: false, error: "8bitscript.config.ts's `systems` must be an object of name → { target, ... }" };
+    return { ok: false, error: `${where}'s \`systems\` must be an object of name → { target, ... }` };
   }
   const listed = listedTargets(config);
   // The floor, but only once it is a floor: an unchecked `requires` would
@@ -265,28 +288,28 @@ export function projectSystems(config) {
   const floor = required.ok ? required.requires : {};
   const systems = [];
   for (const [name, entry] of Object.entries(declared)) {
-    const where = `8bitscript.config.ts: system '${name}'`;
+    const at = `${where}: system '${name}'`;
     if (!entry || typeof entry !== 'object') {
-      return { ok: false, error: `${where} must be an object with a target` };
+      return { ok: false, error: `${at} must be an object with a target` };
     }
     // A system is offered beside the bare machines, in one list. A name
     // that is already a machine's would be two entries answering to the
     // same word, and the wrong one would win.
     if (MACHINES.includes(name)) {
-      return { ok: false, error: `${where}: '${name}' is a machine's own name; call the system something else` };
+      return { ok: false, error: `${at}: '${name}' is a machine's own name; call the system something else` };
     }
     const { target, profile, hardware = {}, region = null } = entry;
     if (!MACHINES.includes(target)) {
-      return { ok: false, error: `${where}: '${target}' is not a machine. Machines: ${MACHINES.join(', ')}` };
+      return { ok: false, error: `${at}: '${target}' is not a machine. Machines: ${MACHINES.join(', ')}` };
     }
-    if (listed && !listed.includes(target)) {
-      return { ok: false, error: `${where}: this project does not target ${target}. Targets: ${listed.join(', ')}` };
+    if (enforceTargets && listed && !listed.includes(target)) {
+      return { ok: false, error: `${at}: this project does not target ${target}. Targets: ${listed.join(', ')}` };
     }
     if (region !== null && region !== 'ntsc' && region !== 'pal') {
-      return { ok: false, error: `${where}: region must be 'ntsc' or 'pal', got ${JSON.stringify(region)}` };
+      return { ok: false, error: `${at}: region must be 'ntsc' or 'pal', got ${JSON.stringify(region)}` };
     }
     if (region !== null && !REGION_MACHINES.has(target)) {
-      return { ok: false, error: `${where}: the ${target} has no region to pick; leave it out` };
+      return { ok: false, error: `${at}: the ${target} has no region to pick; leave it out` };
     }
     // The entry has to resolve the way the build will resolve it, or the
     // editor offers a machine that cannot be run. `profile: null` is
@@ -298,7 +321,7 @@ export function projectSystems(config) {
       profiles: projectProfiles(config, target),
       defaults: projectHardware(config, target),
     });
-    if (!resolved.ok) return { ok: false, error: `${where}: ${resolved.error}` };
+    if (!resolved.ok) return { ok: false, error: `${at}: ${resolved.error}` };
     systems.push({
       name,
       target,
@@ -306,6 +329,7 @@ export function projectSystems(config) {
       hardware: Object.fromEntries(Object.entries(hardware).map(([k, v]) => [k, String(v)])),
       region,
       label: resolved.hardware.label,
+      origin,
       // What this arrangement falls short of, if the program set a floor.
       // A system that cannot run the program is still listed — it is in
       // the config, and silently dropping it would be the debugging trap
@@ -415,11 +439,12 @@ export function resolveHardware(catalog, { profile, overrides = {}, profiles = {
  * positionals.
  *
  * @param {string[]} args
- * @returns {{ ok: true, profile?: string, overrides: object, consumed: Set<number> } | { ok: false, error: string }}
+ * @returns {{ ok: true, profile?: string, overrides: object, system?: string, consumed: Set<number> } | { ok: false, error: string }}
  */
 export function hardwareArgs(args) {
   const consumed = new Set();
   let profile;
+  let system;
   const overrides = {};
   for (let i = 0; i < args.length; i += 1) {
     if (args[i] === '--profile') {
@@ -432,14 +457,20 @@ export function hardwareArgs(args) {
       if (!parsed.ok) return parsed;
       Object.assign(overrides, parsed.overrides);
       consumed.add(i).add(i + 1);
+    } else if (args[i] === '--system') {
+      if (args[i + 1] === undefined) return { ok: false, error: '--system expects a name' };
+      system = args[i + 1];
+      consumed.add(i).add(i + 1);
     }
   }
-  return { ok: true, profile, overrides, consumed };
+  return { ok: true, profile, overrides, system, consumed };
 }
 
 /** The usage lines both commands print for the hardware arguments. */
-export const HARDWARE_USAGE = '                 [--profile <name>]            a catalog preset or a project profile — `8bs targets` lists them\n'
-  + '                 [--hardware option=value,...] single options on top (e.g. --hardware ram=8k,port1=mouse1351)\n';
+export const HARDWARE_USAGE = '                 [--system <name>]             a named system from 8bitscript.config.ts, .8bitscript/systems.json, or ~/.config/8bitscript/systems.json\n'
+  + '                 [--profile <name>]            a catalog preset or a project profile — `8bs targets` lists them\n'
+  + '                 [--hardware option=value,...] single options on top (e.g. --hardware ram=8k,port1=mouse1351)\n'
+  + '                 [--checkout <dir>]            use a local 8BitScript checkout\'s packages instead of node_modules\n';
 
 /**
  * `hardware.load[emulator]` with `{out}` filled in, or the emulator's own

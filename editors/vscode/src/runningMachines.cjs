@@ -7,6 +7,8 @@ const fs = require('fs');
 const http = require('http');
 const path = require('path');
 
+const { qrSvg } = require('./qr.cjs');
+
 const LAST_RUN_PREFIX = '.8bs-last-';
 
 /** Absolute path of the last-run file `8bs` writes for this project/target. */
@@ -44,6 +46,9 @@ function parseLastRun(text) {
     hardware,
     emulator: typeof data.emulator === 'string' ? data.emulator : null,
     url: typeof data.url === 'string' ? data.url : null,
+    lanUrls: Array.isArray(data.lanUrls)
+      ? data.lanUrls.filter((url) => typeof url === 'string' && /^https?:\/\//.test(url))
+      : [],
     writtenAt: typeof data.writtenAt === 'string' ? data.writtenAt : null,
   };
 }
@@ -77,6 +82,18 @@ function formatElapsed(ms) {
 }
 
 /**
+ * The URL a phone should open: HTTPS first (SharedArrayBuffer is legal
+ * there), else the first HTTP LAN line, else null.
+ *
+ * @param {string[]} [urls]
+ * @returns {string | null}
+ */
+function preferredLanUrl(urls) {
+  if (!Array.isArray(urls) || urls.length === 0) return null;
+  return urls.find((url) => url.startsWith('https://')) ?? urls[0];
+}
+
+/**
  * The expandable tree one running `8bs run`/`boot` shows. `null` when the
  * task is not a machine (doctor, install) — those stay a single row.
  *
@@ -98,6 +115,7 @@ function machineTree(row, report, live) {
   const options = report?.hardware?.options && typeof report.hardware.options === 'object'
     ? Object.entries(report.hardware.options).map(([key, value]) => ({ key, value: String(value) }))
     : [];
+  const lanUrl = preferredLanUrl(report?.lanUrls);
   return {
     emulator: report?.emulator ?? (row.target === 'web' ? 'browser' : null),
     outFile: report?.outFile ?? null,
@@ -116,6 +134,8 @@ function machineTree(row, report, live) {
     options,
     facts,
     url: report?.url ?? null,
+    lanUrl,
+    qrSvg: lanUrl ? qrSvg(lanUrl) : null,
     live: live
       ? {
         fps: typeof live.fps === 'number' ? live.fps : null,
@@ -188,7 +208,7 @@ function livePollPlan(rows, reports) {
     const key = rowKey(row.dir, row.target);
     seen.add(key);
     const report = reports.get(key) ?? null;
-    stamps.push(report?.writtenAt ?? '', report?.emulator ?? '', report?.url ?? '');
+    stamps.push(report?.writtenAt ?? '', report?.emulator ?? '', report?.url ?? '', (report?.lanUrls ?? []).join(' '));
     if (report?.url) fetches.push({ key, url: report.url });
   }
   return { seen, stamp: stamps.join('\0'), fetches };
@@ -202,6 +222,7 @@ module.exports = {
   livePollPlan,
   machineTree,
   parseLastRun,
+  preferredLanUrl,
   readLastRun,
   rowKey,
   sizeWithPct,

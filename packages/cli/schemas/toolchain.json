@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://8bitscript.org/schemas/toolchain.json",
+  "title": "8BitScript toolchain overlay",
+  "description": "Gitignored <project>/.8bitscript/toolchain.json. Points this clone at a local 8BitScript checkout without rewriting package.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "checkout": {
+      "type": "string",
+      "description": "Absolute path, or a path relative to the project directory, of an 8BitScript monorepo checkout."
+    }
+  }
+}

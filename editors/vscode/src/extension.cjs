@@ -21,13 +21,19 @@ const path = require('path');
 const vscode = require('vscode');
 
 const { BINARY, findToolchain } = require('./projects.cjs');
+const { isCheckout, managedCheckoutDir, resolveCheckoutRoot, checkoutCli } = require('./checkout.cjs');
+const { registerDevReload } = require('./devReload.cjs');
 const { registerRunner } = require('./runner.cjs');
 const { registerLauncherView } = require('./launcherView.cjs');
 const { registerControllerView } = require('./controllerView.cjs');
+const { registerSystemView } = require('./systemView.cjs');
+const { registerProjectView } = require('./projectView.cjs');
 const { registerLanguageServer } = require('./lsp.cjs');
+const settings = require('./settings.cjs');
 
 let server;
 let output;
+let managedDir;
 
 /** Every directory worth searching: open documents first, then folder roots. */
 function searchRoots() {
@@ -47,11 +53,25 @@ function searchRoots() {
 function tryStart({ quiet } = {}) {
   if (server.running) return;
 
+  const folders = (vscode.workspace.workspaceFolders ?? []).map((folder) => folder.uri.fsPath);
+  const setting = settings.getCheckout() || null;
+  const checkout = resolveCheckoutRoot({ folders, setting, managed: null })?.dir ?? null;
+
   const roots = searchRoots();
+  if (managedDir) roots.push(managedDir);
   for (const root of roots) {
-    const toolchain = findToolchain(root);
+    const toolchain = findToolchain(root, checkout);
     if (toolchain) {
-      server.start(toolchain);
+      server.start(toolchain, checkout);
+      return;
+    }
+  }
+
+  const managed = resolveCheckoutRoot({ folders, setting, managed: managedDir });
+  if (managed && isCheckout(managed.dir)) {
+    const toolchain = checkoutCli(managed.dir);
+    if (toolchain) {
+      server.start(toolchain, checkout);
       return;
     }
   }
@@ -68,6 +88,7 @@ function tryStart({ quiet } = {}) {
 function activate(context) {
   output = vscode.window.createOutputChannel('8BitScript', { log: true });
   context.subscriptions.push(output);
+  managedDir = managedCheckoutDir(context.globalStorageUri.fsPath);
   server = registerLanguageServer(context, output);
 
   // A .8bs file may be opened after activation, or in a project the first scan
@@ -75,6 +96,11 @@ function activate(context) {
   context.subscriptions.push(
     vscode.workspace.onDidOpenTextDocument((document) => {
       if (document.languageId === '8bitscript') tryStart({ quiet: true });
+    }),
+    vscode.workspace.onDidChangeConfiguration(async (event) => {
+      if (!event.affectsConfiguration('8bitscript.checkout')) return;
+      await server.stop();
+      tryStart({ quiet: true });
     }),
   );
 
@@ -86,11 +112,14 @@ function activate(context) {
   );
 
   const projects = registerRunner(context, output);
-  registerLauncherView(context, projects);
+  const devReload = registerDevReload(context, output);
+  registerLauncherView(context, projects, devReload);
   // The Controller Setup panel shares the launcher's view of the world —
   // which project is selected, and what the toolchain says each machine
   // has — so it is handed the same Projects rather than building its own.
   registerControllerView(context, projects);
+  registerSystemView(context, projects);
+  registerProjectView(context, projects);
 
   tryStart();
 }

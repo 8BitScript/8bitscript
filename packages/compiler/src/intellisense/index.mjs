@@ -317,15 +317,15 @@ function findImportBindings(tokens) {
  * this release actually builds for, in a fixed order, so the choice is
  * deterministic rather than an artifact of object key order.
  */
-function resolveModuleFile(specifier, fromFile) {
+function resolveModuleFile(specifier, fromFile, checkout) {
   if (!fromFile) return null;
-  const plain = resolveSpecifier(specifier, fromFile);
+  const plain = resolveSpecifier(specifier, fromFile, { checkout });
   if (plain?.code) return null;
   if (plain?.path) return { path: plain.path, conditional: false };
   if (plain?.path !== null) return null;
 
   for (const machine of RELEASE_MACHINES) {
-    const branch = resolveSpecifier(specifier, fromFile, { machine });
+    const branch = resolveSpecifier(specifier, fromFile, { machine, checkout });
     if (branch?.path) return { path: branch.path, conditional: true, machine };
   }
   return null;
@@ -542,10 +542,10 @@ function memberMarkdown(objectName, member, resolved) {
  * resolve, or the exported name it binds is not a namespace (a plain
  * imported function/const has no members to look up).
  */
-function importedNamespace(tokens, local, fromFile) {
+function importedNamespace(tokens, local, fromFile, checkout) {
   const binding = findImportBindings(tokens).find((b) => b.local === local);
   if (!binding) return null;
-  const resolved = resolveModuleFile(binding.specifier, fromFile);
+  const resolved = resolveModuleFile(binding.specifier, fromFile, checkout);
   if (!resolved) return null;
   const members = scanModule(readFileSync(resolved.path, 'utf8')).get(binding.imported);
   return members ? { members, resolved } : null;
@@ -566,19 +566,20 @@ function importedNamespace(tokens, local, fromFile) {
  *
  * @param {string} text
  * @param {number} offset
- * @param {{ path?: string }} [options] `path`: absolute path of `text`'s
+ * @param {{ path?: string, checkout?: string|null }} [options] `path`: absolute path of `text`'s
  *   file, needed to resolve a named import to the module it names — see
  *   resolveModuleFile. Without it, member hover is unavailable, the same
  *   way import-resolution diagnostics are unavailable for a document with
  *   no path on disk (packages/language-server/src/server.mjs's `validate`).
+ *   `checkout` is the same local 8BitScript tree `8bs --checkout` names.
  * @returns {{ start: number, length: number, markdown: string } | null}
  */
 export function getHoverInfo(text, offset, options = {}) {
   const { tokens } = tokenize(text);
-  return hoverAt(tokens, offset, text, options.path);
+  return hoverAt(tokens, offset, text, options.path, options.checkout);
 }
 
-function hoverAt(tokens, offset, text, filePath) {
+function hoverAt(tokens, offset, text, filePath, checkout) {
   const index = tokenIndexAt(tokens, offset);
   if (index === -1) return null;
   const token = tokens[index];
@@ -592,7 +593,7 @@ function hoverAt(tokens, offset, text, filePath) {
     if (!field) return null;
     const inner = tokenize(text.slice(field.sourceStart, field.sourceEnd)).tokens;
     for (const t of inner) t.start += field.sourceStart;
-    return hoverAt(inner, offset, text, filePath);
+    return hoverAt(inner, offset, text, filePath, checkout);
   }
 
   if (token.kind === TokenKind.Type) {
@@ -624,7 +625,7 @@ function hoverAt(tokens, offset, text, filePath) {
     const dot = tokens[index - 1];
     const object = tokens[index - 2];
     if (dot?.text === '.' && object?.kind === TokenKind.Identifier) {
-      const namespace = importedNamespace(tokens, object.text, filePath);
+      const namespace = importedNamespace(tokens, object.text, filePath, checkout);
       const member = namespace?.members.get(token.text);
       if (member) {
         return {
@@ -822,16 +823,16 @@ function memberPosition(tokens, offset) {
  *
  * @param {string} text
  * @param {number} offset
- * @param {{ path?: string }} [options] See getHoverInfo's `options.path`.
+ * @param {{ path?: string, checkout?: string|null }} [options] See getHoverInfo's `options.path`.
  * @returns {{ label: string, kind: 'type'|'function'|'constant', sortRank: number,
  *   detail: string, documentation: string, insertText?: string }[]}
  */
 export function getCompletions(text, offset, options = {}) {
   const { tokens } = tokenize(text);
-  return completionsAt(tokens, offset, text, options.path);
+  return completionsAt(tokens, offset, text, options.path, options.checkout);
 }
 
-function completionsAt(tokens, offset, text, filePath) {
+function completionsAt(tokens, offset, text, filePath, checkout) {
   const index = tokenIndexAt(tokens, offset);
   const token = tokens[index];
   if (token?.kind === TokenKind.Template) {
@@ -840,7 +841,7 @@ function completionsAt(tokens, offset, text, filePath) {
     if (!field) return [];
     const inner = tokenize(text.slice(field.sourceStart, field.sourceEnd)).tokens;
     for (const t of inner) t.start += field.sourceStart;
-    return completionsAt(inner, offset, text, filePath);
+    return completionsAt(inner, offset, text, filePath, checkout);
   }
 
   const compileTime = compileTimePosition(tokens, offset, text);
@@ -882,7 +883,7 @@ function completionsAt(tokens, offset, text, filePath) {
 
   const object = memberPosition(tokens, offset);
   if (object) {
-    const namespace = importedNamespace(tokens, object, filePath);
+    const namespace = importedNamespace(tokens, object, filePath, checkout);
     if (!namespace) return [];
     return [...namespace.members.values()].map((member) => ({
       label: member.name,

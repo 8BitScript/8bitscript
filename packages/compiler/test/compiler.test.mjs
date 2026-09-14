@@ -663,6 +663,42 @@ test('a package\'s string entry follows the same rule', () => {
   });
 });
 
+test('a checkout root wins over node_modules for @8bitscript/*', () => {
+  const checkout = mkdtempSync(join(tmpdir(), '8bs-checkout-'));
+  const project = mkdtempSync(join(tmpdir(), '8bs-app-'));
+  try {
+    mkdirSync(join(checkout, 'packages', 'text', 'src'), { recursive: true });
+    writeFileSync(join(checkout, 'pnpm-workspace.yaml'), 'packages:\n  - packages/*\n');
+    writeFileSync(join(checkout, 'packages', 'text', 'package.json'), JSON.stringify({
+      name: '@8bitscript/text',
+      '8bitscript': { entry: './src/index.8bs' },
+    }));
+    writeFileSync(join(checkout, 'packages', 'text', 'src', 'index.8bs'), 'export const FROM_CHECKOUT: u8 = 1;\n');
+    mkdirSync(join(project, 'node_modules', '@8bitscript', 'text', 'src'), { recursive: true });
+    writeFileSync(join(project, 'node_modules', '@8bitscript', 'text', 'package.json'), JSON.stringify({
+      name: '@8bitscript/text',
+      '8bitscript': { entry: './src/index.8bs' },
+    }));
+    writeFileSync(join(project, 'node_modules', '@8bitscript', 'text', 'src', 'index.8bs'), 'export const FROM_NPM: u8 = 1;\n');
+    const entry = join(project, 'main.8bs');
+    writeFileSync(entry, 'import { FROM_CHECKOUT } from "@8bitscript/text";\n');
+    const published = resolveSpecifier('@8bitscript/text', entry);
+    assert.match(published.path, /node_modules/);
+    const local = resolveSpecifier('@8bitscript/text', entry, { checkout });
+    assert.equal(
+      analyze('import { FROM_CHECKOUT } from "@8bitscript/text";\n', entry, {
+        resolveImports: true, checkout,
+      }).length,
+      0,
+      'analyze() resolves through the same checkout',
+    );
+    assert.match(local.path, /packages[/\\]text[/\\]src[/\\]index\.8bs$/);
+  } finally {
+    rmSync(checkout, { recursive: true, force: true });
+    rmSync(project, { recursive: true, force: true });
+  }
+});
+
 // ---- half-typed source is the normal input --------------------------------
 //
 // `analyze()` runs on every keystroke, and it lowers now, so lowering sees

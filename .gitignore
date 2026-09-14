@@ -32,6 +32,10 @@ packages/compiler/src/**/*.js
 # Personal hardware — lives in ~/.config/8bitscript/, not the repo
 8bitscript.controllers.json
 
+# Clone-local systems and a local-checkout pointer. Advertised systems
+# stay in 8bitscript.config.ts.
+.8bitscript/
+
 # Logs
 *.log
 
