@@ -92,7 +92,7 @@ Do not describe more than this as working:
 - `packages/nes/native/6502/font.s` is the CHR-ROM character set — the NES
   has no character ROM, so the package ships one, laid out so tile index ==
   ASCII (space, digits, A-Z, a-z, `! , - . : ?`; tile `$80` is the solid
-  frame tile). It reaches the `.nes` image through the package's
+  frame tile, and `$A9` is ©). It reaches the `.nes` image through the package's
   `"8bitscript".native` list — the resolver/linker/backend plumbing in
   `docs/packages.md`. `mos/chr-nes.ts` reads that file's data-only slice of
   GNU-as syntax (`.macro`/`.rept`/`.byte`/`.space` and integer expressions
@@ -102,6 +102,17 @@ Do not describe more than this as working:
   declares. Reverse video of the portable set is the same tiles at
   ASCII+128 ($A0-$DF, and $E1-$FA for the lowercase range); tile $80 stays
   the solid frame.
+
+  Tile `$A9` is the COPYRIGHT SIGN, added 2026-09-13 — the one glyph whose
+  index is neither a portable character nor one plus 128. 169 is what ©
+  *is* in Latin-1 and Unicode, so the web host's font draws the same artwork
+  at the same code and the X16's ISO charset already held it there; a
+  program spells the symbol identically on all three. It displaced nothing
+  reachable: `$A9` was the reverse of `)`, which has no glyph in this font
+  to reverse, and no portable character's reverse lands on it. The six
+  targets that draw from a character ROM this build does not replace — PET,
+  C64, VIC-20, C128, MEGA65, Atari 8-bit — have no © in their generators at
+  all and do not get one until a redefined-charset layer exists.
 
   Lowercase ($61-$7A and its reverse copies) was added 2026-09-12. Its
   absence was invisible until there was a picture: the first `.nes` this
@@ -303,7 +314,7 @@ shows you that something is wrong and a nametable dump shows you what.
 packages/nes/src/index.8bs           target package: the PPU port protocol (setVramAddress, resetScroll)
 packages/nes/src/screen.8bs          @8bitscript/nes/screen: screen.blank()/setBorder()/setBackground()/setColors(), the drawn frame, color names
 packages/nes/src/text.8bs            @8bitscript/nes/text: text.print/printNumber/setColor/setReverse/putChar/putColor, CELL_COUNT 728, COLUMNS 28, TextColor (empty setColor/putColor)
-packages/nes/native/6502/font.s      the CHR-ROM character set (tile index == ASCII; reverse at ASCII+128)
+packages/nes/native/6502/font.s      the CHR-ROM character set (tile index == ASCII; reverse at ASCII+128; © at $A9)
 packages/nes/package.json            "8bitscript".exports names the two subpaths; .native lists the font
 packages/compiler/src/mos/index.ts   FRAME_SYNC.nes (NTSC frame timing, and the frameHook that delivers the write queue)
 packages/compiler/src/mos/image-nes.ts       the .nes file: iNES header, PRG-ROM, the 6502's vectors, CHR-ROM

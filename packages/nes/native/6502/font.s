@@ -17,6 +17,9 @@
 ; blank. Tile $80 is solid colour index 2 — the tile @8bitscript/nes lays
 ; around the screen edge as the drawn "border" (see index.8bs). Reverse
 ; video of $20-$5F lives at ASCII+128 ($A0-$DF), leaving $80 alone.
+; The one exception is $A9, the COPYRIGHT SIGN: a real glyph at the code
+; Latin-1 and Unicode both give it, matching the web host's font, and
+; taking a slot whose reverse copy ')' has no glyph to reverse.
 ; Everything else, including all of pattern table 1 ($1000-$1FFF), is blank.
 ;
 ; Tile format (nesdev.org/wiki/PPU_pattern_tables): 8 bytes of bitplane 0
@@ -182,8 +185,24 @@ tile 0b00000000, 0b00000000, 0b01111110, 0b00001100, 0b00011000, 0b00110000, 0b0
 rfill
 ; $A1 reverse '!'
 itile 0b00011000, 0b00011000, 0b00011000, 0b00011000, 0b00000000, 0b00000000, 0b00011000, 0b00000000
-; $A2-$AB: reverse of the $22-$2B blanks
-.rept 10
+; $A2-$A8: reverse of the $22-$28 blanks
+.rept 7
+    rfill
+.endr
+; $A9 COPYRIGHT SIGN — a real glyph in the middle of the reverse run, not a
+; reverse copy, and the one tile here whose index is NOT "some ASCII code
+; plus 128". 169 is what (c) IS in Latin-1 and Unicode, and the web host's
+; font (packages/cli/src/font8x8.mjs) draws the same artwork at the same
+; code, so a program spells the symbol the same way on both. Nothing is
+; displaced that a program can reach: $A9 held the reverse of ')', and ')'
+; has no glyph in this font at all, so its reverse was an inverted blank —
+; a solid block. No portable character's reverse lands here either; the
+; portable set maps to $A0, $A1, $AC-$AE, $B0-$B9, $BA, $BF, $C1-$DA and
+; $E1-$FA, and $A9 is in none of those runs. Drawn with `tile`, not
+; `itile`, so it takes the text colour like any other glyph.
+tile 0b01111110, 0b10000001, 0b10111101, 0b10100001, 0b10100001, 0b10111101, 0b10000001, 0b01111110
+; $AA-$AB: reverse of the $2A-$2B blanks
+.rept 2
     rfill
 .endr
 ; $AC reverse ','
