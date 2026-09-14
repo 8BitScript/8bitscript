@@ -34,8 +34,8 @@ const PLANNED = ['dev'];
 const usage = () => `Usage: 8bs <command> [options]
 
 Implemented:
-  build --target <t> [--pal] [--size] [--profile <name>]
-    [--hardware option=value,...] [entry]
+  build --target <t> [--system <name>] [--pal] [--size] [--profile <name>]
+    [--hardware option=value,...] [--checkout <dir>] [entry]
                                Compile for a target. This release builds
                                for every machine it knows: pet, c64,
                                vic20, c128, cx16, mega65, atari8, nes and
@@ -45,7 +45,13 @@ Implemented:
                                the machine's catalog (8032) or a profile the
                                project composes in 8bitscript.config.ts —
                                and --hardware sets single options on top
-                               (model=4032). --size prints a breakdown of
+                               (model=4032). --system names a saved
+                               arrangement (config, .8bitscript/systems.json,
+                               or ~/.config/8bitscript/systems.json) and
+                               supplies the target. --checkout points at a
+                               local 8BitScript monorepo instead of the
+                               published packages in node_modules.
+                               --size prints a breakdown of
                                the built program — functions, inlined
                                callees, and runtime — largest first, under
                                the memory line. "8bs targets"
@@ -58,8 +64,8 @@ Implemented:
                                hardware, when it has none). What a GitHub
                                Release's assets are built from — see the
                                reusable compile.yml workflow.
-  run <target> [--pal] [--profile <name>]
-    [--hardware option=value,...] [--size] [entry]
+  run <target> [--system <name>] [--pal] [--profile <name>]
+    [--hardware option=value,...] [--checkout <dir>] [--size] [entry]
     [--no-open] [--lan] [--local] [--port <n>]
                                Build, then open that target's emulator
                                (VICE's xpet for the pet) at the right
@@ -71,8 +77,9 @@ Implemented:
                                default) also serves HTTPS on the LAN so a
                                phone on the same Wi-Fi can open the printed
                                URL; --local is loopback only. --port (web)
-                               is 8008 by default, HTTPS on the next port;
-                               --port 0 picks an ephemeral port.
+                               is ephemeral by default so two runs can
+                               coexist; --port n pins HTTP to n (HTTPS
+                               on n+1).
     [--screenshot <file.png>] Instead of an interactive window, capture one
     [--frames <n>]             screenshot through the target's own emulator
                                API (or, for atari8 only, a macOS window
@@ -80,8 +87,8 @@ Implemented:
                                --frames means a different unit per target
                                (cycles, wall-clock seconds, or exact
                                frame-advances); omit it for a tested default.
-  boot <target> [--pal] [--profile <name>]
-    [--hardware option=value,...]
+  boot <target> [--system <name>] [--pal] [--profile <name>]
+    [--hardware option=value,...] [--checkout <dir>]
                                Opens that target's emulator fitted the same
                                way 'run' would, but loads nothing into it —
                                a stock (or fitted) machine booting to
@@ -150,8 +157,15 @@ if (command === '--version' || command === '-v') {
 }
 
 if (command === 'check') {
+  const { applyCheckoutFromArgs } = await import('../src/checkout.mjs');
+  const checkout = applyCheckoutFromArgs(rest);
+  if (!checkout.ok) {
+    process.stderr.write(`8bs check: ${checkout.error}\n`);
+    await finish(2);
+  }
   const { check } = await import('../src/check.mjs');
-  await finish(await check(rest.filter((a) => !a.startsWith('-'))));
+  const files = rest.filter((a, i) => !checkout.consumed.has(i) && !a.startsWith('-'));
+  await finish(await check(files, { checkout: checkout.checkout }));
 }
 
 if (command === 'doctor') {
@@ -191,9 +205,18 @@ if (command === 'setup') {
 
 if (command === 'lsp') {
   // --stdio is accepted because every editor passes it by convention; stdio is
-  // the only transport, so there is nothing to select.
+  // the only transport, so there is nothing to select. --checkout (or
+  // EIGHTBITSCRIPT_CHECKOUT / toolchain.json) is the same local tree
+  // `8bs run --checkout` uses, so hover and diagnostics resolve
+  // `@8bitscript/*` from that checkout.
+  const { applyCheckoutFromArgs } = await import('../src/checkout.mjs');
+  const checkout = applyCheckoutFromArgs(rest);
+  if (!checkout.ok) {
+    process.stderr.write(`8bs lsp: ${checkout.error}\n`);
+    await finish(2);
+  }
   const { start } = await import('@8bitscript/language-server');
-  start();
+  start({ checkout: checkout.checkout });
 } else {
   const known = IMPLEMENTED.has(command) || PLANNED.includes(command);
   process.stderr.write(

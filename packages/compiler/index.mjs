@@ -60,7 +60,7 @@ export { getHoverInfo, getCompletions } from './src/intellisense/index.mjs';
  *
  * @param {string} text
  * @param {string} file
- * @param {{ resolveImports?: boolean, frameRate?: number, machine?: string, facts?: object }} [options]
+ * @param {{ resolveImports?: boolean, frameRate?: number, machine?: string, facts?: object, checkout?: string|null }} [options]
  *   `machine` is the target when one is known; without it `#system()` and
  *   `#fact(...)` fold to placeholders and are valid-but-target-dependent,
  *   as a `.<machine>.8bs` import is. `facts` is the machine's hardware
@@ -90,6 +90,6 @@ export function analyze(text, file = '<unknown>', options = {}) {
   }
   // Import resolution stays on tokens rather than the AST, deliberately: a
   // syntax error on line 30 should not stop line 1's import from being checked.
-  if (options.resolveImports) all.push(...resolveImports(tokens, file));
+  if (options.resolveImports) all.push(...resolveImports(tokens, file, options));
   return all.sort((a, b) => a.start - b.start);
 }

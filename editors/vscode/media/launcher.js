@@ -21,8 +21,6 @@ function fill(select, options, selected) {
     el.textContent = (option.where && option.where !== option.label
       ? option.label + '  —  ' + option.where
       : option.label)
-      // A machine this project does not build for is still in the list,
-      // so choosing it explains itself rather than simply not being there.
       + (option.runnable === false ? '  (not a target)' : '')
       + (option.short ? '  (too small)' : '');
     el.selected = option.id === selected;
@@ -30,113 +28,39 @@ function fill(select, options, selected) {
   }
 }
 
-function renderHardware(hardware) {
-  const root = $('options');
+function renderPackages(rows) {
+  const root = $('package-rows');
   root.textContent = '';
-  if (!hardware) {
-    fill($('profile'), [{ id: '', label: 'Stock machine' }], '');
-    $('profile').disabled = true;
-    const none = document.createElement('div');
-    none.className = 'none';
-    none.textContent = 'No toolchain found to ask about hardware.';
-    root.appendChild(none);
-    return;
-  }
-  $('profile').disabled = false;
-  fill($('profile'), hardware.profiles, hardware.selection.profile ?? '');
-  for (const option of hardware.options) {
+  for (const entry of rows) {
     const row = document.createElement('div');
-    row.className = 'option' + (option.id in hardware.selection.options ? ' set' : '');
-    const probes = [...new Set(option.values
-      .filter((v) => v.detect && v.id !== option.default).map((v) => v.detect))];
-    const label = document.createElement('label');
-    label.textContent = option.label;
-    const tags = [];
-    if (option.values.some((v) => v.affectsBuild)) tags.push('build');
-    if (probes.length > 0) tags.push('probe');
-    if (tags.length > 0) {
-      const span = document.createElement('span');
-      span.className = 'tags';
-      span.textContent = ' ' + tags.join(' · ');
-      label.appendChild(span);
-    }
-    label.title = option.label + ' (--hardware ' + option.id + '=...)'
-      + (probes.length > 0
-        ? '\nFound on the machine at run time by ' + probes.join(', ')
-          + ': one build serves those values, and fitting one here compiles the probe in.'
-        : '\nChosen at build time: each value is its own build.');
-    const select = document.createElement('select');
-    select.title = label.title;
-    for (const value of option.values) {
-      const el = document.createElement('option');
-      el.value = value.id;
-      const marks = [];
-      if (value.affectsBuild) marks.push('build');
-      if (value.detect && value.id !== option.default) marks.push('probe');
-      el.textContent = value.label + (marks.length > 0 ? '  [' + marks.join(', ') + ']' : '');
-      el.selected = value.id === hardware.effective[option.id];
-      select.appendChild(el);
-    }
-    select.addEventListener('change', (e) => vscode.postMessage({
-      type: 'set', key: 'option', option: option.id, value: e.target.value,
+    row.className = 'pkg-row';
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = entry.label;
+    const detail = document.createElement('span');
+    detail.className = 'detail';
+    detail.textContent = [entry.detail, entry.packageManager].filter(Boolean).join(' · ')
+      + (entry.installed || entry.action === 'install' ? '' : ' · not installed');
+    const install = document.createElement('button');
+    install.className = 'link';
+    install.textContent = entry.action === 'install' ? 'Install' : 'Update';
+    install.addEventListener('click', () => vscode.postMessage({
+      type: 'command',
+      id: '8bitscript.install',
+      toolchain: entry.kind === 'toolchain',
+      dir: entry.dir,
+      name: entry.label,
+      packageManager: entry.packageManager,
     }));
-    row.appendChild(label);
-    row.appendChild(select);
+    row.append(name, detail, install);
     root.appendChild(row);
   }
-  if (hardware.options.length === 0) {
-    const none = document.createElement('div');
+  if (rows.length === 0) {
+    const none = document.createElement('p');
     none.className = 'none';
-    none.textContent = 'Nothing to fit on this system.';
+    none.textContent = 'Install 8BitScript to run Studio and the examples.';
     root.appendChild(none);
   }
-  const reset = document.createElement('button');
-  reset.className = 'link';
-  reset.textContent = 'Back to stock';
-  reset.addEventListener('click', () => vscode.postMessage({ type: 'set', key: 'stock' }));
-  root.appendChild(reset);
-  renderFacts(root, hardware.facts);
-}
-
-function renderFacts(root, facts) {
-  if (!facts || facts.length === 0) return;
-  const details = document.createElement('details');
-  details.className = 'facts';
-  const summary = document.createElement('summary');
-  summary.textContent = 'What a program can rely on';
-  details.appendChild(summary);
-  const table = document.createElement('table');
-  table.className = 'facts';
-  let group = null;
-  for (const fact of facts) {
-    const [head, ...rest] = fact.key.split('.');
-    if (head !== group) {
-      group = head;
-      const row = document.createElement('tr');
-      row.className = 'group';
-      const cell = document.createElement('td');
-      cell.colSpan = 2;
-      cell.textContent = head[0].toUpperCase() + head.slice(1);
-      row.appendChild(cell);
-      table.appendChild(row);
-    }
-    const row = document.createElement('tr');
-    row.title = fact.doc + (fact.when === 'run'
-      ? ' (run time: the build may use it; the machine says whether it is there)'
-      : '');
-    const name = document.createElement('td');
-    name.textContent = rest.join('.').replace(/([a-z])([A-Z])/g, '$1_$2').toUpperCase();
-    const value = document.createElement('td');
-    value.className = 'value' + (fact.when === 'run' ? ' run' : '');
-    value.textContent = fact.type === 'flag'
-      ? (fact.value ? (fact.when === 'run' ? 'may use' : 'yes') : 'no')
-      : String(fact.value);
-    row.appendChild(name);
-    row.appendChild(value);
-    table.appendChild(row);
-  }
-  details.appendChild(table);
-  root.appendChild(details);
 }
 
 /** The Running machines section: one expandable tree per `8bs run`/`boot`. */
@@ -174,6 +98,22 @@ function branch(title, children) {
 function renderMachineTree(machine) {
   const tree = document.createElement('div');
   tree.className = 'tree';
+  if (machine.lanUrl) {
+    const lan = document.createElement('div');
+    lan.className = 'lan';
+    if (machine.qrSvg) {
+      const qr = document.createElement('div');
+      qr.className = 'lan-qr';
+      qr.setAttribute('title', 'Scan to open on a phone on this Wi-Fi');
+      qr.innerHTML = machine.qrSvg;
+      lan.appendChild(qr);
+    }
+    const url = document.createElement('code');
+    url.className = 'lan-url';
+    url.textContent = machine.lanUrl;
+    lan.appendChild(url);
+    tree.appendChild(lan);
+  }
   const rows = [
     kv('Elapsed', machine.elapsed),
     kv('Emulator', machine.emulator),
@@ -182,7 +122,7 @@ function renderMachineTree(machine) {
     kv('Memory', machine.memory?.line),
   ].filter(Boolean);
   tree.append(...rows);
-  if (machine.url) tree.append(kv('URL', machine.url));
+  if (machine.url) tree.append(kv('Local', machine.url));
   if (machine.live) {
     if (machine.live.error) tree.append(kv('Live', machine.live.error));
     else if (machine.live.done) tree.append(kv('Live', 'finished'));
@@ -270,31 +210,20 @@ window.addEventListener('message', ({ data }) => {
   if (data.type !== 'state') return;
   const empty = data.projects.length === 0;
 
+  renderPackages(data.packages ?? []);
   fill($('project'), data.projects, data.project);
   $('project').disabled = empty;
   $('open').disabled = empty;
-  // The System dropdown holds two kinds of entry when the project's config
-  // declares systems: those first, then the bare machines.
+  $('details').disabled = empty;
   fill($('system'), data.systems, data.system);
-  $('region').value = data.region;
-  $('region').disabled = !data.machine;
 
-  // The button says what it will do, so nothing has to be read off the
-  // dropdowns to know what Run means. On one of the project's own systems
-  // the name is the whole answer, and the machine it stands for goes on
-  // the line below.
   $('run-title').textContent = empty ? 'Run' : 'Run ' + data.projectLabel;
   $('run-sub').textContent = data.subtitle
     ?? [data.systemTitle, data.fitted, data.regionLabel].filter(Boolean).join(' · ');
   $('run').disabled = !data.runnable;
   $('build').disabled = !data.runnable;
-  // Boot only needs a real emulator to open — not a project that targets
-  // this system, since nothing of the project's own loads into it either
-  // way. `bootable` is not `machine` (that one's only about an NTSC/PAL
-  // choice, and excludes the PET on purpose) — every target but `web` has
-  // a bare emulator to open.
   $('boot').disabled = !data.bootable;
-  $('boot-label').textContent = data.bootable ? 'Boot ' + (data.systemTitle ?? 'Machine') : 'Boot Machine';
+  $('boot-label').textContent = data.bootable ? 'Boot' : 'Boot';
   $('boot').title = data.bootable
     ? 'Boot ' + data.systemTitle + ' with nothing loaded — just the hardware'
     : (data.systemTitle ?? 'this system') + ' has no bare emulator to boot without a program';
@@ -303,12 +232,24 @@ window.addEventListener('message', ({ data }) => {
   notice.hidden = !data.warning;
   notice.textContent = data.warning ?? '';
 
-  const install = $('install');
-  install.hidden = data.installed || empty;
-  install.textContent = 'Run ' + data.packageManager + ' install';
+  const reload = $('dev-reload');
+  const rebuildBtn = $('rebuild-extension');
+  const reloadBtn = $('reload-window');
+  const reloadMsg = $('dev-reload-msg');
+  const phase = data.devReload?.phase ?? 'idle';
+  const error = data.devReload?.error;
+  reload.hidden = phase === 'idle';
+  rebuildBtn.hidden = phase !== 'dirty' && phase !== 'error';
+  reloadBtn.hidden = phase !== 'ready';
+  reloadMsg.textContent = phase === 'dirty'
+    ? 'The local 8BitScript extension has changed.'
+    : phase === 'building'
+      ? 'Rebuilding the local extension…'
+      : phase === 'ready'
+        ? 'The local 8BitScript extension was rebuilt successfully.'
+        : (error || '');
 
-  $('fitted').textContent = data.fitted;
-  renderHardware(data.hardware);
+  $('fitted').textContent = 'fitted as ' + (data.subtitle ?? data.fitted);
   renderRunning(data.running);
 
   const hint = $('hint');
@@ -318,14 +259,14 @@ window.addEventListener('message', ({ data }) => {
 });
 
 $('project').addEventListener('change', (e) => vscode.postMessage({ type: 'set', key: 'project', value: e.target.value }));
-for (const key of ['system', 'region']) {
-  $(key).addEventListener('change', (e) => vscode.postMessage({ type: 'set', key, value: e.target.value }));
-}
-$('profile').addEventListener('change', (e) => vscode.postMessage({ type: 'set', key: 'profile', value: e.target.value }));
+$('system').addEventListener('change', (e) => vscode.postMessage({ type: 'set', key: 'system', value: e.target.value }));
 $('run').addEventListener('click', () => vscode.postMessage({ type: 'launch', action: 'run' }));
 $('build').addEventListener('click', () => vscode.postMessage({ type: 'launch', action: 'build' }));
 $('boot').addEventListener('click', () => vscode.postMessage({ type: 'launch', action: 'boot' }));
 $('open').addEventListener('click', () => vscode.postMessage({ type: 'command', id: '8bitscript.openEntry' }));
-$('install').addEventListener('click', () => vscode.postMessage({ type: 'command', id: '8bitscript.install' }));
+$('details').addEventListener('click', () => vscode.postMessage({ type: 'command', id: '8bitscript.showProject' }));
+$('fitted').addEventListener('click', () => vscode.postMessage({ type: 'command', id: '8bitscript.configureSystem' }));
+$('rebuild-extension').addEventListener('click', () => vscode.postMessage({ type: 'rebuildExtension' }));
+$('reload-window').addEventListener('click', () => vscode.postMessage({ type: 'reloadWindow' }));
 
 vscode.postMessage({ type: 'ready' });

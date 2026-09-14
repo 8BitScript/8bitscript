@@ -26,6 +26,8 @@ const {
   ofKind,
   systemLine,
   packageManagerFor,
+  packageManagerPath,
+  resolvePackageManager,
   loadProject,
   loadProjects,
   parseConfig,
@@ -110,6 +112,15 @@ test('findToolchain walks upward to the nearest node_modules/.bin', (t) => {
 test('findToolchain returns null when nothing is installed', (t) => {
   const root = scratch(t);
   assert.equal(findToolchain(root), null);
+});
+
+test('findToolchain prefers a checkout CLI over node_modules', (t) => {
+  const { checkoutCli } = require('../src/checkout.cjs');
+  const repo = path.resolve(__dirname, '..', '..', '..');
+  const root = scratch(t);
+  const bin = path.join(root, 'node_modules', '.bin', BINARY);
+  write(bin, '');
+  assert.equal(findToolchain(root, repo), checkoutCli(repo));
 });
 
 test('loadProject combines the config, package.json, and toolchain', (t) => {
@@ -211,6 +222,15 @@ test('commandArgs spells the same commands a person would type', () => {
   assert.deepEqual(
     commandArgs('boot', 'pet', 'ntsc', { profile: '8032', options: {} }),
     ['boot', 'pet', '--profile', '8032'],
+  );
+  assert.deepEqual(
+    commandArgs('run', 'pet', 'ntsc', undefined, { system: 'PET 2001 (4K)' }),
+    ['run', '--system', 'PET 2001 (4K)', '--size'],
+  );
+  assert.deepEqual(
+    commandArgs('build', 'pet', 'ntsc', { profile: '8032' }, { system: 'PET 8032', checkout: '/src/8bitscript' }),
+    ['build', '--system', 'PET 8032', '--checkout', '/src/8bitscript', '--size'],
+    'a named system already carries its fitting; --checkout rides along',
   );
 });
 
@@ -336,13 +356,14 @@ test('examplesManifest reads the 8bitscript.examples field, an object keyed by n
   assert.equal(examplesManifest(null), null);
 });
 
-test('kindOf: an app declares itself, everything else is a project; examples are the manifest\'s to name', () => {
+test('kindOf: an app declares itself; an example is named by a parent manifest', () => {
   const app = { name: '@8bitscript/studio', '8bitscript': { app: { title: 'Studio' } } };
   assert.equal(kindOf('/repo/packages/studio', app), 'app');
-  // Placement no longer makes an example: only the examples package's manifest does.
-  assert.equal(kindOf('/repo/examples/borders', null), 'project');
+  assert.equal(kindOf('/repo/examples/borders', null), 'project', 'a path named examples is not enough');
   assert.equal(kindOf('/repo/game', { '8bitscript': { entry: './src/index.8bs' } }), 'project', 'a library is not an app');
   assert.equal(kindOf('/repo/game', { '8bitscript': { app: true } }), 'project', 'the app field is an object');
+  const hello = path.resolve(__dirname, '..', '..', '..', 'packages', 'examples', 'hello-world');
+  assert.equal(kindOf(hello, null), 'example');
 });
 
 test('loadApps finds the apps that ship with the toolchain, in a checkout and installed, once each', (t) => {
@@ -379,12 +400,9 @@ test('loadProject reads the kind and an app title from package.json', (t) => {
   assert.equal(studio.kind, 'app');
   assert.equal(studio.title, 'Studio');
   assert.equal(studio.name, '@8bitscript/studio');
-  // The examples package's own directory is a project on its own terms —
-  // it declares no app manifest and nothing places it — the kind and
-  // title an example gets come from loadExamples()'s overrides instead.
   const hello = loadProject(path.join(repo, 'packages', 'examples', 'hello', '8bs.config.ts'));
-  assert.equal(hello.kind, 'project');
-  assert.equal(hello.title, 'hello', 'a project with no app manifest is titled by its name');
+  assert.equal(hello.kind, 'example', 'a parent 8bitscript.examples manifest names it');
+  assert.equal(hello.title, 'hello', 'without the manifest override, the title is the directory name');
 });
 
 test('withShipped skips shipped projects the workspace already lists', () => {
@@ -394,20 +412,20 @@ test('withShipped skips shipped projects the workspace already lists', () => {
   assert.deepEqual(withShipped([own], [shipped, app]), [own, app]);
 });
 
-test('byKind splits a mixed list into sections in a fixed order, and leaves a uniform one alone', () => {
+test('byKind splits a mixed list into Programs / Examples / Apps, and still labels a single kind', () => {
   const game = { name: 'game', kind: 'project' };
   const border = { name: 'border', kind: 'example' };
   const studio = { name: '@8bitscript/studio', kind: 'app' };
   assert.deepEqual(
     byKind([studio, border, game]).map((s) => [s.kind, s.label, s.projects.map((p) => p.name)]),
     [
-      ['project', 'Projects', ['game']],
+      ['project', 'Programs', ['game']],
       ['example', 'Examples', ['border']],
       ['app', 'Apps', ['@8bitscript/studio']],
     ],
   );
   assert.deepEqual(byKind([studio, border]).map((s) => s.kind), ['example', 'app'], 'only the kinds present');
-  assert.equal(byKind([game]), null, 'one kind needs no sections');
+  assert.deepEqual(byKind([game]).map((s) => [s.kind, s.label]), [['project', 'Programs']]);
   assert.equal(byKind([]), null);
   assert.deepEqual(ofKind([studio, border, game], 'app'), [studio]);
 });
@@ -452,6 +470,67 @@ test('packageManagerFor follows the nearest lockfile upward, defaulting to pnpm'
   fs.rmSync(path.join(bunny, 'bun.lock'));
   write(path.join(bunny, 'bun.lockb'), '');
   assert.equal(packageManagerFor(bunny), 'bun', 'the binary lockfile too');
+});
+
+function fakeBin(dir, name) {
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, name);
+  fs.writeFileSync(file, '#!/bin/sh\n');
+  fs.chmodSync(file, 0o755);
+  return file;
+}
+
+test('resolvePackageManager finds pnpm where the installer puts it, not only on PATH', (t) => {
+  const home = scratch(t);
+  const pnpm = fakeBin(path.join(home, '.local', 'share', 'pnpm', 'bin'), 'pnpm');
+  assert.equal(
+    resolvePackageManager('pnpm', { env: { PATH: '/usr/bin' }, home }),
+    pnpm,
+  );
+});
+
+test('resolvePackageManager prefers a command already on PATH', (t) => {
+  const root = scratch(t);
+  const onPath = fakeBin(path.join(root, 'bin'), 'pnpm');
+  fakeBin(path.join(root, 'home', '.local', 'share', 'pnpm', 'bin'), 'pnpm');
+  assert.equal(
+    resolvePackageManager('pnpm', { env: { PATH: path.dirname(onPath) }, home: path.join(root, 'home') }),
+    onPath,
+  );
+});
+
+test('resolvePackageManager honors PNPM_HOME when PATH is empty', (t) => {
+  const home = scratch(t);
+  const pnpmHome = path.join(home, 'pnpm-home');
+  const pnpm = fakeBin(path.join(pnpmHome, 'bin'), 'pnpm');
+  assert.equal(
+    resolvePackageManager('pnpm', { env: { PATH: '', PNPM_HOME: pnpmHome }, home }),
+    pnpm,
+  );
+});
+
+test('resolvePackageManager keeps the bare name when nothing is found', () => {
+  assert.equal(
+    resolvePackageManager('pnpm', { env: { PATH: '' }, home: '/no-such-home' }),
+    'pnpm',
+  );
+});
+
+test('packageManagerPath includes an nvm node bin so lifecycle scripts can find node', (t) => {
+  const home = scratch(t);
+  const nvmBin = path.join(home, '.nvm', 'versions', 'node', 'v26.7.0', 'bin');
+  fs.mkdirSync(nvmBin, { recursive: true });
+  const search = packageManagerPath({ PATH: '/usr/bin' }, home);
+  assert.ok(search.split(path.delimiter).includes(nvmBin));
+});
+
+test('packageManagerPath appends well-known bins after PATH', (t) => {
+  const home = scratch(t);
+  const extra = path.join(home, '.local', 'share', 'pnpm', 'bin');
+  fs.mkdirSync(extra, { recursive: true });
+  const search = packageManagerPath({ PATH: '/usr/bin' }, home);
+  assert.ok(search.startsWith(`/usr/bin${path.delimiter}`));
+  assert.ok(search.split(path.delimiter).includes(extra));
 });
 
 // Writing a system into an 8bs.config.ts. The config is source, not a

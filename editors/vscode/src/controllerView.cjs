@@ -78,7 +78,14 @@ const JS = fs.readFileSync(path.join(__dirname, '..', 'media', 'controller.js'),
  * but arithmetic — no `require`, no `process` — and
  * test/controller.test.cjs holds it to that.
  */
-const PROFILE_JS = fs.readFileSync(path.join(__dirname, 'controllerProfile.cjs'), 'utf8');
+const PROFILE_JS = (() => {
+  // Bundled `dist/extension.cjs` has `__dirname` of `dist/`, not `src/`.
+  // A source checkout still has the file under `src/`; a VSIX gets a copy
+  // next to the bundle (`copyRuntimeFiles` after esbuild).
+  const nextToBundle = path.join(__dirname, 'controllerProfile.cjs');
+  if (fs.existsSync(nextToBundle)) return fs.readFileSync(nextToBundle, 'utf8');
+  return fs.readFileSync(path.join(__dirname, '..', 'src', 'controllerProfile.cjs'), 'utf8');
+})();
 
 /**
  * The open panel, or nothing.

@@ -71,6 +71,9 @@ The architecture behind it is the plan titled **Bare Metal**:
 
 ## Still on this site
 
+[Project config](config.md) — `8bitscript.config.ts`, advertised and
+personal systems, and pointing a project at a local 8BitScript checkout.
+
 [Machines on the roadmap](project/machines/index.md) — hardware research
 notes for the phase 5 through 8 machines, the ones the phase plan above
 names but no package exists for yet. They describe hardware, not the

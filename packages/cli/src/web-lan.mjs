@@ -19,8 +19,10 @@ export function defaultCertDir() {
   return join(homedir(), '.config', '8bitscript', 'lan-tls');
 }
 
-/** HTTP port `8bs run web` binds unless `--port` says otherwise. HTTPS is this plus one. */
-export const DEFAULT_WEB_PORT = 8008;
+/** HTTP port `8bs run web` binds unless `--port` says otherwise. 0 is
+ *  ephemeral so two runs can listen at once; `--port n` pins HTTP to n
+ *  and HTTPS to n+1. */
+export const DEFAULT_WEB_PORT = 0;
 
 /**
  * @param {string | undefined} value
@@ -73,6 +75,17 @@ export function lanIPv4(nics = networkInterfaces()) {
     }
   }
   return ips.sort((a, b) => lanRank(a) - lanRank(b) || a.localeCompare(b));
+}
+
+/**
+ * The URL a phone should open: HTTPS first (SharedArrayBuffer is legal
+ * there), else the first HTTP LAN line, else null.
+ *
+ * @param {string[]} [lanUrls]
+ * @returns {string | null}
+ */
+export function preferredLanUrl(lanUrls = []) {
+  return lanUrls.find((url) => url.startsWith('https://')) ?? lanUrls[0] ?? null;
 }
 
 /** How a dual-stack socket writes an IPv4 peer: ::ffff: then the dotted quad. */

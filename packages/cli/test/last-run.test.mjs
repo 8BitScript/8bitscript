@@ -68,6 +68,12 @@ test('writeLastRun merges a later patch onto the compile report', async () => {
     const onDisk = JSON.parse(await readFile(lastRunPath('pet', dir), 'utf8'));
     assert.equal(onDisk.emulator, 'xpet');
     assert.equal(typeof onDisk.writtenAt, 'string');
+    const web = await writeLastRun('web', {
+      emulator: 'browser',
+      url: 'http://127.0.0.1:9/',
+      lanUrls: ['https://192.168.1.20:10/'],
+    }, dir);
+    assert.deepEqual(web.lanUrls, ['https://192.168.1.20:10/']);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

@@ -25,26 +25,46 @@ test('launcher webview script is valid JavaScript', () => {
 
 test('launcher stylesheet names the panel it lays out', () => {
   assert.match(CSS, /button\.launch\b/, 'the primary action');
-  assert.match(CSS, /button\.icon\b/, 'Build and Open on the project row');
-  assert.match(CSS, /details\.more\b/, 'the fold the rest lives in');
+  assert.match(CSS, /button\.icon\b/, 'Open and details icons');
+  assert.match(CSS, /\.packages\b/, 'package status sits above quick launch');
+  assert.match(CSS, /\.pkg-row\b/);
   assert.match(CSS, /\.run-row\b/, 'the Running rows');
   assert.match(CSS, /\.run-machine\b/, 'a running machine is an expandable tree');
+  assert.match(CSS, /\.lan-qr\b/, 'a web run’s LAN QR');
   assert.match(CSS, /--vscode-/, 'every color is the editor theme’s');
-  // The Install button and the Running section are laid out with a
-  // `display`, which outranks the user agent's rule for [hidden].
+  assert.match(CSS, /\.dev-reload\b/, 'source-checkout rebuild prompt, then reload');
   assert.match(CSS, /\[hidden\]\s*\{\s*display:\s*none\s*!important/);
 });
 
-test('the machine is under the button, and Build is on the project row', () => {
+test('the side bar updates 8BitScript and workspace programs, not each example', () => {
   const view = fs.readFileSync(path.join(ROOT, 'src', 'launcherView.cjs'), 'utf8');
-  const body = view.slice(view.indexOf('<button class="launch"'));
-  const order = ['id="run"', 'for="system"', 'for="project"', 'id="build"', 'id="open"']
+  assert.match(view, /8BitScript<\/h2>/);
+  assert.match(view, />Program</);
+  assert.doesNotMatch(view, />Project</);
+  assert.doesNotMatch(view, /Projects and packages/);
+  assert.match(JS, /entry\.kind === 'toolchain'/);
+  assert.match(JS, /Install' : 'Update'/);
+  const kinds = fs.readFileSync(path.join(ROOT, 'src', 'projects.cjs'), 'utf8');
+  assert.match(kinds, /label: 'Programs'/);
+  assert.match(kinds, /label: 'Examples'/);
+  const runner = fs.readFileSync(path.join(ROOT, 'src', 'runner.cjs'), 'utf8');
+  assert.match(runner, /updateToolchain/);
+  assert.match(runner, /managedUpdateCommand/);
+  assert.doesNotMatch(runner, /setCheckout\(managedDir\)/, 'Install does not silently rewrite a consumer onto the clone');
+  const extension = fs.readFileSync(path.join(ROOT, 'src', 'extension.cjs'), 'utf8');
+  assert.match(extension, /managed: null/);
+});
+
+test('packages sit above quick launch, and the hardware matrix is not in the side bar', () => {
+  const view = fs.readFileSync(path.join(ROOT, 'src', 'launcherView.cjs'), 'utf8');
+  const body = view.slice(view.indexOf('id="packages-block"'));
+  const order = ['id="packages-block"', 'for="project"', 'for="system"', 'id="fitted"', 'id="run"']
     .map((mark) => body.indexOf(mark));
-  assert.deepEqual([...order].sort((a, b) => a - b), order, 'run, system, project, then its icons');
+  assert.deepEqual([...order].sort((a, b) => a - b), order);
   assert.ok(order.every((i) => i > -1));
-  // Build is an icon on the project's row, not a second big button.
-  assert.match(body, /<button class="icon" id="build"/);
-  assert.doesNotMatch(body, /class="wide[^"]*" id="build"/);
+  assert.doesNotMatch(view, /id="profile"/);
+  assert.doesNotMatch(view, /id="options"/);
+  assert.doesNotMatch(view, /details\.more/);
 });
 
 test('Running machines is an expandable tree, not a one-line list', () => {
@@ -53,6 +73,8 @@ test('Running machines is an expandable tree, not a one-line list', () => {
   assert.match(view, /machineTree/);
   assert.match(JS, /function renderMachineTree/);
   assert.match(JS, /FPS /);
+  assert.match(JS, /lan-qr/, 'a web run shows a QR of the LAN URL');
+  assert.match(JS, /machine.qrSvg/);
 });
 
 test('examples can be hidden, but ship visible by default', () => {
@@ -67,14 +89,24 @@ test('examples can be hidden, but ship visible by default', () => {
 test('a web run from the launcher listens on the LAN by default', () => {
   const runner = fs.readFileSync(path.join(ROOT, 'src', 'runner.cjs'), 'utf8');
   assert.match(runner, /getWebLan\(\)/);
+  assert.match(runner, /args\.push\('--port', '0'\)/, 'an ephemeral port so two web runs can coexist');
   assert.match(runner, /args\.push\('--local'\)/);
   const settings = fs.readFileSync(path.join(ROOT, 'src', 'settings.cjs'), 'utf8');
   assert.match(settings, /function getWebLan/);
   const view = fs.readFileSync(path.join(ROOT, 'src', 'launcherView.cjs'), 'utf8');
+  assert.match(view, /--port', '0'/);
   assert.match(view, /--local/);
   const props = MANIFEST.contributes.configuration.properties['8bitscript.webLan'];
   assert.equal(props.default, true);
   assert.equal(props.type, 'boolean');
+});
+
+test('Install/Refresh runs an absolute package manager, not a bare `pnpm` the task shell cannot see', () => {
+  const runner = fs.readFileSync(path.join(ROOT, 'src', 'runner.cjs'), 'utf8');
+  assert.match(runner, /resolvePackageManager\(manager\)/);
+  assert.match(runner, /packageManagerPath\(\)/);
+  assert.match(runner, /path\.isAbsolute\(bin\)/, 'refuse to spawn a name that would 127');
+  assert.match(runner, /env: \{ PATH: pathEnv \}/);
 });
 
 test('the panel launches, picks, and stops', () => {
@@ -117,6 +149,30 @@ test('the title bar carries the view\u2019s actions, examples first and only whe
   for (const item of title) assert.match(item.when, /^view == 8bitscript\.launcher/);
 });
 
+test('Reload this window is hidden until a local rebuild the user triggered has finished', () => {
+  const view = fs.readFileSync(path.join(ROOT, 'src', 'launcherView.cjs'), 'utf8');
+  const reload = fs.readFileSync(path.join(ROOT, 'src', 'devReload.cjs'), 'utf8');
+  assert.match(view, /id="dev-reload" hidden/);
+  assert.match(view, /id="rebuild-extension" hidden/);
+  assert.match(view, /id="reload-window" hidden/);
+  assert.match(JS, /type: 'rebuildExtension'/);
+  assert.match(JS, /type: 'reloadWindow'/);
+  assert.match(JS, /The local 8BitScript extension has changed/);
+  assert.match(JS, /Rebuilding the local extension/);
+  assert.match(JS, /The local 8BitScript extension was rebuilt successfully/);
+  assert.match(JS, /phase !== 'ready'/);
+  assert.match(reload, /createDevReloadState/);
+  assert.doesNotMatch(reload, /createReloadQueue/);
+  const rebuild = MANIFEST.contributes.commands.find((c) => c.command === '8bitscript.rebuildExtension');
+  assert.ok(rebuild, 'the palette command exists');
+  const rebuildPalette = MANIFEST.contributes.menus.commandPalette.find((m) => m.command === '8bitscript.rebuildExtension');
+  assert.equal(rebuildPalette.when, '8bitscript.localRebuildNeeded');
+  const command = MANIFEST.contributes.commands.find((c) => c.command === '8bitscript.reloadWindow');
+  assert.ok(command, 'the palette command exists');
+  const palette = MANIFEST.contributes.menus.commandPalette.find((m) => m.command === '8bitscript.reloadWindow');
+  assert.equal(palette.when, '8bitscript.localReloadPending');
+});
+
 test('every contributed menu names a command that exists', () => {
   const declared = new Set(MANIFEST.contributes.commands.map((c) => c.command));
   for (const items of Object.values(MANIFEST.contributes.menus)) {
@@ -134,19 +190,24 @@ test('the tree view and the settings only it needed are gone', () => {
   assert.ok(!fs.existsSync(path.join(ROOT, 'media', 'controls.js')));
 });
 
-test('the project’s own systems are a group above the machines', () => {
+test('named systems are grouped by origin above the machines', () => {
   const view = fs.readFileSync(path.join(ROOT, 'src', 'launcherView.cjs'), 'utf8');
-  assert.match(view, /group: 'This project'/, 'the config’s systems come first');
+  assert.match(view, /This clone/, 'project-personal first');
+  assert.match(view, /This machine/, 'then user');
+  assert.match(view, /Advertised/, 'then the config');
   assert.match(view, /group: 'Machines'/, 'the bare machines under them');
   assert.match(view, /applySystem/, 'picking one fits machine, hardware and region together');
-  // Choosing a project loads what it is set up for.
   assert.match(view, /targets\?\.systems\?\.\[0\]/);
 });
 
-test('a system can be saved into the project’s config', () => {
+test('Configure System and Show Project are first-class commands', () => {
   const declared = MANIFEST.contributes.commands.map((c) => c.command);
-  assert.ok(declared.includes('8bitscript.saveSystem'));
-  assert.ok(MANIFEST.contributes.menus['view/title'].some((m) => m.command === '8bitscript.saveSystem'));
+  assert.ok(declared.includes('8bitscript.configureSystem'));
+  assert.ok(declared.includes('8bitscript.showProject'));
+  assert.ok(declared.includes('8bitscript.useLocal'));
+  assert.ok(declared.includes('8bitscript.usePublished'));
+  assert.ok(MANIFEST.contributes.menus['view/title'].some((m) => m.command === '8bitscript.configureSystem'));
+  assert.ok(MANIFEST.contributes.menus['view/title'].some((m) => m.command === '8bitscript.showProject'));
 });
 
 test('every element the page script reaches for is on the page', () => {

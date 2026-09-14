@@ -86,13 +86,20 @@ function registerLanguageServer(context, output) {
     for (const document of vscode.workspace.textDocuments) openDocument(document);
   }
 
-  async function start(toolchain) {
+  async function start(toolchain, checkout) {
     if (client || starting) return;
     starting = true;
-    output.appendLine(`Starting language server: ${toolchain} lsp --stdio`);
+    const { cliCommand } = require('./projects.cjs');
+    const invocation = cliCommand(toolchain) ?? { command: toolchain, args: [] };
+    const args = [
+      ...invocation.args,
+      'lsp', '--stdio',
+      ...(checkout ? ['--checkout', checkout] : []),
+    ];
+    output.appendLine(`Starting language server: ${invocation.command} ${args.join(' ')}`);
     const next = new LspClient({
-      command: toolchain,
-      args: ['lsp', '--stdio'],
+      command: invocation.command,
+      args,
       onNotification(method, params) {
         if (method === 'textDocument/publishDiagnostics') {
           collection.set(vscode.Uri.parse(params.uri), params.diagnostics.map(toDiagnostic));
