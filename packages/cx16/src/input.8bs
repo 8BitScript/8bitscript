@@ -19,20 +19,32 @@
 // here rather than left to the KERNAL IRQ (the frame driver has interrupts
 // off).
 //
-// **Nothing else yet.** The keyboard is PS/2 decoded into a KERNAL queue
-// (`$FFE4` GETIN) and the SNES-style pads are another KERNAL call
-// (`$FF56` joystick_get). Both are still unreachable from this file for
-// the same reason the mouse was: they need `asm6502` blocks and care about
-// what the KERNAL expects to still be true when they are called. They are
-// the next thing this layer should grow, not a gap this file hides —
-// `left()`/`right()`/`confirm()`/`cancel()` stay false, and a program
-// still links.
+// **Directions, confirm and cancel, through the KERNAL joystick API.**
+// `waitFrame()` holds `sei` and acks VERA's VSYNC itself, so the default
+// IRQ never runs `joystick_scan` or `kbd_scan`. This file does that work
+// from `poll()`, after the mouse's `ps2data_fetch` (`$FEAB` A=8), in the
+// same order the IRQ uses (`kernal/cbm/irq.s`): `joystick_scan` `$FF53`,
+// then `kbd_scan` `$FF9F` (SCNKEY — which calls `joystick_from_ps2` so
+// joy0 tracks the keyboard), then `joystick_get` `$FF56`.
+//
+// Bits are the ROM's, active low, from `kernal/drivers/x16/joystick.s`
+// and the KERNAL reference: byte 0 is B Y SEL STA UP DN LT RT; byte 1 is
+// A X L R. Joy0 is the "keyboard joystick": Enter is START, arrows are
+// the D-pad (KEYCODE_ENTER / KEYCODE_*ARROW in that file's intab0).
+// Joy1 and joy2 are the two SNES ports the catalog names; a pad whose
+// presence byte is `$FF` is ignored so floating bits do not become
+// presses.
+//
+//   - **left / right / up / down** — D-pad, keyboard or pad.
+//   - **confirm** — START (Enter on the keyboard) or A.
+//   - **cancel** — SELECT (left shift on the keyboard) or B.
 //
 // **`input.mouse` is true on this machine by default**, because the
 // hardware really does have one. `HAS_MOUSE` is that fact, so on a future
 // build that could take the mouse out the pointer half of this file is
 // `if (false)` and the fold removes it. Today there is no such catalog option;
-// the emulator's mouse is always there.
+// the emulator's mouse is always there. Without a mouse this file still
+// fetches PS/2 (`$FEAB`) so `kbd_scan` has a keycode to consume.
 //
 // **The pointer is reported in cells, not pixels.** `pointerCell()` is a
 // flat cell index, the same number `text.print()` takes. The KERNAL's
@@ -62,6 +74,32 @@ namespace Edge {
     const BUTTON: utinyint = 64;
 }
 
+// SNES / keyboard-joystick bits, active low. Same numbers as C_RT..C_B
+// and C_A in kernal/drivers/x16/joystick.s.
+namespace Snes {
+    const RIGHT: utinyint = 1;
+    const LEFT: utinyint = 2;
+    const DOWN: utinyint = 4;
+    const UP: utinyint = 8;
+    const START: utinyint = 16;
+    const SELECT: utinyint = 32;
+    const B: utinyint = 128;
+}
+
+namespace SnesHi {
+    const A: utinyint = 128;
+}
+
+// Scratch for joystick_get's A/X/Y. $80-$84 is the mouse buffer; $85-$87
+// is the next three bytes of ZPKERNAL, which this poll owns under `sei`
+// the same way ./mouse.8bs owns $80-$84.
+@address(0x85)
+let joyA: volatile<utinyint>;
+@address(0x86)
+let joyX: volatile<utinyint>;
+@address(0x87)
+let joyY: volatile<utinyint>;
+
 let held: utinyint = 0;
 let before: utinyint = 0;
 let began: utinyint = 0;
@@ -77,6 +115,30 @@ function cellOn(pixel: usmallint, limit: usmallint): usmallint {
         return limit - 1;
     }
     return at;
+}
+
+// Active-low SNES bits into the portable held mask. START and A both
+// confirm (Enter is START on joy0; a pad player's A is the reflex
+// button, same as the NES layer). SELECT and B cancel.
+function orSnes(lo: utinyint, hi: utinyint): void {
+    if ((lo & Snes.LEFT) == 0) {
+        held = held | Edge.LEFT;
+    }
+    if ((lo & Snes.RIGHT) == 0) {
+        held = held | Edge.RIGHT;
+    }
+    if ((lo & Snes.UP) == 0) {
+        held = held | Edge.UP;
+    }
+    if ((lo & Snes.DOWN) == 0) {
+        held = held | Edge.DOWN;
+    }
+    if ((lo & Snes.START) == 0 || (hi & SnesHi.A) == 0) {
+        held = held | Edge.CONFIRM;
+    }
+    if ((lo & Snes.SELECT) == 0 || (lo & Snes.B) == 0) {
+        held = held | Edge.CANCEL;
+    }
 }
 
 export namespace input {
@@ -99,10 +161,53 @@ export namespace input {
     function poll(): void {
         if (HAS_MOUSE) {
             mouse.poll();
+        } else {
+            asm6502 {
+                sei
+                lda #8
+                jsr $FEAB
+            }
+        }
+
+        // IRQ is off: scan pads, then the keyboard (so joy0 sees Enter
+        // and the arrows), then read joy0 always and joy1/joy2 if present.
+        asm6502 {
+            jsr $FF53
+            jsr $FF9F
+            lda #0
+            jsr $FF56
+            sta $85
+            stx $86
+            sty $87
+        }
+        let lo: utinyint = joyA;
+        let hi: utinyint = joyX;
+        asm6502 {
+            lda #1
+            jsr $FF56
+            sta $85
+            stx $86
+            sty $87
+        }
+        if (joyY == 0) {
+            lo = lo & joyA;
+            hi = hi & joyX;
+        }
+        asm6502 {
+            lda #2
+            jsr $FF56
+            sta $85
+            stx $86
+            sty $87
+        }
+        if (joyY == 0) {
+            lo = lo & joyA;
+            hi = hi & joyX;
         }
 
         before = held;
         held = 0;
+        orSnes(lo, hi);
 
         if (HAS_MOUSE) {
             let column: usmallint = cellOn(mouse.x(), COLUMNS);

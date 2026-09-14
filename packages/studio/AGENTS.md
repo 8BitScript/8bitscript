@@ -256,8 +256,8 @@ editor on a hack that the capability would replace:
   machine's own layer the way `@8bitscript/screen` does. Studio's menu bar
   moves under it. What is still missing is per-machine rather than
   structural, and `packages/input/AGENTS.md` lists it: the **X16** reads
-  its mouse and not yet its keyboard or pads (KERNAL `$FFE4` GETIN and
-  `$FF56` joystick_get), the **web** reads arrows, Enter and Escape (no
+  its mouse, keyboard joystick and SNES pads (KERNAL `$FF56` joystick_get;
+  GETIN as characters is still unread), the **web** reads arrows, Enter and Escape (no
   pointer yet), the **VIC-20** has a joystick but no verified key matrix,
   and the three machines with an **ALT** key — C128, MEGA65, X16 — do
   not read it, which is what `ALT`+letter menu accelerators wait on. A

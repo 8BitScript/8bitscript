@@ -51,15 +51,19 @@ import { mapBank, mapLow, locateTextMap, setVramAddress } from "./index.8bs";
 let currentColor: utinyint = 1; // white, until text.setColor() says otherwise
 let currentReverse: bool = false; // until text.setReverse() says otherwise
 
-// ISO mode has no reverse copies of the glyphs, so invert is a swap of
-// the attribute nibbles: the cell fills with the text color and the
-// glyph pixels take whatever background `screen.setColors` left. Port 1
-// is already sitting on this cell's color byte after locate().
+// ISO mode has no reverse copies of the glyphs, so invert is fill-with-
+// currentColor and black glyph pixels. Port 1 is already sitting on this
+// cell's color byte after locate() — the non-reverse path reads it to
+// keep the background nibble. The reverse path does not: `printNumber`
+// writes the digit to DATA0 first, and if that port and DATA1 are on the
+// same byte, `attr / 16` is the character code's high nibble (ASCII '2'
+// is 50, 50/16 = 3 = cyan). 2048's white tiles then showed a cyan 2
+// instead of a black one (x16emu, 2026-09-13).
 function attributeByte(): utinyint {
-    let attr: utinyint = memory.read(0x9F24);
     if (currentReverse) {
-        return (currentColor * 16) + (attr / 16);
+        return currentColor * 16;
     }
+    let attr: utinyint = memory.read(0x9F24);
     return (attr & 0xF0) | currentColor;
 }
 
@@ -77,10 +81,20 @@ function attributeByte(): utinyint {
 function locate(cell: usmallint): utinyint {
     locateTextMap();
     let high: utinyint = cell / 256;
-    let x: usmallint = high * 28 + cell % 256;
+    // `high` and `row` are widened BEFORE they are multiplied. 8BitScript
+    // evaluates an expression at its operands' own width, so `high * 28`
+    // with a utinyint `high` is an eight-bit multiply that wraps — 10 * 28
+    // is 280, which is 24 in a byte, and every cell from 2560 up (row 33
+    // of the 76-wide grid) locates to the wrong column. Same class of bug
+    // as NES `row * 32` (packages/nes/src/text.8bs). Measured: 2048's
+    // "ARROWS TO MOVE" at cell 2762 printed as "AR" / "ROWS TO MOVE"
+    // (x16emu, 2026-09-13).
+    let highWide: usmallint = high;
+    let x: usmallint = highWide * 28 + cell % 256;
     let row: utinyint = high * 3 + ((x / 4) * 54) / 1024;
-    let col: utinyint = cell - row * 76;
-    let at: usmallint = mapLow + row * 256 + col * 2;
+    let rowWide: usmallint = row;
+    let col: utinyint = cell - rowWide * 76;
+    let at: usmallint = mapLow + rowWide * 256 + col * 2;
     memory.write(0x9F25, 0x01); // ADDRSEL=1
     setVramAddress(mapBank, at + 1, 2);
     memory.write(0x9F25, 0x00); // ADDRSEL=0

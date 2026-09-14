@@ -139,13 +139,13 @@ controller work:
   also flags *to verify: some boards carry 4* pad ports, so the count may yet
   change; the model does not.)
 
-  **The X16 does not read them yet.** `packages/cx16/src/input.8bs` says so
-  in as many words: the pads and the keyboard both need `asm6502` blocks that
-  care about what the KERNAL expects to still be true when they are called,
-  so `left()`/`right()`/`confirm()`/`cancel()` return false and a program
-  still links. That is an honest stub, not a hidden gap — but it means 2048
-  draws on the X16 and cannot be played on it. Wiring `joystick_get` is the
-  single highest-value piece of input work outstanding.
+  **The X16 reads them through `joystick_get`, not GETIN.**
+  `waitFrame()` holds `sei` and acks VSYNC itself, so the default IRQ never
+  scans. `packages/cx16/src/input.8bs` calls `joystick_scan` `$FF53`,
+  `kbd_scan` `$FF9F` and `joystick_get` `$FF56` from `poll()`: joy0 is the
+  keyboard joystick (Enter is START, arrows are the D-pad — `joystick.s`
+  intab0), joy1 and joy2 the two SNES ports. GETIN (`$FFE4`) is still
+  unread; the portable surface wants levels, which that API already is.
 
   Its mouse *is* wired, through KERNAL calls inside opaque `asm6502` blocks —
   which is why the compiler cannot see them, and why the X16's zero-page

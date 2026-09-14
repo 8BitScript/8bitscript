@@ -46,11 +46,19 @@ test('a screen and text consumer links for cx16 and drives VERA by its port addr
   const locate = fn('locate');
   assert.equal(locate.body[1].name, 'high');
   assert.deepEqual(locate.body[1].init.right, { kind: 'const', value: 256, type: 'usmallint' });
-  assert.equal(locate.body[2].name, 'x');
-  assert.deepEqual(locate.body[2].init.left.right, { kind: 'const', value: 28, type: 'utinyint' });
-  assert.equal(locate.body[3].name, 'row');
-  assert.deepEqual(locate.body[3].init.left.right, { kind: 'const', value: 3, type: 'utinyint' });
-  assert.equal(locate.body[4].name, 'col');
+  // highWide / rowWide exist so `* 28` and `* 76` are 16-bit. A utinyint
+  // `high * 28` wraps at cell 2560 (10 * 28 = 280 ≡ 24).
+  assert.equal(locate.body[2].name, 'highWide');
+  assert.equal(locate.body[2].type, 'usmallint');
+  assert.equal(locate.body[3].name, 'x');
+  assert.equal(locate.body[3].init.left.type, 'usmallint');
+  assert.deepEqual(locate.body[3].init.left.right, { kind: 'const', value: 28, type: 'utinyint' });
+  assert.equal(locate.body[4].name, 'row');
+  assert.deepEqual(locate.body[4].init.left.right, { kind: 'const', value: 3, type: 'utinyint' });
+  assert.equal(locate.body[5].name, 'rowWide');
+  assert.equal(locate.body[5].type, 'usmallint');
+  assert.equal(locate.body[6].name, 'col');
+  assert.equal(locate.body[6].init.right.left.name, 'rowWide');
   const addrSel = locate.body.filter((s) => s.kind === 'memoryWrite' && s.address.value === 40741);
   assert.deepEqual(addrSel.map((s) => s.value.value), [1, 0]);
   const walk = (node, visit) => {

@@ -213,6 +213,10 @@ them.
 | Commander X16 | 1571 B | 1180 | **+391** | 1253 | **+318** |
 | MEGA65 | 1292 B | 889 | **+403** | 970 | **+322** |
 
+The C128 input column is CIA1 + stick, measured 2026-09-07. Dedicated
+`$D02F` arrows landed after that; re-measure the row when the native
+backend emits.
+
 Re-measured 2026-09-07 after the selected item became inverted rather than
 recolored: `menubar_item` is 466 bytes on a C64 and 384 on the X16
 (measured from Studio's linked image, pre-0.2.0). The extra
@@ -224,12 +228,12 @@ by the linker.
 
 Three things in that table are worth more than the totals:
 
-- **The X16's input is the pointer**, not the keyboard. `@8bitscript/cx16/input`
-  answers the KERNAL mouse (`$FF68` / `$FF71` / `$FF6B`) and still returns
-  false for directions, confirm and cancel — GETIN and joystick_get are
-  the next calls. Measured 2026-09-07: Studio is 1253 bytes without that
-  layer and 1571 with it, **318 bytes of program and 5 of RAM**. The
-  unanswered half still costs zero. The bar column grew with it (+391
+- **The X16's input is the pointer and the KERNAL joystick API.**
+  `@8bitscript/cx16/input` answers the mouse (`$FF68` / `$FF71` / `$FF6B`)
+  and joy0/joy1/joy2 (`joystick_scan` / `kbd_scan` / `joystick_get`).
+  Measured 2026-09-07: Studio is 1253 bytes without the pointer layer and
+  1571 with it, **318 bytes of program and 5 of RAM** — that number
+  predates the keyboard/pad scan. The bar column grew with the pointer (+391
   against the earlier +266) because `input.pointer()` is now live, so the
   hit-test in Studio's loop is compiled in rather than deleted.
 - **The Atari 8-bit pays most for the bar** (+628). Its `text` layer is the
