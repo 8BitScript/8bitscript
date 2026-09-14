@@ -25,6 +25,13 @@ test('parseLastRun rejects junk and keeps a well-formed report', () => {
   assert.equal(report.emulator, 'xpet');
   assert.deepEqual(report.size, [{ name: 'main', bytes: 40 }]);
   assert.equal(report.hardware.label, '8032');
+  assert.deepEqual(report.lanUrls, []);
+  const web = parseLastRun(JSON.stringify({
+    target: 'web',
+    url: 'http://127.0.0.1:9/',
+    lanUrls: ['http://192.168.1.20:9/', 'https://192.168.1.20:10/', 3, 'ftp://x'],
+  }));
+  assert.deepEqual(web.lanUrls, ['http://192.168.1.20:9/', 'https://192.168.1.20:10/']);
 });
 
 test('readLastRun reads the file 8bs writes, and null when it is missing', () => {
@@ -85,6 +92,33 @@ test('machineTree is null for doctor/install, and a tree for run/boot', () => {
   assert.equal(tree.facts.find((f) => f.key === 'audio.voices').value, '0');
   assert.equal(tree.live.fps, 60);
   assert.match(tree.elapsed, /5s/);
+});
+
+test('machineTree draws a LAN QR for a web run, HTTPS preferred', () => {
+  const { preferredLanUrl } = require('../src/runningMachines.cjs');
+  assert.equal(
+    preferredLanUrl(['http://192.168.1.20:9/', 'https://192.168.1.20:10/']),
+    'https://192.168.1.20:10/',
+  );
+  const tree = machineTree(
+    { command: 'run', target: 'web', startedAt: Date.now() },
+    {
+      emulator: 'browser',
+      url: 'http://127.0.0.1:9/',
+      lanUrls: ['http://192.168.1.20:9/', 'https://192.168.1.20:10/'],
+    },
+    null,
+  );
+  assert.equal(tree.lanUrl, 'https://192.168.1.20:10/');
+  assert.match(tree.qrSvg, /^<svg /);
+  assert.equal(tree.url, 'http://127.0.0.1:9/');
+  const local = machineTree(
+    { command: 'run', target: 'web', startedAt: Date.now() },
+    { emulator: 'browser', url: 'http://127.0.0.1:9/', lanUrls: [] },
+    null,
+  );
+  assert.equal(local.lanUrl, null);
+  assert.equal(local.qrSvg, null);
 });
 
 test('livePollPlan lists web URLs to fetch and a stamp that moves with the report', () => {

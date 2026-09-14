@@ -43,6 +43,30 @@ function getProject() {
 }
 const setProject = (dir) => update('project', dir ?? '');
 
+/**
+ * The named system the launcher runs, or '' for a bare machine id
+ * (`8bitscript.system`).
+ *
+ * @returns {string}
+ */
+function getNamedSystem() {
+  const value = config().get('namedSystem');
+  return typeof value === 'string' ? value : '';
+}
+const setNamedSystem = (name) => update('namedSystem', name ?? '');
+
+/**
+ * A local 8BitScript checkout to run instead of published packages, or
+ * '' for published. Same idea as an editor's TypeScript SDK path.
+ *
+ * @returns {string}
+ */
+function getCheckout() {
+  const value = config().get('checkout');
+  return typeof value === 'string' && value.trim() !== '' ? value.trim() : '';
+}
+const setCheckout = (dir) => update('checkout', dir ?? '');
+
 function config() {
   return vscode.workspace.getConfiguration(SECTION);
 }
@@ -76,7 +100,8 @@ const setShowExamples = (show) => update('showExamples', show);
 
 /**
  * Whether a web run also listens on the LAN. On by default, matching
- * `8bs run web`. Off passes `--local` so the server stays on loopback.
+ * `8bs run web`. The launcher draws a QR of that HTTPS URL. Off passes
+ * `--local` so the server stays on loopback.
  */
 function getWebLan() {
   return config().get('webLan') !== false;
@@ -136,7 +161,7 @@ async function setHardware(system, selection) {
 
 /** True when a change event touches any of the run settings. */
 function affectsAny(event) {
-  return ['region', 'system', 'project', 'hardware', 'webLan'].some((key) =>
+  return ['region', 'system', 'project', 'hardware', 'webLan', 'namedSystem', 'checkout'].some((key) =>
     event.affectsConfiguration(`${SECTION}.${key}`),
   );
 }
@@ -149,16 +174,20 @@ function regionShort(region) {
 module.exports = {
   REGIONS,
   affectsAny,
+  getCheckout,
   getEffectiveHardware,
   getExamplesPath,
   getHardware,
+  getNamedSystem,
   getProject,
   getRegion,
   getShowExamples,
   getSystem,
   getWebLan,
   regionShort,
+  setCheckout,
   setHardware,
+  setNamedSystem,
   setProject,
   setRegion,
   setShowExamples,

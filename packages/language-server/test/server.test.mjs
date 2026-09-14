@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
+import { readFileSync } from 'node:fs';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 
@@ -691,4 +692,10 @@ test('textDocument/completion offers a named import\'s members after a dot', asy
   } finally {
     await rm(projectDir, { recursive: true, force: true });
   }
+});
+
+test('start() resolves @8bitscript/* through a checkout when given one', () => {
+  const src = readFileSync(new URL('../src/server.mjs', import.meta.url), 'utf8');
+  assert.match(src, /export function start\(\{ checkout \} = \{\}\)/);
+  assert.match(src, /checkout,/);
 });

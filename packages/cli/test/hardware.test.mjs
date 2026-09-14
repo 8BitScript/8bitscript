@@ -288,6 +288,11 @@ test('hardwareArgs collects --profile and repeating --hardware, and names a miss
   assert.equal(hardwareArgs(['--hardware']).ok, false);
   assert.match(hardwareArgs(['--hardware']).ok ? '' : hardwareArgs(['--hardware']).error, /--hardware expects option=value/);
   assert.equal(hardwareArgs(['--hardware', 'ram']).ok, false);
+  const named = hardwareArgs(['--system', 'PET 2001 (4K)', '--hardware', 'ram=8']);
+  assert.equal(named.ok, true);
+  assert.equal(named.system, 'PET 2001 (4K)');
+  assert.deepEqual(named.overrides, { ram: '8' });
+  assert.equal(hardwareArgs(['--system']).ok, false);
 });
 
 // The `systems` block: whole machines a project has been set up for, each
@@ -313,7 +318,7 @@ test('a project\'s systems resolve to the command line each one stands for', () 
   // the project's stock hardware is under it: the mouse is still fitted.
   assert.deepEqual(systems[0], {
     name: 'C64 with an REU', target: 'c64', profile: 'loaded', hardware: {}, region: 'pal',
-    label: 'ram=reu512 port1=mouse1351', unmet: [],
+    origin: 'advertised', label: 'ram=reu512 port1=mouse1351', unmet: [],
   });
   assert.equal(systems[1].label, 'port1=joystick');
   assert.equal(systems[2].label, 'ram=8k');

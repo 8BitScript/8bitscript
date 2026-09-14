@@ -41,7 +41,8 @@ export function displayOutFile(outFile, cwd = process.cwd()) {
 /**
  * Merge `patch` into the last-run file for `data.target` (or `patch.target`).
  * Compile writes the first copy (memory, size, hardware); run/boot fill in
- * the emulator and, for web, the serving URL once the server is listening.
+ * the emulator and, for web, the loopback URL and LAN URLs once the
+ * server is listening.
  *
  * @param {string} target
  * @param {object} patch

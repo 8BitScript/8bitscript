@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://8bitscript.org/schemas/systems.json",
+  "title": "8BitScript systems file",
+  "description": "Named systems for one clone (.8bitscript/systems.json) or this user (~/.config/8bitscript/systems.json). Same entry shape as 8bitscript.config.ts's systems block.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["systems"],
+  "properties": {
+    "systems": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["target"],
+        "properties": {
+          "target": {
+            "type": "string",
+            "enum": ["vic20", "c64", "pet", "c128", "atari8", "nes", "cx16", "mega65", "web"]
+          },
+          "profile": {
+            "type": ["string", "null"]
+          },
+          "hardware": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          },
+          "region": {
+            "type": ["string", "null"],
+            "enum": ["ntsc", "pal", null]
+          }
+        }
+      }
+    }
+  }
+}

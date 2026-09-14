@@ -46,9 +46,9 @@ test('--json carries the project\'s systems beside the targets and the fact sche
   const parsed = JSON.parse(stdout);
   assert.deepEqual(Object.keys(parsed).sort(),
     ['facts', 'requires', 'requiresError', 'systems', 'systemsError', 'targets']);
-  assert.deepEqual(parsed.systems.map((s) => [s.name, s.target, s.profile, s.region]), [
-    ['C64 with an REU', 'c64', 'loaded', 'pal'],
-    ['Expanded VIC-20', 'vic20', '8k', null],
+  assert.deepEqual(parsed.systems.map((s) => [s.name, s.target, s.profile, s.region, s.origin]), [
+    ['C64 with an REU', 'c64', 'loaded', 'pal', 'advertised'],
+    ['Expanded VIC-20', 'vic20', '8k', null, 'advertised'],
   ]);
   assert.equal(parsed.systemsError, null);
 });
@@ -134,4 +134,28 @@ test('a control port that is empty says so through the sheet the editor resolves
   assert.equal(c64.options.port2.values.none.facts['input.controls'], undefined,
     'an empty port stays silent rather than erasing what the other port holds');
   assert.equal(parsed.systemsError, null, 'and a C64 with nothing in either port is still a machine');
+});
+
+test('--json merges a project-personal systems file over the advertised block', async (t) => {
+  const dir = project(t, `export default {
+  entry: 'src/main.8bs',
+  targets: { pet: {}, web: {} },
+  systems: { Shared: { target: 'web' } },
+};
+`);
+  const { mkdirSync, writeFileSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  mkdirSync(join(dir, '.8bitscript'), { recursive: true });
+  writeFileSync(join(dir, '.8bitscript', 'systems.json'), JSON.stringify({
+    systems: {
+      Shared: { target: 'pet', profile: '2001' },
+      'Desk PET': { target: 'pet' },
+    },
+  }));
+  const { stdout } = await run(process.execPath, [BIN, 'targets', '--json'], { cwd: dir, maxBuffer: 8 * 1024 * 1024 });
+  const parsed = JSON.parse(stdout);
+  assert.deepEqual(parsed.systems.map((s) => [s.name, s.target, s.origin]), [
+    ['Shared', 'pet', 'project'],
+    ['Desk PET', 'pet', 'project'],
+  ]);
 });

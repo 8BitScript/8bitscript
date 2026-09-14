@@ -1,20 +1,8 @@
-// The 8BitScript side bar: one launcher panel, and nothing else.
+// The 8BitScript side bar: package status plus named-system quick launch.
 //
-// It replaces the two views this side bar used to have — a Run Settings
-// webview stacked on a Projects tree. The tree could show a project three
-// different ways and hung nine commands off its rows; the panel above it
-// had grown to five dropdowns and a fact sheet. Between them they answered
-// a question nobody asks in a side bar. The question people do ask is
-// "run this", so that is what this is.
-//
-// The order down the panel is how often a thing is touched. One loud
-// button that runs the selected project on the selected machine; **the
-// machine** directly under it, because that is what changes between two
-// runs of the same program; then the project, which changes less. Build is
-// an icon on the project's own row rather than a second big button — it is
-// the occasional action, and it belongs beside the thing it builds.
-// Everything else — the region, the hardware fitted to the machine, the
-// facts a program can rely on — is folded away behind one disclosure.
+// Hardware fitting and project details are editor tabs (systemView,
+// projectView) — Controller Setup is the template. The hardware matrix
+// used to live in a disclosure here; it does not any more.
 //
 // Studio, Doctor and Refresh are icons in the view's title bar rather than
 // buttons in the page, which is where an editor puts a view's actions; the
@@ -43,18 +31,24 @@ const {
 const { labelOf, whereLabel } = require('./runner.cjs');
 const settings = require('./settings.cjs');
 const {
-  effectiveFacts, effectiveOptions, matchesSystem, presetBundle, selectionLabel,
+  effectiveFacts, matchesSystem, selectionLabel,
 } = require('./hardwareCatalog.cjs');
 const { machineTree, readLastRun, rowKey } = require('./runningMachines.cjs');
+const { resolveCheckoutRoot } = require('./checkout.cjs');
+const { installRoots } = require('./projectInfo.cjs');
 
 const VIEW_ID = '8bitscript.launcher';
 const CSS = fs.readFileSync(path.join(__dirname, '..', 'media', 'launcher.css'), 'utf8');
 const JS = fs.readFileSync(path.join(__dirname, '..', 'media', 'launcher.js'), 'utf8');
 
 class LauncherViewProvider {
-  /** @param {import('./runner.cjs').Projects} projects */
-  constructor(projects) {
+  /**
+   * @param {import('./runner.cjs').Projects} projects
+   * @param {ReturnType<import('./devReload.cjs').registerDevReload> | null} [devReload]
+   */
+  constructor(projects, devReload) {
     this.projects = projects;
+    this.devReload = devReload ?? null;
     this.view = undefined;
   }
 
@@ -73,6 +67,7 @@ class LauncherViewProvider {
       this.projects.onDidChange(() => this.post()),
       view.onDidChangeVisibility(() => view.visible && this.post()),
     ];
+    if (this.devReload) subscriptions.push(this.devReload.onDidChange(() => this.post()));
     view.onDidDispose(() => {
       for (const subscription of subscriptions) subscription.dispose();
       this.view = undefined;
@@ -101,16 +96,38 @@ class LauncherViewProvider {
         const project = this.selectedProject();
         if (!project) return;
         const commandId = { build: '8bitscript.build', boot: '8bitscript.boot' }[message.action] ?? '8bitscript.run';
-        await vscode.commands.executeCommand(commandId, { project, target: settings.getSystem() });
+        await vscode.commands.executeCommand(commandId, {
+          project,
+          target: settings.getSystem(),
+          system: settings.getNamedSystem() || undefined,
+        });
         return;
       }
       case 'stop':
         await vscode.commands.executeCommand('8bitscript.stop', { dir: message.dir, target: message.target });
         return;
+      case 'reloadWindow':
+        await vscode.commands.executeCommand('workbench.action.reloadWindow');
+        return;
+      case 'rebuildExtension':
+        await vscode.commands.executeCommand('8bitscript.rebuildExtension');
+        return;
       case 'command':
         // Only the ids the page can name, so a message cannot run anything else.
-        if (['8bitscript.refresh', '8bitscript.doctor', '8bitscript.install', '8bitscript.openEntry', '8bitscript.openConfig'].includes(message.id)) {
-          await vscode.commands.executeCommand(message.id, { project: this.selectedProject() });
+        if ([
+          '8bitscript.refresh', '8bitscript.doctor', '8bitscript.install',
+          '8bitscript.openEntry', '8bitscript.openConfig',
+          '8bitscript.showProject', '8bitscript.configureSystem',
+          '8bitscript.useLocal', '8bitscript.usePublished',
+        ].includes(message.id)) {
+          const project = this.selectedProject();
+          await vscode.commands.executeCommand(message.id, {
+            project,
+            dir: message.dir,
+            name: message.name,
+            packageManager: message.packageManager,
+            toolchain: message.toolchain,
+          });
         }
         return;
       case 'set':
@@ -128,6 +145,7 @@ class LauncherViewProvider {
 
   /** Fit a whole system: its machine, its region, and its hardware, in one write. */
   async applySystem(system) {
+    await settings.setNamedSystem(system.name);
     await settings.setSystem(system.target);
     if (system.region) await settings.setRegion(system.region);
     await settings.setHardware(system.target, {
@@ -150,8 +168,11 @@ class LauncherViewProvider {
         const targets = await this.projects.loadTargets(project.dir);
         const first = targets?.systems?.[0];
         if (first) await this.applySystem(first);
-        else if (!project.targets.includes(settings.getSystem())) {
-          await settings.setSystem(project.targets[0] ?? settings.getSystem());
+        else {
+          await settings.setNamedSystem('');
+          if (!project.targets.includes(settings.getSystem())) {
+            await settings.setSystem(project.targets[0] ?? settings.getSystem());
+          }
         }
         break;
       }
@@ -163,38 +184,11 @@ class LauncherViewProvider {
         if (system) {
           await this.applySystem(system);
         } else if (ALL_TARGETS.includes(message.value)) {
+          await settings.setNamedSystem('');
           await settings.setSystem(message.value);
         }
         break;
       }
-      case 'region':
-        if (message.value === 'ntsc' || message.value === 'pal') await settings.setRegion(message.value);
-        break;
-      case 'profile': {
-        // A profile is picked as a clean slate, not layered onto whatever
-        // was clicked before it: effectiveOptions applies an explicit
-        // option *after* a profile's own values, so a stale model=8032
-        // from an earlier session would otherwise silently outrank every
-        // profile picked since — picking "2001" under Preset would set
-        // profile to 2001 while the Model dropdown kept showing 8032, with
-        // nothing on the page saying why. Dropping `options` here matches "Back to
-        // stock" below: picking a preset means exactly that preset's own
-        // bundle, until something is explicitly changed on top of it again.
-        await settings.setHardware(settings.getSystem(), { profile: message.value || null, options: {} });
-        break;
-      }
-      case 'option': {
-        const system = settings.getSystem();
-        const current = settings.getHardware(system);
-        const options = { ...current.options };
-        if (message.value === '' || message.value === undefined) delete options[message.option];
-        else options[message.option] = String(message.value);
-        await settings.setHardware(system, { ...current, options });
-        break;
-      }
-      case 'stock':
-        await settings.setHardware(settings.getSystem(), { profile: null, options: {} });
-        break;
       default:
     }
   }
@@ -203,52 +197,54 @@ class LauncherViewProvider {
   async post() {
     if (!this.view) return;
     const system = settings.getSystem();
+    const named = settings.getNamedSystem();
     const all = this.projects.all;
     const project = this.selectedProject(all);
-    // The picker lists what is on offer, plus whatever is selected: hiding
-    // the examples while one of them is chosen must not leave the picker
-    // showing nothing.
     const offered = this.projects.visible;
     const listed = project && !offered.includes(project) ? [...offered, project] : offered;
-    // Asked in the selected project's directory: the hardware it fits its
-    // targets with is in its own 8bitscript.config.ts, not the toolchain's
-    // catalog, so the panel's stock machine is that project's.
     const targets = await this.projects.loadTargets(project?.dir);
     if (!this.view) return;
     const target = targets?.get(system) ?? null;
-    // Nothing stored fits the machine's worst RAM-size config, not its
-    // catalog stock, so the panel shows the same machine a Run actually
-    // uses. A cartridge medium is not a RAM-size option.
     const selection = settings.getEffectiveHardware(system, target);
     const region = settings.getRegion();
     const machine = MACHINE_TARGETS.has(system);
-    // Whether Boot has a real emulator to open — a different question
-    // from `machine` above (which is only about an NTSC/PAL choice, and
-    // excludes the PET on purpose): every target but `web` opens one.
     const bootable = !NO_BARE_EMULATOR.has(system);
     const runnable = Boolean(project?.targets.includes(system) && project.toolchain);
-    // The system the panel is *on*, when what is selected is exactly one
-    // of the project's — then the button names it instead of spelling the
-    // machine and its hardware out.
-    const fitted = (targets?.systems ?? [])
-      .find((entry) => entry.target === system && matchesSystem(entry, target, selection, region));
+    const fitted = named
+      ? (targets?.systems ?? []).find((entry) => entry.name === named)
+      : (targets?.systems ?? []).find((entry) => entry.target === system && matchesSystem(entry, target, selection, region));
+    const extras = {
+      system: fitted?.name || named || undefined,
+      checkout: this.projects.checkoutFlag() || undefined,
+    };
+    const folders = (vscode.workspace.workspaceFolders ?? []).map((folder) => folder.uri.fsPath);
+    const setting = settings.getCheckout() || null;
+    const resolved = resolveCheckoutRoot({
+      folders,
+      setting,
+      managed: this.projects.managedDir,
+    });
     this.view.webview.postMessage({
       type: 'state',
+      packages: packageRows({
+        folders,
+        setting,
+        managed: this.projects.managedDir,
+        projects: this.projects.projects,
+      }),
       projects: projectOptions(listed),
       project: project?.dir ?? '',
       projectLabel: project ? labelOf(project) : '',
       installed: project ? project.installed : true,
       packageManager: project?.packageManager ?? 'pnpm',
       systems: systemOptions(targets, project),
-      system: fitted?.name ?? system,
+      system: fitted?.name ?? named ?? system,
       systemTitle: fitted?.name ?? target?.title ?? system,
       region,
       regionLabel: machine ? settings.regionShort(region) : '',
       machine,
       bootable,
       runnable,
-      // Both, when both: a broken `systems` block does not stop a run,
-      // and the reason a run is stopped is not the block.
       warning: [
         warningFor(project, system),
         shortfall(targets, target, selection),
@@ -260,9 +256,17 @@ class LauncherViewProvider {
         ? [target?.title ?? system, selectionLabel(selection) || 'stock machine']
           .concat(machine ? [settings.regionShort(region)] : []).join(' · ')
         : null,
-      hardware: hardwareState(target, targets, selection),
+      checkout: extras.checkout ?? null,
+      checkoutAvailable: Boolean(resolved),
       running: this.runningRows(all),
-      command: `8bs ${commandArgs('run', system, region, selection).concat(system === 'web' && !settings.getWebLan() ? ['--local'] : []).join(' ')}`,
+      devReload: {
+        phase: this.devReload?.phase ?? 'idle',
+        error: this.devReload?.error ?? null,
+      },
+      command: `8bs ${commandArgs('run', system, region, extras.system ? undefined : selection, extras).concat(
+        system === 'web' ? ['--port', '0'] : [],
+        system === 'web' && !settings.getWebLan() ? ['--local'] : [],
+      ).join(' ')}`,
     });
   }
 
@@ -285,10 +289,7 @@ class LauncherViewProvider {
 }
 
 /**
- * The project dropdown's entries, grouped into Projects / Examples / Apps
- * when the list holds more than one kind. The examples used to be behind a
- * checkbox because they crowded a tree; a group in a dropdown costs the
- * rest of the list nothing, so they are simply always there.
+ * The program dropdown's entries, grouped into Programs / Examples / Apps.
  */
 function projectOptions(projects) {
   const entry = (project) => ({
@@ -325,22 +326,41 @@ function systemOptions(targets, project) {
   }));
   const systems = targets?.systems ?? [];
   if (systems.length === 0) return machines;
-  return [
-    { group: 'This project' },
-    ...systems.map((system) => ({
-      id: system.name,
-      machine: MACHINE_TARGETS.has(system.target),
-      label: system.name,
-      where: system.label === 'stock' ? system.target : `${system.target} · ${system.label}`,
-      runnable: Boolean(project?.targets.includes(system.target)),
-      // A system the program asks more of than it gives is still listed —
-      // it is in the config — but it is listed as short, so the choice is
-      // made with the answer rather than at the build's expense.
-      short: (system.unmet ?? []).length > 0,
-    })),
-    { group: 'Machines' },
-    ...machines,
+  const groups = [
+    ['project', 'This clone'],
+    ['user', 'This machine'],
+    ['advertised', 'Advertised'],
   ];
+  const options = [];
+  for (const [origin, label] of groups) {
+    const rows = systems.filter((system) => system.origin === origin);
+    if (rows.length === 0) continue;
+    options.push({ group: label });
+    for (const system of rows) {
+      options.push({
+        id: system.name,
+        machine: MACHINE_TARGETS.has(system.target),
+        label: system.name,
+        where: system.label === 'stock' ? system.target : `${system.target} · ${system.label}`,
+        runnable: Boolean(project?.targets.includes(system.target)),
+        short: (system.unmet ?? []).length > 0,
+      });
+    }
+  }
+  options.push({ group: 'Machines' }, ...machines);
+  return options;
+}
+
+function packageRows({ folders, setting, managed, projects }) {
+  return installRoots({ folders, setting, managed, projects }).map((status) => ({
+    dir: status.dir,
+    kind: status.kind,
+    label: status.label,
+    detail: status.detail,
+    packageManager: status.packageManager,
+    installed: status.installed,
+    action: status.action,
+  }));
 }
 
 /**
@@ -372,44 +392,6 @@ function warningFor(project, system) {
   return null;
 }
 
-/** Presets and options for one system, or null when the toolchain could not be asked. */
-function hardwareState(target, targets, selection) {
-  if (!target) return null;
-  const project = Object.keys(target.profiles ?? {});
-  const catalog = Object.keys(target.presets ?? {}).filter((id) => !project.includes(id));
-  const label = (id) => {
-    const bundle = presetBundle(target, id);
-    return bundle ? `${id}  —  ${bundle}` : id;
-  };
-  const profiles = [{ id: '', label: 'Stock machine' }];
-  if (project.length > 0) {
-    profiles.push({ group: 'This project' });
-    for (const id of project) profiles.push({ id, label: label(id) });
-  }
-  if (catalog.length > 0) {
-    profiles.push({ group: 'Catalog presets' });
-    for (const id of catalog) profiles.push({ id, label: label(id) });
-  }
-  return {
-    profiles,
-    options: Object.entries(target.options ?? {}).map(([id, option]) => ({
-      id,
-      label: option.label,
-      default: option.default,
-      detect: option.detect ?? null,
-      values: Object.entries(option.values ?? {}).map(([value, entry]) => ({
-        id: value, label: entry.label, affectsBuild: entry.affectsBuild, detect: entry.detect ?? null,
-      })),
-    })),
-    effective: effectiveOptions(target, selection),
-    selection,
-    facts: (targets.facts ?? []).filter((fact) => fact.program).map((fact) => ({
-      key: fact.key, doc: fact.doc, when: fact.when, type: fact.type,
-      value: effectiveFacts(target, selection)[fact.key] ?? (fact.type === 'flag' ? false : 0),
-    })),
-  };
-}
-
 // Codicon shapes, inline rather than the codicon font: a webview does not
 // get the editor's icon font for free, and four paths are cheaper than
 // shipping one.
@@ -436,51 +418,49 @@ function html(webview) {
 <title>8BitScript</title>
 </head>
 <body>
-  <button class="launch" id="run" title="Run this project on the selected system">
-    ${ICONS.play}
-    <span class="launch-text">
-      <span class="launch-title" id="run-title">Run</span>
-      <span class="launch-sub" id="run-sub"></span>
-    </span>
-  </button>
-
-  <p class="notice" id="notice" hidden></p>
-  <button class="wide secondary" id="install" hidden></button>
-
-  <div class="fields" id="fields">
-    <div class="field">
-      <label class="field-label" for="system">System</label>
-      <select id="system" title="The system Run and Build use"></select>
-    </div>
-    <div class="field">
-      <label class="field-label" for="project">Project</label>
-      <div class="control">
-        <select id="project" title="The project Run and Build act on"></select>
-        <button class="icon" id="build" title="Build this project for the selected system">${ICONS.build}</button>
-        <button class="icon" id="open" title="Open this project's entry file">${ICONS.file}</button>
-      </div>
-    </div>
+  <div class="dev-reload" id="dev-reload" hidden>
+    <p class="notice" id="dev-reload-msg"></p>
+    <button class="wide secondary" id="rebuild-extension" hidden>Rebuild the local extension</button>
+    <button class="wide" id="reload-window" hidden>Reload this window</button>
   </div>
 
-  <details class="more" id="more">
-    <summary>Hardware &middot; Region &middot; Facts <span class="summary-value" id="fitted"></span></summary>
-    <div class="field">
-      <label class="field-label" for="region">Region</label>
-      <select id="region" title="NTSC (US/Japan, 60Hz) or PAL (Europe, 50Hz) machine model">
-        <option value="ntsc">NTSC — US/Japan, 60Hz</option>
-        <option value="pal">PAL — Europe, 50Hz</option>
-      </select>
-    </div>
-    <div class="field">
-      <label class="field-label" for="profile">Preset</label>
-      <select id="profile" title="A preset: stock, a catalog preset, or one this project composes in its 8bitscript.config.ts"></select>
-    </div>
-    <div id="options"></div>
-  </details>
+  <section class="packages" id="packages-block">
+    <h2 class="section-label">8BitScript</h2>
+    <div id="package-rows"></div>
+  </section>
 
-  <button class="wide secondary" id="boot" title="Boot the selected system's emulator with nothing loaded — just the hardware">
-    ${ICONS.chip} <span id="boot-label">Boot Machine</span>
-  </button>
+  <section class="launch-block">
+    <h2 class="section-label">Quick launch</h2>
+    <div class="fields" id="fields">
+      <div class="field">
+        <label class="field-label" for="project">Program</label>
+        <div class="control">
+          <select id="project" title="The program Run and Build act on"></select>
+          <button class="icon" id="details" title="Show project details">${ICONS.file}</button>
+        </div>
+      </div>
+      <div class="field">
+        <label class="field-label" for="system">System</label>
+        <select id="system" title="A named system, or a bare machine"></select>
+      </div>
+    </div>
+    <button class="link fitted" id="fitted" title="Open the system builder"></button>
+    <button class="launch" id="run" title="Run this project on the selected system">
+      ${ICONS.play}
+      <span class="launch-text">
+        <span class="launch-title" id="run-title">Run</span>
+        <span class="launch-sub" id="run-sub"></span>
+      </span>
+    </button>
+    <p class="notice" id="notice" hidden></p>
+    <div class="control launch-actions">
+      <button class="wide secondary" id="build" title="Build this project for the selected system">${ICONS.build} Build</button>
+      <button class="wide secondary" id="boot" title="Boot the selected system's emulator with nothing loaded — just the hardware">
+        ${ICONS.chip} <span id="boot-label">Boot</span>
+      </button>
+      <button class="icon" id="open" title="Open this project's entry file">${ICONS.file}</button>
+    </div>
+  </section>
 
   <section class="running" id="running" hidden>
     <h2 class="section-label">Running machines</h2>
@@ -497,9 +477,10 @@ function html(webview) {
 /**
  * @param {vscode.ExtensionContext} context
  * @param {import('./runner.cjs').Projects} projects
+ * @param {ReturnType<import('./devReload.cjs').registerDevReload> | null} [devReload]
  */
-function registerLauncherView(context, projects) {
-  const provider = new LauncherViewProvider(projects);
+function registerLauncherView(context, projects, devReload) {
+  const provider = new LauncherViewProvider(projects, devReload);
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(VIEW_ID, provider, {
       webviewOptions: { retainContextWhenHidden: true },

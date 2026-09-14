@@ -202,8 +202,9 @@ Attributes on `<eightbit-screen>`, or keys passed to `mount()`:
   a cross-origin subresource without it is blocked.
 - **Trying the page on a phone** is `8bs run web` (LAN HTTPS is the default;
   `--local` is loopback only). The editor setting `8bitscript.webLan` turns
-  that off. HTTP is port **8008** (HTTPS 8009) so the URL stays put across
-  runs; `--port n` picks another. The loopback URL stays HTTP; the printed
+  that off. HTTP binds an **ephemeral port** so two runs can coexist;
+  `--port n` pins HTTP to n (HTTPS on n+1). The launcher shows a QR of the
+  LAN URL. The loopback URL stays HTTP; the printed
   `https://<lan-ip>:<port>/` URL is HTTPS, because SharedArrayBuffer is not
   legal on plain `http://192.168.x.x`. Safari will warn once.
 - **`.wasm` must be served as `application/wasm`.** Most hosts do; a few old

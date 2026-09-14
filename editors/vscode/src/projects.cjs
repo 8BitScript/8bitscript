@@ -22,6 +22,7 @@
 // with plain `node --test`. runner.cjs does the file search with the
 // editor's own glob and hands the results here.
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
 // 8bitscript.config.ts is the current name; 8bs.config.ts (every project
@@ -88,7 +89,7 @@ const DEFAULT_ENTRY = 'src/main.8bs';
 
 /** The three kinds of project, in the order the launcher groups them. */
 const KINDS = [
-  { id: 'project', label: 'Projects' },
+  { id: 'project', label: 'Programs' },
   { id: 'example', label: 'Examples' },
   { id: 'app', label: 'Apps' },
 ];
@@ -96,6 +97,7 @@ const KINDS = [
 const BINARY = process.platform === 'win32' ? '8bs.cmd' : '8bs';
 
 const { hardwareArgs } = require('./hardwareCatalog.cjs');
+const { checkoutCli } = require('./checkout.cjs');
 
 // Drop line and block comments so a commented-out key is not read as live.
 function stripComments(text) {
@@ -174,16 +176,22 @@ function topLevelKeys(source, from) {
 }
 
 /**
- * Find the `8bs` binary that applies to a directory, walking upward.
+ * Find the `8bs` that applies to a directory.
  *
- * In a monorepo the toolchain belongs to the project, not to the folder the
- * editor has open: examples/borders/node_modules/.bin/8bs is the one that
- * runs examples/borders, even when the repository root is the workspace.
+ * A local checkout, when one is active, is that tree's
+ * `packages/cli/bin/8bs.mjs` — not `node_modules/.bin/8bs` — so a
+ * consumer app keeps published versions in package.json. Otherwise walk
+ * upward for the nearest installed bin, the same as before: in a
+ * monorepo the toolchain belongs to the project, not to the folder the
+ * editor has open.
  *
  * @param {string} startDir
+ * @param {string | null} [checkout]
  * @returns {string | null}
  */
-function findToolchain(startDir) {
+function findToolchain(startDir, checkout) {
+  const local = checkout ? checkoutCli(checkout) : null;
+  if (local) return local;
   let dir = startDir;
   for (;;) {
     const candidate = path.join(dir, 'node_modules', '.bin', BINARY);
@@ -192,6 +200,19 @@ function findToolchain(startDir) {
     if (parent === dir) return null;
     dir = parent;
   }
+}
+
+/**
+ * How to spawn a toolchain path: a `.mjs` is `node that-file`, a bin is
+ * the bin itself.
+ *
+ * @param {string | null} toolchain
+ * @returns {{ command: string, args: string[] } | null}
+ */
+function cliCommand(toolchain) {
+  if (!toolchain) return null;
+  if (toolchain.endsWith('.mjs')) return { command: process.execPath, args: [toolchain] };
+  return { command: toolchain, args: [] };
 }
 
 function readPackage(dir) {
@@ -220,17 +241,43 @@ function examplesManifest(pkg) {
 }
 
 /**
- * Which kind of project a directory holds on its own: an app declares
- * itself in its package.json; everything else is a project. An example is
- * not decided here — it is whatever the examples package's manifest names,
- * and loadExamples() marks it.
+ * Whether `dir` is named in a parent package's `8bitscript.examples`
+ * manifest — that field is what makes an example, not a directory name.
+ *
+ * @param {string} dir
+ * @returns {boolean}
+ */
+function namedByExamplesManifest(dir) {
+  if (!dir) return false;
+  const resolved = path.resolve(dir);
+  let current = resolved;
+  for (;;) {
+    const manifest = examplesManifest(readPackage(current));
+    if (manifest) {
+      for (const entry of Object.values(manifest)) {
+        if (!entry || typeof entry !== 'object' || typeof entry.dir !== 'string') continue;
+        if (path.resolve(current, entry.dir) === resolved) return true;
+      }
+    }
+    const parent = path.dirname(current);
+    if (parent === current) return false;
+    current = parent;
+  }
+}
+
+/**
+ * Which kind of project a directory holds: an app declares itself in its
+ * package.json; an example is whatever a parent `8bitscript.examples`
+ * manifest names; everything else is a program.
  *
  * @param {string} dir
  * @param {object | null} pkg
- * @returns {'project' | 'app'}
+ * @returns {'project' | 'example' | 'app'}
  */
 function kindOf(dir, pkg) {
-  return appManifest(pkg) ? 'app' : 'project';
+  if (appManifest(pkg)) return 'app';
+  if (namedByExamplesManifest(dir)) return 'example';
+  return 'project';
 }
 
 /**
@@ -279,6 +326,97 @@ function packageManagerFor(startDir) {
 }
 
 /**
+ * Directories a GUI-launched editor often lacks on PATH: pnpm's installer
+ * writes `PNPM_HOME/bin` from `.zshrc`, which a task shell never sources.
+ *
+ * @param {string} [home]
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {string[]}
+ */
+function extraBinDirs(home = os.homedir(), env = process.env) {
+  const pnpmHome = env.PNPM_HOME || path.join(home, '.local', 'share', 'pnpm');
+  return [...new Set([
+    env.PNPM_HOME,
+    path.join(pnpmHome, 'bin'),
+    pnpmHome,
+    path.join(home, '.local', 'bin'),
+    env.NVM_BIN,
+    nvmNodeBin(home),
+    path.join(home, '.volta', 'bin'),
+    path.join(home, '.asdf', 'shims'),
+    path.join(home, '.fnm', 'aliases', 'default', 'bin'),
+    path.join(home, '.local', 'share', 'fnm', 'aliases', 'default', 'bin'),
+    '/usr/bin',
+    '/usr/local/bin',
+  ].filter(Boolean))];
+}
+
+/** Highest installed nvm node `bin/`, or null. */
+function nvmNodeBin(home) {
+  const base = path.join(home, '.nvm', 'versions', 'node');
+  let names;
+  try {
+    names = fs.readdirSync(base).filter((name) => name.startsWith('v'));
+  } catch {
+    return null;
+  }
+  names.sort((a, b) => a.localeCompare(b));
+  const last = names[names.length - 1];
+  return last ? path.join(base, last, 'bin') : null;
+}
+
+function managerFilenames(name) {
+  return process.platform === 'win32'
+    ? [`${name}.cmd`, `${name}.exe`, `${name}.bat`, name]
+    : [name];
+}
+
+function isExecutable(file) {
+  try {
+    fs.accessSync(file, fs.constants.X_OK);
+    return fs.statSync(file).isFile();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * PATH that includes the well-known bins a `.zshrc` would have added.
+ *
+ * @param {NodeJS.ProcessEnv} [env]
+ * @param {string} [home]
+ */
+function packageManagerPath(env = process.env, home = os.homedir()) {
+  const current = (env.PATH || '').split(path.delimiter).filter(Boolean);
+  return [...new Set([...current, ...extraBinDirs(home, env)])].join(path.delimiter);
+}
+
+function whichOnPath(name, searchPath) {
+  for (const dir of searchPath.split(path.delimiter)) {
+    if (!dir) continue;
+    for (const file of managerFilenames(name)) {
+      const candidate = path.join(dir, file);
+      if (isExecutable(candidate)) return candidate;
+    }
+  }
+  return null;
+}
+
+/**
+ * Absolute path of `pnpm`/`npm`/`yarn`/`bun`, or the bare name when
+ * nothing is found. Cursor's task shell is non-login, so the name alone
+ * is `command not found` even when a terminal tab can run it.
+ *
+ * @param {string} name
+ * @param {{ env?: NodeJS.ProcessEnv, home?: string }} [opts]
+ */
+function resolvePackageManager(name, opts = {}) {
+  const env = opts.env ?? process.env;
+  const home = opts.home ?? os.homedir();
+  return whichOnPath(name, packageManagerPath(env, home)) ?? name;
+}
+
+/**
  * @typedef {object} Project
  * @property {string} name        package.json name, or the directory name
  * @property {string} title       an app's display name from its manifest, else the name
@@ -304,6 +442,7 @@ function packageManagerFor(startDir) {
  * @returns {Project}
  */
 function loadProject(configPath, overrides = {}) {
+  const { checkout, ...rest } = overrides;
   const dir = path.dirname(configPath);
   let text = '';
   try {
@@ -324,10 +463,10 @@ function loadProject(configPath, overrides = {}) {
     configPath,
     entry: path.resolve(dir, entry),
     targets,
-    toolchain: findToolchain(dir),
+    toolchain: findToolchain(dir, checkout),
     installed: isInstalled(dir, pkg),
     packageManager: packageManagerFor(dir),
-    ...overrides,
+    ...rest,
   };
 }
 
@@ -338,9 +477,10 @@ function loadProject(configPath, overrides = {}) {
  * name earliest in CONFIG_FILENAMES.
  *
  * @param {string[]} configPaths
+ * @param {{ checkout?: string|null }} [options]
  * @returns {Project[]}
  */
-function loadProjects(configPaths) {
+function loadProjects(configPaths, options = {}) {
   const byDir = new Map();
   for (const p of configPaths.map((p) => path.resolve(p))) {
     const dir = path.dirname(p);
@@ -350,7 +490,7 @@ function loadProjects(configPaths) {
       byDir.set(dir, p);
     }
   }
-  return [...byDir.values()].sort((a, b) => a.localeCompare(b)).map((p) => loadProject(p));
+  return [...byDir.values()].sort((a, b) => a.localeCompare(b)).map((p) => loadProject(p, options));
 }
 
 /**
@@ -537,8 +677,8 @@ function ofKind(projects, kind) {
 
 /**
  * Split a list into its kinds, in KINDS order, for the dropdown's groups.
- * Returns null when every project is the same kind — a workspace of plain
- * projects should not grow a group level it has no use for.
+ * A single kind still gets its heading (Programs, Examples, or Apps) so
+ * examples never sit under an unlabeled list that reads as programs.
  *
  * @param {Project[]} projects
  * @returns {{ kind: string, label: string, projects: Project[] }[] | null}
@@ -547,7 +687,7 @@ function byKind(projects) {
   const groups = KINDS
     .map(({ id, label }) => ({ kind: id, label, projects: ofKind(projects, id) }))
     .filter((group) => group.projects.length > 0);
-  return groups.length > 1 ? groups : null;
+  return groups.length > 0 ? groups : null;
 }
 
 /** `text`, trailing whitespace and one trailing comma (if either is there) trimmed, then a single comma and newline put back — plain string methods rather than a trailing `,?\s*$` regex, which SonarQube flags for its own quadratic worst case on a long run of trailing whitespace. */
@@ -717,16 +857,23 @@ function runnableOn(projects, system) {
  * @param {{ profile?: string|null, options?: object }} [hardware] the
  *   hardware fitted (the side bar's selection for that system): `--profile`
  *   and `--hardware option=value,...`, as a person would type them
+ * @param {{ system?: string, checkout?: string }} [extras] a named system
+ *   (`--system`) and/or a local checkout (`--checkout`). A named system
+ *   already carries its fitting, so hardware flags are omitted.
  * @returns {string[]}
  */
-function commandArgs(action, target, region = 'ntsc', hardware = undefined) {
+function commandArgs(action, target, region = 'ntsc', hardware = undefined, extras = {}) {
   if (action !== 'run' && action !== 'build' && action !== 'boot') return [action];
   // boot takes no entry file at all — nothing is loaded into the machine —
   // so it shares run's own `[action, target]` shape rather than needing one
-  // of its own.
-  const args = action === 'build' ? ['build', '--target', target] : [action, target];
-  if (region === 'pal' && MACHINE_TARGETS.has(target)) args.push('--pal');
-  if (hardware) args.push(...hardwareArgs(hardware));
+  // of its own. `--system` supplies the target, so the positional machine
+  // is dropped when a name is given.
+  const args = extras.system
+    ? (action === 'build' ? ['build', '--system', extras.system] : [action, '--system', extras.system])
+    : (action === 'build' ? ['build', '--target', target] : [action, target]);
+  if (extras.checkout) args.push('--checkout', extras.checkout);
+  if (!extras.system && region === 'pal' && MACHINE_TARGETS.has(target)) args.push('--pal');
+  if (!extras.system && hardware) args.push(...hardwareArgs(hardware));
   // Run and build print the size breakdown before the emulator starts (run)
   // or instead of launching one (build). The launcher's Running machines
   // tree reads the same numbers from dist/.8bs-last-<target>.json.
@@ -745,6 +892,7 @@ module.exports = {
   NO_BARE_EMULATOR,
   KINDS,
   byKind,
+  cliCommand,
   cliPackageDir,
   commandArgs,
   examplesManifest,
@@ -757,7 +905,10 @@ module.exports = {
   insertSystem,
   ofKind,
   systemLine,
+  extraBinDirs,
   packageManagerFor,
+  packageManagerPath,
+  resolvePackageManager,
   loadProject,
   loadProjects,
   parseConfig,

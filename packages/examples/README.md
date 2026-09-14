@@ -2,7 +2,7 @@
 
 The example programs that ship with the toolchain. `@8bitscript/cli`
 depends on this package, so installing the CLI installs the examples, and
-the VS Code extension lists them in its launcher beside your own projects
+the VS Code extension lists them in its launcher beside your own programs
 and beside Studio. Each example is an ordinary project: a directory with an
 `8bitscript.config.ts` and a `src/main.8bs`, run with `8bs run <target>` from
 inside it.

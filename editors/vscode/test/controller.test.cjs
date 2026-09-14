@@ -64,6 +64,15 @@ test('the profile module loads in the page under a bare CommonJS shim', () => {
   assert.doesNotMatch(VIEW, /var Profile = module\.exports;/);
 });
 
+test('the injected profile is found after esbuild moves __dirname to dist/', () => {
+  // A bundled activate used to ENOENT dist/controllerProfile.cjs because
+  // the read was `path.join(__dirname, 'controllerProfile.cjs')` and
+  // esbuild does not rewrite that. Fall back to src/ in a checkout; the
+  // bundle step copies the file next to dist/ for a VSIX.
+  assert.match(VIEW, /nextToBundle/);
+  assert.match(VIEW, /'\.\.'.*'src'.*'controllerProfile\.cjs'/);
+});
+
 test('the profile shim does not leak heldKeys into the page', () => {
   // A classic <script> is one global scope. controllerProfile.cjs names a
   // helper heldKeys, and the page declares const heldKeys for the keyboard.

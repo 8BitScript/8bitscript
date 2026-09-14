@@ -21,6 +21,10 @@ export const nav = [
     url: '/web-embedding',
   },
   {
+    title: 'Project config',
+    url: '/config',
+  },
+  {
     title: 'Machines on the roadmap',
     url: '/project/machines/',
   },

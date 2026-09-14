@@ -258,8 +258,28 @@ export function nativeSourcesBeside(file) {
   }
 }
 
+/**
+ * A local 8BitScript checkout's `packages/<name>` for `@8bitscript/<name>`,
+ * when `8bs --checkout` (or EIGHTBITSCRIPT_CHECKOUT / toolchain.json)
+ * named one. Published node_modules is the fallback, so a consumer's
+ * package.json can stay on versioned deps.
+ *
+ * @param {string} checkout
+ * @param {string} name
+ */
+function packageDirInCheckout(checkout, name) {
+  const match = /^@8bitscript\/([^/]+)$/.exec(name);
+  if (!match) return null;
+  const dir = join(checkout, 'packages', match[1]);
+  return existsSync(join(dir, 'package.json')) ? dir : null;
+}
+
 /** Walk up from a directory looking for `node_modules/<name>`. */
-function findPackageDir(fromDir, name) {
+function findPackageDir(fromDir, name, checkout) {
+  if (checkout) {
+    const local = packageDirInCheckout(checkout, name);
+    if (local) return local;
+  }
   let dir = fromDir;
   for (;;) {
     const candidate = join(dir, 'node_modules', name);
@@ -477,7 +497,7 @@ export function resolveSpecifier(specifier, fromFile, options = {}, seen = new S
   if (!subpath && !BARE_PACKAGE.test(specifier)) return null;
   const name = subpath ? subpath[1] : specifier;
 
-  const packageDir = findPackageDir(fromDir, name);
+  const packageDir = findPackageDir(fromDir, name, options.checkout);
   if (!packageDir) {
     return { code: Codes.UNRESOLVED_PACKAGE, message: `cannot find package '${name}'. Is it installed?` };
   }
@@ -535,14 +555,17 @@ export function resolveSpecifier(specifier, fromFile, options = {}, seen = new S
  *
  * @param {object[]} tokens
  * @param {string} file  Absolute path of the importing file.
+ * @param {{ checkout?: string|null, machine?: string, facts?: object }} [options]
+ *   `checkout` is a local 8BitScript tree whose `packages/` win over
+ *   node_modules for `@8bitscript/*` — the same root `8bs --checkout` names.
  * @returns {object[]} diagnostics
  */
-export function resolveImports(tokens, file) {
+export function resolveImports(tokens, file, options = {}) {
   if (!file || !isAbsolute(file)) return [];
   const diagnostics = [];
 
   for (const { specifier, start, length } of findImports(tokens)) {
-    const resolved = resolveSpecifier(specifier, file);
+    const resolved = resolveSpecifier(specifier, file, options);
     if (resolved && resolved.code) {
       diagnostics.push(diagnostic(resolved.code, resolved.message, file, start, length));
     }

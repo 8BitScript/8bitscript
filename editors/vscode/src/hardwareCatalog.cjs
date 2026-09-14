@@ -199,6 +199,52 @@ function presetBundle(target, presetId) {
  * @param {object} target one entry of parseTargets()
  * @returns {{ profile: string|null, options: Record<string, string> }}
  */
+/**
+ * Presets, options, and facts for one machine as the system builder (and
+ * the old hardware fold) need them. Null when the toolchain could not
+ * be asked.
+ *
+ * @param {object|null} target
+ * @param {Map<string, object>|null} targets
+ * @param {{ profile: string|null, options: Record<string, string> }} selection
+ */
+function hardwareState(target, targets, selection) {
+  if (!target) return null;
+  const project = Object.keys(target.profiles ?? {});
+  const catalog = Object.keys(target.presets ?? {}).filter((id) => !project.includes(id));
+  const label = (id) => {
+    const bundle = presetBundle(target, id);
+    return bundle ? `${id}  —  ${bundle}` : id;
+  };
+  const profiles = [{ id: '', label: 'Stock machine' }];
+  if (project.length > 0) {
+    profiles.push({ group: 'This project' });
+    for (const id of project) profiles.push({ id, label: label(id) });
+  }
+  if (catalog.length > 0) {
+    profiles.push({ group: 'Catalog presets' });
+    for (const id of catalog) profiles.push({ id, label: label(id) });
+  }
+  return {
+    profiles,
+    options: Object.entries(target.options ?? {}).map(([id, option]) => ({
+      id,
+      label: option.label,
+      default: option.default,
+      detect: option.detect ?? null,
+      values: Object.entries(option.values ?? {}).map(([value, entry]) => ({
+        id: value, label: entry.label, affectsBuild: entry.affectsBuild, detect: entry.detect ?? null,
+      })),
+    })),
+    effective: effectiveOptions(target, selection),
+    selection,
+    facts: (targets?.facts ?? []).filter((fact) => fact.program).map((fact) => ({
+      key: fact.key, doc: fact.doc, when: fact.when, type: fact.type,
+      value: effectiveFacts(target, selection)[fact.key] ?? (fact.type === 'flag' ? false : 0),
+    })),
+  };
+}
+
 function worstSelection(target) {
   const options = {};
   for (const [id, option] of Object.entries(target.options ?? {})) {
@@ -228,6 +274,7 @@ module.exports = {
   effectiveFacts,
   effectiveOptions,
   hardwareArgs,
+  hardwareState,
   normalizeSelection,
   parseTargets,
   presetBundle,

@@ -54,8 +54,8 @@
 //                        Loopback stays HTTP: SharedArrayBuffer is legal
 //                        there, and not on plain http://192.168.x.x.
 //   8bs run web --local  loopback only, no LAN listener.
-//   8bs run web --port n HTTP on n (default 8008), HTTPS on n+1. --port 0
-//                        is an ephemeral port, the old listen(0) behaviour.
+//   8bs run web --port n HTTP on n, HTTPS on n+1. Default is an ephemeral
+//                        port so two runs can listen at once.
 //
 // `8bs boot <target>` (below `run`'s own exports) is the hardware-only
 // sibling: the same emulator, the same --pal/--profile/--hardware fitting,
@@ -67,7 +67,9 @@ import { readFile, writeFile } from 'node:fs/promises';
 
 import { compile } from './build.mjs';
 import { CONTROLLERS_FILE, controllerInvocation, controllerPlayers, setConfigKey } from './controllers.mjs';
+import { applyCheckoutFromArgs } from './checkout.mjs';
 import { HARDWARE_USAGE, hardwareArgs, loadArgs } from './hardware.mjs';
+import { resolveNamedLaunch } from './systems.mjs';
 import { hardwareSnapshot, writeLastRun } from './last-run.mjs';
 import { parseListenPort } from './web-lan.mjs';
 
@@ -468,10 +470,15 @@ async function spawnEmulator(emulator, emulatorArgs) {
 
 /** @returns {Promise<number>} exit code */
 export async function run(args) {
-  const pal = args.includes('--pal');
+  const palFlag = args.includes('--pal');
   const open = !args.includes('--no-open');
   const lan = !args.includes('--local');
   const report = args.includes('--size');
+  const checkout = applyCheckoutFromArgs(args);
+  if (!checkout.ok) {
+    process.stderr.write(`8bs run: ${checkout.error}\n`);
+    return 2;
+  }
   const hw = hardwareArgs(args);
   if (!hw.ok) {
     process.stderr.write(`8bs run: ${hw.error}\n`);
@@ -497,12 +504,27 @@ export async function run(args) {
     process.stderr.write(`8bs run: ${listenPort.error}\n`);
     return 2;
   }
+  const { loadConfig } = await import('./config.mjs');
+  const { MACHINES } = await import('@8bitscript/compiler');
+  const config = await loadConfig(process.cwd(), '8bs run');
+  const launch = resolveNamedLaunch(hw, { config });
+  if (!launch.ok) {
+    process.stderr.write(`8bs run: ${launch.error}\n`);
+    return 2;
+  }
   const consumed = new Set([
     ...hw.consumed,
+    ...checkout.consumed,
     ...[screenshotIndex, framesIndex, portIndex].flatMap((i) => (i >= 0 ? [i, i + 1] : [])),
   ]);
   const positionals = args.filter((a, i) => !consumed.has(i) && !a.startsWith('-'));
-  const target = positionals[0];
+  const first = positionals[0];
+  const named = MACHINES.includes(first) ? first : undefined;
+  if (launch.target && named && named !== launch.target) {
+    process.stderr.write(`8bs run: --system '${hw.system}' is a ${launch.target} machine; got '${named}'\n`);
+    return 2;
+  }
+  const target = launch.target ?? named;
   if (!target) {
     process.stderr.write(
       'Usage: 8bs run <pet|web>\n'
@@ -518,13 +540,14 @@ export async function run(args) {
     );
     return 2;
   }
-  const entry = positionals[1];
+  const entry = named ? positionals[1] : positionals[0];
+  const pal = palFlag || launch.pal;
 
   // Said once, before either route — the PET has no region (PET_REGION_NOTE).
   if (target === 'pet' && pal) process.stderr.write(PET_REGION_NOTE);
 
   const { ok, outFile, frameRate, hardware } = await compile(target, entry, {
-    pal, profile: hw.profile, hardware: hw.overrides, report,
+    pal, profile: launch.profile, hardware: launch.overrides, report, checkout: checkout.checkout,
   });
   if (!ok) return 1;
 
@@ -602,15 +625,39 @@ export async function run(args) {
  * @returns {Promise<number>} exit code
  */
 export async function boot(args) {
-  const pal = args.includes('--pal');
+  const palFlag = args.includes('--pal');
+  const checkout = applyCheckoutFromArgs(args);
+  if (!checkout.ok) {
+    process.stderr.write(`8bs boot: ${checkout.error}\n`);
+    return 2;
+  }
   const hw = hardwareArgs(args);
   if (!hw.ok) {
     process.stderr.write(`8bs boot: ${hw.error}\n`);
     return 2;
   }
-  const positionals = args.filter((a, i) => !hw.consumed.has(i) && !a.startsWith('-'));
-  const target = positionals[0];
+  const { loadConfig } = await import('./config.mjs');
+  const { MACHINES, RELEASE_MACHINES } = await import('@8bitscript/compiler');
+  const config = await loadConfig(process.cwd(), '8bs boot');
+  const launch = resolveNamedLaunch(hw, { config });
+  if (!launch.ok) {
+    process.stderr.write(`8bs boot: ${launch.error}\n`);
+    return 2;
+  }
+  const consumed = new Set([...hw.consumed, ...checkout.consumed]);
+  const positionals = args.filter((a, i) => !consumed.has(i) && !a.startsWith('-'));
+  const first = positionals[0];
+  const named = MACHINES.includes(first) ? first : undefined;
+  if (launch.target && named && named !== launch.target) {
+    process.stderr.write(`8bs boot: --system '${hw.system}' is a ${launch.target} machine; got '${named}'\n`);
+    return 2;
+  }
+  const target = launch.target ?? named;
   if (!target) {
+    if (first) {
+      process.stderr.write(`8bs boot: unknown target '${first}'. Targets: ${MACHINES.join(', ')}\n`);
+      return 2;
+    }
     process.stderr.write(
       'Usage: 8bs boot <pet>\n'
       + '                (vic20, c64, c128, atari8, nes, cx16, mega65 are parked until a later release;\n'
@@ -625,7 +672,6 @@ export async function boot(args) {
     return 2;
   }
 
-  const { MACHINES, RELEASE_MACHINES } = await import('@8bitscript/compiler');
   if (!MACHINES.includes(target)) {
     process.stderr.write(`8bs boot: unknown target '${target}'. Targets: ${MACHINES.join(', ')}\n`);
     return 2;
@@ -638,14 +684,13 @@ export async function boot(args) {
     return 2;
   }
 
+  const pal = palFlag || launch.pal;
   // Said once, before either route — the PET has no region (PET_REGION_NOTE).
   if (target === 'pet' && pal) process.stderr.write(PET_REGION_NOTE);
 
-  const { loadConfig } = await import('./config.mjs');
   const { loadCatalog, projectHardware, projectProfiles, resolveHardware } = await import('./hardware.mjs');
-  const config = await loadConfig(process.cwd(), '8bs boot');
   const resolved = resolveHardware(loadCatalog(target), {
-    profile: hw.profile, overrides: hw.overrides, profiles: projectProfiles(config, target), defaults: projectHardware(config, target),
+    profile: launch.profile, overrides: launch.overrides, profiles: projectProfiles(config, target), defaults: projectHardware(config, target),
   });
   if (!resolved.ok) {
     process.stderr.write(`8bs boot: ${resolved.error}\n`);

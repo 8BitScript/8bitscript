@@ -73,6 +73,17 @@ button.wide:focus-visible { outline: 1px solid var(--vscode-focusBorder); outlin
 button.wide:disabled { opacity: 0.45; cursor: default; }
 button.wide:disabled:hover { background: var(--vscode-button-secondaryBackground); }
 
+/* Source-checkout only: dirty → Rebuild; building → status; ready → Reload. */
+.dev-reload {
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--vscode-focusBorder);
+  border-radius: 2px;
+}
+.dev-reload .notice { margin: 0 0 8px; }
+.dev-reload button.wide { margin-top: 0; }
+.dev-reload button.wide + button.wide { margin-top: 8px; }
+
 /* The machine first — it is what changes between two runs of the same
  * program — then the project, with Build on its row. */
 .fields { margin-top: 14px; }
@@ -122,25 +133,32 @@ button.icon:disabled { opacity: 0.4; cursor: default; background: none; }
 /* The icons come from one set drawn at 16; the row is 22 tall. */
 button.icon svg { width: 14px; height: 14px; }
 
-/* Everything a run usually does not care about. */
-details.more { margin-top: 14px; }
-details.more > summary {
-  cursor: pointer;
+.packages { margin: 0 0 16px; }
+.pkg-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 2px 0;
+  font-size: 12px;
+}
+.pkg-row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pkg-row .detail {
+  flex: 1;
+  min-width: 0;
   font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground));
-  opacity: 0.8;
+  opacity: 0.7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-details.more > summary:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
-details.more > summary .summary-value {
-  text-transform: none;
-  letter-spacing: 0;
-  font-weight: 400;
-  opacity: 0.85;
+.launch-block { margin-top: 4px; }
+.launch-actions { margin-top: 8px; }
+.launch-actions .wide { margin-top: 0; flex: 1; }
+button.fitted {
+  display: block;
+  margin: 8px 0 10px;
+  text-align: left;
 }
-details.more > .field, details.more > #options { margin-top: 8px; }
 
 .option { margin: 8px 0 0; }
 .option label {
@@ -238,6 +256,28 @@ details.more > .field, details.more > #options { margin-top: 8px; }
 .run-machine .tree {
   padding: 4px 8px 8px 18px;
   font-size: 11px;
+}
+.run-machine .lan {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 8px;
+}
+.run-machine .lan-qr {
+  width: 100%;
+  max-width: 148px;
+  background: #fff;
+  flex: 0 0 auto;
+}
+.run-machine .lan-qr svg { display: block; width: 100%; height: auto; }
+.run-machine .lan-url {
+  display: block;
+  max-width: 100%;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+  text-align: center;
+  user-select: text;
 }
 .run-machine .kv {
   display: flex;

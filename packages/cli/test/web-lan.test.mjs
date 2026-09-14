@@ -13,6 +13,7 @@ import {
   lanIPv4,
   listenWebDev,
   parseListenPort,
+  preferredLanUrl,
   serveBanner,
 } from '../src/web-lan.mjs';
 
@@ -61,13 +62,22 @@ test('defaultOpensslPath picks an absolute path, present or not', () => {
   assert.ok(defaultOpensslPath().startsWith('/'), 'never a bare name resolved through PATH');
 });
 
-test('parseListenPort defaults to 8008, accepts 0, and refuses junk', () => {
-  assert.equal(DEFAULT_WEB_PORT, 8008);
-  assert.deepEqual(parseListenPort(undefined), { ok: true, port: 8008 });
+test('parseListenPort defaults to an ephemeral port, accepts a pin, and refuses junk', () => {
+  assert.equal(DEFAULT_WEB_PORT, 0);
+  assert.deepEqual(parseListenPort(undefined), { ok: true, port: 0 });
   assert.deepEqual(parseListenPort('0'), { ok: true, port: 0 });
   assert.deepEqual(parseListenPort('8008'), { ok: true, port: 8008 });
   assert.equal(parseListenPort('nope').ok, false);
   assert.equal(parseListenPort('99999').ok, false);
+});
+
+test('preferredLanUrl is the HTTPS line when there is one', () => {
+  assert.equal(
+    preferredLanUrl(['http://192.168.1.20:9/', 'https://192.168.1.20:10/']),
+    'https://192.168.1.20:10/',
+  );
+  assert.equal(preferredLanUrl(['http://192.168.1.20:9/']), 'http://192.168.1.20:9/');
+  assert.equal(preferredLanUrl([]), null);
 });
 
 test('serveBanner prints the loopback URL, and LAN lines only when there are some', () => {
@@ -111,6 +121,25 @@ test('listenWebDev without --lan serves only loopback HTTP', async () => {
     assert.deepEqual(listening.lanUrls, []);
   } finally {
     await listening.close();
+  }
+});
+
+test('listenWebDev on the default port lets two servers run at once', async () => {
+  const handler = (req, res) => {
+    res.writeHead(200);
+    res.end('ok');
+  };
+  const first = await listenWebDev(handler);
+  const second = await listenWebDev(handler);
+  try {
+    assert.equal(first.error, undefined);
+    assert.equal(second.error, undefined);
+    assert.notEqual(first.local, second.local, 'each run got its own port');
+    assert.equal(await (await fetch(first.local)).text(), 'ok');
+    assert.equal(await (await fetch(second.local)).text(), 'ok');
+  } finally {
+    await first.close();
+    await second.close();
   }
 });
 

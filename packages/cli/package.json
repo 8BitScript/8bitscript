@@ -17,7 +17,8 @@
   },
   "files": [
     "bin",
-    "src"
+    "src",
+    "schemas"
   ],
   "dependencies": {
     "@8bitscript/atari8": "workspace:*",
