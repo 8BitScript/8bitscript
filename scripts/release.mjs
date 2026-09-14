@@ -52,7 +52,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // How hard the PIN asks before it believes a "no". Named once so the message
 // it prints on giving up cannot drift from what it actually did.
-const PIN_RETRY = { attempts: 6, delayMs: 10000 };
+//
+// 6 tries at 10s (50s total) was not enough: v0.7.0 and v0.8.0 both failed
+// to pin on @8bitscript/atari8 specifically, and both times the package
+// was readable within about a minute. 24 tries at 10s gives almost 4
+// minutes of headroom over that observed worst case.
+const PIN_RETRY = { attempts: 24, delayMs: 10000 };
 
 // The registry does not answer for a version the instant it is published.
 // `npm view` goes to a read replica, and for the first seconds after a
