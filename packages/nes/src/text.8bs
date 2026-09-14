@@ -31,6 +31,14 @@ import { queueRun, queueByte } from "./index.8bs";
 // a portable character never lands on it (the reverse alphabet skips it:
 // $A0-$DF mirrors $20-$5F and $E1-$FA mirrors $61-$7A).
 //
+// Tile $A9 is the COPYRIGHT SIGN, the one glyph here whose index is neither
+// a portable character nor one plus 128. `putChar(cell, 169)` draws it, and
+// 169 is what the symbol IS in Latin-1 and Unicode rather than a number this
+// project agreed on — the web host's font draws the same artwork at the same
+// code, and the Commander X16's ISO charset already held it there. It cost
+// nothing to place: $A9 was the reverse of ')', and ')' has no glyph in this
+// font to reverse.
+//
 // Lowercase was not always here. Through 0.5.0 the font stopped at $5A and
 // this comment said the portable set was upper case only "precisely
 // because it is what this font has" — which was true, and was the NES

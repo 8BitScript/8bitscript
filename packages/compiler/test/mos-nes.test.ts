@@ -150,6 +150,14 @@ test('the .nes image carries @8bitscript/nes\'s real character set, tile index =
     0, 0, 0, 0, 0, 0, 0, 0,
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
   ]);
+  // Tile $A9 is the COPYRIGHT SIGN — the one tile whose index is not a
+  // portable character or that character plus 128. It is the same artwork
+  // and the same code as the web host's font (packages/cli/src/font8x8.mjs),
+  // drawn with `tile` so plane 1 stays clear and it takes the text colour.
+  assert.deepEqual([...chr.subarray(0xa9 * 16, 0xa9 * 16 + 16)], [
+    0x7e, 0x81, 0xbd, 0xa1, 0xa1, 0xbd, 0x81, 0x7e,
+    0, 0, 0, 0, 0, 0, 0, 0,
+  ], 'the copyright sign');
 });
 
 test('the .nes image refuses a program with no character set, and a load address NROM cannot map', () => {

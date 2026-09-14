@@ -33,13 +33,24 @@ export const BLOCK_CODE_COUNT = 16;
  * (144-168) that stays blank, which costs nothing: glyphTableLiteral() skips
  * every code glyphRows() has no ink for.
  *
- * A machine with a character ROM cannot have this — the PET, C64 and the
- * rest draw whatever their ROM holds at 169 — so it is the web host's own,
- * and a program that wants it says so for the web build. The portable
- * character set has no way to spell © in a string literal either (the
- * checker's PORTABLE_CHARACTERS is space, 0-9, A-Z, a-z and a little
- * punctuation), so it is reached through putChar() with this code, the same
- * way "(" and ")" already are.
+ * Three of the nine targets can draw it, and they agree on this code.
+ * This table is the web host's. @8bitscript/nes ships its own CHR-ROM and
+ * now draws the same artwork at the same tile (native/6502/font.s). The
+ * Commander X16 runs its screen in ISO mode, where the KERNAL's ISO-8859-15
+ * set already holds © at 169 — read out of the shipped rom.bin rather than
+ * assumed from the code chart, so nothing there had to change.
+ *
+ * The other six draw whatever their character generator holds at 169, which
+ * is not this: the PET, C64, VIC-20, C128, MEGA65 and Atari 8-bit ROMs have
+ * no © glyph anywhere in them (every chargen VICE ships, plus the Atari OS
+ * and MEGA65 ROMs, were scanned for one). They gain the symbol when a
+ * redefined-charset layer exists, which no machine has yet — a header that
+ * implied otherwise would be the kind this project does not write.
+ *
+ * The portable character set has no way to spell © in a string literal
+ * either (the checker's PORTABLE_CHARACTERS is space, 0-9, A-Z, a-z and a
+ * little punctuation), so it is reached through putChar() with this code,
+ * the same way "(" and ")" already are.
  *
  * Drawn as a ring with a C inside; bit 0 is the leftmost pixel, as
  * everywhere else in this file:
