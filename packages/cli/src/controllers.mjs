@@ -132,8 +132,11 @@
 //   -controlport1device and no -joydev1, because a PET joystick was an
 //   aftermarket user-port board. The catalog agrees (packages/pet has no
 //   port option and its sheet says `input.joysticks: 0`), so a profile
-//   aimed at a PET is refused by name here rather than handed flags the
-//   emulator would take and the machine would not have.
+//   aimed at a PET adds no flags — the same shape as web: the keyboard
+//   still runs, a note says the pad was not attached, and xpet is never
+//   handed adapter flags for hardware the catalog does not fit. Refusing
+//   the launch made every PET program unplayable once a pad was mapped
+//   for another machine.
 //
 // web — the browser runtime's input is one byte of six edge bits
 //   (web-runtime.mjs's INPUT_OFFSET / InputEdge), written by keydown and
@@ -961,12 +964,19 @@ export function webController(machine, players) {
 /** xpet, and any other machine whose catalog fits no control port at all. */
 function noPortsController(machine, players, { emulator }) {
   if (players.length === 0) return { ok: true, args: [], leadingArgs: [], files: [], notes: [] };
+  // Same shape as web: the profile has nowhere to land, so add no flags
+  // rather than refusing a keyboard-only launch.
   return {
-    ok: false,
-    error: `the ${machine} has no control ports — ${emulator} offers only the userport joystick adapter `
-      + '(-controlport3device and up, -extrajoydev1 and up), which this machine\'s catalog does not fit, and its sheet '
-      + 'says input.joysticks: 0. A PET joystick was an aftermarket user-port board; if it is ever fitted it belongs '
-      + 'in packages/pet\'s catalog as an option, beside model/ram/speaker/drive',
+    ok: true,
+    args: [],
+    leadingArgs: [],
+    files: [],
+    notes: [
+      `${machine}: a controller profile is recorded, but this machine has no control ports (`
+        + `${emulator} offers only the userport joystick adapter, and the catalog says input.joysticks: 0). `
+        + 'The keyboard still runs; the pad is not attached. A PET joystick was an aftermarket user-port board; '
+        + "if it is ever fitted it belongs in packages/pet's catalog as an option, beside model/ram/speaker/drive",
+    ],
   };
 }
 
