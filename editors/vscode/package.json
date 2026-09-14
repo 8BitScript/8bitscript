@@ -126,6 +126,18 @@
         "icon": "$(game)"
       },
       {
+        "command": "8bitscript.enableLocalExtension",
+        "title": "Enable Local Development Extension",
+        "category": "8BitScript",
+        "icon": "$(link)"
+      },
+      {
+        "command": "8bitscript.useOfficialExtension",
+        "title": "Use Official Extension",
+        "category": "8BitScript",
+        "icon": "$(check)"
+      },
+      {
         "command": "8bitscript.configureSystem",
         "title": "Configure System",
         "category": "8BitScript",
@@ -273,6 +285,16 @@
           "command": "8bitscript.controllerSetup",
           "when": "view == 8bitscript.launcher",
           "group": "2_system@3"
+        },
+        {
+          "command": "8bitscript.enableLocalExtension",
+          "when": "view == 8bitscript.launcher && !8bitscript.usingLocalExtension",
+          "group": "2_system@4"
+        },
+        {
+          "command": "8bitscript.useOfficialExtension",
+          "when": "view == 8bitscript.launcher && 8bitscript.usingLocalExtension",
+          "group": "2_system@4"
         }
       ]
     },

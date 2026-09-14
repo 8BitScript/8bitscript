@@ -23,6 +23,7 @@ const vscode = require('vscode');
 const { BINARY, findToolchain } = require('./projects.cjs');
 const { isCheckout, managedCheckoutDir, resolveCheckoutRoot, checkoutCli } = require('./checkout.cjs');
 const { registerDevReload } = require('./devReload.cjs');
+const { registerExtensionLink } = require('./extensionLink.cjs');
 const { registerRunner } = require('./runner.cjs');
 const { registerLauncherView } = require('./launcherView.cjs');
 const { registerControllerView } = require('./controllerView.cjs');
@@ -113,6 +114,7 @@ function activate(context) {
 
   const projects = registerRunner(context, output);
   const devReload = registerDevReload(context, output);
+  registerExtensionLink(context, managedDir, devReload);
   registerLauncherView(context, projects, devReload);
   // The Controller Setup panel shares the launcher's view of the world —
   // which project is selected, and what the toolchain says each machine

@@ -4,7 +4,9 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const { editorsToLink, extensionDirName, extensionsRoot, linkLocal } = require('../src/linkLocal.cjs');
+const {
+  editorsToLink, extensionDirName, extensionsRoot, linkLocal, unlinkLocal,
+} = require('../src/linkLocal.cjs');
 
 function tmpDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), '8bs-link-'));
@@ -84,5 +86,36 @@ test('a second link-local call replaces the previous symlink without touching th
   } finally {
     fs.rmSync(home, { recursive: true, force: true });
     fs.rmSync(src, { recursive: true, force: true });
+  }
+});
+
+test('unlinkLocal removes the dev symlink and leaves everything else alone', () => {
+  const home = tmpDir();
+  const src = tmpDir();
+  try {
+    writePkg(src, '0.7.1');
+    const dest = linkLocal({ home, editor: 'cursor', extensionRoot: src });
+    fs.writeFileSync(
+      path.join(home, '.cursor', 'extensions', 'unrelated.ext-1.0.0'),
+      'leave me',
+    );
+    unlinkLocal({ home, editor: 'cursor', publisher: '8bitscript', name: '8bitscript-lang' });
+    assert.equal(fs.existsSync(dest), false);
+    assert.equal(
+      fs.readFileSync(path.join(home, '.cursor', 'extensions', 'unrelated.ext-1.0.0'), 'utf8'),
+      'leave me',
+    );
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+    fs.rmSync(src, { recursive: true, force: true });
+  }
+});
+
+test('unlinkLocal on an extensions folder that does not exist yet is a no-op', () => {
+  const home = tmpDir();
+  try {
+    unlinkLocal({ home, editor: 'vscode', publisher: '8bitscript', name: '8bitscript-lang' });
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
   }
 });
