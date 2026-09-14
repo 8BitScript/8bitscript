@@ -1,5 +1,18 @@
 # 8bitscript-lang
 
+## 0.8.0
+
+### Minor Changes
+
+- 2026d01: Named systems live in three layers — advertised in 8bitscript.config.ts, this clone's .8bitscript/systems.json, and ~/.config/8bitscript/systems.json — and `8bs run --system` / `build` / `boot` resolve through that merge. `--checkout` (or EIGHTBITSCRIPT_CHECKOUT / toolchain.json) points a consumer at a local 8BitScript tree without rewriting its package.json. The editor's side bar has one Update/Install for that tree (workspace repo, or a clone under the extension's global storage) plus named-system quick launch; Configure System and Show Project are editor tabs.
+
+### Patch Changes
+
+- 2026d01: A source-checkout install watches `editors/vscode` and prompts **Rebuild the local extension** instead of compiling in the background. **Reload this window** appears only after that rebuild finishes. A window reload still compiles a stale `src/` so Developer: Reload Window cannot load yesterday's bundle. `pnpm --filter 8bitscript-lang run link-local` replaces a pinned VSIX copy with a symlink of this tree — a `.vsix` install does not auto-update from the gallery.
+  
+  Bundling no longer leaves Controller Setup reading `dist/controllerProfile.cjs` from a path esbuild does not write: the file is copied next to the bundle, and a checkout falls back to `src/` so activate cannot ENOENT.
+- 2026d01: `8bs run web` binds an ephemeral port by default so two runs can coexist (`--port n` still pins one). The launcher shows a QR of the LAN HTTPS URL on a web run so a phone on the same Wi-Fi can open it without typing the address.
+
 ## 0.7.1
 
 No changes in this release.
