@@ -271,7 +271,7 @@ export function projectSystems(config, {
 /**
  * One systems map checked the way the advertised block is checked.
  *
- * @param {object} declared
+ * @param {object|null} declared
  * @param {{ where: string, config?: object|null, origin: SystemSetup['origin'], enforceTargets?: boolean }} options
  */
 export function parseSystemsMap(declared, { where, config = null, origin, enforceTargets = true }) {

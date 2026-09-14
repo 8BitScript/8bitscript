@@ -360,7 +360,7 @@ function nvmNodeBin(home) {
   } catch {
     return null;
   }
-  names.sort();
+  names.sort((a, b) => a.localeCompare(b));
   const last = names[names.length - 1];
   return last ? path.join(base, last, 'bin') : null;
 }

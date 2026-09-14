@@ -223,7 +223,7 @@ window.addEventListener('message', ({ data }) => {
   $('run').disabled = !data.runnable;
   $('build').disabled = !data.runnable;
   $('boot').disabled = !data.bootable;
-  $('boot-label').textContent = data.bootable ? 'Boot' : 'Boot';
+  $('boot-label').textContent = data.bootable ? 'Boot ' + (data.systemTitle ?? 'Machine') : 'Boot Machine';
   $('boot').title = data.bootable
     ? 'Boot ' + data.systemTitle + ' with nothing loaded — just the hardware'
     : (data.systemTitle ?? 'this system') + ' has no bare emulator to boot without a program';
