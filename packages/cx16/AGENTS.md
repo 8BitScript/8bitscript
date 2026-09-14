@@ -40,13 +40,22 @@ Do not describe more than this as working:
   `text.CELL_COUNT` 4256, so a program never addresses a cell it cannot
   see), whose map base is read from VERA's `L1_MAPBASE` at runtime, not
   assumed. `locate()` finds a cell's row by a reciprocal multiply on the
-  cell's split bytes (see the package), not a divide, and parks both VERA
-  address ports: port 0 on the character byte stepping by one, port 1 on
-  the color byte stepping by two. `putColor` is real (per-cell foreground
-  nibble): a run of text writes character then color through port 0,
-  reading each cell's old color byte through port 1 so whatever
-  background nibble the cell has is kept. `locate()` leaves ADDRSEL at 0,
-  which `screen.8bs` assumes.
+  cell's split bytes (see the package), not a divide — `high` and `row`
+  are widened to `usmallint` before `* 28` / `* 76` / `* 256`, because a
+  `utinyint` multiply wraps and every cell from 2560 up (row 33 of 76)
+  located to the wrong column (2048's "ARROWS TO MOVE" printed as "AR" /
+  "ROWS TO MOVE", x16emu, 2026-09-13; the same class of bug as NES
+  `row * 32`). It parks both VERA address ports: port 0 on the character
+  byte stepping by one, port 1 on the color byte stepping by two.
+  Reverse video is a nibble trick (ISO has no reverse glyphs): fill with
+  the text colour, glyph in black. It does not take the paper from DATA1
+  — `printNumber` has already written the character, and that port can
+  be sitting on the character byte, so `attr / 16` becomes the ASCII
+  high nibble (2048's '2' printed cyan on white, x16emu, 2026-09-13).
+  `putColor` is real (per-cell foreground nibble): a run of text writes
+  character then color through port 0, reading each cell's old color byte
+  through port 1 so whatever background nibble the cell has is kept.
+  `locate()` leaves ADDRSEL at 0, which `screen.8bs` assumes.
 - `waitFrame()` (`FRAME_SYNC.cx16` in `packages/compiler/src/mos`) polls
   VERA's ISR VSYNC bit under `sei` — at the default `frameRate` of 60 that
   is exactly one VSYNC per `waitFrame()`, with no accumulator emitted at all.
@@ -64,10 +73,14 @@ Do not describe more than this as working:
   (319, 239) while `present()` was false). The rest position is the
   center of the 640×480 the current screen_mode names; after
   `screen.8bs` insets the display, the sprite is on screen at (335, 254).
-  Keyboard (`$FFE4` GETIN) and pads (`$FF56` joystick_get) are still
-  unanswered. `test/mouse-probe.8bs` is 1184 bytes of program and 25 of
-  RAM; Studio with the layer is 1571 bytes and 35 of RAM, 318 and 5
-  above the same program with it taken out.
+  Keyboard and pads are the same KERNAL joystick API (`joystick_scan`
+  `$FF53`, `kbd_scan` `$FF9F`, `joystick_get` `$FF56`): joy0 is the
+  keyboard joystick (Enter is START, arrows are the D-pad), joy1 and
+  joy2 the two SNES ports. GETIN (`$FFE4`) is still unused — the portable
+  surface wants levels, which joy0 already is. `test/mouse-probe.8bs` is
+  1184 bytes of program and 25 of RAM; Studio with the pointer layer is
+  1571 bytes and 35 of RAM, 318 and 5 above the same program with it
+  taken out. Those Studio numbers predate the keyboard/pad scan.
 - There is no `--profile` for the X16 yet — no banked-RAM size, no
   video-output (VGA/composite) profile, no expansion-card capabilities.
 - `8bs setup cx16` builds the emulator and ROM together from upstream and
@@ -80,7 +93,7 @@ Do not describe more than this as working:
 There is no banked-memory model in the language, no far pointer, no VRAM
 allocator, no asset pipeline, no sprite/tile/audio/storage API, and no
 capability probing yet — for any machine. The X16's mouse is the exception
-on the input side; its keyboard and pads are still unanswered. The rules
+on the input side; GETIN as characters, and ALT, are still unanswered. The rules
 below are what to hold that work to when it comes; don't write docs
 implying it exists.
 
@@ -297,10 +310,12 @@ packages/cx16/src/screen.8bs             @8bitscript/cx16/screen: screen.blank()
 packages/cx16/src/banks.8bs              @8bitscript/cx16/banks: banks.kib() — banked RAM found at run time, 64..2048 KiB
 packages/cx16/test/banks-probe.8bs       the probe run for real: prints the KiB, border color encodes it; test/banks.test.mjs reads it under x16emu
 packages/cx16/src/mouse.8bs              @8bitscript/cx16/mouse: mouse.begin/poll/present/x/y/left/hide/show, through the KERNAL
-packages/cx16/src/input.8bs              @8bitscript/cx16/input: the pointer in cells; directions still false
+packages/cx16/src/input.8bs              @8bitscript/cx16/input: the pointer in cells; joy0 keyboard (Enter=START) and SNES pads 1/2
+packages/cx16/test/input.test.mjs        KERNAL $FF53/$FF9F/$FF56; SNES bits against the ROM joystick driver
 packages/cx16/src/pointer.8bs            @8bitscript/cx16/pointer: the firmware arrow; update() empty unless recovering from hide()
 packages/cx16/test/mouse-probe.8bs       run under x16emu: green border when present(); test/mouse.test.mjs reads it
 packages/cx16/src/text.8bs               @8bitscript/cx16/text: text.print/printNumber/setColor/setReverse/putChar/putColor, CELL_COUNT 4256, COLUMNS 76, TextColor
+packages/cx16/test/text.test.mjs         locate() widens before * 28 / * 76; reverse is black glyphs on the fill colour
 packages/compiler/src/mos/index.ts       FRAME_SYNC.cx16 (VERA ISR poll; the backend refuses to build)
 packages/cli/src/setup/cx16.mjs          8bs setup cx16: emulator+ROM pair, macOS launcher wrapper
 packages/cli/src/run.mjs                 8bs run cx16: x16emu -prg <file> -run

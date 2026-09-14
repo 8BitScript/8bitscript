@@ -113,12 +113,11 @@
 //   - **the machine has nothing to press** — a PET reads KEY 1 JOY 0
 //     PAD 0, so a dark LEFT lamp there means nobody pressed the cursor
 //     keys, and there is no stick to blame; and
-//   - **the layer does not read what the machine has** — a Commander X16
-//     reads KEY 1 JOY 0 PAD 2 and still lights nothing ever, because
-//     @8bitscript/cx16/input answers false to every direction, confirm
-//     and cancel: its SNES pads (KERNAL joystick_get, $FF56) and its
-//     keyboard (GETIN, $FFE4) are not read yet, and its header says so.
-//     A dark map there is the layer's coverage, not the machine's.
+//   - **the layer does not read what the machine has** — a VIC-20 with no
+//     verified key matrix, or an X16 GETIN character that this surface
+//     does not expose. A dark map there is the layer's coverage, not the
+//     machine's. The X16 now lights from joy0 (Enter, arrows) and the
+//     SNES pads; a dark map there would be a regression.
 //
 // These are facts, so all three numbers are settled while compiling and
 // the line costs nothing to work out at run time.

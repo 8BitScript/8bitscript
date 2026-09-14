@@ -151,8 +151,8 @@ export function detectRegion(): utinyint {
 // numeric keypad, HELP, ALT, ESC, TAB, LINE FEED and NO SCROLL hang off
 // three extra column lines driven by the VIC-IIe's $D02F, read back
 // through this same port B. `@8bitscript/c128/input` reads the C64-shaped
-// matrix only and says so; $D02F is declared here for whoever wires the
-// rest up.
+// matrix and the dedicated cursor keys on K2; the rest of $D02F (keypad,
+// HELP, ALT, …) is still unread.
 @address(0xDC00)
 export let cia1PortA: volatile<u8>;
 @address(0xDC01)
