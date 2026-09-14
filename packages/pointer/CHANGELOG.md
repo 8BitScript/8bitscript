@@ -1,5 +1,25 @@
 # @8bitscript/pointer
 
+## 0.7.1
+
+### Patch Changes
+
+- Updated dependencies [0311af7]
+- Updated dependencies [0311af7]
+- Updated dependencies [0311af7]
+- Updated dependencies [54cdcad]
+  - @8bitscript/c128@0.7.1
+  - @8bitscript/cx16@0.7.1
+  - @8bitscript/nes@0.7.1
+  - @8bitscript/input@0.7.1
+  - @8bitscript/text@0.7.1
+  - @8bitscript/atari8@0.7.1
+  - @8bitscript/c64@0.7.1
+  - @8bitscript/mega65@0.7.1
+  - @8bitscript/pet@0.7.1
+  - @8bitscript/vic20@0.7.1
+  - @8bitscript/web@0.7.1
+
 ## 0.7.0
 
 ### Patch Changes
