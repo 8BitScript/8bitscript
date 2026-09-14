@@ -26,6 +26,47 @@ const GLYPHS = Buffer.from(GLYPHS_32_122_HEX, 'hex');
 export const BLOCK_CODE_BASE = 128;
 export const BLOCK_CODE_COUNT = 16;
 
+/**
+ * ©, at its own Latin-1/Unicode code point rather than an agreed-on private
+ * number, because this table is ASCII-indexed outright and 0xA9 is what the
+ * symbol *is* everywhere else. It sits above the quadrant blocks with a gap
+ * (144-168) that stays blank, which costs nothing: glyphTableLiteral() skips
+ * every code glyphRows() has no ink for.
+ *
+ * Three of the nine targets can draw it, and they agree on this code.
+ * This table is the web host's. @8bitscript/nes ships its own CHR-ROM and
+ * now draws the same artwork at the same tile (native/6502/font.s). The
+ * Commander X16 runs its screen in ISO mode, where the KERNAL's ISO-8859-15
+ * set already holds © at 169 — read out of the shipped rom.bin rather than
+ * assumed from the code chart, so nothing there had to change.
+ *
+ * The other six draw whatever their character generator holds at 169, which
+ * is not this: the PET, C64, VIC-20, C128, MEGA65 and Atari 8-bit ROMs have
+ * no © glyph anywhere in them (every chargen VICE ships, plus the Atari OS
+ * and MEGA65 ROMs, were scanned for one). They gain the symbol when a
+ * redefined-charset layer exists, which no machine has yet — a header that
+ * implied otherwise would be the kind this project does not write.
+ *
+ * The portable character set has no way to spell © in a string literal
+ * either (the checker's PORTABLE_CHARACTERS is space, 0-9, A-Z, a-z and a
+ * little punctuation), so it is reached through putChar() with this code,
+ * the same way "(" and ")" already are.
+ *
+ * Drawn as a ring with a C inside; bit 0 is the leftmost pixel, as
+ * everywhere else in this file:
+ *
+ *     .######.      0x7E
+ *     #......#      0x81
+ *     #.####.#      0xBD
+ *     #.#....#      0x85
+ *     #.#....#      0x85
+ *     #.####.#      0xBD
+ *     #......#      0x81
+ *     .######.      0x7E
+ */
+export const COPYRIGHT_CODE = 0xa9;
+const COPYRIGHT_ROWS = Buffer.from([0x7e, 0x81, 0xbd, 0x85, 0x85, 0xbd, 0x81, 0x7e]);
+
 function quadRows(index) {
   const tl = (index >> 3) & 1;
   const tr = (index >> 2) & 1;
@@ -58,6 +99,7 @@ export function glyphRows(code) {
   if (code >= BLOCK_CODE_BASE && code < BLOCK_CODE_BASE + BLOCK_CODE_COUNT) {
     return quadRows(code - BLOCK_CODE_BASE);
   }
+  if (code === COPYRIGHT_CODE) return COPYRIGHT_ROWS;
   return null;
 }
 

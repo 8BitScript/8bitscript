@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { glyphRows, glyphTableLiteral, BLOCK_CODE_BASE } from '../src/font8x8.mjs';
+import { glyphRows, glyphTableLiteral, BLOCK_CODE_BASE, COPYRIGHT_CODE } from '../src/font8x8.mjs';
 
 test('glyphRows returns eight row-bytes for ASCII 32-122 and null outside that range', () => {
   const space = glyphRows(32);
@@ -115,4 +115,43 @@ test('web block codes 128-143 decode PET digit tiles to the same 4×6 pictures',
     }
     assert.deepEqual(rows, DIGIT_FONT[value], `digit ${value}`);
   }
+});
+
+test('© is drawn at its own Unicode code point, above the blocks, without filling the gap between them', () => {
+  assert.equal(COPYRIGHT_CODE, 0xa9, 'the Latin-1/Unicode code point for ©, not a private number');
+  const rows = glyphRows(COPYRIGHT_CODE);
+  assert.ok(rows);
+  assert.equal(rows.length, 8);
+
+  // A ring with a C inside. Bit 0 is the leftmost pixel, so a row reads
+  // left-to-right as bits 0..7 — the picture in the source comment.
+  const picture = [...rows].map((byte) => {
+    let line = '';
+    for (let x = 0; x < 8; x += 1) line += (byte >> x) & 1 ? '#' : '.';
+    return line;
+  });
+  assert.deepEqual(picture, [
+    '.######.',
+    '#......#',
+    '#.####.#',
+    '#.#....#',
+    '#.#....#',
+    '#.####.#',
+    '#......#',
+    '.######.',
+  ]);
+
+  // Top and bottom are mirror images, and so are the two sides: a lopsided
+  // ring is the failure this would otherwise ship silently.
+  assert.deepEqual([...rows].slice(0, 4), [...rows].slice(4).reverse());
+
+  // The gap between the blocks and © stays blank, and nothing above it is
+  // claimed either.
+  assert.equal(glyphRows(BLOCK_CODE_BASE + 16), null);
+  assert.equal(glyphRows(COPYRIGHT_CODE - 1), null);
+  assert.equal(glyphRows(COPYRIGHT_CODE + 1), null);
+  assert.equal(glyphRows(255), null);
+
+  // And it reaches the browser page, not just --screenshot.
+  assert.match(glyphTableLiteral(), /169:\[126,129,189,133,133,189,129,126\]/);
 });
