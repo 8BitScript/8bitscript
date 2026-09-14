@@ -16,6 +16,12 @@ long-lived feature branches. `release` is not a development branch: it
 is fast-forwarded to the published tag after npm succeeds (see
 [`.github/AGENTS.md`](.github/AGENTS.md#the-release-branch)).
 
+A branch with no open PR pointing at it is not work in progress, it's
+litter — merged branches should already be gone (`gh pr merge --delete-branch`
+handles that), and anything else with no PR gets deleted on sight during
+cleanup, without warning. Don't push work you want kept without opening
+a PR for it.
+
 If you've never opened a pull request before, here's the whole loop:
 
 ```bash
