@@ -1801,3 +1801,124 @@ test('the multiply routine and its six zero-page cells appear only in a program 
     await rm(scratch, { recursive: true, force: true });
   }
 });
+
+test('narrowing a whole-byte right shift to 8 bits reads the byte that survives, not a 16-bit temp with half thrown away (0.7.0)', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-shift8-'));
+  try {
+    // `b = w >> 8` keeps only w's high byte, and `b = w` keeps only its low
+    // one. Both are a single load of one half of a 16-bit global, so the
+    // two programs should be the same size: taking the high byte must not
+    // cost more than taking the low byte. Before expr8() learned the
+    // whole-byte case it built a 16-bit temporary and discarded half of it,
+    // which made the shift 14-16 bytes dearer on every `>> 8` a program
+    // wrote — @8bitscript/random's own `return state >> 8` included.
+    const narrows = (value: IrExprFixture): IrProgram => ({
+      entry: 'main',
+      functions: [{
+        name: 'main',
+        body: [
+          // A hardware read first, widened into w, so nothing downstream is
+          // a constant the optimizer can fold the whole shift away into.
+          { kind: 'assign', target: 'w', value: { kind: 'memoryRead', address: { kind: 'const', value: 0xd000, type: 'usmallint' }, type: 'utinyint' } },
+          { kind: 'assign', target: 'b', value },
+        ],
+      }],
+      globals: [
+        { name: 'w', type: 'usmallint', address: null, array: undefined, constant: false, init: 0 },
+        { name: 'b', type: 'utinyint', address: null, array: undefined, constant: false, init: 0 },
+      ],
+      strings: [],
+    });
+    const shifted = (amount: number): IrExprFixture => ({
+      kind: 'binop',
+      operator: '>>',
+      left: { kind: 'ref', name: 'w', type: 'usmallint' },
+      right: { kind: 'const', value: amount, type: 'utinyint' },
+      type: 'usmallint',
+    });
+
+    const low = await build(narrows({ kind: 'ref', name: 'w', type: 'usmallint' }), { machine: 'pet', hardware, outFile: join(scratch, 'low.prg'), frameRate: 60 });
+    const high = await build(narrows(shifted(8)), { machine: 'pet', hardware, outFile: join(scratch, 'high.prg'), frameRate: 60 });
+    assert.equal(low.ok, true, low.ok ? '' : low.error);
+    assert.equal(high.ok, true, high.ok ? '' : high.error);
+    if (!low.ok || !high.ok) return;
+    // Reading the high half costs no more than reading the low half, which
+    // is the whole claim: one load either way.
+    assert.ok(high.bytes.length <= low.bytes.length, `>> 8 must cost no more than the low byte: ${high.bytes.length} vs ${low.bytes.length}`);
+    assert.equal(high.memory.variables, low.memory.variables, 'no 16-bit temporary for a whole-byte shift');
+
+    // The contrast that proves the fast path is doing something: seven bits
+    // is not a whole byte, so it still shifts a real pair, and is dearer.
+    const seven = await build(narrows(shifted(7)), { machine: 'pet', hardware, outFile: join(scratch, 'seven.prg'), frameRate: 60 });
+    assert.equal(seven.ok, true, seven.ok ? '' : seven.error);
+    if (!seven.ok) return;
+    assert.ok(seven.bytes.length > high.bytes.length + 8, `a sub-byte shift still builds a pair: ${seven.bytes.length} vs ${high.bytes.length}`);
+
+    // Past a whole byte, the leftover shifts land on the one surviving
+    // byte: LSR on the accumulator, one per bit, and still no temp.
+    const nine = await build(narrows(shifted(9)), { machine: 'pet', hardware, outFile: join(scratch, 'nine.prg'), frameRate: 60 });
+    assert.equal(nine.ok, true, nine.ok ? '' : nine.error);
+    if (!nine.ok) return;
+    assert.equal(nine.bytes.length, high.bytes.length + 1, 'one extra LSR A, nothing else');
+    assert.equal(nine.memory.variables, high.memory.variables, 'still no temporary');
+
+    // Shifting every bit out is the constant 0, whatever the value was.
+    const all = await build(narrows(shifted(16)), { machine: 'pet', hardware, outFile: join(scratch, 'all.prg'), frameRate: 60 });
+    assert.equal(all.ok, true, all.ok ? '' : all.error);
+    if (!all.ok) return;
+    assert.ok(all.bytes.length <= high.bytes.length, 'LDA #0 is no dearer than a load of a byte');
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('narrowing a bitwise op against a constant to 8 bits works on the low bytes alone, and drops a mask that changes nothing (0.7.0)', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-mask8-'));
+  try {
+    // `&`, `|` and `^` carry nothing between the halves, so narrowing one to
+    // 8 bits is the low byte of each side and the high halves were never
+    // going to be read. `value & 0xFF` — the ordinary way to take a low
+    // byte, and the other half of splitting a 16-bit seed — is then the load
+    // on its own, because AND #$FF cannot change the answer.
+    const narrows = (value: IrExprFixture): IrProgram => ({
+      entry: 'main',
+      functions: [{
+        name: 'main',
+        body: [
+          { kind: 'assign', target: 'w', value: { kind: 'memoryRead', address: { kind: 'const', value: 0xd000, type: 'usmallint' }, type: 'utinyint' } },
+          { kind: 'assign', target: 'b', value },
+        ],
+      }],
+      globals: [
+        { name: 'w', type: 'usmallint', address: null, array: undefined, constant: false, init: 0 },
+        { name: 'b', type: 'utinyint', address: null, array: undefined, constant: false, init: 0 },
+      ],
+      strings: [],
+    });
+    const masked = (operator: string, value: number): IrExprFixture => ({
+      kind: 'binop',
+      operator,
+      left: { kind: 'ref', name: 'w', type: 'usmallint' },
+      right: { kind: 'const', value, type: 'usmallint' },
+      type: 'usmallint',
+    });
+    const at = (name: string, e: IrExprFixture) => build(narrows(e), { machine: 'pet', hardware, outFile: join(scratch, `${name}.prg`), frameRate: 60 });
+
+    const plain = await at('plain', { kind: 'ref', name: 'w', type: 'usmallint' });
+    const identity = await at('identity', masked('&', 0xff));
+    const real = await at('real', masked('&', 0x0f));
+    assert.equal(plain.ok, true, plain.ok ? '' : plain.error);
+    assert.equal(identity.ok, true, identity.ok ? '' : identity.error);
+    assert.equal(real.ok, true, real.ok ? '' : real.error);
+    if (!plain.ok || !identity.ok || !real.ok) return;
+
+    // A mask that cannot change the low byte emits no instruction for it.
+    assert.equal(identity.bytes.length, plain.bytes.length, `& 0xFF is the load alone: ${identity.bytes.length} vs ${plain.bytes.length}`);
+    assert.equal(identity.memory.variables, plain.memory.variables, 'and claims no temporary');
+    // A real mask is one immediate AND on top — two bytes, not a 16-bit pair.
+    assert.equal(real.bytes.length, plain.bytes.length + 2, 'AND #imm and nothing else');
+    assert.equal(real.memory.variables, plain.memory.variables, 'still no temporary');
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
