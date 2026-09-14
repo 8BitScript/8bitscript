@@ -1,5 +1,16 @@
 # @8bitscript/studio
 
+## 0.8.0
+
+### Patch Changes
+
+- @8bitscript/input@0.8.0
+  - @8bitscript/pointer@0.8.0
+  - @8bitscript/screen@0.8.0
+  - @8bitscript/system@0.8.0
+  - @8bitscript/text@0.8.0
+  - @8bitscript/ui@0.8.0
+
 ## 0.7.1
 
 ### Patch Changes
