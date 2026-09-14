@@ -84,16 +84,23 @@ jobs:
       - name: Package VSIX
         working-directory: editors/vscode
         run: pnpm exec vsce package --out /tmp/8bitscript.vsix
+      # v0.8.0: three attempts 30s apart (~2 minutes of retrying) still lost
+      # to a live Azure DevOps Services outage on the gallery backend
+      # (`/_apis/gallery` returning 503 "Sorry! Our services aren't
+      # available right now" on every attempt). Six attempts a minute apart
+      # gives ~5 minutes of retrying, which comfortably outlasts the
+      # multi-minute outages this endpoint is known for — see the WAIT_MS
+      # comment in publish-marketplace.mjs.
       - name: Publish to Visual Studio Marketplace
         id: vsce
         if: ${{ env.VSCE_PAT != '' }}
         continue-on-error: true
         run: |
-          for attempt in 1 2 3; do
+          for attempt in 1 2 3 4 5 6; do
             node scripts/publish-marketplace.mjs /tmp/8bitscript.vsix && exit 0
-            [ "$attempt" = 3 ] && exit 1
-            echo "Marketplace publish failed (attempt $attempt/3), retrying in 30s..."
-            sleep 30
+            [ "$attempt" = 6 ] && exit 1
+            echo "Marketplace publish failed (attempt $attempt/6), retrying in 60s..."
+            sleep 60
           done
       - name: Publish to Open VSX
         id: ovsx
@@ -101,11 +108,11 @@ jobs:
         continue-on-error: true
         working-directory: editors/vscode
         run: |
-          for attempt in 1 2 3; do
+          for attempt in 1 2 3 4 5 6; do
             pnpm exec ovsx publish /tmp/8bitscript.vsix -p "$OVSX_PAT" --skip-duplicate && exit 0
-            [ "$attempt" = 3 ] && exit 1
-            echo "ovsx publish failed (attempt $attempt/3), retrying in 30s..."
-            sleep 30
+            [ "$attempt" = 6 ] && exit 1
+            echo "ovsx publish failed (attempt $attempt/6), retrying in 60s..."
+            sleep 60
           done
       - name: Fail if a marketplace publish failed
         if: always()
