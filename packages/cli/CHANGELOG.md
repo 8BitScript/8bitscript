@@ -1,5 +1,78 @@
 # @8bitscript/cli
 
+## 0.7.1
+
+### Patch Changes
+
+- 55b6e9e: `8bs run pet` launches on the keyboard when a controller profile is recorded.
+  
+  The PET has no control ports (`input.joysticks: 0`), and xpet's only joystick
+  flags are for a userport adapter the catalog does not fit. A mapped pad used
+  to fail the whole launch — which made every PET program unplayable once a
+  gamepad had been recorded for another machine. The adapter now matches web:
+  no flags, a note that the pad was not attached, and the keyboard still runs.
+  
+  Where the line is drawn: a profile a machine cannot honour *as flags* is a
+  note when the machine has no control ports at all, because the point of
+  naming a refusal is that somebody reads it, and nobody reads a line that
+  scrolled past while an emulator was starting. A port that exists and is
+  fitted with nothing is still a refusal — that profile asked for hardware
+  the catalog does not fit, and `--hardware port1=joystick` is the fix.
+- 54cdcad: © at 0xA9, on every target whose character set this project can reach.
+  
+  The symbol's own Unicode/Latin-1 code point is the code, so a program spells
+  what it means rather than an agreed-on private number, and the three targets
+  that can draw it all agree on it:
+  
+  - **web** — the host font (`packages/cli/src/font8x8.mjs`) is ours: ASCII
+    32-122 from Hepper's public-domain font8x8, plus the sixteen 2×2 quadrant
+    blocks at 128-143 this project added. The gap between the blocks and 0xA9
+    stays blank and costs nothing: `glyphTableLiteral()` skips every code with
+    no ink, so both renderers (the browser page and `--screenshot`) pick the
+    new glyph up with no other change.
+  - **NES** — the CHR-ROM is ours too (`packages/nes/native/6502/font.s`), and
+    now draws the same artwork at the same tile. Tile $A9 sat inside the
+    reverse-video run as the reverse of `)`, and `)` has no glyph in this font
+    to reverse, so what it displaced was an inverted blank. No portable
+    character's reverse lands there either — the portable set maps to $A0,
+    $A1, $AC-$AE, $B0-$B9, $BA, $BF, $C1-$DA and $E1-$FA.
+  - **Commander X16** — nothing to add. The screen runs in ISO mode, where
+    VERA's tile index IS the character code, and the KERNAL's ISO-8859-15 set
+    already holds © at 169. `packages/cx16/test/charset.test.mjs` reads it out
+    of the installed `rom.bin` and asserts the artwork, so that is a measured
+    fact rather than a code chart quoted from memory; it skips when no ROM is
+    installed.
+  
+  The other six targets do **not** gain the symbol, and the headers say so.
+  The PET, C64, VIC-20, C128, MEGA65 and Atari 8-bit draw from a character
+  generator this build does not replace, and none of those ROMs holds a © at
+  all — every chargen VICE ships, plus the Atari OS and MEGA65 ROMs, was
+  scanned for one. `putChar(cell, 169)` there draws whatever its ROM happens
+  to have at that code. They join when a redefined-charset layer exists, which
+  no machine has yet.
+  
+  © is outside the checker's portable character set and cannot appear in a
+  string literal, so a program reaches it through `putChar(169)` — the same
+  way `(` and `)` already are on machines whose fonts do have them.
+- Updated dependencies [0311af7]
+- Updated dependencies [0311af7]
+- Updated dependencies [0311af7]
+- Updated dependencies [3b75885]
+- Updated dependencies [54cdcad]
+  - @8bitscript/c128@0.7.1
+  - @8bitscript/cx16@0.7.1
+  - @8bitscript/compiler@0.7.1
+  - @8bitscript/nes@0.7.1
+  - @8bitscript/language-server@0.7.1
+  - @8bitscript/examples@0.7.1
+  - @8bitscript/studio@0.7.1
+  - @8bitscript/atari8@0.7.1
+  - @8bitscript/c64@0.7.1
+  - @8bitscript/mega65@0.7.1
+  - @8bitscript/pet@0.7.1
+  - @8bitscript/vic20@0.7.1
+  - @8bitscript/web@0.7.1
+
 ## 0.7.0
 
 ### Minor Changes

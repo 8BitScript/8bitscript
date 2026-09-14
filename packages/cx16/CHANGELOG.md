@@ -1,5 +1,27 @@
 # @8bitscript/cx16
 
+## 0.7.1
+
+### Patch Changes
+
+- 0311af7: X16 `input` reads Enter, arrows, and the SNES pads.
+  
+  `waitFrame()` holds `sei`, so the KERNAL IRQ never scans the keyboard or
+  the pads. `poll()` now calls `joystick_scan`, `kbd_scan` and `joystick_get`
+  in that IRQ's order: joy0 is the keyboard joystick (Enter is START), joy1
+  and joy2 are the two catalog pads. 2048's title screen can leave.
+- 0311af7: X16 `locate()` and reverse video keep working past the first 32 rows.
+  
+  `high * 28` and `row * 76` were eight-bit multiplies, so every cell from
+  2560 up (row 33 of the 76-wide grid) landed in the wrong column — 2048's
+  "ARROWS TO MOVE" printed as "AR" at the right edge and "ROWS TO MOVE" on
+  the left. Both factors are widened first, the same way the NES widens
+  `row` before `* 32`. Reverse video onto an already-reversed cell also
+  kept the fill colour as the glyph colour; and when DATA1 was sitting on
+  the character byte, `attr / 16` was the ASCII high nibble — 2048's '2'
+  printed cyan on a white tile. Reverse is now fill-with-currentColor and
+  a black glyph, which does not read that port.
+
 ## 0.7.0
 
 ### Minor Changes
