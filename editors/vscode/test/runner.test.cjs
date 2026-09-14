@@ -1,0 +1,590 @@
+// runner.cjs wires the side bar's project model, task provider, and every
+// palette command into the extension. Most of it is `vscode` calls that
+// have never been loadable under plain `node --test`; the vscode mock
+// makes that possible, so these exercise the real class methods and
+// command handlers instead of only the vscode-free half projects.cjs
+// covers on its own.
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+
+const { installVscodeMock } = require('./support/vscodeMock.cjs');
+
+const vscode = installVscodeMock();
+const { Projects, makeTask, registerRunner } = require('../src/runner.cjs');
+
+function tmpDir() {
+  return fs.mkdtempSync(path.join(os.tmpdir(), '8bs-runner-'));
+}
+
+function writeConfig(dir, entry = 'src/main.8bs') {
+  fs.mkdirSync(path.join(dir, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(dir, entry), 'export function main(): void {}\n');
+  fs.writeFileSync(
+    path.join(dir, '8bitscript.config.ts'),
+    `export default { entry: '${entry}', targets: ['c64'] };\n`,
+  );
+}
+
+/** A fake `8bs` CLI: a .mjs script node can actually run, so loadTargets()
+ * exercises a real child process rather than a mocked one. */
+function writeFakeCli(dir, behavior = 'targets') {
+  const file = path.join(dir, 'fake-8bs.mjs');
+  const body = behavior === 'targets'
+    ? `console.log(JSON.stringify({ targets: [{ id: 'c64', title: 'C64', emulator: 'x64sc', region: true, options: {}, presets: {}, profiles: {}, hardware: {}, facts: {} }], systems: [{ name: 'Named C64', target: 'c64', origin: 'project', label: 'stock' }], facts: [] }));`
+    : `process.stderr.write('boom'); process.exit(1);`;
+  fs.writeFileSync(file, body);
+  return file;
+}
+
+function fakeProject(dir, overrides = {}) {
+  return {
+    kind: 'project',
+    name: 'my-game',
+    dir,
+    configPath: path.join(dir, '8bitscript.config.ts'),
+    entry: path.join(dir, 'src', 'main.8bs'),
+    targets: ['c64'],
+    toolchain: null,
+    packageManager: 'pnpm',
+    installed: true,
+    ...overrides,
+  };
+}
+
+function tick() {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
+function makeContext(storageDir) {
+  return { subscriptions: [], globalStorageUri: { fsPath: storageDir } };
+}
+
+function disposeContext(context) {
+  for (const subscription of context.subscriptions) subscription.dispose?.();
+}
+
+/**
+ * registerRunner() starts a 1s setInterval (startLivePoll) that only stops
+ * via the disposable it pushed onto context.subscriptions — an
+ * undisposed one keeps the process (and `node --test`) alive forever, so
+ * every test that calls registerRunner must dispose its context.
+ */
+async function withRunner(storageDir, output, fn) {
+  const context = makeContext(storageDir);
+  try {
+    const projects = registerRunner(context, output);
+    await tick();
+    await fn(projects, context);
+  } finally {
+    disposeContext(context);
+  }
+}
+
+test('makeTask: a plain run names the machine, region, and hardware fitted', () => {
+  const project = fakeProject('/proj', { toolchain: '/proj/node_modules/.bin/8bs' });
+  const task = makeTask(project, 'run', 'c64', 'ntsc', { profile: null, options: {} });
+  assert.equal(task.name, 'my-game: run c64 (NTSC)');
+  assert.deepEqual(task.execution.args, ['run', 'c64', '--size']);
+  assert.equal(task.definition.target, 'c64');
+});
+
+test('makeTask: a web run always adds an ephemeral port; LAN is on by default so no --local', () => {
+  const project = fakeProject('/proj', { toolchain: '/proj/node_modules/.bin/8bs' });
+  vscode.__mock.reset();
+  const task = makeTask(project, 'run', 'web', 'ntsc');
+  assert.deepEqual(task.execution.args, ['run', 'web', '--size', '--port', '0']);
+});
+
+test('makeTask: LAN explicitly off adds --local to a web run', () => {
+  const project = fakeProject('/proj', { toolchain: '/proj/node_modules/.bin/8bs' });
+  vscode.__mock.reset();
+  vscode.__mock.configStore.set('webLan', false);
+  const task = makeTask(project, 'run', 'web', 'ntsc');
+  assert.deepEqual(task.execution.args, ['run', 'web', '--size', '--port', '0', '--local']);
+});
+
+test('makeTask: a named system runs by name, not target/hardware', () => {
+  const project = fakeProject('/proj', { toolchain: '/proj/node_modules/.bin/8bs' });
+  const task = makeTask(project, 'run', 'c64', 'pal', { profile: 'x', options: { port1: 'joystick' } }, { system: 'Named C64' });
+  assert.equal(task.name, 'my-game: run Named C64');
+  assert.deepEqual(task.execution.args, ['run', '--system', 'Named C64', '--size']);
+  // The pal flag on the task definition still follows the (target, region)
+  // pair given, independent of whether a named system was also given —
+  // execute() is what decides which region a named system actually runs
+  // with before it ever calls makeTask.
+  assert.equal(task.definition.pal, true);
+});
+
+test('makeTask: a .mjs toolchain runs through node, not directly', () => {
+  const project = fakeProject('/proj', { toolchain: '/proj/node_modules/@8bitscript/cli/bin/8bs.mjs' });
+  const task = makeTask(project, 'build', 'c64', 'ntsc');
+  assert.equal(task.execution.commandLine.value, process.execPath);
+  assert.deepEqual(task.execution.args.slice(0, 1), [project.toolchain]);
+});
+
+test('Projects.checkoutFlag: an open workspace folder that is itself a checkout wins', () => {
+  const dir = tmpDir();
+  try {
+    fs.mkdirSync(path.join(dir, 'packages', 'cli', 'bin'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'pnpm-workspace.yaml'), 'packages:\n  - packages/*\n');
+    fs.writeFileSync(path.join(dir, 'packages', 'cli', 'bin', '8bs.mjs'), '');
+    vscode.__mock.reset();
+    vscode.workspace.workspaceFolders = [{ uri: { fsPath: dir }, name: 'root' }];
+    const projects = new Projects({ appendLine() {} });
+    assert.equal(projects.checkoutFlag(), dir);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('Projects.checkoutFlag: nothing open and no setting is null', () => {
+  vscode.__mock.reset();
+  const projects = new Projects({ appendLine() {} });
+  assert.equal(projects.checkoutFlag(), null);
+});
+
+test('Projects.loadTargets: runs the real CLI and caches per directory', async () => {
+  const dir = tmpDir();
+  try {
+    writeConfig(dir);
+    const cli = writeFakeCli(dir);
+    vscode.__mock.reset();
+    const output = { lines: [], appendLine(line) { this.lines.push(line); } };
+    const projects = new Projects(output);
+    projects.projects = [fakeProject(dir, { toolchain: cli })];
+    const targets = await projects.loadTargets(dir);
+    assert.ok(targets.get('c64'));
+    assert.equal(targets.systems[0].name, 'Named C64');
+    const again = await projects.loadTargets(dir);
+    assert.equal(again, targets, 'the same directory is served from cache until refresh() clears it');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('Projects.loadTargets: a failing CLI resolves null and logs it', async () => {
+  const dir = tmpDir();
+  try {
+    writeConfig(dir);
+    const cli = writeFakeCli(dir, 'fail');
+    vscode.__mock.reset();
+    const output = { lines: [], appendLine(line) { this.lines.push(line); } };
+    const projects = new Projects(output);
+    projects.projects = [fakeProject(dir, { toolchain: cli })];
+    const targets = await projects.loadTargets(dir);
+    assert.equal(targets, null);
+    assert.ok(output.lines.some((l) => l.includes('8bs targets --json failed')));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('Projects.loadTargets: no toolchain anywhere resolves null without spawning anything', async () => {
+  vscode.__mock.reset();
+  const projects = new Projects({ appendLine() {} });
+  assert.equal(await projects.loadTargets('/nowhere'), null);
+});
+
+test('Projects.refresh: finds workspace projects and fires onDidChange', async () => {
+  const dir = tmpDir();
+  try {
+    writeConfig(dir);
+    vscode.__mock.reset();
+    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.ts') }]);
+    const output = { lines: [], appendLine(line) { this.lines.push(line); } };
+    const projects = new Projects(output);
+    let changed = false;
+    projects.onDidChange(() => { changed = true; });
+    await projects.refresh();
+    assert.equal(projects.projects.length, 1);
+    assert.equal(projects.projects[0].name, path.basename(dir));
+    assert.equal(changed, true);
+    const setContext = vscode.__mock.executedCommands.find((c) => c.id === 'setContext');
+    assert.ok(setContext, 'the examples-toggle context is refreshed too');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('Projects.visible hides shipped examples when showExamples is off, apps stay', () => {
+  vscode.__mock.reset();
+  vscode.__mock.configStore.set('showExamples', false);
+  const projects = new Projects({ appendLine() {} });
+  projects.examples = [fakeProject('/ex', { kind: 'example', name: 'demo' })];
+  projects.apps = [fakeProject('/app', { kind: 'app', name: 'studio' })];
+  const names = projects.visible.map((p) => p.name);
+  assert.ok(!names.includes('demo'));
+  assert.ok(names.includes('studio'));
+});
+
+test('registerRunner: run resolves a named system through settings and executes the right task', async () => {
+  const dir = tmpDir();
+  try {
+    writeConfig(dir);
+    const cli = writeFakeCli(dir);
+    vscode.__mock.reset();
+    vscode.__mock.configStore.set('namedSystem', 'Named C64');
+    vscode.__mock.configStore.set('project', dir);
+    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.ts') }]);
+    await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async (projects) => {
+      // The project the scan found has no toolchain (fake CLI isn't wired
+      // through node_modules resolution) — point it at the fake CLI so
+      // targetOf's named-system lookup actually runs a real process.
+      projects.projects[0].toolchain = cli;
+      await vscode.__mock.trigger('8bitscript.run');
+      await tick();
+      const executed = vscode.__mock.executedTasks.at(-1);
+      assert.ok(executed, 'a task was executed');
+      assert.match(executed.task.name, /Named C64/);
+      // args[0] is the .mjs toolchain path node runs; the CLI args follow.
+      assert.deepEqual(executed.task.execution.args.slice(1, 4), ['run', '--system', 'Named C64']);
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('registerRunner: install refuses a package manager that cannot be found on PATH', async () => {
+  const dir = tmpDir();
+  try {
+    writeConfig(dir);
+    vscode.__mock.reset();
+    vscode.workspace.findFiles = () => Promise.resolve([]);
+    await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async () => {
+      await vscode.__mock.trigger('8bitscript.install', {
+        dir, name: 'my-game', packageManager: 'not-a-real-package-manager-xyz',
+      });
+      await tick();
+      assert.equal(vscode.__mock.calls.showErrorMessage.length, 1);
+      assert.match(vscode.__mock.calls.showErrorMessage[0][0], /was not found/);
+      assert.equal(vscode.__mock.executedTasks.length, 0, 'nothing was launched');
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('registerRunner: useLocal rejects a directory that is not an 8BitScript checkout', async () => {
+  const dir = tmpDir();
+  const notACheckout = tmpDir();
+  try {
+    writeConfig(dir);
+    vscode.__mock.reset();
+    vscode.workspace.findFiles = () => Promise.resolve([]);
+    vscode.window.showOpenDialog = () => Promise.resolve([{ fsPath: notACheckout }]);
+    await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async () => {
+      await vscode.__mock.trigger('8bitscript.useLocal');
+      await tick();
+      assert.match(vscode.__mock.calls.showErrorMessage.at(-1)[0], /not an 8BitScript checkout/);
+      assert.equal(vscode.__mock.configStore.get('checkout'), undefined);
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(notACheckout, { recursive: true, force: true });
+  }
+});
+
+test('registerRunner: usePublished clears the checkout setting', async () => {
+  const dir = tmpDir();
+  try {
+    writeConfig(dir);
+    vscode.__mock.reset();
+    vscode.__mock.configStore.set('checkout', '/somewhere/8bitscript');
+    vscode.workspace.findFiles = () => Promise.resolve([]);
+    await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async () => {
+      await vscode.__mock.trigger('8bitscript.usePublished');
+      await tick();
+      assert.equal(vscode.__mock.configStore.get('checkout'), '');
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('registerRunner: stop terminates every running execution when no node is given', async () => {
+  const dir = tmpDir();
+  try {
+    vscode.__mock.reset();
+    vscode.workspace.findFiles = () => Promise.resolve([]);
+    await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async (projects) => {
+      let terminated = false;
+      const execution = { task: { definition: { type: '8bs' } }, terminate: () => { terminated = true; } };
+      projects.running.executions.add(execution);
+      await vscode.__mock.trigger('8bitscript.stop');
+      assert.equal(terminated, true);
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('registerRunner: install with a real package manager on PATH launches and refreshes on completion', async () => {
+  const dir = tmpDir();
+  try {
+    writeConfig(dir);
+    vscode.__mock.reset();
+    vscode.workspace.findFiles = () => Promise.resolve([]);
+    await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async () => {
+      await vscode.__mock.trigger('8bitscript.install', { dir, name: 'my-game', packageManager: 'npm' });
+      await tick();
+      assert.equal(vscode.__mock.calls.showErrorMessage.length, 0);
+      const executed = vscode.__mock.executedTasks.at(-1);
+      assert.ok(executed, 'the install task was launched');
+      assert.match(executed.task.name, /my-game: install/);
+      // registerRunner's own onDidEndTask listener refreshes the project
+      // list once this specific execution ends.
+      vscode.__mock.taskEmitters.onDidEndTask.fire({ execution: executed });
+      await tick();
+      const setContext = vscode.__mock.executedCommands.filter((c) => c.id === 'setContext');
+      assert.ok(setContext.length > 0, 'refresh() ran and touched the examples-toggle context');
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('registerRunner: run executes a plain machine target end to end', async () => {
+  const dir = tmpDir();
+  try {
+    writeConfig(dir);
+    const cli = writeFakeCli(dir);
+    vscode.__mock.reset();
+    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.ts') }]);
+    await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async (projects) => {
+      projects.projects[0].toolchain = cli;
+      projects.projects[0].installed = true;
+      await vscode.__mock.trigger('8bitscript.run', { project: projects.projects[0], target: 'c64' });
+      await tick();
+      const executed = vscode.__mock.executedTasks.at(-1);
+      assert.ok(executed, 'a task was executed');
+      assert.equal(executed.task.definition.target, 'c64');
+      assert.equal(executed.task.definition.command, 'run');
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('registerRunner: run offers to install first when the project is not installed', async () => {
+  const dir = tmpDir();
+  try {
+    writeConfig(dir);
+    vscode.__mock.reset();
+    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.ts') }]);
+    await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async (projects) => {
+      projects.projects[0].toolchain = path.join(dir, 'fake.mjs');
+      fs.writeFileSync(projects.projects[0].toolchain, '');
+      projects.projects[0].installed = false;
+      // Decline the offer: nothing should run.
+      await vscode.__mock.trigger('8bitscript.run', { project: projects.projects[0], target: 'c64' });
+      await tick();
+      assert.equal(vscode.__mock.calls.showWarningMessage.length, 1);
+      assert.equal(vscode.__mock.executedTasks.length, 0);
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('registerRunner: doctor reports when no toolchain is found anywhere', async () => {
+  const dir = tmpDir();
+  try {
+    vscode.__mock.reset();
+    vscode.workspace.findFiles = () => Promise.resolve([]);
+    await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async () => {
+      await vscode.__mock.trigger('8bitscript.doctor');
+      await tick();
+      assert.match(vscode.__mock.calls.showErrorMessage.at(-1)[0], /No 8bs toolchain found/);
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('registerRunner: doctor runs against the project with a toolchain', async () => {
+  const dir = tmpDir();
+  try {
+    writeConfig(dir);
+    const cli = writeFakeCli(dir);
+    vscode.__mock.reset();
+    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.ts') }]);
+    await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async (projects) => {
+      projects.projects[0].toolchain = cli;
+      await vscode.__mock.trigger('8bitscript.doctor');
+      await tick();
+      const executed = vscode.__mock.executedTasks.at(-1);
+      assert.ok(executed);
+      assert.equal(executed.task.definition.command, 'doctor');
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('registerRunner: chooseSystem writes the picked named system and machine', async () => {
+  const dir = tmpDir();
+  try {
+    writeConfig(dir);
+    const cli = writeFakeCli(dir);
+    vscode.__mock.reset();
+    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.ts') }]);
+    await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async (projects) => {
+      projects.projects[0].toolchain = cli;
+      vscode.__mock.queues.showQuickPick.push({ named: 'Named C64', target: 'c64' });
+      await vscode.__mock.trigger('8bitscript.selectSystem');
+      await tick();
+      assert.equal(vscode.__mock.configStore.get('namedSystem'), 'Named C64');
+      assert.equal(vscode.__mock.configStore.get('system'), 'c64');
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('registerRunner: chooseSystem does nothing when the separator itself is picked', async () => {
+  const dir = tmpDir();
+  try {
+    writeConfig(dir);
+    const cli = writeFakeCli(dir);
+    vscode.__mock.reset();
+    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.ts') }]);
+    await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async (projects) => {
+      projects.projects[0].toolchain = cli;
+      vscode.__mock.queues.showQuickPick.push({ label: 'Named systems', kind: vscode.QuickPickItemKind.Separator });
+      await vscode.__mock.trigger('8bitscript.selectSystem');
+      await tick();
+      assert.equal(vscode.__mock.configStore.get('namedSystem'), undefined);
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('registerRunner: chooseRegion writes the picked region', async () => {
+  const dir = tmpDir();
+  try {
+    vscode.__mock.reset();
+    vscode.workspace.findFiles = () => Promise.resolve([]);
+    await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async () => {
+      vscode.__mock.queues.showQuickPick.push({ region: 'pal' });
+      await vscode.__mock.trigger('8bitscript.selectRegion');
+      await tick();
+      assert.equal(vscode.__mock.configStore.get('region'), 'pal');
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('registerRunner: launchExample reports when nothing ships', async () => {
+  const dir = tmpDir();
+  try {
+    vscode.__mock.reset();
+    vscode.workspace.findFiles = () => Promise.resolve([]);
+    await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async () => {
+      await vscode.__mock.trigger('8bitscript.launchExample');
+      await tick();
+      assert.match(vscode.__mock.calls.showInformationMessage.at(-1)[0], /No examples found/);
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('registerRunner: launchApp runs the one shipped app straight away', async () => {
+  const dir = tmpDir();
+  try {
+    vscode.__mock.reset();
+    vscode.workspace.findFiles = () => Promise.resolve([]);
+    await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async (projects) => {
+      const cli = writeFakeCli(dir);
+      projects.apps = [fakeProject(dir, {
+        kind: 'app', name: '@8bitscript/studio', title: 'Studio', toolchain: cli, installed: true,
+      })];
+      // The app's own named system ("Named C64", from the fake CLI's
+      // systems list) is offered — pick it, same as a person choosing the
+      // first (and only) option.
+      vscode.__mock.queues.showQuickPick.push({ system: { name: 'Named C64', target: 'c64' } });
+      await vscode.__mock.trigger('8bitscript.launchApp');
+      await tick();
+      const executed = vscode.__mock.executedTasks.at(-1);
+      assert.ok(executed, 'the single app launched without asking which project');
+      assert.match(executed.task.name, /Named C64/);
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('registerRunner: saveSystem refuses a target the project does not build for', async () => {
+  const dir = tmpDir();
+  try {
+    writeConfig(dir);
+    vscode.__mock.reset();
+    vscode.__mock.configStore.set('project', dir);
+    vscode.__mock.configStore.set('system', 'nes');
+    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.ts') }]);
+    await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async () => {
+      await vscode.__mock.trigger('8bitscript.saveSystem');
+      await tick();
+      assert.match(vscode.__mock.calls.showWarningMessage.at(-1)[0], /does not target/);
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('registerRunner: saveSystem writes a system into a plain config', async () => {
+  const dir = tmpDir();
+  try {
+    writeConfig(dir);
+    const cli = writeFakeCli(dir);
+    vscode.__mock.reset();
+    vscode.__mock.configStore.set('project', dir);
+    vscode.__mock.configStore.set('system', 'c64');
+    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.ts') }]);
+    vscode.window.showInputBox = () => Promise.resolve('My C64');
+    vscode.workspace.openTextDocument = (uri) => Promise.resolve({
+      uri,
+      getText: () => "export default {\n  targets: ['c64'],\n};\n",
+      positionAt: (offset) => ({ offset }),
+      save: () => Promise.resolve(true),
+    });
+    await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async (projects) => {
+      projects.projects[0].toolchain = cli;
+      await vscode.__mock.trigger('8bitscript.saveSystem');
+      await tick();
+      assert.ok(vscode.__mock.executedCommands.some((c) => c.applyEdit), 'the config was rewritten');
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('registerRunner: useLocal accepts a real checkout and wires the project to it', async () => {
+  const dir = tmpDir();
+  const checkoutDir = tmpDir();
+  try {
+    writeConfig(dir);
+    fs.mkdirSync(path.join(checkoutDir, 'packages', 'cli', 'bin'), { recursive: true });
+    fs.writeFileSync(path.join(checkoutDir, 'pnpm-workspace.yaml'), 'packages:\n  - packages/*\n');
+    fs.writeFileSync(path.join(checkoutDir, 'packages', 'cli', 'bin', '8bs.mjs'), '');
+    vscode.__mock.reset();
+    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.ts') }]);
+    vscode.window.showOpenDialog = () => Promise.resolve([{ fsPath: checkoutDir }]);
+    await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async () => {
+      await vscode.__mock.trigger('8bitscript.useLocal');
+      await tick();
+      assert.equal(vscode.__mock.configStore.get('checkout'), checkoutDir);
+      assert.equal(vscode.__mock.calls.showErrorMessage.length, 0);
+      const restarted = vscode.__mock.executedCommands.find((c) => c.id === '8bitscript.restartServer');
+      assert.ok(restarted, 'the language server was told to restart against the new checkout');
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(checkoutDir, { recursive: true, force: true });
+  }
+});
