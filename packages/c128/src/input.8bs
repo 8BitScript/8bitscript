@@ -18,28 +18,30 @@
 // the same address and the SID's two analogue lines are at the same $D419
 // and $D41A. When someone writes them, this file becomes the C64's.
 //
-// ---- the matrix, and the half of it this file does not read --------------
+// ---- the matrix, including the dedicated cursor keys ---------------------
 //
 // For the eight columns by eight rows the C64 has, a C128 puts the same
 // key in the same place, so the codes below are @8bitscript/c64/keys's
 // codes. Writing a byte with one 0 bit to port A ($DC00) selects that
 // column; port B ($DC01) reads its eight keys, a 0 bit where a key is down.
 //
-// **The C128's second matrix is not read here, and it is the interesting
-// one.** The dedicated cursor keys — all four of them, which is what this
-// machine has that a C64 does not — plus the numeric keypad, HELP, ESC,
-// TAB, LINE FEED, NO SCROLL and **ALT** hang off three extra column lines
-// driven by the VIC-IIe's $D02F (declared in ./index.8bs as
-// `extraKeyboardLines`) and read back through the same port B. So on this
-// machine the four-way cursor and an ALT key both genuinely exist, and
-// this file still makes left out of SHIFT and the right key the way a C64
-// does. Wiring $D02F up is the next thing anyone should do here, and it
-// would make the C128 the one Commodore where a menu takes ALT+letter.
+// The C128's second matrix hangs off three extra column lines driven by
+// the VIC-IIe's $D02F (`extraKeyboardLines` in ./index.8bs) and read
+// back through the same port B. **This file reads the dedicated cursor
+// keys on K2** — the four real arrows this machine has that a C64 does
+// not. x128's C128-mode keymap sends host arrows there (`Up 10 3`,
+// `Down 10 4`, `Left 10 5`, `Right 10 6` in gtk3_pos.vkm), not to the
+// C64 CRSR pair, so a layer that only scanned CIA1 made the arrows do
+// nothing. The C64-shaped CRSR keys with SHIFT still work for the two
+// keys next to right shift.
 //
-// Until then:
+// The rest of that matrix — the numeric keypad, HELP, ESC, TAB, LINE
+// FEED, NO SCROLL and **ALT** — is still unread. Wiring those up would
+// make the C128 the one Commodore where a menu takes ALT+letter.
 //
-//   - **left / right / up / down** — the C64-shaped cursor keys, with
-//     SHIFT reversing each, or'd with a joystick in port 2.
+//   - **left / right / up / down** — the dedicated cursor keys, or the
+//     C64-shaped CRSR pair with SHIFT reversing each, or'd with a
+//     joystick in port 2.
 //   - **confirm** — RETURN, or fire. **cancel** — RUN/STOP.
 //
 // ---- the mouse -----------------------------------------------------------
@@ -62,7 +64,7 @@
 // matrix snapshot and waits for the SID after selecting the port; the
 // C64's `waitFrame()` `sei` is what makes the same select-at-end-of-poll
 // arrangement work there without a delay.
-import { cia1PortA, cia1PortB, cia1DirectionA, cia1DirectionB, paddleX, paddleY } from "./index.8bs";
+import { cia1PortA, cia1PortB, cia1DirectionA, cia1DirectionB, extraKeyboardLines, paddleX, paddleY } from "./index.8bs";
 
 const HAS_MOUSE: bool = #fact(input.mouse);
 
@@ -110,6 +112,20 @@ const MOUSE_PORT_1: utinyint = 0x7F;
 
 const COLUMN_SELECT: array<utinyint, 8> = [254, 253, 251, 247, 239, 223, 191, 127];
 const ROW_BIT: array<utinyint, 8> = [1, 2, 4, 8, 16, 32, 64, 128];
+
+// $D02F bits 0-2 drive extra columns K0-K2, active low like CIA1 port A.
+// $FF selects none (the C64-compatible scan); $FB drives K2, which is
+// VICE column 10 — dedicated arrows, ALT, keypad 0/., NO SCROLL.
+const EXTRA_NONE: utinyint = 0xFF;
+const EXTRA_K2: utinyint = 0xFB;
+
+// Port B bits on K2, matching gtk3_pos.vkm's second number (`Up 10 3`).
+namespace Extra {
+    const UP: utinyint = 8;
+    const DOWN: utinyint = 16;
+    const LEFT: utinyint = 32;
+    const RIGHT: utinyint = 64;
+}
 
 // The pointer's travel in mouse counts — a count is about a pixel, a cell
 // is 8 of them on the 40-column screen this file hit-tests against.
@@ -211,11 +227,12 @@ export namespace input {
     }
 
     // Once a frame, right after waitFrame(), and never twice. The order is
-    // the C64's and forced by the same hardware: read the pots, then the
-    // matrix (which drives all eight columns and leaves port A at $FF),
-    // then the sticks (which need port A at $FF), then point the SID back
-    // at the mouse's port. `sei` across that work: the KERNAL IRQ owns
-    // CIA1 between scans on this machine.
+    // the C64's plus the extra column: read the pots, then the C64-shaped
+    // matrix (with $D02F selecting none, so extra keys do not ghost into
+    // port B), then K2's dedicated cursor keys (port A still $FF), then
+    // restore $D02F before the sticks — K2's arrow bits overlap the
+    // joystick's on port B. Then point the SID back at the mouse's port.
+    // `sei` across that work: the KERNAL IRQ owns CIA1 between scans.
     function poll(): void {
         asm6502 { sei }
         if (HAS_MOUSE) {
@@ -249,11 +266,15 @@ export namespace input {
 
         cia1DirectionA = 0xFF;
         cia1DirectionB = 0x00;
+        extraKeyboardLines = EXTRA_NONE;
         for (let column: utinyint = 0; column < 8; column++) {
             cia1PortA = COLUMN_SELECT[column];
             matrix[column] = cia1PortB ^ 0xFF;
         }
         cia1PortA = 0xFF;
+        extraKeyboardLines = EXTRA_K2;
+        let extra: utinyint = cia1PortB ^ 0xFF;
+        extraKeyboardLines = EXTRA_NONE;
         sticks[0] = (cia1PortB ^ 0xFF) & 0x1F;
         sticks[1] = (cia1PortA ^ 0xFF) & 0x1F;
 
@@ -280,6 +301,23 @@ export namespace input {
         }
         if (keyDown(Key.STOP)) {
             held = held | Edge.CANCEL;
+        }
+
+        // Dedicated arrows on K2 — physical keys, so or'ing them into
+        // `held` before the edge is the right shape (unlike CRSR+SHIFT
+        // above, which still composes then edges, the parked Commodore
+        // gap). VICE's host arrows land here in C128 mode.
+        if ((extra & Extra.LEFT) != 0) {
+            held = held | Edge.LEFT;
+        }
+        if ((extra & Extra.RIGHT) != 0) {
+            held = held | Edge.RIGHT;
+        }
+        if ((extra & Extra.UP) != 0) {
+            held = held | Edge.UP;
+        }
+        if ((extra & Extra.DOWN) != 0) {
+            held = held | Edge.DOWN;
         }
 
         // The stick in port 2, bits as on the C64: up 1, down 2, left 4,

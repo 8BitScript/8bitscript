@@ -93,10 +93,12 @@ used to be the model of that; it now reads a snapshot byte the page writes
 into shared memory (arrows, Enter, Escape) and still returns false for the
 pointer. `@8bitscript/cx16/input` used to be the same shape; it now answers the pointer through the KERNAL
 (`$FF68` mouse_config, `$FF71` mouse_scan, `$FF6B` mouse_get) and still
-returns false for directions, confirm and cancel — GETIN and joystick_get
-are the next calls, not a gap the file hides. Measured on Studio, the X16
-pointer costs **318 bytes of program and 5 of RAM** (1253 B without the
-layer, 1571 with it); the unanswered half still costs zero
+answers directions, confirm and cancel through the KERNAL joystick API
+(`joystick_scan` / `kbd_scan` / `joystick_get`; Enter is START on joy0)
+and still draws the pointer through the mouse calls. Measured on Studio,
+the X16 pointer costs **318 bytes of program and 5 of RAM** (1253 B
+without the layer, 1571 with it); that number predates the keyboard/pad
+scan
 ([`packages/ui/AGENTS.md`](../ui/AGENTS.md) has the table). **A capability a
 machine cannot honor should cost that machine nothing**, and a layer of
 honest constants achieves that where a missing file would not compile and a
@@ -105,8 +107,7 @@ half-working one would mislead.
 What is never acceptable is a header that implies more than the code does.
 `input.mouse` is true by default on the X16 because the *hardware* has a
 mouse, and `pointer()` is that fact — the KERNAL has no 1351-style probe.
-Keyboard and pads stay false until someone writes those calls. Those are
-different statements and the header makes both.
+GETIN as typed characters, and ALT, stay unread; the header says so.
 
 ## Facts decide what is compiled; probes decide what is true
 
@@ -168,18 +169,18 @@ The standard this package holds to:
   key for key against VICE's own keymap. A recalled matrix that is wrong in
   two places is worse than a documented gap.
 
-## What each machine has, as of 2026-09-07
+## What each machine has, as of 2026-09-13
 
 | Machine | Directions | Pointer | Gap worth closing |
 | --- | --- | --- | --- |
 | C64 | cursor keys + SHIFT, joystick 2 | **1351 in port 1** | — |
-| C128 | as the C64's | **1351 in port 1** | the second matrix on `$D02F`: four real cursor keys, and **ALT** |
+| C128 | dedicated cursor keys + C64 CRSR/SHIFT, joystick 2 | **1351 in port 1** | the rest of `$D02F`: keypad, HELP, ESC, TAB, **ALT** |
 | MEGA65 | as the C64's | none (no catalog options yet) | its extended keyboard: cursor keys, **ALT**, HELP |
 | PET | cursor keys + SHIFT | none — no control ports exist | — |
 | Atari 8-bit | CTRL + `+` `*` `-` `=`, joystick 1 | none | the catalog offers ST, Amiga and trak-ball mice; each is a quadrature driver nobody has written |
 | NES | D-pad, A/START, B | none | confirm the pad on real input |
 | VIC-20 | joystick only | none | a verified `keys.8bs`, then a `keyboard.8bs` |
-| X16 | **nothing** | **KERNAL mouse** | GETIN (`$FFE4`) and joystick_get (`$FF56`); **ALT** |
+| X16 | keyboard joystick (Enter, arrows) + SNES pads 1/2 | **KERNAL mouse** | GETIN (`$FFE4`) as characters; **ALT** |
 | web | arrow keys, Enter, Escape | nothing | a pointer in the same snapshot byte |
 
 **Three machines have an ALT key** — the C128, the MEGA65 and the X16 — and

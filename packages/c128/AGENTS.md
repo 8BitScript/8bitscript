@@ -90,9 +90,11 @@ Do not describe more than this as working:
   `@8bitscript/input` and `@8bitscript/pointer`. A 1351 in port 1 is
   inlined in `input` — the KERNAL IRQ owns CIA1, so `poll()` holds `sei`
   across the pot read and the matrix snapshot and waits for the SID after
-  selecting the port. The arrow is VIC-IIe sprite 0, shape in the
-  KERNAL's first sprite block at `$0E00`, gated on `#fact(input.mouse)`.
-  The 80-column VDC still has no sprites.
+  selecting the port. Directions come from the dedicated cursor keys on
+  `$D02F` K2 (where x128 sends host arrows in C128 mode), the C64-shaped
+  CRSR pair with SHIFT, and joystick port 2. The arrow is VIC-IIe sprite
+  0, shape in the KERNAL's first sprite block at `$0E00`, gated on
+  `#fact(input.mouse)`. The 80-column VDC still has no sprites.
 - The hardware catalog in `package.json`: `ram`, `vdc`, `vdcrev`, `sid`,
   `cia`, `expansion`, `port1`, `port2`, and the presets `c128`, `c128d`,
   `c128dcr`, `vdc64`, `ram256`, `loaded`. See [The catalog](#the-catalog).
@@ -119,8 +121,10 @@ The C64's other hardware subpaths — `sprites`, `keyboard`/`keys`,
 `reu` — **do not exist as named exports for the C128** (`sid` now does;
 the 1351 is inlined in `./input` and drawn by `./pointer`), although every
 register they use is at the same address here. Nothing reaches bank 1, the
-2 MHz clock, the extended keyboard, the REU or C64 mode; the VDC
-has text but no bitmap and no scrolling. There is no banked-memory model in
+2 MHz clock, the rest of the extended keyboard (keypad, HELP, ALT),
+the REU or C64 mode; the VDC
+has text but no bitmap and no scrolling. The dedicated cursor keys on
+`$D02F` K2 are read. There is no banked-memory model in
 the language and no far pointer — for the C128 or any machine.
 [What is left to build](#what-is-left-to-build-and-what-differs-here) is
 the map of that work; the rules below are what to hold it to.
@@ -733,7 +737,7 @@ that is *not* the same code. What differs, and roughly in what order:
 | Layer | What it is here | What differs from the C64 |
 | ----- | --------------- | ------------------------- |
 | `sid` | **built** (`./sid`) | the registers are the C64's exactly. What differs is around them: the region comes from `$0A03` rather than the raster, 2 MHz mode leaves the pitch alone (the chip has its own 1 MHz source), and the live KERNAL interrupt does not touch it. The catalog's `sid` option is the model, which changes the filter's character and not the map |
-| `joystick`, `keyboard`/`keys` | CIA1 as the C64's | **the KERNAL IRQ is alive** and owns CIA1 between scans, so a matrix snapshot reads under `sei` — or reads the KERNAL's own buffer, which the C64 has no equivalent of. `$D02F` adds three more columns (keypad, HELP, ESC, TAB, ALT, NO SCROLL, the cursor keys), which the C64 file knows nothing about |
+| `joystick`, `keyboard`/`keys` | CIA1 as the C64's; `./input` reads K2's dedicated arrows | **the KERNAL IRQ is alive** and owns CIA1 between scans, so a matrix snapshot reads under `sei` — or reads the KERNAL's own buffer, which the C64 has no equivalent of. `$D02F` adds three more columns; `./input` reads the cursor keys on K2 (VICE `gtk3_pos.vkm` C128-mode `Up 10 3` and the rest) and still does not read the keypad, HELP, ESC, TAB, ALT, or NO SCROLL |
 | `mouse` | **built** (inlined in `./input`) | identical protocol to the C64's; `poll()` holds `sei` across the pot read because the KERNAL IRQ owns CIA1 here. `@8bitscript/c128/pointer` draws sprite 0 from `$0E00` |
 | `charset`, `bitmap`, `scroll`, `sprites` | VIC-IIe, C64 registers | **who owns which RAM is a two-dimensional question here**: the VIC's bank is `$D506` bits 6-7 (the MMU's), not just `$DD00`, and the C64 file's bank-3 layout does not carry over — the KERNAL ROM is *in* at `$C000`-`$FFFF`. The pointer uses the KERNAL's sprite area at `$0E00` rather than waiting on this layer. The KERNAL shadows `$D018` (`$0A2C`) and the bitmap layout (`$0A2D`); which control registers it shadows in graphic modes is *to verify* before any of these are written |
 | `raster` | VIC-IIe raster IRQ | the C64's layer takes the machine over with `sei`; here that means taking the keyboard, the jiffy clock and the shadow copies over too. A deliberate decision, not a detail |
@@ -810,7 +814,8 @@ packages/c128/src/banks.8bs             @8bitscript/c128/banks: banks.kib(), the
 packages/c128/test/vdc.test.mjs         the VDC probe on both chips, and the 80-column screen drawn while the KERNAL runs the 40-column one
 packages/c128/test/vdc80.test.mjs       the 80-column text surface, and the block fill's count checked in both directions
 packages/c128/test/sid.test.mjs         the SID answering on both regions, and every note table entry against the formula
-packages/c128/src/input.8bs             @8bitscript/c128/input: CIA1 matrix and sticks; a 1351 inlined (sei across the pots)
+packages/c128/src/input.8bs             @8bitscript/c128/input: CIA1 matrix, $D02F K2 arrows, sticks; a 1351 inlined (sei across the pots)
+packages/c128/test/input.test.mjs       K2 bits against VICE gtk3_pos.vkm; poll() restores $D02F before the stick snapshot
 packages/c128/src/pointer.8bs           @8bitscript/c128/pointer: sprite 0 from KERNAL block 56 at $0E00, on a 1351 build
 packages/c128/src/screen.8bs            @8bitscript/c128/screen: sixteen colors in both registers, blank() over 1000 cells at $0400
 packages/c128/src/text.8bs              @8bitscript/c128/text: ASCII → screen code, shadow-then-register, 40 × 25 at $0400/$D800
