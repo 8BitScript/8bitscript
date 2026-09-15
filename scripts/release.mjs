@@ -135,6 +135,21 @@ for (const name of dirs) {
     );
     process.exit(1);
   }
+  // pnpm rewrites a workspace:* dependency to a real version at publish
+  // time; a literal workspace:* only ever reaches npm from a publish
+  // that ran outside pnpm (a plain `npm publish`, as the manual
+  // first-publish bootstrap once did for @8bitscript/raster@0.10.0) —
+  // and it hard fails for every consumer outside this workspace.
+  const workspaceDeps = Object.entries(pkg.dependencies ?? {}).filter(([, spec]) =>
+    spec.startsWith('workspace:'),
+  );
+  if (workspaceDeps.length > 0) {
+    process.stderr.write(
+      `${name}'s package.json still has workspace: dependencies (${workspaceDeps.map(([dep]) => dep).join(', ')}) — ` +
+        'publish with `pnpm publish`, not `npm publish`, so it rewrites them to real versions first.\n',
+    );
+    process.exit(1);
+  }
   // Pinning runs right after publishing, so it is the one that races the
   // registry; publishing wants the fast answer.
   if (await alreadyOnNpm(pkg.name, version, pinOnly ? PIN_RETRY : {})) {
