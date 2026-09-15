@@ -78,3 +78,8 @@ personal systems, and pointing a project at a local 8BitScript checkout.
 notes for the phase 5 through 8 machines, the ones the phase plan above
 names but no package exists for yet. They describe hardware, not the
 toolchain, and are unchanged by the rewrite.
+
+[8bx: a responsive component format](project/8bx.md) — design direction
+for a declarative UI layer that compiles down to `@8bitscript/ui`-shaped
+calls. Nothing here compiles yet; it is the plan for the front end, not a
+description of one that exists.
