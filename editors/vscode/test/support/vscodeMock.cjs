@@ -63,6 +63,7 @@ function defaultOpenTextDocument(uri) {
 function createVscodeMock() {
   const configStore = new Map();
   const commandHandlers = new Map();
+  const configChange = makeEmitter();
   const queues = {
     showQuickPick: [],
     showInputBox: [],
@@ -236,7 +237,7 @@ function createVscodeMock() {
         dispose() {},
       }),
       onDidChangeWorkspaceFolders: () => makeDisposable(),
-      onDidChangeConfiguration: () => makeDisposable(),
+      onDidChangeConfiguration: configChange.event,
     },
     tasks: {
       taskExecutions: [],
@@ -273,6 +274,11 @@ function createVscodeMock() {
       executedTasks,
       executedCommands,
       taskEmitters,
+      fireConfigChange(section) {
+        configChange.fire({
+          affectsConfiguration: (id) => id === section || id.startsWith(`${section}.`),
+        });
+      },
       trigger: (id, ...args) => {
         const handler = commandHandlers.get(id);
         if (!handler) throw new Error(`no command registered for '${id}'`);
@@ -283,6 +289,7 @@ function createVscodeMock() {
       // once at their own load time, so a test's `reset()` between cases
       // has to mutate the same object they are holding, not swap it out.
       reset() {
+        configChange.dispose();
         configStore.clear();
         commandHandlers.clear();
         for (const queue of Object.values(queues)) queue.length = 0;

@@ -47,6 +47,7 @@ function fakeProject(dir) {
 }
 
 function fakeProjects(project, loadTargets) {
+  const listeners = [];
   return {
     all: [project],
     visible: [project],
@@ -55,7 +56,13 @@ function fakeProjects(project, loadTargets) {
     running: { list: () => [] },
     live: new Map(),
     checkoutFlag: () => null,
-    onDidChange: () => ({ dispose() {} }),
+    onDidChange: (listener) => {
+      listeners.push(listener);
+      return { dispose() {} };
+    },
+    fireChange() {
+      for (const listener of listeners) listener();
+    },
     refresh() {},
     loadTargets,
   };
@@ -64,6 +71,7 @@ function fakeProjects(project, loadTargets) {
 function fakeView() {
   const posted = [];
   const listeners = [];
+  const visListeners = [];
   return {
     visible: true,
     posted,
@@ -83,8 +91,30 @@ function fakeView() {
         for (const listener of listeners) listener(message);
       },
     },
-    onDidChangeVisibility: () => ({ dispose() {} }),
+    onDidChangeVisibility: (listener) => {
+      visListeners.push(listener);
+      return { dispose() {} };
+    },
+    show() {
+      this.visible = true;
+      for (const listener of visListeners) listener();
+    },
     onDidDispose: () => ({ dispose() {} }),
+  };
+}
+
+function fakeDevReload() {
+  const listeners = [];
+  return {
+    phase: 'idle',
+    error: null,
+    onDidChange: (listener) => {
+      listeners.push(listener);
+      return { dispose() {} };
+    },
+    fire() {
+      for (const listener of listeners) listener();
+    },
   };
 }
 
@@ -158,4 +188,155 @@ test('an older post waiting on loadTargets cannot overwrite a later C64 selectio
   assert.equal(after.length, countAfterLatest, 'the first-load post must not paint after the later one');
   assert.equal(after.at(-1).systemTitle, 'Commodore 64');
   assert.match(after.at(-1).subtitle, /^Commodore 64\b/);
+});
+
+test('set() of a named system paints C64 even if the previous machine was web', async () => {
+  const dir = '/tmp/hello-world';
+  const project = fakeProject(dir);
+  vscode.__mock.reset();
+  vscode.__mock.configStore.set('project', dir);
+  vscode.__mock.configStore.set('system', 'web');
+  vscode.__mock.configStore.set('namedSystem', 'The browser');
+  const provider = registerLauncherView(
+    { subscriptions: [] },
+    fakeProjects(project, async () => SAMPLE_TARGETS),
+  );
+  const view = fakeView();
+  provider.resolveWebviewView(view);
+  await tick();
+  await provider.set({ key: 'system', value: 'Commodore 64' });
+  const state = states(view).at(-1);
+  assert.equal(vscode.__mock.configStore.get('namedSystem'), 'Commodore 64');
+  assert.equal(vscode.__mock.configStore.get('system'), 'c64');
+  assert.equal(state.systemTitle, 'Commodore 64');
+  assert.match(state.subtitle, /^Commodore 64\b/);
+});
+
+test('set() of a bare machine id clears the named system', async () => {
+  const dir = '/tmp/hello-world';
+  const project = fakeProject(dir);
+  vscode.__mock.reset();
+  vscode.__mock.configStore.set('project', dir);
+  vscode.__mock.configStore.set('system', 'web');
+  vscode.__mock.configStore.set('namedSystem', 'The browser');
+  const provider = registerLauncherView(
+    { subscriptions: [] },
+    fakeProjects(project, async () => SAMPLE_TARGETS),
+  );
+  const view = fakeView();
+  provider.resolveWebviewView(view);
+  await tick();
+  await provider.set({ key: 'system', value: 'c64' });
+  assert.equal(vscode.__mock.configStore.get('namedSystem'), '');
+  assert.equal(vscode.__mock.configStore.get('system'), 'c64');
+  const state = states(view).at(-1);
+  assert.equal(state.systemTitle, 'Commodore 64');
+});
+
+test('set() of a project applies its first named system', async () => {
+  const dir = '/tmp/hello-world';
+  const project = fakeProject(dir);
+  vscode.__mock.reset();
+  vscode.__mock.configStore.set('project', '');
+  vscode.__mock.configStore.set('system', 'web');
+  vscode.__mock.configStore.set('namedSystem', '');
+  const provider = registerLauncherView(
+    { subscriptions: [] },
+    fakeProjects(project, async () => SAMPLE_TARGETS),
+  );
+  const view = fakeView();
+  provider.resolveWebviewView(view);
+  await tick();
+  await provider.set({ key: 'project', value: dir });
+  assert.equal(vscode.__mock.configStore.get('namedSystem'), 'Commodore 64');
+  assert.equal(vscode.__mock.configStore.get('system'), 'c64');
+  assert.equal(states(view).at(-1).systemTitle, 'Commodore 64');
+});
+
+test('set() of a project with no systems keeps a targeted machine, or takes the first', async () => {
+  const dir = '/tmp/hello-world';
+  const project = fakeProject(dir);
+  const none = { get: (id) => SAMPLE_TARGETS.get(id), systems: [] };
+  vscode.__mock.reset();
+  vscode.__mock.configStore.set('project', dir);
+  vscode.__mock.configStore.set('system', 'web');
+  vscode.__mock.configStore.set('namedSystem', 'The browser');
+  const provider = registerLauncherView(
+    { subscriptions: [] },
+    fakeProjects(project, async () => none),
+  );
+  const view = fakeView();
+  provider.resolveWebviewView(view);
+  await tick();
+  await provider.set({ key: 'project', value: dir });
+  assert.equal(vscode.__mock.configStore.get('namedSystem'), '');
+  assert.equal(vscode.__mock.configStore.get('system'), 'web');
+
+  project.targets = ['c64'];
+  vscode.__mock.configStore.set('system', 'web');
+  await provider.set({ key: 'project', value: dir });
+  assert.equal(vscode.__mock.configStore.get('system'), 'c64');
+});
+
+test('set() of an unknown project or key still posts once apply finishes', async () => {
+  const dir = '/tmp/hello-world';
+  const project = fakeProject(dir);
+  vscode.__mock.reset();
+  vscode.__mock.configStore.set('project', dir);
+  vscode.__mock.configStore.set('system', 'web');
+  const provider = registerLauncherView(
+    { subscriptions: [] },
+    fakeProjects(project, async () => SAMPLE_TARGETS),
+  );
+  const view = fakeView();
+  provider.resolveWebviewView(view);
+  await tick();
+  const before = states(view).length;
+  await provider.set({ key: 'project', value: '/no-such-project' });
+  await provider.set({ key: 'region', value: 'pal' });
+  assert.ok(states(view).length > before);
+});
+
+test('set() swallows posts from projects, config, visibility and the local-extension watcher', async () => {
+  const dir = '/tmp/hello-world';
+  const project = fakeProject(dir);
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  let entered = 0;
+  const loadTargets = async () => {
+    entered += 1;
+    if (entered === 2) await gate;
+    return SAMPLE_TARGETS;
+  };
+  const projects = fakeProjects(project, loadTargets);
+  const devReload = fakeDevReload();
+  vscode.__mock.reset();
+  vscode.__mock.configStore.set('project', dir);
+  vscode.__mock.configStore.set('system', 'web');
+  vscode.__mock.configStore.set('namedSystem', 'The browser');
+  const provider = registerLauncherView({ subscriptions: [] }, projects, devReload);
+  const view = fakeView();
+  provider.resolveWebviewView(view);
+  await tick();
+  const applying = provider.set({ key: 'system', value: 'Commodore 64' });
+  await tick();
+  const during = states(view).length;
+  projects.fireChange();
+  vscode.__mock.fireConfigChange('8bitscript.system');
+  vscode.__mock.fireConfigChange('8bitscript.showExamples');
+  view.show();
+  devReload.fire();
+  await tick();
+  assert.equal(states(view).length, during, 'nothing paints while set() still holds suppress');
+  release();
+  await applying;
+  assert.equal(states(view).at(-1).systemTitle, 'Commodore 64');
+  const after = states(view).length;
+  projects.fireChange();
+  vscode.__mock.fireConfigChange('8bitscript.system');
+  vscode.__mock.fireConfigChange('8bitscript.showExamples');
+  view.show();
+  devReload.fire();
+  await tick();
+  assert.ok(states(view).length > after, 'once set() is done, the same events paint again');
 });
