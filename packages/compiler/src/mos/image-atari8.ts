@@ -63,7 +63,7 @@
 // with every Commodore. A `.prg`'s RTS lands back in the BASIC `SYS` that
 // called it, BASIC prints `READY.` under the program's own drawing, and the
 // picture stays up — which is the entire reason hello-world has no holding
-// loop (packages/examples/hello-world/src/main.8bs says so). The Atari has
+// loop (packages/examples/hello-world/src/hello-world.8bs says so). The Atari has
 // no such caller. Measured under atari800 7.1.2, NTSC XL, on the stock
 // hello-world `.xex`: the program runs, blanks the screen black and prints
 // its greeting, and then — the instant it returns — the machine comes back

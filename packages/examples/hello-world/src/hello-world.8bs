@@ -20,4 +20,11 @@ import { text } from "@8bitscript/text";
 export function main(): void {
     screen.blank();
     text.print(0, "Hello World!");
+    // print() writes straight into screen memory, which BASIC's own
+    // cursor tracking never sees — so without telling it where the
+    // cursor now is, READY. lands wherever the boot/LOAD/RUN echo left
+    // it rather than under the greeting. See each machine's text.8bs for
+    // what releaseCursor() does there; on a target with no BASIC to
+    // return to (Atari 8-bit, NES, the web) it is a no-op.
+    text.releaseCursor();
 }

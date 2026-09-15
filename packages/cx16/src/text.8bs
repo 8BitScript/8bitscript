@@ -149,6 +149,25 @@ export namespace text {
         currentReverse = on;
     }
 
+    // Deliberately empty, for now. Every other Commodore target's
+    // releaseCursor() calls KERNAL PLOT ($FFF0 — real here too: x16-rom
+    // uses it throughout, e.g. monitor/irq.s) to tell the screen editor
+    // where the cursor is before main() falls back into BASIC, so READY.
+    // lands under what the program drew instead of wherever the boot
+    // echo left it. Not wired up here yet: `text`'s grid is a 76x56
+    // inset inside the KERNAL's own 80x60 screen (see the file header),
+    // so cell 0 is full-screen row 2, column 2, not row 0 — PLOT needs
+    // that offset added in, not the (1, 0) every other target uses.
+    // Measured under x16emu: this build already shows READY. right under
+    // the greeting without any help, because the KERNAL's own CHR$(15)
+    // mode switch clears the screen and leaves the cursor at the top —
+    // a fresh boot, not the stale multi-line echo the other targets
+    // recover from. Left alone rather than risking that by guessing the
+    // inset math without a way to verify it here (x16emu has no working
+    // remote text monitor).
+    function releaseCursor(): void {
+    }
+
     function print(cell: usmallint, s: string): void {
         let col: utinyint = locate(cell);
         for (let i: utinyint = 0; i < s.length; i++) {

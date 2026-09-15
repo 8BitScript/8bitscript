@@ -218,6 +218,31 @@ export namespace text {
         currentReverse = on;
     }
 
+    // Deliberately empty, for now. print()/putChar() write straight into
+    // screen memory, which the editor's own cursor tracking never sees, so
+    // BASIC's next PRINT — READY. included — lands wherever the cursor was
+    // before the program ran, not under what the program just drew, the
+    // same gap @8bitscript/vic20/text's releaseCursor() closes there.
+    //
+    // The PET has no KERNAL PLOT to do it with: this ROM's jump table ends
+    // at $FFEA (measured — disassembled under xpet -model 2001, $FFF0 is
+    // vector data, not code). PLOT was not standardized until the VIC-20.
+    // A direct poke of the editor's own cursor state was tried — $E0/$E1
+    // (pointer to the current screen line) and $E2 (column), found by
+    // sending a character then a carriage return through CHROUT and
+    // diffing zero page — but setting them before RTS did not move where
+    // READY. printed, measured under xpet -model 2001: something else (a
+    // row number BASIC's own READY path re-derives the pointer from, or
+    // the jiffy-clock IRQ's cursor-blink handler recomputing it every
+    // frame) is still authoritative, not yet found. $E0-$E2 also sit
+    // inside PET_ZP_BUDGET's allocatable range ($8E-$FF), so poking them
+    // without a reserved hole risks colliding with a program's own
+    // globals on a build bigger than this one. Left as a no-op rather
+    // than shipping a fix that silently corrupts state for some programs
+    // and, measured, does not fix this one either.
+    function releaseCursor(): void {
+    }
+
     // Writes `s`'s characters into consecutive cells starting at `cell`, in
     // the current color — `text.setColor(...)` changes what gets printed
     // after it, not what is already on screen.

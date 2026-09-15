@@ -4,7 +4,7 @@
 // the C64's on a C64 build, the web's on a web build, so nothing here names
 // any of them.
 export default {
-  entry: 'src/main.8bs',
+  entry: 'src/hello-world.8bs',
   // The greeting is written `"Hello World!"` and reaches the screen as
   // exactly that on every one of these. Each Commodore's text package draws
   // in the machine's mixed-case character set — the only set that holds
