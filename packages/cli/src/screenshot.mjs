@@ -34,10 +34,8 @@ import { loadArgs, loadCatalog, resolveHardware } from './hardware.mjs';
 const stockHardware = (target) => resolveHardware(loadCatalog(target)).hardware;
 import { encodePNG } from './png.mjs';
 import { runProgram } from './wasm-host.mjs';
-import { glyphRows } from './font8x8.mjs';
-import {
-  BORDER_PX, CHAR_H, CHAR_W, DEFAULT_LAYOUT, layoutFromHardware,
-} from './web-runtime.mjs';
+import { renderFrame, rgbPalette } from './web-scanline.mjs';
+import { BORDER_PX, DEFAULT_LAYOUT, layoutFromHardware } from './web-runtime.mjs';
 
 function run(command, args) {
   return new Promise((resolvePromise, rejectPromise) => {
@@ -190,6 +188,11 @@ async function viceScreenshot(target, outFile, screenshotPath, { pal, hardware =
   // model the program was built for instead of silently running without.
   const args = [
     '-default', '-warp', '+sound',
+    // VICE adds a random delay before autostart by default, so a fixed
+    // -limitcycles capture lands on a different amount of program progress
+    // every run — sometimes on the boot screen itself. Off, the capture is
+    // cycle-deterministic.
+    '+autostart-delay-random',
     ...(VICE_EMULATOR_ARGS[target] ?? []),
     ...(VICE_MODEL_ARGS[target]?.[region] ?? []),
     ...(hardware.run[emulator] ?? []),
@@ -378,23 +381,13 @@ async function nesScreenshot(outFile, screenshotPath, { frames, hardware = stock
 // The cleanest of the nine: no emulator, no process, no timing guesswork.
 // This runs the real .wasm build for exactly --frames waitFrame() calls (or
 // until it returns), then rasterizes the exact same virtual screen web-runtime.mjs's
-// browser canvas draws — imported from there directly (COLORS, the grid/
-// border layout, CHAR_BASE/COLOR_BASE) so there's exactly one place that
-// describes this layout, not two hand-synced copies — using the same 8x8
-// bitmap font the browser canvas stamps, and writes the result out
-// with png.mjs.
+// browser canvas draws — the layout imported from there (agreementFor's
+// offsets) and the per-scanline compositor from web-scanline.mjs, the one
+// place that knows how a raster list changes the picture — using the same
+// 8x8 bitmap font the browser canvas stamps, and writes the result out
+// with png.mjs. Note --screenshot rasterizes ONE memory snapshot, so a
+// raster list a program animates frame to frame is captured mid-phase.
 const WEB_DEFAULT_FRAME_SECONDS = 3;
-
-function setPixel(rgba, width, x, y, [r, g, b]) {
-  const i = (y * width + x) * 4;
-  rgba[i] = r; rgba[i + 1] = g; rgba[i + 2] = b; rgba[i + 3] = 255;
-}
-
-function fillRect(rgba, width, x0, y0, w, h, color) {
-  for (let y = y0; y < y0 + h; y += 1) {
-    for (let x = x0; x < x0 + w; x += 1) setPixel(rgba, width, x, y, color);
-  }
-}
 
 async function webScreenshot(outFile, screenshotPath, { frames, frameRate = 60, hardware }) {
   const bytes = await readFile(outFile);
@@ -417,51 +410,12 @@ async function webScreenshot(outFile, screenshotPath, { frames, frameRate = 60, 
   const liveRows = layout.resizable ? mem[layout.rowsOffset] : 0;
   const gridCols = liveCols > 0 ? liveCols : layout.cols;
   const gridRows = liveRows > 0 ? liveRows : layout.rows;
-  const charBase = layout.charBase;
-  const colorBase = layout.colorBase;
-  const innerW = gridCols * CHAR_W;
-  const innerH = gridRows * CHAR_H;
-  const palette = layout.palette;
-  const rgb = palette.map((hex) => [
-    Number.parseInt(hex.slice(1, 3), 16),
-    Number.parseInt(hex.slice(3, 5), 16),
-    Number.parseInt(hex.slice(5, 7), 16),
-  ]);
-  const width = innerW + BORDER_PX * 2;
-  const height = innerH + BORDER_PX * 2;
-  const rgba = new Uint8Array(width * height * 4);
-  const colorPerCell = layout.colorPerCell !== false;
 
-  const borderInk = colorPerCell ? rgb[mem[0] & 15] : rgb[0];
-  const background = colorPerCell ? rgb[mem[1] & 15] : rgb[0];
-  fillRect(rgba, width, 0, 0, width, height, borderInk);
-  fillRect(rgba, width, BORDER_PX, BORDER_PX, innerW, innerH, background);
-
-  for (let cell = 0; cell < gridCols * gridRows; cell += 1) {
-    const code = mem[charBase + cell];
-    const colorByte = mem[colorBase + cell];
-    const reverse = (colorByte & 128) !== 0;
-    const rows = glyphRows(code);
-    if (rows === null && !reverse) continue;
-    const col = cell % gridCols;
-    const row = (cell - col) / gridCols;
-    const color = colorPerCell ? rgb[colorByte & 15] : rgb[1];
-    const x0 = BORDER_PX + col * CHAR_W;
-    const y0 = BORDER_PX + row * CHAR_H;
-    if (reverse) {
-      fillRect(rgba, width, x0, y0, CHAR_W, CHAR_H, color);
-    }
-    if (rows !== null) {
-      const ink = reverse ? background : color;
-      for (let gy = 0; gy < 8; gy += 1) {
-        const bits = rows[gy];
-        for (let gx = 0; gx < 8; gx += 1) {
-          if ((bits >> gx) & 1) setPixel(rgba, width, x0 + gx, y0 + gy, ink);
-        }
-      }
-    }
-  }
-
+  const { width, height, rgba } = renderFrame(
+    mem,
+    { ...layout, cols: gridCols, rows: gridRows, border: BORDER_PX },
+    rgbPalette(layout.palette),
+  );
   await writeFile(screenshotPath, encodePNG(width, height, rgba));
 }
 

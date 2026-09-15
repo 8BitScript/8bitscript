@@ -25,6 +25,13 @@ The web target is a fourth case —
 > specification lives in the layout agreement and the catalog, never as
 > "the target with no constraints".**
 
+One consequence of "no hardware" to state plainly: rendering is
+**idealized**. A raster-list entry takes effect exactly at its picture line
+and holds from there down, with no simulated write-to-visible delay and no
+per-line jitter — because the web target proves *semantics*, never *fit*
+(see "Rules for this target"). Nothing here models a beam, a bad line, or
+an IRQ's entry cost.
+
 Because the web has no hardware to be faithful to, the web target has a
 second job the 6502 targets do not: it is the one machine the portable
 capability packages can be given their *reference* implementation on, and
@@ -57,6 +64,18 @@ Do not describe more than this as working:
   `screen.blank()` writes the space code (32) to `Video.CELL_COUNT`
   character cells; it does not touch the color cells. `BorderColor` and
   `BackgroundColor` carry all sixteen C64 names plus `KEEP` (255).
+- `src/rasterline.8bs` (behind `@8bitscript/raster`) is the per-scanline
+  raster surface, and — unlike the C64's, which translates onto an
+  address-form list — it *is* the whole implementation: there is no chip
+  to name registers on, so there is no address-form layer beneath it. The
+  list is bytes right after `HOST_OFFSET` (one control byte, one count
+  byte, then `RASTER_MAX_ENTRIES` = 64 three-byte entries: line, slot,
+  value), `at()` enforcing ascending picture-line order and refusing a
+  line at or past `Video.rows() * 8`. Both renderers read the region
+  fresh at every paint through one rule,
+  `packages/cli/src/web-scanline.mjs` (imported by `--screenshot`,
+  hand-mirrored into the loader, the two held pixel-identical in
+  `web-loader.test.mjs`). `#fact(video.raster)` is true on this target.
 - `src/text.8bs` (behind `@8bitscript/text`) is a `Video.COLUMNS` /
   `Video.CELL_COUNT` grid from geometry:
   `text.putChar(cell, code)` writes the ASCII code itself to `CHAR_BASE + cell`
@@ -124,7 +143,8 @@ Do not describe more than this as working:
   not.
 
 There is no pointer, no sound, no sprites, no tiles, no bitmap, no
-redefinable character set, no scrolling, no storage,
+redefinable character set, no scrolling beyond the raster list's per-line
+horizontal fine scroll, no storage,
 no palette beyond the borrowed sixteen, no `--profile`, no `--pal`
 (ignored), and no way for the program to reach the canvas as pixels.
 Arrow keys, swipe/tap, Enter and Escape reach the program through a snapshot
@@ -158,6 +178,7 @@ what to search for when they drift.
 | Fact | Where |
 | ---- | ----- |
 | The screen agreement is six offsets: border byte 0, background byte 1, CELL_COUNT character codes from byte 2, CELL_COUNT color bytes from COLOR_BASE, input snapshot at INPUT_OFFSET, host status at HOST_OFFSET — two side-by-side screen regions, not interleaved. Default 48×27 is 1296 cells (COLOR_BASE 1298, INPUT 2594, HOST 2595). | `packages/web/src/geometry.8bs`, `WebRegisters` (read) |
+| The raster region follows the host byte on every skin: RASTER_CONTROL_OFFSET = HOST_OFFSET + 1 (the renderer applies the list while it is nonzero), RASTER_COUNT_OFFSET = HOST_OFFSET + 2, RASTER_BASE = HOST_OFFSET + 3, then 64 three-byte entries (the line's low byte, the slot byte — bit 7 carrying the line's ninth bit, so the resizable host's 512 possible picture lines all fit — and the value; slots BORDER 0 / BACKGROUND 1 / SCROLL_X 2, scroll masked & 7). `at()` keeps lines ascending and inside `Video.rows() * 8`; both renderers read the region fresh at every paint, idealized (no delay, no jitter), and apply all three slots on every skin — a skin without per-cell color keeps its per-cell foreground fixed, but BORDER/BACKGROUND still resolve through its palette. Verified by the compositor's own tests and the loader parity test. | `packages/web/src/rasterline.8bs`; `packages/cli/src/web-scanline.mjs`; `web-layout.mjs` `agreementFor` (ran, `web-scanline.test.mjs`, `web-loader.test.mjs`, `web-screenshot.test.mjs`) |
 | Grid 48×27, cell 8×8 px — an inner picture of 384×216 (16:9), stretched to its box with `image-rendering: pixelated`, characters clipped to it and unable to draw in the border. Machine skins are 4:3. | `packages/cli/src/web-layout.mjs`, `agreementFor`; `web-loader.mjs` `paint()` clip (read) |
 | The border around that picture is **not** a constant on a real screen: `borderFor({width, height, coarse})` measures the box the picture is going into and returns 24 px (3× or better with a mouse), 8 px (2×–3×, or any touch screen), or 0 (under 2× — a phone in either orientation, or a narrow column). Canvas resolution on the default host is therefore 432×264, 400×232 or 384×216. Measured in Chromium: 1920×1080 → border 24; iPhone 393×852 and 852×393 → border 0; a 42rem article column → border 8. | `packages/cli/src/web-layout.mjs`, `borderFor` (ran, `web-loader.test.mjs`); the browser numbers (ran, headless Chromium 153) |
 | The headless `--screenshot` rasterizer always uses the full `BORDER_PX` of 24, whatever a browser would have picked: there is no viewport to measure, so there is nothing to measure it from. The default PNG is 432×264 RGBA. HOST_OFFSET is left clear. | `packages/cli/src/screenshot.mjs`, `BORDER_PX` (read) |
@@ -203,7 +224,9 @@ web each answer is a line of code, cited above; this is the compact form.
 5. **Modes / color** — one mode. Sixteen C64 colors; per-cell foreground
    (low nibble), one global background, one global border. No bitmap, no
    multicolor, no per-cell background.
-6. **Layers** — one (the cell grid over the background color). No scroll.
+6. **Layers** — one (the cell grid over the background color). No layer
+   scroll; the raster list can fine-scroll a horizontal band per line
+   (SCROLL_X, 0-7).
 7. **Sprites** — none, and no software substitute in the package.
 8. **Pseudo-pixels** — 2×2, codes 128–143, the sixteen quadrant patterns. Drawn in both renderers from `font8x8.mjs`.
 9. **Audio** — none. No entropy source either.
@@ -305,10 +328,12 @@ web each answer is a line of code, cited above; this is the compact form.
 
 ### What is not here yet
 
-- No pointer, sound, sprites, tiles, storage, palette or scroll — for the
-  web or (mostly) any machine. Keyboard directions now reach the program.
-  `packages/studio/AGENTS.md` lists what Studio needs in order; the web
-  implementations of the rest are the subject of the proposal below.
+- No pointer, sound, sprites, tiles, storage, palette or layer scroll —
+  for the web or (mostly) any machine. Keyboard directions reach the
+  program, and the raster list (border/background splits, per-line fine
+  scroll) is real here. `packages/studio/AGENTS.md` lists what Studio
+  needs in order; the web implementations of the rest are the subject of
+  the proposal below.
 
 ## Traps
 
@@ -402,8 +427,10 @@ sources before a capability depends on it.
    scroll in the agreement page (the X16 has two — `packages/cx16/AGENTS.md`;
    the NES's one scrolling nametable, the C64's `$D016` fine scroll and
    Atari's display list are recalled, *to verify*). Priority: layer 1
-   behind layer 0 behind sprites, fixed. Per-scanline effects: none
-   emulated — they are the thing that differs most across chips.
+   behind layer 0 behind sprites, fixed. Per-scanline effects: the three
+   portable slots (border, background, horizontal fine scroll) are
+   emulated today by the raster list; anything past them stays out — the
+   rest is the thing that differs most across chips.
 7. **Sprites** — a sprite table of 128 entries (the X16's count,
    `packages/cx16/AGENTS.md`; that it is the largest of any target here is
    *to verify* against the MEGA65 package) with position, 8×8/16×16 size,
@@ -467,14 +494,16 @@ packages/web/src/geometry.8bs            default 48×27 agreement; twins `geomet
 packages/web/src/screen.8bs              @8bitscript/web/screen: setColors/setBorder/setBackground (& 15), blank() over Video.CELL_COUNT chars, sixteen names + KEEP
 packages/web/src/text.8bs                @8bitscript/web/text: ASCII straight into the page, setReverse (color bit 7), COLUMNS/CELL_COUNT from geometry, divide-based printNumber, eight TextColor names
 packages/web/src/input.8bs               @8bitscript/web/input: poll() reads INPUT_OFFSET; touch() reads HOST_OFFSET; arrows, Enter, Escape; pointer still false
-packages/web/package.json                "8bitscript".entry and the subpaths ./screen, ./text, ./input, ./pointer
+packages/web/src/rasterline.8bs          @8bitscript/web/rasterline (behind @8bitscript/raster): the raster list at HOST_OFFSET + 1/2/3 — control, count, 64 three-byte entries; this file IS the implementation, no address form beneath it
+packages/web/package.json                "8bitscript".entry and the subpaths ./screen, ./text, ./input, ./pointer, ./rasterline
 packages/compiler/src/wasm/index.ts        IR → .wasm: not implemented; records the host contract (one page, env.waitFrame, exported memory)
 packages/compiler/test/wasm.test.ts   u8 wrap, shared memory + host import, string data at 0xE000 clear of the screen
 packages/cli/src/web-layout.mjs          the facts both renderers agree on: agreementFor(), COLORS, HOST_OFFSET, hostIsTouch(), borderFor(), InputEdge, swipeEdge()
+packages/cli/src/web-scanline.mjs        the per-scanline compositor both renderers share: readRasterEntries(), rowState(), renderFrame() — screenshot.mjs imports it, the loader inlines a mirrored copy
 packages/cli/src/web-loader.mjs          what runs in the browser: 8bitscript.js (mount(), <eightbit-screen>, paint(), the rAF clock, key/swipe snapshot), worker.js (Atomics.wait), coi.js (opt-in isolation shim)
 packages/cli/src/web-runtime.mjs         the build and dev-server half: writeWebBundle(), the index.html/embed.html shells, the /status store, COOP/COEP; re-exports web-layout for screenshot.mjs
 packages/cli/src/web-lan.mjs             `8bs run web --lan` (the default): LAN IPv4, ephemeral port, the self-signed cert, HTTPS on another ephemeral port (`--port n` pins HTTP to n, HTTPS to n+1)
-packages/cli/test/web-loader.test.mjs    evaluates the generated loader and holds its borderFor/swipeEdge to web-layout.mjs's
+packages/cli/test/web-loader.test.mjs    evaluates the generated loader and holds its borderFor/swipeEdge to web-layout.mjs's, and its inlined compositor pixel-identical to web-scanline.mjs's
 packages/cli/src/wasm-host.mjs           headless: instantiateProgram (one export, one import), boundedWaitFrame, runProgram
 packages/cli/src/font8x8.mjs             the 8×8 font (ASCII 32–122 and 2×2 blocks 128–143) both renderers draw with
 packages/cli/src/png.mjs                 the PNG encoder the web target alone needs

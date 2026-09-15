@@ -1,7 +1,7 @@
 {
   "name": "@8bitscript/examples",
   "version": "0.9.1",
-  "description": "The example programs that ship with the toolchain: hello-world, the 0.2.0 goal program, and joystick, the controller test app — listed in the editor's launcher beside your own projects.",
+  "description": "The example programs that ship with the toolchain: hello-world, the 0.2.0 goal program, joystick, the controller test app, and fancy, the raster showpiece — listed in the editor's launcher beside your own projects.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -20,10 +20,16 @@
         "title": "Joystick",
         "dir": "./joystick",
         "description": "The controller test app: a labelled map of everything @8bitscript/input exposes — UP, DOWN, LEFT, RIGHT, CONFIRM, CANCEL — with a lamp on each that flashes when that control is pressed, a running count of every press seen, and a frame counter that says the loop is live. Run it first on a machine whose input layer is new or suspect."
+      },
+      "fancy": {
+        "title": "Fancy",
+        "dir": "./fancy",
+        "description": "The raster showpiece: a title wobbling on a sine wave inside colour bands, over @8bitscript/raster's portable per-scanline surface — the list built once, only its value bytes rewritten each frame. Everything sits behind #fact(video.raster), so the C64 and the web show the effect and the other seven machines show a static title, honestly and for free. Run before 2048 leans on the same surface."
       }
     }
   },
   "files": [
+    "fancy",
     "hello-world",
     "joystick",
     "README.md"
@@ -34,6 +40,7 @@
   "dependencies": {
     "@8bitscript/input": "workspace:*",
     "@8bitscript/pet": "workspace:*",
+    "@8bitscript/raster": "workspace:*",
     "@8bitscript/screen": "workspace:*",
     "@8bitscript/system": "workspace:*",
     "@8bitscript/text": "workspace:*",

@@ -80,9 +80,12 @@ export namespace sprites {
     const VISIBLE_WIDTH: usmallint = 320;
     const VISIBLE_HEIGHT: utinyint = 200;
 
-    // Where block `block`'s 63 bytes start in `spriteShapes`.
+    // Where block `block`'s 63 bytes start in `spriteShapes`. The
+    // multiply must be 16-bit — (block - 144) * 64 tops out at 7040 —
+    // and a binop computes at its operands' own width, so widen first.
     function blockOffset(block: utinyint): usmallint {
-        return (block - Video.SHAPE_BLOCK_FIRST) * 64;
+        let index: usmallint = block - Video.SHAPE_BLOCK_FIRST;
+        return index * 64;
     }
 
     // Put sprite `index` at (x, y) — X 0-511, Y 0-255, the VIC's space.
@@ -119,7 +122,10 @@ export namespace sprites {
         if (block >= Video.SHAPE_BLOCK_FIRST && block < Video.SHAPE_BLOCK_FIRST + Video.SHAPE_COUNT) {
             spriteShapes[sprites.blockOffset(block) + i] = value;
         } else if (block >= Bitmap.SHAPE_BLOCK_FIRST && block < Bitmap.SHAPE_BLOCK_FIRST + Bitmap.SHAPE_COUNT) {
-            writeUnderIo(Video.BANK + block * 64 + i, value);
+            // block * 64 is up to $6FC0: widen before the multiply, or it
+            // wraps at 8 bits and the write lands in the program's RAM.
+            let wide: usmallint = block;
+            writeUnderIo(Video.BANK + wide * 64 + i, value);
         }
     }
 

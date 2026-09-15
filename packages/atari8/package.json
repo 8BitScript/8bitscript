@@ -21,7 +21,8 @@
       "./pokey": "./src/pokey.8bs",
       "./random": "./src/random.8bs",
       "./input": "./src/input.8bs",
-      "./pointer": "./src/pointer.8bs"
+      "./pointer": "./src/pointer.8bs",
+      "./rasterline": "./src/rasterline.8bs"
     },
     "hardware": {
       "build": {
@@ -44,6 +45,7 @@
         "video.bitmap": true,
         "video.layers": 1,
         "video.scroll": true,
+        "video.raster": false,
         "video.sprites": 4,
         "video.spritesPerLine": 4,
         "video.spriteWidth": 8,

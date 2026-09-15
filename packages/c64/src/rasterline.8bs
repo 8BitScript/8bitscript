@@ -1,0 +1,132 @@
+// @8bitscript/c64/rasterline — the C64 behind @8bitscript/raster.
+//
+// Named by "8bitscript".exports["./rasterline"] in this package's
+// package.json, and by "8bitscript".entry.c64 in @8bitscript/raster's, so a
+// portable program writes
+//
+//     import { raster, Slot } from "@8bitscript/raster";
+//
+//     raster.clear();
+//     raster.at(0, Slot.BORDER, 0);        // black border over the picture
+//     raster.at(0, Slot.BACKGROUND, 6);    // blue playfield
+//     raster.at(160, Slot.BACKGROUND, 0);  // a black status area lower down
+//     raster.enable();
+//
+// and gets this file on a C64. It names *what the picture does at a line*
+// — a slot — where ./raster.8bs, which stays directly importable and is
+// what this file is a thin translation onto, names *which register to
+// write*. A C64 program that wants any register beyond the three slots
+// (sprite multiplexing, $D018 switches, $D011) wants ./raster itself, and
+// is a C64 program from then on.
+//
+// ---- the portable surface ------------------------------------------------
+//
+// The same shape on all nine machines (the other eight ship an honest
+// zero-cost stub until they have an implementation; #fact(video.raster)
+// says which kind a build got, so a program's raster branch folds away on
+// a machine without one):
+//
+//   - `Slot`: BORDER, BACKGROUND, SCROLL_X — the three per-line effects
+//     that mean the same thing everywhere.
+//   - `raster.ENTRIES` — the list's capacity: 63 here, 0 in a stub.
+//   - `clear()`, `at(line, slot, value)`, `setValue(entry, value)`,
+//     `count()`, `enable()`, `disable()` — the same list operations
+//     ./raster.8bs documents, `at` taking a slot instead of an address
+//     and `setValue` keeping the slot's value semantics (a SCROLL_X
+//     entry rewrites with the 0-7 scroll amount, never a raw byte).
+//
+// `line` is a **picture line**: 0 is the first visible scanline on every
+// machine. This file adds the display window's top offset (50 — the same
+// TOP the sprite layer names) before handing the line to the address list,
+// and `at` refuses a line at or past the 200-line visible picture, so the
+// same portable program means the same thing here and, later, on the web.
+// Entries still go in ascending line order, the write still lands a few
+// cycles into the line, and the list is still rebuilt right after
+// waitFrame() — ./raster.8bs's rules, which the picture-line translation
+// does not change.
+//
+// `Slot.SCROLL_X`'s value is the 3-bit XSCROLL (0-7) only — everywhere,
+// `at` and `setValue` alike; a caller never sees the $D016 encoding. The
+// list mechanism stores a raw byte to write, so a read-modify-write of
+// $D016 at the line is not possible; this layer folds the register's
+// CURRENT upper bits (CSEL, MCM — read as the entry is stored or
+// rewritten) into the byte instead, so a program that has deliberately
+// gone to 38 columns or multicolor keeps that state through a scroll
+// split. A program that wants to CHANGE CSEL or MCM at a line writes
+// Register.CONTROL_2 through ./raster.
+//
+// There is no `apply(table)` taking a whole list at once: array parameters
+// are not lowered by the 6502 backend yet, so a program loops over its own
+// `const` table calling `at()` — or, for a per-frame effect whose lines
+// stand, `setValue()` per entry — itself.
+import { raster as addressList, Register } from "./raster.8bs";
+import { control2 } from "./index.8bs";
+
+// What the picture does at a line, named without an address. The numbers
+// are arbitrary and the same in all nine rasterline files.
+export namespace Slot {
+    const BORDER: utinyint = 0;     // the border's color
+    const BACKGROUND: utinyint = 1; // the playfield's background color
+    const SCROLL_X: utinyint = 2;   // the horizontal fine scroll, 0-7
+}
+
+export namespace raster {
+    const ENTRIES: utinyint = 63; // the list's capacity, ./raster.8bs's MAX
+    const TOP: utinyint = 50;     // picture line 0 is raster line 50
+    const LINES: utinyint = 200;  // visible picture lines, 0-199
+    const KEEP: utinyint = 0xF8;  // $D016 bits 3-7 — CSEL, MCM — kept in every SCROLL_X byte
+
+    // Empty the list.
+    function clear(): void {
+        addressList.clear();
+    }
+
+    // Append: at picture line `line`, give `slot` the value `value`.
+    // False, and nothing added, if the line is past the visible picture,
+    // the slot is not one of the three, or the underlying list refuses it
+    // (full, or a line below the last entry's).
+    function at(line: utinyint, slot: utinyint, value: utinyint): bool {
+        if (line >= raster.LINES) {
+            return false;
+        }
+        if (slot == Slot.BORDER) {
+            return addressList.at(line + raster.TOP, Register.BORDER, value);
+        }
+        if (slot == Slot.BACKGROUND) {
+            return addressList.at(line + raster.TOP, Register.BACKGROUND, value);
+        }
+        if (slot == Slot.SCROLL_X) {
+            return addressList.at(line + raster.TOP, Register.CONTROL_2, (control2 & raster.KEEP) | (value & 7));
+        }
+        return false;
+    }
+
+    // How many entries the list holds.
+    function count(): utinyint {
+        return addressList.count();
+    }
+
+    // Rewrite one entry's value, leaving its line and slot: `entry` is the
+    // entry's byte offset (index * 4), the unit ./raster.8bs's setValue
+    // takes. The value keeps `at`'s slot semantics: a SCROLL_X entry takes
+    // the 0-7 scroll amount and is re-encoded here with $D016's current
+    // CSEL and MCM bits — the byte `at` would store — so a per-frame
+    // wobble never handles the register encoding. Other slots' values are
+    // the byte to write, as they are in `at`.
+    function setValue(entry: utinyint, value: utinyint): bool {
+        if (addressList.addressOf(entry) == Register.CONTROL_2) {
+            return addressList.setValue(entry, (control2 & raster.KEEP) | (value & 7));
+        }
+        return addressList.setValue(entry, value);
+    }
+
+    // Own the IRQ: the list is applied from the next frame on.
+    function enable(): void {
+        addressList.enable();
+    }
+
+    // Interrupts off again; the list is kept.
+    function disable(): void {
+        addressList.disable();
+    }
+}

@@ -10,8 +10,10 @@ import { renderCoiServiceWorker, renderLoader, renderWorker } from '../src/web-l
 import {
   ANY_BORDER_SCALE, BORDER_HAIRLINE_PX, BORDER_MIN_PX, BORDER_PX, FULL_BORDER_SCALE, HOST_OFFSET,
   INNER_H, INNER_W, INPUT_OFFSET, MIN_COLUMNS, MAX_COLUMNS, MIN_ROWS, MAX_ROWS,
-  agreementFor, borderFor, gridFor, swipeEdge,
+  DEFAULT_LAYOUT, PET_PALETTE, RASTER_ENTRY_SIZE, RASTER_MAX_ENTRIES,
+  agreementFor, borderFor, gridFor, sidecarJson, swipeEdge,
 } from '../src/web-layout.mjs';
+import { Slot, renderFrame, rgbPalette } from '../src/web-scanline.mjs';
 
 /** Evaluate the generated loader with no DOM at all and hand back its public object. */
 function loadLoader(options) {
@@ -49,6 +51,34 @@ test('agreementFor places color RAM, input, and host status after the character 
   const vic = agreementFor({ cols: 22, rows: 23 });
   assert.equal(vic.colorBase, 508);
   assert.equal(vic.hostOffset, 1015);
+});
+
+// The raster region sits right after the host byte on every skin, fixed or
+// resizable: control, count, then 64 three-byte entries. The same numbers are
+// written down in packages/web/src/geometry.8bs and its twins, which have to
+// agree.
+test('the raster region follows HOST_OFFSET on every skin, and the sidecar carries it', () => {
+  for (const options of [{ cols: 40, rows: 25 }, { cols: 22, rows: 23 }, { resizable: true }]) {
+    const layout = agreementFor(options);
+    assert.equal(layout.rasterControlOffset, layout.hostOffset + 1);
+    assert.equal(layout.rasterCountOffset, layout.hostOffset + 2);
+    assert.equal(layout.rasterBase, layout.hostOffset + 3);
+    assert.equal(layout.rasterMaxEntries, RASTER_MAX_ENTRIES);
+  }
+  // The concrete numbers the geometry twins mirror.
+  const c64 = agreementFor({ cols: 40, rows: 25 });
+  assert.equal(c64.rasterControlOffset, 2004);
+  assert.equal(c64.rasterBase, 2006);
+  const modern = agreementFor({ resizable: true });
+  assert.equal(modern.rasterControlOffset, 8198);
+  assert.equal(modern.rasterCountOffset, 8199);
+  assert.equal(modern.rasterBase, 8200);
+  assert.equal(RASTER_ENTRY_SIZE, 3);
+  const sidecar = sidecarJson(modern);
+  assert.equal(sidecar.rasterControlOffset, 8198);
+  assert.equal(sidecar.rasterCountOffset, 8199);
+  assert.equal(sidecar.rasterBase, 8200);
+  assert.equal(sidecar.rasterMaxEntries, RASTER_MAX_ENTRIES);
 });
 
 // The two copies of borderFor — the one the build uses and the one that ships
@@ -225,6 +255,129 @@ test('a resizable agreement is mapped for the maximum grid, a fixed one is packe
   assert.equal(c64.colorBase, 1002);
   assert.equal(c64.inputOffset, 2002);
   assert.equal(c64.hostOffset, 2003);
+});
+
+// The compositor, like borderFor, exists twice — web-scanline.mjs and the
+// loader's inlined copy — and the two have to paint the same pixels. The
+// loader's paint() only needs a canvas-shaped object that can hand out and
+// take back an ImageData, so that is all the stub is.
+test("the loader's paint() agrees with web-scanline.mjs's renderFrame, pixel for pixel", () => {
+  const layout = DEFAULT_LAYOUT;
+  const mem = new Uint8Array(65536);
+  mem[0] = 2; // border: red
+  mem[1] = 3; // background: cyan
+  mem[layout.charBase + 0] = 65; // 'A' in white at cell 0
+  mem[layout.colorBase + 0] = 1;
+  mem[layout.charBase + 96] = 0; // a reverse-video blank at row 2, col 0
+  mem[layout.colorBase + 96] = 0x81;
+  mem[layout.charBase + 150] = 122; // 'z' in yellow inside the scroll band
+  mem[layout.colorBase + 150] = 7;
+  // A border split, a background band, and a SCROLL_X band, ascending — the
+  // order rasterline.8bs's at() enforces.
+  const entries = [
+    [16, Slot.BORDER, 5], [16, Slot.BACKGROUND, 6], [24, Slot.SCROLL_X, 3],
+  ];
+  entries.forEach(([line, slot, value], i) => {
+    mem[layout.rasterBase + i * 3] = line;
+    mem[layout.rasterBase + i * 3 + 1] = slot;
+    mem[layout.rasterBase + i * 3 + 2] = value;
+  });
+  mem[layout.rasterCountOffset] = entries.length;
+  mem[layout.rasterControlOffset] = 1;
+
+  const mine = renderFrame(mem, { ...layout, border: BORDER_PX }, rgbPalette(layout.palette));
+
+  const api = loadLoader({ frameRate: 60 });
+  let image = null;
+  const ctx = {
+    canvas: { width: mine.width, height: mine.height },
+    createImageData(w, h) {
+      return { width: w, height: h, data: new Uint8ClampedArray(w * h * 4) };
+    },
+    putImageData(next) { image = next; },
+  };
+  api.paint(ctx, mem, BORDER_PX);
+  assert.ok(image, 'paint() must put an ImageData back');
+  assert.equal(image.width, mine.width);
+  assert.equal(image.height, mine.height);
+  assert.ok(Buffer.from(image.data.buffer, image.data.byteOffset, image.data.byteLength)
+    .equals(Buffer.from(mine.rgba)), 'the two compositors must paint identical pixels');
+});
+
+/** Write an entry the way rasterline.8bs's at() stores it: line's ninth bit in the slot byte's bit 7. */
+function storeEntry(mem, layout, index, line, slot, value) {
+  mem[layout.rasterBase + index * 3] = line % 256;
+  mem[layout.rasterBase + index * 3 + 1] = slot | (Math.floor(line / 256) << 7);
+  mem[layout.rasterBase + index * 3 + 2] = value;
+}
+
+/** renderFrame and the generated loader's paint() over the same memory, pixel-compared. */
+function assertPaintParity(layout, mem) {
+  const mine = renderFrame(mem, { ...layout, border: BORDER_PX }, rgbPalette(layout.palette));
+  const api = loadLoader({ frameRate: 60, layout });
+  let image = null;
+  const ctx = {
+    canvas: { width: mine.width, height: mine.height },
+    createImageData(w, h) {
+      return { width: w, height: h, data: new Uint8ClampedArray(w * h * 4) };
+    },
+    putImageData(next) { image = next; },
+  };
+  api.paint(ctx, mem, BORDER_PX);
+  assert.ok(image, 'paint() must put an ImageData back');
+  assert.ok(Buffer.from(image.data.buffer, image.data.byteOffset, image.data.byteLength)
+    .equals(Buffer.from(mine.rgba)), 'the two compositors must paint identical pixels');
+  return mine;
+}
+
+function framePixel(frame, x, y) {
+  const i = (y * frame.width + x) * 4;
+  return [frame.rgba[i], frame.rgba[i + 1], frame.rgba[i + 2]];
+}
+
+// The PET skin has no per-cell color, but BORDER and BACKGROUND entries still
+// resolve through its black/green palette — in the loader exactly as in the
+// screenshot rasterizer.
+test('the loader paints the PET skin with all three slots applied, identically to renderFrame', () => {
+  const layout = agreementFor({
+    cols: 40, rows: 25, palette: PET_PALETTE, aspect: '4/3', colorPerCell: false, font: 'pet',
+  });
+  const mem = new Uint8Array(65536);
+  mem[layout.colorBase + 12 * 40] = 0x80; // reverse blank, cell row 12, col 0
+  mem[layout.colorBase + 13 * 40] = 0x80; // ...and row 13, inside the band
+  storeEntry(mem, layout, 0, 100, Slot.BORDER, 5);
+  storeEntry(mem, layout, 1, 104, Slot.SCROLL_X, 4);
+  storeEntry(mem, layout, 2, 120, Slot.BACKGROUND, 5);
+  mem[layout.rasterCountOffset] = 3;
+  mem[layout.rasterControlOffset] = 1;
+  const frame = assertPaintParity(layout, mem);
+  // ...and the entries really land: the border turns green at line 100, the
+  // background at 120, and the band's vacated columns stay black.
+  const green = [0x55, 0xff, 0x55];
+  assert.deepEqual(framePixel(frame, 0, BORDER_PX + 99), [0, 0, 0]);
+  assert.deepEqual(framePixel(frame, 0, BORDER_PX + 100), green);
+  assert.deepEqual(framePixel(frame, BORDER_PX + 300, BORDER_PX + 120), green);
+  assert.deepEqual(framePixel(frame, BORDER_PX + 0, BORDER_PX + 104), [0, 0, 0]);
+  assert.deepEqual(framePixel(frame, BORDER_PX + 4, BORDER_PX + 104), green);
+});
+
+// A resizable portrait grid is 384 picture lines tall; an entry past line 255
+// carries its ninth bit in the slot byte, and the loader decodes it exactly
+// as web-scanline.mjs does.
+test('the loader splits a tall resizable grid below line 255, identically to renderFrame', () => {
+  const layout = agreementFor({ cols: 27, rows: 48, resizable: true });
+  const mem = new Uint8Array(65536);
+  mem[0] = 2; // border: red
+  mem[1] = 3; // background: cyan
+  storeEntry(mem, layout, 0, 300, Slot.BORDER, 5);
+  storeEntry(mem, layout, 1, 300, Slot.BACKGROUND, 6);
+  mem[layout.rasterCountOffset] = 2;
+  mem[layout.rasterControlOffset] = 1;
+  const frame = assertPaintParity(layout, mem);
+  const rgb = rgbPalette(layout.palette);
+  assert.deepEqual(framePixel(frame, 0, BORDER_PX + 299), rgb[2]);
+  assert.deepEqual(framePixel(frame, 0, BORDER_PX + 300), rgb[5]);
+  assert.deepEqual(framePixel(frame, BORDER_PX + 100, BORDER_PX + 300), rgb[6]);
 });
 
 test('the loader writes HOST_OFFSET from maxTouchPoints and pointer:coarse, and loads a sidecar', () => {

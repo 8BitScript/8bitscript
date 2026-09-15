@@ -7,6 +7,7 @@ import { join } from 'node:path';
 
 import { writeWebBundle, ISOLATION_HEADERS } from '../src/web-runtime.mjs';
 import { captureScreenshot } from '../src/screenshot.mjs';
+import { loadCatalog, resolveHardware } from '../src/hardware.mjs';
 import { pixelAt } from '../src/png.mjs';
 
 const hex = (s) => Buffer.from(s.replace(/\s+/g, ''), 'hex');
@@ -41,7 +42,10 @@ test('writeWebBundle writes a bundle somebody can host, embed from, and isolate'
     const loader = await readFile(join(dir, '8bitscript.js'), 'utf8');
     assert.match(loader, /var DEFAULT_FRAME_RATE = 50;/);
     assert.match(loader, /var GLYPHS = \{/);
-    assert.match(loader, /function paintGlyph/);
+    // The renderer is the per-scanline compositor: glyph bits composed into
+    // an ImageData row by row, never canvas text drawing.
+    assert.match(loader, /putImageData/);
+    assert.match(loader, /function rowState/);
     assert.doesNotMatch(loader, /ctx\.fillText/);
 
     const worker = await readFile(join(dir, 'worker.js'), 'utf8');
@@ -125,6 +129,140 @@ test('captureScreenshot for web rasterizes wasm screen memory to a PNG of the sa
     assert.deepEqual(pixelAt(png, 0, 0), [0x88, 0x39, 0x32]);
     // The inner background (color 0) starts at BORDER_PX = 24.
     assert.deepEqual(pixelAt(png, 24, 24), [0x00, 0x00, 0x00]);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+// ---- the raster list, end to end -------------------------------------------
+// A tiny hand-assembled wasm whose main() is a run of i32.store8 pokes: the
+// exact bytes @8bitscript/web/rasterline's at()/enable() would leave in the
+// agreement page (the native web backend is still pending, so the .8bs layer
+// itself is linked and checked in packages/compiler/test/rasterline.test.mjs
+// and the bytes are laid down here by hand). --screenshot rasterizes ONE
+// memory snapshot, so a raster list a program animated frame to frame would
+// be captured mid-phase; this one stands still.
+
+function uleb(n) {
+  const bytes = [];
+  do {
+    let b = n & 0x7f;
+    n >>>= 7;
+    if (n !== 0) b |= 0x80;
+    bytes.push(b);
+  } while (n !== 0);
+  return bytes;
+}
+
+function sleb(n) {
+  const bytes = [];
+  let more = true;
+  while (more) {
+    let b = n & 0x7f;
+    n >>= 7;
+    if ((n === 0 && (b & 0x40) === 0) || (n === -1 && (b & 0x40) !== 0)) more = false;
+    else b |= 0x80;
+    bytes.push(b);
+  }
+  return bytes;
+}
+
+function section(id, content) {
+  return [id, ...uleb(content.length), ...content];
+}
+
+/** One-page module exporting memory and a main() that store8's each [addr, value]. */
+function pokeWasm(pokes) {
+  const name = (s) => [s.length, ...Buffer.from(s)];
+  const body = [0]; // no locals
+  for (const [addr, value] of pokes) {
+    body.push(0x41, ...sleb(addr), 0x41, ...sleb(value), 0x3a, 0x00, 0x00);
+  }
+  body.push(0x0b);
+  return Buffer.from([
+    0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
+    ...section(1, [1, 0x60, 0, 0]),
+    ...section(3, [1, 0]),
+    ...section(5, [1, 0, 1]),
+    ...section(7, [2, ...name('memory'), 2, 0, ...name('main'), 0, 0]),
+    ...section(10, [1, ...uleb(body.length), ...body]),
+  ]);
+}
+
+test('captureScreenshot composes the raster list: a color split at its line, a band fine-scrolled', async () => {
+  const dir = await mkdtemp(join(tmpdir(), '8bs-web-raster-shot-'));
+  try {
+    // Default 48×27 layout: color RAM at 1298, raster control/count/base at
+    // 2596/2597/2598 (HOST_OFFSET 2595 + 1/2/3).
+    const wasmFile = join(dir, 'program.wasm');
+    const shot = join(dir, 'out.png');
+    await writeFile(wasmFile, pokeWasm([
+      [0, 2], // border: red
+      [1, 0], // background: black
+      [1298 + 12 * 48, 0x81], // reverse-video white block at cell row 12, col 0
+      [1298 + 13 * 48, 0x81], // ...and at cell row 13, col 0, inside the scroll band
+      // The list rasterline.8bs's at() would build, ascending:
+      [2598, 100], [2599, 0], [2600, 5], // line 100: BORDER green
+      [2601, 100], [2602, 1], [2603, 6], // line 100: BACKGROUND blue
+      [2604, 104], [2605, 2], [2606, 4], // line 104: SCROLL_X 4
+      [2597, 3], // count
+      [2596, 1], // enable()
+    ]));
+    await captureScreenshot('web', wasmFile, shot, { frames: 1 });
+    const png = await readFile(shot);
+    // Above the split the border is the base red, at line 100 it turns green;
+    // the background turns blue on the same line.
+    assert.deepEqual(pixelAt(png, 0, 24 + 99), [0x88, 0x39, 0x32]);
+    assert.deepEqual(pixelAt(png, 0, 24 + 100), [0x55, 0xa0, 0x49]);
+    assert.deepEqual(pixelAt(png, 24 + 300, 24 + 99), [0x00, 0x00, 0x00]);
+    assert.deepEqual(pixelAt(png, 24 + 300, 24 + 100), [0x40, 0x31, 0x8d]);
+    // The row-12 block, above the band, starts at column 0 unshifted...
+    assert.deepEqual(pixelAt(png, 24 + 0, 24 + 96), [0xff, 0xff, 0xff]);
+    // ...the row-13 block, inside the band, is shifted 4 px right, and the
+    // vacated columns are that row's background (blue), not stale pixels.
+    assert.deepEqual(pixelAt(png, 24 + 0, 24 + 104), [0x40, 0x31, 0x8d]);
+    assert.deepEqual(pixelAt(png, 24 + 4, 24 + 104), [0xff, 0xff, 0xff]);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+// The PET skin advertises the same raster capability as every web build, and
+// all three slots have to land there too: BORDER and BACKGROUND resolve
+// through the black/green palette, SCROLL_X shifts a band. Only the per-cell
+// foreground stays fixed on this skin.
+test('captureScreenshot machine=pet-2001 composes all three raster slots in black and green', async () => {
+  const dir = await mkdtemp(join(tmpdir(), '8bs-pet-raster-shot-'));
+  try {
+    const resolved = resolveHardware(loadCatalog('web'), { overrides: { machine: 'pet-2001' } });
+    assert.ok(resolved.ok, resolved.ok ? '' : resolved.error);
+    // 40×25 PET layout: color RAM at 1002, raster control/count/base at
+    // 2004/2005/2006 (HOST_OFFSET 2003 + 1/2/3).
+    const wasmFile = join(dir, 'program.wasm');
+    const shot = join(dir, 'out.png');
+    await writeFile(wasmFile, pokeWasm([
+      [1002 + 12 * 40, 0x80], // reverse-video blank at cell row 12, col 0
+      [1002 + 13 * 40, 0x80], // ...and at row 13, col 0, inside the scroll band
+      // The list rasterline.8bs's at() would build, ascending:
+      [2006, 100], [2007, 0], [2008, 5], // line 100: BORDER green
+      [2009, 104], [2010, 2], [2011, 4], // line 104: SCROLL_X 4
+      [2012, 120], [2013, 1], [2014, 5], // line 120: BACKGROUND green
+      [2005, 3], // count
+      [2004, 1], // enable()
+    ]));
+    await captureScreenshot('web', wasmFile, shot, { frames: 1, hardware: resolved.hardware });
+    const png = await readFile(shot);
+    // The border: black above the split, PET green at and below line 100.
+    assert.deepEqual(pixelAt(png, 0, 24 + 99), [0x00, 0x00, 0x00]);
+    assert.deepEqual(pixelAt(png, 0, 24 + 100), [0x55, 0xff, 0x55]);
+    // The background: black above line 120, green from it down.
+    assert.deepEqual(pixelAt(png, 24 + 300, 24 + 119), [0x00, 0x00, 0x00]);
+    assert.deepEqual(pixelAt(png, 24 + 300, 24 + 120), [0x55, 0xff, 0x55]);
+    // The row-12 block, above the band, fills green from column 0; the row-13
+    // block, inside it, is shifted 4 px right with a black vacated strip.
+    assert.deepEqual(pixelAt(png, 24 + 0, 24 + 96), [0x55, 0xff, 0x55]);
+    assert.deepEqual(pixelAt(png, 24 + 0, 24 + 104), [0x00, 0x00, 0x00]);
+    assert.deepEqual(pixelAt(png, 24 + 4, 24 + 104), [0x55, 0xff, 0x55]);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
