@@ -6,9 +6,15 @@
 import { screen } from "@8bitscript/screen";
 import { text } from "@8bitscript/text";
 
-// There is no holding loop: main() falling off its end lands back in the
-// BASIC SYS that started it, which prints READY. — so the greeting stays
-// on screen above the prompt, the same as any BASIC program that ends.
+// There is no holding loop in this file. On a PET, VIC-20, C128, CX16 or
+// MEGA65, main() falling off its end lands back in the BASIC SYS that
+// started it, which prints READY. — so the greeting stays on screen above
+// the prompt, the same as any BASIC program that ends. On the C64 that
+// return would take the picture with it — setupVideo() has already banked
+// the KERNAL out and the greeting lives at $E000, not on BASIC's $0400 —
+// so the compiler's epilogue spins instead. The Atari and the NES do the
+// same for their own reasons. This file does not know which; that is the
+// point of it.
 //
 // `"Hello World!"` is drawn as it is written, on every machine. On a PET
 // that takes selecting the text character set, the only one holding both
@@ -25,6 +31,6 @@ export function main(): void {
     // cursor now is, READY. lands wherever the boot/LOAD/RUN echo left
     // it rather than under the greeting. See each machine's text.8bs for
     // what releaseCursor() does there; on a target with no BASIC to
-    // return to (Atari 8-bit, NES, the web) it is a no-op.
+    // return to (C64, Atari 8-bit, NES, the web) it is a no-op.
     text.releaseCursor();
 }
