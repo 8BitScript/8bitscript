@@ -192,6 +192,7 @@ function createVscodeMock() {
           return Promise.resolve(true);
         },
       }),
+      registerWebviewViewProvider: () => makeDisposable(),
       createWebviewPanel(viewType, title, column, options) {
         const messageEmitter = makeEmitter();
         const disposeEmitter = makeEmitter();
