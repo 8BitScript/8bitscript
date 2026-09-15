@@ -1,5 +1,32 @@
 # @8bitscript/raster
 
+## 0.10.1
+
+### Patch Changes
+
+- ce9054a: Fix `@8bitscript/raster`'s published dependencies: `0.10.0` shipped with
+  its `dependencies` still reading the literal `workspace:*` protocol
+  string instead of a resolved version, because its first-ever publish
+  went through the manual bootstrap in `.github/AGENTS.md` ("A brand-new
+  package's first publish") using plain `npm publish` — which doesn't
+  understand pnpm's workspace protocol and doesn't rewrite it. Any
+  consumer outside this workspace hard-failed resolving
+  `@8bitscript/atari8@workspace:*` and the rest.
+  
+  `0.10.1` republishes with real versions. `release.mjs` now refuses to
+  publish any package whose dependencies still carry a `workspace:`
+  specifier, and the AGENTS.md recovery doc now says `pnpm publish`, not
+  `npm publish`, for exactly this reason.
+- @8bitscript/atari8@0.10.1
+  - @8bitscript/c128@0.10.1
+  - @8bitscript/c64@0.10.1
+  - @8bitscript/cx16@0.10.1
+  - @8bitscript/mega65@0.10.1
+  - @8bitscript/nes@0.10.1
+  - @8bitscript/pet@0.10.1
+  - @8bitscript/vic20@0.10.1
+  - @8bitscript/web@0.10.1
+
 ## 0.10.0
 
 ### Minor Changes
