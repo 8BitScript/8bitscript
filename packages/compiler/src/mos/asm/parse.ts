@@ -14,10 +14,14 @@
 // in the workspace was read before this was written):
 //
 //     sei                     implied
-//     lda #$FF                immediate, $hex / %binary / decimal
+//     lda #$FF                immediate, $hex / 0xhex / %binary / decimal
 //     sta $84                 zero page, by the literal's own width
 //     jsr $FF5F               absolute
 //     jsr some_routine        absolute, through a symbol
+//     lda #<some_routine      the low (`<`) or high (`>`) byte of a
+//                             label's address, as an immediate
+//     sta some_label+1        a constant offset folded into the label's
+//                             own address (Operand.offset)
 //     lda screen,x            indexed; ($nn,x) and ($nn),y too
 //     1:  dex                 a local label...
 //         bne 1b              ...and a backward branch to it
@@ -26,11 +30,14 @@
 // mnemonics or for the `A`/`X`/`Y` that name a register.
 //
 // Two things this deliberately does NOT do. It does not evaluate
-// expressions — no `label+1`, no arithmetic — because every use in the
-// workspace is a bare operand and an expression grammar here would be a
-// second, worse copy of the language's own. And it does not invent
-// addressing modes: a mnemonic/mode pair the 6502 does not have is refused
-// by name against OPCODES rather than encoded as something adjacent.
+// expressions — the only shapes read beyond a bare operand are the three
+// the native sources are written in (`#<label`/`#>label` and `label+N`,
+// each a field assemble.ts's Operand already carries, not arithmetic) —
+// because every other use in the workspace is a bare operand and an
+// expression grammar here would be a second, worse copy of the language's
+// own. And it does not invent addressing modes: a mnemonic/mode pair the
+// 6502 does not have is refused by name against OPCODES rather than
+// encoded as something adjacent.
 import { OPCODES } from './encode.ts';
 import type { AddressingMode } from './encode.ts';
 import type { Directive, Operand } from './assemble.ts';
@@ -48,10 +55,18 @@ const NAMED_LABEL = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const LOCAL_LABEL = /^[0-9]+$/;
 const LOCAL_REF = /^([0-9]+)([bBfF])$/;
 
-/** `$FF`, `%1010`, `42` — or null when `text` is a symbol rather than a number. */
+/** `$FF`, `0xFF`, `%1010`, `42` — or null when `text` is a symbol rather than a number. */
 function literal(text: string): { value: number; digits: number } | null {
   if (text.startsWith('$')) {
     const body = text.slice(1);
+    if (!/^[0-9A-Fa-f]+$/.test(body)) return null;
+    return { value: parseInt(body, 16), digits: body.length };
+  }
+  // `0xFFFA` — the spelling the native `.s` sources are written in
+  // (packages/c64/native/6502/raster.s). Same width rule as `$`: the hex
+  // digit count is the literal's own written width.
+  if (/^0[xX]/.test(text)) {
+    const body = text.slice(2);
     if (!/^[0-9A-Fa-f]+$/.test(body)) return null;
     return { value: parseInt(body, 16), digits: body.length };
   }
@@ -115,6 +130,20 @@ function operandOf(mnemonic: string, text: string, context: string):
 
   if (text.startsWith('#')) {
     const body = text.slice(1);
+    // `#<label` / `#>label`: the label's low or high address byte as an
+    // immediate — the traditional spelling raster.s installs its vectors
+    // with, carried on Operand.byte (assemble.ts resolves it). Only in
+    // front of a LABEL: a literal's bytes can be written outright, so a
+    // `<`/`>` there stays refused below as not an immediate value.
+    const byteOfLabel = /^([<>])([A-Za-z_][A-Za-z0-9_]*)$/.exec(body);
+    if (byteOfLabel) {
+      const mode = modeFor(mnemonic, 'immediate');
+      if (!mode) return fail(`${mnemonic} has no immediate form`);
+      return {
+        ok: true, mode,
+        operand: { kind: 'label', name: byteOfLabel[2], byte: byteOfLabel[1] === '<' ? 'lo' : 'hi' },
+      };
+    }
     const number = literal(body);
     if (number === null) {
       if (!NAMED_LABEL.test(body)) return fail(`'#${body}' is not an immediate value`);
@@ -170,6 +199,12 @@ function sized(mnemonic: string, body: string, narrow: AddressingMode, context: 
 function operandValue(body: string): Operand | null {
   const number = literal(body);
   if (number !== null) return { kind: 'value', value: number.value };
+  // `label+N`: a constant folded into the label's own address at assembly
+  // time (Operand.offset) — how raster.s's self-modifying store writes its
+  // own operand bytes (`sta __8bs_c64_raster_store+1`). Not arithmetic:
+  // one named label, `+`, one decimal constant, nothing else.
+  const offsetRef = /^([A-Za-z_][A-Za-z0-9_]*)\s*\+\s*([0-9]+)$/.exec(body);
+  if (offsetRef) return { kind: 'label', name: offsetRef[1], offset: parseInt(offsetRef[2], 10) };
   const name = localOrNamed(body);
   return name ? { kind: 'label', name } : null;
 }

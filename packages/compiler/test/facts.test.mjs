@@ -260,6 +260,16 @@ test('unmetRequirements answers against a build\'s sheet, and a missing fact is 
   assert.deepEqual(unmetRequirements({}, facts), []);
 });
 
+test('video.raster is on the program\'s sheet, a build-time flag, false where nothing declares it', () => {
+  const fact = FACTS.get('video.raster');
+  assert.equal(fact.type, 'flag');
+  assert.equal(fact.when, 'build');
+  assert.equal(fact.program, true);
+  assert.ok(PROGRAM_FACTS.includes('video.raster'));
+  assert.deepEqual(factConstName('video.raster'), { namespace: 'Video', name: 'RASTER' });
+  assert.equal(factPlaceholder('video.raster'), false);
+});
+
 test('storage.kib is on the program\'s sheet, a build-time count', () => {
   const fact = FACTS.get('storage.kib');
   assert.equal(fact.type, 'count');

@@ -51,6 +51,19 @@
 //   a frame never sees a half-written entry, but a list rebuilt while the
 //   raster is inside it applies part of the old list and part of the new,
 //   for that frame.
+// - `setValue(entry, value)` rewrites one entry's value byte in place
+//   (`entry` is the entry's byte offset, index * 4, the unit `at` and
+//   `rasterEnd` count in — only the first byte of an existing 4-byte
+//   entry is accepted; an unaligned offset, or one whose value byte
+//   would land at or past `rasterEnd`, is refused untouched): a
+//   computed effect whose lines and addresses stand — a sine wobble, a
+//   color cycle — rebuilds a byte per entry each frame instead of
+//   re-running `at()` for the whole list.
+// - `addressOf(entry)` answers which address an existing entry writes — 0
+//   for an offset `setValue` would refuse. It exists for a layer above
+//   this one (the ./rasterline slot surface) that keeps per-register
+//   value semantics and so has to know what an entry targets before
+//   rewriting it; a program driving this list directly already knows.
 // - `enable()` banks the KERNAL out (setupVideo() does; the CPU's vectors
 //   are then RAM, and this package's start-up code has already pointed
 //   them at a bare rti), silences both CIAs, acknowledges everything the
@@ -155,6 +168,34 @@ export namespace raster {
     // How many entries the list holds.
     function count(): utinyint {
         return rasterEnd >> 2;
+    }
+
+    // The address an existing entry writes, by the same rules setValue
+    // applies below: 0 if `entry` is not the first byte of an entry
+    // inside the live list. 0 is unambiguous — no entry writes address 0;
+    // `at` is only ever handed a register.
+    function addressOf(entry: utinyint): usmallint {
+        if ((entry & 3) != 0 || entry + 3 >= rasterEnd) {
+            return 0;
+        }
+        return rasterList[entry + 2] * 256 + rasterList[entry + 1];
+    }
+
+    // Rewrite one entry's value byte, leaving its line and address:
+    // `entry` is the entry's byte offset into the list (index * 4, as
+    // `rasterEnd` counts), and only the first byte of an existing entry
+    // names one. False, and nothing written, if `entry` is not
+    // entry-aligned — an unaligned offset inside the live list would
+    // pass an end check and still smash a neighbor's line or address —
+    // or if the value byte it names would land at or past `rasterEnd`
+    // (with one entry in the list, offset 4's value byte is the state
+    // at $0300).
+    function setValue(entry: utinyint, value: utinyint): bool {
+        if ((entry & 3) != 0 || entry + 3 >= rasterEnd) {
+            return false;
+        }
+        rasterList[entry + 3] = value;
+        return true;
     }
 
     // Own the IRQ: the list is applied from the next frame on.

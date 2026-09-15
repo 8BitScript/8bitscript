@@ -7,10 +7,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { link, narrowestIntegerType } from '../index.mjs';
+import { build } from '../src/mos/index.ts';
+import { loadCatalog, resolveHardware } from '../../cli/src/hardware.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const C64_SRC = join(HERE, '..', '..', 'c64', 'src');
@@ -205,7 +209,28 @@ test('setupVideo copies the character ROM in place with HIRAM set and CHAREN cle
   assert.ok(backCli.then.some((s) => isAsm(s, 'cli')));
 });
 
-test('the package ships the vector stub as native assembly, and only the raster module names the handler', () => {
+// A real C64 build through the native backend, so the tests below can
+// measure what the linked .prg actually carries of raster.s.
+const c64Hardware = () => {
+  const resolved = resolveHardware(loadCatalog('c64'), {});
+  assert.ok(resolved.ok, resolved.ok ? '' : resolved.error);
+  return resolved.hardware;
+};
+const buildC64 = async (ir, outFile) => {
+  const result = await build(ir, { machine: 'c64', hardware: c64Hardware(), outFile, frameRate: 60 });
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  return [...result.bytes];
+};
+const hasBytes = (code, needle) => code.some((_, i) => needle.every((b, j) => code[i + j] === b));
+// The stub's own stores (sta $FFFA / sta $FFFE) and two of the handler's
+// distinctive instructions (sta $D019, the acknowledge, and ldx $0301,
+// the list index) — bytes nothing else in these programs emits.
+const STA_FFFA = [0x8d, 0xfa, 0xff];
+const STA_FFFE = [0x8d, 0xfe, 0xff];
+const STA_D019 = [0x8d, 0x19, 0xd0];
+const LDX_0301 = [0xae, 0x01, 0x03];
+
+test('the package ships the vector stub as native assembly, and only the raster module names the handler', async () => {
   const pkg = JSON.parse(readFileSync(join(C64_SRC, '..', 'package.json'), 'utf8'));
   assert.deepEqual(pkg['8bitscript'].native, ['./native/6502/raster.s']);
   const asm = readFileSync(join(C64_SRC, '..', 'native', '6502', 'raster.s'), 'utf8');
@@ -230,6 +255,43 @@ test('the package ships the vector stub as native assembly, and only the raster 
   const ir = linked('import { setupVideo } from "./index.8bs";\nexport function main(): void { setupVideo(); }');
   assert.equal(ir.nativeSources.length, 1);
   assert.match(ir.nativeSources[0], /native\/6502\/raster\.s$/);
+  // And the backend can consume raster.s for real, not just regex-match
+  // it: the same program builds end to end through the native backend.
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-c64-native-'));
+  try {
+    const code = await buildC64(ir, join(scratch, 'out.prg'));
+    assert.ok(hasBytes(code, STA_FFFA), 'the .init stub points the NMI vector');
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('a program that never imports ./raster links the vector stub only; one that does links the handler too', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-c64-native-'));
+  try {
+    // Only ./index.8bs: .init.250 and the rti it points at ride along —
+    // the vector-stub-only shape packages/c64/AGENTS.md measured — and
+    // nothing of __8bs_c64_raster_install or __8bs_c64_raster_irq does.
+    const stubOnly = linked('import { setupVideo } from "./index.8bs";\nexport function main(): void { setupVideo(); }');
+    const stubCode = await buildC64(stubOnly, join(scratch, 'stub.prg'));
+    assert.ok(hasBytes(stubCode, STA_FFFA), 'the NMI vector is pointed at the rti');
+    assert.ok(hasBytes(stubCode, STA_FFFE), 'and the IRQ vector with it');
+    assert.ok(!hasBytes(stubCode, STA_D019), 'nothing acknowledges the VIC: the handler is not linked');
+    assert.ok(!hasBytes(stubCode, LDX_0301), 'and the list walk is not either');
+
+    // ./raster.8bs: enable()'s `jsr __8bs_c64_raster_install` reaches the
+    // install routine by name, and the handler rides in with it.
+    const withRaster = linked([
+      'import { raster, Register } from "./raster.8bs";',
+      'export function main(): void { raster.clear(); raster.at(100, Register.BORDER, 2); raster.enable(); while (true) { waitFrame(); } }',
+    ].join('\n'));
+    const rasterCode = await buildC64(withRaster, join(scratch, 'raster.prg'));
+    assert.ok(hasBytes(rasterCode, STA_FFFA), 'the stub is still there');
+    assert.ok(hasBytes(rasterCode, STA_D019), 'the handler acknowledges the raster interrupt');
+    assert.ok(hasBytes(rasterCode, LDX_0301), 'and walks the list at $0200');
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
 });
 
 // ---- raster ---------------------------------------------------------------------

@@ -123,6 +123,46 @@ test('a named label may share its line with the instruction that follows it', ()
   assert.deepEqual(shape('loop: dex'), ['label loop', 'DEX implied']);
 });
 
+test("0x hex literals — the native sources' own spelling — in every position, width by digit count", () => {
+  // raster.s writes every address this way: `sta 0xFFFA`, `lda 0x0201,x`.
+  assert.deepEqual(shape('sta 0xFFFA'), ['STA absolute']);
+  assert.deepEqual(shape('sta 0xD0'), ['STA zeropage']);
+  assert.deepEqual(shape('lda 0x0201,x'), ['LDA absolute,x']);
+  const parsed = parseAsm('lda #0x01\nldx 0x0301', 'b0');
+  assert.equal(parsed.ok, true, parsed.ok ? '' : parsed.error);
+  if (!parsed.ok) return;
+  assert.deepEqual(parsed.directives.map((d) => (d.kind === 'instruction' ? d.operand : null)), [
+    { kind: 'value', value: 1 },
+    { kind: 'value', value: 0x0301 },
+  ]);
+  assert.match(errorOf('lda #0x100'), /does not fit in one byte/);
+  assert.match(errorOf('lda 0xZZ'), /is not an address or a name/);
+});
+
+test("#<label and #>label are the label's own address bytes, and a literal there stays refused", () => {
+  const parsed = parseAsm('lda #<__8bs_c64_rti\nlda #>__8bs_c64_rti', 'b0');
+  assert.equal(parsed.ok, true, parsed.ok ? '' : parsed.error);
+  if (!parsed.ok) return;
+  assert.deepEqual(parsed.directives, [
+    { kind: 'instruction', mnemonic: 'LDA', mode: 'immediate', operand: { kind: 'label', name: '__8bs_c64_rti', byte: 'lo' } },
+    { kind: 'instruction', mnemonic: 'LDA', mode: 'immediate', operand: { kind: 'label', name: '__8bs_c64_rti', byte: 'hi' } },
+  ]);
+  // A `<`/`>` in front of a literal is not read: a literal's bytes can be
+  // written outright.
+  assert.match(errorOf('lda #<$FF'), /is not an immediate value/);
+  assert.match(errorOf('lda #>0x1234'), /is not an immediate value/);
+});
+
+test("label+N folds a constant into the label's address — raster.s's self-modifying store operand", () => {
+  const parsed = parseAsm('sta __8bs_c64_raster_store+1\nsta __8bs_c64_raster_store+2', 'b0');
+  assert.equal(parsed.ok, true, parsed.ok ? '' : parsed.error);
+  if (!parsed.ok) return;
+  assert.deepEqual(parsed.directives, [
+    { kind: 'instruction', mnemonic: 'STA', mode: 'absolute', operand: { kind: 'label', name: '__8bs_c64_raster_store', offset: 1 } },
+    { kind: 'instruction', mnemonic: 'STA', mode: 'absolute', operand: { kind: 'label', name: '__8bs_c64_raster_store', offset: 2 } },
+  ]);
+});
+
 test('what it refuses, by name', () => {
   assert.match(errorOf('frobnicate'), /'frobnicate' is not a 6502 instruction/);
   assert.match(errorOf('sei #1'), /SEI has no immediate form/);

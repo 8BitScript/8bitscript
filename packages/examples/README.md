@@ -16,6 +16,7 @@ directory and an entry.
 | ------- | ---------- | ------- |
 | `hello-world` | `screen.blank()` then `text.print(0, "Hello World!")` through the portable screen and text packages — the same few lines build for every machine. | all nine |
 | `joystick` | The controller test app: a labelled map of everything `@8bitscript/input` exposes, with a lamp on each control that flashes when it is pressed. | all nine |
+| `fancy` | The raster showpiece: a title wobbling on a sine wave inside colour bands, over `@8bitscript/raster`'s portable per-scanline surface. The two machines that answer `#fact(video.raster)` show the effect; the other seven show a static title, by design. | all nine |
 
 ## hello-world
 
@@ -106,6 +107,42 @@ so they are written down here rather than lost:
 Built and screenshotted on all nine targets plus the PET 8032's 80-column
 profile. `--screenshot` cannot press anything, so a headless capture only ever shows
 the idle screen. Live input still needs a human with a controller.
+
+## fancy
+
+The raster showpiece, and the program that exercises `@8bitscript/raster`
+end to end before 2048 leans on it. From inside `fancy/`:
+
+```
+8bs run c64                                # the raster interrupt, for real
+8bs run web --hardware machine=c64        # the same list, applied by the renderer
+8bs run pet                                # no raster: the static title, by design
+8bs run c64 --screenshot shot.png --frames 300   # headless: the band, mid-wobble
+```
+
+It prints `F A N C Y` inside a band of colour splits — background to red
+and border to yellow a text row above the title, back to black a row
+below — and wobbles the title's three text rows on a 32-step sine wave:
+twelve `Slot.SCROLL_X` entries, one per **two** scanlines (the pitch the
+C64's handler can actually keep — see `packages/c64/AGENTS.md`'s
+wobble-band entry), their lines and slots written once with
+`raster.at()` and only their value bytes rewritten each frame with
+`raster.setValue()`. Under it:
+
+- **FRAME** — one per trip round the loop, the liveness signal, same as
+  joystick. On the machines with no raster it is the only thing that
+  moves.
+- **RASTER** — `#fact(video.raster)` for the machine this build was made
+  for: `1` on the C64 and the web, `0` everywhere else.
+
+**On the other seven machines the title stands still, and that is the
+point, not a bug.** `#fact(video.raster)` is false on the PET, VIC-20,
+C128, X16, MEGA65, Atari 8-bit and NES — their rasterline layers are
+honest zero-answer stubs — so every raster call in this program sits
+behind that fact and folds away to nothing: the folded build is
+byte-identical to one with the raster code deleted outright (measured in
+`fancy/src/main.8bs`'s header). What those machines show is the static
+title, the caption saying so, and the climbing frame counter.
 
 The test in `test/` checks that the manifest names a real project and that
 each program links clean for every one of its targets.

@@ -1,0 +1,137 @@
+// @8bitscript/web/rasterline — the per-scanline raster surface, on the one
+// machine whose video chip is the renderer itself.
+//
+// Named by "8bitscript".exports["./rasterline"] in this package's
+// package.json, and by "8bitscript".entry.web in @8bitscript/raster's,
+// so a portable program's `import { raster, Slot } from
+// "@8bitscript/raster"` gets this file on the web runtime.
+//
+// Unlike the C64's rasterline, which is a thin translation onto an
+// address-form list underneath (./raster.8bs), this file IS the whole
+// implementation: there is no chip to name registers on, so there is no
+// address-form layer to escape to, and nothing below this surface. The
+// list is bytes in the agreement page (Video.RASTER_* in ./geometry.8bs):
+// one control byte (the renderer applies the list while it is nonzero),
+// one count byte, then Video.RASTER_MAX_ENTRIES three-byte entries —
+// the line's low byte, the slot byte, the value. The slot byte's bit 7
+// carries the line's ninth bit: the resizable Modern host hands out up to
+// Video.MAX_ROWS (64) rows, 512 picture lines, and a single line byte
+// stops at 255 — the slots only need the low bits, so the ninth bit rides
+// there and the entry stays three bytes wide with every offset in place.
+// The host (the browser loader's compositor and the
+// headless --screenshot rasterizer, both packages/cli/src/web-scanline.mjs's
+// rule) reads the region fresh at every paint; nothing here runs in an
+// interrupt because there is no interrupt.
+//
+// Rendering is idealized: an entry takes effect exactly at its picture
+// line and holds until another entry for the same slot, with no simulated
+// write-to-visible delay and no per-line jitter — the web target proves
+// semantics, never fit. A `line` is a picture line, 0 the first visible
+// scanline, the same contract as the C64 layer; `at` refuses a line at or
+// past the inner picture (Video.rows() * 8 — which is why `line` is a
+// usmallint here: a resizable portrait grid puts real picture rows past
+// 255, and every one of them can be split). Entries still go in
+// ascending line order.
+//
+// ---- the portable surface ------------------------------------------------
+//
+// The same shape on all nine machines:
+//
+//   - `Slot`: BORDER, BACKGROUND, SCROLL_X — the three per-line effects
+//     that mean the same thing everywhere. SCROLL_X's value is the 0-7
+//     fine-scroll amount, as it is on the C64.
+//   - `raster.ENTRIES` — the list's capacity: 64 here.
+//   - `clear()`, `at(line, slot, value)`, `setValue(entry, value)`,
+//     `count()`, `enable()`, `disable()` — the same list operations,
+//     `entry` being the entry's byte offset (index * 3), the unit the
+//     C64 layer counts in too.
+import { Video } from "./geometry.8bs";
+
+// What the picture does at a line, named without an address. The numbers
+// are arbitrary and the same in all nine rasterline files.
+export namespace Slot {
+    const BORDER: utinyint = 0;     // the border's color
+    const BACKGROUND: utinyint = 1; // the playfield's background color
+    const SCROLL_X: utinyint = 2;   // the horizontal fine scroll, 0-7
+}
+
+// The last line appended, to keep insertion ascending: the region has no
+// handler reading it live the way the C64's list does, so the ordering
+// rule is enforced here, where the bytes are written. A usmallint, like
+// `at`'s line: the resizable host reaches picture lines past 255.
+let lastLine: usmallint = 0;
+
+export namespace raster {
+    const ENTRIES: utinyint = Video.RASTER_MAX_ENTRIES; // the list's capacity
+
+    // Empty the list. The control byte stands: enable()/disable() own it.
+    function clear(): void {
+        memory.write(Video.RASTER_COUNT_OFFSET, 0);
+        lastLine = 0;
+    }
+
+    // Append: at picture line `line`, give `slot` the value `value`.
+    // False, and nothing added, if the line is past the visible picture
+    // (Video.rows() * 8 lines — up to 512 on the resizable host, so the
+    // line is a usmallint), below the last entry's, the slot is not one
+    // of the three, or the list is full. The line's ninth bit is packed
+    // into the slot byte's bit 7 — see the header comment.
+    function at(line: usmallint, slot: utinyint, value: utinyint): bool {
+        let limit: usmallint = Video.rows();
+        limit = limit * 8;
+        if (line >= limit || line < lastLine) {
+            return false;
+        }
+        if (slot > Slot.SCROLL_X) {
+            return false;
+        }
+        let held: utinyint = memory.read(Video.RASTER_COUNT_OFFSET);
+        if (held >= raster.ENTRIES) {
+            return false;
+        }
+        let entry: usmallint = held;
+        entry = Video.RASTER_BASE + entry * 3;
+        let high: utinyint = line / 256;
+        memory.write(entry, line % 256);
+        memory.write(entry + 1, slot | (high << 7));
+        memory.write(entry + 2, value);
+        memory.write(Video.RASTER_COUNT_OFFSET, held + 1);
+        lastLine = line;
+        return true;
+    }
+
+    // How many entries the list holds.
+    function count(): utinyint {
+        return memory.read(Video.RASTER_COUNT_OFFSET);
+    }
+
+    // Rewrite one entry's value, leaving its line and slot: `entry` is the
+    // entry's byte offset (index * 3, the unit `at` appends in). False,
+    // and nothing written, if the offset is not a multiple of 3 or names
+    // an entry at or past the count.
+    function setValue(entry: utinyint, value: utinyint): bool {
+        if ((entry / 3) * 3 != entry) {
+            return false;
+        }
+        let held: usmallint = memory.read(Video.RASTER_COUNT_OFFSET);
+        held = held * 3;
+        let wide: usmallint = entry;
+        if (wide >= held) {
+            return false;
+        }
+        memory.write(Video.RASTER_BASE + wide + 2, value);
+        return true;
+    }
+
+    // The renderer applies the list from the next paint on.
+    function enable(): void {
+        memory.write(Video.RASTER_CONTROL_OFFSET, 1);
+    }
+
+    // The plain, unsplit picture again; the list is kept. With no hardware
+    // to restore, a zero control byte is exactly what tells the renderer
+    // to draw the frame from the base border and background bytes alone.
+    function disable(): void {
+        memory.write(Video.RASTER_CONTROL_OFFSET, 0);
+    }
+}

@@ -43,4 +43,14 @@ export namespace WebRegisters {
     // host is a touchscreen. A screenshot has no viewport, so that bit
     // stays clear there.
     const HOST_OFFSET: usmallint = Video.HOST_OFFSET;
+    // The per-scanline raster list ./rasterline.8bs keeps: one control
+    // byte (the renderer applies the list while it is nonzero), one count
+    // byte, then RASTER_MAX_ENTRIES three-byte entries — the line's low
+    // byte, the slot byte (bit 7 carries the line's ninth bit, so every
+    // picture line the resizable host reaches fits), the value. The
+    // renderer reads it fresh at every paint.
+    const RASTER_CONTROL_OFFSET: usmallint = Video.RASTER_CONTROL_OFFSET;
+    const RASTER_COUNT_OFFSET: usmallint = Video.RASTER_COUNT_OFFSET;
+    const RASTER_BASE: usmallint = Video.RASTER_BASE;
+    const RASTER_MAX_ENTRIES: utinyint = Video.RASTER_MAX_ENTRIES;
 }

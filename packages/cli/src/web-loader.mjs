@@ -56,7 +56,7 @@ import {
   INNER_H, INNER_W, INPUT_OFFSET, InputEdge, KEY_TO_EDGE, SWIPE_THRESHOLD,
   ANY_BORDER_SCALE, BORDER_HAIRLINE_PX, BORDER_MIN_PX, FULL_BORDER_SCALE,
   COLUMNS_OFFSET, ROWS_OFFSET, MAX_COLUMNS, MAX_ROWS, MIN_COLUMNS, MIN_ROWS,
-  TARGET_CELLS,
+  RASTER_MAX_ENTRIES, TARGET_CELLS,
 } from './web-layout.mjs';
 
 // The two words the page and the worker share, in a SharedArrayBuffer beside
@@ -250,6 +250,10 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
   var COLOR_BASE = ${layout.colorBase};
   var INPUT_OFFSET = ${layout.inputOffset};
   var HOST_OFFSET = ${layout.hostOffset};
+  var RASTER_CONTROL_OFFSET = ${layout.rasterControlOffset ?? DEFAULT_LAYOUT.rasterControlOffset};
+  var RASTER_COUNT_OFFSET = ${layout.rasterCountOffset ?? DEFAULT_LAYOUT.rasterCountOffset};
+  var RASTER_BASE = ${layout.rasterBase ?? DEFAULT_LAYOUT.rasterBase};
+  var RASTER_MAX_ENTRIES = ${layout.rasterMaxEntries ?? RASTER_MAX_ENTRIES};
   var HOST_TOUCH = ${HostStatus.TOUCH};
   var COLOR_PER_CELL = ${layout.colorPerCell !== false};
   var ASPECT = ${JSON.stringify(layout.aspect ?? '16/9')};
@@ -276,9 +280,10 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     'the program. Send Cross-Origin-Opener-Policy: same-origin and ' +
     'Cross-Origin-Embedder-Policy: require-corp, or load coi.js first.';
 
-  // --- rules shared with the build (packages/cli/src/web-layout.mjs) -------
+  // --- rules shared with the build (packages/cli/src/web-layout.mjs, and,
+  // for the raster compositor below, packages/cli/src/web-scanline.mjs) -----
   // Both copies are checked against each other in web-loader.test.mjs, which
-  // evaluates this file and compares it to the module it was generated from.
+  // evaluates this file and compares it to the modules it was generated from.
 
   function swipeEdge(dx, dy) {
     var ax = Math.abs(dx);
@@ -321,56 +326,137 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
   }
 
   // --- the renderer -------------------------------------------------------
+  // The per-scanline compositor: a hand-mirrored copy of
+  // packages/cli/src/web-scanline.mjs (readRasterEntries, rowState, and
+  // renderFrame's row walk), the same arrangement swipeEdge/borderFor/gridFor
+  // live under. Both copies are checked against each other, pixel for pixel,
+  // in web-loader.test.mjs.
 
-  function paintGlyph(ctx, x, y, rows, color) {
-    ctx.fillStyle = color;
-    for (var gy = 0; gy < 8; gy += 1) {
-      var bits = rows[gy];
-      for (var gx = 0; gx < 8; gx += 1) {
-        if ((bits >> gx) & 1) ctx.fillRect(x + gx, y + gy, 1, 1);
+  function readRasterEntries(mem) {
+    var enabled = mem[RASTER_CONTROL_OFFSET] !== 0;
+    var count = mem[RASTER_COUNT_OFFSET];
+    if (count > RASTER_MAX_ENTRIES) count = RASTER_MAX_ENTRIES;
+    var entries = [];
+    for (var i = 0; i < count; i += 1) {
+      var at = RASTER_BASE + i * 3;
+      // Bit 7 of the slot byte is the line's ninth bit: the resizable host
+      // reaches 512 picture lines and a single line byte stops at 255.
+      entries.push({
+        line: mem[at] + ((mem[at + 1] & 128) === 0 ? 0 : 256),
+        slot: mem[at + 1] & 127,
+        value: mem[at + 2],
+      });
+    }
+    return { enabled: enabled, entries: entries };
+  }
+
+  function rowState(entries, row, base) {
+    var border = base.border;
+    var background = base.background;
+    var scrollX = 0;
+    for (var i = 0; i < entries.length; i += 1) {
+      var entry = entries[i];
+      if (entry.line > row) break;
+      if (entry.slot === 0) border = entry.value & 15;
+      else if (entry.slot === 1) background = entry.value & 15;
+      else if (entry.slot === 2) scrollX = entry.value & 7;
+    }
+    return { border: border, background: background, scrollX: scrollX };
+  }
+
+  // COLORS as [r, g, b] triples, re-parsed only when applyLayout swaps the
+  // palette itself.
+  var paletteCache = null;
+  var paletteFrom = null;
+  function paletteRgb() {
+    if (paletteFrom !== COLORS) {
+      paletteFrom = COLORS;
+      paletteCache = [];
+      for (var i = 0; i < COLORS.length; i += 1) {
+        paletteCache.push([
+          parseInt(COLORS[i].slice(1, 3), 16),
+          parseInt(COLORS[i].slice(3, 5), 16),
+          parseInt(COLORS[i].slice(5, 7), 16),
+        ]);
       }
+    }
+    return paletteCache;
+  }
+
+  function fillSpan(rgba, offset, pixels, ink) {
+    for (var i = 0; i < pixels; i += 1) {
+      var at = offset + i * 4;
+      rgba[at] = ink[0]; rgba[at + 1] = ink[1]; rgba[at + 2] = ink[2]; rgba[at + 3] = 255;
     }
   }
 
   // Whatever the program poked into the virtual character screen — this host
   // doesn't know or care what any of it means, the same way a real VIC-20/C64
   // doesn't know what a program's screen memory says. Byte 0 is border, byte 1
-  // is background. Blank cells draw nothing unless reverse video (color bit 7)
-  // is set: then the cell fills with the foreground and the glyph is punched
-  // out in the background.
+  // is background; the raster region past HOST_OFFSET can retint either, or
+  // fine-scroll a band, from a line down. Blank cells draw nothing unless
+  // reverse video (color bit 7) is set: then the cell fills with the
+  // foreground and the glyph is punched out in the background. The compositor
+  // never writes outside the inner rectangle — the border strips are its own
+  // rows and columns — so the old clip-to-picture rule holds implicitly.
+  var imageData = null;
   function paint(ctx, mem, border) {
     var canvas = ctx.canvas;
-    var borderInk = COLOR_PER_CELL ? COLORS[mem[0] & 15] : COLORS[0];
-    var background = COLOR_PER_CELL ? COLORS[mem[1] & 15] : COLORS[0];
-    ctx.fillStyle = borderInk;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = background;
-    ctx.fillRect(border, border, INNER_W, INNER_H);
-    // Clip to the inner rectangle — on the VIC-20/C64 characters cannot draw
-    // in the border, and a glyph that overflowed a cell should not either.
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(border, border, INNER_W, INNER_H);
-    ctx.clip();
-    for (var cell = 0; cell < GRID_COLS * GRID_ROWS; cell += 1) {
-      var colorByte = mem[COLOR_BASE + cell];
-      var reverse = (colorByte & 128) !== 0;
-      var rows = GLYPHS[mem[CHAR_BASE + cell]] || null;
-      if (rows === null && !reverse) continue;
-      var col = cell % GRID_COLS;
-      var row = (cell - col) / GRID_COLS;
-      var x = border + col * CHAR_W;
-      var y = border + row * CHAR_H;
-      var fg = COLOR_PER_CELL ? COLORS[colorByte & 15] : COLORS[1];
-      if (reverse) {
-        ctx.fillStyle = fg;
-        ctx.fillRect(x, y, CHAR_W, CHAR_H);
-        if (rows !== null) paintGlyph(ctx, x, y, rows, background);
-      } else if (rows !== null) {
-        paintGlyph(ctx, x, y, rows, fg);
+    var width = canvas.width;
+    var height = canvas.height;
+    // Re-dimensioned only when the canvas was — the same discipline
+    // canvas.width/height themselves are under in resize().
+    if (!imageData || imageData.width !== width || imageData.height !== height) {
+      imageData = ctx.createImageData(width, height);
+    }
+    var rgba = imageData.data;
+    var palette = paletteRgb();
+    var base = {
+      border: COLOR_PER_CELL ? mem[0] & 15 : 0,
+      background: COLOR_PER_CELL ? mem[1] & 15 : 0,
+    };
+    var raster = readRasterEntries(mem);
+    // Every slot applies on every skin. A skin without per-cell color keeps
+    // its per-cell foreground fixed (palette[1], below), but BORDER and
+    // BACKGROUND still resolve through the skin's palette — on the PET that
+    // is black or green, which is exactly what a split means there.
+    var entries = raster.enabled ? raster.entries : [];
+    for (var y = 0; y < height; y += 1) {
+      var row = y - border;
+      var offset = y * width * 4;
+      if (row < 0 || row >= INNER_H) {
+        fillSpan(rgba, offset, width, palette[base.border]);
+        continue;
+      }
+      var state = rowState(entries, row, base);
+      var borderInk = palette[state.border];
+      var backgroundInk = palette[state.background];
+      fillSpan(rgba, offset, border, borderInk);
+      fillSpan(rgba, offset + (border + INNER_W) * 4, width - border - INNER_W, borderInk);
+      var glyphY = row % CHAR_H;
+      var cellRow = (row - glyphY) / CHAR_H;
+      for (var x = 0; x < INNER_W; x += 1) {
+        var ink;
+        var srcX = x - state.scrollX;
+        if (srcX < 0) {
+          ink = backgroundInk;
+        } else {
+          var gx = srcX % CHAR_W;
+          var col = (srcX - gx) / CHAR_W;
+          var cell = cellRow * GRID_COLS + col;
+          var colorByte = mem[COLOR_BASE + cell];
+          var reverse = (colorByte & 128) !== 0;
+          var glyph = GLYPHS[mem[CHAR_BASE + cell]] || null;
+          var bits = glyph === null ? 0 : glyph[glyphY];
+          var on = ((bits >> gx) & 1) !== 0;
+          var fg = COLOR_PER_CELL ? palette[colorByte & 15] : palette[1];
+          ink = reverse ? (on ? backgroundInk : fg) : (on ? fg : backgroundInk);
+        }
+        var i = offset + (border + x) * 4;
+        rgba[i] = ink[0]; rgba[i + 1] = ink[1]; rgba[i + 2] = ink[2]; rgba[i + 3] = 255;
       }
     }
-    ctx.restore();
+    ctx.putImageData(imageData, 0, 0);
   }
 
   // --- helpers ------------------------------------------------------------
@@ -405,6 +491,10 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     if (next.colorBase != null) COLOR_BASE = next.colorBase;
     if (next.inputOffset != null) INPUT_OFFSET = next.inputOffset;
     if (next.hostOffset != null) HOST_OFFSET = next.hostOffset;
+    if (next.rasterControlOffset != null) RASTER_CONTROL_OFFSET = next.rasterControlOffset;
+    if (next.rasterCountOffset != null) RASTER_COUNT_OFFSET = next.rasterCountOffset;
+    if (next.rasterBase != null) RASTER_BASE = next.rasterBase;
+    if (next.rasterMaxEntries != null) RASTER_MAX_ENTRIES = next.rasterMaxEntries;
     if (typeof next.colorPerCell === 'boolean') COLOR_PER_CELL = next.colorPerCell;
     if (next.aspect) ASPECT = next.aspect;
     if (next.palette && next.palette.length) COLORS = next.palette;
@@ -827,6 +917,9 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     borderFor: borderFor,
     gridFor: gridFor,
     swipeEdge: swipeEdge,
+    // Exposed the same way borderFor/gridFor/swipeEdge are: so the inlined
+    // compositor can be held to web-scanline.mjs in web-loader.test.mjs.
+    paint: paint,
     defaultFrameRate: DEFAULT_FRAME_RATE,
     elementName: ELEMENT_NAME,
     COLORS: COLORS,

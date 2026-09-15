@@ -18,6 +18,7 @@
       "@8bitscript/pet",
       "@8bitscript/pointer",
       "@8bitscript/random",
+      "@8bitscript/raster",
       "@8bitscript/screen",
       "@8bitscript/studio",
       "@8bitscript/system",

@@ -77,6 +77,7 @@ export namespace Video {
     const BITMAP: bool = #fact(video.bitmap);                   // a pixel-addressable mode exists
     const LAYERS: utinyint = #fact(video.layers);               // independent background layers
     const SCROLL: bool = #fact(video.scroll);                   // hardware fine scroll
+    const RASTER: bool = #fact(video.raster);                   // the picture can change part-way down the screen
     const SPRITES: utinyint = #fact(video.sprites);             // hardware sprites in total; 0 = software objects
     const SPRITES_PER_LINE: utinyint = #fact(video.spritesPerLine); // what one scanline can show
     const SPRITE_WIDTH: utinyint = #fact(video.spriteWidth);    // pixels across the largest sprite

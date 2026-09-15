@@ -15,6 +15,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 import { imageFor } from './image.ts';
+import { nativePrograms, referencedLabels } from './native.ts';
 import { arrayLabel, buildDataSection } from './data.ts';
 import type { DataArrayGlobal, IrString } from './data.ts';
 import { link } from './link/index.ts';
@@ -40,7 +41,7 @@ export interface IrProgram {
   globals: IrGlobal[];
   /** ir.strings (ir/index.mjs) — every string literal the linked program declares, merged and deduplicated by the linker. Optional only so existing synthetic test fixtures that predate milestone 9 don't all need updating; real linked IR always sets it (possibly `[]`). */
   strings?: IrString[];
-  /** ir.nativeSources (linker/index.mjs) — the absolute paths of every `"8bitscript".native` file the linked packages ship. Not IR: bytes a backend passes through to its own image untouched, which on the NES is the CHR-ROM character set (mos/image-nes.ts) and on every other machine here is nothing. */
+  /** ir.nativeSources (linker/index.mjs) — the absolute paths of every `"8bitscript".native` file the linked packages ship. Not IR: on the NES they are bytes of the FILE, the CHR-ROM character set image.file() assembles (mos/image-nes.ts); on every other machine they are hand-written 6502 CODE — `.init.N` and `.text.<symbol>` sections mos/native.ts parses into the one program link() assembles, so a package's vector stub runs before main() and its routines resolve by name from asm6502 blocks. */
   nativeSources?: string[];
 }
 
@@ -952,7 +953,21 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   const waitFrameSetupProgram = needsWaitFrame ? waitFrameSetup(options.frameRate, waitFrameAcc, waitFrameNum, options.machine) : [];
   const waitFrameRoutineProgram = needsWaitFrame ? waitFrameRoutine(waitFrameAcc, waitFrameNum, options.machine, frameHookLabel) : [];
   const multiplyProgram = multiply ? multiplyRoutine(multiply) : [];
-  const needsCld = usesDecimalSensitiveMath([...everyInstruction, ...waitFrameSetupProgram, ...waitFrameRoutineProgram, ...multiplyProgram]);
+  // The native `.s` sections the linked packages ship (ir.nativeSources).
+  // On the NES those are the CHR-ROM's tiles — the FILE's business,
+  // handled by image.file() below — but on every loaded machine they are
+  // code that joins this one program: `.init.N` sections run before the
+  // entry function's own body, and each `.text.<symbol>` survives only if
+  // the lowered program, an `.init` section, or another survivor names it
+  // (mos/native.ts's mark-and-sweep). Both land in the same single
+  // assembly pass as everything else, which is the whole point: a
+  // `jsr __8bs_c64_raster_install` in an asm6502 block resolves exactly
+  // as a call to a lowered function does.
+  const native = options.machine === 'nes'
+    ? { ok: true as const, initProgram: [] as Directive[], textProgram: [] as Directive[], entries: [] as SizeReportEntry[] }
+    : nativePrograms(ir.nativeSources ?? [], referencedLabels(everyInstruction));
+  if (!native.ok) return { ok: false, error: native.error };
+  const needsCld = usesDecimalSensitiveMath([...everyInstruction, ...waitFrameSetupProgram, ...waitFrameRoutineProgram, ...multiplyProgram, ...native.initProgram, ...native.textProgram]);
   // A waitFrame() program's zero-page budget includes bytes the KERNAL's
   // own IRQ handler still updates (the jiffy clock) until interrupts go
   // off — so off they go before the first global initializer's store,
@@ -1046,11 +1061,20 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
     ...ramClearProgram,
     ...globalInitProgram,
     ...waitFrameSetupProgram,
+    // A package's `.init.N` sections, right before the entry's own body:
+    // by the time main() runs, the C64's CPU vectors already point at the
+    // stub raster.s ships (mos/native.ts).
+    ...native.initProgram,
     ...entry.program,
     ...endProgram,
     ...others.flatMap((f): Directive[] => [{ kind: 'label', name: f.label }, ...f.program, RTS]),
     ...waitFrameRoutineProgram,
     ...multiplyProgram,
+    // The surviving `.text.<symbol>` sections ride with the other appended
+    // routines — anywhere in this one pass would link (labels resolve
+    // regardless of order), but here keeps the size report's ordering
+    // readable.
+    ...native.textProgram,
     ...pinnedArrays,
     ...ramInitData,
     ...dataSection,
@@ -1132,6 +1156,10 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
       // three by construction, which is what SizeReportEntry's own JSDoc
       // promises: every entry sums to the real bytes.length.
       { name: '(image header + prologue/epilogue)', bytes: (bytes.length - linked.bytes.length) + directiveBytes(prologue(needsCld)) + directiveBytes(isoModeProgram) + directiveBytes(machineStartupProgram) + directiveBytes(ownMachineProgram) + directiveBytes(ramClearProgram) + directiveBytes(endProgram) },
+      // One row per kept native section — `(native .init.250)` and its
+      // kin — sized by the same directive arithmetic as everything above,
+      // so the sum-to-bytes.length invariant holds.
+      ...native.entries,
     );
     sizeReport = entries.filter((e) => e.bytes > 0).sort((a, b) => b.bytes - a.bytes);
   }

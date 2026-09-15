@@ -72,6 +72,23 @@ export const ROWS_OFFSET = 3;
 export const MIN_COLUMNS = 24;
 export const MIN_ROWS = 18;
 
+// ---- the per-scanline raster list -----------------------------------------
+//
+// Right after HOST_OFFSET: one control byte (the renderer applies the list
+// while it is nonzero), one count byte, then RASTER_MAX_ENTRIES three-byte
+// entries — the line's low byte, the slot byte, the value — the same three
+// slots @8bitscript/raster names (BORDER 0, BACKGROUND 1, SCROLL_X 2). The
+// slot byte's bit 7 carries the line's ninth bit: the resizable Modern host
+// hands out up to MAX_ROWS (64) rows, 512 picture lines, and a single line
+// byte stops at 255 — the slots only need the low bits, so the ninth bit
+// rides there and the format stays three bytes wide with every offset in
+// place. Written by packages/web/src/rasterline.8bs, read fresh at every
+// paint by both renderers (web-scanline.mjs and the loader's inlined copy
+// of it). packages/web/src/geometry.8bs and its skin twins mirror the
+// offsets and have to agree.
+export const RASTER_MAX_ENTRIES = 64;
+export const RASTER_ENTRY_SIZE = 3;
+
 // Hold the cell COUNT roughly constant and let the window decide the shape.
 // Text then stays the same fraction of the screen whatever the screen is: a
 // phone and a 4K monitor showing the same shape get the same grid, so a
@@ -124,6 +141,9 @@ export function agreementFor({
   const colorBase = charBase + region;
   const inputOffset = colorBase + region;
   const hostOffset = inputOffset + 1;
+  const rasterControlOffset = hostOffset + 1;
+  const rasterCountOffset = hostOffset + 2;
+  const rasterBase = hostOffset + 3;
   return {
     cols,
     rows,
@@ -136,6 +156,10 @@ export function agreementFor({
     colorBase,
     inputOffset,
     hostOffset,
+    rasterControlOffset,
+    rasterCountOffset,
+    rasterBase,
+    rasterMaxEntries: RASTER_MAX_ENTRIES,
     columnsOffset: COLUMNS_OFFSET,
     rowsOffset: ROWS_OFFSET,
     maxCols: MAX_COLUMNS,
@@ -212,6 +236,10 @@ export function sidecarJson(layout = DEFAULT_LAYOUT) {
     colorBase: layout.colorBase,
     inputOffset: layout.inputOffset,
     hostOffset: layout.hostOffset,
+    rasterControlOffset: layout.rasterControlOffset,
+    rasterCountOffset: layout.rasterCountOffset,
+    rasterBase: layout.rasterBase,
+    rasterMaxEntries: layout.rasterMaxEntries,
     palette: layout.palette,
     font: layout.font,
     aspect: layout.aspect,

@@ -1,0 +1,41 @@
+{
+  "name": "@8bitscript/raster",
+  "version": "0.9.0",
+  "description": "Per-scanline raster effects, named by what the picture does at a line — a border split, a background band, a horizontal wobble — rather than by which register to write. Resolves per target to that machine's own rasterline implementation; #fact(video.raster) says whether the machine has one at all.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/8BitScript/8bitscript.git",
+    "directory": "packages/raster"
+  },
+  "8bitscript": {
+    "entry": {
+      "vic20": "@8bitscript/vic20/rasterline",
+      "c64": "@8bitscript/c64/rasterline",
+      "pet": "@8bitscript/pet/rasterline",
+      "c128": "@8bitscript/c128/rasterline",
+      "atari8": "@8bitscript/atari8/rasterline",
+      "nes": "@8bitscript/nes/rasterline",
+      "cx16": "@8bitscript/cx16/rasterline",
+      "mega65": "@8bitscript/mega65/rasterline",
+      "web": "@8bitscript/web/rasterline"
+    }
+  },
+  "dependencies": {
+    "@8bitscript/atari8": "workspace:*",
+    "@8bitscript/c64": "workspace:*",
+    "@8bitscript/c128": "workspace:*",
+    "@8bitscript/cx16": "workspace:*",
+    "@8bitscript/mega65": "workspace:*",
+    "@8bitscript/nes": "workspace:*",
+    "@8bitscript/pet": "workspace:*",
+    "@8bitscript/vic20": "workspace:*",
+    "@8bitscript/web": "workspace:*"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "package.json"
+  ]
+}
