@@ -1,6 +1,6 @@
 {
   "name": "8bitscript",
-  "version": "0.1.0",
+  "version": "0.10.0",
   "private": true,
   "description": "A statically compiled programming language for classic 8-bit computers and the web.",
   "license": "MIT",
@@ -16,7 +16,7 @@
     "docs:deploy": "pnpm run docs:build && wrangler deploy",
     "release": "node scripts/release.mjs",
     "changeset": "changeset",
-    "changeset:version": "changeset version && node scripts/sync-studio-version.mjs && pnpm install --no-frozen-lockfile",
+    "changeset:version": "changeset version && node scripts/sync-studio-version.mjs && node scripts/sync-root-version.mjs && pnpm install --no-frozen-lockfile",
     "check": "8bs check",
     "typecheck": "pnpm --recursive --if-present typecheck",
     "test": "pnpm --recursive --if-present test && node --test site/test/build-all.test.mjs",
