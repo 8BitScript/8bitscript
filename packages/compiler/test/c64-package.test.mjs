@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 
 import { link, narrowestIntegerType } from '../index.mjs';
 import { build } from '../src/mos/index.ts';
+import { C64, imageFor } from '../src/mos/image.ts';
 import { loadCatalog, resolveHardware } from '../../cli/src/hardware.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -810,4 +811,34 @@ test('sid: play sets both frequency bytes then gates on, keeping the waveform; t
   assert.deepEqual(waveform.value.left.right, { kind: 'const', value: 1, type: 'utinyint' });
   assert.equal(waveform.value.right.operator, '&');
   assert.deepEqual(waveform.value.right.right, { kind: 'const', value: 246, type: 'utinyint' });
+});
+
+// setupVideo() maps RAM at $E000 and banks the KERNAL out. RTS from
+// main() then lands in that RAM, not BASIC, and VIC snaps back to the
+// boot screen at $0400. The image therefore ends by jumping to itself
+// the way Atari does — still a BASIC SYS .prg, not a vectored cart.
+test('the C64 is still a Commodore .prg, but main() ends by halting', () => {
+  assert.equal(imageFor('c64'), C64);
+  assert.equal(C64.entryIsVectored, false);
+  assert.equal(C64.endsByHalting, true);
+  assert.equal(imageFor('pet').endsByHalting, undefined);
+  assert.equal(imageFor('vic20').endsByHalting, undefined);
+});
+
+test('build() for the c64 ends main() with a JMP to itself, not RTS', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), 'c64-halt-'));
+  try {
+    const ir = { entry: 'main', functions: [{ name: 'main', body: [] }], globals: [] };
+    const code = await buildC64(ir, join(scratch, 'out.prg'));
+    let found = false;
+    for (let i = 2; i + 2 < code.length; i++) {
+      if (code[i] !== 0x4c) continue;
+      const target = code[i + 1] | (code[i + 2] << 8);
+      // The .prg payload starts at $0801 and begins at file offset 2.
+      if (target === 0x0801 + (i - 2)) found = true;
+    }
+    assert.ok(found, 'the image contains a JMP to its own address');
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
 });
