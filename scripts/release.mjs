@@ -102,6 +102,28 @@ async function isNewToNpm(name) {
   }
 }
 
+// Confirms a package this script is *not* about to publish — because
+// alreadyOnNpm() already found it there — doesn't have a workspace:*
+// dependency baked into its published manifest. `npm view` reads the
+// tarball's own package.json, the same thing a downstream `pnpm install`
+// resolves against, so this is checking the real failure mode rather
+// than a proxy for it.
+async function assertNoWorkspaceDeps(name, version) {
+  const { stdout } = await exec('npm', ['view', `${name}@${version}`, 'dependencies', '--json'], {
+    cwd: ROOT,
+  });
+  const deps = stdout.trim() ? JSON.parse(stdout) : {};
+  const bad = Object.entries(deps).filter(([, spec]) => String(spec).startsWith('workspace:'));
+  if (bad.length > 0) {
+    process.stderr.write(
+      `${name}@${version} is already on npm with unresolved workspace: dependencies ` +
+        `(${bad.map(([dep]) => dep).join(', ')}) — it was published outside \`pnpm publish\` ` +
+        '(or its rewrite failed) and needs a patch release to fix.\n',
+    );
+    process.exit(1);
+  }
+}
+
 const { stdout: status } = await exec('git', ['status', '--porcelain'], { cwd: ROOT });
 if (status.trim() && !process.argv.includes('--allow-dirty')) {
   process.stderr.write('Working tree is not clean. Commit, or pass --allow-dirty.\n');
@@ -135,25 +157,24 @@ for (const name of dirs) {
     );
     process.exit(1);
   }
-  // pnpm rewrites a workspace:* dependency to a real version at publish
-  // time; a literal workspace:* only ever reaches npm from a publish
-  // that ran outside pnpm (a plain `npm publish`, as the manual
-  // first-publish bootstrap once did for @8bitscript/raster@0.10.0) —
-  // and it hard fails for every consumer outside this workspace.
-  const workspaceDeps = Object.entries(pkg.dependencies ?? {}).filter(([, spec]) =>
-    spec.startsWith('workspace:'),
-  );
-  if (workspaceDeps.length > 0) {
-    process.stderr.write(
-      `${name}'s package.json still has workspace: dependencies (${workspaceDeps.map(([dep]) => dep).join(', ')}) — ` +
-        'publish with `pnpm publish`, not `npm publish`, so it rewrites them to real versions first.\n',
-    );
-    process.exit(1);
-  }
   // Pinning runs right after publishing, so it is the one that races the
   // registry; publishing wants the fast answer.
   if (await alreadyOnNpm(pkg.name, version, pinOnly ? PIN_RETRY : {})) {
-    if (!pinOnly) process.stdout.write(`Already on npm: ${pkg.name}@${version}\n`);
+    if (!pinOnly) {
+      // package.json on disk is *supposed* to say workspace:* for a
+      // sibling dependency — pnpm publish rewrites that to a real
+      // version at publish time, so checking the source file (as this
+      // once did) rejects every package with an internal dependency,
+      // always. The only place a broken rewrite can be caught is the
+      // registry, after the fact — which is also the only way to catch
+      // a publish that happened outside pnpm entirely, since a package
+      // already "on npm" here is trusted and never re-published. This
+      // is exactly how @8bitscript/raster@0.10.0 shipped broken: a
+      // manual `npm publish` bootstrap skipped the rewrite, and this
+      // script saw it already on npm and moved on without looking.
+      await assertNoWorkspaceDeps(pkg.name, version);
+      process.stdout.write(`Already on npm: ${pkg.name}@${version}\n`);
+    }
     continue;
   }
   if (pinOnly) {
