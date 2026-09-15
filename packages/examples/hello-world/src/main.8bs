@@ -6,9 +6,14 @@
 import { screen } from "@8bitscript/screen";
 import { text } from "@8bitscript/text";
 
-// There is no holding loop: main() falling off its end lands back in the
-// BASIC SYS that started it, which prints READY. — so the greeting stays
-// on screen above the prompt, the same as any BASIC program that ends.
+// There is no holding loop in this file. On a PET or a VIC-20, main()
+// falling off its end lands back in the BASIC SYS that started it, which
+// prints READY. so the greeting stays on screen above the prompt. On the
+// C64 that return would take the picture with it — setupVideo() has
+// already banked the KERNAL out and the greeting lives at $E000, not on
+// BASIC's $0400 — so the compiler's epilogue spins instead. The Atari
+// does the same for its own reason. This file does not know which; that
+// is the point of it.
 //
 // `"Hello World!"` is drawn as it is written, on every machine. On a PET
 // that takes selecting the text character set, the only one holding both
