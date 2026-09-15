@@ -224,6 +224,27 @@ test('under VICE, detectRegion says NTSC under -model ntsc and PAL under -model 
   }
 });
 
+test('under VICE, hello-world holds Hello World on a black screen, not the boot READY', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-c64-hello-'));
+  try {
+    const shot = join(scratch, 'hello.png');
+    const example = join(ROOT, '..', 'examples', 'hello-world', 'src', 'main.8bs');
+    const { code, stdout, stderr } = await runCli(['run', 'c64', '--checkout', CHECKOUT, '--screenshot', shot, example]);
+    assert.equal(code, 0, `8bs run c64 hello-world --screenshot failed:\n${stdout}${stderr}`);
+    const png = readFileSync(shot);
+    // Boot READY. is a light-blue border and dark-blue playfield. blank()
+    // paints both black, and print() writes white glyphs at cell 0.
+    assert.ok(isDark(pixelAt(png, 4, 30)), `black border, not boot light-blue: ${pixelAt(png, 4, 30)}`);
+    assert.ok(isDark(pixelAt(png, 200, 80)), `black playfield, not boot dark-blue: ${pixelAt(png, 200, 80)}`);
+    // Measured on the capture: the greeting's first glyph is white at
+    // PNG (33, 23). Boot READY. has no white there — it is light-blue
+    // on dark-blue, and those asserts above would already have failed.
+    assert.ok(isWhite(pixelAt(png, 33, 23)), `H of Hello World, got ${pixelAt(png, 33, 23)}`);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
 test('under VICE, REU transfers round-trip the screen through a 512 KiB unit, and a stock C64 tries none', async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-c64-layers-'));
   try {
