@@ -14,15 +14,13 @@ the split between the compiler, the language server, and this extension.
 It's a statically compiled language for 6502-based 8-bit machines and the
 web — closer to C than to BASIC or hand-written assembly. There's no
 interpreter and no garbage collector; 8BitScript's own backends lower IR
-to machine code and WebAssembly, and the two that ship in 0.2.0 (the
-Commodore PET and the web) now emit for real — `8bs build` and `8bs run`
-work end to end for both, right from this extension's own launcher. A
-range-checked type like `u8` is a compile error on overflow
+to machine code and WebAssembly. `8bs build` and `8bs run` work end to
+end for all nine targets — PET, VIC-20, C64, C128, Commander X16,
+MEGA65, Atari 8-bit, NES, and the web — right from this extension's own
+launcher. A range-checked type like `u8` is a compile error on overflow
 (`300 does not fit in u8 (0..255)`) instead of a silent wrap, and one
 source resolves per target through packages instead of `#ifdef`. The
-language itself targets nine machines; **this extension's System list is
-limited to the two 0.2.0 builds for — the Commodore PET and the web** —
-until the rest come back with their native backends.
+System list is those nine, the same `RELEASE_MACHINES` set the CLI uses.
 
 Compiled size sits close to hand-written C for that same reason: the same
 screen built by hand in C came to 178 bytes on a C64, the equivalent
@@ -136,8 +134,7 @@ side bar.
   region — nothing has to be read off a dropdown to know what pressing it
   means. It greys out when the selected project does not target the selected
   system, or its emulator is missing, and says which in the line below. Run
-  and Build work for real on `pet` and `web` — the two 0.2.0 targets; every
-  other system still refuses, since its own backend doesn't exist yet.
+  and Build work for every machine in the System list.
 - **Build** — the same as Run, but `8bs build --system '<name>' --size` (or
   `--target <machine>`), which stops at the built file instead of
   starting an emulator.
@@ -155,8 +152,8 @@ side bar.
   including when this repo is open and they are ordinary workspace folders.
   They come from `@8bitscript/examples`, which `@8bitscript/cli`
   depends on, so any project that has installed the CLI has them — today
-  that's `hello-world`, the program the 0.2.0 PET and web backends are
-  built against. The 📖 in the title bar hides or shows them. **Launch
+  that's `hello-world` and `joystick`. The 📖 in the title bar hides or
+  shows them. **Launch
   Example…** reaches them either way, and one that is already selected
   stays in the list even with the toggle off, so hiding them never blanks
   the picker.
