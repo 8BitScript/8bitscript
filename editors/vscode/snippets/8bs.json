@@ -156,6 +156,15 @@
       "memory.read(${1:0xD012})"
     ]
   },
+  "Branch on a machine fact": {
+    "prefix": "#fact",
+    "description": "if (#fact(key)) { ... } — one fact from the machine's hardware sheet, folded while compiling; the branch for hardware this build lacks disappears.",
+    "body": [
+      "if (#fact(${1:video.raster})) {",
+      "\t$0",
+      "}"
+    ]
+  },
   "Compile-time machine": {
     "prefix": "#system",
     "description": "#system() — the machine this build is for, worked out at compile time; compare with System.C64 and the other names from @8bitscript/system.",

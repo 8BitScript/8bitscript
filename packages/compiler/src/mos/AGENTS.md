@@ -670,3 +670,60 @@ load Y directly (LDY #n / LDY zp), a const index on a 2-byte-element
 array doubles at compile time, and `storeIndex` skips its index temp
 when the index is a const or the value is pure. Global initializers
 group by value — one LDA #0 serves every zeroed global's STA.
+
+## 2026-09-14: native `.s` sections join the link on every loaded machine
+
+`ir.nativeSources` (the `"8bitscript".native` files a package ships)
+used to reach exactly one backend path: the NES's, where the bytes are
+the CHR-ROM and belong to the FILE (image-nes.ts/chr-nes.ts). On every
+other machine they were silently nothing — which left
+`packages/c64/native/6502/raster.s`'s vector stub and raster-interrupt
+handler unlinkable, and `asm6502 { jsr __8bs_c64_raster_install }`
+an undefined label. `mos/native.ts` is the code half now; the NES keeps
+its own file half untouched, gated on the machine in `build()`.
+
+**The section contract.** A native source is `.section`-delimited, and
+only two shapes mean anything: `.init.N,"ax",@progbits` and
+`.text.<symbol>,"ax",@progbits` (a leading `.global NAME` inside a
+section is read, checked against the labels the section defines, and
+dropped). `.init.N` sections are always kept, concatenated ascending by
+N across every source, and spliced into `combinedProgram` between the
+wait-frame setup and the entry function's own body — so the C64's CPU
+vectors already point at raster.s's `rti` before `main()` runs.
+`.text.<symbol>` sections are mark-and-swept: the kept set seeds from
+every label the lowered program's own `Directive[]` references (asm6502
+blocks included, since they lower into those programs) plus every
+`.init` section's references, then closes transitively over kept
+sections' bodies. A program that never imports `@8bitscript/c64/raster`
+carries the stub and the 1-byte rti it points at; one that enables the
+interrupt carries the install routine and the 82-byte handler too —
+the split packages/c64/AGENTS.md had measured under the pre-0.2.0
+toolchain, now real again under this one.
+
+**No second link pass.** The kept directives are spliced into the ONE
+program `link()` already assembles (`.text.*` beside the wait-frame/
+multiply routines), so a native label and a lowered function's label
+resolve identically, in either direction. A symbol an asm6502 block
+names that no kept section defines surfaces as assembleRelaxed's own
+"undefined label" — one shape of failure. Everything native.ts itself
+cannot read — an unknown section name, a malformed `.section` line, a
+`.global` naming no label of its section's, a label two sections both
+define, code outside any section — is refused BY NAME with the file's
+path, chr-nes.ts's rule for the same reason: half-linked interrupt code
+does not fail, it hangs a machine with no debugger.
+
+**Three parser spellings, because raster.s is written in them
+(asm/parse.ts).** `0x`-prefixed hex literals (digit count is the
+written width, same as `$`); `#<label`/`#>label` byte immediates,
+carried on the `Operand.byte` field assemble.ts already resolved; and
+`label+N` constant offsets on `Operand.offset` (the handler's
+self-modifying store writes its own operand through
+`sta __8bs_c64_raster_store+1`). Still no expression grammar: each is
+one narrow shape onto a field the assembler already had, and a `<`/`>`
+in front of a literal stays refused.
+
+The size report gets one `(native <section>)` row per kept section,
+sized by the same directive arithmetic as every other row, so the
+sum-to-`bytes.length` invariant holds; the CLD scan reads the native
+directives too, so a native SED/ADC would reinstate the prologue's CLD
+like anyone else's.

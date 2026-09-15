@@ -1,0 +1,56 @@
+// @8bitscript/vic20/rasterline — the per-scanline raster surface, on a
+// machine that cannot answer it.
+//
+// Named by "8bitscript".exports["./rasterline"] in this package's
+// package.json, and by "8bitscript".entry.vic20 in @8bitscript/raster's,
+// so a portable program's `import { raster, Slot } from
+// "@8bitscript/raster"` gets this file on a VIC-20.
+//
+// The VIC raises no raster interrupt; its raster counter can be read
+// ($9004, documented, not measured here), so a cycle-timed polling
+// driver is conceivable on real hardware — and nobody has written one.
+// Until someone does, this machine honestly answers nothing.
+//
+// ---- the portable surface ------------------------------------------------
+//
+// The same Slot names and raster calls as every rasterline file, answering
+// nothing: ENTRIES is 0, at() and setValue() return false, count() returns
+// 0, and clear()/enable()/disable() do nothing. #fact(video.raster) is
+// false on this machine, so a program that keeps its raster effect behind
+// that fact folds the whole branch away and this file costs it nothing; a
+// call that reaches this file anyway is inert — the "answers nothing but
+// still compiles and costs zero" rule packages/input/AGENTS.md documents.
+
+// What the picture does at a line, named without an address. The numbers
+// are arbitrary and the same in all nine rasterline files; nothing here
+// consumes them.
+export namespace Slot {
+    const BORDER: utinyint = 0;     // the border's color
+    const BACKGROUND: utinyint = 1; // the playfield's background color
+    const SCROLL_X: utinyint = 2;   // the horizontal fine scroll
+}
+
+export namespace raster {
+    const ENTRIES: utinyint = 0; // the list's capacity: there is no list
+
+    function clear(): void {
+    }
+
+    function at(line: utinyint, slot: utinyint, value: utinyint): bool {
+        return false;
+    }
+
+    function setValue(entry: utinyint, value: utinyint): bool {
+        return false;
+    }
+
+    function count(): utinyint {
+        return 0;
+    }
+
+    function enable(): void {
+    }
+
+    function disable(): void {
+    }
+}

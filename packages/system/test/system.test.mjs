@@ -96,7 +96,7 @@ let b: bool = false;
 export function main(): void {
     a = Video.COLUMNS; a = Video.ROWS; a = Video.PALETTE; a = Video.GLYPHS; a = Video.SPRITES; a = Video.SPRITES_PER_LINE;
     a = Video.SPRITE_WIDTH; a = Video.SPRITE_HEIGHT; a = Video.SPRITE_COLORS; a = Video.LAYERS;
-    b = Video.BITMAP; b = Video.SCROLL;
+    b = Video.BITMAP; b = Video.SCROLL; b = Video.RASTER;
     a = Audio.VOICES; b = Audio.NOISE; b = Audio.ENVELOPE; b = Audio.FILTER; b = Audio.PCM; b = Audio.VOLUME; b = Audio.ENTROPY;
     b = Input.KEYBOARD; a = Input.JOYSTICKS; a = Input.PADS; b = Input.MOUSE; b = Input.PADDLES;
     b = Storage.SAVE;

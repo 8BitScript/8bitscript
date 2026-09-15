@@ -16,7 +16,8 @@
       "./input": "./src/input.8bs",
       "./pointer": "./src/pointer.8bs",
       "./keyboard": "./src/keyboard.8bs",
-      "./keys": "./src/keys.8bs"
+      "./keys": "./src/keys.8bs",
+      "./rasterline": "./src/rasterline.8bs"
     },
     "hardware": {
       "facts": {
@@ -33,6 +34,7 @@
         "video.bitmap": false,
         "video.layers": 1,
         "video.scroll": false,
+        "video.raster": false,
         "video.sprites": 0,
         "video.spritesPerLine": 0,
         "video.spriteWidth": 0,

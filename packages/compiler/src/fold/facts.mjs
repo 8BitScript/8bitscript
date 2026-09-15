@@ -172,6 +172,7 @@ export const FACTS = new Map([
   ['video.bitmap', flag('build', 'A pixel-addressable mode exists.')],
   ['video.layers', count('build', 'Independent background layers.')],
   ['video.scroll', flag('build', 'Hardware fine scroll exists.')],
+  ['video.raster', flag('build', 'The picture can be changed part-way down the screen — a per-scanline raster effect exists.')],
   ['video.sprites', count('build', 'Hardware sprites in total; 0 where moving objects are drawn in software.')],
   ['video.spritesPerLine', count('build', 'Hardware sprites one scanline can show — the number that decides whether a scene works.')],
   ['video.spriteWidth', count('build', 'Pixels across the largest hardware sprite.')],

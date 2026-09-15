@@ -1,0 +1,265 @@
+// Fancy — the raster showpiece. A title that wobbles on a sine wave
+// inside a pair of colour bands, over @8bitscript/raster's portable
+// surface, with a frame counter that says the loop is live. It is the
+// program that proves the per-scanline capability end to end — build a
+// list once with raster.at(), rewrite only its value bytes every frame
+// with raster.setValue() — before 2048 leans on the same surface.
+//
+// Only two machines can answer it: #fact(video.raster) is true on the
+// C64 (a real raster interrupt driving a write list) and on the web (the
+// renderer applies the list at paint time), and false on the other
+// seven. Every raster call here sits behind that fact, so on a PET or a
+// VIC-20 the whole wobble folds away to nothing — measured below — and
+// what remains is the static title, the caption saying so, and the frame
+// counter. A still screen on those seven is the machine's honest answer,
+// not a bug.
+//
+// ---- the band's pitch: one entry per TWO scanlines ------------------------
+//
+// The wobble is 12 SCROLL_X entries covering a three-text-row band with
+// the title in the middle of it (picture lines 32-55), one entry every
+// second scanline, not every line. That pitch is a measured C64 constraint, not a taste: the raster
+// handler costs ~55 cycles to the store against a 65-cycle NTSC line,
+// and a bad line leaves the CPU ~20 cycles, so a per-line cascade sets
+// the compare for a line the raster is already on and the whole effect
+// collapses — packages/c64/AGENTS.md's wobble-band entry records the
+// solid-red capture that found this, and packages/c64/test/wobble-probe.8bs
+// runs the two-line pitch for real. The web renderer is idealized and
+// would take per-line entries happily; the portable program follows the
+// strictest machine it runs on.
+//
+// ---- the stride probe -----------------------------------------------------
+//
+// raster.setValue(entry, value) names an entry by its byte offset, and
+// the byte an entry takes is the machine's own: four on the C64 (line,
+// address low, address high, value), three on the web (line, slot,
+// value). The portable surface has no stride constant yet, but both
+// implementations refuse a misaligned offset untouched, so one probing
+// call settles it at start-up: offset 3 is entry 1 on the web and
+// misaligned on the C64, and the probe rewrites entry 1 with the value
+// it already holds, so the list is the same afterwards either way. If a
+// third machine ever answers #fact(video.raster) with a different entry
+// size, this probe is the line to revisit — or better, the surface
+// grows a stride constant and this paragraph becomes its motivation.
+//
+// ---- reading a screenshot -------------------------------------------------
+//
+//   - **The colour bands.** Background and border switch to red and
+//     yellow a text row above the wobble and back to black a row below
+//     it. Two flat colour edges at fixed lines are the raster list
+//     applying at all — a machine whose list is dead shows one colour
+//     top to bottom.
+//   - **The wobble.** Inside the band, each pair of scanlines sits at
+//     its own 0-7 horizontal offset from the sine table, so the title's
+//     vertical strokes come out as a wave, and two captures at different
+//     --frames counts show different phases. A straight title inside
+//     coloured bands means the splits fire but setValue() is not landing.
+//   - **FRAME must be climbing.** One per trip round the loop, same as
+//     joystick: a frozen program and an idle one look different, and on
+//     the seven static machines it is the only thing that moves.
+//   - **RASTER** prints #fact(video.raster) for the machine this build
+//     was made for: 1 on the C64 and the web, 0 elsewhere — so a still
+//     title can be read as "this machine has no per-scanline hook"
+//     rather than as a broken effect.
+//
+// ---- what it costs --------------------------------------------------------
+//
+// Measured 2026-09-14, stock hardware for every target, program bytes
+// then RAM for variables (`8bs build <target> --size`):
+//
+//   pet    1007 / 36   of a stock 4K 2001's 3071   — the tightest fit
+//   vic20  1053 / 43   of an unexpanded 3583
+//   c128   1051 / 37      mega65 1099 / 37      atari8 1154 / 38
+//   cx16   1700 / 63      nes    40976 / 63 (fixed ROM)
+//   c64    2040 / 54   — the one 6502 machine that pays for the wobble
+//   web     95 bytes of constant data / 13
+//
+// The fold is exact, not approximate: on the machines where
+// #fact(video.raster) is false, this file and a copy with the import and
+// both `if (HAS_RASTER)` bodies deleted outright build to the SAME byte
+// count (pet 1007/1007, vic20 1053/1053, RAM identical too, measured
+// 2026-09-14) — the sine table, the probe, the list building and the
+// per-frame rewrite are pruned away, not carried along inert. The C64
+// pays 820 bytes over its own stripped build (2040 against 1220): the
+// raster list, its assembly handler and install routine, the rasterline
+// translation, the sine table and the per-frame rewrite — the price only
+// a machine that shows the effect pays.
+//
+// The C64 captures behind those numbers (2026-09-14, x64sc, NTSC at
+// --frames 300 and 301, PAL at 300): the red band and its yellow border
+// patches at the band's lines, the title sheared into a wave, and the
+// leftmost glyph pixel measured per scanline — 154,154,155,155... at
+// frame 300, 155,155,...,156 one frame later, so adjacent scanlines sit
+// at different offsets AND the phase moves between frames. The web's
+// C64-skin capture at --frames 300 shows the same bands, the same
+// sheared title, and FRAME at exactly 00300.
+import { screen } from "@8bitscript/screen";
+import { text, TextColor } from "@8bitscript/text";
+import { raster, Slot } from "@8bitscript/raster";
+import { Video } from "@8bitscript/system";
+
+// Whether this machine can change the picture part-way down a frame.
+// A compile-time fact: both arms of every `if (HAS_RASTER)` below are
+// folded while compiling, so the seven machines that answer false never
+// see the raster code at all.
+const HAS_RASTER: bool = #fact(video.raster);
+
+// This machine's row width, so cell = y * ROW + x. A bare const name is
+// the only thing besides a literal that a global initializer may be, so
+// every cell is worked out at run time in centered() rather than written
+// as a const expression here.
+const ROW: utinyint = text.COLUMNS;
+
+// XSCROLL 0-7 over 32 steps: round(3.5 + 3.5 * sin(2 * pi * k / 32)) —
+// the same table packages/c64/test/wobble-probe.8bs runs, verified on
+// screen there, so the wave here is a known-good shape rather than a new
+// guess.
+const SINE: array<utinyint, 32> = [
+    4, 4, 5, 5, 6, 6, 7, 7, 7, 7, 7, 6, 6, 5, 5, 4,
+    3, 3, 2, 2, 1, 1, 0, 0, 0, 0, 0, 1, 1, 2, 2, 3,
+];
+
+// The band: text rows 4-6 (picture lines 32-55), the title row in the
+// middle. 12 entries at the two-scanline pitch cover it; with the four
+// colour splits and the straightening entry the list holds 17, well
+// inside the smallest raster.ENTRIES any answering machine declares (63
+// on the C64).
+const BAND_TOP: utinyint = 32;     // picture line: top of text row 4
+const BAND_ENTRIES: utinyint = 12; // one SCROLL_X entry per two scanlines
+const STRAIGHT: utinyint = 56;     // XSCROLL 0 again: first line after the band
+const ABOVE: utinyint = 24;        // the colour bands open a text row above the wobble
+const BELOW: utinyint = 64;        // and close a text row below it
+const BAND_BACKGROUND: utinyint = 2; // red behind the title
+const BAND_BORDER: utinyint = 7;     // yellow border beside it — also the stride probe's known value
+
+// Where everything sits, in text rows. The title is inside the band; the
+// caption, counter and fact line are below it, where the picture never
+// moves.
+const TITLE_ROW: utinyint = 5;
+const CAPTION_ROW: utinyint = 9;
+const FRAME_ROW: utinyint = 12;
+const FACT_ROW: utinyint = 14;
+
+// Trips round the main loop, wrapping at 65535 — the liveness signal,
+// repainted every frame without a dirty check, exactly as joystick does.
+let frames: usmallint = 0;
+let frameCell: usmallint = 0;
+
+// The wobble's walk through the sine table, and the two probed numbers
+// the per-frame rewrite needs: bytes per entry in setValue's unit, and
+// the byte offset of the band's first SCROLL_X entry (index 2 — the two
+// opening colour splits come first). All three are only ever touched
+// inside `if (HAS_RASTER)`.
+let phase: utinyint = 0;
+let stride: utinyint = 0;
+let bandFirst: utinyint = 0;
+
+// The cell where a `width`-cell line starts centred on `row` — centred
+// the way joystick centres its 22-column map, so the narrowest machine
+// (the VIC-20's 22 columns) fits everything printed here. Widened
+// through a usmallint before the multiply: a binop computes at its
+// operands' own width, and row * ROW overflows a byte on an 80-column
+// machine (packages/c64/AGENTS.md records the sprite bug this exact
+// shape caused).
+function centered(row: utinyint, width: utinyint): usmallint {
+    let col: utinyint = 0;
+    if (text.COLUMNS > width) {
+        col = (text.COLUMNS - width) >> 1;
+    }
+    let cell: usmallint = row;
+    cell = cell * ROW + col;
+    return cell;
+}
+
+// The static screen, drawn once before the loop starts. The only cell
+// the loop touches afterwards is the frame counter. text.setColor is a
+// deliberately empty function on the machines with no per-cell colour
+// and the compiler deletes the call, so it is made unconditionally, the
+// same as joystick.
+function drawScreen(): void {
+    text.setColor(TextColor.YELLOW);
+    text.print(centered(TITLE_ROW, 9), "F A N C Y");
+    text.setColor(TextColor.WHITE);
+
+    // HAS_RASTER is a compile-time constant, so only one of these two
+    // captions is in the build at all.
+    if (HAS_RASTER) {
+        text.print(centered(CAPTION_ROW, 17), "THE TITLE WOBBLES");
+    } else {
+        text.print(centered(CAPTION_ROW, 21), "NO RASTER SPLITS HERE");
+    }
+
+    // "FRAME 00000": the label once, the counter's cell kept for the loop.
+    let cell: usmallint = centered(FRAME_ROW, 11);
+    text.print(cell, "FRAME");
+    frameCell = cell + 6;
+
+    // What the machine itself declares — the line that separates "still
+    // by design" from "broken". Video.RASTER is a bool and printNumber
+    // takes a number, so it is widened here; both sides of the `if` are
+    // compile-time constants, so this is one literal by the time the
+    // backend sees it.
+    let answers: utinyint = 0;
+    if (Video.RASTER) {
+        answers = 1;
+    }
+    cell = centered(FACT_ROW, 8);
+    text.print(cell, "RASTER");
+    text.printNumber(cell + 7, answers, 1);
+    return;
+}
+
+export function main(): void {
+    screen.blank();
+    drawScreen();
+
+    if (HAS_RASTER) {
+        // The list, built once: lines and slots stand for the program's
+        // whole life, and only the band's value bytes are rewritten each
+        // frame. Entries go in ascending line order — the C64's handler
+        // reads the list live and the web enforces the same rule.
+        raster.clear();
+        raster.at(ABOVE, Slot.BACKGROUND, BAND_BACKGROUND);
+        raster.at(ABOVE, Slot.BORDER, BAND_BORDER);
+        for (let i: utinyint = 0; i < BAND_ENTRIES; i++) {
+            raster.at(BAND_TOP + i * 2, Slot.SCROLL_X, SINE[i]);
+        }
+        raster.at(STRAIGHT, Slot.SCROLL_X, 0);
+        raster.at(BELOW, Slot.BACKGROUND, 0);
+        raster.at(BELOW, Slot.BORDER, 0);
+
+        // The stride probe — see this file's header. Offset 3 names
+        // entry 1 (the BAND_BORDER split) where entries are three bytes,
+        // and is misaligned — refused untouched — where they are four.
+        // The value written is the value entry 1 already holds, so the
+        // list is identical either way; only the returned bool differs.
+        stride = 4;
+        if (raster.setValue(3, BAND_BORDER)) {
+            stride = 3;
+        }
+        bandFirst = stride * 2;
+
+        raster.enable();
+    }
+
+    while (true) {
+        waitFrame();
+
+        if (HAS_RASTER) {
+            // Rebuild only the band's 12 value bytes, right after
+            // waitFrame() — before the raster reaches the first entry's
+            // line, per @8bitscript/c64/raster's rebuild rule. SCROLL_X
+            // keeps its 0-7 slot semantics through setValue, so the sine
+            // value goes in as-is on every machine.
+            phase = (phase + 1) & 31;
+            for (let i: utinyint = 0; i < BAND_ENTRIES; i++) {
+                raster.setValue(bandFirst + i * stride, SINE[(i + phase) & 31]);
+            }
+        }
+
+        // The liveness signal, every frame. On the seven machines with
+        // no raster this is the only thing on screen that moves.
+        frames++;
+        text.printNumber(frameCell, frames, 5);
+    }
+}

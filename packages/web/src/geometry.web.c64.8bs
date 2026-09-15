@@ -12,6 +12,13 @@ export namespace Video {
     const INPUT_OFFSET: usmallint = 2002;
     const HOST_OFFSET: usmallint = 2003;
 
+    // The raster list ./rasterline.8bs keeps: HOST_OFFSET + 1/2/3, the same
+    // arithmetic agreementFor() in packages/cli/src/web-layout.mjs does.
+    const RASTER_CONTROL_OFFSET: usmallint = 2004;
+    const RASTER_COUNT_OFFSET: usmallint = 2005;
+    const RASTER_BASE: usmallint = 2006;
+    const RASTER_MAX_ENTRIES: utinyint = 64;
+
     // The same three questions the Modern host answers at run time, answered
     // here from constants: this skin is a machine, and a machine's grid does
     // not change. Both fold, so a program that asks costs nothing for asking.

@@ -1,0 +1,83 @@
+// The wobble band, run for real: 24 $D016 entries following a 32-entry
+// sine — the lines and addresses written once with raster.at, all 24
+// value bytes rewritten every frame with raster.setValue — bracketed by
+// $D021 splits (red behind the band, a below-band split, black above).
+// The 24 entries sit one per TWO scanlines (a 48-line band, six text
+// rows), not on 24 consecutive lines: the handler costs more than one
+// raster line per interrupt (~55 cycles to the store plus entry and
+// exit, against a 65-cycle NTSC line, and a bad line — 107, 115, 123,
+// 131, 139, 147 in the band — leaves the CPU ~20), so a per-line
+// cascade sets the compare for a line the raster is already on and the
+// capture showed a solid red picture with one stray notch. Two lines
+// per entry is the pitch that keeps the cascade on time; the 24-byte-
+// per-frame rebuild is unchanged by the spacing. Columns 0-19 of every
+// row are solid white blocks and 20-39 empty, so each scanline's shift
+// shows as where the white/background edge sits: pixel 160 plus that
+// line's XSCROLL.
+//
+// The below-band $D021 split doubles as the frame-loop witness: it is
+// built BLUE, and only after 60 waitFrame() returns does the loop
+// raster.setValue it to green. Green below the band in the screenshot
+// therefore proves two things no phase-0 list can fake: waitFrame()
+// kept returning after raster.enable()'s cli, and the raster IRQ was
+// still applying the list in the captured frame (a dead handler leaves
+// the whole screen one color; a hung waitFrame leaves the split blue).
+// See test/layers.test.mjs.
+import { screen, BorderColor, BackgroundColor } from "../src/screen.8bs";
+import { raster, Register } from "../src/raster.8bs";
+import { screenRam, colorRam } from "../src/geometry.8bs";
+
+// XSCROLL 0-7 over 32 steps: round(3.5 + 3.5 * sin(2 * pi * k / 32)).
+const SINE: array<utinyint, 32> = [
+    4, 4, 5, 5, 6, 6, 7, 7, 7, 7, 7, 6, 6, 5, 5, 4,
+    3, 3, 2, 2, 1, 1, 0, 0, 0, 0, 0, 1, 1, 2, 2, 3,
+];
+const BAND_TOP: utinyint = 100; // six text rows: lines 100-147
+const BAND_ENTRIES: utinyint = 24; // one $D016 entry per two scanlines
+const CSEL: utinyint = 0x08; // $D016 bit 3: 40 columns, kept in every write
+// Entry 0 is the first $D021 split; the band's 24 entries are 1-24, the
+// straight $D016 is 25, and the below-band $D021 split is entry 26 — at
+// byte offsets index * 4, the unit setValue takes.
+const BELOW_SPLIT: utinyint = 104; // 26 * 4
+const SWITCH_FRAMES: utinyint = 60; // waitFrame() returns before blue turns green
+
+let phase: u8 = 0;
+let frames: u8 = 0;
+
+export function main(): void {
+    screen.blank(BorderColor.BLACK, BackgroundColor.BLACK);
+    // The left half of every row: reversed spaces (code 160) in white — a
+    // solid block with one vertical edge at pixel 160 the shift moves.
+    let cell: usmallint = 0;
+    for (let row: u8 = 0; row < 25; row++) {
+        for (let column: u8 = 0; column < 40; column++) {
+            if (column < 20) {
+                screenRam[cell] = 160;
+                colorRam[cell] = 1;
+            }
+            cell = cell + 1;
+        }
+    }
+    raster.clear();
+    raster.at(90, Register.BACKGROUND, 2); // red behind the band
+    for (let i: u8 = 0; i < BAND_ENTRIES; i++) {
+        raster.at(BAND_TOP + i * 2, Register.CONTROL_2, CSEL | SINE[i]);
+    }
+    raster.at(BAND_TOP + BAND_ENTRIES * 2, Register.CONTROL_2, CSEL); // straight again
+    raster.at(150, Register.BACKGROUND, 6); // blue below the band, until the loop earns green
+    raster.at(240, Register.BACKGROUND, 0); // black again for the next frame's top
+    raster.enable();
+    while (true) {
+        waitFrame();
+        phase = phase + 1;
+        for (let i: u8 = 0; i < BAND_ENTRIES; i++) {
+            raster.setValue((i + 1) * 4, CSEL | SINE[(i + phase) & 31]);
+        }
+        if (frames < SWITCH_FRAMES) {
+            frames = frames + 1;
+            if (frames == SWITCH_FRAMES) {
+                raster.setValue(BELOW_SPLIT, 5); // green: the loop ran, under the live IRQ
+            }
+        }
+    }
+}

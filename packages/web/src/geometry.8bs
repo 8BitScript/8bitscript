@@ -28,6 +28,12 @@
 //   4100   COLOR_BASE        MAX_CELLS color bytes
 //   8196   INPUT_OFFSET
 //   8197   HOST_OFFSET
+//   8198   RASTER_CONTROL    the renderer applies the raster list while nonzero
+//   8199   RASTER_COUNT      how many entries the list holds
+//   8200   RASTER_BASE       RASTER_MAX_ENTRIES three-byte entries: the line's
+//                            low byte, the slot byte (bit 7 = the line's ninth
+//                            bit, so all MAX_ROWS * 8 = 512 picture lines fit),
+//                            the value
 
 export namespace Video {
     // The largest grid the host will hand out, and what the map is sized for.
@@ -48,6 +54,13 @@ export namespace Video {
     const COLOR_BASE: usmallint = 4100;
     const INPUT_OFFSET: usmallint = 8196;
     const HOST_OFFSET: usmallint = 8197;
+
+    // The raster list ./rasterline.8bs keeps: HOST_OFFSET + 1/2/3, the same
+    // arithmetic agreementFor() in packages/cli/src/web-layout.mjs does.
+    const RASTER_CONTROL_OFFSET: usmallint = 8198;
+    const RASTER_COUNT_OFFSET: usmallint = 8199;
+    const RASTER_BASE: usmallint = 8200;
+    const RASTER_MAX_ENTRIES: utinyint = 64;
 
     // True where the grid can change under a running program. A build-time
     // fact, so `if (screen.RESIZABLE)` folds away entirely on every machine

@@ -49,7 +49,7 @@ const targetsOf = (dir) => {
 };
 
 test('the manifest lists every example, each a directory with a real project in it', () => {
-  assert.deepEqual(Object.keys(examples), ['hello-world', 'joystick']);
+  assert.deepEqual(Object.keys(examples), ['hello-world', 'joystick', 'fancy']);
   for (const [name, entry] of Object.entries(examples)) {
     assert.equal(typeof entry.title, 'string', `${name}: title`);
     assert.equal(typeof entry.description, 'string', `${name}: description`);
@@ -112,4 +112,32 @@ test('joystick highlights with reverse video, not colour alone', () => {
   for (const target of colourless) {
     assert.equal(stockFacts(target)['video.colorPerCell'], false, `${target} has no per-cell colour`);
   }
+});
+
+// fancy is the raster showpiece, and its whole effect sits behind
+// #fact(video.raster) so the seven machines whose rasterline layers are
+// zero-answer stubs fold it away to nothing. A future edit that drops the
+// guard would still build and still link everywhere — the stubs are
+// honest — and would simply stop being free on those seven; this is what
+// notices. The fact's answers are pinned too, so a machine gaining or
+// losing the capability shows up here, next to the example that assumes
+// the split.
+test('fancy keeps its raster effect behind #fact(video.raster)', () => {
+  const main = readFileSync(join(ROOT, 'fancy', 'src', 'main.8bs'), 'utf8');
+  assert.match(main, /#fact\(video\.raster\)/, 'the wobble is guarded by the capability fact');
+  for (const target of ['c64', 'web']) {
+    assert.equal(stockFacts(target)['video.raster'], true, `${target} answers the raster capability`);
+  }
+  for (const target of ['pet', 'vic20', 'c128', 'cx16', 'mega65', 'atari8', 'nes']) {
+    assert.equal(stockFacts(target)['video.raster'], false, `${target} has no per-scanline hook`);
+  }
+});
+
+// fancy's header claims the two tightest budgets it was measured against,
+// the same way joystick's does: the guard that those numbers stay written
+// down beside the measured sizes in its own header. A change that pushes
+// either past its fact fails at `8bs build`, not here.
+test('the tightest machines fancy claims still declare the budgets it was measured against', () => {
+  assert.equal(stockFacts('pet')['memory.ram'], 3071, 'the stock PET 2001 is 4K, minus what BASIC keeps');
+  assert.equal(stockFacts('vic20')['memory.ram'], 3583, 'the unexpanded VIC-20');
 });

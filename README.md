@@ -216,7 +216,11 @@ without notice.
 `@8bitscript/ui/menubar`, and [Studio](docs/studio.md) exist as packages —
 portable surfaces that resolve per target to that machine's own
 implementation. They produce a real image on every machine in
-`RELEASE_MACHINES`.
+`RELEASE_MACHINES`. `@8bitscript/raster` is the same kind of surface for
+per-scanline effects — a border split, a background band, a horizontal
+wobble; the C64 and the web are the two machines with a real
+implementation, and everywhere else `#fact(video.raster)` answers false,
+so a guarded effect folds away entirely instead of shipping inert.
 
 ## Getting started
 

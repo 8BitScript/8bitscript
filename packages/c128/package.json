@@ -18,7 +18,8 @@
       "./vdc80": "./src/vdc80.8bs",
       "./sid": "./src/sid.8bs",
       "./input": "./src/input.8bs",
-      "./pointer": "./src/pointer.8bs"
+      "./pointer": "./src/pointer.8bs",
+      "./rasterline": "./src/rasterline.8bs"
     },
     "hardware": {
       "build": {
@@ -41,6 +42,7 @@
         "video.bitmap": true,
         "video.layers": 1,
         "video.scroll": true,
+        "video.raster": false,
         "video.sprites": 8,
         "video.spritesPerLine": 8,
         "video.spriteWidth": 24,

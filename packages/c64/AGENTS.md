@@ -1,12 +1,5 @@
 # Writing Commodore 64 support for 8BitScript
 
-> **Parked in 0.2.0.** This machine is not a build target in the current
-> release: `8bs build` refuses it until its native backend lands
-> (`RELEASE_MACHINES` in `packages/compiler/src/resolver`). The package
-> stays in the workspace, its sources still link, and everything below is
-> still the guide for when it returns. The 0.2.0 work is the PET and the
-> web; see the "Hello, PET" roadmap.
-
 This file is for anyone — human or agent — touching `packages/c64` (its
 `.8bs` sources and `native/6502/raster.s`),
 this package's hardware catalog (`package.json`, `"8bitscript".hardware`:
@@ -131,8 +124,16 @@ Do not describe more than this as working:
     program's own.** `raster.clear()`, `raster.at(line, address, value)`
     (ascending lines, up to 63 entries; `Register.BORDER`, `BACKGROUND`,
     `CONTROL_1/2`, `MEMORY_POINTER`, the sprite registers, `SID_VOLUME`;
-    `raster.spriteX/Y/Color/Pointer(n)`), `enable()`, `disable()`,
-    `count()`. The handler is assembly the package ships: it acknowledges
+    `raster.spriteX/Y/Color/Pointer(n)`), `setValue(entry, value)`
+    (rewrite one entry's value byte in place, `entry` the byte offset
+    index * 4, and only the first byte of an existing 4-byte entry is
+    accepted — an unaligned offset, or one whose value byte would land
+    at or past the list's end, is refused untouched, because inside the
+    live list it would smash a neighbor's line or address, or the
+    handler's state bytes at `$0300` — a computed effect rebuilds a
+    byte per entry each frame instead of re-running `at()` for the
+    whole list), `enable()`,
+    `disable()`, `count()`. The handler is assembly the package ships: it acknowledges
     `$D019`, applies every entry on the line from a table at `$0200`
     (state at `$0300`–`$0302`), sets `$D012` to the next entry's line,
     saves and restores A and X, touches no zero page. `enable()` clears
@@ -204,17 +205,21 @@ Do not describe more than this as working:
   same thing, and sets a fact (`memory.banked`, `input.mouse`).
 - `FRAME_SYNC.c64` (`packages/compiler/src/mos`): a *level* driver — top half
   of the frame is `$D012 < 128` with `$D011` bit 7 clear (read in that
-  order), the PAL probe is a raster line past 287 — and a `presync` of
-  `sei`: **a program that calls `waitFrame()` runs with interrupts off
-  from start-up**, and one that draws first has them off from
-  `setupVideo()`, **until `raster.enable()`**. The KERNAL's 60 Hz IRQ
-  (CIA1 timer A) scans the keyboard through the same ports
-  `keyboard.scan()` uses and would race it; with it silenced the ports
-  read what the program selected. `raster.enable()` silences both CIAs,
-  installs the list's handler, sets `interruptsOn` and `cli`s, and from
-  then on `waitFrame()` skips `sei` so that handler can run (otherwise
-  the visible frame is polled with I set and the split never shows —
-  `test/layers.test.mjs` caught a solid blue border). Consequences: no
+  order), the PAL probe is a raster line past 287. The backend that
+  implements it (`packages/compiler/src/mos/startup/waitframe.ts`)
+  disables interrupts ONCE, a `SEI` in `waitFrame()`'s one-time start-up
+  setup ahead of the region probe: **a program that calls `waitFrame()`
+  runs with interrupts off from start-up**, and one that draws first has
+  them off from `setupVideo()`, **until `raster.enable()`**. The
+  KERNAL's 60 Hz IRQ (CIA1 timer A) scans the keyboard through the same
+  ports `keyboard.scan()` uses and would race it; with it silenced the
+  ports read what the program selected. `raster.enable()` silences both
+  CIAs, installs the list's handler, sets `interruptsOn` and `cli`s; the
+  per-call `waitFrame()` routine never touches the I flag — there is no
+  per-poll `sei` — so that `cli` stays in force and the handler keeps
+  firing while `waitFrame()` polls `$D012` (a poll with I set never
+  shows a split; the wobble row below proves the live one on screen).
+  Consequences: no
   KERNAL keyboard buffer, no jiffy clock, no RUN/STOP+RESTORE (with the
   ROM out, RESTORE's NMI is a bare `rti`), and returning from `main()`
   into BASIC is off the map. NTSC is 263 × 65 cycles at 1022727 Hz (a
@@ -260,6 +265,8 @@ under x64sc (VICE 3.10, Homebrew), not recalled.
 | **REU transfers** against `ram=reu512`: the screen filled with code 160, stashed into bank 1 at `$1000`, blanked, `verify` false, fetched back, `verify` true, `fillReu` of 40 spaces then `fetch` blanks row 0 and `swap` blanks row 1 while rows 2–24 keep the glyph — green border, "REU 00512 KIB"; a stock C64 tries nothing (red). Length 0 as 65536 is from the register description, not run. | `test/reu-transfer-probe.8bs` under `test/layers.test.mjs` |
 | **The region probe**: `detectRegion()` returns NTSC under `-model ntsc` and PAL under `-model c64`, and `sid.frequencyOf(Note.A4)` is 7218 on the first and 7493 on the second: `round(440 × 2^24 / 1022727)` and `/ 985248`. | `test/region-probe.8bs` under `test/layers.test.mjs`, both models |
 | An `@address` global is emitted as a C `#define`, so its name is a macro across the whole translation unit: a global named `index` or `end` broke every function with a parameter of that name (`sprites.place(index, …)`). Names of `@address` globals in a package must be ones no parameter anywhere will use (`rasterList`, `rasterEnd`, `rasterIndex`). | a build of the first raster.8bs; `packages/compiler/src/mos` emits them as `#define` |
+| **The wobble band** (`raster.setValue`): 24 `$D016` entries following a 32-entry sine, one entry per **two** scanlines — a 48-scanline band, six text rows, lines 100–147 — lines and addresses written once with `raster.at`, all 24 value bytes rewritten every frame with `raster.setValue` — draws its scanlines at different horizontal offsets (the capture shows the whole 160–167 edge sweep), inside `$D021` splits (black above, red behind the band), read from the screenshot by where each line's white/background edge sits. One entry every second line, not every line: the handler (~55 cycles) cannot finish inside a bad line's ~20 CPU cycles, and a cascade that falls a line behind sets `$D012` to a line the raster is already on and misses a frame — with per-line entries the capture showed a solid red picture with one stray notch; two lines per entry is the pitch that keeps the 24-entry cascade on time, the band's six bad lines (107, 115, ..., 147) included, so the 24-byte-per-frame rebuild rides that spacing. The below-band `$D021` split is the frame-loop witness: built BLUE, `setValue`d to green only after sixty `waitFrame()` returns, so green below the band in the 500-frame capture proves `raster.enable()`'s `cli` survives into the loop and the handler still fires while `waitFrame()` polls (a 250-frame capture of the same build still shows that pixel blue; a dead handler leaves the whole screen one color). Cost: the probe is 1029 bytes of program with the raster import and 625 with the same screen fill and frame loop without it — 404 bytes for the list, its handler and install routine, `at`, `setValue`, `clear` and `enable`. | `test/wobble-probe.8bs` under `test/layers.test.mjs` (edge position per scanline, the blue→green switch), the two builds' memory lines |
+| A binop computes at its operands' own width (`packages/compiler/src/mos`'s exact-width design): `block * 64` with `block: utinyint` wraps at 8 bits, so `sprites.setShapeByte`'s bitmap branch wrote block 96's bytes into program RAM at `$C000` and sprite 0 drew the lowercase charset copy that lives at `$D800` instead of the shape — glyph noise on screen, not a diagnostic. Widen through a `usmallint` local before the multiply (`blockOffset` had the same shape; `bitmap.8bs` avoids it with its `ROW_OFFSET` table). | `test/bitmap-probe.8bs` under x64sc (the sprite drew glyphs until the widening), `src/sprites.8bs` |
 
 ## From the sources, not verified here
 
@@ -587,7 +594,11 @@ proved that an unguarded ROM copy hangs the machine. Move a row from
 `-limitcycles`/`-exitscreenshot` (see
 [`docs/setup/verify.md`](../../docs/setup/verify.md#screenshots));
 `--frames` is converted at the region's CPU clock. `--pal` runs `-model
-c64`. `test/layers.test.mjs` and `test/reu.test.mjs` do this for the
+c64`. Captures disable VICE's random autostart delay
+(`+autostart-delay-random`, `packages/cli/src/screenshot.mjs`), so a
+`-limitcycles` capture lands on the same program state every run — with
+the delay on, the same test saw the steady state one run and the boot
+screen the next. `test/layers.test.mjs` and `test/reu.test.mjs` do this for the
 probe programs under `test/`, reading a pixel or two of each screenshot
 (x64sc's NTSC capture is 384 × 247; the picture's pixel (x, y) is at
 (32 + x, 31 + y), raster line L at about y = L − 20). Keyboard and joystick cannot be driven headlessly — VICE's
@@ -604,7 +615,7 @@ packages/c64/native/6502/raster.s    .init.250 (NMI and IRQ vectors → rti, eve
 packages/c64/src/screen.8bs          @8bitscript/c64/screen: blank() over Video.CELL_COUNT cells, sixteen color names
 packages/c64/src/text.8bs            @8bitscript/c64/text: ASCII → screen code, direct writes, COLUMNS/CELL_COUNT from Video; $D018 only in text mode
 packages/c64/src/sprites.8bs         @8bitscript/c64/sprites: place/setShape (by videoMode)/setShapeByte/setColor/show/hide/expand/priority/multicolor/collisions
-packages/c64/src/raster.8bs          @8bitscript/c64/raster: the write list at $0200 — clear/at/count/enable/disable, Register.*, spriteX/Y/Color/Pointer(n)
+packages/c64/src/raster.8bs          @8bitscript/c64/raster: the write list at $0200 — clear/at/setValue/count/enable/disable, Register.*, spriteX/Y/Color/Pointer(n)
 packages/c64/src/bitmap.8bs          @8bitscript/c64/bitmap: enter/leave, clear, plot/unplot/point, plotColor/pointColor, setCellColors/fillColors (under I/O), setCellColor3/fillColor3
 packages/c64/src/charset.8bs         @8bitscript/c64/charset: define/setRow/readRow/copy/fill/restore, multicolor text, upper/lower case
 packages/c64/src/scroll.8bs          @8bitscript/c64/scroll: setX/setY, setNarrow/setShort, shiftLeft/Right/Up/Down over screen and color RAM
@@ -615,12 +626,12 @@ packages/c64/src/sid.8bs             @8bitscript/c64/sid: voices, envelopes, fil
 packages/c64/src/reu.8bs             @8bitscript/c64/reu: reu.detect() (the first probe), stash/fetch/swap/verify/fillReu
 packages/c64/src/mouse.8bs           @8bitscript/c64/mouse: a 1351 in a port — present(), poll(), x/y, buttons (a probe and its driver in one)
 packages/c64/test/reu-probe.8bs      the probe run for real: prints the KiB, border color encodes it; test/reu.test.mjs reads it under x64sc
-packages/c64/test/layers.test.mjs    raster-probe, bitmap-probe, region-probe, reu-transfer-probe: linked clean, then run under x64sc and read by pixel
+packages/c64/test/layers.test.mjs    raster-probe, wobble-probe, bitmap-probe, region-probe, reu-transfer-probe: linked clean, then run under x64sc and read by pixel
 packages/c64/package.json            "8bitscript".exports names the fourteen subpaths (screen, text, video, sprites, keyboard, keys, joystick, sid, reu, mouse, raster, bitmap, charset, scroll); "8bitscript".native ships raster.s
 packages/compiler/test/c64-package.test.mjs   layout consistency, registers, borders through the bank, each subpath's emitted C, raster.s's shape, keys vs VICE, both note tables
 packages/compiler/test/borders-parity.test.mjs   the c64 row expects $D018 = 132
 packages/c64/package.json            "8bitscript".hardware: ram (REU), sid, port1, port2 — values, x64sc flags, facts, presets
-packages/compiler/src/mos/index.ts  FRAME_SYNC.c64 (level driver, presync sei unless interruptsOn, PAL probe; the backend refuses to build)
+packages/compiler/src/mos/index.ts  FRAME_SYNC.c64 (level driver, presync sei unless interruptsOn, PAL probe)
 packages/compiler/src/resolver/index.mjs   nativeSourcesBeside(): a package's native files ride with its own files, however imported
 packages/cli/src/run.mjs             x64sc, -model ntsc/c64, the catalog's flags appended
 packages/cli/src/hardware.mjs        how a build's hardware is resolved from the catalog
