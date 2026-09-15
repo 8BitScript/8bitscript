@@ -1090,7 +1090,7 @@ test('milestone 9 differential: changing one character of the string literal cha
 
 // ---- milestone 10: waitFrame() ---------------------------------------
 //
-// The real gate: packages/examples/hello-world/src/main.8bs now calls
+// The real gate: packages/examples/hello-world/src/hello-world.8bs now calls
 // waitFrame() before text.print(0, "HELLO WORLD") — built and run for real
 // (`8bs run pet --screenshot`, both the 2001 and 8032 profiles, milestone
 // 9's own established practice for a second, differently-clocked model) and
@@ -1328,7 +1328,7 @@ test('FRAME_SYNC.pet.calibrate measures VIA1 T2 against vsync and scales the ela
 });
 
 test('the real hello-world selects the text set once per model that needs it, and never puts one back', async () => {
-  const main = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'examples', 'hello-world', 'src', 'main.8bs');
+  const main = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'examples', 'hello-world', 'src', 'hello-world.8bs');
   const src = readFileSync(main, 'utf8');
   const bytesFor = async (profile: string) => {
     const resolved = resolveHardware(loadCatalog('pet'), { profile });
@@ -1377,7 +1377,7 @@ test('the real hello-world selects the text set once per model that needs it, an
 });
 
 test('the real hello-world on the 2001 leaves BASIC 1 CHRGET ($C2-$D9) alone so SYS can return', async () => {
-  const main = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'examples', 'hello-world', 'src', 'main.8bs');
+  const main = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'examples', 'hello-world', 'src', 'hello-world.8bs');
   const src = readFileSync(main, 'utf8');
   const zpBytes = async (profile: string | undefined) => {
     const resolved = resolveHardware(loadCatalog('pet'), { profile });
@@ -1435,7 +1435,7 @@ test('--size still names inlined callees and splits wait-frame setup from the pe
   // is free to change (it stopped holding the machine in a loop in 0.4.2).
   // The path is still a real file in the examples package so the import
   // specifiers below resolve exactly the way they do for a real project.
-  const main = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'examples', 'hello-world', 'src', 'main.8bs');
+  const main = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'examples', 'hello-world', 'src', 'hello-world.8bs');
   const src = `import { screen } from "@8bitscript/screen";
 import { text } from "@8bitscript/text";
 

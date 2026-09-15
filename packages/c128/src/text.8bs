@@ -150,6 +150,23 @@ export namespace text {
         currentReverse = on;
     }
 
+    // Tells the KERNAL screen editor the cursor is at the start of row 1,
+    // through PLOT ($FFF0: carry clear, row in X, column in Y — confirmed
+    // a real `JMP` here under x128, unlike the PET). print()/putChar()
+    // write straight into screen memory, which the editor's own cursor
+    // tracking never sees, so without this BASIC's next PRINT — READY.
+    // included — lands wherever the cursor was before the program ran,
+    // not under what the program just drew. Row 1, not 0: see
+    // packages/vic20/src/text.8bs's own releaseCursor() for why.
+    function releaseCursor(): void {
+        asm6502 {
+            ldx #1
+            ldy #0
+            clc
+            jsr $FFF0
+        }
+    }
+
     function print(cell: usmallint, s: string): void {
         prepare();
         for (let i: utinyint = 0; i < s.length; i++) {
