@@ -136,9 +136,17 @@ since only an npm account can bootstrap a name that's never existed:
 2. `git pull` — the working tree needs the same version `release.mjs`
    was running with, or the manual publish and the automated one
    disagree on what "this version" means.
-3. `cd packages/<name> && npm publish --access public` — a one-time
-   bootstrap, the same way every other package's first publish, long
-   before Trusted Publishing existed, must have happened once too.
+3. `cd packages/<name> && pnpm publish --access public --no-git-checks`
+   — a one-time bootstrap, the same way every other package's first
+   publish, long before Trusted Publishing existed, must have happened
+   once too. Use `pnpm publish`, not `npm publish`: any workspace
+   package this one depends on is `workspace:*` in package.json, and
+   only `pnpm publish` rewrites that to a real version at publish
+   time — plain `npm publish` ships the literal string, and a
+   dependency resolving `workspace:*` outside this workspace hard
+   fails. This is not hypothetical: it is exactly how
+   `@8bitscript/raster@0.10.0` first shipped broken and needed a
+   `0.10.1` just to fix its own dependencies.
 4. Re-dispatch: `gh workflow run release.yml --ref trunk` (see
    "Recovering a half-finished release" above). `alreadyOnNpm()` skips
    the package you just published by hand and picks up wherever the
