@@ -123,6 +123,7 @@ test('makeTask: a .mjs toolchain runs through node, not directly', () => {
   const task = makeTask(project, 'build', 'c64', 'ntsc');
   assert.equal(task.execution.commandLine.value, process.execPath);
   assert.deepEqual(task.execution.args.slice(0, 1), [project.toolchain]);
+  assert.equal(task.execution.options.env, undefined, 'plain Node does not need ELECTRON_RUN_AS_NODE');
 });
 
 test('Projects.checkoutFlag: an open workspace folder that is itself a checkout wins', () => {

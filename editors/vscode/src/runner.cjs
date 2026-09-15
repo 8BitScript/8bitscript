@@ -199,7 +199,7 @@ function makeTask(project, action, target, region, hardware = settings.getHardwa
     new vscode.ShellExecution(
       { value: invocation.command, quoting: vscode.ShellQuoting.Strong },
       [...invocation.args, ...args],
-      { cwd: project.dir },
+      { cwd: project.dir, ...(invocation.env ? { env: invocation.env } : {}) },
     ),
   );
   task.detail = `8bs ${args.join(' ')}  (${definition.project})`;
@@ -307,7 +307,11 @@ class Projects {
           'targets', '--json',
           ...(checkout ? ['--checkout', checkout] : []),
         ],
-        { cwd: project.dir, maxBuffer: 4 * 1024 * 1024 },
+        {
+          cwd: project.dir,
+          maxBuffer: 4 * 1024 * 1024,
+          ...(invocation.env ? { env: { ...process.env, ...invocation.env } } : {}),
+        },
         (error, stdout) => {
           if (error) {
             this.output?.appendLine(`8bs targets --json failed: ${error.message}`);

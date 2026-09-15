@@ -203,16 +203,48 @@ function findToolchain(startDir, checkout) {
 }
 
 /**
+ * The Node binary that should run a `.mjs` toolchain.
+ *
+ * Inside Cursor/VS Code, `process.execPath` is the Electron helper, not
+ * Node. `execFile` from the extension host inherits `ELECTRON_RUN_AS_NODE`
+ * and can pretend; a task terminal does not, so launching that helper as
+ * `8bs` starts a GUI Electron process that treats `--system` / `--checkout`
+ * / `--size` as Chromium flags and dies with "Unable to find helper app".
+ *
+ * When this process is already Node (tests, `node 8bs.mjs`), execPath is
+ * the right binary. When it is Electron, look for `node` on the same PATH
+ * the install task already uses. The helper is only the last resort, and
+ * then only with `ELECTRON_RUN_AS_NODE` set on the spawn itself.
+ *
+ * @param {NodeJS.ProcessEnv} [env]
+ * @param {string} [home]
+ * @param {Pick<NodeJS.Process, 'execPath' | 'versions'>} [runtime]
+ * @param {string} [searchPath] override for tests; default is packageManagerPath
+ * @returns {string}
+ */
+function nodeCommand(env = process.env, home = os.homedir(), runtime = process, searchPath) {
+  if (!runtime.versions?.electron) return runtime.execPath;
+  return whichOnPath('node', searchPath ?? packageManagerPath(env, home)) || runtime.execPath;
+}
+
+/**
  * How to spawn a toolchain path: a `.mjs` is `node that-file`, a bin is
  * the bin itself.
  *
  * @param {string | null} toolchain
- * @returns {{ command: string, args: string[] } | null}
+ * @param {{ env?: NodeJS.ProcessEnv, home?: string, runtime?: Pick<NodeJS.Process, 'execPath' | 'versions'>, searchPath?: string }} [opts]
+ * @returns {{ command: string, args: string[], env?: NodeJS.ProcessEnv } | null}
  */
-function cliCommand(toolchain) {
+function cliCommand(toolchain, opts = {}) {
   if (!toolchain) return null;
-  if (toolchain.endsWith('.mjs')) return { command: process.execPath, args: [toolchain] };
-  return { command: toolchain, args: [] };
+  if (!toolchain.endsWith('.mjs')) return { command: toolchain, args: [] };
+  const runtime = opts.runtime ?? process;
+  const command = nodeCommand(opts.env, opts.home, runtime, opts.searchPath);
+  const invocation = { command, args: [toolchain] };
+  if (runtime.versions?.electron && command === runtime.execPath) {
+    invocation.env = { ELECTRON_RUN_AS_NODE: '1' };
+  }
+  return invocation;
 }
 
 function readPackage(dir) {
@@ -893,6 +925,7 @@ module.exports = {
   KINDS,
   byKind,
   cliCommand,
+  nodeCommand,
   cliPackageDir,
   commandArgs,
   examplesManifest,
