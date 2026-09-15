@@ -1,5 +1,18 @@
 # @8bitscript/examples
 
+## 0.10.1
+
+### Patch Changes
+
+- Updated dependencies [ce9054a]
+  - @8bitscript/raster@0.10.1
+  - @8bitscript/input@0.10.1
+  - @8bitscript/pet@0.10.1
+  - @8bitscript/screen@0.10.1
+  - @8bitscript/system@0.10.1
+  - @8bitscript/text@0.10.1
+  - @8bitscript/web@0.10.1
+
 ## 0.10.0
 
 ### Patch Changes
