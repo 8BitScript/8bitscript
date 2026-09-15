@@ -50,6 +50,8 @@ class LauncherViewProvider {
     this.projects = projects;
     this.devReload = devReload ?? null;
     this.view = undefined;
+    this._postSeq = 0;
+    this._suppressPost = 0;
   }
 
   resolveWebviewView(view) {
@@ -60,14 +62,17 @@ class LauncherViewProvider {
     const subscriptions = [
       view.webview.onDidReceiveMessage((message) => this.apply(message)),
       vscode.workspace.onDidChangeConfiguration((event) => {
+        if (this._suppressPost > 0) return;
         if (settings.affectsAny(event) || event.affectsConfiguration('8bitscript.showExamples')) {
           this.post();
         }
       }),
-      this.projects.onDidChange(() => this.post()),
-      view.onDidChangeVisibility(() => view.visible && this.post()),
+      this.projects.onDidChange(() => this._suppressPost === 0 && this.post()),
+      view.onDidChangeVisibility(() => view.visible && this._suppressPost === 0 && this.post()),
     ];
-    if (this.devReload) subscriptions.push(this.devReload.onDidChange(() => this.post()));
+    if (this.devReload) {
+      subscriptions.push(this.devReload.onDidChange(() => this._suppressPost === 0 && this.post()));
+    }
     view.onDidDispose(() => {
       for (const subscription of subscriptions) subscription.dispose();
       this.view = undefined;
@@ -155,64 +160,81 @@ class LauncherViewProvider {
   }
 
   async set(message) {
-    switch (message.key) {
-      case 'project': {
-        await settings.setProject(message.value);
-        // Picking a project loads what it is set up for: the first of its
-        // systems, hardware and region and all. A project with none keeps
-        // the current machine when it targets it, and takes its first
-        // otherwise — the panel never leaves a machine selected that the
-        // project cannot be run on.
-        const project = this.projects.all.find((p) => p.dir === message.value);
-        if (!project) break;
-        const targets = await this.projects.loadTargets(project.dir);
-        const first = targets?.systems?.[0];
-        if (first) await this.applySystem(first);
-        else {
-          await settings.setNamedSystem('');
-          if (!project.targets.includes(settings.getSystem())) {
-            await settings.setSystem(project.targets[0] ?? settings.getSystem());
+    this._suppressPost += 1;
+    try {
+      switch (message.key) {
+        case 'project': {
+          await settings.setProject(message.value);
+          // Picking a project loads what it is set up for: the first of its
+          // systems, hardware and region and all. A project with none keeps
+          // the current machine when it targets it, and takes its first
+          // otherwise — the panel never leaves a machine selected that the
+          // project cannot be run on.
+          const project = this.projects.all.find((p) => p.dir === message.value);
+          if (!project) break;
+          const targets = await this.projects.loadTargets(project.dir);
+          const first = targets?.systems?.[0];
+          if (first) await this.applySystem(first);
+          else {
+            await settings.setNamedSystem('');
+            if (!project.targets.includes(settings.getSystem())) {
+              await settings.setSystem(project.targets[0] ?? settings.getSystem());
+            }
           }
+          break;
         }
-        break;
-      }
-      case 'system': {
-        // One dropdown, two kinds of entry: a machine on its own, or a
-        // whole machine the project has been set up for, which sets the
-        // hardware and the region with it.
-        const system = await this.namedSystem(message.value);
-        if (system) {
-          await this.applySystem(system);
-        } else if (ALL_TARGETS.includes(message.value)) {
-          await settings.setNamedSystem('');
-          await settings.setSystem(message.value);
+        case 'system': {
+          // One dropdown, two kinds of entry: a machine on its own, or a
+          // whole machine the project has been set up for, which sets the
+          // hardware and the region with it.
+          const system = await this.namedSystem(message.value);
+          if (system) {
+            await this.applySystem(system);
+          } else if (ALL_TARGETS.includes(message.value)) {
+            await settings.setNamedSystem('');
+            await settings.setSystem(message.value);
+          }
+          break;
         }
-        break;
+        default:
       }
-      default:
+    } finally {
+      this._suppressPost -= 1;
     }
+    await this.post();
   }
 
-  /** Push the current settings to the page; it never keeps its own copy. */
+  /**
+   * Push the current settings to the page; it never keeps its own copy.
+   *
+   * `loadTargets` is a CLI spawn on first load, so two posts can overlap —
+   * only the latest one paints. A named system is applied as several
+   * setting writes (name, then machine, then hardware); the machine for
+   * the Run label comes from that name when one is selected, so a
+   * half-written apply cannot label the button with the previous machine.
+   */
   async post() {
-    if (!this.view) return;
-    const system = settings.getSystem();
-    const named = settings.getNamedSystem();
+    if (!this.view || this._suppressPost > 0) return;
+    const seq = ++this._postSeq;
     const all = this.projects.all;
     const project = this.selectedProject(all);
     const offered = this.projects.visible;
     const listed = project && !offered.includes(project) ? [...offered, project] : offered;
     const targets = await this.projects.loadTargets(project?.dir);
-    if (!this.view) return;
+    if (!this.view || seq !== this._postSeq) return;
+    const named = settings.getNamedSystem();
+    const namedFit = named
+      ? (targets?.systems ?? []).find((entry) => entry.name === named)
+      : null;
+    const system = namedFit?.target ?? settings.getSystem();
     const target = targets?.get(system) ?? null;
     const selection = settings.getEffectiveHardware(system, target);
     const region = settings.getRegion();
     const machine = MACHINE_TARGETS.has(system);
     const bootable = !NO_BARE_EMULATOR.has(system);
     const runnable = Boolean(project?.targets.includes(system) && project.toolchain);
-    const fitted = named
-      ? (targets?.systems ?? []).find((entry) => entry.name === named)
-      : (targets?.systems ?? []).find((entry) => entry.target === system && matchesSystem(entry, target, selection, region));
+    const fitted = namedFit
+      ?? (targets?.systems ?? []).find((entry) => entry.target === system && matchesSystem(entry, target, selection, region));
     const extras = {
       system: fitted?.name || named || undefined,
       checkout: this.projects.checkoutFlag() || undefined,
