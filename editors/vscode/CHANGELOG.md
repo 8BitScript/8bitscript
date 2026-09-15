@@ -1,5 +1,20 @@
 # 8bitscript-lang
 
+## 0.9.1
+
+### Patch Changes
+
+- 5a29ff3: Run and Build from the side bar use a real `node`, not Cursor's Electron helper.
+  
+  A `.mjs` toolchain used to launch as `process.execPath`, which inside the
+  editor is the Plugin Helper. A task terminal is not `ELECTRON_RUN_AS_NODE`,
+  so that helper started as a GUI and died on `--system` / `--checkout`.
+- 9a6a9d7: The extension README no longer describes 0.2.0 as the current release.
+  
+  Marketplace 0.9.0 still shipped the 0.2.0 copy that said only PET and
+  the web build. The System list is all nine `RELEASE_MACHINES`, and Run
+  and Build work for each of them.
+
 ## 0.9.0
 
 ### Minor Changes
