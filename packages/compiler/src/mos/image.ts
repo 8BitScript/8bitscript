@@ -82,8 +82,12 @@ export interface MachineImage {
    * really does JSR through RUNAD, so its RTS is safe and lands somewhere
    * real. It is where it lands that is the problem (see image-atari8.ts),
    * and that is a fact about the machine's software, not about how it was
-   * entered. Default (undefined) is "no": every Commodore here returns to
-   * BASIC's `READY.` with its picture still on the screen.
+   * entered. The C64 is the Commodore that joins them: BASIC's SYS really
+   * did JSR, so an RTS is a safe instruction, but `setupVideo()` has already
+   * banked the KERNAL out and moved the picture to `$E000`, so the return
+   * lands in unmapped BASIC and the display snaps back to the `$0400`
+   * `READY.` screen. Default (undefined) is "no": a PET or VIC-20 returns
+   * to BASIC's `READY.` with its picture still on the screen.
    */
   endsByHalting?: boolean;
 }
@@ -101,13 +105,30 @@ export const COMMODORE: MachineImage = {
 };
 
 /**
- * Per machine, where it differs from COMMODORE. One entry per machine that
- * is not a Commodore — the NES and the Atari 8-bit are what this is for,
- * and each is its own entry rather than a branch inside build().
+ * Per machine, where it differs from COMMODORE. The NES and the Atari
+ * 8-bit are not Commodores at all (a ROM, a `.xex`). The C64 still is a
+ * `.prg` with a BASIC stub — it just cannot return through that stub once
+ * it has drawn, which is `endsByHalting`, not a different file format.
  */
+export const C64: MachineImage = {
+  ...COMMODORE,
+  // setupVideo() banks the KERNAL out ($01 = %101) and points the VIC at
+  // bank 3, screen at $E000. hello-world then RTSs into the SYS that called
+  // it. Measured under x64sc, NTSC, autostart + a cycle limit: the capture
+  // is the stock boot picture — light-blue border, dark-blue playfield,
+  // `READY.` at the top left — not the black screen and `Hello World!` the
+  // program wrote at $E000. The KERNAL that would print READY. is no longer
+  // mapped; the RTS executes RAM under BASIC, and whatever that does puts
+  // the VIC back on $0400. The same halt the Atari uses (JMP to itself, 3
+  // bytes) keeps the greeting up. A PET or VIC-20 still RTSs: their
+  // picture is the KERNAL's own screen, so READY. lands under it.
+  endsByHalting: true,
+};
+
 export const IMAGE: Partial<Record<Machine, MachineImage>> = {
   atari8: ATARI8,
   nes: NES,
+  c64: C64,
 };
 
 /** The image a machine is built as — COMMODORE unless it says otherwise. */

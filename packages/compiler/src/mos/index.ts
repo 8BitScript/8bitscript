@@ -1027,14 +1027,16 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // either, it is the bare two-byte spin.
   const haltLabel = '__8bs_halt';
   const haltEdge = image.entryIsVectored && frameHookLabel ? frameEdgeWait(options.machine, haltLabel) : null;
-  // `endsByHalting` is the second way to arrive here, and it is the Atari
-  // 8-bit's: DOS really did JSR through RUNAD, so an RTS is safe — it just
-  // lands in an environment that resets the OS color shadows and clears the
-  // screen before anyone can look at what the program drew (measured under
-  // atari800 7.1.2: identical result with `-basic`, with `-nobasic`, and
-  // with the stock config, and the same greeting stays up indefinitely when
-  // the program does not return). Halting is three bytes and is the only
-  // way a program that draws once and ends shows what it drew.
+  // `endsByHalting` is the second way to arrive here. The Atari 8-bit's
+  // DOS really did JSR through RUNAD, so an RTS is safe — it just lands
+  // in an environment that resets the OS color shadows and clears the
+  // screen (image-atari8.ts). The C64's BASIC SYS really did JSR too, so
+  // an RTS is a safe instruction — but setupVideo() has already banked
+  // the KERNAL out and moved the picture to $E000, so the return lands in
+  // unmapped BASIC and the display snaps back to $0400's READY. (measured
+  // under x64sc: hello-world's autostart capture was the boot screen).
+  // Halting is three bytes and is the only way a program that draws once
+  // and ends shows what it drew.
   const endProgram: Directive[] = image.entryIsVectored || image.endsByHalting
     ? [
       { kind: 'label', name: haltLabel },
