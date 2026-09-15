@@ -154,6 +154,15 @@ export namespace text {
         currentReverse = on;
     }
 
+    // Deliberately empty. setupVideo() (prepare(), above) banks the KERNAL
+    // out and leaves it out — the screen matrix lives at $E000, over the
+    // RAM the KERNAL ROM used to read, and main() falling off its end does
+    // not land back in a working BASIC the way it does on every other
+    // Commodore here (see the file header's "the KERNAL goes out... and
+    // stays out" in ./index.8bs). There is no cursor to hand back.
+    function releaseCursor(): void {
+    }
+
     function print(cell: usmallint, s: string): void {
         prepare();
         for (let i: utinyint = 0; i < s.length; i++) {

@@ -94,6 +94,13 @@ export namespace text {
         currentReverse = on;
     }
 
+    // Deliberately empty — the web target has no BASIC prompt for main()
+    // falling off its end to return to (see
+    // packages/vic20/src/text.8bs's own releaseCursor() for what this
+    // closes there), so there is no cursor to hand back here.
+    function releaseCursor(): void {
+    }
+
     // Writes `s`'s characters into consecutive cells starting at `cell`, in
     // the current color — `text.setColor(...)` changes what gets printed
     // after it, not what is already on screen.

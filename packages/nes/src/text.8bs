@@ -176,6 +176,13 @@ export namespace text {
         currentReverse = on;
     }
 
+    // Deliberately empty — the NES has no BASIC prompt for main() falling
+    // off its end to return to (see packages/vic20/src/text.8bs's own
+    // releaseCursor() for what this closes there), so there is no cursor
+    // to hand back here.
+    function releaseCursor(): void {
+    }
+
     function print(cell: usmallint, s: string): void {
         let col: utinyint = locate(cell);
         for (let i: utinyint = 0; i < s.length; i++) {

@@ -29,6 +29,15 @@ const configPathOf = (dir) => {
   return found;
 };
 
+// The example's own entry file, from its config's `entry:` field — not
+// assumed to be `main.8bs`, since hello-world's is `hello-world.8bs`.
+const entryOf = (dir) => {
+  const config = readFileSync(configPathOf(dir), 'utf8').replace(/\/\/[^\n]*/g, '');
+  const match = /entry:\s*['"]([^'"]+)['"]/.exec(config);
+  assert.ok(match, `${dir}: no entry field`);
+  return join(dir, match[1]);
+};
+
 // Which machines the example's config lists: the keys of its `targets`
 // object. Read the same way the editor reads it, as text.
 const targetsOf = (dir) => {
@@ -56,7 +65,7 @@ test('the manifest lists every example, each a directory with a real project in 
     const dir = resolve(ROOT, entry.dir);
     configPathOf(dir); // asserts the project has a config under either name
 
-    assert.ok(existsSync(join(dir, 'src', 'main.8bs')), `${name}: src/main.8bs`);
+    assert.ok(existsSync(entryOf(dir)), `${name}: entry file`);
   }
 });
 
@@ -79,7 +88,7 @@ for (const name of Object.keys(examples)) {
 
   for (const target of TARGETS) {
     test(`${name} links clean for ${target}`, () => {
-      const main = join(resolve(ROOT, examples[name].dir), 'src', 'main.8bs');
+      const main = entryOf(resolve(ROOT, examples[name].dir));
       const { ir, diagnostics } = link(readFileSync(main, 'utf8'), main, { machine: target, facts: stockFacts(target) });
       assert.deepEqual(diagnostics, []);
       assert.equal(ir.entry, 'main');

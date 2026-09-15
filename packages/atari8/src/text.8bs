@@ -130,6 +130,13 @@ export namespace text {
         currentReverse = on;
     }
 
+    // Deliberately empty — an Atari 8-bit program that falls off main()'s
+    // end does not return to a BASIC prompt the way a Commodore one does
+    // (see packages/vic20/src/text.8bs's own releaseCursor() for what
+    // this closes there), so there is no cursor to hand back here.
+    function releaseCursor(): void {
+    }
+
     function print(cell: usmallint, s: string): void {
         prepare();
         for (let i: utinyint = 0; i < s.length; i++) {
