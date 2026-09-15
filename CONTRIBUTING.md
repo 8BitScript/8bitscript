@@ -1,10 +1,10 @@
 # Contributing to 8BitScript
 
-The compiler's front end and linker run for the milestone subset: lexer,
-parser, checker, IR, and two backends that exist and do not yet emit
-images. `8bs check` works; `8bs build` and `8bs run` refuse every target
-until 0.2.0. Contributions are documentation, compiler, package, and
-editor work.
+The compiler's front end, linker, and both backends emit for real:
+`8bs check`, `8bs build`, and `8bs run` work for every machine in
+`RELEASE_MACHINES` (PET, VIC-20, C64, C128, Commander X16, MEGA65,
+Atari 8-bit, NES, and the web). Contributions are documentation,
+compiler, package, and editor work.
 
 ## Workflow
 
