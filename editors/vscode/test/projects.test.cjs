@@ -27,6 +27,8 @@ const {
   systemLine,
   packageManagerFor,
   packageManagerPath,
+  cliCommand,
+  nodeCommand,
   resolvePackageManager,
   loadProject,
   loadProjects,
@@ -531,6 +533,64 @@ test('packageManagerPath appends well-known bins after PATH', (t) => {
   const search = packageManagerPath({ PATH: '/usr/bin' }, home);
   assert.ok(search.startsWith(`/usr/bin${path.delimiter}`));
   assert.ok(search.split(path.delimiter).includes(extra));
+});
+
+const ELECTRON = {
+  execPath: '/Applications/Cursor.app/Contents/Frameworks/Cursor Helper (Plugin).app/Contents/MacOS/Cursor Helper (Plugin)',
+  versions: { electron: '42.10.0' },
+};
+
+function writeFakeNode(home) {
+  const dir = path.join(home, '.local', 'bin');
+  fs.mkdirSync(dir, { recursive: true });
+  const node = path.join(dir, 'node');
+  fs.writeFileSync(node, '');
+  fs.chmodSync(node, 0o755);
+  return node;
+}
+
+test('nodeCommand: plain Node uses execPath', () => {
+  const runtime = { execPath: '/usr/bin/node', versions: {} };
+  assert.equal(nodeCommand({ PATH: '' }, '/no-such-home', runtime), '/usr/bin/node');
+});
+
+test('nodeCommand: Electron finds node on the install PATH, not the helper', (t) => {
+  const home = scratch(t);
+  const node = writeFakeNode(home);
+  assert.equal(nodeCommand({ PATH: '' }, home, ELECTRON), node);
+});
+
+test('cliCommand: a bin is the bin; a .mjs under Node is execPath', () => {
+  assert.deepEqual(cliCommand('/proj/node_modules/.bin/8bs'), {
+    command: '/proj/node_modules/.bin/8bs',
+    args: [],
+  });
+  const runtime = { execPath: '/usr/bin/node', versions: {} };
+  assert.deepEqual(
+    cliCommand('/checkout/packages/cli/bin/8bs.mjs', { runtime }),
+    { command: '/usr/bin/node', args: ['/checkout/packages/cli/bin/8bs.mjs'] },
+  );
+});
+
+test('cliCommand: Electron does not spawn the helper when node is on PATH', (t) => {
+  const home = scratch(t);
+  const node = writeFakeNode(home);
+  const result = cliCommand('/checkout/packages/cli/bin/8bs.mjs', {
+    env: { PATH: '' },
+    home,
+    runtime: ELECTRON,
+  });
+  assert.deepEqual(result, { command: node, args: ['/checkout/packages/cli/bin/8bs.mjs'] });
+  assert.equal(result.env, undefined);
+});
+
+test('cliCommand: Electron without node still sets ELECTRON_RUN_AS_NODE', () => {
+  const result = cliCommand('/checkout/packages/cli/bin/8bs.mjs', {
+    searchPath: '/no-such-bin',
+    runtime: ELECTRON,
+  });
+  assert.equal(result.command, ELECTRON.execPath);
+  assert.deepEqual(result.env, { ELECTRON_RUN_AS_NODE: '1' });
 });
 
 // Writing a system into an 8bs.config.ts. The config is source, not a
