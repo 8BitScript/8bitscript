@@ -1,5 +1,60 @@
 # @8bitscript/language-server
 
+## 0.11.0
+
+### Minor Changes
+
+- 660b8c0: 8BX (`.8bx`): a `component` declaration that elaborates to a plain call
+  before any backend sees it, so a declarative element (`<Foo bar={baz} />`)
+  costs exactly what writing `foo(baz)` by hand would cost — measured
+  byte-identical on the PET in the new `hello-bx` example (108 bytes, same as
+  `hello-world`).
+  
+  The front end grows a binder (`packages/compiler/src/binder`) that resolves
+  symbols and scopes ahead of the checker, and a `bx/` pass
+  (`check.mjs`, `elaborate.mjs`, `parse.mjs`) that parses element syntax at
+  statement boundaries — `<`, `<<` and the rest of the operator grammar are
+  unchanged in either source kind — checks it, then elaborates it into the
+  core AST the checker, folder and every backend already understand.
+  `analyze()`, `link()` and the language server all run binding and BX
+  elaboration before folding and checking, for both `.8bs` and `.8bx` files.
+  
+  Also: a conditional expression (`cond ? a : b`) lowers to real branching
+  IR and MOS instruction selection, editor support for `.8bx` (grammar,
+  language registration, activation), and `docs/compiler.md`, which replaces
+  the `8bx` design-direction doc with a description of the pipeline as
+  built.
+  
+  Not in this release: array-typed component props, and no backend beyond
+  mos/wasm has been asked to prove elaboration is free — only the PET and
+  web are measured.
+- 1de8025: IntelliSense for a program's own names, from the binder (8BX spec PR 15).
+  Hover on a component, function, variable, const, parameter or `state`
+  field shows its declaration and the doc comment above it, following an
+  import to the file it comes from — a component called from `.8bs`
+  (`MenuBar();`) is the same component as `<MenuBar />`. Completion offers
+  the names visible from the cursor; in `.8bx`, `<` offers the components
+  in scope and `slot`, a component's tag offers the props it still needs
+  (as snippets), and `</` closes the innermost open element. New
+  `getDefinition` in the compiler and `textDocument/definition` in the
+  language server: Go to Definition lands on the declaration, in this file
+  or another. Hover and completion now lex an `.8bx` buffer as one.
+
+### Patch Changes
+
+- Updated dependencies [660b8c0]
+- Updated dependencies [4a594eb]
+- Updated dependencies [b96ef5f]
+- Updated dependencies [8309efa]
+- Updated dependencies [548f29b]
+- Updated dependencies [fb4cf62]
+- Updated dependencies [47cf362]
+- Updated dependencies [d1ab357]
+- Updated dependencies [bd9a32a]
+- Updated dependencies [1de8025]
+- Updated dependencies [44b31ef]
+  - @8bitscript/compiler@0.11.0
+
 ## 0.10.2
 
 ### Patch Changes

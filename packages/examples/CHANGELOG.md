@@ -1,5 +1,51 @@
 # @8bitscript/examples
 
+## 0.11.0
+
+### Minor Changes
+
+- 660b8c0: 8BX (`.8bx`): a `component` declaration that elaborates to a plain call
+  before any backend sees it, so a declarative element (`<Foo bar={baz} />`)
+  costs exactly what writing `foo(baz)` by hand would cost — measured
+  byte-identical on the PET in the new `hello-bx` example (108 bytes, same as
+  `hello-world`).
+  
+  The front end grows a binder (`packages/compiler/src/binder`) that resolves
+  symbols and scopes ahead of the checker, and a `bx/` pass
+  (`check.mjs`, `elaborate.mjs`, `parse.mjs`) that parses element syntax at
+  statement boundaries — `<`, `<<` and the rest of the operator grammar are
+  unchanged in either source kind — checks it, then elaborates it into the
+  core AST the checker, folder and every backend already understand.
+  `analyze()`, `link()` and the language server all run binding and BX
+  elaboration before folding and checking, for both `.8bs` and `.8bx` files.
+  
+  Also: a conditional expression (`cond ? a : b`) lowers to real branching
+  IR and MOS instruction selection, editor support for `.8bx` (grammar,
+  language registration, activation), and `docs/compiler.md`, which replaces
+  the `8bx` design-direction doc with a description of the pipeline as
+  built.
+  
+  Not in this release: array-typed component props, and no backend beyond
+  mos/wasm has been asked to prove elaboration is free — only the PET and
+  web are measured.
+- 9ad0106: A program starts from a `.8bs` file. `8bs build` refuses an `.8bx` entry
+  by name — an `.8bx` declares composition, and a program reaches its
+  components by importing them and calling them: `Hello();` is `<Hello />`
+  the way `.8bs` can spell it, and is checked as any call is. `hello-bx`
+  is split accordingly: `src/hello-bx.8bs` is the program, `src/Hello.8bx`
+  the component, and its PET build is still byte-identical to
+  `hello-world`'s.
+
+### Patch Changes
+
+- @8bitscript/input@0.11.0
+  - @8bitscript/pet@0.11.0
+  - @8bitscript/raster@0.11.0
+  - @8bitscript/screen@0.11.0
+  - @8bitscript/system@0.11.0
+  - @8bitscript/text@0.11.0
+  - @8bitscript/web@0.11.0
+
 ## 0.10.2
 
 ### Patch Changes

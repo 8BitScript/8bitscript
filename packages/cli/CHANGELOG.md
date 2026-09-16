@@ -1,5 +1,119 @@
 # @8bitscript/cli
 
+## 0.11.0
+
+### Minor Changes
+
+- 660b8c0: 8BX (`.8bx`): a `component` declaration that elaborates to a plain call
+  before any backend sees it, so a declarative element (`<Foo bar={baz} />`)
+  costs exactly what writing `foo(baz)` by hand would cost — measured
+  byte-identical on the PET in the new `hello-bx` example (108 bytes, same as
+  `hello-world`).
+  
+  The front end grows a binder (`packages/compiler/src/binder`) that resolves
+  symbols and scopes ahead of the checker, and a `bx/` pass
+  (`check.mjs`, `elaborate.mjs`, `parse.mjs`) that parses element syntax at
+  statement boundaries — `<`, `<<` and the rest of the operator grammar are
+  unchanged in either source kind — checks it, then elaborates it into the
+  core AST the checker, folder and every backend already understand.
+  `analyze()`, `link()` and the language server all run binding and BX
+  elaboration before folding and checking, for both `.8bs` and `.8bx` files.
+  
+  Also: a conditional expression (`cond ? a : b`) lowers to real branching
+  IR and MOS instruction selection, editor support for `.8bx` (grammar,
+  language registration, activation), and `docs/compiler.md`, which replaces
+  the `8bx` design-direction doc with a description of the pipeline as
+  built.
+  
+  Not in this release: array-typed component props, and no backend beyond
+  mos/wasm has been asked to prove elaboration is free — only the PET and
+  web are measured.
+- 9ad0106: A program starts from a `.8bs` file. `8bs build` refuses an `.8bx` entry
+  by name — an `.8bx` declares composition, and a program reaches its
+  components by importing them and calling them: `Hello();` is `<Hello />`
+  the way `.8bs` can spell it, and is checked as any call is. `hello-bx`
+  is split accordingly: `src/hello-bx.8bs` is the program, `src/Hello.8bx`
+  the component, and its PET build is still byte-identical to
+  `hello-world`'s.
+- fb4cf62: `.8bs` is code, `.8bx` is composition. `asm6502` is refused in an `.8bx`
+  file (`8BS2020`): machine code lives in a `.8bs` function the component
+  imports. A top-level function that composes nothing, or a top-level
+  `let`, in an `.8bx` is a warning (`8BS2021`) that `bx: { strict: false }`
+  in `8bitscript.config.ts` switches off; component methods and state, and
+  anything inside `{…}`, are never linted.
+  
+  A warning now reports and rides along: the linker and `8bs build` stop
+  for errors only, where before any diagnostic — an inexact `#frames()`
+  duration included — stopped a build.
+- d1ab357: 8BX components keep state. `state count: utinyint = 0;` at the top of a
+  component body is storage per static instance: every element — and every
+  call from `.8bs` — is an instance with its own copy of the function and
+  its own globals, laid out at compile time and named after the instance
+  (`__bx_Counter__count__i1`), the template dropped, and a stateless
+  component that contains a stateful one instanced per site too, so two
+  `<Pair />` holding a `<Tally />` are four tallies. The two halves of a
+  slotted component share one instance. Nothing is allocated at run time;
+  `8bs build --size` lists every instance and the bytes of state it holds.
+  `state` belongs at the top of a component body, typed, once per name,
+  unshadowed (`8BS2022`); the initializer is a literal or a const, as for
+  any global. Component methods and arrays of state are later.
+- 6154194: `8bitscript.config.ts` learns its own shape, and a project can build more
+  than one program.
+  
+  - `import { defineConfig } from '@8bitscript/cli'` types the config
+    (`src/index.d.ts`; `schemas/config.json` is the same shape as a JSON
+    schema). A plain `export default { … }` is still a config.
+  - `programs: { main: { entry }, format: { entry, targets?, requires? } }`
+    — each its own build from its own `.8bs` entry, the key its output stem
+    (`dist/format-c64-ntsc.prg`, `dist/web/format/`). `entry: 'src/main.8bs'`
+    still works and means `programs: { main: { entry } }` with the entry's
+    filename as the stem, so no existing `dist/` name moves. An `.8bx` entry
+    is refused by name: a program starts from `.8bs`. `--program <name>` on
+    `8bs build` and `8bs run`; `--release` builds every program for the
+    targets it lists; `8bs targets` lists them and `--json` carries them;
+    the last-run file records which program ran.
+  - `images: { name: { target, format, boot, files } }` — disk images over
+    the programs, validated by every build and named by `--release`, which
+    says plainly that it does not write them yet.
+  - `bx: { strict }` is accepted, for the 8BX lint that lands with the
+    grammar.
+  - The editor's project reader understands a `programs` block, so "the"
+    program is `main`'s entry and the others are listed beside it.
+
+### Patch Changes
+
+- 86649ac: On the web's resizable host, a window resize now re-grids the program
+  between frames: the page holds the measurement and applies it right
+  before releasing the next `waitFrame()`, once the program is waiting for
+  it — so `Video.columns()` never changes between two reads inside one
+  frame, and a program that redraws each frame simply follows the next
+  one. A program with no frame clock is re-gridded at once, as before.
+- Updated dependencies [660b8c0]
+- Updated dependencies [4a594eb]
+- Updated dependencies [b96ef5f]
+- Updated dependencies [9ad0106]
+- Updated dependencies [8309efa]
+- Updated dependencies [548f29b]
+- Updated dependencies [fb4cf62]
+- Updated dependencies [47cf362]
+- Updated dependencies [d1ab357]
+- Updated dependencies [bd9a32a]
+- Updated dependencies [1de8025]
+- Updated dependencies [44b31ef]
+  - @8bitscript/compiler@0.11.0
+  - @8bitscript/language-server@0.11.0
+  - @8bitscript/examples@0.11.0
+  - @8bitscript/studio@0.11.0
+  - @8bitscript/atari8@0.11.0
+  - @8bitscript/c128@0.11.0
+  - @8bitscript/c64@0.11.0
+  - @8bitscript/cx16@0.11.0
+  - @8bitscript/mega65@0.11.0
+  - @8bitscript/nes@0.11.0
+  - @8bitscript/pet@0.11.0
+  - @8bitscript/vic20@0.11.0
+  - @8bitscript/web@0.11.0
+
 ## 0.10.2
 
 ### Patch Changes
