@@ -117,3 +117,19 @@ for (const target of ['pet', 'c64', 'web']) {
     assert.deepEqual([...bx], [...hand], `${target}: same bytes`);
   });
 }
+
+// Capability-responsive composition (spec §49, §78): a component behind a
+// compile-time fact costs the machine that cannot run it nothing. Both
+// arms are written; the built program holds one.
+test('a component in the arm a compile-time fact rules out is not in the PET build', async () => {
+  const cost = async (main) => (await buildProject({ 'main.8bs': 'import { draw } from "./View.8bx";\nexport function main(): void { draw(); }\n', 'View.8bx': main }, 'pet')).length;
+  const both = `import { Video } from "@8bitscript/system";
+component Sprites() { memory.write(0x8000, 1); memory.write(0x8001, 2); memory.write(0x8002, 3); }
+component Text() { memory.write(0x8000, 9); }
+export function draw(): void { <>{Video.SPRITES > 0 ? <Sprites /> : <Text />}</>; }
+`;
+  const textOnly = `component Text() { memory.write(0x8000, 9); }
+export function draw(): void { <Text />; }
+`;
+  assert.equal(await cost(both), await cost(textOnly), 'the PET has no sprites: the sprite arm costs it nothing');
+});

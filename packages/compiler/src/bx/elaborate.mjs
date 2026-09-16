@@ -168,9 +168,7 @@ function slottedElement(el, sym, ctx) {
   const instance = instanceTag(el, sym, ctx);
   stmts.push(callStatement(el, open, passed, instance));
   for (const child of el.children ?? []) {
-    if (child.type === NodeType.BxElement || child.type === NodeType.BxFragment) {
-      stmts.push(...elaborateElementTree(child, ctx));
-    }
+    if (child.type !== NodeType.BxText) stmts.push(...elaborateElementTree(child, ctx));
   }
   stmts.push(callStatement(el, close, passed.map(cloneNode), instance));
   return stmts;
@@ -179,11 +177,48 @@ function slottedElement(el, sym, ctx) {
 function elaborateElement(el, ctx) {
   const sym = componentOf(ctx.symbols.get(el.name));
   if (!sym) return [];
-  const elementChildren = (el.children ?? []).some((c) => c.type === NodeType.BxElement || c.type === NodeType.BxFragment);
+  // Children that compose: elements, fragments, and `{…}` fields that hold
+  // a composition (an empty field — a comment — is nothing).
+  const elementChildren = (el.children ?? []).some((c) => c.type === NodeType.BxElement || c.type === NodeType.BxFragment
+    || (c.type === NodeType.BxExpressionChild && c.expression));
   if (elementChildren && sym.allowsChildren) return slottedElement(el, sym, ctx);
   // No slot to put children in: the checker said so; they are dropped here
   // rather than run somewhere the component did not ask for them.
   return [callStatement(el, el.name, argumentsFor(el, sym), instanceTag(el, sym, ctx))];
+}
+
+/**
+ * A composition-valued expression as statements, or null when the
+ * expression is not one (spec §48–§50):
+ *
+ *   {cond ? <A /> : <B />}   if (cond) { A } else { B }
+ *   {cond && <A />}          if (cond) { A }
+ *
+ * either arm being an element, a fragment, or another such expression.
+ * A compile-time `cond` — `Video.SPRITES > 0` — is a constant `if`, and
+ * the optimizer drops the arm that cannot run, component and all (§49);
+ * a run-time one is ordinary control flow (§50). No tree, no runtime.
+ */
+function compositionOf(expr, ctx) {
+  if (!expr) return null;
+  if (expr.type === NodeType.BxElement || expr.type === NodeType.BxFragment) return elaborateElementTree(expr, ctx);
+  const block = (stmts, at) => node(NodeType.BlockStatement, at.start, at.start + at.length, { body: stmts });
+  if (expr.type === NodeType.ConditionalExpression) {
+    const yes = compositionOf(expr.consequent, ctx);
+    const no = compositionOf(expr.alternate, ctx);
+    if (!yes || !no) return null;
+    return [node(NodeType.IfStatement, expr.start, expr.start + expr.length, {
+      test: expr.test, consequent: block(yes, expr.consequent), alternate: block(no, expr.alternate),
+    })];
+  }
+  if (expr.type === NodeType.BinaryExpression && expr.operator === '&&') {
+    const yes = compositionOf(expr.right, ctx);
+    if (!yes) return null;
+    return [node(NodeType.IfStatement, expr.start, expr.start + expr.length, {
+      test: expr.left, consequent: block(yes, expr.right), alternate: null,
+    })];
+  }
+  return null;
 }
 
 function elaborateElementTree(n, ctx) {
@@ -193,6 +228,11 @@ function elaborateElementTree(n, ctx) {
   if (n.type === NodeType.BxElement) {
     return elaborateElement(n, ctx);
   }
+  if (n.type === NodeType.BxExpressionChild) {
+    // An empty field (a comment) is nothing; a composition is its
+    // statements; anything else the checker has already reported.
+    return compositionOf(n.expression, ctx) ?? [];
+  }
   return [];
 }
 
@@ -200,6 +240,11 @@ function transformStatement(stmt, ctx) {
   if (!stmt) return [stmt];
   if (stmt.type === NodeType.BxElement || stmt.type === NodeType.BxFragment) {
     return elaborateElementTree(stmt, ctx);
+  }
+  // `return (<…/>)` in a component body (§23, §96): the composition, here.
+  if (stmt.type === NodeType.ReturnStatement && stmt.argument) {
+    const composed = compositionOf(stmt.argument, ctx);
+    if (composed) return composed;
   }
   if (stmt.type === NodeType.BlockStatement) {
     return [node(NodeType.BlockStatement, stmt.start, stmt.start + stmt.length, {

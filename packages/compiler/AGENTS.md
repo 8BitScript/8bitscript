@@ -74,6 +74,18 @@ per name, unshadowed (`8BS2022`). `--size` lists every instance's bytes
 (`ir.instances`, `stateReportLines`). Not yet: component methods, arrays
 of state, pools.
 
+**Composition is conditional the ordinary way** (spec §48–§50, §94).
+`{cond ? <A /> : <B />}` and `{cond && <A />}` between tags are an `if`
+with a composition in each arm (`bx/elaborate.mjs` `compositionOf`);
+`return (<…/>)` in a component composes where it stands. A compile-time
+`cond` — `Video.SPRITES > 0` — is a constant `if`, and the optimizer drops
+the arm that cannot run, component and all: `menubar-bx.test.mjs` builds
+both arms for the PET and measures that the sprite arm costs it nothing.
+An element anywhere a value is expected (`let x = <A />`, `f(<A />)`, an
+attribute) is `8BS2024`; a `{…}` child that is not a composition
+(`{score}`) is `8BS2023` — a value between tags is a later milestone
+(§20).
+
 **Children go where `<slot />` is.** A slotted component is also split
 at the slot into `Name__open` and `Name__close`, and
 `<Name a={x}><A /></Name>` is `Name__open(x); A(); Name__close(x);` —

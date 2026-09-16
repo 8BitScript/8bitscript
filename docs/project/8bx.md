@@ -51,6 +51,10 @@ superseded.
   in a component body; each element (or `.8bs` call site) is an instance
   with its own function and its own globals, laid out at compile time,
   templates dropped, every byte in `8bs build --size` (§119).
+- **Composition is conditional the ordinary way** (§48–§50):
+  `{cond ? <A /> : <B />}`, `{cond && <A />}`, `return (<…/>)`; a
+  compile-time test drops the arm that cannot run, component and all,
+  which is capability-responsive design (§49, §78) — measured on the PET.
 - **Children go where `<slot />` is** (§33): a slotted component is two
   functions around its children, so they run once, in place (§105).
   `@8bitscript/ui/menubar-bx` is `<MenuBar row width><MenuItem label />…</MenuBar>`

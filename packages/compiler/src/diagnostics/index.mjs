@@ -157,6 +157,10 @@ export const Codes = {
   BX_ORDINARY_CODE: '8BS2021',
   // `state` anywhere but the top level of a component body, twice with one name, or shadowed by a local.
   BX_INVALID_STATE: '8BS2022',
+  // `{…}` between tags that is not a composition: `{cond ? <A /> : <B />}` and `{cond && <A />}` are; a bare value is not, yet.
+  BX_EXPRESSION_CHILD: '8BS2023',
+  // An element where a value is expected: `let x = <A />`, `f(<A />)` (spec §94).
+  BX_NOT_A_VALUE: '8BS2024',
 
   NOT_COMPILABLE: '8BS3001',
   NOT_ON_THIS_TARGET: '8BS3002',
