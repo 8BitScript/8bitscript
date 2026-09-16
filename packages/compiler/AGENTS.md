@@ -30,6 +30,22 @@ form, or diagnostic — docs, IntelliSense, the language server, the
 editor grammar and snippets, and any per-target `AGENTS.md` that the
 change affects. Those copies do not update themselves.
 
+## Source kinds
+
+Two file extensions name 8BitScript source: `.8bs` and `.8bx`. What a
+path is — which kind, its stem, whether it is source at all — is asked in
+one place, `src/source/index.mjs` (`sourceKindOf`, `stripSourceExtension`,
+`isSourceFile`, `SOURCE_EXTENSIONS`), and nowhere else hard-codes an
+extension. The resolver's twin rule preserves the kind it was given
+(`App.8bx` on the PET is `App.pet.8bx`, never `.8bs`); an `.8bx` file can
+be imported, be a package's entry, and carry machine and hardware twins.
+One lexer and one parser serve both; `.8bx` adds the `component`
+declaration and element syntax (`src/bx/`), which the parser only admits
+when the source kind says so. The 8BX spec's rule is that a program
+starts from `.8bs` and reaches its components by importing them; the
+toolchain does not enforce that until a component can be called from
+`.8bs` (spec §4.5), which is why `hello-bx`'s entry is still `.8bx`.
+
 ## The pipeline
 
 Text goes through the layers in order. Each layer is a pure function

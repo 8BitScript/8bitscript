@@ -20,8 +20,13 @@ const COMPLETION_KIND = {
   25: vscode.CompletionItemKind.TypeParameter,
 };
 
+// Both source kinds go to the one language server: `.8bs` and `.8bx` are
+// the same language with two grammars (the second is a superset), and the
+// server tells them apart by the file's extension, not by a second server.
+const LANGUAGE_IDS = ['8bitscript', '8bitextensible'];
+
 function isEightBitScript(document) {
-  return document.languageId === '8bitscript';
+  return LANGUAGE_IDS.includes(document.languageId);
 }
 
 function toRange(range) {
@@ -169,7 +174,7 @@ function registerLanguageServer(context, output) {
         textDocument: { uri: document.uri.toString() },
       });
     }),
-    vscode.languages.registerHoverProvider('8bitscript', {
+    vscode.languages.registerHoverProvider(LANGUAGE_IDS, {
       async provideHover(document, position) {
         if (!client) return undefined;
         const result = await client.request('textDocument/hover', {
@@ -186,7 +191,7 @@ function registerLanguageServer(context, output) {
       },
     }),
     vscode.languages.registerCompletionItemProvider(
-      '8bitscript',
+      LANGUAGE_IDS,
       {
         async provideCompletionItems(document, position) {
           if (!client) return undefined;
