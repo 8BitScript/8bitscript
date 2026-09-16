@@ -1240,7 +1240,7 @@ function specializeInstances(ir, diagnostics) {
         // A method of the component this instance is — called from its
         // body, a half, or another method — works on this instance's
         // state: the same instance, not a new one.
-        const sameInstance = target.method && parentInstance && target.owner === fn.owner;
+        const sameInstance = target.method && target.owner === fn.owner;
         const own = node.instance ?? `${node.start ?? 0}@${fn.name}`;
         const instance = sameInstance ? parentInstance : (parentInstance ? `${parentInstance}/${own}` : own);
         node.name = instantiate(node.name, instance);

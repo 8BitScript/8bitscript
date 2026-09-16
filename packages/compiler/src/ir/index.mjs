@@ -867,8 +867,8 @@ class Lowering {
       ...(node.state ? { state: node.state } : {}),
       // Which component a function is part of (itself, a half, or a
       // method of it), so an instance's methods are instanced with it.
-      ...(node.owner ? { owner: node.owner } : {}),
-      ...(node.method ? { method: true } : {}),
+      owner: node.owner ?? null,
+      method: node.method === true,
       params,
       returnType,
       body,

@@ -368,29 +368,43 @@ function checkState(ast, file) {
 function checkMethods(ast, file) {
   const diagnostics = [];
   const at = (n, message) => diagnostics.push(diagnostic(Codes.BX_INVALID_METHOD, message, file, n.start, n.length));
-  for (const stmt of ast?.body ?? []) {
-    if (stmt?.type !== NodeType.ComponentDeclaration) continue;
-    const body = stmt.body?.body ?? [];
-    const props = new Set((stmt.params ?? []).map((p) => p.name?.name).filter(Boolean));
-    const fields = new Set(body.filter((s) => s?.type === NodeType.StateDeclaration).map((s) => s.name?.name).filter(Boolean));
+  for (const { stmt, body, name: component } of componentsOf(ast)) {
+    const props = namesOf(stmt.params);
+    const fields = namesOf(body.filter((s) => s.type === NodeType.StateDeclaration));
     const seen = new Set();
     for (const m of body) {
-      if (m?.type !== NodeType.FunctionDeclaration || !m.name?.name) continue;
+      if (m.type !== NodeType.FunctionDeclaration || !m.name) continue;
       const name = m.name.name;
-      if (props.has(name) || fields.has(name)) at(m.name, `method '${name}' takes the name of a prop or state of '${stmt.name?.name}'`);
-      if (seen.has(name)) at(m.name, `method '${name}' is declared twice in '${stmt.name?.name}'`);
+      if (props.has(name) || fields.has(name)) at(m.name, `method '${name}' takes the name of a prop or state of '${component}'`);
+      if (seen.has(name)) at(m.name, `method '${name}' is declared twice in '${component}'`);
       seen.add(name);
       // Names the method declares for itself shadow the component's props.
-      const own = new Set((m.params ?? []).map((p) => p.name?.name).filter(Boolean));
-      walk(m.body, (n) => { if (n.type === NodeType.VariableDeclaration && n.name?.name) own.add(n.name.name); });
+      const own = namesOf(m.params);
+      walk(m.body, (n) => { if (n.type === NodeType.VariableDeclaration && n.name) own.add(n.name.name); });
       walk(m.body, (n, parent) => {
-        const isProperty = parent?.type === NodeType.MemberExpression && parent.property === n;
-        const declares = parent?.type === NodeType.VariableDeclaration && parent.name === n;
-        if (n.type === NodeType.Identifier && props.has(n.name) && !own.has(n.name) && !isProperty && !declares) {
-          at(n, `'${n.name}' is a prop of '${stmt.name?.name}'; a method sees state, not props — pass it as an argument`);
-        }
+        if (n.type !== NodeType.Identifier || !props.has(n.name) || own.has(n.name)) return;
+        const isProperty = parent.type === NodeType.MemberExpression && parent.property === n;
+        const declares = parent.type === NodeType.VariableDeclaration && parent.name === n;
+        if (!isProperty && !declares) at(n, `'${n.name}' is a prop of '${component}'; a method sees state, not props — pass it as an argument`);
       });
     }
   }
   return diagnostics;
+}
+
+/** Every component declaration in a program, with its body's statements (never null) and its name. */
+function componentsOf(ast) {
+  const out = [];
+  for (const stmt of ast?.body ?? []) {
+    if (stmt?.type !== NodeType.ComponentDeclaration) continue;
+    out.push({ stmt, body: (stmt.body?.body ?? []).filter(Boolean), name: stmt.name?.name ?? '' });
+  }
+  return out;
+}
+
+/** The names of a list of named nodes (parameters, declarations), skipping the unnamed. */
+function namesOf(nodes) {
+  const out = new Set();
+  for (const n of nodes ?? []) if (n?.name?.name) out.add(n.name.name);
+  return out;
 }
