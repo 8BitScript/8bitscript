@@ -14,7 +14,7 @@ the linker touches the filesystem.
 
 | Layer | Input | Output |
 | --- | --- | --- |
-| lexer | source text (`.8bs` or `.8bx`) | tokens and lexical diagnostics |
+| lexer | source text (`.8bs` or `.8bx`) | tokens and lexical diagnostics; in `.8bx`, tag/children/expression modes give element syntax its own tokens |
 | parser | tokens | AST and syntax diagnostics |
 | fold | AST | the same tree, with `#name(...)` calls resolved |
 | binder | AST | symbols, scopes, binding diagnostics |

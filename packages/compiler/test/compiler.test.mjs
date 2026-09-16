@@ -748,13 +748,19 @@ test('analyze, hover, and completion never throw on any prefix of a real program
     join(HERE, '..', '..', 'nes', 'src', 'screen.8bs'),
     // Arrays, a for loop with a local, and a ptr global that still does not lower.
     join(FIXTURES, 'partial-subset.8bs'),
+    // 8BX: every half-typed tag, attribute, brace and closing tag on the
+    // way to a real component and a real composition (spec §90).
+    join(HERE, '..', '..', 'examples', 'hello-bx', 'src', 'Hello.8bx'),
+    join(HERE, '..', '..', 'ui', 'src', 'menubar.8bx'),
+    join(HERE, '..', '..', 'ui', 'test', 'menubar-probe.8bx'),
   ];
   for (const file of files) {
     const source = readFileSync(file, 'utf8');
+    const name = file.endsWith('.8bx') ? 't.8bx' : 't.8bs';
     for (let i = 0; i <= source.length; i += 1) {
       const prefix = source.slice(0, i);
       assert.doesNotThrow(() => {
-        analyze(prefix, 't.8bs');
+        analyze(prefix, name);
         getHoverInfo(prefix, i);
         getCompletions(prefix, i);
       }, `threw at offset ${i} of ${file}: ${JSON.stringify(prefix.slice(-40))}`);
@@ -774,6 +780,21 @@ test('analyze never throws on a statement caught mid-keystroke', () => {
       getHoverInfo(source, source.length);
       getCompletions(source, source.length);
     }, JSON.stringify(source));
+  }
+});
+
+test('analyze never throws on markup caught mid-keystroke', () => {
+  for (const source of [
+    '<', '<F', '<Foo', '<Foo ', '<Foo a', '<Foo a=', '<Foo a="', '<Foo a={', '<Foo a={1', '<Foo a={1}', '<Foo a={1} /',
+    '<Foo>', '<Foo>text', '<Foo>{', '<Foo>{x', '<Foo><', '<Foo></', '<Foo></Foo', '<>', '<><', '</', '</>',
+    'component', 'component F', 'component F(', 'component F() {', 'component F() { <slot', 'component F() { <slot />',
+    'export function main(): void { <Foo', 'export function main(): void { <Foo></Bar>', '{c ? <A /> :', '<A v={a < ',
+  ]) {
+    assert.doesNotThrow(() => {
+      analyze(source, 't.8bx');
+      getHoverInfo(source, source.length);
+      getCompletions(source, source.length);
+    }, `threw on ${JSON.stringify(source)}`);
   }
 });
 

@@ -61,11 +61,12 @@ function cloneNode(n) {
   return copy;
 }
 
+/** The element's text children, already normalized by the parser (§35), as one string. */
 function bxTextValue(children) {
   return (children ?? [])
     .filter((c) => c.type === NodeType.BxText)
     .map((c) => c.value)
-    .join('');
+    .join(' ');
 }
 
 /**
@@ -88,7 +89,7 @@ function argumentsFor(el, sym) {
     if (byName.has(prop.name)) {
       args.push(byName.get(prop.name));
     } else if (prop.name === 'children' && text) {
-      args.push(node(NodeType.StringLiteral, el.start, el.start, { value: text.trim() }));
+      args.push(node(NodeType.StringLiteral, el.start, el.start, { value: text }));
     } else if (prop.defaultValue) {
       args.push(cloneNode(prop.defaultValue));
     } else {

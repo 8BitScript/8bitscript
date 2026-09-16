@@ -10,11 +10,12 @@ import { Codes, diagnostic } from '../diagnostics/index.mjs';
 import { NodeType, walk } from '../ast/index.mjs';
 import { SymbolKind, componentOf } from '../binder/index.mjs';
 
+/** The element's text children, already normalized by the parser (§35), as one string. */
 function bxTextValue(children) {
   return (children ?? [])
     .filter((c) => c.type === NodeType.BxText)
     .map((c) => c.value)
-    .join('');
+    .join(' ');
 }
 
 /**
@@ -93,7 +94,7 @@ export function checkBx(ast, file, symbols, stack = []) {
     const childrenProp = sym.props.find((p) => p.name === 'children');
     if (textChild && childrenProp) {
       seen.add('children');
-    } else if (textChild && !childrenProp && textChild.trim()) {
+    } else if (textChild && !childrenProp) {
       diagnostics.push(diagnostic(
         Codes.BX_CHILDREN_REJECTED,
         `component '${el.name}' does not accept text children`,

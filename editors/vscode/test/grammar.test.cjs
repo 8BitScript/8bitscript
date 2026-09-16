@@ -131,6 +131,25 @@ test('.8bx is registered as its own language, highlighted by the 8bs grammar', (
   const bxGrammar = JSON.parse(fs.readFileSync(path.join(__dirname, '..', grammar.path), 'utf8'));
   assert.equal(bxGrammar.scopeName, 'source.8bx');
   assert.ok(bxGrammar.patterns.some((p) => p.include === 'source.8bs'), 'the 8bx grammar does not include source.8bs');
+  // 8BX's own scopes on top: the `component` declaration, tags with their
+  // names and attributes, and `{ … }` expressions that are 8BitScript again.
+  const scopes = new Set();
+  for (const r of rules(bxGrammar)) {
+    if (r.name) scopes.add(r.name);
+    for (const c of Object.values(r.captures ?? {})) scopes.add(c.name);
+    for (const c of Object.values(r.beginCaptures ?? {})) scopes.add(c.name);
+  }
+  for (const scope of ['storage.type.component.8bx', 'entity.name.type.component.8bx', 'meta.tag.8bx',
+    'entity.name.tag.component.8bx', 'entity.other.attribute-name.8bx', 'meta.embedded.expression.8bx']) {
+    assert.ok(scopes.has(scope), `${scope} is not in the 8bx grammar`);
+  }
+  assert.ok(rules(bxGrammar).some((r) => r.include === 'source.8bs#strings'), 'string attributes reuse the 8bs string rule');
+  // The tag rule must not fire on `a < b` or `array<u8, 4>`: it wants a
+  // PascalCase name, `slot`, `/` or `>` right after the `<`.
+  const tag = bxGrammar.repository.tag.begin;
+  const re = new RegExp(tag);
+  assert.ok(re.test('<Foo />') && re.test('</Foo>') && re.test('<>') && re.test('<slot />'));
+  assert.ok(!re.test('< b') && !re.test('<u8, 4>') && !re.test('<< 2'));
   assert.ok(manifest.activationEvents.includes('workspaceContains:**/*.8bx'));
   // The client sends both ids to the one language server.
   const lsp = fs.readFileSync(path.join(__dirname, '..', 'src', 'lsp.cjs'), 'utf8');

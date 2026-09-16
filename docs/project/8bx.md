@@ -31,17 +31,19 @@ superseded.
   `<Name prop={expr} />`, fragments, text children, and stateless
   elaboration to plain calls — `hello-bx` builds byte-identical to
   `hello-world` on the PET. The pipeline is in [Compiler](../compiler.md).
-  What is on trunk differs from the spec in ways the spec's PRs 4–8 are
-  meant to close, and the differences are facts about today's code, not
-  the design:
-  - element syntax is scanned from the raw text at a statement's `<`
-    (`src/bx/parse.mjs`) rather than by a lexer mode (§13–§16), so a
-    diagnostic inside a `{…}` attribute carries the substring's offset;
+  What is on trunk differs from the spec in ways the spec's remaining PRs
+  close, and the differences are facts about today's code, not the
+  design:
   - `?:` lowers on the 6502 backend and not yet on the web (§99);
   - `@8bitscript/ui/menubar`'s `item()` stores into a 2-byte array,
     which the native backend does not write yet, so the real menu bar
     cannot be built for a 6502 by hand or as elements; the §69 gate is
     measured on a same-shaped bar until it can.
+- **Element syntax is the lexer's** (§13–§16): tag, children and
+  expression modes on a stack, `<` opening a tag only where no value sits
+  before it, raw text as one token; the parser reads tokens, so every
+  diagnostic inside `{…}` points into the file, and every half-typed tag
+  recovers (§90). Text children are normalized the JSX way, once (§35).
 - **A component is a function; an element is a call to it.** That gives
   hygiene, evaluate-once props (§104) and `export component` across
   modules (§9–§11) in one move; the linker's inliner makes a

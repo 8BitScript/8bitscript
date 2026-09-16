@@ -145,6 +145,29 @@ test('diagnostics still work: a friendly-name range error is reported', async ()
   });
 });
 
+test('an .8bx buffer: a diagnostic inside an attribute expression reaches the editor with its own range', async () => {
+  await withServer(async (client) => {
+    await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
+    client.notify('initialized', {});
+
+    // `nope` is line 1, characters 40..48 — the attribute, not the tag or
+    // the file's start. An untitled buffer has no extension, so the
+    // language id is what says this is 8BX.
+    const text = 'component A(v: utinyint) { }\nexport function main(): void { <A v={1} nope={2} />; }\n';
+    client.notify('textDocument/didOpen', {
+      textDocument: { uri: 'untitled:Untitled-1', languageId: '8bitextensible', version: 1, text },
+    });
+
+    const published = await client.waitForNotification('textDocument/publishDiagnostics');
+    const prop = published.params.diagnostics.find((d) => d.code === '8BS2013');
+    assert.ok(prop, JSON.stringify(published.params.diagnostics));
+    assert.deepEqual(prop.range, {
+      start: { line: 1, character: text.split('\n')[1].indexOf('nope') },
+      end: { line: 1, character: text.split('\n')[1].indexOf('nope') + 'nope={2}'.length },
+    });
+  });
+});
+
 test('textDocument/hover returns the compiler-owned documentation', async () => {
   await withServer(async (client) => {
     await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });

@@ -15,7 +15,6 @@
 import { Codes, diagnostic } from '../diagnostics/index.mjs';
 import { TokenKind, tokenize } from '../lexer/index.mjs';
 import { NodeType, node } from '../ast/index.mjs';
-import { parseBxElement } from '../bx/parse.mjs';
 
 /** Binary operator precedence, loosest first. Mirrors the C/TypeScript table. */
 const BINARY_PRECEDENCE = {
@@ -41,6 +40,17 @@ const STATEMENT_START = new Set([
   'if', 'while', 'for', 'break', 'continue', 'asm6502', 'namespace',
 ]);
 
+/**
+ * Raw text between tags, the way spec §35 reads it: each line trimmed,
+ * blank lines dropped, the rest joined with one space. `""` when nothing
+ * is left — the caller makes no node of that.
+ *
+ * @param {string} raw
+ */
+export function normalizeBxText(raw) {
+  return raw.split('\n').map((line) => line.trim()).filter((line) => line.length > 0).join(' ');
+}
+
 class Parser {
   constructor(tokens, text, file, options = {}) {
     // Comments carry no syntax. Dropping them here keeps every rule below free
@@ -51,12 +61,6 @@ class Parser {
     this.sourceKind = options.sourceKind ?? '.8bs';
     this.pos = 0;
     this.diagnostics = [];
-  }
-
-  skipToOffset(offset) {
-    while (this.pos < this.tokens.length && this.tokens[this.pos].start < offset) {
-      this.pos += 1;
-    }
   }
 
   // ---- token access -------------------------------------------------------
@@ -209,17 +213,214 @@ class Parser {
       return null;
     }
 
-    if (this.sourceKind === '.8bx' && token.text === '<') {
-      const parsed = parseBxElement(this.text, token.start, this.file);
-      this.diagnostics.push(...parsed.diagnostics);
-      if (parsed.node) {
-        this.skipToOffset(parsed.end);
-        if (!this.at(';') && !this.at('}') && !this.atEnd) this.eat(';');
-        return parsed.node;
-      }
+    // An element as a statement (spec §95): the lexer already decided this
+    // `<` opens a tag, so there is nothing to disambiguate here.
+    if (token.kind === TokenKind.BxTagOpen) {
+      const element = this.parseBxElement();
+      // The `;` after an element is optional: `<Foo />` on its own line is
+      // a statement with or without it.
+      this.eat(';');
+      return element;
     }
 
     return this.parseExpressionStatement();
+  }
+
+  // ---- 8BX elements ------------------------------------------------------
+  //
+  // Token-driven, over the lexer's tag/children/expression modes: every
+  // span is a token's, so a diagnostic inside `{…}` points into the file.
+  // The parser never throws on a half-typed tag; each `expect*` records
+  // what it found and moves on (§90).
+
+  atKind(kind) {
+    return this.peek()?.kind === kind;
+  }
+
+  bxError(message, token = this.peek()) {
+    const start = token ? token.start : this.endOffset;
+    const length = token ? token.length : 0;
+    this.diagnostics.push(diagnostic(Codes.BX_SYNTAX, message, this.file, start, length));
+  }
+
+  /** `Foo` or `Foo.Bar` (spec §25): the dotted name as one string, spanning its tokens. */
+  parseBxName(what) {
+    const first = this.peek();
+    if (first?.kind !== TokenKind.Identifier) {
+      this.bxError(`expected ${what}, found ${this.describe(first)}`, first);
+      return null;
+    }
+    this.next();
+    let name = first.text;
+    let end = first.start + first.length;
+    while (this.at('.') && this.peek(1)?.kind === TokenKind.Identifier) {
+      this.next();
+      const part = this.next();
+      name += `.${part.text}`;
+      end = part.start + part.length;
+    }
+    return { name, start: first.start, end };
+  }
+
+  /**
+   * `{ expression }` in a tag or between tags. `{}` and `{ /* … *\/ }` (the
+   * comment is already gone from the token stream) are an empty field —
+   * a child comment, which elaboration drops. Returns the expression (or
+   * null for an empty field) and the span of the braces.
+   */
+  parseBxBraces() {
+    const open = this.next(); // `{`
+    let expression = null;
+    if (!this.at('}')) expression = this.parseExpression();
+    const close = this.peek();
+    if (this.at('}')) this.next();
+    else this.bxError(`expected '}' to close the expression, found ${this.describe(close)}`, close);
+    const end = close?.text === '}' ? close.start + close.length : (expression ? expression.start + expression.length : open.start + open.length);
+    return { expression, start: open.start, end };
+  }
+
+  /**
+   * One element or fragment, from its BxTagOpen to its `/>` or closing tag.
+   * Text children are normalized here, once, the way the spec's §35 says:
+   * lines trimmed, blank lines dropped, the rest joined with one space; a
+   * run that is only whitespace is no child at all.
+   */
+  parseBxElement() {
+    const open = this.next(); // BxTagOpen
+    const start = open.start;
+
+    // Fragment: `<>` … `</>`.
+    if (this.atKind(TokenKind.BxTagEnd)) {
+      this.next();
+      const children = this.parseBxChildren(null, start);
+      return node(NodeType.BxFragment, start, children.end, { children: children.nodes });
+    }
+
+    const named = this.parseBxName('a component name after <');
+    if (!named) {
+      this.recoverBxTag();
+      return null;
+    }
+    const { name } = named;
+
+    const attributes = [];
+    for (;;) {
+      const t = this.peek();
+      if (!t) {
+        this.bxError(`unterminated <${name}>: expected '>' or '/>'`);
+        return node(NodeType.BxElement, start, this.endOffset, { name, attributes, children: [], selfClosing: true });
+      }
+      if (t.kind === TokenKind.BxSelfClose) {
+        this.next();
+        return node(NodeType.BxElement, start, t.start + t.length, { name, attributes, children: [], selfClosing: true });
+      }
+      if (t.kind === TokenKind.BxTagEnd) {
+        this.next();
+        const children = this.parseBxChildren(name, start);
+        return node(NodeType.BxElement, start, children.end, { name, attributes, children: children.nodes, selfClosing: false });
+      }
+      if (t.text === '{') {
+        const spread = this.parseBxBraces();
+        attributes.push(node(NodeType.BxSpreadAttribute, spread.start, spread.end, { expression: spread.expression }));
+        continue;
+      }
+      if (t.kind === TokenKind.Identifier) {
+        this.next();
+        let value;
+        let end = t.start + t.length;
+        if (this.at('=')) {
+          this.next();
+          const v = this.peek();
+          if (v?.text === '{') {
+            const braces = this.parseBxBraces();
+            value = braces.expression;
+            end = braces.end;
+          } else if (v?.kind === TokenKind.String) {
+            this.next();
+            // A string attribute is an ordinary string literal (spec §18).
+            value = node(NodeType.StringLiteral, v.start, v.start + v.length, { value: v.text.slice(1, v.unterminated ? undefined : -1) });
+            end = v.start + v.length;
+          } else {
+            this.bxError(`expected a string or {expression} after ${t.text}=, found ${this.describe(v)}`, v);
+            value = null;
+          }
+        } else {
+          // A bare attribute is `true` (spec §31).
+          value = node(NodeType.BooleanLiteral, t.start, end, { value: true });
+        }
+        attributes.push(node(NodeType.BxAttribute, t.start, end, { name: t.text, value }));
+        continue;
+      }
+      // The lexer reports a stray character in a tag; whatever token came
+      // of it is skipped so the tag can still close.
+      this.bxError(`unexpected ${this.describe(t)} in <${name}>`, t);
+      this.next();
+    }
+  }
+
+  /**
+   * The children of an element (or fragment when `name` is null), up to
+   * and including its closing tag. Returns the child nodes and the offset
+   * just past the closing tag.
+   */
+  parseBxChildren(name, start) {
+    const nodes = [];
+    for (;;) {
+      const t = this.peek();
+      if (!t) {
+        this.bxError(name ? `unclosed element <${name}>: expected </${name}>` : 'unclosed fragment: expected </>', null);
+        return { nodes, end: this.endOffset };
+      }
+      if (t.kind === TokenKind.BxClosingTagOpen) {
+        this.next();
+        const closeStart = t.start;
+        let end = t.start + t.length;
+        if (name === null) {
+          if (!this.atKind(TokenKind.BxTagEnd)) this.bxError(`expected </> to close the fragment, found ${this.describe(this.peek())}`);
+        } else {
+          const closing = this.peek()?.kind === TokenKind.Identifier ? this.parseBxName('a closing tag name') : null;
+          if (!closing) this.bxError(`expected </${name}>, found ${this.describe(this.peek())}`);
+          else if (closing.name !== name) {
+            this.diagnostics.push(diagnostic(Codes.BX_SYNTAX, `expected </${name}>, found </${closing.name}>`, this.file, closing.start, closing.end - closing.start));
+          }
+        }
+        if (this.atKind(TokenKind.BxTagEnd)) {
+          const gt = this.next();
+          end = gt.start + gt.length;
+        } else {
+          this.bxError(`expected '>' after </${name ?? ''}`, this.peek());
+          end = closeStart + t.length;
+        }
+        return { nodes, end };
+      }
+      if (t.kind === TokenKind.BxTagOpen) {
+        const child = this.parseBxElement();
+        if (child) nodes.push(child);
+        continue;
+      }
+      if (t.kind === TokenKind.BxText) {
+        this.next();
+        const value = normalizeBxText(t.text);
+        if (value) nodes.push(node(NodeType.BxText, t.start, t.start + t.length, { value, raw: t.text }));
+        continue;
+      }
+      if (t.text === '{') {
+        const braces = this.parseBxBraces();
+        nodes.push(node(NodeType.BxExpressionChild, braces.start, braces.end, { expression: braces.expression }));
+        continue;
+      }
+      // Something the lexer's children mode never produces; skip it rather than spin.
+      this.bxError(`unexpected ${this.describe(t)} between tags`, t);
+      this.next();
+    }
+  }
+
+  /** After a tag that could not be named: skip to its end so parsing resumes after it. */
+  recoverBxTag() {
+    while (!this.atEnd) {
+      const t = this.next();
+      if (t.kind === TokenKind.BxSelfClose || t.kind === TokenKind.BxTagEnd) return;
+    }
   }
 
   /** The block body is opaque: 6502 assembly, held verbatim for the backend. */
@@ -776,6 +977,10 @@ class Parser {
       this.error('expected an expression, found end of file');
       return null;
     }
+    // An element where a value is expected — the arm of a `?:` in an
+    // expression child, for one (spec §48). Parsed for its spans; what it
+    // may mean there is the checker's and the elaborator's to say (§94).
+    if (token.kind === TokenKind.BxTagOpen) return this.parseBxElement();
     const end = token.start + token.length;
 
     if (token.kind === TokenKind.Number) {
