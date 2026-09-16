@@ -56,6 +56,17 @@ costs what the hand-written calls would — `hello-bx` is byte-identical to
 `hello-world` on the PET, and `packages/cli/test/hello-bx.test.mjs` says
 so. A component fed a run-time value stays a call.
 
+**Children go where `<slot />` is.** A slotted component is also split
+at the slot into `Name__open` and `Name__close`, and
+`<Name a={x}><A /></Name>` is `Name__open(x); A(); Name__close(x);` —
+the children run once, in place (§105); an argument both halves read is
+hoisted into a `__bx_` local at the call site when it could do anything,
+so it runs once (§104). `bx/check.mjs` `checkSlots` holds the slot to the
+shape the split can honour: one, at the top level of the body, no local
+across it (`8BS2019`). A bar of items written as elements is
+byte-identical to the hand-written begin/item/end on the PET and the
+C64 — `packages/cli/test/menubar-bx.test.mjs`, the spec's §69 gate.
+
 **Imports are bound before any module is finished.** `link()` reads the
 whole graph — tokens, AST, own symbols — before elaborating any module,
 so an Import symbol can point at the exported Component it names in
