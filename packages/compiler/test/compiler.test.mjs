@@ -790,6 +790,7 @@ test('analyze never throws on markup caught mid-keystroke', () => {
     '<', '<F', '<Foo', '<Foo ', '<Foo a', '<Foo a=', '<Foo a="', '<Foo a={', '<Foo a={1', '<Foo a={1}', '<Foo a={1} /',
     '<Foo>', '<Foo>text', '<Foo>{', '<Foo>{x', '<Foo><', '<Foo></', '<Foo></Foo', '<>', '<><', '</', '</>',
     'component', 'component F', 'component F(', 'component F() {', 'component F() { <slot', 'component F() { <slot />',
+    'component F() { state', 'component F() { state x', 'component F() { state x: u8 =', 'component F() { function', 'component F() { function f(', 'component F() { function f(): void {',
     'export function main(): void { <Foo', 'export function main(): void { <Foo></Bar>', '{c ? <A /> :', '<A v={a < ',
   ]) {
     assert.doesNotThrow(() => {
