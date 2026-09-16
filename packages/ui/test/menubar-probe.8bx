@@ -1,12 +1,13 @@
-// The BX wrapper, used the way a consumer would from an .8bx file: one
-// element per call the wrapper offers. Linking it for every target proves
-// an exported component crosses the module boundary and lowers to the
-// same menubar calls the .8bs probe makes by hand.
-import { MenuBar, MenuItem, MenuBarEnd } from "../src/menubar.8bx";
+// The BX wrapper, used the way a consumer would from an .8bx file: the
+// items as children of the bar, where <slot /> puts them. Linking it for
+// every target proves an exported, slotted component crosses the module
+// boundary and lowers to the same menubar calls the .8bs probe makes by
+// hand.
+import { MenuBar, MenuItem } from "../src/menubar.8bx";
 
 export function main(): void {
-    <MenuBar row={0} width={40} />;
-    <MenuItem label="FILE" />;
-    <MenuItem label="EDIT" />;
-    <MenuBarEnd />;
+    <MenuBar row={0} width={40}>
+        <MenuItem label="FILE" />
+        <MenuItem label="EDIT" />
+    </MenuBar>;
 }

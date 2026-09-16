@@ -1,15 +1,22 @@
-// BX wrappers over the menu bar beside this file — same immediate-mode calls,
-// composed declaratively. Elaboration inlines to menubar.begin/item/end.
+// BX wrappers over the menu bar beside this file — the same immediate-mode
+// calls, composed declaratively:
+//
+//     <MenuBar row={0} width={40}>
+//         <MenuItem label="FILE" />
+//         <MenuItem label="EDIT" />
+//     </MenuBar>
+//
+// The items go where <slot /> is: between begin and end. With every prop
+// a compile-time value, that elaborates to exactly the begin/item/item/end
+// calls a program would write by hand, and costs the same.
 import { menubar } from "./menubar.8bs";
 
 export component MenuBar(row: utinyint, width: usmallint) {
     menubar.begin(row, width);
+    <slot />;
+    menubar.end();
 }
 
 export component MenuItem(label: string) {
     menubar.item(label);
-}
-
-export component MenuBarEnd() {
-    menubar.end();
 }
