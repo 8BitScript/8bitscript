@@ -29,7 +29,11 @@ the parser has no rule for.
 
 `tokenize()` takes an optional `{ sourceKind: '.8bs' | '.8bx' }`. In both
 kinds, `<` and `<<` stay ordinary operators so `a < b`, `array<u8, N>`, and
-`x << 2` lex exactly as in `.8bs`. Element syntax (`<Foo />`, fragments,
+`x << 2` lex exactly as in `.8bs`. `component` is a keyword only when the
+source kind is `.8bx`: in `.8bs` it is an ordinary identifier, so a
+program that named a variable `component` before 8BX existed still
+compiles (`let component: u8`). It is not in `KEYWORDS` for that reason;
+`scanIdentifier` special-cases it. Element syntax (`<Foo />`, fragments,
 children) is **not** tokenized in the main pass: the parser calls
 `bx/parse.mjs` at statement boundaries when `sourceKind` is `.8bx` and the
 next token is `<`. Syntax problems there use `8BS1039`.

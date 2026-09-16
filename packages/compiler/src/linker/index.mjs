@@ -38,12 +38,12 @@ import { tokenize } from '../lexer/index.mjs';
 import { parse } from '../parser/index.mjs';
 import { check } from '../checker/index.mjs';
 import { foldCompileTime } from '../fold/index.mjs';
-import { bind } from '../binder/index.mjs';
+import { bind, bindImportedComponents } from '../binder/index.mjs';
 import { checkBx } from '../bx/check.mjs';
 import { elaborateBx } from '../bx/elaborate.mjs';
 import { sourceKindOf } from '../source/index.mjs';
 import { lower } from '../ir/index.mjs';
-import { resolveSpecifier, nativeSourcesBeside } from '../resolver/index.mjs';
+import { findImports, resolveSpecifier, nativeSourcesBeside } from '../resolver/index.mjs';
 import { Codes, diagnostic } from '../diagnostics/index.mjs';
 import { storageBytes, resolveIntegerType, narrowestIntegerType } from '../types/index.mjs';
 import { typeForCount, widerOf, COMPARISON_OPERATORS } from '../templates/index.mjs';
@@ -58,14 +58,29 @@ function canonical(path) {
   }
 }
 
-/** Run the pure front end over one module's text. */
-function loadModule(file, text, diagnostics, { frameRate, machine, facts }) {
+/**
+ * The front end over one module, first half: tokens, AST, and the
+ * module's own symbols. Stops before anything that needs to know what an
+ * imported name means, so every module in the graph can be read to this
+ * point before any of them is finished (see loadGraph).
+ */
+function parseModule(file, text, diagnostics) {
   const sourceKind = sourceKindOf(file) ?? '.8bs';
   const { tokens, diagnostics: lexical } = tokenize(text, file, { sourceKind });
   const { ast, diagnostics: syntax } = parse(tokens, text, file, { sourceKind });
   diagnostics.push(...lexical, ...syntax);
   const bound = bind(ast, file);
   diagnostics.push(...bound.diagnostics);
+  return { file, text, tokens, ast, bound };
+}
+
+/**
+ * The front end over one module, second half, once its imports' symbols
+ * are known: element checks, 8BX elaboration, folding, checking, and
+ * lowering to this module's IR.
+ */
+function finishModule(module, diagnostics, { frameRate, machine, facts }) {
+  const { file, text, ast, bound } = module;
   diagnostics.push(...checkBx(ast, file, bound.symbols));
   elaborateBx(ast, bound.symbols);
   // Folding runs before check(): a #frames(...) call needs to already be a
@@ -80,11 +95,21 @@ function loadModule(file, text, diagnostics, { frameRate, machine, facts }) {
   // problem is reported once.
   const seen = new Set(diagnostics.map((d) => `${d.code}@${d.start}+${d.length}`));
   diagnostics.push(...lowering.filter((d) => !seen.has(`${d.code}@${d.start}+${d.length}`)));
-  return { file, ir };
+  module.ir = ir;
+  return module;
 }
 
 /**
  * Discover and load every module reachable from the entry.
+ *
+ * In two passes. The first reads every module as far as its own symbols
+ * (parseModule), following imports found in the tokens — the resolver
+ * works on tokens for exactly this reason — so that by the end the whole
+ * graph is parsed and bound and every Import symbol can be pointed at the
+ * Component it names in another module. The second finishes each module
+ * (finishModule): with imported components known, elements check and
+ * elaborate, and the module lowers to IR. The IR's own import records are
+ * then linked to their modules, which are all already here.
  *
  * Cycles are permitted: a module already loaded is bound to, not reloaded.
  * Globals initialize to literals only, so no initialisation-order problem
@@ -97,9 +122,10 @@ function loadGraph(entryText, entryFile, diagnostics, sources, options) {
   // once each however many modules import the package — keyed by canonical
   // path for the same pnpm-symlink reason `byPath` is.
   const nativeSources = new Map();
+  const finishOptions = { frameRate: options.frameRate, machine: options.machine, facts: options.facts };
 
   const enqueue = (file, text) => {
-    const module = loadModule(file, text, diagnostics, { frameRate: options.frameRate, machine: options.machine, facts: options.facts });
+    const module = parseModule(file, text, diagnostics);
     modules.push(module);
     byPath.set(canonical(file), module);
     sources.set(file, text);
@@ -113,7 +139,35 @@ function loadGraph(entryText, entryFile, diagnostics, sources, options) {
     nativeSources.set(canonical(source), source);
   }
 
-  // modules grows while we walk it: a plain index loop is the worklist.
+  // Pass one: read the graph. Anything that does not resolve is left for
+  // pass two to report, once, against the IR's import record.
+  for (let i = 0; i < modules.length; i += 1) {
+    const module = modules[i];
+    for (const { specifier } of findImports(module.tokens)) {
+      const resolved = resolveSpecifier(specifier, module.file, options);
+      if (!resolved || resolved.code || resolved.path === null) continue;
+      const key = canonical(resolved.path);
+      if (byPath.has(key)) continue;
+      let text;
+      try {
+        text = readFileSync(resolved.path, 'utf8');
+      } catch {
+        continue;
+      }
+      enqueue(resolved.path, text);
+    }
+  }
+  // Every import that names an exported component now points at it.
+  for (const module of modules) {
+    bindImportedComponents(module.bound, (specifier) => {
+      const resolved = resolveSpecifier(specifier, module.file, options);
+      if (!resolved || resolved.code || resolved.path === null) return null;
+      return byPath.get(canonical(resolved.path))?.bound ?? null;
+    });
+  }
+  // Pass two: finish every module, then link its IR imports.
+  for (const module of modules) finishModule(module, diagnostics, finishOptions);
+
   for (let i = 0; i < modules.length; i += 1) {
     const module = modules[i];
     for (const imp of module.ir.imports) {
@@ -143,6 +197,9 @@ function loadGraph(entryText, entryFile, diagnostics, sources, options) {
       }
       const key = canonical(resolved.path);
       if (!byPath.has(key)) {
+        // Pass one could not read it (or the IR found an import the token
+        // scan did not — it should not, but a module is never dropped for
+        // it): load it now, whole, so nothing is silently missing.
         let text;
         try {
           text = readFileSync(resolved.path, 'utf8');
@@ -154,7 +211,7 @@ function loadGraph(entryText, entryFile, diagnostics, sources, options) {
           ));
           continue;
         }
-        enqueue(resolved.path, text);
+        finishModule(enqueue(resolved.path, text), diagnostics, finishOptions);
       }
       imp.module = byPath.get(key);
       for (const source of resolved.native ?? []) {

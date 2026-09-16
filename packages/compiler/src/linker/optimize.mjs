@@ -571,7 +571,15 @@ function inlineVoidCall(statement, ctx) {
   const paramNames = new Set(params.map((p) => p.name));
   const unusedParams = params.length > 0 && !referencesNames(fn.body, paramNames);
   const stringCopy = containsStringByte(fn.body) || ctx.unrollingStringCopy;
-  if (params.length > 0 && !stringCopy && !unusedParams) return null;
+  // A component (bx/elaborate.mjs) is a composition written as a
+  // function: its props are the element's attributes, and when every one
+  // of them is a compile-time value the element IS its body with those
+  // values in — the straight-line code a hand-written program would
+  // have, which is what the abstraction was promised to cost (spec §30,
+  // §64, §65). A run-time prop stays a call, and the duplicate-size rule
+  // below still applies to a large body used from many places.
+  const component = fn.component === true;
+  if (params.length > 0 && !stringCopy && !unusedParams && !component) return null;
   if (unusedParams && countCalls(ctx.functionsByName, statement.name) > 1) return null;
   // Inlining a body that more than one place calls writes that body out
   // once per call site. That is a win only while the body is smaller than

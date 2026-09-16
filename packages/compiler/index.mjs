@@ -7,14 +7,16 @@
 // about either of them, or about any editor. Analysis lives here so that
 // `8bs check`, the editor, and CI all report the same errors from the same
 // implementation.
+import { readFileSync } from 'node:fs';
+
 import { tokenize } from './src/lexer/index.mjs';
 import { parse } from './src/parser/index.mjs';
 import { check } from './src/checker/index.mjs';
 import { foldCompileTime } from './src/fold/index.mjs';
 import { lower } from './src/ir/index.mjs';
-import { resolveImports } from './src/resolver/index.mjs';
+import { resolveImports, resolveSpecifier } from './src/resolver/index.mjs';
 import { sourceKindOf } from './src/source/index.mjs';
-import { bind } from './src/binder/index.mjs';
+import { bind, bindImportedComponents } from './src/binder/index.mjs';
 import { checkBx } from './src/bx/check.mjs';
 import { elaborateBx } from './src/bx/elaborate.mjs';
 
@@ -22,7 +24,7 @@ export { tokenize, TokenKind, KEYWORDS, TYPE_NAMES } from './src/lexer/index.mjs
 export { parse } from './src/parser/index.mjs';
 export { NodeType, walk } from './src/ast/index.mjs';
 export { check } from './src/checker/index.mjs';
-export { bind, SymbolKind, resolveSymbol } from './src/binder/index.mjs';
+export { bind, bindImportedComponents, componentOf, SymbolKind, resolveSymbol } from './src/binder/index.mjs';
 export { foldCompileTime, DURATION_CLOCKS, DURATION_UNITS, SYSTEMS } from './src/fold/index.mjs';
 export {
   FACTS, PROGRAM_FACTS, LOGICAL_CONTROLS, CONTROLLER_KINDS, controllerKind,
@@ -85,6 +87,26 @@ export function analyze(text, file = '<unknown>', options = {}) {
 
   const bound = bind(ast, file);
   const binding = [...bound.diagnostics];
+  // An imported component's signature lives in another file. With import
+  // resolution on, that file is read and bound — one level deep, which is
+  // as far as a component can be imported from — so `<MenuBar />` is
+  // checked against `component MenuBar`. With it off, an imported name
+  // used as an element is valid but unknown, and nothing is said.
+  if (options.resolveImports) {
+    bindImportedComponents(bound, (specifier) => {
+      const resolved = resolveSpecifier(specifier, file, options);
+      if (!resolved || resolved.code || resolved.path === null) return null;
+      let other;
+      try {
+        other = readFileSync(resolved.path, 'utf8');
+      } catch {
+        return null;
+      }
+      const kind = sourceKindOf(resolved.path) ?? '.8bs';
+      const parsed = parse(tokenize(other, resolved.path, { sourceKind: kind }).tokens, other, resolved.path, { sourceKind: kind });
+      return bind(parsed.ast, resolved.path);
+    });
+  }
   binding.push(...checkBx(ast, file, bound.symbols));
   elaborateBx(ast, bound.symbols);
 

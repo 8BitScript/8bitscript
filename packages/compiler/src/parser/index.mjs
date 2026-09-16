@@ -295,6 +295,7 @@ class Parser {
   parseExport() {
     const start = this.next().start;
     if (this.atKeyword('function')) return this.parseFunctionDeclaration(start, true);
+    if (this.atKeyword('component')) return this.parseComponentDeclaration(start, true);
     if (this.atKeyword('namespace')) return this.parseNamespace(start, true);
     if (this.atKeyword('let') || this.atKeyword('const')) {
       const declaration = this.parseVariableDeclaration(start);
