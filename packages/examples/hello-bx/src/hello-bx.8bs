@@ -1,0 +1,12 @@
+// The program. A program always starts from a .8bs file; a component is
+// reached from here as an ordinary call — `Hello()` is `<Hello />` spelled
+// the way .8bs can spell it, and elaborates to the same text.print() call.
+import { screen } from "@8bitscript/screen";
+import { Hello } from "./Hello.8bx";
+import { text } from "@8bitscript/text";
+
+export function main(): void {
+    screen.blank();
+    Hello();
+    text.releaseCursor();
+}

@@ -35,7 +35,7 @@ plain `export default { … }` is still a config.
 
 | Key | Meaning |
 | --- | --- |
-| `entry` | The source file a build starts from. A `.<machine>.8bs` twin beside it is used on that machine. An object `{ default, nes }` still works. The one-program spelling of `programs`, below. The 8BX spec's rule is that a program starts from `.8bs` and an `.8bx` is imported; `entry` still accepts an `.8bx` until a component can be called from `.8bs` (spec §4.5), so `hello-bx` keeps building. `programs.*.entry`, being new, is `.8bs` only. |
+| `entry` | The `.8bs` file a build starts from — an `.8bx` is refused by name: a program starts from `.8bs` and reaches a component by importing it and calling it (`Hello();` is `<Hello />` the way `.8bs` spells it). A `.<machine>.8bs` twin beside it is used on that machine. An object `{ default, nes }` still works. The one-program spelling of `programs`, below. |
 | `programs` | Several programs in one project, each its own build from its own `.8bs` entry: `{ main: { entry }, format: { entry, targets?, requires? } }`. Cannot be given together with `entry`. See below. |
 | `images` | Disk images over the programs — a `.d64` holding several of them plus data files. Checked by every build; written by a later release. See below. |
 | `bx` | 8BX settings: `{ strict: false }` turns the ordinary-code lint in `.8bx` files off. The hard rules (no `asm6502` in `.8bx`, no `.8bx` program entry) stay. Accepted now; the lint itself lands with the 8BX grammar. |
@@ -71,11 +71,10 @@ programs: {
   (`hello-world.8bs` → `hello-world-pet.prg`), as it always was, so no
   project's `dist/` names move because a second spelling exists. `entry`
   and `programs` together is an error.
-- **Every `programs.*.entry` is a `.8bs` file.** An `.8bx` declares
-  composition and is imported by the program; it is never the program
-  (the 8BX spec's §4.3). The config refuses one by name before the
-  linker runs. (`entry`, the older key, still accepts `.8bx` for now —
-  see the table above.)
+- **Every entry is a `.8bs` file.** An `.8bx` declares composition and
+  is imported by the program; it is never the program (the 8BX spec's
+  §4.3). `entry` and `programs.*.entry` alike refuse one by name before
+  the linker runs.
 - **A program's `targets` is a subset of the project's**; a drive utility
   only builds where there are drives. Its `requires` may raise a floor
   above the project's and never lower one.

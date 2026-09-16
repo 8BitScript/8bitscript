@@ -452,6 +452,11 @@ test('the entry spelling still names dist/ after the file, and refuses an .8bx e
     assert.equal(existsSync(join(dir, 'dist', 'main-pet.prg')), true);
     assert.equal(existsSync(join(dir, 'dist', 'web')), false);
   });
+  await withPrograms(`{ entry: "App.8bx", targets: ["pet"] }`, async () => {
+    const { result, stderr } = await capture(() => build(['--target', 'pet']));
+    assert.equal(result, 1);
+    assert.match(stderr, /App\.8bx is a \.8bx file; a program starts from a \.8bs file/);
+  });
   await withPrograms(`{ programs: { main: { entry: "App.8bx" } }, targets: ["pet"] }`, async () => {
     const { result, stderr } = await capture(() => build(['--target', 'pet']));
     assert.equal(result, 1);
