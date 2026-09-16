@@ -511,6 +511,48 @@ test('one call site still inlines a body of any size — nothing is duplicated, 
   assert.equal(body[0].origin, 'once');
 });
 
+test('a body that passes values along stays a call at several sites — each copy pays the loads and stores again', () => {
+  // Five nodes, but three of them are arguments: pasted at three sites
+  // this cost 2048's PET 2001 build 54 bytes where the call and its body
+  // cost 31 (the board's Board(): the HUD's three values, then the tiles).
+  const board = () => [call('drawHud', [ref('score', 'usmallint'), ref('over', 'bool'), ref('won', 'bool')]), call('tiles')];
+  const ir = optimizeIr({
+    entry: 'main',
+    functions: [
+      { name: 'main', body: [call('board'), call('board'), call('board')] },
+      { name: 'board', params: [], returnType: 'void', body: board() },
+      { name: 'tiles', params: [], returnType: 'void', body: wideBody() },
+      { name: 'drawHud', params: [{ name: 'score', type: 'usmallint' }, { name: 'over', type: 'bool' }, { name: 'won', type: 'bool' }], returnType: 'void', body: wideBody() },
+    ],
+    globals: [],
+  });
+  const body = ir.functions.find((fn) => fn.name === 'main').body;
+  assert.deepEqual(body.map((statement) => statement.kind), ['call', 'call', 'call'], 'the three sites stay calls');
+  assert.ok(ir.functions.some((fn) => fn.name === 'board'), 'the callee survives for them to reach');
+});
+
+test('a helper whose other callers fold away is inlined into the one left — prune, fold, prune, fold, prune', () => {
+  // On a machine without the RAM for it the animated move folds away
+  // (`if (false)`), and the repaint it shared with the settled board has
+  // one live caller. The first round counted two and kept it a call.
+  const ir = optimizeReachable({
+    entry: 'main',
+    functions: [
+      { name: 'main', body: [ifNode(constNum(0, 'bool'), [call('animate')]), call('board'), call('board')] },
+      { name: 'animate', params: [], returnType: 'void', body: [call('tiles'), assign('a', constNum(4))] },
+      { name: 'board', params: [], returnType: 'void', body: [call('drawHud', [ref('score', 'usmallint'), ref('over', 'bool'), ref('won', 'bool')]), call('tiles')] },
+      { name: 'tiles', params: [], returnType: 'void', body: wideBody() },
+      { name: 'drawHud', params: [{ name: 'score', type: 'usmallint' }, { name: 'over', type: 'bool' }, { name: 'won', type: 'bool' }], returnType: 'void', body: wideBody() },
+    ],
+    globals: [],
+  });
+  assert.ok(!ir.functions.some((fn) => fn.name === 'animate'), 'the folded caller is gone');
+  const board = ir.functions.find((fn) => fn.name === 'board');
+  assert.deepEqual(board.body.map((statement) => statement.kind), ['call', 'block'], 'the tiles are written into the board, their one live caller');
+  assert.equal(board.body[1].origin, 'tiles');
+  assert.ok(!ir.functions.some((fn) => fn.name === 'tiles'), 'and nothing else needs the function');
+});
+
 test('a small body still inlines at several call sites — it is cheaper than the call it replaces', () => {
   const ir = optimizeIr({
     entry: 'main',
