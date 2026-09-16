@@ -273,7 +273,12 @@ export function main(): void { <Raster />; }
   // The same block in .8bs is what it always was.
   assert.deepEqual(analyze('export function irq(): void { asm6502 { nop } }\n', 't.8bs').filter((d) => d.code === Codes.BX_ASM_IN_BX), []);
 
+  // A stray `;`, a nameless function the parser could not read, a `const`
+  // and a component are all left alone; the `let` and the element-less
+  // function are the two warnings.
   const ordinary = `let count: utinyint = 0;
+const LIMIT: utinyint = 9;
+;
 function helper(): void { count = count + 1; }
 component Hello() { helper(); }
 export function draw(): void { <Hello />; }
@@ -283,6 +288,10 @@ export function draw(): void { <Hello />; }
   assert.deepEqual(warnings.map((d) => [d.severity, ordinary.slice(d.start, d.start + d.length)]), [['warning', 'count'], ['warning', 'helper']],
     'the let and the element-less function; draw() composes and is left alone');
   assert.match(warnings[1].message, /composes nothing/);
+  const nameless = analyze('function (): void { }\nexport function main(): void { <></>; }\n', 't.8bx', { sourceKind: '.8bx' });
+  assert.deepEqual(nameless.filter((d) => d.code === Codes.BX_ORDINARY_CODE), [], 'nothing to name');
+  // asm6502 at the top of the file, outside any function, is the same error.
+  assert.ok(analyze('asm6502 { nop }\n', 't.8bx', { sourceKind: '.8bx' }).some((d) => d.code === Codes.BX_ASM_IN_BX));
   // A project may switch the lint off; the hard rule stays.
   assert.deepEqual(analyze(ordinary, 't.8bx', { sourceKind: '.8bx', bx: { strict: false } }).filter((d) => d.code === Codes.BX_ORDINARY_CODE), []);
   assert.ok(analyze(asm, 't.8bx', { sourceKind: '.8bx', bx: { strict: false } }).some((d) => d.code === Codes.BX_ASM_IN_BX));

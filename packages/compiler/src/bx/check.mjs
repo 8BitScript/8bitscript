@@ -204,34 +204,41 @@ function checkSlots(ast, file) {
 function checkFileRole(ast, file, strict) {
   const diagnostics = [];
   walk(ast, (n) => {
-    if (n.type === NodeType.AsmBlock) {
-      diagnostics.push(diagnostic(
-        Codes.BX_ASM_IN_BX,
-        'asm6502 has no place in an .8bx file; put it in a .8bs function and import it',
-        file, n.start, n.length,
-      ));
-    }
+    if (n.type !== NodeType.AsmBlock) return;
+    diagnostics.push(diagnostic(
+      Codes.BX_ASM_IN_BX,
+      'asm6502 has no place in an .8bx file; put it in a .8bs function and import it',
+      file, n.start, n.length,
+    ));
   });
   if (!strict) return diagnostics;
-  const hasElement = (node) => {
-    let found = false;
-    walk(node, (n) => { if (n.type === NodeType.BxElement || n.type === NodeType.BxFragment) found = true; });
-    return found;
-  };
   for (const stmt of ast?.body ?? []) {
-    if (stmt?.type === NodeType.FunctionDeclaration && stmt.name?.name && !hasElement(stmt)) {
+    // A bare `;` parses to no statement; a declaration whose name the
+    // parser could not read has nothing to name here.
+    if (!stmt || !stmt.name?.name) continue;
+    const { name } = stmt.name;
+    if (stmt.type === NodeType.FunctionDeclaration && !hasElement(stmt)) {
       diagnostics.push(diagnostic(
         Codes.BX_ORDINARY_CODE,
-        `'${stmt.name.name}' composes nothing: this is ordinary 8BitScript; move it to an .8bs module and import it (or set bx.strict: false)`,
+        `'${name}' composes nothing: this is ordinary 8BitScript; move it to an .8bs module and import it (or set bx.strict: false)`,
         file, stmt.name.start, stmt.name.length, 'warning',
       ));
-    } else if (stmt?.type === NodeType.VariableDeclaration && stmt.kind === 'let' && stmt.name?.name) {
+    } else if (stmt.type === NodeType.VariableDeclaration && stmt.kind === 'let') {
       diagnostics.push(diagnostic(
         Codes.BX_ORDINARY_CODE,
-        `'${stmt.name.name}' is a variable at the top of an .8bx file; state belongs in a component, or in an .8bs module this one imports (or set bx.strict: false)`,
+        `'${name}' is a variable at the top of an .8bx file; state belongs in a component, or in an .8bs module this one imports (or set bx.strict: false)`,
         file, stmt.name.start, stmt.name.length, 'warning',
       ));
     }
   }
   return diagnostics;
+}
+
+/** Whether any element or fragment sits anywhere under `node`. */
+function hasElement(node) {
+  let found = false;
+  walk(node, (n) => {
+    if (n.type === NodeType.BxElement || n.type === NodeType.BxFragment) found = true;
+  });
+  return found;
 }
