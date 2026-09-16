@@ -7,6 +7,8 @@
 //     8bs build --target vic20 --profile 16k    [entry.8bs]
 //     8bs build --target c64 --profile reu512   [entry.8bs]
 //     8bs build --target pet --profile 8032     [entry.8bs]   80 columns, 32K
+//     8bs build --target c64 --program format   One of several programs — see
+//                                                programs.mjs and buildRelease.
 //     8bs build --release                       Every artifact 8bitscript.config.ts
 //                                                declares for a release — see
 //                                                buildRelease below.
@@ -35,21 +37,23 @@
 // docs/systems.md. `8bs targets` lists every option and preset.
 //
 // The entry defaults to src/main.8bs, or to the `entry` in
-// 8bitscript.config.ts when the project has one — and whichever file that
-// names, a `.<target>.8bs`
+// 8bitscript.config.ts when the project has one, or to the program
+// `--program` names out of its `programs` (programs.mjs) — and whichever
+// file that names, a `.<target>.8bs`
 // twin beside it (main.nes.8bs next to main.8bs) is what a build for that
 // target actually starts from; see resolveEntryPath. Output lands in dist/, named
 // <name>-<machine>[-<hardware>...][-<region>].<ext> — .prg for the Commodore/
 // CX16/MEGA65 targets, .xex (or .rom for an XEGS cartridge) for Atari 8-bit,
-// .nes for the NES, .wasm for the web.
+// .nes for the NES, .wasm for the web. <name> is the program's name, or the
+// entry's own filename for the `entry:` spelling (programStem).
 // Only hardware that changes the *build* is in the name (a PET's model, a
 // VIC-20's RAM): a mouse or a REU makes the same program, so it is not.
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { basename, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 
 import {
-  MACHINES, RELEASE_MACHINES, isVariantPath, link, positionAt, stripSourceExtension, variantOf,
+  MACHINES, RELEASE_MACHINES, isVariantPath, link, positionAt, variantOf,
   unmetRequirements,
 } from '@8bitscript/compiler';
 
@@ -62,6 +66,9 @@ import {
 import { loadMergedSystems, resolveNamedLaunch } from './systems.mjs';
 import { compileReport, writeLastRun } from './last-run.mjs';
 import { checkArtifactName } from './artifact-name.mjs';
+import {
+  imageOutFile, programArg, programStem, resolveImages, resolvePrograms, selectProgram,
+} from './programs.mjs';
 
 /** `a, b and c` — the machines this release builds for, said the way a sentence says them. */
 function listOf(names) {
@@ -123,22 +130,55 @@ export function resolveEntryPath(config, target, entryArg) {
  *
  * @param {'vic20'|'c64'|'pet'|'c128'|'atari8'|'nes'|'cx16'|'mega65'|'web'} target
  * @param {string} [entryArg]
- * @param {{ pal?: boolean, profile?: string, hardware?: object, report?: boolean, checkout?: string|null }} [options] `pal` selects the
+ * @param {{ pal?: boolean, profile?: string, hardware?: object, report?: boolean, checkout?: string|null, program?: string }} [options] `pal` selects the
  *   real hardware/emulator region (NTSC unless true; ignored outside
  *   REGION_TARGETS) — it does not affect the logical frame rate, which is
  *   read from 8bitscript.config.ts's `frameRate` instead (default 60). `profile`
  *   names a project profile or a catalog preset, `hardware` is option
  *   values set on top (`--hardware`); see hardware.mjs. `report` is
  *   `--size`: print the per-function breakdown and include it in the
- *   last-run JSON the editor's Running machines tree reads.
+ *   last-run JSON the editor's Running machines tree reads. `program`
+ *   names one of the config's `programs` (programs.mjs); without it the
+ *   program is `main`, or the only one, or — when `entryArg` names a file —
+ *   that file, as its own one-off program.
  * @returns {Promise<{ ok: boolean, outFile?: string, frameRate?: number, hardware?: object, memory?: object, sizeReport?: object[] }>}
  *   `hardware` is the resolved hardware the program was built for, for
  *   whoever runs it next. `memory` / `sizeReport` are what the last-run
  *   file and `--size` print; they are absent when the compile failed.
  */
-export async function compile(target, entryArg, { pal = false, profile, hardware: overrides = {}, report = false, checkout = undefined } = {}) {
+export async function compile(target, entryArg, { pal = false, profile, hardware: overrides = {}, report = false, checkout = undefined, program: programName } = {}) {
   if (checkout !== undefined) setActiveCheckout(checkout);
   const config = await loadConfig(process.cwd(), '8bs build');
+
+  // Which program this is. The config's `programs` (or its one `entry`),
+  // unless the command named a file outright — then that file is the
+  // program, named after itself, the way `8bs build --target pet src/x.8bs`
+  // has always worked.
+  const declared = resolvePrograms(config);
+  if (!declared.ok) {
+    process.stderr.write(`8bs build: ${declared.error}\n`);
+    return { ok: false };
+  }
+  const { programs } = declared;
+  let program;
+  if (entryArg !== undefined) {
+    if (programName !== undefined) {
+      process.stderr.write(`8bs build: --program ${programName} and an entry file (${entryArg}) name two programs; give one\n`);
+      return { ok: false };
+    }
+    program = { name: basename(entryArg), entry: entryArg, stemFromFilename: true, targets: null, requires: programs[0].requires };
+  } else {
+    const selected = selectProgram(programs, programName);
+    if (!selected.ok) {
+      process.stderr.write(`8bs build: ${selected.error}\n`);
+      return { ok: false };
+    }
+    ({ program } = selected);
+  }
+  // A misdeclared image should not wait for --release to be noticed, but
+  // it is not this build's business either: said once, not fatal.
+  const images = resolveImages(config, programs);
+  if (!images.ok) process.stderr.write(`8bs build: ${images.error}\n`);
 
   const frameRateResult = resolveFrameRate(config);
   if (!frameRateResult.ok) {
@@ -192,6 +232,13 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
     );
     return { ok: false };
   }
+  if (program.targets && !program.targets.includes(target)) {
+    process.stderr.write(
+      `8bs build: program '${program.name}' does not build for the ${target} ` +
+      `(its targets: ${program.targets.join(', ')})\n`,
+    );
+    return { ok: false };
+  }
 
   const resolved = resolveHardware(loadCatalog(target), {
     profile, overrides, profiles: projectProfiles(config, target), defaults: projectHardware(config, target),
@@ -213,7 +260,8 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
     process.stderr.write(`8bs build: ${required.error}\n`);
     return { ok: false };
   }
-  const unmet = unmetRequirements(required.requires, hardware.facts);
+  // The program's floor is the project's, raised by its own (programs.mjs).
+  const unmet = unmetRequirements(program.requires, hardware.facts);
   if (unmet.length > 0) {
     const catalog = loadCatalog(target);
     process.stderr.write(
@@ -233,7 +281,7 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
     return { ok: false };
   }
 
-  const entry = resolveEntryPath(config, target, entryArg);
+  const entry = resolveEntryPath({ entry: program.entry }, target);
   if (!existsSync(entry)) {
     process.stderr.write(`8bs build: entry ${entry} does not exist\n`);
     return { ok: false };
@@ -258,12 +306,13 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
     return { ok: false };
   }
 
-  // A target's own entry file is named after it (main.nes.8bs — see
-  // resolveEntryPath); the output name carries the target once, in the
-  // same place every other target's does, so main.nes.8bs builds to
-  // main-nes.nes just as main.8bs does, not to main.nes-nes.nes.
-  let stem = basename(stripSourceExtension(entry));
-  if (stem.endsWith(`.${target}`)) stem = stem.slice(0, -(target.length + 1));
+  // The program's name, or — for the `entry:` spelling — the entry's own
+  // filename, with a target's twin suffix folded away so main.nes.8bs
+  // builds to main-nes.nes and not main.nes-nes.nes (programStem).
+  const stem = programStem(program, entry, target);
+  // A project with several programs gets a web bundle per program; one
+  // program keeps dist/web/ flat, where every deploy so far has looked.
+  const webDirName = programs.length > 1 ? join('web', stem) : 'web';
   if (target === 'web') {
     const { build } = await import('@8bitscript/compiler/wasm');
     const { writeWebBundle } = await import('./web-runtime.mjs');
@@ -277,7 +326,7 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
       process.stderr.write(`8bs build: ${result.error}\n`);
       return { ok: false };
     }
-    const webDir = resolve('dist', 'web');
+    const webDir = resolve('dist', webDirName);
     await writeWebBundle(webDir, await readFile(outFile), { frameRate, layout, wasmName });
     process.stdout.write(`built ${outFile}\n`);
     process.stdout.write(`web bundle: ${webDir}/\n`);
@@ -285,9 +334,9 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
     if (result.sizeReport) process.stdout.write(sizeReportLines(result.sizeReport, result.bytes.length));
     const memory = { variables: ir.memory.variables, program: result.bytes.length, data: ir.memory.data };
     await writeLastRun(target, compileReport(target, {
-      outFile, hardware, memory, sizeReport: result.sizeReport, frameRate,
+      outFile, hardware, memory, sizeReport: result.sizeReport, frameRate, program: program.name,
     }));
-    return { ok: true, outFile, frameRate, hardware, webDir, memory, sizeReport: result.sizeReport };
+    return { ok: true, outFile, frameRate, hardware, webDir, memory, sizeReport: result.sizeReport, program: program.name };
   }
 
   const { build, outputExtension } = await import('@8bitscript/compiler/mos');
@@ -318,9 +367,9 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   process.stdout.write(`${memoryLine(ir.memory, result.memory)}\n`);
   if (result.sizeReport) process.stdout.write(sizeReportLines(result.sizeReport, result.memory.program));
   await writeLastRun(target, compileReport(target, {
-    outFile, hardware, memory: result.memory, sizeReport: result.sizeReport, frameRate,
+    outFile, hardware, memory: result.memory, sizeReport: result.sizeReport, frameRate, program: program.name,
   }));
-  return { ok: true, outFile, frameRate, hardware, memory: result.memory, sizeReport: result.sizeReport };
+  return { ok: true, outFile, frameRate, hardware, memory: result.memory, sizeReport: result.sizeReport, program: program.name };
 }
 
 /**
@@ -384,11 +433,28 @@ export function sizeReportLines(entries, total) {
  * that changes the build into the filename, so `2001` and this target's
  * own default land as two distinct .prg files without anything extra here.
  *
+ * With several `programs`, every program builds for every target it
+ * lists (or every one the project lists), each with that target's
+ * `release` variants — programs × targets × variants. Then the config's
+ * `images` are checked against what was built and named; writing one is
+ * a later release's, and this says so rather than leaving a dist/ that
+ * looks complete.
+ *
  * @param {{ report?: boolean }} [options]
  * @returns {Promise<number>} exit code
  */
 async function buildRelease({ report = false } = {}) {
   const config = await loadConfig(process.cwd(), '8bs build');
+  const declared = resolvePrograms(config);
+  if (!declared.ok) {
+    process.stderr.write(`8bs build --release: ${declared.error}\n`);
+    return 1;
+  }
+  const images = resolveImages(config, declared.programs);
+  if (!images.ok) {
+    process.stderr.write(`8bs build --release: ${images.error}\n`);
+    return 1;
+  }
   const listed = listedTargets(config);
   const machines = (listed ?? RELEASE_MACHINES).filter((m) => RELEASE_MACHINES.includes(m));
   if (machines.length === 0) {
@@ -399,16 +465,25 @@ async function buildRelease({ report = false } = {}) {
     return 1;
   }
   let ok = true;
-  for (const target of machines) {
-    const variants = Array.isArray(config?.targets?.[target]?.release)
-      ? config.targets[target].release
-      : [null];
-    for (const variant of variants) {
-      const profile = typeof variant === 'string' ? variant : variant?.profile;
-      const hardware = (variant && typeof variant === 'object') ? (variant.hardware ?? {}) : {};
-      const result = await compile(target, undefined, { profile, hardware, report });
-      if (!result.ok) ok = false;
+  for (const program of declared.programs) {
+    const targets = program.targets ? machines.filter((m) => program.targets.includes(m)) : machines;
+    for (const target of targets) {
+      const variants = Array.isArray(config?.targets?.[target]?.release)
+        ? config.targets[target].release
+        : [null];
+      for (const variant of variants) {
+        const profile = typeof variant === 'string' ? variant : variant?.profile;
+        const hardware = (variant && typeof variant === 'object') ? (variant.hardware ?? {}) : {};
+        const result = await compile(target, undefined, { profile, hardware, report, program: program.name });
+        if (!result.ok) ok = false;
+      }
     }
+  }
+  for (const image of images.images) {
+    process.stdout.write(
+      `image ${image.name}: ${image.files.length} file(s) for the ${image.target} as ${image.format}, `
+      + `booting ${image.boot} — declared and checked; not written by this release (${imageOutFile(image)})\n`,
+    );
   }
   return ok ? 0 : 1;
 }
@@ -428,13 +503,18 @@ export async function build(args) {
     process.stderr.write(`8bs build: ${hw.error}\n`);
     return 2;
   }
+  const programOpt = programArg(args);
+  if (!programOpt.ok) {
+    process.stderr.write(`8bs build: ${programOpt.error}\n`);
+    return 2;
+  }
   const config = await loadConfig(process.cwd(), '8bs build');
   const launch = resolveNamedLaunch(hw, { config });
   if (!launch.ok) {
     process.stderr.write(`8bs build: ${launch.error}\n`);
     return 2;
   }
-  const consumed = new Set([...hw.consumed, ...checkout.consumed]);
+  const consumed = new Set([...hw.consumed, ...checkout.consumed, ...programOpt.consumed]);
   const positionals = args.filter((a, i) => {
     if (targetIndex >= 0 && (i === targetIndex || i === targetIndex + 1)) return false;
     if (consumed.has(i)) return false;
@@ -457,7 +537,7 @@ export async function build(args) {
     process.stderr.write(
       'Usage: 8bs build --target <pet|web>\n'
       + '                 (vic20, c64, c128, atari8, nes, cx16, mega65 are parked until a later release)\n'
-      + '                 [--pal] [--size]\n'
+      + '                 [--pal] [--size] [--program <name>]\n'
       + HARDWARE_USAGE
       + '                 [entry.8bs]\n',
     );
@@ -465,6 +545,7 @@ export async function build(args) {
   }
   const { ok } = await compile(target, entry, {
     pal, profile: launch.profile, hardware: launch.overrides, report, checkout: checkout.checkout,
+    program: programOpt.program,
   });
   return ok ? 0 : 1;
 }

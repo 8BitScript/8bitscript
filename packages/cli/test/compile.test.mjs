@@ -369,3 +369,97 @@ test('compile() always writes dist/.8bs-last-<target>.json; --size fills in the 
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+// A second program in the same project: its own entry, its own targets,
+// its own name in dist/ — and the `entry:` spelling untouched beside it.
+const withPrograms = async (config, fn) => {
+  const dir = await mkdtemp(join(tmpdir(), '8bs-programs-'));
+  const prev = process.cwd();
+  try {
+    await writeFile(join(dir, 'main.8bs'), SUM);
+    await writeFile(join(dir, 'format.8bs'), SUM.replace('0x8000', '0x8001'));
+    await writeFile(join(dir, '8bitscript.config.ts'), `export default ${config};\n`);
+    process.chdir(dir);
+    await fn(dir);
+  } finally {
+    process.chdir(prev);
+    await rm(dir, { recursive: true, force: true });
+  }
+};
+
+test('build() --program picks one of the config\'s programs and names the output after it', async () => {
+  await withPrograms(`{
+  programs: {
+    main:   { entry: "main.8bs" },
+    format: { entry: "format.8bs", targets: ["pet"] },
+  },
+  targets: { pet: {}, web: {} },
+}`, async (dir) => {
+    const format = await capture(() => build(['--target', 'pet', '--program', 'format']));
+    assert.equal(format.result, 0, format.stdout + format.stderr);
+    assert.equal(existsSync(join(dir, 'dist', 'format-pet.prg')), true, 'a named program is its own stem');
+    const lastRun = JSON.parse(await readFile(join(dir, 'dist', '.8bs-last-pet.json'), 'utf8'));
+    assert.equal(lastRun.program, 'format');
+    assert.match(lastRun.outFile, /format-pet\.prg$/);
+    // No --program: main, without having to say so.
+    const main = await capture(() => build(['--target', 'pet']));
+    assert.equal(main.result, 0, main.stdout + main.stderr);
+    assert.equal(existsSync(join(dir, 'dist', 'main-pet.prg')), true);
+    assert.equal(JSON.parse(await readFile(join(dir, 'dist', '.8bs-last-pet.json'), 'utf8')).program, 'main');
+    // A program builds for the machines it lists, and says so for the rest.
+    const refused = await capture(() => build(['--target', 'web', '--program', 'format']));
+    assert.equal(refused.result, 1);
+    assert.match(refused.stderr, /program 'format' does not build for the web \(its targets: pet\)/);
+    const unknown = await capture(() => build(['--target', 'pet', '--program', 'copy']));
+    assert.equal(unknown.result, 1);
+    assert.match(unknown.stderr, /no program named 'copy' \(programs: main, format\)/);
+    // A file named outright is its own program; naming both is two answers.
+    const both = await capture(() => build(['--target', 'pet', '--program', 'format', 'main.8bs']));
+    assert.equal(both.result, 1);
+    assert.match(both.stderr, /--program format and an entry file \(main\.8bs\) name two programs/);
+    // Several programs: a web bundle per program, not one dist/web/.
+    const web = await capture(() => build(['--target', 'web']));
+    assert.equal(web.result, 0, web.stdout + web.stderr);
+    assert.equal(existsSync(join(dir, 'dist', 'web', 'main', 'index.html')), true);
+  });
+});
+
+test('build() --release builds every program for the targets it lists, then names the images it did not write', async () => {
+  await withPrograms(`{
+  programs: {
+    main:   { entry: "main.8bs" },
+    format: { entry: "format.8bs", targets: ["pet"] },
+  },
+  targets: { pet: { hardware: { model: "4032", ram: "32" }, release: ["2001", {}] }, web: {} },
+  images: {
+    tools: { target: "pet", format: "d64", boot: "main", files: [{ program: "main", name: "MAIN" }, { program: "format", name: "FORMAT" }] },
+  },
+}`, async (dir) => {
+    const { result, stdout, stderr } = await capture(() => build(['--release']));
+    assert.equal(result, 0, stdout + stderr);
+    for (const name of ['main-pet.prg', 'main-pet-4032-32.prg', 'format-pet.prg', 'format-pet-4032-32.prg', 'main.wasm']) {
+      assert.equal(existsSync(join(dir, 'dist', name)), true, name);
+    }
+    assert.equal(existsSync(join(dir, 'dist', 'format.wasm')), false, 'format lists pet only');
+    assert.match(stdout, /image tools: 2 file\(s\) for the pet as d64, booting main — declared and checked; not written by this release/);
+  });
+});
+
+test('the entry spelling still names dist/ after the file, and refuses an .8bx entry by name', async () => {
+  await withPrograms(`{ entry: "main.8bs", targets: ["pet"] }`, async (dir) => {
+    const { result, stdout, stderr } = await capture(() => build(['--target', 'pet']));
+    assert.equal(result, 0, stdout + stderr);
+    assert.equal(existsSync(join(dir, 'dist', 'main-pet.prg')), true);
+    assert.equal(existsSync(join(dir, 'dist', 'web')), false);
+  });
+  await withPrograms(`{ programs: { main: { entry: "App.8bx" } }, targets: ["pet"] }`, async () => {
+    const { result, stderr } = await capture(() => build(['--target', 'pet']));
+    assert.equal(result, 1);
+    assert.match(stderr, /programs\.main\.entry is App\.8bx, a \.8bx file; a program starts from a \.8bs file/);
+  });
+  await withPrograms(`{ entry: "main.8bs", programs: { main: { entry: "main.8bs" } } }`, async () => {
+    const { result, stderr } = await capture(() => build(['--target', 'pet']));
+    assert.equal(result, 1);
+    assert.match(stderr, /sets both `entry` and `programs`/);
+  });
+});
