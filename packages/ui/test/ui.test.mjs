@@ -157,3 +157,20 @@ test('menubar.8bx analyzes clean, with its import resolved', () => {
   const diagnostics = analyze(readFileSync(file, 'utf8'), file, { resolveImports: true, machine: 'pet', facts: stockFacts('pet') });
   assert.deepEqual(diagnostics, []);
 });
+
+// The wrapper's components are exported, so a consumer's .8bx file
+// reaches them through an ordinary import and each element lowers to the
+// menubar call it stands for — on every target the .8bs probe links for.
+const BX_PROBE = join(HERE, 'menubar-probe.8bx');
+
+for (const target of TARGETS) {
+  test(`the BX menu bar wrapper links clean for ${target}`, () => {
+    const source = readFileSync(BX_PROBE, 'utf8');
+    const { ir, diagnostics } = link(source, BX_PROBE, { machine: target, facts: stockFacts(target) });
+    assert.deepEqual(diagnostics, []);
+    const names = new Set(ir.functions.map((f) => f.name));
+    for (const component of ['MenuBar', 'MenuItem', 'MenuBarEnd']) {
+      assert.ok(names.has(component), `${component} is linked in as a function`);
+    }
+  });
+}

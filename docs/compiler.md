@@ -19,7 +19,7 @@ the linker touches the filesystem.
 | fold | AST | the same tree, with `#name(...)` calls resolved |
 | binder | AST | symbols, scopes, binding diagnostics |
 | checker | AST | type/range/component diagnostics |
-| 8BX elaboration | AST with BX nodes | core AST (no BX in backends) |
+| 8BX elaboration | AST with BX nodes | core AST: a component is a function, an element is a call to it (no BX in backends) |
 | IR / backends | AST | the image, once a backend emits one |
 
 Two source kinds share this pipeline:
@@ -38,5 +38,10 @@ Import resolution is optional in `analyze()` (enabled for `8bs check` and
 `file:` documents in the language server) because it is the only part that
 reads the module graph on disk.
 
-`link()` runs the same front end per module, then resolves imports and
-lowers to IR. Backends receive optimized IR; they do not parse 8BX.
+`link()` reads every module in the graph as far as its own symbols
+first, binds each import that names an exported component to that
+component, then finishes each module — element checks, elaboration,
+folding, checking, lowering — and links the IR. Backends receive
+optimized IR; they do not parse 8BX. A component call whose arguments are
+all compile-time values is inlined by the linker's optimizer, so a static
+composition costs what hand-written calls would.

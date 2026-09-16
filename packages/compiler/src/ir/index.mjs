@@ -857,6 +857,10 @@ class Lowering {
       // (`screen.setBorderColor`, never `import { screen_setBorderColor }`);
       // its mangled name is never itself an exportable top-level binding.
       exported: mangledName ? false : node.exported,
+      // An 8BX component, elaborated to this function (bx/elaborate.mjs):
+      // the inliner treats a compile-time-argument call to one as the
+      // composition it stands for, and the size report can name it.
+      component: node.component === true,
       params,
       returnType,
       body,
