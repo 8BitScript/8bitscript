@@ -75,7 +75,7 @@ reserved) by code on trunk; the spec has the reasoning.
 | `.8bs` reaches a component as a positional call: `App();`, `Player(20, 40);` — the same elaboration `<Player x={20} y={40} />` gets. No children across the boundary. | a component is a function; the call is the element (`bx/elaborate.mjs`) | §4.5 |
 | Several programs per project; the key is the output stem; `entry` is sugar for `programs.main` with the filename stem kept. | `packages/cli/src/programs.mjs` | §4.6 |
 | A cartridge is hardware (a catalog `media` option); a disk image is a container over built programs, declared in `images`. | Atari catalog `media`; `programs.mjs` `resolveImages` | §4.7 |
-| Fluid web — layout to the viewport at run time, as a distinct web build variant that costs the other eight machines nothing — is in the first milestone. | not yet | §74, §129 |
+| Fluid web — layout to the viewport at run time, costing the other eight machines nothing — is in the first milestone. | the web's Modern host (`machine=hifi`, the default): `Video.columns()`/`rows()` are the live grid, `Video.COLUMNS` the grid a program starts with; a resize applies between frames (`web-loader.mjs`) | §74, §129 |
 
 ## What this page used to say, and where it went
 

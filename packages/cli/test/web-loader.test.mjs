@@ -247,6 +247,32 @@ test('the canvas is only re-dimensioned when the border or the grid changes', ()
   assert.match(source, /if \(next !== border \|\| regridded\) \{\s*\n\s*border = next;\s*\n\s*canvas\.width = INNER_W \+ border \* 2;/);
 });
 
+// A resize lands between frames (8BX spec §74, decided 2026-09-16): while a
+// waitFrame() program runs, the page holds the measurement and re-grids in
+// tick(), right before releasing the next frame and only once the program
+// has consumed every frame issued — so it is blocked in waitFrame() and can
+// never see columns() change between two reads inside one frame. A program
+// with no frame clock is re-gridded at once, as it always was.
+test('a resize re-grids between frames, never mid-frame', () => {
+  const source = renderLoader({ frameRate: 60 });
+  const resize = source.slice(source.indexOf('function resize()'), source.indexOf('function relayout('));
+  assert.match(resize, /if \(ctrl && !destroyed\) \{\s*\n\s*pendingMeasure = measured;\s*\n\s*fit\(measured\);\s*\n\s*return;/);
+  assert.match(resize, /relayout\(measured\);/, 'no frame clock: at once');
+  const tick = source.slice(source.indexOf('function tick(now)'), source.indexOf('function start()'));
+  const applyAt = tick.indexOf('relayout(pendingMeasure)');
+  const issueAt = tick.indexOf('Atomics.add(ctrl, ISSUED, 1)');
+  assert.ok(applyAt > 0 && issueAt > applyAt, 'the pending grid is applied before the frame is released');
+  assert.match(tick, /pendingMeasure !== null && Atomics\.load\(ctrl, ISSUED\) === Atomics\.load\(ctrl, CONSUMED\)/,
+    'and only once the program is waiting');
+  // The memory write is inside relayout (via applyGrid), nowhere else on the page.
+  const relayout = source.slice(source.indexOf('function relayout('), source.indexOf('function fit('));
+  assert.match(relayout, /applyGrid\(measured\)/);
+  // The memory write happens in applyGrid (a re-grid) and once when the
+  // worker hands its memory over — never straight from a resize event.
+  const writes = [...source.matchAll(/writeGrid\(\);/g)].length;
+  assert.equal(writes, 2, 'writeGrid: applyGrid and the memory hand-off only');
+});
+
 // The grid rule, like borderFor, exists twice — here and in web-layout.mjs —
 // and a rule that lives only inside a template string is a rule nothing can
 // test.
