@@ -84,7 +84,7 @@ export function renderWorker() {
 const ISSUED = ${ISSUED};
 const CONSUMED = ${CONSUMED};
 
-self.onmessage = async ({ data: { ctrl, wasmUrl } }) => {
+self.onmessage = async ({ data: { ctrl, wasmUrl, resizable, columnsOffset, rowsOffset, gridCols, gridRows } }) => {
   // Block until the page has released a frame this program hasn't taken yet.
   // Returns at once when one is already owed — two logical frames per real
   // one on a slow display — otherwise sleeps until the page notifies. The
@@ -104,6 +104,24 @@ self.onmessage = async ({ data: { ctrl, wasmUrl } }) => {
     const shared = WebAssembly.Module.imports(module).some((i) => i.module === 'env' && i.name === 'waitFrame');
     const instance = await WebAssembly.instantiate(module, { env: { waitFrame } });
     const entry = Object.values(instance.exports).find((v) => typeof v === 'function');
+
+    // The grid the page already measured, written here — before entry()
+    // runs, on this thread, into this instance's own fresh memory — so
+    // the program's first text.columns() read (inside its own start-up
+    // layout, before it ever calls waitFrame) sees the real grid instead
+    // of the compiled default. Writing it later, in response to the
+    // memory this worker is about to post below, would be a second
+    // thread reacting to a message this thread does not wait for — by
+    // the time that write lands, entry() may already have used the
+    // default. Only the Modern host sends resizable; every fixed skin
+    // leaves it undefined and this is skipped, because columnsOffset
+    // there is the screen's own first character cell, not a grid
+    // register.
+    if (resizable) {
+      const mem = new Uint8Array(instance.exports.memory.buffer);
+      mem[columnsOffset] = gridCols;
+      mem[rowsOffset] = gridRows;
+    }
 
     // A waitFrame() program's memory is shared, so the page can paint it while
     // the program runs. One that never waits has ordinary memory: it runs to
@@ -481,12 +499,28 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
 
   function applyLayout(next) {
     if (!next) return;
-    if (next.cols > 0) GRID_COLS = next.cols;
-    if (next.rows > 0) GRID_ROWS = next.rows;
-    if (next.charWidth > 0) CHAR_W = next.charWidth;
-    if (next.charHeight > 0) CHAR_H = next.charHeight;
-    INNER_W = GRID_COLS * CHAR_W;
-    INNER_H = GRID_ROWS * CHAR_H;
+    // cols/rows/INNER_W/INNER_H, not on the Modern host: next here is the
+    // program's own compiled sidecar (program.json), whose cols/rows are
+    // the compiled DEFAULT (48x27) — informational on a resizable build,
+    // not a live measurement. mount()'s own gridCols/gridRows (this
+    // function cannot see them; they are a separate closure below) are
+    // what a resizable host actually draws at, kept current by
+    // resize()/applyGrid() instead. Applying the sidecar's cols/rows here
+    // would overwrite INNER_W/INNER_H out from under that — and silently:
+    // applyGrid()'s own change check only compares gridCols/gridRows, so
+    // a resize() called right after this would see no change and skip
+    // fixing INNER_W/INNER_H back, leaving the canvas painted at one grid
+    // while the program (and this call's own postMessage to the worker)
+    // uses another. On a fixed skin (RESIZABLE false) cols/rows genuinely
+    // differ per machine, so this still has to run there.
+    if (!RESIZABLE) {
+      if (next.cols > 0) GRID_COLS = next.cols;
+      if (next.rows > 0) GRID_ROWS = next.rows;
+      if (next.charWidth > 0) CHAR_W = next.charWidth;
+      if (next.charHeight > 0) CHAR_H = next.charHeight;
+      INNER_W = GRID_COLS * CHAR_W;
+      INNER_H = GRID_ROWS * CHAR_H;
+    }
     if (next.charBase != null) CHAR_BASE = next.charBase;
     if (next.colorBase != null) COLOR_BASE = next.colorBase;
     if (next.inputOffset != null) INPUT_OFFSET = next.inputOffset;
@@ -824,7 +858,31 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
         }
       };
       worker.onerror = function (e) { say('the program failed: ' + e.message); };
-      worker.postMessage({ ctrl: ctrl, wasmUrl: wasmUrl });
+      // The grid the program should start with, written by the worker
+      // itself before it calls the program's entry — not left to the
+      // data.memory round trip above, which races the program's own first
+      // frame: postMessage back to this thread is fire-and-forget, so the
+      // worker calling entry() right after posting its memory can (and on
+      // a fast machine reliably does) run text.columns()'s first read
+      // before this thread has processed data.memory and called
+      // writeGrid(). The visible failure is a program that lays itself
+      // out for the compiled default (Video.columns() answers with it
+      // until something writes the live bytes — see geometry.8bs) while
+      // the page paints it at the grid gridFor() already measured: two
+      // different widths applied to the same character buffer, which
+      // reads as sheared, duplicated text. Only meaningful on the Modern
+      // host — RESIZABLE is false everywhere else, and columnsOffset on a
+      // fixed skin is the screen's own first character cell, not a grid
+      // register, so the worker must not write there.
+      worker.postMessage({
+        ctrl: ctrl,
+        wasmUrl: wasmUrl,
+        resizable: RESIZABLE,
+        columnsOffset: COLUMNS_OFFSET,
+        rowsOffset: ROWS_OFFSET,
+        gridCols: gridCols,
+        gridRows: gridRows,
+      });
       raf = requestAnimationFrame(tick);
     }
 

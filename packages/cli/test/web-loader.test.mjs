@@ -164,8 +164,66 @@ test('the loader carries the worker inline so it can be served from another orig
 test('the wasm URL is resolved on the page and passed to the worker, not guessed', () => {
   assert.match(renderLoader({ frameRate: 60 }), /new URL\(src, document\.baseURI\)\.href/);
   assert.match(renderLoader({ frameRate: 60 }), /wasmUrl: wasmUrl/);
-  assert.match(renderWorker(), /data: \{ ctrl, wasmUrl \}/);
+  assert.match(renderWorker(), /data: \{ ctrl, wasmUrl,/);
   assert.doesNotMatch(renderWorker(), /new URL\('program\.wasm'/);
+});
+
+// applyLayout() applies the program's own compiled sidecar (program.json) —
+// palette, aspect, register offsets — on every mount, including the Modern
+// host's resizable one. Its cols/rows there are the compiled DEFAULT
+// (48x27), not a live measurement, so letting it overwrite INNER_W/INNER_H
+// on a resizable host clobbers whatever resize() already computed from the
+// real window — and silently: applyGrid()'s own change check only compares
+// gridCols/gridRows (untouched by applyLayout), so the very next resize()
+// sees "no change" and skips fixing INNER_W/INNER_H back. The canvas then
+// paints at one grid while the program — and the postMessage grid write
+// above — uses another: the same sheared-text failure as the race, from an
+// unrelated cause. A fixed skin still needs cols/rows applied here, since
+// those genuinely vary by machine.
+test('applyLayout does not overwrite the live grid on a resizable host', () => {
+  const source = renderLoader({ frameRate: 60 });
+  const fn = source.slice(source.indexOf('function applyLayout('), source.indexOf('function resolveHost('));
+  assert.match(fn, /if \(!RESIZABLE\) \{/);
+  // cols/rows/INNER_W/INNER_H must all be inside that guard...
+  const guardBody = fn.slice(fn.indexOf('if (!RESIZABLE) {'), fn.indexOf('if (next.charBase'));
+  assert.match(guardBody, /GRID_COLS = next\.cols/);
+  assert.match(guardBody, /GRID_ROWS = next\.rows/);
+  assert.match(guardBody, /INNER_W = GRID_COLS \* CHAR_W/);
+  assert.match(guardBody, /INNER_H = GRID_ROWS \* CHAR_H/);
+  // ...but every other field (palette, aspect, register offsets) still
+  // applies unconditionally, on every host.
+  assert.doesNotMatch(fn.slice(fn.indexOf('if (next.charBase')), /RESIZABLE/);
+  assert.match(fn, /if \(next\.aspect\) ASPECT = next\.aspect/);
+  assert.match(fn, /if \(next\.palette && next\.palette\.length\) COLORS = next\.palette/);
+});
+
+// A program's own first text.columns() read — inside its start-up layout,
+// before it ever calls waitFrame() — races the page's data.memory handler:
+// postMessage back to the page is fire-and-forget, so the worker calling
+// entry() right after posting its memory can run that first read before
+// the page has processed data.memory and written the live grid. The
+// worker has to write its own copy of the grid into its own memory,
+// before entry() runs, using what the page already measured and sent
+// with the start message — not wait on a round trip back from the page.
+test('the worker writes the grid into its own memory before calling entry, not after', () => {
+  const source = renderLoader({ frameRate: 60 });
+  // The page sends what it already measured, not just ctrl/wasmUrl.
+  assert.match(source, /resizable: RESIZABLE/);
+  assert.match(source, /columnsOffset: COLUMNS_OFFSET/);
+  assert.match(source, /rowsOffset: ROWS_OFFSET/);
+  assert.match(source, /gridCols: gridCols/);
+  assert.match(source, /gridRows: gridRows/);
+
+  const worker = renderWorker();
+  assert.match(worker, /resizable, columnsOffset, rowsOffset, gridCols, gridRows/);
+  assert.match(worker, /mem\[columnsOffset\] = gridCols/);
+  assert.match(worker, /mem\[rowsOffset\] = gridRows/);
+  // Ordering, not just presence: the grid write has to be textually before
+  // entry() is called, since this is one straight-line async function with
+  // no branch that could reorder them at runtime.
+  const writeAt = worker.indexOf('mem[columnsOffset] = gridCols');
+  const entryAt = worker.indexOf('entry();');
+  assert.ok(writeAt > 0 && entryAt > 0 && writeAt < entryAt);
 });
 
 // An embedded screen is a guest on somebody else's page: it must not take the
