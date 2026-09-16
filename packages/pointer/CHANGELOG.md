@@ -1,5 +1,21 @@
 # @8bitscript/pointer
 
+## 0.11.0
+
+### Patch Changes
+
+- @8bitscript/atari8@0.11.0
+  - @8bitscript/c128@0.11.0
+  - @8bitscript/c64@0.11.0
+  - @8bitscript/cx16@0.11.0
+  - @8bitscript/input@0.11.0
+  - @8bitscript/mega65@0.11.0
+  - @8bitscript/nes@0.11.0
+  - @8bitscript/pet@0.11.0
+  - @8bitscript/text@0.11.0
+  - @8bitscript/vic20@0.11.0
+  - @8bitscript/web@0.11.0
+
 ## 0.10.2
 
 ### Patch Changes

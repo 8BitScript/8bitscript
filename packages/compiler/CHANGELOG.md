@@ -1,5 +1,143 @@
 # @8bitscript/compiler
 
+## 0.11.0
+
+### Minor Changes
+
+- 660b8c0: 8BX (`.8bx`): a `component` declaration that elaborates to a plain call
+  before any backend sees it, so a declarative element (`<Foo bar={baz} />`)
+  costs exactly what writing `foo(baz)` by hand would cost — measured
+  byte-identical on the PET in the new `hello-bx` example (108 bytes, same as
+  `hello-world`).
+  
+  The front end grows a binder (`packages/compiler/src/binder`) that resolves
+  symbols and scopes ahead of the checker, and a `bx/` pass
+  (`check.mjs`, `elaborate.mjs`, `parse.mjs`) that parses element syntax at
+  statement boundaries — `<`, `<<` and the rest of the operator grammar are
+  unchanged in either source kind — checks it, then elaborates it into the
+  core AST the checker, folder and every backend already understand.
+  `analyze()`, `link()` and the language server all run binding and BX
+  elaboration before folding and checking, for both `.8bs` and `.8bx` files.
+  
+  Also: a conditional expression (`cond ? a : b`) lowers to real branching
+  IR and MOS instruction selection, editor support for `.8bx` (grammar,
+  language registration, activation), and `docs/compiler.md`, which replaces
+  the `8bx` design-direction doc with a description of the pipeline as
+  built.
+  
+  Not in this release: array-typed component props, and no backend beyond
+  mos/wasm has been asked to prove elaboration is free — only the PET and
+  web are measured.
+- 4a594eb: 8BX composition is conditional the ordinary way: `{cond ? <A /> : <B />}`
+  and `{cond && <A />}` between tags, and `return (<…/>)` in a component
+  body, elaborate to an `if` with a composition in each arm. A compile-time
+  test — `Video.SPRITES > 0` — is a constant `if`, and the arm that cannot
+  run leaves the program, component and all: on a machine without sprites
+  the sprite arm costs nothing (measured). An element where a value is
+  expected is refused (`8BS2024`), and a `{…}` child that is not a
+  composition is, for now, too (`8BS2023`).
+- b96ef5f: 8BX components cross module boundaries, and cost nothing when their
+  props are compile-time.
+  
+  A `component` is now elaborated to a function of the same name in the
+  module that declares it, and an element to a call to it — so a body
+  resolves names where it was written, an attribute expression runs once
+  however often the body reads the prop, and `export component` is an
+  ordinary exported function that `import { MenuBar } from "./menubar.8bx"`
+  binds like any other. `link()` reads the whole module graph before
+  elaborating any module, so an imported component's signature is known
+  where it is used; `analyze()` does the same one import deep. The linker's
+  inliner inlines a component call whose arguments are all compile-time
+  values, so `hello-bx` still builds byte-identical to `hello-world` on
+  the PET (tested), and a component fed a run-time value stays a call.
+  
+  `export component` parses. `component` is a keyword in `.8bx` only:
+  `let component: u8` in a `.8bs` file compiles as it always did.
+  `@8bitscript/ui`'s `menubar.8bx` exports its three components.
+- 8309efa: 8BX element syntax is tokenized by the lexer, in tag, children and
+  expression modes, and read by the parser token by token — no more
+  re-scanning source text at a `<`. Every span is a token's, so a
+  diagnostic inside a `{…}` attribute or child points into the file
+  (and reaches the editor with the right range), `<` opens a tag only where
+  no value sits before it (`a < b`, `array<u8, 4>` and `x << 2` are what
+  they were; `if (x) <Foo />;` works), raw text between tags is one token
+  in which `don't`, `//` and `>` are just text, and a half-typed tag ends
+  with one diagnostic and a parser that keeps going. Text children are
+  normalized the JSX way, once, in the parser. `<Studio.Window />` names
+  parse; an element parses where a value is expected (a `?:` arm), for
+  its spans. The VS Code grammar colors `component`, tags, attributes and
+  embedded expressions in `.8bx`.
+- 548f29b: 8BX components have methods: a `function` at the top of a component body
+  works on the instance's own state and is instanced with it — `damage(5)`
+  inside one `<Player />` touches that player's health and nobody else's —
+  and inlines away like the rest when its arguments are compile-time. A
+  method sees state, not props: naming a prop in one is `8BS2025`, with the
+  fix (pass it as an argument). Nothing outside the component can call a
+  method yet, since a static instance has no name to call it on.
+- fb4cf62: `.8bs` is code, `.8bx` is composition. `asm6502` is refused in an `.8bx`
+  file (`8BS2020`): machine code lives in a `.8bs` function the component
+  imports. A top-level function that composes nothing, or a top-level
+  `let`, in an `.8bx` is a warning (`8BS2021`) that `bx: { strict: false }`
+  in `8bitscript.config.ts` switches off; component methods and state, and
+  anything inside `{…}`, are never linted.
+  
+  A warning now reports and rides along: the linker and `8bs build` stop
+  for errors only, where before any diagnostic — an inexact `#frames()`
+  duration included — stopped a build.
+- 47cf362: 8BX components place their children with `<slot />`. A slotted component
+  is elaborated into two functions around the slot, and
+  `<Window x={1}><A /><B /></Window>` into `Window__open(1); A(); B();
+  Window__close(1);` — the children run once, in place; an argument both
+  halves read is hoisted into a local when it could do anything, so it
+  runs once; and the halves cross modules like any other exported
+  function. The slot must be one, at the top level of the body, with no
+  local read across it (`8BS2019` otherwise). A `children` parameter still
+  means the component accepts text children.
+  
+  `@8bitscript/ui/menubar-bx` is the wrapper as it was meant to be:
+  `<MenuBar row={0} width={40}><MenuItem label="FILE" /></MenuBar>`, with
+  `MenuBarEnd` gone. Written as elements, a bar builds byte-identical to
+  the hand-written begin/item/end calls on the PET and the C64 — measured
+  in `packages/cli/test/menubar-bx.test.mjs`.
+- d1ab357: 8BX components keep state. `state count: utinyint = 0;` at the top of a
+  component body is storage per static instance: every element — and every
+  call from `.8bs` — is an instance with its own copy of the function and
+  its own globals, laid out at compile time and named after the instance
+  (`__bx_Counter__count__i1`), the template dropped, and a stateless
+  component that contains a stateful one instanced per site too, so two
+  `<Pair />` holding a `<Tally />` are four tallies. The two halves of a
+  slotted component share one instance. Nothing is allocated at run time;
+  `8bs build --size` lists every instance and the bytes of state it holds.
+  `state` belongs at the top of a component body, typed, once per name,
+  unshadowed (`8BS2022`); the initializer is a literal or a const, as for
+  any global. Component methods and arrays of state are later.
+- 1de8025: IntelliSense for a program's own names, from the binder (8BX spec PR 15).
+  Hover on a component, function, variable, const, parameter or `state`
+  field shows its declaration and the doc comment above it, following an
+  import to the file it comes from — a component called from `.8bs`
+  (`MenuBar();`) is the same component as `<MenuBar />`. Completion offers
+  the names visible from the cursor; in `.8bx`, `<` offers the components
+  in scope and `slot`, a component's tag offers the props it still needs
+  (as snippets), and `</` closes the innermost open element. New
+  `getDefinition` in the compiler and `textDocument/definition` in the
+  language server: Go to Definition lands on the declaration, in this file
+  or another. Hover and completion now lex an `.8bx` buffer as one.
+
+### Patch Changes
+
+- bd9a32a: The inliner weighs a call's arguments as the code they are — a load and a
+  store at every copy — so a small body that only passes values along stays
+  one function instead of being written out at every site (2048's board:
+  54 bytes pasted three times where the call and its body cost 31). And
+  `optimizeReachable` folds and prunes twice: a helper whose other callers
+  fold away (the animated move, on a machine without the RAM for it) is
+  now inlined into the one caller left. Every example builds to the same
+  bytes as before.
+- 44b31ef: `cond ? a : b` lowers on the web backend too (an `if … else … end` that
+  leaves one value; only the taken arm runs), so both backends know the
+  whole core language the same way. A `?:` whose test is known at compile
+  time — `#fact(...) ? a : b` — is the taken arm, and the other is gone.
+
 ## 0.10.2
 
 ### Patch Changes

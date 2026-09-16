@@ -1,5 +1,74 @@
 # @8bitscript/ui
 
+## 0.11.0
+
+### Minor Changes
+
+- 660b8c0: 8BX (`.8bx`): a `component` declaration that elaborates to a plain call
+  before any backend sees it, so a declarative element (`<Foo bar={baz} />`)
+  costs exactly what writing `foo(baz)` by hand would cost — measured
+  byte-identical on the PET in the new `hello-bx` example (108 bytes, same as
+  `hello-world`).
+  
+  The front end grows a binder (`packages/compiler/src/binder`) that resolves
+  symbols and scopes ahead of the checker, and a `bx/` pass
+  (`check.mjs`, `elaborate.mjs`, `parse.mjs`) that parses element syntax at
+  statement boundaries — `<`, `<<` and the rest of the operator grammar are
+  unchanged in either source kind — checks it, then elaborates it into the
+  core AST the checker, folder and every backend already understand.
+  `analyze()`, `link()` and the language server all run binding and BX
+  elaboration before folding and checking, for both `.8bs` and `.8bx` files.
+  
+  Also: a conditional expression (`cond ? a : b`) lowers to real branching
+  IR and MOS instruction selection, editor support for `.8bx` (grammar,
+  language registration, activation), and `docs/compiler.md`, which replaces
+  the `8bx` design-direction doc with a description of the pipeline as
+  built.
+  
+  Not in this release: array-typed component props, and no backend beyond
+  mos/wasm has been asked to prove elaboration is free — only the PET and
+  web are measured.
+- b96ef5f: 8BX components cross module boundaries, and cost nothing when their
+  props are compile-time.
+  
+  A `component` is now elaborated to a function of the same name in the
+  module that declares it, and an element to a call to it — so a body
+  resolves names where it was written, an attribute expression runs once
+  however often the body reads the prop, and `export component` is an
+  ordinary exported function that `import { MenuBar } from "./menubar.8bx"`
+  binds like any other. `link()` reads the whole module graph before
+  elaborating any module, so an imported component's signature is known
+  where it is used; `analyze()` does the same one import deep. The linker's
+  inliner inlines a component call whose arguments are all compile-time
+  values, so `hello-bx` still builds byte-identical to `hello-world` on
+  the PET (tested), and a component fed a run-time value stays a call.
+  
+  `export component` parses. `component` is a keyword in `.8bx` only:
+  `let component: u8` in a `.8bs` file compiles as it always did.
+  `@8bitscript/ui`'s `menubar.8bx` exports its three components.
+- 47cf362: 8BX components place their children with `<slot />`. A slotted component
+  is elaborated into two functions around the slot, and
+  `<Window x={1}><A /><B /></Window>` into `Window__open(1); A(); B();
+  Window__close(1);` — the children run once, in place; an argument both
+  halves read is hoisted into a local when it could do anything, so it
+  runs once; and the halves cross modules like any other exported
+  function. The slot must be one, at the top level of the body, with no
+  local read across it (`8BS2019` otherwise). A `children` parameter still
+  means the component accepts text children.
+  
+  `@8bitscript/ui/menubar-bx` is the wrapper as it was meant to be:
+  `<MenuBar row={0} width={40}><MenuItem label="FILE" /></MenuBar>`, with
+  `MenuBarEnd` gone. Written as elements, a bar builds byte-identical to
+  the hand-written begin/item/end calls on the PET and the C64 — measured
+  in `packages/cli/test/menubar-bx.test.mjs`.
+
+### Patch Changes
+
+- 785b966: `menubar.8bx` imports the menu bar it wraps by file (`./menubar.8bs`),
+  not by the package's own name — a package cannot depend on itself, and
+  the package's test said so.
+- @8bitscript/text@0.11.0
+
 ## 0.10.2
 
 ### Patch Changes
