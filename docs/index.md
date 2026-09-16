@@ -78,3 +78,9 @@ personal systems, and pointing a project at a local 8BitScript checkout.
 notes for the phase 5 through 8 machines, the ones the phase plan above
 names but no package exists for yet. They describe hardware, not the
 toolchain, and are unchanged by the rewrite.
+
+[8BX: composition for 8BitScript](project/8bx.md) — what the repository
+has of `.8bx` today (the source kind, a first element grammar and
+elaborator, the config), how that differs from the 8BX spec it is being
+brought up to, and where the spec itself lives. [Compiler](compiler.md)
+describes the pipeline as built.
