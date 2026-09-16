@@ -1131,6 +1131,7 @@ export function link(entryText, entryFile, options = {}) {
       // A stateful component's template globals, under their output names,
       // so specializeInstances can find them in the linked program.
       if (fn.state) fn.state = fn.state.map((s) => ({ ...s, global: module.rename.get(s.global) ?? s.global }));
+      if (fn.owner) fn.owner = module.rename.get(fn.owner) ?? fn.owner;
       // A parameter is never renamed and always shadows a same-named global
       // or import within its own function — ordinary lexical scoping, not a
       // collision the way two modules' globals can collide.
@@ -1235,8 +1236,13 @@ function specializeInstances(ir, diagnostics) {
       if (Array.isArray(node)) { for (const n of node) walkCalls(n); return; }
       if (!node || typeof node !== 'object') return;
       if (node.kind === 'call' && stateful.has(node.name)) {
+        const target = byName.get(node.name);
+        // A method of the component this instance is — called from its
+        // body, a half, or another method — works on this instance's
+        // state: the same instance, not a new one.
+        const sameInstance = target.method && parentInstance && target.owner === fn.owner;
         const own = node.instance ?? `${node.start ?? 0}@${fn.name}`;
-        const instance = parentInstance ? `${parentInstance}/${own}` : own;
+        const instance = sameInstance ? parentInstance : (parentInstance ? `${parentInstance}/${own}` : own);
         node.name = instantiate(node.name, instance);
       }
       for (const value of Object.values(node)) walkCalls(value);
@@ -1263,7 +1269,7 @@ function specializeInstances(ir, diagnostics) {
         instanceGlobals.add(copy);
       }
     }
-    const clone = { ...structuredClone(template), name: `${name}${suffix}`, instanceOf: name, state: undefined };
+    const clone = { ...structuredClone(template), name: `${name}${suffix}`, instanceOf: name, state: undefined, owner: template.owner };
     delete clone.state;
     renameIn(clone.body, map);
     ir.functions.push(clone);

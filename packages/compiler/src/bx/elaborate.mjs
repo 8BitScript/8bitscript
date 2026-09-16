@@ -53,8 +53,17 @@
 // allocated at run time, and the size report shows every byte (§37). The
 // halves of a slotted component share one tag, so one instance's state.
 //
-// Not yet: named slots, spread props, component methods. Those are the
-// spec's later PRs.
+// Methods (§39) — `function damage(amount) { … }` inside the body — are
+// hoisted to module-level functions of the component, `Player__damage`,
+// that read and write the same template globals; a call `damage(5)` in the
+// body (or in another method) becomes `Player__damage(5)`. Per instance,
+// the linker clones a method with the instance that called it — the same
+// instance, not a new one — so it works on that instance's state. A
+// method sees state, not props: a prop is the element's, and a method has
+// no element (the checker says so). Nothing outside the component can
+// call a method yet: a static instance has no name to call it on (§131).
+//
+// Not yet: named slots, spread props. Those are the spec's later PRs.
 import { NodeType, node, walk } from '../ast/index.mjs';
 import { componentOf } from '../binder/index.mjs';
 
@@ -283,6 +292,8 @@ function transformStatement(stmt, ctx) {
  * a `<slot />` is also split at it into `Name__open` and `Name__close`.
  */
 function componentFunction(stmt, ctx) {
+  // `component` with no name yet — mid-keystroke — is nothing to elaborate.
+  if (!stmt.name?.name) return [];
   const declared = stmt.body?.body ?? [];
   const span = stmt.body ?? stmt;
   // State: one template global per field, at module level, and the body
@@ -297,16 +308,27 @@ function componentFunction(stmt, ctx) {
     exported: false,
   }));
   const byField = new Map(state.map((s) => [s.field, s.global]));
-  const statements = declared.filter((s) => s.type !== NodeType.StateDeclaration).map((s) => {
-    if (byField.size === 0) return s;
+  // Methods: the body's own functions, hoisted under the component's name.
+  const methods = declared.filter((s) => s.type === NodeType.FunctionDeclaration && s.name?.name);
+  const byMethod = new Map(methods.map((m) => [m.name.name, `${stmt.name.name}__${m.name.name}`]));
+  const rewrite = (s) => {
+    if (byField.size === 0 && byMethod.size === 0) return s;
     const copy = cloneNode(s);
     walk(copy, (n, parent) => {
       // `frame` the name, not `.frame` the member of something else.
       const isProperty = parent?.type === NodeType.MemberExpression && parent.property === n;
       if (n.type === NodeType.Identifier && byField.has(n.name) && !isProperty) n.name = byField.get(n.name);
+      // `damage(…)`: the call, by the method's hoisted name.
+      if (n.type === NodeType.CallExpression && n.callee?.type === NodeType.Identifier && byMethod.has(n.callee.name)) {
+        n.callee.name = byMethod.get(n.callee.name);
+      }
     });
     return copy;
-  });
+  };
+  const statements = declared
+    .filter((s) => s.type !== NodeType.StateDeclaration && s.type !== NodeType.FunctionDeclaration)
+    .map(rewrite);
+  const owner = stmt.name.name;
   const fn = (suffix, body) => node(NodeType.FunctionDeclaration, stmt.start, stmt.start + stmt.length, {
     name: suffix
       ? node(NodeType.Identifier, stmt.name.start, stmt.name.start + stmt.name.length, { name: stmt.name.name + suffix })
@@ -318,13 +340,29 @@ function componentFunction(stmt, ctx) {
     }),
     exported: stmt.exported ?? false,
     component: true,
+    owner,
     ...(state.length ? { state } : {}),
   });
+  const hoisted = methods.map((m) => {
+    const method = rewrite(m);
+    return node(NodeType.FunctionDeclaration, m.start, m.start + m.length, {
+      ...method,
+      name: node(NodeType.Identifier, m.name.start, m.name.start + m.name.length, { name: byMethod.get(m.name.name) }),
+      body: node(NodeType.BlockStatement, method.body.start, method.body.start + method.body.length, {
+        body: (method.body.body ?? []).flatMap((s) => transformStatement(s, ctx)),
+      }),
+      exported: false,
+      component: true,
+      owner,
+      method: true,
+      ...(state.length ? { state } : {}),
+    });
+  });
   const slot = statements.findIndex(isSlot);
-  if (slot < 0) return [...globals, fn('', statements)];
+  if (slot < 0) return [...globals, ...hoisted, fn('', statements)];
   const before = statements.slice(0, slot);
   const after = statements.slice(slot + 1).filter((s) => !isSlot(s));
-  return [...globals, fn('', [...before, ...after]), fn(OPEN, before), fn(CLOSE, after)];
+  return [...globals, ...hoisted, fn('', [...before, ...after]), fn(OPEN, before), fn(CLOSE, after)];
 }
 
 function transformDecl(stmt, ctx) {

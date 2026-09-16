@@ -29,6 +29,7 @@ export function checkBx(ast, file, symbols, { sourceKind = '.8bs', strict = true
   const diagnostics = [];
   diagnostics.push(...checkSlots(ast, file));
   diagnostics.push(...checkState(ast, file));
+  diagnostics.push(...checkMethods(ast, file));
   if (sourceKind === '.8bx') diagnostics.push(...checkFileRole(ast, file, strict));
 
   const checkElement = (el) => {
@@ -353,5 +354,43 @@ function checkState(ast, file) {
   walk(ast, (n) => {
     if (isState(n) && !topLevel.has(n)) at(n, 'state belongs at the top level of a component\'s body');
   });
+  return diagnostics;
+}
+
+/**
+ * A method (spec §39) is a function declared at the top level of a
+ * component's body. It sees the component's state, not its props: a prop
+ * is the element's argument, and a method has no element — so a method
+ * that names a prop (and does not declare its own parameter or local of
+ * that name) is 8BS2025, with the fix. A method may not take a state
+ * field's or another method's name either; those are one namespace.
+ */
+function checkMethods(ast, file) {
+  const diagnostics = [];
+  const at = (n, message) => diagnostics.push(diagnostic(Codes.BX_INVALID_METHOD, message, file, n.start, n.length));
+  for (const stmt of ast?.body ?? []) {
+    if (stmt?.type !== NodeType.ComponentDeclaration) continue;
+    const body = stmt.body?.body ?? [];
+    const props = new Set((stmt.params ?? []).map((p) => p.name?.name).filter(Boolean));
+    const fields = new Set(body.filter((s) => s?.type === NodeType.StateDeclaration).map((s) => s.name?.name).filter(Boolean));
+    const seen = new Set();
+    for (const m of body) {
+      if (m?.type !== NodeType.FunctionDeclaration || !m.name?.name) continue;
+      const name = m.name.name;
+      if (props.has(name) || fields.has(name)) at(m.name, `method '${name}' takes the name of a prop or state of '${stmt.name?.name}'`);
+      if (seen.has(name)) at(m.name, `method '${name}' is declared twice in '${stmt.name?.name}'`);
+      seen.add(name);
+      // Names the method declares for itself shadow the component's props.
+      const own = new Set((m.params ?? []).map((p) => p.name?.name).filter(Boolean));
+      walk(m.body, (n) => { if (n.type === NodeType.VariableDeclaration && n.name?.name) own.add(n.name.name); });
+      walk(m.body, (n, parent) => {
+        const isProperty = parent?.type === NodeType.MemberExpression && parent.property === n;
+        const declares = parent?.type === NodeType.VariableDeclaration && parent.name === n;
+        if (n.type === NodeType.Identifier && props.has(n.name) && !own.has(n.name) && !isProperty && !declares) {
+          at(n, `'${n.name}' is a prop of '${stmt.name?.name}'; a method sees state, not props — pass it as an argument`);
+        }
+      });
+    }
+  }
   return diagnostics;
 }

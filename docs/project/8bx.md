@@ -51,6 +51,9 @@ superseded.
   in a component body; each element (or `.8bs` call site) is an instance
   with its own function and its own globals, laid out at compile time,
   templates dropped, every byte in `8bs build --size` (§119).
+- **Methods** (§39): functions at the top of a component body work on
+  the instance's own state and are instanced with it; a method sees
+  state, not props (`8BS2025`).
 - **Composition is conditional the ordinary way** (§48–§50):
   `{cond ? <A /> : <B />}`, `{cond && <A />}`, `return (<…/>)`; a
   compile-time test drops the arm that cannot run, component and all,

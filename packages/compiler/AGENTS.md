@@ -71,8 +71,14 @@ four tallies; the halves of a slotted component share one tag; a plain
 call from `.8bs` is an instance per call site. `bx/check.mjs`
 `checkState` holds `state` to the top of a component body, typed, once
 per name, unshadowed (`8BS2022`). `--size` lists every instance's bytes
-(`ir.instances`, `stateReportLines`). Not yet: component methods, arrays
-of state, pools.
+(`ir.instances`, `stateReportLines`). **Methods** (§39) — `function` at
+the top of a component body — are hoisted to `Name__method`, read the
+same template globals, and are instanced *with* the enclosing instance
+(the linker keeps the parent's id for a call to a method of the same
+`owner`), so `damage(5)` in one `<Player />` touches that player's
+health. A method sees state, not props (`8BS2025`). Nothing outside a
+component can call a method: a static instance has no name to call it
+on (§131, refs). Not yet: arrays of state, pools.
 
 **Composition is conditional the ordinary way** (spec §48–§50, §94).
 `{cond ? <A /> : <B />}` and `{cond && <A />}` between tags are an `if`
