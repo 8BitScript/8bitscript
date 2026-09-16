@@ -82,7 +82,7 @@ function parseModule(file, text, diagnostics) {
 function finishModule(module, diagnostics, { frameRate, machine, facts, bx }) {
   const { file, text, ast, bound } = module;
   diagnostics.push(...checkBx(ast, file, bound.symbols, { sourceKind: sourceKindOf(file) ?? '.8bs', strict: bx?.strict !== false }));
-  elaborateBx(ast, bound.symbols);
+  elaborateBx(ast, bound.symbols, file);
   // Folding runs before check(): a #frames(...) call needs to already be a
   // plain IntegerLiteral by the time the width-fit rule walks the tree, so
   // e.g. #frames(100, seconds) overflowing a utinyint gets that diagnostic for free,
@@ -1128,6 +1128,9 @@ export function link(entryText, entryFile, options = {}) {
     }
     for (const fn of module.ir.functions) {
       fn.name = module.rename.get(fn.name);
+      // A stateful component's template globals, under their output names,
+      // so specializeInstances can find them in the linked program.
+      if (fn.state) fn.state = fn.state.map((s) => ({ ...s, global: module.rename.get(s.global) ?? s.global }));
       // A parameter is never renamed and always shadows a same-named global
       // or import within its own function — ordinary lexical scoping, not a
       // collision the way two modules' globals can collide.
@@ -1140,6 +1143,7 @@ export function link(entryText, entryFile, options = {}) {
   }
 
   if (hasError(diagnostics)) return { ir: null, diagnostics, sources };
+  specializeInstances(ir, diagnostics);
   // A module's own lowering types what it can see; a ref to an imported
   // global, an imported array's element read, and every binop over either
   // stayed `type: null` until this point, because only the linked program
@@ -1154,6 +1158,145 @@ export function link(entryText, entryFile, options = {}) {
   if (hasError(diagnostics)) return { ir: null, diagnostics, sources };
   ir.memory = memoryOf(ir);
   return { ir, diagnostics, sources };
+}
+
+/**
+ * Every static instance of a stateful component gets its own function and
+ * its own storage (spec §36–§37, §62, §103).
+ *
+ * A component with `state` lowered to a function whose body reads and
+ * writes one template global per field. Here, on the linked program —
+ * where every name is already its output name, whichever module it came
+ * from — each call to such a function is an instance: the one an element
+ * tagged (`instance`), or, for a plain call from `.8bs`, the call site
+ * itself. The function is cloned once per instance, `Name__i1`,
+ * `Name__i2`, …, each clone's template references renamed to that
+ * instance's copies of the globals, `__bx_Name__f__i1`, …, declared once
+ * each. The two halves of a slotted component carry one tag, so they
+ * share one set. An instance inside a component that is itself
+ * instantiated twice is two instances — the walk descends into each
+ * clone, and the tag is prefixed with the parent's. The template
+ * function and globals are left for reachability to drop.
+ *
+ * What is NOT here: a stateful component reached by a call that runs more
+ * than once — a loop, or a function called from two places — is still
+ * one instance per call *site*, which is what "static instances" means
+ * (§62); pools (§63) come later.
+ */
+function specializeInstances(ir, diagnostics) {
+  const byName = new Map(ir.functions.map((f) => [f.name, f]));
+  const stateful = new Set([...byName.values()].filter((f) => Array.isArray(f.state) && f.state.length > 0).map((f) => f.name));
+  if (stateful.size === 0) return;
+  const callsIn = (node, out = []) => {
+    if (Array.isArray(node)) { for (const n of node) callsIn(n, out); return out; }
+    if (node && typeof node === 'object') {
+      if (node.kind === 'call' && typeof node.name === 'string') out.push(node.name);
+      for (const value of Object.values(node)) callsIn(value, out);
+    }
+    return out;
+  };
+  // A component that reaches a stateful one is an instance-bearer itself:
+  // two <Pair /> each holding a <Tally /> are four tallies (§103), so Pair
+  // is cloned per site too — with no storage of its own. An ordinary
+  // function is not: it is one piece of code however often it is called,
+  // and the instances inside it are shared by every caller.
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const fn of byName.values()) {
+      if (stateful.has(fn.name) || !fn.component || fn.name === ir.entry) continue;
+      if (callsIn(fn.body).some((name) => stateful.has(name))) {
+        if (!fn.state) fn.state = [];
+        stateful.add(fn.name);
+        grew = true;
+      }
+    }
+  }
+  const globalsByName = new Map(ir.globals.map((g) => [g.name, g]));
+  const clones = new Map(); // `${fn}\0${instance}` -> clone name
+  const instanceGlobals = new Set();
+  let serial = 0;
+  const idOf = new Map(); // instance key -> `i<n>`
+
+  const suffixFor = (instance) => {
+    if (!idOf.has(instance)) { serial += 1; idOf.set(instance, `__i${serial}`); }
+    return idOf.get(instance);
+  };
+
+  const renameIn = (node, map) => {
+    if (Array.isArray(node)) { for (const n of node) renameIn(n, map); return; }
+    if (!node || typeof node !== 'object') return;
+    if (node.kind === 'ref' && map.has(node.name)) node.name = map.get(node.name);
+    if (node.kind === 'assign' && map.has(node.target)) node.target = map.get(node.target);
+    for (const value of Object.values(node)) renameIn(value, map);
+  };
+
+  const visit = (fn, parentInstance) => {
+    const walkCalls = (node) => {
+      if (Array.isArray(node)) { for (const n of node) walkCalls(n); return; }
+      if (!node || typeof node !== 'object') return;
+      if (node.kind === 'call' && stateful.has(node.name)) {
+        const own = node.instance ?? `${node.start ?? 0}@${fn.name}`;
+        const instance = parentInstance ? `${parentInstance}/${own}` : own;
+        node.name = instantiate(node.name, instance);
+      }
+      for (const value of Object.values(node)) walkCalls(value);
+    };
+    walkCalls(fn.body);
+  };
+
+  const instantiate = (name, instance) => {
+    const key = `${name}\0${instance}`;
+    if (clones.has(key)) return clones.get(key);
+    const template = byName.get(name);
+    const suffix = suffixFor(instance);
+    const map = new Map();
+    for (const { global } of template.state) {
+      const copy = `${global}${suffix}`;
+      map.set(global, copy);
+      if (!instanceGlobals.has(copy)) {
+        const g = globalsByName.get(global);
+        if (!g) {
+          diagnostics.push(diagnostic(Codes.NOT_COMPILABLE, `state '${global}' of '${name}' has no storage to copy`, '<linker>', 0, 0));
+          continue;
+        }
+        ir.globals.push({ ...structuredClone(g), name: copy });
+        instanceGlobals.add(copy);
+      }
+    }
+    const clone = { ...structuredClone(template), name: `${name}${suffix}`, instanceOf: name, state: undefined };
+    delete clone.state;
+    renameIn(clone.body, map);
+    ir.functions.push(clone);
+    byName.set(clone.name, clone);
+    clones.set(key, clone.name);
+    visit(clone, instance);
+    return clone.name;
+  };
+
+  for (const fn of [...ir.functions]) {
+    if (stateful.has(fn.name)) continue; // a template is only ever reached through an instance
+    visit(fn, null);
+  }
+  // The templates are never called now — every call became an instance —
+  // so they leave the program here rather than sit in the declared memory
+  // count until reachability drops them.
+  const templateGlobals = new Set([...stateful].flatMap((name) => byName.get(name).state.map((s) => s.global)));
+  ir.functions = ir.functions.filter((f) => !stateful.has(f.name));
+  ir.globals = ir.globals.filter((g) => !templateGlobals.has(g.name));
+  // What `--size` prints (spec §119): each instance that holds state, and
+  // the bytes it takes. A container instance with no storage of its own
+  // is not a line; its parts are.
+  ir.instances = [...idOf].flatMap(([instance, suffix]) => {
+    const component = [...clones].find(([key]) => key.endsWith(`\0${instance}`))?.[0].split('\0')[0] ?? '?';
+    const bytes = ir.globals.filter((g) => g.name.endsWith(suffix) && instanceGlobals.has(g.name))
+      .reduce((sum, g) => sum + globalBytes(g), 0);
+    return bytes > 0 ? [{ component, instance: suffix.slice(2), bytes }] : [];
+  });
+}
+
+/** The RAM one global takes — the same arithmetic memoryOf() does. */
+function globalBytes(g) {
+  return storageBytes(g.type) * (g.array ?? 1);
 }
 
 /** See link()'s own call: types every `ref` to a global, every `index` read, and recomputes the binop/unop types those feed, bottom-up, wherever module-level lowering left null. */

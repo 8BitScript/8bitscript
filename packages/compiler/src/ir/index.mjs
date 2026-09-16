@@ -861,6 +861,10 @@ class Lowering {
       // the inliner treats a compile-time-argument call to one as the
       // composition it stands for, and the size report can name it.
       component: node.component === true,
+      // The template globals a stateful component's body reads and writes,
+      // per field; the linker clones the function per instance and points
+      // each clone at its own copies (linker/index.mjs specializeInstances).
+      ...(node.state ? { state: node.state } : {}),
       params,
       returnType,
       body,
@@ -1133,6 +1137,8 @@ class Lowering {
       type: this.functionTypes.get(callee.name) ?? null,
       start: callee.start,
       length: callee.length,
+      // An element's instance tag, when the elaborator gave the call one.
+      ...(node.instance ? { instance: node.instance } : {}),
     };
   }
 

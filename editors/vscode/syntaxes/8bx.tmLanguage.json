@@ -4,10 +4,19 @@
   "scopeName": "source.8bx",
   "patterns": [
     { "include": "#component" },
+    { "include": "#state" },
     { "include": "#tag" },
     { "include": "source.8bs" }
   ],
   "repository": {
+    "state": {
+      "comment": "`state name: type = value;` inside a component: storage per static instance.",
+      "match": "\\b(state)\\s+([a-z_][A-Za-z0-9_]*)",
+      "captures": {
+        "1": { "name": "storage.type.state.8bx" },
+        "2": { "name": "variable.other.state.8bx" }
+      }
+    },
     "component": {
       "comment": "`component Name(` — the one keyword 8BX adds; the name is the component's, PascalCase.",
       "match": "\\b(export\\s+)?(component)\\s+([A-Za-z_][A-Za-z0-9_]*)",

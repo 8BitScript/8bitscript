@@ -47,6 +47,10 @@ superseded.
   modules (§9–§11) in one move; the linker's inliner makes a
   compile-time-prop element cost what the hand-written calls would (§64,
   §65). `component` is a keyword in `.8bx` only (§129).
+- **State is storage per static instance** (§36–§37): `state f: T = v;`
+  in a component body; each element (or `.8bs` call site) is an instance
+  with its own function and its own globals, laid out at compile time,
+  templates dropped, every byte in `8bs build --size` (§119).
 - **Children go where `<slot />` is** (§33): a slotted component is two
   functions around its children, so they run once, in place (§105).
   `@8bitscript/ui/menubar-bx` is `<MenuBar row width><MenuItem label />…</MenuBar>`

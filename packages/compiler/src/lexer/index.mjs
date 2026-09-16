@@ -48,6 +48,9 @@ export const TokenKind = {
   BxText: 'bxText',
 };
 
+/** Keywords of `.8bx` only: ordinary identifiers in `.8bs` (see scanIdentifier). */
+export const BX_KEYWORDS = new Set(['component', 'state']);
+
 export const KEYWORDS = new Set([
   'let', 'const', 'function', 'return', 'export', 'import', 'from', 'as',
   'if', 'else', 'while', 'for', 'do', 'break', 'continue',
@@ -444,10 +447,10 @@ export function tokenize(text, file = '<unknown>', options = {}) {
     while (i < text.length && isIdentPart(text[i])) i += 1;
     const word = text.slice(start, i);
     let kind = TokenKind.Identifier;
-    // `component` is 8BX's one keyword. In `.8bs` it is an ordinary name —
-    // `let component: u8` compiled before 8BX existed and still does — so
-    // it is a keyword only when the source kind says the grammar is on.
-    if (KEYWORDS.has(word) || (word === 'component' && options.sourceKind === '.8bx')) kind = TokenKind.Keyword;
+    // `component` and `state` are 8BX's keywords. In `.8bs` they are
+    // ordinary names — `let component: u8` compiled before 8BX existed and
+    // still does — so they are keywords only when the grammar is on.
+    if (KEYWORDS.has(word) || (BX_KEYWORDS.has(word) && options.sourceKind === '.8bx')) kind = TokenKind.Keyword;
     else if (TYPE_NAMES.has(word)) kind = TokenKind.Type;
     push(kind, start, i);
     if (word === 'asm6502') scanAsmBlockIfPresent();

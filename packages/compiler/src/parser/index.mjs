@@ -36,7 +36,7 @@ const ASSIGNMENT_OPERATORS = new Set([
 
 /** Keywords that can begin a statement — used to resynchronise after an error. */
 const STATEMENT_START = new Set([
-  'let', 'const', 'function', 'component', 'export', 'import', 'return',
+  'let', 'const', 'function', 'component', 'state', 'export', 'import', 'return',
   'if', 'while', 'for', 'break', 'continue', 'asm6502', 'namespace',
 ]);
 
@@ -182,6 +182,15 @@ class Parser {
         case 'let':
         case 'const': return this.parseVariableDeclaration();
         case 'function': return this.parseFunctionDeclaration(token.start, false);
+        case 'state': {
+          // `state x: T = v;` — parsed like `let`, kept apart by node type
+          // so the checker can hold it to a component body (bx/check.mjs).
+          const declaration = this.parseVariableDeclaration();
+          if (!declaration) return null;
+          declaration.type = NodeType.StateDeclaration;
+          declaration.kind = 'state';
+          return declaration;
+        }
         case 'component':
           if (this.sourceKind !== '.8bx') {
             this.error("'component' is only allowed in .8bx files", token);

@@ -139,7 +139,7 @@ test('.8bx is registered as its own language, highlighted by the 8bs grammar', (
     for (const c of Object.values(r.captures ?? {})) scopes.add(c.name);
     for (const c of Object.values(r.beginCaptures ?? {})) scopes.add(c.name);
   }
-  for (const scope of ['storage.type.component.8bx', 'entity.name.type.component.8bx', 'meta.tag.8bx',
+  for (const scope of ['storage.type.component.8bx', 'entity.name.type.component.8bx', 'storage.type.state.8bx', 'meta.tag.8bx',
     'entity.name.tag.component.8bx', 'entity.other.attribute-name.8bx', 'meta.embedded.expression.8bx']) {
     assert.ok(scopes.has(scope), `${scope} is not in the 8bx grammar`);
   }

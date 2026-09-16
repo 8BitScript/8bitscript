@@ -16,6 +16,8 @@ export const NodeType = {
   VariableDeclaration: 'VariableDeclaration',
   FunctionDeclaration: 'FunctionDeclaration',
   ComponentDeclaration: 'ComponentDeclaration',
+  // `state name: type = init;` in a component body: per-instance storage (spec §36).
+  StateDeclaration: 'StateDeclaration',
   NamespaceDeclaration: 'NamespaceDeclaration',
   Parameter: 'Parameter',
 

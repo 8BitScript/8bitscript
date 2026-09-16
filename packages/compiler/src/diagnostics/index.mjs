@@ -155,6 +155,8 @@ export const Codes = {
   BX_ASM_IN_BX: '8BS2020',
   // A warning: a top-level function without an element, or a top-level `let`, in an .8bx file (spec §2.6 B).
   BX_ORDINARY_CODE: '8BS2021',
+  // `state` anywhere but the top level of a component body, twice with one name, or shadowed by a local.
+  BX_INVALID_STATE: '8BS2022',
 
   NOT_COMPILABLE: '8BS3001',
   NOT_ON_THIS_TARGET: '8BS3002',
