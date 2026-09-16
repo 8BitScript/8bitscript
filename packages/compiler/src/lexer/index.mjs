@@ -41,7 +41,7 @@ export const TokenKind = {
 };
 
 export const KEYWORDS = new Set([
-  'let', 'const', 'function', 'component', 'return', 'export', 'import', 'from', 'as',
+  'let', 'const', 'function', 'return', 'export', 'import', 'from', 'as',
   'if', 'else', 'while', 'for', 'do', 'break', 'continue',
   'switch', 'case', 'default', 'true', 'false', 'asm6502', 'namespace',
 ]);
@@ -423,7 +423,10 @@ export function tokenize(text, file = '<unknown>', options = {}) {
     while (i < text.length && isIdentPart(text[i])) i += 1;
     const word = text.slice(start, i);
     let kind = TokenKind.Identifier;
-    if (KEYWORDS.has(word)) kind = TokenKind.Keyword;
+    // `component` is 8BX's one keyword. In `.8bs` it is an ordinary name —
+    // `let component: u8` compiled before 8BX existed and still does — so
+    // it is a keyword only when the source kind says the grammar is on.
+    if (KEYWORDS.has(word) || (word === 'component' && options.sourceKind === '.8bx')) kind = TokenKind.Keyword;
     else if (TYPE_NAMES.has(word)) kind = TokenKind.Type;
     push(kind, start, i);
     if (word === 'asm6502') scanAsmBlockIfPresent();

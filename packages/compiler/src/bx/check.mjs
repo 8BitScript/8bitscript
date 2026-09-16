@@ -1,7 +1,14 @@
 // Semantic checks for 8BX elements against component signatures from the binder.
+//
+// An element names a component declared in this module or imported from
+// another. The imported case is answered by the binder's cross-module
+// step (bindImportedComponents); when that step has not run — analyze()
+// without import resolution — an imported name used as an element is
+// valid but unknown, the same way a `.<machine>.8bs` import is valid but
+// target-dependent, and nothing is reported for it.
 import { Codes, diagnostic } from '../diagnostics/index.mjs';
 import { NodeType, walk } from '../ast/index.mjs';
-import { SymbolKind } from '../binder/index.mjs';
+import { SymbolKind, componentOf } from '../binder/index.mjs';
 
 function bxTextValue(children) {
   return (children ?? [])
@@ -26,11 +33,17 @@ export function checkBx(ast, file, symbols, stack = []) {
       for (const child of el.children ?? []) checkElement(child);
       return;
     }
-    const sym = symbols.get(el.name);
-    if (!sym || sym.kind !== SymbolKind.Component) {
+    const named = symbols.get(el.name);
+    const sym = componentOf(named);
+    if (!sym) {
+      // An import whose module was never looked at cannot be judged; an
+      // import that was looked at and is not an exported component can.
+      if (named?.kind === SymbolKind.Import && !named.resolved) return;
       diagnostics.push(diagnostic(
         Codes.BX_UNKNOWN_COMPONENT,
-        `unknown component '${el.name}'`,
+        named?.kind === SymbolKind.Import
+          ? `'${el.name}' is imported from '${named.source}', which does not export a component by that name`
+          : `unknown component '${el.name}'`,
         file, el.start, el.length,
       ));
       return;

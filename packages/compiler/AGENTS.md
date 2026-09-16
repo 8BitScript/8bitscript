@@ -40,8 +40,29 @@ extension. The resolver's twin rule preserves the kind it was given
 (`App.8bx` on the PET is `App.pet.8bx`, never `.8bs`); an `.8bx` file can
 be imported, be a package's entry, and carry machine and hardware twins.
 One lexer and one parser serve both; `.8bx` adds the `component`
-declaration and element syntax (`src/bx/`), which the parser only admits
-when the source kind says so. The 8BX spec's rule is that a program
+declaration and element syntax (`src/bx/`), which the lexer and parser
+only admit when the source kind says so.
+
+**A component is a function; an element is a call.** `src/bx/elaborate.mjs`
+turns `component Name(props) { … }` into a function of that name in the
+module that declares it (marked `component: true` in the IR) and
+`<Name a={x} />` into `Name(x);` where the element stood. That is what
+makes a component hygienic (its body resolves names in its own module),
+evaluate-once (an attribute is an argument), and importable (`export
+component` is an exported function the linker binds like any other). The
+linker's inliner (`src/linker/optimize.mjs`) then inlines a component
+call whose arguments are all compile-time values, so a static composition
+costs what the hand-written calls would — `hello-bx` is byte-identical to
+`hello-world` on the PET, and `packages/cli/test/hello-bx.test.mjs` says
+so. A component fed a run-time value stays a call.
+
+**Imports are bound before any module is finished.** `link()` reads the
+whole graph — tokens, AST, own symbols — before elaborating any module,
+so an Import symbol can point at the exported Component it names in
+another file (`binder/index.mjs` `bindImportedComponents`). `analyze()`
+does the same one import deep when it may read imports; without that, an
+imported name used as an element is valid but unknown, and nothing is
+reported. The 8BX spec's rule is that a program
 starts from `.8bs` and reaches its components by importing them; the
 toolchain does not enforce that until a component can be called from
 `.8bs` (spec §4.5), which is why `hello-bx`'s entry is still `.8bx`.

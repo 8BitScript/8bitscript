@@ -37,16 +37,15 @@ superseded.
   - element syntax is scanned from the raw text at a statement's `<`
     (`src/bx/parse.mjs`) rather than by a lexer mode (§13–§16), so a
     diagnostic inside a `{…}` attribute carries the substring's offset;
-  - a prop is substituted by name into the component body (§104 asks for
-    a temporary when it is used more than once);
   - children elaborate before the component's body, and there is no
     `<slot />` (§33) — which is why `@8bitscript/ui`'s `menubar.8bx`
     needs a `MenuBarEnd` component;
-  - a component imported from another module is not yet recognised as
-    one (§9–§11: this is what the semantic program model is for);
-  - `component` is a keyword in `.8bs` too (§129 keeps `.8bs`
-    unchanged);
   - `?:` lowers on the 6502 backend and not yet on the web (§99).
+- **A component is a function; an element is a call to it.** That gives
+  hygiene, evaluate-once props (§104) and `export component` across
+  modules (§9–§11) in one move; the linker's inliner makes a
+  compile-time-prop element cost what the hand-written calls would (§64,
+  §65). `component` is a keyword in `.8bx` only (§129).
 - **The program entry rule is decided but not yet enforced.** The spec
   says a program starts from `.8bs` and reaches its components by
   importing them (§4.3, §4.5); `hello-bx`'s entry is `src/hello-bx.8bx`
