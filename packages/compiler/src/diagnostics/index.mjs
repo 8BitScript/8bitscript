@@ -161,6 +161,8 @@ export const Codes = {
   BX_EXPRESSION_CHILD: '8BS2023',
   // An element where a value is expected: `let x = <A />`, `f(<A />)` (spec §94).
   BX_NOT_A_VALUE: '8BS2024',
+  // A component method that names a prop, or a method declared where one cannot be.
+  BX_INVALID_METHOD: '8BS2025',
 
   NOT_COMPILABLE: '8BS3001',
   NOT_ON_THIS_TARGET: '8BS3002',

@@ -29,6 +29,7 @@ export function checkBx(ast, file, symbols, { sourceKind = '.8bs', strict = true
   const diagnostics = [];
   diagnostics.push(...checkSlots(ast, file));
   diagnostics.push(...checkState(ast, file));
+  diagnostics.push(...checkMethods(ast, file));
   if (sourceKind === '.8bx') diagnostics.push(...checkFileRole(ast, file, strict));
 
   const checkElement = (el) => {
@@ -354,4 +355,56 @@ function checkState(ast, file) {
     if (isState(n) && !topLevel.has(n)) at(n, 'state belongs at the top level of a component\'s body');
   });
   return diagnostics;
+}
+
+/**
+ * A method (spec §39) is a function declared at the top level of a
+ * component's body. It sees the component's state, not its props: a prop
+ * is the element's argument, and a method has no element — so a method
+ * that names a prop (and does not declare its own parameter or local of
+ * that name) is 8BS2025, with the fix. A method may not take a state
+ * field's or another method's name either; those are one namespace.
+ */
+function checkMethods(ast, file) {
+  const diagnostics = [];
+  const at = (n, message) => diagnostics.push(diagnostic(Codes.BX_INVALID_METHOD, message, file, n.start, n.length));
+  for (const { stmt, body, name: component } of componentsOf(ast)) {
+    const props = namesOf(stmt.params);
+    const fields = namesOf(body.filter((s) => s.type === NodeType.StateDeclaration));
+    const seen = new Set();
+    for (const m of body) {
+      if (m.type !== NodeType.FunctionDeclaration || !m.name) continue;
+      const name = m.name.name;
+      if (props.has(name) || fields.has(name)) at(m.name, `method '${name}' takes the name of a prop or state of '${component}'`);
+      if (seen.has(name)) at(m.name, `method '${name}' is declared twice in '${component}'`);
+      seen.add(name);
+      // Names the method declares for itself shadow the component's props.
+      const own = namesOf(m.params);
+      walk(m.body, (n) => { if (n.type === NodeType.VariableDeclaration && n.name) own.add(n.name.name); });
+      walk(m.body, (n, parent) => {
+        if (n.type !== NodeType.Identifier || !props.has(n.name) || own.has(n.name)) return;
+        const isProperty = parent.type === NodeType.MemberExpression && parent.property === n;
+        const declares = parent.type === NodeType.VariableDeclaration && parent.name === n;
+        if (!isProperty && !declares) at(n, `'${n.name}' is a prop of '${component}'; a method sees state, not props — pass it as an argument`);
+      });
+    }
+  }
+  return diagnostics;
+}
+
+/** Every component declaration in a program, with its body's statements (never null) and its name. */
+function componentsOf(ast) {
+  const out = [];
+  for (const stmt of ast?.body ?? []) {
+    if (stmt?.type !== NodeType.ComponentDeclaration) continue;
+    out.push({ stmt, body: (stmt.body?.body ?? []).filter(Boolean), name: stmt.name?.name ?? '' });
+  }
+  return out;
+}
+
+/** The names of a list of named nodes (parameters, declarations), skipping the unnamed. */
+function namesOf(nodes) {
+  const out = new Set();
+  for (const n of nodes ?? []) if (n?.name?.name) out.add(n.name.name);
+  return out;
 }

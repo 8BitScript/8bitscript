@@ -865,6 +865,10 @@ class Lowering {
       // per field; the linker clones the function per instance and points
       // each clone at its own copies (linker/index.mjs specializeInstances).
       ...(node.state ? { state: node.state } : {}),
+      // Which component a function is part of (itself, a half, or a
+      // method of it), so an instance's methods are instanced with it.
+      owner: node.owner ?? null,
+      method: node.method === true,
       params,
       returnType,
       body,
