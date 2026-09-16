@@ -66,6 +66,7 @@ import { join, resolve } from 'node:path';
 import { readFile, writeFile } from 'node:fs/promises';
 
 import { compile } from './build.mjs';
+import { programArg } from './programs.mjs';
 import { CONTROLLERS_FILE, controllerInvocation, controllerPlayers, setConfigKey } from './controllers.mjs';
 import { applyCheckoutFromArgs } from './checkout.mjs';
 import { HARDWARE_USAGE, hardwareArgs, loadArgs } from './hardware.mjs';
@@ -512,9 +513,15 @@ export async function run(args) {
     process.stderr.write(`8bs run: ${launch.error}\n`);
     return 2;
   }
+  const programOpt = programArg(args);
+  if (!programOpt.ok) {
+    process.stderr.write(`8bs run: ${programOpt.error}\n`);
+    return 2;
+  }
   const consumed = new Set([
     ...hw.consumed,
     ...checkout.consumed,
+    ...programOpt.consumed,
     ...[screenshotIndex, framesIndex, portIndex].flatMap((i) => (i >= 0 ? [i, i + 1] : [])),
   ]);
   const positionals = args.filter((a, i) => !consumed.has(i) && !a.startsWith('-'));
@@ -531,7 +538,7 @@ export async function run(args) {
       + '                (vic20, c64, c128, atari8, nes, cx16, mega65 are parked until a later release)\n'
       + '                [--pal]\n'
       + HARDWARE_USAGE
-      + '                [--size] [--no-open] [--lan] [--local] [--port <n>] [entry.8bs]\n'
+      + '                [--size] [--no-open] [--lan] [--local] [--port <n>] [--program <name>] [entry.8bs]\n'
       + '                [--screenshot <file.png>] [--frames <n>]\n'
       + '                  capture one screenshot through the target\'s own\n'
       + '                  emulator API instead of opening an interactive\n'
@@ -548,6 +555,7 @@ export async function run(args) {
 
   const { ok, outFile, frameRate, hardware } = await compile(target, entry, {
     pal, profile: launch.profile, hardware: launch.overrides, report, checkout: checkout.checkout,
+    program: programOpt.program,
   });
   if (!ok) return 1;
 

@@ -10,7 +10,9 @@ the older `8bs.config.ts`). Node 26 loads it as a module. The CLI and
 the editor read the same file.
 
 ```ts
-export default {
+import { defineConfig } from '@8bitscript/cli';
+
+export default defineConfig({
   entry: 'src/main.8bs',
   frameRate: 60,
   targets: {
@@ -21,14 +23,22 @@ export default {
     'PET 2001 (8K)': { target: 'pet', profile: '2001', hardware: { ram: '8' } },
   },
   requires: { 'memory.ram': 8192 },
-};
+});
 ```
+
+`defineConfig` returns what it is given; it exists so an editor can type
+the object (`packages/cli/src/index.d.ts` is the shape, and
+`packages/cli/schemas/config.json` the same shape as a JSON schema). A
+plain `export default { … }` is still a config.
 
 ## Keys
 
 | Key | Meaning |
 | --- | --- |
-| `entry` | The source file a build starts from. A `.<machine>.8bs` twin beside it is used on that machine. An object `{ default, nes }` still works. The 8BX spec's rule is that a program starts from `.8bs` and an `.8bx` is imported; the toolchain accepts an `.8bx` entry until a component can be called from `.8bs` (spec §4.5). |
+| `entry` | The source file a build starts from. A `.<machine>.8bs` twin beside it is used on that machine. An object `{ default, nes }` still works. The one-program spelling of `programs`, below. The 8BX spec's rule is that a program starts from `.8bs` and an `.8bx` is imported; `entry` still accepts an `.8bx` until a component can be called from `.8bs` (spec §4.5), so `hello-bx` keeps building. `programs.*.entry`, being new, is `.8bs` only. |
+| `programs` | Several programs in one project, each its own build from its own `.8bs` entry: `{ main: { entry }, format: { entry, targets?, requires? } }`. Cannot be given together with `entry`. See below. |
+| `images` | Disk images over the programs — a `.d64` holding several of them plus data files. Checked by every build; written by a later release. See below. |
+| `bx` | 8BX settings: `{ strict: false }` turns the ordinary-code lint in `.8bx` files off. The hard rules (no `asm6502` in `.8bx`, no `.8bx` program entry) stay. Accepted now; the lint itself lands with the 8BX grammar. |
 | `frameRate` | Logical frames per second for `waitFrame()` and `#frames(...)`. Positive integer. Default 60. Not `--pal`. |
 | `targets` | Machines this project builds for: an array of names, or an object. Per machine: `hardware` (default options), `profiles` (named option sets `--profile` accepts), `release` (what `8bs build --release` builds). |
 | `systems` | Advertised named machines. Each value is `{ target, profile?, hardware?, region? }`. A name cannot be a machine id (`pet`, `c64`, …). The whole team sees these; they are source. |
@@ -36,6 +46,86 @@ export default {
 
 `restoreOnExit` is retired. If the file still sets it, the CLI says so
 and ignores it.
+
+## Several programs in one project
+
+A project may build more than one program — a desktop and the utilities
+beside it, the way GEOS ships a formatter and a copier as separate files
+on the same disk. Each is its own build, from its own `.8bs` entry:
+
+```ts
+programs: {
+  main:   { entry: 'src/main.8bs' },
+  format: { entry: 'src/tools/format.8bs', targets: ['c64', 'c128'], requires: { 'memory.ram': 32768 } },
+  copy:   { entry: 'src/tools/copy.8bs',   targets: ['c64', 'c128'] },
+},
+```
+
+- **The key is the output stem.** `format` builds to
+  `dist/format-c64-ntsc.prg`; on the web, to `dist/web/format/`. A project
+  with one program keeps `dist/web/` flat, where every deploy so far has
+  looked.
+- **`entry: 'src/main.8bs'` still works**, and means exactly
+  `programs: { main: { entry: 'src/main.8bs' } }` — with one difference
+  kept on purpose: its stem is the entry's own filename
+  (`hello-world.8bs` → `hello-world-pet.prg`), as it always was, so no
+  project's `dist/` names move because a second spelling exists. `entry`
+  and `programs` together is an error.
+- **Every `programs.*.entry` is a `.8bs` file.** An `.8bx` declares
+  composition and is imported by the program; it is never the program
+  (the 8BX spec's §4.3). The config refuses one by name before the
+  linker runs. (`entry`, the older key, still accepts `.8bx` for now —
+  see the table above.)
+- **A program's `targets` is a subset of the project's**; a drive utility
+  only builds where there are drives. Its `requires` may raise a floor
+  above the project's and never lower one.
+- **Shared code is compiled into each program.** A package two programs
+  use is in both binaries.
+- **Twin files apply per entry**: `format.c64.8bs` beside `format.8bs`.
+
+Reaching one: `8bs build --target c64 --program format`, `8bs run c64
+--program format`. Without `--program` the program is `main`, or the only
+one there is. `8bs build --release` builds every program for every target
+it (or the project) lists, once per name in that target's `release`
+array. `8bs targets` lists the programs; `8bs targets --json` carries them
+as `programs` for the editor.
+
+## Images
+
+A disk image is a container over built programs and data files, written
+after `--release` builds the programs. It changes no program's bytes,
+which is what separates it from a cartridge: a cartridge changes the
+build (its start-up, its load address, the facts a program folds on), so
+it is a hardware `media` option in the machine's catalog — the Atari's
+`xex` | `cart8` | `cart16` — selected with `--hardware media=…` or a
+`release` entry, and needs nothing here.
+
+```ts
+images: {
+  'geos-tools': {
+    target: 'c64',
+    format: 'd64',          // d64 | d71 | d81 on the Commodores, atr on the Atari
+    boot:   'main',         // written first: what LOAD "*",8,1 loads
+    files: [
+      { program: 'main',   name: 'GEOS TOOLS' },   // the on-disk name, 16 characters at most
+      { program: 'format', name: 'FORMAT' },
+      { path: 'assets/font.bin', name: 'FONT' },   // a plain file; type 'seq' unless said
+    ],
+  },
+},
+```
+
+Every file has an on-disk name of its own: CBM DOS holds sixteen bytes
+and truncates the rest without a word, so the host filename
+(`hello-world-c64-ntsc.prg`, twenty characters) never leaks onto the
+disk. An image's `target` must be one every listed program builds for;
+the NES and the web have no image to write (the cartridge and the bundle
+are the program).
+
+**This release validates images and writes none.** `8bs build --release`
+names each one it checked and says so, so a `dist/` never looks more
+complete than it is. The writer (`c1541` for the Commodore formats, which
+ships with VICE) is a later release's.
 
 ## Named systems, three places
 

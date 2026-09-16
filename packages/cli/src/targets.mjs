@@ -14,6 +14,7 @@ import {
   REGION_MACHINES, loadCatalog, projectHardware, projectProfiles, projectRequires,
   stockFacts,
 } from './hardware.mjs';
+import { resolvePrograms } from './programs.mjs';
 import { applyCheckoutFromArgs } from './checkout.mjs';
 import { loadMergedSystems } from './systems.mjs';
 import { VICE_EMULATOR } from './run.mjs';
@@ -118,6 +119,19 @@ function printRequires(requires) {
   }
 }
 
+/**
+ * The project's programs, when it has more than the one every project
+ * has: name, entry, and `8bs run <target> --program <name>` to reach it.
+ */
+function printPrograms(programs) {
+  if (programs.length <= 1 && programs[0]?.name === 'main') return;
+  process.stdout.write('\nprograms:\n');
+  for (const p of programs) {
+    const where = p.targets ? ` (${p.targets.join(', ')})` : '';
+    process.stdout.write(`  ${p.name.padEnd(16)} ${typeof p.entry === 'string' ? p.entry : '(per machine)'}${where}   8bs run <target> --program ${p.name}\n`);
+  }
+}
+
 /** @returns {Promise<number>} exit code */
 export async function targets(args) {
   const checkout = applyCheckoutFromArgs(args);
@@ -127,6 +141,7 @@ export async function targets(args) {
   }
   const config = await loadConfig(process.cwd(), '8bs targets');
   const required = projectRequires(config);
+  const programs = resolvePrograms(config);
   const systems = loadMergedSystems({ config });
   const described = describeTargets(config);
   if (args.includes('--json')) {
@@ -141,11 +156,19 @@ export async function targets(args) {
       systemsError: systems.ok ? null : systems.error,
       requires: required.ok ? required.requires : {},
       requiresError: required.ok ? null : required.error,
+      // The project's programs, for a side bar that launches one: name,
+      // entry, and the machines it builds for (null: every one the
+      // project lists). A `programs` block that is wrong costs the reader
+      // its programs, the same way a wrong `systems` block does.
+      programs: programs.ok
+        ? programs.programs.map((p) => ({ name: p.name, entry: p.entry, targets: p.targets }))
+        : [],
+      programsError: programs.ok ? null : programs.error,
       facts: describeFacts(),
     }, null, 2)}\n`);
     return 0;
   }
-  for (const result of [required, systems]) {
+  for (const result of [required, systems, programs]) {
     if (!result.ok) {
       process.stderr.write(`8bs targets: ${result.error}\n`);
       return 1;
@@ -176,6 +199,7 @@ export async function targets(args) {
   }
   printRequires(required.requires);
   printSystems(systems.systems);
+  printPrograms(programs.programs);
   process.stdout.write('\n* the default; (build) changes the program, not only the emulator\n');
   return 0;
 }

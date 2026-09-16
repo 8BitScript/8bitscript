@@ -35,7 +35,7 @@ const usage = () => `Usage: 8bs <command> [options]
 
 Implemented:
   build --target <t> [--system <name>] [--pal] [--size] [--profile <name>]
-    [--hardware option=value,...] [--checkout <dir>] [entry]
+    [--hardware option=value,...] [--checkout <dir>] [--program <name>] [entry]
                                Compile for a target. This release builds
                                for every machine it knows: pet, c64,
                                vic20, c128, cx16, mega65, atari8, nes and
@@ -57,15 +57,20 @@ Implemented:
                                the memory line. "8bs targets"
                                lists every option, value and preset, and
                                which machines this release builds for.
+                               --program names one of the project's
+                               programs (8bitscript.config.ts's programs
+                               block); without it, main, or the only one.
   build --release              Every artifact this project declares for a
-                               release: each target 8bitscript.config.ts
-                               lists, once per name in that target's own
-                               release array (or once, with its default
-                               hardware, when it has none). What a GitHub
-                               Release's assets are built from — see the
-                               reusable compile.yml workflow.
+                               release: each program, for each target it
+                               (or the project) lists, once per name in
+                               that target's own release array (or once,
+                               with its default hardware, when it has
+                               none). Images the config declares are
+                               checked and named, not written yet. What a
+                               GitHub Release's assets are built from — see
+                               the reusable compile.yml workflow.
   run <target> [--system <name>] [--pal] [--profile <name>]
-    [--hardware option=value,...] [--checkout <dir>] [--size] [entry]
+    [--hardware option=value,...] [--checkout <dir>] [--size] [--program <name>] [entry]
     [--no-open] [--lan] [--local] [--port <n>]
                                Build, then open that target's emulator
                                (VICE's xpet for the pet) at the right
