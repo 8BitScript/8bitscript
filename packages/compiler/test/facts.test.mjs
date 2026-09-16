@@ -212,7 +212,7 @@ test('hover explains #fact(...) and a key inside it, and nowhere else', () => {
   }
   const run = getHoverInfo('let x: bool = #fact(memory.banked);', 24);
   assert.match(run.markdown, /settled at run time/);
-  assert.equal(getHoverInfo('let video: utinyint = 1;', 5), null, 'not a key outside the call');
+  assert.match(getHoverInfo('let video: utinyint = 1;', 5).markdown, /\*\*video\*\* — variable/, 'not a key outside the call: the variable');
   assert.equal(getHoverInfo('let x: utinyint = #fact(video.nope);', 26), null, 'not a key the compiler knows');
 });
 
@@ -224,7 +224,7 @@ test('completion after # offers #fact, and inside #fact( offers the program\'s k
   assert.ok(inside.every((i) => i.kind === 'constant'));
   const partial = getCompletions('let x: utinyint = #fact(video.col', 33);
   assert.deepEqual(partial.map((i) => i.label), PROGRAM_FACTS, 'a partly typed key still completes');
-  assert.deepEqual(getCompletions('let x: utinyint = #frames(', 26), [], 'not inside another builtin');
+  assert.deepEqual(getCompletions('let x: utinyint = #frames(', 26).map((i) => i.label), ['x'], 'not inside another builtin: the program\'s own names');
 });
 
 // `requires`: the floor a program sets on the machine it is built for. The

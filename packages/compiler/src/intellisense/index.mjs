@@ -1,11 +1,14 @@
-// Built-in hover and completion.
+// Hover, completion and go-to-definition.
 //
-// The repository has no binder yet, so there is no symbol table to resolve a
-// user's own variables or functions against. What *can* be answered honestly
-// today is "what does this piece of built-in syntax mean" — a primitive type,
-// `volatile`, `ptr`, `array`, `asm6502`, `@address`, `memory.read`/
-// `memory.write`, `string`, `#frames(...)`, its `seconds` unit, `waitFrame()` — because the compiler
-// already knows all of it statically, independent of any particular program.
+// Two layers. The built-ins are answered token-level, independent of any
+// particular program: "what does this piece of built-in syntax mean" — a
+// primitive type, `volatile`, `ptr`, `array`, `asm6502`, `@address`,
+// `memory.read`/`memory.write`, `string`, `#frames(...)`, its `seconds`
+// unit, `waitFrame()` — because the compiler knows all of it statically.
+// The program's own names — its components, functions, variables, and the
+// ones it imports — are answered by the binder, in symbols.mjs: what is
+// under the cursor, what is visible from it, and in 8BX which component a
+// tag names and which props it takes.
 //
 // One more thing can be answered honestly without a binder: what a *named
 // import* itself exports. `import { screen } from "@8bitscript/screen"`
@@ -17,17 +20,25 @@
 // a binder: this module still cannot tell you what `let x = ...` holds.
 //
 // This module is that answer, expressed as a small position-based API
-// (`getHoverInfo`, `getCompletions`) that an editor-protocol layer can call
-// without knowing anything about 8BitScript itself. When a binder exists, the
-// same two functions grow to cover user-defined names; nothing about this
-// shape is a dead end.
+// (`getHoverInfo`, `getCompletions`, `getDefinition`) that an
+// editor-protocol layer can call without knowing anything about 8BitScript
+// itself.
 import { readFileSync } from 'node:fs';
 
-import { tokenize, TokenKind } from '../lexer/index.mjs';
+import { isOperandToken, tokenize, TokenKind } from '../lexer/index.mjs';
 import { PRIMITIVE_INTEGER_TYPES, resolveIntegerType } from '../types/index.mjs';
 import { DURATION_CLOCKS, DURATION_UNITS, SYSTEMS } from '../fold/index.mjs';
 import { FACTS } from '../fold/facts.mjs';
-import { resolveSpecifier, RELEASE_MACHINES } from '../resolver/index.mjs';
+import { SymbolKind } from '../binder/index.mjs';
+import { sourceKindOf } from '../source/index.mjs';
+import {
+  bindModule, bxPosition, propsOf, resolveModuleFile, scopeAt, symbolAt, symbolMarkdown, visibleSymbols,
+} from './symbols.mjs';
+
+export { getDefinition } from './symbols.mjs';
+
+/** The source kind hover and completion lex as: the option, else the file's extension, else `.8bs`. */
+const kindOf = (options) => options.sourceKind ?? sourceKindOf(options.path ?? '') ?? '.8bs';
 
 /** Insert thousands separators without touching locale/ICU: `-8388608` -> `-8,388,608`. */
 function formatNumber(n) {
@@ -299,38 +310,6 @@ function findImportBindings(tokens) {
   return bindings;
 }
 
-/**
- * The file a named import's specifier resolves to, from `fromFile` — or
- * `null` when it does not resolve to exactly one file.
- *
- * A plain resolution (a relative `.8bs` path, or a package with a single
- * entry) is used as-is. A machine-conditional package entry — `@8bitscript/
- * screen` and every other hardware API, keyed per target — resolves to
- * `{ path: null }` with no machine in hand (see resolveConditionalEntry):
- * valid, but target-dependent, the same answer `#system()`'s hover already
- * gives honestly rather than guessing a machine. Hover and completion pick
- * one anyway here, because the alternative is no docs at all for exactly the
- * APIs (`screen`, `text`, `input`, ...) this feature exists for — so this is
- * the one place in this module that *does* guess, and says so
- * (`conditional: true`) so the caller can caveat it. RELEASE_MACHINES,
- * first-to-resolve, rather than "first key in the manifest": the machines
- * this release actually builds for, in a fixed order, so the choice is
- * deterministic rather than an artifact of object key order.
- */
-function resolveModuleFile(specifier, fromFile, checkout) {
-  if (!fromFile) return null;
-  const plain = resolveSpecifier(specifier, fromFile, { checkout });
-  if (plain?.code) return null;
-  if (plain?.path) return { path: plain.path, conditional: false };
-  if (plain?.path !== null) return null;
-
-  for (const machine of RELEASE_MACHINES) {
-    const branch = resolveSpecifier(specifier, fromFile, { machine, checkout });
-    if (branch?.path) return { path: branch.path, conditional: true, machine };
-  }
-  return null;
-}
-
 /** One `//` or `/* *\/` comment token's text, without its delimiters. */
 function commentText(token) {
   const raw = token.text;
@@ -575,8 +554,14 @@ function importedNamespace(tokens, local, fromFile, checkout) {
  * @returns {{ start: number, length: number, markdown: string } | null}
  */
 export function getHoverInfo(text, offset, options = {}) {
-  const { tokens } = tokenize(text);
-  return hoverAt(tokens, offset, text, options.path, options.checkout);
+  const { tokens } = tokenize(text, options.path ?? '<unknown>', { sourceKind: kindOf(options) });
+  const builtin = hoverAt(tokens, offset, text, options.path, options.checkout);
+  if (builtin) return builtin;
+  // Not a built-in: one of the program's own names, if the binder knows it.
+  const module = bindModule(text, options.path ?? null, { sourceKind: kindOf(options), checkout: options.checkout });
+  const hit = symbolAt(module, offset);
+  const markdown = hit ? symbolMarkdown(module, hit.symbol) : null;
+  return markdown ? { start: hit.token.start, length: hit.token.length, markdown } : null;
 }
 
 function hoverAt(tokens, offset, text, filePath, checkout) {
@@ -815,24 +800,108 @@ function memberPosition(tokens, offset) {
  * functions after a `#`, and the unit words inside a `#frames(...)` call —
  * plus, given `options.path`, the members of a named import's own namespace
  * right after `object.` (`screen.bl|` -> `blank`; see importedNamespace).
- * No project-wide completion, and no member completion for a local variable
- * or a namespace not reached through a named import: that needs the binder
- * this milestone deliberately does not add. Inside a template string, a
- * `${...}` field is ordinary source and gets the same answers it would
- * outside one.
+ * Then the program's own: in `.8bx`, the components a `<` can name, the
+ * element a `</` closes, and a component's props inside its tag; anywhere
+ * an expression could go, every name visible from there. Inside a template
+ * string, a `${...}` field is ordinary source and gets the same answers it
+ * would outside one.
  *
  * @param {string} text
  * @param {number} offset
- * @param {{ path?: string, checkout?: string|null }} [options] See getHoverInfo's `options.path`.
- * @returns {{ label: string, kind: 'type'|'function'|'constant', sortRank: number,
- *   detail: string, documentation: string, insertText?: string }[]}
+ * @param {{ path?: string, checkout?: string|null, sourceKind?: string }} [options] See getHoverInfo's `options.path`.
+ * @returns {{ label: string, kind: string, sortRank: number,
+ *   detail: string, documentation: string, insertText?: string, snippet?: boolean }[]}
+ *   `snippet` marks an `insertText` with `$1` cursor stops.
  */
 export function getCompletions(text, offset, options = {}) {
-  const { tokens } = tokenize(text);
-  return completionsAt(tokens, offset, text, options.path, options.checkout);
+  const sourceKind = kindOf(options);
+  const { tokens } = tokenize(text, options.path ?? '<unknown>', { sourceKind });
+  const program = () => bindModule(text, options.path ?? null, { sourceKind, checkout: options.checkout });
+  return completionsAt(tokens, offset, text, options.path, options.checkout, program, sourceKind === '.8bx');
 }
 
-function completionsAt(tokens, offset, text, filePath, checkout) {
+/** The completion item for one of the program's own symbols. */
+function symbolItem(module, sym) {
+  const kind = sym.kind === SymbolKind.Import ? (sym.target?.kind ?? SymbolKind.Import) : sym.kind;
+  return {
+    label: sym.name,
+    kind: SYMBOL_ITEM_KIND[kind] ?? 'variable',
+    sortRank: 0,
+    detail: kind === SymbolKind.Import ? `imported from ${sym.source}` : kind.toLowerCase(),
+    documentation: symbolMarkdown(module, sym) ?? '',
+  };
+}
+
+const SYMBOL_ITEM_KIND = {
+  [SymbolKind.Function]: 'function',
+  [SymbolKind.Component]: 'component',
+  [SymbolKind.Constant]: 'constant',
+  [SymbolKind.Namespace]: 'namespace',
+  [SymbolKind.Variable]: 'variable',
+  [SymbolKind.Parameter]: 'variable',
+  [SymbolKind.State]: 'variable',
+  [SymbolKind.Import]: 'variable',
+};
+
+/**
+ * Completion inside 8BX syntax, or null when `offset` is not in any:
+ * after `<` (or on the name being typed there) the components visible
+ * from here and `slot`; after `</` the innermost element still open;
+ * after a tag's name, the props it takes that are not yet given. Inside
+ * a `{ … }` in a tag, ordinary completion applies.
+ */
+function bxCompletions(tokens, offset, text, program) {
+  const position = bxPosition(tokens, offset);
+  let { tag } = position;
+  // A `<` with nothing after it yet is not a tag to the lexer (it opens
+  // one only before a name, `/` or `>`); where an operand does not
+  // precede it, it is a tag being started.
+  if (!tag) {
+    const before = tokens.filter((t) => t.kind !== TokenKind.Comment && t.start < offset);
+    const last = before.at(-1);
+    if (last?.kind === TokenKind.Operator && last.text === '<' && last.start + 1 === offset && !isOperandToken(before.at(-2))) {
+      tag = { name: null, closing: false, nameDone: false };
+    }
+  }
+  if (!tag || position.inExpression) return null;
+  if (tag.closing) {
+    const name = position.open.at(-1);
+    return name ? [{ label: `</${name}>`, kind: 'component', sortRank: 0, insertText: `${name}>`, detail: 'closes the open element', documentation: '' }] : [];
+  }
+  const module = program();
+  if (!tag.nameDone) {
+    const scope = scopeAt(module, offset);
+    const items = visibleSymbols(scope)
+      .filter((sym) => sym.kind === SymbolKind.Component || (sym.kind === SymbolKind.Import && sym.component))
+      .map((sym) => symbolItem(module, sym));
+    items.push({ label: 'slot', kind: 'component', sortRank: 1, detail: 'where the children go', documentation: 'The element\'s children are composed where `<slot />` stands (8BX spec §33).' });
+    return items;
+  }
+  const scope = scopeAt(module, tag.name.start);
+  const sym = visibleSymbols(scope).find((s) => s.name === tag.name.text);
+  if (!sym) return [];
+  // The props already written anywhere in this tag, either side of the cursor.
+  const given = new Set();
+  let depth = 0;
+  for (let i = tokens.indexOf(tag.name) + 1; i < tokens.length; i += 1) {
+    const t = tokens[i];
+    if (depth === 0 && (t.kind === TokenKind.BxTagEnd || t.kind === TokenKind.BxSelfClose)) break;
+    if (t.text === '{') depth += 1;
+    else if (t.text === '}') depth -= 1;
+    else if (depth === 0 && t.kind === TokenKind.Identifier && tokens[i + 1]?.text === '=') given.add(t.text);
+  }
+  return propsOf(module, sym).filter((p) => !given.has(p.name)).map((p) => ({
+    label: p.name,
+    kind: 'variable',
+    sortRank: p.optional ? 1 : 0,
+    detail: `${p.name}${p.optional ? '?' : ''}: ${p.type ?? '?'}`,
+    documentation: `A prop of \`${sym.name}\`${p.optional ? ', optional' : ''}.`,
+    insertText: p.type === 'string' ? `${p.name}="$1"` : `${p.name}={$1}`,
+    snippet: true,
+  }));
+}
+
+function completionsAt(tokens, offset, text, filePath, checkout, program, bx = false) {
   const index = tokenIndexAt(tokens, offset);
   const token = tokens[index];
   if (token?.kind === TokenKind.Template) {
@@ -841,8 +910,12 @@ function completionsAt(tokens, offset, text, filePath, checkout) {
     if (!field) return [];
     const inner = tokenize(text.slice(field.sourceStart, field.sourceEnd)).tokens;
     for (const t of inner) t.start += field.sourceStart;
-    return completionsAt(inner, offset, text, filePath, checkout);
+    return completionsAt(inner, offset, text, filePath, checkout, program);
   }
+  if (token?.kind === TokenKind.Comment || token?.kind === TokenKind.String) return [];
+
+  const inTag = bx ? bxCompletions(tokens, offset, text, program) : null;
+  if (inTag) return inTag;
 
   const compileTime = compileTimePosition(tokens, offset, text);
   if (compileTime) {
@@ -894,7 +967,11 @@ function completionsAt(tokens, offset, text, filePath, checkout) {
     }));
   }
 
-  if (!isTypePosition(tokens, offset)) return [];
+  if (!isTypePosition(tokens, offset)) {
+    // Anywhere else an expression could go: the program's own names.
+    const module = program();
+    return visibleSymbols(scopeAt(module, offset)).map((sym) => symbolItem(module, sym));
+  }
 
   const items = [];
 

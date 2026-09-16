@@ -114,14 +114,26 @@ linker and `8bs build` gate on errors only.
 
 **Imports are bound before any module is finished.** `link()` reads the
 whole graph — tokens, AST, own symbols — before elaborating any module,
-so an Import symbol can point at the exported Component it names in
-another file (`binder/index.mjs` `bindImportedComponents`). `analyze()`
-does the same one import deep when it may read imports; without that, an
-imported name used as an element is valid but unknown, and nothing is
-reported. The 8BX spec's rule is that a program
-starts from `.8bs` and reaches its components by importing them; the
-toolchain does not enforce that until a component can be called from
-`.8bs` (spec §4.5), which is why `hello-bx`'s entry is still `.8bx`.
+so an Import symbol can point at the exported symbol it names in
+another file (`binder/index.mjs` `bindImports`: `target` for any kind,
+`component` when it is one). `analyze()` does the same one import deep
+when it may read imports; without that, an imported name used as an
+element is valid but unknown, and nothing is reported. A program starts
+from `.8bs` and reaches its components by importing them (spec §4.3,
+§4.5); `8bs build` refuses an `.8bx` entry.
+
+**IntelliSense has two layers** (`src/intellisense/`). `index.mjs`
+answers for the built-ins token-level, independent of any program;
+`symbols.mjs` answers for the program's own names from the binder — it
+tokenizes, parses and binds the buffer, binds its imports one level deep,
+and finds the scope at the cursor through the binder's `scopeOf` side
+table (node → scope; the AST itself stays a tree). Hover renders a
+symbol from its declaration's source and the doc comment tightly above
+it (or after it on its own line); `getDefinition` is its file and name
+range; completion in `.8bx` knows a tag from the lexer's own tag tokens
+(`bxPosition`): components after `<`, the open element after `</`, a
+component's remaining props inside its tag. The language server is
+protocol glue over these three calls.
 
 ## The pipeline
 
