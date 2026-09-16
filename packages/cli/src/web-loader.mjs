@@ -663,8 +663,24 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
       if (!(height > 0)) height = width * (INNER_H / INNER_W);
       return { width: width, height: height };
     }
+    // A resize while a waitFrame() program runs is applied between frames,
+    // not the instant the window moves: the page holds the measurement and
+    // re-grids in tick(), right before it releases the next frame, once the
+    // program has consumed every frame issued so far — so it is waiting in
+    // waitFrame(), and never sees columns() change between two reads inside
+    // one frame. A program with no frame clock (it ran to completion, or has
+    // not started) is re-gridded at once, as before.
+    var pendingMeasure = null;
     function resize() {
       var measured = box();
+      if (ctrl && !destroyed) {
+        pendingMeasure = measured;
+        fit(measured);
+        return;
+      }
+      relayout(measured);
+    }
+    function relayout(measured) {
       var regridded = applyGrid(measured);
       var next = fixedBorder === null
         ? borderFor({ width: measured.width, height: measured.height, coarse: coarsePointer() })
@@ -678,6 +694,11 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
         canvas.height = INNER_H + border * 2;
         if (mem) paint(ctx, mem, border);
       }
+      fit(measured);
+    }
+    // The canvas scaled into the measured box: safe at any moment, since it
+    // changes no pixel the program can see.
+    function fit(measured) {
       var scale = Math.min(measured.width / canvas.width, measured.height / canvas.height);
       if (!(scale > 0)) scale = 1;
       canvas.style.width = Math.max(1, Math.floor(canvas.width * scale)) + 'px';
@@ -809,6 +830,12 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
       while (acc >= stepMs) {
         acc -= stepMs;
         if (ctrl && Atomics.load(ctrl, ISSUED) - Atomics.load(ctrl, CONSUMED) < 2) {
+          // Between frames: the program has taken every frame released so
+          // far and is waiting for this one. A pending resize lands here.
+          if (pendingMeasure !== null && Atomics.load(ctrl, ISSUED) === Atomics.load(ctrl, CONSUMED)) {
+            relayout(pendingMeasure);
+            pendingMeasure = null;
+          }
           Atomics.add(ctrl, ISSUED, 1);
           Atomics.notify(ctrl, ISSUED);
         }

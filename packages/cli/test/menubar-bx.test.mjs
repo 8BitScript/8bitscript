@@ -4,7 +4,7 @@
 // around its children; with every prop compile-time, the linker's inliner
 // folds both halves and each item away, and what reaches the machine is
 // the hand-written program. This is that claim, measured, on the two
-// machines with the least and the most room.
+// machines with the least and the most room, and on the web.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -107,7 +107,9 @@ export function main(): void {
 `,
 };
 
-for (const target of ['pet', 'c64']) {
+// The web too: the fluid host is the same code path as the fixed skins
+// (spec §74), so the abstraction is free there for the same reason.
+for (const target of ['pet', 'c64', 'web']) {
   test(`the menu bar as elements builds to the same bytes as the calls it wraps, on the ${target} (§69)`, async () => {
     const hand = await buildProject(HAND, target);
     const bx = await buildProject(BX, target);

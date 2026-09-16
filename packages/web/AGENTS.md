@@ -325,6 +325,18 @@ web each answer is a line of code, cited above; this is the compact form.
 - Headless, `--frames` is exact and OS-independent — the only target
   where it is. A test that needs to see a program's screen after exactly
   N frames should be a web test.
+- **A resize lands between frames.** The Modern host is the fluid one —
+  the grid follows the window (`gridFor`, `Video.columns()`/`rows()`,
+  the live bytes at `COLUMNS_OFFSET`/`ROWS_OFFSET`) — and while a
+  `waitFrame()` program runs, the page does not re-grid the instant the
+  window moves: `resize()` holds the measurement and `tick()` applies it
+  right before releasing the next frame, only once the program has
+  consumed every frame issued (so it is blocked in `waitFrame()`). A
+  program therefore never sees `columns()` change between two reads
+  inside one frame, and one that redraws each frame simply follows the
+  next one. A program with no frame clock is re-gridded at once. This
+  is the 8BX spec's §74 as decided: the viewport is a run fact, read
+  between frames; nothing reactive, no retained tree.
 
 ### What is not here yet
 
