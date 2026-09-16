@@ -50,7 +50,7 @@ export async function check(files, { checkout } = {}) {
 
     const display = relative(process.cwd(), path) || file;
     // Resolution needs the real path; the display path is only for printing.
-    for (const d of analyze(text, path, { resolveImports: true, frameRate, checkout })) {
+    for (const d of analyze(text, path, { resolveImports: true, frameRate, checkout, bx: config?.bx })) {
       const { line, column } = positionAt(text, d.start);
       process.stdout.write(`${display}:${line}:${column}\n`);
       process.stdout.write(`${d.severity} ${d.code}: ${d.message}\n\n`);

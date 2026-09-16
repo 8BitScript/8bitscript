@@ -25,9 +25,10 @@ function bxTextValue(children) {
  * @param {string[]} [stack]
  * @returns {object[]}
  */
-export function checkBx(ast, file, symbols, stack = []) {
+export function checkBx(ast, file, symbols, { sourceKind = '.8bs', strict = true } = {}, stack = []) {
   const diagnostics = [];
   diagnostics.push(...checkSlots(ast, file));
+  if (sourceKind === '.8bx') diagnostics.push(...checkFileRole(ast, file, strict));
 
   const checkElement = (el) => {
     if (!el || (el.type !== NodeType.BxElement && el.type !== NodeType.BxFragment)) return;
@@ -185,5 +186,52 @@ function checkSlots(ast, file) {
       at(n, '<slot /> belongs at the top level of a component\'s body, once');
     }
   });
+  return diagnostics;
+}
+
+/**
+ * `.8bs` is code, `.8bx` is composition (spec §2.6). Two tiers:
+ *
+ *   A, always: `asm6502` has no place in an `.8bx` file. Machine code lives
+ *      in a `.8bs` function that the component imports — `8BS2020`.
+ *   B, unless the project says `bx: { strict: false }`: a top-level function
+ *      whose body holds no element, or a top-level `let`, is ordinary
+ *      8BitScript that belongs in an `.8bs` module — `8BS2021`, a warning.
+ *      Component methods and `state` are what `.8bx` is for and are not
+ *      looked at; neither is anything inside `{…}`, which is ordinary
+ *      8BitScript by design.
+ */
+function checkFileRole(ast, file, strict) {
+  const diagnostics = [];
+  walk(ast, (n) => {
+    if (n.type === NodeType.AsmBlock) {
+      diagnostics.push(diagnostic(
+        Codes.BX_ASM_IN_BX,
+        'asm6502 has no place in an .8bx file; put it in a .8bs function and import it',
+        file, n.start, n.length,
+      ));
+    }
+  });
+  if (!strict) return diagnostics;
+  const hasElement = (node) => {
+    let found = false;
+    walk(node, (n) => { if (n.type === NodeType.BxElement || n.type === NodeType.BxFragment) found = true; });
+    return found;
+  };
+  for (const stmt of ast?.body ?? []) {
+    if (stmt?.type === NodeType.FunctionDeclaration && stmt.name?.name && !hasElement(stmt)) {
+      diagnostics.push(diagnostic(
+        Codes.BX_ORDINARY_CODE,
+        `'${stmt.name.name}' composes nothing: this is ordinary 8BitScript; move it to an .8bs module and import it (or set bx.strict: false)`,
+        file, stmt.name.start, stmt.name.length, 'warning',
+      ));
+    } else if (stmt?.type === NodeType.VariableDeclaration && stmt.kind === 'let' && stmt.name?.name) {
+      diagnostics.push(diagnostic(
+        Codes.BX_ORDINARY_CODE,
+        `'${stmt.name.name}' is a variable at the top of an .8bx file; state belongs in a component, or in an .8bs module this one imports (or set bx.strict: false)`,
+        file, stmt.name.start, stmt.name.length, 'warning',
+      ));
+    }
+  }
   return diagnostics;
 }

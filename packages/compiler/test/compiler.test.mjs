@@ -593,11 +593,13 @@ test('an .8bx module links like an .8bs one, takes a machine twin, and is not th
   // a machine twin exactly as .8bs does.
   const uses = 'import { limit } from "./lib.8bx";\nlet count: u16 = 0;\nexport function main(): void { count = limit; }';
   const files = { 'main.8bs': uses, 'lib.8bx': 'export let limit: u16 = 100;', 'lib.nes.8bx': 'export let limit: u16 = 7;' };
+  // A `let` at the top of an .8bx is ordinary code there (spec §2.6 B): a
+  // warning that rides along, and the program links all the same.
   const nes = linkedFor(files, { machine: 'nes' });
-  assert.deepEqual(nes.diagnostics, []);
+  assert.deepEqual(nes.diagnostics.map((d) => [d.code, d.severity]), [['8BS2021', 'warning']]);
   assert.equal(limitIn(nes.ir), 7);
   const c64 = linkedFor(files, { machine: 'c64' });
-  assert.deepEqual(c64.diagnostics, []);
+  assert.deepEqual(c64.diagnostics.map((d) => d.severity), ['warning']);
   assert.equal(limitIn(c64.ir), 100);
   // The extension is part of the specifier: lib.8bs is not lib.8bx.
   const missing = linkedFor({ 'main.8bs': uses, 'lib.8bs': 'export let limit: u16 = 1;' }, { machine: 'nes' });
