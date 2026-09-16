@@ -217,8 +217,9 @@ class Parser {
     // `<` opens a tag, so there is nothing to disambiguate here.
     if (token.kind === TokenKind.BxTagOpen) {
       const element = this.parseBxElement();
-      if (!this.at(';') && !this.at('}') && !this.atEnd) this.eat(';');
-      else this.eat(';');
+      // The `;` after an element is optional: `<Foo />` on its own line is
+      // a statement with or without it.
+      this.eat(';');
       return element;
     }
 
