@@ -116,6 +116,9 @@ export function encodeName(name: string): number[] {
  * lowering doesn't need). */
 export const BlockType = {
   empty: 0x40,
+  // A block that leaves one i32 on the stack: an `if … else … end` used
+  // as an expression (`cond ? a : b`).
+  i32: 0x7f,
 } as const;
 
 /** Instruction opcodes. Grows alongside instruction selection; `end` is the

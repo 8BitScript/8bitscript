@@ -346,6 +346,15 @@ function foldExpr(node, ctx) {
   if (out.value && typeof out.value === 'object') out.value = foldExpr(out.value, ctx);
   if (out.address) out.address = foldExpr(out.address, ctx);
   if (out.test) out.test = foldExpr(out.test, ctx);
+  if (out.consequent) out.consequent = foldExpr(out.consequent, ctx);
+  if (out.alternate) out.alternate = foldExpr(out.alternate, ctx);
+  // `#fact(...) ? a : b`, or any `?:` whose test is known: the taken arm,
+  // and the other one is gone (spec §49) — the same rule constant `if`
+  // gets, applied to the expression form.
+  if (out.kind === 'cond') {
+    const test = constValue(out.test);
+    if (test !== null) return test !== 0 ? out.consequent : out.alternate;
+  }
   if (out.string) out.string = foldExpr(out.string, ctx);
   if (out.index && typeof out.index === 'object' && out.index.kind) out.index = foldExpr(out.index, ctx);
   if (out.init && typeof out.init === 'object' && out.init.kind && out.init.kind !== 'local') {
