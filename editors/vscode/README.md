@@ -44,7 +44,7 @@ the project overview is in the [root README](../../README.md).
   types, keywords, declarations, calls, the compile-time `#frames(...)`
   and `#system()` (any `#name` colors as compile-time), the reserved `waitFrame()`, and
   the `seconds` unit inside a `#frames(...)` call
-- In `.8bx`, also the `component` declaration, tags (`<Foo … />`,
+- In `.8bx`, also the `component` and `state` declarations, tags (`<Foo … />`,
   `</Foo>`, `<>`, `<slot />`) with their component names and attributes,
   and `{ … }` expressions inside them, which color as 8BitScript again;
   text between tags stays plain

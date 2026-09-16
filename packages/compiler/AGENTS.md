@@ -58,6 +58,22 @@ costs what the hand-written calls would — `hello-bx` is byte-identical to
 `hello-world` on the PET, and `packages/cli/test/hello-bx.test.mjs` says
 so. A component fed a run-time value stays a call.
 
+**State is storage per static instance** (spec §36–§37, §62, §103).
+`state f: T = v;` at the top of a component body becomes one module-level
+*template* global, `__bx_Name__f`, that the body reads and writes. The
+element's call carries an `instance` tag, and the linker
+(`specializeInstances`, on the linked program, after every name is its
+output name) clones the function per instance — `Name__i1`, `Name__i2` —
+each pointed at its own copies of the globals, `__bx_Name__f__i1`, …,
+then drops the template. A stateless component that contains a stateful
+one is cloned per site too, so two `<Pair />` holding a `<Tally />` are
+four tallies; the halves of a slotted component share one tag; a plain
+call from `.8bs` is an instance per call site. `bx/check.mjs`
+`checkState` holds `state` to the top of a component body, typed, once
+per name, unshadowed (`8BS2022`). `--size` lists every instance's bytes
+(`ir.instances`, `stateReportLines`). Not yet: component methods, arrays
+of state, pools.
+
 **Children go where `<slot />` is.** A slotted component is also split
 at the slot into `Name__open` and `Name__close`, and
 `<Name a={x}><A /></Name>` is `Name__open(x); A(); Name__close(x);` —

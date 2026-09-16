@@ -28,6 +28,7 @@ function bxTextValue(children) {
 export function checkBx(ast, file, symbols, { sourceKind = '.8bs', strict = true } = {}, stack = []) {
   const diagnostics = [];
   diagnostics.push(...checkSlots(ast, file));
+  diagnostics.push(...checkState(ast, file));
   if (sourceKind === '.8bx') diagnostics.push(...checkFileRole(ast, file, strict));
 
   const checkElement = (el) => {
@@ -241,4 +242,46 @@ function hasElement(node) {
     if (n.type === NodeType.BxElement || n.type === NodeType.BxFragment) found = true;
   });
   return found;
+}
+
+/**
+ * `state name: type = init;` is per-instance storage (spec §36–§37): one
+ * declaration per name, at the top level of a component's body, with a
+ * type, and not shadowed by a local or parameter of the same name — the
+ * elaborator rewrites every use of the name in the body to the instance's
+ * storage, and a shadow would be rewritten too. Anywhere else, `state`
+ * means nothing: 8BS2022.
+ */
+function checkState(ast, file) {
+  const diagnostics = [];
+  const at = (n, message) => diagnostics.push(diagnostic(Codes.BX_INVALID_STATE, message, file, n.start, n.length));
+  const isState = (n) => n?.type === NodeType.StateDeclaration;
+  const topLevel = new Set();
+  for (const stmt of ast?.body ?? []) {
+    if (stmt?.type !== NodeType.ComponentDeclaration) continue;
+    const body = stmt.body?.body ?? [];
+    const names = new Set(stmt.params?.map((p) => p.name?.name) ?? []);
+    const fields = new Set();
+    for (const s of body) {
+      if (!isState(s)) continue;
+      topLevel.add(s);
+      const name = s.name?.name;
+      if (!name) continue;
+      if (!s.typeAnnotation) at(s.name, `state '${name}' needs a type: it is storage the compiler lays out`);
+      if (names.has(name)) at(s.name, `state '${name}' has the same name as a prop of '${stmt.name?.name}'`);
+      if (fields.has(name)) at(s.name, `state '${name}' is declared twice in '${stmt.name?.name}'`);
+      fields.add(name);
+    }
+    if (fields.size === 0) continue;
+    // A local that shadows a field would be rewritten with it.
+    walk(stmt.body, (n) => {
+      if (n.type === NodeType.VariableDeclaration && n.name?.name && fields.has(n.name.name)) {
+        at(n.name, `'${n.name.name}' is state of '${stmt.name?.name}'; a local cannot take its name`);
+      }
+    });
+  }
+  walk(ast, (n) => {
+    if (isState(n) && !topLevel.has(n)) at(n, 'state belongs at the top level of a component\'s body');
+  });
+  return diagnostics;
 }

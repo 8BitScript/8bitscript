@@ -365,6 +365,7 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
     process.stdout.write(`web bundle: ${webDir}/\n`);
     process.stdout.write(`${memoryLine(ir.memory)}\n`);
     if (result.sizeReport) process.stdout.write(sizeReportLines(result.sizeReport, result.bytes.length));
+    if (report) process.stdout.write(stateReportLines(ir));
     const memory = { variables: ir.memory.variables, program: result.bytes.length, data: ir.memory.data };
     await writeLastRun(target, compileReport(target, {
       outFile, hardware, memory, sizeReport: result.sizeReport, frameRate, program: program.name,
@@ -399,6 +400,7 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   process.stdout.write(`built ${outFile}\n`);
   process.stdout.write(`${memoryLine(ir.memory, result.memory)}\n`);
   if (result.sizeReport) process.stdout.write(sizeReportLines(result.sizeReport, result.memory.program));
+  if (report) process.stdout.write(stateReportLines(ir));
   await writeLastRun(target, compileReport(target, {
     outFile, hardware, memory: result.memory, sizeReport: result.sizeReport, frameRate, program: program.name,
   }));
@@ -437,6 +439,20 @@ export function sizeReportLines(entries, total) {
     return `  ${String(e.bytes).padStart(width)}  ${pct.padStart(5)}%  ${e.name}`;
   });
   return `size breakdown:\n${lines.join('\n')}\n`;
+}
+
+/**
+ * `--size`'s second table, when the program has 8BX components with
+ * state: one line per static instance and the RAM its state takes, so an
+ * abstraction is accountable for every byte it keeps (8BX spec §119).
+ * Nothing prints for a program with no such instance.
+ */
+export function stateReportLines(ir) {
+  const instances = ir.instances ?? [];
+  if (instances.length === 0) return '';
+  const width = Math.max(...instances.map((e) => String(e.bytes).length));
+  const lines = instances.map((e) => `  ${String(e.bytes).padStart(width)}  state ${e.component}[${e.instance}]`);
+  return `component state (bytes of RAM):\n${lines.join('\n')}\n`;
 }
 
 /**

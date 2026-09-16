@@ -29,9 +29,9 @@ the parser has no rule for.
 
 `tokenize()` takes an optional `{ sourceKind: '.8bs' | '.8bx' }`. In
 `.8bs` nothing below applies: `<` is always an operator and `component`
-an ordinary identifier (`let component: u8` compiled before 8BX existed
-and still does — `component` is not in `KEYWORDS`; `scanIdentifier`
-makes it a keyword in `.8bx` only).
+and `state` are ordinary identifiers (`let component: u8` compiled
+before 8BX existed and still does — they are `BX_KEYWORDS`, not
+`KEYWORDS`; `scanIdentifier` makes them keywords in `.8bx` only).
 
 In `.8bx`, element syntax is tokenized by the lexer itself, in modes on
 a stack — never by re-scanning text later, so every span is a token's

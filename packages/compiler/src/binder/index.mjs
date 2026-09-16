@@ -18,6 +18,7 @@ export const SymbolKind = Object.freeze({
   Parameter: 'Parameter',
   Import: 'Import',
   Component: 'Component',
+  State: 'State',
 });
 
 /**
@@ -141,6 +142,10 @@ export function bind(ast, file = '<unknown>') {
           props,
           allowsChildren: stmt.allowsChildren ?? false,
           exported: stmt.exported ?? false,
+          // The fields a `state` declaration names, top level of the body.
+          state: (stmt.body?.body ?? [])
+            .filter((s) => s?.type === NodeType.StateDeclaration && s.name?.name)
+            .map((s) => s.name.name),
           body: stmt.body,
         };
         declare(scope, stmt.name.name, sym);
@@ -148,6 +153,11 @@ export function bind(ast, file = '<unknown>') {
         const compScope = createScope(scope);
         bindParameters(compScope, stmt.params, f, diags);
         bindBlock(compScope, stmt.body?.body, f, diags, bindStatement);
+        break;
+      }
+      case NodeType.StateDeclaration: {
+        if (!stmt.name?.name) break;
+        declare(scope, stmt.name.name, { name: stmt.name.name, kind: SymbolKind.State, node: stmt.name, scope });
         break;
       }
       case NodeType.BlockStatement:
