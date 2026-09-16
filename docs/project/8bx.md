@@ -70,7 +70,7 @@ reserved) by code on trunk; the spec has the reasoning.
 
 | Rule | Where | Spec |
 | --- | --- | --- |
-| `.8bs` is code, `.8bx` is composition. `asm6502` never appears in `.8bx`; machine code lives in `.8bs` and is imported. Ordinary declarations in `.8bx` are a lint (`bx.strict`). | not yet; `bx.strict` accepted now | §2.6 |
+| `.8bs` is code, `.8bx` is composition. `asm6502` never appears in `.8bx`; machine code lives in `.8bs` and is imported. Ordinary declarations in `.8bx` are a lint (`bx.strict`). | `8BS2020` (error), `8BS2021` (warning) in `bx/check.mjs` | §2.6 |
 | The program entry is always `.8bs`. A package's `"8bitscript".entry` may be `.8bx` — that is an import, not a program. | `packages/cli/src/build.mjs` `checkEntryKind`; `programs.mjs` | §4.3 |
 | `.8bs` reaches a component as a positional call: `App();`, `Player(20, 40);` — the same elaboration `<Player x={20} y={40} />` gets. No children across the boundary. | a component is a function; the call is the element (`bx/elaborate.mjs`) | §4.5 |
 | Several programs per project; the key is the output stem; `entry` is sugar for `programs.main` with the filename stem kept. | `packages/cli/src/programs.mjs` | §4.6 |

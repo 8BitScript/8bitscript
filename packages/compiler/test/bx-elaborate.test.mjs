@@ -7,19 +7,14 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { Codes, analyze, link } from '../index.mjs';
+import { Codes, analyze } from '../index.mjs';
 import { optimizeReachable } from '../src/linker/optimize.mjs';
+import { linkFiles as linkShared } from './support/link-files.mjs';
 
-/** Write `files` into a scratch directory and link `entry` from there. */
-function linkFiles(files, entry, options = { machine: 'pet', frameRate: 60, facts: {} }) {
-  const dir = mkdtempSync(join(tmpdir(), '8bx-'));
-  try {
-    for (const [name, text] of Object.entries(files)) writeFileSync(join(dir, name), text);
-    return { ...link(files[entry], join(dir, entry), options), dir };
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-}
+// The fixtures below keep their scaffolding (`let` counters, helpers) at
+// the top of the .8bx file for brevity, which the ordinary-code lint (§2.6
+// B) would flag; it is switched off here and tested on its own below.
+const linkFiles = (files, entry, options = {}) => linkShared(files, entry, { bx: { strict: false }, ...options });
 
 /** Every call by name anywhere in a lowered function body. */
 function callsIn(node, out = []) {
@@ -138,7 +133,7 @@ export function main(): void {
   // subpath is resolved through this checkout, as `8bs build --checkout` does.
   const checkout = join(import.meta.dirname, '..', '..', '..');
   for (const machine of ['pet', 'c64', 'nes', 'web']) {
-    const { ir, diagnostics } = linkFiles({ 'main.8bx': main }, 'main.8bx', { machine, frameRate: 60, facts: {}, checkout });
+    const { ir, diagnostics } = linkFiles({ 'main.8bx': main }, 'main.8bx', { machine, checkout });
     assert.deepEqual(diagnostics, [], machine);
     const entry = ir.functions.find((f) => f.name === ir.entry);
     assert.deepEqual(callsIn(entry.body), ['MenuBar__open', 'MenuItem', 'MenuBar__close'], machine);
@@ -264,4 +259,44 @@ test('element children on a component without a slot are still refused (§33)', 
   const src = 'component A() { }\ncomponent B() { }\nexport function main(): void { <A><B /></A>; }\n';
   const codes = analyze(src, 't.8bx', { sourceKind: '.8bx' }).map((d) => d.code);
   assert.ok(codes.includes(Codes.BX_CHILDREN_REJECTED));
+});
+
+test('.8bs is code, .8bx is composition: asm6502 is refused in .8bx, and ordinary code there is a warning (§2.6)', () => {
+  const asm = `component Raster() { asm6502 { nop } }
+export function main(): void { <Raster />; }
+`;
+  const a = analyze(asm, 't.8bx', { sourceKind: '.8bx' });
+  const refused = a.find((d) => d.code === Codes.BX_ASM_IN_BX);
+  assert.ok(refused, JSON.stringify(a));
+  assert.equal(refused.severity, 'error');
+  assert.match(refused.message, /put it in a \.8bs function and import it/);
+  // The same block in .8bs is what it always was.
+  assert.deepEqual(analyze('export function irq(): void { asm6502 { nop } }\n', 't.8bs').filter((d) => d.code === Codes.BX_ASM_IN_BX), []);
+
+  // A stray `;`, a nameless function the parser could not read, a `const`
+  // and a component are all left alone; the `let` and the element-less
+  // function are the two warnings.
+  const ordinary = `let count: utinyint = 0;
+const LIMIT: utinyint = 9;
+;
+function helper(): void { count = count + 1; }
+component Hello() { helper(); }
+export function draw(): void { <Hello />; }
+`;
+  const b = analyze(ordinary, 't.8bx', { sourceKind: '.8bx' });
+  const warnings = b.filter((d) => d.code === Codes.BX_ORDINARY_CODE);
+  assert.deepEqual(warnings.map((d) => [d.severity, ordinary.slice(d.start, d.start + d.length)]), [['warning', 'count'], ['warning', 'helper']],
+    'the let and the element-less function; draw() composes and is left alone');
+  assert.match(warnings[1].message, /composes nothing/);
+  const nameless = analyze('function (): void { }\nexport function main(): void { <></>; }\n', 't.8bx', { sourceKind: '.8bx' });
+  assert.deepEqual(nameless.filter((d) => d.code === Codes.BX_ORDINARY_CODE), [], 'nothing to name');
+  // asm6502 at the top of the file, outside any function, is the same error.
+  assert.ok(analyze('asm6502 { nop }\n', 't.8bx', { sourceKind: '.8bx' }).some((d) => d.code === Codes.BX_ASM_IN_BX));
+  // A project may switch the lint off; the hard rule stays.
+  assert.deepEqual(analyze(ordinary, 't.8bx', { sourceKind: '.8bx', bx: { strict: false } }).filter((d) => d.code === Codes.BX_ORDINARY_CODE), []);
+  assert.ok(analyze(asm, 't.8bx', { sourceKind: '.8bx', bx: { strict: false } }).some((d) => d.code === Codes.BX_ASM_IN_BX));
+  // A warning reports and rides along: the program still links.
+  const linked = linkShared({ 'main.8bx': ordinary.replace('export function draw', 'export function main') }, 'main.8bx');
+  assert.ok(linked.ir, 'linked despite the warnings');
+  assert.deepEqual(linked.diagnostics.map((d) => d.severity), ['warning', 'warning']);
 });

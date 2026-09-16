@@ -468,3 +468,46 @@ test('the entry spelling still names dist/ after the file, and refuses an .8bx e
     assert.match(stderr, /sets both `entry` and `programs`/);
   });
 });
+
+// A warning reports and rides along; an error stops the build (8BX spec
+// §2.6 B is the first warning a build can meet, and a project can turn
+// that one off).
+test('build() prints a warning and still builds; bx.strict: false silences the lint, not the rule', async () => {
+  const project = async (config, fn) => {
+    const dir = await mkdtemp(join(tmpdir(), '8bs-bx-lint-'));
+    const prev = process.cwd();
+    try {
+      await writeFile(join(dir, 'main.8bs'), 'import { draw } from "./Draw.8bx";\nexport function main(): void { draw(); }\n');
+      await writeFile(join(dir, 'Draw.8bx'), [
+        'let ticks: utinyint = 0;',
+        'component Mark(v: utinyint) { memory.write(0x8000, v); }',
+        'export function draw(): void { <Mark v={1} />; }',
+        '',
+      ].join('\n'));
+      await writeFile(join(dir, '8bitscript.config.ts'), `export default ${config};\n`);
+      process.chdir(dir);
+      await fn(dir);
+    } finally {
+      process.chdir(prev);
+      await rm(dir, { recursive: true, force: true });
+    }
+  };
+  await project(`{ entry: "main.8bs", targets: ["pet"] }`, async (dir) => {
+    const { result, stdout } = await capture(() => build(['--target', 'pet']));
+    assert.equal(result, 0, 'a warning does not stop the build');
+    assert.match(stdout, /warning 8BS2021: 'ticks' is a variable at the top of an \.8bx file/);
+    assert.equal(existsSync(join(dir, 'dist', 'main-pet.prg')), true);
+  });
+  await project(`{ entry: "main.8bs", targets: ["pet"], bx: { strict: false } }`, async () => {
+    const { result, stdout } = await capture(() => build(['--target', 'pet']));
+    assert.equal(result, 0);
+    assert.doesNotMatch(stdout, /8BS2021/);
+  });
+  await project(`{ entry: "main.8bs", targets: ["pet"], bx: { strict: false } }`, async (dir) => {
+    await writeFile(join(dir, 'Draw.8bx'), 'component Mark() { asm6502 { nop } }\nexport function draw(): void { <Mark />; }\n');
+    const { result, stdout } = await capture(() => build(['--target', 'pet']));
+    assert.equal(result, 1, 'asm6502 in .8bx is an error whatever bx.strict says');
+    assert.match(stdout, /error 8BS2020: asm6502 has no place in an \.8bx file/);
+    assert.match(stdout, /not building/);
+  });
+});
