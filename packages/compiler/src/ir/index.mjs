@@ -1349,6 +1349,14 @@ class Lowering {
           type: this.currentParams.get(node.name) ?? this.globalTypes.get(node.name) ?? null,
           start: node.start, length: node.length,
         };
+      case NodeType.ConditionalExpression: {
+        const test = this.expression(node.test);
+        const consequent = this.expression(node.consequent);
+        const alternate = this.expression(node.alternate);
+        if (!test || !consequent || !alternate) return null;
+        const type = widerOf(consequent.type, alternate.type);
+        return { kind: 'cond', test, consequent, alternate, type };
+      }
       case NodeType.BinaryExpression: {
         const left = this.expression(node.left);
         const right = this.expression(node.right);

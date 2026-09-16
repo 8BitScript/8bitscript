@@ -570,6 +570,14 @@ test('variantOf and isVariantPath: the machine goes before the extension', () =>
   assert.ok(MACHINES.includes('nes') && MACHINES.includes('web'));
 });
 
+test('variantOf keeps .8bx twins on .8bx, never .8bs', () => {
+  assert.equal(variantOf('/p/App.8bx', 'pet'), '/p/App.pet.8bx');
+  assert.equal(variantOf('/p/App.8bx', 'pet', '8032'), '/p/App.pet.8032.8bx');
+  assert.ok(isVariantPath('/p/App.pet.8bx'));
+  assert.equal(variantOf('/p/App.8bx', 'pet').endsWith('.8bx'), true);
+  assert.equal(variantOf('/p/App.8bx', 'pet').endsWith('.8bs'), false);
+});
+
 test('a .<machine>.8bs twin is what that machine\'s build imports', () => {
   const files = { 'main.8bs': USES_LIMIT, 'lib.8bs': 'export let limit: u16 = 100;', 'lib.nes.8bs': 'export let limit: u16 = 7;' };
   const nes = linkedFor(files, { machine: 'nes' });

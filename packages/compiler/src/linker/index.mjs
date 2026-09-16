@@ -38,6 +38,10 @@ import { tokenize } from '../lexer/index.mjs';
 import { parse } from '../parser/index.mjs';
 import { check } from '../checker/index.mjs';
 import { foldCompileTime } from '../fold/index.mjs';
+import { bind } from '../binder/index.mjs';
+import { checkBx } from '../bx/check.mjs';
+import { elaborateBx } from '../bx/elaborate.mjs';
+import { sourceKindOf } from '../source/index.mjs';
 import { lower } from '../ir/index.mjs';
 import { resolveSpecifier, nativeSourcesBeside } from '../resolver/index.mjs';
 import { Codes, diagnostic } from '../diagnostics/index.mjs';
@@ -56,9 +60,14 @@ function canonical(path) {
 
 /** Run the pure front end over one module's text. */
 function loadModule(file, text, diagnostics, { frameRate, machine, facts }) {
-  const { tokens, diagnostics: lexical } = tokenize(text, file);
-  const { ast, diagnostics: syntax } = parse(tokens, text, file);
+  const sourceKind = sourceKindOf(file) ?? '.8bs';
+  const { tokens, diagnostics: lexical } = tokenize(text, file, { sourceKind });
+  const { ast, diagnostics: syntax } = parse(tokens, text, file, { sourceKind });
   diagnostics.push(...lexical, ...syntax);
+  const bound = bind(ast, file);
+  diagnostics.push(...bound.diagnostics);
+  diagnostics.push(...checkBx(ast, file, bound.symbols));
+  elaborateBx(ast, bound.symbols);
   // Folding runs before check(): a #frames(...) call needs to already be a
   // plain IntegerLiteral by the time the width-fit rule walks the tree, so
   // e.g. #frames(100, seconds) overflowing a utinyint gets that diagnostic for free,
@@ -112,7 +121,7 @@ function loadGraph(entryText, entryFile, diagnostics, sources, options) {
       if (!resolved) {
         diagnostics.push(diagnostic(
           Codes.NOT_COMPILABLE,
-          `import specifier '${imp.source}' is not linkable yet: only './file.8bs' paths, bare package names, and package subpaths ('@scope/name/thing') are specified`,
+          `import specifier '${imp.source}' is not linkable yet: only './file.8bs' or './file.8bx' paths, bare package names, and package subpaths ('@scope/name/thing') are specified`,
           module.file, imp.start, imp.length,
         ));
         continue;

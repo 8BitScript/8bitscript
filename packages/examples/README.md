@@ -17,6 +17,7 @@ directory and an entry.
 | `hello-world` | `screen.blank()` then `text.print(0, "Hello World!")` through the portable screen and text packages — the same few lines build for every machine. | all nine |
 | `joystick` | The controller test app: a labelled map of everything `@8bitscript/input` exposes, with a lamp on each control that flashes when it is pressed. | all nine |
 | `fancy` | The raster showpiece: a title wobbling on a sine wave inside colour bands, over `@8bitscript/raster`'s portable per-scanline surface. The two machines that answer `#fact(video.raster)` show the effect; the other seven show a static title, by design. | all nine |
+| `hello-bx` | The same greeting as `hello-world`, drawn through one 8BitX component (`<Hello />`) instead of a direct `text.print()` call — the smallest program that shows what a `.8bx` file is. | all nine |
 
 ## hello-world
 
@@ -146,3 +147,21 @@ title, the caption saying so, and the climbing frame counter.
 
 The test in `test/` checks that the manifest names a real project and that
 each program links clean for every one of its targets.
+
+## hello-bx
+
+The `hello-world` greeting again, this time through 8BitX. From inside
+`hello-bx/`:
+
+```
+8bs run pet               # the 2001, in VICE
+8bs run web                # the browser
+```
+
+`<Hello />` elaborates at compile time to the same `text.print(0, "Hello
+World!")` call `hello-world/src/hello-world.8bs` writes by hand — the two
+PET builds are byte-identical (108 bytes each, measured). The point isn't
+that this one program needed a component; it's the smallest possible
+proof that a `.8bx` file costs nothing a `.8bs` file wouldn't already
+cost. See `docs/compiler.md` for where 8BX elaboration sits in the
+pipeline.

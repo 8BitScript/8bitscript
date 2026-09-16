@@ -19,6 +19,7 @@ import { basename, dirname, isAbsolute, join, resolve as resolvePath } from 'nod
 
 import { Codes, diagnostic } from '../diagnostics/index.mjs';
 import { TokenKind } from '../lexer/index.mjs';
+import { isSourceFile, sourceKindOf, stripSourceExtension } from '../source/index.mjs';
 
 /** A bare specifier naming exactly one package: `name` or `@scope/name`. */
 const BARE_PACKAGE = /^(?:@[^/\s]+\/[^/\s]+|[^@./\s][^/\s]*)$/;
@@ -77,8 +78,9 @@ export const isReleaseMachine = (machine) => RELEASE_MACHINES.includes(machine);
  * machine gets.
  */
 export function variantOf(path, machine, tag) {
-  const stem = path.slice(0, -'.8bs'.length);
-  return tag ? `${stem}.${machine}.${tag}.8bs` : `${stem}.${machine}.8bs`;
+  const ext = sourceKindOf(path) ?? '.8bs';
+  const stem = stripSourceExtension(path);
+  return tag ? `${stem}.${machine}.${tag}${ext}` : `${stem}.${machine}${ext}`;
 }
 
 /**
@@ -97,7 +99,9 @@ export function tagsOf(options = {}) {
  * not: `data` is no machine.
  */
 export function isVariantPath(path) {
-  const stem = path.slice(0, -'.8bs'.length);
+  const ext = sourceKindOf(path);
+  if (!ext) return false;
+  const stem = stripSourceExtension(path);
   return MACHINES.some((machine) => stem.endsWith(`.${machine}`)
     || new RegExp(`\\.${machine}\\.[A-Za-z0-9_-]+$`).test(stem));
 }
@@ -110,7 +114,8 @@ export function isVariantPath(path) {
  * tag: the tags are not the resolver's to know.
  */
 function variantsPresent(path) {
-  const stem = basename(path, '.8bs');
+  const ext = sourceKindOf(path) ?? '.8bs';
+  const stem = basename(stripSourceExtension(path));
   let entries;
   try {
     entries = readdirSync(dirname(path));
@@ -119,8 +124,8 @@ function variantsPresent(path) {
   }
   const found = [];
   for (const entry of entries) {
-    if (!entry.startsWith(`${stem}.`) || !entry.endsWith('.8bs')) continue;
-    const suffix = entry.slice(stem.length + 1, -'.8bs'.length).split('.');
+    if (!entry.startsWith(`${stem}.`) || !entry.endsWith(ext)) continue;
+    const suffix = entry.slice(stem.length + 1, -ext.length).split('.');
     if (!MACHINES.includes(suffix[0])) continue;
     if (suffix.length === 1) found.push({ machine: suffix[0] });
     else if (suffix.length === 2 && /^[A-Za-z0-9_-]+$/.test(suffix[1])) found.push({ machine: suffix[0], tag: suffix[1] });
@@ -477,7 +482,7 @@ export function resolveSpecifier(specifier, fromFile, options = {}, seen = new S
   const fromDir = dirname(fromFile);
 
   if (specifier.startsWith('.') || specifier.startsWith('/')) {
-    if (!specifier.endsWith('.8bs')) return null;
+    if (!isSourceFile(specifier)) return null;
     const target = resolvePath(fromDir, specifier);
     // `./hardware.8bs` on the NES is `./hardware.nes.8bs` when that file
     // exists beside it — see chooseVariant.

@@ -1,0 +1,15 @@
+// BX wrappers over @8bitscript/ui/menubar — same immediate-mode calls,
+// composed declaratively. Elaboration inlines to menubar.begin/item/end.
+import { menubar } from "@8bitscript/ui/menubar";
+
+component MenuBar(row: utinyint, width: usmallint) {
+    menubar.begin(row, width);
+}
+
+component MenuItem(label: string) {
+    menubar.item(label);
+}
+
+component MenuBarEnd() {
+    menubar.end();
+}

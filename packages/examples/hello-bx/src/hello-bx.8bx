@@ -1,0 +1,12 @@
+import { screen } from "@8bitscript/screen";
+import { text } from "@8bitscript/text";
+
+component Hello() {
+    text.print(0, "Hello World!");
+}
+
+export function main(): void {
+    screen.blank();
+    <Hello />;
+    text.releaseCursor();
+}

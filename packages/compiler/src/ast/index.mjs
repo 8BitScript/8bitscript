@@ -15,8 +15,16 @@ export const NodeType = {
   ImportDeclaration: 'ImportDeclaration',
   VariableDeclaration: 'VariableDeclaration',
   FunctionDeclaration: 'FunctionDeclaration',
+  ComponentDeclaration: 'ComponentDeclaration',
   NamespaceDeclaration: 'NamespaceDeclaration',
   Parameter: 'Parameter',
+
+  BxElement: 'BxElement',
+  BxFragment: 'BxFragment',
+  BxAttribute: 'BxAttribute',
+  BxSpreadAttribute: 'BxSpreadAttribute',
+  BxText: 'BxText',
+  BxExpressionChild: 'BxExpressionChild',
 
   BlockStatement: 'BlockStatement',
   IfStatement: 'IfStatement',
@@ -56,6 +64,7 @@ export const NodeType = {
 
   AssignmentExpression: 'AssignmentExpression',
   BinaryExpression: 'BinaryExpression',
+  ConditionalExpression: 'ConditionalExpression',
   UnaryExpression: 'UnaryExpression',
   UpdateExpression: 'UpdateExpression',
   CallExpression: 'CallExpression',
