@@ -102,7 +102,7 @@ function lastSignificant(tokens) {
  * a binary literal. `true`/`false` are literals; postfix `++`/`--` leave
  * their operand in place. The caller must already have skipped comments.
  */
-function isOperandToken(tok) {
+export function isOperandToken(tok) {
   if (!tok) return false;
   switch (tok.kind) {
     case TokenKind.Identifier:

@@ -16,9 +16,15 @@ const DIAGNOSTIC_SEVERITY = {
 // Same off-by-one for CompletionItemKind. Only the kinds `8bs lsp` sends.
 const COMPLETION_KIND = {
   3: vscode.CompletionItemKind.Function,
+  6: vscode.CompletionItemKind.Variable,
+  7: vscode.CompletionItemKind.Class,
+  9: vscode.CompletionItemKind.Module,
   21: vscode.CompletionItemKind.Constant,
   25: vscode.CompletionItemKind.TypeParameter,
 };
+
+// LSP InsertTextFormat.Snippet: the insertText has `$1` cursor stops.
+const SNIPPET_FORMAT = 2;
 
 // Both source kinds go to the one language server: `.8bs` and `.8bx` are
 // the same language with two grammars (the second is a superset), and the
@@ -56,7 +62,11 @@ function toCompletion(item) {
   );
   completion.detail = item.detail;
   completion.sortText = item.sortText;
-  if (item.insertText) completion.insertText = item.insertText;
+  if (item.insertText) {
+    completion.insertText = item.insertTextFormat === SNIPPET_FORMAT
+      ? new vscode.SnippetString(item.insertText)
+      : item.insertText;
+  }
   if (item.documentation?.value) {
     completion.documentation = new vscode.MarkdownString(item.documentation.value);
   }
@@ -128,7 +138,8 @@ function registerLanguageServer(context, output) {
           textDocument: {
             publishDiagnostics: {},
             hover: { contentFormat: ['markdown'] },
-            completion: { completionItem: { documentationFormat: ['markdown'] } },
+            completion: { completionItem: { documentationFormat: ['markdown'], snippetSupport: true } },
+            definition: {},
           },
         },
       });
@@ -205,6 +216,17 @@ function registerLanguageServer(context, output) {
       },
       ...COMPLETION_TRIGGER_CHARACTERS,
     ),
+    vscode.languages.registerDefinitionProvider(LANGUAGE_IDS, {
+      async provideDefinition(document, position) {
+        if (!client) return undefined;
+        const result = await client.request('textDocument/definition', {
+          textDocument: { uri: document.uri.toString() },
+          position: { line: position.line, character: position.character },
+        });
+        if (!result) return undefined;
+        return new vscode.Location(vscode.Uri.parse(result.uri), toRange(result.range));
+      },
+    }),
   );
 
   return {

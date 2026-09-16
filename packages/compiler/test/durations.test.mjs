@@ -189,7 +189,9 @@ test('hover explains seconds only in the unit slot of #frames(...)', () => {
   assert.match(info.markdown, /unit for `#frames\(\.\.\.\)`/);
 
   const plain = 'let seconds: utinyint = 3;';
-  assert.equal(getHoverInfo(plain, plain.indexOf('seconds') + 1), null, 'a declared seconds is not the unit');
+  const declared = getHoverInfo(plain, plain.indexOf('seconds') + 1);
+  assert.match(declared.markdown, /\*\*seconds\*\* — variable/, 'a declared seconds is the variable, not the unit');
+  assert.doesNotMatch(declared.markdown, /unit for/);
 });
 
 // ---- the `#` spelling: nothing is reserved ---------------------------------

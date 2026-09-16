@@ -24,7 +24,7 @@ export { tokenize, TokenKind, KEYWORDS, TYPE_NAMES } from './src/lexer/index.mjs
 export { parse, normalizeBxText } from './src/parser/index.mjs';
 export { NodeType, walk } from './src/ast/index.mjs';
 export { check } from './src/checker/index.mjs';
-export { bind, bindImportedComponents, componentOf, SymbolKind, resolveSymbol } from './src/binder/index.mjs';
+export { bind, bindImports, bindImportedComponents, componentOf, SymbolKind, resolveSymbol } from './src/binder/index.mjs';
 export { foldCompileTime, DURATION_CLOCKS, DURATION_UNITS, SYSTEMS } from './src/fold/index.mjs';
 export {
   FACTS, PROGRAM_FACTS, LOGICAL_CONTROLS, CONTROLLER_KINDS, controllerKind,
@@ -48,7 +48,7 @@ export {
   storageBytes,
   narrowestIntegerType,
 } from './src/types/index.mjs';
-export { getHoverInfo, getCompletions } from './src/intellisense/index.mjs';
+export { getHoverInfo, getCompletions, getDefinition } from './src/intellisense/index.mjs';
 
 /**
  * Analyse one source file and return every diagnostic it produces.

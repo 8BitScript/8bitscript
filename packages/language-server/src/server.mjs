@@ -7,7 +7,7 @@
 // Despite the package names, `vscode-languageserver` is an editor-agnostic LSP
 // implementation. This server speaks the protocol over stdio, so any client
 // that speaks LSP can drive it: `8bs lsp --stdio` is all an editor needs.
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -19,10 +19,11 @@ import {
   DiagnosticSeverity,
   MarkupKind,
   CompletionItemKind,
+  InsertTextFormat,
 } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 
-import { analyze, getHoverInfo, getCompletions, sourceKindOf } from '@8bitscript/compiler';
+import { analyze, getHoverInfo, getCompletions, getDefinition, sourceKindOf } from '@8bitscript/compiler';
 
 // What the compiler calls a completion item, in LSP's vocabulary. The
 // compiler says what kind of thing a name is (a type, a compile-time
@@ -31,6 +32,9 @@ const COMPLETION_KIND = {
   type: CompletionItemKind.TypeParameter,
   function: CompletionItemKind.Function,
   constant: CompletionItemKind.Constant,
+  component: CompletionItemKind.Class,
+  namespace: CompletionItemKind.Module,
+  variable: CompletionItemKind.Variable,
 };
 
 const SEVERITY = {
@@ -98,6 +102,23 @@ async function frameRateFor(filePath) {
  * untitled buffer degrades the same honest way everywhere: the feature that
  * needs a path on disk is simply unavailable, not guessed at.
  */
+/**
+ * What a document is written in: the editor's language id decides for an
+ * untitled buffer, the path's extension otherwise; null when neither says.
+ */
+function sourceKindFor(document, path) {
+  return document.languageId === '8bitextensible' ? '.8bx' : (path ? sourceKindOf(path) : null);
+}
+
+/** The text of a file on disk, or '' when it cannot be read — a range then lands at its start. */
+function readTextOf(path) {
+  try {
+    return readFileSync(path, 'utf8');
+  } catch {
+    return '';
+  }
+}
+
 function filePathOf(uri) {
   if (!uri.startsWith('file://')) return null;
   try {
@@ -122,11 +143,14 @@ export function start({ checkout } = {}) {
       // nothing until the compiler can reuse a previous parse.
       textDocumentSync: TextDocumentSyncKind.Full,
       hoverProvider: true,
+      definitionProvider: true,
       // `.` triggers member completion (screen.bl| -> blank) on a named
       // import's own namespace; getCompletions checks isFactKeyPosition
       // first, so `#fact(video.|)` still completes fact keys rather than
-      // being hijacked by a coincidentally-named import binding.
-      completionProvider: { triggerCharacters: [':', '<', '.'] },
+      // being hijacked by a coincidentally-named import binding. `<` is a
+      // type argument in `.8bs` and a tag in `.8bx`; `/` is the `</` that
+      // closes one.
+      completionProvider: { triggerCharacters: [':', '<', '.', '/'] },
     },
     serverInfo: { name: '8BitScript Language Server', version: '0.1.0' },
   }));
@@ -150,10 +174,7 @@ export function start({ checkout } = {}) {
     // published empty diagnostics for it; publishing again here would
     // resurrect them). Either way, an out-of-order publish would be wrong.
     if (document.version !== version || documents.get(document.uri) !== document) return;
-    const languageId = document.languageId;
-    const sourceKind = languageId === '8bitextensible'
-      ? '.8bx'
-      : (path ? sourceKindOf(path) : null);
+    const sourceKind = sourceKindFor(document, path);
     const diagnostics = analyze(text, path ?? document.uri, {
       resolveImports: path !== null,
       frameRate,
@@ -186,7 +207,7 @@ export function start({ checkout } = {}) {
 
     const offset = document.offsetAt(params.position);
     const path = filePathOf(document.uri);
-    const info = getHoverInfo(document.getText(), offset, { path, checkout });
+    const info = getHoverInfo(document.getText(), offset, { path, checkout, sourceKind: sourceKindFor(document, path) });
     if (!info) return null;
 
     return {
@@ -204,7 +225,7 @@ export function start({ checkout } = {}) {
 
     const offset = document.offsetAt(params.position);
     const path = filePathOf(document.uri);
-    return getCompletions(document.getText(), offset, { path, checkout }).map((item) => ({
+    return getCompletions(document.getText(), offset, { path, checkout, sourceKind: sourceKindFor(document, path) }).map((item) => ({
       label: item.label,
       kind: COMPLETION_KIND[item.kind] ?? CompletionItemKind.TypeParameter,
       detail: item.detail,
@@ -212,9 +233,30 @@ export function start({ checkout } = {}) {
       // Canonical names sort ahead of short aliases within the same list.
       sortText: `${item.sortRank}${item.label}`,
       // Present only when what gets typed differs from the label — the
-      // `#` of a `#frames` already in the buffer, say.
+      // `#` of a `#frames` already in the buffer, say — and a snippet when
+      // it has cursor stops (a prop's `row={$1}`).
       ...(item.insertText ? { insertText: item.insertText } : {}),
+      ...(item.snippet ? { insertTextFormat: InsertTextFormat.Snippet } : {}),
     }));
+  });
+
+  // Go to definition: the compiler answers with a file and a range; a
+  // location in another file is that file's own URI.
+  connection.onDefinition((params) => {
+    const document = documents.get(params.textDocument.uri);
+    if (!document) return null;
+
+    const offset = document.offsetAt(params.position);
+    const path = filePathOf(document.uri);
+    const target = getDefinition(document.getText(), offset, { path, checkout, sourceKind: sourceKindFor(document, path) });
+    if (!target) return null;
+    const uri = pathToFileURL(target.path).href;
+    const inOther = documents.get(uri);
+    const other = inOther ?? TextDocument.create(uri, '8bitscript', 0, readTextOf(target.path));
+    return {
+      uri,
+      range: { start: other.positionAt(target.start), end: other.positionAt(target.start + target.length) },
+    };
   });
 
   documents.listen(connection);

@@ -191,23 +191,93 @@ test('textDocument/hover returns the compiler-owned documentation', async () => 
   });
 });
 
-test('textDocument/hover on an ordinary identifier returns null', async () => {
+test('textDocument/hover on the program\'s own variable shows its declaration; on an unknown name, null', async () => {
   await withServer(async (client) => {
     await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
     client.notify('initialized', {});
 
-    const text = 'let myCounter: utinyint = 3;\n';
+    const text = 'let myCounter: utinyint = 3; // ticks\nlet other: utinyint = missing;\n';
     client.notify('textDocument/didOpen', {
       textDocument: { uri: URI, languageId: '8bitscript', version: 1, text },
     });
     await client.waitForNotification('textDocument/publishDiagnostics');
 
-    const response = await client.request('textDocument/hover', {
+    const own = await client.request('textDocument/hover', {
       textDocument: { uri: URI },
       position: positionAt(text, text.indexOf('myCounter') + 3),
     });
-    assert.equal(response.result, null);
+    assert.match(own.result.contents.value, /\*\*myCounter\*\* — variable/);
+    assert.match(own.result.contents.value, /let myCounter: utinyint = 3/);
+    assert.match(own.result.contents.value, /ticks/);
+    const unknown = await client.request('textDocument/hover', {
+      textDocument: { uri: URI },
+      position: positionAt(text, text.indexOf('missing') + 3),
+    });
+    assert.equal(unknown.result, null);
   });
+});
+
+test('an .8bx buffer: hover on a tag names the component, completion after < offers components, definition lands on it', async () => {
+  const projectDir = await mkdtemp(join(tmpdir(), '8bs-lsp-bx-'));
+  try {
+    const menuPath = join(projectDir, 'Menu.8bx');
+    const menu = '// A bar with items in it.\nexport component MenuBar(row: utinyint, width: usmallint) {\n    memory.write(0x8000, row);\n}\n';
+    await writeFile(menuPath, menu);
+    const viewPath = join(projectDir, 'View.8bx');
+    const text = 'import { MenuBar } from "./Menu.8bx";\nexport function draw(): void {\n    <MenuBar row={0} />;\n    <\n}\n';
+    await writeFile(viewPath, text);
+    const uri = pathToFileURL(viewPath).href;
+
+    await withServer(async (client) => {
+      const init = await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
+      assert.equal(init.result.capabilities.definitionProvider, true);
+      assert.ok(init.result.capabilities.completionProvider.triggerCharacters.includes('/'), '/ must trigger completion for </');
+      client.notify('initialized', {});
+      client.notify('textDocument/didOpen', {
+        textDocument: { uri, languageId: '8bitextensible', version: 1, text },
+      });
+      await client.waitForNotification('textDocument/publishDiagnostics');
+
+      const hover = await client.request('textDocument/hover', {
+        textDocument: { uri },
+        position: positionAt(text, text.indexOf('<MenuBar') + 3),
+      });
+      assert.match(hover.result.contents.value, /\*\*MenuBar\*\* — component/);
+      assert.match(hover.result.contents.value, /A bar with items in it\./);
+      assert.deepEqual(hover.result.range, {
+        start: positionAt(text, text.indexOf('<MenuBar') + 1),
+        end: positionAt(text, text.indexOf('<MenuBar') + 8),
+      });
+
+      const completion = await client.request('textDocument/completion', {
+        textDocument: { uri },
+        position: positionAt(text, text.lastIndexOf('<') + 1),
+      });
+      assert.deepEqual(completion.result.map((i) => i.label), ['MenuBar', 'slot']);
+
+      const props = await client.request('textDocument/completion', {
+        textDocument: { uri },
+        position: positionAt(text, text.indexOf('<MenuBar ') + 9),
+      });
+      assert.deepEqual(props.result.map((i) => [i.label, i.insertText, i.insertTextFormat]), [['width', 'width={$1}', 2]]);
+
+      const definition = await client.request('textDocument/definition', {
+        textDocument: { uri },
+        position: positionAt(text, text.indexOf('<MenuBar') + 3),
+      });
+      assert.deepEqual(definition.result, {
+        uri: pathToFileURL(menuPath).href,
+        range: { start: positionAt(menu, menu.indexOf('MenuBar')), end: positionAt(menu, menu.indexOf('MenuBar') + 7) },
+      });
+      const nowhere = await client.request('textDocument/definition', {
+        textDocument: { uri },
+        position: positionAt(text, text.indexOf('void') + 1),
+      });
+      assert.equal(nowhere.result, null);
+    });
+  } finally {
+    await rm(projectDir, { recursive: true, force: true });
+  }
 });
 
 test('textDocument/hover explains memory.write', async () => {
