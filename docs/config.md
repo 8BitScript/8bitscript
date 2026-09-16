@@ -28,7 +28,7 @@ export default {
 
 | Key | Meaning |
 | --- | --- |
-| `entry` | The source file a build starts from. A `.<machine>.8bs` twin beside it is used on that machine. An object `{ default, nes }` still works. |
+| `entry` | The source file a build starts from. A `.<machine>.8bs` twin beside it is used on that machine. An object `{ default, nes }` still works. The 8BX spec's rule is that a program starts from `.8bs` and an `.8bx` is imported; the toolchain accepts an `.8bx` entry until a component can be called from `.8bs` (spec §4.5). |
 | `frameRate` | Logical frames per second for `waitFrame()` and `#frames(...)`. Positive integer. Default 60. Not `--pal`. |
 | `targets` | Machines this project builds for: an array of names, or an object. Per machine: `hardware` (default options), `profiles` (named option sets `--profile` accepts), `release` (what `8bs build --release` builds). |
 | `systems` | Advertised named machines. Each value is `{ target, profile?, hardware?, region? }`. A name cannot be a machine id (`pet`, `c64`, …). The whole team sees these; they are source. |

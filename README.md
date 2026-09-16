@@ -254,6 +254,7 @@ anyway.
 | Extension     | Contents                                                        |
 | ------------- | --------------------------------------------------------------- |
 | `.8bs`        | 8BitScript source                                                |
+| `.8bx`        | 8BitScript source plus 8BX element and `component` syntax; importable and twin-able like `.8bs`. The 8BX spec makes the program entry `.8bs`; the toolchain does not enforce that yet |
 | `.ts` / `.tsx`| TypeScript source for the compiler, tooling, and web runtime      |
 | `.s`          | Hand-written 6502 assembly the compiler will include; the backend does not emit `.s` files yet |
 

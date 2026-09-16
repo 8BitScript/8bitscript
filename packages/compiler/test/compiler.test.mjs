@@ -531,7 +531,9 @@ test('errors in an imported module fail the link, against the right file', () =>
 // as a conditional package entry, spelled in filenames instead of a
 // manifest — including what happens with no machine in hand.
 
-import { MACHINES, isVariantPath, resolveSpecifier, variantOf } from '../index.mjs';
+import {
+  MACHINES, SOURCE_EXTENSIONS, isSourceFile, isVariantPath, resolveSpecifier, sourceKindOf, stripSourceExtension, variantOf,
+} from '../index.mjs';
 import { mkdirSync } from 'node:fs';
 
 const linkedFor = (files, options, entryName = 'main.8bs') => {
@@ -576,6 +578,30 @@ test('variantOf keeps .8bx twins on .8bx, never .8bs', () => {
   assert.ok(isVariantPath('/p/App.pet.8bx'));
   assert.equal(variantOf('/p/App.8bx', 'pet').endsWith('.8bx'), true);
   assert.equal(variantOf('/p/App.8bx', 'pet').endsWith('.8bs'), false);
+});
+
+test('an .8bx module links like an .8bs one, takes a machine twin, and is not the .8bs of the same name', () => {
+  assert.equal(sourceKindOf('/p/App.8bx'), '.8bx');
+  assert.equal(sourceKindOf('/p/main.8bs'), '.8bs');
+  assert.equal(sourceKindOf('/p/notes.txt'), null);
+  assert.equal(stripSourceExtension('/p/App.8bx'), '/p/App');
+  assert.equal(stripSourceExtension('/p/notes.txt'), '/p/notes.txt');
+  assert.deepEqual([...SOURCE_EXTENSIONS], ['.8bs', '.8bx']);
+  assert.ok(isSourceFile('a.8bx') && isSourceFile('a.8bs') && !isSourceFile('a.8b'));
+  assert.ok(!isVariantPath('/p/notes.txt'));
+  // An .8bx module holding ordinary 8BitScript resolves, links, and takes
+  // a machine twin exactly as .8bs does.
+  const uses = 'import { limit } from "./lib.8bx";\nlet count: u16 = 0;\nexport function main(): void { count = limit; }';
+  const files = { 'main.8bs': uses, 'lib.8bx': 'export let limit: u16 = 100;', 'lib.nes.8bx': 'export let limit: u16 = 7;' };
+  const nes = linkedFor(files, { machine: 'nes' });
+  assert.deepEqual(nes.diagnostics, []);
+  assert.equal(limitIn(nes.ir), 7);
+  const c64 = linkedFor(files, { machine: 'c64' });
+  assert.deepEqual(c64.diagnostics, []);
+  assert.equal(limitIn(c64.ir), 100);
+  // The extension is part of the specifier: lib.8bs is not lib.8bx.
+  const missing = linkedFor({ 'main.8bs': uses, 'lib.8bs': 'export let limit: u16 = 1;' }, { machine: 'nes' });
+  assert.deepEqual(missing.diagnostics.map((d) => d.code), ['8BS2004']);
 });
 
 test('a .<machine>.8bs twin is what that machine\'s build imports', () => {

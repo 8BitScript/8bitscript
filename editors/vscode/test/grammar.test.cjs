@@ -115,6 +115,28 @@ test('the extension contributes its snippets for the language', () => {
     'snippets/8bs.json is not contributed in package.json');
 });
 
+test('.8bx is registered as its own language, highlighted by the 8bs grammar', () => {
+  // Two language ids, one server, two grammars — the second includes the
+  // first, so an .8bx file colours exactly as .8bs does until the BX
+  // grammar adds element syntax on top (spec §80, §81).
+  const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
+  const languages = manifest.contributes.languages;
+  const bx = languages.find((l) => l.id === '8bitextensible');
+  assert.ok(bx, '8bitextensible is not a contributed language');
+  assert.deepEqual(bx.extensions, ['.8bx']);
+  assert.equal(bx.configuration, languages.find((l) => l.id === '8bitscript').configuration);
+  const grammar = manifest.contributes.grammars.find((g) => g.language === '8bitextensible');
+  assert.ok(grammar, 'no grammar contributed for 8bitextensible');
+  assert.equal(grammar.scopeName, 'source.8bx');
+  const bxGrammar = JSON.parse(fs.readFileSync(path.join(__dirname, '..', grammar.path), 'utf8'));
+  assert.equal(bxGrammar.scopeName, 'source.8bx');
+  assert.ok(bxGrammar.patterns.some((p) => p.include === 'source.8bs'), 'the 8bx grammar does not include source.8bs');
+  assert.ok(manifest.activationEvents.includes('workspaceContains:**/*.8bx'));
+  // The client sends both ids to the one language server.
+  const lsp = fs.readFileSync(path.join(__dirname, '..', 'src', 'lsp.cjs'), 'utf8');
+  assert.match(lsp, /LANGUAGE_IDS = \['8bitscript', '8bitextensible'\]/);
+});
+
 test('every snippet has a unique prefix, a description, and a body', () => {
   const prefixes = new Set();
   for (const [name, snippet] of snippetEntries) {
