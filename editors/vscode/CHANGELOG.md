@@ -1,5 +1,105 @@
 # 8bitscript-lang
 
+## 0.11.0
+
+### Minor Changes
+
+- 660b8c0: 8BX (`.8bx`): a `component` declaration that elaborates to a plain call
+  before any backend sees it, so a declarative element (`<Foo bar={baz} />`)
+  costs exactly what writing `foo(baz)` by hand would cost — measured
+  byte-identical on the PET in the new `hello-bx` example (108 bytes, same as
+  `hello-world`).
+  
+  The front end grows a binder (`packages/compiler/src/binder`) that resolves
+  symbols and scopes ahead of the checker, and a `bx/` pass
+  (`check.mjs`, `elaborate.mjs`, `parse.mjs`) that parses element syntax at
+  statement boundaries — `<`, `<<` and the rest of the operator grammar are
+  unchanged in either source kind — checks it, then elaborates it into the
+  core AST the checker, folder and every backend already understand.
+  `analyze()`, `link()` and the language server all run binding and BX
+  elaboration before folding and checking, for both `.8bs` and `.8bx` files.
+  
+  Also: a conditional expression (`cond ? a : b`) lowers to real branching
+  IR and MOS instruction selection, editor support for `.8bx` (grammar,
+  language registration, activation), and `docs/compiler.md`, which replaces
+  the `8bx` design-direction doc with a description of the pipeline as
+  built.
+  
+  Not in this release: array-typed component props, and no backend beyond
+  mos/wasm has been asked to prove elaboration is free — only the PET and
+  web are measured.
+- 8309efa: 8BX element syntax is tokenized by the lexer, in tag, children and
+  expression modes, and read by the parser token by token — no more
+  re-scanning source text at a `<`. Every span is a token's, so a
+  diagnostic inside a `{…}` attribute or child points into the file
+  (and reaches the editor with the right range), `<` opens a tag only where
+  no value sits before it (`a < b`, `array<u8, 4>` and `x << 2` are what
+  they were; `if (x) <Foo />;` works), raw text between tags is one token
+  in which `don't`, `//` and `>` are just text, and a half-typed tag ends
+  with one diagnostic and a parser that keeps going. Text children are
+  normalized the JSX way, once, in the parser. `<Studio.Window />` names
+  parse; an element parses where a value is expected (a `?:` arm), for
+  its spans. The VS Code grammar colors `component`, tags, attributes and
+  embedded expressions in `.8bx`.
+- d1ab357: 8BX components keep state. `state count: utinyint = 0;` at the top of a
+  component body is storage per static instance: every element — and every
+  call from `.8bs` — is an instance with its own copy of the function and
+  its own globals, laid out at compile time and named after the instance
+  (`__bx_Counter__count__i1`), the template dropped, and a stateless
+  component that contains a stateful one instanced per site too, so two
+  `<Pair />` holding a `<Tally />` are four tallies. The two halves of a
+  slotted component share one instance. Nothing is allocated at run time;
+  `8bs build --size` lists every instance and the bytes of state it holds.
+  `state` belongs at the top of a component body, typed, once per name,
+  unshadowed (`8BS2022`); the initializer is a literal or a const, as for
+  any global. Component methods and arrays of state are later.
+- 6154194: `8bitscript.config.ts` learns its own shape, and a project can build more
+  than one program.
+  
+  - `import { defineConfig } from '@8bitscript/cli'` types the config
+    (`src/index.d.ts`; `schemas/config.json` is the same shape as a JSON
+    schema). A plain `export default { … }` is still a config.
+  - `programs: { main: { entry }, format: { entry, targets?, requires? } }`
+    — each its own build from its own `.8bs` entry, the key its output stem
+    (`dist/format-c64-ntsc.prg`, `dist/web/format/`). `entry: 'src/main.8bs'`
+    still works and means `programs: { main: { entry } }` with the entry's
+    filename as the stem, so no existing `dist/` name moves. An `.8bx` entry
+    is refused by name: a program starts from `.8bs`. `--program <name>` on
+    `8bs build` and `8bs run`; `--release` builds every program for the
+    targets it lists; `8bs targets` lists them and `--json` carries them;
+    the last-run file records which program ran.
+  - `images: { name: { target, format, boot, files } }` — disk images over
+    the programs, validated by every build and named by `--release`, which
+    says plainly that it does not write them yet.
+  - `bx: { strict }` is accepted, for the 8BX lint that lands with the
+    grammar.
+  - The editor's project reader understands a `programs` block, so "the"
+    program is `main`'s entry and the others are listed beside it.
+- 1de8025: IntelliSense for a program's own names, from the binder (8BX spec PR 15).
+  Hover on a component, function, variable, const, parameter or `state`
+  field shows its declaration and the doc comment above it, following an
+  import to the file it comes from — a component called from `.8bs`
+  (`MenuBar();`) is the same component as `<MenuBar />`. Completion offers
+  the names visible from the cursor; in `.8bx`, `<` offers the components
+  in scope and `slot`, a component's tag offers the props it still needs
+  (as snippets), and `</` closes the innermost open element. New
+  `getDefinition` in the compiler and `textDocument/definition` in the
+  language server: Go to Definition lands on the declaration, in this file
+  or another. Hover and completion now lex an `.8bx` buffer as one.
+
+### Patch Changes
+
+- b5173e9: An `.8bx` file opened in VS Code now reaches the language server: the
+  client only accepted the `8bitscript` language id, so a file registered
+  as `8bitextensible` got highlighting and nothing else — no diagnostics,
+  hover or completion. Both ids go to the one server, which tells the two
+  source kinds apart by extension.
+- 987fa42: `.8bx` highlighting knows an element as a whole: from `<Name` through its
+  props to the `/>` or the matching `</Name>`, with the children between —
+  nested elements, text left plain, `{ … }` expressions with `?:` and `&&`
+  composing elements — and a fragment `<>` … `</>`. The grammar is now run
+  through Oniguruma in the extension's tests, not just compiled.
+
 ## 0.10.2
 
 No changes in this release.
