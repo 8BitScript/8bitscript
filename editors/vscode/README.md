@@ -37,12 +37,17 @@ the project overview is in the [root README](../../README.md).
 
 ## What it does
 
-- Registers `.8bs` as the language **8BitScript**
+- Registers `.8bs` as the language **8BitScript**, and `.8bx` as **8BitX**
+  (`8bitextensible`), both served by the same language server
 - Colors comments, strings and template strings (with their `${...}`
   fields), numbers (including the `0.5` a `#frames(...)` duration takes),
   types, keywords, declarations, calls, the compile-time `#frames(...)`
   and `#system()` (any `#name` colors as compile-time), the reserved `waitFrame()`, and
   the `seconds` unit inside a `#frames(...)` call
+- In `.8bx`, also the `component` declaration, tags (`<Foo … />`,
+  `</Foo>`, `<>`, `<slot />`) with their component names and attributes,
+  and `{ … }` expressions inside them, which color as 8BitScript again;
+  text between tags stays plain
 - **Snippets** for the constructs that compile — `program`, `loop`,
   `countdown`, `print`, `#frames`, `const`, `let`, `for`, `array`,
   `table`, `address`, `namespace`, `asm6502`, `poke`/`peek`. Nothing is offered that the compiler would

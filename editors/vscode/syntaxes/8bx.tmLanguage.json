@@ -3,8 +3,63 @@
   "name": "8BitX",
   "scopeName": "source.8bx",
   "patterns": [
-    {
-      "include": "source.8bs"
+    { "include": "#component" },
+    { "include": "#tag" },
+    { "include": "source.8bs" }
+  ],
+  "repository": {
+    "component": {
+      "comment": "`component Name(` — the one keyword 8BX adds; the name is the component's, PascalCase.",
+      "match": "\\b(export\\s+)?(component)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+      "captures": {
+        "1": { "name": "keyword.control.export.8bs" },
+        "2": { "name": "storage.type.component.8bx" },
+        "3": { "name": "entity.name.type.component.8bx" }
+      }
+    },
+    "tag": {
+      "comment": "An opening, closing or self-closing tag, or a fragment's `<>`/`</>`. A `<` before a PascalCase name, `slot`, `/` or `>` opens one; `a < b`, `array<u8, 4>` and `x << 2` never match. Text between tags is left plain.",
+      "begin": "(<)(/?)(?=[A-Z]|slot\\b|>)",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.8bx" },
+        "2": { "name": "punctuation.definition.tag.begin.8bx" }
+      },
+      "end": "(/?)(>)",
+      "endCaptures": {
+        "1": { "name": "punctuation.definition.tag.end.8bx" },
+        "2": { "name": "punctuation.definition.tag.end.8bx" }
+      },
+      "name": "meta.tag.8bx",
+      "patterns": [
+        {
+          "comment": "The component: `Foo`, `Studio.Window`, or the `slot` intrinsic.",
+          "match": "\\G\\s*(slot\\b|[A-Z][A-Za-z0-9_]*(?:\\.[A-Z][A-Za-z0-9_]*)*)",
+          "captures": { "1": { "name": "entity.name.tag.component.8bx" } }
+        },
+        {
+          "comment": "An attribute name; `=` follows a valued one, nothing follows a bare (true) one.",
+          "match": "\\b([a-z_][A-Za-z0-9_]*)\\b(\\s*(=))?",
+          "captures": {
+            "1": { "name": "entity.other.attribute-name.8bx" },
+            "3": { "name": "keyword.operator.assignment.8bx" }
+          }
+        },
+        { "include": "source.8bs#strings" },
+        { "include": "#expression" },
+        { "include": "source.8bs#comments" }
+      ]
+    },
+    "expression": {
+      "comment": "`{ … }` in a tag or between tags: ordinary 8BitScript, braces nesting.",
+      "begin": "\\{",
+      "beginCaptures": { "0": { "name": "punctuation.section.embedded.begin.8bx" } },
+      "end": "\\}",
+      "endCaptures": { "0": { "name": "punctuation.section.embedded.end.8bx" } },
+      "name": "meta.embedded.expression.8bx",
+      "patterns": [
+        { "include": "#tag" },
+        { "include": "source.8bs" }
+      ]
     }
-  ]
+  }
 }

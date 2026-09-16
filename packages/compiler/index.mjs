@@ -21,7 +21,7 @@ import { checkBx } from './src/bx/check.mjs';
 import { elaborateBx } from './src/bx/elaborate.mjs';
 
 export { tokenize, TokenKind, KEYWORDS, TYPE_NAMES } from './src/lexer/index.mjs';
-export { parse } from './src/parser/index.mjs';
+export { parse, normalizeBxText } from './src/parser/index.mjs';
 export { NodeType, walk } from './src/ast/index.mjs';
 export { check } from './src/checker/index.mjs';
 export { bind, bindImportedComponents, componentOf, SymbolKind, resolveSymbol } from './src/binder/index.mjs';

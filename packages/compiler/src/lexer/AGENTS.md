@@ -25,18 +25,42 @@ operator characters. Greed is how `x=-1` became the non-operator `=-`
 Matching only spellings the language recognizes cannot produce a token
 the parser has no rule for.
 
-## `.8bx` (8BitX) and `<`
+## `.8bx` (8BitX): the 8BX modes
 
-`tokenize()` takes an optional `{ sourceKind: '.8bs' | '.8bx' }`. In both
-kinds, `<` and `<<` stay ordinary operators so `a < b`, `array<u8, N>`, and
-`x << 2` lex exactly as in `.8bs`. `component` is a keyword only when the
-source kind is `.8bx`: in `.8bs` it is an ordinary identifier, so a
-program that named a variable `component` before 8BX existed still
-compiles (`let component: u8`). It is not in `KEYWORDS` for that reason;
-`scanIdentifier` special-cases it. Element syntax (`<Foo />`, fragments,
-children) is **not** tokenized in the main pass: the parser calls
-`bx/parse.mjs` at statement boundaries when `sourceKind` is `.8bx` and the
-next token is `<`. Syntax problems there use `8BS1039`.
+`tokenize()` takes an optional `{ sourceKind: '.8bs' | '.8bx' }`. In
+`.8bs` nothing below applies: `<` is always an operator and `component`
+an ordinary identifier (`let component: u8` compiled before 8BX existed
+and still does — `component` is not in `KEYWORDS`; `scanIdentifier`
+makes it a keyword in `.8bx` only).
+
+In `.8bx`, element syntax is tokenized by the lexer itself, in modes on
+a stack — never by re-scanning text later, so every span is a token's
+and a diagnostic inside `{…}` points into the file:
+
+- **`<` opens a tag** when what follows could start one (a name, `>` for
+  a fragment, `/` for a closing tag) *and* no value sits before it —
+  the same `isOperandToken(lastSignificant(tokens))` test that decides
+  `%101` from `x%2`. So `a < b`, `(a) < b`, `array<u8, 4>`, `ptr<u8>` keep
+  their `<`; `return <Foo />`, `? <A /> : <B />`, and a `<Foo` after `;`,
+  `{` or `}` start elements. `<<` and `<=` are matched first. The `)`
+  that closes an `if (…)`/`while (…)`/`for (…)` header is marked
+  `controlHeader` and counts as no value, so `if (x) <Foo />;` works.
+- **tag** mode, after `BxTagOpen`/`BxClosingTagOpen`: names (`Foo`, and
+  `.` for `Studio.Window`), `=`, strings (the ordinary scanner), `{` (push
+  **expr**), `/>` (`BxSelfClose`, pop) or `>` (`BxTagEnd`; an opening tag
+  then pushes **children**, a closing tag pops them). Anything else is one
+  `8BS1039` and skipped.
+- **children** mode: raw text up to the next `<`-that-opens-a-tag or `{`
+  is one `BxText` token, whitespace and all — no strings, comments or
+  operators here, so `don't`, `//` and `>` are text. The parser normalizes
+  it (spec §35).
+- **expr** mode, inside `{…}` in a tag or between tags: ordinary
+  dispatch, so strings, templates, comments and nested elements all work;
+  the `}` that matches the frame's `{` pops it.
+
+At end of input with frames still open, one `8BS1039` per frame at its
+`<` (`unterminated tag`, `unclosed element`), and the loop has already
+stopped: a half-typed tag is the editor's normal input.
 
 ## Never throw
 
