@@ -57,6 +57,10 @@ export interface IrExpr {
   // faithful real-shape fixture) — unread: `ctx.arrays` already knows an
   // array's own element width from the global that declared it.
   elementType?: string | null;
+  // 'cond': `test ? consequent : alternate`, one arm's value.
+  test?: IrExpr;
+  consequent?: IrExpr;
+  alternate?: IrExpr;
 }
 
 export interface IrStatement {
@@ -353,6 +357,16 @@ function expr(node: IrExpr, ctx: Ctx): number[] {
   }
   if (node.kind === 'binop') return binop(node, ctx);
   if (node.kind === 'unop') return unop(node, ctx);
+  if (node.kind === 'cond') {
+    // `test ? consequent : alternate`: an `if` block that leaves one i32.
+    // Only the taken arm runs, the same as the mos backend's branch; a
+    // `select` would evaluate both, and an arm may be a call.
+    return [
+      ...expr(node.test!, ctx), Opcode.if, BlockType.i32,
+      ...expr(node.consequent!, ctx), Opcode.else,
+      ...expr(node.alternate!, ctx), Opcode.end,
+    ];
+  }
   if (node.kind === 'memoryRead') {
     // memory.read is byte-only at the language level (ir/index.mjs's own
     // memoryIntrinsic()) — i32.load8_u zero-extends the one byte to i32,

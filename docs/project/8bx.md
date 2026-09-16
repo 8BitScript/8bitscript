@@ -31,10 +31,8 @@ superseded.
   `<Name prop={expr} />`, fragments, text children, and stateless
   elaboration to plain calls — `hello-bx` builds byte-identical to
   `hello-world` on the PET. The pipeline is in [Compiler](../compiler.md).
-  What is on trunk differs from the spec in ways the spec's remaining PRs
-  close, and the differences are facts about today's code, not the
-  design:
-  - `?:` lowers on the 6502 backend and not yet on the web (§99);
+  What is on trunk differs from the spec in one way the spec's remaining
+  PRs close, and it is a fact about today's code, not the design:
   - `@8bitscript/ui/menubar`'s `item()` stores into a 2-byte array,
     which the native backend does not write yet, so the real menu bar
     cannot be built for a 6502 by hand or as elements; the §69 gate is
