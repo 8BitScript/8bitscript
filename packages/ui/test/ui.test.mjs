@@ -9,7 +9,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { link } from '../../compiler/index.mjs';
+import { analyze, link } from '../../compiler/index.mjs';
 import { stockFacts } from '../../cli/src/hardware.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -147,4 +147,13 @@ test('the pointer hit test never forms a sum that the two backends disagree abou
   assert.match(code, /if \(pointerAt - start < n\)/);
   assert.doesNotMatch(code, /pointerAt < start \+/,
     'the hit test must not add a length to a cell');
+});
+
+// The BX wrappers import the menu bar they wrap by its file, not by the
+// package's own name: a package cannot depend on itself, and this is the
+// one .8bx here, so it is checked with its imports resolved.
+test('menubar.8bx analyzes clean, with its import resolved', () => {
+  const file = join(SRC, 'menubar.8bx');
+  const diagnostics = analyze(readFileSync(file, 'utf8'), file, { resolveImports: true, machine: 'pet', facts: stockFacts('pet') });
+  assert.deepEqual(diagnostics, []);
 });
