@@ -32,8 +32,4 @@ export const nav = [
     title: 'Controllers, across nine machines',
     url: '/project/input',
   },
-  {
-    title: '8bx: a responsive component format',
-    url: '/project/8bx',
-  },
 ];

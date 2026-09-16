@@ -15,6 +15,7 @@
 import { Codes, diagnostic } from '../diagnostics/index.mjs';
 import { TokenKind, tokenize } from '../lexer/index.mjs';
 import { NodeType, node } from '../ast/index.mjs';
+import { parseBxElement } from '../bx/parse.mjs';
 
 /** Binary operator precedence, loosest first. Mirrors the C/TypeScript table. */
 const BINARY_PRECEDENCE = {
@@ -36,19 +37,26 @@ const ASSIGNMENT_OPERATORS = new Set([
 
 /** Keywords that can begin a statement — used to resynchronise after an error. */
 const STATEMENT_START = new Set([
-  'let', 'const', 'function', 'export', 'import', 'return',
+  'let', 'const', 'function', 'component', 'export', 'import', 'return',
   'if', 'while', 'for', 'break', 'continue', 'asm6502', 'namespace',
 ]);
 
 class Parser {
-  constructor(tokens, text, file) {
+  constructor(tokens, text, file, options = {}) {
     // Comments carry no syntax. Dropping them here keeps every rule below free
     // of "skip trivia" noise.
     this.tokens = tokens.filter((t) => t.kind !== TokenKind.Comment);
     this.text = text;
     this.file = file;
+    this.sourceKind = options.sourceKind ?? '.8bs';
     this.pos = 0;
     this.diagnostics = [];
+  }
+
+  skipToOffset(offset) {
+    while (this.pos < this.tokens.length && this.tokens[this.pos].start < offset) {
+      this.pos += 1;
+    }
   }
 
   // ---- token access -------------------------------------------------------
@@ -170,6 +178,12 @@ class Parser {
         case 'let':
         case 'const': return this.parseVariableDeclaration();
         case 'function': return this.parseFunctionDeclaration(token.start, false);
+        case 'component':
+          if (this.sourceKind !== '.8bx') {
+            this.error("'component' is only allowed in .8bx files", token);
+            return null;
+          }
+          return this.parseComponentDeclaration(token.start, false);
         case 'namespace': return this.parseNamespace(token.start, false);
         case 'if': return this.parseIf();
         case 'while': return this.parseWhile();
@@ -193,6 +207,16 @@ class Parser {
     if (token.text === ';') {
       this.next();
       return null;
+    }
+
+    if (this.sourceKind === '.8bx' && token.text === '<') {
+      const parsed = parseBxElement(this.text, token.start, this.file);
+      this.diagnostics.push(...parsed.diagnostics);
+      if (parsed.node) {
+        this.skipToOffset(parsed.end);
+        if (!this.at(';') && !this.at('}') && !this.atEnd) this.eat(';');
+        return parsed.node;
+      }
     }
 
     return this.parseExpressionStatement();
@@ -341,6 +365,36 @@ class Parser {
       typeAnnotation,
       initializer,
       exported: false,
+    });
+  }
+
+  parseComponentDeclaration(start, exported) {
+    this.next(); // 'component'
+    const name = this.expectIdentifier('a component name');
+    const params = [];
+    if (this.expect('(')) {
+      while (!this.atEnd && !this.at(')')) {
+        const paramName = this.expectIdentifier('a parameter name');
+        if (!paramName) break;
+        let paramType = null;
+        if (this.eat(':')) paramType = this.parseType();
+        let defaultValue = null;
+        if (this.eat('=')) defaultValue = this.parseExpression();
+        const last = defaultValue ?? paramType ?? paramName;
+        const pEnd = last.start + last.length;
+        params.push(node(NodeType.Parameter, paramName.start, pEnd, {
+          name: paramName, typeAnnotation: paramType, defaultValue,
+          optional: defaultValue != null,
+        }));
+        if (!this.eat(',')) break;
+      }
+      this.expect(')');
+    }
+    const allowsChildren = params.some((p) => p.name?.name === 'children');
+    const body = this.parseBlock();
+    const end = body ? body.start + body.length : start;
+    return node(NodeType.ComponentDeclaration, start, end, {
+      name, params, body, exported, allowsChildren,
     });
   }
 
@@ -537,7 +591,7 @@ class Parser {
   }
 
   parseAssignment() {
-    const left = this.parseBinary(0);
+    const left = this.parseConditional();
     if (!left) return null;
     const token = this.peek();
     if (token && ASSIGNMENT_OPERATORS.has(token.text)) {
@@ -550,6 +604,21 @@ class Parser {
       });
     }
     return left;
+  }
+
+  parseConditional() {
+    const start = this.peek()?.start ?? 0;
+    let expr = this.parseBinary(0);
+    if (!expr) return null;
+    if (this.at('?')) {
+      this.next();
+      const consequent = this.parseExpression();
+      this.expect(':');
+      const alternate = this.parseConditional();
+      const end = alternate ? alternate.start + alternate.length : expr.start + expr.length;
+      return node(NodeType.ConditionalExpression, start, end, { test: expr, consequent, alternate });
+    }
+    return expr;
   }
 
   /** Precedence climbing over the table above. */
@@ -788,8 +857,8 @@ class Parser {
  * @param {string} file
  * @returns {{ ast: object, diagnostics: object[] }}
  */
-export function parse(tokens, text, file = '<unknown>') {
-  const parser = new Parser(tokens, text, file);
+export function parse(tokens, text, file = '<unknown>', options = {}) {
+  const parser = new Parser(tokens, text, file, options);
   const ast = parser.parseProgram();
   return { ast, diagnostics: parser.diagnostics };
 }

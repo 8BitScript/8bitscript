@@ -17,7 +17,7 @@ import { loadConfig, resolveFrameRate } from './config.mjs';
  */
 export async function check(files, { checkout } = {}) {
   if (files.length === 0) {
-    process.stderr.write('8bs check: no files given\n\nUsage: 8bs check <file.8bs> [...]\n');
+    process.stderr.write('8bs check: no files given\n\nUsage: 8bs check <file.8bs|.8bx> [...]\n');
     return 2;
   }
 

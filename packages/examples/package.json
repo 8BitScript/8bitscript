@@ -25,11 +25,17 @@
         "title": "Fancy",
         "dir": "./fancy",
         "description": "The raster showpiece: a title wobbling on a sine wave inside colour bands, over @8bitscript/raster's portable per-scanline surface — the list built once, only its value bytes rewritten each frame. Everything sits behind #fact(video.raster), so the C64 and the web show the effect and the other seven machines show a static title, honestly and for free. Run before 2048 leans on the same surface."
+      },
+      "hello-bx": {
+        "title": "Hello, BX",
+        "dir": "./hello-bx",
+        "description": "The same hello-world greeting, drawn through one 8BitX component instead of a direct text.print() call — <Hello /> elaborates to the same call at compile time, so the program is byte-identical to hello-world's own. The smallest program that shows what a .8bx file is."
       }
     }
   },
   "files": [
     "fancy",
+    "hello-bx",
     "hello-world",
     "joystick",
     "README.md"
