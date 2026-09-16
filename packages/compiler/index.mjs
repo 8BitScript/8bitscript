@@ -13,11 +13,16 @@ import { check } from './src/checker/index.mjs';
 import { foldCompileTime } from './src/fold/index.mjs';
 import { lower } from './src/ir/index.mjs';
 import { resolveImports } from './src/resolver/index.mjs';
+import { sourceKindOf } from './src/source/index.mjs';
+import { bind } from './src/binder/index.mjs';
+import { checkBx } from './src/bx/check.mjs';
+import { elaborateBx } from './src/bx/elaborate.mjs';
 
 export { tokenize, TokenKind, KEYWORDS, TYPE_NAMES } from './src/lexer/index.mjs';
 export { parse } from './src/parser/index.mjs';
 export { NodeType, walk } from './src/ast/index.mjs';
 export { check } from './src/checker/index.mjs';
+export { bind, SymbolKind, resolveSymbol } from './src/binder/index.mjs';
 export { foldCompileTime, DURATION_CLOCKS, DURATION_UNITS, SYSTEMS } from './src/fold/index.mjs';
 export {
   FACTS, PROGRAM_FACTS, LOGICAL_CONTROLS, CONTROLLER_KINDS, controllerKind,
@@ -29,6 +34,9 @@ export { link, memoryOf } from './src/linker/index.mjs';
 export {
   MACHINES, RELEASE_MACHINES, isReleaseMachine, findImports, isVariantPath, resolveImports, resolveSpecifier, variantOf, tagsOf,
 } from './src/resolver/index.mjs';
+export {
+  SOURCE_EXTENSIONS, isSourceFile, sourceKindOf, stripSourceExtension,
+} from './src/source/index.mjs';
 export { Codes, diagnostic, positionAt } from './src/diagnostics/index.mjs';
 export {
   PRIMITIVE_INTEGER_TYPES,
@@ -60,7 +68,7 @@ export { getHoverInfo, getCompletions } from './src/intellisense/index.mjs';
  *
  * @param {string} text
  * @param {string} file
- * @param {{ resolveImports?: boolean, frameRate?: number, machine?: string, facts?: object, checkout?: string|null }} [options]
+ * @param {{ resolveImports?: boolean, frameRate?: number, machine?: string, facts?: object, checkout?: string|null, sourceKind?: '.8bs'|'.8bx' }} [options]
  *   `machine` is the target when one is known; without it `#system()` and
  *   `#fact(...)` fold to placeholders and are valid-but-target-dependent,
  *   as a `.<machine>.8bs` import is. `facts` is the machine's hardware
@@ -71,14 +79,20 @@ export { getHoverInfo, getCompletions } from './src/intellisense/index.mjs';
  * @returns {object[]} diagnostics, in source order
  */
 export function analyze(text, file = '<unknown>', options = {}) {
-  const { tokens, diagnostics: lexical } = tokenize(text, file);
-  const { ast, diagnostics: syntax } = parse(tokens, text, file);
+  const sourceKind = options.sourceKind ?? sourceKindOf(file) ?? '.8bs';
+  const { tokens, diagnostics: lexical } = tokenize(text, file, { sourceKind });
+  const { ast, diagnostics: syntax } = parse(tokens, text, file, { sourceKind });
+
+  const bound = bind(ast, file);
+  const binding = [...bound.diagnostics];
+  binding.push(...checkBx(ast, file, bound.symbols));
+  elaborateBx(ast, bound.symbols);
 
   // Folding runs before check(), same ordering as the linker: a
   // #frames(...) call needs to already be a plain IntegerLiteral by the
   // time the width-fit rule walks the tree.
   const folding = foldCompileTime(ast, file, { frameRate: options.frameRate, machine: options.machine, facts: options.facts });
-  const all = [...lexical, ...syntax, ...folding, ...check(ast, file, text)];
+  const all = [...lexical, ...syntax, ...binding, ...folding, ...check(ast, file, text)];
   // A few rules — the template layout above all — are deliberately run by
   // both check() and lower(), so that `check()` alone is a complete
   // AST-level answer and `lower()` alone can never drop a construct

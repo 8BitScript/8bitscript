@@ -22,7 +22,7 @@ import {
 } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 
-import { analyze, getHoverInfo, getCompletions } from '@8bitscript/compiler';
+import { analyze, getHoverInfo, getCompletions, sourceKindOf } from '@8bitscript/compiler';
 
 // What the compiler calls a completion item, in LSP's vocabulary. The
 // compiler says what kind of thing a name is (a type, a compile-time
@@ -150,10 +150,15 @@ export function start({ checkout } = {}) {
     // published empty diagnostics for it; publishing again here would
     // resurrect them). Either way, an out-of-order publish would be wrong.
     if (document.version !== version || documents.get(document.uri) !== document) return;
+    const languageId = document.languageId;
+    const sourceKind = languageId === '8bitextensible'
+      ? '.8bx'
+      : (path ? sourceKindOf(path) : null);
     const diagnostics = analyze(text, path ?? document.uri, {
       resolveImports: path !== null,
       frameRate,
       checkout,
+      ...(sourceKind ? { sourceKind } : {}),
     }).map((d) => ({
       severity: SEVERITY[d.severity] ?? DiagnosticSeverity.Error,
       range: {

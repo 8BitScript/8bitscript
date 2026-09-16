@@ -41,7 +41,7 @@ export const TokenKind = {
 };
 
 export const KEYWORDS = new Set([
-  'let', 'const', 'function', 'return', 'export', 'import', 'from', 'as',
+  'let', 'const', 'function', 'component', 'return', 'export', 'import', 'from', 'as',
   'if', 'else', 'while', 'for', 'do', 'break', 'continue',
   'switch', 'case', 'default', 'true', 'false', 'asm6502', 'namespace',
 ]);
@@ -190,9 +190,10 @@ function scanAsmBlock(text, openBrace) {
  *
  * @param {string} text
  * @param {string} file
+ * @param {{ sourceKind?: '.8bs'|'.8bx' }} [options]
  * @returns {{ tokens: object[], diagnostics: object[] }}
  */
-export function tokenize(text, file = '<unknown>') {
+export function tokenize(text, file = '<unknown>', options = {}) {
   const tokens = [];
   const diagnostics = [];
   const brackets = [];

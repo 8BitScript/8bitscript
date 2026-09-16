@@ -25,6 +25,15 @@ operator characters. Greed is how `x=-1` became the non-operator `=-`
 Matching only spellings the language recognizes cannot produce a token
 the parser has no rule for.
 
+## `.8bx` (8BitX) and `<`
+
+`tokenize()` takes an optional `{ sourceKind: '.8bs' | '.8bx' }`. In both
+kinds, `<` and `<<` stay ordinary operators so `a < b`, `array<u8, N>`, and
+`x << 2` lex exactly as in `.8bs`. Element syntax (`<Foo />`, fragments,
+children) is **not** tokenized in the main pass: the parser calls
+`bx/parse.mjs` at statement boundaries when `sourceKind` is `.8bx` and the
+next token is `<`. Syntax problems there use `8BS1039`.
+
 ## Never throw
 
 `tokenize()` always returns `{ tokens, diagnostics }`. Half-typed source

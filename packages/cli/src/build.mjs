@@ -49,7 +49,7 @@ import { existsSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 
 import {
-  MACHINES, RELEASE_MACHINES, isVariantPath, link, positionAt, variantOf,
+  MACHINES, RELEASE_MACHINES, isVariantPath, link, positionAt, stripSourceExtension, variantOf,
   unmetRequirements,
 } from '@8bitscript/compiler';
 
@@ -262,7 +262,7 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   // resolveEntryPath); the output name carries the target once, in the
   // same place every other target's does, so main.nes.8bs builds to
   // main-nes.nes just as main.8bs does, not to main.nes-nes.nes.
-  let stem = basename(entry, '.8bs');
+  let stem = basename(stripSourceExtension(entry));
   if (stem.endsWith(`.${target}`)) stem = stem.slice(0, -(target.length + 1));
   if (target === 'web') {
     const { build } = await import('@8bitscript/compiler/wasm');

@@ -273,7 +273,7 @@ adds. A component that laid its bar out at compile time would sit at 455,
 This component is at 809. So the 363 bytes between them are not the price
 of the feature — they are the price of working the layout out on a 6502
 instead of while compiling. That is the gap
-[compile-time layout](../../docs/project/compile-time-layout.md) closes, and
+[compiler pipeline](../../docs/compiler.md) (8BX elaboration) closes, and
 the reason the root [`AGENTS.md`](../../AGENTS.md) rule exists.
 
 The two rows above the floor are worth keeping in view for a different
@@ -340,7 +340,7 @@ is not what costs; doing the layout on a 6502 is. Those same tables are
 exactly what a bar that answers a click, an arrow key or `ALT`+letter needs,
 so this is not features traded for size. The design, the measurements and
 the language feature it waits on (array parameters) are in
-[compile-time layout](../../docs/project/compile-time-layout.md), and the
+[compiler pipeline](../../docs/compiler.md), and the
 rule behind it is the root [`AGENTS.md`](../../AGENTS.md)'s "the rule that
 decides where work happens". **Anything added to this component before then
 should be shaped so that folding it into constants later is a change of

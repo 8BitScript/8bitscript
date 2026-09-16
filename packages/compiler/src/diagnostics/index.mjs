@@ -112,6 +112,8 @@ export const Codes = {
   // `#fact(...)` in a build that knows its machine but was handed no
   // hardware facts: the fold will not guess a sheet for a real build.
   NO_HARDWARE_FACTS: '8BS1038',
+  // 8BX syntax in `.8bx` files — unclosed tags, bad attributes, and similar.
+  BX_SYNTAX: '8BS1039',
 
   UNRESOLVED_PACKAGE: '8BS2001',
   NOT_AN_8BS_PACKAGE: '8BS2002',
@@ -140,6 +142,13 @@ export const Codes = {
   // it does not offer, which is a different failure from a missing entry
   // file (8BS2003) or a package that is not 8BitScript at all (8BS2002).
   NO_SUCH_SUBPATH: '8BS2011',
+  BX_UNKNOWN_COMPONENT: '8BS2012',
+  BX_UNKNOWN_PROP: '8BS2013',
+  BX_DUPLICATE_PROP: '8BS2014',
+  BX_MISSING_PROP: '8BS2015',
+  BX_PROP_TYPE: '8BS2016',
+  BX_CHILDREN_REJECTED: '8BS2017',
+  BX_COMPONENT_RECURSION: '8BS2018',
 
   NOT_COMPILABLE: '8BS3001',
   NOT_ON_THIS_TARGET: '8BS3002',

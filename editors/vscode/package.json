@@ -36,6 +36,17 @@
           ".8bs"
         ],
         "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "8bitextensible",
+        "aliases": [
+          "8BitX",
+          "8bx"
+        ],
+        "extensions": [
+          ".8bx"
+        ],
+        "configuration": "./language-configuration.json"
       }
     ],
     "grammars": [
@@ -43,6 +54,11 @@
         "language": "8bitscript",
         "scopeName": "source.8bs",
         "path": "./syntaxes/8bs.tmLanguage.json"
+      },
+      {
+        "language": "8bitextensible",
+        "scopeName": "source.8bx",
+        "path": "./syntaxes/8bx.tmLanguage.json"
       }
     ],
     "snippets": [
@@ -431,6 +447,7 @@
   "main": "./bootstrap.cjs",
   "activationEvents": [
     "workspaceContains:**/*.8bs",
+    "workspaceContains:**/*.8bx",
     "workspaceContains:**/8bitscript.config.ts",
     "workspaceContains:**/8bs.config.ts"
   ],

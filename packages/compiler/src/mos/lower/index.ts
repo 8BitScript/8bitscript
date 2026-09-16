@@ -505,6 +505,16 @@ class Lowerer {
       case 'memoryRead':
         this.memoryRead(node);
         return;
+      case 'cond': {
+        const elseLabel = freshLabel('cond_else');
+        const endLabel = freshLabel('cond_end');
+        this.branchIfFalse(node.test as IrExpr, elseLabel);
+        this.expr(node.consequent as IrExpr);
+        this.emit(jmp(endLabel), label(elseLabel));
+        this.expr(node.alternate as IrExpr);
+        this.emit(label(endLabel));
+        return;
+      }
       default:
         throw new LowerError(`no instruction-selection rule yet for the '${node.kind}' expression — it lands in a later milestone`);
     }
