@@ -121,12 +121,12 @@
       },
       {
         "command": "8bitscript.launchApp",
-        "title": "Launch App\u2026",
+        "title": "Launch App…",
         "category": "8BitScript"
       },
       {
         "command": "8bitscript.launchExample",
-        "title": "Launch Example\u2026",
+        "title": "Launch Example…",
         "category": "8BitScript"
       },
       {
@@ -177,7 +177,7 @@
       },
       {
         "command": "8bitscript.saveSystem",
-        "title": "Save as a System\u2026",
+        "title": "Save as a System…",
         "category": "8BitScript",
         "icon": "$(save)"
       },
@@ -211,7 +211,7 @@
       },
       {
         "command": "8bitscript.selectRegion",
-        "title": "Select Region (NTSC \u2014 US/Japan, PAL \u2014 Europe)",
+        "title": "Select Region (NTSC — US/Japan, PAL — Europe)",
         "category": "8BitScript"
       },
       {
@@ -324,11 +324,11 @@
             "pal"
           ],
           "enumDescriptions": [
-            "NTSC (US/Japan), 60Hz \u2014 the machine model 8bs run and 8bs build use by default.",
-            "PAL (Europe), 50Hz \u2014 passes --pal to 8bs run and 8bs build."
+            "NTSC (US/Japan), 60Hz — the machine model 8bs run and 8bs build use by default.",
+            "PAL (Europe), 50Hz — passes --pal to 8bs run and 8bs build."
           ],
           "default": "ntsc",
-          "description": "The machine region the launcher runs with: NTSC (US/Japan) or PAL (Europe). Passed as --pal for the machines that have a region, ignored for the ones that do not. Set from the Region dropdown under Hardware \u00b7 Region \u00b7 Facts in the 8BitScript side bar."
+          "description": "The machine region the launcher runs with: NTSC (US/Japan) or PAL (Europe). Passed as --pal for the machines that have a region, ignored for the ones that do not. Set from the Region dropdown under Hardware · Region · Facts in the 8BitScript side bar."
         },
         "8bitscript.system": {
           "type": "string",
@@ -391,7 +391,7 @@
         "8bitscript.showExamples": {
           "type": "boolean",
           "default": true,
-          "description": "List the examples that ship with the toolchain (@8bitscript/examples, installed with @8bitscript/cli) in the launcher's Project dropdown, in a group of their own under the workspace's projects and beside the toolchain's apps. On by default. Toggled with the book icon in the 8BitScript side bar's title bar, which is only offered when there are examples to show. Launch Example\u2026 reaches them either way."
+          "description": "List the examples that ship with the toolchain (@8bitscript/examples, installed with @8bitscript/cli) in the launcher's Project dropdown, in a group of their own under the workspace's projects and beside the toolchain's apps. On by default. Toggled with the book icon in the 8BitScript side bar's title bar, which is only offered when there are examples to show. Launch Example… reaches them either way."
         },
         "8bitscript.webLan": {
           "type": "boolean",
@@ -461,7 +461,9 @@
   "devDependencies": {
     "@vscode/vsce": "^3.2.1",
     "esbuild": "0.28.1",
-    "ovsx": "^0.10.1"
+    "ovsx": "^0.10.1",
+    "vscode-oniguruma": "^2.0.1",
+    "vscode-textmate": "^9.3.2"
   },
   "files": [
     "bootstrap.cjs",
