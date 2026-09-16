@@ -4,7 +4,7 @@
 // runs in the front end, before any backend-specific lowering, so nothing
 // here is PET- or web-only.
 export default {
-  entry: 'src/hello-bx.8bx',
+  entry: 'src/hello-bx.8bs',
   targets: { pet: {}, c64: {}, vic20: {}, c128: {}, cx16: {}, mega65: {}, atari8: {}, nes: {}, web: {} },
   systems: {
     'PET 2001': { target: 'pet', profile: '2001' },

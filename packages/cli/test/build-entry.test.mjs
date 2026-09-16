@@ -6,7 +6,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { resolveEntryPath } from '../src/build.mjs';
+import { checkEntryKind, resolveEntryPath } from '../src/build.mjs';
 
 const withProject = (files, fn) => {
   const dir = mkdtempSync(join(tmpdir(), '8bs-entry-'));
@@ -51,4 +51,16 @@ test('an .8bx entry path takes its .8bx twin, never a .8bs one', () => {
     assert.equal(resolveEntryPath(null, 'nes', join(dir, 'src', 'App.8bx')), join(dir, 'src', 'App.nes.8bx'));
     assert.equal(resolveEntryPath(null, 'c64', join(dir, 'src', 'App.8bx')), join(dir, 'src', 'App.8bx'));
   });
+});
+
+test('a program starts from .8bs: an .8bx entry is refused with the rule named', () => {
+  assert.deepEqual(checkEntryKind('/p/src/main.8bs'), { ok: true });
+  assert.deepEqual(checkEntryKind('/p/src/main.nes.8bs'), { ok: true });
+  const bx = checkEntryKind('/p/src/App.8bx');
+  assert.equal(bx.ok, false);
+  assert.match(bx.error, /is a \.8bx file; a program starts from a \.8bs file/);
+  assert.match(bx.error, /main\(\) in a \.8bs file that imports this file's components and calls them/);
+  const other = checkEntryKind('/p/src/main.txt');
+  assert.equal(other.ok, false);
+  assert.match(other.error, /not an 8BitScript source file/);
 });
