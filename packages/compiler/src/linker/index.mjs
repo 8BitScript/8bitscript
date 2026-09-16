@@ -79,9 +79,9 @@ function parseModule(file, text, diagnostics) {
  * are known: element checks, 8BX elaboration, folding, checking, and
  * lowering to this module's IR.
  */
-function finishModule(module, diagnostics, { frameRate, machine, facts }) {
+function finishModule(module, diagnostics, { frameRate, machine, facts, bx }) {
   const { file, text, ast, bound } = module;
-  diagnostics.push(...checkBx(ast, file, bound.symbols));
+  diagnostics.push(...checkBx(ast, file, bound.symbols, { sourceKind: sourceKindOf(file) ?? '.8bs', strict: bx?.strict !== false }));
   elaborateBx(ast, bound.symbols);
   // Folding runs before check(): a #frames(...) call needs to already be a
   // plain IntegerLiteral by the time the width-fit rule walks the tree, so
@@ -122,7 +122,7 @@ function loadGraph(entryText, entryFile, diagnostics, sources, options) {
   // once each however many modules import the package — keyed by canonical
   // path for the same pnpm-symlink reason `byPath` is.
   const nativeSources = new Map();
-  const finishOptions = { frameRate: options.frameRate, machine: options.machine, facts: options.facts };
+  const finishOptions = { frameRate: options.frameRate, machine: options.machine, facts: options.facts, bx: options.bx };
 
   const enqueue = (file, text) => {
     const module = parseModule(file, text, diagnostics);
@@ -944,6 +944,11 @@ function rewriteStatement(statement, scope, module, diagnostics) {
  * @returns {{ name: string|null, diagnostics: object[] }} the entry
  *   function's source name (null when the rule failed).
  */
+/** Whether anything in `diagnostics` stops a build: a warning reports and rides along, an error does not. */
+function hasError(diagnostics) {
+  return diagnostics.some((d) => d.severity !== 'warning');
+}
+
 function checkEntryExports(module) {
   const diagnostics = [];
   const at = (item, message) => diagnostics.push(diagnostic(
@@ -1022,11 +1027,11 @@ export function link(entryText, entryFile, options = {}) {
   const entry = checkEntryExports(modules[0]);
   diagnostics.push(...entry.diagnostics);
   bindImports(modules, diagnostics);
-  if (diagnostics.length > 0) return { ir: null, diagnostics, sources };
+  if (hasError(diagnostics)) return { ir: null, diagnostics, sources };
 
   assignOutputNames(modules);
   resolvePendingConsts(modules, diagnostics);
-  if (diagnostics.length > 0) return { ir: null, diagnostics, sources };
+  if (hasError(diagnostics)) return { ir: null, diagnostics, sources };
 
   // `nativeSources` is not IR the backends translate — it is the list of
   // files a backend passes through untouched (the 6502 backend receives
@@ -1134,7 +1139,7 @@ export function link(entryText, entryFile, options = {}) {
     }
   }
 
-  if (diagnostics.length > 0) return { ir: null, diagnostics, sources };
+  if (hasError(diagnostics)) return { ir: null, diagnostics, sources };
   // A module's own lowering types what it can see; a ref to an imported
   // global, an imported array's element read, and every binop over either
   // stayed `type: null` until this point, because only the linked program
@@ -1146,7 +1151,7 @@ export function link(entryText, entryFile, options = {}) {
   // output names — the writes the target refuses are visible as what they
   // are, whichever module spelled them and however it named the address.
   checkHardwareHazards(ir, options.machine, functionFiles, diagnostics);
-  if (diagnostics.length > 0) return { ir: null, diagnostics, sources };
+  if (hasError(diagnostics)) return { ir: null, diagnostics, sources };
   ir.memory = memoryOf(ir);
   return { ir, diagnostics, sources };
 }

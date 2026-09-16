@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { NodeType, link, parse, tokenize } from '../index.mjs';
+import { NodeType, parse, tokenize } from '../index.mjs';
+import { linkFiles } from './support/link-files.mjs';
 import { optimizeReachable } from '../src/linker/optimize.mjs';
 import { build as buildMos } from '../src/mos/index.ts';
 import { build as buildWasm } from '../src/wasm/index.ts';
@@ -18,18 +19,6 @@ test('parses a ternary expression', () => {
   assert.equal(decl.initializer?.type, NodeType.ConditionalExpression);
 });
 
-/** Link one .8bs program from a scratch directory, for `machine`. */
-function linkProgram(src, machine) {
-  const dir = mkdtempSync(join(tmpdir(), '8bs-cond-'));
-  try {
-    const file = join(dir, 'main.8bs');
-    writeFileSync(file, src);
-    return link(src, file, { machine, frameRate: 60, facts: {} });
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-}
-
 const PROGRAM = `let mode: utinyint = 0;
 let out: utinyint = 0;
 export function main(): void {
@@ -42,7 +31,7 @@ export function main(): void {
 test('a ?: with a run-time test lowers on both backends (spec §99: neither backend knows 8BX, both know its core)', async () => {
   const dir = mkdtempSync(join(tmpdir(), '8bs-cond-out-'));
   try {
-  const mos = linkProgram(PROGRAM, 'pet');
+  const mos = linkFiles({ 'main.8bs': PROGRAM }, 'main.8bs', { machine: 'pet' });
   assert.deepEqual(mos.diagnostics, []);
   // The same stand-in sheet mos.test.ts builds against: a 32K PET at $0401.
   const hardware = { build: { defsym: { __ram_size: 32, __load_address: 0x0401 } }, facts: {} };
@@ -50,7 +39,7 @@ test('a ?: with a run-time test lowers on both backends (spec §99: neither back
   assert.equal(prg.ok, true, prg.error);
   assert.ok(prg.bytes.length > 0);
 
-  const web = linkProgram(PROGRAM, 'web');
+  const web = linkFiles({ 'main.8bs': PROGRAM }, 'main.8bs', { machine: 'web' });
   assert.deepEqual(web.diagnostics, []);
   const wasm = await buildWasm(web.ir, { frameRate: 60, outFile: join(dir, 'main.wasm') });
   assert.equal(wasm.ok, true, wasm.error);
@@ -68,7 +57,7 @@ export function main(): void {
     memory.write(0x8000, out);
 }
 `;
-  const { ir, diagnostics } = linkProgram(src, 'pet');
+  const { ir, diagnostics } = linkFiles({ 'main.8bs': src }, 'main.8bs', { machine: 'pet' });
   assert.deepEqual(diagnostics, []);
   const optimized = optimizeReachable(ir);
   const main = optimized.functions.find((f) => f.name === ir.entry);

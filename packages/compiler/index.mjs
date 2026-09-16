@@ -70,7 +70,7 @@ export { getHoverInfo, getCompletions } from './src/intellisense/index.mjs';
  *
  * @param {string} text
  * @param {string} file
- * @param {{ resolveImports?: boolean, frameRate?: number, machine?: string, facts?: object, checkout?: string|null, sourceKind?: '.8bs'|'.8bx' }} [options]
+ * @param {{ resolveImports?: boolean, frameRate?: number, machine?: string, facts?: object, checkout?: string|null, sourceKind?: '.8bs'|'.8bx', bx?: { strict?: boolean } }} [options]
  *   `machine` is the target when one is known; without it `#system()` and
  *   `#fact(...)` fold to placeholders and are valid-but-target-dependent,
  *   as a `.<machine>.8bs` import is. `facts` is the machine's hardware
@@ -107,7 +107,7 @@ export function analyze(text, file = '<unknown>', options = {}) {
       return bind(parsed.ast, resolved.path);
     });
   }
-  binding.push(...checkBx(ast, file, bound.symbols));
+  binding.push(...checkBx(ast, file, bound.symbols, { sourceKind, strict: options.bx?.strict !== false }));
   elaborateBx(ast, bound.symbols);
 
   // Folding runs before check(), same ordering as the linker: a

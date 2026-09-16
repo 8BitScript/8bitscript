@@ -69,6 +69,15 @@ across it (`8BS2019`). A bar of items written as elements is
 byte-identical to the hand-written begin/item/end on the PET and the
 C64 — `packages/cli/test/menubar-bx.test.mjs`, the spec's §69 gate.
 
+**`.8bs` is code, `.8bx` is composition** (spec §2.6; `src/bx/check.mjs`
+`checkFileRole`). `asm6502` is refused in an `.8bx` file (`8BS2020`):
+machine code lives in a `.8bs` function the component imports. A
+top-level function that composes nothing, or a top-level `let`, in an
+`.8bx` is a warning (`8BS2021`) that a project may switch off with
+`bx: { strict: false }`; component methods and `state`, and anything
+inside `{…}`, are never looked at. A warning reports and rides along — the
+linker and `8bs build` gate on errors only.
+
 **Imports are bound before any module is finished.** `link()` reads the
 whole graph — tokens, AST, own symbols — before elaborating any module,
 so an Import symbol can point at the exported Component it names in

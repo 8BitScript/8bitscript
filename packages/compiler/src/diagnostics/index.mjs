@@ -151,6 +151,10 @@ export const Codes = {
   BX_COMPONENT_RECURSION: '8BS2018',
   // `<slot />` where it cannot mean anything: outside a component, twice, nested in control flow, or with a local read across it.
   BX_INVALID_SLOT: '8BS2019',
+  // `asm6502` in an .8bx file: machine code lives in .8bs and is imported (spec §2.6 A).
+  BX_ASM_IN_BX: '8BS2020',
+  // A warning: a top-level function without an element, or a top-level `let`, in an .8bx file (spec §2.6 B).
+  BX_ORDINARY_CODE: '8BS2021',
 
   NOT_COMPILABLE: '8BS3001',
   NOT_ON_THIS_TARGET: '8BS3002',

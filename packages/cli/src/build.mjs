@@ -330,10 +330,11 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   // hardware's tags so a file with a `.<machine>.<tag>.8bs` twin resolves
   // to that.
   const { ir, diagnostics, sources } = link(text, entry, {
-    machine: target, tags: hardware.tags, facts: hardware.facts, frameRate, checkout,
+    machine: target, tags: hardware.tags, facts: hardware.facts, frameRate, checkout, bx: config?.bx,
   });
-  if (diagnostics.length > 0) {
-    printDiagnostics(diagnostics, sources);
+  // A warning is printed and the build goes on; an error stops it.
+  if (diagnostics.length > 0) printDiagnostics(diagnostics, sources);
+  if (!ir) {
     process.stdout.write(`${diagnostics.length} problem(s); not building.\n`);
     return { ok: false };
   }
