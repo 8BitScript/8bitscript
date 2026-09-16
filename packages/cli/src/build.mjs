@@ -53,7 +53,7 @@ import { existsSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 
 import {
-  MACHINES, RELEASE_MACHINES, isVariantPath, link, positionAt, variantOf,
+  MACHINES, RELEASE_MACHINES, isVariantPath, link, positionAt, sourceKindOf, variantOf,
   unmetRequirements,
 } from '@8bitscript/compiler';
 
@@ -123,6 +123,33 @@ export function resolveEntryPath(config, target, entryArg) {
   if (isVariantPath(path)) return path;
   const variant = variantOf(path, target);
   return existsSync(variant) ? variant : path;
+}
+
+/**
+ * A program starts from a `.8bs` file. `.8bx` is a source kind the
+ * compiler knows — it can be imported, it can be a package's entry, it
+ * gets its own `.<target>.8bx` twins — but it is not a program: it
+ * declares composition, and a program reaches a component by importing it
+ * and calling it (`Hello();` is `<Hello />` the way `.8bs` spells it).
+ * The linker's own contract already refuses an `.8bx` that exports a
+ * component as its entry (exactly one exported, parameterless function);
+ * this says why, in the program's own terms, before the linker gets a
+ * chance to say something less useful. 8BX spec §4.3, §4.5.
+ *
+ * @param {string} entry
+ * @returns {{ ok: true } | { ok: false, error: string }}
+ */
+export function checkEntryKind(entry) {
+  const kind = sourceKindOf(entry);
+  if (kind === '.8bs') return { ok: true };
+  if (kind === '.8bx') {
+    return {
+      ok: false,
+      error: `entry ${entry} is a .8bx file; a program starts from a .8bs file. `
+        + 'Put main() in a .8bs file that imports this file\'s components and calls them.',
+    };
+  }
+  return { ok: false, error: `entry ${entry} is not an 8BitScript source file (.8bs)` };
 }
 
 /**
@@ -282,6 +309,11 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   }
 
   const entry = resolveEntryPath({ entry: program.entry }, target);
+  const kind = checkEntryKind(entry);
+  if (!kind.ok) {
+    process.stderr.write(`8bs build: ${kind.error}\n`);
+    return { ok: false };
+  }
   if (!existsSync(entry)) {
     process.stderr.write(`8bs build: entry ${entry} does not exist\n`);
     return { ok: false };

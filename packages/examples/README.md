@@ -17,7 +17,7 @@ directory and an entry.
 | `hello-world` | `screen.blank()` then `text.print(0, "Hello World!")` through the portable screen and text packages — the same few lines build for every machine. | all nine |
 | `joystick` | The controller test app: a labelled map of everything `@8bitscript/input` exposes, with a lamp on each control that flashes when it is pressed. | all nine |
 | `fancy` | The raster showpiece: a title wobbling on a sine wave inside colour bands, over `@8bitscript/raster`'s portable per-scanline surface. The two machines that answer `#fact(video.raster)` show the effect; the other seven show a static title, by design. | all nine |
-| `hello-bx` | The same greeting as `hello-world`, drawn through one 8BitX component (`<Hello />`) instead of a direct `text.print()` call — the smallest program that shows what a `.8bx` file is. | all nine |
+| `hello-bx` | The same greeting as `hello-world`, drawn through one 8BX component: `Hello.8bx` declares it, `hello-bx.8bs` is the program that calls it — the smallest project that shows how a `.8bs` program and a `.8bx` component fit together. | all nine |
 
 ## hello-world
 
@@ -150,7 +150,7 @@ each program links clean for every one of its targets.
 
 ## hello-bx
 
-The `hello-world` greeting again, this time through 8BitX. From inside
+The `hello-world` greeting again, this time as a component. From inside
 `hello-bx/`:
 
 ```
@@ -158,10 +158,21 @@ The `hello-world` greeting again, this time through 8BitX. From inside
 8bs run web                # the browser
 ```
 
-`<Hello />` elaborates at compile time to the same `text.print(0, "Hello
-World!")` call `hello-world/src/hello-world.8bs` writes by hand — the two
-PET builds are byte-identical (108 bytes each, measured). The point isn't
-that this one program needed a component; it's the smallest possible
-proof that a `.8bx` file costs nothing a `.8bs` file wouldn't already
-cost. See `docs/compiler.md` for where 8BX elaboration sits in the
-pipeline.
+Two files. `src/Hello.8bx` declares the component and nothing else:
+
+```
+export component Hello() {
+    text.print(0, "Hello World!");
+}
+```
+
+`src/hello-bx.8bs` is the program — a program always starts from a
+`.8bs` file — and reaches the component by importing it and calling it:
+`Hello();` is `<Hello />` the way `.8bs` can spell it. The component
+elaborates to the same `text.print(0, "Hello World!")` call
+`hello-world/src/hello-world.8bs` writes by hand, and the two PET builds
+are byte-identical (108 bytes each; `packages/cli/test/hello-bx.test.mjs`
+checks). The point isn't that this one program needed a component; it's
+the smallest possible proof that a component costs nothing a hand-written
+call wouldn't. See `docs/compiler.md` for where 8BX elaboration sits in
+the pipeline.

@@ -1,0 +1,8 @@
+// The greeting as a component. This file declares composition and nothing
+// else: no main(), no program — the .8bs beside it is the program, and it
+// reaches this component by importing it (8BX spec §4.3, §4.5).
+import { text } from "@8bitscript/text";
+
+export component Hello() {
+    text.print(0, "Hello World!");
+}

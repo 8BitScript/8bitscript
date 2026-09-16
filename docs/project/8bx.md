@@ -46,12 +46,12 @@ superseded.
   modules (§9–§11) in one move; the linker's inliner makes a
   compile-time-prop element cost what the hand-written calls would (§64,
   §65). `component` is a keyword in `.8bx` only (§129).
-- **The program entry rule is decided but not yet enforced.** The spec
-  says a program starts from `.8bs` and reaches its components by
-  importing them (§4.3, §4.5); `hello-bx`'s entry is `src/hello-bx.8bx`
-  with `main()` inside, because calling a component from `.8bs` (§4.5)
-  needs the cross-module binding above. `programs.*.entry` in the config,
-  being new, is `.8bs` only; `entry` accepts `.8bx` until §4.5 lands.
+- **A program starts from `.8bs`, and calls its components.** `8bs build`
+  refuses an `.8bx` entry by name (§4.3); a component is reached from
+  `.8bs` as an ordinary positional call — `Hello();` is `<Hello />` the
+  way `.8bs` can spell it (§4.5) — and checked as any call is. `hello-bx`
+  is the model: `src/hello-bx.8bs` is the program, `src/Hello.8bx` the
+  component, and the PET build is byte-identical to `hello-world`'s.
 - **The config knows its shape.** `defineConfig` from `@8bitscript/cli`,
   `programs` for several programs in one project, `images` for the disk
   images that will package them, `bx.strict` for the lint that lands with
@@ -65,8 +65,8 @@ reserved) by code on trunk; the spec has the reasoning.
 | Rule | Where | Spec |
 | --- | --- | --- |
 | `.8bs` is code, `.8bx` is composition. `asm6502` never appears in `.8bx`; machine code lives in `.8bs` and is imported. Ordinary declarations in `.8bx` are a lint (`bx.strict`). | not yet; `bx.strict` accepted now | §2.6 |
-| The program entry is always `.8bs`. A package's `"8bitscript".entry` may be `.8bx` — that is an import, not a program. | `programs.*.entry` only (`packages/cli/src/programs.mjs`); `entry` waits on §4.5 | §4.3 |
-| `.8bs` reaches a component as a positional call: `App();`, `Player(20, 40);` — the same elaboration `<Player x={20} y={40} />` gets. No children across the boundary. | not yet — needs cross-module component binding | §4.5 |
+| The program entry is always `.8bs`. A package's `"8bitscript".entry` may be `.8bx` — that is an import, not a program. | `packages/cli/src/build.mjs` `checkEntryKind`; `programs.mjs` | §4.3 |
+| `.8bs` reaches a component as a positional call: `App();`, `Player(20, 40);` — the same elaboration `<Player x={20} y={40} />` gets. No children across the boundary. | a component is a function; the call is the element (`bx/elaborate.mjs`) | §4.5 |
 | Several programs per project; the key is the output stem; `entry` is sugar for `programs.main` with the filename stem kept. | `packages/cli/src/programs.mjs` | §4.6 |
 | A cartridge is hardware (a catalog `media` option); a disk image is a container over built programs, declared in `images`. | Atari catalog `media`; `programs.mjs` `resolveImages` | §4.7 |
 | Fluid web — layout to the viewport at run time, as a distinct web build variant that costs the other eight machines nothing — is in the first milestone. | not yet | §74, §129 |

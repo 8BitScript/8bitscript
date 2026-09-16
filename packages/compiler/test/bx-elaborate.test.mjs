@@ -161,3 +161,30 @@ export function main(): void { <Hello mark={1} nope={2} />; }
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('an .8bs program calls a component positionally — `Hello(7);` is `<Hello mark={7} />` (§4.5)', () => {
+  const files = {
+    'Hello.8bx': `export component Hello(mark: utinyint, twice: bool = false) { memory.write(0x8000, mark); }
+`,
+    'main.8bs': `import { Hello } from "./Hello.8bx";
+export function main(): void { Hello(7); Hello(8, true); }
+`,
+  };
+  const { ir, diagnostics } = linkFiles(files, 'main.8bs');
+  assert.deepEqual(diagnostics, []);
+  const entry = ir.functions.find((f) => f.name === ir.entry);
+  assert.deepEqual(callsIn(entry.body), ['Hello', 'Hello']);
+  // The call form is checked as any call is: the wrong number of props is
+  // the ordinary arity diagnostic, from the linker that knows both sides.
+  const wrong = linkFiles({ ...files, 'main.8bs': 'import { Hello } from "./Hello.8bx";\nexport function main(): void { Hello(); }\n' }, 'main.8bs');
+  assert.deepEqual(wrong.diagnostics.map((d) => d.code), ['8BS1035']);
+  assert.match(wrong.diagnostics[0].message, /'Hello' takes 1 to 2 arguments, not 0/);
+});
+
+test('an element in .8bs is a syntax error: .8bs cannot contain 8BX (§4.2)', () => {
+  const { diagnostics } = linkFiles({
+    'Hello.8bx': 'export component Hello() { }\n',
+    'main.8bs': 'import { Hello } from "./Hello.8bx";\nexport function main(): void { <Hello />; }\n',
+  }, 'main.8bs');
+  assert.ok(diagnostics.some((d) => d.code === '8BS1101' && /found '<'/.test(d.message)));
+});
