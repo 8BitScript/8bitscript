@@ -65,7 +65,8 @@ export function checkBx(ast, file, symbols, { sourceKind = '.8bs', strict = true
     }
     const nextStack = [...stack, el.name];
     const textChild = bxTextValue(el.children);
-    const hasElementChildren = (el.children ?? []).some((c) => c.type === NodeType.BxElement || c.type === NodeType.BxFragment);
+    const hasElementChildren = (el.children ?? []).some((c) => c.type === NodeType.BxElement || c.type === NodeType.BxFragment
+      || (c.type === NodeType.BxExpressionChild && c.expression));
     if (hasElementChildren && !sym.allowsChildren) {
       diagnostics.push(diagnostic(
         Codes.BX_CHILDREN_REJECTED,
@@ -130,10 +131,79 @@ export function checkBx(ast, file, symbols, { sourceKind = '.8bs', strict = true
     }
   };
 
-  walk(ast, (n) => {
-    if (n.type === NodeType.BxElement || n.type === NodeType.BxFragment) checkElement(n);
+  // Every element once: a child is checked by its parent's recursion, a
+  // top-level one and one inside an expression by this walk.
+  walk(ast, (n, parent) => {
+    const nested = parent?.type === NodeType.BxElement || parent?.type === NodeType.BxFragment;
+    if ((n.type === NodeType.BxElement || n.type === NodeType.BxFragment) && !nested) checkElement(n);
   });
+  diagnostics.push(...checkComposition(ast, file));
 
+  return diagnostics;
+}
+
+/**
+ * Where an element may stand (spec §94): as a statement, as a child, or
+ * as an arm of `? :` / the right of `&&` in one of those places — a
+ * "composition". An element anywhere else is not a value: `let x = <A />`,
+ * `f(<A />)`, `a + <A />` are 8BS2024. A `{…}` child that is not a
+ * composition — `{score}`, `{f()}` — is 8BS2023: a value between tags is
+ * not a child yet (§20 is a later milestone).
+ */
+function checkComposition(ast, file) {
+  const diagnostics = [];
+  const isElement = (n) => n?.type === NodeType.BxElement || n?.type === NodeType.BxFragment;
+  const isComposition = (n) => {
+    if (isElement(n)) return true;
+    if (n?.type === NodeType.ConditionalExpression) return isComposition(n.consequent) && isComposition(n.alternate);
+    if (n?.type === NodeType.BinaryExpression && n.operator === '&&') return isComposition(n.right);
+    return false;
+  };
+  // `composing` — the node is in a place a composition may stand — flows
+  // down only through the arms of a composition-shaped expression.
+  const visit = (n, composing) => {
+    if (!n || typeof n.type !== 'string') return;
+    if (isElement(n)) {
+      if (!composing) {
+        diagnostics.push(diagnostic(Codes.BX_NOT_A_VALUE, 'a composition is not a value: an element stands as a statement, a child, or an arm of ? : / && there', file, n.start, n.length));
+      }
+      for (const attr of n.attributes ?? []) visit(attr.value, false);
+      for (const child of n.children ?? []) {
+        if (child.type === NodeType.BxExpressionChild) {
+          if (child.expression && !isComposition(child.expression)) {
+            diagnostics.push(diagnostic(Codes.BX_EXPRESSION_CHILD, 'an expression between tags composes: {cond ? <A /> : <B />} or {cond && <A />}; a value there is not a child yet', file, child.start, child.length));
+            visit(child.expression, false);
+          } else {
+            visit(child.expression, true);
+          }
+        } else {
+          visit(child, true);
+        }
+      }
+      return;
+    }
+    if (n.type === NodeType.ConditionalExpression && composing && isComposition(n)) {
+      visit(n.test, false); visit(n.consequent, true); visit(n.alternate, true);
+      return;
+    }
+    if (n.type === NodeType.BinaryExpression && n.operator === '&&' && composing && isComposition(n)) {
+      visit(n.left, false); visit(n.right, true);
+      return;
+    }
+    // `return (<…/>)` composes where it stands (§96).
+    if (n.type === NodeType.ReturnStatement) { visit(n.argument, composing && isComposition(n.argument)); return; }
+    const statementBody = n.type === NodeType.Program || n.type === NodeType.BlockStatement || n.type === NodeType.ComponentDeclaration
+      || n.type === NodeType.FunctionDeclaration || n.type === NodeType.IfStatement || n.type === NodeType.WhileStatement || n.type === NodeType.ForStatement;
+    for (const [key, value] of Object.entries(n)) {
+      if (key === 'type') continue;
+      // A statement position: the body/consequent/alternate of a block-like
+      // node. Everything else under a node is an expression position.
+      const asStatement = statementBody && (key === 'body' || key === 'consequent' || key === 'alternate');
+      if (Array.isArray(value)) for (const item of value) visit(item, asStatement);
+      else if (value && typeof value === 'object' && typeof value.type === 'string') visit(value, asStatement);
+    }
+  };
+  visit(ast, true);
   return diagnostics;
 }
 
