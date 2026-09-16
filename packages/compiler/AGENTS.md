@@ -140,11 +140,15 @@ does.
 
 The linker still returns every function and global an import declares.
 Each backend's `build()` then runs `optimizeReachable` (prune, fold
-constant `if`s and compile-time calls, prune) before lowering, so a
-`#fact` branch, a print of a string literal, and a call to an empty
-void function (`text.setColor` on the PET) cost the unused side / the
-conversion loop / the no-op nothing. `checkHardwareHazards` still
-sees the unpruned IR from `link()`.
+constant `if`s and compile-time calls, prune — then fold and prune once
+more, so a helper whose other callers folded away is inlined into the
+one left) before lowering, so a `#fact` branch, a print of a string
+literal, and a call to an empty void function (`text.setColor` on the
+PET) cost the unused side / the conversion loop / the no-op nothing.
+The inliner's size measure counts a call's arguments as code, not as
+one node each — each is a load and a store at every copy — so a body
+that only passes values along stays the one function it was written
+as. `checkHardwareHazards` still sees the unpruned IR from `link()`.
 
 Two properties every front-end layer shares, because an editor runs
 them on every keystroke:

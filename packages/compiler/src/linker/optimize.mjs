@@ -113,6 +113,15 @@ function nodeCount(node) {
     }
     if (value && typeof value === 'object') {
       n += 1;
+      // An argument is not one node's worth of code: the caller loads it
+      // and stores it into the callee's slot — 5 bytes for a byte, 8 for
+      // a word on the 6502 — where the ref it is written as counts one.
+      // Weighting each one like three more nodes puts a body that only
+      // passes values along (2048's Board(): the HUD's three values, one
+      // more call) past the limit, and it stays the one function it was
+      // written as: pasted at three sites it cost 54 bytes where the
+      // call and its body cost 31 (measured 2026-09-16, PET 2001).
+      if (value.kind === 'call') n += 3 * (value.args?.length ?? 0);
       for (const inner of Object.values(value)) walk(inner);
     }
   };
@@ -761,5 +770,12 @@ export function optimizeIr(ir) {
 export function optimizeReachable(ir) {
   const pruned = pruneUnreachable(ir);
   const optimized = optimizeIr({ ...ir, functions: pruned.functions, globals: pruned.globals });
-  return pruneUnreachable(optimized);
+  // Once more from the top: folding drops whole callers (2048's animated
+  // move, on a machine without the RAM for it), and a helper those were
+  // the other callers of is now called from one place — which the first
+  // round counted as several, and so kept as a function rather than
+  // writing it into its one live caller. The second prune makes the
+  // count right; the second fold acts on it.
+  const live = pruneUnreachable(optimized);
+  return pruneUnreachable(optimizeIr({ ...optimized, functions: live.functions, globals: live.globals }));
 }
