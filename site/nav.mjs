@@ -32,4 +32,8 @@ export const nav = [
     title: 'Controllers, across nine machines',
     url: '/project/input',
   },
+  {
+    title: '8BX: composition for 8BitScript',
+    url: '/project/8bx',
+  },
 ];
