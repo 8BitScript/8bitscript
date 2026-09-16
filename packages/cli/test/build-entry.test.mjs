@@ -45,3 +45,10 @@ test('the older machine-keyed entry map still works', () => {
     assert.equal(resolveEntryPath(config, 'c64'), join(dir, 'src', 'main.8bs'));
   });
 });
+
+test('an .8bx entry path takes its .8bx twin, never a .8bs one', () => {
+  withProject(['App.8bx', 'App.nes.8bx'], (dir) => {
+    assert.equal(resolveEntryPath(null, 'nes', join(dir, 'src', 'App.8bx')), join(dir, 'src', 'App.nes.8bx'));
+    assert.equal(resolveEntryPath(null, 'c64', join(dir, 'src', 'App.8bx')), join(dir, 'src', 'App.8bx'));
+  });
+});
