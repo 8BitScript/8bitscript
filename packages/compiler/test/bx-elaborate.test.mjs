@@ -126,22 +126,22 @@ export function main(): void { <Hello />; }
 });
 
 test('a component from a package subpath links on every machine (the menu bar wrapper)', () => {
-  // The only shipped .8bx component: three elements, three menubar calls.
-  const main = `import { MenuBar, MenuItem, MenuBarEnd } from "@8bitscript/ui/menubar-bx";
+  // The only shipped .8bx component: a bar with its items in its slot.
+  const main = `import { MenuBar, MenuItem } from "@8bitscript/ui/menubar-bx";
 export function main(): void {
-    <MenuBar row={0} width={40} />;
-    <MenuItem label="FILE" />;
-    <MenuBarEnd />;
+    <MenuBar row={0} width={40}>
+        <MenuItem label="FILE" />
+    </MenuBar>;
 }
 `;
-  // The package's own subpath is not published yet; resolve the file by path instead.
-  const wrapper = join(import.meta.dirname, '..', '..', 'ui', 'src', 'menubar.8bx');
-  const byPath = main.replace('@8bitscript/ui/menubar-bx', wrapper);
+  // From a scratch directory the package is not installed, so the
+  // subpath is resolved through this checkout, as `8bs build --checkout` does.
+  const checkout = join(import.meta.dirname, '..', '..', '..');
   for (const machine of ['pet', 'c64', 'nes', 'web']) {
-    const { ir, diagnostics } = linkFiles({ 'main.8bx': byPath }, 'main.8bx', { machine, frameRate: 60, facts: {} });
+    const { ir, diagnostics } = linkFiles({ 'main.8bx': main }, 'main.8bx', { machine, frameRate: 60, facts: {}, checkout });
     assert.deepEqual(diagnostics, [], machine);
     const entry = ir.functions.find((f) => f.name === ir.entry);
-    assert.deepEqual(callsIn(entry.body), ['MenuBar', 'MenuItem', 'MenuBarEnd'], machine);
+    assert.deepEqual(callsIn(entry.body), ['MenuBar__open', 'MenuItem', 'MenuBar__close'], machine);
   }
 });
 
@@ -187,4 +187,81 @@ test('an element in .8bs is a syntax error: .8bs cannot contain 8BX (§4.2)', ()
     'main.8bs': 'import { Hello } from "./Hello.8bx";\nexport function main(): void { <Hello />; }\n',
   }, 'main.8bs');
   assert.ok(diagnostics.some((d) => d.code === '8BS1101' && /found '<'/.test(d.message)));
+});
+
+test('children go where <slot /> is: the component splits into two halves around them (§33, §105)', () => {
+  const main = `let trace: utinyint = 0;
+component Window(x: utinyint) {
+    trace = trace + x;
+    <slot />;
+    trace = trace * 2;
+}
+component Item() { trace = trace + 100; }
+export function main(): void {
+    <Window x={1}><Item /><Item /></Window>;
+    <Window x={2} />;
+}
+`;
+  const { ir, diagnostics } = linkFiles({ 'main.8bx': main }, 'main.8bx');
+  assert.deepEqual(diagnostics, []);
+  const names = ir.functions.map((f) => f.name);
+  for (const n of ['Window', 'Window__open', 'Window__close', 'Item']) assert.ok(names.includes(n), n);
+  const entry = ir.functions.find((f) => f.name === ir.entry);
+  assert.deepEqual(callsIn(entry.body), ['Window__open', 'Item', 'Item', 'Window__close', 'Window'],
+    'children between the halves, once each; a childless element is the whole component');
+  // The whole component is the body with the slot elided; each half is its side of it.
+  const whole = ir.functions.find((f) => f.name === 'Window');
+  const open = ir.functions.find((f) => f.name === 'Window__open');
+  const close = ir.functions.find((f) => f.name === 'Window__close');
+  assert.equal(whole.body.length, 2);
+  assert.equal(open.body.length, 1);
+  assert.equal(close.body.length, 1);
+  for (const f of [whole, open, close]) assert.equal(f.component, true);
+});
+
+test('an argument both halves read that could do something is evaluated once, into a local (§104)', () => {
+  const main = `let n: utinyint = 0;
+let sum: utinyint = 0;
+function next(): utinyint { n = n + 1; return n; }
+component Frame(v: utinyint) { sum = sum + v; <slot />; sum = sum + v; }
+component Dot() { sum = sum + 1; }
+export function main(): void { <Frame v={next()}><Dot /></Frame>; }
+`;
+  const { ir, diagnostics } = linkFiles({ 'main.8bx': main }, 'main.8bx');
+  assert.deepEqual(diagnostics, []);
+  const entry = ir.functions.find((f) => f.name === ir.entry);
+  assert.deepEqual(callsIn(entry.body).filter((c) => c === 'next'), ['next'], 'next() runs once');
+  const local = entry.body.find((s) => s.kind === 'let' || s.kind === 'local');
+  assert.ok(local && /^__bx_1_v$/.test(local.name), `hoisted into a local, got ${JSON.stringify(local)}`);
+});
+
+test('a slotted component crosses modules: the halves are imported alongside it', () => {
+  const files = {
+    'Window.8bx': `export component Window(x: utinyint) { memory.write(0x8000, x); <slot />; memory.write(0x8001, x); }
+`,
+    'main.8bx': `import { Window } from "./Window.8bx";
+component Dot() { memory.write(0x8002, 1); }
+export function main(): void { <Window x={1}><Dot /></Window>; }
+`,
+  };
+  const { ir, diagnostics } = linkFiles(files, 'main.8bx');
+  assert.deepEqual(diagnostics, []);
+  const entry = ir.functions.find((f) => f.name === ir.entry);
+  assert.deepEqual(callsIn(entry.body), ['Window__open', 'Dot', 'Window__close']);
+});
+
+test('<slot /> out of place is 8BS2019, with the reason', () => {
+  const codes = (src) => analyze(src, 't.8bx', { sourceKind: '.8bx' }).filter((d) => d.code === Codes.BX_INVALID_SLOT).map((d) => d.message);
+  assert.match(codes('component A() { <slot />; <slot />; }\nexport function main(): void { }\n')[0], /more than once/);
+  assert.match(codes('component A(f: bool) { if (f) { <slot />; } }\nexport function main(): void { }\n')[0], /top level of a component/);
+  assert.match(codes('export function main(): void { <slot />; }\n')[0], /top level of a component/);
+  assert.match(codes('component A() { let t: utinyint = 1; <slot />; t = 2; }\nexport function main(): void { }\n')[0], /declared before <slot \/> and used after it/);
+  assert.match(codes('component A() { <slot name="x" />; }\nexport function main(): void { }\n')[0], /takes no attributes yet/);
+  assert.deepEqual(codes('component A() { memory.write(0x8000, 1); <slot />; }\nexport function main(): void { }\n'), []);
+});
+
+test('element children on a component without a slot are still refused (§33)', () => {
+  const src = 'component A() { }\ncomponent B() { }\nexport function main(): void { <A><B /></A>; }\n';
+  const codes = analyze(src, 't.8bx', { sourceKind: '.8bx' }).map((d) => d.code);
+  assert.ok(codes.includes(Codes.BX_CHILDREN_REJECTED));
 });

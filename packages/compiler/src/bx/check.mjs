@@ -26,6 +26,7 @@ function bxTextValue(children) {
  */
 export function checkBx(ast, file, symbols, stack = []) {
   const diagnostics = [];
+  diagnostics.push(...checkSlots(ast, file));
 
   const checkElement = (el) => {
     if (!el || (el.type !== NodeType.BxElement && el.type !== NodeType.BxFragment)) return;
@@ -33,6 +34,9 @@ export function checkBx(ast, file, symbols, stack = []) {
       for (const child of el.children ?? []) checkElement(child);
       return;
     }
+    // The one intrinsic: where a component's children go. Its placement
+    // is checkSlots' business; it is never a component.
+    if (el.name === 'slot') return;
     const named = symbols.get(el.name);
     const sym = componentOf(named);
     if (!sym) {
@@ -127,5 +131,58 @@ export function checkBx(ast, file, symbols, stack = []) {
     if (n.type === NodeType.BxElement || n.type === NodeType.BxFragment) checkElement(n);
   });
 
+  return diagnostics;
+}
+
+/**
+ * `<slot />` is where a component's children elaborate (spec §33). For
+ * the first version it must be exactly one, at the top level of a
+ * component's body — not inside `if`/`while`/`for` or a nested block —
+ * and no local declared before it may be read after it: the body is
+ * split into two functions at the slot (bx/elaborate.mjs), and a local
+ * cannot live across that. Anywhere else, or any other way, is 8BS2019.
+ */
+function checkSlots(ast, file) {
+  const diagnostics = [];
+  const at = (n, message) => diagnostics.push(diagnostic(Codes.BX_INVALID_SLOT, message, file, n.start, n.length));
+  const isSlot = (n) => n?.type === NodeType.BxElement && n.name === 'slot';
+
+  const components = new Set();
+  for (const stmt of ast?.body ?? []) {
+    if (stmt?.type !== NodeType.ComponentDeclaration) continue;
+    components.add(stmt);
+    const body = stmt.body?.body ?? [];
+    const slots = body.filter(isSlot);
+    for (const extra of slots.slice(1)) at(extra, `component '${stmt.name?.name}' places <slot /> more than once; children go in one place`);
+    if (slots.length === 0) continue;
+    const index = body.indexOf(slots[0]);
+    if (slots[0].attributes?.length) at(slots[0], '<slot /> takes no attributes yet (named slots are a later milestone)');
+    if ((slots[0].children ?? []).some((c) => c.type !== NodeType.BxText || c.value.trim())) {
+      at(slots[0], '<slot /> has no children of its own; it is where the element\'s children go');
+    }
+    // A local declared before the slot and read after it would live in a
+    // different function from its reader.
+    const before = new Set(body.slice(0, index)
+      .filter((n) => n.type === NodeType.VariableDeclaration && n.name?.name)
+      .map((n) => n.name.name));
+    if (before.size > 0) {
+      for (const later of body.slice(index + 1)) {
+        walk(later, (n) => {
+          if (n.type === NodeType.Identifier && before.has(n.name)) {
+            at(n, `'${n.name}' is declared before <slot /> and used after it; a local cannot cross the slot`);
+            before.delete(n.name);
+          }
+        });
+      }
+    }
+  }
+  // Every other <slot /> — nested in control flow inside a component, or
+  // anywhere outside one — is out of place.
+  const topLevel = new Set([...components].flatMap((c) => (c.body?.body ?? []).filter(isSlot)));
+  walk(ast, (n) => {
+    if (isSlot(n) && !topLevel.has(n)) {
+      at(n, '<slot /> belongs at the top level of a component\'s body, once');
+    }
+  });
   return diagnostics;
 }

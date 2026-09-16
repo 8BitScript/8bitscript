@@ -149,6 +149,8 @@ export const Codes = {
   BX_PROP_TYPE: '8BS2016',
   BX_CHILDREN_REJECTED: '8BS2017',
   BX_COMPONENT_RECURSION: '8BS2018',
+  // `<slot />` where it cannot mean anything: outside a component, twice, nested in control flow, or with a local read across it.
+  BX_INVALID_SLOT: '8BS2019',
 
   NOT_COMPILABLE: '8BS3001',
   NOT_ON_THIS_TARGET: '8BS3002',

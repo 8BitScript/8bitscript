@@ -19,7 +19,7 @@ the linker touches the filesystem.
 | fold | AST | the same tree, with `#name(...)` calls resolved |
 | binder | AST | symbols, scopes, binding diagnostics |
 | checker | AST | type/range/component diagnostics |
-| 8BX elaboration | AST with BX nodes | core AST: a component is a function, an element is a call to it (no BX in backends) |
+| 8BX elaboration | AST with BX nodes | core AST: a component is a function (two, around its `<slot />`), an element is a call to it (no BX in backends) |
 | IR / backends | AST | the image, once a backend emits one |
 
 Two source kinds share this pipeline:

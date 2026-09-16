@@ -22,7 +22,7 @@ const TARGETS = ['vic20', 'c64', 'pet', 'c128', 'atari8', 'nes', 'cx16', 'mega65
 
 test('every component is a subpath, and there is no bare entry', () => {
   const exports = pkg['8bitscript'].exports;
-  assert.deepEqual(Object.keys(exports), ['./menubar']);
+  assert.deepEqual(Object.keys(exports), ['./menubar', './menubar-bx']);
   for (const [key, value] of Object.entries(exports)) {
     assert.ok(existsSync(join(ROOT, value)), `${key} names ${value}, which does not exist`);
   }
@@ -169,8 +169,13 @@ for (const target of TARGETS) {
     const { ir, diagnostics } = link(source, BX_PROBE, { machine: target, facts: stockFacts(target) });
     assert.deepEqual(diagnostics, []);
     const names = new Set(ir.functions.map((f) => f.name));
-    for (const component of ['MenuBar', 'MenuItem', 'MenuBarEnd']) {
+    for (const component of ['MenuBar__open', 'MenuItem', 'MenuBar__close']) {
       assert.ok(names.has(component), `${component} is linked in as a function`);
     }
+    // begin, the two items, end — in that order, from the two halves of
+    // MenuBar around its children.
+    const entry = ir.functions.find((f) => f.name === ir.entry);
+    assert.deepEqual(entry.body.filter((s) => s.kind === 'call').map((s) => s.name),
+      ['MenuBar__open', 'MenuItem', 'MenuItem', 'MenuBar__close']);
   });
 }

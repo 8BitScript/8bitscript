@@ -16,11 +16,15 @@ import { compile } from '../src/build.mjs';
 const REPO = resolve(import.meta.dirname, '..', '..', '..');
 const EXAMPLES = join(REPO, 'packages', 'examples');
 
+// Keep the CLI's own "built …" / "memory: …" lines out of the test
+// output, and nothing else: the test reporter writes to the same stream,
+// and a previous test's result line can land while this one is building.
+const CLI_LINE = /^(built |memory: |size breakdown|web bundle: |8bs build: )/;
 function silently(fn) {
-  const out = process.stdout.write;
-  const err = process.stderr.write;
-  process.stdout.write = () => true;
-  process.stderr.write = () => true;
+  const out = process.stdout.write.bind(process.stdout);
+  const err = process.stderr.write.bind(process.stderr);
+  process.stdout.write = (chunk, ...rest) => (CLI_LINE.test(String(chunk)) ? true : out(chunk, ...rest));
+  process.stderr.write = (chunk, ...rest) => (CLI_LINE.test(String(chunk)) ? true : err(chunk, ...rest));
   return Promise.resolve(fn()).finally(() => {
     process.stdout.write = out;
     process.stderr.write = err;

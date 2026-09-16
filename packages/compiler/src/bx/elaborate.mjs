@@ -24,10 +24,30 @@
 // only a component fed run-time values stays a real call (§64). The
 // backends never see an element; they see functions and calls.
 //
-// Not yet: `<slot />` (children elaborate before the call, always), named
-// slots, spread props, state. Those are the spec's later PRs.
-import { NodeType, node } from '../ast/index.mjs';
+// Children go where the component says `<slot />` (§33). A slotted
+// component is split at the slot into two functions, `Name__open` (the
+// body before it) and `Name__close` (the body after it), and
+// `<Name a={x}><A /><B /></Name>` becomes
+//
+//     Name__open(x); A(); B(); Name__close(x);
+//
+// — the children run once, in place, between the two halves (§105), and
+// every property above still holds: each half stays in its own module,
+// and an argument both halves read is hoisted to a local at the call site
+// when it could have a side effect, so it is evaluated once (§104). The
+// plain `Name` — the whole body with the slot elided — is kept for the
+// element with no children and for the `.8bs` call form, which cannot
+// pass children (§4.5); reachability pruning drops whichever is unused.
+// The checker (bx/check.mjs checkSlots) holds the slot to the shape this
+// split can honour: one, at the body's top level, no local across it.
+//
+// Not yet: named slots, spread props, state. Those are the spec's later PRs.
+import { NodeType, node, walk } from '../ast/index.mjs';
 import { componentOf } from '../binder/index.mjs';
+
+const isSlot = (n) => n?.type === NodeType.BxElement && n.name === 'slot';
+const OPEN = '__open';
+const CLOSE = '__close';
 
 function cloneNode(n) {
   if (!n || typeof n !== 'object') return n;
@@ -80,58 +100,97 @@ function argumentsFor(el, sym) {
   return args;
 }
 
-/** `Name(args);` where the element stood, carrying the element's span. */
-function callStatement(el, sym) {
+/** `name(args);` where the element stood, carrying the element's span. */
+function callStatement(el, name, args) {
   const end = el.start + el.length;
-  const callee = node(NodeType.Identifier, el.start, el.start + el.name.length + 1, { name: el.name });
-  const call = node(NodeType.CallExpression, el.start, end, { callee, args: argumentsFor(el, sym) });
+  const callee = node(NodeType.Identifier, el.start, el.start + el.name.length + 1, { name });
+  const call = node(NodeType.CallExpression, el.start, end, { callee, args });
   return node(NodeType.ExpressionStatement, el.start, end, { expression: call });
 }
 
-function elaborateElement(el, symbols) {
-  const sym = componentOf(symbols.get(el.name));
-  if (!sym) return [];
+/** An argument that may run code: anything but a name or a literal. */
+function mayHaveEffect(expr) {
+  let effect = false;
+  walk(expr, (n) => {
+    if (n.type === NodeType.CallExpression || n.type === NodeType.AssignmentExpression
+      || n.type === NodeType.UpdateExpression || n.type === NodeType.TemplateLiteral) effect = true;
+  });
+  return effect;
+}
+
+/**
+ * An element whose children go into a slot: the two halves around them.
+ * An argument both halves would evaluate is bound to a local first when it
+ * could do anything, so it does it once. The local is typed as the prop
+ * is; a prop with no type cannot be hoisted and is passed as written.
+ */
+function slottedElement(el, sym, ctx) {
+  const args = argumentsFor(el, sym);
   const stmts = [];
+  const passed = args.map((arg, i) => {
+    const prop = sym.props[i];
+    if (!mayHaveEffect(arg) || !prop?.typeAnnotation) return arg;
+    ctx.hoisted += 1;
+    const name = `__bx_${ctx.hoisted}_${prop.name}`;
+    const id = (start) => node(NodeType.Identifier, start, start + name.length, { name });
+    stmts.push(node(NodeType.VariableDeclaration, arg.start, arg.start + arg.length, {
+      kind: 'let', name: id(arg.start), typeAnnotation: cloneNode(prop.typeAnnotation), initializer: arg, exported: false,
+    }));
+    return id(arg.start);
+  });
+  const open = ctx.imported(el.name, sym, OPEN);
+  const close = ctx.imported(el.name, sym, CLOSE);
+  stmts.push(callStatement(el, open, passed));
   for (const child of el.children ?? []) {
     if (child.type === NodeType.BxElement || child.type === NodeType.BxFragment) {
-      stmts.push(...elaborateElementTree(child, symbols));
+      stmts.push(...elaborateElementTree(child, ctx));
     }
   }
-  stmts.push(callStatement(el, sym));
+  stmts.push(callStatement(el, close, passed.map(cloneNode)));
   return stmts;
 }
 
-function elaborateElementTree(n, symbols) {
+function elaborateElement(el, ctx) {
+  const sym = componentOf(ctx.symbols.get(el.name));
+  if (!sym) return [];
+  const elementChildren = (el.children ?? []).some((c) => c.type === NodeType.BxElement || c.type === NodeType.BxFragment);
+  if (elementChildren && sym.allowsChildren) return slottedElement(el, sym, ctx);
+  // No slot to put children in: the checker said so; they are dropped here
+  // rather than run somewhere the component did not ask for them.
+  return [callStatement(el, el.name, argumentsFor(el, sym))];
+}
+
+function elaborateElementTree(n, ctx) {
   if (n.type === NodeType.BxFragment) {
-    return (n.children ?? []).flatMap((c) => elaborateElementTree(c, symbols));
+    return (n.children ?? []).flatMap((c) => elaborateElementTree(c, ctx));
   }
   if (n.type === NodeType.BxElement) {
-    return elaborateElement(n, symbols);
+    return elaborateElement(n, ctx);
   }
   return [];
 }
 
-function transformStatement(stmt, symbols) {
+function transformStatement(stmt, ctx) {
   if (!stmt) return [stmt];
   if (stmt.type === NodeType.BxElement || stmt.type === NodeType.BxFragment) {
-    return elaborateElementTree(stmt, symbols);
+    return elaborateElementTree(stmt, ctx);
   }
   if (stmt.type === NodeType.BlockStatement) {
     return [node(NodeType.BlockStatement, stmt.start, stmt.start + stmt.length, {
-      body: (stmt.body ?? []).flatMap((s) => transformStatement(s, symbols)),
+      body: (stmt.body ?? []).flatMap((s) => transformStatement(s, ctx)),
     })];
   }
   if (stmt.type === NodeType.IfStatement) {
     return [node(NodeType.IfStatement, stmt.start, stmt.start + stmt.length, {
       test: stmt.test,
-      consequent: transformStatement(stmt.consequent, symbols)[0],
-      alternate: stmt.alternate ? transformStatement(stmt.alternate, symbols)[0] : null,
+      consequent: transformStatement(stmt.consequent, ctx)[0],
+      alternate: stmt.alternate ? transformStatement(stmt.alternate, ctx)[0] : null,
     })];
   }
   if (stmt.type === NodeType.WhileStatement) {
     return [node(NodeType.WhileStatement, stmt.start, stmt.start + stmt.length, {
       test: stmt.test,
-      body: transformStatement(stmt.body, symbols)[0],
+      body: transformStatement(stmt.body, ctx)[0],
     })];
   }
   if (stmt.type === NodeType.ForStatement) {
@@ -139,47 +198,54 @@ function transformStatement(stmt, symbols) {
       init: stmt.init,
       test: stmt.test,
       update: stmt.update,
-      body: transformStatement(stmt.body, symbols)[0],
+      body: transformStatement(stmt.body, ctx)[0],
     })];
   }
   return [stmt];
 }
 
 /**
- * A component declaration as the function it is: same name, same
+ * A component declaration as the function(s) it is: same name, same
  * parameters (typed, with defaults), void, exported if the component was,
  * and `component: true` so the inliner and the size report know what it
- * was. Elements in its body become calls like anywhere else.
+ * was. Elements in its body become calls like anywhere else. A body with
+ * a `<slot />` is also split at it into `Name__open` and `Name__close`.
  */
-function componentFunction(stmt, symbols) {
-  const body = stmt.body
-    ? node(NodeType.BlockStatement, stmt.body.start, stmt.body.start + stmt.body.length, {
-      body: (stmt.body.body ?? []).flatMap((s) => transformStatement(s, symbols)),
-    })
-    : node(NodeType.BlockStatement, stmt.start, stmt.start + stmt.length, { body: [] });
-  return node(NodeType.FunctionDeclaration, stmt.start, stmt.start + stmt.length, {
-    name: stmt.name,
-    params: stmt.params ?? [],
+function componentFunction(stmt, ctx) {
+  const statements = stmt.body?.body ?? [];
+  const span = stmt.body ?? stmt;
+  const fn = (suffix, body) => node(NodeType.FunctionDeclaration, stmt.start, stmt.start + stmt.length, {
+    name: suffix
+      ? node(NodeType.Identifier, stmt.name.start, stmt.name.start + stmt.name.length, { name: stmt.name.name + suffix })
+      : stmt.name,
+    params: suffix ? cloneNode(stmt.params ?? []) : (stmt.params ?? []),
     returnType: null,
-    body,
+    body: node(NodeType.BlockStatement, span.start, span.start + span.length, {
+      body: body.flatMap((s) => transformStatement(s, ctx)),
+    }),
     exported: stmt.exported ?? false,
     component: true,
   });
+  const slot = statements.findIndex(isSlot);
+  if (slot < 0) return [fn('', statements)];
+  const before = statements.slice(0, slot);
+  const after = statements.slice(slot + 1).filter((s) => !isSlot(s));
+  return [fn('', [...before, ...after]), fn(OPEN, before), fn(CLOSE, after)];
 }
 
-function transformDecl(stmt, symbols) {
+function transformDecl(stmt, ctx) {
   if (stmt?.type === NodeType.FunctionDeclaration && stmt.body) {
-    return {
+    return [{
       ...stmt,
       body: node(NodeType.BlockStatement, stmt.body.start, stmt.body.start + stmt.body.length, {
-        body: (stmt.body.body ?? []).flatMap((s) => transformStatement(s, symbols)),
+        body: (stmt.body.body ?? []).flatMap((s) => transformStatement(s, ctx)),
       }),
-    };
+    }];
   }
   if (stmt?.type === NodeType.ComponentDeclaration) {
-    return componentFunction(stmt, symbols);
+    return componentFunction(stmt, ctx);
   }
-  return stmt;
+  return [stmt];
 }
 
 /**
@@ -189,8 +255,32 @@ function transformDecl(stmt, symbols) {
  */
 export function elaborateBx(ast, symbols) {
   if (!ast || ast.type !== NodeType.Program) return ast;
+  const ctx = {
+    symbols,
+    hoisted: 0,
+    /**
+     * The name a half of a slotted component is called by here. For a
+     * component declared in this module that is just `Name__open`; for
+     * an imported one the half has to be imported too, so its specifier
+     * is added to the import that brought `Name` in — the linker then
+     * binds it to the definer's exported function like any other.
+     */
+    imported(localName, sym, suffix) {
+      const half = localName + suffix;
+      const named = symbols.get(localName);
+      if (named?.kind !== 'Import') return half;
+      const decl = (ast.body ?? []).find((s) => s.type === NodeType.ImportDeclaration && s.source?.value === named.source);
+      if (decl && !decl.specifiers.some((sp) => sp.name === half)) {
+        const spec = decl.specifiers.find((sp) => sp.name === localName) ?? named.node;
+        decl.specifiers.push(node(NodeType.Identifier, spec.start, spec.start + spec.length, {
+          name: half, imported: (named.imported ?? localName) + suffix,
+        }));
+      }
+      return half;
+    },
+  };
   ast.body = (ast.body ?? [])
-    .map((stmt) => transformDecl(stmt, symbols))
-    .flatMap((stmt) => transformStatement(stmt, symbols));
+    .flatMap((stmt) => transformDecl(stmt, ctx))
+    .flatMap((stmt) => transformStatement(stmt, ctx));
   return ast;
 }

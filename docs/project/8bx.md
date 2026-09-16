@@ -37,15 +37,21 @@ superseded.
   - element syntax is scanned from the raw text at a statement's `<`
     (`src/bx/parse.mjs`) rather than by a lexer mode (§13–§16), so a
     diagnostic inside a `{…}` attribute carries the substring's offset;
-  - children elaborate before the component's body, and there is no
-    `<slot />` (§33) — which is why `@8bitscript/ui`'s `menubar.8bx`
-    needs a `MenuBarEnd` component;
-  - `?:` lowers on the 6502 backend and not yet on the web (§99).
+  - `?:` lowers on the 6502 backend and not yet on the web (§99);
+  - `@8bitscript/ui/menubar`'s `item()` stores into a 2-byte array,
+    which the native backend does not write yet, so the real menu bar
+    cannot be built for a 6502 by hand or as elements; the §69 gate is
+    measured on a same-shaped bar until it can.
 - **A component is a function; an element is a call to it.** That gives
   hygiene, evaluate-once props (§104) and `export component` across
   modules (§9–§11) in one move; the linker's inliner makes a
   compile-time-prop element cost what the hand-written calls would (§64,
   §65). `component` is a keyword in `.8bx` only (§129).
+- **Children go where `<slot />` is** (§33): a slotted component is two
+  functions around its children, so they run once, in place (§105).
+  `@8bitscript/ui/menubar-bx` is `<MenuBar row width><MenuItem label />…</MenuBar>`
+  and builds byte-identical to the hand-written calls (§69, measured on
+  PET and C64).
 - **A program starts from `.8bs`, and calls its components.** `8bs build`
   refuses an `.8bx` entry by name (§4.3); a component is reached from
   `.8bs` as an ordinary positional call — `Hello();` is `<Hello />` the

@@ -391,8 +391,11 @@ class Parser {
       }
       this.expect(')');
     }
-    const allowsChildren = params.some((p) => p.name?.name === 'children');
     const body = this.parseBlock();
+    // Element children go where the body says `<slot />` (spec §33); a
+    // parameter named `children` is the separate declaration that the
+    // component accepts *text* children (§35).
+    const allowsChildren = (body?.body ?? []).some((s) => s.type === NodeType.BxElement && s.name === 'slot');
     const end = body ? body.start + body.length : start;
     return node(NodeType.ComponentDeclaration, start, end, {
       name, params, body, exported, allowsChildren,
