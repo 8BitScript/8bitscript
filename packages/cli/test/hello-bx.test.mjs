@@ -37,7 +37,8 @@ async function buildExample(name, target) {
     process.chdir(dir);
     const result = await silently(() => compile(target, undefined, { checkout: REPO }));
     assert.equal(result.ok, true, `${name} builds for ${target}`);
-    return readFile(result.outFile);
+    // Awaited here, not returned as a promise: the finally below removes the directory.
+    return await readFile(result.outFile);
   } finally {
     process.chdir(prev);
     rmSync(dir, { recursive: true, force: true });
