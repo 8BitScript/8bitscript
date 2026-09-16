@@ -108,7 +108,7 @@ export function analyze(text, file = '<unknown>', options = {}) {
     });
   }
   binding.push(...checkBx(ast, file, bound.symbols, { sourceKind, strict: options.bx?.strict !== false }));
-  elaborateBx(ast, bound.symbols);
+  elaborateBx(ast, bound.symbols, file);
 
   // Folding runs before check(), same ordering as the linker: a
   // #frames(...) call needs to already be a plain IntegerLiteral by the

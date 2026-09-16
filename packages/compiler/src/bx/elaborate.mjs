@@ -41,7 +41,20 @@
 // The checker (bx/check.mjs checkSlots) holds the slot to the shape this
 // split can honour: one, at the body's top level, no local across it.
 //
-// Not yet: named slots, spread props, state. Those are the spec's later PRs.
+// State (§36–§37) is storage per static instance. Inside the component's
+// module each `state f: T = v;` becomes one module-level global,
+// `__bx_Name__f` — the *template* — and every use of `f` in the body reads
+// or writes it. An element then names its instance: the call the element
+// becomes carries an `instance` tag, and the linker (specializeInstances)
+// clones the function per instance, pointing the clone at its own copy of
+// each template global, `__bx_Name__f__i1`, `__i2`, … — the same name in
+// every module, because the clones are made on the linked program. Two
+// `<Player />` are two functions and two sets of globals; nothing is
+// allocated at run time, and the size report shows every byte (§37). The
+// halves of a slotted component share one tag, so one instance's state.
+//
+// Not yet: named slots, spread props, component methods. Those are the
+// spec's later PRs.
 import { NodeType, node, walk } from '../ast/index.mjs';
 import { componentOf } from '../binder/index.mjs';
 
@@ -101,12 +114,23 @@ function argumentsFor(el, sym) {
   return args;
 }
 
-/** `name(args);` where the element stood, carrying the element's span. */
-function callStatement(el, name, args) {
+/**
+ * `name(args);` where the element stood, carrying the element's span and
+ * — when the component keeps state — the element's instance tag, one per
+ * element in the module, so the linker can give the call its own storage.
+ */
+function callStatement(el, name, args, instance) {
   const end = el.start + el.length;
   const callee = node(NodeType.Identifier, el.start, el.start + el.name.length + 1, { name });
-  const call = node(NodeType.CallExpression, el.start, end, { callee, args });
+  const call = node(NodeType.CallExpression, el.start, end, { callee, args, ...(instance ? { instance } : {}) });
   return node(NodeType.ExpressionStatement, el.start, end, { expression: call });
+}
+
+/** The instance tag for one element of a stateful component, or null for a stateless one. */
+function instanceTag(el, sym, ctx) {
+  if (!sym.state?.length) return null;
+  ctx.instances += 1;
+  return `${ctx.file}#${ctx.instances}`;
 }
 
 /** An argument that may run code: anything but a name or a literal. */
@@ -141,13 +165,14 @@ function slottedElement(el, sym, ctx) {
   });
   const open = ctx.imported(el.name, sym, OPEN);
   const close = ctx.imported(el.name, sym, CLOSE);
-  stmts.push(callStatement(el, open, passed));
+  const instance = instanceTag(el, sym, ctx);
+  stmts.push(callStatement(el, open, passed, instance));
   for (const child of el.children ?? []) {
     if (child.type === NodeType.BxElement || child.type === NodeType.BxFragment) {
       stmts.push(...elaborateElementTree(child, ctx));
     }
   }
-  stmts.push(callStatement(el, close, passed.map(cloneNode)));
+  stmts.push(callStatement(el, close, passed.map(cloneNode), instance));
   return stmts;
 }
 
@@ -158,7 +183,7 @@ function elaborateElement(el, ctx) {
   if (elementChildren && sym.allowsChildren) return slottedElement(el, sym, ctx);
   // No slot to put children in: the checker said so; they are dropped here
   // rather than run somewhere the component did not ask for them.
-  return [callStatement(el, el.name, argumentsFor(el, sym))];
+  return [callStatement(el, el.name, argumentsFor(el, sym), instanceTag(el, sym, ctx))];
 }
 
 function elaborateElementTree(n, ctx) {
@@ -213,8 +238,30 @@ function transformStatement(stmt, ctx) {
  * a `<slot />` is also split at it into `Name__open` and `Name__close`.
  */
 function componentFunction(stmt, ctx) {
-  const statements = stmt.body?.body ?? [];
+  const declared = stmt.body?.body ?? [];
   const span = stmt.body ?? stmt;
+  // State: one template global per field, at module level, and the body
+  // reading and writing it by that name.
+  const fields = declared.filter((s) => s.type === NodeType.StateDeclaration && s.name?.name);
+  const state = fields.map((f) => ({ field: f.name.name, global: `__bx_${stmt.name.name}__${f.name.name}` }));
+  const globals = fields.map((f, i) => node(NodeType.VariableDeclaration, f.start, f.start + f.length, {
+    kind: 'let',
+    name: node(NodeType.Identifier, f.name.start, f.name.start + f.name.length, { name: state[i].global }),
+    typeAnnotation: f.typeAnnotation,
+    initializer: f.initializer,
+    exported: false,
+  }));
+  const byField = new Map(state.map((s) => [s.field, s.global]));
+  const statements = declared.filter((s) => s.type !== NodeType.StateDeclaration).map((s) => {
+    if (byField.size === 0) return s;
+    const copy = cloneNode(s);
+    walk(copy, (n, parent) => {
+      // `frame` the name, not `.frame` the member of something else.
+      const isProperty = parent?.type === NodeType.MemberExpression && parent.property === n;
+      if (n.type === NodeType.Identifier && byField.has(n.name) && !isProperty) n.name = byField.get(n.name);
+    });
+    return copy;
+  });
   const fn = (suffix, body) => node(NodeType.FunctionDeclaration, stmt.start, stmt.start + stmt.length, {
     name: suffix
       ? node(NodeType.Identifier, stmt.name.start, stmt.name.start + stmt.name.length, { name: stmt.name.name + suffix })
@@ -226,12 +273,13 @@ function componentFunction(stmt, ctx) {
     }),
     exported: stmt.exported ?? false,
     component: true,
+    ...(state.length ? { state } : {}),
   });
   const slot = statements.findIndex(isSlot);
-  if (slot < 0) return [fn('', statements)];
+  if (slot < 0) return [...globals, fn('', statements)];
   const before = statements.slice(0, slot);
   const after = statements.slice(slot + 1).filter((s) => !isSlot(s));
-  return [fn('', [...before, ...after]), fn(OPEN, before), fn(CLOSE, after)];
+  return [...globals, fn('', [...before, ...after]), fn(OPEN, before), fn(CLOSE, after)];
 }
 
 function transformDecl(stmt, ctx) {
@@ -252,13 +300,16 @@ function transformDecl(stmt, ctx) {
 /**
  * @param {object} ast Program node
  * @param {Map<string, object>} symbols the module's bound symbols, imports already linked
+ * @param {string} [file] the module's path, for instance tags (§103: identity from source position)
  * @returns {object} the same program, with no BX node left in it
  */
-export function elaborateBx(ast, symbols) {
+export function elaborateBx(ast, symbols, file = '') {
   if (!ast || ast.type !== NodeType.Program) return ast;
   const ctx = {
     symbols,
+    file,
     hoisted: 0,
+    instances: 0,
     /**
      * The name a half of a slotted component is called by here. For a
      * component declared in this module that is just `Name__open`; for

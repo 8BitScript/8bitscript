@@ -511,3 +511,31 @@ test('build() prints a warning and still builds; bx.strict: false silences the l
     assert.match(stdout, /not building/);
   });
 });
+
+// Every byte an abstraction keeps is in the size report (8BX spec §119):
+// a stateful component's instances, each with the RAM its state takes.
+test('build() --size lists each 8BX instance and the bytes of state it holds', async () => {
+  const dir = await mkdtemp(join(tmpdir(), '8bs-bx-state-'));
+  const prev = process.cwd();
+  try {
+    await writeFile(join(dir, 'main.8bs'), 'import { draw } from "./Tally.8bx";\nexport function main(): void { draw(); }\n');
+    await writeFile(join(dir, 'Tally.8bx'), [
+      'component Tally(step: utinyint) {',
+      '    state count: usmallint = 0;',
+      '    count = count + step;',
+      '    memory.write(0x8000, count);',
+      '}',
+      'export function draw(): void { <Tally step={1} />; <Tally step={2} />; }',
+      '',
+    ].join('\n'));
+    await writeFile(join(dir, '8bitscript.config.ts'), "export default { entry: 'main.8bs', targets: ['pet'] };\n");
+    process.chdir(dir);
+    const { result, stdout } = await capture(() => build(['--target', 'pet', '--size']));
+    assert.equal(result, 0, stdout);
+    assert.match(stdout, /component state \(bytes of RAM\):\n\s+2  state Tally\[i1\]\n\s+2  state Tally\[i2\]/);
+    assert.match(stdout, /4 bytes of RAM for variables/, 'both instances counted');
+  } finally {
+    process.chdir(prev);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
