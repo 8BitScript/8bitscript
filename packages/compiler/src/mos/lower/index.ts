@@ -76,6 +76,11 @@ export interface IrExpr {
   // 'index': which array this reads, and its element type/width.
   array?: IrExpr;
   elementType?: string | null;
+  // 'cond': `test ? consequent : alternate` (ir/index.mjs's
+  // ConditionalExpression lowering) — one arm's value, chosen by a branch.
+  test?: IrExpr;
+  consequent?: IrExpr;
+  alternate?: IrExpr;
 }
 
 export interface IrStatement {
@@ -508,10 +513,10 @@ class Lowerer {
       case 'cond': {
         const elseLabel = freshLabel('cond_else');
         const endLabel = freshLabel('cond_end');
-        this.branchIfFalse(node.test as IrExpr, elseLabel);
-        this.expr(node.consequent as IrExpr);
+        this.branchIfFalse(node.test!, elseLabel);
+        this.expr(node.consequent!);
         this.emit(jmp(endLabel), label(elseLabel));
-        this.expr(node.alternate as IrExpr);
+        this.expr(node.alternate!);
         this.emit(label(endLabel));
         return;
       }
