@@ -125,8 +125,13 @@ function quotedStrings(text) {
  * }`); either way the machines named are the project's targets, in the
  * toolchain's order.
  *
+ * A project with several `programs` lists them by name, each with its
+ * entry; `entry` is then the `main` program's (or the first one's), so
+ * everything that opens or launches "the" program keeps working, and a
+ * side bar that wants the rest has `programs` to read.
+ *
  * @param {string} text
- * @returns {{ entry: string, targets: string[] }}
+ * @returns {{ entry: string, targets: string[], programs: Array<{ name: string, entry: string }> }}
  */
 function parseConfig(text) {
   const source = stripComments(text);
@@ -135,18 +140,72 @@ function parseConfig(text) {
   const entryMatch = /\bentry\s*:\s*(['"`])([^'"`]+)\1/.exec(source);
   if (entryMatch) entry = entryMatch[2];
 
+  // A program's own `targets` sits inside the programs block, so that block
+  // is read first and blanked before the project's `targets` is looked for.
+  let programs = [];
+  let outside = source;
+  const programsMatch = /\bprograms\s*:\s*\{/.exec(source);
+  if (programsMatch) {
+    const from = programsMatch.index + programsMatch[0].length;
+    const { programs: found, end } = programEntries(source, from);
+    programs = found;
+    outside = source.slice(0, programsMatch.index) + ' '.repeat(end - programsMatch.index) + source.slice(end);
+    if (programs.length > 0) {
+      const main = programs.find((p) => p.name === 'main') ?? programs[0];
+      entry = main.entry;
+    }
+  }
+  if (programs.length === 0) programs = [{ name: 'main', entry }];
+
   let targets = ALL_TARGETS;
-  const targetsMatch = /\btargets\s*:\s*\[([^\]]*)\]/.exec(source);
-  const objectMatch = /\btargets\s*:\s*\{/.exec(source);
+  const targetsMatch = /\btargets\s*:\s*\[([^\]]*)\]/.exec(outside);
+  const objectMatch = /\btargets\s*:\s*\{/.exec(outside);
   if (targetsMatch) {
     const listed = quotedStrings(targetsMatch[1]).filter((t) => ALL_TARGETS.includes(t));
     if (listed.length > 0) targets = ALL_TARGETS.filter((t) => listed.includes(t));
   } else if (objectMatch) {
-    const listed = topLevelKeys(source, objectMatch.index + objectMatch[0].length).filter((t) => ALL_TARGETS.includes(t));
+    const listed = topLevelKeys(outside, objectMatch.index + objectMatch[0].length).filter((t) => ALL_TARGETS.includes(t));
     if (listed.length > 0) targets = ALL_TARGETS.filter((t) => listed.includes(t));
   }
 
-  return { entry, targets };
+  return { entry, targets, programs };
+}
+
+/**
+ * The programs of a `programs: { … }` block whose body starts at `from`:
+ * each depth-one key with the `entry` named inside its own braces, and
+ * where the block ends (just past its closing brace).
+ */
+function programEntries(source, from) {
+  const programs = [];
+  let depth = 1;
+  let i = from;
+  while (i < source.length && depth > 0) {
+    const c = source[i];
+    if (c === '{' || c === '[') depth += 1;
+    else if (c === '}' || c === ']') depth -= 1;
+    else if (depth === 1) {
+      const m = /^\s*(?:(['"`])([^'"`]+)\1|([A-Za-z_$][\w$]*))\s*:\s*\{/.exec(source.slice(i));
+      if (m) {
+        const name = m[2] ?? m[3];
+        const bodyStart = i + m[0].length;
+        let bodyDepth = 1;
+        let j = bodyStart;
+        while (j < source.length && bodyDepth > 0) {
+          if (source[j] === '{') bodyDepth += 1;
+          else if (source[j] === '}') bodyDepth -= 1;
+          j += 1;
+        }
+        const body = source.slice(bodyStart, j - 1);
+        const entryMatch = /\bentry\s*:\s*(['"`])([^'"`]+)\1/.exec(body);
+        if (entryMatch) programs.push({ name, entry: entryMatch[2] });
+        i = j;
+        continue;
+      }
+    }
+    i += 1;
+  }
+  return { programs, end: i };
 }
 
 /**
@@ -482,7 +541,7 @@ function loadProject(configPath, overrides = {}) {
   } catch {
     // An unreadable config still marks a project; it just gets the defaults.
   }
-  const { entry, targets } = parseConfig(text);
+  const { entry, targets, programs } = parseConfig(text);
   const pkg = readPackage(dir);
   const name = (pkg && typeof pkg.name === 'string' && pkg.name) || path.basename(dir);
   const app = appManifest(pkg);
@@ -495,6 +554,7 @@ function loadProject(configPath, overrides = {}) {
     configPath,
     entry: path.resolve(dir, entry),
     targets,
+    programs: programs.map((p) => ({ name: p.name, entry: path.resolve(dir, p.entry) })),
     toolchain: findToolchain(dir, checkout),
     installed: isInstalled(dir, pkg),
     packageManager: packageManagerFor(dir),

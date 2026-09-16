@@ -1,0 +1,84 @@
+// The shape of 8bitscript.config.ts. Every key is optional; a config that
+// names nothing builds src/main.8bs for every machine this release
+// supports. docs/config.md is the prose version of this file.
+
+/** The machines the toolchain knows. */
+export type Machine =
+  | 'vic20' | 'c64' | 'pet' | 'c128' | 'atari8' | 'nes' | 'cx16' | 'mega65' | 'web';
+
+/** Fact floors: a count is the least the program needs, a flag must be true. */
+export type Requires = Record<string, number | boolean>;
+
+/** Hardware option values, by option id, as `8bs targets` lists them. */
+export type HardwareOptions = Record<string, string>;
+
+/** One artifact a release builds for a target: a preset/profile name, or a composed choice. */
+export type ReleaseVariant = string | { profile?: string; hardware?: HardwareOptions };
+
+export interface TargetConfig {
+  /** The project's own stock for this machine — under every profile and `--hardware`. */
+  hardware?: HardwareOptions;
+  /** Named option sets `--profile` accepts, beside the catalog's presets. */
+  profiles?: Record<string, HardwareOptions>;
+  /** What `8bs build --release` builds for this machine; one build with the default hardware when absent. */
+  release?: ReleaseVariant[];
+}
+
+export interface SystemConfig {
+  target: Machine;
+  profile?: string;
+  hardware?: HardwareOptions;
+  region?: 'ntsc' | 'pal';
+}
+
+/** One program: its own link, from its own `.8bs` entry. The key it sits under is its output stem. */
+export interface ProgramConfig {
+  /** The `.8bs` file the program starts from. An `.8bx` is refused: it declares composition and is imported. */
+  entry: string;
+  /** The machines this program builds for — a subset of the project's `targets`. All of them when absent. */
+  targets?: Machine[];
+  /** Floors this program raises above the project's `requires`; it may not lower one. */
+  requires?: Requires;
+}
+
+/** One file inside an image: a program by name, or a file by path, with the name it has on the disk. */
+export type ImageFile =
+  | { program: string; name: string; type?: 'prg' | 'seq' }
+  | { path: string; name: string; type?: 'prg' | 'seq' };
+
+/** A disk image: a container over built programs and data, written after `--release` builds them. */
+export interface ImageConfig {
+  target: Machine;
+  /** Per machine: d64/d71/d81 on the Commodores, atr on the Atari. The NES and the web have none. */
+  format: 'd64' | 'd71' | 'd81' | 'atr';
+  /** The program written first — what `LOAD "*",8,1` loads. */
+  boot: string;
+  files: ImageFile[];
+}
+
+export interface ProjectConfig {
+  /**
+   * The `.8bs` file a build starts from — the one-program spelling, and
+   * `programs: { main: { entry } }` with the entry's filename as the stem.
+   * A `.<machine>.8bs` twin beside it is used on that machine. The older
+   * per-machine object (`{ default, nes }`) still works.
+   */
+  entry?: string | ({ default?: string } & Partial<Record<Machine, string>>);
+  /** Several programs in one project. Cannot be given together with `entry`. */
+  programs?: Record<string, ProgramConfig>;
+  /** Disk images over the programs above. Validated today; written by a later release. */
+  images?: Record<string, ImageConfig>;
+  /** Logical frames per second for `waitFrame()` and `#frames(...)`. Default 60. */
+  frameRate?: number;
+  /** The machines this project builds for: names, or per-machine hardware, profiles and release variants. */
+  targets?: Machine[] | Partial<Record<Machine, TargetConfig>>;
+  /** Advertised named machines, for `--system` and the editor's side bar. */
+  systems?: Record<string, SystemConfig>;
+  /** Fact floors every program in the project needs. */
+  requires?: Requires;
+  /** 8BX settings. `strict: false` turns the ordinary-code lint in `.8bx` files off; the hard rules stay. */
+  bx?: { strict?: boolean };
+}
+
+/** Returns `config` unchanged; exists to type it. `export default { … }` is still a config. */
+export function defineConfig<T extends ProjectConfig>(config: T): T;

@@ -45,7 +45,10 @@ test('--json carries the project\'s systems beside the targets and the fact sche
   const { stdout } = await run(process.execPath, [BIN, 'targets', '--json'], { cwd: dir, maxBuffer: 8 * 1024 * 1024 });
   const parsed = JSON.parse(stdout);
   assert.deepEqual(Object.keys(parsed).sort(),
-    ['facts', 'requires', 'requiresError', 'systems', 'systemsError', 'targets']);
+    ['facts', 'programs', 'programsError', 'requires', 'requiresError', 'systems', 'systemsError', 'targets']);
+  // One `entry` is the one program every project has, named main.
+  assert.deepEqual(parsed.programs, [{ name: 'main', entry: 'src/main.8bs', targets: null }]);
+  assert.equal(parsed.programsError, null);
   assert.deepEqual(parsed.systems.map((s) => [s.name, s.target, s.profile, s.region, s.origin]), [
     ['C64 with an REU', 'c64', 'loaded', 'pal', 'advertised'],
     ['Expanded VIC-20', 'vic20', '8k', null, 'advertised'],
@@ -158,4 +161,35 @@ test('--json merges a project-personal systems file over the advertised block', 
     ['Shared', 'pet', 'project'],
     ['Desk PET', 'pet', 'project'],
   ]);
+});
+
+test('--json lists the project\'s programs, and a wrong programs block costs the reader only its programs', async (t) => {
+  const dir = project(t, `export default {
+  programs: {
+    main:   { entry: 'src/main.8bs' },
+    format: { entry: 'src/tools/format.8bs', targets: ['c64'] },
+  },
+  targets: ['c64', 'pet'],
+};
+`);
+  const { stdout } = await run(process.execPath, [BIN, 'targets', '--json'], { cwd: dir, maxBuffer: 8 * 1024 * 1024 });
+  const parsed = JSON.parse(stdout);
+  assert.deepEqual(parsed.programs, [
+    { name: 'main', entry: 'src/main.8bs', targets: null },
+    { name: 'format', entry: 'src/tools/format.8bs', targets: ['c64'] },
+  ]);
+  // The text form names them too, with the flag that reaches each one.
+  const text = await run(process.execPath, [BIN, 'targets'], { cwd: dir, maxBuffer: 8 * 1024 * 1024 });
+  assert.match(text.stdout, /programs:\n\s+main\s+src\/main\.8bs\s+8bs run <target> --program main\n\s+format\s+src\/tools\/format\.8bs \(c64\)\s+8bs run <target> --program format/);
+
+  const wrong = project(t, `export default {
+  programs: { main: { entry: 'src/App.8bx' } },
+  targets: ['c64'],
+};
+`);
+  const bad = await run(process.execPath, [BIN, 'targets', '--json'], { cwd: wrong, maxBuffer: 8 * 1024 * 1024 });
+  const badParsed = JSON.parse(bad.stdout);
+  assert.equal(badParsed.targets.length, 9);
+  assert.deepEqual(badParsed.programs, []);
+  assert.match(badParsed.programsError, /programs\.main\.entry is src\/App\.8bx, a \.8bx file; a program starts from a \.8bs file/);
 });

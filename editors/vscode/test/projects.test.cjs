@@ -59,7 +59,33 @@ test('parseConfig reads entry and targets from the documented shape', () => {
   targets: ['pet', 'web'],
 };
 `);
-  assert.deepEqual(config, { entry: 'src/main.8bs', targets: ['pet', 'web'] });
+  assert.deepEqual(config, { entry: 'src/main.8bs', targets: ['pet', 'web'], programs: [{ name: 'main', entry: 'src/main.8bs' }] });
+});
+
+test('parseConfig reads a programs block: every program by name, and `entry` is main\'s', () => {
+  const config = parseConfig(`import { defineConfig } from '@8bitscript/cli';
+export default defineConfig({
+  programs: {
+    format: { entry: 'src/tools/format.8bs', targets: ['c64'] },
+    main:   { entry: 'src/main.8bs' },
+    "copy": { entry: "src/tools/copy.8bs", requires: { 'memory.ram': 32768 } },
+  },
+  targets: { c64: {}, pet: {} },
+});
+`);
+  assert.deepEqual(config, {
+    entry: 'src/main.8bs',
+    targets: ['pet', 'c64'],
+    programs: [
+      { name: 'format', entry: 'src/tools/format.8bs' },
+      { name: 'main', entry: 'src/main.8bs' },
+      { name: 'copy', entry: 'src/tools/copy.8bs' },
+    ],
+  });
+  // No main: the first program is "the" program.
+  const first = parseConfig(`export default { programs: { tool: { entry: 'tool.8bs' } } };`);
+  assert.equal(first.entry, 'tool.8bs');
+  assert.deepEqual(first.programs, [{ name: 'tool', entry: 'tool.8bs' }]);
 });
 
 test('parseConfig lists targets in the toolchain order, not the file order', () => {
@@ -71,8 +97,9 @@ test('parseConfig falls back to the CLI defaults when keys are absent', () => {
   assert.deepEqual(parseConfig('export default {};'), {
     entry: DEFAULT_ENTRY,
     targets: ALL_TARGETS,
+    programs: [{ name: 'main', entry: DEFAULT_ENTRY }],
   });
-  assert.deepEqual(parseConfig(''), { entry: DEFAULT_ENTRY, targets: ALL_TARGETS });
+  assert.deepEqual(parseConfig(''), { entry: DEFAULT_ENTRY, targets: ALL_TARGETS, programs: [{ name: 'main', entry: DEFAULT_ENTRY }] });
 });
 
 test('parseConfig ignores commented-out keys', () => {
@@ -82,7 +109,7 @@ export default {
   entry: 'src/game.8bs',
   targets: ['pet'],
 };`);
-  assert.deepEqual(config, { entry: 'src/game.8bs', targets: ['pet'] });
+  assert.deepEqual(config, { entry: 'src/game.8bs', targets: ['pet'], programs: [{ name: 'main', entry: 'src/game.8bs' }] });
 });
 
 test('parseConfig drops target names the toolchain does not know', () => {

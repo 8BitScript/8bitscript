@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://8bitscript.org/schemas/config.json",
+  "title": "8bitscript.config.ts",
+  "description": "The default export of a project's 8bitscript.config.ts (or the older 8bs.config.ts). The TypeScript form is packages/cli/src/index.d.ts; docs/config.md is the prose. Every key is optional.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "entry": {
+      "description": "The .8bs file a build starts from — the one-program spelling, equal to programs: { main: { entry } } with the file's own name as the output stem. Cannot be given with `programs`.",
+      "oneOf": [
+        { "type": "string", "pattern": "\\.8bs$" },
+        {
+          "type": "object",
+          "description": "The older per-machine object: `default` covers whichever machines are not named.",
+          "properties": { "default": { "type": "string", "pattern": "\\.8bs$" } },
+          "additionalProperties": { "type": "string", "pattern": "\\.8bs$" }
+        }
+      ]
+    },
+    "programs": {
+      "description": "Several programs in one project, each its own link from its own .8bs entry. The key is the output stem (dist/<key>-<machine>….prg).",
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$" },
+      "additionalProperties": {
+        "type": "object",
+        "required": ["entry"],
+        "additionalProperties": false,
+        "properties": {
+          "entry": { "type": "string", "pattern": "\\.8bs$", "description": "A .8bs file. An .8bx declares composition and is imported, never a program." },
+          "targets": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/machine" }, "description": "A subset of the project's targets." },
+          "requires": { "$ref": "#/$defs/requires", "description": "Floors raised above the project's; never lowered." }
+        }
+      }
+    },
+    "images": {
+      "description": "Disk images: containers over built programs and data files, written after `8bs build --release` builds the programs. Validated today; the writer lands in a later release.",
+      "type": "object",
+      "propertyNames": { "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$" },
+      "additionalProperties": {
+        "type": "object",
+        "required": ["target", "format", "boot", "files"],
+        "additionalProperties": false,
+        "properties": {
+          "target": { "$ref": "#/$defs/machine" },
+          "format": { "enum": ["d64", "d71", "d81", "atr"] },
+          "boot": { "type": "string", "description": "The program written first — what LOAD \"*\",8,1 loads." },
+          "files": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["name"],
+              "additionalProperties": false,
+              "properties": {
+                "program": { "type": "string" },
+                "path": { "type": "string" },
+                "name": { "type": "string", "minLength": 1, "maxLength": 16, "description": "The on-disk name; CBM DOS holds sixteen bytes." },
+                "type": { "enum": ["prg", "seq"] }
+              }
+            }
+          }
+        }
+      }
+    },
+    "frameRate": { "type": "integer", "minimum": 1, "default": 60 },
+    "targets": {
+      "oneOf": [
+        { "type": "array", "items": { "$ref": "#/$defs/machine" } },
+        {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/machine" },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "hardware": { "$ref": "#/$defs/hardware" },
+              "profiles": { "type": "object", "additionalProperties": { "$ref": "#/$defs/hardware" } },
+              "release": {
+                "type": "array",
+                "items": {
+                  "oneOf": [
+                    { "type": "string" },
+                    { "type": "object", "additionalProperties": false, "properties": { "profile": { "type": "string" }, "hardware": { "$ref": "#/$defs/hardware" } } }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "systems": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["target"],
+        "additionalProperties": false,
+        "properties": {
+          "target": { "$ref": "#/$defs/machine" },
+          "profile": { "type": "string" },
+          "hardware": { "$ref": "#/$defs/hardware" },
+          "region": { "enum": ["ntsc", "pal"] }
+        }
+      }
+    },
+    "requires": { "$ref": "#/$defs/requires" },
+    "bx": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "strict": { "type": "boolean", "default": true, "description": "false turns the ordinary-code lint in .8bx files off; the hard rules stay." } }
+    }
+  },
+  "$defs": {
+    "machine": { "enum": ["vic20", "c64", "pet", "c128", "atari8", "nes", "cx16", "mega65", "web"] },
+    "hardware": { "type": "object", "additionalProperties": { "type": "string" } },
+    "requires": { "type": "object", "additionalProperties": { "type": ["number", "boolean"] } }
+  }
+}
