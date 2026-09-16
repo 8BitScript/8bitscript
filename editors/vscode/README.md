@@ -71,6 +71,14 @@ the project overview is in the [root README](../../README.md).
     — right after `object.` — the members a named import brings in
     (`screen.bl` offers `blank`) — inside a template's `${...}` field as
     much as outside one
+  - **Your own names** — hover on a component, function, variable, const,
+    parameter or `state` field shows its declaration and the comment above
+    it, following an import to the file it comes from; completion offers
+    what is visible from the cursor; **Go to Definition** (F12) lands on
+    the declaration, in this file or another
+  - **8BX** — in an `.8bx` file, `<` offers the components in scope (and
+    `slot`), a component's tag offers the props it still needs as
+    snippets (`row={|}`), and `</` closes the innermost open element
 
 If no toolchain is found, the extension says so and falls back to syntax
 highlighting alone — see "Installing it while developing" below.

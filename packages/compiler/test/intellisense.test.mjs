@@ -125,7 +125,10 @@ test('hover explains memory.write and memory.read', () => {
 
 test('hover does not fire on read/write unless qualified by memory.', () => {
   const text = 'export function f(): void { let write: utinyint = 0; }';
-  assert.equal(getHoverInfo(text, at(text, 'write')), null);
+  // The program's own `write` is a variable, and hovers as one — not as the intrinsic.
+  const info = getHoverInfo(text, at(text, 'write'));
+  assert.match(info.markdown, /\*\*write\*\* — variable/);
+  assert.doesNotMatch(info.markdown, /POKE/);
 });
 
 test('hover explains #frames(...)', () => {
@@ -146,9 +149,9 @@ test('hover on frames does not require a valid call — helps a reader mid-edit 
   assert.match(info.markdown, /Compile-time duration/);
 });
 
-test('hover on an unrelated identifier returns nothing: there is no binder yet', () => {
-  const text = 'let myCounter: u8 = 0;';
-  assert.equal(getHoverInfo(text, at(text, 'myCounter')), null);
+test('hover on a name the program does not declare returns nothing', () => {
+  const text = 'let myCounter: u8 = other;';
+  assert.equal(getHoverInfo(text, at(text, 'other')), null);
 });
 
 test('hover on whitespace returns nothing', () => {
@@ -191,12 +194,12 @@ test('completion inside a type constructor argument also offers types', () => {
   assert.ok(items.some((i) => i.label === 'utinyint'));
 });
 
-test('completion is empty outside a type position', () => {
-  const text = 'let x = ';
-  assert.deepEqual(getCompletions(text, text.length), []);
+test('completion outside a type position offers the program\'s own names, not the types', () => {
+  const text = 'const LIMIT: utinyint = 4;\nlet x = ';
+  assert.deepEqual(getCompletions(text, text.length).map((i) => i.label), ['LIMIT', 'x']);
 
-  const compare = 'if (x < ';
-  assert.deepEqual(getCompletions(compare, compare.length), []);
+  const compare = 'const LIMIT: utinyint = 4;\nif (x < ';
+  assert.deepEqual(getCompletions(compare, compare.length).map((i) => i.label), ['LIMIT']);
 });
 
 // ---- completion beyond type names ------------------------------------------
@@ -221,7 +224,7 @@ test('completion in the unit slot offers the units, and nothing elsewhere in the
   assert.deepEqual(getCompletions(unit, unit.length).map((i) => i.label), ['seconds']);
   assert.equal(getCompletions(unit, unit.length)[0].kind, 'constant');
   const literal = 'let x: utinyint = #frames(';
-  assert.deepEqual(getCompletions(literal, literal.length), []);
+  assert.deepEqual(getCompletions(literal, literal.length).map((i) => i.label), ['x'], 'a program\'s own const could stand there; no unit yet');
 });
 
 test('completion inside a ${...} field answers as it would outside one', () => {

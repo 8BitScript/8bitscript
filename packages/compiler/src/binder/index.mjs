@@ -4,10 +4,15 @@
 // component-specific rules run in bx/check.mjs after binding.
 //
 // An imported name is an Import symbol with no meaning of its own until
-// the module it comes from has been bound too; bindImportedComponents()
-// then points it at that module's Component symbol, so `<MenuBar />` in
-// one file resolves to `component MenuBar` in another. The linker does
-// this for the whole graph; analyze() does it one import deep.
+// the module it comes from has been bound too; bindImports() then points
+// it at that module's exported symbol, so `<MenuBar />` in one file
+// resolves to `component MenuBar` in another, and hover, completion and
+// go-to-definition (src/intellisense/symbols.mjs) reach a function or a
+// const the same way. The linker does this for the whole graph;
+// analyze() and the editor do it one import deep.
+//
+// Scopes are a side table (`scopeOf`, node → scope) rather than a field
+// on the node: the AST stays a tree for every pass that walks it.
 import { NodeType, walk } from '../ast/index.mjs';
 
 export const SymbolKind = Object.freeze({
@@ -31,6 +36,9 @@ export const SymbolKind = Object.freeze({
  * @property {boolean} [allowsChildren]
  * @property {boolean} [exported]
  * @property {Symbol|null} [component]  for an Import: the Component it names, once bound across modules
+ * @property {Symbol|null} [target]      for an Import: the exported symbol it names, once bound across modules
+ * @property {string} [file]             the module the symbol is declared in
+ * @property {object} [declaration]      the declaration node (the whole statement, parameter, or import specifier)
  * @property {string} [source]           for an Import: the specifier it came from
  * @property {string} [imported]         for an Import: the name in the other module
  */
@@ -39,7 +47,8 @@ function createScope(parent = null) {
   return { parent, symbols: new Map() };
 }
 
-function declare(scope, name, symbol) {
+function declare(scope, name, symbol, file) {
+  symbol.file = file;
   if (scope.symbols.has(name)) return;
   scope.symbols.set(name, symbol);
 }
@@ -52,7 +61,8 @@ function bindParameters(scope, params, file, diagnostics) {
       kind: SymbolKind.Parameter,
       node: param.name,
       scope,
-    });
+      declaration: param,
+    }, file);
   }
 }
 
@@ -64,16 +74,28 @@ function bindBlock(scope, body, file, diagnostics, bindStatement) {
   return blockScope;
 }
 
+/** The parser's `exported` flag on a declaration node, as a boolean. */
+const isExported = (stmt) => stmt.exported === true;
+
 /**
  * @param {object} ast
  * @param {string} file
- * @returns {{ scopes: object[], symbols: Map<string, Symbol>, imports: Symbol[], diagnostics: object[] }}
+ * @returns {{ scopes: object[], symbols: Map<string, Symbol>, imports: Symbol[], diagnostics: object[], scopeOf: Map<object, object>, file: string }}
+ *   `scopeOf` takes a function, component or namespace declaration to the
+ *   scope its parameters and members live in, and a block statement to its
+ *   own — enough to find the scope any offset is in.
  */
 export function bind(ast, file = '<unknown>') {
   const diagnostics = [];
   const moduleScope = createScope(null);
   const symbols = new Map();
   const imports = [];
+  const scopeOf = new Map();
+  const blockOf = (scope, node, body, f, diags, bindStatement) => {
+    const blockScope = bindBlock(scope, body, f, diags, bindStatement);
+    if (node) scopeOf.set(node, blockScope);
+    return blockScope;
+  };
 
   const bindStatement = (scope, stmt, f, diags) => {
     if (!stmt) return;
@@ -92,8 +114,9 @@ export function bind(ast, file = '<unknown>') {
             source: stmt.source?.value ?? null,
             imported: spec.imported ?? local,
             component: null,
+            target: null,
           };
-          declare(scope, local, sym);
+          declare(scope, local, sym, f);
           symbols.set(local, sym);
           imports.push(sym);
         }
@@ -102,28 +125,30 @@ export function bind(ast, file = '<unknown>') {
       case NodeType.VariableDeclaration: {
         if (!stmt.name?.name) break;
         const kind = stmt.kind === 'const' ? SymbolKind.Constant : SymbolKind.Variable;
-        const sym = { name: stmt.name.name, kind, node: stmt.name, scope };
-        declare(scope, stmt.name.name, sym);
+        const sym = { name: stmt.name.name, kind, node: stmt.name, scope, exported: isExported(stmt), declaration: stmt };
+        declare(scope, stmt.name.name, sym, f);
         symbols.set(stmt.name.name, sym);
         break;
       }
       case NodeType.FunctionDeclaration: {
         if (!stmt.name?.name) break;
-        const sym = { name: stmt.name.name, kind: SymbolKind.Function, node: stmt.name, scope };
-        declare(scope, stmt.name.name, sym);
+        const sym = { name: stmt.name.name, kind: SymbolKind.Function, node: stmt.name, scope, exported: isExported(stmt), declaration: stmt };
+        declare(scope, stmt.name.name, sym, f);
         symbols.set(stmt.name.name, sym);
         const fnScope = createScope(scope);
+        scopeOf.set(stmt, fnScope);
         bindParameters(fnScope, stmt.params, f, diags);
-        bindBlock(fnScope, stmt.body?.body, f, diags, bindStatement);
+        blockOf(fnScope, stmt.body, stmt.body?.body, f, diags, bindStatement);
         break;
       }
       case NodeType.NamespaceDeclaration: {
         if (!stmt.name?.name) break;
-        const sym = { name: stmt.name.name, kind: SymbolKind.Namespace, node: stmt.name, scope };
-        declare(scope, stmt.name.name, sym);
+        const sym = { name: stmt.name.name, kind: SymbolKind.Namespace, node: stmt.name, scope, exported: isExported(stmt), declaration: stmt };
+        declare(scope, stmt.name.name, sym, f);
         symbols.set(stmt.name.name, sym);
-        const nsScope = createScope(scope);
-        bindBlock(nsScope, stmt.body?.body, f, diags, bindStatement);
+        // Members (the parser's `members`, not a block): the namespace's own scope.
+        const nsScope = blockOf(scope, stmt, stmt.members, f, diags, bindStatement);
+        sym.members = nsScope.symbols;
         break;
       }
       case NodeType.ComponentDeclaration: {
@@ -147,21 +172,23 @@ export function bind(ast, file = '<unknown>') {
             .filter((s) => s?.type === NodeType.StateDeclaration && s.name?.name)
             .map((s) => s.name.name),
           body: stmt.body,
+          declaration: stmt,
         };
-        declare(scope, stmt.name.name, sym);
+        declare(scope, stmt.name.name, sym, f);
         symbols.set(stmt.name.name, sym);
         const compScope = createScope(scope);
+        scopeOf.set(stmt, compScope);
         bindParameters(compScope, stmt.params, f, diags);
-        bindBlock(compScope, stmt.body?.body, f, diags, bindStatement);
+        blockOf(compScope, stmt.body, stmt.body?.body, f, diags, bindStatement);
         break;
       }
       case NodeType.StateDeclaration: {
         if (!stmt.name?.name) break;
-        declare(scope, stmt.name.name, { name: stmt.name.name, kind: SymbolKind.State, node: stmt.name, scope });
+        declare(scope, stmt.name.name, { name: stmt.name.name, kind: SymbolKind.State, node: stmt.name, scope, declaration: stmt }, f);
         break;
       }
       case NodeType.BlockStatement:
-        bindBlock(scope, stmt.body, f, diags, bindStatement);
+        blockOf(scope, stmt, stmt.body, f, diags, bindStatement);
         break;
       case NodeType.IfStatement:
         bindStatement(scope, stmt.consequent, f, diags);
@@ -185,7 +212,7 @@ export function bind(ast, file = '<unknown>') {
     }
   }
 
-  return { scopes: [moduleScope], symbols, imports, diagnostics };
+  return { scopes: [moduleScope], symbols, imports, diagnostics, scopeOf, file };
 }
 
 /**
@@ -205,28 +232,33 @@ export function componentOf(sym) {
 }
 
 /**
- * Point every Import symbol in `bound` that names an exported component
- * of another module at that module's Component symbol. `lookup(source)`
- * is the other module's own bind() result, or null when the import did
- * not resolve (that is reported elsewhere, by the resolver).
+ * Point every Import symbol in `bound` that names an exported symbol of
+ * another module at that symbol: `target` for any kind, `component` when
+ * it is a Component. `lookup(source)` is the other module's own bind()
+ * result, or null when the import did not resolve (that is reported
+ * elsewhere, by the resolver).
  *
- * A non-exported component is not visible: the import stays an Import
- * with no component, and `<Name />` is then "not a component", which is
- * what the definer's `export` decides.
+ * A non-exported name is not visible: the import stays an Import with no
+ * target, and `<Name />` is then "not a component", which is what the
+ * definer's `export` decides.
  *
  * @param {{ imports: Symbol[] }} bound
- * @param {(source: string) => ({ symbols: Map<string, Symbol> } | null)} lookup
+ * @param {(source: string) => ({ symbols: Map<string, Symbol>, file?: string } | null)} lookup
  */
-export function bindImportedComponents(bound, lookup) {
+export function bindImports(bound, lookup) {
   for (const sym of bound.imports) {
     if (!sym.source) continue;
     const other = lookup(sym.source);
     if (!other) continue;
     const target = other.symbols.get(sym.imported);
-    sym.component = target?.kind === SymbolKind.Component && target.exported ? target : null;
+    sym.target = target?.exported ? target : null;
+    sym.component = sym.target?.kind === SymbolKind.Component ? sym.target : null;
     sym.resolved = true;
   }
 }
+
+/** The older name of bindImports, kept for its callers. */
+export const bindImportedComponents = bindImports;
 
 /** Resolve a name starting in `scope`. */
 export function resolveSymbol(scope, name) {

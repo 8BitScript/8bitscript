@@ -24,7 +24,7 @@ const RUNNER = path.join(
 );
 
 test('the extension registers every trigger character the language server advertises', () => {
-  assert.deepEqual([...COMPLETION_TRIGGER_CHARACTERS].sort(), [':', '.', '<'].sort());
+  assert.deepEqual([...COMPLETION_TRIGGER_CHARACTERS].sort(), [':', '.', '<', '/'].sort());
 });
 
 test('the extension\'s trigger list matches the running server\'s own capabilities', async () => {
