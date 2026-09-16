@@ -1,5 +1,32 @@
 # @8bitscript/cli
 
+## 0.10.2
+
+### Patch Changes
+
+- 67b2aa5: A resizable web build's first frame could lay itself out for the compiled default grid (48×27) instead of the grid the page had already measured, while the page painted the picture at the real width — sheared, duplicated-looking text on load, self-correcting the moment the window was resized. The worker's `postMessage({ memory: ... })` back to the page is fire-and-forget: the worker calling the program's entry right after posting could (and reliably did) run the program's first `text.columns()` read before the page had processed that message and written the live grid back into the program's memory.
+  
+  The worker now writes the grid into its own freshly instantiated memory itself, synchronously, before ever calling entry — using the grid the page already measured and sent in the same message that starts the worker, closing the race instead of racing to win it. Only the Modern host's resizable preset does this; every fixed machine skin is unaffected (its `columnsOffset` is the screen's own first character cell, not a grid register).
+  
+  A second, independent bug produced the same symptom: `applyLayout()` — run once at mount to apply the program's compiled sidecar (`program.json`: palette, aspect, register offsets) — also applied that sidecar's `cols`/`rows`, which on a resizable host are the compiled default (48×27), not a live measurement. That overwrote `INNER_W`/`INNER_H` right after `resize()` had already computed the real grid from the window, and the very next `resize()` call's change check only compared `gridCols`/`gridRows` (never touched by `applyLayout`), so it silently skipped fixing `INNER_W`/`INNER_H` back — leaving the canvas painted at one grid while the program (and the worker fix above) used another. `applyLayout()` no longer touches `cols`/`rows`/`INNER_W`/`INNER_H` on a resizable host; every other field it applies (palette, aspect, register offsets) is unaffected, and a fixed skin still gets its own `cols`/`rows` applied as before, since those genuinely vary by machine.
+  
+  Both verified live in a browser (not just the existing headless suite): the title screen and a real window resize now render correctly on the very first frame.
+- Updated dependencies [74f2785]
+- Updated dependencies [2288987]
+  - @8bitscript/compiler@0.10.2
+  - @8bitscript/pet@0.10.2
+  - @8bitscript/vic20@0.10.2
+  - @8bitscript/c64@0.10.2
+  - @8bitscript/c128@0.10.2
+  - @8bitscript/cx16@0.10.2
+  - @8bitscript/mega65@0.10.2
+  - @8bitscript/atari8@0.10.2
+  - @8bitscript/nes@0.10.2
+  - @8bitscript/web@0.10.2
+  - @8bitscript/examples@0.10.2
+  - @8bitscript/language-server@0.10.2
+  - @8bitscript/studio@0.10.2
+
 ## 0.10.1
 
 ### Patch Changes
