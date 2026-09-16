@@ -94,3 +94,37 @@ test('a method sees state, not props; and a method\'s name is its own (8BS2025)'
   assert.match(codes('component A() { state f: utinyint = 0; function f(): void { } }\nexport function main(): void { }\n')[0], /takes the name of a prop or state/);
   assert.match(codes('component A() { function f(): void { } function f(): void { } }\nexport function main(): void { }\n')[0], /declared twice/);
 });
+
+test('half-typed components and methods analyze without a throw and without a false report', () => {
+  for (const src of [
+    'component A()',
+    'component A() {',
+    'component A() { function',
+    'component A() { function (): void { } }',
+    'component A() { function f( }',
+    'component A() { function f(): void }',
+    'component A() { state x: utinyint = 0; function f(): void { x = 1; } f(); }',
+    'component A(p: utinyint) { function f(): void { } ; f(); }',
+    'export component',
+  ]) {
+    let diags;
+    assert.doesNotThrow(() => { diags = analyze(src, 't.8bx', { sourceKind: '.8bx' }); }, src);
+    assert.ok(!diags.some((d) => d.code === Codes.BX_INVALID_METHOD), `${src}: ${JSON.stringify(diags)}`);
+  }
+  // A method with nothing to do, in a component with props it never names, is fine.
+  assert.deepEqual(analyze('component A(p: utinyint) { function f(): void { } f(); memory.write(0x8000, p); }\nexport function main(): void { <A p={1} />; }\n', 't.8bx', { sourceKind: '.8bx' }), []);
+});
+
+test('a component with methods but no state still instances its methods per element', () => {
+  const main = `component Beep(tone: utinyint) {
+    function play(): void { memory.write(0x8000, 1); }
+    play();
+}
+export function main(): void { <Beep tone={1} />; <Beep tone={2} />; }
+`;
+  const { ir, diagnostics } = linkFiles({ 'main.8bx': main }, 'main.8bx');
+  assert.deepEqual(diagnostics, []);
+  // No state, so no instancing: one Beep, one Beep__play, called twice.
+  assert.deepEqual(ir.functions.map((f) => f.name).sort(), ['Beep', 'Beep__play', 'main']);
+  assert.deepEqual(ir.globals, []);
+});

@@ -345,11 +345,13 @@ function componentFunction(stmt, ctx) {
   });
   const hoisted = methods.map((m) => {
     const method = rewrite(m);
+    // A method without its block yet (mid-keystroke) hoists as empty.
+    const at = method.body ?? m;
     return node(NodeType.FunctionDeclaration, m.start, m.start + m.length, {
       ...method,
       name: node(NodeType.Identifier, m.name.start, m.name.start + m.name.length, { name: byMethod.get(m.name.name) }),
-      body: node(NodeType.BlockStatement, method.body.start, method.body.start + method.body.length, {
-        body: (method.body.body ?? []).flatMap((s) => transformStatement(s, ctx)),
+      body: node(NodeType.BlockStatement, at.start, at.start + at.length, {
+        body: (method.body?.body ?? []).flatMap((s) => transformStatement(s, ctx)),
       }),
       exported: false,
       component: true,
