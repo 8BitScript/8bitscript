@@ -40,8 +40,10 @@ extension. The resolver's twin rule preserves the kind it was given
 (`App.8bx` on the PET is `App.pet.8bx`, never `.8bs`); an `.8bx` file can
 be imported, be a package's entry, and carry machine and hardware twins.
 One lexer and one parser serve both; `.8bx` adds the `component`
-declaration and element syntax (`src/bx/`), which the lexer and parser
-only admit when the source kind says so.
+declaration and element syntax, which the lexer tokenizes in its own
+modes (`src/lexer/AGENTS.md`, "the 8BX modes") and the parser reads
+token by token (`parseBxElement` in `src/parser/index.mjs`) — only when
+the source kind says so. Spans are tokens' spans, everywhere.
 
 **A component is a function; an element is a call.** `src/bx/elaborate.mjs`
 turns `component Name(props) { … }` into a function of that name in the

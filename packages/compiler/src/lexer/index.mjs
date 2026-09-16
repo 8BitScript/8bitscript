@@ -38,6 +38,14 @@ export const TokenKind = {
   AsmBlock: 'asm',
   Punctuation: 'punctuation',
   Operator: 'operator',
+  // 8BX, in `.8bx` only (see "8BX modes" below): `<` that opens a tag, the
+  // `>` that ends an opening tag, `/>`, `</`, and a run of raw text between
+  // tags. Names, `=`, strings and `{ … }` inside a tag are ordinary tokens.
+  BxTagOpen: 'bxTagOpen',
+  BxTagEnd: 'bxTagEnd',
+  BxSelfClose: 'bxSelfClose',
+  BxClosingTagOpen: 'bxClosingTagOpen',
+  BxText: 'bxText',
 };
 
 export const KEYWORDS = new Set([
@@ -103,7 +111,10 @@ function isOperandToken(tok) {
     case TokenKind.Keyword:
       return tok.text === 'true' || tok.text === 'false';
     case TokenKind.Punctuation:
-      return tok.text === ')' || tok.text === ']';
+      // The `)` that closes an `if (…)`/`while (…)`/`for (…)` header leaves
+      // no value in place: what follows is a statement, and in `.8bx` that
+      // may be an element (`if (x) <Foo />;`).
+      return (tok.text === ')' && !tok.controlHeader) || tok.text === ']';
     case TokenKind.Operator:
       return tok.text === '++' || tok.text === '--';
     default:
@@ -198,6 +209,16 @@ export function tokenize(text, file = '<unknown>', options = {}) {
   const diagnostics = [];
   const brackets = [];
   let i = 0;
+  const bx = options.sourceKind === '.8bx';
+  // 8BX modes (spec §13–§16), a stack because tags nest and an attribute
+  // expression can hold a tag of its own:
+  //   tag       inside `<Name …`: names, `=`, strings, `{`, `/>` or `>`
+  //   children  between `<Name>` and `</Name>`: raw text, `{`, `<`
+  //   expr      inside `{ … }` in a tag or in children: ordinary tokens
+  //             until the `}` that matches the `{` this frame opened at
+  // Empty in `.8bs`, always — the grammar is not on there.
+  const modes = [];
+  const mode = () => modes[modes.length - 1]?.kind;
 
   const push = (kind, start, end, extra = {}) =>
     tokens.push({ kind, start, length: end - start, text: text.slice(start, end), ...extra });
@@ -433,7 +454,10 @@ export function tokenize(text, file = '<unknown>', options = {}) {
   };
 
   const scanOpenBracket = () => {
-    brackets.push({ char: text[i], offset: i });
+    const last = lastSignificant(tokens);
+    const controlHeader = text[i] === '(' && last?.kind === TokenKind.Keyword
+      && (last.text === 'if' || last.text === 'while' || last.text === 'for');
+    brackets.push({ char: text[i], offset: i, controlHeader });
     push(TokenKind.Punctuation, i, i + 1);
     i += 1;
   };
@@ -445,8 +469,11 @@ export function tokenize(text, file = '<unknown>', options = {}) {
       diagnostics.push(diagnostic(Codes.UNMATCHED_BRACKET, `unmatched '${c}'`, file, i, 1));
       if (top) brackets.push(top);
     }
-    push(TokenKind.Punctuation, i, i + 1);
+    push(TokenKind.Punctuation, i, i + 1, top?.controlHeader ? { controlHeader: true } : {});
     i += 1;
+    // The `}` that closes an attribute or child expression returns to the
+    // tag or children it sits in.
+    if (c === '}' && mode() === 'expr' && brackets.length === modes[modes.length - 1].depth) modes.pop();
   };
 
   // Matched by maximal munch against OPERATORS only — see that list's own
@@ -470,6 +497,92 @@ export function tokenize(text, file = '<unknown>', options = {}) {
     if (c === '$') return /[0-9a-fA-F]/.test(text[i + 1] ?? '');
     if (c === '%') return /[01]/.test(text[i + 1] ?? '') && !isOperandToken(lastSignificant(tokens));
     return false;
+  };
+
+  // ---- 8BX -----------------------------------------------------------
+  // `<` opens a tag when the grammar is on, what follows could start one
+  // (a name, `>` for a fragment, `/` for a closing tag), and no value sits
+  // before it: `a < b`, `(a) < b`, `array<u8, 4>` keep their `<`, while
+  // `return <Foo />`, `? <A /> : <B />`, and a `<Foo` after `;`, `{` or a
+  // control header start elements. `<<` and `<=` are matched first, so
+  // maximal munch still wins.
+  const startsTag = () => {
+    if (!bx || text[i] !== '<') return false;
+    const next = text[i + 1] ?? '';
+    if (next === '<' || next === '=') return false;
+    if (!(isIdentStart(next) || next === '>' || next === '/')) return false;
+    return !isOperandToken(lastSignificant(tokens));
+  };
+
+  const scanTagOpen = () => {
+    const closing = text[i + 1] === '/';
+    const start = i;
+    push(closing ? TokenKind.BxClosingTagOpen : TokenKind.BxTagOpen, i, i + (closing ? 2 : 1));
+    i += closing ? 2 : 1;
+    modes.push({ kind: 'tag', offset: start, closing });
+  };
+
+  // Inside `<Name a="x" b={expr} …`: a name, `=`, a string, `{`, `/>`, `>`.
+  // Anything else is reported once and skipped so the loop moves on (§90).
+  const scanInTag = () => {
+    const c = text[i];
+    if (c === '/' && text[i + 1] === '>') {
+      push(TokenKind.BxSelfClose, i, i + 2);
+      i += 2;
+      modes.pop();
+      return;
+    }
+    if (c === '>') {
+      const frame = modes.pop();
+      push(TokenKind.BxTagEnd, i, i + 1);
+      i += 1;
+      // An opening tag's `>` starts its children; a closing tag's ends them.
+      if (!frame.closing) {
+        modes.push({ kind: 'children', offset: frame.offset });
+      } else if (mode() === 'children') {
+        modes.pop();
+      }
+      return;
+    }
+    if (c === '{') {
+      brackets.push({ char: '{', offset: i });
+      push(TokenKind.Punctuation, i, i + 1);
+      i += 1;
+      modes.push({ kind: 'expr', depth: brackets.length - 1, offset: i - 1 });
+      return;
+    }
+    if (c === '"' || c === "'") { scanString(); return; }
+    if (c === '=') { push(TokenKind.Operator, i, i + 1); i += 1; return; }
+    if (c === '.') { push(TokenKind.Punctuation, i, i + 1); i += 1; return; }
+    if (isIdentStart(c)) {
+      const start = i;
+      while (i < text.length && isIdentPart(text[i])) i += 1;
+      push(TokenKind.Identifier, start, i);
+      return;
+    }
+    diagnostics.push(diagnostic(Codes.BX_SYNTAX, `unexpected '${c}' inside a tag`, file, i, 1));
+    i += 1;
+  };
+
+  // Between tags: raw text as one token up to the next `<` or `{`. No
+  // strings, comments or operators here — `don't`, `//` and `>` are text.
+  const scanChildren = () => {
+    const c = text[i];
+    if (c === '<') {
+      if (text[i + 1] === '/' || isIdentStart(text[i + 1] ?? '') || text[i + 1] === '>') { scanTagOpen(); return; }
+      // A stray `<` in text is text.
+    }
+    if (c === '{') {
+      brackets.push({ char: '{', offset: i });
+      push(TokenKind.Punctuation, i, i + 1);
+      i += 1;
+      modes.push({ kind: 'expr', depth: brackets.length - 1, offset: i - 1 });
+      return;
+    }
+    const start = i;
+    i += 1;
+    while (i < text.length && text[i] !== '{' && !(text[i] === '<' && (text[i + 1] === '/' || isIdentStart(text[i + 1] ?? '') || text[i + 1] === '>'))) i += 1;
+    push(TokenKind.BxText, start, i);
   };
 
   // What starts here, and the scanner that reads it — checked top to
@@ -497,10 +610,16 @@ export function tokenize(text, file = '<unknown>', options = {}) {
   while (i < text.length) {
     const c = text[i];
 
+    // Raw text keeps its whitespace; every other mode skips it.
+    if (mode() === 'children') { scanChildren(); continue; }
+
     if (c === ' ' || c === '\t' || c === '\r' || c === '\n') {
       i += 1;
       continue;
     }
+
+    if (mode() === 'tag') { scanInTag(); continue; }
+    if (startsTag()) { scanTagOpen(); continue; }
 
     const entry = DISPATCH.find((d) => d.starts());
     if (entry) { entry.scan(); continue; }
@@ -516,6 +635,13 @@ export function tokenize(text, file = '<unknown>', options = {}) {
     diagnostics.push(
       diagnostic(Codes.UNCLOSED_BRACKET, `unclosed '${open.char}'`, file, open.offset, 1),
     );
+  }
+  // A tag or a run of children still open at the end: one diagnostic per
+  // frame, at the `<` that opened it, and the loop above has already
+  // stopped — half-typed markup is the editor's normal input (§90).
+  for (const frame of modes) {
+    if (frame.kind === 'expr') continue; // its `{` is in `brackets` already
+    diagnostics.push(diagnostic(Codes.BX_SYNTAX, frame.kind === 'tag' ? 'unterminated tag' : 'unclosed element', file, frame.offset, 1));
   }
 
   return { tokens, diagnostics };
