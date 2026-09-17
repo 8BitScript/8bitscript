@@ -171,8 +171,57 @@ c, e); }` was +36 bytes on the PET 2001 and VIC-20 before, 2048 #49; a
 parameter used twice, an expression around the call, or a second
 statement (2048's `f(); return;` idiom) is not a forwarder and keeps
 the function. `packages/compiler/test/forwarding-inline.test.mjs` is
-the byte-identity gate. `checkHardwareHazards` still sees the unpruned
-IR from `link()`.
+the byte-identity gate.
+
+**A function with one live call site is written into it** (rule 9 in
+`optimize.mjs`), whatever its size and whatever its arguments: the
+body replaces the call, the argument stores, the frame and the `rts`,
+so the program can only get smaller. A run-time argument that is a
+read of the caller's own local or parameter (zero page, as the
+parameter's slot was) or an array is the argument itself; a read of a
+global — an absolute load, one byte more at every use — or any
+expression becomes a local holding it, the store the call already
+made; a parameter the body assigns, or whose own variable the body (or
+anything it calls) writes, is copied too. The callee's names are made
+fresh first, so nothing in the caller is shadowed and no argument is
+read after a parameter of its name took its place; a body whose free
+names — its globals — a caller's own local would capture stays a call.
+A non-void callee whose only `return` is its last statement is hoisted
+ahead of the statement that used its value when the rest of that
+statement is constants and reads of names the callee never writes;
+`let r = f(x)` returning one of f's own locals keeps that local as `r`.
+A local the inlining pasted in and then made constant is the constant
+(`propagateConstLocals`); one the program wrote where it stands is
+left alone — it may exist to shadow, or to be refused by name. A site
+count is taken with forwarders written out (`siteCount`: a forwarder's
+sites are the callee's), and a body already written into its one caller
+stands in for that copy until the caller's finished body is stored.
+Not inlined: a void body with a `return` anywhere (the `f(); return;`
+idiom keeps a call, as under rule 6), a non-void body with an early
+return, `asm6502` (its text may name the function's own frame), a
+string parameter with no literal to bind, and a site inside an
+unrolled string copy or a forwarder's body. 2048 #51's `paintTile` +
+`stampValue` + `Tile` were +56 bytes on every 6502 and +84 on the PET
+2001 against the one-body `drawTile`; `test/single-caller-inline.test.mjs`
+holds the split to the one body's size, on the PET and on the web.
+
+**Bodies are optimized callees-first** (`bottomUpOrder`), so the size
+that decides whether a body is pasted at several sites (rule 6) is the
+size it has once its own callees are inlined into it, not the size it
+was written at. 2048 #52's parameterless `Board`, small as written,
+went into `main` three times carrying the whole inlined `ScoreBar`
+(+393 bytes on the PET 2001); measured finished, it is one function.
+
+One cost these two rules can add is zero page, not program: a callee's
+locals used to live in a frame that sibling callees' frames overlaid,
+and once written into the caller they are the caller's frame, under
+every deeper chain (2048's animated builds: −90 to −117 bytes of
+program, +9 of zero page on the C64, C128, Atari and MEGA65; the
+VIC-20 and PET, where zero page is the tighter budget, went down).
+Placing a callee's frame after the caller's *live* locals at the site,
+rather than after its high-water mark, is the backend change that
+would recover it. `checkHardwareHazards` still sees the unpruned IR
+from `link()`.
 
 Two properties every front-end layer shares, because an editor runs
 them on every keystroke:

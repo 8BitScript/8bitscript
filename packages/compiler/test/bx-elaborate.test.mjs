@@ -78,6 +78,7 @@ export function main(): void {
     live = live + 1;
     <Add amount={5} />;
     <Add amount={live} />;
+    <Add amount={live + 1} />;
 }
 `;
   const { ir, diagnostics } = linkFiles({ 'main.8bx': main }, 'main.8bx');
@@ -85,7 +86,9 @@ export function main(): void {
   const optimized = optimizeReachable(ir);
   const entry = optimized.functions.find((f) => f.name === ir.entry);
   const calls = entry.body.filter((s) => s.kind === 'call').map((s) => s.name);
-  assert.deepEqual(calls, ['Add'], 'the run-time-argument element is the one call left');
+  // Two run-time sites, so the component is still a function (one site
+  // would be written in — rule 9).
+  assert.deepEqual(calls, ['Add', 'Add'], 'the run-time-argument elements are the calls left');
   const inlined = entry.body.find((s) => s.kind === 'block' && s.origin === 'Add');
   assert.ok(inlined, 'the compile-time-argument element is its body, in place');
 });
