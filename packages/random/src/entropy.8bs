@@ -1,0 +1,77 @@
+// @8bitscript/random/entropy — the deterministic generator, or the machine's
+// own entropy source where it has one, behind one import.
+//
+//     import { entropy } from "@8bitscript/random/entropy";
+//
+//     entropy.begin();                    // first thing main() does
+//     // each frame:
+//     entropy.tick();
+//     // when a number is wanted:
+//     let cell: utinyint = entropy.range(16);
+//
+// This is the opt-in the root AGENTS.md rule asks for — "hardware entropy
+// belongs behind a separate, explicitly optional import" — packaged so a
+// program that has opted in does not also have to carry a twin file per
+// machine to say so. The bare `@8bitscript/random` import keeps meaning
+// exactly what it did: a seeded, replayable generator on every target.
+// This subpath is the one that reads silicon where silicon has it:
+//
+//   - `entropy.c64.8bs` reads SID voice 3's noise oscillator through
+//     `@8bitscript/c64/random`. Its `begin()` claims voice 3 and writes
+//     $D418 whole, so it must run before anything else touches the SID —
+//     that module's header has the whole warning.
+//   - `entropy.atari8.8bs` reads POKEY's RANDOM register through
+//     `@8bitscript/atari8/random`. Nothing to set up; `begin()` is empty.
+//   - This file is the other seven: `@8bitscript/random`'s 16-bit LCG,
+//     never seeded, stepped once a frame by `tick()`.
+//
+// The price of a hardware twin is the one both machine modules document:
+// every `range()` reads a register, so a game built on this subpath cannot
+// be replayed from its start state on the C64 or the Atari. A program that
+// wants replay keeps the bare import and seeds it once from
+// `@8bitscript/c64/random` or `@8bitscript/atari8/random` instead.
+//
+// ---- tick(): why a frame steps the generator --------------------------------
+//
+// A generator that only advances when the program asks for a number plays
+// the same game every run — the same board, the same spawns, in the same
+// order — because the sequence depends only on how many numbers were
+// asked for. Calling `tick()` once a frame from the main loop makes the
+// sequence depend on how long the player took as well, which is as much
+// unpredictability as a machine with no entropy source can offer. The two
+// hardware twins make it empty (a free-running register needs no help), so
+// the call inlines away to nothing there.
+//
+// ---- range() computes; it does not delegate ---------------------------------
+//
+// `range()` is written as `random.next() % bound`, not as a call to
+// `random.range(bound)`. The forwarding form costs 8 bytes on every 6502
+// target this file serves — measured on the PET, VIC-20, C128, CX16 and
+// MEGA65 alike, all five moved by exactly 8 — because a call whose only
+// job is to pass its argument on does not inline away. The two twins are
+// written the same way, `random.byte() % bound`, for the same reason.
+import { random } from "./index.8bs";
+
+export namespace entropy {
+    // Nothing to claim on a machine with no entropy source. Empty, so it
+    // inlines away and costs these seven targets no bytes.
+    function begin(): void {
+    }
+
+    // One step per frame, whether or not a number is wanted — see the
+    // header for why the sequence should follow the player's timing.
+    function tick(): void {
+        random.next();
+    }
+
+    // The generator's next byte, 0-255.
+    function next(): utinyint {
+        return random.next();
+    }
+
+    // A value from 0 up to (not including) bound. The modulo-bias caveat
+    // in ./index.8bs applies here exactly as it does there.
+    function range(bound: utinyint): utinyint {
+        return random.next() % bound;
+    }
+}
