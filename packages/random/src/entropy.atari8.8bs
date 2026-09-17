@@ -1,0 +1,36 @@
+// @8bitscript/random/entropy on the Atari 8-bit: POKEY's RANDOM register
+// ($D20A) in place of the software generator. The resolver takes this twin
+// for Atari builds on its own — a program imports
+// "@8bitscript/random/entropy" and never names this file.
+//
+// The cheapest of the three, because POKEY's counter needs no setting up:
+// there is not even a `begin()` to pay for. 2048 measured it at 70 bytes
+// of program under the software generator (3758 against 3828 at 0.6.2)
+// and 2 bytes of RAM; the C64's twin saves 40, and the difference is
+// exactly the four register writes SID needs to start making noise.
+//
+// Same price as the C64's: every `range()` reads a register, so a game
+// built on this cannot be replayed from its start state. See
+// @8bitscript/atari8/random's header for the rest, including its warning
+// that AUDCTL's POLY_9BIT bit shortens the counter to 511 states — a
+// program that sets it for its sound has changed what this returns.
+import { random } from "@8bitscript/atari8/random";
+
+export namespace entropy {
+    // POKEY's counter is already running and belongs to nobody. Empty, and
+    // inlines away to nothing.
+    function begin(): void {
+    }
+
+    function tick(): void {
+    }
+
+    // One byte from the counter, 0-255.
+    function next(): utinyint {
+        return random.byte();
+    }
+
+    function range(bound: utinyint): utinyint {
+        return random.byte() % bound;
+    }
+}

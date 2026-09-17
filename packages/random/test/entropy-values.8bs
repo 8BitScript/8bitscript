@@ -1,0 +1,18 @@
+// Run for real on the web target by entropy.test.mjs, which reads the four
+// results back out of linear memory: on a machine with no entropy source
+// the subpath is the LCG in ../src/index.8bs, never seeded, with `tick()`
+// stepping it once — so the values are the reference generator's from
+// state 1, worked out independently in JavaScript. The entry module
+// (entropy-values-main.8bs) may export only its own `main`, so the work is
+// here, in a module it calls.
+import { entropy } from "../src/entropy.8bs";
+
+export function run(): void {
+    entropy.begin();          // nothing, on the seven software targets
+    entropy.tick();           // step 1, discarded
+    memory.write(0x1100, entropy.next());     // step 2's high byte
+    memory.write(0x1101, entropy.next());     // step 3's
+    memory.write(0x1102, entropy.range(6));   // step 4's, mod 6
+    entropy.tick();           // step 5, discarded
+    memory.write(0x1103, entropy.range(10));  // step 6's, mod 10
+}

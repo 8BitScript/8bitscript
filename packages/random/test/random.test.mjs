@@ -22,11 +22,12 @@ const SRC = join(ROOT, 'src');
 
 const TARGETS = ['vic20', 'c64', 'pet', 'c128', 'atari8', 'nes', 'cx16', 'mega65', 'web'];
 
-test('the package has a bare entry (the default generator) and one subpath (the lookup table)', () => {
+test('the package has a bare entry (the default generator) and two subpaths (the lookup table, and hardware entropy where a machine has it)', () => {
   const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
   assert.equal(pkg['8bitscript'].entry, './src/index.8bs');
-  assert.deepEqual(pkg['8bitscript'].exports, { './table': './src/table.8bs' });
-  assert.deepEqual(readdirSync(SRC).sort(), ['index.8bs', 'table.8bs']);
+  assert.deepEqual(pkg['8bitscript'].exports, { './table': './src/table.8bs', './entropy': './src/entropy.8bs' });
+  // entropy.8bs and its two machine twins — see entropy.test.mjs.
+  assert.deepEqual(readdirSync(SRC).sort(), ['entropy.8bs', 'entropy.atari8.8bs', 'entropy.c64.8bs', 'index.8bs', 'table.8bs']);
 });
 
 const PROBE = join(HERE, 'random-probe.8bs');
