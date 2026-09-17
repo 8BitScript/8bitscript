@@ -82,16 +82,39 @@ function findConfigPath(dir) {
  * without it.
  */
 async function frameRateFor(filePath) {
+  const config = await configFor(filePath);
+  const frameRate = config?.frameRate;
+  return Number.isInteger(frameRate) && frameRate > 0 ? frameRate : 60;
+}
+
+/** The project's config object for the document at `filePath`, or null without one (or with one that fails to load). */
+async function configFor(filePath) {
   const configPath = findConfigPath(dirname(filePath));
-  if (!configPath) return 60;
+  if (!configPath) return null;
   try {
     const { mtimeMs } = statSync(configPath);
     const module = await import(`${pathToFileURL(configPath).href}?t=${mtimeMs}`);
-    const frameRate = module.default?.frameRate;
-    return Number.isInteger(frameRate) && frameRate > 0 ? frameRate : 60;
+    return module.default ?? null;
   } catch {
-    return 60;
+    return null;
   }
+}
+
+/**
+ * The one machine the project builds for, when its config names exactly
+ * one target — the machine a target-dependent import (`@8bitscript/screen`,
+ * one file per machine) is read *for* in hover, completion and Go to
+ * Definition; see the compiler's intellisense `machineFor`. A project with
+ * several targets, or none, has no single answer, and the compiler shows
+ * the portable view with nothing singled out.
+ */
+async function projectMachineFor(filePath) {
+  const config = await configFor(filePath);
+  const targets = config?.targets;
+  if (!targets || typeof targets !== 'object') return null;
+  // `targets` is an array of names or an object keyed by them (docs/config.md).
+  const names = Array.isArray(targets) ? targets.filter((name) => typeof name === 'string') : Object.keys(targets);
+  return names.length === 1 ? names[0] : null;
 }
 
 /**
@@ -201,13 +224,14 @@ export function start({ checkout } = {}) {
   // Both handlers below are protocol glue only: the compiler decides what a
   // position means (a built-in type, `volatile`, `@address`, ...), this file
   // just converts its answer to LSP shapes. No language knowledge lives here.
-  connection.onHover((params) => {
+  connection.onHover(async (params) => {
     const document = documents.get(params.textDocument.uri);
     if (!document) return null;
 
     const offset = document.offsetAt(params.position);
     const path = filePathOf(document.uri);
-    const info = getHoverInfo(document.getText(), offset, { path, checkout, sourceKind: sourceKindFor(document, path) });
+    const machine = path ? await projectMachineFor(path) : null;
+    const info = getHoverInfo(document.getText(), offset, { path, checkout, sourceKind: sourceKindFor(document, path), machine });
     if (!info) return null;
 
     return {
@@ -219,13 +243,14 @@ export function start({ checkout } = {}) {
     };
   });
 
-  connection.onCompletion((params) => {
+  connection.onCompletion(async (params) => {
     const document = documents.get(params.textDocument.uri);
     if (!document) return [];
 
     const offset = document.offsetAt(params.position);
     const path = filePathOf(document.uri);
-    return getCompletions(document.getText(), offset, { path, checkout, sourceKind: sourceKindFor(document, path) }).map((item) => ({
+    const machine = path ? await projectMachineFor(path) : null;
+    return getCompletions(document.getText(), offset, { path, checkout, sourceKind: sourceKindFor(document, path), machine }).map((item) => ({
       label: item.label,
       kind: COMPLETION_KIND[item.kind] ?? CompletionItemKind.TypeParameter,
       detail: item.detail,
@@ -242,13 +267,14 @@ export function start({ checkout } = {}) {
 
   // Go to definition: the compiler answers with a file and a range; a
   // location in another file is that file's own URI.
-  connection.onDefinition((params) => {
+  connection.onDefinition(async (params) => {
     const document = documents.get(params.textDocument.uri);
     if (!document) return null;
 
     const offset = document.offsetAt(params.position);
     const path = filePathOf(document.uri);
-    const target = getDefinition(document.getText(), offset, { path, checkout, sourceKind: sourceKindFor(document, path) });
+    const machine = path ? await projectMachineFor(path) : null;
+    const target = getDefinition(document.getText(), offset, { path, checkout, sourceKind: sourceKindFor(document, path), machine });
     if (!target) return null;
     const uri = pathToFileURL(target.path).href;
     const inOther = documents.get(uri);

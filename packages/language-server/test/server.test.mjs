@@ -280,6 +280,107 @@ test('an .8bx buffer: hover on a tag names the component, completion after < off
   }
 });
 
+// A machine-keyed package — the shape of every `@8bitscript/*` hardware API
+// — is read for every machine at once: hover and completion show the API
+// the machines agree on, and say where they differ. The project's own
+// config decides which machine a per-machine detail (a doc, the module Go
+// to Definition opens) is read for, when it names exactly one target.
+const PORTABLE = {
+  'node_modules/@t/hw/package.json': JSON.stringify({
+    name: '@t/hw',
+    '8bitscript': { entry: { pet: './src/pet.8bs', web: './src/web.8bs' } },
+  }),
+  'node_modules/@t/hw/src/pet.8bs': [
+    'export namespace screen {',
+    '    // Blanks the screen.',
+    '    function blank(): void {}',
+    '}',
+  ].join('\n'),
+  'node_modules/@t/hw/src/web.8bs': [
+    'export namespace screen {',
+    '    // Blanks the screen.',
+    '    function blank(): void {}',
+    '    // True while the page has marked this host as a touchscreen.',
+    '    function touch(): bool { return false; }',
+    '}',
+  ].join('\n'),
+};
+
+async function withPortableProject(config, fn) {
+  const projectDir = await mkdtemp(join(tmpdir(), '8bs-lsp-portable-'));
+  try {
+    for (const [name, text] of Object.entries(PORTABLE)) {
+      await mkdir(dirname(join(projectDir, name)), { recursive: true });
+      await writeFile(join(projectDir, name), text);
+    }
+    if (config) await writeFile(join(projectDir, '8bitscript.config.ts'), config);
+    await mkdir(join(projectDir, 'src'), { recursive: true });
+    const mainPath = join(projectDir, 'src', 'main.8bs');
+    const text = 'import { screen } from "@t/hw";\nexport function main(): void {\n    screen.blank();\n    screen.touch();\n    screen.\n}\n';
+    await writeFile(mainPath, text);
+    await withServer(async (client) => {
+      await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
+      client.notify('initialized', {});
+      const uri = pathToFileURL(mainPath).href;
+      client.notify('textDocument/didOpen', { textDocument: { uri, languageId: '8bitscript', version: 1, text } });
+      await client.waitForNotification('textDocument/publishDiagnostics');
+      await fn(client, uri, text);
+    });
+  } finally {
+    await rm(projectDir, { recursive: true, force: true });
+  }
+}
+
+test('hover on a portable member shows the API every machine agrees on, with no machine singled out', async () => {
+  await withPortableProject(null, async (client, uri, text) => {
+    const hover = await client.request('textDocument/hover', {
+      textDocument: { uri },
+      position: positionAt(text, text.indexOf('blank') + 2),
+    });
+    assert.match(hover.result.contents.value, /\*\*screen\.blank\(\): void\*\*/);
+    assert.match(hover.result.contents.value, /Blanks the screen\./);
+    assert.ok(!hover.result.contents.value.includes('Shown as implemented'), 'the one-machine footer is gone');
+    assert.ok(!hover.result.contents.value.includes('Available on'));
+  });
+});
+
+test('hover on a member only one machine has says so; the project\'s single target is the machine it is read for', async () => {
+  await withPortableProject("export default { entry: 'src/main.8bs', targets: ['pet'] };\n", async (client, uri, text) => {
+    const hover = await client.request('textDocument/hover', {
+      textDocument: { uri },
+      position: positionAt(text, text.indexOf('touch') + 2),
+    });
+    assert.match(hover.result.contents.value, /\*\*Not on pet\*\* — this project's target\./);
+    assert.match(hover.result.contents.value, /Available on web; not on pet\./);
+    assert.match(hover.result.contents.value, /Go to Definition opens web's module \(the first machine that has it\)\./);
+
+    const definition = await client.request('textDocument/definition', {
+      textDocument: { uri },
+      position: positionAt(text, text.indexOf('touch') + 2),
+    });
+    assert.match(definition.result.uri, /node_modules\/@t\/hw\/src\/web\.8bs$/, 'the jump lands where the member exists');
+
+    const portable = await client.request('textDocument/definition', {
+      textDocument: { uri },
+      position: positionAt(text, text.indexOf('blank') + 2),
+    });
+    assert.match(portable.result.uri, /node_modules\/@t\/hw\/src\/pet\.8bs$/, 'a portable member opens the project\'s own machine\'s module');
+  });
+});
+
+test('completion after object. lists the merged members and annotates the machine-specific one', async () => {
+  await withPortableProject(null, async (client, uri, text) => {
+    const completion = await client.request('textDocument/completion', {
+      textDocument: { uri },
+      position: positionAt(text, text.indexOf('screen.\n') + 7),
+    });
+    assert.deepEqual(completion.result.map((i) => [i.label, i.detail]), [
+      ['blank', 'screen.blank(): void'],
+      ['touch', 'screen.touch(): bool — web only'],
+    ]);
+  });
+});
+
 test('textDocument/hover explains memory.write', async () => {
   await withServer(async (client) => {
     await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });

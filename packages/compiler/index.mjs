@@ -34,7 +34,7 @@ export {
 export { lower, entryOf } from './src/ir/index.mjs';
 export { link, memoryOf } from './src/linker/index.mjs';
 export {
-  MACHINES, RELEASE_MACHINES, isReleaseMachine, findImports, isVariantPath, resolveImports, resolveSpecifier, variantOf, tagsOf,
+  MACHINES, RELEASE_MACHINES, isReleaseMachine, findImports, isVariantPath, machineOfVariant, resolveImports, resolveSpecifier, variantOf, tagsOf,
 } from './src/resolver/index.mjs';
 export {
   SOURCE_EXTENSIONS, LOCALE_NAME, isLocaleName, isSourceFile, sourceKindOf, stripSourceExtension,

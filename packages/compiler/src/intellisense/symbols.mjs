@@ -21,30 +21,64 @@ import { NodeType, walk } from '../ast/index.mjs';
 import { bind, bindImports, componentOf, resolveSymbol, SymbolKind } from '../binder/index.mjs';
 import { tokenize, TokenKind } from '../lexer/index.mjs';
 import { parse } from '../parser/index.mjs';
-import { resolveSpecifier, RELEASE_MACHINES } from '../resolver/index.mjs';
-import { sourceKindOf } from '../source/index.mjs';
+import { machineOfVariant, resolveSpecifier } from '../resolver/index.mjs';
+import { MACHINES, sourceKindOf } from '../source/index.mjs';
 
 /**
  * The file a `.8bs` import specifier names, from `fromFile`, when one can
  * be found without knowing the build's machine: the plain resolution, or —
- * for a specifier whose package entry is target-conditional — the first
- * release machine's branch, flagged `conditional`. Null when nothing on
- * disk answers.
+ * for a specifier whose resolution is target-dependent (a package entry
+ * keyed by machine, or a file with machine twins beside it) — one
+ * machine's branch, flagged `conditional`. Which machine: `machine` when
+ * the caller has one (the file's own twin, or the project's single
+ * target — see the language server) and the specifier has a branch for it;
+ * otherwise the first machine in `8bs targets` order that does. Null when
+ * nothing on disk answers.
  *
+ * @param {string} specifier
+ * @param {string|null} fromFile
+ * @param {string|null|undefined} checkout
+ * @param {string|null} [machine]
  * @returns {{ path: string, conditional: boolean, machine?: string } | null}
  */
-export function resolveModuleFile(specifier, fromFile, checkout) {
+export function resolveModuleFile(specifier, fromFile, checkout, machine = null) {
   if (!fromFile) return null;
   const plain = resolveSpecifier(specifier, fromFile, { checkout });
   if (plain?.code) return null;
   if (plain?.path) return { path: plain.path, conditional: false };
   if (plain?.path !== null) return null;
 
-  for (const machine of RELEASE_MACHINES) {
-    const branch = resolveSpecifier(specifier, fromFile, { machine, checkout });
-    if (branch?.path) return { path: branch.path, conditional: true, machine };
+  const order = machine ? [machine, ...MACHINES.filter((m) => m !== machine)] : MACHINES;
+  for (const candidate of order) {
+    const branch = resolveSpecifier(specifier, fromFile, { machine: candidate, checkout });
+    if (branch?.path) return { path: branch.path, conditional: true, machine: candidate };
   }
   return null;
+}
+
+/**
+ * Every machine's file for a target-dependent specifier — the branches a
+ * hover merges into the portable view. `conditional: false` with one
+ * `path` when the specifier resolves to a single file for every machine;
+ * otherwise `branches`, in `8bs targets` order, one per machine the
+ * specifier has a file for (a machine the package or twin set leaves out
+ * is simply absent). Null when nothing on disk answers.
+ *
+ * @returns {{ conditional: false, path: string } | { conditional: true, branches: { machine: string, path: string }[] } | null}
+ */
+export function resolvePortableModule(specifier, fromFile, checkout) {
+  if (!fromFile) return null;
+  const plain = resolveSpecifier(specifier, fromFile, { checkout });
+  if (plain?.code) return null;
+  if (plain?.path) return { conditional: false, path: plain.path };
+  if (plain?.path !== null) return null;
+
+  const branches = [];
+  for (const machine of MACHINES) {
+    const branch = resolveSpecifier(specifier, fromFile, { machine, checkout });
+    if (branch?.path) branches.push({ machine, path: branch.path });
+  }
+  return branches.length > 0 ? { conditional: true, branches } : null;
 }
 
 /**
@@ -55,9 +89,12 @@ export function resolveModuleFile(specifier, fromFile, checkout) {
  *
  * @param {string} text
  * @param {string|null} file
- * @param {{ sourceKind?: string|null, checkout?: string|null }} [options]
+ * @param {{ sourceKind?: string|null, checkout?: string|null, machine?: string|null }} [options]
+ *   `machine`: the machine a target-dependent import should be read for
+ *   — the file's own twin, or the project's single target (see
+ *   resolveModuleFile); without one, the first in `8bs targets` order.
  */
-export function bindModule(text, file, { sourceKind = null, checkout = null } = {}) {
+export function bindModule(text, file, { sourceKind = null, checkout = null, machine = null } = {}) {
   const kind = sourceKind ?? sourceKindOf(file ?? '') ?? '.8bs';
   const name = file ?? '<unknown>';
   const { tokens } = tokenize(text, name, { sourceKind: kind });
@@ -65,7 +102,7 @@ export function bindModule(text, file, { sourceKind = null, checkout = null } = 
   const bound = bind(ast, name);
   const modules = new Map();
   bindImports(bound, (specifier) => {
-    const resolved = resolveModuleFile(specifier, file, checkout);
+    const resolved = resolveModuleFile(specifier, file, checkout, machine);
     if (!resolved) return null;
     let other;
     try {
@@ -317,11 +354,32 @@ export function symbolAt(module, offset) {
  *
  * @param {string} text
  * @param {number} offset
- * @param {{ path?: string|null, checkout?: string|null, sourceKind?: string|null }} [options]
+ * @param {{ path?: string|null, checkout?: string|null, sourceKind?: string|null, machine?: string|null }} [options]
+ *   `machine`: the project's single target, for a target-dependent import (see bindModule).
  * @returns {{ path: string, start: number, length: number } | null}
  */
 export function getDefinition(text, offset, options = {}) {
-  const module = bindModule(text, options.path ?? null, options);
+  // A twin's own machine outranks the project's target — `x.pet.8bs` is
+  // the PET's file whatever the project builds (intellisense/index.mjs's
+  // machineFor is the same rule).
+  const machine = (options.path ? machineOfVariant(options.path) : null) ?? options.machine ?? null;
+  const first = definitionIn(bindModule(text, options.path ?? null, { ...options, machine }), offset);
+  if (first) return first;
+  // A member one machine's module lacks (`input.touch()` read for the
+  // PET): the jump lands in the first machine's module that has it, the
+  // same rule the hover states — tried in `8bs targets` order, and only
+  // for a `name.member` the first binding could not place.
+  if (!options.path || !isMemberAccessAt(text, offset)) return null;
+  for (const other of MACHINES) {
+    if (other === machine) continue;
+    const found = definitionIn(bindModule(text, options.path, { ...options, machine: other }), offset);
+    if (found) return found;
+  }
+  return null;
+}
+
+/** getDefinition's answer within one bound module, or null. */
+function definitionIn(module, offset) {
   const hit = symbolAt(module, offset);
   if (!hit) return null;
   const target = declared(hit.symbol);
@@ -329,4 +387,11 @@ export function getDefinition(text, offset, options = {}) {
   const home = moduleOf(module, hit.symbol);
   if (!home?.file) return null;
   return { path: home.file, start: target.node.start, length: target.node.length };
+}
+
+/** Whether the identifier at `offset` follows a `.` — `object.member`. */
+function isMemberAccessAt(text, offset) {
+  const { tokens } = tokenize(text, '<definition>', { sourceKind: sourceKindOf('') ?? '.8bs' });
+  const index = tokens.findIndex((tk) => offset >= tk.start && offset <= tk.start + tk.length);
+  return index > 0 && tokens[index].kind === TokenKind.Identifier && tokens[index - 1].text === '.';
 }
