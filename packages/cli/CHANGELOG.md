@@ -1,5 +1,43 @@
 # @8bitscript/cli
 
+## 0.13.0
+
+### Minor Changes
+
+- 7577c5e: `#package("version")` and `#package("name")`: a program reads its own
+  package.json at compile time, as a string literal — the nearest package.json
+  above the file, resolved the same way by `8bs build`, `8bs check` and the
+  editor — so a title screen prints the version the package was published
+  as, and a build with it is byte-identical to one with the string written
+  by hand. Any other field is refused by name (`8BS1041`); a missing or
+  unparseable package.json, or one without the field, is `8BS1042` naming
+  the file.
+
+### Patch Changes
+
+- ceda09a: SonarCloud's quality gate on trunk was failing on Reliability of New Code
+  (C, needs A): super-linear regexes, a thenable-looking IR `then` field,
+  always-false `===` checks, a loop that could only run once, and a handful
+  of related smells. The regexes are now ordinary scans, the IR field is
+  named where it stands with the same NOSONAR the rest of the compiler
+  already uses, and the rest of the findings are the same behaviour without
+  the pattern the gate was scoring.
+- Updated dependencies [82f0cda]
+- Updated dependencies [ceda09a]
+  - @8bitscript/language-server@0.13.0
+  - @8bitscript/compiler@0.13.0
+  - @8bitscript/atari8@0.13.0
+  - @8bitscript/c128@0.13.0
+  - @8bitscript/c64@0.13.0
+  - @8bitscript/cx16@0.13.0
+  - @8bitscript/examples@0.13.0
+  - @8bitscript/mega65@0.13.0
+  - @8bitscript/nes@0.13.0
+  - @8bitscript/pet@0.13.0
+  - @8bitscript/studio@0.13.0
+  - @8bitscript/vic20@0.13.0
+  - @8bitscript/web@0.13.0
+
 ## 0.12.0
 
 ### Minor Changes
