@@ -28,7 +28,7 @@
 //
 // Milestone 5 ("strings and const data") adds a wasm data section: every
 // string literal and every `const` array gets its own fixed address,
-// starting at DATA_BASE below, laid out once before any function body is
+// starting at dataBaseFor() below, laid out once before any function body is
 // lowered (the same two-pass shape as globals/functions). A `string` value
 // at runtime is just that address — a pointer to a one-byte length prefix
 // followed by the characters (ir/index.mjs's own string-table format) — so
@@ -136,6 +136,13 @@ export interface BuildOptions {
   frameRate: number;
   /** Asks for `BuildResult`'s own `sizeReport` — the CLI's `--size` flag (packages/cli/src/build.mjs), same option mos/index.ts's own BuildOptions carries. */
   report?: boolean;
+  /** The first linear-memory address past everything the target's own
+   * register agreement uses — the exclusive end of the screen, input, host
+   * and raster-list bytes the page and the program share (web-layout.mjs's
+   * `agreementFor().reservedEnd`, which the CLI computes once and hands to
+   * both). This backend places its data section at or above it, never
+   * below `DATA_FLOOR`; see dataBaseFor(). */
+  reserved?: number;
 }
 
 /** One named piece of the module `options.report` breaks a build's own size down into — mirrors mos/index.ts's own SizeReportEntry. */
@@ -151,32 +158,43 @@ export type BuildResult =
 // One page (64 KiB) of linear memory, minimum — @8bitscript/web's own
 // WebRegisters layout (packages/web/src/index.8bs) uses under 2.5 KiB of
 // it today. Milestone 5 places string/const-array data starting at
-// DATA_BASE below and grows the memory section's own declared minimum
+// dataBaseFor() below and grows the memory section's own declared minimum
 // past one page only when a program's own data genuinely needs it
 // (buildDataLayout, in build()) — most programs still get exactly one
 // page, unchanged from milestone 1.
 const MEMORY_PAGES = 1;
 const PAGE_BYTES = 64 * 1024;
 
-// Where this backend's own data section starts. No formal contract exists
-// yet between this backend and a package's own `.8bs` source about which
-// low memory addresses are "taken" — @8bitscript/web's own WebRegisters
-// (packages/web/src/index.8bs) is just ordinary program code computing
-// ordinary literal addresses (0 through HOST_OFFSET on the current
-// geometry — 2595 on the default 48×27 host), not something this
-// backend can see or reason about structurally the way it owns wasm
-// globals or its own const-array table. Placing data right after
-// WebRegisters' own current high-water mark would work today and break
-// silently the day that package adds one more byte. 8192 (0x2000) is a
-// deliberately generous, round, memorable boundary — four times what the
-// only real user of low memory needs today — chosen to survive that
-// growth without this backend needing to know about it. This is the
-// "Hello, WASM" roadmap's own "linear memory: shared vs. plain, sized how,
-// laid out how" decision, narrowed but not fully closed: a real
-// cross-package memory-map convention (every hardware-style package
-// declaring the range it needs, checked for overlap) is still better than
-// a guessed boundary, and isn't built yet.
-const DATA_BASE = 8192;
+// Where this backend's own data section starts, at the lowest. The low
+// end of linear memory belongs to the target's own register agreement —
+// @8bitscript/web's screen, colour, input, host and raster-list bytes,
+// laid out by packages/web/src/geometry.8bs on the program side and by
+// packages/cli/src/web-layout.mjs's agreementFor() on the page side — and
+// this backend used to guess at where that ended: 8192 was "four times
+// what the only real user of low memory needs today" when the default
+// host was a fixed 48×27 grid whose agreement stopped at 2790. The
+// resizable Modern host (#171) sized its map for the largest grid it will
+// ever hand out, and its agreement runs to 8392 — straight through a data
+// section that starts at 8192: the first string literal's bytes sat under
+// INPUT_OFFSET (8196) and the raster list, so the page's input writes
+// corrupted the program's data and the program's data was read back as
+// input. The guess is now a floor, and the real end of the agreement is a
+// build input (BuildOptions.reserved): the CLI computes the layout once
+// and hands its end here, and dataBaseFor() places data on the next
+// 256-byte boundary at or above it. A target whose agreement ends below
+// the floor keeps its data at 8192 exactly as before.
+const DATA_FLOOR = 8192;
+const DATA_ALIGN = 256;
+
+/** The address this backend's data section starts at for a target whose
+ * register agreement ends at `reserved` (exclusive): never below
+ * DATA_FLOOR, and on a DATA_ALIGN boundary so the number stays round and
+ * memorable when it does move. Exported for the CLI's cross-package test
+ * that pins "registers and data never overlap" for every host it lays out. */
+export function dataBaseFor(reserved: number | undefined): number {
+  const end = Math.max(DATA_FLOOR, reserved ?? 0);
+  return Math.ceil(end / DATA_ALIGN) * DATA_ALIGN;
+}
 
 /** Whether any function in the whole program calls waitFrame() anywhere —
  * `build()`'s own one whole-program pass, before any function body is
@@ -246,7 +264,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   const globalIndex = new Map(globalDefs.map((g, i) => [g.name, i]));
 
   // Data layout: every string literal, then every const array, placed
-  // back to back starting at DATA_BASE — order between the two doesn't
+  // back to back starting at dataBaseFor(reserved) — order between the two doesn't
   // matter (nothing reads across the boundary), only that each gets a
   // fixed address before any function body (which might reference it) is
   // lowered. A const array wider than 1 byte per element is refused where
@@ -254,7 +272,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // @8bitscript/web declares one today to have tested this against, and
   // refusing by name at the read site keeps this loop from guessing at a
   // 2-byte layout it can't verify.
-  let cursor = DATA_BASE;
+  let cursor = dataBaseFor(options.reserved);
   const dataSegments: number[][] = [];
   const stringAddrs: number[] = [];
   for (const s of ir.strings ?? []) {
