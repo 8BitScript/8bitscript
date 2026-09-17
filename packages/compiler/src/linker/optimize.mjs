@@ -46,6 +46,18 @@
 //      side effects keep the call so they still run. Calling-convention
 //      fixtures that need the argument shuffle to survive must give the
 //      stub a side-effecting body (a store), not `[]` or a bare `return`.
+//   8. A forwarder — a body that is exactly one call passing the
+//      function's own parameters through (`component Tile(r, c, e) {
+//      drawTile(r, c, e); }`, `return random.range(bound);`) — is that
+//      call at every site, run-time arguments and all. The site already
+//      loads and stores each argument into a parameter slot; pointing
+//      those stores at the callee's slots instead costs nothing, and the
+//      forwarder's own copies and its `jsr`/`rts` are gone. Spec §30 and
+//      §64 promise an element costs what the hand-written call costs; a
+//      wrapper with a run-time prop was +36 bytes on the PET 2001 and the
+//      VIC-20 (2048 #49), +53 across an import boundary (2048 #45), and a
+//      one-line `range()` delegate +8 on five targets, all measured on
+//      0.11.0 — this is the rule that makes them zero.
 //
 // Does not mutate `ir`.
 
@@ -383,6 +395,8 @@ function foldExpr(node, ctx) {
   if (out.kind === 'call') {
     const evaluated = constEvalCall(out, ctx);
     if (evaluated !== null) return { kind: 'const', value: evaluated, type: out.type ?? 'utinyint' };
+    const forwarded = forwardExprCall(out, ctx);
+    if (forwarded) return forwarded;
   }
   if (out.kind === 'binop' && out.operator === '*') {
     const reduced = reduceMultiply(out);
@@ -565,6 +579,105 @@ function substituteBindings(body, bindings) {
   });
 }
 
+/**
+ * The one call a forwarder's body consists of, when it is one: a call
+ * whose every argument is one of the function's own parameters (each at
+ * most once) or a numeric constant, as the body's only statement
+ * (`void`) or as the value of its only `return` (the return types must
+ * agree, so no conversion is being skipped). `wrapped` is the call,
+ * `constants` how many of its arguments are literals, `used` which
+ * parameters it passes on. Anything else — two statements, an
+ * expression around the call, a global passed through, a parameter used
+ * twice — is not a forwarder, and 2048's `f(); return;` idiom for keeping
+ * a helper a call is two statements.
+ *
+ * @returns {{ wrapped: object, constants: number, used: Set<string> } | null}
+ */
+function forwardedCall(fn) {
+  const body = fn.body ?? [];
+  if (body.length !== 1) return null;
+  const [only] = body;
+  const returnType = fn.returnType ?? 'void';
+  let wrapped;
+  if (only.kind === 'call') {
+    if (returnType !== 'void') return null;
+    wrapped = only;
+  } else if (only.kind === 'return' && only.value?.kind === 'call') {
+    if (returnType === 'void' || (only.value.type ?? returnType) !== returnType) return null;
+    wrapped = only.value;
+  } else {
+    return null;
+  }
+  if (typeof wrapped.name !== 'string' || wrapped.name === fn.name) return null;
+  const params = new Set((fn.params ?? []).map((param) => param.name));
+  const used = new Set();
+  let constants = 0;
+  for (const arg of wrapped.args ?? []) {
+    if (isNumericConst(arg)) {
+      constants += 1;
+    } else if (arg?.kind === 'ref' && params.has(arg.name) && !used.has(arg.name)) {
+      used.add(arg.name);
+    } else {
+      return null;
+    }
+  }
+  return { wrapped, constants, used };
+}
+
+/**
+ * The call a site of a forwarder becomes: the wrapped call with the
+ * site's arguments in the forwarded parameters' places. Null when the
+ * rewrite would change what runs or what it costs:
+ *
+ * - a parameter the forwarder drops takes an argument with a side effect
+ *   (the effect would vanish with it);
+ * - the forwarder reorders its parameters and an argument has a side
+ *   effect (spec §104: the order they run in would change);
+ * - a literal the forwarder adds would be stored at every site where the
+ *   function stored it once — free at one site, and worth it while the
+ *   copies cost less than the parameter stores the sites no longer make
+ *   (each literal is one store per extra site; each parameter forwarded
+ *   is one store the forwarder no longer makes).
+ */
+function forwardCall(call, fn, forwarded, ctx) {
+  const params = fn.params ?? [];
+  const args = call.args ?? [];
+  if (params.length !== args.length) return null;
+  const { wrapped, constants, used } = forwarded;
+  const bindings = new Map();
+  for (let i = 0; i < params.length; i++) {
+    if (!used.has(params[i].name) && !isSideEffectFree(args[i])) return null;
+    bindings.set(params[i].name, args[i]);
+  }
+  const order = (wrapped.args ?? []).filter((arg) => arg.kind === 'ref').map((arg) => params.findIndex((param) => param.name === arg.name));
+  const reordered = order.some((index, position) => index !== position);
+  if (reordered && args.some((arg) => !isSideEffectFree(arg))) return null;
+  if (constants > 0) {
+    const sites = countCalls(ctx.functionsByName, call.name);
+    if (constants * (sites - 1) > used.size) return null;
+  }
+  const rewritten = substituteBindings(clone(wrapped), bindings);
+  return { ...rewritten, type: rewritten.type ?? fn.returnType ?? 'void' };
+}
+
+/** A non-void forwarder in expression position — `return f(x);` — is `f(x)` where it was called. */
+function forwardExprCall(call, ctx) {
+  if (!ctx?.functionsByName || typeof call.name !== 'string') return null;
+  const fn = ctx.functionsByName.get(call.name);
+  if (!fn || ctx.inlining.has(call.name)) return null;
+  if (fn.body?.[0]?.kind !== 'return') return null;
+  const forwarded = forwardedCall(fn);
+  if (!forwarded) return null;
+  const rewritten = forwardCall(call, fn, forwarded, ctx);
+  if (!rewritten) return null;
+  ctx.inlining.add(call.name);
+  try {
+    return foldExpr(rewritten, ctx);
+  } finally {
+    ctx.inlining.delete(call.name);
+  }
+}
+
 function inlineVoidCall(statement, ctx) {
   if (!ctx?.functionsByName || typeof statement.name !== 'string') return null;
   const fn = ctx.functionsByName.get(statement.name);
@@ -575,6 +688,22 @@ function inlineVoidCall(statement, ctx) {
   }
   if (fn.returnType && fn.returnType !== 'void') return null;
   if (ctx.inlining.has(statement.name)) return null;
+  // Rewrite 8: a void forwarder is the call it wraps, whatever its
+  // arguments are — and the result goes round again, so a forwarder of a
+  // forwarder, or of an empty function, or of a body the rules below
+  // inline, ends where a hand-written call would.
+  const forwarded = forwardedCall(fn);
+  if (forwarded) {
+    const rewritten = forwardCall(statement, fn, forwarded, ctx);
+    if (rewritten) {
+      ctx.inlining.add(statement.name);
+      try {
+        return optimizeStatement(rewritten, ctx);
+      } finally {
+        ctx.inlining.delete(statement.name);
+      }
+    }
+  }
   // A `return` inside the body would stop meaning "leave this callee" once
   // the body is pasted into the caller — it would leave the *caller* (and
   // through a chain of inlines, the whole program: 2048's own spawnTile(),
