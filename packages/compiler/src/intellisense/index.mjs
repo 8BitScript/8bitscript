@@ -196,6 +196,15 @@ const FACT_DOC = [
   `The keys: ${[...FACTS].filter(([, f]) => f.program).map(([key]) => `\`${key}\``).join(', ')}. With no machine in hand — \`8bs check\`, this editor — every fact is its placeholder (0 or false) and target-dependent, like \`#system()\`.`,
 ].join('\n');
 
+/** `#package("version")`: a field of the program's own package.json (packages/compiler/src/fold/package.mjs). */
+const PACKAGE_DOC = [
+  '**#package("version")**',
+  '',
+  'Compile-time: one field of the program\'s own `package.json` — the nearest one above this file, the package boundary as Node draws it — as a string literal. `#package("version")` is the version the package was published as, so a title screen prints it and nobody bumps a const by hand; `#package("name")` is the other readable field. Once folded it *is* the literal: the same bytes as writing `"0.6.0"`, the same portable-character check where it is printed.',
+  '',
+  'One field name in quotes, `"version"` or `"name"`; anything else is `8BS1041`. No `package.json` above the file, one that does not parse, or one without the field is `8BS1042`, naming the file. `8bs check` and this editor resolve it from the file exactly as a build does.',
+].join('\n');
+
 /** One fact key's hover, inside a `#fact(...)`. */
 const factKeyDoc = (key) => {
   const fact = FACTS.get(key);
@@ -216,6 +225,7 @@ const COMPILE_TIME_DOCS = {
   frames: { detail: 'Compile-time duration, as a frame count.', documentation: FRAMES_DOC, insert: 'frames' },
   system: { detail: 'Compile-time: the machine this build is for.', documentation: SYSTEM_DOC, insert: 'system()' },
   fact: { detail: 'Compile-time: one fact about the machine this build is for.', documentation: FACT_DOC, insert: 'fact' },
+  package: { detail: 'Compile-time: a field of the program\'s own package.json.', documentation: PACKAGE_DOC, insert: 'package("version")' },
 };
 
 /** The units a `#frames(...)` duration can be written in, keyed as DURATION_UNITS is. */
@@ -731,7 +741,7 @@ function machineFor(path, options) {
  * `int`, or their low-level `u8`/`i32`-style aliases),
  * `volatile`/`ptr`/`array`, `asm6502`, `@address`, the `memory.read`/
  * `memory.write` intrinsic, and the `#frames(...)` (with its `seconds` unit),
- * `#system()`, and `waitFrame()` builtins — every built-in this milestone documents — plus,
+ * `#system()`, `#fact(...)`, `#package(...)`, and `waitFrame()` builtins — plus,
  * given `options.path`, a member of a named import's own namespace
  * (`screen.blank`, `BorderColor.BLUE`; see importedNamespace). Anything
  * else, including a user's own variables or functions, returns `null`:
@@ -841,6 +851,9 @@ function hoverAt(tokens, offset, text, filePath, checkout, machine = { machine: 
   }
   if (token.kind === TokenKind.CompileTime && token.text === '#fact') {
     return { start: token.start, length: token.length, markdown: FACT_DOC };
+  }
+  if (token.kind === TokenKind.CompileTime && token.text === '#package') {
+    return { start: token.start, length: token.length, markdown: PACKAGE_DOC };
   }
   // A fact key's words are not reserved either — `video.columns` only
   // means the fact inside `#fact(...)` — so the hover finds the whole key

@@ -445,6 +445,28 @@ test('textDocument/hover explains #system()', async () => {
   });
 });
 
+test('textDocument/hover explains #package("version")', async () => {
+  await withServer(async (client) => {
+    await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
+    client.notify('initialized', {});
+
+    const text = 'const VERSION: string = #package("version");\n';
+    client.notify('textDocument/didOpen', {
+      textDocument: { uri: URI, languageId: '8bitscript', version: 1, text },
+    });
+    await client.waitForNotification('textDocument/publishDiagnostics');
+
+    const response = await client.request('textDocument/hover', {
+      textDocument: { uri: URI },
+      position: positionAt(text, text.indexOf('package') + 2),
+    });
+
+    assert.ok(response.result);
+    assert.match(response.result.contents.value, /#package\("version"\)/);
+    assert.match(response.result.contents.value, /package\.json/);
+  });
+});
+
 test('textDocument/hover explains #fact(...) and a key inside it', async () => {
   await withServer(async (client) => {
     await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });

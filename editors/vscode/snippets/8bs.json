@@ -171,5 +171,12 @@
     "body": [
       "#system()"
     ]
+  },
+  "Compile-time package field": {
+    "prefix": "#package",
+    "description": "#package(\"version\") — a field of the program's own package.json (the nearest one above the file), as a string literal folded at compile time.",
+    "body": [
+      "const VERSION: string = #package(\"${1:version}\");"
+    ]
   }
 }
