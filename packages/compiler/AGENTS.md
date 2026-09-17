@@ -166,6 +166,47 @@ that stamps screen codes take the version from the package at zero cost;
 today that skin pays for a byte-copy loop (measured +90 on 2048's 4K PET
 2001) or for `text.print` (+146). Neither is done here.
 
+**IntelliSense shows the portable API, never one machine's.** A
+hardware package (`@8bitscript/screen`, `text`, `input`, `raster`,
+`pointer`) is one module per machine behind an entry map, and a hover on
+`screen.blank` used to read the PET's module and add "shown as
+implemented for the pet target — another target's version may differ",
+which is the opposite of what the language is for. Now
+`resolvePortableModule` resolves every machine's branch, `scanModule`
+reads each (cached per path + mtime: nine scans cost ~8 ms cold, ~1 ms
+warm), and `mergeNamespace` merges members by name. The rules, in
+`memberMarkdown`:
+
+- *Signature, value, kind*: the reading most machines share
+  (`mostShared`), ties to the earlier machine in `8bs targets` order
+  (`MACHINES`). A machine whose signature differs is named under the
+  heading — `On web: raster.at(line: usmallint, …)` — and
+  `test/portable-contract.test.mjs` fails the workspace when a member
+  every machine has disagrees, unless the drift is recorded there with
+  why (`KNOWN_DRIFT`, a to-do list for the packages, not an allowance;
+  today: `raster.at`'s `line` width).
+- *Doc*: the non-empty text most machines share is the contract and is
+  shown alone. When no two machines share one — every module documents
+  the member in its own words (`releaseCursor`: nine KERNAL notes) — the
+  note for the file's or project's machine, else the first machine's, is
+  shown labelled `On pet:` with a count of the others. The honest fix is
+  one canonical doc per portable member, which no package has a place
+  for today; the right home would be a declarations-only interface file
+  the entry map can point at (`"8bitscript".api: "./src/api.8bs"`),
+  read first by the hover and checked against every branch by the
+  contract test. Until it exists, the merge is the contract.
+- *Availability*: a member fewer machines have than the namespace lists
+  where it exists (`Available on …; not on …`), in `8bs targets` order.
+  The machine the file is read *for* — its own twin's (`machineOfVariant`),
+  else the project's single configured target (the language server reads
+  `8bitscript.config.ts` and passes `machine`) — is called out first when
+  it lacks the member, because a dead arm naming it is a link error
+  (2048 #54). Nothing is said when nothing differs.
+- *Go to Definition* opens the module for that machine when it has the
+  member, else the first machine that does (`getDefinition` rebinds per
+  machine in `MACHINES` order only for an `object.member` the first
+  binding could not place), and the hover names it.
+
 ## Machine twins, and locales
 
 A file's machine version sits beside it with the machine's name before
