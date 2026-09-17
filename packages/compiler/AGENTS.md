@@ -135,6 +135,47 @@ range; completion in `.8bx` knows a tag from the lexer's own tag tokens
 component's remaining props inside its tag. The language server is
 protocol glue over these three calls.
 
+## Machine twins, and locales
+
+A file's machine version sits beside it with the machine's name before
+the extension (`x.pet.8bs`), a hardware tag's one word further
+(`x.pet.8032.8bs`), and the resolver picks the most specific one the
+build has (`src/resolver/index.mjs` `chooseVariant`). **A locale is the
+innermost dimension, always the last word** (`x.de.8bs`, `x.pet.de.8bs`,
+`x.pet.8032.de.8bs`), and it refines the machine choice without ever
+changing it: whichever level — tag, machine, plain — the build would
+take with no locale, it takes that level's `.<locale>` file when one
+exists and the level's own file otherwise. A level counts as present
+when either spelling does. Chosen that way round because the wrong
+machine is a broken build and the wrong language is a visible one: a
+`strings.pet.8bs` serves a German PET build that ships no
+`strings.pet.de.8bs` — and says so (`8BS3005`, a warning, only when a
+`strings.de.8bs` exists to have been passed over). **No locale means no
+locale's file is read**, so `x.de.8bs` under a build that names none is
+the ordinary module its name spells, with machine twins of its own if it
+wants them; `isVariantPath` knows the locale form only when handed the
+locale. A locale name is `LOCALE_NAME` in `src/source/index.mjs` (two to
+eight lower-case letters, an optional `-region`), never a machine
+(`isLocaleName`), and — the CLI's check, against the catalogs
+(`packages/cli/src/config.mjs` `localeProblem`) — never one of the
+machine's hardware tags, so `x.pet.8032.8bs` and `x.pet.de.8bs` can
+always be told apart by their words. `MACHINES` moved to
+`src/source/index.mjs` for that check and is re-exported by the
+resolver. `#locale("de")` (`src/fold/index.mjs` `foldLocaleCall`) folds
+to a boolean like a flag fact: true in the `de` build, false in every
+other and in a build or check that names none — the plain files are the
+`else`. One name in quotes, or `8BS1040`.
+
+A locale is a *build* input — `--locale`, a `release` entry's `locale`, a
+target's, the project's — and never a runtime one: a 4K PET has no room
+for a language switch, so it is one binary per locale, named with it
+(`2048-pet-de.prg`, `program-de.wasm`). What it does not do yet: convert
+a string literal to a machine's screen codes at compile time, so a
+machine that bakes its strings (the PET's `text.print` converts at run
+time, and a size-fitted program pre-converts by hand) still carries a
+`strings.pet.8bs` per locale — see the locale PR's write-up for what
+that fold would take.
+
 ## The pipeline
 
 Text goes through the layers in order. Each layer is a pure function

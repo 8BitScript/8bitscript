@@ -37,7 +37,7 @@ export {
   MACHINES, RELEASE_MACHINES, isReleaseMachine, findImports, isVariantPath, resolveImports, resolveSpecifier, variantOf, tagsOf,
 } from './src/resolver/index.mjs';
 export {
-  SOURCE_EXTENSIONS, isSourceFile, sourceKindOf, stripSourceExtension,
+  SOURCE_EXTENSIONS, LOCALE_NAME, isLocaleName, isSourceFile, sourceKindOf, stripSourceExtension,
 } from './src/source/index.mjs';
 export { Codes, diagnostic, positionAt } from './src/diagnostics/index.mjs';
 export {
@@ -70,7 +70,7 @@ export { getHoverInfo, getCompletions, getDefinition } from './src/intellisense/
  *
  * @param {string} text
  * @param {string} file
- * @param {{ resolveImports?: boolean, frameRate?: number, machine?: string, facts?: object, checkout?: string|null, sourceKind?: '.8bs'|'.8bx', bx?: { strict?: boolean } }} [options]
+ * @param {{ resolveImports?: boolean, frameRate?: number, machine?: string, facts?: object, locale?: string, checkout?: string|null, sourceKind?: '.8bs'|'.8bx', bx?: { strict?: boolean } }} [options]
  *   `machine` is the target when one is known; without it `#system()` and
  *   `#fact(...)` fold to placeholders and are valid-but-target-dependent,
  *   as a `.<machine>.8bs` import is. `facts` is the machine's hardware
@@ -113,7 +113,7 @@ export function analyze(text, file = '<unknown>', options = {}) {
   // Folding runs before check(), same ordering as the linker: a
   // #frames(...) call needs to already be a plain IntegerLiteral by the
   // time the width-fit rule walks the tree.
-  const folding = foldCompileTime(ast, file, { frameRate: options.frameRate, machine: options.machine, facts: options.facts });
+  const folding = foldCompileTime(ast, file, { frameRate: options.frameRate, machine: options.machine, facts: options.facts, locale: options.locale });
   const all = [...lexical, ...syntax, ...binding, ...folding, ...check(ast, file, text)];
   // A few rules — the template layout above all — are deliberately run by
   // both check() and lower(), so that `check()` alone is a complete

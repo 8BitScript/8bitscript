@@ -72,9 +72,12 @@ export async function writeLastRun(target, patch, cwd = process.cwd()) {
  * What compile() hands writeLastRun: memory, the `--size` entries when
  * asked for, the hardware snapshot, and the built file.
  */
-export function compileReport(target, { outFile, hardware, memory, sizeReport, frameRate, program }, cwd = process.cwd()) {
+export function compileReport(target, { outFile, hardware, memory, sizeReport, frameRate, program, locale }, cwd = process.cwd()) {
   return {
     target,
+    // The build's locale, or null: the plain files, which is every build
+    // that never named one.
+    locale: locale ?? null,
     // Which of the project's programs this was — `main` for every project
     // with one. The file stays one per target: it records the last run on
     // that machine, and that run was of exactly one program.

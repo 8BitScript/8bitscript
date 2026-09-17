@@ -12,8 +12,11 @@ export type Requires = Record<string, number | boolean>;
 /** Hardware option values, by option id, as `8bs targets` lists them. */
 export type HardwareOptions = Record<string, string>;
 
+/** A locale name: two to eight lower-case letters, optionally `-region` (`de`, `pt-br`). Not a machine's name or a hardware tag. */
+export type Locale = string;
+
 /** One artifact a release builds for a target: a preset/profile name, or a composed choice. */
-export type ReleaseVariant = string | { profile?: string; hardware?: HardwareOptions };
+export type ReleaseVariant = string | { profile?: string; hardware?: HardwareOptions; locale?: Locale };
 
 export interface TargetConfig {
   /** The project's own stock for this machine — under every profile and `--hardware`. */
@@ -22,6 +25,8 @@ export interface TargetConfig {
   profiles?: Record<string, HardwareOptions>;
   /** What `8bs build --release` builds for this machine; one build with the default hardware when absent. */
   release?: ReleaseVariant[];
+  /** This machine's locale, over the project's. `--locale` and a release entry's `locale` are nearer still. */
+  locale?: Locale;
 }
 
 export interface SystemConfig {
@@ -78,6 +83,15 @@ export interface ProjectConfig {
   requires?: Requires;
   /** 8BX settings. `strict: false` turns the ordinary-code lint in `.8bx` files off; the hard rules stay. */
   bx?: { strict?: boolean };
+  /**
+   * The locale every build is for unless a target, a release entry or
+   * `--locale` says otherwise. With one, a file's `.<locale>` twin
+   * (`strings.de.8bs`, `strings.pet.de.8bs`) is read where it exists and
+   * the artifact's name carries it (`2048-pet-de.prg`); `#locale("de")`
+   * folds to true. Without one — the default — no locale's file is read and
+   * nothing is named differently.
+   */
+  locale?: Locale;
 }
 
 /** Returns `config` unchanged; exists to type it. `export default { … }` is still a config. */

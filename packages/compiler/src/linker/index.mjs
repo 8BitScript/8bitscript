@@ -79,7 +79,7 @@ function parseModule(file, text, diagnostics) {
  * are known: element checks, 8BX elaboration, folding, checking, and
  * lowering to this module's IR.
  */
-function finishModule(module, diagnostics, { frameRate, machine, facts, bx }) {
+function finishModule(module, diagnostics, { frameRate, machine, facts, bx, locale }) {
   const { file, text, ast, bound } = module;
   diagnostics.push(...checkBx(ast, file, bound.symbols, { sourceKind: sourceKindOf(file) ?? '.8bs', strict: bx?.strict !== false }));
   elaborateBx(ast, bound.symbols, file);
@@ -87,7 +87,7 @@ function finishModule(module, diagnostics, { frameRate, machine, facts, bx }) {
   // plain IntegerLiteral by the time the width-fit rule walks the tree, so
   // e.g. #frames(100, seconds) overflowing a utinyint gets that diagnostic for free,
   // with no separate rule duplicating it here.
-  diagnostics.push(...foldCompileTime(ast, file, { frameRate, machine, facts }));
+  diagnostics.push(...foldCompileTime(ast, file, { frameRate, machine, facts, locale }));
   diagnostics.push(...check(ast, file, text));
   const { ir, diagnostics: lowering } = lower(ast, file, text);
   // The template layout runs in both check() (so the editor sees it) and
@@ -122,7 +122,7 @@ function loadGraph(entryText, entryFile, diagnostics, sources, options) {
   // once each however many modules import the package — keyed by canonical
   // path for the same pnpm-symlink reason `byPath` is.
   const nativeSources = new Map();
-  const finishOptions = { frameRate: options.frameRate, machine: options.machine, facts: options.facts, bx: options.bx };
+  const finishOptions = { frameRate: options.frameRate, machine: options.machine, facts: options.facts, bx: options.bx, locale: options.locale };
 
   const enqueue = (file, text) => {
     const module = parseModule(file, text, diagnostics);
@@ -183,6 +183,12 @@ function loadGraph(entryText, entryFile, diagnostics, sources, options) {
       if (resolved.code) {
         diagnostics.push(diagnostic(resolved.code, resolved.message, module.file, imp.start, imp.length));
         continue;
+      }
+      if (resolved.warning) {
+        // Resolved, and worth a word: the file was found, but not the one
+        // the build's locale asked for (8BS3005). Once, here, against the
+        // import that names it.
+        diagnostics.push(diagnostic(resolved.warning.code, resolved.warning.message, module.file, imp.start, imp.length, 'warning'));
       }
       if (resolved.path === null) {
         // A conditional package entry, or a file that exists only in
@@ -1031,7 +1037,7 @@ function checkEntryExports(module) {
  *
  * @param {string} entryText  The entry module's source.
  * @param {string} entryFile  Its absolute path, the root imports resolve from.
- * @param {{ machine?: string, tags?: string[], profile?: string, frameRate?: number, facts?: object }} [options]
+ * @param {{ machine?: string, tags?: string[], profile?: string, frameRate?: number, facts?: object, locale?: string }} [options]
  *   `machine` is the target being built for; packages with target-
  *   conditional entries resolve to that machine's implementation, and any
  *   `.8bs` file with a `.<machine>.8bs` twin beside it resolves to the
@@ -1044,7 +1050,10 @@ function checkEntryExports(module) {
  *   every `#system()` call folds to. `facts` is the build's hardware fact
  *   sheet (the merged `facts` of packages/cli/src/hardware.mjs's
  *   resolveHardware), what every `#fact(...)` folds from; a build that
- *   names a machine and reads a fact without one is `8BS1038`.
+ *   names a machine and reads a fact without one is `8BS1038`. `locale`
+ *   is the build's locale, if it has one: a file's `.<locale>` twin is
+ *   taken where it exists (see the resolver), and `#locale("de")` folds
+ *   to whether this is it.
  * @returns {{ ir: object|null, diagnostics: object[], sources: Map<string,string> }}
  */
 export function link(entryText, entryFile, options = {}) {
