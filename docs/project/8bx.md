@@ -120,16 +120,41 @@ reserved) by code on trunk; the spec has the reasoning.
 Facts about today's code, not the design. Each is either a spec PR still
 ahead or a wording the spec should catch up to.
 
-- **A run-time prop through a wrapper still costs a function.** A
-  component whose body only forwards its props to one call
-  (`component Tile(row, col, e) { drawTile(row, col, e); }`) is free when
-  every prop is a compile-time value, and costs one real function per
-  wrapper when one is not — measured at +36 bytes on the 4K PET 2001 and
-  the unexpanded VIC-20 in 2048 #49, and the reason 2048 calls `Tiles()`
-  rather than wrapping each tile. §30 and §64 promise that a component
-  costs what the call would; a forwarding-inline rule in the linker's
-  optimizer is what closes the gap. The manual lists it under
-  [Not yet available](../language/not-yet.md).
+- **A forwarder is free now** (#178, #184). A component whose body only
+  forwards its props to one call, a function with exactly one caller, and
+  a body whose own callees are inlined before it is sized all cost what
+  the hand-written call would — the +36 bytes 2048 #49 measured, the +53
+  of 2048 #45 and the +8 of a delegating `range()` are 0, by byte-identity
+  test. 2048's restructure (#50–#56) measured 2763 → 2759 on the 4K PET
+  2001 and 3490 → 3482 on the unexpanded VIC-20 on 0.11.0, and 2687 / 3396
+  with #184. A forwarder that passes a *global* through stays a function
+  by design: each inlined copy would reload the globals.
+- **Found by 2048's restructure into `ui/` elements over `lib/`** (2048
+  #54–#56; each measured on the PET 2001, the numbers are in those PR
+  bodies) — real, and each is a compiler follow-up:
+  - *Liveness by name.* An exported `let` stays in the image when any
+    reachable function declares a *local* of the same name; +4 bytes and
+    2 of RAM per collision. The linker should count references by symbol,
+    not by spelling.
+  - *A global initializer costs its stores even when the global is written
+    before it is read* (and the backend zero-initializes every zero-page
+    global regardless); dropping eight was −4 on every 6502.
+  - *A constant return does not fold at an argument site.* A function that
+    returns a literal or a fact is inlined but the value only folds in a
+    condition, not as a call argument — why `text.columns()` costs 51
+    bytes on a machine where it is a fact.
+  - *A dead arm that names a namespace member the machine's package does
+    not have* (`input.touch()` on the VIC-20) is a link error before
+    folding removes it, so a capability one machine's API offers cannot be
+    asked behind a fact without a `lib/` twin to shim it.
+  - *A `const` cannot be initialized by an expression of facts*
+    (`8BS3001`), so a predicate over several facts has no home but a
+    function; and *a `string` const inside an `export namespace` is
+    refused* (`8BS3001`) where a top-level one is fine.
+  - *The `return;` idiom cuts both ways*: the documented way to keep a
+    helper a real function is also the undocumented way to stop an
+    element inlining (+4 on the PET). It should be a named decision, not
+    a side effect.
 - **There is no "children required".** Spec §4.5 says a `.8bs` call to a
   component whose slot is required is `8BS22xx: children required`. The
   compiler has no required slot: a slotted component is also kept as one
