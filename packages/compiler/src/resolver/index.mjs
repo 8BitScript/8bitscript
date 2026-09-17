@@ -128,6 +128,20 @@ function isVariantStem(stem) {
 }
 
 /**
+ * The machine a twin's name carries — `pet` for `x.pet.8bs`,
+ * `x.pet.8032.8bs` and `x.pet.de.8bs` — or null for a plain file. What the
+ * editor reads a target-dependent import for when the file being edited
+ * is itself one machine's version (intellisense/index.mjs).
+ */
+export function machineOfVariant(path) {
+  const ext = sourceKindOf(path);
+  if (!ext) return null;
+  const stem = stripSourceExtension(path);
+  return MACHINES.find((machine) => stem.endsWith(`.${machine}`)
+    || new RegExp(`\\.${machine}\\.[A-Za-z0-9_-]+$`).test(stem)) ?? null;
+}
+
+/**
  * Every twin of `path` that exists beside it — a machine's (`x.nes.8bs`),
  * a tag's (`x.pet.8032.8bs`), a locale's (`x.de.8bs`, `x.pet.de.8bs`,
  * `x.pet.8032.de.8bs`) — as `{ machine, tag, locale }` records, each

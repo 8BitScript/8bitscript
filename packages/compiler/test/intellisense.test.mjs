@@ -330,23 +330,115 @@ test('a renamed import (`as`) is still reached by its local name', () => {
 
 // A machine-conditional package, the shape every hardware API
 // (@8bitscript/screen, @8bitscript/text, ...) actually has: one entry per
-// machine, each machine's own file.
+// machine, each machine's own file. Hover and completion read *every*
+// machine's file and show the API they agree on — a program is written
+// for nine machines at once, and the editor must not quietly pick one.
+// See intellisense/index.mjs's importedNamespace and mergeNamespace.
+const PORTABLE_DOC = '// Blanks the screen: every cell, both colors.';
 const CONDITIONAL_PACKAGE = {
   'node_modules/@t/hw/package.json': {
     name: '@t/hw',
-    '8bitscript': { entry: { pet: './src/pet.8bs', web: './src/web.8bs' } },
+    '8bitscript': { entry: { pet: './src/pet.8bs', c64: './src/c64.8bs', web: './src/web.8bs' } },
   },
-  'node_modules/@t/hw/src/pet.8bs': 'export namespace screen {\n    // On the PET.\n    function blank(): void {}\n}\n',
-  'node_modules/@t/hw/src/web.8bs': 'export namespace screen {\n    // On the web.\n    function blank(): void {}\n}\n',
+  'node_modules/@t/hw/src/pet.8bs': [
+    'export namespace screen {',
+    `    ${PORTABLE_DOC}`,
+    '    function blank(): void {}',
+    '    // Deliberately empty on the PET: there is no cursor to hand back.',
+    '    function releaseCursor(): void {}',
+    '}',
+  ].join('\n'),
+  'node_modules/@t/hw/src/c64.8bs': [
+    'export namespace screen {',
+    `    ${PORTABLE_DOC}`,
+    '    function blank(): void {}',
+    '    // Banks the KERNAL back in and tells its editor where the cursor is.',
+    '    function releaseCursor(): void {}',
+    '    // The raster line the border starts on.',
+    '    const TOP: utinyint = 50;',
+    '    function scroll(x: utinyint): void {}',
+    '}',
+  ].join('\n'),
+  'node_modules/@t/hw/src/web.8bs': [
+    'export namespace screen {',
+    `    ${PORTABLE_DOC}`,
+    '    function blank(): void {}',
+    '    // Nothing to release: the page has no BASIC prompt to return to.',
+    '    function releaseCursor(): void {}',
+    '    const TOP: utinyint = 0;',
+    '    function scroll(x: usmallint): void {}',
+    '    // True while the page has marked this host as a touchscreen.',
+    '    function touch(): bool { return false; }',
+    '}',
+  ].join('\n'),
 };
 
-test('a machine-conditional import resolves to a RELEASE_MACHINES branch and says so', () => {
+test('a member every machine has, documented the same everywhere, is shown plainly — no machine named', () => {
   withFiles(CONDITIONAL_PACKAGE, (dir) => {
     const file = join(dir, 'main.8bs');
     const text = 'import { screen } from "@t/hw";\nscreen.blank();\n';
     const info = getHoverInfo(text, at(text, 'blank'), { path: file });
-    assert.match(info.markdown, /On the PET\./, 'pet is first in RELEASE_MACHINES');
-    assert.match(info.markdown, /Shown as implemented for the `pet` target/);
+    assert.match(info.markdown, /^\*\*screen\.blank\(\): void\*\*/);
+    assert.match(info.markdown, /Blanks the screen: every cell, both colors\./);
+    assert.ok(!info.markdown.includes('Shown as implemented'), 'the old one-machine footer is gone');
+    assert.ok(!info.markdown.includes('Available on'), 'a portable member lists no machines');
+    assert.ok(!info.markdown.includes('On pet'), 'a shared doc is the contract, not one machine\'s note');
+    assert.match(info.markdown, /Go to Definition opens c64's module \(the first machine that has it\)\./, 'c64 precedes pet and web in `8bs targets` order');
+  });
+});
+
+test('a member only some machines have says which, in `8bs targets` order', () => {
+  withFiles(CONDITIONAL_PACKAGE, (dir) => {
+    const file = join(dir, 'main.8bs');
+    const text = 'import { screen } from "@t/hw";\nlet t: utinyint = screen.TOP;\n';
+    const info = getHoverInfo(text, at(text, 'TOP'), { path: file });
+    assert.match(info.markdown, /^\*\*screen\.TOP: utinyint\*\* = 50/, 'the value most machines share; c64 ties web and comes first');
+    assert.match(info.markdown, /Available on c64 and web; not on pet\./);
+    assert.ok(!info.markdown.includes('Not on'), 'no machine singled out without a file or project machine');
+  });
+});
+
+test('a member missing on the machine this file is a twin for is called out, and the jump goes where it exists', () => {
+  withFiles(CONDITIONAL_PACKAGE, (dir) => {
+    const file = join(dir, 'main.pet.8bs');
+    const text = 'import { screen } from "@t/hw";\nif (screen.touch()) {}\n';
+    const info = getHoverInfo(text, at(text, 'touch'), { path: file });
+    assert.match(info.markdown, /\*\*Not on pet\*\* — this file's machine\./);
+    assert.match(info.markdown, /Available on web; not on c64 and pet\./);
+    assert.match(info.markdown, /Go to Definition opens web's module \(the first machine that has it\)\./);
+  });
+});
+
+test('the project\'s single target is the machine the import is read for', () => {
+  withFiles(CONDITIONAL_PACKAGE, (dir) => {
+    const file = join(dir, 'main.8bs');
+    const text = 'import { screen } from "@t/hw";\nscreen.releaseCursor();\n';
+    const info = getHoverInfo(text, at(text, 'releaseCursor'), { path: file, machine: 'web' });
+    assert.match(info.markdown, /On web: Nothing to release/, 'every machine documents it differently: the project\'s machine\'s note is shown, and labelled');
+    assert.match(info.markdown, /Each machine documents this in its own words — 2 more in the machines' modules\./);
+    assert.match(info.markdown, /Go to Definition opens web's module \(this project's target\)\./);
+  });
+});
+
+test('a signature one machine disagrees on shows the portable one and names the dissenter', () => {
+  withFiles(CONDITIONAL_PACKAGE, (dir) => {
+    const file = join(dir, 'main.8bs');
+    const text = 'import { screen } from "@t/hw";\nscreen.scroll(1);\n';
+    const info = getHoverInfo(text, at(text, 'scroll'), { path: file });
+    assert.match(info.markdown, /^\*\*screen\.scroll\(x: utinyint\): void\*\*/, 'c64\'s, the first in order of a tie');
+    assert.match(info.markdown, /On web: `screen\.scroll\(x: usmallint\): void`/);
+  });
+});
+
+test('completion after object. lists the merged members, a subset member annotated with its machines', () => {
+  withFiles(CONDITIONAL_PACKAGE, (dir) => {
+    const file = join(dir, 'main.8bs');
+    const text = 'import { screen } from "@t/hw";\nscreen.';
+    const items = getCompletions(text, text.length, { path: file });
+    assert.deepEqual(items.map((i) => i.label).sort(), ['TOP', 'blank', 'releaseCursor', 'scroll', 'touch']);
+    assert.equal(items.find((i) => i.label === 'blank').detail, 'screen.blank(): void');
+    assert.equal(items.find((i) => i.label === 'touch').detail, 'screen.touch(): bool — web only');
+    assert.match(items.find((i) => i.label === 'TOP').documentation, /Available on c64 and web; not on pet\./);
   });
 });
 
@@ -358,13 +450,14 @@ const WEB_ONLY_PACKAGE = {
   'node_modules/@t/hw2/src/web.8bs': 'export namespace screen {\n    // Web only.\n    function blank(): void {}\n}\n',
 };
 
-test('a machine-conditional import with no pet branch falls back to the next RELEASE_MACHINES entry', () => {
+test('a package with one machine is that machine\'s API, and says nothing about the others', () => {
   withFiles(WEB_ONLY_PACKAGE, (dir) => {
     const file = join(dir, 'main.8bs');
     const text = 'import { screen } from "@t/hw2";\nscreen.blank();\n';
     const info = getHoverInfo(text, at(text, 'blank'), { path: file });
     assert.match(info.markdown, /Web only\./);
-    assert.match(info.markdown, /Shown as implemented for the `web` target/);
+    assert.ok(!info.markdown.includes('Available on'), 'every machine the package has, has it');
+    assert.match(info.markdown, /Go to Definition opens web's module/);
   });
 });
 

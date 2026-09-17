@@ -23,16 +23,17 @@
 // (`getHoverInfo`, `getCompletions`, `getDefinition`) that an
 // editor-protocol layer can call without knowing anything about 8BitScript
 // itself.
-import { readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 
 import { isOperandToken, tokenize, TokenKind } from '../lexer/index.mjs';
 import { PRIMITIVE_INTEGER_TYPES, resolveIntegerType } from '../types/index.mjs';
 import { DURATION_CLOCKS, DURATION_UNITS, SYSTEMS } from '../fold/index.mjs';
 import { FACTS } from '../fold/facts.mjs';
 import { SymbolKind } from '../binder/index.mjs';
-import { sourceKindOf } from '../source/index.mjs';
+import { machineOfVariant } from '../resolver/index.mjs';
+import { MACHINES, sourceKindOf } from '../source/index.mjs';
 import {
-  bindModule, bxPosition, propsOf, resolveModuleFile, scopeAt, symbolAt, symbolMarkdown, visibleSymbols,
+  bindModule, bxPosition, propsOf, resolvePortableModule, scopeAt, symbolAt, symbolMarkdown, visibleSymbols,
 } from './symbols.mjs';
 
 export { getDefinition } from './symbols.mjs';
@@ -447,7 +448,7 @@ function readConstSignature(tokens, i, text) {
  * `let`/`const` local to a member function's body is never mistaken for
  * another member.
  */
-function scanModule(text) {
+export function scanModule(text) {
   const { tokens } = tokenize(text);
   const namespaces = new Map();
   let container = null;
@@ -502,32 +503,220 @@ function scanModule(text) {
   return namespaces;
 }
 
-/** Markdown for one namespace member — `screen.blank`, `BorderColor.BLUE`. */
-function memberMarkdown(objectName, member, resolved) {
+// ---- the portable view of a machine-keyed package -------------------------
+//
+// `@8bitscript/screen`'s entry is one file per machine, so the file a hover
+// reads is a choice — and the wrong one to make silently. The editor is
+// where a program is written for nine machines at once, so a member is
+// shown as the API every machine agrees on: each machine's module is
+// scanned, the members are merged by name, and what differs between
+// machines is said (which machines have it, whose signature disagrees,
+// whose doc is being shown) rather than shown as one machine's version
+// with a footer hoping nobody notices. See packages/compiler/AGENTS.md,
+// "IntelliSense shows the portable API".
+
+/** scanModule's result per file, kept until the file's mtime changes — nine module scans per hover is fine once, not every keystroke. */
+const scanCache = new Map();
+
+function scanModuleCached(path) {
+  let mtimeMs;
+  try {
+    ({ mtimeMs } = statSync(path));
+  } catch {
+    return null;
+  }
+  const cached = scanCache.get(path);
+  if (cached && cached.mtimeMs === mtimeMs) return cached.namespaces;
+  const namespaces = scanModule(readFileSync(path, 'utf8'));
+  scanCache.set(path, { mtimeMs, namespaces });
+  return namespaces;
+}
+
+/** `a, b and c` — a list the way a sentence says it. */
+function listOf(items) {
+  if (items.length <= 1) return items.join('');
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+}
+
+/**
+ * The text most machines share, among those with a value: the majority,
+ * ties to the earlier machine in `8bs targets` order. Returns the winning
+ * text and the machines carrying it.
+ */
+function mostShared(values) {
+  const counts = new Map();
+  for (const [machine, value] of values) {
+    if (value === null || value === undefined || value === '') continue;
+    if (!counts.has(value)) counts.set(value, []);
+    counts.get(value).push(machine);
+  }
+  let best = null;
+  for (const [value, machines] of counts) {
+    if (!best || machines.length > best.machines.length) best = { value, machines };
+  }
+  return best;
+}
+
+/**
+ * One member as every machine sees it, merged from each machine's own
+ * scan of it. `signature`, `kind`, `value` and `doc` are the portable
+ * reading (mostShared); `machines` lists where the member exists at all;
+ * `signatures` and `docs` keep each machine's own, for the differences the
+ * markdown states.
+ */
+function mergeMember(name, perMachine) {
+  const machines = perMachine.map(([machine]) => machine);
+  const signature = mostShared(perMachine.map(([m, info]) => [m, info.signature]));
+  const doc = mostShared(perMachine.map(([m, info]) => [m, info.doc]));
+  const value = mostShared(perMachine.map(([m, info]) => [m, info.value]));
+  const kinds = new Set(perMachine.map(([, info]) => info.kind));
+  return {
+    name,
+    kind: kinds.size === 1 ? perMachine[0][1].kind : 'function',
+    signature: signature.value,
+    value: value?.value ?? null,
+    doc: doc?.value ?? null,
+    docShared: doc?.machines ?? [],
+    docs: perMachine.filter(([, info]) => info.doc).map(([m, info]) => [m, info.doc]),
+    machines,
+    dissent: perMachine.filter(([, info]) => info.signature !== signature.value).map(([m, info]) => [m, info.signature]),
+  };
+}
+
+/**
+ * The namespace `name` merged across `branches` (`[{ machine, path }]`):
+ * `Map<memberName, MergedMember>` in first-seen order, or null when no
+ * branch declares the namespace.
+ */
+function mergeNamespace(name, branches) {
+  const perMember = new Map();
+  const declaring = [];
+  for (const { machine, path } of branches) {
+    const members = scanModuleCached(path)?.get(name);
+    if (!members) continue;
+    declaring.push(machine);
+    for (const [memberName, info] of members) {
+      if (!perMember.has(memberName)) perMember.set(memberName, []);
+      perMember.get(memberName).push([machine, info]);
+    }
+  }
+  if (declaring.length === 0) return null;
+  const merged = new Map();
+  for (const [memberName, perMachine] of perMember) merged.set(memberName, mergeMember(memberName, perMachine));
+  return { members: merged, machines: declaring };
+}
+
+/**
+ * Markdown for one namespace member — `screen.blank`, `BorderColor.BLUE`.
+ *
+ * For a member of a single-file module, the heading, and the doc if there
+ * is one. For a member merged across machines (`portable`), the same, and
+ * then only what differs: which machines have it when not all do (and
+ * whether this file's or project's machine is among them), whose
+ * signature disagrees with the portable one, and — when no two machines
+ * share a doc — whose doc is being shown, so a note about one machine's
+ * KERNAL is never mistaken for the contract. Nothing is said when nothing
+ * differs: the portable API is the ordinary case, and reads as such.
+ *
+ * @param {string} objectName
+ * @param {object} member
+ * @param {{ portable: { machines: string[] } | null, machine: string|null, machineWhy: string|null }} context
+ */
+function memberMarkdown(objectName, member, context) {
   const heading = member.kind === 'function'
     ? `**${objectName}.${member.signature}**`
     : `**${objectName}.${member.signature}**${member.value ? ` = ${member.value}` : ''}`;
   const lines = [heading, ''];
-  if (member.doc) lines.push(member.doc, '');
-  if (resolved.conditional) {
-    lines.push(`Shown as implemented for the \`${resolved.machine}\` target — another target's version may differ.`);
+
+  if (!context.portable) {
+    if (member.doc) lines.push(member.doc, '');
+    return lines.join('\n').trimEnd();
+  }
+
+  const all = context.portable.machines;
+  const missing = all.filter((m) => !member.machines.includes(m));
+  const perMachineDocs = member.doc && member.docShared.length < 2 && member.docs.length > 1;
+
+  if (member.doc) {
+    if (perMachineDocs) {
+      // Every machine documents it in its own words: show the one this
+      // file or project is for when known, else the first, and say so.
+      const pick = member.docs.find(([m]) => m === context.machine) ?? member.docs[0];
+      lines.push(`On ${pick[0]}: ${pick[1]}`, '');
+      const others = member.docs.length - 1;
+      lines.push(`Each machine documents this in its own words — ${others} more in the machines' modules.`, '');
+    } else {
+      lines.push(member.doc, '');
+    }
+  }
+
+  if (missing.length > 0) {
+    if (context.machine && missing.includes(context.machine)) {
+      lines.push(`**Not on ${context.machine}** — ${context.machineWhy}.`, '');
+    }
+    lines.push(`Available on ${listOf(member.machines)}; not on ${listOf(missing)}.`, '');
+  }
+
+  for (const [machine, signature] of member.dissent) {
+    lines.push(`On ${machine}: \`${objectName}.${signature}\``, '');
+  }
+
+  if (context.portable) {
+    // The module a jump lands in: this file's or project's machine when it
+    // has the member, else the first machine that does — never a module
+    // the member is missing from.
+    const target = member.machines.includes(context.machine) ? context.machine : member.machines[0];
+    const why = target === context.machine ? context.machineWhy : 'the first machine that has it';
+    lines.push(`Go to Definition opens ${target}'s module (${why}).`);
   }
   return lines.join('\n').trimEnd();
 }
 
 /**
- * The namespace a `local` import binding names, resolved from `fromFile` —
- * or `null` when `local` is not a known import, its specifier does not
- * resolve, or the exported name it binds is not a namespace (a plain
- * imported function/const has no members to look up).
+ * The namespace a `local` import binding names, resolved from `fromFile`
+ * — merged across every machine's module when the import is
+ * target-dependent — or `null` when `local` is not a known import, its
+ * specifier does not resolve, or the exported name it binds is not a
+ * namespace (a plain imported function/const has no members to look up).
+ *
+ * `machine` is the machine to read the import *for* when it matters — this
+ * file's own twin, or the project's single target: it decides which
+ * per-machine doc is shown, which machine's absence is called out, and
+ * which module Go to Definition opens.
+ *
+ * @returns {{ members: Map<string, object>, context: object } | null}
  */
-function importedNamespace(tokens, local, fromFile, checkout) {
+function importedNamespace(tokens, local, fromFile, checkout, machine = null) {
   const binding = findImportBindings(tokens).find((b) => b.local === local);
   if (!binding) return null;
-  const resolved = resolveModuleFile(binding.specifier, fromFile, checkout);
+  const resolved = resolvePortableModule(binding.specifier, fromFile, checkout);
   if (!resolved) return null;
-  const members = scanModule(readFileSync(resolved.path, 'utf8')).get(binding.imported);
-  return members ? { members, resolved } : null;
+
+  if (!resolved.conditional) {
+    const members = scanModuleCached(resolved.path)?.get(binding.imported);
+    if (!members) return null;
+    return { members, context: { portable: null, machine: null, machineWhy: null } };
+  }
+
+  const merged = mergeNamespace(binding.imported, resolved.branches);
+  if (!merged) return null;
+  return {
+    members: merged.members,
+    context: { portable: { machines: merged.machines }, machine, machineWhy: null },
+  };
+}
+
+/**
+ * The machine the file at `path` is read for: its own twin's (`x.pet.8bs`
+ * is the PET's file, whatever the project builds), else the project's
+ * single target when the language server passed one, else null — with
+ * the reason, for the hover to say.
+ */
+function machineFor(path, options) {
+  const twin = path ? machineOfVariant(path) : null;
+  if (twin) return { machine: twin, why: "this file's machine" };
+  if (options.machine) return { machine: options.machine, why: "this project's target" };
+  return { machine: null, why: null };
 }
 
 /**
@@ -551,20 +740,25 @@ function importedNamespace(tokens, local, fromFile, checkout) {
  *   way import-resolution diagnostics are unavailable for a document with
  *   no path on disk (packages/language-server/src/server.mjs's `validate`).
  *   `checkout` is the same local 8BitScript tree `8bs --checkout` names.
+ *   `machine`: the project's single configured target, if it has exactly
+ *   one (the language server reads 8bitscript.config.ts) — the machine a
+ *   target-dependent import is read *for* when the file is not itself a
+ *   twin; see machineFor.
  * @returns {{ start: number, length: number, markdown: string } | null}
  */
 export function getHoverInfo(text, offset, options = {}) {
   const { tokens } = tokenize(text, options.path ?? '<unknown>', { sourceKind: kindOf(options) });
-  const builtin = hoverAt(tokens, offset, text, options.path, options.checkout);
+  const machine = machineFor(options.path, options);
+  const builtin = hoverAt(tokens, offset, text, options.path, options.checkout, machine);
   if (builtin) return builtin;
   // Not a built-in: one of the program's own names, if the binder knows it.
-  const module = bindModule(text, options.path ?? null, { sourceKind: kindOf(options), checkout: options.checkout });
+  const module = bindModule(text, options.path ?? null, { sourceKind: kindOf(options), checkout: options.checkout, machine: machine.machine });
   const hit = symbolAt(module, offset);
   const markdown = hit ? symbolMarkdown(module, hit.symbol) : null;
   return markdown ? { start: hit.token.start, length: hit.token.length, markdown } : null;
 }
 
-function hoverAt(tokens, offset, text, filePath, checkout) {
+function hoverAt(tokens, offset, text, filePath, checkout, machine = { machine: null, why: null }) {
   const index = tokenIndexAt(tokens, offset);
   if (index === -1) return null;
   const token = tokens[index];
@@ -610,13 +804,13 @@ function hoverAt(tokens, offset, text, filePath, checkout) {
     const dot = tokens[index - 1];
     const object = tokens[index - 2];
     if (dot?.text === '.' && object?.kind === TokenKind.Identifier) {
-      const namespace = importedNamespace(tokens, object.text, filePath, checkout);
+      const namespace = importedNamespace(tokens, object.text, filePath, checkout, machine.machine);
       const member = namespace?.members.get(token.text);
       if (member) {
         return {
           start: token.start,
           length: token.length,
-          markdown: memberMarkdown(object.text, member, namespace.resolved),
+          markdown: memberMarkdown(object.text, member, { ...namespace.context, machineWhy: machine.why }),
         };
       }
     }
@@ -808,7 +1002,7 @@ function memberPosition(tokens, offset) {
  *
  * @param {string} text
  * @param {number} offset
- * @param {{ path?: string, checkout?: string|null, sourceKind?: string }} [options] See getHoverInfo's `options.path`.
+ * @param {{ path?: string, checkout?: string|null, sourceKind?: string, machine?: string|null }} [options] See getHoverInfo's `options`.
  * @returns {{ label: string, kind: string, sortRank: number,
  *   detail: string, documentation: string, insertText?: string, snippet?: boolean }[]}
  *   `snippet` marks an `insertText` with `$1` cursor stops.
@@ -816,8 +1010,9 @@ function memberPosition(tokens, offset) {
 export function getCompletions(text, offset, options = {}) {
   const sourceKind = kindOf(options);
   const { tokens } = tokenize(text, options.path ?? '<unknown>', { sourceKind });
-  const program = () => bindModule(text, options.path ?? null, { sourceKind, checkout: options.checkout });
-  return completionsAt(tokens, offset, text, options.path, options.checkout, program, sourceKind === '.8bx');
+  const machine = machineFor(options.path, options);
+  const program = () => bindModule(text, options.path ?? null, { sourceKind, checkout: options.checkout, machine: machine.machine });
+  return completionsAt(tokens, offset, text, options.path, options.checkout, program, sourceKind === '.8bx', machine);
 }
 
 /** The completion item for one of the program's own symbols. */
@@ -901,7 +1096,7 @@ function bxCompletions(tokens, offset, text, program) {
   }));
 }
 
-function completionsAt(tokens, offset, text, filePath, checkout, program, bx = false) {
+function completionsAt(tokens, offset, text, filePath, checkout, program, bx = false, machine = { machine: null, why: null }) {
   const index = tokenIndexAt(tokens, offset);
   const token = tokens[index];
   if (token?.kind === TokenKind.Template) {
@@ -956,14 +1151,18 @@ function completionsAt(tokens, offset, text, filePath, checkout, program, bx = f
 
   const object = memberPosition(tokens, offset);
   if (object) {
-    const namespace = importedNamespace(tokens, object, filePath, checkout);
+    const namespace = importedNamespace(tokens, object, filePath, checkout, machine.machine);
     if (!namespace) return [];
+    const context = { ...namespace.context, machineWhy: machine.why };
+    const all = context.portable?.machines ?? [];
     return [...namespace.members.values()].map((member) => ({
       label: member.name,
       kind: member.kind,
       sortRank: 0,
-      detail: `${object}.${member.signature}`,
-      documentation: memberMarkdown(object, member, namespace.resolved),
+      detail: all.length > 0 && member.machines.length < all.length
+        ? `${object}.${member.signature} — ${member.machines.join(', ')} only`
+        : `${object}.${member.signature}`,
+      documentation: memberMarkdown(object, member, context),
     }));
   }
 
