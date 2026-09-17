@@ -11,8 +11,9 @@ import {
   ANY_BORDER_SCALE, BORDER_HAIRLINE_PX, BORDER_MIN_PX, BORDER_PX, FULL_BORDER_SCALE, HOST_OFFSET,
   INNER_H, INNER_W, INPUT_OFFSET, MIN_COLUMNS, MAX_COLUMNS, MIN_ROWS, MAX_ROWS,
   DEFAULT_LAYOUT, PET_PALETTE, RASTER_ENTRY_SIZE, RASTER_MAX_ENTRIES,
-  agreementFor, borderFor, gridFor, sidecarJson, swipeEdge,
+  MACHINE_HOST, agreementFor, borderFor, gridFor, layoutFromHardware, sidecarJson, swipeEdge,
 } from '../src/web-layout.mjs';
+import { dataBaseFor } from '@8bitscript/compiler/wasm';
 import { Slot, renderFrame, rgbPalette } from '../src/web-scanline.mjs';
 
 /** Evaluate the generated loader with no DOM at all and hand back its public object. */
@@ -79,6 +80,30 @@ test('the raster region follows HOST_OFFSET on every skin, and the sidecar carri
   assert.equal(sidecar.rasterCountOffset, 8199);
   assert.equal(sidecar.rasterBase, 8200);
   assert.equal(sidecar.rasterMaxEntries, RASTER_MAX_ENTRIES);
+});
+
+// The register agreement and the wasm backend's data section share one
+// linear memory, and the only thing keeping a page's input write off a
+// program's string literal is that the backend places data past the
+// agreement's end. The end is agreementFor()'s to compute (reservedEnd),
+// the placement is the compiler's (dataBaseFor); this pins that they agree
+// for every host this CLI can lay out — the Modern host most of all, whose
+// map sized for MAX_CELLS is what pushed the agreement past the backend's
+// old fixed 8192.
+test('the data section starts past the register agreement on every host: registers and data never overlap', () => {
+  assert.equal(agreementFor({ cols: 48, rows: 27 }).reservedEnd, 2790, 'fixed 48×27: raster list ends at 2598 + 64 × 3');
+  assert.equal(agreementFor({ cols: 40, rows: 25 }).reservedEnd, 2198);
+  assert.equal(agreementFor({ resizable: true }).reservedEnd, 8392, 'Modern: past the old data base of 8192');
+  for (const [machine, host] of Object.entries(MACHINE_HOST)) {
+    const layout = layoutFromHardware({ facts: {}, options: { machine } });
+    assert.equal(layout.resizable, host.resizable === true, machine);
+    assert.equal(layout.reservedEnd, layout.rasterBase + RASTER_MAX_ENTRIES * RASTER_ENTRY_SIZE, machine);
+    const dataBase = dataBaseFor(layout.reservedEnd);
+    assert.ok(dataBase >= layout.reservedEnd, `${machine}: data at ${dataBase} would sit inside an agreement ending at ${layout.reservedEnd}`);
+  }
+  // The fixed skins keep their data where it always was; only Modern moves.
+  assert.equal(dataBaseFor(layoutFromHardware({ facts: {}, options: { machine: 'c64' } }).reservedEnd), 8192);
+  assert.equal(dataBaseFor(layoutFromHardware({ facts: {}, options: { machine: 'hifi' } }).reservedEnd), 8448);
 });
 
 // The two copies of borderFor — the one the build uses and the one that ships

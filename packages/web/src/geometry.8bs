@@ -34,6 +34,15 @@
 //                            low byte, the slot byte (bit 7 = the line's ninth
 //                            bit, so all MAX_ROWS * 8 = 512 picture lines fit),
 //                            the value
+//   8392   the end of the agreement. The program's own data section — every
+//          string literal and const array — starts on the next 256-byte
+//          boundary above this (8448), placed there by the wasm backend from
+//          the same agreement the CLI writes for the page (`reservedEnd` in
+//          packages/cli/src/web-layout.mjs, `dataBaseFor()` in the
+//          compiler). It used to start at a fixed 8192, inside this map:
+//          the first literal's bytes sat under INPUT_OFFSET and the raster
+//          list, and the page's input writes and the program's strings
+//          overwrote each other.
 
 export namespace Video {
     // The largest grid the host will hand out, and what the map is sized for.

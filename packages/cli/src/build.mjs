@@ -354,7 +354,11 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
     const tag = hardware.tags[0];
     const wasmName = tag ? `program-${tag}` : 'program';
     const outFile = resolve('dist', tag ? `${stem}-${tag}.wasm` : `${stem}.wasm`);
-    const result = await build(ir, { outFile, frameRate, report });
+    // The layout is computed once and both sides get it: the page through
+    // the bundle's sidecar, the backend through `reserved` — the agreement's
+    // end, past which its data section starts (web-layout.mjs, and
+    // dataBaseFor() in the compiler).
+    const result = await build(ir, { outFile, frameRate, report, reserved: layout.reservedEnd });
     if (!result.ok) {
       process.stderr.write(`8bs build: ${result.error}\n`);
       return { ok: false };
