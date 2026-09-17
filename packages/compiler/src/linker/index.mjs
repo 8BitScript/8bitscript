@@ -377,6 +377,34 @@ function constsOf(module) {
 }
 
 /**
+ * This module's own top-level consts, name to declared type — what lowering
+ * keeps as ownConstTypes for the references it inlines itself. A reference
+ * to an imported const survives lowering as a `ref` and is inlined here
+ * instead, and it must carry the same type the same-module path gives it.
+ */
+function constTypesOf(module) {
+  return new Map((module.ir.consts ?? []).map((c) => [c.name, c.type]));
+}
+
+/**
+ * The consts a module's references may inline — its own, plus every import
+ * that names another module's const — as two maps: name to value (a number,
+ * or `{ string: slot }`), and name to declared type.
+ */
+function visibleConsts(module, { settledOnly = false } = {}) {
+  const usable = (v) => v !== undefined && !(settledOnly && v?.pending);
+  const values = new Map([...module.ownConsts].filter(([, v]) => usable(v)));
+  const types = new Map(module.ownConstTypes);
+  for (const [local, binding] of module.bindings) {
+    const v = binding.module.ownConsts.get(binding.name);
+    if (!usable(v)) continue;
+    values.set(local, v);
+    types.set(local, binding.module.ownConstTypes.get(binding.name));
+  }
+  return { values, types };
+}
+
+/**
  * A const whose initializer only the linker can see — `const HIGHLIGHT:
  * utinyint = TextColor.YELLOW`, or `= Imported` — gets its value here,
  * before any module inlines it. A pending const may name another pending
@@ -428,11 +456,7 @@ function resolvePendingConsts(modules, diagnostics) {
         }
         // constValues is what rewriteExpression inlines from; for this pass
         // it is the module's own resolved consts plus its imports' values.
-        module.constValues = new Map([...module.ownConsts].filter(([, v]) => !v?.pending));
-        for (const [local, binding] of module.bindings) {
-          const v = binding.module.ownConsts.get(binding.name);
-          if (v !== undefined && !v?.pending) module.constValues.set(local, v);
-        }
+        ({ values: module.constValues, types: module.constTypes } = visibleConsts(module, { settledOnly: true }));
         settle(slot, resolveInitialiser(expr, { type }, scopes.get(module), module, diagnostics));
         progress = true;
       }
@@ -450,9 +474,13 @@ function resolvePendingConsts(modules, diagnostics) {
   }
 }
 
-/** A const's inlined value as an IR expression: a number, or a string slot. */
-function constExpression(value) {
-  return typeof value === 'object' ? { kind: 'string', index: value.string } : { kind: 'const', value };
+/**
+ * A const's inlined value as an IR expression: a string slot, or a number
+ * with the const's declared type — the type lowering gives a same-module
+ * const, so the backend widens an imported `usmallint` the same way.
+ */
+function constExpression(value, type) {
+  return typeof value === 'object' ? { kind: 'string', index: value.string } : { kind: 'const', value, type };
 }
 
 /** Is `name` a string in this scope — a parameter or local, a string const, or a string<N> variable? */
@@ -493,6 +521,7 @@ function bindImports(modules, diagnostics) {
     module.globalsByName = globalsOf(module);
     module.namespaces = namespacesOf(module);
     module.ownConsts = constsOf(module);
+    module.ownConstTypes = constTypesOf(module);
     module.bindings = new Map();
     module.namespaceBindings = new Map();
   }
@@ -581,7 +610,7 @@ function rewriteExpression(expr, scope, module, diagnostics) {
       if (out === undefined && module.constValues.has(expr.name)) {
         // A const, this module's own or imported: the value, inlined. A
         // parameter of the same name is in `scope` and so shadowed it above.
-        const value = constExpression(module.constValues.get(expr.name));
+        const value = constExpression(module.constValues.get(expr.name), module.constTypes.get(expr.name));
         delete expr.name;
         if (value.kind === 'const') { delete expr.start; delete expr.length; }
         Object.assign(expr, value);
@@ -1061,12 +1090,9 @@ export function link(entryText, entryFile, options = {}) {
     const scope = new Map(module.rename);
     // Consts are inlined, not renamed: this module's own plus every import
     // that names another module's const.
-    module.constValues = new Map(module.ownConsts);
+    ({ values: module.constValues, types: module.constTypes } = visibleConsts(module));
     for (const [local, binding] of module.bindings) {
-      if (binding.module.ownConsts.has(binding.name)) {
-        module.constValues.set(local, binding.module.ownConsts.get(binding.name));
-        continue;
-      }
+      if (binding.module.ownConsts.has(binding.name)) continue;
       scope.set(local, binding.module.rename.get(binding.name));
     }
     module.scope = scope;

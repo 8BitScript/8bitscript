@@ -126,7 +126,7 @@ test('a local shadows an import of the same name inside its block', async () => 
   assert.equal(block.body[1].target, 'g');
   assert.equal(block.body[1].value.name, 'hp');
   assert.equal(store.kind, 'storeIndex');
-  assert.deepEqual(assign.value, { kind: 'const', type: null, value: 4 });
+  assert.deepEqual(assign.value, { kind: 'const', type: 'utinyint', value: 4 });
 });
 
 test('a for over an array length folds the bound, keeps continue, and writes the local', async () => {

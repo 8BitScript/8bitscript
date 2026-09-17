@@ -85,7 +85,7 @@ test('linker: an exported const is importable and inlines in the importer; assig
     'main.8bs': 'import { LIMIT as Max } from "./lib.8bs";\nlet n: utinyint = 0;\nexport function main(): void { n = Max; }\n',
   });
   assert.deepEqual(good.diagnostics, []);
-  assert.deepEqual(good.ir.functions.find((f) => f.name === 'main').body[0].value, { kind: 'const', type: null, value: 4 });
+  assert.deepEqual(good.ir.functions.find((f) => f.name === 'main').body[0].value, { kind: 'const', type: 'utinyint', value: 4 });
 
   const bad = await linkWith({
     'lib.8bs': lib,
@@ -227,4 +227,73 @@ test('checker: a const is UPPER_SNAKE and a variable starts lower-case — 8BS10
   assert.equal(d[0].start, 6);
   assert.equal(d[0].length, 11);
   assert.deepEqual(codes('const OPTION_COUNT: utinyint = 4;\nconst X2: utinyint = 1;\nlet ticks: utinyint = 0;\nlet _scratch: utinyint = 0;\n@address(0xD020) let borderColor: volatile<utinyint>;'), []);
+});
+
+// ---- an imported const carries its declared type into IR -------------------
+//
+// Lowering inlines a module's own const with the type it was declared with
+// (ownConstTypes). A reference to an *imported* const survives lowering as
+// a `ref` and is inlined by the linker instead — and it used to arrive at
+// the backend as `{ kind: 'const', value }` with no type at all, so the MOS
+// backend refused it wherever a type is needed to widen or size it ("'const':
+// no type on this IR node") — as a call argument, in a 16-bit binop, as a
+// let initializer. The same-module spelling built. The linker now keeps the
+// declared type beside the value, for its own consts and every import.
+
+const IMPORTED_CONST = (type, value, use) => ({
+  'lib.8bs': `export const R: ${type} = ${value};\n`,
+  'main.8bs': `import { R } from "./lib.8bs";\nlet out: ${type === 'bool' ? 'utinyint' : type} = 0;\nfunction sink(cell: usmallint, n: utinyint): void { memory.write(cell, n); }\nexport function main(): void { ${use} }\n`,
+});
+
+test('linker: an imported const is inlined with its declared type — every integer width, every use', async () => {
+  const cases = [
+    // [type, value, use, where in main's body the const node lands]
+    ['utinyint', 5, 'sink(R, 4);', (body) => body[0].args[0]],
+    ['utinyint', 5, 'let n: utinyint = out + R; sink(0, n);', (body) => body[0].init.right],
+    ['utinyint', 5, 'let n: utinyint = R; sink(0, n);', (body) => body[0].init],
+    ['usmallint', 300, 'sink(R, 4);', (body) => body[0].args[0]],
+    ['usmallint', 300, 'let n: usmallint = out + R; sink(n, 4);', (body) => body[0].init.right],
+    ['usmallint', 300, 'let n: usmallint = R; sink(n, 4);', (body) => body[0].init],
+    ['smallint', -5, 'let n: smallint = R; sink(0, 4);', (body) => body[0].init],
+    ['int', 70000, 'let n: int = R; sink(0, 4);', (body) => body[0].init],
+  ];
+  for (const [type, value, use, at] of cases) {
+    const { ir, diagnostics } = await linkWith(IMPORTED_CONST(type, value, use));
+    assert.deepEqual(diagnostics, [], `${type} ${use}`);
+    const main = ir.functions.find((f) => f.name === 'main');
+    assert.deepEqual(at(main.body), { kind: 'const', value, type }, `${type} ${use}`);
+  }
+});
+
+test('linker: an imported bool const is inlined typed too, and a 16-bit binop over an imported const is 16-bit', async () => {
+  const flag = await linkWith(IMPORTED_CONST('bool', 'true', 'if (R) { sink(0, 1); }'));
+  assert.deepEqual(flag.diagnostics, []);
+  assert.deepEqual(flag.ir.functions.find((f) => f.name === 'main').body[0].test, { kind: 'const', value: 1, type: 'bool' });
+
+  const wide = await linkWith(IMPORTED_CONST('usmallint', 300, 'let n: usmallint = out + R; sink(n, 4);'));
+  assert.equal(wide.ir.functions.find((f) => f.name === 'main').body[0].init.type, 'usmallint');
+});
+
+test('mos: a PET image is byte-identical whether the const is imported or declared in the module that uses it', async () => {
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { linkFiles } = await import('./support/link-files.mjs');
+  const { build: buildMos } = await import('../src/mos/index.ts');
+  const body = 'let out: usmallint = 0;\nexport function main(): void { let n: usmallint = out + R; memory.write(n, 4); memory.write(R, 2); }\n';
+  const imported = { 'lib.8bs': 'export const R: usmallint = 300;\n', 'main.8bs': `import { R } from "./lib.8bs";\n${body}` };
+  const own = { 'main.8bs': `const R: usmallint = 300;\n${body}` };
+  const dir = mkdtempSync(join(tmpdir(), '8bs-const-prg-'));
+  try {
+    const hardware = { build: { defsym: { __ram_size: 32, __load_address: 0x0401 } }, facts: {} };
+    const images = [];
+    for (const files of [imported, own]) {
+      const linked = linkFiles(files, 'main.8bs', { machine: 'pet' });
+      assert.deepEqual(linked.diagnostics, []);
+      const prg = await buildMos(linked.ir, { machine: 'pet', hardware, frameRate: 60, outFile: join(dir, `${images.length}.prg`) });
+      assert.equal(prg.ok, true, prg.error);
+      images.push(prg.bytes);
+    }
+    assert.deepEqual([...images[0]], [...images[1]]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
