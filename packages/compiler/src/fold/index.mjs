@@ -50,6 +50,7 @@
 import { Codes, diagnostic } from '../diagnostics/index.mjs';
 import { NodeType, walk } from '../ast/index.mjs';
 import { FACTS, factPlaceholder } from './facts.mjs';
+import { isLocaleName, LOCALE_NAME } from '../source/index.mjs';
 
 /**
  * The units a duration literal can be written in, keyed by the bare word a
@@ -121,8 +122,8 @@ function compileTimeCallName(n) {
   return n.callee.compileTime ? n.callee.name : null;
 }
 
-const KNOWN_COMPILE_TIME = () => [...[...DURATION_CLOCKS.keys()].map((name) => `#${name}(...)`), '#system()', '#fact(...)'].join(', ');
-const BUILTIN = (name) => DURATION_CLOCKS.has(name) || name === 'system' || name === 'fact';
+const KNOWN_COMPILE_TIME = () => [...[...DURATION_CLOCKS.keys()].map((name) => `#${name}(...)`), '#system()', '#fact(...)', '#locale(...)'].join(', ');
+const BUILTIN = (name) => DURATION_CLOCKS.has(name) || name === 'system' || name === 'fact' || name === 'locale';
 
 /**
  * Round `numerator/denominator` (both BigInt, denominator > 0) to the
@@ -177,6 +178,7 @@ function replaceWithFact(n, key, value) {
 const exampleCalls = (name) => {
   if (name === 'system') return '#system()';
   if (name === 'fact') return '#fact(video.columns) or #fact(memory.ram)';
+  if (name === 'locale') return '#locale("de") or #locale("pt-br")';
   return `#${name}(1, seconds) or #${name}(0.5, seconds)`;
 };
 
@@ -251,6 +253,44 @@ function foldFactCall(n, file, machine, facts, diagnostics) {
   }
   const value = Object.hasOwn(facts, key) ? facts[key] : factPlaceholder(key);
   replaceWithFact(n, key, value);
+}
+
+// A `#locale(...)` folds to a BooleanLiteral the same way a flag fact does.
+function replaceWithLocale(n, name, value) {
+  delete n.callee;
+  delete n.args;
+  n.type = NodeType.BooleanLiteral;
+  n.value = value;
+  delete n.radix;
+  n.raw = `#locale(${JSON.stringify(name)})`;
+}
+
+/**
+ * `#locale("de")`: whether this build's locale is the one named. Takes one
+ * locale name in quotes, in the shape the resolver's LOCALE_NAME gives
+ * (`8BS1040` otherwise, and a machine's name is never a locale). A build
+ * that names no locale — and `8bs check` and the editor, which analyse
+ * files rather than builds — folds every `#locale(...)` to false: the
+ * plain files are what such a build reads, and the plain files are what
+ * the `else` of a locale branch is for. A file that has a version per
+ * locale needs none of this — the resolver picks `strings.de.8bs` for a
+ * `de` build on its own; this is for the one file with one line to change.
+ */
+function foldLocaleCall(n, file, locale, diagnostics) {
+  const args = n.args ?? [];
+  const name = args.length === 1 && args[0]?.type === NodeType.StringLiteral ? args[0].value : null;
+  if (name === null || !isLocaleName(name)) {
+    diagnostics.push(diagnostic(
+      Codes.INVALID_LOCALE,
+      name === null
+        ? `#locale(...) takes one locale name in quotes — ${exampleCalls('locale')}`
+        : `'${name}' is not a locale name: two to eight lower-case letters, with an optional -region (${LOCALE_NAME.source}), and not a machine's name`,
+      file, n.start, n.length,
+    ));
+    replaceWithLocale(n, name ?? '?', false);
+    return;
+  }
+  replaceWithLocale(n, name, locale !== undefined && locale === name);
 }
 
 /**
@@ -365,10 +405,11 @@ function foldClockCall(n, clockName, file, frameRate, diagnostics) {
  *   rather than built (see foldSystemCall). `facts` is the build's merged
  *   hardware facts, keyed as facts.mjs's FACTS is, that every `#fact(...)`
  *   folds from; required whenever `machine` is given and a fact is read
- *   (see foldFactCall).
+ *   (see foldFactCall). `locale` is the build's locale, if any; every
+ *   `#locale("xx")` folds to whether it is that one (see foldLocaleCall).
  * @returns {object[]} diagnostics
  */
-export function foldCompileTime(ast, file = '<unknown>', { frameRate = 60, machine, facts } = {}) {
+export function foldCompileTime(ast, file = '<unknown>', { frameRate = 60, machine, facts, locale } = {}) {
   const diagnostics = [];
   if (!ast) return diagnostics;
 
@@ -381,6 +422,10 @@ export function foldCompileTime(ast, file = '<unknown>', { frameRate = 60, machi
       }
       if (name === 'fact') {
         foldFactCall(n, file, machine, facts, diagnostics);
+        return;
+      }
+      if (name === 'locale') {
+        foldLocaleCall(n, file, locale, diagnostics);
         return;
       }
       if (!DURATION_CLOCKS.has(name)) {

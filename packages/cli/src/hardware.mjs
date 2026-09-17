@@ -341,6 +341,28 @@ export function parseSystemsMap(declared, { where, config = null, origin, enforc
 }
 
 /**
+ * Every hardware tag a machine's catalog can put in a file name — the
+ * `tag` of each option value, or the value itself where no tag is given
+ * and the value is not the option's default (the same rule resolveHardware
+ * applies to the chosen values). What a locale name is checked against
+ * (config.mjs, localeProblem): `x.pet.8032.8bs` and `x.pet.de.8bs` have to
+ * be tellable apart by their words alone.
+ *
+ * @param {{ options: object }} catalog
+ * @returns {string[]}
+ */
+export function catalogTags(catalog) {
+  const tags = new Set();
+  for (const option of Object.values(catalog.options ?? {})) {
+    for (const [value, entry] of Object.entries(option.values ?? {})) {
+      const tag = Object.hasOwn(entry, 'tag') ? entry.tag : (value === option.default ? null : value);
+      if (tag) tags.add(String(tag));
+    }
+  }
+  return [...tags];
+}
+
+/**
  * Resolve the hardware for one build.
  *
  * @param {{ machine: string, options: object, presets: object, facts: object, run?: object }} catalog

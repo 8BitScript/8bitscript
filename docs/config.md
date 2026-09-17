@@ -38,6 +38,7 @@ plain `export default { … }` is still a config.
 | `entry` | The `.8bs` file a build starts from — an `.8bx` is refused by name: a program starts from `.8bs` and reaches a component by importing it and calling it (`Hello();` is `<Hello />` the way `.8bs` spells it). A `.<machine>.8bs` twin beside it is used on that machine. An object `{ default, nes }` still works. The one-program spelling of `programs`, below. |
 | `programs` | Several programs in one project, each its own build from its own `.8bs` entry: `{ main: { entry }, format: { entry, targets?, requires? } }`. Cannot be given together with `entry`. See below. |
 | `images` | Disk images over the programs — a `.d64` holding several of them plus data files. Checked by every build; written by a later release. See below. |
+| `locale` | The locale every build is for, unless a target's `locale`, a `release` entry's `locale`, or `--locale` says otherwise. A name of two to eight lower-case letters with an optional `-region` (`de`, `pt-br`) — never a machine's name or one of its hardware tags. With one, a file's `.<locale>` twin is read where it exists (`strings.de.8bs`; `strings.pet.de.8bs` for the PET's own twin; `strings.pet.8032.de.8bs` for the 8032's), the artifact's name carries it (`2048-pet-de.prg`, `program-de.wasm`), and `#locale("de")` folds to `true`. Without one — the default — no locale's file is read, every name stays as it was, and `#locale(...)` is `false`. A locale never changes *which* machine twin is chosen; it refines it, and a machine twin with no version in the locale is used with a warning (`8BS3005`) when the plain file has one. See below. |
 | `bx` | 8BX settings: `{ strict: false }` turns the ordinary-code lint in `.8bx` files off (`8BS2021`, a warning on a top-level function that composes nothing or a top-level `let`). The hard rules — no `asm6502` in `.8bx` (`8BS2020`), no `.8bx` program entry — stay. |
 | `frameRate` | Logical frames per second for `waitFrame()` and `#frames(...)`. Positive integer. Default 60. Not `--pal`. |
 | `targets` | Machines this project builds for: an array of names, or an object. Per machine: `hardware` (default options), `profiles` (named option sets `--profile` accepts), `release` (what `8bs build --release` builds). |
@@ -88,6 +89,37 @@ one there is. `8bs build --release` builds every program for every target
 it (or the project) lists, once per name in that target's `release`
 array. `8bs targets` lists the programs; `8bs targets --json` carries them
 as `programs` for the editor.
+
+## One binary per locale
+
+A 4K PET has no room for a language switch, so a locale is a build input,
+not a runtime one: `strings.8bs` beside `strings.de.8bs`, and the build
+picks one. The locale is the innermost twin dimension and always the last
+word before the extension:
+
+| File | Read by |
+| --- | --- |
+| `strings.8bs` | every build with no locale, and the fallback for the rest |
+| `strings.de.8bs` | a `de` build, on machines with no `strings.<machine>.8bs` |
+| `strings.pet.8bs` | the PET, in any locale it has no file for (with `8BS3005` when `strings.de.8bs` exists) |
+| `strings.pet.de.8bs` | a `de` PET build |
+| `strings.pet.8032.de.8bs` | a `de` PET build fitted as an 8032 |
+
+The same rule applies to `.8bx` files. Which builds are made:
+
+```ts
+export default defineConfig({
+  targets: {
+    pet: { release: ['2001', {}, { locale: 'de' }, { profile: '2001', locale: 'de' }] },
+    web: { locale: 'de' },                            // this target's own; the plain files stay the default elsewhere
+  },
+});
+```
+
+`8bs build --target pet --locale de` and `8bs run pet --locale de` build one
+locale by hand. A file with one line to translate can branch instead of
+splitting: `if (#locale("de")) { … } else { … }` folds at compile time, and
+is `false` in every build that names no locale.
 
 ## Images
 

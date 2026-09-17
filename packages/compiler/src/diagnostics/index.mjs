@@ -114,6 +114,9 @@ export const Codes = {
   NO_HARDWARE_FACTS: '8BS1038',
   // 8BX syntax in `.8bx` files — unclosed tags, bad attributes, and similar.
   BX_SYNTAX: '8BS1039',
+  // `#locale(...)` with anything but one locale name in quotes (see the
+  // fold pass and the resolver's LOCALE_NAME for the shape).
+  INVALID_LOCALE: '8BS1040',
 
   UNRESOLVED_PACKAGE: '8BS2001',
   NOT_AN_8BS_PACKAGE: '8BS2002',
@@ -169,6 +172,10 @@ export const Codes = {
   // Two of a build's hardware tags each have their own version of a file,
   // and nothing says which wins (see the resolver's chooseVariant).
   AMBIGUOUS_VARIANT: '8BS3004',
+  // A build with a locale took a machine's twin that has no version in that
+  // locale while the plain file has one: the right machine, the wrong
+  // language, said out loud (a warning; see the resolver's chooseVariant).
+  LOCALE_FALLBACK: '8BS3005',
   // A write the requested target's own documentation says can damage the
   // machine — the PET's "killer poke" ($E842 with bit 5 set) is the one
   // entry (packages/compiler/src/linker/hazards.mjs). Reported by the

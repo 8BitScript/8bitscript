@@ -19,7 +19,7 @@ import { basename, dirname, isAbsolute, join, resolve as resolvePath } from 'nod
 
 import { Codes, diagnostic } from '../diagnostics/index.mjs';
 import { TokenKind } from '../lexer/index.mjs';
-import { isSourceFile, sourceKindOf, stripSourceExtension } from '../source/index.mjs';
+import { MACHINES, isLocaleName, isSourceFile, sourceKindOf, stripSourceExtension } from '../source/index.mjs';
 
 /** A bare specifier naming exactly one package: `name` or `@scope/name`. */
 const BARE_PACKAGE = /^(?:@[^/\s]+\/[^/\s]+|[^@./\s][^/\s]*)$/;
@@ -35,13 +35,13 @@ const PACKAGE_SUBPATH = /^((?:@[^/\s]+\/)?[^@./\s][^/\s]*)\/([^\s]+)$/;
 /**
  * Every machine a program can be built for — the names `8bs build --target`
  * accepts, the keys a target-conditional entry is written in, and the
- * suffixes a system-specific source file carries (see variantOf). The CLI
- * reads this list rather than keeping its own, so a new target is added in
- * exactly one place.
+ * suffixes a system-specific source file carries (see variantOf). Declared
+ * beside the source kinds (`src/source/index.mjs`, so that a locale name
+ * can be checked against it without the filesystem), re-exported here
+ * where every reader has always found it. The CLI reads this list rather
+ * than keeping its own, so a new target is added in exactly one place.
  */
-export const MACHINES = Object.freeze([
-  'vic20', 'c64', 'pet', 'c128', 'atari8', 'nes', 'cx16', 'mega65', 'web',
-]);
+export { MACHINES };
 
 /**
  * The machines this release builds for. MACHINES is every machine the
@@ -76,11 +76,19 @@ export const isReleaseMachine = (machine) => RELEASE_MACHINES.includes(machine);
  * `geometry.pet.8032.8bs`, the tag after the machine's name. It is looked
  * for first, and a machine's plain twin is what every other build of that
  * machine gets.
+ *
+ * A locale is the innermost dimension, always last: `strings.de.8bs` is
+ * the German `strings.8bs`, `strings.pet.de.8bs` the German version of
+ * the PET's twin, `strings.pet.8032.de.8bs` of the 8032's. A locale
+ * variant refines whichever machine-level file the build would have
+ * taken (see chooseVariant); it never changes which machine level that
+ * is. `machine` may be omitted only when `locale` is given.
  */
-export function variantOf(path, machine, tag) {
+export function variantOf(path, machine, tag, locale) {
   const ext = sourceKindOf(path) ?? '.8bs';
   const stem = stripSourceExtension(path);
-  return tag ? `${stem}.${machine}.${tag}${ext}` : `${stem}.${machine}${ext}`;
+  const parts = [machine, tag, locale].filter((part) => part !== undefined && part !== null);
+  return `${stem}.${parts.join('.')}${ext}`;
 }
 
 /**
@@ -97,21 +105,38 @@ export function tagsOf(options = {}) {
  * one hardware tag's: `x.pet.8032.8bs`. A tag is one word (letters,
  * digits, `_`, `-`), so `x.pet.8032.8bs` is recognized and `x.data.8bs` is
  * not: `data` is no machine.
+ *
+ * With the build's `locale` in hand, a path that ends in it is explicit
+ * too — `x.de.8bs`, `x.pet.de.8bs`, `x.pet.8032.de.8bs` — and taken
+ * literally. Without one, `x.de.8bs` is an ordinary file: a build that
+ * names no locale never reads a locale's file as anything but the module
+ * its name spells, so `foo.io.8bs` keeps its own machine twins.
  */
-export function isVariantPath(path) {
+export function isVariantPath(path, locale) {
   const ext = sourceKindOf(path);
   if (!ext) return false;
   const stem = stripSourceExtension(path);
+  // `x.de.8bs` is `x.8bs`'s German version whatever `x` is, so a path that
+  // ends in the build's locale is explicit without looking further.
+  if (locale && stem.endsWith(`.${locale}`)) return true;
+  return isVariantStem(stem);
+}
+
+function isVariantStem(stem) {
   return MACHINES.some((machine) => stem.endsWith(`.${machine}`)
     || new RegExp(`\\.${machine}\\.[A-Za-z0-9_-]+$`).test(stem));
 }
 
 /**
- * Every system-specific twin of `path` that exists beside it — a machine's
- * (`x.nes.8bs`) or a tag's (`x.pet.8032.8bs`) — as `{ machine, tag }`
- * pairs, `tag` undefined for a machine's plain twin. One directory
- * listing, filtered by name, rather than a probe per machine per possible
- * tag: the tags are not the resolver's to know.
+ * Every twin of `path` that exists beside it — a machine's (`x.nes.8bs`),
+ * a tag's (`x.pet.8032.8bs`), a locale's (`x.de.8bs`, `x.pet.de.8bs`,
+ * `x.pet.8032.de.8bs`) — as `{ machine, tag, locale }` records, each
+ * field present only where the name carries it. One directory listing,
+ * filtered by name, rather than a probe per machine per possible tag: the
+ * tags are not the resolver's to know. Two words after a machine could be
+ * a tag or a locale (`on` is an Atari tag and a legal locale name); they
+ * are read as a tag here, which is only ever a wording in a diagnostic —
+ * chooseVariant decides by probing with the build's own tags and locale.
  */
 function variantsPresent(path) {
   const ext = sourceKindOf(path) ?? '.8bs';
@@ -123,19 +148,33 @@ function variantsPresent(path) {
     return [];
   }
   const found = [];
+  const word = (w) => /^[A-Za-z0-9_-]+$/.test(w);
   for (const entry of entries) {
     if (!entry.startsWith(`${stem}.`) || !entry.endsWith(ext)) continue;
     const suffix = entry.slice(stem.length + 1, -ext.length).split('.');
-    if (!MACHINES.includes(suffix[0])) continue;
+    if (!MACHINES.includes(suffix[0])) {
+      if (suffix.length === 1 && isLocaleName(suffix[0])) found.push({ locale: suffix[0] });
+      continue;
+    }
     if (suffix.length === 1) found.push({ machine: suffix[0] });
-    else if (suffix.length === 2 && /^[A-Za-z0-9_-]+$/.test(suffix[1])) found.push({ machine: suffix[0], tag: suffix[1] });
+    else if (suffix.length === 2 && word(suffix[1])) found.push({ machine: suffix[0], tag: suffix[1] });
+    else if (suffix.length === 3 && word(suffix[1]) && isLocaleName(suffix[2])) {
+      found.push({ machine: suffix[0], tag: suffix[1], locale: suffix[2] });
+    }
   }
   return found;
 }
 
+/** `pet`, `pet (8032)`, `de`, `pet (de)`, `pet (8032, de)` — a variant, for a diagnostic. */
+function describeVariant({ machine, tag, locale }) {
+  if (!machine) return `locale ${locale}`;
+  const inner = [tag, locale].filter(Boolean).join(', ');
+  return inner ? `${machine} (${inner})` : machine;
+}
+
 /**
  * Pick the file a `.8bs` path actually means, given the machine — and the
- * hardware tags its build carries — in hand.
+ * hardware tags and locale its build carries — in hand.
  *
  * With a machine: a tag's variant if exactly one of the build's tags has
  * one, else the machine's, else the plain file. Two tags each with a
@@ -149,18 +188,37 @@ function variantsPresent(path) {
  * plain file if it exists, else `path: null` — "valid, and
  * target-dependent" — if any variant does.
  *
- * A path that already names a machine's or a tag's version
- * (`x.nes.8bs`, `x.pet.8032.8bs`) is taken literally: it is the explicit
- * form, and stacking another suffix on it would mean nothing.
+ * A locale refines that choice and never changes it: whichever level the
+ * rules above land on — a tag's file, the machine's, the plain one — its
+ * `.<locale>` version is taken when it exists (a level counts as present
+ * when either of its two spellings does), and the level's own file
+ * otherwise. So `strings.pet.8bs` still serves a German PET build that
+ * ships no `strings.pet.de.8bs`; when a `strings.de.8bs` exists for the
+ * machines without a twin, that fallback is said out loud (`8BS3005`, a
+ * warning), because the build is about to print the wrong language
+ * without any other sign of it. Without a locale, no locale's file is
+ * consulted at all.
+ *
+ * A path that already names a machine's, a tag's or the locale's version
+ * (`x.nes.8bs`, `x.pet.8032.8bs`, `x.de.8bs`) is taken literally: it is
+ * the explicit form, and stacking another suffix on it would mean nothing.
  *
  * Returns `null` when nothing exists at all, so the caller can report the
  * missing file with the code that fits how the path was named.
  */
-function chooseVariant(specifier, path, machine, tags = []) {
+function chooseVariant(specifier, path, machine, tags = [], locale) {
   const base = existsSync(path);
-  if (isVariantPath(path)) return base ? { path } : null;
+  if (isVariantPath(path, locale)) return base ? { path } : null;
+  // The two spellings of one level: with the locale, and without.
+  const localized = (m, t) => (locale ? variantOf(path, m, t, locale) : null);
+  const present = (m, t) => existsSync(variantOf(path, m, t)) || (locale ? existsSync(localized(m, t)) : false);
+  const pick = (m, t) => {
+    const plain = variantOf(path, m, t);
+    const withLocale = localized(m, t);
+    return withLocale && existsSync(withLocale) ? withLocale : plain;
+  };
   if (machine) {
-    const forTags = tags.filter((tag) => existsSync(variantOf(path, machine, tag)));
+    const forTags = tags.filter((tag) => present(machine, tag));
     if (forTags.length > 1) {
       return {
         code: Codes.AMBIGUOUS_VARIANT,
@@ -168,21 +226,36 @@ function chooseVariant(specifier, path, machine, tags = []) {
           + 'one file cannot serve two tags at once; give the build one of them, or one file both',
       };
     }
-    if (forTags.length === 1) return { path: variantOf(path, machine, forTags[0]) };
-    const variant = variantOf(path, machine);
-    if (existsSync(variant)) return { path: variant };
+    if (forTags.length === 1) return { path: pick(machine, forTags[0]) };
+    if (present(machine)) {
+      const chosen = pick(machine);
+      const plainLocale = localized();
+      if (locale && chosen === variantOf(path, machine) && plainLocale && existsSync(plainLocale)) {
+        return {
+          path: chosen,
+          warning: {
+            code: Codes.LOCALE_FALLBACK,
+            message: `'${specifier}' has no '${locale}' version for the ${machine} — `
+              + `${basename(chosen)} is used, not ${basename(plainLocale)}; add ${basename(localized(machine))} to translate it`,
+          },
+        };
+      }
+      return { path: chosen };
+    }
+    if (locale && existsSync(localized())) return { path: localized() };
     if (base) return { path };
     const others = variantsPresent(path);
     if (others.length > 0) {
-      const names = [...new Set(others.map((v) => (v.tag ? `${v.machine} (${v.tag})` : v.machine)))];
+      const names = [...new Set(others.map(describeVariant))];
       const here = tags.length > 0 ? `${machine} target's ${tags.join(', ')} hardware` : `${machine} target`;
       return {
         code: Codes.NOT_ON_THIS_TARGET,
-        message: `'${specifier}' has no version for the ${here} (targets: ${names.join(', ')})`,
+        message: `'${specifier}' has no version for the ${here}${locale ? ` in locale ${locale}` : ''} (targets: ${names.join(', ')})`,
       };
     }
     return null;
   }
+  if (locale && existsSync(localized())) return { path: localized() };
   if (base) return { path };
   if (variantsPresent(path).length > 0) return { path: null };
   return null;
@@ -373,14 +446,14 @@ function resolveSubpath(specifier, name, packageDir, manifest, subpath, options)
     };
   }
   const target = resolvePath(packageDir, value);
-  const chosen = chooseVariant(specifier, target, options.machine, tagsOf(options));
+  const chosen = chooseVariant(specifier, target, options.machine, tagsOf(options), options.locale);
   if (!chosen) {
     return { code: Codes.MISSING_PACKAGE_ENTRY, message: `'${name}' exports '${key}' as '${value}', which does not exist` };
   }
   if (chosen.code) return chosen;
   const sources = nativeSourcesOf(name, packageDir, manifest);
   if (sources.code) return sources;
-  return { path: chosen.path, native: sources.native };
+  return { ...chosen, native: sources.native };
 }
 
 /**
@@ -465,14 +538,19 @@ function resolveConditionalEntry(specifier, packageDir, entry, options, seen, na
  *
  * @param {string} specifier
  * @param {string} fromFile  Absolute path of the importing file.
- * @param {{ machine?: string, tags?: string[], profile?: string }} [options]
+ * @param {{ machine?: string, tags?: string[], profile?: string, locale?: string }} [options]
  *   The machine being built for (one of MACHINES), if one is known;
  *   conditional package entries resolve to that machine's branch, and a
  *   `.8bs` file with a `.<machine>.8bs` twin resolves to the twin. With
  *   the build's hardware tags as well (`tags`; the older `profile` is one
  *   tag), a `.<machine>.<tag>.8bs`
- *   twin is taken before the machine's own (see variantOf).
- * @returns {{ path: string|null, native?: string[] } | { code: string, message: string } | null}
+ *   twin is taken before the machine's own (see variantOf). With a
+ *   `locale`, the chosen file's `.<locale>` version is taken when it
+ *   exists (see chooseVariant).
+ * @returns {{ path: string|null, native?: string[], warning?: { code: string, message: string } } | { code: string, message: string } | null}
+ *   `warning` rides along with a resolution the caller should still
+ *   mention — today only `8BS3005`, a locale falling back to a machine's
+ *   untranslated twin.
  *   `native` — absolute paths of the resolved package's `"8bitscript".native`
  *   files (see nativeSourcesOf) — rides along with a package resolution,
  *   and with a relative import of a file inside a package that has one
@@ -486,7 +564,7 @@ export function resolveSpecifier(specifier, fromFile, options = {}, seen = new S
     const target = resolvePath(fromDir, specifier);
     // `./hardware.8bs` on the NES is `./hardware.nes.8bs` when that file
     // exists beside it — see chooseVariant.
-    const chosen = chooseVariant(specifier, target, options.machine, tagsOf(options));
+    const chosen = chooseVariant(specifier, target, options.machine, tagsOf(options), options.locale);
     if (!chosen) {
       return { code: Codes.UNRESOLVED_RELATIVE_IMPORT, message: `cannot find module '${specifier}'` };
     }
@@ -530,14 +608,14 @@ export function resolveSpecifier(specifier, fromFile, options = {}, seen = new S
     // does: `./src/index.8bs` with an `index.nes.8bs` beside it is the NES
     // version of the package, without the manifest having to say so.
     const target = resolvePath(packageDir, entry);
-    const chosen = chooseVariant(specifier, target, options.machine, tagsOf(options));
+    const chosen = chooseVariant(specifier, target, options.machine, tagsOf(options), options.locale);
     if (!chosen) {
       return { code: Codes.MISSING_PACKAGE_ENTRY, message: `'${specifier}' declares entry '${entry}', which does not exist` };
     }
     if (chosen.code) return chosen;
     const sources = nativeSourcesOf(specifier, packageDir, manifest);
     if (sources.code) return sources;
-    return { path: chosen.path, native: sources.native };
+    return { ...chosen, native: sources.native };
   }
   if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
     const sources = nativeSourcesOf(specifier, packageDir, manifest);
