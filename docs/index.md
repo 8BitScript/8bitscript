@@ -6,81 +6,77 @@ nav_order: 0
 # 8BitScript
 
 8BitScript is a statically compiled, TypeScript-flavored language for
-classic 8-bit computers and the web.
+classic 8-bit computers and the web. Two source kinds share one compiler:
+`.8bs` is the core language — range-checked integers, arrays and strings
+laid out at compile time, `asm6502` as a first-class construct, nothing
+hidden — and `.8bx` adds declarative composition on top of it, elements
+and components that elaborate to the same calls you would write by hand,
+at the same cost.
 
-**The PET and the web both build, run, and render for real.** Version 0.2.0
-replaces the external toolchains (LLVM-MOS for the 6502 machines, `asc` for
-the web) with 8BitScript's own code generators, assembler, linker, and file
-writers, and both backends that ship in this release now emit: `8bs build`
-and `8bs run` work end to end for `pet` and `web`.
+**This release, 0.11.0, builds for all nine targets:** the Commodore PET,
+VIC-20, C64 and C128, the Commander X16, the MEGA65, the Atari 8-bit, the
+NES, and the web. The list is `RELEASE_MACHINES` in the compiler's
+resolver, read by the CLI and the editor rather than kept twice.
+`.8bx` — the composition language — ships in this release too, through
+the spec's PR 15: components, props, `<slot />`, conditional composition,
+component state and methods, and IntelliSense for all of it.
 
-**0.2.0 targets the Commodore PET and the web only.** The other seven
-machine packages (`vic20`, `c64`, `c128`, `atari8`, `nes`, `cx16`, `mega65`)
-stay in the workspace exactly as they are — sources, tests, `AGENTS.md`,
-all still there — marked parked and refused by name (`RELEASE_MACHINES` in
-the compiler's resolver). They return one at a time, in the phase order
-below, in a later release.
+## Where to start
 
-## Phase plan
+[The language, by task](language/index.md) — the manual. Every entry is
+one thing you can do, with real code from the compiler's own tests, the
+shipped examples, or 2048. Hello world both ways is its first page.
 
-8BitScript takes on machines in phases, each one forcing the language to
-survive a hardware constraint the previous phase didn't have. Nine machine
-packages exist today, covering phases 1 through 4:
+[Project config](config.md) — `8bitscript.config.ts`: targets and their
+hardware, advertised and personal systems, several programs in one
+project, disk images, and pointing a project at a local checkout.
 
-| Phase | Machines | Package(s) |
-| ----- | -------- | ---------- |
-| 1 | Web, VIC-20, C64 | `web` `vic20` `c64` |
-| 2 | Commodore PET, C128 | `pet` `c128` |
-| 3 | Atari 8-bit, NES | `atari8` `nes` |
-| 4 | Commander X16, MEGA65 | `cx16` `mega65` |
+[Putting a program in a web page](web-embedding.md) — the web target's
+bundle and how a page hosts it.
 
-0.2.0 brought the PET forward ahead of the rest of Phase 1 so the native
-backend proved itself on one screen-is-plain-RAM machine before the
-video-chip machines arrive. Five more phases are named but have no
-package yet — their hardware research is [Machines on the
-roadmap](project/machines/index.md), phases 5 through 8.
+## The command line
 
-The documentation that used to live here described the old pipeline. It has
-been removed rather than rewritten against a plan. Each page returns when
-the code it describes exists.
+| Command | Does |
+| ------- | ---- |
+| `8bs check <files...>` | Front-end diagnostics, no build. |
+| `8bs build --target <t>` | The real image for that machine; `--profile`, `--hardware`, `--size`, `--program`, `--release`. |
+| `8bs run <t>` | Builds and boots it in the machine's emulator, or a browser tab for `web`; `--screenshot` for a headless capture. |
+| `8bs boot <t>` | The stock (or fitted) machine booting to its own prompt, with nothing loaded. |
+| `8bs targets [--json]` | Every target and its hardware catalog. |
+| `8bs doctor` | Checks Node, pnpm, git, and the emulators. |
+| `8bs setup <mega65\|cx16>` | Builds that machine's emulator and installs a ROM. |
+| `8bs controller` | Names the buttons of the pad plugged into this machine. |
+| `8bs lsp` | The language server, on stdio. |
 
-## The working document
+Each is described in the manual's [Project & CLI](language/project.md)
+page.
 
-The roadmap that got the first program — `Hello World!` on a Commodore
-PET, and again in a browser — actually booting, and the interim reference
-for every `8bs` command, is the working document titled **Hello, PET**:
+## How it is built
 
-<https://claude.ai/code/artifact/ada33539-fa98-46a7-a9a1-36532c8a2164>
+[Compiler](compiler.md) — the pipeline as built: lexer, parser, fold,
+binder, checker, 8BX elaboration, IR, and the two backends (MOS 6502 and
+WebAssembly).
 
-The architecture behind it is the plan titled **Bare Metal**:
+[8BX specification](spec/8bx.md) — the design record for `.8bx`: 27
+parts, 142 sections, the rules and the reasoning. Other pages cite it as
+`§N`.
 
-<https://claude.ai/code/artifact/98aec519-9820-497c-9556-c02d4f94c478>
+[8BX: composition for 8BitScript](project/8bx.md) — what the compiler has
+of that spec today, which of its PRs have landed as which changes, and
+where the code and the spec still differ.
 
-## What works today
-
-| Command | Status |
-| ------- | ------ |
-| `8bs check <files...>` | works: reports diagnostics from the front end |
-| `8bs targets [--json]` | works: lists every target and its hardware catalog |
-| `8bs doctor` | works: checks Node, pnpm, git, and the emulators; no compiler check |
-| `8bs setup <mega65\|cx16>` | works: builds an emulator and installs a ROM |
-| `8bs lsp` | works: the language server on stdio |
-| `8bs build --target <t>` | works for `pet` and `web`, real output; the seven parked machines are refused by name |
-| `8bs run <t>` | works for `pet` and `web`, boots the real build in an emulator or a browser tab; same refusal as `build` for the rest |
-| `8bs dev` | planned |
-
-## Still on this site
-
-[Project config](config.md) — `8bitscript.config.ts`, advertised and
-personal systems, and pointing a project at a local 8BitScript checkout.
+[Controllers, across nine machines](project/input.md) — how
+`@8bitscript/input` maps pads, sticks, keys and pointers per machine.
 
 [Machines on the roadmap](project/machines/index.md) — hardware research
-notes for the phase 5 through 8 machines, the ones the phase plan above
-names but no package exists for yet. They describe hardware, not the
-toolchain, and are unchanged by the rewrite.
+notes for the machines named in later phases, the ones no package exists
+for yet.
 
-[8BX: composition for 8BitScript](project/8bx.md) — what the repository
-has of `.8bx` today (the source kind, a first element grammar and
-elaborator, the config), how that differs from the 8BX spec it is being
-brought up to, and where the spec itself lives. [Compiler](compiler.md)
-describes the pipeline as built.
+## Authoring these pages
+
+Every page under `docs/` is Markdown with a `title` / `nav_order`
+front-matter block. Pages link to each other with relative `.md` paths, so
+the sources read on GitHub, and `site/build.mjs` rewrites those links for
+the published site — a directory's `index.md` becomes a directory URL,
+every other page an extensionless one. `site/nav.mjs` is the sidebar;
+a new page is added there by hand.
