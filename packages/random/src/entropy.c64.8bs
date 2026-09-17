@@ -1,0 +1,42 @@
+// @8bitscript/random/entropy on the C64: SID voice 3's noise oscillator in
+// place of the software generator. The resolver takes this twin for C64
+// builds on its own — a program imports "@8bitscript/random/entropy" and
+// never names this file (the same twin rule as `screen.nes.8bs` beside
+// `screen.8bs`; see the compiler resolver's chooseVariant).
+//
+// It exists because it is *smaller* as well as less predictable: what goes
+// away is the 16-bit multiply-and-add and the two bytes of state it steps;
+// what stays is `% bound`, which every version needs. 2048 measured the
+// difference at 40 bytes of program (3844 against 3884 at 0.6.2) and 2
+// bytes of RAM, which is the whole argument for reading hardware inside
+// game logic rather than once at start-up — the argument against is
+// replay, and ./entropy.8bs's header says where a program that wants
+// replay should go instead.
+//
+// `begin()` is @8bitscript/c64/random's: it claims voice 3 and writes $D418
+// whole, because the SID's low registers are write-only and cannot be read
+// back. It has to run before anything else touches the chip, which for a
+// program means the first statement of main(). A program that also plays
+// sound has to read that module's header, not just add notes.
+import { random } from "@8bitscript/c64/random";
+
+export namespace entropy {
+    // Fastest-clocked noise on voice 3, silenced. First thing main() does.
+    function begin(): void {
+        random.begin();
+    }
+
+    // Nothing to step: the oscillator runs whether or not the program is
+    // looking at it, which is the whole reason this twin is cheaper.
+    function tick(): void {
+    }
+
+    // One byte from the oscillator, 0-255.
+    function next(): utinyint {
+        return random.byte();
+    }
+
+    function range(bound: utinyint): utinyint {
+        return random.byte() % bound;
+    }
+}

@@ -1,0 +1,19 @@
+// Every call @8bitscript/random/entropy offers, linked the way a program
+// built from inside the package tests it: the import is relative because a
+// package does not resolve its own name; a consumer writes
+// `import { entropy } from "@8bitscript/random/entropy"`. A relative import
+// takes machine twins exactly as the subpath does (the resolver's
+// chooseVariant), so linking this for the C64 and the Atari 8-bit reaches
+// entropy.c64.8bs and entropy.atari8.8bs — which is what entropy.test.mjs
+// checks: the hardware modules' `random_byte` on those two, the LCG's
+// `random_next` on the other seven, never both.
+import { entropy } from "../src/entropy.8bs";
+
+let picked: utinyint = 0;
+
+export function main(): void {
+    entropy.begin();
+    entropy.tick();
+    picked = entropy.next();
+    picked = entropy.range(6);
+}

@@ -141,7 +141,12 @@ it is a wrong program.
 - **Randomness must be deterministic by default, explicitly seeded, with
   small fixed state.** Hardware entropy (a POKEY register, SID's oscillator
   3, timing jitter) belongs behind a separate, explicitly optional import —
-  never as something a deterministic PRNG silently depends on.
+  never as something a deterministic PRNG silently depends on. The
+  portable form of that import is `@8bitscript/random/entropy`: one
+  subpath whose machine twins (`entropy.c64.8bs`, `entropy.atari8.8bs`)
+  read the register and whose portable file is the seeded generator, so
+  a program opts in once instead of carrying a twin per machine. The bare
+  `@8bitscript/random` never changes meaning. See `packages/random/README.md`.
 - **Persistence is a capability, not an assumption baked into a machine
   name.** Whether a target can save depends on the cartridge/media profile,
   not the machine family (see the NES notes on this specifically).

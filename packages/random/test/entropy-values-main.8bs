@@ -1,0 +1,5 @@
+import { run } from "./entropy-values.8bs";
+
+export function main(): void {
+    run();
+}

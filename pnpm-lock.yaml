@@ -376,7 +376,14 @@ importers:
         specifier: workspace:*
         version: link:../web
 
-  packages/random: {}
+  packages/random:
+    dependencies:
+      '@8bitscript/atari8':
+        specifier: workspace:*
+        version: link:../atari8
+      '@8bitscript/c64':
+        specifier: workspace:*
+        version: link:../c64
 
   packages/raster:
     dependencies:
