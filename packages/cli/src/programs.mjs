@@ -207,9 +207,10 @@ export function selectProgram(programs, name) {
 export function programArg(args) {
   const index = args.indexOf('--program');
   if (index < 0) return { ok: true, program: undefined, consumed: [] };
-  const name = args[index + 1];
-  if (name === undefined || name.startsWith('-')) return { ok: false, error: '--program expects a name' };
-  return { ok: true, program: name, consumed: [index, index + 1] };
+  if (index + 1 >= args.length || args[index + 1].startsWith('-')) {
+    return { ok: false, error: '--program expects a name' };
+  }
+  return { ok: true, program: args[index + 1], consumed: [index, index + 1] };
 }
 
 /**

@@ -77,6 +77,10 @@ test('the indexed and indirect shapes', () => {
   assert.deepEqual(shape('lda ($10),y'), ['LDA (indirect),y']);
   assert.deepEqual(shape('jmp ($FFFC)'), ['JMP indirect']);
   assert.deepEqual(shape('asl a'), ['ASL accumulator']);
+  // Spaces around the comma and the parens are the same instruction.
+  assert.deepEqual(shape('lda ( $10 , x )'), ['LDA (indirect,x)']);
+  assert.deepEqual(shape('lda ( $10 ) , y'), ['LDA (indirect),y']);
+  assert.deepEqual(shape('lda $10 , x'), ['LDA zeropage,x']);
 });
 
 test('comments run to end of line, after ; or //', () => {

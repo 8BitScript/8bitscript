@@ -88,7 +88,7 @@ async function tick() {
 }
 
 test('project details script is valid JavaScript', () => {
-  new vm.Script(JS, { filename: 'project.js' });
+  assert.doesNotThrow(() => new vm.Script(JS, { filename: 'project.js' }));
 });
 
 test('every element the project page reaches for is on the page', () => {

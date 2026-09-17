@@ -465,7 +465,9 @@ async function spawnEmulator(emulator, emulatorArgs) {
       process.stderr.write(`cannot start ${emulator}. Run '8bs doctor' — docs/setup/index.md\n`);
       resolvePromise(1);
     });
-    child.on('close', (code) => resolvePromise(code === 0 ? 0 : 0));
+    // Closing the window is the success condition; emulators often exit
+    // non-zero when the user quits them.
+    child.on('close', () => resolvePromise(0));
   });
 }
 

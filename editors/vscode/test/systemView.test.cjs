@@ -108,8 +108,8 @@ async function tick() {
 }
 
 test('system builder scripts are valid JavaScript', () => {
-  new vm.Script(HARDWARE, { filename: 'hardware.js' });
-  new vm.Script(JS, { filename: 'system.js' });
+  assert.doesNotThrow(() => new vm.Script(HARDWARE, { filename: 'hardware.js' }));
+  assert.doesNotThrow(() => new vm.Script(JS, { filename: 'system.js' }));
 });
 
 test('every element the system page reaches for is on the page', () => {
