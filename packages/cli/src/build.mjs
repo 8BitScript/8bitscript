@@ -58,9 +58,9 @@ import {
 } from '@8bitscript/compiler';
 
 import { applyCheckoutFromArgs, setActiveCheckout } from './checkout.mjs';
-import { loadConfig, resolveFrameRate, retiredOptionWarnings } from './config.mjs';
+import { loadConfig, localeArg, resolveFrameRate, resolveLocale, retiredOptionWarnings } from './config.mjs';
 import {
-  HARDWARE_USAGE, REGION_MACHINES, hardwareArgs, listedTargets, loadCatalog, projectHardware,
+  HARDWARE_USAGE, REGION_MACHINES, catalogTags, hardwareArgs, listedTargets, loadCatalog, projectHardware,
   projectProfiles, projectRequires, resolveHardware, whatSatisfies,
 } from './hardware.mjs';
 import { loadMergedSystems, resolveNamedLaunch } from './systems.mjs';
@@ -157,7 +157,7 @@ export function checkEntryKind(entry) {
  *
  * @param {'vic20'|'c64'|'pet'|'c128'|'atari8'|'nes'|'cx16'|'mega65'|'web'} target
  * @param {string} [entryArg]
- * @param {{ pal?: boolean, profile?: string, hardware?: object, report?: boolean, checkout?: string|null, program?: string }} [options] `pal` selects the
+ * @param {{ pal?: boolean, profile?: string, hardware?: object, report?: boolean, checkout?: string|null, program?: string, locale?: string }} [options] `pal` selects the
  *   real hardware/emulator region (NTSC unless true; ignored outside
  *   REGION_TARGETS) — it does not affect the logical frame rate, which is
  *   read from 8bitscript.config.ts's `frameRate` instead (default 60). `profile`
@@ -167,13 +167,16 @@ export function checkEntryKind(entry) {
  *   last-run JSON the editor's Running machines tree reads. `program`
  *   names one of the config's `programs` (programs.mjs); without it the
  *   program is `main`, or the only one, or — when `entryArg` names a file —
- *   that file, as its own one-off program.
- * @returns {Promise<{ ok: boolean, outFile?: string, frameRate?: number, hardware?: object, memory?: object, sizeReport?: object[] }>}
+ *   that file, as its own one-off program. `locale` is `--locale` (or a
+ *   `release` entry's), over the config's own — see config.mjs's
+ *   resolveLocale; the locale's twin files are read and the artifact's
+ *   name carries it.
+ * @returns {Promise<{ ok: boolean, outFile?: string, frameRate?: number, hardware?: object, memory?: object, sizeReport?: object[], locale?: string }>}
  *   `hardware` is the resolved hardware the program was built for, for
  *   whoever runs it next. `memory` / `sizeReport` are what the last-run
  *   file and `--size` print; they are absent when the compile failed.
  */
-export async function compile(target, entryArg, { pal = false, profile, hardware: overrides = {}, report = false, checkout = undefined, program: programName } = {}) {
+export async function compile(target, entryArg, { pal = false, profile, hardware: overrides = {}, report = false, checkout = undefined, program: programName, locale: localeArgument } = {}) {
   if (checkout !== undefined) setActiveCheckout(checkout);
   const config = await loadConfig(process.cwd(), '8bs build');
 
@@ -276,6 +279,15 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   }
   const { hardware } = resolved;
 
+  // The build's locale, if any, checked against this machine's tags so a
+  // file name can never mean two things (config.mjs, localeProblem).
+  const localeResult = resolveLocale(config, { target, override: localeArgument, tags: catalogTags(loadCatalog(target)) });
+  if (!localeResult.ok) {
+    process.stderr.write(`8bs build: ${localeResult.error}\n`);
+    return { ok: false };
+  }
+  const { locale } = localeResult;
+
   // What the program needs of the machine, before the machine gets a
   // chance to disappoint it. A program that cannot run in the RAM it was
   // given fails at the linker with an overflow measured in bytes of
@@ -330,7 +342,7 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   // hardware's tags so a file with a `.<machine>.<tag>.8bs` twin resolves
   // to that.
   const { ir, diagnostics, sources } = link(text, entry, {
-    machine: target, tags: hardware.tags, facts: hardware.facts, frameRate, checkout, bx: config?.bx,
+    machine: target, tags: hardware.tags, facts: hardware.facts, frameRate, checkout, bx: config?.bx, locale,
   });
   // A warning is printed and the build goes on; an error stops it.
   if (diagnostics.length > 0) printDiagnostics(diagnostics, sources);
@@ -351,9 +363,12 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
     const { writeWebBundle } = await import('./web-runtime.mjs');
     const { layoutFromHardware } = await import('./web-layout.mjs');
     const layout = layoutFromHardware(hardware);
-    const tag = hardware.tags[0];
-    const wasmName = tag ? `program-${tag}` : 'program';
-    const outFile = resolve('dist', tag ? `${stem}-${tag}.wasm` : `${stem}.wasm`);
+    // The locale after the tag, as the native names carry it; a bundle
+    // per locale sits beside the others in dist/web, the way a bundle per
+    // tag already does.
+    const suffix = [hardware.tags[0], locale].filter(Boolean).map((part) => `-${part}`).join('');
+    const wasmName = `program${suffix}`;
+    const outFile = resolve('dist', `${stem}${suffix}.wasm`);
     // The layout is computed once and both sides get it: the page through
     // the bundle's sidecar, the backend through `reserved` — the agreement's
     // end, past which its data section starts (web-layout.mjs, and
@@ -372,16 +387,18 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
     if (report) process.stdout.write(stateReportLines(ir));
     const memory = { variables: ir.memory.variables, program: result.bytes.length, data: ir.memory.data };
     await writeLastRun(target, compileReport(target, {
-      outFile, hardware, memory, sizeReport: result.sizeReport, frameRate, program: program.name,
+      outFile, hardware, memory, sizeReport: result.sizeReport, frameRate, program: program.name, locale,
     }));
-    return { ok: true, outFile, frameRate, hardware, webDir, memory, sizeReport: result.sizeReport, program: program.name };
+    return { ok: true, outFile, frameRate, hardware, webDir, memory, sizeReport: result.sizeReport, program: program.name, locale };
   }
 
   const { build, outputExtension } = await import('@8bitscript/compiler/mos');
   // Hardware that changes the build is in the name (an 8032 PET, an
   // expanded VIC-20, an XEGS cartridge); hardware that only changes the
   // emulator is not, because the file is the same file.
-  const nameParts = [stem, target, ...hardware.buildValues];
+  // A locale changes the bytes the way build hardware does, and follows
+  // it in the name; a build without one keeps the name it always had.
+  const nameParts = [stem, target, ...hardware.buildValues, ...(locale ? [locale] : [])];
   if (REGION_TARGETS.has(target)) nameParts.push(pal ? 'pal' : 'ntsc');
   const ext = outputExtension(target, hardware);
   // The name has to survive the filesystem it will be loaded from, not just
@@ -406,9 +423,9 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   if (result.sizeReport) process.stdout.write(sizeReportLines(result.sizeReport, result.memory.program));
   if (report) process.stdout.write(stateReportLines(ir));
   await writeLastRun(target, compileReport(target, {
-    outFile, hardware, memory: result.memory, sizeReport: result.sizeReport, frameRate, program: program.name,
+    outFile, hardware, memory: result.memory, sizeReport: result.sizeReport, frameRate, program: program.name, locale,
   }));
-  return { ok: true, outFile, frameRate, hardware, memory: result.memory, sizeReport: result.sizeReport, program: program.name };
+  return { ok: true, outFile, frameRate, hardware, memory: result.memory, sizeReport: result.sizeReport, program: program.name, locale };
 }
 
 /**
@@ -527,7 +544,8 @@ async function buildRelease({ report = false } = {}) {
       for (const variant of variants) {
         const profile = typeof variant === 'string' ? variant : variant?.profile;
         const hardware = (variant && typeof variant === 'object') ? (variant.hardware ?? {}) : {};
-        const result = await compile(target, undefined, { profile, hardware, report, program: program.name });
+        const locale = (variant && typeof variant === 'object') ? variant.locale : undefined;
+        const result = await compile(target, undefined, { profile, hardware, report, program: program.name, locale });
         if (!result.ok) ok = false;
       }
     }
@@ -561,13 +579,18 @@ export async function build(args) {
     process.stderr.write(`8bs build: ${programOpt.error}\n`);
     return 2;
   }
+  const localeOpt = localeArg(args);
+  if (!localeOpt.ok) {
+    process.stderr.write(`8bs build: ${localeOpt.error}\n`);
+    return 2;
+  }
   const config = await loadConfig(process.cwd(), '8bs build');
   const launch = resolveNamedLaunch(hw, { config });
   if (!launch.ok) {
     process.stderr.write(`8bs build: ${launch.error}\n`);
     return 2;
   }
-  const consumed = new Set([...hw.consumed, ...checkout.consumed, ...programOpt.consumed]);
+  const consumed = new Set([...hw.consumed, ...checkout.consumed, ...programOpt.consumed, ...localeOpt.consumed]);
   const positionals = args.filter((a, i) => {
     if (targetIndex >= 0 && (i === targetIndex || i === targetIndex + 1)) return false;
     if (consumed.has(i)) return false;
@@ -590,7 +613,7 @@ export async function build(args) {
     process.stderr.write(
       'Usage: 8bs build --target <pet|web>\n'
       + '                 (vic20, c64, c128, atari8, nes, cx16, mega65 are parked until a later release)\n'
-      + '                 [--pal] [--size] [--program <name>]\n'
+      + '                 [--pal] [--size] [--program <name>] [--locale <name>]\n'
       + HARDWARE_USAGE
       + '                 [entry.8bs]\n',
     );
@@ -598,7 +621,7 @@ export async function build(args) {
   }
   const { ok } = await compile(target, entry, {
     pal, profile: launch.profile, hardware: launch.overrides, report, checkout: checkout.checkout,
-    program: programOpt.program,
+    program: programOpt.program, locale: localeOpt.locale,
   });
   return ok ? 0 : 1;
 }

@@ -5,6 +5,8 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import { LOCALE_NAME, MACHINES, isLocaleName } from '@8bitscript/compiler';
+
 // 8bitscript.config.ts is the current name; 8bs.config.ts (every project
 // through 0.3.0, including this repo's own examples) still loads so
 // existing projects don't break on upgrade. Checked in this order — a
@@ -88,3 +90,71 @@ export function resolveFrameRate(config) {
   }
   return { ok: true, frameRate };
 }
+
+/**
+ * `--locale <name>` on `8bs build` and `8bs run`: the locale this one
+ * build is for, over whatever the config says (see resolveLocale).
+ *
+ * @param {string[]} args
+ * @returns {{ ok: true, locale: string|undefined, consumed: number[] } | { ok: false, error: string }}
+ */
+export function localeArg(args) {
+  const index = args.indexOf('--locale');
+  if (index < 0) return { ok: true, locale: undefined, consumed: [] };
+  const name = args[index + 1];
+  if (index + 1 >= args.length || name.startsWith('-')) return { ok: false, error: '--locale expects a name, e.g. --locale de' };
+  return { ok: true, locale: name, consumed: [index, index + 1] };
+}
+
+/**
+ * Why `name` cannot be a locale, or null when it can. The shape is the
+ * compiler's LOCALE_NAME; a machine's name is refused there too. `tags`
+ * are the hardware tags the machine's catalog can put in a file name
+ * (`8032`, `expanded`, `on`), which a locale must not be either: the
+ * resolver tells `x.pet.8032.8bs` from `x.pet.de.8bs` by which words are
+ * which, and one word that is both would make one file mean two things.
+ *
+ * @param {unknown} name
+ * @param {string[]} [tags]
+ * @returns {string|null}
+ */
+export function localeProblem(name, tags = []) {
+  if (typeof name !== 'string') return `a locale is a name in quotes, got ${JSON.stringify(name)}`;
+  if (!LOCALE_NAME.test(name)) {
+    return `'${name}' is not a locale name: two to eight lower-case letters, with an optional -region (de, en, pt-br, zh-hans)`;
+  }
+  if (MACHINES.includes(name)) return `'${name}' is a machine's name, not a locale`;
+  if (tags.includes(name)) return `'${name}' is a hardware tag on this machine's catalog, not a locale — a file named x.${name}.8bs would mean two things`;
+  return null;
+}
+
+/**
+ * The locale a build is for, if it is for one. Nearest wins: the command
+ * line's `--locale` (or a `release` entry's `locale`, which is the same
+ * request written down), else the target's `locale` under `targets`, else
+ * the project's. No locale at all is the default, and it means the plain
+ * files: nothing that ends in `.<locale>` is read, and every project that
+ * never heard of locales builds exactly as it did.
+ *
+ * @param {object|null} config
+ * @param {{ target?: string, override?: string, tags?: string[] }} [choice]
+ * @returns {{ ok: true, locale: string|undefined } | { ok: false, error: string }}
+ */
+export function resolveLocale(config, { target, override, tags = [] } = {}) {
+  const targetLocale = (target && config?.targets && !Array.isArray(config.targets)) ? config.targets[target]?.locale : undefined;
+  const candidates = [
+    ['--locale', override],
+    [`8bitscript.config.ts's targets.${target}.locale`, targetLocale],
+    ["8bitscript.config.ts's locale", config?.locale],
+  ];
+  for (const [where, value] of candidates) {
+    if (value === undefined) continue;
+    const problem = localeProblem(value, tags);
+    if (problem) return { ok: false, error: `${where}: ${problem}` };
+    return { ok: true, locale: value };
+  }
+  return { ok: true, locale: undefined };
+}
+
+/** Whether a locale name has the shape one must — for callers that only need a yes or no. */
+export { isLocaleName };

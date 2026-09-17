@@ -505,7 +505,7 @@ export async function run(args) {
     process.stderr.write(`8bs run: ${listenPort.error}\n`);
     return 2;
   }
-  const { loadConfig } = await import('./config.mjs');
+  const { loadConfig, localeArg } = await import('./config.mjs');
   const { MACHINES } = await import('@8bitscript/compiler');
   const config = await loadConfig(process.cwd(), '8bs run');
   const launch = resolveNamedLaunch(hw, { config });
@@ -518,10 +518,16 @@ export async function run(args) {
     process.stderr.write(`8bs run: ${programOpt.error}\n`);
     return 2;
   }
+  const localeOpt = localeArg(args);
+  if (!localeOpt.ok) {
+    process.stderr.write(`8bs run: ${localeOpt.error}\n`);
+    return 2;
+  }
   const consumed = new Set([
     ...hw.consumed,
     ...checkout.consumed,
     ...programOpt.consumed,
+    ...localeOpt.consumed,
     ...[screenshotIndex, framesIndex, portIndex].flatMap((i) => (i >= 0 ? [i, i + 1] : [])),
   ]);
   const positionals = args.filter((a, i) => !consumed.has(i) && !a.startsWith('-'));
@@ -538,7 +544,7 @@ export async function run(args) {
       + '                (vic20, c64, c128, atari8, nes, cx16, mega65 are parked until a later release)\n'
       + '                [--pal]\n'
       + HARDWARE_USAGE
-      + '                [--size] [--no-open] [--lan] [--local] [--port <n>] [--program <name>] [entry.8bs]\n'
+      + '                [--size] [--no-open] [--lan] [--local] [--port <n>] [--program <name>] [--locale <name>] [entry.8bs]\n'
       + '                [--screenshot <file.png>] [--frames <n>]\n'
       + '                  capture one screenshot through the target\'s own\n'
       + '                  emulator API instead of opening an interactive\n'
@@ -555,7 +561,7 @@ export async function run(args) {
 
   const { ok, outFile, frameRate, hardware } = await compile(target, entry, {
     pal, profile: launch.profile, hardware: launch.overrides, report, checkout: checkout.checkout,
-    program: programOpt.program,
+    program: programOpt.program, locale: localeOpt.locale,
   });
   if (!ok) return 1;
 
