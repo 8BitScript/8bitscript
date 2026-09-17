@@ -770,7 +770,10 @@ test('a 16-bit parameter that only has one byte of zero page left is refused, na
           returnType: 'void',
           body: [
             ...Array.from({ length: 113 }, (_, i) => ({ kind: 'assign', target: `g${i}`, value: { kind: 'const', value: 0, type: 'utinyint' } })),
+            // Two sites, so place() stays a function with a parameter slot
+            // to allocate: one site and rule 9 writes the body into main.
             { kind: 'call', name: 'place', args: [{ kind: 'const', value: 0, type: 'usmallint' }] },
+            { kind: 'call', name: 'place', args: [{ kind: 'const', value: 1, type: 'usmallint' }] },
           ],
         },
         { name: 'place', params: [{ name: 'cell', type: 'usmallint' }], returnType: 'void', body: stayAsCall('cell') },

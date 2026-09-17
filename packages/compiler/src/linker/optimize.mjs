@@ -58,6 +58,33 @@
 //      VIC-20 (2048 #49), +53 across an import boundary (2048 #45), and a
 //      one-line `range()` delegate +8 on five targets, all measured on
 //      0.11.0 — this is the rule that makes them zero.
+//   9. A function with exactly one live call site is written into that
+//      site, whatever its size and whatever its arguments: the body
+//      replaces the call, the argument stores, the frame and the `rts`,
+//      so it can only get smaller. A run-time argument the callee reads
+//      but never assigns is the argument itself (no copy — the store the
+//      site made into the parameter slot is the store that is gone); one
+//      the body assigns, or whose own variable the body writes, becomes
+//      a local. A non-void callee whose only `return` is its last
+//      statement is hoisted ahead of the statement that used its value
+//      when nothing else in that statement could see the difference
+//      (the rest is constants and reads of names the callee never
+//      writes); `let r = f(x)` returning one of the callee's own locals
+//      keeps that local as `r`. 2048's `paintTile` + `stampValue` +
+//      `Tile` measured +56 bytes on every 6502 and +84 on the PET 2001
+//      against the one-body `drawTile` (2048 #51) — three real calls
+//      with frames where one body was meant; this is the rule that makes
+//      the split free. Not inlined: a body with a `return` in a void
+//      function (the `f(); return;` idiom keeps a call, same as rule 6),
+//      an early return in a non-void one, `asm6502`, and a body whose
+//      free names a caller's own local would capture.
+//
+// Bodies are optimized callees-first (`bottomUpOrder`), so the size that
+// decides whether a body is pasted at several sites (rule 6) is the size
+// it has once its own callees are inlined into it — not the size it was
+// written at. 2048's `Board`, small as written, was under the limit and
+// went into `main` three times carrying the whole inlined `ScoreBar`,
+// +393 bytes on the PET 2001 (2048 #52).
 //
 // Does not mutate `ir`.
 
@@ -138,22 +165,6 @@ function nodeCount(node) {
     }
   };
   walk(node);
-  return n;
-}
-
-function countCalls(functionsByName, name) {
-  let n = 0;
-  const walk = (node) => {
-    if (Array.isArray(node)) {
-      for (const item of node) walk(item);
-      return;
-    }
-    if (node && typeof node === 'object') {
-      if (node.kind === 'call' && node.name === name) n += 1;
-      for (const value of Object.values(node)) walk(value);
-    }
-  };
-  for (const fn of functionsByName.values()) walk(fn.body);
   return n;
 }
 
@@ -504,7 +515,7 @@ function constEvalCall(call, ctx) {
   if (ctx.inlining.has(call.name)) return null;
   const returnType = fn.returnType ?? 'void';
   if (returnType !== 'void' && returnType !== 'bool' && storageBytes(returnType) !== 1) return null;
-  if (countCalls(ctx.functionsByName, call.name) > 1) return null;
+  if (siteCount(call.name, ctx) > 1) return null;
   const params = fn.params ?? [];
   const args = call.args ?? [];
   if (params.length !== args.length) return null;
@@ -546,10 +557,45 @@ function optimizeBody(body, ctx) {
     const pieces = optimizeStatement(statement, ctx);
     for (const piece of pieces) {
       out.push(piece);
-      if (alwaysReturns(piece)) return out;
+      if (alwaysReturns(piece)) return propagateConstLocals(out, ctx);
     }
   }
-  return out;
+  return propagateConstLocals(out, ctx);
+}
+
+function bindsName(node, name) {
+  if (Array.isArray(node)) return node.some((item) => bindsName(item, name));
+  if (!node || typeof node !== 'object') return false;
+  if (node.kind === 'local' && node.name === name) return true;
+  return Object.values(node).some((value) => bindsName(value, name));
+}
+
+/**
+ * A local rule 9 pasted in — a parameter it bound, or one of the callee's
+ * own — holding a constant that nothing ever assigns, is the constant:
+ * every read of it in the rest of its block becomes the value, and the
+ * declaration goes. It was not constant when the callee was written; the
+ * inlining made it one (an unrolled `place(0, 72)` inside a print, or
+ * `toScreen`'s `screen` once `asciiToScreenCode(72)` folded), and it would
+ * otherwise keep a zero-page byte and a store for a number the code
+ * already knows. A local the program wrote where it stands is left alone
+ * — it may exist to shadow, or to be refused by name.
+ */
+function propagateConstLocals(statements, ctx) {
+  for (let i = 0; i < statements.length; i++) {
+    const statement = statements[i];
+    if (statement.kind !== 'local' || statement.inlined !== true || !isNumericConst(statement.init)) continue;
+    const rest = statements.slice(i + 1);
+    const assigned = new Set();
+    collectAssigned(rest, assigned);
+    if (assigned.has(statement.name) || bindsName(rest, statement.name)) continue;
+    const value = { kind: 'const', value: statement.init.value, type: statement.type ?? statement.init.type };
+    // The rest goes round again: a value that was a variable a moment ago
+    // may now fold — an address into a literal, a call into its result.
+    const substituted = optimizeBody(substituteBindings(rest, new Map([[statement.name, value]])), ctx);
+    return [...statements.slice(0, i), ...substituted];
+  }
+  return statements;
 }
 
 function matchCountedFor(statement) {
@@ -653,7 +699,7 @@ function forwardCall(call, fn, forwarded, ctx) {
   const reordered = order.some((index, position) => index !== position);
   if (reordered && args.some((arg) => !isSideEffectFree(arg))) return null;
   if (constants > 0) {
-    const sites = countCalls(ctx.functionsByName, call.name);
+    const sites = siteCount(call.name, ctx);
     if (constants * (sites - 1) > used.size) return null;
   }
   const rewritten = substituteBindings(clone(wrapped), bindings);
@@ -675,6 +721,366 @@ function forwardExprCall(call, ctx) {
     return foldExpr(rewritten, ctx);
   } finally {
     ctx.inlining.delete(call.name);
+  }
+}
+
+// ---- rule 9: a single caller ----------------------------------------------
+
+function containsKind(node, kind) {
+  if (Array.isArray(node)) return node.some((item) => containsKind(item, kind));
+  if (!node || typeof node !== 'object') return false;
+  if (node.kind === kind) return true;
+  return Object.values(node).some((value) => containsKind(value, kind));
+}
+
+function countReturns(node) {
+  if (Array.isArray(node)) return node.reduce((n, item) => n + countReturns(item), 0);
+  if (!node || typeof node !== 'object') return 0;
+  let n = node.kind === 'return' ? 1 : 0;
+  for (const value of Object.values(node)) n += countReturns(value);
+  return n;
+}
+
+/** Every name a body reads or writes as a variable: refs, assignment targets, locals. */
+function collectNames(node, out) {
+  if (Array.isArray(node)) {
+    for (const item of node) collectNames(item, out);
+    return;
+  }
+  if (node && typeof node === 'object') {
+    if ((node.kind === 'ref' || node.kind === 'local') && typeof node.name === 'string') out.add(node.name);
+    if (node.kind === 'assign' && typeof node.target === 'string') out.add(node.target);
+    for (const value of Object.values(node)) collectNames(value, out);
+  }
+}
+
+/** The names a function binds itself: its parameters and every local in its body. */
+function boundNames(fn) {
+  const out = new Set((fn.params ?? []).map((param) => param.name));
+  collectBoundNames(fn.body, out);
+  return out;
+}
+
+/** A name not in `taken`, built from `name`. */
+function freshName(name, taken) {
+  let out = name;
+  for (let n = 2; taken.has(out); n += 1) out = `${name}_${n}`;
+  taken.add(out);
+  return out;
+}
+
+/**
+ * Every variable a function writes, itself or through anything it calls:
+ * assignment targets and string copies. A variable at a hardware address
+ * counts as written by any body (a `memory.write` may reach it), so an
+ * argument reading one is copied, as the call copied it.
+ */
+function writesOf(fn, ctx) {
+  const out = new Set(ctx.addressed);
+  const seen = new Set();
+  const visit = (f) => {
+    if (!f || seen.has(f.name)) return;
+    seen.add(f.name);
+    // The function's own writes by name, parameters and locals included;
+    // a callee's only for what it does not bind itself — its locals are
+    // its own, whatever they happen to be called.
+    const own = new Set();
+    collectAssigned(f.body, own);
+    const walk = (node) => {
+      if (Array.isArray(node)) { for (const item of node) walk(item); return; }
+      if (!node || typeof node !== 'object') return;
+      if (node.kind === 'stringCopy' && typeof node.target?.name === 'string') own.add(node.target.name);
+      if (node.kind === 'call' && typeof node.name === 'string') visit(ctx.functionsByName.get(node.name));
+      for (const value of Object.values(node)) walk(value);
+    };
+    walk(f.body);
+    const bound = f === fn ? new Set() : boundNames(f);
+    for (const name of own) if (!bound.has(name)) out.add(name);
+  };
+  visit(fn);
+  return out;
+}
+
+/** Whether `fn`, or anything it calls, has a node `test` accepts. */
+function reachableHas(fn, ctx, test) {
+  const seen = new Set();
+  const visit = (f) => {
+    if (!f || seen.has(f.name)) return false;
+    seen.add(f.name);
+    const walk = (node) => {
+      if (Array.isArray(node)) return node.some(walk);
+      if (!node || typeof node !== 'object') return false;
+      if (test(node)) return true;
+      if (node.kind === 'call' && typeof node.name === 'string' && visit(ctx.functionsByName.get(node.name))) return true;
+      return Object.values(node).some(walk);
+    };
+    return walk(f.body);
+  };
+  return visit(fn);
+}
+
+/** Rename the names a callee binds (its parameters, its locals) everywhere in `body`. */
+function renameBound(node, renames) {
+  if (Array.isArray(node)) return node.map((item) => renameBound(item, renames));
+  if (!node || typeof node !== 'object') return node;
+  const out = {};
+  for (const [key, value] of Object.entries(node)) out[key] = renameBound(value, renames);
+  if ((out.kind === 'ref' || out.kind === 'local') && typeof out.name === 'string' && renames.has(out.name)) {
+    out.name = renames.get(out.name);
+    if (out.kind === 'local') out.inlined = true;
+  }
+  if (out.kind === 'assign' && typeof out.target === 'string' && renames.has(out.target)) {
+    out.target = renames.get(out.target);
+  }
+  return out;
+}
+
+/**
+ * The callee a call has exactly one live site of, when its body can stand
+ * where the call is: not recursive, not empty (rule 7 deletes those), no
+ * `asm6502` (its text may name the function's own frame), and — the
+ * `return` rule — a void body with a `return` anywhere stays a call
+ * (2048's `f(); return;` idiom, and a `return` pasted into the caller
+ * would leave the caller), while a non-void body must end in its only
+ * `return`, so dropping that one statement leaves straight-line code.
+ */
+function singleCallerCallee(call, ctx, wantValue) {
+  if (!ctx?.functionsByName || typeof call.name !== 'string') return null;
+  const fn = ctx.functionsByName.get(call.name);
+  if (!fn || ctx.inlining.has(call.name)) return null;
+  // Inside an unrolled copy every site is one of N; inside a forwarder the
+  // sites are the forwarder's, and rule 8 puts this call at each of them.
+  if (ctx.unrollingStringCopy) return null;
+  if (ctx.currentFn && forwardedCall(ctx.currentFn)) return null;
+  const body = fn.body ?? [];
+  if (body.length === 0) return null;
+  if (containsKind(body, 'asm')) return null;
+  if ((fn.params ?? []).length !== (call.args ?? []).length) return null;
+  const returnType = fn.returnType ?? 'void';
+  if (wantValue) {
+    if (returnType === 'void') return null;
+    const last = body[body.length - 1];
+    if (!last || last.kind !== 'return' || !last.value) return null;
+    if (countReturns(body) !== 1) return null;
+  } else {
+    if (returnType !== 'void') return null;
+    if (containsReturn(body)) return null;
+  }
+  if (ctx.consumed.has(call.name) || ctx.retired.has(call.name)) return null;
+  if (siteCount(call.name, ctx) !== 1) return null;
+  return fn;
+}
+
+/**
+ * How many places a function is called from once every forwarder of it
+ * (rule 8) has been written out: a forwarder's own sites are the wrapped
+ * function's. Counted over the bodies as they stand — a caller still
+ * being optimized is counted as it was written, which is what keeps a
+ * body from being pasted at the first of several sites the caller is
+ * about to have.
+ */
+function siteCount(name, ctx, seen = new Set()) {
+  if (seen.has(name)) return 2;
+  seen.add(name);
+  let n = 0;
+  for (const fn of ctx.functionsByName.values()) {
+    // A body written into its one caller stands in for that copy until the
+    // caller's own optimized body is stored; after that it is counted there,
+    // and the original is on its way out.
+    if (ctx.retired.has(fn.name)) continue;
+    const direct = countCallsIn(fn.body, name);
+    if (direct === 0) continue;
+    const forwarded = forwardedCall(fn);
+    n += forwarded && forwarded.wrapped.name === name ? siteCount(fn.name, ctx, seen) : direct;
+  }
+  return n;
+}
+
+function countCallsIn(body, name) {
+  let n = 0;
+  const walk = (node) => {
+    if (Array.isArray(node)) { for (const item of node) walk(item); return; }
+    if (node && typeof node === 'object') {
+      if (node.kind === 'call' && node.name === name) n += 1;
+      for (const value of Object.values(node)) walk(value);
+    }
+  };
+  walk(body);
+  return n;
+}
+
+/**
+ * The callee's body, made to stand at the call site: its own names made
+ * fresh so nothing in the caller is shadowed and no argument is read
+ * after a parameter of the same name took its place; each parameter
+ * either the argument itself (a constant, or a plain read of a variable
+ * that neither the parameter nor the body assigns — the argument's store
+ * into the parameter slot is exactly the store that disappears) or a
+ * local holding it. Null when a name the body reads without binding — a
+ * global — is one the caller binds as a parameter or local, since the
+ * caller's binding would capture it.
+ *
+ * @returns {{ statements: object[], returned: object | null, locals: Set<string> } | null}
+ */
+function siteBody(call, fn, ctx) {
+  const bound = boundNames(fn);
+  const free = new Set();
+  collectNames(fn.body, free);
+  for (const name of bound) free.delete(name);
+  for (const name of free) if (ctx.callerBound.has(name)) return null;
+  const assigned = writesOf(fn, ctx);
+  const renames = new Map();
+  for (const name of bound) {
+    const fresh = freshName(name, ctx.taken);
+    renames.set(name, fresh);
+    ctx.zpNames.add(fresh);
+  }
+  const params = fn.params ?? [];
+  const args = call.args ?? [];
+  const statements = [];
+  const bindings = new Map();
+  for (let i = 0; i < params.length; i++) {
+    const param = params[i];
+    const arg = args[i];
+    const plainRead = arg?.kind === 'ref' && typeof arg.name === 'string' && !assigned.has(arg.name);
+    // A read of the caller's own local or parameter is a zero-page read,
+    // as the parameter's was; a global is an absolute read, one byte more
+    // at every use, so it is copied into a local once — the store the
+    // call made — and read from there. An array is its address either way.
+    const zeroPage = plainRead && (ctx.zpNames.has(arg.name) || param.type === 'array');
+    if ((isCompileTimeArg(arg) || zeroPage) && !assigned.has(param.name)) {
+      bindings.set(renames.get(param.name), arg);
+    } else if (param.type === 'string' || param.type === 'array' || arg?.type === 'string') {
+      // A string or an array is a pointer the backends only hold in a
+      // parameter slot or a global; there is no local to copy it into.
+      return null;
+    } else {
+      statements.push({ kind: 'local', name: renames.get(param.name), type: param.type, init: clone(arg), inlined: true });
+    }
+  }
+  let body = substituteBindings(renameBound(clone(fn.body), renames), bindings);
+  let returned = null;
+  if ((fn.returnType ?? 'void') !== 'void') {
+    returned = body[body.length - 1].value;
+    body = body.slice(0, -1);
+  }
+  const locals = new Map();
+  for (const statement of body) if (statement.kind === 'local') locals.set(statement.name, statement.type ?? null);
+  ctx.consumed.add(fn.name);
+  return { statements: [...statements, ...body], returned, locals, free };
+}
+
+/** The expression children of a statement: everything but the statement lists control flow owns. */
+const STATEMENT_LISTS = new Set(['then', 'else', 'body']);
+
+function findValueCall(node, ctx, found) {
+  if (Array.isArray(node)) {
+    for (const item of node) {
+      const hit = findValueCall(item, ctx, found);
+      if (hit) return hit;
+    }
+    return null;
+  }
+  if (!node || typeof node !== 'object') return null;
+  for (const [key, value] of Object.entries(node)) {
+    if (STATEMENT_LISTS.has(key)) continue;
+    if (key === 'init' && value?.kind === 'local') continue;
+    const hit = findValueCall(value, ctx, found);
+    if (hit) return hit;
+  }
+  if (node.kind === 'call' && node !== found.container && singleCallerCallee(node, ctx, true)) return node;
+  return null;
+}
+
+function replaceNode(node, target, replacement) {
+  return mapDeep(node, (inner) => (inner === target ? replacement : inner));
+}
+
+/**
+ * Whether the rest of `statement`, with `call` taken out, would run the
+ * same before the callee's body as after it: only constants, reads, and
+ * arithmetic on them — no other call, no hardware or array read — and no
+ * read of a variable the callee writes.
+ */
+function restIsInert(statement, call, fn, ctx) {
+  const assigned = writesOf(fn, ctx);
+  const stores = reachableHas(fn, ctx, (node) => node.kind === 'storeIndex' || node.kind === 'memoryWrite' || node.kind === 'stringCopy');
+  const inert = (node) => {
+    if (node === call) return true;
+    if (Array.isArray(node)) return node.every(inert);
+    if (!node || typeof node !== 'object') return true;
+    if (node === statement) {
+      return Object.entries(node).every(([key, value]) => STATEMENT_LISTS.has(key) || inert(value));
+    }
+    if (node.kind === 'ref') return !assigned.has(node.name) && !(stores && node.type === 'string');
+    if (node.kind === 'index') return !stores && inert(node.index);
+    if (!PURE_EXPR.has(node.kind)) return false;
+    return Object.values(node).every(inert);
+  };
+  return inert(statement);
+}
+
+/** Statement kinds whose expressions run once, in order, right where they stand. */
+const HOISTABLE = new Set(['local', 'assign', 'call', 'memoryWrite', 'storeIndex', 'return', 'if']);
+
+/**
+ * Rule 9 for a value: the first single-caller call in `statement` whose
+ * body can run ahead of it is that body, then the statement reading the
+ * returned expression where the call was. `let r = f(x)` whose value is
+ * one of f's own locals keeps that local as `r` — no copy.
+ *
+ * @returns {object[] | null}
+ */
+function hoistValueCall(statement, ctx) {
+  if (!HOISTABLE.has(statement.kind)) return null;
+  const call = findValueCall(statement, ctx, { container: statement.kind === 'call' ? statement : null });
+  if (!call) return null;
+  const fn = ctx.functionsByName.get(call.name);
+  if (!restIsInert(statement, call, fn, ctx)) return null;
+  const site = siteBody(call, fn, ctx);
+  if (!site) return null;
+  let { statements, returned } = site;
+  let rest;
+  const keepsLocal = () => {
+    if (statement.kind !== 'local' || statement.init !== call || returned.kind !== 'ref') return false;
+    if (!site.locals.has(returned.name) || site.locals.get(returned.name) !== (statement.type ?? null)) return false;
+    // The caller's name must be new to the pasted body: not a global it
+    // reads, not an argument it was handed.
+    const names = new Set();
+    collectNames(statements, names);
+    return !names.has(statement.name);
+  };
+  if (keepsLocal()) {
+    statements = renameBound(statements, new Map([[returned.name, statement.name]]));
+    rest = [];
+  } else {
+    rest = [replaceNode(statement, call, returned)];
+  }
+  ctx.inlining.add(call.name);
+  try {
+    const inlined = [...optimizeBody(statements, ctx), ...optimizeBody(rest, ctx)];
+    // A statement that declares nothing the code after it reads can take
+    // the callee's locals in a block of its own, so their zero page is
+    // released when it ends — as the callee's frame was — instead of
+    // staying live under every call the caller makes after it.
+    if (statement.kind === 'local' || ctx.inlining.size > 1) return inlined;
+    return [{ kind: 'block', origin: call.name, body: inlined }];
+  } finally {
+    ctx.inlining.delete(call.name);
+  }
+}
+
+/** Rule 9 for a void call statement: the callee's body, in a block of its own. */
+function inlineSingleCaller(statement, fn, ctx) {
+  const site = siteBody(statement, fn, ctx);
+  if (!site) return null;
+  ctx.inlining.add(statement.name);
+  try {
+    const inlined = optimizeBody(site.statements, ctx);
+    if (ctx.inlining.size > 1) return inlined;
+    return [{ kind: 'block', origin: statement.name, body: inlined }];
+  } finally {
+    ctx.inlining.delete(statement.name);
   }
 }
 
@@ -727,7 +1133,7 @@ function inlineVoidCall(statement, ctx) {
   // below still applies to a large body used from many places.
   const component = fn.component === true;
   if (params.length > 0 && !stringCopy && !unusedParams && !component) return null;
-  if (unusedParams && countCalls(ctx.functionsByName, statement.name) > 1) return null;
+  if (unusedParams && siteCount(statement.name, ctx) > 1) return null;
   // Inlining a body that more than one place calls writes that body out
   // once per call site. That is a win only while the body is smaller than
   // the call it replaces — on the 6502 a call is 3 bytes at each site plus
@@ -744,7 +1150,7 @@ function inlineVoidCall(statement, ctx) {
   // an Atari, and leaves hello-world byte-for-byte identical.
   if (
     nodeCount(fn.body) > INLINE_DUPLICATE_NODE_LIMIT &&
-    countCalls(ctx.functionsByName, statement.name) > 1
+    siteCount(statement.name, ctx) > 1
   ) {
     return null;
   }
@@ -766,9 +1172,13 @@ function optimizeStatement(statement, ctx) {
   }
   if (statement.kind === 'if') {
     const test = foldExpr(statement.test, ctx);
+    const value = constValue(test);
+    if (value === null) {
+      const hoisted = hoistValueCall({ ...statement, test }, ctx);
+      if (hoisted) return hoisted;
+    }
     const taken = optimizeBody(statement.then, ctx);
     const otherwise = statement.else ? optimizeBody(statement.else, ctx) : null;
-    const value = constValue(test);
     if (value !== null) return value ? taken : (otherwise ?? []);
     if (taken.length === 0 && (!otherwise || otherwise.length === 0)) return [];
     // 'then' is the IR's real field name for the taken branch (ir/index.mjs),
@@ -805,11 +1215,96 @@ function optimizeStatement(statement, ctx) {
   if (statement.kind === 'call') {
     const folded = foldExpr(statement, ctx);
     if (folded.kind === 'const') return [];
+    const hoisted = hoistValueCall(folded, ctx);
+    if (hoisted) return hoisted;
     const inlined = inlineVoidCall(folded, ctx);
     if (inlined) return inlined;
+    const single = singleCallerCallee(folded, ctx, false);
+    if (single) {
+      const body = inlineSingleCaller(folded, single, ctx);
+      if (body) return body;
+    }
+    // A value-returning single caller called for its effect: the body, and
+    // the returned expression thrown away when nothing in it did anything.
+    const valued = singleCallerCallee(folded, ctx, true);
+    if (valued) {
+      const site = siteBody(folded, valued, ctx);
+      if (site && isSideEffectFree(site.returned)) {
+        ctx.inlining.add(folded.name);
+        try {
+          return optimizeBody(site.statements, ctx);
+        } finally {
+          ctx.inlining.delete(folded.name);
+        }
+      }
+    }
     return [folded];
   }
-  return [foldExpr(statement, ctx)];
+  const folded = foldExpr(statement, ctx);
+  const hoisted = hoistValueCall(folded, ctx);
+  if (hoisted) return hoisted;
+  return [folded];
+}
+
+function collectCallees(node, out) {
+  if (Array.isArray(node)) {
+    for (const item of node) collectCallees(item, out);
+    return;
+  }
+  if (node && typeof node === 'object') {
+    if (node.kind === 'call' && typeof node.name === 'string') out.add(node.name);
+    for (const value of Object.values(node)) collectCallees(value, out);
+  }
+}
+
+/**
+ * Callees before callers, so a body is measured and pasted in the shape
+ * it has once its own calls are inlined. A cycle is visited once, in the
+ * order it was met; recursion is what `ctx.inlining` refuses.
+ */
+function bottomUpOrder(functions) {
+  const byName = new Map(functions.map((fn) => [fn.name, fn]));
+  const order = [];
+  const seen = new Set();
+  const visit = (fn) => {
+    if (seen.has(fn.name)) return;
+    seen.add(fn.name);
+    const callees = new Set();
+    collectCallees(fn.body, callees);
+    for (const name of callees) {
+      const callee = byName.get(name);
+      if (callee) visit(callee);
+    }
+    order.push(fn);
+  };
+  for (const fn of functions) visit(fn);
+  return order;
+}
+
+/** Every variable name anywhere in the program, so a fresh local can be certain not to shadow one. */
+function allNames(functions, globals) {
+  const out = new Set();
+  for (const global of globals ?? []) out.add(global.name);
+  for (const fn of functions) {
+    for (const param of fn.params ?? []) out.add(param.name);
+    collectNames(fn.body, out);
+  }
+  return out;
+}
+
+function optimizeFunctions(functions, ctx) {
+  const optimized = new Map();
+  for (const fn of bottomUpOrder(functions)) {
+    ctx.currentFn = fn;
+    ctx.callerBound = boundNames(fn);
+    ctx.zpNames = new Set(ctx.callerBound);
+    const out = { ...fn, body: optimizeBody(fn.body, ctx) };
+    optimized.set(fn.name, out);
+    ctx.functionsByName.set(fn.name, out);
+    for (const name of ctx.consumed) ctx.retired.add(name);
+    ctx.consumed.clear();
+  }
+  return functions.map((fn) => optimized.get(fn.name));
 }
 
 function mapDeep(node, fn) {
@@ -876,10 +1371,16 @@ export function optimizeIr(ir) {
     strings: ir.strings ?? [],
     inlining: new Set(),
     unrollingStringCopy: false,
+    taken: allNames(functions, ir.globals),
+    callerBound: new Set(),
+    zpNames: new Set(),
+    currentFn: null,
+    consumed: new Set(),
+    retired: new Set(),
+    addressed: new Set((ir.globals ?? []).filter((global) => global.address != null).map((global) => global.name)),
   };
-  functions = functions.map((fn) => ({ ...fn, body: optimizeBody(fn.body, ctx) }));
-  ctx.functionsByName = new Map(functions.map((fn) => [fn.name, fn]));
-  functions = functions.map((fn) => ({ ...fn, body: optimizeBody(fn.body, ctx) }));
+  functions = optimizeFunctions(functions, ctx);
+  functions = optimizeFunctions(functions, ctx);
   return { ...ir, functions, globals: ir.globals ?? [] };
 }
 
