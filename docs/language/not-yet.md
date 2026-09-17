@@ -18,7 +18,6 @@ Proposed in the 8BX design spec, not present in compiler 0.11.0. Listed here so 
 | Repetition / list mapping (a JSX-style `.map()` over elements) | *planned* |
 | Spread props | *planned* |
 | `struct` declarations, and struct-backed component state | *planned* |
-| Runtime-prop wrapper elements over a call (e.g. `<Tile row={i} />` around a call with a non-constant argument) costing nothing extra | *planned — currently costs one function per wrapper* |
 | Dynamic (heap or pooled) component instances | *planned* |
 | A disk-image *writer* (`c1541` integration) — the config validates images today ([§4.3](project.md#43-package-a-cartridge-or-a-disk-image)) but does not write one | *planned* |
 
