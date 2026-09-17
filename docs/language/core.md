@@ -110,3 +110,20 @@ if (#system() == System.C64) { /* … */ }
 ```
 
 Common facts already read this way: `video.raster`, `input.keyboard`, `input.joysticks`, `input.pads`, `input.mouse`. An unknown fact name is a build error (`8BS1037`), not a silent `false`.
+
+## §1.10 Print your own version
+
+`#package("version")` is the `version` field of the nearest `package.json` above the file, as a string literal folded at compile time — so a title screen prints the version the package was published as, and nobody bumps a const by hand:
+
+```8bs
+const VERSION: string = #package("version");
+
+export function main(): void {
+    text.print(0, VERSION);          // "0.6.0", whatever package.json says
+    text.print(40, #package("name")); // the other readable field
+}
+```
+
+Once folded it *is* the literal — the same bytes as writing `"0.6.0"`, and the same checks: a name outside the portable character set is refused where it would be printed (`8BS1026`). The readable fields are `"version"` and `"name"`; any other field, or anything but one field name in quotes, is `8BS1041`. No `package.json` above the file, one that does not parse, or one without the field is `8BS1042`, naming the file. `8bs check` and the editor resolve it from the file exactly as a build does, so what they show is what the build prints. Nearest-above-the-file, not the directory the build runs from: a module inside a package reads that package's own version.
+
+A string is not a number field, so a version cannot go inside a template's `${…}`; print it as its own argument. Its `.length` is a run-time value today, not a `const` initializer — right-align it with a field width you choose, or count on it being short.
