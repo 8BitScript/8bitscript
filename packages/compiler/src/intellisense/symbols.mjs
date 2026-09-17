@@ -277,13 +277,31 @@ const KIND_LABEL = {
 // the hover; the doc comment says what it is, the file says the rest.
 const SIGNATURE_MAX = 120;
 
+/** One line, spaces collapsed, the way a hover signature is shown. */
+function collapseWs(text) {
+  let out = '';
+  let gap = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const c = text.charCodeAt(i);
+    if (c === 9 || c === 10 || c === 11 || c === 12 || c === 13 || c === 32) {
+      gap = true;
+    } else {
+      if (out.length > 0 && gap) out += ' ';
+      out += text[i];
+      gap = false;
+    }
+  }
+  return out;
+}
+
 /** The source of a declaration's header — up to its body's `{` — or the whole statement, on one line. */
 function signatureOf(module, sym) {
   const decl = sym.declaration;
   let end = decl.start + decl.length;
   if (decl.type === NodeType.NamespaceDeclaration) end = module.text.indexOf('{', decl.start);
   else if (decl.body) end = decl.body.start;
-  const raw = module.text.slice(decl.start, end).replace(/\s+/g, ' ').replace(/\s*;\s*$/, '').trim();
+  let raw = collapseWs(module.text.slice(decl.start, end));
+  if (raw.endsWith(';')) raw = raw.slice(0, -1).trimEnd();
   return raw.length > SIGNATURE_MAX ? `${raw.slice(0, SIGNATURE_MAX)}…` : raw;
 }
 

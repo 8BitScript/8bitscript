@@ -663,6 +663,12 @@ export function viceController(machine, players, { emulator, hardware, joymapPat
   return { ok: true, args, leadingArgs, files, notes };
 }
 
+function withOneTrailingNewline(s) {
+  let end = s.length;
+  while (end > 0 && s[end - 1] === '\n') end -= 1;
+  return `${s.slice(0, end)}\n`;
+}
+
 /**
  * A vicerc with one resource set inside one machine's section, keeping
  * everything the user already had.
@@ -679,7 +685,7 @@ export function viceController(machine, players, { emulator, hardware, joymapPat
  * @param {string} section e.g. 'C64SC'
  */
 export function setViceResource(base, section, key, value) {
-  const text = base === '' ? '' : base.replace(/\n*$/, '\n');
+  const text = base === '' ? '' : withOneTrailingNewline(base);
   const header = new RegExp(`^\\[${section}\\]$`, 'm');
   const found = header.exec(text);
   if (!found) return `${text}${text === '' ? '' : '\n'}[${section}]\n${key}=${value}\n`;

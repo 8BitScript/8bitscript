@@ -131,12 +131,14 @@ const BUILTIN = (name) => DURATION_CLOCKS.has(name) || name === 'system' || name
  * Round `numerator/denominator` (both BigInt, denominator > 0) to the
  * nearest integer, ties rounding up.
  *
+ * @param {bigint} numerator
+ * @param {bigint} denominator
  * @returns {{ value: bigint, exact: boolean }}
  */
 function roundFraction(numerator, denominator) {
   const quotient = numerator / denominator;
   const remainder = numerator % denominator;
-  if (remainder === 0n) return { value: quotient, exact: true };
+  if (!remainder) return { value: quotient, exact: true };
   return { value: remainder * 2n >= denominator ? quotient + 1n : quotient, exact: false };
 }
 

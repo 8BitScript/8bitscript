@@ -219,7 +219,7 @@ export function assembleNative(sources: NativeSource[], referenced: ReadonlySet<
       }
       const init = INIT_SECTION.exec(section.name);
       if (init) {
-        inits.push({ order: parseInt(init[1], 10), section });
+        inits.push({ order: Number.parseInt(init[1], 10), section });
         continue;
       }
       const text = TEXT_SECTION.exec(section.name);

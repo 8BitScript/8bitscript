@@ -21,6 +21,7 @@ test('parseVersion finds the first dotted version', () => {
   assert.deepEqual(parseVersion('git version 2.55.0'), [2, 55, 0]);
   assert.deepEqual(parseVersion('version 19.0.0'), [19, 0, 0]);
   assert.equal(parseVersion('no digits here'), null);
+  assert.equal(parseVersion('3'), null, 'a lone number is not a dotted version');
   assert.equal(parseVersion(''), null);
   assert.equal(parseVersion(undefined), null);
 });

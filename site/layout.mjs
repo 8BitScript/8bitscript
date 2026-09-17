@@ -7,8 +7,8 @@
 import { nav as currentNav } from './nav.mjs';
 
 /** Empty string for the latest release at `/`; `/0.1.0` for a snapshot. */
-export let siteBase = '';
-export let siteVersion = '0.1.0';
+let siteBase = '';
+let siteVersion = '0.1.0';
 
 // The sidebar a version snapshot renders has to be that version's sidebar: a
 // 0.1.x tree holds pages this one's nav.mjs has never heard of, and rendering

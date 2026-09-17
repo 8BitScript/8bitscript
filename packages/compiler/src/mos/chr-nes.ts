@@ -133,11 +133,11 @@ function parsePrimary(c: Cursor): number | null {
   }
   const rest = c.text.slice(c.at);
   const hex = /^0[xX][0-9A-Fa-f]+/.exec(rest);
-  if (hex) { c.at += hex[0].length; return parseInt(hex[0].slice(2), 16); }
+  if (hex) { c.at += hex[0].length; return Number.parseInt(hex[0].slice(2), 16); }
   const bin = /^0[bB][01]+/.exec(rest);
-  if (bin) { c.at += bin[0].length; return parseInt(bin[0].slice(2), 2); }
+  if (bin) { c.at += bin[0].length; return Number.parseInt(bin[0].slice(2), 2); }
   const dec = /^[0-9]+/.exec(rest);
-  if (dec) { c.at += dec[0].length; return parseInt(dec[0], 10); }
+  if (dec) { c.at += dec[0].length; return Number.parseInt(dec[0], 10); }
   return null;
 }
 
@@ -232,8 +232,11 @@ function readLines(
       const firstParam = nameSplit === -1 ? [] : [args[0].slice(nameSplit).trim()];
       const params = [...firstParam, ...args.slice(1)];
       const body: string[] = [];
-      i++;
-      for (; i < lines.length && lines[i].toLowerCase() !== '.endm'; i++) body.push(lines[i]);
+      i += 1;
+      while (i < lines.length && lines[i].toLowerCase() !== '.endm') {
+        body.push(lines[i]);
+        i += 1;
+      }
       if (i >= lines.length) return `${path}: '.macro ${name}' has no matching .endm`;
       macros.set(name, { params, body });
       continue;
@@ -243,8 +246,11 @@ function readLines(
       const count = evaluate(rest);
       if (count === null) return `${path}: '.rept ${rest}' is not a count this reads`;
       const body: string[] = [];
-      i++;
-      for (; i < lines.length && lines[i].toLowerCase() !== '.endr'; i++) body.push(lines[i]);
+      i += 1;
+      while (i < lines.length && lines[i].toLowerCase() !== '.endr') {
+        body.push(lines[i]);
+        i += 1;
+      }
       if (i >= lines.length) return `${path}: '.rept ${rest}' has no matching .endr`;
       for (let n = 0; n < count; n++) {
         const error = readLines(body, macros, state, out, path, depth + 1);
