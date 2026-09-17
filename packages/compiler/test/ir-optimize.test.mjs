@@ -569,3 +569,174 @@ test('a small body still inlines at several call sites — it is cheaper than th
     'both sites take the body',
   );
 });
+
+// ---- rewrite 8: forwarders ---------------------------------------------------
+//
+// A body that is one call passing the function's own parameters through is
+// that call at every site, run-time arguments and all: the site's argument
+// stores go to the callee's slots instead of the forwarder's, and the
+// forwarder's copies, jsr and rts are gone. 2048 #49 measured the wrapper
+// at +36 bytes on the PET 2001 and the VIC-20; this is the rule that
+// makes it zero.
+
+const drawTileParams = () => [{ name: 'r', type: 'utinyint' }, { name: 'c', type: 'utinyint' }, { name: 'e', type: 'utinyint' }];
+const runtime = (name) => ref(name, 'utinyint');
+
+test('a void forwarder is the call it wraps at every site, with run-time arguments — and the wrapper is pruned', () => {
+  const ir = optimizeReachable({
+    entry: 'main',
+    functions: [
+      { name: 'main', body: [call('Tile', [runtime('x'), runtime('y'), runtime('z')]), call('Tile', [constNum(1), runtime('y'), bin('+', runtime('z'), constNum(1), 'utinyint')]), call('Tile', [runtime('a'), runtime('b'), runtime('c')])] },
+      { name: 'Tile', component: true, params: [{ name: 'row', type: 'utinyint' }, { name: 'col', type: 'utinyint' }, { name: 'exponent', type: 'utinyint' }], returnType: 'void', body: [call('drawTile', [ref('row'), ref('col'), ref('exponent')])] },
+      { name: 'drawTile', params: drawTileParams(), returnType: 'void', body: wideBody() },
+    ],
+    globals: [],
+  });
+  const body = ir.functions.find((fn) => fn.name === 'main').body;
+  assert.deepEqual(body.map((statement) => statement.name), ['drawTile', 'drawTile', 'drawTile'], 'each site calls the callee directly');
+  assert.deepEqual(body[1].args, [constNum(1), runtime('y'), bin('+', runtime('z'), constNum(1), 'utinyint')], "the site's own arguments, expressions included");
+  assert.ok(!ir.functions.some((fn) => fn.name === 'Tile'), 'nothing calls the wrapper any more');
+  assert.ok(ir.functions.some((fn) => fn.name === 'drawTile'), 'the callee is still one function');
+});
+
+test('a forwarder may reorder its parameters — the arguments land where the callee expects them', () => {
+  const ir = optimizeIr({
+    entry: 'main',
+    functions: [
+      { name: 'main', body: [call('Swapped', [runtime('x'), runtime('y')])] },
+      { name: 'Swapped', params: [{ name: 'a', type: 'utinyint' }, { name: 'b', type: 'utinyint' }], returnType: 'void', body: [call('draw', [ref('b'), ref('a')])] },
+      { name: 'draw', params: [{ name: 'p', type: 'utinyint' }, { name: 'q', type: 'utinyint' }], returnType: 'void', body: wideBody() },
+    ],
+    globals: [],
+  });
+  const body = ir.functions.find((fn) => fn.name === 'main').body;
+  assert.deepEqual(body[0].name, 'draw');
+  assert.deepEqual(body[0].args, [runtime('y'), runtime('x')]);
+});
+
+test('a reordering forwarder keeps the call when an argument has a side effect — the order they run in would change (spec §104)', () => {
+  const ir = optimizeIr({
+    entry: 'main',
+    functions: [
+      { name: 'main', body: [call('Swapped', [{ kind: 'call', name: 'readPort', args: [], type: 'utinyint' }, runtime('y')])] },
+      { name: 'Swapped', params: [{ name: 'a', type: 'utinyint' }, { name: 'b', type: 'utinyint' }], returnType: 'void', body: [call('draw', [ref('b'), ref('a')])] },
+      { name: 'draw', params: [{ name: 'p', type: 'utinyint' }, { name: 'q', type: 'utinyint' }], returnType: 'void', body: wideBody() },
+      { name: 'readPort', params: [], returnType: 'utinyint', body: [ret({ kind: 'read', address: constNum(0xe810, 'usmallint'), type: 'utinyint' })] },
+    ],
+    globals: [],
+  });
+  const body = ir.functions.find((fn) => fn.name === 'main').body;
+  assert.equal(body[0].name, 'Swapped', 'stays a call to the wrapper');
+});
+
+test('a forwarder that drops a parameter keeps the call when that argument has a side effect', () => {
+  const functions = (arg) => [
+    { name: 'main', body: [call('Partial', [runtime('x'), arg])] },
+    { name: 'Partial', params: [{ name: 'a', type: 'utinyint' }, { name: 'unused', type: 'utinyint' }], returnType: 'void', body: [call('draw', [ref('a')])] },
+    { name: 'draw', params: [{ name: 'p', type: 'utinyint' }], returnType: 'void', body: wideBody() },
+    { name: 'readPort', params: [], returnType: 'utinyint', body: [ret({ kind: 'read', address: constNum(0xe810, 'usmallint'), type: 'utinyint' })] },
+  ];
+  const kept = optimizeIr({ entry: 'main', functions: functions({ kind: 'call', name: 'readPort', args: [], type: 'utinyint' }), globals: [] });
+  assert.equal(kept.functions.find((fn) => fn.name === 'main').body[0].name, 'Partial', 'the read would vanish with the parameter');
+  const dropped = optimizeIr({ entry: 'main', functions: functions(runtime('y')), globals: [] });
+  const body = dropped.functions.find((fn) => fn.name === 'main').body;
+  assert.equal(body[0].name, 'draw', 'a plain value is simply not passed');
+  assert.deepEqual(body[0].args, [runtime('x')]);
+});
+
+test('a `return f(x);` forwarder is `f(x)` in the expression that called it — 2048\'s rng.range() delegate, +8 bytes on five targets before', () => {
+  const ir = optimizeReachable({
+    entry: 'main',
+    functions: [
+      { name: 'main', body: [assign('t', { kind: 'call', name: 'range', args: [runtime('empties')], type: 'utinyint' })] },
+      { name: 'range', params: [{ name: 'bound', type: 'utinyint' }], returnType: 'utinyint', body: [ret({ kind: 'call', name: 'random_range', args: [ref('bound')], type: 'utinyint' })] },
+      { name: 'random_range', params: [{ name: 'bound', type: 'utinyint' }], returnType: 'utinyint', body: [ret(bin('%', { kind: 'call', name: 'random_next', args: [], type: 'utinyint' }, ref('bound'), 'utinyint'))] },
+      { name: 'random_next', params: [], returnType: 'utinyint', body: [assign('seed', bin('+', ref('seed'), constNum(1), 'utinyint')), ret(ref('seed'))] },
+    ],
+    globals: [{ name: 'seed', type: 'utinyint', init: constNum(0) }, { name: 't', type: 'utinyint' }, { name: 'empties', type: 'utinyint' }],
+  });
+  const main = ir.functions.find((fn) => fn.name === 'main');
+  assert.equal(main.body[0].value.name, 'random_range', 'the delegate is skipped');
+  assert.deepEqual(main.body[0].value.args, [runtime('empties')]);
+  assert.ok(!ir.functions.some((fn) => fn.name === 'range'), 'and pruned');
+});
+
+test('a forwarder whose return type differs from the call it returns stays a call — a conversion would be skipped', () => {
+  const ir = optimizeIr({
+    entry: 'main',
+    functions: [
+      { name: 'main', body: [assign('t', { kind: 'call', name: 'wide', args: [runtime('x')], type: 'usmallint' })] },
+      { name: 'wide', params: [{ name: 'b', type: 'utinyint' }], returnType: 'usmallint', body: [ret({ kind: 'call', name: 'narrow', args: [ref('b')], type: 'utinyint' })] },
+      { name: 'narrow', params: [{ name: 'b', type: 'utinyint' }], returnType: 'utinyint', body: [ret(ref('b'))] },
+    ],
+    globals: [],
+  });
+  assert.equal(ir.functions.find((fn) => fn.name === 'main').body[0].value.name, 'wide');
+});
+
+test('`f(); return;` is two statements, not a forwarder — the idiom that keeps a helper a call still does', () => {
+  // 2048's game.8bs: compressLine/mergeLine end in `return;` so that four
+  // directions × two helpers are not pasted into main.
+  const ir = optimizeIr({
+    entry: 'main',
+    functions: [
+      { name: 'main', body: [call('slide'), call('slide')] },
+      { name: 'slide', params: [], returnType: 'void', body: [call('compress', [runtime('a')]), ret()] },
+      { name: 'compress', params: [{ name: 'p', type: 'utinyint' }], returnType: 'void', body: wideBody() },
+    ],
+    globals: [],
+  });
+  const body = ir.functions.find((fn) => fn.name === 'main').body;
+  assert.deepEqual(body.map((statement) => statement.name), ['slide', 'slide']);
+});
+
+test('passing a global through is not forwarding — each copy would load it again', () => {
+  const ir = optimizeIr({
+    entry: 'main',
+    functions: [
+      { name: 'main', body: [call('board'), call('board'), call('board')] },
+      { name: 'board', params: [], returnType: 'void', body: [call('drawHud', [ref('score', 'usmallint'), ref('over', 'bool'), ref('won', 'bool')])] },
+      { name: 'drawHud', params: [{ name: 'score', type: 'usmallint' }, { name: 'over', type: 'bool' }, { name: 'won', type: 'bool' }], returnType: 'void', body: wideBody() },
+    ],
+    globals: [],
+  });
+  const body = ir.functions.find((fn) => fn.name === 'main').body;
+  assert.deepEqual(body.map((statement) => statement.name), ['board', 'board', 'board']);
+});
+
+test('a literal the forwarder adds is free at one site, and worth it while the copies cost less than the stores the sites stop making', () => {
+  const fixed = (sites) => ({
+    entry: 'main',
+    functions: [
+      { name: 'main', body: Array.from({ length: sites }, () => call('Red', [runtime('x')])) },
+      // One parameter forwarded, two literals added: at two sites that is
+      // two extra literal stores against one parameter store saved.
+      { name: 'Red', params: [{ name: 'at', type: 'utinyint' }], returnType: 'void', body: [call('paint', [ref('at'), constNum(2), constNum(7)])] },
+      { name: 'paint', params: [{ name: 'at', type: 'utinyint' }, { name: 'fg', type: 'utinyint' }, { name: 'bg', type: 'utinyint' }], returnType: 'void', body: wideBody() },
+    ],
+    globals: [],
+  });
+  const one = optimizeIr(fixed(1)).functions.find((fn) => fn.name === 'main').body;
+  assert.deepEqual(one[0].name, 'paint');
+  assert.deepEqual(one[0].args, [runtime('x'), constNum(2), constNum(7)]);
+  const two = optimizeIr(fixed(2)).functions.find((fn) => fn.name === 'main').body;
+  assert.deepEqual(two.map((statement) => statement.name), ['Red', 'Red'], 'two copies of two literals cost more than the one store saved');
+});
+
+test('a forwarder of a forwarder ends at the callee, and a forwarder of an empty function is nothing', () => {
+  const ir = optimizeReachable({
+    entry: 'main',
+    functions: [
+      { name: 'main', body: [call('Outer', [runtime('x')]), call('Color', [runtime('x')])] },
+      { name: 'Outer', params: [{ name: 'a', type: 'utinyint' }], returnType: 'void', body: [call('Inner', [ref('a')])] },
+      { name: 'Inner', params: [{ name: 'b', type: 'utinyint' }], returnType: 'void', body: [call('draw', [ref('b')])] },
+      { name: 'draw', params: [{ name: 'p', type: 'utinyint' }], returnType: 'void', body: wideBody() },
+      { name: 'Color', params: [{ name: 'c', type: 'utinyint' }], returnType: 'void', body: [call('setColor', [ref('c')])] },
+      { name: 'setColor', params: [{ name: 'c', type: 'utinyint' }], returnType: 'void', body: [] },
+    ],
+    globals: [],
+  });
+  const body = ir.functions.find((fn) => fn.name === 'main').body;
+  assert.deepEqual(body.map((statement) => statement.name), ['draw'], 'one chain collapsed to its end, the other to nothing');
+  assert.deepEqual(ir.functions.map((fn) => fn.name).sort(), ['draw', 'main']);
+});
