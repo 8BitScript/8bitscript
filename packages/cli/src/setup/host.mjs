@@ -14,12 +14,19 @@ export function hasBinaryOnPath(name, env = process.env, platform = process.plat
     .some((dir) => dir && existsSync(join(dir, binary)));
 }
 
+/** Strip every trailing `ch` from `s`. */
+function withoutTrailingChar(s, ch) {
+  let end = s.length;
+  while (end > 0 && s[end - 1] === ch) end -= 1;
+  return s.slice(0, end);
+}
+
 /** Is `dir` one of PATH's entries? `/usr/local/bin` is the tested launcher
  * location on both macOS and Linux, but a minimal PATH (some CI images,
  * some shells' non-login profiles) can omit it — in which case a launcher
  * installed there is real but invisible, and setup should say so. */
 export function isDirOnPath(dir, env = process.env) {
-  return (env.PATH ?? '').split(delimiter).some((entry) => entry && entry.replace(/\/+$/, '') === dir);
+  return (env.PATH ?? '').split(delimiter).some((entry) => entry && withoutTrailingChar(entry, '/') === dir);
 }
 
 /**

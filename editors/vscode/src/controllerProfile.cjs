@@ -608,11 +608,25 @@ const STANDARD_MAPPING = {
  * @param {string} rawId
  */
 function deviceKey(rawId) {
-  return String(rawId ?? '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 96) || 'unknown-device';
+  const raw = String(rawId ?? '').toLowerCase();
+  let out = '';
+  let pendingDash = false;
+  for (let i = 0; i < raw.length; i += 1) {
+    const c = raw.charCodeAt(i);
+    const ok = (c >= 48 && c <= 57) || (c >= 97 && c <= 122);
+    if (ok) {
+      if (pendingDash && out.length > 0) out += '-';
+      out += raw[i];
+      pendingDash = false;
+    } else {
+      pendingDash = true;
+    }
+  }
+  if (out.length > 96) {
+    out = out.slice(0, 96);
+    while (out.endsWith('-')) out = out.slice(0, -1);
+  }
+  return out || 'unknown-device';
 }
 
 /**

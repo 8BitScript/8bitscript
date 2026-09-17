@@ -211,7 +211,7 @@ function placeData(modules, bits, mask) {
   const size = modules.length;
   let i = 0;
   for (let right = size - 1; right >= 1; right -= 2) {
-    if (right === 6) right = 5;
+    if (right === 6) right -= 1;
     const upward = ((right + 1) & 2) === 0;
     for (let vert = 0; vert < size; vert++) {
       for (let j = 0; j < 2; j++) {

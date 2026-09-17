@@ -115,6 +115,7 @@ test('unlinkLocal on an extensions folder that does not exist yet is a no-op', (
   const home = tmpDir();
   try {
     unlinkLocal({ home, editor: 'vscode', publisher: '8bitscript', name: '8bitscript-lang' });
+    assert.equal(fs.existsSync(path.join(home, '.vscode', 'extensions')), false);
   } finally {
     fs.rmSync(home, { recursive: true, force: true });
   }

@@ -60,7 +60,7 @@ function literal(text: string): { value: number; digits: number } | null {
   if (text.startsWith('$')) {
     const body = text.slice(1);
     if (!/^[0-9A-Fa-f]+$/.test(body)) return null;
-    return { value: parseInt(body, 16), digits: body.length };
+    return { value: Number.parseInt(body, 16), digits: body.length };
   }
   // `0xFFFA` — the spelling the native `.s` sources are written in
   // (packages/c64/native/6502/raster.s). Same width rule as `$`: the hex
@@ -68,15 +68,15 @@ function literal(text: string): { value: number; digits: number } | null {
   if (/^0[xX]/.test(text)) {
     const body = text.slice(2);
     if (!/^[0-9A-Fa-f]+$/.test(body)) return null;
-    return { value: parseInt(body, 16), digits: body.length };
+    return { value: Number.parseInt(body, 16), digits: body.length };
   }
   if (text.startsWith('%')) {
     const body = text.slice(1);
     if (!/^[01]+$/.test(body)) return null;
-    return { value: parseInt(body, 2), digits: body.length > 8 ? 4 : 2 };
+    return { value: Number.parseInt(body, 2), digits: body.length > 8 ? 4 : 2 };
   }
   if (/^[0-9]+$/.test(text)) {
-    const value = parseInt(text, 10);
+    const value = Number.parseInt(text, 10);
     return { value, digits: value > 0xff ? 4 : 2 };
   }
   return null;
@@ -102,6 +102,15 @@ function modeFor(mnemonic: string, preferred: AddressingMode): AddressingMode | 
   const wider = WIDER[preferred];
   if (wider !== undefined && forms[wider] !== undefined) return wider;
   return null;
+}
+
+/** Trailing `,x` / `,y` (spaces around the comma allowed), or null. */
+function indexAxis(text: string): { body: string; axis: 'x' | 'y' } | null {
+  const comma = text.lastIndexOf(',');
+  if (comma < 0) return null;
+  const axis = text.slice(comma + 1).trim().toLowerCase();
+  if (axis !== 'x' && axis !== 'y') return null;
+  return { body: text.slice(0, comma).trim(), axis };
 }
 
 /** One line's operand text → the mode it names and the operand itself. */
@@ -158,18 +167,28 @@ function operandOf(mnemonic: string, text: string, context: string):
   }
 
   // The three parenthesised shapes, before the bare ones: `($nn,x)`,
-  // `($nn),y`, `($nnnn)`.
-  const indirectX = /^\(\s*(.+?)\s*,\s*[Xx]\s*\)$/.exec(text);
-  if (indirectX) return simple(mnemonic, indirectX[1], '(indirect,x)', context);
-  const indirectY = /^\(\s*(.+?)\s*\)\s*,\s*[Yy]$/.exec(text);
-  if (indirectY) return simple(mnemonic, indirectY[1], '(indirect),y', context);
-  const indirect = /^\(\s*(.+?)\s*\)$/.exec(text);
-  if (indirect) return simple(mnemonic, indirect[1], 'indirect', context);
+  // `($nn),y`, `($nnnn)`. Parsed as text, not a regex: `.+?` with `\s*`
+  // around it is super-linear, and these operands never nest.
+  if (text.startsWith('(')) {
+    const close = text.indexOf(')');
+    if (close > 0) {
+      const inside = text.slice(1, close).trim();
+      const after = text.slice(close + 1).trim();
+      if (after === '') {
+        const inner = indexAxis(inside);
+        if (inner?.axis === 'x') return simple(mnemonic, inner.body, '(indirect,x)', context);
+        return simple(mnemonic, inside, 'indirect', context);
+      }
+      if (after.startsWith(',')) {
+        const axis = after.slice(1).trim().toLowerCase();
+        if (axis === 'y') return simple(mnemonic, inside, '(indirect),y', context);
+      }
+    }
+  }
 
-  const indexedX = /^(.+?)\s*,\s*[Xx]$/.exec(text);
-  if (indexedX) return sized(mnemonic, indexedX[1], 'zeropage,x', context);
-  const indexedY = /^(.+?)\s*,\s*[Yy]$/.exec(text);
-  if (indexedY) return sized(mnemonic, indexedY[1], 'zeropage,y', context);
+  const indexed = indexAxis(text);
+  if (indexed?.axis === 'x') return sized(mnemonic, indexed.body, 'zeropage,x', context);
+  if (indexed?.axis === 'y') return sized(mnemonic, indexed.body, 'zeropage,y', context);
 
   return sized(mnemonic, text, 'zeropage', context);
 }
@@ -204,7 +223,7 @@ function operandValue(body: string): Operand | null {
   // own operand bytes (`sta __8bs_c64_raster_store+1`). Not arithmetic:
   // one named label, `+`, one decimal constant, nothing else.
   const offsetRef = /^([A-Za-z_][A-Za-z0-9_]*)\s*\+\s*([0-9]+)$/.exec(body);
-  if (offsetRef) return { kind: 'label', name: offsetRef[1], offset: parseInt(offsetRef[2], 10) };
+  if (offsetRef) return { kind: 'label', name: offsetRef[1], offset: Number.parseInt(offsetRef[2], 10) };
   const name = localOrNamed(body);
   return name ? { kind: 'label', name } : null;
 }
@@ -255,10 +274,12 @@ export function parseAsm(text: string, blockId: string): ParseAsmResult {
     }
     if (line === '') continue;
 
-    const spaced = /^(\S+)\s*(.*)$/.exec(line)!;
-    const mnemonic = spaced[1].toUpperCase();
-    if (!OPCODES[mnemonic]) return { ok: false, error: `${context}: '${spaced[1]}' is not a 6502 instruction` };
-    const operand = operandOf(mnemonic, spaced[2].trim(), context);
+    let at = 0;
+    while (at < line.length && line[at] !== ' ' && line[at] !== '\t') at += 1;
+    const written = line.slice(0, at);
+    const mnemonic = written.toUpperCase();
+    if (!OPCODES[mnemonic]) return { ok: false, error: `${context}: '${written}' is not a 6502 instruction` };
+    const operand = operandOf(mnemonic, line.slice(at).trim(), context);
     if (!operand.ok) return operand;
 
     if (operand.operand?.kind === 'label') {

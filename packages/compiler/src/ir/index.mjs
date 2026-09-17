@@ -944,7 +944,8 @@ class Lowering {
     if (!type || annotation.typeArguments?.length) {
       return this.fail(annotation, `a local of type ${annotation.name} is not compilable yet: an integer or bool`);
     }
-    for (const decorator of node.decorators ?? []) {
+    const decorator = node.decorators?.[0];
+    if (decorator) {
       return this.fail(decorator, `@${decorator.name} maps hardware; it belongs on a top-level declaration`);
     }
     // One declaration per name per block — the same rule C enforces,
@@ -1027,7 +1028,7 @@ class Lowering {
         const test = this.expression(node.test);
         const then = node.consequent ? this.blockOrStatement(node.consequent) : [];
         const otherwise = node.alternate ? this.blockOrStatement(node.alternate) : null;
-        return test ? { kind: 'if', test, then, else: otherwise } : null;
+        return test ? { kind: 'if', test, then, else: otherwise } : null; // NOSONAR: javascript:S7739 — 'then' is the IR field name, never a Promise
       }
       case NodeType.WhileStatement: {
         const test = this.expression(node.test);

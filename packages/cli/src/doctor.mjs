@@ -39,9 +39,28 @@ import {
 
 /** First dotted version in a string, as numbers: "pnpm 12.1.0" -> [12,1,0]. */
 export function parseVersion(text) {
-  const match = /(\d+)\.(\d+)(?:\.(\d+))?/.exec(text ?? '');
-  if (!match) return null;
-  return [Number(match[1]), Number(match[2]), Number(match[3] ?? 0)];
+  const s = text ?? '';
+  const n = s.length;
+  let i = 0;
+  while (i < n && (s.charCodeAt(i) < 48 || s.charCodeAt(i) > 57)) i += 1;
+  if (i >= n) return null;
+  const read = () => {
+    const start = i;
+    while (i < n && s.charCodeAt(i) >= 48 && s.charCodeAt(i) <= 57) i += 1;
+    return start === i ? null : Number(s.slice(start, i));
+  };
+  const major = read();
+  if (major === null || s[i] !== '.') return null;
+  i += 1;
+  const minor = read();
+  if (minor === null) return null;
+  let patch = 0;
+  if (s[i] === '.') {
+    i += 1;
+    const third = read();
+    if (third !== null) patch = third;
+  }
+  return [major, minor, patch];
 }
 
 /** Is `version` at least `minimum`? Both are number arrays. */

@@ -633,7 +633,7 @@ function listProjectConfigs(dir) {
     return [];
   }
   return names
-    .sort()
+    .sort((a, b) => a.localeCompare(b))
     .map((name) => findConfig(path.join(dir, name)))
     .filter((config) => config !== null);
 }

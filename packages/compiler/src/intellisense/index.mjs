@@ -44,8 +44,13 @@ const kindOf = (options) => options.sourceKind ?? sourceKindOf(options.path ?? '
 /** Insert thousands separators without touching locale/ICU: `-8388608` -> `-8,388,608`. */
 function formatNumber(n) {
   const sign = n < 0 ? '-' : '';
-  const digits = Math.abs(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  return sign + digits;
+  const digits = Math.abs(n).toString();
+  let out = '';
+  for (let i = 0; i < digits.length; i += 1) {
+    if (i > 0 && (digits.length - i) % 3 === 0) out += ',';
+    out += digits[i];
+  }
+  return sign + out;
 }
 
 /**
