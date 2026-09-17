@@ -455,7 +455,9 @@ test('a call to a name that resolves to nothing is 8BS2007', () => {
 
 const STUDIO_ENTRY = join(HERE, '..', '..', 'studio', 'src', 'main.8bs');
 const SCREEN_CONSUMER = 'import { screen } from "@8bitscript/screen";\nexport function main(): void { screen.setColors(6, 0); }';
-const SETCOLOR_CONSUMER = 'import { text, TextColor } from "@8bitscript/text";\nexport function main(): void {\n    text.setColor(TextColor.WHITE);\n    text.print(0, "HI");\n}';
+// Two setColor sites: one would be written into main (rule 9), and the
+// question here is whether the function exists on the machine at all.
+const SETCOLOR_CONSUMER = 'import { text, TextColor } from "@8bitscript/text";\nexport function main(): void {\n    text.setColor(TextColor.WHITE);\n    text.print(0, "HI");\n    text.setColor(TextColor.RED);\n    text.print(40, "HI");\n}';
 
 test('a conditional entry resolves to the vic20 implementation', () => {
   const { ir, diagnostics } = link(SCREEN_CONSUMER, STUDIO_ENTRY, { machine: 'vic20' });

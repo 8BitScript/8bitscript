@@ -294,7 +294,12 @@ test('print of a string literal at a constant cell becomes stores of converted b
   assert.equal(out.functions[0].body.length, 1);
   assert.equal(out.functions[0].body[0].kind, 'block');
   assert.equal(out.functions[0].body[0].origin, 'print');
-  const stores = out.functions[0].body[0].body;
+  // Each store sits in its own `place` block: rule 9 wrote place() into
+  // print()'s loop before main unrolled it, and a block is where an
+  // inlined body's locals are scoped — none here, so the bytes are the
+  // same eleven stores they always were.
+  const flatten = (statements) => statements.flatMap((s) => (s.kind === 'block' ? flatten(s.body) : [s]));
+  const stores = flatten(out.functions[0].body[0].body);
   assert.equal(stores.length, 2);
   assert.equal(stores[0].kind, 'memoryWrite');
   assert.equal(stores[0].address.value, 0x8000);
@@ -443,7 +448,10 @@ test('x * 1 is x; x * 0 folds only for a bare ref, never over a call whose work 
     ],
     globals: [{ name: 'g', type: 'utinyint', address: null, init: 0 }],
   });
-  assert.equal(zeroCall.functions[0].body[0].value.operator, '*');
+  // roll() has one caller, so rule 9 writes its body ahead of the
+  // assignment: the store to g runs, and what is left is `0 * 0`, which
+  // folds. The work did not vanish; the call did.
+  assert.deepEqual(zeroCall.functions[0].body, [{ kind: 'block', origin: 'roll', body: [assign('g', constNum(1)), assign('out', constNum(0, 'utinyint'))] }]);
 });
 
 test('a void callee with a return anywhere in its body is never inlined — the pasted return would leave the CALLER (2048\'s own spawnTile)', () => {
@@ -548,8 +556,8 @@ test('a helper whose other callers fold away is inlined into the one left — pr
   });
   assert.ok(!ir.functions.some((fn) => fn.name === 'animate'), 'the folded caller is gone');
   const board = ir.functions.find((fn) => fn.name === 'board');
-  assert.deepEqual(board.body.map((statement) => statement.kind), ['call', 'block'], 'the tiles are written into the board, their one live caller');
-  assert.equal(board.body[1].origin, 'tiles');
+  assert.deepEqual(board.body.map((statement) => statement.kind), ['block', 'block'], 'the tiles are written into the board, their one live caller — and so is the HUD, called from nowhere else (rule 9)');
+  assert.deepEqual(board.body.map((statement) => statement.origin), ['drawHud', 'tiles']);
   assert.ok(!ir.functions.some((fn) => fn.name === 'tiles'), 'and nothing else needs the function');
 });
 
@@ -581,6 +589,14 @@ test('a small body still inlines at several call sites — it is cheaper than th
 
 const drawTileParams = () => [{ name: 'r', type: 'utinyint' }, { name: 'c', type: 'utinyint' }, { name: 'e', type: 'utinyint' }];
 const runtime = (name) => ref(name, 'utinyint');
+// A second caller of `name`, so the callee has two sites and rule 9 (one
+// site: the body goes into the caller) leaves it a function these tests
+// can see the forwarder rule point at. Its arguments are hardware reads —
+// a side effect at every position — so this site is never itself
+// forwarded away by rule 8 (a reorder or a drop would refuse it).
+// A second statement keeps this caller from being a forwarder itself (a
+// forwarder's sites are the callee's, and this one has none).
+const elsewhere = (name, arity) => ({ name: `${name}Elsewhere`, params: [], returnType: 'void', body: [call(name, Array.from({ length: arity }, (_, i) => ({ kind: 'read', address: constNum(0xe800 + i, 'usmallint'), type: 'utinyint' }))), { kind: 'memoryWrite', address: constNum(0x8fff, 'usmallint'), value: constNum(1) }] });
 
 test('a void forwarder is the call it wraps at every site, with run-time arguments — and the wrapper is pruned', () => {
   const ir = optimizeReachable({
@@ -606,6 +622,7 @@ test('a forwarder may reorder its parameters — the arguments land where the ca
       { name: 'main', body: [call('Swapped', [runtime('x'), runtime('y')])] },
       { name: 'Swapped', params: [{ name: 'a', type: 'utinyint' }, { name: 'b', type: 'utinyint' }], returnType: 'void', body: [call('draw', [ref('b'), ref('a')])] },
       { name: 'draw', params: [{ name: 'p', type: 'utinyint' }, { name: 'q', type: 'utinyint' }], returnType: 'void', body: wideBody() },
+      elsewhere('draw', 2),
     ],
     globals: [],
   });
@@ -622,6 +639,11 @@ test('a reordering forwarder keeps the call when an argument has a side effect �
       { name: 'Swapped', params: [{ name: 'a', type: 'utinyint' }, { name: 'b', type: 'utinyint' }], returnType: 'void', body: [call('draw', [ref('b'), ref('a')])] },
       { name: 'draw', params: [{ name: 'p', type: 'utinyint' }, { name: 'q', type: 'utinyint' }], returnType: 'void', body: wideBody() },
       { name: 'readPort', params: [], returnType: 'utinyint', body: [ret({ kind: 'read', address: constNum(0xe810, 'usmallint'), type: 'utinyint' })] },
+      // readPort() has a second site too, or rule 9 hoists its one read into
+      // a local ahead of the call — which is right, and leaves nothing here
+      // with a side effect for the reorder refusal to refuse.
+      elsewhere('Swapped', 2),
+      elsewhere('readPort', 0),
     ],
     globals: [],
   });
@@ -635,6 +657,8 @@ test('a forwarder that drops a parameter keeps the call when that argument has a
     { name: 'Partial', params: [{ name: 'a', type: 'utinyint' }, { name: 'unused', type: 'utinyint' }], returnType: 'void', body: [call('draw', [ref('a')])] },
     { name: 'draw', params: [{ name: 'p', type: 'utinyint' }], returnType: 'void', body: wideBody() },
     { name: 'readPort', params: [], returnType: 'utinyint', body: [ret({ kind: 'read', address: constNum(0xe810, 'usmallint'), type: 'utinyint' })] },
+    elsewhere('Partial', 2),
+    elsewhere('readPort', 0),
   ];
   const kept = optimizeIr({ entry: 'main', functions: functions({ kind: 'call', name: 'readPort', args: [], type: 'utinyint' }), globals: [] });
   assert.equal(kept.functions.find((fn) => fn.name === 'main').body[0].name, 'Partial', 'the read would vanish with the parameter');
@@ -648,7 +672,7 @@ test('a `return f(x);` forwarder is `f(x)` in the expression that called it — 
   const ir = optimizeReachable({
     entry: 'main',
     functions: [
-      { name: 'main', body: [assign('t', { kind: 'call', name: 'range', args: [runtime('empties')], type: 'utinyint' })] },
+      { name: 'main', body: [assign('t', { kind: 'call', name: 'range', args: [runtime('empties')], type: 'utinyint' }), assign('t', { kind: 'call', name: 'random_range', args: [runtime('t')], type: 'utinyint' })] },
       { name: 'range', params: [{ name: 'bound', type: 'utinyint' }], returnType: 'utinyint', body: [ret({ kind: 'call', name: 'random_range', args: [ref('bound')], type: 'utinyint' })] },
       { name: 'random_range', params: [{ name: 'bound', type: 'utinyint' }], returnType: 'utinyint', body: [ret(bin('%', { kind: 'call', name: 'random_next', args: [], type: 'utinyint' }, ref('bound'), 'utinyint'))] },
       { name: 'random_next', params: [], returnType: 'utinyint', body: [assign('seed', bin('+', ref('seed'), constNum(1), 'utinyint')), ret(ref('seed'))] },
@@ -668,6 +692,7 @@ test('a forwarder whose return type differs from the call it returns stays a cal
       { name: 'main', body: [assign('t', { kind: 'call', name: 'wide', args: [runtime('x')], type: 'usmallint' })] },
       { name: 'wide', params: [{ name: 'b', type: 'utinyint' }], returnType: 'usmallint', body: [ret({ kind: 'call', name: 'narrow', args: [ref('b')], type: 'utinyint' })] },
       { name: 'narrow', params: [{ name: 'b', type: 'utinyint' }], returnType: 'utinyint', body: [ret(ref('b'))] },
+      elsewhere('wide', 1),
     ],
     globals: [],
   });
@@ -713,6 +738,7 @@ test('a literal the forwarder adds is free at one site, and worth it while the c
       // two extra literal stores against one parameter store saved.
       { name: 'Red', params: [{ name: 'at', type: 'utinyint' }], returnType: 'void', body: [call('paint', [ref('at'), constNum(2), constNum(7)])] },
       { name: 'paint', params: [{ name: 'at', type: 'utinyint' }, { name: 'fg', type: 'utinyint' }, { name: 'bg', type: 'utinyint' }], returnType: 'void', body: wideBody() },
+      elsewhere('paint', 3),
     ],
     globals: [],
   });
@@ -727,7 +753,7 @@ test('a forwarder of a forwarder ends at the callee, and a forwarder of an empty
   const ir = optimizeReachable({
     entry: 'main',
     functions: [
-      { name: 'main', body: [call('Outer', [runtime('x')]), call('Color', [runtime('x')])] },
+      { name: 'main', body: [call('Outer', [runtime('x')]), call('Color', [runtime('x')]), call('draw', [runtime('y')])] },
       { name: 'Outer', params: [{ name: 'a', type: 'utinyint' }], returnType: 'void', body: [call('Inner', [ref('a')])] },
       { name: 'Inner', params: [{ name: 'b', type: 'utinyint' }], returnType: 'void', body: [call('draw', [ref('b')])] },
       { name: 'draw', params: [{ name: 'p', type: 'utinyint' }], returnType: 'void', body: wideBody() },
@@ -737,6 +763,132 @@ test('a forwarder of a forwarder ends at the callee, and a forwarder of an empty
     globals: [],
   });
   const body = ir.functions.find((fn) => fn.name === 'main').body;
-  assert.deepEqual(body.map((statement) => statement.name), ['draw'], 'one chain collapsed to its end, the other to nothing');
+  assert.deepEqual(body.map((statement) => statement.name), ['draw', 'draw'], 'one chain collapsed to its end, the other to nothing');
   assert.deepEqual(ir.functions.map((fn) => fn.name).sort(), ['draw', 'main']);
+});
+
+// ---- rule 9: a single caller ------------------------------------------------
+//
+// A function with exactly one live call site is written into it, whatever
+// its size and its arguments — the body replaces the call, the argument
+// stores, the frame and the rts. 2048 #51 paid +56/+84 bytes for a tile
+// split into two lib primitives and an element; this is the rule that
+// makes the split free.
+
+const memWrite = (address, value) => ({ kind: 'memoryWrite', address: constNum(address, 'usmallint'), value });
+const local = (name, type, init) => ({ kind: 'local', name, type, init });
+
+test('rule 9: a single-caller void body with run-time arguments is written into its caller — an expression argument becomes a local, a read of the caller\'s own local is the read itself', () => {
+  const ir = optimizeIr({
+    entry: 'main',
+    functions: [
+      { name: 'main', body: [local('i', 'utinyint', constNum(3)), call('paint', [bin('+', ref('i'), constNum(1), 'utinyint'), ref('i')])] },
+      { name: 'paint', params: [{ name: 'at', type: 'utinyint' }, { name: 'code', type: 'utinyint' }], returnType: 'void', body: [memWrite(0x8000, ref('at')), memWrite(0x8001, ref('code')), memWrite(0x8002, ref('at')), ...wideBody()] },
+    ],
+    globals: [],
+  });
+  const body = ir.functions.find((fn) => fn.name === 'main').body;
+  assert.equal(body[1].kind, 'block');
+  assert.equal(body[1].origin, 'paint');
+  const [bound, first, second] = body[1].body;
+  assert.equal(bound.kind, 'local', 'the expression argument is evaluated once, into a local');
+  assert.deepEqual(bound.init, bin('+', ref('i'), constNum(1), 'utinyint'));
+  assert.deepEqual(first.value, ref(bound.name), 'and read from there');
+  assert.deepEqual(second.value, ref('i'), 'the plain read of a caller local is the read itself — no copy');
+});
+
+test('rule 9: an argument reading a global the body writes is copied first, as the call copied it', () => {
+  const ir = optimizeIr({
+    entry: 'main',
+    functions: [
+      { name: 'main', body: [call('bump', [ref('cursor')])] },
+      { name: 'bump', params: [{ name: 'n', type: 'utinyint' }], returnType: 'void', body: [assign('cursor', bin('+', ref('cursor'), constNum(2), 'utinyint')), memWrite(0x8000, ref('n')), ...wideBody()] },
+    ],
+    globals: [{ name: 'cursor', type: 'utinyint', address: null, init: 0 }],
+  });
+  const body = ir.functions.find((fn) => fn.name === 'main').body[0].body;
+  assert.equal(body[0].kind, 'local');
+  assert.deepEqual(body[0].init, ref('cursor'), 'the value before the body ran');
+  assert.deepEqual(body[2].value, ref(body[0].name));
+});
+
+test('rule 9: a non-void single caller is hoisted ahead of the statement that used it, and `let r = f(x)` returning one of f\'s locals keeps that local as r', () => {
+  const ir = optimizeIr({
+    entry: 'main',
+    functions: [
+      { name: 'main', body: [local('origin', 'usmallint', ref('base', 'usmallint')), local('numRow', 'usmallint', { kind: 'call', name: 'paintTile', args: [ref('origin', 'usmallint')], type: 'usmallint' }), memWrite(0x9000, ref('numRow', 'usmallint'))] },
+      { name: 'paintTile', params: [{ name: 'at', type: 'usmallint' }], returnType: 'usmallint', body: [local('row', 'usmallint', ref('at', 'usmallint')), memWrite(0x8000, ref('row', 'usmallint')), assign('row', bin('+', ref('row', 'usmallint'), constNum(40), 'usmallint')), ...wideBody(), ret(ref('row', 'usmallint'))] },
+    ],
+    globals: [{ name: 'base', type: 'usmallint', address: null, init: 0 }],
+  });
+  const body = ir.functions.find((fn) => fn.name === 'main').body;
+  assert.ok(!body.some((s) => s.kind === 'call' || s.init?.kind === 'call'), 'the call is gone');
+  const rows = body.filter((s) => s.kind === 'local' && s.name === 'numRow');
+  assert.equal(rows.length, 1, "the callee's `row` is the caller's `numRow` — one local, not a copy");
+  assert.deepEqual(rows[0].init, ref('origin', 'usmallint'), 'initialised where the callee initialised its own');
+  assert.deepEqual(body[body.length - 1].value, ref('numRow', 'usmallint'));
+  assert.ok(!ir.functions.find((fn) => fn.name === 'main').body.some((s) => s.kind === 'return'), 'the callee\'s return did not come along');
+});
+
+test('rule 9 refuses: a void body with a return, a non-void body with an early return, an asm6502 body, and a free name the caller binds', () => {
+  const stays = (functions, globals = []) => {
+    const ir = optimizeIr({ entry: 'main', functions, globals });
+    return ir.functions.find((fn) => fn.name === 'main').body[0].kind === 'call';
+  };
+  assert.ok(stays([
+    { name: 'main', body: [call('helper', [runtime('x')])] },
+    { name: 'helper', params: [{ name: 'n', type: 'utinyint' }], returnType: 'void', body: [memWrite(0x8000, ref('n')), ret()] },
+  ]), 'the `f(); return;` idiom keeps a call');
+  // A non-void body with an early return: the call stays as the
+  // assignment's value (x is assigned first, so rule 5 cannot evaluate it).
+  const early = optimizeIr({
+    entry: 'main',
+    functions: [
+      { name: 'main', body: [assign('x', { kind: 'read', address: constNum(0xe810, 'usmallint'), type: 'utinyint' }), { kind: 'assign', target: 'out', value: { kind: 'call', name: 'pick', args: [runtime('x')], type: 'utinyint' } }] },
+      { name: 'pick', params: [{ name: 'n', type: 'utinyint' }], returnType: 'utinyint', body: [ifNode(bin('==', ref('n'), constNum(0)), [ret(constNum(9))]), memWrite(0x8000, ref('n')), ret(ref('n'))] },
+    ],
+    globals: [{ name: 'out', type: 'utinyint', address: null, init: 0 }, { name: 'x', type: 'utinyint', address: null, init: 0 }],
+  });
+  assert.equal(early.functions.find((fn) => fn.name === 'main').body[1].value.kind, 'call', 'an early return would leave the caller — the call stays');
+  assert.ok(stays([
+    { name: 'main', body: [call('poke', [runtime('x')])] },
+    { name: 'poke', params: [{ name: 'n', type: 'utinyint' }], returnType: 'void', body: [{ kind: 'asm', text: ' lda #1' }, memWrite(0x8000, ref('n'))] },
+  ]), 'asm6502 may name its own frame');
+  assert.ok(stays([
+    { name: 'main', body: [call('show', [runtime('x')]), local('cursor', 'utinyint', constNum(1))] },
+    { name: 'show', params: [{ name: 'n', type: 'utinyint' }], returnType: 'void', body: [assign('cursor', bin('+', ref('cursor'), constNum(1), 'utinyint')), memWrite(0x8000, ref('cursor')), memWrite(0x8001, ref('n')), ...wideBody()] },
+  ], [{ name: 'cursor', type: 'utinyint', address: null, init: 0 }]), "the body's global `cursor` would be captured by the caller's local of that name");
+});
+
+test('rule 9 counts a forwarder\'s sites as the callee\'s: one wrapper called from three places is three sites, not one', () => {
+  const ir = optimizeReachable({
+    entry: 'main',
+    functions: [
+      { name: 'main', body: [call('Tile', [runtime('x')]), call('Tile', [runtime('y')]), call('Tile', [runtime('z')])] },
+      { name: 'Tile', component: true, params: [{ name: 'e', type: 'utinyint' }], returnType: 'void', body: [call('drawTile', [ref('e')])] },
+      { name: 'drawTile', params: [{ name: 'p', type: 'utinyint' }], returnType: 'void', body: wideBody() },
+    ],
+    globals: [],
+  });
+  const body = ir.functions.find((fn) => fn.name === 'main').body;
+  assert.deepEqual(body.map((statement) => statement.name), ['drawTile', 'drawTile', 'drawTile'], 'the wrapper is the call at each site');
+  assert.ok(ir.functions.some((fn) => fn.name === 'drawTile'), 'and the callee is one function — it was never a single caller');
+});
+
+test('a body is sized with its callees in it: a small wrapper that inlines a large single-caller child is not pasted at three sites (2048 #52)', () => {
+  const ir = optimizeReachable({
+    entry: 'main',
+    functions: [
+      { name: 'main', body: [call('board'), assign('g', constNum(1)), call('board'), assign('g', constNum(2)), call('board')] },
+      // Two statements, so it is not a forwarder; small as written.
+      { name: 'board', params: [], returnType: 'void', body: [call('scoreBar'), assign('g', constNum(3))] },
+      { name: 'scoreBar', params: [], returnType: 'void', body: [...wideBody(), ...wideBody(), memWrite(0x9000, ref('g'))] },
+    ],
+    globals: [{ name: 'g', type: 'utinyint', address: null, init: 0 }],
+  });
+  const main = ir.functions.find((fn) => fn.name === 'main');
+  assert.deepEqual(main.body.filter((s) => s.kind === 'call').map((s) => s.name), ['board', 'board', 'board'], 'board stays a function at its three sites');
+  const board = ir.functions.find((fn) => fn.name === 'board');
+  assert.ok(board, 'board is a function');
+  assert.ok(!ir.functions.some((fn) => fn.name === 'scoreBar'), 'holding its one-caller child');
 });
