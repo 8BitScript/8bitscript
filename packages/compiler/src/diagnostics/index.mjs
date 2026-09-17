@@ -117,6 +117,12 @@ export const Codes = {
   // `#locale(...)` with anything but one locale name in quotes (see the
   // fold pass and the resolver's LOCALE_NAME for the shape).
   INVALID_LOCALE: '8BS1040',
+  // `#package(...)` with anything but one of PACKAGE_FIELDS in quotes (see
+  // the fold pass, package.mjs).
+  INVALID_PACKAGE_FIELD: '8BS1041',
+  // `#package("version")` where no package.json is above the file, or the
+  // one found does not parse or has no such field — named in the message.
+  PACKAGE_NOT_FOUND: '8BS1042',
 
   UNRESOLVED_PACKAGE: '8BS2001',
   NOT_AN_8BS_PACKAGE: '8BS2002',

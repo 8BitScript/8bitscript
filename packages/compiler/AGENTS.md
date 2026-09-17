@@ -135,6 +135,37 @@ range; completion in `.8bx` knows a tag from the lexer's own tag tokens
 component's remaining props inside its tag. The language server is
 protocol glue over these three calls.
 
+## `#package("version")`: the program's own package.json
+
+A program reads its package's `version` and `name` with `#package("…")`
+(`src/fold/index.mjs` `foldPackageCall`, `src/fold/package.mjs`), which
+folds to a `StringLiteral` before the checker runs — from then on it is
+the literal the program would have written, to the portable-character
+and length checks and both backends alike, and a build with it is
+byte-identical to one with the string in quotes
+(`test/package-intrinsic.test.mjs`). **Nearest package.json above the
+file, not the project root**: a module in `@8bitscript/ui` that asks gets
+the ui package's, and `8bs check` and the language server — which have a
+file but no build — resolve exactly as a build does, with no CLI
+plumbing; text handed to `analyze()` with no path folds to `""` silently,
+the way `#system()` folds without a machine. It is not cached: the
+language server lives across a version bump, and a walk of a few `stat()`
+calls per call site is nothing. Chosen over a `#fact(package.version)`
+because facts are numbers and flags folded from the catalog, and this is
+a string from a file the catalog never sees; over a CLI-supplied build
+input (the way `locale` travels) because the file's own path already says
+where the package is. Refused by name: any field but `name` and `version`
+(`8BS1041`, listing them), a missing or unparseable package.json or a
+missing field (`8BS1042`, naming the file). Two things stay as they are
+and are worth knowing: a `string` cannot be a template field, so a
+version is printed as its own argument; and `.length` of a string const
+is a run-time read, not a const initializer (`8BS3001`) — a program that
+right-aligns its version chooses a field width. A compile-time
+`.length`, or a literal's bytes as a `const array`, would let a PET skin
+that stamps screen codes take the version from the package at zero cost;
+today that skin pays for a byte-copy loop (measured +90 on 2048's 4K PET
+2001) or for `text.print` (+146). Neither is done here.
+
 ## Machine twins, and locales
 
 A file's machine version sits beside it with the machine's name before

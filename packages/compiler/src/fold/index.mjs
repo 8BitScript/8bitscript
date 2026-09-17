@@ -51,6 +51,8 @@ import { Codes, diagnostic } from '../diagnostics/index.mjs';
 import { NodeType, walk } from '../ast/index.mjs';
 import { FACTS, factPlaceholder } from './facts.mjs';
 import { isLocaleName, LOCALE_NAME } from '../source/index.mjs';
+import { nearestPackage, PACKAGE_FIELDS } from './package.mjs';
+import { dirname } from 'node:path';
 
 /**
  * The units a duration literal can be written in, keyed by the bare word a
@@ -122,8 +124,8 @@ function compileTimeCallName(n) {
   return n.callee.compileTime ? n.callee.name : null;
 }
 
-const KNOWN_COMPILE_TIME = () => [...[...DURATION_CLOCKS.keys()].map((name) => `#${name}(...)`), '#system()', '#fact(...)', '#locale(...)'].join(', ');
-const BUILTIN = (name) => DURATION_CLOCKS.has(name) || name === 'system' || name === 'fact' || name === 'locale';
+const KNOWN_COMPILE_TIME = () => [...[...DURATION_CLOCKS.keys()].map((name) => `#${name}(...)`), '#system()', '#fact(...)', '#locale(...)', '#package(...)'].join(', ');
+const BUILTIN = (name) => DURATION_CLOCKS.has(name) || name === 'system' || name === 'fact' || name === 'locale' || name === 'package';
 
 /**
  * Round `numerator/denominator` (both BigInt, denominator > 0) to the
@@ -179,6 +181,7 @@ const exampleCalls = (name) => {
   if (name === 'system') return '#system()';
   if (name === 'fact') return '#fact(video.columns) or #fact(memory.ram)';
   if (name === 'locale') return '#locale("de") or #locale("pt-br")';
+  if (name === 'package') return '#package("version") or #package("name")';
   return `#${name}(1, seconds) or #${name}(0.5, seconds)`;
 };
 
@@ -291,6 +294,66 @@ function foldLocaleCall(n, file, locale, diagnostics) {
     return;
   }
   replaceWithLocale(n, name, locale !== undefined && locale === name);
+}
+
+// A `#package(...)` folds to a StringLiteral: from then on it is the
+// literal the program would have written, to the checker (portable
+// characters, length) and the backends alike.
+function replaceWithString(n, field, value) {
+  delete n.callee;
+  delete n.args;
+  n.type = NodeType.StringLiteral;
+  n.value = value;
+  n.raw = `#package(${JSON.stringify(field)})`;
+}
+
+/**
+ * `#package("version")`: a field of the program's own package.json — the
+ * nearest one above the file the call is in (see package.mjs) — as a
+ * string literal, so a title screen prints the version the package was
+ * published as instead of a const somebody has to remember to bump. Takes
+ * one field name in quotes, from PACKAGE_FIELDS (`8BS1041` otherwise, the
+ * message listing them). No package.json above the file, one that does not
+ * parse, or one without the field is `8BS1042`, naming the file or the
+ * directory the search began in; the call folds to "" so the rest of the
+ * file is still checked. `8bs check` and the editor resolve exactly as a
+ * build does: the file is real, so its package is. A file with no path —
+ * text handed to analyze() with none — has no package and gets the
+ * placeholder without a diagnostic, the way #system() folds without a
+ * machine.
+ */
+function foldPackageCall(n, file, diagnostics) {
+  const args = n.args ?? [];
+  const field = args.length === 1 && args[0]?.type === NodeType.StringLiteral ? args[0].value : null;
+  if (field === null || !PACKAGE_FIELDS.includes(field)) {
+    diagnostics.push(diagnostic(
+      Codes.INVALID_PACKAGE_FIELD,
+      field === null
+        ? `#package(...) takes one field name in quotes — ${exampleCalls('package')}`
+        : `'${field}' is not a package.json field a program can read — the fields are ${PACKAGE_FIELDS.map((f) => `"${f}"`).join(', ')}`,
+      file, n.start, n.length,
+    ));
+    replaceWithString(n, field ?? '?', '');
+    return;
+  }
+  if (!file || file === '<unknown>') {
+    replaceWithString(n, field, '');
+    return;
+  }
+  const found = nearestPackage(dirname(file));
+  const problem = found === null
+    ? `no package.json above ${dirname(file)} — #package(${JSON.stringify(field)}) reads the nearest one`
+    : found.error
+      ? `${found.path} is not valid JSON: ${found.error}`
+      : typeof found.json?.[field] !== 'string'
+        ? `${found.path} has no "${field}" — #package(${JSON.stringify(field)}) reads that field, as a string`
+        : null;
+  if (problem !== null) {
+    diagnostics.push(diagnostic(Codes.PACKAGE_NOT_FOUND, problem, file, n.start, n.length));
+    replaceWithString(n, field, '');
+    return;
+  }
+  replaceWithString(n, field, found.json[field]);
 }
 
 /**
@@ -426,6 +489,10 @@ export function foldCompileTime(ast, file = '<unknown>', { frameRate = 60, machi
       }
       if (name === 'locale') {
         foldLocaleCall(n, file, locale, diagnostics);
+        return;
+      }
+      if (name === 'package') {
+        foldPackageCall(n, file, diagnostics);
         return;
       }
       if (!DURATION_CLOCKS.has(name)) {
