@@ -160,7 +160,19 @@ PET) cost the unused side / the conversion loop / the no-op nothing.
 The inliner's size measure counts a call's arguments as code, not as
 one node each — each is a load and a store at every copy — so a body
 that only passes values along stays the one function it was written
-as. `checkHardwareHazards` still sees the unpruned IR from `link()`.
+as. The exception is a *forwarder*: a body that is exactly one call
+passing the function's own parameters through (each at most once, in
+any order, literals allowed) is that call at every site, run-time
+arguments and all — the site's argument stores go to the callee's slots
+instead of the forwarder's, so nothing is duplicated and the wrapper's
+`jsr`/`rts` and copies are gone (`component Tile(r, c, e) { drawTile(r,
+c, e); }` was +36 bytes on the PET 2001 and VIC-20 before, 2048 #49; a
+`return random.range(bound);` delegate +8). A global passed through, a
+parameter used twice, an expression around the call, or a second
+statement (2048's `f(); return;` idiom) is not a forwarder and keeps
+the function. `packages/compiler/test/forwarding-inline.test.mjs` is
+the byte-identity gate. `checkHardwareHazards` still sees the unpruned
+IR from `link()`.
 
 Two properties every front-end layer shares, because an editor runs
 them on every keystroke:
