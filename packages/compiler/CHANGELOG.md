@@ -1,5 +1,75 @@
 # @8bitscript/compiler
 
+## 0.12.0
+
+### Patch Changes
+
+- a0f9493: A forwarder costs nothing. A function or component whose body is exactly
+  one call passing its own parameters through — `component Tile(row, col,
+  exponent) { drawTile(row, col, exponent); }`, `function range(bound) {
+  return random.range(bound); }` — is now that call at every site, run-time
+  arguments and all, in any parameter order, across an import boundary. The
+  site already loads and stores each argument into a parameter slot;
+  pointing those stores at the callee's slots instead is free, and the
+  forwarder's own copies and its `jsr`/`rts` are gone. This is what spec
+  §30 and §64 promise an element costs, and it did not hold before: 2048's
+  `<Tile row col exponent />` and `<Hud />` wrappers were +36 bytes on the
+  PET 2001 and the unexpanded VIC-20 (2048 #49), the same across a module
+  boundary +53 (2048 #45), and a one-line `range()` delegate +8 on five
+  targets — all three are now byte-identical to the hand-written calls
+  (2048 with all three in: PET 2001 2807 → 2763, VIC-20 3534 → 3490).
+  
+  Not a forwarder, and unchanged: a global passed through (each copy would
+  load it again), a parameter used twice, an expression around the call, a
+  body of two statements — so `f(); return;`, the idiom that keeps a
+  helper a real call, still does. A literal the forwarder adds is inlined
+  while the copies cost less than the parameter stores the sites stop
+  making; a forwarder that reorders or drops a parameter keeps the call
+  when the argument has a side effect. Examples unchanged (hello-world
+  108, hello-bx 108, fancy 1007, joystick 2305 on the PET).
+- 3d33043: An imported integer `const` now carries its declared type into IR. A
+  reference to a module's own const is inlined by lowering with the type it
+  was declared with; a reference to an *imported* one survives to the linker,
+  which inlined it as `{ kind: 'const', value }` with no type — so the MOS
+  backend refused it wherever a type is needed to widen or size a value:
+  `text.fill(R, 4, 32)` with `export const R: usmallint = 5;` in another
+  module failed with "'const': no type on this IR node", and
+  `let n: usmallint = R + a;` with "'binop'". Only a `bool` const, or an
+  integer one that happened to fold before the backend looked, got through;
+  the same const declared in the using module always built. The linker now
+  keeps the declared type beside every const value it may inline, its own and
+  its imports', and the PET image for the cross-module spelling is
+  byte-identical to the same-module one.
+- 6597363: A function with one live call site is written into it — whatever its
+  size, whatever its arguments. The body replaces the call, the argument
+  stores, the frame and the `rts`, so the program can only get smaller:
+  a read of the caller's own local is the read itself, a global or an
+  expression is a local holding it (the store the call already made),
+  and a non-void callee whose only `return` ends it is hoisted ahead of
+  the statement that used its value. 2048's tile split into two lib
+  primitives and an element (`paintTile` + `stampValue` + `Tile`, #51)
+  was +56 bytes on every 6502 and +84 on the PET 2001 against the
+  one-body `drawTile`; it is now the same size, on the PET and on the
+  web.
+  
+  Bodies are optimized callees-first, so the size that decides whether a
+  small body is pasted at several sites is the size it has with its own
+  callees in it. 2048's parameterless `Board`, small as written, went
+  into `main` three times carrying the whole inlined `ScoreBar` (+393
+  bytes on the PET, #52); measured finished, it is one function.
+  
+  2048 (#53) on every native target: PET 2001 2759 → 2687, VIC-20
+  3486 → 3400, C64 4595 → 4495, C128 3684 → 3594, Atari 8-bit 3716 →
+  3599, X16 4429 → 4317, MEGA65 3659 → 3569 bytes of program; the NES
+  image is its fixed size. Zero page moves by −7 to +9 (a callee's locals
+  that a sibling's frame used to overlay are the caller's now). Examples:
+  hello-world 108 and hello-bx 108 unchanged, fancy 1007 → 999, joystick
+  2305 → 2273.
+  
+  Still a call: a void body with a `return` anywhere (the `f(); return;`
+  idiom), a non-void body with an early return, `asm6502`, and a body
+  whose free names a caller's own local would capture.
+
 ## 0.11.0
 
 ### Minor Changes

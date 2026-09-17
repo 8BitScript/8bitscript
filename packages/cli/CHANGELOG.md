@@ -1,5 +1,78 @@
 # @8bitscript/cli
 
+## 0.12.0
+
+### Minor Changes
+
+- b1b08fb: A locale is a build input. `strings.de.8bs` beside `strings.8bs` is the
+  German version, `strings.pet.de.8bs` the German version of the PET's twin,
+  `strings.pet.8032.de.8bs` of the 8032's — the locale is the innermost twin
+  dimension, always the last word before the extension, for `.8bx` files
+  too. It refines the machine choice and never changes it: whichever level a
+  build would take without a locale, it takes that level's `.<locale>` file
+  when one exists; a machine twin with no version in the locale is used and
+  said (`8BS3005`, a warning) when the plain file has one. A build that names
+  no locale reads no locale's file, so every existing project builds and
+  names exactly as before.
+  
+  `locale` in `8bitscript.config.ts` (project-wide, per target, or in a
+  `release` entry — `release: [{}, { locale: 'de' }]` builds both), and
+  `8bs build --locale de` / `8bs run --locale de` over all of them. A name is
+  two to eight lower-case letters with an optional `-region` (`de`, `pt-br`),
+  never a machine's name or one of its hardware tags. The artifact carries it
+  — `2048-pet-de.prg`, `program-de.wasm` beside `program.wasm` in `dist/web`
+  — only when one is set. `#locale("de")` folds to `true` in that build and
+  `false` in every other, and in one that names none (`8BS1040` for anything
+  but one name in quotes).
+  
+  Not in this release: a compile-time conversion of a string literal to a
+  machine's screen codes, so a machine whose strings are pre-converted by
+  hand (the size-fitted PET) still wants a `strings.pet.<locale>.8bs` per
+  locale.
+
+### Patch Changes
+
+- 605b346: docs: the language manual and the 8BX specification live in the repo.
+  
+  `docs/language/` is the manual — the language by task, nine pages:
+  hello world both ways, the core `.8bs` language, `.8bx` composition
+  (elements, components, `<slot />`, conditional composition, state,
+  methods, the purity rule), the `.8bs` ↔ `.8bx` boundary, project config
+  and the CLI, the editor and every `8BS` diagnostic code, the standard
+  packages, two worked examples with their measured byte counts, and the
+  one list of what is not built yet. `docs/spec/8bx.md` is the 8BX
+  specification itself, all 142 sections, cited from the other pages as
+  `§N`. `docs/project/8bx.md` becomes the ledger between them: the spec's
+  PR sequence as it landed (#159–#177, 2048 #46), the rules code enforces,
+  and where the code and the spec still differ. The home page says what
+  0.11.0 is instead of what 0.2.0 was, and nothing on the site links out
+  to an artifact for its own documentation any more.
+  
+  Two claims corrected against the code on the way in: there is no
+  "children required" diagnostic — the `.8bs` call form of a slotted
+  component is its body with the slot elided — and the CLI table now lists
+  `8bs boot`, `8bs setup` and `8bs controller`.
+- eebccb4: docs: the 8BX ledger records that forwarders are free (#178, #184) and the
+  compiler findings from 2048's restructure into `ui/` elements over `lib/`;
+  the manual's "not yet available" page drops the forwarder row.
+- Updated dependencies [a0f9493]
+- Updated dependencies [3d33043]
+- Updated dependencies [6597363]
+- Updated dependencies [922ec1f]
+  - @8bitscript/compiler@0.12.0
+  - @8bitscript/web@0.12.0
+  - @8bitscript/language-server@0.12.0
+  - @8bitscript/examples@0.12.0
+  - @8bitscript/studio@0.12.0
+  - @8bitscript/atari8@0.12.0
+  - @8bitscript/c128@0.12.0
+  - @8bitscript/c64@0.12.0
+  - @8bitscript/cx16@0.12.0
+  - @8bitscript/mega65@0.12.0
+  - @8bitscript/nes@0.12.0
+  - @8bitscript/pet@0.12.0
+  - @8bitscript/vic20@0.12.0
+
 ## 0.11.0
 
 ### Minor Changes
