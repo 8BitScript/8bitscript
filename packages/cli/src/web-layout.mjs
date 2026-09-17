@@ -144,6 +144,11 @@ export function agreementFor({
   const rasterControlOffset = hostOffset + 1;
   const rasterCountOffset = hostOffset + 2;
   const rasterBase = hostOffset + 3;
+  // One past the last byte the agreement uses: the wasm backend places the
+  // program's own data section at or above this (dataBaseFor() in
+  // packages/compiler/src/wasm/index.ts), so a register the page writes
+  // can never land on a string the program reads.
+  const reservedEnd = rasterBase + RASTER_MAX_ENTRIES * RASTER_ENTRY_SIZE;
   return {
     cols,
     rows,
@@ -159,6 +164,7 @@ export function agreementFor({
     rasterControlOffset,
     rasterCountOffset,
     rasterBase,
+    reservedEnd,
     rasterMaxEntries: RASTER_MAX_ENTRIES,
     columnsOffset: COLUMNS_OFFSET,
     rowsOffset: ROWS_OFFSET,

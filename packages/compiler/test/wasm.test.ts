@@ -5,7 +5,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { build } from '../src/wasm/index.ts';
+import { build, dataBaseFor } from '../src/wasm/index.ts';
 import type { IrFunction, IrGlobal, IrParam, IrProgram } from '../src/wasm/index.ts';
 import type { IrExpr } from '../src/wasm/lower.ts';
 
@@ -1223,3 +1223,77 @@ test('bitwise/shift: << needs no sign refusal — the same bits shift out regard
   assert.equal(await run(main, '8bs-web-native-'), -2);
 });
 
+
+// ---- the data section and the target's register agreement -------------------
+//
+// The low end of linear memory is the page's and the program's shared
+// register agreement (@8bitscript/web's geometry); this backend's data
+// section must start past it. The resizable Modern host's agreement runs to
+// 8392, and the data section used to start at a fixed 8192 — a string
+// literal's bytes under INPUT_OFFSET, overwritten by the page's input and
+// read back as input. `reserved` is the agreement's end, handed in by the
+// CLI, and dataBaseFor() is the rule.
+
+test('dataBaseFor never places data below the floor, and never inside an agreement that reaches past it', () => {
+  assert.equal(dataBaseFor(undefined), 8192, 'no agreement: the floor, exactly as before');
+  assert.equal(dataBaseFor(0), 8192);
+  assert.equal(dataBaseFor(2790), 8192, 'the fixed 48×27 host ends well below the floor: unchanged');
+  assert.equal(dataBaseFor(8192), 8192, 'an agreement that ends exactly at the floor still fits under it');
+  assert.equal(dataBaseFor(8193), 8448, 'one byte over: the next 256-byte boundary');
+  assert.equal(dataBaseFor(8392), 8448, 'the resizable Modern host');
+  assert.equal(dataBaseFor(8448), 8448);
+  assert.equal(dataBaseFor(8449), 8704);
+  // The invariant itself, over every size an agreement could plausibly be.
+  for (let end = 0; end <= 70000; end += 37) {
+    const base = dataBaseFor(end);
+    assert.ok(base >= end, `data at ${base} for an agreement ending at ${end}`);
+    assert.ok(base >= 8192 && base % 256 === 0, `${base} is on the boundary`);
+  }
+});
+
+test('a string literal is laid out past `reserved`, and a register write at the old data base cannot touch it', async () => {
+  // main() returns the address of its one literal — the data section's
+  // first byte — so the test can look at where the bytes really went.
+  const main: IrFunction = {
+    name: 'main',
+    returnType: 'usmallint',
+    body: [{ kind: 'return', value: { kind: 'string', index: 0, type: 'string' } }],
+  };
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-web-native-'));
+  try {
+    const outFile = join(scratch, 'out.wasm');
+    const ir: IrProgram = { entry: 'main', functions: [main], strings: [{ text: 'v0.2.0', bytes: [118, 48, 46, 50, 46, 48] }] };
+    const unreserved = await build(ir, { outFile, frameRate: 60 });
+    assert.equal(unreserved.ok, true, unreserved.ok ? '' : unreserved.error);
+    const modern = await build(ir, { outFile, frameRate: 60, reserved: 8392 });
+    assert.equal(modern.ok, true, modern.ok ? '' : modern.error);
+    if (!unreserved.ok || !modern.ok) return;
+    // Same size: the address is still a two-byte LEB128, only its value moved.
+    assert.equal(modern.bytes.length, unreserved.bytes.length);
+
+    const boot = async (bytes: Uint8Array<ArrayBuffer>) => {
+      const instance = await WebAssembly.instantiate(await WebAssembly.compile(bytes), {});
+      const memory = new Uint8Array((instance.exports.memory as WebAssembly.Memory).buffer);
+      return { address: (instance.exports.main as () => number)(), memory };
+    };
+    const before = await boot(unreserved.bytes);
+    assert.equal(before.address, 8192, 'no agreement: the floor');
+    assert.equal(before.memory[8196], 50, "the bug this guards: '2' of \"v0.2.0\" sat exactly under the Modern host's INPUT_OFFSET");
+
+    const after = await boot(modern.bytes);
+    assert.equal(after.address, 8448);
+    // The whole agreement is clear at boot — the input byte reads idle, the
+    // raster control byte reads "no list" — and the literal is intact above it.
+    for (let a = 8192; a < 8392; a++) assert.equal(after.memory[a], 0, `agreement byte ${a} is clear`);
+    assert.deepEqual([...after.memory.slice(8448, 8448 + 7)], [6, 118, 48, 46, 50, 46, 48]);
+    // What the page does every frame: write the input snapshot and a raster
+    // list. The literal does not move.
+    after.memory[8196] = 0xff;
+    after.memory[8198] = 1;
+    after.memory[8199] = 64;
+    after.memory.fill(0xee, 8200, 8392);
+    assert.deepEqual([...after.memory.slice(8448, 8448 + 7)], [6, 118, 48, 46, 50, 46, 48]);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
