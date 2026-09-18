@@ -77,6 +77,7 @@ test('src/ changes need a rebuild; media and the grammar only need a reload', ()
   assert.equal(classifyChange(root, path.join(root, 'syntaxes', '8bs.tmLanguage.json')), 'reload');
   assert.equal(classifyChange(root, path.join(root, 'snippets', '8bs.json')), 'reload');
   assert.equal(classifyChange(root, path.join(root, 'package.json')), 'reload');
+  assert.equal(classifyChange(root, path.join(root, 'language-configuration.asm.json')), 'reload');
   assert.equal(classifyChange(root, path.join(root, 'bootstrap.cjs')), 'reload');
   assert.equal(classifyChange(root, path.join(root, 'dist', 'extension.cjs')), null);
   assert.equal(classifyChange(root, path.join(root, 'test', 'devReload.test.cjs')), null);

@@ -82,6 +82,8 @@ function createVscodeMock() {
     onDidEndTaskProcess: makeEmitter(),
   };
   const selectionEmitter = makeEmitter();
+  const saveEmitter = makeEmitter();
+  const documentChangeEmitter = makeEmitter();
   const executedTasks = [];
   const executedCommands = [];
 
@@ -176,8 +178,8 @@ function createVscodeMock() {
       file: uriFor,
       parse: uriParse,
     },
-    ViewColumn: { One: 1, Two: 2, Beside: -2 },
-    TextEditorRevealType: { InCenterIfOutsideViewport: 2 },
+    ViewColumn: { One: 1, Two: 2, Three: 3, Beside: -2 },
+    TextEditorRevealType: { Default: 0, InCenter: 1, InCenterIfOutsideViewport: 2, AtTop: 3 },
     Position: class Position {
       constructor(line, character) { this.line = line; this.character = character; }
     },
@@ -187,9 +189,13 @@ function createVscodeMock() {
     Selection: class Selection {
       constructor(anchor, active) { this.anchor = anchor; this.active = active; }
     },
+    languages: {
+      setTextDocumentLanguage: (document, languageId) => Promise.resolve({ ...document, languageId }),
+    },
     window: {
       workspaceState: undefined,
       activeTextEditor: undefined,
+      visibleTextEditors: [],
       onDidChangeTextEditorSelection: selectionEmitter.event,
       showInformationMessage: (...args) => {
         calls.showInformationMessage.push(args);
@@ -206,16 +212,26 @@ function createVscodeMock() {
       showQuickPick: (...args) => Promise.resolve(nextFrom('showQuickPick')),
       showInputBox: (...args) => Promise.resolve(nextFrom('showInputBox')),
       showOpenDialog: (...args) => Promise.resolve(nextFrom('showOpenDialog')),
-      showTextDocument: (docOrUri) => Promise.resolve({
-        document: docOrUri,
-        selection: { active: { line: 0, character: 0 } },
-        revealRange: () => {},
-        edit: (builder) => {
-          const inserted = [];
-          builder({ insert: (position, text) => inserted.push({ position, text }) });
-          return Promise.resolve(true);
-        },
-      }),
+      showTextDocument: (docOrUri, options) => {
+        const key = (docOrUri.uri ?? docOrUri).toString();
+        const editor = {
+          document: docOrUri,
+          viewColumn: options?.viewColumn,
+          selection: { active: { line: 0, character: 0 } },
+          visibleRanges: [{ start: { line: 0, character: 0 }, end: { line: 0, character: 0 } }],
+          revealRange: () => {},
+          edit: (builder) => {
+            const inserted = [];
+            builder({ insert: (position, text) => inserted.push({ position, text }) });
+            return Promise.resolve(true);
+          },
+        };
+        vscode.window.visibleTextEditors = [
+          ...vscode.window.visibleTextEditors.filter((existing) => existing.document.uri?.toString() !== key),
+          editor,
+        ];
+        return Promise.resolve(editor);
+      },
       createWebviewPanel(viewType, title, column, options) {
         const messageEmitter = makeEmitter();
         const disposeEmitter = makeEmitter();
@@ -260,7 +276,19 @@ function createVscodeMock() {
       }),
       onDidChangeWorkspaceFolders: () => makeDisposable(),
       onDidChangeConfiguration: () => makeDisposable(),
-      registerTextDocumentContentProvider: () => makeDisposable(),
+      onDidSaveTextDocument: saveEmitter.event,
+      onDidChangeTextDocument: documentChangeEmitter.event,
+      // Real VS Code mediates a content provider's own onDidChange:
+      // firing it re-fetches provideTextDocumentContent() and applies the
+      // result as an edit, which is what actually raises
+      // onDidChangeTextDocument — never the provider's onDidChange itself.
+      // Faked here the same way, so a consumer that (correctly) waits for
+      // the document to actually change, rather than reusing the fire()
+      // call itself, is exercised the same way it would be for real.
+      registerTextDocumentContentProvider: (scheme, provider) => {
+        const subscription = provider.onDidChange?.((uri) => documentChangeEmitter.fire({ document: { uri } }));
+        return makeDisposable(() => subscription?.dispose?.());
+      },
     },
     tasks: {
       taskExecutions: [],
@@ -298,6 +326,7 @@ function createVscodeMock() {
       executedCommands,
       taskEmitters,
       fireSelectionChange: (event) => selectionEmitter.fire(event),
+      fireSave: (document) => saveEmitter.fire(document),
       trigger: (id, ...args) => {
         const handler = commandHandlers.get(id);
         if (!handler) throw new Error(`no command registered for '${id}'`);
@@ -316,6 +345,7 @@ function createVscodeMock() {
         executedCommands.length = 0;
         vscode.workspace.workspaceFolders = undefined;
         vscode.workspace.openTextDocument = defaultOpenTextDocument;
+        vscode.window.visibleTextEditors = [];
         vscode.tasks.taskExecutions = [];
         vscode.env.appName = 'Visual Studio Code';
       },

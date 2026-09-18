@@ -82,13 +82,20 @@ the project overview is in the [root README](../../README.md).
     snippets (`row={|}`), and `</` closes the innermost open element
 - **8BitScript: View Generated Assembly** — from the command palette or
   an `.8bs`/`.8bx` editor's right-click menu, runs `8bs build --debug`
-  and opens the machine instructions generated for the statement at the
-  cursor (and the rest of its own function, for context) in a read-only
-  view beside the source. Clicking a line there jumps back to the exact
-  source span that generated it. No compiler logic lives in the
-  extension for this — it's all read off the compiler's own
-  `.8bs.debug.json` (docs/compiler.md's "Debug output" section has the
-  schema).
+  and opens the whole file's generated instructions, colored by a 6502
+  assembly grammar, in a read-only view beside the source. Clicking a
+  line there jumps back to the exact source span that generated it.
+  **View Generated Assembly For…** opens the same file for a machine you
+  pick, rather than whatever's currently selected — each machine gets its
+  own stable tab, so several can stay open side by side; the open tab's
+  own title-bar button (**Open For Another Machine…**) offers the same
+  picker from there. Saving any `.8bs`/`.8bx` file in the same project
+  rebuilds every open tab in place — no tab moves, gains focus,
+  or loses its scroll position, and a mid-edit build failure just leaves
+  the last successful listing on screen rather than blanking it. No
+  compiler logic lives in the extension for any of this — it's all read
+  off the compiler's own `.8bs.debug.json` (docs/compiler.md's "Debug
+  output" section has the schema).
 
 If no toolchain is found, the extension says so and falls back to syntax
 highlighting alone — see "Installing it while developing" below.

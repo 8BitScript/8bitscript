@@ -47,6 +47,13 @@
           ".8bx"
         ],
         "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "8bitscript-asm",
+        "aliases": [
+          "8BitScript Generated Assembly"
+        ],
+        "configuration": "./language-configuration.asm.json"
       }
     ],
     "grammars": [
@@ -59,6 +66,11 @@
         "language": "8bitextensible",
         "scopeName": "source.8bx",
         "path": "./syntaxes/8bx.tmLanguage.json"
+      },
+      {
+        "language": "8bitscript-asm",
+        "scopeName": "source.asm-8bs",
+        "path": "./syntaxes/asm-8bs.tmLanguage.json"
       }
     ],
     "snippets": [
@@ -112,6 +124,18 @@
         "title": "View Generated Assembly",
         "category": "8BitScript",
         "icon": "$(file-binary)"
+      },
+      {
+        "command": "8bitscript.viewGeneratedAssemblyFor",
+        "title": "View Generated Assembly For…",
+        "category": "8BitScript",
+        "icon": "$(file-binary)"
+      },
+      {
+        "command": "8bitscript.assemblyView.openForMachine",
+        "title": "Open For Another Machine…",
+        "category": "8BitScript",
+        "icon": "$(target)"
       },
       {
         "command": "8bitscript.stop",
@@ -259,6 +283,14 @@
         {
           "command": "8bitscript.viewGeneratedAssembly",
           "when": "editorLangId == 8bitscript || editorLangId == 8bitextensible"
+        },
+        {
+          "command": "8bitscript.viewGeneratedAssemblyFor",
+          "when": "editorLangId == 8bitscript || editorLangId == 8bitextensible"
+        },
+        {
+          "command": "8bitscript.assemblyView.openForMachine",
+          "when": "resourceScheme == 8bitscript-asm"
         }
       ],
       "editor/context": [
@@ -266,6 +298,18 @@
           "command": "8bitscript.viewGeneratedAssembly",
           "when": "editorLangId == 8bitscript || editorLangId == 8bitextensible",
           "group": "8bitscript"
+        },
+        {
+          "command": "8bitscript.viewGeneratedAssemblyFor",
+          "when": "editorLangId == 8bitscript || editorLangId == 8bitextensible",
+          "group": "8bitscript"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "8bitscript.assemblyView.openForMachine",
+          "when": "resourceScheme == 8bitscript-asm",
+          "group": "navigation"
         }
       ],
       "view/title": [
@@ -489,6 +533,7 @@
     "syntaxes",
     "snippets",
     "language-configuration.json",
+    "language-configuration.asm.json",
     "README.md",
     "LICENSE"
   ]

@@ -1,0 +1,73 @@
+{
+  "_comment": "Colors the read-only listing assemblyView.cjs renders for 'View Generated Assembly' — never a file on disk, always this exact shape (renderView() in src/assemblyView.cjs, ported straight from the compiler's own ListingLine.text — see packages/compiler/src/mos/asm/assemble.ts's operandText()): a `; ` comment banner and per-function headers, then one instruction per line as `<marker> $addr   bytes   MNEMONIC operand  ; reason`. Nothing here is ever typed, so there is no need to tokenize a hand-written .s file — only what this one renderer actually produces.",
+  "name": "8BitScript Generated Assembly",
+  "scopeName": "source.asm-8bs",
+  "patterns": [
+    { "include": "#functionHeader" },
+    { "include": "#comment" },
+    { "include": "#marker" },
+    { "include": "#directive" },
+    { "include": "#mnemonic" },
+    { "include": "#register" },
+    { "include": "#immediate" },
+    { "include": "#hexNumber" },
+    { "include": "#hexByte" },
+    { "include": "#paren" },
+    { "include": "#comma" },
+    { "include": "#accumulator" }
+  ],
+  "repository": {
+    "functionHeader": {
+      "match": "^; function: (\\S+)(?: \\(inlined from (\\S+)\\))?\\s*$",
+      "name": "comment.line.semicolon.function-header.asm-8bs",
+      "captures": {
+        "1": { "name": "entity.name.function.asm-8bs" },
+        "2": { "name": "entity.name.function.origin.asm-8bs" }
+      }
+    },
+    "comment": {
+      "match": ";.*$",
+      "name": "comment.line.semicolon.asm-8bs"
+    },
+    "marker": {
+      "match": "^>",
+      "name": "keyword.control.marker.asm-8bs"
+    },
+    "directive": {
+      "match": "\\.byte\\b",
+      "name": "keyword.other.directive.asm-8bs"
+    },
+    "mnemonic": {
+      "match": "\\b[A-Z]{3}\\b",
+      "name": "keyword.mnemonic.asm-8bs"
+    },
+    "register": {
+      "match": ",[XY]\\b",
+      "name": "variable.language.register.asm-8bs"
+    },
+    "immediate": {
+      "match": "#(?=\\$)",
+      "name": "keyword.operator.immediate.asm-8bs"
+    },
+    "hexNumber": {
+      "match": "\\$[0-9A-Fa-f]+",
+      "name": "constant.numeric.hex.asm-8bs"
+    },
+    "hexByte": {
+      "match": "\\b[0-9A-Fa-f]{2}\\b",
+      "name": "constant.numeric.hex.byte.asm-8bs"
+    },
+    "paren": {
+      "match": "[()]",
+      "name": "punctuation.definition.parens.asm-8bs"
+    },
+    "comma": {
+      "match": ",",
+      "name": "punctuation.separator.asm-8bs"
+    },
+    "accumulator": {
+      "match": "\\bA\\b",
+      "name": "variable.language.accumulator.asm-8bs"
+    }
+  }
+}
