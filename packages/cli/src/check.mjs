@@ -6,7 +6,7 @@
 import { readFile } from 'node:fs/promises';
 import { relative, resolve } from 'node:path';
 
-import { analyze, positionAt } from '@8bitscript/compiler';
+import { analyze, positionAt, resolveImportAliases } from '@8bitscript/compiler';
 
 import { loadConfig, resolveFrameRate, resolveI18n, resolveLocale } from './config.mjs';
 
@@ -44,6 +44,12 @@ export async function check(files, { checkout } = {}) {
     process.stderr.write(`8bs check: ${i18nResult.error}\n`);
     return 2;
   }
+  const aliasResult = resolveImportAliases(config?.imports, process.cwd());
+  if (!aliasResult.ok) {
+    process.stderr.write(`8bs check: ${aliasResult.error}\n`);
+    return 2;
+  }
+  const { importAliases } = aliasResult;
 
   let total = 0;
 
@@ -62,7 +68,7 @@ export async function check(files, { checkout } = {}) {
     // Resolution needs the real path; the display path is only for printing.
     for (const d of analyze(text, path, {
       resolveImports: true, frameRate, checkout, bx: config?.bx,
-      locale: localeResult.locale, i18n: i18nResult.i18n,
+      locale: localeResult.locale, i18n: i18nResult.i18n, importAliases,
     })) {
       const { line, column } = positionAt(text, d.start);
       process.stdout.write(`${display}:${line}:${column}\n`);

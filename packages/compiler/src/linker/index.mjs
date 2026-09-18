@@ -182,7 +182,7 @@ function loadGraph(entryText, entryFile, diagnostics, sources, options) {
       if (!resolved) {
         diagnostics.push(diagnostic(
           Codes.NOT_COMPILABLE,
-          `import specifier '${imp.source}' is not linkable yet: only './file.8bs' or './file.8bx' paths, bare package names, and package subpaths ('@scope/name/thing') are specified`,
+          `import specifier '${imp.source}' is not linkable yet: only './file.8bs' or './file.8bx' paths, project import aliases ('@lib/…' from 8bitscript.config.ts), bare package names, and package subpaths ('@scope/name/thing') are specified`,
           module.file, imp.start, imp.length,
         ));
         continue;

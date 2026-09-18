@@ -36,6 +36,7 @@ export default defineConfig({
 | `targets` | Machines this project builds for — a name array, or an object with per-machine `hardware`, `profiles`, `release`. |
 | `systems` | Advertised named machines, `{ target, profile?, hardware?, region? }`. [§4.4](#44-name-a-system-for-a-teammate). |
 | `requires` | Fact floors (`memory.ram`, `storage.save`, …) — a system or build that can't meet them is refused, and told by how much. |
+| `imports` | Maps `@prefix` specifiers to directories under the project — `{ '@lib': 'src/lib', '@ui': 'src/ui' }` lets `import { score } from '@lib/game/rules.8bs'` replace `../../lib/…` paths. Keys are one `@` segment; values are relative directory paths. Machine and locale twins beside the target file apply the same way as for a relative import. |
 
 ## §4.2 Build several programs in one project
 

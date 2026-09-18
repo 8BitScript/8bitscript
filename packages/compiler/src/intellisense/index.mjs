@@ -701,10 +701,10 @@ function memberMarkdown(objectName, member, context) {
  *
  * @returns {{ members: Map<string, object>, context: object } | null}
  */
-function importedNamespace(tokens, local, fromFile, checkout, machine = null) {
+function importedNamespace(tokens, local, fromFile, resolverOptions = {}, machine = null) {
   const binding = findImportBindings(tokens).find((b) => b.local === local);
   if (!binding) return null;
-  const resolved = resolvePortableModule(binding.specifier, fromFile, checkout);
+  const resolved = resolvePortableModule(binding.specifier, fromFile, resolverOptions);
   if (!resolved) return null;
 
   if (!resolved.conditional) {
@@ -764,16 +764,19 @@ function machineFor(path, options) {
 export function getHoverInfo(text, offset, options = {}) {
   const { tokens } = tokenize(text, options.path ?? '<unknown>', { sourceKind: kindOf(options) });
   const machine = machineFor(options.path, options);
-  const builtin = hoverAt(tokens, offset, text, options.path, options.checkout, machine);
+  const resolverOptions = { checkout: options.checkout, importAliases: options.importAliases };
+  const builtin = hoverAt(tokens, offset, text, options.path, resolverOptions, machine);
   if (builtin) return builtin;
   // Not a built-in: one of the program's own names, if the binder knows it.
-  const module = bindModule(text, options.path ?? null, { sourceKind: kindOf(options), checkout: options.checkout, machine: machine.machine });
+  const module = bindModule(text, options.path ?? null, {
+    sourceKind: kindOf(options), checkout: options.checkout, machine: machine.machine, importAliases: options.importAliases,
+  });
   const hit = symbolAt(module, offset);
   const markdown = hit ? symbolMarkdown(module, hit.symbol) : null;
   return markdown ? { start: hit.token.start, length: hit.token.length, markdown } : null;
 }
 
-function hoverAt(tokens, offset, text, filePath, checkout, machine = { machine: null, why: null }) {
+function hoverAt(tokens, offset, text, filePath, resolverOptions = {}, machine = { machine: null, why: null }) {
   const index = tokenIndexAt(tokens, offset);
   if (index === -1) return null;
   const token = tokens[index];
@@ -787,7 +790,7 @@ function hoverAt(tokens, offset, text, filePath, checkout, machine = { machine: 
     if (!field) return null;
     const inner = tokenize(text.slice(field.sourceStart, field.sourceEnd)).tokens;
     for (const t of inner) t.start += field.sourceStart;
-    return hoverAt(inner, offset, text, filePath, checkout);
+    return hoverAt(inner, offset, text, filePath, resolverOptions);
   }
 
   if (token.kind === TokenKind.Type) {
@@ -819,7 +822,7 @@ function hoverAt(tokens, offset, text, filePath, checkout, machine = { machine: 
     const dot = tokens[index - 1];
     const object = tokens[index - 2];
     if (dot?.text === '.' && object?.kind === TokenKind.Identifier) {
-      const namespace = importedNamespace(tokens, object.text, filePath, checkout, machine.machine);
+      const namespace = importedNamespace(tokens, object.text, filePath, resolverOptions, machine.machine);
       const member = namespace?.members.get(token.text);
       if (member) {
         return {
@@ -1029,8 +1032,11 @@ export function getCompletions(text, offset, options = {}) {
   const sourceKind = kindOf(options);
   const { tokens } = tokenize(text, options.path ?? '<unknown>', { sourceKind });
   const machine = machineFor(options.path, options);
-  const program = () => bindModule(text, options.path ?? null, { sourceKind, checkout: options.checkout, machine: machine.machine });
-  return completionsAt(tokens, offset, text, options.path, options.checkout, program, sourceKind === '.8bx', machine);
+  const resolverOptions = { checkout: options.checkout, importAliases: options.importAliases };
+  const program = () => bindModule(text, options.path ?? null, {
+    sourceKind, checkout: options.checkout, machine: machine.machine, importAliases: options.importAliases,
+  });
+  return completionsAt(tokens, offset, text, options.path, resolverOptions, program, sourceKind === '.8bx', machine);
 }
 
 /** The completion item for one of the program's own symbols. */
@@ -1114,7 +1120,7 @@ function bxCompletions(tokens, offset, text, program) {
   }));
 }
 
-function completionsAt(tokens, offset, text, filePath, checkout, program, bx = false, machine = { machine: null, why: null }) {
+function completionsAt(tokens, offset, text, filePath, resolverOptions, program, bx = false, machine = { machine: null, why: null }) {
   const index = tokenIndexAt(tokens, offset);
   const token = tokens[index];
   if (token?.kind === TokenKind.Template) {
@@ -1123,7 +1129,7 @@ function completionsAt(tokens, offset, text, filePath, checkout, program, bx = f
     if (!field) return [];
     const inner = tokenize(text.slice(field.sourceStart, field.sourceEnd)).tokens;
     for (const t of inner) t.start += field.sourceStart;
-    return completionsAt(inner, offset, text, filePath, checkout, program);
+    return completionsAt(inner, offset, text, filePath, resolverOptions, program);
   }
   if (token?.kind === TokenKind.Comment || token?.kind === TokenKind.String) return [];
 
@@ -1169,7 +1175,7 @@ function completionsAt(tokens, offset, text, filePath, checkout, program, bx = f
 
   const object = memberPosition(tokens, offset);
   if (object) {
-    const namespace = importedNamespace(tokens, object, filePath, checkout, machine.machine);
+    const namespace = importedNamespace(tokens, object, filePath, resolverOptions, machine.machine);
     if (!namespace) return [];
     const context = { ...namespace.context, machineWhy: machine.why };
     const all = context.portable?.machines ?? [];
