@@ -8,7 +8,7 @@ import { relative, resolve } from 'node:path';
 
 import { analyze, positionAt } from '@8bitscript/compiler';
 
-import { loadConfig, resolveFrameRate } from './config.mjs';
+import { loadConfig, resolveFrameRate, resolveI18n, resolveLocale } from './config.mjs';
 
 /**
  * @param {string[]} files
@@ -34,6 +34,16 @@ export async function check(files, { checkout } = {}) {
     return 2;
   }
   const { frameRate } = frameRateResult;
+  const localeResult = resolveLocale(config, {});
+  if (!localeResult.ok) {
+    process.stderr.write(`8bs check: ${localeResult.error}\n`);
+    return 2;
+  }
+  const i18nResult = resolveI18n(config);
+  if (!i18nResult.ok) {
+    process.stderr.write(`8bs check: ${i18nResult.error}\n`);
+    return 2;
+  }
 
   let total = 0;
 
@@ -50,7 +60,10 @@ export async function check(files, { checkout } = {}) {
 
     const display = relative(process.cwd(), path) || file;
     // Resolution needs the real path; the display path is only for printing.
-    for (const d of analyze(text, path, { resolveImports: true, frameRate, checkout, bx: config?.bx })) {
+    for (const d of analyze(text, path, {
+      resolveImports: true, frameRate, checkout, bx: config?.bx,
+      locale: localeResult.locale, i18n: i18nResult.i18n,
+    })) {
       const { line, column } = positionAt(text, d.start);
       process.stdout.write(`${display}:${line}:${column}\n`);
       process.stdout.write(`${d.severity} ${d.code}: ${d.message}\n\n`);

@@ -1,0 +1,7 @@
+// `@8bitscript/i18n/catalog` is resolved by the compiler to the project's
+// merged message catalog (`src/i18n/<locale>.8bs`, selected locale with
+// missing keys from the fallback). This file is the package's export-map
+// entry so the subpath exists; a program never links it.
+export namespace Catalog {
+    const EMPTY: string = "";
+}

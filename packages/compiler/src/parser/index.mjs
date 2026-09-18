@@ -1043,6 +1043,28 @@ class Parser {
       return inner;
     }
 
+    // `{ control: Label }`: a compile-time record. Only `i18n.format` takes
+    // one; the checker refuses it anywhere else.
+    if (token.text === '{') {
+      this.next();
+      const properties = [];
+      while (!this.atEnd && !this.at('}')) {
+        const key = this.expectIdentifier('a field name');
+        if (!key) break;
+        this.expect(':');
+        const value = this.parseExpression();
+        if (!value) break;
+        properties.push(node(NodeType.RecordProperty, key.start, value.start + value.length, {
+          key: key.name, value,
+        }));
+        if (!this.eat(',')) break;
+      }
+      const close = this.expect('}');
+      const last = properties[properties.length - 1];
+      const literalEnd = close ? close.start + 1 : (last ? last.start + last.length : end);
+      return node(NodeType.RecordLiteral, token.start, literalEnd, { properties });
+    }
+
     // `[1, 2, 3]`: an array initializer. A trailing comma is allowed, as in
     // TypeScript, so a table one value per line can end every line alike.
     if (token.text === '[') {

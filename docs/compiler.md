@@ -17,6 +17,7 @@ the linker touches the filesystem.
 | lexer | source text (`.8bs` or `.8bx`) | tokens and lexical diagnostics; in `.8bx`, tag/children/expression modes give element syntax its own tokens |
 | parser | tokens | AST and syntax diagnostics |
 | fold | AST | the same tree, with `#name(...)` calls resolved (`#frames`, `#system`, `#fact`, `#locale`, `#package`) |
+| catalogs | `@8bitscript/i18n/catalog` | the selected `src/i18n/<locale>.8bs`, schema-checked against the default locale, missing keys filled from the fallback, Latin extras transliterated, `i18n.format` folded to a literal |
 | binder | AST | symbols, scopes, binding diagnostics |
 | checker | AST | type/range/component diagnostics |
 | 8BX elaboration | AST with BX nodes | core AST: a component is a function (two, around its `<slot />`), an element is a call to it; `state` is a template global per field, cloned per instance by the linker (no BX in backends) |
@@ -45,3 +46,12 @@ folding, checking, lowering — and links the IR. Backends receive
 optimized IR; they do not parse 8BX. A component call whose arguments are
 all compile-time values is inlined by the linker's optimizer, so a static
 composition costs what hand-written calls would.
+
+Catalog diagnostics (`packages/compiler/src/i18n`):
+
+| Code | Means |
+| --- | --- |
+| 8BS1043 | `@8bitscript/i18n/catalog` with no `src/i18n/<locale>.8bs`, or a file that is not exported namespaces of string consts |
+| 8BS1044 | Two locale catalogs do not export the same namespaces and string const names |
+| 8BS1045 | A catalog string's `{name}` placeholders do not match the default locale's |
+| 8BS1046 | `i18n.format` could not fold: a missing param, a non-const argument, or a record used somewhere other than as its second argument |

@@ -27,3 +27,13 @@ export namespace Locale {
     const DECIMAL: utinyint = 46; // '.' — 3.5
     const GROUP: utinyint = 44;   // ',' — 65,535
 }
+
+// Folded by the compiler at every call site (`i18n.format(Prompt.START,
+// { control: Input.CONFIRM_LABEL })` becomes the interpolated literal).
+// The body is never linked on a retro build.
+export namespace i18n {
+    // Interpolate {name} slots in a catalog string. Folded at every
+    // call site; the body is never linked on a retro build.
+    function format(template: string): void {
+    }
+}

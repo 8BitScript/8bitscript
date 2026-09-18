@@ -42,9 +42,11 @@ import { bind, bindImportedComponents } from '../binder/index.mjs';
 import { checkBx } from '../bx/check.mjs';
 import { elaborateBx } from '../bx/elaborate.mjs';
 import { sourceKindOf } from '../source/index.mjs';
+import { applyCatalogCharset, isCatalogFile } from '../i18n/index.mjs';
 import { lower } from '../ir/index.mjs';
 import { findImports, resolveSpecifier, nativeSourcesBeside } from '../resolver/index.mjs';
 import { Codes, diagnostic } from '../diagnostics/index.mjs';
+import { formatMessage, isI18nPackageFile } from '../i18n/index.mjs';
 import { storageBytes, resolveIntegerType, narrowestIntegerType } from '../types/index.mjs';
 import { typeForCount, widerOf, COMPARISON_OPERATORS } from '../templates/index.mjs';
 import { checkHardwareHazards } from './hazards.mjs';
@@ -79,16 +81,20 @@ function parseModule(file, text, diagnostics) {
  * are known: element checks, 8BX elaboration, folding, checking, and
  * lowering to this module's IR.
  */
-function finishModule(module, diagnostics, { frameRate, machine, facts, bx, locale }) {
+function finishModule(module, diagnostics, { frameRate, machine, facts, bx, locale, i18n }) {
   const { file, text, ast, bound } = module;
   diagnostics.push(...checkBx(ast, file, bound.symbols, { sourceKind: sourceKindOf(file) ?? '.8bs', strict: bx?.strict !== false }));
   elaborateBx(ast, bound.symbols, file);
+  const catalog = isCatalogFile(file, i18n);
+  if (catalog) {
+    diagnostics.push(...applyCatalogCharset(ast, file, i18n?.charset ?? 'transliterate'));
+  }
   // Folding runs before check(): a #frames(...) call needs to already be a
   // plain IntegerLiteral by the time the width-fit rule walks the tree, so
   // e.g. #frames(100, seconds) overflowing a utinyint gets that diagnostic for free,
   // with no separate rule duplicating it here.
   diagnostics.push(...foldCompileTime(ast, file, { frameRate, machine, facts, locale }));
-  diagnostics.push(...check(ast, file, text));
+  diagnostics.push(...check(ast, file, text, { skipScreenText: catalog }));
   const { ir, diagnostics: lowering } = lower(ast, file, text);
   // The template layout runs in both check() (so the editor sees it) and
   // lower() (so a direct lower() can never drop a template silently); one
@@ -122,7 +128,7 @@ function loadGraph(entryText, entryFile, diagnostics, sources, options) {
   // once each however many modules import the package — keyed by canonical
   // path for the same pnpm-symlink reason `byPath` is.
   const nativeSources = new Map();
-  const finishOptions = { frameRate: options.frameRate, machine: options.machine, facts: options.facts, bx: options.bx, locale: options.locale };
+  const finishOptions = { frameRate: options.frameRate, machine: options.machine, facts: options.facts, bx: options.bx, locale: options.locale, i18n: options.i18n };
 
   const enqueue = (file, text) => {
     const module = parseModule(file, text, diagnostics);
@@ -145,12 +151,13 @@ function loadGraph(entryText, entryFile, diagnostics, sources, options) {
     const module = modules[i];
     for (const { specifier } of findImports(module.tokens)) {
       const resolved = resolveSpecifier(specifier, module.file, options);
+      if (resolved?.diagnostics) diagnostics.push(...resolved.diagnostics.filter((d) => !diagnostics.includes(d)));
       if (!resolved || resolved.code || resolved.path === null) continue;
       const key = canonical(resolved.path);
       if (byPath.has(key)) continue;
       let text;
       try {
-        text = readFileSync(resolved.path, 'utf8');
+        text = resolved.text ?? readFileSync(resolved.path, 'utf8');
       } catch {
         continue;
       }
@@ -208,7 +215,7 @@ function loadGraph(entryText, entryFile, diagnostics, sources, options) {
         // it): load it now, whole, so nothing is silently missing.
         let text;
         try {
-          text = readFileSync(resolved.path, 'utf8');
+          text = resolved.text ?? readFileSync(resolved.path, 'utf8');
         } catch {
           diagnostics.push(diagnostic(
             Codes.UNRESOLVED_RELATIVE_IMPORT,
@@ -609,6 +616,77 @@ function assignOutputNames(modules) {
   }
 }
 
+function isI18nFormatCall(module, expr) {
+  if (expr.member !== 'format') return false;
+  const binding = module.namespaceBindings.get(expr.namespace);
+  if (!binding) return false;
+  return binding.name === 'i18n' && isI18nPackageFile(binding.module.file);
+}
+
+function internProgramString(module, text) {
+  const ir = module.program;
+  let index = ir.strings.findIndex((s) => s.text === text);
+  if (index === -1) {
+    index = ir.strings.length;
+    ir.strings.push({ text, bytes: [...text].map((ch) => ch.charCodeAt(0) & 0xFF) });
+  }
+  return index;
+}
+
+function stringTextOf(expr, module) {
+  if (expr.kind === 'string' && module.program?.strings) {
+    return module.program.strings[expr.index]?.text ?? null;
+  }
+  return null;
+}
+
+function foldI18nFormat(expr, module, diagnostics) {
+  const at = (message) => diagnostics.push(diagnostic(
+    Codes.I18N_FORMAT, message, module.file, expr.start ?? 0, expr.length ?? 0,
+  ));
+  if (expr.args.length < 1 || expr.args.length > 2) {
+    at('i18n.format takes a template and an optional { name: value } record');
+    return;
+  }
+  const template = stringTextOf(expr.args[0], module);
+  if (template === null) {
+    at('i18n.format needs a string const or string literal as its template');
+    return;
+  }
+  const params = {};
+  if (expr.args.length === 2) {
+    const record = expr.args[1];
+    if (record.kind !== 'record') {
+      at('i18n.format\'s second argument is a record: { name: value }');
+      return;
+    }
+    for (const field of record.fields ?? []) {
+      const value = stringTextOf(field.value, module);
+      if (value === null) {
+        at(`i18n.format's '${field.name}' must be a string const or string literal`);
+        return;
+      }
+      params[field.name] = value;
+    }
+  }
+  const result = formatMessage(template, params);
+  if (!result.ok) {
+    at(result.error);
+    return;
+  }
+  if (![...result.text].every((ch) => /^[ 0-9A-Za-z!,\-.:?]$/.test(ch))) {
+    at('i18n.format produced a character that is not in the portable set');
+    return;
+  }
+  const index = internProgramString(module, result.text);
+  delete expr.namespace;
+  delete expr.member;
+  delete expr.args;
+  expr.kind = 'string';
+  expr.index = index;
+  expr.type = 'string';
+}
+
 function rewriteExpression(expr, scope, module, diagnostics) {
   switch (expr.kind) {
     case 'ref': {
@@ -656,6 +734,18 @@ function rewriteExpression(expr, scope, module, diagnostics) {
       return;
     case 'stringLength':
       rewriteExpression(expr.string, scope, module, diagnostics);
+      if (expr.string.kind === 'string' && module.program?.strings) {
+        const s = module.program.strings[expr.string.index];
+        expr.kind = 'const';
+        expr.value = s.text.length;
+        expr.type = 'utinyint';
+        delete expr.string;
+        delete expr.start;
+        delete expr.length;
+      }
+      return;
+    case 'record':
+      for (const field of expr.fields ?? []) rewriteExpression(field.value, scope, module, diagnostics);
       return;
     case 'stringByte':
       rewriteExpression(expr.string, scope, module, diagnostics);
@@ -703,6 +793,11 @@ function rewriteExpression(expr, scope, module, diagnostics) {
       rewriteExpression(expr.address, scope, module, diagnostics);
       return;
     case 'namespaceCall': {
+      for (const argument of expr.args) rewriteExpression(argument, scope, module, diagnostics);
+      if (isI18nFormatCall(module, expr)) {
+        foldI18nFormat(expr, module, diagnostics);
+        return;
+      }
       const result = resolveNamespaceMember(module, expr.namespace, expr.member, 'functions');
       if (!result.namespaceFound) {
         diagnostics.push(diagnostic(
@@ -725,7 +820,6 @@ function rewriteExpression(expr, scope, module, diagnostics) {
         delete expr.namespace;
         delete expr.member;
       }
-      for (const argument of expr.args) rewriteExpression(argument, scope, module, diagnostics);
       if (expr.kind === 'call') { completeCall(expr, module, diagnostics); delete expr.original; }
       return;
     }
@@ -781,6 +875,13 @@ function rewriteExpression(expr, scope, module, diagnostics) {
           `'${expr.member}' is not a const in namespace '${expr.namespace}'`,
           module.file, expr.start ?? 0, expr.length ?? 0,
         ));
+      } else if (typeof result.value === 'object' && result.value?.string !== undefined) {
+        const index = result.targetModule.stringMap?.[result.value.string] ?? result.value.string;
+        expr.kind = 'string';
+        expr.index = index;
+        expr.type = 'string';
+        delete expr.namespace;
+        delete expr.member;
       } else {
         // A genuine namespace const (`BorderColor.BLUE`): inlined as a
         // plain value, same as one of this module's own consts. Its

@@ -232,18 +232,37 @@ function checkFunctions(ast, file, source, diagnostics) {
  * @param {object} ast   Program node from the parser.
  * @param {string} file
  * @param {string|null} [source]  The file's text, so a diagnostic can quote code back.
+ * @param {{ skipScreenText?: boolean }} [options]
  * @returns {object[]} diagnostics
  */
-export function check(ast, file = '<unknown>', source = null) {
+export function check(ast, file = '<unknown>', source = null, options = {}) {
   const diagnostics = [];
   if (!ast) return diagnostics;
 
   checkFunctions(ast, file, source, diagnostics);
 
   walk(ast, (n, parent) => {
+    if (n.type === NodeType.RecordLiteral) {
+      const format = parent?.type === NodeType.CallExpression
+        && parent.callee?.type === NodeType.MemberExpression
+        && parent.callee.property?.name === 'format'
+        && parent.args?.[1] === n;
+      if (!format) {
+        diagnostics.push(diagnostic(
+          Codes.I18N_FORMAT,
+          'a record { name: value } is the argument list for i18n.format',
+          file, n.start, n.length,
+        ));
+      }
+      return;
+    }
+
     if (
-      (n.type === NodeType.StringLiteral && parent?.type !== NodeType.ImportDeclaration)
-      || n.type === NodeType.TemplateText
+      !options.skipScreenText
+      && (
+        (n.type === NodeType.StringLiteral && parent?.type !== NodeType.ImportDeclaration)
+        || n.type === NodeType.TemplateText
+      )
     ) {
       checkScreenText(n, file, diagnostics);
       return;

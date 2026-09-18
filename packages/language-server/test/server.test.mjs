@@ -777,6 +777,33 @@ test('textDocument/completion offers canonical built-in types in a type position
   });
 });
 
+test('diagnostics: @8bitscript/i18n/catalog with no catalog directory reaches the editor as 8BS1043', async () => {
+  const projectDir = await mkdtemp(join(tmpdir(), '8bs-lsp-catalog-'));
+  try {
+    await mkdir(join(projectDir, 'src'));
+    const filePath = join(projectDir, 'src', 'main.8bs');
+    const text = 'import { Game } from "@8bitscript/i18n/catalog";\nexport function main(): void {}\n';
+    await writeFile(filePath, text);
+    const uri = pathToFileURL(filePath).href;
+
+    await withServer(async (client) => {
+      await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
+      client.notify('initialized', {});
+
+      client.notify('textDocument/didOpen', {
+        textDocument: { uri, languageId: '8bitscript', version: 1, text },
+      });
+
+      const published = await client.waitForNotification('textDocument/publishDiagnostics');
+      const catalog = published.params.diagnostics.find((d) => d.code === '8BS1043');
+      assert.ok(catalog, JSON.stringify(published.params.diagnostics));
+      assert.match(catalog.message, /message catalog/);
+    });
+  } finally {
+    await rm(projectDir, { recursive: true, force: true });
+  }
+});
+
 // A package subpath the package does not export — `@t/p/sprites` against a
 // manifest whose "8bitscript".exports has no './sprites' — is 8BS2011 in the
 // compiler (packages/compiler/src/resolver); this is the proof it reaches

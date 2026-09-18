@@ -44,6 +44,7 @@ plain `export default { … }` is still a config.
 | `targets` | Machines this project builds for: an array of names, or an object. Per machine: `hardware` (default options), `profiles` (named option sets `--profile` accepts), `release` (what `8bs build --release` builds). |
 | `systems` | Advertised named machines. Each value is `{ target, profile?, hardware?, region? }`. A name cannot be a machine id (`pet`, `c64`, …). The whole team sees these; they are source. |
 | `requires` | Fact floors (`memory.ram`, `storage.save`, …). A system or a build that cannot meet them is refused with what would. |
+| `i18n` | Message catalogs under `catalog` (`src/i18n/<locale>.8bs` by default), imported as `@8bitscript/i18n/catalog`. `{ defaultLocale, fallbackLocale, locales, catalog, charset }`. A project without this block and without that directory is unchanged. See below. |
 
 `restoreOnExit` is retired. If the file still sets it, the CLI says so
 and ignores it.
@@ -125,7 +126,30 @@ The twin rule applies inside packages too. `@8bitscript/i18n` is one file
 per locale — its `Locale.DECIMAL` and `Locale.GROUP` are the build's
 locale's separators, and `@8bitscript/i18n/number` prints a grouped
 number with them — so a program reads one name and the build picks the
-file, the same way it picks the program's own `strings.de.8bs`.
+file. Message catalogs are a different seam: `src/i18n/en.8bs` beside
+`src/i18n/de.8bs`, imported as `@8bitscript/i18n/catalog`. The compiler
+merges the selected locale with the fallback, interpolates
+`i18n.format(...)`, and transliterates Latin extras (`Ü` → `UE`) into
+the portable set. One locale, one image.
+
+```ts
+export default defineConfig({
+  i18n: {
+    defaultLocale: 'en',
+    fallbackLocale: 'en',
+    locales: ['en', 'de'],
+    charset: 'transliterate', // or 'strict'
+  },
+});
+```
+
+A project with catalogs and no nearer locale uses `defaultLocale` (`en`),
+so English needs no `--locale` and keeps the artifact name it always had.
+A different locale still tags the file (`2048-pet-de.prg`). A project
+with neither the `i18n` block nor a catalog directory still names no
+locale, and `#locale(...)` stays false. `--locale`, a `release` entry's
+`locale`, `targets.<m>.locale`, and top-level `locale` still pick twins
+(`index.de.8bs`).
 
 ## Images
 

@@ -5,3 +5,10 @@ export namespace Locale {
     const DECIMAL: utinyint = 44; // ','
     const GROUP: utinyint = 32;   // ' '
 }
+
+export namespace i18n {
+    // Interpolate {name} slots in a catalog string. Folded at every
+    // call site; the body is never linked on a retro build.
+    function format(template: string): void {
+    }
+}

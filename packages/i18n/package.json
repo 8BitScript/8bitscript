@@ -11,7 +11,9 @@
   "8bitscript": {
     "entry": "./src/index.8bs",
     "exports": {
-      "./number": "./src/number.8bs"
+      "./number": "./src/number.8bs",
+      "./messages": "./src/messages.8bs",
+      "./catalog": "./src/catalog.8bs"
     }
   },
   "files": [
