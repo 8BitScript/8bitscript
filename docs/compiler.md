@@ -16,7 +16,7 @@ the linker touches the filesystem.
 | --- | --- | --- |
 | lexer | source text (`.8bs` or `.8bx`) | tokens and lexical diagnostics; in `.8bx`, tag/children/expression modes give element syntax its own tokens |
 | parser | tokens | AST and syntax diagnostics |
-| fold | AST | the same tree, with `#name(...)` calls resolved |
+| fold | AST | the same tree, with `#name(...)` calls resolved (`#frames`, `#system`, `#fact`, `#locale`, `#package`) |
 | binder | AST | symbols, scopes, binding diagnostics |
 | checker | AST | type/range/component diagnostics |
 | 8BX elaboration | AST with BX nodes | core AST: a component is a function (two, around its `<slot />`), an element is a call to it; `state` is a template global per field, cloned per instance by the linker (no BX in backends) |
