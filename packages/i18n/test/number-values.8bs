@@ -1,0 +1,19 @@
+// Run for real on the web target by i18n.test.mjs, which reads the
+// character cells back out of the web host's text buffer: every digit
+// count from one to five, a zero, the largest usmallint, a field wider
+// than its number and one narrower. Once with no locale and once as a
+// German build, where the only difference is the separator. The entry
+// module may export only its own `main`, so the work is here.
+import { number } from "../src/number.8bs";
+
+export function run(): void {
+    number.print(0, 0, 6);       // "     0"
+    number.print(8, 7, 6);       // "     7"
+    number.print(16, 42, 6);     // "    42"
+    number.print(24, 999, 6);    // "   999"
+    number.print(32, 1000, 6);   // " 1,000"
+    number.print(40, 12345, 6);  // "12,345"
+    number.print(48, 65535, 6);  // "65,535"
+    number.print(56, 1234, 8);   // "   1,234" — a wider field
+    number.print(64, 1234, 2);   // "1,234" — a narrower one: printed whole, from cell
+}

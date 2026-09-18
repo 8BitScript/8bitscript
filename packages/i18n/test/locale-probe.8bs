@@ -1,0 +1,10 @@
+// Linked for every target by i18n.test.mjs: the whole surface, read.
+import { text } from "@8bitscript/text";
+import { Locale } from "../src/index.8bs";
+import { number } from "../src/number.8bs";
+
+export function main(): void {
+    text.putChar(0, Locale.DECIMAL);
+    text.putChar(1, Locale.GROUP);
+    number.print(2, 1234, 6);
+}

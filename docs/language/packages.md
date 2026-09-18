@@ -13,6 +13,7 @@ nav_order: 7
 | `@8bitscript/text` | The character grid — ASCII in, one cell at a time, identical on every target. |
 | `@8bitscript/input` | Four directions, confirm, cancel, and a pointer where the machine has one. |
 | `@8bitscript/random` | Deterministic, explicitly-seeded generators: a 16-bit LCG at the bare import, a precomputed table at `./table`. Hardware entropy lives behind its own machine-specific import. |
+| `@8bitscript/i18n` | What the build's locale is like, at compile time: `Locale.DECIMAL` and `Locale.GROUP` as one file per locale inside the package, picked by `--locale`; a grouped number printed with them at `./number`. Strings stay the program's own, in its `strings.<locale>.8bs` twins. |
 | `@8bitscript/raster` | Per-scanline effects named by what they do (a border split, a wobble) rather than which register to hit. `#fact(video.raster)` says whether this machine has a real implementation at all — the C64 and the web do today. |
 | `@8bitscript/system` | One name per machine, for `#system()` ([§1.9](core.md#19-branch-on-the-machine-at-compile-time)). |
 | `@8bitscript/ui` | Retained widgets built on the portable APIs — the menu bar ([§2.3](composition.md#23-accept-children-with-slot)) is the first dogfood target. |

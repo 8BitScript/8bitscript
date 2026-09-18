@@ -11,6 +11,7 @@
       "@8bitscript/compiler",
       "@8bitscript/cx16",
       "@8bitscript/examples",
+      "@8bitscript/i18n",
       "@8bitscript/input",
       "@8bitscript/language-server",
       "@8bitscript/mega65",

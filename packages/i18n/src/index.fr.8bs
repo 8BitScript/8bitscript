@@ -1,0 +1,7 @@
+// French — index.8bs's twin for `--locale fr`. CLDR fr: decimal ",",
+// group U+202F narrow no-break space (1 234,5); a character grid has one
+// space, so it is 32.
+export namespace Locale {
+    const DECIMAL: utinyint = 44; // ','
+    const GROUP: utinyint = 32;   // ' '
+}
