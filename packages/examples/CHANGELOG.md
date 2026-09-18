@@ -1,5 +1,17 @@
 # @8bitscript/examples
 
+## 0.13.1
+
+### Patch Changes
+
+- @8bitscript/input@0.13.1
+  - @8bitscript/pet@0.13.1
+  - @8bitscript/raster@0.13.1
+  - @8bitscript/screen@0.13.1
+  - @8bitscript/system@0.13.1
+  - @8bitscript/text@0.13.1
+  - @8bitscript/web@0.13.1
+
 ## 0.13.0
 
 ### Patch Changes
