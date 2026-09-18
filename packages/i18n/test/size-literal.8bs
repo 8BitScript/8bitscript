@@ -1,0 +1,7 @@
+// See size-fact.8bs.
+import { text } from "@8bitscript/text";
+
+export function main(): void {
+    waitFrame();
+    text.putChar(0, 44);
+}

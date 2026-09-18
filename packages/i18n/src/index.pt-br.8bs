@@ -1,0 +1,6 @@
+// Brazilian Portuguese — index.8bs's twin for `--locale pt-br`. CLDR
+// pt-BR: decimal ",", group "." (1.234,5).
+export namespace Locale {
+    const DECIMAL: utinyint = 44; // ','
+    const GROUP: utinyint = 46;   // '.'
+}

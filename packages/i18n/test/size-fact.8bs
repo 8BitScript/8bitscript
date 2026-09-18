@@ -1,0 +1,14 @@
+// Built for the 6502 by i18n.test.mjs beside size-literal.8bs: the same
+// program with Locale.GROUP where that one writes 44, and the two images
+// must be byte-identical — a namespace const read across the package
+// boundary folds to its literal. waitFrame() so the build owns the
+// machine's zero page, the shape every real program has (a program that
+// never waits a frame is a polite guest of BASIC with eight bytes of it
+// on the VIC-20, which not even text.printNumber fits).
+import { text } from "@8bitscript/text";
+import { Locale } from "../src/index.8bs";
+
+export function main(): void {
+    waitFrame();
+    text.putChar(0, Locale.GROUP);
+}

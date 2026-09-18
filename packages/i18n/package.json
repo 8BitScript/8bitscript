@@ -1,0 +1,29 @@
+{
+  "name": "@8bitscript/i18n",
+  "version": "0.13.1",
+  "description": "What a locale is like, decided at compile time: the bare import is the build's locale's own facts — its decimal and grouping separators — as a twin file per locale inside the package, so a program reads Locale.GROUP and the build picks the file; ./number prints a grouped number through @8bitscript/text with them. Costs nothing where it is not read.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/8BitScript/8bitscript.git",
+    "directory": "packages/i18n"
+  },
+  "8bitscript": {
+    "entry": "./src/index.8bs",
+    "exports": {
+      "./number": "./src/number.8bs"
+    }
+  },
+  "files": [
+    "src"
+  ],
+  "dependencies": {
+    "@8bitscript/text": "workspace:*"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
