@@ -304,9 +304,18 @@ class Lowering {
           continue;
         }
         const typeName = member.typeAnnotation?.name;
-        const resolved = typeName && resolveScalarType(typeName);
+        const resolved = typeName && resolveScalarType(typeName, { allowString: true });
         if (!resolved || resolved === 'void') {
           this.fail(member, `a namespace const of type ${typeName ?? '(none)'} is not compilable yet`);
+          continue;
+        }
+        if (resolved === 'string') {
+          if (member.initializer?.type !== NodeType.StringLiteral) {
+            this.fail(member.initializer ?? member, 'a namespace string const needs a string literal: const NAME: string = "..."');
+            continue;
+          }
+          const slot = this.stringConstant(member.initializer, member.initializer.value);
+          consts.set(member.name.name, { string: slot.index });
           continue;
         }
         // The same initializers a module-level const takes: a literal, or a
@@ -1414,7 +1423,24 @@ class Lowering {
         }
         return call;
       }
+      case NodeType.RecordLiteral: {
+        const fields = [];
+        for (const prop of node.properties ?? []) {
+          const value = prop.value && this.expression(prop.value);
+          if (!value) return null;
+          fields.push({
+            name: prop.key, value,
+            start: prop.start, length: prop.length,
+          });
+        }
+        return { kind: 'record', fields, start: node.start, length: node.length };
+      }
       case NodeType.MemberExpression: {
+        if (node.property.name === 'length' && node.object.type !== NodeType.Identifier) {
+          const inner = this.expression(node.object);
+          if (!inner) return null;
+          return { kind: 'stringLength', string: inner, type: 'utinyint', start: node.start, length: node.length };
+        }
         if (node.object.type !== NodeType.Identifier) {
           return this.fail(node, 'a member expression is not compilable yet');
         }

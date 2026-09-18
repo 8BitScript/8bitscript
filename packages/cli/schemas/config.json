@@ -82,10 +82,11 @@
                 "items": {
                   "oneOf": [
                     { "type": "string" },
-                    { "type": "object", "additionalProperties": false, "properties": { "profile": { "type": "string" }, "hardware": { "$ref": "#/$defs/hardware" } } }
+                    { "type": "object", "additionalProperties": false, "properties": { "profile": { "type": "string" }, "hardware": { "$ref": "#/$defs/hardware" }, "locale": { "type": "string" } } }
                   ]
                 }
-              }
+              },
+              "locale": { "type": "string", "description": "This machine's locale, over the project's." }
             }
           }
         }
@@ -106,6 +107,22 @@
       }
     },
     "requires": { "$ref": "#/$defs/requires" },
+    "locale": {
+      "type": "string",
+      "description": "The locale every build is for, unless a target, a release entry, or --locale says otherwise."
+    },
+    "i18n": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Message catalogs under catalog/ (default src/i18n/<locale>.8bs), imported as @8bitscript/i18n/catalog.",
+      "properties": {
+        "defaultLocale": { "type": "string", "default": "en" },
+        "fallbackLocale": { "type": "string" },
+        "locales": { "type": "array", "items": { "type": "string" } },
+        "catalog": { "type": "string", "default": "src/i18n" },
+        "charset": { "enum": ["transliterate", "strict"], "default": "transliterate" }
+      }
+    },
     "bx": {
       "type": "object",
       "additionalProperties": false,

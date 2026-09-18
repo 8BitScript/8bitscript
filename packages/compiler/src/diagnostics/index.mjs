@@ -123,6 +123,17 @@ export const Codes = {
   // `#package("version")` where no package.json is above the file, or the
   // one found does not parse or has no such field — named in the message.
   PACKAGE_NOT_FOUND: '8BS1042',
+  // A message catalog is missing, extra, or not a catalog: `@8bitscript/i18n/catalog`
+  // with no `src/i18n/<locale>.8bs`, or a file that is not exported namespaces
+  // of string consts (packages/compiler/src/i18n).
+  CATALOG: '8BS1043',
+  // Two locale catalogs do not export the same namespaces and string const names.
+  CATALOG_SCHEMA: '8BS1044',
+  // A catalog string's `{name}` placeholders do not match the default locale's.
+  CATALOG_PLACEHOLDER: '8BS1045',
+  // `i18n.format` could not fold: a missing param, a non-const argument, or a
+  // record used somewhere other than as its second argument.
+  I18N_FORMAT: '8BS1046',
 
   UNRESOLVED_PACKAGE: '8BS2001',
   NOT_AN_8BS_PACKAGE: '8BS2002',

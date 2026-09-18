@@ -63,6 +63,11 @@ export const NodeType = {
   // lowering only accepts compile-time values there — the data is laid
   // out before the program runs.
   ArrayLiteral: 'ArrayLiteral',
+  // `{ control: Input.CONFIRM_LABEL }`: a compile-time record, only as the
+  // second argument of `i18n.format`. Keys are identifiers; values are
+  // string consts or literals.
+  RecordLiteral: 'RecordLiteral',
+  RecordProperty: 'RecordProperty',
 
   AssignmentExpression: 'AssignmentExpression',
   BinaryExpression: 'BinaryExpression',

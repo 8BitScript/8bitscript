@@ -40,6 +40,18 @@ Ten calls, the same ten on every machine:
 | `pointerCell()` | Where it is, as a flat cell index |
 | `pointerButton()` | Its main button, on the frame its press began |
 
+And three compile-time string consts on `Input` (PascalCase, the label
+namespace — not the `input` calls):
+
+| Const | Typical values |
+| --- | --- |
+| `Input.CONFIRM_LABEL` | `RETURN` / `START` / `FIRE` / `ENTER` |
+| `Input.ALT_CONFIRM_LABEL` | the other confirm word on a dual-input machine |
+| `Input.CONFIRM_LABELS` | `RETURN OR FIRE`, `RETURN OR START` |
+
+Those are the words a catalog interpolates as `{control}` / `{other}`.
+OR / ODER lives in the catalog. Touch prompts are catalog keys, not labels.
+
 Four things about that surface are decisions:
 
 - **Everything is edge-triggered.** `right()` is true on the one frame the

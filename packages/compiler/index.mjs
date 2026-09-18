@@ -16,6 +16,7 @@ import { foldCompileTime } from './src/fold/index.mjs';
 import { lower } from './src/ir/index.mjs';
 import { resolveImports, resolveSpecifier } from './src/resolver/index.mjs';
 import { sourceKindOf } from './src/source/index.mjs';
+import { applyCatalogCharset, isCatalogFile } from './src/i18n/index.mjs';
 import { bind, bindImportedComponents } from './src/binder/index.mjs';
 import { checkBx } from './src/bx/check.mjs';
 import { elaborateBx } from './src/bx/elaborate.mjs';
@@ -36,6 +37,10 @@ export { link, memoryOf } from './src/linker/index.mjs';
 export {
   MACHINES, RELEASE_MACHINES, isReleaseMachine, findImports, isVariantPath, machineOfVariant, resolveImports, resolveSpecifier, variantOf, tagsOf,
 } from './src/resolver/index.mjs';
+export {
+  CATALOG_SPECIFIER, CATALOG_CHARACTERS, PORTABLE_CHARACTERS, TRANSLITERATIONS, applyCatalogCharset, discoverCatalogLocales,
+  formatMessage, isCatalogFile, placeholdersOf, prepareCatalog, transliterate,
+} from './src/i18n/index.mjs';
 export {
   SOURCE_EXTENSIONS, LOCALE_NAME, isLocaleName, isSourceFile, sourceKindOf, stripSourceExtension,
 } from './src/source/index.mjs';
@@ -70,7 +75,7 @@ export { getHoverInfo, getCompletions, getDefinition } from './src/intellisense/
  *
  * @param {string} text
  * @param {string} file
- * @param {{ resolveImports?: boolean, frameRate?: number, machine?: string, facts?: object, locale?: string, checkout?: string|null, sourceKind?: '.8bs'|'.8bx', bx?: { strict?: boolean } }} [options]
+ * @param {{ resolveImports?: boolean, frameRate?: number, machine?: string, facts?: object, locale?: string, i18n?: object, checkout?: string|null, sourceKind?: '.8bs'|'.8bx', bx?: { strict?: boolean } }} [options]
  *   `machine` is the target when one is known; without it `#system()` and
  *   `#fact(...)` fold to placeholders and are valid-but-target-dependent,
  *   as a `.<machine>.8bs` import is. `facts` is the machine's hardware
@@ -110,11 +115,16 @@ export function analyze(text, file = '<unknown>', options = {}) {
   binding.push(...checkBx(ast, file, bound.symbols, { sourceKind, strict: options.bx?.strict !== false }));
   elaborateBx(ast, bound.symbols, file);
 
+  const catalog = isCatalogFile(file, options.i18n);
+  const catalogCharset = catalog
+    ? applyCatalogCharset(ast, file, options.i18n?.charset ?? 'transliterate')
+    : [];
+
   // Folding runs before check(), same ordering as the linker: a
   // #frames(...) call needs to already be a plain IntegerLiteral by the
   // time the width-fit rule walks the tree.
   const folding = foldCompileTime(ast, file, { frameRate: options.frameRate, machine: options.machine, facts: options.facts, locale: options.locale });
-  const all = [...lexical, ...syntax, ...binding, ...folding, ...check(ast, file, text)];
+  const all = [...lexical, ...syntax, ...binding, ...catalogCharset, ...folding, ...check(ast, file, text, { skipScreenText: catalog })];
   // A few rules — the template layout above all — are deliberately run by
   // both check() and lower(), so that `check()` alone is a complete
   // AST-level answer and `lower()` alone can never drop a construct

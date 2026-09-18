@@ -147,3 +147,11 @@ export namespace input {
         return false;
     }
 }
+
+// Compile-time names for the confirm control, interpolated into catalogs
+// as {control} / {other}. OR / ODER lives in the catalog, not here.
+export namespace Input {
+    const CONFIRM_LABEL: string = "START";
+    const ALT_CONFIRM_LABEL: string = "START";
+    const CONFIRM_LABELS: string = "START";
+}

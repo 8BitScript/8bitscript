@@ -1,5 +1,11 @@
 # @8bitscript/i18n
 
+## Unreleased
+
+### Minor Changes
+
+- Add `@8bitscript/i18n/catalog` (project `src/i18n/<locale>.8bs` namespaces, compile-time `i18n.format`, Latin transliteration) and `@8bitscript/i18n/messages` (`printLine`, `clearLine`) for layout padding. Words stay out of this package; number grouping stays `Locale.*` / `./number`.
+
 ## 0.14.0
 
 ### Minor Changes

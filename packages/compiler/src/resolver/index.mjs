@@ -19,6 +19,7 @@ import { basename, dirname, isAbsolute, join, resolve as resolvePath } from 'nod
 
 import { Codes, diagnostic } from '../diagnostics/index.mjs';
 import { TokenKind } from '../lexer/index.mjs';
+import { resolveCatalogSpecifier } from '../i18n/index.mjs';
 import { MACHINES, isLocaleName, isSourceFile, sourceKindOf, stripSourceExtension } from '../source/index.mjs';
 
 /** A bare specifier naming exactly one package: `name` or `@scope/name`. */
@@ -571,6 +572,9 @@ function resolveConditionalEntry(specifier, packageDir, entry, options, seen, na
  *   (nativeSourcesBeside).
  */
 export function resolveSpecifier(specifier, fromFile, options = {}, seen = new Set()) {
+  const catalog = resolveCatalogSpecifier(specifier, fromFile, options);
+  if (catalog) return catalog;
+
   const fromDir = dirname(fromFile);
 
   if (specifier.startsWith('.') || specifier.startsWith('/')) {
@@ -663,6 +667,14 @@ export function resolveImports(tokens, file, options = {}) {
 
   for (const { specifier, start, length } of findImports(tokens)) {
     const resolved = resolveSpecifier(specifier, file, options);
+    if (resolved?.diagnostics?.length) {
+      for (const extra of resolved.diagnostics) {
+        if (!diagnostics.some((d) => d.code === extra.code && d.file === extra.file && d.start === extra.start && d.message === extra.message)) {
+          diagnostics.push(extra);
+        }
+      }
+      if (resolved.code) continue;
+    }
     if (resolved && resolved.code) {
       diagnostics.push(diagnostic(resolved.code, resolved.message, file, start, length));
     }

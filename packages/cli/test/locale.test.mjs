@@ -12,7 +12,7 @@ import { mkdtemp, mkdir, writeFile, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-import { localeArg, localeProblem, resolveLocale } from '../src/config.mjs';
+import { localeArg, localeProblem, resolveI18n, resolveLocale } from '../src/config.mjs';
 import { catalogTags, loadCatalog } from '../src/hardware.mjs';
 import { build, compile } from '../src/build.mjs';
 import { RELEASE_MACHINES } from '@8bitscript/compiler';
@@ -80,6 +80,7 @@ test('resolveLocale: nearest wins — the override, the target\'s, the project\'
   assert.match(badTarget.error, /targets\.pet\.locale: a locale is a name in quotes, got 8/);
   const tag = resolveLocale({}, { target: 'atari8', override: 'on', tags: ['on'] });
   assert.match(tag.error, /--locale: 'on' is a hardware tag/);
+  assert.deepEqual(resolveLocale({ i18n: { defaultLocale: 'de' } }, { target: 'pet' }), { ok: true, locale: 'de' });
 });
 
 const STRINGS = (word) => `export const HELLO: string = "${word}";\n`;
@@ -162,6 +163,86 @@ test('the config\'s locale and a release entry\'s locale drive compile() the sam
     assert.ok(overridden.result.outFile.endsWith('main-pet-fr.prg'), 'a locale with no files still names the build, and reads the plain files');
     const frBytes = await readFile(overridden.result.outFile);
     assert.equal(hasText(frBytes, 'HELLO WORLD'), true);
+  } finally {
+    process.chdir(prev);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('resolveI18n: no block and no catalog directory is undefined; a catalog dir defaults to en', async () => {
+  const dir = await mkdtemp(join(tmpdir(), '8bs-i18n-cfg-'));
+  try {
+    assert.deepEqual(resolveI18n(null, { projectDir: dir }), { ok: true, i18n: undefined });
+    await mkdir(join(dir, 'src', 'i18n'), { recursive: true });
+    await writeFile(join(dir, 'src', 'i18n', 'en.8bs'), 'export namespace Game { const NAME: string = "2048"; }\n');
+    await writeFile(join(dir, 'src', 'i18n', 'de.8bs'), 'export namespace Game { const NAME: string = "2048"; }\n');
+    const discovered = resolveI18n({}, { projectDir: dir });
+    assert.equal(discovered.ok, true);
+    assert.equal(discovered.i18n.defaultLocale, 'en');
+    assert.deepEqual(discovered.i18n.locales, ['de', 'en']);
+    assert.equal(resolveLocale({}, { target: 'pet', projectDir: dir }).locale, 'en');
+
+    const listed = resolveI18n({ i18n: { locales: ['en'] } }, { projectDir: dir });
+    assert.equal(listed.ok, false);
+    assert.match(listed.error, /de\.8bs is a catalog file that i18n.locales does not list/);
+
+    const missing = resolveI18n({ i18n: { locales: ['en', 'de', 'fr'] } }, { projectDir: dir });
+    assert.equal(missing.ok, false);
+    assert.match(missing.error, /fr\.8bs is missing/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('--locale de with src/i18n catalogs folds the German catalog and leaves English out of the image', async () => {
+  const dir = await mkdtemp(join(tmpdir(), '8bs-i18n-build-'));
+  await mkdir(join(dir, 'src', 'i18n'), { recursive: true });
+  await writeFile(join(dir, 'src', 'i18n', 'en.8bs'), [
+    'export namespace Game { const NAME: string = "HELLO WORLD"; }',
+    'export namespace Prompt { const START: string = "PRESS {control}"; }',
+    '',
+  ].join('\n'));
+  await writeFile(join(dir, 'src', 'i18n', 'de.8bs'), [
+    'export namespace Game { const NAME: string = "HALLO WELT"; }',
+    'export namespace Prompt { const START: string = "{control} DRUECKEN"; }',
+    '',
+  ].join('\n'));
+  await writeFile(join(dir, 'src', 'main.8bs'), [
+    'import { screen } from "@8bitscript/screen";',
+    'import { text } from "@8bitscript/text";',
+    'import { Game, Prompt } from "@8bitscript/i18n/catalog";',
+    'import { i18n } from "@8bitscript/i18n";',
+    'import { Input } from "@8bitscript/input";',
+    'export function main(): void {',
+    '    screen.blank();',
+    '    text.print(0, Game.NAME);',
+    '    text.print(40, i18n.format(Prompt.START, { control: Input.CONFIRM_LABEL }));',
+    '    text.releaseCursor();',
+    '}',
+    '',
+  ].join('\n'));
+  await writeFile(join(dir, '8bitscript.config.ts'), `export default ${JSON.stringify({
+    entry: 'src/main.8bs',
+    targets: { pet: {} },
+    i18n: { defaultLocale: 'en', fallbackLocale: 'en', locales: ['en', 'de'] },
+  })};\n`);
+  const prev = process.cwd();
+  try {
+    process.chdir(dir);
+    const plain = await capture(() => build(['--target', 'pet', '--checkout', REPO]));
+    assert.equal(plain.result, 0, plain.stdout + plain.stderr);
+    assert.match(plain.stdout, /built .*main-pet\.prg/);
+    const plainBytes = await readFile(join(dir, 'dist', 'main-pet.prg'));
+    assert.equal(hasText(plainBytes, 'HELLO WORLD'), true);
+    assert.equal(hasText(plainBytes, 'HALLO WELT'), false);
+    assert.equal(hasText(plainBytes, 'PRESS RETURN'), true);
+
+    const de = await capture(() => build(['--target', 'pet', '--locale', 'de', '--checkout', REPO]));
+    assert.equal(de.result, 0, de.stdout + de.stderr);
+    const deBytes = await readFile(join(dir, 'dist', 'main-pet-de.prg'));
+    assert.equal(hasText(deBytes, 'HALLO WELT'), true);
+    assert.equal(hasText(deBytes, 'HELLO WORLD'), false);
+    assert.equal(hasText(deBytes, 'RETURN DRUECKEN'), true);
   } finally {
     process.chdir(prev);
     await rm(dir, { recursive: true, force: true });
