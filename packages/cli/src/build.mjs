@@ -157,18 +157,21 @@ export function checkEntryKind(entry) {
  *
  * @param {'vic20'|'c64'|'pet'|'c128'|'atari8'|'nes'|'cx16'|'mega65'|'web'} target
  * @param {string} [entryArg]
- * @param {{ pal?: boolean, profile?: string, hardware?: object, report?: boolean, checkout?: string|null, program?: string, locale?: string }} [options] `pal` selects the
+ * @param {{ pal?: boolean, profile?: string, hardware?: object, report?: boolean, debug?: boolean, checkout?: string|null, program?: string, locale?: string }} [options] `pal` selects the
  *   real hardware/emulator region (NTSC unless true; ignored outside
  *   REGION_TARGETS) — it does not affect the logical frame rate, which is
  *   read from 8bitscript.config.ts's `frameRate` instead (default 60). `profile`
  *   names a project profile or a catalog preset, `hardware` is option
  *   values set on top (`--hardware`); see hardware.mjs. `report` is
  *   `--size`: print the per-function breakdown and include it in the
- *   last-run JSON the editor's Running machines tree reads. `program`
- *   names one of the config's `programs` (programs.mjs); without it the
- *   program is `main`, or the only one, or — when `entryArg` names a file —
- *   that file, as its own one-off program. `locale` is `--locale` (or a
- *   `release` entry's), over the config's own — see config.mjs's
+ *   last-run JSON the editor's Running machines tree reads. `debug` is
+ *   `--debug` (native targets only — the wasm backend has no listing/debug
+ *   map yet): also write `<artifact stem>.lst` and
+ *   `<artifact stem>.8bs.debug.json` next to the artifact (mos/debug.ts).
+ *   `program` names one of the config's `programs` (programs.mjs); without
+ *   it the program is `main`, or the only one, or — when `entryArg` names a
+ *   file — that file, as its own one-off program. `locale` is `--locale`
+ *   (or a `release` entry's), over the config's own — see config.mjs's
  *   resolveLocale; the locale's twin files are read and the artifact's
  *   name carries it.
  * @returns {Promise<{ ok: boolean, outFile?: string, frameRate?: number, hardware?: object, memory?: object, sizeReport?: object[], locale?: string }>}
@@ -176,7 +179,7 @@ export function checkEntryKind(entry) {
  *   whoever runs it next. `memory` / `sizeReport` are what the last-run
  *   file and `--size` print; they are absent when the compile failed.
  */
-export async function compile(target, entryArg, { pal = false, profile, hardware: overrides = {}, report = false, checkout = undefined, program: programName, locale: localeArgument } = {}) {
+export async function compile(target, entryArg, { pal = false, profile, hardware: overrides = {}, report = false, debug = false, checkout = undefined, program: programName, locale: localeArgument } = {}) {
   if (checkout !== undefined) setActiveCheckout(checkout);
   const config = await loadConfig(process.cwd(), '8bs build');
 
@@ -423,7 +426,7 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   const nameOk = checkArtifactName(artifactStem, target);
   if (!nameOk.ok) process.stderr.write(`8bs build: note: ${nameOk.error}\n`);
   const outFile = resolve('dist', `${artifactStem}.${ext}`);
-  const result = await build(ir, { machine: target, hardware, outFile, frameRate, report });
+  const result = await build(ir, { machine: target, hardware, outFile, frameRate, report, debug, sources });
   if (!result.ok) {
     process.stderr.write(`8bs build: ${result.error}\n`);
     return { ok: false };
@@ -432,6 +435,12 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   process.stdout.write(`${memoryLine(ir.memory, result.memory)}\n`);
   if (result.sizeReport) process.stdout.write(sizeReportLines(result.sizeReport, result.memory.program));
   if (report) process.stdout.write(stateReportLines(ir));
+  if (debug) {
+    const lstFile = outFile.replace(/\.[^./\\]+$/, '') + '.lst';
+    const debugJsonFile = outFile.replace(/\.[^./\\]+$/, '') + '.8bs.debug.json';
+    process.stdout.write(`assembly listing: ${lstFile}\n`);
+    process.stdout.write(`debug map: ${debugJsonFile}\n`);
+  }
   await writeLastRun(target, compileReport(target, {
     outFile, hardware, memory: result.memory, sizeReport: result.sizeReport, frameRate, program: program.name, locale,
   }));
@@ -573,6 +582,7 @@ async function buildRelease({ report = false } = {}) {
 export async function build(args) {
   if (args.includes('--release')) return buildRelease({ report: args.includes('--size') });
   const report = args.includes('--size');
+  const debug = args.includes('--debug');
   const targetIndex = args.indexOf('--target');
   const checkout = applyCheckoutFromArgs(args);
   if (!checkout.ok) {
@@ -623,14 +633,14 @@ export async function build(args) {
     process.stderr.write(
       'Usage: 8bs build --target <pet|web>\n'
       + '                 (vic20, c64, c128, atari8, nes, cx16, mega65 are parked until a later release)\n'
-      + '                 [--pal] [--size] [--program <name>] [--locale <name>]\n'
+      + '                 [--pal] [--size] [--debug] [--program <name>] [--locale <name>]\n'
       + HARDWARE_USAGE
       + '                 [entry.8bs]\n',
     );
     return 2;
   }
   const { ok } = await compile(target, entry, {
-    pal, profile: launch.profile, hardware: launch.overrides, report, checkout: checkout.checkout,
+    pal, profile: launch.profile, hardware: launch.overrides, report, debug, checkout: checkout.checkout,
     program: programOpt.program, locale: localeOpt.locale,
   });
   return ok ? 0 : 1;
