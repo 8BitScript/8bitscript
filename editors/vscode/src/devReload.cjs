@@ -177,6 +177,7 @@ function classifyChange(root, filePath) {
     || norm.startsWith('snippets/')
     || norm === 'package.json'
     || norm === 'language-configuration.json'
+    || norm === 'language-configuration.asm.json'
     || norm === 'bootstrap.cjs'
   ) {
     return 'reload';

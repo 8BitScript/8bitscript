@@ -449,7 +449,7 @@ function registerRunner(context, output) {
   const projects = new Projects(output, managedDir);
   projects.running.listen(context.subscriptions);
   context.subscriptions.push(projects.changed);
-  const assemblyView = new AssemblyViewController(context, output);
+  const assemblyView = new AssemblyViewController(context, output, buildAssemblyArgs);
 
   context.subscriptions.push(
     vscode.tasks.registerTaskProvider(TASK_TYPE, new TaskProvider(projects)),
@@ -743,6 +743,36 @@ function registerRunner(context, output) {
   }
 
   /**
+   * The args a `8bs build --debug` for `resolved` (`{ project, target,
+   * hardware?, region?, system? }`) would need — everything
+   * machine-specific (toolchain, effective hardware, region, checkout)
+   * that execute()/makeTask() already resolve for every other command,
+   * shared here so assemblyView.cjs never has to duplicate it. `silent`
+   * is for a background refresh (assemblyView's own onSourceSaved): it
+   * must never pop a "toolchain missing"/"run install?" dialog over
+   * whatever the person is actually looking at, so it fails quietly
+   * instead (there is no realistic way for a project whose first, manual
+   * open already resolved these to fail them on a later save).
+   */
+  async function buildAssemblyArgs({ project, target, hardware, region, system }, { silent = false } = {}) {
+    if (!project.toolchain) {
+      if (!silent) requireToolchain(project);
+      return null;
+    }
+    if (!project.installed) {
+      if (silent) return null;
+      if (!(await requireInstalled(project))) return null;
+    }
+    const invocation = cliCommand(project.toolchain);
+    if (!invocation) return null;
+    const effectiveHardware = hardware
+      ?? settings.getEffectiveHardware(target, (await projects.loadTargets(project.dir))?.get(target));
+    const extras = { system: system || undefined, checkout: projects.checkoutFlag() || undefined };
+    const args = commandArgs('build', target, region ?? settings.getRegion(), effectiveHardware, extras);
+    return { invocation, cwd: project.dir, args };
+  }
+
+  /**
    * "8BitScript: View Generated Assembly" — unlike every other action
    * above, this needs the build's own result synchronously (which
    * instructions, which file, which debug map path) rather than firing a
@@ -750,28 +780,34 @@ function registerRunner(context, output) {
    * `projects.loadTargets` already does (projects.cjs), not through
    * makeTask()/vscode.tasks.
    */
-  async function viewGeneratedAssembly(node) {
+  async function activeSourceEditor() {
     const editor = vscode.window.activeTextEditor;
     if (!editor || !/\.(8bs|8bx)$/.test(editor.document.fileName)) {
       vscode.window.showInformationMessage('Open an .8bs or .8bx file, place the cursor on a statement, and run this command again.');
-      return;
+      return undefined;
     }
+    return editor;
+  }
+
+  async function viewGeneratedAssembly(node) {
+    const editor = await activeSourceEditor();
+    if (!editor) return;
     // node is undefined for the real invocations (command palette, editor
     // context menu — neither passes one); accepted anyway, the same way
     // execute() takes one, so a test can supply {project, target} directly
     // instead of exercising settings-based project/system resolution.
     const resolved = await targetOf(node, 'build');
     if (!resolved) return;
-    const { project, target, hardware, region, system } = resolved;
-    if (!requireToolchain(project)) return;
-    if (!(await requireInstalled(project))) return;
-    const invocation = cliCommand(project.toolchain);
-    if (!invocation) return;
-    const effectiveHardware = hardware
-      ?? settings.getEffectiveHardware(target, (await projects.loadTargets(project.dir))?.get(target));
-    const extras = { system: system || undefined, checkout: projects.checkoutFlag() || undefined };
-    const args = commandArgs('build', target, region ?? settings.getRegion(), effectiveHardware, extras);
-    await assemblyView.showForCursor(editor, invocation, project.dir, args);
+    await assemblyView.showForCursor(editor, resolved);
+  }
+
+  /** "8BitScript: View Generated Assembly For…" — the same view, for a machine the person picks rather than whatever's currently selected, so several machines' listings can be open side by side. */
+  async function viewGeneratedAssemblyFor(node) {
+    const editor = await activeSourceEditor();
+    if (!editor) return;
+    const resolved = await targetOf(node, 'view');
+    if (!resolved) return;
+    await assemblyView.pickAndShow(editor, resolved);
   }
 
   async function doctor() {
@@ -1032,6 +1068,8 @@ function registerRunner(context, output) {
   command('8bitscript.build', (node) => execute('build', node));
   command('8bitscript.boot', (node) => execute('boot', node));
   command('8bitscript.viewGeneratedAssembly', viewGeneratedAssembly);
+  command('8bitscript.viewGeneratedAssemblyFor', viewGeneratedAssemblyFor);
+  command('8bitscript.assemblyView.openForMachine', () => assemblyView.openForMachine(vscode.window.activeTextEditor));
   command('8bitscript.stop', (node) => {
     if (node?.dir) projects.running.stop(node.dir, node.target);
     else for (const execution of projects.running.executions) execution.terminate();

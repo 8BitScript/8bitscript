@@ -12,7 +12,7 @@ const assert = require('node:assert/strict');
 const { installVscodeMock } = require('./support/vscodeMock.cjs');
 
 installVscodeMock();
-const { renderView, samePath } = require('../src/assemblyView.cjs');
+const { renderView, samePath, isWithinProject, instructionsNearCursor } = require('../src/assemblyView.cjs');
 
 test('samePath: the same absolute path always matches, regardless of case/slash differences', () => {
   assert.equal(samePath('/a/b/game.8bs', '/a/b/game.8bs'), true);
@@ -66,4 +66,41 @@ test('renderView: an instruction with no function/source (compiler structure) ge
   ];
   const { text } = renderView('/game.8bs', instructions, new Set());
   assert.match(text, /compiler-generated — no direct source/);
+});
+
+// ---- isWithinProject: does a saved file belong to a project whose open ----
+// assembly tabs should be refreshed (onSourceSaved's own filter).
+
+test('isWithinProject: a file under the project directory, or the project directory itself, matches', () => {
+  assert.equal(isWithinProject('/repo/game/src/main.8bs', '/repo/game'), true);
+  assert.equal(isWithinProject('/repo/game', '/repo/game'), true);
+  assert.equal(isWithinProject('/repo/other/src/main.8bs', '/repo/game'), false);
+  // A sibling directory that merely shares a prefix is not "within" it.
+  assert.equal(isWithinProject('/repo/game2/src/main.8bs', '/repo/game'), false);
+});
+
+// ---- instructionsNearCursor: the reader's starting point, never a filter ----
+
+test('instructionsNearCursor: an offset inside an instruction\'s own span matches it exactly', () => {
+  const instructions = [
+    { source: { start: 10, length: 5 } },
+    { source: { start: 20, length: 5 } },
+  ];
+  const found = instructionsNearCursor(instructions, 12);
+  assert.deepEqual([...found], [instructions[0]]);
+});
+
+test('instructionsNearCursor: an offset between statements falls back to the nearest one at or before it', () => {
+  const instructions = [
+    { source: { start: 10, length: 5 } },
+    { source: { start: 30, length: 3 } },
+  ];
+  // 25 lands after the first statement's span and before the second's.
+  const found = instructionsNearCursor(instructions, 25);
+  assert.deepEqual([...found], [instructions[0]]);
+});
+
+test('instructionsNearCursor: an offset before every statement matches nothing', () => {
+  const instructions = [{ source: { start: 10, length: 5 } }];
+  assert.equal(instructionsNearCursor(instructions, 0).size, 0);
 });
