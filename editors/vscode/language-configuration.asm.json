@@ -1,0 +1,6 @@
+{
+  "_comment": "For the read-only 8bitscript-asm virtual documents assemblyView.cjs renders (View Generated Assembly). Comments only — nothing in this document is ever typed, so no bracket, auto-closing, or folding rules apply.",
+  "comments": {
+    "lineComment": ";"
+  }
+}

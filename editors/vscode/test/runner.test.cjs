@@ -20,12 +20,12 @@ function tmpDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), '8bs-runner-'));
 }
 
-function writeConfig(dir, entry = 'src/main.8bs') {
+function writeConfig(dir, entry = 'src/main.8bs', targets = ['c64']) {
   fs.mkdirSync(path.join(dir, 'src'), { recursive: true });
   fs.writeFileSync(path.join(dir, entry), 'export function main(): void {}\n');
   fs.writeFileSync(
     path.join(dir, '8bitscript.config.ts'),
-    `export default { entry: '${entry}', targets: ['c64'] };\n`,
+    `export default { entry: '${entry}', targets: ${JSON.stringify(targets)} };\n`,
   );
 }
 
@@ -693,6 +693,76 @@ test('registerRunner: viewGeneratedAssembly runs 8bs build --debug, opens the fi
       const navigated = shown.find((s) => s.options?.viewColumn === vscode.ViewColumn.One && s.options?.preserveFocus === true);
       assert.ok(navigated, 'clicking the LDA line should navigate back to the source file');
       assert.equal(navigated.docOrUri.uri.fsPath, sourcePath);
+    });
+  } finally {
+    vscode.window.activeTextEditor = undefined;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('registerRunner: viewGeneratedAssemblyFor opens the machine the reader picks (not just the currently selected one), and assemblyView.openForMachine opens another from that tab', async () => {
+  const dir = tmpDir();
+  try {
+    writeConfig(dir, 'src/main.8bs', ['c64', 'vic20']);
+    const sourcePath = path.join(dir, 'src', 'main.8bs');
+
+    // A fake CLI that reports which --target it was asked to build for, so
+    // this test can tell the vic20 tab apart from the c64 one.
+    const cliPath = path.join(dir, 'fake-debug-8bs.mjs');
+    fs.writeFileSync(cliPath, [
+      `import { writeFileSync } from 'node:fs';`,
+      `const target = process.argv[process.argv.indexOf('--target') + 1];`,
+      `const debugMapPath = ${JSON.stringify(dir)} + '/out-' + target + '.8bs.debug.json';`,
+      `const debugMap = {`,
+      `  format: '8bitscript-debug', version: 1, target, modules: [${JSON.stringify(sourcePath)}], symbols: [],`,
+      `  instructions: [{`,
+      `    address: target === 'vic20' ? 0xd200 : 0xc142, artifactOffset: 0, size: 2, bytes: [0xa5, 0x18], assembly: 'LDA $18',`,
+      `    source: { file: ${JSON.stringify(sourcePath)}, start: 0, length: 5, line: 1, column: 1 },`,
+      `    function: 'main', origin: null, component: null,`,
+      `  }],`,
+      `};`,
+      `writeFileSync(debugMapPath, JSON.stringify(debugMap));`,
+      `console.log('built out.prg');`,
+      `console.log('debug map: ' + debugMapPath);`,
+    ].join('\n'));
+
+    vscode.__mock.reset();
+    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.ts') }]);
+    const document = {
+      uri: { fsPath: sourcePath, scheme: 'file' },
+      fileName: sourcePath,
+      offsetAt: () => 0,
+      positionAt: (offset) => ({ line: 0, character: offset }),
+    };
+    vscode.window.activeTextEditor = { document, selection: { active: { line: 0, character: 0 } } };
+
+    await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async (projects) => {
+      projects.projects[0].toolchain = cliPath;
+      projects.projects[0].installed = true;
+
+      // The default command would build c64 (the target this node names);
+      // "For…" lets the reader override it, without ever visiting c64.
+      vscode.__mock.queues.showQuickPick.push({ target: 'vic20' });
+      await vscode.__mock.trigger('8bitscript.viewGeneratedAssemblyFor', { project: projects.projects[0], target: 'c64' });
+      await tick();
+      const vic20Tab = vscode.window.visibleTextEditors.find((e) => e.document.uri?.toString?.().includes('/vic20/'));
+      assert.ok(vic20Tab, 'the picked machine (vic20) was opened, not the node\'s own default (c64)');
+
+      // Open the plain c64 view too — both machines' tabs now coexist.
+      await vscode.__mock.trigger('8bitscript.viewGeneratedAssembly', { project: projects.projects[0], target: 'c64' });
+      await tick();
+      const c64Tab = vscode.window.visibleTextEditors.find((e) => e.document.uri?.toString?.().includes('/c64/'));
+      assert.ok(c64Tab, 'the c64 tab was also opened, alongside vic20 rather than replacing it');
+
+      // From the c64 tab's own "Open For Another Machine" button, switch
+      // to vic20 — reusing the same picker, sourced from the tab's own
+      // stored build context rather than a source editor.
+      vscode.window.activeTextEditor = c64Tab;
+      vscode.__mock.queues.showQuickPick.push({ target: 'vic20' });
+      await vscode.__mock.trigger('8bitscript.assemblyView.openForMachine');
+      await tick();
+      const revealedVic20 = vscode.window.visibleTextEditors.find((e) => e.document.uri?.toString?.().includes('/vic20/'));
+      assert.ok(revealedVic20, 'openForMachine opened/revealed the vic20 tab from the c64 one');
     });
   } finally {
     vscode.window.activeTextEditor = undefined;
