@@ -101,6 +101,12 @@ export interface ProjectConfig {
    * locale stays optional and no catalog is loaded.
    */
   i18n?: I18nConfig;
+  /**
+   * Import path aliases: `@lib/game/rules.8bs` → `<project>/src/lib/game/rules.8bs`
+   * when `@lib` maps to `src/lib`. Keys are single-segment `@` prefixes; values are
+   * directories relative to the config file.
+   */
+  imports?: Record<string, string>;
 }
 
 /** Project message catalogs: one `.8bs` file per locale, folded at compile time. */

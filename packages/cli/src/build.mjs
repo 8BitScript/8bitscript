@@ -53,11 +53,12 @@ import { existsSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 
 import {
-  MACHINES, RELEASE_MACHINES, isVariantPath, link, positionAt, sourceKindOf, variantOf,
+  MACHINES, RELEASE_MACHINES, isVariantPath, link, positionAt, resolveImportAliases, sourceKindOf, variantOf,
   unmetRequirements,
 } from '@8bitscript/compiler';
 
 import { applyCheckoutFromArgs, setActiveCheckout } from './checkout.mjs';
+
 import { loadConfig, localeArg, resolveFrameRate, resolveI18n, resolveLocale, retiredOptionWarnings } from './config.mjs';
 import {
   HARDWARE_USAGE, REGION_MACHINES, catalogTags, hardwareArgs, listedTargets, loadCatalog, projectHardware,
@@ -297,6 +298,14 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
     return { ok: false };
   }
   const { i18n } = i18nResult;
+
+  const aliasResult = resolveImportAliases(config?.imports, process.cwd());
+  if (!aliasResult.ok) {
+    process.stderr.write(`8bs build: ${aliasResult.error}\n`);
+    return { ok: false };
+  }
+  const { importAliases } = aliasResult;
+
   // The default catalog locale needs no flag and keeps the artifact name
   // it always had; a different locale still tags the file (`-de`).
   const localeTag = (locale && locale !== i18n?.defaultLocale) ? locale : undefined;
@@ -355,7 +364,7 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   // hardware's tags so a file with a `.<machine>.<tag>.8bs` twin resolves
   // to that.
   const { ir, diagnostics, sources } = link(text, entry, {
-    machine: target, tags: hardware.tags, facts: hardware.facts, frameRate, checkout, bx: config?.bx, locale, i18n,
+    machine: target, tags: hardware.tags, facts: hardware.facts, frameRate, checkout, bx: config?.bx, locale, i18n, importAliases,
   });
   // A warning is printed and the build goes on; an error stops it.
   if (diagnostics.length > 0) printDiagnostics(diagnostics, sources);

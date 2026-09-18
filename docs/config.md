@@ -45,6 +45,7 @@ plain `export default { … }` is still a config.
 | `systems` | Advertised named machines. Each value is `{ target, profile?, hardware?, region? }`. A name cannot be a machine id (`pet`, `c64`, …). The whole team sees these; they are source. |
 | `requires` | Fact floors (`memory.ram`, `storage.save`, …). A system or a build that cannot meet them is refused with what would. |
 | `i18n` | Message catalogs under `catalog` (`src/i18n/<locale>.8bs` by default), imported as `@8bitscript/i18n/catalog`. `{ defaultLocale, fallbackLocale, locales, catalog, charset }`. A project without this block and without that directory is unchanged. See below. |
+| `imports` | Project import aliases: `{ '@lib': 'src/lib', '@ui': 'src/ui' }` so `import { score } from '@lib/game/rules.8bs'` resolves under the config file's directory. Same twin rules as a relative `.8bs`/`.8bx` path. |
 
 `restoreOnExit` is retired. If the file still sets it, the CLI says so
 and ignores it.

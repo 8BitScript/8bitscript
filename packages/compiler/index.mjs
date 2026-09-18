@@ -35,7 +35,7 @@ export {
 export { lower, entryOf } from './src/ir/index.mjs';
 export { link, memoryOf } from './src/linker/index.mjs';
 export {
-  MACHINES, RELEASE_MACHINES, isReleaseMachine, findImports, isVariantPath, machineOfVariant, resolveImports, resolveSpecifier, variantOf, tagsOf,
+  MACHINES, RELEASE_MACHINES, isReleaseMachine, findImports, isVariantPath, machineOfVariant, resolveImports, resolveImportAliases, resolveSpecifier, variantOf, tagsOf,
 } from './src/resolver/index.mjs';
 export {
   CATALOG_SPECIFIER, CATALOG_CHARACTERS, PORTABLE_CHARACTERS, TRANSLITERATIONS, applyCatalogCharset, discoverCatalogLocales,
