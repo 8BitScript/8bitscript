@@ -68,6 +68,17 @@ where the code and the spec still differ.
 [Controllers, across nine machines](project/input.md) — how
 `@8bitscript/input` maps pads, sticks, keys and pointers per machine.
 
+[i18n: catalogs, character sets, and direction](project/i18n.md) —
+research toward a more modern message-catalog format (YAML/TOML), and an
+honest look at what non-portable character sets and RTL can and can't do
+on real 8-bit text hardware.
+
+[Distribution and media](project/distribution.md) — mapping how a build
+reaches a physical machine or an emulator: the hardware-catalog's
+existing machine/hardware/media axes, the unwritten disk-image writer,
+and the unbuilt "deploy to real hardware" layer (SD2IEC, cartridges,
+flash carts).
+
 [Machines on the roadmap](project/machines/index.md) — hardware research
 notes for the machines named in later phases, the ones no package exists
 for yet.
