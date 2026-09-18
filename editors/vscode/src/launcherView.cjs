@@ -224,6 +224,8 @@ class LauncherViewProvider {
       setting,
       managed: this.projects.managedDir,
     });
+    const systems = systemOptions(targets, project);
+    const postedSystem = selectedSystemId(fitted, named, system);
     this.view.webview.postMessage({
       type: 'state',
       packages: packageRows({
@@ -237,8 +239,8 @@ class LauncherViewProvider {
       projectLabel: project ? labelOf(project) : '',
       installed: project ? project.installed : true,
       packageManager: project?.packageManager ?? 'pnpm',
-      systems: systemOptions(targets, project),
-      system: fitted?.name ?? named ?? system,
+      systems,
+      system: postedSystem,
       systemTitle: fitted?.name ?? target?.title ?? system,
       region,
       regionLabel: machine ? settings.regionShort(region) : '',
@@ -305,6 +307,20 @@ function projectOptions(projects) {
     for (const project of group) options.push(entry(project));
   }
   return options;
+}
+
+/**
+ * The System dropdown's selected value. A named system's name when one is
+ * fitted or chosen; otherwise the bare machine id. `named` is stored as
+ * '' when nothing named is selected, so empty must fall through — `??`
+ * would keep '' and the page would select its first option (pet).
+ *
+ * @param {{ name: string } | null | undefined} fitted
+ * @param {string} named
+ * @param {string} machine
+ */
+function selectedSystemId(fitted, named, machine) {
+  return fitted?.name || named || machine;
 }
 
 /**
@@ -489,4 +505,4 @@ function registerLauncherView(context, projects, devReload) {
   return provider;
 }
 
-module.exports = { registerLauncherView };
+module.exports = { registerLauncherView, selectedSystemId };
