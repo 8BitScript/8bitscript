@@ -1,0 +1,11 @@
+# @8bitscript/i18n
+
+## 0.14.0
+
+### Minor Changes
+
+- 0cab778: New: `@8bitscript/i18n`, what the build's locale is like at compile time. The bare import is `Locale.DECIMAL` and `Locale.GROUP` — the locale's two number separators, as the ASCII codes `text.putChar` takes — as one file per locale inside the package (`index.8bs`, `index.de.8bs`, `fr`, `it`, `nl`, `pt-br`), picked by `--locale` through the resolver's locale twin rule, so a program names no locale and a build that reads neither links nothing. `@8bitscript/i18n/number` prints a number grouped in threes with `Locale.GROUP`, right-aligned in a field, through `@8bitscript/text` — `12,345` in an English build and `12.345` in a German one from the same call — at its own subpath so a program that prints zero-padded HUD fields carries none of it. Strings stay the program's own, in its `strings.<locale>.8bs` twins.
+
+### Patch Changes
+
+- @8bitscript/text@0.14.0
