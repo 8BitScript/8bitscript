@@ -1,5 +1,16 @@
 # @8bitscript/language-server
 
+## 0.13.1
+
+### Patch Changes
+
+- 3094830: The editor knows `#package(...)`: hovering it explains the fields it reads
+  and the diagnostics it refuses with, completion after `#` offers it next to
+  `#frames`, `#system` and `#fact`, and a `#package` snippet expands to the
+  `const VERSION: string = #package("version")` a title screen wants.
+- Updated dependencies [3094830]
+  - @8bitscript/compiler@0.13.1
+
 ## 0.13.0
 
 ### Patch Changes

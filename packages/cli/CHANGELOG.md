@@ -1,5 +1,24 @@
 # @8bitscript/cli
 
+## 0.13.1
+
+### Patch Changes
+
+- Updated dependencies [3094830]
+  - @8bitscript/compiler@0.13.1
+  - @8bitscript/language-server@0.13.1
+  - @8bitscript/atari8@0.13.1
+  - @8bitscript/c128@0.13.1
+  - @8bitscript/c64@0.13.1
+  - @8bitscript/cx16@0.13.1
+  - @8bitscript/examples@0.13.1
+  - @8bitscript/mega65@0.13.1
+  - @8bitscript/nes@0.13.1
+  - @8bitscript/pet@0.13.1
+  - @8bitscript/studio@0.13.1
+  - @8bitscript/vic20@0.13.1
+  - @8bitscript/web@0.13.1
+
 ## 0.13.0
 
 ### Minor Changes
