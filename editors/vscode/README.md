@@ -49,7 +49,7 @@ the project overview is in the [root README](../../README.md).
   and `{ … }` expressions inside them, which color as 8BitScript again;
   text between tags stays plain
 - **Snippets** for the constructs that compile — `program`, `loop`,
-  `countdown`, `print`, `#frames`, `const`, `let`, `for`, `array`,
+  `countdown`, `print`, `#frames`, `#package`, `const`, `let`, `for`, `array`,
   `table`, `address`, `namespace`, `asm6502`, `poke`/`peek`. Nothing is offered that the compiler would
   reject, and the compiler's own test suite is what holds that
 - `//` line comments and `/* */` blocks, so comment-toggling works, and a
@@ -61,7 +61,8 @@ the project overview is in the [root README](../../README.md).
   - **Hover** — documentation for built-in types (`utinyint`, `int`, ...),
     constructs (`string`, `volatile`, `ptr`, `array`, `asm6502`,
     `@address`, `memory.read`/`memory.write`), the builtins
-    `#frames(...)`, its `seconds` unit, and `waitFrame()`, and a member of
+    `#frames(...)` and its `seconds` unit, `#system()`, `#fact(...)`,
+    `#package("version")`, and `waitFrame()`, and a member of
     a named import's own namespace — `screen.blank(...)` shows its
     signature and doc comment, read from whichever module the import
     actually resolves to

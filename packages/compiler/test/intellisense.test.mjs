@@ -142,6 +142,17 @@ test('hover explains #frames(...)', () => {
   assert.match(info.markdown, /Nothing is reserved/);
 });
 
+test('hover explains #package("version")', () => {
+  const text = 'const VERSION: string = #package("version");';
+  const info = getHoverInfo(text, at(text, 'package'));
+  assert.ok(info);
+  assert.match(info.markdown, /\*\*#package\("version"\)\*\*/);
+  assert.match(info.markdown, /package\.json/);
+  assert.match(info.markdown, /"name"/);
+  assert.match(info.markdown, /8BS1041/);
+  assert.match(info.markdown, /8BS1042/);
+});
+
 test('hover on frames does not require a valid call — helps a reader mid-edit too', () => {
   const text = 'let x: utinyint = #frames();';
   const info = getHoverInfo(text, at(text, 'frames'));
@@ -207,7 +218,7 @@ test('completion outside a type position offers the program\'s own names, not th
 test('completion after a # offers the compile-time functions, inserting without a second #', () => {
   const typed = 'let x: utinyint = #';
   const items = getCompletions(typed, typed.length);
-  assert.deepEqual(items.map((i) => i.label), ['#frames', '#system', '#fact']);
+  assert.deepEqual(items.map((i) => i.label), ['#frames', '#system', '#fact', '#package']);
   const [item] = items;
   assert.equal(item.label, '#frames');
   assert.equal(item.kind, 'function');
@@ -229,7 +240,7 @@ test('completion in the unit slot offers the units, and nothing elsewhere in the
 
 test('completion inside a ${...} field answers as it would outside one', () => {
   const field = 'text.print(0, `T ${#';
-  assert.deepEqual(getCompletions(field, field.length).map((i) => i.label), ['#frames', '#system', '#fact']);
+  assert.deepEqual(getCompletions(field, field.length).map((i) => i.label), ['#frames', '#system', '#fact', '#package']);
   const unit = 'text.print(0, `T ${#frames(0.5, ';
   assert.deepEqual(getCompletions(unit, unit.length).map((i) => i.label), ['seconds']);
   const text = 'text.print(0, `T ';
