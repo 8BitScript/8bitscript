@@ -773,7 +773,8 @@ export function getHoverInfo(text, offset, options = {}) {
   return markdown ? { start: hit.token.start, length: hit.token.length, markdown } : null;
 }
 
-function hoverAt(tokens, offset, text, filePath, checkout, machine = { machine: null, why: null }) {
+function hoverAt(tokens, offset, text, filePath, checkout, machine) {
+  machine ??= { machine: null, why: null };
   const index = tokenIndexAt(tokens, offset);
   if (index === -1) return null;
   const token = tokens[index];
@@ -787,7 +788,7 @@ function hoverAt(tokens, offset, text, filePath, checkout, machine = { machine: 
     if (!field) return null;
     const inner = tokenize(text.slice(field.sourceStart, field.sourceEnd)).tokens;
     for (const t of inner) t.start += field.sourceStart;
-    return hoverAt(inner, offset, text, filePath, checkout);
+    return hoverAt(inner, offset, text, filePath, checkout, machine);
   }
 
   if (token.kind === TokenKind.Type) {
@@ -1114,7 +1115,8 @@ function bxCompletions(tokens, offset, text, program) {
   }));
 }
 
-function completionsAt(tokens, offset, text, filePath, checkout, program, bx = false, machine = { machine: null, why: null }) {
+function completionsAt(tokens, offset, text, filePath, checkout, program, bx = false, machine) {
+  machine ??= { machine: null, why: null };
   const index = tokenIndexAt(tokens, offset);
   const token = tokens[index];
   if (token?.kind === TokenKind.Template) {
@@ -1123,7 +1125,7 @@ function completionsAt(tokens, offset, text, filePath, checkout, program, bx = f
     if (!field) return [];
     const inner = tokenize(text.slice(field.sourceStart, field.sourceEnd)).tokens;
     for (const t of inner) t.start += field.sourceStart;
-    return completionsAt(inner, offset, text, filePath, checkout, program);
+    return completionsAt(inner, offset, text, filePath, checkout, program, bx, machine);
   }
   if (token?.kind === TokenKind.Comment || token?.kind === TokenKind.String) return [];
 

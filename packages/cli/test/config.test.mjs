@@ -4,7 +4,21 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { loadConfig, resolveFrameRate, retiredOptionWarnings } from '../src/config.mjs';
+import { discoverCatalogLocales, loadConfig, resolveFrameRate, retiredOptionWarnings } from '../src/config.mjs';
+
+test('discoverCatalogLocales lists locale stems in localeCompare order', async () => {
+  const dir = await mkdtemp(join(tmpdir(), '8bs-locales-'));
+  try {
+    await writeFile(join(dir, 'sv.8bs'), '');
+    await writeFile(join(dir, 'de.8bs'), '');
+    await writeFile(join(dir, 'en.8bs'), '');
+    await writeFile(join(dir, 'notes.md'), '');
+    assert.deepEqual(discoverCatalogLocales(dir), ['de', 'en', 'sv']);
+    assert.deepEqual(discoverCatalogLocales(join(dir, 'missing')), []);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
 
 test('retiredOptionWarnings names an option that no longer does anything, and stays quiet otherwise', () => {
   assert.deepEqual(retiredOptionWarnings(null), []);

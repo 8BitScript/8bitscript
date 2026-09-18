@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 import {
-  Codes, formatMessage, getHoverInfo, link, placeholdersOf, prepareCatalog, transliterate,
+  Codes, discoverCatalogLocales, formatMessage, getHoverInfo, link, placeholdersOf, prepareCatalog, transliterate,
 } from '../index.mjs';
 import { stockFacts } from '../../cli/src/hardware.mjs';
 
@@ -54,6 +54,19 @@ async function catalogProject(files = {}) {
   await writeFile(join(dir, 'src', 'i18n', 'de.8bs'), files.de ?? DE);
   return dir;
 }
+
+test('discoverCatalogLocales lists locale stems in localeCompare order', async () => {
+  const dir = await mkdtemp(join(tmpdir(), '8bs-locales-'));
+  try {
+    await writeFile(join(dir, 'sv.8bs'), '');
+    await writeFile(join(dir, 'de.8bs'), '');
+    await writeFile(join(dir, 'en.8bs'), '');
+    await writeFile(join(dir, 'readme.txt'), '');
+    assert.deepEqual(discoverCatalogLocales(dir), ['de', 'en', 'sv']);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
 
 test('placeholdersOf lists unique {name}s in source order', () => {
   assert.deepEqual(placeholdersOf('PRESS {control}'), ['control']);

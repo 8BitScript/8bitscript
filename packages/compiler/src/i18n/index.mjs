@@ -115,7 +115,7 @@ export function discoverCatalogLocales(dir) {
     .filter((name) => name.endsWith('.8bs'))
     .map((name) => stripSourceExtension(name))
     .filter((name) => isLocaleName(name) && !name.includes('.'))
-    .sort();
+    .sort((a, b) => a.localeCompare(b));
 }
 
 /**
@@ -261,14 +261,6 @@ function parseCatalogFile(file) {
   const { tokens, diagnostics: lexical } = tokenize(text, file, { sourceKind });
   const { ast, diagnostics: syntax } = parse(tokens, text, file, { sourceKind });
   return { file, text, ast, diagnostics: [...lexical, ...syntax] };
-}
-
-function schemaKeys(schema) {
-  const keys = [];
-  for (const [ns, members] of schema.namespaces) {
-    for (const name of members.keys()) keys.push(`${ns}.${name}`);
-  }
-  return keys.sort();
 }
 
 /**

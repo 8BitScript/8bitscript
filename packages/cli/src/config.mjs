@@ -149,7 +149,7 @@ export function discoverCatalogLocales(dir) {
     .filter((name) => name.endsWith('.8bs') && !name.endsWith('.8bx'))
     .map((name) => name.slice(0, -4))
     .filter((name) => isLocaleName(name) && !name.includes('.'))
-    .sort();
+    .sort((a, b) => a.localeCompare(b));
 }
 
 /**

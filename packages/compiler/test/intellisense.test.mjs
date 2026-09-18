@@ -247,6 +247,14 @@ test('completion inside a ${...} field answers as it would outside one', () => {
   assert.deepEqual(getCompletions(text, text.length), [], 'template text is not a completion position');
 });
 
+test('hover inside a ${...} field answers as it would outside one', () => {
+  const text = 'text.print(0, `T ${#frames(0.5, seconds)}`);\n';
+  const info = getHoverInfo(text, at(text, 'frames'));
+  assert.ok(info);
+  assert.match(info.markdown, /Compile-time duration/);
+  assert.match(info.markdown, /#frames\(0\.5, seconds\)/);
+});
+
 test('every completion item says what kind of thing it is', () => {
   const types = 'let x: ';
   assert.ok(getCompletions(types, types.length).every((i) => i.kind === 'type'));
