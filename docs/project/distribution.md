@@ -8,7 +8,7 @@ nav_order: 84
 Research notes, not a spec — the same voice as
 [`docs/project/machines/index.md`](machines/index.md): every claim below
 is cited to a real file, and anything proposed rather than observed is
-marked **PROPOSED**. Read the root [`AGENTS.md`](../../AGENTS.md) first;
+marked **PROPOSED**. Read the root `AGENTS.md` first;
 its "expose constraints, don't abstract away a hardware limit" rule
 governs everything below. Written against `trunk`.
 
