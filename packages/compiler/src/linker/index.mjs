@@ -1274,6 +1274,10 @@ export function link(entryText, entryFile, options = {}) {
       const fnScope = childScope(scope);
       for (const param of fn.params) bindLocal(fnScope, param.name);
       for (const statement of fn.body) rewriteStatement(statement, fnScope, module, diagnostics);
+      // Carried on the function itself, not just functionFiles, so a
+      // backend building a source map (mos/debug.ts) can read it straight
+      // off ir.functions without needing the linker's own internals.
+      fn.file = module.file;
       ir.functions.push(fn);
       functionFiles.set(fn, module.file);
     }

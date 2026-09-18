@@ -23,6 +23,9 @@ import { optimizeReachable } from '../linker/optimize.mjs';
 import { lower } from './lower/index.ts';
 import type { Directive, FunctionSite, IrFunction } from './lower/index.ts';
 import { instructionBytes } from './asm/encode.ts';
+import type { ListingLine } from './asm/assemble.ts';
+import { buildDebugMap, renderListing } from './debug.ts';
+import type { DebugMap, DebugSymbol } from './debug.ts';
 import { LocalAllocator } from './lower/allocator.ts';
 import { epilogue, prologue, usesDecimalSensitiveMath } from './startup/commodore.ts';
 import { nesResetInit } from './startup/nes.ts';
@@ -54,6 +57,10 @@ export interface BuildOptions {
   outFile: string;
   frameRate: number;
   report?: boolean;
+  /** Emit the two debug/development artifacts (debug.ts): `<outFile stem>.lst` and `<outFile stem>.8bs.debug.json`, and return them as `listing`/`debugMap` too. Off by default — computing and serializing them is wasted work for a release build that never asked for it (see mos/AGENTS.md's own performance section on this backend's pay-only-if-used discipline). */
+  debug?: boolean;
+  /** Every source file's own text, keyed the same way provenance.ts's `SourceSpan.file` names it (module.file — linker/index.mjs) — how the debug map resolves an offset into a line/column and a listing line reads back the source text it names. Only read when `debug` is true; a build with no debug info needs no source text kept around after linking. */
+  sources?: Map<string, string>;
 }
 
 /** One named piece of the program `options.report` breaks a build's own size down into — a function, an inlined callee that now lives inside one, or a fixed-cost bucket (wait-frame setup vs the per-frame routine, the BASIC stub, …). Sorted largest first; every entry's `bytes` sums to the real, linked `bytes.length`. */
@@ -63,7 +70,11 @@ export interface SizeReportEntry {
 }
 
 export type BuildResult =
-  | { ok: true; bytes: Uint8Array; memory: { variables: number; program: number }; sizeReport?: SizeReportEntry[] }
+  | {
+    ok: true; bytes: Uint8Array; memory: { variables: number; program: number }; sizeReport?: SizeReportEntry[];
+    /** Present only when BuildOptions.debug asked for it — also already written to `<outFile stem>.lst`/`.8bs.debug.json`, returned here too so a caller (the CLI, the VS Code extension) can use them without re-reading the files it just wrote. */
+    listing?: ListingLine[]; debugMap?: DebugMap;
+  }
   | { ok: false; error: string };
 
 export interface CpuVariant {
@@ -564,6 +575,14 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // optimizeReachable prunes, folds compile-time work, then prunes again.
   const { functions, globals } = optimizeReachable(ir);
 
+  // Every function's own file, from ir.functions — before optimizeReachable
+  // prunes it away as dead code (a callee inlined at its only call site is
+  // exactly this shape) — so an inlined statement's provenance can resolve
+  // against the file its own start/length were taken from, not the caller's
+  // (see provenance.ts and lower/index.ts's block()).
+  const originFiles = new Map<string, string>();
+  for (const fn of ir.functions) if (typeof fn.file === 'string') originFiles.set(fn.name, fn.file);
+
   const cycle = findCallCycle(functions);
   if (cycle) return { ok: false, error: `recursion isn't lowered yet: ${cycle.join(' -> ')} -> ${cycle[0]} calls itself, directly or through another function` };
 
@@ -892,7 +911,10 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
     // wholly past any hole), so the allocator needs no holes here and
     // uses exactly the bytes the measurement pass observed.
     const locals = new LocalAllocator(scratchBase, layout.starts.get(fn.name)! + frameNeeds.get(fn.name)!.bytes);
-    const lowered = lower(fn.body, { globals: globalBindings, locals, params, functions: functionSites, arrays, multiply, returnPair: site.returnPair });
+    const lowered = lower(fn.body, {
+      globals: globalBindings, locals, params, functions: functionSites, arrays, multiply, returnPair: site.returnPair,
+      fnName: fn.name, fnFile: originFiles.get(fn.name) ?? fn.file ?? null, originFiles,
+    });
     if (!lowered.ok) return { ok: false, error: `in '${fn.name}': ${lowered.error}` };
     loweredFunctions.push({ name: fn.name, label: site.label, program: lowered.program, parts: lowered.parts, isEntry: fn.name === ir.entry });
   }
@@ -1166,7 +1188,28 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
     sizeReport = entries.filter((e) => e.bytes > 0).sort((a, b) => b.bytes - a.bytes);
   }
 
-  return { ok: true, bytes, memory: { variables: linked.memory.variables, program: bytes.length }, ...(sizeReport ? { sizeReport } : {}) };
+  let listing: ListingLine[] | undefined;
+  let debugMap: DebugMap | undefined;
+  if (options.debug) {
+    const symbols: DebugSymbol[] = [
+      ...[...globalBindings].map(([name, binding]) => ({ name, kind: 'global' as const, address: binding.address, type: binding.type })),
+      ...[...functionSites]
+        .map(([name, site]) => ({ name, kind: 'function' as const, address: linked.symbols.get(site.label) }))
+        .filter((s): s is { name: string; kind: 'function'; address: number } => typeof s.address === 'number'),
+    ];
+    const sources = options.sources ?? new Map<string, string>();
+    debugMap = buildDebugMap(linked.listing, symbols, options.machine, codeStart, sources);
+    listing = linked.listing;
+    const lstFile = options.outFile.replace(/\.[^./\\]+$/, '') + '.lst';
+    const debugJsonFile = options.outFile.replace(/\.[^./\\]+$/, '') + '.8bs.debug.json';
+    await writeFile(lstFile, renderListing(linked.listing, options.machine, sources));
+    await writeFile(debugJsonFile, JSON.stringify(debugMap, null, 2));
+  }
+
+  return {
+    ok: true, bytes, memory: { variables: linked.memory.variables, program: bytes.length },
+    ...(sizeReport ? { sizeReport } : {}), ...(listing ? { listing } : {}), ...(debugMap ? { debugMap } : {}),
+  };
 }
 
 // ---- waitFrame() pacing ----------------------------------------------------

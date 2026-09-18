@@ -108,6 +108,12 @@
         "icon": "$(chip)"
       },
       {
+        "command": "8bitscript.viewGeneratedAssembly",
+        "title": "View Generated Assembly",
+        "category": "8BitScript",
+        "icon": "$(file-binary)"
+      },
+      {
         "command": "8bitscript.stop",
         "title": "Stop",
         "category": "8BitScript",
@@ -249,6 +255,17 @@
         {
           "command": "8bitscript.reloadWindow",
           "when": "8bitscript.localReloadPending"
+        },
+        {
+          "command": "8bitscript.viewGeneratedAssembly",
+          "when": "editorLangId == 8bitscript || editorLangId == 8bitextensible"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "8bitscript.viewGeneratedAssembly",
+          "when": "editorLangId == 8bitscript || editorLangId == 8bitextensible",
+          "group": "8bitscript"
         }
       ],
       "view/title": [

@@ -51,10 +51,17 @@ function relaxOne(program: Directive[], origin: number, targetAddress: number, i
   for (const directive of program) {
     if (!relaxed && directive.kind === 'instruction' && directive.mode === 'relative' && address === targetAddress) {
       const skip = `__8bs_relax_${relaxCounter++}`;
+      // The relaxed branch still means what the original one meant — it
+      // and the JMP it guards inherit the original branch's own source, not
+      // a null one, with `generated` naming why two instructions stand
+      // where the source asked for one.
+      const prov = directive.prov
+        ? { ...directive.prov, generated: { reason: 'branch-relaxation' } }
+        : undefined;
       out.push(
-        { kind: 'instruction', mnemonic: inverse, mode: 'relative', operand: { kind: 'label', name: skip } },
-        { kind: 'instruction', mnemonic: 'JMP', mode: 'absolute', operand: directive.operand },
-        { kind: 'label', name: skip },
+        { kind: 'instruction', mnemonic: inverse, mode: 'relative', operand: { kind: 'label', name: skip }, ...(prov ? { prov } : {}) },
+        { kind: 'instruction', mnemonic: 'JMP', mode: 'absolute', operand: directive.operand, ...(prov ? { prov } : {}) },
+        { kind: 'label', name: skip, ...(directive.prov ? { prov: directive.prov } : {}) },
       );
       relaxed = true;
       continue;

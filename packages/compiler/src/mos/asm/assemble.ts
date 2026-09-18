@@ -9,6 +9,7 @@
 // resolves to something, forward references included.
 import { encode, operandBytes } from './encode.ts';
 import type { AddressingMode } from './encode.ts';
+import type { Provenance } from '../provenance.ts';
 
 export type Operand =
   | { kind: 'value'; value: number }
@@ -26,21 +27,27 @@ export type Operand =
   // packages/c64/src/screen.8bs).
   | { kind: 'label'; name: string; byte?: 'lo' | 'hi'; offset?: number };
 
+// `prov` rides on every directive kind uniformly (not just 'instruction')
+// so a label a source construct is responsible for — a loop's own
+// continue/break target, e.g. — can still be attributed in the listing,
+// and relax.ts can copy one directive's provenance onto its replacements
+// without a kind-specific case for each.
 export type Directive =
-  | { kind: 'label'; name: string }
-  | { kind: 'instruction'; mnemonic: string; mode: AddressingMode; operand?: Operand }
-  | { kind: 'byte'; values: number[] }
+  | { kind: 'label'; name: string; prov?: Provenance }
+  | { kind: 'instruction'; mnemonic: string; mode: AddressingMode; operand?: Operand; prov?: Provenance }
+  | { kind: 'byte'; values: number[]; prov?: Provenance }
   // A name bound to an address the program does not contain: the screen at
   // $0400, a chip register block, anything an `@address` array maps. It
   // occupies no space and may sit anywhere in the program, so a label
   // operand can reach hardware through exactly the same path it reaches a
   // data-section array by (mos/data.ts's arrayLabel).
-  | { kind: 'equate'; name: string; value: number };
+  | { kind: 'equate'; name: string; value: number; prov?: Provenance };
 
 export interface ListingLine {
   address: number;
   bytes: number[];
   text: string;
+  prov?: Provenance;
 }
 
 export type AssembleResult =
@@ -126,7 +133,7 @@ export function assemble(program: Directive[], origin: number): AssembleResult {
           return { ok: false, error: `.byte ${value} at $${hex(address, 4)} does not fit in one byte` };
         }
       }
-      listing.push({ address, bytes: [...directive.values], text: `.byte ${directive.values.map((v) => `$${hex(v, 2)}`).join(', ')}` });
+      listing.push({ address, bytes: [...directive.values], text: `.byte ${directive.values.map((v) => `$${hex(v, 2)}`).join(', ')}`, ...(directive.prov ? { prov: directive.prov } : {}) });
       bytes.push(...directive.values);
       address += directive.values.length;
       continue;
@@ -139,7 +146,7 @@ export function assemble(program: Directive[], origin: number): AssembleResult {
 
     const operandByteCount = operandBytes(mode);
     if (operandByteCount === 0) {
-      listing.push({ address, bytes: [encoded.opcode], text: mode === 'accumulator' ? `${mnemonic} A` : mnemonic });
+      listing.push({ address, bytes: [encoded.opcode], text: mode === 'accumulator' ? `${mnemonic} A` : mnemonic, ...(directive.prov ? { prov: directive.prov } : {}) });
       bytes.push(encoded.opcode);
       address += 1;
       continue;
@@ -160,7 +167,7 @@ export function assemble(program: Directive[], origin: number): AssembleResult {
         };
       }
       const offset = delta & 0xff;
-      listing.push({ address, bytes: [encoded.opcode, offset], text: `${mnemonic} ${operandText(mode, resolved.value)}` });
+      listing.push({ address, bytes: [encoded.opcode, offset], text: `${mnemonic} ${operandText(mode, resolved.value)}`, ...(directive.prov ? { prov: directive.prov } : {}) });
       bytes.push(encoded.opcode, offset);
       address += 2;
       continue;
@@ -170,7 +177,7 @@ export function assemble(program: Directive[], origin: number): AssembleResult {
       if (resolved.value < 0 || resolved.value > 0xff) {
         return { ok: false, error: `${context}: operand $${hex(resolved.value, 4)} does not fit in ${mode}'s one byte` };
       }
-      listing.push({ address, bytes: [encoded.opcode, resolved.value], text: `${mnemonic} ${operandText(mode, resolved.value)}` });
+      listing.push({ address, bytes: [encoded.opcode, resolved.value], text: `${mnemonic} ${operandText(mode, resolved.value)}`, ...(directive.prov ? { prov: directive.prov } : {}) });
       bytes.push(encoded.opcode, resolved.value);
       address += 2;
       continue;
@@ -182,7 +189,7 @@ export function assemble(program: Directive[], origin: number): AssembleResult {
     }
     const lo = resolved.value & 0xff;
     const hi = (resolved.value >> 8) & 0xff;
-    listing.push({ address, bytes: [encoded.opcode, lo, hi], text: `${mnemonic} ${operandText(mode, resolved.value)}` });
+    listing.push({ address, bytes: [encoded.opcode, lo, hi], text: `${mnemonic} ${operandText(mode, resolved.value)}`, ...(directive.prov ? { prov: directive.prov } : {}) });
     bytes.push(encoded.opcode, lo, hi);
     address += 3;
   }
