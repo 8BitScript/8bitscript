@@ -721,6 +721,9 @@ function importedNamespace(tokens, local, fromFile, resolverOptions = {}, machin
   };
 }
 
+/** "No machine known" — hoverAt()/completionsAt()'s own default when a caller passes none, and machineFor()'s own fallback. One frozen constant rather than an object literal in each spot: never mutated (both fields are only ever read), and a literal default parameter is a Sonar pitfall (S7737) besides. */
+const NO_MACHINE = Object.freeze({ machine: null, why: null });
+
 /**
  * The machine the file at `path` is read for: its own twin's (`x.pet.8bs`
  * is the PET's file, whatever the project builds), else the project's
@@ -731,7 +734,7 @@ function machineFor(path, options) {
   const twin = path ? machineOfVariant(path) : null;
   if (twin) return { machine: twin, why: "this file's machine" };
   if (options.machine) return { machine: options.machine, why: "this project's target" };
-  return { machine: null, why: null };
+  return NO_MACHINE;
 }
 
 /**
@@ -776,7 +779,7 @@ export function getHoverInfo(text, offset, options = {}) {
   return markdown ? { start: hit.token.start, length: hit.token.length, markdown } : null;
 }
 
-function hoverAt(tokens, offset, text, filePath, resolverOptions = {}, machine = { machine: null, why: null }) {
+function hoverAt(tokens, offset, text, filePath, resolverOptions = {}, machine = NO_MACHINE) {
   const index = tokenIndexAt(tokens, offset);
   if (index === -1) return null;
   const token = tokens[index];
@@ -1120,7 +1123,7 @@ function bxCompletions(tokens, offset, text, program) {
   }));
 }
 
-function completionsAt(tokens, offset, text, filePath, resolverOptions, program, bx = false, machine = { machine: null, why: null }) {
+function completionsAt(tokens, offset, text, filePath, resolverOptions, program, bx = false, machine = NO_MACHINE) {
   const index = tokenIndexAt(tokens, offset);
   const token = tokens[index];
   if (token?.kind === TokenKind.Template) {
