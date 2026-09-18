@@ -127,6 +127,12 @@
       "type": "object",
       "additionalProperties": false,
       "properties": { "strict": { "type": "boolean", "default": true, "description": "false turns the ordinary-code lint in .8bx files off; the hard rules stay." } }
+    },
+    "imports": {
+      "type": "object",
+      "description": "Maps @prefix import specifiers to directories under the project (e.g. '@lib': 'src/lib' for @lib/game/rules.8bs).",
+      "propertyNames": { "pattern": "^@[^/]+$" },
+      "additionalProperties": { "type": "string", "minLength": 1 }
     }
   },
   "$defs": {

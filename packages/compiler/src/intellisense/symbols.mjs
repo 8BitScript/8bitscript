@@ -41,16 +41,18 @@ import { MACHINES, sourceKindOf } from '../source/index.mjs';
  * @param {string|null} [machine]
  * @returns {{ path: string, conditional: boolean, machine?: string } | null}
  */
-export function resolveModuleFile(specifier, fromFile, checkout, machine = null) {
+export function resolveModuleFile(specifier, fromFile, options = {}) {
+  const { checkout = null, machine = null, importAliases = null } = options;
   if (!fromFile) return null;
-  const plain = resolveSpecifier(specifier, fromFile, { checkout });
+  const resolverOptions = { checkout, ...(importAliases ? { importAliases } : {}) };
+  const plain = resolveSpecifier(specifier, fromFile, resolverOptions);
   if (plain?.code) return null;
   if (plain?.path) return { path: plain.path, conditional: false };
   if (plain?.path !== null) return null;
 
   const order = machine ? [machine, ...MACHINES.filter((m) => m !== machine)] : MACHINES;
   for (const candidate of order) {
-    const branch = resolveSpecifier(specifier, fromFile, { machine: candidate, checkout });
+    const branch = resolveSpecifier(specifier, fromFile, { ...resolverOptions, machine: candidate });
     if (branch?.path) return { path: branch.path, conditional: true, machine: candidate };
   }
   return null;
@@ -66,16 +68,18 @@ export function resolveModuleFile(specifier, fromFile, checkout, machine = null)
  *
  * @returns {{ conditional: false, path: string } | { conditional: true, branches: { machine: string, path: string }[] } | null}
  */
-export function resolvePortableModule(specifier, fromFile, checkout) {
+export function resolvePortableModule(specifier, fromFile, options = {}) {
+  const { checkout = null, importAliases = null } = options;
   if (!fromFile) return null;
-  const plain = resolveSpecifier(specifier, fromFile, { checkout });
+  const resolverOptions = { checkout, ...(importAliases ? { importAliases } : {}) };
+  const plain = resolveSpecifier(specifier, fromFile, resolverOptions);
   if (plain?.code) return null;
   if (plain?.path) return { conditional: false, path: plain.path };
   if (plain?.path !== null) return null;
 
   const branches = [];
   for (const machine of MACHINES) {
-    const branch = resolveSpecifier(specifier, fromFile, { machine, checkout });
+    const branch = resolveSpecifier(specifier, fromFile, { ...resolverOptions, machine });
     if (branch?.path) branches.push({ machine, path: branch.path });
   }
   return branches.length > 0 ? { conditional: true, branches } : null;
@@ -89,12 +93,12 @@ export function resolvePortableModule(specifier, fromFile, checkout) {
  *
  * @param {string} text
  * @param {string|null} file
- * @param {{ sourceKind?: string|null, checkout?: string|null, machine?: string|null }} [options]
+ * @param {{ sourceKind?: string|null, checkout?: string|null, machine?: string|null, importAliases?: Record<string, string>|null }} [options]
  *   `machine`: the machine a target-dependent import should be read for
  *   — the file's own twin, or the project's single target (see
  *   resolveModuleFile); without one, the first in `8bs targets` order.
  */
-export function bindModule(text, file, { sourceKind = null, checkout = null, machine = null } = {}) {
+export function bindModule(text, file, { sourceKind = null, checkout = null, machine = null, importAliases = null } = {}) {
   const kind = sourceKind ?? sourceKindOf(file ?? '') ?? '.8bs';
   const name = file ?? '<unknown>';
   const { tokens } = tokenize(text, name, { sourceKind: kind });
@@ -102,7 +106,7 @@ export function bindModule(text, file, { sourceKind = null, checkout = null, mac
   const bound = bind(ast, name);
   const modules = new Map();
   bindImports(bound, (specifier) => {
-    const resolved = resolveModuleFile(specifier, file, checkout, machine);
+    const resolved = resolveModuleFile(specifier, file, { checkout, machine, importAliases });
     if (!resolved) return null;
     let other;
     try {

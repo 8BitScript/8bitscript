@@ -23,7 +23,7 @@ import {
 } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 
-import { analyze, getHoverInfo, getCompletions, getDefinition, sourceKindOf } from '@8bitscript/compiler';
+import { analyze, getHoverInfo, getCompletions, getDefinition, resolveImportAliases, sourceKindOf } from '@8bitscript/compiler';
 
 // What the compiler calls a completion item, in LSP's vocabulary. The
 // compiler says what kind of thing a name is (a type, a compile-time
@@ -117,6 +117,15 @@ async function projectMachineFor(filePath) {
   return names.length === 1 ? names[0] : null;
 }
 
+/** Absolute import-alias directories from the project's `imports` block, or {}. */
+async function importAliasesFor(filePath) {
+  const configPath = findConfigPath(dirname(filePath));
+  if (!configPath) return {};
+  const config = await configFor(filePath);
+  const resolved = resolveImportAliases(config?.imports, dirname(configPath));
+  return resolved.ok ? resolved.importAliases : {};
+}
+
 /**
  * A document's absolute path on disk, or `null` for an `untitled:` buffer or
  * a URI that fails to parse as one. Shared by every handler below that needs
@@ -190,6 +199,7 @@ export function start({ checkout } = {}) {
     const { version } = document;
     const path = filePathOf(document.uri);
     const frameRate = path ? await frameRateFor(path) : 60;
+    const importAliases = path ? await importAliasesFor(path) : {};
     // Two things can happen while frameRateFor() awaits the filesystem: a
     // newer edit can land (the TextDocument is mutated in place, not
     // replaced, so `document.version` — not object identity — is what
@@ -202,6 +212,7 @@ export function start({ checkout } = {}) {
       resolveImports: path !== null,
       frameRate,
       checkout,
+      importAliases,
       ...(sourceKind ? { sourceKind } : {}),
     }).map((d) => ({
       severity: SEVERITY[d.severity] ?? DiagnosticSeverity.Error,
@@ -231,7 +242,10 @@ export function start({ checkout } = {}) {
     const offset = document.offsetAt(params.position);
     const path = filePathOf(document.uri);
     const machine = path ? await projectMachineFor(path) : null;
-    const info = getHoverInfo(document.getText(), offset, { path, checkout, sourceKind: sourceKindFor(document, path), machine });
+    const importAliases = path ? await importAliasesFor(path) : {};
+    const info = getHoverInfo(document.getText(), offset, {
+      path, checkout, sourceKind: sourceKindFor(document, path), machine, importAliases,
+    });
     if (!info) return null;
 
     return {
@@ -250,7 +264,10 @@ export function start({ checkout } = {}) {
     const offset = document.offsetAt(params.position);
     const path = filePathOf(document.uri);
     const machine = path ? await projectMachineFor(path) : null;
-    return getCompletions(document.getText(), offset, { path, checkout, sourceKind: sourceKindFor(document, path), machine }).map((item) => ({
+    const importAliases = path ? await importAliasesFor(path) : {};
+    return getCompletions(document.getText(), offset, {
+      path, checkout, sourceKind: sourceKindFor(document, path), machine, importAliases,
+    }).map((item) => ({
       label: item.label,
       kind: COMPLETION_KIND[item.kind] ?? CompletionItemKind.TypeParameter,
       detail: item.detail,
@@ -274,7 +291,10 @@ export function start({ checkout } = {}) {
     const offset = document.offsetAt(params.position);
     const path = filePathOf(document.uri);
     const machine = path ? await projectMachineFor(path) : null;
-    const target = getDefinition(document.getText(), offset, { path, checkout, sourceKind: sourceKindFor(document, path), machine });
+    const importAliases = path ? await importAliasesFor(path) : {};
+    const target = getDefinition(document.getText(), offset, {
+      path, checkout, sourceKind: sourceKindFor(document, path), machine, importAliases,
+    });
     if (!target) return null;
     const uri = pathToFileURL(target.path).href;
     const inOther = documents.get(uri);
