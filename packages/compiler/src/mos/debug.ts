@@ -101,7 +101,9 @@ export function buildDebugMap(
     format: '8bitscript-debug',
     version: 1,
     target,
-    modules: [...modules].sort(),
+    // a plain ordinal compare, not localeCompare: sort order here feeds a
+    // deterministic build artifact and must not depend on the host's locale
+    modules: [...modules].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)),
     symbols,
     instructions,
   };
