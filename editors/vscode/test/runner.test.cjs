@@ -14,6 +14,7 @@ const { installVscodeMock } = require('./support/vscodeMock.cjs');
 
 const vscode = installVscodeMock();
 const { Projects, makeTask, registerRunner } = require('../src/runner.cjs');
+const { renderView } = require('../src/assemblyView.cjs');
 
 function tmpDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), '8bs-runner-'));
@@ -587,5 +588,114 @@ test('registerRunner: useLocal accepts a real checkout and wires the project to 
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
     fs.rmSync(checkoutDir, { recursive: true, force: true });
+  }
+});
+
+test('registerRunner: viewGeneratedAssembly shows an info message with no active editor, and does nothing else', async () => {
+  const dir = tmpDir();
+  try {
+    writeConfig(dir);
+    vscode.__mock.reset();
+    vscode.window.activeTextEditor = undefined;
+    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.ts') }]);
+    await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async () => {
+      await vscode.__mock.trigger('8bitscript.viewGeneratedAssembly');
+      await tick();
+      assert.equal(vscode.__mock.calls.showInformationMessage.length, 1);
+      assert.match(vscode.__mock.calls.showInformationMessage[0][0], /Open an \.8bs or \.8bx file/);
+    });
+  } finally {
+    vscode.window.activeTextEditor = undefined;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('registerRunner: viewGeneratedAssembly runs 8bs build --debug, opens the filtered listing beside the source, and navigates back to source on selection', async () => {
+  const dir = tmpDir();
+  try {
+    writeConfig(dir);
+    const sourcePath = path.join(dir, 'src', 'main.8bs');
+    const sourceText = 'export function main(): void {\n    let score: utinyint = 0;\n    score += 1;\n}\n';
+    fs.writeFileSync(sourcePath, sourceText);
+
+    // A fake CLI that behaves like `8bs build --debug`: writes a real
+    // debug map next to a fake artifact and prints the same "debug map:"
+    // line packages/cli/src/build.mjs's own --debug support prints.
+    const debugMapPath = path.join(dir, 'out.8bs.debug.json');
+    const scoreStart = sourceText.indexOf('score += 1');
+    const debugMap = {
+      format: '8bitscript-debug', version: 1, target: 'c64', modules: [sourcePath], symbols: [],
+      instructions: [
+        {
+          address: 0xc142, artifactOffset: 10, size: 2, bytes: [0xa5, 0x18], assembly: 'LDA $18',
+          source: { file: sourcePath, start: scoreStart, length: 10, line: 3, column: 5, text: 'score += 1;' },
+          function: 'main', origin: null, component: null,
+        },
+      ],
+    };
+    const cliPath = path.join(dir, 'fake-debug-8bs.mjs');
+    fs.writeFileSync(cliPath, [
+      `import { writeFileSync } from 'node:fs';`,
+      `writeFileSync(${JSON.stringify(debugMapPath)}, ${JSON.stringify(JSON.stringify(debugMap))});`,
+      `console.log('built out.prg');`,
+      `console.log('debug map: ${debugMapPath.replace(/\\/g, '\\\\')}');`,
+    ].join('\n'));
+
+    vscode.__mock.reset();
+    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.ts') }]);
+
+    // A minimal fake TextDocument for the source file — real offsetAt/
+    // positionAt over the real text, since this is what samePath()/the
+    // cursor-matching logic actually reads.
+    const document = {
+      uri: { fsPath: sourcePath, scheme: 'file' },
+      fileName: sourcePath,
+      offsetAt: (position) => position.line === 0 ? position.character
+        : sourceText.split('\n').slice(0, position.line).join('\n').length + 1 + position.character,
+      positionAt: (offset) => {
+        const before = sourceText.slice(0, offset).split('\n');
+        return { line: before.length - 1, character: before.at(-1).length };
+      },
+    };
+    vscode.window.activeTextEditor = { document, selection: { active: { line: 2, character: 6 } } };
+
+    const shown = [];
+    const originalShowTextDocument = vscode.window.showTextDocument;
+    vscode.window.showTextDocument = (docOrUri, options) => {
+      shown.push({ docOrUri, options });
+      return originalShowTextDocument(docOrUri, options);
+    };
+
+    await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async (projects) => {
+      projects.projects[0].toolchain = cliPath;
+      projects.projects[0].installed = true;
+      await vscode.__mock.trigger('8bitscript.viewGeneratedAssembly', { project: projects.projects[0], target: 'c64' });
+      await tick();
+
+      assert.equal(vscode.__mock.calls.showErrorMessage.length, 0, JSON.stringify(vscode.__mock.calls.showErrorMessage));
+      const asmShown = shown.find((s) => s.options?.viewColumn === vscode.ViewColumn.Beside);
+      assert.ok(asmShown, 'the assembly view was opened beside the source');
+      const asmUri = asmShown.docOrUri.uri ?? asmShown.docOrUri;
+      assert.equal(asmUri.scheme, '8bitscript-asm');
+
+      // Selecting the LDA line in the asm view should navigate back to
+      // the exact `score += 1;` span in the source file — the "assembly
+      // -> source" half of bidirectional navigation. The line index is
+      // derived from renderView() itself (assemblyView.cjs), the same way
+      // showForCursor() built it, rather than hard-coded against its
+      // current header/blank-line layout.
+      const { lineSources } = renderView(sourcePath, [debugMap.instructions[0]], new Set([debugMap.instructions[0]]));
+      const ldaLine = lineSources.findIndex((s) => s && s.start === scoreStart);
+      assert.ok(ldaLine >= 0, 'renderView should have produced a line for the LDA instruction');
+      shown.length = 0;
+      vscode.__mock.fireSelectionChange({ textEditor: { document: { uri: asmUri } }, selections: [{ active: { line: ldaLine } }] });
+      await tick();
+      const navigated = shown.find((s) => s.options?.viewColumn === vscode.ViewColumn.One && s.options?.preserveFocus === true);
+      assert.ok(navigated, 'clicking the LDA line should navigate back to the source file');
+      assert.equal(navigated.docOrUri.uri.fsPath, sourcePath);
+    });
+  } finally {
+    vscode.window.activeTextEditor = undefined;
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });

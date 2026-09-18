@@ -50,6 +50,7 @@ const { selectionLabel, parseTargets } = require('./hardwareCatalog.cjs');
 const { fetchStatus, livePollPlan, readLastRun, rowKey } = require('./runningMachines.cjs');
 const { toolchainStatus } = require('./projectInfo.cjs');
 const { checkoutCli, isCheckout, managedCheckoutDir, managedUpdateCommand, resolveCheckoutRoot, runCheckout, writeToolchainFile } = require('./checkout.cjs');
+const { AssemblyViewController } = require('./assemblyView.cjs');
 
 const { regionShort } = settings;
 
@@ -448,6 +449,7 @@ function registerRunner(context, output) {
   const projects = new Projects(output, managedDir);
   projects.running.listen(context.subscriptions);
   context.subscriptions.push(projects.changed);
+  const assemblyView = new AssemblyViewController(context, output);
 
   context.subscriptions.push(
     vscode.tasks.registerTaskProvider(TASK_TYPE, new TaskProvider(projects)),
@@ -740,6 +742,38 @@ function registerRunner(context, output) {
     );
   }
 
+  /**
+   * "8BitScript: View Generated Assembly" — unlike every other action
+   * above, this needs the build's own result synchronously (which
+   * instructions, which file, which debug map path) rather than firing a
+   * task into a terminal, so it runs `8bs` through execFile the same way
+   * `projects.loadTargets` already does (projects.cjs), not through
+   * makeTask()/vscode.tasks.
+   */
+  async function viewGeneratedAssembly(node) {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor || !/\.(8bs|8bx)$/.test(editor.document.fileName)) {
+      vscode.window.showInformationMessage('Open an .8bs or .8bx file, place the cursor on a statement, and run this command again.');
+      return;
+    }
+    // node is undefined for the real invocations (command palette, editor
+    // context menu — neither passes one); accepted anyway, the same way
+    // execute() takes one, so a test can supply {project, target} directly
+    // instead of exercising settings-based project/system resolution.
+    const resolved = await targetOf(node, 'build');
+    if (!resolved) return;
+    const { project, target, hardware, region, system } = resolved;
+    if (!requireToolchain(project)) return;
+    if (!(await requireInstalled(project))) return;
+    const invocation = cliCommand(project.toolchain);
+    if (!invocation) return;
+    const effectiveHardware = hardware
+      ?? settings.getEffectiveHardware(target, (await projects.loadTargets(project.dir))?.get(target));
+    const extras = { system: system || undefined, checkout: projects.checkoutFlag() || undefined };
+    const args = commandArgs('build', target, region ?? settings.getRegion(), effectiveHardware, extras);
+    await assemblyView.showForCursor(editor, invocation, project.dir, args);
+  }
+
   async function doctor() {
     if (projects.projects.length === 0) await projects.refresh();
     // The selected project when it has a toolchain of its own, since that
@@ -997,6 +1031,7 @@ function registerRunner(context, output) {
   command('8bitscript.run', (node) => execute('run', node));
   command('8bitscript.build', (node) => execute('build', node));
   command('8bitscript.boot', (node) => execute('boot', node));
+  command('8bitscript.viewGeneratedAssembly', viewGeneratedAssembly);
   command('8bitscript.stop', (node) => {
     if (node?.dir) projects.running.stop(node.dir, node.target);
     else for (const execution of projects.running.executions) execution.terminate();
