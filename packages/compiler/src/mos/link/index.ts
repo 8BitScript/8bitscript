@@ -13,7 +13,7 @@
 // completely separate address range and is placed independently of the
 // other three.
 import { assembleRelaxed } from '../asm/relax.ts';
-import type { Directive } from '../asm/assemble.ts';
+import type { Directive, ListingLine } from '../asm/assemble.ts';
 
 export type SectionContent =
   | { kind: 'bytes'; bytes: Uint8Array }
@@ -55,27 +55,27 @@ export interface SectionLayout {
 }
 
 export type LinkResult =
-  | { ok: true; bytes: Uint8Array; symbols: Map<string, number>; layout: SectionLayout[]; memory: { variables: number; program: number } }
+  | { ok: true; bytes: Uint8Array; symbols: Map<string, number>; layout: SectionLayout[]; memory: { variables: number; program: number }; listing: ListingLine[] }
   | { ok: false; error: string };
 
 function hex(value: number, digits = 4): string {
   return value.toString(16).toUpperCase().padStart(digits, '0');
 }
 
-/** Assembles `content` at `origin`, or just hands back already-final bytes. Either way: bytes, and the labels they define. */
+/** Assembles `content` at `origin`, or just hands back already-final bytes. Either way: bytes, the labels they define, and the listing assemble() already produced for them (empty for a `bytes` section — raw bytes carry no per-instruction breakdown to begin with, the startup/native programs' own case). */
 function place(
   content: SectionContent,
   origin: number,
   section: string,
-): { ok: true; bytes: Uint8Array; symbols: Map<string, number> } | { ok: false; error: string } {
-  if (content.kind === 'bytes') return { ok: true, bytes: content.bytes, symbols: new Map() };
+): { ok: true; bytes: Uint8Array; symbols: Map<string, number>; listing: ListingLine[] } | { ok: false; error: string } {
+  if (content.kind === 'bytes') return { ok: true, bytes: content.bytes, symbols: new Map(), listing: [] };
   // assembleRelaxed, not assemble directly: milestone 6's control flow is
   // the first source of branches this backend emits, and some of them
   // (a loop body over 127 bytes) won't fit a plain relative branch. Every
   // section that assembles gets the long-branch fixup for free from here.
   const result = assembleRelaxed(content.program, origin);
   if (!result.ok) return { ok: false, error: `${section}: ${result.error}` };
-  return { ok: true, bytes: result.bytes, symbols: result.labels };
+  return { ok: true, bytes: result.bytes, symbols: result.labels, listing: result.listing };
 }
 
 const EMPTY: SectionContent = { kind: 'bytes', bytes: new Uint8Array(0) };
@@ -153,5 +153,9 @@ export function link(input: LinkInput): LinkResult {
     symbols,
     layout,
     memory: { variables: bssSize + zpSize, program: bytes.length },
+    // Code first, then data — the same order their bytes land in, so a
+    // listing reader sees addresses ascending exactly once, not code then
+    // a jump back to data's own start.
+    listing: [...code.listing, ...data.listing],
   };
 }

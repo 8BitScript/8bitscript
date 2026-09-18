@@ -81,6 +81,7 @@ function createVscodeMock() {
     onDidEndTask: makeEmitter(),
     onDidEndTaskProcess: makeEmitter(),
   };
+  const selectionEmitter = makeEmitter();
   const executedTasks = [];
   const executedCommands = [];
 
@@ -144,7 +145,16 @@ function createVscodeMock() {
     }
   }
 
-  const uriFor = (fsPath) => ({ fsPath, toString: () => `file://${fsPath}` });
+  const uriFor = (fsPath) => ({ fsPath, scheme: 'file', toString: () => `file://${fsPath}` });
+  // Real Uri.parse reads the scheme off the string itself (`scheme:path`)
+  // rather than assuming `file` the way Uri.file always can — needed for
+  // assemblyView.cjs's own custom `8bitscript-asm:` scheme.
+  const uriParse = (value) => {
+    const at = value.indexOf(':');
+    const scheme = at > 0 ? value.slice(0, at) : 'file';
+    const rest = at > 0 ? value.slice(at + 1) : value;
+    return { fsPath: rest, scheme, toString: () => value };
+  };
 
   const vscode = {
     env: { appName: 'Visual Studio Code' },
@@ -164,10 +174,23 @@ function createVscodeMock() {
     QuickPickItemKind: { Separator: -1 },
     Uri: {
       file: uriFor,
-      parse: uriFor,
+      parse: uriParse,
+    },
+    ViewColumn: { One: 1, Two: 2, Beside: -2 },
+    TextEditorRevealType: { InCenterIfOutsideViewport: 2 },
+    Position: class Position {
+      constructor(line, character) { this.line = line; this.character = character; }
+    },
+    Range: class Range {
+      constructor(start, end) { this.start = start; this.end = end; }
+    },
+    Selection: class Selection {
+      constructor(anchor, active) { this.anchor = anchor; this.active = active; }
     },
     window: {
       workspaceState: undefined,
+      activeTextEditor: undefined,
+      onDidChangeTextEditorSelection: selectionEmitter.event,
       showInformationMessage: (...args) => {
         calls.showInformationMessage.push(args);
         return Promise.resolve(nextFrom('showInformationMessage'));
@@ -186,6 +209,7 @@ function createVscodeMock() {
       showTextDocument: (docOrUri) => Promise.resolve({
         document: docOrUri,
         selection: { active: { line: 0, character: 0 } },
+        revealRange: () => {},
         edit: (builder) => {
           const inserted = [];
           builder({ insert: (position, text) => inserted.push({ position, text }) });
@@ -236,6 +260,7 @@ function createVscodeMock() {
       }),
       onDidChangeWorkspaceFolders: () => makeDisposable(),
       onDidChangeConfiguration: () => makeDisposable(),
+      registerTextDocumentContentProvider: () => makeDisposable(),
     },
     tasks: {
       taskExecutions: [],
@@ -272,6 +297,7 @@ function createVscodeMock() {
       executedTasks,
       executedCommands,
       taskEmitters,
+      fireSelectionChange: (event) => selectionEmitter.fire(event),
       trigger: (id, ...args) => {
         const handler = commandHandlers.get(id);
         if (!handler) throw new Error(`no command registered for '${id}'`);

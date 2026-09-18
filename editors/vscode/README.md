@@ -80,6 +80,15 @@ the project overview is in the [root README](../../README.md).
   - **8BX** — in an `.8bx` file, `<` offers the components in scope (and
     `slot`), a component's tag offers the props it still needs as
     snippets (`row={|}`), and `</` closes the innermost open element
+- **8BitScript: View Generated Assembly** — from the command palette or
+  an `.8bs`/`.8bx` editor's right-click menu, runs `8bs build --debug`
+  and opens the machine instructions generated for the statement at the
+  cursor (and the rest of its own function, for context) in a read-only
+  view beside the source. Clicking a line there jumps back to the exact
+  source span that generated it. No compiler logic lives in the
+  extension for this — it's all read off the compiler's own
+  `.8bs.debug.json` (docs/compiler.md's "Debug output" section has the
+  schema).
 
 If no toolchain is found, the extension says so and falls back to syntax
 highlighting alone — see "Installing it while developing" below.

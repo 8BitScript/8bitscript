@@ -55,3 +55,62 @@ Catalog diagnostics (`packages/compiler/src/i18n`):
 | 8BS1044 | Two locale catalogs do not export the same namespaces and string const names |
 | 8BS1045 | A catalog string's `{name}` placeholders do not match the default locale's |
 | 8BS1046 | `i18n.format` could not fold: a missing param, a non-const argument, or a record used somewhere other than as its second argument |
+
+## Debug output: `.lst` and `.8bs.debug.json`
+
+`8bs build --debug` (native/MOS targets only — the WebAssembly backend
+has no listing yet) writes two extra files next to the artifact:
+
+- **`<name>.lst`** — a human-readable assembly listing: address, encoded
+  bytes, and mnemonic, grouped into sections by source file, function
+  (or component), and inline origin, with the source line shown inline
+  where it's known.
+- **`<name>.8bs.debug.json`** — the same information as versioned JSON
+  (`{ format: "8bitscript-debug", version: 1, ... }`), for the VS Code
+  extension or another tool to consume instead of scraping the listing.
+
+Both come from data the assembler already produces for every build
+(`asm/assemble.ts`'s `ListingLine`: address, bytes, assembly text) —
+`--debug` doesn't run a second pass or a disassembler, it keeps and
+serializes what already exists, plus **provenance**: `mos/provenance.ts`'s
+`SourceRef`-shaped `{ source, function, origin, component }`, carried on
+every `Directive` from the moment `lower/index.ts` emits it (stamped once,
+in `Lowerer.emit()`, from whichever IR statement is currently being
+lowered — not re-derived per instruction) through branch relaxation
+(`asm/relax.ts` copies a relaxed branch's own provenance onto its
+replacement, tagged `generated: { reason: 'branch-relaxation' }`) and the
+final linked program.
+
+`source` reuses the compiler's own span shape — `{ file, start, length }`,
+the same triple `diagnostic()` (`diagnostics/index.mjs`) already takes —
+rather than a second source-location system; line/column are resolved on
+demand from the file's own text (`positionAt`), not stored redundantly on
+every instruction. `function` is the 8BitScript function (or, once a
+component lowers to something the mos backend can tell apart from an
+ordinary function, the component) currently being lowered; `origin` is
+set only on an inlined statement, and names the function it was inlined
+*from* — the linker's inliner (`linker/optimize.mjs`) already tags an
+inlined block with this (`{ kind: 'block', origin: callee.name, body }`),
+originally for `--size`'s own per-function breakdown; the debug map is a
+second reader of the same field, not a second mechanism. An inlined
+statement's own span resolves against the **origin function's** file, not
+the caller's, since a cloned statement's `start`/`length` are still
+offsets into wherever it was originally written.
+
+`address` (the CPU/runtime address) and `artifactOffset` (the byte offset
+into `BuildResult.bytes`, the linked code+data image `build()` returns)
+are kept as distinct fields on purpose — a Commodore `.prg`'s 2-byte load
+address, an Atari `.xex`'s segment headers, and an NES `.nes`'s iNES
+header each mean a CPU address is not a file offset, and `artifactOffset`
+is relative to the linked image `build()` produces, before whatever a
+target's own image-wrapping step (`image.ts`, `image-nes.ts`,
+`image-atari8.ts`) adds after it returns.
+
+Not every instruction has a `source`: code a target's start-up sequence,
+the wait-frame or multiply helper routines, or the string/const-array
+data section emit is compiler structure, not a lowered source statement —
+its listing entry (and debug-map instruction) carries `source: null`
+rather than a fabricated span. The debug map's `symbols` array separately
+lists every named global (from the zero-page allocator) and function
+(from its linked label address), so a consumer can show `score` instead
+of `$18` without walking every instruction to find where it's read.
