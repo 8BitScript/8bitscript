@@ -121,6 +121,12 @@ locale by hand. A file with one line to translate can branch instead of
 splitting: `if (#locale("de")) { … } else { … }` folds at compile time, and
 is `false` in every build that names no locale.
 
+The twin rule applies inside packages too. `@8bitscript/i18n` is one file
+per locale — its `Locale.DECIMAL` and `Locale.GROUP` are the build's
+locale's separators, and `@8bitscript/i18n/number` prints a grouped
+number with them — so a program reads one name and the build picks the
+file, the same way it picks the program's own `strings.de.8bs`.
+
 ## Images
 
 A disk image is a container over built programs and data files, written

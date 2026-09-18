@@ -1,0 +1,5 @@
+import { run } from "./number-values.8bs";
+
+export function main(): void {
+    run();
+}

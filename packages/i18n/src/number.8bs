@@ -1,0 +1,75 @@
+// @8bitscript/i18n/number — a number the way the build's locale writes
+// it, through @8bitscript/text: `number.print(cell, value, width)` writes
+// `value` as decimal digits with Locale.GROUP between every three, from
+// the right, right-aligned in a field of `width` cells from `cell`, the
+// cells ahead of it blank — "1,234" in an English build and "1.234" in a
+// German one, from the same call. The most a usmallint takes is six
+// cells ("65,535"); a field narrower than its number is printed from
+// `cell` anyway, so the number is never cut, and a caller that sizes the
+// field at six is safe for every value.
+//
+// Opt-in, at its own subpath: unlike the facts at the bare import this is
+// code — a loop over the place values, the way every machine's
+// text.printNumber works out digits without a divide (the 6502 has none,
+// and `value / 10` would link a 250-byte routine) — and a program that
+// prints its numbers as `text.printNumber`'s zero-padded field, or in a
+// template, pays nothing for it. text.printNumber is the field for a HUD
+// counter that must not shift columns; this is the number for a total
+// the player reads.
+import { text } from "@8bitscript/text";
+import { Locale } from "./index.8bs";
+
+const PLACES: array<usmallint, 5> = [10000, 1000, 100, 10, 1];
+
+// Written for a small zero-page frame — the 6502 backend keeps every
+// local and parameter of the deepest call chain in zero page, so a local
+// here is a byte of every program's tightest budget: a first cut with
+// four locals for the digit count and the field needed 19 bytes, this
+// one 15 (text.printNumber's own is 13). `cell` is the cursor, and
+// `remaining` is the digit count, the number's width, and the countdown
+// to the separator in turn. What the whole thing costs, measured
+// 2026-09-17 as one number printed this way instead of with
+// text.printNumber, in a program that owns its machine: +209 bytes and
+// +11 of RAM on the PET, +202 and +11 on the unexpanded VIC-20, +194 and
+// +9 on the C64 — @8bitscript/text's fill() and putChar() linked beside
+// its place(), and the separator's own loop.
+export namespace number {
+    function print(cell: usmallint, value: usmallint, width: utinyint): void {
+        // How many digits: the first place the value reaches, high to
+        // low — one digit for 0-9, so a zero prints as one "0".
+        let remaining: utinyint = 1;
+        let i: utinyint = 0;
+        while (i < 4) {
+            if (remaining == 1 && value >= PLACES[i]) {
+                remaining = 5 - i;
+            }
+            i++;
+        }
+        // Five digits at most, so at most one separator, and only when
+        // there is a fourth digit: the number's width is one more then.
+        i = remaining;
+        if (remaining > 3) {
+            i = remaining + 1;
+        }
+        if (width > i) {
+            text.fill(cell, width - i, 32);
+            cell = cell + (width - i);
+        }
+        i = 5 - remaining; // the first place printed
+        while (i < 5) {
+            let digit: utinyint = 48; // '0'
+            while (value >= PLACES[i]) {
+                value = value - PLACES[i];
+                digit++;
+            }
+            text.putChar(cell, digit);
+            cell++;
+            remaining--;
+            if (remaining == 3) {
+                text.putChar(cell, Locale.GROUP);
+                cell++;
+            }
+            i++;
+        }
+    }
+}

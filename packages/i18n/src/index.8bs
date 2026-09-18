@@ -1,0 +1,29 @@
+// @8bitscript/i18n — what the build's locale is like, as compile-time
+// facts. This file is the one a build with no locale named reads: the
+// program's source language, which for every program so far has been
+// English, so the numbers below are English's. Beside it, index.de.8bs
+// and the rest are one locale each, and `8bs build --locale de` (or a
+// target's `locale`, or a `release` entry's) takes that file instead —
+// the resolver's locale twin rule, the same one that takes a program's
+// own strings.de.8bs over its strings.8bs (docs/config.md, "One binary
+// per locale"). A locale with no file here reads this one, silently:
+// add the twin (five lines) rather than branch on #locale("...").
+//
+// Every value is a literal in a namespace, so a read of Locale.GROUP is
+// one byte in the image and a branch on it folds; a program that never
+// reads it links none of this. What is here is what a program on a
+// character grid can act on: the two separators a number is written
+// with, as the ASCII codes @8bitscript/text's putChar takes. Both are
+// in the portable character set on every machine (`,` and `.`; a space
+// where a language groups with one). What is not here is anything the
+// machines cannot show — an accented letter, a currency sign — and
+// anything that is a string: strings are the program's own, in its
+// strings.8bs and that file's locale twins.
+//
+// Sources: CLDR's number symbols for each locale (unicode.org/cldr);
+// each twin cites the entry it was read from.
+
+export namespace Locale {
+    const DECIMAL: utinyint = 46; // '.' — 3.5
+    const GROUP: utinyint = 44;   // ',' — 65,535
+}
