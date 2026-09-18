@@ -58,7 +58,7 @@ import {
 } from '@8bitscript/compiler';
 
 import { applyCheckoutFromArgs, setActiveCheckout } from './checkout.mjs';
-import { loadConfig, localeArg, resolveFrameRate, resolveLocale, retiredOptionWarnings } from './config.mjs';
+import { loadConfig, localeArg, resolveFrameRate, resolveI18n, resolveLocale, retiredOptionWarnings } from './config.mjs';
 import {
   HARDWARE_USAGE, REGION_MACHINES, catalogTags, hardwareArgs, listedTargets, loadCatalog, projectHardware,
   projectProfiles, projectRequires, resolveHardware, whatSatisfies,
@@ -288,6 +288,16 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   }
   const { locale } = localeResult;
 
+  const i18nResult = resolveI18n(config, { tags: catalogTags(loadCatalog(target)) });
+  if (!i18nResult.ok) {
+    process.stderr.write(`8bs build: ${i18nResult.error}\n`);
+    return { ok: false };
+  }
+  const { i18n } = i18nResult;
+  // The default catalog locale needs no flag and keeps the artifact name
+  // it always had; a different locale still tags the file (`-de`).
+  const localeTag = (locale && locale !== i18n?.defaultLocale) ? locale : undefined;
+
   // What the program needs of the machine, before the machine gets a
   // chance to disappoint it. A program that cannot run in the RAM it was
   // given fails at the linker with an overflow measured in bytes of
@@ -342,7 +352,7 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   // hardware's tags so a file with a `.<machine>.<tag>.8bs` twin resolves
   // to that.
   const { ir, diagnostics, sources } = link(text, entry, {
-    machine: target, tags: hardware.tags, facts: hardware.facts, frameRate, checkout, bx: config?.bx, locale,
+    machine: target, tags: hardware.tags, facts: hardware.facts, frameRate, checkout, bx: config?.bx, locale, i18n,
   });
   // A warning is printed and the build goes on; an error stops it.
   if (diagnostics.length > 0) printDiagnostics(diagnostics, sources);
@@ -366,7 +376,7 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
     // The locale after the tag, as the native names carry it; a bundle
     // per locale sits beside the others in dist/web, the way a bundle per
     // tag already does.
-    const suffix = [hardware.tags[0], locale].filter(Boolean).map((part) => `-${part}`).join('');
+    const suffix = [hardware.tags[0], localeTag].filter(Boolean).map((part) => `-${part}`).join('');
     const wasmName = `program${suffix}`;
     const outFile = resolve('dist', `${stem}${suffix}.wasm`);
     // The layout is computed once and both sides get it: the page through
@@ -398,7 +408,7 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   // emulator is not, because the file is the same file.
   // A locale changes the bytes the way build hardware does, and follows
   // it in the name; a build without one keeps the name it always had.
-  const nameParts = [stem, target, ...hardware.buildValues, ...(locale ? [locale] : [])];
+  const nameParts = [stem, target, ...hardware.buildValues, ...(localeTag ? [localeTag] : [])];
   if (REGION_TARGETS.has(target)) nameParts.push(pal ? 'pal' : 'ntsc');
   const ext = outputExtension(target, hardware);
   // The name has to survive the filesystem it will be loaded from, not just

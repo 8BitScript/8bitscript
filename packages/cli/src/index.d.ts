@@ -89,9 +89,36 @@ export interface ProjectConfig {
    * (`strings.de.8bs`, `strings.pet.de.8bs`) is read where it exists and
    * the artifact's name carries it (`2048-pet-de.prg`); `#locale("de")`
    * folds to true. Without one — the default — no locale's file is read and
-   * nothing is named differently.
+   * nothing is named differently, unless `i18n` (or a catalog directory)
+   * is present, in which case the build uses `i18n.defaultLocale` (`en`).
    */
   locale?: Locale;
+  /**
+   * Message catalogs and the locale a catalog project builds for when
+   * nothing nearer says otherwise. Catalogs live under `catalog`
+   * (`src/i18n/<locale>.8bs`) and are imported as `@8bitscript/i18n/catalog`.
+   * A project without this block and without that directory is unchanged:
+   * locale stays optional and no catalog is loaded.
+   */
+  i18n?: I18nConfig;
+}
+
+/** Project message catalogs: one `.8bs` file per locale, folded at compile time. */
+export interface I18nConfig {
+  /** The locale a build uses when nothing nearer names one. Default `'en'`. */
+  defaultLocale?: Locale;
+  /** Missing keys are taken from this locale's catalog. Default `defaultLocale`. */
+  fallbackLocale?: Locale;
+  /** Locales this project ships. When set, those files must exist and extras are refused. */
+  locales?: Locale[];
+  /** Directory of `<locale>.8bs` catalogs. Default `'src/i18n'`. */
+  catalog?: string;
+  /**
+   * How catalog Unicode is lowered into the portable character set.
+   * `transliterate` (default) maps Latin extras (`Ü` → `UE`); `strict`
+   * refuses any non-portable source character.
+   */
+  charset?: 'transliterate' | 'strict';
 }
 
 /** Returns `config` unchanged; exists to type it. `export default { … }` is still a config. */

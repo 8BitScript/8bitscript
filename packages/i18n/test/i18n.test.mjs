@@ -33,10 +33,12 @@ const LOCALES = readdirSync(SRC)
 const PROBE = join(HERE, 'locale-probe.8bs');
 const consumer = join(CHECKOUT, 'packages', 'examples', 'hello-world', 'src', 'hello-world.8bs');
 
-test('the package exports ./number, and depends on @8bitscript/text alone', () => {
+test('the package exports ./number, ./messages and ./catalog, and depends on @8bitscript/text alone', () => {
   const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
   assert.equal(pkg['8bitscript'].entry, './src/index.8bs');
   assert.equal(pkg['8bitscript'].exports['./number'], './src/number.8bs');
+  assert.equal(pkg['8bitscript'].exports['./messages'], './src/messages.8bs');
+  assert.equal(pkg['8bitscript'].exports['./catalog'], './src/catalog.8bs');
   assert.deepEqual(Object.keys(pkg.dependencies), ['@8bitscript/text']);
 });
 
@@ -67,6 +69,12 @@ for (const locale of LOCALES) {
     }
   });
 }
+
+test('@8bitscript/i18n/catalog is a compiler-owned specifier, not the stub file', () => {
+  const resolved = resolveSpecifier('@8bitscript/i18n/catalog', consumer, { checkout: CHECKOUT });
+  assert.equal(resolved?.code, '8BS1043');
+  assert.match(resolved.message, /needs a message catalog/);
+});
 
 test('a locale with no file here reads the plain one', () => {
   const resolved = resolveSpecifier('@8bitscript/i18n', consumer, { machine: 'c64', checkout: CHECKOUT, locale: 'sv' });

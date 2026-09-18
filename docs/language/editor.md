@@ -23,6 +23,10 @@ Every diagnostic has a stable `8BSnnnn` code, independent of its message wording
 
 | Code | Means |
 | --- | --- |
+| 8BS1043 | Message catalog missing or not a catalog (`@8bitscript/i18n/catalog`) |
+| 8BS1044 | Catalog schema mismatch between locales |
+| 8BS1045 | Catalog `{placeholder}` set does not match the default locale |
+| 8BS1046 | `i18n.format` could not fold |
 | 8BS1039 | BX syntax error (lexer/parser) |
 | 8BS2012 | Unknown component |
 | 8BS2013 | Unknown prop |

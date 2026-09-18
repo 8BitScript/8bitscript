@@ -1,0 +1,21 @@
+// @8bitscript/i18n/messages — pad or clear a line on the grid. The words
+// live in the project's catalogs (`src/i18n/<locale>.8bs`, imported as
+// `@8bitscript/i18n/catalog`). Widths belong to the layout, not the
+// catalog: a shorter translation never carries a blank filler. Import
+// this when a slot's text changes width but the cells it occupies do not.
+import { text } from "@8bitscript/text";
+
+export namespace messages {
+    // `line` at `cell`, then spaces through `cell + width - 1`.
+    function printLine(cell: usmallint, line: string, width: utinyint): void {
+        text.print(cell, line);
+        let n: utinyint = line.length;
+        if (width > n) {
+            text.fill(cell + n, width - n, 32);
+        }
+    }
+
+    function clearLine(cell: usmallint, width: utinyint): void {
+        text.fill(cell, width, 32);
+    }
+}

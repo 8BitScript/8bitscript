@@ -13,7 +13,9 @@ compiled, is a byte this package wasted.
 Layer-specific rules live next to the layer. The lexer's are
 [`src/lexer/AGENTS.md`](src/lexer/AGENTS.md). If you are adding a
 keyword, a literal form, a `#name`, or a diagnostic the scanner emits,
-start there.
+start there. Message catalogs (`@8bitscript/i18n/catalog`) live in
+[`src/i18n/index.mjs`](src/i18n/index.mjs): schema/placeholder parity,
+fallback merge, Latin transliteration, and the `i18n.format` fold.
 
 ## What this package is
 
