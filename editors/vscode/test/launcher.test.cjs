@@ -190,6 +190,16 @@ test('the tree view and the settings only it needed are gone', () => {
   assert.ok(!fs.existsSync(path.join(ROOT, 'media', 'controls.js')));
 });
 
+test('an empty named system selects the machine id, not a blank the dropdown would turn into pet', () => {
+  const { installVscodeMock } = require('./support/vscodeMock.cjs');
+  installVscodeMock();
+  const { selectedSystemId } = require('../src/launcherView.cjs');
+  assert.equal(selectedSystemId(null, '', 'c64'), 'c64');
+  assert.equal(selectedSystemId(undefined, '', 'vic20'), 'vic20');
+  assert.equal(selectedSystemId({ name: 'PET 3032' }, 'PET 3032', 'pet'), 'PET 3032');
+  assert.equal(selectedSystemId(null, 'Commodore 64', 'c64'), 'Commodore 64');
+});
+
 test('named systems are grouped by origin above the machines', () => {
   const view = fs.readFileSync(path.join(ROOT, 'src', 'launcherView.cjs'), 'utf8');
   assert.match(view, /This clone/, 'project-personal first');
