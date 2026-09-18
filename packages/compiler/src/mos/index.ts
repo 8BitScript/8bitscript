@@ -564,6 +564,14 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // optimizeReachable prunes, folds compile-time work, then prunes again.
   const { functions, globals } = optimizeReachable(ir);
 
+  // Every function's own file, from ir.functions — before optimizeReachable
+  // prunes it away as dead code (a callee inlined at its only call site is
+  // exactly this shape) — so an inlined statement's provenance can resolve
+  // against the file its own start/length were taken from, not the caller's
+  // (see provenance.ts and lower/index.ts's block()).
+  const originFiles = new Map<string, string>();
+  for (const fn of ir.functions) if (typeof fn.file === 'string') originFiles.set(fn.name, fn.file);
+
   const cycle = findCallCycle(functions);
   if (cycle) return { ok: false, error: `recursion isn't lowered yet: ${cycle.join(' -> ')} -> ${cycle[0]} calls itself, directly or through another function` };
 
@@ -892,7 +900,10 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
     // wholly past any hole), so the allocator needs no holes here and
     // uses exactly the bytes the measurement pass observed.
     const locals = new LocalAllocator(scratchBase, layout.starts.get(fn.name)! + frameNeeds.get(fn.name)!.bytes);
-    const lowered = lower(fn.body, { globals: globalBindings, locals, params, functions: functionSites, arrays, multiply, returnPair: site.returnPair });
+    const lowered = lower(fn.body, {
+      globals: globalBindings, locals, params, functions: functionSites, arrays, multiply, returnPair: site.returnPair,
+      fnName: fn.name, fnFile: originFiles.get(fn.name) ?? fn.file ?? null, originFiles,
+    });
     if (!lowered.ok) return { ok: false, error: `in '${fn.name}': ${lowered.error}` };
     loweredFunctions.push({ name: fn.name, label: site.label, program: lowered.program, parts: lowered.parts, isEntry: fn.name === ir.entry });
   }

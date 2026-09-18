@@ -38,6 +38,7 @@ import { storageBytes, resolveIntegerType } from '../../types/index.mjs';
 import { LocalAllocator, ZpBudgetError } from './allocator.ts';
 import { arrayLabel, stringLabel } from '../data.ts';
 import { WAIT_FRAME_LABEL } from '../startup/waitframe.ts';
+import type { Provenance, SourceSpan } from '../provenance.ts';
 import { MULTIPLY_LABEL } from '../startup/multiply.ts';
 import { parseAsm } from '../asm/parse.ts';
 
@@ -85,6 +86,11 @@ export interface IrExpr {
 
 export interface IrStatement {
   kind: string;
+  // the source span responsible for this statement (ir/index.mjs's node()
+  // helper stamps these on every AST node; not every IrStatement kind sets
+  // them yet — see mos/AGENTS.md's provenance section for which do).
+  start?: number;
+  length?: number;
   // memoryWrite
   address?: IrExpr;
   value?: IrExpr | null;
@@ -149,6 +155,19 @@ export interface IrFunction {
   params?: IrParam[];
   returnType?: string;
   body: IrStatement[];
+  // The source file this function's body was parsed from — stamped by the
+  // linker (linker/index.mjs, module.file) once every module's functions
+  // are merged into one linked program. Optional for the same reason as
+  // params/returnType above: synthetic test fixtures build an IrFunction
+  // with no file, and get no provenance in their output — never a crash.
+  file?: string;
+  // component/owner already exist on the real linked shape (bx/elaborate.mjs
+  // marks a component function, the linker renames `owner`) — named here
+  // only where mos/index.ts reads them for provenance; declared loosely as
+  // `unknown` so this file doesn't need to import the bx elaboration types
+  // just to pass them through untouched.
+  component?: boolean;
+  owner?: string | null;
 }
 
 /** A function's calling interface, computed once (mos/index.ts, before any
@@ -195,6 +214,10 @@ export interface LowerOptions {
   multiply?: { a: number; b: number; result: number } | null;
   /** This function's own 16-bit return pair (its FunctionSite.returnPair), when it has one — where its `return <value>` statements store the result. Absent for an 8-bit or void function, whose `return` keeps the accumulator convention. */
   returnPair?: number;
+  /** Provenance: the function name and source file every directive this pass emits is stamped with by default (emit()), and — for a statement an inliner spliced in from elsewhere (ir/index.mjs's `{ kind: 'block', origin }`) — the file the *named* origin function's own body actually lives in, so an inlined statement's source span resolves against the file its own offsets were taken from, not the caller's. Optional so every existing test fixture that builds a LowerOptions by hand (mos.test.ts, lower/index.test.ts) keeps compiling unchanged — omitted, every directive's `prov` is simply left unset, exactly today's behavior. */
+  fnName?: string;
+  fnFile?: string | null;
+  originFiles?: Map<string, string>;
 }
 
 export type LowerResult =
@@ -450,6 +473,18 @@ class Lowerer {
   loops: { continueLabel: string; breakLabel: string }[] = [];
   exitLabel = freshLabel('exit');
 
+  // Provenance state — see provenance.ts. `fnName`/`fnFile` are fixed for
+  // the whole pass (one Lowerer lowers one function's body); `currentSpan`
+  // and `currentOrigin` change as block() walks statements, restored by
+  // the caller (block()/statement()'s own 'block' case) once a statement
+  // or an inlined region is done, the same save/restore shape `scoped()`
+  // already uses for `currentParams`.
+  fnName: string | null;
+  fnFile: string | null;
+  originFiles: Map<string, string>;
+  currentSpan: SourceSpan | null = null;
+  currentOrigin: string | null = null;
+
   constructor(options: LowerOptions) {
     this.symbols = new Map(options.globals);
     this.locals = options.locals;
@@ -457,6 +492,9 @@ class Lowerer {
     this.arrays = options.arrays;
     this.multiply = options.multiply ?? null;
     this.returnPair = options.returnPair ?? null;
+    this.fnName = options.fnName ?? null;
+    this.fnFile = options.fnFile ?? null;
+    this.originFiles = options.originFiles ?? new Map();
     // A parameter is bound exactly like a local — same Binding shape, same
     // symbol table — except its address comes from mos/index.ts's own
     // parameter pass (see mos/AGENTS.md), not this.locals.alloc(), and it
@@ -464,7 +502,23 @@ class Lowerer {
     for (const p of options.params) this.symbols.set(p.name, { address: p.address, type: p.type });
   }
 
+  /** This pass's current provenance, or undefined when this Lowerer was built with no fnName (every existing hand-built test fixture) — emit() leaves `prov` unset entirely rather than stamp a half-empty one nobody asked for. */
+  provenance(): Provenance | undefined {
+    if (this.fnName === null) return undefined;
+    return {
+      source: this.currentSpan,
+      function: this.fnName,
+      origin: this.currentOrigin,
+      component: null,
+      instance: null,
+    };
+  }
+
   emit(...directives: Directive[]): void {
+    const prov = this.provenance();
+    if (prov) {
+      for (const directive of directives) if (!directive.prov) directive.prov = prov;
+    }
     this.program.push(...directives);
   }
 
@@ -1580,6 +1634,19 @@ class Lowerer {
     const ranges: { origin: string | null; start: number; end: number }[] = [];
     for (const statement of body) {
       const start = this.program.length;
+      // A statement missing its own span (a handful of IrStatement kinds
+      // still don't carry one — see IrStatement's own comment) keeps
+      // whatever span an enclosing statement already set, rather than
+      // going blank: the instructions it lowers to are still "inside"
+      // that enclosing construct as far as a listing reader is concerned.
+      const previousSpan = this.currentSpan;
+      if (typeof statement.start === 'number') {
+        this.currentSpan = {
+          file: (this.currentOrigin && this.originFiles.get(this.currentOrigin)) || this.fnFile || '',
+          start: statement.start,
+          length: statement.length ?? 0,
+        };
+      }
       const result = this.statement(statement);
       if (result) declared.push(result);
       ranges.push({
@@ -1587,6 +1654,7 @@ class Lowerer {
         start,
         end: this.program.length,
       });
+      this.currentSpan = previousSpan;
     }
     this.unscope(declared);
     this.locals.release(mark);
@@ -1654,9 +1722,17 @@ class Lowerer {
         this.symbols.set(node.name!, { address, type: node.type! });
         return { name: node.name!, shadowed };
       }
-      case 'block':
+      case 'block': {
+        // Only the inliner's own synthetic wrapper (ir/index.mjs's plain
+        // `{ block }` never sets `origin`) changes currentOrigin — an
+        // ordinary nested `{ ... }` in source stays attributed to
+        // whichever origin (if any) already enclosed it.
+        const previousOrigin = this.currentOrigin;
+        if (typeof node.origin === 'string') this.currentOrigin = node.origin;
         this.block(node.body!);
+        this.currentOrigin = previousOrigin;
         return null;
+      }
       case 'if':
         this.ifStatement(node);
         return null;

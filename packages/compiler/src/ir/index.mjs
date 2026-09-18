@@ -999,7 +999,7 @@ class Lowering {
         if (!update) return null;
       }
       const body = this.blockOrStatement(node.body);
-      return { kind: 'for', init, test, update, body };
+      return { kind: 'for', init, test, update, body, start: node.start, length: node.length };
     });
   }
 
@@ -1037,12 +1037,12 @@ class Lowering {
         const test = this.expression(node.test);
         const then = node.consequent ? this.blockOrStatement(node.consequent) : [];
         const otherwise = node.alternate ? this.blockOrStatement(node.alternate) : null;
-        return test ? { kind: 'if', test, then, else: otherwise } : null; // NOSONAR: javascript:S7739 — 'then' is the IR field name, never a Promise
+        return test ? { kind: 'if', test, then, else: otherwise, start: node.start, length: node.length } : null; // NOSONAR: javascript:S7739 — 'then' is the IR field name, never a Promise
       }
       case NodeType.WhileStatement: {
         const test = this.expression(node.test);
         const body = this.blockOrStatement(node.body);
-        return test ? { kind: 'while', test, body } : null;
+        return test ? { kind: 'while', test, body, start: node.start, length: node.length } : null;
       }
       case NodeType.ReturnStatement: {
         if (node.argument) {
@@ -1050,21 +1050,21 @@ class Lowering {
             return this.fail(node, 'a function declared to return void cannot return a value');
           }
           const value = this.expression(node.argument);
-          return value ? { kind: 'return', value } : null;
+          return value ? { kind: 'return', value, start: node.start, length: node.length } : null;
         }
         if (this.currentReturnType && this.currentReturnType !== 'void') {
           return this.fail(node, `this function must return a value of type ${this.currentReturnType}`);
         }
-        return { kind: 'return', value: null };
+        return { kind: 'return', value: null, start: node.start, length: node.length };
       }
       case NodeType.BreakStatement:
-        return { kind: 'break' };
+        return { kind: 'break', start: node.start, length: node.length };
       case NodeType.ContinueStatement:
-        return { kind: 'continue' };
+        return { kind: 'continue', start: node.start, length: node.length };
       case NodeType.AsmBlock:
-        return { kind: 'asm', text: node.body.slice(1, -1) };
+        return { kind: 'asm', text: node.body.slice(1, -1), start: node.start, length: node.length };
       case NodeType.BlockStatement:
-        return { kind: 'block', body: this.block(node) };
+        return { kind: 'block', body: this.block(node), start: node.start, length: node.length };
       default:
         return this.fail(node, `a ${node.type} statement is not compilable yet`);
     }
