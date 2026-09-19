@@ -202,6 +202,25 @@ test('the Atari model axis is run-only: every model links the same .xex, and onl
   assert.equal(resolveHardware(catalog, { overrides: { model: '800xl' } }).hardware.facts['memory.banked'], false);
 });
 
+test('the Atari textmode axis is a build: GR.1 is 20 columns with per-cell color, GR.0 is the stock 40', () => {
+  const catalog = loadCatalog('atari8');
+  const stock = resolveHardware(catalog).hardware;
+  assert.equal(stock.facts['video.columns'], 40);
+  assert.equal(stock.facts['video.colorPerCell'], false);
+  assert.equal(stock.facts['video.cellWidth'], 8);
+  assert.deepEqual(stock.tags, []);
+  assert.deepEqual(stock.buildValues, []);
+
+  const gr1 = resolveHardware(catalog, { overrides: { textmode: 'gr1' } }).hardware;
+  assert.equal(gr1.facts['video.columns'], 20);
+  assert.equal(gr1.facts['video.colorPerCell'], true);
+  assert.equal(gr1.facts['video.cellColors'], 4);
+  assert.equal(gr1.facts['video.glyphs'], 64);
+  assert.equal(gr1.facts['video.cellWidth'], 16);
+  assert.deepEqual(gr1.tags, ['gr1']);
+  assert.deepEqual(gr1.buildValues, ['gr1']);
+});
+
 test('--hardware sets options on top of a profile; a mouse in a port is a fact', () => {
   const { ok, hardware } = resolveHardware(loadCatalog('c64'), {
     profile: 'reu512', overrides: { port1: 'mouse1351', sid: '8580' },

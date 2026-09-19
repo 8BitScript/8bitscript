@@ -78,6 +78,27 @@
         "storage.kib": 86
       },
       "options": {
+        "textmode": {
+          "label": "Text mode",
+          "default": "gr0",
+          "values": {
+            "gr0": {
+              "label": "40-column ANTIC 2 (GR.0): luminance only, no per-cell color"
+            },
+            "gr1": {
+              "label": "20-column ANTIC 6 (GR.1): four playfield colors per character",
+              "tag": "gr1",
+              "build": {},
+              "facts": {
+                "video.columns": 20,
+                "video.cellWidth": 16,
+                "video.cellColors": 4,
+                "video.colorPerCell": true,
+                "video.glyphs": 64
+              }
+            }
+          }
+        },
         "model": {
           "label": "Model",
           "default": "800xl",

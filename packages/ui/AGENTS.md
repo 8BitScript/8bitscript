@@ -89,7 +89,9 @@ one of them shapes a component's design:
 
 - **Three of the nine targets have no per-cell color.** `text.putColor`
   and `text.setColor` are deliberately empty functions on the **PET** (no
-  color RAM at all), the **Atari 8-bit** (GR.0 has none), and the **NES**
+  color RAM at all), the **Atari 8-bit** in stock GR.0 (ANTIC 2 has none;
+  `textmode=gr1` is a different build with four playfield colors per
+  character), and the **NES**
   (its color lives in a 2x2-cell attribute block, which that text layer
   does not touch). The compiler deletes a call to either, so a program
   that colors its text pays those three nothing. Color is never a

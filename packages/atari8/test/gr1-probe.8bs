@@ -1,0 +1,26 @@
+// ANTIC 6 color probe: four reverse bars in WHITE/CYAN/GREEN/RED and a
+// reverse "2048" so a screenshot can sample per-cell hues.
+import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";
+import { text, TextColor } from "@8bitscript/text";
+
+export function main(): void {
+    screen.blank(BorderColor.BLACK, BackgroundColor.BLACK);
+    text.setReverse(true);
+    text.setColor(TextColor.WHITE);
+    text.fill(20, 10, 32);
+    text.setColor(TextColor.CYAN);
+    text.fill(40, 10, 32);
+    text.setColor(TextColor.GREEN);
+    text.fill(60, 10, 32);
+    text.setColor(TextColor.RED);
+    text.fill(80, 10, 32);
+    text.setReverse(false);
+    text.setColor(TextColor.WHITE);
+    text.print(0, "GR1");
+    text.setReverse(true);
+    text.setColor(TextColor.YELLOW);
+    text.printNumber(100, 2048, 4);
+    while (true) {
+        waitFrame();
+    }
+}
