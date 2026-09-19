@@ -1,5 +1,17 @@
 # @8bitscript/language-server
 
+## 0.15.0
+
+### Patch Changes
+
+- 758765d: Add project message catalogs (`src/i18n/<locale>.8bs`, imported as `@8bitscript/i18n/catalog`), compile-time `i18n.format`, Latin transliteration into the portable set, and `Input.CONFIRM_LABEL` on each machine's input layer. One locale still means one binary; projects without catalogs are unchanged.
+- ae09eab: Add project `imports` in `8bitscript.config.ts` so specifiers like `@lib/game/rules.8bs` map to directories under the project. Wired through `8bs build`, `8bs check`, and the language server.
+- Updated dependencies [758765d]
+- Updated dependencies [f063fcf]
+- Updated dependencies [ae09eab]
+- Updated dependencies [5d6dc92]
+  - @8bitscript/compiler@0.15.0
+
 ## 0.14.0
 
 ### Patch Changes
