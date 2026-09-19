@@ -87,7 +87,12 @@ Do not describe more than this as working:
   internal code; `putColor` and `setColor` are
   empty because GR.0 has no per-cell color — a call to either is deleted
   before lowering. `printNumber` is the
-  subtraction routine, not a divide.
+  subtraction routine, not a divide. The catalog's `textmode=gr1` tag
+  selects `text.atari8.gr1.8bs` / `screen.atari8.gr1.8bs` instead: 20×24
+  ANTIC 6, four playfield colors in bits 7–6 of each screen byte, a RAM
+  charset at `$3C00`, and a display list at `$3E00`. Stock GR.0 is
+  unchanged; a program that wants per-character color opts in.
+
 - `src/joystick.8bs` (`@8bitscript/atari8/joystick`): `scan()` once a
   frame into a snapshot, then `bits`/`up`/`down`/`left`/`right`/`fire`, and
   `Joystick.PORT_1`-`PORT_4`. It reads the OS shadows STICK0-3
@@ -1091,7 +1096,10 @@ here" when you do.
 ```
 packages/atari8/src/index.8bs           target package: COLBK/COLPF2/COLPF1 ($D01A/$D018/$D017), their OS shadows ($02C8/$02C6/$02C5), CRSINH ($02F0)
 packages/atari8/src/screen.8bs          @8bitscript/atari8/screen: shadow-then-hardware colors, blank() over 960 cells at SAVMSC, GTIA-byte color names, KEEP = 255
+packages/atari8/src/screen.atari8.gr1.8bs  tag `gr1`: ANTIC 6 playfield at $3C00/$3E00/$3E20, COLBK is border and 0-bits together
 packages/atari8/src/text.8bs            @8bitscript/atari8/text: ASCII → internal code, SAVMSC read per run, empty putColor/setColor, CELL_COUNT 960 / COLUMNS 40
+packages/atari8/src/text.atari8.gr1.8bs tag `gr1`: 20×24, setColor writes bits 7–6, reverse space is a solid glyph
+
 packages/atari8/src/joystick.8bs        @8bitscript/atari8/joystick: STICK/STRIG shadows, ports from #fact(input.joysticks), ATRACT zeroed each scan
 packages/atari8/src/console.8bs         @8bitscript/atari8/console: CONSOL's three keys (read) and the speaker (write), one address twice
 packages/atari8/src/keyboard.8bs        @8bitscript/atari8/keyboard: CH consumed per frame, SKSTAT for held/SHIFT, no chords on this machine
@@ -1101,7 +1109,7 @@ packages/atari8/src/random.8bs          @8bitscript/atari8/random: RANDOM ($D20A
 packages/atari8/src/banks.8bs           @8bitscript/atari8/banks: the 130XE probe, and the precedent for a fixed @address buffer
 packages/atari8/test/layers-probe.8bs   every input layer on one screen: the polarity check, and what settled SKSTAT
 packages/atari8/test/layers.test.mjs    links the probe, rechecks keys.8bs against the KBCODE table, checks the port-count fold, runs it under atari800
-packages/atari8/package.json            "8bitscript".hardware: model (run flags + facts only), media (driver/defsym/output/load), mouse, stereo; a preset per model
+packages/atari8/package.json            "8bitscript".hardware: textmode (gr0 stock / gr1 20-col color), model (run flags + facts only), media (driver/defsym/output/load), mouse, stereo; a preset per model
 packages/compiler/src/mos/index.ts     FRAME_SYNC.atari8 (VCOUNT poll, no sei); ZP_BUDGETS.atari8 ($80-$FF, one budget); RASTER_MACHINES; the cart-* refusal; outputExtension()
 packages/compiler/src/mos/image-atari8.ts   the .xex container (FF FF, RUN segment, code segment), entryIsVectored false, endsByHalting true
 packages/compiler/src/mos/image-atari8.test.ts  the recorded xxd, the sheet arithmetic, the VCOUNT poll, the no-SEI proof, the cartridge refusal
