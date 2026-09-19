@@ -235,7 +235,8 @@ SYSTEM
 - The last line is the exact `8bs` command the Run button will start.
 
 The view's title bar has 📖 **Show or Hide Examples**, 🚀 **Launch Studio**,
-♥ **Doctor** (`8bs doctor`), and ⟳ **Refresh**; its overflow menu adds **Launch App…**, **Launch
+♥ **Doctor** (`8bs doctor` — checks Node, pnpm, git, and the emulators, and
+offers to install missing pnpm or a packaged emulator), and ⟳ **Refresh**; its overflow menu adds **Launch App…**, **Launch
 Example…**, **Configure System**, **Show Project**, **Save as a System…**, and **Controller Setup**. Those, and every choice the panel makes,
 are on the command palette as well — **8BitScript: Select Project**, **Select System**,
 **Select Region**, **Run**, **Build**, **Stop**, **Configure System**, **Show Project**,
@@ -260,7 +261,9 @@ no extension update.
 config, entry, targets, advertised vs personal systems, package manager and
 lockfile, `@8bitscript/*` versions, and the toolchain source. **Install** /
 **Refresh** run the detected package manager (`pnpm`, `npm`, `yarn`, or
-`bun`). **Use local 8BitScript** / **Use published packages** persist the
+`bun`). A Dock-launched editor does not read `.zshrc`; Install looks for
+pnpm in the locations `npx get-pnpm` actually uses (`~/Library/pnpm` on
+macOS) and offers **Run Doctor** if it still is not there. **Use local 8BitScript** / **Use published packages** persist the
 choice in workspace settings and `.8bitscript/toolchain.json` — they do
 not rewrite `package.json`.
 

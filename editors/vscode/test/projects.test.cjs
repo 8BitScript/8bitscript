@@ -518,6 +518,24 @@ test('resolvePackageManager finds pnpm where the installer puts it, not only on 
   );
 });
 
+test('resolvePackageManager finds pnpm in ~/Library/pnpm/bin on macOS', (t) => {
+  const home = scratch(t);
+  const pnpm = fakeBin(path.join(home, 'Library', 'pnpm', 'bin'), 'pnpm');
+  assert.equal(
+    resolvePackageManager('pnpm', { env: { PATH: '/usr/bin' }, home, platform: 'darwin' }),
+    pnpm,
+  );
+});
+
+test('resolvePackageManager does not invent a macOS Library path on linux', (t) => {
+  const home = scratch(t);
+  fakeBin(path.join(home, 'Library', 'pnpm', 'bin'), 'pnpm');
+  assert.equal(
+    resolvePackageManager('pnpm', { env: { PATH: '/usr/bin' }, home, platform: 'linux' }),
+    'pnpm',
+  );
+});
+
 test('resolvePackageManager prefers a command already on PATH', (t) => {
   const root = scratch(t);
   const onPath = fakeBin(path.join(root, 'bin'), 'pnpm');

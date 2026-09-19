@@ -107,6 +107,8 @@ test('Install/Refresh runs an absolute package manager, not a bare `pnpm` the ta
   assert.match(runner, /packageManagerPath\(\)/);
   assert.match(runner, /path\.isAbsolute\(bin\)/, 'refuse to spawn a name that would 127');
   assert.match(runner, /env: \{ PATH: pathEnv \}/);
+  assert.match(runner, /Run 8BitScript: Doctor to install it/);
+  assert.match(runner, /'Run Doctor'/);
 });
 
 test('the panel launches, picks, and stops', () => {

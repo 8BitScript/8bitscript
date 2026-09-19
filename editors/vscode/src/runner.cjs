@@ -192,6 +192,7 @@ function makeTask(project, action, target, region, hardware = settings.getHardwa
       : '');
   const name = `${project.name}: ${action}${suffix}`;
   const invocation = cliCommand(project.toolchain) ?? { command: project.toolchain, args: [] };
+  const env = { PATH: packageManagerPath(), ...invocation.env };
   const task = new vscode.Task(
     definition,
     folderOf(project.dir) ?? vscode.TaskScope.Workspace,
@@ -200,7 +201,7 @@ function makeTask(project, action, target, region, hardware = settings.getHardwa
     new vscode.ShellExecution(
       { value: invocation.command, quoting: vscode.ShellQuoting.Strong },
       [...invocation.args, ...args],
-      { cwd: project.dir, ...(invocation.env ? { env: invocation.env } : {}) },
+      { cwd: project.dir, env },
     ),
   );
   task.detail = `8bs ${args.join(' ')}  (${definition.project})`;
@@ -552,12 +553,13 @@ function registerRunner(context, output) {
     const pathEnv = packageManagerPath();
     const bin = resolvePackageManager(manager);
     if (!path.isAbsolute(bin)) {
-      vscode.window.showErrorMessage(
-        `${manager} was not found. A GUI-launched editor does not read .zshrc; `
-        + (manager === 'pnpm'
-          ? 'the installer puts pnpm in ~/.local/share/pnpm/bin.'
-          : `put ${manager} on PATH for non-login shells.`),
-      );
+      if (manager === 'pnpm') {
+        offerDoctor('pnpm was not found. Run 8BitScript: Doctor to install it.');
+      } else {
+        vscode.window.showErrorMessage(
+          `${manager} was not found. Put ${manager} on PATH for non-login shells.`,
+        );
+      }
       return null;
     }
     const task = new vscode.Task(
@@ -599,6 +601,12 @@ function registerRunner(context, output) {
     return task;
   }
 
+  function offerDoctor(message) {
+    vscode.window.showErrorMessage(message, 'Run Doctor').then((choice) => {
+      if (choice === 'Run Doctor') vscode.commands.executeCommand('8bitscript.doctor');
+    });
+  }
+
   function afterTask(execution, onOk) {
     const done = vscode.tasks.onDidEndTaskProcess((e) => {
       if (e.execution !== execution) return;
@@ -616,9 +624,7 @@ function registerRunner(context, output) {
       return null;
     }
     if (!path.isAbsolute(pnpm)) {
-      vscode.window.showErrorMessage(
-        'pnpm was not found. A GUI-launched editor does not read .zshrc; the installer puts pnpm in ~/.local/share/pnpm/bin.',
-      );
+      offerDoctor('pnpm was not found. Run 8BitScript: Doctor to install it.');
       return null;
     }
     return { git, pnpm };
