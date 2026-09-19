@@ -1,3 +1,8 @@
+---
+title: Sprites, across nine machines
+nav_order: 83
+---
+
 # Sprites, across nine machines
 
 *Design note, 2026-09-19. The companion to [frame.md](frame.md): that

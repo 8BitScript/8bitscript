@@ -11,7 +11,7 @@
 // guessed — 2026-09-19).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -28,6 +28,10 @@ const CLI_BIN = join(ROOT, '..', 'cli', 'bin', '8bs.mjs');
 const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 
 const MACHINES = ['c64', 'vic20', 'pet', 'c128', 'atari8', 'nes', 'cx16', 'mega65', 'web'];
+
+// The screenshot tests need VICE on the PATH; CI has none, and the
+// repo's own idiom for that is a skip with the reason on it.
+const without = (emulator) => (spawnSync('which', [emulator]).status === 0 ? false : `${emulator} not installed`);
 
 test('the manifest names the portable cell layer as the entry, with the C64 and PET twins beside it', () => {
   assert.equal(pkg['8bitscript'].entry, './src/index.8bs');
@@ -141,7 +145,7 @@ const COLOR_OF = [isWhite, isYellow, isCyan, isGreen]; // COLORS[v & 3] in the p
 // on a cell machine (ORIGIN 0, 0) — cell (6 + 7c-ish: 6, 13, 21, 28, 36;
 // row 1 + 5r). Actor 20 at stage (174, 28) is in the C64's top border,
 // 21 at (174, 240) in its bottom one.
-test('under x64sc, all twenty-two sprites are sprites at their positions, two of them in the opened border, whole to their last row', async () => {
+test('under x64sc, all twenty-two sprites are sprites at their positions, two of them in the opened border, whole to their last row', { skip: without('x64sc') }, async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-sprites-c64-'));
   try {
     const { png } = await shoot(scratch, 'c64', ['--frames', '500']);
@@ -198,7 +202,7 @@ function cellReaders(png, grid) {
 const COLS = [6, 13, 21, 28, 36]; // (48 + 60c) >> 3
 const ROWS = [1, 6, 11, 16];      // (10 + 40r) >> 3
 
-test('under xvic, sixteen sprites are asterisks at their cells, past-MAX sprites ignored, nothing else on the grid', async () => {
+test('under xvic, sixteen sprites are asterisks at their cells, past-MAX sprites ignored, nothing else on the grid', { skip: without('xvic') }, async () => {
   const grid = CELL_GRIDS.vic20;
   const scratch = await mkdtemp(join(tmpdir(), '8bs-sprites-vic20-'));
   try {
@@ -234,7 +238,7 @@ test('under xvic, sixteen sprites are asterisks at their cells, past-MAX sprites
 // pseudo-pixel at ((48 + 60c) >> 2, (10 + 40r) >> 2) — cell (6 + 7.5c,
 // 1 + 5r): the even columns aligned to a cell (two solid cells across),
 // the odd ones straddling (three cells, the outer two half lit).
-test('under xpet, eight sprites are quadrant blocks at their pseudo-pixels, straddling cells where they must, past-MAX sprites ignored', async () => {
+test('under xpet, eight sprites are quadrant blocks at their pseudo-pixels, straddling cells where they must, past-MAX sprites ignored', { skip: without('xpet') }, async () => {
   const grid = CELL_GRIDS.pet;
   const scratch = await mkdtemp(join(tmpdir(), '8bs-sprites-pet-'));
   try {
@@ -282,7 +286,7 @@ test('under xpet, eight sprites are quadrant blocks at their pseudo-pixels, stra
 // never walked on; after the walk rows 10 and 11 must equal it pixel for
 // pixel outside the standers' cells (10-12), and row 12 — the straddling
 // stander's third row, the mover's path — must be blank outside them.
-test('under xpet, a sprite walking through two standing sprites over text leaves the text and the standers exactly as they were', async () => {
+test('under xpet, a sprite walking through two standing sprites over text leaves the text and the standers exactly as they were', { skip: without('xpet') }, async () => {
   const grid = CELL_GRIDS.pet;
   const scratch = await mkdtemp(join(tmpdir(), '8bs-sprites-pet-overlap-'));
   try {

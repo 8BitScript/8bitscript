@@ -6,7 +6,7 @@
 // linking clean for all nine machines with every predicate in the IR.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -24,6 +24,10 @@ const PROBE = join(HERE, 'cues-probe.8bs');
 const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 
 const MACHINES = ['c64', 'vic20', 'pet', 'c128', 'atari8', 'nes', 'cx16', 'mega65', 'web'];
+
+// The screenshot test needs VICE on the PATH; CI has none, and the
+// repo's own idiom for that is a skip with the reason on it.
+const without = (emulator) => (spawnSync('which', [emulator]).status === 0 ? false : `${emulator} not installed`);
 
 test('the manifest names one entry and no machine twins: the same code everywhere', () => {
   assert.equal(pkg['8bitscript'].entry, './src/index.8bs');
@@ -70,7 +74,7 @@ function runCli(args, { timeoutMs = 120_000 } = {}) {
   });
 }
 
-test('under xpet, at frame 300 the counted row matches the literal row pixel for pixel', async () => {
+test('under xpet, at frame 300 the counted row matches the literal row pixel for pixel', { skip: without('xpet') }, async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-timeline-'));
   try {
     const shot = join(scratch, 'cues.png');
