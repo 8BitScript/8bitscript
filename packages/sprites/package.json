@@ -1,0 +1,29 @@
+{
+  "name": "@8bitscript/sprites",
+  "version": "0.17.0",
+  "description": "Moving objects for 8BitScript programs — a position, a shape and a colour each, moved by index and drawn once a frame — on every target: hardware sprites reused down the frame where the machine has them (the C64, up to 24), quadrant-block objects at 4-pixel steps that restore what they cover on the PET (eight), a glyph redrawn at a cell over @8bitscript/text everywhere else. Whether objects may leave the playfield is the same call on every machine and does nothing where the border cannot open.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/8BitScript/8bitscript.git",
+    "directory": "packages/sprites"
+  },
+  "8bitscript": {
+    "entry": "./src/index.8bs"
+  },
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@8bitscript/c64": "workspace:*",
+    "@8bitscript/screen": "workspace:*",
+    "@8bitscript/system": "workspace:*",
+    "@8bitscript/text": "workspace:*"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -31,6 +31,10 @@ const KNOWN_DRIFT = [
     member: 'raster.at',
     why: 'the web host has up to 512 picture lines (Video.rows() * 8 on the resizable host), so `line` is usmallint there; the eight 6502 machines take utinyint. One contract wants usmallint everywhere, at a cost in every 6502 raster user — a decision for @8bitscript/raster, not for this test.',
   },
+  {
+    member: 'raster.insert',
+    why: 'the same line as raster.at: usmallint on the web, utinyint on the eight 6502 machines — one decision covers both.',
+  },
 ];
 
 /** Every workspace package whose entry is a machine map, as `[name, { machine: specifier }]`. */

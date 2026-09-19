@@ -28,19 +28,16 @@
 // would take per-line entries happily; the portable program follows the
 // strictest machine it runs on.
 //
-// ---- the stride probe -----------------------------------------------------
+// ---- the stride --------------------------------------------------------------
 //
 // raster.setValue(entry, value) names an entry by its byte offset, and
 // the byte an entry takes is the machine's own: four on the C64 (line,
 // address low, address high, value), three on the web (line, slot,
-// value). The portable surface has no stride constant yet, but both
-// implementations refuse a misaligned offset untouched, so one probing
-// call settles it at start-up: offset 3 is entry 1 on the web and
-// misaligned on the C64, and the probe rewrites entry 1 with the value
-// it already holds, so the list is the same afterwards either way. If a
-// third machine ever answers #fact(video.raster) with a different entry
-// size, this probe is the line to revisit — or better, the surface
-// grows a stride constant and this paragraph becomes its motivation.
+// value). `raster.STRIDE` says which, and folds. Until 0.18 the portable
+// surface had no such constant and this program probed for it at
+// start-up (a setValue at offset 3 — entry 1 on the web, misaligned and
+// refused on the C64 — with the value entry 1 already held); the probe's
+// motivation is now the constant.
 //
 // ---- reading a screenshot -------------------------------------------------
 //
@@ -130,7 +127,7 @@ const STRAIGHT: utinyint = 56;     // XSCROLL 0 again: first line after the band
 const ABOVE: utinyint = 24;        // the colour bands open a text row above the wobble
 const BELOW: utinyint = 64;        // and close a text row below it
 const BAND_BACKGROUND: utinyint = 2; // red behind the title
-const BAND_BORDER: utinyint = 7;     // yellow border beside it — also the stride probe's known value
+const BAND_BORDER: utinyint = 7;     // yellow border beside it
 
 // Where everything sits, in text rows. The title is inside the band; the
 // caption, counter and fact line are below it, where the picture never
@@ -151,7 +148,6 @@ let frameCell: usmallint = 0;
 // opening colour splits come first). All three are only ever touched
 // inside `if (HAS_RASTER)`.
 let phase: utinyint = 0;
-let stride: utinyint = 0;
 let bandFirst: utinyint = 0;
 
 // The cell where a `width`-cell line starts centred on `row` — centred
@@ -228,16 +224,7 @@ export function main(): void {
         raster.at(BELOW, Slot.BACKGROUND, 0);
         raster.at(BELOW, Slot.BORDER, 0);
 
-        // The stride probe — see this file's header. Offset 3 names
-        // entry 1 (the BAND_BORDER split) where entries are three bytes,
-        // and is misaligned — refused untouched — where they are four.
-        // The value written is the value entry 1 already holds, so the
-        // list is identical either way; only the returned bool differs.
-        stride = 4;
-        if (raster.setValue(3, BAND_BORDER)) {
-            stride = 3;
-        }
-        bandFirst = stride * 2;
+        bandFirst = raster.STRIDE * 2; // entry 2: the first band's line
 
         raster.enable();
     }
@@ -253,7 +240,7 @@ export function main(): void {
             // value goes in as-is on every machine.
             phase = (phase + 1) & 31;
             for (let i: utinyint = 0; i < BAND_ENTRIES; i++) {
-                raster.setValue(bandFirst + i * stride, SINE[(i + phase) & 31]);
+                raster.setValue(bandFirst + i * raster.STRIDE, SINE[(i + phase) & 31]);
             }
         }
 

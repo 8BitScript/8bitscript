@@ -1,0 +1,311 @@
+// @8bitscript/sprites — moving objects, on whichever machine is being built.
+//
+//     import { sprites } from "@8bitscript/sprites";
+//
+//     sprites.begin(12);                       // this program moves twelve
+//     sprites.setShape(0, 0x2A);               // a shape the machine layer understands
+//     sprites.place(0, sprites.ORIGIN_X + 40, sprites.ORIGIN_Y + 80);
+//     // each frame, after waitFrame():
+//     sprites.update();
+//
+// A sprite is a position, a shape and a colour, moved by index. What one
+// *is* depends on the machine: on the C64 a hardware sprite, reused down
+// the frame by `@8bitscript/c64/multiplex` so that twenty-four can show
+// (the twin `index.c64.8bs` beside this file); on every other machine —
+// this file — a glyph redrawn at a cell over `@8bitscript/text`. The
+// design note is docs/project/frame.md; the numbers a program folds on
+// are the consts below, not facts: `if (sprites.MAX >= 20)` costs nothing
+// when it is false (measured, 2026-09-19: a guarded 278-byte branch built
+// to the same 411 bytes as no branch at all).
+//
+// ---- Coordinates are stage pixels, never negative --------------------------
+//
+// `place(n, x, y)` takes pixels in the *stage*: the whole area an object
+// could ever occupy, whose origin is its own top-left, not the playfield's.
+// On the C64 that is the sprite coordinate space (the playfield starts at
+// 24, 50); here the stage is the playfield, so `ORIGIN_X` and `ORIGIN_Y`
+// are 0 and a program that means "the playfield's top-left" writes
+// `sprites.ORIGIN_X + x` on both and the constant folds. Positions stay
+// unsigned everywhere, which keeps a signed compare out of every twin's
+// inner loop, and both are sixteen bits: a byte `y` was the C64 register's
+// width, not the grid's, and left the X16's 56 rows unreachable. A pixel
+// position here is the cell at `x >> 3, y >> 3`; cells are 8 × 8 on the
+// machines this file serves, so `STEP_X`/`STEP_Y` — the smallest move
+// that shows — are 8.
+//
+// ---- The cell layer's rules -----------------------------------------------
+//
+// There is no portable screen read, so a cell sprite cannot restore what it
+// covered (`RESTORES` is false; the PET twin `index.pet.8bs`, whose screen
+// is readable, can and does). `update()` erases a moved or hidden sprite's previous cell with
+// the background glyph (`setBackground()`, a space by default) and
+// redraws the sprites that changed — moved, reshaped, recoloured — not all
+// of them: sixteen sprites' worth of `text.putChar` a frame was a whole
+// VIC-20 frame (measured 2026-09-19: the swarm example ran at half rate
+// there, and at full rate on the PET, whose putChar has no colour byte
+// to write). When a mover leaves a cell another sprite still stands in,
+// that cell is not erased and the other sprite is redrawn instead, so an
+// sprite under a departing one does not blink. Text under a sprite is
+// lost; a program keeps its text off the sprite rows or reprints it.
+// Colour goes through `text.putColor` where `Video.COLOR_PER_CELL` says
+// the machine has it and is dropped where it does not. `extend()` does
+// nothing here — there is no border to open — so `EXTENDS` is false
+// and `top()`/`bottom()` are the playfield's.
+//
+// ---- update() and plan() ---------------------------------------------------
+//
+// On a machine with a raster list (the C64 twin), `update()` is
+// self-contained — it opens the list, plans, and commits — and a program
+// that adds entries of its own opens and commits the list itself and calls
+// `plan()` inside that bracket, never both. Here there is no list: `plan()`
+// is the redraw and `update()` is the same call, so a portable program
+// can be written either way and runs unchanged.
+import { Video } from "@8bitscript/system";
+import { text } from "@8bitscript/text";
+
+const HIDDEN: utinyint = 255;   // a sprite's row when it is not drawn
+const NONE: utinyint = 255;     // a sprite's drawn row when nothing is on screen for it
+
+// Positions are kept as the cell they land in — `place()` does the shift
+// once, so the frame's loop below does none.
+let acol: array<u8, 16>;        // stage x >> 3 (254 at most: past the widest grid)
+let arow: array<u8, 16>;        // stage y >> 3 (254 at most), or HIDDEN
+let glyph: array<u8, 16>;       // the ASCII code drawn
+let tint: array<u8, 16>;        // text colour, where the machine has one
+let drawnCol: array<u8, 16>;    // where the last update() put this sprite
+let drawnRow: array<u8, 16>;    // ... or NONE
+let dirty: array<u8, 16>;       // 1: draw this sprite at the next update()
+let count: utinyint = 0;
+let background: utinyint = 0x20;
+let shownCount: utinyint = 0;
+
+let rowCount: array<u8, 32>;    // sprites drawn on each row: the erase's cheap test
+
+// The cell for a column and a row: row * COLUMNS + col, as a sum of
+// shifts chosen at compile time from COLUMNS's bits (40 is 32 + 8, 22 is
+// 16 + 4 + 2 ...) — every `if` below folds, and what is left is two or
+// three shifts of a 16-bit value where the generic multiply routine
+// cost ~300 cycles a call (measured on the VIC-20, 2026-09-19).
+function cellAt(col: utinyint, row: utinyint): usmallint {
+    let wide: usmallint = row;
+    let cell: usmallint = col;
+    if ((text.COLUMNS & 1) != 0) {
+        cell = cell + wide;
+    }
+    if ((text.COLUMNS & 2) != 0) {
+        cell = cell + (wide << 1);
+    }
+    if ((text.COLUMNS & 4) != 0) {
+        cell = cell + (wide << 2);
+    }
+    if ((text.COLUMNS & 8) != 0) {
+        cell = cell + (wide << 3);
+    }
+    if ((text.COLUMNS & 16) != 0) {
+        cell = cell + (wide << 4);
+    }
+    if ((text.COLUMNS & 32) != 0) {
+        cell = cell + (wide << 5);
+    }
+    if ((text.COLUMNS & 64) != 0) {
+        cell = cell + (wide << 6);
+    }
+    if ((text.COLUMNS & 128) != 0) {
+        cell = cell + (wide << 7);
+    }
+    return cell;
+}
+
+// Scratch for right() and bottom(): sixteen bits so an eighty-column or
+// fifty-six-row grid does not wrap, and a module variable rather than a
+// local because a callee with a local of its own, inlined into a function
+// that inlines another such callee, is left unplaced — `'bottomEdge_2'
+// resolves to nothing this backend knows` (a compiler bug, 2026-09-19).
+let edge: usmallint = 0;
+
+export namespace sprites {
+    const MAX: utinyint = 16;                     // sprites this layer holds
+    const PER_LINE: utinyint = Video.COLUMNS;     // a row of cells: no per-line limit worth the name
+    const WIDTH: utinyint = 8;                    // one cell
+    const HEIGHT: utinyint = 8;
+    const STEP_X: utinyint = 8;                   // the smallest move that shows: a cell
+    const STEP_Y: utinyint = 8;
+    const RESTORES: bool = false;                 // what a sprite covers is lost — no portable screen read
+    const EXTENDS: bool = false;                  // no border to open
+    const ORIGIN_X: usmallint = 0;                // the playfield's top-left, in stage pixels
+    const ORIGIN_Y: usmallint = 0;
+
+    // Where a sprite's top-left can be and still show, in stage pixels:
+    // the playfield's edges here, always — there is nothing to extend.
+    // Functions, not consts, because a namespace const cannot hold an
+    // expression and because the C64's move with extend(); each of these
+    // folds to a number.
+    function left(): usmallint {
+        return 0;
+    }
+
+    function top(): usmallint {
+        return 0;
+    }
+
+    function right(): usmallint {
+        edge = text.COLUMNS;
+        return edge * 8 - 8;
+    }
+
+    function bottom(): usmallint {
+        edge = text.ROWS;
+        return edge * 8 - 8;
+    }
+
+    // How many sprites this program moves, 0-MAX; those at and past the
+    // count are ignored. Every sprite starts hidden, an asterisk, colour 1.
+    function begin(n: utinyint): void {
+        if (n > sprites.MAX) {
+            n = sprites.MAX;
+        }
+        count = n;
+        for (let i: utinyint = 0; i < sprites.MAX; i++) {
+            arow[i] = HIDDEN;
+            drawnRow[i] = NONE;
+            dirty[i] = 0;
+            glyph[i] = 0x2A;
+            tint[i] = 1;
+        }
+        for (let r: utinyint = 0; r < 32; r++) {
+            rowCount[r] = 0;
+        }
+    }
+
+    // Sprite `n` at stage pixel (x, y). Off the playfield, it is simply not
+    // drawn. An index at or past MAX is ignored, here and below: a program
+    // written for a machine with more sprites degrades to this many, and
+    // never writes past these tables into the next.
+    function place(n: utinyint, x: usmallint, y: usmallint): void {
+        if (n >= sprites.MAX) {
+            return;
+        }
+        let col: usmallint = x >> 3;
+        if (col > 254) {
+            col = 254;
+        }
+        let row: usmallint = y >> 3;
+        if (row > 254) {
+            row = 254; // past every grid, and not HIDDEN
+        }
+        let newCol: utinyint = col & 0xFF;
+        let newRow: utinyint = row & 0xFF;
+        if (newCol != acol[n] || newRow != arow[n]) {
+            acol[n] = newCol;
+            arow[n] = newRow;
+            dirty[n] = 1; // a move inside one cell draws nothing
+        }
+    }
+
+    // The ASCII code this sprite is drawn as.
+    function setShape(n: utinyint, shape: utinyint): void {
+        if (n < sprites.MAX) {
+            glyph[n] = shape;
+            dirty[n] = 1;
+        }
+    }
+
+    function setColor(n: utinyint, color: utinyint): void {
+        if (n < sprites.MAX) {
+            tint[n] = color;
+            dirty[n] = 1;
+        }
+    }
+
+    // Not drawn until placed again.
+    function hide(n: utinyint): void {
+        if (n < sprites.MAX) {
+            arow[n] = HIDDEN;
+            dirty[n] = 1;
+        }
+    }
+
+    // What a sprite leaves behind when it moves. A space unless set.
+    function setBackground(code: utinyint): void {
+        background = code;
+    }
+
+    // Nothing to extend: the playfield is the stage.
+    function extend(on: bool): void {
+    }
+
+    // Sprites the last update() could not show. Always 0 here: a cell
+    // machine has no per-line limit.
+    function dropped(): utinyint {
+        return 0;
+    }
+
+    // The frame's work. Returns how many sprites are on screen.
+    function plan(): utinyint {
+        // 1. Erase what moved or hid — unless another sprite stands in
+        //    that cell, which is then redrawn below instead. HIDDEN is a
+        //    row no grid has, so a hidden sprite always reads as moved.
+        for (let i: utinyint = 0; i < count; i++) {
+            if (drawnRow[i] == NONE || dirty[i] == 0) {
+                continue;
+            }
+            if (arow[i] == drawnRow[i] && acol[i] == drawnCol[i]) {
+                continue;
+            }
+            // Another sprite in this cell? Only worth asking when the row
+            // holds more than this one: the scan is sixteen compares at
+            // ~65 cycles each, and it was most of a VIC-20 frame when it
+            // ran for every mover (measured 2026-09-19).
+            let row: utinyint = drawnRow[i];
+            let occupied: bool = false;
+            if (rowCount[row] > 1) {
+                for (let j: utinyint = 0; j < count; j++) {
+                    if (j != i && arow[j] == row && acol[j] == drawnCol[i]) {
+                        dirty[j] = 1;
+                        occupied = true;
+                    }
+                }
+            }
+            if (!occupied) {
+                text.putChar(cellAt(drawnCol[i], row), background);
+            }
+            rowCount[row] = rowCount[row] - 1;
+            drawnRow[i] = NONE;
+        }
+        // 2. Draw what changed, in index order: the last drawn wins a
+        //    shared cell. Off the grid is not drawn, and not remembered.
+        for (let i: utinyint = 0; i < count; i++) {
+            if (dirty[i] == 0) {
+                continue;
+            }
+            dirty[i] = 0;
+            let row: utinyint = arow[i];
+            let col: utinyint = acol[i];
+            if (row < text.ROWS && col < text.COLUMNS) {
+                let cell: usmallint = cellAt(col, row);
+                text.putChar(cell, glyph[i]);
+                if (Video.COLOR_PER_CELL) {
+                    text.putColor(cell, tint[i]);
+                }
+                if (drawnRow[i] == NONE) {
+                    rowCount[row] = rowCount[row] + 1; // redrawn in place: already counted
+                }
+                drawnCol[i] = col;
+                drawnRow[i] = row;
+            }
+        }
+        // 3. How many are on screen.
+        shownCount = 0;
+        for (let i: utinyint = 0; i < count; i++) {
+            if (drawnRow[i] != NONE) {
+                shownCount = shownCount + 1;
+            }
+        }
+        return shownCount;
+    }
+
+    // The same as plan() here: there is no list to open and commit around it.
+    function update(): utinyint {
+        return sprites.plan();
+    }
+}

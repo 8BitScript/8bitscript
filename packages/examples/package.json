@@ -1,7 +1,7 @@
 {
   "name": "@8bitscript/examples",
   "version": "0.17.0",
-  "description": "The example programs that ship with the toolchain: hello-world, the 0.2.0 goal program, joystick, the controller test app, and fancy, the raster showpiece — listed in the editor's launcher beside your own projects.",
+  "description": "The example programs that ship with the toolchain: hello-world, the 0.2.0 goal program, joystick, the controller test app, fancy, the raster showpiece, and swarm, the moving-objects showpiece \u2014 listed in the editor's launcher beside your own projects.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -14,22 +14,27 @@
       "hello-world": {
         "title": "Hello, World",
         "dir": "./hello-world",
-        "description": "screen.blank() then text.print(0, \"Hello World!\") through the portable screen and text packages. The 0.2.0 goal program, and the one this toolchain is built to run first — on the PET and in the browser."
+        "description": "screen.blank() then text.print(0, \"Hello World!\") through the portable screen and text packages. The 0.2.0 goal program, and the one this toolchain is built to run first \u2014 on the PET and in the browser."
       },
       "joystick": {
         "title": "Joystick",
         "dir": "./joystick",
-        "description": "The controller test app: a labelled map of everything @8bitscript/input exposes — UP, DOWN, LEFT, RIGHT, CONFIRM, CANCEL — with a lamp on each that flashes when that control is pressed, a running count of every press seen, and a frame counter that says the loop is live. Run it first on a machine whose input layer is new or suspect."
+        "description": "The controller test app: a labelled map of everything @8bitscript/input exposes \u2014 UP, DOWN, LEFT, RIGHT, CONFIRM, CANCEL \u2014 with a lamp on each that flashes when that control is pressed, a running count of every press seen, and a frame counter that says the loop is live. Run it first on a machine whose input layer is new or suspect."
       },
       "fancy": {
         "title": "Fancy",
         "dir": "./fancy",
-        "description": "The raster showpiece: a title wobbling on a sine wave inside colour bands, over @8bitscript/raster's portable per-scanline surface — the list built once, only its value bytes rewritten each frame. Everything sits behind #fact(video.raster), so the C64 and the web show the effect and the other seven machines show a static title, honestly and for free. Run before 2048 leans on the same surface."
+        "description": "The raster showpiece: a title wobbling on a sine wave inside colour bands, over @8bitscript/raster's portable per-scanline surface \u2014 the list built once, only its value bytes rewritten each frame. Everything sits behind #fact(video.raster), so the C64 and the web show the effect and the other seven machines show a static title, honestly and for free. Run before 2048 leans on the same surface."
       },
       "hello-bx": {
         "title": "Hello, BX",
         "dir": "./hello-bx",
-        "description": "The same hello-world greeting, drawn through one 8BitX component instead of a direct text.print() call — <Hello /> elaborates to the same call at compile time, so the program is byte-identical to hello-world's own. The smallest program that shows what a .8bx file is."
+        "description": "The same hello-world greeting, drawn through one 8BitX component instead of a direct text.print() call \u2014 <Hello /> elaborates to the same call at compile time, so the program is byte-identical to hello-world's own. The smallest program that shows what a .8bx file is."
+      },
+      "swarm": {
+        "title": "Swarm",
+        "dir": "./swarm",
+        "description": "The moving-objects showpiece: sixteen sprites bouncing round the picture on a frame timeline \u2014 the title, then the sprites, then the border opens and they fly through it, then the colours rotate \u2014 through @8bitscript/sprites and @8bitscript/timeline. Hardware sprites on the C64, sixteen from eight and out into the border; a glyph per sprite on the character grid on the other eight, where what the machine cannot do folds away. The scene is one .8bx file that reads like a part list."
       }
     }
   },
@@ -38,18 +43,22 @@
     "hello-bx",
     "hello-world",
     "joystick",
+    "swarm",
     "README.md"
   ],
   "scripts": {
     "test": "node --test"
   },
   "dependencies": {
+    "@8bitscript/sprites": "workspace:*",
+    "@8bitscript/c64": "workspace:*",
     "@8bitscript/input": "workspace:*",
     "@8bitscript/pet": "workspace:*",
     "@8bitscript/raster": "workspace:*",
     "@8bitscript/screen": "workspace:*",
     "@8bitscript/system": "workspace:*",
     "@8bitscript/text": "workspace:*",
+    "@8bitscript/timeline": "workspace:*",
     "@8bitscript/web": "workspace:*"
   },
   "publishConfig": {
