@@ -149,7 +149,9 @@ export function discoverCatalogLocales(dir) {
     .filter((name) => name.endsWith('.8bs') && !name.endsWith('.8bx'))
     .map((name) => name.slice(0, -4))
     .filter((name) => isLocaleName(name) && !name.includes('.'))
-    .sort();
+    // Ordinal, not localeCompare — this order feeds build/CLI output and
+    // must not depend on the host's locale (see mos/debug.ts's own note).
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
 
 /**
