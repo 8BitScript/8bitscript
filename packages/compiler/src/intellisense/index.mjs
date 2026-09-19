@@ -721,6 +721,9 @@ function importedNamespace(tokens, local, fromFile, resolverOptions = {}, machin
   };
 }
 
+/** "No machine known" — hoverAt()/completionsAt()'s own default when a caller passes none, and machineFor()'s own fallback. One frozen constant rather than an object literal in each spot: never mutated (both fields are only ever read), and a literal default parameter is a Sonar pitfall (S7737) besides. */
+const NO_MACHINE = Object.freeze({ machine: null, why: null });
+
 /**
  * The machine the file at `path` is read for: its own twin's (`x.pet.8bs`
  * is the PET's file, whatever the project builds), else the project's
@@ -731,7 +734,7 @@ function machineFor(path, options) {
   const twin = path ? machineOfVariant(path) : null;
   if (twin) return { machine: twin, why: "this file's machine" };
   if (options.machine) return { machine: options.machine, why: "this project's target" };
-  return { machine: null, why: null };
+  return NO_MACHINE;
 }
 
 /**
@@ -776,7 +779,15 @@ export function getHoverInfo(text, offset, options = {}) {
   return markdown ? { start: hit.token.start, length: hit.token.length, markdown } : null;
 }
 
-function hoverAt(tokens, offset, text, filePath, resolverOptions = {}, machine = { machine: null, why: null }) {
+// `outerTokens` defaults to `tokens` — the ordinary, non-recursive case —
+// and is threaded unchanged through the Template branch's own recursive
+// call below, so a member hover inside a `${...}` field can still resolve
+// against the file's real import statements. `tokens` itself cannot serve
+// that purpose on that path: it is by then just the field's own re-lexed
+// content (`inner`, a handful of tokens with no `import` statement in
+// sight), which is enough to find the token under the cursor but not
+// enough for findImportBindings() to find anything.
+function hoverAt(tokens, offset, text, filePath, resolverOptions = {}, machine = NO_MACHINE, outerTokens = tokens) {
   const index = tokenIndexAt(tokens, offset);
   if (index === -1) return null;
   const token = tokens[index];
@@ -784,13 +795,14 @@ function hoverAt(tokens, offset, text, filePath, resolverOptions = {}, machine =
   // Inside a template string, a `${...}` field is ordinary source: re-lex
   // the field the parser's way (offsets shifted back into the file) and
   // answer for the token under the cursor there — `#frames`, its unit, a
-  // type in a future cast — as if it stood outside the string.
+  // type in a future cast, an imported namespace's member — as if it
+  // stood outside the string.
   if (token.kind === TokenKind.Template) {
     const field = token.parts.find((p) => p.kind === 'field' && offset >= p.sourceStart && offset <= p.sourceEnd);
     if (!field) return null;
     const inner = tokenize(text.slice(field.sourceStart, field.sourceEnd)).tokens;
     for (const t of inner) t.start += field.sourceStart;
-    return hoverAt(inner, offset, text, filePath, resolverOptions);
+    return hoverAt(inner, offset, text, filePath, resolverOptions, machine, outerTokens);
   }
 
   if (token.kind === TokenKind.Type) {
@@ -822,7 +834,7 @@ function hoverAt(tokens, offset, text, filePath, resolverOptions = {}, machine =
     const dot = tokens[index - 1];
     const object = tokens[index - 2];
     if (dot?.text === '.' && object?.kind === TokenKind.Identifier) {
-      const namespace = importedNamespace(tokens, object.text, filePath, resolverOptions, machine.machine);
+      const namespace = importedNamespace(outerTokens, object.text, filePath, resolverOptions, machine.machine);
       const member = namespace?.members.get(token.text);
       if (member) {
         return {
@@ -1120,7 +1132,8 @@ function bxCompletions(tokens, offset, text, program) {
   }));
 }
 
-function completionsAt(tokens, offset, text, filePath, resolverOptions, program, bx = false, machine = { machine: null, why: null }) {
+// outerTokens: see hoverAt()'s own note above this same pattern.
+function completionsAt(tokens, offset, text, filePath, resolverOptions, program, bx = false, machine = NO_MACHINE, outerTokens = tokens) {
   const index = tokenIndexAt(tokens, offset);
   const token = tokens[index];
   if (token?.kind === TokenKind.Template) {
@@ -1129,7 +1142,7 @@ function completionsAt(tokens, offset, text, filePath, resolverOptions, program,
     if (!field) return [];
     const inner = tokenize(text.slice(field.sourceStart, field.sourceEnd)).tokens;
     for (const t of inner) t.start += field.sourceStart;
-    return completionsAt(inner, offset, text, filePath, resolverOptions, program);
+    return completionsAt(inner, offset, text, filePath, resolverOptions, program, false, machine, outerTokens);
   }
   if (token?.kind === TokenKind.Comment || token?.kind === TokenKind.String) return [];
 
@@ -1175,7 +1188,7 @@ function completionsAt(tokens, offset, text, filePath, resolverOptions, program,
 
   const object = memberPosition(tokens, offset);
   if (object) {
-    const namespace = importedNamespace(tokens, object, filePath, resolverOptions, machine.machine);
+    const namespace = importedNamespace(outerTokens, object, filePath, resolverOptions, machine.machine);
     if (!namespace) return [];
     const context = { ...namespace.context, machineWhy: machine.why };
     const all = context.portable?.machines ?? [];
