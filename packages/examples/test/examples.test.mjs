@@ -58,7 +58,7 @@ const targetsOf = (dir) => {
 };
 
 test('the manifest lists every example, each a directory with a real project in it', () => {
-  assert.deepEqual(Object.keys(examples), ['hello-world', 'joystick', 'fancy', 'hello-bx']);
+  assert.deepEqual(Object.keys(examples), ['hello-world', 'joystick', 'fancy', 'hello-bx', 'swarm']);
   for (const [name, entry] of Object.entries(examples)) {
     assert.equal(typeof entry.title, 'string', `${name}: title`);
     assert.equal(typeof entry.description, 'string', `${name}: description`);

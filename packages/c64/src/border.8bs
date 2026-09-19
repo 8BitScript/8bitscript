@@ -1,0 +1,167 @@
+// @8bitscript/c64/border — opening the VIC-II's upper and lower border.
+//
+// Named by "8bitscript".exports["./border"] in this package's package.json:
+//
+//     import { border } from "@8bitscript/c64/border";
+//     import { raster } from "@8bitscript/c64/raster";
+//     import { sprites } from "@8bitscript/c64/sprites";
+//
+//     raster.clear();
+//     border.top();            // the $D011 write at line 47 + YSCROLL
+//     ... the picture's own entries ...
+//     border.bottom();         // the $D011 writes at 249 and 247 + YSCROLL
+//     raster.enable();
+//     sprites.place(0, 100, 252);   // a sprite in the lower border
+//     sprites.place(1, 100, 20);    // and one in the upper
+//
+// ---- what opens, and why -------------------------------------------------
+//
+// The VIC-II draws its border with two flip-flops (Bauer, "The MOS
+// 6567/6569 video controller", §3.9): a MAIN one, set at the right edge
+// of every line and reset at the left edge, and a VERTICAL one, set when
+// the raster reaches the bottom comparison line in cycle 63 and reset at
+// the top one — 251 and 51 with 25 rows (RSEL set), 247 and 55 with 24
+// (RSEL clear). While the vertical flip-flop is set the main one cannot
+// be reset, so the whole line is border; while it is clear the picture
+// shows between the left and right edges. "The comparisons only match if
+// the values are reached precisely. There is no comparison with an
+// interval."
+//
+// So the trick (Bauer §3.14.1, "Hyperscreen"): with 25 rows on, let the
+// raster pass line 247, and in lines 248-250 clear RSEL. The bottom
+// comparison line is now 247 — already passed — and at line 251 nothing
+// matches, so the VIC "forgets" to set the vertical flip-flop. Nothing
+// else ever sets it: the top comparison at 51 only RESETS it, and it is
+// already reset. It stays clear through the rest of this frame's lines,
+// through the vertical blank, and through the top of the next frame
+// down to the first row — the upper border is gone as a consequence of
+// the lower one, and there is no way to have one without the other.
+// Restore RSEL before line 247 comes round again (any line from the top
+// of the frame to 246), and repeat every frame: this is a raster-list
+// entry or two, forever.
+//
+// What is drawn where the border was: the VIC is in IDLE state there (no
+// bad line can occur outside lines 48-247), so it draws the idle graphics
+// — ./idle.8bs: the background color, unless ECM is set and a pattern is
+// chosen — and SPRITES, which the VIC fetches and draws on every line of
+// the frame whatever the state. That is the point: sprite Y 0-255 puts a
+// sprite anywhere from line 1 to 276 (a sprite draws from the line after
+// its Y), and with the border open the lines outside 51-250 are visible,
+// so eight (or, multiplexed, more) objects can leave the playfield at
+// the top and bottom without being cut. Not at the sides: the main
+// flip-flop still sets at the right edge, and opening the side border
+// takes a register write in one exact cycle of every line (Bauer: "the
+// change from CSEL=1 to CSEL=0 has to be exactly in cycle 56"), which a
+// list applied from an interrupt cannot do. Text and bitmap cannot be
+// drawn there either — only sprites and the idle byte.
+//
+// ---- the two writes, and their lines --------------------------------------
+//
+// `bottom()` adds the entry that opens, `top()` the one that closes ECM
+// and restores RSEL; both are $D011 writes built from the register's
+// current YSCROLL, DEN and BMM bits, with RSEL and ECM set as each needs.
+// DEN is never touched: the bad-line condition needs it set during line
+// 48. The lines:
+//
+// - 249: RSEL clear. An entry's write lands at the end of its line
+//   (raster.8bs: 58-64 cycles in), so 249 is after 247's comparison and
+//   a whole line before 251's, with room for another entry or two on the
+//   same line ahead of it.
+// - 247 + YSCROLL: ECM set, which moves the idle fetch to $F9FF, the
+//   pattern byte. It cannot go earlier: row 24 is still being drawn
+//   until line 247 + YSCROLL (its eighth pixel line), and ECM would
+//   change how codes 64-255 render on those lines. With YSCROLL 3 that
+//   is 250 and the entry follows 249's; with YSCROLL 0-2 it is 247-249
+//   and the two are one write at 249. With YSCROLL 4-7, opening the
+//   border also reveals the last 1-4 pixel lines of row 24 that the
+//   border used to cover (251 to 247 + YSCROLL): the row is whole.
+// - 47 + YSCROLL: ECM clear and RSEL set again, at the end of the last
+//   idle line before the first bad line at 48 + YSCROLL. Lines 0-47+Y
+//   of the frame draw the pattern; the first row draws as text.
+//
+// With 24 rows as the program's base (scroll.setShort(true)) the bottom
+// comparison is 247, so `bottom()` first sets RSEL at 245 (the comparison
+// becomes 251, not yet reached) and clears it at 249 as above; `top()`
+// then restores RSEL clear. Say so with setShort(true) here: the module
+// cannot read RSEL back from $D011 mid-frame, because its own entries
+// change it.
+//
+// ---- costs and limits -----------------------------------------------------
+//
+// Two or three list entries a frame, and on the CPU nothing at all. The
+// idle pattern byte is set to transparent the first time `bottom()` runs
+// unless the program set it (./idle.8bs). A program whose list is built
+// once, before enable(), calls top() and bottom() once; one that rebuilds
+// its list every frame calls them every frame, in line order with the
+// rest or through raster.insert (both use it, so order does not matter;
+// call top() before a long ascending run and bottom() after it to keep
+// the slide short).
+import { control1 } from "./index.8bs";
+import { raster, Register } from "./raster.8bs";
+import { idle, patternSet, Pattern } from "./idle.8bs";
+
+const RSEL: utinyint = 0x08;
+const KEEP: utinyint = 0x37; // YSCROLL (0-2), DEN (4), BMM (5); RSEL, ECM and the raster's bit 8 dropped
+
+let short: bool = false;
+
+export namespace border {
+    const OPEN_LINE: utinyint = 249;   // RSEL cleared here: after 247's comparison, before 251's
+    const SHORT_LINE: utinyint = 245;  // with 24 rows, RSEL set here first
+    const TOP_OFFSET: utinyint = 47;   // + YSCROLL: ECM cleared, RSEL restored
+
+    // The program's rows: 25 (false, the default) or 24.
+    function setShort(on: bool): void {
+        short = on;
+    }
+
+    // The line `top()` writes at, for a program that orders its own list.
+    function topLine(): utinyint {
+        return border.TOP_OFFSET + (control1 & 7);
+    }
+
+    // The first line `bottom()` writes at.
+    function bottomLine(): utinyint {
+        if (short) {
+            return border.SHORT_LINE;
+        }
+        return border.OPEN_LINE;
+    }
+
+    // The entries that open the border below row 24. False if the list
+    // could not take them all (it is full).
+    function bottom(): bool {
+        if (!patternSet) {
+            idle.setPattern(Pattern.TRANSPARENT);
+        }
+        let base: utinyint = control1 & KEEP;
+        let lastRow: utinyint = 247 + (base & 7);
+        let ok: bool = true;
+        if (short) {
+            ok = raster.insert(border.SHORT_LINE, Register.CONTROL_1, base | RSEL);
+        }
+        if (lastRow <= border.OPEN_LINE) {
+            if (!raster.insert(border.OPEN_LINE, Register.CONTROL_1, base | idle.ECM)) {
+                ok = false;
+            }
+        } else {
+            if (!raster.insert(border.OPEN_LINE, Register.CONTROL_1, base)) {
+                ok = false;
+            }
+            if (!raster.insert(lastRow, Register.CONTROL_1, base | idle.ECM)) {
+                ok = false;
+            }
+        }
+        return ok;
+    }
+
+    // The entry that ends the pattern and restores the row count before
+    // the first bad line. False if the list is full.
+    function top(): bool {
+        let base: utinyint = control1 & KEEP;
+        if (!short) {
+            base = base | RSEL;
+        }
+        return raster.insert(border.TOP_OFFSET + (base & 7), Register.CONTROL_1, base);
+    }
+}

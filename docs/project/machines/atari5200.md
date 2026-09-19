@@ -139,6 +139,12 @@ but was not cross-checked against a hardware description.
   program then owns VCOUNT-polled timing anyway) or writes the BIOS's
   shadows (*to verify*); a hardware-only color write lasts until the next
   vertical blank, exactly as on the computer.
+- **`NMIEN = 0` also silences display-list interrupts.** NMIEN bit 7 is
+  the DLI enable and bit 6 the VBI; clearing the whole register fixes
+  the colour-restore problem and removes per-line effects with it. A
+  program that wants DLIs (colour bands, per-band player positions —
+  `docs/project/frame.md`) writes `NMIEN = $80` and owns the BIOS's RAM
+  NMI vector instead, whose address is *to verify* here.
 
 ### The program owns the display from the first instruction
 

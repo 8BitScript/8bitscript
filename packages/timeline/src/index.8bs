@@ -1,0 +1,86 @@
+// @8bitscript/timeline — a demoscene part is deliberate: at frame 120 the
+// logo drops, at 300 the bars start. This is the frame counter and the
+// predicates that say when, the same pure code on all nine machines:
+//
+//     import { timeline } from "@8bitscript/timeline";
+//
+//     timeline.start();                  // frame 0 is now
+//     while (true) {
+//         waitFrame();
+//         timeline.tick();               // once a frame, first thing after waitFrame()
+//         if (timeline.at(120)) { ... }  // exactly once, on frame 120
+//         if (timeline.after(300)) { ... }
+//         if (timeline.every(8)) { ... } // frames 0, 8, 16, ...
+//     }
+//
+// ---- why the cues are the program's own ifs ------------------------------
+//
+// The language has no function values and no array parameters, so this
+// package cannot take a program's cue table and run it; and copying a
+// `const` table into package RAM at start-up would be run-time work for a
+// thing that is known at compile time. So the timeline is a counter, and
+// a cue is `if (timeline.at(120))` — a 16-bit compare against a literal,
+// which is what a demo's part table compiles to anyway. In `.8bx` the
+// cue is the conditional the language already has,
+// `{timeline.at(120) && <Logo />}`; there is no wrapper component
+// because a slotted component runs its children unconditionally between
+// its two halves and could not gate anything (docs/project/frame.md).
+//
+// ---- what a frame is ---------------------------------------------------------
+//
+// One call to `tick()`, which a program makes once per `waitFrame()`.
+// The package cannot count frames itself — nothing hooks waitFrame() —
+// and does not want to: on the Lynx the frame rate is program-set, on the
+// Supervision the NMI is unrelated to the LCD, on the Oric the CPU cannot
+// see vsync at all (docs/project/frame.md, the Phase 5–8 appendix), and
+// `tick()` means "whatever this machine's FRAME_SYNC decided a frame is"
+// on every one of them.
+//
+// ---- every(n) and the 8-bit remainder ---------------------------------------
+//
+// `%` is an 8-bit operation on the 6502 targets, so `every(n)` takes the
+// counter's low byte: exact for every n that divides 256 (2, 4, 8, 16,
+// 32, 64, 128) and off by one beat where the counter wraps from 255 to
+// 256 for any other n. Cue a non-power-of-two rhythm from `at()` and
+// `after()` with `frame()` if the beat has to be exact past frame 255.
+
+let frameCount: usmallint = 0;
+
+export namespace timeline {
+    // Frame 0 is now.
+    function start(): void {
+        frameCount = 0;
+    }
+
+    // One frame has passed. Once per waitFrame().
+    function tick(): void {
+        frameCount = frameCount + 1;
+    }
+
+    // Frames since start().
+    function frame(): usmallint {
+        return frameCount;
+    }
+
+    // True on exactly that frame.
+    function at(f: usmallint): bool {
+        return frameCount == f;
+    }
+
+    // True from that frame on.
+    function after(f: usmallint): bool {
+        return frameCount >= f;
+    }
+
+    // True on frames a up to, not including, b.
+    function between(a: usmallint, b: usmallint): bool {
+        return frameCount >= a && frameCount < b;
+    }
+
+    // True once every n frames, from frame 0 — see the header for the
+    // 8-bit remainder.
+    function every(n: utinyint): bool {
+        let low: utinyint = frameCount & 0xFF;
+        return low % n == 0;
+    }
+}

@@ -33,6 +33,7 @@ export namespace Slot {
 
 export namespace raster {
     const ENTRIES: utinyint = 0; // the list's capacity: there is no list
+    const STRIDE: utinyint = 0;  // bytes per entry: none
 
     function clear(): void {
     }
@@ -41,8 +42,15 @@ export namespace raster {
         return false;
     }
 
+    function insert(line: utinyint, slot: utinyint, value: utinyint): bool {
+        return false;
+    }
+
     function setValue(entry: utinyint, value: utinyint): bool {
         return false;
+    }
+
+    function commit(): void {
     }
 
     function count(): utinyint {

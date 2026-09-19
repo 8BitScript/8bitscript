@@ -29,20 +29,29 @@
 //   - `Slot`: BORDER, BACKGROUND, SCROLL_X — the three per-line effects
 //     that mean the same thing everywhere.
 //   - `raster.ENTRIES` — the list's capacity: 63 here, 0 in a stub.
-//   - `clear()`, `at(line, slot, value)`, `setValue(entry, value)`,
-//     `count()`, `enable()`, `disable()` — the same list operations
-//     ./raster.8bs documents, `at` taking a slot instead of an address
-//     and `setValue` keeping the slot's value semantics (a SCROLL_X
-//     entry rewrites with the 0-7 scroll amount, never a raw byte).
+//   - `raster.STRIDE` — the bytes one entry takes, the unit `setValue`
+//     names an entry in: 4 here, 3 on the web, 0 in a stub. (examples/
+//     fancy probed for this at start-up before the surface carried it.)
+//   - `clear()`, `at(line, slot, value)`, `insert(line, slot, value)`,
+//     `setValue(entry, value)`, `count()`, `commit()`, `enable()`,
+//     `disable()` — the same list operations ./raster.8bs documents,
+//     `at` and `insert` taking a slot instead of an address and
+//     `setValue` keeping the slot's value semantics (a SCROLL_X entry
+//     rewrites with the 0-7 scroll amount, never a raw byte). `commit()`
+//     hands a rebuilt list over whole (docs/project/frame.md: a frame is
+//     a plan built between frames); it is a no-op where the list is
+//     single-buffered (the web) or absent.
 //
 // `line` is a **picture line**: 0 is the first visible scanline on every
 // machine. This file adds the display window's top offset (50 — the same
 // TOP the sprite layer names) before handing the line to the address list,
 // and `at` refuses a line at or past the 200-line visible picture, so the
 // same portable program means the same thing here and, later, on the web.
-// Entries still go in ascending line order, the write still lands a few
-// cycles into the line, and the list is still rebuilt right after
-// waitFrame() — ./raster.8bs's rules, which the picture-line translation
+// Entries still go in ascending line order, a write still takes effect
+// from the line after its entry's, and a list is still built once and
+// rewritten by value each frame, or rebuilt and committed (./raster.8bs:
+// `enable()` commits the first list; a rebuilt one needs its own
+// `commit()`) — ./raster.8bs's rules, which the picture-line translation
 // does not change.
 //
 // `Slot.SCROLL_X`'s value is the 3-bit XSCROLL (0-7) only — everywhere,
@@ -72,6 +81,7 @@ export namespace Slot {
 
 export namespace raster {
     const ENTRIES: utinyint = 63; // the list's capacity, ./raster.8bs's MAX
+    const STRIDE: utinyint = 4;   // bytes per entry: line, address low, address high, value
     const TOP: utinyint = 50;     // picture line 0 is raster line 50
     const LINES: utinyint = 200;  // visible picture lines, 0-199
     const KEEP: utinyint = 0xF8;  // $D016 bits 3-7 — CSEL, MCM — kept in every SCROLL_X byte
@@ -101,9 +111,35 @@ export namespace raster {
         return false;
     }
 
+    // In order: the same as `at`, at a line at or above the last entry's
+    // — slid into place, so a program adding a few entries of its own
+    // beside another package's plan (sprites', say) need not know what
+    // else the list holds. False, and nothing added, if full.
+    function insert(line: utinyint, slot: utinyint, value: utinyint): bool {
+        if (line >= raster.LINES) {
+            return false;
+        }
+        if (slot == Slot.BORDER) {
+            return addressList.insert(line + raster.TOP, Register.BORDER, value);
+        }
+        if (slot == Slot.BACKGROUND) {
+            return addressList.insert(line + raster.TOP, Register.BACKGROUND, value);
+        }
+        if (slot == Slot.SCROLL_X) {
+            return addressList.insert(line + raster.TOP, Register.CONTROL_2, (control2 & raster.KEEP) | (value & 7));
+        }
+        return false;
+    }
+
     // How many entries the list holds.
     function count(): utinyint {
         return addressList.count();
+    }
+
+    // Hand a rebuilt list over: live from the next frame, whole. A list
+    // built once before enable() never needs it (enable() commits).
+    function commit(): void {
+        addressList.commit();
     }
 
     // Rewrite one entry's value, leaving its line and slot: `entry` is the

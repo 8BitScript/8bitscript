@@ -15,8 +15,9 @@
 // capability packages — `./src/screen.8bs` behind @8bitscript/screen and
 // `./src/text.8bs` behind @8bitscript/text, named by the "8bitscript".exports
 // map in package.json — and in the C64-only subpaths beside them:
-// `@8bitscript/c64/sprites`, `/raster`, `/bitmap`, `/charset`, `/scroll`,
-// `/keyboard` + `/keys`, `/joystick`, `/sid`, `/reu`, `/mouse`. All of
+// `@8bitscript/c64/sprites`, `/raster`, `/idle`, `/border`, `/multiplex`,
+// `/bitmap`, `/charset`, `/scroll`, `/keyboard` + `/keys`, `/joystick`,
+// `/sid`, `/reu`, `/mouse`. All of
 // them import these registers and are built on nothing else. A
 // project that imports THIS package has declared itself C64 specific.
 //

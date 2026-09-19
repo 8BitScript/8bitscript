@@ -118,7 +118,10 @@ cc65 has `lynx-eeprom.s`)*.
 that order *to verify*); cc65 writes `$0D` (color, 4-bit, DMA on, no
 flip). SCRBASE/DISPADR `$FD94` is the buffer the DMA reads — swapping it
 is the page flip. The palette can be rewritten from the HBL interrupt for
-more than 16 colors per frame. Rotation (left/right-handed, the
+more than 16 colors per frame — which makes timer 0 a real per-line hook:
+there is no raster *compare*, but a handler that counts HBL interrupts
+from the VBL reaches any line, so colour bands are a list mechanism here
+(`docs/project/frame.md`, Phase 5–8 appendix), not a degradation. Rotation (left/right-handed, the
 `LEFTHAND` SPRSYS bit and DISPCTL Flip) is a hardware feature; the `.lnx`
 header records which way a game expects to be held and Mednafen's
 `lynx.rotateinput` follows it.

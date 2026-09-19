@@ -1,0 +1,61 @@
+// The scene: what happens on which frame. This file composes and computes
+// nothing — the flock's arithmetic is in flock.8bs, the counter's in
+// @8bitscript/timeline and its digits in counter.8bs — and reads like the
+// part list of a demo:
+//
+//     frame   1   the title
+//     frame  60   the sprites appear
+//     frame 180   the border opens (C64) — the sprites leave the playfield
+//     frame 420   it closes
+//     every 32    the colours rotate
+//
+// Each cue is `{timeline.at(N) && <Thing />}`: the conditional the
+// language already has, folded like any other, so a cue is one 16-bit
+// compare and a call — no table walked, no code run at a frame.
+import { text } from "@8bitscript/text";
+import { sprites } from "@8bitscript/sprites";
+import { timeline } from "@8bitscript/timeline";
+import { flock } from "./flock.8bs";
+import { counter } from "./counter.8bs";
+
+export component Title() {
+    text.print(0, "SWARM");
+    text.print(text.COLUMNS, "SPRITES");
+    text.printNumber(text.COLUMNS + 8, flock.size(), 2);
+    text.print(text.COLUMNS + 11, "FRAME"); // the label once; the digits as they change
+    counter.begin(text.COLUMNS + 17);
+}
+
+// The frame count, one character a frame (counter.8bs): the same number
+// as timeline.frame(), which a printNumber of every frame cost a sixth
+// of the C64's frame to show.
+export component Counter() {
+    counter.advance();
+}
+
+export component Release() {
+    flock.release();
+}
+
+export component Open() {
+    sprites.extend(true);
+}
+
+export component Close() {
+    sprites.extend(false);
+}
+
+export component Recolor() {
+    flock.recolor();
+}
+
+export component Scene() {
+    return (<>
+        {timeline.at(1) && <Title />}
+        {timeline.at(60) && <Release />}
+        {timeline.at(180) && <Open />}
+        {timeline.at(420) && <Close />}
+        {timeline.every(32) && <Recolor />}
+        <Counter />
+    </>);
+}

@@ -4,13 +4,16 @@
 // $D021 splits (red behind the band, a below-band split, black above).
 // The 24 entries sit one per TWO scanlines (a 48-line band, six text
 // rows), not on 24 consecutive lines: the handler costs more than one
-// raster line per interrupt (~55 cycles to the store plus entry and
+// raster line per interrupt (~60 cycles to the store plus entry and
 // exit, against a 65-cycle NTSC line, and a bad line — 107, 115, 123,
-// 131, 139, 147 in the band — leaves the CPU ~20), so a per-line
-// cascade sets the compare for a line the raster is already on and the
-// capture showed a solid red picture with one stray notch. Two lines
-// per entry is the pitch that keeps the cascade on time; the 24-byte-
-// per-frame rebuild is unchanged by the spacing. Columns 0-19 of every
+// 131, 139, 147 in the band — leaves the CPU ~20). When this probe was
+// written a per-line cascade set the compare for a line the raster was
+// already on and lost the rest of the frame (a solid red picture with
+// one stray notch); the handler now applies a late entry at once, so a
+// per-line list would land each entry about a line late rather than
+// drop the frame — but two lines per entry is still the pitch at which
+// every entry lands on its own line, and the 24-byte-per-frame rebuild
+// is unchanged by the spacing. Columns 0-19 of every
 // row are solid white blocks and 20-39 empty, so each scanline's shift
 // shows as where the white/background edge sits: pixel 160 plus that
 // line's XSCROLL.

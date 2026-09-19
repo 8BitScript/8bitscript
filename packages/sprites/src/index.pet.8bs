@@ -1,0 +1,491 @@
+// @8bitscript/sprites on the PET: quadrant-block objects that restore what
+// they covered. The resolver takes this twin for PET builds on its own —
+// a program imports "@8bitscript/sprites" and never names this file (the
+// compiler's twin rule, as `index.c64.8bs` beside `index.8bs`).
+//
+// The PET has no sprites, no bitmap and no redefinable glyphs, but its ROM
+// has the sixteen "quadrant block" characters (`@8bitscript/pet/blocks`
+// describes them: screen codes 96-127 and their inverses at 224-255,
+// every 2 × 2 on/off pattern one cell can show), which turn the 40 × 25
+// grid into 80 × 50 pseudo-pixels of 4 × 4 real pixels each. A sprite
+// here is a 4 × 4 pseudo-pixel shape — 16 × 16 real pixels, `WIDTH` and
+// `HEIGHT` 16 — placed at any pseudo-pixel: aligned to a cell it is 2 × 2
+// cells, straddling a cell boundary in either direction it is 3 × 2, 2 × 3
+// or 3 × 3, and the smallest move that shows is one pseudo-pixel, `STEP_X`
+// = `STEP_Y` = 4 stage pixels. Shipped PET games (PETSCII Robots, whose
+// source the design note read) move by whole cells; a quadrant object at
+// 4-pixel steps is a step past that, taken here because the screen is RAM
+// and the codes are closed under the merge — docs/project/sprites.md.
+//
+// ---- what a shape is here --------------------------------------------------
+//
+// `defineShape(shape, row0, row1, row2, row3)`, this twin's own call, takes
+// four nibbles — bit 3 the left pixel of each row — and works out, once,
+// the nine cell patterns the shape makes at each of its four parities
+// (aligned, half a cell right, half a cell down, both): 36 bytes a shape,
+// `SHAPES` (7) shapes, so the frame's loop does no pixel arithmetic at
+// all — it reads a pattern, merges it, writes a code. `setShape(n, shape)`
+// is then the portable call with the shape's index; a portable program
+// keeps that index in a `.pet.8bs` twin of its shapes file, as
+// `examples/swarm` does, and a shape drawn on screen must not be
+// redefined until every sprite on it has moved off (the erase reads the
+// definition it was drawn with). Shape 0 is a solid 4 × 4 block unless
+// the program defined it before `begin()`.
+//
+// ---- merge, save-under, and the order of the erase --------------------------
+//
+// Drawing a cell reads the screen at $8000: a quadrant code there (one of
+// the sixteen) is decoded and ORed with the shape's pattern, so two
+// sprites overlapping, or a sprite over a block-drawn picture, show both;
+// anything else — a letter — is replaced by the shape's cells for as long
+// as the sprite is there. What was read is kept, nine bytes a sprite, and
+// written back when the sprite moves: `RESTORES` is true, text under a
+// sprite comes back, and `setBackground()` has nothing to do — text
+// printed under a sprite while it stands there is overwritten by that
+// restore, so a program prints where sprites are not, or reprints. Because a
+// later sprite's saved bytes may hold an earlier sprite's cells, the
+// frame's work is done on a SET: the sprites that changed, and every
+// drawn sprite whose cells touch one of those (and theirs, until no more
+// join); the set is erased from its highest index down — each sprite's
+// saved bytes go back onto the screen they were read from — and drawn
+// from its lowest up. A sprite that neither moved nor touches a mover
+// costs its part of the set test — under a hundred cycles a sprite for
+// each member — and no redraw. Measured on the 3032 under xpet
+// (2026-09-19, test/pet-timing.8bs): ~2,600 cycles a sprite redrawn;
+// all moving, 7,980 for three, 13,746 for five, 21,155 for eight; one
+// of eight moving, 4,582. A 60 Hz frame is 16,667, so FIVE moving
+// sprites fit a frame with room for the program; eight all moving take
+// two frames and tear as the beam crosses the redraw; eight of which
+// four move a frame (the swarm example) run at one frame or two by how
+// many overlap. `MAX` is eight: what a program can hold and move some
+// of. Three times faster is the draw in native assembly, the recorded
+// next step — the compiled inner loop is ~130 cycles a cell (read,
+// save, decode, merge, write), the walk and its bookkeeping the rest.
+import { Video } from "@8bitscript/system";
+
+const HIDDEN: utinyint = 255;  // a sprite's row when it is not drawn
+const NONE: utinyint = 255;    // a sprite's drawn row when nothing is on screen for it
+const SCREEN: usmallint = 0x8000;
+
+// Screen code for each of the sixteen 2 × 2 patterns, indexed by
+// (topLeft << 3 | topRight << 2 | bottomLeft << 1 | bottomRight) — the
+// same table as `QUAD` in @8bitscript/pet/blocks, kept here so the frame's
+// loop indexes it directly rather than calling.
+const QUAD: array<utinyint, 16> = [
+    32,  108, 123, 98,
+    124, 225, 255, 254,
+    126, 127, 97,  252,
+    226, 251, 236, 160,
+];
+
+// The inverse, for the codes that have one. The sixteen are 32 (blank),
+// 160 (solid), seven codes in 96-127 and those seven's complements in
+// 224-255 — bit 7 flips every pixel — so a 32-entry table over the low
+// five bits serves both ranges, with 255 for a code that is not one of
+// the sixteen (a letter, a line-drawing glyph), which a sprite replaces.
+const UNQUAD: array<utinyint, 32> = [
+    255, 10,  3,   255, 255, 255, 255, 255, 255, 255, 255, 255, 1,   255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 2,   4,   255, 8,   9,
+];
+
+const PIXEL_BIT: array<utinyint, 4> = [8, 4, 2, 1]; // a shape row's bit for pixel x
+const BIT: array<utinyint, 8> = [1, 2, 4, 8, 16, 32, 64, 128];
+
+// The sprites: where each is, as the cell its top-left pseudo-pixel is in
+// and which of the four parities it sits at, so the frame's loop shifts
+// nothing.
+let acol: array<u8, 8>;
+let arow: array<u8, 8>;        // or HIDDEN: off the grid, or hidden
+let apar: array<u8, 8>;        // 0 aligned, 1 half a cell right, 2 half a cell down, 3 both
+let ashape: array<u8, 8>;
+let dirty: array<u8, 8>;
+let drawnCol: array<u8, 8>;
+let drawnRow: array<u8, 8>;    // or NONE
+let drawnPar: array<u8, 8>;
+let drawnShape: array<u8, 8>;
+let under: array<u8, 72>;       // the nine screen codes each sprite covered: sprite * 9 + cell
+let inSet: array<u8, 8>;        // 1: erased and drawn this frame
+let count: utinyint = 0;
+let shownCount: utinyint = 0;
+
+// The shapes: nine patterns at each of four parities, `SHAPES` shapes —
+// 252 bytes, so every index into it is a byte.
+let patterns: array<u8, 252>;
+let defined: utinyint = 0;      // a bit per shape defineShape() has filled
+let nib: array<u8, 4>;
+
+// row * COLUMNS + col as shifts chosen at compile time from COLUMNS's
+// bits (40 is 32 + 8, 80 is 64 + 16), as the cell layer does.
+function cellAt(col: utinyint, row: utinyint): usmallint {
+    let wide: usmallint = row;
+    let cell: usmallint = col;
+    if ((Video.COLUMNS & 8) != 0) {
+        cell = cell + (wide << 3);
+    }
+    if ((Video.COLUMNS & 16) != 0) {
+        cell = cell + (wide << 4);
+    }
+    if ((Video.COLUMNS & 32) != 0) {
+        cell = cell + (wide << 5);
+    }
+    if ((Video.COLUMNS & 64) != 0) {
+        cell = cell + (wide << 6);
+    }
+    return cell;
+}
+
+// shape * 36 + parity * 9: the first of a shape's nine patterns at a parity.
+function patternAt(shape: utinyint, par: utinyint): utinyint {
+    let at: utinyint = (shape << 5) + (shape << 2);
+    return at + (par << 3) + par;
+}
+
+// Whether the shape in `nib`, placed `dx`, `dy` pseudo-pixels into its
+// 6 × 6 window, lights window pixel (wx, wy). Unsigned: a pixel left of or
+// above the shape wraps past 3 and reads as unlit.
+function lit(wx: utinyint, wy: utinyint, dx: utinyint, dy: utinyint): bool {
+    let sx: utinyint = wx - dx;
+    let sy: utinyint = wy - dy;
+    if (sx > 3 || sy > 3) {
+        return false;
+    }
+    return (nib[sy] & PIXEL_BIT[sx]) != 0;
+}
+
+// Write sprite i's nine cells back from what it covered.
+function restore(i: utinyint): void {
+    let pi: utinyint = patternAt(drawnShape[i], drawnPar[i]);
+    let ui: utinyint = (i << 3) + i;
+    let addr: usmallint = SCREEN + cellAt(drawnCol[i], drawnRow[i]);
+    for (let r: utinyint = 0; r < 3; r++) {
+        for (let c: utinyint = 0; c < 3; c++) {
+            if (patterns[pi] != 0) {
+                memory.write(addr, under[ui]);
+            }
+            pi = pi + 1;
+            ui = ui + 1;
+            addr = addr + 1;
+        }
+        addr = addr + Video.COLUMNS - 3;
+    }
+}
+
+// Draw sprite i where it is, keeping what it covers.
+function draw(i: utinyint): void {
+    let pi: utinyint = patternAt(ashape[i], apar[i]);
+    let ui: utinyint = (i << 3) + i;
+    let addr: usmallint = SCREEN + cellAt(acol[i], arow[i]);
+    for (let r: utinyint = 0; r < 3; r++) {
+        for (let c: utinyint = 0; c < 3; c++) {
+            let pat: utinyint = patterns[pi];
+            if (pat != 0) {
+                let bg: utinyint = memory.read(addr);
+                under[ui] = bg;
+                // The code's pattern, written out here rather than called:
+                // a call per cell was a tenth of the frame (measured).
+                let q: utinyint = 0;
+                if (bg == 160) {
+                    q = 15;
+                } else if (bg != 32 && (bg & 0x60) == 0x60) {
+                    q = UNQUAD[bg & 31];
+                    if (q == 255) {
+                        q = 0;
+                    } else if ((bg & 0x80) != 0) {
+                        q = q ^ 15;
+                    }
+                }
+                memory.write(addr, QUAD[q | pat]);
+            }
+            pi = pi + 1;
+            ui = ui + 1;
+            addr = addr + 1;
+        }
+        addr = addr + Video.COLUMNS - 3;
+    }
+}
+
+// Scratch for right() and bottom(): sixteen bits so an eighty-column or
+// fifty-six-row grid does not wrap, and a module variable rather than a
+// local because a callee with a local of its own, inlined into a function
+// that inlines another such callee, is left unplaced — `'bottomEdge_2'
+// resolves to nothing this backend knows` (a compiler bug, 2026-09-19).
+let edge: usmallint = 0;
+
+export namespace sprites {
+    const MAX: utinyint = 8;                      // sprites this layer holds; five moving fit a frame (header)
+    const PER_LINE: utinyint = Video.COLUMNS;     // a row of cells: no per-line limit worth the name
+    const SHAPES: utinyint = 7;                   // shapes defineShape() can hold
+    const WIDTH: utinyint = 16;                   // 4 × 4 pseudo-pixels of 4 × 4 real pixels
+    const HEIGHT: utinyint = 16;
+    const STEP_X: utinyint = 4;                   // the smallest move that shows: a pseudo-pixel
+    const STEP_Y: utinyint = 4;
+    const RESTORES: bool = true;                  // what a sprite covers comes back when it moves
+    const EXTENDS: bool = false;                  // no border to open
+    const ORIGIN_X: usmallint = 0;                // the playfield's top-left, in stage pixels
+    const ORIGIN_Y: usmallint = 0;
+
+    // Where a sprite's top-left can be and still show whole, in stage
+    // pixels: a sprite that would run past the right edge or the bottom is
+    // not drawn at all (a cell past column 39 is the next row's first).
+    function left(): usmallint {
+        return 0;
+    }
+
+    function top(): usmallint {
+        return 0;
+    }
+
+    function right(): usmallint {
+        edge = Video.COLUMNS;
+        return edge * 8 - 16;
+    }
+
+    function bottom(): usmallint {
+        edge = Video.ROWS;
+        return edge * 8 - 16;
+    }
+
+    // Shape `shape` (0 to SHAPES - 1) from four rows of four pixels, bit 3
+    // the left pixel: `defineShape(0, 6, 9, 9, 6)` is a ring. Works out
+    // the shape's cell patterns at its four parities, once.
+    function defineShape(shape: utinyint, row0: utinyint, row1: utinyint, row2: utinyint, row3: utinyint): void {
+        if (shape >= sprites.SHAPES) {
+            return;
+        }
+        nib[0] = row0;
+        nib[1] = row1;
+        nib[2] = row2;
+        nib[3] = row3;
+        defined = defined | BIT[shape];
+        let pi: utinyint = patternAt(shape, 0);
+        for (let par: utinyint = 0; par < 4; par++) {
+            let dx: utinyint = par & 1;
+            let dy: utinyint = par >> 1;
+            for (let cr: utinyint = 0; cr < 3; cr++) {
+                let wy: utinyint = cr << 1;
+                for (let cc: utinyint = 0; cc < 3; cc++) {
+                    let wx: utinyint = cc << 1;
+                    let pat: utinyint = 0;
+                    if (lit(wx, wy, dx, dy)) {
+                        pat = pat | 8;
+                    }
+                    if (lit(wx + 1, wy, dx, dy)) {
+                        pat = pat | 4;
+                    }
+                    if (lit(wx, wy + 1, dx, dy)) {
+                        pat = pat | 2;
+                    }
+                    if (lit(wx + 1, wy + 1, dx, dy)) {
+                        pat = pat | 1;
+                    }
+                    patterns[pi] = pat;
+                    pi = pi + 1;
+                }
+            }
+        }
+    }
+
+    // How many sprites this program moves, 0-MAX; those at and past the
+    // count are ignored. Every sprite starts hidden, on shape 0 — a solid
+    // block unless the program has defined shape 0 already.
+    function begin(n: utinyint): void {
+        if (n > sprites.MAX) {
+            n = sprites.MAX;
+        }
+        count = n;
+        if ((defined & 1) == 0) {
+            sprites.defineShape(0, 15, 15, 15, 15);
+        }
+        for (let i: utinyint = 0; i < sprites.MAX; i++) {
+            arow[i] = HIDDEN;
+            drawnRow[i] = NONE;
+            dirty[i] = 0;
+            ashape[i] = 0;
+        }
+    }
+
+    // Sprite `n` at stage pixel (x, y): the pseudo-pixel at x >> 2, y >> 2.
+    // Not drawn where it would not fit whole. An index at or past MAX is
+    // ignored, here and below.
+    function place(n: utinyint, x: usmallint, y: usmallint): void {
+        if (n >= sprites.MAX) {
+            return;
+        }
+        let px: usmallint = x >> 2;
+        let py: usmallint = y >> 2;
+        let col: usmallint = px >> 1;
+        let row: usmallint = py >> 1;
+        let par: utinyint = (px & 1) & 0xFF;
+        if ((py & 1) != 0) {
+            par = par | 2;
+        }
+        let cols: usmallint = 2 + (par & 1);
+        let rows: usmallint = 2 + (par >> 1);
+        let newRow: utinyint = HIDDEN;
+        let newCol: utinyint = 0;
+        if (col + cols <= Video.COLUMNS && row + rows <= Video.ROWS) {
+            newRow = row & 0xFF;
+            newCol = col & 0xFF;
+        }
+        if (newCol != acol[n] || newRow != arow[n] || par != apar[n]) {
+            acol[n] = newCol;
+            arow[n] = newRow;
+            apar[n] = par;
+            dirty[n] = 1; // a move inside one pseudo-pixel draws nothing
+        }
+    }
+
+    // The shape, by the index defineShape() gave it; one this twin does
+    // not hold (an ASCII code from a portable program) is ignored.
+    function setShape(n: utinyint, shape: utinyint): void {
+        if (n < sprites.MAX && shape < sprites.SHAPES) {
+            ashape[n] = shape;
+            dirty[n] = 1;
+        }
+    }
+
+    // No colour on this machine.
+    function setColor(n: utinyint, color: utinyint): void {
+    }
+
+    // Not drawn until placed again.
+    function hide(n: utinyint): void {
+        if (n < sprites.MAX) {
+            arow[n] = HIDDEN;
+            dirty[n] = 1;
+        }
+    }
+
+    // Nothing to set: a sprite puts back what it covered.
+    function setBackground(code: utinyint): void {
+    }
+
+    // Nothing to extend: the playfield is the stage.
+    function extend(on: bool): void {
+    }
+
+    // Sprites the last update() could not show. Always 0 here.
+    function dropped(): utinyint {
+        return 0;
+    }
+
+    // The frame's work. Returns how many sprites are on screen.
+    function plan(): utinyint {
+        // 1. The set: what changed, then every drawn sprite whose cells
+        //    touch a member's old or new cells, until nothing more joins.
+        //    The test is coarse — two cells either way, the widest a
+        //    sprite gets — so it errs toward an extra redraw, never a
+        //    missed one.
+        let members: utinyint = 0;
+        for (let i: utinyint = 0; i < count; i++) {
+            inSet[i] = dirty[i];
+            if (dirty[i] != 0) {
+                members = members + 1;
+            }
+        }
+        if (members == 0) {
+            return shownCount;
+        }
+        //    Each member is expanded once (inSet 1: joined, 2: expanded):
+        //    one box round its old cells and its new ones together, two
+        //    cells either way, and every drawn sprite outside the set
+        //    whose top-left is in the box joins. Four compares a sprite,
+        //    no calls: a call here was more than a sprite's redraw, and
+        //    a box per footprint twice the compares (both measured).
+        let grew: bool = members < count;
+        while (grew) {
+            grew = false;
+            for (let j: utinyint = 0; j < count; j++) {
+                if (inSet[j] != 1) {
+                    continue;
+                }
+                inSet[j] = 2;
+                // NONE and HIDDEN are both 255: a footprint that is not on
+                // screen either way is left out of the box.
+                let cLo: utinyint = 255;
+                let cHi: utinyint = 0;
+                let rLo: utinyint = 255;
+                let rHi: utinyint = 0;
+                if (drawnRow[j] != NONE) {
+                    cLo = drawnCol[j];
+                    cHi = drawnCol[j];
+                    rLo = drawnRow[j];
+                    rHi = drawnRow[j];
+                }
+                if (arow[j] != HIDDEN) {
+                    if (acol[j] < cLo) {
+                        cLo = acol[j];
+                    }
+                    if (acol[j] > cHi) {
+                        cHi = acol[j];
+                    }
+                    if (arow[j] < rLo) {
+                        rLo = arow[j];
+                    }
+                    if (arow[j] > rHi) {
+                        rHi = arow[j];
+                    }
+                }
+                if (rLo == 255) {
+                    continue;
+                }
+                if (cLo > 2) {
+                    cLo = cLo - 2;
+                } else {
+                    cLo = 0;
+                }
+                if (rLo > 2) {
+                    rLo = rLo - 2;
+                } else {
+                    rLo = 0;
+                }
+                cHi = cHi + 2;
+                rHi = rHi + 2;
+                for (let i: utinyint = 0; i < count; i++) {
+                    if (inSet[i] != 0 || drawnRow[i] == NONE) {
+                        continue;
+                    }
+                    if (drawnCol[i] >= cLo && drawnCol[i] <= cHi && drawnRow[i] >= rLo && drawnRow[i] <= rHi) {
+                        inSet[i] = 1;
+                        grew = true;
+                    }
+                }
+            }
+        }
+        // 2. Erase the set from the top index down.
+        let i: utinyint = count;
+        while (i > 0) {
+            i = i - 1;
+            if (inSet[i] != 0 && drawnRow[i] != NONE) {
+                restore(i);
+                drawnRow[i] = NONE;
+            }
+        }
+        // 3. Draw it from the bottom up, in index order: the last drawn
+        //    is in front where two overlap only in what a letter under
+        //    both becomes; quadrants themselves merge.
+        let shown: utinyint = 0;
+        for (let k: utinyint = 0; k < count; k++) {
+            if (inSet[k] != 0) {
+                dirty[k] = 0;
+                if (arow[k] != HIDDEN) {
+                    draw(k);
+                    drawnCol[k] = acol[k];
+                    drawnRow[k] = arow[k];
+                    drawnPar[k] = apar[k];
+                    drawnShape[k] = ashape[k];
+                }
+            }
+            if (drawnRow[k] != NONE) {
+                shown = shown + 1;
+            }
+        }
+        shownCount = shown;
+        return shownCount;
+    }
+
+    // The same as plan() here: there is no list to open and commit around it.
+    function update(): utinyint {
+        return sprites.plan();
+    }
+}

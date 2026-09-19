@@ -1,0 +1,192 @@
+// @8bitscript/sprites on the C64: hardware sprites, reused down the frame.
+// The resolver takes this twin for C64 builds on its own — a program
+// imports "@8bitscript/sprites" and never names this file (the same twin
+// rule as `entropy.c64.8bs` beside `entropy.8bs` in @8bitscript/random;
+// see the compiler resolver's chooseVariant).
+//
+// Two things are called `sprites` on this machine, on purpose:
+// `@8bitscript/c64/sprites` is the VIC's eight, one register set each,
+// for a C64 program that wants exactly that; this file is the portable
+// surface, which hands out more than the chip has (twenty-four here,
+// through the multiplexer below) and means the same thing on a machine
+// with no sprite hardware at all. A file that needs both imports the
+// hardware layer under another name, as this one does (`hardware`).
+//
+// It is a thin wrapper: `@8bitscript/c64/multiplex` holds the twenty-four
+// virtual sprites and turns them into the raster list's frame table (the
+// first eight) and list entries (the rest, each a hardware sprite reused
+// at least 24 lines below its last use); `@8bitscript/c64/border` puts the
+// two entries that open the vertical border in the same list when
+// `extend(true)` has been called. Both packages' headers say what they
+// own of the VIC — every sprite register, `$D011`'s RSEL/ECM at the
+// border lines — and a program that uses this twin must not write those
+// itself. The stage is the sprite coordinate space: (24, 50) is the
+// playfield's top-left, so `ORIGIN_X`/`ORIGIN_Y` say so and a portable
+// program that adds them lands where it would on a cell machine.
+//
+// ---- update() and plan() ---------------------------------------------------
+//
+// The raster list is rebuilt every frame, so whoever opens it must also
+// commit it, and only one caller can do either. `update()` is
+// self-contained: `raster.clear()`, the plan, `raster.commit()` — and on
+// its first call `raster.enable()` in place of the commit, which installs
+// the handler and commits the first list. A program that also wants
+// entries of its own (a colour band, a split) opens and commits the list
+// itself, calls `plan()` inside that bracket, and calls `raster.enable()`
+// once itself, exactly as the multiplex probe does. Never both.
+//
+// ---- What a shape is here ---------------------------------------------------
+//
+// `setShape(n, block)` takes a sprite shape block number, 144-254, the
+// same as `@8bitscript/c64/sprites`; the program writes the 63 bytes of
+// the shape through `spriteShapes` in `@8bitscript/c64/video`, and
+// keeps the portable program's shape choice in a `.c64.8bs` twin of its
+// own (`examples/swarm` shows the shape of that). Every sprite starts on
+// `hardware.FIRST_BLOCK` (@8bitscript/c64/sprites, the eight), colour 1, hidden.
+import { multiplex } from "@8bitscript/c64/multiplex";
+import { border } from "@8bitscript/c64/border";
+import { raster } from "@8bitscript/c64/raster";
+import { sprites as hardware } from "@8bitscript/c64/sprites";
+
+let extended: bool = false;
+let opened: bool = false;   // extend(true) has been called at least once
+let enabled: bool = false;
+
+export namespace sprites {
+    const MAX: utinyint = 24;                     // multiplex.MAX
+    const PER_LINE: utinyint = 8;                 // the VIC's eight
+    const WIDTH: utinyint = 24;                   // a sprite, unexpanded
+    const HEIGHT: utinyint = 21;
+    const STEP_X: utinyint = 1;                   // the smallest move that shows: a pixel
+    const STEP_Y: utinyint = 1;
+    const RESTORES: bool = true;                  // a sprite draws over the picture and leaves it whole
+    const EXTENDS: bool = true;                   // the vertical border opens
+    const ORIGIN_X: usmallint = 24;               // the playfield's top-left, in sprite coordinates
+    const ORIGIN_Y: usmallint = 50;
+
+    // Where a sprite's top-left can be and still show, in sprite
+    // coordinates, given what `extend()` has opened: the playfield's
+    // edges (24-320 across, 50-229 down for a 21-line sprite) or, with
+    // the vertical border open, the display's — Y 30 to 240 is inside the
+    // picture on VICE's NTSC and on PAL both (a sprite at 240 ends on
+    // line 261; NTSC has 263). The sides never open — that is
+    // cycle-exact, and not offered — so left() and right() do not move.
+    // A program bounces its sprites off these and follows the border.
+    function left(): usmallint {
+        return 24;
+    }
+
+    function top(): usmallint {
+        if (extended) {
+            return 30;
+        }
+        return 50;
+    }
+
+    function right(): usmallint {
+        return 320;
+    }
+
+    function bottom(): usmallint {
+        if (extended) {
+            return 240;
+        }
+        return 229;
+    }
+
+    // How many sprites this program moves, 0-24. Every sprite starts hidden.
+    // Through multiplex.set, the bulk call, rather than setShape and
+    // setColor: a void function with one call site is inlined by the
+    // linker (rule 9), and a program's own recolour loop is then sixteen
+    // stores instead of sixteen calls — this is not that loop's second site.
+    function begin(n: utinyint): void {
+        multiplex.setCount(n);
+        for (let i: utinyint = 0; i < multiplex.MAX; i++) {
+            multiplex.set(i, 0, 255, hardware.FIRST_BLOCK, 1);
+        }
+    }
+
+    // The stage's y is sixteen bits (the portable rule); the VIC's is a
+    // byte, and 255 means hidden to the multiplexer, so a sprite placed
+    // at or below 255 is simply not drawn.
+    function place(n: utinyint, x: usmallint, y: usmallint): void {
+        if (y > 254) {
+            multiplex.hide(n);
+        } else {
+            multiplex.place(n, x, y & 0xFF);
+        }
+    }
+
+    function setShape(n: utinyint, shape: utinyint): void {
+        multiplex.setShape(n, shape);
+    }
+
+    function setColor(n: utinyint, color: utinyint): void {
+        multiplex.setColor(n, color);
+    }
+
+    function hide(n: utinyint): void {
+        multiplex.hide(n);
+    }
+
+    // Nothing to leave behind: a sprite draws over the picture.
+    function setBackground(code: utinyint): void {
+    }
+
+    // Open (or close) the vertical border: from the next update(), sprites
+    // draw above line 50 and below line 249. The idle pattern is set
+    // transparent by `border.bottom()` on the way.
+    function extend(on: bool): void {
+        extended = on;
+        if (on) {
+            opened = true;
+        }
+    }
+
+    // Sprites the last update() could not fit — the ninth on a line, or
+    // one whose hardware sprite was still busy above it.
+    function dropped(): utinyint {
+        return multiplex.dropped();
+    }
+
+    // The frame's plan, into the list the program has opened. Returns how
+    // many sprites will draw.
+    // Once the border has been opened, the line-50 entry that restores
+    // $D011 (RSEL on, ECM off) stays in every plan, open or closed: the
+    // handler leaves a register as the last entry set it, so a list that
+    // simply dropped both border entries would keep the 24-row window and
+    // ECM from line 250 for the whole of every frame — seen in the swarm
+    // example the frame its border closed (the top text row lost its top
+    // four lines, and every letter cell went solid), 2026-09-19.
+    //
+    // The order is the list's: top() at line 50 goes in before the
+    // multiplexer's entries (all at 51 or lower down — a sprite's reuse
+    // line is its predecessor's Y + 21, and Y is 30 at least), and
+    // bottom() at 249-250 after them, so both are appends; inserted the
+    // other way round each slid the whole list up a slot (1,500 cycles a
+    // frame, measured).
+    function plan(): utinyint {
+        if (opened) {
+            border.top();
+        }
+        let shown: utinyint = multiplex.update();
+        if (extended) {
+            border.bottom();
+        }
+        return shown;
+    }
+
+    // The frame's plan, list opened and committed here. Returns how many
+    // sprites will draw.
+    function update(): utinyint {
+        raster.clear();
+        let shown: utinyint = sprites.plan();
+        if (enabled) {
+            raster.commit();
+        } else {
+            raster.enable();
+            enabled = true;
+        }
+        return shown;
+    }
+}

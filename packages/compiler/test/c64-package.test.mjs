@@ -224,38 +224,64 @@ const buildC64 = async (ir, outFile) => {
 };
 const hasBytes = (code, needle) => code.some((_, i) => needle.every((b, j) => code[i + j] === b));
 // The stub's own stores (sta $FFFA / sta $FFFE) and two of the handler's
-// distinctive instructions (sta $D019, the acknowledge, and ldx $0301,
+// distinctive instructions (sta $D019, the acknowledge, and ldx $02FD,
 // the list index) — bytes nothing else in these programs emits.
 const STA_FFFA = [0x8d, 0xfa, 0xff];
 const STA_FFFE = [0x8d, 0xfe, 0xff];
 const STA_D019 = [0x8d, 0x19, 0xd0];
-const LDX_0301 = [0xae, 0x01, 0x03];
+const LDX_02FD = [0xae, 0xfd, 0x02];
 
 test('the package ships the vector stub as native assembly, and only the raster module names the handler', async () => {
   const pkg = JSON.parse(readFileSync(join(C64_SRC, '..', 'package.json'), 'utf8'));
-  assert.deepEqual(pkg['8bitscript'].native, ['./native/6502/raster.s']);
+  assert.deepEqual(pkg['8bitscript'].native, ['./native/6502/raster.s', './native/6502/multiplex.s']);
   const asm = readFileSync(join(C64_SRC, '..', 'native', '6502', 'raster.s'), 'utf8');
-  // The .init section points both vectors at the rti; only the install routine names the handler.
+  // The .init section points the NMI vector at the rti in program text
+  // and the IRQ vector at $00FD, with an rti written there — page zero,
+  // so $FFFF (the VIC's idle byte in bank 3) is 0; only the install
+  // routine names the handler.
   const init = asm.slice(asm.indexOf('.section .init.250'), asm.indexOf('.section .text.__8bs_c64_rti'));
-  assert.match(init, /lda #<__8bs_c64_rti[\s\S]*sta 0xFFFA[\s\S]*sta 0xFFFE/);
+  assert.match(init, /lda #<__8bs_c64_rti[\s\S]*sta 0xFFFA[\s\S]*lda #0x40[\s\S]*sta 0x00FD[\s\S]*lda #0xFD[\s\S]*sta 0xFFFE[\s\S]*lda #0\n[\s\S]*sta 0xFFFF/);
   assert.doesNotMatch(init, /raster_irq/);
+  // Install: a jmp to the handler at $FD-$FF, the vector at $00FD, the committed list made live.
   const install = asm.slice(asm.indexOf('__8bs_c64_raster_install:'), asm.indexOf('.section .text.__8bs_c64_raster_irq'));
-  assert.match(install, /pha[\s\S]*lda #<__8bs_c64_raster_irq[\s\S]*sta 0xFFFE[\s\S]*lda #>__8bs_c64_raster_irq[\s\S]*sta 0xFFFF[\s\S]*pla[\s\S]*rts/);
-  // The handler: acknowledge $D019, walk the list at $0200, set $D012, save and restore A and X, no zero page.
+  assert.match(install, /pha[\s\S]*lda #0x4C[\s\S]*sta 0x00FD[\s\S]*lda #<__8bs_c64_raster_irq[\s\S]*sta 0x00FE[\s\S]*lda #>__8bs_c64_raster_irq[\s\S]*sta 0x00FF[\s\S]*lda #0xFD[\s\S]*sta 0xFFFE[\s\S]*lda #0\n[\s\S]*sta 0xFFFF[\s\S]*sta 0x03FE[\s\S]*jsr __8bs_c64_raster_swap[\s\S]*jsr __8bs_c64_raster_restore[\s\S]*pla[\s\S]*rts/);
+  // The swap: the committed page ($03FC) into the live-page byte and the
+  // six list accesses' page operands, its end into $02FC, the index to 0.
+  const swap = asm.slice(asm.indexOf('__8bs_c64_raster_swap:'), asm.indexOf('.section .text.__8bs_c64_raster_restore'));
+  assert.match(swap, /lda 0x03FC[\s\S]*sta 0x02FF[\s\S]*sta __8bs_c64_raster_lo\+2[\s\S]*sta __8bs_c64_raster_first\+2[\s\S]*adc #2[\s\S]*sta __8bs_c64_raster_table_flag\+2[\s\S]*sta __8bs_c64_raster_table_col\+2[\s\S]*lda 0x03FD[\s\S]*sta 0x02FC[\s\S]*sta 0x03FC[\s\S]*sta 0x02FD[\s\S]*rts/);
+  // The restore: the live page's frame table into $D000-$D00F, $D010,
+  // $D015, the pointers and the colors, only if its flag byte is set.
+  const restore = asm.slice(asm.indexOf('__8bs_c64_raster_restore:'), asm.indexOf('.section .text.__8bs_c64_raster_install'));
+  assert.match(restore, /lda 0x0422\s*[^\n]*\n\s*beq[\s\S]*lda 0x0400,x\s*\n\s*sta 0xD000,x[\s\S]*lda 0x0410\s*\n\s*sta 0xD010[\s\S]*lda 0x0411\s*\n\s*sta 0xD015[\s\S]*lda 0x0412,x\s*\n\s*sta 0xE3F8,x[\s\S]*lda 0x041A,x\s*\n\s*sta 0xD027,x[\s\S]*rts/);
+  // The handler: acknowledge $D019, walk the live list from $02FD to
+  // $02FC, apply late entries at once ($D011 bit 7 clear, line <= $D012),
+  // set $D012, re-check it, save and restore A and X, no zero page.
   const irq = asm.slice(asm.indexOf('__8bs_c64_raster_irq:'));
   assert.match(irq, /lda #0x01\s*\n\s*sta 0xD019/);
-  assert.match(irq, /ldx 0x0301/);
-  assert.match(irq, /cpx 0x0300/);
+  assert.match(irq, /ldx 0x02FD/);
+  assert.match(irq, /cpx 0x02FC/);
   assert.match(irq, /lda 0x0201,x[\s\S]*lda 0x0202,x[\s\S]*lda 0x0203,x/);
-  assert.match(irq, /sta 0xD012/);
+  assert.match(irq, /bit 0xD011\s*\n\s*bmi __8bs_c64_raster_arm[\s\S]*cmp 0xD012\s*\n\s*beq __8bs_c64_raster_apply\s*[^\n]*\n\s*bcc __8bs_c64_raster_apply/);
+  assert.match(irq, /sta 0xD012[\s\S]*cmp 0xD012[\s\S]*lda 0xD019[\s\S]*and #0x01/);
+  // The pass ends at line 255: past the end, arm it (through the same
+  // race check) unless the raster is there or past, then swap and arm
+  // line 0 with $03FE set; line 0's interrupt writes the frame table —
+  // in vertical blanking, after a sprite in an opened lower border has
+  // drawn its last row — and arms the first entry through the late check.
+  assert.match(irq, /sta 0xD019\s*[^\n]*\n\s*lda 0x03FE\s*\n\s*bne __8bs_c64_raster_top/);
+  assert.match(irq, /cmp #0xFF\s*\n\s*bcs __8bs_c64_raster_end\s*[^\n]*\n\s*lda #0xFF\s*\n\s*jmp __8bs_c64_raster_arm/);
+  assert.match(irq, /__8bs_c64_raster_end:\s*\n\s*jsr __8bs_c64_raster_swap\s*\n\s*lda #0x01\s*\n\s*sta 0x03FE\s*[^\n]*\n\s*lda #0\s*\n\s*sta 0xD012/);
+  assert.match(irq, /__8bs_c64_raster_top:\s*\n\s*lda #0\s*\n\s*sta 0x03FE\s*\n\s*jsr __8bs_c64_raster_restore\s*[^\n]*\n\s*ldx #0\s*\n\s*__8bs_c64_raster_first:\s*\n\s*lda 0x0200\s*[^\n]*\n\s*jmp __8bs_c64_raster_arm/);
+  assert.doesNotMatch(irq, /__8bs_c64_raster_end:[\s\S]*?jsr __8bs_c64_raster_restore[\s\S]*?rti/, 'the frame table is not written at 255');
   assert.doesNotMatch(irq, /\bsta 0x[0-9A-F]{2}\b/, 'no zero page');
   assert.doesNotMatch(irq, /\b(tya|ldy|sty)\b/, 'Y is not touched');
   // A relative import of a file inside the package carries the package's
   // native sources, as a subpath import does — the package's own probe
   // programs under test/ build with the vector stub this way.
   const ir = linked('import { setupVideo } from "./index.8bs";\nexport function main(): void { setupVideo(); }');
-  assert.equal(ir.nativeSources.length, 1);
+  assert.equal(ir.nativeSources.length, 2, 'raster.s and multiplex.s; a section no program reaches is dropped at link');
   assert.match(ir.nativeSources[0], /native\/6502\/raster\.s$/);
+  assert.match(ir.nativeSources[1], /native\/6502\/multiplex\.s$/);
   // And the backend can consume raster.s for real, not just regex-match
   // it: the same program builds end to end through the native backend.
   const scratch = await mkdtemp(join(tmpdir(), '8bs-c64-native-'));
@@ -278,7 +304,7 @@ test('a program that never imports ./raster links the vector stub only; one that
     assert.ok(hasBytes(stubCode, STA_FFFA), 'the NMI vector is pointed at the rti');
     assert.ok(hasBytes(stubCode, STA_FFFE), 'and the IRQ vector with it');
     assert.ok(!hasBytes(stubCode, STA_D019), 'nothing acknowledges the VIC: the handler is not linked');
-    assert.ok(!hasBytes(stubCode, LDX_0301), 'and the list walk is not either');
+    assert.ok(!hasBytes(stubCode, LDX_02FD), 'and the list walk is not either');
 
     // ./raster.8bs: enable()'s `jsr __8bs_c64_raster_install` reaches the
     // install routine by name, and the handler rides in with it.
@@ -289,7 +315,7 @@ test('a program that never imports ./raster links the vector stub only; one that
     const rasterCode = await buildC64(withRaster, join(scratch, 'raster.prg'));
     assert.ok(hasBytes(rasterCode, STA_FFFA), 'the stub is still there');
     assert.ok(hasBytes(rasterCode, STA_D019), 'the handler acknowledges the raster interrupt');
-    assert.ok(hasBytes(rasterCode, LDX_0301), 'and walks the list at $0200');
+    assert.ok(hasBytes(rasterCode, LDX_02FD), 'and walks the live list');
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
@@ -299,10 +325,17 @@ test('a program that never imports ./raster links the vector stub only; one that
 
 const RASTER_SRC = readFileSync(join(C64_SRC, 'raster.8bs'), 'utf8');
 
-test('the raster list lives at $0200 with its state at $0300, the numbers the handler in raster.s reads', () => {
+test('the raster list is two pages at $0200 and $0300 with its state in their tails, the numbers the handler in raster.s reads', () => {
   const list = Object.fromEntries([...RASTER_SRC.matchAll(/^const (\w+): usmallint = (0x[0-9A-F]+);/gm)].map(([, n, v]) => [n, Number(v)]));
-  assert.deepEqual(list, { LIST_ADDRESS: 0x0200, END_ADDRESS: 0x0300, INDEX_ADDRESS: 0x0301 });
-  assert.match(RASTER_SRC, /@address\(LIST_ADDRESS\)\nlet rasterList: array<u8, 252>;/);
+  assert.deepEqual(list, {
+    LIST_A_ADDRESS: 0x0200, LIST_B_ADDRESS: 0x0300, END_ADDRESS: 0x02FC, INDEX_ADDRESS: 0x02FD,
+    LIVE_PAGE_ADDRESS: 0x02FF, COMMIT_PAGE_ADDRESS: 0x03FC, COMMIT_END_ADDRESS: 0x03FD,
+    FRAME_A_ADDRESS: 0x0400, FRAME_B_ADDRESS: 0x0500,
+  });
+  const F = namespaceConsts('raster.8bs', 'Frame');
+  assert.deepEqual([F.POSITIONS, F.X_HIGH, F.ENABLE, F.POINTERS, F.COLORS, F.FLAG, F.SIZE], [0, 16, 17, 18, 26, 34, 35]);
+  assert.match(RASTER_SRC, /@address\(LIST_A_ADDRESS\)\nlet rasterList: array<u8, 252>;/);
+  assert.match(RASTER_SRC, /@address\(LIST_B_ADDRESS\)\nlet rasterListB: array<u8, 252>;/);
   const R = namespaceConsts('raster.8bs', 'Register');
   assert.deepEqual([R.BORDER, R.BACKGROUND, R.CONTROL_1, R.CONTROL_2, R.MEMORY_POINTER], [0xD020, 0xD021, 0xD011, 0xD016, 0xD018]);
   assert.equal(R.SPRITE_POINTERS, VIDEO.SPRITE_POINTERS);
@@ -325,23 +358,42 @@ test('raster.at writes the four bytes before it counts the entry and refuses a l
   assert.deepEqual(refuse.test.left.right, { kind: 'const', value: 252, type: 'utinyint' });
   assert.equal(refuse.test.right.operator, '<');
   assert.equal(refuse.test.right.right.name, 'lastLine');
-  const stores = at.body.filter((s) => s.kind === 'storeIndex');
-  assert.equal(stores[0].array.name, 'rasterList');
-  assert.equal(stores[0].value.name, 'line');
-  assert.equal(stores[3].index.right.value, 3);
-  assert.equal(stores[3].value.name, 'value');
-  assert.ok(assignsTo(at.body, 'rasterEnd').some((a) => a.value.operator === '+' && a.value.right.value === 4));
+  // The four stores go to page A or page B by `buildPage`, each branch
+  // line first and value last, before the entry is counted.
+  const pageBranch = at.body.find((s) => s.kind === 'if' && s.test.left?.name === 'buildPage');
+  for (const [branch, array] of [[pageBranch.then, 'rasterList'], [pageBranch.else, 'rasterListB']]) {
+    const stores = branch.filter((s) => s.kind === 'storeIndex');
+    assert.equal(stores.length, 4, array);
+    assert.equal(stores[0].array.name, array);
+    assert.equal(stores[0].value.name, 'line');
+    assert.equal(stores[3].index.right.value, 3);
+    assert.equal(stores[3].value.name, 'value');
+  }
+  assert.ok(assignsTo(at.body, 'buildEnd').some((a) => a.value.operator === '+' && a.value.right.value === 4));
+  // commit(): the end before the page — the page is the byte the handler tests.
+  const commit = fn(ir, 'raster_commit').body;
+  const commitEnd = commit.findIndex((s) => s.kind === 'assign' && s.target === 'rasterCommitEnd');
+  const commitPage = commit.findIndex((s) => s.kind === 'assign' && s.target === 'rasterCommitPage');
+  assert.ok(commitEnd >= 0 && commitPage > commitEnd, 'commit writes $03FD, then $03FC');
+  // ... after zeroing both frame tables' flags the first time, so a
+  // program that never called clear() cannot hand the handler a table
+  // whose flag is whatever RAM held.
+  const guard = commit.findIndex((s) => s.kind === 'if' && s.test.kind === 'unop' && s.test.operator === '!' && s.test.argument?.name === 'framesCleared');
+  assert.ok(guard >= 0 && guard < commitEnd, 'the flag guard runs before the hand-over');
+  assert.ok(has(commit[guard], (n) => n.kind === 'storeIndex' && n.array.name === 'frameA' && n.index.value === 34 && n.value.value === 0), 'page A\'s flag zeroed');
+  assert.ok(has(commit[guard], (n) => n.kind === 'storeIndex' && n.array.name === 'frameB' && n.index.value === 34 && n.value.value === 0), 'page B\'s flag zeroed');
   const enable = fn(ir, 'raster_enable').body;
   const order = [
     (s) => s.kind === 'call' && s.name === 'setupVideo',
-    (s) => s.kind === 'assign' && s.target === 'rasterIndex' && s.value.value === 0,
+    (s) => s.kind === 'call' && s.name === 'raster_commit',
     (s) => s.kind === 'assign' && s.target === 'control1' && s.value.operator === '&' && s.value.right.value === 127,
-    (s) => s.kind === 'assign' && s.target === 'raster' && s.value.array?.name === 'rasterList',
     (s) => s.kind === 'assign' && s.target === 'cia1InterruptControl' && s.value.value === 127,
     (s) => s.kind === 'assign' && s.target === 'cia2InterruptControl' && s.value.value === 127,
     (s) => s.kind === 'assign' && s.target === 'interruptStatus' && s.value.value === 15,
     (s) => s.kind === 'assign' && s.target === 'interruptMask' && s.value.value === 1,
     (s) => isAsm(s, 'jsr __8bs_c64_raster_install'),
+    (s) => s.kind === 'if' && s.test.left?.name === 'buildPage' && has(s, (n) => n.kind === 'assign' && n.target === 'raster' && n.value.array?.name === 'rasterListB'),
+    (s) => s.kind === 'assign' && s.target === 'armed' && s.value.value === 1,
     (s) => s.kind === 'assign' && s.target === 'interruptsOn' && s.value.value === 1,
     (s) => isAsm(s, 'cli'),
   ];
@@ -547,7 +599,7 @@ test('reu transfers set every register then the command: $90 plus the direction,
   const fillCall = calls(fill.body, 'transfer')[0];
   assert.deepEqual(fillCall.args[0], { kind: 'const', type: 'utinyint', value: 0 });
   assert.deepEqual(fillCall.args[1], { kind: 'const', value: 128, type: 'utinyint' });
-  assert.deepEqual(fillCall.args[2], { kind: 'const', value: 828, type: 'usmallint' });
+  assert.deepEqual(fillCall.args[2], { kind: 'const', value: 1023, type: 'usmallint' }); // $03FF: the probe byte, past the raster list's pages
 });
 
 // ---- the region ------------------------------------------------------------------

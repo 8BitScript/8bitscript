@@ -1,0 +1,39 @@
+// The timeline's predicates, counted to frame 300 and printed there over
+// the literal they should equal — the screenshot test compares the two
+// rows pixel for pixel on the PET. FRAME climbs while the loop runs.
+import { screen } from "@8bitscript/screen";
+import { text } from "@8bitscript/text";
+import { timeline } from "../src/index.8bs";
+
+let hits120: utinyint = 0;   // at(120) fires exactly once
+let after200: utinyint = 0;  // after(200) counts frames 200..
+let eights: utinyint = 0;    // every(8) fires on 0, 8, 16, ...
+let inBand: utinyint = 0;    // between(50, 60) is ten frames
+
+export function main(): void {
+    screen.blank();
+    timeline.start();
+    while (true) {
+        waitFrame();
+        timeline.tick();
+        if (timeline.at(120)) {
+            hits120 = hits120 + 1;
+        }
+        if (timeline.after(200) && timeline.frame() < 300) {
+            after200 = after200 + 1;
+        }
+        if (timeline.every(8) && timeline.frame() < 300) {
+            eights = eights + 1;
+        }
+        if (timeline.between(50, 60)) {
+            inBand = inBand + 1;
+        }
+        text.print(0, `FRAME ${timeline.frame():5}`);
+        if (timeline.at(300)) {
+            text.print(40, `AT120 ${hits120:3} AFTER ${after200:3} EIGHTS ${eights:3} BAND ${inBand:3}`);
+            // What the row above must say, as a literal on the row below:
+            // the screenshot test compares the two rows pixel for pixel.
+            text.print(80, "AT120 001 AFTER 100 EIGHTS 037 BAND 010");
+        }
+    }
+}

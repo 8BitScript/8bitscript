@@ -223,6 +223,15 @@ fetch whose quoted strings are what is relied on — not recalled.
 - Collision flags (TMS9918 S#0 bit 5, SMS status bit 5) say *that* two
   sprites overlapped, never which — software collision remains the
   portable primitive.
+- The per-line limit is per *scan*, not per frame, on the SMS: "on each
+  scanline, the VDP parses the SAT to find which sprites will be
+  displayed on the next line" (smspower `msvdp-20021112.txt`). A line
+  IRQ (R#0 bit 4, R#0A counter) that rewrites SAT Y entries therefore
+  reuses a sprite lower down the frame — the C64 multiplexer's
+  mechanism, at VRAM-write cost per line (*to verify*). The TMS9918
+  reads its SAT per line too, but with a vblank-only interrupt the
+  rewrite would be cycle-counted; treat it as alternate-frame flicker.
+  See `docs/project/frame.md`, Phase 5–8 appendix.
 
 ### Audio: a PSG, mostly
 

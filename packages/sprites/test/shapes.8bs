@@ -1,0 +1,9 @@
+// The probe's sprite shape on the eight cell machines: an asterisk, and
+// nothing to set up. `shapes.c64.8bs` beside this file is what a C64 build
+// resolves instead (the compiler's twin rule, as for `screen.nes.8bs`).
+export namespace shapes {
+    const BLOCK: utinyint = 0x2A;
+
+    function begin(): void {
+    }
+}

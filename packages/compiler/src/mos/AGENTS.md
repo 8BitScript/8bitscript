@@ -581,7 +581,12 @@ KERNAL's zero page below $8E belongs to no one else. `PET_OWNED_ZP_BUDGET`
 emitted ahead of the global initializers so the KERNAL's jiffy-clock IRQ
 can't clobber a claimed byte before waitFrameSetup's own SEI would have
 run. A program with no waitFrame() keeps the polite budget and still
-lands back in READY.
+lands back in READY. The C64's own budget (`C64_ZP_BUDGET`) is the same
+shape for both, $02-$FC: the last three bytes, $FD-$FF, hold the IRQ
+target that `@8bitscript/c64`'s `raster.s` writes there — because the
+VIC-II in bank 3 draws its idle graphics from $FFFF, the IRQ vector's
+high byte, and the only way to make that byte 0 is an IRQ target in
+page zero (packages/c64/AGENTS.md, "Idle graphics, and the ghost byte").
 
 **16-bit return values ride a fixed pair, not A.** A 16-bit-returning
 function's FunctionSite carries a `returnPair` inside its own frame;

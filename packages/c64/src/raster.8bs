@@ -32,42 +32,69 @@
 // ---- rules ----------------------------------------------------------------
 //
 // - Lines run 0-255 and entries are added in ascending order; `at` refuses
-//   a line below the last one, and a list full at 63 entries. Entries on
-//   the same line are applied together. The visible picture is lines
+//   a line below the last one, and a list full at 63 entries (`insert`
+//   takes a line out of order and slides later entries up to make room).
+//   Entries on the same line are applied together. The visible picture is lines
 //   50-249 (the first text row starts at 51 with the default YSCROLL);
 //   0-49 and 250-255 are border. On PAL the frame has 312 lines, on NTSC
 //   263: lines past 255 cannot be named, and are border on both.
-// - The write lands a few cycles into the line — the handler's entry
-//   (about 30 cycles) plus the instruction the interrupt interrupted (up
-//   to 7), plus, on a bad line (every eighth, from 51 with the default
-//   scroll: the VIC takes 40 of the line's 63 cycles), that. So a color
-//   change at a line inside the picture shows a step partway across the
-//   line; put it on the line BEFORE the one that should look different,
-//   or in the border, or on a line the VIC is not fetching (not 51, 59,
-//   67, ...). Border and background writes at line 49 and 250 are clean.
-// - Rebuild the list between frames: right after waitFrame(), which is
-//   line 0 or so, before the first entry's line. The handler reads the
-//   list live; `at` writes an entry's four bytes before it counts it, so
-//   a frame never sees a half-written entry, but a list rebuilt while the
-//   raster is inside it applies part of the old list and part of the new,
-//   for that frame.
-// - `setValue(entry, value)` rewrites one entry's value byte in place
-//   (`entry` is the entry's byte offset, index * 4, the unit `at` and
-//   `rasterEnd` count in — only the first byte of an existing 4-byte
-//   entry is accepted; an unaligned offset, or one whose value byte
-//   would land at or past `rasterEnd`, is refused untouched): a
+// - An entry at line L takes effect from line L+1: the handler's first
+//   store lands 58-64 cycles into line L (measured — the interrupt's
+//   own latency, the jmp through page zero, and 48 cycles of handler;
+//   the display window ends at cycle ~57), which is L's right border.
+//   So "the border turns red at line 100" is an entry at 99, and a write
+//   that must be in place before line N's pixels goes at N-1 or above.
+//   Each further entry on the same line lands 25 cycles after the one
+//   before, and a bad line (every eighth inside the picture: 51, 59,
+//   ... with the default scroll) holds the CPU for ~43 of them — a run of
+//   entries on one line spills into the next lines at that rate.
+// - The handler never drops a frame to lateness: an entry whose line the
+//   raster has already reached when the handler gets to it is applied at
+//   once instead of being armed for a compare that is past. Entries on
+//   consecutive lines therefore cascade a little late but all land.
+// - The list is double-buffered. `clear()` and `at()` build the NEXT
+//   list, in whichever of the two pages the handler is not reading;
+//   `commit()` hands it over, and the handler switches to it when it
+//   reaches the end of its current pass — at the bottom of the frame —
+//   so a list built at any time in a frame is applied whole from the
+//   next frame, never half. A frame loop is
+//
+//       waitFrame();
+//       raster.clear();        // the page the handler is not reading
+//       raster.at(...);        // ... build ...
+//       raster.commit();       // live from the next frame
+//
+//   and a program that builds its list once, before `enable()`, needs
+//   no `commit()`: `enable()` commits. A pass ends at line 255 whatever
+//   the last entry's line, so a list committed before 255 is live from
+//   the next frame; `clear()` after a `commit()` waits for the hand-over
+//   first (only a program still building past line 255 ever waits).
+// - Each list carries a FRAME TABLE (`Frame.*`, `setFrameByte`): the
+//   eight sprites' position, X-high, enable, pointer and color bytes,
+//   which the handler writes to the registers at the end of every pass
+//   if the table's flag is set — the same interrupt that makes the list
+//   live. A list that moves the eight sprites down the frame
+//   (@8bitscript/c64/multiplex) puts them back for the next frame's top
+//   this way, with no program code timed to the frame and nothing a
+//   missed frame can leave half done.
+// - `setValue(entry, value)` rewrites one entry's value byte in place in
+//   the LIVE list — the one the handler is applying — (`entry` is the
+//   entry's byte offset, index * 4; only the first byte of an existing
+//   4-byte entry is accepted; an unaligned offset, or one whose value
+//   byte would land at or past the list's end, is refused untouched): a
 //   computed effect whose lines and addresses stand — a sine wobble, a
 //   color cycle — rebuilds a byte per entry each frame instead of
-//   re-running `at()` for the whole list.
-// - `addressOf(entry)` answers which address an existing entry writes — 0
-//   for an offset `setValue` would refuse. It exists for a layer above
-//   this one (the ./rasterline slot surface) that keeps per-register
-//   value semantics and so has to know what an entry targets before
-//   rewriting it; a program driving this list directly already knows.
+//   re-running `at()` for the whole list. Before the first `enable()`
+//   the list being built is the one it rewrites.
+// - `addressOf(entry)` answers which address an existing entry of the
+//   same list writes — 0 for an offset `setValue` would refuse. It
+//   exists for a layer above this one (the ./rasterline slot surface)
+//   that keeps per-register value semantics and so has to know what an
+//   entry targets before rewriting it.
 // - `enable()` banks the KERNAL out (setupVideo() does; the CPU's vectors
 //   are then RAM, and this package's start-up code has already pointed
-//   them at a bare rti), silences both CIAs, acknowledges everything the
-//   VIC has pending, points the IRQ vector at the handler and runs `cli`.
+//   the IRQ at page zero), silences both CIAs, acknowledges everything
+//   the VIC has pending, routes the IRQ to the handler and runs `cli`.
 //   From then on, `interruptsOn` in @8bitscript/c64 is true, and every
 //   window the package opens with the I/O area banked out (a write under
 //   it: the character set, the bitmap's color matrix) is an interrupt-
@@ -75,29 +102,74 @@
 //   long window (bitmap.fillColors, charset.restore) delays that frame's
 //   entries by its length; do those before `enable()`, or between frames
 //   and accept the frame.
-// - The handler touches A, X and the list's three state bytes at
-//   $0300-$0302, and nothing else: no zero page, no register but $D012 and
-//   $D019 besides the entries' own. It costs about 30 cycles plus 25 per
-//   entry, out of a frame's 17000-19000.
+// - The handler touches A, X, the list pages and their state bytes at
+//   $02FC-$02FF and $03FC-$03FD, and nothing else: no zero page beyond
+//   the three-byte `jmp` at $FD, no register but $D011 (read), $D012 and
+//   $D019 besides the entries' own. About 100 cycles an interrupt plus
+//   25 per entry, out of a frame's 17000-19000.
 import {
     control1, raster as rasterCompare, interruptStatus, interruptMask,
     cia1InterruptControl, cia2InterruptControl, setupVideo, interruptsOn,
 } from "./index.8bs";
 
-// The list, where native/6502/raster.s reads it. Four bytes an entry:
-// line, address low, address high, value; then the three state bytes.
-const LIST_ADDRESS: usmallint = 0x0200;
-const END_ADDRESS: usmallint = 0x0300;
-const INDEX_ADDRESS: usmallint = 0x0301;
+// The two list pages and the state, where native/6502/raster.s reads
+// them. Four bytes an entry: line, address low, address high, value.
+const LIST_A_ADDRESS: usmallint = 0x0200;
+const LIST_B_ADDRESS: usmallint = 0x0300;
+const END_ADDRESS: usmallint = 0x02FC;
+const INDEX_ADDRESS: usmallint = 0x02FD;
+const LIVE_PAGE_ADDRESS: usmallint = 0x02FF;
+const COMMIT_PAGE_ADDRESS: usmallint = 0x03FC;
+const COMMIT_END_ADDRESS: usmallint = 0x03FD;
+const FRAME_A_ADDRESS: usmallint = 0x0400; // page A's frame table (the KERNAL's dead screen)
+const FRAME_B_ADDRESS: usmallint = 0x0500; // page B's
 
-@address(LIST_ADDRESS)
+@address(LIST_A_ADDRESS)
 let rasterList: array<u8, 252>;
+@address(LIST_B_ADDRESS)
+let rasterListB: array<u8, 252>;
 @address(END_ADDRESS)
-let rasterEnd: volatile<u8>; // entries * 4
+let rasterEnd: volatile<u8>; // the live list's entries * 4
 @address(INDEX_ADDRESS)
 let rasterIndex: volatile<u8>; // the handler's next entry * 4
+@address(LIVE_PAGE_ADDRESS)
+let rasterLivePage: volatile<u8>; // 2 or 3, written by the handler's swap
+@address(COMMIT_PAGE_ADDRESS)
+let rasterCommitPage: volatile<u8>; // 2 or 3 while a commit waits, else 0
+@address(COMMIT_END_ADDRESS)
+let rasterCommitEnd: volatile<u8>;
+@address(FRAME_A_ADDRESS)
+let frameA: array<u8, 35>;
+@address(FRAME_B_ADDRESS)
+let frameB: array<u8, 35>;
 
+@address(0x06C0)
+let sharedPage: volatile<u8>; // the build state, shared with a native builder: multiplex.s
+@address(0x06C1)
+let sharedEnd: volatile<u8>;
+@address(0x06C2)
+let sharedLastLine: volatile<u8>;
+
+let buildPage: utinyint = 2; // where `at` writes: the page not live
+let buildEnd: utinyint = 0; // its entries * 4
 let lastLine: utinyint = 0;
+let armed: bool = false; // enable() has run: the live list is the handler's
+let framesCleared: bool = false; // both frame tables' flags zeroed once (RAM is not)
+
+// The frame table's layout: what the handler writes to the sprite
+// registers at line 0 of every frame — vertical blanking, after the
+// pass's end at 255 has made the page live and after a sprite in an
+// opened lower border has drawn its last row — if the page's FLAG byte
+// is set. Offsets into the 35 bytes.
+export namespace Frame {
+    const POSITIONS: utinyint = 0;  // 16 bytes: $D000-$D00F, sprite n's X at 2n, Y at 2n + 1
+    const X_HIGH: utinyint = 16;    // $D010
+    const ENABLE: utinyint = 17;    // $D015
+    const POINTERS: utinyint = 18;  // 8 bytes: $E3F8-$E3FF (text mode's)
+    const COLORS: utinyint = 26;    // 8 bytes: $D027-$D02E
+    const FLAG: utinyint = 34;      // 0: the table is not written
+    const SIZE: utinyint = 35;
+}
 
 // Addresses for `at`: the registers a split usually writes. `spriteX(n)`
 // and friends below build the per-sprite ones.
@@ -125,7 +197,7 @@ export namespace Register {
 }
 
 export namespace raster {
-    const MAX: utinyint = 63; // entries
+    const MAX: utinyint = 63; // entries, per list
 
     // Sprite n's registers, for `at`.
     function spriteX(sprite: utinyint): usmallint {
@@ -141,69 +213,350 @@ export namespace raster {
         return Register.SPRITE_POINTERS + sprite;
     }
 
-    // Empty the list. The handler, if enabled, then fires at the stale
-    // first line and applies nothing until entries are added again.
+    // Start the next list, empty, in the page the handler is not reading.
+    // After a `commit()` this waits for the hand-over (the handler takes
+    // a committed list at the end of its pass, once a frame) so the page
+    // it then clears is really free; before `enable()` there is nothing
+    // to wait for.
     function clear(): void {
-        rasterEnd = 0;
-        rasterIndex = 0;
+        if (armed && interruptsOn) {
+            while (rasterCommitPage != 0) {
+            }
+        } else {
+            rasterCommitPage = 0;
+            if (!armed) {
+                rasterLivePage = 0;
+            }
+        }
+        if (rasterLivePage == 2) {
+            buildPage = 3;
+            frameB[Frame.FLAG] = 0;
+        } else {
+            buildPage = 2;
+            frameA[Frame.FLAG] = 0;
+        }
+        if (!framesCleared) {
+            frameA[Frame.FLAG] = 0;
+            frameB[Frame.FLAG] = 0;
+            framesCleared = true;
+        }
+        buildEnd = 0;
         lastLine = 0;
     }
 
-    // Append: at `line`, write `value` to `address`. False, and nothing
-    // added, if the list is full or `line` is below the last entry's.
+    // One byte of the list's frame table (Frame.* + n): the sprite
+    // registers the handler writes at the end of the pass, for the top of
+    // the next frame. `clear()` leaves the table unflagged; setting
+    // Frame.FLAG non-zero turns it on for this list. Committed with it.
+    function setFrameByte(offset: utinyint, value: utinyint): void {
+        if (buildPage == 3) {
+            frameB[offset] = value;
+        } else {
+            frameA[offset] = value;
+        }
+    }
+
+    // Hardware sprite h's four frame-table bytes at once — X low, Y,
+    // pointer, colour. One call in place of four: a call here costs
+    // ~190 cycles, mostly in passing its arguments, and a multiplexer
+    // writing the eight sprites a byte at a time spent 6,700 cycles a
+    // frame on the table alone (measured with a CIA timer, 2026-09-19).
+    function setFrameSprite(h: utinyint, xLo: utinyint, y: utinyint, pointer: utinyint, color: utinyint): void {
+        let at: utinyint = h << 1;
+        if (buildPage == 3) {
+            frameB[at] = xLo;
+            frameB[at + 1] = y;
+            frameB[Frame.POINTERS + h] = pointer;
+            frameB[Frame.COLORS + h] = color;
+        } else {
+            frameA[at] = xLo;
+            frameA[at + 1] = y;
+            frameA[Frame.POINTERS + h] = pointer;
+            frameA[Frame.COLORS + h] = color;
+        }
+    }
+
+    // The list's build state — the page being built, its end, its last
+    // line — to $06C0-$06C2 for a native plan-builder (multiplex.s) and
+    // back: the builder appends entries and moves the end and the last
+    // line as `at` would. Two calls around its `jsr`, and this file's own
+    // variables stay where the compiler put them.
+    function shareBuild(): void {
+        sharedPage = buildPage;
+        sharedEnd = buildEnd;
+        sharedLastLine = lastLine;
+    }
+
+    function takeBuild(): void {
+        buildEnd = sharedEnd;
+        lastLine = sharedLastLine;
+    }
+
+    // The frame table's $D010 and $D015 bytes, and its flag on.
+    function setFrameHeader(xHigh: utinyint, enable: utinyint): void {
+        if (buildPage == 3) {
+            frameB[Frame.X_HIGH] = xHigh;
+            frameB[Frame.ENABLE] = enable;
+            frameB[Frame.FLAG] = 1;
+        } else {
+            frameA[Frame.X_HIGH] = xHigh;
+            frameA[Frame.ENABLE] = enable;
+            frameA[Frame.FLAG] = 1;
+        }
+    }
+
+    // Append to the list being built: at `line`, write `value` to
+    // `address`. False, and nothing added, if the list is full or `line`
+    // is below the last entry's.
     function at(line: utinyint, address: usmallint, value: utinyint): bool {
-        let offset: utinyint = rasterEnd;
+        let offset: utinyint = buildEnd;
         if (offset >= 252 || line < lastLine) {
             return false;
         }
-        rasterList[offset] = line;
-        rasterList[offset + 1] = address & 0xFF;
-        rasterList[offset + 2] = address >> 8;
-        rasterList[offset + 3] = value;
+        if (buildPage == 2) {
+            rasterList[offset] = line;
+            rasterList[offset + 1] = address & 0xFF;
+            rasterList[offset + 2] = address >> 8;
+            rasterList[offset + 3] = value;
+        } else {
+            rasterListB[offset] = line;
+            rasterListB[offset + 1] = address & 0xFF;
+            rasterListB[offset + 2] = address >> 8;
+            rasterListB[offset + 3] = value;
+        }
         lastLine = line;
-        rasterEnd = offset + 4;
+        buildEnd = offset + 4;
         return true;
     }
 
-    // How many entries the list holds.
-    function count(): utinyint {
-        return rasterEnd >> 2;
+    // Append like `at`, or, if `line` is below the last entry's, slide the
+    // entries above it up one slot and put it in its place — so a module
+    // that adds a few entries at fixed lines (an opened border's $D011
+    // writes, a status-bar split) need not know what else the list holds.
+    // The slide costs about 50 cycles an entry moved; add such entries
+    // before a long ascending run (a multiplexer's), or after it when
+    // their lines are near its end. False, and nothing added, if full.
+    function insert(line: utinyint, address: usmallint, value: utinyint): bool {
+        if (line >= lastLine) {
+            return raster.at(line, address, value);
+        }
+        if (buildEnd >= 252) {
+            return false;
+        }
+        let pos: utinyint = buildEnd;
+        if (buildPage == 2) {
+            while (pos > 0 && rasterList[pos - 4] > line) {
+                rasterList[pos] = rasterList[pos - 4];
+                rasterList[pos + 1] = rasterList[pos - 3];
+                rasterList[pos + 2] = rasterList[pos - 2];
+                rasterList[pos + 3] = rasterList[pos - 1];
+                pos = pos - 4;
+            }
+            rasterList[pos] = line;
+            rasterList[pos + 1] = address & 0xFF;
+            rasterList[pos + 2] = address >> 8;
+            rasterList[pos + 3] = value;
+        } else {
+            while (pos > 0 && rasterListB[pos - 4] > line) {
+                rasterListB[pos] = rasterListB[pos - 4];
+                rasterListB[pos + 1] = rasterListB[pos - 3];
+                rasterListB[pos + 2] = rasterListB[pos - 2];
+                rasterListB[pos + 3] = rasterListB[pos - 1];
+                pos = pos - 4;
+            }
+            rasterListB[pos] = line;
+            rasterListB[pos + 1] = address & 0xFF;
+            rasterListB[pos + 2] = address >> 8;
+            rasterListB[pos + 3] = value;
+        }
+        buildEnd = buildEnd + 4;
+        return true;
     }
 
-    // The address an existing entry writes, by the same rules setValue
-    // applies below: 0 if `entry` is not the first byte of an entry
-    // inside the live list. 0 is unambiguous — no entry writes address 0;
+    // A multiplexer's reuse of hardware sprite h at `line`, as one
+    // group of entries appended together: Y always, then — as `which`
+    // says, bits 0-3 — the pointer, X low, $D010 (the whole byte, in
+    // `xHigh`) and the colour. One call, one page test and one capacity
+    // test for the group, in place of up to five `at` calls (~200 cycles
+    // each, measured): the entries land in this order on one line, which
+    // is what the handler's timing table (multiplex.8bs, LANDING) counts.
+    // False, and nothing added, if the group does not fit or `line` is
+    // below the last entry's.
+    function spriteEntries(line: utinyint, h: utinyint, y: utinyint, pointer: utinyint, xLo: utinyint, xHigh: utinyint, color: utinyint, which: utinyint): bool {
+        let offset: utinyint = buildEnd;
+        let needed: utinyint = 4;
+        if ((which & 1) != 0) {
+            needed = needed + 4;
+        }
+        if ((which & 2) != 0) {
+            needed = needed + 4;
+        }
+        if ((which & 4) != 0) {
+            needed = needed + 4;
+        }
+        if ((which & 8) != 0) {
+            needed = needed + 4;
+        }
+        if (offset > 252 - needed || line < lastLine) {
+            return false;
+        }
+        let low: utinyint = h << 1; // $D000 + 2h: X; + 1: Y
+        if (buildPage == 2) {
+            rasterList[offset] = line;
+            rasterList[offset + 1] = low + 1;
+            rasterList[offset + 2] = 0xD0;
+            rasterList[offset + 3] = y;
+            offset = offset + 4;
+            if ((which & 1) != 0) {
+                rasterList[offset] = line;
+                rasterList[offset + 1] = 0xF8 + h; // $E3F8 + h
+                rasterList[offset + 2] = 0xE3;
+                rasterList[offset + 3] = pointer;
+                offset = offset + 4;
+            }
+            if ((which & 2) != 0) {
+                rasterList[offset] = line;
+                rasterList[offset + 1] = low;
+                rasterList[offset + 2] = 0xD0;
+                rasterList[offset + 3] = xLo;
+                offset = offset + 4;
+            }
+            if ((which & 4) != 0) {
+                rasterList[offset] = line;
+                rasterList[offset + 1] = 0x10; // $D010
+                rasterList[offset + 2] = 0xD0;
+                rasterList[offset + 3] = xHigh;
+                offset = offset + 4;
+            }
+            if ((which & 8) != 0) {
+                rasterList[offset] = line;
+                rasterList[offset + 1] = 0x27 + h; // $D027 + h
+                rasterList[offset + 2] = 0xD0;
+                rasterList[offset + 3] = color;
+                offset = offset + 4;
+            }
+        } else {
+            rasterListB[offset] = line;
+            rasterListB[offset + 1] = low + 1;
+            rasterListB[offset + 2] = 0xD0;
+            rasterListB[offset + 3] = y;
+            offset = offset + 4;
+            if ((which & 1) != 0) {
+                rasterListB[offset] = line;
+                rasterListB[offset + 1] = 0xF8 + h; // $E3F8 + h
+                rasterListB[offset + 2] = 0xE3;
+                rasterListB[offset + 3] = pointer;
+                offset = offset + 4;
+            }
+            if ((which & 2) != 0) {
+                rasterListB[offset] = line;
+                rasterListB[offset + 1] = low;
+                rasterListB[offset + 2] = 0xD0;
+                rasterListB[offset + 3] = xLo;
+                offset = offset + 4;
+            }
+            if ((which & 4) != 0) {
+                rasterListB[offset] = line;
+                rasterListB[offset + 1] = 0x10; // $D010
+                rasterListB[offset + 2] = 0xD0;
+                rasterListB[offset + 3] = xHigh;
+                offset = offset + 4;
+            }
+            if ((which & 8) != 0) {
+                rasterListB[offset] = line;
+                rasterListB[offset + 1] = 0x27 + h; // $D027 + h
+                rasterListB[offset + 2] = 0xD0;
+                rasterListB[offset + 3] = color;
+                offset = offset + 4;
+            }
+        }
+        lastLine = line;
+        buildEnd = offset;
+        return true;
+    }
+
+    // The line of the list being built's last entry (0 when empty): the
+    // lowest line `at` will take next.
+    function lastEntryLine(): utinyint {
+        return lastLine;
+    }
+
+    // How many entries the list being built holds.
+    function count(): utinyint {
+        return buildEnd >> 2;
+    }
+
+    // Hand the built list to the handler: live from the end of its
+    // current pass — the next frame. The end goes first, then the page,
+    // which is the byte the handler tests, so it never sees one without
+    // the other.
+    function commit(): void {
+        if (!framesCleared) {
+            // A program that never called clear() commits a page whose
+            // frame-table flag is whatever RAM held; the handler would
+            // then write 34 bytes of RAM into the sprite registers.
+            frameA[Frame.FLAG] = 0;
+            frameB[Frame.FLAG] = 0;
+            framesCleared = true;
+        }
+        rasterCommitEnd = buildEnd;
+        rasterCommitPage = buildPage;
+    }
+
+    // The list `setValue` and `addressOf` work on: the live one once
+    // enabled, the one being built before that.
+    function livePage(): utinyint {
+        if (armed) {
+            return rasterLivePage;
+        }
+        return buildPage;
+    }
+    function liveEnd(): utinyint {
+        if (armed) {
+            return rasterEnd;
+        }
+        return buildEnd;
+    }
+
+    // The address an existing entry of the live list writes, by the same
+    // rules setValue applies below: 0 if `entry` is not the first byte of
+    // an entry inside it. 0 is unambiguous — no entry writes address 0;
     // `at` is only ever handed a register.
     function addressOf(entry: utinyint): usmallint {
-        if ((entry & 3) != 0 || entry + 3 >= rasterEnd) {
+        if ((entry & 3) != 0 || entry + 3 >= raster.liveEnd()) {
             return 0;
+        }
+        if (raster.livePage() == 3) {
+            return rasterListB[entry + 2] * 256 + rasterListB[entry + 1];
         }
         return rasterList[entry + 2] * 256 + rasterList[entry + 1];
     }
 
-    // Rewrite one entry's value byte, leaving its line and address:
-    // `entry` is the entry's byte offset into the list (index * 4, as
-    // `rasterEnd` counts), and only the first byte of an existing entry
-    // names one. False, and nothing written, if `entry` is not
-    // entry-aligned — an unaligned offset inside the live list would
-    // pass an end check and still smash a neighbor's line or address —
-    // or if the value byte it names would land at or past `rasterEnd`
-    // (with one entry in the list, offset 4's value byte is the state
-    // at $0300).
+    // Rewrite one live entry's value byte, leaving its line and address:
+    // `entry` is the entry's byte offset into the list (index * 4), and
+    // only the first byte of an existing entry names one. False, and
+    // nothing written, if `entry` is not entry-aligned — an unaligned
+    // offset inside the live list would pass an end check and still
+    // smash a neighbor's line or address — or if the value byte it names
+    // would land at or past the list's end.
     function setValue(entry: utinyint, value: utinyint): bool {
-        if ((entry & 3) != 0 || entry + 3 >= rasterEnd) {
+        if ((entry & 3) != 0 || entry + 3 >= raster.liveEnd()) {
             return false;
         }
-        rasterList[entry + 3] = value;
+        if (raster.livePage() == 3) {
+            rasterListB[entry + 3] = value;
+        } else {
+            rasterList[entry + 3] = value;
+        }
         return true;
     }
 
-    // Own the IRQ: the list is applied from the next frame on.
+    // Own the IRQ: the built list is committed, made live at once, and
+    // applied from its first entry's line on.
     function enable(): void {
         setupVideo(); // KERNAL out: the vectors are RAM
-        rasterIndex = 0;
+        raster.commit();
         control1 = control1 & 0x7F; // raster compare bit 8 = 0: lines 0-255
-        rasterCompare = rasterList[0];
         cia1InterruptControl = 0x7F; // no CIA interrupt reaches the handler: the KERNAL's timer A is one
         cia2InterruptControl = 0x7F;
         let pending: utinyint = cia1InterruptControl; // reading acknowledges what was latched
@@ -213,6 +566,12 @@ export namespace raster {
         asm6502 {
             jsr __8bs_c64_raster_install
         }
+        if (buildPage == 3) {
+            rasterCompare = rasterListB[0];
+        } else {
+            rasterCompare = rasterList[0];
+        }
+        armed = true;
         interruptsOn = true;
         asm6502 {
             cli
