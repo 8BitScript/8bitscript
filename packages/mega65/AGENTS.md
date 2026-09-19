@@ -185,10 +185,13 @@ when the code is next touched (this file does not edit them):
   mechanism (`$D05D.7`), not a C64 one.
 - **`text.8bs`/`screen.8bs` used to draw for 40 columns, 1000 cells.**
   Fixed the same day: `COLUMNS` is 80, `CELL_COUNT` 2000, `blank()`
-  clears 2000 cells, and `prepare()`/`putColor()` set `$D030`'s CRAM2K
-  bit (`VicIIIControl.COLOR_RAM_2K`, `$45`) so cells 1024–1999's color
-  lands in color RAM, not the CIAs. Studio's front door and the borders
-  example were re-screenshotted under xmega65 after the change.
+  clears 2000 cells, and `prepare()`/`putColor()`/`fill()` set `$D030`'s
+  CRAM2K bit (`VicIIIControl.COLOR_RAM_2K`, `$45`) so cells 1024–1999's
+  color lands in color RAM, not the CIAs. `fill()` used to skip that —
+  2048's bottom tile row poked CIA2, CHARPTR moved to `$9800`, and every
+  glyph drew as the same junk character (measured under xmega65).
+  Studio's front door and the borders example were re-screenshotted
+  under xmega65 after the 80-column change.
 - **`FRAME_SYNC.mega65` comment: "boots into that C64-compatible view and
   clock, so this reuses the C64 entry verbatim".** The polling works (the
   VIC-IV keeps a VIC-II-style 263/312-line raster counter), but the

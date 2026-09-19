@@ -74,6 +74,9 @@
       "presets": {}
     }
   },
+  "scripts": {
+    "test": "node --test"
+  },
   "files": [
     "src"
   ],
