@@ -1,0 +1,234 @@
+// @8bitscript/c64/multiplex — more than eight sprites, by reusing the
+// eight down the frame through the raster list.
+//
+// Named by "8bitscript".exports["./multiplex"] in this package's package.json:
+//
+//     import { multiplex } from "@8bitscript/c64/multiplex";
+//     import { raster } from "@8bitscript/c64/raster";
+//
+//     multiplex.setCount(16);                    // sixteen virtual sprites, 0-15
+//     multiplex.set(3, 120, 140, SHIP_BLOCK, 7); // x, y, shape block, color
+//     ...
+//     raster.clear();                            // every frame, after waitFrame()
+//     multiplex.update();                        // the eight, and the list entries
+//     raster.commit();
+//
+// ---- how the VIC lets a sprite be reused ------------------------------------
+//
+// Bauer, "The MOS 6567/6569 video controller", §3.8.1: "Sprites can be
+// 'reused' vertically: If you change the Y coordinate of a sprite to a
+// later raster line during or after its display has completed, so that
+// the comparisons ... will match again, the sprite is displayed again at
+// that Y coordinate (you may then of course freely set a new X coordinate
+// and sprite data pointer). It is therefore possible to display more than
+// 8 sprites on the screen. This is not possible in the horizontal
+// direction ... So you can only display up to 8 sprites within one
+// raster line at a time."
+//
+// The mechanism: at cycle 55 of every line the VIC compares each enabled
+// sprite's Y with the raster line and, if they match and the sprite's DMA
+// is off, turns it on; the sprite then draws 21 rows from the next line
+// (Y = n draws on lines n+1 to n+21), and at cycle 16 of the line after
+// its 21st fetch the DMA turns off again. A hardware sprite whose last
+// use started at Y = a is free from line a + 21 on; a new Y written
+// before cycle 55 of line b makes it draw again from b + 1; between the
+// two, its pointer, X and color can change without touching the rows it
+// already drew. "The Y-coordinate for a sprite must have been set before
+// the raster line reaches that Y-position, or the re-used sprite won't
+// display at all" (Cadaver, codebase64, "Sprite multiplexing").
+//
+// ---- what this module does with that ----------------------------------------
+//
+// It keeps up to 24 VIRTUAL sprites — x (0-511), y (0-255, 255 hidden),
+// shape block, color — and every frame, in `update()`:
+//
+// 1. sorts them by y (an insertion sort over an order that persists from
+//    frame to frame, so a frame in which little crossed is nearly free;
+//    hidden sprites sink to the end);
+// 2. gives the eight topmost to hardware sprites 0-7 — through the list's
+//    FRAME TABLE (raster.8bs, Frame.*), which the handler writes to the
+//    registers at the end of every pass, in the same interrupt that makes
+//    the list live: so the eight and the entries below never disagree by
+//    a frame, no register is written from program code at all, and a
+//    frame in which update() did not run simply repeats the last;
+// 3. for each further sprite k, in y order, takes hardware sprite k & 7
+//    (in sorted order that is the one that freed up earliest) and adds
+//    list entries at the earliest line it may: at or after the previous
+//    use's y + 21, and after the line the entries before it will have
+//    landed on. Y first — the one write that must be in time — then the
+//    pointer, X, the shared X-high byte and the color, each only if it
+//    differs from what that hardware sprite already holds. If the entries
+//    would not all land before the new y (the hardware sprite is still
+//    busy, or too much is queued), the sprite is dropped for this frame
+//    and counted in `dropped()`; otherwise the hardware sprite is
+//    reserved to y + 21 for the next round.
+//
+// The list therefore runs in ascending line order by construction, and a
+// program adds its own entries beside it (raster.insert, or border.top()
+// before update() and border.bottom() after — the multiplexer can put
+// sprites in an opened border like anywhere else). Entries per reuse are
+// one to five, so the 63-entry list holds twelve reuses of sprites that
+// change everything, or twenty-seven that only move: 20 to 35 objects on
+// screen from eight, as long as no nine share a line and each hardware
+// sprite's next use is 24 lines or more below its last (21 rows and the
+// entries' landing time).
+//
+// It owns the eight hardware sprites outright: their positions, X-high
+// bits, enable register, pointers and colors are the frame table's, and
+// a sprite a program enables beside it with sprites.show() is disabled
+// again at the end of every pass. A program that wants a sprite of its
+// own — the pointer arrow, say — gives it a virtual sprite instead.
+//
+// What it does not do: per-sprite expansion, multicolor and priority —
+// those registers are per hardware sprite and shared by every virtual
+// sprite that lands on it, so set them the same for all eight (or
+// accept that virtual sprite k gets hardware sprite k & 7's); bitmap
+// mode, where the pointers are under the I/O area, out of the list's
+// reach; and a virtual sprite that changes hardware sprite between
+// frames keeps drawing in the fixed sprite-to-sprite priority of whichever
+// it landed on, so overlapping objects may swap which is in front as
+// they pass each other vertically — the price every multiplexer pays.
+//
+// The frame: `raster.clear()`, `update()`, anything else the list needs,
+// `raster.commit()` — before line 255, where the handler ends its pass
+// (it takes the committed list and writes its frame table at line 0). A
+// sprite whose 21 rows run past line 255 (y above 234: the opened lower
+// border) draws its last rows with the next frame's registers, and on
+// NTSC a sprite with y 242 or more continues into the next frame's top
+// lines (263 lines, and the VIC counts on).
+//
+// ---- where the work is done ---------------------------------------------------
+//
+// `update()` is native/6502/multiplex.s. It was this file's own code
+// until 2026-09-19, when that measured ~16,000 cycles a frame for
+// sixteen sprites under the compiler's generic code — sort 1,800, frame
+// table 3,800, the reuse entries 10,300 (~1,300 a reused sprite, ~40
+// statements each) — against 17,095 in an NTSC frame, so the swarm
+// example ran at two frames an iteration. The routine does the same three
+// steps in the same order with the same drops; its header says so line
+// by line. For that, every table here is at a fixed address in page $06
+// (the KERNAL's dead screen, as the frame tables are in $04 and $05),
+// where the routine reads them, and the raster list's build state is
+// shared with it around the call (`raster.shareBuild`, `takeBuild`).
+import { raster } from "./raster.8bs";
+
+const HIDDEN: utinyint = 255;
+// Lines after an entry's own by which n entries on it have all landed,
+// with a bad line in the way: the first store 64 cycles in, 25 per
+// further entry, 43 for the bad line, over 63-cycle lines.
+const LANDING: array<utinyint, 6> = [0, 2, 3, 3, 3, 4];
+const BIT: array<utinyint, 8> = [1, 2, 4, 8, 16, 32, 64, 128];
+const NOT_BIT: array<utinyint, 8> = [254, 253, 251, 247, 239, 223, 191, 127];
+const ENABLE_MASK: array<utinyint, 9> = [0, 1, 3, 7, 15, 31, 63, 127, 255];
+
+// The virtual sprites, and the routine's other tables, where
+// native/6502/multiplex.s reads them (its header maps the page).
+@address(0x0600)
+let vxLo: array<u8, 24>;
+@address(0x0618)
+let vxHi: array<u8, 24>;
+@address(0x0630)
+let vy: array<u8, 24>;
+@address(0x0648)
+let vShape: array<u8, 24>;
+@address(0x0660)
+let vColor: array<u8, 24>;
+@address(0x0678)
+let order: array<u8, 24>;
+@address(0x06B8)
+let count: volatile<u8>;
+@address(0x06B9)
+let droppedCount: volatile<u8>;
+@address(0x06BA)
+let shownCount: volatile<u8>;
+@address(0x06C8)
+let landingTable: array<u8, 6>;
+@address(0x06D0)
+let bitTable: array<u8, 8>;
+@address(0x06D8)
+let notBitTable: array<u8, 8>;
+@address(0x06E0)
+let enableMaskTable: array<u8, 9>;
+
+let ordered: bool = false;
+
+export namespace multiplex {
+    const MAX: utinyint = 24;
+    const GAP: utinyint = 24; // lines from one use of a hardware sprite to the next: 21 rows + landing
+
+    // How many virtual sprites are in use, 0-24; those at and past the
+    // count are ignored. Resets the sort order, and puts the routine's
+    // constant tables in their page (RAM is not what a program left it).
+    function setCount(n: utinyint): void {
+        if (n > multiplex.MAX) {
+            n = multiplex.MAX;
+        }
+        count = n;
+        for (let i: utinyint = 0; i < multiplex.MAX; i++) {
+            order[i] = i;
+            vy[i] = HIDDEN;
+        }
+        for (let t: utinyint = 0; t < 9; t++) {
+            enableMaskTable[t] = ENABLE_MASK[t];
+            if (t < 8) {
+                bitTable[t] = BIT[t];
+                notBitTable[t] = NOT_BIT[t];
+            }
+            if (t < 6) {
+                landingTable[t] = LANDING[t];
+            }
+        }
+        ordered = true;
+    }
+
+    // Virtual sprite `v` at (x, y) — the VIC's coordinates, as
+    // sprites.place — drawn from shape block `block` in `color`.
+    function set(v: utinyint, x: usmallint, y: utinyint, block: utinyint, color: utinyint): void {
+        vxLo[v] = x & 0xFF;
+        vxHi[v] = x >> 8;
+        vy[v] = y;
+        vShape[v] = block;
+        vColor[v] = color & 15;
+    }
+
+    function place(v: utinyint, x: usmallint, y: utinyint): void {
+        vxLo[v] = x & 0xFF;
+        vxHi[v] = x >> 8;
+        vy[v] = y;
+    }
+
+    function setShape(v: utinyint, block: utinyint): void {
+        vShape[v] = block;
+    }
+
+    function setColor(v: utinyint, color: utinyint): void {
+        vColor[v] = color & 15;
+    }
+
+    // Not drawn until placed again.
+    function hide(v: utinyint): void {
+        vy[v] = HIDDEN;
+    }
+
+    // Virtual sprites the last update() could not fit.
+    function dropped(): utinyint {
+        return droppedCount;
+    }
+
+    // The frame's work: the sort, the eight topmost into the list's frame
+    // table, and the list entries for the rest — appended to the list
+    // being built, in ascending line order. Call it after raster.clear()
+    // and before raster.commit(). Returns how many virtual sprites will
+    // draw. The work is native/6502/multiplex.s's (the header above).
+    function update(): utinyint {
+        if (!ordered) {
+            multiplex.setCount(count);
+        }
+        raster.shareBuild();
+        asm6502 {
+            jsr __8bs_c64_multiplex_update
+        }
+        raster.takeBuild();
+        return shownCount;
+    }
+}

@@ -1,0 +1,8 @@
+@address(0x06C0)
+let shared: utinyint = 2;
+export function main(): void {
+    shared = shared + 1;
+    while (true) {
+        waitFrame();
+    }
+}

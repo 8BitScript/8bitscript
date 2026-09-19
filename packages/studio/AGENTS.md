@@ -272,9 +272,12 @@ editor on a hack that the capability would replace:
   in the character set's RAM copy), `@8bitscript/c64/bitmap` (320×200 or
   160×200 pixels), `@8bitscript/c64/scroll` and `@8bitscript/c64/raster`
   (register writes at raster lines: a status bar under a scrolling
-  playfield) over `@8bitscript/c64/video` (the screen, color RAM, the
-  bank's layout) — C64-only, the layer the capability sits on, not the
-  capability.
+  playfield), with `@8bitscript/c64/multiplex` (more than eight sprites
+  through that list), `@8bitscript/c64/border` (the vertical border
+  opened for sprites) and `@8bitscript/c64/idle` (the idle-graphics
+  byte) on top of it, over `@8bitscript/c64/video` (the screen, color
+  RAM, the bank's layout) — C64-only, the layer the capability sits on,
+  not the capability.
 - **Sound** — a note-level API for the machines with a chip, and the
   PET's one voice behind the same API. `@8bitscript/c64/sid` is the C64's
   hardware layer for it: three voices, waveforms, envelopes, the filter,

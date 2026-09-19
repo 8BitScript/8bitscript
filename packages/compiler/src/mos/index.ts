@@ -163,7 +163,25 @@ const PET_OWNED_ZP_BUDGET = { zpOrigin: 0x02, zpCeiling: 0x100 };
 // it is not a shape anything in this workspace has. When one exists, the
 // trigger is the same kind of fact `usesWaitFrame` already is: a store to
 // $01, read off the finished instruction stream.
-const C64_ZP_BUDGET = PET_OWNED_ZP_BUDGET;
+//
+// The ceiling is $FD, not $100: $FD-$FF belong to @8bitscript/c64's
+// native/6502/raster.s, which keeps the CPU's IRQ target there — a `jmp`
+// to the raster-list handler, or a bare `rti` in a program that never
+// enables it. The reason is the VIC-II, not the CPU. That package's
+// picture lives in VIC bank 3 ($C000-$FFFF), and whenever the VIC is in
+// its idle state (the lines above the first text row and below the last
+// one, the gap a YSCROLL other than 3 opens, an opened vertical border) it
+// draws eight pixels a cell from the LAST byte of its bank, $FFFF — which
+// is the high byte of the 6510's IRQ vector. A handler anywhere in the
+// program's own RAM puts its page number on screen as a stripe pattern
+// (a handler at $0Axx drew `....#.#.` across the gap under x64sc); an
+// IRQ target in page zero makes that byte $00, and idle graphics are
+// then the background color and nothing else, in every C64 program.
+// Three bytes of zero page is what a transparent idle costs.
+// packages/c64/AGENTS.md, "Idle graphics and the ghost byte", is the
+// full account.
+const C64_IRQ_TRAMPOLINE = 0xfd; // $FD-$FF: jmp <handler> (or rti), raster.s
+const C64_ZP_BUDGET = { zpOrigin: 0x02, zpCeiling: C64_IRQ_TRAMPOLINE };
 
 // The VIC-20 keeps the same KERNAL zero-page map as the C64 and, unlike the
 // C64, its package never banks anything out — a VIC-20 program really does

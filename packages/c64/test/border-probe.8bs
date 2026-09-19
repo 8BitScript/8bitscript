@@ -1,0 +1,56 @@
+// The opened border, run for real: a red border, a blue playfield of
+// white blocks, border.top() and border.bottom() in the list, a sprite
+// placed below row 24 (Y 252: lines 253-273) and one above row 0 (Y 20:
+// lines 21-41), and the idle pattern byte switched at lines — black from
+// 45 (the last lines of the upper border) and from the opening at 251,
+// transparent again from 255. On an NTSC capture (raster line L at PNG
+// row L - 28) that is: rows 0-16 blue with the top sprite's white on
+// them, rows 18-22 black, the picture from 23, rows 223-226 black, rows
+// 227-234 blue with the bottom sprite's white on them, and the border
+// column at x = 4 red all the way down — the side border stays. Red at
+// any of those rows means the border did not open; the handler's page
+// byte showing as stripes means $FFFF is not 0. See test/layers.test.mjs.
+import { screen, BorderColor, BackgroundColor } from "../src/screen.8bs";
+import { raster, Register } from "../src/raster.8bs";
+import { border } from "../src/border.8bs";
+import { idle, Pattern } from "../src/idle.8bs";
+import { sprites } from "../src/sprites.8bs";
+import { screenRam, colorRam, spriteShapes } from "../src/geometry.8bs";
+
+const BLOCK: utinyint = sprites.FIRST_BLOCK;
+let frames: u8 = 0;
+
+export function main(): void {
+    screen.blank(BorderColor.RED, BackgroundColor.BLUE);
+    // Every row: reversed spaces in white, so the picture is unmistakable.
+    for (let cell: usmallint = 0; cell < 1000; cell++) {
+        screenRam[cell] = 160;
+        colorRam[cell] = 1;
+    }
+    // A solid 24x21 shape.
+    for (let i: u8 = 0; i < 63; i++) {
+        spriteShapes[sprites.blockOffset(BLOCK) + i] = 0xFF;
+    }
+    sprites.setShape(0, BLOCK);
+    sprites.setColor(0, 1);
+    sprites.place(0, 100, 252); // lines 253-273: the lower border
+    sprites.show(0);
+    sprites.setShape(1, BLOCK);
+    sprites.setColor(1, 1);
+    sprites.place(1, 200, 20); // lines 21-41: the upper border
+    sprites.show(1);
+
+    idle.setPattern(Pattern.BLACK); // what lines 251+ draw at the opening
+    raster.clear();
+    raster.at(45, idle.PATTERN, Pattern.BLACK); // from 46 the upper border's tail is black
+    border.top();                                // 50: ECM off, RSEL on
+    raster.at(254, idle.PATTERN, Pattern.TRANSPARENT); // from 255 the pattern is off
+    border.bottom();                             // 249 RSEL off, 250 ECM on
+    raster.enable();
+    while (true) {
+        waitFrame();
+        frames = frames + 1;
+        // The pattern byte is what the list left it: transparent from
+        // 255 to the top of the next frame, black again from line 46.
+    }
+}

@@ -11,7 +11,8 @@
   "8bitscript": {
     "entry": "./src/index.8bs",
     "native": [
-      "./native/6502/raster.s"
+      "./native/6502/raster.s",
+      "./native/6502/multiplex.s"
     ],
     "exports": {
       "./screen": "./src/screen.8bs",
@@ -31,7 +32,10 @@
       "./input": "./src/input.8bs",
       "./pointer": "./src/pointer.8bs",
       "./random": "./src/random.8bs",
-      "./rasterline": "./src/rasterline.8bs"
+      "./rasterline": "./src/rasterline.8bs",
+      "./idle": "./src/idle.8bs",
+      "./border": "./src/border.8bs",
+      "./multiplex": "./src/multiplex.8bs"
     },
     "hardware": {
       "build": {

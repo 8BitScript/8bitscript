@@ -1,6 +1,7 @@
 // The C64's hardware layers, run for real under x64sc: the raster list,
-// the wobble band over raster.setValue, bitmap mode, the region probe,
-// and REU transfers. Each probe program links clean for the C64 without
+// the wobble band over raster.setValue, idle graphics, the opened border,
+// the sprite multiplexer, bitmap mode, the region probe, and REU
+// transfers. Each probe program links clean for the C64 without
 // an emulator; each is also run headless and its screenshot read at a
 // few pixels — the probe encodes its answer in colors, as
 // test/reu-probe.8bs does.
@@ -23,6 +24,9 @@ const CLI_BIN = join(ROOT, '..', 'cli', 'bin', '8bs.mjs');
 
 const PROBES = {
   raster: ['raster-probe.8bs', ['raster_at', 'raster_enable']],
+  idle: ['idle-probe.8bs', ['idle_ghost', 'scroll_setY', 'raster_enable']],
+  border: ['border-probe.8bs', ['border_top', 'border_bottom', 'idle_setPattern', 'raster_insert']],
+  multiplex: ['multiplex-probe.8bs', ['multiplex_update', 'multiplex_set', 'raster_commit', 'raster_setFrameByte']],
   wobble: ['wobble-probe.8bs', ['raster_at', 'raster_setValue', 'raster_enable']],
   bitmap: ['bitmap-probe.8bs', ['bitmap_enter', 'bitmap_plot', 'bitmap_fillColors', 'sprites_setShapeByte']],
   region: ['region-probe.8bs', ['detectRegion', 'sid_detectRegion', 'sid_frequencyOf']],
@@ -36,7 +40,7 @@ for (const [name, [file, functions]] of Object.entries(PROBES)) {
     assert.deepEqual(diagnostics, []);
     const names = ir.functions.map((f) => f.name);
     for (const fn of functions) assert.ok(names.includes(fn), fn);
-    assert.equal(ir.nativeSources.length, 1, 'the package\'s raster.s rides along');
+    assert.equal(ir.nativeSources.length, 2, 'the package\'s raster.s and multiplex.s ride along (sections a program does not reach are dropped at link)');
   });
 }
 
@@ -54,7 +58,7 @@ test('the rasterline probe links clean for the C64, @8bitscript/raster resolving
   const names = ir.functions.map((f) => f.name);
   assert.ok(names.some((name) => /raster_at/.test(name)), `the slot layer and the address list link: ${names.join(', ')}`);
   assert.ok(names.some((name) => /raster_enable/.test(name)), 'enable() delegates through');
-  assert.equal(ir.nativeSources.length, 1, 'the package\'s raster.s rides along');
+  assert.equal(ir.nativeSources.length, 2, 'the package\'s raster.s and multiplex.s ride along');
 });
 
 // --- Under VICE ---------------------------------------------------------
@@ -103,8 +107,9 @@ test('under VICE, the raster list changes the border color at its lines, top to 
     assert.ok(isGreen(pixelAt(png, 4, 155)), `line ~175: green, got ${pixelAt(png, 4, 155)}`);
     assert.ok(isYellow(pixelAt(png, 4, 205)), `line ~225: yellow, got ${pixelAt(png, 4, 205)}`);
     assert.ok(isBlue(pixelAt(png, 4, 235)), `line ~255: blue, got ${pixelAt(png, 4, 235)}`);
-    // The background inside the picture: green when $FFFA/$FFFB and
-    // $FFFE/$FFFF held the same non-zero vector before enable().
+    // The background inside the picture: green when the IRQ vector was
+    // $00FD with an rti there and the NMI vector non-zero before enable()
+    // — which makes $FFFF, the VIC's idle byte in bank 3, zero.
     assert.ok(isGreen(pixelAt(png, 200, 60)), `the .init vectors: a green background, got ${pixelAt(png, 200, 60)}`);
   } finally {
     await rm(scratch, { recursive: true, force: true });
@@ -144,6 +149,98 @@ test('under VICE, the portable rasterline slots land on $D020/$D021/$D016, pictu
     // with the picture instead.
     assert.ok(isRed(pixelAt(png, 32 + 2, 142)), `narrow mode's left border inside the band, got ${pixelAt(png, 32 + 2, 142)}`);
     assert.ok(isRed(pixelAt(png, 32 + 2, 60)), `and outside it, got ${pixelAt(png, 32 + 2, 60)}`);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+// Geometry, measured on this VICE (3.10 under Homebrew, 2026-09): the NTSC
+// capture is 384 x 247; raster line L is PNG row L - 28 (the picture,
+// lines 51-250, is rows 23-222; the lower border 251-262 rows 223-234;
+// the next frame's lines 0-11 rows 235-246); VIC sprite X is PNG column
+// X + 8 (the picture's pixel 0, X 24, is column 32).
+const ROW = (line) => line - 28;
+const COL = (x) => x + 8;
+
+test('under VICE, the YSCROLL gap draws the ghost byte, and it is 0: the idle lines are the background color', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-c64-layers-'));
+  try {
+    const png = await shoot(scratch, 'idle', 'idle-probe.8bs');
+    // The gap: lines 51-54 (rows 23-26), idle, every cell across. With the
+    // handler's page in $FFFF this showed `....#.#.`; with 0 it is blue.
+    for (const line of [51, 52, 53, 54]) {
+      for (let x = 24; x < 344; x += 1) {
+        assert.ok(isBlue(pixelAt(png, COL(x), ROW(line))), `line ${line}, X ${x}: blue, got ${pixelAt(png, COL(x), ROW(line))}`);
+      }
+    }
+    assert.ok(isWhite(pixelAt(png, COL(100), ROW(55))), 'the first row starts at line 55 with YSCROLL 7');
+    assert.ok(isGreen(pixelAt(png, 4, ROW(60))), `the border is green above 100: idle.ghost() read 0, got ${pixelAt(png, 4, ROW(60))}`);
+    assert.ok(isRed(pixelAt(png, 4, ROW(150))), 'and red from 100: the handler is live');
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('under VICE, border.top()/bottom() open the upper and lower border for sprites, with the idle pattern where the list sets it', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-c64-layers-'));
+  try {
+    const png = await shoot(scratch, 'border', 'border-probe.8bs');
+    // The side border stays: red at x = 4 down the whole capture.
+    for (const y of [5, 20, 100, 225, 240]) assert.ok(isRed(pixelAt(png, 4, y)), `x 4, row ${y}: the side border, got ${pixelAt(png, 4, y)}`);
+    // The upper border, lines 28-45: open and transparent (blue), with
+    // sprite 1 (X 200, Y 20: lines 21-41) white on it.
+    assert.ok(isBlue(pixelAt(png, COL(100), ROW(35))), `line 35: the upper border is open and blue, got ${pixelAt(png, COL(100), ROW(35))}`);
+    assert.ok(isWhite(pixelAt(png, COL(212), ROW(35))), `line 35: the top sprite, got ${pixelAt(png, COL(212), ROW(35))}`);
+    assert.ok(isBlue(pixelAt(png, COL(212), ROW(45))), 'line 45: below the top sprite, blue');
+    // Lines 46-50: the pattern byte went black at 45.
+    for (const line of [46, 48, 50]) assert.ok(isDark(pixelAt(png, COL(100), ROW(line))), `line ${line}: black pattern, got ${pixelAt(png, COL(100), ROW(line))}`);
+    // The picture: white from 51 to 250.
+    assert.ok(isWhite(pixelAt(png, COL(100), ROW(51))), 'line 51: the first row');
+    assert.ok(isWhite(pixelAt(png, COL(100), ROW(250))), 'line 250: the last row');
+    // The lower border: 251-254 black (ECM on at 250, pattern black),
+    // 255 on transparent, sprite 0 (X 100, Y 252: lines 253-273) white.
+    for (const line of [251, 252, 254]) assert.ok(isDark(pixelAt(png, COL(200), ROW(line))), `line ${line}: black pattern, got ${pixelAt(png, COL(200), ROW(line))}`);
+    for (const line of [255, 258, 262]) assert.ok(isBlue(pixelAt(png, COL(200), ROW(line))), `line ${line}: open and blue, got ${pixelAt(png, COL(200), ROW(line))}`);
+    for (const line of [254, 258, 262]) assert.ok(isWhite(pixelAt(png, COL(112), ROW(line))), `line ${line}: the bottom sprite, got ${pixelAt(png, COL(112), ROW(line))}`);
+    // The sprite runs on into the next frame's top lines (NTSC: 263 lines):
+    // rows 235-245 are lines 0-10 of the next frame, and it ends at 273.
+    assert.ok(isWhite(pixelAt(png, COL(112), 240)), 'the bottom sprite continues across the frame wrap');
+    assert.ok(isBlue(pixelAt(png, COL(112), 246)), 'and ends at line 273 (row 245)');
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('under VICE, the multiplexer draws twenty sprites from eight, rebuilt and committed every frame', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-c64-layers-'));
+  try {
+    // 600 frames: ~210 go to the autostart, the probe's loop takes
+    // several frames each (its text.print is slow), and the drift stops
+    // after 32 iterations — seen settled by 450, with margin here.
+    const png = await shoot(scratch, 'multiplex', 'multiplex-probe.8bs', ['--frames', '600']);
+    // VICE's palette for the rows' colors: yellow (255,248,141), cyan
+    // (138,230,203), light green (198,255,186); white is white.
+    const isYellow2 = ([r, g, b]) => r > 240 && g > 240 && b < 180;
+    const isCyanish = ([r, g, b]) => r < 170 && g > 200 && b > 180;
+    const isLightGreen = ([r, g, b]) => r > 170 && r < 230 && g > 240 && b > 160 && b < 210;
+    const rows = [
+      [60, isWhite, 'white'], [100, isYellow2, 'yellow'], [140, isCyanish, 'cyan'], [180, isLightGreen, 'light green'],
+    ];
+    for (const [y, is, name] of rows) {
+      for (let c = 0; c < 5; c++) {
+        const x = 40 + c * 60 + 32; // after the 32-pixel drift
+        const px = pixelAt(png, COL(x + 12), ROW(y + 11)); // the block's center: lines y+1..y+21
+        assert.ok(is(px), `row Y ${y}, column ${c} (X ${x}): ${name}, got ${px}`);
+        assert.ok(isBlue(pixelAt(png, COL(x + 30), ROW(y + 11))), `and blue right of it (X ${x + 30})`);
+      }
+      // The block's vertical extent: y+1 .. y+21.
+      assert.ok(isBlue(pixelAt(png, COL(40 + 32 + 12), ROW(y))), `line ${y}: above the block`);
+      assert.ok(is(pixelAt(png, COL(40 + 32 + 12), ROW(y + 1))), `line ${y + 1}: the block's first row`);
+      assert.ok(is(pixelAt(png, COL(40 + 32 + 12), ROW(y + 21))), `line ${y + 21}: its last`);
+      assert.ok(isBlue(pixelAt(png, COL(40 + 32 + 12), ROW(y + 22))), `line ${y + 22}: below it`);
+    }
+    // The hidden one (X 160, Y 100): its spot is playfield.
+    assert.ok(isBlue(pixelAt(png, COL(160 + 12), ROW(111))), 'the hidden sprite is not drawn');
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }

@@ -66,9 +66,11 @@
 //    unit's size, every register reads back what was written, and
 //    autoload restores the bank register too.
 //
-// The byte the DMA reads and writes is `probe`, one location in the
-// cassette buffer ($033C–$03FB), which nothing else in an 8bitscript
-// program uses (interrupts are off; there is no tape). The registers are
+// The byte the DMA reads and writes is `probe`, the last byte of the
+// KERNAL's cassette buffer page ($03FF), which nothing else in an
+// 8bitscript program uses (interrupts are off; there is no tape) — the
+// raster list's second page and its state take $0300-$03FD (./raster.8bs,
+// native/6502/raster.s), and $03FE-$03FF are what is left. The registers are
 // set once: with bit 5 of the command (autoload) the REU reloads every
 // address and the length from what was written after each transfer, and
 // with bit 4 the transfer runs immediately, without the $FF00 trigger the
@@ -87,10 +89,10 @@ import {
 } from "./index.8bs";
 
 // The one C64 byte the transfers touch. Its address goes into $DF02/$DF03.
-@address(0x033C) let probe: volatile<u8>;
+@address(0x03FF) let probe: volatile<u8>;
 
 namespace Reu {
-    const PROBE_LOW: utinyint = 0x3C;    // low byte of `probe`'s address
+    const PROBE_LOW: utinyint = 0xFF;    // low byte of `probe`'s address
     const PROBE_HIGH: utinyint = 0x03;   // high byte
     const STASH: utinyint = 0xB0;        // execute now, autoload, C64 → REU
     const FETCH: utinyint = 0xB1;        // execute now, autoload, REU → C64
@@ -205,6 +207,6 @@ export namespace reu {
     // stash from one C64 byte that does not advance.
     function fillReu(bank: utinyint, address: usmallint, length: usmallint, value: utinyint): void {
         probe = value;
-        transfer(Reu.TO_REU, Reu.FIX_C64, 0x033C, bank, address, length);
+        transfer(Reu.TO_REU, Reu.FIX_C64, 0x03FF, bank, address, length);
     }
 }
