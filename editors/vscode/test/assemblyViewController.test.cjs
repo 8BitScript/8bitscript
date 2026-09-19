@@ -242,6 +242,44 @@ test('onSourceSaved(): a failed rebuild (a mid-edit syntax error) leaves the tab
   });
 });
 
+test('rerenderAll(): flipping 8bitscript.assemblyView.explain re-renders every open tab from the instructions it already has — no rebuild, place kept', async () => {
+  await withController(async ({ dir, controller, output }) => {
+    vscode.__mock.reset();
+    const sourcePath = path.join(dir, 'main.8bs');
+    fs.writeFileSync(sourcePath, 'export function main(): void {}\n');
+    const debugMapPath = path.join(dir, 'out.8bs.debug.json');
+    writeControl(dir, { target: 'c64', address: 0xc142, sourcePath, debugMapPath });
+    const project = { dir, targets: ['c64'] };
+
+    await controller.render(project, 'c64', sourcePath);
+    const key = controller.uriFor('c64', sourcePath).toString();
+    assert.match(controller.documents.get(key).text, /LDA \$18\s+; A = mem\[\$18\]/, 'explained by default');
+    const buildsBefore = output.lines.filter((line) => line.startsWith('$ 8bs')).length;
+
+    const revealed = [];
+    const fakeEditor = {
+      document: { uri: { toString: () => key } },
+      visibleRanges: [{ start: { line: 2 } }],
+      selection: { active: { line: 2, character: 0 } },
+      revealRange: (range, kind) => revealed.push({ range, kind }),
+    };
+    vscode.window.visibleTextEditors = [fakeEditor];
+
+    // What the configuration-change listener does once toggleExplain() has
+    // written the setting (the mock's onDidChangeConfiguration never fires).
+    await controller.toggleExplain();
+    assert.equal(vscode.workspace.getConfiguration('8bitscript').get('assemblyView.explain'), false);
+    controller.rerenderAll();
+    assert.match(controller.documents.get(key).text, /LDA \$18$/m, 'the per-instruction comment is gone');
+    assert.equal(output.lines.filter((line) => line.startsWith('$ 8bs')).length, buildsBefore, 'no 8bs build was run to re-render');
+    assert.equal(revealed.length, 1, 'the tab is put back where it was, like a live-reload refresh');
+
+    await controller.toggleExplain();
+    controller.rerenderAll();
+    assert.match(controller.documents.get(key).text, /; A = mem\[\$18\]/, 'and back on again');
+  });
+});
+
 test('pickTarget(): excludes web (no assembly listing) and skips the picker entirely when only one machine qualifies', async () => {
   await withController(async ({ controller }) => {
     vscode.__mock.reset();

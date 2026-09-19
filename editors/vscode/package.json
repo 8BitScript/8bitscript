@@ -138,6 +138,12 @@
         "icon": "$(target)"
       },
       {
+        "command": "8bitscript.assemblyView.toggleExplain",
+        "title": "Toggle Plain-English Comments",
+        "category": "8BitScript",
+        "icon": "$(comment-discussion)"
+      },
+      {
         "command": "8bitscript.stop",
         "title": "Stop",
         "category": "8BitScript",
@@ -291,6 +297,10 @@
         {
           "command": "8bitscript.assemblyView.openForMachine",
           "when": "resourceScheme == 8bitscript-asm"
+        },
+        {
+          "command": "8bitscript.assemblyView.toggleExplain",
+          "when": "resourceScheme == 8bitscript-asm"
         }
       ],
       "editor/context": [
@@ -307,9 +317,14 @@
       ],
       "editor/title": [
         {
+          "command": "8bitscript.assemblyView.toggleExplain",
+          "when": "resourceScheme == 8bitscript-asm",
+          "group": "navigation@0"
+        },
+        {
           "command": "8bitscript.assemblyView.openForMachine",
           "when": "resourceScheme == 8bitscript-asm",
-          "group": "navigation"
+          "group": "navigation@1"
         }
       ],
       "view/title": [
@@ -453,6 +468,11 @@
           "type": "boolean",
           "default": true,
           "description": "List the examples that ship with the toolchain (@8bitscript/examples, installed with @8bitscript/cli) in the launcher's Project dropdown, in a group of their own under the workspace's projects and beside the toolchain's apps. On by default. Toggled with the book icon in the 8BitScript side bar's title bar, which is only offered when there are examples to show. Launch Example… reaches them either way."
+        },
+        "8bitscript.assemblyView.explain": {
+          "type": "boolean",
+          "default": true,
+          "description": "In View Generated Assembly, comment every instruction in plain English beside the 6502 — `LDA #$06  ; A = 6`, `JSR $0668  ; call screen_blank`, `BEQ $043C  ; if zero, loop back to $043C` — naming your globals and functions in place of bare addresses. On by default. Toggled with the comment icon in an assembly tab's title bar; the source-line comments above each run of instructions stay either way."
         },
         "8bitscript.webLan": {
           "type": "boolean",

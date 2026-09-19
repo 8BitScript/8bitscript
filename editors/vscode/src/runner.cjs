@@ -1076,6 +1076,7 @@ function registerRunner(context, output) {
   command('8bitscript.viewGeneratedAssembly', viewGeneratedAssembly);
   command('8bitscript.viewGeneratedAssemblyFor', viewGeneratedAssemblyFor);
   command('8bitscript.assemblyView.openForMachine', () => assemblyView.openForMachine(vscode.window.activeTextEditor));
+  command('8bitscript.assemblyView.toggleExplain', () => assemblyView.toggleExplain());
   command('8bitscript.stop', (node) => {
     if (node?.dir) projects.running.stop(node.dir, node.target);
     else for (const execution of projects.running.executions) execution.terminate();
