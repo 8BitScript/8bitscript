@@ -1,5 +1,21 @@
 # @8bitscript/input
 
+## 0.15.0
+
+### Patch Changes
+
+- 758765d: Add project message catalogs (`src/i18n/<locale>.8bs`, imported as `@8bitscript/i18n/catalog`), compile-time `i18n.format`, Latin transliteration into the portable set, and `Input.CONFIRM_LABEL` on each machine's input layer. One locale still means one binary; projects without catalogs are unchanged.
+- Updated dependencies [758765d]
+  - @8bitscript/pet@0.15.0
+  - @8bitscript/vic20@0.15.0
+  - @8bitscript/c64@0.15.0
+  - @8bitscript/c128@0.15.0
+  - @8bitscript/atari8@0.15.0
+  - @8bitscript/nes@0.15.0
+  - @8bitscript/cx16@0.15.0
+  - @8bitscript/mega65@0.15.0
+  - @8bitscript/web@0.15.0
+
 ## 0.14.0
 
 ### Patch Changes

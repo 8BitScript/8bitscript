@@ -1,5 +1,16 @@
 # 8bitscript-lang
 
+## 0.15.0
+
+### Minor Changes
+
+- 0c3f890: "View Generated Assembly" now colors its listing with a real 6502 assembly grammar, shows the whole file rather than just the statement under the cursor (so the view stays put regardless of where you click in the source), and gains "View Generated Assembly For…" plus an open tab's own "Open For Another Machine…" button to open several machines' listings side by side. Saving any `.8bs`/`.8bx` file in the same project rebuilds every open tab in place, preserving scroll position and selection and never blanking a tab on a mid-edit build failure.
+- 5d6dc92: Native builds can now retain source provenance through lowering, assembly, and branch relaxation, and `8bs build --debug` writes a human-readable `.lst` listing and a versioned `.8bs.debug.json` debug map alongside the artifact. The VS Code extension adds "8BitScript: View Generated Assembly", which opens the generated instructions for the file beside the editor and navigates back to source on selection. Off by default; release builds are unaffected.
+
+### Patch Changes
+
+- 8225ec7: The launcher's System dropdown no longer snaps back to PET when a program has no named systems. An empty named system is stored as `''`, and `??` was keeping that blank instead of the machine id, so the dropdown fell through to its first option.
+
 ## 0.14.0
 
 No changes in this release.
