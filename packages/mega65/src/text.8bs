@@ -210,10 +210,21 @@ export namespace text {
     // built at run time — it cannot, so a layout whose width is only known
     // while the program runs (a responsive tile, a panel being cleared) needs
     // this instead of a string constant per possible width.
+    //
+    // prepare() is not optional here: place() writes colour at `$D800+cell`,
+    // and without CRAM2K cells 1024–1999 are the two CIAs. A 5-cell reverse
+    // fill on row 17 of the 80-column screen (2048's bottom tile row) lands
+    // on a CIA2 PRA mirror, the VIC bank bits move, HOTREG then derives
+    // CHARPTR from `$D018` in bank 2 (`$9800` instead of the mixed-case ROM
+    // at `$1800`), and every glyph on the screen draws as the same junk
+    // character. Measured under xmega65: dumpmem still had the right screen
+    // codes at `$0800`; CHARPTR and `$DD00` were what moved.
     function fill(cell: usmallint, count: usmallint, code: utinyint): void {
+        prepare();
         for (let i: usmallint = 0; i < count; i++) {
             place(cell + i, code);
         }
+        release();
     }
 
     function printNumber(cell: usmallint, value: usmallint, width: utinyint): void {

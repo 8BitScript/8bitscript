@@ -1,0 +1,30 @@
+// Colour-RAM cells 1024–1999 live at `$DC00–$DFCF` only while CRAM2K is
+// set. text.fill used to skip prepare(), so a fill on the lower half of
+// the 80-column screen poked CIA2. The VIC bank bits moved, HOTREG then
+// derived CHARPTR from `$D018` in bank 2, and the mixed-case ROM charset
+// at `$1800` was gone — CHARPTR `$9800` instead of `$1800`. The border
+// encodes CHARPTR's high byte after a fill past cell 1023 plus a print
+// that rewrites `$D018`: blue if the ROM charset is still mapped (`$18`),
+// red if CIA2 selected bank 2 (`$98`). See test/text-fill.test.mjs.
+import { screen, BorderColor, BackgroundColor } from "../src/screen.8bs";
+import { text, TextColor } from "../src/text.8bs";
+
+export function main(): void {
+    screen.blank(BorderColor.BLUE, BackgroundColor.BLACK);
+    text.setColor(TextColor.WHITE);
+    text.setReverse(true);
+    // Row 17, column 28, five cells: 2048's bottom-left tile. Cell 1392
+    // (the fifth) is `$DD70`, a CIA2 PRA mirror, when CRAM2K is clear.
+    text.fill(1388, 5, 32);
+    text.setReverse(false);
+    text.print(0, "FILL");
+    text.printNumber(80, memory.read(0xD069), 3);
+    if (memory.read(0xD069) == 0x18) {
+        screen.setBorder(BorderColor.BLUE);
+    } else {
+        screen.setBorder(BorderColor.RED);
+    }
+    while (true) {
+        waitFrame();
+    }
+}
