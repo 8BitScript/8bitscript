@@ -133,8 +133,9 @@ export function pickFixPlan(installer, platform = process.platform, hasBinary = 
   return null;
 }
 
-/** FAIL checks doctor can offer, one per distinct command so cx16's
- * emulator and ROM FAILs don't prompt `8bs setup cx16` twice. */
+/** FAIL checks doctor can offer, one per distinct command: four VICE
+ * binaries share `brew install vice`, and cx16's emulator + ROM share
+ * `8bs setup cx16`. */
 export function uniqueFixable(checks, platform = process.platform, hasBinary = onPath) {
   const seen = new Set();
   const out = [];

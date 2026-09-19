@@ -142,6 +142,31 @@ test('installerHint: pnpm names npx get-pnpm on every platform', () => {
   }
 });
 
+test('uniqueFixable: one install plan per command (four VICE binaries → one)', () => {
+  const vice = {
+    label: 'VICE (xvic, x64sc, xpet, x128)',
+    darwin: { manager: 'brew', args: ['install', 'vice'] },
+  };
+  const atari = {
+    label: 'atari800 (Atari 8-bit)',
+    darwin: { manager: 'brew', args: ['install', 'atari800'] },
+  };
+  const fail = (label, installer) => ({
+    status: 'fail', label, installer, targets: [],
+  });
+  const checks = [
+    fail('xvic (VIC-20)', vice),
+    fail('x64sc (C64)', vice),
+    fail('xpet (PET)', vice),
+    fail('x128 (C128)', vice),
+    fail('atari800 (Atari 8-bit)', atari),
+  ];
+  const offered = uniqueFixable(checks, 'darwin', (bin) => bin === 'brew');
+  assert.equal(offered.length, 2);
+  assert.equal(offered[0].installer, vice);
+  assert.equal(offered[1].installer, atari);
+});
+
 // vicePackageManagerVersion() is the fallback for `xvic --version` et al
 // crashing outright on some Homebrew 3.9/3.10 bottles ("argv[0] is NULL,
 // giving up" — vice-emu bug #2108) rather than printing anything parseable.
