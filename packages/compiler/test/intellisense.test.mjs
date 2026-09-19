@@ -420,6 +420,26 @@ test('a member missing on the machine this file is a twin for is called out, and
   });
 });
 
+test('a member hover inside a ${...} field still resolves the import and knows the file\'s own machine, the same as outside one', () => {
+  withFiles(CONDITIONAL_PACKAGE, (dir) => {
+    const file = join(dir, 'main.pet.8bs');
+    const text = 'import { screen } from "@t/hw";\nconst s: string = `${screen.touch()}`;\n';
+    const info = getHoverInfo(text, at(text, 'touch'), { path: file });
+    assert.ok(info, 're-lexing the field must not lose the outer file\'s import statements');
+    assert.match(info.markdown, /\*\*Not on pet\*\* — this file's machine\./, 'the machine must pass through the recursive re-lex too, not fall back to "no machine known"');
+    assert.match(info.markdown, /Available on web; not on c64 and pet\./);
+  });
+});
+
+test('member completion inside a ${...} field also resolves the import', () => {
+  withFiles(CONDITIONAL_PACKAGE, (dir) => {
+    const file = join(dir, 'main.8bs');
+    const text = 'import { screen } from "@t/hw";\nconst s: string = `${screen.}`;\n';
+    const items = getCompletions(text, text.indexOf('${screen.') + '${screen.'.length, { path: file });
+    assert.ok(items.some((i) => i.label === 'blank'), 're-lexing the field must not lose the outer file\'s import statements');
+  });
+});
+
 test('the project\'s single target is the machine the import is read for', () => {
   withFiles(CONDITIONAL_PACKAGE, (dir) => {
     const file = join(dir, 'main.8bs');
