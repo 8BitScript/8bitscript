@@ -1,0 +1,18 @@
+// What a sprite looks like on the PET: a 4 × 4 pseudo-pixel ring, defined
+// once through the sprites twin's own `defineShape` (four nibbles, bit 3
+// the left pixel) and named by its index. The compiler's twin rule
+// resolves this file for PET builds, `shapes.c64.8bs` for the C64, and
+// `shapes.8bs` — an ASCII 'O' — everywhere else.
+import { sprites } from "@8bitscript/sprites";
+
+export namespace shapes {
+    const ACTOR: utinyint = 1;
+
+    //     .##.
+    //     #..#
+    //     #..#
+    //     .##.
+    function begin(): void {
+        sprites.defineShape(shapes.ACTOR, 6, 9, 9, 6);
+    }
+}

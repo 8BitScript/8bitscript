@@ -1,0 +1,69 @@
+// The multiplexer, run for real: twenty virtual sprites from eight
+// hardware ones — four rows of five solid 24x21 blocks, rows 40 lines
+// apart (more than the 24 a hardware sprite needs between uses), each
+// row its own color, plus one sprite hidden — the list rebuilt and
+// committed every frame while every sprite drifts right one pixel a
+// frame for the first 32 frames and then stands still. A screenshot
+// reads the center of each block (row r at Y 60 + 40r → raster lines
+// 61-81 + 40r → PNG rows 33-53 + 40r; column c at X 40 + 60c + 32 pixels
+// drift → PNG x 32 + X + 12 - 24): all twenty in their row's color, and
+// the hidden one's spot in the playfield color. Row 0 is the eight
+// hardware sprites' own, rows 1-3 are list entries: the same hardware
+// sprite draws in all four rows. See test/layers.test.mjs.
+import { screen, BorderColor, BackgroundColor } from "../src/screen.8bs";
+import { raster } from "../src/raster.8bs";
+import { multiplex } from "../src/multiplex.8bs";
+import { sprites } from "../src/sprites.8bs";
+import { spriteShapes } from "../src/geometry.8bs";
+import { text, TextColor } from "../src/text.8bs";
+
+const BLOCK: utinyint = sprites.FIRST_BLOCK;
+const COLORS: array<utinyint, 4> = [1, 7, 3, 13]; // white, yellow, cyan, light green
+const DRIFT: utinyint = 32;
+let frames: u8 = 0;
+
+export function main(): void {
+    screen.blank(BorderColor.BLACK, BackgroundColor.BLUE);
+    text.setColor(TextColor.WHITE);
+    for (let i: u8 = 0; i < 63; i++) {
+        spriteShapes[sprites.blockOffset(BLOCK) + i] = 0xFF;
+    }
+    multiplex.setCount(21);
+    for (let r: u8 = 0; r < 4; r++) {
+        for (let c: u8 = 0; c < 5; c++) {
+            let x: usmallint = c;
+            x = x * 60 + 40; // 16-bit: 40 + 4 * 60 wraps at 8
+            multiplex.set(r * 5 + c, x, 60 + r * 40, BLOCK, COLORS[r]);
+        }
+    }
+    multiplex.set(20, 160, 100, BLOCK, 2); // then hidden: never drawn
+    multiplex.hide(20);
+    raster.clear();
+    multiplex.update();
+    raster.enable();
+    while (true) {
+        waitFrame();
+        raster.clear();
+        let shown: u8 = multiplex.update();
+        raster.commit();
+        if (frames < DRIFT) {
+            frames = frames + 1;
+            for (let v: u8 = 0; v < 20; v++) {
+                let c: u8 = v % 5;
+                let r: u8 = (v - c) >> 2; // v / 5 ... rows: 0-4 → 0, 5-9 → 1: (v - c) is 0, 5, 10, 15 — /5 below
+                r = 0;
+                if (v >= 15) {
+                    r = 3;
+                } else if (v >= 10) {
+                    r = 2;
+                } else if (v >= 5) {
+                    r = 1;
+                }
+                let x: usmallint = c;
+                x = x * 60 + 40 + frames;
+                multiplex.place(v, x, 60 + r * 40);
+            }
+        }
+        text.print(960, `SHOWN ${shown:2} DROPPED ${multiplex.dropped():2} FRAME ${frames:3}`);
+    }
+}

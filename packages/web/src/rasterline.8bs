@@ -63,6 +63,7 @@ let lastLine: usmallint = 0;
 
 export namespace raster {
     const ENTRIES: utinyint = Video.RASTER_MAX_ENTRIES; // the list's capacity
+    const STRIDE: utinyint = 3;   // bytes per entry: line, slot (+ line's bit 8), value
 
     // Empty the list. The control byte stands: enable()/disable() own it.
     function clear(): void {
@@ -100,9 +101,52 @@ export namespace raster {
         return true;
     }
 
+    // In order: the same as `at`, at a line at or above the last entry's
+    // — the entries below it slid up three bytes each. False, and nothing
+    // added, if the line is past the picture, the slot is not one of the
+    // three, or the list is full.
+    function insert(line: usmallint, slot: utinyint, value: utinyint): bool {
+        if (line >= lastLine) {
+            return raster.at(line, slot, value);
+        }
+        if (slot > Slot.SCROLL_X) {
+            return false;
+        }
+        let held: utinyint = memory.read(Video.RASTER_COUNT_OFFSET);
+        if (held >= raster.ENTRIES) {
+            return false;
+        }
+        let high: utinyint = line / 256;
+        let low: utinyint = line % 256;
+        let pos: usmallint = held;
+        pos = Video.RASTER_BASE + pos * 3;
+        while (pos > Video.RASTER_BASE) {
+            let above: usmallint = memory.read(pos - 3);
+            above = above + (memory.read(pos - 2) >> 7) * 256;
+            if (above <= line) {
+                break;
+            }
+            memory.write(pos, memory.read(pos - 3));
+            memory.write(pos + 1, memory.read(pos - 2));
+            memory.write(pos + 2, memory.read(pos - 1));
+            pos = pos - 3;
+        }
+        memory.write(pos, low);
+        memory.write(pos + 1, slot | (high << 7));
+        memory.write(pos + 2, value);
+        memory.write(Video.RASTER_COUNT_OFFSET, held + 1);
+        return true;
+    }
+
     // How many entries the list holds.
     function count(): utinyint {
         return memory.read(Video.RASTER_COUNT_OFFSET);
+    }
+
+    // Nothing to hand over: the renderer reads the list at paint time,
+    // between two frames of the program, so a rebuilt list is whole by
+    // construction.
+    function commit(): void {
     }
 
     // Rewrite one entry's value, leaving its line and slot: `entry` is the

@@ -1,0 +1,14 @@
+// The probe's sprite shape on the C64: the first sprite shape block, filled
+// solid so the screenshot test can read its 24 x 21 rectangle back.
+import { sprites as hardware } from "@8bitscript/c64/sprites";
+import { spriteShapes } from "@8bitscript/c64/video";
+
+export namespace shapes {
+    const BLOCK: utinyint = hardware.FIRST_BLOCK;
+
+    function begin(): void {
+        for (let i: utinyint = 0; i < 63; i++) {
+            spriteShapes[hardware.blockOffset(shapes.BLOCK) + i] = 0xFF;
+        }
+    }
+}

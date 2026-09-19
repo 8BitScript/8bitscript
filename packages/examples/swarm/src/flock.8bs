@@ -1,0 +1,194 @@
+// The flock: where every sprite is, which way it is going, and the two
+// things the scene asks of it each frame — move, and change colour. All
+// of the arithmetic is here, in .8bs; Scene.8bx composes when it happens.
+//
+// Positions are stage pixels (docs/project/frame.md): unsigned, with the
+// playfield's top-left at sprites.ORIGIN_X/ORIGIN_Y — 24, 50 on the C64
+// (the sprite coordinate space), 0, 0 on a cell machine — and the walls
+// a sprite bounces off are sprites.left()/right()/top()/bottom(), which
+// on the C64 widen when the border is opened and stay the playfield's
+// everywhere else.
+//
+// ---- half pixels, and half the flock a frame ------------------------------
+//
+// X needs nine bits on the C64 (up to 320 there, 632 on the MEGA65's
+// eighty columns), and the motion is in even pixels — so X is kept in
+// half pixels, one byte, and doubled on the way into sprites.place(). And
+// move() moves half the flock each frame, even sprites on even frames,
+// odd on odd, each by two units: the same ground covered per second,
+// half the work per frame. Both are the frame-budget habits a 1 MHz
+// 6502 asks for, measured here with a CIA timer (2026-09-19): sixteen
+// sprites' worth of 16-bit motion cost ~12,000 cycles a frame in the
+// first draft; this loop costs ~2,600 for its eight. See swarm.8bs's
+// header for where the C64's frame actually goes.
+import { sprites } from "@8bitscript/sprites";
+import { Video } from "@8bitscript/system";
+import { shapes } from "./shapes.8bs";
+
+const RIGHT: utinyint = 1; // direction bits
+const DOWN: utinyint = 2;
+
+// Four colours every machine's palette has: white, yellow, cyan, green.
+const PALETTE: array<utinyint, 4> = [1, 7, 3, 5];
+
+let xh: array<u8, 20>;      // x in half pixels
+let y: array<u8, 20>;
+let dir: array<u8, 20>;
+let count: utinyint = 0;
+let released: bool = false;
+let shift: utinyint = 0;
+let phase: utinyint = 0;     // which half of the flock moves this frame
+
+export namespace flock {
+    const WANTED: utinyint = 16;      // sprites this program asks for; MAX is what it gets — the same sixteen on every machine
+    const TEXT_ROWS: utinyint = 2;    // rows at the top a cell machine keeps for text
+
+    // Every sprite placed and coloured, hidden until release().
+    function begin(): void {
+        count = flock.WANTED;
+        if (count > sprites.MAX) {
+            count = sprites.MAX;
+        }
+        shapes.begin();
+        sprites.begin(count);
+        let leftWall: usmallint = sprites.left();
+        let rightWall: usmallint = sprites.right();
+        rightWall = rightWall >> 1;
+        if (rightWall > 255) {
+            rightWall = 255;
+        }
+        let left: utinyint = (leftWall >> 1) & 0xFF;
+        let width: utinyint = (rightWall & 0xFF) - left;
+        for (let i: utinyint = 0; i < count; i++) {
+            let x: utinyint = i * 9;
+            while (x > width) {
+                x = x - width;
+            }
+            xh[i] = left + x;
+            y[i] = flock.floor() + i * 7;
+            dir[i] = i & 3;
+            sprites.setShape(i, shapes.ACTOR);
+        }
+        shift = 3;
+        flock.recolor(); // the first colours, through the one place that sets them (below)
+    }
+
+    // How many sprites this machine gave.
+    function size(): utinyint {
+        return count;
+    }
+
+    // The highest y a sprite may take: below the text rows on every
+    // machine whose sprites are cells or blocks — a glyph overwrites the
+    // text, and a PET quadrant object restores what it covered when it
+    // leaves, which is the counter as it was before the scene reprinted
+    // it under the standing ring — and the top where a sprite is a
+    // hardware overlay the text shows through (the C64's, at pixel
+    // steps). The stage's y is sixteen bits; the flock keeps a byte of
+    // it, as it keeps a byte of half pixels, and stops at 255.
+    function floor(): utinyint {
+        let topWall: usmallint = sprites.top();
+        if (sprites.STEP_X != 1) {
+            topWall = topWall + flock.TEXT_ROWS * 8;
+        }
+        if (topWall > 255) {
+            topWall = 255;
+        }
+        return topWall & 0xFF;
+    }
+
+    // The walls in half pixels are worked out where they are used, not
+    // in a helper: a helper that inlined sprites.right() — which has a
+    // local of its own — and was itself inlined at two call sites built
+    // for the C64 and failed for the other eight with `'rightEdge_2'
+    // resolves to nothing this backend knows`, a compiler bug in nested
+    // inlining seen 2026-09-19. right() can pass 510 on an eighty-column
+    // grid; a byte of half pixels stops there, and so do the sprites.
+    // Where sprite i is, in pixels.
+    function put(i: utinyint): void {
+        let x: usmallint = xh[i];
+        sprites.place(i, x << 1, y[i]);
+    }
+
+    // Show them. Until then, they exist but are hidden.
+    function release(): void {
+        released = true;
+        for (let i: utinyint = 0; i < count; i++) {
+            flock.put(i);
+        }
+    }
+
+    // One frame's motion, for half the flock (see the header). The walls
+    // are read once a frame, not once a sprite: on the C64 they follow
+    // the border.
+    function move(): void {
+        if (!released) {
+            return;
+        }
+        phase = phase ^ 1;
+        let top: utinyint = flock.floor();
+        let bottomWall: usmallint = sprites.bottom();
+        if (bottomWall > 255) {
+            bottomWall = 255;
+        }
+        let bottom: utinyint = bottomWall & 0xFF;
+        let leftWall: usmallint = sprites.left();
+        let rightWall: usmallint = sprites.right();
+        rightWall = rightWall >> 1;
+        if (rightWall > 255) {
+            rightWall = 255;
+        }
+        let left: utinyint = (leftWall >> 1) & 0xFF;
+        let right: utinyint = rightWall & 0xFF;
+        for (let i: utinyint = phase; i < count; i = i + 2) {
+            let d: utinyint = dir[i];
+            let x: utinyint = xh[i];
+            if ((d & RIGHT) != 0) {
+                x = x + 2;
+                if (x >= right) {
+                    x = right;
+                    d = d & DOWN;
+                }
+            } else {
+                if (x <= left + 2) {
+                    x = left;
+                    d = d | RIGHT;
+                } else {
+                    x = x - 2;
+                }
+            }
+            let py: utinyint = y[i];
+            if ((d & DOWN) != 0) {
+                py = py + 2;
+                if (py >= bottom) {
+                    py = bottom;
+                    d = d & RIGHT;
+                }
+            } else {
+                if (py <= top + 2) {
+                    py = top;
+                    d = d | DOWN;
+                } else {
+                    py = py - 2;
+                }
+            }
+            xh[i] = x;
+            y[i] = py;
+            dir[i] = d;
+            flock.put(i);
+        }
+    }
+
+    // Every sprite one colour along the palette. The only caller of
+    // sprites.setColor in the program, on purpose: a function with one
+    // call site is inlined, and this loop is then sixteen stores rather
+    // than sixteen calls — ~1,000 cycles against ~3,400, measured on the
+    // C64 (2026-09-19), the difference between a recolor frame fitting
+    // the frame and not.
+    function recolor(): void {
+        shift = (shift + 1) & 3;
+        for (let i: utinyint = 0; i < count; i++) {
+            sprites.setColor(i, PALETTE[(i + shift) & 3]);
+        }
+    }
+}

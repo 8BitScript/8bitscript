@@ -5,8 +5,10 @@ This file is for anyone — human or agent — contributing to this repository.
 docs authoring conventions); this file covers a recurring design mistake
 worth naming explicitly: treating 8-bit machines as more alike than they are.
 
-The project's own status section (see [`README.md`](README.md)) is the
-source of truth for what compiles today — check it, and
+The manual's own status pages — [`docs/index.md`](docs/index.md) and
+[`docs/language/not-yet.md`](docs/language/not-yet.md) — are the source
+of truth for what compiles today (the root `README.md` is the brochure,
+not the status board) — check them, and
 [`docs/compiler.md`](docs/compiler.md), before describing anything as
 working. Nothing here overrides that: a rule below about how a *future*
 capability should be shaped is not a claim that the capability exists yet.

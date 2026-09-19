@@ -18,6 +18,7 @@ directory and an entry.
 | `joystick` | The controller test app: a labelled map of everything `@8bitscript/input` exposes, with a lamp on each control that flashes when it is pressed. | all nine |
 | `fancy` | The raster showpiece: a title wobbling on a sine wave inside colour bands, over `@8bitscript/raster`'s portable per-scanline surface. The two machines that answer `#fact(video.raster)` show the effect; the other seven show a static title, by design. | all nine |
 | `hello-bx` | The same greeting as `hello-world`, drawn through one 8BX component: `Hello.8bx` declares it, `hello-bx.8bs` is the program that calls it — the smallest project that shows how a `.8bs` program and a `.8bx` component fit together. | all nine |
+| `swarm` | The moving-objects showpiece: sixteen sprites bouncing round the picture on a frame timeline — through `@8bitscript/sprites` (sprites on the C64, sixteen from eight and out into the border; a glyph per sprite on the character grid elsewhere) and `@8bitscript/timeline`. The scene is one `.8bx` file that reads like a part list. | all nine |
 
 ## hello-world
 
@@ -147,6 +148,84 @@ title, the caption saying so, and the climbing frame counter.
 
 The test in `test/` checks that the manifest names a real project and that
 each program links clean for every one of its targets.
+
+## swarm
+
+The moving-objects showpiece, and the program that exercises
+`@8bitscript/sprites` and `@8bitscript/timeline` end to end — the two
+packages `docs/project/frame.md` (the frame, across nine machines) ships
+first. From inside `swarm/`:
+
+```
+8bs run c64                                # sixteen sprites from eight, through the border
+8bs run pet                                # eight quadrant-block rings, at 4-pixel steps, over the title
+8bs run vic20                              # sixteen glyphs on the grid, in colour, on 22 columns
+8bs run c64 --screenshot shot.png --frames 700   # headless, mid-scene
+```
+
+Five files, each one kind of thing:
+
+- `src/swarm.8bs` — the program: the frame loop, and nothing else.
+- `src/Scene.8bx` — *when*: the cues, composed. `{timeline.at(60) &&
+  <Release />}`, `{timeline.at(180) && <Open />}`, `{timeline.every(32)
+  && <Recolor />}` — the conditional the language already has, folded
+  like any other, so it reads like a demo's part list and costs a 16-bit
+  compare a cue.
+- `src/flock.8bs` — *how*: where every sprite is and which way it goes,
+  in stage pixels (`sprites.ORIGIN_X`/`ORIGIN_Y` are the playfield's
+  top-left: 24, 50 on the C64, 0, 0 on a cell machine), bouncing off
+  `sprites.left()`/`right()`/`top()`/`bottom()`, which widen on the C64
+  when the scene opens the border.
+- `src/counter.8bs` — *the count on screen*: five digits kept in place,
+  one `text.putChar` a frame (a five-digit `printNumber` every frame was
+  ~2,800 cycles on the C64, a sixth of the frame).
+- `src/shapes.8bs`, `src/shapes.c64.8bs` and `src/shapes.pet.8bs` — *what
+  a sprite looks like*: an `O` on seven machines, a 24 × 21 ring drawn
+  into a sprite block on the C64, a 4 × 4 pseudo-pixel ring defined
+  through the PET twin's `defineShape`. The compiler's twin rule picks
+  the `.c64.8bs` or `.pet.8bs` file for those builds; the program never
+  names either.
+
+What a screenshot shows: before frame 60 the title and the counter;
+from 60 the sprites bouncing; from 180 to 420 on the C64, rings above
+line 50 and below 250 — in the border, which no C64 draws in without
+`sprites.extend(true)`; every 32 frames the colours step along white,
+yellow, cyan, green. `SPRITES` prints what the machine gave (the program
+asks for 16; `sprites.MAX` is 24 on the C64, 16 in cells, 8 on the PET,
+whose quadrant objects cost ~2,600 cycles a redraw), `FRAME` climbs once
+an iteration. The flock keeps off the two text rows everywhere but the
+C64, whose sprites are an overlay the text shows through; a PET quadrant
+object restores what it covered when it leaves, which is not the same
+thing — a counter reprinted under a standing ring would come back stale.
+
+**What it costs**, program bytes then RAM (`8bs build <target> --size`,
+2026-09-19): pet 4162 / 84 — past the stock 2001's 3071 by the quadrant
+twin's tables (252 bytes of shape patterns, 72 of save-under, the
+merge), so the config's PET is the 32K 3032; vic20 2881 / 70 of the
+unexpanded 3583; c128 2882; mega65 2947; atari8 2941; cx16 3553; c64
+4622 / 71 — the one machine that carries the multiplexer (native now),
+the raster handler and the border; nes a fixed ROM; web 23 bytes of
+constants.
+
+**What it costs in time**, measured with each machine's own timer around
+each stage of the loop (`swarm.8bs`'s header has the C64 numbers): one
+hardware frame an iteration on the VIC-20 — after the cell layer learned
+to redraw only what changed, count the sprites on each row so its "is
+another sprite in the cell I am leaving" scan runs only where it can
+matter, and build a cell number from folded shifts instead of the
+generic multiply; **one or two on the PET** by how many of its eight
+rings overlap that frame (a quadrant sprite is ~2,600 cycles to erase
+and redraw, and one that touches a mover is redrawn with it — frame 367
+at hardware frame 515 in a 700-frame screenshot); and **one on the
+C64**, ~15,300 cycles of the frame's 17,095 with the VIC's own steal
+inside — a frame lost on about half the frames that recolour all
+sixteen (FRAME 776 at `--frames 1000`, 789 being every frame). It was
+two the same morning: `multiplex.update()` alone was ~16,000 cycles in
+the compiler's generic code, and is native assembly now
+(`packages/c64/native/6502/multiplex.s`); the counter and the recolour
+each gave back a call a sprite, as the header records. The program's own
+habits are the budget's: X in half pixels, half the flock moved a frame,
+digits kept as digits.
 
 ## hello-bx
 

@@ -1,7 +1,8 @@
 // The raster list, run for real: four border colors down one screen from
 // a list applied by the interrupt handler in native/6502/raster.s, and a
 // screen read back (the KERNAL is out) printed as a check, and the
-// vectors the .init section wrote checked (green background). A screenshot
+// vectors the .init section wrote checked (green background: the IRQ
+// vector is $00FD with an rti there, so $FFFF — the idle byte — is 0). A screenshot
 // reads the border at a row inside each band and one background pixel.
 // See test/layers.test.mjs.
 import { screen, BorderColor, BackgroundColor } from "../src/screen.8bs";
@@ -17,10 +18,13 @@ export function main(): void {
     text.print(0, `RASTER LIST`);
     let read: u8 = screenRam[100];
     text.print(40, `READ ${read:2}`);
-    // Before enable() moves the IRQ vector: raster.s's .init section has
-    // pointed both the NMI and the IRQ vector at the same rti, in RAM the
-    // CPU now reads. Green background if so, red if not.
-    if (memory.read(0xFFFA) == memory.read(0xFFFE) && memory.read(0xFFFB) == memory.read(0xFFFF) && memory.read(0xFFFE) != 0) {
+    // Before enable() routes the IRQ to the handler: raster.s's .init
+    // section has pointed the IRQ vector at $00FD, put an rti ($40) there,
+    // and the NMI vector at an rti in program text — all in RAM the CPU
+    // now reads. $FFFF is 0 by construction: it is the VIC's idle byte in
+    // bank 3 (the ghost byte), and 0 keeps idle graphics transparent.
+    // Green background if so, red if not.
+    if (memory.read(0xFFFE) == 0xFD && memory.read(0xFFFF) == 0 && memory.read(0x00FD) == 0x40 && memory.read(0xFFFB) != 0) {
         screen.setBackground(BackgroundColor.GREEN);
     } else {
         screen.setBackground(BackgroundColor.RED);

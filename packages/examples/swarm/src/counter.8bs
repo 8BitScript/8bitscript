@@ -1,0 +1,51 @@
+// The frame counter on screen: the timeline's frame, shown as five
+// decimal digits that cost one character a frame.
+//
+// `text.printNumber(cell, timeline.frame(), 5)` every frame was ~2,800
+// cycles on the C64 (measured with CIA 2's timer, 2026-09-19): five
+// subtractions of powers of ten over sixteen bits, then five characters
+// through the text layer — a sixth of the frame, for a number that
+// changes in its last digit. So the digits are kept here as digits, the
+// count is carried across them like an odometer, and only the digits
+// that changed are put on screen: one `text.putChar` a frame, five once
+// in ten thousand. It shows the same number timeline.frame() holds
+// because both count the same ticks: `advance()` once an iteration, from
+// the Counter component, beside `timeline.tick()`.
+import { Video } from "@8bitscript/system";
+import { text } from "@8bitscript/text";
+
+let digits: array<u8, 5>;      // most significant first, 0-9
+let cell: usmallint = 0;       // where the first digit is
+
+export namespace counter {
+    // Five zeros at `at`, and the count at zero.
+    function begin(at: usmallint): void {
+        cell = at;
+        for (let i: utinyint = 0; i < 5; i++) {
+            digits[i] = 0;
+            text.putChar(cell + i, 0x30);
+            if (Video.COLOR_PER_CELL) {
+                text.putColor(cell + i, 1); // white, as the title; putChar leaves the cell's colour
+            }
+        }
+    }
+
+    // One more, and the digits that changed on screen.
+    function advance(): void {
+        let i: utinyint = 4;
+        while (true) {
+            let d: utinyint = digits[i] + 1;
+            if (d < 10) {
+                digits[i] = d;
+                text.putChar(cell + i, 0x30 + d);
+                return;
+            }
+            digits[i] = 0;
+            text.putChar(cell + i, 0x30);
+            if (i == 0) {
+                return; // 99999 wraps to 00000, as the timeline's own byte-wide counters do not — it has a usmallint
+            }
+            i = i - 1;
+        }
+    }
+}

@@ -1,0 +1,12 @@
+// What a sprite looks like on the eight cell machines: a glyph, and
+// nothing to set up. `shapes.c64.8bs` beside this file is what a C64 build
+// resolves instead — the compiler's twin rule (`screen.nes.8bs` beside
+// `screen.8bs`), which is how a portable program keeps the one thing that
+// is a sprite shape on one machine and an ASCII code on another out of
+// its own text.
+export namespace shapes {
+    const ACTOR: utinyint = 0x4F; // 'O'
+
+    function begin(): void {
+    }
+}

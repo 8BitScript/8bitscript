@@ -1,0 +1,30 @@
+// Sixteen cell sprites on a diagonal, drifting right one cell a frame for
+// eight frames, then still: the screenshot tests read the glyphs back.
+import { screen } from "@8bitscript/screen";
+import { text } from "@8bitscript/text";
+import { sprites } from "../src/index.8bs";
+
+let frames: utinyint = 0;
+
+export function main(): void {
+    screen.blank();
+    sprites.begin(16);
+    for (let i: utinyint = 0; i < 16; i++) {
+        sprites.setShape(i, 0x41 + i);   // A..P
+        sprites.setColor(i, 1 + (i & 3)); // 1-4: inside every machine's palette (the VIC-20's bit 3 is multicolour)
+        let x: usmallint = i;
+        sprites.place(i, x * 8, i * 8);
+    }
+    sprites.update();
+    while (true) {
+        waitFrame();
+        if (frames < 8) {
+            frames = frames + 1;
+            for (let i: utinyint = 0; i < 16; i++) {
+                let x: usmallint = i + frames;
+                sprites.place(i, x * 8, i * 8);
+            }
+        }
+        sprites.update();
+    }
+}

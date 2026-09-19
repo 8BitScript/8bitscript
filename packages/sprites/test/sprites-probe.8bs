@@ -1,0 +1,52 @@
+// @8bitscript/sprites, one program for nine machines: twenty sprites in
+// four rows of five, drifting right a pixel a frame for 32 frames, and two
+// more above and below the playfield that only a machine whose border
+// opens can show. The screenshot tests read the end state back on the
+// C64 (sprites, border open), the PET and the VIC-20 (cells, clipped).
+import { screen } from "@8bitscript/screen";
+import { sprites } from "../src/index.8bs";
+import { shapes } from "./shapes.8bs";
+
+const COLORS: array<utinyint, 4> = [1, 7, 3, 5]; // white, yellow, cyan, green: in every palette
+const DRIFT: utinyint = 32;
+let frames: utinyint = 0;
+
+function layout(): void {
+    for (let v: utinyint = 0; v < 20; v++) {
+        let c: utinyint = v % 5;
+        let r: utinyint = 0;
+        if (v >= 15) {
+            r = 3;
+        } else if (v >= 10) {
+            r = 2;
+        } else if (v >= 5) {
+            r = 1;
+        }
+        let x: usmallint = c;
+        x = x * 60 + 16 + frames + sprites.ORIGIN_X; // 16-bit: c * 60 wraps at 8
+        sprites.place(v, x, sprites.ORIGIN_Y + 10 + r * 40);
+    }
+}
+
+export function main(): void {
+    screen.blank();
+    shapes.begin();
+    sprites.begin(22);
+    for (let v: utinyint = 0; v < 22; v++) {
+        sprites.setShape(v, shapes.BLOCK);
+        sprites.setColor(v, COLORS[v & 3]);
+    }
+    layout();
+    sprites.place(20, sprites.ORIGIN_X + 150, 28);  // above the playfield: border only
+    sprites.place(21, sprites.ORIGIN_X + 150, 240); // below it
+    sprites.extend(true);
+    sprites.update();
+    while (true) {
+        waitFrame();
+        if (frames < DRIFT) {
+            frames = frames + 1;
+            layout();
+        }
+        sprites.update();
+    }
+}

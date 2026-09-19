@@ -1,0 +1,77 @@
+// Swarm — the moving-objects showpiece. Sixteen sprites bounce round the
+// picture, on a frame timeline that shows the title, releases them, opens
+// the border so they fly through it (on a machine whose border opens),
+// closes it again, and rotates their colours — one program, nine targets:
+//
+//   - C64: hardware sprites, sixteen from the VIC's eight, reused down
+//     the frame by @8bitscript/sprites' C64 twin over
+//     @8bitscript/c64/multiplex, through the top and bottom border when
+//     the scene opens it.
+//   - PET: eight quadrant-block rings at 4-pixel steps, the sprites
+//     package's PET twin, restoring what they cover — the 32K 3032, whose
+//     4K sibling the 2001 has no room for the twin's tables.
+//   - the other seven: sixteen glyphs on the character grid, the sprites
+//     package's portable cell layer — no border to open, so Open and
+//     Close do nothing and the sprites stay in the playfield. Honest, and
+//     free: sprites.MAX and sprites.EXTENDS are consts, and what a machine
+//     cannot do folds away.
+//
+// ---- where the C64's frame goes ------------------------------------------
+//
+// Measured with CIA 2's timer A around the loop, 2026-09-19, sixteen
+// sprites with eight reused, recorded per frame and printed once: the
+// whole iteration is ~15,300 cycles of the NTSC frame's 17,095 — the
+// scene ~400, the flock's motion ~3,500, sprites.update() ~11,000 — and
+// the C64 runs the loop at one hardware frame an iteration, losing a
+// frame on about half the frames that also recolour all sixteen (FRAME
+// 776 at `--frames 1000`, where 789 is every frame). Those numbers carry
+// what the VIC takes out of every window they were read in: bad lines,
+// the sprites' own DMA, and the raster handler's ten-odd interrupts a
+// frame — about 40% of the update's window is that, not the routine.
+//
+// It was two frames an iteration the same morning: multiplex.update()
+// alone was ~16,000 cycles in the compiler's generic 6502 code, three
+// to four instructions where hand assembly has one (the same finding as
+// @8bitscript/c64/text's print). The update is native now
+// (packages/c64/native/6502/multiplex.s, ~9,500 with the steal inside),
+// and two habits of this program's own paid for the rest, each measured:
+// the counter is five digits kept in place and one putChar a frame
+// (counter.8bs — a five-digit printNumber every frame was ~2,800), and
+// the colours are set from one place so the call inlines (flock.8bs's
+// recolor). Nothing here hides the cost: FRAME counts iterations, and a
+// screenshot at `--frames N` shows about N - 211 of them.
+//
+// The frame loop is here; *what happens when* is Scene.8bx (the cues,
+// composed), *how the sprites move* is flock.8bs (the arithmetic), and
+// *what a sprite looks like* is shapes.8bs with a C64 and a PET twin
+// beside it, and *the count on screen* is counter.8bs.
+// docs/project/frame.md is the design; measured sizes are in ../README.md.
+//
+// ---- reading a screenshot ------------------------------------------------
+//
+//   - Before frame 60: the title and the counter only.
+//   - From 60: the sprites, bouncing. On the C64 rings in four colours;
+//     on the PET eight block rings; on a cell machine letter O's — both
+//     below the two text rows.
+//   - From 180 to 420 on the C64: rings above line 50 and below 250 —
+//     in the border, where nothing draws on a C64 that has not opened it.
+//   - Every 32 frames the colours step along white, yellow, cyan, green.
+//   - FRAME climbs by one a frame; a frozen picture and an idle one differ.
+import { screen } from "@8bitscript/screen";
+import { sprites } from "@8bitscript/sprites";
+import { timeline } from "@8bitscript/timeline";
+import { flock } from "./flock.8bs";
+import { Scene } from "./Scene.8bx";
+
+export function main(): void {
+    screen.blank();
+    flock.begin();
+    timeline.start();
+    while (true) {
+        waitFrame();
+        timeline.tick();
+        Scene();
+        flock.move();
+        sprites.update();
+    }
+}

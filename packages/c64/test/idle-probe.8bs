@@ -1,0 +1,36 @@
+// Idle graphics, run for real: the classic POKE 53265,31 — YSCROLL 7 with
+// 25 rows on — over a blue playfield of white blocks, with the raster
+// list enabled (its handler is what used to be on screen here). Lines
+// 51-54 are then idle (the first bad line is 55) and draw the ghost
+// byte: $FFFF, the IRQ vector's page. Before native/6502/raster.s routed
+// the IRQ through page zero this probe showed `....#.#.` — $0A, the
+// handler's page — down the four lines; now they are solid background
+// blue (PNG rows 23-26 on an NTSC capture, raster line L at row L - 28),
+// the first white row starts at row 27, and the border column stays
+// red from line 100 on (the list's one entry, so the IRQ is live). The
+// ghost byte is also read and the border set green from the top if it
+// is 0 — a red border there means the vector moved. See
+// test/layers.test.mjs.
+import { screen, BorderColor, BackgroundColor } from "../src/screen.8bs";
+import { raster, Register } from "../src/raster.8bs";
+import { scroll } from "../src/scroll.8bs";
+import { idle } from "../src/idle.8bs";
+import { screenRam, colorRam } from "../src/geometry.8bs";
+
+export function main(): void {
+    screen.blank(BorderColor.RED, BackgroundColor.BLUE);
+    for (let cell: usmallint = 0; cell < 1000; cell++) {
+        screenRam[cell] = 160;
+        colorRam[cell] = 1;
+    }
+    scroll.setY(7); // $D011 = $1F: the screen four lines down, the gap above it idle
+    raster.clear();
+    if (idle.ghost() == 0) {
+        raster.at(0, Register.BORDER, 5); // green: $FFFF is 0
+    }
+    raster.at(100, Register.BORDER, 2); // red from 100: the handler runs
+    raster.enable();
+    while (true) {
+        waitFrame();
+    }
+}
