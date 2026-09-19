@@ -1,5 +1,11 @@
 # @8bitscript/atari8
 
+## 0.16.0
+
+### Minor Changes
+
+- 592197a: Atari 8-bit builds can opt into ANTIC 6 (`textmode=gr1`): 20 columns and four playfield colors per character, so `text.setColor` is real instead of an empty stub. Stock GR.0 is unchanged.
+
 ## 0.15.0
 
 ### Patch Changes
