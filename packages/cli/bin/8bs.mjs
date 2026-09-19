@@ -121,7 +121,9 @@ Implemented:
                                browser can know that) and --print dumps
                                the file. --dir names a project copy.
   check <files...>             Report diagnostics for 8BitScript source files
-  doctor                       Verify the toolchains every target needs
+  doctor                       Verify the toolchains every target needs;
+                               offers to install missing pnpm and packaged
+                               emulators from a prompt
   setup <target>               Install/configure what a target needs beyond
     [--rom <path>]             what doctor can offer as a single package-
     [--c64-forever <msi>]      manager command. mega65 builds Xemu from

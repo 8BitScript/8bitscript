@@ -8,8 +8,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
-  parseVersion, atLeast, findLocalBin, pickInstallPlan, findMega65Rom, readyTargets, checkCx16Target, checkMega65Target,
-  vicePackageManagerVersion,
+  parseVersion, atLeast, findLocalBin, pickInstallPlan, pickFixPlan, uniqueFixable, findMega65Rom, readyTargets, checkCx16Target, checkMega65Target,
+  vicePackageManagerVersion, installerHint, PNPM_INSTALLER,
 } from '../src/doctor.mjs';
 import { MEGA65_ROM_920413, sha256Hex } from '../src/setup/rom.mjs';
 import { parseX16emuVersion, romLoadFailure, testbenchBooted } from '../src/setup/cx16.mjs';
@@ -74,9 +74,72 @@ test('pickInstallPlan: a build-from-source installer never gets an auto-install 
   assert.equal(pickInstallPlan(installer, 'linux', () => true), null);
 });
 
+test('pickFixPlan: a setupCommand installer is 8bs setup <target>', () => {
+  assert.deepEqual(
+    pickFixPlan({ buildFromSource: true, setupCommand: 'cx16' }, 'darwin', () => true),
+    { manager: '8bs', args: ['setup', 'cx16'] },
+  );
+  assert.deepEqual(
+    pickFixPlan({ buildFromSource: true, setupCommand: 'mega65' }, 'linux', () => false),
+    { manager: '8bs', args: ['setup', 'mega65'] },
+  );
+  assert.equal(pickFixPlan({ buildFromSource: true, repo: 'https://example.invalid' }, 'darwin', () => true), null);
+});
+
+test('uniqueFixable: one offer per distinct 8bs setup command', () => {
+  const cx16 = { buildFromSource: true, setupCommand: 'cx16', label: 'x16emu' };
+  const mega = { buildFromSource: true, setupCommand: 'mega65', label: 'xmega65' };
+  const checks = [
+    { status: 'fail', label: 'x16emu (Commander X16)', installer: cx16 },
+    { status: 'fail', label: 'Commander X16 ROM', installer: cx16 },
+    { status: 'fail', label: 'xmega65 (MEGA65, via Xemu)', installer: mega },
+    { status: 'fail', label: 'MEGA65 ROM', installer: mega },
+  ];
+  const offered = uniqueFixable(checks, 'darwin', () => true);
+  assert.deepEqual(offered.map((c) => c.label), ['x16emu (Commander X16)', 'xmega65 (MEGA65, via Xemu)']);
+});
+
 test('pickInstallPlan: an unsupported platform (or a missing installer) yields no plan', () => {
   assert.equal(pickInstallPlan({ darwin: { manager: 'brew', args: [] } }, 'win32', () => true), null);
   assert.equal(pickInstallPlan(null, 'darwin', () => true), null);
+});
+
+test('pickInstallPlan: any applies on every platform when its manager is on PATH', () => {
+  assert.deepEqual(
+    pickInstallPlan(PNPM_INSTALLER, 'darwin', (bin) => bin === 'npx'),
+    PNPM_INSTALLER.any,
+  );
+  assert.deepEqual(
+    pickInstallPlan(PNPM_INSTALLER, 'linux', (bin) => bin === 'npx'),
+    PNPM_INSTALLER.any,
+  );
+  assert.deepEqual(
+    pickInstallPlan(PNPM_INSTALLER, 'win32', (bin) => bin === 'npx'),
+    PNPM_INSTALLER.any,
+  );
+});
+
+test('pickInstallPlan: any is skipped when its manager is missing, even on darwin', () => {
+  assert.equal(pickInstallPlan(PNPM_INSTALLER, 'darwin', () => false), null);
+});
+
+test('pickInstallPlan: any wins over a darwin brew plan when npx is present', () => {
+  const installer = {
+    any: { manager: 'npx', args: ['--yes', 'get-pnpm'] },
+    darwin: { manager: 'brew', args: ['install', 'pnpm'] },
+  };
+  assert.deepEqual(
+    pickInstallPlan(installer, 'darwin', (bin) => bin === 'npx' || bin === 'brew'),
+    installer.any,
+  );
+});
+
+test('installerHint: pnpm names npx get-pnpm on every platform', () => {
+  for (const platform of ['darwin', 'linux', 'win32']) {
+    const hint = installerHint(PNPM_INSTALLER, platform);
+    assert.match(hint, /npx --yes get-pnpm/, platform);
+    assert.match(hint, /docs\/language\/project\.md/, platform);
+  }
 });
 
 // vicePackageManagerVersion() is the fallback for `xvic --version` et al
@@ -231,7 +294,8 @@ test('checkMega65Target: nothing installed — xmega65 missing, ROM missing, lin
   }));
   assert.equal(checks['xmega65 (MEGA65, via Xemu)'].status, 'fail');
   assert.equal(checks['MEGA65 ROM'].status, 'fail');
-  assert.equal(checks['Xemu ROM link'].status, 'fail');
+  assert.equal(checks['Xemu ROM link'].status, 'skip');
+  assert.match(checks['Xemu ROM link'].detail, /ROM is not installed/);
   assert.equal(checks.MEGA65.status, 'skip');
 });
 
@@ -261,6 +325,7 @@ test('checkMega65Target: canonical ROM installed but Xemu is not configured to s
   }));
   assert.equal(checks['MEGA65 ROM'].status, 'ok');
   assert.equal(checks['Xemu ROM link'].status, 'fail');
+  assert.match(checks['Xemu ROM link'].detail, /MEGA65\.ROM exists/);
   assert.match(checks['Xemu ROM link'].hint, /--repair/);
   assert.equal(checks.MEGA65.status, 'skip');
 });

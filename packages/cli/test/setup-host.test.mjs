@@ -2,10 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { delimiter, join } from 'node:path';
 
 import {
   isDirOnPath, hasBinaryOnPath, resolveOnPath, hasXcodeCommandLineTools, installXcodeCommandLineTools,
+  extraHostBinDirs, hostPath,
 } from '../src/setup/host.mjs';
 
 test('isDirOnPath: exact entry match, trailing slash tolerated, empty PATH is false', () => {
@@ -46,4 +47,42 @@ test('installXcodeCommandLineTools: runs `xcode-select --install` (never under s
   let seen = null;
   await installXcodeCommandLineTools(async (cmd, args) => { seen = [cmd, args]; return { code: 0 }; });
   assert.deepEqual(seen, ['xcode-select', ['--install']]);
+});
+
+test('extraHostBinDirs: macOS installer home is ~/Library/pnpm, not only the Linux XDG path', () => {
+  const home = '/Users/me';
+  const dirs = extraHostBinDirs(home, { PATH: '/usr/bin' }, 'darwin');
+  assert.ok(dirs.includes(join(home, 'Library', 'pnpm', 'bin')));
+  assert.ok(dirs.includes(join(home, 'Library', 'pnpm')));
+  assert.ok(dirs.includes(join(home, '.local', 'share', 'pnpm', 'bin')), 'older/XDG installs still count');
+  assert.ok(dirs.includes('/opt/homebrew/bin'));
+});
+
+test('extraHostBinDirs: linux does not invent a macOS Library path', () => {
+  const home = '/home/me';
+  const dirs = extraHostBinDirs(home, { PATH: '/usr/bin' }, 'linux');
+  assert.equal(dirs.includes(join(home, 'Library', 'pnpm', 'bin')), false);
+  assert.ok(dirs.includes(join(home, '.local', 'share', 'pnpm', 'bin')));
+});
+
+test('extraHostBinDirs: PNPM_HOME and nvm win over defaults', () => {
+  const home = mkdtempSync(join(tmpdir(), '8bs-host-bins-'));
+  try {
+    const nvmBin = join(home, '.nvm', 'versions', 'node', 'v26.9.0', 'bin');
+    mkdirSync(nvmBin, { recursive: true });
+    mkdirSync(join(home, '.nvm', 'versions', 'node', 'v26.10.0', 'bin'), { recursive: true });
+    const dirs = extraHostBinDirs(home, { PATH: '', PNPM_HOME: '/opt/pnpm', NVM_BIN: '/custom/nvm' }, 'darwin');
+    assert.ok(dirs.includes('/opt/pnpm'));
+    assert.ok(dirs.includes('/opt/pnpm/bin'));
+    assert.ok(dirs.includes('/custom/nvm'));
+    assert.ok(dirs.includes(join(home, '.nvm', 'versions', 'node', 'v26.10.0', 'bin')), 'numeric nvm sort picks 26.10 over 26.9');
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test('hostPath: appends well-known bins after PATH', () => {
+  const search = hostPath({ PATH: '/usr/bin' }, '/Users/me', 'darwin');
+  assert.ok(search.startsWith(`/usr/bin${delimiter}`));
+  assert.ok(search.split(delimiter).includes(join('/Users/me', 'Library', 'pnpm', 'bin')));
 });

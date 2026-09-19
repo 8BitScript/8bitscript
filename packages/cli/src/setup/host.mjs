@@ -2,7 +2,14 @@
 // Apple Command Line Tools on macOS, and PATH inspection every launcher
 // install needs. Process boundaries are injected (an `exec` matching
 // exec.mjs's execCapture/execInherit) so unit tests never run them.
-import { existsSync } from 'node:fs';
+//
+// extraHostBinDirs / hostPath are the other half of that: a GUI-launched
+// editor never reads `.zshrc`, so pnpm's installer, nvm, and Apple Silicon
+// Homebrew are invisible unless we add the directories they actually use.
+// The VS Code extension's extraBinDirs() must stay in sync with this list
+// (editors/vscode/src/projects.cjs).
+import { existsSync, readdirSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { delimiter, join } from 'node:path';
 
 /** Is `name` an executable on PATH? Same logic as doctor.mjs's private
@@ -62,4 +69,71 @@ export function resolveOnPath(name, env = process.env, platform = process.platfo
     if (existsSync(candidate)) return candidate;
   }
   return null;
+}
+
+/** Highest installed nvm node `bin/`, or null. */
+function nvmNodeBin(home) {
+  const base = join(home, '.nvm', 'versions', 'node');
+  let names;
+  try {
+    names = readdirSync(base).filter((name) => name.startsWith('v'));
+  } catch {
+    return null;
+  }
+  names.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  const last = names.at(-1);
+  return last ? join(base, last, 'bin') : null;
+}
+
+function pnpmHomeDirs(home, env, platform) {
+  const homes = [];
+  if (env.PNPM_HOME) homes.push(env.PNPM_HOME);
+  if (platform === 'darwin') homes.push(join(home, 'Library', 'pnpm'));
+  if (platform === 'win32') {
+    homes.push(join(env.LOCALAPPDATA || join(home, 'AppData', 'Local'), 'pnpm'));
+  }
+  homes.push(join(env.XDG_DATA_HOME || join(home, '.local', 'share'), 'pnpm'));
+  return homes;
+}
+
+/**
+ * Directories a GUI-launched editor or a non-login shell often lacks on
+ * PATH. pnpm 12's installer writes `PNPM_HOME` into `.zshrc` (macOS:
+ * `~/Library/pnpm`; Linux: `~/.local/share/pnpm`); nvm and Homebrew do
+ * the same. Each pnpm home is listed both as itself and as `bin/` —
+ * older installs put the executable in the home, current ones in `bin/`.
+ *
+ * @param {string} [home]
+ * @param {NodeJS.ProcessEnv} [env]
+ * @param {NodeJS.Platform} [platform]
+ * @returns {string[]}
+ */
+export function extraHostBinDirs(home = homedir(), env = process.env, platform = process.platform) {
+  const pnpmBins = pnpmHomeDirs(home, env, platform).flatMap((dir) => [join(dir, 'bin'), dir]);
+  return [...new Set([
+    ...pnpmBins,
+    join(home, '.local', 'bin'),
+    env.NVM_BIN,
+    nvmNodeBin(home),
+    join(home, '.volta', 'bin'),
+    join(home, '.asdf', 'shims'),
+    join(home, '.fnm', 'aliases', 'default', 'bin'),
+    join(home, '.local', 'share', 'fnm', 'aliases', 'default', 'bin'),
+    '/opt/homebrew/bin',
+    '/usr/local/bin',
+    '/usr/bin',
+  ].filter(Boolean))];
+}
+
+/**
+ * PATH with well-known bins appended, so a Dock-launched editor's
+ * `8bs doctor` can still see pnpm, npx, and brew.
+ *
+ * @param {NodeJS.ProcessEnv} [env]
+ * @param {string} [home]
+ * @param {NodeJS.Platform} [platform]
+ */
+export function hostPath(env = process.env, home = homedir(), platform = process.platform) {
+  const current = (env.PATH || '').split(delimiter).filter(Boolean);
+  return [...new Set([...current, ...extraHostBinDirs(home, env, platform)])].join(delimiter);
 }

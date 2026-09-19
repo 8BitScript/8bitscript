@@ -8,7 +8,8 @@
 // command when one is known, and — for anything this machine's platform
 // can install with a single trusted command — an interactive prompt to
 // run that command right here, rather than making the reader leave the
-// terminal and come back.
+// terminal and come back. Host tools are in the same offer: missing
+// pnpm is `npx get-pnpm` (Corepack no longer ships with Node).
 //
 // The VIC-20 and Commander X16 checks go further than versions: a VICE
 // build without ROMs prints a version and still cannot boot a machine, so
@@ -29,7 +30,7 @@ import { delimiter, dirname, join } from 'node:path';
 
 import { MEGA65_ROM_920413, validateRomBuffer, inspectXemuRomLink } from './setup/rom.mjs';
 import { MEGA65_ROM_CANONICAL_PATH, CX16_ROM_INSTALL_PATH, xemuRomLinkPath } from './setup/paths.mjs';
-import { resolveOnPath } from './setup/host.mjs';
+import { hostPath, resolveOnPath } from './setup/host.mjs';
 import { inspectLauncher } from './setup/launcher.mjs';
 import {
   inspectRomFile, x16emuLauncherSpec, isBrokenMacosSymlink, parseX16emuVersion, romLoadFailure, testbenchBooted,
@@ -87,10 +88,16 @@ export function findLocalBin(dir, name) {
   }
 }
 
+/** The binary `pickInstallPlan` looks for: apt's scriptable name is apt-get. */
+function planBinary(plan) {
+  return plan.manager === 'apt' ? 'apt-get' : plan.manager;
+}
+
 /**
- * Pick the install plan this platform can actually run, from an installer's
- * `darwin`/`linux` options — the first Linux package manager found on PATH,
- * since a machine only ever has some of apt/pacman/pamac/yay/paru/brew
+ * Pick the install plan this platform can actually run. `any` is tried
+ * first on every OS (pnpm is `npx get-pnpm`, which is not a brew/apt
+ * formula). Then `darwin`/`linux` — the first Linux package manager found
+ * on PATH, since a machine only ever has some of apt/pacman/pamac/yay/paru/brew
  * (linuxbrew). `buildFromSource` blocks this outright: x16emu and xmega65
  * (Xemu) are both source-only, and neither one's AUR package is trusted here
  * (see the comments on their INSTALLERS entries) — the interactive one-key
@@ -101,13 +108,46 @@ export function findLocalBin(dir, name) {
  */
 export function pickInstallPlan(installer, platform = process.platform, hasBinary = onPath) {
   if (!installer || installer.buildFromSource) return null;
+  if (installer.any && hasBinary(planBinary(installer.any))) return installer.any;
   if (platform === 'darwin') {
-    return installer.darwin && hasBinary('brew') ? installer.darwin : null;
+    return installer.darwin && hasBinary(planBinary(installer.darwin)) ? installer.darwin : null;
   }
   if (platform === 'linux') {
-    return (installer.linux ?? []).find((plan) => hasBinary(plan.manager === 'apt' ? 'apt-get' : plan.manager)) ?? null;
+    return (installer.linux ?? []).find((plan) => hasBinary(planBinary(plan))) ?? null;
   }
   return null;
+}
+
+/**
+ * What a doctor keypress can actually run. Packaged brew/apt/npx first;
+ * then `8bs setup <target>` for a source-built installer that names a
+ * setupCommand (cx16, mega65). Those used to be hint-only because
+ * pickInstallPlan refuses buildFromSource.
+ */
+export function pickFixPlan(installer, platform = process.platform, hasBinary = onPath) {
+  const packaged = pickInstallPlan(installer, platform, hasBinary);
+  if (packaged) return packaged;
+  if (installer?.setupCommand) {
+    return { manager: '8bs', args: ['setup', installer.setupCommand] };
+  }
+  return null;
+}
+
+/** FAIL checks doctor can offer, one per distinct command so cx16's
+ * emulator and ROM FAILs don't prompt `8bs setup cx16` twice. */
+export function uniqueFixable(checks, platform = process.platform, hasBinary = onPath) {
+  const seen = new Set();
+  const out = [];
+  for (const check of checks) {
+    if (check.status !== FAIL) continue;
+    const plan = pickFixPlan(check.installer, platform, hasBinary);
+    if (!plan) continue;
+    const key = `${plan.manager}\0${(plan.args ?? []).join('\0')}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(check);
+  }
+  return out;
 }
 
 // ---- process running ------------------------------------------------------
@@ -160,18 +200,18 @@ const result = (status, label, detail, hint = null, extra = {}) => ({
   status, label, detail, hint, installer: extra.installer ?? null, targets: extra.targets ?? [],
 });
 
-async function versionCheck(label, command, args, minimum, hint, describeMin) {
+async function versionCheck(label, command, args, minimum, hint, describeMin, extra = {}) {
   const r = await run(command, args);
-  if (r.missing) return result(FAIL, label, 'not found', hint);
+  if (r.missing) return result(FAIL, label, 'not found', hint, extra);
   const version = parseVersion(r.stdout + r.stderr);
   if (!version) {
-    return result(WARN, label, `installed, but the version was unreadable`, hint);
+    return result(WARN, label, `installed, but the version was unreadable`, hint, extra);
   }
   const pretty = version.join('.');
   if (minimum && !atLeast(version, minimum)) {
-    return result(FAIL, label, `${pretty} — need ${describeMin}`, hint);
+    return result(FAIL, label, `${pretty} — need ${describeMin}`, hint, extra);
   }
-  return result(OK, label, minimum ? `${pretty} (need ${describeMin})` : pretty);
+  return result(OK, label, minimum ? `${pretty} (need ${describeMin})` : pretty, null, extra);
 }
 
 async function checkHost() {
@@ -179,12 +219,25 @@ async function checkHost() {
   const checks = [
     atLeast(node, [26])
       ? result(OK, 'Node.js', `${node.join('.')} (need >=26)`)
-      : result(FAIL, 'Node.js', `${node.join('.')} — need >=26`, 'docs/setup/host-toolchain.md'),
-    await versionCheck('pnpm', 'pnpm', ['--version'], [12], 'docs/setup/host-toolchain.md', '>=12'),
-    await versionCheck('git', 'git', ['--version'], [2, 30], 'docs/setup/host-toolchain.md', '>=2.30'),
+      : result(FAIL, 'Node.js', `${node.join('.')} — need >=26`, 'docs/language/project.md'),
+    await versionCheck(
+      'pnpm', 'pnpm', ['--version'], [12], installerHint(PNPM_INSTALLER), '>=12',
+      { installer: PNPM_INSTALLER },
+    ),
+    await versionCheck('git', 'git', ['--version'], [2, 30], 'docs/language/project.md', '>=2.30'),
   ];
   return { title: 'Host', checks };
 }
+
+// pnpm is not an emulator: Corepack no longer ships with Node, and the
+// standalone installer (`npx get-pnpm`) writes a native binary into
+// PNPM_HOME — which a GUI editor never sees from `.zshrc`. `any` makes
+// the one-key prompt work on every OS that has npx, without brew/apt.
+export const PNPM_INSTALLER = {
+  label: 'pnpm',
+  any: { manager: 'npx', args: ['--yes', 'get-pnpm'] },
+  docs: 'docs/language/project.md',
+};
 
 // ---- emulator installers ---------------------------------------------------
 //
@@ -276,13 +329,17 @@ function planCommand(plan) {
  * always shows concrete things to try, not just the one this machine can run
  * unattended right now, collapsed behind "your distro's package manager".
  * The one `pickInstallPlan` would actually run is marked "(detected)".
+ * `any` is listed on every OS (that's the point of it).
  */
-function installerHint(installer) {
-  const plans = process.platform === 'darwin'
-    ? (installer.darwin ? [installer.darwin] : [])
-    : process.platform === 'linux'
-      ? (installer.linux ?? [])
-      : [];
+export function installerHint(installer, platform = process.platform) {
+  const plans = [
+    ...(installer.any ? [installer.any] : []),
+    ...(platform === 'darwin'
+      ? (installer.darwin ? [installer.darwin] : [])
+      : platform === 'linux'
+        ? (installer.linux ?? [])
+        : []),
+  ];
   if (plans.length === 0) {
     if (installer.buildFromSource) {
       const setupHint = installer.setupCommand ? `run: 8bs setup ${installer.setupCommand} — ` : '';
@@ -290,7 +347,7 @@ function installerHint(installer) {
     }
     return `brew install <formula>, or your distro's package manager — ${installer.docs}`;
   }
-  const detected = pickInstallPlan(installer);
+  const detected = pickInstallPlan(installer, platform);
   const lines = plans.map((plan) => `${planCommand(plan)}${plan === detected ? '  (detected)' : ''}`);
   return `try:\n        ${lines.join('\n        ')}\n        — ${installer.docs}`;
 }
@@ -517,7 +574,7 @@ export async function checkMega65Target({
       hasEmulator
         ? 'xmega65 is installed, but the full MEGA65 ROM is missing.\n        run: 8bs setup mega65'
         : 'run: 8bs setup mega65',
-      { targets },
+      { installer, targets },
     ));
   } else if (found.validation.ok) {
     romOk = true;
@@ -528,7 +585,7 @@ export async function checkMega65Target({
       `found at ${found.path}, but it isn't the full ${MEGA65_ROM_920413.release} ROM `
       + '(may be an Open ROM, or a different release)',
       'run: 8bs setup mega65',
-      { targets },
+      { installer, targets },
     ));
   }
 
@@ -541,10 +598,16 @@ export async function checkMega65Target({
     linkOk = true;
     checks.push(result(OK, 'Xemu ROM link', `${linkPath} (installed directly, not linked to the canonical copy)`, null, { targets }));
   } else if (linkInspection.state === 'absent') {
-    checks.push(result(
-      FAIL, 'Xemu ROM link', 'MEGA65.ROM exists but Xemu is not configured to use it.',
-      'run: 8bs setup mega65 --repair', { targets },
-    ));
+    // "MEGA65.ROM exists but Xemu is not configured" is only true when
+    // the ROM itself is already installed.
+    if (!romOk) {
+      checks.push(result(SKIP, 'Xemu ROM link', 'skipped — MEGA65 ROM is not installed', null, { targets }));
+    } else {
+      checks.push(result(
+        FAIL, 'Xemu ROM link', 'MEGA65.ROM exists but Xemu is not configured to use it.',
+        'run: 8bs setup mega65 --repair', { installer, targets },
+      ));
+    }
   } else {
     checks.push(result(
       FAIL, 'Xemu ROM link', `${linkPath} exists but isn't the MEGA65 ROM`,
@@ -618,10 +681,10 @@ export async function checkCx16Target({
     checks.push(result(
       FAIL, 'Commander X16 ROM', 'not found',
       launcherPath ? 'emulator installed but ROM is missing\n        run: 8bs setup cx16' : 'run: 8bs setup cx16',
-      { targets },
+      { installer, targets },
     ));
   } else {
-    checks.push(result(FAIL, 'Commander X16 ROM', `${rom.path} is ${ROM_STATE_WORDS[rom.state]}`, 'run: 8bs setup cx16', { targets }));
+    checks.push(result(FAIL, 'Commander X16 ROM', `${rom.path} is ${ROM_STATE_WORDS[rom.state]}`, 'run: 8bs setup cx16', { installer, targets }));
   }
 
   let brokenSymlink = false;
@@ -799,26 +862,32 @@ function spawnInstall(command, args) {
 
 /**
  * Offer to install one missing tool, right here. Only called for a FAIL
- * check that carries an `installer` this platform has a real plan for
- * (`pickInstallPlan` found a package manager on PATH) — a build-from-source
- * tool, or a platform/manager combination this doctor doesn't recognize,
- * only ever gets the printed hint, never a prompt.
+ * check that carries a `pickFixPlan` — packaged brew/apt/npx, or
+ * `8bs setup <target>` for a source-built emulator.
  *
- * @returns {Promise<boolean>} whether an install ran (regardless of outcome)
+ * @returns {Promise<{ ran: boolean, ok: boolean }>}
  */
 async function offerInstall(check) {
-  const plan = pickInstallPlan(check.installer);
-  if (!plan) return false;
+  const plan = pickFixPlan(check.installer);
+  if (!plan) return { ran: false, ok: false };
+  const offered = plan.manager === '8bs' ? `8bs ${plan.args.join(' ')}` : plan.manager;
   process.stdout.write(`\n  ${check.label}: ${check.installer.label} is missing.\n`);
-  process.stdout.write(`  Press [i] to install with ${plan.manager} now, any other key to skip: `);
+  process.stdout.write(`  Press [i] to install with ${offered} now, any other key to skip: `);
   const key = await readKey();
   process.stdout.write('\n');
-  if (key.toLowerCase() !== 'i') return false;
-  const command = plan.sudo ? 'sudo' : (plan.manager === 'apt' ? 'apt-get' : plan.manager);
-  const args = plan.sudo ? [plan.manager === 'apt' ? 'apt-get' : plan.manager, ...plan.args] : plan.args;
+  if (key.toLowerCase() !== 'i') return { ran: false, ok: false };
+  let command;
+  let args;
+  if (plan.manager === '8bs') {
+    command = process.execPath;
+    args = [process.argv[1], ...plan.args];
+  } else {
+    command = plan.sudo ? 'sudo' : (plan.manager === 'apt' ? 'apt-get' : plan.manager);
+    args = plan.sudo ? [plan.manager === 'apt' ? 'apt-get' : plan.manager, ...plan.args] : plan.args;
+  }
   const ok = await spawnInstall(command, args);
   process.stdout.write(ok ? `  ${plan.manager} reported success.\n` : `  ${plan.manager} reported an error — see the output above.\n`);
-  return true;
+  return { ran: true, ok };
 }
 
 // ---- report ---------------------------------------------------------------
@@ -845,6 +914,10 @@ export function readyTargets(checks, targets = ALL_TARGETS) {
 
 /** @returns {Promise<number>} process exit code */
 export async function doctor() {
+  // A Dock-launched editor's PATH has none of nvm / pnpm / Homebrew. Append
+  // those well-known bins before any check or one-key install runs, so
+  // `pnpm` and `npx get-pnpm` resolve the same way the editor does.
+  process.env.PATH = hostPath();
   process.stdout.write('8bs doctor\n');
   process.stdout.write('compiler: built in (native backends, not yet able to build; see the 0.2.0 roadmap)\n');
 
@@ -877,14 +950,19 @@ export async function doctor() {
   // Offer to fix what's broken, one tool at a time, before the final
   // summary — only the FAIL checks that carry an installer this platform
   // can actually run unattended, and only in a real interactive terminal.
-  const fixable = allChecks.filter((c) => c.status === FAIL && pickInstallPlan(c.installer));
-  if (fixable.length && canPromptInteractively()) {
+  const fixable = uniqueFixable(allChecks);
+  const promptable = canPromptInteractively();
+  if (fixable.length && promptable) {
     process.stdout.write(`\n${fixable.length} of those can be installed right now:\n`);
+    let installsRan = 0;
+    let installsFailed = 0;
     for (const check of fixable) {
-      await offerInstall(check);
+      const { ran, ok } = await offerInstall(check);
+      if (ran) installsRan += 1;
+      if (ran && !ok) installsFailed += 1;
     }
     process.stdout.write('\nRe-run `8bs doctor` to confirm.\n');
-    return failures > 0 ? 1 : 0;
+    return (installsRan === fixable.length && installsFailed === 0) ? 0 : (failures > 0 ? 1 : 0);
   }
 
   if (failures || warnings) {

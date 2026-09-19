@@ -124,7 +124,8 @@ test('makeTask: a .mjs toolchain runs through node, not directly', () => {
   const task = makeTask(project, 'build', 'c64', 'ntsc');
   assert.equal(task.execution.commandLine.value, process.execPath);
   assert.deepEqual(task.execution.args.slice(0, 1), [project.toolchain]);
-  assert.equal(task.execution.options.env, undefined, 'plain Node does not need ELECTRON_RUN_AS_NODE');
+  assert.equal(task.execution.options.env.ELECTRON_RUN_AS_NODE, undefined, 'plain Node does not need ELECTRON_RUN_AS_NODE');
+  assert.ok(task.execution.options.env.PATH, 'tasks still get the well-known bins a GUI editor lacks');
 });
 
 test('Projects.checkoutFlag: an open workspace folder that is itself a checkout wins', () => {
@@ -266,6 +267,51 @@ test('registerRunner: install refuses a package manager that cannot be found on 
     });
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('registerRunner: missing pnpm offers Run Doctor instead of a PATH lecture', async () => {
+  const dir = tmpDir();
+  const home = tmpDir();
+  const prev = {
+    HOME: process.env.HOME,
+    PATH: process.env.PATH,
+    PNPM_HOME: process.env.PNPM_HOME,
+    NVM_BIN: process.env.NVM_BIN,
+  };
+  try {
+    process.env.HOME = home;
+    process.env.PATH = '/usr/bin';
+    delete process.env.PNPM_HOME;
+    delete process.env.NVM_BIN;
+    writeConfig(dir);
+    vscode.__mock.reset();
+    vscode.__mock.queues.showErrorMessage.push('Run Doctor');
+    vscode.workspace.findFiles = () => Promise.resolve([]);
+    await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async () => {
+      await vscode.__mock.trigger('8bitscript.install', {
+        dir, name: 'my-game', packageManager: 'pnpm',
+      });
+      await tick();
+      const shown = vscode.__mock.calls.showErrorMessage[0];
+      assert.ok(shown, 'the missing-pnpm dialog ran');
+      assert.match(shown[0], /Run 8BitScript: Doctor to install it/);
+      assert.equal(shown[1], 'Run Doctor');
+      await tick();
+      assert.ok(
+        vscode.__mock.executedCommands.some((c) => c.id === '8bitscript.doctor'),
+        'Run Doctor starts 8bs doctor',
+      );
+    });
+  } finally {
+    process.env.HOME = prev.HOME;
+    process.env.PATH = prev.PATH;
+    if (prev.PNPM_HOME === undefined) delete process.env.PNPM_HOME;
+    else process.env.PNPM_HOME = prev.PNPM_HOME;
+    if (prev.NVM_BIN === undefined) delete process.env.NVM_BIN;
+    else process.env.NVM_BIN = prev.NVM_BIN;
+    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(home, { recursive: true, force: true });
   }
 });
 
