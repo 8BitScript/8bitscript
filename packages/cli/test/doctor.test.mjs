@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
-  parseVersion, atLeast, findLocalBin, pickInstallPlan, findMega65Rom, readyTargets, checkCx16Target, checkMega65Target,
+  parseVersion, atLeast, findLocalBin, pickInstallPlan, dedupeFixableChecks, findMega65Rom, readyTargets, checkCx16Target, checkMega65Target,
   vicePackageManagerVersion,
 } from '../src/doctor.mjs';
 import { MEGA65_ROM_920413, sha256Hex } from '../src/setup/rom.mjs';
@@ -77,6 +77,31 @@ test('pickInstallPlan: a build-from-source installer never gets an auto-install 
 test('pickInstallPlan: an unsupported platform (or a missing installer) yields no plan', () => {
   assert.equal(pickInstallPlan({ darwin: { manager: 'brew', args: [] } }, 'win32', () => true), null);
   assert.equal(pickInstallPlan(null, 'darwin', () => true), null);
+});
+
+test('dedupeFixableChecks: one install plan per installer (four VICE binaries → one)', () => {
+  const vice = {
+    label: 'VICE (xvic, x64sc, xpet, x128)',
+    darwin: { manager: 'brew', args: ['install', 'vice'] },
+  };
+  const atari = {
+    label: 'atari800 (Atari 8-bit)',
+    darwin: { manager: 'brew', args: ['install', 'atari800'] },
+  };
+  const fail = (label, installer) => ({
+    status: 'fail', label, installer, targets: [],
+  });
+  const checks = [
+    fail('xvic (VIC-20)', vice),
+    fail('x64sc (C64)', vice),
+    fail('xpet (PET)', vice),
+    fail('x128 (C128)', vice),
+    fail('atari800 (Atari 8-bit)', atari),
+  ];
+  const deduped = dedupeFixableChecks(checks, 'darwin', (bin) => bin === 'brew');
+  assert.equal(deduped.length, 2);
+  assert.equal(deduped[0].installer, vice);
+  assert.equal(deduped[1].installer, atari);
 });
 
 // vicePackageManagerVersion() is the fallback for `xvic --version` et al
