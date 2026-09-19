@@ -1,5 +1,11 @@
 # @8bitscript/mega65
 
+## 0.16.0
+
+### Patch Changes
+
+- 46e9791: `text.fill` on MEGA65 now maps colour RAM over the CIAs (`prepare`/`release`) before it writes, so a fill past cell 1023 no longer pokes CIA2 and scrambles the VIC-IV charset pointer. 2048's board was the measured case: the bottom tile row landed on a CIA2 PRA mirror and every glyph drew as junk.
+
 ## 0.15.0
 
 ### Patch Changes

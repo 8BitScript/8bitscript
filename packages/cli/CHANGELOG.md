@@ -1,5 +1,27 @@
 # @8bitscript/cli
 
+## 0.16.0
+
+### Patch Changes
+
+- 592197a: Atari 8-bit builds can opt into ANTIC 6 (`textmode=gr1`): 20 columns and four playfield colors per character, so `text.setColor` is real instead of an empty stub. Stock GR.0 is unchanged.
+- b6dbbbb: `8bs doctor` offers to install pnpm (`npx get-pnpm`) and to run `8bs setup cx16` / `8bs setup mega65` for the source-built emulators. The editor finds pnpm where the installer actually puts it — including `~/Library/pnpm` on macOS — and offers **Run Doctor** instead of lecturing about `.zshrc`.
+- Updated dependencies [592197a]
+- Updated dependencies [46e9791]
+  - @8bitscript/atari8@0.16.0
+  - @8bitscript/compiler@0.16.0
+  - @8bitscript/mega65@0.16.0
+  - @8bitscript/language-server@0.16.0
+  - @8bitscript/studio@0.16.0
+  - @8bitscript/examples@0.16.0
+  - @8bitscript/c128@0.16.0
+  - @8bitscript/c64@0.16.0
+  - @8bitscript/cx16@0.16.0
+  - @8bitscript/nes@0.16.0
+  - @8bitscript/pet@0.16.0
+  - @8bitscript/vic20@0.16.0
+  - @8bitscript/web@0.16.0
+
 ## 0.15.0
 
 ### Minor Changes
