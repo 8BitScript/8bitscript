@@ -1,0 +1,57 @@
+// The README hero: "8BIT / SCRIPT" in a 5x7 pixel font, one reverse-video
+// cell per pixel, one colour per row — rendered by 8BitScript itself and
+// photographed on the C64 with `8bs run c64 --screenshot hero.png --frames 400`.
+// To rebuild it: copy this file into any 8BitScript project as its entry.
+import { screen } from "@8bitscript/screen";
+import { text, TextColor } from "@8bitscript/text";
+
+// Eight glyphs, seven rows each, five bits per row (bit 4 is leftmost).
+// Order: 8 B I T S C R P
+const FONT: array<utinyint, 56> = [
+    0x0E, 0x11, 0x11, 0x0E, 0x11, 0x11, 0x0E, // 8
+    0x1E, 0x11, 0x11, 0x1E, 0x11, 0x11, 0x1E, // B
+    0x1F, 0x04, 0x04, 0x04, 0x04, 0x04, 0x1F, // I
+    0x1F, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, // T
+    0x0F, 0x10, 0x10, 0x0E, 0x01, 0x01, 0x1E, // S
+    0x0E, 0x11, 0x10, 0x10, 0x10, 0x11, 0x0E, // C
+    0x1E, 0x11, 0x11, 0x1E, 0x14, 0x12, 0x11, // R
+    0x1E, 0x11, 0x11, 0x1E, 0x10, 0x10, 0x10, // P
+];
+const TEXT: array<utinyint, 10> = [0, 1, 2, 3, 4, 5, 6, 2, 7, 3]; // 8BIT SCRIPT
+const ROWCOLOR: array<utinyint, 16> = [
+    TextColor.RED, TextColor.RED, TextColor.YELLOW, TextColor.YELLOW,
+    TextColor.GREEN, TextColor.GREEN, TextColor.CYAN, TextColor.CYAN,
+    TextColor.CYAN, TextColor.BLUE, TextColor.BLUE, TextColor.PURPLE,
+    TextColor.PURPLE, TextColor.WHITE, TextColor.WHITE, TextColor.WHITE,
+];
+
+const ROW: usmallint = text.COLUMNS;
+
+function drawLine(start: utinyint, count: utinyint, top: utinyint, left: utinyint, color: utinyint): void {
+    for (let r: utinyint = 0; r < 7; r++) {
+        text.setColor(ROWCOLOR[color + r]);
+        for (let k: utinyint = 0; k < count; k++) {
+            let bits: utinyint = FONT[TEXT[start + k] * 7 + r];
+            let mask: utinyint = 0x10;
+            for (let c: utinyint = 0; c < 5; c++) {
+                if ((bits & mask) != 0) {
+                    text.print((top + r) * ROW + left + k * 6 + c, " ");
+                }
+                mask = mask >> 1;
+            }
+        }
+    }
+}
+
+export function main(): void {
+    screen.blank();
+    text.setReverse(true);
+    // "8BIT" is 4 glyphs = 23 cells wide; "SCRIPT" is 6 glyphs = 35 wide.
+    drawLine(0, 4, 2, 9, 0);
+    drawLine(4, 6, 10, 3, 8);
+    text.setReverse(false);
+    text.setColor(TextColor.WHITE);
+    text.print(19 * ROW + 6, "ONE LANGUAGE. MANY MACHINES.");
+    text.print(21 * ROW + 5, "REAL MACHINE CODE. NO RUNTIME.");
+    text.releaseCursor();
+}
