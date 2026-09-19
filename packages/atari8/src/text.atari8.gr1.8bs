@@ -1,0 +1,160 @@
+// @8bitscript/atari8/text — ANTIC 6 (GR.1) twin, tag `gr1`.
+//
+// 20×24 cells. A screen byte's low six bits are the glyph (64 of them,
+// from a RAM copy of the OS font at `$3C00`); the top two pick COLPF0–3.
+// There is no color RAM. `setColor` stores which of those four registers
+// the next glyph uses, and `putChar` writes the pair as one byte.
+// Reverse video has no bit-7 invert in this mode (those bits are the
+// color), so a reverse space is a solid `$FF` glyph and a reverse digit
+// is an inverted copy of 0-9 punched into unused slots — black holes
+// in a colored block, which is how 2048's tiles read.
+import { cursorInhibit } from "./index.8bs";
+import { ensurePlayfield, screenRam } from "./screen.8bs";
+
+export namespace TextColor {
+    const BLACK: utinyint = 0;
+    const WHITE: utinyint = 1;
+    const RED: utinyint = 2;
+    const CYAN: utinyint = 3;
+    const PURPLE: utinyint = 4;
+    const GREEN: utinyint = 5;
+    const BLUE: utinyint = 6;
+    const YELLOW: utinyint = 7;
+}
+
+function atasciiToInternal(code: utinyint): utinyint {
+    if (code < 32) {
+        return code + 64;
+    }
+    if (code < 96) {
+        return code - 32;
+    }
+    return code;
+}
+
+let currentReverse: bool = false;
+let currentColor: utinyint = 0;
+
+const INVERT_DIGIT: array<utinyint, 10> = [2, 3, 4, 5, 6, 7, 10, 11, 15, 27];
+const SOLID: utinyint = 63;
+
+function colorBits(color: utinyint): utinyint {
+    if (color == TextColor.CYAN) {
+        return 1;
+    }
+    if (color == TextColor.BLUE) {
+        return 1;
+    }
+    if (color == TextColor.GREEN) {
+        return 2;
+    }
+    if (color == TextColor.YELLOW) {
+        return 3;
+    }
+    if (color == TextColor.RED) {
+        return 3;
+    }
+    if (color == TextColor.PURPLE) {
+        return 3;
+    }
+    return 0;
+}
+
+function glyphOf(code: utinyint): utinyint {
+    if (currentReverse) {
+        if (code == 32) {
+            return SOLID;
+        }
+        if (code >= 48) {
+            if (code <= 57) {
+                return INVERT_DIGIT[code - 48];
+            }
+        }
+    }
+    return atasciiToInternal(code) & 63;
+}
+
+function toInternal(code: utinyint): utinyint {
+    return glyphOf(code) | (currentColor << 6);
+}
+
+function prepare(): void {
+    ensurePlayfield();
+    cursorInhibit = 1;
+}
+
+function place(cell: usmallint, code: utinyint): void {
+    screenRam[cell] = toInternal(code);
+}
+
+const DIGIT_PLACES: array<usmallint, 5> = [10000, 1000, 100, 10, 1];
+
+export namespace text {
+    const CELL_COUNT: usmallint = 480; // 20 columns x 24 rows
+    const COLUMNS: utinyint = 20;
+    const ROWS: utinyint = 24;
+
+    function columns(): utinyint {
+        return text.COLUMNS;
+    }
+
+    function rows(): utinyint {
+        return text.ROWS;
+    }
+
+    function putChar(cell: usmallint, code: utinyint): void {
+        prepare();
+        screenRam[cell] = toInternal(code);
+    }
+
+    function putColor(cell: usmallint, color: utinyint): void {
+        prepare();
+        screenRam[cell] = (screenRam[cell] & 63) | (colorBits(color) << 6);
+    }
+
+    function setColor(color: utinyint): void {
+        currentColor = colorBits(color);
+    }
+
+    function setReverse(on: bool): void {
+        currentReverse = on;
+    }
+
+    function releaseCursor(): void {
+    }
+
+    function print(cell: usmallint, s: string): void {
+        prepare();
+        for (let i: utinyint = 0; i < s.length; i++) {
+            place(cell + i, s[i]);
+        }
+    }
+
+    function fill(cell: usmallint, count: usmallint, code: utinyint): void {
+        prepare();
+        for (let i: usmallint = 0; i < count; i++) {
+            place(cell + i, code);
+        }
+    }
+
+    function printNumber(cell: usmallint, value: usmallint, width: utinyint): void {
+        prepare();
+        let k: utinyint = width;
+        if (k < DIGIT_PLACES.length) {
+            k = DIGIT_PLACES.length;
+        }
+        while (k > 0) {
+            let digit: utinyint = 48;
+            if (k <= DIGIT_PLACES.length) {
+                while (value >= DIGIT_PLACES[DIGIT_PLACES.length - k]) {
+                    value = value - DIGIT_PLACES[DIGIT_PLACES.length - k];
+                    digit++;
+                }
+            }
+            if (k <= width) {
+                place(cell + width - k, digit);
+            }
+            k--;
+        }
+    }
+}

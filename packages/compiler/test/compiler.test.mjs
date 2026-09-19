@@ -319,7 +319,7 @@ test('imports lower to records for the linker, not to failures', () => {
 
 import { link } from '../index.mjs';
 import { optimizeReachable } from '../src/linker/optimize.mjs';
-import { stockFacts } from '../../cli/src/hardware.mjs';
+import { loadCatalog, resolveHardware, stockFacts } from '../../cli/src/hardware.mjs';
 import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 
@@ -492,6 +492,17 @@ test('text.setColor is dropped on a machine with no per-cell color, and kept whe
   assert.deepEqual(c64.diagnostics, []);
   const c64Out = optimizeReachable(c64.ir);
   assert.ok(c64Out.functions.some((f) => f.name === 'text_setColor'), 'C64 must keep setColor');
+});
+
+test('text.setColor is kept on Atari GR.1, which has per-character color', () => {
+  const { hardware } = resolveHardware(loadCatalog('atari8'), { overrides: { textmode: 'gr1' } });
+  const linked = link(SETCOLOR_CONSUMER, STUDIO_ENTRY, {
+    machine: 'atari8', tags: hardware.tags, facts: hardware.facts,
+  });
+  assert.deepEqual(linked.diagnostics, []);
+  const out = optimizeReachable(linked.ir);
+  assert.ok(out.functions.some((f) => f.name === 'text_setColor'), 'GR.1 must keep setColor');
+  assert.ok(out.globals.some((g) => g.name === 'currentColor'), 'GR.1 must keep currentColor');
 });
 
 test('a machine the entry has no branch for is 8BS3002', () => {
