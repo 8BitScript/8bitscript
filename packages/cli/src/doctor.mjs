@@ -110,6 +110,23 @@ export function pickInstallPlan(installer, platform = process.platform, hasBinar
   return null;
 }
 
+/**
+ * Collapse FAIL checks that share one package-manager install (all four VICE
+ * binaries → a single `brew install vice`) so the interactive doctor does not
+ * ask four times for the same command.
+ */
+export function dedupeFixableChecks(checks, platform = process.platform, hasBinary = onPath) {
+  const seen = new Set();
+  const out = [];
+  for (const check of checks) {
+    if (!check.installer || !pickInstallPlan(check.installer, platform, hasBinary)) continue;
+    if (seen.has(check.installer)) continue;
+    seen.add(check.installer);
+    out.push(check);
+  }
+  return out;
+}
+
 // ---- process running ------------------------------------------------------
 
 /** Run a command; resolve with { code, stdout, stderr, missing, timedOut }. */
@@ -809,7 +826,7 @@ function spawnInstall(command, args) {
 async function offerInstall(check) {
   const plan = pickInstallPlan(check.installer);
   if (!plan) return false;
-  process.stdout.write(`\n  ${check.label}: ${check.installer.label} is missing.\n`);
+  process.stdout.write(`\n  ${check.installer.label} is missing.\n`);
   process.stdout.write(`  Press [i] to install with ${plan.manager} now, any other key to skip: `);
   const key = await readKey();
   process.stdout.write('\n');
@@ -877,7 +894,7 @@ export async function doctor() {
   // Offer to fix what's broken, one tool at a time, before the final
   // summary — only the FAIL checks that carry an installer this platform
   // can actually run unattended, and only in a real interactive terminal.
-  const fixable = allChecks.filter((c) => c.status === FAIL && pickInstallPlan(c.installer));
+  const fixable = dedupeFixableChecks(allChecks.filter((c) => c.status === FAIL));
   if (fixable.length && canPromptInteractively()) {
     process.stdout.write(`\n${fixable.length} of those can be installed right now:\n`);
     for (const check of fixable) {
