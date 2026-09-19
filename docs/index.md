@@ -43,7 +43,7 @@ bundle and how a page hosts it.
 | `8bs run <t>` | Builds and boots it in the machine's emulator, or a browser tab for `web`; `--screenshot` for a headless capture. |
 | `8bs boot <t>` | The stock (or fitted) machine booting to its own prompt, with nothing loaded. |
 | `8bs targets [--json]` | Every target and its hardware catalog. |
-| `8bs doctor` | Checks Node, pnpm, git, and the emulators. |
+| `8bs doctor` | Checks Node, pnpm, git, and the emulators. Missing pnpm (`npx get-pnpm`) and packaged emulators can be installed from the prompt. |
 | `8bs setup <mega65\|cx16>` | Builds that machine's emulator and installs a ROM. |
 | `8bs controller` | Names the buttons of the pad plugged into this machine. |
 | `8bs lsp` | The language server, on stdio. |

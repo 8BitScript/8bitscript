@@ -417,19 +417,27 @@ function packageManagerFor(startDir) {
 }
 
 /**
- * Directories a GUI-launched editor often lacks on PATH: pnpm's installer
- * writes `PNPM_HOME/bin` from `.zshrc`, which a task shell never sources.
+ * Directories a GUI-launched editor often lacks on PATH. Keep in sync with
+ * `extraHostBinDirs` in packages/cli/src/setup/host.mjs: pnpm's installer
+ * writes `PNPM_HOME` from `.zshrc` (macOS: `~/Library/pnpm`; Linux:
+ * `~/.local/share/pnpm`), which a task shell never sources.
  *
  * @param {string} [home]
  * @param {NodeJS.ProcessEnv} [env]
+ * @param {NodeJS.Platform} [platform]
  * @returns {string[]}
  */
-function extraBinDirs(home = os.homedir(), env = process.env) {
-  const pnpmHome = env.PNPM_HOME || path.join(home, '.local', 'share', 'pnpm');
+function extraBinDirs(home = os.homedir(), env = process.env, platform = process.platform) {
+  const pnpmHomes = [];
+  if (env.PNPM_HOME) pnpmHomes.push(env.PNPM_HOME);
+  if (platform === 'darwin') pnpmHomes.push(path.join(home, 'Library', 'pnpm'));
+  if (platform === 'win32') {
+    pnpmHomes.push(path.join(env.LOCALAPPDATA || path.join(home, 'AppData', 'Local'), 'pnpm'));
+  }
+  pnpmHomes.push(path.join(env.XDG_DATA_HOME || path.join(home, '.local', 'share'), 'pnpm'));
+  const pnpmBins = pnpmHomes.flatMap((dir) => [path.join(dir, 'bin'), dir]);
   return [...new Set([
-    env.PNPM_HOME,
-    path.join(pnpmHome, 'bin'),
-    pnpmHome,
+    ...pnpmBins,
     path.join(home, '.local', 'bin'),
     env.NVM_BIN,
     nvmNodeBin(home),
@@ -437,8 +445,9 @@ function extraBinDirs(home = os.homedir(), env = process.env) {
     path.join(home, '.asdf', 'shims'),
     path.join(home, '.fnm', 'aliases', 'default', 'bin'),
     path.join(home, '.local', 'share', 'fnm', 'aliases', 'default', 'bin'),
-    '/usr/bin',
+    '/opt/homebrew/bin',
     '/usr/local/bin',
+    '/usr/bin',
   ].filter(Boolean))];
 }
 
@@ -451,8 +460,8 @@ function nvmNodeBin(home) {
   } catch {
     return null;
   }
-  names.sort((a, b) => a.localeCompare(b));
-  const last = names[names.length - 1];
+  names.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  const last = names.at(-1);
   return last ? path.join(base, last, 'bin') : null;
 }
 
@@ -477,9 +486,9 @@ function isExecutable(file) {
  * @param {NodeJS.ProcessEnv} [env]
  * @param {string} [home]
  */
-function packageManagerPath(env = process.env, home = os.homedir()) {
+function packageManagerPath(env = process.env, home = os.homedir(), platform = process.platform) {
   const current = (env.PATH || '').split(path.delimiter).filter(Boolean);
-  return [...new Set([...current, ...extraBinDirs(home, env)])].join(path.delimiter);
+  return [...new Set([...current, ...extraBinDirs(home, env, platform)])].join(path.delimiter);
 }
 
 function whichOnPath(name, searchPath) {
@@ -504,7 +513,8 @@ function whichOnPath(name, searchPath) {
 function resolvePackageManager(name, opts = {}) {
   const env = opts.env ?? process.env;
   const home = opts.home ?? os.homedir();
-  return whichOnPath(name, packageManagerPath(env, home)) ?? name;
+  const platform = opts.platform ?? process.platform;
+  return whichOnPath(name, packageManagerPath(env, home, platform)) ?? name;
 }
 
 /**
