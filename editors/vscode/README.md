@@ -85,6 +85,19 @@ the project overview is in the [root README](../../README.md).
   and opens the whole file's generated instructions, colored by a 6502
   assembly grammar, in a read-only view beside the source. Clicking a
   line there jumps back to the exact source span that generated it.
+  The listing is written to be read by someone who has never seen 6502
+  assembly as much as by someone who has: each run of instructions is
+  introduced by the source line it came from (`; line 98:
+  screen.blank(...)`), and every instruction carries a plain-English
+  comment saying what the machine does — `LDA #$06  ; A = 6`,
+  `STA $02  ; keysBefore = A`, `JSR $0668  ; call screen_blank`,
+  `BEQ $043C  ; if zero, loop back to $043C` — with your own globals and
+  functions named in place of bare addresses wherever the debug map
+  knows them (and never guessed where it doesn't). The comment icon in
+  the tab's title bar (**Toggle Plain-English Comments**, the
+  `8bitscript.assemblyView.explain` setting) turns the per-instruction
+  column off for a reader who just wants the bytes; the source-line
+  comments stay.
   **View Generated Assembly For…** opens the same file for a machine you
   pick, rather than whatever's currently selected — each machine gets its
   own stable tab, so several can stay open side by side; the open tab's

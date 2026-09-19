@@ -107,6 +107,18 @@ function getWebLan() {
   return config().get('webLan') !== false;
 }
 
+/**
+ * Whether "View Generated Assembly" comments every instruction in plain
+ * English beside the 6502 (the `assemblyView.explain` setting). On by
+ * default — the listing is meant to teach as much as to inspect — and
+ * toggled from the assembly tab's own title bar for readers who already
+ * know the instruction set and just want the bytes.
+ */
+function getAssemblyExplain() {
+  return config().get('assemblyView.explain') !== false;
+}
+const setAssemblyExplain = (on) => update('assemblyView.explain', on);
+
 /** An explicit directory of examples, when the `examplesPath` setting names one. */
 function getExamplesPath() {
   const value = config().get('examplesPath');
@@ -174,6 +186,7 @@ function regionShort(region) {
 module.exports = {
   REGIONS,
   affectsAny,
+  getAssemblyExplain,
   getCheckout,
   getEffectiveHardware,
   getExamplesPath,
@@ -185,6 +198,7 @@ module.exports = {
   getSystem,
   getWebLan,
   regionShort,
+  setAssemblyExplain,
   setCheckout,
   setHardware,
   setNamedSystem,

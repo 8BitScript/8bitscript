@@ -12,12 +12,21 @@
 // No compiler logic lives here — everything shown comes straight off the
 // `.8bs.debug.json` the compiler already wrote (packages/compiler/src/mos/
 // debug.ts), read as data. The extension stays thin: it runs the CLI,
-// parses JSON, and formats it, the same as every other panel here.
+// parses JSON, and formats it, the same as every other panel here. The
+// commentary is presentation over that same data: the source line each
+// run of instructions came from (`source.text`, the way the .lst shows
+// it) and, per instruction, what the CPU does in plain English with the
+// debug map's own symbol names in place of bare addresses
+// (asmExplain.cjs) — on by default, off with 8bitscript.assemblyView.
+// explain for a reader who already knows the instruction set.
 const fs = require('fs');
 const path = require('path');
 const { execFile } = require('child_process');
 
 const vscode = require('vscode');
+
+const { describe, indexSymbols } = require('./asmExplain.cjs');
+const settings = require('./settings.cjs');
 
 const SCHEME = '8bitscript-asm';
 const ASM_LANGUAGE = '8bitscript-asm';
@@ -59,6 +68,11 @@ function instructionsNearCursor(instructions, offset) {
   return new Set(instructions.filter((instr) => instr.source.start === nearest.source.start));
 }
 
+// Wide enough for the widest operand form the assembler prints
+// (`LDA ($34),Y`, `STA $0EB6,Y`) so the comment column lines up down the
+// file; a `.byte` run just overflows it.
+const ASSEMBLY_COLUMN = 12;
+
 /**
  * Renders one source file's whole set of generated instructions into the
  * virtual document's text, grouped by function/origin the same way the
@@ -68,8 +82,20 @@ function instructionsNearCursor(instructions, offset) {
  * live-reload refresh regardless of where the cursor happens to be —
  * `highlight` marks a starting point for the reader, it never narrows what
  * is shown.
+ *
+ * Two layers of commentary, both read straight off the debug map:
+ *   - `; line 98: screen.blank(...)` above each run of instructions from
+ *     one source line (`source.line`/`source.text`; just `; line 98` from
+ *     an older map with no text), so a reader sees which statement the
+ *     next few instructions are. Clicking it navigates like the
+ *     instructions under it do.
+ *   - with `explain`, `; A = 6` / `; call screen_blank` beside every
+ *     instruction (asmExplain.cjs), naming globals and functions from
+ *     `symbols`. A compiler-inserted instruction's `generated.reason`
+ *     stays on the same comment either way.
  */
-function renderView(sourceFile, instructions, highlight) {
+function renderView(sourceFile, instructions, highlight, { symbols = [], explain = true } = {}) {
+  const index = indexSymbols(symbols);
   const lines = [`; generated assembly for ${path.basename(sourceFile)}`, `; ${sourceFile}`, ''];
   const lineSources = [null, null, null];
   // Distinct from a real `function: null` (compiler-generated code with no
@@ -79,6 +105,7 @@ function renderView(sourceFile, instructions, highlight) {
   const NONE = Symbol('no group yet');
   let lastFn = NONE;
   let lastOrigin = NONE;
+  let lastLine = null;
   for (const instr of instructions) {
     if (instr.function !== lastFn || instr.origin !== lastOrigin) {
       if (lastFn !== NONE) { lines.push(''); lineSources.push(null); }
@@ -89,11 +116,25 @@ function renderView(sourceFile, instructions, highlight) {
       lineSources.push(null, null);
       lastFn = instr.function;
       lastOrigin = instr.origin;
+      lastLine = null;
+    }
+    const sourceLine = typeof instr.source?.line === 'number' ? instr.source.line : null;
+    if (sourceLine !== null && sourceLine !== lastLine) {
+      // A blank line between one source line's run and the next, the way
+      // the .lst separates them — not before the first, which already
+      // follows the group header's own blank line.
+      if (lastLine !== null) { lines.push(''); lineSources.push(null); }
+      lines.push(`; line ${sourceLine}${instr.source.text ? `: ${instr.source.text}` : ''}`);
+      lineSources.push(instr.source);
+      lastLine = sourceLine;
     }
     const marker = highlight.has(instr) ? '>' : ' ';
     const bytes = instr.bytes.map(hexByte).join(' ').padEnd(9);
-    const reason = instr.generated ? `  ; ${instr.generated.reason}` : '';
-    lines.push(`${marker} $${hexAddress(instr.address)}   ${bytes}   ${instr.assembly}${reason}`);
+    const notes = [];
+    if (explain) { const note = describe(instr, index); if (note) notes.push(note); }
+    if (instr.generated) notes.push(`(compiler-generated: ${instr.generated.reason})`);
+    const assembly = notes.length > 0 ? `${instr.assembly.padEnd(ASSEMBLY_COLUMN)}  ; ${notes.join('  ')}` : instr.assembly;
+    lines.push(`${marker} $${hexAddress(instr.address)}   ${bytes}   ${assembly}`);
     lineSources.push(instr.source);
   }
   lines.push('');
@@ -133,6 +174,9 @@ class AssemblyViewController {
       // against the viewport VS Code is about to reset — see
       // refreshInPlace()/onDocumentChanged() below.
       vscode.workspace.onDidChangeTextDocument((event) => this.onDocumentChanged(event)),
+      vscode.workspace.onDidChangeConfiguration((event) => {
+        if (event.affectsConfiguration('8bitscript.assemblyView.explain')) this.rerenderAll();
+      }),
     );
   }
 
@@ -227,8 +271,12 @@ class AssemblyViewController {
       return null;
     }
     const highlight = cursorOffset === undefined ? new Set() : instructionsNearCursor(fromThisFile, cursorOffset);
-    const { text, lineSources } = renderView(sourceFile, fromThisFile, highlight);
-    return { uri: this.uriFor(target, sourceFile), text, lineSources };
+    const symbols = debugMap.symbols ?? [];
+    const { text, lineSources } = renderView(sourceFile, fromThisFile, highlight, { symbols, explain: settings.getAssemblyExplain() });
+    // Kept so a change to the explain setting re-renders from here rather
+    // than rebuilding the program.
+    const rendered = { instructions: fromThisFile, symbols, highlight };
+    return { uri: this.uriFor(target, sourceFile), text, lineSources, rendered };
   }
 
   /**
@@ -242,7 +290,7 @@ class AssemblyViewController {
     const key = built.uri.toString();
     const wasOpen = this.documents.has(key);
     this.documents.set(key, { text: built.text, lineSources: built.lineSources });
-    this.builds.set(key, { project, target, sourceFile });
+    this.builds.set(key, { project, target, sourceFile, rendered: built.rendered });
     if (wasOpen) this.emitter.fire(built.uri);
     const document = await vscode.workspace.openTextDocument(built.uri);
     if (!wasOpen) {
@@ -319,6 +367,12 @@ class AssemblyViewController {
   async refreshInPlace(key, info) {
     const built = await this.buildListing(info.project, info.target, info.sourceFile, { silent: true });
     if (!built) return;
+    info.rendered = built.rendered;
+    this.replaceInPlace(key, built);
+  }
+
+  /** Swaps an open tab's text for `built`'s, keeping the reader's place: scroll position and selection are captured now and restored by onDocumentChanged() once the new text has landed. */
+  replaceInPlace(key, built) {
     const editor = (vscode.window.visibleTextEditors ?? []).find((candidate) => candidate.document.uri.toString() === key);
     const topLine = editor?.visibleRanges?.[0]?.start.line;
     if (editor && topLine !== undefined) this.pendingReveals.set(key, { topLine, selection: editor.selection });
@@ -327,6 +381,26 @@ class AssemblyViewController {
     // text lands afterward, as an edit that fires onDidChangeTextDocument —
     // onDocumentChanged() does the reveal once that edit has really landed.
     this.emitter.fire(built.uri);
+  }
+
+  /**
+   * Re-renders every open tab from the instructions it already has — no
+   * `8bs build` — when the explain setting changes. The toggle command just
+   * flips the setting; this is what the configuration-change event runs.
+   */
+  rerenderAll() {
+    const explain = settings.getAssemblyExplain();
+    for (const [key, info] of this.builds) {
+      if (!info.rendered) continue;
+      const { instructions, symbols, highlight } = info.rendered;
+      const { text, lineSources } = renderView(info.sourceFile, instructions, highlight, { symbols, explain });
+      this.replaceInPlace(key, { uri: this.uriFor(info.target, info.sourceFile), text, lineSources });
+    }
+  }
+
+  /** The assembly tab's own title-bar toggle: flips 8bitscript.assemblyView.explain; the configuration listener re-renders the open tabs. */
+  async toggleExplain() {
+    await settings.setAssemblyExplain(!settings.getAssemblyExplain());
   }
 
   /** Restores the scroll position and selection a refresh captured, once the refreshed content has actually landed in the document (never before — see refreshInPlace()'s own comment). */
@@ -345,4 +419,4 @@ class AssemblyViewController {
   }
 }
 
-module.exports = { AssemblyViewController, SCHEME, ASM_LANGUAGE, renderView, samePath, isWithinProject, instructionsNearCursor };
+module.exports = { AssemblyViewController, SCHEME, ASM_LANGUAGE, ASSEMBLY_COLUMN, renderView, samePath, isWithinProject, instructionsNearCursor };

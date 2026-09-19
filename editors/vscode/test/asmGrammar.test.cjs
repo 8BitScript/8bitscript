@@ -96,14 +96,16 @@ async function loadTokenizer() {
 }
 
 // The exact shape renderView() produces, including the highlighted-line
-// marker, a compiler-generated reason comment, and a `.byte` directive.
+// marker, a source-line comment, a plain-English comment (with a
+// compiler-generated reason folded in), and a `.byte` directive.
 const SAMPLE = `; generated assembly for main.8bs
 ; /project/src/main.8bs
 
 ; function: main (inlined from updateScore)
 
-  $C142   A5 18       LDA $18
-> $C144   69 01       ADC #$01  ; branch-relaxation
+; line 4: score += 1;
+  $C142   A5 18       LDA $18       ; A = score (lo)
+> $C144   69 01       ADC #$01      ; A = A + 1 + carry  (compiler-generated: branch-relaxation)
   $C146   85 18       STA $18,X
   $C148   00          .byte $00
   $C149   60          RTS
@@ -127,7 +129,9 @@ test('the grammar colours addresses, bytes, mnemonics, operands, markers and com
   assert.equal(scopeOf('$18', 0), 'constant.numeric.hex', 'the operand, not just the byte dump');
   assert.equal(scopeOf('#'), 'keyword.operator.immediate');
   assert.equal(scopeOf('$01'), 'constant.numeric.hex', 'an immediate operand is still a hex constant');
-  assert.equal(scopeOf('; branch-relaxation'), 'comment.line.semicolon', 'a compiler-generated reason is a trailing comment');
+  assert.equal(scopeOf('; line 4: score += 1;'), 'comment.line.semicolon', 'the source-line comment is a comment, whatever the source text contains');
+  assert.equal(scopeOf('; A = score (lo)'), 'comment.line.semicolon', 'a plain-English comment is a trailing comment');
+  assert.equal(scopeOf('; A = A + 1 + carry  (compiler-generated: branch-relaxation)'), 'comment.line.semicolon', 'with a compiler-generated reason folded into it');
   assert.equal(scopeOf(',X'), 'variable.language.register', 'an indexed operand names its register');
   assert.equal(scopeOf('.byte'), 'keyword.other.directive');
   assert.equal(scopeOf('main', 0), 'entity.name.function', 'the function header names the function');
