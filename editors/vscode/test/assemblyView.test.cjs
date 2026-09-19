@@ -47,7 +47,7 @@ test('renderView: groups consecutive instructions by function/origin, marks the 
   assert.match(text, /^> \$C142/m, 'a highlighted instruction is marked with >');
   assert.match(text, /^ {2}\$C148/m, 'a non-highlighted instruction is not marked');
   assert.match(text, /function: main \(inlined from updateScore\)/);
-  assert.ok(text.includes('RTS') && text.includes('; branch-relaxation'));
+  assert.ok(text.includes('RTS') && text.includes('(compiler-generated: branch-relaxation)'));
 
   const lines = text.split('\n');
   const ldaLine = lines.findIndex((l) => l.includes('LDA $18'));
@@ -58,6 +58,64 @@ test('renderView: groups consecutive instructions by function/origin, marks the 
   // do nothing rather than navigate somewhere wrong.
   const headerLine = lines.findIndex((l) => l.startsWith('; function: main'));
   assert.equal(lineSources[headerLine], null);
+});
+
+test('renderView: a run of instructions from one source line is introduced by that line, once, and the comment navigates to it', () => {
+  const source = { file: '/game.8bs', start: 10, length: 5, line: 4, column: 1, text: 'score += 1;' };
+  const next = { file: '/game.8bs', start: 30, length: 3, line: 7, column: 1, text: 'return;' };
+  const instructions = [
+    { address: 0xc142, bytes: [0xa5, 0x18], assembly: 'LDA $18', function: 'updateScore', origin: null, source },
+    { address: 0xc144, bytes: [0x69, 0x01], assembly: 'ADC #$01', function: 'updateScore', origin: null, source },
+    { address: 0xc146, bytes: [0x60], assembly: 'RTS', function: 'updateScore', origin: null, source: next },
+  ];
+  const { text, lineSources } = renderView('/game.8bs', instructions, new Set());
+  const lines = text.split('\n');
+  assert.equal(lines.filter((l) => l === '; line 4: score += 1;').length, 1, 'one source-line comment per run, not per instruction');
+  assert.equal(lines.filter((l) => l === '; line 7: return;').length, 1);
+  assert.ok(lines.indexOf('; line 4: score += 1;') < lines.findIndex((l) => l.includes('LDA $18')), 'the comment comes before its instructions');
+  assert.deepEqual(lineSources[lines.indexOf('; line 4: score += 1;')], source, 'clicking the comment goes to the same span as its instructions');
+  assert.equal(lineSources.length, lines.length, 'the line -> source map stays parallel to the text');
+});
+
+test('renderView: an older debug map with no source text still gets a line-number comment; no source gets none', () => {
+  const instructions = [
+    { address: 0xc142, bytes: [0xa5, 0x18], assembly: 'LDA $18', function: 'f', origin: null, source: { file: '/game.8bs', start: 10, length: 5, line: 4, column: 1 } },
+    { address: 0xc144, bytes: [0x60], assembly: 'RTS', function: null, origin: null, source: null },
+  ];
+  const { text } = renderView('/game.8bs', instructions, new Set());
+  assert.match(text, /^; line 4$/m);
+  assert.equal((text.match(/^; line/gm) ?? []).length, 1);
+});
+
+test('renderView: explains each instruction in a comment column, naming the debug map\'s globals and functions', () => {
+  const symbols = [
+    { name: 'score', kind: 'global', address: 0x18, type: 'usmallint' },
+    { name: 'draw', kind: 'function', address: 0xc200 },
+  ];
+  const instructions = [
+    { address: 0xc142, bytes: [0xa5, 0x18], assembly: 'LDA $18', function: 'f', origin: null, source: null },
+    { address: 0xc144, bytes: [0x20, 0x00, 0xc2], assembly: 'JSR $C200', function: 'f', origin: null, source: null },
+    { address: 0xc147, bytes: [0x60], assembly: 'RTS', function: 'f', origin: null, source: null, generated: { reason: 'branch-relaxation' } },
+  ];
+  const { text, lineSources } = renderView('/game.8bs', instructions, new Set(), { symbols });
+  const lines = text.split('\n');
+  assert.ok(lines.some((l) => l.endsWith('LDA $18       ; A = score (lo)')), `LDA line: ${text}`);
+  assert.ok(lines.some((l) => l.endsWith('JSR $C200     ; call draw')));
+  assert.ok(lines.some((l) => l.endsWith('RTS           ; return to the caller  (compiler-generated: branch-relaxation)')), 'the reason rides on the same comment');
+  const commentColumns = new Set(lines.filter((l) => l.includes('  ; ')).map((l) => l.indexOf('  ; ')));
+  assert.equal(commentColumns.size, 1, 'the comment column is aligned');
+  assert.equal(lineSources.length, lines.length);
+});
+
+test('renderView: explain: false drops the per-instruction comments but keeps the source lines and compiler-generated reasons', () => {
+  const instructions = [
+    { address: 0xc142, bytes: [0xa5, 0x18], assembly: 'LDA $18', function: 'f', origin: null, source: { file: '/game.8bs', start: 10, length: 5, line: 4, column: 1, text: 'score += 1;' } },
+    { address: 0xc144, bytes: [0x60], assembly: 'RTS', function: 'f', origin: null, source: null, generated: { reason: 'branch-relaxation' } },
+  ];
+  const { text } = renderView('/game.8bs', instructions, new Set(), { explain: false });
+  assert.match(text, /LDA \$18$/m, 'no trailing comment');
+  assert.match(text, /^; line 4: score \+= 1;$/m);
+  assert.match(text, /RTS\s+; \(compiler-generated: branch-relaxation\)$/m);
 });
 
 test('renderView: an instruction with no function/source (compiler structure) gets its own labeled section', () => {
