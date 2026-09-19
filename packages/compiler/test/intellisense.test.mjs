@@ -103,6 +103,7 @@ test('hover explains asm6502', () => {
   const text = 'asm6502 {\n    lda #$06\n}\n';
   const info = getHoverInfo(text, at(text, 'asm6502'));
   assert.match(info.markdown, /raw 6502 assembly/);
+  assert.match(info.markdown, /parameters or locals: it is that slot's zero-page address/);
 });
 
 test('hover explains @address', () => {

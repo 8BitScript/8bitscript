@@ -12,7 +12,8 @@
     "entry": "./src/index.8bs",
     "native": [
       "./native/6502/raster.s",
-      "./native/6502/multiplex.s"
+      "./native/6502/multiplex.s",
+      "./native/6502/text.s"
     ],
     "exports": {
       "./screen": "./src/screen.8bs",

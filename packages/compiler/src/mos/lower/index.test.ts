@@ -1483,3 +1483,68 @@ test('two waitFrame() calls in a row both JSR the same shared label — one runt
   assert.deepEqual(first.operand, second.operand);
   assert.equal(first.operand!.kind === 'label' ? first.operand!.name : '', WAIT_FRAME_LABEL);
 });
+
+// ---- asm6502 naming its own frame ---------------------------------------
+
+const asm = (text: string): IrStatement => ({ kind: 'asm', text });
+const withParams = (...params: { name: string; type: string; address: number }[]): LowerOptions => ({ ...ctx([['screen', { address: 0x0400, type: 'utinyint' }]]), params });
+
+test("an asm6502 operand that names a parameter is that parameter's zero-page slot, in the zero-page form of the instruction", () => {
+  const result = lower(
+    [asm('    lda s\n    ldx s+1\n    ldy #0\n    lda (s),y\n    lda #<cell\n    ldx #>cell\n    sta cell,x\n    lda s,y\n    jsr __8bs_c64_text_print')],
+    withParams({ name: 'cell', type: 'usmallint', address: 0x50 }, { name: 's', type: 'string', address: 0x52 }),
+  );
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  const shapes = result.program.filter((d) => d.kind === 'instruction').map((d) => {
+    const i = instruction(d);
+    return `${i.mnemonic} ${i.mode} ${i.operand?.kind === 'value' ? i.operand.value.toString(16) : i.operand?.kind === 'label' ? i.operand.name : ''}`;
+  });
+  assert.deepEqual(shapes, [
+    'LDA zeropage 52', // lda s
+    'LDX zeropage 53', // ldx s+1: the offset folded into the slot's address
+    'LDY immediate 0',
+    'LDA (indirect),y 52', // through the pointer the parameter holds
+    'LDA immediate 50', // #<cell
+    'LDX immediate 0', // #>cell: a frame slot's high byte is always 0
+    'STA zeropage,x 50',
+    'LDA absolute,y 52', // LDA has no zeropage,y form: stays wide, same address
+    'JSR absolute __8bs_c64_text_print', // not the frame's: the linker's
+  ]);
+  assembles([...result.program, { kind: 'label', name: '__8bs_c64_text_print' }]);
+});
+
+test('a local is a frame name while its scope lasts, and a global of the same name is reached again after it', () => {
+  const result = lower(
+    [
+      ifNode(u8(1), [local('screen', u8(7)), asm('    inc screen')]),
+      asm('    inc screen'),
+    ],
+    withParams(),
+  );
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  const incs = result.program.filter((d) => d.kind === 'instruction' && d.mnemonic === 'INC').map(instruction);
+  assert.equal(incs.length, 2);
+  assert.equal(incs[0].mode, 'zeropage', 'inside the block, the local');
+  assert.equal(incs[0].operand!.kind, 'value');
+  assert.equal(incs[1].mode, 'absolute', 'after it, `screen` is a label again, not a frame slot');
+  assert.deepEqual(incs[1].operand, { kind: 'label', name: 'screen' });
+});
+
+test('a frame name where an instruction needs code — jsr, jmp, jmp (), a branch — is refused by name, and so is a bare immediate of one', () => {
+  for (const text of ['    jsr s', '    jmp s', '    jmp (s)', '    bne s']) {
+    const result = lower([asm(text)], withParams({ name: 's', type: 'string', address: 0x52 }));
+    assert.equal(result.ok, false, text);
+    if (result.ok) continue;
+    assert.match(result.error, /asm6502 names 's', a parameter or local of this function/);
+    assert.match(result.error, /data, not code/);
+  }
+  const immediate = lower([asm('    lda #s')], withParams({ name: 's', type: 'string', address: 0x52 }));
+  assert.equal(immediate.ok, false);
+  if (!immediate.ok) assert.match(immediate.error, /as an immediate: write 's' for its value or '#<s'/);
+  // A frame slot is always in zero page; one placed past it is an upstream bug, refused rather than widened.
+  const wide = lower([asm('    lda s')], withParams({ name: 's', type: 'string', address: 0x100 }));
+  assert.equal(wide.ok, false);
+  if (!wide.ok) assert.match(wide.error, /at \$100 — past the zero page/);
+});
