@@ -1,6 +1,6 @@
 {
   "name": "@8bitscript/random",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "description": "Deterministic pseudo-random generators, explicitly seeded, the same code on every target: a 16-bit LCG at the bare import, a precomputed lookup table at ./table. Hardware entropy stays opt-in: ./entropy reads SID voice 3 on the C64 and POKEY on the Atari 8-bit, and is the LCG everywhere else.",
   "license": "MIT",
   "repository": {

@@ -1,5 +1,11 @@
 # @8bitscript/atari8
 
+## 0.15.0
+
+### Patch Changes
+
+- 758765d: Add project message catalogs (`src/i18n/<locale>.8bs`, imported as `@8bitscript/i18n/catalog`), compile-time `i18n.format`, Latin transliteration into the portable set, and `Input.CONFIRM_LABEL` on each machine's input layer. One locale still means one binary; projects without catalogs are unchanged.
+
 ## 0.14.0
 
 No changes in this release.
