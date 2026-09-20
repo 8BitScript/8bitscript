@@ -51,6 +51,41 @@ plain `export default { … }` is still a config.
 `restoreOnExit` is retired. If the file still sets it, the CLI says so
 and ignores it.
 
+## Choosing machines: which key answers which question
+
+A project decides what it is for in five keys, and a sixth command
+reports the consequences. Each row is something a developer asks before
+writing a line; the key is where the answer goes, and every example
+works today.
+
+| The question | The key | Example |
+| --- | --- | --- |
+| Which machines does this build for? | `targets` | `targets: { c64: {}, pet: {}, web: {} }` |
+| Which one is it designed on — where every feature is tried first? | `baseline` | `baseline: 'c64'`, or with its accessories: `baseline: { target: 'c64', hardware: { ram: 'reu512', port2: 'joystick' } }` |
+| What memory configuration is each machine assumed to have? | `targets.<machine>.hardware`, `systems`, `--profile` | `pet: { hardware: { model: '4032', ram: '32' } }`; `systems: { 'PET 2001 (4K)': { target: 'pet', profile: '2001', hardware: { ram: '4' } } }` |
+| What is the least any build may have? | `requires` | `requires: { 'memory.ram': 8192 }` |
+| How much detail does the picture need? | `requires`, with a video fact | `'video.columns': 40` (a 40-column grid: refuses the 22-column VIC-20), `'video.bitmap': true` (pixel addressing: refuses the PET), `'video.palette': 16`, `'video.sprites': 8`, `'video.colorPerCell': true` |
+| Does it need a keyboard, a control port, somewhere to save? | `requires`, with an input or storage fact | `'input.keyboard': true` (refuses the NES), `'input.joysticks': 1` (refuses the PET), `'storage.save': true` |
+| Which downloads does a release ship? | `targets.<machine>.release` | `pet: { release: ['2001', {}, { profile: '2001', locale: 'de' }] }` |
+| What does each build do without? | `8bs build --release` | prints, per artifact, `short of the baseline (c64): video.raster, memory.ram 3071 of 51199` |
+| Does a named system clear the floor? | `8bs targets` | prints `short: memory.ram needs 8192, has 3071` under the system |
+
+The fact keys are the compiler's (`packages/compiler/src/fold/facts.mjs`),
+listed with one line each by `8bs targets --json` under `facts`, and
+read from a program as `#fact(...)`
+([§1.9](language/core.md#19-branch-on-the-machine-at-compile-time)) —
+`video.*`, `audio.*`, `input.*`, `storage.*`, `memory.*`. A count is a floor ("at least this
+many columns") and a flag must be true; a machine that cannot meet one
+is refused with what it has, never silently built.
+
+Two things a project cannot say yet: that it is *designed for* a
+joystick but also plays on a keyboard (`requires` is a floor, not a
+preference), and that it cannot work without a peripheral the machine
+may or may not have plugged in (a REU, a mouse — `when: 'run'` facts,
+which `requires` refuses on purpose). Both, and the data for deciding
+which machines are worth a build at all, are the design in
+[docs/project/reach.md](project/reach.md).
+
 ## Several programs in one project
 
 A project may build more than one program — a desktop and the utilities

@@ -185,6 +185,15 @@ change the built bytes?**
    the same "changes no bytes" test `docs/config.md` uses for disk
    images.
 
+## Which shapes each carrier can hold, and how many artifacts to ship
+
+[`reach.md`](reach.md) takes the four axes above one step further: a
+program's *delivery shape* (single, files, overlays, programs, banked)
+against each carrier — disk, tape, plain cartridge, banked cartridge,
+flash cart, web — and the release rule that falls out of it, one artifact
+per distinct build outcome named by what it runs on, measured on 2048's
+twelve PET builds.
+
 ## Open questions to resolve before any implementation
 
 - Does `deploy` belong in `packages/cli`, or is it thin enough to be a

@@ -84,6 +84,13 @@ flash carts).
 `8bs build --release` says every other build is short of, and why those
 builds are called builds and not ports or tiers.
 
+[Reach — which machines a program is for](project/reach.md) — per-machine
+units sold, 2026 community activity and routes to a user for twenty-five
+machines, the demands a program cannot spell yet (preferred input, a
+required peripheral, a delivery shape), the `8bs targets --reach`
+analysis that would join them, and the release rule — one artifact per
+build outcome, named by what it runs on — measured on 2048's PET builds.
+
 [Machines on the roadmap](project/machines/index.md) — hardware research
 notes for the machines named in later phases, the ones no package exists
 for yet.
