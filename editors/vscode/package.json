@@ -156,6 +156,12 @@
         "icon": "$(rocket)"
       },
       {
+        "command": "8bitscript.openStudio",
+        "title": "Open Studio (Commander X16)",
+        "category": "8BitScript",
+        "icon": "$(tools)"
+      },
+      {
         "command": "8bitscript.launchApp",
         "title": "Launch App…",
         "category": "8BitScript"

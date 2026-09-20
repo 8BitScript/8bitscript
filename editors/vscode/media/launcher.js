@@ -260,6 +260,7 @@ window.addEventListener('message', ({ data }) => {
 
 $('project').addEventListener('change', (e) => vscode.postMessage({ type: 'set', key: 'project', value: e.target.value }));
 $('system').addEventListener('change', (e) => vscode.postMessage({ type: 'set', key: 'system', value: e.target.value }));
+$('studio').addEventListener('click', () => vscode.postMessage({ type: 'command', id: '8bitscript.openStudio' }));
 $('run').addEventListener('click', () => vscode.postMessage({ type: 'launch', action: 'run' }));
 $('build').addEventListener('click', () => vscode.postMessage({ type: 'launch', action: 'build' }));
 $('boot').addEventListener('click', () => vscode.postMessage({ type: 'launch', action: 'boot' }));

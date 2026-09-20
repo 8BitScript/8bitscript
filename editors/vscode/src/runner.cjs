@@ -1064,6 +1064,20 @@ function registerRunner(context, output) {
   command('8bitscript.selectSystem', chooseSystem);
   command('8bitscript.selectRegion', chooseRegion);
   command('8bitscript.launchStudio', () => launch('app', 'Studio', (p) => p.name === '@8bitscript/studio'));
+  // The side bar's big button: Studio on the Commander X16, the machine
+  // it is designed on (packages/studio/8bs.config.ts's baseline), with
+  // no picker and no change to what the panel has selected — a utility
+  // beside the project, not a run of it. The rocket above keeps the
+  // picker for every other arrangement.
+  command('8bitscript.openStudio', async () => {
+    if (projects.all.length === 0) await projects.refresh();
+    const studio = ofKind(projects.all, 'app').find((p) => p.name === '@8bitscript/studio');
+    if (!studio) {
+      vscode.window.showInformationMessage('Studio is not installed. Install 8BitScript from the side bar, or install @8bitscript/cli in a project.');
+      return;
+    }
+    await execute('run', { project: studio, target: 'cx16' });
+  });
   command('8bitscript.launchApp', () => launch('app', 'apps'));
   command('8bitscript.launchExample', () => launch('example', 'examples'));
   command('8bitscript.doctor', doctor);

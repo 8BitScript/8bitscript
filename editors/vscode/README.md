@@ -235,6 +235,15 @@ SYSTEM
   because the panel compares what the options resolve to rather than
   remembering what was clicked.
 
+- **Open Studio** — the biggest button on the panel, above Quick launch:
+  Studio, the asset editor that ships with the toolchain, on the
+  Commander X16 (the machine it is designed on), with nothing to pick and
+  nothing changed — it does not become the selected project, and the Run
+  button below still runs yours. It shows up under Running machines like
+  any `8bs run`, with its own Stop. The 🚀 rocket in the title bar is the
+  same program with the picker: every arrangement Studio is set up for,
+  from a C64 with a mouse to a VIC-20 with 8K.
+
 - **Running machines** — a tree per `8bs` task in flight. A run or boot
   expands to the machine that launched: the emulator, the built image,
   RAM and program bytes, the `--size` breakdown (largest function first),

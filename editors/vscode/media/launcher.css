@@ -151,6 +151,11 @@ button.icon svg { width: 14px; height: 14px; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Studio's button is the biggest thing on the panel: a utility you reach
+   for beside the project, not one more action on it. */
+.studio-block { margin: 4px 0 14px; }
+button.launch.studio { padding: 12px 14px; gap: 12px; }
+button.launch.studio .launch-title { font-size: 14px; }
 .launch-block { margin-top: 4px; }
 .launch-actions { margin-top: 8px; }
 .launch-actions .wide { margin-top: 0; flex: 1; }
