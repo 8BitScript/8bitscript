@@ -1420,14 +1420,54 @@ test('storeIndex into a const array is refused — the checker should already ha
   assert.match(result.error, /'TABLE' is a const array/);
 });
 
-test('storeIndex into a 2-byte element is refused by name — only 1-byte elements are written yet', () => {
+// The real shape: `hitAt: array<usmallint, 8>` in packages/ui/src/menubar.8bs,
+// `hitAt[index] = 0` — the store that kept Studio and every menu bar off
+// the native backend until this rule existed. The mirror of index()'s own
+// 2-byte read: value first (into a 16-bit temp, zero-extended from a
+// utinyint literal), then Y = index * 2, low byte at label,y, INY, high
+// byte one further along.
+test('storeIndex into a 2-byte element with a constant index doubles it at compile time, then stores low, INY, high', () => {
   const result = lower(
-    [{ kind: 'storeIndex', array: { kind: 'ref', name: 'wide' }, index: u8(0), value: u8(1), elementType: 'usmallint' }],
-    ctx([], [], [['wide', { elementType: 'usmallint', mutable: true }]]),
+    [{ kind: 'storeIndex', array: { kind: 'ref', name: 'hitAt' }, index: u8(3), value: u8(0), elementType: 'usmallint' }],
+    ctx([], [], [['hitAt', { elementType: 'usmallint', mutable: true }]]),
+  );
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  const data: Directive[] = [{ kind: 'label', name: arrayLabel('hitAt') }, { kind: 'byte', values: new Array(16).fill(0) }];
+  assembles([...result.program, ...data]);
+  const instructions = result.program.filter((d) => d.kind === 'instruction').map(instruction);
+  // LDA #0; STA temp; STA temp+1 (the value, zero-extended); LDY #6; LDA temp; STA hitAt,y; INY; LDA temp+1; STA hitAt,y.
+  assert.deepEqual(instructions.map((i) => i.mnemonic), ['LDA', 'STA', 'STA', 'LDY', 'LDA', 'STA', 'INY', 'LDA', 'STA']);
+  const ldy = instructions[3];
+  assert.equal(ldy.operand!.kind === 'value' ? ldy.operand!.value : -1, 6, 'index 3 of a 2-byte element is byte 6');
+  assert.equal(instructions[5].mode, 'absolute,y');
+  assert.deepEqual(instructions[5].operand, { kind: 'label', name: arrayLabel('hitAt') });
+  assert.equal(instructions[8].mode, 'absolute,y');
+  assert.deepEqual(instructions[8].operand, { kind: 'label', name: arrayLabel('hitAt') });
+});
+
+test('storeIndex into a 2-byte element with a runtime index doubles it with ASL into Y, after the value is parked', () => {
+  const result = lower(
+    [{ kind: 'storeIndex', array: { kind: 'ref', name: 'hitAt' }, index: ref('i'), value: ref('cell', 'usmallint'), elementType: 'usmallint' }],
+    ctx([['i', { address: 0x10, type: 'utinyint' }], ['cell', { address: 0x20, type: 'usmallint' }]], [], [['hitAt', { elementType: 'usmallint', mutable: true }]]),
+  );
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  const data: Directive[] = [{ kind: 'label', name: arrayLabel('hitAt') }, { kind: 'byte', values: new Array(16).fill(0) }];
+  assembles([...result.program, ...data]);
+  const mnemonics = result.program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mnemonic);
+  // LDA cell; STA temp; LDA cell+1; STA temp+1 (the value, both bytes); LDA i; ASL; TAY; LDA temp; STA hitAt,y; INY; LDA temp+1; STA hitAt,y.
+  assert.deepEqual(mnemonics, ['LDA', 'STA', 'LDA', 'STA', 'LDA', 'ASL', 'TAY', 'LDA', 'STA', 'INY', 'LDA', 'STA']);
+});
+
+test('storeIndex into a 2-byte element under a runtime 16-bit index is refused by name, not truncated', () => {
+  const result = lower(
+    [{ kind: 'storeIndex', array: { kind: 'ref', name: 'hitAt' }, index: ref('wide', 'usmallint'), value: u8(0), elementType: 'usmallint' }],
+    ctx([['wide', { address: 0x10, type: 'usmallint' }]], [], [['hitAt', { elementType: 'usmallint', mutable: true }]]),
   );
   assert.equal(result.ok, false);
   if (result.ok) return;
-  assert.match(result.error, /a 2-byte array element isn't written yet/);
+  assert.match(result.error, /a 2-byte element under a 16-bit index isn't written yet/);
 });
 
 // The bug an advisor review caught before any gate ever exercised prepare()

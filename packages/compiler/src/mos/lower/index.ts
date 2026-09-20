@@ -1046,10 +1046,8 @@ class Lowerer {
   // `name[index] = value`, 1-byte elements: the index parks in a temp
   // while the value evaluates (the value's own expression may use A and Y
   // freely), then Y picks the cell and one absolute,y store writes it —
-  // the mirror of indexRead's own LDA absolute,y. A 2-byte element store
-  // is refused by name: nothing real writes one yet, and its read
-  // counterpart's own ASL-into-Y shape would need deciding against a
-  // second byte's ordering here.
+  // the mirror of indexRead's own LDA absolute,y. A 2-byte element goes
+  // through storeIndex16 below, the mirror of indexRead16.
   /**
    * `base + index` in a zero-page pointer, for an index too wide for Y.
    *
@@ -1078,8 +1076,9 @@ class Lowerer {
     if (!entry.mutable) {
       throw new LowerError(`'${name}' is a const array — data in the program, not RAM — and the checker should already have refused writing it`);
     }
-    if (storageBytes(entry.elementType) !== 1) {
-      throw new LowerError(`storing into '${name}': a 2-byte array element isn't written yet — only 1-byte (utinyint/bool) elements are`);
+    if (storageBytes(entry.elementType) === 2) {
+      this.storeIndex16(node, name);
+      return;
     }
     // A constant index — or a plain-ref index against a value that can't
     // write it (isPure) — needs no temp: the value evaluates into A and Y
@@ -1112,6 +1111,45 @@ class Lowerer {
     this.expr8(node.value! as IrExpr);
     this.emit(instr('LDY', 'zeropage', temp));
     this.emit(indexed('STA', arrayLabel(name), offset));
+    this.locals.release(mark);
+  }
+
+  // `name[index] = value`, 2-byte elements — the mirror of indexRead16,
+  // and the shape the menu bar's `hitAt: array<usmallint, 8>` needed
+  // (packages/ui/src/menubar.8bs, `hitAt[index] = 0`). The value goes
+  // first, into a 16-bit temp: its expression may use A and Y freely, and
+  // the doubled index has to be in Y when the stores happen. Then Y takes
+  // index * 2 — a constant doubles at compile time, a runtime index by
+  // ASL — and the low byte lands at label,y, the high byte one further
+  // along after INY, matching the read side's "low, then INY, then high".
+  // Y is eight bits, so this is exact only while index * 2 <= 255 — the
+  // same limit indexRead16 states, and the same one every 2-byte array
+  // this backend has placed is nowhere near. A 16-bit-typed index that
+  // is not a constant is refused by name rather than truncated: the read
+  // side reaches such an index through arrayPointer for 1-byte elements
+  // and has no 2-byte rule for it either, and a silent low byte is the
+  // 40-column collapse arrayPointer's own comment records.
+  storeIndex16(node: IrStatement, name: string): void {
+    const index = node.index!;
+    if (index.type !== undefined && index.type !== null && storageBytes(index.type) === 2 && !isConstNum(index)) {
+      throw new LowerError(`storing into '${name}': a 2-byte element under a 16-bit index isn't written yet — an array of 2-byte elements has at most 128 of them, so index it with a utinyint`);
+    }
+    const mark = this.locals.mark();
+    // store16Into rather than expr16: the value may be spelled narrower
+    // than the element (`hitAt[i] = 0` is a utinyint literal into a
+    // usmallint cell), and store16Into already zero-extends an 8-bit
+    // source and copies a 16-bit one, the way a 16-bit assignment does.
+    const value = this.alloc16(`a temporary for the value stored into '${name}[...]'`);
+    this.store16Into(node.value! as IrExpr, value);
+    if (isConstNum(index)) {
+      this.emit(instr('LDY', 'immediate', (index.value! * 2) & 0xff));
+    } else {
+      this.indexValue(index);
+      this.emit(instr('ASL', 'accumulator'), instr('TAY', 'implied'));
+    }
+    this.emit(ldaZp(value), instr('STA', 'absolute,y', undefined, arrayLabel(name)));
+    this.emit(instr('INY', 'implied'));
+    this.emit(ldaZp(value + 1), instr('STA', 'absolute,y', undefined, arrayLabel(name)));
     this.locals.release(mark);
   }
 

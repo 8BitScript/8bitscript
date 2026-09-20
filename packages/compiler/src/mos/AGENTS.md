@@ -539,7 +539,16 @@ alongside the const arrays: the load itself is the initializer, an
 initializer-less array is its declared zeros, and `zp/index.ts` skips
 both kinds. `storeIndex` (1-byte elements) parks its index in a temp,
 evaluates the value into A, and stores `STA absolute,y` — the mirror of
-`indexRead`. Worth remembering the day a ROM-cartridge target (NES)
+`indexRead`. A 2-byte element (`storeIndex16`, 2026-09-20) is the mirror
+of `indexRead16`: the value first, into a 16-bit temp through
+`store16Into` (so a utinyint literal into a usmallint cell zero-extends,
+the way a 16-bit assignment does), then Y = index × 2 (a constant doubles
+at compile time, a runtime index by `ASL`), the low byte at `label,y`,
+`INY`, the high byte — with the read side's own limit, exact while
+index × 2 ≤ 255, and a runtime 16-bit-typed index refused by name rather
+than truncated. The store that needed it is the menu bar's
+`hitAt[index] = 0` (`packages/ui/src/menubar.8bs`), which had kept Studio
+and every menu bar off the native backend. Worth remembering the day a ROM-cartridge target (NES)
 returns: this placement rule is exactly what a ROM target CANNOT use, and
 mutable arrays there need the RAM home this backend didn't have to invent.
 
