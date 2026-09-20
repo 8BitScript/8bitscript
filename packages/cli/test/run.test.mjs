@@ -73,6 +73,23 @@ test('run() with no target prints usage and returns 2', async () => {
   assert.match(stderr, /\[--port <n>\]/, 'run --port is the web listen port');
 });
 
+test('run() with a baseline and a mistyped machine still prints usage, not the baseline', async () => {
+  const dir = await mkdtemp(join(tmpdir(), '8bs-run-test-'));
+  const prev = process.cwd();
+  try {
+    await writeFile(join(dir, 'main.8bs'), SUM);
+    await writeFile(join(dir, '8bitscript.config.ts'), 'export default { entry: "main.8bs", targets: { c64: {}, web: {} }, baseline: "c64" };\n');
+    process.chdir(dir);
+    const { result, stderr } = await capture(() => run(['c65']));
+    assert.equal(result, 2);
+    assert.match(stderr, /^Usage: 8bs run <pet\|web>/);
+    assert.match(stderr, /no target runs the `baseline`/);
+  } finally {
+    process.chdir(prev);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test('run() --screenshot to an unwritable path reports the error and returns 1', async () => {
   const dir = await mkdtemp(join(tmpdir(), '8bs-run-test-'));
   const prev = process.cwd();

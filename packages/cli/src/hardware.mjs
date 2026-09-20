@@ -187,6 +187,80 @@ export function projectRequires(config) {
 }
 
 /**
+ * The baseline: the system the program is designed on — the build where
+ * every fact the program tests is true, so every other build is the same
+ * program folded for a machine that lacks some of them. `requires` is the
+ * floor every build must clear; this is the ceiling one build reaches
+ * (docs/project/baseline.md). `baseline` in 8bitscript.config.ts is one
+ * of:
+ *
+ *     baseline: 'c64'                                   // a machine, under the project's own hardware for it
+ *     baseline: 'PET 2001 (8K)'                          // a name from `systems`
+ *     baseline: { target: 'pet', profile: '8032' }       // a system's own shape
+ *
+ * Resolved the way a `--system` is, so the same words mean the same
+ * build everywhere: `8bs build` and `8bs run` with no target build it,
+ * `8bs targets` names it, and `8bs build --release` says, per build,
+ * which of its facts that build is short of. A baseline the program's
+ * own `requires` refuses is a config mistake, said as one.
+ *
+ * @param {object|null} config
+ * @returns {{ ok: true, baseline: null | (SystemSetup & { facts: object }) } | { ok: false, error: string }}
+ */
+export function projectBaseline(config) {
+  const declared = config?.baseline;
+  if (declared === undefined || declared === null) return { ok: true, baseline: null };
+  const where = "8bitscript.config.ts's `baseline`";
+  let entry;
+  let name;
+  if (typeof declared === 'string') {
+    if (MACHINES.includes(declared)) {
+      entry = { target: declared };
+      name = declared;
+    } else {
+      const systems = projectSystems(config);
+      if (!systems.ok) return systems;
+      const system = systems.systems.find((s) => s.name === declared);
+      if (!system) {
+        const named = systems.systems.map((s) => `'${s.name}'`);
+        return {
+          ok: false,
+          error: `${where}: '${declared}' is neither a machine (${MACHINES.join(', ')}) nor a system this config names`
+            + `${named.length > 0 ? ` (${named.join(', ')})` : ''}`,
+        };
+      }
+      entry = system;
+      name = declared;
+    }
+  } else if (typeof declared === 'object' && !Array.isArray(declared)) {
+    entry = declared;
+    name = null;
+  } else {
+    return { ok: false, error: `${where} must be a machine's name, a system's name, or { target, profile?, hardware?, region? }` };
+  }
+  // One system, checked exactly the way the advertised block is checked,
+  // under a name no config could give a system of its own.
+  const parsed = parseSystemsMap({ baseline: entry }, { where, config, origin: 'advertised' });
+  if (!parsed.ok) return { ok: false, error: parsed.error.replace("system 'baseline': ", '') };
+  const [system] = parsed.systems;
+  if (system.unmet.length > 0) {
+    const short = system.unmet.map(({ key, need, have }) => `${key} needs ${need === true ? 'it' : need}, has ${have === true ? 'it' : have}`);
+    return {
+      ok: false,
+      error: `${where} falls short of the program's own \`requires\` (${short.join('; ')}) — `
+        + 'the baseline is the build every fact the program tests is true on, so it clears the floor first',
+    };
+  }
+  const resolved = resolveHardware(loadCatalog(system.target), {
+    profile: system.profile ?? undefined,
+    overrides: system.hardware,
+    profiles: projectProfiles(config, system.target),
+    defaults: projectHardware(config, system.target),
+  });
+  return { ok: true, baseline: { ...system, name, facts: resolved.hardware.facts } };
+}
+
+/**
  * What this machine could be fitted with that would meet a requirement the
  * build does not — the half of the message that makes it actionable, since
  * "needs 8192 bytes" on a stock VIC-20 is only useful beside "ram=8k gives

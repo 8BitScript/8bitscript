@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import {
   analyze, link, tokenize, parse, foldCompileTime, NodeType, FACTS, PROGRAM_FACTS,
   CONTROLLER_KINDS, LOGICAL_CONTROLS, controllerKind,
-  factConstName, factPlaceholder, factProblems, requiresProblems, unmetRequirements,
+  factConstName, factPlaceholder, factProblems, requiresProblems, shortOfBaseline, unmetRequirements,
   getHoverInfo, getCompletions,
 } from '../index.mjs';
 
@@ -280,3 +280,20 @@ test('storage.kib is on the program\'s sheet, a build-time count', () => {
   assert.deepEqual(factConstName('storage.kib'), { namespace: 'Storage', name: 'KIB' });
 });
 
+test('shortOfBaseline names the build-settled program facts one sheet has less of than the baseline\'s, and nothing else', () => {
+  const c64 = { 'video.palette': 16, 'video.raster': true, 'video.columns': 40, 'memory.ram': 51199, 'input.mouse': true, 'audio.voices': 3 };
+  const pet = { 'video.palette': 2, 'video.raster': false, 'video.columns': 40, 'memory.ram': 3071, 'input.mouse': false, 'audio.voices': 0 };
+  assert.deepEqual(shortOfBaseline(c64, pet), [
+    { key: 'video.palette', baseline: 16, have: 2 },
+    { key: 'video.raster', baseline: true, have: false },
+    { key: 'audio.voices', baseline: 3, have: 0 },
+    { key: 'memory.ram', baseline: 51199, have: 3071 },
+  ], 'in FACTS order; input.mouse is settled at run time and never listed; a count the build matches is not short');
+  assert.deepEqual(shortOfBaseline(c64, c64), [], 'the baseline is level with itself');
+  assert.deepEqual(shortOfBaseline(pet, c64), [], 'more than the baseline is not short of it');
+  // A key neither sheet mentions is the placeholder on both sides, so it
+  // is never short; one only the baseline mentions is short by the
+  // placeholder, the same answer unmetRequirements gives a hand-made sheet.
+  assert.deepEqual(shortOfBaseline({ 'video.sprites': 8 }, {}), [{ key: 'video.sprites', baseline: 8, have: 0 }]);
+  assert.deepEqual(shortOfBaseline({}, {}), []);
+});
