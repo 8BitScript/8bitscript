@@ -6,6 +6,9 @@
 export type Machine =
   | 'vic20' | 'c64' | 'pet' | 'c128' | 'atari8' | 'nes' | 'cx16' | 'mega65' | 'web';
 
+/** A thing a hand holds, in the program's terms: matched to a machine's control ports, pad ports, keyboard, mouse or paddles. */
+export type InputDevice = 'stick' | 'pad' | 'keyboard' | 'mouse' | 'paddles' | 'touch';
+
 /** Fact floors: a count is the least the program needs, a flag must be true. */
 export type Requires = Record<string, number | boolean>;
 
@@ -91,6 +94,13 @@ export interface ProjectConfig {
   baseline?: Machine | string | SystemConfig;
   /** Fact floors every program in the project needs. */
   requires?: Requires;
+  /**
+   * What the program is designed to be played with (`primary`) and what
+   * else it plays on (`also`). A preference, not a floor — `requires` is
+   * the floor. `8bs targets --reach` says, per machine, whether each
+   * device is standard, optional or absent.
+   */
+  input?: { primary: InputDevice; also?: InputDevice[] };
   /** 8BX settings. `strict: false` turns the ordinary-code lint in `.8bx` files off; the hard rules stay. */
   bx?: { strict?: boolean };
   /**

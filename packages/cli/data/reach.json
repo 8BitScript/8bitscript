@@ -331,7 +331,10 @@
        "name": "r/Commodore",
        "members": 7451,
        "members2023": 7364,
-       "members2023CheckedOn": "2023-12-15"
+       "members2023CheckedOn": "2023-12-15",
+       "source": "https://subredditstats.com/r/commodorepet",
+       "asOf": "2026-09-20",
+       "verify": true
       }
      ],
      "source": "https://subredditstats.com/r/commodorepet"
@@ -806,7 +809,10 @@
        "name": "r/Commodore",
        "members": 7451,
        "members2023": 7364,
-       "members2023CheckedOn": "2023-12-15"
+       "members2023CheckedOn": "2023-12-15",
+       "source": "https://subredditstats.com/r/vic20",
+       "asOf": "2026-09-20",
+       "verify": true
       }
      ],
      "source": "https://subredditstats.com/r/vic20"
@@ -963,7 +969,7 @@
     "subreddit": {
      "name": "r/c64",
      "members": 32585,
-     "asOf": "",
+     "asOf": "2026-09-20",
      "source": "https://reddapi.dev/subreddits/c64/insights",
      "verify": true,
      "notes": "www.reddit.com/r/c64/about.json and old.reddit.com both blocked ('Claude Code is unable to fetch from reddit'); figure from third-party mirror reddapi.dev with no timestamp Parent agent also tried curl with browser UA against www.reddit.com/about.json, old.reddit.com and api.reddit.com on 2026-09-20: all HTTP 403; reddapi.dev indexes only r/c64 (32,585) and r/Commodore (7,451), undated."
@@ -1600,7 +1606,10 @@
        "name": "r/Commodore",
        "members": 7451,
        "members2023": 7364,
-       "members2023CheckedOn": "2023-12-15"
+       "members2023CheckedOn": "2023-12-15",
+       "source": "https://reddapi.dev/subreddits/c64/insights",
+       "asOf": "2026-09-20",
+       "verify": true
       },
       {
        "name": "r/commodore64",
@@ -2050,7 +2059,10 @@
        "name": "r/Commodore",
        "members": 7451,
        "members2023": 7364,
-       "members2023CheckedOn": "2023-12-15"
+       "members2023CheckedOn": "2023-12-15",
+       "source": "https://subredditstats.com/r/c128",
+       "asOf": "2026-09-20",
+       "verify": true
       }
      ],
      "source": "https://subredditstats.com/r/c128"
@@ -2486,7 +2498,10 @@
        "name": "r/Commodore",
        "members": 7451,
        "members2023": 7364,
-       "members2023CheckedOn": "2023-12-15"
+       "members2023CheckedOn": "2023-12-15",
+       "source": "https://subredditstats.com/r/plus4",
+       "asOf": "2026-09-20",
+       "verify": true
       }
      ],
      "source": "https://subredditstats.com/r/plus4"
@@ -3033,7 +3048,8 @@
       {
        "tag": "x16",
        "gamesTagged": 4,
-       "source": "https://itch.io/games/tag-x16"
+       "source": "https://itch.io/games/tag-x16",
+       "asOf": "2026-09-20"
       }
      ],
      "notes": "tag 'commanderx16' not tried"
@@ -3700,7 +3716,10 @@
        "name": "r/atari",
        "members": 20964,
        "members2023": 12859,
-       "members2023CheckedOn": "2023-12-16"
+       "members2023CheckedOn": "2023-12-16",
+       "source": "https://subredditstats.com/r/atari8bit",
+       "asOf": "2026-09-20",
+       "verify": true
       }
      ],
      "source": "https://subredditstats.com/r/atari8bit"
@@ -4128,7 +4147,10 @@
        "name": "r/atari",
        "members": 20964,
        "members2023": 12859,
-       "members2023CheckedOn": "2023-12-16"
+       "members2023CheckedOn": "2023-12-16",
+       "source": "https://subredditstats.com/r/atari2600",
+       "asOf": "2026-09-20",
+       "verify": true
       }
      ],
      "source": "https://subredditstats.com/r/atari2600"
@@ -4481,7 +4503,10 @@
        "name": "r/atari",
        "members": 20964,
        "members2023": 12859,
-       "members2023CheckedOn": "2023-12-16"
+       "members2023CheckedOn": "2023-12-16",
+       "source": "https://subredditstats.com/r/atari5200",
+       "asOf": "2026-09-20",
+       "verify": true
       }
      ],
      "source": "https://subredditstats.com/r/atari5200"
@@ -4584,7 +4609,7 @@
      {
       "url": "",
       "figure": 3770000,
-      "asOf": "",
+      "asOf": "2026-09-20",
       "verify": true,
       "via": "commonly repeated lifetime figure; no primary source fetched"
      }
@@ -4895,7 +4920,10 @@
        "name": "r/atari",
        "members": 20964,
        "members2023": 12859,
-       "members2023CheckedOn": "2023-12-16"
+       "members2023CheckedOn": "2023-12-16",
+       "source": "https://subredditstats.com/r/atari7800",
+       "asOf": "2026-09-20",
+       "verify": true
       }
      ],
      "source": "https://subredditstats.com/r/atari7800"
@@ -5000,7 +5028,7 @@
      {
       "url": null,
       "figure": 3000000,
-      "asOf": null,
+      "asOf": "2026-09-20",
       "verify": true,
       "note": "commonly repeated ~3M figure; no fetched source"
      }
@@ -5061,7 +5089,8 @@
       "tag": "lynx",
       "gamesTagged": 32,
       "note": "includes a few Camputers Lynx titles",
-      "source": "https://itch.io/games/tag-lynx"
+      "source": "https://itch.io/games/tag-lynx",
+      "asOf": "2026-09-20"
      }
     },
     "annualCompos": [
@@ -5445,7 +5474,7 @@
      {
       "url": null,
       "figure": 5000000,
-      "asOf": null,
+      "asOf": "2026-09-20",
       "verify": true,
       "note": "low-end ~5M figure commonly repeated; no fetched primary"
      }
@@ -5491,12 +5520,14 @@
       {
        "tag": "apple2",
        "gamesTagged": 8,
-       "source": "https://itch.io/games/tag-apple2"
+       "source": "https://itch.io/games/tag-apple2",
+       "asOf": "2026-09-20"
       },
       {
        "tag": "apple-iie",
        "gamesTagged": 1,
-       "source": "https://itch.io/games/tag-apple-iie"
+       "source": "https://itch.io/games/tag-apple-iie",
+       "asOf": "2026-09-20"
       }
      ]
     },
@@ -10497,7 +10528,7 @@
       "url": "https://www.cpcwiki.eu/forum/index.php",
       "metric": "members ('250,623 Posts in 17,425 Topics by 4,505 Members' — search snippet; site is Cloudflare-blocked from this session)",
       "value": 4505,
-      "asOf": "",
+      "asOf": "2026-09-20",
       "verify": true
      }
     ]
@@ -10632,7 +10663,10 @@
        "name": "r/cpc",
        "members": 2136,
        "members2023": 1751,
-       "members2023CheckedOn": "2023-12-15"
+       "members2023CheckedOn": "2023-12-15",
+       "source": "https://subredditstats.com/r/amstrad",
+       "asOf": "2026-09-20",
+       "verify": true
       },
       {
        "name": "r/AmstradCPC",

@@ -44,6 +44,7 @@ plain `export default { … }` is still a config.
 | `targets` | Machines this project builds for: an array of names, or an object. Per machine: `hardware` (default options), `profiles` (named option sets `--profile` accepts), `release` (what `8bs build --release` builds). |
 | `systems` | Advertised named machines. Each value is `{ target, profile?, hardware?, region? }`. A name cannot be a machine id (`pet`, `c64`, …). The whole team sees these; they are source. |
 | `requires` | Fact floors (`memory.ram`, `storage.save`, …). A system or a build that cannot meet them is refused with what would. |
+| `input` | What the program is designed to be played with, and what else it plays on: `{ primary: 'stick', also: ['keyboard', 'pad'] }` over `stick`, `pad`, `keyboard`, `mouse`, `paddles`, `touch`. A preference, not a floor — `requires: { 'input.keyboard': true }` is the floor. `8bs targets --reach` reports, per machine, whether each device is standard, optional or absent; nothing else reads it. |
 | `baseline` | The system the program is designed on — the build every fact the program tests is true on. A machine's name (`'c64'`, under the project's own hardware for it), a name from `systems`, or a system's shape `{ target, profile?, hardware? }`. `8bs build` and `8bs run` with no target build it; `8bs targets` names it; `8bs build --release` says, per build, which of the facts the program tests that build is short of. `requires` is the floor every build clears; this is the ceiling one reaches. See below, and [docs/project/baseline.md](project/baseline.md). |
 | `i18n` | Message catalogs under `catalog` (`src/i18n/<locale>.8bs` by default), imported as `@8bitscript/i18n/catalog`. `{ defaultLocale, fallbackLocale, locales, catalog, charset }`. A project without this block and without that directory is unchanged. See below. |
 | `imports` | Project import aliases: `{ '@lib': 'src/lib', '@ui': 'src/ui' }` so `import { score } from '@lib/game/rules.8bs'` resolves under the config file's directory. Same twin rules as a relative `.8bs`/`.8bx` path. |
@@ -78,13 +79,21 @@ read from a program as `#fact(...)`
 many columns") and a flag must be true; a machine that cannot meet one
 is refused with what it has, never silently built.
 
-Two things a project cannot say yet: that it is *designed for* a
-joystick but also plays on a keyboard (`requires` is a floor, not a
-preference), and that it cannot work without a peripheral the machine
-may or may not have plugged in (a REU, a mouse — `when: 'run'` facts,
-which `requires` refuses on purpose). Both, and the data for deciding
-which machines are worth a build at all, are the design in
-[docs/project/reach.md](project/reach.md).
+Which machines are worth a build at all is the other question, and
+`8bs targets --reach` answers it with numbers: for every machine — the
+eight that build and the seventeen with no package yet — whether the
+project's `requires` clear its stock sheet, whether the `input` it is
+designed for is standard, optional or absent there, which routes the
+file `8bs build` writes reaches, and how many people are on the far
+side of each: units sold, interest in 2025, releases a year, new
+hardware on sale. The figures are research, not facts — dated, sourced,
+and never read by a build — and the design, the data and its caveats
+are in [docs/project/reach.md](project/reach.md).
+
+One thing a project still cannot say: that it cannot work without a
+peripheral the machine may or may not have plugged in (a REU, a mouse —
+`when: 'run'` facts, which `requires` refuses on purpose). That is an
+open design in the same note.
 
 ## Several programs in one project
 
