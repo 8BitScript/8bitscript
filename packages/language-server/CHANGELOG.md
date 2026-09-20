@@ -1,5 +1,12 @@
 # @8bitscript/language-server
 
+## 0.19.0
+
+### Patch Changes
+
+- Updated dependencies [dcb09eb]
+  - @8bitscript/compiler@0.19.0
+
 ## 0.18.0
 
 ### Patch Changes
