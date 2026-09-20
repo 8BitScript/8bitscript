@@ -233,7 +233,7 @@ const LDX_02FD = [0xae, 0xfd, 0x02];
 
 test('the package ships the vector stub as native assembly, and only the raster module names the handler', async () => {
   const pkg = JSON.parse(readFileSync(join(C64_SRC, '..', 'package.json'), 'utf8'));
-  assert.deepEqual(pkg['8bitscript'].native, ['./native/6502/raster.s', './native/6502/multiplex.s']);
+  assert.deepEqual(pkg['8bitscript'].native, ['./native/6502/raster.s', './native/6502/multiplex.s', './native/6502/text.s']);
   const asm = readFileSync(join(C64_SRC, '..', 'native', '6502', 'raster.s'), 'utf8');
   // The .init section points the NMI vector at the rti in program text
   // and the IRQ vector at $00FD, with an rti written there — page zero,
@@ -279,7 +279,7 @@ test('the package ships the vector stub as native assembly, and only the raster 
   // native sources, as a subpath import does — the package's own probe
   // programs under test/ build with the vector stub this way.
   const ir = linked('import { setupVideo } from "./index.8bs";\nexport function main(): void { setupVideo(); }');
-  assert.equal(ir.nativeSources.length, 2, 'raster.s and multiplex.s; a section no program reaches is dropped at link');
+  assert.equal(ir.nativeSources.length, 3, 'raster.s, multiplex.s and text.s; a section no program reaches is dropped at link');
   assert.match(ir.nativeSources[0], /native\/6502\/raster\.s$/);
   assert.match(ir.nativeSources[1], /native\/6502\/multiplex\.s$/);
   // And the backend can consume raster.s for real, not just regex-match

@@ -727,6 +727,21 @@ self-modifying store writes its own operand through
 one narrow shape onto a field the assembler already had, and a `<`/`>`
 in front of a literal stays refused.
 
+**A block may name its own frame (lower/index.ts `frameOperand`).** The
+parser starts every symbol wide, as a label; the lowerer then looks each
+label operand up in the function's own frame — its parameters, and each
+local while its scope lasts (`Lowerer.frame`, a depth count kept beside
+`symbols`) — and a hit becomes that slot's zero-page address: the mode
+narrowed to the zero-page form when the mnemonic has one (`lda s,y` has
+none and keeps `absolute,y`), `label+N` folded in (`ldx s+1`), `#<`/`#>`
+the address bytes. `jsr`/`jmp`/`jmp ()`/a branch to a frame name is
+refused by name — a slot is data. Globals are deliberately not looked up:
+they reach the lowerer link-renamed, so the written name is not the
+bound one. This is what lets `packages/c64/src/text.8bs` hand a string
+parameter's pointer to `native/6502/text.s` with `lda s` / `ldx s+1`,
+and why `linker/optimize.mjs`'s `referencesNames` reads a block's text
+for names: a parameter only a block reads is not unused.
+
 The size report gets one `(native <section>)` row per kept section,
 sized by the same directive arithmetic as every other row, so the
 sum-to-`bytes.length` invariant holds; the CLD scan reads the native

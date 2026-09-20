@@ -31,6 +31,8 @@ const PROBES = {
   bitmap: ['bitmap-probe.8bs', ['bitmap_enter', 'bitmap_plot', 'bitmap_fillColors', 'sprites_setShapeByte']],
   region: ['region-probe.8bs', ['detectRegion', 'sid_detectRegion', 'sid_frequencyOf']],
   reuTransfer: ['reu-transfer-probe.8bs', ['reu_stash', 'reu_fetch', 'reu_swap', 'reu_verify', 'reu_fillReu']],
+  text: ['text-probe.8bs', ['text_print', 'text_printNumber', 'text_fill', 'text_setReverse']],
+  textTiming: ['text-timing-probe.8bs', ['text_print', 'text_printNumber', 'text_fill']],
 };
 
 for (const [name, [file, functions]] of Object.entries(PROBES)) {
@@ -40,7 +42,7 @@ for (const [name, [file, functions]] of Object.entries(PROBES)) {
     assert.deepEqual(diagnostics, []);
     const names = ir.functions.map((f) => f.name);
     for (const fn of functions) assert.ok(names.includes(fn), fn);
-    assert.equal(ir.nativeSources.length, 2, 'the package\'s raster.s and multiplex.s ride along (sections a program does not reach are dropped at link)');
+    assert.equal(ir.nativeSources.length, 3, 'the package\'s raster.s, multiplex.s and text.s ride along (sections a program does not reach are dropped at link)');
   });
 }
 
@@ -58,7 +60,7 @@ test('the rasterline probe links clean for the C64, @8bitscript/raster resolving
   const names = ir.functions.map((f) => f.name);
   assert.ok(names.some((name) => /raster_at/.test(name)), `the slot layer and the address list link: ${names.join(', ')}`);
   assert.ok(names.some((name) => /raster_enable/.test(name)), 'enable() delegates through');
-  assert.equal(ir.nativeSources.length, 2, 'the package\'s raster.s and multiplex.s ride along');
+  assert.equal(ir.nativeSources.length, 3, 'the package\'s raster.s, multiplex.s and text.s ride along');
 });
 
 // --- Under VICE ---------------------------------------------------------
@@ -337,6 +339,28 @@ test('under VICE, hello-world holds Hello World on a black screen, not the boot 
     // PNG (33, 23). Boot READY. has no white there — it is light-blue
     // on dark-blue, and those asserts above would already have failed.
     assert.ok(isWhite(pixelAt(png, 33, 23)), `H of Hello World, got ${pixelAt(png, 33, 23)}`);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('under VICE, the native text routines write what text.8bs promises: codes, colors, reverse, every number width, a fill across a page', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-c64-text-'));
+  try {
+    const png = await shoot(scratch, 'text', 'text-probe.8bs');
+    // The probe reads its own writes back and paints the border green
+    // when all 41 checks held, red at the first that did not (its number
+    // is on row 20 — read the screenshot when this fails).
+    assert.ok(isGreen(pixelAt(png, 4, 30)), `a green border: every check held, got ${pixelAt(png, 4, 30)}`);
+    // And the picture itself: picture pixel (0, 0) is PNG (32, 23) (the
+    // hello-world test above), a cell is 8 x 8, and the ROM's '*' has its
+    // middle row lit at pixels 3-5 — so pixel (4, 3) of a cell. The
+    // fill's green stars run from cell 200 (row 5, column 0) to 499 (row
+    // 12, column 19), and cell 500 beside it is still the blue playfield.
+    const star = (row, column) => pixelAt(png, 32 + column * 8 + 4, 23 + row * 8 + 3);
+    assert.ok(isGreen(star(5, 0)), `a star at cell 200, got ${star(5, 0)}`);
+    assert.ok(isGreen(star(12, 19)), `a star at cell 499, got ${star(12, 19)}`);
+    assert.ok(isBlue(star(12, 20)), `cell 500 untouched, got ${star(12, 20)}`);
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }

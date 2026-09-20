@@ -313,7 +313,11 @@ sites are the callee's), and a body already written into its one caller
 stands in for that copy until the caller's finished body is stored.
 Not inlined: a void body with a `return` anywhere (the `f(); return;`
 idiom keeps a call, as under rule 6), a non-void body with an early
-return, `asm6502` (its text may name the function's own frame), a
+return, `asm6502` (its text may name the function's own frame —
+`mos/lower`'s `frameOperand` resolves a parameter or local written as
+an operand to its zero-page slot, and `referencesNames` counts a name
+in the text as a read so rule 6 never pastes a body in with that
+parameter unbound), a
 string parameter with no literal to bind, and a site inside an
 unrolled string copy or a forwarder's body. 2048 #51's `paintTile` +
 `stampValue` + `Tile` were +56 bytes on every 6502 and +84 on the PET

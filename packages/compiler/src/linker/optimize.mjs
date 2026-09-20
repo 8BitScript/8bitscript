@@ -182,10 +182,22 @@ function containsReturn(node) {
   return Object.values(node).some(containsReturn);
 }
 
+/** Whether an `asm6502` block's text writes any of `names` as a word — the shape mos/lower's frameOperand resolves against the frame. */
+function asmNames(node, names) {
+  const text = typeof node.text === 'string' ? node.text : '';
+  for (const word of text.match(/[A-Za-z_][A-Za-z0-9_]*/g) ?? []) if (names.has(word)) return true;
+  return false;
+}
+
 function referencesNames(node, names) {
   if (names.size === 0) return false;
   if (Array.isArray(node)) return node.some((item) => referencesNames(item, names));
   if (!node || typeof node !== 'object') return false;
+  // An `asm6502` block may name the function's own parameters or locals
+  // as operands (mos/lower's frameOperand), so a name written in its text
+  // is a reference: a parameter only a block reads is not unused, and
+  // inlineVoidCall must not paste the body in with that binding gone.
+  if (node.kind === 'asm') return asmNames(node, names);
   if (node.kind === 'ref' && typeof node.name === 'string' && names.has(node.name)) return true;
   if (node.kind === 'assign' && typeof node.target === 'string' && names.has(node.target)) return true;
   return Object.values(node).some((value) => referencesNames(value, names));
@@ -579,7 +591,9 @@ function bindsName(node, name) {
  * `toScreen`'s `screen` once `asciiToScreenCode(72)` folded), and it would
  * otherwise keep a zero-page byte and a store for a number the code
  * already knows. A local the program wrote where it stands is left alone
- * — it may exist to shadow, or to be refused by name.
+ * — it may exist to shadow, or to be refused by name. An `asm6502` block
+ * naming the local cannot follow: rule 9 never pastes a body holding one
+ * (singleCallerCallee), so no inlined local shares a frame with a block.
  */
 function propagateConstLocals(statements, ctx) {
   for (let i = 0; i < statements.length; i++) {

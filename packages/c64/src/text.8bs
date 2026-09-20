@@ -75,13 +75,28 @@ function asciiToScreenCode(code: utinyint): utinyint {
 // \`TICK ${ticks:1}\`)` is laid out at compile time into these same calls
 // (see packages/compiler/src/ir).
 //
-// Under them: `place()` puts one character at one cell in the current
-// color, and is all a run of text costs per character, with `prepare()`
-// making sure the picture is set up and selecting the upper-case set once
-// for the run. `text.putChar` and `text.putColor` stay the one-cell pokes
-// a caller can build anything from.
+// All three are native/6502/text.s, one routine each: `print()`,
+// `printNumber()` and `fill()` here copy their parameters to page $07
+// (the routines' header maps it) from an asm6502 block that names them,
+// and call. They were this file's own code until 2026-09-19, when the
+// compiler's generic code measured 1,908 cycles for a nine-character
+// print — a call to place() and two inside it for every cell, ~210 a
+// character — 2,944 for a five-digit number and 8,078 to fill forty
+// cells (test/text-timing-probe.8bs): a HUD line was a fifth of a frame.
+// `prepare()` makes sure the picture is set up and selects the
+// mixed-case set once for the run, and hands the routines the color and
+// reverse state. `text.putChar` and `text.putColor` stay the one-cell
+// pokes a caller can build anything from, in 8BitScript.
 let currentColor: utinyint = 1; // white, until text.setColor() says otherwise
 let currentReverse: bool = false; // until text.setReverse() says otherwise
+
+// What the native routines read (native/6502/text.s's header): the color
+// and the reverse bit, copied in by prepare() — an @address global cannot
+// start out white, so the state itself stays in the two above.
+@address(0x0702)
+let textColor: volatile<u8>;
+@address(0x0703)
+let textReverse: volatile<u8>;
 
 // Reverse video is bit 7 of the screen code: 128-255 are the ROM's
 // inverted copies of 0-127. A reverse space is a solid block in the
@@ -100,21 +115,13 @@ function prepare(): void {
     if (videoMode == VideoMode.TEXT) {
         memoryPointer = Video.MEMORY_POINTER_LOWERCASE;
     }
+    textColor = currentColor; // color RAM is four bits wide; the VIC-II ignores the rest
+    if (currentReverse) {
+        textReverse = 128;
+    } else {
+        textReverse = 0;
+    }
 }
-
-function place(cell: usmallint, code: utinyint): void {
-    screenRam[cell] = toScreen(code);
-    colorRam[cell] = currentColor; // color RAM is four bits wide; the VIC-II ignores the rest
-}
-
-// ---- digits -------------------------------------------------------------
-//
-// A number is written one place at a time, high to low, by subtracting the
-// place value until it no longer fits: the 6502 has no divide instruction,
-// and `value / 10` would link a 250-byte routine to do it. Places above the
-// field are still taken off, so a field narrower than its number shows the
-// low digits; places the number does not reach print as zeros.
-const DIGIT_PLACES: array<usmallint, 5> = [10000, 1000, 100, 10, 1];
 
 export namespace text {
     const CELL_COUNT: usmallint = Video.CELL_COUNT; // 40 columns x 25 rows
@@ -165,8 +172,16 @@ export namespace text {
 
     function print(cell: usmallint, s: string): void {
         prepare();
-        for (let i: utinyint = 0; i < s.length; i++) {
-            place(cell + i, s[i]);
+        asm6502 {
+            lda cell
+            sta $0700
+            lda cell+1
+            sta $0701
+            lda s               ; the string's address: its length byte, then the characters
+            sta $0704
+            lda s+1
+            sta $0705
+            jsr __8bs_c64_text_print
         }
     }
 
@@ -176,29 +191,43 @@ export namespace text {
     // while the program runs (a responsive tile, a panel being cleared) needs
     // this instead of a string constant per possible width.
     function fill(cell: usmallint, count: usmallint, code: utinyint): void {
-        for (let i: usmallint = 0; i < count; i++) {
-            place(cell + i, code);
+        prepare();
+        asm6502 {
+            lda cell
+            sta $0700
+            lda cell+1
+            sta $0701
+            lda count
+            sta $0704
+            lda count+1
+            sta $0705
+            lda code
+            sta $0706
+            jsr __8bs_c64_text_fill
         }
     }
 
+    // `value` as exactly `width` decimal digits, zero-padded and
+    // right-aligned: one place at a time, high to low, by subtracting the
+    // place value until it no longer fits — the 6502 has no divide
+    // instruction, and `value / 10` would link a 250-byte routine to do it.
+    // Places above the field are still taken off, so a field narrower than
+    // its number shows the low digits; places the number does not reach
+    // print as zeros.
     function printNumber(cell: usmallint, value: usmallint, width: utinyint): void {
         prepare();
-        let k: utinyint = width;
-        if (k < DIGIT_PLACES.length) {
-            k = DIGIT_PLACES.length;
-        }
-        while (k > 0) {
-            let digit: utinyint = 48; // '0'
-            if (k <= DIGIT_PLACES.length) {
-                while (value >= DIGIT_PLACES[DIGIT_PLACES.length - k]) {
-                    value = value - DIGIT_PLACES[DIGIT_PLACES.length - k];
-                    digit++;
-                }
-            }
-            if (k <= width) {
-                place(cell + width - k, digit);
-            }
-            k--;
+        asm6502 {
+            lda cell
+            sta $0700
+            lda cell+1
+            sta $0701
+            lda value
+            sta $0704
+            lda value+1
+            sta $0705
+            lda width
+            sta $0706
+            jsr __8bs_c64_text_number
         }
     }
 }

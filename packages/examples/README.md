@@ -178,7 +178,8 @@ Five files, each one kind of thing:
   when the scene opens the border.
 - `src/counter.8bs` — *the count on screen*: five digits kept in place,
   one `text.putChar` a frame (a five-digit `printNumber` every frame was
-  ~2,800 cycles on the C64, a sixth of the frame).
+  ~2,800 cycles on the C64 under the compiler's code, a sixth of the
+  frame; ~1,265 through `native/6502/text.s`, still more than one poke).
 - `src/shapes.8bs`, `src/shapes.c64.8bs` and `src/shapes.pet.8bs` — *what
   a sprite looks like*: an `O` on seven machines, a 24 × 21 ring drawn
   into a sprite block on the C64, a 4 × 4 pseudo-pixel ring defined
@@ -203,9 +204,10 @@ thing — a counter reprinted under a standing ring would come back stale.
 twin's tables (252 bytes of shape patterns, 72 of save-under, the
 merge), so the config's PET is the 32K 3032; vic20 2881 / 70 of the
 unexpanded 3583; c128 2882; mega65 2947; atari8 2941; cx16 3553; c64
-4622 / 71 — the one machine that carries the multiplexer (native now),
-the raster handler and the border; nes a fixed ROM; web 23 bytes of
-constants.
+4744 / 71 — the one machine that carries the multiplexer (native now),
+the raster handler, the border, and the native text routines (the
+title's print and the number routine, 275 of the bytes; 4622 before
+them); nes a fixed ROM; web 23 bytes of constants.
 
 **What it costs in time**, measured with each machine's own timer around
 each stage of the loop (`swarm.8bs`'s header has the C64 numbers): one
