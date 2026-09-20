@@ -45,7 +45,9 @@ test('--json carries the project\'s systems beside the targets and the fact sche
   const { stdout } = await run(process.execPath, [BIN, 'targets', '--json'], { cwd: dir, maxBuffer: 8 * 1024 * 1024 });
   const parsed = JSON.parse(stdout);
   assert.deepEqual(Object.keys(parsed).sort(),
-    ['facts', 'programs', 'programsError', 'requires', 'requiresError', 'systems', 'systemsError', 'targets']);
+    ['baseline', 'baselineError', 'facts', 'programs', 'programsError', 'requires', 'requiresError', 'systems', 'systemsError', 'targets']);
+  assert.equal(parsed.baseline, null, 'a project that names no baseline has none');
+  assert.equal(parsed.baselineError, null);
   // One `entry` is the one program every project has, named main.
   assert.deepEqual(parsed.programs, [{ name: 'main', entry: 'src/main.8bs', targets: null }]);
   assert.equal(parsed.programsError, null);
@@ -192,4 +194,49 @@ test('--json lists the project\'s programs, and a wrong programs block costs the
   assert.equal(badParsed.targets.length, 9);
   assert.deepEqual(badParsed.programs, []);
   assert.match(badParsed.programsError, /programs\.main\.entry is src\/App\.8bx, a \.8bx file; a program starts from a \.8bs file/);
+});
+
+test('--json carries the baseline with its resolved sheet, the table names it, and a wrong one costs the reader that row only', async (t) => {
+  const dir = project(t, `export default {
+  entry: 'src/main.8bs',
+  targets: { c64: {}, pet: { hardware: { model: '4032', ram: '32' } } },
+  systems: { 'PET 4032': { target: 'pet' } },
+  baseline: 'c64',
+};
+`);
+  const { stdout } = await run(process.execPath, [BIN, 'targets', '--json'], { cwd: dir, maxBuffer: 8 * 1024 * 1024 });
+  const parsed = JSON.parse(stdout);
+  assert.equal(parsed.baselineError, null);
+  assert.equal(parsed.baseline.target, 'c64');
+  assert.equal(parsed.baseline.name, 'c64');
+  assert.equal(parsed.baseline.facts['video.raster'], true);
+  const table = await run(process.execPath, [BIN, 'targets'], { cwd: dir, maxBuffer: 8 * 1024 * 1024 });
+  assert.match(table.stdout, /This program is designed on:\n  c64: 8bs run c64 — or plain 8bs run/);
+
+  const named = project(t, `export default {
+  entry: 'src/main.8bs',
+  targets: { c64: {}, pet: { hardware: { model: '4032', ram: '32' } } },
+  systems: { 'PET 4032': { target: 'pet', profile: '4032' } },
+  baseline: 'PET 4032',
+};
+`);
+  const viaSystem = JSON.parse((await run(process.execPath, [BIN, 'targets', '--json'], { cwd: named, maxBuffer: 8 * 1024 * 1024 })).stdout);
+  assert.equal(viaSystem.baseline.name, 'PET 4032');
+  assert.equal(viaSystem.baseline.target, 'pet');
+  assert.equal(viaSystem.baseline.profile, '4032');
+  const namedTable = await run(process.execPath, [BIN, 'targets'], { cwd: named, maxBuffer: 8 * 1024 * 1024 });
+  assert.match(namedTable.stdout, /pet \("PET 4032"\): 8bs run pet --profile 4032 — or plain 8bs run/);
+
+  const wrong = project(t, `export default {
+  entry: 'src/main.8bs',
+  targets: { c64: {} },
+  baseline: 'pet',
+};
+`);
+  const { stdout: wrongJson } = await run(process.execPath, [BIN, 'targets', '--json'], { cwd: wrong, maxBuffer: 8 * 1024 * 1024 });
+  const wrongParsed = JSON.parse(wrongJson);
+  assert.equal(wrongParsed.baseline, null);
+  assert.match(wrongParsed.baselineError, /does not target pet/);
+  assert.ok(wrongParsed.targets.length > 0, 'the machines are still there');
+  await assert.rejects(run(process.execPath, [BIN, 'targets'], { cwd: wrong }), /does not target pet/);
 });

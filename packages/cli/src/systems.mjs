@@ -14,7 +14,7 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 import { PROJECT_DIRNAME } from './checkout.mjs';
-import { listedTargets, parseSystemsMap, projectSystems } from './hardware.mjs';
+import { listedTargets, parseSystemsMap, projectBaseline, projectSystems } from './hardware.mjs';
 
 export const SYSTEMS_FILE = 'systems.json';
 
@@ -171,6 +171,23 @@ export function systemFitting(system, hw) {
     overrides: { ...system.hardware, ...hw.overrides },
     pal: system.region === 'pal',
   };
+}
+
+/**
+ * The launch a command gets when it names no target and no `--system`:
+ * the project's baseline (hardware.mjs's projectBaseline), fitted exactly
+ * the way a `--system` is — `--profile` and `--hardware` sit on top of
+ * it. A project without one gets `target: undefined`, and the usage
+ * message stays the answer.
+ *
+ * @param {{ profile?: string, overrides?: object }} hw
+ * @param {object|null} config
+ */
+export function baselineLaunch(hw, config) {
+  const baseline = projectBaseline(config);
+  if (!baseline.ok) return baseline;
+  if (!baseline.baseline) return { ok: true, target: undefined, system: undefined };
+  return { ok: true, ...systemFitting(baseline.baseline, hw), system: baseline.baseline, baseline: baseline.baseline };
 }
 
 /**

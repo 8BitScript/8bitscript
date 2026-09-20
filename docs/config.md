@@ -44,6 +44,7 @@ plain `export default { … }` is still a config.
 | `targets` | Machines this project builds for: an array of names, or an object. Per machine: `hardware` (default options), `profiles` (named option sets `--profile` accepts), `release` (what `8bs build --release` builds). |
 | `systems` | Advertised named machines. Each value is `{ target, profile?, hardware?, region? }`. A name cannot be a machine id (`pet`, `c64`, …). The whole team sees these; they are source. |
 | `requires` | Fact floors (`memory.ram`, `storage.save`, …). A system or a build that cannot meet them is refused with what would. |
+| `baseline` | The system the program is designed on — the build every fact the program tests is true on. A machine's name (`'c64'`, under the project's own hardware for it), a name from `systems`, or a system's shape `{ target, profile?, hardware? }`. `8bs build` and `8bs run` with no target build it; `8bs targets` names it; `8bs build --release` says, per build, which of the facts the program tests that build is short of. `requires` is the floor every build clears; this is the ceiling one reaches. See below, and [docs/project/baseline.md](project/baseline.md). |
 | `i18n` | Message catalogs under `catalog` (`src/i18n/<locale>.8bs` by default), imported as `@8bitscript/i18n/catalog`. `{ defaultLocale, fallbackLocale, locales, catalog, charset }`. A project without this block and without that directory is unchanged. See below. |
 | `imports` | Project import aliases: `{ '@lib': 'src/lib', '@ui': 'src/ui' }` so `import { score } from '@lib/game/rules.8bs'` resolves under the config file's directory. Same twin rules as a relative `.8bs`/`.8bx` path. |
 
@@ -188,6 +189,47 @@ are the program).
 names each one it checked and says so, so a `dist/` never looks more
 complete than it is. The writer (`c1541` for the Commodore formats, which
 ships with VICE) is a later release's.
+
+## The baseline
+
+Every build is the same program, and one of them is the one it was
+written against — the machine a feature is tried on first, the one the
+screenshot in the README is from, the one where every `#fact(...)` the
+program tests answers yes. `baseline` names it:
+
+```ts
+export default defineConfig({
+  targets: { vic20: {}, c64: {}, pet: { hardware: { model: '4032', ram: '32' } }, web: {} },
+  baseline: 'c64',                    // or a name from `systems`, or { target: 'pet', profile: '8032' }
+  requires: { 'memory.ram': 3072 },   // the floor every build clears
+});
+```
+
+What it changes:
+
+- `8bs build` and `8bs run` with no `--target` and no `--system` build
+  the baseline, so `pnpm start` in a project is the program on the
+  machine it is for. `--profile` and `--hardware` sit on top of it, the
+  way they do on a `--system`.
+- `8bs targets` prints it under "This program is designed on", with the
+  command that makes it; `--json` carries it as `baseline`, with its
+  resolved fact sheet, so the editor can put it first.
+- `8bs build --release` prints, after every artifact, how it stands to
+  the baseline — `the baseline`, `level with the baseline (c64)`, or
+  `short of the baseline (c64): video.palette 2 of 16, video.raster,
+  memory.ram 3071 of 51199`. Only the facts the program's own files test
+  are counted (`#fact(...)`, and `Video.*` / `Memory.*` and the rest from
+  `@8bitscript/system`); a fact a package folds on is that package's
+  business, and a fact the program never asks about is not one a build
+  does without.
+
+A baseline below the program's own `requires` is refused as a config
+mistake: the baseline clears the floor first. A baseline is not a grade.
+A build short of it is not a lesser edition — it is the same source,
+folded for a machine that lacks a fact, and the report exists so a
+release can say which facts, in the program's own words, instead of a
+README working it out by hand. The design and the vocabulary are in
+[docs/project/baseline.md](project/baseline.md).
 
 ## Named systems, three places
 

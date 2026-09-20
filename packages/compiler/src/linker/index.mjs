@@ -38,6 +38,8 @@ import { tokenize } from '../lexer/index.mjs';
 import { parse } from '../parser/index.mjs';
 import { check } from '../checker/index.mjs';
 import { foldCompileTime } from '../fold/index.mjs';
+import { FACTS, factConstName } from '../fold/facts.mjs';
+import { NodeType, walk } from '../ast/index.mjs';
 import { bind, bindImportedComponents } from '../binder/index.mjs';
 import { checkBx } from '../bx/check.mjs';
 import { elaborateBx } from '../bx/elaborate.mjs';
@@ -130,15 +132,23 @@ function loadGraph(entryText, entryFile, diagnostics, sources, options) {
   const nativeSources = new Map();
   const finishOptions = { frameRate: options.frameRate, machine: options.machine, facts: options.facts, bx: options.bx, locale: options.locale, i18n: options.i18n };
 
-  const enqueue = (file, text) => {
+  // Whether a module is the program's own: the entry, and whatever it
+  // reaches by a relative path or a project alias — never through a bare
+  // package name. What testedFacts reads; a package's own fact reads are
+  // the package's business, not the program's.
+  const aliases = Object.keys(options.importAliases ?? {});
+  const ownRoute = (specifier) => specifier.startsWith('.') || specifier.startsWith('/')
+    || aliases.some((prefix) => specifier === prefix || specifier.startsWith(`${prefix}/`));
+  const enqueue = (file, text, own) => {
     const module = parseModule(file, text, diagnostics);
+    module.own = own;
     modules.push(module);
     byPath.set(canonical(file), module);
     sources.set(file, text);
     return module;
   };
 
-  enqueue(entryFile, entryText);
+  enqueue(entryFile, entryText, true);
   // The entry's own package, if it sits inside one that ships native
   // sources (a package's probe program under its test/ directory).
   for (const source of nativeSourcesBeside(entryFile).native ?? []) {
@@ -161,7 +171,7 @@ function loadGraph(entryText, entryFile, diagnostics, sources, options) {
       } catch {
         continue;
       }
-      enqueue(resolved.path, text);
+      enqueue(resolved.path, text, module.own && ownRoute(specifier));
     }
   }
   // Every import that names an exported component now points at it.
@@ -224,7 +234,7 @@ function loadGraph(entryText, entryFile, diagnostics, sources, options) {
           ));
           continue;
         }
-        finishModule(enqueue(resolved.path, text), diagnostics, finishOptions);
+        finishModule(enqueue(resolved.path, text, module.own && ownRoute(imp.source)), diagnostics, finishOptions);
       }
       imp.module = byPath.get(key);
       for (const source of resolved.native ?? []) {
@@ -234,6 +244,49 @@ function loadGraph(entryText, entryFile, diagnostics, sources, options) {
   }
 
   return { modules, nativeSources: [...nativeSources.values()] };
+}
+
+const SYSTEM_PACKAGE = '@8bitscript/system';
+
+/**
+ * The facts the program's own files test, by key: every `#fact(key)` a
+ * project module spells (the fold leaves the key in the literal's `raw`),
+ * and every `Video.COLUMNS`-style member of a namespace imported from
+ * @8bitscript/system, whose consts are those facts by another name
+ * (facts.mjs's factConstName). Package modules are left out on purpose:
+ * `text.COLUMNS` folding on `video.columns` is the text package's
+ * business, and the program that prints through it never asked. This is
+ * what a release measures a build against its baseline by
+ * (docs/project/baseline.md): a fact the program never tests cannot be
+ * one it does without.
+ *
+ * @returns {string[]} keys, in FACTS order
+ */
+function testedFacts(modules) {
+  const byConst = new Map([...FACTS.keys()].map((key) => {
+    const { namespace, name } = factConstName(key);
+    return [`${namespace}.${name}`, key];
+  }));
+  const keys = new Set();
+  for (const module of modules) {
+    if (!module.own || !module.ast) continue;
+    // Local name → the @8bitscript/system namespace it names (`Memory`,
+    // or `M` under `import { Memory as M }`).
+    const namespaces = new Map();
+    walk(module.ast, (n) => {
+      if (n.type === NodeType.ImportDeclaration && n.source?.value === SYSTEM_PACKAGE) {
+        for (const spec of n.specifiers ?? []) namespaces.set(spec.name, spec.imported ?? spec.name);
+      }
+    });
+    walk(module.ast, (n) => {
+      if (typeof n.raw === 'string' && n.raw.startsWith('#fact(')) keys.add(n.raw.slice('#fact('.length, -1));
+      if (n.type === NodeType.MemberExpression && n.object?.type === NodeType.Identifier && namespaces.has(n.object.name)) {
+        const key = byConst.get(`${namespaces.get(n.object.name)}.${n.property?.name}`);
+        if (key) keys.add(key);
+      }
+    });
+  }
+  return [...FACTS.keys()].filter((key) => keys.has(key));
 }
 
 /** Every top-level name a module declares, mapped to whether it is exported. */
@@ -1155,22 +1208,24 @@ function checkEntryExports(module) {
  *   is the build's locale, if it has one: a file's `.<locale>` twin is
  *   taken where it exists (see the resolver), and `#locale("de")` folds
  *   to whether this is it.
- * @returns {{ ir: object|null, diagnostics: object[], sources: Map<string,string> }}
+ * @returns {{ ir: object|null, diagnostics: object[], sources: Map<string,string>, factsTested: string[] }}
+ *   `factsTested` is every fact the program's own files test (see testedFacts).
  */
 export function link(entryText, entryFile, options = {}) {
   const diagnostics = [];
   const sources = new Map();
 
   const { modules, nativeSources } = loadGraph(entryText, entryFile, diagnostics, sources, options);
+  const factsTested = testedFacts(modules);
   // modules[0] is the entry: loadGraph enqueues it before walking imports.
   const entry = checkEntryExports(modules[0]);
   diagnostics.push(...entry.diagnostics);
   bindImports(modules, diagnostics);
-  if (hasError(diagnostics)) return { ir: null, diagnostics, sources };
+  if (hasError(diagnostics)) return { ir: null, diagnostics, sources, factsTested };
 
   assignOutputNames(modules);
   resolvePendingConsts(modules, diagnostics);
-  if (hasError(diagnostics)) return { ir: null, diagnostics, sources };
+  if (hasError(diagnostics)) return { ir: null, diagnostics, sources, factsTested };
 
   // `nativeSources` is not IR the backends translate — it is the list of
   // files a backend passes through untouched (the 6502 backend receives
@@ -1283,7 +1338,7 @@ export function link(entryText, entryFile, options = {}) {
     }
   }
 
-  if (hasError(diagnostics)) return { ir: null, diagnostics, sources };
+  if (hasError(diagnostics)) return { ir: null, diagnostics, sources, factsTested };
   specializeInstances(ir, diagnostics);
   // A module's own lowering types what it can see; a ref to an imported
   // global, an imported array's element read, and every binop over either
@@ -1296,9 +1351,9 @@ export function link(entryText, entryFile, options = {}) {
   // output names — the writes the target refuses are visible as what they
   // are, whichever module spelled them and however it named the address.
   checkHardwareHazards(ir, options.machine, functionFiles, diagnostics);
-  if (hasError(diagnostics)) return { ir: null, diagnostics, sources };
+  if (hasError(diagnostics)) return { ir: null, diagnostics, sources, factsTested };
   ir.memory = memoryOf(ir);
-  return { ir, diagnostics, sources };
+  return { ir, diagnostics, sources, factsTested };
 }
 
 /**

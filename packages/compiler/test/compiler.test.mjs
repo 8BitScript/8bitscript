@@ -459,6 +459,25 @@ const SCREEN_CONSUMER = 'import { screen } from "@8bitscript/screen";\nexport fu
 // question here is whether the function exists on the machine at all.
 const SETCOLOR_CONSUMER = 'import { text, TextColor } from "@8bitscript/text";\nexport function main(): void {\n    text.setColor(TextColor.WHITE);\n    text.print(0, "HI");\n    text.setColor(TextColor.RED);\n    text.print(40, "HI");\n}';
 
+test('link reports the facts the program\'s own files test — #fact() and the @8bitscript/system consts — and never a package\'s', () => {
+  // The text package folds on video.columns for every program that prints;
+  // this program tests video.raster and Memory.RAM itself, through both
+  // spellings, and Video.COLUMNS under a renamed import.
+  const source = 'import { text } from "@8bitscript/text";\n'
+    + 'import { Memory, Video as V } from "@8bitscript/system";\n'
+    + 'const HAS_RASTER: bool = #fact(video.raster);\n'
+    + 'export function main(): void {\n'
+    + '    if (Memory.RAM < 4096) { text.print(0, "SMALL"); }\n'
+    + '    if (HAS_RASTER && V.COLUMNS == 40) { text.print(0, "BIG"); }\n'
+    + '}';
+  const { ir, diagnostics, factsTested } = link(source, STUDIO_ENTRY, { machine: 'c64', facts: stockFacts('c64') });
+  assert.deepEqual(diagnostics.filter((d) => d.severity === 'error'), []);
+  assert.ok(ir);
+  assert.deepEqual(factsTested, ['video.columns', 'video.raster', 'memory.ram'], 'in FACTS order');
+  const none = link(SCREEN_CONSUMER, STUDIO_ENTRY, { machine: 'c64', facts: stockFacts('c64') });
+  assert.deepEqual(none.factsTested, [], 'a program that only prints tests nothing, whatever its packages fold on');
+});
+
 test('a conditional entry resolves to the vic20 implementation', () => {
   const { ir, diagnostics } = link(SCREEN_CONSUMER, STUDIO_ENTRY, { machine: 'vic20' });
   assert.deepEqual(diagnostics, []);

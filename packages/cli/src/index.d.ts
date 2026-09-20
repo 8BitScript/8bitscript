@@ -79,6 +79,16 @@ export interface ProjectConfig {
   targets?: Machine[] | Partial<Record<Machine, TargetConfig>>;
   /** Advertised named machines, for `--system` and the editor's side bar. */
   systems?: Record<string, SystemConfig>;
+  /**
+   * The system the program is designed on: the build every fact the
+   * program tests is true on, so every other build is the same program
+   * folded for a machine without some of them. A machine's name (under
+   * the project's own hardware for it), a name from `systems`, or a
+   * system's shape. `8bs build` and `8bs run` with no target build it;
+   * `8bs build --release` says, per build, which tested facts that build
+   * is short of. `requires` is the floor; this is the ceiling.
+   */
+  baseline?: Machine | string | SystemConfig;
   /** Fact floors every program in the project needs. */
   requires?: Requires;
   /** 8BX settings. `strict: false` turns the ordinary-code lint in `.8bx` files off; the hard rules stay. */

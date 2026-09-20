@@ -11,7 +11,7 @@ import { FACTS, MACHINES, RELEASE_MACHINES } from '@8bitscript/compiler';
 import { loadConfig } from './config.mjs';
 import { defaultPort } from './controllers.mjs';
 import {
-  REGION_MACHINES, loadCatalog, projectHardware, projectProfiles, projectRequires,
+  REGION_MACHINES, loadCatalog, projectBaseline, projectHardware, projectProfiles, projectRequires,
   stockFacts,
 } from './hardware.mjs';
 import { resolvePrograms } from './programs.mjs';
@@ -109,6 +109,24 @@ function printSystems(systems) {
   }
 }
 
+/**
+ * The baseline, for the table form: the build the program is designed on,
+ * and the command that makes it. Every other build is measured against
+ * it by `8bs build --release`, not graded by it.
+ */
+function printBaseline(baseline) {
+  if (!baseline) return;
+  const parts = [
+    baseline.profile && `--profile ${baseline.profile}`,
+    Object.entries(baseline.hardware).length > 0
+      && `--hardware ${Object.entries(baseline.hardware).map(([k, v]) => `${k}=${v}`).join(',')}`,
+    baseline.region === 'pal' && '--pal',
+  ].filter(Boolean);
+  const named = baseline.name && !MACHINES.includes(baseline.name) ? ` (${JSON.stringify(baseline.name)})` : '';
+  process.stdout.write(`\nThis program is designed on:\n`);
+  process.stdout.write(`  ${baseline.target}${named}: 8bs run ${baseline.target}${parts.length > 0 ? ` ${parts.join(' ')}` : ''} — or plain 8bs run\n`);
+}
+
 /** What the program asks of any machine, for the table form. */
 function printRequires(requires) {
   const entries = Object.entries(requires);
@@ -143,6 +161,7 @@ export async function targets(args) {
   const required = projectRequires(config);
   const programs = resolvePrograms(config);
   const systems = loadMergedSystems({ config });
+  const baseline = projectBaseline(config);
   const described = describeTargets(config);
   if (args.includes('--json')) {
     // A `systems` block the config gets wrong costs the reader its
@@ -156,6 +175,11 @@ export async function targets(args) {
       systemsError: systems.ok ? null : systems.error,
       requires: required.ok ? required.requires : {},
       requiresError: required.ok ? null : required.error,
+      // The build the program is designed on — a system's shape plus its
+      // resolved sheet — or null; a `baseline` the config gets wrong
+      // costs the reader that one row, like a wrong `systems` block.
+      baseline: baseline.ok ? baseline.baseline : null,
+      baselineError: baseline.ok ? null : baseline.error,
       // The project's programs, for a side bar that launches one: name,
       // entry, and the machines it builds for (null: every one the
       // project lists). A `programs` block that is wrong costs the reader
@@ -168,7 +192,7 @@ export async function targets(args) {
     }, null, 2)}\n`);
     return 0;
   }
-  for (const result of [required, systems, programs]) {
+  for (const result of [required, systems, baseline, programs]) {
     if (!result.ok) {
       process.stderr.write(`8bs targets: ${result.error}\n`);
       return 1;
@@ -197,6 +221,7 @@ export async function targets(args) {
     const own = Object.entries(t.hardware).map(([k, v]) => `${k}=${v}`);
     if (own.length > 0) process.stdout.write(`         this project's default: ${own.join(' ')}\n`);
   }
+  printBaseline(baseline.baseline);
   printRequires(required.requires);
   printSystems(systems.systems);
   printPrograms(programs.programs);
