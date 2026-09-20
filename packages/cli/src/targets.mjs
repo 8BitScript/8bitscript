@@ -6,6 +6,11 @@
 // editor reads the JSON form to build its System and Hardware controls, so
 // a new machine or option in a package — or a new system in a project — is
 // a new row there with nothing to update by hand.
+//
+// `--reach` is the other report: the same machines and the ones with no
+// package yet, joined with the project's `requires` and `input` and the
+// reach sheet — who is out there to run a build, and by which formats
+// (packages/cli/src/reach.mjs, docs/project/reach.md).
 import { FACTS, MACHINES, RELEASE_MACHINES } from '@8bitscript/compiler';
 
 import { loadConfig } from './config.mjs';
@@ -15,6 +20,7 @@ import {
   stockFacts,
 } from './hardware.mjs';
 import { resolvePrograms } from './programs.mjs';
+import { describeReach, loadReach, printReach, projectInput } from './reach.mjs';
 import { applyCheckoutFromArgs } from './checkout.mjs';
 import { loadMergedSystems } from './systems.mjs';
 import { VICE_EMULATOR } from './run.mjs';
@@ -163,6 +169,26 @@ export async function targets(args) {
   const systems = loadMergedSystems({ config });
   const baseline = projectBaseline(config);
   const described = describeTargets(config);
+  if (args.includes('--reach')) {
+    const input = projectInput(config);
+    for (const result of [required, input]) {
+      if (!result.ok) {
+        process.stderr.write(`8bs targets: ${result.error}\n`);
+        return 1;
+      }
+    }
+    const sheet = loadReach();
+    const rows = describeReach({ config, requires: required.requires, input: input.input, data: sheet });
+    if (args.includes('--json')) {
+      process.stdout.write(`${JSON.stringify({ refreshed: sheet.refreshed, input: input.input, reach: rows }, null, 2)}\n`);
+      return 0;
+    }
+    if (input.input) {
+      process.stdout.write(`This program is designed for: ${input.input.primary}${input.input.also.length > 0 ? `, and also plays on ${input.input.also.join(', ')}` : ''}\n\n`);
+    }
+    printReach(rows, sheet);
+    return 0;
+  }
   if (args.includes('--json')) {
     // A `systems` block the config gets wrong costs the reader its
     // systems and nothing else: the machines and their catalogs are the

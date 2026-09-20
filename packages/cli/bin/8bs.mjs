@@ -102,10 +102,13 @@ Implemented:
                                build, no project, no entry file. The web
                                target has none of this: there is no bare
                                ROM without a program to run in its worker.
-  targets [--json]             List every target and the hardware it can be
+  targets [--json] [--reach]   List every target and the hardware it can be
                                fitted with — options, values, presets, and
                                this project's own profiles; --json is what
-                               the editor reads
+                               the editor reads. --reach: every machine, with
+                               a package or not, against this project's
+                               requires and input, and who is out there to
+                               run a build (docs/project/reach.md)
   controller [--no-open]       Map a game controller: serves a page on
     [--list] [--print]         loopback and opens it in your browser, which
     [--dir <path>]             is the only thing here that can see a pad —
