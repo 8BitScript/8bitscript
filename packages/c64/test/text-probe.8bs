@@ -1,0 +1,102 @@
+// The native text routines (native/6502/text.s), checked against what
+// they wrote: print, printNumber at a narrow, exact and wide field, a
+// reverse run, a color change, fill across a page boundary of the
+// screen, and an empty string — each read back out of the screen matrix
+// and color RAM and compared with the codes src/text.8bs promises. The
+// border encodes the verdict for a headless screenshot: green when every
+// check held, red at the first that did not, with that check's number
+// printed on row 20. See test/layers.test.mjs.
+import { screen, BorderColor, BackgroundColor } from "../src/screen.8bs";
+import { text, TextColor } from "../src/text.8bs";
+import { screenRam, colorRam } from "../src/geometry.8bs";
+
+let failed: utinyint = 0;
+
+function expectCode(check: utinyint, cell: usmallint, code: utinyint): void {
+    if (failed == 0 && screenRam[cell] != code) {
+        failed = check;
+    }
+}
+
+function expectColor(check: utinyint, cell: usmallint, color: utinyint): void {
+    if (failed == 0 && (colorRam[cell] & 15) != color) { // the upper nybble reads as bus noise
+        failed = check;
+    }
+}
+
+export function main(): void {
+    screen.blank(BorderColor.BLACK, BackgroundColor.BLUE);
+    text.setColor(TextColor.CYAN);
+    text.print(0, "Hello, World!");
+    expectCode(1, 0, 72); // 'H' keeps its ASCII code
+    expectCode(2, 1, 5); // 'e' moves to the mixed-case set's 5
+    expectCode(3, 4, 15); // 'o'
+    expectCode(4, 5, 44); // ','
+    expectCode(5, 12, 33); // '!'
+    expectCode(6, 13, 32); // the cell after: untouched
+    expectColor(7, 0, 3); // cyan
+    expectColor(8, 12, 3);
+
+    text.setReverse(true);
+    text.print(40, "AB");
+    text.setReverse(false);
+    expectCode(9, 40, 193); // 'A' + 128: the ROM's inverted copy
+    expectCode(10, 41, 194);
+
+    text.setColor(TextColor.YELLOW);
+    text.printNumber(80, 12345, 5);
+    expectCode(11, 80, 49);
+    expectCode(12, 81, 50);
+    expectCode(13, 82, 51);
+    expectCode(14, 83, 52);
+    expectCode(15, 84, 53);
+    expectColor(16, 84, 7); // yellow
+    text.printNumber(90, 42, 3); // "042": zero-padded, right-aligned
+    expectCode(17, 90, 48);
+    expectCode(18, 91, 52);
+    expectCode(19, 92, 50);
+    expectCode(20, 93, 32);
+    text.printNumber(100, 7, 7); // "0000007": a field wider than five
+    expectCode(21, 100, 48);
+    expectCode(22, 105, 48);
+    expectCode(23, 106, 55);
+    expectCode(24, 107, 32);
+    text.printNumber(110, 65535, 5); // the largest value
+    expectCode(25, 110, 54);
+    expectCode(26, 114, 53);
+    text.printNumber(120, 30000, 2); // a field narrower than its number shows the low digits
+    expectCode(27, 120, 48);
+    expectCode(28, 121, 48);
+    expectCode(29, 122, 32);
+
+    text.setColor(TextColor.GREEN);
+    text.fill(200, 300, 42); // '*', from cell 200 over the $E100 page boundary to 499
+    expectCode(30, 199, 32);
+    expectCode(31, 200, 42);
+    expectCode(32, 255, 42);
+    expectCode(33, 256, 42);
+    expectCode(34, 499, 42);
+    expectCode(35, 500, 32);
+    expectColor(36, 200, 5);
+    expectColor(37, 499, 5);
+    text.fill(600, 0, 42); // nothing
+    expectCode(38, 600, 32);
+    text.setReverse(true);
+    text.fill(640, 1, 32); // one reverse space: a solid block
+    text.setReverse(false);
+    expectCode(39, 640, 160);
+    expectCode(40, 641, 32);
+
+    text.print(700, "");
+    expectCode(41, 700, 32);
+
+    text.setColor(TextColor.WHITE);
+    if (failed == 0) {
+        screen.setBorder(BorderColor.GREEN);
+        text.print(800, "PASS");
+    } else {
+        screen.setBorder(BorderColor.RED);
+        text.print(800, "FAIL");
+        text.printNumber(805, failed, 2);
+    }
+}

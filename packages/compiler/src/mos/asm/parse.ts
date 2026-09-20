@@ -17,7 +17,10 @@
 //     lda #$FF                immediate, $hex / 0xhex / %binary / decimal
 //     sta $84                 zero page, by the literal's own width
 //     jsr $FF5F               absolute
-//     jsr some_routine        absolute, through a symbol
+//     jsr some_routine        absolute, through a symbol (a symbol that
+//                             names the function's own parameter or local
+//                             becomes that zero-page slot in mos/lower's
+//                             frameOperand, after this has read it)
 //     lda #<some_routine      the low (`<`) or high (`>`) byte of a
 //                             label's address, as an immediate
 //     sta some_label+1        a constant offset folded into the label's

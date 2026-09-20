@@ -95,6 +95,22 @@ Beside `tile.8bs`, a file named `tile.pet.8bs` is used only when building for th
 
 `asm6502 { … }` blocks, `@address` decorators, and `memory.read`/`memory.write` are language features, not bolted-on escape hatches — available inline wherever a program genuinely needs the hardware underneath a portable API. Not inside `.8bx`, though — see [§2.7](composition.md#27-the-purity-rule-whats-refused-and-linted-in-8bx).
 
+An `asm6502` operand may name the function's own parameters and locals: each is its zero-page slot, so a block can hand a native routine what the function was given —
+
+```8bs
+function print(cell: usmallint, s: string): void {
+    asm6502 {
+        lda cell        ; the parameter's low byte
+        ldx cell+1      ; and its high byte, the offset folded in
+        ldy #0
+        lda (s),y       ; through a string parameter's pointer: its length
+        jsr __8bs_c64_text_print
+    }
+}
+```
+
+A name the frame does not bind is a linker label, as before (`jsr __8bs_c64_raster_install`). A frame slot is data, so `jsr s`, `jmp (s)` or a branch to one is refused. Globals are not reachable this way — they are link-renamed, and a never-assigned one may already have been folded into its value; map hardware with `@address` instead. A function whose block names a parameter still receives it: the optimizer counts a name written in the block's text as a read.
+
 ## §1.9 Branch on the machine at compile time
 
 `#fact(...)` asks a true/false question about the machine being built for — folded before the toolchain runs, so a guarded branch that can't be true on this target disappears entirely rather than shipping dead weight:

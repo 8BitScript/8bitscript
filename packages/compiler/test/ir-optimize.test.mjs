@@ -328,6 +328,48 @@ test('a counted for-loop that is not a string copy stays a loop', () => {
   assert.equal(out.functions[0].body[0].kind, 'for');
 });
 
+test('a parameter only an asm6502 block names is not unused: the call stays, with its argument passed', () => {
+  // mos/lower's frameOperand lets the block read `s` as its zero-page
+  // slot; the optimizer cannot see into the text, so the text counts as
+  // reading every parameter — otherwise rule 6 would paste the body in
+  // with `s` never bound, and the block's `lda s` would name nothing.
+  const ir = {
+    entry: 'main',
+    functions: [
+      { name: 'main', body: [call('print', [constNum(0, 'usmallint'), { kind: 'string', index: 0, type: 'string' }])] },
+      {
+        name: 'print',
+        params: [{ name: 'cell', type: 'usmallint' }, { name: 's', type: 'string' }],
+        returnType: 'void',
+        body: [{ kind: 'asm', text: '    lda s\n    ldx s+1\n    jsr __8bs_c64_text_print' }],
+      },
+    ],
+    globals: [],
+    strings: [{ text: 'HI', bytes: [72, 73] }],
+  };
+  const out = optimizeReachable(ir);
+  assert.deepEqual(out.functions.map((f) => f.name), ['main', 'print']);
+  assert.equal(out.functions[0].body[0].kind, 'call');
+  assert.equal(out.functions[0].body[0].args.length, 2);
+});
+
+test('a parameterless void body an asm6502 block names a local of is pasted in whole — the local and the block together', () => {
+  const ir = {
+    entry: 'main',
+    functions: [
+      { name: 'main', body: [call('flash', [])] },
+      { name: 'flash', params: [], returnType: 'void', body: [local('c', 'utinyint', constNum(3)), { kind: 'asm', text: '    lda c\n    sta $D020' }] },
+    ],
+    globals: [],
+  };
+  const out = optimizeReachable(ir);
+  const main = out.functions.find((fn) => fn.name === 'main');
+  assert.equal(main.body[0].kind, 'block');
+  assert.equal(main.body[0].body[0].kind, 'local');
+  assert.equal(main.body[0].body[0].name, 'c', 'the local the block reads by name is still declared where the block is');
+  assert.equal(main.body[0].body[1].kind, 'asm');
+});
+
 test('a single-site void call whose parameters are unused is the body — PET blank color args', () => {
   const ir = {
     entry: 'main',

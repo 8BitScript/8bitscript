@@ -149,7 +149,9 @@ const CONSTRUCT_DOCS = {
       '',
       'Embeds raw 6502 assembly directly in an 8BitScript program.',
       '',
-      'Use it when direct machine-level control is required. The block is passed through untouched — 8BitScript does not parse or check the assembly inside it.',
+      'Use it when direct machine-level control is required. The block is read as instructions and labels and assembled with the rest of the program — 8BitScript does not check what the instructions do.',
+      '',
+      "An operand may name one of the function's own parameters or locals: it is that slot's zero-page address (`lda cell`, `ldx cell+1`, `lda (s),y`, `lda #<cell`). Any other symbol is a linker label. A frame slot is data: `jsr`, `jmp` or a branch to one is refused.",
     ].join('\n'),
   },
   address: {

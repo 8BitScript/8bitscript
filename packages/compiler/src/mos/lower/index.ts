@@ -33,6 +33,7 @@
 // `expr()` stays 8-bit-only; callers that might see either width check
 // `storageBytes(node.type)` themselves and call the right one.
 import type { Directive as _AsmDirective } from '../asm/assemble.ts';
+import { OPCODES } from '../asm/encode.ts';
 import type { AddressingMode } from '../asm/encode.ts';
 import { storageBytes, resolveIntegerType } from '../../types/index.mjs';
 import { LocalAllocator, ZpBudgetError } from './allocator.ts';
@@ -465,6 +466,8 @@ function matchConstFill(node: IrStatement): { base: number; count: number; value
 class Lowerer {
   program: Directive[] = [];
   symbols: Map<string, Binding>;
+  /** The names this function's own frame binds — its parameters, and each local while its scope lasts (a count, since an inner block may bind a name an outer one already did) — the names an `asm6502` block may use as operands (`frameOperand`). Globals are deliberately not here: they reach the lowerer link-renamed, so the name a block would write is not the one `symbols` holds, and an immutable one may already have been folded away. */
+  frame: Map<string, number> = new Map();
   locals: LocalAllocator;
   functions: Map<string, FunctionSite>;
   arrays: Map<string, { elementType: string; mutable?: boolean }>;
@@ -499,7 +502,10 @@ class Lowerer {
     // symbol table — except its address comes from mos/index.ts's own
     // parameter pass (see mos/AGENTS.md), not this.locals.alloc(), and it
     // is never released: it lives for the function's whole body.
-    for (const p of options.params) this.symbols.set(p.name, { address: p.address, type: p.type });
+    for (const p of options.params) {
+      this.symbols.set(p.name, { address: p.address, type: p.type });
+      this.frame.set(p.name, 1);
+    }
   }
 
   /** This pass's current provenance, or undefined when this Lowerer was built with no fnName (every existing hand-built test fixture) — emit() leaves `prov` unset entirely rather than stamp a half-empty one nobody asked for. */
@@ -1666,6 +1672,9 @@ class Lowerer {
     for (const { name, shadowed } of declared) {
       if (shadowed) this.symbols.set(name, shadowed);
       else this.symbols.delete(name);
+      const depth = (this.frame.get(name) ?? 1) - 1;
+      if (depth > 0) this.frame.set(name, depth);
+      else this.frame.delete(name);
     }
   }
 
@@ -1712,6 +1721,7 @@ class Lowerer {
           this.locals.release(mark);
           const shadowed = this.symbols.get(node.name!);
           this.symbols.set(node.name!, { address, type: node.type! });
+          this.frame.set(node.name!, (this.frame.get(node.name!) ?? 0) + 1);
           return { name: node.name!, shadowed };
         }
         require8Bit(node.type, `local '${node.name}'`);
@@ -1720,6 +1730,7 @@ class Lowerer {
         this.emit(staZp(address));
         const shadowed = this.symbols.get(node.name!);
         this.symbols.set(node.name!, { address, type: node.type! });
+        this.frame.set(node.name!, (this.frame.get(node.name!) ?? 0) + 1);
         return { name: node.name!, shadowed };
       }
       case 'block': {
@@ -1824,16 +1835,60 @@ class Lowerer {
       // Directives everything else here emits (mos/asm/parse.ts), so the
       // assembler, the branch relaxer and the linker cannot tell which
       // instructions a human wrote. The block gets a fresh id so its local
-      // labels are its own — `1:` in two blocks is two places.
+      // labels are its own — `1:` in two blocks is two places. An operand
+      // that names one of this function's own parameters or locals is
+      // that slot's zero-page address (frameOperand below); every other
+      // symbol stays a label for the linker.
       case 'asm': {
         const parsed = parseAsm(node.text ?? '', freshLabel('asm').slice('__8bs_'.length));
         if (!parsed.ok) throw new LowerError(parsed.error);
-        this.emit(...parsed.directives);
+        this.emit(...parsed.directives.map((directive) => this.frameOperand(directive)));
         return null;
       }
       default:
         throw new LowerError(`no instruction-selection rule yet for the '${node.kind}' statement — it lands in a later milestone`);
     }
+  }
+
+  /**
+   * An `asm6502` operand that names the function's own frame — a parameter
+   * or a local in scope — becomes that slot's zero-page address, so a
+   * block can hand a native routine what the function was given:
+   * `lda s` / `ldx s+1` for a string parameter's pointer, `lda (s),y`
+   * through it, `lda #<cell` for a byte of it. The parser had no way to
+   * know the name was not a linker label (it starts every symbol wide, as
+   * `absolute`), so the mode narrows here to the zero-page form when the
+   * mnemonic has one (`lda s,y` has none: it keeps `absolute,y`, three
+   * bytes, and still reads the right address). A frame slot is data, so an
+   * instruction that needs code there — `jsr s`, `jmp (s)`, a branch — is
+   * refused by name rather than jumped into. Names the frame does not bind
+   * pass through untouched: the linker resolves them, or reports them.
+   */
+  frameOperand(directive: Directive): Directive {
+    if (directive.kind !== 'instruction' || directive.operand?.kind !== 'label') return directive;
+    const { name, offset, byte } = directive.operand;
+    if (!this.frame.has(name)) return directive;
+    const binding = this.binding(name);
+    const address = binding.address + (offset ?? 0);
+    const context = `asm6502 names '${name}', a parameter or local of this function`;
+    if (byte !== undefined) {
+      return { ...directive, operand: { kind: 'value', value: byte === 'lo' ? address & 0xff : (address >> 8) & 0xff } };
+    }
+    if (directive.mode === 'immediate') {
+      // `lda #cell` would be the slot's address, not its value — nothing a program means by it; the two spellings that do mean something are `lda cell` and `lda #<cell`.
+      throw new LowerError(`${context}, as an immediate: write '${name}' for its value or '#<${name}' / '#>${name}' for a byte of its address`);
+    }
+    if (directive.mnemonic === 'JSR' || directive.mnemonic === 'JMP' || directive.mode === 'relative' || directive.mode === 'indirect') {
+      throw new LowerError(`${context}, where ${directive.mnemonic} needs an address to run: a frame slot is data, not code`);
+    }
+    if (address > 0xff) {
+      // Every frame slot lives in zero page (this file's header on Binding); a wider one is a bug upstream, not a mode to pick.
+      throw new LowerError(`${context}, at $${address.toString(16).toUpperCase()} — past the zero page a frame slot is always placed in`);
+    }
+    const narrow: Partial<Record<AddressingMode, AddressingMode>> = { absolute: 'zeropage', 'absolute,x': 'zeropage,x', 'absolute,y': 'zeropage,y' };
+    const wanted = narrow[directive.mode];
+    const mode = wanted !== undefined && OPCODES[directive.mnemonic]?.[wanted] !== undefined ? wanted : directive.mode;
+    return { ...directive, mode, operand: { kind: 'value', value: address } };
   }
 
   /**

@@ -1,0 +1,50 @@
+// How long the text routines take, measured: CIA 2 timer A (one-shot,
+// counting down from $FFFF at the CPU's own clock) around one call each
+// of text.print (nine characters), text.printNumber (five digits) and
+// text.fill (forty cells), each elapsed count printed once, as five
+// digits, on rows 5-7 — read off the screenshot. Nothing else runs: the
+// KERNAL is out, no raster interrupt is enabled, so the count is the
+// routine's own cycles plus the VIC's bad-line steals.
+import { screen, BorderColor, BackgroundColor } from "../src/screen.8bs";
+import { text, TextColor } from "../src/text.8bs";
+
+@address(0xDD04)
+let timerLo: volatile<u8>;
+@address(0xDD05)
+let timerHi: volatile<u8>;
+@address(0xDD0E)
+let timerControl: volatile<u8>;
+
+function start(): void {
+    timerLo = 255;
+    timerHi = 255;
+    timerControl = 0b00011001; // force-load the latch, one-shot, start
+}
+
+function elapsed(): usmallint {
+    timerControl = 0;
+    let lo: u8 = timerLo;
+    let count: usmallint = timerHi; // widened before the shift: an 8-bit `hi << 8` is 0
+    count = (count << 8) | lo;
+    return 65535 - count;
+}
+
+export function main(): void {
+    screen.blank(BorderColor.BLACK, BackgroundColor.BLUE);
+    text.setColor(TextColor.WHITE);
+    start();
+    text.print(0, "FRAME 123");
+    let printCycles: usmallint = elapsed();
+    start();
+    text.printNumber(40, 12345, 5);
+    let numberCycles: usmallint = elapsed();
+    start();
+    text.fill(80, 40, 42);
+    let fillCycles: usmallint = elapsed();
+    text.print(200, "PRINT 9");
+    text.printNumber(210, printCycles, 5);
+    text.print(240, "NUMBER 5");
+    text.printNumber(250, numberCycles, 5);
+    text.print(280, "FILL 40");
+    text.printNumber(290, fillCycles, 5);
+}
