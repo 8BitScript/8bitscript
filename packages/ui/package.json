@@ -12,7 +12,8 @@
   "8bitscript": {
     "exports": {
       "./menubar": "./src/menubar.8bs",
-      "./menubar-bx": "./src/menubar.8bx"
+      "./menubar-bx": "./src/menubar.8bx",
+      "./menu": "./src/menu.8bs"
     }
   },
   "files": [
