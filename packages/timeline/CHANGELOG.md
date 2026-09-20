@@ -1,5 +1,9 @@
 # @8bitscript/timeline
 
+## 0.20.0
+
+No changes in this release.
+
 ## 0.19.1
 
 ### Patch Changes
