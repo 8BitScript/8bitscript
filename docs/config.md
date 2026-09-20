@@ -95,6 +95,54 @@ peripheral the machine may or may not have plugged in (a REU, a mouse —
 `when: 'run'` facts, which `requires` refuses on purpose). That is an
 open design in the same note.
 
+### A main system, a group, and what builds down
+
+The way to ask "I am writing for the X16 — what will this run on?" is
+three keys and three commands, all of them above:
+
+1. **Name the main system:** `baseline: 'cx16'`, or with its
+   accessories, `baseline: { target: 'cx16', hardware: { ram: '2048' } }`.
+   Write the program against it; every `#fact(...)` it tests answers yes
+   there.
+2. **Name the group:** `targets` — the machines it builds for. A
+   machine outside the group is not built; a machine inside it that
+   cannot meet `requires` is refused, with the fact.
+3. **Ask, before a build:** `8bs targets` prints `short: <fact> needs
+   N, has M` under every named system in `systems` that misses the
+   floor, and `8bs targets --reach` says the same for every machine as
+   this project fits it (`targets.<machine>.hardware`) — with a package
+   or not — beside who is out there to run it.
+4. **Ask, after a build:** `8bs build --release` prints, after each
+   artifact, what it is short of the baseline *in the facts the program
+   tests* — `short of the baseline (cx16): video.sprites 0 of 128,
+   audio.voices 3 of 25` — so the report is about this program, not the
+   machines' brochures. A build that lists nothing is level with the
+   main system; a build that lists a fact is the same program with that
+   branch folded away, and the list is the whole difference.
+
+That is "what the program builds down into with the features it uses":
+the facts it tests are its features, and every build is the baseline
+minus the facts the machine lacks. The path to a wider group is
+therefore a program that tests facts rather than assuming them — a
+`#fact(video.sprites)` branch around the sprite code, a `.<machine>.8bs`
+twin for a screen that needs a different layout, and the rules of the
+game in a `.8bs` module that tests nothing at all, so it is the same
+bytes on every machine. `requires` is the cut line: the least a build
+may have before the program stops being itself.
+
+And when a machine cannot do it at all — an X16 program on an Atari
+2600, say — the answer is honest rather than automatic. The 2600 has no
+package, so it has no fact sheet, and the toolchain cannot fold a
+program for it or list what it would be short of. `8bs targets --reach`
+still has its row: a cartridge-only machine, 128 bytes of RAM, a stick
+and no keyboard, thirty million sold. What carries over is what never
+touched a fact — the rules module — and everything else is a twin or a
+branch that does not exist yet, written against the machine's own page
+in [docs/project/machines/](project/machines/index.md) when its package
+does. The toolchain will not call that a port, because there is no
+second source; it will call it a build short of the baseline by a list
+of facts, and the list is the work.
+
 ## Several programs in one project
 
 A project may build more than one program — a desktop and the utilities
