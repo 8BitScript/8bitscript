@@ -150,6 +150,22 @@ test('the primary button says what it will do', () => {
   assert.match(JS, /run-sub/, 'and on what, fitted how');
 });
 
+test('every panel draws in the editor\'s own theme: no color of its own outside the QR code', () => {
+  // Light, dark and high-contrast come from VS Code's --vscode-* variables;
+  // a literal color would be right in one theme and wrong in the others.
+  // The one exception is the LAN QR code, which a phone's camera has to
+  // read: black on white whatever the theme.
+  const media = path.join(ROOT, 'media');
+  for (const file of fs.readdirSync(media).filter((name) => name.endsWith('.css'))) {
+    const source = fs.readFileSync(path.join(media, file), 'utf8');
+    const literal = [...source.matchAll(/#[0-9a-fA-F]{3,8}\b|rgba?\(|\bhsla?\(/g)].map((m) => m.index);
+    const allowed = literal.filter((at) => source.slice(Math.max(0, at - 120), at).includes('.lan-qr'));
+    assert.deepEqual(literal, allowed, `${file} names a color the theme does not`);
+  }
+  const qr = fs.readFileSync(path.join(ROOT, 'src', 'qr.cjs'), 'utf8');
+  assert.match(qr, /fill="#fff"/, 'the QR is drawn black on white by design');
+});
+
 test('the side bar is one view, and it says 8BitScript', () => {
   const views = MANIFEST.contributes.views['8bitscript'];
   assert.equal(views.length, 1, 'one launcher, no second pane');

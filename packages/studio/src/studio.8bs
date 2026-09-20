@@ -110,6 +110,7 @@ const ACT_MUSIC: utinyint = 7;
 const ACT_EDIT_CHARACTERS: utinyint = 8;
 const ACT_EDIT_SPRITES: utinyint = 9;
 const ACT_EDIT_MUSIC: utinyint = 10;
+const ACT_THEME: utinyint = 11;
 
 // Which screen is under the bar.
 const VIEW_DOOR: utinyint = 0;
@@ -120,6 +121,40 @@ const VIEW_FILES: utinyint = 4;
 
 let currentTier: utinyint = 0;
 let view: utinyint = 0;
+
+// ---- the theme ------------------------------------------------------------
+//
+// Dark by default — a blue border, a black screen, white ink, a cyan bar —
+// and light on request: a white screen and border, black ink, a blue bar.
+// The mark's menu switches between them on every machine whose palette
+// has more than two colors (`Video.PALETTE`, a fact: the PET's has two,
+// and its screen package ignores border and background, so the entry
+// folds away there rather than promising a change it cannot show). The
+// editor that launched Studio has a theme of its own; handing it across
+// is the manifest route in AGENTS.md, not built yet, so Studio starts
+// dark and the menu is the switch.
+let dark: bool = true;
+// The text color every screen prints in; `paint()` sets it with the rest.
+let ink: utinyint = TextColor.WHITE;
+
+// Put the theme on: border, background, the bar's and menus' colors, the
+// pointer's, the ink. Blanks the screen, so the caller redraws the bar
+// and the view after it.
+function paint(): void {
+    if (dark) {
+        ink = TextColor.WHITE;
+        screen.blank(BorderColor.BLUE, BackgroundColor.BLACK);
+        menubar.setColors(TextColor.CYAN, TextColor.WHITE);
+        menu.setColors(TextColor.CYAN, TextColor.WHITE);
+    } else {
+        ink = TextColor.BLACK;
+        screen.blank(BorderColor.WHITE, BackgroundColor.WHITE);
+        menubar.setColors(TextColor.BLUE, TextColor.BLACK);
+        menu.setColors(TextColor.BLUE, TextColor.BLACK);
+    }
+    pointer.setColor(ink);
+    text.setColor(ink);
+}
 // Whether the screen was opened to edit (as opposed to view), so it can
 // say that editing is not built yet rather than silently viewing.
 let editing: bool = false;
@@ -172,6 +207,13 @@ function drawMenu(): void {
     menu.begin(menuTop(bar), MENU_WIDTH);
     if (bar == BAR_ICON) {
         pick("ABOUT", ACT_ABOUT);
+        if (Video.PALETTE > 2) {
+            if (dark) {
+                pick("LIGHT MODE", ACT_THEME);
+            } else {
+                pick("DARK MODE", ACT_THEME);
+            }
+        }
     } else if (bar == BAR_FILE) {
         if (Storage.SAVE) {
             pick("LOAD", ACT_LOAD);
@@ -208,7 +250,7 @@ function drawMenu(): void {
     }
     menu.end();
     // A drop-down leaves the text color its own, the way the bar does.
-    text.setColor(TextColor.WHITE);
+    text.setColor(ink);
 }
 
 // ---- the screens -------------------------------------------------------------
@@ -398,7 +440,7 @@ function drawFiles(): void {
 function drawView(): void {
     at = menubar.HEIGHT * ROW;
     let count: usmallint = (Video.ROWS - menubar.HEIGHT) * ROW;
-    text.setColor(TextColor.WHITE);
+    text.setColor(ink);
     text.fill(at, count, SPACE);
     if (view == VIEW_DOOR) {
         drawDoor();
@@ -426,7 +468,7 @@ function redrawBar(): void {
         }
     }
     drawBar();
-    text.setColor(TextColor.WHITE);
+    text.setColor(ink);
 }
 
 // Open the menu under the bar's highlighted item, with its first entry
@@ -462,6 +504,9 @@ function activate(): bool {
     }
     if (chosen == ACT_ABOUT) {
         view = VIEW_DOOR;
+    } else if (chosen == ACT_THEME) {
+        dark = !dark;
+        paint();
     } else if (chosen == ACT_LOAD) {
         view = VIEW_FILES;
     } else if (chosen == ACT_SAVE) {
@@ -495,12 +540,10 @@ export namespace studio {
     // and screen.blank() leaves it off until the first waitFrame().
     function start(tier: utinyint): void {
         currentTier = tier;
-        screen.blank(BorderColor.BLUE, BackgroundColor.BLACK);
-
-        // The bar first, then the screen's own color: drawing a bar leaves
+        // The theme first — it blanks the screen and sets every color —
+        // then the bar, then the screen's own ink: drawing a bar leaves
         // the text color set to the bar's (see packages/ui/AGENTS.md).
-        menubar.setColors(TextColor.CYAN, TextColor.WHITE);
-        menu.setColors(TextColor.CYAN, TextColor.WHITE);
+        paint();
         drawBar();
         view = VIEW_DOOR;
         drawView();
@@ -516,7 +559,7 @@ export namespace studio {
         // `pointer.DRAWS` is a compile-time constant, so on the other six
         // this call and the update() below are deleted rather than made.
         pointer.begin();
-        pointer.setColor(TextColor.WHITE);
+        pointer.setColor(ink);
 
         // Where the pointer last sat, as a cell. 65535 is the components'
         // own "no pointer" cell, so the first real reading counts as a move.

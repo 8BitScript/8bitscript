@@ -245,6 +245,13 @@ SYSTEM
   like any `8bs run`, with its own Stop. The 🚀 rocket in the title bar
   is the same program through a quick pick.
 
+- Every panel — the side bar, System, Project, Controller Setup, the
+  assembly view — draws in your color theme: light, dark or
+  high-contrast, from VS Code's own theme variables, with no colors of
+  its own except the LAN QR code, which a phone's camera has to read.
+  Studio has a light and a dark mode of its own on the machine
+  (`packages/studio`), switched from its mark's menu.
+
 - **Running machines** — a tree per `8bs` task in flight. A run or boot
   expands to the machine that launched: the emulator, the built image,
   RAM and program bytes, the `--size` breakdown (largest function first),
