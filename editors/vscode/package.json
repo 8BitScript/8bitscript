@@ -156,6 +156,12 @@
         "icon": "$(rocket)"
       },
       {
+        "command": "8bitscript.openStudio",
+        "title": "Open Studio",
+        "category": "8BitScript",
+        "icon": "$(tools)"
+      },
+      {
         "command": "8bitscript.launchApp",
         "title": "Launch App…",
         "category": "8BitScript"
@@ -426,6 +432,11 @@
           "type": "string",
           "default": "",
           "description": "The named system the launcher's Run and Build buttons use (`8bs run --system`). Empty means a bare machine id from 8bitscript.system. Named systems come from 8bitscript.config.ts, .8bitscript/systems.json, or ~/.config/8bitscript/systems.json."
+        },
+        "8bitscript.studioSystem": {
+          "type": "string",
+          "default": "",
+          "description": "Which of Studio's named systems the side bar's Open Studio button opens it on (from packages/studio's 8bs.config.ts `systems`). Empty means Studio's baseline, the Commander X16."
         },
         "8bitscript.checkout": {
           "type": "string",

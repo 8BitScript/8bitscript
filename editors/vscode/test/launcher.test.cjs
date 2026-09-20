@@ -67,6 +67,31 @@ test('packages sit above quick launch, and the hardware matrix is not in the sid
   assert.doesNotMatch(view, /details\.more/);
 });
 
+test('Open Studio is the largest button on the panel, above quick launch, with its own dropdown of Studio\'s systems', () => {
+  const view = fs.readFileSync(path.join(ROOT, 'src', 'launcherView.cjs'), 'utf8');
+  const runner = fs.readFileSync(path.join(ROOT, 'src', 'runner.cjs'), 'utf8');
+  const body = view.slice(view.indexOf('id="packages-block"'));
+  // Packages, then Studio, then the project's own quick launch.
+  const order = ['id="packages-block"', 'id="studio"', 'for="project"', 'id="run"'].map((mark) => body.indexOf(mark));
+  assert.deepEqual([...order].sort((a, b) => a - b), order);
+  assert.ok(order.every((i) => i > -1));
+  assert.match(body, /class="launch studio" id="studio"/, 'the same launch shape as Run, marked as Studio');
+  assert.match(CSS, /\.studio-row > button\.launch\.studio \{[^}]*padding: 9px 12px/, 'and a little larger than it');
+  assert.match(body, /<select id="studio-system"/, 'the dropdown sits beside it');
+  assert.match(JS, /key: 'studioSystem', value: e\.target\.value/, 'and writes the pick to settings, like every choice on the panel');
+  assert.ok(MANIFEST.contributes.configuration.properties['8bitscript.studioSystem'], 'which is a declared setting');
+  // The page names the command, the view allows it, and the command runs
+  // Studio on cx16 — its baseline — with no picker and no change to the
+  // panel's selection.
+  assert.match(JS, /id: '8bitscript\.openStudio'/);
+  assert.match(view, /'8bitscript\.openStudio',\n\s+\]\.includes\(message\.id\)/);
+  assert.match(runner, /command\('8bitscript\.openStudio'/);
+  assert.match(runner, /p\.name === '@8bitscript\/studio'\);\n\s+if \(!studio\)/);
+  assert.match(runner, /execute\('run', \{ project: studio, target: 'cx16' \}\)/);
+  assert.doesNotMatch(runner.slice(runner.indexOf("command('8bitscript.openStudio'"), runner.indexOf("command('8bitscript.launchApp'")), /showQuickPick|setProject|setSystem/);
+  assert.ok(MANIFEST.contributes.commands.some((c) => c.command === '8bitscript.openStudio'), 'and it is on the palette');
+});
+
 test('Running machines is an expandable tree, not a one-line list', () => {
   const view = fs.readFileSync(path.join(ROOT, 'src', 'launcherView.cjs'), 'utf8');
   assert.match(view, /Running machines/);
