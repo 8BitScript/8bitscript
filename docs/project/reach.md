@@ -10,9 +10,10 @@ nav_order: 87
 every figure is cited to a page that was fetched, anything proposed rather
 than observed is marked **PROPOSED**, and nothing here describes the
 toolchain doing something it does not do today. The numbers live in
-[`../assets/reach.json`](../assets/reach.json), one object per machine
-with `source` and `asOf` on every figure. Written against `trunk` at
-`e325f5e`.*
+`packages/cli/data/reach.json`, one object per machine with `source` and
+`asOf` on every figure, read by `8bs targets --reach`. Written against
+`trunk` at `e325f5e`; the sections marked **built** landed in the pull
+request that followed the note.*
 
 ## The question
 
@@ -110,15 +111,16 @@ editor's panel do.
 
 That also settles where it lives. Not in a machine's `package.json` —
 the catalog is *hardware*, and seventeen of the twenty-five machines on this
-sheet have no package. **PROPOSED:** one file, `packages/cli/data/reach.json`,
-the shape of [`../assets/reach.json`](../assets/reach.json) today, keyed by
-machine id (the nine targets' ids, and the roadmap ids the
-[machines pages](machines/index.md) will become), with a top-level
-`refreshed` date. A figure without `source` and `asOf` is refused by the
-CLI's data test the way a catalog without a fact is. A figure two sources
-disagree on is a range — `low`, `high`, `cited` — with `contested: true`,
-because the alternative is picking a side in the C64 dispute in a JSON
-file.
+sheet have no package. **Built:** one file, `packages/cli/data/reach.json`,
+keyed by machine id (the eight targets' ids, and the roadmap ids the
+[machines pages](machines/index.md) will become), each row with a
+`status` (`builds`, `roadmap` with its `phase`, `unplanned`) and the
+file with a top-level `refreshed` date. A figure without a source and a
+date is refused by the CLI's data test (`packages/cli/test/reach.test.mjs`,
+`reachProblems`) the way a catalog without a fact is — the test found
+nineteen the first time it ran. A figure two sources disagree on is a
+range — `low`, `high`, `cited` — with `contested: true`, because the
+alternative is picking a side in the C64 dispute in a JSON file.
 
 ## The numbers
 
@@ -286,7 +288,8 @@ and `program: false`, so "needs two buttons" is not expressible, though
 it is the fact that separates the 7800 and NES from the 2600 and the
 C64.
 
-**PROPOSED** — two additions to the config, no change to facts:
+Two additions to the config, no change to facts — the first **built**,
+the second **PROPOSED**:
 
 ```ts
 input: {
@@ -294,7 +297,7 @@ input: {
   also: ['keyboard', 'pad'],        // what it also plays on, in order of preference
 },
 requires: {
-  'input.controls': ['up', 'down', 'left', 'right', 'a', 'b'],   // a subset the machine's controller must carry
+  'input.controls': ['up', 'down', 'left', 'right', 'a', 'b'],   // PROPOSED: a subset the machine's controller must carry
 },
 ```
 
@@ -304,9 +307,13 @@ so that a machine without control ports (PET) is not the same answer as
 a machine with them and nothing plugged in (Atari 8-bit, whose stick was
 sold separately). The reach sheet knows the difference: `input.standard`
 is what every unit has, `input.optional` what was an accessory. The
-analysis then reports one of three standings per machine — **standard**
-(every owner has it), **optional** (some do; the sheet says how common
-where it can), **absent** — and does the same for each entry in `also`.
+report then gives one of three standings per machine — **standard**
+(every owner has it), **optional** (some do), **absent** — and the same
+for each entry in `also`. For a machine that builds the standing is the
+catalog's answer (`packages/cli/src/reach.mjs`, `standingFromFacts`: a
+control port or a pad port is standard, a `run` fact like a mouse is
+optional at most); for one with no package it is the sheet's, and the
+report marks it `(sheet)`.
 
 `requires['input.controls']` is a list requirement, the one kind
 `requiresProblems()` refuses today; it would pass when the machine's
@@ -389,38 +396,51 @@ below says which carriers can hold each shape. It is also the key that
 the `programs`/`images`/`media` mechanisms lack today — none of them
 knows whether a program *expects* to load anything after it starts.
 
-## The analysis: `8bs targets --reach` (PROPOSED)
+## The analysis: `8bs targets --reach`
 
-One command, one JSON, no new build path. `8bs targets` already resolves
+**Built** in its first form: the floor, the input standings, the file
+and its routes, and the reach figures. Not yet: a required run-time
+peripheral (the design above is open) and any filter. One command, one
+JSON, no new build path. `8bs targets` already resolves
 every machine's catalog, the project's `requires`, `baseline` and
 `systems`, and prints per machine what is fitted; `--json` carries the
-facts. `--reach` joins that with the reach sheet and the three demands
-above and prints, per machine — the eight that build and the seventeen
-that do not, marked so:
+facts. `--reach` joins that with the reach sheet and the demands above and
+prints, per machine — the eight that build and the seventeen that do
+not, marked so. Four of the twenty-five rows, for a project with
+`requires: { 'input.keyboard': true }` and `input: { primary: 'stick',
+also: ['keyboard', 'pad'] }`, as printed on 2026-09-20:
 
 ```
-c64        builds   the baseline
-           input    stick: standard · keyboard: standard · pad: absent
-           needs    memory.bankedKib 512 — an option (ram=reu512, found at run time by @8bitscript/c64/reu)
-           shape    single → prg (emulator, SD2IEC, THEC64, MiSTer), d64 (images: validated, not written), crt (no media value yet)
-           reach    12.5M–30M sold · 452K views/yr · 2,464 releases/yr · 1,745 on itch.io
+This program is designed for: stick, and also plays on keyboard, pad
 
-cx16       builds   short of the baseline: video.raster, audio.entropy
-           input    stick: absent · keyboard: standard · pad: standard
-           needs    memory.bankedKib 512 — stock (ram=512)
-           shape    single → prg (emulator, SD card)
-           reach    ~1,100 sold · 16K views/yr ‡ · 7 on itch.io
+c64         builds
+            input    stick: standard · keyboard: standard · pad: absent
+            single   .prg reaches original-hardware+sd-bridge, original-hardware+flash-cart, emulator, fpga, mini-console, web; original-hardware+tape wants tap
+            reach    12.5M–30M sold † · 452K views/yr · 2,464 CSDb entries/yr · 1,745 on itch.io · 18K on reddit (2023) · new hardware: Commodore 64 Ultimate (Commodore Corp); THEC64 / THEC64 Mini (Retro Games Ltd); …
 
-nes        refused  requires input.keyboard: true; nes has none (Famicom keyboard: an option)
-           needs    memory.bankedKib 512 — impossible (0; mapper nrom only)
-           shape    single → nes (emulator, EverDrive N8, Pocket, MiSTer)
-           reach    61.91M sold · 753K views/yr · 2,085 on itch.io
+cx16        builds
+            input    stick: absent · keyboard: standard · pad: standard
+            single   .prg reaches real-hardware+sd-card, real-hardware+iec, emulator, web, fpga; real-hardware+cartridge wants bin
+            reach    1,100 sold · 16K views/yr ‡ · 7 on itch.io · 394 on reddit (2023) · new hardware: Commander X16 Developer Edition / Build Kit (TexElec)
 
-zxspectrum no package — Phase 8 (machines/z80-family.md)
-           input    stick: optional (Kempston/Sinclair) · keyboard: standard
-           shape    single → tap/tzx (emulator, DivMMC, The Spectrum, Next); dsk (+3 only)
-           reach    5M sold · 259K views/yr · 310 releases/yr · 1,704 on itch.io
+nes         refused: input.keyboard needs it, has false
+            input    stick: absent · keyboard: absent · pad: standard
+            single   .nes reaches original-hardware+sd-bridge, emulator, fpga, web; original-hardware+cartridge wants rom
+            reach    61.91M sold · 753K views/yr · 2,085 on itch.io · 96K on reddit (2023) · new hardware: Analogue Pocket (openFPGA NES core); Evercade (NES-era licensed collections)
+
+zxspectrum  no package — phase 8 (docs/project/machines/)
+            input    stick: optional (sheet) · keyboard: standard (sheet) · pad: absent (sheet)
+            single   nothing written yet; routes take tap, tzx, wav, z80, sna, trd, scr, szx, scl, dsk, rom, csw, pzx, img, mgt
+            reach    5M sold † · 259K views/yr · 310 Spectrum Computing / ZXDB entries/yr, 42 CSSCGC (comp.sys.sinclair Crap Games Competition) entries/yr · 1,704 on itch.io · 5,547 on reddit (2023) · new hardware: The Spectrum (Retro Games Ltd)
 ```
+
+The line under a machine's name is the catalog's verdict on the
+project's floor (`builds`, `refused: …` with the fact, or `no package`
+with the phase); `input` the standings; `single` the file `8bs build`
+writes for that machine and which of the sheet's routes take it, with
+what the others want instead (a `.tap` no writer makes yet; a raw ROM a
+cartridge publisher would need); `reach` the figures, each with its
+marker. A required run-time peripheral has no line yet.
 
 What it must and must not do:
 
@@ -440,11 +460,9 @@ What it must and must not do:
 - **`--json` is the editor's.** The side bar can sort machines by any
   column and show the sixteen unbuilt ones greyed, with the phase.
 
-Everything it prints for the nine machines that build is derivable today
-from `8bs targets --json` plus the JSON in `assets/` and the three config
-keys. Nothing is derivable for `input.primary` standings until the reach
-sheet's `input.standard` / `input.optional` are read; they are in the data
-now.
+`--reach --json` carries the same rows — `{ id, status, phase, floor,
+input, delivery, reach }` — for an editor's panel; the ordinary `targets
+--json` the editor reads today is unchanged.
 
 ## Delivery: which shapes each carrier can hold
 
@@ -677,7 +695,7 @@ item in [`distribution.md`](distribution.md).
 Four research passes on 2026-09-20 — three by machine family, one
 cross-cutting snapshot that measured the same columns for all
 twenty-five the same way — merged into
-[`../assets/reach.json`](../assets/reach.json). Every figure carries
+`packages/cli/data/reach.json`. Every figure carries
 `source` and `asOf`; a figure no fetched page confirmed carries `verify:
 true` and a note — 184 such flags and 192 `toVerify` items in the shipped
 file, most of them subreddit counts (Reddit returned 403 on every route, including its

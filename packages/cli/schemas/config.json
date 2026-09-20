@@ -97,6 +97,16 @@
       "additionalProperties": { "$ref": "#/$defs/system" }
     },
     "requires": { "$ref": "#/$defs/requires" },
+    "input": {
+      "description": "What the program is designed to be played with, and what else it plays on. Not a floor (`requires` is): `8bs targets --reach` reports, per machine, whether each device is standard, optional or absent.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["primary"],
+      "properties": {
+        "primary": { "$ref": "#/$defs/inputDevice" },
+        "also": { "type": "array", "items": { "$ref": "#/$defs/inputDevice" } }
+      }
+    },
     "baseline": {
       "description": "The system the program is designed on — the build every fact the program tests is true on. A machine's name, a name from `systems`, or { target, profile?, hardware?, region? }. No --target builds it; --release measures every build against it.",
       "oneOf": [
@@ -146,6 +156,7 @@
         "region": { "enum": ["ntsc", "pal"] }
       }
     },
-    "requires": { "type": "object", "additionalProperties": { "type": ["number", "boolean"] } }
+    "requires": { "type": "object", "additionalProperties": { "type": ["number", "boolean"] } },
+    "inputDevice": { "type": "string", "enum": ["stick", "pad", "keyboard", "mouse", "paddles", "touch"] }
   }
 }

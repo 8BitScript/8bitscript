@@ -19,7 +19,8 @@
     "./package.json": "./package.json",
     "./bin/*": "./bin/*",
     "./src/*": "./src/*",
-    "./schemas/*": "./schemas/*"
+    "./schemas/*": "./schemas/*",
+    "./data/*": "./data/*"
   },
   "engines": {
     "node": ">=26"
@@ -30,7 +31,8 @@
   "files": [
     "bin",
     "src",
-    "schemas"
+    "schemas",
+    "data"
   ],
   "dependencies": {
     "@8bitscript/atari8": "workspace:*",
