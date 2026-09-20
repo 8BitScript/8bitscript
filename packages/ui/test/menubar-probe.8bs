@@ -37,6 +37,7 @@ export function main(): void {
     if (menubar.pointed() != menubar.NONE) {
         menubar.select(menubar.pointed());
     }
+    text.printNumber(text.COLUMNS * 3, menubar.itemAt(1), 5);
 
     if (menubar.clipped()) {
         text.print(text.COLUMNS, "CLIPPED");

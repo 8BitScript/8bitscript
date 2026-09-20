@@ -295,6 +295,19 @@ export namespace menubar {
         return pointedIndex;
     }
 
+    // The cell an item's label starts at, from the last run — where a
+    // program puts the drop-down it opens under that item
+    // (`@8bitscript/ui/menu`'s `begin()` takes a top-left cell). 0 for an
+    // item the run did not draw, or past the eighth: a menu opened there
+    // lands at the row's start, which is wrong in a way the eye sees and
+    // the program can check with `clipped()`.
+    function itemAt(item: utinyint): usmallint {
+        if (item < HIT_SLOTS) {
+            return hitAt[item];
+        }
+        return 0;
+    }
+
     // ---- the icon slot ------------------------------------------------------
 
     // Draw the leftmost item as the bar's icon — the slot a desktop puts
