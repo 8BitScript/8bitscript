@@ -10,7 +10,8 @@ program wrong on that machine and silent about it.
 ## What this package is
 
 `@8bitscript/ui` is the interface components a program builds a screen out
-of: a menu bar today, and whatever a program needs after that. A component
+of: a menu bar and the drop-down under it, and whatever a program needs
+after that. A component
 is ordinary 8BitScript that draws through the portable capability packages
 — `@8bitscript/text` for now — so it works on every target for the same
 reason a program does, not because it has nine implementations.
@@ -154,6 +155,7 @@ color — a filled bar of reverse video, including the padding spaces:
 | `next()` / `previous()` | Step the highlight, wrapping; from `NONE`, to the first or the last |
 | `point(cell)` | Where a pointer is, before `begin()` |
 | `pointed()` | Which item it was over during the last run, or `NONE` |
+| `itemAt(i)` | The cell item `i`'s label started at in the last run — where a drop-down goes |
 | `count()` | How many items the last run offered, drawn or not |
 | `clipped()` | Whether an item had to be dropped for want of room |
 | `setColors(item, highlight)` | Item color; invert uses it, `highlight` is unused |
@@ -194,13 +196,70 @@ Seven things about it that are decisions, not accidents:
   bar leaves the text color set to the bar's and reverse off after each
   item. A program that cares picks its color on the line after the bar.
 
+## The drop-down
+
+`src/menu.8bs`. One column of entries under a bar item, every row drawn
+edge to edge `cells` wide — padding, the label, the space to the right —
+with the lit one inverted, so the menu covers what was under it the way
+a drop-down does:
+
+```
+ 8  FILE  CHARACTERS
+    QUIT                 FILE's menu, one entry, lit
+```
+
+The same calls as the bar, with the same meanings — `begin(at, cells)`
+takes the top-left cell and the row width, rows follow `text.COLUMNS`
+apart; `item(name)` draws the next row and returns whether it is the lit
+one; `end()`; `select` / `selected` / `deselect` / `next` / `previous`;
+`point(cell)` / `pointed()`; `count()`; `clipped()`; `setColors`;
+`setPadding`; `NONE` — and one the bar has no need of:
+
+| Call | What it does |
+| --- | --- |
+| `clear()` | Blank every row the last run drew; the program redraws what was under them |
+
+Three things that differ from the bar, each for a reason:
+
+- **The hit unit is the row.** A pointer anywhere on an entry's row is
+  over that entry, because a column of entries reads as a list of rows,
+  where a bar's padding is the gap between buttons. `point()` compares
+  `pointerAt - start < width`, the two-comparison shape the bar's test
+  insists on.
+- **Nothing is blanked at `begin()`.** Every row is drawn whole by
+  `item()`, so the bed is the drawing; `clear()` exists for the program
+  that closes the menu over a screen it does not want to redraw whole
+  (Studio redraws whole, so it never calls it).
+- **A label wider than the row is not drawn** and still takes its index
+  — the bar's rule — so which entry is lit never depends on the width
+  the menu was given.
+
+What it costs, from `8bs build --size` of Studio on 2026-09-20 under the
+native backend: `menu_item` is **296 bytes on the X16 and the C64, 289
+on a 32K PET**, against `menubar_item`'s 425 and 418 on the same builds
+— the row is a print and two fills, where the bar's item is three prints
+and the hit-slot bookkeeping. Studio's own `drawMenu()`, which runs the
+open menu's entries through `pick()`, is 222; `menubar.itemAt()`, which
+tells it where to put the menu, 39.
+
 ### What it costs
+
+**Native backend, 2026-09-20** (`8bs build --size`, Studio with its bar,
+menus and five screens): `menubar_item` 425 bytes on the X16 and the
+C64, 418 on a 32K PET; `menubar_begin` 106 on the X16, 117 on the C64;
+`menubar_next` 33, `menubar_previous` 30, `menubar_end` 25,
+`menubar_itemAt` 39. Studio as a whole is 5987 bytes on the X16, 6536
+on a C64 with a mouse and 5407 with a joystick (its own `AGENTS.md` has
+every machine). The table below is the LLVM-MOS-era measurement that
+preceded it, kept as the record of what the bar cost against a program
+that drew four labels itself.
 
 Measured by building Studio's front door three ways — as it is, with the
 menu bar taken out, and with input taken out — on 2026-09-06, after the
 bar grew a deselected state, navigation, a pointer hit test and an icon
 slot, and the Commander X16 row again on 2026-09-07 after its KERNAL mouse
-landed. Studio's bar is now an icon and one menu, where the earlier table
+landed. Studio's bar was an icon and one menu at that measurement (it is
+five items and their menus since 2026-09-20), where the earlier table
 measured four items, so these numbers replace those rather than continuing
 them.
 

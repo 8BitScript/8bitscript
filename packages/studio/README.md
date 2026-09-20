@@ -7,19 +7,25 @@ on the NES. It is an ordinary 8BitScript program: `8bs run <target>` here
 starts it, and the VS Code extension's **Launch Studio** does the same from
 the editor.
 
-Today it is a front door and nothing behind it: the screen shows the tier
-this machine gets, which editors that tier will open, and what is driving
-it. The menu bar moves — `@8bitscript/input` reads whatever the machine has
-— but there is still no sound, sprite or storage capability to build an
-editor on; [`AGENTS.md`](AGENTS.md) has the tiers, the design, and what each
-editor is waiting for.
+Today it is the desk and nothing behind it: a menu bar whose menus drop
+down — the mark, FILE, and CHARACTERS, SPRITES and MUSIC (one EDIT menu
+where the row is 22 cells) — driven by keys, a stick, a pad or a mouse,
+and a screen per editor that shows what this machine has for it: the
+characters screen draws the portable character set on the machine's own
+font, the others their hardware's own numbers. Nothing edits, plays or
+loads yet — there is still no glyph, sound or storage capability to build
+an editor on, and each screen says so on its last line;
+[`AGENTS.md`](AGENTS.md) has the tiers, the design, and what each editor
+is waiting for. It is designed on the Commander X16 and builds for all
+nine machines; `8bs build --release` says what each is short of.
 
 ```bash
 pnpm start                 # the Commander X16
-pnpm run start:pet         # the PET, at the basic tier
+pnpm run start:pet         # the 32K PET, as a viewer
 pnpm run start:nes         # the NES, as a viewer
 8bs run c64 --screenshot studio.png
 ```
 
 Studio's version is the toolchain's version; `test/studio.test.mjs` holds
-it to that, and links it clean for every target.
+it to that, builds it for every target, and drives the desk's menus on
+the web build headlessly.

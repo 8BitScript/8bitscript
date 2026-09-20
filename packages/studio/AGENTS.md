@@ -33,101 +33,107 @@ builds and runs this package on a system of your choosing.
 
 Do not describe more than this as working:
 
-- `src/studio.8bs` draws the front door: a menu bar across the top row,
-  then the title, version, the tier this machine gets, and which editors
-  that tier opens — using `@8bitscript/screen`, `@8bitscript/text` and
-  `@8bitscript/ui`, nothing else. It builds and runs on all nine targets;
-  `8bs run <target> --screenshot` shows it.
-- The menu bar is `@8bitscript/ui/menubar`, the first component Studio takes
-  from the shared library rather than drawing itself (see
-  [`packages/ui/AGENTS.md`](../ui/AGENTS.md)). It names the four editors,
-  and `drawMenu()` picks the long names or three-letter ones from
-  `text.COLUMNS`, a compile-time constant — the long set is 35 cells with
-  its padding, so a 40-column machine and wider gets `CHARACTERS SPRITES
-  MUSIC FILES` and the VIC-20's 22 and the NES's 28 get `CHR SPR MUS FIL`,
-  with the other branch costing nothing on either. **Selecting an item
-  still opens nothing**: the highlight moves under the keys, a stick and a
-  mouse, and `menubar.item()` returns whether an item is highlighted, but
-  no menu drops down, because there is nothing behind one yet. The bar
-  costs Studio 423 bytes on a C64, 396 on a
-  VIC-20 and 360 on an NES — against 446 bytes for a whole C64 program that
-  just prints four labels and does none of what it does — measured for every machine, and
-  tabulated with where they go in
-  [`packages/ui/AGENTS.md`](../ui/AGENTS.md#what-it-costs). Note the
-  ordering in `start()`: the bar is drawn *before* `text.setColor`, because
-  drawing a bar leaves the text color set to the bar's own.
-- `src/main.8bs` is the one entry for every machine. It reads the
-  machine's facts from `@8bitscript/system` — `Input.KEYBOARD`,
-  `Memory.RAM`, `Video.GLYPHS`, `Video.SPRITES`, `Audio.VOICES`, each a
-  `#fact(...)` the compiler folds from the build's hardware — and hands
-  `studio.start()` the tier. Two questions, in that order: can this build
-  edit at all (a keyboard, and `EDIT_BYTES` of RAM to hold an editor), and
-  then how much of it has anything to edit. The other tiers' branches fold
-  away on any one build — `test/studio.test.mjs` reads the tier off the
-  linked IR for each target, and the generated C for a PET is literally
-  `if ((1 && (31743 >= 8192))) { if ((((0 > 0) && (0 > 0)) && (1 > 1)))
-  ... }`, which clang folds to `tier = 0`. There used to be a
-  `main.<target>.8bs` per lower tier; the filename rule is still the right
-  tool for a machine that needs *different code*, but a machine that only
-  needs a different *number* gets it from one file now.
-- `src/studio.8bs` prints each editor's row from the tier *and* the fact
-  behind that editor, so a viewer is read-only rather than featureless: it
-  still views a character set and a sprite, plays a tune where there is a
-  voice, and loads a file where there is storage.
-- **The menu bar responds to input**; nothing else does. `@8bitscript/input`
-  landed, so left and right step the highlight between the icon and FILE on
-  every machine that can answer, and the screen says which — `INPUT KEYS`
-  on the computers and the web, `INPUT PAD` on the NES. On the
-  X16 the bar moves under the KERNAL mouse. Nothing plays a note or reads
-  or writes a file: there is still no sound or storage capability.
-- **The pointer is visible**, on a build that has one to draw:
-  `@8bitscript/pointer` arrived alongside this, and on a C64 or C128
-  fitted with a 1351 Studio draws a real arrow with one of the VIC's
-  sprites, moving a pixel at a time; on the X16 the KERNAL draws its own
-  arrow (VERA sprite 0), parked at the center until it is moved.
-  `pointer.begin()` goes after `input.begin()` and `pointer.update()`
-  right after `input.poll()`, once each a frame — that ordering is the
-  contract between the two packages, and a program that polls without
-  updating gets an arrow that never moves. On the other six machines
-  `pointer.DRAWS` is false, the calls are empty, and the whole thing is
-  deleted; see [`packages/pointer/AGENTS.md`](../pointer/AGENTS.md) for
-  why each of them draws nothing yet. The standalone example that once
-  showed the same program without the rest of Studio around it
-  (`examples/pointer`) was deleted with the rest of `examples/` ahead of
-  the native-backend rewrite; nothing replaces it yet.
-- **A click on the bar selects the item under the pointer**, on the builds
-  fitted with a mouse. `menubar` hit-tests during a *run* of the bar and
-  answers `pointed()` from that run, so `start()`'s loop calls
-  `menubar.point()` whenever the pointer changes cell — `point()` hit-tests
-  against the last run's labels, and the bar is not redrawn, because
-  nothing on screen changes. A click reads `pointed()` and then redraws
-  only if the highlight actually moved. On the C64 and C128 that rewrite
-  waits until raster line 58, after VIC-II has scanned the bar this
-  frame: `waitFrame()` returns in the top half, and `begin()` no longer
-  re-blanks a span it has already laid, both of which were visible
-  flicker (Studio, 2026-09-07). Clicking the bar's padding, or anywhere
-  off it, deselects: the same thing RUN/STOP means. `input.pointer()` is a
-  constant false on a build without a mouse, so the whole block is proved
-  dead and deleted — a C64 Studio with `--hardware port1=none` is 1553
-  bytes, measured 2026-09-07.
-- **Studio fits its own mouse**, which is why `8bs run c64`,
-  `8bs run c128` and `8bs run cx16` start it with one and no flags.
-  `8bitscript.config.ts` uses the object form of `targets` and asks for
-  `port1: mouse1351` on the C64 and the C128 — the two Commodores whose
-  input layer has a pointer — and lists the X16 with no hardware of its
-  own, because `input.mouse` is already true on the stock sheet.
-  `#fact(input.mouse)` is true for those builds and the pointer half of
-  the layer is compiled in at all. It is the project's *stock* for the
-  machine: it sits under any profile and under `--hardware`, so taking
-  the 1351 out on the command line still works. The editor's Launch
-  Studio picker offers each Commodore as a mouse arrangement and a
-  joystick one. Cost on a C64: 1553 bytes stock, 2637 with the mouse and
-  the click handling — **1084 bytes of program and 45 of RAM**, measured
-  2026-09-07. Cost on a C128: 1455 bytes stock, 2577 with the mouse and
-  the arrow — **1122 bytes of program and 38 of RAM**, measured
-  2026-09-07. Cost on the X16: 1253 bytes without the pointer
-  layer, 1571 with it — **318 bytes of program and 5 of RAM**, measured
-  2026-09-07 by building Studio with the layer taken out.
+- **The desk.** `src/studio.8bs` draws a menu bar across the top row and
+  a screen under it, and reads the machine's input to work them. The
+  bar is `@8bitscript/ui/menubar` — the mark, FILE, and the three
+  editors, each its own item where the row has room (long names from 40
+  columns, `CHR SPR MUS` on the NES's 28) and one EDIT item on the
+  VIC-20's 22 that lists the three. The menus are
+  `@8bitscript/ui/menu`, the drop-down that arrived with this: the mark
+  opens ABOUT; FILE opens LOAD and SAVE where the machine has storage
+  and the tier edits, and QUIT everywhere; each editor's menu opens VIEW
+  (PLAY, for music on a machine with a voice) and, where the tier and
+  the hardware allow, EDIT. Every entry is conditional on a fact, which
+  is why an entry's action is found by asking `menu.item()` whether it
+  is the lit one while the user confirms (`pick()`), never by counting.
+- **The policy is in one place**, `start()`'s loop, the way
+  `packages/ui/AGENTS.md` asks: neither component reads input. Left and
+  right walk the bar; confirm opens the lit item's menu (the first
+  item's, from nothing) with its first entry lit; up and down walk the
+  menu; left and right with a menu open close it and open the
+  neighbour's; confirm takes the entry; cancel closes the menu and
+  leaves the bar lit, or lets the bar go when no menu is open. A mouse
+  does the same by pointing and clicking — a click on the bar opens
+  that item's menu or closes it if it was the open one, a click on an
+  entry takes it, a click anywhere else closes and lets go — and
+  hovering an open menu lights the entry under the arrow. Every control
+  is edge-triggered, so the loop polls once a frame and never twice.
+- **Five screens, each honest about what is behind it.** The front door
+  is what it was: title, version, tier, one line per editor, what is
+  driving the bar (`INPUT KEYS MOUSE` on a build fitted with one). The
+  characters screen draws the portable character set — the one thing a
+  viewer can already show on the machine it is for — and says `GLYPHS
+  256` or `FONT IN ROM` from `Video.GLYPHS`. Sprites prints how many,
+  how many per line, and the size, from the facts; music the voices and
+  whether the chip has noise, envelopes and a filter; files the storage
+  in KiB. A screen opened by EDIT ends `EDIT: NOT BUILT YET`; music ends
+  `PLAY: NOT BUILT YET`; files `LOAD: NOT BUILT YET` — because nothing
+  edits, plays or loads, and a screen that implied otherwise would be
+  the wrong screen.
+- **Every screen prints through `line()`**, one global cursor and one
+  string per call, because a `text.print(cell, ...)` with its own
+  16-bit cell and a `cell = cell + ROW` after it cost ~30 bytes a line:
+  the five screens were 1539 bytes of a 32K PET's Studio written that
+  way and 864 written this way (2026-09-20). See the root `AGENTS.md`'s
+  second rule.
+- **Taking an entry closes the menu, lets the bar go, and redraws the
+  screen**; `drawView()` blanks everything under the bar first, which is
+  also how a closed menu comes off the screen. On the NES that blank is
+  a few frames of the vertical-blank queue; nowhere else does it show.
+  On the C64 and C128 the bar is redrawn after raster line 58, as
+  before (Studio, 2026-09-07), so the rewrite never lands while VIC-II is
+  scanning it.
+- **The pointer is visible**, on a build that has one to draw: a VIC
+  sprite on a C64 or C128 fitted with a 1351, the KERNAL's own arrow on
+  the X16, parked at the center until it is moved. `pointer.begin()`
+  goes after `input.begin()` and `pointer.update()` right after
+  `input.poll()`, once each a frame — the contract between the two
+  packages. On the other six `pointer.DRAWS` is false and the calls are
+  deleted; see [`packages/pointer/AGENTS.md`](../pointer/AGENTS.md).
+- **Studio fits its own mouse** — `port1: mouse1351` on the C64 and the
+  C128 in `8bs.config.ts`, and the X16 needs no flag because
+  `input.mouse` is on its stock sheet — and names the X16 as its
+  `baseline` and a mouse as its `input.primary`, so `8bs run` alone
+  starts it on the X16, `8bs build --release` measures every other
+  machine's Studio against it, and `8bs targets --reach` says where a
+  mouse is standard, optional or absent.
+- **Nothing plays a note or reads or writes a file.** There is still no
+  sound or storage capability, and the screens say so.
+
+### Measured, 2026-09-20, native backend, `8bs build --release`
+
+| build | program | RAM |
+| --- | --- | --- |
+| X16 (the baseline) | 5987 | 184 |
+| C64 with a 1351 | 6536 | 115 |
+| C64 with a joystick | 5407 | 98 |
+| C128 with a 1351 | 6036 | 113 |
+| C128 with a joystick | 5121 | 101 |
+| MEGA65 | 4947 | 101 |
+| Atari 8-bit (800XL) | 4975 | 105 |
+| VIC-20 with 8K | 4598 | 101 |
+| PET 4032, 32K | 4489 | 99 |
+| NES (NROM, fixed) | 40976 | 121 |
+
+The mouse and the click handling cost the C64 **1129 bytes of program
+and 17 of RAM**, the C128 **915 and 12**. The biggest single pieces on
+the X16 are `drawView` (812, the five screens), the loop `studio_start`
+(727), `menubar_item` (425), `menu_item` (296) and `drawMenu` (222). A
+stock VIC-20 (3583 bytes) and a 4K PET (3071) cannot hold the desk —
+`8bs build` says by how many bytes, and `test/studio.test.mjs` holds it
+to saying so — which is why Studio's defaults for those two machines are
+the 8K VIC-20 and the 32K 4032. Not a `requires` floor: `memory.ram`
+would refuse the NES, whose code is in ROM and whose 1536 bytes of RAM
+hold the desk's variables with room to spare.
+
+`test/studio.test.mjs` builds Studio for every machine from its own
+directory, and drives the web build headlessly — key edges written into
+the host's input byte a frame at a time, the screen read back from
+character and color RAM — through opening a menu, taking CHARACTERS ›
+VIEW, cancelling, walking from one open menu to the next, and QUIT
+returning from the program. Linking IR had let every 6502 build fail
+unnoticed since the native backend landed (a 2-byte array store it
+refused until #223); building is the test now.
 
 ## Tiers
 
@@ -142,12 +148,17 @@ program* at the tier its hardware supports:
 | --- | --- | --- | --- | --- | --- |
 | Full | cx16, mega65, c128, c64, atari8 | edit | edit | edit | load, save |
 | Basic | vic20 with 8K or more | edit | view | edit | load, save |
-| Viewer | pet, vic20 stock and 3K, nes, web | view | view | play¹ | load² |
+| Viewer | pet (8K and up), vic20 with 3K, nes, web | view | view | play¹ | load² |
 
 ¹ where the machine has a voice at all: the PET's one square wave and the
 NES's APU play, the web (no sound yet) only views. ² where the machine has
 storage: every PET and every VIC-20 loads, the NES on a plain cartridge
 and the web have nowhere to load from.
+
+A stock VIC-20 and a 4K PET are below the table: the tier rule would make
+them viewers, and the desk does not fit in 3583 or 3071 bytes (measured
+above). Their row returns when the desk is smaller or a string table
+exists; until then `8bs build` refuses them with the byte count.
 
 The rule that produces the table, in `src/main.8bs`, is two questions.
 

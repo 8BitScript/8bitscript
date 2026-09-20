@@ -22,7 +22,7 @@ const TARGETS = ['vic20', 'c64', 'pet', 'c128', 'atari8', 'nes', 'cx16', 'mega65
 
 test('every component is a subpath, and there is no bare entry', () => {
   const exports = pkg['8bitscript'].exports;
-  assert.deepEqual(Object.keys(exports), ['./menubar', './menubar-bx']);
+  assert.deepEqual(Object.keys(exports), ['./menubar', './menubar-bx', './menu']);
   for (const [key, value] of Object.entries(exports)) {
     assert.ok(existsSync(join(ROOT, value)), `${key} names ${value}, which does not exist`);
   }
@@ -61,6 +61,36 @@ for (const target of TARGETS) {
     assert.equal(ir.entry, 'main');
   });
 }
+
+// The drop-down: the same proof, for the same reason.
+const MENU_PROBE = join(HERE, 'menu-probe.8bs');
+
+for (const target of TARGETS) {
+  test(`the drop-down menu links clean for ${target}`, () => {
+    const source = readFileSync(MENU_PROBE, 'utf8');
+    const { ir, diagnostics } = link(source, MENU_PROBE, { machine: target, facts: stockFacts(target) });
+    assert.deepEqual(diagnostics, []);
+    assert.equal(ir.entry, 'main');
+  });
+}
+
+test('the drop-down offers the bar\'s calls, plus clear() for the rows it covered', () => {
+  const source = readFileSync(join(SRC, 'menu.8bs'), 'utf8');
+  for (const call of ['setColors', 'setPadding', 'select', 'selected', 'deselect', 'next', 'previous', 'point', 'pointed', 'begin', 'item', 'end', 'clear', 'count', 'clipped']) {
+    assert.match(source, new RegExp(`function ${call}\\(`), `menu.${call}`);
+  }
+  assert.match(source, /const NONE: utinyint = NO_SELECTION;/);
+  assert.match(source, /let highlighted: utinyint = NO_SELECTION;/, 'a menu opens with nothing highlighted');
+  // No item(), no putChar: a row is a print and two fills, never a cell at a time.
+  const code = source.split('\n').filter((line) => !line.trim().startsWith('//')).join('\n');
+  assert.equal([...code.matchAll(/text\.putChar\(/g)].length, 0, 'the drop-down never puts a character one cell at a time');
+  assert.match(code, /text\.setReverse\(on\)/, 'the highlighted entry is inverted, not recolored');
+  assert.match(code, /text\.setReverse\(false\)/, 'reverse is turned off after each row');
+  // The two-comparison hit test, for the reason the bar's test gives.
+  assert.match(code, /if \(pointerAt >= start\)/);
+  assert.match(code, /if \(pointerAt - start < width\)/);
+  assert.doesNotMatch(code, /pointerAt < start \+/);
+});
 
 test('the menu bar offers the calls a program is written against', () => {
   const source = readFileSync(PROBE, 'utf8');
