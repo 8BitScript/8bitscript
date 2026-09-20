@@ -1,5 +1,22 @@
 # @8bitscript/pointer
 
+## 0.20.0
+
+### Patch Changes
+
+- Updated dependencies [d661455]
+  - @8bitscript/web@0.20.0
+  - @8bitscript/input@0.20.0
+  - @8bitscript/text@0.20.0
+  - @8bitscript/atari8@0.20.0
+  - @8bitscript/c128@0.20.0
+  - @8bitscript/c64@0.20.0
+  - @8bitscript/cx16@0.20.0
+  - @8bitscript/mega65@0.20.0
+  - @8bitscript/nes@0.20.0
+  - @8bitscript/pet@0.20.0
+  - @8bitscript/vic20@0.20.0
+
 ## 0.19.1
 
 ### Patch Changes

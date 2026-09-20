@@ -1,5 +1,12 @@
 # @8bitscript/random
 
+## 0.20.0
+
+### Patch Changes
+
+- @8bitscript/atari8@0.20.0
+  - @8bitscript/c64@0.20.0
+
 ## 0.19.1
 
 ### Patch Changes
