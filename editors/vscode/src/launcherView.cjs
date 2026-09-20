@@ -157,6 +157,9 @@ class LauncherViewProvider {
 
   async set(message) {
     switch (message.key) {
+      case 'studioSystem':
+        await settings.setStudioSystem(message.value);
+        break;
       case 'project': {
         await settings.setProject(message.value);
         // Picking a project loads what it is set up for: the first of its
@@ -227,6 +230,8 @@ class LauncherViewProvider {
     });
     const systems = systemOptions(targets, project);
     const postedSystem = selectedSystemId(fitted, named, system);
+    const studio = await studioOptions(this.projects, all);
+    if (!this.view) return;
     this.view.webview.postMessage({
       type: 'state',
       packages: packageRows({
@@ -242,6 +247,7 @@ class LauncherViewProvider {
       packageManager: project?.packageManager ?? 'pnpm',
       systems,
       system: postedSystem,
+      studio,
       systemTitle: fitted?.name ?? target?.title ?? system,
       region,
       regionLabel: machine ? settings.regionShort(region) : '',
@@ -334,6 +340,29 @@ function selectedSystemId(fitted, named, machine) {
  * A system's id is its name, which cannot collide with a machine id: the
  * CLI would have refused a target it did not recognize long before here.
  */
+/**
+ * The Studio button's own dropdown: every named system Studio's config
+ * lists (`8bs targets --json` for the app, cached like any project's),
+ * with the setting that picks one — '' for the baseline, the X16, which
+ * is also what the runner falls back to. Null when Studio is not
+ * installed, and the page says so.
+ */
+async function studioOptions(projects, all) {
+  const studio = all.find((p) => p.kind === 'app' && p.name === '@8bitscript/studio');
+  if (!studio) return null;
+  const targets = await projects.loadTargets(studio.dir);
+  const systems = (targets?.systems ?? []).map((system) => ({
+    id: system.name,
+    label: system.name,
+    target: system.target,
+  }));
+  const selected = settings.getStudioSystem();
+  return {
+    systems: [{ id: '', label: 'Commander X16 (baseline)', target: 'cx16' }, ...systems.filter((s) => s.target !== 'cx16' || s.id !== 'Commander X16')],
+    selected: systems.some((s) => s.id === selected) ? selected : '',
+  };
+}
+
 function systemOptions(targets, project) {
   const machines = ALL_TARGETS.map((id) => ({
     id,
@@ -451,13 +480,16 @@ function html(webview) {
 
   <section class="studio-block">
     <h2 class="section-label">Studio</h2>
-    <button class="launch studio" id="studio" title="Open Studio on the Commander X16 — the asset editor that ships with the toolchain; not a run of this project">
-      ${ICONS.studio}
-      <span class="launch-text">
-        <span class="launch-title">Open Studio</span>
-        <span class="launch-sub">on the Commander X16 &mdash; the asset editor, beside your project</span>
-      </span>
-    </button>
+    <div class="control studio-row">
+      <button class="launch studio" id="studio" title="Open Studio — the asset editor that ships with the toolchain — on the system picked beside it; not a run of this project">
+        ${ICONS.studio}
+        <span class="launch-text">
+          <span class="launch-title">Open Studio</span>
+          <span class="launch-sub" id="studio-sub">on the Commander X16</span>
+        </span>
+      </button>
+      <select id="studio-system" title="Which of Studio's systems to open it on"></select>
+    </div>
   </section>
 
   <section class="launch-block">

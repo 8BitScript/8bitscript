@@ -67,6 +67,8 @@ test('the page runs: the inline script defines the stop icon, and the Studio but
     assert.deepEqual(plain(posted), [{ type: 'ready' }], 'the page announces itself and nothing else on load');
     dom.getElementById('studio').dispatch('click');
     assert.deepEqual(plain(posted.at(-1)), { type: 'command', id: '8bitscript.openStudio' });
+    dom.getElementById('studio-system').dispatch('change', { target: { value: 'C64 with a mouse' } });
+    assert.deepEqual(plain(posted.at(-1)), { type: 'set', key: 'studioSystem', value: 'C64 with a mouse' });
     // The buttons beside it still say what they always said.
     dom.getElementById('run').dispatch('click');
     assert.deepEqual(plain(posted.at(-1)), { type: 'launch', action: 'run' });
@@ -95,6 +97,15 @@ test('the view draws the Studio block and lets the page run openStudio, and only
     assert.match(html, /Open Studio/);
     assert.ok(html.indexOf('id="studio"') < html.indexOf('for="project"'), 'Studio sits above the quick launch fields');
     assert.match(html, /<svg viewBox="0 0 16 16" width="20" height="20"[^>]*><path fill="currentColor" d="M1\.5 2h13/, 'with its own, larger icon');
+    assert.match(html, /<select id="studio-system"/, 'and the dropdown of its systems');
+    // The state the page was sent says Studio is not installed here.
+    const state = view.posted.find((m) => m.type === 'state');
+    assert.equal(state.studio, null, 'no Studio app in an empty workspace');
+
+    // The dropdown's pick is a setting, like every choice on the panel.
+    view.webview.__fire({ type: 'set', key: 'studioSystem', value: 'C64 with a mouse' });
+    await tick();
+    assert.equal(vscode.__mock.configStore.get('studioSystem'), 'C64 with a mouse');
 
     // What the page posts, the view runs — through the allow-list.
     view.webview.__fire({ type: 'command', id: '8bitscript.openStudio' });

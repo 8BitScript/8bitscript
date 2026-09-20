@@ -594,6 +594,35 @@ test('registerRunner: openStudio runs Studio on the X16 with no picker and no ch
   }
 });
 
+test('registerRunner: openStudio opens Studio on the system the dropdown picked, and falls back to the X16 for a name Studio no longer lists', async () => {
+  const dir = tmpDir();
+  try {
+    vscode.__mock.reset();
+    vscode.workspace.findFiles = () => Promise.resolve([]);
+    await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async (projects) => {
+      const cli = writeFakeCli(dir);
+      projects.apps = [fakeProject(dir, {
+        kind: 'app', name: '@8bitscript/studio', title: 'Studio', toolchain: cli, installed: true,
+      })];
+      // The fake CLI lists one named system for the app: "Named C64".
+      vscode.__mock.configStore.set('studioSystem', 'Named C64');
+      await vscode.__mock.trigger('8bitscript.openStudio');
+      await tick();
+      let executed = vscode.__mock.executedTasks.at(-1);
+      assert.equal(executed.task.definition.target, 'c64');
+      assert.match(executed.task.name, /Named C64/);
+
+      vscode.__mock.configStore.set('studioSystem', 'A system Studio forgot');
+      await vscode.__mock.trigger('8bitscript.openStudio');
+      await tick();
+      executed = vscode.__mock.executedTasks.at(-1);
+      assert.equal(executed.task.definition.target, 'cx16', 'the baseline, when the pick is stale');
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('registerRunner: openStudio says so when Studio is not installed', async () => {
   const dir = tmpDir();
   try {

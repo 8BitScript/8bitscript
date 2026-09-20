@@ -216,6 +216,13 @@ window.addEventListener('message', ({ data }) => {
   $('open').disabled = empty;
   $('details').disabled = empty;
   fill($('system'), data.systems, data.system);
+  // Studio's own dropdown, and the button's line says what it will open.
+  const studio = data.studio;
+  fill($('studio-system'), studio ? studio.systems : [{ id: '', label: 'Studio is not installed' }], studio ? studio.selected : '');
+  $('studio-system').disabled = !studio;
+  $('studio').disabled = !studio;
+  const picked = studio ? studio.systems.find((s) => s.id === studio.selected) : null;
+  $('studio-sub').textContent = picked ? ('on ' + picked.label.replace(' (baseline)', '')) : 'not installed';
 
   $('run-title').textContent = empty ? 'Run' : 'Run ' + data.projectLabel;
   $('run-sub').textContent = data.subtitle
@@ -261,6 +268,7 @@ window.addEventListener('message', ({ data }) => {
 $('project').addEventListener('change', (e) => vscode.postMessage({ type: 'set', key: 'project', value: e.target.value }));
 $('system').addEventListener('change', (e) => vscode.postMessage({ type: 'set', key: 'system', value: e.target.value }));
 $('studio').addEventListener('click', () => vscode.postMessage({ type: 'command', id: '8bitscript.openStudio' }));
+$('studio-system').addEventListener('change', (e) => vscode.postMessage({ type: 'set', key: 'studioSystem', value: e.target.value }));
 $('run').addEventListener('click', () => vscode.postMessage({ type: 'launch', action: 'run' }));
 $('build').addEventListener('click', () => vscode.postMessage({ type: 'launch', action: 'build' }));
 $('boot').addEventListener('click', () => vscode.postMessage({ type: 'launch', action: 'boot' }));

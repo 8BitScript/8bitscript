@@ -1076,6 +1076,23 @@ function registerRunner(context, output) {
       vscode.window.showInformationMessage('Studio is not installed. Install 8BitScript from the side bar, or install @8bitscript/cli in a project.');
       return;
     }
+    // The button's own dropdown picks one of Studio's named systems
+    // (settings.studioSystem); nothing picked, or a name Studio no longer
+    // lists, is its baseline.
+    const wanted = settings.getStudioSystem();
+    const system = wanted
+      ? ((await projects.loadTargets(studio.dir))?.systems ?? []).find((entry) => entry.name === wanted)
+      : null;
+    if (system) {
+      await execute('run', {
+        project: studio,
+        target: system.target,
+        system: system.name,
+        region: system.region ?? settings.getRegion(),
+        hardware: { profile: system.profile, options: system.hardware },
+      });
+      return;
+    }
     await execute('run', { project: studio, target: 'cx16' });
   });
   command('8bitscript.launchApp', () => launch('app', 'apps'));

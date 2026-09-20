@@ -67,7 +67,7 @@ test('packages sit above quick launch, and the hardware matrix is not in the sid
   assert.doesNotMatch(view, /details\.more/);
 });
 
-test('Open Studio is the biggest button on the panel, above quick launch, and runs Studio on the X16 without a picker', () => {
+test('Open Studio is the largest button on the panel, above quick launch, with its own dropdown of Studio\'s systems', () => {
   const view = fs.readFileSync(path.join(ROOT, 'src', 'launcherView.cjs'), 'utf8');
   const runner = fs.readFileSync(path.join(ROOT, 'src', 'runner.cjs'), 'utf8');
   const body = view.slice(view.indexOf('id="packages-block"'));
@@ -76,7 +76,10 @@ test('Open Studio is the biggest button on the panel, above quick launch, and ru
   assert.deepEqual([...order].sort((a, b) => a - b), order);
   assert.ok(order.every((i) => i > -1));
   assert.match(body, /class="launch studio" id="studio"/, 'the same launch shape as Run, marked as Studio');
-  assert.match(CSS, /button\.launch\.studio \{ padding: 12px 14px/, 'and bigger than it');
+  assert.match(CSS, /\.studio-row > button\.launch\.studio \{[^}]*padding: 9px 12px/, 'and a little larger than it');
+  assert.match(body, /<select id="studio-system"/, 'the dropdown sits beside it');
+  assert.match(JS, /key: 'studioSystem', value: e\.target\.value/, 'and writes the pick to settings, like every choice on the panel');
+  assert.ok(MANIFEST.contributes.configuration.properties['8bitscript.studioSystem'], 'which is a declared setting');
   // The page names the command, the view allows it, and the command runs
   // Studio on cx16 — its baseline — with no picker and no change to the
   // panel's selection.
