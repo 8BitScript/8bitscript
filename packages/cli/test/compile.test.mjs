@@ -233,6 +233,12 @@ test('build() refuses a baseline below the program\'s own requires, and a baseli
     // A named target still builds: the baseline is only the default.
     const named = await capture(() => build(['--target', 'pet', '--hardware', 'ram=32']));
     assert.equal(named.result, 0, named.stdout + named.stderr);
+    // A word that is neither a machine nor an entry file is a mistyped
+    // machine, and the usage line that lists the real ones is the answer
+    // — not the baseline, and not "entry c65 does not exist".
+    const typo = await capture(() => build(['c65']));
+    assert.equal(typo.result, 2);
+    assert.match(typo.stderr, /Usage: 8bs build/);
   } finally {
     process.chdir(prev);
     await rm(dir, { recursive: true, force: true });

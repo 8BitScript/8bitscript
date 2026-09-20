@@ -508,7 +508,7 @@ export async function run(args) {
     return 2;
   }
   const { loadConfig, localeArg } = await import('./config.mjs');
-  const { MACHINES } = await import('@8bitscript/compiler');
+  const { MACHINES, sourceKindOf } = await import('@8bitscript/compiler');
   const config = await loadConfig(process.cwd(), '8bs run');
   let launch = resolveNamedLaunch(hw, { config });
   if (!launch.ok) {
@@ -540,7 +540,9 @@ export async function run(args) {
     return 2;
   }
   // No target and no --system: the project's baseline, when it names one.
-  if (!launch.target && !named) {
+  // Only with nothing in the target's place, or an entry file there: a
+  // word that is neither is a mistyped machine, and usage stays the answer.
+  if (!launch.target && !named && (first === undefined || sourceKindOf(first))) {
     launch = baselineLaunch(hw, config);
     if (!launch.ok) {
       process.stderr.write(`8bs run: ${launch.error}\n`);

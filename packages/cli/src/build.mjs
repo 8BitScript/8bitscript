@@ -686,7 +686,10 @@ export async function build(args) {
     return 2;
   }
   // No target and no --system: the project's baseline, when it names one.
-  if (!launch.target && !named) {
+  // Only with nothing else in the target's place, or an entry file there
+  // (`8bs build src/x.8bs`): a word that is neither is a mistyped machine,
+  // and the usage line that lists the real ones stays the answer.
+  if (!launch.target && !named && (positionals[0] === undefined || sourceKindOf(positionals[0]))) {
     launch = baselineLaunch(hw, config);
     if (!launch.ok) {
       process.stderr.write(`8bs build: ${launch.error}\n`);
