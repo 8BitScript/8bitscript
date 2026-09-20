@@ -97,6 +97,21 @@ Do not describe more than this as working:
   starts it on the X16, `8bs build --release` measures every other
   machine's Studio against it, and `8bs targets --reach` says where a
   mouse is standard, optional or absent.
+- **Two themes.** Dark — a blue border, a black screen, white ink, a
+  cyan bar — is how Studio starts; the mark's menu offers LIGHT MODE (a
+  white screen and border, black ink, a blue bar) and, once there, DARK
+  MODE. `paint()` in `studio.8bs` is the whole theme: it blanks the
+  screen with the border and background, sets the bar's, the menus'
+  and the pointer's colors and the ink every screen prints in, and the
+  caller redraws. The entry is offered where `Video.PALETTE > 2`, a
+  fact: the PET's screen package ignores border and background (its
+  `screen.blank` says so), so on a two-color machine the entry folds
+  away rather than promising a change it cannot show. The editor that
+  launched Studio knows its own theme (`vscode.window.activeColorTheme`)
+  and its panels already follow it; handing it to Studio is not built —
+  it belongs in the projects manifest the CLI will write for Studio
+  (the direction recorded with the editor's Open Studio button), and
+  until then the mark's menu is the switch.
 - **Nothing plays a note or reads or writes a file.** There is still no
   sound or storage capability, and the screens say so.
 

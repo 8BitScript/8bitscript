@@ -12,7 +12,10 @@ down — the mark, FILE, and CHARACTERS, SPRITES and MUSIC (one EDIT menu
 where the row is 22 cells) — driven by keys, a stick, a pad or a mouse,
 and a screen per editor that shows what this machine has for it: the
 characters screen draws the portable character set on the machine's own
-font, the others their hardware's own numbers. Nothing edits, plays or
+font, the others their hardware's own numbers. It has a dark mode (blue border,
+black screen, white ink) and a light one (white screen, black ink),
+switched from the mark's menu on every machine with more than two
+colors. Nothing edits, plays or
 loads yet — there is still no glyph, sound or storage capability to build
 an editor on, and each screen says so on its last line;
 [`AGENTS.md`](AGENTS.md) has the tiers, the design, and what each editor
