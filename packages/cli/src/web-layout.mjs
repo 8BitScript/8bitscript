@@ -187,9 +187,20 @@ export const COLOR_BASE = DEFAULT_LAYOUT.colorBase;
 export const INPUT_OFFSET = DEFAULT_LAYOUT.inputOffset;
 export const HOST_OFFSET = DEFAULT_LAYOUT.hostOffset;
 
-/** Bit 0 of the HOST_OFFSET byte: this host is a touchscreen. */
+/**
+ * The HOST_OFFSET byte, bit by bit. Zero is a desktop with a mouse and a
+ * keyboard — what a screenshot host (no navigator, no page) writes, so
+ * every bit says how a host *differs* from that, never what it has.
+ *
+ *   TOUCH        bit 0: this host is a touchscreen (`input.touch()`).
+ *   NO_KEYBOARD  bit 1: nothing to press arrows on — a phone or a tablet
+ *                held in the hands (`input.keyboard()` is false). Set at
+ *                start-up by hostHasKeyboard() below, and cleared for good
+ *                by the first real key the page sees.
+ */
 export const HostStatus = {
   TOUCH: 1,
+  NO_KEYBOARD: 2,
 };
 
 /**
@@ -309,6 +320,33 @@ export function hostIsTouch({ maxTouchPoints = 0, coarse = false, userAgent = ''
   if (maxTouchPoints > 0 && coarse) return true;
   if (maxTouchPoints > 0 && /iPhone|iPad|iPod|Android/i.test(userAgent)) return true;
   return false;
+}
+
+/**
+ * Whether this page should leave HostStatus.NO_KEYBOARD clear. No browser
+ * API says "a physical keyboard is attached", so this is the best signal
+ * there is: a touch host whose primary pointer cannot hover — CSS
+ * `(hover: none)` — is a phone or a tablet in the hands, and starts out
+ * with no keyboard. A touchscreen laptop, or an iPad on a trackpad
+ * keyboard, reports `hover: hover` and keeps its keyboard. The one that
+ * gets it wrong — an iPad on a keyboard folio with no trackpad — is put
+ * right by `sawKey`: the page passes true once any trusted keydown has
+ * arrived, and from then on the host has a keyboard. A screenshot host
+ * has no navigator and passes nothing, so it has a keyboard.
+ *
+ * @param {{ touch?: boolean, hoverNone?: boolean, sawKey?: boolean }} [env]
+ */
+export function hostHasKeyboard({ touch = false, hoverNone = false, sawKey = false } = {}) {
+  if (sawKey) return true;
+  return !(touch && hoverNone);
+}
+
+/** The whole HOST_OFFSET byte for a host described the way the two probes above take it. */
+export function hostStatusByte(env = {}) {
+  const touch = hostIsTouch(env);
+  let byte = touch ? HostStatus.TOUCH : 0;
+  if (!hostHasKeyboard({ touch, hoverNone: env.hoverNone, sawKey: env.sawKey })) byte |= HostStatus.NO_KEYBOARD;
+  return byte;
 }
 
 // How much of the box the picture gets to keep before the border is worth

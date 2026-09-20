@@ -38,7 +38,11 @@ Copy `8bitscript.js` and `program.wasm` next to your page:
 
 That is the whole integration. The element sizes itself to the space you give
 it, takes swipes and taps on touch, takes the arrow keys when it has focus,
-and picks its own border (see [Borders](#borders)).
+and picks its own border (see [Borders](#borders)). The program can ask
+what it landed on — `input.touch()`, and `input.keyboard()`, which is false
+on a phone or a tablet in the hands and true again from the first key a
+plugged-in keyboard sends — so a game can say SWIPE where there are no
+arrows to press.
 
 If you would rather hold a handle:
 
@@ -189,6 +193,13 @@ Attributes on `<eightbit-screen>`, or keys passed to `mount()`:
 | — | `onSample`, `onDone`, `onError` | — | Callbacks. |
 
 `mount()` returns `{ canvas, root, start, destroy, isRunning, border, say }`.
+
+`EightBitScript.hostIsTouch()` and `EightBitScript.hostHasKeyboard()` are
+the page's own answers to the questions the program asks through
+`input.touch()` and `input.keyboard()` — what the loader will tell the
+program at start-up, before any key has been seen — so a page can word a
+hint the way the program words its prompt (the bundled `index.html` says
+"swipe to move" on a phone).
 
 ## Notes on hosting
 
