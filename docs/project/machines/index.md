@@ -30,6 +30,11 @@ not confirm is marked *to verify*. When a machine's turn comes, its page
 becomes the first draft of `packages/<machine>/AGENTS.md`, and the
 verification happens against the installed toolchain and emulator then.
 
+Each of these machines, and the eight that build, has a row in
+[`../reach.md`](../reach.md) — units sold, 2026 community activity,
+routes to a user and the formats each route takes — so the phase order
+below can be argued from numbers as well as from hardware.
+
 | Phase | Machine | Page |
 | ----- | ------- | ---- |
 | 5 | Apple II family | [apple2.md](apple2.md) |

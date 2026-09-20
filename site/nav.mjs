@@ -54,6 +54,10 @@ export const nav = [
     url: '/project/input',
   },
   {
+    title: 'Reach — which machines a program is for',
+    url: '/project/reach',
+  },
+  {
     title: 'Machines on the roadmap',
     url: '/project/machines/',
   },
