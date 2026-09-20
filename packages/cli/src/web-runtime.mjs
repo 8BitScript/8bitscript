@@ -40,7 +40,7 @@ export {
   BORDER_PX, BORDER_HAIRLINE_PX, CHAR_BASE, CHAR_H, CHAR_W, COLOR_BASE, COLORS,
   DEFAULT_LAYOUT, GRID_COLS, GRID_ROWS, HOST_OFFSET, HostStatus, INNER_H, INNER_W,
   INPUT_OFFSET, InputEdge, KEY_TO_EDGE, SWIPE_THRESHOLD,
-  agreementFor, borderFor, hostIsTouch, inputBitForKey, layoutFromHardware,
+  agreementFor, borderFor, hostHasKeyboard, hostIsTouch, hostStatusByte, inputBitForKey, layoutFromHardware,
   screenSize, sidecarJson, swipeEdge,
 } from './web-layout.mjs';
 
@@ -221,7 +221,11 @@ var screen = EightBitScript.mount(document.body, {
   frameRate: ${frameRate},
   fullPage: true,
   hud: false,
-  hint: 'arrows or swipe to move \\u00b7 double-click or F for fullscreen',
+  // Worded the way the program will word its own prompt: a phone has no
+  // arrows to press and nothing to double-click.
+  hint: EightBitScript.hostHasKeyboard()
+    ? 'arrows or swipe to move \\u00b7 double-click or F for fullscreen'
+    : 'swipe to move',
   onSample: postStatus,
   onDone: function () { postStatus({ done: true }); },
   onError: function (error) { postStatus({ error: String(error) }); },

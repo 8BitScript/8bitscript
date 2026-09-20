@@ -273,6 +273,7 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
   var RASTER_BASE = ${layout.rasterBase ?? DEFAULT_LAYOUT.rasterBase};
   var RASTER_MAX_ENTRIES = ${layout.rasterMaxEntries ?? RASTER_MAX_ENTRIES};
   var HOST_TOUCH = ${HostStatus.TOUCH};
+  var HOST_NO_KEYBOARD = ${HostStatus.NO_KEYBOARD};
   var COLOR_PER_CELL = ${layout.colorPerCell !== false};
   var ASPECT = ${JSON.stringify(layout.aspect ?? '16/9')};
   // Modern only: the grid follows the window. Every machine skin is fixed,
@@ -495,6 +496,23 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     var ua = (nav && nav.userAgent) || '';
     if (points > 0 && /iPhone|iPad|iPod|Android/i.test(ua)) return true;
     return false;
+  }
+
+  function hoverNone() {
+    return !!(global.matchMedia && global.matchMedia('(hover: none)').matches);
+  }
+
+  // No browser API says "a physical keyboard is attached". A touch host
+  // whose primary pointer cannot hover is a phone or a tablet in the
+  // hands, and starts out with no keyboard; a touchscreen laptop, or an
+  // iPad on a trackpad keyboard, hovers and keeps its keyboard. sawKey
+  // is the page's own evidence — a trusted keydown that did not come from
+  // a text field — and outranks the guess: the iPad on a keyboard folio
+  // with no trackpad gets its keyboard back at the first arrow it sends.
+  // Mirrors hostHasKeyboard() in web-layout.mjs, which is the tested one.
+  function hostHasKeyboard(sawKey) {
+    if (sawKey) return true;
+    return !(hostIsTouch() && hoverNone());
   }
 
   function applyLayout(next) {
@@ -737,9 +755,30 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     function writeInput() {
       if (mem) mem[INPUT_OFFSET] = keysHeld;
     }
+    // The host byte is levels, not presses: what this host is, for
+    // @8bitscript/web/input's touch() and keyboard(). Written when the
+    // memory arrives, and again the first time a real key proves the
+    // keyboard guess wrong — the one bit in it that can change.
+    var sawKey = false;
     function writeHost() {
       if (!mem) return;
-      mem[HOST_OFFSET] = hostIsTouch() ? HOST_TOUCH : 0;
+      var status = hostIsTouch() ? HOST_TOUCH : 0;
+      if (!hostHasKeyboard(sawKey)) status |= HOST_NO_KEYBOARD;
+      mem[HOST_OFFSET] = status;
+    }
+    function isTextField(node) {
+      if (!node || !node.tagName) return false;
+      var tag = node.tagName.toUpperCase();
+      return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || node.isContentEditable === true;
+    }
+    // Any trusted key that is not typed into a form field is a keyboard.
+    // A soft keyboard only ever appears for a text field, so a key from
+    // outside one is a physical key — on a laptop, or plugged into a
+    // tablet — and from then on the host has a keyboard.
+    function noteKey(e) {
+      if (sawKey || e.isTrusted === false || isTextField(e.target)) return;
+      sawKey = true;
+      writeHost();
     }
     function setInputBit(bit, down) {
       if (!bit) return;
@@ -752,6 +791,7 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     // guest in; full-page, there is nothing else to break.
     var keyTarget = keyboard === 'window' ? global : root;
     function onKeyDown(e) {
+      noteKey(e);
       var bit = KEY_TO_EDGE[e.key] || 0;
       if (bit) {
         e.preventDefault();
@@ -1002,6 +1042,11 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     borderFor: borderFor,
     gridFor: gridFor,
     swipeEdge: swipeEdge,
+    // What the page will tell the program its host is, before any key has
+    // been seen — so a shell can word its own hint the way the program
+    // will word its prompt (index.html says "swipe to move" on a phone).
+    hostIsTouch: hostIsTouch,
+    hostHasKeyboard: function () { return hostHasKeyboard(false); },
     // Exposed the same way borderFor/gridFor/swipeEdge are: so the inlined
     // compositor can be held to web-scanline.mjs in web-loader.test.mjs.
     paint: paint,

@@ -26,10 +26,21 @@
 // belongs in the same snapshot when someone writes it, and
 // `input.mouse` stays false until then.
 //
-// `touch()` is a **level**, not an edge: it is a property of the host
-// (maxTouchPoints and `pointer: coarse`), written at HOST_OFFSET, not a
-// press. A screenshot leaves that bit clear so CI PNGs stay the desktop
-// layout.
+// `touch()` and `keyboard()` are **levels**, not edges: properties of the
+// host, written at HOST_OFFSET, not presses. A touchscreen is
+// maxTouchPoints and `pointer: coarse`. A keyboard is the page's best
+// guess — a touch host whose pointer cannot hover (`hover: none`) is a
+// phone or a tablet in the hands and has none — corrected the moment a
+// real key arrives: an iPad on a keyboard folio says it has no keyboard
+// until its first arrow, and has one from then on. So a program that
+// names its controls (SWIPE, ARROWS) reads keyboard() when it prints,
+// not once at start-up. A screenshot leaves the byte clear so CI PNGs
+// stay the desktop layout: no touchscreen, a keyboard.
+//
+// `Input.KEYBOARD` from @8bitscript/system is the build's fact — the web
+// target has arrow keys — and keyboard() is whether this host, today, has
+// anything to press them on. Both are true on a desktop; only the fact
+// is true on a phone.
 //
 // ---- edges, not levels ---------------------------------------------------
 //
@@ -47,8 +58,12 @@ namespace Edge {
     const CANCEL: utinyint = 32;
 }
 
+// Bits of the HOST_OFFSET byte. Zero is a desktop with a mouse and a
+// keyboard — what a screenshot host writes — so each bit says how a host
+// differs from that. The page's side is web-layout.mjs's HostStatus.
 namespace HostStatus {
     const TOUCH: utinyint = 1;
+    const NO_KEYBOARD: utinyint = 2;
 }
 
 let held: utinyint = 0;
@@ -107,6 +122,14 @@ export namespace input {
     // host as a touchscreen. Not edge-triggered; does not need poll().
     function touch(): bool {
         return (memory.read(WebRegisters.HOST_OFFSET) & HostStatus.TOUCH) != 0;
+    }
+
+    // A device property, not a press: true while the page believes this
+    // host has a keyboard to press arrows on — false on a phone or a
+    // tablet in the hands, and true again from the first key a plugged-in
+    // keyboard sends. Not edge-triggered; does not need poll().
+    function keyboard(): bool {
+        return (memory.read(WebRegisters.HOST_OFFSET) & HostStatus.NO_KEYBOARD) == 0;
     }
 
     function pointer(): bool {

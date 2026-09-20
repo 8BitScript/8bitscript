@@ -7,8 +7,9 @@ import assert from 'node:assert/strict';
 import { runInNewContext } from 'node:vm';
 
 import { renderCoiServiceWorker, renderLoader, renderWorker } from '../src/web-loader.mjs';
+import { renderHtml } from '../src/web-runtime.mjs';
 import {
-  ANY_BORDER_SCALE, BORDER_HAIRLINE_PX, BORDER_MIN_PX, BORDER_PX, FULL_BORDER_SCALE, HOST_OFFSET,
+  ANY_BORDER_SCALE, BORDER_HAIRLINE_PX, BORDER_MIN_PX, BORDER_PX, FULL_BORDER_SCALE, HOST_OFFSET, HostStatus,
   INNER_H, INNER_W, INPUT_OFFSET, MIN_COLUMNS, MAX_COLUMNS, MIN_ROWS, MAX_ROWS,
   DEFAULT_LAYOUT, PET_PALETTE, RASTER_ENTRY_SIZE, RASTER_MAX_ENTRIES,
   MACHINE_HOST, agreementFor, borderFor, gridFor, layoutFromHardware, sidecarJson, swipeEdge,
@@ -498,6 +499,28 @@ test('the loader writes HOST_OFFSET from maxTouchPoints and pointer:coarse, and 
   assert.match(source, /\.json/);
   assert.match(source, /applyLayout/);
   assert.doesNotMatch(source, /mem\[HOST_OFFSET\] = 1/);
+});
+
+// The keyboard bit is the one level in the host byte that can change: a
+// phone starts without one, and the first real key — not one typed into a
+// form field, not one a script made — writes the byte again.
+test('the loader sets NO_KEYBOARD from hover:none on a touch host, and clears it on the first trusted key', () => {
+  const source = renderLoader({ frameRate: 60 });
+  assert.match(source, new RegExp(`var HOST_NO_KEYBOARD = ${HostStatus.NO_KEYBOARD};`));
+  assert.match(source, /function hostHasKeyboard\(sawKey\)/);
+  assert.match(source, /hover: none/);
+  assert.match(source, /if \(!hostHasKeyboard\(sawKey\)\) status \|= HOST_NO_KEYBOARD;/);
+  assert.match(source, /e\.isTrusted === false \|\| isTextField\(e\.target\)/);
+  // noteKey runs before the arrow is looked up, so the key that proves the
+  // keyboard is also the first move it makes.
+  assert.match(source, /function onKeyDown\(e\) \{\n\s*noteKey\(e\);/);
+  // The start-up guess is the page's to read too, so a shell can word its
+  // hint the way the program words its prompt. No DOM here: no navigator,
+  // no matchMedia, so the answers are a desktop's.
+  const api = loadLoader({ frameRate: 60 });
+  assert.equal(api.hostIsTouch(), false);
+  assert.equal(api.hostHasKeyboard(), true);
+  assert.match(renderHtml(60), /hint: EightBitScript\.hostHasKeyboard\(\)/);
 });
 
 test('the loader says what is wrong when the page is not cross-origin isolated', () => {

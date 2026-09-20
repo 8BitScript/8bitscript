@@ -395,7 +395,8 @@ async function webScreenshot(outFile, screenshotPath, { frames, frameRate = 60, 
   // (3 logical seconds' worth by default), whichever comes first; a program
   // that never calls waitFrame() and never returns cannot be bounded and
   // would spin here, exactly as it would on a real machine. HOST_OFFSET is
-  // left at 0: a screenshot has no viewport, so TOUCH stays clear.
+  // left at 0: a screenshot has no viewport, so TOUCH stays clear and
+  // NO_KEYBOARD too — the desktop layout, with a keyboard.
   const { memory } = await runProgram(bytes, { frames: frames ?? frameRate * WEB_DEFAULT_FRAME_SECONDS });
 
   const layout = hardware ? layoutFromHardware(hardware) : DEFAULT_LAYOUT;

@@ -54,7 +54,15 @@ Do not describe more than this as working:
   is no register map because there is no chip. `input.touch()` reads bit 0
   of `HOST_OFFSET` as a **level** (not an edge): the page sets it from
   `navigator.maxTouchPoints > 0` and `matchMedia('(pointer: coarse)')`.
-  `--screenshot` leaves the bit clear.
+  `input.keyboard()` reads bit 1 the other way up — `NO_KEYBOARD`, set on
+  a touch host that cannot hover (`matchMedia('(hover: none)')`: a phone
+  or a tablet in the hands), and cleared for good by the first trusted
+  key the page sees from outside a form field (an iPad on a keyboard
+  folio). Zero means a desktop with a mouse and a keyboard, so every bit
+  says how a host differs from one; `--screenshot` leaves the byte clear.
+  No browser API says a physical keyboard is attached, so the guess plus
+  the page's own evidence is as good as it gets — a program that names
+  its controls reads `keyboard()` when it prints, not once at start-up.
 - `src/geometry.8bs` is 48×27 / 1296 cells; skins are
   `geometry.web.c64.8bs` (40×25), `geometry.web.pet-2001.8bs` (40×25,
   host paints green, `colorPerCell` false), `geometry.web.vic20.8bs`
@@ -109,8 +117,8 @@ Do not describe more than this as working:
   canvas (384×216 inner plus the full 24 px border) every `requestAnimationFrame` and releases logical frames on a
   fixed timestep of `1000 / frameRate` ms; the worker's `waitFrame()` is
   `Atomics.wait` on a shared counter. The page writes arrow keys, Enter
-  and Escape into `INPUT_OFFSET` in that shared memory, and a TOUCH bit
-  into `HOST_OFFSET`. Double-click or
+  and Escape into `INPUT_OFFSET` in that shared memory, and the TOUCH
+  and NO_KEYBOARD bits into `HOST_OFFSET`. Double-click or
   `F` is fullscreen. Live FPS and frame count go to GET `/status` for the
   editor's Running machines tree, not onto the canvas. Ctrl+C in the terminal stops the server. Both the canvas
   and `--screenshot` draw cells from the same 8×8 bitmap font
@@ -202,7 +210,7 @@ what to search for when they drift.
 | Output is `dist/<stem>.wasm` beside its generated `dist/<stem>.ts`, no target/region/profile suffix; the memory line is the source's declared counts. | `build.mjs:215-225, 262-268`, `memoryLine` (read); `built …/dist/main.wasm`, `memory: 4 bytes of RAM for variables, 23 bytes of constant data (as declared)` (ran) |
 | The checker's portable string set is space, `0`–`9`, `A`–`Z`, `! , - . : ?` — a subset of what the host draws (32–122, plus 2×2 blocks at 128–143). `text.putChar` takes any `utinyint`; the host decides what shows. | `packages/compiler/src/checker/index.mjs:68` (read) |
 | The web is the last of nine machines the resolver knows; `@8bitscript/screen` and `@8bitscript/text` map it to this package's two subpaths. | `packages/compiler/src/resolver/index.mjs:42`; `packages/screen/package.json`, `packages/web/package.json:9-12` (read) |
-| The catalog's stock fact sheet: grid 48×27 of 8×8, 16 colors, 2 per cell (its own foreground, the global background), no redefinable glyphs, 2×2 block glyphs at codes 128–143, no bitmap, one layer, no scroll, no sprites; no sound, ports, pads, mouse or paddles, and nowhere to save; `input.keyboard` true — arrow keys, Enter and Escape through the snapshot at INPUT_OFFSET, plus `input.touch()` from HOST_OFFSET. 57344 bytes (`0x0000`–`0xDFFF`, under the data base), nothing banked. A `machine` option (`hifi`, `pet-2001`, `c64`, `vic20`) is a separate wasm with that machine's video facts. Studio is a viewer here because there is nothing to edit, not because there is no keyboard. | `src/geometry.8bs`; the grid, font, memory and `--memoryBase` rows above; `package.json` (read) |
+| The catalog's stock fact sheet: grid 48×27 of 8×8, 16 colors, 2 per cell (its own foreground, the global background), no redefinable glyphs, 2×2 block glyphs at codes 128–143, no bitmap, one layer, no scroll, no sprites; no sound, ports, pads, mouse or paddles, and nowhere to save; `input.keyboard` true — arrow keys, Enter and Escape through the snapshot at INPUT_OFFSET, plus `input.touch()` and `input.keyboard()` (the fact is the build's; the probe is this host's, false on a phone) from HOST_OFFSET. 57344 bytes (`0x0000`–`0xDFFF`, under the data base), nothing banked. A `machine` option (`hifi`, `pet-2001`, `c64`, `vic20`) is a separate wasm with that machine's video facts. Studio is a viewer here because there is nothing to edit, not because there is no keyboard. | `src/geometry.8bs`; the grid, font, memory and `--memoryBase` rows above; `package.json` (read) |
 
 ## The schema, as the runtime decides it today
 
@@ -232,7 +240,11 @@ web each answer is a line of code, cited above; this is the compact form.
 9. **Audio** — none. No entropy source either.
 10. **Input** — arrow keys, Enter and Escape, through a one-byte snapshot
     at `INPUT_OFFSET` that the page writes and `@8bitscript/web/input`
-    reads. No pointer, no gamepad.
+    reads; what the host *is* — a touchscreen, a keyboard to press
+    arrows on — as levels in the `HOST_OFFSET` byte (`input.touch()`,
+    `input.keyboard()`). No pointer, no gamepad, no way to raise a
+    phone's own keyboard: the snapshot has no character channel for it
+    to type into.
 11. **Storage / persistence** — none.
 12. **Timing** — logical frames at `frameRate` (default 60) from a
     `requestAnimationFrame` accumulator, ≤ 2 owed, released through
@@ -474,7 +486,15 @@ sources before a capability depends on it.
     Commodore/Atari five-line shape (recalled, *to verify* against
     `@8bitscript/c64/joystick`) from the Gamepad API, and a pointer (x, y,
     buttons) from the mouse. This needs no new wasm import; the shared
-    memory is the port.
+    memory is the port. When the key-state snapshot exists, a phone's own
+    keyboard becomes worth raising: an opt-in `softKeyboard` option on
+    `mount()` (`soft-keyboard` on the element), off by default, that
+    shows a button focusing a hidden text field — never a profile, since
+    a keyboard on screen is a property of the page, not of the build, and
+    never on by default, since the keyboard resizes the visual viewport
+    and a program like 2048 has no use for it. Not before: today's
+    snapshot carries arrows, Enter and Escape, and a phone's keyboard
+    has no arrows.
 11. **Storage / persistence** — the page can hand the browser a file and
     take one dropped on it (`packages/studio/AGENTS.md` already assumes
     so; *to verify* what a capability wants of it). Shape: a byte region
@@ -505,12 +525,12 @@ packages/web/src/index.8bs               target package: WebRegisters — the of
 packages/web/src/geometry.8bs            default 48×27 agreement; twins `geometry.web.c64.8bs`, `geometry.web.pet-2001.8bs`, `geometry.web.vic20.8bs`
 packages/web/src/screen.8bs              @8bitscript/web/screen: setColors/setBorder/setBackground (& 15), blank() over Video.CELL_COUNT chars, sixteen names + KEEP
 packages/web/src/text.8bs                @8bitscript/web/text: ASCII straight into the page, setReverse (color bit 7), COLUMNS/CELL_COUNT from geometry, divide-based printNumber, eight TextColor names
-packages/web/src/input.8bs               @8bitscript/web/input: poll() reads INPUT_OFFSET; touch() reads HOST_OFFSET; arrows, Enter, Escape; pointer still false
+packages/web/src/input.8bs               @8bitscript/web/input: poll() reads INPUT_OFFSET; touch() and keyboard() read HOST_OFFSET; arrows, Enter, Escape; pointer still false
 packages/web/src/rasterline.8bs          @8bitscript/web/rasterline (behind @8bitscript/raster): the raster list at HOST_OFFSET + 1/2/3 — control, count, 64 three-byte entries; this file IS the implementation, no address form beneath it
 packages/web/package.json                "8bitscript".entry and the subpaths ./screen, ./text, ./input, ./pointer, ./rasterline
 packages/compiler/src/wasm/index.ts        IR → .wasm: not implemented; records the host contract (one page, env.waitFrame, exported memory)
 packages/compiler/test/wasm.test.ts   u8 wrap, shared memory + host import, string data at 0xE000 clear of the screen
-packages/cli/src/web-layout.mjs          the facts both renderers agree on: agreementFor(), COLORS, HOST_OFFSET, hostIsTouch(), borderFor(), InputEdge, swipeEdge()
+packages/cli/src/web-layout.mjs          the facts both renderers agree on: agreementFor(), COLORS, HOST_OFFSET, HostStatus, hostIsTouch(), hostHasKeyboard(), borderFor(), InputEdge, swipeEdge()
 packages/cli/src/web-scanline.mjs        the per-scanline compositor both renderers share: readRasterEntries(), rowState(), renderFrame() — screenshot.mjs imports it, the loader inlines a mirrored copy
 packages/cli/src/web-loader.mjs          what runs in the browser: 8bitscript.js (mount(), <eightbit-screen>, paint(), the rAF clock, key/swipe snapshot), worker.js (Atomics.wait), coi.js (opt-in isolation shim)
 packages/cli/src/web-runtime.mjs         the build and dev-server half: writeWebBundle(), the index.html/embed.html shells, the /status store, COOP/COEP; re-exports web-layout for screenshot.mjs
