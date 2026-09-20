@@ -1,5 +1,19 @@
 # @8bitscript/raster
 
+## 0.19.1
+
+### Patch Changes
+
+- @8bitscript/atari8@0.19.1
+  - @8bitscript/c128@0.19.1
+  - @8bitscript/c64@0.19.1
+  - @8bitscript/cx16@0.19.1
+  - @8bitscript/mega65@0.19.1
+  - @8bitscript/nes@0.19.1
+  - @8bitscript/pet@0.19.1
+  - @8bitscript/vic20@0.19.1
+  - @8bitscript/web@0.19.1
+
 ## 0.19.0
 
 ### Patch Changes
