@@ -151,6 +151,14 @@ button.icon svg { width: 14px; height: 14px; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Studio's button is the largest on the panel — a utility you reach for
+   beside the project, not one more action on it — with its own dropdown
+   of Studio's systems on its right. */
+.studio-block { margin: 4px 0 12px; }
+.studio-row { align-items: stretch; }
+.studio-row > button.launch.studio { flex: 1; width: auto; padding: 9px 12px; gap: 10px; }
+.studio-row > select { flex: 0 0 42%; }
+button.launch.studio .launch-title { font-size: 13px; }
 .launch-block { margin-top: 4px; }
 .launch-actions { margin-top: 8px; }
 .launch-actions .wide { margin-top: 0; flex: 1; }

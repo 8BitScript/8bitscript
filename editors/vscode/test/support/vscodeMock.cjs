@@ -86,6 +86,7 @@ function createVscodeMock() {
   const documentChangeEmitter = makeEmitter();
   const executedTasks = [];
   const executedCommands = [];
+  const viewProviders = new Map();
 
   function nextFrom(name) {
     return queues[name].length > 0 ? queues[name].shift() : undefined;
@@ -209,6 +210,12 @@ function createVscodeMock() {
         calls.showErrorMessage.push(args);
         return Promise.resolve(nextFrom('showErrorMessage'));
       },
+      // A webview view (the side bar): the provider is kept so a test can
+      // resolve it against a fake view and drive its messages.
+      registerWebviewViewProvider: (viewType, provider, options) => {
+        viewProviders.set(viewType, { provider, options });
+        return makeDisposable(() => viewProviders.delete(viewType));
+      },
       showQuickPick: (...args) => Promise.resolve(nextFrom('showQuickPick')),
       showInputBox: (...args) => Promise.resolve(nextFrom('showInputBox')),
       showOpenDialog: (...args) => Promise.resolve(nextFrom('showOpenDialog')),
@@ -324,6 +331,7 @@ function createVscodeMock() {
       calls,
       executedTasks,
       executedCommands,
+      viewProviders,
       taskEmitters,
       fireSelectionChange: (event) => selectionEmitter.fire(event),
       fireSave: (document) => saveEmitter.fire(document),
@@ -343,6 +351,7 @@ function createVscodeMock() {
         for (const list of Object.values(calls)) list.length = 0;
         executedTasks.length = 0;
         executedCommands.length = 0;
+        viewProviders.clear();
         vscode.workspace.workspaceFolders = undefined;
         vscode.workspace.openTextDocument = defaultOpenTextDocument;
         vscode.window.visibleTextEditors = [];

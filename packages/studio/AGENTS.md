@@ -319,6 +319,51 @@ the compiler already knows how to place a `const` array on all of them.
 Nothing about this is implemented; it is written down so the storage
 capability is designed toward it.
 
+## Projects and packs: the direction (nothing built)
+
+Where Studio is going, written down so the storage capability and the
+file format above are designed toward it rather than around it. Every
+line here is **PROPOSED**.
+
+- **Studio is fed the projects, the way the editor is.** The VS Code
+  extension finds the workspace's projects, apps and examples
+  (`editors/vscode/src/projects.cjs`) and offers them by name; Studio
+  should see the same list from inside the machine. The route is the
+  storage capability: when the CLI launches Studio it already knows
+  every project the workspace holds, and an emulator mounts a host
+  directory as a drive (VICE `-fs8`, x16emu `-fsroot`, atari800 `-H1` —
+  see "What Studio needs from the language"). So `8bs run` of an app
+  can write a small manifest onto that mount — the projects, each with
+  its name, its entry, and the asset modules it already has — and
+  Studio reads it through `@8bitscript/storage` when that exists. A
+  real machine with an SD card gets the same manifest written to the
+  card. Studio never scans a filesystem itself: it is *fed*, on every
+  route, by the thing that knows.
+- **Load from, and save back to, the project an asset belongs to.** The
+  manifest names where each asset module lives; Studio's FILES menu
+  lists projects, then their assets; a save writes the `.8bs` module
+  (the format above) back to the path the manifest gave, on the same
+  mount, so the next build of that project picks it up with no copying.
+  On the web build the same round trip is a download and a file drop.
+  The extension's side of this — noticing the module changed, offering
+  the diff — is ordinary source control, because the asset is source.
+- **Packs: assets shared across programs.** A pack is a package — a
+  `package.json` with an `8bitscript.pack` field the way an app has
+  `8bitscript.app` — holding asset modules a program imports like any
+  other package (`import { FONT } from "@studio/pixel-fonts/topaz"`),
+  so one character set, one sprite sheet, or one tune serves several
+  programs, versioned and installed the way code is. Studio sees a pack
+  in the manifest like a project, with the difference that a save into
+  a pack is a save every program that imports it will see on its next
+  build — which is the point, and which is why a pack is its own
+  package rather than a folder inside one program.
+- **The desk becomes an environment, one capability at a time.** The
+  order is the order of "What Studio needs from the language": storage
+  first (the manifest, load, save), then the glyph and sprite access
+  each viewer needs to become an editor, then sound. Nothing here asks
+  for a new language feature; it asks for the three capabilities that
+  file already lists, in that order.
+
 ## Launching
 
 - `8bs run <target>` in this directory, or `pnpm start` (the X16) and
