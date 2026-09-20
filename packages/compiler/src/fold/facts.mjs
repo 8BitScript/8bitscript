@@ -302,6 +302,35 @@ export function unmetRequirements(requires, facts) {
 }
 
 /**
+ * Where one build's sheet is short of the baseline's — the system a
+ * program is designed on, `baseline` in 8bitscript.config.ts
+ * (docs/project/baseline.md). A flag the baseline has and this build does
+ * not; a count the baseline has more of. Program-sheet facts settled by
+ * the build only: a `when: 'run'` fact is the machine's answer, not the
+ * build's, and a list folds into nothing. Not a verdict — a build short
+ * of the baseline still builds, the same program folded for a machine
+ * that lacks the fact; this says which facts those are, in the program's
+ * own terms, so a release lists what each build does without instead of
+ * a README working it out by hand. `requires` is the floor every build
+ * must clear; the baseline is the ceiling one build reaches.
+ *
+ * @param {object} baseline  the baseline's merged sheet
+ * @param {object} facts     the merged sheet for one build
+ * @returns {{ key: string, baseline: number|boolean, have: number|boolean }[]} empty when the build is level with it
+ */
+export function shortOfBaseline(baseline, facts) {
+  const short = [];
+  for (const [key, fact] of FACTS) {
+    if (!fact.program || fact.when === 'run' || fact.type === 'list') continue;
+    const has = baseline?.[key] ?? factPlaceholder(key);
+    const have = facts?.[key] ?? factPlaceholder(key);
+    const behind = fact.type === 'flag' ? (has === true && have !== true) : have < has;
+    if (behind) short.push({ key, baseline: has, have });
+  }
+  return short;
+}
+
+/**
  * Check one facts object against the table: every key known, every value
  * of its key's type. Returns the problems, in words; empty when clean.
  *

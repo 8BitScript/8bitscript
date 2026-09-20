@@ -54,17 +54,17 @@ import { basename, join, resolve } from 'node:path';
 
 import {
   MACHINES, RELEASE_MACHINES, isVariantPath, link, positionAt, resolveImportAliases, sourceKindOf, variantOf,
-  unmetRequirements,
+  shortOfBaseline, unmetRequirements,
 } from '@8bitscript/compiler';
 
 import { applyCheckoutFromArgs, setActiveCheckout } from './checkout.mjs';
 
 import { loadConfig, localeArg, resolveFrameRate, resolveI18n, resolveLocale, retiredOptionWarnings } from './config.mjs';
 import {
-  HARDWARE_USAGE, REGION_MACHINES, catalogTags, hardwareArgs, listedTargets, loadCatalog, projectHardware,
-  projectProfiles, projectRequires, resolveHardware, whatSatisfies,
+  HARDWARE_USAGE, REGION_MACHINES, catalogTags, hardwareArgs, listedTargets, loadCatalog, projectBaseline,
+  projectHardware, projectProfiles, projectRequires, resolveHardware, whatSatisfies,
 } from './hardware.mjs';
-import { loadMergedSystems, resolveNamedLaunch } from './systems.mjs';
+import { baselineLaunch, loadMergedSystems, resolveNamedLaunch } from './systems.mjs';
 import { compileReport, writeLastRun } from './last-run.mjs';
 import { checkArtifactName } from './artifact-name.mjs';
 import {
@@ -363,7 +363,7 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   // declares — folds to this build's value, and the
   // hardware's tags so a file with a `.<machine>.<tag>.8bs` twin resolves
   // to that.
-  const { ir, diagnostics, sources } = link(text, entry, {
+  const { ir, diagnostics, sources, factsTested } = link(text, entry, {
     machine: target, tags: hardware.tags, facts: hardware.facts, frameRate, checkout, bx: config?.bx, locale, i18n, importAliases,
   });
   // A warning is printed and the build goes on; an error stops it.
@@ -411,7 +411,7 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
     await writeLastRun(target, compileReport(target, {
       outFile, hardware, memory, sizeReport: result.sizeReport, frameRate, program: program.name, locale,
     }));
-    return { ok: true, outFile, frameRate, hardware, webDir, memory, sizeReport: result.sizeReport, program: program.name, locale };
+    return { ok: true, outFile, frameRate, hardware, webDir, memory, sizeReport: result.sizeReport, program: program.name, locale, factsTested };
   }
 
   const { build, outputExtension } = await import('@8bitscript/compiler/mos');
@@ -453,7 +453,7 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   await writeLastRun(target, compileReport(target, {
     outFile, hardware, memory: result.memory, sizeReport: result.sizeReport, frameRate, program: program.name, locale,
   }));
-  return { ok: true, outFile, frameRate, hardware, memory: result.memory, sizeReport: result.sizeReport, program: program.name, locale };
+  return { ok: true, outFile, frameRate, hardware, memory: result.memory, sizeReport: result.sizeReport, program: program.name, locale, factsTested };
 }
 
 /**
@@ -504,6 +504,37 @@ export function stateReportLines(ir) {
   return `component state (bytes of RAM):\n${lines.join('\n')}\n`;
 }
 
+/** `c64` / `pet with model=2001 ram=4` / `'PET 2001 (4K)' — a pet with …` — the baseline, the way `8bs targets` says a system. */
+function describeBaseline(baseline) {
+  const fitted = baseline.label === 'stock' ? `stock ${baseline.target}` : `${baseline.target} with ${baseline.label}`;
+  const region = baseline.region === 'pal' ? ', PAL' : '';
+  return baseline.name && !MACHINES.includes(baseline.name)
+    ? `${JSON.stringify(baseline.name)} — a ${fitted}${region}`
+    : `${fitted}${region}`;
+}
+
+/**
+ * One build against the baseline, for the release's own report: the
+ * baseline itself; level with it; or short of it, each fact named with
+ * what the build has of what the baseline has — `video.raster`,
+ * `video.palette 2 of 16`, `memory.ram 3071 of 38911`. A flag reads as
+ * its name alone: a build short of `video.raster` has none.
+ *
+ * Only the facts the program's own files test (the linker's
+ * `factsTested`): the C64 has a SID and the PET has not, but a program
+ * that never asks `Audio.VOICES` does nothing without on the PET for it,
+ * and saying so would be the noise this report exists to replace.
+ */
+function againstBaseline(baseline, target, facts, factsTested) {
+  const tested = new Set(factsTested ?? []);
+  const short = shortOfBaseline(baseline.facts, facts).filter(({ key }) => tested.has(key));
+  const over = shortOfBaseline(facts, baseline.facts).filter(({ key }) => tested.has(key));
+  if (target === baseline.target && short.length === 0 && over.length === 0) return 'the baseline';
+  if (short.length === 0) return `level with the baseline (${baseline.target})`;
+  const named = short.map(({ key, baseline: has, have }) => (has === true ? key : `${key} ${have} of ${has}`));
+  return `short of the baseline (${baseline.target}): ${named.join(', ')}`;
+}
+
 /**
  * `8bs build --release` — every artifact this project's config declares for
  * a release, in one command, instead of one CI step per artifact.
@@ -538,10 +569,10 @@ export function stateReportLines(ir) {
  * a later release's, and this says so rather than leaving a dist/ that
  * looks complete.
  *
- * @param {{ report?: boolean }} [options]
+ * @param {{ report?: boolean, checkout?: string }} [options]
  * @returns {Promise<number>} exit code
  */
-async function buildRelease({ report = false } = {}) {
+async function buildRelease({ report = false, checkout = undefined } = {}) {
   const config = await loadConfig(process.cwd(), '8bs build');
   const declared = resolvePrograms(config);
   if (!declared.ok) {
@@ -562,6 +593,19 @@ async function buildRelease({ report = false } = {}) {
     );
     return 1;
   }
+  // The baseline, when the project names one: the build every fact the
+  // program tests is true on. Each build below is measured against it —
+  // not graded: a build short of it is the same program, folded for a
+  // machine without those facts, and this says which ones so the release
+  // notes can, without anyone working it out by hand.
+  const baseline = projectBaseline(config);
+  if (!baseline.ok) {
+    process.stderr.write(`8bs build --release: ${baseline.error}\n`);
+    return 1;
+  }
+  if (baseline.baseline) {
+    process.stdout.write(`baseline: ${describeBaseline(baseline.baseline)}\n`);
+  }
   let ok = true;
   for (const program of declared.programs) {
     const targets = program.targets ? machines.filter((m) => program.targets.includes(m)) : machines;
@@ -573,8 +617,14 @@ async function buildRelease({ report = false } = {}) {
         const profile = typeof variant === 'string' ? variant : variant?.profile;
         const hardware = (variant && typeof variant === 'object') ? (variant.hardware ?? {}) : {};
         const locale = (variant && typeof variant === 'object') ? variant.locale : undefined;
-        const result = await compile(target, undefined, { profile, hardware, report, program: program.name, locale });
-        if (!result.ok) ok = false;
+        const result = await compile(target, undefined, { profile, hardware, report, program: program.name, locale, checkout });
+        if (!result.ok) {
+          ok = false;
+          continue;
+        }
+        if (baseline.baseline) {
+          process.stdout.write(`${againstBaseline(baseline.baseline, target, result.hardware.facts, result.factsTested)}\n`);
+        }
       }
     }
   }
@@ -589,15 +639,18 @@ async function buildRelease({ report = false } = {}) {
 
 /** @returns {Promise<number>} exit code */
 export async function build(args) {
-  if (args.includes('--release')) return buildRelease({ report: args.includes('--size') });
-  const report = args.includes('--size');
-  const debug = args.includes('--debug');
-  const targetIndex = args.indexOf('--target');
   const checkout = applyCheckoutFromArgs(args);
   if (!checkout.ok) {
     process.stderr.write(`8bs build: ${checkout.error}\n`);
     return 2;
   }
+  // `--checkout` reaches a release too: until it did, `--release
+  // --checkout ../8bitscript` built every artifact from node_modules and
+  // said nothing, which is the one thing a checkout flag must not do.
+  if (args.includes('--release')) return buildRelease({ report: args.includes('--size'), checkout: checkout.checkout });
+  const report = args.includes('--size');
+  const debug = args.includes('--debug');
+  const targetIndex = args.indexOf('--target');
   const hw = hardwareArgs(args);
   if (!hw.ok) {
     process.stderr.write(`8bs build: ${hw.error}\n`);
@@ -614,7 +667,7 @@ export async function build(args) {
     return 2;
   }
   const config = await loadConfig(process.cwd(), '8bs build');
-  const launch = resolveNamedLaunch(hw, { config });
+  let launch = resolveNamedLaunch(hw, { config });
   if (!launch.ok) {
     process.stderr.write(`8bs build: ${launch.error}\n`);
     return 2;
@@ -632,6 +685,14 @@ export async function build(args) {
     process.stderr.write(`8bs build: --system '${hw.system}' is a ${launch.target} machine; got '${named}'\n`);
     return 2;
   }
+  // No target and no --system: the project's baseline, when it names one.
+  if (!launch.target && !named) {
+    launch = baselineLaunch(hw, config);
+    if (!launch.ok) {
+      process.stderr.write(`8bs build: ${launch.error}\n`);
+      return 2;
+    }
+  }
   const target = launch.target ?? named;
   const entry = targetIndex >= 0
     ? positionals[0]
@@ -641,7 +702,8 @@ export async function build(args) {
   if (!target) {
     process.stderr.write(
       'Usage: 8bs build --target <pet|web>\n'
-      + '                 (vic20, c64, c128, atari8, nes, cx16, mega65 are parked until a later release)\n'
+      + '                 (vic20, c64, c128, atari8, nes, cx16, mega65 are parked until a later release;\n'
+      + '                  no --target builds the `baseline` 8bitscript.config.ts names, when it names one)\n'
       + '                 [--pal] [--size] [--debug] [--program <name>] [--locale <name>]\n'
       + HARDWARE_USAGE
       + '                 [entry.8bs]\n',

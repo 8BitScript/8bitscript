@@ -79,6 +79,11 @@ existing machine/hardware/media axes, the unwritten disk-image writer,
 and the unbuilt "deploy to real hardware" layer (SD2IEC, cartridges,
 flash carts).
 
+[The baseline, and what a build does without](project/baseline.md) —
+`baseline` in the config: the system a program is designed on, what
+`8bs build --release` says every other build is short of, and why those
+builds are called builds and not ports or tiers.
+
 [Machines on the roadmap](project/machines/index.md) — hardware research
 notes for the machines named in later phases, the ones no package exists
 for yet.

@@ -7,8 +7,12 @@ import { existsSync } from 'node:fs';
 import { mkdtemp, writeFile, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { build, compile } from '../src/build.mjs';
+
+/** This monorepo, for a throwaway project that imports @8bitscript/* packages. */
+const REPO = fileURLToPath(new URL('../../..', import.meta.url));
 
 function capture(fn) {
   const stdout = [];
@@ -158,6 +162,77 @@ test('build() --release builds every target listed, once per name in its own rel
     assert.equal(existsSync(join(dir, 'dist', 'main-pet.prg')), true, '2001 (stock) should build unsuffixed');
     assert.equal(existsSync(join(dir, 'dist', 'main-pet-4032-32.prg')), true, "the target's own default hardware should build under its own name");
     assert.equal(existsSync(join(dir, 'dist', 'main.wasm')), true);
+  } finally {
+    process.chdir(prev);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('build() with no target builds the baseline, and --release measures every build against it by the facts the program tests', async () => {
+  const dir = await mkdtemp(join(tmpdir(), '8bs-compile-'));
+  const prev = process.cwd();
+  try {
+    // Tests video.raster and Memory.RAM itself; prints through text, whose
+    // own fold on video.columns is the package's business and not listed.
+    await writeFile(join(dir, 'main.8bs'), [
+      'import { text } from "@8bitscript/text";',
+      'import { Memory } from "@8bitscript/system";',
+      'const HAS_RASTER: bool = #fact(video.raster);',
+      'export function main(): void {',
+      '    if (HAS_RASTER) { text.print(0, "RASTER"); }',
+      '    if (Memory.RAM < 4096) { text.print(40, "SMALL"); }',
+      '}',
+      '',
+    ].join('\n'));
+    await writeFile(join(dir, '8bitscript.config.ts'), [
+      'export default {',
+      '  entry: "main.8bs",',
+      '  targets: { c64: {}, pet: { hardware: { model: "4032", ram: "32" }, release: ["2001", {}] }, web: {} },',
+      '  baseline: "c64",',
+      '};',
+      '',
+    ].join('\n'));
+    process.chdir(dir);
+    const bare = await capture(() => build(['--checkout', REPO]));
+    assert.equal(bare.result, 0, bare.stdout + bare.stderr);
+    assert.equal(existsSync(join(dir, 'dist', 'main-c64-ntsc.prg')), true, 'no target is the baseline');
+
+    const { result, stdout, stderr } = await capture(() => build(['--release', '--checkout', REPO]));
+    assert.equal(result, 0, stdout + stderr);
+    assert.match(stdout, /^baseline: stock c64$/m);
+    // The report line is the first "baseline" line after the artifact's
+    // own (the web prints a bundle line between).
+    const lines = stdout.split('\n');
+    const after = (artifact) => lines.slice(lines.findIndex((l) => l.endsWith(artifact)) + 1).find((l) => l.includes('baseline'));
+    assert.equal(after('main-c64-ntsc.prg'), 'the baseline');
+    assert.equal(after('main-pet.prg'), 'short of the baseline (c64): video.raster, memory.ram 3071 of 51199');
+    assert.equal(after('main-pet-4032-32.prg'), 'short of the baseline (c64): video.raster, memory.ram 31743 of 51199');
+    // The web's ram is not on the sheet as less than the C64's, and the
+    // web has a raster list: level, and the columns fold says nothing.
+    assert.match(after('main.wasm'), /^(level with the baseline \(c64\)|short of the baseline \(c64\): memory\.ram \d+ of 51199)$/);
+  } finally {
+    process.chdir(prev);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('build() refuses a baseline below the program\'s own requires, and a baseline the config gets wrong', async () => {
+  const dir = await mkdtemp(join(tmpdir(), '8bs-compile-'));
+  const prev = process.cwd();
+  try {
+    await writeFile(join(dir, 'main.8bs'), SUM);
+    await writeFile(join(dir, '8bitscript.config.ts'),
+      'export default { entry: "main.8bs", targets: { pet: {} }, requires: { "memory.ram": 8192 }, baseline: { target: "pet", profile: "2001", hardware: { ram: "4" } } };\n');
+    process.chdir(dir);
+    const low = await capture(() => build([]));
+    assert.equal(low.result, 2);
+    assert.match(low.stderr, /falls short of the program's own `requires` \(memory.ram needs 8192, has 3071\)/);
+    const release = await capture(() => build(['--release']));
+    assert.equal(release.result, 1);
+    assert.match(release.stderr, /falls short of the program's own `requires`/);
+    // A named target still builds: the baseline is only the default.
+    const named = await capture(() => build(['--target', 'pet', '--hardware', 'ram=32']));
+    assert.equal(named.result, 0, named.stdout + named.stderr);
   } finally {
     process.chdir(prev);
     await rm(dir, { recursive: true, force: true });

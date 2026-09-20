@@ -94,19 +94,16 @@
     },
     "systems": {
       "type": "object",
-      "additionalProperties": {
-        "type": "object",
-        "required": ["target"],
-        "additionalProperties": false,
-        "properties": {
-          "target": { "$ref": "#/$defs/machine" },
-          "profile": { "type": "string" },
-          "hardware": { "$ref": "#/$defs/hardware" },
-          "region": { "enum": ["ntsc", "pal"] }
-        }
-      }
+      "additionalProperties": { "$ref": "#/$defs/system" }
     },
     "requires": { "$ref": "#/$defs/requires" },
+    "baseline": {
+      "description": "The system the program is designed on — the build every fact the program tests is true on. A machine's name, a name from `systems`, or { target, profile?, hardware?, region? }. No --target builds it; --release measures every build against it.",
+      "oneOf": [
+        { "type": "string" },
+        { "$ref": "#/$defs/system" }
+      ]
+    },
     "locale": {
       "type": "string",
       "description": "The locale every build is for, unless a target, a release entry, or --locale says otherwise."
@@ -138,6 +135,17 @@
   "$defs": {
     "machine": { "enum": ["vic20", "c64", "pet", "c128", "atari8", "nes", "cx16", "mega65", "web"] },
     "hardware": { "type": "object", "additionalProperties": { "type": "string" } },
+    "system": {
+      "type": "object",
+      "required": ["target"],
+      "additionalProperties": false,
+      "properties": {
+        "target": { "$ref": "#/$defs/machine" },
+        "profile": { "type": "string" },
+        "hardware": { "$ref": "#/$defs/hardware" },
+        "region": { "enum": ["ntsc", "pal"] }
+      }
+    },
     "requires": { "type": "object", "additionalProperties": { "type": ["number", "boolean"] } }
   }
 }

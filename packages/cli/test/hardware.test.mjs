@@ -9,7 +9,7 @@ import { createRequire } from 'node:module';
 import { MACHINES } from '@8bitscript/compiler';
 
 import {
-  loadCatalog, resolveHardware, parseHardwareArg, projectProfiles, projectRequires, projectSystems,
+  loadCatalog, resolveHardware, parseHardwareArg, projectBaseline, projectProfiles, projectRequires, projectSystems,
   listedTargets, loadArgs, whatSatisfies, hardwareArgs,
 } from '../src/hardware.mjs';
 
@@ -741,4 +741,51 @@ test('the control names are the compiler\'s, and every other copy of the list ag
       }
     }
   }
+});
+
+test('the baseline is one system, spelled as a machine, a system\'s name, or a system\'s shape, with its sheet', () => {
+  const targets = { c64: {}, pet: { hardware: { model: '4032', ram: '32' } } };
+  assert.deepEqual(projectBaseline({ targets }), { ok: true, baseline: null }, 'a project without one has none');
+  assert.deepEqual(projectBaseline(null), { ok: true, baseline: null });
+
+  const machine = projectBaseline({ targets, baseline: 'c64' });
+  assert.equal(machine.ok, true);
+  assert.equal(machine.baseline.target, 'c64');
+  assert.equal(machine.baseline.name, 'c64');
+  assert.equal(machine.baseline.label, 'stock');
+  assert.equal(machine.baseline.facts['video.raster'], true);
+  assert.deepEqual(machine.baseline.unmet, []);
+
+  // A machine's name takes the project's own hardware for it, the way
+  // `8bs run pet` does — the 4032 with 32K here, not the catalog's stock.
+  const own = projectBaseline({ targets, baseline: 'pet' });
+  assert.equal(own.baseline.facts['video.columns'], 40);
+  assert.equal(own.baseline.facts['memory.ram'], 31743);
+
+  const named = projectBaseline({ targets, systems: { 'PET 2001 (4K)': { target: 'pet', profile: '2001', hardware: { ram: '4' } } }, baseline: 'PET 2001 (4K)' });
+  assert.equal(named.ok, true);
+  assert.equal(named.baseline.name, 'PET 2001 (4K)');
+  assert.equal(named.baseline.profile, '2001');
+  assert.equal(named.baseline.facts['memory.ram'], 3071);
+
+  const shaped = projectBaseline({ targets, baseline: { target: 'pet', profile: '2001', hardware: { ram: '4' } } });
+  assert.equal(shaped.ok, true);
+  assert.equal(shaped.baseline.name, null);
+  assert.equal(shaped.baseline.facts['memory.ram'], 3071);
+});
+
+test('a baseline the config gets wrong is an error in its own words, and one below the program\'s floor is refused', () => {
+  const targets = { c64: {}, pet: {} };
+  assert.match(projectBaseline({ targets, baseline: 'nope' }).error, /neither a machine .* nor a system this config names/);
+  assert.match(projectBaseline({ targets, baseline: 'vic20' }).error, /does not target vic20/);
+  assert.match(projectBaseline({ targets, baseline: 42 }).error, /must be a machine's name, a system's name, or/);
+  assert.match(projectBaseline({ targets, baseline: { target: 'pet', profile: 'xx' } }).error, /unknown pet profile 'xx'/);
+  assert.match(projectBaseline({ targets, baseline: { target: 'x' } }).error, /'x' is not a machine/);
+  const low = projectBaseline({ targets, requires: { 'memory.ram': 8192 }, baseline: { target: 'pet', profile: '2001', hardware: { ram: '4' } } });
+  assert.equal(low.ok, false);
+  assert.match(low.error, /falls short of the program's own `requires` \(memory.ram needs 8192, has 3071\)/);
+  // A bad `requires` block is its own error (projectRequires, said by
+  // every command); the baseline gets no verdict over it rather than a
+  // wrong one — the rule the systems block already follows.
+  assert.deepEqual(projectBaseline({ targets, requires: ['memory.ram'], baseline: 'c64' }).baseline.unmet, []);
 });

@@ -30,7 +30,7 @@ export { foldCompileTime, DURATION_CLOCKS, DURATION_UNITS, SYSTEMS } from './src
 export {
   FACTS, PROGRAM_FACTS, LOGICAL_CONTROLS, CONTROLLER_KINDS, controllerKind,
   factConstName, factPlaceholder, factProblems,
-  requiresProblems, unmetRequirements,
+  requiresProblems, shortOfBaseline, unmetRequirements,
 } from './src/fold/facts.mjs';
 export { lower, entryOf } from './src/ir/index.mjs';
 export { link, memoryOf } from './src/linker/index.mjs';

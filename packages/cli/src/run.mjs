@@ -70,7 +70,7 @@ import { programArg } from './programs.mjs';
 import { CONTROLLERS_FILE, controllerInvocation, controllerPlayers, setConfigKey } from './controllers.mjs';
 import { applyCheckoutFromArgs } from './checkout.mjs';
 import { HARDWARE_USAGE, hardwareArgs, loadArgs } from './hardware.mjs';
-import { resolveNamedLaunch } from './systems.mjs';
+import { baselineLaunch, resolveNamedLaunch } from './systems.mjs';
 import { hardwareSnapshot, writeLastRun } from './last-run.mjs';
 import { parseListenPort } from './web-lan.mjs';
 
@@ -510,7 +510,7 @@ export async function run(args) {
   const { loadConfig, localeArg } = await import('./config.mjs');
   const { MACHINES } = await import('@8bitscript/compiler');
   const config = await loadConfig(process.cwd(), '8bs run');
-  const launch = resolveNamedLaunch(hw, { config });
+  let launch = resolveNamedLaunch(hw, { config });
   if (!launch.ok) {
     process.stderr.write(`8bs run: ${launch.error}\n`);
     return 2;
@@ -539,11 +539,20 @@ export async function run(args) {
     process.stderr.write(`8bs run: --system '${hw.system}' is a ${launch.target} machine; got '${named}'\n`);
     return 2;
   }
+  // No target and no --system: the project's baseline, when it names one.
+  if (!launch.target && !named) {
+    launch = baselineLaunch(hw, config);
+    if (!launch.ok) {
+      process.stderr.write(`8bs run: ${launch.error}\n`);
+      return 2;
+    }
+  }
   const target = launch.target ?? named;
   if (!target) {
     process.stderr.write(
       'Usage: 8bs run <pet|web>\n'
-      + '                (vic20, c64, c128, atari8, nes, cx16, mega65 are parked until a later release)\n'
+      + '                (vic20, c64, c128, atari8, nes, cx16, mega65 are parked until a later release;\n'
+      + '                 no target runs the `baseline` 8bitscript.config.ts names, when it names one)\n'
       + '                [--pal]\n'
       + HARDWARE_USAGE
       + '                [--size] [--no-open] [--lan] [--local] [--port <n>] [--program <name>] [--locale <name>] [entry.8bs]\n'
@@ -655,7 +664,7 @@ export async function boot(args) {
   const { loadConfig } = await import('./config.mjs');
   const { MACHINES, RELEASE_MACHINES } = await import('@8bitscript/compiler');
   const config = await loadConfig(process.cwd(), '8bs boot');
-  const launch = resolveNamedLaunch(hw, { config });
+  let launch = resolveNamedLaunch(hw, { config });
   if (!launch.ok) {
     process.stderr.write(`8bs boot: ${launch.error}\n`);
     return 2;
@@ -667,6 +676,14 @@ export async function boot(args) {
   if (launch.target && named && named !== launch.target) {
     process.stderr.write(`8bs boot: --system '${hw.system}' is a ${launch.target} machine; got '${named}'\n`);
     return 2;
+  }
+  // No target and no --system: the project's baseline, when it names one.
+  if (!launch.target && !named && !first) {
+    launch = baselineLaunch(hw, config);
+    if (!launch.ok) {
+      process.stderr.write(`8bs boot: ${launch.error}\n`);
+      return 2;
+    }
   }
   const target = launch.target ?? named;
   if (!target) {
