@@ -1,0 +1,41 @@
+// Every call @8bitscript/ui/menu offers, linked for each target — the same
+// proof menubar-probe.8bs gives the bar. The import is relative because a
+// package does not resolve its own name; a consumer writes
+// `import { menu } from "@8bitscript/ui/menu"`.
+import { text, TextColor } from "@8bitscript/text";
+import { menu } from "../src/menu.8bs";
+
+export function main(): void {
+    menu.setColors(TextColor.WHITE, TextColor.YELLOW);
+    menu.setPadding(1);
+    menu.select(1);
+
+    menu.deselect();
+    menu.next();
+    menu.previous();
+    if (menu.selected() == menu.NONE) {
+        text.print(text.COLUMNS, "NONE");
+    }
+
+    // A pointer over the menu: `point()` before `begin()`, `pointed()`
+    // after `end()`, the bar's own rule.
+    menu.point(text.COLUMNS + 2);
+
+    menu.begin(text.COLUMNS + 1, 8);
+    if (menu.item("LOAD")) {
+        text.print(text.COLUMNS * 4, "LOAD IT");
+    }
+    menu.item("SAVE");
+    menu.end();
+
+    if (menu.pointed() != menu.NONE) {
+        menu.select(menu.pointed());
+    }
+    if (menu.clipped()) {
+        text.print(text.COLUMNS * 5, "CLIPPED");
+    }
+    text.printNumber(text.COLUMNS * 6, menu.count(), 1);
+
+    // Closing it: the rows come off, and the program redraws its own.
+    menu.clear();
+}

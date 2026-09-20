@@ -1,34 +1,33 @@
 // 8BitScript Studio: the shared program every tier's entry file starts.
 //
-// What exists today is the front door — the title, the version, the tier
-// this machine gets, and which of Studio's editors that tier opens — drawn
-// with the same @8bitscript/screen and @8bitscript/text every program uses,
-// so it builds and runs on all nine targets. Nothing behind the door exists
-// yet: the language has no sound, sprite, or storage capability to build an
-// editor on. AGENTS.md lists those prerequisites and the design each editor
-// waits for; nothing here claims more than it draws.
+// What exists today is the desk, not the editors: a menu bar whose menus
+// drop down and whose entries open a screen per editor — and on each of
+// those screens, what this machine has for that editor to work with, in
+// the machine's own facts, plus the one thing a viewer can already do: the
+// characters screen draws the portable character set on the display it is
+// meant for. Nothing edits, plays or loads: the language has no glyph,
+// sound or storage capability to build an editor on, and every screen
+// below says so in its own last line rather than pretending. AGENTS.md
+// lists the capabilities each editor waits for.
 //
-// **The bar moves now.** @8bitscript/input arrived, so the front door reads
-// whatever the machine it is on has — a C64's cursor keys, an NES D-pad, an
-// Atari joystick, a 1351 in a port, the X16's KERNAL mouse — and the
-// highlight steps between the icon and FILE under it. The bar starts
-// deselected, the way a menu bar does before anyone has touched it.
+// **The bar works.** @8bitscript/ui/menubar across the top, and
+// @8bitscript/ui/menu under whichever item is open. Left and right walk
+// the bar; confirm opens the menu under the highlighted item, up and down
+// walk it, confirm again takes the entry, cancel closes it. A mouse does
+// the same by pointing and clicking, and hovering an open menu highlights
+// the entry under the arrow. Neither component reads input — this file is
+// the policy, in one place, the way packages/ui/AGENTS.md asks.
 import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";
 import { text, TextColor } from "@8bitscript/text";
 import { input } from "@8bitscript/input";
 import { pointer } from "@8bitscript/pointer";
 import { Audio, Input, Storage, System, Video } from "@8bitscript/system";
 import { menubar } from "@8bitscript/ui/menubar";
+import { menu } from "@8bitscript/ui/menu";
 
 // How much of Studio a machine gets. A higher tier opens every editor a
 // lower one does, and a file is never tied to the tier that made it — the
 // tier gates the editors, not the formats (see AGENTS.md).
-//
-// The tier says whether this machine edits at all; the facts below say
-// which editors there is anything to edit *with*. So a viewer is
-// read-only, not featureless: it still shows a character set and a sprite,
-// plays a tune if the machine has a voice, and loads a file if the machine
-// has anywhere to load one from — which is every PET and every VIC-20.
 export namespace Tier {
     const VIEWER: utinyint = 0; // read-only: view, play, load — never edit or save
     const BASIC: utinyint = 1;  // the editors this machine's hardware has something for
@@ -37,99 +36,456 @@ export namespace Tier {
 
 // One row of cells on this machine's grid, resolved by 8bitscript from the
 // text package the build picked: 22 on the VIC-20, 40 on a C64, 28 inside
-// the NES's frame.
+// the NES's frame, 76 on the X16.
 const ROW: usmallint = text.COLUMNS;
+const SPACE: utinyint = 32;
 
 // The library's version: Studio ships with the toolchain, and its version
 // is the toolchain's. test/studio.test.mjs checks this literal against
 // package.json, which in turn is the workspace's one version.
 const VERSION: string = "0.20.0";
 
-// Studio's menu bar, across the top row on every machine, from
-// @8bitscript/ui — the first component Studio takes from the shared
-// library rather than drawing itself.
+// ---- the bar and its menus -------------------------------------------------
 //
-// **It is Studio's mark and one menu**, and that is the whole bar for now.
-// A desktop's leftmost item is its own badge rather than a word, and the
-// menus beside it arrive as there is something behind them to open; FILE
-// is the one that has meaning on every machine, because every machine
-// either loads or does not and the front door already says which.
+// The bar is Studio's mark, FILE, and the three editors — each its own
+// item where the row has room for them, and one EDIT item that lists the
+// three where it has not. With a cell of padding either side of every
+// label, the long names need 37 cells (a C64's 40 and up), the
+// three-letter ones 24 (the NES's 28), and the VIC-20's 22 hold the mark,
+// FILE and EDIT in 15. `text.COLUMNS` is a constant, so each machine
+// compiles the one layout that is its own and none of the others — the
+// same fold the tier is.
 //
-// Two cells and four letters fits every one of the nine, including the
-// VIC-20's 22 columns and the NES's 28 — which is why there is no longer
-// a short-name branch here. The four-editor bar this used to draw needed
-// 35 cells and had to be abbreviated on two machines; a bar that fits
-// everywhere needs no abbreviating, and the editors it named are reached
-// from the FILE menu's own list rather than from the top row.
-function drawMenu(): void {
+// Item indices, the way `menubar.selected()` counts them: the mark is 0
+// and FILE is 1 on every machine; then either the three editors, 2 to 4,
+// or EDIT at 2.
+const BAR_ICON: utinyint = 0;
+const BAR_FILE: utinyint = 1;
+const BAR_CHARACTERS: utinyint = 2;
+const BAR_SPRITES: utinyint = 3;
+const BAR_MUSIC: utinyint = 4;
+const BAR_EDIT: utinyint = 2;
+
+// Every drop-down is this wide: the longest entry, CHARACTERS, and a cell
+// of padding on the left plus one to close the bar on the right.
+const MENU_WIDTH: utinyint = 12;
+
+function drawBar(): void {
     menubar.begin(0, text.COLUMNS);
     menubar.icon();
     menubar.item("FILE");
+    if (text.COLUMNS >= 40) {
+        menubar.item("CHARACTERS");
+        menubar.item("SPRITES");
+        menubar.item("MUSIC");
+    } else if (text.COLUMNS >= 28) {
+        menubar.item("CHR");
+        menubar.item("SPR");
+        menubar.item("MUS");
+    } else {
+        menubar.item("EDIT");
+    }
     menubar.end();
 }
 
-// Helpers stay at top level: a namespace function reaches a sibling only
-// through the namespace's name, and these are not part of Studio's surface.
-function printTier(cell: usmallint, tier: utinyint): void {
-    if (tier == Tier.FULL) {
-        text.print(cell, "FULL TIER");
+// Whether the bar gives each editor its own item — the branch above,
+// asked again where the menus are built, so both agree by construction.
+function editorsOnBar(): bool {
+    return text.COLUMNS >= 28;
+}
+
+// What an entry does when it is taken. The menus are immediate-mode, so
+// an entry is a call to `menu.item()` and the thing it does is decided
+// by asking that call whether it is the highlighted one while the user
+// is confirming — `pick()` below — rather than by counting entries,
+// which would break the moment one is conditional on a fact.
+const ACT_NONE: utinyint = 0;
+const ACT_ABOUT: utinyint = 1;
+const ACT_QUIT: utinyint = 2;
+const ACT_LOAD: utinyint = 3;
+const ACT_SAVE: utinyint = 4;
+const ACT_CHARACTERS: utinyint = 5;
+const ACT_SPRITES: utinyint = 6;
+const ACT_MUSIC: utinyint = 7;
+const ACT_EDIT_CHARACTERS: utinyint = 8;
+const ACT_EDIT_SPRITES: utinyint = 9;
+const ACT_EDIT_MUSIC: utinyint = 10;
+
+// Which screen is under the bar.
+const VIEW_DOOR: utinyint = 0;
+const VIEW_CHARACTERS: utinyint = 1;
+const VIEW_SPRITES: utinyint = 2;
+const VIEW_MUSIC: utinyint = 3;
+const VIEW_FILES: utinyint = 4;
+
+let currentTier: utinyint = 0;
+let view: utinyint = 0;
+// Whether the screen was opened to edit (as opposed to view), so it can
+// say that editing is not built yet rather than silently viewing.
+let editing: bool = false;
+// Whether a drop-down is open under the bar's highlighted item.
+let menuOpen: bool = false;
+// Set while a run of the menu is the one confirming, and what it picked.
+let activating: bool = false;
+let chosen: utinyint = 0;
+
+// One entry: draw it, and if this run is the confirming one and it is the
+// highlighted entry, remember what it does.
+function pick(name: string, action: utinyint): void {
+    if (menu.item(name)) {
+        if (activating) {
+            chosen = action;
+        }
     }
-    if (tier == Tier.BASIC) {
-        text.print(cell, "BASIC TIER");
+}
+
+// Whether this build edits at all, and has this editor's hardware.
+function editsCharacters(): bool {
+    return currentTier != Tier.VIEWER && Video.GLYPHS > 0;
+}
+
+function editsSprites(): bool {
+    return currentTier != Tier.VIEWER && Video.SPRITES > 0;
+}
+
+function editsMusic(): bool {
+    return currentTier != Tier.VIEWER && Audio.VOICES > 1;
+}
+
+// Where the drop-down under bar item `bar` goes: the row under the bar,
+// starting at the item's padding cell, pulled left where the row would
+// run out before MENU_WIDTH cells.
+function menuTop(bar: utinyint): usmallint {
+    let col: usmallint = menubar.itemAt(bar);
+    if (col > 0) {
+        col = col - 1;
     }
-    if (tier == Tier.VIEWER) {
-        text.print(cell, "VIEWER TIER");
+    if (col + MENU_WIDTH > ROW) {
+        col = ROW - MENU_WIDTH;
+    }
+    return menubar.HEIGHT * ROW + col;
+}
+
+// One run of the open menu: every entry the bar item has on this build.
+function drawMenu(): void {
+    let bar: utinyint = menubar.selected();
+    menu.begin(menuTop(bar), MENU_WIDTH);
+    if (bar == BAR_ICON) {
+        pick("ABOUT", ACT_ABOUT);
+    } else if (bar == BAR_FILE) {
+        if (Storage.SAVE) {
+            pick("LOAD", ACT_LOAD);
+            if (currentTier != Tier.VIEWER) {
+                pick("SAVE", ACT_SAVE);
+            }
+        }
+        pick("QUIT", ACT_QUIT);
+    } else if (editorsOnBar()) {
+        if (bar == BAR_CHARACTERS) {
+            pick("VIEW", ACT_CHARACTERS);
+            if (editsCharacters()) {
+                pick("EDIT", ACT_EDIT_CHARACTERS);
+            }
+        } else if (bar == BAR_SPRITES) {
+            pick("VIEW", ACT_SPRITES);
+            if (editsSprites()) {
+                pick("EDIT", ACT_EDIT_SPRITES);
+            }
+        } else if (bar == BAR_MUSIC) {
+            if (Audio.VOICES > 0) {
+                pick("PLAY", ACT_MUSIC);
+            } else {
+                pick("VIEW", ACT_MUSIC);
+            }
+            if (editsMusic()) {
+                pick("EDIT", ACT_EDIT_MUSIC);
+            }
+        }
+    } else if (bar == BAR_EDIT) {
+        pick("CHARACTERS", ACT_CHARACTERS);
+        pick("SPRITES", ACT_SPRITES);
+        pick("MUSIC", ACT_MUSIC);
+    }
+    menu.end();
+    // A drop-down leaves the text color its own, the way the bar does.
+    text.setColor(TextColor.WHITE);
+}
+
+// ---- the screens -------------------------------------------------------------
+//
+// Every screen is lines, printed one under another from `at`. A screen
+// prints through `line()` and `number()` rather than `text.print(cell,
+// ...)` with its own cursor because of what a call costs on a 6502:
+// passing a 16-bit cell and adding ROW to it after every line was ~30
+// bytes a line, and five screens of it were 1539 bytes of a 32K PET's
+// Studio (measured 2026-09-20, before this); a call that only passes the
+// string is ~11. The cursor is one global these helpers own.
+let at: usmallint = 0;
+
+// Print `s` on the current line and move to the next.
+function line(s: string): void {
+    text.print(at, s);
+    at = at + ROW;
+}
+
+// Print `label` then `value` in `width` digits, on one line.
+function number(label: string, value: usmallint, width: utinyint): void {
+    text.print(at, label);
+    text.printNumber(at + label.length, value, width);
+    at = at + ROW;
+}
+
+function skip(): void {
+    at = at + ROW;
+}
+
+function printTier(): void {
+    if (currentTier == Tier.FULL) {
+        line("FULL TIER");
+    }
+    if (currentTier == Tier.BASIC) {
+        line("BASIC TIER");
+    }
+    if (currentTier == Tier.VIEWER) {
+        line("VIEWER TIER");
     }
 }
 
 // One line per editor: its name, then what this build can do in it — the
 // tier for whether it edits, and the machine's own fact for whether there
-// is anything to edit. Every row reads the same way: EDIT where both say
-// so, and the best read-only thing the machine can do otherwise.
-function printEditors(cell: usmallint, tier: utinyint): void {
-    // Characters are editable where the program can redefine the font.
-    // The PET's is in ROM, so a PET shows one and never changes it.
-    text.print(cell, "CHARACTERS");
-    if (tier != Tier.VIEWER && Video.GLYPHS > 0) {
-        text.print(cell + 12, "EDIT");
+// is anything to edit. EDIT where both say so, and the best read-only
+// thing the machine can do otherwise.
+function printEditors(): void {
+    if (editsCharacters()) {
+        line("CHARACTERS  EDIT");
     } else {
-        text.print(cell + 12, "VIEW");
+        line("CHARACTERS  VIEW");
     }
-    cell = cell + ROW;
-
-    // Sprites are editable where the machine has hardware ones; elsewhere
-    // a shape is still worth looking at on the display it is meant for.
-    text.print(cell, "SPRITES");
-    if (tier != Tier.VIEWER && Video.SPRITES > 0) {
-        text.print(cell + 12, "EDIT");
+    if (editsSprites()) {
+        line("SPRITES     EDIT");
     } else {
-        text.print(cell + 12, "VIEW");
+        line("SPRITES     VIEW");
     }
-    cell = cell + ROW;
-
-    // Music needs more than one voice to be worth writing; one voice — the
-    // PET's square wave — is enough to hear what someone else wrote.
-    text.print(cell, "MUSIC");
-    if (tier != Tier.VIEWER && Audio.VOICES > 1) {
-        text.print(cell + 12, "EDIT");
+    if (editsMusic()) {
+        line("MUSIC       EDIT");
     } else if (Audio.VOICES > 0) {
-        text.print(cell + 12, "PLAY");
+        line("MUSIC       PLAY");
     } else {
-        text.print(cell + 12, "VIEW");
+        line("MUSIC       VIEW");
     }
-    cell = cell + ROW;
-
-    // A viewer loads but never saves: reading a file is how an asset gets
-    // onto the machine it is for. Where there is no storage at all — the
-    // NES on a plain cartridge, the web — there is neither.
-    text.print(cell, "FILES");
-    if (tier != Tier.VIEWER && Storage.SAVE) {
-        text.print(cell + 12, "LOAD SAVE");
+    if (currentTier != Tier.VIEWER && Storage.SAVE) {
+        line("FILES       LOAD SAVE");
     } else if (Storage.SAVE) {
-        text.print(cell + 12, "LOAD");
+        line("FILES       LOAD");
     } else {
-        text.print(cell + 12, "NONE");
+        line("FILES       NONE");
     }
+}
+
+// The front door: the title, the version, the tier, the editors, and what
+// is driving the bar. `Input.KEYBOARD` and `Input.PADS` are facts folded
+// while compiling, so each machine compiles the one line that is true of
+// it: the NES says PAD, the computers and the web say KEYS.
+function drawDoor(): void {
+    line("8BITSCRIPT STUDIO");
+    text.print(at, "VERSION ");
+    text.print(at + 8, VERSION);
+    skip();
+    skip();
+    printTier();
+    skip();
+    printEditors();
+    skip();
+    if (input.pointer()) {
+        line("INPUT KEYS MOUSE");
+    } else if (Input.KEYBOARD) {
+        line("INPUT KEYS");
+    } else if (Input.PADS > 0) {
+        line("INPUT PAD");
+    } else {
+        line("INPUT NONE");
+    }
+}
+
+// What an editor screen says on its last line: that the editor is not
+// built, on a machine that would edit; nothing, on one that only views.
+function printNotYet(): void {
+    if (editing) {
+        line("EDIT: NOT BUILT YET");
+    }
+}
+
+// The characters screen draws what a viewer can already show: the
+// portable character set, on this machine's own font — which is the
+// point of viewing on the hardware. `Video.GLYPHS` says whether the
+// program could redefine any of it: 256 on a C64 or an X16, 0 where the
+// font is in ROM (every PET).
+function drawCharacters(): void {
+    line("CHARACTERS");
+    if (Video.GLYPHS > 0) {
+        number("GLYPHS ", Video.GLYPHS, 3);
+    } else {
+        line("FONT IN ROM");
+    }
+    skip();
+    line("0123456789");
+    line("ABCDEFGHIJKLM");
+    line("NOPQRSTUVWXYZ");
+    line("! , - . : ?");
+    skip();
+    printNotYet();
+}
+
+// Sprites: the hardware's own numbers — how many, how many on one
+// scanline (the one that decides whether a scene works), and how big.
+function drawSprites(): void {
+    line("SPRITES");
+    if (Video.SPRITES > 0) {
+        number("HARDWARE ", Video.SPRITES, 3);
+        number("PER LINE ", Video.SPRITES_PER_LINE, 3);
+        number("WIDTH ", Video.SPRITE_WIDTH, 2);
+        number("HEIGHT ", Video.SPRITE_HEIGHT, 2);
+    } else {
+        line("NO HARDWARE SPRITES");
+    }
+    skip();
+    printNotYet();
+}
+
+// Music: the voices and what the chip does with them. No sound
+// capability exists yet, so a PLAY entry lands here and says so.
+function drawMusic(): void {
+    line("MUSIC");
+    number("VOICES ", Audio.VOICES, 2);
+    if (Audio.NOISE) {
+        line("NOISE");
+    }
+    if (Audio.ENVELOPE) {
+        line("ENVELOPES");
+    }
+    if (Audio.FILTER) {
+        line("FILTER");
+    }
+    skip();
+    if (Audio.VOICES > 0) {
+        line("PLAY: NOT BUILT YET");
+    } else {
+        line("NO SOUND HARDWARE");
+    }
+    printNotYet();
+}
+
+// Files: where this build could keep one, and that it cannot yet.
+function drawFiles(): void {
+    line("FILES");
+    if (Storage.SAVE) {
+        number("STORAGE KIB ", Storage.KIB, 5);
+    } else {
+        line("NO STORAGE");
+    }
+    skip();
+    if (editing) {
+        line("SAVE: NOT BUILT YET");
+    } else {
+        line("LOAD: NOT BUILT YET");
+    }
+}
+
+// Everything under the bar: blanked, then the current screen. Blanking
+// is what takes an open menu off the screen too, so closing one is this
+// call. On the NES the blank is a few frames of the vertical-blank queue;
+// nowhere else does it cost anything the eye sees.
+function drawView(): void {
+    at = menubar.HEIGHT * ROW;
+    let count: usmallint = (Video.ROWS - menubar.HEIGHT) * ROW;
+    text.setColor(TextColor.WHITE);
+    text.fill(at, count, SPACE);
+    if (view == VIEW_DOOR) {
+        drawDoor();
+    } else if (view == VIEW_CHARACTERS) {
+        drawCharacters();
+    } else if (view == VIEW_SPRITES) {
+        drawSprites();
+    } else if (view == VIEW_MUSIC) {
+        drawMusic();
+    } else if (view == VIEW_FILES) {
+        drawFiles();
+    }
+}
+
+// ---- the policy: what a key, a stick, a pad and a mouse mean --------------
+
+// Redraw the bar, after VIC-II has scanned it this frame on the two
+// machines where rewriting it earlier is visible flicker (Studio,
+// 2026-09-07), and put the text color back: a bar leaves it set to its own.
+function redrawBar(): void {
+    if (#system() == System.C64 || #system() == System.C128) {
+        let line: utinyint = memory.read(0xD012);
+        while (line < 58) {
+            line = memory.read(0xD012);
+        }
+    }
+    drawBar();
+    text.setColor(TextColor.WHITE);
+}
+
+// Open the menu under the bar's highlighted item, with its first entry
+// lit, so a second confirm takes it.
+function openMenu(): void {
+    menuOpen = true;
+    menu.select(0);
+    drawMenu();
+}
+
+// Close it: the screen underneath comes back.
+function closeMenu(): void {
+    menuOpen = false;
+    drawView();
+}
+
+// Take the highlighted entry: one more run of the menu with `activating`
+// set finds out what it does, then the menu closes, the bar lets go, and
+// the screen it asked for is drawn.
+function activate(): bool {
+    chosen = ACT_NONE;
+    activating = true;
+    drawMenu();
+    activating = false;
+    if (chosen == ACT_NONE) {
+        return true;
+    }
+    menuOpen = false;
+    menubar.deselect();
+    editing = false;
+    if (chosen == ACT_QUIT) {
+        return false;
+    }
+    if (chosen == ACT_ABOUT) {
+        view = VIEW_DOOR;
+    } else if (chosen == ACT_LOAD) {
+        view = VIEW_FILES;
+    } else if (chosen == ACT_SAVE) {
+        view = VIEW_FILES;
+        editing = true;
+    } else if (chosen == ACT_CHARACTERS) {
+        view = VIEW_CHARACTERS;
+    } else if (chosen == ACT_EDIT_CHARACTERS) {
+        view = VIEW_CHARACTERS;
+        editing = true;
+    } else if (chosen == ACT_SPRITES) {
+        view = VIEW_SPRITES;
+    } else if (chosen == ACT_EDIT_SPRITES) {
+        view = VIEW_SPRITES;
+        editing = true;
+    } else if (chosen == ACT_MUSIC) {
+        view = VIEW_MUSIC;
+    } else if (chosen == ACT_EDIT_MUSIC) {
+        view = VIEW_MUSIC;
+        editing = true;
+    }
+    redrawBar();
+    drawView();
+    return true;
 }
 
 export namespace studio {
@@ -138,48 +494,16 @@ export namespace studio {
     // does: the NES only accepts screen writes while the picture is off,
     // and screen.blank() leaves it off until the first waitFrame().
     function start(tier: utinyint): void {
+        currentTier = tier;
         screen.blank(BorderColor.BLUE, BackgroundColor.BLACK);
 
-        // The bar first, then the front door's own color: drawing a bar
-        // leaves the text color set to the bar's, because that is how the
-        // component gets its colors on without a second pass over every
-        // cell it just wrote (see packages/ui/AGENTS.md). A program that
-        // cares picks its color after the bar, not before.
+        // The bar first, then the screen's own color: drawing a bar leaves
+        // the text color set to the bar's (see packages/ui/AGENTS.md).
         menubar.setColors(TextColor.CYAN, TextColor.WHITE);
-        drawMenu();
-        text.setColor(TextColor.WHITE);
-
-        // The front door starts on the row after the bar. menubar.HEIGHT is
-        // how a program lays out under a bar without knowing how tall one
-        // is, and both it and ROW are constants, so this is one number by
-        // the time the machine sees it.
-        let cell: usmallint = menubar.HEIGHT * ROW;
-        text.print(cell, "8BITSCRIPT STUDIO");
-        cell = cell + ROW;
-        text.print(cell, "VERSION ");
-        text.print(cell + 8, VERSION);
-        cell = cell + ROW + ROW;
-        printTier(cell, tier);
-        cell = cell + ROW + ROW;
-        printEditors(cell, tier);
-        cell = cell + ROW + ROW + ROW + ROW + ROW;
-
-        // What is driving the bar on this machine. `Input.KEYBOARD` and
-        // `Input.PADS` are facts folded while compiling, so each machine
-        // compiles the one line that is true of it and none of the others:
-        // the NES says PAD, the computers (including the X16, which has a
-        // keyboard even though this layer does not read it yet) say KEYS,
-        // and the web reads arrow keys through the runtime's snapshot and
-        // says KEYS too — it is still a viewer because it has nothing to
-        // edit.
-        text.print(cell, "INPUT ");
-        if (Input.KEYBOARD) {
-            text.print(cell + 6, "KEYS");
-        } else if (Input.PADS > 0) {
-            text.print(cell + 6, "PAD");
-        } else {
-            text.print(cell + 6, "NONE");
-        }
+        menu.setColors(TextColor.CYAN, TextColor.WHITE);
+        drawBar();
+        view = VIEW_DOOR;
+        drawView();
 
         // Once, before the first poll: on a machine with a pointer this
         // gives it its ceiling and points the hardware at the right port;
@@ -194,82 +518,139 @@ export namespace studio {
         pointer.begin();
         pointer.setColor(TextColor.WHITE);
 
-        // Where the pointer last sat, as a cell. `point()` is updated
-        // whenever it changes so a click can read `pointed()`; the bar is
-        // not redrawn for that — nothing on screen changes. 65535 is
-        // `menubar`'s own "no pointer" cell, so the first real reading
-        // always counts as a move.
+        // Where the pointer last sat, as a cell. 65535 is the components'
+        // own "no pointer" cell, so the first real reading counts as a move.
         let pointerCell: usmallint = 65535;
 
-        while (true) {
+        let running: bool = true;
+        while (running) {
             waitFrame();
-            // Exactly once a frame, and never twice — every direction is
-            // edge-triggered, so a second poll would see each press once
-            // and then swallow it.
+            // Exactly once a frame, and never twice — every control is
+            // edge-triggered, so a second poll would swallow presses.
             input.poll();
-            // Right after the poll that moved it, and once a frame like the
-            // poll: the arrow is drawn where the mouse got to this frame.
             pointer.update();
 
-            let moved: bool = false;
+            let barMoved: bool = false;
+            let menuMoved: bool = false;
 
-            // The pointer, on a build fitted with one. `input.pointer()` is
-            // a constant false everywhere else, so on a machine without a
-            // mouse — and on a stock C64 — this whole block is proved dead
-            // and deleted rather than tested every frame. The X16's stock
-            // sheet has a mouse, so this is live there.
+            // The pointer, on a build fitted with one. `input.pointer()`
+            // is a constant false everywhere else, so on a machine without
+            // a mouse this whole block is proved dead and deleted. The
+            // X16's stock sheet has a mouse, so it is live there.
             if (input.pointer()) {
                 let at: usmallint = input.pointerCell();
                 if (at != pointerCell) {
                     pointerCell = at;
                     menubar.point(at);
+                    if (menuOpen) {
+                        // Hovering an open menu lights the entry under
+                        // the arrow — the one line of policy the
+                        // component leaves to the program.
+                        menu.point(at);
+                        let over: utinyint = menu.pointed();
+                        if (over != menu.NONE && over != menu.selected()) {
+                            menu.select(over);
+                            menuMoved = true;
+                        }
+                    }
                 }
-                // A click takes the item under the pointer, and clicking
-                // the bar's own padding or anywhere off it means "nothing"
-                // — the same thing RUN/STOP means.
                 if (input.pointerButton()) {
-                    let over: utinyint = menubar.pointed();
-                    if (over == menubar.NONE) {
-                        if (menubar.selected() != menubar.NONE) {
-                            menubar.deselect();
-                            moved = true;
+                    if (menuOpen && menu.pointed() != menu.NONE) {
+                        // A click on an entry takes it.
+                        menu.select(menu.pointed());
+                        running = activate();
+                    } else if (menubar.pointed() != menubar.NONE) {
+                        // A click on the bar opens that item's menu, or
+                        // closes it if it was the open one.
+                        if (menuOpen && menubar.pointed() == menubar.selected()) {
+                            closeMenu();
+                        } else {
+                            if (menuOpen) {
+                                menuOpen = false;
+                                drawView();
+                            }
+                            menubar.select(menubar.pointed());
+                            redrawBar();
+                            openMenu();
                         }
                     } else {
-                        if (over != menubar.selected()) {
-                            menubar.select(over);
-                            moved = true;
+                        // Anywhere else means "nothing" — what RUN/STOP
+                        // means: close the menu, let the bar go.
+                        if (menuOpen) {
+                            closeMenu();
+                        }
+                        if (menubar.selected() != menubar.NONE) {
+                            menubar.deselect();
+                            barMoved = true;
                         }
                     }
                 }
             }
 
-            if (input.right()) {
-                menubar.next();
-                moved = true;
-            }
-            if (input.left()) {
-                menubar.previous();
-                moved = true;
-            }
-            if (input.cancel()) {
-                menubar.deselect();
-                moved = true;
-            }
-            if (moved) {
-                // Redraw the bar and put the color back the way the
-                // opening sequence above does: a bar leaves the text
-                // color set to its own.
-                // waitFrame() returns in the top half of the frame, while
-                // VIC-II is about to scan the bar. Rewrite it after that
-                // row has been drawn this frame.
-                if (#system() == System.C64 || #system() == System.C128) {
-                    let line: utinyint = memory.read(0xD012);
-                    while (line < 58) {
-                        line = memory.read(0xD012);
+            if (menuOpen) {
+                // Up and down walk the menu; left and right step to the
+                // neighbouring item's menu; confirm takes the entry;
+                // cancel closes the menu and leaves the bar lit.
+                if (input.down()) {
+                    menu.next();
+                    menuMoved = true;
+                }
+                if (input.up()) {
+                    menu.previous();
+                    menuMoved = true;
+                }
+                if (input.right()) {
+                    menuOpen = false;
+                    drawView();
+                    menubar.next();
+                    redrawBar();
+                    openMenu();
+                }
+                if (input.left()) {
+                    menuOpen = false;
+                    drawView();
+                    menubar.previous();
+                    redrawBar();
+                    openMenu();
+                }
+                if (input.confirm()) {
+                    running = activate();
+                }
+                if (input.cancel()) {
+                    closeMenu();
+                }
+            } else {
+                // Left and right walk the bar; confirm opens the menu
+                // under the lit item, or under the first when none is;
+                // cancel lets the bar go.
+                if (input.right()) {
+                    menubar.next();
+                    barMoved = true;
+                }
+                if (input.left()) {
+                    menubar.previous();
+                    barMoved = true;
+                }
+                if (input.confirm()) {
+                    if (menubar.selected() == menubar.NONE) {
+                        menubar.select(0);
+                        redrawBar();
+                    }
+                    openMenu();
+                }
+                if (input.cancel()) {
+                    if (menubar.selected() != menubar.NONE) {
+                        menubar.deselect();
+                        barMoved = true;
                     }
                 }
+            }
+
+            if (barMoved) {
+                redrawBar();
+            }
+            if (menuMoved && menuOpen) {
                 drawMenu();
-                text.setColor(TextColor.WHITE);
             }
         }
     }

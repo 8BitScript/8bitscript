@@ -39,39 +39,44 @@
 // mouse arrangement and a joystick one, matching the two ways the bar
 // moves on those machines.
 //
-// **0.2.0 lists the PET and the web only.** The other seven machines are
-// parked until their native backends land (RELEASE_MACHINES in the
-// compiler); their entries below are kept as comments so the arrangements
-// come back with one edit. Studio links clean for all nine, and its tests
-// still say so; it just cannot be built for the parked ones yet.
+// **The X16 is the baseline.** `baseline: 'cx16'` is the system Studio is
+// designed on — the build where every fact it tests is true: a keyboard,
+// a mouse on the stock sheet, 512K of banked RAM, VERA's sprites and
+// glyphs, three sound engines. `8bs run` with no target starts it there,
+// and `8bs build --release` says what every other machine's Studio is
+// short of, in facts. `input` says what it is designed to be driven with
+// — a mouse first, then the keyboard, a stick, a pad — which is what
+// `8bs targets --reach` reports per machine.
 export default {
   entry: 'src/main.8bs',
+  baseline: 'cx16',
+  input: { primary: 'mouse', also: ['keyboard', 'stick', 'pad'] },
   targets: {
-    pet: {},
+    cx16: {},
+    c64: { hardware: { port1: 'mouse1351' } },
+    c128: { hardware: { port1: 'mouse1351' } },
+    mega65: {},
+    atari8: {},
+    // The VIC-20 with 8K and the 32K 4032: the machines below the floor
+    // — a stock VIC-20, a 4K PET — cannot hold the desk (see `requires`).
+    vic20: { hardware: { ram: '8k' } },
+    pet: { hardware: { model: '4032', ram: '32' } },
+    nes: {},
     web: {},
-    // Parked until a later release:
-    // vic20: {},
-    // c64: { hardware: { port1: 'mouse1351' } },
-    // c128: { hardware: { port1: 'mouse1351' } },
-    // atari8: {},
-    // nes: {},
-    // cx16: {},
-    // mega65: {},
   },
   systems: {
+    'Commander X16': { target: 'cx16' },
+    'C64 with a mouse': { target: 'c64' },
+    'C64 with a joystick': { target: 'c64', hardware: { port1: 'joystick' } },
+    'C128 with a mouse': { target: 'c128' },
+    'C128 with a joystick': { target: 'c128', hardware: { port1: 'joystick' } },
+    'MEGA65': { target: 'mega65' },
+    'Atari 130XE': { target: 'atari8', profile: '130xe' },
+    'VIC-20, expanded to 8K': { target: 'vic20', profile: '8k' },
+    'VIC-20, stock': { target: 'vic20' },
     'PET 3032': { target: 'pet', profile: '3032' },
     'PET 8032': { target: 'pet', profile: '8032' },
+    'NES': { target: 'nes' },
     'The browser': { target: 'web' },
-    // Parked until a later release:
-    // 'Commander X16': { target: 'cx16' },
-    // 'C64 with a mouse': { target: 'c64' },
-    // 'C64 with a joystick': { target: 'c64', hardware: { port1: 'joystick' } },
-    // 'C128 with a mouse': { target: 'c128' },
-    // 'C128 with a joystick': { target: 'c128', hardware: { port1: 'joystick' } },
-    // 'VIC-20, expanded to 8K': { target: 'vic20', profile: '8k' },
-    // 'VIC-20, stock': { target: 'vic20' },
-    // 'MEGA65': { target: 'mega65' },
-    // 'Atari 130XE': { target: 'atari8', profile: '130xe' },
-    // 'NES': { target: 'nes' },
   },
 };
