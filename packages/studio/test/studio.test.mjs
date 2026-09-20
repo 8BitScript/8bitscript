@@ -243,7 +243,9 @@ async function drive(wasm, keys) {
     }
     rows.push(line.replace(/\s+$/, ''));
   }
-  return { rows, returned };
+  // Border and background bytes, and the ink of one cell, for the theme.
+  const ink = (row, col) => mem[layout.colorBase + row * layout.cols + col] & 0x0f;
+  return { rows, returned, mem, ink };
 }
 
 test('the desk works: keys walk the bar, open a menu, take an entry, close it, and QUIT returns', async () => {
@@ -286,6 +288,20 @@ test('the desk works: keys walk the bar, open a menu, take an entry, close it, a
   const closed = await drive(wasm, ['LEFT', 'CONFIRM', 'CANCEL']);
   assert.equal(closed.rows[1], '8BITSCRIPT STUDIO');
   assert.match(closed.rows[0], /music$/, 'the bar item stays lit after CANCEL');
+
+  // The mark's menu switches the theme: the screen goes white with black
+  // ink, and the entry reads DARK MODE afterwards. Border and background
+  // are the web host's first two bytes (packages/web/src/screen.8bs).
+  const light = await drive(wasm, ['RIGHT', 'CONFIRM', 'DOWN', 'CONFIRM', 'RIGHT', 'CONFIRM']);
+  assert.equal(light.mem[1], 1, 'background WHITE');
+  assert.equal(light.mem[0], 1, 'border WHITE');
+  assert.equal(light.ink(1, 14), 0, 'ink BLACK on the title row, past the open menu');
+  assert.match(light.rows[1], /^ about {6}TUDIO$/, 'the mark\'s menu is open again');
+  assert.match(light.rows[2], /^ DARK MODE  \.0$/, 'and offers the way back');
+  const dark = await drive(wasm, []);
+  assert.equal(dark.mem[1], 0, 'background BLACK to begin with');
+  assert.equal(dark.mem[0], 6, 'border BLUE');
+  assert.equal(dark.ink(1, 14), 1, 'ink WHITE');
 
   // LEFT with a menu open closes it and opens the neighbour's.
   const walked = await drive(wasm, ['LEFT', 'LEFT', 'CONFIRM', 'LEFT']);
