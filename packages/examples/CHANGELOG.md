@@ -1,5 +1,20 @@
 # @8bitscript/examples
 
+## 0.19.0
+
+### Patch Changes
+
+- @8bitscript/c64@0.19.0
+  - @8bitscript/input@0.19.0
+  - @8bitscript/pet@0.19.0
+  - @8bitscript/raster@0.19.0
+  - @8bitscript/screen@0.19.0
+  - @8bitscript/system@0.19.0
+  - @8bitscript/text@0.19.0
+  - @8bitscript/web@0.19.0
+  - @8bitscript/sprites@0.18.1
+  - @8bitscript/timeline@0.18.0
+
 ## 0.18.0
 
 ### Minor Changes
