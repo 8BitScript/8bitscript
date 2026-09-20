@@ -100,9 +100,9 @@ three keys and three commands, all of them above:
    cannot meet `requires` is refused, with the fact.
 3. **Ask, before a build:** `8bs targets` prints `short: <fact> needs
    N, has M` under every named system in `systems` that misses the
-   floor, and `8bs targets --reach` says the same for every machine's
-   stock sheet — with a package or not — beside who is out there to run
-   it.
+   floor, and `8bs targets --reach` says the same for every machine as
+   this project fits it (`targets.<machine>.hardware`) — with a package
+   or not — beside who is out there to run it.
 4. **Ask, after a build:** `8bs build --release` prints, after each
    artifact, what it is short of the baseline *in the facts the program
    tests* — `short of the baseline (cx16): video.sprites 0 of 128,
