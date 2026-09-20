@@ -10,7 +10,8 @@ program wrong on that machine and silent about it.
 ## What this package is
 
 `@8bitscript/ui` is the interface components a program builds a screen out
-of: a menu bar today, and whatever a program needs after that. A component
+of: a menu bar and the drop-down under it, and whatever a program needs
+after that. A component
 is ordinary 8BitScript that draws through the portable capability packages
 — `@8bitscript/text` for now — so it works on every target for the same
 reason a program does, not because it has nine implementations.
@@ -257,7 +258,8 @@ Measured by building Studio's front door three ways — as it is, with the
 menu bar taken out, and with input taken out — on 2026-09-06, after the
 bar grew a deselected state, navigation, a pointer hit test and an icon
 slot, and the Commander X16 row again on 2026-09-07 after its KERNAL mouse
-landed. Studio's bar is now an icon and one menu, where the earlier table
+landed. Studio's bar was an icon and one menu at that measurement (it is
+five items and their menus since 2026-09-20), where the earlier table
 measured four items, so these numbers replace those rather than continuing
 them.
 
