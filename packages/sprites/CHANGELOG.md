@@ -1,5 +1,14 @@
 # @8bitscript/sprites
 
+## 0.18.1
+
+### Patch Changes
+
+- @8bitscript/c64@0.19.0
+  - @8bitscript/screen@0.19.0
+  - @8bitscript/system@0.19.0
+  - @8bitscript/text@0.19.0
+
 ## 0.18.0
 
 ### Minor Changes
