@@ -11,10 +11,12 @@
 // way the catalog test holds every machine to the fact table.
 //
 // Two rules keep research from printing as fact. Anything the catalog can
-// answer for a machine that builds comes from the catalog — the stock sheet
-// says whether there is a keyboard, a control port, a pad port, and the
-// project's `requires` is checked against it the way a named system is —
-// and the reach sheet only speaks for the machines with no package. And a
+// answer for a machine that builds comes from the catalog — the machine's
+// sheet under the project's own hardware for it, the one `8bs build` with
+// no flags uses, says whether there is a keyboard, a control port, a pad
+// port, and the project's `requires` is checked against it the way a
+// build is — and the reach sheet only speaks for the machines with no
+// package. And a
 // sheet figure prints with its date, and a `verify`-flagged one with a
 // marker, so a number the reader quotes is one they were told to check.
 import { readFileSync } from 'node:fs';
@@ -24,7 +26,7 @@ import { join, dirname } from 'node:path';
 import { MACHINES, RELEASE_MACHINES, unmetRequirements } from '@8bitscript/compiler';
 import { outputExtension } from '@8bitscript/compiler/mos';
 
-import { loadCatalog, resolveHardware, stockFacts } from './hardware.mjs';
+import { loadCatalog, projectHardware, resolveHardware } from './hardware.mjs';
 
 /** The sheet's own path, beside `src/`: published with the package. */
 export const REACH_PATH = join(dirname(fileURLToPath(import.meta.url)), '..', 'data', 'reach.json');
@@ -221,11 +223,19 @@ export function delivery(system, writes) {
   };
 }
 
-/** The extension `8bs build` writes for a machine's stock hardware, no dot; null for one that has no package. */
-function writtenExtension(id) {
-  if (!MACHINES.includes(id)) return null;
-  const { hardware } = resolveHardware(loadCatalog(id), {});
-  return outputExtension(id, hardware).replace(/^\./, '');
+/**
+ * The machine as this project builds it with no flags: its catalog under
+ * the project's own `targets.<machine>.hardware`, the way `8bs build
+ * <machine>` resolves it. A project that fits its PET with 32K is asked
+ * about a 32K PET, not the stock 4K one, or the report would refuse a
+ * floor the build clears.
+ *
+ * @returns {{ facts: object, writes: string }}
+ */
+function asBuilt(config, id) {
+  const resolved = resolveHardware(loadCatalog(id), { defaults: projectHardware(config, id) });
+  const hardware = resolved.ok === false ? resolveHardware(loadCatalog(id), {}).hardware : resolved.hardware;
+  return { facts: hardware.facts, writes: outputExtension(id, hardware).replace(/^\./, '') };
 }
 
 /** A number the reader can quote: `12.5M`, `452K`, `1,745`. */
@@ -245,14 +255,16 @@ export function compact(n) {
  * where there is not, and say which.
  *
  * @param {object} options
+ * @param {object|null} options.config  the project's 8bitscript.config.ts, for its hardware per machine
  * @param {object} options.requires  the project's, already checked
  * @param {null | { primary: string, also: string[] }} options.input
  * @param {object} [options.data]     the sheet; the package's own by default
  */
-export function describeReach({ requires = {}, input = null, data = loadReach() }) {
+export function describeReach({ config = null, requires = {}, input = null, data = loadReach() }) {
   return Object.entries(data.systems).map(([id, system]) => {
     const builds = system.status === 'builds';
-    const facts = builds ? stockFacts(id) : null;
+    const built = builds ? asBuilt(config, id) : null;
+    const facts = built?.facts ?? null;
     const standing = (device) => (builds
       ? { device, standing: standingFromFacts(device, facts), from: 'catalog' }
       : { device, standing: standingFromSheet(device, system.input), from: 'sheet' });
@@ -269,7 +281,7 @@ export function describeReach({ requires = {}, input = null, data = loadReach() 
       // What the project asks, against what the machine has.
       floor: builds ? unmetRequirements(requires, facts) : null,
       input: input ? { primary: standing(input.primary), also: input.also.map(standing) } : null,
-      delivery: delivery(system, builds ? writtenExtension(id) : null),
+      delivery: delivery(system, built?.writes ?? null),
       reach: {
         refreshed: data.refreshed,
         units: {

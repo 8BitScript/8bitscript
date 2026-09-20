@@ -142,6 +142,22 @@ test('describeReach joins the project with the sheet: floors from the catalog, i
   assert.equal(by.c64.reach.refreshed, loadReach().refreshed);
 });
 
+test('a machine is asked as the project builds it: its own hardware, not the stock catalog', () => {
+  // Stock PET is the 4K 2001: a floor of 8K would refuse it. The project fits 32K, and `8bs build pet` clears it, so the report must too.
+  const config = { targets: { pet: { hardware: { model: '4032', ram: '32' } }, c64: { hardware: { port1: 'mouse1351' } }, atari8: { hardware: { media: 'cart8' } } } };
+  const stock = Object.fromEntries(describeReach({ requires: { 'memory.ram': 8192 }, input: { primary: 'mouse', also: [] } }).map((r) => [r.id, r]));
+  const own = Object.fromEntries(describeReach({ config, requires: { 'memory.ram': 8192 }, input: { primary: 'mouse', also: [] } }).map((r) => [r.id, r]));
+  assert.deepEqual(stock.pet.floor, [{ key: 'memory.ram', need: 8192, have: 3071 }]);
+  assert.deepEqual(own.pet.floor, []);
+  assert.equal(stock.c64.input.primary.standing, 'absent');
+  assert.equal(own.c64.input.primary.standing, 'optional', 'a mouse in a port is a run-time fact: optional at most');
+  assert.equal(stock.atari8.delivery.writes, 'xex');
+  assert.equal(own.atari8.delivery.writes, 'rom', 'a cartridge media value changes what the build writes');
+  // A hardware value the catalog does not have is `8bs build`'s to refuse; the report falls back to the stock sheet rather than crash.
+  assert.deepEqual(describeReach({ config: { targets: { pet: { hardware: { ram: '99' } } } }, requires: { 'memory.ram': 8192 } }).find((r) => r.id === 'pet').floor,
+    [{ key: 'memory.ram', need: 8192, have: 3071 }]);
+});
+
 test('the table form prints the standing, the file and the figures with their markers', () => {
   const rows = describeReach({ requires: { 'input.keyboard': true }, input: { primary: 'stick', also: ['pad'] } });
   const by = Object.fromEntries(rows.map((r) => [r.id, formatReach(r).join('\n')]));
@@ -166,17 +182,19 @@ test('compact: a number the reader can quote', () => {
 });
 
 test('8bs targets --reach: the report, and --json its rows; a wrong `input` is refused in words', async () => {
-  const dir = project(`export default { entry: 'src/main.8bs', targets: { c64: {}, nes: {} },
-    requires: { 'input.keyboard': true }, input: { primary: 'stick', also: ['keyboard'] } };\n`);
+  const dir = project(`export default { entry: 'src/main.8bs', targets: { c64: {}, nes: {}, pet: { hardware: { model: '4032', ram: '32' } } },
+    requires: { 'input.keyboard': true, 'memory.ram': 8192 }, input: { primary: 'stick', also: ['keyboard'] } };\n`);
   const { stdout } = await run(process.execPath, [BIN, 'targets', '--reach'], { cwd: dir });
   assert.match(stdout, /^This program is designed for: stick, and also plays on keyboard\n\n/);
-  assert.match(stdout, /\nnes {9}refused: input\.keyboard needs it, has false\n/);
+  assert.match(stdout, /^pet {9}builds\n/m, 'the 32K PET the project fits clears the 8K floor');
+  assert.match(stdout, /^vic20 {7}refused: memory\.ram needs 8192, has 3583\n/m, 'the unexpanded VIC-20 the project did not fit does not');
+  assert.match(stdout, /\nnes {9}refused: input\.keyboard needs it, has false; memory\.ram needs 8192, has 1536\n/);
   assert.match(stdout, /\nreach sheet refreshed \d{4}-\d{2}-\d{2} \(packages\/cli\/data\/reach\.json/);
   const { stdout: json } = await run(process.execPath, [BIN, 'targets', '--reach', '--json'], { cwd: dir, maxBuffer: 16 * 1024 * 1024 });
   const parsed = JSON.parse(json);
   assert.deepEqual(parsed.input, { primary: 'stick', also: ['keyboard'] });
   assert.ok(parsed.reach.length >= 25);
-  assert.equal(parsed.reach.find((r) => r.id === 'nes').floor.length, 1);
+  assert.equal(parsed.reach.find((r) => r.id === 'nes').floor.length, 2);
 
   const bad = project("export default { entry: 'src/main.8bs', input: { primary: 'joystick' } };\n");
   await assert.rejects(run(process.execPath, [BIN, 'targets', '--reach'], { cwd: bad }), (error) => {

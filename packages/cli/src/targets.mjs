@@ -178,7 +178,7 @@ export async function targets(args) {
       }
     }
     const sheet = loadReach();
-    const rows = describeReach({ requires: required.requires, input: input.input, data: sheet });
+    const rows = describeReach({ config, requires: required.requires, input: input.input, data: sheet });
     if (args.includes('--json')) {
       process.stdout.write(`${JSON.stringify({ refreshed: sheet.refreshed, input: input.input, reach: rows }, null, 2)}\n`);
       return 0;
