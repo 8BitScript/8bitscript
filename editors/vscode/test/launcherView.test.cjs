@@ -70,16 +70,20 @@ test('the page runs: the inline script defines the stop icon, and the Studio but
     // The sliver opens the menu; an item launches Studio there; a click
     // anywhere else, or Escape, closes it.
     sandbox.window.dispatch('message', { data: { type: 'state', packages: [], projects: [], project: '', projectLabel: '', installed: true, packageManager: 'pnpm', systems: [], system: 'c64', systemTitle: 'c64', region: 'ntsc', regionLabel: '', machine: true, bootable: true, runnable: false, warning: null, fitted: '', subtitle: '', running: [], hint: '',
-      studio: { systems: [{ group: 'Advertised' }, { id: 'C64 with a mouse', label: 'C64 with a mouse', where: 'c64 · mouse', machine: true, runnable: true }, { group: 'Machines' }, { id: 'pet', label: 'pet — Commodore PET', machine: true, runnable: true }] } } });
+      studio: { systems: [{ group: 'In an editor tab' }, { id: 'tab', command: '8bitscript.openStudioTab', label: 'Commander X16', where: 'x16emu in the editor', machine: true, runnable: true }, { group: 'Advertised' }, { id: 'C64 with a mouse', label: 'C64 with a mouse', where: 'c64 · mouse', machine: true, runnable: true }, { group: 'Machines' }, { id: 'pet', label: 'pet — Commodore PET', machine: true, runnable: true }] } } });
     const menu = dom.getElementById('studio-menu');
     assert.equal(menu.hidden, true, 'closed until the sliver is clicked');
     dom.getElementById('studio-more').dispatch('click');
     assert.equal(menu.hidden, false);
     assert.equal(dom.getElementById('studio-more').getAttribute('aria-expanded'), 'true');
     const items = menu.children.filter((el) => el.className === 'menu-item');
-    assert.deepEqual(items.map((el) => el.dataset.id), ['C64 with a mouse', 'pet']);
-    assert.deepEqual(menu.children.filter((el) => el.className === 'menu-group').map((el) => el.textContent), ['Advertised', 'Machines']);
+    assert.deepEqual(items.map((el) => el.dataset.id), ['tab', 'C64 with a mouse', 'pet']);
+    assert.deepEqual(menu.children.filter((el) => el.className === 'menu-group').map((el) => el.textContent), ['In an editor tab', 'Advertised', 'Machines']);
+    assert.equal(items[0].textContent, 'Commander X16  —  x16emu in the editor');
     items[0].dispatch('click');
+    assert.deepEqual(plain(posted.at(-1)), { type: 'command', id: '8bitscript.openStudioTab', system: 'tab' }, 'the tab entry runs its own command');
+    dom.getElementById('studio-more').dispatch('click');
+    items[1].dispatch('click');
     assert.deepEqual(plain(posted.at(-1)), { type: 'command', id: '8bitscript.openStudio', system: 'C64 with a mouse' });
     assert.equal(menu.hidden, true, 'a pick closes the menu');
     dom.getElementById('studio-more').dispatch('click');
@@ -131,6 +135,10 @@ test('the view draws the Studio block and lets the page run openStudio, and only
     await tick();
     const picked = vscode.__mock.executedCommands.filter((c) => c.id === '8bitscript.openStudio').at(-1);
     assert.equal(picked.args[0].system, 'C64 with a mouse');
+    // The tab entry's command is on the list too.
+    view.webview.__fire({ type: 'command', id: '8bitscript.openStudioTab', system: 'tab' });
+    await tick();
+    assert.equal(vscode.__mock.executedCommands.filter((c) => c.id === '8bitscript.openStudioTab').length, 1);
 
     // An id the view does not list runs nothing, whatever the page says.
     const before = vscode.__mock.executedCommands.length;

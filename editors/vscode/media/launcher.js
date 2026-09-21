@@ -51,7 +51,7 @@ function renderStudioMenu(options) {
     item.addEventListener('click', (e) => {
       e.studioMenu = true;
       closeStudioMenu();
-      vscode.postMessage({ type: 'command', id: '8bitscript.openStudio', system: option.id });
+      vscode.postMessage({ type: 'command', id: option.command || '8bitscript.openStudio', system: option.id });
     });
     menu.appendChild(item);
   }

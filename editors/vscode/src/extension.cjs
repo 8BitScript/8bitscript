@@ -27,6 +27,7 @@ const { registerExtensionLink } = require('./extensionLink.cjs');
 const { registerRunner } = require('./runner.cjs');
 const { registerLauncherView } = require('./launcherView.cjs');
 const { registerControllerView } = require('./controllerView.cjs');
+const { registerStudioView } = require('./studioView.cjs');
 const { registerSystemView } = require('./systemView.cjs');
 const { registerProjectView } = require('./projectView.cjs');
 const { registerLanguageServer } = require('./lsp.cjs');
@@ -120,6 +121,7 @@ function activate(context) {
   // which project is selected, and what the toolchain says each machine
   // has — so it is handed the same Projects rather than building its own.
   registerControllerView(context, projects);
+  registerStudioView(context, projects);
   registerSystemView(context, projects);
   registerProjectView(context, projects);
 

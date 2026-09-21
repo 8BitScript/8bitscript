@@ -119,7 +119,7 @@ class LauncherViewProvider {
           '8bitscript.openEntry', '8bitscript.openConfig',
           '8bitscript.showProject', '8bitscript.configureSystem',
           '8bitscript.useLocal', '8bitscript.usePublished',
-          '8bitscript.openStudio',
+          '8bitscript.openStudio', '8bitscript.openStudioTab',
         ].includes(message.id)) {
           const project = this.selectedProject();
           await vscode.commands.executeCommand(message.id, {
@@ -349,7 +349,16 @@ async function studioOptions(projects, all) {
   const studio = all.find((p) => p.kind === 'app' && p.name === '@8bitscript/studio');
   if (!studio) return null;
   const targets = await projects.loadTargets(studio.dir);
-  return { systems: systemOptions(targets, studio) };
+  // First in the menu: the editor's own tab, which only the X16 can fill
+  // (the one machine with a WebAssembly emulator — `8bs run cx16 --web`).
+  // `command` names what a pick runs; every other entry runs openStudio.
+  return {
+    systems: [
+      { group: 'In an editor tab' },
+      { id: 'tab', command: '8bitscript.openStudioTab', label: 'Commander X16', where: 'x16emu in the editor', machine: true, runnable: studio.targets.includes('cx16') },
+      ...systemOptions(targets, studio),
+    ],
+  };
 }
 
 function systemOptions(targets, project) {
