@@ -38,7 +38,12 @@ test('launcher stylesheet names the panel it lays out', () => {
 
 test('the side bar updates 8BitScript and workspace programs, not each example', () => {
   const view = fs.readFileSync(path.join(ROOT, 'src', 'launcherView.cjs'), 'utf8');
-  assert.match(view, /8BitScript<\/h2>/);
+  // The view's title already says 8BitScript; the packages block has no
+  // label of its own, and is hidden until a root needs installing.
+  assert.doesNotMatch(view, /8BitScript<\/h2>/);
+  assert.match(view, /<section class="packages" id="packages-block" hidden>/);
+  assert.match(view, /\.filter\(\(status\) => !status\.installed\)/, 'only what needs doing is a row');
+  assert.match(JS, /\$\('packages-block'\)\.hidden = rows\.length === 0/);
   assert.match(view, />Program</);
   assert.doesNotMatch(view, />Project</);
   assert.doesNotMatch(view, /Projects and packages/);
@@ -67,7 +72,7 @@ test('packages sit above quick launch, and the hardware matrix is not in the sid
   assert.doesNotMatch(view, /details\.more/);
 });
 
-test('Open Studio is the largest button on the panel, above quick launch, with its own dropdown of Studio\'s systems', () => {
+test('Open Studio is the largest button on the panel, above quick launch: a split button whose sliver opens a menu of Studio\'s systems', () => {
   const view = fs.readFileSync(path.join(ROOT, 'src', 'launcherView.cjs'), 'utf8');
   const runner = fs.readFileSync(path.join(ROOT, 'src', 'runner.cjs'), 'utf8');
   const body = view.slice(view.indexOf('id="packages-block"'));
@@ -76,10 +81,13 @@ test('Open Studio is the largest button on the panel, above quick launch, with i
   assert.deepEqual([...order].sort((a, b) => a - b), order);
   assert.ok(order.every((i) => i > -1));
   assert.match(body, /class="launch studio" id="studio"/, 'the same launch shape as Run, marked as Studio');
-  assert.match(CSS, /\.studio-row > button\.launch\.studio \{[^}]*padding: 9px 12px/, 'and a little larger than it');
-  assert.match(body, /<select id="studio-system"/, 'the dropdown sits beside it');
-  assert.match(JS, /key: 'studioSystem', value: e\.target\.value/, 'and writes the pick to settings, like every choice on the panel');
-  assert.ok(MANIFEST.contributes.configuration.properties['8bitscript.studioSystem'], 'which is a declared setting');
+  assert.match(CSS, /\.split > button\.launch\.studio \{[^}]*padding: 8px 12px/, 'the same size as Run, in the secondary style so Run stays the one primary button');
+  assert.match(CSS, /\.split > button\.launch\.studio-more \{[\s\S]*?background: var\(--vscode-button-secondaryBackground\)/, 'no color of its own');
+  assert.match(body, /class="launch studio-more" id="studio-more"[^>]*aria-haspopup="menu"/, 'the sliver on its right edge');
+  assert.match(CSS, /\.split > button\.launch\.studio-more \{[^}]*width: 24px/, 'is a sliver');
+  assert.match(body, /<div class="menu" id="studio-menu" role="menu" hidden>/, 'and opens a menu');
+  assert.match(JS, /id: '8bitscript\.openStudio', system: option\.id/, 'whose items launch Studio on that system');
+  assert.equal(MANIFEST.contributes.configuration.properties['8bitscript.studioSystem'], undefined, 'nothing to remember: a pick is a launch');
   // The page names the command, the view allows it, and the command runs
   // Studio on cx16 — its baseline — with no picker and no change to the
   // panel's selection.

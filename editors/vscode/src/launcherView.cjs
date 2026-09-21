@@ -128,6 +128,8 @@ class LauncherViewProvider {
             name: message.name,
             packageManager: message.packageManager,
             toolchain: message.toolchain,
+            // Open Studio's sliver menu: the system to open it on.
+            system: message.system,
           });
         }
         return;
@@ -157,9 +159,6 @@ class LauncherViewProvider {
 
   async set(message) {
     switch (message.key) {
-      case 'studioSystem':
-        await settings.setStudioSystem(message.value);
-        break;
       case 'project': {
         await settings.setProject(message.value);
         // Picking a project loads what it is set up for: the first of its
@@ -341,26 +340,16 @@ function selectedSystemId(fitted, named, machine) {
  * CLI would have refused a target it did not recognize long before here.
  */
 /**
- * The Studio button's own dropdown: every named system Studio's config
- * lists (`8bs targets --json` for the app, cached like any project's),
- * with the setting that picks one — '' for the baseline, the X16, which
- * is also what the runner falls back to. Null when Studio is not
- * installed, and the page says so.
+ * The Studio button's sliver menu: the same list the System chooser
+ * below offers, built for Studio — its named systems by origin, then the
+ * bare machines — so a pick launches Studio there and then. Null when
+ * Studio is not installed, and the page says so.
  */
 async function studioOptions(projects, all) {
   const studio = all.find((p) => p.kind === 'app' && p.name === '@8bitscript/studio');
   if (!studio) return null;
   const targets = await projects.loadTargets(studio.dir);
-  const systems = (targets?.systems ?? []).map((system) => ({
-    id: system.name,
-    label: system.name,
-    target: system.target,
-  }));
-  const selected = settings.getStudioSystem();
-  return {
-    systems: [{ id: '', label: 'Commander X16 (baseline)', target: 'cx16' }, ...systems.filter((s) => s.target !== 'cx16' || s.id !== 'Commander X16')],
-    selected: systems.some((s) => s.id === selected) ? selected : '',
-  };
+  return { systems: systemOptions(targets, studio) };
 }
 
 function systemOptions(targets, project) {
@@ -397,8 +386,14 @@ function systemOptions(targets, project) {
   return options;
 }
 
+/**
+ * The rows the packages block shows: only a root that needs installing.
+ * The view's title already says 8BitScript, and a row that only offers
+ * an update nobody asked for is a row to read past; the palette's
+ * "8BitScript: Install Dependencies" updates on request.
+ */
 function packageRows({ folders, setting, managed, projects }) {
-  return installRoots({ folders, setting, managed, projects }).map((status) => ({
+  return installRoots({ folders, setting, managed, projects }).filter((status) => !status.installed).map((status) => ({
     dir: status.dir,
     kind: status.kind,
     label: status.label,
@@ -446,6 +441,8 @@ const ICONS = {
   build: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M10 1a4 4 0 0 0-3.8 5.2L1.4 11a1.4 1.4 0 0 0 2 2l4.8-4.8A4 4 0 1 0 10 1zm0 1.5c.4 0 .8.1 1.1.3L9.3 4.6l1.1 1.1 1.8-1.8A2.5 2.5 0 0 1 10 7.5c-.4 0-.8-.1-1.1-.3l-.6-.3-5 5a.4.4 0 0 1-.5-.5l5-5-.3-.6A2.5 2.5 0 0 1 10 2.5z"/></svg>',
   file: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M9.5 1H3.8C3.4 1 3 1.4 3 1.9v12.2c0 .5.4.9.8.9h8.4c.4 0 .8-.4.8-.9V4.8L9.5 1zm0 1.6L11.9 5H9.5V2.6zM4 14V2h4.5v3.5c0 .3.2.5.5.5h3v8H4z"/></svg>',
   stop: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M4 4h8v8H4z"/></svg>',
+  // A small down-pointing chevron: the sliver on a split button.
+  chevron: '<svg viewBox="0 0 16 16" width="10" height="10" aria-hidden="true"><path fill="currentColor" d="M2.5 5.5 8 11l5.5-5.5-1.4-1.4L8 8.2 3.9 4.1z"/></svg>',
   // Studio: a screen on a stand, with a brush across it — the asset
   // editor, as opposed to `play`'s run of the project.
   studio: '<svg viewBox="0 0 16 16" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M1.5 2h13a.5.5 0 0 1 .5.5v8a.5.5 0 0 1-.5.5H9v1.5h2.5V14h-7v-1.5H7V11H1.5a.5.5 0 0 1-.5-.5v-8a.5.5 0 0 1 .5-.5zM2 3v7h12V3H2zm8.6 1.2 1.2 1.2-3.6 3.6-1.6.4.4-1.6 3.6-3.6z"/></svg>',
@@ -473,23 +470,23 @@ function html(webview) {
     <button class="wide" id="reload-window" hidden>Reload this window</button>
   </div>
 
-  <section class="packages" id="packages-block">
-    <h2 class="section-label">8BitScript</h2>
+  <section class="packages" id="packages-block" hidden>
     <div id="package-rows"></div>
   </section>
 
   <section class="studio-block">
     <h2 class="section-label">Studio</h2>
-    <div class="control studio-row">
-      <button class="launch studio" id="studio" title="Open Studio — the asset editor that ships with the toolchain — on the system picked beside it; not a run of this project">
+    <div class="split">
+      <button class="launch studio" id="studio" title="Open Studio — the asset editor that ships with the toolchain — on the Commander X16, the machine it is designed on; not a run of this project">
         ${ICONS.studio}
         <span class="launch-text">
           <span class="launch-title">Open Studio</span>
           <span class="launch-sub" id="studio-sub">on the Commander X16</span>
         </span>
       </button>
-      <select id="studio-system" title="Which of Studio's systems to open it on"></select>
+      <button class="launch studio-more" id="studio-more" title="Open Studio on another system" aria-haspopup="menu" aria-expanded="false">${ICONS.chevron}</button>
     </div>
+    <div class="menu" id="studio-menu" role="menu" hidden></div>
   </section>
 
   <section class="launch-block">

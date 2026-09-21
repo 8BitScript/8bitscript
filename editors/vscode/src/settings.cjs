@@ -55,19 +55,6 @@ function getNamedSystem() {
 }
 const setNamedSystem = (name) => update('namedSystem', name ?? '');
 
-/**
- * Which of Studio's own named systems the side bar's Open Studio button
- * opens it on, or '' for its baseline, the Commander X16. A name from
- * Studio's 8bs.config.ts `systems`, the same list the rocket's picker
- * offers; runner.cjs falls back to cx16 when the name is not one of them.
- *
- * @returns {string}
- */
-function getStudioSystem() {
-  const value = config().get('studioSystem');
-  return typeof value === 'string' ? value : '';
-}
-const setStudioSystem = (name) => update('studioSystem', name ?? '');
 
 /**
  * A local 8BitScript checkout to run instead of published packages, or
@@ -187,7 +174,7 @@ async function setHardware(system, selection) {
 
 /** True when a change event touches any of the run settings. */
 function affectsAny(event) {
-  return ['region', 'system', 'project', 'hardware', 'webLan', 'namedSystem', 'checkout', 'studioSystem'].some((key) =>
+  return ['region', 'system', 'project', 'hardware', 'webLan', 'namedSystem', 'checkout'].some((key) =>
     event.affectsConfiguration(`${SECTION}.${key}`),
   );
 }
@@ -209,7 +196,6 @@ module.exports = {
   getProject,
   getRegion,
   getShowExamples,
-  getStudioSystem,
   getSystem,
   getWebLan,
   regionShort,
@@ -218,7 +204,6 @@ module.exports = {
   setHardware,
   setNamedSystem,
   setProject,
-  setStudioSystem,
   setRegion,
   setShowExamples,
   setSystem,

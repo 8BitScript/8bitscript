@@ -63,12 +63,31 @@ test('the page runs: the inline script defines the stop icon, and the Studio but
   const inline = path.join(dir, 'inline.js');
   fs.writeFileSync(inline, "const ICON_STOP = '<svg></svg>';\n");
   try {
-    const { dom, posted } = runWebviewScripts([inline, LAUNCHER_JS]);
+    const { dom, sandbox, posted } = runWebviewScripts([inline, LAUNCHER_JS]);
     assert.deepEqual(plain(posted), [{ type: 'ready' }], 'the page announces itself and nothing else on load');
     dom.getElementById('studio').dispatch('click');
     assert.deepEqual(plain(posted.at(-1)), { type: 'command', id: '8bitscript.openStudio' });
-    dom.getElementById('studio-system').dispatch('change', { target: { value: 'C64 with a mouse' } });
-    assert.deepEqual(plain(posted.at(-1)), { type: 'set', key: 'studioSystem', value: 'C64 with a mouse' });
+    // The sliver opens the menu; an item launches Studio there; a click
+    // anywhere else, or Escape, closes it.
+    sandbox.window.dispatch('message', { data: { type: 'state', packages: [], projects: [], project: '', projectLabel: '', installed: true, packageManager: 'pnpm', systems: [], system: 'c64', systemTitle: 'c64', region: 'ntsc', regionLabel: '', machine: true, bootable: true, runnable: false, warning: null, fitted: '', subtitle: '', running: [], hint: '',
+      studio: { systems: [{ group: 'Advertised' }, { id: 'C64 with a mouse', label: 'C64 with a mouse', where: 'c64 · mouse', machine: true, runnable: true }, { group: 'Machines' }, { id: 'pet', label: 'pet — Commodore PET', machine: true, runnable: true }] } } });
+    const menu = dom.getElementById('studio-menu');
+    assert.equal(menu.hidden, true, 'closed until the sliver is clicked');
+    dom.getElementById('studio-more').dispatch('click');
+    assert.equal(menu.hidden, false);
+    assert.equal(dom.getElementById('studio-more').getAttribute('aria-expanded'), 'true');
+    const items = menu.children.filter((el) => el.className === 'menu-item');
+    assert.deepEqual(items.map((el) => el.dataset.id), ['C64 with a mouse', 'pet']);
+    assert.deepEqual(menu.children.filter((el) => el.className === 'menu-group').map((el) => el.textContent), ['Advertised', 'Machines']);
+    items[0].dispatch('click');
+    assert.deepEqual(plain(posted.at(-1)), { type: 'command', id: '8bitscript.openStudio', system: 'C64 with a mouse' });
+    assert.equal(menu.hidden, true, 'a pick closes the menu');
+    dom.getElementById('studio-more').dispatch('click');
+    sandbox.window.dispatch('click', {});
+    assert.equal(menu.hidden, true, 'a click elsewhere closes it');
+    dom.getElementById('studio-more').dispatch('click');
+    sandbox.window.dispatch('keydown', { key: 'Escape' });
+    assert.equal(menu.hidden, true, 'so does Escape');
     // The buttons beside it still say what they always said.
     dom.getElementById('run').dispatch('click');
     assert.deepEqual(plain(posted.at(-1)), { type: 'launch', action: 'run' });
@@ -97,21 +116,21 @@ test('the view draws the Studio block and lets the page run openStudio, and only
     assert.match(html, /Open Studio/);
     assert.ok(html.indexOf('id="studio"') < html.indexOf('for="project"'), 'Studio sits above the quick launch fields');
     assert.match(html, /<svg viewBox="0 0 16 16" width="20" height="20"[^>]*><path fill="currentColor" d="M1\.5 2h13/, 'with its own, larger icon');
-    assert.match(html, /<select id="studio-system"/, 'and the dropdown of its systems');
+    assert.match(html, /id="studio-more"/, 'and the sliver that opens the menu of its systems');
     // The state the page was sent says Studio is not installed here.
     const state = view.posted.find((m) => m.type === 'state');
     assert.equal(state.studio, null, 'no Studio app in an empty workspace');
-
-    // The dropdown's pick is a setting, like every choice on the panel.
-    view.webview.__fire({ type: 'set', key: 'studioSystem', value: 'C64 with a mouse' });
-    await tick();
-    assert.equal(vscode.__mock.configStore.get('studioSystem'), 'C64 with a mouse');
 
     // What the page posts, the view runs — through the allow-list.
     view.webview.__fire({ type: 'command', id: '8bitscript.openStudio' });
     await tick();
     const ran = vscode.__mock.executedCommands.filter((c) => c.id === '8bitscript.openStudio');
     assert.equal(ran.length, 1, 'openStudio reached vscode.commands once');
+    // A menu pick carries the system through to the command.
+    view.webview.__fire({ type: 'command', id: '8bitscript.openStudio', system: 'C64 with a mouse' });
+    await tick();
+    const picked = vscode.__mock.executedCommands.filter((c) => c.id === '8bitscript.openStudio').at(-1);
+    assert.equal(picked.args[0].system, 'C64 with a mouse');
 
     // An id the view does not list runs nothing, whatever the page says.
     const before = vscode.__mock.executedCommands.length;
