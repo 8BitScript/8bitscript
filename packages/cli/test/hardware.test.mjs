@@ -48,7 +48,7 @@ test('stock X16 run captures the host mouse, the same job VICE -mouse does for a
   // absolute so the arrow leaves the picture before the host cursor hits
   // the window edge. Ctrl+M toggles the same grab.
   const { hardware } = resolveHardware(loadCatalog('cx16'));
-  assert.deepEqual(hardware.run.x16emu, ['-ram', '512'], 'no -capture: the pointer roams in and out of the window, x16emu\'s own default');
+  assert.deepEqual(hardware.run.x16emu, ['-ram', '512', '-capture'], '-capture on purpose: uncaptured, the KERNAL mouse gets relative motion and drifts from the host pointer (#230, reverted)');
 });
 
 test('the catalog defaults are the stock machine: no tags, no build values, and the presets that existed as --profile names still do', () => {

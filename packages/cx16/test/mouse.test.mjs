@@ -27,11 +27,12 @@ test('the package exports ./mouse, and the catalog says the stock machine has on
   assert.equal(pkg['8bitscript'].exports['./mouse'], './src/mouse.8bs');
   assert.equal(stockFacts('cx16')['input.mouse'], true);
   assert.equal(loadCatalog('cx16').facts['input.mouse'], true);
-  // No -capture: x16emu starts uncaptured, the host pointer drives the
-  // KERNAL mouse while it is over the window and leaves freely — Studio
-  // sits beside the editor — and Shift+Cmd+M (Ctrl+M elsewhere) captures
-  // on request, for a program that wants the mouse confined.
-  assert.deepEqual(loadCatalog('cx16').run.x16emu, []);
+  // -capture on purpose (tried without, 2026-09-21, #230, reverted): an
+  // uncaptured x16emu feeds the KERNAL mouse relative motion, so the
+  // emulated pointer and the host pointer drift apart and the tracking
+  // is unusable. Captured, the two agree; Shift+Cmd+M (Ctrl+M on
+  // Linux/Windows) releases the mouse to leave the window.
+  assert.deepEqual(loadCatalog('cx16').run.x16emu, ['-capture']);
 });
 
 test('the probe program links clean for the X16, and mouse.begin() is a real function in the IR', () => {
