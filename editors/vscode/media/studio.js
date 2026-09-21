@@ -14,16 +14,30 @@ const $ = (id) => document.getElementById(id);
 /** The last state the host posted. Null until the first one arrives. */
 let state = null;
 
+/**
+ * How the emulator was launched, as its page reports (`mode`): with
+ * `-capture` a click on the screen takes the mouse; with the stock free
+ * launch only the emulator's own grab key does. Null until reported.
+ */
+let mode = null;
+
 const MOUSE = {
-  idle: 'Click the screen to give Studio the mouse; Esc gives it back.',
   captured: 'Studio has the mouse — Esc gives it back.',
-  free: 'The mouse is yours — click the screen to give it to Studio.',
   refused: 'This tab isn’t allowed to capture the mouse — use Open in browser.',
 };
 
+function grabHint() {
+  if (mode && !mode.captured) return (mode.grabKey || 'Ctrl+M') + ' on the screen gives it to Studio for exact tracking';
+  return 'click the screen to give it to Studio';
+}
+
 function mouse(kind) {
   const line = $('mouse');
-  line.textContent = MOUSE[kind];
+  line.textContent = kind === 'idle'
+    ? 'Your mouse is free — ' + grabHint() + '; Esc gives it back.'
+    : kind === 'free'
+      ? 'The mouse is yours — ' + grabHint() + '.'
+      : MOUSE[kind];
   line.classList.toggle('warn', kind === 'refused');
   line.hidden = !state || state.phase !== 'running';
 }
@@ -54,6 +68,10 @@ window.addEventListener('message', (event) => {
   const frame = $('frame');
   // The emulator page, and only it: same window as the frame we made.
   if (data.source === '8bs-x16emu' && frame && frame.contentWindow && event.source === frame.contentWindow) {
+    if (data.type === 'mode') {
+      mode = { captured: Boolean(data.captured), grabKey: typeof data.grabKey === 'string' ? data.grabKey : 'Ctrl+M' };
+      mouse('idle');
+    }
     if (data.type === 'pointerlock') mouse(data.error ? 'refused' : data.locked ? 'captured' : 'free');
     return;
   }

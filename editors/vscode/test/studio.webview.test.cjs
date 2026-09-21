@@ -31,16 +31,24 @@ test('the Studio page: state drives the bar, the frame\'s reports drive the mous
   assert.equal($('restart').disabled, false);
   assert.equal($('empty').hidden, true);
   assert.equal($('mouse').hidden, false);
-  assert.match($('mouse').textContent, /^Click the screen to give Studio the mouse/);
+  assert.equal($('mouse').textContent, 'Your mouse is free — click the screen to give it to Studio; Esc gives it back.', 'before the page says how it was launched');
 
   // The frame's window is the only source the mouse line listens to.
   const frame = $('frame');
   frame.contentWindow = { frame: true };
   frame.src = 'http://127.0.0.1:2222/';
   sandbox.window.dispatch('message', { source: { other: true }, data: { source: '8bs-x16emu', type: 'pointerlock', locked: true, error: null } });
-  assert.match($('mouse').textContent, /^Click the screen/, 'a stranger\'s message changes nothing');
+  assert.match($('mouse').textContent, /^Your mouse is free/, 'a stranger\'s message changes nothing');
+  // The stock launch is free: the grab key, not a click, gives Studio the mouse.
+  sandbox.window.dispatch('message', { source: frame.contentWindow, data: { source: '8bs-x16emu', type: 'mode', captured: false, grabKey: 'Ctrl+M' } });
+  assert.equal($('mouse').textContent, 'Your mouse is free — Ctrl+M on the screen gives it to Studio for exact tracking; Esc gives it back.');
   sandbox.window.dispatch('message', { source: frame.contentWindow, data: { source: '8bs-x16emu', type: 'pointerlock', locked: true, error: null } });
   assert.equal($('mouse').textContent, 'Studio has the mouse — Esc gives it back.');
+  sandbox.window.dispatch('message', { source: frame.contentWindow, data: { source: '8bs-x16emu', type: 'pointerlock', locked: false, error: null } });
+  assert.equal($('mouse').textContent, 'The mouse is yours — Ctrl+M on the screen gives it to Studio for exact tracking.');
+  // A captured launch: a click does it.
+  sandbox.window.dispatch('message', { source: frame.contentWindow, data: { source: '8bs-x16emu', type: 'mode', captured: true } });
+  assert.equal($('mouse').textContent, 'Your mouse is free — click the screen to give it to Studio; Esc gives it back.');
   sandbox.window.dispatch('message', { source: frame.contentWindow, data: { source: '8bs-x16emu', type: 'pointerlock', locked: false, error: null } });
   assert.equal($('mouse').textContent, 'The mouse is yours — click the screen to give it to Studio.');
   assert.equal($('mouse').classList.contains('warn'), false);
@@ -53,7 +61,7 @@ test('the Studio page: state drives the bar, the frame\'s reports drive the mous
   // Reset reloads the frame in place; the others go to the host.
   $('restart').dispatch('click');
   assert.equal(frame.src, 'http://127.0.0.1:2222/');
-  assert.match($('mouse').textContent, /^Click the screen/);
+  assert.match($('mouse').textContent, /^Your mouse is free/);
   $('rebuild').dispatch('click');
   $('stop').dispatch('click');
   $('browser').dispatch('click');

@@ -258,9 +258,11 @@ SYSTEM
   as the window; the CLI downloads it once), and the **Studio** tab
   frames it, with **Reset** (boot the same build again), **Rebuild**,
   **Stop** and **Open in browser** above the screen. Closing the tab
-  ends the run. The mouse in the tab is the browser's pointer lock — a
-  click on the screen gives it to Studio, Esc gives it back — and the
-  line under the bar says which it is. Whether an editor lets a framed
+  ends the run. The mouse in the tab follows the launch, as in the
+  window: the stock X16 launch leaves it free, and Ctrl+M on the screen
+  (on every platform, in the browser) gives it to Studio for exact
+  tracking; a launch with `-capture` gives it on a click. Esc gives it
+  back either way, and the line under the bar says which it is. Whether an editor lets a framed
   page capture the mouse at all is the editor's to decide: if the tab
   says it isn't allowed to, **Open in browser** opens the same URL in
   your browser, where it is. X16 only — the one machine with a
