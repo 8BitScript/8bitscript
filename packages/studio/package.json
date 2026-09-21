@@ -22,6 +22,7 @@
   "scripts": {
     "start": "8bs run cx16",
     "start:cx16": "8bs run cx16",
+    "start:cx16-web": "8bs run cx16 --web",
     "start:c64": "8bs run c64",
     "start:c128": "8bs run c128",
     "start:mega65": "8bs run mega65",

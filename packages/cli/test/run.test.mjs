@@ -62,6 +62,12 @@ test('run() returns 2 and writes the error when --frames is not a number', async
   assert.match(stderr, /^8bs run: --frames expects a number, got 'soon'/);
 });
 
+test('run() --web on a target with no WebAssembly emulator says so before building anything', async () => {
+  const { result, stderr } = await capture(() => run(['pet', '--web']));
+  assert.equal(result, 2);
+  assert.match(stderr, /--web runs a WebAssembly emulator in the browser, and only the Commander X16 has one \(cx16\); 'pet' does not yet/);
+});
+
 test('run() with no target prints usage and returns 2', async () => {
   const { result, stdout, stderr } = await capture(() => run(['--pal']));
   assert.equal(result, 2);
@@ -71,6 +77,7 @@ test('run() with no target prints usage and returns 2', async () => {
   assert.match(stderr, /\[--lan\]/, 'run --lan is the web LAN HTTPS listener');
   assert.match(stderr, /\[--local\]/, 'run --local is loopback-only');
   assert.match(stderr, /\[--port <n>\]/, 'run --port is the web listen port');
+  assert.match(stderr, /\[--web\]  cx16 only: the same x16emu as WebAssembly, in the browser/, 'run --web is the X16 in a tab');
 });
 
 test('run() with a baseline and a mistyped machine still prints usage, not the baseline', async () => {
