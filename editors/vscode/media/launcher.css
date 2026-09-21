@@ -152,13 +152,81 @@ button.icon svg { width: 14px; height: 14px; }
   white-space: nowrap;
 }
 /* Studio's button is the largest on the panel — a utility you reach for
-   beside the project, not one more action on it — with its own dropdown
-   of Studio's systems on its right. */
-.studio-block { margin: 4px 0 12px; }
-.studio-row { align-items: stretch; }
-.studio-row > button.launch.studio { flex: 1; width: auto; padding: 9px 12px; gap: 10px; }
-.studio-row > select { flex: 0 0 42%; }
+   beside the project, not one more action on it — in the secondary
+   style, so Run below stays the one primary button. It is a split
+   button: the sliver on its right edge, a small chevron, opens a menu of
+   the systems Studio can open on. Every color is the editor's own. */
+.studio-block { position: relative; margin: 4px 0 12px; }
+.split { display: flex; align-items: stretch; }
+.split > button.launch.studio,
+.split > button.launch.studio-more {
+  color: var(--vscode-button-secondaryForeground);
+  background: var(--vscode-button-secondaryBackground);
+  border: 1px solid var(--vscode-widget-border, var(--vscode-dropdown-border, transparent));
+}
+.split > button.launch.studio:hover,
+.split > button.launch.studio-more:hover,
+.split > button.launch.studio-more[aria-expanded="true"] {
+  background: var(--vscode-button-secondaryHoverBackground);
+}
+.split > button.launch.studio {
+  flex: 1;
+  width: auto;
+  padding: 8px 12px;
+  gap: 10px;
+  border-right: none;
+  border-radius: 3px 0 0 3px;
+}
+.split > button.launch.studio svg { opacity: 0.9; }
 button.launch.studio .launch-title { font-size: 13px; }
+button.launch.studio .launch-sub { opacity: 0.75; }
+.split > button.launch.studio-more {
+  flex: 0 0 auto;
+  width: 24px;
+  padding: 0;
+  justify-content: center;
+  border-left: 1px solid var(--vscode-widget-border, var(--vscode-dropdown-border, transparent));
+  border-radius: 0 3px 3px 0;
+}
+.menu {
+  position: absolute;
+  z-index: 10;
+  left: 0;
+  right: 0;
+  margin-top: 2px;
+  padding: 4px 0;
+  max-height: 60vh;
+  overflow-y: auto;
+  background: var(--vscode-menu-background, var(--vscode-dropdown-background));
+  color: var(--vscode-menu-foreground, var(--vscode-dropdown-foreground));
+  border: 1px solid var(--vscode-menu-border, var(--vscode-dropdown-border));
+  border-radius: 4px;
+  box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+}
+.menu-group {
+  padding: 4px 10px 2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+.menu-item {
+  display: block;
+  width: 100%;
+  padding: 4px 10px;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.menu-item:hover, .menu-item:focus-visible {
+  outline: none;
+  color: var(--vscode-menu-selectionForeground, var(--vscode-list-activeSelectionForeground));
+  background: var(--vscode-menu-selectionBackground, var(--vscode-list-activeSelectionBackground));
+}
 .launch-block { margin-top: 4px; }
 .launch-actions { margin-top: 8px; }
 .launch-actions .wide { margin-top: 0; flex: 1; }

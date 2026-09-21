@@ -28,6 +28,45 @@ function fill(select, options, selected) {
   }
 }
 
+/** The sliver menu under Open Studio: a group label or an item per row, the System chooser's own list shape. */
+function renderStudioMenu(options) {
+  const menu = $('studio-menu');
+  menu.textContent = '';
+  for (const option of options) {
+    if (option.group) {
+      const group = document.createElement('div');
+      group.className = 'menu-group';
+      group.textContent = option.group;
+      menu.appendChild(group);
+      continue;
+    }
+    const item = document.createElement('button');
+    item.className = 'menu-item';
+    item.setAttribute('role', 'menuitem');
+    item.dataset.id = option.id;
+    item.textContent = option.where && option.where !== option.label
+      ? option.label + '  —  ' + option.where
+      : option.label;
+    if (option.short) item.textContent += '  (too small)';
+    item.addEventListener('click', (e) => {
+      e.studioMenu = true;
+      closeStudioMenu();
+      vscode.postMessage({ type: 'command', id: '8bitscript.openStudio', system: option.id });
+    });
+    menu.appendChild(item);
+  }
+}
+
+function openStudioMenu() {
+  $('studio-menu').hidden = false;
+  $('studio-more').setAttribute('aria-expanded', 'true');
+}
+
+function closeStudioMenu() {
+  $('studio-menu').hidden = true;
+  $('studio-more').setAttribute('aria-expanded', 'false');
+}
+
 function renderPackages(rows) {
   const root = $('package-rows');
   root.textContent = '';
@@ -55,12 +94,10 @@ function renderPackages(rows) {
     row.append(name, detail, install);
     root.appendChild(row);
   }
-  if (rows.length === 0) {
-    const none = document.createElement('p');
-    none.className = 'none';
-    none.textContent = 'Install 8BitScript to run Studio and the examples.';
-    root.appendChild(none);
-  }
+  // Only what needs doing is listed; with everything installed the block
+  // is not there at all (8BitScript: Install Dependencies on the palette
+  // still updates on request).
+  $('packages-block').hidden = rows.length === 0;
 }
 
 /** The Running machines section: one expandable tree per `8bs run`/`boot`. */
@@ -218,11 +255,11 @@ window.addEventListener('message', ({ data }) => {
   fill($('system'), data.systems, data.system);
   // Studio's own dropdown, and the button's line says what it will open.
   const studio = data.studio;
-  fill($('studio-system'), studio ? studio.systems : [{ id: '', label: 'Studio is not installed' }], studio ? studio.selected : '');
-  $('studio-system').disabled = !studio;
   $('studio').disabled = !studio;
-  const picked = studio ? studio.systems.find((s) => s.id === studio.selected) : null;
-  $('studio-sub').textContent = picked ? ('on ' + picked.label.replace(' (baseline)', '')) : 'not installed';
+  $('studio-more').disabled = !studio;
+  $('studio-sub').textContent = studio ? 'on the Commander X16' : 'not installed';
+  renderStudioMenu(studio ? studio.systems : []);
+  closeStudioMenu();
 
   $('run-title').textContent = empty ? 'Run' : 'Run ' + data.projectLabel;
   $('run-sub').textContent = data.subtitle
@@ -268,7 +305,14 @@ window.addEventListener('message', ({ data }) => {
 $('project').addEventListener('change', (e) => vscode.postMessage({ type: 'set', key: 'project', value: e.target.value }));
 $('system').addEventListener('change', (e) => vscode.postMessage({ type: 'set', key: 'system', value: e.target.value }));
 $('studio').addEventListener('click', () => vscode.postMessage({ type: 'command', id: '8bitscript.openStudio' }));
-$('studio-system').addEventListener('change', (e) => vscode.postMessage({ type: 'set', key: 'studioSystem', value: e.target.value }));
+$('studio-more').addEventListener('click', (e) => {
+  e.studioMenu = true;
+  if ($('studio-menu').hidden) openStudioMenu(); else closeStudioMenu();
+});
+// A click anywhere else, or Escape, closes the menu; the sliver and the
+// menu's own items mark their events so this leaves them alone.
+window.addEventListener('click', (e) => { if (!e.studioMenu) closeStudioMenu(); });
+window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeStudioMenu(); });
 $('run').addEventListener('click', () => vscode.postMessage({ type: 'launch', action: 'run' }));
 $('build').addEventListener('click', () => vscode.postMessage({ type: 'launch', action: 'build' }));
 $('boot').addEventListener('click', () => vscode.postMessage({ type: 'launch', action: 'boot' }));
