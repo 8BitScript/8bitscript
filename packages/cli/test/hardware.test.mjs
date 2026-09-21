@@ -43,12 +43,11 @@ test('every machine has a catalog; every value names only its own emulator, and 
 });
 
 test('stock X16 run captures the host mouse, the same job VICE -mouse does for a 1351', () => {
-  // x16emu's -capture is mouse grab. Without it the KERNAL pointer only
-  // tracks while the host cursor is over the window, and the mapping is
-  // absolute so the arrow leaves the picture before the host cursor hits
-  // the window edge. Ctrl+M toggles the same grab.
+  // x16emu starts with the mouse free: no -capture in the stock launch
+  // (packages/cx16/AGENTS.md has the history). Ctrl+M / Shift+Cmd+M grabs
+  // it when the tracking has to be exact.
   const { hardware } = resolveHardware(loadCatalog('cx16'));
-  assert.deepEqual(hardware.run.x16emu, ['-ram', '512', '-capture'], '-capture on purpose: uncaptured, the KERNAL mouse gets relative motion and drifts from the host pointer (#230, reverted)');
+  assert.deepEqual(hardware.run.x16emu, ['-ram', '512'], 'the mouse is free at launch, on purpose');
 });
 
 test('the catalog defaults are the stock machine: no tags, no build values, and the presets that existed as --profile names still do', () => {
