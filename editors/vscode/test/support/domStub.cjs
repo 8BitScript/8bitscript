@@ -56,6 +56,11 @@ function createElement(tag) {
     append(...nodes) {
       for (const node of nodes) el.appendChild(node);
     },
+    replaceChildren(...nodes) {
+      el.children = [];
+      el._text = '';
+      for (const node of nodes) el.appendChild(node);
+    },
     setAttribute(name, value) {
       el.attributes[name] = String(value);
     },

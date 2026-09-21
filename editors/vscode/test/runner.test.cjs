@@ -594,7 +594,7 @@ test('registerRunner: openStudio runs Studio on the X16 with no picker and no ch
   }
 });
 
-test('registerRunner: openStudio opens Studio on the system the dropdown picked, and falls back to the X16 for a name Studio no longer lists', async () => {
+test('registerRunner: openStudio opens Studio on the system the menu named — a named system or a bare machine — and on the X16 for one it no longer lists', async () => {
   const dir = tmpDir();
   try {
     vscode.__mock.reset();
@@ -605,18 +605,21 @@ test('registerRunner: openStudio opens Studio on the system the dropdown picked,
         kind: 'app', name: '@8bitscript/studio', title: 'Studio', toolchain: cli, installed: true,
       })];
       // The fake CLI lists one named system for the app: "Named C64".
-      vscode.__mock.configStore.set('studioSystem', 'Named C64');
-      await vscode.__mock.trigger('8bitscript.openStudio');
+      await vscode.__mock.trigger('8bitscript.openStudio', { system: 'Named C64' });
       await tick();
       let executed = vscode.__mock.executedTasks.at(-1);
       assert.equal(executed.task.definition.target, 'c64');
       assert.match(executed.task.name, /Named C64/);
 
-      vscode.__mock.configStore.set('studioSystem', 'A system Studio forgot');
-      await vscode.__mock.trigger('8bitscript.openStudio');
+      await vscode.__mock.trigger('8bitscript.openStudio', { system: 'pet' });
       await tick();
       executed = vscode.__mock.executedTasks.at(-1);
-      assert.equal(executed.task.definition.target, 'cx16', 'the baseline, when the pick is stale');
+      assert.equal(executed.task.definition.target, 'pet', 'a bare machine from the Machines group');
+
+      await vscode.__mock.trigger('8bitscript.openStudio', { system: 'A system Studio forgot' });
+      await tick();
+      executed = vscode.__mock.executedTasks.at(-1);
+      assert.equal(executed.task.definition.target, 'cx16', 'the baseline, when the name is stale');
     });
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });

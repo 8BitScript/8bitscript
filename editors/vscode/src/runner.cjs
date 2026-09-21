@@ -45,6 +45,9 @@ const {
   systemLine,
   withShipped,
 } = require('./projects.cjs');
+const { ALL_TARGETS: STUDIO_MACHINES } = require('./projects.cjs');
+/** The bare machine ids the Studio menu can name, as opposed to a named system. */
+const MACHINES_FOR_STUDIO = new Set(STUDIO_MACHINES);
 const settings = require('./settings.cjs');
 const { selectionLabel, parseTargets } = require('./hardwareCatalog.cjs');
 const { fetchStatus, livePollPlan, readLastRun, rowKey } = require('./runningMachines.cjs');
@@ -1069,17 +1072,21 @@ function registerRunner(context, output) {
   // no picker and no change to what the panel has selected — a utility
   // beside the project, not a run of it. The rocket above keeps the
   // picker for every other arrangement.
-  command('8bitscript.openStudio', async () => {
+  command('8bitscript.openStudio', async (node) => {
     if (projects.all.length === 0) await projects.refresh();
     const studio = ofKind(projects.all, 'app').find((p) => p.name === '@8bitscript/studio');
     if (!studio) {
       vscode.window.showInformationMessage('Studio is not installed. Install 8BitScript from the side bar, or install @8bitscript/cli in a project.');
       return;
     }
-    // The button's own dropdown picks one of Studio's named systems
-    // (settings.studioSystem); nothing picked, or a name Studio no longer
-    // lists, is its baseline.
-    const wanted = settings.getStudioSystem();
+    // The button's sliver menu names where to open it: one of Studio's
+    // named systems, or a bare machine; nothing named, or a name Studio
+    // no longer lists, is its baseline.
+    const wanted = typeof node?.system === 'string' ? node.system : '';
+    if (wanted && MACHINES_FOR_STUDIO.has(wanted)) {
+      await execute('run', { project: studio, target: wanted });
+      return;
+    }
     const system = wanted
       ? ((await projects.loadTargets(studio.dir))?.systems ?? []).find((entry) => entry.name === wanted)
       : null;
