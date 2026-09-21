@@ -44,7 +44,11 @@ test('the page hands Emscripten that argv, preloads the program, and keeps keys 
   assert.match(page, /onRuntimeInitialized: function \(\) \{ loading\.hidden = true; canvas\.focus\(\); \}/);
   assert.match(page, /<script async src="x16emu\.js"><\/script>/);
   assert.doesNotMatch(page, /var status\b/, 'window.status is a string; the overlay needs another name');
-  assert.match(page, /click the screen to give it the mouse · Esc gives it back/);
+  assert.match(page, /your mouse is free · Ctrl\+M on the screen gives it to the machine/, 'the stock launch has no -capture; Ctrl+M is the grab in the browser on every platform');
+  assert.match(page, /type: 'mode', captured: false, grabKey: 'Ctrl\+M'/);
+  const captured = renderEmulatorPage({ args: ['-capture', '-prg', PROGRAM_NAME, '-run'] });
+  assert.match(captured, /click the screen to give it the mouse · Esc gives it back/);
+  assert.match(captured, /type: 'mode', captured: true/);
   // A framing page (the editor's Studio tab) is told about pointer lock,
   // which it cannot observe across origins itself.
   assert.match(page, /source: '8bs-x16emu', type: 'pointerlock', locked: locked, error: error \|\| null/);

@@ -12,12 +12,14 @@
 // with only the .prg's path swapped for the name it has inside the
 // emulator's virtual filesystem. One list, both launches.
 //
-// Why a tab at all: the native x16emu runs captured (`-capture`, see
-// packages/cx16/AGENTS.md) and the mouse cannot leave its window without
-// ⇧⌘M. In a browser the same capture is the Pointer Lock API — a click on
-// the screen takes the mouse, Esc gives it back — and the tab can sit in
-// an editor beside the source. That is what the VS Code extension's
-// Studio tab embeds.
+// Why a tab at all: so Studio can sit in an editor beside the source. The
+// mouse follows the argv, as in the window (packages/cx16/AGENTS.md has
+// the history): with `-capture` the emulator's grab is the browser's
+// Pointer Lock API — a click on the screen takes the mouse, Esc gives it
+// back; without it (the stock launch) the mouse is free and the
+// emulator's own grab toggle — Ctrl+M in the browser, on every platform —
+// takes it for exact tracking. The page says which, and tells a framing
+// page (the extension's Studio tab) too.
 import { createReadStream } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
@@ -66,6 +68,7 @@ const escapeHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
  */
 export function renderEmulatorPage({ args, title = 'Commander X16', release = X16EMU_WASM_RELEASE }) {
   const argv = JSON.stringify(args).replace(/</g, '\\u003c');
+  const captured = args.includes('-capture');
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -87,7 +90,7 @@ export function renderEmulatorPage({ args, title = 'Commander X16', release = X1
   <canvas id="canvas" tabindex="1" oncontextmenu="event.preventDefault()"></canvas>
   <div id="status">Loading x16emu ${escapeHtml(release.tag)}…</div>
 </div>
-<p id="note">click the screen to give it the mouse · Esc gives it back</p>
+<p id="note">${captured ? 'click the screen to give it the mouse · Esc gives it back' : 'your mouse is free · Ctrl+M on the screen gives it to the machine for exact tracking, and again gives it back'}</p>
 <script>
   // Not 'status': at top level that is window.status, a string.
   var canvas = document.getElementById('canvas');
@@ -119,6 +122,12 @@ export function renderEmulatorPage({ args, title = 'Commander X16', release = X1
   }
   document.addEventListener('pointerlockchange', function () { tellParent(document.pointerLockElement === canvas, null); });
   document.addEventListener('pointerlockerror', function () { tellParent(false, 'pointer lock refused'); });
+  // Ctrl+M on every platform: in the browser the emulator's grab toggle
+  // answers Ctrl, not ⌘ (verified on a Mac — ⇧⌘M never reaches it here,
+  // Ctrl+M locks the pointer). The native window's ⇧⌘M is the window's.
+  if (window.parent !== window) {
+    window.parent.postMessage({ source: '8bs-x16emu', type: 'mode', captured: ${captured}, grabKey: 'Ctrl+M' }, '*');
+  }
 </script>
 <script async src="x16emu.js"></script>
 </body>

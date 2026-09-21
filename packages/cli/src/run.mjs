@@ -146,6 +146,12 @@ export const VICE_MODEL_ARGS = {
 // the same either way; `8bs run pet --pal` prints a note and changes
 // nothing. Verified with `xpet -verbose -limitcycles` and by whether
 // `-autostart` of a built `.prg` stays running.
+/** Said once per X16 launch: the window opens with the host mouse free
+ * (packages/cx16's stock launch has no `-capture`), and only the shortcut
+ * — never a click — hands the emulator the mouse. */
+export const CX16_MOUSE_NOTE = '8bs run: x16emu starts with your mouse free; '
+  + (process.platform === 'darwin' ? '⇧⌘M' : 'Ctrl+M') + ' gives it the mouse (exact tracking), and again gives it back.\n';
+
 export const PET_REGION_NOTE = '8bs run: the PET has no --pal/--ntsc — its refresh rate is the model\'s. '
   + 'Pick a model with --profile (3032 is ~60Hz; 4016, 4032 and 8032 are 50Hz).\n';
 
@@ -654,6 +660,7 @@ export async function run(args) {
       target, outFile, emulatorArgs: invocation.emulatorArgs, open, port: listenPort.port, writeLastRun,
     });
   }
+  if (target === 'cx16' && !invocation.emulatorArgs.includes('-capture')) process.stderr.write(CX16_MOUSE_NOTE);
   await writeLastRun(target, { emulator: invocation.emulator });
   return spawnEmulator(invocation.emulator, invocation.emulatorArgs);
 }

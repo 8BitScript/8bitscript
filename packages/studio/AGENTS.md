@@ -398,11 +398,11 @@ line here is **PROPOSED**.
   browser's x16emu — the WebAssembly build upstream ships, pinned and
   downloaded on first use (`packages/cli/src/setup/cx16-web.mjs`), served
   from loopback with the `.prg` (`packages/cli/src/web-emulator.mjs`).
-  Same argv as the window, so the same `-capture`: in the tab that is the
-  Pointer Lock API — a click on the screen takes the mouse, Esc gives it
-  back — which is as close to "the pointer wanders between Studio and the
-  editor" as an emulated PS/2 mouse gets (see the *captured* row in
-  `packages/cx16/AGENTS.md`). `--no-open` and `--port` apply; the URL is
+  Same argv as the window, so the same mouse: the stock launch has no
+  `-capture` (see the *mouse free* row in `packages/cx16/AGENTS.md`), so
+  the pointer is free in the tab too and the emulator's Ctrl+M (in the
+  browser, on every platform) grabs it for exact tracking; with `-capture` the grab is the Pointer
+  Lock API — a click takes the mouse, Esc gives it back. `--no-open` and `--port` apply; the URL is
   in `dist/.8bs-last-cx16.json` for the extension's Running machines
   tree. X16 only: no other target has a WebAssembly emulator wired up.
 - The VS Code extension's **Launch Studio** (command palette, or the
