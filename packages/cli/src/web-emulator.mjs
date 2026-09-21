@@ -109,6 +109,16 @@ export function renderEmulatorPage({ args, title = 'Commander X16', release = X1
     printErr: function (text) { console.error(text); },
   };
   canvas.addEventListener('webglcontextlost', function (e) { e.preventDefault(); loading.hidden = false; loading.textContent = 'WebGL context lost — reload the page'; });
+  // Whoever framed this page cannot see its pointer lock from outside
+  // (a cross-origin frame), so it is told: the editor's Studio tab turns
+  // these into its "mouse" line, and into "open in the browser" when the
+  // tab turns out not to be allowed to capture at all.
+  function tellParent(locked, error) {
+    if (window.parent === window) return;
+    window.parent.postMessage({ source: '8bs-x16emu', type: 'pointerlock', locked: locked, error: error || null }, '*');
+  }
+  document.addEventListener('pointerlockchange', function () { tellParent(document.pointerLockElement === canvas, null); });
+  document.addEventListener('pointerlockerror', function () { tellParent(false, 'pointer lock refused'); });
 </script>
 <script async src="x16emu.js"></script>
 </body>

@@ -45,6 +45,11 @@ test('the page hands Emscripten that argv, preloads the program, and keeps keys 
   assert.match(page, /<script async src="x16emu\.js"><\/script>/);
   assert.doesNotMatch(page, /var status\b/, 'window.status is a string; the overlay needs another name');
   assert.match(page, /click the screen to give it the mouse · Esc gives it back/);
+  // A framing page (the editor's Studio tab) is told about pointer lock,
+  // which it cannot observe across origins itself.
+  assert.match(page, /source: '8bs-x16emu', type: 'pointerlock', locked: locked, error: error \|\| null/);
+  assert.match(page, /document\.addEventListener\('pointerlockchange'/);
+  assert.match(page, /document\.addEventListener\('pointerlockerror'/);
 });
 
 test('the server answers the page, the program and the three emulator files, and nothing else', async () => {
