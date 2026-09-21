@@ -285,4 +285,8 @@ test('the 8bs task type offers every target this release builds for', () => {
   const { ALL_TARGETS } = require('../src/projects.cjs');
   const definition = MANIFEST.contributes.taskDefinitions.find((d) => d.type === '8bs');
   assert.deepEqual(definition.properties.target.enum, ALL_TARGETS);
+  // The Studio tab's run is told apart from a native one by this key, so
+  // it has to be part of the declared definition, not a private extra.
+  assert.equal(definition.properties.web?.type, 'boolean');
+  assert.match(definition.properties.web.description, /cx16 --web/);
 });
