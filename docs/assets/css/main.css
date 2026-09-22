@@ -66,7 +66,18 @@
 }
 
 html {
+  /* Clears the sticky header plus the development notice. Dismissal drops
+     the notice, and the class on <html> (set before paint) drops the offset
+     with it. */
+  scroll-padding-top: 10rem;
+}
+
+html.notice-dismissed {
   scroll-padding-top: 5rem;
+}
+
+html.notice-dismissed .dev-notice {
+  display: none;
 }
 
 body {
@@ -110,6 +121,45 @@ kbd {
   background: color-mix(in srgb, var(--bg) 88%, transparent);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border);
+}
+
+.dev-notice {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  max-width: 82rem;
+  margin: 0 auto;
+  padding: 0.5rem 1.5rem;
+  background: var(--bg-subtle);
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.dev-notice-text {
+  margin: 0;
+}
+
+.dev-notice-text strong {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.dev-notice-dismiss {
+  flex: none;
+  padding: 0.3rem 0.65rem;
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.dev-notice-dismiss:hover {
+  border-color: var(--fg);
 }
 
 .site-header-inner {
@@ -777,6 +827,11 @@ blockquote > :last-child {
 }
 
 @media (max-width: 48rem) {
+  .dev-notice {
+    align-items: flex-start;
+    padding: 0.55rem 1rem;
+  }
+
   .site-header-inner {
     padding: 0.75rem 1rem;
   }
