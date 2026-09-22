@@ -80,9 +80,7 @@
         "storage.kib": 32768
       },
       "run": {
-        "x16emu": [
-          "-capture"
-        ]
+        "x16emu": []
       },
       "options": {
         "ram": {
