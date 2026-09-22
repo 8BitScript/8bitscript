@@ -94,3 +94,11 @@ export const CX16_ROM_INSTALL_PATH = '/opt/commander-x16/rom.bin';
 export const LOCAL_BIN_DIR = '/usr/local/bin';
 export const X16EMU_LAUNCHER_PATH = '/usr/local/bin/x16emu';
 export const MAKECART_LAUNCHER_PATH = '/usr/local/bin/makecart';
+
+/** The prebuilt WebAssembly x16emu `8bs run cx16 --web` serves, one
+ * directory per upstream release tag so a pin bump never serves half of
+ * two releases. Under the user's cache, never /opt: it is a download the
+ * browser reads, not a binary on PATH, so it needs no sudo. */
+export function x16emuWasmDir(tag) {
+  return join(setupCacheDir(), 'x16emu-wasm', tag);
+}

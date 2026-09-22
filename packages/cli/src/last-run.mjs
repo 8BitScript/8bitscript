@@ -87,5 +87,11 @@ export function compileReport(target, { outFile, hardware, memory, sizeReport, f
     memory: memory ?? null,
     size: Array.isArray(sizeReport) ? sizeReport : [],
     hardware: hardwareSnapshot(hardware),
+    // A fresh build has no emulator yet: run/boot fill these in after,
+    // and a reader (the editor's Studio tab, which frames `url`) must not
+    // take the previous run's address for this one's.
+    emulator: null,
+    url: null,
+    lanUrls: [],
   };
 }

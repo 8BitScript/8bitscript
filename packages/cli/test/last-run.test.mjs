@@ -56,6 +56,11 @@ test('compileReport names memory, size, and hardware for one target', () => {
   assert.deepEqual(report.size, [{ name: 'main', bytes: 40 }]);
   assert.equal(report.hardware.label, 'stock');
   assert.equal(report.frameRate, 60);
+  // No emulator yet: a compile write clears what the previous run left,
+  // so a reader never frames the last run's URL as this one's.
+  assert.equal(report.emulator, null);
+  assert.equal(report.url, null);
+  assert.deepEqual(report.lanUrls, []);
 });
 
 test('writeLastRun merges a later patch onto the compile report', async () => {

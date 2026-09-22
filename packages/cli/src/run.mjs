@@ -37,6 +37,12 @@
 //                        it in MEGA65 mode ($2001 load address; a c64-target
 //                        .prg would go to C64 mode) — verified on screen,
 //                        see packages/mega65/AGENTS.md
+//   8bs run cx16 --web   builds the .prg and opens it in the browser, in
+//                        the WebAssembly x16emu (web-emulator.mjs): the
+//                        same emulator and the same flags as the window,
+//                        in a tab — the mouse is the browser's Pointer
+//                        Lock (click takes it, Esc gives it back). Only
+//                        the X16 has one; --no-open and --port apply.
 //   8bs run web          builds the .wasm and opens it in the browser
 //                        runtime (web-runtime.mjs): the program runs in a
 //                        worker, its waitFrame() paced by the page's frame
@@ -73,6 +79,7 @@ import { HARDWARE_USAGE, hardwareArgs, loadArgs } from './hardware.mjs';
 import { baselineLaunch, resolveNamedLaunch } from './systems.mjs';
 import { hardwareSnapshot, writeLastRun } from './last-run.mjs';
 import { parseListenPort } from './web-lan.mjs';
+import { WEB_EMULATORS } from './web-emulator.mjs';
 
 /** `a, b and c` — the machines this release builds for, said the way a sentence says them. */
 function listOf(names) {
@@ -139,6 +146,12 @@ export const VICE_MODEL_ARGS = {
 // the same either way; `8bs run pet --pal` prints a note and changes
 // nothing. Verified with `xpet -verbose -limitcycles` and by whether
 // `-autostart` of a built `.prg` stays running.
+/** Said once per X16 launch: the window opens with the host mouse free
+ * (packages/cx16's stock launch has no `-capture`), and only the shortcut
+ * — never a click — hands the emulator the mouse. */
+export const CX16_MOUSE_NOTE = '8bs run: x16emu starts with your mouse free; '
+  + (process.platform === 'darwin' ? '⇧⌘M' : 'Ctrl+M') + ' gives it the mouse (exact tracking), and again gives it back.\n';
+
 export const PET_REGION_NOTE = '8bs run: the PET has no --pal/--ntsc — its refresh rate is the model\'s. '
   + 'Pick a model with --profile (3032 is ~60Hz; 4016, 4032 and 8032 are 50Hz).\n';
 
@@ -476,6 +489,7 @@ export async function run(args) {
   const palFlag = args.includes('--pal');
   const open = !args.includes('--no-open');
   const lan = !args.includes('--local');
+  const web = args.includes('--web');
   const report = args.includes('--size');
   const checkout = applyCheckoutFromArgs(args);
   if (!checkout.ok) {
@@ -558,6 +572,8 @@ export async function run(args) {
       + '                [--pal]\n'
       + HARDWARE_USAGE
       + '                [--size] [--no-open] [--lan] [--local] [--port <n>] [--program <name>] [--locale <name>] [entry.8bs]\n'
+      + '                [--web]  cx16 only: the same x16emu as WebAssembly, in the browser\n'
+      + '                         (the mouse is the tab\'s: click takes it, Esc gives it back)\n'
       + '                [--screenshot <file.png>] [--frames <n>]\n'
       + '                  capture one screenshot through the target\'s own\n'
       + '                  emulator API instead of opening an interactive\n'
@@ -568,6 +584,13 @@ export async function run(args) {
   }
   const entry = named ? positionals[1] : positionals[0];
   const pal = palFlag || launch.pal;
+
+  // Said before the build: a target with no WebAssembly emulator has
+  // nothing to gain from compiling first.
+  if (web && !WEB_EMULATORS[target]) {
+    process.stderr.write(`8bs run: --web runs a WebAssembly emulator in the browser, and only the Commander X16 has one (cx16); '${target}' does not yet\n`);
+    return 2;
+  }
 
   // Said once, before either route — the PET has no region (PET_REGION_NOTE).
   if (target === 'pet' && pal) process.stderr.write(PET_REGION_NOTE);
@@ -630,6 +653,14 @@ export async function run(args) {
     process.stderr.write(`8bs run: ${invocation.error}\n`);
     return 1;
   }
+  if (web) {
+    // The same argv, handed to the WebAssembly build instead of spawned.
+    const { runInWebEmulator } = await import('./web-emulator.mjs');
+    return runInWebEmulator({
+      target, outFile, emulatorArgs: invocation.emulatorArgs, open, port: listenPort.port, writeLastRun,
+    });
+  }
+  if (target === 'cx16' && !invocation.emulatorArgs.includes('-capture')) process.stderr.write(CX16_MOUSE_NOTE);
   await writeLastRun(target, { emulator: invocation.emulator });
   return spawnEmulator(invocation.emulator, invocation.emulatorArgs);
 }

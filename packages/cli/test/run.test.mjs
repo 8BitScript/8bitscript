@@ -16,7 +16,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
-  run, boot, atari800CleanDisplayConfig, atari800CleanDisplayText, emulatorInvocation, resolveController,
+  run, boot, atari800CleanDisplayConfig, atari800CleanDisplayText, emulatorInvocation, resolveController, CX16_MOUSE_NOTE,
 } from '../src/run.mjs';
 import { loadCatalog, resolveHardware } from '../src/hardware.mjs';
 
@@ -62,6 +62,12 @@ test('run() returns 2 and writes the error when --frames is not a number', async
   assert.match(stderr, /^8bs run: --frames expects a number, got 'soon'/);
 });
 
+test('run() --web on a target with no WebAssembly emulator says so before building anything', async () => {
+  const { result, stderr } = await capture(() => run(['pet', '--web']));
+  assert.equal(result, 2);
+  assert.match(stderr, /--web runs a WebAssembly emulator in the browser, and only the Commander X16 has one \(cx16\); 'pet' does not yet/);
+});
+
 test('run() with no target prints usage and returns 2', async () => {
   const { result, stdout, stderr } = await capture(() => run(['--pal']));
   assert.equal(result, 2);
@@ -71,6 +77,7 @@ test('run() with no target prints usage and returns 2', async () => {
   assert.match(stderr, /\[--lan\]/, 'run --lan is the web LAN HTTPS listener');
   assert.match(stderr, /\[--local\]/, 'run --local is loopback-only');
   assert.match(stderr, /\[--port <n>\]/, 'run --port is the web listen port');
+  assert.match(stderr, /\[--web\]  cx16 only: the same x16emu as WebAssembly, in the browser/, 'run --web is the X16 in a tab');
 });
 
 test('run() with a baseline and a mistyped machine still prints usage, not the baseline', async () => {
@@ -149,6 +156,11 @@ test('emulatorInvocation for the PET fitted with a real disk drive passes VICE i
   const invocation = await emulatorInvocation('pet', { pal: false, hardware });
   assert.ok(invocation.emulatorArgs.includes('-drive8type'));
   assert.equal(invocation.emulatorArgs[invocation.emulatorArgs.indexOf('-drive8type') + 1], '8050');
+});
+
+test('the X16 launch note names the capture shortcut for this platform, since a click never captures', () => {
+  assert.match(CX16_MOUSE_NOTE, /x16emu starts with your mouse free; (⇧⌘M|Ctrl\+M) gives it the mouse/);
+  assert.ok(CX16_MOUSE_NOTE.endsWith('\n'));
 });
 
 test('emulatorInvocation names a target with no emulator wired up', async () => {
