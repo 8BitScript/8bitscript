@@ -1,6 +1,6 @@
 {
   "name": "@8bitscript/raster",
-  "version": "0.20.0",
+  "version": "0.21.0",
   "description": "Per-scanline raster effects, named by what the picture does at a line — a border split, a background band, a horizontal wobble — rather than by which register to write. Resolves per target to that machine's own rasterline implementation; #fact(video.raster) says whether the machine has one at all.",
   "license": "MIT",
   "repository": {

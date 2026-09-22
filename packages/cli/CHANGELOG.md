@@ -1,5 +1,36 @@
 # @8bitscript/cli
 
+## 0.21.0
+
+### Minor Changes
+
+- 4c3f70f: `8bs run cx16 --web` runs the program in the browser's x16emu: the WebAssembly build X16Community ships with each release, pinned (r49) by URL and SHA-256, downloaded into the user's cache on first use — no Emscripten, no sudo — and served from loopback with the freshly built `.prg`. The page passes the emulator the same flags as the native window (the catalog's `run.x16emu`, the controller's, `-prg … -run`), so a program behaves the same in a tab as in a window. In the tab the mouse is the browser's Pointer Lock: a click on the screen takes it, Esc gives it back. `--no-open` and `--port` apply; the URL lands in `dist/.8bs-last-cx16.json` for the editor's Running machines tree. Studio gains `pnpm start:cx16-web`.
+- af452e9: `8bs targets --reach`: every machine — the eight that build and the seventeen with no package yet — against the project's `requires` and its new `input: { primary, also }`, with the file `8bs build` writes and the routes it reaches, and who is out there to run it: units sold, interest in 2025, releases a year, new hardware on sale. The figures are the reach sheet, `packages/cli/data/reach.json` — research, dated and sourced, never read by a build (docs/project/reach.md).
+
+### Patch Changes
+
+- a9d7596: The VS Code launcher passes `--capture-mouse` and `--fullscreen` on native Commander X16 runs and boots by default (`8bitscript.cx16.captureMouse` and `8bitscript.cx16.fullscreen` in Settings). Studio in a tab is unchanged. The CLI accepts the same flags for `8bs run cx16` and `8bs boot cx16`; a terminal launch without them still starts with a free mouse and a window.
+- d7b930a: `8bs run cx16` starts x16emu with your mouse free again (no `-capture`): the pointer can leave the window for the editor, and ⇧⌘M (Ctrl+M on Linux/Windows) captures it when tracking has to be exact — a click never does, so the launch says so once. Uncaptured tracking drifts a little; in use it is good enough, and the free pointer is worth more.
+- Updated dependencies [9692ca7]
+- Updated dependencies [d7b930a]
+- Updated dependencies [4c3f70f]
+- Updated dependencies [65829bd]
+- Updated dependencies [d8bff18]
+- Updated dependencies [38c8dfc]
+  - @8bitscript/cx16@0.21.0
+  - @8bitscript/studio@0.21.0
+  - @8bitscript/compiler@0.21.0
+  - @8bitscript/language-server@0.21.0
+  - @8bitscript/examples@0.21.0
+  - @8bitscript/atari8@0.21.0
+  - @8bitscript/c128@0.21.0
+  - @8bitscript/c64@0.21.0
+  - @8bitscript/mega65@0.21.0
+  - @8bitscript/nes@0.21.0
+  - @8bitscript/pet@0.21.0
+  - @8bitscript/vic20@0.21.0
+  - @8bitscript/web@0.21.0
+
 ## 0.20.0
 
 ### Minor Changes

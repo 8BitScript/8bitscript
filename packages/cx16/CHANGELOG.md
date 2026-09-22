@@ -1,5 +1,12 @@
 # @8bitscript/cx16
 
+## 0.21.0
+
+### Patch Changes
+
+- 9692ca7: `8bs run cx16` starts x16emu captured again: uncaptured, the KERNAL mouse gets relative motion and drifts from the host pointer. ⇧⌘M (Ctrl+M on Linux/Windows) releases the mouse to leave the window.
+- d7b930a: `8bs run cx16` starts x16emu with your mouse free again (no `-capture`): the pointer can leave the window for the editor, and ⇧⌘M (Ctrl+M on Linux/Windows) captures it when tracking has to be exact — a click never does, so the launch says so once. Uncaptured tracking drifts a little; in use it is good enough, and the free pointer is worth more.
+
 ## 0.20.0
 
 No changes in this release.

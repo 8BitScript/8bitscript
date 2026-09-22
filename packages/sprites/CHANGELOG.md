@@ -1,5 +1,14 @@
 # @8bitscript/sprites
 
+## 0.21.0
+
+### Patch Changes
+
+- @8bitscript/screen@0.21.0
+  - @8bitscript/text@0.21.0
+  - @8bitscript/c64@0.21.0
+  - @8bitscript/system@0.21.0
+
 ## 0.20.0
 
 ### Patch Changes
