@@ -109,6 +109,33 @@ function getWebLan() {
 }
 
 /**
+ * Commander X16 in a native x16emu window (not Studio's `--web` tab): pass
+ * `--capture-mouse` so x16emu starts with the pointer grabbed. On by
+ * default in the editor; the CLI alone still launches with a free mouse.
+ */
+function getCx16CaptureMouse() {
+  return config().get('cx16.captureMouse') !== false;
+}
+
+/**
+ * Commander X16 native window: pass `--fullscreen` so x16emu starts
+ * maximized. On by default in the editor.
+ */
+function getCx16Fullscreen() {
+  return config().get('cx16.fullscreen') !== false;
+}
+
+/** CLI flags for a native `8bs run` / `8bs boot cx16` from the launcher. */
+function cx16NativeWindowCliArgs() {
+  const args = [];
+  if (getCx16CaptureMouse()) args.push('--capture-mouse');
+  else args.push('--no-capture-mouse');
+  if (getCx16Fullscreen()) args.push('--fullscreen');
+  else args.push('--no-fullscreen');
+  return args;
+}
+
+/**
  * Whether "View Generated Assembly" comments every instruction in plain
  * English beside the 6502 (the `assemblyView.explain` setting). On by
  * default — the listing is meant to teach as much as to inspect — and
@@ -174,7 +201,7 @@ async function setHardware(system, selection) {
 
 /** True when a change event touches any of the run settings. */
 function affectsAny(event) {
-  return ['region', 'system', 'project', 'hardware', 'webLan', 'namedSystem', 'checkout'].some((key) =>
+  return ['region', 'system', 'project', 'hardware', 'webLan', 'namedSystem', 'checkout', 'cx16.captureMouse', 'cx16.fullscreen'].some((key) =>
     event.affectsConfiguration(`${SECTION}.${key}`),
   );
 }
@@ -189,6 +216,9 @@ module.exports = {
   affectsAny,
   getAssemblyExplain,
   getCheckout,
+  cx16NativeWindowCliArgs,
+  getCx16CaptureMouse,
+  getCx16Fullscreen,
   getEffectiveHardware,
   getExamplesPath,
   getHardware,

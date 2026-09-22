@@ -80,6 +80,7 @@ import { baselineLaunch, resolveNamedLaunch } from './systems.mjs';
 import { hardwareSnapshot, writeLastRun } from './last-run.mjs';
 import { parseListenPort } from './web-lan.mjs';
 import { WEB_EMULATORS } from './web-emulator.mjs';
+import { applyCx16WindowFlags, cx16WindowArgs, CX16_WINDOW_USAGE } from './cx16-window.mjs';
 
 /** `a, b and c` — the machines this release builds for, said the way a sentence says them. */
 function listOf(names) {
@@ -496,6 +497,11 @@ export async function run(args) {
     process.stderr.write(`8bs run: ${checkout.error}\n`);
     return 2;
   }
+  const cx16Window = cx16WindowArgs(args);
+  if (!cx16Window.ok) {
+    process.stderr.write(`8bs run: ${cx16Window.error}\n`);
+    return 2;
+  }
   const hw = hardwareArgs(args);
   if (!hw.ok) {
     process.stderr.write(`8bs run: ${hw.error}\n`);
@@ -542,6 +548,7 @@ export async function run(args) {
   const consumed = new Set([
     ...hw.consumed,
     ...checkout.consumed,
+    ...cx16Window.consumed,
     ...programOpt.consumed,
     ...localeOpt.consumed,
     ...[screenshotIndex, framesIndex, portIndex].flatMap((i) => (i >= 0 ? [i, i + 1] : [])),
@@ -574,6 +581,7 @@ export async function run(args) {
       + '                [--size] [--no-open] [--lan] [--local] [--port <n>] [--program <name>] [--locale <name>] [entry.8bs]\n'
       + '                [--web]  cx16 only: the same x16emu as WebAssembly, in the browser\n'
       + '                         (the mouse is the tab\'s: click takes it, Esc gives it back)\n'
+      + CX16_WINDOW_USAGE
       + '                [--screenshot <file.png>] [--frames <n>]\n'
       + '                  capture one screenshot through the target\'s own\n'
       + '                  emulator API instead of opening an interactive\n'
@@ -648,10 +656,16 @@ export async function run(args) {
   }
 
   await writeControllerFiles(controller);
-  const invocation = await emulatorInvocation(target, { pal, hardware, outFile, controller });
+  let invocation = await emulatorInvocation(target, { pal, hardware, outFile, controller });
   if (!invocation.ok) {
     process.stderr.write(`8bs run: ${invocation.error}\n`);
     return 1;
+  }
+  if (target === 'cx16' && !web) {
+    invocation = {
+      ...invocation,
+      emulatorArgs: applyCx16WindowFlags(invocation.emulatorArgs, cx16Window),
+    };
   }
   if (web) {
     // The same argv, handed to the WebAssembly build instead of spawned.
@@ -689,6 +703,11 @@ export async function boot(args) {
     process.stderr.write(`8bs boot: ${checkout.error}\n`);
     return 2;
   }
+  const cx16Window = cx16WindowArgs(args);
+  if (!cx16Window.ok) {
+    process.stderr.write(`8bs boot: ${cx16Window.error}\n`);
+    return 2;
+  }
   const hw = hardwareArgs(args);
   if (!hw.ok) {
     process.stderr.write(`8bs boot: ${hw.error}\n`);
@@ -702,7 +721,7 @@ export async function boot(args) {
     process.stderr.write(`8bs boot: ${launch.error}\n`);
     return 2;
   }
-  const consumed = new Set([...hw.consumed, ...checkout.consumed]);
+  const consumed = new Set([...hw.consumed, ...checkout.consumed, ...cx16Window.consumed]);
   const positionals = args.filter((a, i) => !consumed.has(i) && !a.startsWith('-'));
   const first = positionals[0];
   const named = MACHINES.includes(first) ? first : undefined;
@@ -729,7 +748,8 @@ export async function boot(args) {
       + '                (vic20, c64, c128, atari8, nes, cx16, mega65 are parked until a later release;\n'
       + '                web has no bare emulator to boot without a program)\n'
       + '                [--pal]\n'
-      + HARDWARE_USAGE,
+      + HARDWARE_USAGE
+      + CX16_WINDOW_USAGE,
     );
     return 2;
   }
@@ -776,11 +796,18 @@ export async function boot(args) {
   for (const note of controller.notes) process.stderr.write(`8bs boot: ${note}\n`);
   await writeControllerFiles(controller);
 
-  const invocation = await emulatorInvocation(target, { pal, hardware: resolved.hardware, controller });
+  let invocation = await emulatorInvocation(target, { pal, hardware: resolved.hardware, controller });
   if (!invocation.ok) {
     process.stderr.write(`8bs boot: ${invocation.error}\n`);
     return 1;
   }
+  if (target === 'cx16') {
+    invocation = {
+      ...invocation,
+      emulatorArgs: applyCx16WindowFlags(invocation.emulatorArgs, cx16Window),
+    };
+  }
+  if (target === 'cx16' && !invocation.emulatorArgs.includes('-capture')) process.stderr.write(CX16_MOUSE_NOTE);
   await writeLastRun(target, {
     hardware: hardwareSnapshot(resolved.hardware),
     emulator: invocation.emulator,

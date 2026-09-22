@@ -499,6 +499,16 @@
           "type": "boolean",
           "default": true,
           "description": "When running the web target, listen on the LAN so a phone on the same Wi-Fi can open the printed HTTPS URL. On by default (`8bs run web`). The launcher shows a QR of that URL. Turn this off to pass --local (loopback only) on an untrusted network."
+        },
+        "8bitscript.cx16.captureMouse": {
+          "type": "boolean",
+          "default": true,
+          "description": "When Run or Boot launches the Commander X16 in a native x16emu window, pass --capture-mouse so the emulator grabs the mouse at start (x16emu's -capture). Off passes --no-capture-mouse and leaves the pointer free to leave the window; ⇧⌘M (Ctrl+M on Linux/Windows) still toggles grab. Does not apply to Open Studio in a Tab (`8bs run cx16 --web`)."
+        },
+        "8bitscript.cx16.fullscreen": {
+          "type": "boolean",
+          "default": true,
+          "description": "When Run or Boot launches the Commander X16 in a native x16emu window, pass --fullscreen so x16emu starts maximized. Off leaves a normal window. Does not apply to Open Studio in a Tab (`8bs run cx16 --web`)."
         }
       }
     },
