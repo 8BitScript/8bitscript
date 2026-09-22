@@ -27,11 +27,46 @@ export const BLOCK_CODE_BASE = 128;
 export const BLOCK_CODE_COUNT = 16;
 
 /**
+ * Quarter-circle corner masks, one cell each: 144 top-left, 145 top-right,
+ * 146 bottom-left, 147 bottom-right. A bit set is the cut — under reverse
+ * video the host punches those pixels out, so the cell reads as a rounded
+ * corner of the tile rather than a quadrant chamfer. Bit 0 is the leftmost
+ * pixel. The curve is the r = 10 disk clipped to the cell, which is
+ * symmetric and uses seven of the eight rows, so the whole corner is the
+ * arc and the far edge of the cell stays solid where it meets the tile:
+ *
+ *     #######.
+ *     #####...
+ *     ###.....
+ *     ##......
+ *     ##......
+ *     #.......
+ *     #.......
+ *     ........
+ */
+export const CORNER_CODE_BASE = 144;
+const CORNER_TL = Buffer.from([0x7f, 0x1f, 0x07, 0x03, 0x03, 0x01, 0x01, 0x00]);
+
+function mirrorByte(byte) {
+  let out = 0;
+  for (let bit = 0; bit < 8; bit += 1) {
+    if ((byte >> bit) & 1) out |= 1 << (7 - bit);
+  }
+  return out;
+}
+
+const CORNER_TR = Buffer.from(CORNER_TL.map(mirrorByte));
+const CORNER_BL = Buffer.from([...CORNER_TL].reverse());
+const CORNER_BR = Buffer.from([...CORNER_TR].reverse());
+const CORNER_ROWS = [CORNER_TL, CORNER_TR, CORNER_BL, CORNER_BR];
+
+/**
  * ©, at its own Latin-1/Unicode code point rather than an agreed-on private
  * number, because this table is ASCII-indexed outright and 0xA9 is what the
  * symbol *is* everywhere else. It sits above the quadrant blocks with a gap
- * (144-168) that stays blank, which costs nothing: glyphTableLiteral() skips
- * every code glyphRows() has no ink for.
+ * (148-168) that stays blank, which costs nothing: glyphTableLiteral() skips
+ * every code glyphRows() has no ink for. 144-147 are the four quarter-circle
+ * corners, just above the quadrant blocks.
  *
  * Three of the nine targets can draw it, and they agree on this code.
  * This table is the web host's. @8bitscript/nes ships its own CHR-ROM and
@@ -86,8 +121,8 @@ function quadRows(index) {
 
 /**
  * The 8 row-bytes for an ASCII code in [32, 122], a 2×2 block pattern in
- * [128, 143], or `null` outside those ranges — a blank cell in both
- * renderers.
+ * [128, 143], a quarter-circle corner in [144, 147], or `null` outside
+ * those ranges — a blank cell in both renderers.
  * @param {number} code
  * @returns {Buffer | null}
  */
@@ -98,6 +133,9 @@ export function glyphRows(code) {
   }
   if (code >= BLOCK_CODE_BASE && code < BLOCK_CODE_BASE + BLOCK_CODE_COUNT) {
     return quadRows(code - BLOCK_CODE_BASE);
+  }
+  if (code >= CORNER_CODE_BASE && code < CORNER_CODE_BASE + CORNER_ROWS.length) {
+    return CORNER_ROWS[code - CORNER_CODE_BASE];
   }
   if (code === COPYRIGHT_CODE) return COPYRIGHT_ROWS;
   return null;

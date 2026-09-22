@@ -22,9 +22,11 @@ import { Video } from "./geometry.8bs";
 // isn't blank as 8×8 bits from the same font --screenshot uses. Codes
 // 128-143 are the sixteen 2×2 quadrant-block patterns (video.blockWidth
 // and blockHeight 2), so a program can stamp PET-style digits without
-// colliding with ASCII. There is no character ROM here to need screen
-// codes for: a real bitmap font draws lower case the same way it draws
-// upper case, matching @8bitscript/pet's own asciiToScreenCode.
+// colliding with ASCII. 144-147 are quarter-circle corner masks (the cut
+// is the ink; reverse video punches it out into a rounded corner). There
+// is no character ROM here to need screen codes for: a real bitmap font
+// draws lower case the same way it draws upper case, matching
+// @8bitscript/pet's own asciiToScreenCode.
 // ---- print: strings and number fields ------------------------------------
 //
 // `text.print(cell, s)` writes a string's characters into consecutive
