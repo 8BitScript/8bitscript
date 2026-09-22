@@ -252,8 +252,25 @@ SYSTEM
   up under Running machines like any `8bs run`, with its own Stop. The
   🚀 rocket in the title bar is the same program through a quick pick.
 
+  The first entry in that menu, **In an editor tab**, is Studio inside
+  the editor: `8bs run cx16 --web` builds Studio and serves the CLI's
+  WebAssembly x16emu on loopback (the same emulator and the same flags
+  as the window; the CLI downloads it once), and the **Studio** tab
+  frames it, with **Reset** (boot the same build again), **Rebuild**,
+  **Stop** and **Open in browser** above the screen. Closing the tab
+  ends the run. The mouse in the tab follows the launch, as in the
+  window: the stock X16 launch leaves it free, and Ctrl+M on the screen
+  (on every platform, in the browser) gives it to Studio for exact
+  tracking; a launch with `-capture` gives it on a click. Esc gives it
+  back either way, and the line under the bar says which it is. Whether an editor lets a framed
+  page capture the mouse at all is the editor's to decide: if the tab
+  says it isn't allowed to, **Open in browser** opens the same URL in
+  your browser, where it is. X16 only — the one machine with a
+  WebAssembly emulator. **8BitScript: Open Studio in a Tab** on the
+  palette is the same thing.
+
 - Every panel — the side bar, System, Project, Controller Setup, the
-  assembly view — draws in your color theme: light, dark or
+  Studio tab's bar, the assembly view — draws in your color theme: light, dark or
   high-contrast, from VS Code's own theme variables, with no colors of
   its own except the LAN QR code, which a phone's camera has to read.
   Studio has a light and a dark mode of its own on the machine

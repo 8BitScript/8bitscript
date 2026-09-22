@@ -162,6 +162,17 @@
         "icon": "$(tools)"
       },
       {
+        "command": "8bitscript.openStudioTab",
+        "title": "Open Studio in a Tab",
+        "category": "8BitScript",
+        "icon": "$(window)"
+      },
+      {
+        "command": "8bitscript.studioTab.show",
+        "title": "Show the Studio Tab",
+        "category": "8BitScript"
+      },
+      {
         "command": "8bitscript.launchApp",
         "title": "Launch App…",
         "category": "8BitScript"
@@ -284,6 +295,10 @@
     ],
     "menus": {
       "commandPalette": [
+        {
+          "command": "8bitscript.studioTab.show",
+          "when": "false"
+        },
         {
           "command": "8bitscript.rebuildExtension",
           "when": "8bitscript.localRebuildNeeded"
@@ -526,6 +541,10 @@
           "pal": {
             "type": "boolean",
             "description": "Use the PAL (50Hz) machine model instead of NTSC. Ignored for web."
+          },
+          "web": {
+            "type": "boolean",
+            "description": "Run in the machine's WebAssembly emulator, served on loopback for the Studio tab (8bs run cx16 --web --no-open). Commander X16 only."
           }
         }
       }

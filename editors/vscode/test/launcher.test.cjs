@@ -86,13 +86,16 @@ test('Open Studio is the largest button on the panel, above quick launch: a spli
   assert.match(body, /class="launch studio-more" id="studio-more"[^>]*aria-haspopup="menu"/, 'the sliver on its right edge');
   assert.match(CSS, /\.split > button\.launch\.studio-more \{[^}]*width: 24px/, 'is a sliver');
   assert.match(body, /<div class="menu" id="studio-menu" role="menu" hidden>/, 'and opens a menu');
-  assert.match(JS, /id: '8bitscript\.openStudio', system: option\.id/, 'whose items launch Studio on that system');
+  assert.match(JS, /id: option\.command \|\| '8bitscript\.openStudio', system: option\.id/, 'whose items launch Studio on that system — or, for the first entry, in the editor\'s own tab');
+  assert.match(view, /\{ group: 'In an editor tab' \},\n\s+\{ id: 'tab', command: '8bitscript\.openStudioTab', label: 'Commander X16'/, 'the tab is the first entry, X16 only');
+  assert.ok(MANIFEST.contributes.commands.some((c) => c.command === '8bitscript.openStudioTab'), 'and on the palette');
+  assert.ok(MANIFEST.contributes.menus.commandPalette.some((m) => m.command === '8bitscript.studioTab.show' && m.when === 'false'), 'the show step is not');
   assert.equal(MANIFEST.contributes.configuration.properties['8bitscript.studioSystem'], undefined, 'nothing to remember: a pick is a launch');
   // The page names the command, the view allows it, and the command runs
   // Studio on cx16 — its baseline — with no picker and no change to the
   // panel's selection.
   assert.match(JS, /id: '8bitscript\.openStudio'/);
-  assert.match(view, /'8bitscript\.openStudio',\n\s+\]\.includes\(message\.id\)/);
+  assert.match(view, /'8bitscript\.openStudio', '8bitscript\.openStudioTab',\n\s+\]\.includes\(message\.id\)/);
   assert.match(runner, /command\('8bitscript\.openStudio'/);
   assert.match(runner, /p\.name === '@8bitscript\/studio'\);\n\s+if \(!studio\)/);
   assert.match(runner, /execute\('run', \{ project: studio, target: 'cx16' \}\)/);
@@ -282,4 +285,8 @@ test('the 8bs task type offers every target this release builds for', () => {
   const { ALL_TARGETS } = require('../src/projects.cjs');
   const definition = MANIFEST.contributes.taskDefinitions.find((d) => d.type === '8bs');
   assert.deepEqual(definition.properties.target.enum, ALL_TARGETS);
+  // The Studio tab's run is told apart from a native one by this key, so
+  // it has to be part of the declared definition, not a private extra.
+  assert.equal(definition.properties.web?.type, 'boolean');
+  assert.match(definition.properties.web.description, /cx16 --web/);
 });
