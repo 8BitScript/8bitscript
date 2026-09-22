@@ -85,6 +85,8 @@ function createVscodeMock() {
   const saveEmitter = makeEmitter();
   const documentChangeEmitter = makeEmitter();
   const executedTasks = [];
+  const openedExternal = [];
+  const webviewPanels = [];
   const executedCommands = [];
   const viewProviders = new Map();
 
@@ -160,7 +162,13 @@ function createVscodeMock() {
   };
 
   const vscode = {
-    env: { appName: 'Visual Studio Code' },
+    env: {
+      appName: 'Visual Studio Code',
+      // Local desktop: an external URI is the URI itself. Remote would
+      // forward the port; the Studio tab frames whatever comes back.
+      asExternalUri: (uri) => Promise.resolve(uri),
+      openExternal: (uri) => { openedExternal.push(uri.toString()); return Promise.resolve(true); },
+    },
     EventEmitter,
     Task,
     ShellExecution,
@@ -243,7 +251,7 @@ function createVscodeMock() {
         const messageEmitter = makeEmitter();
         const disposeEmitter = makeEmitter();
         const posted = [];
-        return {
+        const panel = {
           viewType,
           title,
           column,
@@ -263,6 +271,8 @@ function createVscodeMock() {
           onDidDispose: disposeEmitter.event,
           __dispose: () => disposeEmitter.fire(),
         };
+        webviewPanels.push(panel);
+        return panel;
       },
     },
     workspace: {
@@ -330,6 +340,8 @@ function createVscodeMock() {
       queues,
       calls,
       executedTasks,
+      openedExternal,
+      webviewPanels,
       executedCommands,
       viewProviders,
       taskEmitters,
@@ -350,6 +362,8 @@ function createVscodeMock() {
         for (const queue of Object.values(queues)) queue.length = 0;
         for (const list of Object.values(calls)) list.length = 0;
         executedTasks.length = 0;
+        openedExternal.length = 0;
+        webviewPanels.length = 0;
         executedCommands.length = 0;
         viewProviders.clear();
         vscode.workspace.workspaceFolders = undefined;

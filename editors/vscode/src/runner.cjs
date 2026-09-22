@@ -140,6 +140,7 @@ class RunningTasks {
         dir: definition.projectDir ?? '',
         target: definition.target,
         command: definition.command,
+        web: definition.web === true,
         name: execution.task.name,
         startedAt: this.startedAt.get(execution) ?? Date.now(),
       };
@@ -147,16 +148,23 @@ class RunningTasks {
   }
 
   /** @param {string} dir @param {string} [target] */
-  matching(dir, target) {
+  /**
+   * @param {string} dir
+   * @param {string} [target]
+   * @param {{ web?: boolean }} [only] `web: true` keeps only runs in the
+   *   editor's Studio tab, `web: false` only native ones; left out, both.
+   */
+  matching(dir, target, only = {}) {
     return [...this.executions].filter((execution) => {
       const definition = execution.task.definition;
       if (definition.projectDir !== dir) return false;
+      if (only.web !== undefined && (definition.web === true) !== only.web) return false;
       return target === undefined || definition.target === target;
     });
   }
 
-  stop(dir, target) {
-    for (const execution of this.matching(dir, target)) execution.terminate();
+  stop(dir, target, only = {}) {
+    for (const execution of this.matching(dir, target, only)) execution.terminate();
   }
 }
 
@@ -178,6 +186,12 @@ function makeTask(project, action, target, region, hardware = settings.getHardwa
     args.push('--port', '0');
     if (!settings.getWebLan()) args.push('--local');
   }
+  if (action === 'run' && extras.web) {
+    // The editor's Studio tab: the CLI's WebAssembly x16emu, served on an
+    // ephemeral loopback port and opened nowhere — the tab frames it
+    // (studioView.cjs). Loopback only; the LAN setting is the web target's.
+    args.push('--web', '--no-open', '--port', '0');
+  }
   const pal = region === 'pal' && MACHINE_TARGETS.has(target);
   const definition = {
     type: TASK_TYPE,
@@ -186,6 +200,7 @@ function makeTask(project, action, target, region, hardware = settings.getHardwa
     projectDir: project.dir,
     ...(target ? { target } : {}),
     ...(pal ? { pal: true } : {}),
+    ...(extras.web ? { web: true } : {}),
   };
   const fitted = extras.system ? extras.system : selectionLabel(hardware);
   const suffix = extras.system
@@ -193,7 +208,7 @@ function makeTask(project, action, target, region, hardware = settings.getHardwa
     : (target
       ? ` ${target}${MACHINE_TARGETS.has(target) ? ` (${regionShort(region)})` : ''}${fitted ? ` ${fitted}` : ''}`
       : '');
-  const name = `${project.name}: ${action}${suffix}`;
+  const name = `${project.name}: ${action}${suffix}${extras.web ? ' in a tab' : ''}`;
   const invocation = cliCommand(project.toolchain) ?? { command: project.toolchain, args: [] };
   const env = { PATH: packageManagerPath(), ...invocation.env };
   const task = new vscode.Task(
@@ -745,8 +760,11 @@ function registerRunner(context, output) {
     const extras = {
       system: system || undefined,
       checkout: projects.checkoutFlag() || undefined,
+      // The Studio tab's run (openStudioTab below): the WebAssembly
+      // emulator instead of a window. Nothing else sets it.
+      web: node?.web ? true : undefined,
     };
-    await vscode.tasks.executeTask(
+    return vscode.tasks.executeTask(
       makeTask(project, action, target, region ?? settings.getRegion(), effectiveHardware, extras),
     );
   }
@@ -1101,6 +1119,26 @@ function registerRunner(context, output) {
       return;
     }
     await execute('run', { project: studio, target: 'cx16' });
+  });
+  // The same Studio in an editor tab: `8bs run cx16 --web` serves the
+  // CLI's WebAssembly x16emu on loopback and the Studio tab
+  // (studioView.cjs) frames it, with its own Reset/Rebuild/Stop and the
+  // browser one click away. X16 only — the one machine with a WebAssembly
+  // emulator. A tab's run already in flight is stopped first, so two
+  // servers never write the same last-run file, and the tab is then
+  // pointed at the new run; a native Studio window is left alone.
+  command('8bitscript.openStudioTab', async () => {
+    if (projects.all.length === 0) await projects.refresh();
+    const studio = ofKind(projects.all, 'app').find((p) => p.name === '@8bitscript/studio');
+    if (!studio) {
+      vscode.window.showInformationMessage('Studio is not installed. Install 8BitScript from the side bar, or install @8bitscript/cli in a project.');
+      return;
+    }
+    projects.running.stop(studio.dir, 'cx16', { web: true });
+    const launchedAt = Date.now();
+    const started = await execute('run', { project: studio, target: 'cx16', web: true });
+    if (!started) return;
+    await vscode.commands.executeCommand('8bitscript.studioTab.show', { dir: studio.dir, target: 'cx16', launchedAt });
   });
   command('8bitscript.launchApp', () => launch('app', 'apps'));
   command('8bitscript.launchExample', () => launch('example', 'examples'));

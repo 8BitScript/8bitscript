@@ -107,6 +107,18 @@ test('makeTask: LAN explicitly off adds --local to a web run', () => {
   assert.deepEqual(task.execution.args, ['run', 'web', '--size', '--port', '0', '--local']);
 });
 
+test('makeTask: a run for the Studio tab adds --web --no-open --port 0, marks the definition, and says so in the name', () => {
+  const project = fakeProject('/proj', { toolchain: '/proj/node_modules/.bin/8bs', name: '@8bitscript/studio' });
+  vscode.__mock.reset();
+  const task = makeTask(project, 'run', 'cx16', 'ntsc', { profile: null, options: {} }, { web: true });
+  assert.deepEqual(task.execution.args, ['run', 'cx16', '--size', '--web', '--no-open', '--port', '0']);
+  assert.equal(task.definition.web, true);
+  assert.equal(task.name, '@8bitscript/studio: run cx16 in a tab');
+  const plain = makeTask(project, 'run', 'cx16', 'ntsc', { profile: null, options: {} });
+  assert.equal(plain.definition.web, undefined);
+  assert.doesNotMatch(plain.name, /in a tab/);
+});
+
 test('makeTask: a named system runs by name, not target/hardware', () => {
   const project = fakeProject('/proj', { toolchain: '/proj/node_modules/.bin/8bs' });
   const task = makeTask(project, 'run', 'c64', 'pal', { profile: 'x', options: { port1: 'joystick' } }, { system: 'Named C64' });
@@ -588,6 +600,51 @@ test('registerRunner: openStudio runs Studio on the X16 with no picker and no ch
       assert.equal(executed.task.definition.target, 'cx16', 'on the machine it is designed on');
       assert.equal(vscode.__mock.configStore.get('project'), '/somewhere/else', 'the selected project is untouched');
       assert.equal(vscode.__mock.configStore.get('system'), 'pet', 'and so is the selected system');
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('registerRunner: openStudioTab stops the tab\'s earlier run, starts Studio on the X16 in the WebAssembly emulator, and shows the tab', async () => {
+  const dir = tmpDir();
+  try {
+    vscode.__mock.reset();
+    vscode.workspace.findFiles = () => Promise.resolve([]);
+    const shown = [];
+    vscode.commands.registerCommand('8bitscript.studioTab.show', (run) => shown.push(run));
+    await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async (projects) => {
+      const cli = writeFakeCli(dir);
+      projects.apps = [fakeProject(dir, {
+        kind: 'app', name: '@8bitscript/studio', title: 'Studio', toolchain: cli, installed: true,
+      })];
+      // An earlier tab run, and a native window: only the former is ended.
+      const ended = [];
+      const running = (web) => ({ task: { definition: { type: '8bitscript', command: 'run', projectDir: dir, target: 'cx16', ...(web ? { web: true } : {}) }, name: 'x' }, terminate: () => ended.push(web) });
+      projects.running.executions.add(running(true));
+      projects.running.executions.add(running(false));
+      const before = Date.now();
+      await vscode.__mock.trigger('8bitscript.openStudioTab');
+      await tick();
+      assert.deepEqual(ended, [true]);
+      const executed = vscode.__mock.executedTasks.at(-1);
+      assert.ok(executed, 'Studio launched');
+      assert.equal(executed.task.definition.target, 'cx16');
+      assert.equal(executed.task.definition.web, true);
+      assert.deepEqual(executed.task.execution.args.slice(-4), ['--web', '--no-open', '--port', '0']);
+      assert.equal(shown.length, 1);
+      assert.equal(shown[0].dir, dir);
+      assert.equal(shown[0].target, 'cx16');
+      assert.ok(shown[0].launchedAt >= before);
+    });
+    // No Studio: a message, no task, no tab.
+    vscode.__mock.reset();
+    vscode.commands.registerCommand('8bitscript.studioTab.show', (run) => shown.push(run));
+    await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async () => {
+      await vscode.__mock.trigger('8bitscript.openStudioTab');
+      await tick();
+      assert.equal(vscode.__mock.executedTasks.length, 0);
+      assert.equal(shown.length, 1);
     });
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
