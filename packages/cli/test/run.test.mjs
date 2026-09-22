@@ -16,7 +16,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
-  run, boot, atari800CleanDisplayConfig, atari800CleanDisplayText, emulatorInvocation, resolveController,
+  run, boot, atari800CleanDisplayConfig, atari800CleanDisplayText, emulatorInvocation, resolveController, CX16_MOUSE_NOTE,
 } from '../src/run.mjs';
 import { loadCatalog, resolveHardware } from '../src/hardware.mjs';
 
@@ -149,6 +149,11 @@ test('emulatorInvocation for the PET fitted with a real disk drive passes VICE i
   const invocation = await emulatorInvocation('pet', { pal: false, hardware });
   assert.ok(invocation.emulatorArgs.includes('-drive8type'));
   assert.equal(invocation.emulatorArgs[invocation.emulatorArgs.indexOf('-drive8type') + 1], '8050');
+});
+
+test('the X16 launch note names the capture shortcut for this platform, since a click never captures', () => {
+  assert.match(CX16_MOUSE_NOTE, /x16emu starts with your mouse free; (⇧⌘M|Ctrl\+M) gives it the mouse/);
+  assert.ok(CX16_MOUSE_NOTE.endsWith('\n'));
 });
 
 test('emulatorInvocation names a target with no emulator wired up', async () => {
