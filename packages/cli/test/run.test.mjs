@@ -158,6 +158,12 @@ test('emulatorInvocation for the PET fitted with a real disk drive passes VICE i
   assert.equal(invocation.emulatorArgs[invocation.emulatorArgs.indexOf('-drive8type') + 1], '8050');
 });
 
+test('run() usage documents cx16 window flags', async () => {
+  const { stderr } = await capture(() => run([]));
+  assert.match(stderr, /--capture-mouse/);
+  assert.match(stderr, /--fullscreen/);
+});
+
 test('the X16 launch note names the capture shortcut for this platform, since a click never captures', () => {
   assert.match(CX16_MOUSE_NOTE, /x16emu starts with your mouse free; (⇧⌘M|Ctrl\+M) gives it the mouse/);
   assert.ok(CX16_MOUSE_NOTE.endsWith('\n'));

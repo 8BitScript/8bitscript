@@ -192,6 +192,9 @@ function makeTask(project, action, target, region, hardware = settings.getHardwa
     // (studioView.cjs). Loopback only; the LAN setting is the web target's.
     args.push('--web', '--no-open', '--port', '0');
   }
+  if ((action === 'run' || action === 'boot') && target === 'cx16' && !extras.web) {
+    args.push(...settings.cx16NativeWindowCliArgs());
+  }
   const pal = region === 'pal' && MACHINE_TARGETS.has(target);
   const definition = {
     type: TASK_TYPE,

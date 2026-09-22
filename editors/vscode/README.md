@@ -172,7 +172,11 @@ side bar.
   `https://<lan-ip>:<port>/` URL — Safari will warn once; tap Advanced, then
   Proceed. Turn the setting off (`--local`) on an untrusted network. `--port
   n` on the CLI still pins HTTP to n (HTTPS on n+1) when you want a
-  stable address. The button names the project, and the
+  stable address. On **cx16**, Run and Boot pass `--capture-mouse` and
+  `--fullscreen` by default (`8bitscript.cx16.captureMouse` and
+  `8bitscript.cx16.fullscreen`) so x16emu grabs the pointer and starts
+  fullscreen; turn either off in Settings for a free mouse or a window.
+  **Open Studio in a Tab** does not use these flags. The button names the project, and the
   line under it names the machine, the hardware fitted to it, and the
   region — nothing has to be read off a dropdown to know what pressing it
   means. It greys out when the selected project does not target the selected
