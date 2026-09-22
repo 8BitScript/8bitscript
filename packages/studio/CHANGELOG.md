@@ -1,5 +1,23 @@
 # @8bitscript/studio
 
+## 0.21.0
+
+### Minor Changes
+
+- 65829bd: `@8bitscript/ui/menu`: the drop-down — one column of entries under a bar item, the same immediate-mode contract as the bar (`begin`/`item`/`end`, `next`/`previous`/`select`/`deselect`, `point`/`pointed`), rows drawn edge to edge with the lit one inverted, and `clear()` to take it off the screen; `menubar.itemAt(i)` says where to put it. Studio uses both: its bar is the mark, FILE and the three editors (one EDIT menu on 22 columns), its menus open under keys, a stick, a pad or a mouse, and every entry opens a screen that shows what the machine has for that editor — the characters screen drawing the portable character set — and says plainly that nothing edits, plays or loads yet. Studio names the X16 as its baseline and a mouse as its primary input, builds for all nine machines again (the 8K VIC-20 and the 32K PET as its defaults; a stock VIC-20 and a 4K PET cannot hold the desk), and its tests build every target and drive the desk on the web build.
+- 38c8dfc: Studio has a light mode beside its dark one — a white screen, black ink, a blue bar — switched from the mark's menu on every machine with more than two colors; the extension's panels already follow the editor's theme, and a test now holds them to it (no colors of their own outside the LAN QR code).
+
+### Patch Changes
+
+- 4c3f70f: `8bs run cx16 --web` runs the program in the browser's x16emu: the WebAssembly build X16Community ships with each release, pinned (r49) by URL and SHA-256, downloaded into the user's cache on first use — no Emscripten, no sudo — and served from loopback with the freshly built `.prg`. The page passes the emulator the same flags as the native window (the catalog's `run.x16emu`, the controller's, `-prg … -run`), so a program behaves the same in a tab as in a window. In the tab the mouse is the browser's Pointer Lock: a click on the screen takes it, Esc gives it back. `--no-open` and `--port` apply; the URL lands in `dist/.8bs-last-cx16.json` for the editor's Running machines tree. Studio gains `pnpm start:cx16-web`.
+- Updated dependencies [65829bd]
+  - @8bitscript/ui@0.21.0
+  - @8bitscript/input@0.21.0
+  - @8bitscript/pointer@0.21.0
+  - @8bitscript/screen@0.21.0
+  - @8bitscript/text@0.21.0
+  - @8bitscript/system@0.21.0
+
 ## 0.20.0
 
 ### Patch Changes

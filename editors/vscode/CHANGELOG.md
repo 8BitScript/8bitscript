@@ -1,5 +1,17 @@
 # 8bitscript-lang
 
+## 0.21.0
+
+### Minor Changes
+
+- d4385cb: **Open Studio**: the largest button on the side bar, above Quick launch — Studio on the Commander X16, its baseline, with no change to the selected project — and a ▾ sliver on its edge whose menu opens Studio on any of its systems; the packages block only appears when something needs installing; `8BitScript: Open Studio` on the palette. The title bar's rocket keeps the quick pick.
+- dff55d0: Studio in an editor tab. The Open Studio button's menu gains **In an editor tab** (and the palette **8BitScript: Open Studio in a Tab**): `8bs run cx16 --web` builds Studio and serves the CLI's WebAssembly x16emu on loopback, and a **Studio** tab frames it with Reset, Rebuild, Stop and Open in browser above the screen. Closing the tab ends the run. The tab's mouse line says whether Studio has the mouse (a click on the screen gives it, Esc takes it back) and, should the editor not let a framed page capture it, points at Open in browser. Needs a CLI with `8bs run cx16 --web`.
+
+### Patch Changes
+
+- a9d7596: The VS Code launcher passes `--capture-mouse` and `--fullscreen` on native Commander X16 runs and boots by default (`8bitscript.cx16.captureMouse` and `8bitscript.cx16.fullscreen` in Settings). Studio in a tab is unchanged. The CLI accepts the same flags for `8bs run cx16` and `8bs boot cx16`; a terminal launch without them still starts with a free mouse and a window.
+- 38c8dfc: Studio has a light mode beside its dark one — a white screen, black ink, a blue bar — switched from the mark's menu on every machine with more than two colors; the extension's panels already follow the editor's theme, and a test now holds them to it (no colors of their own outside the LAN QR code).
+
 ## 0.20.0
 
 No changes in this release.
