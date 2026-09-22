@@ -274,6 +274,7 @@ class LauncherViewProvider {
       command: `8bs ${commandArgs('run', system, region, extras.system ? undefined : selection, extras).concat(
         system === 'web' ? ['--port', '0'] : [],
         system === 'web' && !settings.getWebLan() ? ['--local'] : [],
+        system === 'cx16' ? settings.cx16NativeWindowCliArgs() : [],
       ).join(' ')}`,
     });
   }

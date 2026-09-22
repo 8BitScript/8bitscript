@@ -107,6 +107,23 @@ test('makeTask: LAN explicitly off adds --local to a web run', () => {
   assert.deepEqual(task.execution.args, ['run', 'web', '--size', '--port', '0', '--local']);
 });
 
+test('makeTask: a native cx16 run passes capture and fullscreen flags from settings; boot does too; Studio tab does not', () => {
+  const project = fakeProject('/proj', { toolchain: '/proj/node_modules/.bin/8bs' });
+  vscode.__mock.reset();
+  const runCx16 = makeTask(project, 'run', 'cx16', 'ntsc', { profile: null, options: {} });
+  assert.deepEqual(runCx16.execution.args, ['run', 'cx16', '--size', '--capture-mouse', '--fullscreen']);
+  const bootCx16 = makeTask(project, 'boot', 'cx16', 'ntsc', { profile: null, options: {} });
+  assert.deepEqual(bootCx16.execution.args, ['boot', 'cx16', '--capture-mouse', '--fullscreen']);
+  vscode.__mock.configStore.set('cx16.captureMouse', false);
+  vscode.__mock.configStore.set('cx16.fullscreen', false);
+  const runOff = makeTask(project, 'run', 'cx16', 'ntsc', { profile: null, options: {} });
+  assert.deepEqual(runOff.execution.args, ['run', 'cx16', '--size', '--no-capture-mouse', '--no-fullscreen']);
+  vscode.__mock.reset();
+  const studio = makeTask(project, 'run', 'cx16', 'ntsc', { profile: null, options: {} }, { web: true });
+  assert.deepEqual(studio.execution.args, ['run', 'cx16', '--size', '--web', '--no-open', '--port', '0']);
+  assert.doesNotMatch(studio.execution.args.join(' '), /--capture-mouse/);
+});
+
 test('makeTask: a run for the Studio tab adds --web --no-open --port 0, marks the definition, and says so in the name', () => {
   const project = fakeProject('/proj', { toolchain: '/proj/node_modules/.bin/8bs', name: '@8bitscript/studio' });
   vscode.__mock.reset();
