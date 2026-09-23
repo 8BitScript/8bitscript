@@ -22,6 +22,28 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm run test:ci
 
+  # Fails the pull request when packages/ or editors/ changed and no
+  # .changeset/*.md came with them. The version bot only opens a release
+  # for changesets that actually merged. Docs and CI do not need one.
+  # changeset-release/* is the Version Packages pull request, which
+  # consumes changesets rather than adding one. The job always reports,
+  # including on that pull request, so branch protection can require the
+  # check without trapping the release.
+  changeset:
+    name: Changeset
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Require a changeset when a published package changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: node scripts/require-changeset.mjs
+
   # Skipped until SONAR_TOKEN is set on the repo (Settings → Secrets and
   # variables → Actions). The Cloud project is 8BitScript_8bitscript; keep
   # Automatic Analysis off (Administration → Analysis Method) or the CI
