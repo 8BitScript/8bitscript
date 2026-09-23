@@ -1,7 +1,8 @@
-// The page shell: header, sidebar, "on this page" rail, and prev/next footer
-// nav around each page's rendered Markdown. Styling lives entirely in
-// docs/assets/css/main.css; interactivity (search, mobile nav, copy buttons)
-// in docs/assets/js/site.js. There is no component framework — this is one
+// The page shell: header (including the dismissible development notice),
+// sidebar, "on this page" rail, and prev/next footer nav around each page's
+// rendered Markdown. Styling lives entirely in docs/assets/css/main.css;
+// interactivity (the notice, search, mobile nav, copy buttons) in
+// docs/assets/js/site.js. There is no component framework — this is one
 // template function for a documentation site with a few dozen pages, and a
 // framework would cost more than it buys.
 import { nav as currentNav } from './nav.mjs';
@@ -166,11 +167,22 @@ export function renderPage(page) {
     <link rel="icon" type="image/svg+xml" href="${assets}/favicon.svg">
     <link rel="stylesheet" href="${assets}/css/main.css">
     <link rel="stylesheet" href="${pagefind}/pagefind-ui.css">
+    <script>
+      try {
+        if (localStorage.getItem('8bitscript.notice') === 'development-v1') {
+          document.documentElement.classList.add('notice-dismissed');
+        }
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
 
     <header class="site-header">
+      <div class="dev-notice" id="dev-notice" role="region" aria-label="Project status">
+        <p class="dev-notice-text"><strong>Development version.</strong> 8BitScript is a work in progress. A published release is a snapshot of ongoing work, and does not mean the language or the toolchain is finished.</p>
+        <button type="button" class="dev-notice-dismiss" id="dev-notice-dismiss">Dismiss</button>
+      </div>
       <div class="site-header-inner">
         <a class="wordmark" href="${escapeHtml(home)}">
           <img class="wordmark-icon" src="${assets}/favicon.svg" alt="" width="22" height="22">
