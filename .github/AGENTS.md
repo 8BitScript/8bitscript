@@ -27,6 +27,17 @@ it is a human decision — see the root
 that merge, `tag-release.yml` tags `vX.Y.Z` and dispatches
 `release.yml`.
 
+A pull request that changes `packages/` or `editors/` and does not add
+a `.changeset/*.md` file fails the `Changeset` check (`CI` workflow,
+`scripts/require-changeset.mjs`). That is what stops a package change
+from merging with nothing for the version bot to release. Docs, the
+site, and CI are not published packages and do not need one. An empty
+changeset (`pnpm changeset --empty`) is the opt-out, and it has to be
+committed. This pull request's own branch, `changeset-release/*`, is
+exempt because it is the consumption of those files. Trunk's branch
+protection has to require the `Changeset` check or a red run can still
+be merged.
+
 ## The editor VSIX
 
 `editors/vscode` is a thin client: syntax, the launcher, and a small

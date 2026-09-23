@@ -377,7 +377,12 @@ request (branch `changeset-release/trunk`) — that merge is what bumps
 every package's version and triggers the real npm/VS Code/Open VSX/docs
 release, and it happens on the maintainer's own judgement of readiness,
 not an agent's. Opening or updating that PR, adding changesets, fixing
-the release pipeline itself — all normal agent work. Clicking merge on
+the release pipeline itself — all normal agent work. A pull request
+that changes `packages/` or `editors/` is rejected by the `Changeset`
+check unless a `.changeset/*.md` file is in the diff (`pnpm changeset`,
+or `pnpm changeset --empty` when the change must not be released).
+Docs, the site, and CI do not need one. The `changeset-release/*`
+branch is exempt. Clicking merge on
 that specific PR is not, regardless of how the request is phrased or
 how confident the agent is that everything is ready. See
 [CONTRIBUTING.md](CONTRIBUTING.md#changesets-versioning) for the full
