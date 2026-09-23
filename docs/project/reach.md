@@ -124,11 +124,15 @@ alternative is picking a side in the C64 dispute in a JSON file.
 
 ## The numbers
 
-Twenty-five machines: the eight that build and have hardware to reach
-(the web is a URL, not a fleet), the sixteen the roadmap names
-([`machines/index.md`](machines/index.md), counting the Z80 page's six),
-and the Atari 7800, which the same research turned up between the 2600
-and the Lynx. All fetched 2026-09-20 unless a cell says otherwise. `†`
+Twenty-five machines are on this sheet: the eight that build and have
+hardware to reach (the web is a URL, not a fleet), and seventeen that
+do not. Sixteen of those seventeen were the roadmap when the sheet was
+written ([`machines/index.md`](machines/index.md) at the time, counting
+the Z80 page's six). The Atari 7800 was measured in the same pass and
+is now on the roadmap at phase 6. The roadmap has since also named the
+SG-1000, Game Boy Color as its own target, the TRS-80 Color Computer,
+the Vectrex, the Odyssey², and the Channel F; this sheet has no row for
+them. All fetched 2026-09-20 unless a cell says otherwise. `†`
 marks a units figure whose sources disagree — read `unitsSold.sources[]`
 in the JSON before quoting one.
 

@@ -30,10 +30,16 @@ not confirm is marked *to verify*. When a machine's turn comes, its page
 becomes the first draft of `packages/<machine>/AGENTS.md`, and the
 verification happens against the installed toolchain and emulator then.
 
-Each of these machines, and the eight that build, has a row in
-[`../reach.md`](../reach.md) — units sold, 2026 community activity,
-routes to a user and the formats each route takes — so the phase order
-below can be argued from numbers as well as from hardware.
+The machines measured on 2026-09-20 have a row in
+[`../reach.md`](../reach.md) — units sold, community activity, routes
+to a user and the formats each route takes. The Atari 7800 is one of
+those rows and is phase 6. SG-1000, Game Boy Color as its own id, the
+Color Computer, Vectrex, Odyssey², and Channel F are named below and
+are not on that sheet yet.
+
+The order, and the rule for what belongs on it, is
+[`../../roadmap.md`](../../roadmap.md). The list there is closed: a
+further machine needs a constraint none of these already forces.
 
 | Phase | Machine | Page |
 | ----- | ------- | ---- |
@@ -42,9 +48,14 @@ below can be argued from numbers as well as from hardware.
 | 5 | BBC Micro | [bbc-micro.md](bbc-micro.md) |
 | 5 | Oric-1 / Atmos | [oric.md](oric.md) |
 | 6 | Atari 5200 | [atari5200.md](atari5200.md) |
+| 6 | Atari 7800 | [atari7800.md](atari7800.md) |
 | 6 | Atari Lynx | [lynx.md](lynx.md) |
 | 6 | PC Engine / TurboGrafx-16 | [pcengine.md](pcengine.md) |
 | 6 | Watara Supervision | [supervision.md](supervision.md) |
 | 7 | Atari 2600 | [atari2600.md](atari2600.md) |
-| 8 | Game Boy / Game Boy Color | [gameboy.md](gameboy.md) |
-| 8 | The Z80 family: ZX Spectrum, MSX, Master System / Game Gear, Amstrad CPC, ColecoVision | [z80-family.md](z80-family.md) |
+| 8 | Game Boy | [gameboy.md](gameboy.md) |
+| 8 | Game Boy Color | [gameboy.md](gameboy.md#game-boy-color) |
+| 8 | The Z80 family: Master System, Game Gear, SG-1000, ZX Spectrum, MSX1, Amstrad CPC, ColecoVision | [z80-family.md](z80-family.md) |
+| 9 | TRS-80 Color Computer and Vectrex (6809) | [6809.md](6809.md) |
+| 10 | Magnavox Odyssey² / Philips Videopac | [odyssey2.md](odyssey2.md) |
+| 10 | Fairchild Channel F | [channelf.md](channelf.md) |

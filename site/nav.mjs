@@ -16,6 +16,10 @@ export const nav = [
     url: '/',
   },
   {
+    title: 'Roadmap',
+    url: '/roadmap',
+  },
+  {
     title: 'The language, by task',
     url: '/language/',
     children: [

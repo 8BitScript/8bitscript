@@ -96,6 +96,9 @@ required peripheral, a delivery shape), the `8bs targets --reach`
 analysis that would join them, and the release rule — one artifact per
 build outcome, named by what it runs on — measured on 2048's PET builds.
 
+[Roadmap](roadmap.md) — the order the remaining machines are taken on,
+grouped by CPU, and the rule for what counts as a target.
+
 [Machines on the roadmap](project/machines/index.md) — hardware research
 notes for the machines named in later phases, the ones no package exists
 for yet.
