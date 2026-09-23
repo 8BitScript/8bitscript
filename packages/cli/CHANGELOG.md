@@ -1,5 +1,28 @@
 # @8bitscript/cli
 
+## 0.22.0
+
+### Minor Changes
+
+- 8796c08: The web 8×8 font has quarter-circle corner masks at codes 144–147 (top-left, top-right, bottom-left, bottom-right). Under reverse video the host punches the curve out, so a tile corner reads as a rounded corner rather than a quadrant chamfer. 148 up to the copyright glyph stays blank.
+
+### Patch Changes
+
+- Updated dependencies [8796c08]
+  - @8bitscript/web@0.22.0
+  - @8bitscript/examples@0.22.0
+  - @8bitscript/studio@0.22.0
+  - @8bitscript/compiler@0.22.0
+  - @8bitscript/atari8@0.22.0
+  - @8bitscript/c128@0.22.0
+  - @8bitscript/c64@0.22.0
+  - @8bitscript/cx16@0.22.0
+  - @8bitscript/language-server@0.22.0
+  - @8bitscript/mega65@0.22.0
+  - @8bitscript/nes@0.22.0
+  - @8bitscript/pet@0.22.0
+  - @8bitscript/vic20@0.22.0
+
 ## 0.21.0
 
 ### Minor Changes
