@@ -39,10 +39,8 @@ jobs:
           fetch-depth: 0
       - name: Require a changeset when a published package changes
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           HEAD_REF: ${{ github.head_ref }}
-        run: node scripts/require-changeset.mjs
+        run: git diff --name-only "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}" | node scripts/require-changeset.mjs
 
   # Skipped until SONAR_TOKEN is set on the repo (Settings → Secrets and
   # variables → Actions). The Cloud project is 8BitScript_8bitscript; keep

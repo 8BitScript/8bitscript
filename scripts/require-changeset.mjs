@@ -6,7 +6,7 @@
 // `pnpm changeset --empty` is the explicit opt-out for a package change
 // that must not be released. Silence is not an opt-out.
 
-import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 const PUBLISHED_PREFIXES = ['packages/', 'editors/'];
@@ -37,23 +37,18 @@ export function changesetRequired({ files, headRef }) {
   return { required: true, published };
 }
 
-function changedFiles(base, head) {
-  const out = execFileSync('git', ['diff', '--name-only', `${base}...${head}`], {
-    encoding: 'utf8',
-  });
-  return out.split('\n').map((line) => line.trim()).filter(Boolean);
+function filesFromStdin() {
+  return readFileSync(0, 'utf8').split('\n').map((line) => line.trim()).filter(Boolean);
 }
 
 function main() {
-  const base = process.env.BASE_SHA;
-  const head = process.env.HEAD_SHA || 'HEAD';
   const headRef = process.env.HEAD_REF || '';
-  if (!base) {
-    console.error('BASE_SHA is required (the pull request base commit).');
+  if (process.stdin.isTTY) {
+    console.error('Pipe `git diff --name-only <base>...<head>` on stdin.');
     process.exit(2);
   }
 
-  const result = changesetRequired({ files: changedFiles(base, head), headRef });
+  const result = changesetRequired({ files: filesFromStdin(), headRef });
   if (!result.required) {
     console.log('Changeset check passed.');
     return;

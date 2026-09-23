@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 
 import {
   changesetRequired,
@@ -69,4 +70,30 @@ test('the changeset folder readme does not count as a changeset', () => {
     headRef: 'feat/web-corner-glyphs',
   });
   assert.equal(result.required, true);
+});
+
+function run(input, headRef = 'feat/example') {
+  return spawnSync(process.execPath, ['scripts/require-changeset.mjs'], {
+    input,
+    encoding: 'utf8',
+    env: { ...process.env, HEAD_REF: headRef },
+  });
+}
+
+test('stdin listing a package file fails the command', () => {
+  const result = run('packages/cli/src/font8x8.mjs\n');
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /no changeset/);
+  assert.match(result.stderr, /packages\/cli\/src\/font8x8\.mjs/);
+});
+
+test('stdin listing only docs passes', () => {
+  const result = run('docs/index.md\nREADME.md\n');
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /passed/);
+});
+
+test('the Version Packages branch passes even when package files are listed', () => {
+  const result = run('packages/cli/package.json\n', 'changeset-release/trunk');
+  assert.equal(result.status, 0);
 });
