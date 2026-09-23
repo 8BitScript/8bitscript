@@ -5,6 +5,10 @@ nav_order: 0
 
 # 8BitScript
 
+**Development version.** 8BitScript is a work in progress. A published
+release is a snapshot of ongoing work, and does not mean the language or
+the toolchain is finished.
+
 8BitScript is a statically compiled, TypeScript-flavored language for
 classic 8-bit computers and the web. Two source kinds share one compiler:
 `.8bs` is the core language — range-checked integers, arrays and strings
