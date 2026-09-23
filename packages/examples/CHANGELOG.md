@@ -1,5 +1,21 @@
 # @8bitscript/examples
 
+## 0.22.0
+
+### Patch Changes
+
+- Updated dependencies [8796c08]
+  - @8bitscript/web@0.22.0
+  - @8bitscript/input@0.22.0
+  - @8bitscript/raster@0.22.0
+  - @8bitscript/screen@0.22.0
+  - @8bitscript/text@0.22.0
+  - @8bitscript/sprites@0.22.0
+  - @8bitscript/timeline@0.22.0
+  - @8bitscript/c64@0.22.0
+  - @8bitscript/pet@0.22.0
+  - @8bitscript/system@0.22.0
+
 ## 0.21.0
 
 ### Patch Changes
