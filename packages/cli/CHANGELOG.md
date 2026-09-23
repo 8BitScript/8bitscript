@@ -1,5 +1,24 @@
 # @8bitscript/cli
 
+## 0.22.1
+
+### Patch Changes
+
+- de4cf1f: The Atari 7800 is on the roadmap at phase 6. `8bs targets --reach` reports that phase instead of leaving the machine unplanned.
+- @8bitscript/atari8@0.22.1
+  - @8bitscript/c128@0.22.1
+  - @8bitscript/c64@0.22.1
+  - @8bitscript/compiler@0.22.1
+  - @8bitscript/cx16@0.22.1
+  - @8bitscript/examples@0.22.1
+  - @8bitscript/language-server@0.22.1
+  - @8bitscript/mega65@0.22.1
+  - @8bitscript/nes@0.22.1
+  - @8bitscript/pet@0.22.1
+  - @8bitscript/studio@0.22.1
+  - @8bitscript/vic20@0.22.1
+  - @8bitscript/web@0.22.1
+
 ## 0.22.0
 
 ### Minor Changes
