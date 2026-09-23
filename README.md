@@ -11,6 +11,8 @@
   <a href="https://8bitscript.org/"><img src="https://img.shields.io/badge/manual-8bitscript.org-3a2fa8" alt="Manual"></a>
 </p>
 
+> **Development version.** 8BitScript is a work in progress. A published release is a snapshot of ongoing work, and does not mean the language or the toolchain is finished.
+
 # 8BitScript
 
 **Remember when a computer switched on and was simply *ready*?**
@@ -242,11 +244,11 @@ the brochure.
 
 ## The fine print
 
-8BitScript is young and moving fast: breaking changes arrive between
-releases, and some constructs you'd expect from TypeScript aren't here
-yet. What's listed above is real; the manual's
+Breaking changes arrive between releases, and some constructs you'd
+expect from TypeScript aren't here yet. What's listed above is what
+compiles today; the manual's
 [Not yet available](https://8bitscript.org/language/not-yet) page is
-honest about the rest.
+the rest.
 
 It is not TypeScript — it borrows the syntax and nothing else. Existing
 TypeScript won't compile, and npm packages written for Node won't import.

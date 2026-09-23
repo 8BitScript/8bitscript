@@ -1,8 +1,9 @@
-// Progressive enhancement for the doc shell in site/layout.mjs: mobile nav
-// toggle, the Ctrl/Cmd-K search dialog, code-block copy buttons, and
-// scroll-spy highlighting in the "on this page" rail. Every feature here
-// degrades to nothing if it fails — the site is fully readable and
-// navigable without JavaScript, this file only makes it nicer to use.
+// Progressive enhancement for the doc shell in site/layout.mjs: the
+// development notice, mobile nav toggle, the Ctrl/Cmd-K search dialog,
+// code-block copy buttons, and scroll-spy highlighting in the "on this
+// page" rail. Every feature here degrades to nothing if it fails — the
+// site is fully readable and navigable without JavaScript, and the notice
+// simply stays up.
 
 function initNavToggle() {
   const toggle = document.querySelector('.nav-toggle');
@@ -137,6 +138,27 @@ function initTocScrollSpy() {
   }
 }
 
+const NOTICE_KEY = '8bitscript.notice';
+const NOTICE_ID = 'development-v1';
+
+function initDevNotice() {
+  const notice = document.getElementById('dev-notice');
+  const dismiss = document.getElementById('dev-notice-dismiss');
+  if (!notice || !dismiss) return;
+
+  dismiss.addEventListener('click', () => {
+    try {
+      localStorage.setItem(NOTICE_KEY, NOTICE_ID);
+    } catch {
+      // Private mode, or storage blocked. Hiding it for this page is still
+      // what the click asked for.
+    }
+    document.documentElement.classList.add('notice-dismissed');
+    notice.remove();
+  });
+}
+
+initDevNotice();
 initNavToggle();
 initSearch();
 initCodeCopyButtons();
