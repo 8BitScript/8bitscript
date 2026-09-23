@@ -185,9 +185,11 @@ Nine machines. Every one of them builds, runs, and renders today.
 
 ## Coming attractions
 
-Researched and written up, not yet built. Nothing here compiles today;
-the [roadmap notes](https://8bitscript.org/project/machines/) say exactly
-what's known about each and what's still to verify.
+Named on the [roadmap](docs/roadmap.md), not yet built. Nothing here
+compiles today. The [machine notes](https://8bitscript.org/project/machines/)
+say what is known about each and what is still to verify. The list is
+closed: a machine is on it when its CPU is 8-bit, and the Intellivision
+is off it because the CP1610 is not.
 
 | | Machine | Notes |
 | --- | --- | --- |
@@ -196,12 +198,24 @@ what's known about each and what's still to verify.
 | 🟨 | BBC Micro | 6502 — next in line |
 | 🟨 | Oric-1 / Atmos | 6502 — next in line |
 | ⬜ | Atari 5200 | 6502 console |
+| ⬜ | Atari 7800 | 6502, MARIA graphics |
 | ⬜ | Atari Lynx | 6502 handheld |
-| ⬜ | PC Engine / TurboGrafx-16 | 6502-derived |
+| ⬜ | PC Engine / TurboGrafx-16 | HuC6280, a 65C02 |
 | ⬜ | Watara Supervision | 6502 handheld |
 | ⬜ | Atari 2600 | the hard one |
-| ⬜ | Game Boy / Game Boy Color | a second CPU backend |
-| ⬜ | ZX Spectrum, MSX, Master System / Game Gear, Amstrad CPC, ColecoVision | the Z80 family |
+| ⬜ | Game Boy | SM83 |
+| ⬜ | Game Boy Color | SM83, its own target |
+| ⬜ | Sega Master System | Z80, shared with the Game Gear |
+| ⬜ | Game Gear | Z80 |
+| ⬜ | Sega SG-1000 | Z80, TMS9918 |
+| ⬜ | ZX Spectrum | Z80 |
+| ⬜ | MSX1 | Z80, TMS9918 |
+| ⬜ | Amstrad CPC | Z80 |
+| ⬜ | ColecoVision | Z80, TMS9918 |
+| ⬜ | TRS-80 Color Computer | 6809 |
+| ⬜ | Vectrex | 6809, vector display |
+| ⬜ | Magnavox Odyssey² / Videopac | Intel 8048 |
+| ⬜ | Fairchild Channel F | Fairchild F8 |
 
 🟩 builds today &nbsp;·&nbsp; 🟨 up next &nbsp;·&nbsp; ⬜ on the drawing board
 

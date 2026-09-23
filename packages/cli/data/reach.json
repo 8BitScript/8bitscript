@@ -4577,7 +4577,8 @@
    }
   },
   "atari7800": {
-   "status": "unplanned",
+   "status": "roadmap",
+   "phase": 6,
    "name": "Atari 7800 ProSystem",
    "family": "atari",
    "cpu": "SALLY (custom 6502C) @ 1.79 MHz NTSC / 1.77 MHz PAL; MARIA graphics; TIA sound (POKEY/YM2151 optional in-cart); 4 KB RAM",
