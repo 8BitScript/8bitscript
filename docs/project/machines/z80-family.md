@@ -6,9 +6,11 @@ nav_order: 41
 # Writing Z80-family support for 8BitScript
 
 This file is for anyone — human or agent — touching the future `z80`
-backend the roadmap's Phase 8 asks for, or any of the five machines it
-opens up: ZX Spectrum (48K/128K), MSX (1 and 2), Sega Master System and
-Game Gear, Amstrad CPC, and ColecoVision. Read the root
+backend the roadmap's Phase 8 asks for, or any of the machines it opens:
+ZX Spectrum (48K/128K), MSX1 (`msx`), Sega SG-1000 (`sg1000`),
+ColecoVision, Sega Master System, Game Gear, and Amstrad CPC. MSX2 is
+described below because the V9938 research was done beside MSX1; it is
+not a separate roadmap target. Read the root
 [`AGENTS.md`](https://github.com/8BitScript/8bitscript/blob/trunk/AGENTS.md) first; the rules there apply to every
 target and are not repeated. `gameboy.md` (same directory) covers the
 other Phase 8 CPU; the Game Boy is *not* a Z80 and is deliberately kept
@@ -26,11 +28,16 @@ the comparison and the rules.
 > CPU once, the address space per machine (flat, paged, slotted, or
 > configured), and the video five times.**
 
+That quote is the five columns of the table below. The SG-1000 is a
+further TMS9918 machine and is not one of those columns. Master System
+and Game Gear share a column because they share the Sega VDP.
+
 The one thing every Z80 machine forces on the *language* is I/O: the
-Spectrum's ULA, the MSX's VDP and PSG, the SMS VDP, the CPC's Gate Array
-and PPI, and the ColecoVision's everything are reached with `IN`/`OUT`,
-not memory. `@address` cannot spell a port. That is the first design
-question a Z80 backend raises — before any of the five video chips.
+Spectrum's ULA, the MSX's VDP and PSG, the SMS VDP, the SG-1000's VDP,
+the CPC's Gate Array and PPI, and the ColecoVision's everything are
+reached with `IN`/`OUT`, not memory. `@address` cannot spell a port.
+That is the first design question a Z80 backend raises — before any of
+those video chips.
 
 ## What exists today
 
@@ -128,6 +135,28 @@ fetch whose quoted strings are what is relied on — not recalled.
 | Frame | 50.08 / 50.01 Hz, ULA INT | 60 / 50 Hz, VDP INT via BIOS hook | 60 / 50 Hz, VDP INT + line INT | 50 Hz, **300 Hz INT**, VSYNC on PPI | 60 / 50 Hz, **NMI** |
 | Persistence | none (tape/+3 disk) | disk, cart SRAM, RTC | cart battery SRAM | none (tape/disk/cart) | none |
 | Headless capture | Fuse `--movie-start` + `fmfconv`; MAME | openMSX `screenshot -raw` | Mesen2 `--testRunner`; MAME | Caprice32 F3 only; MAME | openMSX; MAME |
+
+## SG-1000
+
+`sg1000` is a phase 8 target and is not a column of the table above.
+Master System and Game Gear share the later Sega VDP. The SG-1000 does
+not: its video chip is a TMS9918A, the same family as MSX1 and
+ColecoVision.
+
+Read from MAME `src/mame/sega/sg1000.cpp`, configuration `sg1000_base`,
+on 2026-09-22:
+
+| Fact | Where |
+| ---- | ----- |
+| Z80 clocked at `10.738635_MHz_XTAL / 3`. The comment names an NEC D780C-1 / Zilog Z8400A. | `sg1000_base` |
+| TMS9918A at `10.738635_MHz_XTAL`, VRAM `0x4000` (16 KiB). | same |
+| SN76489A at the same divided clock. | same |
+
+Work-RAM size, the I/O port map, and the SC-3000 computer are *to
+verify*. The SC-3000 is the same CPU and VDP with a keyboard; it is a
+hardware axis on `sg1000` if a later note confirms the map, not a
+separate target. The roadmap's MSX target is MSX1. MSX2 stays in the
+table as research and is not a target of its own.
 
 ## Rules for this family
 
@@ -287,7 +316,7 @@ fetch whose quoted strings are what is relied on — not recalled.
 
 ```
 (nothing yet)
-docs/roadmap.md                                  Phase 8: "gameboy, then z80"; the second-backend diagram
+docs/roadmap.md                                  Phase 8: seven Z80 machines on one backend; sms/gamegear share a VDP, sg1000 does not
 packages/backend-6502/src/index.mjs              the only lowering today; FRAME_SYNC per target is the shape the Z80 frame drivers mirror
 packages/pet/AGENTS.md, packages/nes/AGENTS.md   the profile-file rule and the vblank-queue rule these machines reuse
 tmp/research/{spectrum,msx,sms,cpc,colecovision}.schema.md   one 16-row schema per machine, for the capability matrix

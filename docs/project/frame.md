@@ -410,7 +410,11 @@ every twin agrees:
 The eleven machines after the nine — Apple II, Plus/4 (C16, C116), BBC
 Micro, Oric (Phase 5); Atari 5200, Lynx, PC Engine, Supervision (Phase
 6); Atari 2600 (Phase 7); Game Boy, the Z80 family (Phase 8) — do not
-build yet, and this framework must not paint them in. Each is placed
+build yet, and this framework must not paint them in. The roadmap has
+since named more — the Atari 7800 (phase 6), Game Boy Color as its own
+target and the SG-1000 (phase 8), the Color Computer and Vectrex (phase
+9), the Odyssey² and the Channel F (phase 10) — and they are not rows
+of the table below. Each is placed
 here against the same intents so that when its package arrives the
 degradation is already written, and so the portable surface is not
 shaped by an assumption one of them breaks. Sources are the machine

@@ -1,15 +1,14 @@
 ---
-title: Game Boy / Game Boy Color
+title: Game Boy and Game Boy Color
 nav_order: 40
 ---
 
-# Writing Game Boy / Game Boy Color support for 8BitScript
+# Writing Game Boy and Game Boy Color support for 8BitScript
 
-This file is for anyone — human or agent — touching a future
-`packages/gameboy`, the first non-6502 backend the roadmap's Phase 8 asks
-for (`docs/roadmap.md`: "Add: `gameboy`, then `z80`"), the `gameboy` rows
-of `docs/roadmap.md`, or the emulator/toolchain setup that backend will
-need. Read the root [`AGENTS.md`](https://github.com/8BitScript/8bitscript/blob/trunk/AGENTS.md) first; the rules there
+This file is for anyone — human or agent — touching the future SM83
+backend the roadmap's Phase 8 asks for, the two targets that share it
+(`gameboy` and `gameboycolor`), or the emulator and toolchain that
+backend will need. Read the root [`AGENTS.md`](https://github.com/8BitScript/8bitscript/blob/trunk/AGENTS.md) first; the rules there
 apply to every target and are not repeated.
 [`packages/nes/AGENTS.md`](https://github.com/8BitScript/8bitscript/blob/trunk/packages/nes/AGENTS.md) is the closest existing
 contrast — the Game Boy is a tile-and-object machine like the NES, with a
@@ -25,12 +24,19 @@ make "port the NES package" the wrong plan. The Game Boy is a fourth case:
 > the cartridge — not the console — deciding how much ROM, RAM and
 > persistence exist.**
 
-The machine's variety is in two axes that must stay separate: the *model*
-(DMG, MGB, SGB, CGB, AGB — header byte `$0143` says whether a program is
-DMG-only, CGB-enhanced or CGB-only) and the *cartridge* (header `$0147`:
-ROM-only, MBC1/2/3/5, with or without RAM, battery, RTC, rumble). A
-program built for one point in that grid does not run — or does not save —
-on the others.
+## Game Boy Color
+
+`gameboycolor` is its own target, on the same SM83 backend as
+`gameboy`. Double speed (`KEY1` and `stop`), the second VRAM bank,
+banked WRAM, and the CGB palettes are facts of `gameboycolor`. They are
+not a hardware option of `gameboy`.
+
+`gameboy` is the DMG, the MGB, and the SGB. `gameboycolor` is a
+CGB-enhanced or CGB-only build. Header byte `$0143` still says which of
+those a cartridge is (`CGB_Registers.md`, in the table below). The
+cartridge axis is shared: header `$0147` (ROM-only, MBC1/2/3/5, RAM,
+battery, RTC, rumble). A program built for one point in that grid does
+not run — or does not save — on the others.
 
 ## What exists today
 
@@ -40,8 +46,8 @@ other than `packages/backend-6502` (which emits C and drives
 `ls ~/.local/opt/llvm-mos/bin` lists only `mos-*` drivers for 6502-family
 platforms — there is no LLVM-MOS route to this CPU at all. None of RGBDS,
 GBDK-2020, SDCC, z88dk, SameBoy, mGBA, Mesen2, BGB or MAME is installed
-on this machine (`which` finds none of them). The roadmap places the
-target in Phase 8, after every 65xx machine, precisely so that the IR is
+on this machine (`which` finds none of them). The roadmap places both
+targets in Phase 8, after every 65xx machine, precisely so that the IR is
 proven free of LLVM-MOS assumptions before a second lowering is written.
 
 The rules below are what to hold that work to when it comes; don't write
@@ -106,11 +112,12 @@ emulator/toolchain source or manual named — not recalled.
 ### The CPU is neither a 6502 nor a Z80
 
 - Every device is a byte at `$FF00–$FF7F`; the language's `@address`
-  spelling covers it. This is the one machine in Phase 8 that does *not*
-  need an I/O-port intrinsic — the Z80 family does (see
+  spelling covers it. The Game Boy family is the Phase 8 CPU that does
+  not need an I/O-port intrinsic — the Z80 family does (see
   `z80-family.md`). Write registers as addresses, and keep that fact out
   of the shared IR: the Z80 lowering will need `in`/`out` where this one
-  needs `ld`.
+  needs `ld`. Both targets use that spelling; Color's extra registers
+  are more bytes in the same I/O window.
 - Only 127 bytes of HRAM are fast (`ldh`) and only HRAM is reachable
   during OAM DMA; the OAM-DMA wait loop and the hottest zero-page-style
   variables belong there. Treat HRAM as the SM83's "zero page", but it is
@@ -245,7 +252,7 @@ emulator/toolchain source or manual named — not recalled.
 
 ```
 (nothing yet)
-docs/roadmap.md                          Phase 8: "gameboy, then z80"; the two-backend diagram
+docs/roadmap.md                          Phase 8: gameboy and gameboycolor, one SM83 backend, then z80
 packages/backend-6502/src/index.mjs      the only backend: emits C, drives mos-*-clang — the shape a second backend must mirror
 packages/nes/AGENTS.md                   the closest existing target: tile/nametable video, vblank queue, mapper profiles
 gbdev/pandocs src/*.md                   the primary reference every hardware fact above was read in
