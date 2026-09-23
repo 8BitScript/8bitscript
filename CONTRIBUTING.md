@@ -32,10 +32,13 @@ git checkout -b describe-the-change
 pnpm test
 ```
 
-If your change touches anything under `packages/` or `editors/vscode`
-(i.e. anything that gets published), add a changeset describing it —
-see [Changesets](#changesets-versioning) below. Docs-only or
-CI-only changes don't need one.
+If your change touches anything under `packages/` or `editors/`
+(anything that gets published), add a changeset describing it —
+see [Changesets](#changesets-versioning) below. The `Changeset` check
+fails the pull request when that file is missing. Docs, the site, and
+CI do not need one. A package change that must not be released still
+needs an empty changeset (`pnpm changeset --empty`), so skipping a
+release is a choice someone wrote down.
 
 ```bash
 git status                 # check what you're about to stage
@@ -88,7 +91,10 @@ It asks which packages changed (pick any that apply — since everything
 is locked together, this mostly just decides the changelog entry, not
 the version) and whether the change is a patch, minor, or major bump.
 It writes a small file into `.changeset/` — commit that file alongside
-your code change.
+your code change. The `Changeset` check on the pull request diffs
+against the base branch and fails if `packages/` or `editors/` changed
+and no `.changeset/*.md` was added. The Version Packages pull request
+is exempt: it deletes those files as it consumes them.
 
 Once your PR merges, a bot automatically opens or updates a **"Version
 Packages"** pull request on `trunk`, collecting every changeset merged
