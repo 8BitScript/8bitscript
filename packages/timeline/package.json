@@ -1,6 +1,6 @@
 {
   "name": "@8bitscript/timeline",
-  "version": "0.22.0",
+  "version": "0.22.1",
   "description": "Frame-counted cues for 8BitScript programs — at frame 120 the logo drops, at 300 the bars start — the same pure code on every target: a counter the program ticks once a frame and predicates (at, after, between, every) that fold against literal frame numbers, so a showcase is a sequence rather than a loop.",
   "license": "MIT",
   "repository": {
