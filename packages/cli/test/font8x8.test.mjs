@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { glyphRows, glyphTableLiteral, BLOCK_CODE_BASE, COPYRIGHT_CODE } from '../src/font8x8.mjs';
+import { glyphRows, glyphTableLiteral, BLOCK_CODE_BASE, CORNER_CODE_BASE, COPYRIGHT_CODE } from '../src/font8x8.mjs';
 
 test('glyphRows returns eight row-bytes for ASCII 32-122 and null outside that range', () => {
   const space = glyphRows(32);
@@ -56,7 +56,34 @@ test('glyphRows 128-143 are the sixteen 2×2 quadrant patterns, 4×4 pixels each
   assert.deepEqual([...tl], [0x0f, 0x0f, 0x0f, 0x0f, 0, 0, 0, 0]);
 
   assert.equal(glyphRows(127), null);
-  assert.equal(glyphRows(144), null);
+});
+
+test('glyphRows 144-147 are quarter-circle corners, and the rest of the gap stays blank', () => {
+  assert.equal(CORNER_CODE_BASE, 144);
+  const picture = (code) => [...glyphRows(code)].map((byte) => {
+    let line = '';
+    for (let x = 0; x < 8; x += 1) line += (byte >> x) & 1 ? '#' : '.';
+    return line;
+  });
+  const tl = picture(144);
+  assert.deepEqual(tl, [
+    '#######.',
+    '#####...',
+    '###.....',
+    '##......',
+    '##......',
+    '#.......',
+    '#.......',
+    '........',
+  ]);
+  // The other three are the mirrors, so a lopsided set cannot ship.
+  const tr = picture(145);
+  const bl = picture(146);
+  const br = picture(147);
+  assert.deepEqual(tr, tl.map((row) => [...row].reverse().join('')));
+  assert.deepEqual(bl, [...tl].reverse());
+  assert.deepEqual(br, tr.map((_, i) => tr[tr.length - 1 - i]));
+  assert.equal(glyphRows(148), null);
 });
 
 test('glyphTableLiteral lists inked glyphs for the browser page, including blocks', () => {
@@ -145,9 +172,9 @@ test('© is drawn at its own Unicode code point, above the blocks, without filli
   // ring is the failure this would otherwise ship silently.
   assert.deepEqual([...rows].slice(0, 4), [...rows].slice(4).reverse());
 
-  // The gap between the blocks and © stays blank, and nothing above it is
-  // claimed either.
-  assert.equal(glyphRows(BLOCK_CODE_BASE + 16), null);
+  // The gap between the corner masks and © stays blank, and nothing above
+  // © is claimed either. 144-147 are the corners, so the blank starts at 148.
+  assert.equal(glyphRows(148), null);
   assert.equal(glyphRows(COPYRIGHT_CODE - 1), null);
   assert.equal(glyphRows(COPYRIGHT_CODE + 1), null);
   assert.equal(glyphRows(255), null);
