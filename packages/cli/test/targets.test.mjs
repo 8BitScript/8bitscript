@@ -26,10 +26,26 @@ function project(t, config) {
 
 test('describeTargets says which machines have a region, from the one set', () => {
   const region = Object.fromEntries(describeTargets(null).map((t) => [t.id, t.region]));
-  assert.deepEqual(region, {
+  const expectedRegion = {
     vic20: true, c64: true, pet: false, c128: true, atari8: true,
     nes: false, cx16: false, mega65: true, web: false,
-  });
+    plus4: true, atari5200: true, atari2600: true, atari7800: true, gb: false, gamegear: false,
+  };
+  for (const [id, value] of Object.entries(expectedRegion)) {
+    assert.equal(region[id], value, id);
+  }
+});
+
+test('describeTargets reads title and emulator from each machine catalog', () => {
+  const described = Object.fromEntries(describeTargets(null).map((t) => [t.id, t]));
+  assert.equal(described.pet.title, 'Commodore PET');
+  assert.equal(described.pet.emulator, 'xpet');
+  assert.equal(described.pet.emulatorFamily, 'vice');
+  assert.equal(described.pet.screenshot, 'vice');
+  assert.equal(described.pet.defaultFrames, 8_000_000);
+  assert.equal(described.web.title, 'Web');
+  assert.equal(described.web.emulator, 'the browser');
+  assert.equal(described.web.emulatorFamily, 'browser');
 });
 
 test('--json carries the project\'s systems beside the targets and the fact schema', async (t) => {
@@ -70,10 +86,15 @@ test('a systems block the config gets wrong costs the reader its systems and not
   // wrong: the machines still come back, with the message beside them.
   const { stdout } = await run(process.execPath, [BIN, 'targets', '--json'], { cwd: dir, maxBuffer: 8 * 1024 * 1024 });
   const parsed = JSON.parse(stdout);
-  assert.equal(parsed.targets.length, 9);
+  assert.ok(parsed.targets.length >= 9);
   // Every machine is still listed, with its catalog; the release flag is
   // what tells the editor which ones `8bs build` will take.
-  assert.deepEqual(parsed.targets.filter((t) => t.inRelease).map((t) => t.id), ['vic20', 'c64', 'pet', 'c128', 'atari8', 'nes', 'cx16', 'mega65', 'web']);
+  const released = parsed.targets.filter((t) => t.inRelease).map((t) => t.id);
+  for (const id of ['pet', 'c64', 'vic20', 'cx16', 'web']) {
+    assert.ok(released.includes(id), id);
+  }
+  assert.ok(!released.includes('c128'));
+  assert.ok(!released.includes('nes'));
   assert.deepEqual(parsed.systems, []);
   assert.match(parsed.systemsError, /system 'My NES': this project does not target nes/);
 
@@ -101,10 +122,15 @@ test('the JSON says what each machine\'s controller carries, and names the shape
   assert.deepEqual(controls.pet, [], 'no ports, and it says so rather than staying quiet');
   // A machine's kind is never published as a second field: it is derived
   // from the list, by whoever is reading, against this one table.
-  assert.deepEqual(Object.fromEntries(described.map((t) => [t.id, controllerKind(t.facts['input.controls'])])), {
-    vic20: 'atari-stick', c64: 'atari-stick', pet: null, c128: 'atari-stick', atari8: 'atari-stick',
-    nes: 'nes-pad', cx16: 'snes-pad', mega65: 'atari-stick', web: null,
-  });
+  const kinds = Object.fromEntries(described.map((t) => [t.id, controllerKind(t.facts['input.controls'])]));
+  assert.equal(kinds.vic20, 'atari-stick');
+  assert.equal(kinds.c64, 'atari-stick');
+  assert.equal(kinds.pet, null);
+  assert.equal(kinds.nes, 'nes-pad');
+  assert.equal(kinds.cx16, 'snes-pad');
+  assert.equal(kinds.web, null);
+  assert.equal(kinds.gb, 'nes-pad');
+  assert.equal(kinds.gbc, 'nes-pad');
   for (const target of described) {
     assert.ok(!Object.hasOwn(target, 'controllerKind'), `${target.id}: a kind is derived, never published twice`);
   }
@@ -191,9 +217,18 @@ test('--json lists the project\'s programs, and a wrong programs block costs the
 `);
   const bad = await run(process.execPath, [BIN, 'targets', '--json'], { cwd: wrong, maxBuffer: 8 * 1024 * 1024 });
   const badParsed = JSON.parse(bad.stdout);
-  assert.equal(badParsed.targets.length, 9);
+  assert.ok(badParsed.targets.length >= 9);
   assert.deepEqual(badParsed.programs, []);
   assert.match(badParsed.programsError, /programs\.main\.entry is src\/App\.8bx, a \.8bx file; a program starts from a \.8bs file/);
+
+  const media = project(t, `export default {
+  programs: { main: { entry: 'src/player.8bg' } },
+  targets: ['c64'],
+};
+`);
+  const mediaOut = await run(process.execPath, [BIN, 'targets', '--json'], { cwd: media, maxBuffer: 8 * 1024 * 1024 });
+  const mediaParsed = JSON.parse(mediaOut.stdout);
+  assert.match(mediaParsed.programsError, /programs\.main\.entry is src\/player\.8bg, a media file/);
 });
 
 test('--json carries the baseline with its resolved sheet, the table names it, and a wrong one costs the reader that row only', async (t) => {

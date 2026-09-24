@@ -133,7 +133,16 @@ function chrRom(extras: ImageExtras): Uint8Array {
       'the NES has no character ROM of its own, so a .nes image needs the tile patterns a package ships as a `.chr_rom` native source — the linked program contributes none. Importing @8bitscript/screen or @8bitscript/text brings @8bitscript/nes\'s own font in',
     );
   }
+  applyChrPatches(chr.bytes, extras.chrPatches ?? []);
   return chr.bytes;
+}
+
+function applyChrPatches(chr: Uint8Array, patches: { tile: number; bytes: number[] }[]): void {
+  for (const patch of patches) {
+    const offset = patch.tile * 16;
+    if (offset + patch.bytes.length > chr.length) continue;
+    chr.set(patch.bytes, offset);
+  }
 }
 
 /** iNES header, 32K of PRG-ROM with the code at $8000 and the vectors on top, 8K of CHR-ROM. */

@@ -1,0 +1,48 @@
+import { Video } from "./geometry.8bs";
+
+export namespace screen {
+    function setColors(border: u8, background: u8): void {
+    }
+
+    function blank(border: utinyint = BorderColor.BLACK, background: utinyint = BackgroundColor.BLACK): void {
+        for (let cell: usmallint = 0; cell < Video.CELL_COUNT; cell++) {
+            memory.write(1024 + cell, 32);
+        }
+    }
+
+    function setBackground(background: u8): void {
+    }
+
+    function setBorder(border: u8): void {
+    }
+
+    const RESIZABLE: bool = false;
+
+    function resized(): bool {
+        return false;
+    }
+}
+
+export namespace BorderColor {
+    const BLACK: utinyint = 0;
+    const WHITE: utinyint = 1;
+    const RED: utinyint = 2;
+    const CYAN: utinyint = 3;
+    const PURPLE: utinyint = 4;
+    const GREEN: utinyint = 5;
+    const BLUE: utinyint = 6;
+    const YELLOW: utinyint = 7;
+    const KEEP: utinyint = 255;
+}
+
+export namespace BackgroundColor {
+    const BLACK: utinyint = 0;
+    const WHITE: utinyint = 1;
+    const RED: utinyint = 2;
+    const CYAN: utinyint = 3;
+    const PURPLE: utinyint = 4;
+    const GREEN: utinyint = 5;
+    const BLUE: utinyint = 6;
+    const YELLOW: utinyint = 7;
+    const KEEP: utinyint = 255;
+}

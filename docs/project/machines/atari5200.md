@@ -43,7 +43,7 @@ Nothing. There is no `packages/atari5200`, no backend entry, no
 `--target atari5200`, nothing in `run.mjs`, and nothing in the docs beyond
 the roadmap row. What this note verified is the layer underneath:
 
-- The LLVM-MOS SDK installed here ships `mos-atari5200-supercart-clang`
+- The LLVM-MOS SDK installed here ships `mos-a52-supercart-clang`
   with a linker script and a crt0 and **no headers of its own** — the
   `include/` directory the driver's `.cfg` points at does not exist, so a
   5200 program either includes `atari8-common`'s `_antic.h`/`_gtia.h`/
@@ -69,10 +69,10 @@ under atari800 7.1.2, not recalled. `$SDK` is `~/.local/opt/llvm-mos`.
 
 | Fact | Where |
 | ---- | ----- |
-| Link script: `__cart_rom_size` default 512, must be a power of two from 32 to 512 (32 = "a normal 32 KiB cartridge", 128–512 = "a Super Cart"). Banks are 32K, mapped over `$4000-$BFFF`; a common `.fixed` region is emitted as a *prefix of every bank* (`FULL(fixed, 0, size) FULL(bankN, size)`), so code in `.fixed` is reachable whichever bank is in. `c_readonly` is `fixed`. | `$SDK/mos-platform/atari5200-supercart/lib/link.ld` |
-| RAM for the program: `$0300-$3BFF` ("memory from 0x300 to 0x3c00 is usable in this current implementation"); the stack is `PROVIDE(__stack = 0x3c00)` and crt0 sets the soft stack pointer to it. Imaginary registers `$80-$9F`; zero-page variables from `$A0`; `-mlto-zp=96`; `-D__ATARI5200__`. | `link.ld`, `$SDK/bin/mos-atari5200-supercart.cfg`, `llvm-objdump` of the built probe (`lda #0 / sta $80 / lda #$3c / sta $81 / jsr main`) |
+| Link script: `__cart_rom_size` default 512, must be a power of two from 32 to 512 (32 = "a normal 32 KiB cartridge", 128–512 = "a Super Cart"). Banks are 32K, mapped over `$4000-$BFFF`; a common `.fixed` region is emitted as a *prefix of every bank* (`FULL(fixed, 0, size) FULL(bankN, size)`), so code in `.fixed` is reachable whichever bank is in. `c_readonly` is `fixed`. | `$SDK/mos-platform/a52-supercart/lib/link.ld` |
+| RAM for the program: `$0300-$3BFF` ("memory from 0x300 to 0x3c00 is usable in this current implementation"); the stack is `PROVIDE(__stack = 0x3c00)` and crt0 sets the soft stack pointer to it. Imaginary registers `$80-$9F`; zero-page variables from `$A0`; `-mlto-zp=96`; `-D__A52__`. | `link.ld`, `$SDK/bin/mos-a52-supercart.cfg`, `llvm-objdump` of the built probe (`lda #0 / sta $80 / lda #$3c / sta $81 / jsr main`) |
 | The last bank is shortened by 64 bytes for a *tail* at `$BFC0-$BFFF`: `$BFC0-$BFCF` are the bank-switch read addresses ("reserve some space for bank-switch-reads"), 24 unused bytes, then 24 bytes of metadata — a 20-character ATASCII title at `$BFE8` (the SDK writes "LLVM-MOS COMPILED", with the first word shifted into the color-rotating character range), the two year digits at `$BFFC/$BFFD` (`$FF` at `$BFFD` marks a diagnostic cartridge; the SDK encodes 2024 as "C4"), and `_start` at `$BFFE`. | `link.ld`; `xxd` of the built image at `$7FC0` |
-| crt0 for the 5200 links `common-init-stack`, `common-copy-data`, `common-zero-bss`, `common-exit-loop`: stack from `__stack`, `.data` copied from ROM, `.bss` zeroed, and `exit` spins forever (`jmp` to self). Nothing is printed and no display list is built. | `$SDK/mos-platform/atari5200-supercart/lib/libcrt0.a` (member list), upstream `CMakeLists.txt`, `llvm-objdump` of the probe's `exit` |
+| crt0 for the 5200 links `common-init-stack`, `common-copy-data`, `common-zero-bss`, `common-exit-loop`: stack from `__stack`, `.data` copied from ROM, `.bss` zeroed, and `exit` spins forever (`jmp` to self). Nothing is printed and no display list is built. | `$SDK/mos-platform/a52-supercart/lib/libcrt0.a` (member list), upstream `CMakeLists.txt`, `llvm-objdump` of the probe's `exit` |
 | atari800's 5200 memory map: RAM `$0000-$3FFF`, ROM `$4000-$FFFF`, GTIA at `$C000-$CFFF` (16 pages of mirrors), ANTIC at `$D400-$D4FF`, POKEY at `$E800-$EFFF` (8 pages), the 2K BIOS at `$F800`. No PIA is mapped and `pia.c` has no 5200 case. `-5200` sets `MEMORY_ram_size = 16` and no BASIC. | upstream `src/memory.c`, `src/pia.c`, `src/atari.c` |
 | atari800 5200 cartridge types: 4 = 32K at `$4000-$BFFF`; 16 = 16K at `$8000-$BFFF`; 6 = 16K "two chip" (8K in each half); 19 = 8K mirrored at `$8000` and `$A000`; 20 = 4K mirrored four times; 7/159 = 40K Bounty Bob (4K banks at `$4000`/`$5000` switched by reads of `$4FF6-$4FF9`/`$5FF6-$5FF9`); Super Cart 64/128/256/512K switched by reads in `$BFC0-$BFFF` (`$BFCx`, `$BFDx`, `$BFEx`, `$BFFx` set different state bits) and copying `bank × $8000` over `$4000-$BFFF`. `-cart-type` picks one; a raw 32K image opens the type menu (seen: "Standard 32 KB 5200 cartridge" first of 14). | upstream `DOC/cart.txt`, `src/cartridge.c`; on screen |
 | Controllers in atari800: port *i* is analogue on POT `2i` (x) and `2i+1` (y), with `INPUT_joy_5200_min = 6`, `center = 114`, `max = 220`; the fire buttons are TRIG0-3; the second (top) button is delivered as the "shift" bit — SKSTAT bit 3 — with an IRQ if enabled; the keypad arrives as POKEY keyboard codes through KBCODE: START `$39`, PAUSE `$31`, RESET `$29`, `0` `$25`, `1` `$3F`, `2` `$3D`, `3` `$3B`, `4` `$37`, `5` `$35`, `6` `$33`, `7` `$2F`, `8` `$2D`, `9` `$2B`, `#` `$23`, `*` `$27`. | upstream `src/input.c`, `src/akey.h` |
@@ -128,7 +128,7 @@ but was not cross-checked against a hardware description.
 
 - ANTIC, GTIA and POKEY are the same registers at different bases. The
   package model already has the mechanism: a `registers.8bs` in the
-  shared code with an `atari5200`-specific twin (`registers.atari5200.8bs`,
+  shared code with an `atari5200`-specific twin (`registers.a52.8bs`,
   `docs/packages.md`'s system-specific file rule) holding `$C000`/`$E800`
   instead of `$D000`/`$D200`. Display-list, P/M, color and sound code
   written against those names then serves both machines; anything that
@@ -198,9 +198,9 @@ but was not cross-checked against a hardware description.
 
 ```
 (no package yet)
-$SDK/mos-platform/atari5200-supercart/lib/link.ld   32K banks over $4000-$BFFF, .fixed prefix, RAM $0300-$3BFF, stack $3C00, the $BFC0 tail
-$SDK/mos-platform/atari5200-supercart/lib/libcrt0.a init-stack (__stack), copy-data, zero-bss, exit-loop
-$SDK/bin/mos-atari5200-supercart.cfg                -mlto-zp=96, -D__ATARI5200__, an include dir that does not exist
+$SDK/mos-platform/a52-supercart/lib/link.ld   32K banks over $4000-$BFFF, .fixed prefix, RAM $0300-$3BFF, stack $3C00, the $BFC0 tail
+$SDK/mos-platform/a52-supercart/lib/libcrt0.a init-stack (__stack), copy-data, zero-bss, exit-loop
+$SDK/bin/mos-a52-supercart.cfg                -mlto-zp=96, -D__A52__, an include dir that does not exist
 $SDK/mos-platform/atari8-common/include/            the chip headers a 5200 program would reuse with its own bases
 github.com/atari800/atari800 src/memory.c, pia.c    the 5200 map (RAM 16K, GTIA $C000, ANTIC $D400, POKEY $E800, BIOS $F800, no PIA)
 github.com/atari800/atari800 src/input.c, akey.h    pot pairs per port, 6/114/220, keypad codes, top button as SKSTAT bit 3

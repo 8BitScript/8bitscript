@@ -156,6 +156,20 @@
       "memory.read(${1:0xD012})"
     ]
   },
+  "Write a port": {
+    "prefix": "out",
+    "description": "port.write — Z80 OUT / SM83 LDH. Memory-mapped machines use memory.write.",
+    "body": [
+      "port.write(${1:0xFE}, ${2:0});"
+    ]
+  },
+  "Read a port": {
+    "prefix": "in",
+    "description": "port.read — Z80 IN / SM83 LDH. Memory-mapped machines use memory.read.",
+    "body": [
+      "port.read(${1:0xFE})"
+    ]
+  },
   "Branch on a machine fact": {
     "prefix": "#fact",
     "description": "if (#fact(key)) { ... } — one fact from the machine's hardware sheet, folded while compiling; the branch for hardware this build lacks disappears.",

@@ -69,9 +69,12 @@ export function loadCatalog(machine) {
   const pkg = local
     ? JSON.parse(readFileSync(join(local, 'package.json'), 'utf8'))
     : require(`@8bitscript/${machine}/package.json`);
-  const hardware = pkg['8bitscript']?.hardware ?? {};
+  const bits = pkg['8bitscript'] ?? {};
+  const hardware = bits.hardware ?? {};
   return {
     machine,
+    title: bits.title ?? machine,
+    emulator: bits.emulator ?? {},
     options: hardware.options ?? {},
     presets: hardware.presets ?? {},
     facts: hardware.facts ?? {},
@@ -84,6 +87,61 @@ export function loadCatalog(machine) {
     build: hardware.build ?? {},
     run: hardware.run ?? {},
   };
+}
+
+/**
+ * The emulator a machine package names: binary, family, screenshot kind,
+ * and the default `--frames` count. Run, screenshot, and doctor all read
+ * this instead of keeping a second table of names.
+ *
+ * @param {string} machine
+ * @returns {{ binary?: string|null, label?: string, family?: string, screenshot?: string, framesUnit?: string, defaultFrames?: number, installer?: string, system?: string, slot?: string, deferred?: string }}
+ */
+export function emulatorFor(machine) {
+  return loadCatalog(machine).emulator;
+}
+
+/**
+ * Machines that compile but whose `8bs run` path is not claimed yet:
+ * a ROM set this project does not ship, a host package that does not
+ * exist, or a screenshot/CLI wiring still being set up. Build still
+ * works. The catalog's `emulator.deferred` is the reason.
+ *
+ * @returns {string[]}
+ */
+export function deferredEmulatorMachines() {
+  return MACHINES.filter((machine) => emulatorFor(machine).deferred);
+}
+
+/**
+ * Every machine whose catalog names a VICE family emulator, mapped to
+ * that binary. Adding Plus/4 is `family: "vice"` on its package — this
+ * list grows with it.
+ *
+ * @returns {Record<string, string>}
+ */
+export function viceEmulators() {
+  const map = {};
+  for (const machine of MACHINES) {
+    const emu = emulatorFor(machine);
+    if (emu.family === 'vice' && emu.binary) map[machine] = emu.binary;
+  }
+  return map;
+}
+
+/**
+ * Every machine that launches a host binary, mapped to that binary.
+ * The web machine has none (`binary: null`); it is absent here.
+ *
+ * @returns {Record<string, string>}
+ */
+export function targetEmulators() {
+  const map = {};
+  for (const machine of MACHINES) {
+    const binary = emulatorFor(machine).binary;
+    if (binary) map[machine] = binary;
+  }
+  return map;
 }
 
 /**
@@ -294,7 +352,7 @@ export function whatSatisfies(catalog, key, need, choice = {}) {
 }
 
 /** The machines whose emulator takes a region; `--pal` means nothing elsewhere. */
-export const REGION_MACHINES = new Set(['vic20', 'c64', 'c128', 'mega65', 'atari8']);
+export const REGION_MACHINES = new Set(['vic20', 'c64', 'c128', 'mega65', 'atari8', 'plus4', 'atari5200', 'atari2600', 'atari7800']);
 
 /**
  * The machines a project has been *set up for*: its `systems` block, each
@@ -493,7 +551,11 @@ export function resolveHardware(catalog, { profile, overrides = {}, profiles = {
 
   const tags = [];
   const buildValues = [];
-  const build = { defsym: { ...(catalog.build?.defsym ?? {}) } };
+  const build = {
+    defsym: { ...(catalog.build?.defsym ?? {}) },
+    ...(catalog.build?.output ? { output: catalog.build.output } : {}),
+    ...(catalog.build?.startup ? { startup: catalog.build.startup } : {}),
+  };
   const run = {};
   const load = {};
   const facts = { ...catalog.facts };

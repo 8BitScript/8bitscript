@@ -199,7 +199,10 @@ test('rebuild flags match the package.json bundle script', () => {
   for (const flag of ESBUILD_FLAGS) {
     assert.ok(script.includes(flag), `${flag} missing from scripts.bundle`);
   }
-  assert.match(script, /copyRuntimeFiles/, 'the VSIX has no src/; the profile has to be copied next to the bundle');
+  assert.match(script, /scripts\/build-icons\.cjs/, 'the theme names icons by content hash; a stale hash ships the wrong art');
+  assert.match(script, /scripts\/post-bundle\.cjs/, 'the VSIX has no src/; the profile has to be copied next to the bundle');
+  const postBundle = fs.readFileSync(path.join(ROOT, 'scripts', 'post-bundle.cjs'), 'utf8');
+  assert.match(postBundle, /copyRuntimeFiles/, 'post-bundle.cjs is what copies the profile');
   assert.equal(MANIFEST.main, './bootstrap.cjs');
   assert.ok(MANIFEST.files.includes('bootstrap.cjs'));
   assert.ok(!MANIFEST.files.includes('src'), 'a VSIX must not ship src/, or every install would try to rebuild');

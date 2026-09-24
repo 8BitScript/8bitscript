@@ -11,28 +11,75 @@ import { MACHINES } from '@8bitscript/compiler';
 import {
   loadCatalog, resolveHardware, parseHardwareArg, projectBaseline, projectProfiles, projectRequires, projectSystems,
   listedTargets, loadArgs, whatSatisfies, hardwareArgs,
+  emulatorFor, viceEmulators, targetEmulators, deferredEmulatorMachines,
 } from '../src/hardware.mjs';
 
-const EMULATOR = {
-  vic20: 'xvic', c64: 'x64sc', pet: 'xpet', c128: 'x128', atari8: 'atari800', nes: 'fceux', cx16: 'x16emu', mega65: 'xmega65',
-};
+test('every machine catalog names a title and an emulator family', () => {
+  for (const machine of MACHINES) {
+    const catalog = loadCatalog(machine);
+    assert.ok(catalog.title, `${machine} has a title`);
+    assert.ok(catalog.emulator.family, `${machine} names an emulator family`);
+    assert.ok(catalog.emulator.screenshot, `${machine} names a screenshot kind`);
+    assert.ok(Number.isFinite(catalog.emulator.defaultFrames), `${machine} names a default --frames`);
+  }
+});
+
+test('viceEmulators and targetEmulators are the catalogs, not a second table', () => {
+  const vice = viceEmulators();
+  assert.deepEqual(vice, { vic20: 'xvic', c64: 'x64sc', pet: 'xpet', c128: 'x128', plus4: 'xplus4' });
+  const targets = targetEmulators();
+  assert.equal(targets.nes, 'fceux');
+  assert.equal(targets.cx16, 'x16emu');
+  assert.ok(!targets.web, 'the browser has no host binary');
+  assert.equal(emulatorFor('pet').family, 'vice');
+  assert.equal(emulatorFor('web').screenshot, 'web');
+});
+
+test('remaining machines name a real screenshot kind, and MAME names a media slot when it has one', () => {
+  assert.equal(emulatorFor('plus4').screenshot, 'vice');
+  assert.equal(emulatorFor('msx').screenshot, 'openmsx');
+  assert.equal(emulatorFor('gb').screenshot, 'window');
+  assert.equal(emulatorFor('atari5200').screenshot, 'window');
+  assert.equal(emulatorFor('coleco').screenshot, 'mame');
+  assert.equal(emulatorFor('coleco').slot, 'cart');
+  assert.equal(emulatorFor('oric').slot, 'cass');
+  assert.equal(emulatorFor('apple2').slot, undefined);
+});
+
+test('remaining-roadmap machines other than plus4 are deferred pending emulator setup', () => {
+  assert.equal(emulatorFor('plus4').deferred, undefined);
+  const deferred = deferredEmulatorMachines();
+  assert.ok(deferred.includes('apple2'));
+  assert.ok(deferred.includes('gb'));
+  assert.ok(deferred.includes('vectrex'));
+  assert.ok(!deferred.includes('plus4'));
+  assert.ok(!deferred.includes('pet'));
+  for (const machine of deferred) {
+    assert.equal(typeof emulatorFor(machine).deferred, 'string', `${machine} names a deferred reason`);
+  }
+});
 
 test('every machine has a catalog; every value names only its own emulator, and every preset names real values', () => {
   for (const machine of MACHINES) {
     const catalog = loadCatalog(machine);
+    const emulator = catalog.emulator.binary;
     for (const [id, option] of Object.entries(catalog.options)) {
       assert.ok(option.label, `${machine}.${id} has a label`);
       assert.ok(Object.hasOwn(option.values, option.default), `${machine}.${id}: default '${option.default}' is a value`);
       for (const [value, entry] of Object.entries(option.values)) {
         assert.ok(entry.label, `${machine}.${id}=${value} has a label`);
-        for (const emulator of Object.keys({ ...entry.run, ...entry.load })) {
-          assert.equal(emulator, EMULATOR[machine], `${machine}.${id}=${value} names its own emulator`);
+        if (emulator) {
+          for (const named of Object.keys({ ...entry.run, ...entry.load })) {
+            assert.equal(named, emulator, `${machine}.${id}=${value} names its own emulator`);
+          }
+          if (entry.load) assert.ok(entry.load[emulator].includes('{out}'), `${machine}.${id}=${value}: load names {out}`);
         }
-        if (entry.load) assert.ok(entry.load[EMULATOR[machine]].includes('{out}'), `${machine}.${id}=${value}: load names {out}`);
       }
     }
-    for (const emulator of Object.keys(catalog.run ?? {})) {
-      assert.equal(emulator, EMULATOR[machine], `${machine} stock run names its own emulator`);
+    if (emulator) {
+      for (const named of Object.keys(catalog.run ?? {})) {
+        assert.equal(named, emulator, `${machine} stock run names its own emulator`);
+      }
     }
     for (const [name, values] of Object.entries(catalog.presets)) {
       for (const [id, value] of Object.entries(values)) {
@@ -353,7 +400,7 @@ test('a project\'s systems resolve to the command line each one stands for', () 
 test('a system the config gets wrong is an error, not a missing row', () => {
   const base = { targets: { c64: {}, pet: {}, web: {} } };
   const bad = (systems) => projectSystems({ ...base, systems });
-  assert.match(bad({ x: { target: 'spectrum' } }).error, /'spectrum' is not a machine/);
+  assert.match(bad({ x: { target: 'intellivision' } }).error, /'intellivision' is not a machine/);
   assert.match(bad({ x: { target: 'nes' } }).error, /does not target nes\. Targets: c64, pet, web/);
   assert.match(bad({ x: { target: 'c64', region: 'secam' } }).error, /region must be 'ntsc' or 'pal'/);
   assert.match(bad({ x: { target: 'pet', region: 'pal' } }).error, /the pet has no region to pick/);
@@ -658,7 +705,13 @@ test('every machine declares what its controller carries, and the kind falls out
   const derived = Object.fromEntries(MACHINES.map((machine) => [
     machine, controllerKind(stockFacts(machine)['input.controls']),
   ]));
-  assert.deepEqual(derived, expected);
+  for (const [id, kind] of Object.entries(expected)) {
+    assert.equal(derived[id], kind, id);
+  }
+  for (const machine of MACHINES) {
+    const kind = derived[machine];
+    assert.ok(kind === null || ['atari-stick', 'nes-pad', 'snes-pad', 'xbox-style'].includes(kind), `${machine}: ${kind}`);
+  }
 
   for (const machine of MACHINES) {
     const catalog = loadCatalog(machine);

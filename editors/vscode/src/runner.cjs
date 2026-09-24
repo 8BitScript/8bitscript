@@ -33,6 +33,7 @@ const {
   findConfig,
   findToolchain,
   insertSystem,
+  doctorWantFromSelection,
   loadApps,
   loadProject,
   loadProjects,
@@ -193,7 +194,7 @@ function makeTask(project, action, target, region, hardware = settings.getHardwa
     args.push('--web', '--no-open', '--port', '0');
   }
   if ((action === 'run' || action === 'boot') && target === 'cx16' && !extras.web) {
-    args.push(...settings.cx16NativeWindowCliArgs());
+    args.push(...settings.cx16NativeWindowCliArgs({ studio: project.name === '@8bitscript/studio' }));
   }
   const pal = region === 'pal' && MACHINE_TARGETS.has(target);
   const definition = {
@@ -259,6 +260,9 @@ class Projects {
     // `8bs targets --json` per project directory: a project's own hardware
     // and profiles come from its config, so the answer is not shared.
     this.targetsPromises = new Map();
+    // `8bs doctor --json` is about this host, not a project. One report
+    // for the workspace; refresh() and a finished Doctor task clear it.
+    this.doctorPromise = null;
   }
 
   /**
@@ -354,11 +358,66 @@ class Projects {
     return pending;
   }
 
+  /**
+   * What `8bs doctor --json` says about this host: which machines can
+   * `8bs run`, which emulators are simply not installed, which are
+   * present-but-broken. Cached until refresh() or a Doctor task ends.
+   * Doctor exits 1 when a FAIL remains, so stdout is parsed even then —
+   * the JSON is the report, the exit code is only the summary.
+   *
+   * @returns {Promise<{ ready: string[], notInstalled: string[], failed: string[] }|null>}
+   */
+  async loadDoctor() {
+    if (this.doctorPromise) return this.doctorPromise;
+    const project = this.all.find((p) => p.toolchain);
+    const toolchain = project?.toolchain
+      ?? (vscode.workspace.workspaceFolders ?? [])
+        .map((folder) => findToolchain(folder.uri.fsPath, this.checkoutFlag()))
+        .find(Boolean);
+    if (!toolchain) return null;
+    const invocation = cliCommand(toolchain);
+    if (!invocation) return null;
+    const cwd = project?.dir
+      ?? (vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd());
+    const checkout = this.checkoutFlag();
+    this.doctorPromise = new Promise((resolvePromise) => {
+      execFile(
+        invocation.command,
+        [
+          ...invocation.args,
+          'doctor', '--json',
+          ...(checkout ? ['--checkout', checkout] : []),
+        ],
+        {
+          cwd,
+          maxBuffer: 4 * 1024 * 1024,
+          ...(invocation.env ? { env: { ...process.env, ...invocation.env } } : {}),
+        },
+        (error, stdout) => {
+          try {
+            const report = JSON.parse(stdout);
+            resolvePromise({
+              ready: report.ready ?? [],
+              notInstalled: report.notInstalled ?? [],
+              failed: report.failed ?? [],
+            });
+          } catch (parseError) {
+            if (error) this.output?.appendLine(`8bs doctor --json failed: ${error.message}`);
+            else this.output?.appendLine(`8bs doctor --json: unreadable output: ${parseError.message}`);
+            resolvePromise(null);
+          }
+        },
+      );
+    });
+    return this.doctorPromise;
+  }
+
   async refresh() {
     const found = await vscode.workspace.findFiles(`**/{${CONFIG_FILENAMES.join(',')}}`, SEARCH_EXCLUDE);
     const checkout = this.checkoutFlag();
     this.projects = loadProjects(found.map((uri) => uri.fsPath), { checkout });
     this.targetsPromises.clear();
+    this.doctorPromise = null;
     const shipped = this.discoverShipped();
     const withCli = (list) => list.map((project) => ({
       ...project,
@@ -860,12 +919,26 @@ function registerRunner(context, output) {
       return;
     }
     const dir = project?.dir ?? path.dirname(path.dirname(path.dirname(toolchain)));
-    await vscode.tasks.executeTask(makeTask(
+    const extras = {
+      want: doctorWantFromSelection(settings.getDoctorEmulators()),
+      install: true,
+    };
+    const execution = await vscode.tasks.executeTask(makeTask(
       project ?? { name: '8bs', dir, toolchain, targets: [] },
       'doctor',
       undefined,
       'ntsc',
+      undefined,
+      extras,
     ));
+    const done = vscode.tasks.onDidEndTask((e) => {
+      if (e.execution === execution) {
+        done.dispose();
+        projects.doctorPromise = null;
+        projects.changed.fire();
+      }
+    });
+    context.subscriptions.push(done);
   }
 
   async function chooseProject() {
@@ -1119,6 +1192,15 @@ function registerRunner(context, output) {
         region: system.region ?? settings.getRegion(),
         hardware: { profile: system.profile, options: system.hardware },
       });
+      return;
+    }
+    const doctor = await projects.loadDoctor();
+    const cx16Missing = doctor?.notInstalled?.includes('cx16') || doctor?.failed?.includes('cx16');
+    // Native x16emu is optional. Studio still opens on the Commander X16;
+    // without the windowed emulator, the same program runs in the tab
+    // (`8bs run cx16 --web`). Never fall through to another machine.
+    if (cx16Missing) {
+      await execute('run', { project: studio, target: 'cx16', web: true });
       return;
     }
     await execute('run', { project: studio, target: 'cx16' });

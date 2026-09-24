@@ -124,9 +124,17 @@ Implemented:
                                browser can know that) and --print dumps
                                the file. --dir names a project copy.
   check <files...>             Report diagnostics for 8BitScript source files
-  doctor                       Verify the toolchains every target needs;
-                               offers to install missing pnpm and packaged
-                               emulators from a prompt
+  doctor [--json] [--install] [--all] [--want <keys>]
+                               Verify host tools and optional emulators.
+                               Missing emulators are warnings, not a
+                               failed doctor. --json is the same report
+                               for editors. Offers to install missing
+                               pnpm and packaged emulators from a prompt.
+                               Default offers every emulator doctor can
+                               install. --want vice,atari800 names
+                               installer keys; --all is the same as the
+                               default. --install runs the offers without
+                               a prompt (the editor's Doctor panel uses it).
   setup <target>               Install/configure what a target needs beyond
     [--rom <path>]             what doctor can offer as a single package-
     [--c64-forever <msi>]      manager command. mega65 builds Xemu from
@@ -179,8 +187,8 @@ if (command === 'check') {
 }
 
 if (command === 'doctor') {
-  const { doctor } = await import('../src/doctor.mjs');
-  await finish(await doctor());
+  const { doctor, parseDoctorArgs } = await import('../src/doctor.mjs');
+  await finish(await doctor(parseDoctorArgs(rest)));
 }
 
 if (command === 'build') {

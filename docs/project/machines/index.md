@@ -5,10 +5,9 @@ nav_order: 90
 
 # Machines on the roadmap
 
-Research notes for the machines the roadmap names but
-the toolchain does not build yet. Each page answers the same sixteen
-questions the target packages' `AGENTS.md` files answer for the nine
-machines that exist — CPU, memory and banking, the display's native unit,
+Research notes that the packages were written from. Each page answers
+the same sixteen questions the target packages' `AGENTS.md` files
+answer — CPU, memory and banking, the display's native unit,
 the text grid, modes and color, layers, sprites, pseudo-pixels, audio,
 input, storage, timing, hardware variants, emulator, backend status, and
 the traps — so that a systems matrix can
@@ -18,24 +17,19 @@ These notes predate 0.2.0 and cite LLVM-MOS platform support; under the
 native backend the question is a CPU-variant row plus a crt0 and file
 writer per machine.
 
-These pages are research, not status. They were written a few hours
-before the hardware catalogs arrived, so where a page proposes an
-`<X>_PROFILES` table in a backend, read it as the machine
-package's `"8bitscript".hardware` catalog — options and values with what
-each changes, resolved by `packages/cli/src/hardware.mjs` — which is the
-one mechanism every existing target now uses ; the *axes* each page
-identifies (a model, a medium, a mapper) are what become its options. Nothing on them compiles; a claim
-read in a primary source names the source, and a claim the author could
-not confirm is marked *to verify*. When a machine's turn comes, its page
-becomes the first draft of `packages/<machine>/AGENTS.md`, and the
-verification happens against the installed toolchain and emulator then.
+These pages are research that the packages were written from. Where a
+page proposes an `<X>_PROFILES` table in a backend, read it as the
+machine package's `"8bitscript".hardware` catalog — options and values
+with what each changes, resolved by `packages/cli/src/hardware.mjs`.
+A claim read in a primary source names the source, and a claim the
+author could not confirm is marked *to verify*.
 
 The machines measured on 2026-09-20 have a row in
 [`../reach.md`](../reach.md) — units sold, community activity, routes
-to a user and the formats each route takes. The Atari 7800 is one of
-those rows and is phase 6. SG-1000, Game Boy Color as its own id, the
-Color Computer, Vectrex, Odyssey², and Channel F are named below and
-are not on that sheet yet.
+to a user and the formats each route takes. Ids on that sheet and in
+`RELEASE_MACHINES` use RetroArch-style shorts where a product name is
+a trademark (`gb`, `gbc`, `pce`, `spectrum`). Atari consoles keep the
+full ids (`atari2600`, `atari5200`, `atari7800`).
 
 The order, and the rule for what belongs on it, is
 [`../../roadmap.md`](../../roadmap.md). The list there is closed: a
@@ -50,11 +44,11 @@ further machine needs a constraint none of these already forces.
 | 6 | Atari 5200 | [atari5200.md](atari5200.md) |
 | 6 | Atari 7800 | [atari7800.md](atari7800.md) |
 | 6 | Atari Lynx | [lynx.md](lynx.md) |
-| 6 | PC Engine / TurboGrafx-16 | [pcengine.md](pcengine.md) |
+| 6 | PC Engine / TurboGrafx-16 | [pce.md](pce.md) |
 | 6 | Watara Supervision | [supervision.md](supervision.md) |
 | 7 | Atari 2600 | [atari2600.md](atari2600.md) |
-| 8 | Game Boy | [gameboy.md](gameboy.md) |
-| 8 | Game Boy Color | [gameboy.md](gameboy.md#game-boy-color) |
+| 8 | Game Boy | [gb.md](gb.md) |
+| 8 | Game Boy Color | [gb.md](gb.md#game-boy-color) |
 | 8 | The Z80 family: Master System, Game Gear, SG-1000, ZX Spectrum, MSX1, Amstrad CPC, ColecoVision | [z80-family.md](z80-family.md) |
 | 9 | TRS-80 Color Computer and Vectrex (6809) | [6809.md](6809.md) |
 | 10 | Magnavox Odyssey² / Philips Videopac | [odyssey2.md](odyssey2.md) |

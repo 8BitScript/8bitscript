@@ -1,0 +1,2 @@
+// @8bitscript/gbc — Game Boy Color hardware underneath the portable APIs.
+// Registers a program names sit in this package; screen/text/input import them.

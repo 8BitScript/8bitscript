@@ -7,10 +7,15 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { MACHINES } from '@8bitscript/compiler';
+
 import {
-  parseVersion, atLeast, findLocalBin, pickInstallPlan, pickFixPlan, uniqueFixable, findMega65Rom, readyTargets, checkCx16Target, checkMega65Target,
+  parseVersion, atLeast, findLocalBin, pickInstallPlan, pickFixPlan, uniqueFixable, wantedFixable,
+  parseDoctorArgs, ORIGINAL_INSTALLERS, INSTALLERS, doctorInstallerKey, findMega65Rom, readyTargets,
+  notInstalledTargets, runnableTargets, isMissingInstall, checkCx16Target, checkMega65Target,
   vicePackageManagerVersion, installerHint, PNPM_INSTALLER,
 } from '../src/doctor.mjs';
+import { emulatorFor } from '../src/hardware.mjs';
 import { MEGA65_ROM_920413, sha256Hex } from '../src/setup/rom.mjs';
 import { parseX16emuVersion, romLoadFailure, testbenchBooted } from '../src/setup/cx16.mjs';
 
@@ -87,8 +92,8 @@ test('pickFixPlan: a setupCommand installer is 8bs setup <target>', () => {
 });
 
 test('uniqueFixable: one offer per distinct 8bs setup command', () => {
-  const cx16 = { buildFromSource: true, setupCommand: 'cx16', label: 'x16emu' };
-  const mega = { buildFromSource: true, setupCommand: 'mega65', label: 'xmega65' };
+  const cx16 = { id: 'x16emu', buildFromSource: true, setupCommand: 'cx16', label: 'x16emu' };
+  const mega = { id: 'xmega65', buildFromSource: true, setupCommand: 'mega65', label: 'xmega65' };
   const checks = [
     { status: 'fail', label: 'x16emu (Commander X16)', installer: cx16 },
     { status: 'fail', label: 'Commander X16 ROM', installer: cx16 },
@@ -97,6 +102,83 @@ test('uniqueFixable: one offer per distinct 8bs setup command', () => {
   ];
   const offered = uniqueFixable(checks, 'darwin', () => true);
   assert.deepEqual(offered.map((c) => c.label), ['x16emu (Commander X16)', 'xmega65 (MEGA65, via Xemu)']);
+});
+
+test('parseDoctorArgs: --json, --install, --all, --want, and all-emulators default', () => {
+  assert.deepEqual(parseDoctorArgs([]), { json: false, install: false, want: null });
+  assert.deepEqual(parseDoctorArgs(['--json']), { json: true, install: false, want: null });
+  assert.deepEqual(parseDoctorArgs(['--install']), { json: false, install: true, want: null });
+  assert.deepEqual(parseDoctorArgs(['--all', '--json']), { json: true, install: false, want: 'all' });
+  assert.deepEqual(parseDoctorArgs(['--install', '--want', 'vice,stella']), { json: false, install: true, want: ['vice', 'stella'] });
+  assert.deepEqual(parseDoctorArgs(['--want', 'vice,atari800']), { json: false, install: false, want: ['vice', 'atari800'] });
+  assert.deepEqual(parseDoctorArgs(['--want']), { json: false, install: false, want: [] });
+  assert.deepEqual(parseDoctorArgs(['--want', '--json']), { json: true, install: false, want: [] });
+  assert.deepEqual(parseDoctorArgs(['--all', '--want', 'stella']), { json: false, install: false, want: 'all' }, '--all wins');
+  assert.deepEqual(ORIGINAL_INSTALLERS, ['vice', 'atari800', 'fceux', 'x16emu', 'xmega65']);
+});
+
+test('wantedFixable: all by default, pnpm always, --want narrows', () => {
+  const vice = { id: 'vice', label: 'VICE', darwin: { manager: 'brew', args: ['install', 'vice'] } };
+  const stella = { id: 'stella', label: 'Stella', darwin: { manager: 'brew', args: ['install', 'stella'] } };
+  const checks = [
+    { status: 'warn', label: 'VICE', installer: vice },
+    { status: 'warn', label: 'Stella', installer: stella },
+    { status: 'fail', label: 'pnpm', installer: PNPM_INSTALLER },
+  ];
+  const has = (bin) => bin === 'brew' || bin === 'npx';
+  assert.deepEqual(
+    wantedFixable(checks, null, 'darwin', has).map((c) => c.label),
+    ['VICE', 'Stella', 'pnpm'],
+    'default is every installer doctor knows, plus host tools',
+  );
+  assert.deepEqual(
+    wantedFixable(checks, 'all', 'darwin', has).map((c) => c.label),
+    ['VICE', 'Stella', 'pnpm'],
+  );
+  assert.deepEqual(
+    wantedFixable(checks, ['stella'], 'darwin', has).map((c) => c.label),
+    ['Stella', 'pnpm'],
+  );
+  assert.deepEqual(
+    wantedFixable(checks, [], 'darwin', has).map((c) => c.label),
+    ['pnpm'],
+    'empty --want is host tools only',
+  );
+});
+
+test('every catalog emulator maps to an INSTALLERS plan', () => {
+  for (const machine of MACHINES) {
+    const emu = emulatorFor(machine);
+    if (!emu.binary) continue;
+    const key = doctorInstallerKey(emu);
+    assert.ok(key, `${machine} names an installer`);
+    assert.ok(INSTALLERS[key], `${machine} installer '${key}' has a doctor plan`);
+    assert.equal(INSTALLERS[key].id, key);
+  }
+});
+
+test('ZX Fuse is never the filesystem package named fuse', () => {
+  assert.deepEqual(INSTALLERS.fuse.darwin, { manager: 'brew', args: ['install', '--cask', 'fredm-fuse'] });
+  assert.ok(INSTALLERS.fuse.linux.some((plan) => plan.args.includes('fuse-emulator-gtk')));
+  assert.ok(!INSTALLERS.fuse.linux.some((plan) => plan.args.includes('fuse') && !plan.args.some((a) => a.includes('emulator'))));
+});
+
+test('SameBoy on macOS is the Homebrew cask, not a missing formula', () => {
+  assert.deepEqual(INSTALLERS.sameboy.darwin, { manager: 'brew', args: ['install', '--cask', 'sameboy'] });
+});
+
+test('Caprice32 and Vecx have no Homebrew formula', () => {
+  assert.equal(INSTALLERS.caprice32.darwin, undefined);
+  assert.equal(INSTALLERS.vecx.darwin, undefined);
+  assert.ok(INSTALLERS.caprice32.linux.some((plan) => plan.args.includes('caprice32')));
+  assert.ok(INSTALLERS.vecx.linux.every((plan) => ['pamac', 'yay', 'paru'].includes(plan.manager)));
+});
+
+test('doctorInstallerKey maps setup ids onto INSTALLERS keys', () => {
+  assert.equal(doctorInstallerKey({ installer: 'cx16' }), 'x16emu');
+  assert.equal(doctorInstallerKey({ installer: 'mega65' }), 'xmega65');
+  assert.equal(doctorInstallerKey({ installer: 'stella' }), 'stella');
+  assert.equal(doctorInstallerKey({}), null);
 });
 
 test('pickInstallPlan: an unsupported platform (or a missing installer) yields no plan', () => {
@@ -303,6 +385,31 @@ test('readyTargets: mega65 is only ready when emulator and ROM checks all pass',
   assert.deepEqual(readyTargets(onlyEmulator, ['mega65']), []);
 });
 
+test('notInstalledTargets / runnableTargets: a missing emulator is not runnable, and is not a FAIL', () => {
+  const missing = [
+    { status: 'warn', detail: 'not found', targets: ['c64'] },
+    { status: 'ok', detail: 'found', targets: ['web'] },
+  ];
+  assert.ok(isMissingInstall(missing[0]));
+  assert.deepEqual(readyTargets(missing, ['c64', 'web']), ['c64', 'web']);
+  assert.deepEqual(notInstalledTargets(missing, ['c64', 'web']), ['c64']);
+  assert.deepEqual(runnableTargets(missing, ['c64', 'web']), ['web']);
+});
+
+test('uniqueFixable: WARN missing emulators are still offered', () => {
+  const vice = {
+    label: 'VICE (xvic, x64sc, xpet, x128)',
+    darwin: { manager: 'brew', args: ['install', 'vice'] },
+  };
+  const checks = [
+    { status: 'warn', label: 'xvic (VIC-20)', installer: vice, targets: ['vic20'] },
+    { status: 'warn', label: 'x64sc (C64)', installer: vice, targets: ['c64'] },
+  ];
+  const offered = uniqueFixable(checks, 'darwin', (bin) => bin === 'brew');
+  assert.equal(offered.length, 1);
+  assert.equal(offered[0].label, 'xvic (VIC-20)');
+});
+
 // ---- MEGA65 ------------------------------------------------------------
 //
 // checkMega65Target() with `find`/`inspectLink` faked — the four-check
@@ -312,16 +419,19 @@ test('readyTargets: mega65 is only ready when emulator and ROM checks all pass',
 // actually failed.
 
 test('checkMega65Target: nothing installed — xmega65 missing, ROM missing, link absent, not ready', async () => {
-  const checks = byLabel(await checkMega65Target({
+  const list = await checkMega65Target({
     hasEmulator: false,
     find: async () => null,
     inspectLink: async () => ({ state: 'absent' }),
-  }));
-  assert.equal(checks['xmega65 (MEGA65, via Xemu)'].status, 'fail');
-  assert.equal(checks['MEGA65 ROM'].status, 'fail');
+  });
+  const checks = byLabel(list);
+  assert.equal(checks['xmega65 (MEGA65, via Xemu)'].status, 'warn');
+  assert.equal(checks['MEGA65 ROM'].status, 'warn');
   assert.equal(checks['Xemu ROM link'].status, 'skip');
   assert.match(checks['Xemu ROM link'].detail, /ROM is not installed/);
   assert.equal(checks.MEGA65.status, 'skip');
+  assert.deepEqual(notInstalledTargets(list, ['mega65']), ['mega65']);
+  assert.deepEqual(runnableTargets(list, ['mega65']), []);
 });
 
 test('checkMega65Target: Xemu\'s own built-in 920000 stub ROM must not count as a full MEGA65 ROM', async () => {
@@ -337,7 +447,7 @@ test('checkMega65Target: Xemu\'s own built-in 920000 stub ROM must not count as 
   }));
   assert.equal(checks['xmega65 (MEGA65, via Xemu)'].status, 'ok');
   assert.equal(checks['xmega65 (MEGA65, via Xemu)'].detail, '/usr/local/bin/xmega65');
-  assert.equal(checks['MEGA65 ROM'].status, 'fail');
+  assert.equal(checks['MEGA65 ROM'].status, 'warn');
   assert.equal(checks.MEGA65.status, 'skip');
 });
 
@@ -455,17 +565,20 @@ function cx16World({ platform = 'darwin', entries = {}, launcher = '/usr/local/b
 
 const byLabel = (checks) => Object.fromEntries(checks.map((c) => [c.label, c]));
 
-test('checkCx16Target: macOS with x16emu missing — FAIL pointing at `8bs setup cx16`, no ROM/launcher/boot probes', async () => {
+test('checkCx16Target: macOS with x16emu missing — WARN pointing at `8bs setup cx16`, no ROM/launcher/boot probes', async () => {
   const { opts, execCalls } = cx16World({ launcher: null });
-  const checks = byLabel(await checkCx16Target(opts));
-  assert.equal(checks['x16emu (Commander X16)'].status, 'fail');
+  const list = await checkCx16Target(opts);
+  const checks = byLabel(list);
+  assert.equal(checks['x16emu (Commander X16)'].status, 'warn');
   assert.match(checks['x16emu (Commander X16)'].hint, /run: 8bs setup cx16/);
-  assert.equal(checks['Commander X16 ROM'].status, 'fail');
+  assert.equal(checks['Commander X16 ROM'].status, 'warn');
   assert.equal(checks['Commander X16 ROM'].hint, 'run: 8bs setup cx16');
   assert.equal(checks['Commander X16 launcher'], undefined);
   assert.equal(checks['Commander X16'].status, 'skip');
   assert.deepEqual(execCalls, []);
-  assert.deepEqual(readyTargets(Object.values(checks), ['cx16']), []);
+  assert.deepEqual(readyTargets(list, ['cx16']), ['cx16']);
+  assert.deepEqual(notInstalledTargets(list, ['cx16']), ['cx16']);
+  assert.deepEqual(runnableTargets(list, ['cx16']), []);
 });
 
 test('checkCx16Target: macOS with the emulator installed but the ROM missing — the specific "emulator installed but ROM is missing" FAIL', async () => {

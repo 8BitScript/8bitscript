@@ -6,6 +6,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { MACHINES } from '@8bitscript/compiler';
+
 import {
   advertisedSystems, findSystem, loadMergedSystems, loadSystemsFile, resolveNamedLaunch,
   writeSystemsFile,
@@ -35,7 +37,7 @@ test('the systems JSON schema is the same shape parseSystemsMap accepts', () => 
   assert.ok(SCHEMA.properties.systems.additionalProperties.properties.target);
   assert.deepEqual(
     SCHEMA.properties.systems.additionalProperties.properties.target.enum,
-    ['vic20', 'c64', 'pet', 'c128', 'atari8', 'nes', 'cx16', 'mega65', 'web'],
+    [...MACHINES],
   );
 });
 

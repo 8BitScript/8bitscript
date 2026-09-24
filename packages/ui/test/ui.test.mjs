@@ -18,7 +18,7 @@ const SRC = join(ROOT, 'src');
 
 const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 
-const TARGETS = ['vic20', 'c64', 'pet', 'c128', 'atari8', 'nes', 'cx16', 'mega65', 'web'];
+const TARGETS = ['vic20', 'c64', 'pet', 'c128', 'atari8', 'nes', 'cx16', 'mega65', 'web', 'plus4', 'oric', 'apple2', 'bbc', 'atari5200', 'lynx', 'pce', 'supervision', 'atari2600', 'atari7800', 'gb', 'gbc', 'sms', 'gamegear', 'sg1000', 'msx', 'coleco', 'spectrum', 'cpc', 'coco', 'vectrex', 'odyssey2', 'channelf'];
 
 test('every component is a subpath, and there is no bare entry', () => {
   const exports = pkg['8bitscript'].exports;
@@ -147,7 +147,7 @@ test('the highlight is invert on every machine, and colorPerCell is still the fa
   // component that *does*
   // need a color per cell should still ask it.
   const noCellColor = ['pet', 'atari8', 'nes'];
-  for (const target of TARGETS) {
+  for (const target of ['vic20', 'c64', 'pet', 'c128', 'atari8', 'nes', 'cx16', 'mega65', 'web']) {
     const colorPerCell = stockFacts(target)['video.colorPerCell'];
     assert.equal(colorPerCell, !noCellColor.includes(target),
       `${target} disagrees with the set of machines that can color one cell`);

@@ -52,6 +52,7 @@ Old-BASIC's `POKE` becomes a typed call rather than a magic number pair:
 | BASIC | 8BitScript |
 | --- | --- |
 | `POKE 36879,27` | `memory.write(36879, 27);` |
+| `OUT 254,0` (Z80) | `port.write(0xFE, 0);` |
 
 ## §1.3 Declare and pass an array
 
@@ -85,7 +86,7 @@ Functions with parameters and return values, arithmetic, `if`/`while`/`for` — 
 
 ## §1.6 Import across files and namespaces
 
-The linker resolves imports across modules, whether the target is a bare package (`@8bitscript/screen`), a relative `.8bs`/`.8bx` file, or a package subpath (`@8bitscript/ui/menubar`, exported via that package's own `"8bitscript"` field). Namespaces group related declarations under one imported name.
+The linker resolves imports across modules, whether the target is a bare package (`@8bitscript/screen`), a relative `.8bs`/`.8bx`/`.8bg`/`.8ba` file, or a package subpath (`@8bitscript/ui/menubar`, exported via that package's own `"8bitscript"` field). Namespaces group related declarations under one imported name.
 
 ## §1.7 Override one file per machine (twin files)
 

@@ -15,7 +15,9 @@
 // needed and caches the binary (screenshotCacheDir()) rather than
 // recompiling on every screenshot. The cache key includes a hash of
 // HELPER_SOURCE below, so editing this file invalidates the old binary
-// instead of silently keeping using it forever.
+// instead of silently keeping using it forever. Used for atari800 and
+// every remaining dedicated emulator that has no still-frame flag
+// (Stella, SameBoy, Fuse, Mednafen, XRoar, Caprice32, Vecx).
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';

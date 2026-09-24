@@ -1,0 +1,100 @@
+{
+  "name": "@8bitscript/vectrex",
+  "version": "0.22.1",
+  "description": "Vectrex target support for 8BitScript: the hardware underneath the portable APIs.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/8BitScript/8bitscript.git",
+    "directory": "packages/vectrex"
+  },
+  "8bitscript": {
+    "title": "Vectrex",
+    "emulator": {
+      "binary": "vecx",
+      "family": "dedicated",
+      "screenshot": "window",
+      "framesUnit": "frames",
+      "defaultFrames": 180,
+      "installer": "vecx",
+      "deferred": "Vecx has no Homebrew or Debian package"
+    },
+    "entry": "./src/index.8bs",
+    "exports": {
+      "./screen": "./src/screen.8bs",
+      "./text": "./src/text.8bs",
+      "./input": "./src/input.8bs",
+      "./pointer": "./src/pointer.8bs",
+      "./rasterline": "./src/rasterline.8bs"
+    },
+    "hardware": {
+      "build": {
+        "defsym": {
+          "__load_address": 0,
+          "__ram_size": 1
+        },
+        "output": "bin"
+      },
+      "facts": {
+        "video.columns": 16,
+        "video.rows": 12,
+        "video.cellWidth": 8,
+        "video.cellHeight": 8,
+        "video.palette": 2,
+        "video.cellColors": 2,
+        "video.colorPerCell": false,
+        "video.glyphs": 0,
+        "video.blockWidth": 0,
+        "video.blockHeight": 0,
+        "video.bitmap": false,
+        "video.layers": 1,
+        "video.scroll": false,
+        "video.raster": false,
+        "video.sprites": 0,
+        "video.spritesPerLine": 0,
+        "video.spriteWidth": 0,
+        "video.spriteHeight": 0,
+        "video.spriteColors": 0,
+        "video.frameRate": 60,
+        "audio.voices": 3,
+        "audio.noise": true,
+        "audio.envelope": true,
+        "audio.filter": false,
+        "audio.pcm": false,
+        "audio.volume": false,
+        "audio.entropy": false,
+        "input.keyboard": false,
+        "input.joysticks": 2,
+        "input.pads": 0,
+        "input.controls": [
+          "up",
+          "down",
+          "left",
+          "right",
+          "a",
+          "b",
+          "x",
+          "y"
+        ],
+        "input.mouse": false,
+        "input.paddles": false,
+        "storage.save": false,
+        "storage.kib": 0,
+        "memory.ram": 1024,
+        "memory.banked": false,
+        "memory.bankedKib": 0
+      },
+      "options": {},
+      "presets": {}
+    }
+  },
+  "files": [
+    "src"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}

@@ -1,15 +1,23 @@
 // `8bs doctor` — is this machine able to run 8BitScript programs?
 //
-// The compiler is 8BitScript's own (native 6502 and WebAssembly backends;
-// they do not yet build any target — see the 0.2.0 roadmap). Every target
-// needs an emulator to run against, and some also need ROMs. Every check
-// reports against what the project actually requires, with a pointer to
-// the setup page that installs the tool, an inline brew/apt/pacman
-// command when one is known, and — for anything this machine's platform
-// can install with a single trusted command — an interactive prompt to
-// run that command right here, rather than making the reader leave the
-// terminal and come back. Host tools are in the same offer: missing
-// pnpm is `npx get-pnpm` (Corepack no longer ships with Node).
+// The compiler is 8BitScript's own (native 6502 and WebAssembly backends).
+// Building a program never needs an emulator. Running one does, and some
+// machines also need ROMs. Emulators and ROMs are optional: a missing
+// binary or BIOS is a warning, not a failed doctor, so a machine that
+// only has VICE still exits 0. A present-but-broken install (VICE without
+// Commodore ROMs, x16emu that cannot boot) is still a FAIL for that
+// target. Host tools (Node, pnpm, git) stay required.
+//
+// Every check reports against what the project actually requires, with a
+// pointer to the setup page that installs the tool, an inline
+// brew/apt/pacman command when one is known, and — for anything this
+// machine's platform can install with a single trusted command — an
+// interactive prompt to run that command right here. The prompt defaults
+// to every emulator doctor has a trusted plan for (`--want` narrows).
+// `--install` runs those plans without a keypress (the VS Code Doctor
+// panel uses it; a task terminal is not a TTY). Host tools are always
+// in the offer: missing pnpm is `npx get-pnpm` (Corepack no longer
+// ships with Node). `8bs doctor --json` is the same report for editors.
 //
 // The VIC-20 and Commander X16 checks go further than versions: a VICE
 // build without ROMs prints a version and still cannot boot a machine, so
@@ -26,7 +34,11 @@ import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { delimiter, dirname, join } from 'node:path';
+import { dirname, join } from 'node:path';
+
+import { MACHINES } from '@8bitscript/compiler';
+
+import { loadCatalog, viceEmulators, emulatorFor } from './hardware.mjs';
 
 import { MEGA65_ROM_920413, validateRomBuffer, inspectXemuRomLink } from './setup/rom.mjs';
 import { MEGA65_ROM_CANONICAL_PATH, CX16_ROM_INSTALL_PATH, xemuRomLinkPath } from './setup/paths.mjs';
@@ -133,14 +145,15 @@ export function pickFixPlan(installer, platform = process.platform, hasBinary = 
   return null;
 }
 
-/** FAIL checks doctor can offer, one per distinct command: four VICE
- * binaries share `brew install vice`, and cx16's emulator + ROM share
- * `8bs setup cx16`. */
+/** FAIL or WARN checks doctor can offer, one per distinct command: four
+ * VICE binaries share `brew install vice`, and cx16's emulator + ROM share
+ * `8bs setup cx16`. Missing emulators are WARN (optional) but still
+ * installable from the prompt. */
 export function uniqueFixable(checks, platform = process.platform, hasBinary = onPath) {
   const seen = new Set();
   const out = [];
   for (const check of checks) {
-    if (check.status !== FAIL) continue;
+    if (check.status !== FAIL && check.status !== WARN) continue;
     const plan = pickFixPlan(check.installer, platform, hasBinary);
     if (!plan) continue;
     const key = `${plan.manager}\0${(plan.args ?? []).join('\0')}`;
@@ -149,6 +162,46 @@ export function uniqueFixable(checks, platform = process.platform, hasBinary = o
     out.push(check);
   }
   return out;
+}
+
+/** Installer keys with a trusted one-command plan (brew/apt/`8bs setup`).
+ * Host tools (pnpm) are always offered on top. The default offer is
+ * every one of these (`--want` narrows). The original five are the ones
+ * doctor could install before the rest of the catalog grew plans. */
+export const ORIGINAL_INSTALLERS = ['vice', 'atari800', 'fceux', 'x16emu', 'xmega65'];
+
+/** Parse `8bs doctor` argv after the command. `--all` wins over `--want`.
+ * `want: null` is every installer doctor knows; `[]` is host tools only.
+ * `--install` runs the offers without a prompt. */
+export function parseDoctorArgs(argv) {
+  const json = argv.includes('--json');
+  const install = argv.includes('--install');
+  if (argv.includes('--all')) return { json, install, want: 'all' };
+  const idx = argv.indexOf('--want');
+  if (idx < 0) return { json, install, want: null };
+  const next = argv[idx + 1];
+  if (!next || next.startsWith('-')) return { json, install, want: [] };
+  return { json, install, want: next.split(',').map((s) => s.trim()).filter(Boolean) };
+}
+
+/** Which INSTALLERS key (or `'pnpm'`) a check's installer object is. */
+export function installerId(installer) {
+  return installer?.id ?? null;
+}
+
+/**
+ * uniqueFixable, then keep only the emulators `want` asked for.
+ * `want` is `null` or `'all'` (every installer doctor knows — the default),
+ * or an installer-key array. pnpm is never filtered out.
+ */
+export function wantedFixable(checks, want, platform = process.platform, hasBinary = onPath) {
+  const fixable = uniqueFixable(checks, platform, hasBinary);
+  if (want === 'all' || want == null) return fixable;
+  const keys = new Set(want);
+  return fixable.filter((check) => {
+    const id = installerId(check.installer);
+    return id === 'pnpm' || keys.has(id);
+  });
 }
 
 // ---- process running ------------------------------------------------------
@@ -184,10 +237,7 @@ function run(command, args, { timeout = 10_000 } = {}) {
 }
 
 function onPath(name) {
-  const binary = process.platform === 'win32' ? `${name}.exe` : name;
-  return (process.env.PATH ?? '')
-    .split(delimiter)
-    .some((dir) => dir && existsSync(join(dir, binary)));
+  return Boolean(resolveOnPath(name));
 }
 
 // ---- the checks -----------------------------------------------------------
@@ -235,6 +285,7 @@ async function checkHost() {
 // PNPM_HOME — which a GUI editor never sees from `.zshrc`. `any` makes
 // the one-key prompt work on every OS that has npx, without brew/apt.
 export const PNPM_INSTALLER = {
+  id: 'pnpm',
   label: 'pnpm',
   any: { manager: 'npx', args: ['--yes', 'get-pnpm'] },
   docs: 'docs/language/project.md',
@@ -242,17 +293,22 @@ export const PNPM_INSTALLER = {
 
 // ---- emulator installers ---------------------------------------------------
 //
-// One entry per emulator this project can launch (`8bs run <target>`). Each
-// carries: a doctor-facing label, the target(s) it serves, a brew formula
-// for macOS, a Linux package-manager list (tried in the order a machine is
-// likely to have them — apt/pacman native packages first, AUR-only packages
-// via pamac/yay/paru next, Linuxbrew last), and a `docs/setup/*.md` page.
+// One entry per emulator doctor can one-key install. The original nine
+// (VICE, atari800, FCEUX, x16emu, xmega65) have trusted brew/apt/`8bs setup`
+// plans. Each carries: a doctor-facing label, the target(s) it serves, a
+// brew formula or cask for macOS when one exists, a Linux package-manager
+// list (tried in the order a machine is likely to have them — apt/pacman
+// native packages first, AUR-only packages via pamac/yay/paru next,
+// Linuxbrew last), and a `docs/setup/*.md` page. Never `brew`/`apt`
+// install a package named `fuse` for the ZX emulator — that is the
+// filesystem.
 // `buildFromSource`/`repo` are set on top of that for the platforms (or, for
 // x16emu, every platform) with no single-command install — `pickInstallPlan()`
 // above only consults `.linux`/`.darwin` for whatever this specific machine
 // can actually run, so `buildFromSource` never overrides a real entry.
 const INSTALLERS = {
   vice: {
+    id: 'vice',
     label: 'VICE (xvic, x64sc, xpet, x128)',
     darwin: { manager: 'brew', args: ['install', 'vice'] },
     linux: [
@@ -263,6 +319,7 @@ const INSTALLERS = {
     docs: 'docs/setup/vice.md',
   },
   atari800: {
+    id: 'atari800',
     label: 'atari800 (Atari 8-bit)',
     darwin: { manager: 'brew', args: ['install', 'atari800'] },
     // No pacman plan: atari800 is not in Arch/Manjaro's official repos, only
@@ -282,6 +339,7 @@ const INSTALLERS = {
     docs: 'docs/setup/atari8.md',
   },
   fceux: {
+    id: 'fceux',
     label: 'FCEUX (NES)',
     darwin: { manager: 'brew', args: ['install', 'fceux'] },
     linux: [
@@ -292,6 +350,7 @@ const INSTALLERS = {
     docs: 'docs/setup/nes.md',
   },
   x16emu: {
+    id: 'x16emu',
     label: 'x16emu (Commander X16)',
     // An AUR `x16-emulator` package exists, but it can drift out of sync
     // with the ROM the emulator needs — the two have to be a matching pair,
@@ -305,6 +364,7 @@ const INSTALLERS = {
     setupCommand: 'cx16',
   },
   xmega65: {
+    id: 'xmega65',
     label: 'Xemu — MEGA65 core (xmega65)',
     // No brew formula. An AUR `xmega65-git` package exists, but it's
     // unreliable/outdated and this project doesn't depend on it — `8bs setup
@@ -317,7 +377,122 @@ const INSTALLERS = {
     // instead of just the bare upstream repo.
     setupCommand: 'mega65',
   },
+  stella: {
+    id: 'stella',
+    label: 'Stella (Atari 2600)',
+    darwin: { manager: 'brew', args: ['install', 'stella'] },
+    linux: [
+      { manager: 'apt', args: ['install', '-y', 'stella'], sudo: true },
+      { manager: 'pacman', args: ['-S', '--noconfirm', 'stella'], sudo: true },
+      { manager: 'brew', args: ['install', 'stella'] },
+    ],
+    docs: 'docs/setup/atari2600.md',
+  },
+  sameboy: {
+    id: 'sameboy',
+    label: 'SameBoy (GB, GBC)',
+    // Homebrew has no formula; the cask installs SameBoy.app. Linux has
+    // no Debian package (confirmed against games-emulator recommends);
+    // Arch/Manjaro get it from the AUR.
+    darwin: { manager: 'brew', args: ['install', '--cask', 'sameboy'] },
+    linux: [
+      { manager: 'pamac', args: ['build', '--no-confirm', 'sameboy'] },
+      { manager: 'yay', args: ['-S', '--noconfirm', 'sameboy'] },
+      { manager: 'paru', args: ['-S', '--noconfirm', 'sameboy'] },
+    ],
+    docs: 'docs/setup/gb.md',
+  },
+  fuse: {
+    id: 'fuse',
+    label: 'Fuse (ZX Spectrum)',
+    // `brew install fuse` / `apt install fuse` is the filesystem, not the
+    // ZX emulator. Debian's package is fuse-emulator-gtk (binary `fuse`).
+    // Homebrew has no formula that puts `fuse` on PATH; the `fredm-fuse`
+    // cask installs Fuse.app (resolved via DARWIN_APP_BINARIES).
+    darwin: { manager: 'brew', args: ['install', '--cask', 'fredm-fuse'] },
+    linux: [
+      { manager: 'apt', args: ['install', '-y', 'fuse-emulator-gtk'], sudo: true },
+      { manager: 'pamac', args: ['build', '--no-confirm', 'fuse-emulator'] },
+      { manager: 'yay', args: ['-S', '--noconfirm', 'fuse-emulator'] },
+      { manager: 'paru', args: ['-S', '--noconfirm', 'fuse-emulator'] },
+    ],
+    docs: 'docs/setup/spectrum.md',
+  },
+  openmsx: {
+    id: 'openmsx',
+    label: 'openMSX (MSX)',
+    darwin: { manager: 'brew', args: ['install', 'openmsx'] },
+    linux: [
+      { manager: 'apt', args: ['install', '-y', 'openmsx'], sudo: true },
+      { manager: 'pacman', args: ['-S', '--noconfirm', 'openmsx'], sudo: true },
+      { manager: 'brew', args: ['install', 'openmsx'] },
+    ],
+    docs: 'docs/setup/msx.md',
+  },
+  caprice32: {
+    id: 'caprice32',
+    label: 'Caprice32 (Amstrad CPC)',
+    // No Homebrew formula (not cap32, not caprice32). Debian package
+    // caprice32 provides the `cap32` binary the catalog launches.
+    linux: [
+      { manager: 'apt', args: ['install', '-y', 'caprice32'], sudo: true },
+      { manager: 'pamac', args: ['build', '--no-confirm', 'caprice32'] },
+      { manager: 'yay', args: ['-S', '--noconfirm', 'caprice32'] },
+      { manager: 'paru', args: ['-S', '--noconfirm', 'caprice32'] },
+    ],
+    docs: 'docs/setup/cpc.md',
+  },
+  xroar: {
+    id: 'xroar',
+    label: 'XRoar (Color Computer)',
+    darwin: { manager: 'brew', args: ['install', 'xroar'] },
+    linux: [
+      { manager: 'apt', args: ['install', '-y', 'xroar'], sudo: true },
+      { manager: 'pacman', args: ['-S', '--noconfirm', 'xroar'], sudo: true },
+      { manager: 'pamac', args: ['build', '--no-confirm', 'xroar'] },
+      { manager: 'yay', args: ['-S', '--noconfirm', 'xroar'] },
+      { manager: 'paru', args: ['-S', '--noconfirm', 'xroar'] },
+      { manager: 'brew', args: ['install', 'xroar'] },
+    ],
+    docs: 'docs/setup/coco.md',
+  },
+  vecx: {
+    id: 'vecx',
+    label: 'Vecx (Vectrex)',
+    // No Homebrew formula. Debian has none either. Arch AUR `vecx`.
+    linux: [
+      { manager: 'pamac', args: ['build', '--no-confirm', 'vecx'] },
+      { manager: 'yay', args: ['-S', '--noconfirm', 'vecx'] },
+      { manager: 'paru', args: ['-S', '--noconfirm', 'vecx'] },
+    ],
+    docs: 'docs/setup/vectrex.md',
+  },
+  mednafen: {
+    id: 'mednafen',
+    label: 'Mednafen (SMS, Game Gear, PC Engine)',
+    darwin: { manager: 'brew', args: ['install', 'mednafen'] },
+    linux: [
+      { manager: 'apt', args: ['install', '-y', 'mednafen'], sudo: true },
+      { manager: 'pacman', args: ['-S', '--noconfirm', 'mednafen'], sudo: true },
+      { manager: 'brew', args: ['install', 'mednafen'] },
+    ],
+    docs: 'docs/setup/sms.md',
+  },
+  mame: {
+    id: 'mame',
+    label: 'MAME',
+    darwin: { manager: 'brew', args: ['install', 'mame'] },
+    linux: [
+      { manager: 'apt', args: ['install', '-y', 'mame'], sudo: true },
+      { manager: 'pacman', args: ['-S', '--noconfirm', 'mame'], sudo: true },
+      { manager: 'brew', args: ['install', 'mame'] },
+    ],
+    docs: 'docs/setup/apple2.md',
+  },
 };
+
+/** Every installer key doctor can offer, in object order. */
+export { INSTALLERS };
 
 /** `sudo apt-get install -y foo` style text for one darwin/linux plan. */
 function planCommand(plan) {
@@ -333,6 +508,7 @@ function planCommand(plan) {
  * `any` is listed on every OS (that's the point of it).
  */
 export function installerHint(installer, platform = process.platform) {
+  if (!installer) return 'brew install <formula>, or your distro\'s package manager';
   const plans = [
     ...(installer.any ? [installer.any] : []),
     ...(platform === 'darwin'
@@ -363,7 +539,7 @@ export function installerHint(installer, platform = process.platform) {
 async function checkEmulator(binary, { label = binary, targets, installerKey, tryVersion = true, versionArgs = ['--version'] } = {}) {
   const installer = INSTALLERS[installerKey];
   if (!onPath(binary)) {
-    return result(FAIL, label, 'not found', installerHint(installer), { installer, targets });
+    return result(WARN, label, 'not found', installerHint(installer), { installer, targets });
   }
   if (!tryVersion) return result(OK, label, 'found', null, { targets });
   const r = await run(binary, versionArgs);
@@ -410,17 +586,15 @@ export async function vicePackageManagerVersion({
 async function checkVice() {
   const checks = [];
   // Fetched lazily, at most once per checkVice() run — one VICE install
-  // serves all four binaries, so the four fallback lookups would otherwise
-  // be identical repeats of each other.
+  // serves every binary in the family, so the fallback lookups would
+  // otherwise be identical repeats of each other. The machines come from
+  // each package's `"8bitscript".emulator` (`family: "vice"`).
   let packageManagerVersion; // undefined until first needed, then cached (possibly null)
-  for (const [binary, machine, label] of [
-    ['xvic', 'vic20', 'xvic (VIC-20)'],
-    ['x64sc', 'c64', 'x64sc (C64)'],
-    ['xpet', 'pet', 'xpet (PET)'],
-    ['x128', 'c128', 'x128 (C128)'],
-  ]) {
+  for (const [machine, binary] of Object.entries(viceEmulators())) {
+    const title = loadCatalog(machine).title;
+    const label = `${binary} (${title})`;
     if (!onPath(binary)) {
-      checks.push(result(FAIL, label, 'not found', installerHint(INSTALLERS.vice), { installer: INSTALLERS.vice, targets: [machine] }));
+      checks.push(result(WARN, label, 'not found', installerHint(INSTALLERS.vice), { installer: INSTALLERS.vice, targets: [machine] }));
       continue;
     }
     const r = await run(binary, ['--version']);
@@ -565,13 +739,13 @@ export async function checkMega65Target({
 
   checks.push(hasEmulator
     ? result(OK, 'xmega65 (MEGA65, via Xemu)', emulatorPath ?? 'found', null, { targets })
-    : result(FAIL, 'xmega65 (MEGA65, via Xemu)', 'not found', installerHint(installer), { installer, targets }));
+    : result(WARN, 'xmega65 (MEGA65, via Xemu)', 'not found', installerHint(installer), { installer, targets }));
 
   const found = await find({ canonicalPath, linkPath });
   let romOk = false;
   if (!found) {
     checks.push(result(
-      FAIL, 'MEGA65 ROM', 'not found',
+      WARN, 'MEGA65 ROM', 'not found',
       hasEmulator
         ? 'xmega65 is installed, but the full MEGA65 ROM is missing.\n        run: 8bs setup mega65'
         : 'run: 8bs setup mega65',
@@ -659,7 +833,7 @@ export async function checkCx16Target({
 
   checks.push(launcherPath
     ? result(OK, 'x16emu (Commander X16)', launcherPath, null, { targets })
-    : result(FAIL, 'x16emu (Commander X16)', 'not found', installerHint(installer), { installer, targets }));
+    : result(WARN, 'x16emu (Commander X16)', 'not found', installerHint(installer), { installer, targets }));
 
   let rom = await inspectRomFile(CX16_ROM_INSTALL_PATH, fs);
   if (rom.state !== 'ok' && launcherPath) {
@@ -680,7 +854,7 @@ export async function checkCx16Target({
     checks.push(result(OK, 'Commander X16 ROM', rom.beside ? `${rom.path} (beside x16emu — not the 8bs-managed layout)` : rom.path, null, { targets }));
   } else if (rom.state === 'missing') {
     checks.push(result(
-      FAIL, 'Commander X16 ROM', 'not found',
+      launcherPath ? FAIL : WARN, 'Commander X16 ROM', 'not found',
       launcherPath ? 'emulator installed but ROM is missing\n        run: 8bs setup cx16' : 'run: 8bs setup cx16',
       { installer, targets },
     ));
@@ -746,23 +920,52 @@ export async function checkCx16Target({
   }
 
   const firstFail = checks.find((c) => c.status === FAIL);
-  checks.push(firstFail
-    ? result(SKIP, 'Commander X16', `not ready — ${firstFail.label} must pass first`, null, { targets })
+  const firstMissing = checks.find((c) => isMissingInstall(c));
+  const blocker = firstFail ?? firstMissing;
+  checks.push(blocker
+    ? result(SKIP, 'Commander X16', `not ready — ${blocker.label} must pass first`, null, { targets })
     : result(OK, 'Commander X16', 'ready', null, { targets }));
   return checks;
 }
 
+/** Catalog installer id → doctor INSTALLERS key (`cx16` is `x16emu`). */
+export function doctorInstallerKey(emu) {
+  const key = emu?.installer;
+  if (key === 'cx16') return 'x16emu';
+  if (key === 'mega65') return 'xmega65';
+  return key ?? null;
+}
+
 async function checkOtherEmulators() {
-  const mega65EmulatorPath = resolveOnPath('xmega65');
-  const checks = [
-    await checkEmulator('atari800', { label: 'atari800 (Atari 8-bit)', targets: ['atari8'], installerKey: 'atari800' }),
-    await checkEmulator('fceux', { label: 'fceux (NES)', targets: ['nes'], installerKey: 'fceux' }),
-    // Commander X16 is five checks, not one — see checkCx16Target().
-    ...(await checkCx16Target()),
-    // MEGA65 is four checks, not one — see checkMega65Target().
-    ...(await checkMega65Target({ hasEmulator: Boolean(mega65EmulatorPath), emulatorPath: mega65EmulatorPath })),
-  ];
-  return { title: 'Atari 8-bit / NES / Commander X16 / MEGA65 emulators', checks };
+  const checks = [];
+  const seen = new Set();
+  for (const machine of MACHINES) {
+    const emu = emulatorFor(machine);
+    if (!emu.binary || emu.family === 'vice') continue;
+    const key = doctorInstallerKey(emu);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    const targets = MACHINES.filter((id) => doctorInstallerKey(emulatorFor(id)) === key);
+    if (key === 'x16emu') {
+      checks.push(...await checkCx16Target());
+      continue;
+    }
+    if (key === 'xmega65') {
+      const mega65EmulatorPath = resolveOnPath('xmega65');
+      checks.push(...await checkMega65Target({
+        hasEmulator: Boolean(mega65EmulatorPath),
+        emulatorPath: mega65EmulatorPath,
+      }));
+      continue;
+    }
+    checks.push(await checkEmulator(emu.binary, {
+      label: INSTALLERS[key]?.label ?? `${emu.binary} (${key})`,
+      targets,
+      installerKey: key,
+      tryVersion: key === 'atari800' || key === 'fceux',
+    }));
+  }
+  return { title: 'Emulators', checks };
 }
 
 // ---- screenshot capability (8bs run <target> --screenshot) -----------------
@@ -773,8 +976,8 @@ async function checkOtherEmulators() {
 // they're easy to miss until a --screenshot call fails confusingly later:
 //
 //   - cx16's path needs `ffmpeg` on PATH (to pull a still frame out of
-//     x16emu's -gif recording) — a dependency nothing else in this project
-//     requires, so nothing else checks for it.
+//     x16emu's -gif recording). A `.8ba` FLAC source needs the same binary
+//     (`@8bitscript/audio-tools`); WAV still decodes in-process without it.
 //   - atari8's path needs macOS Screen Recording permission (it captures
 //     the emulator's real window, since atari800 has no scriptable
 //     screenshot flag — see screenshot.mjs's own header comment). Unlike
@@ -788,8 +991,8 @@ async function checkScreenshotCapability() {
   const checks = [
     result(
       onPath('ffmpeg') ? OK : WARN,
-      'ffmpeg (cx16 --screenshot)',
-      onPath('ffmpeg') ? 'found' : 'not found — cx16 --screenshot cannot extract a still frame without it',
+      'ffmpeg (cx16 --screenshot, .8ba FLAC)',
+      onPath('ffmpeg') ? 'found' : 'not found — cx16 --screenshot cannot extract a still frame, and a .8ba FLAC source cannot decode, without it',
       onPath('ffmpeg') ? null : 'brew install ffmpeg (macOS) / apt install ffmpeg (Debian/Ubuntu) / pacman -S ffmpeg (Arch)',
       { targets: [] },
     ),
@@ -861,22 +1064,24 @@ function spawnInstall(command, args) {
   });
 }
 
+function offerScopeLine(want) {
+  if (want === 'all' || want == null) {
+    return 'every emulator this doctor can install (default; `--want` to narrow)';
+  }
+  if (Array.isArray(want)) {
+    return want.length ? `--want ${want.join(',')}` : 'host tools only (`--want` with no emulators)';
+  }
+  return 'every emulator this doctor can install';
+}
+
 /**
- * Offer to install one missing tool, right here. Only called for a FAIL
- * check that carries a `pickFixPlan` — packaged brew/apt/npx, or
- * `8bs setup <target>` for a source-built emulator.
+ * Run one install plan. Only called for a check that carries a pickFixPlan.
  *
  * @returns {Promise<{ ran: boolean, ok: boolean }>}
  */
-async function offerInstall(check) {
+async function runInstall(check) {
   const plan = pickFixPlan(check.installer);
   if (!plan) return { ran: false, ok: false };
-  const offered = plan.manager === '8bs' ? `8bs ${plan.args.join(' ')}` : plan.manager;
-  process.stdout.write(`\n  ${check.label}: ${check.installer.label} is missing.\n`);
-  process.stdout.write(`  Press [i] to install with ${offered} now, any other key to skip: `);
-  const key = await readKey();
-  process.stdout.write('\n');
-  if (key.toLowerCase() !== 'i') return { ran: false, ok: false };
   let command;
   let args;
   if (plan.manager === '8bs') {
@@ -891,11 +1096,54 @@ async function offerInstall(check) {
   return { ran: true, ok };
 }
 
+async function runAllInstalls(fixable) {
+  let installsRan = 0;
+  let installsFailed = 0;
+  for (const check of fixable) {
+    const { ran, ok } = await runInstall(check);
+    if (ran) installsRan += 1;
+    if (ran && !ok) installsFailed += 1;
+  }
+  return { installsRan, installsFailed };
+}
+
+/**
+ * Offer each missing tool in turn. [i] this one, [s] skip this one,
+ * [a] the rest, [q] stop offering. The list is printed first so a
+ * thirty-machine catalog is not a mystery sequence of one-key prompts.
+ *
+ * @returns {Promise<{ installsRan: number, installsFailed: number }>}
+ */
+async function offerInstalls(fixable) {
+  process.stdout.write(`  [i] install this, [s] skip this, [a] install all remaining, [q] stop offering\n`);
+  let installsRan = 0;
+  let installsFailed = 0;
+  let remainder = false;
+  for (const check of fixable) {
+    if (!remainder) {
+      const plan = pickFixPlan(check.installer);
+      const offered = plan?.manager === '8bs' ? `8bs ${plan.args.join(' ')}` : (plan?.manager ?? 'the package manager');
+      process.stdout.write(`\n  ${check.label}: ${check.installer.label} is missing.\n`);
+      process.stdout.write(`  Press [i] to install with ${offered} now, [s]/[a]/[q]: `);
+      const key = (await readKey()).toLowerCase();
+      process.stdout.write('\n');
+      if (key === 'q') break;
+      if (key === 's') continue;
+      if (key === 'a') remainder = true;
+      else if (key !== 'i') continue;
+    }
+    const { ran, ok } = await runInstall(check);
+    if (ran) installsRan += 1;
+    if (ran && !ok) installsFailed += 1;
+  }
+  return { installsRan, installsFailed };
+}
+
 // ---- report ---------------------------------------------------------------
 
 const MARK = { [OK]: '  ok', [FAIL]: 'FAIL', [WARN]: 'warn', [SKIP]: '  --' };
 
-const ALL_TARGETS = ['web', 'vic20', 'c64', 'pet', 'c128', 'atari8', 'nes', 'cx16', 'mega65'];
+const ALL_TARGETS = MACHINES;
 
 /**
  * Which of `targets` are ready: every check that named a target passed. WARN
@@ -913,14 +1161,66 @@ export function readyTargets(checks, targets = ALL_TARGETS) {
     .every((c) => c.status !== FAIL));
 }
 
+/** A check that means the optional emulator or ROM was never installed. */
+export function isMissingInstall(check) {
+  if (check.status !== WARN && check.status !== SKIP) return false;
+  return /not found|not installed/i.test(check.detail ?? '');
+}
+
+/**
+ * Targets whose emulator or ROM is simply not installed (WARN), with no
+ * FAIL on a present-but-broken install. Distinct from readyTargets, which
+ * only looks at FAIL.
+ */
+export function notInstalledTargets(checks, targets = ALL_TARGETS) {
+  return targets.filter((target) => {
+    const relevant = checks.filter((c) => c.targets.includes(target));
+    if (relevant.some((c) => c.status === FAIL)) return false;
+    return relevant.some((c) => isMissingInstall(c));
+  });
+}
+
+/** Targets that can actually `8bs run` on this machine. */
+export function runnableTargets(checks, targets = ALL_TARGETS) {
+  const missing = new Set(notInstalledTargets(checks, targets));
+  return readyTargets(checks, targets).filter((target) => !missing.has(target));
+}
+
+function doctorReport(sections, targets = ALL_TARGETS) {
+  const allChecks = sections.flatMap((s) => s.checks);
+  const failures = allChecks.filter((c) => c.status === FAIL).length;
+  const warnings = allChecks.filter((c) => c.status === WARN).length;
+  const ready = runnableTargets(allChecks, targets);
+  const notInstalled = notInstalledTargets(allChecks, targets);
+  const failed = targets.filter((target) => allChecks
+    .filter((c) => c.targets.includes(target))
+    .some((c) => c.status === FAIL));
+  return {
+    ok: failures === 0,
+    failures,
+    warnings,
+    sections: sections.map((section) => ({
+      title: section.title,
+      checks: section.checks.map((c) => ({
+        status: c.status,
+        label: c.label,
+        detail: c.detail,
+        hint: c.hint,
+        targets: c.targets,
+      })),
+    })),
+    ready,
+    notInstalled,
+    failed,
+  };
+}
+
 /** @returns {Promise<number>} process exit code */
-export async function doctor() {
+export async function doctor({ json = false, want = null, install = false } = {}) {
   // A Dock-launched editor's PATH has none of nvm / pnpm / Homebrew. Append
   // those well-known bins before any check or one-key install runs, so
   // `pnpm` and `npx get-pnpm` resolve the same way the editor does.
   process.env.PATH = hostPath();
-  process.stdout.write('8bs doctor\n');
-  process.stdout.write('compiler: built in (native backends, not yet able to build; see the 0.2.0 roadmap)\n');
 
   const sections = [
     await checkHost(),
@@ -928,40 +1228,52 @@ export async function doctor() {
     await checkOtherEmulators(),
     await checkScreenshotCapability(),
   ];
-  const allChecks = sections.flatMap((s) => s.checks);
-  let failures = 0;
-  let warnings = 0;
+  const report = doctorReport(sections, ALL_TARGETS);
+  const { failures, warnings, ready: targets, notInstalled } = report;
+
+  if (json) {
+    process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+    return failures > 0 ? 1 : 0;
+  }
+
+  process.stdout.write('8bs doctor\n');
+  process.stdout.write('compiler: built in (native backends)\n');
 
   for (const section of sections) {
     process.stdout.write(`\n${section.title}\n`);
     for (const c of section.checks) {
-      if (c.status === FAIL) failures += 1;
-      if (c.status === WARN) warnings += 1;
       process.stdout.write(`  ${MARK[c.status]}  ${c.label.padEnd(28)} ${c.detail}\n`);
       if (c.hint && c.status !== OK) process.stdout.write(`        ${c.hint}\n`);
     }
   }
 
-  const targets = readyTargets(allChecks, ALL_TARGETS);
-
   process.stdout.write(
     `\nTargets ready: ${targets.length ? targets.join(', ') : 'none'}.\n`,
   );
+  process.stdout.write(
+    `Not installed: ${notInstalled.length ? notInstalled.join(', ') : 'none'}.\n`,
+  );
 
-  // Offer to fix what's broken, one tool at a time, before the final
-  // summary — only the FAIL checks that carry an installer this platform
-  // can actually run unattended, and only in a real interactive terminal.
-  const fixable = uniqueFixable(allChecks);
+  // Offer to install missing optional emulators, or repair a FAIL, one
+  // tool at a time — only checks that carry an installer this platform
+  // can actually run unattended, only the ones `--want`/`--all` asked
+  // for (all of them by default). `--install` skips the prompt (a VS Code
+  // task terminal is not a TTY). Otherwise only a real interactive
+  // terminal sees the keypress offer.
+  const fixable = wantedFixable(sections.flatMap((s) => s.checks), want);
+  if (fixable.length && install) {
+    process.stdout.write(`\nInstalling ${fixable.length} (${offerScopeLine(want)}):\n`);
+    for (const check of fixable) process.stdout.write(`  - ${check.label}\n`);
+    const { installsRan, installsFailed } = await runAllInstalls(fixable);
+    process.stdout.write('\nRe-run `8bs doctor` to confirm.\n');
+    return (installsRan === fixable.length && installsFailed === 0) ? 0 : (failures > 0 ? 1 : 0);
+  }
+
   const promptable = canPromptInteractively();
   if (fixable.length && promptable) {
-    process.stdout.write(`\n${fixable.length} of those can be installed right now:\n`);
-    let installsRan = 0;
-    let installsFailed = 0;
-    for (const check of fixable) {
-      const { ran, ok } = await offerInstall(check);
-      if (ran) installsRan += 1;
-      if (ran && !ok) installsFailed += 1;
-    }
+    process.stdout.write(`\n${fixable.length} of those can be installed right now (${offerScopeLine(want)}):\n`);
+    for (const check of fixable) process.stdout.write(`  - ${check.label}\n`);
+    const { installsRan, installsFailed } = await offerInstalls(fixable);
     process.stdout.write('\nRe-run `8bs doctor` to confirm.\n');
     return (installsRan === fixable.length && installsFailed === 0) ? 0 : (failures > 0 ? 1 : 0);
   }

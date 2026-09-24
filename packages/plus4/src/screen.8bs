@@ -1,0 +1,66 @@
+import { tedBackground, tedBorder } from "./index.8bs";
+import { Video } from "./geometry.8bs";
+
+export namespace screen {
+    function setColors(border: u8, background: u8): void {
+        tedBorder = border;
+        tedBackground = background;
+    }
+
+    function blank(border: utinyint = BorderColor.BLACK, background: utinyint = BackgroundColor.BLACK): void {
+        if (border != BorderColor.KEEP) {
+            screen.setBorder(border);
+        }
+        if (background != BackgroundColor.KEEP) {
+            screen.setBackground(background);
+        }
+        for (let i: utinyint = 0; i < 250; i++) {
+            memory.write(0x0C00 + i, 32);
+            memory.write(0x0C00 + i + 250, 32);
+            memory.write(0x0C00 + i + 500, 32);
+            memory.write(0x0C00 + i + 750, 32);
+            memory.write(0x0800 + i, 0x71);
+            memory.write(0x0800 + i + 250, 0x71);
+            memory.write(0x0800 + i + 500, 0x71);
+            memory.write(0x0800 + i + 750, 0x71);
+        }
+    }
+
+    function setBackground(background: u8): void {
+        tedBackground = background;
+    }
+
+    function setBorder(border: u8): void {
+        tedBorder = border;
+    }
+
+    const RESIZABLE: bool = false;
+
+    function resized(): bool {
+        return false;
+    }
+}
+
+export namespace BorderColor {
+    const BLACK: utinyint = 0;
+    const WHITE: utinyint = 0x71;
+    const RED: utinyint = 0x22;
+    const CYAN: utinyint = 0x33;
+    const PURPLE: utinyint = 0x44;
+    const GREEN: utinyint = 0x55;
+    const BLUE: utinyint = 0x66;
+    const YELLOW: utinyint = 0x77;
+    const KEEP: utinyint = 255;
+}
+
+export namespace BackgroundColor {
+    const BLACK: utinyint = 0;
+    const WHITE: utinyint = 0x71;
+    const RED: utinyint = 0x22;
+    const CYAN: utinyint = 0x33;
+    const PURPLE: utinyint = 0x44;
+    const GREEN: utinyint = 0x55;
+    const BLUE: utinyint = 0x66;
+    const YELLOW: utinyint = 0x77;
+    const KEEP: utinyint = 255;
+}

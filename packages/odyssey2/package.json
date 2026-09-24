@@ -1,0 +1,100 @@
+{
+  "name": "@8bitscript/odyssey2",
+  "version": "0.22.1",
+  "description": "Magnavox Odyssey² target support for 8BitScript: the hardware underneath the portable APIs.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/8BitScript/8bitscript.git",
+    "directory": "packages/odyssey2"
+  },
+  "8bitscript": {
+    "title": "Magnavox Odyssey²",
+    "emulator": {
+      "binary": "mame",
+      "family": "mame",
+      "screenshot": "mame",
+      "framesUnit": "seconds",
+      "defaultFrames": 8,
+      "installer": "mame",
+      "system": "odyssey2",
+      "deferred": "MAME needs a ROM set this project does not ship",
+      "slot": "cart"
+    },
+    "entry": "./src/index.8bs",
+    "exports": {
+      "./screen": "./src/screen.8bs",
+      "./text": "./src/text.8bs",
+      "./input": "./src/input.8bs",
+      "./pointer": "./src/pointer.8bs",
+      "./rasterline": "./src/rasterline.8bs"
+    },
+    "hardware": {
+      "build": {
+        "defsym": {
+          "__load_address": 1024,
+          "__ram_size": 1
+        },
+        "output": "bin",
+        "mameSystem": "odyssey2"
+      },
+      "facts": {
+        "video.columns": 12,
+        "video.rows": 8,
+        "video.cellWidth": 8,
+        "video.cellHeight": 8,
+        "video.palette": 16,
+        "video.cellColors": 2,
+        "video.colorPerCell": false,
+        "video.glyphs": 0,
+        "video.blockWidth": 0,
+        "video.blockHeight": 0,
+        "video.bitmap": false,
+        "video.layers": 1,
+        "video.scroll": false,
+        "video.raster": false,
+        "video.sprites": 4,
+        "video.spritesPerLine": 4,
+        "video.spriteWidth": 8,
+        "video.spriteHeight": 8,
+        "video.spriteColors": 1,
+        "video.frameRate": 60,
+        "audio.voices": 1,
+        "audio.noise": false,
+        "audio.envelope": false,
+        "audio.filter": false,
+        "audio.pcm": false,
+        "audio.volume": false,
+        "audio.entropy": false,
+        "input.keyboard": true,
+        "input.joysticks": 2,
+        "input.pads": 0,
+        "input.controls": [
+          "up",
+          "down",
+          "left",
+          "right",
+          "a"
+        ],
+        "input.mouse": false,
+        "input.paddles": false,
+        "storage.save": false,
+        "storage.kib": 0,
+        "memory.ram": 192,
+        "memory.banked": false,
+        "memory.bankedKib": 0
+      },
+      "options": {},
+      "presets": {}
+    }
+  },
+  "files": [
+    "src"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}

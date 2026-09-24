@@ -1,0 +1,32 @@
+{
+  "name": "@8bitscript/audio",
+  "version": "0.22.1",
+  "description": "Play a sample or song compiled from a .8ba file: audio.play, audio.music, audio.update once a frame. SID, the NES APU, POKEY, or the PET VIA — or silence with a diagnostic on a machine that has no driver yet.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/8BitScript/8bitscript.git",
+    "directory": "packages/audio"
+  },
+  "8bitscript": {
+    "entry": "./src/index.8bs"
+  },
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@8bitscript/atari8": "workspace:*",
+    "@8bitscript/c64": "workspace:*",
+    "@8bitscript/nes": "workspace:*",
+    "@8bitscript/pet": "workspace:*",
+    "@8bitscript/vic20": "workspace:*",
+    "@8bitscript/cx16": "workspace:*",
+    "@8bitscript/system": "workspace:*"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

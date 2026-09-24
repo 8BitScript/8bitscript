@@ -164,24 +164,29 @@ you can do, with the real code.
 </p>
 
 [**2048**](https://github.com/8BitScript/2048) is the reference game —
-one program that builds, runs, and plays on all nine machines. It's how
-we know the language works. Clone it, run it, read it.
+one program that builds, runs, and plays on every machine in this
+release's `RELEASE_MACHINES` set. It's how we know the language works.
+Clone it, run it, read it.
 
 ## Available now
 
-Nine machines. Every one of them builds, runs, and renders today.
+**Five machines** — `8bs build` and `8bs run` work end to end for these
+targets only (`RELEASE_MACHINES` in the compiler). Examples, Studio, and
+the VS Code launcher use the same list.
 
 | | Machine | Year | Target |
 | --- | --- | --- | --- |
 | 🟩 | Commodore PET | 1977 | `pet` |
-| 🟩 | Atari 8-bit (400/800/XL/XE) | 1979 | `atari8` |
 | 🟩 | Commodore VIC-20 | 1980 | `vic20` |
 | 🟩 | Commodore 64 | 1982 | `c64` |
-| 🟩 | Nintendo Entertainment System | 1983 | `nes` |
-| 🟩 | Commodore 128 | 1985 | `c128` |
 | 🟩 | Commander X16 | 2020s | `cx16` |
-| 🟩 | MEGA65 | 2022 | `mega65` |
 | 🟩 | Your web browser (WebAssembly) | now | `web` |
+
+The compiler still knows the [original nine and the roadmap
+machines](docs/roadmap.md): twins, facts, and `8bs check` keep working,
+and hello-world still compiles for those ids. `8bs build` refuses them until
+`RELEASE_MACHINES` widens again — see [the manual's status
+page](docs/index.md).
 
 ## Coming attractions
 
@@ -226,7 +231,7 @@ Sixty seconds to a running game — the toolchain, the emulators, and 2048:
 ```sh
 git clone https://github.com/8BitScript/2048.git && cd 2048
 pnpm install
-pnpm exec 8bs doctor    # checks Node, pnpm, and the emulators; offers to install what's missing
+pnpm exec 8bs doctor    # checks Node, pnpm, and the emulators; --install skips the prompt
 pnpm start:c64          # builds and boots it in the real thing (well, VICE)
 pnpm start:web          # the same game, in a browser tab
 ```

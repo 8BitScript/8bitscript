@@ -129,7 +129,9 @@ export function resolvePrograms(config) {
         ok: false,
         error: kind === '.8bx'
           ? `${at}.entry is ${spec.entry}, a .8bx file; a program starts from a .8bs file that imports what the .8bx exports`
-          : `${at}.entry is ${spec.entry}, which is not a .8bs file`,
+          : (kind === '.8bg' || kind === '.8ba')
+            ? `${at}.entry is ${spec.entry}, a media file; a program starts from a .8bs file that imports it`
+            : `${at}.entry is ${spec.entry}, which is not a .8bs file`,
       };
     }
     let targets = null;

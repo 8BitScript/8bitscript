@@ -1,0 +1,134 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "8BitGraphics",
+  "scopeName": "source.8bg",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#sprite-declaration" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.8bg",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.8bg",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "strings": {
+      "name": "string.quoted.double.8bg",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.8bg",
+          "match": "\\\\."
+        }
+      ]
+    },
+    "sprite-declaration": {
+      "comment": "`sprite name { … }` — one graphics resource and its fields.",
+      "begin": "\\b(sprite)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*(\\{)",
+      "beginCaptures": {
+        "1": { "name": "storage.type.declaration.8bg" },
+        "2": { "name": "entity.name.resource.8bg" },
+        "3": { "name": "punctuation.section.block.begin.8bg" }
+      },
+      "end": "\\}",
+      "endCaptures": {
+        "0": { "name": "punctuation.section.block.end.8bg" }
+      },
+      "name": "meta.declaration.sprite.8bg",
+      "patterns": [
+        { "include": "#comments" },
+        { "include": "#animation-declaration" },
+        { "include": "#sprite-fields" }
+      ]
+    },
+    "animation-declaration": {
+      "comment": "`animation walk { frames …; every … }` inside a sprite.",
+      "begin": "\\b(animation)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*(\\{)",
+      "beginCaptures": {
+        "1": { "name": "storage.type.declaration.8bg" },
+        "2": { "name": "entity.name.resource.8bg" },
+        "3": { "name": "punctuation.section.block.begin.8bg" }
+      },
+      "end": "\\}",
+      "endCaptures": {
+        "0": { "name": "punctuation.section.block.end.8bg" }
+      },
+      "name": "meta.declaration.animation.8bg",
+      "patterns": [
+        { "include": "#comments" },
+        { "include": "#animation-fields" }
+      ]
+    },
+    "sprite-fields": {
+      "patterns": [
+        {
+          "name": "meta.field.source.8bg",
+          "begin": "\\b(source)\\b",
+          "beginCaptures": {
+            "1": { "name": "keyword.other.field.8bg" }
+          },
+          "end": "(?=\\s*(?:animation|source|size|transparent|\\}))",
+          "patterns": [{ "include": "#strings" }]
+        },
+        {
+          "name": "meta.field.size.8bg",
+          "match": "\\b(size)\\s+(\\d+)\\s*(x)\\s*(\\d+)",
+          "captures": {
+            "1": { "name": "keyword.other.field.8bg" },
+            "2": { "name": "constant.numeric.integer.8bg" },
+            "3": { "name": "keyword.operator.size.8bg" },
+            "4": { "name": "constant.numeric.integer.8bg" }
+          }
+        },
+        {
+          "name": "meta.field.transparent.8bg",
+          "match": "\\b(transparent)\\s+(auto|\\d+)",
+          "captures": {
+            "1": { "name": "keyword.other.field.8bg" },
+            "2": { "name": "constant.language.transparent.8bg" }
+          }
+        }
+      ]
+    },
+    "animation-fields": {
+      "patterns": [
+        {
+          "name": "meta.field.frames.8bg",
+          "match": "\\b(frames)\\s+([\\d,\\s]+)",
+          "captures": {
+            "1": { "name": "keyword.other.field.8bg" },
+            "2": {
+              "patterns": [
+                {
+                  "match": "\\d+",
+                  "name": "constant.numeric.integer.8bg"
+                },
+                {
+                  "match": ",",
+                  "name": "punctuation.separator.list.8bg"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "meta.field.every.8bg",
+          "match": "\\b(every)\\s+(\\d+)",
+          "captures": {
+            "1": { "name": "keyword.other.field.8bg" },
+            "2": { "name": "constant.numeric.integer.8bg" }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -149,6 +149,10 @@ import { screen } from "@8bitscript/screen";
 import { text, TextColor } from "@8bitscript/text";
 import { input } from "@8bitscript/input";
 import { Input } from "@8bitscript/system";
+import { audio } from "@8bitscript/audio";
+import { graphics } from "@8bitscript/graphics";
+import { chime } from "./chime.8ba";
+import { Mark } from "./Mark.8bx";
 
 // This machine's row width, so cell = y * ROW + x. A bare const name is
 // the only thing besides a literal that a global initializer may be, so
@@ -346,6 +350,8 @@ function paint(lamp: utinyint, cell: usmallint, label: string): void {
 
 export function main(): void {
     screen.blank();
+    Mark();
+    audio.play(chime);
     computeLayout();
     drawMap();
     input.begin();
@@ -388,5 +394,7 @@ export function main(): void {
         // that is waiting from one that has stopped.
         frames++;
         text.printNumber(frameCell, frames, 5);
+        graphics.update();
+        audio.update();
     }
 }

@@ -1,0 +1,13 @@
+import { player } from "./player.8bg";
+import { blip, theme } from "./theme.8ba";
+import { graphics } from "@8bitscript/graphics";
+import { audio } from "@8bitscript/audio";
+import { text } from "@8bitscript/text";
+import { sprites } from "@8bitscript/sprites";
+
+export component Walk() {
+    text.print(0, "WALK");
+    graphics.place(player, sprites.ORIGIN_X + 40, sprites.ORIGIN_Y + 40);
+    audio.play(blip);
+    audio.music(theme);
+}

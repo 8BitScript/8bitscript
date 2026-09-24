@@ -1,0 +1,115 @@
+// @8bitscript/graphics on the NES: CHR tiles the lowering patched into
+// the font, shown as one OAM sprite (or four for 16×16). Must run
+// graphics.update() after waitFrame(), while the PPU is in vertical blank.
+const MAX: utinyint = 8;
+const TILES_PER: utinyint = 16; // 4 frames × 4 tiles
+let tiles: array<u8, 128>;
+let tileCount: array<u8, 8>;
+let frameCount: array<u8, 8>;
+let interval: array<u8, 8>;
+let tick: array<u8, 8>;
+let frame: array<u8, 8>;
+let px: array<u8, 8>;
+let py: array<u8, 8>;
+let shown: array<u8, 8>;
+let started: bool = false;
+
+function writeOam(addr: utinyint, y: utinyint, tile: utinyint, attr: utinyint, x: utinyint): void {
+    memory.write(0x2003, addr);
+    memory.write(0x2004, y);
+    memory.write(0x2004, tile);
+    memory.write(0x2004, attr);
+    memory.write(0x2004, x);
+}
+
+function hideRest(start: utinyint): void {
+    let addr: utinyint = start;
+    while (addr != 0) {
+        memory.write(0x2003, addr);
+        memory.write(0x2004, 0xFF);
+        addr = addr + 4;
+    }
+}
+
+export namespace graphics {
+    function bind(slot: utinyint, index: utinyint, value: utinyint): void {
+        if (slot >= MAX) {
+            return;
+        }
+        if (index < TILES_PER) {
+            tiles[slot * TILES_PER + index] = value;
+        }
+    }
+
+    function meta(slot: utinyint, frames: utinyint, every: utinyint, kind: utinyint, width: utinyint, height: utinyint): void {
+        if (slot >= MAX) {
+            return;
+        }
+        frameCount[slot] = frames;
+        interval[slot] = every;
+        if (width >= 16) {
+            tileCount[slot] = 4;
+        } else {
+            tileCount[slot] = 1;
+        }
+        started = true;
+        // Show sprites: PPUMASK bits 4 and 2, keep the background bits the
+        // screen package already turned on (0x0A).
+        memory.write(0x2001, 0x1E);
+    }
+
+    function place(slot: utinyint, x: usmallint, y: usmallint): void {
+        if (slot >= MAX) {
+            return;
+        }
+        px[slot] = x;
+        if (y > 239) {
+            py[slot] = 239;
+        } else {
+            py[slot] = y;
+        }
+        shown[slot] = 1;
+        started = true;
+    }
+
+    function update(): void {
+        if (!started) {
+            return;
+        }
+        let addr: utinyint = 0;
+        for (let slot: utinyint = 0; slot < MAX; slot++) {
+            if (shown[slot] == 0) {
+                continue;
+            }
+            if (frameCount[slot] >= 2) {
+                tick[slot] = tick[slot] + 1;
+                if (tick[slot] >= interval[slot]) {
+                    tick[slot] = 0;
+                    frame[slot] = frame[slot] + 1;
+                    if (frame[slot] >= frameCount[slot]) {
+                        frame[slot] = 0;
+                    }
+                }
+            }
+            let per: utinyint = 1;
+            if (tileCount[slot] == 4) {
+                per = 4;
+            }
+            let base: utinyint = slot * TILES_PER + frame[slot] * per;
+            let y: utinyint = py[slot];
+            let x: utinyint = px[slot];
+            writeOam(addr, y, tiles[base], 0, x);
+            addr = addr + 4;
+            if (tileCount[slot] == 4) {
+                writeOam(addr, y, tiles[base + 1], 0, x + 8);
+                addr = addr + 4;
+                writeOam(addr, y + 8, tiles[base + 2], 0, x);
+                addr = addr + 4;
+                writeOam(addr, y + 8, tiles[base + 3], 0, x + 8);
+                addr = addr + 4;
+            }
+        }
+        hideRest(addr);
+        memory.write(0x2001, 0x1E);
+    }
+}

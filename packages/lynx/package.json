@@ -1,0 +1,106 @@
+{
+  "name": "@8bitscript/lynx",
+  "version": "0.22.1",
+  "description": "Atari Lynx target support for 8BitScript: the hardware underneath the portable APIs.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/8BitScript/8bitscript.git",
+    "directory": "packages/lynx"
+  },
+  "8bitscript": {
+    "title": "Atari Lynx",
+    "emulator": {
+      "binary": "mame",
+      "family": "mame",
+      "screenshot": "mame",
+      "framesUnit": "seconds",
+      "defaultFrames": 8,
+      "installer": "mame",
+      "system": "lynx",
+      "deferred": "MAME needs a ROM set this project does not ship",
+      "slot": "cart"
+    },
+    "entry": "./src/index.8bs",
+    "exports": {
+      "./screen": "./src/screen.8bs",
+      "./text": "./src/text.8bs",
+      "./input": "./src/input.8bs",
+      "./pointer": "./src/pointer.8bs",
+      "./rasterline": "./src/rasterline.8bs"
+    },
+    "hardware": {
+      "build": {
+        "defsym": {
+          "__load_address": 512,
+          "__rom_size": 32768,
+          "__bss_origin": 512,
+          "__bss_ceiling": 4608,
+          "__ram_ceiling": 65536
+        },
+        "output": "lnx",
+        "mameSystem": "lynx"
+      },
+      "facts": {
+        "video.columns": 20,
+        "video.rows": 12,
+        "video.cellWidth": 8,
+        "video.cellHeight": 8,
+        "video.palette": 4096,
+        "video.cellColors": 2,
+        "video.colorPerCell": false,
+        "video.glyphs": 0,
+        "video.blockWidth": 0,
+        "video.blockHeight": 0,
+        "video.bitmap": true,
+        "video.layers": 1,
+        "video.scroll": false,
+        "video.raster": false,
+        "video.sprites": 0,
+        "video.spritesPerLine": 0,
+        "video.spriteWidth": 0,
+        "video.spriteHeight": 0,
+        "video.spriteColors": 0,
+        "video.frameRate": 60,
+        "audio.voices": 4,
+        "audio.noise": false,
+        "audio.envelope": false,
+        "audio.filter": false,
+        "audio.pcm": true,
+        "audio.volume": false,
+        "audio.entropy": false,
+        "input.keyboard": false,
+        "input.joysticks": 0,
+        "input.pads": 1,
+        "input.controls": [
+          "up",
+          "down",
+          "left",
+          "right",
+          "a",
+          "b",
+          "select",
+          "start"
+        ],
+        "input.mouse": false,
+        "input.paddles": false,
+        "storage.save": false,
+        "storage.kib": 0,
+        "memory.ram": 65535,
+        "memory.banked": false,
+        "memory.bankedKib": 0
+      },
+      "options": {},
+      "presets": {}
+    }
+  },
+  "files": [
+    "src"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}

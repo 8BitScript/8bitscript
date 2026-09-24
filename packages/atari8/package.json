@@ -9,6 +9,16 @@
     "directory": "packages/atari8"
   },
   "8bitscript": {
+    "title": "Atari 8-bit",
+    "emulator": {
+      "binary": "atari800",
+      "family": "atari800",
+      "screenshot": "window",
+      "framesUnit": "frames",
+      "defaultFrames": 180,
+      "installer": "atari800"
+    },
+    "media": "./media/index.cjs",
     "entry": "./src/index.8bs",
     "exports": {
       "./screen": "./src/screen.8bs",
@@ -688,7 +698,8 @@
     }
   },
   "files": [
-    "src"
+    "src",
+    "media"
   ],
   "publishConfig": {
     "access": "public"

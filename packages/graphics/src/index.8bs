@@ -1,0 +1,72 @@
+// @8bitscript/graphics — play a sprite compiled from a .8bg file.
+//
+//     import { player } from "./player.8bg";
+//     import { graphics } from "@8bitscript/graphics";
+//     graphics.place(player, x, y);
+//     graphics.update();
+//
+// This file is the glyph path: the picture became one character, and
+// @8bitscript/sprites draws it. Machine twins (index.c64.8bs, index.nes.8bs,
+// index.pet.8bs) replace this file when the build has hardware that can
+// show the picture as a sprite.
+import { sprites } from "@8bitscript/sprites";
+
+const MAX: utinyint = 8;
+let glyph: array<u8, 8>;
+let frames: array<u8, 8>;
+let every: array<u8, 8>;
+let tick: array<u8, 8>;
+let frame: array<u8, 8>;
+let px: array<u16, 8>;
+let py: array<u16, 8>;
+let used: utinyint = 0;
+let started: bool = false;
+
+function ensure(): void {
+    if (!started) {
+        sprites.begin(MAX);
+        started = true;
+    }
+}
+
+export namespace graphics {
+    function bind(slot: utinyint, index: utinyint, value: utinyint): void {
+        if (slot >= MAX) {
+            return;
+        }
+        if (index == 0) {
+            glyph[slot] = value;
+        }
+    }
+
+    function meta(slot: utinyint, frameCount: utinyint, interval: utinyint, kind: utinyint, width: utinyint, height: utinyint): void {
+        if (slot >= MAX) {
+            return;
+        }
+        frames[slot] = frameCount;
+        every[slot] = interval;
+        tick[slot] = 0;
+        frame[slot] = 0;
+        if (slot >= used) {
+            used = slot + 1;
+        }
+    }
+
+    function place(slot: utinyint, x: usmallint, y: usmallint): void {
+        if (slot >= MAX) {
+            return;
+        }
+        ensure();
+        px[slot] = x;
+        py[slot] = y;
+        sprites.setShape(slot, glyph[slot]);
+        sprites.place(slot, x, y);
+    }
+
+    function update(): void {
+        if (!started) {
+            return;
+        }
+        sprites.update();
+    }
+}

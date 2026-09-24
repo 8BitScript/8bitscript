@@ -38,6 +38,29 @@ export namespace System {
     const NES: utinyint = 6;      // Nintendo Entertainment System
     const CX16: utinyint = 7;     // Commander X16
     const MEGA65: utinyint = 8;   // MEGA65
+    const PLUS4: utinyint = 9;    // Commodore Plus/4
+    const ORIC: utinyint = 10;    // Oric-1 / Atmos
+    const APPLE2: utinyint = 11;    // Apple II
+    const BBC: utinyint = 12;    // BBC Micro
+    const ATARI5200: utinyint = 13;    // Atari 5200
+    const LYNX: utinyint = 14;    // Atari Lynx
+    const PCE: utinyint = 15;    // PC Engine / TurboGrafx-16
+    const SUPERVISION: utinyint = 16;    // Watara Supervision
+    const ATARI2600: utinyint = 17;    // Atari 2600
+    const ATARI7800: utinyint = 18;    // Atari 7800
+    const GB: utinyint = 19;    // Game Boy
+    const GBC: utinyint = 20;    // Game Boy Color
+    const SMS: utinyint = 21;    // Sega Master System
+    const GAMEGEAR: utinyint = 22;    // Sega Game Gear
+    const SG1000: utinyint = 23;    // Sega SG-1000
+    const MSX: utinyint = 24;    // MSX
+    const COLECO: utinyint = 25;    // ColecoVision
+    const SPECTRUM: utinyint = 26;    // ZX Spectrum
+    const CPC: utinyint = 27;    // Amstrad CPC
+    const COCO: utinyint = 28;    // Tandy Color Computer
+    const VECTREX: utinyint = 29;    // Vectrex
+    const ODYSSEY2: utinyint = 30;    // Magnavox Odyssey²
+    const CHANNELF: utinyint = 31;    // Fairchild Channel F
 }
 
 // The fact sheet. Each const is one #fact(...) — the value the machine

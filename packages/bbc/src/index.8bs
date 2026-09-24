@@ -1,0 +1,2 @@
+// @8bitscript/bbc — BBC Micro hardware underneath the portable APIs.
+// Registers a program names sit in this package; screen/text/input import them.

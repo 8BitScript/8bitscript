@@ -1,0 +1,38 @@
+export namespace Slot {
+    const BORDER: utinyint = 0;
+    const BACKGROUND: utinyint = 1;
+    const SCROLL_X: utinyint = 2;
+}
+
+export namespace raster {
+    const ENTRIES: utinyint = 0;
+    const STRIDE: utinyint = 0;
+
+    function clear(): void {
+    }
+
+    function at(line: utinyint, slot: utinyint, value: utinyint): bool {
+        return false;
+    }
+
+    function insert(line: utinyint, slot: utinyint, value: utinyint): bool {
+        return false;
+    }
+
+    function setValue(entry: utinyint, value: utinyint): bool {
+        return false;
+    }
+
+    function commit(): void {
+    }
+
+    function count(): utinyint {
+        return 0;
+    }
+
+    function enable(): void {
+    }
+
+    function disable(): void {
+    }
+}

@@ -5,44 +5,39 @@ nav_order: 52
 
 # Writing Channel F support for 8BitScript
 
-This file is for anyone — human or agent — adding the `channelf` target
-(roadmap phase 10). Nothing here builds. Read
-[`docs/roadmap.md`](../../roadmap.md) first.
+This file is for anyone — human or agent — touching `packages/channelf`
+and the F8 backend.
 
-> **A Fairchild F8, which is an 8-bit CPU, and 64 bytes of scratchpad
-> RAM inside that CPU. The picture is a write-only framebuffer. There
-> is no second CPU family hiding in the console.**
+> **A Fairchild F8 and 64 bytes of scratchpad inside the CPU.** The
+> picture is a write-only 128×64 framebuffer (about 104×60 visible).
+> There is no second CPU family in the console.
 
 ## What exists today
 
-Nothing. There is no F8 backend, no `packages/channelf`, no emulator
-flag, and no setup command.
+An F8 backend and `packages/channelf`. Ports use `INS`/`OUTS`.
+Emulator: MAME `channelf`.
 
-## Facts read for this note
-
-Wikipedia's
-[Fairchild Channel F](https://en.wikipedia.org/wiki/Fairchild_Channel_F)
-article, fetched 2026-09-22. Secondary; a Fairchild F8 datasheet is the
-source to read next.
+## Facts verified here
 
 | Fact | Where |
 | ---- | ----- |
-| CPU: Fairchild F8, called 8-bit on the article's specification list, at 1.7897725 MHz NTSC (colorburst / 2). PAL speeds are listed separately. | Wikipedia technical section |
-| The CPU contains 64 bytes of scratchpad RAM. A working F8 needs the CPU plus program-storage chips; the Channel F has one CPU and two of those. | Wikipedia, F8 section |
-| The framebuffer is described as write-only, 128×64, with about 104×60 of that visible, one background color per line and three plot colors. | Wikipedia, same section |
-
-The System II is the same CPU in a later case. It is not a separate
-target. How its memory map differs is *to verify*.
+| F8 at colorburst/2 = 1.79 MHz NTSC. 3850 CPU + two 3851 PSUs = 2K BIOS (Hockey/Tennis + cart helpers). 64 scratchpad bytes, no other RAM except 8K × 2-bit screen (128×64). Four palettes via pixels 125/126 per line; eight colors total. | [Sean Riddle, Channel F specs](http://seanriddle.com/chanfspecs.html) |
+| Scratchpad: 0–8 general, 9–15 save W/DC0/PC1/PC0, 16–63 six ISAR-addressed 8-byte buffers. First 12 directly addressed; all 64 via 6-bit ISAR. | [F8 Guide to Programming, 1980](https://bitsavers.trailing-edge.com/components/fairchild/f8/F387X_PEP/NS334-12-0003-107_F8_Guide_to_Programming_1980.pdf) |
+| CPU ports: console buttons + right controller + three lines into screen RAM. PSU ports: left controller, screen RAM, sound. Carts are typically two PSUs (2K); some 3K/4K, Schach 6K. | Riddle specs |
+| I/O instructions: `IN`/`INS`, `OUT`/`OUTS`. Ports commonly 0, 1, 4, 5. | F8 User's Guide |
+| System II is the same CPU in a later case — not a second target. | Wikipedia Channel F, 2026-09-22 |
 
 ## The sixteen questions
 
-The CPU class and the scratchpad size are the part this note actually
-read. The F8 instruction set, the port map, controller encoding, sound,
-cartridge banking, frame timing, and an emulator with a headless
-screenshot are not researched.
+CPU and scratchpad from the F8 manual. Framebuffer is write-only, not
+a text grid. Controllers are not Atari sticks. No save. Image is a
+cart ROM. `port.write` / `port.read` are the language form for
+`OUTS`/`INS`.
 
 ## Where things live
 
 ```
-docs/roadmap.md                     Phase 10: an F8 backend with one machine on it
+packages/compiler/src/f8/           the backend
+packages/channelf/                  catalog + stubs
+docs/setup/channelf.md
 ```

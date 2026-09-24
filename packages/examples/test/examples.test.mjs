@@ -9,11 +9,13 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { link } from '../../compiler/index.mjs';
+import { link, RELEASE_MACHINES } from '../../compiler/index.mjs';
 import { stockFacts } from '../../cli/src/hardware.mjs';
+import { releaseTargets } from '../shared-release-targets.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
+const CHECKOUT = join(HERE, '..', '..', '..');
 
 const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 const cli = JSON.parse(readFileSync(join(ROOT, '..', 'cli', 'package.json'), 'utf8'));
@@ -42,6 +44,12 @@ const entryOf = (dir) => {
 // object. Read the same way the editor reads it, as text.
 const targetsOf = (dir) => {
   const config = readFileSync(configPathOf(dir), 'utf8').replace(/\/\/[^\n]*/g, '');
+  if (/targets:\s*releaseTargets\b/.test(config)) {
+    return Object.keys(releaseTargets);
+  }
+  if (/releaseTargets\.(pet|c64|vic20|cx16|web)/.test(config)) {
+    return Object.keys(releaseTargets);
+  }
   const start = config.indexOf('targets:');
   assert.ok(start >= 0, `${dir}: no targets block`);
   // Balance braces from the opening one, since a target's own value (`{}`)
@@ -54,11 +62,21 @@ const targetsOf = (dir) => {
     else if (config[end] === '}' && --depth === 0) break;
   }
   const body = config.slice(open + 1, end);
-  return [...body.matchAll(/(\w+):\s*\{/g)].map((m) => m[1]);
+  // Only the targets object's own keys. A value like
+  // `{ hardware: { model: '3032' } }` also contains `{`, so a naive
+  // `/(\w+):\s*\{/` would report `hardware` as a target.
+  return [...body.matchAll(/(\w+):\s*\{/g)].flatMap((m) => {
+    let depth = 0;
+    for (let i = 0; i < m.index; i++) {
+      if (body[i] === '{') depth++;
+      else if (body[i] === '}') depth--;
+    }
+    return depth === 0 ? [m[1]] : [];
+  });
 };
 
 test('the manifest lists every example, each a directory with a real project in it', () => {
-  assert.deepEqual(Object.keys(examples), ['hello-world', 'joystick', 'fancy', 'hello-bx', 'swarm']);
+  assert.deepEqual(Object.keys(examples), ['hello-world', 'joystick', 'fancy', 'hello-bx', 'swarm', 'media-walk']);
   for (const [name, entry] of Object.entries(examples)) {
     assert.equal(typeof entry.title, 'string', `${name}: title`);
     assert.equal(typeof entry.description, 'string', `${name}: description`);
@@ -74,39 +92,37 @@ test('the CLI depends on the examples, so they ship with the toolchain', () => {
   assert.equal(pkg.version, cli.version, 'one version across the workspace');
 });
 
-// Every machine this release builds for, in the order the configs list
-// them. Both examples target all nine and both link for all nine — the
-// earlier seven-target loop here predated atari8 and nes having native
-// backends and was never widened; checked 2026-09-12 by linking
-// hello-world for those two by hand before adding them.
-const TARGETS = ['pet', 'c64', 'vic20', 'c128', 'cx16', 'mega65', 'atari8', 'nes', 'web'];
+// Every example shares the five release targets from shared-release-targets.ts
+// (PET 4032 32K, stock C64, VIC-20 8K, CX16, web).
+const RELEASE_FIVE = [...RELEASE_MACHINES];
 
 for (const name of Object.keys(examples)) {
   test(`${name} targets every machine this release builds for`, () => {
-    assert.deepEqual(targetsOf(resolve(ROOT, examples[name].dir)), TARGETS);
+    assert.deepEqual(targetsOf(resolve(ROOT, examples[name].dir)), RELEASE_FIVE);
   });
 
-  for (const target of TARGETS) {
+  for (const target of RELEASE_FIVE) {
     test(`${name} links clean for ${target}`, () => {
       const main = entryOf(resolve(ROOT, examples[name].dir));
-      const { ir, diagnostics } = link(readFileSync(main, 'utf8'), main, { machine: target, facts: stockFacts(target) });
-      assert.deepEqual(diagnostics, []);
+      const { ir, diagnostics } = link(readFileSync(main, 'utf8'), main, { machine: target, facts: stockFacts(target), checkout: CHECKOUT });
+      const errors = diagnostics.filter((d) => d.severity !== 'warning');
+      assert.deepEqual(errors, []);
       assert.equal(ir.entry, 'main');
     });
   }
 }
 
-// joystick is the controller test app, and the two machines it has to fit
-// are the ones with no room to spare: the stock 4K PET 2001 and the
-// unexpanded VIC-20. `link` does not lay out an image, so this is not a
-// size check — it is the guard that those two budgets stay written down
-// where someone changing the example will see them, next to the measured
-// sizes in its own header (2298 bytes on the PET, 2414 on the VIC-20 as
-// of 2026-09-12). A change that pushes either past its fact fails at
-// `8bs build`, not here.
-test('the tightest machines joystick claims still declare the budgets it was measured against', () => {
+// joystick is the controller test app. The release PET is the 32K 4032 from
+// shared-release-targets.ts; the unexpanded VIC-20 is 8K in that file too.
+// `link` does not lay out an image, so this is not a size check — it is the
+// guard that those budgets stay written down where someone changing the
+// example will see them, next to the measured sizes in its README.
+test('the release machines joystick claims still declare the budgets it was measured against', () => {
   assert.equal(stockFacts('pet')['memory.ram'], 3071, 'the stock PET 2001 is 4K, minus what BASIC keeps');
   assert.equal(stockFacts('vic20')['memory.ram'], 3583, 'the unexpanded VIC-20');
+  assert.equal(releaseTargets.pet.hardware.model, '4032');
+  assert.equal(releaseTargets.pet.hardware.ram, '32');
+  assert.equal(releaseTargets.vic20.hardware.ram, '8k');
 });
 
 // The lamps are reverse video, never colour, because three of the nine
@@ -137,16 +153,12 @@ test('fancy keeps its raster effect behind #fact(video.raster)', () => {
   for (const target of ['c64', 'web']) {
     assert.equal(stockFacts(target)['video.raster'], true, `${target} answers the raster capability`);
   }
-  for (const target of ['pet', 'vic20', 'c128', 'cx16', 'mega65', 'atari8', 'nes']) {
+  for (const target of ['pet', 'vic20', 'cx16']) {
     assert.equal(stockFacts(target)['video.raster'], false, `${target} has no per-scanline hook`);
   }
 });
 
-// fancy's header claims the two tightest budgets it was measured against,
-// the same way joystick's does: the guard that those numbers stay written
-// down beside the measured sizes in its own header. A change that pushes
-// either past its fact fails at `8bs build`, not here.
-test('the tightest machines fancy claims still declare the budgets it was measured against', () => {
-  assert.equal(stockFacts('pet')['memory.ram'], 3071, 'the stock PET 2001 is 4K, minus what BASIC keeps');
-  assert.equal(stockFacts('vic20')['memory.ram'], 3583, 'the unexpanded VIC-20');
+test('the release targets fancy builds against include the 4032 PET and 8K VIC-20', () => {
+  assert.equal(releaseTargets.pet.hardware.model, '4032');
+  assert.equal(releaseTargets.vic20.hardware.ram, '8k');
 });

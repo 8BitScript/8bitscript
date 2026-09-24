@@ -99,6 +99,7 @@ test('Open Studio is the largest button on the panel, above quick launch: a spli
   assert.match(runner, /command\('8bitscript\.openStudio'/);
   assert.match(runner, /p\.name === '@8bitscript\/studio'\);\n\s+if \(!studio\)/);
   assert.match(runner, /execute\('run', \{ project: studio, target: 'cx16' \}\)/);
+  assert.match(runner, /execute\('run', \{ project: studio, target: 'cx16', web: true \}\)/, 'missing x16emu falls back to the tab, not another machine');
   assert.doesNotMatch(runner.slice(runner.indexOf("command('8bitscript.openStudio'"), runner.indexOf("command('8bitscript.launchApp'")), /showQuickPick|setProject|setSystem/);
   assert.ok(MANIFEST.contributes.commands.some((c) => c.command === '8bitscript.openStudio'), 'and it is on the palette');
 });
@@ -126,10 +127,10 @@ test('a native cx16 run from the launcher includes capture and fullscreen flags 
   const runner = fs.readFileSync(path.join(ROOT, 'src', 'runner.cjs'), 'utf8');
   assert.match(runner, /cx16NativeWindowCliArgs/);
   const view = fs.readFileSync(path.join(ROOT, 'src', 'launcherView.cjs'), 'utf8');
-  assert.match(view, /system === 'cx16' \? settings\.cx16NativeWindowCliArgs\(\)/);
+  assert.match(view, /system === 'cx16' \? settings\.cx16NativeWindowCliArgs\(/);
   const props = MANIFEST.contributes.configuration.properties;
   assert.equal(props['8bitscript.cx16.captureMouse'].default, true);
-  assert.equal(props['8bitscript.cx16.fullscreen'].default, true);
+  assert.equal(props['8bitscript.cx16.fullscreen'].default, false);
 });
 
 test('a web run from the launcher listens on the LAN by default', () => {
@@ -269,9 +270,20 @@ test('named systems are grouped by origin above the machines', () => {
   assert.match(view, /This clone/, 'project-personal first');
   assert.match(view, /This machine/, 'then user');
   assert.match(view, /Advertised/, 'then the config');
-  assert.match(view, /group: 'Machines'/, 'the bare machines under them');
+  assert.match(view, /groupedMachineOptions/, 'bare machines are grouped by family');
   assert.match(view, /applySystem/, 'picking one fits machine, hardware and region together');
   assert.match(view, /targets\?\.systems\?\.\[0\]/);
+});
+
+test('Doctor: Choose Emulators is a first-class panel, defaulting to all emulators', () => {
+  const runner = fs.readFileSync(path.join(ROOT, 'src', 'runner.cjs'), 'utf8');
+  assert.match(runner, /getDoctorEmulators/);
+  assert.match(runner, /doctorWantFromSelection/);
+  const props = MANIFEST.contributes.configuration.properties['8bitscript.doctorEmulators'];
+  assert.equal(props.default, null);
+  const declared = MANIFEST.contributes.commands.map((c) => c.command);
+  assert.ok(declared.includes('8bitscript.doctorSetup'));
+  assert.ok(MANIFEST.contributes.menus['view/title'].some((m) => m.command === '8bitscript.doctorSetup'));
 });
 
 test('Configure System and Show Project are first-class commands', () => {

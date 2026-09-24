@@ -1,0 +1,110 @@
+// @8bitscript/graphics on the VIC-20: four RAM glyphs in a 2×2 cell grid.
+import { Video } from "@8bitscript/vic20/geometry";
+import { text } from "@8bitscript/text";
+
+const MAX: utinyint = 8;
+const KIND_VIC20: utinyint = 4;
+const CHAR_DATA: usmallint = 0x1400; // RAM charset: codes 128–131
+
+let code0: array<u8, 8>;
+let code1: array<u8, 8>;
+let code2: array<u8, 8>;
+let code3: array<u8, 8>;
+let glyph: array<u8, 256>;
+let px: array<u16, 8>;
+let py: array<u16, 8>;
+let shown: array<u8, 8>;
+let started: bool = false;
+
+function ensureCharset(): void {
+    if (started) {
+        return;
+    }
+    memory.write(0x9005, Video.MEMORY_POINTER_UPPERCASE);
+    started = true;
+}
+
+function writeGlyph(slot: utinyint, charIndex: utinyint, byteIndex: utinyint, value: utinyint): void {
+    let base: usmallint = CHAR_DATA + (charIndex << 3) + byteIndex;
+    memory.write(base, value);
+}
+
+function putScreen(cell: usmallint, screenCode: utinyint): void {
+    memory.write(Video.SCREEN + cell, screenCode);
+}
+
+function drawBlock(slot: utinyint): void {
+    let col: utinyint = px[slot] / 8;
+    let row: utinyint = py[slot] / 8;
+    let base: usmallint = row * text.COLUMNS + col;
+    putScreen(base, code0[slot]);
+    putScreen(base + 1, code1[slot]);
+    putScreen(base + text.COLUMNS, code2[slot]);
+    putScreen(base + text.COLUMNS + 1, code3[slot]);
+}
+
+export namespace graphics {
+    function bind(slot: utinyint, index: utinyint, value: utinyint): void {
+        if (slot >= MAX) {
+            return;
+        }
+        if (index == 0) {
+            code0[slot] = value;
+            return;
+        }
+        if (index == 1) {
+            code1[slot] = value;
+            return;
+        }
+        if (index == 2) {
+            code2[slot] = value;
+            return;
+        }
+        if (index == 3) {
+            code3[slot] = value;
+            return;
+        }
+        let g: utinyint = index - 4;
+        let charIndex: utinyint = g / 8;
+        let byteIndex: utinyint = g % 8;
+        glyph[(slot << 5) + g] = value;
+        writeGlyph(slot, charIndex, byteIndex, value);
+    }
+
+    function meta(slot: utinyint, frames: utinyint, every: utinyint, which: utinyint, width: utinyint, height: utinyint): void {
+        if (slot >= MAX) {
+            return;
+        }
+        ensureCharset();
+        if (which == KIND_VIC20) {
+            let i: utinyint = 0;
+            while (i < 32) {
+                let charIndex: utinyint = i / 8;
+                let byteIndex: utinyint = i % 8;
+                writeGlyph(slot, charIndex, byteIndex, glyph[slot * 32 + i]);
+                i = i + 1;
+            }
+        }
+    }
+
+    function place(slot: utinyint, x: usmallint, y: usmallint): void {
+        if (slot >= MAX) {
+            return;
+        }
+        px[slot] = x;
+        py[slot] = y;
+        shown[slot] = 1;
+        ensureCharset();
+        drawBlock(slot);
+    }
+
+    function update(): void {
+        let slot: utinyint = 0;
+        while (slot < MAX) {
+            if (shown[slot] != 0) {
+                drawBlock(slot);
+            }
+            slot = slot + 1;
+        }
+    }
+}

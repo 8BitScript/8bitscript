@@ -65,6 +65,33 @@ export const CX16_PACMAN_PACKAGES = Object.freeze([
 ]);
 export const CX16_AUR_TOOLS = Object.freeze(['cc65', 'lzsa']);
 
+// Debian/Ubuntu: the same build, with the names apt uses. cc65 is in
+// the archive; lzsa is not, so it stays a path-tool (build from source
+// or install by hand — docs/setup/cx16.md).
+export const CX16_APT_PACKAGES = Object.freeze([
+  'build-essential', 'cmake', 'git', 'python3', 'zlib1g-dev', 'libsdl2-dev', 'pkg-config', 'cc65',
+]);
+export const CX16_APT_PATH_TOOLS = Object.freeze(['lzsa']);
+
+// Debian/Ubuntu names for Xemu's MEGA65 core. msitools is the optional
+// `--c64-forever` extractor, same role as on Arch.
+export const MEGA65_APT_PACKAGES = Object.freeze([
+  'build-essential', 'git', 'pkg-config', 'libsdl2-dev', 'libgtk-3-dev', 'libreadline-dev', 'wget', 'msitools',
+]);
+
+/**
+ * Which package manager a Linux host should use for `8bs setup`.
+ * apt-get first: Ubuntu/Debian. pacman next: Arch/Manjaro.
+ *
+ * @param {(name: string) => boolean} hasBinary
+ * @returns {'apt' | 'pacman' | null}
+ */
+export function linuxPackageManager(hasBinary) {
+  if (hasBinary('apt-get')) return 'apt';
+  if (hasBinary('pacman')) return 'pacman';
+  return null;
+}
+
 /**
  * Which of `packages` Homebrew doesn't have installed. One `brew list
  * --versions <all>` call first: it exits 0 only when every formula is
@@ -93,6 +120,29 @@ export async function missingBrewPackages(packages, exec) {
  * any prompts reach the terminal. */
 export function installBrewPackages(packages, exec) {
   return exec('brew', ['install', ...packages]);
+}
+
+// ---- apt (Debian / Ubuntu) -------------------------------------------------
+//
+// `dpkg-query -W -f=${Status}` prints `install ok installed` only when
+// the package is actually present. One call per package so a missing
+// name (dpkg-query exits 1) does not hide the rest.
+
+/** Which of `packages` dpkg does not have installed. */
+export async function missingAptPackages(packages, exec) {
+  const missing = [];
+  for (const pkg of packages) {
+    const r = await exec('dpkg-query', ['-W', '-f=${Status}', pkg]);
+    if (r.missing || r.code !== 0 || !/\binstall ok installed\b/.test(r.stdout ?? '')) {
+      missing.push(pkg);
+    }
+  }
+  return missing;
+}
+
+/** `sudo apt-get install -y <packages>` — noninteractive, stdio inherited. */
+export function installAptPackages(packages, sudoExec) {
+  return sudoExec('apt-get', ['install', '-y', ...packages]);
 }
 
 /** Which of `tools` (bare command names) aren't on PATH — for dependencies

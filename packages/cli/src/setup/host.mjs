@@ -57,16 +57,36 @@ export function installXcodeCommandLineTools(exec) {
   return exec('xcode-select', ['--install']);
 }
 
+/**
+ * Homebrew casks that install a .app rather than a PATH binary. Doctor
+ * and `8bs run` look here after PATH so `sameboy` / `fuse` still resolve
+ * after `brew install --cask sameboy` / `fredm-fuse`. The cask named
+ * `fuse` is the filesystem — never that one.
+ */
+export const DARWIN_APP_BINARIES = {
+  sameboy: ['/Applications/SameBoy.app/Contents/MacOS/SameBoy'],
+  fuse: [
+    '/Applications/Fuse.app/Contents/MacOS/Fuse',
+    '/Applications/Fuse for macOS/Fuse.app/Contents/MacOS/Fuse',
+  ],
+};
+
 /** Full path of the first `name` on PATH, or null — what `command -v`
  * answers. The doctor reports this for x16emu so a reader sees *which*
  * launcher is in play (`/usr/local/bin/x16emu`), and inspects that exact
- * file for the macOS symlink trap. */
+ * file for the macOS symlink trap. On macOS, Homebrew casks for SameBoy
+ * and Fuse are checked after PATH. */
 export function resolveOnPath(name, env = process.env, platform = process.platform) {
   const binary = platform === 'win32' ? `${name}.exe` : name;
   for (const dir of (env.PATH ?? '').split(delimiter)) {
     if (!dir) continue;
     const candidate = join(dir, binary);
     if (existsSync(candidate)) return candidate;
+  }
+  if (platform === 'darwin') {
+    for (const candidate of DARWIN_APP_BINARIES[name] ?? []) {
+      if (existsSync(candidate)) return candidate;
+    }
   }
   return null;
 }

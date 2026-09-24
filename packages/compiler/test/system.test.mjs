@@ -12,10 +12,17 @@ import {
 const codes = (src, options) => analyze(src, 't.8bs', options).map((d) => d.code);
 const program = (expr) => `let x: utinyint = ${expr};\nexport function main(): void {}`;
 
-test('SYSTEMS names the nine targets with distinct, stable numbers', () => {
-  assert.deepEqual([...SYSTEMS.entries()], [
+test('SYSTEMS keeps the original nine numbers and adds later machines after them', () => {
+  const entries = [...SYSTEMS.entries()];
+  assert.deepEqual(entries.slice(0, 9), [
     ['web', 0], ['vic20', 1], ['c64', 2], ['pet', 3], ['c128', 4], ['atari8', 5], ['nes', 6], ['cx16', 7], ['mega65', 8],
   ]);
+  assert.equal(SYSTEMS.get('plus4'), 9);
+  assert.equal(SYSTEMS.get('gb'), 19);
+  assert.equal(SYSTEMS.get('gbc'), 20);
+  assert.equal(SYSTEMS.get('gamegear'), 22);
+  assert.equal(SYSTEMS.get('channelf'), 31);
+  assert.equal(new Set(SYSTEMS.values()).size, SYSTEMS.size, 'numbers stay unique');
 });
 
 test('fold: #system() becomes the machine\'s number when a machine is known', () => {

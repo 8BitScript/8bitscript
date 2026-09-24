@@ -31,9 +31,11 @@ import { existsSync, readFileSync, readdirSync, rmSync, mkdirSync, writeFileSync
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { CI_EXCLUDED_PACKAGE_DIRS } from './ci-excluded-packages.mjs';
+
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const WORKSPACE_GLOBS = ['packages', 'editors'];
-const EXCLUDE_DIR_NAMES = new Set(['atari8', 'c128', 'c64', 'cx16', 'pet', 'pointer']);
+const EXCLUDE_DIR_NAMES = CI_EXCLUDED_PACKAGE_DIRS;
 
 function discoverPackageDirs() {
   const dirs = [];

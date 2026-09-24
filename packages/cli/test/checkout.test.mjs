@@ -70,6 +70,13 @@ test('--checkout is consumed so it does not become a positional', () => {
   assert.equal(checkoutArgs(['--checkout']).ok, false);
 });
 
+test('resolveCheckout walks up to a monorepo root when nothing else is set', () => {
+  const nested = join(REPO, 'packages', 'studio');
+  const resolved = resolveCheckout(nested, { env: {} });
+  assert.equal(resolved.ok, true);
+  assert.equal(resolved.checkout, REPO);
+});
+
 test('applyCheckoutFromArgs sets the active checkout and clears it when absent', () => {
   setActiveCheckout(null);
   const applied = applyCheckoutFromArgs(['--checkout', REPO], tmp());

@@ -1,22 +1,19 @@
 # Writing Atari 8-bit support for 8BitScript
 
-> **The native backend builds this machine.** `build()` in
-> `packages/compiler/src/mos` produces a real `.xex` for the atari8: the
-> hardware sheet carries `__load_address`/`__ram_ceiling`, `ZP_BUDGETS`
-> carries its zero page, `mos/image-atari8.ts` is its container, and
-> `RASTER` in `mos/startup/waitframe.ts` is its `waitFrame()`. Verified
-> under atari800 7.1.2 (NTSC, `-xl`): `packages/examples/hello-world`
-> shows its greeting, and 2048 runs, paces and takes input. Whether
-> `8bs build --target atari8` is *allowed* is a separate, release-level
-> switch (`RELEASE_MACHINES` in `packages/compiler/src/resolver`) and is
-> not this file's to flip.
+> **Outside this release's `RELEASE_MACHINES` set.** The native backend
+> builds this machine: `build()` in `packages/compiler/src/mos` produces a
+> real `.xex` for the atari8 — hardware sheet, zero page, container, and
+> `waitFrame()` are all wired. Verified under atari800 7.1.2 (NTSC,
+> `-xl`): hello-world and 2048 run. `8bs build` refuses until the release
+> list widens (`RELEASE_MACHINES` in `packages/compiler/src/resolver`); see
+> root [`AGENTS.md`](../../AGENTS.md#this-release-release_machines).
 
 This file is for anyone — human or agent — touching `packages/atari8`,
 this package's hardware catalog (`package.json`, `"8bitscript".hardware`:
 `model`, `media`, `mouse`, `mouseport`, `stereo`), `packages/compiler/src/mos`'s `atari8` entries
 (`FRAME_SYNC.atari8`), `packages/cli`'s atari800 handling
 (`atari800CleanDisplayConfig()`,
-`atari8Screenshot()`),
+`windowScreenshot()`),
 `docs/setup/atari8.md`, or the Atari rows of `docs/roadmap.md`
 and `packages/studio/AGENTS.md`. Read the root
 [`AGENTS.md`](../../AGENTS.md) first; the rules there apply to every target
@@ -54,6 +51,12 @@ two options and not one, and the rule below says what belongs on each.
 ## What exists today
 
 Do not describe more than this as working:
+
+- **Portable media.** `media/index.cjs` (`"8bitscript".media`) turns a
+  `.8bg` PNG into a software glyph (no player/missile twin yet; `8BS2111`,
+  frames collapsed) and a `.8ba` song into POKEY events that
+  `@8bitscript/audio` plays through `@8bitscript/atari8/pokey`. A sample
+  is the declared synth fallback, not volume-only PCM (`8BS2210`).
 
 - `packages/atari8/src/index.8bs` exports sixteen registers, all `@address`:
   GTIA's `borderColor` (`$D01A`, COLBK), `backgroundColor` (`$D018`,
@@ -223,7 +226,7 @@ and why.
 | Standard cartridge (`media=cart8`/`cart16`): 8K at `$A000` or 16K at `$8000`, same `$BFFA` vector, same `$0700-$1FFF` RAM. MegaCart/SIC! (`media=mega16`…`mega512`): 16–512K in 16K banks mapped over `$8000-$BFFF`, bank 0 at power-up, a 20-byte tail in bank 0 that shrinks RAMTOP (`$6A`) to `$80` if needed and writes `$20` to `$D500` for SIC! carts. | cartridge maps; `tail0.s` |
 | atari800 cartridge types: 8K standard = type 1 at `$A000`; 16K = 2 at `$8000`; XEGS 32/64/128/256/512K = 12/13/14/23/24 (2–6 low bits of a `$D500` write pick the `$8000` bank); switchable XEGS = 33–37 (bit 7 disables); MegaCart 16–512K = 26–31 (bit 7 disables, low bits pick a 16K bank); SIC! 128/256/512K = 54/55/56 (`$D500-$D51F`). A raw image whose size matches more than one type is `CARTRIDGE_UNKNOWN`; the SDL build then opens the **"Select Cartridge Type"** menu and inserts nothing until a key is pressed. `-cart-type <0..160>` picks explicitly. | upstream `DOC/cart.txt`, `src/cartridge.c`, `src/ui.c`, `src/atari.c`; `atari800 -help` |
 | The 256 KiB XEGS build, given to `atari800 -xegs -cart` without a type, shows that menu with eight candidates (XEGS 256 KB, MegaCart 256 KB, Switchable XEGS 256 KB, SIC! 256 KB, Super Cart 256 KB 5200, XE Multicart, Double Ram-Cart, J(atari)Cart). With `-cart-type 23` or `-cart-type 36` the borders program runs (`TICK n OPTION 0`, cell 0, teal on blue). The same program on `-xl` (800xl), `-xe` (130xe) and `-atari` (800, OS-B) runs the same way; the `65xe` and `400` profiles were not launched. | on screen (window capture), this project |
-| `8bs run atari8 --screenshot` passes `'-run', outFile` unconditionally; with `--profile xegs` the captured window is the XL OS's blank blue screen with a cursor — the `.rom` was never inserted. | `packages/cli/src/screenshot.mjs` `atari8Screenshot()`, on screen |
+| `8bs run atari8 --screenshot` passes `'-run', outFile` unconditionally; with `--profile xegs` the captured window is the XL OS's blank blue screen with a cursor — the `.rom` was never inserted. | `packages/cli/src/screenshot.mjs` `windowScreenshot()`, on screen |
 | The same GTIA bytes render differently by region under atari800: the borders program's `BackgroundColor.CYAN` (`$A8`) is teal on `-ntsc` and green on `-pal`; `BorderColor.BLUE` (`$84`) is a darker blue on PAL. Hue values vary with TV standard (NTSC vs PAL), tint, and emulator palette. | on screen; Altirra HRM ch.6 |
 | ANTIC (`$D400`): DMACTL, CHACTL, DLISTL/H, HSCROL, VSCROL, PMBASE, CHBASE, WSYNC, VCOUNT (read), PENH/PENV (read), NMIEN, NMIRES/NMIST. DMACTL boots as `$22` (DMA on, normal playfield, no P/M DMA, double-line P/M); playfield widths narrow/normal/wide are 32/40/48 bytes per line; bits 2/3 enable missile/player DMA, bit 4 single-line P/M, bit 5 display-list DMA. CHACTL `$02` at boot (inverse shown as reverse video; bit 2 flips characters upside down). NMIEN: `$80` DLI, `$40` VBI, `$20` RESET. | `_antic.h` |
 | ANTIC's fourteen playfield modes, their scan-line heights, byte costs, pixel counts and color sources: the full table is in "The playfield" below, read from the Altirra manual and cross-checked against `_antic.h` and De Re Atari. Modifiers OR'd into a mode byte: `$10` HSCROL, `$20` VSCROL, `$40` LMS (two address bytes follow, low first), `$80` DLI. Non-mode instructions: `$00/$10/…/$70` = 1–8 blank lines, `$01` JMP, `$41` JVB (jump and wait for vertical blank); both jumps are three bytes and both cost a scan line. | `_antic.h`; Altirra HRM §4.4-4.6 |
@@ -1115,7 +1118,7 @@ packages/compiler/src/mos/image-atari8.ts   the .xex container (FF FF, RUN segme
 packages/compiler/src/mos/image-atari8.test.ts  the recorded xxd, the sheet arithmetic, the VCOUNT poll, the no-SEI proof, the cartridge refusal
 packages/compiler/src/mos/startup/waitframe.ts  RASTER.atari8 (VCOUNT) and keepsInterrupts, the flag that keeps the OS alive
 packages/cli/src/run.mjs                atari800CleanDisplayConfig() (per-process cfg copy), the launch: the catalog's flags, then -run or the value's load
-packages/cli/src/screenshot.mjs         atari8Screenshot(): one window at a time, macOS capture, the same flags
+packages/cli/src/screenshot.mjs         windowScreenshot(): one window at a time, macOS capture, the same flags
 packages/cli/src/mac-window-capture.mjs findWindowIdForPid()/captureWindow(), the capture route for any atari800 launch
 packages/cli/src/doctor.mjs             the atari800 install plan
 packages/cli/test/emulator-smoke.test.mjs   atari800 -xl -ntsc -run boots a real build

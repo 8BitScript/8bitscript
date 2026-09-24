@@ -139,7 +139,10 @@ async function importAliasesFor(filePath) {
  * untitled buffer, the path's extension otherwise; null when neither says.
  */
 function sourceKindFor(document, path) {
-  return document.languageId === '8bitextensible' ? '.8bx' : (path ? sourceKindOf(path) : null);
+  if (document.languageId === '8bitextensible') return '.8bx';
+  if (document.languageId === '8bitgraphics') return '.8bg';
+  if (document.languageId === '8bitaudio') return '.8ba';
+  return path ? sourceKindOf(path) : (document.languageId === '8bitscript' ? '.8bs' : null);
 }
 
 /** The text of a file on disk, or '' when it cannot be read — a range then lands at its start. */

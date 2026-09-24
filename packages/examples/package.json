@@ -1,7 +1,7 @@
 {
   "name": "@8bitscript/examples",
   "version": "0.22.1",
-  "description": "The example programs that ship with the toolchain: hello-world, the 0.2.0 goal program, joystick, the controller test app, fancy, the raster showpiece, and swarm, the moving-objects showpiece \u2014 listed in the editor's launcher beside your own projects.",
+  "description": "The example programs that ship with the toolchain: hello-world, the 0.2.0 goal program, joystick, the controller test app, fancy, the raster showpiece, swarm, the moving-objects showpiece, and media-walk, the portable graphics and audio slice \u2014 listed in the editor's launcher beside your own projects.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -35,6 +35,11 @@
         "title": "Swarm",
         "dir": "./swarm",
         "description": "The moving-objects showpiece: sixteen sprites bouncing round the picture on a frame timeline \u2014 the title, then the sprites, then the border opens and they fly through it, then the colours rotate \u2014 through @8bitscript/sprites and @8bitscript/timeline. Hardware sprites on the C64, sixteen from eight and out into the border; a glyph per sprite on the character grid on the other eight, where what the machine cannot do folds away. The scene is one .8bx file that reads like a part list."
+      },
+      "media-walk": {
+        "title": "Media walk",
+        "dir": "./media-walk",
+        "description": "One PNG-backed sprite with a walk cycle and one WAV-backed blip plus a two-note song, compiled through .8bg/.8ba into target-native data. A VIC-II sprite and SID on the C64, CHR/OAM and the APU on the NES, a quadrant-block on the PET, POKEY on the Atari, a glyph and silence everywhere else \u2014 each adaptation named by a diagnostic."
       }
     }
   },
@@ -43,19 +48,24 @@
     "hello-bx",
     "hello-world",
     "joystick",
+    "media-walk",
     "swarm",
+    "shared-release-targets.ts",
+    "generate-shared-assets.mjs",
     "README.md"
   ],
   "scripts": {
     "test": "node --test"
   },
   "dependencies": {
-    "@8bitscript/sprites": "workspace:*",
+    "@8bitscript/audio": "workspace:*",
     "@8bitscript/c64": "workspace:*",
+    "@8bitscript/graphics": "workspace:*",
     "@8bitscript/input": "workspace:*",
     "@8bitscript/pet": "workspace:*",
     "@8bitscript/raster": "workspace:*",
     "@8bitscript/screen": "workspace:*",
+    "@8bitscript/sprites": "workspace:*",
     "@8bitscript/system": "workspace:*",
     "@8bitscript/text": "workspace:*",
     "@8bitscript/timeline": "workspace:*",

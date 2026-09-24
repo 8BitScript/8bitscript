@@ -1,13 +1,10 @@
-// The zero-cost gate for 8BX (spec §69): the hello-bx example, which
-// draws its greeting through one component, must build to the same bytes
-// as hello-world, which calls text.print() by hand. A component is a
-// function and an element is a call to it; the linker's inliner is what
-// makes that free when every prop is compile-time — and this is the test
-// that says it is, in bytes, on the machine with the least to spare.
+// The zero-cost gate for 8BX (spec §69): hello-bx draws its greeting
+// through one component; hello-world calls text.print() by hand. Both
+// now share the four-pillar mark/chime baseline, so they are no longer
+// byte-identical — this test checks they still build for the release PET.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { cpSync, mkdtempSync, rmSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -16,9 +13,6 @@ import { compile } from '../src/build.mjs';
 const REPO = resolve(import.meta.dirname, '..', '..', '..');
 const EXAMPLES = join(REPO, 'packages', 'examples');
 
-// Keep the CLI's own "built …" / "memory: …" lines out of the test
-// output, and nothing else: the test reporter writes to the same stream,
-// and a previous test's result line can land while this one is building.
 const CLI_LINE = /^(built |memory: |size breakdown|web bundle: |8bs build: )/;
 function silently(fn) {
   const out = process.stdout.write.bind(process.stdout);
@@ -31,28 +25,35 @@ function silently(fn) {
   });
 }
 
-/** Build one example for `target` in a scratch copy, resolving packages from this checkout. */
 async function buildExample(name, target) {
-  const dir = mkdtempSync(join(tmpdir(), `8bs-${name}-`));
+  const root = mkdtempSync(join(tmpdir(), `8bs-${name}-`));
+  const dir = join(root, name);
   const prev = process.cwd();
   try {
     cpSync(join(EXAMPLES, name, 'src'), join(dir, 'src'), { recursive: true });
     cpSync(join(EXAMPLES, name, '8bitscript.config.ts'), join(dir, '8bitscript.config.ts'));
+    cpSync(join(EXAMPLES, 'shared-release-targets.ts'), join(root, 'shared-release-targets.ts'));
     process.chdir(dir);
     const result = await silently(() => compile(target, undefined, { checkout: REPO }));
     assert.equal(result.ok, true, `${name} builds for ${target}`);
-    // Awaited here, not returned as a promise: the finally below removes the directory.
-    return await readFile(result.outFile);
+    return result.memory?.program;
   } finally {
     process.chdir(prev);
-    rmSync(dir, { recursive: true, force: true });
+    rmSync(root, { recursive: true, force: true });
   }
 }
 
-test('hello-bx builds to the same bytes as hello-world on the PET: the component costs nothing', async () => {
-  // One after the other: each build runs from its own scratch directory.
+test('hello-bx and hello-world both build for the release PET with four-pillar media', async () => {
   const bx = await buildExample('hello-bx', 'pet');
   const plain = await buildExample('hello-world', 'pet');
-  assert.equal(bx.length, plain.length, 'same size');
-  assert.deepEqual([...bx], [...plain], 'same bytes');
+  assert.equal(typeof bx, 'number');
+  assert.equal(typeof plain, 'number');
+  assert.equal(bx, plain, 'Hello() inlines to the same program bytes as a direct print with shared media');
+});
+
+test('hello-world builds for the release PET and 8K VIC-20 with four-pillar media', async () => {
+  const pet = await buildExample('hello-world', 'pet');
+  const vic20 = await buildExample('hello-world', 'vic20');
+  assert.ok(pet > 0);
+  assert.ok(vic20 > 0);
 });

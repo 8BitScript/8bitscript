@@ -5,7 +5,7 @@
 // packages/pet's catalog, and `--pal` prints a note instead.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { VICE_MODEL_ARGS, PET_REGION_NOTE, DEFAULT_LOAD } from '../src/run.mjs';
+import { VICE_MODEL_ARGS, PET_REGION_NOTE, DEFAULT_LOAD, VICE_EMULATOR, TARGET_EMULATOR } from '../src/run.mjs';
 import { loadCatalog, resolveHardware } from '../src/hardware.mjs';
 
 test('the PET is not a region-keyed VICE model: the model option is the xpet -model, with no -ntsc/-pal beside it', () => {
@@ -45,4 +45,14 @@ test('every emulator has a default way of taking the file', () => {
   assert.deepEqual(DEFAULT_LOAD.x64sc('/x/m.prg'), ['-autostart', '/x/m.prg']);
   assert.deepEqual(DEFAULT_LOAD.atari800('/x/m.xex'), ['-run', '/x/m.xex']);
   assert.deepEqual(DEFAULT_LOAD.x16emu('/x/m.prg'), ['-prg', '/x/m.prg', '-run']);
+});
+
+test('VICE_EMULATOR and TARGET_EMULATOR are the machine catalogs', () => {
+  assert.deepEqual(VICE_EMULATOR, { vic20: 'xvic', c64: 'x64sc', pet: 'xpet', c128: 'x128', plus4: 'xplus4' });
+  assert.equal(TARGET_EMULATOR.nes, 'fceux');
+  assert.equal(TARGET_EMULATOR.mega65, 'xmega65');
+  assert.equal(TARGET_EMULATOR.plus4, 'xplus4');
+  assert.equal(TARGET_EMULATOR.atari2600, 'stella');
+  assert.equal(TARGET_EMULATOR.apple2, 'mame');
+  assert.ok(!TARGET_EMULATOR.web, 'the browser has no host binary');
 });

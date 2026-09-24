@@ -4,8 +4,13 @@ The example programs that ship with the toolchain. `@8bitscript/cli`
 depends on this package, so installing the CLI installs the examples, and
 the VS Code extension lists them in its launcher beside your own programs
 and beside Studio. Each example is an ordinary project: a directory with an
-`8bitscript.config.ts` and a `src/main.8bs`, run with `8bs run <target>` from
-inside it.
+`8bitscript.config.ts`, a program under `src/*.8bs`, and the four source
+kinds this release dogfoods — **`.8bs`** (program), **`.8bx`** (composition),
+**`.8bg`** / **`.8ba`** (portable media). Every example imports
+[`shared-release-targets.ts`](shared-release-targets.ts) for its `targets`
+(PET **4032** 32K, VIC-20 **8K**, C64, CX16, web). Shared `mark.8bg` /
+`chime.8ba` assets are generated with [`generate-shared-assets.mjs`](generate-shared-assets.mjs).
+Run with `8bs run <target>` from inside an example directory.
 
 The manifest is the `"8bitscript".examples` field of `package.json`: one
 entry per example, with a title, a directory, and a sentence about it.
@@ -14,28 +19,24 @@ directory and an entry.
 
 | Example | What it is | Targets |
 | ------- | ---------- | ------- |
-| `hello-world` | `screen.blank()` then `text.print(0, "Hello World!")` through the portable screen and text packages — the same few lines build for every machine. | all nine |
-| `joystick` | The controller test app: a labelled map of everything `@8bitscript/input` exposes, with a lamp on each control that flashes when it is pressed. | all nine |
-| `fancy` | The raster showpiece: a title wobbling on a sine wave inside colour bands, over `@8bitscript/raster`'s portable per-scanline surface. The two machines that answer `#fact(video.raster)` show the effect; the other seven show a static title, by design. | all nine |
-| `hello-bx` | The same greeting as `hello-world`, drawn through one 8BX component: `Hello.8bx` declares it, `hello-bx.8bs` is the program that calls it — the smallest project that shows how a `.8bs` program and a `.8bx` component fit together. | all nine |
-| `swarm` | The moving-objects showpiece: sixteen sprites bouncing round the picture on a frame timeline — through `@8bitscript/sprites` (sprites on the C64, sixteen from eight and out into the border; a glyph per sprite on the character grid elsewhere) and `@8bitscript/timeline`. The scene is one `.8bx` file that reads like a part list. | all nine |
+| `hello-world` | `screen.blank()` then `text.print(0, "Hello World!")` — greeting by hand; `Mark.8bx` + shared mark/chime show the four pillars. | release five |
+| `joystick` | The controller test app: a labelled map of everything `@8bitscript/input` exposes, with a lamp on each control that flashes when it is pressed. | release five |
+| `fancy` | The raster showpiece: a title wobbling on a sine wave inside colour bands, over `@8bitscript/raster`'s portable per-scanline surface. The two machines that answer `#fact(video.raster)` show the effect; PET/VIC-20/CX16 show a static title, by design. | release five |
+| `hello-bx` | The same greeting as `hello-world`, drawn through one 8BX component: `Hello.8bx` declares it, `hello-bx.8bs` is the program that calls it — byte-identical to hello-world on the release PET once media is shared. | release five |
+| `media-walk` | One PNG-backed sprite with a walk cycle and one WAV-backed blip plus a two-note song, composed in `Walk.8bx`; hero assets in `player.8bg` / `theme.8ba`. | release five (PET with speaker) |
+| `swarm` | The moving-objects showpiece: sixteen sprites bouncing round the picture on a frame timeline — `Scene.8bx` for cues, `@8bitscript/sprites` and `@8bitscript/timeline`. | release five |
 
 ## hello-world
 
-From inside `hello-world/`:
+From inside `hello-world/` (see [`hello-world/README.md`](hello-world/README.md)):
 
 ```
-8bs run pet              # the default 2001, in VICE
-8bs run pet --profile 8032   # 80 columns, mixed case
-8bs run web              # the browser
+8bs run c64
+8bs run pet              # 4032 32K from shared-release-targets
+8bs run web
 ```
 
-The program prints and returns, landing back at the BASIC `READY.` prompt
-the way any program that falls off its own end does. On a PET that boots
-into the upper-case/graphics character set — every model but the 8032 —
-the greeting draws in capitals, because that set holds one case of the
-alphabet; the 8032 shows real mixed case. See `@8bitscript/pet`'s own
-notes for why nothing switches between them.
+`memory.program`: **2230** (C64), **1944** (PET 4032 32K), measured 2026-09-24.
 
 ## joystick
 
@@ -239,21 +240,24 @@ The `hello-world` greeting again, this time as a component. From inside
 8bs run web                # the browser
 ```
 
-Two files. `src/Hello.8bx` declares the component and nothing else:
+Two files plus shared media. `src/Hello.8bx` declares the component;
+`src/hello-bx.8bs` is the program. With shared mark/chime, the release
+PET build matches `hello-world` (**1944** bytes `memory.program`; C64 **2230**).
+See [`hello-bx/README.md`](hello-bx/README.md).
+
+## media-walk
+
+One PNG sprite, one WAV blip, one two-note song. From inside `media-walk/`:
 
 ```
-export component Hello() {
-    text.print(0, "Hello World!");
-}
+8bs run c64
+8bs run pet --profile 8032
+8bs run nes
 ```
 
-`src/hello-bx.8bs` is the program — a program always starts from a
-`.8bs` file — and reaches the component by importing it and calling it:
-`Hello();` is `<Hello />` the way `.8bs` can spell it. The component
-elaborates to the same `text.print(0, "Hello World!")` call
-`hello-world/src/hello-world.8bs` writes by hand, and the two PET builds
-are byte-identical (108 bytes each; `packages/cli/test/hello-bx.test.mjs`
-checks). The point isn't that this one program needed a component; it's
-the smallest possible proof that a component costs nothing a hand-written
-call wouldn't. See `docs/compiler.md` for where 8BX elaboration sits in
-the pipeline.
+`Walk.8bx` composes the walk; `src/player.8bg` / `src/theme.8ba` hold the
+hero assets; shared `mark.8bg` / `chime.8ba` match the other examples.
+PET is **4032** 32K with speaker attached. `memory.program`: **4485** (C64),
+**3579** (PET), measured 2026-09-24. See [`media-walk/README.md`](media-walk/README.md)
+and `docs/project/graphics.md` / `docs/project/audio.md`.
+

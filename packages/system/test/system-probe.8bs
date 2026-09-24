@@ -1,0 +1,3 @@
+// Anchor file for packages/system/test/system.test.mjs — link/analyze
+// resolve imports from the monorepo root (see LINK_OPTS.checkout).
+export function main(): void {}

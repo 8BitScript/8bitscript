@@ -26,7 +26,7 @@ const path = require('path');
 const vscode = require('vscode');
 
 const {
-  ALL_TARGETS, MACHINE_TARGETS, NO_BARE_EMULATOR, byKind, commandArgs,
+  ALL_TARGETS, MACHINE_TARGETS, NO_BARE_EMULATOR, byKind, commandArgs, groupedMachineOptions,
 } = require('./projects.cjs');
 const { labelOf, whereLabel } = require('./runner.cjs');
 const settings = require('./settings.cjs');
@@ -206,13 +206,16 @@ class LauncherViewProvider {
     const offered = this.projects.visible;
     const listed = project && !offered.includes(project) ? [...offered, project] : offered;
     const targets = await this.projects.loadTargets(project?.dir);
+    const doctor = await this.projects.loadDoctor();
     if (!this.view) return;
     const target = targets?.get(system) ?? null;
     const selection = settings.getEffectiveHardware(system, target);
     const region = settings.getRegion();
     const machine = MACHINE_TARGETS.has(system);
-    const bootable = !NO_BARE_EMULATOR.has(system);
-    const runnable = Boolean(project?.targets.includes(system) && project.toolchain);
+    const emulatorReady = emulatorIsReady(doctor, system);
+    const bootable = !NO_BARE_EMULATOR.has(system) && emulatorReady;
+    const buildable = Boolean(project?.targets.includes(system) && project.toolchain);
+    const runnable = buildable && emulatorReady;
     const fitted = named
       ? (targets?.systems ?? []).find((entry) => entry.name === named)
       : (targets?.systems ?? []).find((entry) => entry.target === system && matchesSystem(entry, target, selection, region));
@@ -227,7 +230,7 @@ class LauncherViewProvider {
       setting,
       managed: this.projects.managedDir,
     });
-    const systems = systemOptions(targets, project);
+    const systems = systemOptions(targets, project, doctor);
     const postedSystem = selectedSystemId(fitted, named, system);
     const studio = await studioOptions(this.projects, all);
     if (!this.view) return;
@@ -253,8 +256,9 @@ class LauncherViewProvider {
       machine,
       bootable,
       runnable,
+      buildable,
       warning: [
-        warningFor(project, system),
+        warningFor(project, system, { doctor, emulator: target?.emulator }),
         shortfall(targets, target, selection),
         targets?.systemsError,
         targets?.requiresError,
@@ -274,7 +278,7 @@ class LauncherViewProvider {
       command: `8bs ${commandArgs('run', system, region, extras.system ? undefined : selection, extras).concat(
         system === 'web' ? ['--port', '0'] : [],
         system === 'web' && !settings.getWebLan() ? ['--local'] : [],
-        system === 'cx16' ? settings.cx16NativeWindowCliArgs() : [],
+        system === 'cx16' ? settings.cx16NativeWindowCliArgs({ studio: project?.name === '@8bitscript/studio' }) : [],
       ).join(' ')}`,
     });
   }
@@ -350,6 +354,7 @@ async function studioOptions(projects, all) {
   const studio = all.find((p) => p.kind === 'app' && p.name === '@8bitscript/studio');
   if (!studio) return null;
   const targets = await projects.loadTargets(studio.dir);
+  const doctor = await projects.loadDoctor();
   // First in the menu: the editor's own tab, which only the X16 can fill
   // (the one machine with a WebAssembly emulator — `8bs run cx16 --web`).
   // `command` names what a pick runs; every other entry runs openStudio.
@@ -357,17 +362,25 @@ async function studioOptions(projects, all) {
     systems: [
       { group: 'In an editor tab' },
       { id: 'tab', command: '8bitscript.openStudioTab', label: 'Commander X16', where: 'x16emu in the editor', machine: true, runnable: studio.targets.includes('cx16') },
-      ...systemOptions(targets, studio),
+      ...systemOptions(targets, studio, doctor),
     ],
   };
 }
 
-function systemOptions(targets, project) {
-  const machines = ALL_TARGETS.map((id) => ({
+function emulatorIsReady(doctor, id) {
+  if (!doctor) return true;
+  if (doctor.failed?.includes(id)) return false;
+  if (doctor.notInstalled?.includes(id)) return false;
+  return true;
+}
+
+function systemOptions(targets, project, doctor = null) {
+  const machines = groupedMachineOptions(ALL_TARGETS, (id) => ({
     id,
     machine: MACHINE_TARGETS.has(id),
     label: targets?.get(id)?.title ? `${id} — ${targets.get(id).title}` : id,
     runnable: Boolean(project?.targets.includes(id)),
+    muted: Boolean(project?.targets.includes(id)) && !emulatorIsReady(doctor, id),
   }));
   const systems = targets?.systems ?? [];
   if (systems.length === 0) return machines;
@@ -388,11 +401,12 @@ function systemOptions(targets, project) {
         label: system.name,
         where: system.label === 'stock' ? system.target : `${system.target} · ${system.label}`,
         runnable: Boolean(project?.targets.includes(system.target)),
+        muted: Boolean(project?.targets.includes(system.target)) && !emulatorIsReady(doctor, system.target),
         short: (system.unmet ?? []).length > 0,
       });
     }
   }
-  options.push({ group: 'Machines' }, ...machines);
+  options.push(...machines);
   return options;
 }
 
@@ -436,10 +450,16 @@ function shortfall(targets, target, selection) {
 }
 
 /** Why Run is greyed out, in the words the panel shows instead of the command line. */
-function warningFor(project, system) {
+function warningFor(project, system, { doctor = null, emulator = null } = {}) {
   if (!project) return 'No project here yet. A project is a directory with an 8bitscript.config.ts in it.';
   if (!project.targets.includes(system)) return `${labelOf(project)} does not target ${system}.`;
   if (!project.toolchain) return `No 8bs toolchain for ${labelOf(project)}. Run ${project.packageManager} install.`;
+  if (doctor?.failed?.includes(system)) {
+    return `${emulator ?? system} is installed but cannot boot. Run 8bs doctor.`;
+  }
+  if (doctor?.notInstalled?.includes(system)) {
+    return `${emulator ?? system} is not installed. Run 8bs doctor.`;
+  }
   return null;
 }
 
@@ -559,4 +579,4 @@ function registerLauncherView(context, projects, devReload) {
   return provider;
 }
 
-module.exports = { registerLauncherView, selectedSystemId };
+module.exports = { registerLauncherView, selectedSystemId, warningFor, emulatorIsReady };

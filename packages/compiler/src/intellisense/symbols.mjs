@@ -23,6 +23,7 @@ import { tokenize, TokenKind } from '../lexer/index.mjs';
 import { parse } from '../parser/index.mjs';
 import { machineOfVariant, resolveSpecifier } from '../resolver/index.mjs';
 import { MACHINES, sourceKindOf } from '../source/index.mjs';
+import { isMediaKind } from '../media/kinds.mjs';
 
 /**
  * The file a `.8bs` import specifier names, from `fromFile`, when one can
@@ -381,6 +382,8 @@ export function symbolAt(module, offset) {
  * @returns {{ path: string, start: number, length: number } | null}
  */
 export function getDefinition(text, offset, options = {}) {
+  const kind = options.sourceKind ?? sourceKindOf(options.path ?? '') ?? '.8bs';
+  if (isMediaKind(kind)) return null;
   // A twin's own machine outranks the project's target — `x.pet.8bs` is
   // the PET's file whatever the project builds (intellisense/index.mjs's
   // machineFor is the same rule).

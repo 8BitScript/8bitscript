@@ -1,11 +1,11 @@
 # Writing Commodore 128 support for 8BitScript
 
-> **Parked in 0.2.0.** This machine is not a build target in the current
-> release: `8bs build` refuses it until its native backend lands
-> (`RELEASE_MACHINES` in `packages/compiler/src/resolver`). The package
-> stays in the workspace, its sources still link, and everything below is
-> still the guide for when it returns. The 0.2.0 work is the PET and the
-> web; see the "Hello, PET" roadmap.
+> **Outside this release's `RELEASE_MACHINES` set.** The native backend
+> builds this machine; `8bs build` refuses it until the release list is
+> widened (`RELEASE_MACHINES` in `packages/compiler/src/resolver`). The
+> package stays in the workspace, its sources still link, and everything
+> below is the guide for when it returns (see root
+> [`AGENTS.md`](../../AGENTS.md)).
 
 This file is for anyone — human or agent — touching `packages/c128` (its
 `package.json` holds the [hardware catalog](#the-catalog); a new `detect`
