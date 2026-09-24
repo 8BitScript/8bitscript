@@ -86,6 +86,26 @@ export function usesWaitFrame(functions: IrFunction[]): boolean {
   return functions.some((fn) => walk(fn.body));
 }
 
+/**
+ * True when any reachable function calls `screen.blank()` — the lowered
+ * `screen_blank` intrinsic. On the VIC-20 the polite zero-page window
+ * ($F7-$FF) cannot carry a program that clears the display and still
+ * links; those builds widen to the owned budget the same way a PET
+ * `waitFrame()` program does (mos/index.ts).
+ */
+export function usesScreenBlank(functions: IrFunction[]): boolean {
+  function walk(node: unknown): boolean {
+    if (Array.isArray(node)) return node.some(walk);
+    if (node && typeof node === 'object') {
+      const obj = node as Record<string, unknown>;
+      if (obj.kind === 'call' && obj.name === 'screen_blank') return true;
+      return Object.values(obj).some(walk);
+    }
+    return false;
+  }
+  return functions.some((fn) => walk(fn.body));
+}
+
 function instr(mnemonic: string, mode: AddressingMode, value?: number, labelName?: string): Directive {
   if (labelName !== undefined) return { kind: 'instruction', mnemonic, mode, operand: { kind: 'label', name: labelName } };
   if (value !== undefined) return { kind: 'instruction', mnemonic, mode, operand: { kind: 'value', value } };

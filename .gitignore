@@ -43,8 +43,8 @@ packages/compiler/src/**/*.js
 .DS_Store
 .claude/worktrees/
 
-# Editor state (per-developer, not project config — see .vscode/launch.json for shared debug config)
-.vscode/settings.json
+# Editor state (per-developer overrides — shared team settings live in .vscode/settings.json)
+.vscode/settings.local.json
 .claude/settings.local.json
 .cursor/rules/
 .cursor/cli.json

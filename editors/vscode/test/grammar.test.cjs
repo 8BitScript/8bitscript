@@ -207,10 +207,10 @@ test('each source language has light and dark file icons and an optional icon th
   const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   const byId = new Map(manifest.contributes.languages.map((l) => [l.id, l]));
   for (const [id, ext, light, dark] of [
-    ['8bitscript', '.8bs', '8bs-light.svg', '8bs-dark.svg'],
-    ['8bitextensible', '.8bx', '8bx-light.svg', '8bx-dark.svg'],
-    ['8bitgraphics', '.8bg', '8bg-light.svg', '8bg-dark.svg'],
-    ['8bitaudio', '.8ba', '8ba-light.svg', '8ba-dark.svg'],
+    ['8bitscript', '.8bs', 'icons/src/8bs-light.svg', 'icons/src/8bs-dark.svg'],
+    ['8bitextensible', '.8bx', 'icons/src/8bx-light.svg', 'icons/src/8bx-dark.svg'],
+    ['8bitgraphics', '.8bg', 'icons/src/8bg-light.svg', 'icons/src/8bg-dark.svg'],
+    ['8bitaudio', '.8ba', 'icons/src/8ba-light.svg', 'icons/src/8ba-dark.svg'],
   ]) {
     const lang = byId.get(id);
     assert.ok(lang?.icon?.light?.endsWith(light), `${id} has no light icon`);
@@ -225,9 +225,86 @@ test('each source language has light and dark file icons and an optional icon th
   const themePath = path.join(root, theme.path);
   assert.ok(fs.existsSync(themePath), theme.path);
   const defs = JSON.parse(fs.readFileSync(themePath, 'utf8'));
+  // A file icon theme has no per-definition light variant: an `iconPathLight`
+  // key is ignored, and a light UI theme is served by the `light` section
+  // pointing the same extension at a different definition.
   for (const ext of ['8bs', '8bx', '8bg', '8ba']) {
-    const key = defs.fileExtensions[ext];
-    assert.ok(key && defs.iconDefinitions[key], `icon theme has no entry for .${ext}`);
+    const dark = defs.fileExtensions[ext];
+    const light = defs.light?.fileExtensions?.[ext];
+    assert.ok(dark && defs.iconDefinitions[dark], `icon theme has no entry for .${ext}`);
+    assert.ok(light && defs.iconDefinitions[light], `icon theme has no light entry for .${ext}`);
+    assert.notEqual(light, dark, `.${ext} resolves to the same icon on both UI themes`);
+    for (const key of [dark, light]) {
+      const def = defs.iconDefinitions[key];
+      assert.ok(def.iconPath, `${key} iconPath`);
+      assert.ok(!def.iconPathLight, `${key} uses iconPathLight, which a file icon theme ignores`);
+      assert.ok(fs.existsSync(path.join(root, 'themes', def.iconPath)), def.iconPath);
+    }
+  }
+});
+
+test('the icon theme covers the rest of a project, not only the four pillars', () => {
+  const root = path.join(__dirname, '..');
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  const themePath = path.join(root, manifest.contributes.iconThemes.find((t) => t.id === '8bitscript').path);
+  const defs = JSON.parse(fs.readFileSync(themePath, 'utf8'));
+  // A file icon theme replaces every icon in the explorer, so a .png or a
+  // folder with no entry here draws nothing at all.
+  for (const key of ['file', 'folder', 'folderExpanded']) {
+    assert.ok(defs.iconDefinitions[defs[key]], `the theme has no ${key} icon`);
+  }
+  for (const [extension, expected] of [
+    ['png', '_image_dark'], ['wav', '_audio_dark'], ['ts', '_code_dark'],
+    ['json', '_data'], ['md', '_doc'], ['prg', '_binary'],
+  ]) {
+    assert.equal(defs.fileExtensions[extension], expected, `.${extension}`);
+  }
+  // A supporting file wears its pillar's colour: .png the green of a .8bg
+  // badge, .wav the amber of a .8ba one, in whichever theme is showing. The
+  // badge is the last group drawn, so its fill is the last one in the file.
+  const read = (id) => fs.readFileSync(path.join(root, 'themes', defs.iconDefinitions[id].iconPath), 'utf8');
+  const badgeColour = (svg) => [...svg.matchAll(/<g fill="(#[0-9a-f]{6})">/g)].map((m) => m[1]).pop();
+  for (const [supporting, pillar] of [['png', '8bg'], ['wav', '8ba'], ['ts', '8bx']]) {
+    for (const section of [defs, defs.light]) {
+      const accent = badgeColour(read(section.fileExtensions[pillar]));
+      assert.ok(accent, `.${pillar} has no badge colour`);
+      assert.ok(read(section.fileExtensions[supporting]).includes(accent), `.${supporting} does not carry the .${pillar} accent ${accent}`);
+    }
+  }
+  assert.equal(defs.fileNames['8bitscript.config.ts'], '_8bs_dark', 'a project config wears the language own 8');
+  assert.equal(defs.light.fileNames['8bitscript.config.ts'], '_8bs_light');
+  for (const def of Object.values(defs.iconDefinitions)) {
+    assert.ok(fs.existsSync(path.join(root, 'themes', def.iconPath)), def.iconPath);
+  }
+});
+
+test('the generated icons and theme are what icons/src hashes to', () => {
+  const root = path.join(__dirname, '..');
+  const { plan, THEME } = require('../scripts/build-icons.cjs');
+  const planned = plan(root);
+  // The explorer caches an icon under its URL, so art only reaches the screen
+  // when the filename changes with it. Committed output drifting from
+  // icons/src is that failure, silently.
+  assert.equal(fs.readFileSync(path.join(root, THEME), 'utf8'), planned.themeText, 'run `pnpm run icons`');
+  const generated = fs.readdirSync(path.join(root, 'icons', 'file')).sort();
+  assert.deepEqual(generated, planned.files.map((icon) => icon.file).sort(), 'run `pnpm run icons`');
+  for (const icon of planned.files) {
+    assert.deepEqual(fs.readFileSync(path.join(root, 'icons', 'file', icon.file)), icon.contents, icon.file);
+  }
+});
+
+test('a redesigned icon is published under a new filename', () => {
+  const root = path.join(__dirname, '..');
+  const { plan } = require('../scripts/build-icons.cjs');
+  const before = plan(root).files.map((icon) => icon.file);
+  const source = path.join(root, 'icons', 'src', '8bx-dark.svg');
+  const original = fs.readFileSync(source);
+  try {
+    fs.writeFileSync(source, `${original.toString()}<!-- redrawn -->\n`);
+    const after = plan(root).files.map((icon) => icon.file);
+    assert.equal(after.filter((file) => !before.includes(file)).length, 1);
+  } finally {
+    fs.writeFileSync(source, original);
   }
 });
 

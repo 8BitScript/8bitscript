@@ -29,7 +29,7 @@ import type { DebugMap, DebugSymbol } from './debug.ts';
 import { LocalAllocator } from './lower/allocator.ts';
 import { epilogue, prologue, usesDecimalSensitiveMath } from './startup/commodore.ts';
 import { nesResetInit } from './startup/nes.ts';
-import { WAIT_FRAME_ZP_BYTES, frameEdgeWait, usesWaitFrame, waitFrameKeepsInterrupts, waitFrameRoutine, waitFrameSetup } from './startup/waitframe.ts';
+import { WAIT_FRAME_ZP_BYTES, frameEdgeWait, usesScreenBlank, usesWaitFrame, waitFrameKeepsInterrupts, waitFrameRoutine, waitFrameSetup } from './startup/waitframe.ts';
 import { MULTIPLY_ZP_BYTES, multiplyCells, multiplyRoutine, usesMultiply } from './startup/multiply.ts';
 import type { MultiplyCells } from './startup/multiply.ts';
 import { storageBytes } from '../types/index.mjs';
@@ -196,7 +196,13 @@ const C64_ZP_BUDGET = { zpOrigin: 0x02, zpCeiling: C64_IRQ_TRAMPOLINE };
 // The VIC-20 keeps the same KERNAL zero-page map as the C64 and, unlike the
 // C64, its package never banks anything out — a VIC-20 program really does
 // return to a working BASIC — so the polite shape is real here and worth
-// keeping. It is still only $FB-$FE plus the RS-232 pointers.
+// keeping. It is still only $FB-$FE plus the RS-232 pointers. A program
+// that calls screen.blank() is not that shape: clearing the display and
+// placing graphics needs the multiply routine and call-graph frames the
+// polite window cannot hold (packages/examples/hello-world is the gate).
+// Those builds take the owned budget below, the same widening a PET
+// waitFrame() program gets — the program still returns to BASIC, but it
+// must not rely on KERNAL/BASIC zero page having survived.
 const VIC20_ZP_BUDGET = { zpOrigin: 0xf7, zpCeiling: 0xff };
 
 // The C128's zero page is the C64's shape again — $0A-$8F BASIC's, $90-$FF
@@ -612,6 +618,12 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // reach — link() itself still returns every module's own functions and
   // globals whether called/read or not (see linker/reachability.mjs).
   // optimizeReachable prunes, folds compile-time work, then prunes again.
+  // VIC-20 owned zero page is decided from the linked program before
+  // optimizeReachable: a `screen.blank()` call there often folds into
+  // stores and vanishes from the IR the lowerer sees, but the program
+  // still cleared the display and still needs the wider budget.
+  const needsVic20OwnedZp = options.machine === 'vic20' && usesScreenBlank(ir.functions);
+
   const { functions, globals } = optimizeReachable(ir);
 
   // Every function's own file, from ir.functions — before optimizeReachable
@@ -644,7 +656,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
       error: `waitFrame() has no runtime on the ${options.machine} yet: its frame sync is the PET's VIA retrace flag, and the ${options.machine}'s own raster poll is not written. A program that draws once and returns builds today; one that paces itself does not`,
     };
   }
-  const zpBudget = needsWaitFrame ? budgets.owned : budgets.polite;
+  const zpBudget = (needsWaitFrame || needsVic20OwnedZp) ? budgets.owned : budgets.polite;
 
   // Globals first: every function's own parameters, then every function's
   // own locals and expression temporaries, bump-allocate from whatever zero
@@ -657,7 +669,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // BASIC's interpreter running, so a program that never returns drops it.
   const zpHoles = [
     ...(zpBudget.holes ?? []),
-    ...(needsWaitFrame ? [] : chrgetZpHoles(options.hardware.facts, zpBudget)),
+    ...(needsWaitFrame || needsVic20OwnedZp ? [] : chrgetZpHoles(options.hardware.facts, zpBudget)),
   ];
   const zp = allocate(globals, { ...zpBudget, holes: zpHoles });
   if (!zp.ok) return { ok: false, error: zp.error };

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Git">
+  <g fill="#f05133">
+    <rect x="8" y="9" width="3" height="16"/>
+    <circle cx="9.5" cy="6" r="4"/>
+    <circle cx="9.5" cy="26" r="4"/>
+    <circle cx="22" cy="11" r="4"/>
+    <polygon points="9,12 22,12 22,15 9,18"/>
+  </g>
+</svg>

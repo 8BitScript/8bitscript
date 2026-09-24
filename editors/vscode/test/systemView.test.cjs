@@ -149,7 +149,7 @@ test('ready hydrates from settings and posts the machine list', async () => {
       assert.equal(state.machines.filter((m) => m.id).length, ALL_TARGETS.length, 'one row per ALL_TARGETS entry, not just what the sample targets');
       assert.ok(state.machines.some((m) => m.group === 'Commodore'), 'machines are grouped by family');
       assert.ok(state.machines.find((m) => m.id === 'c64').runnable);
-      assert.equal(state.machines.find((m) => m.id === 'nes').runnable, false, 'a machine the project does not target');
+      assert.equal(state.machines.find((m) => m.id === 'pet').runnable, false, 'a machine the project does not target');
     });
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });

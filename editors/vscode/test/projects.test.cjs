@@ -276,7 +276,7 @@ test('commandArgs spells the same commands a person would type', () => {
 test('groupedMachineOptions covers every ALL_TARGETS id under a family label', () => {
   const rows = groupedMachineOptions(ALL_TARGETS, (id) => ({ id }));
   const groups = rows.filter((row) => row.group).map((row) => row.group);
-  assert.deepEqual(groups, ['Commodore', 'Atari', 'Nintendo', 'Sega', 'Computers', 'Other consoles', 'Modern']);
+  assert.deepEqual(groups, ['Commodore', 'Modern']);
   const ids = rows.filter((row) => row.id).map((row) => row.id);
   assert.deepEqual([...ids].sort(), [...ALL_TARGETS].sort());
   assert.equal(ids.length, ALL_TARGETS.length);

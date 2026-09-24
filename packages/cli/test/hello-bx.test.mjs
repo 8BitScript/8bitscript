@@ -50,3 +50,10 @@ test('hello-bx and hello-world both build for the release PET with four-pillar m
   assert.equal(typeof plain, 'number');
   assert.equal(bx, plain, 'Hello() inlines to the same program bytes as a direct print with shared media');
 });
+
+test('hello-world builds for the release PET and 8K VIC-20 with four-pillar media', async () => {
+  const pet = await buildExample('hello-world', 'pet');
+  const vic20 = await buildExample('hello-world', 'vic20');
+  assert.ok(pet > 0);
+  assert.ok(vic20 > 0);
+});
