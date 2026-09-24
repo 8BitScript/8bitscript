@@ -1,0 +1,9 @@
+sprite player {
+  source "./player.png"
+  size 16x16
+  transparent auto
+  animation walk {
+    frames 0, 1, 2, 3
+    every 8
+  }
+}

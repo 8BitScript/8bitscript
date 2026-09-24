@@ -7,6 +7,6 @@
     "declaration": false,
     "rewriteRelativeImportExtensions": true
   },
-  "include": ["src/mos", "src/wasm"],
+  "include": ["src/mos", "src/wasm", "src/isa", "src/sm83", "src/z80", "src/m6809", "src/i8048", "src/f8"],
   "exclude": ["src/**/*.test.ts"]
 }

@@ -17,6 +17,12 @@ const {
   examplesManifest,
   findConfig,
   findToolchain,
+  groupedMachineOptions,
+  installersForTargets,
+  doctorWantFromSelection,
+  DOCTOR_EMULATORS,
+  ALL_DOCTOR_EMULATOR_IDS,
+  INSTALLABLE_EMULATORS,
   isInstalled,
   kindOf,
   loadApps,
@@ -237,6 +243,10 @@ test('commandArgs spells the same commands a person would type', () => {
   assert.deepEqual(commandArgs('build', 'web', 'pal'), ['build', '--target', 'web', '--size'], 'web has no region');
   assert.deepEqual(commandArgs('run', 'web', 'pal'), ['run', 'web', '--size']);
   assert.deepEqual(commandArgs('doctor'), ['doctor']);
+  assert.deepEqual(commandArgs('doctor', undefined, 'ntsc', undefined, { want: 'all' }), ['doctor', '--all']);
+  assert.deepEqual(commandArgs('doctor', undefined, 'ntsc', undefined, { want: 'all', install: true }), ['doctor', '--install', '--all']);
+  assert.deepEqual(commandArgs('doctor', undefined, 'ntsc', undefined, { want: ['vice', 'atari800'] }), ['doctor', '--want', 'vice,atari800']);
+  assert.deepEqual(commandArgs('doctor', undefined, 'ntsc', undefined, { want: [] }), ['doctor', '--want', ''], 'empty --want is host tools only');
   // The hardware fitted rides along as a person would type it.
   assert.deepEqual(
     commandArgs('run', 'c64', 'ntsc', { profile: 'reu512', options: { port1: 'mouse1351', sid: '8580' } }),
@@ -261,6 +271,39 @@ test('commandArgs spells the same commands a person would type', () => {
     ['build', '--system', 'PET 8032', '--checkout', '/src/8bitscript', '--size'],
     'a named system already carries its fitting; --checkout rides along',
   );
+});
+
+test('groupedMachineOptions covers every ALL_TARGETS id under a family label', () => {
+  const rows = groupedMachineOptions(ALL_TARGETS, (id) => ({ id }));
+  const groups = rows.filter((row) => row.group).map((row) => row.group);
+  assert.deepEqual(groups, ['Commodore', 'Atari', 'Nintendo', 'Sega', 'Computers', 'Other consoles', 'Modern']);
+  const ids = rows.filter((row) => row.id).map((row) => row.id);
+  assert.deepEqual([...ids].sort(), [...ALL_TARGETS].sort());
+  assert.equal(ids.length, ALL_TARGETS.length);
+  const leftover = groupedMachineOptions(['pet', 'madeup'], (id) => ({ id }));
+  assert.ok(leftover.some((row) => row.group === 'Machines'));
+  assert.ok(leftover.some((row) => row.id === 'madeup'));
+});
+
+test('installersForTargets maps a project onto doctor emulator keys', () => {
+  assert.deepEqual(installersForTargets(['c64', 'vic20', 'nes', 'web']), ['vice', 'fceux']);
+  assert.deepEqual(installersForTargets(['gb', 'spectrum']), ['sameboy', 'fuse']);
+  assert.deepEqual(installersForTargets(['cx16', 'mega65', 'atari8', 'atari5200']), ['x16emu', 'xmega65', 'atari800']);
+});
+
+test('DOCTOR_EMULATORS names every machine except the browser', () => {
+  const named = new Set(DOCTOR_EMULATORS.flatMap((emu) => emu.machines));
+  assert.deepEqual(ALL_TARGETS.filter((id) => id !== 'web' && !named.has(id)), []);
+  assert.ok(!named.has('web'));
+  assert.deepEqual(INSTALLABLE_EMULATORS, ALL_DOCTOR_EMULATOR_IDS);
+});
+
+test('doctorWantFromSelection: all by default, --want for a subset of installable keys', () => {
+  assert.equal(doctorWantFromSelection(null), 'all');
+  assert.equal(doctorWantFromSelection(ALL_DOCTOR_EMULATOR_IDS), 'all');
+  assert.deepEqual(doctorWantFromSelection(['vice', 'stella']), ['vice', 'stella']);
+  assert.deepEqual(doctorWantFromSelection([]), []);
+  assert.equal(doctorWantFromSelection(INSTALLABLE_EMULATORS), 'all', 'every installable key is still --all');
 });
 
 test('parseConfig reads the object form of targets — the machines composing profiles — at depth one only', () => {

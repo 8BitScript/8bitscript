@@ -1,0 +1,84 @@
+/*
+ * Doctor — which emulators to manage and install. Editor tab; same
+ * theme-variable rule as the other panels.
+ */
+[hidden] { display: none !important; }
+
+body {
+  margin: 0 auto;
+  padding: 16px 20px 28px;
+  max-width: 720px;
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  color: var(--vscode-foreground);
+}
+
+.page-head h1 { margin: 0; font-size: 1.35em; font-weight: 600; }
+.lede { margin: 4px 0 0; opacity: 0.8; }
+
+.count {
+  margin: 14px 0 0;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+button.wide {
+  flex: 1 1 8em;
+  padding: 6px 10px;
+  font: inherit;
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
+}
+button.wide:hover { background: var(--vscode-button-hoverBackground); }
+button.wide.secondary {
+  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+  background: var(--vscode-button-secondaryBackground, transparent);
+  border: 1px solid var(--vscode-button-border, var(--vscode-panel-border, transparent));
+}
+
+.section-label {
+  margin: 22px 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+.emu {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 0;
+  cursor: pointer;
+}
+.emu + .emu { border-top: 1px solid var(--vscode-panel-border, transparent); }
+.emu input { margin-top: 3px; }
+.emu-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.emu-title { font-weight: 600; }
+.emu-detail { font-size: 12px; opacity: 0.75; overflow-wrap: anywhere; }
+.emu-note { font-size: 11px; opacity: 0.6; }
+
+.status {
+  display: inline-block;
+  margin-top: 2px;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+.status.ready { color: var(--vscode-testing-iconPassed, inherit); }
+.status.missing { color: var(--vscode-editorWarning-foreground, inherit); }
+.status.broken { color: var(--vscode-errorForeground, inherit); }
+
+.none { font-size: 12px; opacity: 0.7; margin: 22px 0 0; }

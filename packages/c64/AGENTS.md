@@ -34,6 +34,14 @@ the frame driver probes, not a build option.
 
 Do not describe more than this as working:
 
+- **Portable media.** `media/index.cjs` (`"8bitscript".media`) turns a
+  `.8bg` PNG into 24×21 VIC-II sprite bytes (16×16 is padded; extra
+  colours quantized, `8BS2110`) copied into a shape block from
+  `sprites.FIRST_BLOCK`, and a `.8ba` song into `[tempo, speed, rows,
+  count]` then `row, note, wave, voice` events that `@8bitscript/audio`
+  plays through `@8bitscript/c64/sid`. A sample is the declared
+  `fallback { synth … }`, not a `$D418` digi (`8BS2210`).
+
 - **The picture lives in VIC bank 3** (`src/geometry.8bs`, the `Video`
   namespace and the arrays over it): screen matrix `$E000`, sprite
   pointers `$E3F8`, 111 sprite shape blocks `$E400`–`$FFBF` (blocks

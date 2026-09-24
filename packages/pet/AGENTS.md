@@ -32,6 +32,14 @@ program built for one point in that space does not run on the others.
 
 Do not describe more than this as working:
 
+- **Portable media.** `media/index.cjs` (`"8bitscript".media`) turns a
+  `.8bg` PNG into a 4×4 quadrant-block (four row bytes for
+  `sprites.defineShape`) or a single glyph if the picture cannot survive
+  that (`8BS2111` either way). A `.8ba` song drives the VIA's CB2 square
+  wave when `audio.voices` is 1; the stock 2001 has no speaker
+  (`audio.voices` 0) and playback is omitted (`8BS2211`). Noise samples
+  cannot play on that one square wave.
+
 - `packages/pet/src/index.8bs` exports three registers: `viaPeripheralControl`
   (`$E84C`, the 6522 VIA's PCR), whose bit 1 selects the character set:
   `$0C` upper-case/graphics, `$0E` upper/lower-case text, and PIA1's two

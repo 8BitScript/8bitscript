@@ -1,0 +1,43 @@
+{
+  "_comment": [
+    "Snippets for .8ba audio assets — see docs/project/audio.md.",
+    "Each body is checked in packages/compiler/test/snippets.test.mjs."
+  ],
+  "Instrument": {
+    "prefix": "instrument",
+    "description": "A synth instrument with waveform and polyphony.",
+    "body": [
+      "instrument ${1:lead} {",
+      "\twaveform ${2:pulse}",
+      "\tpolyphony ${3:1}",
+      "}"
+    ]
+  },
+  "Sample with fallback": {
+    "prefix": "sample",
+    "description": "A WAV/FLAC sample with a synth fallback if the file is missing.",
+    "body": [
+      "sample ${1:blip} {",
+      "\tsource \"${2:./blip.wav}\"",
+      "\tfallback { synth ${3:noise} }",
+      "}"
+    ]
+  },
+  "Song with pattern": {
+    "prefix": "song",
+    "description": "A short song with one pattern, track, and two rows.",
+    "body": [
+      "song ${1:theme} {",
+      "\ttempo ${2:120}",
+      "\tspeed ${3:6}",
+      "\torder { ${4:main} }",
+      "\tpattern ${4:main} length ${5:16} {",
+      "\t\ttrack ${6:lead} {",
+      "\t\t\trow 0 { note ${7:C4}; instrument ${6:lead}; }",
+      "\t\t\trow 8 { note ${8:G4}; }",
+      "\t\t}",
+      "\t}",
+      "}"
+    ]
+  }
+}

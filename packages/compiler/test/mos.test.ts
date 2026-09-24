@@ -1271,9 +1271,13 @@ test('outputExtension: prg everywhere except NES (.nes) and Atari 8-bit (.xex, o
   assert.equal(outputExtension('atari8', { build: { defsym: {}, output: 'rom' }, facts: {} }), 'rom');
 });
 
-test('CPU has exactly the eight machine keys; NES has no decimal mode; CX16 has no JMP-indirect page bug', () => {
+test('CPU has every MOS machine key; NES has no decimal mode; CX16 has no JMP-indirect page bug', () => {
   const keys = Object.keys(CPU).sort() as Machine[];
-  assert.deepEqual(keys, ['atari8', 'c128', 'c64', 'cx16', 'mega65', 'nes', 'pet', 'vic20']);
+  assert.deepEqual(keys, [
+    'apple2', 'atari2600', 'atari5200', 'atari7800', 'atari8', 'bbc', 'c128', 'c64',
+    'cx16', 'lynx', 'mega65', 'nes', 'oric', 'pce', 'pet', 'plus4',
+    'supervision', 'vic20',
+  ]);
   assert.equal(CPU.nes.decimalMode, false);
   assert.equal(CPU.cx16.jmpIndirectPageBug, false);
 });

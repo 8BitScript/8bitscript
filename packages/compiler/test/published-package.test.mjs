@@ -43,6 +43,11 @@ test('the packed tarball ships importable JavaScript backends', async () => {
     }
     assert.equal(manifest.exports['./mos'], './src/mos/index.js');
     assert.equal(manifest.exports['./wasm'], './src/wasm/index.js');
+    assert.equal(manifest.exports['./sm83'], './src/sm83/index.js');
+    assert.equal(manifest.exports['./z80'], './src/z80/index.js');
+    assert.equal(manifest.exports['./m6809'], './src/m6809/index.js');
+    assert.equal(manifest.exports['./i8048'], './src/i8048/index.js');
+    assert.equal(manifest.exports['./f8'], './src/f8/index.js');
 
     // The stripped backends must actually load from inside the package —
     // this fails if any relative `.ts` specifier survived the rewrite.
@@ -51,6 +56,10 @@ test('the packed tarball ships importable JavaScript backends', async () => {
     assert.ok(mos.CPU.pet, 'mos CPU table lost in stripping');
     const wasm = await import(pathToFileURL(join(packed, 'src/wasm/index.js')));
     assert.equal(typeof wasm.build, 'function');
+    for (const backend of ['sm83', 'z80', 'm6809', 'i8048', 'f8']) {
+      const packedBackend = await import(pathToFileURL(join(packed, `src/${backend}/index.js`)));
+      assert.equal(typeof packedBackend.build, 'function', `${backend} build lost in stripping`);
+    }
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

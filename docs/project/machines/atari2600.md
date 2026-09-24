@@ -28,7 +28,7 @@ less: the NES at least has a nametable. The 2600 is the case the whole
 
 Its variety is entirely in the cartridge: 2K/4K plain ROM, or one of some
 sixty bank-switching schemes (Stella's list) of which LLVM-MOS ships two
-drivers — `atari2600-4k` and the TigerVision `3E` mapper with banked ROM
+drivers — `a26-4k` and the TigerVision `3E` mapper with banked ROM
 and banked cartridge RAM — and in the region (NTSC 262 lines / PAL 312 /
 SECAM). Whether a program fits is decided by cycles per line first and
 bytes second.
@@ -41,11 +41,11 @@ entry, no `--target atari2600` (the string appears in
 unknown target"), no Stella integration, and no docs beyond the roadmap
 row. What this note verified is the layer underneath:
 
-- The LLVM-MOS SDK installed here ships `mos-atari2600-4k-clang`,
-  `mos-atari2600-3e-clang` and a `mos-atari2600-common-clang`, with
-  headers (`_tia.h`, `_riot.h`, `atari2600.h`, `atari2600_constants.h`,
+- The LLVM-MOS SDK installed here ships `mos-a26-4k-clang`,
+  `mos-a26-3e-clang` and a `mos-a26-common-clang`, with
+  headers (`_tia.h`, `_riot.h`, `a26.h`, `a26_constants.h`,
   `vcslib.h`, the `mapper*.h` family), a crt0, a frame-loop helper and one
-  example. The SDK's `examples/atari2600/demo_vcslib.c` builds here to a
+  example. The SDK's `examples/a26/demo_vcslib.c` builds here to a
   4096-byte image with the 4k driver and an 8192-byte image with the 3E
   driver.
 - **Nothing was run.** No 2600 emulator is installed on this host; Stella
@@ -60,16 +60,16 @@ Cite these freely; each was read in the source named, not recalled.
 
 | Fact | Where |
 | ---- | ----- |
-| The only writeable region is zero page: `vcs.ld` declares `zp : ORIGIN = __rc31 + 1` with `__rc0 = 0x80`, so the SDK's imaginary registers take `$80-$9F` and C variables get **`$A0-$FF` (96 bytes)**, which is also where the hardware stack lives. `c_writeable` is `zp`. `-mlto-zp=112`. | `$SDK/mos-platform/atari2600-common/lib/vcs.ld`, `$SDK/bin/mos-atari2600-common.cfg` |
-| The CPU is targeted as `-mcpu=mos6502x` — a 6502 *with* the unofficial opcodes enabled — and `-D__ATARI2600__`. | `mos-atari2600-common.cfg` |
+| The only writeable region is zero page: `vcs.ld` declares `zp : ORIGIN = __rc31 + 1` with `__rc0 = 0x80`, so the SDK's imaginary registers take `$80-$9F` and C variables get **`$A0-$FF` (96 bytes)**, which is also where the hardware stack lives. `c_writeable` is `zp`. `-mlto-zp=112`. | `$SDK/mos-platform/a26-common/lib/vcs.ld`, `$SDK/bin/mos-a26-common.cfg` |
+| The CPU is targeted as `-mcpu=mos6502x` — a 6502 *with* the unofficial opcodes enabled — and `-D__A26__`. | `mos-a26-common.cfg` |
 | crt0: `cld`; then `ldx #0 / txa / dex / txs / pha / bne` — 256 pushes of zero walking `S` from `$FF` down and back to `$FF`, which the source's own comment describes as clearing "the whole memory (128 bytes) including BSS" *and* "TIA registers" and setting the stack to `$ff` (the pushes land in page 1, which the 6507 mirrors onto RAM and TIA); then `jmp main` ("to save 2 bytes of stack"). No interrupt vectors are used. | upstream `crt0.S`; `llvm-objdump` of the built demo (`cld / ldx #0 / txa / dex / txs / pha / bne / jmp main`) |
-| 4K target: ROM `perm` at `$F000`, `__cart_rom_size` 4 (or 2), the vector block at `$F000 + size − 4` holds `_start` twice ("we don't really need NMI on the 2600" — RESET and IRQ both point at `_start`; NMI is not written). `.text` at `$F000`, `.zp.bss` at `$A0`. | `$SDK/mos-platform/atari2600-4k/lib/link.ld`, `llvm-readelf` of the built demo |
-| 3E target: ROM 6–32K in 2K steps, up to fifteen 2K banks `rom0..rom14` switched into `$F000-$F7FF`, a fixed 2K `perm` at `$F800-$FFFF` (vectors at `$FFFC`); cartridge RAM up to 255K in 1K banks read at `$1000-$13FF` and **written at `$1400-$17FF`** (separate read and write windows). A ROM bank is selected by `sta $3F`, a RAM bank by `sta $3E`; `.init.055` does `sta $3f` with A = 0 so bank 0 is in before `main`. `mapper.h`: `MAPPER_BANKED_ROM_SIZE 0x800`, `MAPPER_XRAM_SIZE 0x400`, `bank_select()`, `ram_select()`, `banked_call_rom()`, `banked_call_ram()`, `xram_read()/xram_write()`, `DECLARE_XRAM_VARIABLE()` (declares a `_read` and a `_write` twin). `MAPPER_CART_ROM_KB(n)` in a source file sets the image size. | `$SDK/mos-platform/atari2600-3e/lib/link.ld`, `include/mapper.h`, `init_mapper_3e.o` disassembly, upstream `mapper_3e.c`, `mapper_xram_single.h` |
-| TIA is at `$0000` as a struct of write/read unions: writes VSYNC, VBLANK, WSYNC, RSYNC, NUSIZ0/1, COLUP0/1, COLUPF, COLUBK, CTRLPF, REFP0/1, PF0/1/2, RESP0/1, RESM0/1, RESBL, AUDC0/1, AUDF0/1, AUDV0/1, GRP0/1, ENAM0/1, ENABL, HMP0/1, HMM0/1, HMBL, VDELP0/1, VDELBL, RESMP0/1, HMOVE, HMCLR, CXCLR; reads CXM0P … CXPPMM (8 collision registers) and INPT0-5. RIOT is at `$0280`: SWCHA, SWACNT, SWCHB, SWBCNT, INTIM, TIMINT, then TIM1T, TIM8T, TIM64T, T1024T at `$0294-$0297`. | `_tia.h`, `_riot.h`, `atari2600.h` |
-| Constants the SDK encodes: NUSIZ `ONE_COPY … QUAD_SIZE` (0–7) and missile/ball sizes 1/2/4/8 (`MSBL_SIZE1..8`); CTRLPF `PF_REFLECT` 1, `PF_SCORE` 2, `PF_PRIORITY` 4; REFP `REFLECT` 8; HMOVE values `HMOVE_L7 = $70 … HMOVE_R8 = $80`; VBLANK `DUMP_PORTS $80`, `ENABLE_LATCHES $40`, `DISABLE_TIA 2`; VSYNC `START_VERT_SYNC 2`; SWCHA joystick bits (P0 in the high nybble: right `$80`, left `$40`, down `$20`, up `$10`, active low; P1 in the low nybble); SWCHB `RESET 1`, `SELECT 2`, `BW 8`, difficulty `$40/$80`; fire = INPT4/INPT5 bit 7 (0 = pressed). | `atari2600_constants.h`, `vcslib.h` |
+| 4K target: ROM `perm` at `$F000`, `__cart_rom_size` 4 (or 2), the vector block at `$F000 + size − 4` holds `_start` twice ("we don't really need NMI on the 2600" — RESET and IRQ both point at `_start`; NMI is not written). `.text` at `$F000`, `.zp.bss` at `$A0`. | `$SDK/mos-platform/a26-4k/lib/link.ld`, `llvm-readelf` of the built demo |
+| 3E target: ROM 6–32K in 2K steps, up to fifteen 2K banks `rom0..rom14` switched into `$F000-$F7FF`, a fixed 2K `perm` at `$F800-$FFFF` (vectors at `$FFFC`); cartridge RAM up to 255K in 1K banks read at `$1000-$13FF` and **written at `$1400-$17FF`** (separate read and write windows). A ROM bank is selected by `sta $3F`, a RAM bank by `sta $3E`; `.init.055` does `sta $3f` with A = 0 so bank 0 is in before `main`. `mapper.h`: `MAPPER_BANKED_ROM_SIZE 0x800`, `MAPPER_XRAM_SIZE 0x400`, `bank_select()`, `ram_select()`, `banked_call_rom()`, `banked_call_ram()`, `xram_read()/xram_write()`, `DECLARE_XRAM_VARIABLE()` (declares a `_read` and a `_write` twin). `MAPPER_CART_ROM_KB(n)` in a source file sets the image size. | `$SDK/mos-platform/a26-3e/lib/link.ld`, `include/mapper.h`, `init_mapper_3e.o` disassembly, upstream `mapper_3e.c`, `mapper_xram_single.h` |
+| TIA is at `$0000` as a struct of write/read unions: writes VSYNC, VBLANK, WSYNC, RSYNC, NUSIZ0/1, COLUP0/1, COLUPF, COLUBK, CTRLPF, REFP0/1, PF0/1/2, RESP0/1, RESM0/1, RESBL, AUDC0/1, AUDF0/1, AUDV0/1, GRP0/1, ENAM0/1, ENABL, HMP0/1, HMM0/1, HMBL, VDELP0/1, VDELBL, RESMP0/1, HMOVE, HMCLR, CXCLR; reads CXM0P … CXPPMM (8 collision registers) and INPT0-5. RIOT is at `$0280`: SWCHA, SWACNT, SWCHB, SWBCNT, INTIM, TIMINT, then TIM1T, TIM8T, TIM64T, T1024T at `$0294-$0297`. | `_tia.h`, `_riot.h`, `a26.h` |
+| Constants the SDK encodes: NUSIZ `ONE_COPY … QUAD_SIZE` (0–7) and missile/ball sizes 1/2/4/8 (`MSBL_SIZE1..8`); CTRLPF `PF_REFLECT` 1, `PF_SCORE` 2, `PF_PRIORITY` 4; REFP `REFLECT` 8; HMOVE values `HMOVE_L7 = $70 … HMOVE_R8 = $80`; VBLANK `DUMP_PORTS $80`, `ENABLE_LATCHES $40`, `DISABLE_TIA 2`; VSYNC `START_VERT_SYNC 2`; SWCHA joystick bits (P0 in the high nybble: right `$80`, left `$40`, down `$20`, up `$10`, active low; P1 in the low nybble); SWCHB `RESET 1`, `SELECT 2`, `BW 8`, difficulty `$40/$80`; fire = INPT4/INPT5 bit 7 (0 = pressed). | `a26_constants.h`, `vcslib.h` |
 | The SDK's frame loop: `kernel_1()` — VSYNC on, `WSYNC`, VSYNC off, start the vertical-blank timer, and a `brk` if RESET is held; `kernel_2()` — wait for INTIM = 0, `VBLANK = ENABLE_TIA`, start the picture timer; `kernel_3()` — wait, `VBLANK = DISABLE_TIA`, start the overscan timer; `kernel_4()` — wait for INTIM = 0. Timer values: `_CYCLES(lines) = lines × 76 − 13`, `_TIM64(cycles)`; NTSC 37 / 194 / 32 lines (vblank / picture / overscan), PAL 45 / 250 / 36 (`#ifdef PAL`). So a "frame" is a fixed timing skeleton the program fills, not a signal the program waits for. | `vcslib.h`, upstream `frameloop.c` |
 | `set_horiz_pos(obj, x)`: `sta WSYNC`, divide *x* by 15 by repeated subtraction, `eor #7`, shift into the high nybble, `sta HMP0,x` then `sta RESP0,x`; `apply_hmove()` is `sta WSYNC / sta HMOVE`. The whole horizontal-positioning problem is that a coarse position is *when* you strobe RESPx during the line and a fine one is a −8…+7 nudge applied at the next HMOVE. | `vcslib.S`, `vcslib.h` |
-| Building: the SDK demo compiles with `mos-atari2600-4k-clang -Os` to a 4096-byte `.bin` and with `mos-atari2600-3e-clang -Os` (with `MAPPER_CART_ROM_KB(8)`) to 8192 bytes; `.text` for the 4K build starts at `$F000`, `.zp.bss` at `$A0`. | built here |
+| Building: the SDK demo compiles with `mos-a26-4k-clang -Os` to a 4096-byte `.bin` and with `mos-a26-3e-clang -Os` (with `MAPPER_CART_ROM_KB(8)`) to 8192 bytes; `.text` for the 4K build starts at `$F000`, `.zp.bss` at `$A0`. | built here |
 | Stella's bankswitch enum (what `-bs`/`-type` accepts): `AUTO, 03E0, 0840, 0FA0, 2IN1…128IN1, 2K, 3E, 3EX, 3EP, 3F, 4A50, 4K, 4KSC, AR, BF, BFSC, BUS, CDF, CM, CTY, CV, DEVC, DF, DFSC, DPC, DPCP, E0, E7, EF, EFF, EFSC, ELF, F0, F4, F4SC, F6, F6SC, F8, F8SC, FA, FA2, FC, FE, GL, JANE, MDM, MVC, SB, TVBOY, UA, UASW, WD, WDSW, WF8, X07`; descriptions such as "F8 (8K Atari)", "F4 (32K Atari)", "E0 (8K Parker Bros)", "AR (Supercharger)"; file extensions (`a26`, `bin`, `rom`, or a scheme name) force a scheme. | upstream `src/emucore/Bankswitch.hxx` |
 | Stella's command line (7.x): `-format <ntsc|pal|secam|…>`, `-lc`/`-rc <controller>` (left/right), `-bs`/`-type <scheme>`, `-audio.enabled <1|0>`, `-snapsavedir <path>`, `-snapname <int|rom>`, `-ssinterval <seconds>` (continuous snapshots), `-holdreset`, `-holdselect`, `-debug`, `-break <address>`, `-fullscreen`, `-palette`, `-tv.filter`, `-plr.ramrandom`, `-exitlauncher`; snapshots also on the F12 hotkey. No "run N frames and exit" option appears in the usage text. | upstream `src/emucore/Settings.cxx`, `docs/index.html` |
 | Homebrew has `stella` 7.0c (bottled), not installed here. | `brew info stella` |
@@ -219,14 +219,14 @@ before any becomes a profile.
 
 ```
 (no package yet)
-$SDK/mos-platform/atari2600-common/include/_tia.h, _riot.h, atari2600.h    the register structs at $0000 and $0280
-$SDK/mos-platform/atari2600-common/include/atari2600_constants.h, vcslib.h  NUSIZ/CTRLPF/HMOVE/SWCHx bit names, kernel_1..4, the timer macros, set_horiz_pos
-$SDK/mos-platform/atari2600-common/lib/vcs.ld, crt0.o                       zp $A0-$FF as the only RAM, the clear loop, jmp main
-$SDK/mos-platform/atari2600-4k/lib/link.ld                                  ROM at $F000, 2K/4K, RESET+IRQ vectors = _start
-$SDK/mos-platform/atari2600-3e/lib/link.ld, include/mapper.h, init_mapper_3e.o   2K ROM banks at $F000, perm at $F800, 1K RAM banks read $1000 / write $1400, sta $3F / sta $3E
-$SDK/bin/mos-atari2600-*.cfg                                                -mcpu=mos6502x, -mlto-zp=112, -D__ATARI2600__ and the mapper defines
-$SDK/examples/atari2600/demo_vcslib.c                                       the SDK's own example (builds here: 4096 / 8192 bytes)
-github.com/llvm-mos/llvm-mos-sdk mos-platform/atari2600-common/frameloop.c, vcslib.S, crt0.S; atari2600-3e/mapper_3e.c   the sources behind the objects above
+$SDK/mos-platform/a26-common/include/_tia.h, _riot.h, a26.h    the register structs at $0000 and $0280
+$SDK/mos-platform/a26-common/include/a26_constants.h, vcslib.h  NUSIZ/CTRLPF/HMOVE/SWCHx bit names, kernel_1..4, the timer macros, set_horiz_pos
+$SDK/mos-platform/a26-common/lib/vcs.ld, crt0.o                       zp $A0-$FF as the only RAM, the clear loop, jmp main
+$SDK/mos-platform/a26-4k/lib/link.ld                                  ROM at $F000, 2K/4K, RESET+IRQ vectors = _start
+$SDK/mos-platform/a26-3e/lib/link.ld, include/mapper.h, init_mapper_3e.o   2K ROM banks at $F000, perm at $F800, 1K RAM banks read $1000 / write $1400, sta $3F / sta $3E
+$SDK/bin/mos-a26-*.cfg                                                -mcpu=mos6502x, -mlto-zp=112, -D__A26__ and the mapper defines
+$SDK/examples/a26/demo_vcslib.c                                       the SDK's own example (builds here: 4096 / 8192 bytes)
+github.com/llvm-mos/llvm-mos-sdk mos-platform/a26-common/frameloop.c, vcslib.S, crt0.S; a26-3e/mapper_3e.c   the sources behind the objects above
 github.com/stella-emu/stella src/emucore/Bankswitch.hxx, Settings.cxx      the scheme list and the command line
 Stella Programmer's Guide (Wright, 1979)                                    the TIA reference every unverified number above cites
 ```

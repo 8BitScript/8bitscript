@@ -1,0 +1,22 @@
+// @8bitscript/nes/apu — pulse 1 and noise, the two voices the first
+// .8ba song slice needs. DPCM is a later write to $4010–$4013.
+export namespace apu {
+    function pulse(period: usmallint, volume: utinyint, duty: utinyint): void {
+        memory.write(0x4000, (duty << 6) | 0x30 | (volume & 15));
+        memory.write(0x4001, 0x08);
+        memory.write(0x4002, period);
+        memory.write(0x4003, (period >> 8) & 7);
+        memory.write(0x4015, 0x01);
+    }
+
+    function noise(period: utinyint, volume: utinyint): void {
+        memory.write(0x400C, 0x30 | (volume & 15));
+        memory.write(0x400E, period & 15);
+        memory.write(0x400F, 0x00);
+        memory.write(0x4015, 0x08);
+    }
+
+    function silence(): void {
+        memory.write(0x4015, 0);
+    }
+}

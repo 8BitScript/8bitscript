@@ -1,0 +1,123 @@
+{
+  "name": "@8bitscript/atari2600",
+  "version": "0.22.1",
+  "description": "Atari 2600 target support for 8BitScript: the hardware underneath the portable APIs.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/8BitScript/8bitscript.git",
+    "directory": "packages/atari2600"
+  },
+  "8bitscript": {
+    "title": "Atari 2600",
+    "emulator": {
+      "binary": "stella",
+      "family": "dedicated",
+      "screenshot": "window",
+      "framesUnit": "frames",
+      "defaultFrames": 180,
+      "installer": "stella",
+      "deferred": "Stella install is pending"
+    },
+    "entry": "./src/index.8bs",
+    "exports": {
+      "./screen": "./src/screen.8bs",
+      "./text": "./src/text.8bs",
+      "./input": "./src/input.8bs",
+      "./pointer": "./src/pointer.8bs",
+      "./rasterline": "./src/rasterline.8bs"
+    },
+    "hardware": {
+      "build": {
+        "defsym": {
+          "__load_address": 61440,
+          "__rom_size": 4096,
+          "__bss_origin": 512,
+          "__bss_ceiling": 640,
+          "__ram_ceiling": 65536
+        },
+        "output": "a26"
+      },
+      "facts": {
+        "video.columns": 20,
+        "video.rows": 12,
+        "video.cellWidth": 8,
+        "video.cellHeight": 8,
+        "video.palette": 128,
+        "video.cellColors": 2,
+        "video.colorPerCell": false,
+        "video.glyphs": 0,
+        "video.blockWidth": 0,
+        "video.blockHeight": 0,
+        "video.bitmap": false,
+        "video.layers": 1,
+        "video.scroll": false,
+        "video.raster": true,
+        "video.sprites": 0,
+        "video.spritesPerLine": 0,
+        "video.spriteWidth": 0,
+        "video.spriteHeight": 0,
+        "video.spriteColors": 0,
+        "video.frameRate": 60,
+        "audio.voices": 2,
+        "audio.noise": true,
+        "audio.envelope": false,
+        "audio.filter": false,
+        "audio.pcm": false,
+        "audio.volume": false,
+        "audio.entropy": false,
+        "input.keyboard": false,
+        "input.joysticks": 2,
+        "input.pads": 0,
+        "input.controls": [
+          "up",
+          "down",
+          "left",
+          "right",
+          "a"
+        ],
+        "input.mouse": false,
+        "input.paddles": false,
+        "storage.save": false,
+        "storage.kib": 0,
+        "memory.ram": 128,
+        "memory.banked": false,
+        "memory.bankedKib": 0
+      },
+      "options": {
+        "mapper": {
+          "label": "Mapper",
+          "default": "4k",
+          "values": {
+            "4k": {
+              "label": "4K (no bank)",
+              "build": {
+                "defsym": {
+                  "__rom_size": 4096
+                }
+              }
+            },
+            "3e": {
+              "label": "3E bankswitching",
+              "build": {
+                "defsym": {
+                  "__rom_size": 32768
+                }
+              }
+            }
+          }
+        }
+      },
+      "presets": {}
+    }
+  },
+  "files": [
+    "src"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}

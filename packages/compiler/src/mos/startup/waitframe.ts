@@ -284,6 +284,15 @@ const RASTER: Partial<Record<Machine, RasterSync>> = {
     ntsc: { num: 262 * 114, den: 1789790 },
     keepsInterrupts: true,
   },
+  atari5200: {
+    topHalf: [ldaAbs(0xd40b), instr('CMP', 'immediate', 64)],
+    whenTop: 'BCC',
+    whenNotTop: 'BCS',
+    palProbe: (target: string) => [ldaAbs(0xd40b), instr('CMP', 'immediate', 140), branch('BCS', target)],
+    pal: { num: 312 * 114, den: 1773447 },
+    ntsc: { num: 262 * 114, den: 1789790 },
+    keepsInterrupts: true,
+  },
 };
 
 /**
@@ -344,6 +353,15 @@ const FLAG: Partial<Record<Machine, FlagSync>> = {
     // tables can be read against each other.
     ratio: { num: 59561, den: 2 * 1789773 },
   },
+  plus4: { wait: tedLineZeroWait, ratio: { num: 1, den: 60 } },
+  apple2: { wait: absBitWait(0xc019, 0x80), ratio: { num: 1, den: 60 } },
+  oric: { wait: absBitWait(0x030d, 0x40), ratio: { num: 1, den: 60 } },
+  bbc: { wait: absBitWait(0xfe4d, 0x02), ratio: { num: 1, den: 60 } },
+  lynx: { wait: spinWait, ratio: { num: 1, den: 60 } },
+  pce: { wait: spinWait, ratio: { num: 1, den: 60 } },
+  supervision: { wait: spinWait, ratio: { num: 1, den: 60 } },
+  atari2600: { wait: intimWait, ratio: { num: 76 * 262, den: 1193182 } },
+  atari7800: { wait: absBitWait(0x0028, 0x80), ratio: { num: 1, den: 60 } },
 };
 
 function veraVsyncWait(tag: string): Directive[] {
@@ -355,6 +373,32 @@ function veraVsyncWait(tag: string): Directive[] {
     // left alone, which is why this writes $01 rather than the byte it read.
     ldaImm(0x01), staAbs(VERA_ISR),
   ];
+}
+
+function tedLineZeroWait(tag: string): Directive[] {
+  const poll = `${tag}_ted`;
+  return [
+    label(poll),
+    ldaAbs(0xff1c), instr('AND', 'immediate', 0x01), branch('BNE', poll),
+    ldaAbs(0xff1d), branch('BNE', poll),
+  ];
+}
+
+function absBitWait(address: number, mask: number): (tag: string) => Directive[] {
+  return (tag: string) => {
+    const poll = `${tag}_bit`;
+    return [label(poll), ldaAbs(address), instr('AND', 'immediate', mask), branch('BEQ', poll)];
+  };
+}
+
+function spinWait(tag: string): Directive[] {
+  const spin = `${tag}_spin`;
+  return [instr('LDX', 'immediate', 0), label(spin), instr('DEX', 'implied'), branch('BNE', spin)];
+}
+
+function intimWait(tag: string): Directive[] {
+  const poll = `${tag}_intim`;
+  return [label(poll), ldaAbs(0x0284), branch('BNE', poll)];
 }
 
 function ppuVerticalBlankWait(tag: string): Directive[] {

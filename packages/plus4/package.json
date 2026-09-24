@@ -1,0 +1,151 @@
+{
+  "name": "@8bitscript/plus4",
+  "version": "0.22.1",
+  "description": "Commodore Plus/4 target support for 8BitScript: the hardware underneath the portable APIs.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/8BitScript/8bitscript.git",
+    "directory": "packages/plus4"
+  },
+  "8bitscript": {
+    "title": "Commodore Plus/4",
+    "emulator": {
+      "binary": "xplus4",
+      "family": "vice",
+      "screenshot": "vice",
+      "framesUnit": "cycles",
+      "defaultFrames": 8000000,
+      "installer": "vice"
+    },
+    "entry": "./src/index.8bs",
+    "exports": {
+      "./screen": "./src/screen.8bs",
+      "./text": "./src/text.8bs",
+      "./input": "./src/input.8bs",
+      "./pointer": "./src/pointer.8bs",
+      "./rasterline": "./src/rasterline.8bs"
+    },
+    "hardware": {
+      "build": {
+        "defsym": {
+          "__load_address": 4097,
+          "__ram_size": 28
+        },
+        "output": "prg"
+      },
+      "facts": {
+        "video.columns": 40,
+        "video.rows": 25,
+        "video.cellWidth": 8,
+        "video.cellHeight": 8,
+        "video.palette": 121,
+        "video.cellColors": 2,
+        "video.colorPerCell": true,
+        "video.glyphs": 0,
+        "video.blockWidth": 0,
+        "video.blockHeight": 0,
+        "video.bitmap": false,
+        "video.layers": 1,
+        "video.scroll": false,
+        "video.raster": true,
+        "video.sprites": 0,
+        "video.spritesPerLine": 0,
+        "video.spriteWidth": 0,
+        "video.spriteHeight": 0,
+        "video.spriteColors": 0,
+        "video.frameRate": 50,
+        "audio.voices": 2,
+        "audio.noise": true,
+        "audio.envelope": false,
+        "audio.filter": false,
+        "audio.pcm": false,
+        "audio.volume": false,
+        "audio.entropy": false,
+        "input.keyboard": true,
+        "input.joysticks": 2,
+        "input.pads": 0,
+        "input.controls": [
+          "up",
+          "down",
+          "left",
+          "right",
+          "a"
+        ],
+        "input.mouse": false,
+        "input.paddles": false,
+        "storage.save": true,
+        "storage.kib": 170,
+        "memory.ram": 28671,
+        "memory.banked": false,
+        "memory.bankedKib": 0
+      },
+      "options": {
+        "model": {
+          "label": "Model",
+          "default": "plus4",
+          "values": {
+            "plus4": {
+              "label": "Plus/4: 64K, ACIA, 3-plus-1",
+              "run": {
+                "xplus4": [
+                  "-model",
+                  "plus4"
+                ]
+              },
+              "facts": {
+                "memory.ram": 28671
+              }
+            },
+            "c16": {
+              "label": "C16: 16K, no function ROMs",
+              "run": {
+                "xplus4": [
+                  "-model",
+                  "c16"
+                ]
+              },
+              "facts": {
+                "memory.ram": 12277
+              },
+              "tag": "c16"
+            },
+            "c116": {
+              "label": "C116: 16K, calculator keyboard",
+              "run": {
+                "xplus4": [
+                  "-model",
+                  "c16"
+                ]
+              },
+              "facts": {
+                "memory.ram": 12277
+              },
+              "tag": "c16"
+            }
+          }
+        }
+      },
+      "presets": {
+        "plus4": {
+          "model": "plus4"
+        },
+        "c16": {
+          "model": "c16"
+        },
+        "c116": {
+          "model": "c116"
+        }
+      }
+    }
+  },
+  "files": [
+    "src"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}

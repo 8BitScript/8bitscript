@@ -22,6 +22,7 @@ function fill(select, options, selected) {
       ? option.label + '  —  ' + option.where
       : option.label)
       + (option.runnable === false ? '  (not a target)' : '')
+      + (option.muted ? '  (emulator not installed)' : '')
       + (option.short ? '  (too small)' : '');
     el.selected = option.id === selected;
     (group ?? select).appendChild(el);
@@ -265,7 +266,7 @@ window.addEventListener('message', ({ data }) => {
   $('run-sub').textContent = data.subtitle
     ?? [data.systemTitle, data.fitted, data.regionLabel].filter(Boolean).join(' · ');
   $('run').disabled = !data.runnable;
-  $('build').disabled = !data.runnable;
+  $('build').disabled = data.buildable === undefined ? !data.runnable : !data.buildable;
   $('boot').disabled = !data.bootable;
   $('boot-label').textContent = data.bootable ? 'Boot ' + (data.systemTitle ?? 'Machine') : 'Boot Machine';
   $('boot').title = data.bootable

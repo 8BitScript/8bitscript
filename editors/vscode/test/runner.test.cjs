@@ -35,6 +35,10 @@ function writeFakeCli(dir, behavior = 'targets') {
   const file = path.join(dir, 'fake-8bs.mjs');
   const body = behavior === 'targets'
     ? `console.log(JSON.stringify({ targets: [{ id: 'c64', title: 'C64', emulator: 'x64sc', region: true, options: {}, presets: {}, profiles: {}, hardware: {}, facts: {} }], systems: [{ name: 'Named C64', target: 'c64', origin: 'project', label: 'stock' }], facts: [] }));`
+    : behavior === 'doctor'
+      ? `console.log(JSON.stringify({ ok: true, failures: 0, warnings: 1, ready: ['web'], notInstalled: ['atari8'], failed: [] }));`
+    : behavior === 'doctor-fail-exit'
+      ? `console.log(JSON.stringify({ ok: false, failures: 1, warnings: 0, ready: ['web'], notInstalled: [], failed: ['cx16'] })); process.exit(1);`
     : `process.stderr.write('boom'); process.exit(1);`;
   fs.writeFileSync(file, body);
   return file;
@@ -218,6 +222,39 @@ test('Projects.loadTargets: no toolchain anywhere resolves null without spawning
   vscode.__mock.reset();
   const projects = new Projects({ appendLine() {} });
   assert.equal(await projects.loadTargets('/nowhere'), null);
+});
+
+test('Projects.loadDoctor: parses 8bs doctor --json and caches it', async () => {
+  const dir = tmpDir();
+  try {
+    writeConfig(dir);
+    const cli = writeFakeCli(dir, 'doctor');
+    vscode.__mock.reset();
+    const output = { lines: [], appendLine(line) { this.lines.push(line); } };
+    const projects = new Projects(output);
+    projects.projects = [fakeProject(dir, { toolchain: cli })];
+    const report = await projects.loadDoctor();
+    assert.deepEqual(report.notInstalled, ['atari8']);
+    assert.deepEqual(report.ready, ['web']);
+    assert.equal(await projects.loadDoctor(), report, 'cached until refresh');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('Projects.loadDoctor: a FAIL exit still yields the JSON (the report is the stdout)', async () => {
+  const dir = tmpDir();
+  try {
+    writeConfig(dir);
+    const cli = writeFakeCli(dir, 'doctor-fail-exit');
+    vscode.__mock.reset();
+    const projects = new Projects({ appendLine() {} });
+    projects.projects = [fakeProject(dir, { toolchain: cli })];
+    const report = await projects.loadDoctor();
+    assert.deepEqual(report.failed, ['cx16']);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('Projects.refresh: finds workspace projects and fires onDidChange', async () => {
@@ -495,6 +532,8 @@ test('registerRunner: doctor runs against the project with a toolchain', async (
       const executed = vscode.__mock.executedTasks.at(-1);
       assert.ok(executed);
       assert.equal(executed.task.definition.command, 'doctor');
+      assert.ok(executed.task.execution.args.includes('--install'));
+      assert.ok(executed.task.execution.args.includes('--all'));
     });
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });

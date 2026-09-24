@@ -153,7 +153,89 @@ test('.8bx is registered as its own language, highlighted by the 8bs grammar', (
   assert.ok(manifest.activationEvents.includes('workspaceContains:**/*.8bx'));
   // The client sends both ids to the one language server.
   const lsp = fs.readFileSync(path.join(__dirname, '..', 'src', 'lsp.cjs'), 'utf8');
-  assert.match(lsp, /LANGUAGE_IDS = \['8bitscript', '8bitextensible'\]/);
+  assert.match(lsp, /LANGUAGE_IDS = \['8bitscript', '8bitextensible', '8bitgraphics', '8bitaudio'\]/);
+});
+
+test('.8bg and .8ba are registered as their own languages', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
+  const gfx = manifest.contributes.languages.find((l) => l.id === '8bitgraphics');
+  const aud = manifest.contributes.languages.find((l) => l.id === '8bitaudio');
+  assert.ok(gfx && aud);
+  assert.deepEqual(gfx.extensions, ['.8bg']);
+  assert.deepEqual(aud.extensions, ['.8ba']);
+  const gfxG = manifest.contributes.grammars.find((g) => g.language === '8bitgraphics');
+  const audG = manifest.contributes.grammars.find((g) => g.language === '8bitaudio');
+  assert.equal(gfxG.scopeName, 'source.8bg');
+  assert.equal(audG.scopeName, 'source.8ba');
+  const gfxGrammar = JSON.parse(fs.readFileSync(path.join(__dirname, '..', gfxG.path), 'utf8'));
+  const audGrammar = JSON.parse(fs.readFileSync(path.join(__dirname, '..', audG.path), 'utf8'));
+  const gfxScopes = new Set();
+  for (const r of rules(gfxGrammar)) {
+    if (r.name) gfxScopes.add(r.name);
+    for (const c of Object.values(r.captures ?? {})) gfxScopes.add(c.name);
+    for (const c of Object.values(r.beginCaptures ?? {})) gfxScopes.add(c.name);
+  }
+  const audScopes = new Set();
+  for (const r of rules(audGrammar)) {
+    if (r.name) audScopes.add(r.name);
+    for (const c of Object.values(r.captures ?? {})) audScopes.add(c.name);
+    for (const c of Object.values(r.beginCaptures ?? {})) audScopes.add(c.name);
+  }
+  for (const scope of [
+    'meta.declaration.sprite.8bg',
+    'meta.declaration.animation.8bg',
+    'entity.name.resource.8bg',
+    'meta.field.size.8bg',
+  ]) {
+    assert.ok(gfxScopes.has(scope), `${scope} is not in the 8bg grammar`);
+  }
+  for (const scope of [
+    'meta.declaration.instrument.8ba',
+    'meta.declaration.song.8ba',
+    'meta.declaration.pattern.8ba',
+    'meta.declaration.row.8ba',
+    'constant.other.note.8ba',
+  ]) {
+    assert.ok(audScopes.has(scope), `${scope} is not in the 8ba grammar`);
+  }
+  assert.ok(manifest.activationEvents.includes('workspaceContains:**/*.8bg'));
+  assert.ok(manifest.activationEvents.includes('workspaceContains:**/*.8ba'));
+});
+
+test('each source language has light and dark file icons and an optional icon theme', () => {
+  const root = path.join(__dirname, '..');
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  const byId = new Map(manifest.contributes.languages.map((l) => [l.id, l]));
+  for (const [id, ext, light, dark] of [
+    ['8bitscript', '.8bs', '8bs-light.svg', '8bs-dark.svg'],
+    ['8bitextensible', '.8bx', '8bx-light.svg', '8bx-dark.svg'],
+    ['8bitgraphics', '.8bg', '8bg-light.svg', '8bg-dark.svg'],
+    ['8bitaudio', '.8ba', '8ba-light.svg', '8ba-dark.svg'],
+  ]) {
+    const lang = byId.get(id);
+    assert.ok(lang?.icon?.light?.endsWith(light), `${id} has no light icon`);
+    assert.ok(lang?.icon?.dark?.endsWith(dark), `${id} has no dark icon`);
+    assert.ok(fs.existsSync(path.join(root, lang.icon.light)), lang.icon.light);
+    assert.ok(fs.existsSync(path.join(root, lang.icon.dark)), lang.icon.dark);
+    assert.deepEqual(lang.extensions, [ext]);
+  }
+  const theme = (manifest.contributes.iconThemes ?? []).find((t) => t.id === '8bitscript');
+  assert.ok(theme, 'the 8BitScript icon theme is not contributed');
+  assert.equal(theme.label, '8BitScript');
+  const themePath = path.join(root, theme.path);
+  assert.ok(fs.existsSync(themePath), theme.path);
+  const defs = JSON.parse(fs.readFileSync(themePath, 'utf8'));
+  for (const ext of ['8bs', '8bx', '8bg', '8ba']) {
+    const key = defs.fileExtensions[ext];
+    assert.ok(key && defs.iconDefinitions[key], `icon theme has no entry for .${ext}`);
+  }
+});
+
+test('media snippets are contributed for 8bg and 8ba', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
+  const contributed = manifest.contributes.snippets ?? [];
+  assert.ok(contributed.some((s) => s.language === '8bitgraphics' && s.path === './snippets/8bg.json'));
+  assert.ok(contributed.some((s) => s.language === '8bitaudio' && s.path === './snippets/8ba.json'));
 });
 
 // ---- the 8bx grammar, run: what an editor actually colours ------------------

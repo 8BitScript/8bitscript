@@ -1,0 +1,50 @@
+export namespace input {
+    function begin(): void {
+        input.poll();
+    }
+
+    function poll(): void {
+    }
+
+    function left(): bool {
+        return false;
+    }
+
+    function right(): bool {
+        return false;
+    }
+
+    function up(): bool {
+        return false;
+    }
+
+    function down(): bool {
+        return false;
+    }
+
+    function confirm(): bool {
+        return false;
+    }
+
+    function cancel(): bool {
+        return false;
+    }
+
+    function pointer(): bool {
+        return false;
+    }
+
+    function pointerCell(): usmallint {
+        return 0;
+    }
+
+    function pointerButton(): bool {
+        return false;
+    }
+}
+
+export namespace Input {
+    const CONFIRM_LABEL: string = "FIRE";
+    const ALT_CONFIRM_LABEL: string = "FIRE";
+    const CONFIRM_LABELS: string = "FIRE";
+}

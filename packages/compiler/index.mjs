@@ -20,6 +20,7 @@ import { applyCatalogCharset, isCatalogFile } from './src/i18n/index.mjs';
 import { bind, bindImportedComponents } from './src/binder/index.mjs';
 import { checkBx } from './src/bx/check.mjs';
 import { elaborateBx } from './src/bx/elaborate.mjs';
+import { analyzeMedia, isMediaKind } from './src/media/index.mjs';
 
 export { tokenize, TokenKind, KEYWORDS, TYPE_NAMES } from './src/lexer/index.mjs';
 export { parse, normalizeBxText } from './src/parser/index.mjs';
@@ -43,6 +44,7 @@ export {
 } from './src/i18n/index.mjs';
 export {
   SOURCE_EXTENSIONS, LOCALE_NAME, isLocaleName, isSourceFile, sourceKindOf, stripSourceExtension,
+  cpuFamily, CPU_FAMILY,
 } from './src/source/index.mjs';
 export { Codes, diagnostic, positionAt } from './src/diagnostics/index.mjs';
 export {
@@ -54,6 +56,7 @@ export {
   narrowestIntegerType,
 } from './src/types/index.mjs';
 export { getHoverInfo, getCompletions, getDefinition } from './src/intellisense/index.mjs';
+export { tokenizeMedia, analyzeMedia, isMediaKind } from './src/media/index.mjs';
 
 /**
  * Analyse one source file and return every diagnostic it produces.
@@ -75,7 +78,7 @@ export { getHoverInfo, getCompletions, getDefinition } from './src/intellisense/
  *
  * @param {string} text
  * @param {string} file
- * @param {{ resolveImports?: boolean, frameRate?: number, machine?: string, facts?: object, locale?: string, i18n?: object, checkout?: string|null, sourceKind?: '.8bs'|'.8bx', bx?: { strict?: boolean } }} [options]
+ * @param {{ resolveImports?: boolean, frameRate?: number, machine?: string, facts?: object, locale?: string, i18n?: object, checkout?: string|null, sourceKind?: '.8bs'|'.8bx'|'.8bg'|'.8ba', bx?: { strict?: boolean } }} [options]
  *   `machine` is the target when one is known; without it `#system()` and
  *   `#fact(...)` fold to placeholders and are valid-but-target-dependent,
  *   as a `.<machine>.8bs` import is. `facts` is the machine's hardware
@@ -87,6 +90,9 @@ export { getHoverInfo, getCompletions, getDefinition } from './src/intellisense/
  */
 export function analyze(text, file = '<unknown>', options = {}) {
   const sourceKind = options.sourceKind ?? sourceKindOf(file) ?? '.8bs';
+  if (isMediaKind(sourceKind)) {
+    return analyzeMedia(text, file, { sourceKind }).diagnostics.sort((a, b) => a.start - b.start);
+  }
   const { tokens, diagnostics: lexical } = tokenize(text, file, { sourceKind });
   const { ast, diagnostics: syntax } = parse(tokens, text, file, { sourceKind });
 

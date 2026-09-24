@@ -2,9 +2,12 @@
 
 The compiler's front end, linker, and both backends emit for real:
 `8bs check`, `8bs build`, and `8bs run` work for every machine in
-`RELEASE_MACHINES` (PET, VIC-20, C64, C128, Commander X16, MEGA65,
-Atari 8-bit, NES, and the web). Contributions are documentation,
-compiler, package, and editor work.
+`RELEASE_MACHINES` — **PET, VIC-20, C64, Commander X16, and the web**
+(`packages/compiler/src/resolver/index.mjs`). Every other id stays in
+`MACHINES` so twins and `8bs check` keep working; restoring the rest to
+`RELEASE_MACHINES` is planned after this narrow release is polished. See
+[`AGENTS.md`](AGENTS.md#this-release-release_machines). Contributions are
+documentation, compiler, package, and editor work.
 
 ## Workflow
 
@@ -157,23 +160,13 @@ a fallback only; pnpm tries OIDC first automatically.
 
 A package needs to exist on npm before you can attach a trusted
 publisher to it, so a brand-new package's first publish can't go
-through CI — it needs a one-time manual step before (or as part of)
-the PR that adds it:
-
-0. Copy the `"repository"` field from an existing `packages/*/package.json`
-   (updating `directory`) — `scripts/release.mjs` checks for it before
-   publishing and fails fast if it's missing, since npm's Trusted
-   Publishing provenance check rejects a publish without it.
-1. `npm login` (interactive, needs 2FA) if not already logged in.
-2. From the repo root: `pnpm install`, then `pnpm --filter ./packages/<name> publish --access public`
-   to create the package on npm.
-3. `npm trust github @8bitscript/<name> --file release.yml --repo 8BitScript/8bitscript --allow-publish --yes`
-   to wire it into CI permanently (one-time 2FA browser approval, same
-   as the first `npm trust` call in a batch — subsequent calls in the
-   same session don't re-challenge).
-
-After that, the package is on the same lockstep-versioned, tag-triggered
-release as everything else — no more manual steps for it.
+through CI. The one-time bootstrap (auth, `pnpm publish`, then
+`npm trust github` so later versions use OIDC like the rest of the
+org) is the runbook in
+[`.github/AGENTS.md`](.github/AGENTS.md#a-brand-new-packages-first-publish).
+Do that before (or as part of) the PR that adds the package. After
+that, it is on the same lockstep-versioned, tag-triggered release as
+everything else.
 
 ### First 0.1.0 publish (historical)
 

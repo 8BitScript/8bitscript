@@ -13,7 +13,7 @@ const path = require('path');
 
 const vscode = require('vscode');
 
-const { ALL_TARGETS, MACHINE_TARGETS, insertSystem, systemLine } = require('./projects.cjs');
+const { ALL_TARGETS, MACHINE_TARGETS, insertSystem, systemLine, groupedMachineOptions } = require('./projects.cjs');
 const { labelOf } = require('./runner.cjs');
 const settings = require('./settings.cjs');
 const { hardwareState, selectionLabel } = require('./hardwareCatalog.cjs');
@@ -226,7 +226,7 @@ class SystemPanel {
       tab: this.tab,
       project: project ? labelOf(project) : '',
       draft: this.draft,
-      machines: ALL_TARGETS.map((id) => ({
+      machines: groupedMachineOptions(ALL_TARGETS, (id) => ({
         id,
         label: targets?.get(id)?.title ? `${id} — ${targets.get(id).title}` : id,
         runnable: Boolean(project?.targets.includes(id)),

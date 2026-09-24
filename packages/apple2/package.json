@@ -1,0 +1,154 @@
+{
+  "name": "@8bitscript/apple2",
+  "version": "0.22.1",
+  "description": "Apple II target support for 8BitScript: the hardware underneath the portable APIs.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/8BitScript/8bitscript.git",
+    "directory": "packages/apple2"
+  },
+  "8bitscript": {
+    "title": "Apple II",
+    "emulator": {
+      "binary": "mame",
+      "family": "mame",
+      "screenshot": "mame",
+      "framesUnit": "seconds",
+      "defaultFrames": 8,
+      "installer": "mame",
+      "system": "apple2e",
+      "deferred": "MAME needs a ROM set this project does not ship"
+    },
+    "entry": "./src/index.8bs",
+    "exports": {
+      "./screen": "./src/screen.8bs",
+      "./text": "./src/text.8bs",
+      "./input": "./src/input.8bs",
+      "./pointer": "./src/pointer.8bs",
+      "./rasterline": "./src/rasterline.8bs"
+    },
+    "hardware": {
+      "build": {
+        "defsym": {
+          "__load_address": 2048,
+          "__ram_size": 48
+        },
+        "output": "bin",
+        "mameSystem": "apple2e"
+      },
+      "facts": {
+        "video.columns": 40,
+        "video.rows": 24,
+        "video.cellWidth": 8,
+        "video.cellHeight": 8,
+        "video.palette": 2,
+        "video.cellColors": 2,
+        "video.colorPerCell": false,
+        "video.glyphs": 0,
+        "video.blockWidth": 0,
+        "video.blockHeight": 0,
+        "video.bitmap": true,
+        "video.layers": 1,
+        "video.scroll": false,
+        "video.raster": false,
+        "video.sprites": 0,
+        "video.spritesPerLine": 0,
+        "video.spriteWidth": 0,
+        "video.spriteHeight": 0,
+        "video.spriteColors": 0,
+        "video.frameRate": 60,
+        "audio.voices": 0,
+        "audio.noise": false,
+        "audio.envelope": false,
+        "audio.filter": false,
+        "audio.pcm": false,
+        "audio.volume": false,
+        "audio.entropy": false,
+        "input.keyboard": true,
+        "input.joysticks": 0,
+        "input.pads": 0,
+        "input.controls": [],
+        "input.mouse": false,
+        "input.paddles": false,
+        "storage.save": false,
+        "storage.kib": 0,
+        "memory.ram": 49152,
+        "memory.banked": false,
+        "memory.bankedKib": 0
+      },
+      "options": {
+        "model": {
+          "label": "Model",
+          "default": "iie",
+          "values": {
+            "iiplus": {
+              "label": "II Plus: 48K, no VBL",
+              "run": {
+                "mame": [
+                  "apple2p"
+                ]
+              },
+              "facts": {
+                "memory.ram": 49152
+              }
+            },
+            "iie": {
+              "label": "IIe: 64K, $C019 VBL",
+              "run": {
+                "mame": [
+                  "apple2e"
+                ]
+              },
+              "facts": {
+                "memory.ram": 65535
+              }
+            },
+            "iie-enhanced": {
+              "label": "IIe Enhanced",
+              "run": {
+                "mame": [
+                  "apple2ee"
+                ]
+              },
+              "facts": {
+                "memory.ram": 65535
+              }
+            },
+            "iic": {
+              "label": "IIc",
+              "run": {
+                "mame": [
+                  "apple2c"
+                ]
+              },
+              "facts": {
+                "memory.ram": 65535
+              }
+            }
+          }
+        }
+      },
+      "presets": {
+        "iiplus": {
+          "model": "iiplus"
+        },
+        "iie": {
+          "model": "iie"
+        },
+        "iic": {
+          "model": "iic"
+        }
+      }
+    }
+  },
+  "files": [
+    "src"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}

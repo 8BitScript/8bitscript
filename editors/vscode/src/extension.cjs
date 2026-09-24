@@ -30,6 +30,7 @@ const { registerControllerView } = require('./controllerView.cjs');
 const { registerStudioView } = require('./studioView.cjs');
 const { registerSystemView } = require('./systemView.cjs');
 const { registerProjectView } = require('./projectView.cjs');
+const { registerDoctorView } = require('./doctorView.cjs');
 const { registerLanguageServer } = require('./lsp.cjs');
 const settings = require('./settings.cjs');
 
@@ -124,6 +125,7 @@ function activate(context) {
   registerStudioView(context, projects);
   registerSystemView(context, projects);
   registerProjectView(context, projects);
+  registerDoctorView(context, projects);
 
   tryStart();
 }

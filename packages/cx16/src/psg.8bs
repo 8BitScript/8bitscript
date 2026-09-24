@@ -1,0 +1,37 @@
+// @8bitscript/cx16/psg — VERA PSG at VRAM $1F9C0 (write-only; stream bytes).
+import { setVramAddress } from "@8bitscript/cx16";
+
+const PSG_BANK: utinyint = 1;
+const PSG_LOW: usmallint = 0xF9C0;
+
+function writePsg(offset: utinyint, value: utinyint): void {
+    let low: usmallint = PSG_LOW + offset;
+    setVramAddress(PSG_BANK, low, 1);
+    memory.write(0x9F23, value);
+}
+
+export namespace psg {
+    function reset(): void {
+        let v: utinyint = 0;
+        while (v < 16) {
+            writePsg(v * 4 + 2, 0);
+            v = v + 1;
+        }
+    }
+
+    function play(voice: utinyint, note: utinyint, wave: utinyint, volume: utinyint): void {
+        let period: usmallint = 0x1000 - note * 8;
+        if (period < 256) {
+            period = 256;
+        }
+        let base: utinyint = voice * 4;
+        writePsg(base, period % 256);
+        writePsg(base + 1, period / 256);
+        writePsg(base + 2, volume & 15);
+        writePsg(base + 3, wave & 15);
+    }
+
+    function silence(voice: utinyint): void {
+        writePsg(voice * 4 + 2, 0);
+    }
+}

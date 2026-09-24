@@ -29,7 +29,7 @@ const SNIPPET_FORMAT = 2;
 // Both source kinds go to the one language server: `.8bs` and `.8bx` are
 // the same language with two grammars (the second is a superset), and the
 // server tells them apart by the file's extension, not by a second server.
-const LANGUAGE_IDS = ['8bitscript', '8bitextensible'];
+const LANGUAGE_IDS = ['8bitscript', '8bitextensible', '8bitgraphics', '8bitaudio'];
 
 function isEightBitScript(document) {
   return LANGUAGE_IDS.includes(document.languageId);

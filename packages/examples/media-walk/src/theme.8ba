@@ -1,0 +1,21 @@
+instrument lead {
+  waveform pulse
+  polyphony 1
+}
+
+sample blip {
+  source "./blip.wav"
+  fallback { synth noise }
+}
+
+song theme {
+  tempo 120
+  speed 6
+  order { main }
+  pattern main length 16 {
+    track lead {
+      row 0 { note C4; instrument lead; }
+      row 8 { note G4; }
+    }
+  }
+}

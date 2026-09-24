@@ -20,6 +20,18 @@ export const nav = [
     url: '/roadmap',
   },
   {
+    title: 'Setup',
+    url: '/setup/',
+    children: [
+      { title: 'VICE', url: '/setup/vice' },
+      { title: 'atari800', url: '/setup/atari8' },
+      { title: 'FCEUX', url: '/setup/nes' },
+      { title: 'Commander X16', url: '/setup/cx16' },
+      { title: 'MEGA65', url: '/setup/mega65' },
+      { title: 'Screenshots', url: '/setup/verify' },
+    ],
+  },
+  {
     title: 'The language, by task',
     url: '/language/',
     children: [
@@ -60,6 +72,14 @@ export const nav = [
   {
     title: 'Reach — which machines a program is for',
     url: '/project/reach',
+  },
+  {
+    title: 'Portable graphics',
+    url: '/project/graphics',
+  },
+  {
+    title: 'Portable audio',
+    url: '/project/audio',
   },
   {
     title: 'Machines on the roadmap',

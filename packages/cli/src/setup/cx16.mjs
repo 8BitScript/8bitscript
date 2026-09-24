@@ -28,7 +28,9 @@ import { reportStep, reportLine } from './report.mjs';
 import { confirm, canPromptInteractively } from './prompt.mjs';
 import {
   CX16_BREW_PACKAGES, CX16_PACMAN_PACKAGES, CX16_AUR_TOOLS,
-  missingBrewPackages, installBrewPackages, missingPacmanPackages, installPacmanPackages, missingPathTools,
+  CX16_APT_PACKAGES, CX16_APT_PATH_TOOLS,
+  missingBrewPackages, installBrewPackages, missingPacmanPackages, installPacmanPackages,
+  missingAptPackages, installAptPackages, missingPathTools, linuxPackageManager,
 } from './deps.mjs';
 import {
   hasBinaryOnPath, isDirOnPath, hasXcodeCommandLineTools, installXcodeCommandLineTools,
@@ -286,6 +288,23 @@ async function ensureDependencies(io, platform) {
     if (!(await io.confirm('  Install with Homebrew now?', { defaultValue: true }))) return { ok: false, detail: hint };
     const result = await installBrewPackages(missing, io.execLive);
     if (result.code !== 0) return { ok: false, detail: 'brew reported an error — see the output above' };
+    return { ok: true, detail: 'installed' };
+  }
+  const linux = linuxPackageManager(io.hasBinary) ?? (platform.packageManager === 'pacman' ? 'pacman' : null);
+  if (linux === 'apt') {
+    const missing = await missingAptPackages(CX16_APT_PACKAGES, io.exec);
+    if (missing.length > 0) {
+      reportLine(`\n  The Commander X16 build needs: ${missing.join(' ')}`);
+      const hint = `run: sudo apt-get install -y ${missing.join(' ')}`;
+      if (!io.canPromptInteractively()) return { ok: false, detail: hint };
+      if (!(await io.confirm('  Install with apt now?', { defaultValue: true }))) return { ok: false, detail: hint };
+      const result = await installAptPackages(missing, io.sudoExec);
+      if (result.code !== 0) return { ok: false, detail: 'apt-get reported an error — see the output above' };
+    }
+    const pathTools = missingPathTools(CX16_APT_PATH_TOOLS, io.hasBinary);
+    if (pathTools.length > 0) {
+      return { ok: false, detail: `${pathTools.join(' and ')} not on PATH — not in Debian/Ubuntu; build lzsa from https://github.com/emmanuel-marty/lzsa (docs/setup/cx16.md)` };
+    }
     return { ok: true, detail: 'installed' };
   }
   // Linux (Arch/Manjaro): official packages via pacman, plus the two

@@ -1090,6 +1090,9 @@ class Lowering {
       if (callee.object.name === 'memory') {
         return this.memoryIntrinsic(node, callee);
       }
+      if (callee.object.name === 'port') {
+        return this.portIntrinsic(node, callee);
+      }
       const args = [];
       for (const argument of node.args) {
         const lowered = this.expression(argument);
@@ -1179,6 +1182,28 @@ class Lowering {
       return { kind: 'memoryRead', address, type: 'utinyint', start: node.start, length: node.length };
     }
     return this.fail(node, `memory.${member} is not compilable yet: only read and write exist`);
+  }
+
+  portIntrinsic(node, callee) {
+    const member = callee.property.name;
+    if (member === 'write') {
+      if (node.args.length !== 2) {
+        return this.fail(node, 'port.write needs exactly two arguments: (port, value)');
+      }
+      const port = this.memoryArgument(node.args[0], 'utinyint');
+      const value = this.memoryArgument(node.args[1], 'utinyint');
+      if (!port || !value) return null;
+      return { kind: 'portWrite', port, value, start: node.start, length: node.length };
+    }
+    if (member === 'read') {
+      if (node.args.length !== 1) {
+        return this.fail(node, 'port.read needs exactly one argument: (port)');
+      }
+      const port = this.memoryArgument(node.args[0], 'utinyint');
+      if (!port) return null;
+      return { kind: 'portRead', port, type: 'utinyint', start: node.start, length: node.length };
+    }
+    return this.fail(node, `port.${member} is not compilable yet: only read and write exist`);
   }
 
   /**

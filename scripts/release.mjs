@@ -212,7 +212,7 @@ if (pending.length === 0) {
       `\n⚠ ${newPackages.length} package(s) have never been published: ${newPackages.map((n) => `@8bitscript/${n}`).join(', ')}.\n` +
         'Publishing these first, in isolation — if this fails, see .github/AGENTS.md ' +
         '("A brand-new package\'s first publish"): npm login as an org owner/member with ' +
-        'publish rights, `cd packages/<name> && npm publish --access public` once, then ' +
+        'publish rights, `cd packages/<name> && pnpm publish --access public --no-git-checks` once, then ' +
         're-dispatch this workflow. Nothing else in this run is touched until this succeeds.\n\n',
     );
     const newFilters = newPackages.flatMap((name) => ['--filter', `./packages/${name}`]);

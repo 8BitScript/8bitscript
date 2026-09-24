@@ -16,7 +16,7 @@ const VERSION_LINE = '### Release 50 ("next") 77f2bab3\n';
 const BOOT_OK = 'Testbench mode...\nRDY\nExit testbench.\n';
 
 /** Fake filesystem + process world. `entries`: path -> {file}|{symlink}|{dir}. */
-function makeWorld({ platform = 'darwin', entries = {}, env = {}, xcode = true, brew = true, brewMissing = [], emulatorBuild, romBuild, pairOk = true, interactive = false, confirmAnswer = true, launcherBoots = true } = {}) {
+function makeWorld({ platform = 'darwin', entries = {}, env = {}, xcode = true, brew = true, brewMissing = [], emulatorBuild, romBuild, pairOk = true, interactive = false, confirmAnswer = true, launcherBoots = true, apt = false, aptMissing = [] } = {}) {
   const fs = { ...entries };
   // Parent directories exist whenever something lives in them, as on a real disk.
   for (const path of Object.keys(entries)) {
@@ -26,7 +26,12 @@ function makeWorld({ platform = 'darwin', entries = {}, env = {}, xcode = true, 
   const calls = { exec: [], live: [], sudo: [], build: [], confirms: [] };
   const missing = () => Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
   const stats = (e) => ({ isSymbolicLink: () => 'symlink' in e, isFile: () => 'file' in e, size: 'file' in e ? Buffer.byteLength(e.file) : 0 });
-  const hasBinary = (name) => (name === 'brew' ? brew : ['cc65', 'lzsa'].includes(name));
+  const hasBinary = (name) => {
+    if (name === 'brew') return brew;
+    if (name === 'apt-get') return apt;
+    if (name === 'pacman') return platform === 'linux' && !apt;
+    return ['cc65', 'lzsa'].includes(name);
+  };
   const io = {
     platform,
     env: { PATH: '/usr/local/bin:/usr/bin', ...env },
@@ -47,6 +52,11 @@ function makeWorld({ platform = 'darwin', entries = {}, env = {}, xcode = true, 
     exec: async (cmd, args) => {
       calls.exec.push([cmd, args]);
       if (cmd === 'xcode-select') return { code: xcode ? 0 : 2, stdout: '', stderr: '', missing: false };
+      if (cmd === 'dpkg-query') {
+        const pkg = args[args.length - 1];
+        if (aptMissing.includes(pkg)) return { code: 1, stdout: '', stderr: '', missing: false };
+        return { code: 0, stdout: 'install ok installed', stderr: '', missing: false };
+      }
       if (cmd === 'brew') {
         if (!brew) return { missing: true, code: null, stdout: '', stderr: '' };
         const asked = args.slice(2);
@@ -350,10 +360,29 @@ test('Linux: a wrapper left by a macOS-style install is treated as ours and swap
 
 test('Linux: cc65/lzsa (AUR-only) missing from PATH is reported with the pamac command', async () => {
   const { io } = makeWorld({ platform: 'linux' });
-  io.hasBinary = () => false;
+  io.hasBinary = (name) => name === 'pacman';
   const { result, output } = await runSetup(io);
   assert.equal(result.ok, false);
   assert.match(output, /run: pamac build cc65 lzsa/);
+});
+
+test('Ubuntu: apt-get is the build-dep path, and the launcher is still the Linux symlink', async () => {
+  const { io, fs, calls } = makeWorld({ platform: 'linux', apt: true });
+  const { result, output } = await runSetup(io);
+  assert.equal(result.ok, true, output);
+  assert.deepEqual(fs['/usr/local/bin/x16emu'], { symlink: '/opt/commander-x16/x16emu' });
+  assert.ok(calls.exec.some(([c]) => c === 'dpkg-query'));
+  assert.ok(!calls.exec.some(([c]) => c === 'pacman' || c === 'brew'));
+});
+
+test('Ubuntu: lzsa is not in apt — setup names the source repo, not pamac', async () => {
+  const { io } = makeWorld({ platform: 'linux', apt: true });
+  io.hasBinary = (name) => name === 'apt-get';
+  const { result, output } = await runSetup(io);
+  assert.equal(result.ok, false);
+  assert.match(output, /lzsa/);
+  assert.match(output, /emmanuel-marty\/lzsa/);
+  assert.doesNotMatch(output, /pamac/);
 });
 
 test('unsupported platform: says so and does nothing', async () => {

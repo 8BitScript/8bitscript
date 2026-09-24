@@ -97,6 +97,29 @@ test('run() with a baseline and a mistyped machine still prints usage, not the b
   }
 });
 
+test('run() --screenshot of a deferred machine still tries capture', async () => {
+  const dir = await mkdtemp(join(tmpdir(), '8bs-run-test-'));
+  const prev = process.cwd();
+  try {
+    await writeFile(join(dir, 'main.8bs'), SUM);
+    await writeFile(join(dir, '8bitscript.config.ts'), 'export default { entry: "main.8bs", targets: { vectrex: {} } };\n');
+    process.chdir(dir);
+    const shot = join(dir, 'out.png');
+    const { result, stdout, stderr } = await capture(() => run(['vectrex', 'main.8bs', '--screenshot', shot]));
+    assert.match(stdout, /^built /);
+    if (result === 0) {
+      assert.equal(existsSync(shot), true, 'a successful capture writes the PNG');
+    } else {
+      assert.equal(result, 1);
+      assert.match(stderr, /vecx|cannot start|macOS|window/i);
+      assert.equal(existsSync(shot), false, 'a failed capture must not leave a PNG');
+    }
+  } finally {
+    process.chdir(prev);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test('run() --screenshot to an unwritable path reports the error and returns 1', async () => {
   const dir = await mkdtemp(join(tmpdir(), '8bs-run-test-'));
   const prev = process.cwd();
@@ -173,6 +196,52 @@ test('emulatorInvocation names a target with no emulator wired up', async () => 
   const invocation = await emulatorInvocation('made-up', { pal: false, hardware: { run: {} } });
   assert.equal(invocation.ok, false);
   assert.match(invocation.error, /no emulator wired up for target 'made-up'/);
+});
+
+test('emulatorInvocation for plus4 is VICE xplus4 with autostart', async () => {
+  const { hardware } = resolveHardware(loadCatalog('plus4'));
+  const invocation = await emulatorInvocation('plus4', { pal: false, hardware, outFile: '/tmp/x.prg' });
+  assert.equal(invocation.ok, true);
+  assert.equal(invocation.emulator, 'xplus4');
+  assert.ok(invocation.emulatorArgs.includes('-autostart'));
+  assert.ok(invocation.emulatorArgs.includes('/tmp/x.prg'));
+});
+
+test('emulatorInvocation for a dedicated emulator hands it the file', async () => {
+  const { hardware } = resolveHardware(loadCatalog('atari2600'));
+  const invocation = await emulatorInvocation('atari2600', { pal: false, hardware, outFile: '/tmp/x.a26' });
+  assert.equal(invocation.ok, true);
+  assert.equal(invocation.emulator, 'stella');
+  assert.deepEqual(invocation.emulatorArgs.slice(-1), ['/tmp/x.a26']);
+});
+
+test('emulatorInvocation for MAME names the system once, without a software-list positional', async () => {
+  const { hardware } = resolveHardware(loadCatalog('apple2'));
+  const invocation = await emulatorInvocation('apple2', { pal: false, hardware, outFile: '/tmp/x.bin' });
+  assert.equal(invocation.ok, true);
+  assert.equal(invocation.emulator, 'mame');
+  assert.equal(invocation.emulatorArgs[0], 'apple2e');
+  assert.equal(invocation.emulatorArgs.filter((a) => a === 'apple2e').length, 1);
+  assert.ok(!invocation.emulatorArgs.includes('/tmp/x.bin'), 'a host file is not a software-list name');
+});
+
+test('emulatorInvocation for a MAME cartridge machine passes -cart', async () => {
+  const { hardware } = resolveHardware(loadCatalog('coleco'));
+  const invocation = await emulatorInvocation('coleco', { pal: false, hardware, outFile: '/tmp/x.col' });
+  assert.equal(invocation.ok, true);
+  assert.equal(invocation.emulator, 'mame');
+  assert.equal(invocation.emulatorArgs[0], 'coleco');
+  const cart = invocation.emulatorArgs.indexOf('-cart');
+  assert.ok(cart >= 0, invocation.emulatorArgs.join(' '));
+  assert.equal(invocation.emulatorArgs[cart + 1], '/tmp/x.col');
+});
+
+test('emulatorInvocation for atari5200 is atari800 with -5200', async () => {
+  const { hardware } = resolveHardware(loadCatalog('atari5200'));
+  const invocation = await emulatorInvocation('atari5200', { pal: false, hardware, outFile: '/tmp/x.bin' });
+  assert.equal(invocation.ok, true);
+  assert.equal(invocation.emulator, 'atari800');
+  assert.ok(invocation.emulatorArgs.includes('-5200'));
 });
 
 test('boot() returns 2 and writes the error when --hardware/--profile parsing fails', async () => {

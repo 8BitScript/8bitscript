@@ -145,6 +145,39 @@ test('diagnostics still work: a friendly-name range error is reported', async ()
   });
 });
 
+test('an .8bg buffer: a media diagnostic reaches the editor with its own range', async () => {
+  await withServer(async (client) => {
+    await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
+    client.notify('initialized', {});
+
+    const text = 'sprite player {\n  size 16x16\n}\n';
+    client.notify('textDocument/didOpen', {
+      textDocument: { uri: 'untitled:Untitled-1', languageId: '8bitgraphics', version: 1, text },
+    });
+
+    const published = await client.waitForNotification('textDocument/publishDiagnostics');
+    const missing = published.params.diagnostics.find((d) => d.code === '8BS2108');
+    assert.ok(missing, JSON.stringify(published.params.diagnostics));
+    assert.match(missing.message, /source/);
+  });
+});
+
+test('an .8ba buffer: a missing fallback diagnostic reaches the editor', async () => {
+  await withServer(async (client) => {
+    await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
+    client.notify('initialized', {});
+
+    const text = 'sample blip {\n  source "./blip.wav"\n}\n';
+    client.notify('textDocument/didOpen', {
+      textDocument: { uri: 'untitled:Untitled-1', languageId: '8bitaudio', version: 1, text },
+    });
+
+    const published = await client.waitForNotification('textDocument/publishDiagnostics');
+    const missing = published.params.diagnostics.find((d) => d.code === '8BS2205');
+    assert.ok(missing, JSON.stringify(published.params.diagnostics));
+  });
+});
+
 test('an .8bx buffer: a diagnostic inside an attribute expression reaches the editor with its own range', async () => {
   await withServer(async (client) => {
     await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
@@ -188,6 +221,28 @@ test('textDocument/hover returns the compiler-owned documentation', async () => 
     assert.equal(response.result.contents.kind, 'markdown');
     assert.match(response.result.contents.value, /Unsigned 1-byte integer/);
     assert.match(response.result.contents.value, /Low-level alias: u8/);
+  });
+});
+
+test('textDocument/hover on port.write shows the port I/O docs', async () => {
+  await withServer(async (client) => {
+    await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
+    client.notify('initialized', {});
+
+    const text = 'export function main(): void { port.write(0xFE, 0); }\n';
+    client.notify('textDocument/didOpen', {
+      textDocument: { uri: URI, languageId: '8bitscript', version: 1, text },
+    });
+    await client.waitForNotification('textDocument/publishDiagnostics');
+
+    const response = await client.request('textDocument/hover', {
+      textDocument: { uri: URI },
+      position: positionAt(text, text.indexOf('write') + 2),
+    });
+
+    assert.ok(response.result);
+    assert.match(response.result.contents.value, /port.write/);
+    assert.match(response.result.contents.value, /OUT/);
   });
 });
 

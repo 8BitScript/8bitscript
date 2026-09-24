@@ -32,6 +32,7 @@ import { FACTS } from '../fold/facts.mjs';
 import { SymbolKind } from '../binder/index.mjs';
 import { machineOfVariant } from '../resolver/index.mjs';
 import { MACHINES, sourceKindOf } from '../source/index.mjs';
+import { isMediaKind } from '../media/kinds.mjs';
 import {
   bindModule, bxPosition, propsOf, resolvePortableModule, scopeAt, symbolAt, symbolMarkdown, visibleSymbols,
 } from './symbols.mjs';
@@ -272,6 +273,19 @@ const MEMORY_DOCS = {
     'This is the low-level equivalent of `PEEK` on Commodore BASIC systems.',
     '',
     'Prefer a machine API such as `screen` when one exists for what you are trying to do.',
+  ].join('\n'),
+};
+
+const PORT_DOCS = {
+  write: [
+    '**port.write(port, value)**',
+    '',
+    'Writes one byte to a CPU I/O port (`OUT` on the Z80). Memory-mapped machines have no ports — use `memory.write`.',
+  ].join('\n'),
+  read: [
+    '**port.read(port)**',
+    '',
+    'Reads one byte from a CPU I/O port (`IN` on the Z80). Memory-mapped machines have no ports — use `memory.read`.',
   ].join('\n'),
 };
 
@@ -767,6 +781,7 @@ function machineFor(path, options) {
  * @returns {{ start: number, length: number, markdown: string } | null}
  */
 export function getHoverInfo(text, offset, options = {}) {
+  if (isMediaKind(kindOf(options))) return null;
   const { tokens } = tokenize(text, options.path ?? '<unknown>', { sourceKind: kindOf(options) });
   const machine = machineFor(options.path, options);
   const resolverOptions = { checkout: options.checkout, importAliases: options.importAliases };
@@ -853,6 +868,9 @@ function hoverAt(tokens, offset, text, filePath, resolverOptions = {}, machine =
     const object = tokens[index - 2];
     if (dot?.text === '.' && object?.kind === TokenKind.Identifier && object.text === 'memory') {
       return { start: token.start, length: token.length, markdown: MEMORY_DOCS[token.text] };
+    }
+    if (dot?.text === '.' && object?.kind === TokenKind.Identifier && object.text === 'port') {
+      return { start: token.start, length: token.length, markdown: PORT_DOCS[token.text] };
     }
   }
 
@@ -1044,6 +1062,7 @@ function memberPosition(tokens, offset) {
  */
 export function getCompletions(text, offset, options = {}) {
   const sourceKind = kindOf(options);
+  if (isMediaKind(sourceKind)) return [];
   const { tokens } = tokenize(text, options.path ?? '<unknown>', { sourceKind });
   const machine = machineFor(options.path, options);
   const resolverOptions = { checkout: options.checkout, importAliases: options.importAliases };

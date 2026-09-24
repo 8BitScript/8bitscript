@@ -28,7 +28,7 @@ export default defineConfig({
 
 | Key | Meaning |
 | --- | --- |
-| `entry` | The single `.8bs` file a build starts from. An `.8bx` here is refused by name ([§3](boundary.md)). Sugar for `programs.main` — see [§4.2](#42-build-several-programs-in-one-project). |
+| `entry` | The single `.8bs` file a build starts from. An `.8bx`, `.8bg`, or `.8ba` here is refused by name ([§3](boundary.md)). Sugar for `programs.main` — see [§4.2](#42-build-several-programs-in-one-project). |
 | `programs` | Several programs in one project, each its own build. Cannot be given together with `entry`. [§4.2](#42-build-several-programs-in-one-project). |
 | `images` | Disk images over built programs. Checked every build, written by a later release. [§4.3](#43-package-a-cartridge-or-a-disk-image). |
 | `bx` | `{ strict: false }` turns off the `8BS2021` ordinary-code lint ([§2.7](composition.md#27-the-purity-rule-whats-refused-and-linted-in-8bx)). The hard rules stay regardless. |
@@ -102,7 +102,7 @@ A system is `{ target, profile?, hardware?, region? }`, reached everywhere by `-
 | `8bs run <t>` | Builds and boots in the real emulator (or a browser tab for `web`). No `<t>` runs the config's `baseline`, when it names one. `--screenshot <file.png> --frames <n>` for a headless capture instead of an interactive window. |
 | `8bs targets [--json]` | Lists every target and its hardware catalog, the project's systems, floor and baseline; `--json` is what the editor reads. |
 | `8bs boot <t>` | Opens the target's own emulator fitted with `--profile`/`--hardware`/`--pal` exactly as `8bs run` would, but loads nothing: the stock machine booting to its own prompt. For checking a hardware combination boots before spending a build on it. Refused for `web`, which has no emulator without a program. |
-| `8bs doctor` | Checks Node, pnpm, git, and the emulators are in place. A FAIL on pnpm, a packaged emulator, or cx16/mega65 offers `[i]` to install it (`npx get-pnpm`, brew/apt/pacman, or `8bs setup <target>`). A GUI-launched editor does not read `.zshrc`; doctor still finds pnpm in the installer's real location (`~/Library/pnpm` on macOS). |
+| `8bs doctor` | Checks Node, pnpm, git, and the emulators are in place. A FAIL on pnpm, or a missing packaged emulator doctor can install, offers `[i]` / `[s]` / `[a]` / `[q]` to install it (`npx get-pnpm`, brew/apt/pacman, or `8bs setup <target>`). `--install` runs the offers without a prompt. `--want vice,atari800` narrows the offer; the report still lists every machine. A GUI-launched editor does not read `.zshrc`; doctor still finds pnpm in the installer's real location (`~/Library/pnpm` on macOS). |
 | `8bs setup <mega65\|cx16>` | Builds that machine's emulator and installs a ROM. |
 | `8bs controller` | Finds the pad plugged into this machine and writes down what its buttons are called. |
 | `8bs lsp` | The language server, on stdio. |

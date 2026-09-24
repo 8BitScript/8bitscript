@@ -1,0 +1,10 @@
+// Studio's top row: one blank bar across the grid, colored by menubar.
+// The mark in the corner is mark.8bg — not menubar.icon() — so the same
+// bar stays a row of cells while the logo can be a real picture.
+import { menubar } from "@8bitscript/ui/menubar";
+import { text } from "@8bitscript/text";
+
+export component StudioBar() {
+    menubar.begin(0, text.COLUMNS);
+    menubar.end();
+}

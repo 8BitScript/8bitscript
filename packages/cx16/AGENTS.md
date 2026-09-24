@@ -1,11 +1,10 @@
 # Writing Commander X16 support for 8BitScript
 
-> **Parked in 0.2.0.** This machine is not a build target in the current
-> release: `8bs build` refuses it until its native backend lands
-> (`RELEASE_MACHINES` in `packages/compiler/src/resolver`). The package
-> stays in the workspace, its sources still link, and everything below is
-> still the guide for when it returns. The 0.2.0 work is the PET and the
-> web; see the "Hello, PET" roadmap.
+> **This release builds this machine.** `8bs build` and `8bs run` produce
+> a program while `cx16` is listed in `RELEASE_MACHINES`
+> (`packages/compiler/src/resolver`). The package stays the guide for
+> extending it; other roadmap ids are out of `RELEASE_MACHINES` until the
+> narrow release widens again (see root [`AGENTS.md`](../../AGENTS.md)).
 
 This file is for anyone — human or agent — touching `packages/cx16`,
 `packages/compiler/src/mos`'s `cx16` entries, `packages/cli/src/setup/cx16.mjs`,

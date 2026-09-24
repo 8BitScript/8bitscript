@@ -163,7 +163,16 @@ export function resolveCheckout(projectDir, { flag, env = process.env } = {}) {
     env.EIGHTBITSCRIPT_CHECKOUT,
     file?.checkout,
   ].find((value) => typeof value === 'string' && value !== '');
-  if (!named) return { ok: true, checkout: null };
+  if (!named) {
+    let walk = projectDir;
+    while (walk) {
+      if (isCheckout(walk)) return { ok: true, checkout: walk };
+      const parent = dirname(walk);
+      if (parent === walk) break;
+      walk = parent;
+    }
+    return { ok: true, checkout: null };
+  }
   const dir = isAbsolute(named) ? named : resolve(projectDir, named);
   if (!isCheckout(dir)) {
     return {

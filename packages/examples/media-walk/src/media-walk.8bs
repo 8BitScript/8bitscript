@@ -1,0 +1,19 @@
+import { screen } from "@8bitscript/screen";
+import { audio } from "@8bitscript/audio";
+import { graphics } from "@8bitscript/graphics";
+import { Walk } from "./Walk.8bx";
+import { chime } from "./chime.8ba";
+import { mark } from "./mark.8bg";
+import { sprites } from "@8bitscript/sprites";
+
+export function main(): void {
+    screen.blank();
+    Walk();
+    graphics.place(mark, sprites.ORIGIN_X + 120, sprites.ORIGIN_Y);
+    audio.play(chime);
+    while (true) {
+        waitFrame();
+        graphics.update();
+        audio.update();
+    }
+}

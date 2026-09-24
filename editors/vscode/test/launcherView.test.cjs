@@ -150,3 +150,21 @@ test('the view draws the Studio block and lets the page run openStudio, and only
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+const { warningFor, emulatorIsReady } = require('../src/launcherView.cjs');
+
+test('warningFor greys Run when the emulator is missing, and names it', () => {
+  const project = { name: 'game', targets: ['atari8', 'cx16'], toolchain: '/bin/8bs', packageManager: 'pnpm' };
+  assert.equal(warningFor(project, 'atari8'), null);
+  assert.equal(
+    warningFor(project, 'atari8', { doctor: { notInstalled: ['atari8'], failed: [] }, emulator: 'atari800' }),
+    'atari800 is not installed. Run 8bs doctor.',
+  );
+  assert.equal(
+    warningFor(project, 'cx16', { doctor: { notInstalled: [], failed: ['cx16'] }, emulator: 'x16emu' }),
+    'x16emu is installed but cannot boot. Run 8bs doctor.',
+  );
+  assert.equal(emulatorIsReady({ notInstalled: ['atari8'], failed: [] }, 'atari8'), false);
+  assert.equal(emulatorIsReady({ notInstalled: ['atari8'], failed: [] }, 'pet'), true);
+  assert.equal(emulatorIsReady(null, 'atari8'), true, 'no report yet: do not grey on a guess');
+});

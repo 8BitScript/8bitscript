@@ -1883,6 +1883,8 @@ class Lowerer {
         this.emit(...parsed.directives.map((directive) => this.frameOperand(directive)));
         return null;
       }
+      case 'portWrite':
+        throw new LowerError('port.write is Z80 / SM83 port I/O — this 6502 has none; use memory.write for a memory-mapped register');
       default:
         throw new LowerError(`no instruction-selection rule yet for the '${node.kind}' statement — it lands in a later milestone`);
     }

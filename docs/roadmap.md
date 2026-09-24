@@ -6,31 +6,37 @@ nav_order: 1
 # Roadmap
 
 This page is the order in which 8BitScript takes on target machines, and
-why. It is a plan. What compiles today is [the home page](index.md):
-release 0.11.0 builds for nine targets — `pet`, `vic20`, `c64`, `c128`,
-`cx16`, `mega65`, `atari8`, `nes`, and `web`.
+why. It is a plan. What **builds and runs in this release** is [the home
+page](index.md): `RELEASE_MACHINES` is **`pet`, `vic20`, `c64`, `cx16`,
+and `web`** only.
 
-Phases are not releases. They are the order the work happens in. Phases
-1–4 are the nine machines that build. Phases 5–10 have no package, no
-image, and no `8bs run`.
+Phases are not releases. They are the order the work happened in.
+Phases 1–10 each have a package and a hello-world image: every id in
+`MACHINES` still compiles under `8bs check`. Only the five release targets
+get `8bs build` and `8bs run` today. Widening `RELEASE_MACHINES` again —
+back to the original nine, then the remaining roadmap machines — is
+planned after this narrow release is polished. Emulator wiring for ids
+outside the five (MAME ROM sets, BIOS files, deferred `8bs run` hosts) is
+unchanged in the tree; `--screenshot` still captures when the emulator is
+installed (VICE, MAME, openMSX, or macOS window capture).
 
 ## The phases at a glance
 
 | Phase | Targets | State |
 | ----- | ------- | ----- |
-| 1 | `web`, `vic20`, `c64` | builds |
-| 2 | `pet`, `c128` | builds |
-| 3 | `atari8`, `nes` | builds |
-| 4 | `cx16`, `mega65` | builds |
-| 5 | `apple2`, `plus4`, `bbc`, `oric` | not built |
-| 6 | `atari5200`, `atari7800`, `lynx`, `pcengine`, `supervision` | not built |
-| 7 | `atari2600` | not built |
-| 8 | `gameboy`, `gameboycolor`, then the Z80 machines | not built |
-| 9 | `coco`, `vectrex` | not built |
-| 10 | `odyssey2`, `channelf` | not built |
+| 1 | `web`, `vic20`, `c64` | release: `web`, `vic20`, `c64` |
+| 2 | `pet`, `c128` | release: `pet`; `c128` compiles |
+| 3 | `atari8`, `nes` | compiles (backend builds; not in `RELEASE_MACHINES`) |
+| 4 | `cx16`, `mega65` | release: `cx16`; `mega65` compiles |
+| 5 | `apple2`, `plus4`, `bbc`, `oric` | compiles; emulator deferred |
+| 6 | `atari5200`, `lynx`, `pce`, `supervision` | compiles; emulator deferred |
+| 7 | `atari2600`, `atari7800` | compiles; emulator deferred |
+| 8 | `gb`, `gbc`, `sms`, `gamegear`, `sg1000`, `msx`, `coleco`, `spectrum`, `cpc` | compiles; emulator deferred |
+| 9 | `coco`, `vectrex` | compiles; emulator deferred |
+| 10 | `odyssey2`, `channelf` | compiles; emulator deferred |
 
 The Z80 machines in phase 8 are `sms`, `gamegear`, `sg1000`,
-`zxspectrum`, `msx` (MSX1), `cpc`, and `coleco`. Research for everything
+`spectrum`, `msx` (MSX1), `cpc`, and `coleco`. Research for everything
 that does not build yet is under
 [machines on the roadmap](project/machines/index.md).
 
@@ -42,7 +48,7 @@ decide it.
 
 The PC Engine / TurboGrafx-16 stays in phase 6. Its HuC6280 is a 65C02
 core with an MMU and a handful of extra instructions
-([pcengine.md](project/machines/pcengine.md)). That is an 8-bit CPU
+([pce.md](project/machines/pce.md)). That is an 8-bit CPU
 with a wider address space. Adding it is a variant of the MOS backend.
 Those extra instructions are not lowered today.
 
@@ -119,7 +125,7 @@ a start-up stub, and a file writer. The research is in
 
 ## Phase 6: specialist consoles
 
-Add: `atari5200`, `atari7800`, `lynx`, `pcengine`, `supervision`.
+Add: `atari5200`, `atari7800`, `lynx`, `pce`, `supervision`.
 
 Each is still a 6502-family CPU, with video and I/O that share no
 family with the machines already supported:
@@ -148,13 +154,13 @@ the language has kept its promise.
 
 ## Phase 8: the SM83 and the Z80
 
-Add `gameboy` and `gameboycolor` first, then one Z80 backend for seven
+Add `gb` and `gbc` first, then one Z80 backend for seven
 machines.
 
-`gameboycolor` is its own target. Double speed, the second VRAM bank,
+`gbc` is its own target. Double speed, the second VRAM bank,
 banked WRAM, and the Color palettes are facts of that machine. They are
-not a hardware option on `gameboy`. Both targets share one SM83
-lowering. See [gameboy.md](project/machines/gameboy.md).
+not a hardware option on `gb`. Both targets share one SM83
+lowering. See [gb.md](project/machines/gb.md).
 
 The Z80 machines, one CPU and several video chips:
 
@@ -162,7 +168,7 @@ The Z80 machines, one CPU and several video chips:
 | ------- | --------------- |
 | `sms`, `gamegear` | The Sega VDP. The Game Gear is a Master System with a smaller window, a Start button, and stereo. These two share the most implementation of anything in the phase. |
 | `sg1000`, `msx`, `coleco` | A TMS9918-family VDP. `msx` is MSX1. MSX2's V9938 is a different video chip and is not a further target. The SG-1000 is not a Master System. |
-| `zxspectrum` | A bitmap and an attribute grid. No sprites. |
+| `spectrum` | A bitmap and an attribute grid. No sprites. |
 | `cpc` | A packed-pixel bitmap on a 6845. No sprites on the original Gate Array. |
 
 See [z80-family.md](project/machines/z80-family.md). The Game Boy is not
@@ -173,7 +179,7 @@ in that file: the SM83 has no `IN`/`OUT`.
     |
     +-- MOS backend (the 6502 family, including phase 6)
     |
-    +-- SM83 backend (gameboy, gameboycolor)
+    +-- SM83 backend (gb, gbc)
     |
     +-- Z80 backend (the seven machines above)
 ```

@@ -44,6 +44,7 @@ import { bind, bindImportedComponents } from '../binder/index.mjs';
 import { checkBx } from '../bx/check.mjs';
 import { elaborateBx } from '../bx/elaborate.mjs';
 import { sourceKindOf } from '../source/index.mjs';
+import { parseMediaModule, elaborateMedia, isMediaKind } from '../media/index.mjs';
 import { applyCatalogCharset, isCatalogFile } from '../i18n/index.mjs';
 import { lower } from '../ir/index.mjs';
 import { findImports, resolveSpecifier, nativeSourcesBeside } from '../resolver/index.mjs';
@@ -70,6 +71,7 @@ function canonical(path) {
  */
 function parseModule(file, text, diagnostics) {
   const sourceKind = sourceKindOf(file) ?? '.8bs';
+  if (isMediaKind(sourceKind)) return parseMediaModule(file, text, diagnostics, sourceKind);
   const { tokens, diagnostics: lexical } = tokenize(text, file, { sourceKind });
   const { ast, diagnostics: syntax } = parse(tokens, text, file, { sourceKind });
   diagnostics.push(...lexical, ...syntax);
@@ -83,7 +85,11 @@ function parseModule(file, text, diagnostics) {
  * are known: element checks, 8BX elaboration, folding, checking, and
  * lowering to this module's IR.
  */
-function finishModule(module, diagnostics, { frameRate, machine, facts, bx, locale, i18n }) {
+function finishModule(module, diagnostics, { frameRate, machine, facts, bx, locale, i18n, checkout }) {
+  if (module.media) {
+    elaborateMedia(module, diagnostics, { machine, facts, checkout });
+    return module;
+  }
   const { file, text, ast, bound } = module;
   diagnostics.push(...checkBx(ast, file, bound.symbols, { sourceKind: sourceKindOf(file) ?? '.8bs', strict: bx?.strict !== false }));
   elaborateBx(ast, bound.symbols, file);
@@ -130,7 +136,7 @@ function loadGraph(entryText, entryFile, diagnostics, sources, options) {
   // once each however many modules import the package — keyed by canonical
   // path for the same pnpm-symlink reason `byPath` is.
   const nativeSources = new Map();
-  const finishOptions = { frameRate: options.frameRate, machine: options.machine, facts: options.facts, bx: options.bx, locale: options.locale, i18n: options.i18n };
+  const finishOptions = { frameRate: options.frameRate, machine: options.machine, facts: options.facts, bx: options.bx, locale: options.locale, i18n: options.i18n, checkout: options.checkout };
 
   // Whether a module is the program's own: the entry, and whatever it
   // reaches by a relative path or a project alias — never through a bare
@@ -192,7 +198,7 @@ function loadGraph(entryText, entryFile, diagnostics, sources, options) {
       if (!resolved) {
         diagnostics.push(diagnostic(
           Codes.NOT_COMPILABLE,
-          `import specifier '${imp.source}' is not linkable yet: only './file.8bs' or './file.8bx' paths, project import aliases ('@lib/…' from 8bitscript.config.ts), bare package names, and package subpaths ('@scope/name/thing') are specified`,
+          `import specifier '${imp.source}' is not linkable yet: only './file.8bs', './file.8bx', './file.8bg' or './file.8ba' paths, project import aliases ('@lib/…' from 8bitscript.config.ts), bare package names, and package subpaths ('@scope/name/thing') are specified`,
           module.file, imp.start, imp.length,
         ));
         continue;
@@ -1138,6 +1144,24 @@ function hasError(diagnostics) {
   return diagnostics.some((d) => d.severity !== 'warning');
 }
 
+/** Call every media bind function from the entry, so data is in place before main() runs. */
+function injectMediaBinds(ir) {
+  if (!ir.entry) return;
+  const entryFn = ir.functions.find((f) => f.name === ir.entry);
+  if (!entryFn) return;
+  const binds = ir.functions.filter((f) => f.mediaBind);
+  for (const fn of binds) {
+    entryFn.body.unshift({
+      kind: 'call',
+      name: fn.name,
+      args: [],
+      type: 'void',
+      start: 0,
+      length: 0,
+    });
+  }
+}
+
 function checkEntryExports(module) {
   const diagnostics = [];
   const at = (item, message) => diagnostics.push(diagnostic(
@@ -1232,7 +1256,7 @@ export function link(entryText, entryFile, options = {}) {
   // them as native sources and does not yet emit a binary; the web backend
   // has no use for 6502 assembly or CHR data and ignores it).
   const ir = {
-    imports: [], globals: [], functions: [], strings: [], nativeSources,
+    imports: [], globals: [], functions: [], strings: [], nativeSources, chrPatches: [],
     entry: modules[0].rename.get(entry.name),
   };
   for (const module of modules) {
@@ -1317,6 +1341,7 @@ export function link(entryText, entryFile, options = {}) {
       g.name = module.rename.get(g.name);
       ir.globals.push(g);
     }
+    for (const patch of module.ir.chrPatches ?? []) ir.chrPatches.push(patch);
     for (const fn of module.ir.functions) {
       fn.name = module.rename.get(fn.name);
       // A stateful component's template globals, under their output names,
@@ -1337,6 +1362,8 @@ export function link(entryText, entryFile, options = {}) {
       functionFiles.set(fn, module.file);
     }
   }
+
+  injectMediaBinds(ir);
 
   if (hasError(diagnostics)) return { ir: null, diagnostics, sources, factsTested };
   specializeInstances(ir, diagnostics);

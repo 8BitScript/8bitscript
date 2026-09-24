@@ -6,7 +6,7 @@ import { delimiter, join } from 'node:path';
 
 import {
   isDirOnPath, hasBinaryOnPath, resolveOnPath, hasXcodeCommandLineTools, installXcodeCommandLineTools,
-  extraHostBinDirs, hostPath,
+  extraHostBinDirs, hostPath, DARWIN_APP_BINARIES,
 } from '../src/setup/host.mjs';
 
 test('isDirOnPath: exact entry match, trailing slash tolerated, empty PATH is false', () => {
@@ -85,4 +85,12 @@ test('hostPath: appends well-known bins after PATH', () => {
   const search = hostPath({ PATH: '/usr/bin' }, '/Users/me', 'darwin');
   assert.ok(search.startsWith(`/usr/bin${delimiter}`));
   assert.ok(search.split(delimiter).includes(join('/Users/me', 'Library', 'pnpm', 'bin')));
+});
+
+test('DARWIN_APP_BINARIES: SameBoy and Fuse casks, never the fuse filesystem', () => {
+  assert.deepEqual(Object.keys(DARWIN_APP_BINARIES).sort(), ['fuse', 'sameboy']);
+  assert.ok(DARWIN_APP_BINARIES.sameboy.every((p) => p.includes('SameBoy.app')));
+  assert.ok(DARWIN_APP_BINARIES.fuse.every((p) => p.includes('Fuse.app')));
+  assert.equal(resolveOnPath('sameboy', { PATH: '' }, 'linux'), null);
+  assert.equal(resolveOnPath('fuse', { PATH: '' }, 'linux'), null);
 });

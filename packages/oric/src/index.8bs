@@ -1,0 +1,2 @@
+// @8bitscript/oric — Oric-1 / Atmos hardware underneath the portable APIs.
+// Registers a program names sit in this package; screen/text/input import them.

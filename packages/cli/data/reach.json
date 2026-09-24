@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "refreshed": "2026-09-20",
+ "refreshed": "2026-09-23",
  "method": "docs/project/reach.md — every figure carries source+asOf; verify:true marks a figure no fetched source confirmed; units figures are ranges where sources disagree. Reddit was unreachable (403) from the research environment: every subreddit figure is a third-party mirror and marked verify.",
  "systems": {
   "pet": {
@@ -2125,8 +2125,7 @@
    }
   },
   "plus4": {
-   "status": "roadmap",
-   "phase": 5,
+   "status": "builds",
    "name": "Commodore Plus/4, C16, C116 (264 series)",
    "family": "commodore",
    "cpu": "7501/8501 @ ~1.76 MHz (variable)",
@@ -3799,8 +3798,7 @@
    }
   },
   "atari2600": {
-   "status": "roadmap",
-   "phase": 7,
+   "status": "builds",
    "name": "Atari 2600 / VCS",
    "family": "atari",
    "cpu": "6507 @ 1.19 MHz",
@@ -4139,7 +4137,7 @@
      "membersMethod": "not indexed by reddapi.dev",
      "members2023": 7957,
      "members2023CheckedOn": "2023-12-16",
-     "members2023Source": "https://subredditstats.com/r/atari2600",
+     "members2023Source": "https://subredditstats.com/r/a26",
      "redditDirect": "BLOCKED: reddit.com/old.reddit.com about.json and HTML returned 403 / JS-challenge / login redirect from this host on 2026-09-20; redlib mirrors bot-walled",
      "asOf": "2026-09-20",
      "others": [
@@ -4148,12 +4146,12 @@
        "members": 20964,
        "members2023": 12859,
        "members2023CheckedOn": "2023-12-16",
-       "source": "https://subredditstats.com/r/atari2600",
+       "source": "https://subredditstats.com/r/a26",
        "asOf": "2026-09-20",
        "verify": true
       }
      ],
-     "source": "https://subredditstats.com/r/atari2600"
+     "source": "https://subredditstats.com/r/a26"
     },
     "itchio": {
      "tag": "atari-2600",
@@ -4162,10 +4160,10 @@
      "source": "https://itch.io/games/tag-atari-2600",
      "asOf": "2026-09-20",
      "alternates": {
-      "atari2600": 126,
+      "a26": 126,
       "vcs": 150
      },
-     "note": "\"atari2600\" 126; \"vcs\" 150 is ambiguous (also the 2021 Atari VCS console)"
+     "note": "\"a26\" 126; \"vcs\" 150 is ambiguous (also the 2021 Atari VCS console)"
     },
     "misterCore": {
      "url": "https://github.com/MiSTer-devel/Atari2600_MiSTer",
@@ -4246,8 +4244,7 @@
    }
   },
   "atari5200": {
-   "status": "roadmap",
-   "phase": 6,
+   "status": "builds",
    "name": "Atari 5200 SuperSystem",
    "family": "atari",
    "cpu": "SALLY (custom 6502C) @ 1.79 MHz; ANTIC/GTIA/POKEY; 16 KB RAM",
@@ -4280,7 +4277,7 @@
    },
    "activity": {
     "subreddit": {
-     "name": "r/atari5200",
+     "name": "r/a52",
      "members": null,
      "asOf": "2026-09-20",
      "source": "reddit.com and old.reddit.com blocked for fetch; web search returned no member-count snippet",
@@ -4481,7 +4478,7 @@
     "notes": "32 KB cart window standard; bankswitching used by a few titles (Bounty Bob Strikes Back) and homebrew. 16 KB RAM fixed. 4-port (1982) vs 2-port (1983) console revisions differ in controller port count only."
    },
    "toVerify": [
-    "r/atari5200 subscriber count (reddit blocked)",
+    "r/a52 subscriber count (reddit blocked)",
     "AtariAge Store 5200 homebrew product count (collection page renders no count)",
     "AtariMax 5200 Ultimate SD and UnoCart-5200 formats/availability (vendor 403 / repo 404)",
     "existence of a 5200-mode web emulator",
@@ -4495,7 +4492,7 @@
      "membersMethod": "not indexed by reddapi.dev",
      "members2023": 902,
      "members2023CheckedOn": "2023-12-17",
-     "members2023Source": "https://subredditstats.com/r/atari5200",
+     "members2023Source": "https://subredditstats.com/r/a52",
      "redditDirect": "BLOCKED: reddit.com/old.reddit.com about.json and HTML returned 403 / JS-challenge / login redirect from this host on 2026-09-20; redlib mirrors bot-walled",
      "asOf": "2026-09-20",
      "others": [
@@ -4504,12 +4501,12 @@
        "members": 20964,
        "members2023": 12859,
        "members2023CheckedOn": "2023-12-16",
-       "source": "https://subredditstats.com/r/atari5200",
+       "source": "https://subredditstats.com/r/a52",
        "asOf": "2026-09-20",
        "verify": true
       }
      ],
-     "source": "https://subredditstats.com/r/atari5200"
+     "source": "https://subredditstats.com/r/a52"
     },
     "itchio": {
      "tag": "atari-5200",
@@ -4577,8 +4574,7 @@
    }
   },
   "atari7800": {
-   "status": "roadmap",
-   "phase": 6,
+   "status": "builds",
    "name": "Atari 7800 ProSystem",
    "family": "atari",
    "cpu": "SALLY (custom 6502C) @ 1.79 MHz NTSC / 1.77 MHz PAL; MARIA graphics; TIA sound (POKEY/YM2151 optional in-cart); 4 KB RAM",
@@ -4913,7 +4909,7 @@
      "membersMethod": "not indexed by reddapi.dev",
      "members2023": 1069,
      "members2023CheckedOn": "2023-12-17",
-     "members2023Source": "https://subredditstats.com/r/atari7800",
+     "members2023Source": "https://subredditstats.com/r/a78",
      "redditDirect": "BLOCKED: reddit.com/old.reddit.com about.json and HTML returned 403 / JS-challenge / login redirect from this host on 2026-09-20; redlib mirrors bot-walled",
      "asOf": "2026-09-20",
      "others": [
@@ -4922,12 +4918,12 @@
        "members": 20964,
        "members2023": 12859,
        "members2023CheckedOn": "2023-12-16",
-       "source": "https://subredditstats.com/r/atari7800",
+       "source": "https://subredditstats.com/r/a78",
        "asOf": "2026-09-20",
        "verify": true
       }
      ],
-     "source": "https://subredditstats.com/r/atari7800"
+     "source": "https://subredditstats.com/r/a78"
     },
     "itchio": {
      "tag": "atari-7800",
@@ -4959,7 +4955,7 @@
     "webEmulator": {
      "exists": true,
      "dedicated": true,
-     "name": "8bitworkshop (atari7800)",
+     "name": "8bitworkshop (a78)",
      "url": "https://8bitworkshop.com/",
      "others": [
       {
@@ -5002,8 +4998,7 @@
    }
   },
   "lynx": {
-   "status": "roadmap",
-   "phase": 6,
+   "status": "builds",
    "name": "Atari Lynx",
    "family": "atari",
    "cpu": "Mikey (VLSI VL65NC02, 65C02 core) @ up to 4 MHz (~3.6 MHz avg); 65SC02 in Lynx II",
@@ -5436,8 +5431,7 @@
    }
   },
   "apple2": {
-   "status": "roadmap",
-   "phase": 5,
+   "status": "builds",
    "name": "Apple II family (II / II+ / IIe / IIc / IIgs)",
    "family": "apple",
    "cpu": "6502 @ 1.023 MHz (II/II+/IIe); 65C02 @ 1.023 MHz (Enhanced IIe, IIc); 65C02 @ 1–4 MHz (IIc Plus); 65C816 @ 2.8 MHz (IIgs)",
@@ -5880,8 +5874,7 @@
    }
   },
   "bbc": {
-   "status": "roadmap",
-   "phase": 5,
+   "status": "builds",
    "name": "BBC Micro / Acorn Electron",
    "family": "acorn",
    "cpu": "6502 @ 2 MHz (BBC B/Master 65C02); Electron 6502 @ 2 MHz nominal, RAM-throttled to ~1 MHz effective",
@@ -6276,8 +6269,7 @@
    }
   },
   "oric": {
-   "status": "roadmap",
-   "phase": 5,
+   "status": "builds",
    "name": "Oric-1 / Oric Atmos",
    "family": "oric",
    "cpu": "6502A @ 1 MHz",
@@ -7020,10 +7012,9 @@
     }
    }
   },
-  "gameboy": {
-   "status": "roadmap",
-   "phase": 8,
-   "name": "Game Boy / Game Boy Color",
+  "gb": {
+   "status": "builds",
+   "name": "GB",
    "family": "nintendo",
    "cpu": "Sharp SM83 (LR35902) @ 4.19/8.38 MHz",
    "years": {
@@ -7065,7 +7056,7 @@
      "name": "r/Gameboy",
      "members": 282004,
      "asOf": "2026-09-20",
-     "source": "https://reddapi.dev/subreddits/gameboy/insights",
+     "source": "https://reddapi.dev/subreddits/gb/insights",
      "verify": true,
      "notes": "reddit.com about.json returned 403 in all attempts; third-party mirror, snapshot date not shown. gummysearch.com/r/Gameboy/ shows \"283k members\" on 2026-09-20; reddit.com (www/old/api about.json and pages) returned HTTP 403 \"blocked by network security\" to curl and WebFetch from this environment on 2026-09-20; figure is from a third-party mirror."
     },
@@ -7079,10 +7070,10 @@
      }
     ],
     "itchio": {
-     "tag": "gameboy",
+     "tag": "gb",
      "gamesTagged": 7836,
      "asOf": "2026-09-20",
-     "source": "https://itch.io/games/tag-gameboy ('(7,836 results)'); likely includes GB Studio output and non-ROM 'Game Boy style' games"
+     "source": "https://itch.io/games/tag-gb ('(7,836 results)'); likely includes GB Studio output and non-ROM 'Game Boy style' games"
     },
     "annualCompos": [
      {
@@ -7308,7 +7299,7 @@
     "notes": "Cartridge-only. Anything over 32KB needs an MBC (MBC1/MBC3/MBC5 common; MBC5 needed for rumble/large ROMs). Save = cart RAM + battery only (or FRAM). Flash carts confirmed for MBC1/2/3/5 (EverDrive-GB X5 page) and MBC1/2/3/5/1M/30 (EZ-Flash Junior reseller spec). itch.io tag count is likely inflated by GB Studio exports."
    },
    "toVerify": [
-    "itch.io tag 'game-boy' showed (173 results) on 2026-09-20 — https://itch.io/games/tag-game-boy; schema allows one tag so 'gameboy' (7,836) recorded.",
+    "itch.io tag 'game-boy' showed (173 results) on 2026-09-20 — https://itch.io/games/tag-game-boy; schema allows one tag so 'gb' (7,836) recorded.",
     "Subreddit count is from third-party mirror reddapi.dev (reddit.com 403'd); snapshot date unknown.",
     "gbdev Discord total member count not exposed; only presence_count (1,228 online) recorded.",
     "Homebrew Hub 1,629 is total entries across all types; per-type game count not obtainable (API type filter returned same total).",
@@ -7326,25 +7317,25 @@
      "membersMethod": "reddapi.dev third-party index, fetched 2026-09-20 (index snapshot date not stated)",
      "members2023": 190311,
      "members2023CheckedOn": "2023-12-18",
-     "members2023Source": "https://subredditstats.com/r/gameboy",
+     "members2023Source": "https://subredditstats.com/r/gb",
      "redditDirect": "BLOCKED: reddit.com/old.reddit.com about.json and HTML returned 403 / JS-challenge / login redirect from this host on 2026-09-20; redlib mirrors bot-walled",
      "asOf": "2026-09-20",
      "others": [],
      "source": "https://reddapi.dev/subreddits/Gameboy/insights"
     },
     "itchio": {
-     "tag": "gameboy",
+     "tag": "gb",
      "gamesTagged": 7836,
      "label": "Game Boy",
-     "source": "https://itch.io/games/tag-gameboy",
+     "source": "https://itch.io/games/tag-gb",
      "asOf": "2026-09-20",
      "alternates": {
       "game-boy": 173,
       "gbc": 109,
       "game-boy-color": 26,
-      "gameboy-color": 115
+      "gb-color": 115
      },
-     "note": "itch label \"Game Boy\"; \"gbc\" 109, \"gameboy-color\" 115, \"game-boy\" 173"
+     "note": "itch label \"Game Boy\"; \"gbc\" 109, \"gb-color\" 115, \"game-boy\" 173"
     },
     "misterCore": {
      "url": "https://github.com/MiSTer-devel/Gameboy_MiSTer",
@@ -7383,7 +7374,7 @@
      "collectionItems": null,
      "browserPlayableItems": 869,
      "emulatorIds": [
-      "gameboy",
+      "gb",
       "gbcolor"
      ],
      "source": "https://archive.org/advancedsearch.php (identifier:softwarelibrary* collection list; emulator:<id> item counts), 2026-09-20",
@@ -7412,9 +7403,8 @@
     }
    }
   },
-  "pcengine": {
-   "status": "roadmap",
-   "phase": 6,
+  "pce": {
+   "status": "builds",
    "name": "PC Engine / TurboGrafx-16",
    "family": "nec",
    "cpu": "HuC6280 (65C02-derived) @ 7.16 MHz",
@@ -7553,7 +7543,7 @@
      },
      {
       "name": "Analogue Pocket openFPGA PC Engine core (agg23)",
-      "url": "https://github.com/agg23/openfpga-pcengine",
+      "url": "https://github.com/agg23/openfpga-pce",
       "status": "shipping"
      }
     ],
@@ -7569,8 +7559,8 @@
     ],
     "forums": [
      {
-      "name": "The PC Engine Forum (pcengine.proboards.com)",
-      "url": "https://pcengine.proboards.com/",
+      "name": "The PC Engine Forum (pce.proboards.com)",
+      "url": "https://pce.proboards.com/",
       "metric": "posts / threads / members",
       "value": 20028,
       "asOf": "2026-09-20",
@@ -7691,7 +7681,7 @@
      "asOf": "2026-09-20",
      "others": [
       {
-       "name": "r/pcengine",
+       "name": "r/pce",
        "members": null,
        "members2023": 1022,
        "members2023CheckedOn": "2023-10-18"
@@ -7708,9 +7698,9 @@
      "alternates": {
       "pc-engine": 10,
       "turbografx-16": 5,
-      "pcengine": 8
+      "pce": 8
      },
-     "note": "itch label \"TurboGrafx-16\"; \"pc-engine\" 10, \"pcengine\" 8, \"turbografx-16\" 5"
+     "note": "itch label \"TurboGrafx-16\"; \"pc-engine\" 10, \"pce\" 8, \"turbografx-16\" 5"
     },
     "misterCore": {
      "url": "https://github.com/MiSTer-devel/TurboGrafx16_MiSTer",
@@ -7720,7 +7710,7 @@
     },
     "analoguePocketCore": {
      "exists": true,
-     "url": "https://github.com/agg23/openfpga-pcengine",
+     "url": "https://github.com/agg23/openfpga-pce",
      "source": "https://openfpga-cores-inventory.github.io/analogue-pocket/api/v2/cores.json (306 cores), 2026-09-20"
     },
     "retroarchCore": {
@@ -7785,8 +7775,7 @@
    }
   },
   "supervision": {
-   "status": "roadmap",
-   "phase": 6,
+   "status": "builds",
    "name": "Watara Supervision",
    "family": "watara",
    "cpu": "65C02 @ 4 MHz",
@@ -8034,8 +8023,7 @@
    }
   },
   "coleco": {
-   "status": "roadmap",
-   "phase": 8,
+   "status": "builds",
    "name": "ColecoVision",
    "family": "coleco",
    "cpu": "Zilog Z80A @ 3.58 MHz",
@@ -8407,8 +8395,7 @@
    }
   },
   "sms": {
-   "status": "roadmap",
-   "phase": 8,
+   "status": "builds",
    "name": "Sega Master System",
    "family": "sega",
    "cpu": "Zilog Z80A @ 3.58 MHz",
@@ -8812,8 +8799,7 @@
    }
   },
   "gamegear": {
-   "status": "roadmap",
-   "phase": 8,
+   "status": "builds",
    "name": "Sega Game Gear",
    "family": "sega",
    "cpu": "Zilog Z80 @ 3.58 MHz (Wikipedia infobox says 3.5 MHz)",
@@ -9154,9 +9140,8 @@
     }
    }
   },
-  "zxspectrum": {
-   "status": "roadmap",
-   "phase": 8,
+  "spectrum": {
+   "status": "builds",
    "name": "ZX Spectrum",
    "family": "sinclair",
    "cpu": "Zilog Z80A @ 3.5 MHz",
@@ -9268,10 +9253,10 @@
    },
    "activity": {
     "subreddit": {
-     "name": "r/zxspectrum",
+     "name": "r/spectrum",
      "members": 14329,
      "asOf": "2026-09-20",
-     "source": "https://reddapi.dev/subreddits/zxspectrum/insights",
+     "source": "https://reddapi.dev/subreddits/spectrum/insights",
      "verify": true,
      "notes": "reddit.com (www/old/api about.json and pages) returned HTTP 403 \"blocked by network security\" to curl and WebFetch from this environment on 2026-09-20; figure is from a third-party mirror. reddapi shows 14,329 members (crawl date not shown); gummysearch shows \"14k\"; subredditstats had 5,547 on 2023-12-16 (growth or mirror discrepancy — verify)."
     },
@@ -9689,7 +9674,7 @@
     "notes": "Tape was THE medium (mail-order/high-street cassettes); +3 3-inch floppy only on +3 (discontinued Dec 1990); Interface 2 ROM cartridges 16K, unbanked, rare. Multi-load from tape (levels) is normal for 48K games; ESXDOS/DivMMC can load files at run time. Saves: tape (adventures, rare), +3 disk, ESXDOS SD; 'none' typical. 128K adds AY-3-8912 sound + 16K RAM paging via port 0x7FFD; +2A/+3 add port 0x1FFD modes; 16K machines need <=16K programs. ZXDB 2025 sample page (30 entries) by machine: 48K 13, 128K 6, 16K 5, Next 2, 48K/128K 2."
    },
    "toVerify": [
-    "r/zxspectrum member count: every fetch route returned 403 (reddit about.json, old.reddit, api.reddit.com, WebFetch, r.jina.ai, subredditstats blank) — members=null.",
+    "r/spectrum member count: every fetch route returned 403 (reddit about.json, old.reddit, api.reddit.com, WebFetch, r.jina.ai, subredditstats blank) — members=null.",
     "unitsSold high (clone-inclusive) not found; 5M official figure traces to Edge #80 (Mott 2000) which was not fetched; BBC citing pages blocked.",
     "Kickstarter-native backer counts (5,236 / 7,524) came from search snippets + Wikipedia; Kicktraq (5,235 / 7,522) is what was fetched — 1-2 unit drift. KS1 launch month: Kicktraq says Apr-May 2017, Wikipedia says Jan 2017.",
     "Spectrum Next unitsShipped set null: Wikipedia gives 3,010+ (KS1) and 5,100+ (KS2) produced; KS3 (~7,000+) undelivered as of 2026-09-07.",
@@ -9700,18 +9685,18 @@
    ],
    "indicators": {
     "subreddit": {
-     "name": "r/zxspectrum",
+     "name": "r/spectrum",
      "members": 14329,
-     "membersSource": "https://reddapi.dev/subreddits/zxspectrum/insights",
+     "membersSource": "https://reddapi.dev/subreddits/spectrum/insights",
      "membersMethod": "reddapi.dev third-party index, fetched 2026-09-20 (index snapshot date not stated)",
      "members2023": 5547,
      "members2023CheckedOn": "2023-12-16",
-     "members2023Source": "https://subredditstats.com/r/zxspectrum",
+     "members2023Source": "https://subredditstats.com/r/spectrum",
      "redditDirect": "BLOCKED: reddit.com/old.reddit.com about.json and HTML returned 403 / JS-challenge / login redirect from this host on 2026-09-20; redlib mirrors bot-walled",
      "asOf": "2026-09-20",
      "note": "r/spectrum (55,303 / 24,569) is Charter Spectrum ISP, excluded",
      "others": [],
-     "source": "https://reddapi.dev/subreddits/zxspectrum/insights"
+     "source": "https://reddapi.dev/subreddits/spectrum/insights"
     },
     "itchio": {
      "tag": "zx-spectrum",
@@ -9792,8 +9777,7 @@
    }
   },
   "msx": {
-   "status": "roadmap",
-   "phase": 8,
+   "status": "builds",
    "name": "MSX / MSX2",
    "family": "msx",
    "cpu": "Zilog Z80A @ 3.58 MHz",
@@ -10280,8 +10264,7 @@
    }
   },
   "cpc": {
-   "status": "roadmap",
-   "phase": 8,
+   "status": "builds",
    "name": "Amstrad CPC",
    "family": "amstrad",
    "cpu": "Zilog Z80A @ 4 MHz",
@@ -10738,6 +10721,30 @@
      "asOf": "2026-09-20"
     }
    }
+  },
+  "gbc": {
+   "status": "builds",
+   "name": "GBC"
+  },
+  "sg1000": {
+   "status": "builds",
+   "name": "Sega SG-1000"
+  },
+  "coco": {
+   "status": "builds",
+   "name": "Tandy Color Computer"
+  },
+  "vectrex": {
+   "status": "builds",
+   "name": "Vectrex"
+  },
+  "odyssey2": {
+   "status": "builds",
+   "name": "Magnavox Odyssey²"
+  },
+  "channelf": {
+   "status": "builds",
+   "name": "Fairchild Channel F"
   }
  }
 }
