@@ -1341,7 +1341,7 @@ test('the real hello-world selects the text set once per model that needs it, an
     const resolved = resolveHardware(loadCatalog('pet'), { profile });
     assert.ok(resolved.ok, resolved.ok ? '' : resolved.error);
     const { ir, diagnostics } = link(src, main, { machine: 'pet', facts: resolved.hardware.facts });
-    assert.deepEqual(diagnostics.filter((d) => d.severity === 'error'), []);
+    assert.equal(diagnostics.filter((d) => (d as { severity?: string }).severity === 'error').length, 0);
     assert.ok(ir, 'link() returned no diagnostics but also no ir');
     const hardware = resolved.hardware as unknown as BuildOptions['hardware'];
     const scratch = await mkdtemp(join(tmpdir(), '8bs-charset-'));
@@ -1396,7 +1396,7 @@ test('the real hello-world on the 2001 leaves BASIC 1 CHRGET ($C2-$D9) alone so 
     // way every other fixture in this file already types its own `ir`
     // literal as one.
     const { ir, diagnostics } = link(src, main, { machine: 'pet', facts: resolved.hardware.facts });
-    assert.deepEqual(diagnostics.filter((d) => d.severity === 'error'), []);
+    assert.equal(diagnostics.filter((d) => (d as { severity?: string }).severity === 'error').length, 0);
     assert.ok(ir, 'link() returned no diagnostics but also no ir');
     const linkedIr = ir as IrProgram;
     // resolveHardware()'s own JSDoc types build.defsym loosely (`object`,
