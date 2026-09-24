@@ -1,5 +1,11 @@
 # @8bitscript/web
 
+## 0.23.0
+
+### Minor Changes
+
+- 5f5a9a0: Narrow `RELEASE_MACHINES` to five targets — `pet`, `vic20`, `c64`, `cx16`, and `web` — so `8bs build` and `8bs run`, examples, Studio, and the editor launcher focus on a polished slice. Every other id stays in `MACHINES` for twins, facts, and `8bs check`; hello-world still compiles. Restoring the original nine and the remaining roadmap machines to `RELEASE_MACHINES` is planned in a follow-up (see `.changeset/remaining-systems.md` for the wider emulator and package work).
+
 ## 0.22.1
 
 No changes in this release.

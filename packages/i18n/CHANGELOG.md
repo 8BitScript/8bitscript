@@ -1,5 +1,12 @@
 # @8bitscript/i18n
 
+## 0.23.0
+
+### Patch Changes
+
+- Updated dependencies [5f5a9a0]
+  - @8bitscript/text@0.23.0
+
 ## 0.22.1
 
 ### Patch Changes

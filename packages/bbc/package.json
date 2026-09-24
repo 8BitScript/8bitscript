@@ -1,6 +1,6 @@
 {
   "name": "@8bitscript/bbc",
-  "version": "0.22.1",
+  "version": "0.23.0",
   "description": "BBC Micro target support for 8BitScript: the hardware underneath the portable APIs.",
   "license": "MIT",
   "repository": {

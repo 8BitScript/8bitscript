@@ -1,5 +1,32 @@
 # @8bitscript/examples
 
+## 0.23.0
+
+### Minor Changes
+
+- 5f5a9a0: Narrow `RELEASE_MACHINES` to five targets — `pet`, `vic20`, `c64`, `cx16`, and `web` — so `8bs build` and `8bs run`, examples, Studio, and the editor launcher focus on a polished slice. Every other id stays in `MACHINES` for twins, facts, and `8bs check`; hello-world still compiles. Restoring the original nine and the remaining roadmap machines to `RELEASE_MACHINES` is planned in a follow-up (see `.changeset/remaining-systems.md` for the wider emulator and package work).
+- 5f5a9a0: Add a portable graphics and audio slice: `.8bg` / `.8ba` front ends, PNG and WAV/FLAC host tools, machine-owned lowering on C64, NES, PET, and Atari 8-bit with a glyph/no-driver fallback everywhere else, and a dogfood example that builds for every machine.
+- 5f5a9a0: Land the remaining roadmap machines: MOS packages (Plus/4 through Atari 7800), SM83/Z80/6809/8048/F8 backends, `port.read`/`port.write`, and catalog-driven emulators. Hello-world compiles for every `RELEASE_MACHINES` id; `8bs run plus4` is VICE; the other remaining machines are deferred pending emulator setup. `--screenshot` still captures on those machines (VICE, MAME `-str`, openMSX Tcl, or macOS window capture); a missing emulator or ROM set fails the capture. New ids use RetroArch-style shorts (`gb`, `gbc`, `pce`, `spectrum`); Atari consoles stay `atari2600`, `atari5200`, `atari7800`; `gamegear` stays.
+
+### Patch Changes
+
+- Updated dependencies [5f5a9a0]
+- Updated dependencies [5f5a9a0]
+- Updated dependencies [5f5a9a0]
+- Updated dependencies [8b6886d]
+  - @8bitscript/pet@0.23.0
+  - @8bitscript/c64@0.23.0
+  - @8bitscript/web@0.23.0
+  - @8bitscript/graphics@0.23.0
+  - @8bitscript/audio@0.23.0
+  - @8bitscript/system@0.23.0
+  - @8bitscript/screen@0.23.0
+  - @8bitscript/text@0.23.0
+  - @8bitscript/input@0.23.0
+  - @8bitscript/raster@0.23.0
+  - @8bitscript/sprites@0.23.0
+  - @8bitscript/timeline@0.23.0
+
 ## 0.22.1
 
 ### Patch Changes

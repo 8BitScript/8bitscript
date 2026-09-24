@@ -1,5 +1,60 @@
 # @8bitscript/cli
 
+## 0.23.0
+
+### Minor Changes
+
+- 5f5a9a0: Doctor offers every emulator it can install by default (`--want` to narrow, `--install` to skip the prompt). VS Code groups machines by family and has a Doctor panel (`8bitscript.doctorEmulators`, default all) with Install selected.
+- 5f5a9a0: Narrow `RELEASE_MACHINES` to five targets — `pet`, `vic20`, `c64`, `cx16`, and `web` — so `8bs build` and `8bs run`, examples, Studio, and the editor launcher focus on a polished slice. Every other id stays in `MACHINES` for twins, facts, and `8bs check`; hello-world still compiles. Restoring the original nine and the remaining roadmap machines to `RELEASE_MACHINES` is planned in a follow-up (see `.changeset/remaining-systems.md` for the wider emulator and package work).
+- 5f5a9a0: Emulators are optional: doctor WARNs when one is missing, machine catalogs name title/binary/screenshot, VS Code greys Run/Boot from `8bs doctor --json`, and `8bs setup cx16`/`mega65` have an apt path on Ubuntu.
+- 5f5a9a0: Add a portable graphics and audio slice: `.8bg` / `.8ba` front ends, PNG and WAV/FLAC host tools, machine-owned lowering on C64, NES, PET, and Atari 8-bit with a glyph/no-driver fallback everywhere else, and a dogfood example that builds for every machine.
+- 5f5a9a0: Land the remaining roadmap machines: MOS packages (Plus/4 through Atari 7800), SM83/Z80/6809/8048/F8 backends, `port.read`/`port.write`, and catalog-driven emulators. Hello-world compiles for every `RELEASE_MACHINES` id; `8bs run plus4` is VICE; the other remaining machines are deferred pending emulator setup. `--screenshot` still captures on those machines (VICE, MAME `-str`, openMSX Tcl, or macOS window capture); a missing emulator or ROM set fails the capture. New ids use RetroArch-style shorts (`gb`, `gbc`, `pce`, `spectrum`); Atari consoles stay `atari2600`, `atari5200`, `atari7800`; `gamegear` stays.
+
+### Patch Changes
+
+- 8b6886d: Widen VIC-20 zero-page to the owned budget when a linked program calls `screen.blank()`, so title screens and media clears link without overrunning the polite KERNAL window.
+- Updated dependencies [5f5a9a0]
+- Updated dependencies [5f5a9a0]
+- Updated dependencies [5f5a9a0]
+- Updated dependencies [5f5a9a0]
+- Updated dependencies [8b6886d]
+  - @8bitscript/compiler@0.23.0
+  - @8bitscript/examples@0.23.0
+  - @8bitscript/studio@0.23.0
+  - @8bitscript/pet@0.23.0
+  - @8bitscript/c64@0.23.0
+  - @8bitscript/vic20@0.23.0
+  - @8bitscript/cx16@0.23.0
+  - @8bitscript/web@0.23.0
+  - @8bitscript/language-server@0.23.0
+  - @8bitscript/nes@0.23.0
+  - @8bitscript/atari8@0.23.0
+  - @8bitscript/plus4@0.23.0
+  - @8bitscript/oric@0.23.0
+  - @8bitscript/apple2@0.23.0
+  - @8bitscript/bbc@0.23.0
+  - @8bitscript/atari5200@0.23.0
+  - @8bitscript/lynx@0.23.0
+  - @8bitscript/pce@0.23.0
+  - @8bitscript/supervision@0.23.0
+  - @8bitscript/atari2600@0.23.0
+  - @8bitscript/atari7800@0.23.0
+  - @8bitscript/gb@0.23.0
+  - @8bitscript/gbc@0.23.0
+  - @8bitscript/sms@0.23.0
+  - @8bitscript/gamegear@0.23.0
+  - @8bitscript/sg1000@0.23.0
+  - @8bitscript/msx@0.23.0
+  - @8bitscript/coleco@0.23.0
+  - @8bitscript/spectrum@0.23.0
+  - @8bitscript/cpc@0.23.0
+  - @8bitscript/coco@0.23.0
+  - @8bitscript/vectrex@0.23.0
+  - @8bitscript/odyssey2@0.23.0
+  - @8bitscript/channelf@0.23.0
+  - @8bitscript/c128@0.23.0
+  - @8bitscript/mega65@0.23.0
+
 ## 0.22.1
 
 ### Patch Changes

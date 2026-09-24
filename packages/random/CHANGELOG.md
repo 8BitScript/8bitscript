@@ -1,5 +1,14 @@
 # @8bitscript/random
 
+## 0.23.0
+
+### Patch Changes
+
+- Updated dependencies [5f5a9a0]
+- Updated dependencies [5f5a9a0]
+  - @8bitscript/c64@0.23.0
+  - @8bitscript/atari8@0.23.0
+
 ## 0.22.1
 
 ### Patch Changes
