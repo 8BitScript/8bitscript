@@ -12,7 +12,9 @@ import { analyze, link, SYSTEMS, FACTS, PROGRAM_FACTS, factConstName } from '../
 import { loadCatalog, resolveHardware, stockFacts } from '../../cli/src/hardware.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = join(HERE, '..', '..', '..');
 const SRC = join(HERE, '..', 'src');
+const LINK_OPTS = { checkout: REPO_ROOT };
 
 // The names `8bs build --target` accepts, in the order the CLI lists them.
 const TARGETS = ['vic20', 'c64', 'pet', 'c128', 'atari8', 'nes', 'cx16', 'mega65', 'web', 'plus4', 'oric', 'apple2', 'bbc', 'atari5200', 'lynx', 'pce', 'supervision', 'atari2600', 'atari7800', 'gb', 'gbc', 'sms', 'gamegear', 'sg1000', 'msx', 'coleco', 'spectrum', 'cpc', 'coco', 'vectrex', 'odyssey2', 'channelf'];
@@ -38,7 +40,7 @@ test('the package is one file: no per-machine versions are needed any more', () 
 // Resolved as if it lived in Studio, the workspace's first consumer of this
 // package: Studio's pnpm-linked node_modules is how an installed project
 // would find @8bitscript/system too.
-const PROBE = join(HERE, '..', '..', 'studio', 'src', 'system-probe.8bs');
+const PROBE = join(HERE, 'system-probe.8bs');
 const program = (name) => `import { System } from "@8bitscript/system";
 let hit: utinyint = 0;
 export function main(): void {
@@ -55,7 +57,7 @@ test('on every target, #system() == System.<that target> is a comparison of two 
   for (const target of TARGETS) {
     // The sheet in the same file reads facts, so a build that names a
     // machine hands them over, as 8bs build does.
-    const { ir, diagnostics } = link(program(target.toUpperCase()), PROBE, { machine: target, facts: stockFacts(target) });
+    const { ir, diagnostics } = link(program(target.toUpperCase()), PROBE, { machine: target, facts: stockFacts(target), ...LINK_OPTS });
     assert.deepEqual(diagnostics, [], target);
     const test = ir.functions.find((f) => f.name === 'main').body.find((s) => s.kind === 'if').test;
     assert.deepEqual(test.left, { kind: 'const', value: SYSTEMS.get(target), type: 'utinyint' }, `${target}: #system()`);
@@ -64,7 +66,7 @@ test('on every target, #system() == System.<that target> is a comparison of two 
 });
 
 test('with no machine in hand, the program checks clean', () => {
-  assert.deepEqual(analyze(program('C64'), PROBE, { resolveImports: true }), []);
+  assert.deepEqual(analyze(program('C64'), PROBE, { resolveImports: true, ...LINK_OPTS }), []);
 });
 
 // The fact sheet: Video, Audio, Input, Storage, Memory. Each program fact
@@ -116,7 +118,7 @@ test('every machine\'s stock sheet, and every hardware value\'s, fits the sheet\
     }
     for (const overrides of choices) {
       const { hardware } = resolveHardware(catalog, { overrides });
-      const { diagnostics } = link(SHEET_PROBE, PROBE, { machine: target, tags: hardware.tags, facts: hardware.facts });
+      const { diagnostics } = link(SHEET_PROBE, PROBE, { machine: target, tags: hardware.tags, facts: hardware.facts, ...LINK_OPTS });
       assert.deepEqual(diagnostics, [], `${target} ${hardware.label}`);
     }
   }
@@ -146,7 +148,7 @@ test('Video.COLUMNS and ROWS are text.COLUMNS and CELL_COUNT on every machine, a
   builds.push(['web', resolveHardware(loadCatalog('web'), { overrides: { machine: 'pet-2001' } }).hardware]);
   builds.push(['web', resolveHardware(loadCatalog('web'), { overrides: { machine: 'vic20' } }).hardware]);
   for (const [target, hardware] of builds) {
-    const { ir, diagnostics } = link(GRID_PROBE, PROBE, { machine: target, tags: hardware.tags, facts: hardware.facts });
+    const { ir, diagnostics } = link(GRID_PROBE, PROBE, { machine: target, tags: hardware.tags, facts: hardware.facts, ...LINK_OPTS });
     assert.deepEqual(diagnostics, [], `${target} ${hardware.label}`);
     const locals = Object.fromEntries(ir.functions.find((f) => f.name === 'main').body
       .filter((s) => s.kind === 'local').map((s) => [s.name, s.init.value]));

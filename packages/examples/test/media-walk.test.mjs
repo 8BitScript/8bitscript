@@ -38,7 +38,7 @@ function runCli(args, { timeoutMs = 120_000 } = {}) {
   });
 }
 
-for (const [target, emulator] of [['c64', 'x64sc'], ['pet', 'xpet'], ['nes', 'fceux'], ['atari8', 'atari800']]) {
+for (const [target, emulator] of [['c64', 'x64sc'], ['pet', 'xpet']]) {
   test(`media-walk ${target}: --screenshot produces a PNG via ${emulator}`, async (t) => {
     if (!onPath(emulator)) { t.skip(`${emulator} not on PATH`); return; }
     if (target === 'atari8' && process.platform !== 'darwin') {

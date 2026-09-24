@@ -78,11 +78,11 @@ test('every published NMOS 6502 opcode encodes to its documented byte and length
   }
 });
 
-test('OPCODES has exactly 151 entries across exactly 56 mnemonics — nothing extra, nothing missing', () => {
+test('OPCODES has exactly 154 entries across exactly 59 mnemonics — nothing extra, nothing missing', () => {
   const mnemonics = Object.keys(OPCODES);
-  assert.equal(mnemonics.length, 56);
+  assert.equal(mnemonics.length, 59);
   const total = mnemonics.reduce((sum, m) => sum + Object.keys(OPCODES[m]).length, 0);
-  assert.equal(total, 151);
+  assert.equal(total, 154);
 });
 
 test('encode: an unknown mnemonic is an error naming it', () => {
