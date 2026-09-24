@@ -119,9 +119,8 @@ test('describeReach joins the project with the sheet: floors from the catalog, i
   const by = Object.fromEntries(rows.map((r) => [r.id, r]));
   assert.deepEqual(by.nes.floor, [{ key: 'input.keyboard', need: true, have: false }]);
   assert.deepEqual(by.c64.floor, []);
-  assert.equal(by.zxspectrum.floor, null, 'no package: the catalog cannot answer');
-  assert.equal(by.zxspectrum.status, 'roadmap');
-  assert.equal(by.zxspectrum.phase, 8);
+  assert.deepEqual(by.spectrum.floor, [], 'spectrum builds and has a keyboard');
+  assert.equal(by.spectrum.status, 'builds');
   assert.deepEqual(by.c64.input, {
     primary: { device: 'stick', standing: 'standard', from: 'catalog' },
     also: [{ device: 'keyboard', standing: 'standard', from: 'catalog' }, { device: 'pad', standing: 'absent', from: 'catalog' }],
@@ -129,12 +128,12 @@ test('describeReach joins the project with the sheet: floors from the catalog, i
   assert.deepEqual(by.pet.input.primary, { device: 'stick', standing: 'absent', from: 'catalog' });
   assert.deepEqual(by.nes.input.primary, { device: 'stick', standing: 'absent', from: 'catalog' });
   assert.deepEqual(by.nes.input.also[1], { device: 'pad', standing: 'standard', from: 'catalog' });
-  assert.deepEqual(by.zxspectrum.input.primary, { device: 'stick', standing: 'optional', from: 'sheet' });
+  assert.deepEqual(by.spectrum.input.primary, { device: 'stick', standing: 'standard', from: 'catalog' });
   assert.equal(by.c64.delivery.writes, 'prg');
   assert.ok(by.c64.delivery.reaches.includes('emulator'));
   assert.equal(by.atari8.delivery.writes, 'xex');
   assert.equal(by.nes.delivery.writes, 'nes');
-  assert.equal(by.gameboy.delivery.writes, null);
+  assert.equal(by.gb.delivery.writes, 'gb');
   assert.equal(by.nes.reach.units.contested, false);
   assert.equal(by.c64.reach.units.contested, true);
   assert.equal(typeof by.c64.reach.pageviews2025, 'number');
@@ -165,9 +164,7 @@ test('the table form prints the standing, the file and the figures with their ma
   assert.match(by.c64, /reach {4}12\.5M–30M sold † · /);
   assert.match(by.nes, /^nes {9}refused: input\.keyboard needs it, has false/);
   assert.match(by.nes, /61\.91M sold · /, 'an uncontested figure has no dagger');
-  assert.match(by.zxspectrum, /^zxspectrum {2}no package — phase 8/);
-  assert.match(by.zxspectrum, /stick: optional \(sheet\)/);
-  assert.match(by.zxspectrum, /single {3}nothing written yet; routes take /);
+  assert.match(by.spectrum, /^spectrum\s+builds/);
   assert.match(by.mega65, /views\/yr ‡/);
   assert.match(by.supervision, /no units figure/);
 });

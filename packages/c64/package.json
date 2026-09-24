@@ -9,6 +9,16 @@
     "directory": "packages/c64"
   },
   "8bitscript": {
+    "title": "Commodore 64",
+    "emulator": {
+      "binary": "x64sc",
+      "family": "vice",
+      "screenshot": "vice",
+      "framesUnit": "cycles",
+      "defaultFrames": 5000000,
+      "installer": "vice"
+    },
+    "media": "./media/index.cjs",
     "entry": "./src/index.8bs",
     "native": [
       "./native/6502/raster.s",
@@ -422,7 +432,8 @@
   },
   "files": [
     "src",
-    "native"
+    "native",
+    "media"
   ],
   "publishConfig": {
     "access": "public"

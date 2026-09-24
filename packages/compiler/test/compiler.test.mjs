@@ -453,7 +453,9 @@ test('a call to a name that resolves to nothing is 8BS2007', () => {
 // package's `./screen` subpath through real pnpm symlinks. This group is
 // the proof the conditional resolution actually switches implementations.
 
-const STUDIO_ENTRY = join(HERE, '..', '..', 'studio', 'src', 'main.8bs');
+const REPO_ROOT = join(HERE, '..', '..', '..');
+const STUDIO_ENTRY = join(REPO_ROOT, 'studio', 'src', 'main.8bs');
+const CHECKOUT = { checkout: REPO_ROOT };
 const SCREEN_CONSUMER = 'import { screen } from "@8bitscript/screen";\nexport function main(): void { screen.setColors(6, 0); }';
 // Two setColor sites: one would be written into main (rule 9), and the
 // question here is whether the function exists on the machine at all.
@@ -470,16 +472,16 @@ test('link reports the facts the program\'s own files test — #fact() and the @
     + '    if (Memory.RAM < 4096) { text.print(0, "SMALL"); }\n'
     + '    if (HAS_RASTER && V.COLUMNS == 40) { text.print(0, "BIG"); }\n'
     + '}';
-  const { ir, diagnostics, factsTested } = link(source, STUDIO_ENTRY, { machine: 'c64', facts: stockFacts('c64') });
+  const { ir, diagnostics, factsTested } = link(source, STUDIO_ENTRY, { ...CHECKOUT, machine: 'c64', facts: stockFacts('c64') });
   assert.deepEqual(diagnostics.filter((d) => d.severity === 'error'), []);
   assert.ok(ir);
   assert.deepEqual(factsTested, ['video.columns', 'video.raster', 'memory.ram'], 'in FACTS order');
-  const none = link(SCREEN_CONSUMER, STUDIO_ENTRY, { machine: 'c64', facts: stockFacts('c64') });
+  const none = link(SCREEN_CONSUMER, STUDIO_ENTRY, { ...CHECKOUT, machine: 'c64', facts: stockFacts('c64') });
   assert.deepEqual(none.factsTested, [], 'a program that only prints tests nothing, whatever its packages fold on');
 });
 
 test('a conditional entry resolves to the vic20 implementation', () => {
-  const { ir, diagnostics } = link(SCREEN_CONSUMER, STUDIO_ENTRY, { machine: 'vic20' });
+  const { ir, diagnostics } = link(SCREEN_CONSUMER, STUDIO_ENTRY, { ...CHECKOUT, machine: 'vic20' });
   assert.deepEqual(diagnostics, []);
   assert.equal(ir.globals.find((g) => g.name === 'vicColor').address, 0x900f);
   assert.ok(ir.functions.some((f) => f.name === 'screen_setColors'));
@@ -487,27 +489,27 @@ test('a conditional entry resolves to the vic20 implementation', () => {
 });
 
 test('the same entry resolves to the c64 implementation', () => {
-  const { ir, diagnostics } = link(SCREEN_CONSUMER, STUDIO_ENTRY, { machine: 'c64' });
+  const { ir, diagnostics } = link(SCREEN_CONSUMER, STUDIO_ENTRY, { ...CHECKOUT, machine: 'c64' });
   assert.deepEqual(diagnostics, []);
   assert.equal(ir.globals.find((g) => g.name === 'borderColor').address, 0xd020);
   assert.ok(!ir.globals.some((g) => g.name === 'vicColor'));
 });
 
 test('the same entry resolves to the web implementation', () => {
-  const { ir, diagnostics } = link(SCREEN_CONSUMER, STUDIO_ENTRY, { machine: 'web' });
+  const { ir, diagnostics } = link(SCREEN_CONSUMER, STUDIO_ENTRY, { ...CHECKOUT, machine: 'web' });
   assert.deepEqual(diagnostics, []);
   assert.ok(ir.functions.some((f) => f.name === 'screen_setColors'));
   assert.ok(!ir.globals.some((g) => g.name === 'vicColor' || g.name === 'borderColor'));
 });
 
 test('text.setColor is dropped on a machine with no per-cell color, and kept where color RAM exists', () => {
-  const pet = link(SETCOLOR_CONSUMER, STUDIO_ENTRY, { machine: 'pet', facts: stockFacts('pet') });
+  const pet = link(SETCOLOR_CONSUMER, STUDIO_ENTRY, { ...CHECKOUT, machine: 'pet', facts: stockFacts('pet') });
   assert.deepEqual(pet.diagnostics, []);
   const petOut = optimizeReachable(pet.ir);
   assert.ok(!petOut.functions.some((f) => f.name === 'text_setColor'), 'PET must not keep setColor');
   assert.ok(!petOut.globals.some((g) => g.name === 'currentColor'), 'PET must not keep currentColor');
 
-  const c64 = link(SETCOLOR_CONSUMER, STUDIO_ENTRY, { machine: 'c64', facts: stockFacts('c64') });
+  const c64 = link(SETCOLOR_CONSUMER, STUDIO_ENTRY, { ...CHECKOUT, machine: 'c64', facts: stockFacts('c64') });
   assert.deepEqual(c64.diagnostics, []);
   const c64Out = optimizeReachable(c64.ir);
   assert.ok(c64Out.functions.some((f) => f.name === 'text_setColor'), 'C64 must keep setColor');
@@ -516,7 +518,7 @@ test('text.setColor is dropped on a machine with no per-cell color, and kept whe
 test('text.setColor is kept on Atari GR.1, which has per-character color', () => {
   const { hardware } = resolveHardware(loadCatalog('atari8'), { overrides: { textmode: 'gr1' } });
   const linked = link(SETCOLOR_CONSUMER, STUDIO_ENTRY, {
-    machine: 'atari8', tags: hardware.tags, facts: hardware.facts,
+    ...CHECKOUT, machine: 'atari8', tags: hardware.tags, facts: hardware.facts,
   });
   assert.deepEqual(linked.diagnostics, []);
   const out = optimizeReachable(linked.ir);
@@ -525,12 +527,10 @@ test('text.setColor is kept on Atari GR.1, which has per-character color', () =>
 });
 
 test('a machine the entry has no branch for is 8BS3002', () => {
-  // Every real target (vic20, c64, pet, c128, atari8, nes, cx16, mega65,
-  // web) has a branch — 'atari2600' stands in for the "not one of them"
-  // case this error exists for: a real 6502 platform (so it's not
-  // implausible), just not one @8bitscript/screen's entry map has a branch
-  // for.
-  const { ir, diagnostics } = link(SCREEN_CONSUMER, STUDIO_ENTRY, { machine: 'atari2600' });
+  // Every RELEASE_MACHINES id has a screen branch. 'intellivision' stands
+  // in for a name the compiler has no System number for, which is the
+  // case this error exists for.
+  const { ir, diagnostics } = link(SCREEN_CONSUMER, STUDIO_ENTRY, { ...CHECKOUT, machine: 'intellivision' });
   assert.equal(ir, null);
   assert.deepEqual(diagnostics.map((d) => d.code), ['8BS3002']);
 });
@@ -539,7 +539,7 @@ test('without a machine, every branch of a conditional entry is validated', () =
   // analyze/`8bs check` resolve imports with no machine in hand: a sound
   // conditional entry is clean, not an error.
   assert.deepEqual(
-    codes('import { screen } from "@8bitscript/screen";', STUDIO_ENTRY, { resolveImports: true }),
+    codes('import { screen } from "@8bitscript/screen";', STUDIO_ENTRY, { resolveImports: true, ...CHECKOUT }),
     [],
   );
 });
@@ -618,8 +618,10 @@ test('an .8bx module links like an .8bs one, takes a machine twin, and is not th
   assert.equal(sourceKindOf('/p/notes.txt'), null);
   assert.equal(stripSourceExtension('/p/App.8bx'), '/p/App');
   assert.equal(stripSourceExtension('/p/notes.txt'), '/p/notes.txt');
-  assert.deepEqual([...SOURCE_EXTENSIONS], ['.8bs', '.8bx']);
-  assert.ok(isSourceFile('a.8bx') && isSourceFile('a.8bs') && !isSourceFile('a.8b'));
+  assert.deepEqual([...SOURCE_EXTENSIONS], ['.8bs', '.8bx', '.8bg', '.8ba']);
+  assert.equal(sourceKindOf('/p/player.8bg'), '.8bg');
+  assert.equal(sourceKindOf('/p/theme.8ba'), '.8ba');
+  assert.ok(isSourceFile('a.8bx') && isSourceFile('a.8bs') && isSourceFile('a.8bg') && isSourceFile('a.8ba') && !isSourceFile('a.8b'));
   assert.ok(!isVariantPath('/p/notes.txt'));
   // An .8bx module holding ordinary 8BitScript resolves, links, and takes
   // a machine twin exactly as .8bs does.

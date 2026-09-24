@@ -1,0 +1,101 @@
+{
+  "name": "@8bitscript/sg1000",
+  "version": "0.22.1",
+  "description": "Sega SG-1000 target support for 8BitScript: the hardware underneath the portable APIs.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/8BitScript/8bitscript.git",
+    "directory": "packages/sg1000"
+  },
+  "8bitscript": {
+    "title": "Sega SG-1000",
+    "emulator": {
+      "binary": "mame",
+      "family": "mame",
+      "screenshot": "mame",
+      "framesUnit": "seconds",
+      "defaultFrames": 8,
+      "installer": "mame",
+      "system": "sg1000",
+      "deferred": "MAME needs a ROM set this project does not ship",
+      "slot": "cart"
+    },
+    "entry": "./src/index.8bs",
+    "exports": {
+      "./screen": "./src/screen.8bs",
+      "./text": "./src/text.8bs",
+      "./input": "./src/input.8bs",
+      "./pointer": "./src/pointer.8bs",
+      "./rasterline": "./src/rasterline.8bs"
+    },
+    "hardware": {
+      "build": {
+        "defsym": {
+          "__load_address": 0,
+          "__ram_size": 1
+        },
+        "output": "sg",
+        "mameSystem": "sg1000"
+      },
+      "facts": {
+        "video.columns": 32,
+        "video.rows": 24,
+        "video.cellWidth": 8,
+        "video.cellHeight": 8,
+        "video.palette": 16,
+        "video.cellColors": 2,
+        "video.colorPerCell": false,
+        "video.glyphs": 0,
+        "video.blockWidth": 0,
+        "video.blockHeight": 0,
+        "video.bitmap": false,
+        "video.layers": 1,
+        "video.scroll": false,
+        "video.raster": false,
+        "video.sprites": 32,
+        "video.spritesPerLine": 4,
+        "video.spriteWidth": 16,
+        "video.spriteHeight": 16,
+        "video.spriteColors": 1,
+        "video.frameRate": 60,
+        "audio.voices": 0,
+        "audio.noise": false,
+        "audio.envelope": false,
+        "audio.filter": false,
+        "audio.pcm": false,
+        "audio.volume": false,
+        "audio.entropy": false,
+        "input.keyboard": false,
+        "input.joysticks": 0,
+        "input.pads": 2,
+        "input.controls": [
+          "up",
+          "down",
+          "left",
+          "right",
+          "a",
+          "b"
+        ],
+        "input.mouse": false,
+        "input.paddles": false,
+        "storage.save": false,
+        "storage.kib": 0,
+        "memory.ram": 1024,
+        "memory.banked": false,
+        "memory.bankedKib": 0
+      },
+      "options": {},
+      "presets": {}
+    }
+  },
+  "files": [
+    "src"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}

@@ -9,6 +9,15 @@
     "directory": "packages/mega65"
   },
   "8bitscript": {
+    "title": "MEGA65",
+    "emulator": {
+      "binary": "xmega65",
+      "family": "dedicated",
+      "screenshot": "xemu",
+      "framesUnit": "frames",
+      "defaultFrames": 180,
+      "installer": "mega65"
+    },
     "entry": "./src/index.8bs",
     "exports": {
       "./screen": "./src/screen.8bs",

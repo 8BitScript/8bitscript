@@ -4,7 +4,8 @@
 
 /** The machines the toolchain knows. */
 export type Machine =
-  | 'vic20' | 'c64' | 'pet' | 'c128' | 'atari8' | 'nes' | 'cx16' | 'mega65' | 'web';
+  | 'vic20' | 'c64' | 'pet' | 'c128' | 'atari8' | 'nes' | 'cx16' | 'mega65' | 'web'
+  | 'plus4' | 'oric' | 'apple2' | 'bbc' | 'atari5200' | 'lynx' | 'pce' | 'supervision' | 'atari2600' | 'atari7800' | 'gb' | 'gbc' | 'sms' | 'gamegear' | 'sg1000' | 'msx' | 'coleco' | 'spectrum' | 'cpc' | 'coco' | 'vectrex' | 'odyssey2' | 'channelf';
 
 /** A thing a hand holds, in the program's terms: matched to a machine's control ports, pad ports, keyboard, mouse or paddles. */
 export type InputDevice = 'stick' | 'pad' | 'keyboard' | 'mouse' | 'paddles' | 'touch';

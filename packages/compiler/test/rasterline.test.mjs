@@ -23,7 +23,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 // real file and no node_modules on the walk up carries the packages.
 const CHECKOUT = join(HERE, '..', '..', '..');
 
-const TARGETS = ['vic20', 'c64', 'pet', 'c128', 'atari8', 'nes', 'cx16', 'mega65', 'web'];
+const TARGETS = ['vic20', 'c64', 'pet', 'c128', 'atari8', 'nes', 'cx16', 'mega65', 'web', 'plus4', 'oric', 'apple2', 'bbc', 'atari5200', 'lynx', 'pce', 'supervision', 'atari2600', 'atari7800', 'gb', 'gbc', 'sms', 'gamegear', 'sg1000', 'msx', 'coleco', 'spectrum', 'cpc', 'coco', 'vectrex', 'odyssey2', 'channelf'];
 
 const PROGRAM = `import { raster, Slot } from "@8bitscript/raster";
 
@@ -106,7 +106,7 @@ test('a raster branch behind #fact(video.raster) links clean on all nine machine
     const guard = main.body.find((s) => s.kind === 'if');
     assert.ok(guard, `${target}: the guarded branch is in the IR`);
     assert.equal(guard.test.kind, 'const', `${target}: the guard folded to a constant`);
-    assert.equal(Boolean(guard.test.value), target === 'c64' || target === 'web',
-      `${target}: video.raster is true on the C64 and the web`);
+    assert.equal(Boolean(guard.test.value), Boolean(stockFacts(target)['video.raster']),
+      `${target}: the guard matches the catalog's video.raster`);
   }
 });

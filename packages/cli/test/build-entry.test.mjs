@@ -63,4 +63,10 @@ test('a program starts from .8bs: an .8bx entry is refused with the rule named',
   const other = checkEntryKind('/p/src/main.txt');
   assert.equal(other.ok, false);
   assert.match(other.error, /not an 8BitScript source file/);
+  const gfx = checkEntryKind('/p/src/player.8bg');
+  assert.equal(gfx.ok, false);
+  assert.match(gfx.error, /is a media file; a program starts from a \.8bs file that imports it/);
+  const aud = checkEntryKind('/p/src/theme.8ba');
+  assert.equal(aud.ok, false);
+  assert.match(aud.error, /is a media file/);
 });

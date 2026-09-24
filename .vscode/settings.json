@@ -1,0 +1,10 @@
+{
+  "npm.exclude": [
+    "**/editors/vscode",
+    "**/packages/**"
+  ],
+  "sonarlint.connectedMode.project": {
+    "connectionId": "8bitscript",
+    "projectKey": "8BitScript_8bitscript"
+  }
+}

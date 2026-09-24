@@ -184,6 +184,37 @@ export const Codes = {
   // A component method that names a prop, or a method declared where one cannot be.
   BX_INVALID_METHOD: '8BS2025',
 
+  // 8BitGraphics (.8bg) — 2100s. The file is not 8BitScript; these are
+  // the graphics front end's own codes (packages/compiler/src/media).
+  GFX_SYNTAX: '8BS2101',
+  GFX_UNEXPECTED_CHARACTER: '8BS2102',
+  GFX_UNTERMINATED_STRING: '8BS2103',
+  GFX_MISSING_SOURCE: '8BS2104',
+  GFX_SOURCE_TOO_SMALL: '8BS2105',
+  GFX_UNKNOWN_FIELD: '8BS2106',
+  GFX_DUPLICATE_NAME: '8BS2107',
+  GFX_MISSING_FIELD: '8BS2108',
+  GFX_INVALID_SIZE: '8BS2109',
+  GFX_COLORS_QUANTIZED: '8BS2110',
+  GFX_ADAPTED: '8BS2111',
+
+  // 8BitAudio (.8ba) — 2200s. Same shape as the graphics block.
+  AUD_SYNTAX: '8BS2201',
+  AUD_UNEXPECTED_CHARACTER: '8BS2202',
+  AUD_UNTERMINATED_STRING: '8BS2203',
+  AUD_MISSING_SOURCE: '8BS2204',
+  AUD_MISSING_FALLBACK: '8BS2205',
+  AUD_UNKNOWN_WAVEFORM: '8BS2206',
+  AUD_DUPLICATE_NAME: '8BS2207',
+  AUD_UNKNOWN_FIELD: '8BS2208',
+  AUD_UNKNOWN_NOTE: '8BS2209',
+  AUD_PCM_FALLBACK: '8BS2210',
+  AUD_NO_DRIVER: '8BS2211',
+  AUD_WAVEFORM_UNROUTABLE: '8BS2212',
+  AUD_FLAC_NEEDS_FFMPEG: '8BS2213',
+  AUD_MISSING_FIELD: '8BS2214',
+  AUD_UNKNOWN_INSTRUMENT: '8BS2215',
+
   NOT_COMPILABLE: '8BS3001',
   NOT_ON_THIS_TARGET: '8BS3002',
   // Two of a build's hardware tags each have their own version of a file,

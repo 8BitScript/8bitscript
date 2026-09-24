@@ -30,9 +30,10 @@ rather than needing a build per value).
 
 That's one of the three axes this problem actually has:
 
-1. **Machine** — which CPU/chipset family (`RELEASE_MACHINES`: pet,
-   vic20, c64, c128, cx16, mega65, atari8, nes, web — README.md's target
-   table).
+1. **Machine** — which CPU/chipset family. **`RELEASE_MACHINES`** (what
+   `8bs build` allows today): `pet`, `vic20`, `c64`, `cx16`, `web` —
+   README.md's green table. **`MACHINES`** is larger (original nine plus
+   roadmap ids); see [the home page](../index.md).
 2. **Hardware fitted to the machine** — RAM expansion, model, ports.
    Already fully modeled by the catalog above. C64's `ram` option alone
    has 9 REU sizes (`packages/c64/package.json`, `none` through

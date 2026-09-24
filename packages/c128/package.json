@@ -9,6 +9,15 @@
     "directory": "packages/c128"
   },
   "8bitscript": {
+    "title": "Commodore 128",
+    "emulator": {
+      "binary": "x128",
+      "family": "vice",
+      "screenshot": "vice",
+      "framesUnit": "cycles",
+      "defaultFrames": 8000000,
+      "installer": "vice"
+    },
     "entry": "./src/index.8bs",
     "exports": {
       "./screen": "./src/screen.8bs",
@@ -426,7 +435,7 @@
               "tag": null
             },
             "1571": {
-              "label": "1571 (340K disk) \u2014 built into the C128D",
+              "label": "1571 (340K disk) — built into the C128D",
               "facts": {
                 "storage.save": true,
                 "storage.kib": 329

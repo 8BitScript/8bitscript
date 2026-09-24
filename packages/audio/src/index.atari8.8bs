@@ -1,0 +1,115 @@
+// @8bitscript/audio on the Atari: the song drives POKEY. A sample is the
+// declared synth fallback (not volume-only PCM).
+import { pokey, Distortion } from "@8bitscript/atari8/pokey";
+
+const MAX: utinyint = 4;
+const DATA_MAX: utinyint = 64;
+let sfx: array<u8, 64>;
+let song: array<u8, 64>;
+let sfxLen: array<u8, 4>;
+let songLen: array<u8, 4>;
+let playing: utinyint = 255;
+let row: utinyint = 0;
+let tick: utinyint = 0;
+let sfxLeft: utinyint = 0;
+let ready: bool = false;
+
+function distOf(code: utinyint): utinyint {
+    if (code == 1) {
+        return Distortion.POLY_17;
+    }
+    return Distortion.TONE;
+}
+
+function eventAt(atRow: utinyint, field: utinyint): utinyint {
+    let count: utinyint = song[3];
+    let i: utinyint = 0;
+    let off: utinyint = 4;
+    while (i < count) {
+        if (song[off] == atRow) {
+            return song[off + field];
+        }
+        off = off + 4;
+        i = i + 1;
+    }
+    return 255;
+}
+
+export namespace audio {
+    function bind(kind: utinyint, slot: utinyint, index: utinyint, value: utinyint): void {
+        if (slot != 0 || index >= DATA_MAX) {
+            return;
+        }
+        if (kind == 0) {
+            sfx[index] = value;
+        } else {
+            song[index] = value;
+        }
+    }
+
+    function meta(kind: utinyint, slot: utinyint, length: utinyint, a: utinyint, b: utinyint, c: utinyint): void {
+        if (slot != 0) {
+            return;
+        }
+        if (kind == 0) {
+            sfxLen[slot] = length;
+        } else {
+            songLen[slot] = length;
+        }
+        if (!ready) {
+            pokey.reset();
+            pokey.setVolume(0, 8);
+            ready = true;
+        }
+    }
+
+    function play(slot: utinyint): void {
+        if (sfxLen[slot] < 2) {
+            return;
+        }
+        pokey.setDistortion(0, distOf(sfx[0]));
+        pokey.play(0, sfx[1]);
+        sfxLeft = 8;
+    }
+
+    function music(slot: utinyint): void {
+        playing = slot;
+        row = 0;
+        tick = 0;
+    }
+
+    function update(): void {
+        if (sfxLeft != 0) {
+            sfxLeft = sfxLeft - 1;
+            if (sfxLeft == 0) {
+                pokey.silence(0);
+            }
+            return;
+        }
+        if (playing == 255 || songLen[0] < 4) {
+            return;
+        }
+        let speed: utinyint = song[1];
+        if (speed == 0) {
+            speed = 6;
+        }
+        tick = tick + 1;
+        if (tick < speed) {
+            return;
+        }
+        tick = 0;
+        let length: utinyint = song[2];
+        if (length == 0) {
+            length = 16;
+        }
+        let note: utinyint = eventAt(row, 1);
+        if (note != 255) {
+            pokey.setDistortion(0, distOf(eventAt(row, 2)));
+            pokey.play(0, note);
+        }
+        row = row + 1;
+        if (row >= length) {
+            row = 0;
+        }
+    }
+}

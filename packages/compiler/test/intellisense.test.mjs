@@ -124,6 +124,18 @@ test('hover explains memory.write and memory.read', () => {
   assert.match(info.markdown, /PEEK/);
 });
 
+test('hover explains port.write and port.read', () => {
+  let text = 'export function f(): void { port.write(0xFE, 0); }';
+  let info = getHoverInfo(text, at(text, 'write'));
+  assert.match(info.markdown, /port.write/);
+  assert.match(info.markdown, /OUT/);
+
+  text = 'export function f(): void { let x: utinyint = port.read(0xFE); }';
+  info = getHoverInfo(text, at(text, 'read'));
+  assert.match(info.markdown, /port.read/);
+  assert.match(info.markdown, /IN/);
+});
+
 test('hover does not fire on read/write unless qualified by memory.', () => {
   const text = 'export function f(): void { let write: utinyint = 0; }';
   // The program's own `write` is a variable, and hovers as one — not as the intrinsic.

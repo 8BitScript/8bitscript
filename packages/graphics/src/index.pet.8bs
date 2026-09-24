@@ -1,0 +1,73 @@
+// @8bitscript/graphics on the PET: a 4×4 quadrant-block object, or a
+// glyph if the lowering said the picture could not survive that.
+import { sprites } from "@8bitscript/sprites";
+
+const MAX: utinyint = 8;
+const KIND_GLYPH: utinyint = 0;
+const KIND_PET: utinyint = 3;
+let row0: array<u8, 8>;
+let row1: array<u8, 8>;
+let row2: array<u8, 8>;
+let row3: array<u8, 8>;
+let kind: array<u8, 8>;
+let glyph: array<u8, 8>;
+let bindIndex: array<u8, 8>;
+let started: bool = false;
+
+function ensure(): void {
+    if (!started) {
+        sprites.begin(MAX);
+        started = true;
+    }
+}
+
+export namespace graphics {
+    function bind(slot: utinyint, index: utinyint, value: utinyint): void {
+        if (slot >= MAX) {
+            return;
+        }
+        if (index == 0) {
+            row0[slot] = value;
+            glyph[slot] = value;
+        }
+        if (index == 1) {
+            row1[slot] = value;
+        }
+        if (index == 2) {
+            row2[slot] = value;
+        }
+        if (index == 3) {
+            row3[slot] = value;
+        }
+        bindIndex[slot] = index;
+    }
+
+    function meta(slot: utinyint, frames: utinyint, every: utinyint, which: utinyint, width: utinyint, height: utinyint): void {
+        if (slot >= MAX) {
+            return;
+        }
+        kind[slot] = which;
+        ensure();
+        if (which == KIND_PET) {
+            sprites.defineShape(slot, row0[slot], row1[slot], row2[slot], row3[slot]);
+            sprites.setShape(slot, slot);
+        } else {
+            sprites.setShape(slot, glyph[slot]);
+        }
+    }
+
+    function place(slot: utinyint, x: usmallint, y: usmallint): void {
+        if (slot >= MAX) {
+            return;
+        }
+        ensure();
+        sprites.place(slot, x, y);
+    }
+
+    function update(): void {
+        if (!started) {
+            return;
+        }
+        sprites.update();
+    }
+}

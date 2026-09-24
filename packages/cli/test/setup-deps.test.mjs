@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   parseMissingPackages, missingPacmanPackages, installPacmanPackages, XEMU_BUILD_PACKAGES,
   missingBrewPackages, installBrewPackages, missingPathTools, CX16_BREW_PACKAGES,
+  missingAptPackages, installAptPackages, linuxPackageManager, CX16_APT_PACKAGES, MEGA65_APT_PACKAGES,
 } from '../src/setup/deps.mjs';
 
 test('parseMissingPackages: one package per line, blank output means nothing missing', () => {
@@ -80,4 +81,39 @@ test('installBrewPackages: `brew install <packages>` as the user — the exec pa
 test('missingPathTools: AUR-only tools are checked as binaries on PATH', () => {
   assert.deepEqual(missingPathTools(['cc65', 'lzsa'], (b) => b === 'cc65'), ['lzsa']);
   assert.deepEqual(missingPathTools(['cc65', 'lzsa'], () => true), []);
+});
+
+test('linuxPackageManager: apt-get wins over pacman when both exist', () => {
+  assert.equal(linuxPackageManager((b) => b === 'apt-get' || b === 'pacman'), 'apt');
+  assert.equal(linuxPackageManager((b) => b === 'pacman'), 'pacman');
+  assert.equal(linuxPackageManager(() => false), null);
+});
+
+test('missingAptPackages: dpkg-query Status install ok installed is present', async () => {
+  const missing = await missingAptPackages(['git', 'cmake', 'lzsa'], async (cmd, args) => {
+    assert.equal(cmd, 'dpkg-query');
+    const pkg = args[2];
+    if (pkg === 'lzsa') return { code: 1, stdout: '', stderr: '', missing: false };
+    return { code: 0, stdout: 'install ok installed', stderr: '', missing: false };
+  });
+  assert.deepEqual(missing, ['lzsa']);
+});
+
+test('missingAptPackages: dpkg-query itself not found -> everything is missing', async () => {
+  assert.deepEqual(await missingAptPackages(['git'], async () => ({ missing: true })), ['git']);
+});
+
+test('installAptPackages: sudo apt-get install -y', async () => {
+  let seen = null;
+  await installAptPackages(['libsdl2-dev', 'cc65'], async (cmd, args) => { seen = [cmd, args]; return { code: 0 }; });
+  assert.deepEqual(seen, ['apt-get', ['install', '-y', 'libsdl2-dev', 'cc65']]);
+});
+
+test('the apt lists name real Debian packages, not Arch names', () => {
+  assert.ok(CX16_APT_PACKAGES.includes('build-essential'));
+  assert.ok(CX16_APT_PACKAGES.includes('libsdl2-dev'));
+  assert.ok(CX16_APT_PACKAGES.includes('cc65'));
+  assert.ok(!CX16_APT_PACKAGES.includes('base-devel'));
+  assert.ok(MEGA65_APT_PACKAGES.includes('libgtk-3-dev'));
+  assert.ok(MEGA65_APT_PACKAGES.includes('msitools'));
 });

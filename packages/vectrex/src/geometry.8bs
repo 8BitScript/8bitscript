@@ -1,0 +1,5 @@
+export namespace Video {
+    const COLUMNS: utinyint = 16;
+    const ROWS: utinyint = 12;
+    const CELL_COUNT: usmallint = 192;
+}

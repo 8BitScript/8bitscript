@@ -1,0 +1,4 @@
+sample chime {
+  source "./chime.wav"
+  fallback { synth noise }
+}

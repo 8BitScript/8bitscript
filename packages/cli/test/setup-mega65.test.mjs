@@ -28,7 +28,7 @@ const REAL_DATA_DIR_MAC = xemuMega65RealDataDir('darwin');
 /** Fake filesystem + process world, same shape as setup-cx16.test.mjs's. */
 function makeWorld({
   platform = 'darwin', entries = {}, env = {}, xcode = true, brew = true, brewMissing = [],
-  pacmanMissing = [], buildOk = true, interactive = false, confirmAnswer = true,
+  pacmanMissing = [], apt = false, aptMissing = [], buildOk = true, interactive = false, confirmAnswer = true,
   promptAnswer = '/downloads/MEGA65.ROM', romValidates = 'unknown',
 } = {}) {
   const fs = { ...entries };
@@ -46,7 +46,12 @@ function makeWorld({
   const io = {
     platform,
     env: { PATH: '/usr/local/bin:/usr/bin', ...env },
-    hasBinary: (name) => (name === 'brew' ? brew : false),
+    hasBinary: (name) => {
+      if (name === 'brew') return brew;
+      if (name === 'apt-get') return apt;
+      if (name === 'pacman') return platform === 'linux' && !apt;
+      return false;
+    },
     canPromptInteractively: () => interactive,
     confirm: async (q) => { calls.confirms.push(q); return confirmAnswer; },
     promptLine: async (q) => { calls.prompts.push(q); return promptAnswer; },
@@ -84,6 +89,11 @@ function makeWorld({
         const asked = args.slice(2);
         const anyMissing = asked.some((p) => brewMissing.includes(p));
         return { code: anyMissing ? 1 : 0, stdout: '', stderr: '', missing: false };
+      }
+      if (cmd === 'dpkg-query') {
+        const pkg = args[args.length - 1];
+        if (aptMissing.includes(pkg)) return { code: 1, stdout: '', stderr: '', missing: false };
+        return { code: 0, stdout: 'install ok installed', stderr: '', missing: false };
       }
       if (cmd === 'pacman') {
         const asked = args.slice(1);
@@ -201,6 +211,14 @@ test('setupMega65: Linux uses pacman, not brew, and never touches Xcode/Homebrew
   assert.equal(result.ok, true);
   assert.ok(!calls.exec.some(([c]) => c === 'xcode-select' || c === 'brew'));
   assert.ok(calls.exec.some(([c]) => c === 'pacman'));
+});
+
+test('setupMega65: Ubuntu uses apt-get, not pacman', async () => {
+  const { io, calls } = makeWorld({ entries: A_ROM_FILE, platform: 'linux', apt: true, romValidates: 'valid' });
+  const { result } = await runSetup(io, { romPath: '/downloads/MEGA65.ROM' });
+  assert.equal(result.ok, true);
+  assert.ok(calls.exec.some(([c]) => c === 'dpkg-query'));
+  assert.ok(!calls.exec.some(([c]) => c === 'pacman' || c === 'brew'));
 });
 
 test('setupMega65: source build failure — stops at the emulator step, no sudo at all', async () => {

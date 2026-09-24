@@ -5,7 +5,7 @@ nav_order: 1
 
 # The language, by task
 
-Two languages share one pipeline. `.8bs` is the core language — types, functions, hardware access, nothing hidden. `.8bx` adds declarative composition on top: elements and components that elaborate to the same calls you would write by hand, at the same cost. This manual documents what compiles today, at compiler 0.11.0; anything still proposed is labelled *planned* and kept in one place ([Not yet available](not-yet.md)).
+Two languages share one pipeline, and two more join as their own front ends. `.8bs` is the core language — types, functions, hardware access, nothing hidden. `.8bx` adds declarative composition on top: elements and components that elaborate to the same calls you would write by hand, at the same cost. `.8bg` and `.8ba` declare a sprite or a song; they are not 8BitScript. This manual documents what compiles today, at compiler 0.11.0; anything still proposed is labelled *planned* and kept in one place ([Not yet available](not-yet.md)).
 
 Look a task up, not a chapter: every entry is one thing you can do. Each carries a `§` number for citing it. Code samples are real — taken from the compiler's own test suite, the shipped examples, or 2048 — not invented for this page. The design behind `.8bx` is the [8BX specification](../spec/8bx.md); what the compiler has of it, and what it does not yet, is [8BX: composition for 8BitScript](../project/8bx.md).
 
@@ -30,6 +30,8 @@ Look a task up, not a chapter: every entry is one thing you can do. Each carries
 | --- | --- | --- |
 | `.8bs` | Core language | Yes — the only kind that can be |
 | `.8bx` | Core language + elements + `component` | No — refused by name ([§3.1](boundary.md#31-call-a-component-from-8bs)) |
+| `.8bg` | Sprite declarations (not 8BitScript) | No — a program imports it |
+| `.8ba` | Instrument / sample / song (not 8BitScript) | No — a program imports it |
 
 ## §0.2 Hello world, both ways
 

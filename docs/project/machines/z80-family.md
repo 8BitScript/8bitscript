@@ -12,7 +12,7 @@ ColecoVision, Sega Master System, Game Gear, and Amstrad CPC. MSX2 is
 described below because the V9938 research was done beside MSX1; it is
 not a separate roadmap target. Read the root
 [`AGENTS.md`](https://github.com/8BitScript/8bitscript/blob/trunk/AGENTS.md) first; the rules there apply to every
-target and are not repeated. `gameboy.md` (same directory) covers the
+target and are not repeated. `gb.md` (same directory) covers the
 other Phase 8 CPU; the Game Boy is *not* a Z80 and is deliberately kept
 out of this note. Each machine here also has its own compact
 `<machine>.schema.md` beside this file — spectrum, msx, sms, cpc,
@@ -320,5 +320,5 @@ docs/roadmap.md                                  Phase 8: seven Z80 machines on 
 packages/backend-6502/src/index.mjs              the only lowering today; FRAME_SYNC per target is the shape the Z80 frame drivers mirror
 packages/pet/AGENTS.md, packages/nes/AGENTS.md   the profile-file rule and the vblank-queue rule these machines reuse
 tmp/research/{spectrum,msx,sms,cpc,colecovision}.schema.md   one 16-row schema per machine, for the capability matrix
-tmp/research/gameboy.md, gameboy.schema.md       the other Phase 8 CPU
+tmp/research/gb.md, gb.schema.md       the other Phase 8 CPU
 ```

@@ -42,7 +42,7 @@ test('build() with no target is usage and exit 2', async () => {
   const { result, stderr } = await capture(() => build([]));
   assert.equal(result, 2);
   assert.match(stderr, /Usage: 8bs build/);
-  assert.match(stderr, /--target <pet\|web>/);
+  assert.match(stderr, /--target <pet\|c64\|vic20\|cx16\|web>/);
 });
 
 test('build() names a missing --profile value rather than treating the next flag as the name', async () => {
@@ -63,9 +63,9 @@ test('compile() refuses a retired name and an unknown target', async () => {
   assert.match(retired.stderr, /no longer a target/);
   assert.match(retired.stderr, /'--pal'/);
 
-  const unknown = await capture(() => compile('spectrum'));
+  const unknown = await capture(() => compile('intellivision'));
   assert.equal(unknown.result.ok, false);
-  assert.match(unknown.stderr, /unknown target 'spectrum'/);
+  assert.match(unknown.stderr, /unknown target 'intellivision'/);
 });
 
 test('compile() for pet writes a .prg for a for-loop that sums 0..9', async () => {

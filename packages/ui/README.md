@@ -75,10 +75,10 @@ them from `@8bitscript/input` or from anything else it likes.
 
 **The selected item is inverted, not recolored.** Reverse video fills the
 label and its padding in the item color; a reverse space is a solid
-block, so the item reads as a button. That works on all nine, including
-the three with no per-cell color: the NES ships inverted copies of its
-font at ASCII+128, and the PET and Atari invert with bit 7 of the screen
-code.
+block, so the item reads as a button. That works on every machine the UI
+links for, including targets with no per-cell color: the NES ships
+inverted copies of its font at ASCII+128, and the PET and Atari invert
+with bit 7 of the screen code.
 
 **Drawing goes through `text.print`, and that is worth 423 bytes.**
 `print` does a machine's per-run video setup once and then walks the string;
@@ -117,14 +117,14 @@ second row.
 ## See it run
 
 [8BitScript Studio](../studio) uses a four-item bar across the top of its
-front door. The VIC-20 is parked — `8bs build --target vic20` still
-refuses, since that machine's own backend doesn't exist yet — so that
-picture is the pre-0.2.0 layout, not something trunk emits today. It's the
-machine where `FILE EDIT VIEW HELP` does not fit a 22-column row: `HELP` is
-dropped and `clipped()` is true.
+front door on every **`RELEASE_MACHINES`** target (`pet`, `vic20`, `c64`,
+`cx16`, `web`). On the VIC-20, `FILE EDIT VIEW HELP` does not fit a
+22-column row: `HELP` is dropped and `clipped()` is true.
 
 ## Adding a component
 
 See [AGENTS.md](AGENTS.md): what belongs here rather than in a machine
 package, what the character grid does and does not give you on each target,
-and the rule that every component links for all nine.
+and the rule that every component links for every id in `MACHINES` (only
+five release targets get `8bs build` today — root
+[`AGENTS.md`](../../AGENTS.md#this-release-release_machines)).

@@ -94,6 +94,10 @@ import { screen } from "@8bitscript/screen";
 import { text, TextColor } from "@8bitscript/text";
 import { raster, Slot } from "@8bitscript/raster";
 import { Video } from "@8bitscript/system";
+import { audio } from "@8bitscript/audio";
+import { graphics } from "@8bitscript/graphics";
+import { chime } from "./chime.8ba";
+import { Mark } from "./Mark.8bx";
 
 // Whether this machine can change the picture part-way down a frame.
 // A compile-time fact: both arms of every `if (HAS_RASTER)` below are
@@ -207,6 +211,8 @@ function drawScreen(): void {
 
 export function main(): void {
     screen.blank();
+    Mark();
+    audio.play(chime);
     drawScreen();
 
     if (HAS_RASTER) {
@@ -248,5 +254,7 @@ export function main(): void {
         // no raster this is the only thing on screen that moves.
         frames++;
         text.printNumber(frameCell, frames, 5);
+        graphics.update();
+        audio.update();
     }
 }

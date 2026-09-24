@@ -60,11 +60,17 @@
 import { screen } from "@8bitscript/screen";
 import { sprites } from "@8bitscript/sprites";
 import { timeline } from "@8bitscript/timeline";
+import { audio } from "@8bitscript/audio";
+import { graphics } from "@8bitscript/graphics";
+import { chime } from "./chime.8ba";
+import { mark } from "./mark.8bg";
 import { flock } from "./flock.8bs";
 import { Scene } from "./Scene.8bx";
 
 export function main(): void {
     screen.blank();
+    graphics.place(mark, sprites.ORIGIN_X + 120, sprites.ORIGIN_Y);
+    audio.play(chime);
     flock.begin();
     timeline.start();
     while (true) {
@@ -73,5 +79,7 @@ export function main(): void {
         Scene();
         flock.move();
         sprites.update();
+        graphics.update();
+        audio.update();
     }
 }

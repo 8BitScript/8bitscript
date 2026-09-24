@@ -54,7 +54,7 @@ import { basename, join, resolve } from 'node:path';
 
 import {
   MACHINES, RELEASE_MACHINES, isVariantPath, link, positionAt, resolveImportAliases, sourceKindOf, variantOf,
-  shortOfBaseline, unmetRequirements,
+  shortOfBaseline, unmetRequirements, cpuFamily,
 } from '@8bitscript/compiler';
 
 import { applyCheckoutFromArgs, setActiveCheckout } from './checkout.mjs';
@@ -70,6 +70,7 @@ import { checkArtifactName } from './artifact-name.mjs';
 import {
   imageOutFile, programArg, programStem, resolveImages, resolvePrograms, selectProgram,
 } from './programs.mjs';
+import { releaseTargetList, releaseTargetPipe, releaseUsageNote } from './release.mjs';
 
 /** `a, b and c` — the machines this release builds for, said the way a sentence says them. */
 function listOf(names) {
@@ -148,6 +149,12 @@ export function checkEntryKind(entry) {
       ok: false,
       error: `entry ${entry} is a .8bx file; a program starts from a .8bs file. `
         + 'Put main() in a .8bs file that imports this file\'s components and calls them.',
+    };
+  }
+  if (kind === '.8bg' || kind === '.8ba') {
+    return {
+      ok: false,
+      error: `entry ${entry} is a media file; a program starts from a .8bs file that imports it.`,
     };
   }
   return { ok: false, error: `entry ${entry} is not an 8BitScript source file (.8bs)` };
@@ -254,7 +261,7 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   if (!RELEASE_MACHINES.includes(target)) {
     process.stderr.write(
       `8bs build: '${target}' is not a target in this release. This release builds for ` +
-      `${listOf(RELEASE_MACHINES)}; the ${target} returns in a later one.\n`,
+      `${releaseTargetList()}; the ${target} returns in a later one.\n`,
     );
     return { ok: false };
   }
@@ -414,7 +421,16 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
     return { ok: true, outFile, frameRate, hardware, webDir, memory, sizeReport: result.sizeReport, program: program.name, locale, factsTested };
   }
 
-  const { build, outputExtension } = await import('@8bitscript/compiler/mos');
+  const family = cpuFamily(target);
+  const backend = {
+    mos: '@8bitscript/compiler/mos',
+    sm83: '@8bitscript/compiler/sm83',
+    z80: '@8bitscript/compiler/z80',
+    m6809: '@8bitscript/compiler/m6809',
+    i8048: '@8bitscript/compiler/i8048',
+    f8: '@8bitscript/compiler/f8',
+  }[family] ?? '@8bitscript/compiler/mos';
+  const { build, outputExtension } = await import(backend);
   // Hardware that changes the build is in the name (an 8032 PET, an
   // expanded VIC-20, an XEGS cartridge); hardware that only changes the
   // emulator is not, because the file is the same file.
@@ -704,8 +720,8 @@ export async function build(args) {
 
   if (!target) {
     process.stderr.write(
-      'Usage: 8bs build --target <pet|web>\n'
-      + '                 (vic20, c64, c128, atari8, nes, cx16, mega65 are parked until a later release;\n'
+      `Usage: 8bs build --target <${releaseTargetPipe()}>\n`
+      + releaseUsageNote()
       + '                  no --target builds the `baseline` 8bitscript.config.ts names, when it names one)\n'
       + '                 [--pal] [--size] [--debug] [--program <name>] [--locale <name>]\n'
       + HARDWARE_USAGE

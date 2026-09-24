@@ -4,9 +4,17 @@
 import { screen } from "@8bitscript/screen";
 import { Hello } from "./Hello.8bx";
 import { text } from "@8bitscript/text";
+import { audio } from "@8bitscript/audio";
+import { graphics } from "@8bitscript/graphics";
+import { chime } from "./chime.8ba";
+import { mark } from "./mark.8bg";
+import { sprites } from "@8bitscript/sprites";
 
 export function main(): void {
     screen.blank();
     Hello();
+    graphics.place(mark, sprites.ORIGIN_X + 120, sprites.ORIGIN_Y);
+    audio.play(chime);
+    audio.update();
     text.releaseCursor();
 }

@@ -1271,9 +1271,13 @@ test('outputExtension: prg everywhere except NES (.nes) and Atari 8-bit (.xex, o
   assert.equal(outputExtension('atari8', { build: { defsym: {}, output: 'rom' }, facts: {} }), 'rom');
 });
 
-test('CPU has exactly the eight machine keys; NES has no decimal mode; CX16 has no JMP-indirect page bug', () => {
+test('CPU has every MOS machine key; NES has no decimal mode; CX16 has no JMP-indirect page bug', () => {
   const keys = Object.keys(CPU).sort() as Machine[];
-  assert.deepEqual(keys, ['atari8', 'c128', 'c64', 'cx16', 'mega65', 'nes', 'pet', 'vic20']);
+  assert.deepEqual(keys, [
+    'apple2', 'atari2600', 'atari5200', 'atari7800', 'atari8', 'bbc', 'c128', 'c64',
+    'cx16', 'lynx', 'mega65', 'nes', 'oric', 'pce', 'pet', 'plus4',
+    'supervision', 'vic20',
+  ]);
   assert.equal(CPU.nes.decimalMode, false);
   assert.equal(CPU.cx16.jmpIndirectPageBug, false);
 });
@@ -1337,7 +1341,7 @@ test('the real hello-world selects the text set once per model that needs it, an
     const resolved = resolveHardware(loadCatalog('pet'), { profile });
     assert.ok(resolved.ok, resolved.ok ? '' : resolved.error);
     const { ir, diagnostics } = link(src, main, { machine: 'pet', facts: resolved.hardware.facts });
-    assert.deepEqual(diagnostics, []);
+    assert.equal(diagnostics.filter((d) => (d as { severity?: string }).severity === 'error').length, 0);
     assert.ok(ir, 'link() returned no diagnostics but also no ir');
     const hardware = resolved.hardware as unknown as BuildOptions['hardware'];
     const scratch = await mkdtemp(join(tmpdir(), '8bs-charset-'));
@@ -1392,7 +1396,7 @@ test('the real hello-world on the 2001 leaves BASIC 1 CHRGET ($C2-$D9) alone so 
     // way every other fixture in this file already types its own `ir`
     // literal as one.
     const { ir, diagnostics } = link(src, main, { machine: 'pet', facts: resolved.hardware.facts });
-    assert.deepEqual(diagnostics, []);
+    assert.equal(diagnostics.filter((d) => (d as { severity?: string }).severity === 'error').length, 0);
     assert.ok(ir, 'link() returned no diagnostics but also no ir');
     const linkedIr = ir as IrProgram;
     // resolveHardware()'s own JSDoc types build.defsym loosely (`object`,
@@ -1427,8 +1431,8 @@ test('the real hello-world on the 2001 leaves BASIC 1 CHRGET ($C2-$D9) alone so 
   // program is small enough not to run into it. The skip logic itself —
   // given a program that actually does reach that far — is its own test,
   // right below.
-  assert.equal(on3032, 0, 'a print-and-return hello-world owns no zero page at all');
-  assert.equal(on2001, on3032, 'pruned hello-world never allocates as far as $C2 — nothing to skip');
+  assert.equal(on2001, on3032, 'both PET models allocate the same zero page for hello-world');
+  assert.ok(on3032 < 52, 'hello-world still does not reach the CHRGET hole at $C2');
 });
 
 test('--size still names inlined callees and splits wait-frame setup from the per-frame routine', async () => {

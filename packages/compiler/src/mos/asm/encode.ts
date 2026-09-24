@@ -122,6 +122,10 @@ export const OPCODES: Readonly<Record<string, Readonly<Partial<Record<Addressing
   TXA: { implied: 0x8a },
   TXS: { implied: 0x9a },
   TYA: { implied: 0x98 },
+  // HuC6280 extras (PC Engine). Immediate writes to the VDC port pair.
+  ST0: { immediate: 0x03 },
+  ST1: { immediate: 0x13 },
+  ST2: { immediate: 0x23 },
 };
 
 export type EncodeResult =

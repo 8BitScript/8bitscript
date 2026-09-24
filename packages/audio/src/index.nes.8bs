@@ -1,0 +1,129 @@
+// @8bitscript/audio on the NES: pulse + noise through the APU driver.
+import { apu } from "@8bitscript/nes/apu";
+
+const DATA_MAX: utinyint = 64;
+let sfx: array<u8, 64>;
+let song: array<u8, 64>;
+let sfxLen: array<u8, 4>;
+let songLen: array<u8, 4>;
+let playing: utinyint = 255;
+let row: utinyint = 0;
+let tick: utinyint = 0;
+let sfxLeft: utinyint = 0;
+
+// Pulse timer for notes C3..B5 (36..71). NTSC: 1789773/(16*f) - 1.
+const PULSE: array<u16, 36> = [
+    854, 806, 761, 718, 678, 640, 604, 570, 538, 508, 479, 452,
+    427, 403, 380, 359, 339, 320, 302, 285, 269, 254, 239, 226,
+    213, 201, 190, 179, 169, 159, 150, 142, 134, 127, 119, 113,
+];
+
+function periodOf(note: utinyint): usmallint {
+    let n: utinyint = note;
+    if (n < 36) {
+        n = 36;
+    }
+    n = n - 36;
+    if (n >= 36) {
+        n = 35;
+    }
+    return PULSE[n];
+}
+
+function eventAt(atRow: utinyint, field: utinyint): utinyint {
+    let count: utinyint = song[3];
+    let i: utinyint = 0;
+    let off: utinyint = 4;
+    while (i < count) {
+        if (song[off] == atRow) {
+            return song[off + field];
+        }
+        off = off + 4;
+        i = i + 1;
+    }
+    return 255;
+}
+
+function voice(wave: utinyint, note: utinyint): void {
+    if (wave == 1) {
+        apu.noise(note & 15, 8);
+    } else {
+        apu.pulse(periodOf(note), 8, 2);
+    }
+}
+
+export namespace audio {
+    function bind(kind: utinyint, slot: utinyint, index: utinyint, value: utinyint): void {
+        if (slot != 0 || index >= DATA_MAX) {
+            return;
+        }
+        if (kind == 0) {
+            sfx[index] = value;
+        } else {
+            song[index] = value;
+        }
+    }
+
+    function meta(kind: utinyint, slot: utinyint, length: utinyint, a: utinyint, b: utinyint, c: utinyint): void {
+        if (slot != 0) {
+            return;
+        }
+        if (kind == 0) {
+            sfxLen[slot] = length;
+        } else {
+            songLen[slot] = length;
+        }
+    }
+
+    function play(slot: utinyint): void {
+        if (sfxLen[slot] < 2) {
+            return;
+        }
+        if (sfx[0] == 255) {
+            voice(1, 8);
+        } else {
+            voice(sfx[0], sfx[1]);
+        }
+        sfxLeft = 8;
+    }
+
+    function music(slot: utinyint): void {
+        playing = slot;
+        row = 0;
+        tick = 0;
+    }
+
+    function update(): void {
+        if (sfxLeft != 0) {
+            sfxLeft = sfxLeft - 1;
+            if (sfxLeft == 0) {
+                apu.silence();
+            }
+            return;
+        }
+        if (playing == 255 || songLen[0] < 4) {
+            return;
+        }
+        let speed: utinyint = song[1];
+        if (speed == 0) {
+            speed = 6;
+        }
+        tick = tick + 1;
+        if (tick < speed) {
+            return;
+        }
+        tick = 0;
+        let length: utinyint = song[2];
+        if (length == 0) {
+            length = 16;
+        }
+        let note: utinyint = eventAt(row, 1);
+        if (note != 255) {
+            voice(eventAt(row, 2), note);
+        }
+        row = row + 1;
+        if (row >= length) {
+            row = 0;
+        }
+    }
+}

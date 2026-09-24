@@ -13,6 +13,18 @@ not the status board) — check them, and
 working. Nothing here overrides that: a rule below about how a *future*
 capability should be shaped is not a claim that the capability exists yet.
 
+## This release (`RELEASE_MACHINES`)
+
+`8bs build` and `8bs run` work for **five** targets only: `pet`, `c64`,
+`vic20`, `cx16`, and `web` (`RELEASE_MACHINES` in
+`packages/compiler/src/resolver/index.mjs`). Examples, Studio, and the
+editor launcher share
+[`packages/examples/shared-release-targets.ts`](packages/examples/shared-release-targets.ts).
+Every other id stays in `MACHINES` so twins, facts, and `8bs check` keep
+working; restoring the rest to `RELEASE_MACHINES` is planned after this
+narrow release is polished. See [`docs/index.md`](docs/index.md) and
+[`packages/studio/AGENTS.md`](packages/studio/AGENTS.md).
+
 ## The one rule everything else follows from
 
 > **8BitScript should abstract concepts, but expose constraints. It should
@@ -228,6 +240,10 @@ own file is
 [`packages/compiler/src/lexer/AGENTS.md`](packages/compiler/src/lexer/AGENTS.md)
 — a hand-written scanner that never throws, with the token-level rules
 next to the scanner.
+[`editors/vscode/AGENTS.md`](editors/vscode/AGENTS.md) is the one outside
+`packages/`: the VS Code extension's file icons, where an editor caches an
+icon under its URL and an edited SVG never reaches the screen — the reason
+icon filenames carry a content hash and a script maintains them.
 
 ## Seeing what a program actually does
 
@@ -284,8 +300,11 @@ the change everywhere it is described, in the same commit:
   `editors/vscode/language-configuration.json` holds the bracket, quote, and
   word rules (a new sigil needs its `wordPattern` entry, or completion will
   insert it twice); and `editors/vscode/README.md` lists what the extension
-  highlights, hovers, and completes. Any further editor integration added
-  under `editors/` follows the same rule.
+  highlights, hovers, and completes. A new file extension also needs an icon,
+  which is not as simple as it sounds —
+  [`editors/vscode/AGENTS.md`](editors/vscode/AGENTS.md) is why, and is worth
+  reading before touching anything under `editors/vscode/icons/`. Any further
+  editor integration added under `editors/` follows the same rule.
 - **Per-package `AGENTS.md` files** (`packages/<target>/AGENTS.md`) if the
   change alters what a target package is allowed or expected to do.
   A lexer change also updates
@@ -389,3 +408,10 @@ how confident the agent is that everything is ready. See
 release flow, and [`.github/AGENTS.md`](.github/AGENTS.md) for how to
 recover a release that published npm but not the editor or the GitHub
 Release — never by bumping the version again or publishing by hand.
+
+A **brand-new** `@8bitscript/*` package is the one exception: CI
+cannot create a name npm has never seen, so the first `pnpm publish`
+and the Trusted Publishing (`npm trust`) config are a one-time
+manual step. Later versions of that package go through the Version
+Packages PR like everything else. The runbook is
+[`.github/AGENTS.md`](.github/AGENTS.md#a-brand-new-packages-first-publish).

@@ -1,0 +1,36 @@
+// @8bitscript/audio — play a sample or song compiled from a .8ba file.
+//
+//     import { blip, theme } from "./theme.8ba";
+//     import { audio } from "@8bitscript/audio";
+//     audio.play(blip);
+//     audio.music(theme);
+//     audio.update();
+//
+// This file is the no-driver path: bind/meta keep the handles valid, play
+// and music do nothing. A machine with a chip replaces this file.
+const MAX: utinyint = 4;
+let sfxLen: array<u8, 4>;
+let songLen: array<u8, 4>;
+
+export namespace audio {
+    function bind(kind: utinyint, slot: utinyint, index: utinyint, value: utinyint): void {
+    }
+
+    function meta(kind: utinyint, slot: utinyint, length: utinyint, a: utinyint, b: utinyint, c: utinyint): void {
+        if (kind == 0 && slot < MAX) {
+            sfxLen[slot] = length;
+        }
+        if (kind == 1 && slot < MAX) {
+            songLen[slot] = length;
+        }
+    }
+
+    function play(slot: utinyint): void {
+    }
+
+    function music(slot: utinyint): void {
+    }
+
+    function update(): void {
+    }
+}

@@ -19,6 +19,10 @@ import {
   run, boot, atari800CleanDisplayConfig, atari800CleanDisplayText, emulatorInvocation, resolveController, CX16_MOUSE_NOTE,
 } from '../src/run.mjs';
 import { loadCatalog, resolveHardware } from '../src/hardware.mjs';
+import { releaseBootTargetPipe, releaseTargetList, releaseTargetPipe } from '../src/release.mjs';
+
+const RELEASE_USAGE = releaseTargetPipe().replace(/\|/g, '\\|');
+const BOOT_USAGE = releaseBootTargetPipe().replace(/\|/g, '\\|');
 
 function capture(fn) {
   const stdout = [];
@@ -72,7 +76,7 @@ test('run() with no target prints usage and returns 2', async () => {
   const { result, stdout, stderr } = await capture(() => run(['--pal']));
   assert.equal(result, 2);
   assert.equal(stdout, '');
-  assert.match(stderr, /^Usage: 8bs run <pet\|web>/);
+  assert.match(stderr, new RegExp(`^Usage: 8bs run <${RELEASE_USAGE}>`));
   assert.match(stderr, /\[--size\]/, 'run --size is the breakdown before the emulator starts');
   assert.match(stderr, /\[--lan\]/, 'run --lan is the web LAN HTTPS listener');
   assert.match(stderr, /\[--local\]/, 'run --local is loopback-only');
@@ -89,8 +93,29 @@ test('run() with a baseline and a mistyped machine still prints usage, not the b
     process.chdir(dir);
     const { result, stderr } = await capture(() => run(['c65']));
     assert.equal(result, 2);
-    assert.match(stderr, /^Usage: 8bs run <pet\|web>/);
+    assert.match(stderr, new RegExp(`^Usage: 8bs run <${RELEASE_USAGE}>`));
     assert.match(stderr, /no target runs the `baseline`/);
+  } finally {
+    process.chdir(prev);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('run() --screenshot of a parked machine is refused in this release', async () => {
+  const dir = await mkdtemp(join(tmpdir(), '8bs-run-test-'));
+  const prev = process.cwd();
+  try {
+    await writeFile(join(dir, 'main.8bs'), SUM);
+    await writeFile(join(dir, '8bitscript.config.ts'), 'export default { entry: "main.8bs", targets: { vectrex: {} } };\n');
+    process.chdir(dir);
+    const shot = join(dir, 'out.png');
+    const { result, stderr } = await capture(() => run(['vectrex', 'main.8bs', '--screenshot', shot]));
+    assert.notEqual(result, 0);
+    assert.match(
+      stderr,
+      new RegExp(`is not a target in this release\\. This release builds for ${releaseTargetList().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`),
+    );
+    assert.equal(existsSync(shot), false);
   } finally {
     process.chdir(prev);
     await rm(dir, { recursive: true, force: true });
@@ -175,6 +200,52 @@ test('emulatorInvocation names a target with no emulator wired up', async () => 
   assert.match(invocation.error, /no emulator wired up for target 'made-up'/);
 });
 
+test('emulatorInvocation for plus4 is VICE xplus4 with autostart', async () => {
+  const { hardware } = resolveHardware(loadCatalog('plus4'));
+  const invocation = await emulatorInvocation('plus4', { pal: false, hardware, outFile: '/tmp/x.prg' });
+  assert.equal(invocation.ok, true);
+  assert.equal(invocation.emulator, 'xplus4');
+  assert.ok(invocation.emulatorArgs.includes('-autostart'));
+  assert.ok(invocation.emulatorArgs.includes('/tmp/x.prg'));
+});
+
+test('emulatorInvocation for a dedicated emulator hands it the file', async () => {
+  const { hardware } = resolveHardware(loadCatalog('atari2600'));
+  const invocation = await emulatorInvocation('atari2600', { pal: false, hardware, outFile: '/tmp/x.a26' });
+  assert.equal(invocation.ok, true);
+  assert.equal(invocation.emulator, 'stella');
+  assert.deepEqual(invocation.emulatorArgs.slice(-1), ['/tmp/x.a26']);
+});
+
+test('emulatorInvocation for MAME names the system once, without a software-list positional', async () => {
+  const { hardware } = resolveHardware(loadCatalog('apple2'));
+  const invocation = await emulatorInvocation('apple2', { pal: false, hardware, outFile: '/tmp/x.bin' });
+  assert.equal(invocation.ok, true);
+  assert.equal(invocation.emulator, 'mame');
+  assert.equal(invocation.emulatorArgs[0], 'apple2e');
+  assert.equal(invocation.emulatorArgs.filter((a) => a === 'apple2e').length, 1);
+  assert.ok(!invocation.emulatorArgs.includes('/tmp/x.bin'), 'a host file is not a software-list name');
+});
+
+test('emulatorInvocation for a MAME cartridge machine passes -cart', async () => {
+  const { hardware } = resolveHardware(loadCatalog('coleco'));
+  const invocation = await emulatorInvocation('coleco', { pal: false, hardware, outFile: '/tmp/x.col' });
+  assert.equal(invocation.ok, true);
+  assert.equal(invocation.emulator, 'mame');
+  assert.equal(invocation.emulatorArgs[0], 'coleco');
+  const cart = invocation.emulatorArgs.indexOf('-cart');
+  assert.ok(cart >= 0, invocation.emulatorArgs.join(' '));
+  assert.equal(invocation.emulatorArgs[cart + 1], '/tmp/x.col');
+});
+
+test('emulatorInvocation for atari5200 is atari800 with -5200', async () => {
+  const { hardware } = resolveHardware(loadCatalog('atari5200'));
+  const invocation = await emulatorInvocation('atari5200', { pal: false, hardware, outFile: '/tmp/x.bin' });
+  assert.equal(invocation.ok, true);
+  assert.equal(invocation.emulator, 'atari800');
+  assert.ok(invocation.emulatorArgs.includes('-5200'));
+});
+
 test('boot() returns 2 and writes the error when --hardware/--profile parsing fails', async () => {
   const { result, stderr } = await capture(() => boot(['--profile']));
   assert.equal(result, 2);
@@ -185,7 +256,7 @@ test('boot() with no target prints usage and returns 2', async () => {
   const { result, stdout, stderr } = await capture(() => boot(['--pal']));
   assert.equal(result, 2);
   assert.equal(stdout, '');
-  assert.match(stderr, /^Usage: 8bs boot <pet>/);
+  assert.match(stderr, new RegExp(`^Usage: 8bs boot <${BOOT_USAGE}>`));
 });
 
 test('boot() refuses the web target by name — there is no bare emulator to boot without a program', async () => {

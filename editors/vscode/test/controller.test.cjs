@@ -199,7 +199,7 @@ test('the preview asks the toolchain what each machine has', () => {
   assert.match(VIEW, /target\?\.title \?\? id/, 'and the machine’s name is the toolchain’s');
   const { ALL_TARGETS } = require('../src/projects.cjs');
   assert.match(VIEW, /ALL_TARGETS\.map/, 'every machine that builds gets a row');
-  assert.equal(ALL_TARGETS.length, 9);
+  assert.deepEqual(ALL_TARGETS, ['pet', 'c64', 'vic20', 'cx16', 'web']);
 });
 
 test('the toolchain reads the file itself, so nothing is offered to paste', () => {

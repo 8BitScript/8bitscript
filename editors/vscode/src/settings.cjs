@@ -5,7 +5,7 @@
 // Run button means exactly what the panel says it does.
 const vscode = require('vscode');
 
-const { ALL_TARGETS } = require('./projects.cjs');
+const { ALL_TARGETS, ALL_DOCTOR_EMULATOR_IDS, isAllDoctorEmulators } = require('./projects.cjs');
 const { normalizeSelection, worstSelection } = require('./hardwareCatalog.cjs');
 
 const SECTION = '8bitscript';
@@ -54,6 +54,24 @@ function getNamedSystem() {
   return typeof value === 'string' ? value : '';
 }
 const setNamedSystem = (name) => update('namedSystem', name ?? '');
+
+/**
+ * Emulators 8BitScript: Doctor offers to install. `null` (the default) is
+ * all of them. An empty array is host tools only.
+ *
+ * @returns {string[]|null}
+ */
+function getDoctorEmulators() {
+  const value = config().get('doctorEmulators');
+  if (!Array.isArray(value)) return null;
+  return value.filter((id) => ALL_DOCTOR_EMULATOR_IDS.includes(id));
+}
+
+/** @param {string[]|null} ids */
+function setDoctorEmulators(ids) {
+  if (ids === null || isAllDoctorEmulators(ids)) return update('doctorEmulators', null);
+  return update('doctorEmulators', [...new Set(ids)].filter((id) => ALL_DOCTOR_EMULATOR_IDS.includes(id)));
+}
 
 
 /**
@@ -119,18 +137,22 @@ function getCx16CaptureMouse() {
 
 /**
  * Commander X16 native window: pass `--fullscreen` so x16emu starts
- * maximized. On by default in the editor.
+ * maximized. Off by default; Studio's native launch forces it on.
  */
 function getCx16Fullscreen() {
-  return config().get('cx16.fullscreen') !== false;
+  return config().get('cx16.fullscreen') === true;
 }
 
-/** CLI flags for a native `8bs run` / `8bs boot cx16` from the launcher. */
-function cx16NativeWindowCliArgs() {
+/**
+ * CLI flags for a native `8bs run` / `8bs boot cx16` from the launcher.
+ * @param {{ studio?: boolean }} [options] Studio's own native window stays fullscreen.
+ */
+function cx16NativeWindowCliArgs({ studio = false } = {}) {
   const args = [];
   if (getCx16CaptureMouse()) args.push('--capture-mouse');
   else args.push('--no-capture-mouse');
-  if (getCx16Fullscreen()) args.push('--fullscreen');
+  const fullscreen = studio || getCx16Fullscreen();
+  if (fullscreen) args.push('--fullscreen');
   else args.push('--no-fullscreen');
   return args;
 }
@@ -201,7 +223,7 @@ async function setHardware(system, selection) {
 
 /** True when a change event touches any of the run settings. */
 function affectsAny(event) {
-  return ['region', 'system', 'project', 'hardware', 'webLan', 'namedSystem', 'checkout', 'cx16.captureMouse', 'cx16.fullscreen'].some((key) =>
+  return ['region', 'system', 'project', 'hardware', 'webLan', 'namedSystem', 'checkout', 'cx16.captureMouse', 'cx16.fullscreen', 'doctorEmulators'].some((key) =>
     event.affectsConfiguration(`${SECTION}.${key}`),
   );
 }
@@ -216,6 +238,7 @@ module.exports = {
   affectsAny,
   getAssemblyExplain,
   getCheckout,
+  getDoctorEmulators,
   cx16NativeWindowCliArgs,
   getCx16CaptureMouse,
   getCx16Fullscreen,
@@ -231,6 +254,7 @@ module.exports = {
   regionShort,
   setAssemblyExplain,
   setCheckout,
+  setDoctorEmulators,
   setHardware,
   setNamedSystem,
   setProject,
