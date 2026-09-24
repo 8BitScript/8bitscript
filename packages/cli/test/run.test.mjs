@@ -19,6 +19,10 @@ import {
   run, boot, atari800CleanDisplayConfig, atari800CleanDisplayText, emulatorInvocation, resolveController, CX16_MOUSE_NOTE,
 } from '../src/run.mjs';
 import { loadCatalog, resolveHardware } from '../src/hardware.mjs';
+import { releaseBootTargetPipe, releaseTargetList, releaseTargetPipe } from '../src/release.mjs';
+
+const RELEASE_USAGE = releaseTargetPipe().replace(/\|/g, '\\|');
+const BOOT_USAGE = releaseBootTargetPipe().replace(/\|/g, '\\|');
 
 function capture(fn) {
   const stdout = [];
@@ -72,7 +76,7 @@ test('run() with no target prints usage and returns 2', async () => {
   const { result, stdout, stderr } = await capture(() => run(['--pal']));
   assert.equal(result, 2);
   assert.equal(stdout, '');
-  assert.match(stderr, /^Usage: 8bs run <pet\|web>/);
+  assert.match(stderr, new RegExp(`^Usage: 8bs run <${RELEASE_USAGE}>`));
   assert.match(stderr, /\[--size\]/, 'run --size is the breakdown before the emulator starts');
   assert.match(stderr, /\[--lan\]/, 'run --lan is the web LAN HTTPS listener');
   assert.match(stderr, /\[--local\]/, 'run --local is loopback-only');
@@ -89,7 +93,7 @@ test('run() with a baseline and a mistyped machine still prints usage, not the b
     process.chdir(dir);
     const { result, stderr } = await capture(() => run(['c65']));
     assert.equal(result, 2);
-    assert.match(stderr, /^Usage: 8bs run <pet\|web>/);
+    assert.match(stderr, new RegExp(`^Usage: 8bs run <${RELEASE_USAGE}>`));
     assert.match(stderr, /no target runs the `baseline`/);
   } finally {
     process.chdir(prev);
@@ -97,7 +101,7 @@ test('run() with a baseline and a mistyped machine still prints usage, not the b
   }
 });
 
-test('run() --screenshot of a deferred machine still tries capture', async () => {
+test('run() --screenshot of a parked machine is refused in this release', async () => {
   const dir = await mkdtemp(join(tmpdir(), '8bs-run-test-'));
   const prev = process.cwd();
   try {
@@ -105,15 +109,13 @@ test('run() --screenshot of a deferred machine still tries capture', async () =>
     await writeFile(join(dir, '8bitscript.config.ts'), 'export default { entry: "main.8bs", targets: { vectrex: {} } };\n');
     process.chdir(dir);
     const shot = join(dir, 'out.png');
-    const { result, stdout, stderr } = await capture(() => run(['vectrex', 'main.8bs', '--screenshot', shot]));
-    assert.match(stdout, /^built /);
-    if (result === 0) {
-      assert.equal(existsSync(shot), true, 'a successful capture writes the PNG');
-    } else {
-      assert.equal(result, 1);
-      assert.match(stderr, /vecx|cannot start|macOS|window/i);
-      assert.equal(existsSync(shot), false, 'a failed capture must not leave a PNG');
-    }
+    const { result, stderr } = await capture(() => run(['vectrex', 'main.8bs', '--screenshot', shot]));
+    assert.notEqual(result, 0);
+    assert.match(
+      stderr,
+      new RegExp(`is not a target in this release\\. This release builds for ${releaseTargetList().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`),
+    );
+    assert.equal(existsSync(shot), false);
   } finally {
     process.chdir(prev);
     await rm(dir, { recursive: true, force: true });
@@ -254,7 +256,7 @@ test('boot() with no target prints usage and returns 2', async () => {
   const { result, stdout, stderr } = await capture(() => boot(['--pal']));
   assert.equal(result, 2);
   assert.equal(stdout, '');
-  assert.match(stderr, /^Usage: 8bs boot <pet>/);
+  assert.match(stderr, new RegExp(`^Usage: 8bs boot <${BOOT_USAGE}>`));
 });
 
 test('boot() refuses the web target by name — there is no bare emulator to boot without a program', async () => {

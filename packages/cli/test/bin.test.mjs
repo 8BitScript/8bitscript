@@ -18,6 +18,10 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CLI_BIN = join(HERE, '..', 'bin', '8bs.mjs');
 const PKG_VERSION = JSON.parse(readFileSync(join(HERE, '..', 'package.json'), 'utf8')).version;
+const { releaseTargetPipe, releaseBootTargetPipe } = await import('../src/release.mjs');
+
+const RELEASE_USAGE = releaseTargetPipe().replace(/\|/g, '\\|');
+const BOOT_USAGE = releaseBootTargetPipe().replace(/\|/g, '\\|');
 
 function runCli(args, { timeoutMs = 20_000 } = {}) {
   return new Promise((resolvePromise) => {
@@ -107,19 +111,19 @@ test('check: dispatches to src/check.mjs', async () => {
 test('build: dispatches to src/build.mjs', async () => {
   const { code, stderr } = await runCli(['build']);
   assert.equal(code, 2);
-  assert.match(stderr, /^Usage: 8bs build --target <pet\|web>/);
+  assert.match(stderr, new RegExp(`^Usage: 8bs build --target <${RELEASE_USAGE}>`));
 });
 
 test('run: dispatches to src/run.mjs', async () => {
   const { code, stderr } = await runCli(['run']);
   assert.equal(code, 2);
-  assert.match(stderr, /^Usage: 8bs run <pet\|web>/);
+  assert.match(stderr, new RegExp(`^Usage: 8bs run <${RELEASE_USAGE}>`));
 });
 
 test('boot: dispatches to src/run.mjs\'s boot()', async () => {
   const { code, stderr } = await runCli(['boot']);
   assert.equal(code, 2);
-  assert.match(stderr, /^Usage: 8bs boot <pet>/);
+  assert.match(stderr, new RegExp(`^Usage: 8bs boot <${BOOT_USAGE}>`));
 });
 
 test('targets: dispatches to src/targets.mjs', async () => {
