@@ -1,0 +1,130 @@
+{
+  "name": "@8bitscript/atari5200",
+  "version": "0.22.1",
+  "description": "Atari 5200 target support for 8BitScript: the hardware underneath the portable APIs.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/8BitScript/8bitscript.git",
+    "directory": "packages/atari5200"
+  },
+  "8bitscript": {
+    "title": "Atari 5200",
+    "emulator": {
+      "binary": "atari800",
+      "family": "atari800",
+      "screenshot": "window",
+      "framesUnit": "frames",
+      "defaultFrames": 240,
+      "installer": "atari800",
+      "deferred": "atari800 needs a 5200 BIOS ROM this project does not ship"
+    },
+    "entry": "./src/index.8bs",
+    "exports": {
+      "./screen": "./src/screen.8bs",
+      "./text": "./src/text.8bs",
+      "./input": "./src/input.8bs",
+      "./pointer": "./src/pointer.8bs",
+      "./rasterline": "./src/rasterline.8bs"
+    },
+    "hardware": {
+      "build": {
+        "defsym": {
+          "__load_address": 16384,
+          "__rom_size": 32768,
+          "__bss_origin": 512,
+          "__bss_ceiling": 4608,
+          "__ram_ceiling": 65536
+        },
+        "output": "bin"
+      },
+      "facts": {
+        "video.columns": 40,
+        "video.rows": 24,
+        "video.cellWidth": 8,
+        "video.cellHeight": 8,
+        "video.palette": 256,
+        "video.cellColors": 2,
+        "video.colorPerCell": true,
+        "video.glyphs": 0,
+        "video.blockWidth": 0,
+        "video.blockHeight": 0,
+        "video.bitmap": false,
+        "video.layers": 1,
+        "video.scroll": true,
+        "video.raster": true,
+        "video.sprites": 4,
+        "video.spritesPerLine": 4,
+        "video.spriteWidth": 8,
+        "video.spriteHeight": 255,
+        "video.spriteColors": 1,
+        "video.frameRate": 60,
+        "audio.voices": 0,
+        "audio.noise": false,
+        "audio.envelope": false,
+        "audio.filter": false,
+        "audio.pcm": false,
+        "audio.volume": false,
+        "audio.entropy": false,
+        "input.keyboard": false,
+        "input.joysticks": 0,
+        "input.pads": 2,
+        "input.controls": [
+          "up",
+          "down",
+          "left",
+          "right",
+          "a"
+        ],
+        "input.mouse": false,
+        "input.paddles": false,
+        "storage.save": false,
+        "storage.kib": 0,
+        "memory.ram": 16384,
+        "memory.banked": false,
+        "memory.bankedKib": 0
+      },
+      "run": {
+        "atari800": [
+          "-5200"
+        ]
+      },
+      "options": {
+        "media": {
+          "label": "Cartridge",
+          "default": "32k",
+          "values": {
+            "32k": {
+              "label": "32K cart",
+              "build": {
+                "output": "bin",
+                "defsym": {
+                  "__rom_size": 32768
+                }
+              }
+            },
+            "supercart": {
+              "label": "Super Cart (banked)",
+              "build": {
+                "output": "bin",
+                "defsym": {
+                  "__rom_size": 65536
+                }
+              }
+            }
+          }
+        }
+      },
+      "presets": {}
+    }
+  },
+  "files": [
+    "src"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}

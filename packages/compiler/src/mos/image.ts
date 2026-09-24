@@ -34,6 +34,8 @@ import { basicStub } from './basic-stub.ts';
 import { prgBytes } from './prg.ts';
 import { ATARI8 } from './image-atari8.ts';
 import { NES } from './image-nes.ts';
+import { CART_4K, CART_32K } from './image-cart.ts';
+import { RAW } from './image-raw.ts';
 import type { Machine } from './index.ts';
 
 /**
@@ -46,6 +48,8 @@ import type { Machine } from './index.ts';
  */
 export interface ImageExtras {
   nativeSources: string[];
+  /** Tile patterns a .8bg module lowered onto the NES CHR-ROM. Each patch is 16 bytes per tile, written over the font. */
+  chrPatches?: { tile: number; bytes: number[] }[];
 }
 
 export interface MachineImage {
@@ -129,6 +133,15 @@ export const IMAGE: Partial<Record<Machine, MachineImage>> = {
   atari8: ATARI8,
   nes: NES,
   c64: C64,
+  oric: RAW,
+  apple2: RAW,
+  bbc: RAW,
+  atari5200: CART_32K,
+  lynx: CART_32K,
+  pce: CART_32K,
+  supervision: CART_32K,
+  atari2600: CART_4K,
+  atari7800: CART_32K,
 };
 
 /** The image a machine is built as — COMMODORE unless it says otherwise. */

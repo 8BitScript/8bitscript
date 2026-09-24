@@ -1,0 +1,268 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "8BitAudio",
+  "scopeName": "source.8ba",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#instrument-declaration" },
+    { "include": "#sample-declaration" },
+    { "include": "#song-declaration" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.8ba",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.8ba",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "strings": {
+      "name": "string.quoted.double.8ba",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.8ba",
+          "match": "\\\\."
+        }
+      ]
+    },
+    "waveforms": {
+      "name": "constant.language.waveform.8ba",
+      "match": "\\b(pulse|triangle|saw|noise)\\b"
+    },
+    "notes": {
+      "name": "constant.other.note.8ba",
+      "match": "\\b[A-G]S?[0-6]\\b"
+    },
+    "instrument-declaration": {
+      "begin": "\\b(instrument)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*(\\{)",
+      "beginCaptures": {
+        "1": { "name": "storage.type.declaration.8ba" },
+        "2": { "name": "entity.name.resource.8ba" },
+        "3": { "name": "punctuation.section.block.begin.8ba" }
+      },
+      "end": "\\}",
+      "endCaptures": {
+        "0": { "name": "punctuation.section.block.end.8ba" }
+      },
+      "name": "meta.declaration.instrument.8ba",
+      "patterns": [
+        { "include": "#comments" },
+        { "include": "#instrument-fields" }
+      ]
+    },
+    "instrument-fields": {
+      "patterns": [
+        {
+          "name": "meta.field.waveform.8ba",
+          "match": "\\b(waveform)\\s+\\b(pulse|triangle|saw|noise)\\b",
+          "captures": {
+            "1": { "name": "keyword.other.field.8ba" },
+            "2": { "name": "constant.language.waveform.8ba" }
+          }
+        },
+        {
+          "name": "meta.field.polyphony.8ba",
+          "match": "\\b(polyphony)\\s+(\\d+)",
+          "captures": {
+            "1": { "name": "keyword.other.field.8ba" },
+            "2": { "name": "constant.numeric.integer.8ba" }
+          }
+        }
+      ]
+    },
+    "sample-declaration": {
+      "begin": "\\b(sample)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*(\\{)",
+      "beginCaptures": {
+        "1": { "name": "storage.type.declaration.8ba" },
+        "2": { "name": "entity.name.resource.8ba" },
+        "3": { "name": "punctuation.section.block.begin.8ba" }
+      },
+      "end": "\\}",
+      "endCaptures": {
+        "0": { "name": "punctuation.section.block.end.8ba" }
+      },
+      "name": "meta.declaration.sample.8ba",
+      "patterns": [
+        { "include": "#comments" },
+        { "include": "#sample-fields" }
+      ]
+    },
+    "sample-fields": {
+      "patterns": [
+        {
+          "name": "meta.field.source.8ba",
+          "begin": "\\b(source)\\b",
+          "beginCaptures": {
+            "1": { "name": "keyword.other.field.8ba" }
+          },
+          "end": "(?=\\s*(?:source|fallback|\\}))",
+          "patterns": [{ "include": "#strings" }]
+        },
+        {
+          "name": "meta.field.fallback.8ba",
+          "begin": "\\b(fallback)\\s*(\\{)",
+          "beginCaptures": {
+            "1": { "name": "keyword.other.field.8ba" },
+            "2": { "name": "punctuation.section.block.begin.8ba" }
+          },
+          "end": "\\}",
+          "endCaptures": {
+            "0": { "name": "punctuation.section.block.end.8ba" }
+          },
+          "patterns": [
+            { "include": "#comments" },
+            {
+              "match": "\\b(synth)\\b",
+              "name": "keyword.other.synth.8ba"
+            },
+            { "include": "#waveforms" }
+          ]
+        }
+      ]
+    },
+    "song-declaration": {
+      "begin": "\\b(song)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*(\\{)",
+      "beginCaptures": {
+        "1": { "name": "storage.type.declaration.8ba" },
+        "2": { "name": "entity.name.resource.8ba" },
+        "3": { "name": "punctuation.section.block.begin.8ba" }
+      },
+      "end": "\\}",
+      "endCaptures": {
+        "0": { "name": "punctuation.section.block.end.8ba" }
+      },
+      "name": "meta.declaration.song.8ba",
+      "patterns": [
+        { "include": "#comments" },
+        { "include": "#song-fields" }
+      ]
+    },
+    "song-fields": {
+      "patterns": [
+        {
+          "name": "meta.field.tempo.8ba",
+          "match": "\\b(tempo)\\s+(\\d+)",
+          "captures": {
+            "1": { "name": "keyword.other.field.8ba" },
+            "2": { "name": "constant.numeric.integer.8ba" }
+          }
+        },
+        {
+          "name": "meta.field.speed.8ba",
+          "match": "\\b(speed)\\s+(\\d+)",
+          "captures": {
+            "1": { "name": "keyword.other.field.8ba" },
+            "2": { "name": "constant.numeric.integer.8ba" }
+          }
+        },
+        {
+          "name": "meta.field.order.8ba",
+          "begin": "\\b(order)\\s*(\\{)",
+          "beginCaptures": {
+            "1": { "name": "keyword.other.field.8ba" },
+            "2": { "name": "punctuation.section.block.begin.8ba" }
+          },
+          "end": "\\}",
+          "endCaptures": {
+            "0": { "name": "punctuation.section.block.end.8ba" }
+          },
+          "patterns": [
+            { "include": "#comments" },
+            {
+              "match": "[a-zA-Z_][a-zA-Z0-9_]*",
+              "name": "entity.name.resource.8ba"
+            },
+            {
+              "match": ",",
+              "name": "punctuation.separator.list.8ba"
+            }
+          ]
+        },
+        { "include": "#pattern-declaration" }
+      ]
+    },
+    "pattern-declaration": {
+      "begin": "\\b(pattern)\\s+([a-zA-Z_][a-zA-Z0-9_]*)(?:\\s+\\b(length)\\s+(\\d+))?\\s*(\\{)",
+      "beginCaptures": {
+        "1": { "name": "storage.type.declaration.8ba" },
+        "2": { "name": "entity.name.resource.8ba" },
+        "3": { "name": "keyword.other.field.8ba" },
+        "4": { "name": "constant.numeric.integer.8ba" },
+        "5": { "name": "punctuation.section.block.begin.8ba" }
+      },
+      "end": "\\}",
+      "endCaptures": {
+        "0": { "name": "punctuation.section.block.end.8ba" }
+      },
+      "name": "meta.declaration.pattern.8ba",
+      "patterns": [
+        { "include": "#comments" },
+        { "include": "#track-declaration" }
+      ]
+    },
+    "track-declaration": {
+      "begin": "\\b(track)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*(\\{)",
+      "beginCaptures": {
+        "1": { "name": "storage.type.declaration.8ba" },
+        "2": { "name": "entity.name.resource.8ba" },
+        "3": { "name": "punctuation.section.block.begin.8ba" }
+      },
+      "end": "\\}",
+      "endCaptures": {
+        "0": { "name": "punctuation.section.block.end.8ba" }
+      },
+      "name": "meta.declaration.track.8ba",
+      "patterns": [
+        { "include": "#comments" },
+        { "include": "#row-declaration" }
+      ]
+    },
+    "row-declaration": {
+      "begin": "\\b(row)\\s+(\\d+)\\s*(\\{)",
+      "beginCaptures": {
+        "1": { "name": "storage.type.declaration.8ba" },
+        "2": { "name": "constant.numeric.integer.8ba" },
+        "3": { "name": "punctuation.section.block.begin.8ba" }
+      },
+      "end": "\\}",
+      "endCaptures": {
+        "0": { "name": "punctuation.section.block.end.8ba" }
+      },
+      "name": "meta.declaration.row.8ba",
+      "patterns": [
+        { "include": "#comments" },
+        { "include": "#row-fields" }
+      ]
+    },
+    "row-fields": {
+      "patterns": [
+        {
+          "name": "meta.field.note.8ba",
+          "match": "\\b(note)\\s+([A-G]S?[0-6])\\s*(;)?",
+          "captures": {
+            "1": { "name": "keyword.other.field.8ba" },
+            "2": { "name": "constant.other.note.8ba" },
+            "3": { "name": "punctuation.terminator.statement.8ba" }
+          }
+        },
+        {
+          "name": "meta.field.instrument.8ba",
+          "match": "\\b(instrument)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*(;)?",
+          "captures": {
+            "1": { "name": "keyword.other.field.8ba" },
+            "2": { "name": "entity.name.resource.8ba" },
+            "3": { "name": "punctuation.terminator.statement.8ba" }
+          }
+        }
+      ]
+    }
+  }
+}

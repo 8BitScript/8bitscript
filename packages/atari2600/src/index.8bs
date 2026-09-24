@@ -1,0 +1,2 @@
+// @8bitscript/atari2600 — Atari 2600 hardware underneath the portable APIs.
+// Registers a program names sit in this package; screen/text/input import them.

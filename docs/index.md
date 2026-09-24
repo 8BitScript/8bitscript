@@ -17,10 +17,26 @@ hidden — and `.8bx` adds declarative composition on top of it, elements
 and components that elaborate to the same calls you would write by hand,
 at the same cost.
 
-**This release, 0.11.0, builds for all nine targets:** the Commodore PET,
-VIC-20, C64 and C128, the Commander X16, the MEGA65, the Atari 8-bit, the
-NES, and the web. The list is `RELEASE_MACHINES` in the compiler's
-resolver, read by the CLI and the editor rather than kept twice.
+**This release builds five targets:** `pet`, `vic20`, `c64`, `cx16`, and
+`web` (`RELEASE_MACHINES` in `packages/compiler/src/resolver/index.mjs`).
+`8bs build` and `8bs run` work for those ids only; examples, Studio, and
+the editor launcher share
+[`packages/examples/shared-release-targets.ts`](../packages/examples/shared-release-targets.ts).
+
+The compiler still names the **original nine** and the **remaining roadmap
+machines** (`plus4`, `oric`, `apple2`, `bbc`, `atari5200`, `lynx`, `pce`,
+`supervision`, `atari2600`, `atari7800`, `gb`, `gbc`, `sms`, `gamegear`,
+`sg1000`, `msx`, `coleco`, `spectrum`, `cpc`, `coco`, `vectrex`,
+`odyssey2`, `channelf`) in `MACHINES`. Hello-world compiles for every one
+of those; `8bs check` and twins keep working. `8bs build` refuses ids that
+are not in `RELEASE_MACHINES` until the release list widens again — the
+native backends for C128, MEGA65, Atari 8-bit, NES, and the roadmap ids
+are still in the tree. Restoring full build/run for them is planned after
+this narrow release is polished.
+
+A machine is in `MACHINES` when the compiler names it; it enters
+`RELEASE_MACHINES` when `8bs build` is allowed. Emulators are optional;
+see [Setup](setup/index.md) for the full catalog.
 `.8bx` — the composition language — ships in this release too, through
 the spec's PR 15: components, props, `<slot />`, conditional composition,
 component state and methods, and IntelliSense for all of it.
@@ -48,7 +64,7 @@ bundle and how a page hosts it.
 | `8bs boot <t>` | The stock (or fitted) machine booting to its own prompt, with nothing loaded. |
 | `8bs targets [--json]` | Every target and its hardware catalog. |
 | `8bs targets --reach` | Every machine, with a package or not, against the project's `requires` and `input`, with who is out there to run a build. |
-| `8bs doctor` | Checks Node, pnpm, git, and the emulators. Missing pnpm (`npx get-pnpm`) and packaged emulators can be installed from the prompt. |
+| `8bs doctor` | Checks Node, pnpm, git, and the emulators. Missing pnpm (`npx get-pnpm`) and every packaged emulator doctor can install are offered from the prompt (`--want` to narrow; `--install` skips the prompt). |
 | `8bs setup <mega65\|cx16>` | Builds that machine's emulator and installs a ROM. |
 | `8bs controller` | Names the buttons of the pad plugged into this machine. |
 | `8bs lsp` | The language server, on stdio. |
@@ -89,12 +105,22 @@ flash carts).
 `8bs build --release` says every other build is short of, and why those
 builds are called builds and not ports or tiers.
 
+[Portable graphics](project/graphics.md) — `.8bg`: one PNG-backed sprite
+with an animation, compiled into target-native data.
+
+[Portable audio](project/audio.md) — `.8ba`: one WAV/FLAC-backed sample
+and a tiny song, compiled into SID, APU, POKEY, VIA, or silence.
+
 [Reach — which machines a program is for](project/reach.md) — per-machine
 units sold, 2026 community activity and routes to a user for twenty-five
 machines, the demands a program cannot spell yet (preferred input, a
 required peripheral, a delivery shape), the `8bs targets --reach`
 analysis that would join them, and the release rule — one artifact per
 build outcome, named by what it runs on — measured on 2048's PET builds.
+
+[Setup](setup/index.md) — installing VICE, atari800, FCEUX, `x16emu`,
+`xmega65`, and the rest of the catalog on macOS, Ubuntu, and Arch.
+Emulators are optional; `8bs doctor` WARNs when one is missing.
 
 [Roadmap](roadmap.md) — the order the remaining machines are taken on,
 grouped by CPU, and the rule for what counts as a target.

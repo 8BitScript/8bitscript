@@ -5,7 +5,7 @@
 // Run button means exactly what the panel says it does.
 const vscode = require('vscode');
 
-const { ALL_TARGETS } = require('./projects.cjs');
+const { ALL_TARGETS, ALL_DOCTOR_EMULATOR_IDS, isAllDoctorEmulators } = require('./projects.cjs');
 const { normalizeSelection, worstSelection } = require('./hardwareCatalog.cjs');
 
 const SECTION = '8bitscript';
@@ -54,6 +54,24 @@ function getNamedSystem() {
   return typeof value === 'string' ? value : '';
 }
 const setNamedSystem = (name) => update('namedSystem', name ?? '');
+
+/**
+ * Emulators 8BitScript: Doctor offers to install. `null` (the default) is
+ * all of them. An empty array is host tools only.
+ *
+ * @returns {string[]|null}
+ */
+function getDoctorEmulators() {
+  const value = config().get('doctorEmulators');
+  if (!Array.isArray(value)) return null;
+  return value.filter((id) => ALL_DOCTOR_EMULATOR_IDS.includes(id));
+}
+
+/** @param {string[]|null} ids */
+function setDoctorEmulators(ids) {
+  if (ids === null || isAllDoctorEmulators(ids)) return update('doctorEmulators', null);
+  return update('doctorEmulators', [...new Set(ids)].filter((id) => ALL_DOCTOR_EMULATOR_IDS.includes(id)));
+}
 
 
 /**
@@ -201,7 +219,7 @@ async function setHardware(system, selection) {
 
 /** True when a change event touches any of the run settings. */
 function affectsAny(event) {
-  return ['region', 'system', 'project', 'hardware', 'webLan', 'namedSystem', 'checkout', 'cx16.captureMouse', 'cx16.fullscreen'].some((key) =>
+  return ['region', 'system', 'project', 'hardware', 'webLan', 'namedSystem', 'checkout', 'cx16.captureMouse', 'cx16.fullscreen', 'doctorEmulators'].some((key) =>
     event.affectsConfiguration(`${SECTION}.${key}`),
   );
 }
@@ -216,6 +234,7 @@ module.exports = {
   affectsAny,
   getAssemblyExplain,
   getCheckout,
+  getDoctorEmulators,
   cx16NativeWindowCliArgs,
   getCx16CaptureMouse,
   getCx16Fullscreen,
@@ -231,6 +250,7 @@ module.exports = {
   regionShort,
   setAssemblyExplain,
   setCheckout,
+  setDoctorEmulators,
   setHardware,
   setNamedSystem,
   setProject,

@@ -34,18 +34,23 @@ change affects. Those copies do not update themselves.
 
 ## Source kinds
 
-Two file extensions name 8BitScript source: `.8bs` and `.8bx`. What a
-path is — which kind, its stem, whether it is source at all — is asked in
-one place, `src/source/index.mjs` (`sourceKindOf`, `stripSourceExtension`,
-`isSourceFile`, `SOURCE_EXTENSIONS`), and nowhere else hard-codes an
-extension. The resolver's twin rule preserves the kind it was given
-(`App.8bx` on the PET is `App.pet.8bx`, never `.8bs`); an `.8bx` file can
-be imported, be a package's entry, and carry machine and hardware twins.
-One lexer and one parser serve both; `.8bx` adds the `component`
-declaration and element syntax, which the lexer tokenizes in its own
-modes (`src/lexer/AGENTS.md`, "the 8BX modes") and the parser reads
-token by token (`parseBxElement` in `src/parser/index.mjs`) — only when
-the source kind says so. Spans are tokens' spans, everywhere.
+Four file extensions name source the compiler reads: `.8bs` and `.8bx`
+share one scanner; `.8bg` (8BitGraphics) and `.8ba` (8BitAudio) have
+their own lexer and parser in `src/media/` because the syntax is not
+8BitScript. What a path is — which kind, its stem, whether it is source
+at all — is asked in one place, `src/source/index.mjs` (`sourceKindOf`,
+`stripSourceExtension`, `isSourceFile`, `SOURCE_EXTENSIONS`), and nowhere
+else hard-codes an extension. The resolver's twin rule preserves the kind
+it was given (`App.8bx` on the PET is `App.pet.8bx`, never `.8bs`); an
+`.8bx` file can be imported, be a package's entry, and carry machine and
+hardware twins. Media files can be imported; they cannot be a program
+entry. One lexer and one parser serve `.8bs` and `.8bx`; `.8bx` adds the
+`component` declaration and element syntax, which the lexer tokenizes in
+its own modes (`src/lexer/AGENTS.md`, "the 8BX modes") and the parser
+reads token by token (`parseBxElement` in `src/parser/index.mjs`) — only
+when the source kind says so. Spans are tokens' spans, everywhere.
+Resource names elaborated from `.8bg` / `.8ba` are asset ids;
+`8BS1034` does not apply to them.
 
 **A component is a function; an element is a call.** `src/bx/elaborate.mjs`
 turns `component Name(props) { … }` into a function of that name in the

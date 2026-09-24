@@ -1,5 +1,6 @@
-// `8bs setup mega65` — get a macOS or Arch/Manjaro machine from nothing to a
-// working `8bs run mega65`: Xemu's MEGA65 core built from source, and a
+// `8bs setup mega65` — get a macOS, Ubuntu/Debian, or Arch/Manjaro machine
+// from nothing to a working `8bs run mega65`: Xemu's MEGA65 core built from
+// source, and a
 // legally-obtained MEGA65 ROM installed where both Xemu and
 // `8bs doctor` expect it. Every step is idempotent — safe to re-run after a
 // partial failure, or just to confirm everything is still in place.
@@ -19,7 +20,8 @@ import { reportStep, reportLine } from './report.mjs';
 import { promptLine, confirm, canPromptInteractively } from './prompt.mjs';
 import {
   missingPacmanPackages, installPacmanPackages, missingBrewPackages, installBrewPackages,
-  XEMU_BUILD_PACKAGES, MSITOOLS_PACKAGE, MEGA65_BREW_PACKAGES,
+  missingAptPackages, installAptPackages, linuxPackageManager,
+  XEMU_BUILD_PACKAGES, MSITOOLS_PACKAGE, MEGA65_BREW_PACKAGES, MEGA65_APT_PACKAGES,
 } from './deps.mjs';
 import { hasBinaryOnPath, hasXcodeCommandLineTools, installXcodeCommandLineTools } from './host.mjs';
 import { pathExists } from './source.mjs';
@@ -133,6 +135,18 @@ async function ensureDependencies(io, platform) {
     if (!(await io.confirm('  Install with Homebrew now?', { defaultValue: true }))) return { ok: false, detail: hint };
     const result = await installBrewPackages(missing, io.execLive);
     if (result.code !== 0) return { ok: false, detail: 'brew reported an error — see the output above' };
+    return { ok: true, detail: 'installed' };
+  }
+  const linux = linuxPackageManager(io.hasBinary) ?? (platform.packageManager === 'pacman' ? 'pacman' : null);
+  if (linux === 'apt') {
+    const missing = await missingAptPackages(MEGA65_APT_PACKAGES, io.exec);
+    if (missing.length === 0) return { ok: true, detail: 'installed' };
+    reportLine(`\n  Xemu's MEGA65 build needs: ${missing.join(' ')}`);
+    const hint = `run: sudo apt-get install -y ${missing.join(' ')}`;
+    if (!io.canPromptInteractively()) return { ok: false, detail: hint };
+    if (!(await io.confirm('  Install with apt now?', { defaultValue: true }))) return { ok: false, detail: hint };
+    const result = await installAptPackages(missing, io.sudoExec);
+    if (result.code !== 0) return { ok: false, detail: 'apt-get reported an error — see the output above' };
     return { ok: true, detail: 'installed' };
   }
   const missing = await missingPacmanPackages(ALL_PACMAN_PACKAGES, io.exec);

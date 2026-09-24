@@ -1,0 +1,16 @@
+// @8bitscript/plus4 — Commodore Plus/4: TED registers, not VIC-II.
+// TED is video, sound, timers, keyboard latch and ROM banking at once.
+// Screen is a 2K block: attributes at $0800, characters at $0C00.
+// Color byte: bits 0-3 chroma, 4-6 luma, 7 blink. 121 colors.
+// Raster: $FF1C bit 0 + $FF1D. ROM in $FF3E, RAM in $FF3F.
+@address(0xFF15)
+export let tedBackground: volatile<u8>;
+
+@address(0xFF19)
+export let tedBorder: volatile<u8>;
+
+@address(0xFF1C)
+export let tedRasterHi: volatile<u8>;
+
+@address(0xFF1D)
+export let tedRasterLo: volatile<u8>;

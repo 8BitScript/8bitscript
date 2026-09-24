@@ -1,14 +1,13 @@
 # Writing NES support for 8BitScript
 
-> **The native backend builds this machine now.** `packages/compiler/src/mos`
-> produces a real `.nes` — iNES header, 32K of NROM PRG-ROM, the reset
-> handler, the 6502's vectors, and the package's own CHR-ROM character set
-> — and `Hello World!` and 2048 have both been seen on screen under FCEUX
-> (2026-09-12; see "What exists today" and "Seeing the screen" below). It
-> is still outside `RELEASE_MACHINES` (`packages/compiler/src/resolver`),
-> so `8bs build --target nes` refuses until that list is widened; that is
-> a release decision, not a missing capability. Everything below is the
-> guide for extending it.
+> **Outside this release's `RELEASE_MACHINES` set.** The native backend
+> builds this machine: `packages/compiler/src/mos` produces a real `.nes`
+> — iNES header, NROM PRG-ROM, reset handler, vectors, and CHR-ROM — and
+> hello-world and 2048 have both been seen on screen under FCEUX
+> (2026-09-12; see below). `8bs build` refuses until the release list
+> widens (`RELEASE_MACHINES` in `packages/compiler/src/resolver`); see root
+> [`AGENTS.md`](../../AGENTS.md#this-release-release_machines). Everything
+> below is the guide for extending it.
 
 This file is for anyone — human or agent — touching `packages/nes`,
 `packages/compiler/src/mos`'s `nes` entries, `docs/setup/nes.md`, or the NES rows
@@ -19,6 +18,13 @@ and are not repeated here.
 ## What exists today
 
 Do not describe more than this as working:
+
+- **Portable media.** `media/index.cjs` (`"8bitscript".media`) turns a
+  `.8bg` PNG into CHR tiles from `$E0` (`ir.chrPatches`) shown as an OAM
+  sprite, and a `.8ba` song into pulse + noise events through
+  `@8bitscript/nes/apu` (`src/apu.8bs`, export `./apu`). A sample is DPCM
+  when the encoder can represent it, otherwise the synth fallback
+  (`8BS2210`). Saw is unroutable (`8BS2212`).
 
 - `packages/nes/src/index.8bs` exports the PPU port protocol —
   `setVramAddress()` and `resetScroll()` — that the package's two portable

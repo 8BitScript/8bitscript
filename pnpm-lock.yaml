@@ -203,47 +203,154 @@ importers:
         specifier: ^9.3.2
         version: 9.3.2
 
+  packages/apple2: {}
+
+  packages/atari2600: {}
+
+  packages/atari5200: {}
+
+  packages/atari7800: {}
+
   packages/atari8: {}
 
-  packages/c128: {}
-
-  packages/c64: {}
-
-  packages/cli:
+  packages/audio:
     dependencies:
       '@8bitscript/atari8':
         specifier: workspace:*
         version: link:../atari8
-      '@8bitscript/c128':
-        specifier: workspace:*
-        version: link:../c128
       '@8bitscript/c64':
         specifier: workspace:*
         version: link:../c64
-      '@8bitscript/compiler':
-        specifier: workspace:*
-        version: link:../compiler
       '@8bitscript/cx16':
         specifier: workspace:*
         version: link:../cx16
-      '@8bitscript/examples':
-        specifier: workspace:*
-        version: link:../examples
-      '@8bitscript/language-server':
-        specifier: workspace:*
-        version: link:../language-server
-      '@8bitscript/mega65':
-        specifier: workspace:*
-        version: link:../mega65
       '@8bitscript/nes':
         specifier: workspace:*
         version: link:../nes
       '@8bitscript/pet':
         specifier: workspace:*
         version: link:../pet
+      '@8bitscript/system':
+        specifier: workspace:*
+        version: link:../system
+      '@8bitscript/vic20':
+        specifier: workspace:*
+        version: link:../vic20
+
+  packages/audio-tools: {}
+
+  packages/bbc: {}
+
+  packages/c128: {}
+
+  packages/c64: {}
+
+  packages/channelf: {}
+
+  packages/cli:
+    dependencies:
+      '@8bitscript/apple2':
+        specifier: workspace:*
+        version: link:../apple2
+      '@8bitscript/atari2600':
+        specifier: workspace:*
+        version: link:../atari2600
+      '@8bitscript/atari5200':
+        specifier: workspace:*
+        version: link:../atari5200
+      '@8bitscript/atari7800':
+        specifier: workspace:*
+        version: link:../atari7800
+      '@8bitscript/atari8':
+        specifier: workspace:*
+        version: link:../atari8
+      '@8bitscript/bbc':
+        specifier: workspace:*
+        version: link:../bbc
+      '@8bitscript/c128':
+        specifier: workspace:*
+        version: link:../c128
+      '@8bitscript/c64':
+        specifier: workspace:*
+        version: link:../c64
+      '@8bitscript/channelf':
+        specifier: workspace:*
+        version: link:../channelf
+      '@8bitscript/coco':
+        specifier: workspace:*
+        version: link:../coco
+      '@8bitscript/coleco':
+        specifier: workspace:*
+        version: link:../coleco
+      '@8bitscript/compiler':
+        specifier: workspace:*
+        version: link:../compiler
+      '@8bitscript/cpc':
+        specifier: workspace:*
+        version: link:../cpc
+      '@8bitscript/cx16':
+        specifier: workspace:*
+        version: link:../cx16
+      '@8bitscript/examples':
+        specifier: workspace:*
+        version: link:../examples
+      '@8bitscript/gamegear':
+        specifier: workspace:*
+        version: link:../gamegear
+      '@8bitscript/gb':
+        specifier: workspace:*
+        version: link:../gb
+      '@8bitscript/gbc':
+        specifier: workspace:*
+        version: link:../gbc
+      '@8bitscript/language-server':
+        specifier: workspace:*
+        version: link:../language-server
+      '@8bitscript/lynx':
+        specifier: workspace:*
+        version: link:../lynx
+      '@8bitscript/mega65':
+        specifier: workspace:*
+        version: link:../mega65
+      '@8bitscript/msx':
+        specifier: workspace:*
+        version: link:../msx
+      '@8bitscript/nes':
+        specifier: workspace:*
+        version: link:../nes
+      '@8bitscript/odyssey2':
+        specifier: workspace:*
+        version: link:../odyssey2
+      '@8bitscript/oric':
+        specifier: workspace:*
+        version: link:../oric
+      '@8bitscript/pce':
+        specifier: workspace:*
+        version: link:../pce
+      '@8bitscript/pet':
+        specifier: workspace:*
+        version: link:../pet
+      '@8bitscript/plus4':
+        specifier: workspace:*
+        version: link:../plus4
+      '@8bitscript/sg1000':
+        specifier: workspace:*
+        version: link:../sg1000
+      '@8bitscript/sms':
+        specifier: workspace:*
+        version: link:../sms
+      '@8bitscript/spectrum':
+        specifier: workspace:*
+        version: link:../spectrum
       '@8bitscript/studio':
         specifier: workspace:*
         version: link:../studio
+      '@8bitscript/supervision':
+        specifier: workspace:*
+        version: link:../supervision
+      '@8bitscript/vectrex':
+        specifier: workspace:*
+        version: link:../vectrex
       '@8bitscript/vic20':
         specifier: workspace:*
         version: link:../vic20
@@ -251,7 +358,18 @@ importers:
         specifier: workspace:*
         version: link:../web
 
+  packages/coco: {}
+
+  packages/coleco: {}
+
   packages/compiler:
+    dependencies:
+      '@8bitscript/audio-tools':
+        specifier: workspace:*
+        version: link:../audio-tools
+      '@8bitscript/graphics-tools':
+        specifier: workspace:*
+        version: link:../graphics-tools
     devDependencies:
       '@8bitscript/text':
         specifier: workspace:*
@@ -266,13 +384,21 @@ importers:
         specifier: ^7.0.2
         version: 7.0.2
 
+  packages/cpc: {}
+
   packages/cx16: {}
 
   packages/examples:
     dependencies:
+      '@8bitscript/audio':
+        specifier: workspace:*
+        version: link:../audio
       '@8bitscript/c64':
         specifier: workspace:*
         version: link:../c64
+      '@8bitscript/graphics':
+        specifier: workspace:*
+        version: link:../graphics
       '@8bitscript/input':
         specifier: workspace:*
         version: link:../input
@@ -301,6 +427,38 @@ importers:
         specifier: workspace:*
         version: link:../web
 
+  packages/gamegear: {}
+
+  packages/gb: {}
+
+  packages/gbc: {}
+
+  packages/graphics:
+    dependencies:
+      '@8bitscript/c64':
+        specifier: workspace:*
+        version: link:../c64
+      '@8bitscript/cx16':
+        specifier: workspace:*
+        version: link:../cx16
+      '@8bitscript/nes':
+        specifier: workspace:*
+        version: link:../nes
+      '@8bitscript/pet':
+        specifier: workspace:*
+        version: link:../pet
+      '@8bitscript/sprites':
+        specifier: workspace:*
+        version: link:../sprites
+      '@8bitscript/system':
+        specifier: workspace:*
+        version: link:../system
+      '@8bitscript/vic20':
+        specifier: workspace:*
+        version: link:../vic20
+
+  packages/graphics-tools: {}
+
   packages/i18n:
     dependencies:
       '@8bitscript/text':
@@ -309,27 +467,96 @@ importers:
 
   packages/input:
     dependencies:
+      '@8bitscript/apple2':
+        specifier: workspace:*
+        version: link:../apple2
+      '@8bitscript/atari2600':
+        specifier: workspace:*
+        version: link:../atari2600
+      '@8bitscript/atari5200':
+        specifier: workspace:*
+        version: link:../atari5200
+      '@8bitscript/atari7800':
+        specifier: workspace:*
+        version: link:../atari7800
       '@8bitscript/atari8':
         specifier: workspace:*
         version: link:../atari8
+      '@8bitscript/bbc':
+        specifier: workspace:*
+        version: link:../bbc
       '@8bitscript/c128':
         specifier: workspace:*
         version: link:../c128
       '@8bitscript/c64':
         specifier: workspace:*
         version: link:../c64
+      '@8bitscript/channelf':
+        specifier: workspace:*
+        version: link:../channelf
+      '@8bitscript/coco':
+        specifier: workspace:*
+        version: link:../coco
+      '@8bitscript/coleco':
+        specifier: workspace:*
+        version: link:../coleco
+      '@8bitscript/cpc':
+        specifier: workspace:*
+        version: link:../cpc
       '@8bitscript/cx16':
         specifier: workspace:*
         version: link:../cx16
+      '@8bitscript/gamegear':
+        specifier: workspace:*
+        version: link:../gamegear
+      '@8bitscript/gb':
+        specifier: workspace:*
+        version: link:../gb
+      '@8bitscript/gbc':
+        specifier: workspace:*
+        version: link:../gbc
+      '@8bitscript/lynx':
+        specifier: workspace:*
+        version: link:../lynx
       '@8bitscript/mega65':
         specifier: workspace:*
         version: link:../mega65
+      '@8bitscript/msx':
+        specifier: workspace:*
+        version: link:../msx
       '@8bitscript/nes':
         specifier: workspace:*
         version: link:../nes
+      '@8bitscript/odyssey2':
+        specifier: workspace:*
+        version: link:../odyssey2
+      '@8bitscript/oric':
+        specifier: workspace:*
+        version: link:../oric
+      '@8bitscript/pce':
+        specifier: workspace:*
+        version: link:../pce
       '@8bitscript/pet':
         specifier: workspace:*
         version: link:../pet
+      '@8bitscript/plus4':
+        specifier: workspace:*
+        version: link:../plus4
+      '@8bitscript/sg1000':
+        specifier: workspace:*
+        version: link:../sg1000
+      '@8bitscript/sms':
+        specifier: workspace:*
+        version: link:../sms
+      '@8bitscript/spectrum':
+        specifier: workspace:*
+        version: link:../spectrum
+      '@8bitscript/supervision':
+        specifier: workspace:*
+        version: link:../supervision
+      '@8bitscript/vectrex':
+        specifier: workspace:*
+        version: link:../vectrex
       '@8bitscript/vic20':
         specifier: workspace:*
         version: link:../vic20
@@ -349,41 +576,122 @@ importers:
         specifier: 1.0.14
         version: 1.0.14
 
+  packages/lynx: {}
+
   packages/mega65: {}
+
+  packages/msx: {}
 
   packages/nes: {}
 
+  packages/odyssey2: {}
+
+  packages/oric: {}
+
+  packages/pce: {}
+
   packages/pet: {}
+
+  packages/plus4: {}
 
   packages/pointer:
     dependencies:
+      '@8bitscript/apple2':
+        specifier: workspace:*
+        version: link:../apple2
+      '@8bitscript/atari2600':
+        specifier: workspace:*
+        version: link:../atari2600
+      '@8bitscript/atari5200':
+        specifier: workspace:*
+        version: link:../atari5200
+      '@8bitscript/atari7800':
+        specifier: workspace:*
+        version: link:../atari7800
       '@8bitscript/atari8':
         specifier: workspace:*
         version: link:../atari8
+      '@8bitscript/bbc':
+        specifier: workspace:*
+        version: link:../bbc
       '@8bitscript/c128':
         specifier: workspace:*
         version: link:../c128
       '@8bitscript/c64':
         specifier: workspace:*
         version: link:../c64
+      '@8bitscript/channelf':
+        specifier: workspace:*
+        version: link:../channelf
+      '@8bitscript/coco':
+        specifier: workspace:*
+        version: link:../coco
+      '@8bitscript/coleco':
+        specifier: workspace:*
+        version: link:../coleco
+      '@8bitscript/cpc':
+        specifier: workspace:*
+        version: link:../cpc
       '@8bitscript/cx16':
         specifier: workspace:*
         version: link:../cx16
+      '@8bitscript/gamegear':
+        specifier: workspace:*
+        version: link:../gamegear
+      '@8bitscript/gb':
+        specifier: workspace:*
+        version: link:../gb
+      '@8bitscript/gbc':
+        specifier: workspace:*
+        version: link:../gbc
       '@8bitscript/input':
         specifier: workspace:*
         version: link:../input
+      '@8bitscript/lynx':
+        specifier: workspace:*
+        version: link:../lynx
       '@8bitscript/mega65':
         specifier: workspace:*
         version: link:../mega65
+      '@8bitscript/msx':
+        specifier: workspace:*
+        version: link:../msx
       '@8bitscript/nes':
         specifier: workspace:*
         version: link:../nes
+      '@8bitscript/odyssey2':
+        specifier: workspace:*
+        version: link:../odyssey2
+      '@8bitscript/oric':
+        specifier: workspace:*
+        version: link:../oric
+      '@8bitscript/pce':
+        specifier: workspace:*
+        version: link:../pce
       '@8bitscript/pet':
         specifier: workspace:*
         version: link:../pet
+      '@8bitscript/plus4':
+        specifier: workspace:*
+        version: link:../plus4
+      '@8bitscript/sg1000':
+        specifier: workspace:*
+        version: link:../sg1000
+      '@8bitscript/sms':
+        specifier: workspace:*
+        version: link:../sms
+      '@8bitscript/spectrum':
+        specifier: workspace:*
+        version: link:../spectrum
+      '@8bitscript/supervision':
+        specifier: workspace:*
+        version: link:../supervision
       '@8bitscript/text':
         specifier: workspace:*
         version: link:../text
+      '@8bitscript/vectrex':
+        specifier: workspace:*
+        version: link:../vectrex
       '@8bitscript/vic20':
         specifier: workspace:*
         version: link:../vic20
@@ -402,27 +710,96 @@ importers:
 
   packages/raster:
     dependencies:
+      '@8bitscript/apple2':
+        specifier: workspace:*
+        version: link:../apple2
+      '@8bitscript/atari2600':
+        specifier: workspace:*
+        version: link:../atari2600
+      '@8bitscript/atari5200':
+        specifier: workspace:*
+        version: link:../atari5200
+      '@8bitscript/atari7800':
+        specifier: workspace:*
+        version: link:../atari7800
       '@8bitscript/atari8':
         specifier: workspace:*
         version: link:../atari8
+      '@8bitscript/bbc':
+        specifier: workspace:*
+        version: link:../bbc
       '@8bitscript/c128':
         specifier: workspace:*
         version: link:../c128
       '@8bitscript/c64':
         specifier: workspace:*
         version: link:../c64
+      '@8bitscript/channelf':
+        specifier: workspace:*
+        version: link:../channelf
+      '@8bitscript/coco':
+        specifier: workspace:*
+        version: link:../coco
+      '@8bitscript/coleco':
+        specifier: workspace:*
+        version: link:../coleco
+      '@8bitscript/cpc':
+        specifier: workspace:*
+        version: link:../cpc
       '@8bitscript/cx16':
         specifier: workspace:*
         version: link:../cx16
+      '@8bitscript/gamegear':
+        specifier: workspace:*
+        version: link:../gamegear
+      '@8bitscript/gb':
+        specifier: workspace:*
+        version: link:../gb
+      '@8bitscript/gbc':
+        specifier: workspace:*
+        version: link:../gbc
+      '@8bitscript/lynx':
+        specifier: workspace:*
+        version: link:../lynx
       '@8bitscript/mega65':
         specifier: workspace:*
         version: link:../mega65
+      '@8bitscript/msx':
+        specifier: workspace:*
+        version: link:../msx
       '@8bitscript/nes':
         specifier: workspace:*
         version: link:../nes
+      '@8bitscript/odyssey2':
+        specifier: workspace:*
+        version: link:../odyssey2
+      '@8bitscript/oric':
+        specifier: workspace:*
+        version: link:../oric
+      '@8bitscript/pce':
+        specifier: workspace:*
+        version: link:../pce
       '@8bitscript/pet':
         specifier: workspace:*
         version: link:../pet
+      '@8bitscript/plus4':
+        specifier: workspace:*
+        version: link:../plus4
+      '@8bitscript/sg1000':
+        specifier: workspace:*
+        version: link:../sg1000
+      '@8bitscript/sms':
+        specifier: workspace:*
+        version: link:../sms
+      '@8bitscript/spectrum':
+        specifier: workspace:*
+        version: link:../spectrum
+      '@8bitscript/supervision':
+        specifier: workspace:*
+        version: link:../supervision
+      '@8bitscript/vectrex':
+        specifier: workspace:*
+        version: link:../vectrex
       '@8bitscript/vic20':
         specifier: workspace:*
         version: link:../vic20
@@ -432,33 +809,108 @@ importers:
 
   packages/screen:
     dependencies:
+      '@8bitscript/apple2':
+        specifier: workspace:*
+        version: link:../apple2
+      '@8bitscript/atari2600':
+        specifier: workspace:*
+        version: link:../atari2600
+      '@8bitscript/atari5200':
+        specifier: workspace:*
+        version: link:../atari5200
+      '@8bitscript/atari7800':
+        specifier: workspace:*
+        version: link:../atari7800
       '@8bitscript/atari8':
         specifier: workspace:*
         version: link:../atari8
+      '@8bitscript/bbc':
+        specifier: workspace:*
+        version: link:../bbc
       '@8bitscript/c128':
         specifier: workspace:*
         version: link:../c128
       '@8bitscript/c64':
         specifier: workspace:*
         version: link:../c64
+      '@8bitscript/channelf':
+        specifier: workspace:*
+        version: link:../channelf
+      '@8bitscript/coco':
+        specifier: workspace:*
+        version: link:../coco
+      '@8bitscript/coleco':
+        specifier: workspace:*
+        version: link:../coleco
+      '@8bitscript/cpc':
+        specifier: workspace:*
+        version: link:../cpc
       '@8bitscript/cx16':
         specifier: workspace:*
         version: link:../cx16
+      '@8bitscript/gamegear':
+        specifier: workspace:*
+        version: link:../gamegear
+      '@8bitscript/gb':
+        specifier: workspace:*
+        version: link:../gb
+      '@8bitscript/gbc':
+        specifier: workspace:*
+        version: link:../gbc
+      '@8bitscript/lynx':
+        specifier: workspace:*
+        version: link:../lynx
       '@8bitscript/mega65':
         specifier: workspace:*
         version: link:../mega65
+      '@8bitscript/msx':
+        specifier: workspace:*
+        version: link:../msx
       '@8bitscript/nes':
         specifier: workspace:*
         version: link:../nes
+      '@8bitscript/odyssey2':
+        specifier: workspace:*
+        version: link:../odyssey2
+      '@8bitscript/oric':
+        specifier: workspace:*
+        version: link:../oric
+      '@8bitscript/pce':
+        specifier: workspace:*
+        version: link:../pce
       '@8bitscript/pet':
         specifier: workspace:*
         version: link:../pet
+      '@8bitscript/plus4':
+        specifier: workspace:*
+        version: link:../plus4
+      '@8bitscript/sg1000':
+        specifier: workspace:*
+        version: link:../sg1000
+      '@8bitscript/sms':
+        specifier: workspace:*
+        version: link:../sms
+      '@8bitscript/spectrum':
+        specifier: workspace:*
+        version: link:../spectrum
+      '@8bitscript/supervision':
+        specifier: workspace:*
+        version: link:../supervision
+      '@8bitscript/vectrex':
+        specifier: workspace:*
+        version: link:../vectrex
       '@8bitscript/vic20':
         specifier: workspace:*
         version: link:../vic20
       '@8bitscript/web':
         specifier: workspace:*
         version: link:../web
+
+  packages/sg1000: {}
+
+  packages/sms: {}
+
+  packages/spectrum: {}
 
   packages/sprites:
     dependencies:
@@ -477,18 +929,18 @@ importers:
 
   packages/studio:
     dependencies:
-      '@8bitscript/input':
+      '@8bitscript/audio':
         specifier: workspace:*
-        version: link:../input
-      '@8bitscript/pointer':
+        version: link:../audio
+      '@8bitscript/graphics':
         specifier: workspace:*
-        version: link:../pointer
+        version: link:../graphics
       '@8bitscript/screen':
         specifier: workspace:*
         version: link:../screen
-      '@8bitscript/system':
+      '@8bitscript/sprites':
         specifier: workspace:*
-        version: link:../system
+        version: link:../sprites
       '@8bitscript/text':
         specifier: workspace:*
         version: link:../text
@@ -496,31 +948,102 @@ importers:
         specifier: workspace:*
         version: link:../ui
 
+  packages/supervision: {}
+
   packages/system: {}
 
   packages/text:
     dependencies:
+      '@8bitscript/apple2':
+        specifier: workspace:*
+        version: link:../apple2
+      '@8bitscript/atari2600':
+        specifier: workspace:*
+        version: link:../atari2600
+      '@8bitscript/atari5200':
+        specifier: workspace:*
+        version: link:../atari5200
+      '@8bitscript/atari7800':
+        specifier: workspace:*
+        version: link:../atari7800
       '@8bitscript/atari8':
         specifier: workspace:*
         version: link:../atari8
+      '@8bitscript/bbc':
+        specifier: workspace:*
+        version: link:../bbc
       '@8bitscript/c128':
         specifier: workspace:*
         version: link:../c128
       '@8bitscript/c64':
         specifier: workspace:*
         version: link:../c64
+      '@8bitscript/channelf':
+        specifier: workspace:*
+        version: link:../channelf
+      '@8bitscript/coco':
+        specifier: workspace:*
+        version: link:../coco
+      '@8bitscript/coleco':
+        specifier: workspace:*
+        version: link:../coleco
+      '@8bitscript/cpc':
+        specifier: workspace:*
+        version: link:../cpc
       '@8bitscript/cx16':
         specifier: workspace:*
         version: link:../cx16
+      '@8bitscript/gamegear':
+        specifier: workspace:*
+        version: link:../gamegear
+      '@8bitscript/gb':
+        specifier: workspace:*
+        version: link:../gb
+      '@8bitscript/gbc':
+        specifier: workspace:*
+        version: link:../gbc
+      '@8bitscript/lynx':
+        specifier: workspace:*
+        version: link:../lynx
       '@8bitscript/mega65':
         specifier: workspace:*
         version: link:../mega65
+      '@8bitscript/msx':
+        specifier: workspace:*
+        version: link:../msx
       '@8bitscript/nes':
         specifier: workspace:*
         version: link:../nes
+      '@8bitscript/odyssey2':
+        specifier: workspace:*
+        version: link:../odyssey2
+      '@8bitscript/oric':
+        specifier: workspace:*
+        version: link:../oric
+      '@8bitscript/pce':
+        specifier: workspace:*
+        version: link:../pce
       '@8bitscript/pet':
         specifier: workspace:*
         version: link:../pet
+      '@8bitscript/plus4':
+        specifier: workspace:*
+        version: link:../plus4
+      '@8bitscript/sg1000':
+        specifier: workspace:*
+        version: link:../sg1000
+      '@8bitscript/sms':
+        specifier: workspace:*
+        version: link:../sms
+      '@8bitscript/spectrum':
+        specifier: workspace:*
+        version: link:../spectrum
+      '@8bitscript/supervision':
+        specifier: workspace:*
+        version: link:../supervision
+      '@8bitscript/vectrex':
+        specifier: workspace:*
+        version: link:../vectrex
       '@8bitscript/vic20':
         specifier: workspace:*
         version: link:../vic20
@@ -542,6 +1065,8 @@ importers:
       '@8bitscript/text':
         specifier: workspace:*
         version: link:../text
+
+  packages/vectrex: {}
 
   packages/vic20: {}
 

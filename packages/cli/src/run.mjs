@@ -75,12 +75,14 @@ import { compile } from './build.mjs';
 import { programArg } from './programs.mjs';
 import { CONTROLLERS_FILE, controllerInvocation, controllerPlayers, setConfigKey } from './controllers.mjs';
 import { applyCheckoutFromArgs } from './checkout.mjs';
-import { HARDWARE_USAGE, hardwareArgs, loadArgs } from './hardware.mjs';
+import { HARDWARE_USAGE, hardwareArgs, loadArgs, emulatorFor, targetEmulators, viceEmulators, loadCatalog } from './hardware.mjs';
 import { baselineLaunch, resolveNamedLaunch } from './systems.mjs';
 import { hardwareSnapshot, writeLastRun } from './last-run.mjs';
 import { parseListenPort } from './web-lan.mjs';
 import { WEB_EMULATORS } from './web-emulator.mjs';
 import { applyCx16WindowFlags, cx16WindowArgs, CX16_WINDOW_USAGE } from './cx16-window.mjs';
+import { resolveOnPath } from './setup/host.mjs';
+import { releaseBootTargetPipe, releaseTargetList, releaseTargetPipe, releaseUsageNote } from './release.mjs';
 
 /** `a, b and c` — the machines this release builds for, said the way a sentence says them. */
 function listOf(names) {
@@ -88,12 +90,11 @@ function listOf(names) {
   return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 }
 
-// The VICE family (vic20/c64/pet/c128): one emulator suite, one invocation
-// shape — -autostart injects the built file straight into RAM. Exported so
-// screenshot.mjs's --screenshot path (8bs run <target> --screenshot <file>)
-// can drive the same emulators/flags rather than keeping a second copy that
-// could drift from this one.
-export const VICE_EMULATOR = { vic20: 'xvic', c64: 'x64sc', pet: 'xpet', c128: 'x128' };
+// The VICE family: one emulator suite, one invocation shape — -autostart
+// injects the built file straight into RAM. Discovered from each machine
+// package's `"8bitscript".emulator` (`family: "vice"`). Exported so
+// screenshot.mjs's --screenshot path can drive the same binaries.
+export const VICE_EMULATOR = viceEmulators();
 
 // Flags the emulator needs to run our .prg files. The emulated machine must
 // match the memory layout the program was linked for: 8BitScript's vic20
@@ -112,6 +113,7 @@ export const VICE_EMULATOR = { vic20: 'xvic', c64: 'x64sc', pet: 'xpet', c128: '
 // black screen) alongside the real output — not a second copy of the
 // program, just an unused second monitor the hardware genuinely has.
 export const VICE_EMULATOR_ARGS = {
+  plus4: ['-autostartprgmode', '1'],
   vic20: ['-autostartprgmode', '1'],
   c64: ['-autostartprgmode', '1'],
   pet: ['-autostartprgmode', '1'],
@@ -158,15 +160,10 @@ export const PET_REGION_NOTE = '8bs run: the PET has no --pal/--ntsc — its ref
 
 // The emulator each target is launched with, in one place, because the
 // controller adapters (controllers.mjs) are keyed by the emulator's own
-// name and need it before emulatorInvocation() has built anything. The
-// VICE half is VICE_EMULATOR above rather than a second copy of it.
-export const TARGET_EMULATOR = {
-  ...VICE_EMULATOR,
-  atari8: 'atari800',
-  nes: 'fceux',
-  cx16: 'x16emu',
-  mega65: 'xmega65',
-};
+// name and need it before emulatorInvocation() has built anything.
+// Discovered from each machine package — a new machine that names a
+// binary is here without a second table.
+export const TARGET_EMULATOR = targetEmulators();
 
 // How each emulator is handed the built file when the hardware does not
 // say otherwise (a catalog value's `load` — the Atari XEGS cartridge —
@@ -181,6 +178,11 @@ export const DEFAULT_LOAD = {
   x16emu: (out) => ['-prg', out, '-run'],
   xmega65: (out) => ['-prg', out],
 };
+
+/** How a binary is handed the built file when the catalog does not say. A new VICE machine is `-autostart`. */
+export function defaultLoadFor(emulator, family) {
+  return DEFAULT_LOAD[emulator] ?? (family === 'vice' ? ((out) => ['-autostart', out]) : ((out) => [out]));
+}
 
 // VICE with the catalog's `+sound` (no speaker) closes the audio device.
 // Interactive GTK3 then paces only from vsync, which on Linux/Wayland
@@ -308,6 +310,7 @@ export async function resolveController(target, { hardware, dir = process.cwd(),
   if (declared.players.length === 0) return NO_CONTROLLER;
 
   const emulator = TARGET_EMULATOR[target] ?? target;
+  const family = emulatorFor(target).family;
   const invocation = controllerInvocation(target, declared.players, {
     emulator,
     hardware,
@@ -315,10 +318,10 @@ export async function resolveController(target, { hardware, dir = process.cwd(),
     // no command-line form; -config is how it is reached).
     joymapPath: join(tmpdir(), `8bs-${emulator}-${process.pid}.vjm`),
     vicercPath: join(tmpdir(), `8bs-${emulator}-${process.pid}.vicerc`),
-    baseVicerc: target in VICE_EMULATOR ? await viceConfigBase() : '',
+    baseVicerc: family === 'vice' ? await viceConfigBase() : '',
     // atari800: the same file the CRT knobs are written into.
     configPath: atari800ConfigPath(),
-    baseConfig: target === 'atari8' ? await atari800ConfigBase() : '',
+    baseConfig: family === 'atari800' ? await atari800ConfigBase() : '',
   });
   return invocation;
 }
@@ -356,8 +359,14 @@ export async function emulatorInvocation(target, { pal, hardware, outFile, contr
   // The emulator's own flags for the machine, then whatever the hardware
   // fits (the catalog's `run` list for this emulator), then the file, if
   // there is one to load.
-  if (target in VICE_EMULATOR) {
-    const emulator = VICE_EMULATOR[target];
+  let family;
+  try {
+    family = emulatorFor(target).family;
+  } catch {
+    return { ok: false, error: `no emulator wired up for target '${target}'` };
+  }
+  if (family === 'vice') {
+    const emulator = TARGET_EMULATOR[target];
     return {
       ok: true,
       emulator,
@@ -366,7 +375,7 @@ export async function emulatorInvocation(target, { pal, hardware, outFile, contr
         // only when the flag leads the line. See controllers.mjs's
         // viceController() for the two bounded runs that measured it.
         ...(controller.leadingArgs ?? []),
-        ...(VICE_EMULATOR_ARGS[target] ?? []),
+        ...(VICE_EMULATOR_ARGS[target] ?? ['-autostartprgmode', '1']),
         ...(VICE_MODEL_ARGS[target]?.[region] ?? []),
         ...(hardware.run[emulator] ?? []),
         ...viceInteractiveSoundClock(hardware.run[emulator] ?? []),
@@ -375,11 +384,11 @@ export async function emulatorInvocation(target, { pal, hardware, outFile, contr
         // emulator window during dev/test cycles should not need a click
         // every time.
         '+confirmonexit',
-        ...load(emulator, DEFAULT_LOAD[emulator]),
+        ...load(emulator, defaultLoadFor(emulator, 'vice')),
       ],
     };
   }
-  if (target === 'atari8') {
+  if (family === 'atari800') {
     // atari800's TV-area visible size (DOC/USAGE -horiz-area/-vert-area):
     // 336 wide, 224 tall on NTSC and 240 tall on PAL. The emulator opens
     // at 1x of that — a postage stamp on any modern display — and unlike
@@ -398,7 +407,7 @@ export async function emulatorInvocation(target, { pal, hardware, outFile, contr
     const displayCfg = (controller.files ?? []).length > 0 ? null : await atari800CleanDisplayConfig();
     return {
       ok: true,
-      emulator: 'atari800',
+      emulator: emulatorFor(target).binary ?? 'atari800',
       emulatorArgs: [
         // The controller profile's config, or the display-only one, but
         // never both — and leading, where atari800's -config has always
@@ -451,11 +460,38 @@ export async function emulatorInvocation(target, { pal, hardware, outFile, contr
       ],
     };
   }
-  // Every caller already validated the target against the same set this
-  // function branches over (build()'s TARGETS via compile(), or boot()'s
-  // own check for the one target — web — that has no bare emulator at all),
-  // so this is unreachable.
-  return { ok: false, error: `no emulator wired up for target '${target}'` };
+  const emu = emulatorFor(target);
+  if (!emu.binary) {
+    return { ok: false, error: `no emulator wired up for target '${target}'` };
+  }
+  const emulator = emu.binary;
+  if (family === 'mame') {
+    if (!emu.system) {
+      return { ok: false, error: `${target} names MAME but no emulator.system` };
+    }
+    const runFlags = (hardware.run[emulator] ?? []).filter((arg) => arg !== emu.system);
+    const media = outFile && emu.slot ? [`-${emu.slot}`, outFile] : [];
+    return {
+      ok: true,
+      emulator,
+      emulatorArgs: [
+        emu.system,
+        ...runFlags,
+        ...controller.args,
+        ...media,
+        '-skip_gameinfo',
+      ],
+    };
+  }
+  return {
+    ok: true,
+    emulator,
+    emulatorArgs: [
+      ...(hardware.run[emulator] ?? []),
+      ...controller.args,
+      ...load(emulator, defaultLoadFor(emulator, family)),
+    ],
+  };
 }
 
 /**
@@ -474,7 +510,7 @@ async function spawnEmulator(emulator, emulatorArgs) {
   process.stdout.write(`starting ${emulator}; close the emulator window to finish.\n`);
   const { spawn } = await import('node:child_process');
   return new Promise((resolvePromise) => {
-    const child = spawn(emulator, emulatorArgs, { stdio: 'inherit' });
+    const child = spawn(resolveOnPath(emulator) ?? emulator, emulatorArgs, { stdio: 'inherit' });
     child.on('error', () => {
       process.stderr.write(`cannot start ${emulator}. Run '8bs doctor' — docs/setup/index.md\n`);
       resolvePromise(1);
@@ -573,8 +609,8 @@ export async function run(args) {
   const target = launch.target ?? named;
   if (!target) {
     process.stderr.write(
-      'Usage: 8bs run <pet|web>\n'
-      + '                (vic20, c64, c128, atari8, nes, cx16, mega65 are parked until a later release;\n'
+      `Usage: 8bs run <${releaseTargetPipe()}>\n`
+      + releaseUsageNote()
       + '                 no target runs the `baseline` 8bitscript.config.ts names, when it names one)\n'
       + '                [--pal]\n'
       + HARDWARE_USAGE
@@ -675,6 +711,17 @@ export async function run(args) {
     });
   }
   if (target === 'cx16' && !invocation.emulatorArgs.includes('-capture')) process.stderr.write(CX16_MOUSE_NOTE);
+  const deferred = emulatorFor(target).deferred;
+  if (deferred) {
+    const title = loadCatalog(target).title ?? target;
+    process.stderr.write(`8bs run: ${title} is deferred pending emulator setup — ${deferred}\n`);
+  }
+  if (!resolveOnPath(invocation.emulator)) {
+    if (deferred) {
+      process.stderr.write(`See docs/setup/${target}.md. Built ${outFile}.\n`);
+      return 0;
+    }
+  }
   await writeLastRun(target, { emulator: invocation.emulator });
   return spawnEmulator(invocation.emulator, invocation.emulatorArgs);
 }
@@ -744,8 +791,8 @@ export async function boot(args) {
       return 2;
     }
     process.stderr.write(
-      'Usage: 8bs boot <pet>\n'
-      + '                (vic20, c64, c128, atari8, nes, cx16, mega65 are parked until a later release;\n'
+      `Usage: 8bs boot <${releaseBootTargetPipe()}>\n`
+      + releaseUsageNote()
       + '                web has no bare emulator to boot without a program)\n'
       + '                [--pal]\n'
       + HARDWARE_USAGE
@@ -765,7 +812,7 @@ export async function boot(args) {
   if (!RELEASE_MACHINES.includes(target)) {
     process.stderr.write(
       `8bs boot: '${target}' is not a target in this release. This release builds for ` +
-      `${listOf(RELEASE_MACHINES)}; the ${target} returns in a later one.\n`,
+      `${releaseTargetList()}; the ${target} returns in a later one.\n`,
     );
     return 2;
   }

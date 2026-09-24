@@ -35,7 +35,11 @@
         "extensions": [
           ".8bs"
         ],
-        "configuration": "./language-configuration.json"
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icons/8bs-light.svg",
+          "dark": "./icons/8bs-dark.svg"
+        }
       },
       {
         "id": "8bitextensible",
@@ -46,7 +50,41 @@
         "extensions": [
           ".8bx"
         ],
-        "configuration": "./language-configuration.json"
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icons/8bx-light.svg",
+          "dark": "./icons/8bx-dark.svg"
+        }
+      },
+      {
+        "id": "8bitgraphics",
+        "aliases": [
+          "8BitGraphics",
+          "8bg"
+        ],
+        "extensions": [
+          ".8bg"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icons/8bg-light.svg",
+          "dark": "./icons/8bg-dark.svg"
+        }
+      },
+      {
+        "id": "8bitaudio",
+        "aliases": [
+          "8BitAudio",
+          "8ba"
+        ],
+        "extensions": [
+          ".8ba"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icons/8ba-light.svg",
+          "dark": "./icons/8ba-dark.svg"
+        }
       },
       {
         "id": "8bitscript-asm",
@@ -68,6 +106,16 @@
         "path": "./syntaxes/8bx.tmLanguage.json"
       },
       {
+        "language": "8bitgraphics",
+        "scopeName": "source.8bg",
+        "path": "./syntaxes/8bg.tmLanguage.json"
+      },
+      {
+        "language": "8bitaudio",
+        "scopeName": "source.8ba",
+        "path": "./syntaxes/8ba.tmLanguage.json"
+      },
+      {
         "language": "8bitscript-asm",
         "scopeName": "source.asm-8bs",
         "path": "./syntaxes/asm-8bs.tmLanguage.json"
@@ -77,6 +125,21 @@
       {
         "language": "8bitscript",
         "path": "./snippets/8bs.json"
+      },
+      {
+        "language": "8bitgraphics",
+        "path": "./snippets/8bg.json"
+      },
+      {
+        "language": "8bitaudio",
+        "path": "./snippets/8ba.json"
+      }
+    ],
+    "iconThemes": [
+      {
+        "id": "8bitscript",
+        "label": "8BitScript",
+        "path": "./themes/8bitscript-icon-theme.json"
       }
     ],
     "viewsContainers": {
@@ -187,6 +250,12 @@
         "title": "Doctor: Check Toolchains",
         "category": "8BitScript",
         "icon": "$(pulse)"
+      },
+      {
+        "command": "8bitscript.doctorSetup",
+        "title": "Doctor: Choose Emulators",
+        "category": "8BitScript",
+        "icon": "$(checklist)"
       },
       {
         "command": "8bitscript.controllerSetup",
@@ -309,11 +378,11 @@
         },
         {
           "command": "8bitscript.viewGeneratedAssembly",
-          "when": "editorLangId == 8bitscript || editorLangId == 8bitextensible"
+          "when": "editorLangId == 8bitscript || editorLangId == 8bitextensible || editorLangId == 8bitgraphics || editorLangId == 8bitaudio"
         },
         {
           "command": "8bitscript.viewGeneratedAssemblyFor",
-          "when": "editorLangId == 8bitscript || editorLangId == 8bitextensible"
+          "when": "editorLangId == 8bitscript || editorLangId == 8bitextensible || editorLangId == 8bitgraphics || editorLangId == 8bitaudio"
         },
         {
           "command": "8bitscript.assemblyView.openForMachine",
@@ -327,12 +396,12 @@
       "editor/context": [
         {
           "command": "8bitscript.viewGeneratedAssembly",
-          "when": "editorLangId == 8bitscript || editorLangId == 8bitextensible",
+          "when": "editorLangId == 8bitscript || editorLangId == 8bitextensible || editorLangId == 8bitgraphics || editorLangId == 8bitaudio",
           "group": "8bitscript"
         },
         {
           "command": "8bitscript.viewGeneratedAssemblyFor",
-          "when": "editorLangId == 8bitscript || editorLangId == 8bitextensible",
+          "when": "editorLangId == 8bitscript || editorLangId == 8bitextensible || editorLangId == 8bitgraphics || editorLangId == 8bitaudio",
           "group": "8bitscript"
         }
       ],
@@ -395,19 +464,24 @@
           "group": "2_system@2"
         },
         {
-          "command": "8bitscript.controllerSetup",
+          "command": "8bitscript.doctorSetup",
           "when": "view == 8bitscript.launcher",
           "group": "2_system@3"
         },
         {
+          "command": "8bitscript.controllerSetup",
+          "when": "view == 8bitscript.launcher",
+          "group": "2_system@4"
+        },
+        {
           "command": "8bitscript.enableLocalExtension",
           "when": "view == 8bitscript.launcher && !8bitscript.usingLocalExtension",
-          "group": "2_system@4"
+          "group": "2_system@5"
         },
         {
           "command": "8bitscript.useOfficialExtension",
           "when": "view == 8bitscript.launcher && 8bitscript.usingLocalExtension",
-          "group": "2_system@4"
+          "group": "2_system@5"
         }
       ]
     },
@@ -433,11 +507,7 @@
             "pet",
             "c64",
             "vic20",
-            "c128",
             "cx16",
-            "mega65",
-            "atari8",
-            "nes",
             "web"
           ],
           "default": "pet",
@@ -447,6 +517,17 @@
           "type": "string",
           "default": "",
           "description": "The named system the launcher's Run and Build buttons use (`8bs run --system`). Empty means a bare machine id from 8bitscript.system. Named systems come from 8bitscript.config.ts, .8bitscript/systems.json, or ~/.config/8bitscript/systems.json."
+        },
+        "8bitscript.doctorEmulators": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "default": null,
+          "description": "Emulators 8BitScript: Doctor installs. null (the default) is all of them. An empty array is host tools only. Set from Doctor: Choose Emulators."
         },
         "8bitscript.checkout": {
           "type": "string",
@@ -544,7 +625,30 @@
               "mega65",
               "atari8",
               "nes",
-              "web"
+              "web",
+              "plus4",
+              "oric",
+              "apple2",
+              "bbc",
+              "atari5200",
+              "lynx",
+              "pce",
+              "supervision",
+              "atari2600",
+              "atari7800",
+              "gb",
+              "gbc",
+              "sms",
+              "gamegear",
+              "sg1000",
+              "msx",
+              "coleco",
+              "spectrum",
+              "cpc",
+              "coco",
+              "vectrex",
+              "odyssey2",
+              "channelf"
             ],
             "description": "The system to build for or run on. Required for run and build."
           },
@@ -564,6 +668,8 @@
   "activationEvents": [
     "workspaceContains:**/*.8bs",
     "workspaceContains:**/*.8bx",
+    "workspaceContains:**/*.8bg",
+    "workspaceContains:**/*.8ba",
     "workspaceContains:**/8bitscript.config.ts",
     "workspaceContains:**/8bs.config.ts"
   ],
@@ -587,6 +693,8 @@
     "media",
     "syntaxes",
     "snippets",
+    "icons",
+    "themes",
     "language-configuration.json",
     "language-configuration.asm.json",
     "README.md",

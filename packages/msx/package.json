@@ -1,0 +1,127 @@
+{
+  "name": "@8bitscript/msx",
+  "version": "0.22.1",
+  "description": "MSX target support for 8BitScript: the hardware underneath the portable APIs.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/8BitScript/8bitscript.git",
+    "directory": "packages/msx"
+  },
+  "8bitscript": {
+    "title": "MSX",
+    "emulator": {
+      "binary": "openmsx",
+      "family": "dedicated",
+      "screenshot": "openmsx",
+      "framesUnit": "frames",
+      "defaultFrames": 180,
+      "installer": "openmsx",
+      "deferred": "openMSX interactive run is pending setup"
+    },
+    "entry": "./src/index.8bs",
+    "exports": {
+      "./screen": "./src/screen.8bs",
+      "./text": "./src/text.8bs",
+      "./input": "./src/input.8bs",
+      "./pointer": "./src/pointer.8bs",
+      "./rasterline": "./src/rasterline.8bs"
+    },
+    "hardware": {
+      "build": {
+        "defsym": {
+          "__load_address": 16384,
+          "__ram_size": 16
+        },
+        "output": "rom"
+      },
+      "facts": {
+        "video.columns": 32,
+        "video.rows": 24,
+        "video.cellWidth": 8,
+        "video.cellHeight": 8,
+        "video.palette": 16,
+        "video.cellColors": 2,
+        "video.colorPerCell": false,
+        "video.glyphs": 0,
+        "video.blockWidth": 0,
+        "video.blockHeight": 0,
+        "video.bitmap": false,
+        "video.layers": 1,
+        "video.scroll": false,
+        "video.raster": false,
+        "video.sprites": 32,
+        "video.spritesPerLine": 4,
+        "video.spriteWidth": 16,
+        "video.spriteHeight": 16,
+        "video.spriteColors": 1,
+        "video.frameRate": 60,
+        "audio.voices": 3,
+        "audio.noise": true,
+        "audio.envelope": false,
+        "audio.filter": false,
+        "audio.pcm": false,
+        "audio.volume": false,
+        "audio.entropy": false,
+        "input.keyboard": true,
+        "input.joysticks": 2,
+        "input.pads": 0,
+        "input.controls": [
+          "up",
+          "down",
+          "left",
+          "right",
+          "a"
+        ],
+        "input.mouse": false,
+        "input.paddles": false,
+        "storage.save": true,
+        "storage.kib": 360,
+        "memory.ram": 16384,
+        "memory.banked": false,
+        "memory.bankedKib": 0
+      },
+      "options": {
+        "model": {
+          "label": "Model",
+          "default": "msx1",
+          "values": {
+            "msx1": {
+              "label": "MSX1: TMS9918, 16K VRAM",
+              "facts": {
+                "video.palette": 16,
+                "video.scroll": false
+              }
+            },
+            "msx2": {
+              "label": "MSX2: V9938, 128K VRAM, scroll",
+              "facts": {
+                "video.palette": 512,
+                "video.scroll": true,
+                "video.rows": 26
+              },
+              "tag": "msx2"
+            }
+          }
+        }
+      },
+      "presets": {
+        "msx1": {
+          "model": "msx1"
+        },
+        "msx2": {
+          "model": "msx2"
+        }
+      }
+    }
+  },
+  "files": [
+    "src"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}

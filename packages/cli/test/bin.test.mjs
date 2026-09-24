@@ -85,6 +85,17 @@ test('doctor: dispatches to src/doctor.mjs', async () => {
   assert.ok(code === 0 || code === 1, `expected doctor to exit 0 or 1, got ${code}`);
 });
 
+test('doctor --json: a parseable report with ready and notInstalled', async () => {
+  const { code, stdout } = await runCli(['doctor', '--json'], { timeoutMs: 60_000 });
+  assert.ok(code === 0 || code === 1, `expected doctor --json to exit 0 or 1, got ${code}`);
+  const report = JSON.parse(stdout);
+  assert.equal(typeof report.ok, 'boolean');
+  assert.ok(Array.isArray(report.ready));
+  assert.ok(Array.isArray(report.notInstalled));
+  assert.ok(Array.isArray(report.failed));
+  assert.ok(Array.isArray(report.sections));
+});
+
 test('check: dispatches to src/check.mjs', async () => {
   const { code, stderr } = await runCli(['check']);
   // check.mjs's own usage exit code (2) for no files — proves the dispatch

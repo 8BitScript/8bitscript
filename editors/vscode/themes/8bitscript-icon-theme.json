@@ -1,0 +1,22 @@
+{
+  "iconDefinitions": {
+    "_8bs": {
+      "iconPath": "../icons/8bs-dark.svg"
+    },
+    "_8bx": {
+      "iconPath": "../icons/8bx-dark.svg"
+    },
+    "_8bg": {
+      "iconPath": "../icons/8bg-dark.svg"
+    },
+    "_8ba": {
+      "iconPath": "../icons/8ba-dark.svg"
+    }
+  },
+  "fileExtensions": {
+    "8bs": "_8bs",
+    "8bx": "_8bx",
+    "8bg": "_8bg",
+    "8ba": "_8ba"
+  }
+}

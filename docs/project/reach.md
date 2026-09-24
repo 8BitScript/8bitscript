@@ -156,13 +156,13 @@ in the JSON before quoting one.
 | bbc | 1.5M–1.75M † | 1.5M | 116K | 30 | 1,054 | yes | no | yes | — |
 | oric | 210K–350K † | 210K | 13K | 28 | 31 | yes | no | yes | — |
 | nes | 61.91M | 61.91M | 753K | 2,085 | 95,758 | yes | yes | yes | Pocket; Evercade (NES Classic ended 2018) |
-| gameboy | 118.69M | 118.69M | 608K | 7,836 | 190,311 | yes | yes | yes | ModRetro Chromatic; Analogue Pocket |
-| pcengine | 5.84M–10M † | 10M | 222K | 22 | 6,378 | yes | yes | yes | Analogue Duo (TG16 Mini ended) |
+| gb | 118.69M | 118.69M | 608K | 7,836 | 190,311 | yes | yes | yes | ModRetro Chromatic; Analogue Pocket |
+| pce | 5.84M–10M † | 10M | 222K | 22 | 6,378 | yes | yes | yes | Analogue Duo (TG16 Mini ended) |
 | supervision | no figure exists | — | 17K | 0 | 63 | yes | yes | yes | — |
 | coleco | 2M–6M † | 2M | 130K | 25 | 1,418 | yes | yes | yes | CollectorVision Phoenix |
 | sms | 11.2M–21M † | 13M | 292K | 70 | 4,375 | yes | yes | yes | — |
 | gamegear | 10.62M–14M † | 10.62M | 184K | 8 | 275 | yes | yes | generic | Game Gear Micro (Japan) |
-| zxspectrum | 5M † | 5M | 259K | 1,704 | 5,547 | yes | yes | yes | The Spectrum; Spectrum Next issue 3 |
+| spectrum | 5M † | 5M | 259K | 1,704 | 5,547 | yes | yes | yes | The Spectrum; Spectrum Next issue 3 |
 | msx | 4M–9M † | 5M | 165K | 305 | 1,974 | yes | yes | yes | — |
 | cpc | 3M | 3M | 82K | 407 | 1,432 | yes | yes | yes | — |
 
@@ -190,7 +190,7 @@ in the JSON before quoting one.
   Reddit itself returned 403 on every path from the research
   environment and the mirrors are bot-walled, so no row has a first-party
   2026 number; the JSON carries a 2026 mirror figure for eight machines
-  (r/c64 32,585; r/nes 132,763; r/Gameboy 282,004; r/zxspectrum
+  (r/c64 32,585; r/nes 132,763; r/Gameboy 282,004; r/spectrum
   14,329 …) marked `verify: true`. Rank order only.
 - **MiSTer / Pocket / web emu** say whether a route exists at all.
   Every machine but the MEGA65 has a MiSTer core (the MEGA65 *is* an
@@ -223,13 +223,13 @@ in the JSON before quoting one.
 | bbc | bbcmicro.co.uk ≈ 4,570 titles | keyboard (analogue port) | tape, disk, ROM | no | 16K/32K; 64K; 128K | disk, tape, SD bridge |
 | oric | — | none (keyboard) | tape, disk | no | 16K, 48K | tape, disk, SD bridge |
 | nes | NESdev Compo dormant since 2023 (24 entries) | nes-pad | cartridge | yes | 2K; +8K PRG-RAM on MMC boards | battery SRAM, none |
-| gameboy | GB Compo 2025: 113 entries; Homebrew Hub 1,629 | nes-pad | cartridge | yes | 8K WRAM (32K CGB) + cart RAM | battery SRAM |
-| pcengine | — | 2-button pad | HuCard, CD | no | 8K | backup RAM (Ten no Koe / CD), none |
+| gb | GB Compo 2025: 113 entries; Homebrew Hub 1,629 | nes-pad | cartridge | yes | 8K WRAM (32K CGB) + cart RAM | battery SRAM |
+| pce | — | 2-button pad | HuCard, CD | no | 8K | backup RAM (Ten no Koe / CD), none |
 | supervision | — | nes-pad | cartridge | yes | 8K | none |
 | coleco | Team Pixelboy closed at ~91 titles | keypad + 2 side buttons | cartridge | yes | 1K; 32K with SGM | none |
 | sms | SMS Power! 72 (70 in 2026 to date) | 2-button pad | cartridge | yes | 8K | battery SRAM, none |
 | gamegear | SMS Power! 10 | 2-button pad | cartridge | yes | 8K | battery SRAM, none |
-| zxspectrum | ZXDB 310 (352 in 2023); CSSCGC 2025: 42 | keyboard; Kempston/Sinclair stick optional | tape, disk | no | 16K, 48K, 128K; Next 1–2MB | tape, disk, none |
+| spectrum | ZXDB 310 (352 in 2023); CSSCGC 2025: 42 | keyboard; Kempston/Sinclair stick optional | tape, disk | no | 16K, 48K, 128K; Next 1–2MB | tape, disk, none |
 | msx | Generation MSX 93; MSXdev25: 50 entries | keyboard + 2-button MSX stick | cartridge, disk, tape | no | 8K–64K; MSX2 128K+ | disk, battery SRAM, none |
 | cpc | CPC-Power 137 (212 in 2023) | keyboard; stick optional | tape (464), disk (6128) | no | 64K, 128K, 512K | disk, tape, none |
 
@@ -432,7 +432,7 @@ nes         refused: input.keyboard needs it, has false
             single   .nes reaches original-hardware+sd-bridge, emulator, fpga, web; original-hardware+cartridge wants rom
             reach    61.91M sold · 753K views/yr · 2,085 on itch.io · 96K on reddit (2023) · new hardware: Analogue Pocket (openFPGA NES core); Evercade (NES-era licensed collections)
 
-zxspectrum  no package — phase 8 (docs/project/machines/)
+spectrum  no package — phase 8 (docs/project/machines/)
             input    stick: optional (sheet) · keyboard: standard (sheet) · pad: absent (sheet)
             single   nothing written yet; routes take tap, tzx, wav, z80, sna, trd, scr, szx, scl, dsk, rom, csw, pzx, img, mgt
             reach    5M sold † · 259K views/yr · 310 Spectrum Computing / ZXDB entries/yr, 42 CSSCGC (comp.sys.sinclair Crap Games Competition) entries/yr · 1,704 on itch.io · 5,547 on reddit (2023) · new hardware: The Spectrum (Retro Games Ltd)

@@ -1,0 +1,128 @@
+// @8bitscript/audio on the PET: the VIA's CB2 square wave. One voice, no
+// volume. A missing speaker (audio.voices = 0) means the lowering omitted
+// the bytes and these calls are no-ops.
+const DATA_MAX: utinyint = 64;
+let sfx: array<u8, 64>;
+let song: array<u8, 64>;
+let sfxLen: array<u8, 4>;
+let songLen: array<u8, 4>;
+let playing: utinyint = 255;
+let row: utinyint = 0;
+let tick: utinyint = 0;
+let sfxLeft: utinyint = 0;
+
+// T2 low byte for notes C3..B4, then repeat the last for higher. The VIA
+// shift rate is a square wave, not equal temperament — close enough for
+// the one-voice song this slice plays.
+const T2: array<u8, 24> = [
+    238, 224, 212, 200, 189, 178, 168, 158, 149, 141, 133, 125,
+    118, 111, 105, 99, 93, 88, 83, 78, 74, 70, 66, 62,
+];
+
+function periodOf(note: utinyint): utinyint {
+    let n: utinyint = note;
+    if (n < 36) {
+        n = 36;
+    }
+    n = n - 36;
+    if (n >= 24) {
+        n = 23;
+    }
+    return T2[n];
+}
+
+function tone(note: utinyint): void {
+    memory.write(0xE84B, 0x10); // ACR: shift out at T2
+    memory.write(0xE84A, 0x0F); // square
+    memory.write(0xE848, periodOf(note));
+}
+
+function quiet(): void {
+    memory.write(0xE84B, 0);
+}
+
+function eventAt(atRow: utinyint, field: utinyint): utinyint {
+    let count: utinyint = song[3];
+    let i: utinyint = 0;
+    let off: utinyint = 4;
+    while (i < count) {
+        if (song[off] == atRow) {
+            return song[off + field];
+        }
+        off = off + 4;
+        i = i + 1;
+    }
+    return 255;
+}
+
+export namespace audio {
+    function bind(kind: utinyint, slot: utinyint, index: utinyint, value: utinyint): void {
+        if (slot != 0 || index >= DATA_MAX) {
+            return;
+        }
+        if (kind == 0) {
+            sfx[index] = value;
+        } else {
+            song[index] = value;
+        }
+    }
+
+    function meta(kind: utinyint, slot: utinyint, length: utinyint, a: utinyint, b: utinyint, c: utinyint): void {
+        if (slot != 0) {
+            return;
+        }
+        if (kind == 0) {
+            sfxLen[slot] = length;
+        } else {
+            songLen[slot] = length;
+        }
+    }
+
+    function play(slot: utinyint): void {
+        if (sfxLen[slot] < 2) {
+            return;
+        }
+        tone(sfx[1]);
+        sfxLeft = 8;
+    }
+
+    function music(slot: utinyint): void {
+        playing = slot;
+        row = 0;
+        tick = 0;
+    }
+
+    function update(): void {
+        if (sfxLeft != 0) {
+            sfxLeft = sfxLeft - 1;
+            if (sfxLeft == 0) {
+                quiet();
+            }
+            return;
+        }
+        if (playing == 255 || songLen[0] < 4) {
+            return;
+        }
+        let speed: utinyint = song[1];
+        if (speed == 0) {
+            speed = 6;
+        }
+        tick = tick + 1;
+        if (tick < speed) {
+            return;
+        }
+        tick = 0;
+        let length: utinyint = song[2];
+        if (length == 0) {
+            length = 16;
+        }
+        let note: utinyint = eventAt(row, 1);
+        if (note != 255) {
+            tone(note);
+        }
+        row = row + 1;
+        if (row >= length) {
+            row = 0;
+        }
+    }
+}

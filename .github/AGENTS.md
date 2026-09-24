@@ -114,54 +114,151 @@ the Marketplace item `8bitscript.8bitscript-lang`, and
 
 ## A brand-new package's first publish
 
-0.2.0 added `@8bitscript/examples` — the first new package since 0.1.0.
-`release.mjs` (already dependency-ordered) reached it 15 packages into
-the batch and both auth paths refused it:
+npm Trusted Publishing (OIDC) and the `NODE_AUTH_TOKEN` fallback both
+assume the package already exists. A name that has never been claimed
+has nothing to attach a trust relationship to, so CI cannot create it.
+0.2.0 hit this for real with `@8bitscript/examples`: `release.mjs`
+reached it 15 packages into the batch and both auth paths 404'd
+(`ERR_PNPM_AUTH_TOKEN_EXCHANGE` on OIDC, plain `Not found` on the
+token), stranding everything after it and skipping
+`docs`/`extension`/`github-release`.
 
+`release.mjs` now checks existence (`npm view <name>`, no version)
+before publishing anything and, if it finds a new name, publishes
+just that package first. That makes a first-publish failure immediate
+and cheap — but the fix is still a human with an npm account, because
+only an account can bootstrap a name that's never existed.
+
+Do this **once, before (or as part of) the PR that adds the
+package**, not as a surprise in the middle of a release. After the
+name exists and OIDC is attached, every later version ships through
+the Version Packages PR like everything else. Do **not** publish later
+versions from a laptop.
+
+The trusted-publisher config on an existing package (e.g.
+`@8bitscript/c64`) is the template: GitHub Actions, this repo, the
+`release.yml` workflow, `npm publish` allowed. `release.yml`'s npm job
+already has `id-token: write`; nothing in GitHub changes per package.
+
+### 0. `package.json` before it can ship
+
+Copy these from an existing `packages/*/package.json` (updating
+`directory` / `name`):
+
+- `"name": "@8bitscript/<name>"`
+- `"version"` matching `packages/cli/package.json` (lockstep — every
+  `@8bitscript/*` package is the same number)
+- `"repository": { "type": "git", "url": "https://github.com/8BitScript/8bitscript.git", "directory": "packages/<name>" }`
+  — `scripts/release.mjs` fails fast if this is missing or wrong.
+  npm's provenance check (from Trusted Publishing) verifies it against
+  the OIDC-issued workflow identity and rejects the publish without it.
+- `"publishConfig": { "access": "public" }`
+- `"files"` listing what should actually be in the tarball
+- not `"private": true`
+
+Copy the root `LICENSE` into `packages/<name>/` as well.
+`scripts/release.mjs` does that for CI publishes; a laptop bootstrap
+has to do it by hand or the tarball ships without one.
+
+### 1. Auth
+
+`whoami` succeeding is not enough. Creating a package and attaching
+OIDC both need a fresh 2FA web session (`npm trust` and `pnpm publish`
+error `EOTP` / `ERR_PNPM_OTP_NON_INTERACTIVE` otherwise):
+
+```bash
+npm whoami                  # must be an @8bitscript org owner or
+npm org ls 8bitscript       # a member with publish rights
+npm login --auth-type=web   # opens a browser; complete 2FA there
 ```
-[WARN] Skipped OIDC: ERR_PNPM_AUTH_TOKEN_EXCHANGE: Failed token exchange
-request with body message: Unknown error (status code 404)
-Error: Failed to publish package @8bitscript/examples@0.2.0
-(status 404 Not Found): {"error":"Not found"}
+
+A non-interactive agent terminal cannot type an OTP. The human has to
+finish the browser login (or pass `--otp` on the publish command).
+
+### 2. Claim the name
+
+From the repository root, with the working tree at the version you
+mean to put on npm (usually the current lockstep, even if that
+version is not yet the tagged release — the next Version Packages
+merge will catch the rest of the packages up):
+
+```bash
+git pull
+cp LICENSE packages/<name>/LICENSE
+pnpm --filter ./packages/<name> publish --access public --no-git-checks
 ```
 
-Both failures have the same root cause: npm Trusted Publishing and the
-`NODE_AUTH_TOKEN` fallback both assume the package already exists —
-Trusted Publishing has no trust relationship to attach to a name
-nothing has ever claimed, and the token's own publish grant appears to
-cover updating an existing package, not creating a new one. Everything
-downstream of the new package in the dependency graph never got
-attempted, and `docs`/`extension`/`github-release` (`needs: npm`) were
-skipped.
+`--no-git-checks` is required when the package is not yet on `trunk`.
+Use `pnpm publish`, not `npm publish`: any workspace package this one
+depends on is `workspace:*` in package.json, and only `pnpm publish`
+rewrites that to a real version at publish time — plain `npm publish`
+ships the literal string, and a dependency resolving `workspace:*`
+outside this workspace hard fails. This is not hypothetical: it is
+exactly how `@8bitscript/raster@0.10.0` first shipped broken and
+needed a `0.10.1` just to fix its own dependencies.
 
-`release.mjs` now checks for this before publishing anything (a bare
-`npm view <name>`, not `<name>@<version>` — existence, not this
-version) and, if it finds one, publishes just the new package(s) first,
-in their own isolated `pnpm -r publish`, before touching the other 20.
-A first-publish failure is now immediate and cheap, not discovered
-partway through a full batch — but it still needs the same manual fix,
-since only an npm account can bootstrap a name that's never existed:
+Several new packages at once:
 
-1. `npm login` as an `@8bitscript` org owner or member with publish
-   rights (`npm org ls 8bitscript` shows your role).
-2. `git pull` — the working tree needs the same version `release.mjs`
-   was running with, or the manual publish and the automated one
-   disagree on what "this version" means.
-3. `cd packages/<name> && pnpm publish --access public --no-git-checks`
-   — a one-time bootstrap, the same way every other package's first
-   publish, long before Trusted Publishing existed, must have happened
-   once too. Use `pnpm publish`, not `npm publish`: any workspace
-   package this one depends on is `workspace:*` in package.json, and
-   only `pnpm publish` rewrites that to a real version at publish
-   time — plain `npm publish` ships the literal string, and a
-   dependency resolving `workspace:*` outside this workspace hard
-   fails. This is not hypothetical: it is exactly how
-   `@8bitscript/raster@0.10.0` first shipped broken and needed a
-   `0.10.1` just to fix its own dependencies.
-4. Re-dispatch: `gh workflow run release.yml --ref trunk` (see
-   "Recovering a half-finished release" above). `alreadyOnNpm()` skips
-   the package you just published by hand and picks up wherever the
-   batch actually stopped.
+```bash
+pnpm -r publish \
+  --filter ./packages/<a> --filter ./packages/<b> \
+  --access public --no-git-checks
+```
+
+Confirm with `npm view @8bitscript/<name> version`. A brand-new name
+can 404 on that replica for a few minutes after a successful publish
+(`npm access get status` and `npm trust list` already see it; a
+republish of the same version 403s "cannot publish over previously
+published versions"). Wait and retry rather than bumping.
+
+### 3. Attach OIDC (Trusted Publishing)
+
+This is the same `npm trust` every existing `@8bitscript/*` package
+already has. The package must exist on npm first (step 2) or the
+command 404s. The first call in a session opens a 2FA browser
+approval; later calls in the same session do not re-challenge.
+
+```bash
+npm trust github @8bitscript/<name> \
+  --file release.yml \
+  --repo 8BitScript/8bitscript \
+  --allow-publish --yes
+```
+
+`--file` is the **filename only** (`release.yml`), not a path. It has
+to match `.github/workflows/release.yml` exactly. `--allow-publish` is
+required on configs created after May 2026; without it the trust
+relationship exists but CI still cannot publish.
+
+Verify against a package that was already wired (the expected shape):
+
+```bash
+npm trust list @8bitscript/c64
+npm trust list @8bitscript/<name>
+```
+
+Both should show GitHub, `8BitScript/8bitscript`, workflow
+`release.yml`, publish allowed. `release.yml` already requests
+`id-token: write` on the npm job; do not add a second workflow or a
+per-package GitHub environment for this.
+
+If `npm trust` says a configuration already exists, leave it —
+npm currently allows one trust relationship per package. Revoke
+(`npm trust revoke @8bitscript/<name> --id=<trust-id>`) only to
+replace a wrong repo or workflow name.
+
+### 4. If this happened mid-release
+
+Re-dispatch after the name exists (OIDC can wait until after the
+re-dispatch if the token fallback is still in `release.yml`; attach
+it anyway so the *next* release is OIDC-only):
+
+```bash
+gh workflow run release.yml --ref trunk
+```
+
+See "Recovering a half-finished release" above. `alreadyOnNpm()`
+skips the package you just published by hand.
 
 ## Open VSX namespace
 

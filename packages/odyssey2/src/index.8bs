@@ -1,0 +1,2 @@
+// @8bitscript/odyssey2 — Magnavox Odyssey² hardware underneath the portable APIs.
+// Registers a program names sit in this package; screen/text/input import them.

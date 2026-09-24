@@ -525,12 +525,10 @@ test('text.setColor is kept on Atari GR.1, which has per-character color', () =>
 });
 
 test('a machine the entry has no branch for is 8BS3002', () => {
-  // Every real target (vic20, c64, pet, c128, atari8, nes, cx16, mega65,
-  // web) has a branch — 'atari2600' stands in for the "not one of them"
-  // case this error exists for: a real 6502 platform (so it's not
-  // implausible), just not one @8bitscript/screen's entry map has a branch
-  // for.
-  const { ir, diagnostics } = link(SCREEN_CONSUMER, STUDIO_ENTRY, { machine: 'atari2600' });
+  // Every RELEASE_MACHINES id has a screen branch. 'intellivision' stands
+  // in for a name the compiler has no System number for, which is the
+  // case this error exists for.
+  const { ir, diagnostics } = link(SCREEN_CONSUMER, STUDIO_ENTRY, { machine: 'intellivision' });
   assert.equal(ir, null);
   assert.deepEqual(diagnostics.map((d) => d.code), ['8BS3002']);
 });
@@ -618,8 +616,10 @@ test('an .8bx module links like an .8bs one, takes a machine twin, and is not th
   assert.equal(sourceKindOf('/p/notes.txt'), null);
   assert.equal(stripSourceExtension('/p/App.8bx'), '/p/App');
   assert.equal(stripSourceExtension('/p/notes.txt'), '/p/notes.txt');
-  assert.deepEqual([...SOURCE_EXTENSIONS], ['.8bs', '.8bx']);
-  assert.ok(isSourceFile('a.8bx') && isSourceFile('a.8bs') && !isSourceFile('a.8b'));
+  assert.deepEqual([...SOURCE_EXTENSIONS], ['.8bs', '.8bx', '.8bg', '.8ba']);
+  assert.equal(sourceKindOf('/p/player.8bg'), '.8bg');
+  assert.equal(sourceKindOf('/p/theme.8ba'), '.8ba');
+  assert.ok(isSourceFile('a.8bx') && isSourceFile('a.8bs') && isSourceFile('a.8bg') && isSourceFile('a.8ba') && !isSourceFile('a.8b'));
   assert.ok(!isVariantPath('/p/notes.txt'));
   // An .8bx module holding ordinary 8BitScript resolves, links, and takes
   // a machine twin exactly as .8bs does.

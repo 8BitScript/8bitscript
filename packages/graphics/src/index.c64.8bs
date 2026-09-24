@@ -1,0 +1,82 @@
+// @8bitscript/graphics on the C64: VIC-II hardware sprites. The compiler's
+// C64 media lowering padded the PNG to 24×21 and bind() copies those 63
+// bytes into a shape block. Animation is several blocks, one pointer write
+// a frame.
+import { sprites } from "@8bitscript/sprites";
+import { sprites as hardware } from "@8bitscript/c64/sprites";
+
+const MAX: utinyint = 8;
+const BYTES: utinyint = 63;
+let frameCount: array<u8, 8>;
+let interval: array<u8, 8>;
+let tick: array<u8, 8>;
+let frame: array<u8, 8>;
+let started: bool = false;
+
+function baseBlock(slot: utinyint): utinyint {
+    return hardware.FIRST_BLOCK + slot * 4;
+}
+
+function ensure(): void {
+    if (!started) {
+        sprites.begin(MAX);
+        started = true;
+    }
+}
+
+export namespace graphics {
+    function bind(slot: utinyint, index: utinyint, value: utinyint): void {
+        if (slot >= MAX) {
+            return;
+        }
+        let block: utinyint = baseBlock(slot);
+        let i: utinyint = index;
+        while (i >= BYTES) {
+            i = i - BYTES;
+            block = block + 1;
+        }
+        hardware.setShapeByte(block, i, value);
+    }
+
+    function meta(slot: utinyint, frames: utinyint, every: utinyint, kind: utinyint, width: utinyint, height: utinyint): void {
+        if (slot >= MAX) {
+            return;
+        }
+        frameCount[slot] = frames;
+        interval[slot] = every;
+        tick[slot] = 0;
+        frame[slot] = 0;
+        ensure();
+        sprites.setShape(slot, baseBlock(slot));
+        sprites.setColor(slot, 1);
+    }
+
+    function place(slot: utinyint, x: usmallint, y: usmallint): void {
+        if (slot >= MAX) {
+            return;
+        }
+        ensure();
+        sprites.place(slot, x, y);
+    }
+
+    function update(): void {
+        if (!started) {
+            return;
+        }
+        for (let slot: utinyint = 0; slot < MAX; slot++) {
+            if (frameCount[slot] < 2) {
+                continue;
+            }
+            tick[slot] = tick[slot] + 1;
+            if (tick[slot] >= interval[slot]) {
+                tick[slot] = 0;
+                frame[slot] = frame[slot] + 1;
+                if (frame[slot] >= frameCount[slot]) {
+                    frame[slot] = 0;
+                }
+                sprites.setShape(slot, baseBlock(slot) + frame[slot]);
+            }
+        }
+        sprites.update();
+    }
+}

@@ -1,0 +1,2 @@
+// @8bitscript/sg1000 — Sega SG-1000 hardware underneath the portable APIs.
+// Registers a program names sit in this package; screen/text/input import them.

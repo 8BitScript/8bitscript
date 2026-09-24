@@ -1,0 +1,90 @@
+// @8bitscript/graphics on the CX16: one VERA sprite (sprite 1 — 0 is the mouse).
+import { setVramAddress } from "@8bitscript/cx16";
+
+const MAX: utinyint = 8;
+const KIND_CX16: utinyint = 5;
+const ATTR_BANK: utinyint = 1;
+const ATTR_LOW: usmallint = 0xFC00;
+const TILE_BANK: utinyint = 0;
+const TILE_LOW: usmallint = 0x4000;
+
+let spriteIndex: array<u8, 8>;
+let tileBytes: array<u8, 512>;
+let tileLen: array<u8, 8>;
+let px: array<u16, 8>;
+let py: array<u16, 8>;
+let shown: array<u8, 8>;
+
+function vramWrite(bank: utinyint, low: usmallint, value: utinyint): void {
+    setVramAddress(bank, low, 1);
+    memory.write(0x9F23, value);
+}
+
+function uploadTiles(slot: utinyint): void {
+    let i: utinyint = 0;
+    let addr: usmallint = TILE_LOW;
+    while (i < tileLen[slot]) {
+        vramWrite(TILE_BANK, addr, tileBytes[slot * 128 + i]);
+        addr = addr + 1;
+        i = i + 1;
+    }
+}
+
+function showSprite(slot: utinyint): void {
+    let idx: utinyint = spriteIndex[slot];
+    if (idx == 0) {
+        idx = 1;
+    }
+    let base: usmallint = ATTR_LOW + idx * 4;
+    let x: usmallint = px[slot];
+    let y: usmallint = py[slot];
+    vramWrite(ATTR_BANK, base, x % 256);
+    vramWrite(ATTR_BANK, base + 1, (x / 256) + (y * 4));
+    vramWrite(ATTR_BANK, base + 2, 0);
+    vramWrite(ATTR_BANK, base + 3, 0x00);
+}
+
+export namespace graphics {
+    function bind(slot: utinyint, index: utinyint, value: utinyint): void {
+        if (slot >= MAX) {
+            return;
+        }
+        if (index == 0) {
+            spriteIndex[slot] = value;
+            return;
+        }
+        if (index < 132) {
+            tileBytes[slot * 128 + index - 4] = value;
+        }
+    }
+
+    function meta(slot: utinyint, frames: utinyint, every: utinyint, which: utinyint, width: utinyint, height: utinyint): void {
+        if (slot >= MAX) {
+            return;
+        }
+        if (which == KIND_CX16) {
+            tileLen[slot] = 128;
+        }
+        uploadTiles(slot);
+    }
+
+    function place(slot: utinyint, x: usmallint, y: usmallint): void {
+        if (slot >= MAX) {
+            return;
+        }
+        px[slot] = x;
+        py[slot] = y;
+        shown[slot] = 1;
+        showSprite(slot);
+    }
+
+    function update(): void {
+        let slot: utinyint = 0;
+        while (slot < MAX) {
+            if (shown[slot] != 0) {
+                showSprite(slot);
+            }
+            slot = slot + 1;
+        }
+    }
+}

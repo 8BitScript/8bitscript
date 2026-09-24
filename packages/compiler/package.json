@@ -17,6 +17,11 @@
     ".": "./index.mjs",
     "./mos": "./src/mos/index.ts",
     "./wasm": "./src/wasm/index.ts",
+    "./sm83": "./src/sm83/index.ts",
+    "./z80": "./src/z80/index.ts",
+    "./m6809": "./src/m6809/index.ts",
+    "./i8048": "./src/i8048/index.ts",
+    "./f8": "./src/f8/index.ts",
     "./package.json": "./package.json"
   },
   "files": [
@@ -34,12 +39,21 @@
     "@types/node": "^26.5.0",
     "typescript": "^7.0.2"
   },
+  "dependencies": {
+    "@8bitscript/graphics-tools": "workspace:*",
+    "@8bitscript/audio-tools": "workspace:*"
+  },
   "publishConfig": {
     "access": "public",
     "exports": {
       ".": "./index.mjs",
       "./mos": "./src/mos/index.js",
       "./wasm": "./src/wasm/index.js",
+      "./sm83": "./src/sm83/index.js",
+      "./z80": "./src/z80/index.js",
+      "./m6809": "./src/m6809/index.js",
+      "./i8048": "./src/i8048/index.js",
+      "./f8": "./src/f8/index.js",
       "./package.json": "./package.json"
     }
   }

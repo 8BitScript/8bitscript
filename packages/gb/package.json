@@ -1,0 +1,139 @@
+{
+  "name": "@8bitscript/gb",
+  "version": "0.22.1",
+  "description": "GB target support for 8BitScript: the hardware underneath the portable APIs.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/8BitScript/8bitscript.git",
+    "directory": "packages/gb"
+  },
+  "8bitscript": {
+    "title": "GB",
+    "emulator": {
+      "binary": "sameboy",
+      "family": "dedicated",
+      "screenshot": "window",
+      "framesUnit": "frames",
+      "defaultFrames": 180,
+      "installer": "sameboy",
+      "deferred": "SameBoy is a GUI app"
+    },
+    "entry": "./src/index.8bs",
+    "exports": {
+      "./screen": "./src/screen.8bs",
+      "./text": "./src/text.8bs",
+      "./input": "./src/input.8bs",
+      "./pointer": "./src/pointer.8bs",
+      "./rasterline": "./src/rasterline.8bs"
+    },
+    "hardware": {
+      "build": {
+        "defsym": {
+          "__load_address": 336,
+          "__ram_size": 8
+        },
+        "output": "gb"
+      },
+      "facts": {
+        "video.columns": 20,
+        "video.rows": 18,
+        "video.cellWidth": 8,
+        "video.cellHeight": 8,
+        "video.palette": 4,
+        "video.cellColors": 2,
+        "video.colorPerCell": false,
+        "video.glyphs": 0,
+        "video.blockWidth": 0,
+        "video.blockHeight": 0,
+        "video.bitmap": false,
+        "video.layers": 1,
+        "video.scroll": true,
+        "video.raster": false,
+        "video.sprites": 40,
+        "video.spritesPerLine": 10,
+        "video.spriteWidth": 8,
+        "video.spriteHeight": 16,
+        "video.spriteColors": 3,
+        "video.frameRate": 60,
+        "audio.voices": 4,
+        "audio.noise": true,
+        "audio.envelope": false,
+        "audio.filter": false,
+        "audio.pcm": true,
+        "audio.volume": false,
+        "audio.entropy": false,
+        "input.keyboard": false,
+        "input.joysticks": 0,
+        "input.pads": 1,
+        "input.controls": [
+          "up",
+          "down",
+          "left",
+          "right",
+          "a",
+          "b",
+          "select",
+          "start"
+        ],
+        "input.mouse": false,
+        "input.paddles": false,
+        "storage.save": false,
+        "storage.kib": 0,
+        "memory.ram": 8192,
+        "memory.banked": true,
+        "memory.bankedKib": 0
+      },
+      "options": {
+        "mapper": {
+          "label": "Mapper",
+          "default": "mbc1",
+          "values": {
+            "none": {
+              "label": "No MBC (32K)",
+              "build": {
+                "defsym": {
+                  "__rom_size": 32768
+                }
+              }
+            },
+            "mbc1": {
+              "label": "MBC1",
+              "build": {
+                "defsym": {
+                  "__rom_size": 131072
+                }
+              }
+            },
+            "mbc3": {
+              "label": "MBC3 + timer",
+              "build": {
+                "defsym": {
+                  "__rom_size": 262144
+                }
+              }
+            },
+            "mbc5": {
+              "label": "MBC5",
+              "build": {
+                "defsym": {
+                  "__rom_size": 524288
+                }
+              }
+            }
+          }
+        }
+      },
+      "presets": {}
+    }
+  },
+  "files": [
+    "src"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}

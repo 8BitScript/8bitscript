@@ -234,6 +234,15 @@ Three things that differ from the bar, each for a reason:
   — the bar's rule — so which entry is lit never depends on the width
   the menu was given.
 
+> **Historical (Studio desk, pre-2026-09-24).** The byte tables below measured
+> Studio when it still drew a full menu bar, five screens, and an input loop
+> through `@8bitscript/ui/menubar` and `@8bitscript/ui/menu`. Studio is now a
+> minimal shell (see `packages/studio/AGENTS.md`); re-measure component costs
+> with `test/menubar-probe.8bs`, not Studio. **2026-09-24 (native backend):**
+> `menubar_item` **450** bytes on the CX16 (`8bs build --size
+> test/menubar-probe.8bs --target cx16`); the simplified Studio shell is
+> **3131** bytes program on the CX16 with four-pillar media.
+
 What it costs, from `8bs build --size` of Studio on 2026-09-20 under the
 native backend: `menu_item` is **296 bytes on the X16 and the C64, 289
 on a 32K PET**, against `menubar_item`'s 425 and 418 on the same builds

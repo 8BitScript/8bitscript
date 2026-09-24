@@ -62,7 +62,114 @@ function findConfig(dir) {
  * C64's REU sizes and a VIC-20's RAM expansions arrive on their own the
  * moment the machine is on this list.
  */
-const ALL_TARGETS = ['pet', 'c64', 'vic20', 'c128', 'cx16', 'mega65', 'atari8', 'nes', 'web'];
+// Keep in sync with RELEASE_MACHINES in packages/compiler/src/resolver/index.mjs.
+const ALL_TARGETS = ['pet', 'c64', 'vic20', 'cx16', 'web'];
+
+// Families the launcher and system builder group machines into. A 32-row
+// flat <select> is unusable; these labels are the ones a person looking
+// for "the Commodore ones" or "the Nintendo handhelds" would use, not CPU
+// families (6502 spans Commodore, Atari, Apple, NES).
+const MACHINE_GROUPS = [
+  ['Commodore', ['pet', 'vic20', 'c64']],
+  ['Modern', ['cx16', 'web']],
+];
+
+/**
+ * Interleave `{ group }` rows with the row for each machine id, in family
+ * order. `ids` is the set to include; `row` is `(id) => object` and must
+ * not set `group`. An id added to ALL_TARGETS and forgotten here still
+ * appears under "Machines" rather than vanishing.
+ */
+function groupedMachineOptions(ids, row) {
+  const wanted = new Set(ids);
+  const out = [];
+  const seen = new Set();
+  for (const [label, members] of MACHINE_GROUPS) {
+    const rows = members.filter((id) => wanted.has(id)).map((id) => {
+      seen.add(id);
+      return row(id);
+    });
+    if (rows.length === 0) continue;
+    out.push({ group: label }, ...rows);
+  }
+  const leftover = ids.filter((id) => !seen.has(id));
+  if (leftover.length) out.push({ group: 'Machines' }, ...leftover.map(row));
+  return out;
+}
+
+// Unique emulators doctor can be asked to manage, one row per installer
+// key. Every row has a trusted one-command plan on at least one platform
+// (brew/apt/`8bs setup`, plus AUR where that's the only package). A few
+// have no Homebrew formula — Caprice32 and Vecx on macOS stay hint-only
+// until they do; Fuse and SameBoy are casks that install a .app.
+// Grouped the way the Doctor panel shows them.
+const DOCTOR_EMULATORS = [
+  { id: 'vice', label: 'VICE', detail: 'PET, VIC-20, C64, C128, Plus/4', group: 'Packaged', installable: true, machines: ['pet', 'vic20', 'c64', 'c128', 'plus4'] },
+  { id: 'atari800', label: 'atari800', detail: 'Atari 8-bit, Atari 5200', group: 'Packaged', installable: true, machines: ['atari8', 'atari5200'] },
+  { id: 'fceux', label: 'FCEUX', detail: 'NES', group: 'Packaged', installable: true, machines: ['nes'] },
+  { id: 'stella', label: 'Stella', detail: 'Atari 2600', group: 'Packaged', installable: true, machines: ['atari2600'] },
+  { id: 'sameboy', label: 'SameBoy', detail: 'Game Boy, Game Boy Color — brew --cask', group: 'Packaged', installable: true, machines: ['gb', 'gbc'] },
+  { id: 'fuse', label: 'Fuse', detail: 'ZX Spectrum — apt fuse-emulator-gtk; macOS cask fredm-fuse (never brew/apt fuse)', group: 'Packaged', installable: true, machines: ['spectrum'] },
+  { id: 'openmsx', label: 'openMSX', detail: 'MSX', group: 'Packaged', installable: true, machines: ['msx'] },
+  { id: 'caprice32', label: 'Caprice32', detail: 'Amstrad CPC — apt/AUR; no Homebrew formula', group: 'Packaged', installable: true, machines: ['cpc'] },
+  { id: 'xroar', label: 'XRoar', detail: 'Color Computer', group: 'Packaged', installable: true, machines: ['coco'] },
+  { id: 'vecx', label: 'Vecx', detail: 'Vectrex — AUR; no Homebrew or Debian package', group: 'Packaged', installable: true, machines: ['vectrex'] },
+  { id: 'mednafen', label: 'Mednafen', detail: 'Master System, Game Gear, PC Engine', group: 'Packaged', installable: true, machines: ['sms', 'gamegear', 'pce'] },
+  { id: 'mame', label: 'MAME', detail: 'Apple II, BBC, Oric, Lynx, Atari 7800, SG-1000, Coleco, Supervision, Odyssey², Channel F', group: 'Multi-system', installable: true, machines: ['apple2', 'bbc', 'oric', 'lynx', 'atari7800', 'sg1000', 'coleco', 'supervision', 'odyssey2', 'channelf'] },
+  { id: 'x16emu', label: 'x16emu', detail: 'Commander X16 — 8bs setup cx16', group: 'Source-built', installable: true, machines: ['cx16'] },
+  { id: 'xmega65', label: 'xmega65', detail: 'MEGA65 — 8bs setup mega65', group: 'Source-built', installable: true, machines: ['mega65'] },
+];
+
+const ALL_DOCTOR_EMULATOR_IDS = DOCTOR_EMULATORS.map((emu) => emu.id);
+const INSTALLABLE_EMULATORS = DOCTOR_EMULATORS.filter((emu) => emu.installable).map((emu) => emu.id);
+
+// Which `8bs doctor --want` installer key a machine uses. The web has none.
+const TARGET_INSTALLER = {
+  pet: 'vice', vic20: 'vice', c64: 'vice', c128: 'vice', plus4: 'vice',
+  atari8: 'atari800', atari5200: 'atari800', atari2600: 'stella',
+  nes: 'fceux', gb: 'sameboy', gbc: 'sameboy',
+  cx16: 'x16emu', mega65: 'xmega65',
+  sms: 'mednafen', gamegear: 'mednafen', pce: 'mednafen',
+  spectrum: 'fuse', msx: 'openmsx', cpc: 'caprice32', coco: 'xroar', vectrex: 'vecx',
+  apple2: 'mame', bbc: 'mame', oric: 'mame', lynx: 'mame',
+  atari7800: 'mame', sg1000: 'mame', coleco: 'mame',
+  supervision: 'mame', odyssey2: 'mame', channelf: 'mame',
+};
+
+/** Unique doctor installer keys for a project's target list, in first-seen order. */
+function installersForTargets(targets) {
+  const keys = [];
+  const seen = new Set();
+  for (const id of targets) {
+    const key = TARGET_INSTALLER[id];
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    keys.push(key);
+  }
+  return keys;
+}
+
+/** True when `ids` names every emulator the Doctor panel lists. */
+function isAllDoctorEmulators(ids) {
+  if (!Array.isArray(ids)) return true;
+  return ALL_DOCTOR_EMULATOR_IDS.length === ids.length
+    && ALL_DOCTOR_EMULATOR_IDS.every((id) => ids.includes(id));
+}
+
+/**
+ * Turn a Doctor-panel selection into `8bs doctor` extras.want.
+ * `null` (the default) and a complete check-all are `--all`.
+ * An explicit list becomes `--want` of the installable keys still in it.
+ *
+ * @param {string[]|null} selected
+ * @returns {'all' | string[]}
+ */
+function doctorWantFromSelection(selected) {
+  if (selected === null || isAllDoctorEmulators(selected)) return 'all';
+  const wanted = INSTALLABLE_EMULATORS.filter((id) => selected.includes(id));
+  if (wanted.length === INSTALLABLE_EMULATORS.length) return 'all';
+  return wanted;
+}
 
 /**
  * Targets that are a machine model with an NTSC/PAL choice. The PET is a
@@ -72,7 +179,7 @@ const ALL_TARGETS = ['pet', 'c64', 'vic20', 'c128', 'cx16', 'mega65', 'atari8', 
  * has no region either. The C64, VIC-20 and C128 do, and one `.prg` runs
  * on both regions, so the Region control is theirs.
  */
-const MACHINE_TARGETS = new Set(['vic20', 'c64', 'c128', 'atari8', 'nes', 'mega65']);
+const MACHINE_TARGETS = new Set(['vic20', 'c64', 'c128', 'atari8', 'nes', 'mega65', 'plus4', 'atari5200', 'atari2600', 'atari7800']);
 
 /**
  * Targets with no bare emulator to boot without a program — today just
@@ -959,12 +1066,20 @@ function runnableOn(projects, system) {
  * @param {{ profile?: string|null, options?: object }} [hardware] the
  *   hardware fitted (the side bar's selection for that system): `--profile`
  *   and `--hardware option=value,...`, as a person would type them
- * @param {{ system?: string, checkout?: string }} [extras] a named system
+ * @param {{ system?: string, checkout?: string, want?: 'all' | string[], install?: boolean }} [extras] a named system
  *   (`--system`) and/or a local checkout (`--checkout`). A named system
- *   already carries its fitting, so hardware flags are omitted.
+ *   already carries its fitting, so hardware flags are omitted. `want` is
+ *   doctor's `--all` / `--want` list. `install` is doctor's `--install`.
  * @returns {string[]}
  */
 function commandArgs(action, target, region = 'ntsc', hardware = undefined, extras = {}) {
+  if (action === 'doctor') {
+    const args = ['doctor'];
+    if (extras.install) args.push('--install');
+    if (extras.want === 'all') args.push('--all');
+    else if (Array.isArray(extras.want)) args.push('--want', extras.want.join(','));
+    return args;
+  }
   if (action !== 'run' && action !== 'build' && action !== 'boot') return [action];
   // boot takes no entry file at all — nothing is loaded into the machine —
   // so it shares run's own `[action, target]` shape rather than needing one
@@ -990,6 +1105,7 @@ module.exports = {
   CONFIG_FILENAMES,
   DEFAULT_ENTRY,
   findConfig,
+  MACHINE_GROUPS,
   MACHINE_TARGETS,
   NO_BARE_EMULATOR,
   KINDS,
@@ -1000,6 +1116,13 @@ module.exports = {
   commandArgs,
   examplesManifest,
   findToolchain,
+  groupedMachineOptions,
+  installersForTargets,
+  isAllDoctorEmulators,
+  doctorWantFromSelection,
+  DOCTOR_EMULATORS,
+  ALL_DOCTOR_EMULATOR_IDS,
+  INSTALLABLE_EMULATORS,
   isInstalled,
   kindOf,
   loadApps,

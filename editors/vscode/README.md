@@ -15,12 +15,14 @@ It's a statically compiled language for 6502-based 8-bit machines and the
 web — closer to C than to BASIC or hand-written assembly. There's no
 interpreter and no garbage collector; 8BitScript's own backends lower IR
 to machine code and WebAssembly. `8bs build` and `8bs run` work end to
-end for all nine targets — PET, VIC-20, C64, C128, Commander X16,
-MEGA65, Atari 8-bit, NES, and the web — right from this extension's own
-launcher. A range-checked type like `u8` is a compile error on overflow
+end for every id in **`RELEASE_MACHINES`** — **`pet`, `vic20`, `c64`,
+`cx16`, and `web`** in this release — right from this extension's launcher.
+Other machine ids stay in the compiler for twins and `8bs check`; the
+launcher does not offer them until `RELEASE_MACHINES` widens again. A
+range-checked type like `u8` is a compile error on overflow
 (`300 does not fit in u8 (0..255)`) instead of a silent wrap, and one
 source resolves per target through packages instead of `#ifdef`. The
-System list is those nine, the same `RELEASE_MACHINES` set the CLI uses.
+System list is that same five-target `RELEASE_MACHINES` set the CLI uses.
 
 Compiled size sits close to hand-written C for that same reason: the same
 screen built by hand in C came to 178 bytes on a C64, the equivalent
@@ -37,8 +39,9 @@ the project overview is in the [root README](../../README.md).
 
 ## What it does
 
-- Registers `.8bs` as the language **8BitScript**, and `.8bx` as **8BitX**
-  (`8bitextensible`), both served by the same language server
+- Registers `.8bs` as the language **8BitScript**, `.8bx` as **8BitX**
+  (`8bitextensible`), `.8bg` as **8BitGraphics**, and `.8ba` as **8BitAudio**,
+  all served by the same language server
 - Colors comments, strings and template strings (with their `${...}`
   fields), numbers (including the `0.5` a `#frames(...)` duration takes),
   types, keywords, declarations, calls, the compile-time `#frames(...)`
@@ -60,7 +63,7 @@ the project overview is in the [root README](../../README.md).
   - **Diagnostics** — lexical, syntax, and range errors, as you type
   - **Hover** — documentation for built-in types (`utinyint`, `int`, ...),
     constructs (`string`, `volatile`, `ptr`, `array`, `asm6502`,
-    `@address`, `memory.read`/`memory.write`), the builtins
+    `@address`, `memory.read`/`memory.write`, `port.read`/`port.write`), the builtins
     `#frames(...)` and its `seconds` unit, `#system()`, `#fact(...)`,
     `#package("version")`, and `waitFrame()`, and a member of
     a named import's own namespace — `screen.blank(...)` shows its
@@ -207,7 +210,8 @@ side bar.
 - **System** — a **named system** from [project config](../../docs/config.md)
   (advertised in `8bitscript.config.ts`, this clone's
   `.8bitscript/systems.json`, or `~/.config/8bitscript/systems.json`), or a
-  bare machine under them. The list comes from `8bs targets --json`, tagged
+  bare machine under them, grouped by family (Commodore, Atari, Nintendo,
+  Sega, Computers, Other consoles, Modern). The list comes from `8bs targets --json`, tagged
   with `origin`. **Configure System** is the tab that fits a machine and
   saves it to one of those three layers. The **fitted as …** line opens
   that tab. `8bitscript.namedSystem` is the selected name;
@@ -220,8 +224,9 @@ SYSTEM
 [ ── Advertised ────────────────────── ]
 [  PET 8032               —  pet · profile=8032 ]
 [  The browser            —  web       ]
-[ ── Machines ───────────────────────── ]
+[ ── Commodore ──────────────────────── ]
 [  pet — Commodore PET                  ]
+[ ── Modern ─────────────────────────── ]
 [  web — Web                            ]
 ```
 
@@ -294,12 +299,29 @@ SYSTEM
 
 The view's title bar has 📖 **Show or Hide Examples**, 🚀 **Launch Studio**,
 ♥ **Doctor** (`8bs doctor` — checks Node, pnpm, git, and the emulators, and
-offers to install missing pnpm or a packaged emulator), and ⟳ **Refresh**; its overflow menu adds **Launch App…**, **Launch
-Example…**, **Configure System**, **Show Project**, **Save as a System…**, and **Controller Setup**. Those, and every choice the panel makes,
+installs missing pnpm or a packaged emulator; default is all of
+them; **Doctor: Choose Emulators** picks the set, **Install selected**
+runs `--install`), and ⟳ **Refresh**; its overflow menu adds **Launch App…**, **Launch
+Example…**, **Configure System**, **Show Project**, **Save as a System…**, **Doctor: Choose Emulators**, and **Controller Setup**. Those, and every choice the panel makes,
 are on the command palette as well — **8BitScript: Select Project**, **Select System**,
 **Select Region**, **Run**, **Build**, **Stop**, **Configure System**, **Show Project**,
-**Use Local 8BitScript**, **Use Published Packages**, **Controller Setup**, **Open Entry File**,
+**Use Local 8BitScript**, **Use Published Packages**, **Controller Setup**, **Doctor: Choose Emulators**, **Open Entry File**,
 **Open 8bitscript.config.ts**.
+
+### Doctor: Choose Emulators
+
+**8BitScript: Doctor: Choose Emulators** opens a tab of every emulator this
+release can launch, grouped (packaged, multi-system, source-built), all checked
+by default. Uncheck ones you do not want `8bs doctor` to install. **This
+project** keeps the ones the selected project's targets need. **Install
+selected** and **Run doctor** both start `8bs doctor --install` for that set
+(a task terminal is not a TTY, so there is no `[i]/[s]/[a]/[q]` prompt).
+
+Each checked emulator is installed with Homebrew, apt, pacman/AUR, or
+`8bs setup`. Caprice32 and Vecx have no macOS package; Fuse is the
+`fredm-fuse` cask (never `brew install fuse`). SameBoy is a cask that
+installs SameBoy.app. The choice is `8bitscript.doctorEmulators` (`null`
+means all).
 
 ### Configure System
 

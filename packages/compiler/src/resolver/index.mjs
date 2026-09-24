@@ -52,15 +52,16 @@ export { MACHINES };
  * language knows: the names a `.<machine>.8bs` twin or a target-conditional
  * entry may carry, which stay valid so a program written for a parked
  * machine still parses and links. RELEASE_MACHINES is the subset `8bs
- * build` and `8bs run` will actually produce a program for. The native
- * 6502 backend is being brought up one machine at a time — the PET first
- * (the "Hello, PET" roadmap), then the C64, the VIC-20, the C128, the X16, the MEGA65, the Atari and the NES — beside the
- * web's own. A machine joins this list when it can actually build and run
- * a program, not when work on it starts: a package's own emulator tests
- * switch on from here, so listing it early runs them against a machine
- * that cannot boot what they load.
+ * build` and `8bs run` will actually produce a program for. This release
+ * is intentionally narrow — PET, C64, VIC-20, Commander X16, and the
+ * web browser — so examples, Studio, and the editor can be polished on
+ * those five before the remaining roadmap machines return. They stay in
+ * MACHINES so twins, facts, and `8bs check` keep working; only build and
+ * run refuse them (`8bs targets` marks them parked).
  */
-export const RELEASE_MACHINES = Object.freeze(['pet', 'c64', 'vic20', 'c128', 'cx16', 'mega65', 'atari8', 'nes', 'web']);
+export const RELEASE_MACHINES = Object.freeze([
+  'pet', 'c64', 'vic20', 'cx16', 'web',
+]);
 
 /** Whether a machine is one this release builds for. */
 export const isReleaseMachine = (machine) => RELEASE_MACHINES.includes(machine);

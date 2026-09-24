@@ -1,0 +1,85 @@
+import { Video } from "./geometry.8bs";
+
+function asciiToScreenCode(code: utinyint): utinyint {
+    if (code >= 97 && code < 123) {
+        return code - 96;
+    }
+    return code;
+}
+
+let ink: utinyint = 1;
+
+export namespace text {
+    const CELL_COUNT: usmallint = Video.CELL_COUNT;
+    const COLUMNS: utinyint = Video.COLUMNS;
+    const ROWS: utinyint = Video.ROWS;
+
+    function columns(): utinyint {
+        return text.COLUMNS;
+    }
+
+    function rows(): utinyint {
+        return text.ROWS;
+    }
+
+    function releaseCursor(): void {
+    }
+
+    function setReverse(on: bool): void {
+    }
+
+    function setColor(color: utinyint): void {
+        ink = color;
+    }
+
+    function putChar(cell: usmallint, code: utinyint): void {
+        memory.write(48000 + cell, asciiToScreenCode(code));
+    }
+
+    function putColor(cell: usmallint, color: utinyint): void {
+    }
+
+    function print(cell: usmallint, s: string): void {
+        for (let i: utinyint = 0; i < s.length; i++) {
+            text.putChar(cell + i, s[i]);
+        }
+    }
+
+
+    function fill(cell: usmallint, count: usmallint, code: utinyint): void {
+        for (let i: usmallint = 0; i < count; i++) {
+            text.putChar(cell + i, code);
+        }
+    }
+
+    function printNumber(cell: usmallint, value: usmallint, width: utinyint): void {
+        let n: usmallint = value;
+        let i: utinyint = width;
+        while (i > 0) {
+            i = i - 1;
+            let digit: utinyint = 0;
+            let place: usmallint = 1;
+            let w: utinyint = 0;
+            while (w < i) {
+                place = place * 10;
+                w = w + 1;
+            }
+            while (n >= place) {
+                n = n - place;
+                digit = digit + 1;
+            }
+            text.putChar(cell + i, 48 + digit);
+        }
+    }
+}
+
+export namespace TextColor {
+    const BLACK: utinyint = 0;
+    const WHITE: utinyint = 1;
+    const RED: utinyint = 2;
+    const CYAN: utinyint = 3;
+    const PURPLE: utinyint = 4;
+    const GREEN: utinyint = 5;
+    const BLUE: utinyint = 6;
+    const YELLOW: utinyint = 7;
+}

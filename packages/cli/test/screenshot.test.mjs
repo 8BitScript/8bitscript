@@ -5,15 +5,15 @@
 // target's mechanism differs; see emulator-smoke.test.mjs for the same
 // skip convention this file follows.
 //
-// pet, c64, vic20, c128, cx16 and mega65 actually build in this release,
-// alongside web (per RELEASE_MACHINES in build.mjs); the remaining two are
-// "parked" and refuse before ever touching an emulator, so their cases here
-// assert that refusal — deterministic, no emulator required, and real
-// coverage of run.mjs's parked-target branch — rather than skip. web is a
-// genuine skip: its native WebAssembly backend isn't implemented yet, so
-// `8bs run web` cannot build at all (captureScreenshot's own logic is
-// covered directly, against a hand-built wasm fixture, in
-// web-screenshot.test.mjs and wasm-host.test.mjs).
+// pet, c64, vic20, cx16, and web build in this release (RELEASE_MACHINES).
+// Remaining
+// machines compile too; `--screenshot` is wired (VICE, MAME `-str`,
+// openMSX Tcl, or macOS window capture) and skip-if-missing when the
+// host binary or ROM set is not there. web is a genuine skip: its native
+// WebAssembly backend isn't implemented yet, so `8bs run web` cannot
+// build at all (captureScreenshot's own logic is covered directly,
+// against a hand-built wasm fixture, in web-screenshot.test.mjs and
+// wasm-host.test.mjs).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -22,6 +22,10 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { emulatorFor } from '../src/hardware.mjs';
+import { releaseTargetList } from '../src/release.mjs';
+import { mameCaptureArgs, openmsxCaptureScript, waitSeconds } from '../src/screenshot.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CLI_BIN = join(HERE, '..', 'bin', '8bs.mjs');
@@ -77,7 +81,7 @@ async function withProbe(fn) {
   }
 }
 
-const PARKED_TARGETS = [];
+const PARKED_TARGETS = ['c128', 'plus4', 'mega65', 'atari8', 'nes', 'gb'];
 
 for (const target of PARKED_TARGETS) {
   test(`${target}: --screenshot refuses to build — parked until a later release`, async () => {
@@ -87,7 +91,7 @@ for (const target of PARKED_TARGETS) {
       assert.notEqual(code, 0, `expected ${target} to refuse:\n${stdout}${stderr}`);
       assert.match(
         stderr,
-        /is not a target in this release\. This release builds for pet, c64, vic20, c128, cx16, mega65, atari8 and web/,
+        new RegExp(`is not a target in this release\\. This release builds for ${releaseTargetList().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`),
         `unexpected refusal message for ${target}:\n${stderr}`,
       );
       assert.equal(existsSync(shot), false, `${target} should not have written a screenshot`);
@@ -95,7 +99,7 @@ for (const target of PARKED_TARGETS) {
   });
 }
 
-for (const [target, emulator] of [['c64', 'x64sc'], ['vic20', 'xvic'], ['c128', 'x128']]) {
+for (const [target, emulator] of [['c64', 'x64sc'], ['vic20', 'xvic'], ['cx16', 'x16emu']]) {
   test(`${target}: --screenshot produces a PNG via ${emulator}`, async (t) => {
     if (!onPath(emulator)) { t.skip(`${emulator} not on PATH`); return; }
     await withProbe(async (scratch, entry) => {
@@ -151,4 +155,52 @@ test('web: --screenshot produces a PNG with no emulator at all', { skip: NATIVE_
     assert.equal(code, 0, `8bs run web --screenshot failed:\n${stdout}${stderr}`);
     assert.ok(isPng(shot), 'output is not a valid PNG');
   });
+});
+
+test('mameCaptureArgs puts a cartridge on -cart and never a software-list positional', () => {
+  const { seconds, args } = mameCaptureArgs('coleco', '/tmp/game.col', '/tmp/scratch');
+  assert.equal(seconds, emulatorFor('coleco').defaultFrames);
+  assert.equal(args[0], 'coleco');
+  assert.ok(args.includes('-cart'));
+  assert.equal(args[args.indexOf('-cart') + 1], '/tmp/game.col');
+  assert.ok(args.includes('-seconds_to_run'));
+  assert.ok(!args.includes('/tmp/game.col') || args[args.indexOf('/tmp/game.col') - 1] === '-cart');
+});
+
+test('mameCaptureArgs for apple2 boots the system without a host-file positional', () => {
+  const { args } = mameCaptureArgs('apple2', '/tmp/game.bin', '/tmp/scratch');
+  assert.equal(args[0], 'apple2e');
+  assert.ok(!args.includes('/tmp/game.bin'));
+  assert.ok(!args.includes('-cart'));
+});
+
+test('mameCaptureArgs for oric uses -cass', () => {
+  const { args } = mameCaptureArgs('oric', '/tmp/game.tap', '/tmp/scratch');
+  assert.equal(args[args.indexOf('-cass') + 1], '/tmp/game.tap');
+});
+
+test('openmsxCaptureScript writes a raw screenshot then exits', () => {
+  const tcl = openmsxCaptureScript('/tmp/out.png', 3);
+  assert.match(tcl, /screenshot -raw \{\/tmp\/out\.png\}/);
+  assert.match(tcl, /after realtime 3/);
+  assert.match(tcl, /exit/);
+});
+
+test('waitSeconds converts catalog frames at 60 Hz', () => {
+  assert.equal(waitSeconds('coleco', undefined), 8);
+  assert.equal(waitSeconds('msx', 180), 3);
+});
+
+test('window screenshot names macOS when the host is not darwin', async (t) => {
+  if (process.platform === 'darwin') {
+    t.skip('this host is macOS; the error is for other platforms');
+    return;
+  }
+  await assert.rejects(
+    async () => {
+      const { captureScreenshot } = await import('../src/screenshot.mjs');
+      await captureScreenshot('atari2600', '/tmp/x.a26', '/tmp/x.png');
+    },
+    /macOS/,
+  );
 });

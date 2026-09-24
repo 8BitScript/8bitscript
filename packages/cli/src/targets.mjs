@@ -23,15 +23,6 @@ import { resolvePrograms } from './programs.mjs';
 import { describeReach, loadReach, printReach, projectInput } from './reach.mjs';
 import { applyCheckoutFromArgs } from './checkout.mjs';
 import { loadMergedSystems } from './systems.mjs';
-import { VICE_EMULATOR } from './run.mjs';
-
-const EMULATOR = {
-  ...VICE_EMULATOR, atari8: 'atari800', nes: 'fceux', cx16: 'x16emu', mega65: 'xmega65', web: 'the browser',
-};
-const TITLE = {
-  vic20: 'Commodore VIC-20', c64: 'Commodore 64', pet: 'Commodore PET', c128: 'Commodore 128',
-  atari8: 'Atari 8-bit', nes: 'Nintendo Entertainment System', cx16: 'Commander X16', mega65: 'MEGA65', web: 'Web',
-};
 
 /**
  * One entry per target: what the editor's dropdowns and hardware panel
@@ -62,13 +53,17 @@ export function describeTargets(config) {
     }]));
     return {
       id,
-      title: TITLE[id],
+      title: catalog.title,
       // Whether this release builds for the machine. Every machine is
       // listed so the editor can still show its catalog and a program
       // written for it still checks; only `8bs build` refuses the parked
       // ones (RELEASE_MACHINES in the compiler).
       inRelease: RELEASE_MACHINES.includes(id),
-      emulator: EMULATOR[id],
+      emulator: catalog.emulator.binary ?? catalog.emulator.label ?? null,
+      emulatorFamily: catalog.emulator.family ?? null,
+      screenshot: catalog.emulator.screenshot ?? null,
+      framesUnit: catalog.emulator.framesUnit ?? null,
+      defaultFrames: catalog.emulator.defaultFrames ?? null,
       region: REGION_MACHINES.has(id),
       // The control port player 1 is read from. Not cosmetic and not the
       // port number: a C64 or C128 game reads port *2*, because port 1

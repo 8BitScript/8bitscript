@@ -1,0 +1,111 @@
+// @8bitscript/audio on the CX16: VERA PSG voices via @8bitscript/cx16/psg.
+import { psg } from "@8bitscript/cx16/psg";
+
+const DATA_MAX: utinyint = 64;
+let sfx: array<u8, 64>;
+let song: array<u8, 64>;
+let sfxLen: array<u8, 4>;
+let songLen: array<u8, 4>;
+let playing: utinyint = 255;
+let row: utinyint = 0;
+let tick: utinyint = 0;
+let sfxLeft: utinyint = 0;
+let ready: bool = false;
+
+function waveOf(code: utinyint): utinyint {
+    if (code == 1) {
+        return 3;
+    }
+    if (code == 2) {
+        return 2;
+    }
+    return 0;
+}
+
+function eventAt(atRow: utinyint, field: utinyint): utinyint {
+    let count: utinyint = song[3];
+    let i: utinyint = 0;
+    let off: utinyint = 4;
+    while (i < count) {
+        if (song[off] == atRow) {
+            return song[off + field];
+        }
+        off = off + 4;
+        i = i + 1;
+    }
+    return 255;
+}
+
+export namespace audio {
+    function bind(kind: utinyint, slot: utinyint, index: utinyint, value: utinyint): void {
+        if (slot != 0 || index >= DATA_MAX) {
+            return;
+        }
+        if (kind == 0) {
+            sfx[index] = value;
+        } else {
+            song[index] = value;
+        }
+    }
+
+    function meta(kind: utinyint, slot: utinyint, length: utinyint, a: utinyint, b: utinyint, c: utinyint): void {
+        if (slot != 0) {
+            return;
+        }
+        if (kind == 0) {
+            sfxLen[slot] = length;
+        } else {
+            songLen[slot] = length;
+        }
+        if (!ready) {
+            psg.reset();
+            ready = true;
+        }
+    }
+
+    function play(slot: utinyint): void {
+        if (sfxLen[slot] < 2) {
+            return;
+        }
+        psg.play(0, sfx[1], waveOf(sfx[0]), 15);
+        sfxLeft = 8;
+    }
+
+    function music(slot: utinyint): void {
+        playing = slot;
+        row = 0;
+        tick = 0;
+    }
+
+    function update(): void {
+        if (sfxLeft != 0) {
+            sfxLeft = sfxLeft - 1;
+            if (sfxLeft == 0) {
+                psg.silence(0);
+            }
+            return;
+        }
+        if (playing == 255 || songLen[0] < 4) {
+            return;
+        }
+        let speed: utinyint = song[1];
+        if (speed == 0) {
+            speed = 6;
+        }
+        tick = tick + 1;
+        if (tick < speed) {
+            return;
+        }
+        tick = 0;
+        let note: utinyint = eventAt(row, 1);
+        if (note != 255) {
+            psg.play(0, note, waveOf(eventAt(row, 2)), 15);
+        } else {
+            psg.silence(0);
+        }
+        row = row + 1;
+        if (row >= song[2]) {
+            row = 0;
+        }
+    }
+}

@@ -21,14 +21,37 @@ the linker touches the filesystem.
 | binder | AST | symbols, scopes, binding diagnostics |
 | checker | AST | type/range/component diagnostics |
 | 8BX elaboration | AST with BX nodes | core AST: a component is a function (two, around its `<slot />`), an element is a call to it; `state` is a template global per field, cloned per instance by the linker (no BX in backends) |
-| IR / backends | AST | the image, once a backend emits one |
+| IR / backends | AST | the image, once a backend emits one. MOS (6502 family, including HuC6280 `ST0`/`ST1`/`ST2`), SM83 (Game Boy), Z80 (with `port.read`/`port.write` for `IN`/`OUT`), 6809, 8048, F8, and WebAssembly |
 
-Two source kinds share this pipeline:
+Two source kinds share this pipeline, and two more join it as their own
+front ends:
 
 | Extension | Kind | Grammar |
 | --- | --- | --- |
 | `.8bs` | 8BitScript | core language |
 | `.8bx` | 8BitX | core language + 8BX elements and components |
+| `.8bg` | 8BitGraphics | sprite declarations; not 8BitScript |
+| `.8ba` | 8BitAudio | instrument / sample / song declarations; not 8BitScript |
+
+`.8bg` and `.8ba` have their own lexer and parser
+(`packages/compiler/src/media/`). The program entry stays `.8bs`. The
+linker opens the named PNG or WAV. See [portable graphics](project/graphics.md)
+and [portable audio](project/audio.md).
+
+Graphics diagnostics (`8BS21xx`) and audio diagnostics (`8BS22xx`):
+
+| Code | Means |
+| --- | --- |
+| 8BS2101–2109 | `.8bg` syntax, missing source/size, duplicate name, invalid size |
+| 8BS2110 | More colours than the sprite can hold (warning; quantized) |
+| 8BS2111 | Adapted: software glyph, colours dropped, or frames collapsed |
+| 8BS2201–2209 | `.8ba` syntax, missing source/fallback, unknown waveform/note |
+| 8BS2210 | PCM replaced by the declared synth fallback |
+| 8BS2211 | No audio driver; playback omitted |
+| 8BS2212 | Waveform the target cannot route |
+| 8BS2213 | FLAC source needs FFmpeg on PATH |
+| 8BS2214 | Missing required field |
+| 8BS2215 | Song names an unknown instrument |
 
 ## Editor and CLI contract
 

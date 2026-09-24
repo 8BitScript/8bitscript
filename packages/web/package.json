@@ -9,6 +9,15 @@
     "directory": "packages/web"
   },
   "8bitscript": {
+    "title": "Web",
+    "emulator": {
+      "binary": null,
+      "label": "the browser",
+      "family": "browser",
+      "screenshot": "web",
+      "framesUnit": "frames",
+      "defaultFrames": 180
+    },
     "entry": "./src/index.8bs",
     "exports": {
       "./screen": "./src/screen.8bs",
@@ -64,7 +73,7 @@
           "default": "hifi",
           "values": {
             "hifi": {
-              "label": "16:9 high-fidelity host (48\u00d727)",
+              "label": "16:9 high-fidelity host (48×27)",
               "tag": null,
               "build": {},
               "facts": {
@@ -75,7 +84,7 @@
               }
             },
             "pet-2001": {
-              "label": "PET 2001 \u2014 40\u00d725 green phosphor, 4:3",
+              "label": "PET 2001 — 40×25 green phosphor, 4:3",
               "build": {},
               "facts": {
                 "video.columns": 40,
@@ -89,7 +98,7 @@
               }
             },
             "c64": {
-              "label": "Commodore 64 \u2014 40\u00d725, 16 colors, 4:3",
+              "label": "Commodore 64 — 40×25, 16 colors, 4:3",
               "build": {},
               "facts": {
                 "video.columns": 40,
@@ -101,7 +110,7 @@
               }
             },
             "vic20": {
-              "label": "VIC-20 \u2014 22\u00d723, 16 colors, 4:3",
+              "label": "VIC-20 — 22×23, 16 colors, 4:3",
               "build": {},
               "facts": {
                 "video.columns": 22,

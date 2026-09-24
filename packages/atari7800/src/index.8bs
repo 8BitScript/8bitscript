@@ -1,0 +1,2 @@
+// @8bitscript/atari7800 — Atari 7800 hardware underneath the portable APIs.
+// Registers a program names sit in this package; screen/text/input import them.

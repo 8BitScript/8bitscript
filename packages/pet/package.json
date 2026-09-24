@@ -9,6 +9,16 @@
     "directory": "packages/pet"
   },
   "8bitscript": {
+    "title": "Commodore PET",
+    "emulator": {
+      "binary": "xpet",
+      "family": "vice",
+      "screenshot": "vice",
+      "framesUnit": "cycles",
+      "defaultFrames": 8000000,
+      "installer": "vice"
+    },
+    "media": "./media/index.cjs",
     "entry": "./src/index.8bs",
     "exports": {
       "./screen": "./src/screen.8bs",
@@ -182,7 +192,7 @@
           "default": "4",
           "values": {
             "4": {
-              "label": "4 KiB \u2014 the 2001's own stock RAM, the smallest real PET",
+              "label": "4 KiB — the 2001's own stock RAM, the smallest real PET",
               "build": {
                 "defsym": {
                   "__ram_size": 4
@@ -199,7 +209,7 @@
               }
             },
             "8": {
-              "label": "8 KiB \u2014 the 3008's own stock RAM, and a common on-board 2001 upgrade",
+              "label": "8 KiB — the 3008's own stock RAM, and a common on-board 2001 upgrade",
               "build": {
                 "defsym": {
                   "__ram_size": 8
@@ -216,7 +226,7 @@
               }
             },
             "16": {
-              "label": "16 KiB \u2014 the 3016/4016's own stock RAM",
+              "label": "16 KiB — the 3016/4016's own stock RAM",
               "build": {
                 "defsym": {
                   "__ram_size": 16
@@ -233,7 +243,7 @@
               }
             },
             "32": {
-              "label": "32 KiB \u2014 the 3032/4032/8032's own stock RAM, and the on-board maximum for every board this catalog supports",
+              "label": "32 KiB — the 3032/4032/8032's own stock RAM, and the on-board maximum for every board this catalog supports",
               "build": {
                 "defsym": {
                   "__ram_size": 32
@@ -256,7 +266,7 @@
           "default": "none",
           "values": {
             "none": {
-              "label": "None \u2014 stock on the non-CRTC 2001/3008/3016/3032, which have no speaker at all",
+              "label": "None — stock on the non-CRTC 2001/3008/3016/3032, which have no speaker at all",
               "build": {},
               "run": {
                 "xpet": [
@@ -268,7 +278,7 @@
               }
             },
             "attached": {
-              "label": "Attached \u2014 built in on the CRTC 4016/4032/8032, or wired to the user port's CB2 pin on a 2001/3008/3016/3032 (the real \"user port speaker hack\")",
+              "label": "Attached — built in on the CRTC 4016/4032/8032, or wired to the user port's CB2 pin on a 2001/3008/3016/3032 (the real \"user port speaker hack\")",
               "build": {},
               "run": {
                 "xpet": [
@@ -285,18 +295,18 @@
           "label": "Disk drive",
           "default": "none",
           "values": {
-            "none": {
-              "label": "No drive (tape or nothing)",
+            "1001": {
+              "label": "SFD-1001: single 5.25\" drive, IEEE-488, DOS 2.7, double-sided (1025K)",
               "build": {},
               "run": {
                 "xpet": [
                   "-drive8type",
-                  "0"
+                  "1001"
                 ]
               },
               "facts": {
-                "storage.save": false,
-                "storage.kib": 0
+                "storage.save": true,
+                "storage.kib": 1025
               },
               "tag": null
             },
@@ -390,21 +400,6 @@
               },
               "tag": null
             },
-            "1001": {
-              "label": "SFD-1001: single 5.25\" drive, IEEE-488, DOS 2.7, double-sided (1025K)",
-              "build": {},
-              "run": {
-                "xpet": [
-                  "-drive8type",
-                  "1001"
-                ]
-              },
-              "facts": {
-                "storage.save": true,
-                "storage.kib": 1025
-              },
-              "tag": null
-            },
             "9000": {
               "label": "D9060/D9090: IEEE-488 hard drive (VICE emulates D9090 geometry, ~7.1MB)",
               "build": {},
@@ -417,6 +412,21 @@
               "facts": {
                 "storage.save": true,
                 "storage.kib": 7233
+              },
+              "tag": null
+            },
+            "none": {
+              "label": "No drive (tape or nothing)",
+              "build": {},
+              "run": {
+                "xpet": [
+                  "-drive8type",
+                  "0"
+                ]
+              },
+              "facts": {
+                "storage.save": false,
+                "storage.kib": 0
               },
               "tag": null
             }
@@ -459,7 +469,8 @@
     }
   },
   "files": [
-    "src"
+    "src",
+    "media"
   ],
   "publishConfig": {
     "access": "public"

@@ -1,0 +1,41 @@
+{
+  "_comment": [
+    "Snippets for .8bg graphics assets — see docs/project/graphics.md.",
+    "Each body is checked in packages/compiler/test/snippets.test.mjs."
+  ],
+  "Sprite with animation": {
+    "prefix": "sprite",
+    "description": "A PNG-backed sprite with size, transparency, and a frame animation.",
+    "body": [
+      "sprite ${1:player} {",
+      "\tsource \"${2:./player.png}\"",
+      "\tsize ${3:16}x${4:16}",
+      "\ttransparent auto",
+      "\tanimation ${5:walk} {",
+      "\t\tframes ${6:0}, ${7:1}, ${8:2}, ${9:3}",
+      "\t\tevery ${10:8}",
+      "\t}",
+      "}"
+    ]
+  },
+  "Sprite (minimal)": {
+    "prefix": "sprite-min",
+    "description": "A sprite with only source and size — enough to compile.",
+    "body": [
+      "sprite ${1:name} {",
+      "\tsource \"${2:./image.png}\"",
+      "\tsize ${3:8}x${4:8}",
+      "}"
+    ]
+  },
+  "Animation block": {
+    "prefix": "animation",
+    "description": "An animation block inside an existing sprite.",
+    "body": [
+      "animation ${1:walk} {",
+      "\tframes ${2:0}, ${3:1}",
+      "\tevery ${4:8}",
+      "}"
+    ]
+  }
+}

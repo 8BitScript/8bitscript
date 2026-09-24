@@ -9,6 +9,16 @@
     "directory": "packages/nes"
   },
   "8bitscript": {
+    "title": "NES",
+    "emulator": {
+      "binary": "fceux",
+      "family": "dedicated",
+      "screenshot": "lua",
+      "framesUnit": "frames",
+      "defaultFrames": 180,
+      "installer": "fceux"
+    },
+    "media": "./media/index.cjs",
     "entry": "./src/index.8bs",
     "exports": {
       "./screen": "./src/screen.8bs",
@@ -16,7 +26,8 @@
       "./pad": "./src/pad.8bs",
       "./input": "./src/input.8bs",
       "./pointer": "./src/pointer.8bs",
-      "./rasterline": "./src/rasterline.8bs"
+      "./rasterline": "./src/rasterline.8bs",
+      "./apu": "./src/apu.8bs"
     },
     "native": [
       "./native/6502/font.s"
@@ -123,7 +134,8 @@
   },
   "files": [
     "src",
-    "native"
+    "native",
+    "media"
   ],
   "publishConfig": {
     "access": "public"

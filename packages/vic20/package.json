@@ -1,7 +1,7 @@
 {
   "name": "@8bitscript/vic20",
   "version": "0.22.1",
-  "description": "VIC-20 target support for 8BitScript: the hardware underneath the portable APIs. Parked in 0.2.0: not a build target until its native backend lands.",
+  "description": "VIC-20 target support for 8BitScript: the hardware underneath the portable APIs.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -9,8 +9,20 @@
     "directory": "packages/vic20"
   },
   "8bitscript": {
+    "title": "Commodore VIC-20",
+    "emulator": {
+      "binary": "xvic",
+      "family": "vice",
+      "screenshot": "vice",
+      "framesUnit": "cycles",
+      "defaultFrames": 8000000,
+      "installer": "vice"
+    },
+    "media": "./media/index.cjs",
     "entry": "./src/index.8bs",
     "exports": {
+      "./geometry": "./src/geometry.8bs",
+      "./sound": "./src/sound.8bs",
       "./screen": "./src/screen.8bs",
       "./text": "./src/text.8bs",
       "./input": "./src/input.8bs",
@@ -70,8 +82,8 @@
               "build": {
                 "defsym": {
                   "__memory_expansion": 0,
-              "__load_address": 4097,
-              "__ram_ceiling": 7680
+                  "__load_address": 4097,
+                  "__ram_ceiling": 7680
                 }
               },
               "run": {
@@ -90,8 +102,8 @@
               "build": {
                 "defsym": {
                   "__memory_expansion": 3,
-              "__load_address": 1025,
-              "__ram_ceiling": 7680
+                  "__load_address": 1025,
+                  "__ram_ceiling": 7680
                 }
               },
               "run": {
@@ -110,8 +122,8 @@
               "build": {
                 "defsym": {
                   "__memory_expansion": 8,
-              "__load_address": 4609,
-              "__ram_ceiling": 16384
+                  "__load_address": 4609,
+                  "__ram_ceiling": 16384
                 }
               },
               "run": {
@@ -130,8 +142,8 @@
               "build": {
                 "defsym": {
                   "__memory_expansion": 16,
-              "__load_address": 4609,
-              "__ram_ceiling": 24576
+                  "__load_address": 4609,
+                  "__ram_ceiling": 24576
                 }
               },
               "run": {
@@ -150,8 +162,8 @@
               "build": {
                 "defsym": {
                   "__memory_expansion": 24,
-              "__load_address": 4609,
-              "__ram_ceiling": 32768
+                  "__load_address": 4609,
+                  "__ram_ceiling": 32768
                 }
               },
               "run": {
@@ -275,7 +287,8 @@
     }
   },
   "files": [
-    "src"
+    "src",
+    "media"
   ],
   "publishConfig": {
     "access": "public"

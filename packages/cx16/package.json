@@ -1,7 +1,7 @@
 {
   "name": "@8bitscript/cx16",
   "version": "0.22.1",
-  "description": "Commander X16 target support for 8BitScript: the hardware underneath the portable APIs. Parked in 0.2.0: not a build target until its native backend lands.",
+  "description": "Commander X16 target support for 8BitScript: the hardware underneath the portable APIs.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -9,8 +9,19 @@
     "directory": "packages/cx16"
   },
   "8bitscript": {
+    "title": "Commander X16",
+    "emulator": {
+      "binary": "x16emu",
+      "family": "dedicated",
+      "screenshot": "gif",
+      "framesUnit": "frames",
+      "defaultFrames": 180,
+      "installer": "cx16"
+    },
+    "media": "./media/index.cjs",
     "entry": "./src/index.8bs",
     "exports": {
+      "./psg": "./src/psg.8bs",
       "./screen": "./src/screen.8bs",
       "./text": "./src/text.8bs",
       "./banks": "./src/banks.8bs",
@@ -167,7 +178,8 @@
     }
   },
   "files": [
-    "src"
+    "src",
+    "media"
   ],
   "publishConfig": {
     "access": "public"

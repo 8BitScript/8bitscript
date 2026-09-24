@@ -1,40 +1,6 @@
-// Studio's one entry: every machine starts here, and the machine's facts
-// pick the tier. Each fact is resolved by 8bitscript before any target
-// toolchain runs, so on any one build the other tiers' branches cost
-// nothing, and a tenth machine gets the right tier without anyone editing
-// this file — see AGENTS.md for the tiers and what each needs.
-import { Audio, Input, Memory, Video } from "@8bitscript/system";
-import { studio, Tier } from "./studio.8bs";
-
-// What an editing Studio needs of the RAM the program is linked into, code
-// and data together: the editors, the buffers an asset is edited in, and
-// the playback routine that has to keep running while you edit. It is a
-// budget, not a measurement — nothing behind Studio's front door is built
-// yet — and it is here as one number so that measuring it later is one
-// edit. The line it draws today: a VIC-20 needs at least the 8K expansion
-// (11775 bytes) to edit; unexpanded (3583) and with the 3K expansion
-// (6655) it is a viewer.
-const EDIT_BYTES: usmallint = 8192;
+// Studio's one entry: every release target runs the same shell.
+import { studio } from "./studio.8bs";
 
 export function main(): void {
-    // Read-only unless the machine can both take the input an editor needs
-    // and hold one: no keyboard is the NES; the web now reads keys but has
-    // nothing to edit (no redefinable glyphs, sprites, or voices), and too
-    // little RAM is the small VIC-20s and the 8K PET.
-    let tier: utinyint = Tier.VIEWER;
-    if (Input.KEYBOARD && Memory.RAM >= EDIT_BYTES) {
-        // Then how much there is to edit, one fact per editor: a character
-        // set the program can redefine (the PET's font is in ROM),
-        // hardware sprites, and more than the one fixed-volume voice a PET
-        // has. All three is the full editor; some of them is the basic one
-        // — an expanded VIC-20 edits characters and music but has no
-        // sprites to edit. None of them is a viewer with a keyboard: every
-        // PET, whose gate is its hardware and not its RAM.
-        if (Video.GLYPHS > 0 && Video.SPRITES > 0 && Audio.VOICES > 1) {
-            tier = Tier.FULL;
-        } else if (Video.GLYPHS > 0 || Video.SPRITES > 0 || Audio.VOICES > 1) {
-            tier = Tier.BASIC;
-        }
-    }
-    studio.start(tier);
+    studio.start();
 }

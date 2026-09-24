@@ -51,3 +51,7 @@ Measured against the 0.11.0 toolchain, against the same functions this replaced 
 | PET 4032, C64, C128, Atari 8-bit, X16, MEGA65 | — | −60 bytes each |
 
 The animated builds get *smaller*: the between-steps repaint and the settled board now share one `<Tiles />`, where the hand-written version kept a second copy of the same loop specifically so the 4K builds wouldn't move.
+
+## §7.3 media-walk, one sprite and one song
+
+The full example ships at `packages/examples/media-walk`. One `.8bg` file names a PNG, one `.8ba` file names a WAV and a two-note pulse song, and `media-walk.8bs` places the sprite and plays both. The compiler adapts per machine and reports the choice (`8BS2111`, `8BS2210`, `8BS2211`). See [portable graphics](../project/graphics.md) and [portable audio](../project/audio.md).

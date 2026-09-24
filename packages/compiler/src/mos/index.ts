@@ -48,7 +48,7 @@ export interface IrProgram {
   nativeSources?: string[];
 }
 
-export type Machine = 'vic20' | 'c64' | 'pet' | 'c128' | 'mega65' | 'cx16' | 'nes' | 'atari8';
+export type Machine = 'vic20' | 'c64' | 'pet' | 'c128' | 'mega65' | 'cx16' | 'nes' | 'atari8' | 'plus4' | 'oric' | 'apple2' | 'bbc' | 'atari5200' | 'lynx' | 'pce' | 'supervision' | 'atari2600' | 'atari7800';
 
 /** What the CLI hands a build. `hardware` is the resolved object from packages/cli/src/hardware.mjs. `report`, when true, asks for `BuildResult`'s own `sizeReport` — the CLI's `--size` flag (packages/cli/src/build.mjs). */
 export interface BuildOptions {
@@ -81,7 +81,7 @@ export interface CpuVariant {
   core: '6502' | '6510' | '8502' | '65C02' | '45GS10' | '2A03';
   decimalMode: boolean;
   jmpIndirectPageBug: boolean;
-  extraOpcodes: ReadonlyArray<'STZ' | 'BRA' | 'PHX' | 'PHY' | 'PLX' | 'PLY' | 'TRB' | 'TSB' | 'INW' | 'DEW'>;
+  extraOpcodes: ReadonlyArray<'STZ' | 'BRA' | 'PHX' | 'PHY' | 'PLX' | 'PLY' | 'TRB' | 'TSB' | 'INW' | 'DEW' | 'ST0' | 'ST1' | 'ST2'>;
   undocumentedOpcodes: boolean;
 }
 
@@ -99,6 +99,16 @@ export const CPU: Record<Machine, CpuVariant> = {
   mega65: { core: '45GS10', decimalMode: true, jmpIndirectPageBug: false, extraOpcodes: MEGA65_EXTRA, undocumentedOpcodes: false },
   nes: { core: '2A03', decimalMode: false, jmpIndirectPageBug: true, extraOpcodes: NONE, undocumentedOpcodes: false },
   atari8: { core: '6502', decimalMode: true, jmpIndirectPageBug: true, extraOpcodes: NONE, undocumentedOpcodes: true },
+  plus4: { core: '6502', decimalMode: true, jmpIndirectPageBug: true, extraOpcodes: NONE, undocumentedOpcodes: false },
+  oric: { core: '6502', decimalMode: true, jmpIndirectPageBug: true, extraOpcodes: NONE, undocumentedOpcodes: false },
+  apple2: { core: '6502', decimalMode: true, jmpIndirectPageBug: true, extraOpcodes: NONE, undocumentedOpcodes: false },
+  bbc: { core: '65C02', decimalMode: true, jmpIndirectPageBug: false, extraOpcodes: CMOS, undocumentedOpcodes: false },
+  atari5200: { core: '6502', decimalMode: true, jmpIndirectPageBug: true, extraOpcodes: NONE, undocumentedOpcodes: true },
+  lynx: { core: '65C02', decimalMode: true, jmpIndirectPageBug: false, extraOpcodes: CMOS, undocumentedOpcodes: false },
+  pce: { core: '65C02', decimalMode: true, jmpIndirectPageBug: false, extraOpcodes: [...CMOS, 'ST0', 'ST1', 'ST2'], undocumentedOpcodes: false },
+  supervision: { core: '65C02', decimalMode: true, jmpIndirectPageBug: false, extraOpcodes: CMOS, undocumentedOpcodes: false },
+  atari2600: { core: '6502', decimalMode: true, jmpIndirectPageBug: true, extraOpcodes: NONE, undocumentedOpcodes: false },
+  atari7800: { core: '6502', decimalMode: true, jmpIndirectPageBug: true, extraOpcodes: NONE, undocumentedOpcodes: false },
 };
 
 // Where a Commodore .prg's load address and boot stub go used to be a
@@ -316,13 +326,14 @@ const ATARI8_ZP_BUDGET = { zpOrigin: 0x80, zpCeiling: 0x100 };
 // __bss_origin) — both outside this page, and neither this budget's
 // business.
 const NES_ZP_BUDGET = { zpOrigin: 0x00, zpCeiling: 0x100 };
+const OWNED_ZP = { zpOrigin: 0x02, zpCeiling: 0x100 };
 
 // Per machine: the budget a program that returns to BASIC may take, and
 // the one a program that never does may take. The second is the whole page
 // on every Commodore here, for the same reason each time — interrupts off,
 // the interpreter never resumed — so only the polite one really differs.
 /** The machines with a waitFrame() runtime of their own (mos/startup/waitframe.ts: a raster poll, the X16's VSYNC flag, or the NES's PPUSTATUS vertical-blank bit). */
-const RASTER_MACHINES = new Set<Machine>(['c64', 'vic20', 'c128', 'cx16', 'mega65', 'nes', 'atari8']);
+const RASTER_MACHINES = new Set<Machine>(['c64', 'vic20', 'c128', 'cx16', 'mega65', 'nes', 'atari8', 'plus4', 'oric', 'apple2', 'bbc', 'atari5200', 'lynx', 'pce', 'supervision', 'atari2600', 'atari7800']);
 
 type ZpBudget = { zpOrigin: number; zpCeiling: number; holes?: ZpHole[] };
 
@@ -335,6 +346,16 @@ const ZP_BUDGETS: Partial<Record<Machine, { polite: ZpBudget; owned: ZpBudget }>
   mega65: { polite: MEGA65_ZP_BUDGET, owned: MEGA65_ZP_BUDGET },
   atari8: { polite: ATARI8_ZP_BUDGET, owned: ATARI8_ZP_BUDGET },
   nes: { polite: NES_ZP_BUDGET, owned: NES_ZP_BUDGET },
+  plus4: { polite: OWNED_ZP, owned: OWNED_ZP },
+  oric: { polite: OWNED_ZP, owned: OWNED_ZP },
+  apple2: { polite: OWNED_ZP, owned: OWNED_ZP },
+  bbc: { polite: OWNED_ZP, owned: OWNED_ZP },
+  atari5200: { polite: ATARI8_ZP_BUDGET, owned: ATARI8_ZP_BUDGET },
+  lynx: { polite: NES_ZP_BUDGET, owned: NES_ZP_BUDGET },
+  pce: { polite: NES_ZP_BUDGET, owned: NES_ZP_BUDGET },
+  supervision: { polite: NES_ZP_BUDGET, owned: NES_ZP_BUDGET },
+  atari2600: { polite: { zpOrigin: 0x80, zpCeiling: 0x100 }, owned: { zpOrigin: 0x80, zpCeiling: 0x100 } },
+  atari7800: { polite: NES_ZP_BUDGET, owned: NES_ZP_BUDGET },
 };
 
 function chrgetZpHoles(facts: Record<string, unknown>, budget: { zpOrigin: number; zpCeiling: number }): ZpHole[] {
@@ -1168,7 +1189,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // one shape of failure however far down it happened.
   let bytes: Uint8Array;
   try {
-    bytes = image.file(loadAddress, body, codeStart, { nativeSources: ir.nativeSources ?? [] });
+    bytes = image.file(loadAddress, body, codeStart, { nativeSources: ir.nativeSources ?? [], chrPatches: ir.chrPatches ?? [] });
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
@@ -1548,6 +1569,28 @@ export const FRAME_SYNC: Record<Machine, FrameSync> = {
     num: 1,
     den: 60,
   },
+  plus4: {
+    kind: 'edge',
+    pollFlag: '(*(volatile uint8_t *)0xFF1C) == 0 && (*(volatile uint8_t *)0xFF1D) == 0',
+    ack: '',
+    num: 1,
+    den: 60,
+  },
+  oric: { kind: 'edge', pollFlag: '(*(volatile uint8_t *)0x030D) & 0x40', ack: '', num: 1, den: 60 },
+  apple2: { kind: 'edge', pollFlag: '(*(volatile uint8_t *)0xC019) & 0x80', ack: '', num: 1, den: 60 },
+  bbc: { kind: 'edge', pollFlag: '(*(volatile uint8_t *)0xFE4D) & 0x02', ack: '', num: 1, den: 60 },
+  atari5200: {
+    kind: 'level',
+    topHalf: '(*(volatile uint8_t *)0xD40B) < 64',
+    palProbe: '(*(volatile uint8_t *)0xD40B) >= 140',
+    ntsc: { num: 262 * 114, den: 1789790 },
+    pal: { num: 312 * 114, den: 1773447 },
+  },
+  lynx: { kind: 'edge', pollFlag: '1', ack: '', num: 1, den: 60 },
+  pce: { kind: 'edge', pollFlag: '1', ack: '', num: 1, den: 60 },
+  supervision: { kind: 'edge', pollFlag: '1', ack: '', num: 1, den: 60 },
+  atari2600: { kind: 'edge', pollFlag: '(*(volatile uint8_t *)0x0284) == 0', ack: '', num: 76 * 262, den: 1193182 },
+  atari7800: { kind: 'edge', pollFlag: '(*(volatile uint8_t *)0x28) & 0x80', ack: '', num: 1, den: 60 },
 };
 
 // ---- the ratio, in sixteen bits -------------------------------------------
