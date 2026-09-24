@@ -1,22 +1,255 @@
 {
+  "file": "_file",
+  "folder": "_folder",
+  "folderExpanded": "_folder-open",
+  "rootFolder": "_folder",
+  "rootFolderExpanded": "_folder-open",
   "iconDefinitions": {
-    "_8bs": {
-      "iconPath": "../icons/8bs-dark.svg"
+    "_file": {
+      "iconPath": "../icons/file/file.9e6448fe.svg"
     },
-    "_8bx": {
-      "iconPath": "../icons/8bx-dark.svg"
+    "_folder": {
+      "iconPath": "../icons/file/folder.cf8a219e.svg"
     },
-    "_8bg": {
-      "iconPath": "../icons/8bg-dark.svg"
+    "_folder-open": {
+      "iconPath": "../icons/file/folder-open.c3621821.svg"
     },
-    "_8ba": {
-      "iconPath": "../icons/8ba-dark.svg"
+    "_data": {
+      "iconPath": "../icons/file/data.1a5a44d6.svg"
+    },
+    "_doc": {
+      "iconPath": "../icons/file/doc.f45d0750.svg"
+    },
+    "_binary": {
+      "iconPath": "../icons/file/binary.4c4f8bfa.svg"
+    },
+    "_git": {
+      "iconPath": "../icons/file/git.98f6a731.svg"
+    },
+    "_license": {
+      "iconPath": "../icons/file/license.58c20310.svg"
+    },
+    "_8bs_dark": {
+      "iconPath": "../icons/file/8bs-dark.5406fe3b.svg"
+    },
+    "_8bs_light": {
+      "iconPath": "../icons/file/8bs-light.4470524f.svg"
+    },
+    "_8bx_dark": {
+      "iconPath": "../icons/file/8bx-dark.361670bf.svg"
+    },
+    "_8bx_light": {
+      "iconPath": "../icons/file/8bx-light.a7289c37.svg"
+    },
+    "_8bg_dark": {
+      "iconPath": "../icons/file/8bg-dark.228a5ffc.svg"
+    },
+    "_8bg_light": {
+      "iconPath": "../icons/file/8bg-light.af9eaa40.svg"
+    },
+    "_8ba_dark": {
+      "iconPath": "../icons/file/8ba-dark.e009a48a.svg"
+    },
+    "_8ba_light": {
+      "iconPath": "../icons/file/8ba-light.febcef42.svg"
+    },
+    "_image_dark": {
+      "iconPath": "../icons/file/image-dark.f4dfff21.svg"
+    },
+    "_image_light": {
+      "iconPath": "../icons/file/image-light.1fd0446e.svg"
+    },
+    "_audio_dark": {
+      "iconPath": "../icons/file/audio-dark.68e4a9db.svg"
+    },
+    "_audio_light": {
+      "iconPath": "../icons/file/audio-light.52b73111.svg"
+    },
+    "_code_dark": {
+      "iconPath": "../icons/file/code-dark.2730d8ff.svg"
+    },
+    "_code_light": {
+      "iconPath": "../icons/file/code-light.bebc2c2c.svg"
     }
   },
   "fileExtensions": {
-    "8bs": "_8bs",
-    "8bx": "_8bx",
-    "8bg": "_8bg",
-    "8ba": "_8ba"
+    "8bs": "_8bs_dark",
+    "8bx": "_8bx_dark",
+    "8bg": "_8bg_dark",
+    "8ba": "_8ba_dark",
+    "png": "_image_dark",
+    "jpg": "_image_dark",
+    "jpeg": "_image_dark",
+    "gif": "_image_dark",
+    "webp": "_image_dark",
+    "bmp": "_image_dark",
+    "svg": "_image_dark",
+    "ico": "_image_dark",
+    "wav": "_audio_dark",
+    "mp3": "_audio_dark",
+    "ogg": "_audio_dark",
+    "flac": "_audio_dark",
+    "mid": "_audio_dark",
+    "midi": "_audio_dark",
+    "sid": "_audio_dark",
+    "mod": "_audio_dark",
+    "ts": "_code_dark",
+    "tsx": "_code_dark",
+    "js": "_code_dark",
+    "mjs": "_code_dark",
+    "cjs": "_code_dark",
+    "jsx": "_code_dark",
+    "html": "_code_dark",
+    "css": "_code_dark",
+    "sh": "_code_dark",
+    "py": "_code_dark",
+    "asm": "_code_dark",
+    "s": "_code_dark",
+    "json": "_data",
+    "jsonc": "_data",
+    "yml": "_data",
+    "yaml": "_data",
+    "toml": "_data",
+    "xml": "_data",
+    "csv": "_data",
+    "md": "_doc",
+    "txt": "_doc",
+    "log": "_doc",
+    "pdf": "_doc",
+    "prg": "_binary",
+    "d64": "_binary",
+    "d81": "_binary",
+    "t64": "_binary",
+    "tap": "_binary",
+    "crt": "_binary",
+    "bin": "_binary",
+    "rom": "_binary",
+    "nes": "_binary",
+    "sna": "_binary",
+    "vsix": "_binary",
+    "zip": "_binary",
+    "wasm": "_binary",
+    "map": "_binary"
+  },
+  "fileNames": {
+    "8bitscript.config.ts": "_8bs_dark",
+    "8bs.config.ts": "_8bs_dark",
+    ".gitignore": "_git",
+    ".gitattributes": "_git",
+    ".gitmodules": "_git",
+    "LICENSE": "_license",
+    "LICENSE.md": "_license",
+    "LICENSE.txt": "_license"
+  },
+  "light": {
+    "fileExtensions": {
+      "8bs": "_8bs_light",
+      "8bx": "_8bx_light",
+      "8bg": "_8bg_light",
+      "8ba": "_8ba_light",
+      "png": "_image_light",
+      "jpg": "_image_light",
+      "jpeg": "_image_light",
+      "gif": "_image_light",
+      "webp": "_image_light",
+      "bmp": "_image_light",
+      "svg": "_image_light",
+      "ico": "_image_light",
+      "wav": "_audio_light",
+      "mp3": "_audio_light",
+      "ogg": "_audio_light",
+      "flac": "_audio_light",
+      "mid": "_audio_light",
+      "midi": "_audio_light",
+      "sid": "_audio_light",
+      "mod": "_audio_light",
+      "ts": "_code_light",
+      "tsx": "_code_light",
+      "js": "_code_light",
+      "mjs": "_code_light",
+      "cjs": "_code_light",
+      "jsx": "_code_light",
+      "html": "_code_light",
+      "css": "_code_light",
+      "sh": "_code_light",
+      "py": "_code_light",
+      "asm": "_code_light",
+      "s": "_code_light"
+    },
+    "fileNames": {
+      "8bitscript.config.ts": "_8bs_light",
+      "8bs.config.ts": "_8bs_light"
+    }
+  },
+  "highContrast": {
+    "fileExtensions": {
+      "8bs": "_8bs_dark",
+      "8bx": "_8bx_dark",
+      "8bg": "_8bg_dark",
+      "8ba": "_8ba_dark",
+      "png": "_image_dark",
+      "jpg": "_image_dark",
+      "jpeg": "_image_dark",
+      "gif": "_image_dark",
+      "webp": "_image_dark",
+      "bmp": "_image_dark",
+      "svg": "_image_dark",
+      "ico": "_image_dark",
+      "wav": "_audio_dark",
+      "mp3": "_audio_dark",
+      "ogg": "_audio_dark",
+      "flac": "_audio_dark",
+      "mid": "_audio_dark",
+      "midi": "_audio_dark",
+      "sid": "_audio_dark",
+      "mod": "_audio_dark",
+      "ts": "_code_dark",
+      "tsx": "_code_dark",
+      "js": "_code_dark",
+      "mjs": "_code_dark",
+      "cjs": "_code_dark",
+      "jsx": "_code_dark",
+      "html": "_code_dark",
+      "css": "_code_dark",
+      "sh": "_code_dark",
+      "py": "_code_dark",
+      "asm": "_code_dark",
+      "s": "_code_dark",
+      "json": "_data",
+      "jsonc": "_data",
+      "yml": "_data",
+      "yaml": "_data",
+      "toml": "_data",
+      "xml": "_data",
+      "csv": "_data",
+      "md": "_doc",
+      "txt": "_doc",
+      "log": "_doc",
+      "pdf": "_doc",
+      "prg": "_binary",
+      "d64": "_binary",
+      "d81": "_binary",
+      "t64": "_binary",
+      "tap": "_binary",
+      "crt": "_binary",
+      "bin": "_binary",
+      "rom": "_binary",
+      "nes": "_binary",
+      "sna": "_binary",
+      "vsix": "_binary",
+      "zip": "_binary",
+      "wasm": "_binary",
+      "map": "_binary"
+    },
+    "fileNames": {
+      "8bitscript.config.ts": "_8bs_dark",
+      "8bs.config.ts": "_8bs_dark",
+      ".gitignore": "_git",
+      ".gitattributes": "_git",
+      ".gitmodules": "_git",
+      "LICENSE": "_license",
+      "LICENSE.md": "_license",
+      "LICENSE.txt": "_license"
+    }
   }
 }

@@ -194,7 +194,7 @@ function makeTask(project, action, target, region, hardware = settings.getHardwa
     args.push('--web', '--no-open', '--port', '0');
   }
   if ((action === 'run' || action === 'boot') && target === 'cx16' && !extras.web) {
-    args.push(...settings.cx16NativeWindowCliArgs());
+    args.push(...settings.cx16NativeWindowCliArgs({ studio: project.name === '@8bitscript/studio' }));
   }
   const pal = region === 'pal' && MACHINE_TARGETS.has(target);
   const definition = {

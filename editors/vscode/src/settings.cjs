@@ -137,18 +137,22 @@ function getCx16CaptureMouse() {
 
 /**
  * Commander X16 native window: pass `--fullscreen` so x16emu starts
- * maximized. On by default in the editor.
+ * maximized. Off by default; Studio's native launch forces it on.
  */
 function getCx16Fullscreen() {
-  return config().get('cx16.fullscreen') !== false;
+  return config().get('cx16.fullscreen') === true;
 }
 
-/** CLI flags for a native `8bs run` / `8bs boot cx16` from the launcher. */
-function cx16NativeWindowCliArgs() {
+/**
+ * CLI flags for a native `8bs run` / `8bs boot cx16` from the launcher.
+ * @param {{ studio?: boolean }} [options] Studio's own native window stays fullscreen.
+ */
+function cx16NativeWindowCliArgs({ studio = false } = {}) {
   const args = [];
   if (getCx16CaptureMouse()) args.push('--capture-mouse');
   else args.push('--no-capture-mouse');
-  if (getCx16Fullscreen()) args.push('--fullscreen');
+  const fullscreen = studio || getCx16Fullscreen();
+  if (fullscreen) args.push('--fullscreen');
   else args.push('--no-fullscreen');
   return args;
 }

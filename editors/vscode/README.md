@@ -37,6 +37,41 @@ Full byte-by-byte accounting is in
 [docs/compiler.md](../../docs/compiler.md#what-a-call-costs-on-a-6502-measured);
 the project overview is in the [root README](../../README.md).
 
+## File icons (`.8bs`, `.8bx`, `.8bg`, `.8ba`)
+
+Most file icon themes (Seti, Material, and so on) do not know our extensions,
+so every `.8bs` file looks like a generic document until you switch theme.
+
+1. Install this extension from the workspace (`editors/vscode`, **Run Extension**)
+   or from a `.vsix` built here — the marketplace build before this branch does
+   not ship the per-kind icons yet.
+2. **File icon theme:** Command Palette → **Preferences: File Icon Theme** →
+   **8BitScript**.
+3. **Developer window:** Reload the window after pulling icon changes.
+
+The **8BitScript** file icon theme draws all four source kinds with the same
+pixel **8**. `.8bs` is a white 8 on a purple box; the other three are a violet
+8 with a badge beside it — a silver **X** for `.8bx`, green **tiles** for
+`.8bg`, amber **bars** for `.8ba`. A project's `8bitscript.config.ts` wears
+the `.8bs` icon too.
+
+The theme replaces *every* icon in the explorer, not only ours, so it also
+carries the rest of a project, each kind coloured like the badge it belongs
+with: `.png`/`.jpg`/`.gif` the green of `.8bg`, `.wav`/`.mp3`/`.sid` the amber
+of `.8ba`, `.ts`/`.js`/`.css` the silver of `.8bx`. Data, documents, build
+images (`.prg`, `.d64`, `.crt`, `.nes`), git files, licenses, folders and a
+default for anything unlisted round it out.
+
+Edit the art in `icons/src/` and run `pnpm run icons`. That copies each SVG
+into `icons/file/` under a content-hashed name and rewrites the theme to
+match — the explorer caches an icon under its URL, so art only reaches the
+screen when the filename changes with it. `pnpm run bundle` does it too, and
+a test fails if the committed output drifts from `icons/src/`. See
+[`AGENTS.md`](AGENTS.md) before changing any of this.
+
+With this extension enabled, the default file icon theme is **8BitScript**
+(you can change it back under **Preferences: File Icon Theme**).
+
 ## What it does
 
 - Registers `.8bs` as the language **8BitScript**, `.8bx` as **8BitX**
@@ -176,9 +211,11 @@ side bar.
   Proceed. Turn the setting off (`--local`) on an untrusted network. `--port
   n` on the CLI still pins HTTP to n (HTTPS on n+1) when you want a
   stable address. On **cx16**, Run and Boot pass `--capture-mouse` and
-  `--fullscreen` by default (`8bitscript.cx16.captureMouse` and
-  `8bitscript.cx16.fullscreen`) so x16emu grabs the pointer and starts
-  fullscreen; turn either off in Settings for a free mouse or a window.
+  `--capture-mouse` by default (`8bitscript.cx16.captureMouse`) so x16emu
+  grabs the pointer at start; turn it off in Settings for a free mouse.
+  Fullscreen is off by default (`8bitscript.cx16.fullscreen`); turn it on
+  for maximized native runs. Open Studio's native Commander X16 launch is
+  always fullscreen. Studio in a tab (`8bs run cx16 --web`) is unchanged.
   **Open Studio in a Tab** does not use these flags. The button names the project, and the
   line under it names the machine, the hardware fitted to it, and the
   region — nothing has to be read off a dropdown to know what pressing it

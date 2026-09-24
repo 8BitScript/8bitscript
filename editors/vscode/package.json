@@ -37,8 +37,8 @@
         ],
         "configuration": "./language-configuration.json",
         "icon": {
-          "light": "./icons/8bs-light.svg",
-          "dark": "./icons/8bs-dark.svg"
+          "light": "./icons/src/8bs-light.svg",
+          "dark": "./icons/src/8bs-dark.svg"
         }
       },
       {
@@ -52,8 +52,8 @@
         ],
         "configuration": "./language-configuration.json",
         "icon": {
-          "light": "./icons/8bx-light.svg",
-          "dark": "./icons/8bx-dark.svg"
+          "light": "./icons/src/8bx-light.svg",
+          "dark": "./icons/src/8bx-dark.svg"
         }
       },
       {
@@ -67,8 +67,8 @@
         ],
         "configuration": "./language-configuration.json",
         "icon": {
-          "light": "./icons/8bg-light.svg",
-          "dark": "./icons/8bg-dark.svg"
+          "light": "./icons/src/8bg-light.svg",
+          "dark": "./icons/src/8bg-dark.svg"
         }
       },
       {
@@ -82,8 +82,8 @@
         ],
         "configuration": "./language-configuration.json",
         "icon": {
-          "light": "./icons/8ba-light.svg",
-          "dark": "./icons/8ba-dark.svg"
+          "light": "./icons/src/8ba-light.svg",
+          "dark": "./icons/src/8ba-dark.svg"
         }
       },
       {
@@ -588,8 +588,8 @@
         },
         "8bitscript.cx16.fullscreen": {
           "type": "boolean",
-          "default": true,
-          "description": "When Run or Boot launches the Commander X16 in a native x16emu window, pass --fullscreen so x16emu starts maximized. Off leaves a normal window. Does not apply to Open Studio in a Tab (`8bs run cx16 --web`)."
+          "default": false,
+          "description": "When Run or Boot launches the Commander X16 in a native x16emu window, pass --fullscreen so x16emu starts maximized. Off leaves a normal window. Open Studio's native launch is always fullscreen regardless. Does not apply to Open Studio in a Tab (`8bs run cx16 --web`)."
         }
       }
     },
@@ -620,35 +620,8 @@
               "pet",
               "c64",
               "vic20",
-              "c128",
               "cx16",
-              "mega65",
-              "atari8",
-              "nes",
-              "web",
-              "plus4",
-              "oric",
-              "apple2",
-              "bbc",
-              "atari5200",
-              "lynx",
-              "pce",
-              "supervision",
-              "atari2600",
-              "atari7800",
-              "gb",
-              "gbc",
-              "sms",
-              "gamegear",
-              "sg1000",
-              "msx",
-              "coleco",
-              "spectrum",
-              "cpc",
-              "coco",
-              "vectrex",
-              "odyssey2",
-              "channelf"
+              "web"
             ],
             "description": "The system to build for or run on. Required for run and build."
           },
@@ -662,7 +635,10 @@
           }
         }
       }
-    ]
+    ],
+    "configurationDefaults": {
+      "workbench.iconTheme": "8bitscript"
+    }
   },
   "main": "./bootstrap.cjs",
   "activationEvents": [
@@ -675,7 +651,8 @@
   ],
   "scripts": {
     "test": "node --test",
-    "bundle": "esbuild src/extension.cjs --bundle --minify --platform=node --format=cjs --external:vscode --outfile=dist/extension.cjs && node -e \"require('./src/devReload.cjs').copyRuntimeFiles(process.cwd())\"",
+    "icons": "node scripts/build-icons.cjs",
+    "bundle": "node scripts/build-icons.cjs && esbuild src/extension.cjs --bundle --minify --platform=node --format=cjs --external:vscode --outfile=dist/extension.cjs && node scripts/post-bundle.cjs",
     "link-local": "node scripts/link-local.cjs",
     "package": "pnpm run bundle && vsce package --out dist/8bitscript-lang.vsix",
     "vscode:prepublish": "pnpm run bundle"

@@ -25,9 +25,7 @@ function ensureCharset(): void {
 }
 
 function writeGlyph(slot: utinyint, charIndex: utinyint, byteIndex: utinyint, value: utinyint): void {
-    let base: usmallint = CHAR_DATA;
-    base = base + charIndex * 8;
-    base = base + byteIndex;
+    let base: usmallint = CHAR_DATA + (charIndex << 3) + byteIndex;
     memory.write(base, value);
 }
 
@@ -69,7 +67,7 @@ export namespace graphics {
         let g: utinyint = index - 4;
         let charIndex: utinyint = g / 8;
         let byteIndex: utinyint = g % 8;
-        glyph[slot * 32 + g] = value;
+        glyph[(slot << 5) + g] = value;
         writeGlyph(slot, charIndex, byteIndex, value);
     }
 
