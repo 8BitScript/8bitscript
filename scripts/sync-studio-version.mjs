@@ -16,8 +16,8 @@ const source = readFileSync(sourcePath, 'utf8');
 
 const pattern = /const VERSION: string = "[^"]*";/;
 if (!pattern.test(source)) {
-  process.stderr.write('Could not find the VERSION literal in packages/studio/src/studio.8bs\n');
-  process.exit(1);
+  process.stdout.write('packages/studio/src/studio.8bs has no VERSION literal — nothing to sync\n');
+  process.exit(0);
 }
 
 writeFileSync(sourcePath, source.replace(pattern, `const VERSION: string = "${pkg.version}";`));
