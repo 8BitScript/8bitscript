@@ -30,7 +30,7 @@ export async function buildIsa(ir: {
     functions: ir.functions as never[],
     globals: (ir.globals ?? []) as never[],
     strings: (ir.strings ?? []) as never[],
-  });
+  } as Parameters<typeof optimizeReachable>[0]);
   const lowered = lowerToOps({
     entry: ir.entry,
     functions: live.functions as never[],

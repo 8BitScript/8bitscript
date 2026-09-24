@@ -46,6 +46,8 @@ export interface IrProgram {
   strings?: IrString[];
   /** ir.nativeSources (linker/index.mjs) — the absolute paths of every `"8bitscript".native` file the linked packages ship. Not IR: on the NES they are bytes of the FILE, the CHR-ROM character set image.file() assembles (mos/image-nes.ts); on every other machine they are hand-written 6502 CODE — `.init.N` and `.text.<symbol>` sections mos/native.ts parses into the one program link() assembles, so a package's vector stub runs before main() and its routines resolve by name from asm6502 blocks. */
   nativeSources?: string[];
+  /** NES CHR-ROM tile patches from `.8bg` lowering (media/elaborate.mjs). */
+  chrPatches?: { tile: number; bytes: number[] }[];
 }
 
 export type Machine = 'vic20' | 'c64' | 'pet' | 'c128' | 'mega65' | 'cx16' | 'nes' | 'atari8' | 'plus4' | 'oric' | 'apple2' | 'bbc' | 'atari5200' | 'lynx' | 'pce' | 'supervision' | 'atari2600' | 'atari7800';
