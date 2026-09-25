@@ -106,4 +106,7 @@ test('Studio postMessage rejects foreign origins', () => {
   frame.src = 'http://[';
   sandbox.window.dispatch('message', { origin: 'https://evil.example', data: { type: 'state', phase: 'stopped', emulator: null, program: null } });
   assert.equal($('status').textContent, runningStatus, 'a broken frame URL does not open the listener to foreign origins');
+
+  sandbox.window.dispatch('message', { data: { type: 'state', phase: 'building', emulator: null, program: null } });
+  assert.match($('status').textContent, /^Building Studio/, 'messages with no origin still reach the host listener');
 });

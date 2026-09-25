@@ -7,6 +7,16 @@ import { join } from 'node:path';
 
 import { decodeWav, encodeWav, encodeDpcm, ffmpegAvailable, decodeFlac } from '../src/index.mjs';
 
+test('ffmpegAvailable is false when ffmpeg is not on PATH', () => {
+  const saved = process.env.PATH;
+  process.env.PATH = '';
+  try {
+    assert.equal(ffmpegAvailable(), false);
+  } finally {
+    process.env.PATH = saved;
+  }
+});
+
 test('encode then decode round-trips an 8-bit WAV', () => {
   const samples = Float32Array.from([0, 0.5, -0.5, 1, -1]);
   const wav = encodeWav(samples, 8000);

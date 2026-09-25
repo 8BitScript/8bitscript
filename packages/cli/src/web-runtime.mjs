@@ -311,10 +311,16 @@ export function renderEmbedExample() {
  * job, here because it is the only thing that can see a gamepad — and two
  * copies of a three-way platform switch is two things to get wrong.
  */
+/** Absolute launcher path + args — exported so tests can cover every platform branch. */
+export function browserLauncherCommand(url, platform = process.platform) {
+  if (platform === 'darwin') return { command: '/usr/bin/open', args: [url] };
+  if (platform === 'win32') return { command: 'C:\\Windows\\System32\\cmd.exe', args: ['/c', 'start', '""', url] };
+  return { command: '/usr/bin/xdg-open', args: [url] };
+}
+
 export function openBrowser(url) {
-  if (process.platform === 'darwin') return spawn('/usr/bin/open', [url], { stdio: 'ignore' });
-  if (process.platform === 'win32') return spawn('C:\\Windows\\System32\\cmd.exe', ['/c', 'start', '""', url], { stdio: 'ignore' });
-  return spawn('/usr/bin/xdg-open', [url], { stdio: 'ignore' });
+  const { command, args } = browserLauncherCommand(url);
+  return spawn(command, args, { stdio: 'ignore' });
 }
 
 const MIME = {
