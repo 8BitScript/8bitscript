@@ -1,6 +1,6 @@
 {
   "name": "@8bitscript/gamegear",
-  "version": "0.23.0",
+  "version": "0.23.1",
   "description": "Sega Game Gear target support for 8BitScript: the hardware underneath the portable APIs.",
   "license": "MIT",
   "repository": {

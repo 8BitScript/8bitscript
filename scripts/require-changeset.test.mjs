@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 import {
   changesetRequired,
   isChangesetFile,
+  isLockstepPackageJsonOnly,
   isPublishedPath,
   isVersionReleasePullRequest,
 } from './require-changeset.mjs';
@@ -49,6 +50,27 @@ test('docs, the site, and CI do not need a changeset', () => {
   });
   assert.equal(result.required, false);
   assert.deepEqual(result.published, []);
+});
+
+test('lockstep package.json-only bumps with the sync script need no changeset', () => {
+  const files = [
+    'scripts/sync-lockstep-versions.mjs',
+    'packages/apple2/package.json',
+    'packages/cli/package.json',
+    'package.json',
+  ];
+  assert.equal(isLockstepPackageJsonOnly(files), true);
+  assert.equal(changesetRequired({ files, headRef: 'fix/lockstep' }).required, false);
+});
+
+test('lockstep exempt does not apply when package source changes too', () => {
+  const files = [
+    'scripts/sync-lockstep-versions.mjs',
+    'packages/apple2/package.json',
+    'packages/apple2/src/foo.8bs',
+  ];
+  assert.equal(isLockstepPackageJsonOnly(files), false);
+  assert.equal(changesetRequired({ files, headRef: 'fix/lockstep' }).required, true);
 });
 
 test('the Version Packages pull request is exempt', () => {

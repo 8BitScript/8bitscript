@@ -24,6 +24,14 @@ export function isPublishedPath(file) {
   return PUBLISHED_PREFIXES.some((prefix) => file.startsWith(prefix));
 }
 
+/** Version Packages bot aligns every packages/* version; not a semver bump. */
+export function isLockstepPackageJsonOnly(files) {
+  const published = files.filter(isPublishedPath);
+  if (published.length === 0) return false;
+  if (!files.includes('scripts/sync-lockstep-versions.mjs')) return false;
+  return published.every((file) => /^packages\/[^/]+\/package\.json$/.test(file));
+}
+
 /**
  * @param {{ files: string[], headRef?: string }} input
  * @returns {{ required: boolean, published: string[] }}
@@ -33,6 +41,7 @@ export function changesetRequired({ files, headRef }) {
   if (isVersionReleasePullRequest(headRef) || published.length === 0) {
     return { required: false, published };
   }
+  if (isLockstepPackageJsonOnly(files)) return { required: false, published };
   if (files.some(isChangesetFile)) return { required: false, published };
   return { required: true, published };
 }

@@ -16,10 +16,10 @@
     "docs:deploy": "pnpm run docs:build && wrangler deploy",
     "release": "node scripts/release.mjs",
     "changeset": "changeset",
-    "changeset:version": "changeset version && node scripts/sync-studio-version.mjs && node scripts/sync-root-version.mjs && pnpm install --no-frozen-lockfile",
+    "changeset:version": "changeset version && node scripts/sync-lockstep-versions.mjs && node scripts/sync-studio-version.mjs && node scripts/sync-root-version.mjs && pnpm install --no-frozen-lockfile",
     "check": "8bs check",
     "typecheck": "pnpm --recursive --if-present typecheck",
-    "test": "pnpm --recursive --if-present test && node --test site/test/build-all.test.mjs site/test/layout.test.mjs scripts/require-changeset.test.mjs",
+    "test": "pnpm --recursive --if-present test && node --test site/test/build-all.test.mjs site/test/layout.test.mjs scripts/require-changeset.test.mjs scripts/sync-lockstep-versions.test.mjs",
     "test:ci": "node scripts/run-test-ci.mjs",
     "test:coverage": "node scripts/test-coverage.mjs",
     "doctor": "8bs doctor"
