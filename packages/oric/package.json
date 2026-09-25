@@ -1,6 +1,6 @@
 {
   "name": "@8bitscript/oric",
-  "version": "0.22.1",
+  "version": "0.23.0",
   "description": "Oric-1 / Atmos target support for 8BitScript: the hardware underneath the portable APIs.",
   "license": "MIT",
   "repository": {

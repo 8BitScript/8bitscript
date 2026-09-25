@@ -1,6 +1,6 @@
 {
   "name": "@8bitscript/graphics",
-  "version": "0.22.1",
+  "version": "0.23.0",
   "description": "Play a sprite compiled from a .8bg file: place it, advance its animation once a frame. Hardware sprites on the C64, CHR/OAM on the NES, quadrant-blocks on the PET, a software glyph everywhere else.",
   "license": "MIT",
   "repository": {

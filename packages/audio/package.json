@@ -1,6 +1,6 @@
 {
   "name": "@8bitscript/audio",
-  "version": "0.22.1",
+  "version": "0.23.0",
   "description": "Play a sample or song compiled from a .8ba file: audio.play, audio.music, audio.update once a frame. SID, the NES APU, POKEY, or the PET VIA — or silence with a diagnostic on a machine that has no driver yet.",
   "license": "MIT",
   "repository": {

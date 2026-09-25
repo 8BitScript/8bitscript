@@ -1,5 +1,12 @@
 # @8bitscript/ui
 
+## 0.23.0
+
+### Patch Changes
+
+- Updated dependencies [499c62d]
+  - @8bitscript/text@0.23.0
+
 ## 0.22.1
 
 ### Patch Changes
