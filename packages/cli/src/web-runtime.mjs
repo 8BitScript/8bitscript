@@ -312,9 +312,9 @@ export function renderEmbedExample() {
  * copies of a three-way platform switch is two things to get wrong.
  */
 export function openBrowser(url) {
-  if (process.platform === 'darwin') return spawn('open', [url], { stdio: 'ignore' });
-  if (process.platform === 'win32') return spawn('cmd', ['/c', 'start', '""', url], { stdio: 'ignore' });
-  return spawn('xdg-open', [url], { stdio: 'ignore' });
+  if (process.platform === 'darwin') return spawn('/usr/bin/open', [url], { stdio: 'ignore' });
+  if (process.platform === 'win32') return spawn('C:\\Windows\\System32\\cmd.exe', ['/c', 'start', '""', url], { stdio: 'ignore' });
+  return spawn('/usr/bin/xdg-open', [url], { stdio: 'ignore' });
 }
 
 const MIME = {

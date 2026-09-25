@@ -62,22 +62,23 @@ function render() {
   else if ($('mouse').hidden) mouse('idle');
 }
 
-function postMessageOriginAllowed(event) {
-  const origin = event.origin;
-  if (!origin) return true;
-  if (origin === window.location.origin) return true;
+function emulatorFrameOrigin() {
   const frame = $('frame');
   const frameUrl = frame?.src || frame?.getAttribute?.('src');
-  if (!frameUrl) return false;
+  if (!frameUrl) return '';
   try {
-    return origin === new URL(frameUrl, window.location.href).origin;
+    return new URL(frameUrl, window.location.href).origin;
   } catch {
-    return false;
+    return '';
   }
 }
 
 window.addEventListener('message', (event) => {
-  if (!postMessageOriginAllowed(event)) return;
+  // Host posts from this webview's origin; the emulator iframe posts from
+  // its src. An empty origin is the vm tests and some webview hosts.
+  if (event.origin !== window.location.origin && event.origin !== emulatorFrameOrigin()) {
+    if (event.origin) return;
+  }
   const data = event.data;
   if (!data) return;
   const frame = $('frame');
