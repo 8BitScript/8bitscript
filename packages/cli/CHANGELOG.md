@@ -1,5 +1,24 @@
 # @8bitscript/cli
 
+## 0.23.1
+
+### Patch Changes
+
+- 6a26f13: Spawn ffmpeg, target emulators, and the system browser opener by absolute path, and verify Studio webview message origins in the listener.
+- @8bitscript/compiler@0.23.1
+  - @8bitscript/language-server@0.23.1
+  - @8bitscript/atari8@0.23.1
+  - @8bitscript/c128@0.23.1
+  - @8bitscript/c64@0.23.1
+  - @8bitscript/cx16@0.23.1
+  - @8bitscript/examples@0.23.1
+  - @8bitscript/mega65@0.23.1
+  - @8bitscript/nes@0.23.1
+  - @8bitscript/pet@0.23.1
+  - @8bitscript/studio@0.23.1
+  - @8bitscript/vic20@0.23.1
+  - @8bitscript/web@0.23.1
+
 ## 0.23.0
 
 ### Minor Changes
