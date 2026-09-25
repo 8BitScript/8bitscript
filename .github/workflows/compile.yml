@@ -42,7 +42,7 @@ jobs:
           node-version: 26
           cache: pnpm
       - name: Install project
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --config.minimum-release-age-exclude=@8bitscript/*
       - name: Ensure 8bs CLI
         run: |
           if [ ! -x node_modules/.bin/8bs ]; then
