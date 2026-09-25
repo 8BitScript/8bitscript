@@ -1,5 +1,17 @@
 # @8bitscript/sprites
 
+## 0.23.0
+
+### Patch Changes
+
+- Updated dependencies [499c62d]
+- Updated dependencies [499c62d]
+- Updated dependencies [499c62d]
+  - @8bitscript/c64@0.23.0
+  - @8bitscript/system@0.23.0
+  - @8bitscript/screen@0.23.0
+  - @8bitscript/text@0.23.0
+
 ## 0.22.1
 
 ### Patch Changes

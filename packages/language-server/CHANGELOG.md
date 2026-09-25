@@ -1,5 +1,21 @@
 # @8bitscript/language-server
 
+## 0.23.0
+
+### Minor Changes
+
+- 499c62d: Narrow `RELEASE_MACHINES` to five targets — `pet`, `vic20`, `c64`, `cx16`, and `web` — so `8bs build` and `8bs run`, examples, Studio, and the editor launcher focus on a polished slice. Every other id stays in `MACHINES` for twins, facts, and `8bs check`; hello-world still compiles. Restoring the original nine and the remaining roadmap machines to `RELEASE_MACHINES` is planned in a follow-up (see `.changeset/remaining-systems.md` for the wider emulator and package work).
+- 499c62d: Add a portable graphics and audio slice: `.8bg` / `.8ba` front ends, PNG and WAV/FLAC host tools, machine-owned lowering on C64, NES, PET, and Atari 8-bit with a glyph/no-driver fallback everywhere else, and a dogfood example that builds for every machine.
+
+### Patch Changes
+
+- Updated dependencies [499c62d]
+- Updated dependencies [499c62d]
+- Updated dependencies [499c62d]
+- Updated dependencies [499c62d]
+- Updated dependencies [7232d3f]
+  - @8bitscript/compiler@0.23.0
+
 ## 0.22.1
 
 ### Patch Changes
