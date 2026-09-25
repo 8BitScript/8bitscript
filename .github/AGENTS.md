@@ -61,8 +61,9 @@ major (`@v5`).
 ## The `release` branch
 
 The `pin-release` job (`scripts/release.mjs --pin-release`)
-fast-forwards `release` to the tagged commit **after** npm has that
-version. It is a different job from publish on purpose: v0.6.2's first
+points `release` at the tagged commit **after** npm has that version
+(fast-forward when it can, force when `release` still names rewritten
+history). It is a different job from publish on purpose: v0.6.2's first
 run 403'd the git push inside the npm job and skipped Marketplace,
 docs, and the GitHub Release; the trunk re-run (34766752093) then
 failed npm because a depth-1 checkout of `trunk` has no tags. Publish
@@ -79,8 +80,10 @@ Two settings have to stay true or the pin 403s as
    `contents: read` plus `id-token: write`.
 2. Branch protection on `release` must **not** "Restrict who can push"
    to a human. `GITHUB_TOKEN` authenticates as `github-actions[bot]`,
-   which cannot be added to that allow list. Linear history and no
-   force-push are the protections that still belong there.
+   which cannot be added to that allow list. Linear history still
+   belongs there. Force-push must stay allowed: after a `trunk` rewrite
+   the pin is not a fast-forward (v0.23.0), and a rejected push is a
+   red Release even though npm already shipped.
 
 `--pin-release` fetches `refs/tags/vX.Y.Z` if the clone does not have
 it. Do not rely on `actions/checkout` to have brought tags along.

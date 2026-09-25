@@ -8,15 +8,16 @@
 // you mean to ship.
 //
 // Once every package is on npm, a separate `pin-release` job
-// (`--pin-release`) fast-forwards `release` to the commit the tag
-// names. That branch answers one question — what is actually
-// downloadable right now — which a tag alone does not: a tag is
-// written when the Version Packages PR merges, and publishing happens
-// in this script, afterwards. v0.6.0 was tagged and never published.
-// v0.6.2 published and then failed the git pin in the same job, which
-// skipped Marketplace, docs, and the GitHub Release. Publishing and
-// pinning are different jobs so a missing tag or a 403 cannot take
-// the other stores down with it.
+// (`--pin-release`) points `release` at the commit the tag names.
+// That branch answers one question — what is actually downloadable
+// right now — which a tag alone does not: a tag is written when the
+// Version Packages PR merges, and publishing happens in this script,
+// afterwards. v0.6.0 was tagged and never published. v0.6.2 published
+// and then failed the git pin in the same job, which skipped
+// Marketplace, docs, and the GitHub Release. Publishing and pinning
+// are different jobs so a missing tag or a 403 cannot take the other
+// stores down with it. A fast-forward is the usual case; `--force`
+// is used when `release` still names a rewritten history (v0.23.0).
 import { cp, readFile, readdir } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -257,31 +258,50 @@ const { stdout: tagged } = await exec('git', ['rev-list', '-n', '1', tag], { cwd
 const sha = tagged.trim();
 process.stdout.write(`Pinning release to ${sha.slice(0, 8)} (${tag})${hadTag ? '' : ', fetched tag'}.\n`);
 
-// No --force: git refuses a push that is not a fast-forward, which is the
-// check we want rather than something to work around. `release` trailing
-// trunk is normal; `release` holding something trunk does not is a problem
-// worth stopping for. A 403 is not that: it is the token or the branch
-// protection refusing the actor, and the message has to say so — v0.6.2
-// printed "diverged" over `Permission denied to github-actions[bot]`.
+// Fast-forward when `release` is an ancestor of the tag. Force when it
+// is not: rewritten trunk (v0.23.0) leaves `release` on orphaned SHAs
+// that git will not fast-forward. The destination is still the tagged
+// commit, never HEAD. A 403 is the token or branch protection refusing
+// the actor — v0.6.2 printed "diverged" over Permission denied.
 try {
   await exec('git', ['push', 'origin', `${sha}:refs/heads/release`], { cwd: ROOT });
   process.stdout.write(`release -> ${sha.slice(0, 8)} (${tag}).\n`);
 } catch (err) {
-  const detail = [err.stderr, err.stdout, err.message].filter(Boolean).join('\n').trim();
+  const detail = [err.stderr, err.stdout, err.message].join('\n');
   const denied = /403|Permission .* denied/i.test(detail);
+  const diverged = /non-fast-forward|rejected/i.test(detail);
   if (denied) {
     process.stderr.write(
       `Pushing \`release\` to ${tag} (${sha.slice(0, 8)}) was denied. ` +
         'The pin-release job needs contents: write, and `release` must not restrict pushes to a human — ' +
         'GITHUB_TOKEN authenticates as github-actions[bot]. npm is unaffected.\n' +
-        `${detail}\n`,
+        `${detail.trim()}\n`,
     );
-  } else {
-    process.stderr.write(
-      `\`release\` could not be fast-forwarded to ${tag}. ` +
-        'It is behind or has diverged — inspect it; npm is unaffected.\n' +
-        `${detail}\n`,
-    );
+    process.exit(1);
   }
-  process.exit(1);
+  if (!diverged) {
+    process.stderr.write(
+      `\`release\` could not be updated to ${tag}. npm is unaffected.\n${detail.trim()}\n`,
+    );
+    process.exit(1);
+  }
+  process.stdout.write(
+    `\`release\` is not a fast-forward of ${tag}; forcing the pin to the tagged commit.\n`,
+  );
+  try {
+    await exec('git', ['push', '--force', 'origin', `${sha}:refs/heads/release`], { cwd: ROOT });
+    process.stdout.write(`release -> ${sha.slice(0, 8)} (${tag}) (forced).\n`);
+  } catch (forceErr) {
+    const forceDetail = [forceErr.stderr, forceErr.stdout, forceErr.message]
+      .filter(Boolean)
+      .join('\n')
+      .trim();
+    process.stderr.write(
+      `Forcing \`release\` to ${tag} (${sha.slice(0, 8)}) failed. ` +
+        'Allow force-pushes on `release` for github-actions[bot], or the pin cannot recover from rewritten history. ' +
+        'npm is unaffected.\n' +
+        `${forceDetail}\n`,
+    );
+    process.exit(1);
+  }
 }
