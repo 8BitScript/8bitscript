@@ -62,7 +62,22 @@ function render() {
   else if ($('mouse').hidden) mouse('idle');
 }
 
+function postMessageOriginAllowed(event) {
+  const origin = event.origin;
+  if (!origin) return true;
+  if (origin === window.location.origin) return true;
+  const frame = $('frame');
+  const frameUrl = frame?.src || frame?.getAttribute?.('src');
+  if (!frameUrl) return false;
+  try {
+    return origin === new URL(frameUrl, window.location.href).origin;
+  } catch {
+    return false;
+  }
+}
+
 window.addEventListener('message', (event) => {
+  if (!postMessageOriginAllowed(event)) return;
   const data = event.data;
   if (!data) return;
   const frame = $('frame');
@@ -84,8 +99,10 @@ window.addEventListener('message', (event) => {
 $('restart').addEventListener('click', () => {
   // A reload of the frame is a cold boot of the machine with the same build.
   const frame = $('frame');
-  if (frame && frame.src) {
-    frame.src = frame.src;
+  const url = frame?.src;
+  if (url) {
+    frame.src = '';
+    frame.src = url;
     mouse('idle');
   }
 });

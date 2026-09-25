@@ -23,6 +23,7 @@ function runWebviewScripts(files, seed) {
     document: dom.document,
     window: dom.window,
     console,
+    URL,
     acquireVsCodeApi: () => ({ postMessage: (message) => posted.push(message) }),
   };
   vm.createContext(sandbox);

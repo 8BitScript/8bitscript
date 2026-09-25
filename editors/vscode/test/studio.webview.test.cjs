@@ -26,7 +26,7 @@ test('the Studio page: state drives the bar, the frame\'s reports drive the mous
   assert.match($('empty').textContent, /being built/);
   assert.equal($('mouse').hidden, true, 'no mouse line before there is a screen');
 
-  sandbox.window.dispatch('message', { data: { type: 'state', phase: 'running', emulator: 'x16emu r49 (WebAssembly)', program: 6186 } });
+  sandbox.window.dispatch('message', { origin: 'https://webview.test', data: { type: 'state', phase: 'running', emulator: 'x16emu r49 (WebAssembly)', program: 6186 } });
   assert.equal($('status').textContent, 'Running · 6186 bytes of program · x16emu r49 (WebAssembly)');
   assert.equal($('restart').disabled, false);
   assert.equal($('empty').hidden, true);
@@ -37,25 +37,26 @@ test('the Studio page: state drives the bar, the frame\'s reports drive the mous
   const frame = $('frame');
   frame.contentWindow = { frame: true };
   frame.src = 'http://127.0.0.1:2222/';
-  sandbox.window.dispatch('message', { source: { other: true }, data: { source: '8bs-x16emu', type: 'pointerlock', locked: true, error: null } });
+  const emuOrigin = { origin: 'http://127.0.0.1:2222' };
+  sandbox.window.dispatch('message', { ...emuOrigin, source: { other: true }, data: { source: '8bs-x16emu', type: 'pointerlock', locked: true, error: null } });
   assert.match($('mouse').textContent, /^Your mouse is free/, 'a stranger\'s message changes nothing');
   // The stock launch is free: the grab key, not a click, gives Studio the mouse.
-  sandbox.window.dispatch('message', { source: frame.contentWindow, data: { source: '8bs-x16emu', type: 'mode', captured: false, grabKey: 'Ctrl+M' } });
+  sandbox.window.dispatch('message', { ...emuOrigin, source: frame.contentWindow, data: { source: '8bs-x16emu', type: 'mode', captured: false, grabKey: 'Ctrl+M' } });
   assert.equal($('mouse').textContent, 'Your mouse is free — Ctrl+M on the screen gives it to Studio for exact tracking; Esc gives it back.');
-  sandbox.window.dispatch('message', { source: frame.contentWindow, data: { source: '8bs-x16emu', type: 'pointerlock', locked: true, error: null } });
+  sandbox.window.dispatch('message', { ...emuOrigin, source: frame.contentWindow, data: { source: '8bs-x16emu', type: 'pointerlock', locked: true, error: null } });
   assert.equal($('mouse').textContent, 'Studio has the mouse — Esc gives it back.');
-  sandbox.window.dispatch('message', { source: frame.contentWindow, data: { source: '8bs-x16emu', type: 'pointerlock', locked: false, error: null } });
+  sandbox.window.dispatch('message', { ...emuOrigin, source: frame.contentWindow, data: { source: '8bs-x16emu', type: 'pointerlock', locked: false, error: null } });
   assert.equal($('mouse').textContent, 'The mouse is yours — Ctrl+M on the screen gives it to Studio for exact tracking.');
   // A captured launch: a click does it.
-  sandbox.window.dispatch('message', { source: frame.contentWindow, data: { source: '8bs-x16emu', type: 'mode', captured: true } });
+  sandbox.window.dispatch('message', { ...emuOrigin, source: frame.contentWindow, data: { source: '8bs-x16emu', type: 'mode', captured: true } });
   assert.equal($('mouse').textContent, 'Your mouse is free — click the screen to give it to Studio; Esc gives it back.');
-  sandbox.window.dispatch('message', { source: frame.contentWindow, data: { source: '8bs-x16emu', type: 'pointerlock', locked: false, error: null } });
+  sandbox.window.dispatch('message', { ...emuOrigin, source: frame.contentWindow, data: { source: '8bs-x16emu', type: 'pointerlock', locked: false, error: null } });
   assert.equal($('mouse').textContent, 'The mouse is yours — click the screen to give it to Studio.');
   assert.equal($('mouse').classList.contains('warn'), false);
-  sandbox.window.dispatch('message', { source: frame.contentWindow, data: { source: '8bs-x16emu', type: 'pointerlock', locked: false, error: 'pointer lock refused' } });
+  sandbox.window.dispatch('message', { ...emuOrigin, source: frame.contentWindow, data: { source: '8bs-x16emu', type: 'pointerlock', locked: false, error: 'pointer lock refused' } });
   assert.match($('mouse').textContent, /allowed to capture the mouse — use Open in browser/);
   assert.equal($('mouse').classList.contains('warn'), true);
-  sandbox.window.dispatch('message', { source: frame.contentWindow, data: { source: '8bs-x16emu', type: 'other' } });
+  sandbox.window.dispatch('message', { ...emuOrigin, source: frame.contentWindow, data: { source: '8bs-x16emu', type: 'other' } });
   sandbox.window.dispatch('message', { data: null });
 
   // Reset reloads the frame in place; the others go to the host.
@@ -73,4 +74,32 @@ test('the Studio page: state drives the bar, the frame\'s reports drive the mous
   assert.equal($('stop').disabled, true);
   assert.equal($('empty').textContent, 'Studio is not running.');
   assert.equal($('mouse').hidden, true);
+});
+
+test('Studio postMessage rejects foreign origins', () => {
+  const { dom, sandbox } = runWebviewScripts([STUDIO_JS]);
+  const $ = (id) => dom.getElementById(id);
+
+  sandbox.window.dispatch('message', { origin: 'https://webview.test', data: { type: 'state', phase: 'running', emulator: 'x16emu', program: 100 } });
+  const runningStatus = $('status').textContent;
+
+  sandbox.window.dispatch('message', { origin: 'https://evil.example', data: { type: 'state', phase: 'stopped', emulator: null, program: null } });
+  assert.equal($('status').textContent, runningStatus, 'host state from a foreign origin is ignored');
+
+  const frame = $('frame');
+  frame.contentWindow = { emu: true };
+  frame.src = 'http://127.0.0.1:2222/';
+  const emuOrigin = { origin: 'http://127.0.0.1:2222' };
+  sandbox.window.dispatch('message', {
+    ...emuOrigin,
+    source: frame.contentWindow,
+    data: { source: '8bs-x16emu', type: 'mode', captured: false, grabKey: 'Ctrl+M' },
+  });
+  const mouseBefore = $('mouse').textContent;
+  sandbox.window.dispatch('message', {
+    origin: 'https://evil.example',
+    source: frame.contentWindow,
+    data: { source: '8bs-x16emu', type: 'mode', captured: true },
+  });
+  assert.equal($('mouse').textContent, mouseBefore, 'emulator mode from a foreign origin is ignored');
 });
