@@ -1,5 +1,22 @@
 # @8bitscript/examples
 
+## 0.23.1
+
+### Patch Changes
+
+- @8bitscript/c64@0.23.1
+  - @8bitscript/input@0.23.1
+  - @8bitscript/pet@0.23.1
+  - @8bitscript/raster@0.23.1
+  - @8bitscript/screen@0.23.1
+  - @8bitscript/sprites@0.23.1
+  - @8bitscript/system@0.23.1
+  - @8bitscript/text@0.23.1
+  - @8bitscript/timeline@0.23.1
+  - @8bitscript/web@0.23.1
+  - @8bitscript/audio@0.23.1
+  - @8bitscript/graphics@0.23.1
+
 ## 0.23.0
 
 ### Minor Changes

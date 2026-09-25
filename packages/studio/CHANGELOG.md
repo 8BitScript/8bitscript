@@ -1,5 +1,16 @@
 # @8bitscript/studio
 
+## 0.23.1
+
+### Patch Changes
+
+- @8bitscript/screen@0.23.1
+  - @8bitscript/sprites@0.23.1
+  - @8bitscript/text@0.23.1
+  - @8bitscript/ui@0.23.1
+  - @8bitscript/audio@0.23.1
+  - @8bitscript/graphics@0.23.1
+
 ## 0.23.0
 
 ### Minor Changes

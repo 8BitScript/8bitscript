@@ -1,5 +1,17 @@
 # @8bitscript/graphics
 
+## 0.23.1
+
+### Patch Changes
+
+- @8bitscript/c64@0.23.1
+  - @8bitscript/cx16@0.23.1
+  - @8bitscript/nes@0.23.1
+  - @8bitscript/pet@0.23.1
+  - @8bitscript/sprites@0.23.1
+  - @8bitscript/system@0.23.1
+  - @8bitscript/vic20@0.23.1
+
 ## 0.23.0
 
 ### Minor Changes

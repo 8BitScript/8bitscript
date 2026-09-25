@@ -1,5 +1,12 @@
 # @8bitscript/compiler
 
+## 0.23.1
+
+### Patch Changes
+
+- Updated dependencies [6a26f13]
+  - @8bitscript/audio-tools@0.23.1
+
 ## 0.23.0
 
 ### Minor Changes
