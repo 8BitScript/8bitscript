@@ -15,6 +15,20 @@ import { link } from '../index.mjs';
 import { loadCatalog, resolveHardware } from '../../cli/src/hardware.mjs';
 
 const ir: IrProgram = { entry: 'main', functions: [{ name: 'main', body: [] }], globals: [] };
+
+/**
+ * What a PET program that returns to BASIC pays to borrow the zero page it
+ * uses and give it back (mos/startup/commodore.ts): a fixed 28 bytes of
+ * code — `SEI` and a copy loop in, the same loop and `CLI` out — plus one
+ * image byte per byte borrowed, for the buffer the bytes are parked in.
+ *
+ * It is a constant here, rather than folded into each number below, so the
+ * figures those tests were originally measured at stay legible: a size
+ * written `45 + petZpCost(2)` is the 45 bytes the milestone-6 run actually
+ * produced, plus what politeness costs on this machine. Every one of them
+ * grew by exactly this and nothing else when the budget moved off $8E.
+ */
+const petZpCost = (borrowed: number): number => 28 + borrowed;
 /** A stub that uses `name`, so empty-callee deletion and unused-param inlining cannot drop the call the fixture exists to measure. */
 function stayAsCall(name: string) {
   return [{
@@ -249,8 +263,8 @@ test('build() for the PET lowers a real for-loop, local, and computed memoryWrit
     const result = await build(sumZeroToNineIr, { machine: 'pet', hardware, outFile, frameRate: 60 });
     assert.equal(result.ok, true, result.ok ? '' : result.error);
     if (!result.ok) return;
-    assert.deepEqual(result.memory, { variables: 2, program: 45 }); // sum + i (locals) — `sum + i` reads i straight at the ADC, `i = i + 1` is an INC, and i's own `= 0` reuses the #0 still in A from sum's, so no temp is ever live; the extra program byte is the one-time CLD this program's own ADC earns it
-    assert.equal(result.bytes.length, 45);
+    assert.deepEqual(result.memory, { variables: 2, program: 45 + petZpCost(2) }); // sum + i (locals) — `sum + i` reads i straight at the ADC, `i = i + 1` is an INC, and i's own `= 0` reuses the #0 still in A from sum's, so no temp is ever live; the extra program byte is the one-time CLD this program's own ADC earns it
+    assert.equal(result.bytes.length, 45 + petZpCost(2));
     assert.deepEqual([...await readFile(outFile)], [...result.bytes]);
   } finally {
     await rm(scratch, { recursive: true, force: true });
@@ -375,8 +389,89 @@ test('build() allocates real PET globals (currentColor/currentReverse-shaped) to
     // test's own fixture existed to catch it) — plus 4 bytes each for
     // main's own read-back assign (LDA zp; STA zp), the reference this
     // fixture now needs to survive pruning at all.
-    assert.equal(result.bytes.length, 29);
-    assert.deepEqual(result.memory, { variables: 2, program: 29 });
+    assert.equal(result.bytes.length, 29 + petZpCost(2));
+    assert.deepEqual(result.memory, { variables: 2, program: 29 + petZpCost(2) });
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+// The PET is the only machine here whose KERNAL keeps its interrupt
+// vectors inside the page a program allocates from — $90/$91 is the IRQ
+// vector, where the C64 and VIC-20 use $0314 — so a PET program that
+// returns to BASIC borrows the zero page it uses and gives it back
+// (PET_ZP_BUDGET and startup/commodore.ts have the why, and the trace of
+// what happened before it did). This pins the shape of that bargain, since
+// getting it wrong is silent at build time and fatal one frame into the
+// run: the program drew its screen and then died on the next retrace.
+test('a PET program that returns to BASIC borrows its zero page under SEI and gives it back before the RTS', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-zp-borrow-'));
+  try {
+    const withGlobals: IrProgram = {
+      entry: 'main',
+      functions: [{
+        name: 'main',
+        body: [
+          { kind: 'assign', target: 'a', value: { kind: 'const', value: 1, type: 'utinyint' } },
+          { kind: 'assign', target: 'b', value: { kind: 'ref', name: 'a', type: 'utinyint' } },
+        ],
+      }],
+      globals: [
+        { name: 'a', type: 'utinyint', address: null },
+        { name: 'b', type: 'utinyint', address: null },
+      ],
+    };
+    const result = await build(withGlobals, { machine: 'pet', hardware, outFile: join(scratch, 'out.prg'), frameRate: 60 });
+    assert.equal(result.ok, true, result.ok ? '' : result.error);
+    if (!result.ok) return;
+    const bytes = [...result.bytes];
+
+    // Interrupts off before the first store into the page, not merely
+    // before main's body: the global initializers are stores too, and the
+    // vector they would land on is read by the very next retrace.
+    const sei = bytes.indexOf(0x78);
+    const firstZpStore = bytes.indexOf(0x85); // STA zeropage
+    assert.notEqual(sei, -1, 'SEI is emitted');
+    assert.ok(sei < firstZpStore, `SEI at ${sei} comes before the first STA zp at ${firstZpStore}`);
+
+    // Both loops count the same number of bytes — the one the size report
+    // calls `variables` — so the bytes put back are exactly the bytes
+    // taken. A restore that copied a different span would leave the
+    // KERNAL half-rewritten, which is the failure this pins.
+    const counts = bytes.reduce<number[]>((found, byte, i) => (byte === 0xe0 ? [...found, bytes[i + 1]] : found), []); // CPX #imm
+    assert.deepEqual(counts, [result.memory.variables, result.memory.variables]);
+
+    // And the page is back before BASIC is: CLI then RTS, in that order,
+    // because the SYS that called this had interrupts enabled.
+    const cli = bytes.indexOf(0x58);
+    assert.notEqual(cli, -1, 'CLI is emitted');
+    assert.equal(bytes[cli + 1], 0x60, 'the byte after CLI is the epilogue RTS');
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+// The other half: a program that takes the machine has no interpreter to
+// hand the page back to, so it pays for neither copy. Its SEI is the one
+// ownMachineProgram already emitted.
+test('a waitFrame() PET program keeps the zero page it took — no restore, no CLI', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-zp-owned-'));
+  try {
+    const owning: IrProgram = {
+      entry: 'main',
+      functions: [{
+        name: 'main',
+        body: [
+          { kind: 'assign', target: 'a', value: { kind: 'const', value: 1, type: 'utinyint' } },
+          { kind: 'waitFrame' },
+        ],
+      }],
+      globals: [{ name: 'a', type: 'utinyint', address: null }],
+    };
+    const result = await build(owning, { machine: 'pet', hardware, outFile: join(scratch, 'out.prg'), frameRate: 60 });
+    assert.equal(result.ok, true, result.ok ? '' : result.error);
+    if (!result.ok) return;
+    assert.equal([...result.bytes].includes(0x58), false, 'no CLI: the program never gives the machine back');
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
@@ -386,24 +481,29 @@ test('build() refuses a PET program whose globals overflow the real zero-page bu
   const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
   try {
     const outFile = join(scratch, 'out.prg');
-    // $8E..$FF is 114 bytes; 115 one-byte globals cannot fit. main
-    // references every one (an unreferenced global is exactly what
-    // linker/reachability.mjs now prunes) — allocation itself runs before
-    // any of main's own body lowers, so the overflow this test means to
-    // check is unaffected either way, but the globals have to survive
-    // pruning to be allocated at all.
+    // $02..$FF is 254 bytes — this fixture's `facts` names no
+    // `memory.chrget`, so no CHRGET hole is carved out of it (the test
+    // below covers the hole on its own) — so 254 one-byte globals fit and
+    // 255 cannot. (It was 114 while the budget started at $8E, a window
+    // that turned out to be the KERNAL's, vectors included;
+    // PET_ZP_BUDGET's own comment has the measurement.) main references
+    // every one (an unreferenced global is
+    // exactly what linker/reachability.mjs now prunes) — allocation itself
+    // runs before any of main's own body lowers, so the overflow this test
+    // means to check is unaffected either way, but the globals have to
+    // survive pruning to be allocated at all.
     const tooManyGlobals: IrProgram = {
       entry: 'main',
       functions: [{
         name: 'main',
-        body: Array.from({ length: 115 }, (_, i) => ({ kind: 'assign', target: `g${i}`, value: { kind: 'const', value: 0, type: 'utinyint' } })),
+        body: Array.from({ length: 255 }, (_, i) => ({ kind: 'assign', target: `g${i}`, value: { kind: 'const', value: 0, type: 'utinyint' } })),
       }],
-      globals: Array.from({ length: 115 }, (_, i) => ({ name: `g${i}`, type: 'utinyint', address: null })),
+      globals: Array.from({ length: 255 }, (_, i) => ({ name: `g${i}`, type: 'utinyint', address: null })),
     };
     const result = await build(tooManyGlobals, { machine: 'pet', hardware, outFile, frameRate: 60 });
     assert.equal(result.ok, false);
     if (result.ok) return;
-    assert.match(result.error, /^global 'g114' needs 1 byte\(s\) of zero page but only 0 byte\(s\) remain/);
+    assert.match(result.error, /^global 'g254' needs 1 byte\(s\) of zero page but only 0 byte\(s\) remain/);
     assert.equal(existsSync(outFile), false);
   } finally {
     await rm(scratch, { recursive: true, force: true });
@@ -535,12 +635,12 @@ test('a function called from two sites gets one body, not two — byte count pro
     // and main's own 1-byte epilogue RTS = 38. A backend that duplicated
     // identity's body per call site would cost 3 more bytes (a second
     // body) — this pins the smaller, correct number.
-    assert.equal(result.bytes.length, 38);
+    assert.equal(result.bytes.length, 38 + petZpCost(1));
     // Just 1 zp byte: identity's own parameter x. A call site stores its
     // argument straight into that fixed address (no temp of its own —
     // callSite() never touches the caller's LocalAllocator), and neither
     // main's body nor identity's own ever declares a local.
-    assert.deepEqual(result.memory, { variables: 1, program: 38 });
+    assert.deepEqual(result.memory, { variables: 1, program: 38 + petZpCost(1) });
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
@@ -662,13 +762,13 @@ test('a 16-bit parameter gets its own 2-byte zp slot (milestone 8) — a call si
     const result = await build(wideParamIr, { machine: 'pet', hardware, outFile, frameRate: 60 });
     assert.equal(result.ok, true, result.ok ? '' : result.error);
     if (!result.ok) return;
-    assert.equal(result.bytes.length, 32);
+    assert.equal(result.bytes.length, 32 + petZpCost(2));
     // 2 zp bytes: place's own 2-byte `cell` parameter, and nothing of
     // main's — a constant 16-bit argument stores its two immediate bytes
     // straight into the callee's param pair (store16Into, 0.2.3), no temp
     // pair in the caller's frame at all. The callee is a one-store stub
     // (so empty-callee deletion cannot drop the call).
-    assert.deepEqual(result.memory, { variables: 2, program: 32 });
+    assert.deepEqual(result.memory, { variables: 2, program: 32 + petZpCost(2) });
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
@@ -755,8 +855,10 @@ test('a 16-bit parameter that only has one byte of zero page left is refused, na
   const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
   try {
     const outFile = join(scratch, 'out.prg');
-    // 113 one-byte globals leave exactly 1 byte of the 114-byte budget —
-    // not enough for a usmallint parameter's own 2. main has to actually
+    // 253 one-byte globals leave exactly 1 byte of the 254-byte budget —
+    // not enough for a usmallint parameter's own 2. (113 of them did it
+    // while the budget was the 114 bytes from $8E up, which turned out to
+    // be the KERNAL's; PET_ZP_BUDGET's own comment has the measurement.) main has to actually
     // reference every one of them (an unreferenced global is exactly what
     // linker/reachability.mjs now prunes) and actually call place(), or
     // build() would just drop all the filler this test exists to fill zp
@@ -769,7 +871,7 @@ test('a 16-bit parameter that only has one byte of zero page left is refused, na
           params: [],
           returnType: 'void',
           body: [
-            ...Array.from({ length: 113 }, (_, i) => ({ kind: 'assign', target: `g${i}`, value: { kind: 'const', value: 0, type: 'utinyint' } })),
+            ...Array.from({ length: 253 }, (_, i) => ({ kind: 'assign', target: `g${i}`, value: { kind: 'const', value: 0, type: 'utinyint' } })),
             // Two sites, so place() stays a function with a parameter slot
             // to allocate: one site and rule 9 writes the body into main.
             { kind: 'call', name: 'place', args: [{ kind: 'const', value: 0, type: 'usmallint' }] },
@@ -778,7 +880,7 @@ test('a 16-bit parameter that only has one byte of zero page left is refused, na
         },
         { name: 'place', params: [{ name: 'cell', type: 'usmallint' }], returnType: 'void', body: stayAsCall('cell') },
       ],
-      globals: Array.from({ length: 113 }, (_, i) => ({ name: `g${i}`, type: 'utinyint', address: null })),
+      globals: Array.from({ length: 253 }, (_, i) => ({ name: `g${i}`, type: 'utinyint', address: null })),
     };
     const result = await build(almostFullIr, { machine: 'pet', hardware, outFile, frameRate: 60 });
     assert.equal(result.ok, false);
@@ -826,7 +928,7 @@ function putCharIfChain() {
   };
 }
 
-test('milestone 7 gate: HELLO WORLD through a real putChar(cell, code), called eleven times from main — 256 bytes (302 before the 0.2.3 direct-CMP comparisons), matching the real xpet screenshot', async () => {
+test('milestone 7 gate: HELLO WORLD through a real putChar(cell, code), called eleven times from main — 256 bytes of program (302 before the 0.2.3 direct-CMP comparisons) plus the PET zero-page borrow, matching the real xpet screenshot', async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
   try {
     const outFile = join(scratch, 'out.prg');
@@ -848,11 +950,11 @@ test('milestone 7 gate: HELLO WORLD through a real putChar(cell, code), called e
     const result = await build(helloThroughPutCharIr, { machine: 'pet', hardware, outFile, frameRate: 60 });
     assert.equal(result.ok, true, result.ok ? '' : result.error);
     if (!result.ok) return;
-    assert.equal(result.bytes.length, 256);
+    assert.equal(result.bytes.length, 256 + petZpCost(2));
     // putChar's own cell + code (2) and nothing else — its `cell == N`
     // comparisons CMP the constant directly (0.2.3), no temp — and main
     // declares no locals of its own.
-    assert.deepEqual(result.memory, { variables: 2, program: 256 });
+    assert.deepEqual(result.memory, { variables: 2, program: 256 + petZpCost(2) });
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
@@ -913,35 +1015,57 @@ test('milestone 8 acceptance: place(cell: usmallint, code: utinyint) — a real 
         0x01, 0x04, // load address $0401, little-endian
         0x0b, 0x04, 0x00, 0x00, 0x9e, 0x31, 0x30, 0x33, 0x37, 0x00, 0x00, 0x00, // the 12-byte BASIC stub: 0 SYS1037
         0xd8, // CLD — the combined program uses ADC, and decimalMode:true means the D flag isn't assumed clear on SYS entry
+        // Then the borrow: this program returns to BASIC, so the five
+        // bytes of zero page it is about to use are copied into its own
+        // image first and put back before the RTS, with interrupts off in
+        // between (startup/commodore.ts, and PET_ZP_BUDGET's comment for
+        // why the PET alone needs it — its IRQ vector is in this page).
+        0x78, // SEI
+        0xa2, 0x00, // LDX #$00
+        0xbd, 0x02, 0x00, // LDA $0002,X — from the budget's own origin
+        0x9d, 0x4e, 0x04, // STA $044E,X — the buffer, appended past the code below
+        0xe8, // INX
+        0xe0, 0x05, // CPX #$05 — five bytes, the same number `memory.variables` reports
+        0xd0, 0xf5, // BNE
         // The frame layout (mos/zp/frames.ts): main's frame is EMPTY —
         // a constant argument stores its immediate bytes straight into the
         // callee's param pair (store16Into, 0.2.3), no caller-side temp —
-        // so place's frame starts at $8E: cell $8E/$8F, code $90, then
-        // its own temporaries.
+        // so place's frame starts at the budget's origin, $02: cell
+        // $02/$03, code $04, then its own temporaries.
         // main: 999 ($03E7) straight into place's cell...
-        0xa9, 0xe7, 0x85, 0x8e, // LDA #$E7 · STA $8E (cell lo)
-        0xa9, 0x03, 0x85, 0x8f, // LDA #$03 · STA $8F (cell hi)
-        // ...and code=8 into place's own param $90...
-        0xa9, 0x08, 0x85, 0x90, // LDA #$08 · STA $90 (code)
-        0x20, 0x1e, 0x04, // JSR $041E (place)
+        0xa9, 0xe7, 0x85, 0x02, // LDA #$E7 · STA $02 (cell lo)
+        0xa9, 0x03, 0x85, 0x03, // LDA #$03 · STA $03 (cell hi)
+        // ...and code=8 into place's own param $04...
+        0xa9, 0x08, 0x85, 0x04, // LDA #$08 · STA $04 (code)
+        0x20, 0x3a, 0x04, // JSR $043A (place)
+        // ...and the same five bytes back where BASIC left them.
+        0xa2, 0x00, // LDX #$00
+        0xbd, 0x4e, 0x04, // LDA $044E,X
+        0x9d, 0x02, 0x00, // STA $0002,X
+        0xe8, // INX
+        0xe0, 0x05, // CPX #$05
+        0xd0, 0xf5, // BNE
+        0x58, // CLI
         0x60, // RTS — main's own epilogue, back to BASIC
         // place: $8000 + cell — the constant left side is two immediate
         // ADC operands (binop16's const shortcut, 0.2.3): no pair for the
-        // literal at all, only the sum's own pair $91/$92.
+        // literal at all, only the sum's own pair $05/$06.
         0x18, // CLC
-        0xa5, 0x8e, 0x69, 0x00, 0x85, 0x91, // LDA $8E (cell lo) · ADC #$00 · STA $91 (pointer lo)
-        0xa5, 0x8f, 0x69, 0x80, 0x85, 0x92, // LDA $8F (cell hi) · ADC #$80 · STA $92 (pointer hi)
+        0xa5, 0x02, 0x69, 0x00, 0x85, 0x05, // LDA $02 (cell lo) · ADC #$00 · STA $05 (pointer lo)
+        0xa5, 0x03, 0x69, 0x80, 0x85, 0x06, // LDA $03 (cell hi) · ADC #$80 · STA $06 (pointer hi)
         // ...then the store itself, through the pointer, Y forced to 0.
-        0xa5, 0x90, // LDA $90 (code)
+        0xa5, 0x04, // LDA $04 (code)
         0xa0, 0x00, // LDY #$00
-        0x91, 0x91, // STA ($91),Y
+        0x91, 0x05, // STA ($05),Y
         0x60, // RTS — place's own return
+        // The borrow's buffer: five bytes of image, one per byte borrowed.
+        0x00, 0x00, 0x00, 0x00, 0x00,
       ],
     );
-    assert.equal(result.bytes.length, 51);
+    assert.equal(result.bytes.length, 51 + petZpCost(5));
     // 5 zp bytes: place's frame alone (cell 2 + code 1 + the sum pair 2)
     // — main's frame is empty, so the two overlay trivially.
-    assert.deepEqual(result.memory, { variables: 5, program: 51 });
+    assert.deepEqual(result.memory, { variables: 5, program: 51 + petZpCost(5) });
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
@@ -983,7 +1107,7 @@ test('a call widens an 8-bit literal argument into a 16-bit parameter — place(
     // constant 0 lands as one LDA #0 serving both STAs of the param pair
     // (store16Into skips reloading an immediate its two bytes share),
     // where 999's two distinct bytes each need their own LDA.
-    assert.deepEqual(result.memory, { variables: 5, program: 49 });
+    assert.deepEqual(result.memory, { variables: 5, program: 49 + petZpCost(5) });
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
@@ -1225,10 +1349,13 @@ test('milestone 10: a program with no waitFrame() call anywhere pays nothing for
 test('a waitFrame() program owns the machine and gets the whole $02-$FF budget — 113 globals plus pacing state fit with room to spare (0.2.2)', async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-6502-native-'));
   try {
-    // Under the polite $8E-$FF budget these 113 one-byte globals left a
-    // single byte — the old shape of this test. A waitFrame() program's
-    // widened budget (PET_OWNED_ZP_BUDGET) holds them all AND the 8-byte
-    // pacing state, which is exactly what let a real program (2048) build.
+    // These 113 one-byte globals plus the 8-byte pacing state are what a
+    // real program (2048) needs, and a waitFrame() program's budget holds
+    // them. Both PET budgets are $02-$FF now — the polite one borrows the
+    // page and gives it back, this one keeps it — so what this pins is
+    // that taking the machine still allocates, not that it is the wider
+    // of the two; it was the wider one when the polite budget was the
+    // 114 bytes from $8E up.
     const globals = Array.from({ length: 113 }, (_, i) => ({ name: `g${i}`, type: 'utinyint', address: null }));
     const body = [
       ...Array.from({ length: 113 }, (_, i) => ({ kind: 'assign', target: `g${i}`, value: { kind: 'const', value: 0, type: 'utinyint' } })),
@@ -1483,15 +1610,21 @@ export function main(): void {
   }
 });
 
-test('the BASIC 1 CHRGET hole ($C2-$D9) is still really skipped, once a program actually reaches that far', async () => {
+test('each ROM\'s own CHRGET hole is really skipped, once a program allocates far enough to reach it', async () => {
   // Every filler global is read by main, so linker/reachability.mjs's own
   // pruning leaves all of them in place — see the same note on the
-  // zero-page-overflow fixtures above. 60 one-byte globals reach from $8E
-  // to $C9, past the hole's own start at $C2.
-  const globals = Array.from({ length: 60 }, (_, i) => ({ name: `g${i}`, type: 'utinyint', address: null }));
-  const body = Array.from({ length: 60 }, (_, i) => ({ kind: 'assign', target: `g${i}`, value: { kind: 'const', value: 0, type: 'utinyint' } }));
-  const ir: IrProgram = { entry: 'main', functions: [{ name: 'main', body }], globals };
-  const zpBytes = async (profile: string | undefined) => {
+  // zero-page-overflow fixtures above.
+  //
+  // Both holes are live now. While the budget started at $8E, BASIC 2/4's
+  // CHRGET at $70-$87 sat below it and only BASIC 1's copy at $C2-$D9 was
+  // ever in the way; from $02 the allocator walks through both, and it
+  // meets BASIC 2/4's first. So the two ROMs are told apart by a program
+  // sized to fall between the holes rather than past them: 150 globals
+  // from $02 run through $70 on a 3032 and stop short of $C2 on a 2001.
+  const zpBytes = async (profile: string, count: number) => {
+    const globals = Array.from({ length: count }, (_, i) => ({ name: `g${i}`, type: 'utinyint', address: null }));
+    const body = Array.from({ length: count }, (_, i) => ({ kind: 'assign', target: `g${i}`, value: { kind: 'const', value: 0, type: 'utinyint' } }));
+    const ir: IrProgram = { entry: 'main', functions: [{ name: 'main', body }], globals };
     const resolved = resolveHardware(loadCatalog('pet'), { profile });
     assert.ok(resolved.ok, resolved.ok ? '' : resolved.error);
     const scratch = await mkdtemp(join(tmpdir(), '8bs-chrget-hole-'));
@@ -1503,10 +1636,9 @@ test('the BASIC 1 CHRGET hole ($C2-$D9) is still really skipped, once a program 
       await rm(scratch, { recursive: true, force: true });
     }
   };
-  const on3032 = await zpBytes('3032');
-  const on2001 = await zpBytes('2001');
-  assert.equal(on3032, 60, 'BASIC 2 has no hole in this range — all 60 globals land back to back');
-  assert.equal(on2001, on3032 + 24, 'BASIC 1\'s own CHRGET hole forces the 24-byte skip once allocation reaches $C2');
+  assert.equal(await zpBytes('2001', 150), 150, 'BASIC 1 keeps CHRGET at $C2, which 150 globals from $02 never reach — they land back to back');
+  assert.equal(await zpBytes('3032', 150), 174, 'BASIC 2/4\'s own CHRGET at $70-$87 is in the way of the same 150, and costs exactly its 24 bytes');
+  assert.equal(await zpBytes('2001', 200), 224, 'and BASIC 1\'s hole costs its own 24 once a program does reach $C2');
 });
 
 type IrExprFixture = IrProgram['functions'][number]['body'][number]['value'];

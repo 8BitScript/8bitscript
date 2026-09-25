@@ -57,3 +57,88 @@ export function prologue(needsCld: boolean): Directive[] {
 export function epilogue(): Directive[] {
   return [{ kind: 'instruction', mnemonic: 'RTS', mode: 'implied' }];
 }
+
+// ---- borrowing the PET's zero page ---------------------------------------
+//
+// The PET keeps its KERNAL vectors in page zero, which no other machine this
+// backend targets does: `$90/$91` is the IRQ vector, `$92/$93` BRK, `$94/$95`
+// NMI (the C64 and VIC-20 put the same three at `$0314-$0319`, a page out of
+// harm's way). So on the PET there is no window above BASIC a program can
+// quietly take: measured under xpet with a monitor trace over `$8E-$FF` while
+// the machine merely sat at `READY.`, the KERNAL reads `$8E $8F $90 $91 $97
+// $99 $9A $9E $A6-$A8 $AA $C4-$C6` and writes `$8E $8F $98-$9B $A6-$AA $F9
+// $FA` — the top of that page is live, not spare, and `$90/$91` is read by
+// every single retrace interrupt.
+//
+// That is what these two routines exist for. A PET program that returns to
+// BASIC switches interrupts off, copies the zero page it is about to use into
+// a buffer in its own image, and copies it back on the way out — so it may
+// take the whole page while it runs, and hand back the one BASIC left. It is
+// what a returning PET machine-language program has always had to do, and it
+// is cheaper than it looks: two bytes of image per byte borrowed, and about
+// twenty cycles each way.
+//
+// Interrupts stay off for the whole run rather than just the two copies,
+// because between them the vectors are the program's variables — a retrace
+// interrupt landing there is a `JMP` through whatever the program last stored
+// (measured: the greeting's own screen-code table, and then a slide through
+// RAM). Nothing on this machine's path needs them on: @8bitscript/pet's text
+// and screen write `$8000` directly, its keyboard scans the matrix itself and
+// documents needing the KERNAL IRQ quiet anyway, and its audio drives the VIA.
+// The jiffy clock loses the time the program takes, which is the one visible
+// cost and is why this is not done on machines that do not need it.
+//
+// `SEI` does not mask NMI and `$94/$95` is borrowed along with the rest — no
+// mitigation, because the PET has no NMI source to speak of: there is no
+// RESTORE key on its keyboard and nothing on the board pulls the line.
+const ZP_SAVE_LABEL = '__8bs_zp_save';
+
+function copyLoop(tag: string, from: Directive, to: Directive, bytes: number): Directive[] {
+  return [
+    { kind: 'instruction', mnemonic: 'LDX', mode: 'immediate', operand: { kind: 'value', value: 0 } },
+    { kind: 'label', name: tag },
+    from,
+    to,
+    { kind: 'instruction', mnemonic: 'INX', mode: 'implied' },
+    { kind: 'instruction', mnemonic: 'CPX', mode: 'immediate', operand: { kind: 'value', value: bytes } },
+    { kind: 'instruction', mnemonic: 'BNE', mode: 'relative', operand: { kind: 'label', name: tag } },
+  ];
+}
+
+/**
+ * Interrupts off, then `bytes` of zero page from `origin` into the image's own
+ * buffer — emitted after the RAM clear and before the first global
+ * initializer, which is the first thing that would overwrite any of it.
+ */
+export function borrowZeroPage(origin: number, bytes: number): Directive[] {
+  if (bytes <= 0) return [];
+  return [
+    { kind: 'instruction', mnemonic: 'SEI', mode: 'implied' },
+    ...copyLoop(
+      '__8bs_zp_borrow',
+      { kind: 'instruction', mnemonic: 'LDA', mode: 'absolute,x', operand: { kind: 'value', value: origin } },
+      { kind: 'instruction', mnemonic: 'STA', mode: 'absolute,x', operand: { kind: 'label', name: ZP_SAVE_LABEL } },
+      bytes,
+    ),
+  ];
+}
+
+/** The same bytes back where BASIC left them, and interrupts on again, immediately before the epilogue's RTS. */
+export function returnZeroPage(origin: number, bytes: number): Directive[] {
+  if (bytes <= 0) return [];
+  return [
+    ...copyLoop(
+      '__8bs_zp_return',
+      { kind: 'instruction', mnemonic: 'LDA', mode: 'absolute,x', operand: { kind: 'label', name: ZP_SAVE_LABEL } },
+      { kind: 'instruction', mnemonic: 'STA', mode: 'absolute,x', operand: { kind: 'value', value: origin } },
+      bytes,
+    ),
+    { kind: 'instruction', mnemonic: 'CLI', mode: 'implied' },
+  ];
+}
+
+/** The buffer itself, appended to the image beside the other data. */
+export function zeroPageSaveData(bytes: number): Directive[] {
+  if (bytes <= 0) return [];
+  return [{ kind: 'label', name: ZP_SAVE_LABEL }, { kind: 'byte', values: new Array(bytes).fill(0) }];
+}
