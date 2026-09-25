@@ -1,6 +1,6 @@
 {
   "name": "@8bitscript/cpc",
-  "version": "0.23.0",
+  "version": "0.23.1",
   "description": "Amstrad CPC target support for 8BitScript: the hardware underneath the portable APIs.",
   "license": "MIT",
   "repository": {

@@ -1,6 +1,6 @@
 {
   "name": "@8bitscript/graphics-tools",
-  "version": "0.23.0",
+  "version": "0.23.1",
   "description": "Host-side PNG decode, frame slicing, and nearest-color quantize for 8BitGraphics. The compiler calls this; the target image never contains it.",
   "license": "MIT",
   "repository": {

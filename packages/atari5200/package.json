@@ -1,6 +1,6 @@
 {
   "name": "@8bitscript/atari5200",
-  "version": "0.23.0",
+  "version": "0.23.1",
   "description": "Atari 5200 target support for 8BitScript: the hardware underneath the portable APIs.",
   "license": "MIT",
   "repository": {

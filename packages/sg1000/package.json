@@ -1,6 +1,6 @@
 {
   "name": "@8bitscript/sg1000",
-  "version": "0.23.0",
+  "version": "0.23.1",
   "description": "Sega SG-1000 target support for 8BitScript: the hardware underneath the portable APIs.",
   "license": "MIT",
   "repository": {
