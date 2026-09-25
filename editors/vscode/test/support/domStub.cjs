@@ -135,6 +135,8 @@ function createDomStub() {
 
   const window = {
     document,
+    location: { origin: 'https://webview.test', href: 'https://webview.test/' },
+    URL,
     addEventListener(type, handler) {
       if (!windowListeners.has(type)) windowListeners.set(type, []);
       windowListeners.get(type).push(handler);

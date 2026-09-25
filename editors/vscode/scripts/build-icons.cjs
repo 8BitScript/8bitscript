@@ -124,7 +124,7 @@ function build(root) {
 
 module.exports = { build, plan, PILLARS, THEMED, SHARED, BY_EXTENSION, BY_FILENAME, THEME };
 
-if (require.main === module) {
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(__filename)) {
   const { files } = build(path.join(__dirname, '..'));
   console.log(`icons: ${files.length} written`);
 }

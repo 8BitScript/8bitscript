@@ -95,12 +95,12 @@ function parseOperand(text) {
   if (!text) return { mode: 'implied' };
   if (text === 'A') return { mode: 'accumulator' };
   let m;
-  if ((m = /^#\$([0-9A-F]{2})$/.exec(text))) return { mode: 'immediate', value: parseInt(m[1], 16) };
-  if ((m = /^\$([0-9A-F]{2}|[0-9A-F]{4})$/.exec(text))) return { mode: 'direct', value: parseInt(m[1], 16), digits: m[1].length };
-  if ((m = /^\$([0-9A-F]{2}|[0-9A-F]{4}),([XY])$/.exec(text))) return { mode: 'indexed', value: parseInt(m[1], 16), digits: m[1].length, register: m[2] };
-  if ((m = /^\(\$([0-9A-F]{4})\)$/.exec(text))) return { mode: 'indirect', value: parseInt(m[1], 16), digits: 4 };
-  if ((m = /^\(\$([0-9A-F]{2}),X\)$/.exec(text))) return { mode: '(indirect,x)', value: parseInt(m[1], 16), digits: 2 };
-  if ((m = /^\(\$([0-9A-F]{2})\),Y$/.exec(text))) return { mode: '(indirect),y', value: parseInt(m[1], 16), digits: 2 };
+  if ((m = /^#\$([0-9A-F]{2})$/.exec(text))) return { mode: 'immediate', value: Number.parseInt(m[1], 16) };
+  if ((m = /^\$([0-9A-F]{2}|[0-9A-F]{4})$/.exec(text))) return { mode: 'direct', value: Number.parseInt(m[1], 16), digits: m[1].length };
+  if ((m = /^\$([0-9A-F]{2}|[0-9A-F]{4}),([XY])$/.exec(text))) return { mode: 'indexed', value: Number.parseInt(m[1], 16), digits: m[1].length, register: m[2] };
+  if ((m = /^\(\$([0-9A-F]{4})\)$/.exec(text))) return { mode: 'indirect', value: Number.parseInt(m[1], 16), digits: 4 };
+  if ((m = /^\(\$([0-9A-F]{2}),X\)$/.exec(text))) return { mode: '(indirect,x)', value: Number.parseInt(m[1], 16), digits: 2 };
+  if ((m = /^\(\$([0-9A-F]{2})\),Y$/.exec(text))) return { mode: '(indirect),y', value: Number.parseInt(m[1], 16), digits: 2 };
   return null;
 }
 
@@ -213,9 +213,10 @@ function describe(instr, index) {
     const count = text.slice(5).split(',').filter((s) => s.trim()).length;
     return `data: ${count} byte${count === 1 ? '' : 's'}`;
   }
-  const m = /^([A-Z]{3})(?:\s+(.*))?$/.exec(text);
-  if (!m) return '';
-  const [, mnemonic, operandText] = m;
+  const space = text.indexOf(' ');
+  const mnemonic = space < 0 ? text : text.slice(0, space);
+  if (!/^[A-Z]{3}$/.test(mnemonic)) return '';
+  const operandText = space < 0 ? undefined : text.slice(space + 1);
   const op = parseOperand(operandText?.trim());
   if (!op) return '';
 
