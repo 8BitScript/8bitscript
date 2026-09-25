@@ -322,7 +322,7 @@ async function cx16Screenshot(outFile, screenshotPath, { frames, hardware = stoc
       ...loadArgs(hardware, 'x16emu', outFile, ['-prg', outFile, '-run']),
       '-gif', gifPath, '-sound', 'none',
     ];
-    const child = spawn('x16emu', args, { stdio: 'ignore' });
+    const child = spawn(resolveBinary('x16emu'), args, { stdio: 'ignore' });
     await sleep(1000 * ((frames ?? emulatorFor('cx16').defaultFrames) / CX16_FPS));
     await terminateAndWait(child);
     const { code, stderr } = await run('ffmpeg', ['-y', '-sseof', '-0.1', '-i', gifPath, '-update', '1', '-frames:v', '1', screenshotPath]);
@@ -353,7 +353,7 @@ async function mega65Screenshot(outFile, screenshotPath, { pal, frames, hardware
     ...loadArgs(hardware, 'xmega65', outFile, ['-prg', outFile]),
     '-videostd', pal ? '0' : '1',
   ];
-  const child = spawn('xmega65', args, { stdio: 'ignore' });
+  const child = spawn(resolveBinary('xmega65'), args, { stdio: 'ignore' });
   await sleep(1000 * ((frames ?? emulatorFor('mega65').defaultFrames) / MEGA65_FPS));
   await terminateAndWait(child, { graceMs: 3000 });
   if (!(await fileExists(screenshotPath))) {

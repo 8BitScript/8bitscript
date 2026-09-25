@@ -2,6 +2,18 @@
 // The compiler never shells out itself: this package is what does.
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { delimiter, join } from 'node:path';
+
+/** Absolute ffmpeg, so spawn never walks a writable PATH. */
+function resolveFfmpeg() {
+  const name = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
+  for (const dir of (process.env.PATH ?? '').split(delimiter)) {
+    if (!dir) continue;
+    const candidate = join(dir, name);
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
+}
 
 function readU16(buf, o) { return buf[o] | (buf[o + 1] << 8); }
 function readU32(buf, o) { return (buf[o] | (buf[o + 1] << 8) | (buf[o + 2] << 16) | (buf[o + 3] << 24)) >>> 0; }
@@ -70,7 +82,9 @@ export function decodeWav(bytes) {
 }
 
 export function ffmpegAvailable() {
-  const result = spawnSync('ffmpeg', ['-version'], { encoding: 'utf8' });
+  const bin = resolveFfmpeg();
+  if (!bin) return false;
+  const result = spawnSync(bin, ['-version'], { encoding: 'utf8' });
   return result.status === 0;
 }
 
@@ -89,7 +103,7 @@ export function decodeFlac(path) {
     error.code = 'FLAC_NEEDS_FFMPEG';
     throw error;
   }
-  const result = spawnSync('ffmpeg', [
+  const result = spawnSync(resolveFfmpeg(), [
     '-nostdin', '-v', 'error', '-i', path,
     '-f', 'f32le', '-ac', '1', '-ar', '48000', 'pipe:1',
   ], { encoding: 'buffer', maxBuffer: 32 * 1024 * 1024 });
