@@ -1,6 +1,6 @@
 {
   "name": "@8bitscript/apple2",
-  "version": "0.23.1",
+  "version": "0.23.2",
   "description": "Apple II target support for 8BitScript: the hardware underneath the portable APIs.",
   "license": "MIT",
   "repository": {

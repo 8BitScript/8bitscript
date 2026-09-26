@@ -1,5 +1,24 @@
 # @8bitscript/compiler
 
+## 0.23.2
+
+### Patch Changes
+
+- 4376f27: Fix PET programs crashing on the first interrupt after they start.
+  
+  The PET's zero-page budget began at `$8E`, on the reasoning that BASIC owns `$0002-$008D` and everything above it is free. It is not: the KERNAL owns the top of that page, and unlike the C64 and VIC-20 — which keep theirs at `$0314-$0319` — the PET keeps its interrupt vectors in it, `$90/$91` IRQ, `$92/$93` BRK, `$94/$95` NMI.
+  
+  So a program with three bytes of globals overwrote the IRQ vector, and the next vertical retrace — within a frame of its first store — jumped through whatever it had put there. Every PET program carrying a graphics or sprite component died this way, `hello-world` and `hello-bx` included; how much of the screen it had drawn first depended only on where in the frame the interrupt landed, which is why it looked like a black screen one run and a half-drawn one the next.
+  
+  A PET program that returns to BASIC now borrows the zero page it uses and gives it back: interrupts off, the bytes it will touch copied into its own image, copied back before the `rts`. That makes the whole page available to it — and the page it hands back the one BASIC left. It costs 28 bytes of code plus one image byte per byte borrowed, and a program with no variables at all pays nothing. A `waitFrame()` program is unchanged: it has already taken the machine and keeps the page.
+- 697766e: Fix VIC-20 programs handing BASIC back a zero page they had overwritten.
+  
+  Owning the machine is two decisions — how much memory a program may take, and whether it hands the machine back — and on the VIC-20 they disagreed. Calling `screen.blank()` widened the budget from the polite `$F7-$FE` to the whole page and dropped the CHRGET hole with it, but nothing changed the exit shape: the program still returned to a live interpreter whose zero page it had just written over. Measured under xvic, one reaching about 120 bytes came back to a BASIC that could no longer parse a line — an endless `?error in 263` / `?formula too complex`, the allocation having walked into CHRGET at `$73-$8A` and the text pointer at `$7A/$7B`. This machine's sheet names no `memory.chrget`, so the hole that saves the PET from the same walk was never carved here either.
+  
+  The C64 never had the problem because both of its halves agree: it takes the whole page *and* halts. The PET's returning shape agrees too, since it borrows the page and gives it back. The VIC-20 now takes that same bargain — the whole page under `sei`, copied back before the `rts` — so a program gets everything while it runs and BASIC gets everything back. Measured after a 130-byte program returns, CHRGET's own code is byte-identical to a machine that never ran one.
+  
+  The `screen.blank()` escalation is gone with it, and `usesScreenBlank` with that: a program's memory model no longer changes because someone added a call.
+
 ## 0.23.1
 
 ### Patch Changes
