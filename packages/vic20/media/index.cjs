@@ -1,5 +1,13 @@
-// VIC-20 media lowering. PNG → four RAM glyphs in a 2×2 grid; song → the
-// three squares plus noise at $900A–$900D with one shared volume at $900E.
+// VIC-20 media lowering. PNG → a 2×2 cell object, still packed here as four
+// 8×8 tiles; song → the three squares plus noise at $900A–$900D with one
+// shared volume at $900E.
+//
+// The tiles were once written into a RAM character set and displayed from
+// there. They are not any more: that charset had nowhere to live that was
+// not inside the program (packages/vic20/AGENTS.md's own reservation rule,
+// and @8bitscript/graphics' index.vic20.8bs for what it cost), so the
+// runtime reduces each tile to the ROM quadrant block that describes it.
+// The packing below is unchanged — it is what the runtime reduces from.
 'use strict';
 
 const KIND_VIC20 = 4;
@@ -53,7 +61,7 @@ function lowerGraphics(sprite, frames, _facts, file, diagnostic) {
   if (ink < 4) {
     diagnostics.push(diagnostic(
       '8BS2111',
-      `sprite '${sprite.name}' cannot survive as four RAM glyphs; using a software glyph`,
+      `sprite '${sprite.name}' has too little ink to survive as a 2×2 block object; using a software glyph`,
       file, sprite.start, sprite.length, 'warning',
     ));
     return {
@@ -62,7 +70,7 @@ function lowerGraphics(sprite, frames, _facts, file, diagnostic) {
   }
   diagnostics.push(diagnostic(
     '8BS2111',
-    `sprite '${sprite.name}' is four redefined RAM glyphs (2×2) on the VIC-20`,
+    `sprite '${sprite.name}' is a 2×2 quadrant-block object on the VIC-20`,
     file, sprite.start, sprite.length, 'warning',
   ));
   const tiles = [];
