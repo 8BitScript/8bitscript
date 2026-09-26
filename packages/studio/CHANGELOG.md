@@ -1,5 +1,17 @@
 # @8bitscript/studio
 
+## 0.23.2
+
+### Patch Changes
+
+- Updated dependencies [5a21549]
+  - @8bitscript/graphics@0.23.2
+  - @8bitscript/audio@0.23.2
+  - @8bitscript/screen@0.23.2
+  - @8bitscript/text@0.23.2
+  - @8bitscript/sprites@0.23.2
+  - @8bitscript/ui@0.23.2
+
 ## 0.23.1
 
 ### Patch Changes

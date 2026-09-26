@@ -1,6 +1,6 @@
 {
   "name": "@8bitscript/audio-tools",
-  "version": "0.23.1",
+  "version": "0.23.2",
   "description": "Host-side WAV decode (in-process) and FLAC decode (via FFmpeg) for 8BitAudio. The compiler calls this; the target image never contains it.",
   "license": "MIT",
   "repository": {
