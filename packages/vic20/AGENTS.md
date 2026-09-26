@@ -294,7 +294,12 @@ facts, and these are the ones that are wrong on this machine:
   (or `$0401`, or `$1201`) upward and nothing checks for an overlap, so a RAM charset
   is a *reservation* the package must make (shrink the region, or place it
   at `$1C00`–`$1DFF` under the unexpanded screen and give up 512 bytes),
-  never a program's free choice of address.
+  never a program's free choice of address. `@8bitscript/graphics` learned
+  this the hard way: it took `$1400` as a free choice, which is inside the
+  program on both memory maps, and every VIC-20 program carrying an object
+  overwrote its own code and warm-started the KERNAL. It draws with the
+  ROM's sixteen quadrant blocks now — no charset, so no reservation — and a
+  future pixel-accurate one must make the reservation before it writes a byte.
 
 ### The picture is one register set, and the colors are asymmetric
 
