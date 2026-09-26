@@ -1,10 +1,49 @@
-// @8bitscript/graphics on the VIC-20: four RAM glyphs in a 2×2 cell grid.
+// @8bitscript/graphics on the VIC-20: four quadrant-block cells in a 2×2 grid.
+//
+// This used to write the object's bitmap into a RAM character set at $1400
+// and leave it at that. Three things were wrong with it, and the first one
+// was fatal: $1400 is inside the program. A `.prg` loads at $1001 on the
+// unexpanded machine and $1201 on an expanded one, so any program big
+// enough to reach $1400 — hello-world is 1922 bytes, which reaches it
+// either way — had its own code overwritten by the glyph stores. Measured
+// under xvic: the store through $11/$12 at the fourth glyph byte turned a
+// `LDA $1451,Y` into `LDA $7E00,Y`, execution fell through the data that
+// followed into a BRK, and the KERNAL warm-started — which is why the
+// greeting vanished and a bare `READY.` came back on a cleared screen.
+//
+// The second was that nothing ever pointed the VIC at that character set:
+// `$9005` was only ever set to MEMORY_POINTER_UPPERCASE, the ROM font at
+// $8000, so the glyphs were written somewhere the video chip does not read.
+// The third was that `writeGlyph` ignored its own `slot`, so all eight
+// objects shared one set of four characters.
+//
+// So this draws the way @8bitscript/pet does instead, for the same reason
+// that package gives: the ROM already has the sixteen quadrant blocks, and
+// using them costs no RAM, no character set, and nothing of the program.
+// An object is four cells, each the one block that describes its corner.
 import { Video } from "@8bitscript/vic20/geometry";
 import { text } from "@8bitscript/text";
 
 const MAX: utinyint = 8;
 const KIND_VIC20: utinyint = 4;
-const CHAR_DATA: usmallint = 0x1400; // RAM charset: codes 128–131
+const INK: utinyint = 1; // white, the color text.8bs also defaults to
+
+// Screen code for each of the sixteen 2x2 on/off patterns, indexed by
+// (topLeft<<3 | topRight<<2 | bottomLeft<<1 | bottomRight) — the same table
+// @8bitscript/pet/blocks carries, and the same codes here: measured against
+// this machine's own character ROM under xvic rather than assumed from the
+// PET's, by reading $8000 + code*8. Code 108 is $0F on its bottom four rows
+// (bottom-right), 123 is $F0 on them (bottom-left), 98 is $FF (the bottom
+// half), 124 is $0F on the top four (top-right), 126 is $F0 on them
+// (top-left) and 97 is $F0 on all eight (the left half) — each one its
+// index's own bits. The entries past 127 are the hardware reverse of the
+// ones below, which is what covers the patterns this ROM does not draw.
+const QUAD: array<utinyint, 16> = [
+    32,  108, 123, 98,
+    124, 225, 255, 254,
+    126, 127, 97,  252,
+    226, 251, 236, 160,
+];
 
 let code0: array<u8, 8>;
 let code1: array<u8, 8>;
@@ -14,23 +53,43 @@ let glyph: array<u8, 256>;
 let px: array<u16, 8>;
 let py: array<u16, 8>;
 let shown: array<u8, 8>;
-let started: bool = false;
 
-function ensureCharset(): void {
-    if (started) {
-        return;
+// One cell of the object, as the block that best describes it. The object
+// arrives as a 16x16 bitmap — four 8x8 cells, eight rows each — and this
+// machine has no redefinable glyphs to put it in, so a quadrant counts as
+// lit when any pixel in its 4x4 corner is. A 16x16 object therefore draws
+// at 4x4 pseudo-pixels, which is the resolution a PET renders one at too.
+function quadrantOf(slot: utinyint, charIndex: utinyint): utinyint {
+    let base: usmallint = (slot << 5) + (charIndex << 3);
+    let bits: utinyint = 0;
+    let row: utinyint = 0;
+    while (row < 8) {
+        let pixels: utinyint = glyph[base + row];
+        if ((pixels & 0xF0) != 0) {
+            if (row < 4) {
+                bits = bits | 8;
+            } else {
+                bits = bits | 2;
+            }
+        }
+        if ((pixels & 0x0F) != 0) {
+            if (row < 4) {
+                bits = bits | 4;
+            } else {
+                bits = bits | 1;
+            }
+        }
+        row = row + 1;
     }
-    memory.write(0x9005, Video.MEMORY_POINTER_UPPERCASE);
-    started = true;
+    return QUAD[bits];
 }
 
-function writeGlyph(slot: utinyint, charIndex: utinyint, byteIndex: utinyint, value: utinyint): void {
-    let base: usmallint = CHAR_DATA + (charIndex << 3) + byteIndex;
-    memory.write(base, value);
-}
-
+// The color goes down with the code: screen.blank() clears the screen
+// matrix but not color RAM, so a cell drawn without one shows in whatever
+// the last thing to use it left behind.
 function putScreen(cell: usmallint, screenCode: utinyint): void {
     memory.write(Video.SCREEN + cell, screenCode);
+    memory.write(Video.COLOR + cell, INK);
 }
 
 function drawBlock(slot: utinyint): void {
@@ -65,25 +124,21 @@ export namespace graphics {
             return;
         }
         let g: utinyint = index - 4;
-        let charIndex: utinyint = g / 8;
-        let byteIndex: utinyint = g % 8;
         glyph[(slot << 5) + g] = value;
-        writeGlyph(slot, charIndex, byteIndex, value);
     }
 
     function meta(slot: utinyint, frames: utinyint, every: utinyint, which: utinyint, width: utinyint, height: utinyint): void {
         if (slot >= MAX) {
             return;
         }
-        ensureCharset();
         if (which == KIND_VIC20) {
-            let i: utinyint = 0;
-            while (i < 32) {
-                let charIndex: utinyint = i / 8;
-                let byteIndex: utinyint = i % 8;
-                writeGlyph(slot, charIndex, byteIndex, glyph[slot * 32 + i]);
-                i = i + 1;
-            }
+            // The four codes bind() was handed name a RAM character set
+            // that does not exist here; the object's own bitmap does, so
+            // the cells come from that instead.
+            code0[slot] = quadrantOf(slot, 0);
+            code1[slot] = quadrantOf(slot, 1);
+            code2[slot] = quadrantOf(slot, 2);
+            code3[slot] = quadrantOf(slot, 3);
         }
     }
 
@@ -94,7 +149,6 @@ export namespace graphics {
         px[slot] = x;
         py[slot] = y;
         shown[slot] = 1;
-        ensureCharset();
         drawBlock(slot);
     }
 
