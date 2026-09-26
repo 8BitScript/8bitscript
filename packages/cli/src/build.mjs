@@ -187,7 +187,7 @@ export function checkEntryKind(entry) {
  *   whoever runs it next. `memory` / `sizeReport` are what the last-run
  *   file and `--size` print; they are absent when the compile failed.
  */
-export async function compile(target, entryArg, { pal = false, profile, hardware: overrides = {}, report = false, debug = false, checkout = undefined, program: programName, locale: localeArgument } = {}) {
+export async function compile(target, entryArg, { pal = false, profile, hardware: overrides = {}, report = false, debug = false, checkout = undefined, program: programName, locale: localeArgument, web = false } = {}) {
   if (checkout !== undefined) setActiveCheckout(checkout);
   const config = await loadConfig(process.cwd(), '8bs build');
 
@@ -387,7 +387,15 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   // A project with several programs gets a web bundle per program; one
   // program keeps dist/web/ flat, where every deploy so far has looked.
   const webDirName = programs.length > 1 ? join('web', stem) : 'web';
-  if (target === 'web') {
+  // The synthetic `web` target always builds this way; a real machine
+  // (pet, vic20, c64, ...) does too when `--web` asks for it — `ir` above
+  // was already resolved with `machine: target`, so a real target's own
+  // package modules (packages/pet/src/text.8bs, not packages/web's) are
+  // what the front end just linked, regardless of which backend is about
+  // to consume the result. Backend choice and machine resolution were
+  // always two separate questions; this is the one place that used to
+  // conflate them.
+  if (target === 'web' || web) {
     const { build } = await import('@8bitscript/compiler/wasm');
     const { writeWebBundle } = await import('./web-runtime.mjs');
     const { layoutFromHardware } = await import('./web-layout.mjs');

@@ -430,22 +430,47 @@ test('milestone 3 acceptance: memory.write at a computed address — the exact p
   assert.deepEqual([...memory.slice(200, 205)], [65, 66, 67, 68, 69]);
 });
 
-// This group's three globals each need a real reference from main: build()
-// now prunes whatever the entry can't reach (linker/reachability.mjs), so
-// an unreferenced global's own unsupported shape would otherwise never be
-// seen at all — correctly (dead data costs nothing to leave out), but not
-// what these tests mean to check. The reference itself doesn't need to be
-// semantically sound — build() refuses the global's own bad shape in the
-// globals pass, before main's body is ever lowered.
-test('milestone 3: refuses a pinned global (@address(...)), by name', async () => {
+// A pinned scalar (@address(...) on a non-array global) lowers as of the
+// machine-target work: a real machine's own package can declare one
+// meaning an actual hardware register (the PET's viaPeripheralControl,
+// say), and — same as a pinned array — there's no chip behind it here,
+// so it becomes a fixed byte in linear memory a host can read directly.
+// Both directions are checked: the assign lands at the pinned address in
+// linear memory (not wherever a wasm global would have gone), and a bare
+// read of the name afterwards sees that write, not the address itself
+// (the array case's pointer-decay would be the wrong answer here).
+test('a pinned scalar (@address(...)) round-trips at its own fixed address, not through a wasm global', async () => {
   const globals: IrGlobal[] = [{ name: 'REG', type: 'utinyint', address: 0xe000, init: 0 }];
+  const main: IrFunction = {
+    name: 'main',
+    returnType: 'utinyint',
+    body: [
+      { kind: 'assign', target: 'REG', value: num(0x2a, 'utinyint') },
+      { kind: 'return', value: ref('REG', 'utinyint') },
+    ],
+  };
+  const { value, memory } = await execute(main, globals, '8bs-web-native-');
+  assert.equal(value, 0x2a);
+  assert.equal(memory[0xe000], 0x2a);
+});
+
+// This group's remaining globals each need a real reference from main:
+// build() now prunes whatever the entry can't reach
+// (linker/reachability.mjs), so an unreferenced global's own unsupported
+// shape would otherwise never be seen at all — correctly (dead data costs
+// nothing to leave out), but not what these tests mean to check. The
+// reference itself doesn't need to be semantically sound — build() refuses
+// the global's own bad shape in the globals pass, before main's body is
+// ever lowered.
+test('refuses a pinned *array* (@address(...) on an array), by name — the one pinned shape still not lowered', async () => {
+  const globals: IrGlobal[] = [{ name: 'REG', type: 'utinyint', address: 0xe000, array: 4, constant: false, init: null }];
   const scratch = await mkdtemp(join(tmpdir(), '8bs-web-native-'));
   try {
     const outFile = join(scratch, 'out.wasm');
-    const body = [{ kind: 'assign', target: 'REG', value: { kind: 'const', value: 0, type: 'utinyint' } }];
+    const body = [{ kind: 'storeIndex', array: { kind: 'ref', name: 'REG' }, index: num(0, 'utinyint'), value: num(0, 'utinyint'), elementType: 'utinyint' }];
     const result = await build({ entry: 'main', functions: [{ name: 'main', body }], globals }, { outFile, frameRate: 60 });
     assert.equal(result.ok, false);
-    assert.match(result.ok ? '' : result.error, /'REG'.*pinned global/);
+    assert.match(result.ok ? '' : result.error, /'REG'.*pinned \*array\*/);
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
