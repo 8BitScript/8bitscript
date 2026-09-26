@@ -1,5 +1,17 @@
-// Writes minimal mark.8bg/mark.png and chime.8ba/chime.wav into every
-// example's src/ — the four-pillar baseline every program shares.
+// Writes minimal mark.8bg/mark.png and chime.8ba/chime.wav into the
+// examples that can actually drive them: the ones with a frame loop.
+//
+// Both kinds of media need a frame. audio.play() arms a voice and it is
+// audio.update(), counted down over the following frames, that releases it
+// again. graphics.place() records where an object is and leaves the drawing
+// to the next update too, on every machine but the VIC-20. So a program
+// that draws once and returns gets no picture out of an object and a stuck
+// voice out of a sample — hello-world measured 1587 bytes on the PET to
+// show nothing but its greeting, against 108 without the media.
+//
+// hello-world and hello-bx are that shape deliberately (they are the same
+// program written two ways, and the 8BX gate compares their bytes), so they
+// carry neither. The four that loop carry both.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,6 +22,10 @@ import { encodeWav } from '../audio-tools/src/index.mjs';
 const HERE = dirname(fileURLToPath(import.meta.url));
 
 const EXAMPLES = ['hello-world', 'hello-bx', 'joystick', 'fancy', 'swarm', 'media-walk'];
+
+/** The two that draw once and return: no frame, so no media. */
+const NO_FRAME_LOOP = ['hello-world', 'hello-bx'];
+const MEDIA_EXAMPLES = EXAMPLES.filter((name) => !NO_FRAME_LOOP.includes(name));
 
 const width = 8;
 const height = 8;
@@ -51,16 +67,18 @@ export component Mark() {
 }
 `;
 
-for (const name of EXAMPLES) {
+for (const name of MEDIA_EXAMPLES) {
   const src = join(HERE, name, 'src');
   mkdirSync(src, { recursive: true });
   writeFileSync(join(src, 'mark.png'), markPng);
   writeFileSync(join(src, 'mark.8bg'), mark8bg);
   writeFileSync(join(src, 'chime.wav'), chimeWav);
   writeFileSync(join(src, 'chime.8ba'), chime8ba);
-  if (name !== 'hello-bx' && name !== 'swarm' && name !== 'media-walk') {
+  // swarm and media-walk reach the object through their own code rather
+  // than a shared component.
+  if (name !== 'swarm' && name !== 'media-walk') {
     writeFileSync(join(src, 'Mark.8bx'), mark8bx);
   }
 }
 
-console.log(`wrote shared mark/chime into ${EXAMPLES.length} examples`);
+console.log(`wrote shared mark/chime into ${MEDIA_EXAMPLES.length} examples; ${NO_FRAME_LOOP.join(' and ')} carry none`);

@@ -4,22 +4,25 @@
 // screen the way that machine wants; this file does not know which, which
 // is the point of it.
 //
-// Four pillars: `.8bs` (this file), `Mark.8bx` (one compile-time
-// composition), `mark.8bg` / `chime.8ba` (portable media). The logo and
-// blip are the smallest assets that exercise graphics and audio on every
-// release target; the greeting itself stays a direct `text.print()` so
-// hello-bx remains the component-only proof.
+// It carries no media. Both kinds need a frame the program does not have:
+// `audio.play()` arms a voice and it is `audio.update()`, counted down over
+// the following frames, that releases it again — so a single call before
+// returning to BASIC leaves the voice gated on and the machine sounding it
+// after the program is over (measured on the C64). `graphics.place()` is
+// the same shape: on every machine but the VIC-20 it records where an
+// object goes and leaves the drawing to the next update, which never
+// comes, so the object costs its whole pipeline and shows nothing —
+// measured here at 1587 bytes on the PET against 108 without it.
+//
+// Media belongs to the examples that have a frame loop to drive it:
+// `fancy`, `swarm`, `joystick` and `media-walk` all call `audio.update()`
+// inside `waitFrame()`, which is the shape that both sounds and stops. The
+// smallest whole program is this one, and it is small.
 import { screen } from "@8bitscript/screen";
 import { text } from "@8bitscript/text";
-import { audio } from "@8bitscript/audio";
-import { chime } from "./chime.8ba";
-import { Mark } from "./Mark.8bx";
 
 export function main(): void {
     screen.blank();
     text.print(0, "Hello World!");
-    Mark();
-    audio.play(chime);
-    audio.update();
     text.releaseCursor();
 }
