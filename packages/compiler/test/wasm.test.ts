@@ -128,7 +128,10 @@ async function execute(fn: IrFunction, globals: IrGlobal[], scratchLabel: string
   try {
     const outFile = join(scratch, 'out.wasm');
     const ir: IrProgram = { entry: fn.name, functions: [fn], globals };
-    const result = await build(ir, { outFile, frameRate: 60 });
+    // allowPinnedScalars: true so the one test that declares a pinned
+    // global (the @address round-trip test below) can use this same
+    // helper; a no-op for every other test here, which declares none.
+    const result = await build(ir, { outFile, frameRate: 60, allowPinnedScalars: true });
     assert.equal(result.ok, true, result.ok ? '' : result.error);
     if (!result.ok) throw new Error('unreachable');
     const module = await WebAssembly.compile(result.bytes);

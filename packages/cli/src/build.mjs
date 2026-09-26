@@ -410,7 +410,12 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
     // the bundle's sidecar, the backend through `reserved` — the agreement's
     // end, past which its data section starts (web-layout.mjs, and
     // dataBaseFor() in the compiler).
-    const result = await build(ir, { outFile, frameRate, report, reserved: layout.reservedEnd });
+    // A real machine's own `@address`-pinned register is meaningful — it's
+    // hardware that machine actually has, treated as a fixed byte in
+    // linear memory (see the wasm backend's own note on this). The
+    // synthetic web/hifi target owns no hardware to map one to, so it
+    // keeps refusing them, exactly as before this option existed.
+    const result = await build(ir, { outFile, frameRate, report, reserved: layout.reservedEnd, allowPinnedScalars: target !== 'web' });
     if (!result.ok) {
       process.stderr.write(`8bs build: ${result.error}\n`);
       return { ok: false };

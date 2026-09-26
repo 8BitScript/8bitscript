@@ -143,6 +143,14 @@ export interface BuildOptions {
    * both). This backend places its data section at or above it, never
    * below `DATA_FLOOR`; see dataBaseFor(). */
   reserved?: number;
+  /** Lowers an `@address(...)`-pinned *scalar* global instead of refusing
+   * it — real for a real machine's own package built through this backend
+   * (a hardware register becomes a fixed byte in linear memory), never for
+   * the synthetic web/hifi target: there `@address` still means "hardware
+   * another machine would map, nothing this target owns," and stays
+   * refused. Defaults to `false` so a caller that says nothing keeps the
+   * synthetic target's own rule. */
+  allowPinnedScalars?: boolean;
 }
 
 /** One named piece of the module `options.report` breaks a build's own size down into — mirrors mos/index.ts's own SizeReportEntry. */
@@ -249,6 +257,9 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   const pinnedGlobals: { name: string; address: number; width: number }[] = [];
   for (const g of globals) {
     if (g.address !== null && g.address !== undefined && g.array === undefined) {
+      if (!options.allowPinnedScalars) {
+        return { ok: false, error: `'${g.name}': a pinned global (@address(...)) is not lowered on this rail — hardware another machine would map, nothing this build owns` };
+      }
       const width = storageBytes(g.type);
       if (width !== 1 && width !== 2) {
         return { ok: false, error: `'${g.name}': a pinned '${g.type}' scalar is not lowered yet — only a 1- or 2-byte width is` };

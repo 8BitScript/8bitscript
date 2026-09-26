@@ -615,8 +615,11 @@ export async function run(args) {
       + '                [--pal]\n'
       + HARDWARE_USAGE
       + '                [--size] [--no-open] [--lan] [--local] [--port <n>] [--program <name>] [--locale <name>] [entry.8bs]\n'
-      + '                [--web]  cx16 only: the same x16emu as WebAssembly, in the browser\n'
-      + '                         (the mouse is the tab\'s: click takes it, Esc gives it back)\n'
+      + '                [--web]  in the browser: cx16 runs the real x16emu as WebAssembly\n'
+      + '                         (the mouse is the tab\'s: click takes it, Esc gives it back);\n'
+      + '                         pet/vic20/c64 build through the wasm backend instead — a\n'
+      + '                         real machine module, not a chip emulator, and only as\n'
+      + '                         complete as that machine\'s own modules are ported so far\n'
       + CX16_WINDOW_USAGE
       + '                [--screenshot <file.png>] [--frames <n>]\n'
       + '                  capture one screenshot through the target\'s own\n'
@@ -629,19 +632,26 @@ export async function run(args) {
   const entry = named ? positionals[1] : positionals[0];
   const pal = palFlag || launch.pal;
 
-  // Said before the build: a target with no WebAssembly emulator has
-  // nothing to gain from compiling first.
-  if (web && !WEB_EMULATORS[target]) {
-    process.stderr.write(`8bs run: --web runs a WebAssembly emulator in the browser, and only the Commander X16 has one (cx16); '${target}' does not yet\n`);
-    return 2;
-  }
+  // Every release target can attempt --web now: cx16 through its vendored
+  // real emulator (WEB_EMULATORS), the synthetic web target always this
+  // way, and pet/vic20/c64 by building through the wasm backend below —
+  // there is nothing left to refuse pre-emptively here. A machine whose
+  // modules are not wasm-ported yet (an asm6502 block reached) fails at
+  // compile() with its own real, specific error instead.
 
   // Said once, before either route — the PET has no region (PET_REGION_NOTE).
   if (target === 'pet' && pal) process.stderr.write(PET_REGION_NOTE);
 
+  // --screenshot already ignores --web entirely for every target (it never
+  // reads `web` below) and always captures through that target's own
+  // native emulator API — cx16's vendored x16emu wasm build has never been
+  // part of that path either. A real machine's wasm build follows the same
+  // rule: --web only changes what compile() produces when this run is
+  // actually going to open a browser tab with it.
+  const buildForWeb = web && target !== 'cx16' && !screenshotPath;
   const { ok, outFile, frameRate, hardware } = await compile(target, entry, {
     pal, profile: launch.profile, hardware: launch.overrides, report, checkout: checkout.checkout,
-    program: programOpt.program, locale: localeOpt.locale,
+    program: programOpt.program, locale: localeOpt.locale, web: buildForWeb,
   });
   if (!ok) return 1;
 
@@ -672,10 +682,17 @@ export async function run(args) {
   }
   for (const note of controller.notes) process.stderr.write(`8bs run: ${note}\n`);
 
-  if (target === 'web') {
+  if (target === 'web' || buildForWeb) {
     // Every program runs the same way on the web: in the browser runtime's
     // worker (web-runtime.mjs), whether it loops on waitFrame(), returns, or
     // spins. Headless execution is `--screenshot`'s job, bounded by --frames.
+    // `buildForWeb` (pet/vic20/c64 built through the wasm backend) reaches
+    // here the same way the synthetic `web` target always has — the page
+    // and worker only ever paint whatever a .wasm's own memory says, and
+    // don't care which machine's package produced it. `lastRunTarget` is
+    // the real target name here, not always literally 'web', so a real
+    // machine gets its own `.8bs-last-<target>.json` — the file a framing
+    // page (the extension's Studio tab) reads to find this run's URL.
     //
     // The page and worker come from *this* CLI (in memory), not dist/web/.
     // compile() still writes that directory for `8bs build` / deploy, but
@@ -686,7 +703,7 @@ export async function run(args) {
     const { layoutFromHardware } = await import('./web-layout.mjs');
     const bytes = await readFile(outFile);
     return runInBrowser(bytes, {
-      open, frameRate, lastRunTarget: 'web', layout: layoutFromHardware(hardware), lan,
+      open, frameRate, lastRunTarget: target, layout: layoutFromHardware(hardware), lan,
       port: listenPort.port,
     });
   }
