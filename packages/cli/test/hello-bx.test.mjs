@@ -1,7 +1,9 @@
 // The zero-cost gate for 8BX (spec §69): hello-bx draws its greeting
 // through one component; hello-world calls text.print() by hand. Both
-// now share the four-pillar mark/chime baseline, so they are no longer
-// byte-identical — this test checks they still build for the release PET.
+// carry no media at all (a program that draws once and returns has no
+// frame to release a voice on or to draw a placed object from), so the two
+// are the same program written two ways — and the byte counts below are
+// what says the component cost nothing.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { cpSync, mkdtempSync, rmSync } from 'node:fs';
@@ -43,7 +45,7 @@ async function buildExample(name, target) {
   }
 }
 
-test('hello-bx and hello-world both build for the release PET with four-pillar media', async () => {
+test('hello-bx and hello-world build to the same bytes for the release PET', async () => {
   const bx = await buildExample('hello-bx', 'pet');
   const plain = await buildExample('hello-world', 'pet');
   assert.equal(typeof bx, 'number');
@@ -51,7 +53,7 @@ test('hello-bx and hello-world both build for the release PET with four-pillar m
   assert.equal(bx, plain, 'Hello() inlines to the same program bytes as a direct print with shared media');
 });
 
-test('hello-world builds for the release PET and 8K VIC-20 with four-pillar media', async () => {
+test('hello-world builds for the release PET and 8K VIC-20 with its shared media', async () => {
   const pet = await buildExample('hello-world', 'pet');
   const vic20 = await buildExample('hello-world', 'vic20');
   assert.ok(pet > 0);

@@ -1,20 +1,18 @@
 // The program. A program always starts from a .8bs file; a component is
 // reached from here as an ordinary call — `Hello()` is `<Hello />` spelled
 // the way .8bs can spell it, and elaborates to the same text.print() call.
+//
+// It carries no media, for the reason hello-world's own source gives: a
+// program that draws once and returns has no frame to release a voice on
+// or to draw a placed object from. These two are meant to be the same
+// program written two ways — the 8BX zero-cost gate compares their bytes —
+// so what one of them cannot do, neither of them carries.
 import { screen } from "@8bitscript/screen";
 import { Hello } from "./Hello.8bx";
 import { text } from "@8bitscript/text";
-import { audio } from "@8bitscript/audio";
-import { graphics } from "@8bitscript/graphics";
-import { chime } from "./chime.8ba";
-import { mark } from "./mark.8bg";
-import { sprites } from "@8bitscript/sprites";
 
 export function main(): void {
     screen.blank();
     Hello();
-    graphics.place(mark, sprites.ORIGIN_X + 120, sprites.ORIGIN_Y);
-    audio.play(chime);
-    audio.update();
     text.releaseCursor();
 }

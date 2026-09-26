@@ -1,7 +1,19 @@
-// Writes minimal mark.8bg/mark.png and chime.8ba/chime.wav into every
-// example's src/ — the four-pillar baseline every program shares.
+// Writes minimal mark.8bg/mark.png and chime.8ba/chime.wav into the
+// examples that can actually drive them: the ones with a frame loop.
+//
+// Both kinds of media need a frame. audio.play() arms a voice and it is
+// audio.update(), counted down over the following frames, that releases it
+// again. graphics.place() records where an object is and leaves the drawing
+// to the next update too, on every machine but the VIC-20. So a program
+// that draws once and returns gets no picture out of an object and a stuck
+// voice out of a sample — hello-world measured 1587 bytes on the PET to
+// show nothing but its greeting, against 108 without the media.
+//
+// hello-world and hello-bx are that shape deliberately (they are the same
+// program written two ways, and the 8BX gate compares their bytes), so they
+// carry neither. The four that loop carry both.
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { encodePng } from '../graphics-tools/src/index.mjs';
@@ -9,7 +21,14 @@ import { encodeWav } from '../audio-tools/src/index.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
-const EXAMPLES = ['hello-world', 'hello-bx', 'joystick', 'fancy', 'swarm', 'media-walk'];
+export const EXAMPLES = ['hello-world', 'hello-bx', 'joystick', 'fancy', 'swarm', 'media-walk'];
+
+/** The two that draw once and return: no frame, so no media. */
+export const NO_FRAME_LOOP = ['hello-world', 'hello-bx'];
+export const MEDIA_EXAMPLES = EXAMPLES.filter((name) => !NO_FRAME_LOOP.includes(name));
+
+/** Those that reach the object through the shared component rather than their own code. */
+export const MARK_COMPONENT_EXAMPLES = MEDIA_EXAMPLES.filter((name) => name !== 'swarm' && name !== 'media-walk');
 
 const width = 8;
 const height = 8;
@@ -51,16 +70,25 @@ export component Mark() {
 }
 `;
 
-for (const name of EXAMPLES) {
-  const src = join(HERE, name, 'src');
-  mkdirSync(src, { recursive: true });
-  writeFileSync(join(src, 'mark.png'), markPng);
-  writeFileSync(join(src, 'mark.8bg'), mark8bg);
-  writeFileSync(join(src, 'chime.wav'), chimeWav);
-  writeFileSync(join(src, 'chime.8ba'), chime8ba);
-  if (name !== 'hello-bx' && name !== 'swarm' && name !== 'media-walk') {
-    writeFileSync(join(src, 'Mark.8bx'), mark8bx);
+export function writeSharedAssets() {
+  for (const name of MEDIA_EXAMPLES) {
+    const src = join(HERE, name, 'src');
+    mkdirSync(src, { recursive: true });
+    writeFileSync(join(src, 'mark.png'), markPng);
+    writeFileSync(join(src, 'mark.8bg'), mark8bg);
+    writeFileSync(join(src, 'chime.wav'), chimeWav);
+    writeFileSync(join(src, 'chime.8ba'), chime8ba);
+    if (MARK_COMPONENT_EXAMPLES.includes(name)) {
+      writeFileSync(join(src, 'Mark.8bx'), mark8bx);
+    }
   }
+  return MEDIA_EXAMPLES.length;
 }
 
-console.log(`wrote shared mark/chime into ${EXAMPLES.length} examples`);
+// Importing this module must not write anything — the test beside it reads
+// the lists above to check which examples carry media, and a top-level
+// write would have it rewriting the tree just by asking.
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const count = writeSharedAssets();
+  console.log(`wrote shared mark/chime into ${count} examples; ${NO_FRAME_LOOP.join(' and ')} carry none`);
+}

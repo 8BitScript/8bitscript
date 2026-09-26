@@ -1,5 +1,0 @@
-sprite mark {
-  source "./mark.png"
-  size 8x8
-  transparent auto
-}
