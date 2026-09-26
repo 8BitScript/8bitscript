@@ -451,6 +451,55 @@ test('a PET program that returns to BASIC borrows its zero page under SEI and gi
   }
 });
 
+// The VIC-20 is the PET's twin in this: an interpreter stays mapped, the
+// program returns to it, and what it needs is more zero page than that
+// interpreter leaves free. It used to be given the whole page outright on
+// the strength of a screen.blank() call and still return — measured under
+// xvic, a program reaching about 120 bytes came back to an interpreter
+// that could no longer parse a line, having walked into CHRGET at $73-$8A
+// and the text pointer at $7A/$7B. This pins the borrow that replaced it.
+test('a VIC-20 program that returns to BASIC borrows its zero page too, not just the PET', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-vic20-borrow-'));
+  try {
+    const resolved = resolveHardware(loadCatalog('vic20'), {});
+    assert.ok(resolved.ok, resolved.ok ? '' : resolved.error);
+    const withGlobals: IrProgram = {
+      entry: 'main',
+      functions: [{
+        name: 'main',
+        body: [
+          { kind: 'assign', target: 'a', value: { kind: 'const', value: 1, type: 'utinyint' } },
+          { kind: 'assign', target: 'b', value: { kind: 'ref', name: 'a', type: 'utinyint' } },
+        ],
+      }],
+      globals: [
+        { name: 'a', type: 'utinyint', address: null },
+        { name: 'b', type: 'utinyint', address: null },
+      ],
+    };
+    const result = await build(withGlobals, {
+      machine: 'vic20',
+      hardware: resolved.hardware as unknown as BuildOptions['hardware'],
+      outFile: join(scratch, 'out.prg'),
+      frameRate: 60,
+    });
+    assert.equal(result.ok, true, result.ok ? '' : result.error);
+    if (!result.ok) return;
+    const bytes = [...result.bytes];
+    const sei = bytes.indexOf(0x78);
+    const firstZpStore = bytes.indexOf(0x85); // STA zeropage
+    assert.notEqual(sei, -1, 'SEI is emitted');
+    assert.ok(sei < firstZpStore, `SEI at ${sei} comes before the first STA zp at ${firstZpStore}`);
+    const counts = bytes.reduce<number[]>((found, byte, i) => (byte === 0xe0 ? [...found, bytes[i + 1]] : found), []); // CPX #imm
+    assert.deepEqual(counts, [result.memory.variables, result.memory.variables], 'the same span is taken and put back');
+    const cli = bytes.indexOf(0x58);
+    assert.notEqual(cli, -1, 'CLI is emitted');
+    assert.equal(bytes[cli + 1], 0x60, 'the byte after CLI is the epilogue RTS');
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
 // The other half: a program that takes the machine has no interpreter to
 // hand the page back to, so it pays for neither copy. Its SEI is the one
 // ownMachineProgram already emitted.

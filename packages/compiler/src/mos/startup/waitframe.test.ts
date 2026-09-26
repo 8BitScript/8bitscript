@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { WAIT_FRAME_LABEL, WAIT_FRAME_ZP_BYTES, usesScreenBlank, usesWaitFrame, waitFrameRoutine, waitFrameSetup } from './waitframe.ts';
+import { WAIT_FRAME_LABEL, WAIT_FRAME_ZP_BYTES, usesWaitFrame, waitFrameRoutine, waitFrameSetup } from './waitframe.ts';
 import type { IrFunction } from '../lower/index.ts';
 import { assemble } from '../asm/assemble.ts';
 import type { Directive } from '../asm/assemble.ts';
@@ -37,10 +37,6 @@ test('usesWaitFrame: an empty function list uses nothing', () => {
   assert.equal(usesWaitFrame([]), false);
 });
 
-test('usesScreenBlank: true when screen_blank is called anywhere in the program', () => {
-  assert.equal(usesScreenBlank([fn('main', [{ kind: 'call', name: 'screen_blank', args: [], type: null }])]), true);
-  assert.equal(usesScreenBlank([fn('main', [{ kind: 'call', name: 'text_print', args: [], type: null }])]), false);
-});
 
 // ---- waitFrameSetup ----------------------------------------------------
 

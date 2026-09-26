@@ -29,7 +29,7 @@ import type { DebugMap, DebugSymbol } from './debug.ts';
 import { LocalAllocator } from './lower/allocator.ts';
 import { borrowZeroPage, epilogue, prologue, returnZeroPage, usesDecimalSensitiveMath, zeroPageSaveData } from './startup/commodore.ts';
 import { nesResetInit } from './startup/nes.ts';
-import { WAIT_FRAME_ZP_BYTES, frameEdgeWait, usesScreenBlank, usesWaitFrame, waitFrameKeepsInterrupts, waitFrameRoutine, waitFrameSetup } from './startup/waitframe.ts';
+import { WAIT_FRAME_ZP_BYTES, frameEdgeWait, usesWaitFrame, waitFrameKeepsInterrupts, waitFrameRoutine, waitFrameSetup } from './startup/waitframe.ts';
 import { MULTIPLY_ZP_BYTES, multiplyCells, multiplyRoutine, usesMultiply } from './startup/multiply.ts';
 import type { MultiplyCells } from './startup/multiply.ts';
 import { storageBytes } from '../types/index.mjs';
@@ -228,15 +228,30 @@ const C64_ZP_BUDGET = { zpOrigin: 0x02, zpCeiling: C64_IRQ_TRAMPOLINE };
 
 // The VIC-20 keeps the same KERNAL zero-page map as the C64 and, unlike the
 // C64, its package never banks anything out — a VIC-20 program really does
-// return to a working BASIC — so the polite shape is real here and worth
-// keeping. It is still only $FB-$FE plus the RS-232 pointers. A program
-// that calls screen.blank() is not that shape: clearing the display and
-// placing graphics needs the multiply routine and call-graph frames the
-// polite window cannot hold (packages/examples/hello-world is the gate).
-// Those builds take the owned budget below, the same widening a PET
-// waitFrame() program gets — the program still returns to BASIC, but it
-// must not rely on KERNAL/BASIC zero page having survived.
-const VIC20_ZP_BUDGET = { zpOrigin: 0xf7, zpCeiling: 0xff };
+// return to a working BASIC. What is genuinely free while that BASIC is
+// alive is only $FB-$FE plus the RS-232 pointers, which cannot hold
+// hello-world's own frames, let alone a real program's.
+//
+// This used to be answered by widening: a program that called
+// screen.blank() took the whole page instead, "the program still returns
+// to BASIC, but it must not rely on KERNAL/BASIC zero page having
+// survived". BASIC relies on it. Measured under xvic, a program that
+// reached about 120 bytes came back to an interpreter that could no longer
+// parse a line — an endless `?error in 263` / `?formula too complex`,
+// because the allocation had walked into CHRGET at $73-$8A and the text
+// pointer at $7A/$7B with it. This machine's sheet names no
+// `memory.chrget`, so the hole that saves the PET from the same walk was
+// never carved here either.
+//
+// So it takes the same bargain the PET does instead, for the same reason
+// and with the same two instructions' worth of machinery: the whole page,
+// borrowed under `sei` and copied back before the RTS
+// (startup/commodore.ts). A program gets everything while it runs and
+// BASIC gets everything back, which is the only combination that is true
+// on a machine whose interpreter is still mapped. Nothing here needs the
+// KERNAL's interrupt meanwhile — @8bitscript/vic20/keyboard runs its own
+// scan and documents wanting it quiet anyway.
+const VIC20_ZP_BUDGET = { zpOrigin: 0x02, zpCeiling: 0x100 };
 
 // The C128's zero page is the C64's shape again — $0A-$8F BASIC's, $90-$FF
 // the KERNAL's (packages/c128/AGENTS.md's memory map) — with one machine
@@ -371,6 +386,17 @@ const OWNED_ZP = { zpOrigin: 0x02, zpCeiling: 0x100 };
 // the one a program that never does may take. The second is the whole page
 // on every Commodore here, for the same reason each time — interrupts off,
 // the interpreter never resumed — so only the polite one really differs.
+/**
+ * The machines whose program borrows the zero page it uses and gives it
+ * back (startup/commodore.ts). Both keep an interpreter mapped and return
+ * to it, and on both what a program needs is more than that interpreter
+ * leaves free — the PET's own comment above has the measurements, and the
+ * VIC-20's has what happened before it did the same. A machine that halts
+ * instead (the C64) has nothing to give back to, and one that never had an
+ * interpreter (the NES) has nothing to borrow from.
+ */
+const BORROWS_ZERO_PAGE = new Set<Machine>(['pet', 'vic20']);
+
 /** The machines with a waitFrame() runtime of their own (mos/startup/waitframe.ts: a raster poll, the X16's VSYNC flag, or the NES's PPUSTATUS vertical-blank bit). */
 const RASTER_MACHINES = new Set<Machine>(['c64', 'vic20', 'c128', 'cx16', 'mega65', 'nes', 'atari8', 'plus4', 'oric', 'apple2', 'bbc', 'atari5200', 'lynx', 'pce', 'supervision', 'atari2600', 'atari7800']);
 
@@ -651,11 +677,6 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // reach — link() itself still returns every module's own functions and
   // globals whether called/read or not (see linker/reachability.mjs).
   // optimizeReachable prunes, folds compile-time work, then prunes again.
-  // VIC-20 owned zero page is decided from the linked program before
-  // optimizeReachable: a `screen.blank()` call there often folds into
-  // stores and vanishes from the IR the lowerer sees, but the program
-  // still cleared the display and still needs the wider budget.
-  const needsVic20OwnedZp = options.machine === 'vic20' && usesScreenBlank(ir.functions);
 
   const { functions, globals } = optimizeReachable(ir);
 
@@ -689,7 +710,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
       error: `waitFrame() has no runtime on the ${options.machine} yet: its frame sync is the PET's VIA retrace flag, and the ${options.machine}'s own raster poll is not written. A program that draws once and returns builds today; one that paces itself does not`,
     };
   }
-  const zpBudget = (needsWaitFrame || needsVic20OwnedZp) ? budgets.owned : budgets.polite;
+  const zpBudget = needsWaitFrame ? budgets.owned : budgets.polite;
 
   // Globals first: every function's own parameters, then every function's
   // own locals and expression temporaries, bump-allocate from whatever zero
@@ -702,7 +723,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // BASIC's interpreter running, so a program that never returns drops it.
   const zpHoles = [
     ...(zpBudget.holes ?? []),
-    ...(needsWaitFrame || needsVic20OwnedZp ? [] : chrgetZpHoles(options.hardware.facts, zpBudget)),
+    ...(needsWaitFrame ? [] : chrgetZpHoles(options.hardware.facts, zpBudget)),
   ];
   const zp = allocate(globals, { ...zpBudget, holes: zpHoles });
   if (!zp.ok) return { ok: false, error: zp.error };
@@ -1108,7 +1129,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // halting shape the way the C64 has one (mos/image.ts), where there
   // would be an RTS to borrow before and none to give back at.
   const returnsToBasic = !image.entryIsVectored && !image.endsByHalting;
-  const borrowedZp = options.machine === 'pet' && !needsWaitFrame && returnsToBasic ? localsCursor - zpBudget.zpOrigin : 0;
+  const borrowedZp = BORROWS_ZERO_PAGE.has(options.machine) && !needsWaitFrame && returnsToBasic ? localsCursor - zpBudget.zpOrigin : 0;
   const zpBorrowProgram = borrowZeroPage(zpBudget.zpOrigin, borrowedZp);
   const zpReturnProgram = returnZeroPage(zpBudget.zpOrigin, borrowedZp);
 
