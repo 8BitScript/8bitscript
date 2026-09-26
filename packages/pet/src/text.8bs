@@ -234,12 +234,13 @@ export namespace text {
     // READY. printed, measured under xpet -model 2001: something else (a
     // row number BASIC's own READY path re-derives the pointer from, or
     // the jiffy-clock IRQ's cursor-blink handler recomputing it every
-    // frame) is still authoritative, not yet found. $E0-$E2 also sit
-    // inside PET_ZP_BUDGET's allocatable range ($8E-$FF), so poking them
-    // without a reserved hole risks colliding with a program's own
-    // globals on a build bigger than this one. Left as a no-op rather
-    // than shipping a fix that silently corrupts state for some programs
-    // and, measured, does not fix this one either.
+    // frame) is still authoritative, not yet found. $E0-$E2 sit inside
+    // PET_ZP_BUDGET's allocatable range, which is the whole page now, so
+    // a poke of them would be undone anyway: a program that returns to
+    // BASIC puts back every byte of zero page it touched, this pair
+    // included (packages/compiler/src/mos's PET_ZP_BUDGET). Left as a
+    // no-op rather than shipping a fix that, measured, does not fix this
+    // and would now be reverted on the way out besides.
     function releaseCursor(): void {
     }
 

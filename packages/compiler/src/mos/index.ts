@@ -27,7 +27,7 @@ import type { ListingLine } from './asm/assemble.ts';
 import { buildDebugMap, renderListing } from './debug.ts';
 import type { DebugMap, DebugSymbol } from './debug.ts';
 import { LocalAllocator } from './lower/allocator.ts';
-import { epilogue, prologue, usesDecimalSensitiveMath } from './startup/commodore.ts';
+import { borrowZeroPage, epilogue, prologue, returnZeroPage, usesDecimalSensitiveMath, zeroPageSaveData } from './startup/commodore.ts';
 import { nesResetInit } from './startup/nes.ts';
 import { WAIT_FRAME_ZP_BYTES, frameEdgeWait, usesScreenBlank, usesWaitFrame, waitFrameKeepsInterrupts, waitFrameRoutine, waitFrameSetup } from './startup/waitframe.ts';
 import { MULTIPLY_ZP_BYTES, multiplyCells, multiplyRoutine, usesMultiply } from './startup/multiply.ts';
@@ -123,21 +123,52 @@ export const CPU: Record<Machine, CpuVariant> = {
 // same way `__ram_size` already was). A machine whose sheet does not carry
 // one is refused by name below rather than silently assumed.
 
-// Milestone 5's own settled decision: every program shape this backend
-// builds today returns to BASIC (main() falling through to RTS lands back
-// in the SYS that called it — no "never returns" shape exists yet, that
-// waits on a real main-loop construct at milestone 10), so the safe zp
-// budget always leaves BASIC's own zero page alone rather than picking
-// between two shapes with only one actually buildable. packages/pet's own
-// AGENTS.md documents BASIC's range as $0002-$008D (from PETdoc.txt/
-// progmod.html); $8E-$FF is what is left before the CPU stack at $0100
-// on BASIC 2/4. BASIC 1 (the original 2001) copies CHRGET to $C2-$D9
-// instead of $70-$87 — same 24-byte routine, different address — and a
-// program that occupies that window returns to a smashed interpreter,
-// which prints `?SYNTAX ERROR IN 0`. `memory.chrget` on the 2001 catalog
-// value opens that hole; BASIC 2/4's CHRGET sits below $8E and costs
-// nothing.
-const PET_ZP_BUDGET = { zpOrigin: 0x8e, zpCeiling: 0x100 };
+// The PET's polite budget is the whole page, borrowed and given back.
+//
+// It used to be $8E-$FF, on the reasoning that packages/pet's AGENTS.md
+// documents BASIC's own zero page as $0002-$008D, so everything above it
+// was "what is left before the CPU stack at $0100". That is wrong, and it
+// is wrong in exactly the way the C64's comment below already gets right
+// about the C64: BASIC owning the bottom of the page does not make the top
+// of it free, because the KERNAL owns the top. On the PET the KERNAL's
+// share includes its own interrupt vectors, which is what makes the
+// mistake fatal rather than merely impolite — $90/$91 is the IRQ vector,
+// $92/$93 BRK, $94/$95 NMI, where the C64 and VIC-20 keep the same three
+// at $0314-$0319, outside page zero entirely.
+//
+// So a program with three bytes of globals overwrote CINV, and the next
+// vertical-retrace interrupt — within one frame of the program's first
+// store — did `JMP ($0090)` into whatever it had put there. Measured under
+// xpet with a monitor trace: hello-world's globals sent the IRQ into its
+// own BASIC loader text at $0401, which fell through to a BRK, through the
+// equally-overwritten BRK vector at $92/$93, and off into RAM. Every PET
+// program with a graphics or sprite component died this way, and which
+// half of the screen it had drawn first depended only on where in the
+// frame the interrupt landed.
+//
+// There is no honest smaller window to retreat to: traced over $8E-$FF
+// with the machine merely sitting at `READY.`, the KERNAL reads $8E $8F
+// $90 $91 $97 $99 $9A $9E $A6-$A8 $AA $C4-$C6 and writes $8E $8F $98-$9B
+// $A6-$AA $F9 $FA — scattered through the range, and that is the idle set,
+// before anything prints or scrolls or reads the keyboard. What is left
+// could not hold hello-world's globals, let alone its call-graph frames.
+//
+// The way a returning PET program has always had this is to borrow the
+// page and give it back: interrupts off, the bytes it will use copied into
+// its own image, copied back before the RTS (startup/commodore.ts's
+// borrowZeroPage/returnZeroPage, where the cost and the NMI question are
+// written down). That is what makes the whole page polite here, and why
+// this budget and PET_OWNED_ZP_BUDGET below now differ only in what the
+// program does around them rather than in how much they may take.
+//
+// BASIC 1 (the original 2001) copies CHRGET to $C2-$D9 instead of $70-$87
+// — same 24-byte routine, different address — and a program that occupies
+// that window returns to a smashed interpreter, which prints `?SYNTAX
+// ERROR IN 0`. `memory.chrget` on the 2001 catalog value opens that hole.
+// The borrow would now restore those bytes too, so the hole is no longer
+// load-bearing; it stays because a hole costs 24 bytes of a 254-byte page
+// and removing it would be a second change riding on this one.
+const PET_ZP_BUDGET = { zpOrigin: 0x02, zpCeiling: 0x100 };
 
 const CHRGET_BYTES = 24;
 
@@ -1062,6 +1093,25 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
     ? [{ kind: 'instruction', mnemonic: 'SEI', mode: 'implied' }]
     : [];
 
+  // The other half of PET_ZP_BUDGET above: a PET program that returns to
+  // BASIC borrows the zero page it uses and gives it back. Only the PET,
+  // because only the PET keeps the vectors a running KERNAL reads inside
+  // the page a program allocates from; and only the returning shape, since
+  // a waitFrame() program has already taken the machine and has no
+  // interpreter left to be polite to. The high-water mark is the same
+  // number the size report prints as "bytes of RAM for variables" — every
+  // global, waitFrame and multiply cell, and call-graph frame sits under
+  // it — so the pair covers exactly what the program can reach and nothing
+  // it cannot.
+  // The `image` clause is not redundant with the machine check: it is
+  // what keeps the two halves from drifting apart if the PET ever grows a
+  // halting shape the way the C64 has one (mos/image.ts), where there
+  // would be an RTS to borrow before and none to give back at.
+  const returnsToBasic = !image.entryIsVectored && !image.endsByHalting;
+  const borrowedZp = options.machine === 'pet' && !needsWaitFrame && returnsToBasic ? localsCursor - zpBudget.zpOrigin : 0;
+  const zpBorrowProgram = borrowZeroPage(zpBudget.zpOrigin, borrowedZp);
+  const zpReturnProgram = returnZeroPage(zpBudget.zpOrigin, borrowedZp);
+
   // The X16 boots its screen editor in PETSCII, where a tile index is a
   // PETSCII screen code and 'A' is 1. @8bitscript/cx16/text writes ASCII
   // straight through to VERA instead — `text.putChar` takes ASCII on every
@@ -1119,7 +1169,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
       ...(haltEdge && frameHookLabel ? [{ kind: 'instruction', mnemonic: 'JSR', mode: 'absolute', operand: { kind: 'label', name: frameHookLabel } } as Directive] : []),
       { kind: 'instruction', mnemonic: 'JMP', mode: 'absolute', operand: { kind: 'label', name: haltLabel } },
     ]
-    : epilogue();
+    : [...zpReturnProgram, ...epilogue()];
 
   // The NES is the only machine here that boots from nothing: no loader has
   // set a stack pointer, silenced an interrupt source or waited out the
@@ -1136,6 +1186,10 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
     ...isoModeProgram,
     ...ownMachineProgram,
     ...ramClearProgram,
+    // After the clear (which on a loaded machine is empty anyway) and
+    // before the initializers, because those are the first stores into the
+    // page this is saving.
+    ...zpBorrowProgram,
     ...globalInitProgram,
     ...waitFrameSetupProgram,
     // A package's `.init.N` sections, right before the entry's own body:
@@ -1154,6 +1208,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
     ...native.textProgram,
     ...pinnedArrays,
     ...ramInitData,
+    ...zeroPageSaveData(borrowedZp),
     ...dataSection,
   ];
 
@@ -1232,7 +1287,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
       // plus the ROM padding on a `.nes`. The difference is right for all
       // three by construction, which is what SizeReportEntry's own JSDoc
       // promises: every entry sums to the real bytes.length.
-      { name: '(image header + prologue/epilogue)', bytes: (bytes.length - linked.bytes.length) + directiveBytes(prologue(needsCld)) + directiveBytes(isoModeProgram) + directiveBytes(machineStartupProgram) + directiveBytes(ownMachineProgram) + directiveBytes(ramClearProgram) + directiveBytes(endProgram) },
+      { name: '(image header + prologue/epilogue)', bytes: (bytes.length - linked.bytes.length) + directiveBytes(prologue(needsCld)) + directiveBytes(isoModeProgram) + directiveBytes(machineStartupProgram) + directiveBytes(ownMachineProgram) + directiveBytes(ramClearProgram) + directiveBytes(zpBorrowProgram) + directiveBytes(endProgram) + directiveBytes(zeroPageSaveData(borrowedZp)) },
       // One row per kept native section — `(native .init.250)` and its
       // kin — sized by the same directive arithmetic as everything above,
       // so the sum-to-bytes.length invariant holds.
