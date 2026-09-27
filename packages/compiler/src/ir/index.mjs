@@ -955,7 +955,7 @@ class Lowering {
     }
     const decorator = node.decorators?.[0];
     if (decorator) {
-      return this.fail(decorator, `@${decorator.name} maps hardware; it belongs on a top-level declaration`);
+      return this.fail(decorator, `@${decorator.name} does not belong on a local — @address maps hardware and belongs on a top-level declaration; @unroll belongs on a for loop`);
     }
     // One declaration per name per block — the same rule C enforces,
     // reported here instead.
@@ -999,7 +999,24 @@ class Lowering {
         if (!update) return null;
       }
       const body = this.blockOrStatement(node.body);
-      return { kind: 'for', init, test, update, body, start: node.start, length: node.length };
+      // `@unroll`: only the name and the arity are checkable here, with
+      // no machine and nothing linked yet. Whether the loop this decorates
+      // is actually a plain counted one, whether its bound is a positive
+      // number, and whether its body jumps, all wait on every const and
+      // `#fact` being inlined — the linker's job, once the program is
+      // whole (packages/compiler/src/linker/unroll.mjs). `unroll: true`
+      // here is a request passed on, not a promise it will be honoured.
+      let unroll = false;
+      for (const decorator of node.decorators ?? []) {
+        if (decorator.name !== 'unroll') {
+          return this.fail(decorator, `@${decorator.name} is not a loop decorator — only @unroll is`);
+        }
+        if (decorator.args?.length) {
+          return this.fail(decorator, '@unroll takes no arguments yet: it fully unrolls the loop, however many iterations that is');
+        }
+        unroll = true;
+      }
+      return { kind: 'for', init, test, update, body, unroll, start: node.start, length: node.length };
     });
   }
 
@@ -1016,6 +1033,17 @@ class Lowering {
     // A hole the parser left behind: it has already reported the syntax
     // error, and there is nothing here to lower or to say twice.
     if (!node?.type) return null;
+    // A decorator the parser attaches to any statement (parser/index.mjs's
+    // parseDecorated calls parseStatement generically) but that only a
+    // `for` (@unroll) or a top-level `let`/`const` (@address, handled by
+    // the module-level builder, not here) knows what to do with — a
+    // decorator on a `while`, an `if`, a bare call, would otherwise be
+    // silently dropped rather than refused. VariableDeclaration is not
+    // excepted: this.local(), below, gives that case its own message.
+    if (node.decorators?.length && node.type !== NodeType.ForStatement && node.type !== NodeType.VariableDeclaration) {
+      const decorator = node.decorators[0];
+      return this.fail(decorator, `@${decorator.name} does not belong here — only @address on a top-level declaration and @unroll on a for loop are compilable`);
+    }
     switch (node.type) {
       case NodeType.ExpressionStatement: {
         const e = node.expression;

@@ -230,6 +230,13 @@ export const Codes = {
   // linker, which alone knows the machine and has every const inlined; so
   // it is a build-time diagnostic, not one `8bs check` or the editor show.
   HARDWARE_HAZARD: '8BS3003',
+  // A `for` loop's own `@unroll` (packages/compiler/src/linker/unroll.mjs):
+  // not a plain `for (let i = 0; i < N; i++)` with a compile-time N, N
+  // folds to zero or negative, N is past UNROLL_DECORATOR_MAX, or the body
+  // breaks or continues (a jump this pass's substitution cannot carry).
+  // Reported by the linker, like HARDWARE_HAZARD, because it needs every
+  // const and `#fact` already inlined to know N.
+  UNROLL_INVALID: '8BS3006',
 };
 
 /** @returns {Diagnostic} */

@@ -53,6 +53,7 @@ import { formatMessage, isI18nPackageFile } from '../i18n/index.mjs';
 import { storageBytes, resolveIntegerType, narrowestIntegerType } from '../types/index.mjs';
 import { typeForCount, widerOf, COMPARISON_OPERATORS } from '../templates/index.mjs';
 import { checkHardwareHazards } from './hazards.mjs';
+import { checkUnrollDecorators } from './unroll.mjs';
 
 /** The canonical identity of a file: two pnpm symlink routes, one module. */
 function canonical(path) {
@@ -1378,6 +1379,11 @@ export function link(entryText, entryFile, options = {}) {
   // output names — the writes the target refuses are visible as what they
   // are, whichever module spelled them and however it named the address.
   checkHardwareHazards(ir, options.machine, functionFiles, diagnostics);
+  // Machine-independent — a loop's `@unroll` is either a plain counted
+  // loop or it is not, on every target it builds for — but run here for
+  // the same reason: every const and `#fact` is inlined by this point,
+  // and was not before it.
+  checkUnrollDecorators(ir, functionFiles, diagnostics);
   if (hasError(diagnostics)) return { ir: null, diagnostics, sources, factsTested };
   ir.memory = memoryOf(ir);
   return { ir, diagnostics, sources, factsTested };

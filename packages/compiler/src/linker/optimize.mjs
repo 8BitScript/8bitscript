@@ -39,7 +39,14 @@
 //      when it takes no parameters, or when its parameters are unused
 //      and it has a single call site (PET `blank`'s color args). A
 //      `for (i = 0; i < N; i++)` unrolls only when the body is a string
-//      copy and N is small.
+//      copy and N is small (32 at most, MAX_UNROLL) — or when the loop
+//      carries its own `@unroll`, in which case it unrolls at N up to
+//      UNROLL_DECORATOR_MAX regardless of what the body is. A program's
+//      `@unroll` is validated before this pass ever sees it (unroll.mjs,
+//      run from the linker on the fully-inlined program, where every
+//      const and `#fact` is already a literal); by the time
+//      matchCountedFor is asked about an `@unroll` loop here, it is
+//      known to match.
 //   7. A void call whose callee is empty (PET/NES/Atari `text.setColor`,
 //      `text.putColor`) is deleted, arguments and all, so a program that
 //      colors a cell pays nothing on a machine that cannot. Arguments with
@@ -93,6 +100,19 @@ import { resolveIntegerType, storageBytes } from '../types/index.mjs';
 
 /** Unroll a literal string copy only while the stores beat a looped print; 32 characters is still smaller than print+place+ascii. */
 const MAX_UNROLL = 32;
+
+/**
+ * The cap for a loop a program marked `@unroll` itself — far past the
+ * string-copy heuristic's 32, because a demoscene loop asking to be
+ * unrolled is asking for its own tradeoff, not one the compiler is
+ * guessing at. Still finite: an unbounded substitution is an unbounded
+ * amount of IR to fold and lower, and a mistaken `@unroll` on a loop of
+ * thousands of iterations should be a diagnostic (unroll.mjs), not a
+ * compiler that hangs finding out. Revisit once a per-target cost model
+ * exists to size this from a real code-size budget instead of a round
+ * number.
+ */
+export const UNROLL_DECORATOR_MAX = 4096;
 
 /**
  * @param {unknown} node
@@ -168,7 +188,7 @@ function nodeCount(node) {
   return n;
 }
 
-function containsJump(node) {
+export function containsJump(node) {
   if (Array.isArray(node)) return node.some(containsJump);
   if (!node || typeof node !== 'object') return false;
   if (node.kind === 'break' || node.kind === 'continue') return true;
@@ -612,7 +632,20 @@ function propagateConstLocals(statements, ctx) {
   return statements;
 }
 
-function matchCountedFor(statement) {
+/**
+ * Whether `statement` is `for (let i: T = 0; i < N; i++) { ... }`, N a
+ * compile-time value and 0 < N <= maxUnroll — the one shape this pass
+ * knows how to substitute a constant `i` into. `maxUnroll` defaults to
+ * the automatic string-copy heuristic's cap; unroll.mjs's validation and
+ * this function's own `@unroll` caller both pass the decorator's wider
+ * one instead, so the two paths agree on what "counted" means without
+ * agreeing on how much of it either will actually unroll.
+ *
+ * @param {object} statement
+ * @param {number} [maxUnroll]
+ * @returns {{ name: string, count: number, type: string } | null}
+ */
+export function matchCountedFor(statement, maxUnroll = MAX_UNROLL) {
   const init = statement.init;
   if (!init || init.kind !== 'local' || !init.name) return null;
   const name = init.name;
@@ -620,7 +653,7 @@ function matchCountedFor(statement) {
   const test = statement.test;
   if (!test || test.kind !== 'binop' || test.operator !== '<' || test.left?.kind !== 'ref' || test.left.name !== name) return null;
   const count = constValue(test.right);
-  if (count === null || count <= 0 || count > MAX_UNROLL) return null;
+  if (count === null || count <= 0 || count > maxUnroll) return null;
   const update = statement.update;
   if (!update || update.kind !== 'assign' || update.target !== name) return null;
   const inc = update.value;
@@ -1209,8 +1242,13 @@ function optimizeStatement(statement, ctx) {
       test: statement.test ? foldExpr(statement.test, ctx) : statement.test,
       body: statement.body,
     };
-    const counted = matchCountedFor(folded);
-    if (counted && containsStringByte(folded.body)) {
+    // A program's own `@unroll` (validated by unroll.mjs before this pass
+    // ever runs, so `counted` and the jump check below are guaranteed to
+    // succeed here — this is the substitution, not the check) unrolls at
+    // its own, far wider cap; everything else still only unrolls a small
+    // literal string copy.
+    const counted = matchCountedFor(folded, folded.unroll ? UNROLL_DECORATOR_MAX : MAX_UNROLL);
+    if (counted && (folded.unroll || containsStringByte(folded.body))) {
       const previous = ctx.unrollingStringCopy;
       ctx.unrollingStringCopy = true;
       try {
