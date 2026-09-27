@@ -1,7 +1,7 @@
 {
   "name": "@8bitscript/c64",
   "version": "0.23.1",
-  "description": "C64 target support for 8BitScript: the hardware underneath the portable APIs. Parked in 0.2.0: not a build target until its native backend lands.",
+  "description": "C64 target support for 8BitScript: the hardware underneath the portable APIs.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -97,7 +97,7 @@
       },
       "options": {
         "ram": {
-          "label": "RAM Expansion Unit",
+          "label": "RAM expansion",
           "default": "none",
           "detect": "@8bitscript/c64/reu",
           "values": {
@@ -357,44 +357,6 @@
                 "input.mouse": true
               },
               "detect": "@8bitscript/c64/mouse"
-            }
-          }
-        },
-        "drive": {
-          "label": "Disk drive",
-          "default": "1541",
-          "values": {
-            "1541": {
-              "label": "1541 (170K disk)",
-              "facts": {
-                "storage.save": true,
-                "storage.kib": 164
-              },
-              "tag": null
-            },
-            "1571": {
-              "label": "1571 (340K disk)",
-              "facts": {
-                "storage.save": true,
-                "storage.kib": 329
-              },
-              "tag": null
-            },
-            "1581": {
-              "label": "1581 (800K disk)",
-              "facts": {
-                "storage.save": true,
-                "storage.kib": 783
-              },
-              "tag": null
-            },
-            "none": {
-              "label": "No drive (tape or nothing)",
-              "facts": {
-                "storage.save": false,
-                "storage.kib": 0
-              },
-              "tag": null
             }
           }
         }

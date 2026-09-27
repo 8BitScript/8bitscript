@@ -181,7 +181,52 @@
               },
               "facts": {
                 "video.columns": 80,
-                "video.frameRate": 50,
+                "video.frameRate": 50
+              }
+            },
+            "3032B": {
+              "label": "3032B: 40 columns, no CRTC, business keyboard, ~60 Hz",
+              "build": {},
+              "run": {
+                "xpet": [
+                  "-model",
+                  "3032B"
+                ]
+              },
+              "facts": {
+                "video.columns": 40,
+                "video.frameRate": 60
+              },
+              "tag": null
+            },
+            "4032B": {
+              "label": "4032B: 40 columns, CRTC, business keyboard, 50 Hz",
+              "build": {},
+              "run": {
+                "xpet": [
+                  "-model",
+                  "4032B"
+                ]
+              },
+              "facts": {
+                "video.columns": 40,
+                "video.frameRate": 50
+              },
+              "tag": null
+            }
+          }
+        },
+        "keyboard": {
+          "label": "Keyboard",
+          "default": "graphics",
+          "values": {
+            "graphics": {
+              "label": "Graphics keyboard: the 40-column machines’ own, symbols as keys"
+            },
+            "business": {
+              "label": "Business keyboard: typewriter layout, numeric keypad, TAB/ESC/RPT",
+              "tag": "business",
+              "facts": {
                 "video.bootsInTextMode": true
               }
             }
@@ -463,7 +508,19 @@
         "8032": {
           "model": "8032",
           "ram": "32",
-          "speaker": "attached"
+          "speaker": "attached",
+          "keyboard": "business"
+        },
+        "3032B": {
+          "model": "3032B",
+          "ram": "32",
+          "keyboard": "business"
+        },
+        "4032B": {
+          "model": "4032B",
+          "ram": "32",
+          "speaker": "attached",
+          "keyboard": "business"
         }
       }
     }

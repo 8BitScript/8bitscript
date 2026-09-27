@@ -115,7 +115,8 @@ Do not describe more than this as working:
     preset per model so `--profile 8032` works. It fixes the **screen
     width** (80 for the 8032, through the geometry twin, and the fact
     `video.columns`), the **keyboard matrix** (graphics on 3xxx/4xxx,
-    business on the 8032: `keys.8bs` and its `keys.pet.8032.8bs` twin), the
+    business on the 8032, 4032B and 3032B: `keys.8bs` and its
+    `keys.pet.business.8bs` twin, chosen by the `keyboard` option), the
     **refresh rate fact** (`video.frameRate`, 60 for the non-CRTC boards,
     50 for the CRTC 4xxx/8xxx — `FRAME_SYNC.pet` measures the real period
     regardless, so this fact is documentation, not a build input), and
@@ -158,7 +159,7 @@ Do not describe more than this as working:
   - Every catalog preset (`--profile <model>`) pins its own real stock `ram`
     (and, for the CRTC boards, `speaker: 'attached'`) alongside `model`, so
     `--profile 8032` still means exactly what it always has — 32K, business
-    keyboard, its own built-in speaker — even though those are now three
+    keyboard, its own built-in speaker — even though those are now four
     separate option choices under the hood, not one. A selection that
     differs from EVERY option's own catalog default appears in the output
     name (`main-pet-8032-32-attached.prg`); one that only differs in `ram`
@@ -196,7 +197,9 @@ Do not describe more than this as working:
   `waitFrame()` — and answers `keyboard.pressed(key)` / `keyboard.row(n)`
   from it; `@8bitscript/pet/keys` (`src/keys.8bs`) names every key as
   `Key.X = row * 8 + column` for the graphics matrix, with
-  `keys.pet.8032.8bs` the business matrix a build tagged `8032` reads instead.
+  `keys.pet.business.8bs` the business matrix a build tagged `business` reads
+  instead — the `keyboard` option's twin, not the model's, because the 4032B
+  and 3032B carry that keyboard at 40 columns.
   PIA1's two ports are exported from `src/index.8bs` (`pia1PortA` `$E810`,
   `pia1PortB` `$E812`). No buffer, no PETSCII: "is this key down now".
 - `packages/studio/src/main.8bs` starts Studio's **viewer** tier on the
@@ -497,7 +500,7 @@ unverified:
   fixes **screen width** (40 or 80 — `text.COLUMNS`, `text.CELL_COUNT`,
   `screen.blank()`'s extent, through the geometry file's tag twin — and
   which xpet model `8bs run` picks) and **keyboard matrix** (graphics on
-  3xxx/4xxx, business on the 8032: `keys.8bs` and its `keys.pet.8032.8bs`
+  3xxx/4xxx, business on the 8032/4032B/3032B: `keys.8bs` and its `keys.pet.business.8bs`
   twin). RAM size is the separate `ram` option's job now (milestone-10-era
   rework, above) — a real owner could, and on the dynamic boards did,
   upgrade RAM without changing anything about the screen or keyboard, so
@@ -705,7 +708,7 @@ packages/pet/src/screen.8bs          @8bitscript/pet/screen: inert colors, blank
 packages/pet/src/text.8bs            @8bitscript/pet/text: ASCII → screen code, direct writes, COLUMNS/CELL_COUNT from Video
 packages/pet/src/keyboard.8bs        @8bitscript/pet/keyboard: scan() snapshot of the ten rows, pressed(key), row(n)
 packages/pet/src/keys.8bs            @8bitscript/pet/keys: Key.X = row * 8 + column, graphics keyboard
-packages/pet/src/keys.pet.8032.8bs   the 8032 tag's version: the business keyboard
+packages/pet/src/keys.pet.business.8bs  the business tag's version: the business keyboard (8032, 4032B, 3032B)
 packages/pet/package.json            "8bitscript".exports names the four subpaths
 packages/compiler/test/pet-keys.test.mjs   both tables well formed, shared names, VICE .vkm cross-check, profile picks the table
 packages/pet/package.json            "8bitscript".hardware: model (__ram_size, -model, tag, columns and frame-rate facts), ram, speaker, drive (all nine real -drive8type values, measured storage.kib), a preset per model

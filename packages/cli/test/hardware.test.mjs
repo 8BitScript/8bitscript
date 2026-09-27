@@ -108,7 +108,8 @@ test('the catalog defaults are the stock machine: no tags, no build values, and 
   assert.deepEqual(stock.hardware.build.defsym, { __memory_expansion: 0, __load_address: 0x1001, __ram_ceiling: 0x1E00 });
   assert.equal(stock.hardware.label, 'stock');
   assert.deepEqual(Object.keys(loadCatalog('vic20').presets), ['unexpanded', '3k', '8k', '16k', '24k']);
-  assert.deepEqual(Object.keys(loadCatalog('pet').presets).sort(), ['2001', '3008', '3016', '3032', '4016', '4032', '8032']);
+  assert.deepEqual(Object.keys(loadCatalog('pet').presets).sort(),
+    ['2001', '3008', '3016', '3032', '3032B', '4016', '4032', '4032B', '8032']);
   assert.deepEqual(Object.keys(loadCatalog('atari8').presets).sort(), ['1200xl', '130xe', '400', '65xe', '800', '800xl', 'xegs']);
   assert.ok(Object.keys(loadCatalog('c64').presets).includes('reu512'));
 });
@@ -138,7 +139,14 @@ test('the PET model, RAM and speaker are three independent options, not one bund
   // still real — video.columns/frameRate and audio.voices are #fact()-
   // foldable, so a build can genuinely differ by model or speaker alone,
   // even though only RAM's own value touches the linker's defsym).
-  assert.deepEqual(hardware.tags, ['8032', '32', 'attached']);
+  // The keyboard is the fourth option and the odd one out: it tags the
+  // build — `keys.pet.business.8bs` is chosen by it — but carries no
+  // `build`, so it never becomes a buildValue and never reaches the
+  // artifact's filename. That is deliberate and not an oversight:
+  // `main-pet-8032-32` is already sixteen bytes, which is CBM DOS's whole
+  // directory entry, so a fourth word in the name would make the 8032
+  // unbuildable under any ordinary program name.
+  assert.deepEqual(hardware.tags, ['8032', 'business', '32', 'attached']);
   assert.deepEqual(hardware.buildValues, ['8032', '32', 'attached']);
   // __load_address is the machine's own, from the catalog's top-level
   // hardware.build rather than from any option value: the PET loads at
@@ -272,7 +280,7 @@ test('--hardware sets options on top of a profile; a mouse in a port is a fact',
     profile: 'reu512', overrides: { port1: 'mouse1351', sid: '8580' },
   });
   assert.ok(ok);
-  assert.deepEqual(hardware.options, { ram: 'reu512', sid: '8580', port1: 'mouse1351', port2: 'joystick', drive: '1541' });
+  assert.deepEqual(hardware.options, { ram: 'reu512', sid: '8580', port1: 'mouse1351', port2: 'joystick' });
   assert.deepEqual(hardware.tags, ['reu512', '8580', 'mouse1351']);
   assert.deepEqual(hardware.buildValues, [], 'nothing on the C64 changes the build');
   assert.equal(hardware.facts['input.mouse'], true);
@@ -547,9 +555,12 @@ test('whatSatisfies names the one change that would meet a requirement', () => {
     ['ram=8k gives 11775', 'ram=16k gives 19967', 'ram=24k gives 28159']);
   // Nothing fits when the machine cannot be fitted with it at all.
   assert.deepEqual(whatSatisfies(loadCatalog('nes'), 'storage.save', true), []);
-  // A drive is what makes a machine one a program can save on.
-  assert.deepEqual(whatSatisfies(loadCatalog('c64'), 'storage.kib', 780),
-    ['drive=1581 gives 783']);
+  // A drive is what makes a machine one a program can save on — on the PET,
+  // the one machine whose drive axis VICE is actually told about.
+  // The 8050's 508 KiB is short of the floor and is not offered; the three
+  // that clear it are, in the numeric-key order Object.keys hands back.
+  assert.deepEqual(whatSatisfies(loadCatalog('pet'), 'storage.kib', 780),
+    ['drive=1001 gives 1025', 'drive=8250 gives 1025', 'drive=9000 gives 7233']);
 });
 
 test('a system carries what it falls short of, and one that fits carries nothing', () => {
@@ -589,9 +600,7 @@ test('the Commodore drives are a hardware axis, and each says what it holds', ()
   // the fact is KiB rounded down.
   const usable = (machine, drive) => resolveHardware(loadCatalog(machine), { overrides: { drive } })
     .hardware.facts['storage.kib'];
-  assert.equal(usable('c64', '1541'), 164, '664 blocks = 168656 bytes');
-  assert.equal(usable('c64', '1571'), 329, '1328 blocks = 337312 bytes');
-  assert.equal(usable('c64', '1581'), 783, '3160 blocks = 802640 bytes');
+  assert.equal(usable('c128', '1541'), 164, '664 blocks = 168656 bytes');
   assert.equal(usable('pet', '2031'), 164, '664 blocks = 168656 bytes, same D64 layout as the 1541');
   assert.equal(usable('pet', '2040'), 166, '670 blocks = 170180 bytes, DOS 1\'s D67 layout');
   assert.equal(usable('pet', '3040'), 166, 'same D67 layout as the 2040 — same DOS, PAL region');
@@ -603,16 +612,57 @@ test('the Commodore drives are a hardware axis, and each says what it holds', ()
   assert.equal(usable('c128', '1571'), 329);
 
   // No drive is nowhere to save, and both facts say so together.
-  const none = resolveHardware(loadCatalog('vic20'), { overrides: { drive: 'none' } }).hardware.facts;
+  const none = resolveHardware(loadCatalog('c128'), { overrides: { drive: 'none' } }).hardware.facts;
   assert.equal(none['storage.save'], false);
   assert.equal(none['storage.kib'], 0);
 
-  // On the C64, a drive is not linked in and is not an emulator flag at
-  // all — it is only what the program may assume — so it carries no tag
-  // and no build value regardless.
-  const fitted = resolveHardware(loadCatalog('c64'), { overrides: { drive: '1581' } }).hardware;
+  // A drive is never linked in and is never a build value: it carries no
+  // tag and nothing for the linker on any machine that offers one.
+  const fitted = resolveHardware(loadCatalog('c128'), { overrides: { drive: '1581' } }).hardware;
   assert.deepEqual(fitted.tags, []);
   assert.deepEqual(fitted.buildValues, []);
+});
+
+// The C64 has no drive axis, and that is the decision rather than an
+// oversight. Its four drives changed `storage.kib` — what a program may
+// assume it can save — while telling VICE nothing, so picking a 1581
+// moved a number and left the machine alone. Nothing in this repo saves
+// anything yet: no package calls the KERNAL's SETLFS/SETNAM/SAVE and no
+// `.8bs` surface offers it, so the axis promised a capacity that could
+// not be reached by any route. It comes back with the save API, wired to
+// `-drive8type` the way the PET's already is.
+//
+// The stock sheet still says `storage.save: true` and `storage.kib: 164`:
+// a C64 with a 1541 is the machine as sold, and that is the assumption a
+// program is entitled to make. What is gone is the *choice*.
+test('the C64 offers no drive to fit, and still assumes the 1541 it shipped with', () => {
+  assert.equal(loadCatalog('c64').options.drive, undefined);
+  const facts = resolveHardware(loadCatalog('c64'), {}).hardware.facts;
+  assert.equal(facts['storage.save'], true);
+  assert.equal(facts['storage.kib'], 164);
+  // The consequence, stated rather than discovered: a program asking for
+  // more than a 1541 holds can no longer be told what to fit, because on
+  // this machine there is nothing to fit. The launcher shows the shortfall
+  // with no remedy beside it. The remedies are a PET, whose drive axis is
+  // real, or the save API that earns the C64 its own back.
+  assert.deepEqual(whatSatisfies(loadCatalog('c64'), 'storage.kib', 780), []);
+});
+
+// The VIC-20 had the same two promises and neither had a driver behind it.
+// Its drive was facts-only, like the C64's. Its `mouse1351` went further and
+// set `input.mouse`, while `packages/vic20/src/pointer.8bs` said in its own
+// header that "this repository has no 1351 driver for the VIC-20... there is
+// nothing to draw and nowhere to draw it from" — and a 1351 here would read
+// the VIC's analogue lines at $9008/$9009 rather than a SID's, so the C64's
+// driver would not port even if it were pointed at this machine.
+test('the VIC-20 offers no mouse and no drive, because neither has a driver', () => {
+  const catalog = loadCatalog('vic20');
+  assert.equal(catalog.options.drive, undefined);
+  assert.deepEqual(Object.keys(catalog.options.port1.values), ['none', 'joystick', 'paddles']);
+  // What is left is what the machine really does: a stick in the one port.
+  const facts = resolveHardware(catalog, {}).hardware.facts;
+  assert.equal(facts['input.mouse'], false);
+  assert.deepEqual(facts['input.controls'], ['up', 'down', 'left', 'right', 'a']);
 });
 
 // The PET's own drive is different: real IEEE-488 hardware VICE can
