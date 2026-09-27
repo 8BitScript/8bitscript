@@ -377,6 +377,43 @@ test('compile() for a real machine\'s --web build is named for the machine, neve
   }
 });
 
+test('compile() --target vic20 --web builds through the wasm backend: releaseCursor()\'s asm6502 PLOT call resolves to its wasm-safe `.web` twin, not a refusal', async () => {
+  const dir = await mkdtemp(join(tmpdir(), '8bs-compile-'));
+  const prev = process.cwd();
+  try {
+    const entry = join(dir, 'main.8bs');
+    // text.releaseCursor() is the one asm6502 wall a VIC-20 build used to
+    // hit unconditionally on the wasm backend (cursor.8bs's own JSR
+    // $FFF0) — build.mjs's `webTag` is what resolves cursor.vic20.web.8bs
+    // instead for this specific build.
+    await writeFile(entry, [
+      'import { text } from "@8bitscript/text";',
+      'export function main(): void {',
+      '    text.releaseCursor();',
+      '}',
+      '',
+    ].join('\n'));
+    process.chdir(dir);
+    // checkout: REPO, the same way hello-bx.test.mjs's own throwaway
+    // projects resolve @8bitscript/* packages from this monorepo rather
+    // than needing their own node_modules.
+    // Native: unchanged, still the real KERNAL PLOT call.
+    const native = await capture(() => compile('vic20', entry, { checkout: REPO }));
+    assert.equal(native.result.ok, true, native.stdout + native.stderr);
+    // --web: used to refuse with "'asm' blocks are 6502-specific machine
+    // code and are never lowered on the web target" — now builds clean,
+    // named for the machine like every other real target's --web build.
+    const web = await capture(() => compile('vic20', entry, { web: true, checkout: REPO }));
+    assert.equal(web.result.ok, true, web.stdout + web.stderr);
+    assert.ok(web.result.outFile.endsWith('main.vic20.wasm'), web.result.outFile);
+    const bytes = await readFile(web.result.outFile);
+    assert.deepEqual([...bytes.slice(0, 4)], [0x00, 0x61, 0x73, 0x6d]);
+  } finally {
+    process.chdir(prev);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test('compile() for web still names a real, specific gap for a construct nothing on this rail lowers, not a generic "not implemented"', async () => {
   const dir = await mkdtemp(join(tmpdir(), '8bs-compile-'));
   const prev = process.cwd();

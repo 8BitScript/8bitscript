@@ -11,7 +11,7 @@ import { renderHtml } from '../src/web-runtime.mjs';
 import {
   ANY_BORDER_SCALE, BORDER_HAIRLINE_PX, BORDER_MIN_PX, BORDER_PX, FULL_BORDER_SCALE, HOST_OFFSET, HostStatus,
   INNER_H, INNER_W, INPUT_OFFSET, MIN_COLUMNS, MAX_COLUMNS, MIN_ROWS, MAX_ROWS,
-  DEFAULT_LAYOUT, PET_PALETTE, RASTER_ENTRY_SIZE, RASTER_MAX_ENTRIES,
+  DEFAULT_LAYOUT, PET_PALETTE, VIC20_PALETTE, RASTER_ENTRY_SIZE, RASTER_MAX_ENTRIES,
   MACHINE_HOST, agreementFor, borderFor, gridFor, layoutForRealMachine, layoutFromHardware, sidecarJson, swipeEdge,
 } from '../src/web-layout.mjs';
 import { dataBaseFor } from '@8bitscript/compiler/wasm';
@@ -133,10 +133,10 @@ test('layoutForRealMachine: PET keeps its real $8000 screen address and its own 
   // this guarded for real, not just observed to hold today.
   assert.ok(dataBaseFor(layout.reservedEnd) < layout.charBase, 'PET screen RAM sits past this build\'s own data section');
 
-  // vic20/c64 have no entry yet (still blocked on their own asm6502 walls)
-  // — geometry only, same as calling layoutFromHardware would have given,
+  // c64 has no entry yet (still blocked on its own asm6502 walls) —
+  // geometry only, same as calling layoutFromHardware would have given,
   // not a crash and not a silently wrong charBase of 0x8000.
-  const noEntryYet = layoutForRealMachine('vic20', { facts: { 'video.columns': 22, 'video.rows': 23 } });
+  const noEntryYet = layoutForRealMachine('c64', { facts: { 'video.columns': 40, 'video.rows': 25 } });
   assert.notEqual(noEntryYet.charBase, 0x8000);
 });
 
@@ -146,6 +146,24 @@ test('layoutForRealMachine: a later (non-swapped) PET model gets its own capture
   // every non-2001 model) is indexed by the PET's own screen code the
   // same way the 2001's is — no glyphIndexFn here either.
   assert.equal(layout.font, 'pet-text-screencode');
+});
+
+test('layoutForRealMachine: VIC-20\'s screen moves with its own RAM, not with a formula — unexpanded keeps $1E00/$9600, `expanded` moves to $1000/$9400, and it keeps its own palette and real per-cell color RAM', () => {
+  const facts = { 'video.columns': 22, 'video.rows': 23 };
+  const unexpanded = layoutForRealMachine('vic20', { facts, tags: [] });
+  assert.equal(unexpanded.charBase, 0x1e00, 'the stock 3583-byte VIC-20\'s own screen address');
+  assert.equal(unexpanded.colorBase, 0x9600);
+
+  const expanded = layoutForRealMachine('vic20', { facts, tags: ['expanded'] });
+  assert.equal(expanded.charBase, 0x1000, 'the KERNAL relocates the screen once 8K or more is fitted');
+  assert.equal(expanded.colorBase, 0x9400);
+
+  assert.equal(unexpanded.colorPerCell, true, 'the VIC-20 has real per-cell color RAM, unlike the PET');
+  assert.deepEqual(unexpanded.palette, VIC20_PALETTE);
+  // No captured character ROM of its own yet: agreementFor()'s own default
+  // ASCII font, exactly like a later PET model with no capture, not a
+  // crash for want of a glyphsFor.
+  assert.equal(unexpanded.font, 'font8x8');
 });
 
 // The two copies of borderFor — the one the build uses and the one that ships

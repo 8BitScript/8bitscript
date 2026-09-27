@@ -362,16 +362,32 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
 
   const text = await readFile(entry, 'utf8');
 
+  // A real machine's own --web build (buildForWeb in run.mjs's terms) is
+  // still `machine: target` below — packages/vic20/src/text.8bs, not
+  // packages/web's — because the whole point of that build is compiling
+  // the machine's own package through the wasm backend, not swapping to
+  // the synthetic web package. But some of what that package's own files
+  // do (a KERNAL call like VIC-20's `releaseCursor()`'s `asm6502 { jsr
+  // $FFF0 }`) has nothing to lower to on a backend with no 6502 CPU behind
+  // it. `'web'`, added here as an extra tag *only* for this resolution —
+  // never into `hardware.tags`/`buildValues`, which stay exactly what the
+  // hardware the program is fitted for really is, so the artifact's name
+  // and label are unaffected — lets a file that needs a wasm-safe version
+  // of one function name it `x.<machine>.web.8bs`, the same twin
+  // mechanism `keys.pet.business.8bs` already uses for a hardware tag,
+  // used here for a backend instead. The synthetic web target needs none
+  // of this: its own package never had a KERNAL call to begin with.
+  const webTag = web && target !== 'web' ? ['web'] : [];
   // The linker runs the full front end over the entry and everything it
   // imports, then merges the graph into one program. Any error in any module
   // means no build. The machine rides along so packages with target-
   // conditional entries resolve to this machine's implementation, and the
   // hardware's facts so every `#fact(...)` — the sheet @8bitscript/system
   // declares — folds to this build's value, and the
-  // hardware's tags so a file with a `.<machine>.<tag>.8bs` twin resolves
-  // to that.
+  // hardware's tags (plus `webTag` above) so a file with a
+  // `.<machine>.<tag>.8bs` twin resolves to that.
   const { ir, diagnostics, sources, factsTested } = link(text, entry, {
-    machine: target, tags: hardware.tags, facts: hardware.facts, frameRate, checkout, bx: config?.bx, locale, i18n, importAliases,
+    machine: target, tags: [...hardware.tags, ...webTag], facts: hardware.facts, frameRate, checkout, bx: config?.bx, locale, i18n, importAliases,
   });
   // A warning is printed and the build goes on; an error stops it.
   if (diagnostics.length > 0) printDiagnostics(diagnostics, sources);

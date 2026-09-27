@@ -1,0 +1,15 @@
+// cursor.8bs's own `.web` twin (build.mjs adds `web` to a real machine's
+// own --web build's tags, the same twin mechanism a hardware tag like
+// `keys.pet.business.8bs` already uses, for the wasm backend instead of a
+// hardware option). No JSR $FFF0 here: that address is the VIC-20 KERNAL's
+// own PLOT routine, and a wasm build of this package has no KERNAL, no
+// BASIC, and — unlike the native build cursor.8bs serves — nothing that
+// ever hands control back to one. releaseCursor()'s entire job on real
+// hardware is making BASIC's *next* PRINT land in the right place once
+// the program returns; a wasm build never returns to a BASIC prompt at
+// all, so there is no next PRINT for this to matter to, on this target,
+// ever. A true no-op, not a workaround for one that failed — unlike
+// packages/pet/src/text.8bs's own releaseCursor(), which is empty because
+// a real fix was tried on real PET hardware and measured not to work.
+export function releaseCursor(): void {
+}
