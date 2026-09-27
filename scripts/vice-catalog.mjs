@@ -71,7 +71,11 @@ function viceBinaries() {
     const emulator = pkg['8bitscript']?.emulator ?? {};
     if (emulator.family === 'vice' && emulator.binary) found.add(emulator.binary);
   }
-  return [...found].sort();
+  // A plain string comparator, spelled out: these are binary names
+  // ('x64sc', 'xpet', 'xvic'), so default's lexicographic sort was already
+  // the right order — a linter that cannot see that from a bare .sort()
+  // still gets an unambiguous answer this way.
+  return [...found].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
 
 /**
