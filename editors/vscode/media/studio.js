@@ -70,6 +70,12 @@ function render() {
   $('browser').disabled = !running;
   $('stop').disabled = stopped;
   $('rebuild').textContent = stopped ? 'Start ' + name : 'Rebuild';
+  // Independent of running/stopped/building: whether the real machine is
+  // there to open is a fact about the host, not about this preview's own
+  // run, so it is never disabled alongside the other buttons above.
+  const emulatorBtn = $('emulator');
+  emulatorBtn.hidden = !state.nativeEmulator;
+  if (state.nativeEmulator) emulatorBtn.textContent = 'Open in ' + state.nativeEmulator;
   const empty = $('empty');
   empty.hidden = running;
   empty.textContent = stopped ? name + ' is not running.' : name + ' is being built…';
@@ -125,5 +131,6 @@ $('restart').addEventListener('click', () => {
 $('rebuild').addEventListener('click', () => vscode.postMessage({ type: 'rebuild' }));
 $('stop').addEventListener('click', () => vscode.postMessage({ type: 'stop' }));
 $('browser').addEventListener('click', () => vscode.postMessage({ type: 'browser' }));
+$('emulator').addEventListener('click', () => vscode.postMessage({ type: 'emulator' }));
 
 vscode.postMessage({ type: 'ready' });

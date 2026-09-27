@@ -82,6 +82,28 @@ test('the Studio page: state drives the bar, the frame\'s reports drive the mous
   assert.equal($('mouse').hidden, true);
 });
 
+test('the "Open in emulator" button: hidden with no native emulator, shown and named when there is one, independent of the run\'s own phase', () => {
+  const { dom, sandbox, posted } = runWebviewScripts([STUDIO_JS]);
+  const $ = (id) => dom.getElementById(id);
+
+  sandbox.window.dispatch('message', { data: { type: 'state', phase: 'building', emulator: null, program: null, nativeEmulator: null } });
+  assert.equal($('emulator').hidden, true, 'no report of one installed: no button');
+
+  // A native emulator is a fact about the host, not about this preview's
+  // own run — it shows up, and stays enabled, even while the wasm build
+  // is still "building" and every other action button is disabled.
+  sandbox.window.dispatch('message', { data: { type: 'state', phase: 'building', emulator: null, program: null, nativeEmulator: 'xpet' } });
+  assert.equal($('emulator').hidden, false);
+  assert.equal($('emulator').textContent, 'Open in xpet');
+  assert.equal($('restart').disabled, true, 'building still disables the preview\'s own controls');
+
+  $('emulator').dispatch('click');
+  assert.deepEqual(plain(posted.at(-1)), { type: 'emulator' });
+
+  sandbox.window.dispatch('message', { data: { type: 'state', phase: 'stopped', emulator: null, program: null, nativeEmulator: 'xpet' } });
+  assert.equal($('emulator').hidden, false, 'stays offered even once the preview itself has stopped');
+});
+
 test('Studio postMessage rejects foreign origins', () => {
   const { dom, sandbox } = runWebviewScripts([STUDIO_JS]);
   const $ = (id) => dom.getElementById(id);

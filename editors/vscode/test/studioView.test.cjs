@@ -24,8 +24,14 @@ function writeLastRun(dir, target, data) {
   fs.writeFileSync(path.join(dir, 'dist', `.8bs-last-${target}.json`), JSON.stringify({ target, ...data }));
 }
 
-/** A Projects stand-in: which runs are in flight, a Stop that records, and the change event. */
-function fakeProjects() {
+/**
+ * A Projects stand-in: which runs are in flight, a Stop that records, the
+ * change event, and — for the "Open in emulator" button — a doctor report
+ * and a target catalog to read an emulator's name from. Both default to
+ * "nothing installed, nothing to fit against", so every test that does not
+ * care about the button sees it stay hidden without having to say so.
+ */
+function fakeProjects({ doctor = null, targets = new Map(), all = [] } = {}) {
   const changed = new vscode.EventEmitter();
   const runs = [];
   const stopped = [];
@@ -33,7 +39,10 @@ function fakeProjects() {
     runs,
     stopped,
     changed,
+    all,
     onDidChange: changed.event,
+    loadDoctor: async () => doctor,
+    loadTargets: async () => targets,
     running: {
       matching: (dir, target, only = {}) => runs.filter((r) => r.dir === dir && r.target === target && (only.web === undefined || r.web === only.web)),
       stop: (dir, target, only) => stopped.push({ dir, target, only }),
@@ -101,7 +110,7 @@ test('the tab follows a run: building until a fresh URL lands, framed once it do
     assert.doesNotMatch(panel.webview.html, /<iframe/, 'the stale URL is not framed');
     panel.webview.__fire({ type: 'ready' });
     await tick();
-    assert.deepEqual(panel.posted.at(-1), { type: 'state', phase: 'building', emulator: 'x16emu r49 (WebAssembly)', program: null });
+    assert.deepEqual(panel.posted.at(-1), { type: 'state', phase: 'building', emulator: 'x16emu r49 (WebAssembly)', program: null, nativeEmulator: null });
 
     // The CLI serves: a fresh file with the URL.
     writeLastRun(dir, 'cx16', { url: 'http://127.0.0.1:2222/', emulator: 'x16emu r49 (WebAssembly)', memory: { program: 6186 }, writtenAt: new Date().toISOString() });
@@ -111,7 +120,7 @@ test('the tab follows a run: building until a fresh URL lands, framed once it do
     assert.match(panel.webview.html, /<iframe id="frame" src="http:\/\/127\.0\.0\.1:2222\/"/);
     panel.webview.__fire({ type: 'ready' });
     await tick();
-    assert.deepEqual(panel.posted.at(-1), { type: 'state', phase: 'running', emulator: 'x16emu r49 (WebAssembly)', program: 6186 });
+    assert.deepEqual(panel.posted.at(-1), { type: 'state', phase: 'running', emulator: 'x16emu r49 (WebAssembly)', program: 6186, nativeEmulator: null });
 
     // The page's buttons.
     panel.webview.__fire({ type: 'browser' });
@@ -133,7 +142,7 @@ test('the tab follows a run: building until a fresh URL lands, framed once it do
     assert.doesNotMatch(panel.webview.html, /<iframe/);
     panel.webview.__fire({ type: 'ready' });
     await tick();
-    assert.deepEqual(panel.posted.at(-1), { type: 'state', phase: 'stopped', emulator: null, program: null });
+    assert.deepEqual(panel.posted.at(-1), { type: 'state', phase: 'stopped', emulator: null, program: null, nativeEmulator: null });
 
     // A second show re-points the one tab rather than opening another.
     const before = vscode.__mock.webviewPanels.length;
@@ -197,7 +206,7 @@ test('ready re-reads instead of echoing a stale phase: a build fast enough to fi
     // reload on its own, so this fires the round trip by hand.
     panel.webview.__fire({ type: 'ready' });
     await tick();
-    assert.deepEqual(panel.posted.at(-1), { type: 'state', phase: 'running', emulator: 'browser', program: 108 });
+    assert.deepEqual(panel.posted.at(-1), { type: 'state', phase: 'running', emulator: 'browser', program: 108, nativeEmulator: null });
     // Disposed, not left open: the module-level openPreview it set is
     // shared by every registerStudioView() call in this process, so a
     // panel left dangling here would make the *next* test's own
@@ -238,6 +247,46 @@ test('closing the Preview tab stops its run, exactly as closing Studio\'s own ta
     panel.__dispose();
     assert.deepEqual(projects.stopped, [{ dir, target: 'pet', only: { web: true } }],
       'closing the Preview tab ends exactly the run it was following');
+  } finally {
+    for (const subscription of context.subscriptions) subscription.dispose?.();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('"Open in emulator": named only when Doctor reports it installed, and clicking runs the real machine alongside the preview, never replacing it', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), '8bs-preview-tab-emulator-'));
+  const context = { subscriptions: [] };
+  try {
+    vscode.__mock.reset();
+    const project = { dir, name: 'hello-world' };
+    const targets = new Map([['pet', { emulator: 'xpet' }]]);
+    const projects = fakeProjects({ all: [project], targets, doctor: { ready: ['pet'], notInstalled: [], failed: [] } });
+    registerStudioView(context, projects);
+
+    projects.runs.push({ dir, target: 'pet', web: true });
+    await vscode.__mock.trigger('8bitscript.previewTab.show', { dir, target: 'pet', launchedAt: Date.now() });
+    await tick();
+    const panel = vscode.__mock.webviewPanels.at(-1);
+
+    panel.webview.__fire({ type: 'ready' });
+    await tick();
+    assert.equal(panel.posted.at(-1).nativeEmulator, 'xpet', 'Doctor says pet is ready, and the catalog names its emulator');
+
+    panel.webview.__fire({ type: 'emulator' });
+    await tick();
+    const ran = vscode.__mock.executedCommands.find((c) => c.id === '8bitscript.run');
+    assert.ok(ran, 'the emulator button reaches the same 8bitscript.run command Run in emulator does');
+    assert.deepEqual(ran.args[0], { project, target: 'pet', web: false },
+      'web: false forces the native path, and the project is looked up from the binding\'s own dir');
+    // The wasm preview's own run is untouched: nothing was stopped by this.
+    assert.deepEqual(projects.stopped, []);
+
+    // Doctor changes its mind (uninstalled, or found broken): the button goes away.
+    projects.doctor = { ready: [], notInstalled: ['pet'], failed: [] };
+    projects.loadDoctor = async () => projects.doctor;
+    panel.webview.__fire({ type: 'ready' });
+    await tick();
+    assert.equal(panel.posted.at(-1).nativeEmulator, null, 'not installed: no button to open it');
   } finally {
     for (const subscription of context.subscriptions) subscription.dispose?.();
     fs.rmSync(dir, { recursive: true, force: true });

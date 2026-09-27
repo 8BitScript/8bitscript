@@ -33,6 +33,7 @@ const path = require('path');
 const vscode = require('vscode');
 
 const { readLastRun } = require('./runningMachines.cjs');
+const { emulatorIsReady } = require('./projects.cjs');
 
 const CSS = fs.readFileSync(path.join(__dirname, '..', 'media', 'studio.css'), 'utf8');
 const JS = fs.readFileSync(path.join(__dirname, '..', 'media', 'studio.js'), 'utf8');
@@ -106,6 +107,7 @@ function html(webview, {
       <button id="rebuild" title="Build again and start it">Rebuild</button>
       <button id="stop" title="End the run">Stop</button>
       <button id="browser" title="The same URL in your browser — the known-good for the mouse">Open in browser</button>
+      <button id="emulator" hidden title="The real machine, alongside this preview">Open in emulator</button>
     </div>
   </header>
   <p class="mouse" id="mouse"></p>
@@ -189,6 +191,7 @@ class StudioPanel {
     const running = this.running();
     this.phase = !running ? 'stopped' : fresh ? 'running' : 'building';
     this.report = fresh ?? report;
+    this.nativeEmulator = await this.emulatorFor(dir, target);
     if (running && fresh && fresh.url !== this.url) {
       this.url = fresh.url;
       const external = await vscode.env.asExternalUri(vscode.Uri.parse(fresh.url));
@@ -205,6 +208,39 @@ class StudioPanel {
     await this.post();
   }
 
+  /**
+   * The binary name of `target`'s real emulator (`xpet`, `x16emu`, ...)
+   * when `8bs doctor` reports it installed and working, or null — no
+   * button for a machine with no emulator to open, or one Doctor already
+   * says will not boot. `dir` picks which project's catalog to read the
+   * same way `loadTargets` always has: the catalog is the toolchain's, but
+   * a project's `8bitscript.config.ts` can still be wrong about presets,
+   * and the tab is following one particular project's run.
+   */
+  async emulatorFor(dir, target) {
+    const [doctor, targets] = await Promise.all([
+      this.projects.loadDoctor(),
+      this.projects.loadTargets(dir),
+    ]);
+    const emulator = targets?.get(target)?.emulator;
+    return emulator && emulatorIsReady(doctor, target) ? emulator : null;
+  }
+
+  /**
+   * Launch the real emulator alongside this preview — a second, entirely
+   * separate run (`web: false` in the task definition `matching({web:true})`
+   * already tells apart from this tab's own), never a replacement for it.
+   * `this.binding` only carries `{dir, target, launchedAt}` (see bind()),
+   * so the project it belongs to is looked up the same way runner.cjs
+   * resolves any other node that already names one.
+   */
+  openEmulator() {
+    if (!this.binding || !this.nativeEmulator) return;
+    const project = this.projects.all.find((p) => p.dir === this.binding.dir);
+    if (!project) return;
+    vscode.commands.executeCommand('8bitscript.run', { project, target: this.binding.target, web: false });
+  }
+
   state() {
     const report = this.phase === 'stopped' ? null : this.report;
     return {
@@ -212,6 +248,10 @@ class StudioPanel {
       phase: this.phase,
       emulator: report?.emulator ?? null,
       program: report?.memory?.program ?? null,
+      // Independent of this run's own phase: whether to open the *real*
+      // machine is a fact about the host (is xpet/x16emu installed), not
+      // about whether this particular wasm preview has finished building.
+      nativeEmulator: this.nativeEmulator ?? null,
     };
   }
 
@@ -237,6 +277,9 @@ class StudioPanel {
         return;
       case 'stop':
         this.stop();
+        return;
+      case 'emulator':
+        this.openEmulator();
         return;
       case 'browser':
         if (this.url) await vscode.env.openExternal(vscode.Uri.parse(this.url));
