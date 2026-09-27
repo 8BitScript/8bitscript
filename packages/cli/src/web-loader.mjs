@@ -907,13 +907,42 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
 
     function start() {
       if (running || destroyed) return;
-      if (!isolated()) {
-        say(ISOLATION_HELP);
-        if (options.onError) options.onError(new Error(ISOLATION_HELP));
-        return;
-      }
+      // Isolation is only a sharing requirement (see the file header): it
+      // is never needed at all for a program that never calls waitFrame(),
+      // which the worker already treats differently (renderWorker()'s own
+      // shared check) — it runs once, to completion, and its plain,
+      // un-shared memory posts back afterward like any other ArrayBuffer.
+      // The one thing here that still needed isolation regardless was this
+      // function's own ctrl — the page/worker frame counter, entirely
+      // unused by a program that never calls waitFrame() and therefore
+      // never enters the worker's waitFrame() closure that reads it — so a
+      // program that never asks for a frame no longer has to ask for
+      // isolation either. A program that does still gets exactly the
+      // requirement and the message this always had; nothing here changes
+      // for it.
+      fetch(wasmUrl).then(function (response) {
+        return response.arrayBuffer();
+      }).then(WebAssembly.compile).then(function (module) {
+        var needsShared = WebAssembly.Module.imports(module).some(function (i) { return i.module === 'env' && i.name === 'waitFrame'; });
+        if (needsShared && !isolated()) {
+          say(ISOLATION_HELP);
+          if (options.onError) options.onError(new Error(ISOLATION_HELP));
+          return;
+        }
+        startWorker(needsShared);
+      }).catch(function (error) {
+        say('the program failed: ' + error.message);
+        if (options.onError) options.onError(error);
+      });
+    }
+
+    function startWorker(needsShared) {
       running = true;
-      ctrl = new Int32Array(new SharedArrayBuffer(8));
+      // null, not a plain Int32Array, when nothing will ever wait on it:
+      // Atomics.add/notify (tick(), below) throw on a non-shared buffer,
+      // and tick()'s own ctrl check already treats a falsy ctrl as nothing
+      // to release frames for — the exact case this is.
+      ctrl = needsShared ? new Int32Array(new SharedArrayBuffer(8)) : null;
       worker = new Worker(options.worker ? new URL(options.worker, document.baseURI).href : blobWorkerUrl());
       worker.onmessage = function (event) {
         var data = event.data;

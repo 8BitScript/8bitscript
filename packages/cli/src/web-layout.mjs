@@ -257,22 +257,36 @@ export function layoutFromHardware(hardwareOrFacts = {}) {
  * program's actual text sat 24KB further on, at $8000.
  *
  * `glyphIndexFn` exists because a real machine's screen byte and the
- * shared font's index are not always the same number either: PET's own
- * `asciiToScreenCode()` moves lower-case down to 1-26 so upper case can
- * sit at its ASCII value (the space 1-26 would otherwise share with
- * control codes) — this is that function's inverse, applied host-side.
- * Reverse video (bit 7, PET's own `toScreen()` ORs it into the *screen
- * code itself*, not a separate color byte the way the synthetic target's
+ * shared font's index are not always the same number either — and on the
+ * PET, which one is not itself fixed: `packages/pet/src/text.8bs`'s own
+ * `asciiToScreenCode()` branches on `#fact(video.characterSetSwapped)`
+ * (true only for the 2001, the catalog's own `model` option), so this does
+ * too, per build, rather than picking one and being wrong for the other.
+ * Non-swapped (every later model, 901447-10): lower case moves down to
+ * 1-26 so upper case can sit at its own ASCII value. Swapped (the 2001's
+ * own ROM, confirmed there against characters-1.901447-08.bin): upper
+ * case moves down to 1-26 instead and lower case sits at 65-90 — the
+ * opposite assignment, not the same one shifted. Getting this wrong
+ * doesn't blank the screen (unlike charBase) — it draws real glyphs, just
+ * the wrong ones, which is a worse failure to ship unnoticed. Reverse
+ * video (bit 7, PET's own `toScreen()` ORs it into the *screen code
+ * itself*, not a separate color byte the way the synthetic target's
  * `text.setReverse` does) is masked off rather than rendered inverted —
  * a real, known gap: PET builds nothing writes a reverse `text.print` yet.
  */
+const PET_GLYPH_INDEX_SWAPPED = 'function(code){var c=code&127;'
+  + 'if(c>=1&&c<=26)return c+64;' // 'A'-'Z' moved down to 1-26 on this ROM
+  + 'if(c>=65&&c<=90)return c+32;' // 'a'-'z' moved up to 65-90 on this ROM
+  + 'return c;}';
+const PET_GLYPH_INDEX_UNSWAPPED = 'function(code){var c=code&127;'
+  + 'return(c>=1&&c<=26)?c+96:c;}'; // 'a'-'z' moved down to 1-26; 'A'-'Z' already at its own value
 const REAL_MACHINE_LAYOUT = {
   pet: {
     palette: PET_PALETTE,
     colorPerCell: false,
     aspect: '4/3',
     screenBase: 0x8000,
-    glyphIndexFn: 'function(code){var c=code&127;return(c>=1&&c<=26)?c+96:c;}',
+    glyphIndexFn: (facts) => (facts['video.characterSetSwapped'] ? PET_GLYPH_INDEX_SWAPPED : PET_GLYPH_INDEX_UNSWAPPED),
   },
 };
 
@@ -306,7 +320,7 @@ export function layoutForRealMachine(target, hardware = {}) {
     // always reads 0 — "not reversed" — until reverse video is wired up
     // for real (see the header comment above).
     colorBase: real.screenBase + cells,
-    glyphIndexFn: real.glyphIndexFn,
+    glyphIndexFn: typeof real.glyphIndexFn === 'function' ? real.glyphIndexFn(facts) : real.glyphIndexFn,
   };
 }
 
