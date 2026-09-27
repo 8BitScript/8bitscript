@@ -408,7 +408,17 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
     // tag already does.
     const suffix = [hardware.tags[0], localeTag].filter(Boolean).map((part) => `-${part}`).join('');
     const wasmName = `program${suffix}`;
-    const outFile = resolve('dist', `${stem}${suffix}.wasm`);
+    // A real machine's own --web build is named for the machine, not the
+    // specific model it happened to compile for: hello-world.pet.wasm, the
+    // same wasm regardless of whether that build picked the 3032's RAM or
+    // the 8032's — a browser preview has one "PET," not a shelf of them.
+    // The model still decides what got compiled (RAM budget, column count),
+    // it just isn't the file's own name; --hardware/--profile still choose
+    // it, same as any other build. The synthetic web target is unchanged:
+    // it never named itself for a target at all (there is only one).
+    const outFile = target === 'web'
+      ? resolve('dist', `${stem}${suffix}.wasm`)
+      : resolve('dist', [stem, target, localeTag].filter(Boolean).join('.') + '.wasm');
     // The layout is computed once and both sides get it: the page through
     // the bundle's sidecar, the backend through `reserved` — the agreement's
     // end, past which its data section starts (web-layout.mjs, and
@@ -741,13 +751,20 @@ export async function build(args) {
       + '                  no --target builds the `baseline` 8bitscript.config.ts names, when it names one)\n'
       + '                 [--pal] [--size] [--debug] [--program <name>] [--locale <name>]\n'
       + HARDWARE_USAGE
+      + '                 [--web]  pet/vic20/c64: that machine\'s own package, through the wasm\n'
+      + '                          backend, instead of a native build — see `8bs run --web`\n'
       + '                 [entry.8bs]\n',
     );
     return 2;
   }
+  // cx16's --web is 8bs run's own thing (the vendored real x16emu, fetched
+  // and served live) — there is nothing for a standalone build to bundle,
+  // so --web here only ever means "build this real machine's own package
+  // through the wasm backend," same as run.mjs's identical exclusion.
+  const web = args.includes('--web') && target !== 'cx16';
   const { ok } = await compile(target, entry, {
     pal, profile: launch.profile, hardware: launch.overrides, report, debug, checkout: checkout.checkout,
-    program: programOpt.program, locale: localeOpt.locale,
+    program: programOpt.program, locale: localeOpt.locale, web,
   });
   return ok ? 0 : 1;
 }

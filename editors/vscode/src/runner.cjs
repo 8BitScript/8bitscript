@@ -50,6 +50,19 @@ const { ALL_TARGETS: STUDIO_MACHINES } = require('./projects.cjs');
 /** The bare machine ids the Studio menu can name, as opposed to a named system. */
 const MACHINES_FOR_STUDIO = new Set(STUDIO_MACHINES);
 const settings = require('./settings.cjs');
+// Which real machine targets a plain Run can default to their own --web
+// build for, per settings.getPreferWebPreview() — narrower than "has a
+// --web build attempt at all" (every release target does, per the CLI's
+// own --web wiring): vic20 and c64 still hit their own asm6502 walls
+// building through the wasm backend (see the "Native System Emulation in
+// WASM" plan's build tracker), so defaulting Run to --web for them would
+// turn a working native launch into a guaranteed failure, not a
+// preference between two things that both work. cx16 is excluded on
+// purpose too: its --web is a real vendored emulator with its own
+// dedicated launch (Studio's tab, Preview On…), not a plain Run default.
+// Grows by removing an entry here, once that machine's own package
+// compiles through the wasm backend for real.
+const WEB_PREVIEW_READY = new Set(['pet']);
 const { selectionLabel, parseTargets } = require('./hardwareCatalog.cjs');
 const { fetchStatus, livePollPlan, readLastRun, rowKey } = require('./runningMachines.cjs');
 const { toolchainStatus } = require('./projectInfo.cjs');
@@ -822,8 +835,13 @@ function registerRunner(context, output) {
     const extras = {
       system: system || undefined,
       checkout: projects.checkoutFlag() || undefined,
-      // The Studio tab's run (openStudioTab below): the WebAssembly
-      // emulator instead of a window. Nothing else sets it.
+      // Set only by a caller that already decided and knows how to show
+      // the result: Studio's own tab, Preview On…, and the plain Run
+      // command's own WEB_PREVIEW_READY/preferWebPreview check (below) —
+      // never defaulted in here. launch() (Launch App…/Launch Example…)
+      // calls this with nothing set and has no tab of its own to show a
+      // --web run in; defaulting it here once made that combination start
+      // a real server with nothing pointed at it.
       web: node?.web ? true : undefined,
     };
     return vscode.tasks.executeTask(
@@ -1233,6 +1251,17 @@ function registerRunner(context, output) {
   // never offered `c64`. `rebind` is the Preview tab's own Rebuild
   // reaching back in with the exact `{dir, target}` it is already
   // showing, skipping both pickers.
+  /** Run `project` on `target` in a --web build and follow it in the
+   * generic Preview tab — previewOn's own body, and what a plain Run
+   * reaches for too once it has decided (WEB_PREVIEW_READY, the
+   * preferWebPreview setting) that this run should be one. */
+  async function runInPreviewTab(project, target) {
+    projects.running.stop(project.dir, target, { web: true });
+    const launchedAt = Date.now();
+    const started = await execute('run', { project, target, web: true });
+    if (!started) return;
+    await vscode.commands.executeCommand('8bitscript.previewTab.show', { dir: project.dir, target, launchedAt });
+  }
   command('8bitscript.previewOn', async (rebind) => {
     if (projects.all.length === 0) await projects.refresh();
     let resolved;
@@ -1243,12 +1272,7 @@ function registerRunner(context, output) {
       resolved = await targetOf(undefined, 'preview');
     }
     if (!resolved) return;
-    const { project, target } = resolved;
-    projects.running.stop(project.dir, target, { web: true });
-    const launchedAt = Date.now();
-    const started = await execute('run', { project, target, web: true });
-    if (!started) return;
-    await vscode.commands.executeCommand('8bitscript.previewTab.show', { dir: project.dir, target, launchedAt });
+    await runInPreviewTab(resolved.project, resolved.target);
   });
   command('8bitscript.launchApp', () => launch('app', 'apps'));
   command('8bitscript.launchExample', () => launch('example', 'examples'));
@@ -1256,7 +1280,19 @@ function registerRunner(context, output) {
   command('8bitscript.install', install);
   command('8bitscript.useLocal', useLocal);
   command('8bitscript.usePublished', usePublished);
-  command('8bitscript.run', (node) => execute('run', node));
+  command('8bitscript.run', async (node) => {
+    // Resolved once, here, rather than left to execute()'s own targetOf:
+    // deciding whether this run defaults to --web needs the target before
+    // the task starts, and a node already carrying {project, target} (this
+    // resolved one) makes execute()'s own targetOf a same-answer no-op
+    // rather than a second quick pick.
+    const resolved = await targetOf(node, 'run');
+    if (!resolved) return;
+    const { project, target } = resolved;
+    const web = node?.web !== undefined ? node.web : WEB_PREVIEW_READY.has(target) && settings.getPreferWebPreview();
+    if (web) { await runInPreviewTab(project, target); return; }
+    await execute('run', resolved);
+  });
   command('8bitscript.build', (node) => execute('build', node));
   command('8bitscript.boot', (node) => execute('boot', node));
   command('8bitscript.viewGeneratedAssembly', viewGeneratedAssembly);

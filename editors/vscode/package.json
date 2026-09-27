@@ -586,6 +586,11 @@
           "default": true,
           "description": "List the examples that ship with the toolchain (@8bitscript/examples, installed with @8bitscript/cli) in the launcher's Project dropdown, in a group of their own under the workspace's projects and beside the toolchain's apps. On by default. Toggled with the book icon in the 8BitScript side bar's title bar, which is only offered when there are examples to show. Launch Example… reaches them either way."
         },
+        "8bitscript.preferWebPreview": {
+          "type": "boolean",
+          "default": true,
+          "description": "The plain Run command opens a machine's own --web build instead of a native emulator window, for a target that already has one (today: the PET). On by default. A target with no --web build yet (VIC-20, C64) still runs its native emulator either way — this never turns Run into a failure, only a preference between two things that already work. Preview On… always offers the choice regardless of this setting."
+        },
         "8bitscript.assemblyView.explain": {
           "type": "boolean",
           "default": true,

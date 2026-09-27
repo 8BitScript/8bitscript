@@ -488,6 +488,60 @@ test('registerRunner: run executes a plain machine target end to end', async () 
   }
 });
 
+test('registerRunner: run on the PET defaults to its own --web build in the Preview tab, preferWebPreview and an explicit override both respected', async () => {
+  const dir = tmpDir();
+  try {
+    writeConfig(dir);
+    const cli = writeFakeCli(dir);
+    const shown = [];
+
+    // On by default (WEB_PREVIEW_READY has 'pet', preferWebPreview defaults true).
+    vscode.__mock.reset();
+    vscode.commands.registerCommand('8bitscript.previewTab.show', (run) => shown.push(run));
+    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.ts') }]);
+    await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async (projects) => {
+      projects.projects[0].toolchain = cli;
+      projects.projects[0].installed = true;
+      await vscode.__mock.trigger('8bitscript.run', { project: projects.projects[0], target: 'pet' });
+      await tick();
+      const executed = vscode.__mock.executedTasks.at(-1);
+      assert.ok(executed, 'a task was executed');
+      assert.equal(executed.task.definition.target, 'pet');
+      assert.equal(executed.task.definition.web, true);
+      assert.equal(shown.length, 1, 'the Preview tab followed it — a run task alone shows nothing');
+      assert.equal(shown[0].target, 'pet');
+    });
+
+    // The setting turned off: back to the native path, no tab.
+    shown.length = 0;
+    vscode.__mock.reset();
+    vscode.commands.registerCommand('8bitscript.previewTab.show', (run) => shown.push(run));
+    vscode.__mock.configStore.set('preferWebPreview', false);
+    await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async (projects) => {
+      projects.projects[0].toolchain = cli;
+      projects.projects[0].installed = true;
+      await vscode.__mock.trigger('8bitscript.run', { project: projects.projects[0], target: 'pet' });
+      await tick();
+      const executed = vscode.__mock.executedTasks.at(-1);
+      assert.notEqual(executed.task.definition.web, true);
+      assert.equal(shown.length, 0, 'the setting said no — no Preview tab this time');
+    });
+
+    // An explicit choice on the node overrides the default either way.
+    vscode.__mock.reset();
+    vscode.commands.registerCommand('8bitscript.previewTab.show', (run) => shown.push(run));
+    await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async (projects) => {
+      projects.projects[0].toolchain = cli;
+      projects.projects[0].installed = true;
+      await vscode.__mock.trigger('8bitscript.run', { project: projects.projects[0], target: 'pet', web: false });
+      await tick();
+      assert.notEqual(vscode.__mock.executedTasks.at(-1).task.definition.web, true, 'web: false on the node wins over the default');
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('registerRunner: run offers to install first when the project is not installed', async () => {
   const dir = tmpDir();
   try {
