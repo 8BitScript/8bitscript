@@ -97,6 +97,7 @@
 
 import { pruneUnreachable } from './reachability.mjs';
 import { resolveIntegerType, storageBytes } from '../types/index.mjs';
+import { Codes, diagnostic } from '../diagnostics/index.mjs';
 
 /** Unroll a literal string copy only while the stores beat a looped print; 32 characters is still smaller than print+place+ascii. */
 const MAX_UNROLL = 32;
@@ -1249,6 +1250,15 @@ function optimizeStatement(statement, ctx) {
     // literal string copy.
     const counted = matchCountedFor(folded, folded.unroll ? UNROLL_DECORATOR_MAX : MAX_UNROLL);
     if (counted && (folded.unroll || containsStringByte(folded.body))) {
+      if (folded.unroll) {
+        const bodyNodes = nodeCount(folded.body);
+        ctx.remarks.push(diagnostic(
+          Codes.LOOP_UNROLLED,
+          `@unroll: ${counted.count} copies of a ${bodyNodes}-node loop body (~${bodyNodes * counted.count} nodes total) replace the loop, in ${ctx.currentFn?.name ?? '<unknown>'}`,
+          ctx.currentFn?.file ?? '',
+          folded.start ?? 0, folded.length ?? 0, 'remark',
+        ));
+      }
       const previous = ctx.unrollingStringCopy;
       ctx.unrollingStringCopy = true;
       try {
@@ -1414,7 +1424,7 @@ function applyImmutable(functions, globals) {
  * @template {{ name: string, body: unknown, params?: { name: string, type?: string }[], returnType?: string | null }} F
  * @template {{ name: string, type?: string, address?: number | null, array?: number, init?: unknown, constant?: boolean }} G
  * @param {{ entry: string, functions: F[], globals?: G[], strings?: { bytes: number[] }[] }} ir
- * @returns {{ entry: string, functions: F[], globals: G[], strings?: { bytes: number[] }[] }}
+ * @returns {{ entry: string, functions: F[], globals: G[], strings?: { bytes: number[] }[], remarks: { code: string, message: string, file: string, start: number, length: number, severity: string }[] }}
  */
 export function optimizeIr(ir) {
   let functions = applyImmutable(ir.functions, ir.globals);
@@ -1427,13 +1437,19 @@ export function optimizeIr(ir) {
     callerBound: new Set(),
     zpNames: new Set(),
     currentFn: null,
+    // What this pass actually did, for a build asking to see it
+    // (`8bs build --remarks`) — populated regardless of whether anyone
+    // reads it back; a diagnostic object per rewrite is cheap next to the
+    // rewrite itself, and only `@unroll` (the one rewrite a program asks
+    // for by name) reports here today.
+    remarks: [],
     consumed: new Set(),
     retired: new Set(),
     addressed: new Set((ir.globals ?? []).filter((global) => global.address != null).map((global) => global.name)),
   };
   functions = optimizeFunctions(functions, ctx);
   functions = optimizeFunctions(functions, ctx);
-  return { ...ir, functions, globals: ir.globals ?? [] };
+  return { ...ir, functions, globals: ir.globals ?? [], remarks: ctx.remarks };
 }
 
 /**
@@ -1447,7 +1463,7 @@ export function optimizeIr(ir) {
  * @template {{ name: string, body: unknown, params?: { name: string, type?: string }[], returnType?: string | null }} F
  * @template {{ name: string, type?: string, address?: number | null, array?: number, init?: unknown, constant?: boolean }} G
  * @param {{ entry: string, functions: F[], globals?: G[] }} ir
- * @returns {{ functions: F[], globals: G[] }}
+ * @returns {{ functions: F[], globals: G[], remarks: { code: string, message: string, file: string, start: number, length: number, severity: string }[] }}
  */
 export function optimizeReachable(ir) {
   const pruned = pruneUnreachable(ir);
@@ -1459,5 +1475,12 @@ export function optimizeReachable(ir) {
   // writing it into its one live caller. The second prune makes the
   // count right; the second fold acts on it.
   const live = pruneUnreachable(optimized);
-  return pruneUnreachable(optimizeIr({ ...optimized, functions: live.functions, globals: live.globals }));
+  const final = optimizeIr({ ...optimized, functions: live.functions, globals: live.globals });
+  // pruneUnreachable returns only { functions, globals } — remarks from
+  // either round would not survive being passed through it, so they are
+  // carried past it here instead. A rewrite an @unroll's substitution
+  // already turned into straight-line code cannot be seen as a `for`
+  // again in the second round, so there is no double-reporting to guard
+  // against.
+  return { ...pruneUnreachable(final), remarks: [...optimized.remarks, ...final.remarks] };
 }

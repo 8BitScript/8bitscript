@@ -11,7 +11,9 @@
  * @property {string} file     Path or URI the diagnostic belongs to.
  * @property {number} start    Zero-based offset into the source text.
  * @property {number} length   Length of the offending span, in characters.
- * @property {'error'|'warning'} severity
+ * @property {'error'|'warning'|'remark'} severity  'remark' is never produced
+ *   by `8bs check` or the editor — it is what a build's own optimizer says
+ *   it did, opt-in (`8bs build --remarks`), and never counted as a problem.
  */
 
 /**
@@ -22,6 +24,8 @@
  * implemented; type errors wait on a binder). 3000s are target limits: the
  * construct is valid but the compiler cannot lower it yet, it is not available
  * on the requested target, or the target refuses it as a hardware hazard.
+ * 9000s are remarks (severity 'remark') — never a problem, opt-in, what a
+ * build's own optimizer did.
  */
 export const Codes = {
   UNTERMINATED_STRING: '8BS1002',
@@ -237,6 +241,16 @@ export const Codes = {
   // Reported by the linker, like HARDWARE_HAZARD, because it needs every
   // const and `#fact` already inlined to know N.
   UNROLL_INVALID: '8BS3006',
+
+  // 9000s: remarks. Never an error or a warning — what the optimizer
+  // (packages/compiler/src/linker/optimize.mjs) actually did, opt-in via
+  // `8bs build --remarks`, so a program that asked for an aggressive
+  // rewrite (today, only `@unroll`) can see it happened and by how much,
+  // without every ordinary build growing noisier. Like HARDWARE_HAZARD
+  // and UNROLL_INVALID, these come from the linker/backend, never from
+  // `8bs check` or the editor — an optimizer remark needs a machine and a
+  // finished build to exist at all.
+  LOOP_UNROLLED: '8BS9001',
 };
 
 /** @returns {Diagnostic} */

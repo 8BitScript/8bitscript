@@ -40,6 +40,13 @@ const COMPLETION_KIND = {
 const SEVERITY = {
   error: DiagnosticSeverity.Error,
   warning: DiagnosticSeverity.Warning,
+  // Never actually reached today: a remark comes from a build's own
+  // optimizer (packages/compiler/src/linker/optimize.mjs), and the
+  // language server analyses files without a machine or a finished
+  // build. Listed anyway so the map stays total over Diagnostic's own
+  // severity union, rather than silently defaulting an unrecognized one
+  // to Error.
+  remark: DiagnosticSeverity.Information,
 };
 
 // 8bitscript.config.ts is the current name; 8bs.config.ts (every project
