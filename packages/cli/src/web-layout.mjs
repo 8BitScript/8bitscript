@@ -304,15 +304,18 @@ const REAL_MACHINE_LAYOUT = {
     memoryFor: (cells, hardware) => (hardware.tags?.includes('expanded')
       ? { charBase: 0x1000, colorBase: 0x9400 }
       : { charBase: 0x1e00, colorBase: 0x9600 }),
-    // No captured character ROM yet (chargen-901460-03.bin's mixed-case
-    // block) — falls back to the shared ASCII font, same honest gap as a
-    // PET model with no capture of its own. Screen-code layout already
-    // matches PET's non-swapped ROM exactly (lower case at 1-26, upper
-    // case at its own ASCII value — packages/vic20/src/text.8bs's own
-    // asciiToScreenCode() comment), so pet-text-screencode would even be
-    // pixel-plausible, but it is a different physical chip and wearing
-    // one machine's captured shapes as another's is exactly what
-    // font8x8.mjs's own header warns against doing.
+    // The VIC-20's own character ROM (chargen-901460-03.bin's "text"
+    // set), read directly out of VICE's own ROM binary — no screenshot
+    // alignment needed at all, unlike the PET captures, so the earlier
+    // abandoned attempt (2x scaling and a non-black background defeated
+    // automated grid detection) never needed retrying. Falling back to
+    // the shared ASCII font instead of this table was a real bug, not
+    // just lower fidelity: text.8bs writes screen codes (lower case at
+    // 1-26), and the shared font is ASCII-indexed, so every lower-case
+    // letter looked up the wrong glyph — only upper case and a few
+    // symbols happened to land on the same code in both schemes (exactly
+    // what showed up as "Hello World!" losing every lower-case letter).
+    glyphsFor: () => ({ font: 'vic20-text-screencode' }),
   },
   // The X16's VERA VRAM is not part of the CPU's address space at all —
   // even real hardware reaches it only through a stateful address port
