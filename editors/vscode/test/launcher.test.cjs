@@ -102,7 +102,7 @@ test('Open Studio is the largest button on the panel, above quick launch: a spli
   assert.match(runner, /command\('8bitscript\.openStudio'/);
   assert.match(runner, /p\.name === '@8bitscript\/studio'\);\n\s+if \(!studio\)/);
   assert.match(runner, /execute\('run', \{ project: studio, target: 'cx16' \}\)/);
-  assert.match(runner, /execute\('run', \{ project: studio, target: 'cx16', web: true \}\)/, 'missing x16emu falls back to the tab, not another machine');
+  assert.match(runner, /execute\('run', \{ project: studio, target: 'cx16', web: true, x16emu: true \}\)/, 'missing x16emu falls back to the tab, not another machine');
   assert.doesNotMatch(runner.slice(runner.indexOf("command('8bitscript.openStudio'"), runner.indexOf("command('8bitscript.launchApp'")), /showQuickPick|setProject|setSystem/);
   assert.ok(MANIFEST.contributes.commands.some((c) => c.command === '8bitscript.openStudio'), 'and it is on the palette');
 });
