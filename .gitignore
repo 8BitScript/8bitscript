@@ -52,3 +52,8 @@ packages/compiler/src/**/*.js
 # SonarLint local state. connectedMode.json is the shared Cloud binding.
 .sonarlint/*
 !.sonarlint/connectedMode.json
+
+# Scratch notes and reports from an agent's own research (the deep-research
+# skill and similar) — useful on the machine that made them, not source.
+/research_notes/
+/reports/
