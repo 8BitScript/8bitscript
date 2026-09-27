@@ -28,7 +28,8 @@
       "./mouse": "./src/mouse.8bs",
       "./input": "./src/input.8bs",
       "./pointer": "./src/pointer.8bs",
-      "./rasterline": "./src/rasterline.8bs"
+      "./rasterline": "./src/rasterline.8bs",
+      "./color": "./src/color.8bs"
     },
     "hardware": {
       "build": {
@@ -52,6 +53,7 @@
         "video.layers": 2,
         "video.scroll": true,
         "video.raster": false,
+        "video.colorBlend": false,
         "video.sprites": 128,
         "video.spritesPerLine": 46,
         "video.spriteWidth": 64,

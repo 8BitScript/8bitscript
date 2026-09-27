@@ -1,0 +1,29 @@
+// color.blend()/update()/stop(), read back from the border and
+// background registers: blend() sets a slot's own list entry to its
+// first color, a, immediately; update() flips every active slot to its
+// second color, b; stop() reverts a slot to a and update() no longer
+// touches it. One update(), then one stop() on the border only, then
+// the probe idles forever: the border settles back to green (blend()'s
+// a for border), the background stays blue (update()'s b for
+// background, never stopped) — a still, deterministic answer at any
+// frame count comfortably past the emulator's autostart, with no
+// flicker to time a screenshot against.
+import { screen } from "@8bitscript/screen";
+import { color } from "@8bitscript/color";
+import { Slot } from "@8bitscript/raster";
+
+const GREEN: utinyint = 5;
+const RED: utinyint = 2;
+const BLUE: utinyint = 6;
+const BLACK: utinyint = 0;
+
+export function main(): void {
+    screen.blank();
+    color.blend(Slot.BORDER, GREEN, RED);
+    color.blend(Slot.BACKGROUND, BLACK, BLUE);
+    color.update();          // border -> RED, background -> BLUE
+    color.stop(Slot.BORDER); // border settles back to GREEN; background stays BLUE
+    while (true) {
+        waitFrame();
+    }
+}
