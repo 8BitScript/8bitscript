@@ -282,8 +282,37 @@ const REAL_MACHINE_LAYOUT = {
     palette: PET_PALETTE,
     colorPerCell: false,
     aspect: '4/3',
-    screenBase: 0x8000,
+    // PET has no separate color RAM — one past the screen is unwritten by
+    // every program so far, so it always reads 0 ("not reversed") until
+    // reverse video is wired up for real (see the header comment above).
+    memoryFor: (cells) => ({ charBase: 0x8000, colorBase: 0x8000 + cells }),
     glyphsFor: (facts) => ({ font: facts['video.characterSetSwapped'] ? 'pet-2001-screencode' : 'pet-text-screencode' }),
+  },
+  vic20: {
+    palette: VIC20_PALETTE,
+    colorPerCell: true,
+    aspect: '4/3',
+    // The VIC-20's screen moves with its own memory, not with anything
+    // this function computes: unexpanded (and 3K, which only fills in
+    // below it) keeps the KERNAL's stock $1E00/$9600; 8K and up, the
+    // KERNAL relocates both down to $1000/$9400 so BASIC RAM stays one
+    // contiguous run above it (packages/vic20/src/geometry.8bs's own
+    // header has the full reasoning). `expanded` is the exact tag that
+    // file's own `.expanded` twin resolves on, read here from the same
+    // `hardware.tags` a build already carries — real color RAM, at its
+    // own hardware address, not the PET's "one past the screen" fiction.
+    memoryFor: (cells, hardware) => (hardware.tags?.includes('expanded')
+      ? { charBase: 0x1000, colorBase: 0x9400 }
+      : { charBase: 0x1e00, colorBase: 0x9600 }),
+    // No captured character ROM yet (chargen-901460-03.bin's mixed-case
+    // block) — falls back to the shared ASCII font, same honest gap as a
+    // PET model with no capture of its own. Screen-code layout already
+    // matches PET's non-swapped ROM exactly (lower case at 1-26, upper
+    // case at its own ASCII value — packages/vic20/src/text.8bs's own
+    // asciiToScreenCode() comment), so pet-text-screencode would even be
+    // pixel-plausible, but it is a different physical chip and wearing
+    // one machine's captured shapes as another's is exactly what
+    // font8x8.mjs's own header warns against doing.
   },
 };
 
@@ -303,21 +332,20 @@ export function layoutForRealMachine(target, hardware = {}) {
     colorPerCell: real ? real.colorPerCell : facts['video.colorPerCell'] !== false,
     resizable: false,
   });
-  // No entry yet for this target (vic20, c64 — still blocked on their own
-  // asm6502 walls, per the design doc's build tracker): geometry only,
-  // same synthetic charBase as before this function existed. Not correct
-  // for a real build either, but no *more* wrong than layoutFromHardware
+  // No entry yet for this target (c64 — still blocked on its own asm6502
+  // walls, per the design doc's build tracker): geometry only, same
+  // synthetic charBase as before this function existed. Not correct for a
+  // real build either, but no *more* wrong than layoutFromHardware
   // already was, and there is nothing target-specific to substitute yet.
   if (!real) return geometry;
   const cells = geometry.cols * geometry.rows;
   return {
     ...geometry,
-    charBase: real.screenBase,
-    // One past the screen: unwritten by every program so far, so it
-    // always reads 0 — "not reversed" — until reverse video is wired up
-    // for real (see the header comment above).
-    colorBase: real.screenBase + cells,
-    ...real.glyphsFor(facts),
+    ...real.memoryFor(cells, hardware),
+    // Optional: a machine with no captured character ROM of its own yet
+    // (vic20 today) keeps agreementFor()'s own default ASCII font rather
+    // than crashing here for want of a glyphsFor.
+    ...(real.glyphsFor?.(facts) ?? {}),
   };
 }
 
