@@ -12,7 +12,13 @@ const STUDIO_JS = path.join(__dirname, '..', 'media', 'studio.js');
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
 test('the Studio page: state drives the bar, the frame\'s reports drive the mouse line, buttons post', () => {
-  const { dom, sandbox, posted } = runWebviewScripts([STUDIO_JS]);
+  // The X16 has a mouse; html() would have set this inline before studio.js
+  // ever ran (studioView.cjs, TARGET_LABELS.cx16). A machine with none —
+  // covered in studioView.test.cjs instead, since that's the one place
+  // the flag itself is set — keeps this whole line hidden regardless of
+  // state, which is why this test (about the mouse line's real behavior)
+  // needs it seeded true rather than left at its unset, mouseless default.
+  const { dom, sandbox, posted } = runWebviewScripts([STUDIO_JS], (d) => { d.window.__8bsHasMouse = true; });
   assert.deepEqual(plain(posted), [{ type: 'ready' }]);
   const $ = (id) => dom.getElementById(id);
 

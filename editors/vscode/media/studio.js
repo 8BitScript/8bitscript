@@ -33,6 +33,13 @@ function grabHint() {
 
 function mouse(kind) {
   const line = $('mouse');
+  // Machines with no mouse at all (the PET, VIC-20, C64's own wasm
+  // builds) never send the pointer-lock postMessage this line otherwise
+  // reports on, so without this check it would just sit on its 'idle'
+  // default forever — a free-mouse message for hardware that never had
+  // one. window.__8bsHasMouse is set inline by studioView.cjs's html(),
+  // from that target's own facts, before this script runs.
+  if (!window.__8bsHasMouse) { line.hidden = true; return; }
   line.textContent = kind === 'idle'
     ? 'Your mouse is free — ' + grabHint() + '; Esc gives it back.'
     : kind === 'free'

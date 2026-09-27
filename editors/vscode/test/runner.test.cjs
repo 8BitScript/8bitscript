@@ -713,6 +713,46 @@ test('registerRunner: openStudioTab stops the tab\'s earlier run, starts Studio 
   }
 });
 
+test('registerRunner: previewOn picks a project and target (a single one of each needs no quick pick), runs it with --web, and shows the generic tab', async () => {
+  const dir = tmpDir();
+  try {
+    vscode.__mock.reset();
+    vscode.workspace.findFiles = () => Promise.resolve([]);
+    const shown = [];
+    vscode.commands.registerCommand('8bitscript.previewTab.show', (run) => shown.push(run));
+    await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async (projects) => {
+      const cli = writeFakeCli(dir);
+      // One project, one target on it — pickProject()/pickTarget() both
+      // take their single-candidate shortcut, so this needs no QuickPick
+      // stub, same as the openStudioTab test above needs none for Studio.
+      projects.projects = [fakeProject(dir, { toolchain: cli, targets: ['pet'] })];
+      const before = Date.now();
+      await vscode.__mock.trigger('8bitscript.previewOn');
+      await tick();
+      const executed = vscode.__mock.executedTasks.at(-1);
+      assert.ok(executed, 'a run was started');
+      assert.equal(executed.task.definition.target, 'pet');
+      assert.equal(executed.task.definition.web, true);
+      assert.deepEqual(executed.task.execution.args.slice(-4), ['--web', '--no-open', '--port', '0']);
+      assert.equal(shown.length, 1);
+      assert.equal(shown[0].dir, dir);
+      assert.equal(shown[0].target, 'pet');
+      assert.ok(shown[0].launchedAt >= before);
+
+      // The Preview tab's own Rebuild reaches back in with {dir, target}
+      // directly (studioView.cjs's onRebuild) — no picking, same project
+      // and target run again.
+      await vscode.__mock.trigger('8bitscript.previewOn', { dir, target: 'pet' });
+      await tick();
+      assert.equal(vscode.__mock.executedTasks.length, 2);
+      assert.equal(shown.length, 2);
+      assert.equal(shown[1].target, 'pet');
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('registerRunner: openStudio opens Studio on the system the menu named — a named system or a bare machine — and on the X16 for one it no longer lists', async () => {
   const dir = tmpDir();
   try {

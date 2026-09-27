@@ -236,6 +236,17 @@
         "category": "8BitScript"
       },
       {
+        "command": "8bitscript.previewOn",
+        "title": "Preview On…",
+        "category": "8BitScript",
+        "icon": "$(window)"
+      },
+      {
+        "command": "8bitscript.previewTab.show",
+        "title": "Show the Preview Tab",
+        "category": "8BitScript"
+      },
+      {
         "command": "8bitscript.launchApp",
         "title": "Launch App…",
         "category": "8BitScript"
@@ -366,6 +377,10 @@
       "commandPalette": [
         {
           "command": "8bitscript.studioTab.show",
+          "when": "false"
+        },
+        {
+          "command": "8bitscript.previewTab.show",
           "when": "false"
         },
         {

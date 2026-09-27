@@ -60,14 +60,31 @@ function freshReport(report, launchedAt) {
 const escapeAttr = (value) => String(value).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
 /**
+ * Per-target labels for the generic Preview tab: a title, an honest
+ * mechanism line (never "emulator" for a wasm build compiled from that
+ * machine's own package — see the design doc's naming correction), and
+ * whether the machine has a mouse at all, which the page uses to hide the
+ * mouse-capture status line entirely rather than show a free-mouse message
+ * for hardware that never had one.
+ */
+const TARGET_LABELS = {
+  cx16: { title: 'Commander X16', subtitle: 'x16emu (WebAssembly)', hasMouse: true },
+  pet: { title: 'PET', subtitle: 'wasm build', hasMouse: false },
+  vic20: { title: 'VIC-20', subtitle: 'wasm build', hasMouse: false },
+  c64: { title: 'C64', subtitle: 'wasm build', hasMouse: false },
+};
+
+/**
  * The page. The framed URL is part of the HTML rather than posted later
  * because the CSP's `frame-src` has to name its origin, and under a remote
  * window that origin is whatever `asExternalUri` hands back.
  *
  * @param {vscode.Webview} webview
- * @param {{ src?: string|null }} [options]
+ * @param {{ src?: string|null, tabTitle?: string, title?: string, subtitle?: string, hasMouse?: boolean }} [options]
  */
-function html(webview, { src = null } = {}) {
+function html(webview, {
+  src = null, tabTitle = 'Studio', title = 'Studio', subtitle = 'on the Commander X16 · x16emu (WebAssembly)', hasMouse = true,
+} = {}) {
   const nonce = crypto.randomBytes(16).toString('hex');
   const origin = src ? new URL(src).origin : null;
   return `<!DOCTYPE html>
@@ -77,25 +94,26 @@ function html(webview, { src = null } = {}) {
 <meta http-equiv="Content-Security-Policy"
   content="default-src 'none'; style-src ${webview.cspSource} 'nonce-${nonce}'; script-src 'nonce-${nonce}';${origin ? ` frame-src ${origin};` : ''}">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Studio</title>
+<title>${escapeAttr(tabTitle)}</title>
 <style nonce="${nonce}">${CSS}</style>
 </head>
 <body>
   <header class="bar">
-    <div class="title">Studio <span class="sub">on the Commander X16 · x16emu (WebAssembly)</span></div>
+    <div class="title">${escapeAttr(title)} <span class="sub">${escapeAttr(subtitle)}</span></div>
     <div class="status" id="status"></div>
     <div class="actions">
       <button id="restart" title="Reset the machine: the same build, booted again">Reset</button>
-      <button id="rebuild" title="Build Studio again and start it">Rebuild</button>
+      <button id="rebuild" title="Build again and start it">Rebuild</button>
       <button id="stop" title="End the run">Stop</button>
       <button id="browser" title="The same URL in your browser — the known-good for the mouse">Open in browser</button>
     </div>
   </header>
   <p class="mouse" id="mouse"></p>
   <div class="screen">
-    ${src ? `<iframe id="frame" src="${escapeAttr(src)}" allow="pointer-lock; autoplay; gamepad; fullscreen" title="Studio"></iframe>` : ''}
+    ${src ? `<iframe id="frame" src="${escapeAttr(src)}" allow="pointer-lock; autoplay; gamepad; fullscreen" title="${escapeAttr(title)}"></iframe>` : ''}
     <div class="empty" id="empty" hidden></div>
   </div>
+  <script nonce="${nonce}">window.__8bsHasMouse = ${hasMouse ? 'true' : 'false'};</script>
   <script nonce="${nonce}">${JS}</script>
 </body>
 </html>`;
@@ -104,19 +122,28 @@ function html(webview, { src = null } = {}) {
 /**
  * Module-level and singular, as Controller Setup's is: a second Open
  * Studio in a Tab replaces what the one tab shows rather than opening a
- * second emulator beside it.
+ * second emulator beside it. The generic Preview tab (any project, any
+ * target) keeps its own separate singleton below — opening a preview does
+ * not steal Studio's tab, and vice versa.
  */
 let open = null;
+let openPreview = null;
 
 class StudioPanel {
   /**
    * @param {vscode.WebviewPanel} panel
    * @param {import('./runner.cjs').Projects} projects
+   * @param {{ tabTitle?: string, onRebuild?: (binding: {dir: string, target: string}) => void }} [options]
+   *   `onRebuild` defaults to Studio's own command (rebuild always means
+   *   "build Studio again"); the Preview tab passes one that re-runs
+   *   whatever project and target it is currently bound to instead.
    */
-  constructor(panel, projects) {
+  constructor(panel, projects, { tabTitle = 'Studio', onRebuild } = {}) {
     this.panel = panel;
     this.projects = projects;
-    /** The run the tab follows: Studio's directory, its target, and when it was started. */
+    this.tabTitle = tabTitle;
+    this.onRebuild = onRebuild ?? (() => vscode.commands.executeCommand('8bitscript.openStudioTab'));
+    /** The run the tab follows: its directory, its target, and when it was started. */
     this.binding = null;
     /** The URL the page currently frames, or null when it frames nothing. */
     this.src = null;
@@ -127,8 +154,21 @@ class StudioPanel {
   async bind({ dir, target, launchedAt }) {
     this.binding = { dir, target, launchedAt };
     this.src = null;
-    this.panel.webview.html = html(this.panel.webview);
+    this.panel.webview.html = this.renderHtml();
     await this.refresh();
+  }
+
+  /** `html()` with this tab's own title and this run's target labels
+   * (mouse or not, what to call the machine) always applied — the one
+   * place either is looked up, so `bind()` and every `refresh()` redraw
+   * agree instead of one silently falling back to Studio's own defaults. */
+  renderHtml(src = null) {
+    const labels = this.binding && TARGET_LABELS[this.binding.target];
+    return html(this.panel.webview, {
+      src,
+      tabTitle: this.tabTitle,
+      ...(labels ? { title: labels.title, subtitle: labels.subtitle, hasMouse: labels.hasMouse } : {}),
+    });
   }
 
   running() {
@@ -153,13 +193,13 @@ class StudioPanel {
       this.url = fresh.url;
       const external = await vscode.env.asExternalUri(vscode.Uri.parse(fresh.url));
       this.src = external.toString();
-      this.panel.webview.html = html(this.panel.webview, { src: this.src });
+      this.panel.webview.html = this.renderHtml(this.src);
       return; // the page says `ready` and gets its state then
     }
     if (!running && this.url) {
       this.url = null;
       this.src = null;
-      this.panel.webview.html = html(this.panel.webview);
+      this.panel.webview.html = this.renderHtml();
       return;
     }
     await this.post();
@@ -185,7 +225,7 @@ class StudioPanel {
         await this.post();
         return;
       case 'rebuild':
-        await vscode.commands.executeCommand('8bitscript.openStudioTab');
+        await this.onRebuild(this.binding);
         return;
       case 'stop':
         this.stop();
@@ -205,31 +245,45 @@ class StudioPanel {
 }
 
 /**
+ * One `<commandName>` registration, shared by Studio's own tab and the
+ * generic Preview tab below: create-or-reveal-and-rebind a singleton
+ * webview panel that follows a `{dir, target, launchedAt}` run. The two
+ * differ only in which singleton they hold, the panel's own identity
+ * (viewType/title), and what "Rebuild" means — everything else (binding,
+ * refreshing, tearing down when the run ends or the tab closes) is
+ * StudioPanel's job either way.
+ *
  * @param {vscode.ExtensionContext} context
  * @param {import('./runner.cjs').Projects} projects
+ * @param {{
+ *   commandName: string, viewType: string, panelTitle: string, tabTitle: string,
+ *   getOpen: () => StudioPanel|null, setOpen: (view: StudioPanel|null) => void,
+ *   onRebuild?: (binding: {dir: string, target: string}) => void,
+ * }} spec
  */
-function registerStudioView(context, projects) {
+function registerTab(context, projects, { commandName, viewType, panelTitle, tabTitle, getOpen, setOpen, onRebuild }) {
   context.subscriptions.push(
     // Hidden from the palette (package.json's commandPalette `when:
-    // false`): openStudioTab in runner.cjs starts the run and then calls
-    // this with what to follow. The palette entry is that one.
-    vscode.commands.registerCommand('8bitscript.studioTab.show', async (run) => {
+    // false`): the visible command (openStudioTab, previewOn) starts the
+    // run and then calls this with what to follow.
+    vscode.commands.registerCommand(commandName, async (run) => {
       if (!run || typeof run.dir !== 'string' || typeof run.target !== 'string') return;
       const binding = { dir: run.dir, target: run.target, launchedAt: typeof run.launchedAt === 'number' ? run.launchedAt : Date.now() };
-      if (open) {
-        await open.bind(binding);
-        open.panel.reveal(vscode.ViewColumn.Active);
+      const existing = getOpen();
+      if (existing) {
+        await existing.bind(binding);
+        existing.panel.reveal(vscode.ViewColumn.Active);
         return;
       }
       const panel = vscode.window.createWebviewPanel(
-        '8bitscript.studio',
-        'Studio',
+        viewType,
+        panelTitle,
         vscode.ViewColumn.Active,
         // Retained while hidden: a glance at a source file must not cold-boot
         // the machine and lose whatever was being drawn.
         { enableScripts: true, retainContextWhenHidden: true },
       );
-      const view = new StudioPanel(panel, projects);
+      const view = new StudioPanel(panel, projects, { tabTitle, onRebuild });
       const subscriptions = [
         panel.webview.onDidReceiveMessage((message) => view.apply(message)),
         // Runs starting and ending, and the live poll's last-run re-reads,
@@ -242,12 +296,44 @@ function registerStudioView(context, projects) {
         // the odd case of a run started from a terminal.
         view.stop();
         for (const subscription of subscriptions) subscription.dispose();
-        open = null;
+        setOpen(null);
       });
-      open = view;
+      setOpen(view);
       await view.bind(binding);
     }),
   );
+}
+
+/**
+ * @param {vscode.ExtensionContext} context
+ * @param {import('./runner.cjs').Projects} projects
+ */
+function registerStudioView(context, projects) {
+  registerTab(context, projects, {
+    commandName: '8bitscript.studioTab.show',
+    viewType: '8bitscript.studio',
+    panelTitle: 'Studio',
+    tabTitle: 'Studio',
+    getOpen: () => open,
+    setOpen: (view) => { open = view; },
+    // Studio's own Rebuild always means "build Studio again" — the
+    // command already knows which project and target that is.
+  });
+  // The generic tab: any project, any target with a --web build (upstream's
+  // real x16emu for cx16, that machine's own package compiled through the
+  // wasm backend for pet/vic20/c64 — see the design doc's build tracker).
+  // previewOn in runner.cjs picks the project and target and starts the
+  // run; Rebuild here re-runs that exact same pair rather than reaching
+  // for Studio's command.
+  registerTab(context, projects, {
+    commandName: '8bitscript.previewTab.show',
+    viewType: '8bitscript.preview',
+    panelTitle: 'Preview',
+    tabTitle: 'Preview',
+    getOpen: () => openPreview,
+    setOpen: (view) => { openPreview = view; },
+    onRebuild: (binding) => vscode.commands.executeCommand('8bitscript.previewOn', binding),
+  });
 }
 
 module.exports = { freshReport, html, registerStudioView };

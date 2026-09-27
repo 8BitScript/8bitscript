@@ -1225,6 +1225,31 @@ function registerRunner(context, output) {
     if (!started) return;
     await vscode.commands.executeCommand('8bitscript.studioTab.show', { dir: studio.dir, target: 'cx16', launchedAt });
   });
+  // The generic Preview tab: any project, whichever of its own targets has
+  // a --web build. targetOf() already does the picking (a project quick
+  // pick when more than one is open, a target quick pick from that
+  // project's own `targets`) — the same machinery every other palette
+  // command here shares, so a project with only `pet` and `web` listed is
+  // never offered `c64`. `rebind` is the Preview tab's own Rebuild
+  // reaching back in with the exact `{dir, target}` it is already
+  // showing, skipping both pickers.
+  command('8bitscript.previewOn', async (rebind) => {
+    if (projects.all.length === 0) await projects.refresh();
+    let resolved;
+    if (rebind?.dir && rebind?.target) {
+      const project = projects.all.find((p) => p.dir === rebind.dir);
+      resolved = project ? { project, target: rebind.target } : undefined;
+    } else {
+      resolved = await targetOf(undefined, 'preview');
+    }
+    if (!resolved) return;
+    const { project, target } = resolved;
+    projects.running.stop(project.dir, target, { web: true });
+    const launchedAt = Date.now();
+    const started = await execute('run', { project, target, web: true });
+    if (!started) return;
+    await vscode.commands.executeCommand('8bitscript.previewTab.show', { dir: project.dir, target, launchedAt });
+  });
   command('8bitscript.launchApp', () => launch('app', 'apps'));
   command('8bitscript.launchExample', () => launch('example', 'examples'));
   command('8bitscript.doctor', doctor);

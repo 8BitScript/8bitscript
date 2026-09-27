@@ -64,6 +64,22 @@ test('html: without a URL there is no frame and no frame-src; with one, the fram
   assert.doesNotMatch(framed, /sandbox=/, 'a sandbox would strip pointer lock');
 });
 
+test('html: no options at all is Studio on the X16, unchanged — the Preview tab\'s defaults never leak into Studio\'s own call site', () => {
+  const webview = { cspSource: 'vscode-webview:' };
+  const page = html(webview);
+  assert.match(page, /<title>Studio<\/title>/);
+  assert.match(page, /Studio <span class="sub">on the Commander X16 · x16emu \(WebAssembly\)<\/span>/);
+  assert.match(page, /window\.__8bsHasMouse = true;/);
+});
+
+test('html: a machine with no mouse (hasMouse: false) still gets its own title, and the page is told not to show a mouse line', () => {
+  const webview = { cspSource: 'vscode-webview:' };
+  const page = html(webview, { tabTitle: 'Preview', title: 'PET', subtitle: 'wasm build', hasMouse: false });
+  assert.match(page, /<title>Preview<\/title>/);
+  assert.match(page, /PET <span class="sub">wasm build<\/span>/);
+  assert.match(page, /window\.__8bsHasMouse = false;/);
+});
+
 test('the tab follows a run: building until a fresh URL lands, framed once it does, stopped when the run ends', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), '8bs-studio-tab-'));
   const context = { subscriptions: [] };
