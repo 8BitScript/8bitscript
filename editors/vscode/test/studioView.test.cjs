@@ -159,3 +159,47 @@ test('the tab follows a run: building until a fresh URL lands, framed once it do
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('ready re-reads instead of echoing a stale phase: a build fast enough to finish before the live poll\'s next tick still reports running', async () => {
+  // hello-world's PET build finishes in well under a second — faster
+  // than the 1s live poll that would otherwise be the only thing to
+  // notice the fresh file. The very first bind() reads before any file
+  // exists, caches phase 'building', and used to just echo that cache
+  // back to `ready` — showing "being built" over an already-rendered
+  // screen until, or unless, a poll tick happened to land first.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), '8bs-studio-tab-ready-'));
+  const context = { subscriptions: [] };
+  try {
+    vscode.__mock.reset();
+    const projects = fakeProjects();
+    registerStudioView(context, projects);
+
+    const launchedAt = Date.now();
+    projects.runs.push({ dir, target: 'pet', web: true });
+    // Nothing on disk yet when the tab binds — bind()'s own refresh()
+    // caches phase 'building', same as any run's first instant.
+    await vscode.__mock.trigger('8bitscript.previewTab.show', { dir, target: 'pet', launchedAt });
+    await tick();
+    const panel = vscode.__mock.webviewPanels.at(-1);
+
+    // The build finishes and the file lands *between* that bind() and
+    // `ready` — and crucially, with no projects.changed.fire() in
+    // between: nothing else has told the tab to look again yet, exactly
+    // as when a build this fast beats the live poll's next 1s tick.
+    writeLastRun(dir, 'pet', { url: 'http://127.0.0.1:3333/', emulator: 'browser', memory: { program: 108 }, writtenAt: new Date(launchedAt + 50).toISOString() });
+    panel.webview.__fire({ type: 'ready' });
+    await tick();
+    assert.match(panel.webview.html, /<iframe id="frame" src="http:\/\/127\.0\.0\.1:3333\/"/,
+      'ready itself notices the fresh file and frames it, rather than waiting for the next poll tick');
+    // A real reload of the page it just framed sends its own `ready`,
+    // exactly as the existing "framed once it does" run above relies on
+    // after a poll-triggered swap; the mock's plain object html does not
+    // reload on its own, so this fires the round trip by hand.
+    panel.webview.__fire({ type: 'ready' });
+    await tick();
+    assert.deepEqual(panel.posted.at(-1), { type: 'state', phase: 'running', emulator: 'browser', program: 108 });
+  } finally {
+    for (const subscription of context.subscriptions) subscription.dispose?.();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

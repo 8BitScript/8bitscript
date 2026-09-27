@@ -222,7 +222,15 @@ class StudioPanel {
   async apply(message) {
     switch (message?.type) {
       case 'ready':
-        await this.post();
+        // Not just a post() of whatever this.phase last was: the page
+        // asks the moment its own script runs, which for a build this
+        // fast can land before the live poll's next 1-second tick has
+        // re-read the last-run file even once. Answering from the stale
+        // cache left it saying "being built" over an already-rendered
+        // screen for up to a second, sometimes longer if that tick was
+        // ever late. refresh() re-reads first, so `ready` always gets
+        // this run's actual, current phase.
+        await this.refresh();
         return;
       case 'rebuild':
         await this.onRebuild(this.binding);
