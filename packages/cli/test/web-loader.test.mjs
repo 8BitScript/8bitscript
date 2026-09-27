@@ -11,7 +11,7 @@ import { renderHtml } from '../src/web-runtime.mjs';
 import {
   ANY_BORDER_SCALE, BORDER_HAIRLINE_PX, BORDER_MIN_PX, BORDER_PX, FULL_BORDER_SCALE, HOST_OFFSET, HostStatus,
   INNER_H, INNER_W, INPUT_OFFSET, MIN_COLUMNS, MAX_COLUMNS, MIN_ROWS, MAX_ROWS,
-  DEFAULT_LAYOUT, PET_PALETTE, VIC20_PALETTE, RASTER_ENTRY_SIZE, RASTER_MAX_ENTRIES,
+  C64_PALETTE, DEFAULT_LAYOUT, PET_PALETTE, VIC20_PALETTE, RASTER_ENTRY_SIZE, RASTER_MAX_ENTRIES,
   MACHINE_HOST, agreementFor, borderFor, gridFor, layoutForRealMachine, layoutFromHardware, sidecarJson, swipeEdge,
 } from '../src/web-layout.mjs';
 import { dataBaseFor } from '@8bitscript/compiler/wasm';
@@ -164,6 +164,15 @@ test('layoutForRealMachine: VIC-20\'s screen moves with its own RAM, not with a 
   // ASCII font, exactly like a later PET model with no capture, not a
   // crash for want of a glyphsFor.
   assert.equal(unexpanded.font, 'font8x8');
+});
+
+test('layoutForRealMachine: cx16 has no real fixed VRAM address to substitute (VERA is port-only, even on real hardware) — memoryFor is a deliberate no-op, so it keeps agreementFor()\'s own charBase/colorBase for its own 76x56 grid', () => {
+  const layout = layoutForRealMachine('cx16', { facts: { 'video.columns': 76, 'video.rows': 56, 'video.colorPerCell': true } });
+  assert.equal(layout.charBase, 2, 'the synthetic default — text.cx16.web.8bs writes here, not a real VERA address');
+  assert.equal(layout.colorBase, 2 + 76 * 56);
+  assert.equal(layout.colorPerCell, true);
+  assert.deepEqual(layout.palette, C64_PALETTE, 'VERA\'s default palette is the C64\'s sixteen colors, same order');
+  assert.equal(layout.aspect, '4/3');
 });
 
 // The two copies of borderFor — the one the build uses and the one that ships

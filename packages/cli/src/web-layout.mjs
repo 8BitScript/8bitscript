@@ -314,11 +314,31 @@ const REAL_MACHINE_LAYOUT = {
     // one machine's captured shapes as another's is exactly what
     // font8x8.mjs's own header warns against doing.
   },
+  // The X16's VERA VRAM is not part of the CPU's address space at all —
+  // even real hardware reaches it only through a stateful address port
+  // (packages/cx16/src/index.8bs), which the wasm backend has no model
+  // of (memory.write is a flat, side-effect-free i32.store8 — see
+  // packages/compiler/src/wasm/lower.ts). So unlike pet/vic20 above,
+  // there is no real fixed address to substitute for the synthetic one:
+  // packages/cx16/src/text.cx16.web.8bs and screen.cx16.web.8bs (the
+  // `.web` twins this build actually links) write a flat two-plane
+  // screen at agreementFor()'s own default charBase/colorBase instead —
+  // the same scheme the synthetic web target's own skins use, there
+  // being no real address to be faithful to either way. memoryFor is a
+  // deliberate no-op: the geometry this function already computed below
+  // is exactly where those twins put it.
+  cx16: {
+    palette: C64_PALETTE, // VERA's default palette is the C64's sixteen colors, same order (screen.8bs's own header)
+    colorPerCell: true,
+    aspect: '4/3',
+    memoryFor: () => ({}),
+  },
 };
 
 /**
- * @param {string} target a real machine's own name (`pet`, `vic20`, `c64`),
- *   never the literal `'web'` — that stays on `layoutFromHardware()`.
+ * @param {string} target a real machine's own name (`pet`, `vic20`, `c64`,
+ *   `cx16`), never the literal `'web'` — that stays on
+ *   `layoutFromHardware()`.
  * @param {{ facts?: object }} hardware
  */
 export function layoutForRealMachine(target, hardware = {}) {

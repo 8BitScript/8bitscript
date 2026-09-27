@@ -767,17 +767,13 @@ export async function build(args) {
       + '                  no --target builds the `baseline` 8bitscript.config.ts names, when it names one)\n'
       + '                 [--pal] [--size] [--debug] [--program <name>] [--locale <name>]\n'
       + HARDWARE_USAGE
-      + '                 [--web]  pet/vic20/c64: that machine\'s own package, through the wasm\n'
-      + '                          backend, instead of a native build — see `8bs run --web`\n'
+      + '                 [--web]  pet/vic20/c64/cx16: that machine\'s own package, through the\n'
+      + '                          wasm backend, instead of a native build — see `8bs run --web`\n'
       + '                 [entry.8bs]\n',
     );
     return 2;
   }
-  // cx16's --web is 8bs run's own thing (the vendored real x16emu, fetched
-  // and served live) — there is nothing for a standalone build to bundle,
-  // so --web here only ever means "build this real machine's own package
-  // through the wasm backend," same as run.mjs's identical exclusion.
-  const web = args.includes('--web') && target !== 'cx16';
+  const web = args.includes('--web');
   const { ok } = await compile(target, entry, {
     pal, profile: launch.profile, hardware: launch.overrides, report, debug, checkout: checkout.checkout,
     program: programOpt.program, locale: localeOpt.locale, web,
