@@ -307,8 +307,8 @@ class LauncherViewProvider {
   runningRows(all) {
     return this.projects.running.list().map((row) => {
       const project = all.find((p) => p.dir === row.dir);
-      const report = row.target ? readLastRun(row.dir, row.target) : null;
-      const live = this.projects.live.get(rowKey(row.dir, row.target)) ?? null;
+      const report = row.target ? readLastRun(row.dir, row.target, row.web) : null;
+      const live = this.projects.live.get(rowKey(row.dir, row.target, row.web)) ?? null;
       return {
         dir: row.dir,
         target: row.target,

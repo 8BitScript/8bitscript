@@ -450,11 +450,17 @@ export async function runInBrowser(wasmBytes, { open = true, frameRate = 60, roo
   process.stdout.write(serveBanner(listening));
   if (lastRunTarget) {
     const { writeLastRun } = await import('./last-run.mjs');
+    // This function only ever runs for the synthetic web target itself or
+    // a real machine's own wasm-backend build (run.mjs's buildForWeb) —
+    // never a real machine's native run, which has its own separate
+    // writeLastRun call and never reaches here. So `web: true` here is
+    // always right for a real machine's name; lastRunPath's own rule
+    // keeps the literal 'web' target on the one file it has ever had.
     await writeLastRun(lastRunTarget, {
       emulator: 'browser',
       url,
       lanUrls: listening.lanUrls,
-    });
+    }, undefined, true);
   }
   if (open) openBrowser(url);
   process.stdout.write('press Ctrl+C to stop. (in the page: swipe or arrows to move; F for fullscreen)\n');
