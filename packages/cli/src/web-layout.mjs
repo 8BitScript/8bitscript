@@ -124,7 +124,7 @@ export function gridFor({ width, height } = {}) {
  * two bytes ahead of the character region: the offsets then stay put when the
  * grid changes, and `cols` is the only thing that moves.
  *
- * @param {{ cols?: number, rows?: number, palette?: string[], aspect?: string, colorPerCell?: boolean, font?: string, resizable?: boolean }} [options]
+ * @param {{ cols?: number, rows?: number, palette?: string[], aspect?: string, colorPerCell?: boolean, font?: string, resizable?: boolean, pixelAspect?: number }} [options]
  */
 export function agreementFor({
   cols = 48,
@@ -134,6 +134,16 @@ export function agreementFor({
   colorPerCell = true,
   font = 'font8x8',
   resizable = false,
+  // How much wider than tall one drawn pixel is, physically — 1 for a
+  // host with no chip to be unfaithful to (the default web target) or a
+  // real machine whose own pixel shape has not been measured yet. Real
+  // hardware whose dot clock is not a clean multiple of its own CPU
+  // clock (the VIC-20's, unlike the C64's) draws non-square pixels on a
+  // real screen; `aspect` alone (the outer picture's shape) says nothing
+  // about that — see REAL_MACHINE_LAYOUT.vic20's own header for the
+  // measurement and web-loader.mjs's fit() for where this actually
+  // stretches anything.
+  pixelAspect = 1,
 } = {}) {
   const cells = cols * rows;
   const charBase = resizable ? RESIZABLE_CHAR_BASE : CHAR_BASE;
@@ -174,6 +184,7 @@ export function agreementFor({
     aspect,
     colorPerCell,
     font,
+    pixelAspect,
   };
 }
 
@@ -316,6 +327,31 @@ const REAL_MACHINE_LAYOUT = {
     // symbols happened to land on the same code in both schemes (exactly
     // what showed up as "Hello World!" losing every lower-case letter).
     glyphsFor: () => ({ font: 'vic20-text-screencode' }),
+    // NTSC only (6560; facts['video.frameRate'] === 60) — PAL's 6561 runs
+    // a different cycles-per-line count (71, not 65) this project has not
+    // measured, so it keeps square pixels rather than guessing.
+    //
+    // The 6560 draws one pixel every 3.5 of its own 14.31818MHz clock
+    // (a character cell is 28 of that clock, 8 pixels wide: 28/8 = 3.5),
+    // and the *whole* video signal it draws in one line — border and all,
+    // 702 of those clocks — is what a real, unmodified TV stretches to
+    // fill its own screen. 252 of the 261 lines a frame draws are
+    // likewise the whole vertical picture, border included (9 lines are
+    // VBLANK). So the pixel aspect a real TV shows is
+    //
+    //   (252 lines / (702 clocks / 3.5 clocks-per-pixel)) * (4/3 CRT shape)
+    //   = (252 / 200.57) * (4/3) ≈ 1.68
+    //
+    // measured from the 6560's own timing (brawn.org's "6560 Video
+    // Information", cross-checked against the VIC-20 community's own
+    // long-established 5:3 (1.667) approximation for this exact number —
+    // agreement to within 1% is what says this is the real chip's shape,
+    // not a guess). This project's own renderer draws every machine with
+    // square pixels today (web-loader.mjs's fit() scales width and height
+    // by the same factor), which is a real gap, not a lower-fidelity
+    // choice: it is why this preview's text reads squarer/more "normal"
+    // than a real VIC-20's own visibly wide, stretched characters.
+    pixelAspectFor: (facts) => (facts['video.frameRate'] === 60 ? 5 / 3 : 1),
   },
   // The X16's VERA VRAM is not part of the CPU's address space at all —
   // even real hardware reaches it only through a stateful address port
@@ -347,13 +383,23 @@ const REAL_MACHINE_LAYOUT = {
 export function layoutForRealMachine(target, hardware = {}) {
   const facts = hardware.facts ?? {};
   const real = REAL_MACHINE_LAYOUT[target];
+  const cols = facts['video.columns'] ?? DEFAULT_LAYOUT.cols;
+  const rows = facts['video.rows'] ?? DEFAULT_LAYOUT.rows;
+  const pixelAspect = real?.pixelAspectFor?.(facts) ?? 1;
+  // A measured pixelAspect replaces the flat `aspect` guess with the
+  // shape that grid actually draws once each pixel is pixelAspect times
+  // wider than tall — real.aspect (a guess, same '4/3' every machine
+  // here happens to share) only survives for a machine with no
+  // measurement yet.
+  const aspect = pixelAspect !== 1 ? `${cols * CHAR_W * pixelAspect}/${rows * CHAR_H}` : real?.aspect ?? '4/3';
   const geometry = agreementFor({
-    cols: facts['video.columns'] ?? DEFAULT_LAYOUT.cols,
-    rows: facts['video.rows'] ?? DEFAULT_LAYOUT.rows,
+    cols,
+    rows,
     palette: real?.palette ?? C64_PALETTE,
-    aspect: real?.aspect ?? '4/3',
+    aspect,
     colorPerCell: real ? real.colorPerCell : facts['video.colorPerCell'] !== false,
     resizable: false,
+    pixelAspect,
   });
   // No entry yet for this target (c64 — still blocked on its own asm6502
   // walls, per the design doc's build tracker): geometry only, same
@@ -396,6 +442,7 @@ export function sidecarJson(layout = DEFAULT_LAYOUT) {
     font: layout.font,
     aspect: layout.aspect,
     colorPerCell: layout.colorPerCell,
+    pixelAspect: layout.pixelAspect,
   };
 }
 
