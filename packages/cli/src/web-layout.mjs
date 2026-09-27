@@ -256,48 +256,34 @@ export function layoutFromHardware(hardwareOrFacts = {}) {
  * `agreementFor()`'s computed `charBase` (~8192) was ever written — the
  * program's actual text sat 24KB further on, at $8000.
  *
- * A real machine's screen byte and the shared font's index are not always
- * the same number either — and on the PET, which one is not itself fixed:
- * `packages/pet/src/text.8bs`'s own `asciiToScreenCode()` branches on
- * `#fact(video.characterSetSwapped)` (true only for the 2001, the
- * catalog's own `model` option), so this does too, per build, rather than
- * picking one and being wrong for the other.
- *
- * Swapped (the 2001's own ROM): upper case moves down to 1-26, lower case
- * sits at 65-90. `font8x8.mjs`'s `pet-2001-screencode` table is a capture
- * of that exact ROM (real VICE, screenshotted, decoded pixel by pixel —
- * see that file's own header), indexed by the PET's own screen code, so a
- * lookup here needs no translation at all: `font` alone is enough.
- *
- * Non-swapped (every later model, 901447-10): lower case moves down to
- * 1-26 instead so upper case can sit at its own ASCII value — the
- * opposite assignment, not the same one shifted. No later model has its
- * own captured ROM table yet (each is genuinely a different ROM image,
- * not just this one's codes shuffled — a future session's own probe, the
- * same way 2001's was made, is how one gets added), so this still goes
- * through `glyphIndexFn`, translating into the shared ASCII table exactly
- * as every PET model did before `pet-2001-screencode` existed. Getting the
- * swapped/non-swapped choice wrong doesn't blank the screen (unlike
- * charBase) — it draws real glyphs, just the wrong ones, which is a worse
- * failure to ship unnoticed.
+ * Which ROM a build's screen bytes actually mean is not itself fixed on
+ * the PET: `packages/pet/src/text.8bs`'s own `asciiToScreenCode()`
+ * branches on `#fact(video.characterSetSwapped)` (true only for the 2001,
+ * the catalog's own `model` option) — swapped, upper case moves down to
+ * 1-26 and lower case sits at 65-90; non-swapped (every later model,
+ * ROM 901447-10), the opposite assignment, lower case at 1-26 and upper
+ * case already at its own ASCII value. `font8x8.mjs`'s
+ * `pet-2001-screencode` and `pet-text-screencode` tables are captures of
+ * those two ROMs (real VICE, screenshotted, decoded pixel by pixel — see
+ * that file's own header), each indexed by the PET's own screen code, so
+ * a lookup here needs no translation function of its own either way —
+ * `font` alone is enough. Getting the swapped/non-swapped choice wrong
+ * doesn't blank the screen (unlike charBase) — it draws real glyphs, just
+ * the wrong ones, which is a worse failure to ship unnoticed.
  *
  * Reverse video (bit 7, PET's own `toScreen()` ORs it into the *screen
  * code itself*, not a separate color byte the way the synthetic target's
  * `text.setReverse` does) is masked off rather than rendered inverted on
- * either path — a real, known gap: PET builds nothing writes a reverse
+ * either ROM — a real, known gap: PET builds nothing writes a reverse
  * `text.print` yet.
  */
-const PET_GLYPH_INDEX_UNSWAPPED = 'function(code){var c=code&127;'
-  + 'return(c>=1&&c<=26)?c+96:c;}'; // 'a'-'z' moved down to 1-26; 'A'-'Z' already at its own value
 const REAL_MACHINE_LAYOUT = {
   pet: {
     palette: PET_PALETTE,
     colorPerCell: false,
     aspect: '4/3',
     screenBase: 0x8000,
-    glyphsFor: (facts) => (facts['video.characterSetSwapped']
-      ? { font: 'pet-2001-screencode' }
-      : { glyphIndexFn: PET_GLYPH_INDEX_UNSWAPPED }),
+    glyphsFor: (facts) => ({ font: facts['video.characterSetSwapped'] ? 'pet-2001-screencode' : 'pet-text-screencode' }),
   },
 };
 
@@ -359,7 +345,6 @@ export function sidecarJson(layout = DEFAULT_LAYOUT) {
     font: layout.font,
     aspect: layout.aspect,
     colorPerCell: layout.colorPerCell,
-    glyphIndexFn: layout.glyphIndexFn,
   };
 }
 

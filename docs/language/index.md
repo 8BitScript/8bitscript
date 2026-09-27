@@ -62,7 +62,7 @@ export component Hello() {
 }
 ```
 
-*src/hello-bx.8bs — the program*
+*src/hbx.8bs — the program*
 
 ```8bs
 import { screen } from "@8bitscript/screen";
