@@ -22,7 +22,7 @@ directory and an entry.
 | `hello-world` | `screen.blank()` then `text.print(0, "Hello World!")` — greeting by hand; `Mark.8bx` + shared mark/chime show the four pillars. | release five |
 | `joystick` | The controller test app: a labelled map of everything `@8bitscript/input` exposes, with a lamp on each control that flashes when it is pressed. | release five |
 | `fancy` | The raster showpiece: a title wobbling on a sine wave inside colour bands, over `@8bitscript/raster`'s portable per-scanline surface. The two machines that answer `#fact(video.raster)` show the effect; PET/VIC-20/CX16 show a static title, by design. | release five |
-| `hello-bx` | The same greeting as `hello-world`, drawn through one 8BX component: `Hello.8bx` declares it, `hbx.8bs` is the program that calls it — byte-identical to hello-world on the release PET once media is shared. | release five |
+| `hello-8bx` | The same greeting as `hello-world`, drawn through one 8BX component: `Hello.8bx` declares it, `hbx.8bs` is the program that calls it — byte-identical to hello-world on the release PET once media is shared. | release five |
 | `media-walk` | One PNG-backed sprite with a walk cycle and one WAV-backed blip plus a two-note song, composed in `Walk.8bx`; hero assets in `player.8bg` / `theme.8ba`. | release five (PET with speaker) |
 | `swarm` | The moving-objects showpiece: sixteen sprites bouncing round the picture on a frame timeline — `Scene.8bx` for cues, `@8bitscript/sprites` and `@8bitscript/timeline`. | release five |
 
@@ -230,10 +230,10 @@ each gave back a call a sprite, as the header records. The program's own
 habits are the budget's: X in half pixels, half the flock moved a frame,
 digits kept as digits.
 
-## hello-bx
+## hello-8bx
 
 The `hello-world` greeting again, this time as a component. From inside
-`hello-bx/`:
+`hello-8bx/`:
 
 ```
 8bs run pet               # the 2001, in VICE
@@ -243,7 +243,7 @@ The `hello-world` greeting again, this time as a component. From inside
 Two files plus shared media. `src/Hello.8bx` declares the component;
 `src/hbx.8bs` is the program. With shared mark/chime, the release
 PET build matches `hello-world` (**1944** bytes `memory.program`; C64 **2230**).
-See [`hello-bx/README.md`](hello-bx/README.md).
+See [`hello-8bx/README.md`](hello-8bx/README.md).
 
 ## media-walk
 

@@ -9,7 +9,7 @@
 // voice out of a sample — hello-world measured 1587 bytes on the PET to
 // show nothing but its greeting, against 108 without the media.
 //
-// hello-world and hello-bx are that shape deliberately (they are the same
+// hello-world and hello-8bx are that shape deliberately (they are the same
 // program written two ways, and the 8BX gate compares their bytes), so they
 // carry neither. The four that loop carry both.
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -21,10 +21,10 @@ import { encodeWav } from '../audio-tools/src/index.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
-export const EXAMPLES = ['hello-world', 'hello-bx', 'joystick', 'fancy', 'swarm', 'media-walk'];
+export const EXAMPLES = ['hello-world', 'hello-8bx', 'joystick', 'fancy', 'swarm', 'media-walk'];
 
 /** The two that draw once and return: no frame, so no media. */
-export const NO_FRAME_LOOP = ['hello-world', 'hello-bx'];
+export const NO_FRAME_LOOP = ['hello-world', 'hello-8bx'];
 export const MEDIA_EXAMPLES = EXAMPLES.filter((name) => !NO_FRAME_LOOP.includes(name));
 
 /** Those that reach the object through the shared component rather than their own code. */

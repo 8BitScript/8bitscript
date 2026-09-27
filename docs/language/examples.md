@@ -5,9 +5,9 @@ nav_order: 8
 
 # Worked examples
 
-## §7.1 hello-bx, end to end
+## §7.1 hello-8bx, end to end
 
-The full example ships at `packages/examples/hello-bx` — see [§0.2](index.md#02-hello-world-both-ways) for the two files. Its PET build is byte-identical to `hello-world`'s: the elaborated call costs exactly what the hand-written `text.print(0, "Hello World!")` would.
+The full example ships at `packages/examples/hello-8bx` — see [§0.2](index.md#02-hello-world-both-ways) for the two files. Its PET build is byte-identical to `hello-world`'s: the elaborated call costs exactly what the hand-written `text.print(0, "Hello World!")` would.
 
 ## §7.2 2048's Screen.8bx, byte for byte
 

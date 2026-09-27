@@ -397,7 +397,7 @@ test('compile() --target vic20 --web builds through the wasm backend: releaseCur
       '',
     ].join('\n'));
     process.chdir(dir);
-    // checkout: REPO, the same way hello-bx.test.mjs's own throwaway
+    // checkout: REPO, the same way hello-8bx.test.mjs's own throwaway
     // projects resolve @8bitscript/* packages from this monorepo rather
     // than needing their own node_modules.
     // Native: unchanged, still the real KERNAL PLOT call.

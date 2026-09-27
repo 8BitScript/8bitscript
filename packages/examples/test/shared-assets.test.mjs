@@ -3,7 +3,7 @@
 // Both kinds of media need a frame to drive them: `audio.play()` arms a
 // voice and only `audio.update()`, counted down over the following frames,
 // releases it, and `graphics.place()` leaves its drawing to the next update
-// on every machine but the VIC-20. hello-world and hello-bx draw once and
+// on every machine but the VIC-20. hello-world and hello-8bx draw once and
 // return, so a chime in either sticks on after the program ends and an
 // object in either costs its whole pipeline to draw nothing — measured at
 // 1587 bytes against 108 on the PET before they were taken out.
@@ -26,7 +26,7 @@ const ROOT = join(HERE, '..');
 const MEDIA_FILES = ['mark.png', 'mark.8bg', 'chime.wav', 'chime.8ba'];
 
 test('the two examples that draw once and return are the ones without a frame loop', () => {
-  assert.deepEqual(NO_FRAME_LOOP, ['hello-world', 'hello-bx']);
+  assert.deepEqual(NO_FRAME_LOOP, ['hello-world', 'hello-8bx']);
   for (const name of NO_FRAME_LOOP) {
     assert.ok(EXAMPLES.includes(name), `${name} is one of the examples`);
     assert.equal(MEDIA_EXAMPLES.includes(name), false, `${name} is not given media`);
