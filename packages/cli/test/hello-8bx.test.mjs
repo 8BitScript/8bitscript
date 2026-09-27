@@ -1,4 +1,4 @@
-// The zero-cost gate for 8BX (spec §69): hello-bx draws its greeting
+// The zero-cost gate for 8BX (spec §69): hello-8bx draws its greeting
 // through one component; hello-world calls text.print() by hand. Both
 // carry no media at all (a program that draws once and returns has no
 // frame to release a voice on or to draw a placed object from), so the two
@@ -45,8 +45,8 @@ async function buildExample(name, target) {
   }
 }
 
-test('hello-bx and hello-world build to the same bytes for the release PET', async () => {
-  const bx = await buildExample('hello-bx', 'pet');
+test('hello-8bx and hello-world build to the same bytes for the release PET', async () => {
+  const bx = await buildExample('hello-8bx', 'pet');
   const plain = await buildExample('hello-world', 'pet');
   assert.equal(typeof bx, 'number');
   assert.equal(typeof plain, 'number');
