@@ -287,6 +287,52 @@ test('"Open in emulator": named only when Doctor reports it installed, and click
     panel.webview.__fire({ type: 'ready' });
     await tick();
     assert.equal(panel.posted.at(-1).nativeEmulator, null, 'not installed: no button to open it');
+    panel.__dispose(); // see the earlier "ready" test's own note on why this matters
+  } finally {
+    for (const subscription of context.subscriptions) subscription.dispose?.();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('"Open in emulator" does not knock the preview back to "being built": a native run\'s own compile step shares the last-run file, and overwriting it with a no-url report is not this tab stopping', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), '8bs-preview-tab-native-collision-'));
+  const context = { subscriptions: [] };
+  try {
+    vscode.__mock.reset();
+    const projects = fakeProjects();
+    registerStudioView(context, projects);
+
+    const launchedAt = Date.now();
+    projects.runs.push({ dir, target: 'pet', web: true });
+    await vscode.__mock.trigger('8bitscript.previewTab.show', { dir, target: 'pet', launchedAt });
+    await tick();
+    const panel = vscode.__mock.webviewPanels.at(-1);
+
+    // The wasm preview gets its fresh URL, exactly as any successful run does.
+    writeLastRun(dir, 'pet', { url: 'http://127.0.0.1:4444/', emulator: 'browser', memory: { program: 108 }, writtenAt: new Date(launchedAt + 50).toISOString() });
+    panel.webview.__fire({ type: 'ready' });
+    await tick();
+    panel.webview.__fire({ type: 'ready' }); // the reloaded page's own round trip, as the earlier "ready" test relies on too
+    await tick();
+    assert.match(panel.webview.html, /<iframe id="frame" src="http:\/\/127\.0\.0\.1:4444\/"/, 'framed and running before the collision');
+    assert.deepEqual(panel.posted.at(-1), { type: 'state', phase: 'running', emulator: 'browser', program: 108, nativeEmulator: null });
+
+    // "Open in emulator" starts a *native* run for the same dir/target —
+    // never registered as web:true, so running() (which only ever asked
+    // about this tab's own web:true task) does not even notice it — but
+    // its compile step (build.mjs's writeLastRun(compileReport(...)))
+    // overwrites the very file this tab reads, with a report that has no
+    // url at all, stamped after the wasm preview's own.
+    writeLastRun(dir, 'pet', { url: null, emulator: null, memory: { program: 110 }, writtenAt: new Date(launchedAt + 500).toISOString() });
+    projects.changed.fire();
+    await tick();
+
+    assert.match(panel.webview.html, /<iframe id="frame" src="http:\/\/127\.0\.0\.1:4444\/"/,
+      'still framing the wasm preview\'s own screen — the native run\'s compile write never touched this tab\'s task');
+    panel.webview.__fire({ type: 'ready' });
+    await tick();
+    assert.deepEqual(panel.posted.at(-1), { type: 'state', phase: 'running', emulator: 'browser', program: 108, nativeEmulator: null },
+      'still "running" with the preview\'s own numbers — never "building", and never the native run\'s 110');
   } finally {
     for (const subscription of context.subscriptions) subscription.dispose?.();
     fs.rmSync(dir, { recursive: true, force: true });
