@@ -149,6 +149,23 @@ function installersForTargets(targets) {
   return keys;
 }
 
+/**
+ * Whether `id`'s emulator is one `8bs doctor --json` found installed and
+ * working — the same report the Doctor panel and the launcher's own
+ * greyed-out rows already read. No report yet (`doctor` null, the CLI
+ * failed, or hasn't been asked) is not a "no": nothing should be greyed
+ * out on a guess, so this defaults to ready.
+ *
+ * @param {{ notInstalled?: string[], failed?: string[] }|null} doctor
+ * @param {string} id
+ */
+function emulatorIsReady(doctor, id) {
+  if (!doctor) return true;
+  if (doctor.failed?.includes(id)) return false;
+  if (doctor.notInstalled?.includes(id)) return false;
+  return true;
+}
+
 /** True when `ids` names every emulator the Doctor panel lists. */
 function isAllDoctorEmulators(ids) {
   if (!Array.isArray(ids)) return true;
@@ -1139,6 +1156,7 @@ module.exports = {
   groupedMachineOptions,
   installersForTargets,
   isAllDoctorEmulators,
+  emulatorIsReady,
   doctorWantFromSelection,
   DOCTOR_EMULATORS,
   ALL_DOCTOR_EMULATOR_IDS,

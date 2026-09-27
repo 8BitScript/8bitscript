@@ -26,7 +26,7 @@ const path = require('path');
 const vscode = require('vscode');
 
 const {
-  ALL_TARGETS, MACHINE_TARGETS, NO_BARE_EMULATOR, WEB_PREVIEW_READY, byKind, commandArgs, groupedMachineOptions,
+  ALL_TARGETS, MACHINE_TARGETS, NO_BARE_EMULATOR, WEB_PREVIEW_READY, byKind, commandArgs, emulatorIsReady, groupedMachineOptions,
 } = require('./projects.cjs');
 const { labelOf, whereLabel } = require('./runner.cjs');
 const settings = require('./settings.cjs');
@@ -385,13 +385,6 @@ async function studioOptions(projects, all) {
       ...systemOptions(targets, studio, doctor),
     ],
   };
-}
-
-function emulatorIsReady(doctor, id) {
-  if (!doctor) return true;
-  if (doctor.failed?.includes(id)) return false;
-  if (doctor.notInstalled?.includes(id)) return false;
-  return true;
 }
 
 function systemOptions(targets, project, doctor = null) {
