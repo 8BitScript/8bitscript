@@ -189,8 +189,24 @@ class StudioPanel {
     const report = readLastRun(dir, target);
     const fresh = freshReport(report, launchedAt);
     const running = this.running();
-    this.phase = !running ? 'stopped' : fresh ? 'running' : 'building';
-    this.report = fresh ?? report;
+    // A URL this tab already has framed keeps counting as running even
+    // when dist/.8bs-last-<target>.json's latest write is not fresh for
+    // this launch. That file is shared with any *native* run of the same
+    // target, and "Open in emulator" deliberately starts exactly one
+    // alongside this preview — its own compile step overwrites the same
+    // file with a no-url report the instant it starts, which says nothing
+    // about whether this wasm task is still running. Only an actual stop
+    // (running false, handled below) or a genuinely fresh *different* url
+    // (a real rebuild, which always stops this task first — see
+    // runInPreviewTab) should ever move this tab off what it is already
+    // showing. Before a url is ever established, an unfresh report is
+    // still worth showing (a leftover file at least names the emulator
+    // this target usually reaches) — stillOurs only kicks in once there
+    // is something of ours to protect.
+    const stillOurs = !fresh && Boolean(this.url);
+    this.phase = !running ? 'stopped' : (fresh || stillOurs) ? 'running' : 'building';
+    if (fresh) this.report = fresh;
+    else if (!stillOurs) this.report = report;
     this.nativeEmulator = await this.emulatorFor(dir, target);
     if (running && fresh && fresh.url !== this.url) {
       this.url = fresh.url;
