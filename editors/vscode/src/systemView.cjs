@@ -226,6 +226,13 @@ class SystemPanel {
       tab: this.tab,
       project: project ? labelOf(project) : '',
       draft: this.draft,
+      // Every machine, deliberately — not the project's `targets` the way
+      // the side bar's System dropdown now lists them (launcherView's
+      // systemOptions). The two answer different questions: the launcher
+      // asks "what is this program set up to run on", and narrowing it is
+      // what keeps that list short; this tab asks "what could it be set up
+      // for", and narrowing it to what is already set up would leave no way
+      // to set up the first system for a new machine.
       machines: groupedMachineOptions(ALL_TARGETS, (id) => ({
         id,
         label: targets?.get(id)?.title ? `${id} — ${targets.get(id).title}` : id,
