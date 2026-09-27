@@ -68,12 +68,22 @@ const escapeAttr = (value) => String(value).replace(/&/g, '&amp;').replace(/"/g,
  * mouse-capture status line entirely rather than show a free-mouse message
  * for hardware that never had one.
  */
+// cx16 here means the generic Preview tab's own run — that machine's own
+// package, through the wasm backend, exactly like pet/vic20/c64, since
+// `8bs run cx16 --web` means that now too. Studio's tab is always the
+// *other* cx16 --web (the vendored real x16emu, `--x16emu`), and carries
+// its own fixed labels instead of this table — see STUDIO_LABELS below.
 const TARGET_LABELS = {
-  cx16: { title: 'Commander X16', subtitle: 'x16emu (WebAssembly)', hasMouse: true },
+  cx16: { title: 'Commander X16', subtitle: 'wasm build', hasMouse: false },
   pet: { title: 'PET', subtitle: 'wasm build', hasMouse: false },
   vic20: { title: 'VIC-20', subtitle: 'wasm build', hasMouse: false },
   c64: { title: 'C64', subtitle: 'wasm build', hasMouse: false },
 };
+
+// Studio always runs on the real vendored x16emu (mouse and all) — never
+// the lightweight wasm preview TARGET_LABELS.cx16 now names — so its tab
+// carries its own fixed labels rather than looking cx16 up there.
+const STUDIO_LABELS = { title: 'Commander X16', subtitle: 'x16emu (WebAssembly)', hasMouse: true };
 
 /**
  * The page. The framed URL is part of the HTML rather than posted later
@@ -140,10 +150,11 @@ class StudioPanel {
    *   "build Studio again"); the Preview tab passes one that re-runs
    *   whatever project and target it is currently bound to instead.
    */
-  constructor(panel, projects, { tabTitle = 'Studio', onRebuild } = {}) {
+  constructor(panel, projects, { tabTitle = 'Studio', onRebuild, forceLabels = null } = {}) {
     this.panel = panel;
     this.projects = projects;
     this.tabTitle = tabTitle;
+    this.forceLabels = forceLabels;
     this.onRebuild = onRebuild ?? (() => vscode.commands.executeCommand('8bitscript.openStudioTab'));
     /** The run the tab follows: its directory, its target, and when it was started. */
     this.binding = null;
@@ -165,7 +176,7 @@ class StudioPanel {
    * place either is looked up, so `bind()` and every `refresh()` redraw
    * agree instead of one silently falling back to Studio's own defaults. */
   renderHtml(src = null) {
-    const labels = this.binding && TARGET_LABELS[this.binding.target];
+    const labels = this.forceLabels ?? (this.binding && TARGET_LABELS[this.binding.target]);
     return html(this.panel.webview, {
       src,
       tabTitle: this.tabTitle,
@@ -326,9 +337,10 @@ class StudioPanel {
  *   commandName: string, viewType: string, panelTitle: string, tabTitle: string,
  *   getOpen: () => StudioPanel|null, setOpen: (view: StudioPanel|null) => void,
  *   onRebuild?: (binding: {dir: string, target: string}) => void,
+ *   forceLabels?: { title: string, subtitle: string, hasMouse: boolean },
  * }} spec
  */
-function registerTab(context, projects, { commandName, viewType, panelTitle, tabTitle, getOpen, setOpen, onRebuild }) {
+function registerTab(context, projects, { commandName, viewType, panelTitle, tabTitle, getOpen, setOpen, onRebuild, forceLabels }) {
   context.subscriptions.push(
     // Hidden from the palette (package.json's commandPalette `when:
     // false`): the visible command (openStudioTab, previewOn) starts the
@@ -350,7 +362,7 @@ function registerTab(context, projects, { commandName, viewType, panelTitle, tab
         // the machine and lose whatever was being drawn.
         { enableScripts: true, retainContextWhenHidden: true },
       );
-      const view = new StudioPanel(panel, projects, { tabTitle, onRebuild });
+      const view = new StudioPanel(panel, projects, { tabTitle, onRebuild, forceLabels });
       const subscriptions = [
         panel.webview.onDidReceiveMessage((message) => view.apply(message)),
         // Runs starting and ending, and the live poll's last-run re-reads,
@@ -385,6 +397,7 @@ function registerStudioView(context, projects) {
     setOpen: (view) => { open = view; },
     // Studio's own Rebuild always means "build Studio again" — the
     // command already knows which project and target that is.
+    forceLabels: STUDIO_LABELS,
   });
   // The generic tab: any project, any target with a --web build (upstream's
   // real x16emu for cx16, that machine's own package compiled through the

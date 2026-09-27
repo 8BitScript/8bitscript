@@ -376,8 +376,10 @@ async function studioOptions(projects, all) {
   const targets = await projects.loadTargets(studio.dir);
   const doctor = await projects.loadDoctor();
   // First in the menu: the editor's own tab, which only the X16 can fill
-  // (the one machine with a WebAssembly emulator — `8bs run cx16 --web`).
-  // `command` names what a pick runs; every other entry runs openStudio.
+  // (the one machine with a WebAssembly emulator — `8bs run cx16 --web
+  // --x16emu`, Studio's own fixed choice, not the lightweight preview
+  // cx16 --web means everywhere else now). `command` names what a pick
+  // runs; every other entry runs openStudio.
   return {
     systems: [
       { group: 'In an editor tab' },

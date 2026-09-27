@@ -68,24 +68,35 @@ test('run() returns 2 and writes the error when --frames is not a number', async
 
 // pet/vic20/c64 used to be refused here outright, before compile() ever
 // ran — --web meant "the X16's vendored real emulator," nothing else had
-// one. Now every release target attempts --web: cx16 keeps the vendored
-// x16emu, pet/vic20/c64 build through the wasm backend instead
-// (build.mjs's own tests cover whether that build succeeds; this file's
-// job is only the wiring — does --web still reach compile() for these
-// targets, instead of being turned away at the door). runInBrowser()
-// itself blocks until SIGINT (web-runtime.mjs), so — like every other
-// target's interactive path in this file — it is not exercised here past
-// the point where compile() runs; a directory with no project fails at
-// the normal "entry does not exist" stage (a build failure, exit 1), not
-// the old CLI-argument refusal (exit 2), which is exactly the signal that
-// the gate is gone.
-test('run() --web on pet/vic20/c64 reaches compile() instead of being refused up front', async () => {
-  for (const target of ['pet', 'vic20', 'c64']) {
+// one. Now every release target attempts --web: pet/vic20/c64/cx16 all
+// build through the wasm backend (build.mjs's own tests cover whether
+// that build succeeds; this file's job is only the wiring — does --web
+// still reach compile() for these targets, instead of being turned away
+// at the door). runInBrowser() itself blocks until SIGINT
+// (web-runtime.mjs), so — like every other target's interactive path in
+// this file — it is not exercised here past the point where compile()
+// runs; a directory with no project fails at the normal "entry does not
+// exist" stage (a build failure, exit 1), not the old CLI-argument
+// refusal (exit 2), which is exactly the signal that the gate is gone.
+test('run() --web on pet/vic20/c64/cx16 reaches compile() instead of being refused up front', async () => {
+  for (const target of ['pet', 'vic20', 'c64', 'cx16']) {
     const { result, stderr } = await capture(() => run([target, '--web']));
     assert.equal(result, 1, `${target} --web`);
     assert.doesNotMatch(stderr, /only the Commander X16 has one/, `${target} --web`);
     assert.match(stderr, /entry .* does not exist/, `${target} --web`);
   }
+});
+
+// --x16emu (cx16 only) keeps --web's older meaning: the vendored real
+// emulator, not this machine's own package — emulatorInvocation() runs
+// before compile() ever gets a say for the *native* build it needs, so
+// (unlike the wasm case above) this still fails at compile()'s own
+// "entry does not exist", the same way a plain native `run(['cx16'])`
+// would, not a different error for having said --x16emu.
+test('run() --web --x16emu on cx16 still builds natively, for the vendored emulator to load', async () => {
+  const { result, stderr } = await capture(() => run(['cx16', '--web', '--x16emu']));
+  assert.equal(result, 1);
+  assert.match(stderr, /entry .* does not exist/);
 });
 
 test('run() with no target prints usage and returns 2', async () => {
@@ -97,7 +108,8 @@ test('run() with no target prints usage and returns 2', async () => {
   assert.match(stderr, /\[--lan\]/, 'run --lan is the web LAN HTTPS listener');
   assert.match(stderr, /\[--local\]/, 'run --local is loopback-only');
   assert.match(stderr, /\[--port <n>\]/, 'run --port is the web listen port');
-  assert.match(stderr, /\[--web\]  in the browser: cx16 runs the real x16emu as WebAssembly/, 'run --web is the X16 in a tab, or a real machine\'s own wasm build');
+  assert.match(stderr, /\[--web\]  in the browser: pet\/vic20\/c64\/cx16 build through the wasm/, 'run --web builds a real machine\'s own package for the browser');
+  assert.match(stderr, /\[--x16emu\]  with cx16 --web: the real x16emu as WebAssembly instead/, 'run --x16emu is cx16 --web\'s older meaning');
 });
 
 test('run() with a baseline and a mistyped machine still prints usage, not the baseline', async () => {

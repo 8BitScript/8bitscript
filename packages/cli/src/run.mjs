@@ -37,12 +37,17 @@
 //                        it in MEGA65 mode ($2001 load address; a c64-target
 //                        .prg would go to C64 mode) — verified on screen,
 //                        see packages/mega65/AGENTS.md
-//   8bs run cx16 --web   builds the .prg and opens it in the browser, in
-//                        the WebAssembly x16emu (web-emulator.mjs): the
-//                        same emulator and the same flags as the window,
-//                        in a tab — the mouse is the browser's Pointer
-//                        Lock (click takes it, Esc gives it back). Only
-//                        the X16 has one; --no-open and --port apply.
+//   8bs run cx16 --web   builds the X16's own package through the wasm
+//                        backend and opens it in the browser, the same
+//                        way pet/vic20/c64 --web does — a real machine
+//                        module, not a chip emulator.
+//   8bs run cx16 --web --x16emu   the older path instead: the vendored
+//                        real x16emu as WebAssembly (web-emulator.mjs),
+//                        the same emulator and the same flags as the
+//                        window, in a tab — the mouse is the browser's
+//                        Pointer Lock (click takes it, Esc gives it
+//                        back). Only the X16 has one; --no-open and
+//                        --port apply.
 //   8bs run web          builds the .wasm and opens it in the browser
 //                        runtime (web-runtime.mjs): the program runs in a
 //                        worker, its waitFrame() paced by the page's frame
@@ -527,6 +532,9 @@ export async function run(args) {
   const open = !args.includes('--no-open');
   const lan = !args.includes('--local');
   const web = args.includes('--web');
+  // Only cx16 has a second --web mechanism to choose between; meaningless
+  // (and silently ignored) on every other target.
+  const x16emu = args.includes('--x16emu');
   const report = args.includes('--size');
   const checkout = applyCheckoutFromArgs(args);
   if (!checkout.ok) {
@@ -615,11 +623,12 @@ export async function run(args) {
       + '                [--pal]\n'
       + HARDWARE_USAGE
       + '                [--size] [--no-open] [--lan] [--local] [--port <n>] [--program <name>] [--locale <name>] [entry.8bs]\n'
-      + '                [--web]  in the browser: cx16 runs the real x16emu as WebAssembly\n'
-      + '                         (the mouse is the tab\'s: click takes it, Esc gives it back);\n'
-      + '                         pet/vic20/c64 build through the wasm backend instead — a\n'
-      + '                         real machine module, not a chip emulator, and only as\n'
-      + '                         complete as that machine\'s own modules are ported so far\n'
+      + '                [--web]  in the browser: pet/vic20/c64/cx16 build through the wasm\n'
+      + '                         backend — a real machine module, not a chip emulator, and\n'
+      + '                         only as complete as that machine\'s own modules are ported\n'
+      + '                         so far\n'
+      + '                [--x16emu]  with cx16 --web: the real x16emu as WebAssembly instead\n'
+      + '                            (the mouse is the tab\'s: click takes it, Esc gives it back)\n'
       + CX16_WINDOW_USAGE
       + '                [--screenshot <file.png>] [--frames <n>]\n'
       + '                  capture one screenshot through the target\'s own\n'
@@ -632,12 +641,13 @@ export async function run(args) {
   const entry = named ? positionals[1] : positionals[0];
   const pal = palFlag || launch.pal;
 
-  // Every release target can attempt --web now: cx16 through its vendored
-  // real emulator (WEB_EMULATORS), the synthetic web target always this
-  // way, and pet/vic20/c64 by building through the wasm backend below —
-  // there is nothing left to refuse pre-emptively here. A machine whose
-  // modules are not wasm-ported yet (an asm6502 block reached) fails at
-  // compile() with its own real, specific error instead.
+  // Every release target can attempt --web now: the synthetic web target
+  // always this way, and pet/vic20/c64/cx16 by building through the wasm
+  // backend below — there is nothing left to refuse pre-emptively here.
+  // A machine whose modules are not wasm-ported yet (an asm6502 block
+  // reached) fails at compile() with its own real, specific error
+  // instead. cx16 --web --x16emu keeps its older, different meaning: the
+  // vendored real emulator (WEB_EMULATORS), not this machine's package.
 
   // Said once, before either route — the PET has no region (PET_REGION_NOTE).
   if (target === 'pet' && pal) process.stderr.write(PET_REGION_NOTE);
@@ -647,8 +657,10 @@ export async function run(args) {
   // native emulator API — cx16's vendored x16emu wasm build has never been
   // part of that path either. A real machine's wasm build follows the same
   // rule: --web only changes what compile() produces when this run is
-  // actually going to open a browser tab with it.
-  const buildForWeb = web && target !== 'cx16' && !screenshotPath;
+  // actually going to open a browser tab with it. --x16emu (cx16 only)
+  // keeps compile() building the native .prg instead, for the vendored
+  // emulator branch further down to load.
+  const buildForWeb = web && !(target === 'cx16' && x16emu) && !screenshotPath;
   const { ok, outFile, frameRate, hardware } = await compile(target, entry, {
     pal, profile: launch.profile, hardware: launch.overrides, report, checkout: checkout.checkout,
     program: programOpt.program, locale: localeOpt.locale, web: buildForWeb,

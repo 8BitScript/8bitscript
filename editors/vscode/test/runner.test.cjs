@@ -747,7 +747,7 @@ test('registerRunner: openStudioTab stops the tab\'s earlier run, starts Studio 
       assert.ok(executed, 'Studio launched');
       assert.equal(executed.task.definition.target, 'cx16');
       assert.equal(executed.task.definition.web, true);
-      assert.deepEqual(executed.task.execution.args.slice(-4), ['--web', '--no-open', '--port', '0']);
+      assert.deepEqual(executed.task.execution.args.slice(-5), ['--web', '--no-open', '--port', '0', '--x16emu']);
       assert.equal(shown.length, 1);
       assert.equal(shown[0].dir, dir);
       assert.equal(shown[0].target, 'cx16');
