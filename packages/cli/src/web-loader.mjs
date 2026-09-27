@@ -256,7 +256,7 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
   'use strict';
 
   var COLORS = ${JSON.stringify(layout.palette ?? COLORS)};
-  var GLYPHS = ${glyphTableLiteral()};
+  var GLYPHS = ${glyphTableLiteral(layout.font)};
   var GRID_COLS = ${layout.cols};
   var GRID_ROWS = ${layout.rows};
   var CHAR_W = ${layout.charWidth ?? CHAR_W};
@@ -266,6 +266,11 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
   var BORDER_PX = ${BORDER_PX};
   var CHAR_BASE = ${layout.charBase ?? CHAR_BASE};
   var COLOR_BASE = ${layout.colorBase};
+  // A real machine's own screen byte and the shared font's index are not
+  // always the same number (see web-layout.mjs's layoutForRealMachine) —
+  // null on every skin that already matches the font 1:1 (every synthetic
+  // skin, still), a function on the one real machine that does not yet.
+  var GLYPH_INDEX = ${layout.glyphIndexFn ? layout.glyphIndexFn : 'null'};
   var INPUT_OFFSET = ${layout.inputOffset};
   var HOST_OFFSET = ${layout.hostOffset};
   var RASTER_CONTROL_OFFSET = ${layout.rasterControlOffset ?? DEFAULT_LAYOUT.rasterControlOffset};
@@ -465,7 +470,8 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
           var cell = cellRow * GRID_COLS + col;
           var colorByte = mem[COLOR_BASE + cell];
           var reverse = (colorByte & 128) !== 0;
-          var glyph = GLYPHS[mem[CHAR_BASE + cell]] || null;
+          var raw = mem[CHAR_BASE + cell];
+          var glyph = GLYPHS[GLYPH_INDEX ? GLYPH_INDEX(raw) : raw] || null;
           var bits = glyph === null ? 0 : glyph[glyphY];
           var on = ((bits >> gx) & 1) !== 0;
           var fg = COLOR_PER_CELL ? palette[colorByte & 15] : palette[1];
@@ -550,6 +556,11 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     if (typeof next.colorPerCell === 'boolean') COLOR_PER_CELL = next.colorPerCell;
     if (next.aspect) ASPECT = next.aspect;
     if (next.palette && next.palette.length) COLORS = next.palette;
+    // program.json carries this as source text (JSON has no function
+    // type) — evaluated here, once, the same trust level as the rest of
+    // this script: it is this CLI's own generated content, never a
+    // program's or a stranger's.
+    if (next.glyphIndexFn) GLYPH_INDEX = new Function('return (' + next.glyphIndexFn + ')')();
   }
 
   function resolveHost(target) {
@@ -896,13 +907,42 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
 
     function start() {
       if (running || destroyed) return;
-      if (!isolated()) {
-        say(ISOLATION_HELP);
-        if (options.onError) options.onError(new Error(ISOLATION_HELP));
-        return;
-      }
+      // Isolation is only a sharing requirement (see the file header): it
+      // is never needed at all for a program that never calls waitFrame(),
+      // which the worker already treats differently (renderWorker()'s own
+      // shared check) — it runs once, to completion, and its plain,
+      // un-shared memory posts back afterward like any other ArrayBuffer.
+      // The one thing here that still needed isolation regardless was this
+      // function's own ctrl — the page/worker frame counter, entirely
+      // unused by a program that never calls waitFrame() and therefore
+      // never enters the worker's waitFrame() closure that reads it — so a
+      // program that never asks for a frame no longer has to ask for
+      // isolation either. A program that does still gets exactly the
+      // requirement and the message this always had; nothing here changes
+      // for it.
+      fetch(wasmUrl).then(function (response) {
+        return response.arrayBuffer();
+      }).then(WebAssembly.compile).then(function (module) {
+        var needsShared = WebAssembly.Module.imports(module).some(function (i) { return i.module === 'env' && i.name === 'waitFrame'; });
+        if (needsShared && !isolated()) {
+          say(ISOLATION_HELP);
+          if (options.onError) options.onError(new Error(ISOLATION_HELP));
+          return;
+        }
+        startWorker(needsShared);
+      }).catch(function (error) {
+        say('the program failed: ' + error.message);
+        if (options.onError) options.onError(error);
+      });
+    }
+
+    function startWorker(needsShared) {
       running = true;
-      ctrl = new Int32Array(new SharedArrayBuffer(8));
+      // null, not a plain Int32Array, when nothing will ever wait on it:
+      // Atomics.add/notify (tick(), below) throw on a non-shared buffer,
+      // and tick()'s own ctrl check already treats a falsy ctrl as nothing
+      // to release frames for — the exact case this is.
+      ctrl = needsShared ? new Int32Array(new SharedArrayBuffer(8)) : null;
       worker = new Worker(options.worker ? new URL(options.worker, document.baseURI).href : blobWorkerUrl());
       worker.onmessage = function (event) {
         var data = event.data;

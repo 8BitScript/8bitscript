@@ -187,7 +187,7 @@ export function checkEntryKind(entry) {
  *   whoever runs it next. `memory` / `sizeReport` are what the last-run
  *   file and `--size` print; they are absent when the compile failed.
  */
-export async function compile(target, entryArg, { pal = false, profile, hardware: overrides = {}, report = false, debug = false, checkout = undefined, program: programName, locale: localeArgument } = {}) {
+export async function compile(target, entryArg, { pal = false, profile, hardware: overrides = {}, report = false, debug = false, checkout = undefined, program: programName, locale: localeArgument, web = false } = {}) {
   if (checkout !== undefined) setActiveCheckout(checkout);
   const config = await loadConfig(process.cwd(), '8bs build');
 
@@ -387,22 +387,48 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   // A project with several programs gets a web bundle per program; one
   // program keeps dist/web/ flat, where every deploy so far has looked.
   const webDirName = programs.length > 1 ? join('web', stem) : 'web';
-  if (target === 'web') {
+  // The synthetic `web` target always builds this way; a real machine
+  // (pet, vic20, c64, ...) does too when `--web` asks for it — `ir` above
+  // was already resolved with `machine: target`, so a real target's own
+  // package modules (packages/pet/src/text.8bs, not packages/web's) are
+  // what the front end just linked, regardless of which backend is about
+  // to consume the result. Backend choice and machine resolution were
+  // always two separate questions; this is the one place that used to
+  // conflate them.
+  if (target === 'web' || web) {
     const { build } = await import('@8bitscript/compiler/wasm');
     const { writeWebBundle } = await import('./web-runtime.mjs');
-    const { layoutFromHardware } = await import('./web-layout.mjs');
-    const layout = layoutFromHardware(hardware);
+    const { layoutFromHardware, layoutForRealMachine } = await import('./web-layout.mjs');
+    // See run.mjs's identical branch: the synthetic web target's own math
+    // for charBase/colorBase is wrong for a real machine's own package,
+    // which was written against its actual hardware's memory map.
+    const layout = target === 'web' ? layoutFromHardware(hardware) : layoutForRealMachine(target, hardware);
     // The locale after the tag, as the native names carry it; a bundle
     // per locale sits beside the others in dist/web, the way a bundle per
     // tag already does.
     const suffix = [hardware.tags[0], localeTag].filter(Boolean).map((part) => `-${part}`).join('');
     const wasmName = `program${suffix}`;
-    const outFile = resolve('dist', `${stem}${suffix}.wasm`);
+    // A real machine's own --web build is named for the machine, not the
+    // specific model it happened to compile for: hello-world.pet.wasm, the
+    // same wasm regardless of whether that build picked the 3032's RAM or
+    // the 8032's — a browser preview has one "PET," not a shelf of them.
+    // The model still decides what got compiled (RAM budget, column count),
+    // it just isn't the file's own name; --hardware/--profile still choose
+    // it, same as any other build. The synthetic web target is unchanged:
+    // it never named itself for a target at all (there is only one).
+    const outFile = target === 'web'
+      ? resolve('dist', `${stem}${suffix}.wasm`)
+      : resolve('dist', [stem, target, localeTag].filter(Boolean).join('.') + '.wasm');
     // The layout is computed once and both sides get it: the page through
     // the bundle's sidecar, the backend through `reserved` — the agreement's
     // end, past which its data section starts (web-layout.mjs, and
     // dataBaseFor() in the compiler).
-    const result = await build(ir, { outFile, frameRate, report, reserved: layout.reservedEnd });
+    // A real machine's own `@address`-pinned register is meaningful — it's
+    // hardware that machine actually has, treated as a fixed byte in
+    // linear memory (see the wasm backend's own note on this). The
+    // synthetic web/hifi target owns no hardware to map one to, so it
+    // keeps refusing them, exactly as before this option existed.
+    const result = await build(ir, { outFile, frameRate, report, reserved: layout.reservedEnd, allowPinnedScalars: target !== 'web' });
     if (!result.ok) {
       process.stderr.write(`8bs build: ${result.error}\n`);
       return { ok: false };
@@ -725,13 +751,20 @@ export async function build(args) {
       + '                  no --target builds the `baseline` 8bitscript.config.ts names, when it names one)\n'
       + '                 [--pal] [--size] [--debug] [--program <name>] [--locale <name>]\n'
       + HARDWARE_USAGE
+      + '                 [--web]  pet/vic20/c64: that machine\'s own package, through the wasm\n'
+      + '                          backend, instead of a native build — see `8bs run --web`\n'
       + '                 [entry.8bs]\n',
     );
     return 2;
   }
+  // cx16's --web is 8bs run's own thing (the vendored real x16emu, fetched
+  // and served live) — there is nothing for a standalone build to bundle,
+  // so --web here only ever means "build this real machine's own package
+  // through the wasm backend," same as run.mjs's identical exclusion.
+  const web = args.includes('--web') && target !== 'cx16';
   const { ok } = await compile(target, entry, {
     pal, profile: launch.profile, hardware: launch.overrides, report, debug, checkout: checkout.checkout,
-    program: programOpt.program, locale: localeOpt.locale,
+    program: programOpt.program, locale: localeOpt.locale, web,
   });
   return ok ? 0 : 1;
 }

@@ -28,6 +28,7 @@ const {
   CONFIG_FILE,
   CONFIG_FILENAMES,
   MACHINE_TARGETS,
+  WEB_PREVIEW_READY,
   cliCommand,
   commandArgs,
   findConfig,
@@ -822,8 +823,13 @@ function registerRunner(context, output) {
     const extras = {
       system: system || undefined,
       checkout: projects.checkoutFlag() || undefined,
-      // The Studio tab's run (openStudioTab below): the WebAssembly
-      // emulator instead of a window. Nothing else sets it.
+      // Set only by a caller that already decided and knows how to show
+      // the result: Studio's own tab, Preview On…, and the plain Run
+      // command's own WEB_PREVIEW_READY/preferWebPreview check (below) —
+      // never defaulted in here. launch() (Launch App…/Launch Example…)
+      // calls this with nothing set and has no tab of its own to show a
+      // --web run in; defaulting it here once made that combination start
+      // a real server with nothing pointed at it.
       web: node?.web ? true : undefined,
     };
     return vscode.tasks.executeTask(
@@ -1225,13 +1231,56 @@ function registerRunner(context, output) {
     if (!started) return;
     await vscode.commands.executeCommand('8bitscript.studioTab.show', { dir: studio.dir, target: 'cx16', launchedAt });
   });
+  // The generic Preview tab: any project, whichever of its own targets has
+  // a --web build. targetOf() already does the picking (a project quick
+  // pick when more than one is open, a target quick pick from that
+  // project's own `targets`) — the same machinery every other palette
+  // command here shares, so a project with only `pet` and `web` listed is
+  // never offered `c64`. `rebind` is the Preview tab's own Rebuild
+  // reaching back in with the exact `{dir, target}` it is already
+  // showing, skipping both pickers.
+  /** Run `project` on `target` in a --web build and follow it in the
+   * generic Preview tab — previewOn's own body, and what a plain Run
+   * reaches for too once it has decided (WEB_PREVIEW_READY, the
+   * preferWebPreview setting) that this run should be one. */
+  async function runInPreviewTab(project, target) {
+    projects.running.stop(project.dir, target, { web: true });
+    const launchedAt = Date.now();
+    const started = await execute('run', { project, target, web: true });
+    if (!started) return;
+    await vscode.commands.executeCommand('8bitscript.previewTab.show', { dir: project.dir, target, launchedAt });
+  }
+  command('8bitscript.previewOn', async (rebind) => {
+    if (projects.all.length === 0) await projects.refresh();
+    let resolved;
+    if (rebind?.dir && rebind?.target) {
+      const project = projects.all.find((p) => p.dir === rebind.dir);
+      resolved = project ? { project, target: rebind.target } : undefined;
+    } else {
+      resolved = await targetOf(undefined, 'preview');
+    }
+    if (!resolved) return;
+    await runInPreviewTab(resolved.project, resolved.target);
+  });
   command('8bitscript.launchApp', () => launch('app', 'apps'));
   command('8bitscript.launchExample', () => launch('example', 'examples'));
   command('8bitscript.doctor', doctor);
   command('8bitscript.install', install);
   command('8bitscript.useLocal', useLocal);
   command('8bitscript.usePublished', usePublished);
-  command('8bitscript.run', (node) => execute('run', node));
+  command('8bitscript.run', async (node) => {
+    // Resolved once, here, rather than left to execute()'s own targetOf:
+    // deciding whether this run defaults to --web needs the target before
+    // the task starts, and a node already carrying {project, target} (this
+    // resolved one) makes execute()'s own targetOf a same-answer no-op
+    // rather than a second quick pick.
+    const resolved = await targetOf(node, 'run');
+    if (!resolved) return;
+    const { project, target } = resolved;
+    const web = node?.web !== undefined ? node.web : WEB_PREVIEW_READY.has(target) && settings.getPreferWebPreview();
+    if (web) { await runInPreviewTab(project, target); return; }
+    await execute('run', resolved);
+  });
   command('8bitscript.build', (node) => execute('build', node));
   command('8bitscript.boot', (node) => execute('boot', node));
   command('8bitscript.viewGeneratedAssembly', viewGeneratedAssembly);

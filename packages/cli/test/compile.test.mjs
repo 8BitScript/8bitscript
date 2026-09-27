@@ -325,6 +325,58 @@ test('compile() for web --hardware machine=c64 writes a tagged wasm and a 40×25
   }
 });
 
+test('build() --target pet --web builds through the wasm backend at the CLI-argument level, not just through compile() directly', async () => {
+  const dir = await mkdtemp(join(tmpdir(), '8bs-compile-'));
+  const prev = process.cwd();
+  try {
+    const entry = join(dir, 'main.8bs');
+    await writeFile(entry, SUM);
+    process.chdir(dir);
+
+    // Without --web: the ordinary native .prg, unchanged.
+    const native = await capture(() => build(['--target', 'pet', entry]));
+    assert.equal(native.result, 0, native.stdout + native.stderr);
+    assert.match(native.stdout, /main-.*\.prg/);
+
+    // With --web: the wasm backend, named for the machine.
+    const wasm = await capture(() => build(['--target', 'pet', '--web', entry]));
+    assert.equal(wasm.result, 0, wasm.stdout + wasm.stderr);
+    assert.match(wasm.stdout, /main\.pet\.wasm/);
+    assert.equal(existsSync(join(dir, 'dist', 'main.pet.wasm')), true);
+
+    // cx16 + --web is 8bs run's own thing (the vendored real x16emu) — a
+    // standalone build has nothing to fetch or bundle, so this builds
+    // cx16 natively, exactly as if --web had not been passed.
+    const cx16 = await capture(() => build(['--target', 'cx16', '--web', entry]));
+    assert.equal(cx16.result, 0, cx16.stdout + cx16.stderr);
+    assert.doesNotMatch(cx16.stdout, /\.wasm/);
+  } finally {
+    process.chdir(prev);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('compile() for a real machine\'s --web build is named for the machine, never the specific model it compiled for', async () => {
+  const dir = await mkdtemp(join(tmpdir(), '8bs-compile-'));
+  const prev = process.cwd();
+  try {
+    const entry = join(dir, 'main.8bs');
+    await writeFile(entry, SUM);
+    process.chdir(dir);
+    const { result, stdout, stderr } = await capture(() => compile('pet', entry, { web: true }));
+    assert.equal(result.ok, true, stdout + stderr);
+    // Not main-4032.wasm or main-2001.wasm (the native/model-tagged shape)
+    // and not main.wasm either (the synthetic web target's own, un-named
+    // shape) — one name for "the PET," whichever model actually compiled.
+    assert.ok(result.outFile.endsWith('main.pet.wasm'), result.outFile);
+    const bytes = await readFile(result.outFile);
+    assert.deepEqual([...bytes.slice(0, 4)], [0x00, 0x61, 0x73, 0x6d]);
+  } finally {
+    process.chdir(prev);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test('compile() for web still names a real, specific gap for a construct nothing on this rail lowers, not a generic "not implemented"', async () => {
   const dir = await mkdtemp(join(tmpdir(), '8bs-compile-'));
   const prev = process.cwd();

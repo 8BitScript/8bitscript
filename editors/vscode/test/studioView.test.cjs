@@ -64,6 +64,22 @@ test('html: without a URL there is no frame and no frame-src; with one, the fram
   assert.doesNotMatch(framed, /sandbox=/, 'a sandbox would strip pointer lock');
 });
 
+test('html: no options at all is Studio on the X16, unchanged — the Preview tab\'s defaults never leak into Studio\'s own call site', () => {
+  const webview = { cspSource: 'vscode-webview:' };
+  const page = html(webview);
+  assert.match(page, /<title>Studio<\/title>/);
+  assert.match(page, /Studio <span class="sub">on the Commander X16 · x16emu \(WebAssembly\)<\/span>/);
+  assert.match(page, /window\.__8bsHasMouse = true;/);
+});
+
+test('html: a machine with no mouse (hasMouse: false) still gets its own title, and the page is told not to show a mouse line', () => {
+  const webview = { cspSource: 'vscode-webview:' };
+  const page = html(webview, { tabTitle: 'Preview', title: 'PET', subtitle: 'wasm build', hasMouse: false });
+  assert.match(page, /<title>Preview<\/title>/);
+  assert.match(page, /PET <span class="sub">wasm build<\/span>/);
+  assert.match(page, /window\.__8bsHasMouse = false;/);
+});
+
 test('the tab follows a run: building until a fresh URL lands, framed once it does, stopped when the run ends', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), '8bs-studio-tab-'));
   const context = { subscriptions: [] };
@@ -138,6 +154,90 @@ test('the tab follows a run: building until a fresh URL lands, framed once it do
     await tick();
     assert.equal(vscode.__mock.webviewPanels.length, before + 1);
     vscode.__mock.webviewPanels.at(-1).__dispose();
+  } finally {
+    for (const subscription of context.subscriptions) subscription.dispose?.();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('ready re-reads instead of echoing a stale phase: a build fast enough to finish before the live poll\'s next tick still reports running', async () => {
+  // hello-world's PET build finishes in well under a second — faster
+  // than the 1s live poll that would otherwise be the only thing to
+  // notice the fresh file. The very first bind() reads before any file
+  // exists, caches phase 'building', and used to just echo that cache
+  // back to `ready` — showing "being built" over an already-rendered
+  // screen until, or unless, a poll tick happened to land first.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), '8bs-studio-tab-ready-'));
+  const context = { subscriptions: [] };
+  try {
+    vscode.__mock.reset();
+    const projects = fakeProjects();
+    registerStudioView(context, projects);
+
+    const launchedAt = Date.now();
+    projects.runs.push({ dir, target: 'pet', web: true });
+    // Nothing on disk yet when the tab binds — bind()'s own refresh()
+    // caches phase 'building', same as any run's first instant.
+    await vscode.__mock.trigger('8bitscript.previewTab.show', { dir, target: 'pet', launchedAt });
+    await tick();
+    const panel = vscode.__mock.webviewPanels.at(-1);
+
+    // The build finishes and the file lands *between* that bind() and
+    // `ready` — and crucially, with no projects.changed.fire() in
+    // between: nothing else has told the tab to look again yet, exactly
+    // as when a build this fast beats the live poll's next 1s tick.
+    writeLastRun(dir, 'pet', { url: 'http://127.0.0.1:3333/', emulator: 'browser', memory: { program: 108 }, writtenAt: new Date(launchedAt + 50).toISOString() });
+    panel.webview.__fire({ type: 'ready' });
+    await tick();
+    assert.match(panel.webview.html, /<iframe id="frame" src="http:\/\/127\.0\.0\.1:3333\/"/,
+      'ready itself notices the fresh file and frames it, rather than waiting for the next poll tick');
+    // A real reload of the page it just framed sends its own `ready`,
+    // exactly as the existing "framed once it does" run above relies on
+    // after a poll-triggered swap; the mock's plain object html does not
+    // reload on its own, so this fires the round trip by hand.
+    panel.webview.__fire({ type: 'ready' });
+    await tick();
+    assert.deepEqual(panel.posted.at(-1), { type: 'state', phase: 'running', emulator: 'browser', program: 108 });
+    // Disposed, not left open: the module-level openPreview it set is
+    // shared by every registerStudioView() call in this process, so a
+    // panel left dangling here would make the *next* test's own
+    // previewTab.show silently re-bind this one instead of creating its
+    // own — exactly the kind of cross-test state a fresh vscode mock
+    // (reset() clears the mock's own lists, not studioView.cjs's) does
+    // not protect against.
+    panel.__dispose();
+  } finally {
+    for (const subscription of context.subscriptions) subscription.dispose?.();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('closing the Preview tab stops its run, exactly as closing Studio\'s own tab does', async () => {
+  // registerTab() is one shared implementation behind both commands;
+  // Studio's own "closing the tab stops the run" case is covered above,
+  // but nothing exercised the *second* registration (previewTab.show —
+  // pet/vic20/c64's own --web builds, not the X16) the same way, so a
+  // difference between the two call sites (a missing onRebuild, a typo
+  // in which command name maps to which getOpen/setOpen) could have hidden
+  // behind the first one passing.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), '8bs-preview-tab-dispose-'));
+  const context = { subscriptions: [] };
+  try {
+    vscode.__mock.reset();
+    const projects = fakeProjects();
+    registerStudioView(context, projects);
+    assert.ok(vscode.__mock.commandHandlers.has('8bitscript.previewTab.show'));
+
+    projects.runs.push({ dir, target: 'pet', web: true });
+    await vscode.__mock.trigger('8bitscript.previewTab.show', { dir, target: 'pet', launchedAt: Date.now() });
+    await tick();
+    const panel = vscode.__mock.webviewPanels.at(-1);
+    assert.equal(panel.viewType, '8bitscript.preview', 'its own view type, not Studio\'s');
+
+    projects.stopped.length = 0;
+    panel.__dispose();
+    assert.deepEqual(projects.stopped, [{ dir, target: 'pet', only: { web: true } }],
+      'closing the Preview tab ends exactly the run it was following');
   } finally {
     for (const subscription of context.subscriptions) subscription.dispose?.();
     fs.rmSync(dir, { recursive: true, force: true });

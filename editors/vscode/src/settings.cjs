@@ -118,6 +118,20 @@ function getShowExamples() {
 const setShowExamples = (show) => update('showExamples', show);
 
 /**
+ * Whether the plain Run command prefers a machine's own --web build over a
+ * native emulator window, for a target that one already exists for. On by
+ * default: the design this is part of is heading toward a game never
+ * needing a native emulator installed to develop against at all (see the
+ * "8BitScript: Native System Emulation in WASM" plan). runner.cjs's own
+ * WEB_PREVIEW_READY names which targets that already holds for today —
+ * this setting decides *whether* to prefer it, not *which* targets can.
+ */
+function getPreferWebPreview() {
+  return config().get('preferWebPreview') !== false;
+}
+const setPreferWebPreview = (prefer) => update('preferWebPreview', prefer);
+
+/**
  * Whether a web run also listens on the LAN. On by default, matching
  * `8bs run web`. The launcher draws a QR of that HTTPS URL. Off passes
  * `--local` so the server stays on loopback.
@@ -246,6 +260,7 @@ module.exports = {
   getExamplesPath,
   getHardware,
   getNamedSystem,
+  getPreferWebPreview,
   getProject,
   getRegion,
   getShowExamples,
@@ -257,6 +272,7 @@ module.exports = {
   setDoctorEmulators,
   setHardware,
   setNamedSystem,
+  setPreferWebPreview,
   setProject,
   setRegion,
   setShowExamples,

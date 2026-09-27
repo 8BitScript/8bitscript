@@ -220,49 +220,6 @@
               "facts": {
                 "input.paddles": true
               }
-            },
-            "mouse1351": {
-              "label": "Commodore 1351 mouse",
-              "run": {
-                "xvic": [
-                  "-controlport1device",
-                  "3",
-                  "-mouse"
-                ]
-              },
-              "facts": {
-                "input.mouse": true
-              }
-            }
-          }
-        },
-        "drive": {
-          "label": "Disk drive",
-          "default": "1541",
-          "values": {
-            "1541": {
-              "label": "1541 (170K disk)",
-              "facts": {
-                "storage.save": true,
-                "storage.kib": 164
-              },
-              "tag": null
-            },
-            "1581": {
-              "label": "1581 (800K disk)",
-              "facts": {
-                "storage.save": true,
-                "storage.kib": 783
-              },
-              "tag": null
-            },
-            "none": {
-              "label": "No drive (tape or nothing)",
-              "facts": {
-                "storage.save": false,
-                "storage.kib": 0
-              },
-              "tag": null
             }
           }
         }

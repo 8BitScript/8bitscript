@@ -12,7 +12,13 @@ const STUDIO_JS = path.join(__dirname, '..', 'media', 'studio.js');
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
 test('the Studio page: state drives the bar, the frame\'s reports drive the mouse line, buttons post', () => {
-  const { dom, sandbox, posted } = runWebviewScripts([STUDIO_JS]);
+  // The X16 has a mouse; html() would have set this inline before studio.js
+  // ever ran (studioView.cjs, TARGET_LABELS.cx16). A machine with none —
+  // covered in studioView.test.cjs instead, since that's the one place
+  // the flag itself is set — keeps this whole line hidden regardless of
+  // state, which is why this test (about the mouse line's real behavior)
+  // needs it seeded true rather than left at its unset, mouseless default.
+  const { dom, sandbox, posted } = runWebviewScripts([STUDIO_JS], (d) => { d.window.__8bsHasMouse = true; });
   assert.deepEqual(plain(posted), [{ type: 'ready' }]);
   const $ = (id) => dom.getElementById(id);
 
@@ -109,4 +115,18 @@ test('Studio postMessage rejects foreign origins', () => {
 
   sandbox.window.dispatch('message', { data: { type: 'state', phase: 'building', emulator: null, program: null } });
   assert.match($('status').textContent, /^Building Studio/, 'messages with no origin still reach the host listener');
+});
+
+test('the Preview page: a real machine gets its own name throughout, never a leftover "Studio"', () => {
+  const { dom, sandbox } = runWebviewScripts([STUDIO_JS], (d) => { d.window.__8bsTitle = 'PET'; });
+  const $ = (id) => dom.getElementById(id);
+
+  sandbox.window.dispatch('message', { data: { type: 'state', phase: 'building', emulator: null, program: null } });
+  assert.equal($('status').textContent, 'Building PET… (the build prints in its terminal)');
+  assert.equal($('rebuild').textContent, 'Rebuild');
+
+  sandbox.window.dispatch('message', { data: { type: 'state', phase: 'stopped', emulator: null, program: null } });
+  assert.equal($('rebuild').textContent, 'Start PET');
+  assert.equal($('empty').textContent, 'PET is not running.');
+  assert.doesNotMatch($('status').textContent + $('empty').textContent + $('rebuild').textContent, /Studio/);
 });

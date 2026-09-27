@@ -74,8 +74,11 @@ Do not describe more than this as working:
   vic20` passes so the emulated RAM matches the link, and a `memory.ram`
   fact. A non-default value is in the output name
   (`main-vic20-8k-ntsc.prg`). `port1` — `joystick` (default), `none`,
-  `paddles`, `mouse1351` (`-controlport1device`; the 1351 on a VIC-20 is
-  *to verify* on hardware, below).
+  `paddles` (`-controlport1device`). There is no `mouse1351` and no
+  `drive`: `xvic` accepts both, but this repository has no 1351 driver for
+  the VIC-20 (the 1351 here is *to verify* on hardware, below) and nothing
+  anywhere saves yet, so each set a fact — `input.mouse`, `storage.kib` —
+  that no code could act on. They return with their drivers.
 - `FRAME_SYNC.vic20` (`packages/compiler/src/mos`) is a *level* driver on the
   VIC's raster counter: `$9004` holds bits 8–1 of the line and changes every
   second line, the top half of the frame is `$9004 < 64`, and `$9004 >= 140`

@@ -68,6 +68,73 @@ function closeStudioMenu() {
   $('studio-more').setAttribute('aria-expanded', 'false');
 }
 
+/**
+ * Run's own sliver menu: what used to be the separate System dropdown,
+ * folded into the same split-button shape Studio already has — "Run in
+ * emulator" first (an explicit override of Run's own web-preview default,
+ * for whichever system is current), then the identical grouped system list
+ * fill() used to put in that dropdown, each pick now setting the system
+ * (`{type:'set', key:'system', ...}`) rather than launching anything.
+ *
+ * `web` has no native emulator to offer an override to at all (`8bs run
+ * web` never meant anything but the browser build), so it gets no "Run in
+ * emulator" row.
+ */
+function renderRunMenu(options, { emulatorLabel, system }) {
+  const menu = $('run-menu');
+  menu.textContent = '';
+  if (system !== 'web') {
+    const emulator = document.createElement('button');
+    emulator.className = 'menu-item';
+    emulator.setAttribute('role', 'menuitem');
+    emulator.textContent = 'Run in emulator' + (emulatorLabel ? ' (' + emulatorLabel + ')' : '');
+    emulator.addEventListener('click', (e) => {
+      e.runMenu = true;
+      closeRunMenu();
+      vscode.postMessage({ type: 'launch', action: 'run', web: false });
+    });
+    menu.appendChild(emulator);
+    const divider = document.createElement('div');
+    divider.className = 'menu-divider';
+    menu.appendChild(divider);
+  }
+  for (const option of options) {
+    if (option.group) {
+      const group = document.createElement('div');
+      group.className = 'menu-group';
+      group.textContent = option.group;
+      menu.appendChild(group);
+      continue;
+    }
+    const item = document.createElement('button');
+    item.className = 'menu-item';
+    item.setAttribute('role', 'menuitem');
+    item.dataset.id = option.id;
+    item.textContent = (option.where && option.where !== option.label
+      ? option.label + '  —  ' + option.where
+      : option.label)
+      + (option.runnable === false ? '  (not a target)' : '')
+      + (option.muted ? '  (emulator not installed)' : '')
+      + (option.short ? '  (too small)' : '');
+    item.addEventListener('click', (e) => {
+      e.runMenu = true;
+      closeRunMenu();
+      vscode.postMessage({ type: 'set', key: 'system', value: option.id });
+    });
+    menu.appendChild(item);
+  }
+}
+
+function openRunMenu() {
+  $('run-menu').hidden = false;
+  $('run-more').setAttribute('aria-expanded', 'true');
+}
+
+function closeRunMenu() {
+  $('run-menu').hidden = true;
+  $('run-more').setAttribute('aria-expanded', 'false');
+}
+
 function renderPackages(rows) {
   const root = $('package-rows');
   root.textContent = '';
@@ -253,7 +320,8 @@ window.addEventListener('message', ({ data }) => {
   $('project').disabled = empty;
   $('open').disabled = empty;
   $('details').disabled = empty;
-  fill($('system'), data.systems, data.system);
+  renderRunMenu(data.systems, { emulatorLabel: data.emulatorLabel, system: data.system });
+  closeRunMenu();
   // Studio's own dropdown, and the button's line says what it will open.
   const studio = data.studio;
   $('studio').disabled = !studio;
@@ -263,9 +331,13 @@ window.addEventListener('message', ({ data }) => {
   closeStudioMenu();
 
   $('run-title').textContent = empty ? 'Run' : 'Run ' + data.projectLabel;
-  $('run-sub').textContent = data.subtitle
-    ?? [data.systemTitle, data.fitted, data.regionLabel].filter(Boolean).join(' · ');
+  $('run-sub').textContent = (data.subtitle
+    ?? [data.systemTitle, data.fitted, data.regionLabel].filter(Boolean).join(' · '))
+    + (data.runMode === 'web' ? ' · wasm' : '');
   $('run').disabled = !data.runnable;
+  $('run-more').title = data.system === 'web'
+    ? 'Pick a different system to run on'
+    : 'Run in an emulator instead, or pick a different system';
   $('build').disabled = data.buildable === undefined ? !data.runnable : !data.buildable;
   $('boot').disabled = !data.bootable;
   $('boot-label').textContent = data.bootable ? 'Boot ' + (data.systemTitle ?? 'Machine') : 'Boot Machine';
@@ -304,16 +376,31 @@ window.addEventListener('message', ({ data }) => {
 });
 
 $('project').addEventListener('change', (e) => vscode.postMessage({ type: 'set', key: 'project', value: e.target.value }));
-$('system').addEventListener('change', (e) => vscode.postMessage({ type: 'set', key: 'system', value: e.target.value }));
 $('studio').addEventListener('click', () => vscode.postMessage({ type: 'command', id: '8bitscript.openStudio' }));
 $('studio-more').addEventListener('click', (e) => {
   e.studioMenu = true;
   if ($('studio-menu').hidden) openStudioMenu(); else closeStudioMenu();
 });
-// A click anywhere else, or Escape, closes the menu; the sliver and the
-// menu's own items mark their events so this leaves them alone.
-window.addEventListener('click', (e) => { if (!e.studioMenu) closeStudioMenu(); });
-window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeStudioMenu(); });
+$('run-more').addEventListener('click', (e) => {
+  e.runMenu = true;
+  if ($('run-menu').hidden) openRunMenu(); else closeRunMenu();
+});
+// A click anywhere else, or Escape, closes whichever sliver is open; each
+// menu's own toggle and its items mark their events so this leaves them
+// alone (opening one this way while the other happens to be open closes
+// that one too, same as any other sliver menu would).
+window.addEventListener('click', (e) => {
+  if (!e.studioMenu) closeStudioMenu();
+  if (!e.runMenu) closeRunMenu();
+});
+window.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  closeStudioMenu();
+  closeRunMenu();
+});
+// No `web` field: 8bitscript.run's own default (WEB_PREVIEW_READY,
+// preferWebPreview) decides. The sliver's "Run in emulator" item is the
+// only thing that ever sets one explicitly (web: false).
 $('run').addEventListener('click', () => vscode.postMessage({ type: 'launch', action: 'run' }));
 $('build').addEventListener('click', () => vscode.postMessage({ type: 'launch', action: 'build' }));
 $('boot').addEventListener('click', () => vscode.postMessage({ type: 'launch', action: 'boot' }));

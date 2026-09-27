@@ -1,5 +1,5 @@
 // @8bitscript/pet's keyboard layer: the two Key tables (graphics keyboard
-// in keys.8bs, business keyboard in keys.pet.8032.8bs) are well formed,
+// in keys.8bs, business keyboard in keys.pet.business.8bs) are well formed,
 // share the names a program can rely on, agree with VICE's own positional
 // keyboard maps when those are installed, and the build's profile picks
 // the table.
@@ -21,7 +21,7 @@ const tableOf = (file) => {
   return new Map([...body.matchAll(/const (\w+): utinyint = (\d+);/g)].map(([, name, v]) => [name, Number(v)]));
 };
 const GRAPHICS = tableOf('keys.8bs');
-const BUSINESS = tableOf('keys.pet.8032.8bs');
+const BUSINESS = tableOf('keys.pet.business.8bs');
 
 // What a program may name on any PET: present in both tables.
 const SHARED = [
@@ -108,7 +108,7 @@ for (const [label, file, table, host] of [
   });
 }
 
-test('the build\'s profile picks the table: Key.SPACE is 74 on a 3032 and 66 on an 8032', () => {
+test('the build\'s tags pick the table: Key.SPACE is 74 on a graphics keyboard and 66 on a business one', () => {
   const src = [
     'import { keyboard } from "./keyboard.8bs";',
     'import { Key } from "./keys.8bs";',
@@ -123,7 +123,10 @@ test('the build\'s profile picks the table: Key.SPACE is 74 on a 3032 and 66 on 
   };
   assert.equal(pressedSpace(undefined), 74);
   assert.equal(pressedSpace('3032'), 74);
-  assert.equal(pressedSpace('8032'), 66);
+  // `business` rather than `8032`: the business matrix is the keyboard
+  // option's twin now, not the 8032 model's, because a 4032B carries the
+  // same keyboard at 40 columns and one tag could not say both.
+  assert.equal(pressedSpace('business'), 66);
   const { ir } = link(src, entry, { machine: 'pet', profile: '3032' });
   const scan = ir.functions.find((f) => f.name === 'keyboard_scan');
   assert.equal(scan.body[0].body[0].target, 'pia1PortA');
@@ -132,14 +135,38 @@ test('the build\'s profile picks the table: Key.SPACE is 74 on a 3032 and 66 on 
   assert.deepEqual(scan.body[0].body[1].value.right, { kind: 'const', value: 255, type: 'utinyint' });
 });
 
-test('a graphics-only key name is a link error on the 8032, not a silent wrong key', () => {
+test('a graphics-only key name is a link error on a business keyboard, not a silent wrong key', () => {
   const src = [
     'import { Key } from "./keys.8bs";',
     'export function main(): void { memory.write(0x8000, Key.EXCLAMATION); }',
   ].join('\n');
   const entry = join(PET_SRC, 'phantom-entry.8bs');
   assert.deepEqual(link(src, entry, { machine: 'pet', profile: '3032' }).diagnostics, []);
-  const { diagnostics } = link(src, entry, { machine: 'pet', profile: '8032' });
+  const { diagnostics } = link(src, entry, { machine: 'pet', profile: 'business' });
   assert.ok(diagnostics.length > 0);
   assert.match(diagnostics.map((d) => d.message).join('\n'), /EXCLAMATION/);
+});
+
+// The shape a real 8032 build resolves with, which no other case here
+// covers: two tags at once. `--profile 8032` now carries `8032` (the
+// model, for `geometry.pet.8032.8bs`'s eighty columns) and `business`
+// (the keyboard, for `keys.pet.business.8bs`). Two tags that *each* had a
+// variant of the same file would be 8BS3004 — "two versions both claim
+// this build" — and the reason this arrangement is safe is that they
+// never do: geometry has only an `8032` twin and keys only a `business`
+// one. That is a property of the file names, so it is asserted rather
+// than assumed.
+test('an 8032 build carries both its tags, and each file is claimed by only one of them', () => {
+  const src = [
+    'import { keyboard } from "./keyboard.8bs";',
+    'import { Key } from "./keys.8bs";',
+    'import { Video } from "./geometry.8bs";',
+    'export function main(): void { memory.write(0x8000, Key.SPACE); memory.write(0x8001, Video.COLUMNS); }',
+  ].join('\n');
+  const entry = join(PET_SRC, 'phantom-entry.8bs');
+  const { ir, diagnostics } = link(src, entry, { machine: 'pet', tags: ['8032', 'business'] });
+  assert.deepEqual(diagnostics, [], 'no 8BS3004: the two tags claim different files');
+  const writes = ir.functions.find((f) => f.name === 'main').body;
+  assert.equal(writes[0].value.value, 66, 'the business matrix, from the `business` tag');
+  assert.equal(writes[1].value.value, 80, 'eighty columns, from the `8032` tag');
 });

@@ -488,6 +488,60 @@ test('registerRunner: run executes a plain machine target end to end', async () 
   }
 });
 
+test('registerRunner: run on the PET defaults to its own --web build in the Preview tab, preferWebPreview and an explicit override both respected', async () => {
+  const dir = tmpDir();
+  try {
+    writeConfig(dir);
+    const cli = writeFakeCli(dir);
+    const shown = [];
+
+    // On by default (WEB_PREVIEW_READY has 'pet', preferWebPreview defaults true).
+    vscode.__mock.reset();
+    vscode.commands.registerCommand('8bitscript.previewTab.show', (run) => shown.push(run));
+    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.ts') }]);
+    await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async (projects) => {
+      projects.projects[0].toolchain = cli;
+      projects.projects[0].installed = true;
+      await vscode.__mock.trigger('8bitscript.run', { project: projects.projects[0], target: 'pet' });
+      await tick();
+      const executed = vscode.__mock.executedTasks.at(-1);
+      assert.ok(executed, 'a task was executed');
+      assert.equal(executed.task.definition.target, 'pet');
+      assert.equal(executed.task.definition.web, true);
+      assert.equal(shown.length, 1, 'the Preview tab followed it — a run task alone shows nothing');
+      assert.equal(shown[0].target, 'pet');
+    });
+
+    // The setting turned off: back to the native path, no tab.
+    shown.length = 0;
+    vscode.__mock.reset();
+    vscode.commands.registerCommand('8bitscript.previewTab.show', (run) => shown.push(run));
+    vscode.__mock.configStore.set('preferWebPreview', false);
+    await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async (projects) => {
+      projects.projects[0].toolchain = cli;
+      projects.projects[0].installed = true;
+      await vscode.__mock.trigger('8bitscript.run', { project: projects.projects[0], target: 'pet' });
+      await tick();
+      const executed = vscode.__mock.executedTasks.at(-1);
+      assert.notEqual(executed.task.definition.web, true);
+      assert.equal(shown.length, 0, 'the setting said no — no Preview tab this time');
+    });
+
+    // An explicit choice on the node overrides the default either way.
+    vscode.__mock.reset();
+    vscode.commands.registerCommand('8bitscript.previewTab.show', (run) => shown.push(run));
+    await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async (projects) => {
+      projects.projects[0].toolchain = cli;
+      projects.projects[0].installed = true;
+      await vscode.__mock.trigger('8bitscript.run', { project: projects.projects[0], target: 'pet', web: false });
+      await tick();
+      assert.notEqual(vscode.__mock.executedTasks.at(-1).task.definition.web, true, 'web: false on the node wins over the default');
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('registerRunner: run offers to install first when the project is not installed', async () => {
   const dir = tmpDir();
   try {
@@ -707,6 +761,46 @@ test('registerRunner: openStudioTab stops the tab\'s earlier run, starts Studio 
       await tick();
       assert.equal(vscode.__mock.executedTasks.length, 0);
       assert.equal(shown.length, 1);
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('registerRunner: previewOn picks a project and target (a single one of each needs no quick pick), runs it with --web, and shows the generic tab', async () => {
+  const dir = tmpDir();
+  try {
+    vscode.__mock.reset();
+    vscode.workspace.findFiles = () => Promise.resolve([]);
+    const shown = [];
+    vscode.commands.registerCommand('8bitscript.previewTab.show', (run) => shown.push(run));
+    await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async (projects) => {
+      const cli = writeFakeCli(dir);
+      // One project, one target on it — pickProject()/pickTarget() both
+      // take their single-candidate shortcut, so this needs no QuickPick
+      // stub, same as the openStudioTab test above needs none for Studio.
+      projects.projects = [fakeProject(dir, { toolchain: cli, targets: ['pet'] })];
+      const before = Date.now();
+      await vscode.__mock.trigger('8bitscript.previewOn');
+      await tick();
+      const executed = vscode.__mock.executedTasks.at(-1);
+      assert.ok(executed, 'a run was started');
+      assert.equal(executed.task.definition.target, 'pet');
+      assert.equal(executed.task.definition.web, true);
+      assert.deepEqual(executed.task.execution.args.slice(-4), ['--web', '--no-open', '--port', '0']);
+      assert.equal(shown.length, 1);
+      assert.equal(shown[0].dir, dir);
+      assert.equal(shown[0].target, 'pet');
+      assert.ok(shown[0].launchedAt >= before);
+
+      // The Preview tab's own Rebuild reaches back in with {dir, target}
+      // directly (studioView.cjs's onRebuild) — no picking, same project
+      // and target run again.
+      await vscode.__mock.trigger('8bitscript.previewOn', { dir, target: 'pet' });
+      await tick();
+      assert.equal(vscode.__mock.executedTasks.length, 2);
+      assert.equal(shown.length, 2);
+      assert.equal(shown[1].target, 'pet');
     });
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });

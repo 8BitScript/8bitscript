@@ -21,23 +21,37 @@ let state = null;
  */
 let mode = null;
 
-const MOUSE = {
-  captured: 'Studio has the mouse — Esc gives it back.',
-  refused: 'This tab isn’t allowed to capture the mouse — use Open in browser.',
-};
+function appName() {
+  // window.__8bsTitle is the same name html() put in the header
+  // (studioView.cjs) — "Studio" there, so every string below reads exactly
+  // as it always has for Studio's own tab.
+  return window.__8bsTitle || 'Studio';
+}
+
+function mouseText(kind) {
+  return kind === 'captured' ? appName() + ' has the mouse — Esc gives it back.'
+    : 'This tab isn’t allowed to capture the mouse — use Open in browser.';
+}
 
 function grabHint() {
-  if (mode && !mode.captured) return (mode.grabKey || 'Ctrl+M') + ' on the screen gives it to Studio for exact tracking';
-  return 'click the screen to give it to Studio';
+  if (mode && !mode.captured) return (mode.grabKey || 'Ctrl+M') + ' on the screen gives it to ' + appName() + ' for exact tracking';
+  return 'click the screen to give it to ' + appName();
 }
 
 function mouse(kind) {
   const line = $('mouse');
+  // Machines with no mouse at all (the PET, VIC-20, C64's own wasm
+  // builds) never send the pointer-lock postMessage this line otherwise
+  // reports on, so without this check it would just sit on its 'idle'
+  // default forever — a free-mouse message for hardware that never had
+  // one. window.__8bsHasMouse is set inline by studioView.cjs's html(),
+  // from that target's own facts, before this script runs.
+  if (!window.__8bsHasMouse) { line.hidden = true; return; }
   line.textContent = kind === 'idle'
     ? 'Your mouse is free — ' + grabHint() + '; Esc gives it back.'
     : kind === 'free'
       ? 'The mouse is yours — ' + grabHint() + '.'
-      : MOUSE[kind];
+      : mouseText(kind);
   line.classList.toggle('warn', kind === 'refused');
   line.hidden = !state || state.phase !== 'running';
 }
@@ -46,18 +60,19 @@ function render() {
   if (!state) return;
   const running = state.phase === 'running';
   const stopped = state.phase === 'stopped';
+  var name = appName();
   $('status').textContent = state.phase === 'building'
-    ? 'Building Studio… (the build prints in its terminal)'
+    ? 'Building ' + name + '… (the build prints in its terminal)'
     : running
       ? ['Running', state.program != null ? state.program + ' bytes of program' : null, state.emulator].filter(Boolean).join(' · ')
       : 'Stopped';
   $('restart').disabled = !running;
   $('browser').disabled = !running;
   $('stop').disabled = stopped;
-  $('rebuild').textContent = stopped ? 'Start Studio' : 'Rebuild';
+  $('rebuild').textContent = stopped ? 'Start ' + name : 'Rebuild';
   const empty = $('empty');
   empty.hidden = running;
-  empty.textContent = stopped ? 'Studio is not running.' : 'Studio is being built…';
+  empty.textContent = stopped ? name + ' is not running.' : name + ' is being built…';
   if (!running) mouse('idle');
   else if ($('mouse').hidden) mouse('idle');
 }

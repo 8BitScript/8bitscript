@@ -10,11 +10,12 @@
 // arrow rather than a poorer copy of it.
 //
 // The other half is missing too: @8bitscript/vic20/input reports no
-// pointer. The catalog offers `port1: mouse1351` and xvic accepts it, but
-// this repository has no 1351 driver for the VIC-20 and the hardware note
-// marks the 1351 on this machine *to verify* (see
-// packages/vic20/AGENTS.md). So there is nothing to draw and nowhere to
-// draw it from, in that order.
+// pointer. `xvic` will accept `-controlport1device 3` and the catalog used
+// to offer it as `port1: mouse1351`, but this repository has no 1351 driver
+// for the VIC-20 and the hardware note marks the 1351 on this machine *to
+// verify* (see packages/vic20/AGENTS.md) — so the option is gone and the
+// port offers nothing, a joystick, or paddles. There is nothing to draw and
+// nowhere to draw it from, in that order.
 //
 // It still has to exist: Studio and every other portable program links
 // @8bitscript/pointer, so a missing entry is not a program without a

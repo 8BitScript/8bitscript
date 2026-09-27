@@ -182,6 +182,25 @@ function doctorWantFromSelection(selected) {
 const MACHINE_TARGETS = new Set(['vic20', 'c64', 'c128', 'atari8', 'nes', 'mega65', 'plus4', 'atari5200', 'atari2600', 'atari7800']);
 
 /**
+ * Which real machine targets a plain Run can default to their own --web
+ * build for, per settings.getPreferWebPreview() — narrower than "has a
+ * --web build attempt at all" (every release target does, per the CLI's
+ * own --web wiring): vic20 and c64 still hit their own asm6502 walls
+ * building through the wasm backend (see the "Native System Emulation in
+ * WASM" plan's build tracker), so defaulting Run to --web for them would
+ * turn a working native launch into a guaranteed failure, not a
+ * preference between two things that both work. cx16 is excluded on
+ * purpose too: its --web is a real vendored emulator with its own
+ * dedicated launch (Studio's tab, Preview On…), not a plain Run default.
+ * Shared between runner.cjs (decides it) and launcherView.cjs (shows it,
+ * in the Run button's own sub-label and its sliver menu's "Run in
+ * emulator" wording) so the two never quietly disagree. Grows by
+ * removing an entry here, once that machine's own package compiles
+ * through the wasm backend for real.
+ */
+const WEB_PREVIEW_READY = new Set(['pet']);
+
+/**
  * Targets with no bare emulator to boot without a program — today just
  * `web`, a WASM worker with nothing to run until a program is compiled
  * into it (see `8bs boot`'s own refusal in packages/cli/src/run.mjs).
@@ -1108,6 +1127,7 @@ module.exports = {
   MACHINE_GROUPS,
   MACHINE_TARGETS,
   NO_BARE_EMULATOR,
+  WEB_PREVIEW_READY,
   KINDS,
   byKind,
   cliCommand,

@@ -143,6 +143,14 @@ export interface BuildOptions {
    * both). This backend places its data section at or above it, never
    * below `DATA_FLOOR`; see dataBaseFor(). */
   reserved?: number;
+  /** Lowers an `@address(...)`-pinned *scalar* global instead of refusing
+   * it — real for a real machine's own package built through this backend
+   * (a hardware register becomes a fixed byte in linear memory), never for
+   * the synthetic web/hifi target: there `@address` still means "hardware
+   * another machine would map, nothing this target owns," and stays
+   * refused. Defaults to `false` so a caller that says nothing keeps the
+   * synthetic target's own rule. */
+  allowPinnedScalars?: boolean;
 }
 
 /** One named piece of the module `options.report` breaks a build's own size down into — mirrors mos/index.ts's own SizeReportEntry. */
@@ -234,14 +242,33 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // mos backend's own zero page (see "Hello, WASM"'s own "globals need no
   // allocator" note). A const array gets a data-section entry instead (its
   // own fixed address in linear memory, laid out below); a `let`
-  // (RAM) array, an `@address`-pinned global of any kind, and a
-  // `string<N>` variable are all still refused by name — real gaps, not
-  // this milestone's own scope (see the file header).
+  // (RAM) array and a `string<N>` variable are still refused by name —
+  // real gaps, not this milestone's own scope (see the file header). An
+  // `@address(...)`-pinned *scalar* is lowered as of the machine-target
+  // work: unlike the synthetic web/hifi target, a real machine's own
+  // package can declare one meaning an actual hardware register (the
+  // PET's `viaPeripheralControl`, say) — there is no chip behind it here
+  // either, so it becomes exactly what a pinned array already becomes: a
+  // fixed byte (or two) in linear memory a host can read or write
+  // directly (lower.ts's own `Ctx.pinned`). A pinned *array* is still
+  // refused below: nothing needed one yet to test this against.
   const globalDefs: { name: string; init: number }[] = [];
   const arrayGlobals: { name: string; type: string; length: number; init: number[] | null; mutable: boolean }[] = [];
+  const pinnedGlobals: { name: string; address: number; width: number }[] = [];
   for (const g of globals) {
+    if (g.address !== null && g.address !== undefined && g.array === undefined) {
+      if (!options.allowPinnedScalars) {
+        return { ok: false, error: `'${g.name}': a pinned global (@address(...)) is not lowered on this rail — hardware another machine would map, nothing this build owns` };
+      }
+      const width = storageBytes(g.type);
+      if (width !== 1 && width !== 2) {
+        return { ok: false, error: `'${g.name}': a pinned '${g.type}' scalar is not lowered yet — only a 1- or 2-byte width is` };
+      }
+      pinnedGlobals.push({ name: g.name, address: g.address, width });
+      continue;
+    }
     if (g.address !== null && g.address !== undefined) {
-      return { ok: false, error: `'${g.name}': a pinned global (@address(...)) is not lowered yet` };
+      return { ok: false, error: `'${g.name}': a pinned *array* (@address(...) on an array) is not lowered yet — only a pinned scalar is so far` };
     }
     if (g.array !== undefined) {
       // Const and `let` arrays alike get a fixed linear-memory address
@@ -282,6 +309,11 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
     dataSegments.push(activeDataSegment(address, bytes));
     cursor += bytes.length;
   }
+  // Pinned scalars need no layout pass of their own — build() above
+  // already took each one's fixed address straight from the global itself
+  // rather than allocating one, so this is just the name-to-{address,
+  // width} lookup lower.ts's Ctx.pinned wants.
+  const pinnedIndex = new Map(pinnedGlobals.map((p) => [p.name, { address: p.address, width: p.width }]));
   const arrayIndex = new Map<string, { address: number; elementWidth: number; mutable: boolean }>();
   for (const a of arrayGlobals) {
     const elementWidth = storageBytes(a.type);
@@ -341,7 +373,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
       if (p.type === 'array') return { ok: false, error: `'${fn.name}(${p.name})': an array parameter is not lowered yet — a real gap milestone 5 left open` };
     }
     const site = functionSites.get(fn.name)!;
-    const lowered = lower(fn.body, { params: fn.params ?? [], globals: globalIndex, functions: functionSites, strings: stringAddrs, arrays: arrayIndex, waitFrameIndex });
+    const lowered = lower(fn.body, { params: fn.params ?? [], globals: globalIndex, functions: functionSites, strings: stringAddrs, arrays: arrayIndex, pinned: pinnedIndex, waitFrameIndex });
     if (!lowered.ok) return { ok: false, error: `'${fn.name}': ${lowered.error}` };
     loweredFns.push({ index: site.index, paramCount: site.paramCount, returnsValue: site.returnsValue, localCount: lowered.localCount, code: lowered.code });
   }

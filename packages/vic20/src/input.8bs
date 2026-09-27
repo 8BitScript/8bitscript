@@ -37,11 +37,13 @@
 // rather than recalled from memory, per the root AGENTS.md's rule to
 // verify hardware facts before writing them down.
 //
-// **A mouse.** `--hardware port1=mouse1351` sets `input.mouse` on this
-// machine, but a 1351 here would read through the VIC's own analogue lines
-// at $9008/$9009, not a SID's — a different driver from the C64's, and one
-// nobody has written or measured. `pointer()` is false rather than
-// hopeful.
+// **A mouse.** There is none to fit: the catalog's `port1` offers nothing,
+// a joystick, or paddles. A 1351 here would read through the VIC's own
+// analogue lines at $9008/$9009 rather than a SID's — a different driver
+// from the C64's, and one nobody has written or measured — so the option
+// that used to set `input.mouse` on this machine promised a pointer that
+// could never arrive, and is gone. `pointer()` is false, and now the fact
+// sheet agrees with it instead of contradicting it.
 //
 // ---- edges, not levels ---------------------------------------------------
 //

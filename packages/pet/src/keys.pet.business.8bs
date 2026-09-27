@@ -1,8 +1,17 @@
 // @8bitscript/pet/keys — the keyboard matrix, key by key: business keyboard.
 //
-// The 8032 profile's version of keys.8bs (see that file for how the two
+// The `business` tag's version of keys.8bs (see that file for how the two
 // tables relate and which names both share). This is the **business**
-// keyboard of the 8032 (and the 4032B/3032B, which are not profiles):
+// keyboard of the 8032, the 4032B and the 3032B — all three profiles now,
+// which is why this file is tagged for the keyboard rather than for the
+// 8032 it used to be named after. The keyboard is its own hardware option
+// because it and the screen width come apart: an 8032 is 80 columns *and*
+// business, a 4032B is business at 40. One tag could not say both, and the
+// tag that named the model dragged `geometry.pet.8032.8bs`'s 80 columns
+// along with this table. The keyboard option carries no `build`, so it
+// tags the twin without adding a word to the artifact's filename — which
+// matters, because `main-pet-8032-32` is already CBM DOS's whole sixteen
+// bytes. The layout:
 // typewriter layout with the digits on the top row, a numeric keypad of
 // its own, TAB, ESC and RPT, and the symbols `! " # ...` reached with
 // SHIFT rather than as keys of their own — so this table has KEYPAD_n

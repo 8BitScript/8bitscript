@@ -159,6 +159,18 @@ interface Ctx {
    * linear-memory address, element width (1 or 2 bytes, both lowered),
    * and whether code may write it. */
   arrays: Map<string, { address: number; elementWidth: number; mutable: boolean }>;
+  /** Every `@address(...)`-pinned *scalar* global — a real machine's own
+   * hardware register, unlike `arrays` above (which also covers pinned
+   * arrays once those are lowered): name to the fixed linear-memory
+   * address `build()` gave it (the pin itself, not an allocated slot) and
+   * its declared width. A bare read/write of a pinned name loads/stores
+   * its *value* at that address (`i32.load8_u`/`i32.store8`, memarg offset
+   * = the pin) — never the address-as-pointer decay `arrays` gets for a
+   * bare reference, since a pinned scalar is a byte, not a buffer. Checked
+   * ahead of `globals` in both `expr()`'s `ref` case and `assign` below: a
+   * pinned name is never also a wasm global (`build()` routes it here
+   * instead, the same either/or split it already makes for `arrays`). */
+  pinned: Map<string, { address: number; width: number }>;
   /** The imported `env.waitFrame`'s own wasm function index — always 0
    * when set, since it's the only import this backend ever declares and
    * an import always occupies the function index space ahead of every
@@ -349,6 +361,16 @@ function expr(node: IrExpr, ctx: Ctx): number[] {
     // prefix (ir/index.mjs's string-table format), and the buffer's
     // address is a compile-time constant here the same way a literal's is.
     const name = node.name!;
+    // A pinned scalar's bare reference reads its *value*, not its address
+    // — the opposite of the array case just below it, which decays to a
+    // pointer. Checked first: a pinned name is never also a local or a
+    // wasm global (build() routes it into `pinned` instead of `globals`),
+    // so there's no ordering to get wrong against those two.
+    const pin = ctx.pinned.get(name);
+    if (pin) {
+      const load = pin.width === 2 ? Opcode.i32Load16U : Opcode.i32Load8U;
+      return [...i32Const(0), load, ...memarg(0, pin.address)];
+    }
     if (!ctx.locals.has(name) && !ctx.globals.has(name) && ctx.arrays.has(name)) {
       return i32Const(ctx.arrays.get(name)!.address);
     }
@@ -503,7 +525,15 @@ function statement(node: IrStatement, ctx: Ctx): number[] {
     return [...expr(node.init as IrExpr, ctx), Opcode.localSet, ...unsignedLEB128(index)];
   }
   if (node.kind === 'assign') {
-    const b = binding(ctx, node.target! as string);
+    const targetName = node.target! as string;
+    // A pinned scalar stores at its fixed address instead of a wasm
+    // global — see Ctx.pinned and the mirror-image `ref` case above.
+    const pin = ctx.pinned.get(targetName);
+    if (pin) {
+      const store = pin.width === 2 ? Opcode.i32Store16 : Opcode.i32Store8;
+      return [...i32Const(0), ...expr(node.value!, ctx), store, ...memarg(0, pin.address)];
+    }
+    const b = binding(ctx, targetName);
     return [...expr(node.value!, ctx), b.set, ...unsignedLEB128(b.index)];
   }
   if (node.kind === 'memoryWrite') {
@@ -651,6 +681,11 @@ export interface LowerOptions {
    * width, and mutability — `build()`'s own job to assign, once, up
    * front. */
   arrays?: Map<string, { address: number; elementWidth: number; mutable: boolean }>;
+  /** Every `@address(...)`-pinned scalar global, name to its fixed address
+   * and width — `build()`'s own job to assign, once, up front, from the
+   * global itself (`g.address`, not a slot this backend allocated). See
+   * `Ctx.pinned`. */
+  pinned?: Map<string, { address: number; width: number }>;
   /** The imported `env.waitFrame`'s own wasm function index — `build()`'s
    * own job to assign (always 0, when assigned at all) once, up front,
    * from the same whole-program scan that decides whether to declare the
@@ -671,6 +706,7 @@ export function lower(body: IrStatement[], options: LowerOptions = {}): LowerRes
     functions: options.functions ?? new Map(),
     strings: options.strings ?? [],
     arrays: options.arrays ?? new Map(),
+    pinned: options.pinned ?? new Map(),
     waitFrameIndex: options.waitFrameIndex ?? null,
   };
   try {
