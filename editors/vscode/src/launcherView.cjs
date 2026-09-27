@@ -195,6 +195,13 @@ class LauncherViewProvider {
         } else if (ALL_TARGETS.includes(message.value)) {
           await settings.setNamedSystem('');
           await settings.setSystem(message.value);
+          // A bare machine, picked on its own, means its project's own
+          // config-declared stock — never whatever hardware a *previous*
+          // named-system pick (applySystem, above) or an older build of
+          // this panel left stored for it. Without this, choosing "PET"
+          // here could stay pinned to a profile picked weeks and configs
+          // ago, no matter what 8bitscript.config.ts says now.
+          await settings.setHardware(message.value, {});
         }
         break;
       }

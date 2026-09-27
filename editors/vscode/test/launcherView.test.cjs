@@ -151,6 +151,34 @@ test('the view draws the Studio block and lets the page run openStudio, and only
   }
 });
 
+test('picking a bare machine from the run menu clears any hardware it had stuck from a previous pick', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), '8bs-launcher-view-'));
+  const context = { subscriptions: [], globalStorageUri: { fsPath: path.join(dir, '.storage') } };
+  try {
+    vscode.__mock.reset();
+    vscode.workspace.findFiles = () => Promise.resolve([]);
+    // A profile a much earlier pick (or an older build of this panel)
+    // left stored for 'pet' — exactly what a project's own
+    // 8bitscript.config.ts changing its default should not stay pinned
+    // under forever.
+    vscode.__mock.configStore.set('hardware', { pet: { profile: '3032', options: {} } });
+    const projects = registerRunner(context, { appendLine() {} });
+    await tick();
+    const provider = registerLauncherView(context, projects, null);
+    const view = fakeView();
+    provider.resolveWebviewView(view);
+    await tick();
+
+    view.webview.__fire({ type: 'set', key: 'system', value: 'pet' });
+    await tick();
+    assert.deepEqual(vscode.__mock.configStore.get('hardware'), {},
+      'picking the bare machine wipes the stale profile rather than keeping it forever');
+  } finally {
+    for (const subscription of context.subscriptions) subscription.dispose?.();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 const { warningFor, emulatorIsReady } = require('../src/launcherView.cjs');
 
 test('warningFor greys Run when the emulator is missing, and names it', () => {
@@ -167,4 +195,40 @@ test('warningFor greys Run when the emulator is missing, and names it', () => {
   assert.equal(emulatorIsReady({ notInstalled: ['atari8'], failed: [] }, 'atari8'), false);
   assert.equal(emulatorIsReady({ notInstalled: ['atari8'], failed: [] }, 'pet'), true);
   assert.equal(emulatorIsReady(null, 'atari8'), true, 'no report yet: do not grey on a guess');
+});
+
+// The System dropdown lists what the selected program has been set up for
+// and nothing else. It used to list every release machine and merely mark
+// the ones outside the project un-runnable, which is a list to read past
+// rather than choose from: a machine a program was never written for is
+// not a choice, and adding one is an edit to 8bitscript.config.ts.
+const { systemOptions } = require('../src/launcherView.cjs');
+
+/** The machine ids a set of dropdown rows offers, group headings dropped. */
+const idsOf = (options) => options.filter((option) => !option.group).map((option) => option.id);
+
+test('the System dropdown offers only the machines the project targets', () => {
+  const project = { targets: ['pet', 'c64'] };
+  assert.deepEqual(idsOf(systemOptions(null, project)), ['pet', 'c64']);
+});
+
+test('a project that names no targets still sees every release machine', () => {
+  // readProject already falls back to ALL_TARGETS, and a caller with no
+  // project at all — nothing open yet — must not be left with an empty list.
+  assert.deepEqual(idsOf(systemOptions(null, { targets: [] })).sort(),
+    ['c64', 'cx16', 'pet', 'vic20', 'web'].sort());
+  assert.deepEqual(idsOf(systemOptions(null, null)).sort(),
+    ['c64', 'cx16', 'pet', 'vic20', 'web'].sort());
+});
+
+test('a named system the project set up is offered above the bare machines', () => {
+  const targets = new Map();
+  targets.systems = [
+    { name: 'C64 + REU', target: 'c64', label: 'reu512', origin: 'project', unmet: [] },
+  ];
+  const options = systemOptions(targets, { targets: ['c64'] });
+  assert.deepEqual(idsOf(options), ['C64 + REU', 'c64']);
+  // And a named system for a machine the project does not target does not
+  // drag that machine into the list behind it.
+  assert.ok(!idsOf(options).includes('pet'));
 });
