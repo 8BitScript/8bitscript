@@ -28,6 +28,7 @@ const {
   CONFIG_FILE,
   CONFIG_FILENAMES,
   MACHINE_TARGETS,
+  WEB_PREVIEW_READY,
   cliCommand,
   commandArgs,
   findConfig,
@@ -50,19 +51,6 @@ const { ALL_TARGETS: STUDIO_MACHINES } = require('./projects.cjs');
 /** The bare machine ids the Studio menu can name, as opposed to a named system. */
 const MACHINES_FOR_STUDIO = new Set(STUDIO_MACHINES);
 const settings = require('./settings.cjs');
-// Which real machine targets a plain Run can default to their own --web
-// build for, per settings.getPreferWebPreview() — narrower than "has a
-// --web build attempt at all" (every release target does, per the CLI's
-// own --web wiring): vic20 and c64 still hit their own asm6502 walls
-// building through the wasm backend (see the "Native System Emulation in
-// WASM" plan's build tracker), so defaulting Run to --web for them would
-// turn a working native launch into a guaranteed failure, not a
-// preference between two things that both work. cx16 is excluded on
-// purpose too: its --web is a real vendored emulator with its own
-// dedicated launch (Studio's tab, Preview On…), not a plain Run default.
-// Grows by removing an entry here, once that machine's own package
-// compiles through the wasm backend for real.
-const WEB_PREVIEW_READY = new Set(['pet']);
 const { selectionLabel, parseTargets } = require('./hardwareCatalog.cjs');
 const { fetchStatus, livePollPlan, readLastRun, rowKey } = require('./runningMachines.cjs');
 const { toolchainStatus } = require('./projectInfo.cjs');

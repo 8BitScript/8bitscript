@@ -157,6 +157,9 @@ button.icon svg { width: 14px; height: 14px; }
    button: the sliver on its right edge, a small chevron, opens a menu of
    the systems Studio can open on. Every color is the editor's own. */
 .studio-block { position: relative; margin: 4px 0 12px; }
+/* Run's own split button (the launch-block section, further down) is the
+   same shape, positioned the same way relative to its own sliver menu. */
+.launch-block { position: relative; }
 .split { display: flex; align-items: stretch; }
 .split > button.launch.studio,
 .split > button.launch.studio-more {
@@ -181,6 +184,40 @@ button.icon svg { width: 14px; height: 14px; }
 button.launch.studio .launch-title { font-size: 13px; }
 button.launch.studio .launch-sub { opacity: 0.75; }
 .split > button.launch.studio-more {
+  flex: 0 0 auto;
+  width: 24px;
+  padding: 0;
+  justify-content: center;
+  border-left: 1px solid var(--vscode-widget-border, var(--vscode-dropdown-border, transparent));
+  border-radius: 0 3px 3px 0;
+}
+/* Run's own split button. Unlike Studio's own primary half (deliberately
+   secondary-styled, so Run stays the one full-strength button on the
+   page — see the comment above), Run's own half needs no color override
+   at all: it keeps button.launch's own primary colors, unchanged from
+   before this was a split button. Only the sliver is styled here — the
+   same secondary treatment Studio's own sliver already gets — and Run's
+   own half gets only the geometry a split-button half needs. */
+.split > button.launch.run-more {
+  color: var(--vscode-button-secondaryForeground);
+  background: var(--vscode-button-secondaryBackground);
+  border: 1px solid var(--vscode-widget-border, var(--vscode-dropdown-border, transparent));
+}
+.split > button.launch.run-more:hover,
+.split > button.launch.run-more[aria-expanded="true"] {
+  background: var(--vscode-button-secondaryHoverBackground);
+}
+.split > button#run {
+  flex: 1;
+  width: auto;
+  padding: 8px 12px;
+  gap: 10px;
+  border-right: none;
+  border-radius: 3px 0 0 3px;
+}
+button#run .launch-title { font-size: 13px; }
+button#run .launch-sub { opacity: 0.75; }
+.split > button.launch.run-more {
   flex: 0 0 auto;
   width: 24px;
   padding: 0;
@@ -227,6 +264,10 @@ button.launch.studio .launch-sub { opacity: 0.75; }
   color: var(--vscode-menu-selectionForeground, var(--vscode-list-activeSelectionForeground));
   background: var(--vscode-menu-selectionBackground, var(--vscode-list-activeSelectionBackground));
 }
+/* Between Run's own "Run in emulator" override and the system list below
+   it — the two are different kinds of choice (how vs. where), not two
+   items in the same list. */
+.menu-divider { margin: 4px 0; border-top: 1px solid var(--vscode-menu-separatorBackground, var(--vscode-menu-border, var(--vscode-dropdown-border))); }
 .launch-block { margin-top: 4px; }
 .launch-actions { margin-top: 8px; }
 .launch-actions .wide { margin-top: 0; flex: 1; }

@@ -63,10 +63,13 @@ test('the side bar updates 8BitScript and workspace programs, not each example',
 test('packages sit above quick launch, and the hardware matrix is not in the side bar', () => {
   const view = fs.readFileSync(path.join(ROOT, 'src', 'launcherView.cjs'), 'utf8');
   const body = view.slice(view.indexOf('id="packages-block"'));
-  const order = ['id="packages-block"', 'for="project"', 'for="system"', 'id="fitted"', 'id="run"']
+  // No more for="system": the System dropdown folded into Run's own
+  // sliver menu (id="run-menu") — see the split-button test below.
+  const order = ['id="packages-block"', 'for="project"', 'id="fitted"', 'id="run"', 'id="run-more"', 'id="run-menu"']
     .map((mark) => body.indexOf(mark));
   assert.deepEqual([...order].sort((a, b) => a - b), order);
   assert.ok(order.every((i) => i > -1));
+  assert.doesNotMatch(view, /id="system"/, 'System is Run\'s own sliver menu now, not a separate dropdown');
   assert.doesNotMatch(view, /id="profile"/);
   assert.doesNotMatch(view, /id="options"/);
   assert.doesNotMatch(view, /details\.more/);
@@ -102,6 +105,33 @@ test('Open Studio is the largest button on the panel, above quick launch: a spli
   assert.match(runner, /execute\('run', \{ project: studio, target: 'cx16', web: true \}\)/, 'missing x16emu falls back to the tab, not another machine');
   assert.doesNotMatch(runner.slice(runner.indexOf("command('8bitscript.openStudio'"), runner.indexOf("command('8bitscript.launchApp'")), /showQuickPick|setProject|setSystem/);
   assert.ok(MANIFEST.contributes.commands.some((c) => c.command === '8bitscript.openStudio'), 'and it is on the palette');
+});
+
+test('Run is a split button too: the primary half runs (web by default where that already works), the sliver picks a system or forces the native emulator', () => {
+  const view = fs.readFileSync(path.join(ROOT, 'src', 'launcherView.cjs'), 'utf8');
+  const body = view.slice(view.indexOf('id="packages-block"'));
+  // The System dropdown is gone — this sliver is where picking a system
+  // lives now, the same list systemOptions() always built.
+  assert.doesNotMatch(body, /<select id="system"/);
+  assert.match(body, /<button class="launch" id="run"/, 'Run keeps its own primary style — unlike Studio, no secondary class');
+  assert.match(body, /class="launch run-more" id="run-more"[^>]*aria-haspopup="menu"/, 'the sliver on its right edge');
+  assert.match(body, /<div class="menu" id="run-menu" role="menu" hidden>/, 'and opens a menu');
+  assert.match(CSS, /\.split > button\.launch\.run-more \{[^}]*background: var\(--vscode-button-secondaryBackground\)/, 'the sliver is secondary-styled, same as Studio\'s');
+  assert.doesNotMatch(CSS, /button#run \{[^}]*background: var\(--vscode-button-secondaryBackground\)/, 'Run\'s own half is not — it stays the plain primary .launch color');
+  // The sliver: "Run in emulator" first (an explicit override of Run's
+  // own default), then the same grouped system list the old dropdown had.
+  assert.match(JS, /function renderRunMenu/);
+  assert.match(JS, /'Run in emulator'/);
+  assert.match(JS, /web: false/, 'forces the native path regardless of what Run itself would default to');
+  assert.match(JS, /type: 'set', key: 'system', value: option\.id/, 'a system pick still writes the same setting the dropdown did');
+  assert.doesNotMatch(JS, /\$\('system'\)/, 'nothing left reaching for the removed dropdown');
+  // Plain Run posts no web field at all — 8bitscript.run's own default
+  // (WEB_PREVIEW_READY, preferWebPreview) decides, exactly as it does for
+  // every other caller of that command.
+  assert.match(JS, /\$\('run'\)\.addEventListener\('click', \(\) => vscode\.postMessage\(\{ type: 'launch', action: 'run' \}\)\)/);
+  const runner = fs.readFileSync(path.join(ROOT, 'src', 'runner.cjs'), 'utf8');
+  assert.match(runner, /WEB_PREVIEW_READY/, 'the same allowlist the panel reads to show the current mode');
+  assert.match(view, /message\.web !== undefined \? \{ web: message\.web \} : \{\}/, 'the sliver\'s override reaches the command, a plain launch leaves the default alone');
 });
 
 test('Running machines is an expandable tree, not a one-line list', () => {

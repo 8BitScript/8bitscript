@@ -26,7 +26,7 @@ const path = require('path');
 const vscode = require('vscode');
 
 const {
-  ALL_TARGETS, MACHINE_TARGETS, NO_BARE_EMULATOR, byKind, commandArgs, groupedMachineOptions,
+  ALL_TARGETS, MACHINE_TARGETS, NO_BARE_EMULATOR, WEB_PREVIEW_READY, byKind, commandArgs, groupedMachineOptions,
 } = require('./projects.cjs');
 const { labelOf, whereLabel } = require('./runner.cjs');
 const settings = require('./settings.cjs');
@@ -100,6 +100,12 @@ class LauncherViewProvider {
           project,
           target: settings.getSystem(),
           system: settings.getNamedSystem() || undefined,
+          // The Run sliver's own "Run in emulator" entry: an explicit
+          // override on top of 8bitscript.run's own default (runner.cjs's
+          // WEB_PREVIEW_READY/preferWebPreview check) — undefined here
+          // (plain Run) leaves that default in charge, exactly as before
+          // this field existed.
+          ...(message.web !== undefined ? { web: message.web } : {}),
         });
         return;
       }
@@ -251,6 +257,13 @@ class LauncherViewProvider {
       system: postedSystem,
       studio,
       systemTitle: fitted?.name ?? target?.title ?? system,
+      // Whether the plain Run button (its own sub-label, and the "Run in
+      // emulator" wording in its sliver) currently means a --web build or
+      // a native emulator window — the same WEB_PREVIEW_READY/
+      // preferWebPreview check 8bitscript.run's own default makes, so the
+      // panel never shows a mode Run will not actually take.
+      runMode: WEB_PREVIEW_READY.has(system) && settings.getPreferWebPreview() ? 'web' : 'native',
+      emulatorLabel: target?.emulator ?? system,
       region,
       regionLabel: machine ? settings.regionShort(region) : '',
       machine,
@@ -375,7 +388,15 @@ function emulatorIsReady(doctor, id) {
 }
 
 function systemOptions(targets, project, doctor = null) {
-  const machines = groupedMachineOptions(ALL_TARGETS, (id) => ({
+  // Only the machines the selected program has been set up for — its
+  // project's `targets` block, which `readProject` already narrows to (and
+  // which is every release machine when the config names none). The whole
+  // roster used to be listed here with the ones outside the project merely
+  // marked un-runnable, which made the list long enough to be read past:
+  // a machine a program was never written for is not a choice, and the way
+  // to get one is to add it to 8bitscript.config.ts.
+  const fitted = project?.targets?.length > 0 ? project.targets : ALL_TARGETS;
+  const machines = groupedMachineOptions(ALL_TARGETS.filter((id) => fitted.includes(id)), (id) => ({
     id,
     machine: MACHINE_TARGETS.has(id),
     label: targets?.get(id)?.title ? `${id} — ${targets.get(id).title}` : id,
@@ -529,19 +550,19 @@ function html(webview) {
           <button class="icon" id="details" title="Show project details">${ICONS.file}</button>
         </div>
       </div>
-      <div class="field">
-        <label class="field-label" for="system">System</label>
-        <select id="system" title="A named system, or a bare machine"></select>
-      </div>
     </div>
     <button class="link fitted" id="fitted" title="Open the system builder"></button>
-    <button class="launch" id="run" title="Run this project on the selected system">
-      ${ICONS.play}
-      <span class="launch-text">
-        <span class="launch-title" id="run-title">Run</span>
-        <span class="launch-sub" id="run-sub"></span>
-      </span>
-    </button>
+    <div class="split">
+      <button class="launch" id="run" title="Run this project on the selected system">
+        ${ICONS.play}
+        <span class="launch-text">
+          <span class="launch-title" id="run-title">Run</span>
+          <span class="launch-sub" id="run-sub"></span>
+        </span>
+      </button>
+      <button class="launch run-more" id="run-more" title="Run in an emulator instead, or pick a different system" aria-haspopup="menu" aria-expanded="false">${ICONS.chevron}</button>
+    </div>
+    <div class="menu" id="run-menu" role="menu" hidden></div>
     <p class="notice" id="notice" hidden></p>
     <div class="control launch-actions">
       <button class="wide secondary" id="build" title="Build this project for the selected system">${ICONS.build} Build</button>
@@ -579,4 +600,6 @@ function registerLauncherView(context, projects, devReload) {
   return provider;
 }
 
-module.exports = { registerLauncherView, selectedSystemId, warningFor, emulatorIsReady };
+module.exports = {
+  registerLauncherView, selectedSystemId, warningFor, emulatorIsReady, systemOptions,
+};
