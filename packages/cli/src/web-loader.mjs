@@ -256,7 +256,7 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
   'use strict';
 
   var COLORS = ${JSON.stringify(layout.palette ?? COLORS)};
-  var GLYPHS = ${glyphTableLiteral()};
+  var GLYPHS = ${glyphTableLiteral(layout.font)};
   var GRID_COLS = ${layout.cols};
   var GRID_ROWS = ${layout.rows};
   var CHAR_W = ${layout.charWidth ?? CHAR_W};

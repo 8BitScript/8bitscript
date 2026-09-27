@@ -256,28 +256,37 @@ export function layoutFromHardware(hardwareOrFacts = {}) {
  * `agreementFor()`'s computed `charBase` (~8192) was ever written — the
  * program's actual text sat 24KB further on, at $8000.
  *
- * `glyphIndexFn` exists because a real machine's screen byte and the
- * shared font's index are not always the same number either — and on the
- * PET, which one is not itself fixed: `packages/pet/src/text.8bs`'s own
- * `asciiToScreenCode()` branches on `#fact(video.characterSetSwapped)`
- * (true only for the 2001, the catalog's own `model` option), so this does
- * too, per build, rather than picking one and being wrong for the other.
+ * A real machine's screen byte and the shared font's index are not always
+ * the same number either — and on the PET, which one is not itself fixed:
+ * `packages/pet/src/text.8bs`'s own `asciiToScreenCode()` branches on
+ * `#fact(video.characterSetSwapped)` (true only for the 2001, the
+ * catalog's own `model` option), so this does too, per build, rather than
+ * picking one and being wrong for the other.
+ *
+ * Swapped (the 2001's own ROM): upper case moves down to 1-26, lower case
+ * sits at 65-90. `font8x8.mjs`'s `pet-2001-screencode` table is a capture
+ * of that exact ROM (real VICE, screenshotted, decoded pixel by pixel —
+ * see that file's own header), indexed by the PET's own screen code, so a
+ * lookup here needs no translation at all: `font` alone is enough.
+ *
  * Non-swapped (every later model, 901447-10): lower case moves down to
- * 1-26 so upper case can sit at its own ASCII value. Swapped (the 2001's
- * own ROM, confirmed there against characters-1.901447-08.bin): upper
- * case moves down to 1-26 instead and lower case sits at 65-90 — the
- * opposite assignment, not the same one shifted. Getting this wrong
- * doesn't blank the screen (unlike charBase) — it draws real glyphs, just
- * the wrong ones, which is a worse failure to ship unnoticed. Reverse
- * video (bit 7, PET's own `toScreen()` ORs it into the *screen code
- * itself*, not a separate color byte the way the synthetic target's
- * `text.setReverse` does) is masked off rather than rendered inverted —
- * a real, known gap: PET builds nothing writes a reverse `text.print` yet.
+ * 1-26 instead so upper case can sit at its own ASCII value — the
+ * opposite assignment, not the same one shifted. No later model has its
+ * own captured ROM table yet (each is genuinely a different ROM image,
+ * not just this one's codes shuffled — a future session's own probe, the
+ * same way 2001's was made, is how one gets added), so this still goes
+ * through `glyphIndexFn`, translating into the shared ASCII table exactly
+ * as every PET model did before `pet-2001-screencode` existed. Getting the
+ * swapped/non-swapped choice wrong doesn't blank the screen (unlike
+ * charBase) — it draws real glyphs, just the wrong ones, which is a worse
+ * failure to ship unnoticed.
+ *
+ * Reverse video (bit 7, PET's own `toScreen()` ORs it into the *screen
+ * code itself*, not a separate color byte the way the synthetic target's
+ * `text.setReverse` does) is masked off rather than rendered inverted on
+ * either path — a real, known gap: PET builds nothing writes a reverse
+ * `text.print` yet.
  */
-const PET_GLYPH_INDEX_SWAPPED = 'function(code){var c=code&127;'
-  + 'if(c>=1&&c<=26)return c+64;' // 'A'-'Z' moved down to 1-26 on this ROM
-  + 'if(c>=65&&c<=90)return c+32;' // 'a'-'z' moved up to 65-90 on this ROM
-  + 'return c;}';
 const PET_GLYPH_INDEX_UNSWAPPED = 'function(code){var c=code&127;'
   + 'return(c>=1&&c<=26)?c+96:c;}'; // 'a'-'z' moved down to 1-26; 'A'-'Z' already at its own value
 const REAL_MACHINE_LAYOUT = {
@@ -286,7 +295,9 @@ const REAL_MACHINE_LAYOUT = {
     colorPerCell: false,
     aspect: '4/3',
     screenBase: 0x8000,
-    glyphIndexFn: (facts) => (facts['video.characterSetSwapped'] ? PET_GLYPH_INDEX_SWAPPED : PET_GLYPH_INDEX_UNSWAPPED),
+    glyphsFor: (facts) => (facts['video.characterSetSwapped']
+      ? { font: 'pet-2001-screencode' }
+      : { glyphIndexFn: PET_GLYPH_INDEX_UNSWAPPED }),
   },
 };
 
@@ -320,7 +331,7 @@ export function layoutForRealMachine(target, hardware = {}) {
     // always reads 0 — "not reversed" — until reverse video is wired up
     // for real (see the header comment above).
     colorBase: real.screenBase + cells,
-    glyphIndexFn: typeof real.glyphIndexFn === 'function' ? real.glyphIndexFn(facts) : real.glyphIndexFn,
+    ...real.glyphsFor(facts),
   };
 }
 

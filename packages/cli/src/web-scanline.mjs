@@ -159,7 +159,7 @@ export function renderFrame(mem, layout, palette) {
       const cell = cellRow * cols + col;
       const colorByte = mem[layout.colorBase + cell];
       const reverse = (colorByte & 128) !== 0;
-      const glyph = glyphRows(mem[layout.charBase + cell]);
+      const glyph = glyphRows(mem[layout.charBase + cell], layout.font);
       const bits = glyph === null ? 0 : glyph[glyphY];
       const on = ((bits >> gx) & 1) !== 0;
       const fg = colorPerCell ? palette[colorByte & 15] : palette[1];
