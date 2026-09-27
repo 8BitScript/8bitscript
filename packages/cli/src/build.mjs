@@ -398,8 +398,11 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   if (target === 'web' || web) {
     const { build } = await import('@8bitscript/compiler/wasm');
     const { writeWebBundle } = await import('./web-runtime.mjs');
-    const { layoutFromHardware } = await import('./web-layout.mjs');
-    const layout = layoutFromHardware(hardware);
+    const { layoutFromHardware, layoutForRealMachine } = await import('./web-layout.mjs');
+    // See run.mjs's identical branch: the synthetic web target's own math
+    // for charBase/colorBase is wrong for a real machine's own package,
+    // which was written against its actual hardware's memory map.
+    const layout = target === 'web' ? layoutFromHardware(hardware) : layoutForRealMachine(target, hardware);
     // The locale after the tag, as the native names carry it; a bundle
     // per locale sits beside the others in dist/web, the way a bundle per
     // tag already does.

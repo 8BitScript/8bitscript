@@ -12,7 +12,7 @@ import {
   ANY_BORDER_SCALE, BORDER_HAIRLINE_PX, BORDER_MIN_PX, BORDER_PX, FULL_BORDER_SCALE, HOST_OFFSET, HostStatus,
   INNER_H, INNER_W, INPUT_OFFSET, MIN_COLUMNS, MAX_COLUMNS, MIN_ROWS, MAX_ROWS,
   DEFAULT_LAYOUT, PET_PALETTE, RASTER_ENTRY_SIZE, RASTER_MAX_ENTRIES,
-  MACHINE_HOST, agreementFor, borderFor, gridFor, layoutFromHardware, sidecarJson, swipeEdge,
+  MACHINE_HOST, agreementFor, borderFor, gridFor, layoutForRealMachine, layoutFromHardware, sidecarJson, swipeEdge,
 } from '../src/web-layout.mjs';
 import { dataBaseFor } from '@8bitscript/compiler/wasm';
 import { Slot, renderFrame, rgbPalette } from '../src/web-scanline.mjs';
@@ -105,6 +105,41 @@ test('the data section starts past the register agreement on every host: registe
   // The fixed skins keep their data where it always was; only Modern moves.
   assert.equal(dataBaseFor(layoutFromHardware({ facts: {}, options: { machine: 'c64' } }).reservedEnd), 8192);
   assert.equal(dataBaseFor(layoutFromHardware({ facts: {}, options: { machine: 'hifi' } }).reservedEnd), 8448);
+});
+
+// layoutFromHardware() computes charBase/colorBase from grid size because
+// the *synthetic* target's own .8bs source was written to match that
+// math. A real machine's own package (packages/pet/src/text.8bs) was
+// written against its actual hardware's memory map instead — the first
+// real run of this confirmed it the hard way, painting a blank screen
+// because nothing sat at the synthetic offset agreementFor() computed.
+test('layoutForRealMachine: PET keeps its real $8000 screen address, its own palette, and a screen-code-to-glyph translation — never the synthetic offsets', () => {
+  const layout = layoutForRealMachine('pet', { facts: { 'video.columns': 40, 'video.rows': 25 } });
+  assert.equal(layout.charBase, 0x8000, 'PET screen RAM, not a synthetic offset near the low hundreds');
+  assert.equal(layout.colorPerCell, false, 'PET has no color RAM');
+  assert.deepEqual(layout.palette, PET_PALETTE);
+  assert.equal(layout.aspect, '4/3');
+  assert.equal(typeof layout.glyphIndexFn, 'string', 'a screen code and the shared font\'s index are not the same number on PET');
+  // eslint-disable-next-line no-new-func -- exactly how web-loader.mjs's own applyLayout() evaluates it
+  const glyphIndex = new Function(`return (${layout.glyphIndexFn})`)();
+  // packages/pet/src/text.8bs's asciiToScreenCode(), inverted: lower case
+  // moved down to 1-26, everything else already at its ASCII value.
+  assert.equal(glyphIndex('e'.charCodeAt(0) - 96), 'e'.charCodeAt(0), 'screen code 5 is lower-case e');
+  assert.equal(glyphIndex('H'.charCodeAt(0)), 'H'.charCodeAt(0), 'upper case already sits at its ASCII value');
+  assert.equal(glyphIndex(32), 32, 'space is unchanged');
+  // The data section still has to land past whatever this build's own
+  // agreement reserves — true here only because 0x8000 happens to sit
+  // far past any synthetic reservedEnd, not because this function checked:
+  // a future real machine whose screen sits *below* that floor would need
+  // this guarded for real, not just observed to hold today.
+  assert.ok(dataBaseFor(layout.reservedEnd) < layout.charBase, 'PET screen RAM sits past this build\'s own data section');
+
+  // vic20/c64 have no entry yet (still blocked on their own asm6502 walls)
+  // — geometry only, same as calling layoutFromHardware would have given,
+  // not a crash and not a silently wrong charBase of 0x8000.
+  const noEntryYet = layoutForRealMachine('vic20', { facts: { 'video.columns': 22, 'video.rows': 23 } });
+  assert.equal(noEntryYet.glyphIndexFn, undefined);
+  assert.notEqual(noEntryYet.charBase, 0x8000);
 });
 
 // The two copies of borderFor — the one the build uses and the one that ships

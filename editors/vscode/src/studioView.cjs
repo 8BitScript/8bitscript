@@ -113,7 +113,7 @@ function html(webview, {
     ${src ? `<iframe id="frame" src="${escapeAttr(src)}" allow="pointer-lock; autoplay; gamepad; fullscreen" title="${escapeAttr(title)}"></iframe>` : ''}
     <div class="empty" id="empty" hidden></div>
   </div>
-  <script nonce="${nonce}">window.__8bsHasMouse = ${hasMouse ? 'true' : 'false'};</script>
+  <script nonce="${nonce}">window.__8bsHasMouse = ${hasMouse ? 'true' : 'false'}; window.__8bsTitle = ${JSON.stringify(title)};</script>
   <script nonce="${nonce}">${JS}</script>
 </body>
 </html>`;

@@ -116,3 +116,17 @@ test('Studio postMessage rejects foreign origins', () => {
   sandbox.window.dispatch('message', { data: { type: 'state', phase: 'building', emulator: null, program: null } });
   assert.match($('status').textContent, /^Building Studio/, 'messages with no origin still reach the host listener');
 });
+
+test('the Preview page: a real machine gets its own name throughout, never a leftover "Studio"', () => {
+  const { dom, sandbox } = runWebviewScripts([STUDIO_JS], (d) => { d.window.__8bsTitle = 'PET'; });
+  const $ = (id) => dom.getElementById(id);
+
+  sandbox.window.dispatch('message', { data: { type: 'state', phase: 'building', emulator: null, program: null } });
+  assert.equal($('status').textContent, 'Building PET… (the build prints in its terminal)');
+  assert.equal($('rebuild').textContent, 'Rebuild');
+
+  sandbox.window.dispatch('message', { data: { type: 'state', phase: 'stopped', emulator: null, program: null } });
+  assert.equal($('rebuild').textContent, 'Start PET');
+  assert.equal($('empty').textContent, 'PET is not running.');
+  assert.doesNotMatch($('status').textContent + $('empty').textContent + $('rebuild').textContent, /Studio/);
+});

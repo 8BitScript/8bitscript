@@ -237,6 +237,79 @@ export function layoutFromHardware(hardwareOrFacts = {}) {
   });
 }
 
+/**
+ * Where a real machine's own wasm build (pet, vic20, c64 built through
+ * `--web` — run.mjs's `buildForWeb`) actually keeps screen memory, and how
+ * to turn a raw screen byte into the shared bitmap font's own index.
+ *
+ * `layoutFromHardware()` above computes `charBase`/`colorBase` from grid
+ * size because the *synthetic* target's own `.8bs` source
+ * (`packages/web/src/geometry.8bs`) was written to match that math — every
+ * skin it builds, `pet-2001` included, is a from-scratch reimplementation
+ * that already writes ASCII-shaped codes there. A real machine's own
+ * package was written against its actual hardware's memory map instead
+ * (`packages/pet/src/text.8bs` writes `memory.write(0x8000 + cell, ...)`,
+ * a fact nowhere in the hardware catalog — it's PET's KERNAL's own screen
+ * address, not a build option), so that math would just read whichever
+ * unwritten bytes happen to sit at the *synthetic* offset. Confirmed the
+ * hard way: the first real run painted a blank screen, because nothing at
+ * `agreementFor()`'s computed `charBase` (~8192) was ever written — the
+ * program's actual text sat 24KB further on, at $8000.
+ *
+ * `glyphIndexFn` exists because a real machine's screen byte and the
+ * shared font's index are not always the same number either: PET's own
+ * `asciiToScreenCode()` moves lower-case down to 1-26 so upper case can
+ * sit at its ASCII value (the space 1-26 would otherwise share with
+ * control codes) — this is that function's inverse, applied host-side.
+ * Reverse video (bit 7, PET's own `toScreen()` ORs it into the *screen
+ * code itself*, not a separate color byte the way the synthetic target's
+ * `text.setReverse` does) is masked off rather than rendered inverted —
+ * a real, known gap: PET builds nothing writes a reverse `text.print` yet.
+ */
+const REAL_MACHINE_LAYOUT = {
+  pet: {
+    palette: PET_PALETTE,
+    colorPerCell: false,
+    aspect: '4/3',
+    screenBase: 0x8000,
+    glyphIndexFn: 'function(code){var c=code&127;return(c>=1&&c<=26)?c+96:c;}',
+  },
+};
+
+/**
+ * @param {string} target a real machine's own name (`pet`, `vic20`, `c64`),
+ *   never the literal `'web'` — that stays on `layoutFromHardware()`.
+ * @param {{ facts?: object }} hardware
+ */
+export function layoutForRealMachine(target, hardware = {}) {
+  const facts = hardware.facts ?? {};
+  const real = REAL_MACHINE_LAYOUT[target];
+  const geometry = agreementFor({
+    cols: facts['video.columns'] ?? DEFAULT_LAYOUT.cols,
+    rows: facts['video.rows'] ?? DEFAULT_LAYOUT.rows,
+    palette: real?.palette ?? C64_PALETTE,
+    aspect: real?.aspect ?? '4/3',
+    colorPerCell: real ? real.colorPerCell : facts['video.colorPerCell'] !== false,
+    resizable: false,
+  });
+  // No entry yet for this target (vic20, c64 — still blocked on their own
+  // asm6502 walls, per the design doc's build tracker): geometry only,
+  // same synthetic charBase as before this function existed. Not correct
+  // for a real build either, but no *more* wrong than layoutFromHardware
+  // already was, and there is nothing target-specific to substitute yet.
+  if (!real) return geometry;
+  const cells = geometry.cols * geometry.rows;
+  return {
+    ...geometry,
+    charBase: real.screenBase,
+    // One past the screen: unwritten by every program so far, so it
+    // always reads 0 — "not reversed" — until reverse video is wired up
+    // for real (see the header comment above).
+    colorBase: real.screenBase + cells,
+    glyphIndexFn: real.glyphIndexFn,
+  };
+}
+
 /** JSON sidecar written next to a wasm so one loader can size any skin. */
 export function sidecarJson(layout = DEFAULT_LAYOUT) {
   return {
@@ -261,6 +334,7 @@ export function sidecarJson(layout = DEFAULT_LAYOUT) {
     font: layout.font,
     aspect: layout.aspect,
     colorPerCell: layout.colorPerCell,
+    glyphIndexFn: layout.glyphIndexFn,
   };
 }
 

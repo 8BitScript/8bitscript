@@ -266,6 +266,11 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
   var BORDER_PX = ${BORDER_PX};
   var CHAR_BASE = ${layout.charBase ?? CHAR_BASE};
   var COLOR_BASE = ${layout.colorBase};
+  // A real machine's own screen byte and the shared font's index are not
+  // always the same number (see web-layout.mjs's layoutForRealMachine) —
+  // null on every skin that already matches the font 1:1 (every synthetic
+  // skin, still), a function on the one real machine that does not yet.
+  var GLYPH_INDEX = ${layout.glyphIndexFn ? layout.glyphIndexFn : 'null'};
   var INPUT_OFFSET = ${layout.inputOffset};
   var HOST_OFFSET = ${layout.hostOffset};
   var RASTER_CONTROL_OFFSET = ${layout.rasterControlOffset ?? DEFAULT_LAYOUT.rasterControlOffset};
@@ -465,7 +470,8 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
           var cell = cellRow * GRID_COLS + col;
           var colorByte = mem[COLOR_BASE + cell];
           var reverse = (colorByte & 128) !== 0;
-          var glyph = GLYPHS[mem[CHAR_BASE + cell]] || null;
+          var raw = mem[CHAR_BASE + cell];
+          var glyph = GLYPHS[GLYPH_INDEX ? GLYPH_INDEX(raw) : raw] || null;
           var bits = glyph === null ? 0 : glyph[glyphY];
           var on = ((bits >> gx) & 1) !== 0;
           var fg = COLOR_PER_CELL ? palette[colorByte & 15] : palette[1];
@@ -550,6 +556,11 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     if (typeof next.colorPerCell === 'boolean') COLOR_PER_CELL = next.colorPerCell;
     if (next.aspect) ASPECT = next.aspect;
     if (next.palette && next.palette.length) COLORS = next.palette;
+    // program.json carries this as source text (JSON has no function
+    // type) — evaluated here, once, the same trust level as the rest of
+    // this script: it is this CLI's own generated content, never a
+    // program's or a stranger's.
+    if (next.glyphIndexFn) GLYPH_INDEX = new Function('return (' + next.glyphIndexFn + ')')();
   }
 
   function resolveHost(target) {
