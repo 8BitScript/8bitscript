@@ -703,8 +703,11 @@ export async function run(args) {
     // and worker only ever paint whatever a .wasm's own memory says, and
     // don't care which machine's package produced it. `lastRunTarget` is
     // the real target name here, not always literally 'web', so a real
-    // machine gets its own `.8bs-last-<target>.json` — the file a framing
-    // page (the extension's Studio tab) reads to find this run's URL.
+    // machine gets its own `.8bs-last-<target>-web.json` — the file a
+    // framing page (the extension's Preview tab) reads to find this run's
+    // URL, kept apart from that same machine's native `.8bs-last-<target>
+    // .json` on purpose (web-runtime.mjs's own writeLastRun call, and
+    // lastRunPath's header in last-run.mjs, have the full reasoning).
     //
     // The page and worker come from *this* CLI (in memory), not dist/web/.
     // compile() still writes that directory for `8bs build` / deploy, but

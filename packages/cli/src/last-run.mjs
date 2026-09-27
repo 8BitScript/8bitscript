@@ -8,9 +8,23 @@ import { dirname, join, relative, resolve } from 'node:path';
 
 export const LAST_RUN_PREFIX = '.8bs-last-';
 
-/** Absolute path of the last-run file for `target`, under `cwd/dist`. */
-export function lastRunPath(target, cwd = process.cwd()) {
-  return join(resolve(cwd, 'dist'), `${LAST_RUN_PREFIX}${target}.json`);
+/**
+ * Absolute path of the last-run file for `target`, under `cwd/dist`.
+ *
+ * `web` names a *second* file (`-web` before the extension) for a real
+ * machine's own wasm-backend preview, distinct from that same machine's
+ * native run — the two can be running at once (a Preview tab open
+ * alongside "Open in emulator"), and sharing one file meant whichever
+ * wrote last decided what both readers saw: the Running machines tree
+ * showed two rows for the one target and both displayed identical data,
+ * neither reliably its own. The synthetic `web` target never has a
+ * native counterpart to collide with, so it keeps its plain name even
+ * when a caller passes `web: true` for it — enforced here, not left to
+ * every call site to compute `target !== 'web' && web` correctly itself.
+ */
+export function lastRunPath(target, cwd = process.cwd(), web = false) {
+  const suffix = web && target !== 'web' ? '-web' : '';
+  return join(resolve(cwd, 'dist'), `${LAST_RUN_PREFIX}${target}${suffix}.json`);
 }
 
 /**
@@ -46,9 +60,10 @@ export function displayOutFile(outFile, cwd = process.cwd()) {
  *
  * @param {string} target
  * @param {object} patch
+ * @param {boolean} [web] see lastRunPath's own header for what this is
  */
-export async function writeLastRun(target, patch, cwd = process.cwd()) {
-  const dest = lastRunPath(target, cwd);
+export async function writeLastRun(target, patch, cwd = process.cwd(), web = false) {
+  const dest = lastRunPath(target, cwd, web);
   let current = {};
   try {
     current = JSON.parse(await readFile(dest, 'utf8'));

@@ -457,9 +457,13 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
     if (result.sizeReport) process.stdout.write(sizeReportLines(result.sizeReport, result.bytes.length));
     if (report) process.stdout.write(stateReportLines(ir));
     const memory = { variables: ir.memory.variables, program: result.bytes.length, data: ir.memory.data };
+    // A real machine's own wasm-backend build gets the `-web` file,
+    // distinct from that same machine's native run; the synthetic web
+    // target keeps its plain one regardless (lastRunPath's own rule,
+    // not recomputed here) — see its header for the collision this avoids.
     await writeLastRun(target, compileReport(target, {
       outFile, hardware, memory, sizeReport: result.sizeReport, frameRate, program: program.name, locale,
-    }));
+    }), undefined, web);
     return { ok: true, outFile, frameRate, hardware, webDir, memory, sizeReport: result.sizeReport, program: program.name, locale, factsTested };
   }
 

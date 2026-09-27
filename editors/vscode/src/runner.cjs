@@ -1340,7 +1340,10 @@ function startLivePoll(projects, context) {
     let changed = false;
     const reports = new Map();
     for (const row of rows) {
-      reports.set(rowKey(row.dir, row.target), readLastRun(row.dir, row.target));
+      // row.web tells apart a real machine's own wasm-backend preview
+      // from that same machine's native run — two rows, two files, never
+      // one file two readers race over (see lastRunPath's own header).
+      reports.set(rowKey(row.dir, row.target, row.web), readLastRun(row.dir, row.target, row.web));
     }
     const plan = livePollPlan(rows, reports);
     for (const { key, url } of plan.fetches) {
