@@ -160,10 +160,10 @@ test('layoutForRealMachine: VIC-20\'s screen moves with its own RAM, not with a 
 
   assert.equal(unexpanded.colorPerCell, true, 'the VIC-20 has real per-cell color RAM, unlike the PET');
   assert.deepEqual(unexpanded.palette, VIC20_PALETTE);
-  // No captured character ROM of its own yet: agreementFor()'s own default
-  // ASCII font, exactly like a later PET model with no capture, not a
-  // crash for want of a glyphsFor.
-  assert.equal(unexpanded.font, 'font8x8');
+  // font8x8.mjs's VIC20_TEXT_SCREENCODE table, read directly out of
+  // VICE's own chargen-901460-03.bin — indexed by the VIC-20's own screen
+  // code, so this needs no glyphIndexFn either.
+  assert.equal(unexpanded.font, 'vic20-text-screencode');
 });
 
 test('layoutForRealMachine: cx16 has no real fixed VRAM address to substitute (VERA is port-only, even on real hardware) — memoryFor is a deliberate no-op, so it keeps agreementFor()\'s own charBase/colorBase for its own 76x56 grid', () => {
