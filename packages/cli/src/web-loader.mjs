@@ -276,6 +276,12 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
   var HOST_NO_KEYBOARD = ${HostStatus.NO_KEYBOARD};
   var COLOR_PER_CELL = ${layout.colorPerCell !== false};
   var ASPECT = ${JSON.stringify(layout.aspect ?? '16/9')};
+  // How much wider than tall one drawn pixel really is on the machine
+  // this layout is for — 1 (square) unless web-layout.mjs's own
+  // REAL_MACHINE_LAYOUT measured otherwise. fit() stretches the canvas's
+  // *displayed* size by this, never its pixel buffer, so paint() and
+  // every offset above still work in real, square chip-pixels.
+  var PIXEL_ASPECT = ${layout.pixelAspect ?? 1};
   // Modern only: the grid follows the window. Every machine skin is fixed,
   // because a skin is a machine. See packages/cli/src/web-layout.mjs.
   var RESIZABLE = ${layout.resizable === true};
@@ -550,6 +556,7 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     if (next.rasterMaxEntries != null) RASTER_MAX_ENTRIES = next.rasterMaxEntries;
     if (typeof next.colorPerCell === 'boolean') COLOR_PER_CELL = next.colorPerCell;
     if (next.aspect) ASPECT = next.aspect;
+    if (typeof next.pixelAspect === 'number' && next.pixelAspect > 0) PIXEL_ASPECT = next.pixelAspect;
     if (next.palette && next.palette.length) COLORS = next.palette;
   }
 
@@ -679,7 +686,7 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
       var width = rect.width || host.clientWidth || 0;
       var height = rect.height;
       // A bare <div> with no height of its own still has to be some shape.
-      if (!(height > 0)) height = width * (INNER_H / INNER_W);
+      if (!(height > 0)) height = width * INNER_H / (INNER_W * PIXEL_ASPECT);
       return { width: width, height: height };
     }
     // A resize while a waitFrame() program runs is applied between frames,
@@ -716,11 +723,16 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
       fit(measured);
     }
     // The canvas scaled into the measured box: safe at any moment, since it
-    // changes no pixel the program can see.
+    // changes no pixel the program can see. Width and height scale by the
+    // same factor except for PIXEL_ASPECT's own stretch — canvas.width/
+    // height (the real pixel buffer paint() draws into) never change here,
+    // only the CSS size the browser displays that buffer at, so every real
+    // chip-pixel ends up PIXEL_ASPECT times wider than tall on screen
+    // without paint() or any offset above needing to know that at all.
     function fit(measured) {
-      var scale = Math.min(measured.width / canvas.width, measured.height / canvas.height);
+      var scale = Math.min(measured.width / (canvas.width * PIXEL_ASPECT), measured.height / canvas.height);
       if (!(scale > 0)) scale = 1;
-      canvas.style.width = Math.max(1, Math.floor(canvas.width * scale)) + 'px';
+      canvas.style.width = Math.max(1, Math.floor(canvas.width * PIXEL_ASPECT * scale)) + 'px';
       canvas.style.height = Math.max(1, Math.floor(canvas.height * scale)) + 'px';
       if (fullPage) {
         root.style.width = measured.width + 'px';
@@ -1093,6 +1105,7 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
       inputOffset: INPUT_OFFSET,
       hostOffset: HOST_OFFSET,
       aspect: ASPECT,
+      pixelAspect: PIXEL_ASPECT,
       resizable: RESIZABLE,
       fullBorder: BORDER_PX,
     },

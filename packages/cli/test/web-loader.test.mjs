@@ -36,6 +36,7 @@ test('the generated loader evaluates with no DOM and exposes mount() and the ele
   assert.equal(api.layout.inputOffset, INPUT_OFFSET);
   assert.equal(api.layout.hostOffset, HOST_OFFSET);
   assert.equal(api.layout.aspect, '16/9');
+  assert.equal(api.layout.pixelAspect, 1, 'square pixels unless a real machine measured otherwise');
   assert.equal(api.layout.fullBorder, BORDER_PX);
 });
 
@@ -53,6 +54,11 @@ test('agreementFor places color RAM, input, and host status after the character 
   const vic = agreementFor({ cols: 22, rows: 23 });
   assert.equal(vic.colorBase, 508);
   assert.equal(vic.hostOffset, 1015);
+});
+
+test('agreementFor: pixelAspect defaults to 1 (square) and passes through unchanged otherwise', () => {
+  assert.equal(agreementFor({ cols: 48, rows: 27 }).pixelAspect, 1);
+  assert.equal(agreementFor({ cols: 22, rows: 23, pixelAspect: 5 / 3 }).pixelAspect, 5 / 3);
 });
 
 // The raster region sits right after the host byte on every skin, fixed or
@@ -81,6 +87,8 @@ test('the raster region follows HOST_OFFSET on every skin, and the sidecar carri
   assert.equal(sidecar.rasterCountOffset, 8199);
   assert.equal(sidecar.rasterBase, 8200);
   assert.equal(sidecar.rasterMaxEntries, RASTER_MAX_ENTRIES);
+  assert.equal(sidecar.pixelAspect, 1, 'sidecarJson carries pixelAspect through too, for the page to read');
+  assert.equal(sidecarJson(layoutForRealMachine('vic20', { facts: { 'video.frameRate': 60 } })).pixelAspect, 5 / 3);
 });
 
 // The register agreement and the wasm backend's data section share one
@@ -164,6 +172,25 @@ test('layoutForRealMachine: VIC-20\'s screen moves with its own RAM, not with a 
   // VICE's own chargen-901460-03.bin — indexed by the VIC-20's own screen
   // code, so this needs no glyphIndexFn either.
   assert.equal(unexpanded.font, 'vic20-text-screencode');
+  // No video.frameRate fact given: the honest default, same as PAL until
+  // that chip's own timing is measured — see the NTSC test below for the
+  // one machine/region this project has actually measured.
+  assert.equal(unexpanded.pixelAspect, 1);
+});
+
+test('layoutForRealMachine: VIC-20 NTSC (6560) draws non-square pixels — measured from the chip\'s own timing, not guessed, and the outer aspect is derived from it rather than a flat \'4/3\'', () => {
+  const facts = { 'video.columns': 22, 'video.rows': 23, 'video.frameRate': 60 };
+  const ntsc = layoutForRealMachine('vic20', { facts, tags: [] });
+  assert.equal(ntsc.pixelAspect, 5 / 3);
+  // 22 cols * 8px * 5/3 wide : 23 rows * 8px tall — not the flat '4/3'
+  // guess every other real-machine entry still uses.
+  assert.equal(ntsc.aspect, `${22 * 8 * (5 / 3)}/${23 * 8}`);
+  // PAL (or an unknown region) keeps square pixels and the flat '4/3'
+  // fallback — an honest gap, not a wrong number: this project has not
+  // measured the 6561's own (different) cycles-per-line timing yet.
+  const pal = layoutForRealMachine('vic20', { facts: { ...facts, 'video.frameRate': 50 }, tags: [] });
+  assert.equal(pal.pixelAspect, 1);
+  assert.equal(pal.aspect, '4/3');
 });
 
 test('layoutForRealMachine: cx16 has no real fixed VRAM address to substitute (VERA is port-only, even on real hardware) — memoryFor is a deliberate no-op, so it keeps agreementFor()\'s own charBase/colorBase for its own 76x56 grid', () => {
@@ -339,6 +366,26 @@ test('the loader stays inside its own element when embedded', () => {
 test('the canvas is only re-dimensioned when the border or the grid changes', () => {
   const source = renderLoader({ frameRate: 60 });
   assert.match(source, /if \(next !== border \|\| regridded\) \{\s*\n\s*border = next;\s*\n\s*canvas\.width = INNER_W \+ border \* 2;/);
+});
+
+// fit() stretches the canvas's *displayed* size by PIXEL_ASPECT, never
+// canvas.width/height (the real pixel buffer paint() draws into and every
+// offset above indexes into) — a real machine with non-square pixels
+// (VIC-20 NTSC) needs the browser to stretch what is already painted, not
+// a differently-shaped buffer with different math for every offset.
+test('fit() stretches the canvas\'s displayed width by PIXEL_ASPECT, never its real pixel buffer', () => {
+  const source = renderLoader({ frameRate: 60, layout: { ...DEFAULT_LAYOUT, pixelAspect: 5 / 3 } });
+  const fit = source.slice(source.indexOf('function fit(measured)'), source.indexOf('var observer = null;'));
+  assert.match(fit, /measured\.width \/ \(canvas\.width \* PIXEL_ASPECT\)/, 'the fit scale accounts for the stretch before comparing to the measured box');
+  assert.match(fit, /canvas\.width \* PIXEL_ASPECT \* scale/, 'canvas.style.width is stretched; canvas.width itself is read, never assigned, in this function');
+  assert.doesNotMatch(fit, /canvas\.width\s*=/, 'fit() never resizes the real pixel buffer — that is relayout()\'s job, and unaffected by PIXEL_ASPECT');
+});
+
+test('PIXEL_ASPECT defaults to 1 and is only ever set from layout.pixelAspect', () => {
+  const square = renderLoader({ frameRate: 60 });
+  assert.match(square, /var PIXEL_ASPECT = 1;/);
+  const wide = renderLoader({ frameRate: 60, layout: { ...DEFAULT_LAYOUT, pixelAspect: 5 / 3 } });
+  assert.match(wide, new RegExp(`var PIXEL_ASPECT = ${(5 / 3).toString().replace('.', '\\.')};`));
 });
 
 // A resize lands between frames (8BX spec §74, decided 2026-09-16): while a
