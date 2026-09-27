@@ -198,6 +198,46 @@ test('ready re-reads instead of echoing a stale phase: a build fast enough to fi
     panel.webview.__fire({ type: 'ready' });
     await tick();
     assert.deepEqual(panel.posted.at(-1), { type: 'state', phase: 'running', emulator: 'browser', program: 108 });
+    // Disposed, not left open: the module-level openPreview it set is
+    // shared by every registerStudioView() call in this process, so a
+    // panel left dangling here would make the *next* test's own
+    // previewTab.show silently re-bind this one instead of creating its
+    // own — exactly the kind of cross-test state a fresh vscode mock
+    // (reset() clears the mock's own lists, not studioView.cjs's) does
+    // not protect against.
+    panel.__dispose();
+  } finally {
+    for (const subscription of context.subscriptions) subscription.dispose?.();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('closing the Preview tab stops its run, exactly as closing Studio\'s own tab does', async () => {
+  // registerTab() is one shared implementation behind both commands;
+  // Studio's own "closing the tab stops the run" case is covered above,
+  // but nothing exercised the *second* registration (previewTab.show —
+  // pet/vic20/c64's own --web builds, not the X16) the same way, so a
+  // difference between the two call sites (a missing onRebuild, a typo
+  // in which command name maps to which getOpen/setOpen) could have hidden
+  // behind the first one passing.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), '8bs-preview-tab-dispose-'));
+  const context = { subscriptions: [] };
+  try {
+    vscode.__mock.reset();
+    const projects = fakeProjects();
+    registerStudioView(context, projects);
+    assert.ok(vscode.__mock.commandHandlers.has('8bitscript.previewTab.show'));
+
+    projects.runs.push({ dir, target: 'pet', web: true });
+    await vscode.__mock.trigger('8bitscript.previewTab.show', { dir, target: 'pet', launchedAt: Date.now() });
+    await tick();
+    const panel = vscode.__mock.webviewPanels.at(-1);
+    assert.equal(panel.viewType, '8bitscript.preview', 'its own view type, not Studio\'s');
+
+    projects.stopped.length = 0;
+    panel.__dispose();
+    assert.deepEqual(projects.stopped, [{ dir, target: 'pet', only: { web: true } }],
+      'closing the Preview tab ends exactly the run it was following');
   } finally {
     for (const subscription of context.subscriptions) subscription.dispose?.();
     fs.rmSync(dir, { recursive: true, force: true });
