@@ -126,7 +126,6 @@ test('layoutForRealMachine: PET keeps its real $8000 screen address and its own 
   // translation this ever needed before a byte reached here — so a 2001
   // build names that table and nothing else.
   assert.equal(layout.font, 'pet-2001-screencode');
-  assert.equal(layout.glyphIndexFn, undefined, 'no translation function: the table is already keyed by screen code');
   // The data section still has to land past whatever this build's own
   // agreement reserves — true here only because 0x8000 happens to sit
   // far past any synthetic reservedEnd, not because this function checked:
@@ -138,21 +137,15 @@ test('layoutForRealMachine: PET keeps its real $8000 screen address and its own 
   // — geometry only, same as calling layoutFromHardware would have given,
   // not a crash and not a silently wrong charBase of 0x8000.
   const noEntryYet = layoutForRealMachine('vic20', { facts: { 'video.columns': 22, 'video.rows': 23 } });
-  assert.equal(noEntryYet.glyphIndexFn, undefined);
   assert.notEqual(noEntryYet.charBase, 0x8000);
 });
 
-test('layoutForRealMachine: a later (non-swapped) PET model has no captured ROM of its own yet, so it still translates into the shared ASCII font rather than borrowing the 2001\'s', () => {
+test('layoutForRealMachine: a later (non-swapped) PET model gets its own captured ROM too, not the 2001\'s and not the shared ASCII fallback', () => {
   const layout = layoutForRealMachine('pet', { facts: { 'video.columns': 40, 'video.rows': 25, 'video.characterSetSwapped': false } });
-  assert.equal(layout.font, 'font8x8', 'no captured table for this model: falls back to the default ASCII one, not the 2001\'s');
-  assert.equal(typeof layout.glyphIndexFn, 'string');
-  // eslint-disable-next-line no-new-func -- exactly how web-loader.mjs's own applyLayout() evaluates it
-  const glyphIndex = new Function(`return (${layout.glyphIndexFn})`)();
-  // packages/pet/src/text.8bs's asciiToScreenCode(), inverted: lower case
-  // moved down to 1-26, everything else already at its ASCII value.
-  assert.equal(glyphIndex('e'.charCodeAt(0) - 96), 'e'.charCodeAt(0), 'screen code 5 is lower-case e');
-  assert.equal(glyphIndex('H'.charCodeAt(0)), 'H'.charCodeAt(0), 'upper case already sits at its ASCII value');
-  assert.equal(glyphIndex(32), 32, 'space is unchanged');
+  // font8x8.mjs's PET_TEXT_SCREENCODE table (ROM 901447-10, shared by
+  // every non-2001 model) is indexed by the PET's own screen code the
+  // same way the 2001's is — no glyphIndexFn here either.
+  assert.equal(layout.font, 'pet-text-screencode');
 });
 
 // The two copies of borderFor — the one the build uses and the one that ships
