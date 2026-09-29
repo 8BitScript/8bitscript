@@ -6,7 +6,9 @@
 // what says the component cost nothing.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cpSync, mkdtempSync, rmSync } from 'node:fs';
+import {
+  cpSync, existsSync, mkdtempSync, rmSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -14,6 +16,14 @@ import { compile } from '../src/build.mjs';
 
 const REPO = resolve(import.meta.dirname, '..', '..', '..');
 const EXAMPLES = join(REPO, 'packages', 'examples');
+
+// Same lookup order as config.mjs's own CONFIG_FILENAMES — copying the
+// example's actual config rather than assuming one name keeps this test
+// working across the .ts -> .8bs migration without hardcoding either.
+const CONFIG_FILENAMES = ['8bitscript.config.8bs', '8bitscript.config.ts', '8bs.config.ts'];
+function exampleConfigName(name) {
+  return CONFIG_FILENAMES.find((filename) => existsSync(join(EXAMPLES, name, filename)));
+}
 
 const CLI_LINE = /^(built |memory: |size breakdown|web bundle: |8bs build: )/;
 function silently(fn) {
@@ -33,7 +43,8 @@ async function buildExample(name, target) {
   const prev = process.cwd();
   try {
     cpSync(join(EXAMPLES, name, 'src'), join(dir, 'src'), { recursive: true });
-    cpSync(join(EXAMPLES, name, '8bitscript.config.ts'), join(dir, '8bitscript.config.ts'));
+    const configName = exampleConfigName(name);
+    cpSync(join(EXAMPLES, name, configName), join(dir, configName));
     cpSync(join(EXAMPLES, 'shared-release-targets.ts'), join(root, 'shared-release-targets.ts'));
     process.chdir(dir);
     const result = await silently(() => compile(target, undefined, { checkout: REPO }));

@@ -139,7 +139,7 @@ function html(webview) {
     </div>
   </section>
   <div class="hint">
-    <button class="link" id="open-config">Open 8bitscript.config.ts</button>
+    <button class="link" id="open-config">Open 8bitscript.config.8bs</button>
     <button class="link" id="open-entry">Open entry file</button>
     <button class="link" id="configure">Configure System</button>
   </div>

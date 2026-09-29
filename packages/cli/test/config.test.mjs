@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readdirSync } from 'node:fs';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -83,6 +84,48 @@ test('loadConfig still finds 8bs.config.ts, the pre-0.4.0 name, when there is no
     const config = await loadConfig(dir);
     assert.deepEqual(config, { frameRate: 50 });
   } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('loadConfig prefers 8bitscript.config.8bs, the current name, over both .ts names', async () => {
+  const dir = await mkdtemp(join(tmpdir(), '8bs-config-'));
+  try {
+    await writeFile(join(dir, '8bitscript.config.8bs'), 'export default { frameRate: 30 };\n');
+    await writeFile(join(dir, '8bitscript.config.ts'), 'export default { frameRate: 999 };\n');
+    const config = await loadConfig(dir);
+    assert.deepEqual(config, { frameRate: 30 });
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('loadConfig reads a .8bs config as plain type-stripped JS/TS, not 8BitScript', async () => {
+  const dir = await mkdtemp(join(tmpdir(), '8bs-config-'));
+  try {
+    await writeFile(
+      join(dir, '8bitscript.config.8bs'),
+      'const frameRate: number = 50;\nexport default { frameRate, entry: "src/main.8bs" };\n',
+    );
+    const config = await loadConfig(dir);
+    assert.deepEqual(config, { frameRate: 50, entry: 'src/main.8bs' });
+    assert.deepEqual(readdirSync(dir), ['8bitscript.config.8bs'], 'the stripped temp file is cleaned up');
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('loadConfig writes a load error and returns null when a .8bs config does not evaluate', async () => {
+  const dir = await mkdtemp(join(tmpdir(), '8bs-config-'));
+  const stderr = [];
+  const original = process.stderr.write;
+  process.stderr.write = (chunk) => { stderr.push(String(chunk)); return true; };
+  try {
+    await writeFile(join(dir, '8bitscript.config.8bs'), 'throw new Error("boom");\n');
+    assert.equal(await loadConfig(dir, '8bs check'), null);
+    assert.match(stderr.join(''), /8bs check: cannot load 8bitscript\.config\.8bs: boom/);
+  } finally {
+    process.stderr.write = original;
     await rm(dir, { recursive: true, force: true });
   }
 });
