@@ -62,7 +62,7 @@ export component Hello() {
 }
 ```
 
-*src/hello-bx.8bs — the program*
+*src/hbx.8bs — the program*
 
 ```8bs
 import { screen } from "@8bitscript/screen";
@@ -76,4 +76,4 @@ export function main(): void {
 }
 ```
 
-See [§7.1](examples.md#71-hello-bx-end-to-end) for the measured byte count and [§3.1](boundary.md#31-call-a-component-from-8bs) for why `Hello();` is exactly `<Hello />` spelled the way `.8bs` can spell it.
+See [§7.1](examples.md#71-hello-8bx-end-to-end) for the measured byte count and [§3.1](boundary.md#31-call-a-component-from-8bs) for why `Hello();` is exactly `<Hello />` spelled the way `.8bs` can spell it.

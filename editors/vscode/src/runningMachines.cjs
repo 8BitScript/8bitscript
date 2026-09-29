@@ -11,13 +11,24 @@ const { qrSvg } = require('./qr.cjs');
 
 const LAST_RUN_PREFIX = '.8bs-last-';
 
-/** Absolute path of the last-run file `8bs` writes for this project/target. */
-function lastRunPath(dir, target) {
-  return path.join(dir, 'dist', `${LAST_RUN_PREFIX}${target}.json`);
+/**
+ * Absolute path of the last-run file `8bs` writes for this project/target.
+ *
+ * `web` reads the second file a real machine's own wasm-backend preview
+ * writes, distinct from that same machine's native run — see
+ * packages/cli/src/last-run.mjs's own `lastRunPath` header for why one
+ * file was never enough (two rows in the Running machines tree for one
+ * target, both showing whichever run wrote last). Mirrors that
+ * function's own rule for the synthetic web target too: it keeps its
+ * plain name even when a caller passes `web: true` for it.
+ */
+function lastRunPath(dir, target, web = false) {
+  const suffix = web && target !== 'web' ? '-web' : '';
+  return path.join(dir, 'dist', `${LAST_RUN_PREFIX}${target}${suffix}.json`);
 }
 
-function rowKey(dir, target) {
-  return `${dir}\0${target ?? ''}`;
+function rowKey(dir, target, web = false) {
+  return `${dir}\0${target ?? ''}\0${web ? 'web' : 'native'}`;
 }
 
 /**
@@ -53,10 +64,10 @@ function parseLastRun(text) {
   };
 }
 
-function readLastRun(dir, target) {
+function readLastRun(dir, target, web = false) {
   if (!dir || !target) return null;
   try {
-    return parseLastRun(fs.readFileSync(lastRunPath(dir, target), 'utf8'));
+    return parseLastRun(fs.readFileSync(lastRunPath(dir, target, web), 'utf8'));
   } catch {
     return null;
   }
@@ -196,7 +207,7 @@ function fetchStatus(url) {
  * compile report itself changes (so the panel redraws when size/emulator
  * appear, not only when FPS does).
  *
- * @param {{ dir: string, target?: string, command: string }[]} rows
+ * @param {{ dir: string, target?: string, command: string, web?: boolean }[]} rows
  * @param {Map<string, object|null>} reports keyed by rowKey
  */
 function livePollPlan(rows, reports) {
@@ -205,7 +216,7 @@ function livePollPlan(rows, reports) {
   const stamps = [];
   for (const row of rows) {
     if (row.command !== 'run' && row.command !== 'boot') continue;
-    const key = rowKey(row.dir, row.target);
+    const key = rowKey(row.dir, row.target, row.web);
     seen.add(key);
     const report = reports.get(key) ?? null;
     stamps.push(report?.writtenAt ?? '', report?.emulator ?? '', report?.url ?? '', (report?.lanUrls ?? []).join(' '));

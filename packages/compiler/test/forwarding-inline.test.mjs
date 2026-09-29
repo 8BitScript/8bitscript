@@ -2,7 +2,7 @@
 // function whose body is one call passing its own parameters through
 // must build to the same bytes as the program that makes that call by
 // hand — run-time arguments and all, at any number of sites, across an
-// import boundary. hello-bx proves this for compile-time props; 2048 #49
+// import boundary. hello-8bx proves this for compile-time props; 2048 #49
 // found the run-time case +36 bytes on the PET 2001, and #45 +53 bytes
 // across a module — the three programs below are those cases, on the
 // machine with the least to spare.

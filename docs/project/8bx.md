@@ -89,8 +89,8 @@ Read against the source: `packages/compiler`, `packages/cli`,
 - **A program starts from `.8bs`, and calls its components.** `8bs build`
   refuses an `.8bx` entry by name (§4.3); a component is reached from
   `.8bs` as an ordinary positional call — `Hello();` is `<Hello />` the
-  way `.8bs` can spell it (§4.5) — and checked as any call is. `hello-bx`
-  is the model: `src/hello-bx.8bs` is the program, `src/Hello.8bx` the
+  way `.8bs` can spell it (§4.5) — and checked as any call is. `hello-8bx`
+  is the model: `src/hbx.8bs` is the program, `src/Hello.8bx` the
   component, and the PET build is byte-identical to `hello-world`'s.
 - **The config knows its shape.** `defineConfig` from `@8bitscript/cli`,
   `programs` for several programs in one project, `images` for the disk

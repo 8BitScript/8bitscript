@@ -12,6 +12,7 @@
 // from @8bitscript/text draws the same thing on every target.
 import { memoryPointer } from "./index.8bs";
 import { Video } from "./geometry.8bs";
+import { releaseCursor as plotCursor } from "./cursor.8bs";
 
 // The screen is addressed by flat cell index — a position is
 // `y * text.COLUMNS + x` — and these are the plainest things a text API
@@ -150,29 +151,12 @@ export namespace text {
         currentReverse = on;
     }
 
-    // Tells the KERNAL screen editor the cursor is at the start of row 1,
-    // through PLOT ($FFF0: carry clear, row in X, column in Y). print()/
-    // putChar() write straight into screen memory, which the editor's own
-    // cursor tracking never sees, so without this BASIC's next PRINT —
-    // READY. included — lands wherever the cursor was before the program
-    // ran, not under what the program just drew.
-    //
-    // Row 1 rather than row 0: PLOT's own pointer math walks the screen
-    // line link table ($D9, one byte per row — bit 7 clear on a row means
-    // "this row continues the one above") looking for where the cursor's
-    // logical line actually starts, and row 0's entry is whatever the boot
-    // banner's scrolling left there. Measured under xvic: PLOT to row 0
-    // landed READY. on row 2, same as row 1 — the stale table sends both
-    // to the same place — so row 1 is the one that costs nothing extra
-    // and is provably stable (rows 1, 2 and 5 all measured one row below
-    // where PLOT put them).
+    // Real hardware only past this call — see cursor.8bs, which carries
+    // the actual PLOT and its own explanation of what it does and why row
+    // 1, plus this function's own `.web` twin for the wasm backend
+    // (cursor.vic20.web.8bs), which has no KERNAL to call it on.
     function releaseCursor(): void {
-        asm6502 {
-            ldx #1
-            ldy #0
-            clc
-            jsr $FFF0
-        }
+        plotCursor();
     }
 
     function print(cell: usmallint, s: string): void {

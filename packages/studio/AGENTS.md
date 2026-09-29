@@ -86,7 +86,9 @@ audio — see [`docs/project/graphics.md`](../../docs/project/graphics.md) and
 ## Launching
 
 - `8bs run` in this directory (X16), or `pnpm start` / `pnpm run start:<target>`.
-- `8bs run cx16 --web` for the browser tab.
+- `8bs run cx16 --web --x16emu` for the browser tab — Studio needs the real
+  vendored emulator (mouse, VERA layers), not the lightweight preview
+  plain `--web` now builds for cx16, same as pet/vic20/c64.
 - VS Code **Launch Studio** runs the same command for a chosen system.
 
 Regenerate `src/mark.png` and `src/chime.wav` after changing the procedural

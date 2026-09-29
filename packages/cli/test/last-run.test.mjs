@@ -15,6 +15,16 @@ test('lastRunPath is dist/.8bs-last-<target>.json under cwd', () => {
   assert.equal(lastRunPath('web', '/tmp/proj'), join('/tmp/proj', 'dist', '.8bs-last-web.json'));
 });
 
+test('lastRunPath: web names a second file, distinct from that same target\'s native one — a real machine\'s own wasm preview and its native run can be running at once and need separate files, not one both race to write', () => {
+  assert.equal(lastRunPath('pet', '/tmp/proj', true), join('/tmp/proj', 'dist', '.8bs-last-pet-web.json'));
+  assert.equal(lastRunPath('pet', '/tmp/proj', false), lastRunPath('pet', '/tmp/proj'), 'web defaults false');
+  // The synthetic web target never has a native counterpart to collide
+  // with, so it keeps its one plain name even when a caller passes
+  // web: true for it — this function enforces that itself rather than
+  // trusting every call site to compute `target !== 'web' && web`.
+  assert.equal(lastRunPath('web', '/tmp/proj', true), lastRunPath('web', '/tmp/proj'));
+});
+
 test('hardwareSnapshot keeps the sheet a program was built for, not emulator flags', () => {
   assert.equal(hardwareSnapshot(null), null);
   assert.deepEqual(

@@ -1,0 +1,108 @@
+// screen.8bs's own `.web` twin — see text.cx16.web.8bs's header for why
+// this package needs one (VERA's VRAM sits behind a stateful address port
+// the wasm backend has no model of) and where its two planes live.
+//
+// Border/background: written to linear memory bytes 0/1, the fixed
+// location packages/cli/src/web-loader.mjs's paint() reads them from for
+// every colorPerCell skin (this catalog's own video.colorPerCell is
+// true — packages/cx16/package.json). Real VERA hardware has no such
+// bytes; its actual border register and per-cell attribute bytes are what
+// screen.8bs (this twin's real-hardware original) writes instead.
+const BORDER_OFFSET: usmallint = 0;
+const BACKGROUND_OFFSET: usmallint = 1;
+
+const CHAR_BASE: usmallint = 2;
+const COLOR_BASE: usmallint = 4258; // CHAR_BASE + CELL_COUNT (76 * 56) — must agree with text.cx16.web.8bs
+const CELL_COUNT: usmallint = 4256;
+
+export namespace screen {
+    function setColors(border: u8, background: u8): void {
+        memory.write(BORDER_OFFSET, border);
+        screen.setBackground(background);
+    }
+
+    // `blank(border, background)`: every cell blank, and both colors set —
+    // black when left off, or `BorderColor.KEEP` / `BackgroundColor.KEEP`
+    // to leave one as it is. Clears characters only: the real screen.8bs's
+    // own blank() leaves attribute bytes alone (its own comment says so),
+    // and the white-foreground reset is setBackground()'s documented side
+    // effect below, not this function's.
+    function blank(border: utinyint = BorderColor.BLACK, background: utinyint = BackgroundColor.BLACK): void {
+        if (border != BorderColor.KEEP) {
+            screen.setBorder(border);
+        }
+        if (background != BackgroundColor.KEEP) {
+            screen.setBackground(background);
+        }
+        for (let cell: usmallint = 0; cell < CELL_COUNT; cell++) {
+            memory.write(CHAR_BASE + cell, 32); // space
+        }
+    }
+
+    // Real screen.8bs's setBackground() repaints every cell's attribute
+    // byte (background high, white low) the same way setColors() does —
+    // any foreground text.putColor() set is reset to white here too.
+    function setBackground(background: u8): void {
+        memory.write(BACKGROUND_OFFSET, background);
+        for (let cell: usmallint = 0; cell < CELL_COUNT; cell++) {
+            memory.write(COLOR_BASE + cell, 1); // white, not reversed
+        }
+    }
+
+    function setBorder(border: u8): void {
+        memory.write(BORDER_OFFSET, border);
+    }
+
+    // Whether this machine's grid can change under a running program. It
+    // cannot: this is a machine, and its screen is the size its video chip
+    // makes it — same as screen.8bs's own RESIZABLE.
+    const RESIZABLE: bool = false;
+
+    function resized(): bool {
+        return false;
+    }
+}
+
+// The same eight names every machine's BorderColor/BackgroundColor share,
+// and the same values screen.8bs's own namespaces use — unchanged by this
+// twin, since VERA's default palette is the C64's sixteen colors in the
+// C64's own order (screen.8bs's own header).
+export namespace BorderColor {
+    const BLACK: utinyint = 0;
+    const WHITE: utinyint = 1;
+    const RED: utinyint = 2;
+    const CYAN: utinyint = 3;
+    const PURPLE: utinyint = 4;
+    const GREEN: utinyint = 5;
+    const BLUE: utinyint = 6;
+    const YELLOW: utinyint = 7;
+    const ORANGE: utinyint = 8;
+    const BROWN: utinyint = 9;
+    const LIGHT_RED: utinyint = 10;
+    const DARK_GREY: utinyint = 11;
+    const GREY: utinyint = 12;
+    const LIGHT_GREEN: utinyint = 13;
+    const LIGHT_BLUE: utinyint = 14;
+    const LIGHT_GREY: utinyint = 15;
+    const KEEP: utinyint = 255;
+}
+
+export namespace BackgroundColor {
+    const BLACK: utinyint = 0;
+    const WHITE: utinyint = 1;
+    const RED: utinyint = 2;
+    const CYAN: utinyint = 3;
+    const PURPLE: utinyint = 4;
+    const GREEN: utinyint = 5;
+    const BLUE: utinyint = 6;
+    const YELLOW: utinyint = 7;
+    const ORANGE: utinyint = 8;
+    const BROWN: utinyint = 9;
+    const LIGHT_RED: utinyint = 10;
+    const DARK_GREY: utinyint = 11;
+    const GREY: utinyint = 12;
+    const LIGHT_GREEN: utinyint = 13;
+    const LIGHT_BLUE: utinyint = 14;
+    const LIGHT_GREY: utinyint = 15;
+    const KEEP: utinyint = 255;
+}

@@ -786,7 +786,7 @@ test('analyze, hover, and completion never throw on any prefix of a real program
     join(FIXTURES, 'partial-subset.8bs'),
     // 8BX: every half-typed tag, attribute, brace and closing tag on the
     // way to a real component and a real composition (spec §90).
-    join(HERE, '..', '..', 'examples', 'hello-bx', 'src', 'Hello.8bx'),
+    join(HERE, '..', '..', 'examples', 'hello-8bx', 'src', 'Hello.8bx'),
     join(HERE, '..', '..', 'ui', 'src', 'menubar.8bx'),
     join(HERE, '..', '..', 'ui', 'test', 'menubar-probe.8bx'),
   ];

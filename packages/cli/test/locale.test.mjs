@@ -17,7 +17,7 @@ import { catalogTags, loadCatalog } from '../src/hardware.mjs';
 import { build, compile } from '../src/build.mjs';
 import { RELEASE_MACHINES } from '@8bitscript/compiler';
 
-// Packages resolve from this checkout, the way hello-bx.test.mjs does.
+// Packages resolve from this checkout, the way hello-8bx.test.mjs does.
 const REPO = resolve(import.meta.dirname, '..', '..', '..');
 
 function capture(fn) {
