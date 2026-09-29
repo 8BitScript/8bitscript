@@ -391,7 +391,7 @@ class Projects {
         invocation.command,
         [
           ...invocation.args,
-          'doctor', '--json',
+          'doctor', '--json', '--quick',
           ...(checkout ? ['--checkout', checkout] : []),
         ],
         {
