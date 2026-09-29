@@ -172,16 +172,19 @@ export const ORIGINAL_INSTALLERS = ['vice', 'atari800', 'fceux', 'x16emu', 'xmeg
 
 /** Parse `8bs doctor` argv after the command. `--all` wins over `--want`.
  * `want: null` is every installer doctor knows; `[]` is host tools only.
- * `--install` runs the offers without a prompt. */
+ * `--install` runs the offers without a prompt. `--quick` skips the boot
+ * probes (xvic actually opens a window to prove it boots — see bootCheck())
+ * for a caller that only wants existence/version, not a flashed emulator. */
 export function parseDoctorArgs(argv) {
   const json = argv.includes('--json');
   const install = argv.includes('--install');
-  if (argv.includes('--all')) return { json, install, want: 'all' };
+  const quick = argv.includes('--quick');
+  if (argv.includes('--all')) return { json, install, quick, want: 'all' };
   const idx = argv.indexOf('--want');
-  if (idx < 0) return { json, install, want: null };
+  if (idx < 0) return { json, install, quick, want: null };
   const next = argv[idx + 1];
-  if (!next || next.startsWith('-')) return { json, install, want: [] };
-  return { json, install, want: next.split(',').map((s) => s.trim()).filter(Boolean) };
+  if (!next || next.startsWith('-')) return { json, install, quick, want: [] };
+  return { json, install, quick, want: next.split(',').map((s) => s.trim()).filter(Boolean) };
 }
 
 /** Which INSTALLERS key (or `'pnpm'`) a check's installer object is. */
@@ -583,7 +586,7 @@ export async function vicePackageManagerVersion({
   return null;
 }
 
-async function checkVice() {
+async function checkVice({ quick = false } = {}) {
   const checks = [];
   // Fetched lazily, at most once per checkVice() run — one VICE install
   // serves every binary in the family, so the fallback lookups would
@@ -618,7 +621,9 @@ async function checkVice() {
       checks.push(result(OK, label, detail, null, { targets: [machine] }));
     }
   }
-  checks.push(await bootCheck());
+  checks.push(quick
+    ? result(SKIP, 'VIC-20 boot', 'skipped — --quick does not launch an emulator to verify it boots')
+    : await bootCheck());
   return { title: 'VICE (VIC-20 / C64 / PET / C128)', checks };
 }
 
@@ -1216,7 +1221,9 @@ function doctorReport(sections, targets = ALL_TARGETS) {
 }
 
 /** @returns {Promise<number>} process exit code */
-export async function doctor({ json = false, want = null, install = false } = {}) {
+export async function doctor({
+  json = false, want = null, install = false, quick = false,
+} = {}) {
   // A Dock-launched editor's PATH has none of nvm / pnpm / Homebrew. Append
   // those well-known bins before any check or one-key install runs, so
   // `pnpm` and `npx get-pnpm` resolve the same way the editor does.
@@ -1224,7 +1231,7 @@ export async function doctor({ json = false, want = null, install = false } = {}
 
   const sections = [
     await checkHost(),
-    await checkVice(),
+    await checkVice({ quick }),
     await checkOtherEmulators(),
     await checkScreenshotCapability(),
   ];
