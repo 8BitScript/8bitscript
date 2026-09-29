@@ -59,6 +59,8 @@ export interface BuildOptions {
   outFile: string;
   frameRate: number;
   report?: boolean;
+  /** Return what the linker's own optimizer did (severity 'remark' — never a problem, never printed unless asked for) as `BuildResult.remarks` — the CLI's `--remarks` flag. Off by default: optimize.mjs collects them regardless (a diagnostic object per rewrite is cheap), so this only decides whether a build bothers returning them. */
+  remarks?: boolean;
   /** Emit the two debug/development artifacts (debug.ts): `<outFile stem>.lst` and `<outFile stem>.8bs.debug.json`, and return them as `listing`/`debugMap` too. Off by default — computing and serializing them is wasted work for a release build that never asked for it (see mos/AGENTS.md's own performance section on this backend's pay-only-if-used discipline). */
   debug?: boolean;
   /** Every source file's own text, keyed the same way provenance.ts's `SourceSpan.file` names it (module.file — linker/index.mjs) — how the debug map resolves an offset into a line/column and a listing line reads back the source text it names. Only read when `debug` is true; a build with no debug info needs no source text kept around after linking. */
@@ -71,11 +73,23 @@ export interface SizeReportEntry {
   bytes: number;
 }
 
+/** The shape every diagnostic has (packages/compiler/src/diagnostics/index.mjs) — reproduced here rather than imported, since that module's JSDoc typedef has no TS-visible export. */
+export interface BuildRemark {
+  code: string;
+  message: string;
+  file: string;
+  start: number;
+  length: number;
+  severity: 'remark';
+}
+
 export type BuildResult =
   | {
     ok: true; bytes: Uint8Array; memory: { variables: number; program: number }; sizeReport?: SizeReportEntry[];
     /** Present only when BuildOptions.debug asked for it — also already written to `<outFile stem>.lst`/`.8bs.debug.json`, returned here too so a caller (the CLI, the VS Code extension) can use them without re-reading the files it just wrote. */
     listing?: ListingLine[]; debugMap?: DebugMap;
+    /** Present only when BuildOptions.remarks asked for it — what the linker's optimizer actually did (today: every `@unroll`). */
+    remarks?: BuildRemark[];
   }
   | { ok: false; error: string };
 
@@ -678,7 +692,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // globals whether called/read or not (see linker/reachability.mjs).
   // optimizeReachable prunes, folds compile-time work, then prunes again.
 
-  const { functions, globals } = optimizeReachable(ir);
+  const { functions, globals, remarks } = optimizeReachable(ir);
 
   // Every function's own file, from ir.functions — before optimizeReachable
   // prunes it away as dead code (a callee inlined at its only call site is
@@ -1338,6 +1352,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   return {
     ok: true, bytes, memory: { variables: linked.memory.variables, program: bytes.length },
     ...(sizeReport ? { sizeReport } : {}), ...(listing ? { listing } : {}), ...(debugMap ? { debugMap } : {}),
+    ...(options.remarks ? { remarks: remarks as BuildRemark[] } : {}),
   };
 }
 

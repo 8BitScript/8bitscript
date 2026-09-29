@@ -137,3 +137,21 @@ rather than a fabricated span. The debug map's `symbols` array separately
 lists every named global (from the zero-page allocator) and function
 (from its linked label address), so a consumer can show `score` instead
 of `$18` without walking every instruction to find where it's read.
+
+## What the optimizer did: `--remarks`
+
+`8bs build --remarks` prints what the linker's own optimizer
+(`linker/optimize.mjs`) actually did, as a diagnostic — severity
+`'remark'`, never a warning or an error, and never counted as a
+problem. Today, the one thing it reports is a program's own `@unroll`:
+how many copies of the loop's body replaced it, and roughly how many IR
+nodes that came to. Off by default (`8bs build` with no flag is
+unchanged, byte for byte); `optimizeReachable()` collects remarks on
+every build regardless, so `--remarks` only decides whether a build
+bothers returning and printing them, the same "pay only if used" split
+`--size`'s `sizeReport` and `--debug`'s listing already follow.
+
+Unlike `--size` and `--debug`, this exists on the `mos` backend (the
+6502-family targets `@unroll` and the automatic loop-unrolling work
+described in `docs/roadmap.md` are scoped to today) only — the
+WebAssembly backend does not yet return a `remarks` field.

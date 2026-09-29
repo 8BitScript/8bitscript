@@ -11,9 +11,14 @@
 //     tests every other rewrite in that file).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import { link } from '../index.mjs';
 import { optimizeIr } from '../src/linker/optimize.mjs';
+import { build } from '../src/mos/index.ts';
+import { loadCatalog, resolveHardware } from '../../cli/src/hardware.mjs';
 
 const codes = (diagnostics) => diagnostics.map((d) => d.code);
 const program = (body) => `export function main(): void {\n${body}\n}\n`;
@@ -134,4 +139,45 @@ test('a for loop with no @unroll and a non-string-copy body is left as a loop, n
   const out = optimizeIr(ir);
   assert.equal(out.functions[0].body.length, 1);
   assert.equal(out.functions[0].body[0].kind, 'for');
+});
+
+// ---- 8bs build --remarks: what @unroll did, surfaced end to end ----------
+
+test('build({ remarks: true }) returns an 8BS9001 remark naming the unroll count; without the option, none is returned', async () => {
+  const src = program(
+    '    let sum: utinyint = 0;\n'
+    + '    @unroll\n'
+    + '    for (let i: utinyint = 0; i < 4; i++) {\n'
+    + '        sum = sum + i;\n'
+    + '    }\n',
+  );
+  const entry = '/x/main.8bs';
+  const { ir, diagnostics } = link(src, entry, { machine: 'pet' });
+  assert.deepEqual(codes(diagnostics), []);
+  assert.ok(ir);
+
+  const resolved = resolveHardware(loadCatalog('pet'));
+  assert.ok(resolved.ok);
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-remarks-'));
+  try {
+    const plain = await build(ir, {
+      machine: 'pet', hardware: resolved.hardware, outFile: join(scratch, 'out.prg'), frameRate: 60,
+    });
+    assert.equal(plain.ok, true, plain.ok ? '' : plain.error);
+    assert.equal(plain.remarks, undefined, 'no --remarks, none returned — the same pay-only-if-used rule sizeReport follows');
+
+    const withRemarks = await build(ir, {
+      machine: 'pet', hardware: resolved.hardware, outFile: join(scratch, 'out.prg'), frameRate: 60, remarks: true,
+    });
+    assert.equal(withRemarks.ok, true, withRemarks.ok ? '' : withRemarks.error);
+    assert.equal(withRemarks.remarks.length, 1);
+    const [remark] = withRemarks.remarks;
+    assert.equal(remark.code, '8BS9001');
+    assert.equal(remark.severity, 'remark');
+    assert.equal(remark.file, entry);
+    assert.match(remark.message, /4 copies/);
+    assert.match(remark.message, /in main/);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
 });
