@@ -212,8 +212,8 @@ const MACHINE_TARGETS = new Set(['vic20', 'c64', 'c128', 'atari8', 'nes', 'mega6
  * default (`--x16emu` is the vendored real emulator's own opt-in, which
  * Studio's tab and this set have nothing to do with). Shared between
  * runner.cjs (decides it) and launcherView.cjs (shows it, in the Run
- * button's own sub-label and the dedicated Emulate button beside it)
- * so the two never quietly disagree. Grows by adding an entry
+ * button's own sub-label and its sliver menu's "Run in emulator"
+ * wording) so the two never quietly disagree. Grows by adding an entry
  * here once that machine's own package compiles through the wasm
  * backend for real.
  */
