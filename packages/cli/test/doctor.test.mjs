@@ -104,16 +104,17 @@ test('uniqueFixable: one offer per distinct 8bs setup command', () => {
   assert.deepEqual(offered.map((c) => c.label), ['x16emu (Commander X16)', 'xmega65 (MEGA65, via Xemu)']);
 });
 
-test('parseDoctorArgs: --json, --install, --all, --want, and all-emulators default', () => {
-  assert.deepEqual(parseDoctorArgs([]), { json: false, install: false, want: null });
-  assert.deepEqual(parseDoctorArgs(['--json']), { json: true, install: false, want: null });
-  assert.deepEqual(parseDoctorArgs(['--install']), { json: false, install: true, want: null });
-  assert.deepEqual(parseDoctorArgs(['--all', '--json']), { json: true, install: false, want: 'all' });
-  assert.deepEqual(parseDoctorArgs(['--install', '--want', 'vice,stella']), { json: false, install: true, want: ['vice', 'stella'] });
-  assert.deepEqual(parseDoctorArgs(['--want', 'vice,atari800']), { json: false, install: false, want: ['vice', 'atari800'] });
-  assert.deepEqual(parseDoctorArgs(['--want']), { json: false, install: false, want: [] });
-  assert.deepEqual(parseDoctorArgs(['--want', '--json']), { json: true, install: false, want: [] });
-  assert.deepEqual(parseDoctorArgs(['--all', '--want', 'stella']), { json: false, install: false, want: 'all' }, '--all wins');
+test('parseDoctorArgs: --json, --install, --quick, --all, --want, and all-emulators default', () => {
+  assert.deepEqual(parseDoctorArgs([]), { json: false, install: false, quick: false, want: null });
+  assert.deepEqual(parseDoctorArgs(['--json']), { json: true, install: false, quick: false, want: null });
+  assert.deepEqual(parseDoctorArgs(['--install']), { json: false, install: true, quick: false, want: null });
+  assert.deepEqual(parseDoctorArgs(['--quick', '--json']), { json: true, install: false, quick: true, want: null });
+  assert.deepEqual(parseDoctorArgs(['--all', '--json']), { json: true, install: false, quick: false, want: 'all' });
+  assert.deepEqual(parseDoctorArgs(['--install', '--want', 'vice,stella']), { json: false, install: true, quick: false, want: ['vice', 'stella'] });
+  assert.deepEqual(parseDoctorArgs(['--want', 'vice,atari800']), { json: false, install: false, quick: false, want: ['vice', 'atari800'] });
+  assert.deepEqual(parseDoctorArgs(['--want']), { json: false, install: false, quick: false, want: [] });
+  assert.deepEqual(parseDoctorArgs(['--want', '--json']), { json: true, install: false, quick: false, want: [] });
+  assert.deepEqual(parseDoctorArgs(['--all', '--want', 'stella']), { json: false, install: false, quick: false, want: 'all' }, '--all wins');
   assert.deepEqual(ORIGINAL_INSTALLERS, ['vice', 'atari800', 'fceux', 'x16emu', 'xmega65']);
 });
 
