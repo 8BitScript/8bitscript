@@ -36,6 +36,7 @@ const {
 const { machineTree, readLastRun, rowKey } = require('./runningMachines.cjs');
 const { resolveCheckoutRoot } = require('./checkout.cjs');
 const { installRoots } = require('./projectInfo.cjs');
+const { quietly } = require('./quietly.cjs');
 
 const VIEW_ID = '8bitscript.launcher';
 const CSS = fs.readFileSync(path.join(__dirname, '..', 'media', 'launcher.css'), 'utf8');
@@ -59,21 +60,26 @@ class LauncherViewProvider {
 
     const subscriptions = [
       view.webview.onDidReceiveMessage((message) => this.apply(message)),
+      // post() is async; none of these listeners are, so an uncaught
+      // rejection would otherwise be an unhandled promise rejection rather
+      // than a logged, best-effort refresh of the panel.
       vscode.workspace.onDidChangeConfiguration((event) => {
         if (settings.affectsAny(event) || event.affectsConfiguration('8bitscript.showExamples')) {
-          this.post();
+          void quietly('8BitScript launcher view', () => this.post());
         }
       }),
-      this.projects.onDidChange(() => this.post()),
-      view.onDidChangeVisibility(() => view.visible && this.post()),
+      this.projects.onDidChange(() => quietly('8BitScript launcher view', () => this.post())),
+      view.onDidChangeVisibility(() => view.visible && quietly('8BitScript launcher view', () => this.post())),
     ];
-    if (this.devReload) subscriptions.push(this.devReload.onDidChange(() => this.post()));
+    if (this.devReload) {
+      subscriptions.push(this.devReload.onDidChange(() => quietly('8BitScript launcher view', () => this.post())));
+    }
     view.onDidDispose(() => {
       for (const subscription of subscriptions) subscription.dispose();
       this.view = undefined;
     });
 
-    this.post();
+    void quietly('8BitScript launcher view', () => this.post());
   }
 
   /**
@@ -398,14 +404,18 @@ function systemOptions(targets, project, doctor = null) {
   // a machine a program was never written for is not a choice, and the way
   // to get one is to add it to 8bitscript.config.8bs.
   const fitted = project?.targets?.length > 0 ? project.targets : ALL_TARGETS;
-  const machines = groupedMachineOptions(ALL_TARGETS.filter((id) => fitted.includes(id)), (id) => ({
+  const systems = targets?.systems ?? [];
+  // A target already offered as a named system (below) is not repeated here
+  // as a bare machine — only what the systems block does not cover falls
+  // through to this list.
+  const covered = new Set(systems.map((system) => system.target));
+  const machines = groupedMachineOptions(ALL_TARGETS.filter((id) => fitted.includes(id) && !covered.has(id)), (id) => ({
     id,
     machine: MACHINE_TARGETS.has(id),
     label: targets?.get(id)?.title ? `${id} — ${targets.get(id).title}` : id,
     runnable: Boolean(project?.targets.includes(id)),
     muted: Boolean(project?.targets.includes(id)) && !emulatorIsReady(doctor, id),
   }));
-  const systems = targets?.systems ?? [];
   if (systems.length === 0) return machines;
   const groups = [
     ['project', 'This clone'],

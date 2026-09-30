@@ -284,7 +284,16 @@ export function start({ checkout } = {}) {
     connection.sendDiagnostics({ uri: document.uri, diagnostics });
   };
 
-  documents.onDidChangeContent((event) => validate(event.document));
+  // validate() is async (it awaits the filesystem for a project's frame
+  // rate and import aliases) and this handler cannot await it back — an
+  // event callback returns nothing to a caller that would. Left as a bare
+  // call, a rejection here (a config file that throws reading it, say)
+  // would be an unhandled promise rejection with nothing to catch it; one
+  // bad edit killing the whole language server is worse than one missed
+  // diagnostic pass, so it is caught and logged instead of left to crash.
+  documents.onDidChangeContent((event) => {
+    validate(event.document).catch((error) => connection.console.error(`validate() failed: ${error?.stack ?? error}`));
+  });
   documents.onDidClose((event) =>
     connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] }),
   );

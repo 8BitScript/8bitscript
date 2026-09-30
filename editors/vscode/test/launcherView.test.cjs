@@ -226,9 +226,17 @@ test('a named system the project set up is offered above the bare machines', () 
   targets.systems = [
     { name: 'C64 + REU', target: 'c64', label: 'reu512', origin: 'project', unmet: [] },
   ];
+  const options = systemOptions(targets, { targets: ['c64', 'pet'] });
+  // c64 is already offered as "C64 + REU" — it is not repeated as a bare
+  // machine underneath. pet has no named system, so it still falls through.
+  assert.deepEqual(idsOf(options), ['C64 + REU', 'pet']);
+});
+
+test('a named system covering every project target leaves no bare machines behind', () => {
+  const targets = new Map();
+  targets.systems = [
+    { name: 'C64 + REU', target: 'c64', label: 'reu512', origin: 'project', unmet: [] },
+  ];
   const options = systemOptions(targets, { targets: ['c64'] });
-  assert.deepEqual(idsOf(options), ['C64 + REU', 'c64']);
-  // And a named system for a machine the project does not target does not
-  // drag that machine into the list behind it.
-  assert.ok(!idsOf(options).includes('pet'));
+  assert.deepEqual(idsOf(options), ['C64 + REU']);
 });

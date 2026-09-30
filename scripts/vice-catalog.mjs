@@ -130,7 +130,14 @@ export function parseValues(doc) {
   // (NEOS), ...` and a pattern that stopped at the first `)` would read one
   // device where VICE offers forty-two. Whether what comes back is really a
   // list is decided below, by whether it holds `key:` pairs at all.
-  const labelled = doc.match(/\((.+)\)/);
+  // The first `(` to the *last* `)`, found with plain string search rather
+  // than a `.+` regex between the two literals: SonarQube (javascript:S8786)
+  // flags that shape as super-linear on backtracking, and indexOf/lastIndexOf
+  // says exactly the same thing — first open, last close — in one pass each,
+  // with no backtracking possible at all.
+  const openParen = doc.indexOf('(');
+  const closeParen = doc.lastIndexOf(')');
+  const labelled = openParen !== -1 && closeParen > openParen ? [null, doc.slice(openParen + 1, closeParen)] : null;
   if (labelled) {
     // Scanned as boundaries rather than split on commas, because VICE's own
     // text cannot be relied on to put one in: `-kernalrev` reads
@@ -138,13 +145,17 @@ export function parseValues(doc) {
     // `japanese` is missing, and a split would hand `1: rev. 1` back as part
     // of the Japanese kernal's label. Finding every `key:` instead and taking
     // the text between them recovers all seven revisions from the same line.
-    const boundary = /([A-Za-z0-9_/-]+)\s*[:=]\s*/g;
+    // Every quantifier here is capped (VICE never prints an option key or
+    // the run of whitespace/commas around one anywhere near these lengths)
+    // so a worst case is bounded work, not backtracking that grows with the
+    // input (javascript:S8786).
+    const boundary = /([A-Za-z0-9_/-]{1,64})[ \t]{0,16}[:=][ \t]{0,16}/g;
     const found = [...labelled[1].matchAll(boundary)];
     const values = {};
     for (let i = 0; i < found.length; i += 1) {
       const start = found[i].index + found[i][0].length;
       const end = i + 1 < found.length ? found[i + 1].index : labelled[1].length;
-      const label = labelled[1].slice(start, end).replace(/[,\s]+$/, '').trim();
+      const label = labelled[1].slice(start, end).replace(/[,\s]{1,32}$/, '').trim();
       // A key may be written as aliases — `39/gs`, `100/4064`, `0/jap`. The
       // first is the one VICE prints back, and the rest are recorded beside
       // it so a catalog can spell it either way and still be checked.
@@ -189,7 +200,12 @@ export function parseHelp(text) {
     // (`-controlport1device Device`, `-monitorfont font-description`).
     // Requiring the brackets drops those lines on the floor, and the control
     // ports are among them — hardware the C64's catalog already fits.
-    const match = lines[i].match(/^([-+])(\S+)(?:\s+(<[^>]*>|[^\s<][^\n]*?))?\s*$/);
+    // Every quantifier capped — an option name, its hint and the whitespace
+    // around them are all one short line of VICE's own --help text, nowhere
+    // near these lengths — so a worst case is bounded work, not the
+    // backtracking `\S+`/`\s+`/lazy-`*` next to each other would otherwise
+    // let grow with the input (javascript:S8786).
+    const match = lines[i].match(/^([-+])(\S{1,64})(?:[ \t]{1,16}(<[^>]{0,256}>|[^\s<][^\n]{0,256}?))?[ \t]{0,16}$/);
     if (!match) continue;
     const [, sign, name, arg] = match;
     const doc = (lines[i + 1] ?? '').startsWith('\t') ? lines[i + 1].trim() : '';
