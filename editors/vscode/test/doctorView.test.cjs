@@ -157,3 +157,28 @@ test('Run doctor and Install selected start 8bitscript.doctor', async () => {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('a message whose handling fails is logged and shown to the user, not left as an unhandled rejection', async () => {
+  const dir = tmpDir();
+  const projects = {
+    ...fakeProjects(fakeProject(dir)),
+    loadDoctor: async () => { throw new Error('doctor unavailable'); },
+  };
+  const panel = await openPanel(projects);
+  const logged = [];
+  const original = console.error;
+  console.error = (...args) => logged.push(args);
+  try {
+    panel.webview.__fire({ type: 'ready' });
+    await tick();
+    await tick();
+  } finally {
+    console.error = original;
+    panel.__dispose();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+  assert.equal(logged.length, 1);
+  assert.equal(logged[0][0], '8BitScript Doctor panel:');
+  const shown = vscode.__mock.calls.showErrorMessage.map((args) => args[0]);
+  assert.deepEqual(shown, ['8BitScript Doctor panel: doctor unavailable']);
+});

@@ -55,6 +55,7 @@ const {
   readProfile, writeProfile, hydrateUserProfile,
 } = require('./controllerStore.cjs');
 const { PAD_SVG } = require('./controllerPad.cjs');
+const { quietly } = require('./quietly.cjs');
 
 const CSS = fs.readFileSync(path.join(__dirname, '..', 'media', 'controller.css'), 'utf8');
 const JS = fs.readFileSync(path.join(__dirname, '..', 'media', 'controller.js'), 'utf8');
@@ -483,7 +484,7 @@ function registerControllerView(context, projects) {
           // The project the panel writes into is the launcher's selection,
           // and the hardware each machine is fitted with is what the
           // preview is computed from, so both move the panel.
-          if (settings.affectsAny(event)) view.post();
+          if (settings.affectsAny(event)) void quietly('8BitScript controller view', () => view.post());
         }),
       ];
       panel.webview.html = html(panel.webview);

@@ -56,6 +56,7 @@ const { fetchStatus, livePollPlan, readLastRun, rowKey } = require('./runningMac
 const { toolchainStatus } = require('./projectInfo.cjs');
 const { checkoutCli, isCheckout, managedCheckoutDir, managedUpdateCommand, resolveCheckoutRoot, runCheckout, writeToolchainFile } = require('./checkout.cjs');
 const { AssemblyViewController } = require('./assemblyView.cjs');
+const { quietly } = require('./quietly.cjs');
 
 const { regionShort } = settings;
 
@@ -545,13 +546,18 @@ function registerRunner(context, output) {
   const watcher = vscode.workspace.createFileSystemWatcher(`**/{${CONFIG_FILENAMES.join(',')}}`);
   context.subscriptions.push(
     watcher,
-    watcher.onDidCreate(() => projects.refresh()),
-    watcher.onDidDelete(() => projects.refresh()),
-    watcher.onDidChange(() => projects.refresh()),
-    vscode.workspace.onDidChangeWorkspaceFolders(() => projects.refresh()),
+    // projects.refresh() is async; none of these listeners are, so an
+    // uncaught rejection (a transient filesystem error, say) would
+    // otherwise be an unhandled promise rejection rather than a logged,
+    // best-effort refresh — the project tree just stays stale until the
+    // next trigger, which is the right failure mode for a watcher.
+    watcher.onDidCreate(() => quietly('8BitScript project refresh', () => projects.refresh())),
+    watcher.onDidDelete(() => quietly('8BitScript project refresh', () => projects.refresh())),
+    watcher.onDidChange(() => quietly('8BitScript project refresh', () => projects.refresh())),
+    vscode.workspace.onDidChangeWorkspaceFolders(() => quietly('8BitScript project refresh', () => projects.refresh())),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration('8bitscript.examplesPath') || e.affectsConfiguration('8bitscript.checkout')) {
-        projects.refresh();
+        void quietly('8BitScript project refresh', () => projects.refresh());
       } else if (e.affectsConfiguration('8bitscript.showExamples')) projects.changed.fire();
     }),
   );
@@ -776,7 +782,7 @@ function registerRunner(context, output) {
     const done = vscode.tasks.onDidEndTask((e) => {
       if (e.execution === execution) {
         done.dispose();
-        projects.refresh();
+        void quietly('8BitScript project refresh', () => projects.refresh());
       }
     });
     context.subscriptions.push(done);
@@ -1163,7 +1169,7 @@ function registerRunner(context, output) {
     edit.replace(uri, new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length)), updated);
     await vscode.workspace.applyEdit(edit);
     await document.save();
-    projects.refresh();
+    void quietly('8BitScript project refresh', () => projects.refresh());
   }
 
   const command = (id, handler) =>
@@ -1311,7 +1317,7 @@ function registerRunner(context, output) {
     if (project) vscode.window.showTextDocument(vscode.Uri.file(project.entry));
   });
 
-  projects.refresh();
+  void quietly('8BitScript project refresh', () => projects.refresh());
   startLivePoll(projects, context);
   return projects;
 }

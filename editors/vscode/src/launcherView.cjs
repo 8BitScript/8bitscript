@@ -36,6 +36,7 @@ const {
 const { machineTree, readLastRun, rowKey } = require('./runningMachines.cjs');
 const { resolveCheckoutRoot } = require('./checkout.cjs');
 const { installRoots } = require('./projectInfo.cjs');
+const { quietly } = require('./quietly.cjs');
 
 const VIEW_ID = '8bitscript.launcher';
 const CSS = fs.readFileSync(path.join(__dirname, '..', 'media', 'launcher.css'), 'utf8');
@@ -59,21 +60,26 @@ class LauncherViewProvider {
 
     const subscriptions = [
       view.webview.onDidReceiveMessage((message) => this.apply(message)),
+      // post() is async; none of these listeners are, so an uncaught
+      // rejection would otherwise be an unhandled promise rejection rather
+      // than a logged, best-effort refresh of the panel.
       vscode.workspace.onDidChangeConfiguration((event) => {
         if (settings.affectsAny(event) || event.affectsConfiguration('8bitscript.showExamples')) {
-          this.post();
+          void quietly('8BitScript launcher view', () => this.post());
         }
       }),
-      this.projects.onDidChange(() => this.post()),
-      view.onDidChangeVisibility(() => view.visible && this.post()),
+      this.projects.onDidChange(() => quietly('8BitScript launcher view', () => this.post())),
+      view.onDidChangeVisibility(() => view.visible && quietly('8BitScript launcher view', () => this.post())),
     ];
-    if (this.devReload) subscriptions.push(this.devReload.onDidChange(() => this.post()));
+    if (this.devReload) {
+      subscriptions.push(this.devReload.onDidChange(() => quietly('8BitScript launcher view', () => this.post())));
+    }
     view.onDidDispose(() => {
       for (const subscription of subscriptions) subscription.dispose();
       this.view = undefined;
     });
 
-    this.post();
+    void quietly('8BitScript launcher view', () => this.post());
   }
 
   /**

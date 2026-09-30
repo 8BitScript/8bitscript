@@ -20,6 +20,7 @@ const { hardwareState, selectionLabel } = require('./hardwareCatalog.cjs');
 const {
   layerNames, projectSystemsPath, saveLayer, upsertSystem, userSystemsPath,
 } = require('./systemsStore.cjs');
+const { quietly } = require('./quietly.cjs');
 
 const CSS = fs.readFileSync(path.join(__dirname, '..', 'media', 'system.css'), 'utf8');
 const HARDWARE_JS = fs.readFileSync(path.join(__dirname, '..', 'media', 'hardware.js'), 'utf8');
@@ -206,7 +207,9 @@ class SystemPanel {
       profile: this.draft.profile,
       options: this.draft.options,
     });
-    this.projects.refresh();
+    // refresh() is async and this method has nothing to hand the rejection
+    // back to once it returns its own result to the caller above.
+    Promise.resolve(this.projects.refresh()).catch((error) => console.error('8BitScript project refresh:', error));
     vscode.window.showInformationMessage(`Saved '${name}' as a ${destination.layer === 'advertised' ? 'advertised' : destination.layer} system.`);
   }
 
@@ -357,7 +360,7 @@ function registerSystemView(context, projects) {
         panel.webview.onDidReceiveMessage((message) => view.apply(message)),
         projects.onDidChange(() => view.post()),
         vscode.workspace.onDidChangeConfiguration((event) => {
-          if (settings.affectsAny(event)) view.post();
+          if (settings.affectsAny(event)) void quietly('8BitScript system view', () => view.post());
         }),
       ];
       panel.webview.html = html(panel.webview);

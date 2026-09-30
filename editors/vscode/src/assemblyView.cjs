@@ -194,7 +194,10 @@ class AssemblyViewController {
     // editors the way a fully live bidirectional sync would need to guard
     // against (see the plan's own "ultimate direction" section: this is
     // the one-shot version of it).
-    this.revealSource(source);
+    // revealSource() is async; nothing here awaits it back (this handler
+    // isn't async itself), so an uncaught rejection would be an unhandled
+    // promise rejection rather than a logged, best-effort navigation.
+    Promise.resolve(this.revealSource(source)).catch((error) => console.error('8BitScript assembly view:', error));
   }
 
   async revealSource(source) {
