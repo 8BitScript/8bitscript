@@ -53,6 +53,7 @@
         "video.layers": 1,
         "video.scroll": false,
         "video.raster": false,
+        "video.colorBlend": false,
         "video.sprites": 32,
         "video.spritesPerLine": 4,
         "video.spriteWidth": 16,

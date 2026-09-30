@@ -1,0 +1,29 @@
+// @8bitscript/color on the web: not implemented.
+//
+// @8bitscript/web's own rasterline.8bs says what this host is: the
+// picture-line list "IS the whole implementation... rendering is
+// idealized... the web target proves semantics, never fit." There is no
+// CRT and no simulated phosphor persistence between the browser's
+// frames — alternating a color here would be visible flicker, not a
+// blend, which is a weaker, different effect than the technique
+// promises. Left unimplemented rather than shipped as a "blend" that is
+// really only flicker.
+//
+// ---- the portable surface --------------------------------------------
+//
+// The same three calls as every color file, answering nothing: blend()
+// returns false and changes nothing, stop() and update() do nothing.
+// #fact(video.colorBlend) is false on this machine, so a program that
+// keeps its blend behind that fact folds the whole branch away and this
+// file costs it nothing; a call that reaches this file anyway is inert.
+export namespace color {
+    function blend(slot: utinyint, a: utinyint, b: utinyint): bool {
+        return false;
+    }
+
+    function stop(slot: utinyint): void {
+    }
+
+    function update(): void {
+    }
+}

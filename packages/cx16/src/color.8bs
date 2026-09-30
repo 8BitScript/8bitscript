@@ -1,0 +1,29 @@
+// @8bitscript/color on the Commander X16: not needed.
+//
+// VERA's palette is 256 entries, each a full 12-bit RGB value a program
+// sets directly — the problem the C64's flicker blend solves, sixteen
+// colors fixed in silicon, does not exist here. A program that wants a
+// shade between two of VERA's colors defines a 257th: a new palette
+// entry with that exact color, set once, with no flicker, no CRT-
+// persistence gamble, and no cost every frame. This is not a stub for a
+// missing capability; it is the honest answer that the capability is
+// better met a different way on this hardware.
+//
+// ---- the portable surface --------------------------------------------
+//
+// The same three calls as every color file, answering nothing: blend()
+// returns false and changes nothing, stop() and update() do nothing.
+// #fact(video.colorBlend) is false on this machine, so a program that
+// keeps its blend behind that fact folds the whole branch away and this
+// file costs it nothing; a call that reaches this file anyway is inert.
+export namespace color {
+    function blend(slot: utinyint, a: utinyint, b: utinyint): bool {
+        return false;
+    }
+
+    function stop(slot: utinyint): void {
+    }
+
+    function update(): void {
+    }
+}

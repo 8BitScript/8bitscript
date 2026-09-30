@@ -1,0 +1,36 @@
+// @8bitscript/color on the VIC-20: not implemented.
+//
+// The VIC's border and background registers are, like the VIC-II's,
+// fixed indices into a 16-color palette, and the same CRT-persistence
+// argument that makes the C64's flicker blend work in principle applies
+// to a real VIC-20 on a real television. But no documented VIC-20 demo
+// or technical reference this project's research found actually does
+// it — unlike the C64's well-known "more than 16 colours" family, this
+// one is unconfirmed, not disproven. #fact(video.raster) is already
+// false here for a different, unrelated reason
+// (@8bitscript/vic20/rasterline: "the VIC raises no raster interrupt...
+// nobody has written [a polling driver]") — a whole-frame color
+// alternation needs no raster interrupt at all, only a register write
+// once a frame from the main loop, so that gap is not this one. Left
+// honestly unimplemented until someone verifies the technique on real
+// hardware or against a cited source, rather than assumed to work from
+// the C64's argument alone.
+//
+// ---- the portable surface --------------------------------------------
+//
+// The same three calls as every color file, answering nothing: blend()
+// returns false and changes nothing, stop() and update() do nothing.
+// #fact(video.colorBlend) is false on this machine, so a program that
+// keeps its blend behind that fact folds the whole branch away and this
+// file costs it nothing; a call that reaches this file anyway is inert.
+export namespace color {
+    function blend(slot: utinyint, a: utinyint, b: utinyint): bool {
+        return false;
+    }
+
+    function stop(slot: utinyint): void {
+    }
+
+    function update(): void {
+    }
+}
