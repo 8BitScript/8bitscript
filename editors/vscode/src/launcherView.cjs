@@ -59,21 +59,26 @@ class LauncherViewProvider {
 
     const subscriptions = [
       view.webview.onDidReceiveMessage((message) => this.apply(message)),
+      // post() is async; none of these listeners are, so an uncaught
+      // rejection would otherwise be an unhandled promise rejection rather
+      // than a logged, best-effort refresh of the panel.
       vscode.workspace.onDidChangeConfiguration((event) => {
         if (settings.affectsAny(event) || event.affectsConfiguration('8bitscript.showExamples')) {
-          this.post();
+          Promise.resolve(this.post()).catch((error) => console.error('8BitScript launcher view:', error));
         }
       }),
-      this.projects.onDidChange(() => this.post()),
-      view.onDidChangeVisibility(() => view.visible && this.post()),
+      this.projects.onDidChange(() => Promise.resolve(this.post()).catch((error) => console.error('8BitScript launcher view:', error))),
+      view.onDidChangeVisibility(() => view.visible && Promise.resolve(this.post()).catch((error) => console.error('8BitScript launcher view:', error))),
     ];
-    if (this.devReload) subscriptions.push(this.devReload.onDidChange(() => this.post()));
+    if (this.devReload) {
+      subscriptions.push(this.devReload.onDidChange(() => Promise.resolve(this.post()).catch((error) => console.error('8BitScript launcher view:', error))));
+    }
     view.onDidDispose(() => {
       for (const subscription of subscriptions) subscription.dispose();
       this.view = undefined;
     });
 
-    this.post();
+    Promise.resolve(this.post()).catch((error) => console.error('8BitScript launcher view:', error));
   }
 
   /**

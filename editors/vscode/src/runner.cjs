@@ -545,13 +545,18 @@ function registerRunner(context, output) {
   const watcher = vscode.workspace.createFileSystemWatcher(`**/{${CONFIG_FILENAMES.join(',')}}`);
   context.subscriptions.push(
     watcher,
-    watcher.onDidCreate(() => projects.refresh()),
-    watcher.onDidDelete(() => projects.refresh()),
-    watcher.onDidChange(() => projects.refresh()),
-    vscode.workspace.onDidChangeWorkspaceFolders(() => projects.refresh()),
+    // projects.refresh() is async; none of these listeners are, so an
+    // uncaught rejection (a transient filesystem error, say) would
+    // otherwise be an unhandled promise rejection rather than a logged,
+    // best-effort refresh — the project tree just stays stale until the
+    // next trigger, which is the right failure mode for a watcher.
+    watcher.onDidCreate(() => Promise.resolve(projects.refresh()).catch((error) => console.error('8BitScript project refresh:', error))),
+    watcher.onDidDelete(() => Promise.resolve(projects.refresh()).catch((error) => console.error('8BitScript project refresh:', error))),
+    watcher.onDidChange(() => Promise.resolve(projects.refresh()).catch((error) => console.error('8BitScript project refresh:', error))),
+    vscode.workspace.onDidChangeWorkspaceFolders(() => Promise.resolve(projects.refresh()).catch((error) => console.error('8BitScript project refresh:', error))),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration('8bitscript.examplesPath') || e.affectsConfiguration('8bitscript.checkout')) {
-        projects.refresh();
+        Promise.resolve(projects.refresh()).catch((error) => console.error('8BitScript project refresh:', error));
       } else if (e.affectsConfiguration('8bitscript.showExamples')) projects.changed.fire();
     }),
   );
@@ -776,7 +781,7 @@ function registerRunner(context, output) {
     const done = vscode.tasks.onDidEndTask((e) => {
       if (e.execution === execution) {
         done.dispose();
-        projects.refresh();
+        Promise.resolve(projects.refresh()).catch((error) => console.error('8BitScript project refresh:', error));
       }
     });
     context.subscriptions.push(done);
@@ -1163,7 +1168,7 @@ function registerRunner(context, output) {
     edit.replace(uri, new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length)), updated);
     await vscode.workspace.applyEdit(edit);
     await document.save();
-    projects.refresh();
+    Promise.resolve(projects.refresh()).catch((error) => console.error('8BitScript project refresh:', error));
   }
 
   const command = (id, handler) =>
@@ -1311,7 +1316,7 @@ function registerRunner(context, output) {
     if (project) vscode.window.showTextDocument(vscode.Uri.file(project.entry));
   });
 
-  projects.refresh();
+  Promise.resolve(projects.refresh()).catch((error) => console.error('8BitScript project refresh:', error));
   startLivePoll(projects, context);
   return projects;
 }

@@ -206,7 +206,9 @@ class SystemPanel {
       profile: this.draft.profile,
       options: this.draft.options,
     });
-    this.projects.refresh();
+    // refresh() is async and this method has nothing to hand the rejection
+    // back to once it returns its own result to the caller above.
+    Promise.resolve(this.projects.refresh()).catch((error) => console.error('8BitScript project refresh:', error));
     vscode.window.showInformationMessage(`Saved '${name}' as a ${destination.layer === 'advertised' ? 'advertised' : destination.layer} system.`);
   }
 
@@ -357,7 +359,7 @@ function registerSystemView(context, projects) {
         panel.webview.onDidReceiveMessage((message) => view.apply(message)),
         projects.onDidChange(() => view.post()),
         vscode.workspace.onDidChangeConfiguration((event) => {
-          if (settings.affectsAny(event)) view.post();
+          if (settings.affectsAny(event)) Promise.resolve(view.post()).catch((error) => console.error('8BitScript system view:', error));
         }),
       ];
       panel.webview.html = html(panel.webview);

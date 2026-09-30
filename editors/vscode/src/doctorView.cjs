@@ -152,7 +152,14 @@ function registerDoctorView(context, projects) {
       );
       const view = new DoctorPanel(panel, projects);
       const subscriptions = [
-        panel.webview.onDidReceiveMessage((message) => view.apply(message)),
+        panel.webview.onDidReceiveMessage((message) => Promise.resolve(view.apply(message)).catch((error) => {
+          // view.apply() is async; a webview message handler has no caller
+          // to return a rejection to, so an uncaught one here would be an
+          // unhandled promise rejection instead of a report the user (or a
+          // future debugger) can see.
+          console.error('8BitScript Doctor panel:', error);
+          vscode.window.showErrorMessage(`8BitScript Doctor panel: ${error?.message ?? error}`);
+        })),
         projects.onDidChange(() => view.post()),
         vscode.workspace.onDidChangeConfiguration((event) => {
           if (event.affectsConfiguration('8bitscript.doctorEmulators')) view.post();

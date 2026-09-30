@@ -483,7 +483,7 @@ function registerControllerView(context, projects) {
           // The project the panel writes into is the launcher's selection,
           // and the hardware each machine is fitted with is what the
           // preview is computed from, so both move the panel.
-          if (settings.affectsAny(event)) view.post();
+          if (settings.affectsAny(event)) Promise.resolve(view.post()).catch((error) => console.error('8BitScript controller view:', error));
         }),
       ];
       panel.webview.html = html(panel.webview);

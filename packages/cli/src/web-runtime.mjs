@@ -437,6 +437,15 @@ export async function runInBrowser(wasmBytes, { open = true, frameRate = 60, roo
     handleStatusRequest(req, res, pathname, status).then((handled) => {
       if (handled) return;
       serveProgram(req, res, pathname);
+    }).catch((error) => {
+      // An unhandled rejection here would be an unhandled rejection inside
+      // an HTTP server's own request callback — one bad request killing the
+      // whole dev server. Logged and answered with a real response instead.
+      console.error('8bs run --web:', error?.stack ?? error);
+      if (!res.headersSent) {
+        res.writeHead(500, ISOLATION_HEADERS);
+      }
+      res.end();
     });
   }, { lan, port });
   if (listening.error) {
@@ -467,7 +476,11 @@ export async function runInBrowser(wasmBytes, { open = true, frameRate = 60, roo
 
   return new Promise((resolvePromise) => {
     process.on('SIGINT', () => {
-      listening.close().then(() => resolvePromise(0));
+      // A rejection here (the server already closed, say) would otherwise be
+      // an unhandled promise rejection on the way out — resolve with the
+      // same exit code either way, since Ctrl+C asked to stop regardless of
+      // whether the close reports an error.
+      listening.close().then(() => resolvePromise(0)).catch(() => resolvePromise(0));
     });
   });
 }

@@ -800,7 +800,14 @@ export async function controller(args) {
     if (req.method === 'POST') {
       readJsonBody(req, MESSAGE_LIMIT).then((body) => send(respond(
         { method: 'POST', pathname: url.pathname, body }, { session, assets, token },
-      )));
+      ))).catch((error) => {
+        // readJsonBody rejects on oversized or unparseable input — a real,
+        // expected case from a real client, not a server bug, so it gets a
+        // real HTTP response rather than becoming an unhandled rejection
+        // that would otherwise take the whole controller server down.
+        res.writeHead(400, { 'Content-Type': 'text/plain' });
+        res.end(`bad request: ${error?.message ?? error}`);
+      });
       return;
     }
     send(respond({ method: req.method ?? 'GET', pathname: url.pathname }, { session, assets, token }));
