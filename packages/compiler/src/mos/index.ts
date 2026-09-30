@@ -1444,6 +1444,7 @@ export interface EdgeSyncCalibrated {
   ack: string;
   presync?: string;
   calibrate: (frameRate: number) => string;
+  frameHook?: string;
 }
 
 export type FrameSync = LevelSync | EdgeSyncFixed | EdgeSyncCalibrated;
@@ -1611,6 +1612,11 @@ export const FRAME_SYNC: Record<Machine, FrameSync> = {
     pollFlag: '(*(volatile uint8_t *)0xE813) & 0x80',
     ack: '(void)(*(volatile uint8_t *)0xE812);',
     presync: '__asm__ volatile("sei" ::: "memory");',
+    // The 3032 tag's own rasterline.pet.3032.8bs names this — every other
+    // PET model's rasterline is the honest stub and exports no such
+    // function, so frameHookLabel stays null there and nothing is JSR'd
+    // (packages/pet/AGENTS.md, "Raster: character-set switching").
+    frameHook: 'petRasterFrame',
     // A function of the configured `frameRate`, not a plain string: unlike
     // every other machine here, the PET's num/den pair is computed from a
     // runtime measurement, not a compile-time constant, so scaling by the
