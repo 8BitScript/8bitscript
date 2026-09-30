@@ -118,6 +118,7 @@ import { Mark } from "./Mark.8bx";
 // wobble. Both compile-time: every `if` on them below is folded while
 // compiling, so a machine that answers false never sees that code.
 const HAS_RASTER: bool = #fact(video.raster);
+const BANDS: bool = raster.COLORS;   // this demo's colour bands: BORDER/BACKGROUND
 const WOBBLES: bool = raster.FINE_SCROLL;
 
 // This machine's row width, so cell = y * ROW + x. A bare const name is
@@ -200,8 +201,13 @@ function drawScreen(): void {
     // captions is in the build at all.
     if (WOBBLES) {
         text.print(centered(CAPTION_ROW, 17), "THE TITLE WOBBLES");
-    } else if (HAS_RASTER) {
+    } else if (BANDS) {
         text.print(centered(CAPTION_ROW, 18), "SPLITS, NO WOBBLE");
+    } else if (HAS_RASTER) {
+        // A real raster capability this demo doesn't draw with: the PET's
+        // is a character-set split (Slot.CHARSET), not a colour one, and
+        // this showpiece is specifically the colour one.
+        text.print(centered(CAPTION_ROW, 19), "RASTER, NOT COLOUR");
     } else {
         text.print(centered(CAPTION_ROW, 21), "NO RASTER SPLITS HERE");
     }
@@ -232,7 +238,7 @@ export function main(): void {
     audio.play(chime);
     drawScreen();
 
-    if (HAS_RASTER) {
+    if (BANDS) {
         // The list, built once: lines and slots stand for the program's
         // whole life, and only the band's value bytes are rewritten each
         // frame. Entries go in ascending line order — the C64's handler

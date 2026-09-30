@@ -141,7 +141,8 @@
               },
               "facts": {
                 "video.columns": 40,
-                "video.frameRate": 60
+                "video.frameRate": 60,
+                "video.raster": true
               }
             },
             "4016": {

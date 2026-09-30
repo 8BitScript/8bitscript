@@ -1,13 +1,17 @@
-// `Slot.CHARSET`, `raster.COLORS` and `raster.CHARSET` (added 2026-09-30,
-// ahead of a real PET implementation): the portable raster surface names a
-// fourth per-line intent — a machine's alternate character set — and two
-// compile-time constants a program folds on to ask which intents a real
-// implementation answers, the same way `raster.FINE_SCROLL` already lets a
-// program fold away a wobble on a machine with splits but no scroll. Every
-// machine answers `CHARSET` false today (no driver exists yet); `COLORS`
-// is true exactly where `BORDER`/`BACKGROUND` already are (C64, VIC-20,
-// web). This file is the "answers nothing but costs zero" gate for the new
-// slot, mirroring test/rasterline.test.mjs's gate for the capability as a
+// `Slot.CHARSET`, `raster.COLORS` and `raster.CHARSET`: the portable raster
+// surface names a fourth per-line intent — a machine's alternate character
+// set — and two compile-time constants a program folds on to ask which
+// intents a real implementation answers, the same way `raster.FINE_SCROLL`
+// already lets a program fold away a wobble on a machine with splits but
+// no scroll. `COLORS` is true exactly where `BORDER`/`BACKGROUND` already
+// are (C64, VIC-20, web). `CHARSET` is false on every DEFAULT-hardware
+// build — the sweep below builds each target with no `--hardware`, the
+// honest-stub case every rasterline file answers the same way — except
+// the PET's own `3032` model tag, which has a real driver
+// (packages/pet/AGENTS.md, "Raster: character-set switching"); the test
+// after this one checks that tag specifically. This file is the "answers
+// nothing but costs zero" gate for the new slot on every OTHER build,
+// mirroring test/rasterline.test.mjs's gate for the capability as a
 // whole.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -16,7 +20,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { link } from '../index.mjs';
-import { stockFacts } from '../../cli/src/hardware.mjs';
+import { loadCatalog, resolveHardware, stockFacts } from '../../cli/src/hardware.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CHECKOUT = join(HERE, '..', '..', '..');
@@ -70,4 +74,26 @@ test('Slot.CHARSET is 3, the same arbitrary number in all thirty-two rasterline 
     );
     assert.deepEqual(diagnostics, [], target);
   }
+});
+
+test('the PET 3032 model tag answers raster.CHARSET true, the one real implementation among the thirty-two stubs', () => {
+  const program = `import { raster } from "@8bitscript/raster";
+export function main(): void {
+    if (raster.CHARSET) {
+        raster.clear();
+    }
+    return;
+}
+`;
+  const resolved = resolveHardware(loadCatalog('pet'), { overrides: { model: '3032' } });
+  assert.ok(resolved.ok, resolved.ok ? '' : resolved.error);
+  const entry = join(HERE, 'rasterline-charset-3032.8bs');
+  const { ir, diagnostics } = link(program, entry, {
+    machine: 'pet', facts: resolved.hardware.facts, tags: ['3032'], checkout: CHECKOUT,
+  });
+  assert.deepEqual(diagnostics, []);
+  const main = ir.functions.find((f) => f.name === 'main');
+  const guard = main.body.find((s) => s.kind === 'if');
+  assert.equal(guard.test.kind, 'const');
+  assert.equal(Boolean(guard.test.value), true, 'the 3032 tag answers raster.CHARSET true');
 });
