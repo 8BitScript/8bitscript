@@ -107,7 +107,7 @@ async function importStripped(path, dir) {
 }
 
 /**
- * Options a project may still carry in its 8bitscript.config.ts that no
+ * Options a project may still carry in its 8bitscript.config.8bs that no
  * longer do anything. A build names them rather than ignoring them: a knob
  * that silently stopped working is worse than one that says so, and the
  * project can delete the line knowing what it bought.
@@ -136,7 +136,7 @@ export function retiredOptionWarnings(config) {
   if (!config || typeof config !== 'object') return [];
   return [...RETIRED_OPTIONS]
     .filter(([name]) => name in config)
-    .map(([name, why]) => `8bitscript.config.ts's ${name} no longer does anything: ${why}`);
+    .map(([name, why]) => `8bitscript.config.8bs's ${name} no longer does anything: ${why}`);
 }
 
 /**
@@ -154,7 +154,7 @@ export function resolveFrameRate(config) {
   if (!Number.isInteger(frameRate) || frameRate <= 0) {
     return {
       ok: false,
-      error: `8bitscript.config.ts's frameRate must be a positive integer, got ${JSON.stringify(config?.frameRate)}`,
+      error: `8bitscript.config.8bs's frameRate must be a positive integer, got ${JSON.stringify(config?.frameRate)}`,
     };
   }
   return { ok: true, frameRate };
@@ -244,7 +244,7 @@ export function resolveI18n(config, { projectDir = process.cwd(), tags = [] } = 
   const block = config?.i18n;
   const catalogRel = block?.catalog ?? DEFAULT_CATALOG_DIR;
   if (block?.catalog !== undefined && typeof block.catalog !== 'string') {
-    return { ok: false, error: `8bitscript.config.ts's i18n.catalog must be a path in quotes, got ${JSON.stringify(block.catalog)}` };
+    return { ok: false, error: `8bitscript.config.8bs's i18n.catalog must be a path in quotes, got ${JSON.stringify(block.catalog)}` };
   }
   const catalogDir = join(projectDir, catalogRel);
   const discovered = discoverCatalogLocales(catalogDir);
@@ -252,7 +252,7 @@ export function resolveI18n(config, { projectDir = process.cwd(), tags = [] } = 
 
   const charset = block?.charset ?? 'transliterate';
   if (charset !== 'transliterate' && charset !== 'strict') {
-    return { ok: false, error: `8bitscript.config.ts's i18n.charset must be 'transliterate' or 'strict', got ${JSON.stringify(block.charset)}` };
+    return { ok: false, error: `8bitscript.config.8bs's i18n.charset must be 'transliterate' or 'strict', got ${JSON.stringify(block.charset)}` };
   }
 
   const checkName = (where, value) => {
@@ -261,28 +261,28 @@ export function resolveI18n(config, { projectDir = process.cwd(), tags = [] } = 
   };
 
   if (block?.defaultLocale !== undefined) {
-    const problem = checkName("8bitscript.config.ts's i18n.defaultLocale", block.defaultLocale);
+    const problem = checkName("8bitscript.config.8bs's i18n.defaultLocale", block.defaultLocale);
     if (problem) return { ok: false, error: problem };
   }
   if (block?.fallbackLocale !== undefined) {
-    const problem = checkName("8bitscript.config.ts's i18n.fallbackLocale", block.fallbackLocale);
+    const problem = checkName("8bitscript.config.8bs's i18n.fallbackLocale", block.fallbackLocale);
     if (problem) return { ok: false, error: problem };
   }
 
   let locales;
   if (block?.locales !== undefined) {
     if (!Array.isArray(block.locales) || block.locales.some((name) => typeof name !== 'string')) {
-      return { ok: false, error: "8bitscript.config.ts's i18n.locales must be an array of locale names" };
+      return { ok: false, error: "8bitscript.config.8bs's i18n.locales must be an array of locale names" };
     }
     for (const name of block.locales) {
-      const problem = checkName("8bitscript.config.ts's i18n.locales", name);
+      const problem = checkName("8bitscript.config.8bs's i18n.locales", name);
       if (problem) return { ok: false, error: problem };
     }
     const listed = [...block.locales];
     const missing = listed.filter((name) => !discovered.includes(name));
     const extra = discovered.filter((name) => !listed.includes(name));
     if (missing.length > 0) {
-      return { ok: false, error: `8bitscript.config.ts's i18n.locales names '${missing.join("', '")}', but ${catalogRel}/${missing[0]}.8bs is missing` };
+      return { ok: false, error: `8bitscript.config.8bs's i18n.locales names '${missing.join("', '")}', but ${catalogRel}/${missing[0]}.8bs is missing` };
     }
     if (extra.length > 0) {
       return { ok: false, error: `${catalogRel}/${extra[0]}.8bs is a catalog file that i18n.locales does not list` };
@@ -295,10 +295,10 @@ export function resolveI18n(config, { projectDir = process.cwd(), tags = [] } = 
   const defaultLocale = block?.defaultLocale ?? 'en';
   const fallbackLocale = block?.fallbackLocale ?? defaultLocale;
   if (locales.length > 0 && !locales.includes(defaultLocale)) {
-    return { ok: false, error: `8bitscript.config.ts's i18n.defaultLocale '${defaultLocale}' has no ${catalogRel}/${defaultLocale}.8bs` };
+    return { ok: false, error: `8bitscript.config.8bs's i18n.defaultLocale '${defaultLocale}' has no ${catalogRel}/${defaultLocale}.8bs` };
   }
   if (locales.length > 0 && !locales.includes(fallbackLocale)) {
-    return { ok: false, error: `8bitscript.config.ts's i18n.fallbackLocale '${fallbackLocale}' has no ${catalogRel}/${fallbackLocale}.8bs` };
+    return { ok: false, error: `8bitscript.config.8bs's i18n.fallbackLocale '${fallbackLocale}' has no ${catalogRel}/${fallbackLocale}.8bs` };
   }
 
   return {
@@ -330,9 +330,9 @@ export function resolveLocale(config, { target, override, tags = [], projectDir 
   const targetLocale = (target && config?.targets && !Array.isArray(config.targets)) ? config.targets[target]?.locale : undefined;
   const candidates = [
     ['--locale', override],
-    [`8bitscript.config.ts's targets.${target}.locale`, targetLocale],
-    ["8bitscript.config.ts's locale", config?.locale],
-    ["8bitscript.config.ts's i18n.defaultLocale", config?.i18n?.defaultLocale],
+    [`8bitscript.config.8bs's targets.${target}.locale`, targetLocale],
+    ["8bitscript.config.8bs's locale", config?.locale],
+    ["8bitscript.config.8bs's i18n.defaultLocale", config?.i18n?.defaultLocale],
   ];
   for (const [where, value] of candidates) {
     if (value === undefined) continue;

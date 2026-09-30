@@ -25,11 +25,12 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-// 8bitscript.config.8bs is the current name; 8bitscript.config.ts and the
-// older 8bs.config.ts (every project through 0.3.0) still mark a project
-// so existing ones keep working. Checked in this order — the same order
-// as the CLI's own loader (packages/cli/src/config.mjs), so a directory
-// with more than one is one project under the newest name, never two.
+// 8bitscript.config.8bs is the current name; 8bitscript.config.ts (0.4.0
+// through 0.22.x) and the older 8bs.config.ts (every project through
+// 0.3.0) still mark a project so existing ones keep working. Checked in
+// this order — the same order as the CLI's own loader
+// (packages/cli/src/config.mjs), so a directory with more than one is
+// one project under the newest name, never two.
 const CONFIG_FILENAMES = ['8bitscript.config.8bs', '8bitscript.config.ts', '8bs.config.ts'];
 
 // The canonical name, for messages that talk about the file in the abstract.
@@ -256,7 +257,7 @@ function quotedStrings(text) {
 }
 
 /**
- * Read `entry` and `targets` out of an 8bitscript.config.ts.
+ * Read `entry` and `targets` out of an 8bitscript.config.8bs.
  *
  * The config is a TypeScript module, which the editor host cannot import; but
  * its documented shape is two literal keys, so a textual read is enough and
@@ -873,7 +874,7 @@ function loadExamples(toolchain) {
 /**
  * The examples under one directory — the `8bitscript.examplesPath` setting,
  * for someone keeping their own set: each subdirectory with an
- * 8bitscript.config.ts (or 8bs.config.ts) is one, marked as shipped so the
+ * 8bitscript.config.8bs (or 8bs.config.ts) is one, marked as shipped so the
  * launcher groups it with the rest.
  *
  * @param {string} dir

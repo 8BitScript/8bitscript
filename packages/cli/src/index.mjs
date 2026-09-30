@@ -1,5 +1,5 @@
 // The programmatic face of @8bitscript/cli: what a project's
-// 8bitscript.config.ts imports.
+// 8bitscript.config.8bs imports.
 //
 //     import { defineConfig } from '@8bitscript/cli';
 //     export default defineConfig({ programs: { main: { entry: 'src/main.8bs' } } });

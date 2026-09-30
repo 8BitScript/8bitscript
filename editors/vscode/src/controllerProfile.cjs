@@ -953,7 +953,7 @@ const WALKTHROUGH = [
 // and the pads should be plugged in in player order.
 //
 // An earlier version of this module emitted a `controllers.players` block
-// for 8bitscript.config.ts, because that is where the CLI first read a
+// for 8bitscript.config.8bs, because that is where the CLI first read a
 // profile from. It reads this file now, so that block is gone: a panel
 // offering somebody a snippet to paste into a config nothing consults
 // would be exactly the kind of quiet trap the two ends have spent this

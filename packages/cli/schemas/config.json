@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://8bitscript.org/schemas/config.json",
-  "title": "8bitscript.config.ts",
-  "description": "The default export of a project's 8bitscript.config.ts (or the older 8bs.config.ts). The TypeScript form is packages/cli/src/index.d.ts; docs/config.md is the prose. Every key is optional.",
+  "title": "8bitscript.config.8bs",
+  "description": "The default export of a project's 8bitscript.config.8bs (or the older 8bitscript.config.ts / 8bs.config.ts). The TypeScript form is packages/cli/src/index.d.ts; docs/config.md is the prose. Every key is optional.",
   "type": "object",
   "additionalProperties": false,
   "properties": {

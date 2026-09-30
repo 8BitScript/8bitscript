@@ -271,8 +271,12 @@ test('the icon theme covers the rest of a project, not only the four pillars', (
       assert.ok(read(section.fileExtensions[supporting]).includes(accent), `.${supporting} does not carry the .${pillar} accent ${accent}`);
     }
   }
-  assert.equal(defs.fileNames['8bitscript.config.ts'], '_8bs_dark', 'a project config wears the language own 8');
-  assert.equal(defs.light.fileNames['8bitscript.config.ts'], '_8bs_light');
+  assert.equal(defs.fileNames['8bitscript.config.8bs'], '_8bs_dark', 'a project config wears the language own 8');
+  assert.equal(defs.light.fileNames['8bitscript.config.8bs'], '_8bs_light');
+  // The old names still load, and still keep the icon rather than falling
+  // back to a bare file icon for a project that has not renamed yet.
+  assert.equal(defs.fileNames['8bitscript.config.ts'], '_8bs_dark');
+  assert.equal(defs.fileNames['8bs.config.ts'], '_8bs_dark');
   for (const def of Object.values(defs.iconDefinitions)) {
     assert.ok(fs.existsSync(path.join(root, 'themes', def.iconPath)), def.iconPath);
   }

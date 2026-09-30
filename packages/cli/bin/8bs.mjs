@@ -43,7 +43,7 @@ Implemented:
                                no region: its model is hardware. --profile
                                names the hardware fitted — a preset from
                                the machine's catalog (8032) or a profile the
-                               project composes in 8bitscript.config.ts —
+                               project composes in 8bitscript.config.8bs —
                                and --hardware sets single options on top
                                (model=4032). --system names a saved
                                arrangement (config, .8bitscript/systems.json,
@@ -58,7 +58,7 @@ Implemented:
                                lists every option, value and preset, and
                                which machines this release builds for.
                                --program names one of the project's
-                               programs (8bitscript.config.ts's programs
+                               programs (8bitscript.config.8bs's programs
                                block); without it, main, or the only one.
   build --release              Every artifact this project declares for a
                                release: each program, for each target it

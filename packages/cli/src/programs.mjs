@@ -3,7 +3,7 @@
 // One project can build more than one program — a desktop and the
 // utilities beside it, the way GEOS ships a formatter and a copier as
 // separate files on the same disk. Each is its own link, starting from its
-// own `.8bs` entry, and each is named in `8bitscript.config.ts`:
+// own `.8bs` entry, and each is named in `8bitscript.config.8bs`:
 //
 //     programs: {
 //       main:   { entry: 'src/main.8bs' },
@@ -81,7 +81,7 @@ export function resolvePrograms(config) {
   if (hasEntry && hasPrograms) {
     return {
       ok: false,
-      error: "8bitscript.config.ts sets both `entry` and `programs`; `entry: 'src/main.8bs'` means "
+      error: "8bitscript.config.8bs sets both `entry` and `programs`; `entry: 'src/main.8bs'` means "
         + "`programs: { main: { entry: 'src/main.8bs' } }`, so keep one",
     };
   }
@@ -104,15 +104,15 @@ export function resolvePrograms(config) {
 
   const declared = config.programs;
   if (!declared || typeof declared !== 'object' || Array.isArray(declared)) {
-    return { ok: false, error: "8bitscript.config.ts's `programs` must be an object of name → { entry, targets?, requires? }" };
+    return { ok: false, error: "8bitscript.config.8bs's `programs` must be an object of name → { entry, targets?, requires? }" };
   }
   const names = Object.keys(declared);
   if (names.length === 0) {
-    return { ok: false, error: "8bitscript.config.ts's `programs` names no program; `main: { entry: 'src/main.8bs' }` is the usual one" };
+    return { ok: false, error: "8bitscript.config.8bs's `programs` names no program; `main: { entry: 'src/main.8bs' }` is the usual one" };
   }
   const programs = [];
   for (const name of names) {
-    const at = `8bitscript.config.ts's programs.${name}`;
+    const at = `8bitscript.config.8bs's programs.${name}`;
     if (!PROGRAM_NAME.test(name)) {
       return { ok: false, error: `${at}: a program's name is its output filename, so letters, digits, '-' and '_' only` };
     }
@@ -258,13 +258,13 @@ export function resolveImages(config, programs) {
   const declared = config?.images;
   if (declared === undefined) return { ok: true, images: [] };
   if (!declared || typeof declared !== 'object' || Array.isArray(declared)) {
-    return { ok: false, error: "8bitscript.config.ts's `images` must be an object of name → { target, format, boot, files }" };
+    return { ok: false, error: "8bitscript.config.8bs's `images` must be an object of name → { target, format, boot, files }" };
   }
   const byName = new Map(programs.map((p) => [p.name, p]));
   const projectTargets = listedTargets(config);
   const images = [];
   for (const [name, spec] of Object.entries(declared)) {
-    const at = `8bitscript.config.ts's images.${name}`;
+    const at = `8bitscript.config.8bs's images.${name}`;
     if (!PROGRAM_NAME.test(name)) return { ok: false, error: `${at}: an image's name is its filename, so letters, digits, '-' and '_' only` };
     if (!spec || typeof spec !== 'object' || Array.isArray(spec)) return { ok: false, error: `${at} must be { target, format, boot, files }` };
     const { target, format, boot, files } = spec;

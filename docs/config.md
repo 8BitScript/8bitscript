@@ -5,7 +5,7 @@ nav_order: 3
 
 # Project config
 
-An 8BitScript project is a directory with an `8bitscript.config.ts` (or
+An 8BitScript project is a directory with an `8bitscript.config.8bs` (or
 the older `8bs.config.ts`). Node 26 loads it as a module. The CLI and
 the editor read the same file.
 

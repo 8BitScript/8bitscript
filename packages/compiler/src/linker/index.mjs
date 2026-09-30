@@ -199,7 +199,7 @@ function loadGraph(entryText, entryFile, diagnostics, sources, options) {
       if (!resolved) {
         diagnostics.push(diagnostic(
           Codes.NOT_COMPILABLE,
-          `import specifier '${imp.source}' is not linkable yet: only './file.8bs', './file.8bx', './file.8bg' or './file.8ba' paths, project import aliases ('@lib/…' from 8bitscript.config.ts), bare package names, and package subpaths ('@scope/name/thing') are specified`,
+          `import specifier '${imp.source}' is not linkable yet: only './file.8bs', './file.8bx', './file.8bg' or './file.8ba' paths, project import aliases ('@lib/…' from 8bitscript.config.8bs), bare package names, and package subpaths ('@scope/name/thing') are specified`,
           module.file, imp.start, imp.length,
         ));
         continue;
@@ -1224,7 +1224,7 @@ function checkEntryExports(module) {
  *   expanded VIC-20): a `.<machine>.<tag>.8bs` twin is taken before the
  *   machine's own, and two tags each with a twin is `8BS3004`. The older
  *   `profile` is accepted as one tag. `frameRate` (default 60) is the
- *   project's logical frame rate — see 8bitscript.config.ts — that every
+ *   project's logical frame rate — see 8bitscript.config.8bs — that every
  *   `#frames(...)` call in the graph folds against; `machine` is also what
  *   every `#system()` call folds to. `facts` is the build's hardware fact
  *   sheet (the merged `facts` of packages/cli/src/hardware.mjs's

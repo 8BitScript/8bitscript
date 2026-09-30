@@ -132,6 +132,7 @@
     "map": "_binary"
   },
   "fileNames": {
+    "8bitscript.config.8bs": "_8bs_dark",
     "8bitscript.config.ts": "_8bs_dark",
     "8bs.config.ts": "_8bs_dark",
     ".gitignore": "_git",
@@ -177,6 +178,7 @@
       "s": "_code_light"
     },
     "fileNames": {
+      "8bitscript.config.8bs": "_8bs_light",
       "8bitscript.config.ts": "_8bs_light",
       "8bs.config.ts": "_8bs_light"
     }
@@ -242,6 +244,7 @@
       "map": "_binary"
     },
     "fileNames": {
+      "8bitscript.config.8bs": "_8bs_dark",
       "8bitscript.config.ts": "_8bs_dark",
       "8bs.config.ts": "_8bs_dark",
       ".gitignore": "_git",

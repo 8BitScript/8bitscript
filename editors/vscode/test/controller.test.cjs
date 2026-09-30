@@ -205,7 +205,7 @@ test('the preview asks the toolchain what each machine has', () => {
 test('the toolchain reads the file itself, so nothing is offered to paste', () => {
   // packages/cli/src/controllers.mjs's `controllerPlayers` takes the very
   // object controllerStore.cjs writes. An earlier version of this panel
-  // emitted a `controllers.players` block for 8bitscript.config.ts,
+  // emitted a `controllers.players` block for 8bitscript.config.8bs,
   // because that is where the CLI first read a profile from; offering
   // somebody a snippet to paste into a config nothing consults would now
   // be its own quiet trap.
@@ -259,7 +259,7 @@ test('the profile is stored as a file of its own, not written into the config', 
   const store = fs.readFileSync(path.join(ROOT, 'src', 'controllerStore.cjs'), 'utf8');
   assert.match(store, /8bitscript\.controllers\.json/);
   assert.match(store, /\.config\/8bitscript/);
-  assert.doesNotMatch(VIEW, /8bitscript\.config\.ts'/, 'the config is not touched');
+  assert.doesNotMatch(VIEW, /8bitscript\.config\.8bs'/, 'the config is not touched');
   assert.doesNotMatch(store, /require\('vscode'\)/, 'so it is testable without a window');
   assert.doesNotMatch(PROFILE, /require\('vscode'\)/);
 });

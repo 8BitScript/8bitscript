@@ -237,7 +237,7 @@ class StudioPanel {
    * button for a machine with no emulator to open, or one Doctor already
    * says will not boot. `dir` picks which project's catalog to read the
    * same way `loadTargets` always has: the catalog is the toolchain's, but
-   * a project's `8bitscript.config.ts` can still be wrong about presets,
+   * a project's `8bitscript.config.8bs` can still be wrong about presets,
    * and the tab is following one particular project's run.
    */
   async emulatorFor(dir, target) {

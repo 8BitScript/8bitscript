@@ -32,7 +32,7 @@
 // for a build is the opt-in: it compiles the probe's caller in and sets
 // the fact to "may use", and the probe confirms it on the machine.
 //
-// A project's 8bitscript.config.ts may add named profiles of its own under
+// A project's 8bitscript.config.8bs may add named profiles of its own under
 // `targets.<machine>.profiles`, each a set of option values; `--profile`
 // names one of those or a catalog preset — a project's name shadows a
 // preset's — and `--hardware ram=8k,port1=mouse1351` sets options on top
@@ -173,7 +173,7 @@ export function parseHardwareArg(text) {
 }
 
 /**
- * The project's own profiles for a machine, from an 8bitscript.config.ts whose
+ * The project's own profiles for a machine, from an 8bitscript.config.8bs whose
  * `targets` is the object form: `{ c64: { profiles: { loaded: { ram:
  * 'reu512' } } } }`. The array form has none.
  *
@@ -217,7 +217,7 @@ export function listedTargets(config) {
 }
 
 /**
- * The floor a program sets: `requires` in its 8bitscript.config.ts, a fact key to
+ * The floor a program sets: `requires` in its 8bitscript.config.8bs, a fact key to
  * the least of it the program needs.
  *
  *     requires: { 'memory.ram': 8192, 'storage.save': true }
@@ -235,11 +235,11 @@ export function projectRequires(config) {
   const requires = config?.requires;
   if (requires === undefined) return { ok: true, requires: {} };
   if (requires === null || typeof requires !== 'object' || Array.isArray(requires)) {
-    return { ok: false, error: "8bitscript.config.ts's `requires` must be an object of fact → the least of it the program needs" };
+    return { ok: false, error: "8bitscript.config.8bs's `requires` must be an object of fact → the least of it the program needs" };
   }
   const problems = requiresProblems(requires);
   if (problems.length > 0) {
-    return { ok: false, error: `8bitscript.config.ts's \`requires\`: ${problems.join('; ')}` };
+    return { ok: false, error: `8bitscript.config.8bs's \`requires\`: ${problems.join('; ')}` };
   }
   return { ok: true, requires };
 }
@@ -249,7 +249,7 @@ export function projectRequires(config) {
  * every fact the program tests is true, so every other build is the same
  * program folded for a machine that lacks some of them. `requires` is the
  * floor every build must clear; this is the ceiling one build reaches
- * (docs/project/baseline.md). `baseline` in 8bitscript.config.ts is one
+ * (docs/project/baseline.md). `baseline` in 8bitscript.config.8bs is one
  * of:
  *
  *     baseline: 'c64'                                   // a machine, under the project's own hardware for it
@@ -268,7 +268,7 @@ export function projectRequires(config) {
 export function projectBaseline(config) {
   const declared = config?.baseline;
   if (declared === undefined || declared === null) return { ok: true, baseline: null };
-  const where = "8bitscript.config.ts's `baseline`";
+  const where = "8bitscript.config.8bs's `baseline`";
   let entry;
   let name;
   if (typeof declared === 'string') {
@@ -391,7 +391,7 @@ export const REGION_MACHINES = new Set(['vic20', 'c64', 'c128', 'mega65', 'atari
  * }} SystemSetup
  */
 export function projectSystems(config, {
-  where = '8bitscript.config.ts',
+  where = '8bitscript.config.8bs',
   origin = 'advertised',
   enforceTargets = true,
 } = {}) {
@@ -625,7 +625,7 @@ export function hardwareArgs(args) {
 }
 
 /** The usage lines both commands print for the hardware arguments. */
-export const HARDWARE_USAGE = '                 [--system <name>]             a named system from 8bitscript.config.ts, .8bitscript/systems.json, or ~/.config/8bitscript/systems.json\n'
+export const HARDWARE_USAGE = '                 [--system <name>]             a named system from 8bitscript.config.8bs, .8bitscript/systems.json, or ~/.config/8bitscript/systems.json\n'
   + '                 [--profile <name>]            a catalog preset or a project profile — `8bs targets` lists them\n'
   + '                 [--hardware option=value,...] single options on top (e.g. --hardware ram=8k,port1=mouse1351)\n'
   + '                 [--checkout <dir>]            use a local 8BitScript checkout\'s packages instead of node_modules\n';

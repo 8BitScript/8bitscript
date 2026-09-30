@@ -259,7 +259,7 @@ function render() {
 
   $('lede').textContent = data.project
     ? `Mapping controllers for ${data.projectLabel}. Press a button on your pad — it lights up below.`
-    : 'No project open. A project is a directory with an 8bitscript.config.ts in it.';
+    : 'No project open. A project is a directory with an 8bitscript.config.8bs in it.';
 
   const notice = $('notice');
   const warning = trouble();

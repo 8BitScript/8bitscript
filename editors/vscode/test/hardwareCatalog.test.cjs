@@ -120,7 +120,7 @@ test('a systems block the config gets wrong is a message, not a missing panel', 
   const targets = parseTargets(JSON.stringify({
     targets: [{ id: 'c64', title: 'Commodore 64', options: {}, presets: {}, profiles: {}, hardware: {}, facts: {} }],
     systems: [],
-    systemsError: "8bs.config.ts: system 'My NES': this project does not target nes",
+    systemsError: "8bitscript.config.8bs: system 'My NES': this project does not target nes",
   }));
   assert.equal(targets.get('c64').title, 'Commodore 64');
   assert.deepEqual(targets.systems, []);

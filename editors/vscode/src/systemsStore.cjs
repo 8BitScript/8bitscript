@@ -1,5 +1,5 @@
 // Named systems in the two JSON layers — this clone and this user.
-// The advertised block stays in 8bitscript.config.ts (insertSystem).
+// The advertised block stays in 8bitscript.config.8bs (insertSystem).
 // Same file shape as packages/cli/src/systems.mjs; CommonJS so the
 // extension can write it without importing the CLI.
 const fs = require('fs');

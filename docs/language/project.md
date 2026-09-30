@@ -7,7 +7,7 @@ nav_order: 5
 
 ## §4.1 Write a project config
 
-An 8BitScript project is a directory with an `8bitscript.config.ts` (the older `8bs.config.ts` still works). `defineConfig` just returns what it's given — it exists so an editor can type the object.
+An 8BitScript project is a directory with an `8bitscript.config.8bs` (the older `8bs.config.ts` still works). `defineConfig` just returns what it's given — it exists so an editor can type the object.
 
 ```ts
 import { defineConfig } from '@8bitscript/cli';

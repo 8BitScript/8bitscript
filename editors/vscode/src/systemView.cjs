@@ -1,7 +1,7 @@
 // The System builder: an editor tab with Machine / Hardware / Region /
 // Facts / Save, writing the same `{ target, profile?, hardware?, region? }`
 // the CLI already validates. Destination is explicit: advertise into
-// 8bitscript.config.ts, this clone (.8bitscript/systems.json), or this
+// 8bitscript.config.8bs, this clone (.8bitscript/systems.json), or this
 // user (~/.config/8bitscript/systems.json).
 //
 // Controller Setup is the template: createWebviewPanel, nonce CSP,

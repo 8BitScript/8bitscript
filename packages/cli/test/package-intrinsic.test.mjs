@@ -42,7 +42,7 @@ async function project(pkg) {
   const dir = await mkdtemp(join(tmpdir(), '8bs-package-'));
   await mkdir(join(dir, 'src'));
   await writeFile(join(dir, 'src', 'main.8bs'), MAIN);
-  await writeFile(join(dir, '8bitscript.config.ts'), "export default { entry: 'src/main.8bs', targets: { pet: {}, web: {} } };\n");
+  await writeFile(join(dir, '8bitscript.config.8bs'), "export default { entry: 'src/main.8bs', targets: { pet: {}, web: {} } };\n");
   if (pkg !== null) await writeFile(join(dir, 'package.json'), JSON.stringify({ type: 'module', ...pkg }));
   return dir;
 }

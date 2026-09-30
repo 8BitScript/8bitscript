@@ -161,11 +161,11 @@ test('findToolchain prefers a checkout CLI over node_modules', (t) => {
 test('loadProject combines the config, package.json, and toolchain', (t) => {
   const root = scratch(t);
   const dir = path.join(root, 'game');
-  write(path.join(dir, '8bs.config.ts'), `export default { entry: 'src/main.8bs', targets: ['pet', 'web'] };`);
+  write(path.join(dir, '8bitscript.config.8bs'), `export default { entry: 'src/main.8bs', targets: ['pet', 'web'] };`);
   write(path.join(dir, 'package.json'), JSON.stringify({ name: 'game', description: 'Cycles colors.' }));
   write(path.join(dir, 'node_modules', '.bin', BINARY), '');
 
-  const project = loadProject(path.join(dir, '8bs.config.ts'));
+  const project = loadProject(path.join(dir, '8bitscript.config.8bs'));
   assert.equal(project.name, 'game');
   assert.equal(project.installed, true, 'no dependencies declared counts as installed');
   assert.equal(project.packageManager, 'pnpm');
@@ -179,9 +179,9 @@ test('loadProject combines the config, package.json, and toolchain', (t) => {
 test('loadProject names a project after its directory when package.json is missing', (t) => {
   const root = scratch(t);
   const dir = path.join(root, 'sketch');
-  write(path.join(dir, '8bs.config.ts'), 'export default {};');
+  write(path.join(dir, '8bitscript.config.8bs'), 'export default {};');
 
-  const project = loadProject(path.join(dir, '8bs.config.ts'));
+  const project = loadProject(path.join(dir, '8bitscript.config.8bs'));
   assert.equal(project.name, 'sketch');
   assert.equal(project.description, '');
   assert.equal(project.toolchain, null);
@@ -190,8 +190,8 @@ test('loadProject names a project after its directory when package.json is missi
 
 test('loadProjects sorts by directory and drops duplicates', (t) => {
   const root = scratch(t);
-  const b = path.join(root, 'b', '8bs.config.ts');
-  const a = path.join(root, 'a', '8bs.config.ts');
+  const b = path.join(root, 'b', '8bitscript.config.8bs');
+  const a = path.join(root, 'a', '8bitscript.config.8bs');
   write(b, 'export default {};');
   write(a, 'export default {};');
 
@@ -199,39 +199,43 @@ test('loadProjects sorts by directory and drops duplicates', (t) => {
   assert.deepEqual(projects.map((p) => p.name), ['a', 'b']);
 });
 
-test('findConfig prefers 8bitscript.config.ts, still honors 8bs.config.ts, like the CLI', (t) => {
+test('findConfig prefers 8bitscript.config.8bs, then 8bitscript.config.ts, then 8bs.config.ts, like the CLI', (t) => {
   const root = scratch(t);
   const dir = path.join(root, 'game');
   write(path.join(dir, '8bs.config.ts'), 'export default {};');
-  assert.equal(findConfig(dir), path.join(dir, '8bs.config.ts'), 'a 0.3.0-era project still marks one');
+  assert.equal(findConfig(dir), path.join(dir, '8bs.config.ts'), 'a pre-0.4.0 project still marks one');
   write(path.join(dir, '8bitscript.config.ts'), 'export default {};');
-  assert.equal(findConfig(dir), path.join(dir, '8bitscript.config.ts'), 'the new name wins when both are there');
+  assert.equal(findConfig(dir), path.join(dir, '8bitscript.config.ts'), '0.4.0 through 0.22.x wins over the older name');
+  write(path.join(dir, '8bitscript.config.8bs'), 'export default {};');
+  assert.equal(findConfig(dir), path.join(dir, '8bitscript.config.8bs'), 'the current name wins when all three are there');
   assert.equal(findConfig(path.join(root, 'empty')), null);
 });
 
-test('loadProjects reads either config name, and a directory with both is one project under the new one', (t) => {
+test('loadProjects reads any of the three config names, and a directory with several is one project under the newest', (t) => {
   const root = scratch(t);
   const renamed = path.join(root, 'renamed');
-  write(path.join(renamed, '8bitscript.config.ts'), "export default { entry: 'src/new.8bs' };");
+  write(path.join(renamed, '8bitscript.config.8bs'), "export default { entry: 'src/new.8bs' };");
   const legacy = path.join(root, 'legacy');
   write(path.join(legacy, '8bs.config.ts'), 'export default {};');
   const both = path.join(root, 'both');
-  write(path.join(both, '8bitscript.config.ts'), "export default { entry: 'src/new.8bs' };");
+  write(path.join(both, '8bitscript.config.8bs'), "export default { entry: 'src/new.8bs' };");
+  write(path.join(both, '8bitscript.config.ts'), "export default { entry: 'src/middle.8bs' };");
   write(path.join(both, '8bs.config.ts'), "export default { entry: 'src/old.8bs' };");
 
-  // The glob search hands back every match, both names included.
+  // The glob search hands back every match, all three names included.
   const projects = loadProjects([
-    path.join(renamed, '8bitscript.config.ts'),
+    path.join(renamed, '8bitscript.config.8bs'),
     path.join(legacy, '8bs.config.ts'),
     path.join(both, '8bs.config.ts'),
     path.join(both, '8bitscript.config.ts'),
+    path.join(both, '8bitscript.config.8bs'),
   ]);
   assert.deepEqual(projects.map((p) => [p.name, path.basename(p.configPath)]), [
-    ['both', '8bitscript.config.ts'],
+    ['both', '8bitscript.config.8bs'],
     ['legacy', '8bs.config.ts'],
-    ['renamed', '8bitscript.config.ts'],
+    ['renamed', '8bitscript.config.8bs'],
   ]);
-  assert.equal(projects[0].entry, path.join(both, 'src', 'new.8bs'), "the new name's config is the one read");
+  assert.equal(projects[0].entry, path.join(both, 'src', 'new.8bs'), "the current name's config is the one read");
 });
 
 test('commandArgs spells the same commands a person would type', () => {
@@ -335,7 +339,7 @@ function checkout(root) {
   // 'zx81' is here to be dropped: the fixture proves names the toolchain
   // does not know are filtered out. It used to name a parked machine, but
   // every machine ships now.
-  write(path.join(repo, 'packages', 'studio', '8bs.config.ts'), "export default { targets: ['zx81', 'pet'] };");
+  write(path.join(repo, 'packages', 'studio', '8bitscript.config.8bs'), "export default { targets: ['zx81', 'pet'] };");
   write(path.join(repo, 'packages', 'text', 'package.json'), JSON.stringify({ name: '@8bitscript/text' }));
   write(path.join(repo, 'packages', 'examples', 'package.json'), JSON.stringify({
     name: '@8bitscript/examples',
@@ -346,7 +350,7 @@ function checkout(root) {
       },
     },
   }));
-  write(path.join(repo, 'packages', 'examples', 'hello', '8bs.config.ts'), "export default { targets: { pet: {}, web: {} } };");
+  write(path.join(repo, 'packages', 'examples', 'hello', '8bitscript.config.8bs'), "export default { targets: { pet: {}, web: {} } };");
   write(path.join(repo, 'packages', 'examples', 'notes.md'), '');
   return repo;
 }
@@ -411,13 +415,14 @@ test('loadExamples is empty for a toolchain that ships no examples package', (t)
   assert.deepEqual(loadExamples(linkedConsumer(root, repo, 'game')), []);
 });
 
-test('loadExamplesFrom lists the projects directly under a directory of your own examples', (t) => {
+test('loadExamplesFrom lists the projects directly under a directory of your own examples, any of the three config names', (t) => {
   const root = scratch(t);
   write(path.join(root, 'mine', 'border', '8bs.config.ts'), 'export default {};');
   write(path.join(root, 'mine', 'raster', '8bitscript.config.ts'), 'export default {};');
+  write(path.join(root, 'mine', 'charset', '8bitscript.config.8bs'), 'export default {};');
   write(path.join(root, 'mine', 'notes.md'), '');
   write(path.join(root, 'mine', 'deeper', 'nested', '8bs.config.ts'), 'export default {};');
-  assert.deepEqual(loadExamplesFrom(path.join(root, 'mine')).map((p) => [p.name, p.kind, p.shipped]), [['border', 'example', true], ['raster', 'example', true]]);
+  assert.deepEqual(loadExamplesFrom(path.join(root, 'mine')).map((p) => [p.name, p.kind, p.shipped]), [['border', 'example', true], ['charset', 'example', true], ['raster', 'example', true]]);
   assert.deepEqual(loadExamplesFrom(path.join(root, 'nowhere')), []);
 });
 
@@ -461,18 +466,18 @@ test('loadApps finds the apps that ship with the toolchain, in a checkout and in
 test('loadApps ignores a package that declares an app but has no project manifest', (t) => {
   const root = scratch(t);
   const repo = checkout(root);
-  fs.rmSync(path.join(repo, 'packages', 'studio', '8bs.config.ts'));
+  fs.rmSync(path.join(repo, 'packages', 'studio', '8bitscript.config.8bs'));
   assert.deepEqual(loadApps(linkedConsumer(root, repo, 'game')), []);
 });
 
 test('loadProject reads the kind and an app title from package.json', (t) => {
   const root = scratch(t);
   const repo = checkout(root);
-  const studio = loadProject(path.join(repo, 'packages', 'studio', '8bs.config.ts'));
+  const studio = loadProject(path.join(repo, 'packages', 'studio', '8bitscript.config.8bs'));
   assert.equal(studio.kind, 'app');
   assert.equal(studio.title, 'Studio');
   assert.equal(studio.name, '@8bitscript/studio');
-  const hello = loadProject(path.join(repo, 'packages', 'examples', 'hello', '8bs.config.ts'));
+  const hello = loadProject(path.join(repo, 'packages', 'examples', 'hello', '8bitscript.config.8bs'));
   assert.equal(hello.kind, 'example', 'a parent 8bitscript.examples manifest names it');
   assert.equal(hello.title, 'hello', 'without the manifest override, the title is the directory name');
 });
@@ -681,7 +686,7 @@ test('cliCommand: Electron without node still sets ELECTRON_RUN_AS_NODE', () => 
   assert.deepEqual(result.env, { ELECTRON_RUN_AS_NODE: '1' });
 });
 
-// Writing a system into an 8bs.config.ts. The config is source, not a
+// Writing a system into an 8bitscript.config.8bs. The config is source, not a
 // settings file, so this is a text edit on the one object it adds to:
 // everything else in the file — the comments most of all — is untouched.
 test('insertSystem opens a systems block, adds to one, and replaces a name', () => {

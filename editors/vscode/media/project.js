@@ -19,7 +19,7 @@ window.addEventListener('message', ({ data }) => {
   if (data.type !== 'state') return;
   $('title').textContent = data.empty ? 'Project' : data.name;
   $('lede').textContent = data.empty
-    ? 'No 8BitScript project here yet. A project is a directory with an 8bitscript.config.ts.'
+    ? 'No 8BitScript project here yet. A project is a directory with an 8bitscript.config.8bs.'
     : data.where;
   const notice = $('notice');
   notice.hidden = data.installed || data.empty;

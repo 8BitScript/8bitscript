@@ -1,5 +1,5 @@
 // Named systems — a target plus the hardware already fitted — in three
-// places, one shape. The advertised block in 8bitscript.config.ts is
+// places, one shape. The advertised block in 8bitscript.config.8bs is
 // source the team shares. The other two are JSON a person (or the editor)
 // writes: this clone's `.8bitscript/systems.json`, and this machine's
 // `~/.config/8bitscript/systems.json`. Controllers already live in that
@@ -31,7 +31,7 @@ export function projectSystemsPath(projectDir) {
   return join(projectDir, PROJECT_DIRNAME, SYSTEMS_FILE);
 }
 
-/** The advertised `systems` block in 8bitscript.config.ts. */
+/** The advertised `systems` block in 8bitscript.config.8bs. */
 export function advertisedSystems(config) {
   return projectSystems(config);
 }
@@ -152,7 +152,7 @@ export function findSystem(name, systems) {
       ok: false,
       error: known.length > 0
         ? `unknown system '${name}'. Systems: ${known.join(', ')}`
-        : `unknown system '${name}'. This project has no systems; add one in 8bitscript.config.ts or .8bitscript/systems.json`,
+        : `unknown system '${name}'. This project has no systems; add one in 8bitscript.config.8bs or .8bitscript/systems.json`,
     };
   }
   return { ok: true, system: found };

@@ -234,7 +234,7 @@ export const MAX_PLAYERS = 4;
  *       }
  *     }
  *
- * It is JSON and not a `controllers` block in 8bitscript.config.ts on the
+ * It is JSON and not a `controllers` block in 8bitscript.config.8bs on the
  * editor's argument, which is a good one: the config is *source* a person
  * reads and a TypeScript rewriter edits, while this is eighteen
  * machine-generated bindings per device rewritten every time a button is

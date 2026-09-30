@@ -33,7 +33,7 @@ test('resolveFrameRate defaults to 60, accepts a positive integer, and names any
   assert.equal(frac.ok, false);
 });
 
-test('loadConfig returns null when there is no 8bs.config.ts, and the default export when there is', async () => {
+test('loadConfig returns null when there is no config file, and the default export when there is', async () => {
   const empty = await mkdtemp(join(tmpdir(), '8bs-config-'));
   try {
     assert.equal(await loadConfig(empty), null);
@@ -43,7 +43,7 @@ test('loadConfig returns null when there is no 8bs.config.ts, and the default ex
 
   const dir = await mkdtemp(join(tmpdir(), '8bs-config-'));
   try {
-    await writeFile(join(dir, '8bs.config.ts'), 'export default { frameRate: 50, entry: "src/main.8bs" };\n');
+    await writeFile(join(dir, '8bitscript.config.8bs'), 'export default { frameRate: 50, entry: "src/main.8bs" };\n');
     const config = await loadConfig(dir);
     assert.deepEqual(config, { frameRate: 50, entry: 'src/main.8bs' });
   } finally {
@@ -51,22 +51,22 @@ test('loadConfig returns null when there is no 8bs.config.ts, and the default ex
   }
 });
 
-test('loadConfig writes a load error and returns null when 8bs.config.ts does not evaluate', async () => {
+test('loadConfig writes a load error and returns null when 8bitscript.config.8bs does not evaluate', async () => {
   const dir = await mkdtemp(join(tmpdir(), '8bs-config-'));
   const stderr = [];
   const original = process.stderr.write;
   process.stderr.write = (chunk) => { stderr.push(String(chunk)); return true; };
   try {
-    await writeFile(join(dir, '8bs.config.ts'), 'throw new Error("boom");\n');
+    await writeFile(join(dir, '8bitscript.config.8bs'), 'throw new Error("boom");\n');
     assert.equal(await loadConfig(dir, '8bs check'), null);
-    assert.match(stderr.join(''), /8bs check: cannot load 8bs.config.ts: boom/);
+    assert.match(stderr.join(''), /8bs check: cannot load 8bitscript\.config\.8bs: boom/);
   } finally {
     process.stderr.write = original;
     await rm(dir, { recursive: true, force: true });
   }
 });
 
-test('loadConfig prefers 8bitscript.config.ts, the current name, over the old 8bs.config.ts', async () => {
+test('loadConfig prefers 8bitscript.config.ts over the older 8bs.config.ts, among the two legacy .ts names', async () => {
   const dir = await mkdtemp(join(tmpdir(), '8bs-config-'));
   try {
     await writeFile(join(dir, '8bitscript.config.ts'), 'export default { frameRate: 30 };\n');
@@ -77,7 +77,7 @@ test('loadConfig prefers 8bitscript.config.ts, the current name, over the old 8b
   }
 });
 
-test('loadConfig still finds 8bs.config.ts, the pre-0.4.0 name, when there is no 8bitscript.config.ts', async () => {
+test('loadConfig still finds 8bs.config.ts, the pre-0.4.0 name, when neither newer name is there', async () => {
   const dir = await mkdtemp(join(tmpdir(), '8bs-config-'));
   try {
     await writeFile(join(dir, '8bs.config.ts'), 'export default { frameRate: 50 };\n');

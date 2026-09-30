@@ -244,7 +244,7 @@ pnpm add -D @8bitscript/cli
 ```
 
 ```ts
-// 8bitscript.config.ts
+// 8bitscript.config.8bs
 export default {
   entry: 'src/main.8bs',
   targets: { c64: {}, vic20: {}, web: {} },

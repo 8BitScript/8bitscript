@@ -52,9 +52,10 @@ const SEVERITY = {
   remark: DiagnosticSeverity.Information,
 };
 
-// 8bitscript.config.8bs is the current name; 8bitscript.config.ts and the
-// older 8bs.config.ts (every project through 0.3.0) still load — see
-// packages/cli/src/config.mjs's CONFIG_FILENAMES, which this mirrors for
+// 8bitscript.config.8bs is the current name; 8bitscript.config.ts (0.4.0
+// through 0.22.x) and the older 8bs.config.ts (every project through
+// 0.3.0) still load — see packages/cli/src/config.mjs's
+// CONFIG_FILENAMES, which this mirrors for
 // the same reason it duplicates resolveFrameRate rather than importing it.
 const CONFIG_FILENAMES = ['8bitscript.config.8bs', '8bitscript.config.ts', '8bs.config.ts'];
 
@@ -77,7 +78,7 @@ function findConfigPath(dir) {
 }
 
 /**
- * The project's `frameRate` (8bitscript.config.ts, default 60) for the document at
+ * The project's `frameRate` (8bitscript.config.8bs, default 60) for the document at
  * `filePath` — so `#frames(...)` diagnostics in the editor agree with what
  * `8bs build`/`8bs check` would actually report, the same invariant this
  * file's header comment already promises for every other diagnostic.
@@ -88,7 +89,7 @@ function findConfigPath(dir) {
  *
  * The `?t=<mtime>` on the dynamic import is a cache-buster: Node's ESM
  * loader otherwise caches a resolved file URL for the life of the process,
- * so an edited 8bitscript.config.ts would need a server restart to take effect
+ * so an edited 8bitscript.config.8bs would need a server restart to take effect
  * without it. A `.8bs` config is re-read (and re-stripped) from disk on
  * every call instead, which is naturally always fresh — see
  * importStrippedConfig.

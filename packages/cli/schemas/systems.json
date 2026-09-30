@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://8bitscript.org/schemas/systems.json",
   "title": "8BitScript systems file",
-  "description": "Named systems for one clone (.8bitscript/systems.json) or this user (~/.config/8bitscript/systems.json). Same entry shape as 8bitscript.config.ts's systems block.",
+  "description": "Named systems for one clone (.8bitscript/systems.json) or this user (~/.config/8bitscript/systems.json). Same entry shape as 8bitscript.config.8bs's systems block.",
   "type": "object",
   "additionalProperties": false,
   "required": ["systems"],
