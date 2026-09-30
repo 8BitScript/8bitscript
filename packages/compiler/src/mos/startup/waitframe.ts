@@ -298,12 +298,16 @@ const RASTER: Partial<Record<Machine, RasterSync>> = {
 
 /**
  * True when this machine's frame runtime must leave interrupts ENABLED —
- * the Atari 8-bit's live OS (see RasterSync.keepsInterrupts). mos/index.ts
- * asks, because it emits its own SEI ahead of the global initializers for
- * the same reason rasterSetup() emits one, and the two have to agree.
+ * the Atari 8-bit's live OS (see RasterSync.keepsInterrupts), or, for a
+ * FLAG-synced machine, a future raster driver of its own that needs a
+ * real interrupt (see FlagSync.keepsInterrupts, below — nothing sets it
+ * yet; a VERA line-IRQ raster driver for the X16 was attempted and
+ * reverted, packages/cx16/AGENTS.md records why). mos/index.ts asks,
+ * because it emits its own SEI ahead of the global initializers for the
+ * same reason rasterSetup() emits one, and the two have to agree.
  */
 export function waitFrameKeepsInterrupts(machine: Machine): boolean {
-  return RASTER[machine]?.keepsInterrupts === true;
+  return RASTER[machine]?.keepsInterrupts === true || FLAG[machine]?.keepsInterrupts === true;
 }
 
 // ---- the machine that polls a flag instead of a raster --------------------
@@ -336,6 +340,18 @@ interface FlagSync {
   wait: (tag: string) => Directive[];
   /** Seconds per frame, exactly. */
   ratio: { num: number; den: number };
+  /**
+   * True on a machine whose own raster driver needs interrupts left on,
+   * the same meaning RasterSync.keepsInterrupts has — see
+   * waitFrameKeepsInterrupts, which checks both tables. Nothing sets this
+   * yet: a VERA line-IRQ raster driver for the X16 needed it (a stock
+   * program runs under SEI, this file's own header above), but a real
+   * interrupt firing under x16emu hit a reproducible crash this project
+   * has not explained yet (packages/cx16/AGENTS.md), so the driver was
+   * reverted rather than shipped and the X16 stays SEI-only for now. Kept
+   * so the next attempt has this one line to flip rather than rediscovering it.
+   */
+  keepsInterrupts?: boolean;
 }
 
 const VERA_ISR = 0x9f27;
@@ -478,7 +494,10 @@ function rasterSetup(frameRate: number, acc: number, num: number, sync: RasterSy
 
 /** Zero the accumulator and take this machine's fixed per-frame credit — there is no region to find out about. */
 function flagSetup(frameRate: number, acc: number, num: number, sync: FlagSync): Directive[] {
-  const out: Directive[] = [instr('SEI', 'implied')];
+  // Same exception rasterSetup() makes (this file's own comment there):
+  // a machine whose raster driver needs interrupts left on must not have
+  // its own frame-pacing setup turn them back off first.
+  const out: Directive[] = sync.keepsInterrupts ? [] : [instr('SEI', 'implied')];
   out.push(ldaImm(0), staZp(acc), staZp(acc + 1), staZp(acc + 2), staZp(acc + 3));
   out.push(...storeNum(num, frameCredit(frameRate, sync.ratio)));
   return out;
