@@ -1,6 +1,6 @@
 # Fancy
 
-Raster showpiece: title wobble and colour bands behind `#fact(video.raster)` on C64 and web; static title elsewhere. Four pillars: `Mark.8bx`, `mark.8bg`, `chime.8ba`.
+Raster showpiece: title wobble and colour bands behind `#fact(video.raster)` on C64 and web; the colour bands without the wobble on VIC-20 (`raster.FINE_SCROLL` is false there); static title elsewhere. Four pillars: `Mark.8bx`, `mark.8bg`, `chime.8ba`.
 
 Targets: [`../shared-release-targets.ts`](../shared-release-targets.ts).
 
@@ -19,4 +19,4 @@ Targets: [`../shared-release-targets.ts`](../shared-release-targets.ts).
 | C64 | 5374 |
 | PET (4032 32K) | 4027 |
 
-On PET and VIC-20 the raster effect folds away; the frame counter still moves.
+On the PET the raster effect folds away; the frame counter still moves. The VIC-20 (8K) shows the colour bands and folds the wobble away: 3654 bytes, 851 of them the raster list (2803 without it, measured 2026-09-29).

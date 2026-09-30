@@ -277,6 +277,13 @@ more, so a helper whose other callers folded away is inlined into the
 one left) before lowering, so a `#fact` branch, a print of a string
 literal, and a call to an empty void function (`text.setColor` on the
 PET) cost the unused side / the conversion loop / the no-op nothing.
+The one root besides the entry is a machine's frame hook
+(`FRAME_SYNC.<machine>.frameHook`), which the backend `JSR`s from
+`waitFrame()` and no program calls: it is kept when, and only when, a
+reachable function shares a global with it
+(`linker/reachability.mjs`, `frameHookWanted`) — the VIC-20's raster
+hook is linked by a program that commits a list and costs every other
+program nothing (`test/mos-vic20-raster.test.ts`).
 The inliner's size measure counts a call's arguments as code, not as
 one node each — each is a load and a store at every copy — so a body
 that only passes values along stays the one function it was written

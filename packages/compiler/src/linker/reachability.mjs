@@ -91,26 +91,43 @@ function collectGlobalNames(node, out) {
  * this file only ever reads `.name`/`.body`, but a caller's own narrower
  * fields (`.params`, `.array`, …) still type-check on what comes back.
  *
+ * `frameHook` names a function the backend itself calls — the machine's
+ * FRAME_SYNC hook, which waitFrame() `jsr`s after every frame edge — so
+ * no call in the program reaches it. It is kept when, and only when, a
+ * function the entry does reach shares a global with it: a hook exists to
+ * act on state the program sets up (the VIC-20's raster plan, which only
+ * `raster.commit()` writes), and a program that never touches that state
+ * has nothing for it to do and pays nothing for it. The NES's hook is
+ * called by its own package as well, so it is reachable either way.
+ *
  * @template {{ name: string, body: unknown }} F
  * @template {{ name: string }} G
  * @param {{ entry: string, functions: F[], globals?: G[] }} ir
+ * @param {{ frameHook?: string }} [options]
  * @returns {{ functions: F[], globals: G[] }}
  */
-export function pruneUnreachable(ir) {
+export function pruneUnreachable(ir, options = {}) {
   const byName = new Map(ir.functions.map((fn) => [fn.name, fn]));
   const reachable = new Set();
-  const stack = [ir.entry];
-  while (stack.length > 0) {
-    const name = stack.pop();
-    if (reachable.has(name)) continue;
-    reachable.add(name);
-    const fn = byName.get(name);
-    if (!fn) continue; // the entry names no function — build() reports that itself
-    const calls = new Set();
-    collectCallNames(fn.body, calls);
-    for (const callee of calls) {
-      if (byName.has(callee) && !reachable.has(callee)) stack.push(callee);
+  const walk = (/** @type {string[]} */ stack) => {
+    while (stack.length > 0) {
+      const name = /** @type {string} */ (stack.pop());
+      if (reachable.has(name)) continue;
+      reachable.add(name);
+      const fn = byName.get(name);
+      if (!fn) continue; // the entry names no function — build() reports that itself
+      const calls = new Set();
+      collectCallNames(fn.body, calls);
+      for (const callee of calls) {
+        if (byName.has(callee) && !reachable.has(callee)) stack.push(callee);
+      }
     }
+  };
+  walk([ir.entry]);
+  const hook = options.frameHook ? byName.get(options.frameHook) : undefined;
+  if (hook && !reachable.has(hook.name)) {
+    const live = ir.functions.filter((fn) => reachable.has(fn.name));
+    if (frameHookWanted(hook, live, ir.globals ?? [])) walk([hook.name]);
   }
   const functions = ir.functions.filter((fn) => reachable.has(fn.name));
 
@@ -122,4 +139,26 @@ export function pruneUnreachable(ir) {
   const globals = (ir.globals ?? []).filter((g) => referenced.has(g.name));
 
   return { functions, globals };
+}
+
+/**
+ * Whether a frame hook has work in this program: some function in `live`
+ * reads or writes a global the hook's body names. pruneUnreachable keeps
+ * the hook on this answer; the backend asks it again of the optimized
+ * program, with the hook's body from the linked one, to tell a hook that
+ * was pruned because nothing uses it (fine) from one inlined away while
+ * the program still feeds it (a silent failure it refuses by name).
+ *
+ * @param {{ name: string, body: unknown }} hook
+ * @param {{ name: string, body: unknown }[]} live
+ * @param {{ name: string }[]} globals
+ * @returns {boolean}
+ */
+export function frameHookWanted(hook, live, globals) {
+  const globalNames = new Set(globals.map((g) => g.name));
+  const touched = new Set();
+  for (const fn of live) if (fn.name !== hook.name) collectGlobalNames(fn.body, touched);
+  const hookReads = new Set();
+  collectGlobalNames(hook.body, hookReads);
+  return [...hookReads].some((name) => globalNames.has(name) && touched.has(name));
 }

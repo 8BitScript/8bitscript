@@ -7,6 +7,7 @@ export namespace Slot {
 export namespace raster {
     const ENTRIES: utinyint = 0;
     const STRIDE: utinyint = 0;
+    const FINE_SCROLL: bool = false; // Slot.SCROLL_X entries are refused
 
     function clear(): void {
     }
