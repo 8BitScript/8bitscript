@@ -1,64 +1,502 @@
-// @8bitscript/vic20/rasterline — the per-scanline raster surface, on a
-// machine that cannot answer it.
+// @8bitscript/vic20/rasterline — per-line border and background splits, on
+// a chip with no interrupt to drive them.
 //
 // Named by "8bitscript".exports["./rasterline"] in this package's
 // package.json, and by "8bitscript".entry.vic20 in @8bitscript/raster's,
 // so a portable program's `import { raster, Slot } from
 // "@8bitscript/raster"` gets this file on a VIC-20.
+// packages/vic20/AGENTS.md, "Raster splits", is the long form of
+// everything below and the measurements behind it; read it before
+// changing a cycle here.
 //
-// The VIC raises no raster interrupt; its raster counter can be read
-// ($9004, documented, not measured here), so a cycle-timed polling
-// driver is conceivable on real hardware — and nobody has written one.
-// Until someone does, this machine honestly answers nothing.
+// ---- who applies the list ------------------------------------------------
 //
-// ---- the portable surface ------------------------------------------------
+// The VIC raises no interrupt of any kind, so nothing can apply a list "in
+// the background" the way the C64's raster IRQ does. What every VIC-20
+// program that animates already has is `waitFrame()`, which polls $9004
+// for the top of the frame. So the frame runtime does it: FRAME_SYNC.vic20
+// names `vic20RasterFrame` as its `frameHook`
+// (packages/compiler/src/mos/index.ts), and waitFrame()'s shared routine
+// `jsr`s it straight after every frame edge it waits on. The hook
+// busy-waits down the frame and writes $900F at each planned line, then
+// returns. The portable contract therefore holds unchanged: a list built
+// once and `enable()`d shows on every frame, a rebuilt one after
+// `commit()`. What it costs, and what a program must know:
 //
-// The same Slot names and raster calls as every rasterline file, answering
-// nothing: ENTRIES is 0, at() and setValue() return false, count() returns
-// 0, and clear()/enable()/disable() do nothing. #fact(video.raster) is
-// false on this machine, so a program that keeps its raster effect behind
-// that fact folds the whole branch away and this file costs it nothing; a
-// call that reaches this file anyway is inert — the "answers nothing but
-// still compiles and costs zero" rule packages/input/AGENTS.md documents.
+//   - waitFrame() returns when the LAST entry's line has been written, not
+//     at the top of the frame. The program's own per-frame work gets the
+//     rest of the frame: an entry at picture line 180 leaves the lines
+//     from 230 (NTSC) to the frame's end, about 30 lines, ~2,000 cycles.
+//     Put the splits high, or accept that the program runs at a lower
+//     rate. There is no way round this on a machine with no interrupt.
+//   - A hardware frame waitFrame() does not wait on — the program was busy
+//     past the top of the next frame — gets its entries late (every line
+//     already passed is written at once) or, if the program misses the
+//     frame entirely, not at all: that frame shows the last value written.
+//   - On PAL at the default 60 logical frames a second, every sixth
+//     waitFrame() returns without waiting (1.2 logical frames per 50 Hz
+//     edge), so the program runs two logical frames in one frame's
+//     remainder: a PAL program with splits wants frameRate 50, or half
+//     that remainder as its budget.
+//   - A program that never calls waitFrame() gets no splits.
+//   - A program that never imports this file, or imports it and never
+//     commits a list, pays nothing: the hook is linked only when reachable
+//     code touches the plan it reads (linker/reachability.mjs), and an
+//     empty plan returns after one compare.
+//
+// Interrupts: every VIC-20 program that calls waitFrame() runs with them
+// off from start-up (waitframe.ts's rasterSetup `sei`), so nothing can
+// steal a cycle from the timed part and this file neither sets nor clears
+// the I flag.
+//
+// ---- what is computed where ----------------------------------------------
+//
+// Everything that can be worked out before the frame is, in `commit()`:
+// each entry's picture line becomes a raster line (+ the vertical origin,
+// $9001 × 2 — 50 NTSC, 76 PAL, read then, so a program or KERNAL that
+// moved the picture is honoured), then the coarse $9004 value to wait
+// for and whether the line synced on is even or odd; entries on one line
+// merge into one planned line, since BORDER and BACKGROUND share $900F;
+// and both stores' bytes are worked out, each slot the list sets carried
+// forward from the entry that last set it (wrapping round the frame, so
+// the lines above the first entry show the last one's value, as on the
+// C64). Bits the list never sets — a slot it has no entry for, and bit 3
+// — are the program's: the hook reads them from $900F once a frame and
+// ORs them in. Per planned line it does no arithmetic at all: wait, OR,
+// store, wait, OR, store.
+//
+// ---- landing on the line, not near it -------------------------------------
+//
+// $9004 is raster bits 8-1 and changes every second line; $9003 bit 7 is
+// bit 0. Polling $9004 alone lands anywhere in a two-line window. So the
+// hook polls $9004 coarsely for the pair before, then waits for $9003
+// bit 7 to CHANGE into the line it syncs on: a `bit $9003 / bpl` (or
+// `bmi`) loop, 7 cycles, which is the whole jitter left. Odd and even
+// lines take different paths to that edge and are padded to the same
+// length after it.
+//
+// Every cycle of a VIC-20 line is on screen somewhere — there is no
+// blanking a write can hide in — so a write can only hide behind what
+// the slot does NOT show: a BORDER change is invisible while the beam is
+// in the picture, a BACKGROUND change while it is in the border. So each
+// planned line is two stores: the border half inside the picture of the
+// line before, the background half in the border between that line and
+// the target. Both land a fixed delay after the edge of the line before
+// the target, and the delays are the region's (the VIC-20's line counter
+// ticks at a different point of the line on NTSC and PAL, measured —
+// packages/vic20/AGENTS.md): the hook has one timed copy per region, and
+// `commit()` probes the region once to say which runs. The result: the
+// target line is the first whole line in the new colors, on both regions, with nothing visibly moving from frame to
+// frame. What it costs is time — a planned line keeps the hook about a
+// line and a half — so entries two or more lines apart land exactly and
+// an entry on the very next line lands a line or two late.
+//
+// ---- what a Slot means here ------------------------------------------------
+//
+// BORDER is $900F bits 0-2 (eight colors, masked & 7) and BACKGROUND bits
+// 4-7 (sixteen, & 15); bit 3, normal/inverted video, is never touched.
+// Slot.SCROLL_X is refused: $9000's horizontal origin moves the picture in
+// four-pixel steps, not the 0-7 fine scroll the slot means everywhere else.
 
 // What the picture does at a line, named without an address. The numbers
-// are arbitrary and the same in all nine rasterline files; nothing here
-// consumes them.
+// are arbitrary and the same in all nine rasterline files.
 export namespace Slot {
-    const BORDER: utinyint = 0;     // the border's color
-    const BACKGROUND: utinyint = 1; // the playfield's background color
-    const SCROLL_X: utinyint = 2;   // the horizontal fine scroll
+    const BORDER: utinyint = 0;     // the border's color, 0-7 here
+    const BACKGROUND: utinyint = 1; // the playfield's background color, 0-15
+    const SCROLL_X: utinyint = 2;   // the horizontal fine scroll: refused here
+}
+
+// Everything below at a fixed address lives in the cassette buffer
+// ($033C-$03FB): RAM no VIC-20 program uses once it is loaded, so the
+// list and its plan cost the program image nothing. The hook's asm6502
+// block names the plan's addresses as numbers (a block cannot name a
+// global: globals are link-renamed), so a change here is a change to
+// the hook's operands.
+//
+// The list as the program built it: three bytes an entry — picture line,
+// slot, and the value as its bits in $900F — so `setValue`'s byte offset
+// is index * STRIDE, the unit every rasterline file takes.
+@address(0x037C)
+let entries: array<utinyint, 48>;
+// Which planned line each entry was merged into.
+@address(0x03AC)
+let entryPlan: array<utinyint, 16>;
+let entryCount: utinyint = 0;
+// True between a change to the list and the commit that hands it over:
+// setValue then edits only the list, the way the C64's edits only the
+// page the handler is not reading.
+let listDirty: bool = false;
+
+// The plan the hook reads.
+@address(0x033C)
+let planCoarse: array<utinyint, 16>; // wait while $9004 < this
+@address(0x034C)
+let planEven: array<utinyint, 16>;   // nonzero: sync on the even line of the pair after it
+@address(0x035C)
+let planFirst: array<utinyint, 16>;  // store 1: the new border, the old background
+@address(0x036C)
+let planSecond: array<utinyint, 16>; // store 2: both new
+// The count, read by the hook in 8BitScript — the global the hook shares
+// with commit(), which is what keeps it linked (see the header).
+let planCount: utinyint = 0;
+// The $900F bits the list does not own: the hook keeps the program's.
+let keepMask: utinyint = 0xFF;
+let enabled: bool = false;
+// 0 until commit() has probed the region, then 1 NTSC or 2 PAL.
+let region: utinyint = 0;
+
+// The frame runtime's hook: FRAME_SYNC.vic20.frameHook names it, and
+// waitFrame() calls it after every frame edge. Not for a program to call —
+// from anywhere but the top of a frame it waits for lines already passed.
+// Ends in an explicit `return;` so the linker keeps it a function
+// (mos/index.ts refuses a build where the hook was inlined away).
+//
+// Cycle by cycle after the edge — the fall-through of `bpl up` (odd) or
+// `bmi down` (even): 11 to `store` on either path (odd: lda 4, bne 2,
+// jmp 3; even: three nops and a bit $00), then the first padding, then
+// 11 to the first store's write (lda zp 3, ora abs,x 4, sta 4), then the
+// second padding, then 11 to the second's. So the first store lands
+// 22 + P1 cycles after the edge and the second 11 + P2 after that:
+//
+//   NTSC  P1 36, P2 27 — stores at 58 and 96 cycles
+//   PAL   P1 14, P2 25 — stores at 36 and 72 cycles
+//
+// packages/vic20/AGENTS.md ("Raster splits") has the windows these were
+// picked from. There is no taken branch between the edge and either
+// store — the padding is a `jsr` into a run of nops (`jsr` + `rts` is 12
+// cycles wherever they are, each nop entered 2 more), never a loop — so
+// the timing does not change with where the linker happens to place this
+// function (a taken branch that crosses a page costs a cycle more). One
+// copy per region, chosen once a frame before any waiting starts.
+export function vic20RasterFrame(): void {
+    let n: utinyint = planCount;
+    if (n == 0) {
+        return;
+    }
+    let base: utinyint = memory.read(0x900F) & keepMask;
+    if (region == 2) {
+        asm6502 {
+            ; PAL, 71-cycle lines: stores 36 and 72 cycles after the edge
+            ldx #0
+        pal_coarse:
+            lda $9004
+            cmp $033c,x
+            bcc pal_coarse
+        pal_up:
+            bit $9003
+            bpl pal_up
+            lda $034c,x
+            bne pal_down
+            jmp pal_store
+        pal_down:
+            bit $9003
+            bmi pal_down
+            nop
+            nop
+            nop
+            bit $00
+        pal_store:
+            jsr sled+11
+            lda base
+            ora $035c,x
+            sta $900f
+            bit $00
+            jsr sled+7
+            lda base
+            ora $036c,x
+            sta $900f
+            inx
+            cpx n
+            bne pal_coarse
+        }
+    } else {
+        asm6502 {
+            ; NTSC, 65-cycle lines: stores 58 and 96 cycles after the edge
+            ldx #0
+        ntsc_coarse:
+            lda $9004
+            cmp $033c,x
+            bcc ntsc_coarse
+        ntsc_up:
+            bit $9003
+            bpl ntsc_up
+            lda $034c,x
+            bne ntsc_down
+            jmp ntsc_store
+        ntsc_down:
+            bit $9003
+            bmi ntsc_down
+            nop
+            nop
+            nop
+            bit $00
+        ntsc_store:
+            jsr sled
+            lda base
+            ora $035c,x
+            sta $900f
+            bit $00
+            jsr sled+6
+            lda base
+            ora $036c,x
+            sta $900f
+            inx
+            cpx n
+            bne ntsc_coarse
+            jmp ntsc_done
+            ; the padding: jsr + rts is 12 cycles, each nop entered 2 more
+        sled:
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            rts
+        ntsc_done:
+        }
+    }
+    return;
 }
 
 export namespace raster {
-    const ENTRIES: utinyint = 0; // the list's capacity: there is no list
-    const STRIDE: utinyint = 0;  // bytes per entry: none
+    const ENTRIES: utinyint = 16; // the list's capacity
+    const STRIDE: utinyint = 3;   // bytes per entry: line, slot, value
+    const FINE_SCROLL: bool = false; // Slot.SCROLL_X is refused: $9000 moves the picture in 4-pixel steps
+    const LINES: utinyint = 184;  // visible picture lines: Video.ROWS (23) * 8
 
+    // Empty the list. What shows keeps showing until the next commit().
     function clear(): void {
+        entryCount = 0;
+        listDirty = true;
     }
 
+    // Append: at picture line `line` (0 is the first line of the text
+    // area), give `slot` the value `value`. False, and nothing added, if
+    // the line is past the picture, the slot is SCROLL_X or unknown, the
+    // list is full, or the line is above the last entry's.
     function at(line: utinyint, slot: utinyint, value: utinyint): bool {
-        return false;
+        if (line >= raster.LINES || slot > Slot.BACKGROUND || entryCount >= raster.ENTRIES) {
+            return false;
+        }
+        let offset: utinyint = entryCount * 3;
+        if (entryCount > 0 && line < entries[offset - 3]) {
+            return false;
+        }
+        entries[offset] = line;
+        entries[offset + 1] = slot;
+        entries[offset + 2] = raster.bits(slot, value);
+        entryCount = entryCount + 1;
+        listDirty = true;
+        return true;
     }
 
+    // In order: the same as `at`, at a line above the last entry's — the
+    // entries below it slid down a place. False, and nothing added, if the
+    // line is past the picture, the slot is refused, or the list is full.
     function insert(line: utinyint, slot: utinyint, value: utinyint): bool {
-        return false;
+        if (line >= raster.LINES || slot > Slot.BACKGROUND || entryCount >= raster.ENTRIES) {
+            return false;
+        }
+        let offset: utinyint = entryCount * 3;
+        while (offset > 0 && entries[offset - 3] > line) {
+            entries[offset] = entries[offset - 3];
+            entries[offset + 1] = entries[offset - 2];
+            entries[offset + 2] = entries[offset - 1];
+            offset = offset - 3;
+        }
+        entries[offset] = line;
+        entries[offset + 1] = slot;
+        entries[offset + 2] = raster.bits(slot, value);
+        entryCount = entryCount + 1;
+        listDirty = true;
+        return true;
     }
 
-    function setValue(entry: utinyint, value: utinyint): bool {
-        return false;
-    }
-
-    function commit(): void {
-    }
-
+    // How many entries the list holds.
     function count(): utinyint {
-        return 0;
+        return entryCount;
     }
 
+    // Hand the list to the frame runtime: live from the next waitFrame().
+    // This is where the plan is worked out, so the hook does nothing but
+    // wait and store (the header's "what is computed where").
+    function commit(): void {
+        raster.probeRegion();
+        let top: utinyint = memory.read(0x9001);
+        let items: utinyint = 0;
+        let lastLine: utinyint = 0;
+        let planned: utinyint = 0;
+        let owned: utinyint = 0;
+        plannedEntries = 0;
+        for (let i: utinyint = 0; i < entryCount; i++) {
+            let offset: utinyint = i * 3;
+            let line: utinyint = entries[offset];
+            if (items == 0 || line != lastLine) {
+                // A planned line keeps the hook about a line and a half,
+                // so the next can be no nearer than two lines: one nearer
+                // is planned two below the last, where it lands exactly,
+                // rather than wherever the hook next catches an edge.
+                let target: utinyint = line;
+                if (items > 0 && target < planned + 2) {
+                    target = planned + 2;
+                }
+                // Pushed off the picture: this entry and every one after
+                // it is not planned (a line the frame may never reach
+                // would keep the hook into the next frame).
+                if (target >= raster.LINES) {
+                    break;
+                }
+                planned = target;
+                // Sync on the line before the target: raster line
+                // top * 2 + target - 1, whose pair's predecessor is the
+                // $9004 value to wait past — up to 38 * 2 + 213 - 2 on PAL
+                // (sixteen entries two lines apart from 183), so 16 bits.
+                let before: usmallint = top;
+                before = before * 2 + target - 2;
+                planCoarse[items] = before >> 1;
+                planEven[items] = before & 1;
+                items = items + 1;
+                lastLine = line;
+            }
+            entryPlan[i] = items - 1;
+            if (entries[offset + 1] == Slot.BORDER) {
+                owned = owned | 0x07;
+            } else {
+                owned = owned | 0xF0;
+            }
+            plannedEntries = i + 1;
+        }
+        keepMask = owned ^ 0xFF;
+        raster.recolor(items);
+        // The hook only runs inside waitFrame(), never during this, so a
+        // half-built plan is never read.
+        if (enabled) {
+            planCount = items;
+        } else {
+            planCount = 0;
+        }
+        committed = items;
+        listDirty = false;
+    }
+
+    // Both stores' bytes for planned lines 0..items-1. Each slot the list
+    // sets is carried forward from the entry that last set it, and the
+    // lines above the first entry for a slot take the last one's value
+    // (the frame wraps, as on the C64). The first store's background half
+    // is the line above's: it lands while the old color is still on
+    // screen. Whole bytes, never read-modify-write: bits the list does not
+    // set are 0 here — bit 3 included, whatever the cassette buffer held —
+    // and come from $900F through the hook's base.
+    function recolor(items: utinyint): void {
+        let border: utinyint = 0;
+        let background: utinyint = 0;
+        for (let e: utinyint = 0; e < plannedEntries; e++) {
+            let at: utinyint = e * 3;
+            if (entries[at + 1] == Slot.BORDER) {
+                border = entries[at + 2];
+            } else {
+                background = entries[at + 2];
+            }
+        }
+        let entry: utinyint = 0;
+        for (let p: utinyint = 0; p < items; p++) {
+            let above: utinyint = background;
+            while (entry < plannedEntries && entryPlan[entry] == p) {
+                let at: utinyint = entry * 3;
+                if (entries[at + 1] == Slot.BORDER) {
+                    border = entries[at + 2];
+                } else {
+                    background = entries[at + 2];
+                }
+                entry = entry + 1;
+            }
+            planFirst[p] = border | above;
+            planSecond[p] = border | background;
+        }
+    }
+
+    // A slot's value as its bits in $900F: border 0-2, background 4-7.
+    function bits(slot: utinyint, value: utinyint): utinyint {
+        if (slot == Slot.BORDER) {
+            return value & 7;
+        }
+        return (value & 15) << 4;
+    }
+
+    // Once per program: which region, by whether the raster reaches
+    // $9004 >= 140, a line only PAL has — the frame runtime's own probe
+    // (FRAME_SYNC.vic20.palProbe), over more than a PAL frame. The
+    // answer picks the hook's two delays; AGENTS.md has how they were
+    // measured.
+    function probeRegion(): void {
+        if (region != 0) {
+            return;
+        }
+        let pal: utinyint = 0;
+        asm6502 {
+            ldy #8
+            ldx #0
+        probe:
+            lda $9004
+            cmp #140
+            bcs found
+            dex
+            bne probe
+            dey
+            bne probe
+            jmp done
+        found:
+            lda #1
+            sta pal
+        done:
+        }
+        if (pal == 0) {
+            region = 1;
+        } else {
+            region = 2;
+        }
+    }
+
+    // Rewrite one entry's value, leaving its line and slot: `entry` is the
+    // entry's byte offset (index * STRIDE). Live from the next frame with
+    // no commit, when the list has not been changed since the last one.
+    // False, and nothing written, if the offset is not a multiple of 3 or
+    // names no entry.
+    function setValue(entry: utinyint, value: utinyint): bool {
+        if (entry % 3 != 0 || entry >= entryCount * 3) {
+            return false;
+        }
+        entries[entry + 2] = raster.bits(entries[entry + 1], value);
+        if (!listDirty) {
+            raster.recolor(committed);
+        }
+        return true;
+    }
+
+    // Start applying: commits the list, which shows from the next frame.
     function enable(): void {
+        enabled = true;
+        raster.commit();
     }
 
+    // Stop applying; the list is kept. $900F keeps whatever the last
+    // write left, as on every machine with a raster list.
     function disable(): void {
+        enabled = false;
+        planCount = 0;
     }
 }
+
+// How many planned lines the last commit() built — setValue's recolor
+// walks them while the hook may be reading planCount's copy — and how
+// many entries they hold: entries pushed off the picture by the
+// two-line rule are not planned, and nothing past this count is read.
+let committed: utinyint = 0;
+let plannedEntries: utinyint = 0;

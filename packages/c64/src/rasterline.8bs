@@ -21,17 +21,22 @@
 //
 // ---- the portable surface ------------------------------------------------
 //
-// The same shape on all nine machines (the other eight ship an honest
-// zero-cost stub until they have an implementation; #fact(video.raster)
-// says which kind a build got, so a program's raster branch folds away on
-// a machine without one):
+// The same shape on all nine machines (the C64, the VIC-20 and the web
+// implement it; the rest ship an honest zero-cost stub until they have an
+// implementation; #fact(video.raster) says which kind a build got, so a
+// program's raster branch folds away on a machine without one):
 //
 //   - `Slot`: BORDER, BACKGROUND, SCROLL_X — the three per-line effects
 //     that mean the same thing everywhere.
 //   - `raster.ENTRIES` — the list's capacity: 63 here, 0 in a stub.
 //   - `raster.STRIDE` — the bytes one entry takes, the unit `setValue`
-//     names an entry in: 4 here, 3 on the web, 0 in a stub. (examples/
-//     fancy probed for this at start-up before the surface carried it.)
+//     names an entry in: 4 here, 3 on the web and the VIC-20, 0 in a
+//     stub. (examples/fancy probed for this at start-up before the
+//     surface carried it.)
+//   - `raster.FINE_SCROLL` — whether `Slot.SCROLL_X` entries are taken:
+//     true here and on the web, false on the VIC-20 (splits, but no fine
+//     scroll) and in a stub. A compile-time constant, so a wobble behind
+//     it folds away where the list would refuse its entries.
 //   - `clear()`, `at(line, slot, value)`, `insert(line, slot, value)`,
 //     `setValue(entry, value)`, `count()`, `commit()`, `enable()`,
 //     `disable()` — the same list operations ./raster.8bs documents,
@@ -82,6 +87,7 @@ export namespace Slot {
 export namespace raster {
     const ENTRIES: utinyint = 63; // the list's capacity, ./raster.8bs's MAX
     const STRIDE: utinyint = 4;   // bytes per entry: line, address low, address high, value
+    const FINE_SCROLL: bool = true; // Slot.SCROLL_X entries are accepted: $D016's XSCROLL
     const TOP: utinyint = 50;     // picture line 0 is raster line 50
     const LINES: utinyint = 200;  // visible picture lines, 0-199
     const KEEP: utinyint = 0xF8;  // $D016 bits 3-7 — CSEL, MCM — kept in every SCROLL_X byte

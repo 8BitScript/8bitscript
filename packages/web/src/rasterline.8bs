@@ -41,6 +41,7 @@
 //     that mean the same thing everywhere. SCROLL_X's value is the 0-7
 //     fine-scroll amount, as it is on the C64.
 //   - `raster.ENTRIES` — the list's capacity: 64 here.
+//   - `raster.FINE_SCROLL` — true: SCROLL_X entries are taken here.
 //   - `clear()`, `at(line, slot, value)`, `setValue(entry, value)`,
 //     `count()`, `enable()`, `disable()` — the same list operations,
 //     `entry` being the entry's byte offset (index * 3), the unit the
@@ -64,6 +65,7 @@ let lastLine: usmallint = 0;
 export namespace raster {
     const ENTRIES: utinyint = Video.RASTER_MAX_ENTRIES; // the list's capacity
     const STRIDE: utinyint = 3;   // bytes per entry: line, slot (+ line's bit 8), value
+    const FINE_SCROLL: bool = true; // Slot.SCROLL_X entries are accepted: the renderer shifts the line
 
     // Empty the list. The control byte stands: enable()/disable() own it.
     function clear(): void {

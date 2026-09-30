@@ -27,10 +27,12 @@ machine answers it, and a written degradation for machines that cannot.
 - **`@8bitscript/raster`** — *what the picture does at a picture line*:
   `Slot.BORDER`, `BACKGROUND`, `SCROLL_X`; `at(line, slot, value)`,
   `setValue(entry, value)`, `enable()`. Real on the C64 (an IRQ-driven
-  write list in `native/6502/raster.s`) and the web; an honest zero-cost
-  stub on the other seven behind `#fact(video.raster)`. `examples/fancy`
-  is the pattern: build once, rewrite values per frame, fold away
-  elsewhere.
+  write list in `native/6502/raster.s`), the web, and the VIC-20 (border
+  and background only, `raster.FINE_SCROLL` false: `waitFrame()`'s frame
+  hook busy-waits down the frame and writes `$900F` at each line —
+  `packages/vic20/AGENTS.md`, "Raster splits"); an honest zero-cost stub
+  on the other six behind `#fact(video.raster)`. `examples/fancy` is the
+  pattern: build once, rewrite values per frame, fold away elsewhere.
 - **The C64 list's mechanics** (`packages/c64/AGENTS.md`, "Three things
   the VIC-II does that its manual does not say"): two list pages with an
   atomic `commit()`, the pass ending at line 255, entries applied late
@@ -52,9 +54,12 @@ machine answers it, and a written degradation for machines that cannot.
   `<RasterKernel><SpriteMultiplexer /><CopperBars /></RasterKernel>` as a
   legitimate composition.
 - **The frame hook**: the backend `JSR`s a function named by
-  `FRAME_SYNC.<machine>.frameHook` at the start of vertical blank (the
-  NES's `nesVerticalBlank()`), the one seam where code runs at a frame
-  edge on every machine that needs it.
+  `FRAME_SYNC.<machine>.frameHook` at the frame edge `waitFrame()` waited
+  for — the NES's `nesVerticalBlank()` at the start of vertical blank,
+  the VIC-20's `vic20RasterFrame()` at the top of the frame — the one
+  seam where code runs at a frame edge on every machine that needs it. A
+  hook nothing calls is kept only when the program touches its state
+  (`linker/reachability.mjs`).
 - **The pre-rewrite design** (`docs/systems.md`, deleted at `d0cee5d`,
   still in git): `@8bitscript/sprites` — "a moving object is a concept on
   the PET even though a sprite is not, so `sprites` exists there, drawn by
@@ -71,7 +76,7 @@ way — or no way — to change something while it does:
 | --- | --- | --- | --- |
 | C64 / C128 (VIC-II) | raster IRQ → a write list; an entry lands at the end of its line | 8 live register sets, reusable down the frame | `$D020`/`$D021` per line: free |
 | MEGA65 (VIC-IV) | the same, plus a fine raster and a per-row rewrite buffer (RRB) | the 8, up to 64 px wide; RRB "pixies" unlimited | palette registers, any time |
-| VIC-20 (VIC-I) | no raster IRQ; a VIA timer synchronised to `$9004` once | none — redefined characters | `$900F` per line: free (constant-length lines) |
+| VIC-20 (VIC-I) | no raster IRQ; `waitFrame()`'s frame hook re-syncs on `$9004`/`$9003` bit 7 before every planned line (built; a VIA timer synced once is the untried alternative) | none — redefined characters | `$900F` per line: two stores a line, every second line at most |
 | PET | a 50/60 Hz retrace IRQ; nothing inside the frame | none — PETSCII cells | none |
 | Atari 8-bit | the display list *is* a per-line plan; a DLI at any mode line, `WSYNC` aligns to blanking | 4 players + 4 missiles as live per-line registers | 9 colour registers per DLI: the archetype |
 | NES | no scanline IRQ in the chip: sprite-0 hit (one, polled) or a mapper's counter (MMC3 at dot 260) | 64 OAM entries, **per-frame data**, 8 per line chosen by the PPU | emphasis/greyscale bits only; palette is vblank-only |
@@ -304,9 +309,14 @@ the border). The one boxed rule for any `$D011` entry: never make
 `YSCROLL == RASTER & 7` inside cycles 15–53 of a window line.
 
 **VIC-20 (VIC-I).** No raster IRQ, no bad lines, constant 65/71-cycle
-lines: a VIA timer synchronised once to `$9004` (latch = lines × cycles)
-is a list engine thereafter (Mäkelä's `stable.txt`; Denial's NOP-slide
-sync for jitter). Characters and colours are fetched every line, so
+lines. What is built: `waitFrame()`'s frame hook polls `$9004` and the
+`$9003` bit-7 edge before every planned line and writes `$900F` twice —
+the border half in the picture, the background half in the border — so
+every split is whole and still (`packages/vic20/AGENTS.md`, "Raster
+splits", measured on both regions). The alternative, a VIA timer
+synchronised once to `$9004` (latch = lines × cycles) as a list engine
+(Mäkelä's `stable.txt`; Denial's NOP-slide sync for jitter), would give
+the frame back to the program between splits and is untried. Characters and colours are fetched every line, so
 `$9005` (screen/charset), `$900E`/`$900F` take effect on the next line.
 The window is registers (`$9000`–`$9003`: origin in 4-px/2-line steps,
 columns, rows, 8×16 chars): "outside the window" is just a bigger

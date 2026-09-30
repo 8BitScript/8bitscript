@@ -140,20 +140,24 @@ test('joystick highlights with reverse video, not colour alone', () => {
 });
 
 // fancy is the raster showpiece, and its whole effect sits behind
-// #fact(video.raster) so the seven machines whose rasterline layers are
-// zero-answer stubs fold it away to nothing. A future edit that drops the
-// guard would still build and still link everywhere — the stubs are
-// honest — and would simply stop being free on those seven; this is what
-// notices. The fact's answers are pinned too, so a machine gaining or
-// losing the capability shows up here, next to the example that assumes
-// the split.
-test('fancy keeps its raster effect behind #fact(video.raster)', () => {
+// #fact(video.raster) so the machines whose rasterline layers are
+// zero-answer stubs fold it away to nothing; the wobble sits behind
+// raster.FINE_SCROLL as well, so the VIC-20 — splits, no fine scroll —
+// builds the colour bands and folds the wobble away. A future edit that
+// drops a guard would still build and still link everywhere — the stubs
+// are honest, and the VIC-20 refuses SCROLL_X entries — and would simply
+// stop being free (or, on the VIC-20, rewrite the colour bands with sine
+// values through setValue); this is what notices. The fact's answers are
+// pinned too, so a machine gaining or losing the capability shows up
+// here, next to the example that assumes the split.
+test('fancy keeps its raster effect behind #fact(video.raster), and its wobble behind raster.FINE_SCROLL', () => {
   const main = readFileSync(join(ROOT, 'fancy', 'src', 'main.8bs'), 'utf8');
-  assert.match(main, /#fact\(video\.raster\)/, 'the wobble is guarded by the capability fact');
-  for (const target of ['c64', 'web']) {
+  assert.match(main, /#fact\(video\.raster\)/, 'the splits are guarded by the capability fact');
+  assert.match(main, /raster\.FINE_SCROLL/, 'the wobble is guarded by the fine-scroll constant');
+  for (const target of ['c64', 'web', 'vic20']) {
     assert.equal(stockFacts(target)['video.raster'], true, `${target} answers the raster capability`);
   }
-  for (const target of ['pet', 'vic20', 'cx16']) {
+  for (const target of ['pet', 'cx16']) {
     assert.equal(stockFacts(target)['video.raster'], false, `${target} has no per-scanline hook`);
   }
 });

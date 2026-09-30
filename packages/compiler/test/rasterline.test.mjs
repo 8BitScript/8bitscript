@@ -1,10 +1,11 @@
 // @8bitscript/raster resolves to a machine's own ./rasterline on every
 // target: the C64's slot-to-register translation onto its address list,
-// the web's direct list in the agreement page, and an honest zero-answer
-// stub everywhere else. Pinned here is the capability rule
-// packages/input/AGENTS.md states: a portable program naming the
-// capability links clean on all nine machines whether or not the machine
-// can answer, and #fact(video.raster) — true on the C64 and the web —
+// the web's direct list in the agreement page, the VIC-20's plan applied
+// by waitFrame(), and an honest zero-answer stub everywhere else. Pinned
+// here is the capability rule packages/input/AGENTS.md states: a portable
+// program naming the capability links clean on all nine machines whether
+// or not the machine can answer, and #fact(video.raster) — true on the
+// C64, the VIC-20 and the web —
 // folds the program's raster branch to a constant, so the branch costs a
 // machine without the capability nothing.
 import { test } from 'node:test';
@@ -73,7 +74,7 @@ export function main(): void {
 test('on a machine without the capability, the guarded raster branch emits the same code size as no import at all', async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-rasterline-size-'));
   try {
-    for (const machine of ['pet', 'vic20']) {
+    for (const machine of ['pet', 'cx16']) {
       const resolved = resolveHardware(loadCatalog(machine), {});
       assert.ok(resolved.ok, resolved.ok ? '' : `${machine}: ${resolved.error}`);
       const sizes = {};
