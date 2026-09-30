@@ -277,6 +277,50 @@ at all.
 - The line IRQ has interlace quirks (bit 0 ignored, readings alternate by
   field). Same rule: scheduler code, not application code.
 
+**A VERA line-IRQ raster driver was attempted (2026-09-29) and reverted —
+read this before trying again.** The memory-safety question this
+package's own zero-page section already answers cleanly: `$A9`-`$FF` is
+proven-safe RAM (no `@address` pinning needed anywhere else), a stock
+program's KERNAL never touches it, and unlike the C64 there is no
+VIC-idle-graphics reason to pin the handler at a special address — VERA
+shares no CPU-visible fetch with program RAM the way VIC-II bank 3 does
+(`packages/c64/AGENTS.md`, "Idle graphics and the ghost byte"), so a
+native routine can live wherever the linker puts it. `mos/startup/
+waitframe.ts`'s `FlagSync.keepsInterrupts` (mirroring `RasterSync`'s own,
+built for the Atari 8-bit) is the one line a real driver needs flipped to
+stop the compiler's own SEI from undoing `raster.enable()`'s CLI —
+already wired through `waitFrameKeepsInterrupts()` and `flagSetup()`, just
+not turned on for `cx16` today.
+
+What actually blocked it: `$9F26` (IEN) and `$9F27` (ISR) behave exactly
+as documented, verified directly against the real emulator's own model,
+not recalled — `~/.cache/8bitscript/setup/x16-emulator/src/video.c`,
+`video_write` (search `case 0x06`/`case 0x07`): `IEN`'s write sets
+`irq_line`'s 9th bit from bit 7 and the enable mask from bits 0-3; `ISR`'s
+write is a plain `isr &= value ^ 0xff` (write-1-to-clear); the LINE
+condition (`update_isr_and_coll`, search `LINE IRQ`) sets `isr`'s bit 1
+with a plain `if (y == compare)` — once per frame, not continuously. A
+handler that installs on `$0314`/`$0315` (CINV — the KERNAL's own
+indirect vector, confirmed compatible with the C64's), arms `IRQLINE_L`
+for line 0, sets `IEN = 0x02`, and `cli`s: **runs into x16emu's debugger
+break screen** (a static register/flags HUD, captured in a `--screenshot`
+run) as soon as the handler acknowledges the interrupt with the *correct*
+value (`STA 0x9F27` with `#0x02`) — bisected with `node --test`-free,
+by-hand builds down to that one instruction. Leaving the interrupt
+unacknowledged (or acknowledging the wrong bit) does not crash; neither
+does the same instruction from ordinary (non-interrupt) code; the
+interrupt firing was confirmed to be real (VERA's own edge condition, not
+some other pending source — a bare `cli` with no vector change at all is
+also fine). The crash reproduces with `waitFrame()` entirely removed from
+the program, so it is not an interaction with this package's own frame
+pacing. This is as far as this session's tools (screenshot diffing, the
+assembly listing, reading the emulator's own C source) could narrow it —
+a real debugger attached to a running x16emu (or a report to
+X16Community, since this may be an emulator bug rather than a wrong
+assumption on this project's part) is the next step, not another guess
+at the register semantics, which are now about as verified as they can be
+without one.
+
 ### Audio
 
 - YM2151, VERA PSG, and VERA PCM are three resources, not one. Per chip,
