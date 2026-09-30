@@ -212,6 +212,16 @@ Do not describe more than this as working:
   than the VIC-20 that does edit — so no memory expansion lifts the PET.
   A hi-res board or a SID cartridge would, by changing those facts; see
   `packages/studio/AGENTS.md`.
+- **Raster splits, on the 3032 model only.** `@8bitscript/raster`'s
+  `Slot.CHARSET` is real for `--hardware model=3032`: a mid-frame write
+  to the character-ROM-select register (`$E84C`) splits the picture
+  between the graphics and text sets at true cycle-scanline accuracy,
+  applied by `waitFrame()`'s own frame hook (the PET has no raster
+  interrupt). `#fact(video.raster)` is true only for that one model
+  value; every other PET, including the default (2001) and the release
+  target (4032), still answers false. See "Raster: character-set
+  switching" below for the mechanism, the numbers, and what is not yet
+  extended to the other models.
 
 There is no sound, no *portable* input (the keyboard layer above is the
 PET's own; `@8bitscript/input` does not exist), no reverse-video access, no `.tap`
@@ -688,124 +698,137 @@ the sources on the memory map. `xpet -model <m> -limitcycles N
 adding a number to this file, and move the row from "from the sources"
 to "verified here" when you do.
 
-## Raster: character-set switching — researched, not yet implemented
+## Raster: character-set switching (the 3032 model tag)
 
-`@8bitscript/raster` names a fourth per-line intent, `Slot.CHARSET` (value
-3: the machine's alternate character set), and two constants a program
-folds on before touching any slot: `raster.COLORS` (whether
+`@8bitscript/raster` names a fourth per-line intent, `Slot.CHARSET`
+(value 3: the machine's alternate character set), and two constants a
+program folds on before touching any slot: `raster.COLORS` (whether
 `BORDER`/`BACKGROUND` do anything — false on the PET, which has no
-border or background register at all) and `raster.CHARSET` (whether this
-slot does). Both exist in all thirty-two rasterline files today, every
-one answering `CHARSET` false (`test/rasterline-charset.test.mjs`); no
-driver has shipped yet. This section is the research a driver would be
-built from — read it before writing one, and verify anything it does not
-already cover before trusting it, per the root file's rule.
+border or background register at all) and `raster.CHARSET` (whether
+this slot does). Both exist in all thirty-two rasterline files;
+`raster.pet.3032.8bs` — the `3032` catalog value's own twin,
+resolved by `--hardware model=3032` the same way `geometry.pet.8032.8bs`
+is by the `8032` tag — is the one file among them that answers `CHARSET`
+true. `#fact(video.raster)` is true only for that one model value
+(`package.json`'s `"3032"` entry, a per-value `facts` override the same
+way `video.columns`/`video.frameRate` already differ per model); every
+other PET model, including the default (2001) and the release target
+(4032), still gets the honest stub and answers false. Extending this to
+the 4032 and 8032 is real follow-on work, not done here — see "What is
+not done" below.
 
-**The mechanism.** `viaPeripheralControl` (`$E84C`, this package's `index.8bs`)
-selects the character ROM's graphics half (`$0C`) or text half (`$0E`) —
-`text.8bs`'s `CharacterSet.TEXT`. Nothing about that register is
-double-buffered or vertical-blank-gated: the character generator reads it
-on every scanline's own character fetch, the same way the VIC-20's
-`$9005` selects a screen/charset base with no vblank queue. A mid-frame
-write therefore splits the picture — graphics above the write, text (or
-the reverse) below it — a real, well-known PET demo technique, not a
-PET-specific novelty: the C64's `$D018` (CB13–11) and the VIC-20's
-`$9005` bits 0–3 do the same job on those machines, so `Slot.CHARSET` is
-written as a portable concept from the start rather than added to the
-PET alone.
+**The mechanism.** `viaPeripheralControl` (`$E84C`, this package's
+`index.8bs`) selects the character ROM's graphics half (`$0C`) or text
+half (`$0E`) — `text.8bs`'s `CharacterSet.TEXT`. Nothing about that
+register is double-buffered or vertical-blank-gated: the character
+generator reads it on every scanline's own character fetch, the same way
+the VIC-20's `$9005` selects a screen/charset base with no vblank queue.
+A mid-frame write therefore splits the picture — graphics above the
+write, text (or the reverse) below it — a real, well-known PET demo
+technique, not a PET-specific novelty: the C64's `$D018` (CB13–11) and
+the VIC-20's `$9005` bits 0–3 do the same job on those machines, which is
+why `Slot.CHARSET` is a portable concept, not a PET-only one.
 
-**Verified under xpet (VICE 3.10), 2026-09-29, non-CRTC 3032 model,
-`--hardware model=3032`.** A program wrote code 1 to every screen cell,
-then after `waitFrame()` burned a precise, known cycle count and wrote
-`$E84C` once, holding the new value for the rest of the frame. Two
-reference captures (screen held at `$0C` the whole frame, and at `$0E`
-the whole frame) gave each row's true pixel pattern to compare against —
-**only inside the text columns (x 35–374 on this capture), never the
-blank border**, and **only on a row where the two fonts actually render
-differently** (code 1's glyph is blank on the 8th scanline of its cell in
-*both* fonts, so that row is neither evidence of a switch nor of none —
-counting it corrupted an earlier pass of this measurement into a false
-"changes every 8 rows" pattern; the fix and why are worth reading if this
-work continues, in this PR's history). With that comparator:
+**There is no scanline counter, and so no per-entry re-sync.** Unlike the
+VIC-20's `$9004`, the PET has nothing readable that tracks the raster
+mid-frame: the CB1 vertical-retrace edge `waitFrame()` already waits on
+(`FRAME_SYNC.pet`) is the *only* synchronization point in a frame. So
+every entry's write is reached by counting cycles from that one edge,
+with no chance to correct partway through — closer to the VIC-20's very
+first, abandoned design than its shipped one, except here it is the only
+option available, not a mistake to fix. `presync: "sei"` already holds
+interrupts off for the whole of a `waitFrame()` program's life, so
+nothing can jitter a cycle-counted wait once it starts.
 
-- Sweeping the switch's target cycle in 8-cycle steps across roughly two
-  scanlines, the transition's row stayed **exactly fixed** for 56
-  cycles of sweep, then moved by **exactly one row** at the 64-cycle
-  mark, and stayed fixed again — a clean, cycle-quantized step, not a
-  gradual or noisy one. That is what a scanline boundary at 64 CPU
-  cycles/line looks like when you sweep past it, and it matches this
-  package's own documented figure for the non-CRTC board exactly
-  (`LINE_CYCLES = 64`).
-- No row, at any offset in the sweep, ever rendered a pattern matching
-  *neither* reference — no torn or half-switched row was seen. VICE
-  shows a clean, whole-scanline commit of the register write.
-- Back-computing from a known delay (≈5,151 cycles from `waitFrame()`'s
-  return to the write) landing the transition at picture line 22: the
-  first visible picture line is **≈3,749 cycles** after `waitFrame()`
-  returns, on the 3032 (`PICTURE_START_CYCLES`).
+**`petRasterFrame()`** (`rasterline.pet.3032.8bs`) is
+`FRAME_SYNC.pet.frameHook`, called by the shared `waitFrameRoutine` after
+every CB1 edge — exactly the seam `packages/vic20/AGENTS.md`'s own driver
+uses, opened to `EdgeSyncCalibrated` the same way it was to `LevelSync`
+(`frameHook?: string` on the interface; `pruneUnreachable`'s hook-rooting
+rule was already kind-agnostic, built for this reuse). `commit()` does
+everything the hook cannot: turns each entry's picture line into a target
+cycle count (`ORIGIN_CYCLES + line * LINE_CYCLES`, a power-of-two
+multiply, never `/`, which this backend refuses by name — "the 6502 has
+no hardware divide, and nothing on this backend's critical path needs
+one," `mos/lower/index.ts`), turns each target into a delta from the
+entry before it, and decomposes that delta by **repeated subtraction**
+into a coarse "outer" pass count and a fine "inner" step count matching
+the hook's own loop exactly:
 
-**The CRTC 4032 (`--hardware model=4032`, this package's release target)**
-was checked more lightly — one 3-point sweep, same fixed comparator — and
-showed the same shape: the transition held fixed, then moved by exactly
-one row across a sweep of about 40 cycles, consistent with **`LINE_CYCLES
-= 50`**, matching this board's own CRTC register (`R0 = 49`, "40-column:
-R0=49..." above) the same way the 3032's 64 matched its documented figure.
-No torn row was seen here either. This was *not* swept finely enough to
-nail `PICTURE_START_CYCLES` for the 4032 to the cycle — that number
-(along with the 8032's, `R0 = 63` → `LINE_CYCLES ≈ 64`, checked only via
-a whole-picture band test, not a fine sweep) is the first thing a
-continuation needs.
+```
+outer_pass: ldy #0 / inner: dey,bne inner / dec outerTemp / bne outer_pass   (1289 cycles/pass)
+fine_pass:  ldy fineCount / dey,bne fine_pass                                (5 cycles/step, minus 1 on the last)
+```
 
-**What this buys, if finished.** No scanline counter exists on the PET
-(unlike the VIC-20's `$9004`): the CB1 vertical-retrace edge `waitFrame()`
-already waits on is the *only* synchronization point in a frame, so a
-driver has to count cycles from that one edge to every entry, with no
-per-entry re-sync possible — closer to the VIC-20's very first (failed)
-design than its final one, except here it is the *only* option, not a
-mistake to fix. `FRAME_SYNC.pet` already runs `waitFrame()` with
-interrupts off (`presync: "sei"`), so nothing can jitter a cycle-counted
-wait once it starts — the PET needs no interrupt discipline decision the
-way the VIC-20 did.
+The hook does no arithmetic at all: read a byte, loop that many times,
+read another, loop, write $E84C, move to the next entry. Two fixed
+overhead constants, read straight off this file's own `--debug` listing
+rather than guessed — `BETWEEN_ENTRIES` (31: the LDA/STA/BEQ outer check,
+LDY/BEQ fine check, LDA/STA write, and INX/CPX/BNE between one entry and
+the next) and `FIRST_ENTRY` (39: the same, plus the 8bitscript-generated
+`let n = planCount; if (n == 0) return;` prologue before the first entry)
+— are subtracted from each entry's own delta before the repeated
+subtraction runs, so the loop counts land the write at the right cycle,
+not just the right loop-iteration-count.
 
-**The open engineering problem.** The 6502 backend refuses `/` by name
-(`mos/lower/index.ts`: "the 6502 has no hardware divide, and nothing on
-this backend's critical path needs one"). A driver's `commit()` needs to
-turn each entry's target cycle count (up to ~16,640 for a full non-CRTC
-frame) into a loop structure the hook can execute in a bounded number of
-instructions — which means dividing by the loop's own cycle cost. The
-VIC-20's driver never needed this: every delay there was small (padding
-between an edge and a store within one line) and built from a straight
-NOP sled, never a loop. A PET entry can be thousands of cycles from the
-edge, far too many for a sled. The fix is not to add `/` — nothing else
-on this backend's critical path needs it either, and adding it for one
-caller misreads the rule — it is to compute the decomposition in
-8bitscript itself, by *repeated subtraction* at a coarse-then-fine
-granularity (subtract a ~1,270-cycle "one full inner-loop pass" unit
-first, at most ~13 times; then subtract a ~5-cycle unit from the small
-remainder, at most ~255 times) — cheap enough to run once in `commit()`,
-never in the per-frame hook, following the same "compute once, not every
-frame" rule `@8bitscript/vic20/rasterline`'s own `commit()` already
-follows for its plan. This was identified but not built.
+**Verified under xpet (VICE 3.10), 2026-09-30, `--hardware model=3032`.**
+`test/raster-probe.8bs` builds a list once (graphics above picture line
+30, text from 30–139, graphics again from 140) and holds it live across
+a running frame loop; `test/raster.test.mjs` checks it two ways:
 
-**Next steps, in order:** (1) write the repeated-subtraction decomposition
-and the hook's nested delay loop, first for the 3032 only, using the
-numbers above; (2) build, screenshot, and verify with a multi-frame test
-the way `packages/vic20/test/raster.test.mjs` does — several consecutive
-frames, each split landing on its row, still frame to frame; (3) extend
-to the 4032 (the release model) and 8032 once each has its own fine
-sweep pinning `PICTURE_START_CYCLES`; (4) wire `FRAME_SYNC.pet`'s
-`EdgeSyncCalibrated` with a `frameHook: 'petRasterFrame'` (the interface
-needs the optional field added — `LevelSync` and `EdgeSyncFixed` already
-have it, and `pruneUnreachable`'s hook-rooting rule is already
-kind-agnostic, built for exactly this reuse); (5) `#fact(video.raster)`
-true only for the specific model tags with a real driver (a per-model-value
-`facts` override in `package.json`, the same mechanism `video.frameRate`
-and `video.columns` already use — not a blanket flip for every PET); (6)
-update `examples/fancy` to show the split (gated on `raster.CHARSET`, not
-`raster.COLORS`, since the PET has no border/background to show bands
-with); (7) this section becomes "What exists today," with a fresh set of
-numbers checked against whatever the finished driver actually measures —
-everything above is a sweep result, not a shipped fact.
+- Two whole-frame references (`$E84C` held at `$0C`, and at `$0E`, for
+  the entire capture) give every row's true pixel pattern for code 1 —
+  compared **only inside the text columns** (x 35–374 on this capture;
+  the border is always blank and would falsely "agree" with either
+  reference) and **only where the two fonts actually differ** (code 1's
+  glyph is blank on one scanline of its 8-row cell in *both* fonts — an
+  earlier pass of this same measurement counted that row as evidence and
+  produced a false "changes every 8 rows" pattern; excluding
+  identical-in-both rows instead of defaulting them to one side is what
+  fixed it).
+- Checked at five picture lines in each of the three bands (8–20
+  graphics, 40–120 text, 150–190 graphics again), across two different
+  `--frames` counts (300 and 350): every point matches its intended band,
+  both times. The split holds still frame to frame — no drift, no
+  skipped frame — the same property the VIC-20's own multi-frame test
+  proves for its machine.
+- `ORIGIN_CYCLES` (3940) and the two overhead constants were fit from two
+  single-split captures reading exactly where the transition landed, not
+  carried over from earlier hand-calibration sweeps against a *different*
+  program's own instruction sequence — those measured a different
+  reference point (after `waitFrame()` returns to the caller) than where
+  `petRasterFrame()` actually starts (inside `waitFrameRoutine`, before
+  that return), and using them unmodified landed the first entry about
+  3 lines early. `LINE_CYCLES` (64) is the one number that did carry
+  over unchanged, because it was already verified to the cycle in that
+  earlier work (packages/vic20/AGENTS.md style sweep, in this file's
+  git history) and cycles-per-line does not depend on where the count
+  starts.
+
+**An unexplained, unrelated artifact.** A single scanline, at a different
+picture line in almost every capture (never the same line twice, and
+present even in a program that never imports `@8bitscript/raster` at
+all — confirmed with a plain `waitFrame()` loop and no raster list),
+renders blank where both references show real content. It does not
+appear at either intended split's own line, it does not move when the
+driver's own timing constants change, and it does not affect whether the
+split itself is correct — `test/raster.test.mjs`'s checks avoid the
+handful of lines it has been seen at. Left as an open question rather
+than explained away: possibly a VICE 3.10 non-CRTC rendering quirk,
+unconfirmed against real hardware or against the VICE source.
+
+**What is not done.** The CRTC 4032 (this package's release target) and
+8032 were only loosely measured — `LINE_CYCLES` for each (50 and ~64,
+matching their own CRTC `R0` registers) came from a coarse sweep, not one
+as fine as the 3032's, and neither has its own `ORIGIN_CYCLES` fit at
+all. Building `rasterline.pet.4032.8bs` and `rasterline.pet.8032.8bs`
+is the natural next step, following this file's own shape, with its own
+fine sweep and its own multi-frame screenshot test — the release PET
+(4032) is the one that matters most. `examples/fancy` does not
+demonstrate this driver: it is specifically the *colour*-band showpiece
+(`raster.COLORS`), and the PET has no colour register for it to show —
+a program that wants to see the PET's split has to write one, the way
+`test/raster-probe.8bs` does.
 
 ## Seeing the screen without a human at xpet
 
@@ -828,10 +851,14 @@ packages/pet/src/text.8bs            @8bitscript/pet/text: ASCII → screen code
 packages/pet/src/keyboard.8bs        @8bitscript/pet/keyboard: scan() snapshot of the ten rows, pressed(key), row(n)
 packages/pet/src/keys.8bs            @8bitscript/pet/keys: Key.X = row * 8 + column, graphics keyboard
 packages/pet/src/keys.pet.business.8bs  the business tag's version: the business keyboard (8032, 4032B, 3032B)
-packages/pet/package.json            "8bitscript".exports names the four subpaths
+packages/pet/src/rasterline.8bs      @8bitscript/pet/rasterline (behind @8bitscript/raster): the honest stub — every model but 3032
+packages/pet/src/rasterline.pet.3032.8bs   the 3032 tag's real driver: petRasterFrame, commit()'s cycle decomposition, ORIGIN_CYCLES/LINE_CYCLES
+packages/pet/test/raster-probe.8bs   the probe: graphics/text/graphics bands, a digit counter that never touches $E84C
+packages/pet/test/raster.test.mjs    links the probe with tags:['3032']; under xpet, two frame counts, five lines per band
+packages/pet/package.json            "8bitscript".exports names the four subpaths; the "3032" model value's own video.raster: true
 packages/compiler/test/pet-keys.test.mjs   both tables well formed, shared names, VICE .vkm cross-check, profile picks the table
 packages/pet/package.json            "8bitscript".hardware: model (__ram_size, -model, tag, columns and frame-rate facts), ram, speaker, drive (all nine real -drive8type values, measured storage.kib), a preset per model
-packages/compiler/src/mos/index.ts  FRAME_SYNC.pet (CB1 retrace, T2 calibration; the backend refuses to build)
+packages/compiler/src/mos/index.ts  FRAME_SYNC.pet (CB1 retrace, T2 calibration; frameHook: 'petRasterFrame'; the backend refuses to build)
 packages/compiler/src/linker/hazards.mjs   8BS3003: the $E842 killer-poke rule
 packages/cli/src/run.mjs             PET_REGION_NOTE, why no --pal and no 60 Hz editors; the model's flags come from the catalog
 packages/cli/src/screenshot.mjs      PET_CLOCK_HZ, --frames → cycles at the model's rate (the video.frameRate fact)
