@@ -77,7 +77,7 @@ way — or no way — to change something while it does:
 | C64 / C128 (VIC-II) | raster IRQ → a write list; an entry lands at the end of its line | 8 live register sets, reusable down the frame | `$D020`/`$D021` per line: free |
 | MEGA65 (VIC-IV) | the same, plus a fine raster and a per-row rewrite buffer (RRB) | the 8, up to 64 px wide; RRB "pixies" unlimited | palette registers, any time |
 | VIC-20 (VIC-I) | no raster IRQ; `waitFrame()`'s frame hook re-syncs on `$9004`/`$9003` bit 7 before every planned line (built; a VIA timer synced once is the untried alternative) | none — redefined characters | `$900F` per line: two stores a line, every second line at most |
-| PET | a 50/60 Hz retrace IRQ, the only sync point in a frame; a mid-frame character-ROM-select write (`$E84C`) splits the picture — verified under VICE, not yet built (`packages/pet/AGENTS.md`, "Raster: character-set switching") | none — PETSCII cells | none |
+| PET | a 50/60 Hz retrace IRQ, the only sync point in a frame; a mid-frame character-ROM-select write (`$E84C`) splits the picture, applied by `waitFrame()`'s own frame hook — built and verified for the 3032 model tag (`packages/pet/AGENTS.md`, "Raster: character-set switching"), every other model still the honest stub | none — PETSCII cells | none |
 | Atari 8-bit | the display list *is* a per-line plan; a DLI at any mode line, `WSYNC` aligns to blanking | 4 players + 4 missiles as live per-line registers | 9 colour registers per DLI: the archetype |
 | NES | no scanline IRQ in the chip: sprite-0 hit (one, polled) or a mapper's counter (MMC3 at dot 260) | 64 OAM entries, **per-frame data**, 8 per line chosen by the PPU | emphasis/greyscale bits only; palette is vblank-only |
 | X16 (VERA) | a line IRQ; changes show 1–2 lines later | 128 sprites in a per-line cycle budget (~46 small ones) | palette in VRAM, any time |
@@ -385,13 +385,14 @@ and no per-frame re-sync the way the VIC-20's `$9004` gives one — but
 there IS a per-line mechanism after all: `$E84C` (the VIA's peripheral
 control register) selects the character ROM's graphics or text half on
 every scanline's own fetch, with no vertical-blank gating, so a mid-frame
-write splits the picture between them. Verified under VICE at real
-cycle-scanline precision (a fine sweep found the transition step
-exactly at a 64-cycle boundary on the non-CRTC 3032, matching its known
-line length); not yet built into a driver, because every entry has to
-be cycle-counted from the one retrace edge with no re-sync and no
-hardware divide to compute the delay with — `packages/pet/AGENTS.md`
-has the numbers and the open problem. Cells; still no colour.
+write splits the picture between them. Built for the non-CRTC 3032 model
+tag: every entry is cycle-counted from the one retrace edge (no re-sync
+mid-frame is possible), decomposed into a loop count by repeated
+subtraction in `commit()` since this backend has no hardware divide, and
+verified at real cycle-scanline precision under VICE — `packages/pet/
+AGENTS.md` has the mechanism, the numbers, and what the 4032/8032 CRTC
+boards still need (their own fine-swept timing constants). Cells; still
+no colour.
 
 **web.** The renderer applies the raster list at paint time: idealized,
 "proves semantics, never fit". Sprites are cells until the web target has
