@@ -688,6 +688,125 @@ the sources on the memory map. `xpet -model <m> -limitcycles N
 adding a number to this file, and move the row from "from the sources"
 to "verified here" when you do.
 
+## Raster: character-set switching — researched, not yet implemented
+
+`@8bitscript/raster` names a fourth per-line intent, `Slot.CHARSET` (value
+3: the machine's alternate character set), and two constants a program
+folds on before touching any slot: `raster.COLORS` (whether
+`BORDER`/`BACKGROUND` do anything — false on the PET, which has no
+border or background register at all) and `raster.CHARSET` (whether this
+slot does). Both exist in all thirty-two rasterline files today, every
+one answering `CHARSET` false (`test/rasterline-charset.test.mjs`); no
+driver has shipped yet. This section is the research a driver would be
+built from — read it before writing one, and verify anything it does not
+already cover before trusting it, per the root file's rule.
+
+**The mechanism.** `viaPeripheralControl` (`$E84C`, this package's `index.8bs`)
+selects the character ROM's graphics half (`$0C`) or text half (`$0E`) —
+`text.8bs`'s `CharacterSet.TEXT`. Nothing about that register is
+double-buffered or vertical-blank-gated: the character generator reads it
+on every scanline's own character fetch, the same way the VIC-20's
+`$9005` selects a screen/charset base with no vblank queue. A mid-frame
+write therefore splits the picture — graphics above the write, text (or
+the reverse) below it — a real, well-known PET demo technique, not a
+PET-specific novelty: the C64's `$D018` (CB13–11) and the VIC-20's
+`$9005` bits 0–3 do the same job on those machines, so `Slot.CHARSET` is
+written as a portable concept from the start rather than added to the
+PET alone.
+
+**Verified under xpet (VICE 3.10), 2026-09-29, non-CRTC 3032 model,
+`--hardware model=3032`.** A program wrote code 1 to every screen cell,
+then after `waitFrame()` burned a precise, known cycle count and wrote
+`$E84C` once, holding the new value for the rest of the frame. Two
+reference captures (screen held at `$0C` the whole frame, and at `$0E`
+the whole frame) gave each row's true pixel pattern to compare against —
+**only inside the text columns (x 35–374 on this capture), never the
+blank border**, and **only on a row where the two fonts actually render
+differently** (code 1's glyph is blank on the 8th scanline of its cell in
+*both* fonts, so that row is neither evidence of a switch nor of none —
+counting it corrupted an earlier pass of this measurement into a false
+"changes every 8 rows" pattern; the fix and why are worth reading if this
+work continues, in this PR's history). With that comparator:
+
+- Sweeping the switch's target cycle in 8-cycle steps across roughly two
+  scanlines, the transition's row stayed **exactly fixed** for 56
+  cycles of sweep, then moved by **exactly one row** at the 64-cycle
+  mark, and stayed fixed again — a clean, cycle-quantized step, not a
+  gradual or noisy one. That is what a scanline boundary at 64 CPU
+  cycles/line looks like when you sweep past it, and it matches this
+  package's own documented figure for the non-CRTC board exactly
+  (`LINE_CYCLES = 64`).
+- No row, at any offset in the sweep, ever rendered a pattern matching
+  *neither* reference — no torn or half-switched row was seen. VICE
+  shows a clean, whole-scanline commit of the register write.
+- Back-computing from a known delay (≈5,151 cycles from `waitFrame()`'s
+  return to the write) landing the transition at picture line 22: the
+  first visible picture line is **≈3,749 cycles** after `waitFrame()`
+  returns, on the 3032 (`PICTURE_START_CYCLES`).
+
+**The CRTC 4032 (`--hardware model=4032`, this package's release target)**
+was checked more lightly — one 3-point sweep, same fixed comparator — and
+showed the same shape: the transition held fixed, then moved by exactly
+one row across a sweep of about 40 cycles, consistent with **`LINE_CYCLES
+= 50`**, matching this board's own CRTC register (`R0 = 49`, "40-column:
+R0=49..." above) the same way the 3032's 64 matched its documented figure.
+No torn row was seen here either. This was *not* swept finely enough to
+nail `PICTURE_START_CYCLES` for the 4032 to the cycle — that number
+(along with the 8032's, `R0 = 63` → `LINE_CYCLES ≈ 64`, checked only via
+a whole-picture band test, not a fine sweep) is the first thing a
+continuation needs.
+
+**What this buys, if finished.** No scanline counter exists on the PET
+(unlike the VIC-20's `$9004`): the CB1 vertical-retrace edge `waitFrame()`
+already waits on is the *only* synchronization point in a frame, so a
+driver has to count cycles from that one edge to every entry, with no
+per-entry re-sync possible — closer to the VIC-20's very first (failed)
+design than its final one, except here it is the *only* option, not a
+mistake to fix. `FRAME_SYNC.pet` already runs `waitFrame()` with
+interrupts off (`presync: "sei"`), so nothing can jitter a cycle-counted
+wait once it starts — the PET needs no interrupt discipline decision the
+way the VIC-20 did.
+
+**The open engineering problem.** The 6502 backend refuses `/` by name
+(`mos/lower/index.ts`: "the 6502 has no hardware divide, and nothing on
+this backend's critical path needs one"). A driver's `commit()` needs to
+turn each entry's target cycle count (up to ~16,640 for a full non-CRTC
+frame) into a loop structure the hook can execute in a bounded number of
+instructions — which means dividing by the loop's own cycle cost. The
+VIC-20's driver never needed this: every delay there was small (padding
+between an edge and a store within one line) and built from a straight
+NOP sled, never a loop. A PET entry can be thousands of cycles from the
+edge, far too many for a sled. The fix is not to add `/` — nothing else
+on this backend's critical path needs it either, and adding it for one
+caller misreads the rule — it is to compute the decomposition in
+8bitscript itself, by *repeated subtraction* at a coarse-then-fine
+granularity (subtract a ~1,270-cycle "one full inner-loop pass" unit
+first, at most ~13 times; then subtract a ~5-cycle unit from the small
+remainder, at most ~255 times) — cheap enough to run once in `commit()`,
+never in the per-frame hook, following the same "compute once, not every
+frame" rule `@8bitscript/vic20/rasterline`'s own `commit()` already
+follows for its plan. This was identified but not built.
+
+**Next steps, in order:** (1) write the repeated-subtraction decomposition
+and the hook's nested delay loop, first for the 3032 only, using the
+numbers above; (2) build, screenshot, and verify with a multi-frame test
+the way `packages/vic20/test/raster.test.mjs` does — several consecutive
+frames, each split landing on its row, still frame to frame; (3) extend
+to the 4032 (the release model) and 8032 once each has its own fine
+sweep pinning `PICTURE_START_CYCLES`; (4) wire `FRAME_SYNC.pet`'s
+`EdgeSyncCalibrated` with a `frameHook: 'petRasterFrame'` (the interface
+needs the optional field added — `LevelSync` and `EdgeSyncFixed` already
+have it, and `pruneUnreachable`'s hook-rooting rule is already
+kind-agnostic, built for exactly this reuse); (5) `#fact(video.raster)`
+true only for the specific model tags with a real driver (a per-model-value
+`facts` override in `package.json`, the same mechanism `video.frameRate`
+and `video.columns` already use — not a blanket flip for every PET); (6)
+update `examples/fancy` to show the split (gated on `raster.CHARSET`, not
+`raster.COLORS`, since the PET has no border/background to show bands
+with); (7) this section becomes "What exists today," with a fresh set of
+numbers checked against whatever the finished driver actually measures —
+everything above is a sweep result, not a shipped fact.
+
 ## Seeing the screen without a human at xpet
 
 `8bs run pet --screenshot <file.png>` builds and captures through VICE's
