@@ -560,7 +560,7 @@ function resolveConditionalEntry(specifier, packageDir, entry, options, seen, na
  * @param {{ machine?: string, tags?: string[], profile?: string, locale?: string, importAliases?: Record<string, string> }} [options]
  *   The machine being built for (one of MACHINES), if one is known;
  *   `importAliases` maps `@prefix` strings to absolute directories from
- *   the project's `imports` in 8bitscript.config.ts.
+ *   the project's `imports` in 8bitscript.config.8bs.
  *   conditional package entries resolve to that machine's branch, and a
  *   `.8bs` file with a `.<machine>.8bs` twin resolves to the twin. With
  *   the build's hardware tags as well (`tags`; the older `profile` is one

@@ -9,7 +9,7 @@ on:
           Comma-separated 8bs build targets (vic20,c64,web,…), each
           optionally @profile and :option=value,... on top (pet@2001:ram=4).
           Leave empty to build every artifact the project's own
-          8bitscript.config.ts declares for a release instead (8bs build
+          8bitscript.config.8bs declares for a release instead (8bs build
           --release) — the config is then the one place the release matrix
           lives, not duplicated here.
         type: string

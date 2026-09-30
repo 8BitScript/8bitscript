@@ -5,7 +5,7 @@ nav_order: 86
 
 # The baseline, and what a build does without
 
-*Design note, 2026-09-19. What `baseline` in `8bitscript.config.ts`
+*Design note, 2026-09-19. What `baseline` in `8bitscript.config.8bs`
 means, what the toolchain does with it, and — the part that took longer
 than the code — what to call the builds that are not it.*
 

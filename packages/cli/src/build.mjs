@@ -9,7 +9,7 @@
 //     8bs build --target pet --profile 8032     [entry.8bs]   80 columns, 32K
 //     8bs build --target c64 --program format   One of several programs — see
 //                                                programs.mjs and buildRelease.
-//     8bs build --release                       Every artifact 8bitscript.config.ts
+//     8bs build --release                       Every artifact 8bitscript.config.8bs
 //                                                declares for a release — see
 //                                                buildRelease below.
 //
@@ -22,14 +22,14 @@
 // (see REGION_TARGETS below); it's silently ignored everywhere else, the
 // same as it already was for web. "NTSC (60Hz)" above is the emulator's real
 // hardware region, not the language's logical frame rate — that's a
-// separate, project-level setting (`frameRate` in 8bitscript.config.ts, default 60,
+// separate, project-level setting (`frameRate` in 8bitscript.config.8bs, default 60,
 // see packages/compiler/src/mos FRAME_SYNC),
 // unaffected by --pal.
 //
 // --profile names the hardware the build is for: a preset from the
 // machine package's catalog (`8032`, `130xe`, `reu512` — the community's
 // names for whole configurations) or a profile the project composes in
-// its 8bitscript.config.ts (`targets: { c64: { profiles: { loaded: { ram:
+// its 8bitscript.config.8bs (`targets: { c64: { profiles: { loaded: { ram:
 // 'reu512', port1: 'mouse1351' } } } }`). --hardware option=value,...
 // sets single options on top of either. What each option changes — a
 // link symbol, a driver, an emulator flag, a fact a program can read — is
@@ -37,7 +37,7 @@
 // docs/systems.md. `8bs targets` lists every option and preset.
 //
 // The entry defaults to src/main.8bs, or to the `entry` in
-// 8bitscript.config.ts when the project has one, or to the program
+// 8bitscript.config.8bs when the project has one, or to the program
 // `--program` names out of its `programs` (programs.mjs) — and whichever
 // file that names, a `.<target>.8bs`
 // twin beside it (main.nes.8bs next to main.8bs) is what a build for that
@@ -104,7 +104,7 @@ function printDiagnostics(diagnostics, sources) {
 // rather than failing with a bare "unknown target".
 const RETIRED_TARGET = /^(vic20|c64)-(ntsc|pal)$/;
 
-// `entry` in 8bitscript.config.ts is one path, shared by every target, and the
+// `entry` in 8bitscript.config.8bs is one path, shared by every target, and the
 // filename rule does the rest: a project whose entry point genuinely has to
 // differ on one machine — its execution model, its screen codes, its grid
 // — puts that machine's version beside the shared file as
@@ -168,7 +168,7 @@ export function checkEntryKind(entry) {
  * @param {{ pal?: boolean, profile?: string, hardware?: object, report?: boolean, debug?: boolean, checkout?: string|null, program?: string, locale?: string }} [options] `pal` selects the
  *   real hardware/emulator region (NTSC unless true; ignored outside
  *   REGION_TARGETS) — it does not affect the logical frame rate, which is
- *   read from 8bitscript.config.ts's `frameRate` instead (default 60). `profile`
+ *   read from 8bitscript.config.8bs's `frameRate` instead (default 60). `profile`
  *   names a project profile or a catalog preset, `hardware` is option
  *   values set on top (`--hardware`); see hardware.mjs. `report` is
  *   `--size`: print the per-function breakdown and include it in the
@@ -268,7 +268,7 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   const listed = listedTargets(config);
   if (listed && !listed.includes(target)) {
     process.stderr.write(
-      `8bs build: this project's 8bitscript.config.ts does not list '${target}' ` +
+      `8bs build: this project's 8bitscript.config.8bs does not list '${target}' ` +
       `(targets: ${listed.join(', ')})\n`,
     );
     return { ok: false };
@@ -343,7 +343,7 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
         profile, overrides, profiles: projectProfiles(config, target), defaults: projectHardware(config, target),
       });
       process.stderr.write(fits.length > 0
-        ? `    fit one of: ${fits.join(', ')}  (--hardware, or a system in 8bitscript.config.ts)\n`
+        ? `    fit one of: ${fits.join(', ')}  (--hardware, or a system in 8bitscript.config.8bs)\n`
         : `    no ${target} can be fitted with that; this program is not for this machine\n`);
     }
     return { ok: false };
@@ -607,7 +607,7 @@ function againstBaseline(baseline, target, facts, factsTested) {
  * `8bs build --release` — every artifact this project's config declares for
  * a release, in one command, instead of one CI step per artifact.
  *
- * The targets built are whatever `targets` in 8bitscript.config.ts lists
+ * The targets built are whatever `targets` in 8bitscript.config.8bs lists
  * (or, with no `targets` block, every RELEASE_MACHINES target — pet and
  * web today), filtered to the ones this release actually builds for; a
  * parked machine listed there is silently skipped rather than failing the
@@ -656,7 +656,7 @@ async function buildRelease({ report = false, checkout = undefined } = {}) {
   const machines = (listed ?? RELEASE_MACHINES).filter((m) => RELEASE_MACHINES.includes(m));
   if (machines.length === 0) {
     process.stderr.write(
-      "8bs build --release: this project's 8bitscript.config.ts lists no target this release "
+      "8bs build --release: this project's 8bitscript.config.8bs lists no target this release "
       + `builds for (${RELEASE_MACHINES.join(', ')})\n`,
     );
     return 1;
@@ -775,7 +775,7 @@ export async function build(args) {
     process.stderr.write(
       `Usage: 8bs build --target <${releaseTargetPipe()}>\n`
       + releaseUsageNote()
-      + '                  no --target builds the `baseline` 8bitscript.config.ts names, when it names one)\n'
+      + '                  no --target builds the `baseline` 8bitscript.config.8bs names, when it names one)\n'
       + '                 [--pal] [--size] [--debug] [--remarks] [--program <name>] [--locale <name>]\n'
       + HARDWARE_USAGE
       + '                 [--web]  pet/vic20/c64/cx16: that machine\'s own package, through the\n'

@@ -1,4 +1,4 @@
-// The shape of 8bitscript.config.ts. Every key is optional; a config that
+// The shape of 8bitscript.config.8bs. Every key is optional; a config that
 // names nothing builds src/main.8bs for every machine this release
 // supports. docs/config.md is the prose version of this file.
 

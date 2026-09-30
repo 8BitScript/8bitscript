@@ -52,7 +52,7 @@ so every `.8bs` file looks like a generic document until you switch theme.
 The **8BitScript** file icon theme draws all four source kinds with the same
 pixel **8**. `.8bs` is a white 8 on a purple box; the other three are a violet
 8 with a badge beside it — a silver **X** for `.8bx`, green **tiles** for
-`.8bg`, amber **bars** for `.8ba`. A project's `8bitscript.config.ts` wears
+`.8bg`, amber **bars** for `.8ba`. A project's `8bitscript.config.8bs` wears
 the `.8bs` icon too.
 
 The theme replaces *every* icon in the explorer, not only ours, so it also
@@ -226,7 +226,7 @@ side bar.
   `--target <machine>`), which stops at the built file instead of
   starting an emulator.
 - **Program** — the program both buttons act on (`8bitscript.project`).
-  Every directory in the workspace with an `8bitscript.config.ts` is in the list,
+  Every directory in the workspace with an `8bitscript.config.8bs` is in the list,
   grouped as **Programs**, **Examples**, and **Apps**. Apps are packages whose
   `package.json` declares an `8bitscript.app`, [Studio](../../docs/studio.md)
   being the first. The 📄 beside it opens the program's entry `.8bs` file.
@@ -245,7 +245,7 @@ side bar.
   stays in the list even with the toggle off, so hiding them never blanks
   the picker.
 - **System** — a **named system** from [project config](../../docs/config.md)
-  (advertised in `8bitscript.config.ts`, this clone's
+  (advertised in `8bitscript.config.8bs`, this clone's
   `.8bitscript/systems.json`, or `~/.config/8bitscript/systems.json`), or a
   bare machine under them, grouped by family (Commodore, Atari, Nintendo,
   Sega, Computers, Other consoles, Modern). The list comes from `8bs targets --json`, tagged
@@ -343,7 +343,7 @@ Example…**, **Configure System**, **Show Project**, **Save as a System…**, *
 are on the command palette as well — **8BitScript: Select Project**, **Select System**,
 **Select Region**, **Run**, **Build**, **Stop**, **Configure System**, **Show Project**,
 **Use Local 8BitScript**, **Use Published Packages**, **Controller Setup**, **Doctor: Choose Emulators**, **Open Entry File**,
-**Open 8bitscript.config.ts**.
+**Open 8bitscript.config.8bs**.
 
 ### Doctor: Choose Emulators
 
@@ -365,7 +365,7 @@ means all).
 **8BitScript: Configure System** opens an editor tab — Machine, Hardware,
 Region, Facts, Save — and writes the same `{ target, profile?, hardware?,
 region? }` object the CLI already validates. Save destination is explicit:
-advertise into `8bitscript.config.ts`, this clone (`.8bitscript/systems.json`,
+advertise into `8bitscript.config.8bs`, this clone (`.8bitscript/systems.json`,
 gitignored), or this user (`~/.config/8bitscript/systems.json`).
 
 The extension lists nothing of its own here: it asks the toolchain (`8bs
@@ -448,7 +448,7 @@ not the project's source:
 }
 ```
 
-`8bitscript.controllers.json` rather than a block in `8bitscript.config.ts`:
+`8bitscript.controllers.json` rather than a block in `8bitscript.config.8bs`:
 the config is TypeScript source that a person reads and that **Save as a
 System…** edits through the editor's own undo stack, and eighteen
 machine-generated bindings per device rewritten on every button press are
@@ -479,7 +479,7 @@ differs a lot, and the CLI names by name anything it has nowhere to put.
 
 ### Projects, tasks, and what is missing
 
-A project is any directory containing an `8bitscript.config.ts`; that file is
+A project is any directory containing an `8bitscript.config.8bs`; that file is
 already the manifest the CLI reads for the entry file and the target list,
 so the launcher uses it as the marker rather than a second list to
 maintain. A `package.json` on its own does not count — every package in a

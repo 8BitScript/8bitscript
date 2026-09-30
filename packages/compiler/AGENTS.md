@@ -206,7 +206,7 @@ warm), and `mergeNamespace` merges members by name. The rules, in
   where it exists (`Available on …; not on …`), in `8bs targets` order.
   The machine the file is read *for* — its own twin's (`machineOfVariant`),
   else the project's single configured target (the language server reads
-  `8bitscript.config.ts` and passes `machine`) — is called out first when
+  `8bitscript.config.8bs` and passes `machine`) — is called out first when
   it lacks the member, because a dead arm naming it is a link error
   (2048 #54). Nothing is said when nothing differs.
 - *Go to Definition* opens the module for that machine when it has the

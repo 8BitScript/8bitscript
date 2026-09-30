@@ -7,7 +7,10 @@
 // Despite the package names, `vscode-languageserver` is an editor-agnostic LSP
 // implementation. This server speaks the protocol over stdio, so any client
 // that speaks LSP can drive it: `8bs lsp --stdio` is all an editor needs.
+import { randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, statSync } from 'node:fs';
+import { rm, writeFile } from 'node:fs/promises';
+import { stripTypeScriptTypes } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -49,16 +52,17 @@ const SEVERITY = {
   remark: DiagnosticSeverity.Information,
 };
 
-// 8bitscript.config.ts is the current name; 8bs.config.ts (every project
-// through 0.3.0) still loads — see packages/cli/src/config.mjs's
-// CONFIG_FILENAMES, which this mirrors for the same reason it duplicates
-// resolveFrameRate rather than importing it.
-const CONFIG_FILENAMES = ['8bitscript.config.ts', '8bs.config.ts'];
+// 8bitscript.config.8bs is the current name; 8bitscript.config.ts (0.4.0
+// through 0.22.x) and the older 8bs.config.ts (every project through
+// 0.3.0) still load — see packages/cli/src/config.mjs's
+// CONFIG_FILENAMES, which this mirrors for
+// the same reason it duplicates resolveFrameRate rather than importing it.
+const CONFIG_FILENAMES = ['8bitscript.config.8bs', '8bitscript.config.ts', '8bs.config.ts'];
 
 /**
- * Walk upward from `dir` looking for 8bitscript.config.ts (or the older
- * 8bs.config.ts), so a document opened from src/ (or deeper) still finds
- * its project's config. Stops at the filesystem root.
+ * Walk upward from `dir` looking for 8bitscript.config.8bs (or an older
+ * name), so a document opened from src/ (or deeper) still finds its
+ * project's config. Stops at the filesystem root.
  */
 function findConfigPath(dir) {
   let current = dir;
@@ -74,7 +78,7 @@ function findConfigPath(dir) {
 }
 
 /**
- * The project's `frameRate` (8bitscript.config.ts, default 60) for the document at
+ * The project's `frameRate` (8bitscript.config.8bs, default 60) for the document at
  * `filePath` — so `#frames(...)` diagnostics in the editor agree with what
  * `8bs build`/`8bs check` would actually report, the same invariant this
  * file's header comment already promises for every other diagnostic.
@@ -85,8 +89,10 @@ function findConfigPath(dir) {
  *
  * The `?t=<mtime>` on the dynamic import is a cache-buster: Node's ESM
  * loader otherwise caches a resolved file URL for the life of the process,
- * so an edited 8bitscript.config.ts would need a server restart to take effect
- * without it.
+ * so an edited 8bitscript.config.8bs would need a server restart to take effect
+ * without it. A `.8bs` config is re-read (and re-stripped) from disk on
+ * every call instead, which is naturally always fresh — see
+ * importStrippedConfig.
  */
 async function frameRateFor(filePath) {
   const config = await configFor(filePath);
@@ -99,11 +105,52 @@ async function configFor(filePath) {
   const configPath = findConfigPath(dirname(filePath));
   if (!configPath) return null;
   try {
+    if (configPath.endsWith('.8bs')) return (await importStrippedConfig(configPath)).default ?? null;
     const { mtimeMs } = statSync(configPath);
     const module = await import(`${pathToFileURL(configPath).href}?t=${mtimeMs}`);
     return module.default ?? null;
   } catch {
     return null;
+  }
+}
+
+/**
+ * A `.8bs` config is plain type-stripped JS/TS, same as a `.ts` one (see
+ * packages/cli/src/config.mjs's own copy of this) — but Node's loader only
+ * type-strips `.ts`/`.mts`/`.cts`, and refuses an unrecognized extension
+ * outright. So it's stripped by hand and imported from a throwaway `.mjs`
+ * written beside it, then deleted; the random name doubles as this
+ * function's own cache-buster.
+ */
+async function importStrippedConfig(configPath) {
+  const source = readFileSync(configPath, 'utf8');
+  const stripped = stripTypesQuietly(source);
+  const tmpPath = join(dirname(configPath), `.${randomBytes(8).toString('hex')}.8bitscript-config.mjs`);
+  await writeFile(tmpPath, stripped);
+  try {
+    return await import(pathToFileURL(tmpPath).href);
+  } finally {
+    await rm(tmpPath, { force: true });
+  }
+}
+
+/**
+ * `stripTypeScriptTypes` is still experimental and Node's default warning
+ * printer fires regardless of whether a caller handles the 'warning' event
+ * — see packages/cli/src/config.mjs's copy of this for the full reasoning
+ * (the `process.nextTick` is load-bearing, not decorative: restoring the
+ * listeners synchronously would put them back before the deferred
+ * emission fires, and it would print anyway).
+ */
+function stripTypesQuietly(source) {
+  const listeners = process.listeners('warning');
+  process.removeAllListeners('warning');
+  try {
+    return stripTypeScriptTypes(source);
+  } finally {
+    process.nextTick(() => {
+      for (const listener of listeners) process.on('warning', listener);
+    });
   }
 }
 

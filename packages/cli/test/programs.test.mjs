@@ -1,4 +1,4 @@
-// A project's programs and images, as 8bitscript.config.ts declares them
+// A project's programs and images, as 8bitscript.config.8bs declares them
 // (programs.mjs): the one-program spellings, the several-programs one,
 // and everything the config can get wrong about either.
 import { test } from 'node:test';

@@ -1,5 +1,5 @@
 // Project import aliases — `@lib/game/rules.8bs` → a directory named in
-// 8bitscript.config.ts's `imports` block, resolved from the config file's
+// 8bitscript.config.8bs's `imports` block, resolved from the config file's
 // directory rather than from the importing file.
 import { resolve as resolvePath } from 'node:path';
 
@@ -12,7 +12,7 @@ const ALIAS_PREFIX = /^@[^/\s]+$/;
  * Turn a config `imports` object into absolute directory paths.
  *
  * @param {unknown} imports
- * @param {string} projectDir  Directory containing 8bitscript.config.ts.
+ * @param {string} projectDir  Directory containing 8bitscript.config.8bs.
  * @returns {{ ok: true, importAliases: Readonly<Record<string, string>> } | { ok: false, error: string }}
  */
 export function resolveImportAliases(imports, projectDir) {
@@ -20,20 +20,20 @@ export function resolveImportAliases(imports, projectDir) {
     return { ok: true, importAliases: Object.freeze({}) };
   }
   if (typeof imports !== 'object' || Array.isArray(imports)) {
-    return { ok: false, error: "8bitscript.config.ts's imports must be an object of @prefix → directory path" };
+    return { ok: false, error: "8bitscript.config.8bs's imports must be an object of @prefix → directory path" };
   }
   const importAliases = {};
   for (const [prefix, rel] of Object.entries(imports)) {
     if (!ALIAS_PREFIX.test(prefix)) {
       return {
         ok: false,
-        error: `8bitscript.config.ts's imports key ${JSON.stringify(prefix)} must be a single @-prefix with no / (e.g. '@lib')`,
+        error: `8bitscript.config.8bs's imports key ${JSON.stringify(prefix)} must be a single @-prefix with no / (e.g. '@lib')`,
       };
     }
     if (typeof rel !== 'string' || rel.length === 0 || rel.startsWith('/') || rel.includes('..')) {
       return {
         ok: false,
-        error: `8bitscript.config.ts's imports.${prefix} must be a relative directory path without ..`,
+        error: `8bitscript.config.8bs's imports.${prefix} must be a relative directory path without ..`,
       };
     }
     importAliases[prefix] = resolvePath(projectDir, rel);

@@ -30,8 +30,12 @@ const BY_EXTENSION = {
   rom: 'binary', nes: 'binary', sna: 'binary', vsix: 'binary', zip: 'binary', wasm: 'binary', map: 'binary',
 };
 
-// A project's own config wears the language's own 8.
+// A project's own config wears the language's own 8. 8bitscript.config.8bs
+// is the current name (packages/cli/src/config.mjs); the other two still
+// load for a few more releases and keep the icon so a project that has not
+// renamed yet is not left with a bare file icon.
 const BY_FILENAME = {
+  '8bitscript.config.8bs': '8bs',
   '8bitscript.config.ts': '8bs',
   '8bs.config.ts': '8bs',
   '.gitignore': 'git',

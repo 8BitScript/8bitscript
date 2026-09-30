@@ -75,7 +75,7 @@ test('resolveLocale: nearest wins — the override, the target\'s, the project\'
   assert.deepEqual(resolveLocale({ locale: 'de', targets: { pet: { locale: 'fr' } } }, { target: 'pet', override: 'es' }), { ok: true, locale: 'es' });
   const bad = resolveLocale({ locale: 'pet' }, { target: 'pet' });
   assert.equal(bad.ok, false);
-  assert.match(bad.error, /8bitscript\.config\.ts's locale: 'pet' is a machine's name/);
+  assert.match(bad.error, /8bitscript\.config\.8bs's locale: 'pet' is a machine's name/);
   const badTarget = resolveLocale({ targets: { pet: { locale: 8 } } }, { target: 'pet' });
   assert.match(badTarget.error, /targets\.pet\.locale: a locale is a name in quotes, got 8/);
   const tag = resolveLocale({}, { target: 'atari8', override: 'on', tags: ['on'] });
@@ -103,7 +103,7 @@ async function project(config) {
   await writeFile(join(dir, 'src', 'main.8bs'), MAIN);
   await writeFile(join(dir, 'src', 'strings.8bs'), STRINGS('HELLO WORLD'));
   await writeFile(join(dir, 'src', 'strings.de.8bs'), STRINGS('HALLO WELT'));
-  await writeFile(join(dir, '8bitscript.config.ts'), `export default ${JSON.stringify(config)};\n`);
+  await writeFile(join(dir, '8bitscript.config.8bs'), `export default ${JSON.stringify(config)};\n`);
   return dir;
 }
 
@@ -221,7 +221,7 @@ test('--locale de with src/i18n catalogs folds the German catalog and leaves Eng
     '}',
     '',
   ].join('\n'));
-  await writeFile(join(dir, '8bitscript.config.ts'), `export default ${JSON.stringify({
+  await writeFile(join(dir, '8bitscript.config.8bs'), `export default ${JSON.stringify({
     entry: 'src/main.8bs',
     targets: { pet: {} },
     i18n: { defaultLocale: 'en', fallbackLocale: 'en', locales: ['en', 'de'] },

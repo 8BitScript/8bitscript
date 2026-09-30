@@ -140,7 +140,7 @@ test('build() --release builds every target listed, once per name in its own rel
   const prev = process.cwd();
   try {
     await writeFile(join(dir, 'main.8bs'), SUM);
-    await writeFile(join(dir, '8bitscript.config.ts'), [
+    await writeFile(join(dir, '8bitscript.config.8bs'), [
       'export default {',
       '  entry: "main.8bs",',
       '  targets: {',
@@ -184,7 +184,7 @@ test('build() with no target builds the baseline, and --release measures every b
       '}',
       '',
     ].join('\n'));
-    await writeFile(join(dir, '8bitscript.config.ts'), [
+    await writeFile(join(dir, '8bitscript.config.8bs'), [
       'export default {',
       '  entry: "main.8bs",',
       '  targets: { c64: {}, pet: { hardware: { model: "4032", ram: "32" }, release: ["2001", {}] }, web: {} },',
@@ -221,7 +221,7 @@ test('build() refuses a baseline below the program\'s own requires, and a baseli
   const prev = process.cwd();
   try {
     await writeFile(join(dir, 'main.8bs'), SUM);
-    await writeFile(join(dir, '8bitscript.config.ts'),
+    await writeFile(join(dir, '8bitscript.config.8bs'),
       'export default { entry: "main.8bs", targets: { pet: {} }, requires: { "memory.ram": 8192 }, baseline: { target: "pet", profile: "2001", hardware: { ram: "4" } } };\n');
     process.chdir(dir);
     const low = await capture(() => build([]));
@@ -245,13 +245,13 @@ test('build() refuses a baseline below the program\'s own requires, and a baseli
   }
 });
 
-test('build() --release skips a target 8bitscript.config.ts lists that this release does not build for', async () => {
+test('build() --release skips a target 8bitscript.config.8bs lists that this release does not build for', async () => {
   const dir = await mkdtemp(join(tmpdir(), '8bs-compile-'));
   const prev = process.cwd();
   try {
     await writeFile(join(dir, 'main.8bs'), SUM);
     await writeFile(
-      join(dir, '8bitscript.config.ts'),
+      join(dir, '8bitscript.config.8bs'),
       'export default { entry: "main.8bs", targets: { c64: {}, web: {} } };\n',
     );
     process.chdir(dir);
@@ -271,7 +271,7 @@ test('build() --release fails clearly when the config lists no release-ready tar
     // A name the toolchain does not know at all, now that every machine it
     // does know is release-ready: the config still lists no target this
     // release builds for, which is what the message is about.
-    await writeFile(join(dir, '8bitscript.config.ts'), 'export default { targets: { zx81: {} } };\n');
+    await writeFile(join(dir, '8bitscript.config.8bs'), 'export default { targets: { zx81: {} } };\n');
     process.chdir(dir);
     const { result, stderr } = await capture(() => build(['--release']));
     assert.equal(result, 1);
@@ -513,7 +513,7 @@ test('compile() names a missing entry and a project that does not list the targe
     assert.equal(missing.result.ok, false);
     assert.match(missing.stderr, /does not exist/);
 
-    await writeFile(join(dir, '8bs.config.ts'), 'export default { targets: ["web"] };\n');
+    await writeFile(join(dir, '8bitscript.config.8bs'), 'export default { targets: ["web"] };\n');
     const listed = await capture(() => compile('pet', join(dir, 'main.8bs')));
     assert.equal(listed.result.ok, false);
     assert.match(listed.stderr, /does not list 'pet'/);
@@ -527,7 +527,7 @@ test('compile() refuses a frameRate that is not a positive integer', async () =>
   const dir = await mkdtemp(join(tmpdir(), '8bs-compile-'));
   const prev = process.cwd();
   try {
-    await writeFile(join(dir, '8bs.config.ts'), 'export default { frameRate: -1 };\n');
+    await writeFile(join(dir, '8bitscript.config.8bs'), 'export default { frameRate: -1 };\n');
     process.chdir(dir);
     const { result, stderr } = await capture(() => compile('pet'));
     assert.equal(result.ok, false);
@@ -598,7 +598,7 @@ const withPrograms = async (config, fn) => {
   try {
     await writeFile(join(dir, 'main.8bs'), SUM);
     await writeFile(join(dir, 'format.8bs'), SUM.replace('0x8000', '0x8001'));
-    await writeFile(join(dir, '8bitscript.config.ts'), `export default ${config};\n`);
+    await writeFile(join(dir, '8bitscript.config.8bs'), `export default ${config};\n`);
     process.chdir(dir);
     await fn(dir);
   } finally {
@@ -704,7 +704,7 @@ test('build() prints a warning and still builds; bx.strict: false silences the l
         'export function draw(): void { <Mark v={1} />; }',
         '',
       ].join('\n'));
-      await writeFile(join(dir, '8bitscript.config.ts'), `export default ${config};\n`);
+      await writeFile(join(dir, '8bitscript.config.8bs'), `export default ${config};\n`);
       process.chdir(dir);
       await fn(dir);
     } finally {
@@ -748,7 +748,7 @@ test('build() --size lists each 8BX instance and the bytes of state it holds', a
       'export function draw(): void { <Tally step={1} />; <Tally step={2} />; }',
       '',
     ].join('\n'));
-    await writeFile(join(dir, '8bitscript.config.ts'), "export default { entry: 'main.8bs', targets: ['pet'] };\n");
+    await writeFile(join(dir, '8bitscript.config.8bs'), "export default { entry: 'main.8bs', targets: ['pet'] };\n");
     process.chdir(dir);
     const { result, stdout } = await capture(() => build(['--target', 'pet', '--size']));
     assert.equal(result, 0, stdout);

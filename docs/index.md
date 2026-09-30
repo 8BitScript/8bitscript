@@ -47,7 +47,7 @@ component state and methods, and IntelliSense for all of it.
 one thing you can do, with real code from the compiler's own tests, the
 shipped examples, or 2048. Hello world both ways is its first page.
 
-[Project config](config.md) — `8bitscript.config.ts`: targets and their
+[Project config](config.md) — `8bitscript.config.8bs`: targets and their
 hardware, advertised and personal systems, several programs in one
 project, disk images, and pointing a project at a local checkout.
 

@@ -38,7 +38,7 @@ async function buildProject(files, target) {
   try {
     mkdirSync(join(dir, 'src'));
     for (const [name, text] of Object.entries(files)) writeFileSync(join(dir, 'src', name), text);
-    writeFileSync(join(dir, '8bitscript.config.ts'), "export default { entry: 'src/main.8bs', targets: ['pet', 'c64', 'web'] };\n");
+    writeFileSync(join(dir, '8bitscript.config.8bs'), "export default { entry: 'src/main.8bs', targets: ['pet', 'c64', 'web'] };\n");
     process.chdir(dir);
     const result = await silently(() => compile(target, undefined, { checkout: REPO }));
     assert.equal(result.ok, true, `builds for ${target}`);

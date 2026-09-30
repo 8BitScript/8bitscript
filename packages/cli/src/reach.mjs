@@ -115,7 +115,7 @@ export function reachProblems(data) {
 }
 
 /**
- * `input` in 8bitscript.config.ts: what the program is designed to be
+ * `input` in 8bitscript.config.8bs: what the program is designed to be
  * played with, and what else it plays on.
  *
  *     input: { primary: 'stick', also: ['keyboard', 'pad'] }
@@ -131,7 +131,7 @@ export function reachProblems(data) {
 export function projectInput(config) {
   const declared = config?.input;
   if (declared === undefined || declared === null) return { ok: true, input: null };
-  const where = "8bitscript.config.ts's `input`";
+  const where = "8bitscript.config.8bs's `input`";
   if (typeof declared !== 'object' || Array.isArray(declared)) {
     return { ok: false, error: `${where} must be { primary, also? }` };
   }
@@ -255,7 +255,7 @@ export function compact(n) {
  * where there is not, and say which.
  *
  * @param {object} options
- * @param {object|null} options.config  the project's 8bitscript.config.ts, for its hardware per machine
+ * @param {object|null} options.config  the project's 8bitscript.config.8bs, for its hardware per machine
  * @param {object} options.requires  the project's, already checked
  * @param {null | { primary: string, also: string[] }} options.input
  * @param {object} [options.data]     the sheet; the package's own by default

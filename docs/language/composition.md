@@ -123,4 +123,4 @@ A method whose own parameter or local shadows a same-named prop is fine; a metho
 | **Hard** | `asm6502` is refused inside a `.8bx` file. Machine code lives in `.8bs` and is imported. | 8BS2020 |
 | Lint (on by default) | A top-level function whose body composes nothing (no element expression), or a top-level `let`, in `.8bx` — move it to `.8bs` and import it. Component methods and `state` are exempt. | 8BS2021 |
 
-Turn the lint off per project with `bx: { strict: false }` in `8bitscript.config.ts` ([§4.1](project.md#41-write-a-project-config)) — the hard rule stays either way. Expressions inside `{…}` are ordinary 8BitScript in both file kinds; it's top-level *declarations* the lint is about.
+Turn the lint off per project with `bx: { strict: false }` in `8bitscript.config.8bs` ([§4.1](project.md#41-write-a-project-config)) — the hard rule stays either way. Expressions inside `{…}` are ordinary 8BitScript in both file kinds; it's top-level *declarations* the lint is about.

@@ -218,7 +218,7 @@ An `.8bx` file is a grammar-level superset of `.8bs` (§1, §3) — one lexer, o
 - A top-level `function` in `.8bx` whose body contains no element expression, or a top-level `let`, is a warning: *"this is ordinary 8BitScript; move it to an `.8bs` module and import it."*
 - Component methods (§39) and component `state` (§36) are exempt — they are what `.8bx` is for.
 - Expressions inside `{}` are never linted: they are ordinary 8BitScript by design (§20, §21).
-- A project may switch the lint off (`bx: { strict: false }` in `8bitscript.config.ts`); it cannot switch the hard rules off.
+- A project may switch the lint off (`bx: { strict: false }` in `8bitscript.config.8bs`); it cannot switch the hard rules off.
 
 Rejected: a restricted `.8bx` grammar (imports, components, consts and types only). It would get cleanliness for free and pay for it with a second parser table — the forked compiler §138 forbids.
 
@@ -361,7 +361,7 @@ This costs nothing new in the compiler: it is the function-like declaration of �
 
 A project may build more than one program — a desktop plus the utilities beside it, the way GEOS ships a formatter and a copier as separate files on the same disk. Each program is its own link (the linker's one-entry-one-exported-function contract, per program), starting from its own `.8bs` entry (4.3).
 
-Decided 2026-09-16 — the config shape, in `8bitscript.config.ts`:
+Decided 2026-09-16 — the config shape, in `8bitscript.config.8bs`:
 
 ```ts
 import { defineConfig } from '@8bitscript/cli';
@@ -391,7 +391,7 @@ Rules:
 
 Two different things; decided 2026-09-16 that they stay apart.
 
-**A cartridge changes the build, so it is hardware.** The Atari catalog already models it: a `media` option (`xex` | `cart8` | `cart16`) whose values set `build.startup`, `build.output: "rom"`, link symbols, an emulator `-cart` load, and rewrite facts (`memory.ram`, `storage.save: false`). A C64 `.crt`, a VIC-20 cartridge, an NES mapper are the same shape: a `media` value on that machine's catalog, selected by `--profile`, `--hardware media=…`, or a `release` entry — `targets.c64.release: [{}, { hardware: { media: 'cart8k' } }]` ships both. A program built as a cartridge sees cartridge facts and folds on them like any other hardware. Nothing in `8bitscript.config.ts` is added for cartridges.
+**A cartridge changes the build, so it is hardware.** The Atari catalog already models it: a `media` option (`xex` | `cart8` | `cart16`) whose values set `build.startup`, `build.output: "rom"`, link symbols, an emulator `-cart` load, and rewrite facts (`memory.ram`, `storage.save: false`). A C64 `.crt`, a VIC-20 cartridge, an NES mapper are the same shape: a `media` value on that machine's catalog, selected by `--profile`, `--hardware media=…`, or a `release` entry — `targets.c64.release: [{}, { hardware: { media: 'cart8k' } }]` ships both. A program built as a cartridge sees cartridge facts and folds on them like any other hardware. Nothing in `8bitscript.config.8bs` is added for cartridges.
 
 **A disk image is a container, built after the programs are.** A `.d64`/`.d71`/`.d81`/`.atr` holds N files — programs, data, a boot program — and changes no program's bytes. It is a post-build step over named artifacts:
 

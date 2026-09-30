@@ -6,10 +6,10 @@
 // nothing but the editor glue. Same split as hardwareCatalog.cjs and
 // runner.cjs next door.
 //
-// ---- why a file of its own, beside 8bitscript.config.ts ------------------
+// ---- why a file of its own, beside 8bitscript.config.8bs ------------------
 //
 // The obvious alternative is a `controllers` block inside
-// `8bitscript.config.ts`, next to `targets`, `systems` and `requires`.
+// `8bitscript.config.8bs`, next to `targets`, `systems` and `requires`.
 // It is the wrong home, for three reasons, and the third is the decisive
 // one:
 //
@@ -52,7 +52,7 @@ const { emptyProfile, normalizeProfile } = require('./controllerProfile.cjs');
 /**
  * The file's name.
  *
- * Prefixed `8bitscript.` so it sorts beside `8bitscript.config.ts` in a
+ * Prefixed `8bitscript.` so it sorts beside `8bitscript.config.8bs` in a
  * directory listing and reads as part of the same project rather than as
  * some tool's dotfile. Not hidden, for the same reason: it is something a
  * person is allowed to open, read and hand-edit — every value in it is

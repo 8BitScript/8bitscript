@@ -46,7 +46,7 @@ test('a real project fills in meta, systems, packages, and the checkout toggle',
       where: 'projects/my-game',
       installed: false,
       dir: '/home/user/my-game',
-      config: '8bitscript.config.ts',
+      config: '8bitscript.config.8bs',
       entry: 'src/main.8bs',
       targets: ['c64', 'vic20'],
       systems: [

@@ -619,7 +619,7 @@ export async function run(args) {
     process.stderr.write(
       `Usage: 8bs run <${releaseTargetPipe()}>\n`
       + releaseUsageNote()
-      + '                 no target runs the `baseline` 8bitscript.config.ts names, when it names one)\n'
+      + '                 no target runs the `baseline` 8bitscript.config.8bs names, when it names one)\n'
       + '                [--pal]\n'
       + HARDWARE_USAGE
       + '                [--size] [--no-open] [--lan] [--local] [--port <n>] [--program <name>] [--locale <name>] [entry.8bs]\n'

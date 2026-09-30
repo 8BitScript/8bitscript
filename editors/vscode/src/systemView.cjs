@@ -1,7 +1,7 @@
 // The System builder: an editor tab with Machine / Hardware / Region /
 // Facts / Save, writing the same `{ target, profile?, hardware?, region? }`
 // the CLI already validates. Destination is explicit: advertise into
-// 8bitscript.config.ts, this clone (.8bitscript/systems.json), or this
+// 8bitscript.config.8bs, this clone (.8bitscript/systems.json), or this
 // user (~/.config/8bitscript/systems.json).
 //
 // Controller Setup is the template: createWebviewPanel, nonce CSP,
@@ -247,7 +247,7 @@ class SystemPanel {
       hardware: hardwareState(target, targets, selection),
       collision,
       layers: [
-        { id: 'advertised', label: 'Advertise in 8bitscript.config.ts', where: project ? path.basename(project.configPath) : '' },
+        { id: 'advertised', label: 'Advertise in 8bitscript.config.8bs', where: project ? path.basename(project.configPath) : '' },
         { id: 'project', label: 'This clone only', where: '.8bitscript/systems.json' },
         { id: 'user', label: 'This machine, any project', where: '~/.config/8bitscript/systems.json' },
       ],
@@ -328,7 +328,7 @@ function html(webview) {
     <select id="layer"></select>
     <p class="none" id="save-note"></p>
     <button class="wide" id="save">Save system</button>
-    <button class="link" id="open-config">Open 8bitscript.config.ts</button>
+    <button class="link" id="open-config">Open 8bitscript.config.8bs</button>
   </section>
   <script nonce="${nonce}">${HARDWARE_JS}</script>
   <script nonce="${nonce}">${JS}</script>

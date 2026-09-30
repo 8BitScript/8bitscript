@@ -33,7 +33,7 @@ packages/compiler/src/**/*.js
 8bitscript.controllers.json
 
 # Clone-local systems and a local-checkout pointer. Advertised systems
-# stay in 8bitscript.config.ts.
+# stay in 8bitscript.config.8bs.
 .8bitscript/
 
 # Logs

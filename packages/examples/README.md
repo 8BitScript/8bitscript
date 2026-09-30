@@ -4,7 +4,7 @@ The example programs that ship with the toolchain. `@8bitscript/cli`
 depends on this package, so installing the CLI installs the examples, and
 the VS Code extension lists them in its launcher beside your own programs
 and beside Studio. Each example is an ordinary project: a directory with an
-`8bitscript.config.ts`, a program under `src/*.8bs`, and the four source
+`8bitscript.config.8bs`, a program under `src/*.8bs`, and the four source
 kinds this release dogfoods — **`.8bs`** (program), **`.8bx`** (composition),
 **`.8bg`** / **`.8ba`** (portable media). Every example imports
 [`shared-release-targets.ts`](shared-release-targets.ts) for its `targets`

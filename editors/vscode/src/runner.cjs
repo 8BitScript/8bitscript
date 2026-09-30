@@ -314,7 +314,7 @@ class Projects {
    * cached per directory until the next refresh. Which directory matters:
    * the machine catalogs are the toolchain's, but the `hardware` and
    * `profiles` a project fits its targets with are that project's
-   * `8bitscript.config.ts` (Studio asks for a 1351 on a C64), so asking in the
+   * `8bitscript.config.8bs` (Studio asks for a 1351 on a C64), so asking in the
    * wrong directory shows the panel someone else's stock machine. Falls
    * back to the first project with a toolchain when `dir` names none, and
    * null when no toolchain can be found or the command fails — the

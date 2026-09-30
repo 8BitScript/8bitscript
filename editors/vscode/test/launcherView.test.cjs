@@ -159,7 +159,7 @@ test('picking a bare machine from the run menu clears any hardware it had stuck 
     vscode.workspace.findFiles = () => Promise.resolve([]);
     // A profile a much earlier pick (or an older build of this panel)
     // left stored for 'pet' — exactly what a project's own
-    // 8bitscript.config.ts changing its default should not stay pinned
+    // 8bitscript.config.8bs changing its default should not stay pinned
     // under forever.
     vscode.__mock.configStore.set('hardware', { pet: { profile: '3032', options: {} } });
     const projects = registerRunner(context, { appendLine() {} });
@@ -201,7 +201,7 @@ test('warningFor greys Run when the emulator is missing, and names it', () => {
 // and nothing else. It used to list every release machine and merely mark
 // the ones outside the project un-runnable, which is a list to read past
 // rather than choose from: a machine a program was never written for is
-// not a choice, and adding one is an edit to 8bitscript.config.ts.
+// not a choice, and adding one is an edit to 8bitscript.config.8bs.
 const { systemOptions } = require('../src/launcherView.cjs');
 
 /** The machine ids a set of dropdown rows offers, group headings dropped. */

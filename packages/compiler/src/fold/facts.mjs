@@ -304,7 +304,7 @@ export function unmetRequirements(requires, facts) {
 
 /**
  * Where one build's sheet is short of the baseline's — the system a
- * program is designed on, `baseline` in 8bitscript.config.ts
+ * program is designed on, `baseline` in 8bitscript.config.8bs
  * (docs/project/baseline.md). A flag the baseline has and this build does
  * not; a count the baseline has more of. Program-sheet facts settled by
  * the build only: a `when: 'run'` fact is the machine's answer, not the

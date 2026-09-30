@@ -206,7 +206,7 @@ class LauncherViewProvider {
           // named-system pick (applySystem, above) or an older build of
           // this panel left stored for it. Without this, choosing "PET"
           // here could stay pinned to a profile picked weeks and configs
-          // ago, no matter what 8bitscript.config.ts says now.
+          // ago, no matter what 8bitscript.config.8bs says now.
           await settings.setHardware(message.value, {});
         }
         break;
@@ -402,7 +402,7 @@ function systemOptions(targets, project, doctor = null) {
   // roster used to be listed here with the ones outside the project merely
   // marked un-runnable, which made the list long enough to be read past:
   // a machine a program was never written for is not a choice, and the way
-  // to get one is to add it to 8bitscript.config.ts.
+  // to get one is to add it to 8bitscript.config.8bs.
   const fitted = project?.targets?.length > 0 ? project.targets : ALL_TARGETS;
   const systems = targets?.systems ?? [];
   // A target already offered as a named system (below) is not repeated here
@@ -484,7 +484,7 @@ function shortfall(targets, target, selection) {
 
 /** Why Run is greyed out, in the words the panel shows instead of the command line. */
 function warningFor(project, system, { doctor = null, emulator = null } = {}) {
-  if (!project) return 'No project here yet. A project is a directory with an 8bitscript.config.ts in it.';
+  if (!project) return 'No project here yet. A project is a directory with an 8bitscript.config.8bs in it.';
   if (!project.targets.includes(system)) return `${labelOf(project)} does not target ${system}.`;
   if (!project.toolchain) return `No 8bs toolchain for ${labelOf(project)}. Run ${project.packageManager} install.`;
   if (doctor?.failed?.includes(system)) {

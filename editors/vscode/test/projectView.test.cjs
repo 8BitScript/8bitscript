@@ -36,7 +36,7 @@ function fakeProject(dir, overrides = {}) {
     name: 'my-game',
     dir,
     shipped: false,
-    configPath: path.join(dir, '8bitscript.config.ts'),
+    configPath: path.join(dir, '8bitscript.config.8bs'),
     entry: path.join(dir, 'src', 'main.8bs'),
     targets: ['c64'],
     packageManager: 'pnpm',
