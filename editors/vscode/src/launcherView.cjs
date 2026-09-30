@@ -36,6 +36,7 @@ const {
 const { machineTree, readLastRun, rowKey } = require('./runningMachines.cjs');
 const { resolveCheckoutRoot } = require('./checkout.cjs');
 const { installRoots } = require('./projectInfo.cjs');
+const { quietly } = require('./quietly.cjs');
 
 const VIEW_ID = '8bitscript.launcher';
 const CSS = fs.readFileSync(path.join(__dirname, '..', 'media', 'launcher.css'), 'utf8');
@@ -64,21 +65,21 @@ class LauncherViewProvider {
       // than a logged, best-effort refresh of the panel.
       vscode.workspace.onDidChangeConfiguration((event) => {
         if (settings.affectsAny(event) || event.affectsConfiguration('8bitscript.showExamples')) {
-          Promise.resolve(this.post()).catch((error) => console.error('8BitScript launcher view:', error));
+          quietly('8BitScript launcher view', () => this.post());
         }
       }),
-      this.projects.onDidChange(() => Promise.resolve(this.post()).catch((error) => console.error('8BitScript launcher view:', error))),
-      view.onDidChangeVisibility(() => view.visible && Promise.resolve(this.post()).catch((error) => console.error('8BitScript launcher view:', error))),
+      this.projects.onDidChange(() => quietly('8BitScript launcher view', () => this.post())),
+      view.onDidChangeVisibility(() => view.visible && quietly('8BitScript launcher view', () => this.post())),
     ];
     if (this.devReload) {
-      subscriptions.push(this.devReload.onDidChange(() => Promise.resolve(this.post()).catch((error) => console.error('8BitScript launcher view:', error))));
+      subscriptions.push(this.devReload.onDidChange(() => quietly('8BitScript launcher view', () => this.post())));
     }
     view.onDidDispose(() => {
       for (const subscription of subscriptions) subscription.dispose();
       this.view = undefined;
     });
 
-    Promise.resolve(this.post()).catch((error) => console.error('8BitScript launcher view:', error));
+    quietly('8BitScript launcher view', () => this.post());
   }
 
   /**

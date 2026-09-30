@@ -88,6 +88,37 @@ export function createStatusStore(frameRate = 60) {
  * @param {import('node:http').IncomingMessage} req
  * @param {number} [limit]
  */
+/**
+ * Answers a request whose handler threw or rejected. The rejection would
+ * otherwise escape an HTTP server's request callback as an unhandled
+ * rejection — one bad request taking the whole server down. Logged under
+ * `label`; `status` is sent unless the handler had already started the
+ * response, and the response is always ended.
+ *
+ * @param {import('node:http').ServerResponse} res
+ * @param {unknown} error
+ * @param {string} label
+ * @param {number} [status]
+ * @param {Record<string, string>} [headers]
+ */
+export function answerFailedRequest(res, error, label, status = 500, headers = {}) {
+  console.error(`${label}:`, error instanceof Error ? error.stack : error);
+  if (!res.headersSent) res.writeHead(status, headers);
+  res.end();
+}
+
+/**
+ * Closes a listening server and resolves 0 whether or not the close
+ * reports an error: Ctrl+C asked to stop either way, and a rejection on
+ * the way out would be an unhandled one.
+ *
+ * @param {{ close(): Promise<unknown> }} listening
+ * @returns {Promise<number>}
+ */
+export function closeQuietly(listening) {
+  return Promise.resolve().then(() => listening.close()).then(() => 0, () => 0);
+}
+
 export function readJsonBody(req, limit = 4096) {
   return new Promise((resolvePromise) => {
     const chunks = [];
@@ -437,16 +468,7 @@ export async function runInBrowser(wasmBytes, { open = true, frameRate = 60, roo
     handleStatusRequest(req, res, pathname, status).then((handled) => {
       if (handled) return;
       serveProgram(req, res, pathname);
-    }).catch((error) => {
-      // An unhandled rejection here would be an unhandled rejection inside
-      // an HTTP server's own request callback — one bad request killing the
-      // whole dev server. Logged and answered with a real response instead.
-      console.error('8bs run --web:', error?.stack ?? error);
-      if (!res.headersSent) {
-        res.writeHead(500, ISOLATION_HEADERS);
-      }
-      res.end();
-    });
+    }).catch((error) => answerFailedRequest(res, error, '8bs run --web', 500, ISOLATION_HEADERS));
   }, { lan, port });
   if (listening.error) {
     process.stderr.write(`8bs run: ${listening.error}\n`);
@@ -475,12 +497,6 @@ export async function runInBrowser(wasmBytes, { open = true, frameRate = 60, roo
   process.stdout.write('press Ctrl+C to stop. (in the page: swipe or arrows to move; F for fullscreen)\n');
 
   return new Promise((resolvePromise) => {
-    process.on('SIGINT', () => {
-      // A rejection here (the server already closed, say) would otherwise be
-      // an unhandled promise rejection on the way out — resolve with the
-      // same exit code either way, since Ctrl+C asked to stop regardless of
-      // whether the close reports an error.
-      listening.close().then(() => resolvePromise(0)).catch(() => resolvePromise(0));
-    });
+    process.on('SIGINT', () => closeQuietly(listening).then(resolvePromise));
   });
 }

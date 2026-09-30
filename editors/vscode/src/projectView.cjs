@@ -12,6 +12,7 @@ const { labelOf, whereLabel } = require('./runner.cjs');
 const settings = require('./settings.cjs');
 const { eightBitScriptVersions, lockfileFor, toolchainLabel } = require('./projectInfo.cjs');
 const { isCheckout, resolveCheckoutRoot } = require('./checkout.cjs');
+const { quietly } = require('./quietly.cjs');
 
 const CSS = fs.readFileSync(path.join(__dirname, '..', 'media', 'project.css'), 'utf8');
 const JS = fs.readFileSync(path.join(__dirname, '..', 'media', 'project.js'), 'utf8');
@@ -174,7 +175,7 @@ function registerProjectView(context, projects) {
         panel.webview.onDidReceiveMessage((message) => view.apply(message)),
         projects.onDidChange(() => view.post()),
         vscode.workspace.onDidChangeConfiguration((event) => {
-          if (settings.affectsAny(event)) Promise.resolve(view.post()).catch((error) => console.error('8BitScript project view:', error));
+          if (settings.affectsAny(event)) quietly('8BitScript project view', () => view.post());
         }),
       ];
       panel.webview.html = html(panel.webview);

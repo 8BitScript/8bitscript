@@ -70,7 +70,7 @@ import { CONTROLLERS_FILE, controllerPlayers } from './controllers.mjs';
 import { describeFacts } from './targets.mjs';
 // The two things a command that serves a page in a browser needs, from the
 // command that already serves a page in a browser.
-import { openBrowser, readJsonBody } from './web-runtime.mjs';
+import { answerFailedRequest, openBrowser, readJsonBody } from './web-runtime.mjs';
 
 const require = createRequire(import.meta.url);
 
@@ -798,16 +798,13 @@ export async function controller(args) {
       if (session.finished) stop();
     };
     if (req.method === 'POST') {
+      // readJsonBody never rejects (oversized or unparseable input resolves
+      // null, which respond() answers); what can fail here is respond() or
+      // send() themselves — a server fault, answered 500 rather than left
+      // to take the controller server down as an unhandled rejection.
       readJsonBody(req, MESSAGE_LIMIT).then((body) => send(respond(
         { method: 'POST', pathname: url.pathname, body }, { session, assets, token },
-      ))).catch((error) => {
-        // readJsonBody rejects on oversized or unparseable input — a real,
-        // expected case from a real client, not a server bug, so it gets a
-        // real HTTP response rather than becoming an unhandled rejection
-        // that would otherwise take the whole controller server down.
-        res.writeHead(400, { 'Content-Type': 'text/plain' });
-        res.end(`bad request: ${error?.message ?? error}`);
-      });
+      ))).catch((error) => answerFailedRequest(res, error, '8bs controller'));
       return;
     }
     send(respond({ method: req.method ?? 'GET', pathname: url.pathname }, { session, assets, token }));

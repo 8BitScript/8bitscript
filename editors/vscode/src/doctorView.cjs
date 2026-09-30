@@ -13,6 +13,12 @@ const {
   ALL_DOCTOR_EMULATOR_IDS, DOCTOR_EMULATORS, installersForTargets,
 } = require('./projects.cjs');
 const settings = require('./settings.cjs');
+const { quietly } = require('./quietly.cjs');
+
+/** A Doctor panel failure, in front of the user as well as in the log. */
+function reportToUser(error) {
+  vscode.window.showErrorMessage(`8BitScript Doctor panel: ${error?.message ?? error}`);
+}
 
 const CSS = fs.readFileSync(path.join(__dirname, '..', 'media', 'doctor.css'), 'utf8');
 const JS = fs.readFileSync(path.join(__dirname, '..', 'media', 'doctor.js'), 'utf8');
@@ -152,14 +158,9 @@ function registerDoctorView(context, projects) {
       );
       const view = new DoctorPanel(panel, projects);
       const subscriptions = [
-        panel.webview.onDidReceiveMessage((message) => Promise.resolve(view.apply(message)).catch((error) => {
-          // view.apply() is async; a webview message handler has no caller
-          // to return a rejection to, so an uncaught one here would be an
-          // unhandled promise rejection instead of a report the user (or a
-          // future debugger) can see.
-          console.error('8BitScript Doctor panel:', error);
-          vscode.window.showErrorMessage(`8BitScript Doctor panel: ${error?.message ?? error}`);
-        })),
+        // view.apply() is async and a message handler has no caller to hand
+        // a rejection to: log it, and show it, rather than leave it unhandled.
+        panel.webview.onDidReceiveMessage((message) => quietly('8BitScript Doctor panel', () => view.apply(message), reportToUser)),
         projects.onDidChange(() => view.post()),
         vscode.workspace.onDidChangeConfiguration((event) => {
           if (event.affectsConfiguration('8bitscript.doctorEmulators')) view.post();

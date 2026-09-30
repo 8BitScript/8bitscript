@@ -20,6 +20,7 @@ const { hardwareState, selectionLabel } = require('./hardwareCatalog.cjs');
 const {
   layerNames, projectSystemsPath, saveLayer, upsertSystem, userSystemsPath,
 } = require('./systemsStore.cjs');
+const { quietly } = require('./quietly.cjs');
 
 const CSS = fs.readFileSync(path.join(__dirname, '..', 'media', 'system.css'), 'utf8');
 const HARDWARE_JS = fs.readFileSync(path.join(__dirname, '..', 'media', 'hardware.js'), 'utf8');
@@ -359,7 +360,7 @@ function registerSystemView(context, projects) {
         panel.webview.onDidReceiveMessage((message) => view.apply(message)),
         projects.onDidChange(() => view.post()),
         vscode.workspace.onDidChangeConfiguration((event) => {
-          if (settings.affectsAny(event)) Promise.resolve(view.post()).catch((error) => console.error('8BitScript system view:', error));
+          if (settings.affectsAny(event)) quietly('8BitScript system view', () => view.post());
         }),
       ];
       panel.webview.html = html(panel.webview);
