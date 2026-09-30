@@ -28,7 +28,7 @@ const cli = JSON.parse(readFileSync(join(ROOT, '..', 'cli', 'package.json'), 'ut
 test('Studio declares itself an app, with a title and the shared entry', () => {
   assert.equal(pkg['8bitscript'].app.title, 'Studio');
   assert.equal(pkg['8bitscript'].app.entry, './src/main.8bs');
-  assert.ok(existsSync(join(ROOT, '8bs.config.ts')), 'an app is a project: it has the manifest the CLI reads');
+  assert.ok(existsSync(join(ROOT, '8bitscript.config.8bs')), 'an app is a project: it has the manifest the CLI reads');
 });
 
 test("Studio's version is the toolchain's version", () => {
@@ -73,7 +73,7 @@ for (const target of RELEASE_TARGETS) {
 }
 
 test('release config matches shared-release-targets and names the X16 baseline', () => {
-  const config = readFileSync(join(ROOT, '8bs.config.ts'), 'utf8');
+  const config = readFileSync(join(ROOT, '8bitscript.config.8bs'), 'utf8');
   assert.match(config, /shared-release-targets/);
   assert.match(config, /^  baseline: 'cx16',$/m);
   assert.match(config, /^  input: \{ primary: 'mouse', also: \['keyboard', 'stick', 'pad'\] \},$/m);
