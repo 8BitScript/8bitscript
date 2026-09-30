@@ -187,7 +187,7 @@ export function checkEntryKind(entry) {
  *   whoever runs it next. `memory` / `sizeReport` are what the last-run
  *   file and `--size` print; they are absent when the compile failed.
  */
-export async function compile(target, entryArg, { pal = false, profile, hardware: overrides = {}, report = false, debug = false, checkout = undefined, program: programName, locale: localeArgument, web = false } = {}) {
+export async function compile(target, entryArg, { pal = false, profile, hardware: overrides = {}, report = false, debug = false, remarks = false, checkout = undefined, program: programName, locale: localeArgument, web = false } = {}) {
   if (checkout !== undefined) setActiveCheckout(checkout);
   const config = await loadConfig(process.cwd(), '8bs build');
 
@@ -497,7 +497,7 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   const nameOk = checkArtifactName(artifactStem, target);
   if (!nameOk.ok) process.stderr.write(`8bs build: note: ${nameOk.error}\n`);
   const outFile = resolve('dist', `${artifactStem}.${ext}`);
-  const result = await build(ir, { machine: target, hardware, outFile, frameRate, report, debug, sources });
+  const result = await build(ir, { machine: target, hardware, outFile, frameRate, report, debug, remarks, sources });
   if (!result.ok) {
     process.stderr.write(`8bs build: ${result.error}\n`);
     return { ok: false };
@@ -506,6 +506,12 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   process.stdout.write(`${memoryLine(ir.memory, result.memory)}\n`);
   if (result.sizeReport) process.stdout.write(sizeReportLines(result.sizeReport, result.memory.program));
   if (report) process.stdout.write(stateReportLines(ir));
+  // Remarks are never a problem and never printed unless asked for
+  // (--remarks) — what the linker's optimizer actually did, today only
+  // every @unroll — using the same rendering diagnostics already get, so
+  // "remark 8BS9001: ..." reads next to an ordinary warning or error, not
+  // as a third, different-looking thing.
+  if (result.remarks?.length) printDiagnostics(result.remarks, sources);
   if (debug) {
     const lstFile = outFile.replace(/\.[^./\\]+$/, '') + '.lst';
     const debugJsonFile = outFile.replace(/\.[^./\\]+$/, '') + '.8bs.debug.json';
@@ -712,6 +718,7 @@ export async function build(args) {
   if (args.includes('--release')) return buildRelease({ report: args.includes('--size'), checkout: checkout.checkout });
   const report = args.includes('--size');
   const debug = args.includes('--debug');
+  const remarks = args.includes('--remarks');
   const targetIndex = args.indexOf('--target');
   const hw = hardwareArgs(args);
   if (!hw.ok) {
@@ -769,7 +776,7 @@ export async function build(args) {
       `Usage: 8bs build --target <${releaseTargetPipe()}>\n`
       + releaseUsageNote()
       + '                  no --target builds the `baseline` 8bitscript.config.ts names, when it names one)\n'
-      + '                 [--pal] [--size] [--debug] [--program <name>] [--locale <name>]\n'
+      + '                 [--pal] [--size] [--debug] [--remarks] [--program <name>] [--locale <name>]\n'
       + HARDWARE_USAGE
       + '                 [--web]  pet/vic20/c64/cx16: that machine\'s own package, through the\n'
       + '                          wasm backend, instead of a native build — see `8bs run --web`\n'
@@ -779,7 +786,7 @@ export async function build(args) {
   }
   const web = args.includes('--web');
   const { ok } = await compile(target, entry, {
-    pal, profile: launch.profile, hardware: launch.overrides, report, debug, checkout: checkout.checkout,
+    pal, profile: launch.profile, hardware: launch.overrides, report, debug, remarks, checkout: checkout.checkout,
     program: programOpt.program, locale: localeOpt.locale, web,
   });
   return ok ? 0 : 1;
