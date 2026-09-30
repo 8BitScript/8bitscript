@@ -398,14 +398,18 @@ function systemOptions(targets, project, doctor = null) {
   // a machine a program was never written for is not a choice, and the way
   // to get one is to add it to 8bitscript.config.ts.
   const fitted = project?.targets?.length > 0 ? project.targets : ALL_TARGETS;
-  const machines = groupedMachineOptions(ALL_TARGETS.filter((id) => fitted.includes(id)), (id) => ({
+  const systems = targets?.systems ?? [];
+  // A target already offered as a named system (below) is not repeated here
+  // as a bare machine — only what the systems block does not cover falls
+  // through to this list.
+  const covered = new Set(systems.map((system) => system.target));
+  const machines = groupedMachineOptions(ALL_TARGETS.filter((id) => fitted.includes(id) && !covered.has(id)), (id) => ({
     id,
     machine: MACHINE_TARGETS.has(id),
     label: targets?.get(id)?.title ? `${id} — ${targets.get(id).title}` : id,
     runnable: Boolean(project?.targets.includes(id)),
     muted: Boolean(project?.targets.includes(id)) && !emulatorIsReady(doctor, id),
   }));
-  const systems = targets?.systems ?? [];
   if (systems.length === 0) return machines;
   const groups = [
     ['project', 'This clone'],
