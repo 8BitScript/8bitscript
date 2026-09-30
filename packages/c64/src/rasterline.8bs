@@ -82,12 +82,15 @@ export namespace Slot {
     const BORDER: utinyint = 0;     // the border's color
     const BACKGROUND: utinyint = 1; // the playfield's background color
     const SCROLL_X: utinyint = 2;   // the horizontal fine scroll, 0-7
+    const CHARSET: utinyint = 3;    // the machine's alternate character set, where one exists
 }
 
 export namespace raster {
     const ENTRIES: utinyint = 63; // the list's capacity, ./raster.8bs's MAX
     const STRIDE: utinyint = 4;   // bytes per entry: line, address low, address high, value
     const FINE_SCROLL: bool = true; // Slot.SCROLL_X entries are accepted: $D016's XSCROLL
+    const COLORS: bool = true;     // Slot.BORDER/BACKGROUND entries are accepted
+    const CHARSET: bool = false;   // Slot.CHARSET entries are refused
     const TOP: utinyint = 50;     // picture line 0 is raster line 50
     const LINES: utinyint = 200;  // visible picture lines, 0-199
     const KEEP: utinyint = 0xF8;  // $D016 bits 3-7 — CSEL, MCM — kept in every SCROLL_X byte
