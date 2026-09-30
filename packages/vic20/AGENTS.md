@@ -83,10 +83,25 @@ Do not describe more than this as working:
   VIC's raster counter: `$9004` holds bits 8–1 of the line and changes every
   second line, the top half of the frame is `$9004 < 64`, and `$9004 >= 140`
   is a line only PAL has (NTSC tops out around 130). NTSC is 261 × 65
-  cycles at 14318181/14 Hz, PAL 312 × 71 at 4433618/4 Hz. There is **no
-  `presync`**: unlike the C64 and the PET, a VIC-20 program keeps the
-  KERNAL's IRQ alive — the jiffy clock, the keyboard scan and the cursor
-  all keep running under a program that calls `waitFrame()`.
+  cycles at 14318181/14 Hz, PAL 312 × 71 at 4433618/4 Hz. **A program
+  that calls `waitFrame()` runs with interrupts off from start-up**, as on
+  the C64 and the PET: `mos/index.ts` emits an `SEI` ahead of the global
+  initializers and `waitframe.ts`'s `rasterSetup()` another before its
+  region probe (the VIC-20 is not a `keepsInterrupts` machine), so the
+  jiffy clock, the KERNAL's keyboard scan and the cursor stop. (This file
+  said the opposite until 2026-09-29; the `SEI`s are in every listing.) A
+  program that never calls `waitFrame()` keeps the KERNAL's IRQ.
+  `FRAME_SYNC.vic20.frameHook` is `vic20RasterFrame`: the routine every
+  `waitFrame()` shares `JSR`s it after each frame edge — see "Raster
+  splits" below.
+- **Raster splits** (`src/rasterline.8bs`, behind `@8bitscript/raster`):
+  `Slot.BORDER` and `Slot.BACKGROUND` at any picture line, both regions,
+  every line landed whole and still from frame to frame, a list built once
+  and `enable()`d kept every frame, `setValue` live without a commit.
+  `#fact(video.raster)` is true. `Slot.SCROLL_X` is refused and
+  `raster.FINE_SCROLL` is false. The VIC raises no interrupt, so
+  `waitFrame()` applies the list — the section "Raster splits" below is
+  the mechanism, the measurements and what they cost.
 - `8bs run vic20` launches `xvic -model vic20ntsc` (or `-model vic20pal`
   with `--pal`) `-memory <ram> -controlport1device <n> -autostartprgmode 1`; `--screenshot`
   goes through `-limitcycles`/`-exitscreenshot` at the region's real clock
@@ -357,9 +372,10 @@ facts, and these are the ones that are wrong on this machine:
 
 ### Input shares chips with the KERNAL
 
-- The KERNAL IRQ is alive in every VIC-20 build (no `presync`), and its
-  keyboard scan drives VIA2 port B every jiffy. A program that reads the
-  keyboard itself must select columns and read rows under `sei`, or read
+- The KERNAL IRQ is alive in a VIC-20 program that never calls
+  `waitFrame()`, and its keyboard scan drives VIA2 port B every jiffy (a
+  `waitFrame()` program has it off from start-up — above). A program
+  that reads the keyboard itself must select columns and read rows under `sei`, or read
   the KERNAL's own buffer; a program that reads joystick RIGHT must flip
   VIA2 DDRB bit 7 to input around the read and put it back, again under
   `sei`, because the KERNAL scan will write it. The C64's "port 2 is the
@@ -376,9 +392,11 @@ facts, and these are the ones that are wrong on this machine:
 ### The frame is a counter to poll
 
 - `$9004` is the frame: half-line resolution, no interrupt, and the KERNAL
-  timer is not it. A raster effect (color split, border tricks) is a
-  polling loop, and it competes with the KERNAL's IRQ for cycles; either
-  `sei` around it or accept jitter.
+  timer is not it. A raster effect is a polling loop run from
+  `waitFrame()`'s frame hook, with interrupts already off — never a loop
+  a program writes itself, and never a delay counted from one sync at the
+  top of the frame (both were tried; "Raster splits" says what went
+  wrong).
 - The two regions differ in line count, cycles per line *and* CPU clock;
   `FRAME_SYNC.vic20` carries both and probes at run time. A sound table or
   a timing constant that assumes one region is wrong by 8% on the other.
@@ -390,6 +408,194 @@ facts, and these are the ones that are wrong on this machine:
   are runtime facts. `--pal` is the emulator's region, not a build option.
   The `vic21` model is a 16K NTSC machine and is what `--hardware ram=16k`
   on NTSC already builds for.
+
+## Raster splits
+
+`src/rasterline.8bs` is the VIC-20 behind `@8bitscript/raster`, and the
+one rasterline file whose machine has no interrupt to apply a list with.
+Everything here was measured under xvic (VICE 3.10) from
+`test/raster-probe.8bs` and scratch probes on 2026-09-29, both regions;
+none of it has been checked on a real VIC-20. Read it before changing a
+cycle in `vic20RasterFrame`.
+
+### Who applies the list
+
+`FRAME_SYNC.vic20.frameHook` names `vic20RasterFrame`, and the routine
+every `waitFrame()` call shares (`waitFrameRoutine` in
+`packages/compiler/src/mos/startup/waitframe.ts`) `JSR`s it right after
+its raster wait sees the frame wrap — the same seam the NES's
+`nesVerticalBlank` uses, opened to *level* machines for this. The hook
+busy-waits down the frame, writes `$900F` at each planned line, and
+returns; `waitFrame()` then counts the frame as before. So the portable
+contract holds as on the C64: build once and `enable()`, and the list
+shows every frame; rebuild, and `commit()`.
+
+Nothing in a program calls the hook, so the pruner could not see it.
+`linker/reachability.mjs`'s `pruneUnreachable(ir, { frameHook })` keeps
+it when, and only when, a function the program reaches shares a global
+with it (`frameHookWanted`) — the hook reads `planCount`, and only
+`commit()` writes it. A program that imports `@8bitscript/raster` and
+never commits, or whose raster branch a `#fact` folded away, carries
+none of it: byte-identical to a program without the import
+(`packages/compiler/test/mos-vic20-raster.test.ts`). The build's
+"inlined away" guard (`mos/index.ts`) fires only for a hook the program
+calls or still feeds.
+
+What that costs a program — **expose it, never hide it**:
+
+- **The frame is the hook's until the last planned line.** From the top
+  of the frame to the last entry's line the CPU is inside the hook; the
+  program's own work gets what is left. Last entry at picture line 140 on
+  NTSC is raster 190: about 70 lines, ~4,600 cycles of the frame's
+  16,965. At line 183, ~28 lines, ~1,800 cycles. Put splits high.
+- **A frame `waitFrame()` does not wait on gets no splits**, or late ones:
+  a program still working when the frame wraps catches the wrap late
+  (the raster wait's half-frame window), and every line already passed
+  is written at once. A program that runs below frame rate shows the
+  last value written for the frames it misses.
+- **PAL at 60 logical frames a second** (`frameRate`'s default) earns
+  1.2 logical frames per 50 Hz edge, so every sixth `waitFrame()` returns
+  without waiting — no edge, so no hook — and the program runs two
+  logical frames in one hardware frame's remainder. The picture is still
+  right only if both fit before the wrap; a program that overruns shows
+  one flat frame in six. A PAL program that uses splits wants
+  `frameRate: 50`, or half the remainder above as its budget. NTSC is the
+  reassuring half: 60 against 60.28 Hz, a call now and then waits two
+  edges, and the hook runs on both.
+- **No `waitFrame()`, no splits.** Nothing else calls the hook.
+- **Bytes** (`8bs build vic20 --size`, NTSC, 2026-09-29): the hook is 166;
+  `commit()` with the plan builder inlined ~415; `at()` ~106; the region
+  probe 51. The compiler test's one-entry guarded program is 992 against
+  184 without it (+808). `examples/fancy` on the 8K build is 3654 against
+  2803 (+851 program, +24 RAM). The list (48 bytes), which planned line
+  each entry went to (16) and the plan (4 × 16) sit in the cassette
+  buffer, `$033C`–`$03BB`, not in the program image.
+
+### Landing on the line: what the VIC-20 does
+
+- **`$9004` is raster bits 8–1; `$9003` bit 7 is bit 0.** Polling `$9004`
+  alone lands anywhere in a two-line window. The hook polls `$9004`
+  (`lda / cmp / bcc`) to reach the line pair before the one it syncs on,
+  then waits for `$9003` bit 7 to *change* into that line (`bit $9003 /
+  bpl` for an odd line, then `bmi` for an even one): a 7-cycle loop,
+  which is all the jitter left. Both paths reach the stores in the same
+  number of cycles (11).
+- **Every cycle of a line is on screen.** xvic's capture is 520 px wide
+  on NTSC and 568 on PAL — 65 and 71 cycles at 8 px a cycle — so there is
+  no blanking a write can hide in. A store is invisible only where its
+  slot does not show: a BORDER change while the beam is in the picture, a
+  BACKGROUND change while it is in the border. So each planned line is
+  **two stores**: the border half inside the picture of the line above
+  the target, the background half in the border between that line and
+  the target. Result: the target line is the first whole line in the new
+  colors, on both slots. The one visible trace is the line above's
+  *right* border, already the new border color — no store position
+  avoids that for a border split.
+- **The counter ticks at a different point of the line on each region.**
+  Measured with one store 12 cycles after the `$9003` edge: NTSC it
+  landed at x 274–322 of the captured row *before* the new line's (cycles
+  34–40), PAL at x 50–98 of the new line's own row (cycles 6–12). So the
+  edge into raster line R is seen about cycle 22 of the row R − 1 on NTSC
+  and about cycle −6 of row R (= 65 of row R − 1) on PAL. That is why the
+  delays are per region, and why one set of delays cannot serve both.
+- **Geometry of the capture.** Raster line L is PNG row L − 28 on both
+  regions. Picture line 0 is raster line `$9001` × 2: 50 NTSC (`$19`), 76
+  PAL (`$26`), read by `commit()` rather than assumed — so picture line P
+  is row P + 22 (NTSC) or P + 48 (PAL). The picture spans x 40–391 (NTSC)
+  or 96–447 (PAL); the border is the rest of the row.
+
+### The windows, and the delays chosen in them
+
+Syncing on the edge of the line before the target (T − 1), with the
+7-cycle jitter already allowed for, a store `d` cycles after the edge is
+invisible when:
+
+| | Border store (in row T − 1's picture) | Background store (in the border after it) |
+| --- | --- | --- |
+| NTSC | d in 48–85 | d in 92–106 |
+| PAL | d in 18–55 | d in 62–82 |
+
+The hook's cycle count after the edge is `22 + P1` to the first store and
+`11 + P2` more to the second; P1 and P2 are the padding. Chosen:
+
+| | P1 | P2 | first store | second store | margin (low / high) |
+| --- | --- | --- | --- | --- | --- |
+| NTSC | 36 | 27 | 58 | 96 | 10 / 27, 4 / 10 |
+| PAL | 14 | 25 | 36 | 72 | 18 / 19, 10 / 10 |
+
+NTSC's background store is the tightest: 4 cycles early and it splits the
+line above (the mutation test below). The padding is a `jsr` into a run
+of twelve `nop`s ending in `rts` (`jsr` + `rts` is 12 cycles, each `nop`
+entered 2 more) plus a `bit $00` for an odd count — **never a loop**: a
+taken branch that crosses a page costs a cycle more, and where the linker
+puts the hook changes with every program. There is no taken branch
+between the edge and either store (the odd path leaves by `jmp`). The
+hook has one copy per region, chosen once a frame before any waiting;
+`commit()` probes the region once (`$9004 >= 140`, the frame runtime's
+own PAL test, 26,624 cycles — over a PAL frame) and caches it.
+
+### Rules the plan follows
+
+- **Two lines apart, or it is moved.** A planned line keeps the hook
+  about a line and a half (the second store is 96 cycles after the edge
+  on NTSC), so an entry one line below the previous one's would miss its
+  edge. `commit()` plans it two lines below instead, where it lands
+  exactly (the probe's line-61 entry shows at 62). Entries on the *same*
+  line merge into one planned line — BORDER and BACKGROUND share `$900F`.
+  An entry the rule pushes past the picture (184 lines), and every one
+  after it, is not planned.
+- **Whole bytes, never read-modify-write.** `commit()` works out both
+  stores' bytes: each slot the list sets carried from the entry that last
+  set it, the lines above the first entry taking the last one's value
+  (the frame wraps, as on the C64). Bits the list sets no entry for — a
+  slot it never names, and bit 3, inverted video — are 0 in the plan and
+  come from `$900F` through the hook's `base`, read once a frame. (The
+  cassette buffer holds whatever was there; an earlier draft masked
+  bytes in place and would have forced bit 3 on.)
+- **`setValue` rewrites the plan's bytes** from the list without a
+  commit, as long as the list has not changed since the last one.
+- **Nothing is computed in the hook** but the one `$900F` read. The
+  picture-to-raster sum, the pair to poll for, the parity, the merge, the
+  carry and both bytes are `commit()`'s — the root file's rule.
+
+### What was tried and why it failed
+
+- **A cycle-counted delay from one sync at the frame top.** Every entry
+  after the first counted lines of 65 or 71 cycles from one `$9004`
+  poll. It drifted by each entry's call overhead (splits 3–5 lines low),
+  and syncing after `waitFrame()` had already returned in the top half
+  waited out a whole extra frame, so the splits showed on every second
+  frame only (period 2, found by scanning eight consecutive captures).
+- **Counting `$9004` values as lines.** `$9004` is half the line; a
+  delay fed the halved number landed every split at half its line.
+- **`sei`/`cli` around the busy-wait.** Under `waitFrame()` interrupts
+  are already off; the `cli` turned the KERNAL's IRQ back on for the
+  rest of the program.
+- **One store per planned line.** Lands in the picture on NTSC (a
+  background split shows a jittering partial line above it) and in the
+  left border on PAL (a border split does). Hence two.
+- **Delay loops (`dey / bne`).** Correct until the loop straddles a page.
+
+### Troubleshooting
+
+- **No splits at all**: is the hook linked? `8bs build vic20 --size`
+  lists `vic20RasterFrame`, and `--debug`'s listing shows `JSR` right
+  after `LDA $9004 / CMP #$40 / BCS` (the wait's returning half). If it is
+  missing, the program does not reach `commit()`/`enable()` — or the
+  pruner's rule changed.
+- **Splits on every other frame**: something waits a frame inside the
+  hook. Capture consecutive frames (`--frames 822`, `823`, ...) and scan
+  a column; a period-2 pattern is a lost frame, not jitter.
+- **A split a line or two low**: two entries closer than two lines, or the
+  hook reached its edge late (more work before the first poll). Compare
+  with the two-line rule before touching the timing.
+- **A partial line above a split, moving between frames**: a store left
+  its window. Re-measure the edge with one store (the NTSC 274–322 / PAL
+  50–98 experiment above), redo the windows, and re-run the test.
+- **Tools**: `test/raster.test.mjs` is the gate; it reads rows and whole
+  runs of pixels with `pixelAt` from `packages/cli/src/png.mjs`. The
+  mutation that proved it bites: NTSC's second `jsr sled+6` changed to
+  `sled+12` (12 cycles early) fails at picture line 59.
 
 ## Seeing the screen without a human at xvic
 
@@ -412,7 +618,13 @@ packages/vic20/src/geometry.vic20.expanded.8bs    the `expanded` tag's version (
 packages/vic20/package.json             "8bitscript".hardware: ram (defsym, -memory, the expanded tag, memory.ram), port1; presets
 packages/vic20/src/screen.8bs           @8bitscript/vic20/screen: one packed register, BorderColor (8) and BackgroundColor (16)
 packages/vic20/src/text.8bs             @8bitscript/vic20/text: ASCII → screen code, color nybble masked to 3 bits, 22 × 23
-packages/compiler/src/mos/index.ts     FRAME_SYNC.vic20 ($9004 poll, no presync; the backend refuses to build)
+packages/vic20/src/rasterline.8bs       @8bitscript/vic20/rasterline (behind @8bitscript/raster): the list, commit()'s plan in the cassette buffer ($033C-$03BB), vic20RasterFrame — the frame hook, two timed copies (NTSC, PAL)
+packages/vic20/test/raster-probe.8bs    the probe: a list built once, both slots, an adjacent entry, a merged line, setValue after fifty frames, a frame counter
+packages/vic20/test/raster.test.mjs     links the probe; under xvic, NTSC and PAL, two consecutive frames each, every split on its line and whole
+packages/compiler/src/mos/index.ts     FRAME_SYNC.vic20 ($9004 poll; frameHook vic20RasterFrame); the SEI a waitFrame() program starts with
+packages/compiler/src/mos/startup/waitframe.ts   rasterWait, and waitFrameRoutine's JSR to the frame hook after it
+packages/compiler/src/linker/reachability.mjs    pruneUnreachable's frameHook rule and frameHookWanted: the hook is kept only when the program feeds it
+packages/compiler/test/mos-vic20-raster.test.ts  the hook's JSR, the rooting rule, byte-identity when nothing feeds it
 packages/cli/src/run.mjs                VICE_MODEL_ARGS.vic20 (-model vic20ntsc/vic20pal); the catalog's -memory and port flags appended
 packages/cli/src/screenshot.mjs         VICE_CLOCK_HZ.vic20, the 14 000 000-cycle default
 packages/compiler/test/vic20-profiles.test.mjs   every ram value draws at its geometry; 8k/16k/24k share the expanded tag and one file

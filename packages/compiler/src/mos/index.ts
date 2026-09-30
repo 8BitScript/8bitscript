@@ -20,6 +20,7 @@ import { arrayLabel, buildDataSection } from './data.ts';
 import type { DataArrayGlobal, IrString } from './data.ts';
 import { link } from './link/index.ts';
 import { optimizeReachable } from '../linker/optimize.mjs';
+import { frameHookWanted, pruneUnreachable } from '../linker/reachability.mjs';
 import { lower } from './lower/index.ts';
 import type { Directive, FunctionSite, IrFunction } from './lower/index.ts';
 import { instructionBytes } from './asm/encode.ts';
@@ -692,7 +693,13 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // globals whether called/read or not (see linker/reachability.mjs).
   // optimizeReachable prunes, folds compile-time work, then prunes again.
 
-  const { functions, globals, remarks } = optimizeReachable(ir);
+  // The machine's frame hook (FRAME_SYNC's `frameHook`) has no caller in
+  // the program — waitFrame()'s routine is its caller — so the pruner is
+  // told its name and keeps it when the program touches its state.
+  const hookSync = FRAME_SYNC[options.machine];
+  const { functions, globals, remarks } = optimizeReachable(ir, {
+    frameHook: 'frameHook' in hookSync ? hookSync.frameHook : undefined,
+  });
 
   // Every function's own file, from ir.functions — before optimizeReachable
   // prunes it away as dead code (a callee inlined at its only call site is
@@ -1069,10 +1076,14 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // really defines that function: the NES's hook is nesVerticalBlank(),
   // which arrives only by importing @8bitscript/nes or one of the portable
   // surfaces built on it, and a program that imports neither pays nothing.
+  // The VIC-20's is vic20RasterFrame() (@8bitscript/vic20/rasterline): a
+  // chip with no interrupt has its raster list applied by the one routine
+  // that already polls the frame, and nothing in the program calls it —
+  // optimizeReachable keeps it only when the program touches its plan.
   // `loweredFunctions` is post-optimizeReachable, so a hook the program
   // cannot reach is correctly absent rather than pinned alive.
   const sync = FRAME_SYNC[options.machine];
-  const frameHookName = sync.kind === 'edge' && 'frameHook' in sync ? sync.frameHook : undefined;
+  const frameHookName = 'frameHook' in sync ? sync.frameHook : undefined;
   const frameHookLabel = frameHookName
     ? loweredFunctions.find((f) => f.name === frameHookName && !f.isEntry)?.label ?? null
     : null;
@@ -1085,7 +1096,16 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // failure it produces is silent and total — the queue fills and is never
   // delivered, so a correct program shows a blank screen with the right
   // bytes sitting in RAM — so it is refused here by name instead.
-  if (frameHookName && !frameHookLabel && ir.functions.some((fn) => fn.name === frameHookName)) {
+  // Only a hook the program uses: one it calls (the NES's, from its own
+  // package), or one the optimized program still feeds state to (the
+  // VIC-20's, which nothing calls). One pruned because nothing does either
+  // — no raster list committed, or a raster branch folded away by #fact —
+  // is not this failure.
+  const linkedHook = frameHookName ? ir.functions.find((fn) => fn.name === frameHookName) : undefined;
+  const hookUsed = linkedHook
+    ? pruneUnreachable(ir).functions.some((fn) => fn.name === frameHookName) || frameHookWanted(linkedHook, functions, globals)
+    : false;
+  if (frameHookName && !frameHookLabel && hookUsed) {
     return {
       ok: false,
       error: `the ${options.machine}'s frame runtime calls ${frameHookName}() after every hardware frame, but the linked program no longer has it as a callable function — it was inlined into its call sites and pruned. A void function the backend calls has to end with an explicit 'return;' to stay one (see packages/nes/src/index.8bs)`,
@@ -1405,6 +1425,7 @@ export interface LevelSync {
   presync?: string;
   ntsc: RatioPair;
   pal: RatioPair;
+  frameHook?: string;
 }
 
 export interface EdgeSyncFixed {
@@ -1470,6 +1491,11 @@ export const FRAME_SYNC: Record<Machine, FrameSync> = {
     // decimal.
     ntsc: { num: 261 * 65 * 14, den: 14318181 },
     pal: { num: 312 * 71 * 4, den: 4433618 },
+    // The VIC raises no interrupt, so a raster list is applied from here:
+    // waitFrame() calls this after every frame edge it waits on, and it
+    // busy-waits down the frame writing $900F at each planned line
+    // (packages/vic20/src/rasterline.8bs, packages/vic20/AGENTS.md).
+    frameHook: 'vic20RasterFrame',
   },
   c64: {
     kind: 'level',

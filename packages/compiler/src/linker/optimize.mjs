@@ -1463,10 +1463,11 @@ export function optimizeIr(ir) {
  * @template {{ name: string, body: unknown, params?: { name: string, type?: string }[], returnType?: string | null }} F
  * @template {{ name: string, type?: string, address?: number | null, array?: number, init?: unknown, constant?: boolean }} G
  * @param {{ entry: string, functions: F[], globals?: G[] }} ir
+ * @param {{ frameHook?: string }} [options] the machine's frame hook, which pruneUnreachable keeps when the program touches its state
  * @returns {{ functions: F[], globals: G[], remarks: { code: string, message: string, file: string, start: number, length: number, severity: string }[] }}
  */
-export function optimizeReachable(ir) {
-  const pruned = pruneUnreachable(ir);
+export function optimizeReachable(ir, options = {}) {
+  const pruned = pruneUnreachable(ir, options);
   const optimized = optimizeIr({ ...ir, functions: pruned.functions, globals: pruned.globals });
   // Once more from the top: folding drops whole callers (2048's animated
   // move, on a machine without the RAM for it), and a helper those were
@@ -1474,7 +1475,7 @@ export function optimizeReachable(ir) {
   // round counted as several, and so kept as a function rather than
   // writing it into its one live caller. The second prune makes the
   // count right; the second fold acts on it.
-  const live = pruneUnreachable(optimized);
+  const live = pruneUnreachable(optimized, options);
   const final = optimizeIr({ ...optimized, functions: live.functions, globals: live.globals });
   // pruneUnreachable returns only { functions, globals } — remarks from
   // either round would not survive being passed through it, so they are
@@ -1482,5 +1483,5 @@ export function optimizeReachable(ir) {
   // already turned into straight-line code cannot be seen as a `for`
   // again in the second round, so there is no double-reporting to guard
   // against.
-  return { ...pruneUnreachable(final), remarks: [...optimized.remarks, ...final.remarks] };
+  return { ...pruneUnreachable(final, options), remarks: [...optimized.remarks, ...final.remarks] };
 }

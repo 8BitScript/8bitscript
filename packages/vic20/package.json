@@ -47,7 +47,7 @@
         "video.bitmap": false,
         "video.layers": 1,
         "video.scroll": false,
-        "video.raster": false,
+        "video.raster": true,
         "video.colorBlend": false,
         "video.sprites": 0,
         "video.spritesPerLine": 0,
@@ -251,5 +251,8 @@
   ],
   "publishConfig": {
     "access": "public"
+  },
+  "scripts": {
+    "test": "node --test"
   }
 }

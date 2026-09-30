@@ -2,11 +2,15 @@ export namespace Slot {
     const BORDER: utinyint = 0;
     const BACKGROUND: utinyint = 1;
     const SCROLL_X: utinyint = 2;
+    const CHARSET: utinyint = 3;    // the machine's alternate character set, where one exists
 }
 
 export namespace raster {
     const ENTRIES: utinyint = 0;
     const STRIDE: utinyint = 0;
+    const FINE_SCROLL: bool = false; // Slot.SCROLL_X entries are refused
+    const COLORS: bool = false;     // Slot.BORDER/BACKGROUND entries are accepted
+    const CHARSET: bool = false;   // Slot.CHARSET entries are refused
 
     function clear(): void {
     }

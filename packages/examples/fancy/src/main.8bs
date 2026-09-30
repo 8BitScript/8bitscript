@@ -5,14 +5,19 @@
 // list once with raster.at(), rewrite only its value bytes every frame
 // with raster.setValue() — before 2048 leans on the same surface.
 //
-// Only two machines can answer it: #fact(video.raster) is true on the
-// C64 (a real raster interrupt driving a write list) and on the web (the
-// renderer applies the list at paint time), and false on the other
-// seven. Every raster call here sits behind that fact, so on a PET or a
-// VIC-20 the whole wobble folds away to nothing — measured below — and
-// what remains is the static title, the caption saying so, and the frame
-// counter. A still screen on those seven is the machine's honest answer,
-// not a bug.
+// Three machines answer it, each as far as its chip goes:
+// #fact(video.raster) is true on the C64 (a real raster interrupt
+// driving a write list), on the web (the renderer applies the list at
+// paint time), and on the VIC-20 (waitFrame() applies the list, busy-
+// waiting down the frame — the VIC has no interrupt). The wobble needs a
+// per-line fine scroll as well, which `raster.FINE_SCROLL` says the C64
+// and the web have and the VIC-20 does not ($9000 moves the picture in
+// four-pixel steps), so a VIC-20 shows the colour bands with a still
+// title between them. Every raster call here sits behind one of those
+// two constants, so on a PET the whole effect folds away to nothing —
+// measured below — and what remains is the static title, the caption
+// saying so, and the frame counter. A still screen there is the
+// machine's honest answer, not a bug.
 //
 // ---- the band's pitch: one entry per TWO scanlines ------------------------
 //
@@ -53,11 +58,11 @@
 //     coloured bands means the splits fire but setValue() is not landing.
 //   - **FRAME must be climbing.** One per trip round the loop, same as
 //     joystick: a frozen program and an idle one look different, and on
-//     the seven static machines it is the only thing that moves.
+//     the static machines it is the only thing that moves.
 //   - **RASTER** prints #fact(video.raster) for the machine this build
-//     was made for: 1 on the C64 and the web, 0 elsewhere — so a still
-//     title can be read as "this machine has no per-scanline hook"
-//     rather than as a broken effect.
+//     was made for: 1 on the C64, the web and the VIC-20, 0 elsewhere —
+//     so a still title can be read as "this machine has no per-scanline
+//     hook" rather than as a broken effect.
 //
 // ---- what it costs --------------------------------------------------------
 //
@@ -74,9 +79,18 @@
 // The fold is exact, not approximate: on the machines where
 // #fact(video.raster) is false, this file and a copy with the import and
 // both `if (HAS_RASTER)` bodies deleted outright build to the SAME byte
-// count (pet 1007/1007, vic20 1053/1053, RAM identical too, measured
-// 2026-09-14) — the sine table, the probe, the list building and the
-// per-frame rewrite are pruned away, not carried along inert. The C64
+// count (pet 1007/1007, RAM identical too, measured 2026-09-14) — the
+// sine table, the probe, the list building and the per-frame rewrite are
+// pruned away, not carried along inert.
+//
+// The VIC-20 has answered video.raster since 2026-09-29 (the colour
+// bands, no wobble: raster.FINE_SCROLL is false there), and pays for it:
+// on the 8K release build 3654 bytes against 2803 before (+851 program,
+// +24 RAM) — the frame hook, the plan builder, at() and the region probe
+// (packages/vic20/AGENTS.md, "Raster splits"). The vic20 row above is the
+// unexpanded build from before, when the effect folded away there; today
+// fancy is 69 bytes past an unexpanded VIC-20's $1E00 ceiling and builds
+// for the 8K machine only. The C64
 // pays 820 bytes over its own stripped build (2040 against 1220): the
 // raster list, its assembly handler and install routine, the rasterline
 // translation, the sine table and the per-frame rewrite — the price only
@@ -99,11 +113,12 @@ import { graphics } from "@8bitscript/graphics";
 import { chime } from "./chime.8ba";
 import { Mark } from "./Mark.8bx";
 
-// Whether this machine can change the picture part-way down a frame.
-// A compile-time fact: both arms of every `if (HAS_RASTER)` below are
-// folded while compiling, so the seven machines that answer false never
-// see the raster code at all.
+// Whether this machine can change the picture part-way down a frame,
+// and whether its raster list takes a per-line fine scroll too — the
+// wobble. Both compile-time: every `if` on them below is folded while
+// compiling, so a machine that answers false never sees that code.
 const HAS_RASTER: bool = #fact(video.raster);
+const WOBBLES: bool = raster.FINE_SCROLL;
 
 // This machine's row width, so cell = y * ROW + x. A bare const name is
 // the only thing besides a literal that a global initializer may be, so
@@ -183,8 +198,10 @@ function drawScreen(): void {
 
     // HAS_RASTER is a compile-time constant, so only one of these two
     // captions is in the build at all.
-    if (HAS_RASTER) {
+    if (WOBBLES) {
         text.print(centered(CAPTION_ROW, 17), "THE TITLE WOBBLES");
+    } else if (HAS_RASTER) {
+        text.print(centered(CAPTION_ROW, 18), "SPLITS, NO WOBBLE");
     } else {
         text.print(centered(CAPTION_ROW, 21), "NO RASTER SPLITS HERE");
     }
@@ -223,14 +240,15 @@ export function main(): void {
         raster.clear();
         raster.at(ABOVE, Slot.BACKGROUND, BAND_BACKGROUND);
         raster.at(ABOVE, Slot.BORDER, BAND_BORDER);
-        for (let i: utinyint = 0; i < BAND_ENTRIES; i++) {
-            raster.at(BAND_TOP + i * 2, Slot.SCROLL_X, SINE[i]);
+        if (WOBBLES) {
+            for (let i: utinyint = 0; i < BAND_ENTRIES; i++) {
+                raster.at(BAND_TOP + i * 2, Slot.SCROLL_X, SINE[i]);
+            }
+            raster.at(STRAIGHT, Slot.SCROLL_X, 0);
+            bandFirst = raster.STRIDE * 2; // entry 2: the first band's line
         }
-        raster.at(STRAIGHT, Slot.SCROLL_X, 0);
         raster.at(BELOW, Slot.BACKGROUND, 0);
         raster.at(BELOW, Slot.BORDER, 0);
-
-        bandFirst = raster.STRIDE * 2; // entry 2: the first band's line
 
         raster.enable();
     }
@@ -238,7 +256,7 @@ export function main(): void {
     while (true) {
         waitFrame();
 
-        if (HAS_RASTER) {
+        if (WOBBLES) {
             // Rebuild only the band's 12 value bytes, right after
             // waitFrame() — before the raster reaches the first entry's
             // line, per @8bitscript/c64/raster's rebuild rule. SCROLL_X
@@ -250,8 +268,8 @@ export function main(): void {
             }
         }
 
-        // The liveness signal, every frame. On the seven machines with
-        // no raster this is the only thing on screen that moves.
+        // The liveness signal, every frame. On a machine with no raster
+        // this is the only thing on screen that moves.
         frames++;
         text.printNumber(frameCell, frames, 5);
         graphics.update();
