@@ -557,7 +557,7 @@ function registerRunner(context, output) {
     vscode.workspace.onDidChangeWorkspaceFolders(() => quietly('8BitScript project refresh', () => projects.refresh())),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration('8bitscript.examplesPath') || e.affectsConfiguration('8bitscript.checkout')) {
-        quietly('8BitScript project refresh', () => projects.refresh());
+        void quietly('8BitScript project refresh', () => projects.refresh());
       } else if (e.affectsConfiguration('8bitscript.showExamples')) projects.changed.fire();
     }),
   );
@@ -782,7 +782,7 @@ function registerRunner(context, output) {
     const done = vscode.tasks.onDidEndTask((e) => {
       if (e.execution === execution) {
         done.dispose();
-        quietly('8BitScript project refresh', () => projects.refresh());
+        void quietly('8BitScript project refresh', () => projects.refresh());
       }
     });
     context.subscriptions.push(done);
@@ -1169,7 +1169,7 @@ function registerRunner(context, output) {
     edit.replace(uri, new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length)), updated);
     await vscode.workspace.applyEdit(edit);
     await document.save();
-    quietly('8BitScript project refresh', () => projects.refresh());
+    void quietly('8BitScript project refresh', () => projects.refresh());
   }
 
   const command = (id, handler) =>
@@ -1317,7 +1317,7 @@ function registerRunner(context, output) {
     if (project) vscode.window.showTextDocument(vscode.Uri.file(project.entry));
   });
 
-  quietly('8BitScript project refresh', () => projects.refresh());
+  void quietly('8BitScript project refresh', () => projects.refresh());
   startLivePoll(projects, context);
   return projects;
 }

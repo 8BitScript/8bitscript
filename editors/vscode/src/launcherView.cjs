@@ -65,7 +65,7 @@ class LauncherViewProvider {
       // than a logged, best-effort refresh of the panel.
       vscode.workspace.onDidChangeConfiguration((event) => {
         if (settings.affectsAny(event) || event.affectsConfiguration('8bitscript.showExamples')) {
-          quietly('8BitScript launcher view', () => this.post());
+          void quietly('8BitScript launcher view', () => this.post());
         }
       }),
       this.projects.onDidChange(() => quietly('8BitScript launcher view', () => this.post())),
@@ -79,7 +79,7 @@ class LauncherViewProvider {
       this.view = undefined;
     });
 
-    quietly('8BitScript launcher view', () => this.post());
+    void quietly('8BitScript launcher view', () => this.post());
   }
 
   /**

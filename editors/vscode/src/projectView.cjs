@@ -175,7 +175,7 @@ function registerProjectView(context, projects) {
         panel.webview.onDidReceiveMessage((message) => view.apply(message)),
         projects.onDidChange(() => view.post()),
         vscode.workspace.onDidChangeConfiguration((event) => {
-          if (settings.affectsAny(event)) quietly('8BitScript project view', () => view.post());
+          if (settings.affectsAny(event)) void quietly('8BitScript project view', () => view.post());
         }),
       ];
       panel.webview.html = html(panel.webview);
