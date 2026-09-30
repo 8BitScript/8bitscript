@@ -39,6 +39,22 @@ test('glyphRows covers lower case too — the portable character set the checker
   assert.ok(lowerZ.some((row) => row !== 0), 'z is not a blank cell');
 });
 
+test('glyphRows(code, \'vic20-text-screencode\') reads the VIC-20\'s own chargen ROM, screen-code indexed: lower case at 1-26, upper case at its own ASCII value', () => {
+  // Read directly out of VICE's own chargen-901460-03.bin (the "text" set,
+  // the second half of the ROM) rather than a screenshot capture — see
+  // web-layout.mjs's REAL_MACHINE_LAYOUT.vic20 for why, and for the real
+  // bug (every lower-case letter reading the wrong glyph) this table
+  // fixes. Values below are the ROM's own bytes, bit-reversed to this
+  // file's bit-0-leftmost convention (see the table's own header for the
+  // mirrored-glyph bug that reversal fixes) — checked against the ROM
+  // file directly, not re-derived from this table.
+  assert.deepEqual([...glyphRows(72, 'vic20-text-screencode')], [66, 66, 66, 126, 66, 66, 66, 0], 'code 72 (H\'s own ASCII value) draws H');
+  assert.deepEqual([...glyphRows(65, 'vic20-text-screencode')], [24, 36, 66, 126, 66, 66, 66, 0], 'code 65 draws upper-case A');
+  assert.deepEqual([...glyphRows(1, 'vic20-text-screencode')], [0, 0, 28, 32, 60, 34, 92, 0], 'code 1 draws lower-case a, not upper-case A — the swap the ASCII fallback got wrong');
+  assert.deepEqual([...glyphRows(32, 'vic20-text-screencode')], [0, 0, 0, 0, 0, 0, 0, 0], 'space is blank');
+  assert.equal(glyphRows(200, 'vic20-text-screencode'), null, 'past 127: no NAMED_FONTS entry, and not ASCII-indexed either');
+});
+
 test('glyphRows 128-143 are the sixteen 2×2 quadrant patterns, 4×4 pixels each', () => {
   const empty = glyphRows(BLOCK_CODE_BASE);
   assert.ok(empty);

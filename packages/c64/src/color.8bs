@@ -1,0 +1,140 @@
+// @8bitscript/color on the C64: a whole-frame flicker blend between two
+// of the VIC-II's 16 fixed colors, on the border and/or background
+// register, riding on @8bitscript/raster's own list — the same list
+// packages/examples/fancy/src/main.8bs's wobble proves end to end,
+// though this file rebuilds it outright rather than rewriting a byte in
+// place (see "how the list is used" below for why).
+//
+// Real hardware and a CRT's phosphor persistence blend two colors shown
+// on alternating frames — roughly 30 times a second at NTSC, 25 at PAL
+// — into a shade neither register alone can show: the C64 demoscene's
+// well-documented "more than 16 colours" trick (see Codebase64's "More
+// than 16 colours on the C64" and its "FLI" family pages for the wider
+// set of techniques this is the simplest member of — this file does
+// only the whole-frame version, not FLI's per-badline one; see below).
+// This is a TEMPORAL technique — a register rewritten once a FRAME —
+// not a per-line one: @8bitscript/raster's own splits (fancy's colour
+// bands) change a register at a LINE, several times a frame. A program
+// driving both a raster split and a blend on the SAME register fights
+// itself: the split's own entries for that register would win for
+// whatever part of the frame they cover, and the blend's alternation
+// would then apply to whatever they leave the register showing, not to
+// the two colors asked for. Keep a blended slot off any raster split's
+// own list of slots.
+//
+// Only Slot.BORDER and Slot.BACKGROUND blend — the two registers a
+// "whole screen" trick means. Slot.SCROLL_X is not a color and blend()
+// refuses it, as does anything else.
+//
+// FLI (Flexible Line Interpretation) and its relatives rewrite a
+// character row's worth of color and screen-RAM pointers through a
+// forced bad line, not one register — a real, more powerful technique,
+// and a genuinely different one this file does not attempt. It needs
+// its own entry point with its own signature (a per-row API, not a
+// scalar blend), not a shape forced into this one; see the color-mixing
+// survey behind this package for the reasoning.
+//
+// ---- how the list is used --------------------------------------------
+//
+// Each blending slot is one list entry at picture line 0 — before
+// anything else draws, so its color holds for the whole visible picture
+// unless a raster split changes it lower down. Every call that can
+// change what the list should show (blend(), stop(), update()) rebuilds
+// the whole list from scratch — clear(), at most two at() calls, then
+// commit() or, the first time, enable() — rather than rewriting a
+// value byte in place with setValue(). setValue() only reaches the
+// LIVE list (@8bitscript/c64/raster: "the live one once enabled"), and
+// a slot that just started blending, or just stopped, has not been in
+// that live list for a whole pass yet; writing to where its entry WOULD
+// be once the pending commit lands is silently refused (past the live
+// list's own end) until it does. A full rebuild has no such window: two
+// entries costs as little as two setValue()s would, and
+// @8bitscript/raster's own rule — a rebuilt list is applied whole from
+// the next frame, never half — covers every case here by itself.
+//
+// This package owns the raster list for a program that uses only
+// color.blend(): a program that also wants a raster split or sprite
+// multiplexing of its own must not also call color.blend() — composing
+// this with another list owner (the plan()/update() split
+// @8bitscript/c64/sprites offers another owner) is not implemented yet.
+import { raster, Slot } from "@8bitscript/raster";
+
+let borderStarted: bool = false; // true once blend(BORDER, ...) has been called at least once
+let borderActive: bool = false;  // true: showingB decides a or b; false: frozen at a
+let borderA: utinyint = 0;
+let borderB: utinyint = 0;
+let backgroundStarted: bool = false;
+let backgroundActive: bool = false;
+let backgroundA: utinyint = 0;
+let backgroundB: utinyint = 0;
+let showingB: bool = false; // which half of every active slot's pair the list currently shows
+let started: bool = false;  // enable() has run once
+
+// Rebuild the list from every slot that has ever blended, in ascending
+// line order (both at line 0, so their order does not matter), and
+// hand it over.
+function rebuild(): void {
+    raster.clear();
+    if (borderStarted) {
+        raster.at(0, Slot.BORDER, (borderActive && showingB) ? borderB : borderA);
+    }
+    if (backgroundStarted) {
+        raster.at(0, Slot.BACKGROUND, (backgroundActive && showingB) ? backgroundB : backgroundA);
+    }
+    if (started) {
+        raster.commit();
+    } else {
+        raster.enable();
+        started = true;
+    }
+}
+
+export namespace color {
+    // Blend `slot` (Slot.BORDER or Slot.BACKGROUND) between palette
+    // indices `a` and `b`: shows `a` at once, one flip a frame from the
+    // next update() on. False, and nothing changed, for Slot.SCROLL_X
+    // or any other value.
+    function blend(slot: utinyint, a: utinyint, b: utinyint): bool {
+        if (slot == Slot.BORDER) {
+            borderA = a;
+            borderB = b;
+            borderStarted = true;
+            borderActive = true;
+        } else if (slot == Slot.BACKGROUND) {
+            backgroundA = a;
+            backgroundB = b;
+            backgroundStarted = true;
+            backgroundActive = true;
+        } else {
+            return false;
+        }
+        rebuild();
+        return true;
+    }
+
+    // `slot` stops blending and settles on its first color, `a`, at
+    // once. Nothing happens for a slot that was never blending or for
+    // any value but Slot.BORDER/Slot.BACKGROUND.
+    function stop(slot: utinyint): void {
+        if (slot == Slot.BORDER) {
+            borderActive = false;
+        } else if (slot == Slot.BACKGROUND) {
+            backgroundActive = false;
+        } else {
+            return;
+        }
+        if (started) {
+            rebuild();
+        }
+    }
+
+    // Flip every active slot's color. Call once a frame, right after
+    // waitFrame() — before the raster reaches line 0 — the same timing
+    // fancy's own per-frame rebuild relies on.
+    function update(): void {
+        showingB = !showingB;
+        if (started) {
+            rebuild();
+        }
+    }
+}

@@ -124,7 +124,7 @@ export function gridFor({ width, height } = {}) {
  * two bytes ahead of the character region: the offsets then stay put when the
  * grid changes, and `cols` is the only thing that moves.
  *
- * @param {{ cols?: number, rows?: number, palette?: string[], aspect?: string, colorPerCell?: boolean, font?: string, resizable?: boolean }} [options]
+ * @param {{ cols?: number, rows?: number, palette?: string[], aspect?: string, colorPerCell?: boolean, font?: string, resizable?: boolean, pixelAspect?: number }} [options]
  */
 export function agreementFor({
   cols = 48,
@@ -134,6 +134,16 @@ export function agreementFor({
   colorPerCell = true,
   font = 'font8x8',
   resizable = false,
+  // How much wider than tall one drawn pixel is, physically — 1 for a
+  // host with no chip to be unfaithful to (the default web target) or a
+  // real machine whose own pixel shape has not been measured yet. Real
+  // hardware whose dot clock is not a clean multiple of its own CPU
+  // clock (the VIC-20's, unlike the C64's) draws non-square pixels on a
+  // real screen; `aspect` alone (the outer picture's shape) says nothing
+  // about that — see REAL_MACHINE_LAYOUT.vic20's own header for the
+  // measurement and web-loader.mjs's fit() for where this actually
+  // stretches anything.
+  pixelAspect = 1,
 } = {}) {
   const cells = cols * rows;
   const charBase = resizable ? RESIZABLE_CHAR_BASE : CHAR_BASE;
@@ -174,6 +184,7 @@ export function agreementFor({
     aspect,
     colorPerCell,
     font,
+    pixelAspect,
   };
 }
 
@@ -256,82 +267,154 @@ export function layoutFromHardware(hardwareOrFacts = {}) {
  * `agreementFor()`'s computed `charBase` (~8192) was ever written — the
  * program's actual text sat 24KB further on, at $8000.
  *
- * A real machine's screen byte and the shared font's index are not always
- * the same number either — and on the PET, which one is not itself fixed:
- * `packages/pet/src/text.8bs`'s own `asciiToScreenCode()` branches on
- * `#fact(video.characterSetSwapped)` (true only for the 2001, the
- * catalog's own `model` option), so this does too, per build, rather than
- * picking one and being wrong for the other.
- *
- * Swapped (the 2001's own ROM): upper case moves down to 1-26, lower case
- * sits at 65-90. `font8x8.mjs`'s `pet-2001-screencode` table is a capture
- * of that exact ROM (real VICE, screenshotted, decoded pixel by pixel —
- * see that file's own header), indexed by the PET's own screen code, so a
- * lookup here needs no translation at all: `font` alone is enough.
- *
- * Non-swapped (every later model, 901447-10): lower case moves down to
- * 1-26 instead so upper case can sit at its own ASCII value — the
- * opposite assignment, not the same one shifted. No later model has its
- * own captured ROM table yet (each is genuinely a different ROM image,
- * not just this one's codes shuffled — a future session's own probe, the
- * same way 2001's was made, is how one gets added), so this still goes
- * through `glyphIndexFn`, translating into the shared ASCII table exactly
- * as every PET model did before `pet-2001-screencode` existed. Getting the
- * swapped/non-swapped choice wrong doesn't blank the screen (unlike
- * charBase) — it draws real glyphs, just the wrong ones, which is a worse
- * failure to ship unnoticed.
+ * Which ROM a build's screen bytes actually mean is not itself fixed on
+ * the PET: `packages/pet/src/text.8bs`'s own `asciiToScreenCode()`
+ * branches on `#fact(video.characterSetSwapped)` (true only for the 2001,
+ * the catalog's own `model` option) — swapped, upper case moves down to
+ * 1-26 and lower case sits at 65-90; non-swapped (every later model,
+ * ROM 901447-10), the opposite assignment, lower case at 1-26 and upper
+ * case already at its own ASCII value. `font8x8.mjs`'s
+ * `pet-2001-screencode` and `pet-text-screencode` tables are captures of
+ * those two ROMs (real VICE, screenshotted, decoded pixel by pixel — see
+ * that file's own header), each indexed by the PET's own screen code, so
+ * a lookup here needs no translation function of its own either way —
+ * `font` alone is enough. Getting the swapped/non-swapped choice wrong
+ * doesn't blank the screen (unlike charBase) — it draws real glyphs, just
+ * the wrong ones, which is a worse failure to ship unnoticed.
  *
  * Reverse video (bit 7, PET's own `toScreen()` ORs it into the *screen
  * code itself*, not a separate color byte the way the synthetic target's
  * `text.setReverse` does) is masked off rather than rendered inverted on
- * either path — a real, known gap: PET builds nothing writes a reverse
+ * either ROM — a real, known gap: PET builds nothing writes a reverse
  * `text.print` yet.
  */
-const PET_GLYPH_INDEX_UNSWAPPED = 'function(code){var c=code&127;'
-  + 'return(c>=1&&c<=26)?c+96:c;}'; // 'a'-'z' moved down to 1-26; 'A'-'Z' already at its own value
 const REAL_MACHINE_LAYOUT = {
   pet: {
     palette: PET_PALETTE,
     colorPerCell: false,
     aspect: '4/3',
-    screenBase: 0x8000,
-    glyphsFor: (facts) => (facts['video.characterSetSwapped']
-      ? { font: 'pet-2001-screencode' }
-      : { glyphIndexFn: PET_GLYPH_INDEX_UNSWAPPED }),
+    // PET has no separate color RAM — one past the screen is unwritten by
+    // every program so far, so it always reads 0 ("not reversed") until
+    // reverse video is wired up for real (see the header comment above).
+    memoryFor: (cells) => ({ charBase: 0x8000, colorBase: 0x8000 + cells }),
+    glyphsFor: (facts) => ({ font: facts['video.characterSetSwapped'] ? 'pet-2001-screencode' : 'pet-text-screencode' }),
+  },
+  vic20: {
+    palette: VIC20_PALETTE,
+    colorPerCell: true,
+    aspect: '4/3',
+    // The VIC-20's screen moves with its own memory, not with anything
+    // this function computes: unexpanded (and 3K, which only fills in
+    // below it) keeps the KERNAL's stock $1E00/$9600; 8K and up, the
+    // KERNAL relocates both down to $1000/$9400 so BASIC RAM stays one
+    // contiguous run above it (packages/vic20/src/geometry.8bs's own
+    // header has the full reasoning). `expanded` is the exact tag that
+    // file's own `.expanded` twin resolves on, read here from the same
+    // `hardware.tags` a build already carries — real color RAM, at its
+    // own hardware address, not the PET's "one past the screen" fiction.
+    memoryFor: (cells, hardware) => (hardware.tags?.includes('expanded')
+      ? { charBase: 0x1000, colorBase: 0x9400 }
+      : { charBase: 0x1e00, colorBase: 0x9600 }),
+    // The VIC-20's own character ROM (chargen-901460-03.bin's "text"
+    // set), read directly out of VICE's own ROM binary — no screenshot
+    // alignment needed at all, unlike the PET captures, so the earlier
+    // abandoned attempt (2x scaling and a non-black background defeated
+    // automated grid detection) never needed retrying. Falling back to
+    // the shared ASCII font instead of this table was a real bug, not
+    // just lower fidelity: text.8bs writes screen codes (lower case at
+    // 1-26), and the shared font is ASCII-indexed, so every lower-case
+    // letter looked up the wrong glyph — only upper case and a few
+    // symbols happened to land on the same code in both schemes (exactly
+    // what showed up as "Hello World!" losing every lower-case letter).
+    glyphsFor: () => ({ font: 'vic20-text-screencode' }),
+    // NTSC only (6560; facts['video.frameRate'] === 60) — PAL's 6561 runs
+    // a different cycles-per-line count (71, not 65) this project has not
+    // measured, so it keeps square pixels rather than guessing.
+    //
+    // The 6560 draws one pixel every 3.5 of its own 14.31818MHz clock
+    // (a character cell is 28 of that clock, 8 pixels wide: 28/8 = 3.5),
+    // and the *whole* video signal it draws in one line — border and all,
+    // 702 of those clocks — is what a real, unmodified TV stretches to
+    // fill its own screen. 252 of the 261 lines a frame draws are
+    // likewise the whole vertical picture, border included (9 lines are
+    // VBLANK). So the pixel aspect a real TV shows is
+    //
+    //   (252 lines / (702 clocks / 3.5 clocks-per-pixel)) * (4/3 CRT shape)
+    //   = (252 / 200.57) * (4/3) ≈ 1.68
+    //
+    // measured from the 6560's own timing (brawn.org's "6560 Video
+    // Information", cross-checked against the VIC-20 community's own
+    // long-established 5:3 (1.667) approximation for this exact number —
+    // agreement to within 1% is what says this is the real chip's shape,
+    // not a guess). This project's own renderer draws every machine with
+    // square pixels today (web-loader.mjs's fit() scales width and height
+    // by the same factor), which is a real gap, not a lower-fidelity
+    // choice: it is why this preview's text reads squarer/more "normal"
+    // than a real VIC-20's own visibly wide, stretched characters.
+    pixelAspectFor: (facts) => (facts['video.frameRate'] === 60 ? 5 / 3 : 1),
+  },
+  // The X16's VERA VRAM is not part of the CPU's address space at all —
+  // even real hardware reaches it only through a stateful address port
+  // (packages/cx16/src/index.8bs), which the wasm backend has no model
+  // of (memory.write is a flat, side-effect-free i32.store8 — see
+  // packages/compiler/src/wasm/lower.ts). So unlike pet/vic20 above,
+  // there is no real fixed address to substitute for the synthetic one:
+  // packages/cx16/src/text.cx16.web.8bs and screen.cx16.web.8bs (the
+  // `.web` twins this build actually links) write a flat two-plane
+  // screen at agreementFor()'s own default charBase/colorBase instead —
+  // the same scheme the synthetic web target's own skins use, there
+  // being no real address to be faithful to either way. memoryFor is a
+  // deliberate no-op: the geometry this function already computed below
+  // is exactly where those twins put it.
+  cx16: {
+    palette: C64_PALETTE, // VERA's default palette is the C64's sixteen colors, same order (screen.8bs's own header)
+    colorPerCell: true,
+    aspect: '4/3',
+    memoryFor: () => ({}),
   },
 };
 
 /**
- * @param {string} target a real machine's own name (`pet`, `vic20`, `c64`),
- *   never the literal `'web'` — that stays on `layoutFromHardware()`.
+ * @param {string} target a real machine's own name (`pet`, `vic20`, `c64`,
+ *   `cx16`), never the literal `'web'` — that stays on
+ *   `layoutFromHardware()`.
  * @param {{ facts?: object }} hardware
  */
 export function layoutForRealMachine(target, hardware = {}) {
   const facts = hardware.facts ?? {};
   const real = REAL_MACHINE_LAYOUT[target];
+  const cols = facts['video.columns'] ?? DEFAULT_LAYOUT.cols;
+  const rows = facts['video.rows'] ?? DEFAULT_LAYOUT.rows;
+  const pixelAspect = real?.pixelAspectFor?.(facts) ?? 1;
+  // A measured pixelAspect replaces the flat `aspect` guess with the
+  // shape that grid actually draws once each pixel is pixelAspect times
+  // wider than tall — real.aspect (a guess, same '4/3' every machine
+  // here happens to share) only survives for a machine with no
+  // measurement yet.
+  const aspect = pixelAspect !== 1 ? `${cols * CHAR_W * pixelAspect}/${rows * CHAR_H}` : real?.aspect ?? '4/3';
   const geometry = agreementFor({
-    cols: facts['video.columns'] ?? DEFAULT_LAYOUT.cols,
-    rows: facts['video.rows'] ?? DEFAULT_LAYOUT.rows,
+    cols,
+    rows,
     palette: real?.palette ?? C64_PALETTE,
-    aspect: real?.aspect ?? '4/3',
+    aspect,
     colorPerCell: real ? real.colorPerCell : facts['video.colorPerCell'] !== false,
     resizable: false,
+    pixelAspect,
   });
-  // No entry yet for this target (vic20, c64 — still blocked on their own
-  // asm6502 walls, per the design doc's build tracker): geometry only,
-  // same synthetic charBase as before this function existed. Not correct
-  // for a real build either, but no *more* wrong than layoutFromHardware
+  // No entry yet for this target (c64 — still blocked on its own asm6502
+  // walls, per the design doc's build tracker): geometry only, same
+  // synthetic charBase as before this function existed. Not correct for a
+  // real build either, but no *more* wrong than layoutFromHardware
   // already was, and there is nothing target-specific to substitute yet.
   if (!real) return geometry;
   const cells = geometry.cols * geometry.rows;
   return {
     ...geometry,
-    charBase: real.screenBase,
-    // One past the screen: unwritten by every program so far, so it
-    // always reads 0 — "not reversed" — until reverse video is wired up
-    // for real (see the header comment above).
-    colorBase: real.screenBase + cells,
-    ...real.glyphsFor(facts),
+    ...real.memoryFor(cells, hardware),
+    // Optional: a machine with no captured character ROM of its own yet
+    // (vic20 today) keeps agreementFor()'s own default ASCII font rather
+    // than crashing here for want of a glyphsFor.
+    ...(real.glyphsFor?.(facts) ?? {}),
   };
 }
 
@@ -359,7 +442,7 @@ export function sidecarJson(layout = DEFAULT_LAYOUT) {
     font: layout.font,
     aspect: layout.aspect,
     colorPerCell: layout.colorPerCell,
-    glyphIndexFn: layout.glyphIndexFn,
+    pixelAspect: layout.pixelAspect,
   };
 }
 

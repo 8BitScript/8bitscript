@@ -68,12 +68,22 @@ const escapeAttr = (value) => String(value).replace(/&/g, '&amp;').replace(/"/g,
  * mouse-capture status line entirely rather than show a free-mouse message
  * for hardware that never had one.
  */
+// cx16 here means the generic Preview tab's own run — that machine's own
+// package, through the wasm backend, exactly like pet/vic20/c64, since
+// `8bs run cx16 --web` means that now too. Studio's tab is always the
+// *other* cx16 --web (the vendored real x16emu, `--x16emu`), and carries
+// its own fixed labels instead of this table — see STUDIO_LABELS below.
 const TARGET_LABELS = {
-  cx16: { title: 'Commander X16', subtitle: 'x16emu (WebAssembly)', hasMouse: true },
+  cx16: { title: 'Commander X16', subtitle: 'wasm build', hasMouse: false },
   pet: { title: 'PET', subtitle: 'wasm build', hasMouse: false },
   vic20: { title: 'VIC-20', subtitle: 'wasm build', hasMouse: false },
   c64: { title: 'C64', subtitle: 'wasm build', hasMouse: false },
 };
+
+// Studio always runs on the real vendored x16emu (mouse and all) — never
+// the lightweight wasm preview TARGET_LABELS.cx16 now names — so its tab
+// carries its own fixed labels rather than looking cx16 up there.
+const STUDIO_LABELS = { title: 'Commander X16', subtitle: 'x16emu (WebAssembly)', hasMouse: true };
 
 /**
  * The page. The framed URL is part of the HTML rather than posted later
@@ -140,10 +150,17 @@ class StudioPanel {
    *   "build Studio again"); the Preview tab passes one that re-runs
    *   whatever project and target it is currently bound to instead.
    */
-  constructor(panel, projects, { tabTitle = 'Studio', onRebuild } = {}) {
+  constructor(panel, projects, { tabTitle = 'Studio', onRebuild, forceLabels = null, nativeReport = false } = {}) {
     this.panel = panel;
     this.projects = projects;
     this.tabTitle = tabTitle;
+    this.forceLabels = forceLabels;
+    // Studio's own tab is always the vendored real emulator (--x16emu),
+    // which compile() builds natively (the plain .8bs-last-cx16.json) even
+    // though it opens in a browser tab — see run.mjs's buildForWeb and
+    // last-run.mjs's own header for why. The generic Preview tab is always
+    // a real machine's own wasm-backend build instead, the `-web` file.
+    this.nativeReport = nativeReport;
     this.onRebuild = onRebuild ?? (() => vscode.commands.executeCommand('8bitscript.openStudioTab'));
     /** The run the tab follows: its directory, its target, and when it was started. */
     this.binding = null;
@@ -165,7 +182,7 @@ class StudioPanel {
    * place either is looked up, so `bind()` and every `refresh()` redraw
    * agree instead of one silently falling back to Studio's own defaults. */
   renderHtml(src = null) {
-    const labels = this.binding && TARGET_LABELS[this.binding.target];
+    const labels = this.forceLabels ?? (this.binding && TARGET_LABELS[this.binding.target]);
     return html(this.panel.webview, {
       src,
       tabTitle: this.tabTitle,
@@ -186,27 +203,17 @@ class StudioPanel {
   async refresh() {
     if (!this.binding) return;
     const { dir, target, launchedAt } = this.binding;
-    const report = readLastRun(dir, target);
+    const report = readLastRun(dir, target, !this.nativeReport);
     const fresh = freshReport(report, launchedAt);
     const running = this.running();
-    // A URL this tab already has framed keeps counting as running even
-    // when dist/.8bs-last-<target>.json's latest write is not fresh for
-    // this launch. That file is shared with any *native* run of the same
-    // target, and "Open in emulator" deliberately starts exactly one
-    // alongside this preview — its own compile step overwrites the same
-    // file with a no-url report the instant it starts, which says nothing
-    // about whether this wasm task is still running. Only an actual stop
-    // (running false, handled below) or a genuinely fresh *different* url
-    // (a real rebuild, which always stops this task first — see
-    // runInPreviewTab) should ever move this tab off what it is already
-    // showing. Before a url is ever established, an unfresh report is
-    // still worth showing (a leftover file at least names the emulator
-    // this target usually reaches) — stillOurs only kicks in once there
-    // is something of ours to protect.
-    const stillOurs = !fresh && Boolean(this.url);
-    this.phase = !running ? 'stopped' : (fresh || stillOurs) ? 'running' : 'building';
-    if (fresh) this.report = fresh;
-    else if (!stillOurs) this.report = report;
+    // "Open in emulator" starts a second, genuinely separate run (this
+    // tab's own compile never touches the file that one writes, or the
+    // reverse — see lastRunPath's own header), so unlike before this file
+    // was split by mode, an unfresh report here only ever means this
+    // launch has not written one yet, never another run's write racing
+    // this one's.
+    this.phase = !running ? 'stopped' : fresh ? 'running' : 'building';
+    this.report = fresh ?? report;
     this.nativeEmulator = await this.emulatorFor(dir, target);
     if (running && fresh && fresh.url !== this.url) {
       this.url = fresh.url;
@@ -326,9 +333,11 @@ class StudioPanel {
  *   commandName: string, viewType: string, panelTitle: string, tabTitle: string,
  *   getOpen: () => StudioPanel|null, setOpen: (view: StudioPanel|null) => void,
  *   onRebuild?: (binding: {dir: string, target: string}) => void,
+ *   forceLabels?: { title: string, subtitle: string, hasMouse: boolean },
+ *   nativeReport?: boolean,
  * }} spec
  */
-function registerTab(context, projects, { commandName, viewType, panelTitle, tabTitle, getOpen, setOpen, onRebuild }) {
+function registerTab(context, projects, { commandName, viewType, panelTitle, tabTitle, getOpen, setOpen, onRebuild, forceLabels, nativeReport }) {
   context.subscriptions.push(
     // Hidden from the palette (package.json's commandPalette `when:
     // false`): the visible command (openStudioTab, previewOn) starts the
@@ -350,7 +359,7 @@ function registerTab(context, projects, { commandName, viewType, panelTitle, tab
         // the machine and lose whatever was being drawn.
         { enableScripts: true, retainContextWhenHidden: true },
       );
-      const view = new StudioPanel(panel, projects, { tabTitle, onRebuild });
+      const view = new StudioPanel(panel, projects, { tabTitle, onRebuild, forceLabels, nativeReport });
       const subscriptions = [
         panel.webview.onDidReceiveMessage((message) => view.apply(message)),
         // Runs starting and ending, and the live poll's last-run re-reads,
@@ -385,6 +394,11 @@ function registerStudioView(context, projects) {
     setOpen: (view) => { open = view; },
     // Studio's own Rebuild always means "build Studio again" — the
     // command already knows which project and target that is.
+    forceLabels: STUDIO_LABELS,
+    // --x16emu builds natively (buildForWeb: false in run.mjs) even
+    // though it opens in a browser tab, so this tab reads the plain
+    // .8bs-last-cx16.json, not the -web one the generic Preview tab reads.
+    nativeReport: true,
   });
   // The generic tab: any project, any target with a --web build (upstream's
   // real x16emu for cx16, that machine's own package compiled through the

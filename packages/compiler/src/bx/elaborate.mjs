@@ -258,6 +258,7 @@ function transformStatement(stmt, ctx) {
   if (stmt.type === NodeType.BlockStatement) {
     return [node(NodeType.BlockStatement, stmt.start, stmt.start + stmt.length, {
       body: (stmt.body ?? []).flatMap((s) => transformStatement(s, ctx)),
+      decorators: stmt.decorators,
     })];
   }
   if (stmt.type === NodeType.IfStatement) {
@@ -265,20 +266,28 @@ function transformStatement(stmt, ctx) {
       test: stmt.test,
       consequent: transformStatement(stmt.consequent, ctx)[0],
       alternate: stmt.alternate ? transformStatement(stmt.alternate, ctx)[0] : null,
+      decorators: stmt.decorators,
     })];
   }
   if (stmt.type === NodeType.WhileStatement) {
     return [node(NodeType.WhileStatement, stmt.start, stmt.start + stmt.length, {
       test: stmt.test,
       body: transformStatement(stmt.body, ctx)[0],
+      decorators: stmt.decorators,
     })];
   }
   if (stmt.type === NodeType.ForStatement) {
+    // `decorators` carried through so a program's own `@unroll` survives
+    // this rebuild — the one property a plain-code `for` can carry that
+    // this elaboration pass runs over just as it does a component's, even
+    // though nothing here is BX (2026-09-27; ir/index.mjs's forStatement
+    // and linker/unroll.mjs are what actually read it).
     return [node(NodeType.ForStatement, stmt.start, stmt.start + stmt.length, {
       init: stmt.init,
       test: stmt.test,
       update: stmt.update,
       body: transformStatement(stmt.body, ctx)[0],
+      decorators: stmt.decorators,
     })];
   }
   return [stmt];

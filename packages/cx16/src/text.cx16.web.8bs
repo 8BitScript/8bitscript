@@ -1,0 +1,138 @@
+// text.8bs's own `.web` twin — build.mjs's own internal `web` tag (see its
+// header comment, and packages/vic20/src/cursor.vic20.web.8bs for the same
+// mechanism already in use) resolves this in place of text.8bs whenever
+// this package builds through the wasm backend (`8bs build --target cx16
+// --web`).
+//
+// text.8bs writes through VERA's own address port ($9F20-$9F23): a
+// stateful hardware auto-increment the wasm backend has no model of at
+// all — memory.write compiles straight to a flat i32.store8 with no side
+// effects (packages/compiler/src/wasm/lower.ts) — so those writes just
+// land on that literal address in linear memory and never accumulate into
+// anything a renderer could read back as a screen. Confirmed the same way
+// the VIC-20 blank-screen bug was: built as-is and inspected the
+// instantiated module's own memory — nothing but the last write's raw
+// register bytes sat at $9F20-$9F23, no screen anywhere.
+//
+// Unlike the PET/VIC-20 twins this package's screen needed, there is also
+// no *real* fixed VRAM address to fall back to instead — VERA's VRAM is
+// not part of the CPU's address space even on real hardware, port only.
+// So this twin does not reproduce the real memory map at all: it writes a
+// flat two-plane screen (character codes, then color bytes) at the same
+// addresses packages/cli/src/web-layout.mjs's agreementFor() computes for
+// this package's own 76x56 grid (video.columns/video.rows in
+// packages/cx16/package.json) — the same scheme the synthetic web
+// target's own packages/web/src/geometry.8bs uses, there being no real
+// address to be faithful to instead. CHAR_BASE/COLOR_BASE below have to
+// agree with that math; see REAL_MACHINE_LAYOUT.cx16 in that file.
+//
+// Reverse video (bit 7 of the color byte) IS wired up here, unlike the
+// still-open PET gap web-layout.mjs's own header notes — the renderer
+// (web-loader.mjs's paint()) already reads that bit, and this twin has a
+// real per-cell color byte to carry it in (so does VERA's own attribute
+// byte), so there is nothing stopping it.
+let currentColor: utinyint = 1; // white, until text.setColor() says otherwise
+let currentReverse: bool = false; // until text.setReverse() says otherwise
+
+const CHAR_BASE: usmallint = 2;
+const COLOR_BASE: usmallint = 4258; // CHAR_BASE + CELL_COUNT (76 * 56)
+
+function colorByte(): utinyint {
+    if (currentReverse) {
+        return 128 | currentColor;
+    }
+    return currentColor;
+}
+
+function putCell(cell: usmallint, code: utinyint): void {
+    memory.write(CHAR_BASE + cell, code);
+    memory.write(COLOR_BASE + cell, colorByte());
+}
+
+// A number is written one place at a time, high to low, by subtracting
+// the place value until it no longer fits — same as text.8bs's own
+// DIGIT_PLACES, declared before the namespace that uses it there too.
+const DIGIT_PLACES: array<usmallint, 5> = [10000, 1000, 100, 10, 1];
+
+export namespace text {
+    const CELL_COUNT: usmallint = 4256; // 76 columns x 56 rows — text.8bs's own inset grid
+    const COLUMNS: utinyint = 76;
+    const ROWS: utinyint = 56;
+
+    function columns(): utinyint {
+        return text.COLUMNS;
+    }
+
+    function rows(): utinyint {
+        return text.ROWS;
+    }
+
+    function putChar(cell: usmallint, code: utinyint): void {
+        putCell(cell, code);
+    }
+
+    function putColor(cell: usmallint, color: utinyint): void {
+        memory.write(COLOR_BASE + cell, (memory.read(COLOR_BASE + cell) & 128) | (color & 0x0F));
+    }
+
+    function setColor(color: utinyint): void {
+        currentColor = color;
+    }
+
+    function setReverse(on: bool): void {
+        currentReverse = on;
+    }
+
+    // True no-op, same reasoning as cursor.vic20.web.8bs: a wasm build
+    // never returns to a BASIC prompt, so there is no next PRINT for the
+    // real releaseCursor() (itself empty for now — see text.8bs's own
+    // header) to matter to here either.
+    function releaseCursor(): void {
+    }
+
+    function print(cell: usmallint, s: string): void {
+        for (let i: utinyint = 0; i < s.length; i++) {
+            putCell(cell + i, s[i]);
+        }
+    }
+
+    function fill(cell: usmallint, count: usmallint, code: utinyint): void {
+        for (let i: usmallint = 0; i < count; i++) {
+            putCell(cell + i, code);
+        }
+    }
+
+    function printNumber(cell: usmallint, value: usmallint, width: utinyint): void {
+        let k: utinyint = width;
+        if (k < DIGIT_PLACES.length) {
+            k = DIGIT_PLACES.length;
+        }
+        while (k > 0) {
+            let digit: utinyint = 48; // '0'
+            if (k <= DIGIT_PLACES.length) {
+                while (value >= DIGIT_PLACES[DIGIT_PLACES.length - k]) {
+                    value = value - DIGIT_PLACES[DIGIT_PLACES.length - k];
+                    digit++;
+                }
+            }
+            if (k <= width) {
+                putCell(cell + width - k, digit);
+            }
+            k--;
+        }
+    }
+}
+
+// The colors `text.setColor()` takes: the eight names every machine
+// shares, with this machine's color-RAM values — same numbers as
+// text.8bs's own TextColor, unchanged by this twin.
+export namespace TextColor {
+    const BLACK: utinyint = 0;
+    const WHITE: utinyint = 1;
+    const RED: utinyint = 2;
+    const CYAN: utinyint = 3;
+    const PURPLE: utinyint = 4;
+    const GREEN: utinyint = 5;
+    const BLUE: utinyint = 6;
+    const YELLOW: utinyint = 7;
+}

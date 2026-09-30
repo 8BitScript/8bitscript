@@ -84,6 +84,19 @@ text.print(0, `TICK ${ticks:1}`);
 
 Functions with parameters and return values, arithmetic, `if`/`while`/`for` — the ordinary compiled subset. `const`s are inlined at compile time wherever they're used.
 
+A plain counted `for` loop — `for (let i: T = 0; i < N; i++) { … }`, N a compile-time value — can be marked `@unroll` to pay code size for the cycles a branch back to the loop's top costs every iteration:
+
+```8bs
+@unroll
+for (let i: utinyint = 0; i < 8; i++) {
+    plot(i, row);
+}
+```
+
+Refused, by name, when the loop is not that shape, when N is not a small positive number, or when the body `break`s or `continue`s.
+
+
+
 ## §1.6 Import across files and namespaces
 
 The linker resolves imports across modules, whether the target is a bare package (`@8bitscript/screen`), a relative `.8bs`/`.8bx`/`.8bg`/`.8ba` file, or a package subpath (`@8bitscript/ui/menubar`, exported via that package's own `"8bitscript"` field). Namespaces group related declarations under one imported name.

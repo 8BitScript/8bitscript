@@ -189,10 +189,15 @@ function makeTask(project, action, target, region, hardware = settings.getHardwa
     if (!settings.getWebLan()) args.push('--local');
   }
   if (action === 'run' && extras.web) {
-    // The editor's Studio tab: the CLI's WebAssembly x16emu, served on an
+    // The editor's Preview/Studio tabs: a --web build served on an
     // ephemeral loopback port and opened nowhere — the tab frames it
     // (studioView.cjs). Loopback only; the LAN setting is the web target's.
+    // Studio's own tab is always cx16, and always wants the CLI's
+    // WebAssembly x16emu, not the lightweight preview every other --web
+    // build (and a plain project's own cx16 target) now gets — extras.x16emu
+    // is how it asks for that.
     args.push('--web', '--no-open', '--port', '0');
+    if (extras.x16emu) args.push('--x16emu');
   }
   if ((action === 'run' || action === 'boot') && target === 'cx16' && !extras.web) {
     args.push(...settings.cx16NativeWindowCliArgs({ studio: project.name === '@8bitscript/studio' }));
@@ -831,6 +836,10 @@ function registerRunner(context, output) {
       // --web run in; defaulting it here once made that combination start
       // a real server with nothing pointed at it.
       web: node?.web ? true : undefined,
+      // Studio's own tab only — it always wants the real vendored x16emu,
+      // never the lightweight preview every other --web run (cx16
+      // included, now) gets.
+      x16emu: node?.x16emu ? true : undefined,
     };
     return vscode.tasks.executeTask(
       makeTask(project, action, target, region ?? settings.getRegion(), effectiveHardware, extras),
@@ -1204,15 +1213,17 @@ function registerRunner(context, output) {
     const cx16Missing = doctor?.notInstalled?.includes('cx16') || doctor?.failed?.includes('cx16');
     // Native x16emu is optional. Studio still opens on the Commander X16;
     // without the windowed emulator, the same program runs in the tab
-    // (`8bs run cx16 --web`). Never fall through to another machine.
+    // (`8bs run cx16 --web --x16emu` — Studio always wants the real
+    // vendored emulator, never the lightweight preview cx16 --web means
+    // for everyone else now). Never fall through to another machine.
     if (cx16Missing) {
-      await execute('run', { project: studio, target: 'cx16', web: true });
+      await execute('run', { project: studio, target: 'cx16', web: true, x16emu: true });
       return;
     }
     await execute('run', { project: studio, target: 'cx16' });
   });
-  // The same Studio in an editor tab: `8bs run cx16 --web` serves the
-  // CLI's WebAssembly x16emu on loopback and the Studio tab
+  // The same Studio in an editor tab: `8bs run cx16 --web --x16emu` serves
+  // the CLI's WebAssembly x16emu on loopback and the Studio tab
   // (studioView.cjs) frames it, with its own Reset/Rebuild/Stop and the
   // browser one click away. X16 only — the one machine with a WebAssembly
   // emulator. A tab's run already in flight is stopped first, so two
@@ -1227,7 +1238,7 @@ function registerRunner(context, output) {
     }
     projects.running.stop(studio.dir, 'cx16', { web: true });
     const launchedAt = Date.now();
-    const started = await execute('run', { project: studio, target: 'cx16', web: true });
+    const started = await execute('run', { project: studio, target: 'cx16', web: true, x16emu: true });
     if (!started) return;
     await vscode.commands.executeCommand('8bitscript.studioTab.show', { dir: studio.dir, target: 'cx16', launchedAt });
   });
@@ -1329,7 +1340,10 @@ function startLivePoll(projects, context) {
     let changed = false;
     const reports = new Map();
     for (const row of rows) {
-      reports.set(rowKey(row.dir, row.target), readLastRun(row.dir, row.target));
+      // row.web tells apart a real machine's own wasm-backend preview
+      // from that same machine's native run — two rows, two files, never
+      // one file two readers race over (see lastRunPath's own header).
+      reports.set(rowKey(row.dir, row.target, row.web), readLastRun(row.dir, row.target, row.web));
     }
     const plan = livePollPlan(rows, reports);
     for (const { key, url } of plan.fetches) {

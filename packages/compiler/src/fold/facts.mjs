@@ -173,6 +173,7 @@ export const FACTS = new Map([
   ['video.layers', count('build', 'Independent background layers.')],
   ['video.scroll', flag('build', 'Hardware fine scroll exists.')],
   ['video.raster', flag('build', 'The picture can be changed part-way down the screen — a per-scanline raster effect exists.')],
+  ['video.colorBlend', flag('build', 'Two of the fixed palette can be shown alternating frames and read, on this display, as a blended shade — @8bitscript/color has a real implementation, not a stub.')],
   ['video.sprites', count('build', 'Hardware sprites in total; 0 where moving objects are drawn in software.')],
   ['video.spritesPerLine', count('build', 'Hardware sprites one scanline can show — the number that decides whether a scene works.')],
   ['video.spriteWidth', count('build', 'Pixels across the largest hardware sprite.')],

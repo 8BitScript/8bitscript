@@ -61,8 +61,8 @@ evaluate-once (an attribute is an argument), and importable (`export
 component` is an exported function the linker binds like any other). The
 linker's inliner (`src/linker/optimize.mjs`) then inlines a component
 call whose arguments are all compile-time values, so a static composition
-costs what the hand-written calls would — `hello-bx` is byte-identical to
-`hello-world` on the PET, and `packages/cli/test/hello-bx.test.mjs` says
+costs what the hand-written calls would — `hello-8bx` is byte-identical to
+`hello-world` on the PET, and `packages/cli/test/hello-8bx.test.mjs` says
 so. A component fed a run-time value stays a call.
 
 **State is storage per static instance** (spec §36–§37, §62, §103).

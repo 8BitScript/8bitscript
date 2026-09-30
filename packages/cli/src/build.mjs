@@ -187,7 +187,7 @@ export function checkEntryKind(entry) {
  *   whoever runs it next. `memory` / `sizeReport` are what the last-run
  *   file and `--size` print; they are absent when the compile failed.
  */
-export async function compile(target, entryArg, { pal = false, profile, hardware: overrides = {}, report = false, debug = false, checkout = undefined, program: programName, locale: localeArgument, web = false } = {}) {
+export async function compile(target, entryArg, { pal = false, profile, hardware: overrides = {}, report = false, debug = false, remarks = false, checkout = undefined, program: programName, locale: localeArgument, web = false } = {}) {
   if (checkout !== undefined) setActiveCheckout(checkout);
   const config = await loadConfig(process.cwd(), '8bs build');
 
@@ -362,16 +362,32 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
 
   const text = await readFile(entry, 'utf8');
 
+  // A real machine's own --web build (buildForWeb in run.mjs's terms) is
+  // still `machine: target` below — packages/vic20/src/text.8bs, not
+  // packages/web's — because the whole point of that build is compiling
+  // the machine's own package through the wasm backend, not swapping to
+  // the synthetic web package. But some of what that package's own files
+  // do (a KERNAL call like VIC-20's `releaseCursor()`'s `asm6502 { jsr
+  // $FFF0 }`) has nothing to lower to on a backend with no 6502 CPU behind
+  // it. `'web'`, added here as an extra tag *only* for this resolution —
+  // never into `hardware.tags`/`buildValues`, which stay exactly what the
+  // hardware the program is fitted for really is, so the artifact's name
+  // and label are unaffected — lets a file that needs a wasm-safe version
+  // of one function name it `x.<machine>.web.8bs`, the same twin
+  // mechanism `keys.pet.business.8bs` already uses for a hardware tag,
+  // used here for a backend instead. The synthetic web target needs none
+  // of this: its own package never had a KERNAL call to begin with.
+  const webTag = web && target !== 'web' ? ['web'] : [];
   // The linker runs the full front end over the entry and everything it
   // imports, then merges the graph into one program. Any error in any module
   // means no build. The machine rides along so packages with target-
   // conditional entries resolve to this machine's implementation, and the
   // hardware's facts so every `#fact(...)` — the sheet @8bitscript/system
   // declares — folds to this build's value, and the
-  // hardware's tags so a file with a `.<machine>.<tag>.8bs` twin resolves
-  // to that.
+  // hardware's tags (plus `webTag` above) so a file with a
+  // `.<machine>.<tag>.8bs` twin resolves to that.
   const { ir, diagnostics, sources, factsTested } = link(text, entry, {
-    machine: target, tags: hardware.tags, facts: hardware.facts, frameRate, checkout, bx: config?.bx, locale, i18n, importAliases,
+    machine: target, tags: [...hardware.tags, ...webTag], facts: hardware.facts, frameRate, checkout, bx: config?.bx, locale, i18n, importAliases,
   });
   // A warning is printed and the build goes on; an error stops it.
   if (diagnostics.length > 0) printDiagnostics(diagnostics, sources);
@@ -441,9 +457,13 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
     if (result.sizeReport) process.stdout.write(sizeReportLines(result.sizeReport, result.bytes.length));
     if (report) process.stdout.write(stateReportLines(ir));
     const memory = { variables: ir.memory.variables, program: result.bytes.length, data: ir.memory.data };
+    // A real machine's own wasm-backend build gets the `-web` file,
+    // distinct from that same machine's native run; the synthetic web
+    // target keeps its plain one regardless (lastRunPath's own rule,
+    // not recomputed here) — see its header for the collision this avoids.
     await writeLastRun(target, compileReport(target, {
       outFile, hardware, memory, sizeReport: result.sizeReport, frameRate, program: program.name, locale,
-    }));
+    }), undefined, web);
     return { ok: true, outFile, frameRate, hardware, webDir, memory, sizeReport: result.sizeReport, program: program.name, locale, factsTested };
   }
 
@@ -477,7 +497,7 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   const nameOk = checkArtifactName(artifactStem, target);
   if (!nameOk.ok) process.stderr.write(`8bs build: note: ${nameOk.error}\n`);
   const outFile = resolve('dist', `${artifactStem}.${ext}`);
-  const result = await build(ir, { machine: target, hardware, outFile, frameRate, report, debug, sources });
+  const result = await build(ir, { machine: target, hardware, outFile, frameRate, report, debug, remarks, sources });
   if (!result.ok) {
     process.stderr.write(`8bs build: ${result.error}\n`);
     return { ok: false };
@@ -486,6 +506,12 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   process.stdout.write(`${memoryLine(ir.memory, result.memory)}\n`);
   if (result.sizeReport) process.stdout.write(sizeReportLines(result.sizeReport, result.memory.program));
   if (report) process.stdout.write(stateReportLines(ir));
+  // Remarks are never a problem and never printed unless asked for
+  // (--remarks) — what the linker's optimizer actually did, today only
+  // every @unroll — using the same rendering diagnostics already get, so
+  // "remark 8BS9001: ..." reads next to an ordinary warning or error, not
+  // as a third, different-looking thing.
+  if (result.remarks?.length) printDiagnostics(result.remarks, sources);
   if (debug) {
     const lstFile = outFile.replace(/\.[^./\\]+$/, '') + '.lst';
     const debugJsonFile = outFile.replace(/\.[^./\\]+$/, '') + '.8bs.debug.json';
@@ -692,6 +718,7 @@ export async function build(args) {
   if (args.includes('--release')) return buildRelease({ report: args.includes('--size'), checkout: checkout.checkout });
   const report = args.includes('--size');
   const debug = args.includes('--debug');
+  const remarks = args.includes('--remarks');
   const targetIndex = args.indexOf('--target');
   const hw = hardwareArgs(args);
   if (!hw.ok) {
@@ -749,21 +776,17 @@ export async function build(args) {
       `Usage: 8bs build --target <${releaseTargetPipe()}>\n`
       + releaseUsageNote()
       + '                  no --target builds the `baseline` 8bitscript.config.ts names, when it names one)\n'
-      + '                 [--pal] [--size] [--debug] [--program <name>] [--locale <name>]\n'
+      + '                 [--pal] [--size] [--debug] [--remarks] [--program <name>] [--locale <name>]\n'
       + HARDWARE_USAGE
-      + '                 [--web]  pet/vic20/c64: that machine\'s own package, through the wasm\n'
-      + '                          backend, instead of a native build — see `8bs run --web`\n'
+      + '                 [--web]  pet/vic20/c64/cx16: that machine\'s own package, through the\n'
+      + '                          wasm backend, instead of a native build — see `8bs run --web`\n'
       + '                 [entry.8bs]\n',
     );
     return 2;
   }
-  // cx16's --web is 8bs run's own thing (the vendored real x16emu, fetched
-  // and served live) — there is nothing for a standalone build to bundle,
-  // so --web here only ever means "build this real machine's own package
-  // through the wasm backend," same as run.mjs's identical exclusion.
-  const web = args.includes('--web') && target !== 'cx16';
+  const web = args.includes('--web');
   const { ok } = await compile(target, entry, {
-    pal, profile: launch.profile, hardware: launch.overrides, report, debug, checkout: checkout.checkout,
+    pal, profile: launch.profile, hardware: launch.overrides, report, debug, remarks, checkout: checkout.checkout,
     program: programOpt.program, locale: localeOpt.locale, web,
   });
   return ok ? 0 : 1;

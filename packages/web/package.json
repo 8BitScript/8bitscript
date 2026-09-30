@@ -24,7 +24,8 @@
       "./text": "./src/text.8bs",
       "./input": "./src/input.8bs",
       "./pointer": "./src/pointer.8bs",
-      "./rasterline": "./src/rasterline.8bs"
+      "./rasterline": "./src/rasterline.8bs",
+      "./color": "./src/color.8bs"
     },
     "hardware": {
       "facts": {
@@ -42,6 +43,7 @@
         "video.layers": 1,
         "video.scroll": false,
         "video.raster": true,
+        "video.colorBlend": false,
         "video.sprites": 0,
         "video.spritesPerLine": 0,
         "video.spriteWidth": 0,

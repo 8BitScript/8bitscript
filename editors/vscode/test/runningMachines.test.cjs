@@ -7,7 +7,7 @@ const os = require('os');
 const path = require('path');
 
 const {
-  formatElapsed, lastRunPath, machineTree, parseLastRun, readLastRun, sizeWithPct,
+  formatElapsed, lastRunPath, machineTree, parseLastRun, readLastRun, rowKey, sizeWithPct,
 } = require('../src/runningMachines.cjs');
 
 test('parseLastRun rejects junk and keeps a well-formed report', () => {
@@ -47,6 +47,38 @@ test('readLastRun reads the file 8bs writes, and null when it is missing', () =>
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('readLastRun(dir, target, web): a real machine\'s own wasm preview and its native run read different files, not the one the other last wrote — the Running machines tree bug this fixes', () => {
+  // "8bs run pet --web" (the Preview tab) and "8bs run pet" (Open in
+  // emulator) can both be running at once for the same dir/target. Before
+  // this, both rows read the one .8bs-last-pet.json and showed whichever
+  // had written last, identically, in both rows of the tree — reported
+  // live as "two hello-8bx's running... duplicating the data into both
+  // entries" when only one was actually the vic20 preview.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), '8bs-ext-last-web-'));
+  try {
+    fs.mkdirSync(path.join(dir, 'dist'));
+    fs.writeFileSync(lastRunPath(dir, 'pet'), JSON.stringify({
+      target: 'pet', memory: { variables: 1, program: 108 }, emulator: 'xpet',
+    }));
+    fs.writeFileSync(lastRunPath(dir, 'pet', true), JSON.stringify({
+      target: 'pet', memory: { variables: 1, program: 108 }, emulator: 'browser', url: 'http://127.0.0.1:3000/',
+    }));
+    const native = readLastRun(dir, 'pet', false);
+    const web = readLastRun(dir, 'pet', true);
+    assert.equal(native.emulator, 'xpet');
+    assert.equal(web.emulator, 'browser');
+    assert.equal(web.url, 'http://127.0.0.1:3000/');
+    assert.notEqual(rowKey(dir, 'pet', false), rowKey(dir, 'pet', true), 'the two rows never share a Map key either');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('lastRunPath: the synthetic web target keeps its one file even if a caller passes web: true for it', () => {
+  const dir = '/tmp/proj';
+  assert.equal(lastRunPath(dir, 'web', true), lastRunPath(dir, 'web', false));
 });
 
 test('sizeWithPct is each entry as a share of the program total', () => {
