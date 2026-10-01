@@ -7,12 +7,12 @@
 // are (C64, VIC-20, web). `CHARSET` is false on every DEFAULT-hardware
 // build — the sweep below builds each target with no `--hardware`, the
 // honest-stub case every rasterline file answers the same way — except
-// the PET's own `3032` model tag, which has a real driver
-// (packages/pet/AGENTS.md, "Raster: character-set switching"); the test
-// after this one checks that tag specifically. This file is the "answers
-// nothing but costs zero" gate for the new slot on every OTHER build,
-// mirroring test/rasterline.test.mjs's gate for the capability as a
-// whole.
+// the PET's own `3032` and `4032` model tags, which have real drivers
+// (packages/pet/AGENTS.md, "Raster: character-set switching"); the two
+// tests after this one check those tags specifically. This file is the
+// "answers nothing but costs zero" gate for the new slot on every OTHER
+// build, mirroring test/rasterline.test.mjs's gate for the capability as
+// a whole.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -76,7 +76,7 @@ test('Slot.CHARSET is 3, the same arbitrary number in all thirty-two rasterline 
   }
 });
 
-test('the PET 3032 model tag answers raster.CHARSET true, the one real implementation among the thirty-two stubs', () => {
+test('the PET 3032 and 4032 model tags answer raster.CHARSET true, the two real implementations among the thirty-two stubs', () => {
   const program = `import { raster } from "@8bitscript/raster";
 export function main(): void {
     if (raster.CHARSET) {
@@ -85,15 +85,17 @@ export function main(): void {
     return;
 }
 `;
-  const resolved = resolveHardware(loadCatalog('pet'), { overrides: { model: '3032' } });
-  assert.ok(resolved.ok, resolved.ok ? '' : resolved.error);
-  const entry = join(HERE, 'rasterline-charset-3032.8bs');
-  const { ir, diagnostics } = link(program, entry, {
-    machine: 'pet', facts: resolved.hardware.facts, tags: ['3032'], checkout: CHECKOUT,
-  });
-  assert.deepEqual(diagnostics, []);
-  const main = ir.functions.find((f) => f.name === 'main');
-  const guard = main.body.find((s) => s.kind === 'if');
-  assert.equal(guard.test.kind, 'const');
-  assert.equal(Boolean(guard.test.value), true, 'the 3032 tag answers raster.CHARSET true');
+  for (const model of ['3032', '4032']) {
+    const resolved = resolveHardware(loadCatalog('pet'), { overrides: { model } });
+    assert.ok(resolved.ok, resolved.ok ? '' : resolved.error);
+    const entry = join(HERE, `rasterline-charset-${model}.8bs`);
+    const { ir, diagnostics } = link(program, entry, {
+      machine: 'pet', facts: resolved.hardware.facts, tags: [model], checkout: CHECKOUT,
+    });
+    assert.deepEqual(diagnostics, [], model);
+    const main = ir.functions.find((f) => f.name === 'main');
+    const guard = main.body.find((s) => s.kind === 'if');
+    assert.equal(guard.test.kind, 'const', model);
+    assert.equal(Boolean(guard.test.value), true, `the ${model} tag answers raster.CHARSET true`);
+  }
 });

@@ -1,0 +1,34 @@
+// The PET's character-set raster split under xpet (4032 model), read by
+// test/raster.test.mjs: an eight-entry list, alternating character sets so
+// no entry is a silent no-op (the first entry's value differs from the
+// last entry's — see rasterline.pet.4032.8bs's own header on why a
+// repeating list's first entry can otherwise write a value already in
+// effect from the previous frame, invisibly). Every entry must land on
+// its target picture line and hold still from frame to frame, the same
+// discipline test/raster-probe.8bs (the 3032's own probe) holds its
+// machine to — this file is a separate fixture, not a shared one, because
+// catching the 4032's LINE_CYCLES scale error specifically required more
+// than the 3032 probe's two entries (packages/pet/AGENTS.md has why).
+//
+// Every screen cell holds code 1, whose glyph differs between the
+// graphics and text character sets.
+import { raster, Slot } from "@8bitscript/raster";
+
+export function main(): void {
+    for (let cell: usmallint = 0; cell < 1000; cell++) {
+        memory.write(0x8000 + cell, 1);
+    }
+    raster.clear();
+    raster.at(20, Slot.CHARSET, 1);
+    raster.at(40, Slot.CHARSET, 0);
+    raster.at(60, Slot.CHARSET, 1);
+    raster.at(80, Slot.CHARSET, 0);
+    raster.at(100, Slot.CHARSET, 1);
+    raster.at(120, Slot.CHARSET, 0);
+    raster.at(140, Slot.CHARSET, 1);
+    raster.at(160, Slot.CHARSET, 0);
+    raster.enable();
+    while (true) {
+        waitFrame();
+    }
+}

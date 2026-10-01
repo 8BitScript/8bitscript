@@ -170,7 +170,8 @@
               },
               "facts": {
                 "video.columns": 40,
-                "video.frameRate": 50
+                "video.frameRate": 50,
+                "video.raster": true
               }
             },
             "8032": {

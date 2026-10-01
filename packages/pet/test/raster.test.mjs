@@ -23,6 +23,7 @@ const ROOT = join(HERE, '..');
 const CHECKOUT = join(ROOT, '..', '..');
 const CLI_BIN = join(ROOT, '..', 'cli', 'bin', '8bs.mjs');
 const PROBE = join(HERE, 'raster-probe.8bs');
+const PROBE_4032 = join(HERE, 'raster-probe.pet.4032.8bs');
 
 test('the raster probe links clean for the PET 3032, with the frame hook and the plan builder in the IR', () => {
   const { ir, diagnostics } = link(readFileSync(PROBE, 'utf8'), PROBE, {
@@ -35,10 +36,22 @@ test('the raster probe links clean for the PET 3032, with the frame hook and the
   }
 });
 
-test('the 3032 model value answers video.raster; every other PET model still answers false, including the default', () => {
+test('the raster probe links clean for the PET 4032, with the frame hook and the plan builder in the IR', () => {
+  const { ir, diagnostics } = link(readFileSync(PROBE_4032, 'utf8'), PROBE_4032, {
+    machine: 'pet', facts: factsFor('4032'), tags: ['4032'], checkout: CHECKOUT,
+  });
+  assert.deepEqual(diagnostics, []);
+  const names = ir.functions.map((f) => f.name);
+  for (const fn of ['petRasterFrame', 'raster_commit', 'raster_enable']) {
+    assert.ok(names.some((name) => name === fn || name.endsWith(fn)), `${fn} in ${names.join(', ')}`);
+  }
+});
+
+test('the 3032 and 4032 model values answer video.raster; every other PET model still answers false, including the default', () => {
   assert.equal(factsFor('3032')['video.raster'], true);
+  assert.equal(factsFor('4032')['video.raster'], true);
   assert.equal(stockFacts('pet')['video.raster'], false, 'the default model (2001)');
-  for (const model of ['2001', '3008', '3016', '4016', '4032', '8032']) {
+  for (const model of ['2001', '3008', '3016', '4016', '8032']) {
     assert.equal(factsFor(model)['video.raster'], false, model);
   }
 });
@@ -62,10 +75,10 @@ function runCli(args, { timeoutMs = 120_000 } = {}) {
   });
 }
 
-async function shoot(scratch, name, extra) {
+async function shoot(scratch, name, extra, model = '3032', probe = 'test/raster-probe.8bs') {
   const shot = join(scratch, `${name}.png`);
-  const { code, stdout, stderr } = await runCli(['run', 'pet', '--hardware', 'model=3032', '--checkout', CHECKOUT, ...extra, '--screenshot', shot, 'test/raster-probe.8bs']);
-  assert.equal(code, 0, `8bs run pet --hardware model=3032 ${extra.join(' ')} --screenshot failed:\n${stdout}${stderr}`);
+  const { code, stdout, stderr } = await runCli(['run', 'pet', '--hardware', `model=${model}`, '--checkout', CHECKOUT, ...extra, '--screenshot', shot, probe]);
+  assert.equal(code, 0, `8bs run pet --hardware model=${model} ${extra.join(' ')} --screenshot failed:\n${stdout}${stderr}`);
   return readFileSync(shot);
 }
 
@@ -221,6 +234,99 @@ test('under xpet, the character-set split lands on its picture lines and holds f
       for (const line of [150, 160, 170, 190]) {
         assert.equal(kindAt(ROW(line)), 'graphics', `${label}: picture line ${line} is graphics again`);
       }
+    }
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+// Picture line 0 is capture row 36 on the 4032 (packages/pet/AGENTS.md) —
+// different from the 3032's row 8, since the CRTC board's border is a
+// different height.
+const ROW_4032 = (line) => 36 + line;
+
+test('under xpet, the 4032 eight-entry split lands on every picture line and holds frame to frame', { skip: !onPath('xpet') && 'xpet is not on PATH' }, async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-pet-raster-4032-'));
+  try {
+    const refGraphics = await (async () => {
+      const src = `export function main(): void {
+    for (let cell: usmallint = 0; cell < 1000; cell++) {
+        memory.write(0x8000 + cell, 1);
+    }
+    memory.write(0xE84C, 0x0C);
+    while (true) {
+        waitFrame();
+    }
+}
+`;
+      const file = join(scratch, 'ref-graphics.8bs');
+      await import('node:fs/promises').then((fs) => fs.writeFile(file, src));
+      const shotPath = join(scratch, 'ref-graphics.png');
+      const { code, stdout, stderr } = await runCli(['run', 'pet', '--hardware', 'model=4032', '--checkout', CHECKOUT, '--frames', '300', '--screenshot', shotPath, file]);
+      assert.equal(code, 0, `${stdout}${stderr}`);
+      return decodePng(readFileSync(shotPath));
+    })();
+    const refText = await (async () => {
+      const src = `export function main(): void {
+    for (let cell: usmallint = 0; cell < 1000; cell++) {
+        memory.write(0x8000 + cell, 1);
+    }
+    memory.write(0xE84C, 0x0E);
+    while (true) {
+        waitFrame();
+    }
+}
+`;
+      const file = join(scratch, 'ref-text.8bs');
+      await import('node:fs/promises').then((fs) => fs.writeFile(file, src));
+      const shotPath = join(scratch, 'ref-text.png');
+      const { code, stdout, stderr } = await runCli(['run', 'pet', '--hardware', 'model=4032', '--checkout', CHECKOUT, '--frames', '300', '--screenshot', shotPath, file]);
+      assert.equal(code, 0, `${stdout}${stderr}`);
+      return decodePng(readFileSync(shotPath));
+    })();
+
+    const H = refGraphics.height;
+    const refRow = { graphics: [], text: [] };
+    for (let y = 0; y < H; y++) {
+      refRow.graphics.push(stripRow(refGraphics, y, X0, X1));
+      refRow.text.push(stripRow(refText, y, X0, X1));
+    }
+
+    for (const frames of [300, 350]) {
+      const png = decodePng(await shoot(scratch, `split4032-${frames}`, ['--frames', String(frames)], '4032', PROBE_4032));
+      const kindAt = (y) => {
+        const r = stripRow(png, y, X0, X1);
+        if (r === refRow.graphics[y]) return 'graphics';
+        if (r === refRow.text[y]) return 'text';
+        return null; // identical-in-both-fonts row (packages/pet/AGENTS.md), or a
+        // real torn row; distinguished below by checking it's an
+        // already-known-identical row, never by assuming which.
+      };
+      const label = `--frames ${frames}`;
+
+      // Before the first entry: whatever the LAST entry (line 160,
+      // graphics) left in effect at the end of the previous frame — this
+      // is what caught the off-by-one entry-reading mistake during this
+      // driver's own calibration (rasterline.pet.4032.8bs's header), so
+      // it is asserted here deliberately, not skipped as "boot state".
+      for (const line of [5, 10, 15]) {
+        assert.equal(kindAt(ROW_4032(line)), 'graphics', `${label}: picture line ${line} is graphics (carried over)`);
+      }
+      // Each entry's own band, sampled well clear of its neighbors'
+      // transitions (every band is 20 lines wide; these sit 5-15 lines in).
+      const bands = [
+        [20, 'text'], [40, 'graphics'], [60, 'text'], [80, 'graphics'],
+        [100, 'text'], [120, 'graphics'], [140, 'text'], [160, 'graphics'],
+      ];
+      for (const [start, kind] of bands) {
+        for (const offset of [5, 10, 15]) {
+          const line = start + offset;
+          assert.equal(kindAt(ROW_4032(line)), kind, `${label}: picture line ${line} is ${kind}`);
+        }
+      }
+      // The last entry (graphics, from line 160) holds to the bottom of
+      // the picture.
+      assert.equal(kindAt(ROW_4032(190)), 'graphics', `${label}: picture line 190 is graphics (last entry holds)`);
     }
   } finally {
     await rm(scratch, { recursive: true, force: true });
