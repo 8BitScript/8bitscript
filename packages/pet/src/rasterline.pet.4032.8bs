@@ -1,0 +1,316 @@
+// @8bitscript/pet/rasterline, the 4032 model's own twin — a real
+// character-set split, on the CRTC "Fat 40" board.
+//
+// Named by "8bitscript".exports["./rasterline"] in this package's
+// package.json, and by "8bitscript".entry.pet in @8bitscript/raster's, so
+// a portable program's `import { raster, Slot } from "@8bitscript/raster"`
+// gets THIS file when the build's hardware carries the "4032" tag
+// (`--hardware model=4032`); every other PET model still gets the honest
+// stub in ./rasterline.8bs. packages/pet/AGENTS.md, "Raster: character-set
+// switching", is the research this file is built from — the measured
+// LINE_CYCLES and ORIGIN_CYCLES below, and why they are what they are, are
+// documented there, not repeated here.
+//
+// Same mechanism as the 3032's own twin (rasterline.pet.3032.8bs; read
+// that file's header for the "who applies the list, why there is no
+// re-sync" and "precision, honestly" reasoning — it applies here
+// unchanged, since the CRTC's PCR-selected character ROM half and the
+// CB1 vertical-retrace edge are the same on both boards). What differs is
+// only the timing: this board's CRTC gives it a different LINE_CYCLES and
+// ORIGIN_CYCLES than the non-CRTC 3032's own (packages/pet/AGENTS.md has
+// the numbers and how they were measured — through the real driver's own
+// multi-entry list, not a standalone delay loop, after a standalone-loop
+// measurement first gave a value half of what the CRTC's own R0 register
+// implies and did not survive a multi-entry placement check).
+
+export namespace Slot {
+    const BORDER: utinyint = 0;     // refused here: the PET has no border register
+    const BACKGROUND: utinyint = 1; // refused here: the PET has no background register
+    const SCROLL_X: utinyint = 2;   // refused here: no horizontal scroll register
+    const CHARSET: utinyint = 3;    // 0 = graphics ($0C), 1 = text ($0E)
+}
+
+// The list as the program built it: (line, value) pairs — slot is always
+// CHARSET here, so it is not stored. STRIDE counts it as 2 anyway, the
+// unit every rasterline file's setValue() takes, so a program that reads
+// raster.STRIDE before the byte offset it needs gets the right answer
+// whether or not this file stores it that way internally.
+let entryLine: array<utinyint, 16>;
+let entryValue: array<utinyint, 16>;
+let entryCount: utinyint = 0;
+let listDirty: bool = false;
+
+// The plan the hook reads. Pinned at fixed addresses — same reason the
+// 3032's plan is: an asm6502 block cannot name a global (globals are
+// link-renamed), only a literal address or this function's own
+// parameters/locals. $0200-$03FF is the PET's OS workspace
+// (packages/pet/AGENTS.md's own memory map) — dead RAM once a
+// waitFrame() program owns the machine.
+@address(0x0200)
+let planOuter: array<utinyint, 16>; // outer-pass count: see the hook's own cycle accounting
+@address(0x0210)
+let planFine: array<utinyint, 16>;  // fine-step count after the outer passes
+@address(0x0220)
+let planValue: array<utinyint, 16>; // $0C or $0E
+let planCount: utinyint = 0;
+let enabled: bool = false;
+
+// One PICTURE line is LINE_CYCLES CPU cycles: 50, matching the CRTC's own
+// R0=49 register (50 character times per horizontal scan line, at 1 cycle
+// per character time — this board's own measured cycles-per-frame
+// confirms 1, not 2, cycles per character time, packages/pet/AGENTS.md).
+// Both constants below were wrong at least once before landing here, for
+// two different reasons worth naming so the same mistakes are not repeated
+// on the next model:
+//
+// - A standalone NOP-padding delay loop (not going through this file's
+//   own commit()/petRasterFrame() at all, but still writing $E84C twice a
+//   frame, so in principle as time-sensitive as this file's own hook)
+//   measured ~25 cycles/line, exactly half of the true value. Checked
+//   afterwards with a monitor breakpoint on that probe's own two $E84C
+//   stores (`break exec <addr>`, `stopwatch`), its CYCLE axis was exactly
+//   right — 20 added NOPs cost exactly 40 real cycles, as intended — so
+//   the error was in how that probe's own screenshots were read into row
+//   numbers, not in its timing. Why that specific row-reading produced a
+//   clean, self-consistent, EXACTLY-half slope instead of a noisy one is
+//   not diagnosed; it is recorded here as a warning, not a citation.
+//   Separately, and independent of that bug: a single transition only
+//   ever measures "the switch happened somewhere at or before this
+//   delay" — it settles once and holds forever, so even with a correct
+//   axis a wrong LINE_CYCLES looks exactly like a wrong ORIGIN_CYCLES
+//   until a second, independently-spaced entry is added.
+// - The first candidate ORIGIN_CYCLES (fit the same way, from a small
+//   number of entries assumed to land at their requested lines) was itself
+//   2000 cycles short, because the entries used to fit it were read with
+//   an off-by-one mapping: the very first entry in a repeating list can be
+//   a silent no-op (it writes whatever the character set already is, left
+//   over from the LAST entry's write the previous frame), so the first
+//   VISIBLE transition in a screenshot is often the second entry, not the
+//   first — read the wrong entries as ground truth and a bad ORIGIN_CYCLES
+//   fits itself to the data. What exposed both mistakes together was
+//   comparing a screenshot-inferred landing line against the write's real
+//   elapsed cycle count, read directly off a VICE monitor breakpoint at
+//   the $E84C store (`break exec <addr> if X == n`, `stopwatch`) — the
+//   real cycles matched this file's own target arithmetic almost exactly,
+//   so the bug was never in commit()'s math, only in what the earlier fits
+//   assumed a screenshot was showing.
+//
+// LINE_CYCLES and ORIGIN_CYCLES below are the values an eight-entry list
+// (spread across the whole picture, alternating character sets so no
+// entry is a silent no-op) lands correctly with, checked against the
+// CYCLE-ACCURATE monitor measurement above rather than screenshot
+// inference alone, and held stable across two different --frames counts
+// (packages/pet/AGENTS.md has the numbers; test/raster-probe.pet.4032.8bs
+// is the fixture).
+// ORIGIN_CYCLES is the fixed cost from this function's OWN first
+// instruction (not from waitFrame() returning to the caller —
+// petRasterFrame runs from inside waitFrameRoutine, before that return)
+// to picture line 0 starting.
+const LINE_CYCLES: usmallint = 50;
+const ORIGIN_CYCLES: usmallint = 5209;
+
+// The hook's own loop, costed exactly so commit() can decompose a delay
+// into counts that land it right — identical shape to the 3032's, and
+// confirmed identical in THIS file's own --debug listing too (same
+// opcodes, same zero-page addressing), so these two loop constants carry
+// over unchanged:
+//
+//   ldy #0          \
+//   inner: dey      |  one full outer pass: 2 + 1279 + 5 + 3 = 1289
+//          bne inner |  (256 dey/bne pairs = 1279; dec + bne taken add 8)
+//   dec outerTemp   |
+//   bne outer_pass  /
+//   ldy fineCount   \  one fine pass of f steps: 5f - 1 (f >= 1)
+//   fine: dey       |  (f dey/bne pairs, the last bne not taken)
+//        bne fine   /
+//
+// OUTER_CYCLES is one full outer pass, FINE_STEP is one dey/bne pair.
+const OUTER_CYCLES: usmallint = 1289;
+const FINE_STEP: usmallint = 5;
+// Cycles the hook's own non-loop instructions cost between one entry's
+// $E84C write and the next entry's, carried over unchanged from the
+// 3032's own derivation since the instruction sequence is byte-for-byte
+// identical here (confirmed against this file's own --debug listing: same
+// opcodes, same zero-page addressing for `n` and `outerTemp`). A fresh,
+// instruction-by-instruction recount for THIS file during the 4032 work
+// gives 33, not 31 — a small, systematic 2-cycle undercount that the
+// empirical ORIGIN_CYCLES fit below absorbs (it was fit against this
+// file's own build with THESE constants in place, not against a
+// recomputed one), and that the 8-entry placement check confirms stays
+// well under one row of drift even accumulated across seven entries.
+// Left as 31 rather than corrected to 33, so that only ORIGIN_CYCLES — not
+// this constant, this comment's arithmetic, AND every entry's spacing all
+// at once — is what the next person has to re-verify.
+const BETWEEN_ENTRIES: usmallint = 31;
+// The same shape for the FIRST entry; a fresh recount gives 41, not 39,
+// for the same reason BETWEEN_ENTRIES recounts to 33, not 31 — see above.
+const FIRST_ENTRY: usmallint = 39;
+
+export namespace raster {
+    const ENTRIES: utinyint = 16;
+    const STRIDE: utinyint = 2;    // bytes per entry: line, value
+    const LINES: utinyint = 200;   // Video.ROWS (25) * 8
+    const FINE_SCROLL: bool = false;
+    const COLORS: bool = false;    // no border or background register
+    const CHARSET: bool = true;
+
+    function clear(): void {
+        entryCount = 0;
+        listDirty = true;
+    }
+
+    // Append: at picture line `line`, select character set `value` (0
+    // graphics, 1 text). False, and nothing added, if the line is past
+    // the picture, the slot is not CHARSET, the list is full, or the
+    // line is above the last entry's.
+    function at(line: utinyint, slot: utinyint, value: utinyint): bool {
+        if (line >= raster.LINES || slot != Slot.CHARSET || entryCount >= raster.ENTRIES) {
+            return false;
+        }
+        if (entryCount > 0 && line < entryLine[entryCount - 1]) {
+            return false;
+        }
+        entryLine[entryCount] = line;
+        entryValue[entryCount] = value;
+        entryCount = entryCount + 1;
+        listDirty = true;
+        return true;
+    }
+
+    // In order: the same as `at`, at a line above the last entry's — the
+    // entries below it slid down a place.
+    function insert(line: utinyint, slot: utinyint, value: utinyint): bool {
+        if (line >= raster.LINES || slot != Slot.CHARSET || entryCount >= raster.ENTRIES) {
+            return false;
+        }
+        let offset: utinyint = entryCount;
+        while (offset > 0 && entryLine[offset - 1] > line) {
+            entryLine[offset] = entryLine[offset - 1];
+            entryValue[offset] = entryValue[offset - 1];
+            offset = offset - 1;
+        }
+        entryLine[offset] = line;
+        entryValue[offset] = value;
+        entryCount = entryCount + 1;
+        listDirty = true;
+        return true;
+    }
+
+    function count(): utinyint {
+        return entryCount;
+    }
+
+    // Hand the list to the frame runtime: live from the next waitFrame().
+    // Every target cycle, every delta, every outer/fine decomposition is
+    // worked out here — the hook does none of it.
+    function commit(): void {
+        let previous: usmallint = 0;
+        for (let i: utinyint = 0; i < entryCount; i++) {
+            let target: usmallint = ORIGIN_CYCLES;
+            target = target + entryLine[i] * LINE_CYCLES;
+            let overhead: usmallint = BETWEEN_ENTRIES;
+            if (i == 0) {
+                overhead = FIRST_ENTRY;
+            }
+            let delay: usmallint = 0;
+            if (target > previous + overhead) {
+                delay = target - previous - overhead;
+            }
+            previous = target;
+
+            let outer: utinyint = 0;
+            while (delay >= OUTER_CYCLES) {
+                delay = delay - OUTER_CYCLES;
+                outer = outer + 1;
+            }
+            let fine: utinyint = 0;
+            while (delay >= FINE_STEP && fine < 255) {
+                delay = delay - FINE_STEP;
+                fine = fine + 1;
+            }
+            planOuter[i] = outer;
+            planFine[i] = fine;
+            planValue[i] = 0x0C;
+            if (entryValue[i] != 0) {
+                planValue[i] = 0x0E;
+            }
+        }
+        if (enabled) {
+            planCount = entryCount;
+        } else {
+            planCount = 0;
+        }
+        listDirty = false;
+    }
+
+    // Rewrite one entry's value, leaving its line: `entry` is the
+    // entry's byte offset (index * STRIDE). Live from the next frame
+    // with no commit, when the list has not changed since the last one.
+    // `entry >> 1` rather than `entry / 2`: this backend has no divide,
+    // and STRIDE is a power of two so a shift is exact.
+    function setValue(entry: utinyint, value: utinyint): bool {
+        if ((entry & 1) != 0 || entry >= entryCount * 2) {
+            return false;
+        }
+        let index: utinyint = entry >> 1;
+        entryValue[index] = value;
+        if (!listDirty) {
+            planValue[index] = 0x0C;
+            if (value != 0) {
+                planValue[index] = 0x0E;
+            }
+        }
+        return true;
+    }
+
+    function enable(): void {
+        enabled = true;
+        raster.commit();
+    }
+
+    function disable(): void {
+        enabled = false;
+        planCount = 0;
+    }
+}
+
+// The frame runtime's hook: FRAME_SYNC.pet.frameHook names it, and
+// waitFrame() calls it after every frame edge (the CB1 retrace,
+// FRAME_SYNC.pet's own edge). Not for a program to call — from anywhere
+// but the top of a frame it counts cycles that were never spent. Ends in
+// an explicit `return;` so the linker keeps it a function (mos/index.ts
+// refuses a build where the hook was inlined away).
+export function petRasterFrame(): void {
+    let n: utinyint = planCount;
+    if (n == 0) {
+        return;
+    }
+    let outerTemp: utinyint = 0; // the asm block's own outer-pass counter; frameOperand resolves this local to its zp slot
+    asm6502 {
+        ldx #0
+    entry:
+        lda $0200,x
+        sta outerTemp
+        beq skip_outer
+    outer_pass:
+        ldy #0
+    inner_pass:
+        dey
+        bne inner_pass
+        dec outerTemp
+        bne outer_pass
+    skip_outer:
+        ldy $0210,x
+        beq skip_fine
+    fine_pass:
+        dey
+        bne fine_pass
+    skip_fine:
+        lda $0220,x
+        sta $e84c
+        inx
+        cpx n
+        bne entry
+    }
+    return;
+}

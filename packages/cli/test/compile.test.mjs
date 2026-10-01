@@ -206,7 +206,7 @@ test('build() with no target builds the baseline, and --release measures every b
     const after = (artifact) => lines.slice(lines.findIndex((l) => l.endsWith(artifact)) + 1).find((l) => l.includes('baseline'));
     assert.equal(after('main-c64-ntsc.prg'), 'the baseline');
     assert.equal(after('main-pet.prg'), 'short of the baseline (c64): video.raster, memory.ram 3071 of 51199');
-    assert.equal(after('main-pet-4032-32.prg'), 'short of the baseline (c64): video.raster, memory.ram 31743 of 51199');
+    assert.equal(after('main-pet-4032-32.prg'), 'short of the baseline (c64): memory.ram 31743 of 51199');
     // The web's ram is not on the sheet as less than the C64's, and the
     // web has a raster list: level, and the columns fold says nothing.
     assert.match(after('main.wasm'), /^(level with the baseline \(c64\)|short of the baseline \(c64\): memory\.ram \d+ of 51199)$/);
