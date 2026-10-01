@@ -1,5 +1,53 @@
 # @8bitscript/examples
 
+## 0.24.0
+
+### Patch Changes
+
+- 0b694ac: `8bitscript.config.8bs` is the current name for a project's config file; `8bitscript.config.ts` (0.4.0 through 0.22.x) and `8bs.config.ts` (every project through 0.3.0) still load, in that order of preference, for a few more releases. The CLI, the language server, and the VS Code extension all find any of the three; every user-facing message, doc, and the file icon theme now name the current one, with the two older names kept wherever a message or the icon theme still needs to recognize them. The examples, Studio, and this repository's own config files use the new name; the sibling `2048` repository's was renamed the same way.
+- 7027388: Take the shared media out of `hello-world` and `hello-bx`, which had no frame to drive it.
+  
+  Both kinds needed one. `audio.play()` arms a voice and it is `audio.update()`, counted down over the following eight frames, that releases it again — so a program calling `update()` once before returning to BASIC left the voice gated on, and the machine went on sounding it after the program had ended. On the C64 that is a held noise waveform, which is what `chime`'s declared `fallback { synth noise }` resolves to on every machine in this release, since none of them play a PCM sample. `graphics.place()` is the same shape: on every machine but the VIC-20 it records where an object goes and leaves the drawing to the next update, which for these two never came — so `mark` cost its whole sprite pipeline and drew nothing.
+  
+  Measured, that was most of the program. `hello-world` on the release PET goes 1944 → **108** bytes, on the C64 2230 → **393**, on the VIC-20 1999 → **188**. The greeting was always the only thing on screen; now it is the only thing in the binary.
+  
+  `generate-shared-assets.mjs` writes `mark.*` and `chime.*` into the four examples with a `waitFrame()` loop — `fancy`, `swarm`, `joystick`, `media-walk` — and into neither of these two. The 8BX zero-cost gate still compares `hello-bx` against `hello-world` byte for byte; they remain the same program written two ways, which is why the media had to leave both together.
+- 005a9ea: Two real bugs, both found live: the PET 2001's swapped character set drew the wrong letters, and a program with no `waitFrame()` loop was refused inside a VS Code webview it never actually needed shared memory in.
+  
+  The 2001 has PET's *other* screen-code assignment (`packages/pet/src/text.8bs`'s `asciiToScreenCode()` moves upper case down to 1-26 and puts lower case at 65-90 on this ROM, confirmed there against a real ROM dump — the opposite of every later model, which moves lower case down instead). `layoutForRealMachine`'s `glyphIndexFn` was hardcoded to the later-model inverse only; on a 2001 it would have drawn real, wrong letters rather than blanking the screen — a worse failure to ship unnoticed than the one it fixed. It now branches on `#fact(video.characterSetSwapped)`, the same fact `text.8bs` itself branches on. `hello-world`'s own PET build now targets the 2001 at its stock 4K (the catalog's own default) rather than `releaseTargets.pet`'s 4032/32K — the smallest whole program belongs on the smallest real PET.
+  
+  Separately: `8bs run pet --web` inside a VS Code webview's iframe failed with "this page is not cross-origin isolated" even for a program with no main loop at all. The loader's `start()` always demanded isolation to create its own frame-pacing counter — a `SharedArrayBuffer`-backed `Int32Array` — regardless of whether the compiled program had anything that would ever read it. A program with no `waitFrame()` import already runs to completion and posts its plain, unshared memory back exactly once (`renderWorker()`'s own `shared` check, unchanged); `start()` now makes that same check before deciding whether isolation is even required, and skips both the check and the `SharedArrayBuffer` for a program that will never call it. A program that does call `waitFrame()` is unaffected — this is a real, structural limit for VS Code desktop webviews specifically (the top-level workbench document isn't cross-origin isolated and nothing an extension does can make it so), so "Open in browser" stays the correct answer for anything that loops, the same way Studio's own tab already treats its mouse-capture limitation.
+  
+  This new branch in `start()` is not covered by a runtime test: the existing `web-loader.test.mjs` harness evaluates the generated loader with a minimal sandbox (just `self` and `console`, per `loadLoader()`) and has never exercised `start()`'s own `fetch`/`WebAssembly`/`Worker` path, which would need a substantially heavier mock than anything built there today. Verified instead by hand: the exact `WebAssembly.Module.imports` check this adds is identical, character for character, to the one `renderWorker()` already uses to decide `shared`.
+- 0ff97c3: The PET's `3032` model tag (`--hardware model=3032`) now answers `#fact(video.raster)`: `@8bitscript/raster`'s `Slot.CHARSET` splits the picture between the character ROM's graphics and text halves at a chosen picture line, verified under VICE at true cycle-scanline accuracy and stable frame to frame. The PET has no raster interrupt and no readable scanline counter, so every entry is cycle-counted from the single vertical-retrace edge `waitFrame()` already waits on, applied by a new frame hook (`FRAME_SYNC.pet.frameHook`, `EdgeSyncCalibrated` gains the field the level-kind machines already had) that `commit()` precomputes a division-free delay plan for — the 6502 backend has no hardware divide, so the cycle-to-loop-count decomposition is repeated subtraction, computed once, never in the per-frame hook. Every other PET model, including the default (2001) and the release target (4032), still answers false; extending this to the CRTC boards (4032, 8032) is follow-on work with its own timing to measure. See `packages/pet/AGENTS.md`, "Raster: character-set switching," for the mechanism and the numbers.
+  
+  `examples/fancy` — the raster *colour* showpiece — now distinguishes "no raster" from "raster, but not the colour kind this demo draws with": a machine that answers `video.raster` without answering `raster.COLORS` (the PET) shows a third caption rather than silently linking dead `BORDER`/`BACKGROUND` calls that always return false.
+- dbd8233: Renamed the `hello-bx` example to `hello-8bx`, matching the actual name of the language feature it demonstrates (8BX, not "BX"). The manifest title changes from "Hello, BX" to "Hello, 8BX" to match; the entry file itself stays `hbx.8bs`, already shortened for CBM DOS's 16-character limit.
+  
+  Also removed `src/hello-bx.8bs`, a stray byte-identical duplicate of `hbx.8bs` left behind and still tracked since that earlier rename — dead code, never referenced by `8bitscript.config.ts`.
+- Updated dependencies [e80d067]
+- Updated dependencies [daac931]
+- Updated dependencies [0b694ac]
+- Updated dependencies [0ff97c3]
+- Updated dependencies [3824070]
+- Updated dependencies [e80d067]
+- Updated dependencies [4376f27]
+- Updated dependencies [8a309f5]
+- Updated dependencies [5a21549]
+- Updated dependencies [a988417]
+  - @8bitscript/c64@0.24.0
+  - @8bitscript/pet@0.24.0
+  - @8bitscript/web@0.24.0
+  - @8bitscript/raster@0.24.0
+  - @8bitscript/graphics@0.23.2
+  - @8bitscript/audio@0.23.2
+  - @8bitscript/input@0.24.0
+  - @8bitscript/screen@0.24.0
+  - @8bitscript/sprites@0.24.0
+  - @8bitscript/text@0.24.0
+  - @8bitscript/timeline@0.24.0
+  - @8bitscript/system@0.24.0
+
 ## 0.23.1
 
 ### Patch Changes

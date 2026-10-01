@@ -1,5 +1,15 @@
 # @8bitscript/random
 
+## 0.24.0
+
+### Patch Changes
+
+- Updated dependencies [e80d067]
+- Updated dependencies [daac931]
+- Updated dependencies [a988417]
+  - @8bitscript/c64@0.24.0
+  - @8bitscript/atari8@0.24.0
+
 ## 0.23.1
 
 ### Patch Changes

@@ -1,5 +1,100 @@
 # @8bitscript/cli
 
+## 0.24.0
+
+### Minor Changes
+
+- 0b694ac: `8bitscript.config.8bs` is the current name for a project's config file; `8bitscript.config.ts` (0.4.0 through 0.22.x) and `8bs.config.ts` (every project through 0.3.0) still load, in that order of preference, for a few more releases. The CLI, the language server, and the VS Code extension all find any of the three; every user-facing message, doc, and the file icon theme now name the current one, with the two older names kept wherever a message or the icon theme still needs to recognize them. The examples, Studio, and this repository's own config files use the new name; the sibling `2048` repository's was renamed the same way.
+- 890c3b9: A real machine's `--web` build is named for the machine, not the specific model it happened to compile for — `hello-world.pet.wasm`, never `hello-world-3032.wasm` — and `8bs build --target <machine> --web` now works standalone, not just through `8bs run`. In the extension, the plain Run command defaults to opening a machine's own `--web` build in the Preview tab, for a target that already has one.
+  
+  The old naming borrowed the native build's own convention (a dash-joined hardware tag, `main-4032.wasm`), which answers a question a browser preview does not have: which specific real-hardware variant was this compiled for. That variant still decides what actually got built (RAM budget, column count — `--hardware`/`--profile` choose it exactly as before), it just isn't the file's own name. `8bs build --target pet --web` reached `compile()` with no `web` option at all until now — the CLI's own argument parser never read the flag, only `8bs run`'s did.
+  
+  The extension's plain Run command used to always open a native emulator window. It now prefers a `--web` build instead, for a target that has one — the PET, today — governed by a new `8bitscript.preferWebPreview` setting (on by default) and a small allowlist in `runner.cjs` naming which targets that already holds for (`WEB_PREVIEW_READY`). VIC-20 and C64 are deliberately excluded: they still hit their own `asm6502` walls building through the wasm backend, so defaulting Run to `--web` for them would turn a working native launch into a guaranteed failure, not a preference between two things that already work — they keep launching their native emulator until their own package compiles through the wasm backend for real. Studio's own tab and Preview On… are unaffected; both already chose `--web` explicitly.
+- 682829b: `8bs run <machine> --web` works for pet/vic20/c64, not just cx16 — and the synthetic web/hifi target still refuses an `@address` pin, which a real machine's own package is now allowed to declare.
+  
+  `--web` used to mean one specific thing: "launch cx16's vendored x16emu as WebAssembly, in a browser tab." Any other target was refused before `compile()` ever ran. It now means the same thing for every release target, with a different mechanism underneath depending on what exists: cx16 keeps the real vendored emulator; `web` keeps building the synthetic target it always has; pet, vic20 and c64 build through the wasm backend from their own package source — the same widening the previous change made possible, now reachable from the actual `8bs` command rather than only from a script calling `compile()` directly. Verified live: `8bs run pet --web` serves a real page and a real `.wasm`, both HTTP 200, and writes `.8bs-last-pet.json` with the run's own URL — the same file a framing page (the extension's Studio tab) already reads for cx16.
+  
+  The one thing that needed correcting on the way: the previous change let an `@address`-pinned scalar lower for *any* wasm build, including the synthetic `web` target — which was wrong. A pin only means something for a real machine's own hardware; the synthetic target owns none, and a test already said so. `BuildOptions.allowPinnedScalars` makes that an explicit choice `compile()` makes per target (`true` for a real machine, `false` for `web`) rather than something the backend decides on its own.
+- 144121b: `8bs build --remarks` returns and prints what the linker's optimizer actually did — today, every `@unroll`, as a `remark` severity diagnostic (`8BS9001`) naming the loop's unroll count. Off by default: a build that never asks for it is unchanged, and a remark is never counted as a problem or printed unless asked for.
+- 240438b: The wasm backend lowers an `@address(...)`-pinned scalar, and `8bs build --target <machine> --web` can compile a real machine's own package through it, not just the synthetic `web` target.
+  
+  An `@address`-pinned scalar (a real hardware register, like the PET's `viaPeripheralControl`) used to be refused unconditionally, array or not — the whole `@address` case was one refusal, "not lowered yet." A pinned scalar now gets exactly what a pinned array already gets: a fixed byte (or two) in linear memory a host can read or write directly, with no chip behind it, lowered at both a bare read (its value, not its address — the opposite of an array's pointer decay) and an assignment. A pinned *array* is still refused; nothing needed one yet to prove this against.
+  
+  That single gap was the only thing standing between "the web target's own reimplementation of a machine's screen" and "the machine's own package, actually compiled through the wasm backend." `compile()`'s wasm branch used to fire only for the literal target name `'web'`; a program's imports were already resolved against whichever real machine it was built for (`link()`'s own `machine: target`), so the branch only needed widening, not rewriting. Verified against the PET: `hello-world`'s real `@8bitscript/pet/text` — the same file a native PET build uses, `viaPeripheralControl` write included — now compiles and runs through the wasm backend, and its screen RAM comes out byte-for-byte the PET's own documented screen-code table for "Hello World!".
+  
+  Not every machine's modules are wasm-shaped yet: the VIC-20's `text.releaseCursor()` still reaches an `asm6502` block (real 6502 machine code, which nothing here executes), and building it through `--web` is refused by name rather than silently producing something wrong. Porting a module past that wall is real, per-module work this changeset does not attempt.
+
+### Patch Changes
+
+- 7abcfee: `8bs doctor --quick` no longer launches an emulator to probe it, so opening the VS Code sidebar stops flashing a VIC-20 window, and the extension's own doctor call actually passes `--quick`. The Run menu's system list no longer repeats a named system as a bare machine.
+- 005a9ea: Two real bugs, both found live: the PET 2001's swapped character set drew the wrong letters, and a program with no `waitFrame()` loop was refused inside a VS Code webview it never actually needed shared memory in.
+  
+  The 2001 has PET's *other* screen-code assignment (`packages/pet/src/text.8bs`'s `asciiToScreenCode()` moves upper case down to 1-26 and puts lower case at 65-90 on this ROM, confirmed there against a real ROM dump — the opposite of every later model, which moves lower case down instead). `layoutForRealMachine`'s `glyphIndexFn` was hardcoded to the later-model inverse only; on a 2001 it would have drawn real, wrong letters rather than blanking the screen — a worse failure to ship unnoticed than the one it fixed. It now branches on `#fact(video.characterSetSwapped)`, the same fact `text.8bs` itself branches on. `hello-world`'s own PET build now targets the 2001 at its stock 4K (the catalog's own default) rather than `releaseTargets.pet`'s 4032/32K — the smallest whole program belongs on the smallest real PET.
+  
+  Separately: `8bs run pet --web` inside a VS Code webview's iframe failed with "this page is not cross-origin isolated" even for a program with no main loop at all. The loader's `start()` always demanded isolation to create its own frame-pacing counter — a `SharedArrayBuffer`-backed `Int32Array` — regardless of whether the compiled program had anything that would ever read it. A program with no `waitFrame()` import already runs to completion and posts its plain, unshared memory back exactly once (`renderWorker()`'s own `shared` check, unchanged); `start()` now makes that same check before deciding whether isolation is even required, and skips both the check and the `SharedArrayBuffer` for a program that will never call it. A program that does call `waitFrame()` is unaffected — this is a real, structural limit for VS Code desktop webviews specifically (the top-level workbench document isn't cross-origin isolated and nothing an extension does can make it so), so "Open in browser" stays the correct answer for anything that loops, the same way Studio's own tab already treats its mouse-capture limitation.
+  
+  This new branch in `start()` is not covered by a runtime test: the existing `web-loader.test.mjs` harness evaluates the generated loader with a minimal sandbox (just `self` and `console`, per `loadLoader()`) and has never exercised `start()`'s own `fetch`/`WebAssembly`/`Worker` path, which would need a substantially heavier mock than anything built there today. Verified instead by hand: the exact `WebAssembly.Module.imports` check this adds is identical, character for character, to the one `renderWorker()` already uses to decide `shared`.
+- ffc33fe: The PET Preview tab was blank, and said "Building Studio" while doing it. Both were the same category of mistake: code written for one machine, reused unchanged for another.
+  
+  The blank screen: `layoutFromHardware()` computes where a program's screen data lives from grid size alone (`charBase = 2`-ish), because the *synthetic* web target's own `.8bs` source was written to match that math. `packages/pet/src/text.8bs` — the real, native-build file the previous change got compiling through the wasm backend — was written against the PET's actual hardware instead, and writes its screen at `$8000`. The host was painting from byte 2; the program's text sat 32KB further on. A new `layoutForRealMachine(target, hardware)` gives a real machine's own wasm build its real screen address, its real palette (PET's green phosphor, already sitting unused in `web-layout.mjs`), and — since PET's own screen codes are not the same numbers the shared bitmap font indexes by — a small inverse of `text.8bs`'s own `asciiToScreenCode()`, evaluated host-side. Verified against the actual served bundle: `program.json`'s `charBase` is now `32768`, and decoding memory through the new `glyphIndexFn` reads "Hello World! " byte for byte.
+  
+  The wrong "Studio": the Preview tab reuses Studio's own webview page and script (`studio.js`) — reasonably, since the mechanism really is generic — but that script's status line, its Rebuild/Start button, and its empty-state text all said "Studio" unconditionally. `window.__8bsTitle`, set alongside the mouse-visibility flag from the same per-target `TARGET_LABELS`, gives every one of those strings the machine's own name instead; Studio's own tab passes nothing and reads exactly as it always has.
+  
+  vic20 and c64 have no real-machine layout entry yet — they get `layoutFromHardware`'s old geometry-only fallback, same as before this fix, not a newly-wrong PET-shaped guess. They're still separately blocked on their own `asm6502` walls.
+- a711267: Fixes real SonarCloud issues (not gate failures — every PR's quality gate already passed; these are per-file code smells flagged in the project dashboard):
+  
+  - **Unhandled promise rejections** (`javascript:S9383`, 16 sites across the VS Code extension, the CLI's dev-server/controller HTTP handlers, and the language server): an async call in an event handler or request callback with nothing to catch a rejection. Each now logs (and, for a direct user action, shows a VS Code error message) instead of risking an unhandled rejection taking down the whole extension host, dev server, or language server on one bad input.
+  - **Super-linear regex backtracking** (`javascript:S8786`, 4 sites in `scripts/vice-catalog.mjs`): an unbounded `.+`/`+`/`*` next to another quantifier or a literal it could also match. Fixed with plain string search (`indexOf`/`lastIndexOf`) where the pattern was really "first X to last Y", and bounded quantifiers everywhere else (VICE's own `--help` text is always short, so a generous cap changes no real match while removing the backtracking shape entirely).
+  
+  No behavior change: every affected package's own test suite passes unchanged (vscode extension 377/378, the 1 skip pre-existing; cli 34/34; language-server 34/34; the vice-catalog script's own 13/13).
+- 72a7faf: Fixed the Running machines tree showing two identical rows when a real machine's own wasm-backend preview and its native run (e.g. the Preview tab's "Open in emulator" button) were running at once for the same project and target — reported live as "two hello-8bx's running... duplicating the data into both entries" when only one was actually the VIC-20 preview.
+  
+  `8bs run`/`8bs build --web` now write a real machine's own wasm-backend build to a second file (`.8bs-last-<target>-web.json`), distinct from that same machine's native run's `.8bs-last-<target>.json` — the two runs no longer race to overwrite one file that both readers shared. The synthetic `web` target, which never has a native counterpart, keeps its one plain file either way.
+- 412fbe7: Fixed the VIC-20's wasm preview drawing the wrong glyph for every lower-case letter — "Hello World!" showed only `H`, `W` and `!` correctly, since `text.8bs` writes real screen codes (lower case at 1-26) but the preview was falling back to the shared ASCII-indexed font, where those same codes are control characters.
+  
+  Fixed by reading the VIC-20's own character ROM (`chargen-901460-03.bin`) directly — VICE ships it as a plain binary, so unlike the PET's captures this needed no screenshot or pixel alignment at all, just the right offset and byte count.
+- 7ac585b: Fixed the VIC-20 character ROM table added moments earlier: every asymmetric letter (e, l, r, d, ...) rendered as its own horizontal mirror image — reported live as "Hello World!" reading "H \<backward e\>\<backward l\>...", a backward 'd' looking like a 'b'. Symmetric letters (H, o, W, !) happened to look right regardless, which is why the earlier fix's own visual check missed it.
+  
+  The real VIC chip reads a chargen byte MSB-first (bit 7 = leftmost pixel), but this file's own font table convention is bit 0 = leftmost — the table now bit-reverses each byte to match. Cross-checked against the PET's own (already correct) character table once reversed: the two ROMs agree on all but 7 of 1024 bytes, all seven at one symbol with no letter shape to compare — real, independent confirmation the bit order is right this time.
+- e58882a: Fixed the VIC-20 wasm preview drawing every character with square pixels — reported live as looking "more normal" than a real VIC-20's own visibly wide, stretched text. Measured from the 6560's own timing (14.31818MHz clock, 3.5 clocks per pixel, 702 clocks and 252 of 261 lines drawn per frame): a real NTSC VIC-20 draws each pixel about 5/3 (1.667) times wider than tall, cross-checked against the VIC-20 community's own long-established approximation for this exact number.
+  
+  `web-loader.mjs`'s `fit()` now stretches the canvas's displayed size by this measured pixel aspect ratio, never its real pixel buffer — every offset the renderer already computes in real, square chip-pixels stays correct. Scoped to NTSC (`video.frameRate === 60`) only; PAL's 6561 runs different timing this project has not measured yet, so it keeps square pixels, an honest gap rather than a guess.
+- Updated dependencies [e80d067]
+- Updated dependencies [daac931]
+- Updated dependencies [0b694ac]
+- Updated dependencies [282aa6b]
+- Updated dependencies [7027388]
+- Updated dependencies [f4b3550]
+- Updated dependencies [005a9ea]
+- Updated dependencies [0ff97c3]
+- Updated dependencies [3824070]
+- Updated dependencies [e80d067]
+- Updated dependencies [4376f27]
+- Updated dependencies [8a309f5]
+- Updated dependencies [dbd8233]
+- Updated dependencies [682829b]
+- Updated dependencies [a711267]
+- Updated dependencies [144121b]
+- Updated dependencies [144121b]
+- Updated dependencies [5a21549]
+- Updated dependencies [e80d067]
+- Updated dependencies [a988417]
+- Updated dependencies [697766e]
+- Updated dependencies [240438b]
+  - @8bitscript/c64@0.24.0
+  - @8bitscript/pet@0.24.0
+  - @8bitscript/vic20@0.24.0
+  - @8bitscript/cx16@0.24.0
+  - @8bitscript/web@0.24.0
+  - @8bitscript/compiler@0.24.0
+  - @8bitscript/language-server@0.24.0
+  - @8bitscript/examples@0.24.0
+  - @8bitscript/studio@0.24.0
+  - @8bitscript/atari8@0.24.0
+  - @8bitscript/c128@0.24.0
+  - @8bitscript/mega65@0.24.0
+  - @8bitscript/nes@0.24.0
+
 ## 0.23.1
 
 ### Patch Changes

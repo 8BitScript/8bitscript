@@ -1,5 +1,30 @@
 # @8bitscript/screen
 
+## 0.24.0
+
+### Patch Changes
+
+- Updated dependencies [e80d067]
+- Updated dependencies [daac931]
+- Updated dependencies [0b694ac]
+- Updated dependencies [0ff97c3]
+- Updated dependencies [3824070]
+- Updated dependencies [e80d067]
+- Updated dependencies [4376f27]
+- Updated dependencies [8a309f5]
+- Updated dependencies [5a21549]
+- Updated dependencies [e80d067]
+- Updated dependencies [a988417]
+  - @8bitscript/c64@0.24.0
+  - @8bitscript/pet@0.24.0
+  - @8bitscript/vic20@0.24.0
+  - @8bitscript/cx16@0.24.0
+  - @8bitscript/web@0.24.0
+  - @8bitscript/atari8@0.24.0
+  - @8bitscript/c128@0.24.0
+  - @8bitscript/mega65@0.24.0
+  - @8bitscript/nes@0.24.0
+
 ## 0.23.1
 
 ### Patch Changes

@@ -1,5 +1,32 @@
 # @8bitscript/c64
 
+## 0.24.0
+
+### Minor Changes
+
+- daac931: A new portable package, `@8bitscript/color`, for the C64 demoscene's "more than 16 colours" trick: `color.blend(slot, a, b)` alternates a border or background color between two palette indices once a frame, riding on `@8bitscript/raster`'s own list, so a CRT's phosphor persistence blends them into a shade neither shows alone. Real on the C64; an honest, documented no-op on the PET (no color chip), the VIC-20 (the technique is unconfirmed on real hardware, not disproven — left unimplemented rather than assumed), the CX16 (VERA's 256-entry software palette makes the trick unnecessary — define the color directly instead), and the web (no CRT persistence to exploit, so alternating a color there would be visible flicker, not a blend). Gated by a new build-time fact, `#fact(video.colorBlend)`, filled in across every machine catalog (true only for the C64).
+- a988417: The VIC-20 answers `#fact(video.raster)`: `@8bitscript/raster`'s `Slot.BORDER` and `Slot.BACKGROUND` split at any picture line, on NTSC and PAL, each split landing on its exact line and whole — the line above entirely in the old colors, the target entirely in the new — and still from frame to frame. The VIC raises no interrupt, so the frame runtime applies the list: `FRAME_SYNC.vic20.frameHook` names `vic20RasterFrame`, which `waitFrame()` calls after every frame edge. It re-syncs on `$9004` and the `$9003` bit-7 edge before every planned line and writes `$900F` twice — the border half inside the picture of the line above, the background half in the border after it — with per-region delays measured under xvic and no taken branch between the edge and either store. `commit()` works everything else out ahead of time (picture line to raster line through `$9001`, the pair to poll, the parity, same-line merging, both stores' bytes), and the list and plan live in the cassette buffer. A list built once and `enable()`d shows every frame; `setValue` is live without a commit. Entries closer than two lines are planned two lines apart; `Slot.SCROLL_X` is refused. What it costs is written down in `packages/vic20/AGENTS.md` ("Raster splits"): the frame belongs to the hook until the last planned line, and the layer is about 850 bytes (`examples/fancy` on the 8K build, 2803 → 3654).
+  
+  The pruner keeps a machine's frame hook — which no program calls — when, and only when, a reachable function shares a global with it (`pruneUnreachable(ir, { frameHook })`, `frameHookWanted`), so a program that imports `@8bitscript/raster` and never commits a list, or whose raster branch a `#fact` folds away, is byte-identical to one without it. Frame hooks now work on level-kind machines as well as edge-kind ones.
+  
+  Every rasterline layer gains `raster.FINE_SCROLL` — whether `Slot.SCROLL_X` entries are taken (true on the C64 and the web, false on the VIC-20 and in every stub) — so a wobble can fold away where only splits exist. `examples/fancy` uses it: the VIC-20 shows the colour bands without the wobble. `packages/vic20/AGENTS.md` also corrects a stale claim: a VIC-20 program that calls `waitFrame()` runs with interrupts off from start-up.
+
+### Patch Changes
+
+- e80d067: Correct two things the C64's package said that were no longer true.
+  
+  The description still read "Parked in 0.2.0: not a build target until its native backend lands." The C64 is in `RELEASE_MACHINES` (`packages/compiler/src/resolver/index.mjs`), which is the list `8bs build` and `8bs run` will actually produce a program for, and every example in this repo names `c64` among its targets. The four machines whose descriptions still say it — `atari8`, `c128`, `mega65`, `nes` — really are parked, and keep theirs.
+  
+  The `ram` option was labelled "RAM Expansion Unit", which names one occupant of a slot that has several. A C64 has a single cartridge port, and Commodore's REU is only one of the banked-RAM cartridges that go in it: GeoRAM, RamCart and RamLink are others, each with its own VICE flag (`-georam`, `-ramcart`, `-ramlink`) and its own way of being addressed. The axis is "what RAM expansion is fitted", so the option key `ram` was right and only the label was too narrow; it is now "RAM expansion". The values are unchanged and still all REUs, so no build, profile or `--hardware ram=…` spelling moves.
+  
+  The `drive` option is gone. Its four values (1541, 1571, 1581, none) moved `storage.save` and `storage.kib` — what a program may assume it can save — while passing VICE nothing at all, so choosing a 1581 changed a number on the fact sheet and left the emulated machine exactly as it was. That was deliberate rather than an oversight (`packages/cli/test/hardware.test.mjs` said so out loud: "on the C64, a drive is not linked in and is not an emulator flag at all"), but it promised a capacity no program could reach: nothing in this repo saves anything yet — no package calls the KERNAL's `SETLFS`/`SETNAM`/`SAVE`, and no `.8bs` surface offers saving — so the axis graded builds against a medium that was never attached.
+  
+  `packages/c64/AGENTS.md` already described the catalog as "the REU, the SID, and what is in each control port", and its "Where things live" table already listed `ram (REU), sid, port1, port2`. The drive had been added without either being updated; the package now matches its own documentation again.
+  
+  The stock sheet is unchanged — `storage.save: true`, `storage.kib: 164` — because a C64 with a 1541 is the machine as sold and that is the assumption a program is entitled to make. What is gone is the *choice*: `--hardware drive=1581` on a C64 is now an unknown value, named with the options that do exist. The PET keeps its own drive axis, which is real: it passes `-drive8type` per value and VICE attaches the drive. The C64's comes back the same way when there is a save API to make it mean something. `c128` and `vic20` still carry the same facts-only drive axis this removes, and are the same decision waiting to be made.
+  
+  Nothing here changes a build, a tag, or a linked image.
+
 ## 0.23.1
 
 No changes in this release.
