@@ -1,5 +1,36 @@
 # @8bitscript/raster
 
+## 0.24.0
+
+### Minor Changes
+
+- 8a309f5: `@8bitscript/raster` names a fourth per-line intent, `Slot.CHARSET` (a machine's alternate character set), alongside two new compile-time constants every rasterline layer answers: `raster.COLORS` (whether `Slot.BORDER`/`Slot.BACKGROUND` do anything — true on the C64, VIC-20 and web, false elsewhere including the PET, which has no border or background register) and `raster.CHARSET` (whether the new slot does — false everywhere for now). No machine implements `Slot.CHARSET` yet; every rasterline layer answers it as an honest, zero-cost `false`, the same pattern `raster.FINE_SCROLL` already established.
+  
+  This clears the way for a real PET implementation: `packages/pet/AGENTS.md` records verified research (under VICE, both the non-CRTC 3032 and the release-target 4032) showing the PET's character-ROM-select register splits the picture mid-frame at true cycle-scanline precision, with the line lengths and picture-start offsets measured for both boards — but the driver itself isn't built yet (it needs a division-free way to turn a cycle count into a delay loop, since the 6502 backend has no hardware divide). See that file's new "Raster: character-set switching" section for the numbers and the next steps.
+
+### Patch Changes
+
+- Updated dependencies [e80d067]
+- Updated dependencies [daac931]
+- Updated dependencies [0b694ac]
+- Updated dependencies [0ff97c3]
+- Updated dependencies [3824070]
+- Updated dependencies [e80d067]
+- Updated dependencies [4376f27]
+- Updated dependencies [8a309f5]
+- Updated dependencies [5a21549]
+- Updated dependencies [e80d067]
+- Updated dependencies [a988417]
+  - @8bitscript/c64@0.24.0
+  - @8bitscript/pet@0.24.0
+  - @8bitscript/vic20@0.24.0
+  - @8bitscript/cx16@0.24.0
+  - @8bitscript/web@0.24.0
+  - @8bitscript/atari8@0.24.0
+  - @8bitscript/c128@0.24.0
+  - @8bitscript/mega65@0.24.0
+  - @8bitscript/nes@0.24.0
+
 ## 0.23.1
 
 ### Patch Changes

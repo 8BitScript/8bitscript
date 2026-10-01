@@ -1,5 +1,39 @@
 # @8bitscript/vic20
 
+## 0.24.0
+
+### Minor Changes
+
+- a988417: The VIC-20 answers `#fact(video.raster)`: `@8bitscript/raster`'s `Slot.BORDER` and `Slot.BACKGROUND` split at any picture line, on NTSC and PAL, each split landing on its exact line and whole — the line above entirely in the old colors, the target entirely in the new — and still from frame to frame. The VIC raises no interrupt, so the frame runtime applies the list: `FRAME_SYNC.vic20.frameHook` names `vic20RasterFrame`, which `waitFrame()` calls after every frame edge. It re-syncs on `$9004` and the `$9003` bit-7 edge before every planned line and writes `$900F` twice — the border half inside the picture of the line above, the background half in the border after it — with per-region delays measured under xvic and no taken branch between the edge and either store. `commit()` works everything else out ahead of time (picture line to raster line through `$9001`, the pair to poll, the parity, same-line merging, both stores' bytes), and the list and plan live in the cassette buffer. A list built once and `enable()`d shows every frame; `setValue` is live without a commit. Entries closer than two lines are planned two lines apart; `Slot.SCROLL_X` is refused. What it costs is written down in `packages/vic20/AGENTS.md` ("Raster splits"): the frame belongs to the hook until the last planned line, and the layer is about 850 bytes (`examples/fancy` on the 8K build, 2803 → 3654).
+  
+  The pruner keeps a machine's frame hook — which no program calls — when, and only when, a reachable function shares a global with it (`pruneUnreachable(ir, { frameHook })`, `frameHookWanted`), so a program that imports `@8bitscript/raster` and never commits a list, or whose raster branch a `#fact` folds away, is byte-identical to one without it. Frame hooks now work on level-kind machines as well as edge-kind ones.
+  
+  Every rasterline layer gains `raster.FINE_SCROLL` — whether `Slot.SCROLL_X` entries are taken (true on the C64 and the web, false on the VIC-20 and in every stub) — so a wobble can fold away where only splits exist. `examples/fancy` uses it: the VIC-20 shows the colour bands without the wobble. `packages/vic20/AGENTS.md` also corrects a stale claim: a VIC-20 program that calls `waitFrame()` runs with interrupts off from start-up.
+
+### Patch Changes
+
+- daac931: A new portable package, `@8bitscript/color`, for the C64 demoscene's "more than 16 colours" trick: `color.blend(slot, a, b)` alternates a border or background color between two palette indices once a frame, riding on `@8bitscript/raster`'s own list, so a CRT's phosphor persistence blends them into a shade neither shows alone. Real on the C64; an honest, documented no-op on the PET (no color chip), the VIC-20 (the technique is unconfirmed on real hardware, not disproven — left unimplemented rather than assumed), the CX16 (VERA's 256-entry software palette makes the trick unnecessary — define the color directly instead), and the web (no CRT persistence to exploit, so alternating a color there would be visible flicker, not a blend). Gated by a new build-time fact, `#fact(video.colorBlend)`, filled in across every machine catalog (true only for the C64).
+- 5a21549: Fix VIC-20 programs destroying themselves when they carry a graphics object.
+  
+  `@8bitscript/graphics`'s VIC-20 implementation wrote its glyphs into a RAM character set at `$1400`. That address is inside the program: a `.prg` loads at `$1001` on the unexpanded machine and `$1201` on an expanded one, so anything big enough to reach `$1400` — hello-world is 1922 bytes, which reaches it either way — had its own code overwritten as the glyphs went down. Measured under xvic, the fourth glyph byte turned a `LDA $1451,Y` into `LDA $7E00,Y`; execution fell through the data that followed into a `BRK`, and the KERNAL warm-started, which is why the greeting vanished and a bare `READY.` came back on a cleared screen.
+  
+  `packages/vic20/AGENTS.md` had already written down the rule this broke: the linker owns memory from the load address upward and nothing checks for an overlap, so a RAM charset is a reservation the package must make, never a free choice of address.
+  
+  Two further things were wrong with the same code. Nothing ever pointed the VIC at that character set — `$9005` was only ever set to the ROM font at `$8000` — so the glyphs were written somewhere the video chip does not read; and `writeGlyph` ignored its own `slot`, so all eight objects shared one set of four characters.
+  
+  An object is now drawn with the ROM's sixteen quadrant-block characters, the way `@8bitscript/pet` draws one: each of its four cells becomes the block that describes that corner of its bitmap, so a 16×16 object renders at 4×4 pseudo-pixels. That costs no RAM, needs no character set and no reservation, and it is the first time the object has actually been visible on this machine. The block codes were measured against the VIC-20's own character ROM rather than inherited from the PET's table.
+- e80d067: The VIC-20's catalog offers only hardware something in this repository can actually drive: its `mouse1351` and its `drive` are gone.
+  
+  Both were the C64 drive's case over again — an option VICE accepts, a fact it moved, and no code anywhere that could act on the result.
+  
+  `port1: mouse1351` set `input.mouse: true`, and `packages/vic20/src/pointer.8bs` had already written down why that was empty: "this repository has no 1351 driver for the VIC-20... there is nothing to draw and nowhere to draw it from, in that order." It is not a driver waiting to be ported, either. A 1351 on a C64 is read by the SID's pot lines; the VIC-20 has no SID, so one here would have to be read through the VIC's own analogue inputs at `$9008`/`$9009` — a different driver nobody has written or measured, and `packages/vic20/AGENTS.md` still marks the 1351 on this machine *to verify* on real hardware. The port now offers nothing, a joystick, or paddles, which is what the machine does.
+  
+  `drive` moved `storage.save` and `storage.kib` and passed `xvic` nothing, exactly as the C64's did. Nothing in this repository saves anything yet — no package calls a KERNAL save, no `.8bs` surface offers one — so it graded builds against a medium that was never attached.
+  
+  The stock sheet keeps `storage.save: true` and `storage.kib: 164`: a VIC-20 with a 1541 is a fair assumption for a program to make. What is gone is the choice, and the two facts that were set by nothing.
+  
+  Both come back with their drivers. The comments in `input.8bs`, `pointer.8bs` and `AGENTS.md` that described the removed options now describe their absence and the reason for it.
+
 ## 0.23.1
 
 No changes in this release.

@@ -1,6 +1,6 @@
 {
   "name": "@8bitscript/color",
-  "version": "0.23.1",
+  "version": "0.24.0",
   "description": "A whole-frame flicker blend between two of a machine's fixed palette colors — the C64 demoscene's \"more than 16 colours\" trick, riding on @8bitscript/raster's own list. Resolves per target to that machine's own color implementation; #fact(video.colorBlend) says whether the machine has one at all. Scoped for now to the project's five release targets (docs/roadmap.md); the rest of the catalog is unaffected.",
   "license": "MIT",
   "repository": {

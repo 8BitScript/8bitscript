@@ -1,5 +1,0 @@
----
-"@8bitscript/pet": minor
----
-
-The PET's `4032` model tag (`--hardware model=4032`, this package's release target) now answers `#fact(video.raster)`: `@8bitscript/raster`'s `Slot.CHARSET` splits the picture between the character ROM's graphics and text halves at a chosen picture line, the same mechanism the `3032` model tag already shipped, with this CRTC board's own measured timing (`LINE_CYCLES` 50, `ORIGIN_CYCLES` 5209 — not simply carried over from the 3032's non-CRTC numbers). Verified under VICE with an eight-entry list spread across the whole picture, stable across two different `--frames` counts; `packages/pet/AGENTS.md`'s "Raster: character-set switching" section has the mechanism, the numbers, and two wrong turns this model's own calibration took before landing on them (a single-mechanism sweep whose row-reading was wrong by exactly half, and an `ORIGIN_CYCLES` fit that silently credited the wrong list entry for a visible transition) worth reading before extending this to another CRTC board. Every other PET model, including the default (2001), still answers false; the 8032 is the remaining follow-on work.
