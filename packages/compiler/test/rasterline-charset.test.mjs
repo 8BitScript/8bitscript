@@ -7,7 +7,8 @@
 // are (C64, VIC-20, web). `CHARSET` is false on every DEFAULT-hardware
 // build — the sweep below builds each target with no `--hardware`, the
 // honest-stub case every rasterline file answers the same way — except
-// the PET's own `3032` and `4032` model tags, which have real drivers
+// the ones in CHARSET_TRUE below (the web, whose runtime draws its own
+// alternate set), and the PET's own `3032` and `4032` model tags, which have real drivers
 // (packages/pet/AGENTS.md, "Raster: character-set switching"); the two
 // tests after this one check those tags specifically. This file is the
 // "answers nothing but costs zero" gate for the new slot on every OTHER
@@ -28,6 +29,9 @@ const CHECKOUT = join(HERE, '..', '..', '..');
 const TARGETS = ['vic20', 'c64', 'pet', 'c128', 'atari8', 'nes', 'cx16', 'mega65', 'web', 'plus4', 'oric', 'apple2', 'bbc', 'atari5200', 'lynx', 'pce', 'supervision', 'atari2600', 'atari7800', 'gb', 'gbc', 'sms', 'gamegear', 'sg1000', 'msx', 'coleco', 'spectrum', 'cpc', 'coco', 'vectrex', 'odyssey2', 'channelf'];
 
 const COLORS_TRUE = new Set(['vic20', 'c64', 'web']);
+// Default-hardware builds whose rasterline file answers Slot.CHARSET.
+// web: its runtime draws an alternate set (packages/web/AGENTS.md).
+const CHARSET_TRUE = new Set(['web']);
 
 test('every rasterline file names Slot.CHARSET and answers raster.COLORS/raster.CHARSET as a folded constant', () => {
   for (const target of TARGETS) {
@@ -58,9 +62,7 @@ export function main(): void {
     const guards = main.body.filter((s) => s.kind === 'if');
     assert.equal(guards.length, 3, `${target}: all three guards survive linking`);
     for (const guard of guards) assert.equal(guard.test.kind, 'const', `${target}: each guard folded to a constant`);
-    // Today every machine's raster.CHARSET is false — no driver answers the
-    // new slot yet.
-    assert.equal(Boolean(guards[0].test.value), false, `${target}: raster.CHARSET`);
+    assert.equal(Boolean(guards[0].test.value), CHARSET_TRUE.has(target), `${target}: raster.CHARSET`);
     assert.equal(Boolean(guards[1].test.value), COLORS_TRUE.has(target), `${target}: raster.COLORS`);
   }
 });

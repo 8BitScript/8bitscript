@@ -17,11 +17,12 @@
 // semantics, never fit.
 import { glyphRows } from './font8x8.mjs';
 
-// The same three slot numbers every rasterline file names.
+// The same four slot numbers every rasterline file names.
 export const Slot = {
   BORDER: 0,
   BACKGROUND: 1,
   SCROLL_X: 2,
+  CHARSET: 3,
 };
 
 /** `[r, g, b]` triples for an array of '#rrggbb' palette strings. */
@@ -67,27 +68,32 @@ export function readRasterEntries(mem, layout) {
 }
 
 /**
- * The border, background and fine scroll in effect at picture row `row`
- * (0-indexed pixel row within the inner picture): walk the ascending entries
- * and hold the last value each slot was given at or before that row,
- * starting from the frame's base colors and a scroll of 0.
+ * The border, background, fine scroll and character set in effect at
+ * picture row `row` (0-indexed pixel row within the inner picture): walk the
+ * ascending entries and hold the last value each slot was given at or before
+ * that row, starting from the frame's base colors, a scroll of 0 and the
+ * boot character set (0). CHARSET keeps only bit 0 — the web has two sets,
+ * the boot one and the alternate (font8x8.mjs glyphRows()) — the same way
+ * SCROLL_X keeps only its low three bits.
  *
  * @param {Array<{ line: number, slot: number, value: number }>} entries
  * @param {number} row
  * @param {{ border: number, background: number }} base palette indices from mem[0]/mem[1], already masked
- * @returns {{ border: number, background: number, scrollX: number }}
+ * @returns {{ border: number, background: number, scrollX: number, charset: number }}
  */
 export function rowState(entries, row, base) {
   let border = base.border;
   let background = base.background;
   let scrollX = 0;
+  let charset = 0;
   for (const entry of entries) {
     if (entry.line > row) break;
     if (entry.slot === Slot.BORDER) border = entry.value & 15;
     else if (entry.slot === Slot.BACKGROUND) background = entry.value & 15;
     else if (entry.slot === Slot.SCROLL_X) scrollX = entry.value & 7;
+    else if (entry.slot === Slot.CHARSET) charset = entry.value & 1;
   }
-  return { border, background, scrollX };
+  return { border, background, scrollX, charset };
 }
 
 /**
@@ -159,7 +165,7 @@ export function renderFrame(mem, layout, palette) {
       const cell = cellRow * cols + col;
       const colorByte = mem[layout.colorBase + cell];
       const reverse = (colorByte & 128) !== 0;
-      const glyph = glyphRows(mem[layout.charBase + cell], layout.font);
+      const glyph = glyphRows(mem[layout.charBase + cell], layout.font, state.charset);
       const bits = glyph === null ? 0 : glyph[glyphY];
       const on = ((bits >> gx) & 1) !== 0;
       const fg = colorPerCell ? palette[colorByte & 15] : palette[1];

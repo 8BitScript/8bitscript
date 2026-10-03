@@ -37,11 +37,21 @@
 //
 // The same shape on all nine machines:
 //
-//   - `Slot`: BORDER, BACKGROUND, SCROLL_X — the three per-line effects
-//     that mean the same thing everywhere. SCROLL_X's value is the 0-7
-//     fine-scroll amount, as it is on the C64.
+//   - `Slot`: BORDER, BACKGROUND, SCROLL_X, CHARSET — the per-line
+//     effects that mean the same thing everywhere. SCROLL_X's value is the
+//     0-7 fine-scroll amount, as it is on the C64. CHARSET's is 0 for the
+//     boot character set and 1 for the alternate, as it is on the PET; the
+//     renderer keeps only bit 0.
 //   - `raster.ENTRIES` — the list's capacity: 64 here.
 //   - `raster.FINE_SCROLL` — true: SCROLL_X entries are taken here.
+//   - `raster.CHARSET` — true: CHARSET entries are taken here. The web's
+//     alternate set is a decision of its runtime, not a ROM: the boot
+//     set's own glyphs with every lower-case letter drawn as its capital
+//     (packages/cli/src/font8x8.mjs glyphRows()). Every Commodore machine
+//     pairs a mixed-case set with an upper-case one; the web boots
+//     mixed-case, so its alternate is the capitals. Codes are unchanged —
+//     a program writes the same bytes either way, and the split decides
+//     which set draws them.
 //   - `clear()`, `at(line, slot, value)`, `setValue(entry, value)`,
 //     `count()`, `enable()`, `disable()` — the same list operations,
 //     `entry` being the entry's byte offset (index * 3), the unit the
@@ -68,7 +78,7 @@ export namespace raster {
     const STRIDE: utinyint = 3;   // bytes per entry: line, slot (+ line's bit 8), value
     const FINE_SCROLL: bool = true; // Slot.SCROLL_X entries are accepted: the renderer shifts the line
     const COLORS: bool = true;     // Slot.BORDER/BACKGROUND entries are accepted
-    const CHARSET: bool = false;   // Slot.CHARSET entries are refused
+    const CHARSET: bool = true;    // Slot.CHARSET entries are accepted: the renderer switches sets at the line
 
     // Empty the list. The control byte stands: enable()/disable() own it.
     function clear(): void {
@@ -80,7 +90,7 @@ export namespace raster {
     // False, and nothing added, if the line is past the visible picture
     // (Video.rows() * 8 lines — up to 512 on the resizable host, so the
     // line is a usmallint), below the last entry's, the slot is not one
-    // of the three, or the list is full. The line's ninth bit is packed
+    // of the four, or the list is full. The line's ninth bit is packed
     // into the slot byte's bit 7 — see the header comment.
     function at(line: usmallint, slot: utinyint, value: utinyint): bool {
         let limit: usmallint = Video.rows();
@@ -88,7 +98,7 @@ export namespace raster {
         if (line >= limit || line < lastLine) {
             return false;
         }
-        if (slot > Slot.SCROLL_X) {
+        if (slot > Slot.CHARSET) {
             return false;
         }
         let held: utinyint = memory.read(Video.RASTER_COUNT_OFFSET);
@@ -109,12 +119,12 @@ export namespace raster {
     // In order: the same as `at`, at a line at or above the last entry's
     // — the entries below it slid up three bytes each. False, and nothing
     // added, if the line is past the picture, the slot is not one of the
-    // three, or the list is full.
+    // four, or the list is full.
     function insert(line: usmallint, slot: utinyint, value: utinyint): bool {
         if (line >= lastLine) {
             return raster.at(line, slot, value);
         }
-        if (slot > Slot.SCROLL_X) {
+        if (slot > Slot.CHARSET) {
             return false;
         }
         let held: utinyint = memory.read(Video.RASTER_COUNT_OFFSET);

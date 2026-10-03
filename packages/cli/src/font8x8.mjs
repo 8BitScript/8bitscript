@@ -200,6 +200,12 @@ const CORNER_ROWS = [CORNER_TL, CORNER_TR, CORNER_BL, CORNER_BR];
  *     .######.      0x7E
  */
 export const COPYRIGHT_CODE = 0xa9;
+
+/** Slot.CHARSET's value for the web's alternate set: lower case drawn as capitals. */
+export const ALTERNATE_CHARSET = 1;
+const LOWER_A = 97;
+const LOWER_Z = 122;
+const CASE_OFFSET = 32;
 const COPYRIGHT_ROWS = Buffer.from([0x7e, 0x81, 0xbd, 0x85, 0x85, 0xbd, 0x81, 0x7e]);
 
 function quadRows(index) {
@@ -228,13 +234,28 @@ function quadRows(index) {
  * to the shared ASCII table below is what every skin used before any
  * NAMED_FONTS entry existed, so an unrecognized or absent font id, or a
  * code that table has nothing for, still draws exactly as it always has.
+ *
+ * `charset` is the raster list's Slot.CHARSET value in effect on the row
+ * (packages/web/src/rasterline.8bs): 0, the boot set, is the table below
+ * as it has always drawn; 1 is the web machine's alternate set, which is
+ * a decision of this runtime rather than a ROM — the shared ASCII table
+ * with every lower-case letter (97-122) drawn as its capital (65-90),
+ * everything else unchanged. Every Commodore machine pairs a mixed-case
+ * set with an upper-case one (the PET's text/graphics ROM halves, the
+ * VIC-20's and C64's two character sets); the web boots mixed-case, so
+ * its alternate is the capitals. A NAMED_FONTS table is a real machine's
+ * own ROM and is never remapped: its screen codes are not ASCII.
  * @param {number} code
  * @param {string} [font]
+ * @param {number} [charset]
  * @returns {Buffer | null}
  */
-export function glyphRows(code, font) {
+export function glyphRows(code, font, charset = 0) {
   const named = font && NAMED_FONTS[font]?.(code);
   if (named) return named;
+  if (charset === ALTERNATE_CHARSET && code >= LOWER_A && code <= LOWER_Z) {
+    return glyphRows(code - CASE_OFFSET);
+  }
   if (code >= 32 && code <= 122) {
     const offset = (code - 32) * 8;
     return GLYPHS.subarray(offset, offset + 8);
@@ -254,13 +275,15 @@ export function glyphRows(code, font) {
  * bits `--screenshot` does. All-zero glyphs (space, the empty block) are
  * omitted — a missing code is a blank cell. `font` selects a NAMED_FONTS
  * table the same way glyphRows() does; left out, this is the shared ASCII
- * table every skin drew before any NAMED_FONTS entry existed.
+ * table every skin drew before any NAMED_FONTS entry existed. `charset`
+ * selects the boot (0) or alternate (1) set, as glyphRows() takes it.
  * @param {string} [font]
+ * @param {number} [charset]
  */
-export function glyphTableLiteral(font) {
+export function glyphTableLiteral(font, charset = 0) {
   const entries = [];
   for (let c = 0; c < 256; c += 1) {
-    const rows = glyphRows(c, font);
+    const rows = glyphRows(c, font, charset);
     if (!rows) continue;
     let ink = false;
     for (let i = 0; i < 8; i += 1) {

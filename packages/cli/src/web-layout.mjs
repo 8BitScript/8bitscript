@@ -76,8 +76,8 @@ export const MIN_ROWS = 18;
 //
 // Right after HOST_OFFSET: one control byte (the renderer applies the list
 // while it is nonzero), one count byte, then RASTER_MAX_ENTRIES three-byte
-// entries — the line's low byte, the slot byte, the value — the same three
-// slots @8bitscript/raster names (BORDER 0, BACKGROUND 1, SCROLL_X 2). The
+// entries — the line's low byte, the slot byte, the value — the same four
+// slots @8bitscript/raster names (BORDER 0, BACKGROUND 1, SCROLL_X 2, CHARSET 3). The
 // slot byte's bit 7 carries the line's ninth bit: the resizable Modern host
 // hands out up to MAX_ROWS (64) rows, 512 picture lines, and a single line
 // byte stops at 255 — the slots only need the low bits, so the ninth bit
